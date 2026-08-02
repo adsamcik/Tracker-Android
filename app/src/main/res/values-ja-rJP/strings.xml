@@ -1,0 +1,469 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="app_name" translatable="false">Tracker</string>
+    <string name="key_last_app_version" translatable="false">lastVersion</string>
+    <string name="module_game_title">ゲーム</string>
+    <string name="module_map_title">地図</string>
+    <string name="module_statistics_title">統計</string>
+    <string name="main_nav_tracker">ホーム</string>
+    <string name="settings_clear_preferences_title">設定を消去</string>
+    <string name="settings_clear_preferences_message">すべてのアプリ設定（機能の切り替え、UI設定）がリセットされます。トラッキングデータには影響しません。続行しますか？</string>
+    <string name="settings_data_title">データ</string>
+    <string name="settings_debug_group_title">デバッグ</string>
+    <string name="settings_debug_title">開発者向けオプション</string>
+    <string name="settings_debug_developer_tools_section">開発者ツール</string>
+    <string name="settings_debug_disable_developer_subtitle">設定から開発者向けオプションを非表示にする</string>
+    <string name="settings_debug_developer_mode_disabled_toast">開発者モードを無効にしました</string>
+    <string name="settings_data_management_section">データ管理</string>
+    <string name="settings_data_danger_zone_section">危険な操作</string>
+    <string name="settings_osm_import_section">地図データ（OpenStreetMap）</string>
+    <string name="settings_osm_import_action_title">OSM地域をインポート</string>
+    <string name="settings_osm_import_action_summary">.osm.pbfファイルを選択してください。以降、車両の速度制限チェックでは実際の道路制限をオフラインで使用します。</string>
+    <string name="settings_osm_import_unavailable_title">オフライン地図のインポートは利用できません</string>
+    <string name="settings_osm_import_action_unavailable">ファイル安全性保護の実装中のため、オフライン地図のインポートは一時的に利用できません。</string>
+    <string name="settings_osm_import_action_running">インポート中 — タップしてキャンセル</string>
+    <string name="settings_osm_import_action_failed">オフライン地図のインポートを完了できませんでした。</string>
+    <string name="settings_osm_import_action_source_unavailable">選択した地図ファイルを開けませんでした。</string>
+    <plurals name="settings_osm_import_action_success">
+        <item quantity="one">%2$d個のノードから%1$d本の道路をインポートしました。</item>
+        <item quantity="other">%2$d個のノードから%1$d本の道路をインポートしました。</item>
+    </plurals>
+    <string name="settings_osm_imports_empty">OpenStreetMapの地域はまだインポートされていません。</string>
+    <string name="settings_osm_imports_attribution">地図データ © OpenStreetMapの貢献者（ODbL 1.0）。すべての処理は端末上で行われます。</string>
+    <plurals name="settings_osm_import_entry_subtitle">
+        <item quantity="one">%1$,d本の道路 · %2$sにインポート</item>
+        <item quantity="other">%1$,d本の道路 · %2$sにインポート</item>
+    </plurals>
+    <string name="settings_osm_import_remove_title">インポート済み地域を削除</string>
+    <string name="settings_osm_import_remove_message">%1$sを削除しますか？地域を再インポートするまで、車両の速度制限チェックは固定ベースラインに戻ります。</string>
+    <string name="settings_incremental_backups_title">増分バックアップ</string>
+    <string name="settings_incremental_backups_summary">前回のバックアップ以降の新しいデータだけをエクスポートします。エクスポート時間とファイルサイズを削減します。</string>
+    <string name="settings_reset_export_watermarks_title">完全エクスポートを強制</string>
+    <string name="settings_reset_export_watermarks_summary">次回の自動バックアップには、変更分だけでなくすべてのデータが含まれます</string>
+    <string name="settings_reset_export_watermarks_done">エクスポートのウォーターマークをリセットしました — 次回のバックアップは完全エクスポートになります</string>
+    <string name="settings_migration_backup_export_title">アップグレード前の安全バックアップをエクスポート</string>
+    <string name="settings_migration_backup_export_summary" tools:ignore="PluralsCandidate">v%1$dからv%2$dへの移行前に作成された完全なデータベースコピーです。最長30日間、非公開で保持されます</string>
+    <string name="settings_migration_backup_warning_title">機密性の高いデータベースバックアップをエクスポートしますか？</string>
+    <string name="settings_migration_backup_warning_message">このバックアップには、アップグレード前の正確な位置情報、Wi-Fiおよびセルの観測、アクティビティなどの個人データが含まれる場合があります。信頼できる場所にのみ保存してください。</string>
+    <string name="settings_migration_backup_export_action">バックアップをエクスポート</string>
+    <string name="settings_migration_backup_export_success">アップグレード前のバックアップをエクスポートしました</string>
+    <string name="settings_migration_backup_export_failure">アップグレード前のバックアップをエクスポートできませんでした</string>
+    <string name="settings_migration_backup_export_cleanup_required">エクスポートに失敗しました。選択した場所から部分的にエクスポートされたバックアップを削除してください。</string>
+    <string name="settings_delete_data_success">収集したすべてのデータを削除しました</string>
+    <string name="settings_delete_data_failure">収集したすべてのデータを削除できませんでした</string>
+    <string name="settings_game_goals_title">目標</string>
+    <string name="settings_game_daily_target_title">1日の歩数目標</string>
+    <string name="settings_game_weekly_target_title">1週間の歩数目標</string>
+    <string name="settings_game_daily_contribution_title">1日の最大貢献量</string>
+    <string name="settings_game_steps_unit">歩</string>
+    <string name="settings_game_notifications_title">通知</string>
+    <string name="settings_game_goal_notifications_title">目標進捗の通知</string>
+    <string name="settings_game_goal_notifications_summary" formatted="false">1日の目標の75%と90%でローカル通知を受け取ります。</string>
+    <string name="settings_game_during_games_title">ゲーム中</string>
+    <string name="settings_game_haptics_title">ゲームの触覚フィードバック</string>
+    <string name="settings_game_haptics_summary">ゲームのフィードバックに控えめな振動を使用します。</string>
+    <string name="settings_game_quiet_coaching_title">控えめなコーチング通知</string>
+    <string name="settings_game_quiet_coaching_summary">プレイ中のガイダンス頻度を減らします。</string>
+    <string name="settings_game_remember_setup_title">前回のゲーム設定を記憶</string>
+    <string name="settings_game_remember_setup_summary">次回は前回の目標と難易度を使用します。</string>
+    <string name="settings_game_privacy_battery_title">プライバシーとバッテリー</string>
+    <string name="settings_game_privacy_battery_disclosure">ゲームは有効な間だけ現在地を使用し、利用可能な場合はTrackerの位置情報を再利用します。一時停止するとゲームによる位置情報の使用は解除されます。この端末に保存されるのはスコアとポイント/XPのみで、生のゲーム位置情報は保持されません。</string>
+    <string name="settings_game_loading">ゲーム設定を読み込んでいます…</string>
+    <string name="settings_game_load_error">ゲーム設定を読み込めませんでした。もう一度お試しください。</string>
+    <string name="settings_map_info_hint">これらの設定は地図表示の品質とパフォーマンスを調整します。ほとんどのユーザーはデフォルト値を使用できます。</string>
+    <string name="settings_map_online_tiles_section_title">オンライン地図タイル</string>
+    <string name="settings_map_online_tiles_enable_title">オンライン地図タイルを使用</string>
+    <string name="settings_map_online_tiles_enable_subtitle_off">オフ — 同梱のオフラインベースマップのみを使用します。ネットワーク要求は行いません。</string>
+    <string name="settings_map_online_tiles_enable_subtitle_on">オン — %1$sからタイルを取得中</string>
+    <string name="settings_map_online_tiles_provider_title">タイルプロバイダー</string>
+    <string name="settings_map_online_tiles_provider_openfreemap">OpenFreeMap（推奨）</string>
+    <string name="settings_map_online_tiles_provider_protomaps">Protomaps</string>
+    <string name="settings_map_online_tiles_provider_custom">カスタムURL</string>
+    <string name="settings_map_online_tiles_custom_url_label">スタイルJSONのURL</string>
+    <string name="settings_map_online_tiles_custom_url_hint">https://example.com/style.json</string>
+    <string name="settings_map_online_tiles_attribution_format">帰属表示: %1$s</string>
+    <string name="settings_map_online_tiles_privacy_disclosure">オンラインタイルは任意で有効にできます。有効にすると、選択したプロバイダーはあなたのIPアドレスと読み込んだタイル（おおよそ地図上で表示している地域）を確認できます。Trackerがアカウント、識別子、位置履歴を送信することはありません。</string>
+    <string name="settings_developer_mode_enabled_toast">開発者モードを有効にしました</string>
+    <string name="settings_developer_mode_disable">開発者モードを無効にする</string>
+    <string name="settings_developer_mode_subtitle">開発者モードは有効です</string>
+    <plurals name="settings_developer_mode_tap_countdown">
+        <item quantity="one">開発者モードを有効にするにはあと%d回タップ</item>
+        <item quantity="other">開発者モードを有効にするにはあと%d回タップ</item>
+    </plurals>
+    <string name="settings_version_info_title">バージョン情報</string>
+    <string name="settings_version_format">バージョン: %1$s（%2$d）</string>
+    <string name="settings_language_summary">現在の言語: %s</string>
+    <string name="settings_language_title">アプリの言語</string>
+    <string name="settings_units_auto_summary_on">検出したアクティビティに合わせて長さの単位系を調整します</string>
+    <string name="settings_units_auto_summary_off">選択した長さの単位系をすべてに適用します</string>
+    <string-array name="settings_length_system_names">
+        <item>メートル法</item>
+        <item>ヤード・ポンド法（USC）</item>
+        <item>古代ローマ</item>
+        <item>航海</item>
+        <item>航空</item>
+    </string-array>
+    <string name="settings_length_system_title">長さの単位系</string>
+    <string-array name="settings_length_system_values" translatable="false">
+        <item>Metric</item>
+        <item>Imperial</item>
+        <item>AncientRoman</item>
+        <item>Sailing</item>
+        <item>Flying</item>
+    </string-array>
+    <string name="settings_licenses_title">オープンソースライセンス</string>
+    <string name="settings_licenses_subtitle">このビルドに含まれるサードパーティの通知を表示します。</string>
+    <string name="settings_licenses_loading">ライセンスを読み込んでいます…</string>
+    <string name="settings_licenses_unavailable">同梱のサードパーティライセンス情報を読み込めませんでした。</string>
+    <string name="settings_licenses_text_at_url">ライセンス全文: %1$s</string>
+    <string name="settings_privacy_policy_title">プライバシーポリシー</string>
+    <string name="settings_privacy_policy_unavailable">同梱のプライバシーポリシーを開けませんでした。アプリを再起動してからもう一度お試しください。</string>
+    <string name="settings_about_header">このアプリについて</string>
+    <string name="settings_about_app_title">adsamcikによるTracker</string>
+    <string name="settings_about_app_subtitle">プライバシー重視の位置情報・アクティビティトラッカー</string>
+    <string name="about_title">このアプリについて</string>
+    <string name="about_app_name_label">アプリ</string>
+    <string name="about_version_label">バージョン</string>
+    <string name="about_version_format">%1$s（%2$d）</string>
+    <string name="about_build_commit_label">ビルドコミット</string>
+    <string name="about_commit_unavailable" translatable="false">N/A</string>
+    <string name="about_author">作成者</string>
+    <string name="about_author_value" translatable="false">Adsamcik</string>
+    <string name="about_email">メール</string>
+    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
+    <string name="about_github">GitHub</string>
+    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
+    <string name="about_links_title">リンク</string>
+    <string name="about_attributions_title">データの帰属表示</string>
+    <string name="about_attribution_geonames_label">地名</string>
+    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
+    <string name="about_attribution_osm_label">地図・道路データ</string>
+    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
+    <string name="settings_module_group_title">モジュール設定</string>
+    <string name="settings_core_group_title">コア</string>
+    <string name="settings_other_title">単位と表示</string>
+    <string name="settings_remove_all_collected_data_summary">トラッキングデータを削除します（カスタムアクティビティと設定は保持されます）</string>
+    <string name="settings_remove_all_collected_data_title">収集したすべてのデータを削除</string>
+    <string-array name="settings_speed_format_names">
+        <item>毎秒の速度（m/s）</item>
+        <item>距離あたりのペース（分/km、分/mi）</item>
+        <item>速度（km/h、mph）</item>
+    </string-array>
+    <string name="settings_speed_format_title">速度の形式</string>
+    <string-array name="settings_speed_format_values" translatable="false">
+        <item>Second</item>
+        <item>Minute</item>
+        <item>Hour</item>
+    </string-array>
+    <string name="settings_title">設定</string>
+    <string name="switch_state_on">オン</string>
+    <string name="switch_state_off">オフ</string>
+    <string name="onboarding_streamlined_title">あなたの移動をプライベートに記録</string>
+    <string name="onboarding_streamlined_subtitle">すべてのデータは端末に保存されます。クラウド同期や第三者による追跡はありません。</string>
+    <string name="onboarding_benefit_privacy_title">プライバシーを最優先</string>
+    <string name="onboarding_benefit_privacy_desc">すべてのトラッキングデータは端末に残ります。サーバーもクラウド同期もなく、完全にあなたが管理できます。</string>
+    <string name="onboarding_benefit_insights_title">アクティビティの分析</string>
+    <string name="onboarding_benefit_insights_desc">地図でルートを確認し、統計を分析して、時間とともに進捗を追跡できます。</string>
+    <string name="onboarding_benefit_gamification_title">実績</string>
+    <string name="onboarding_benefit_gamification_desc">歩く、走る、サイクリングする、探索することで150以上の実績を解除できます。すべて端末上で獲得されます。</string>
+    <string name="onboarding_get_started">はじめる</string>
+    <string name="onboarding_privacy_policy_button">プライバシーポリシーを読む</string>
+    <string name="onboarding_state_read_error_message">セットアップがすでに完了しているか確認できなかったため、データのプライバシーを守るためにセットアップを表示しています。安全に続行できます。</string>
+    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
+    <string name="settings_auto_cleanup_old_data_title">古いデータを自動削除</string>
+    <string name="settings_auto_cleanup_old_data_summary_forever">データを永久に保持します。自動クリーンアップで古いデータが削除されることはありません</string>
+    <plurals name="settings_auto_cleanup_old_data_summary_years">
+        <item quantity="one">%1$d年以上前のデータを自動的に削除</item>
+        <item quantity="other">%1$d年以上前のデータを自動的に削除</item>
+    </plurals>
+    <string name="settings_data_retention_years_title">データの保持期間</string>
+    <string-array name="settings_data_retention_years_titles">
+        <item>永久に保持</item>
+        <item>1年間</item>
+        <item>2年間</item>
+        <item>3年間</item>
+        <item>5年間</item>
+        <item>10年間</item>
+    </string-array>
+    <string-array name="settings_data_retention_years_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>5</item>
+        <item>10</item>
+    </string-array>
+    <string name="button_continue">続行</string>
+    <string name="settings_export_data_title">データをエクスポート</string>
+    <string name="settings_export_data_summary">トラッキングデータをさまざまな形式で保存します</string>
+    <string name="export_format_dialog_title">エクスポート形式を選択</string>
+    <string name="export_format_gpx_name">GPX（推奨）</string>
+    <string name="export_format_gpx_desc">GPSデバイス、フィットネスアプリ、幅広い互換性に対応する高精度のルートポイント</string>
+    <string name="export_format_kml_name">KML</string>
+    <string name="export_format_kml_desc">Google Earthと地理的な可視化向けの高精度ルートポイント</string>
+    <string name="export_format_json_name">JSON</string>
+    <string name="export_format_json_desc">ストリーミング位置情報とセッションの概要。インポート時にデータを統合し、一部のメタデータを再生成します</string>
+    <string name="export_format_db_name">データベース</string>
+    <string name="export_format_db_desc">すべてのデータと設定を含む生のSQLiteバックアップ。インポートでは互換性のある行を統合し、完全な復元は行いません</string>
+    <string name="export_sensitivity_dialog_title">正確な位置情報データをエクスポートしますか？</string>
+    <string name="export_sensitivity_gpx_message">このGPXエクスポートには高精度のルートポイントが含まれています。信頼できる人やアプリにのみ保存または共有してください。</string>
+    <string name="export_sensitivity_kml_message">このKMLエクスポートには高精度のルートポイントが含まれています。信頼できる人やアプリにのみ保存または共有してください。</string>
+    <string name="export_sensitivity_json_message">このJSONエクスポートには高精度の位置情報とセッション概要が含まれます。一部の派生メタデータはインポート時に失われるため、信頼できる保存先にのみ保存または共有してください。</string>
+    <string name="export_sensitivity_db_message">この生のデータベースバックアップには、正確な位置情報、Wi-Fi/セルラー無線データ、アクティビティ、設定が含まれる場合があります。非公開にし、信頼できる場所にのみ保存してください。</string>
+    <string name="export_sensitivity_confirm">エクスポートを続行</string>
+    <string name="settings_export_title">エクスポート</string>
+    <string name="settings_import_summary">対応する形式（%1$s）とアーカイブ（%2$s）からデータをインポートします。データベースのインポートは互換性のある行を統合し、既存データを置き換えません。</string>
+    <string name="settings_import_title">インポート</string>
+    <string name="got_it">了解</string>
+    <string name="battery_impact_low">影響小</string>
+    <string name="battery_impact_moderate">影響中</string>
+    <string name="battery_impact_high">影響大</string>
+    <string name="precision_mode_title">位置情報の精度を選択</string>
+    <string name="precision_mode_approximate_title">おおよそ</string>
+    <string name="precision_mode_approximate_description">ネットワークベースの位置情報です。バッテリー消費を抑え、広い範囲の追跡に適しています。</string>
+    <string name="precision_mode_precise_title">高精度</string>
+    <string name="precision_mode_precise_description">GPSベースの位置情報です。詳細なルート、ヒートマップ、チャレンジに最適です。</string>
+    <string name="upgrade_to_precise_title">高精度トラッキングを有効化</string>
+    <string name="upgrade_to_precise_message_general">おおよその位置情報を使用しています。精度を上げるには高精度GPSトラッキングに切り替えてください。</string>
+    <string name="upgrade_to_precise_message_route_analysis">正確なルート分析と距離測定には高精度の位置情報をおすすめします。</string>
+    <string name="upgrade_to_precise_message_heatmap_detail">高精度の位置情報により、細かな位置まで詳しいヒートマップを表示できます。</string>
+    <string name="upgrade_to_precise_message_challenges">多くのチャレンジでは、達成を正確に確認するために高精度GPSトラッキングが必要です。</string>
+    <string name="upgrade_to_precise_benefits_title">メリット</string>
+    <string name="upgrade_to_precise_benefit_accurate_routes">正確なルート形状と曲がり角ごとの経路詳細</string>
+    <string name="upgrade_to_precise_benefit_detailed_maps">詳細なヒートマップと空間分析</string>
+    <string name="upgrade_to_precise_benefit_precise_stats">正確な距離と速度の測定</string>
+    <string name="upgrade_to_precise_battery_title">バッテリー使用量</string>
+    <string name="upgrade_to_precise_battery_message">高精度GPSはより多くのバッテリーを使用します。推定トラッキング時間: 一般的な端末で6〜8時間。</string>
+    <string name="upgrade_to_precise_button_upgrade">高精度の位置情報を有効化</string>
+    <string name="upgrade_to_precise_button_cancel">後で</string>
+    <string name="tracking_preset_high_accuracy_name">高精度</string>
+    <string name="tracking_preset_high_accuracy_description">最速の更新頻度と主要なすべてのセンサーを有効にし、最高の詳細度を実現します</string>
+    <string name="tracking_preset_balanced_name">バランス</string>
+    <string name="tracking_preset_balanced_description">日常的なトラッキングに適した精度とバッテリー持続時間のバランス</string>
+    <string name="tracking_preset_power_save_name">省電力</string>
+    <string name="tracking_preset_power_save_description">更新頻度とセンサーを抑えてバッテリー消費を削減します</string>
+    <string name="tracking_preset_custom_name">カスタム</string>
+    <string name="tracking_preset_custom_description">各トラッキングパラメーターを手動で調整します</string>
+    <string name="tracking_preset_selector_title">トラッキングのプリセット</string>
+    <string name="tracking_preset_selector_subtitle">最初にプロファイルを選び、以下の設定を必要に応じて調整してください。</string>
+    <string name="tracking_preset_custom_hint">以下の設定を変更すると、現在のプリセットからカスタムプロファイルが作成されます。</string>
+    <string name="tracking_preset_customized_summary">トラッキングを細かく調整しました。リセットするには上のプリセットを選択してください。</string>
+    <string name="settings_tracking_section_detection">検出と自動化</string>
+    <string name="settings_tracking_section_sources">データソース</string>
+    <string name="settings_tracking_section_detail">位置情報の収集</string>
+    <string name="settings_tracking_section_notifications">通知</string>
+    <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
+    <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
+    <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
+    <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
+    <string name="tracking_policy_selector_title">トラッキングポリシー</string>
+    <plurals name="tracking_policy_estimated_duration">
+        <item quantity="one">推定トラッキング時間: %d時間</item>
+        <item quantity="other">推定トラッキング時間: %d時間</item>
+    </plurals>
+    <string name="location_precision_selector_title">@string/precision_mode_title</string>
+    <string name="location_precision_selector_subtitle">Trackerが位置情報を記録する精度を選択します</string>
+    <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>
+    <string name="location_precision_approximate_description">@string/precision_mode_approximate_description</string>
+    <string name="location_precision_precise_title">@string/precision_mode_precise_title</string>
+    <string name="location_precision_precise_description">@string/precision_mode_precise_description</string>
+    <string name="precise">高精度</string>
+    <string name="approximate">おおよそ</string>
+    <string name="tracking_policy_selector_subtitle">トラッキングプリセットを選択するか、設定をカスタマイズしてください</string>
+    <string name="tracking_policy_custom_badge">カスタム</string>
+    <string name="collapse_details">詳細を隠す</string>
+    <string name="expand_details">詳細を表示</string>
+    <string name="settings_section_collapse">折りたたむ</string>
+    <string name="settings_section_expand">展開</string>
+    <string name="tracking_policy_details_title">設定の詳細</string>
+    <string name="preset_detail_location_precision">位置情報の精度</string>
+    <string name="preset_detail_min_distance">最小距離</string>
+    <string name="preset_detail_min_time">最小時間</string>
+    <string name="preset_detail_accuracy">必要な精度</string>
+    <string name="preset_detail_sensors">センサー</string>
+    <string name="upgrade_benefit_accurate_routes">@string/upgrade_to_precise_benefit_accurate_routes</string>
+    <string name="upgrade_benefit_detailed_maps">@string/upgrade_to_precise_benefit_detailed_maps</string>
+    <string name="upgrade_benefit_precise_stats">@string/upgrade_to_precise_benefit_precise_stats</string>
+    <string name="upgrade_battery_impact_title">@string/upgrade_to_precise_battery_title</string>
+    <string name="upgrade_battery_impact_description">@string/upgrade_to_precise_battery_message</string>
+    <string name="upgrade_to_precise_confirm">@string/upgrade_to_precise_button_upgrade</string>
+    <string name="upgrade_to_precise_dismiss">@string/upgrade_to_precise_button_cancel</string>
+    <string name="upgrade_reason_general">@string/upgrade_to_precise_message_general</string>
+    <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
+    <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
+    <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
+    <string name="settings_auto_unit_switch_title">単位の自動切り替え</string>
+    <string name="settings_module_map_subtitle">ヒートマップの品質と表示オプション</string>
+    <string name="settings_module_game_subtitle">目標、実績、マイルストーン</string>
+    <string name="action_navigate_back">戻る</string>
+    <string name="action_help">ヘルプ</string>
+    <string name="widget_loading">読み込んでいます…</string>
+    <string name="widget_quick_start_name">Tracker クイックスタート</string>
+    <string name="widget_quick_start_description">1回のタップで位置情報トラッキングを開始または停止します。</string>
+    <string name="widget_start_tracking">トラッキングを開始</string>
+    <string name="widget_stop_tracking">トラッキングを停止</string>
+    <string name="widget_tracking_active">トラッキング中</string>
+    <string name="widget_today_summary_name">今日の概要</string>
+    <string name="widget_today_summary_description">今日のトラッキング統計をひと目で確認します。</string>
+    <string name="widget_today">今日</string>
+    <string name="widget_distance">距離</string>
+    <string name="widget_steps">歩数</string>
+    <string name="widget_sessions">セッション</string>
+    <string name="widget_duration">時間</string>
+    <string name="widget_no_data_today">今日のトラッキングデータはありません</string>
+    <string name="widget_active_session_name">アクティブなセッション</string>
+    <string name="widget_active_session_description">現在のトラッキングセッションをリアルタイムで確認します。</string>
+    <string name="widget_no_active_session">アクティブなセッションはありません</string>
+    <string name="widget_tap_to_start">タップしてトラッキングを開始</string>
+    <string name="widget_session_distance">セッション距離</string>
+    <string name="widget_session_steps">セッションの歩数</string>
+    <string name="widget_session_duration">セッション時間</string>
+    <string name="widget_current_speed">現在の速度</string>
+    <string name="widget_speed_unknown">—</string>
+    <string name="widget_speed_format_decimal">%.1f km/h</string>
+    <string name="widget_speed_format_whole">%d km/h</string>
+    <string name="widget_collections">コレクション</string>
+    <string name="widget_path_preview">経路プレビュー</string>
+    <string name="widget_activity_unknown">アクティビティを利用できません</string>
+    <string name="widget_goal_label">目標:</string>
+    <string name="widget_goal_progress">%1$s / %2$s歩</string>
+    <string name="widget_format_km">%.1f km</string>
+    <string name="widget_format_meters">%d m</string>
+    <string name="widget_tier_off">オフ</string>
+    <string name="widget_tier_ambient">アンビエント</string>
+    <string name="widget_tier_active">アクティブ</string>
+    <string name="widget_tier_precision">高精度</string>
+    <string name="goal_notification_title_progress">順調です！</string>
+    <string name="goal_notification_title_almost">あと少し！</string>
+    <plurals name="goal_notification_body_75">
+        <item quantity="one">1日の目標まであと%1$d歩</item>
+        <item quantity="other">1日の目標まであと%1$d歩</item>
+    </plurals>
+    <plurals name="goal_notification_body_90">
+        <item quantity="one">あと%1$d歩です！</item>
+        <item quantity="other">あと%1$d歩です！</item>
+    </plurals>
+    <string name="settings_smart_goal_notifications_title">スマート目標通知</string>
+    <string name="settings_smart_goal_notifications_summary">1日の歩数目標に近づいたときに通知を受け取ります</string>
+    <string name="setup_how_to_track_title">トラッキング方法を選択</string>
+    <string name="setup_how_to_track_subtitle">トラッキングを開始するタイミングと詳細度を選択してください。</string>
+    <string name="setup_auto_tracking_title">自動トラッキング</string>
+    <string name="setup_auto_tracking_disabled">無効</string>
+    <string name="setup_auto_tracking_disabled_desc">トラッキングを手動で開始・停止します。</string>
+    <string name="setup_auto_tracking_on_foot">徒歩中</string>
+    <string name="setup_auto_tracking_on_foot_desc">歩行とランニングを自動的にトラッキングします。</string>
+    <string name="setup_auto_tracking_in_motion">移動中</string>
+    <string name="setup_auto_tracking_in_motion_desc">運転やサイクリングを含むすべての移動を自動的にトラッキングします。</string>
+    <string name="setup_preset_title">トラッキングの詳細</string>
+    <string name="setup_what_to_collect_title">収集するデータ</string>
+    <string name="setup_what_to_collect_subtitle">下にさらにオプションがあります。権限なしで探索を始めることも、後で権限を付与することもできます。データはこの端末に保存されます。</string>
+    <string name="setup_source_location">位置情報</string>
+    <string name="setup_source_location_desc">地図上にルートと位置を記録します。</string>
+    <string name="setup_source_activity">アクティビティ</string>
+    <string name="setup_source_activity_desc">歩行、ランニング、サイクリング、運転のいずれかを検出します。</string>
+    <string name="setup_source_steps">歩数</string>
+    <string name="setup_source_steps_desc">端末の歩数計を使用して歩数を数えます。</string>
+    <string name="setup_source_wifi">Wi-Fiネットワーク</string>
+    <string name="setup_source_wifi_desc">近くのWi-Fiネットワークを記録して位置情報の精度を向上します。</string>
+    <string name="setup_source_cell">基地局</string>
+    <string name="setup_source_cell_desc">位置情報の文脈のために基地局情報を記録します。</string>
+    <string name="setup_perm_location_why">ルートを記録して地図に表示するために必要です。位置情報はこの端末に保存され、サーバーに送信されることはありません。</string>
+    <string name="setup_perm_location_bg_why">アプリを切り替えたり画面を消したりしてもルートを記録し続けるには、Trackerがバックグラウンドで位置情報にアクセスする必要があります。記録した位置情報はこの端末に保存され、サーバーに送信されることはありません。自動トラッキングを有効にするには、次のシステム画面で「常に許可」を選択してください。「アプリの使用中のみ許可」では、Trackerの画面を開いている間だけ動作します。</string>
+    <string name="setup_perm_activity_why">Trackerが行動（歩行、サイクリング、運転、静止）を検出できるようにします。これにより、移動していないときは自動トラッキングを一時停止してバッテリーを節約できます。アクティビティデータはこの端末に保存され、サーバーに送信されることはありません。</string>
+    <string name="setup_perm_notification_why">Trackerは記録中に小さなステータス通知を表示するため、トラッキングがオンであることをひと目で確認し、1回のタップで停止できます。マーケティングや宣伝の通知はありません。</string>
+    <string name="setup_perm_wifi_why">TrackerはGPSが弱い場所（屋内、地下）で位置情報の精度を改善するため、移動中に端末が検出したWi-Fiアクセスポイントを記録できます。無線データはこの端末に保存され、サーバーに送信されることはありません。必要な場合のみ許可してください。</string>
+    <string name="setup_perm_cell_why">TrackerはGPSが利用できない場合にも位置を推定できるよう、ルート沿いの基地局IDを記録できます。無線データはこの端末に保存され、サーバーに送信されることはありません。必要な場合のみ、電話の状態と高精度の位置情報を許可してください。</string>
+    <string name="setup_perm_grant">許可</string>
+    <string name="setup_perm_grant_location_content_description">位置情報の権限を許可</string>
+    <string name="setup_perm_grant_background_location_content_description">バックグラウンド位置情報の権限を許可</string>
+    <string name="setup_perm_grant_activity_content_description">身体活動の認識権限を許可</string>
+    <string name="setup_perm_grant_notification_content_description">通知の権限を許可</string>
+    <string name="setup_perm_grant_wifi_content_description">Wi-Fiの権限を許可</string>
+    <string name="setup_perm_grant_cell_content_description">セルラー無線の権限を許可</string>
+    <string name="setup_perm_granted">許可済み ✓</string>
+    <string name="permission_grant_in_settings">設定で許可 →</string>
+    <string name="permission_disabled_due_to_denial">権限が拒否されたため、%1$sは無効です。有効にするには設定で許可してください。</string>
+    <string name="settings_wifi_permission_required">Wi-Fi/位置情報の権限が必要です。オンにすると許可できます。それまではWi-Fiデータは記録されず、記録したデータはこの端末に保存されます。</string>
+    <string name="settings_cell_permission_required">電話の状態と高精度の位置情報の権限が必要です。オンにすると許可できます。それまではセルラーデータは記録されず、記録したデータはこの端末に保存されます。</string>
+    <string name="settings_wifi_privacy_summary">近くのWi-Fiネットワークを記録して位置情報の精度を向上します。データはこの端末に保存されます。</string>
+    <string name="settings_barometer_unavailable">この端末では気圧センサーを利用できません。</string>
+    <string name="settings_activity_permission_required">身体活動の認識権限が必要です。オンにすると許可できます。</string>
+    <string name="settings_steps_unavailable">この端末では歩数計センサーを利用できません。</string>
+    <string name="settings_cell_privacy_summary">基地局IDを記録して位置情報の精度を向上します。データはこの端末に保存されます。</string>
+    <string name="setup_start_exploring">探索を始める</string>
+    <string name="setup_continue">続行</string>
+    <string name="setup_step_indicator">ステップ%1$d / %2$d</string>
+    <string name="setup_online_tiles_title">オンライン地図タイルを使用しますか？</string>
+    <string name="setup_online_tiles_subtitle">Trackerにはオフラインベースマップが含まれているため、ネットワークなしでも使えます。より豊かな地図が必要な場合は、公開プロバイダーからタイルをストリーミングできます。</string>
+    <string name="setup_online_tiles_off_title">オフラインのみ（推奨）</string>
+    <string name="setup_online_tiles_off_desc">ネットワーク要求は行いません。同梱のベースマップのみを使用します。</string>
+    <string name="setup_online_tiles_on_title">オンラインタイルを使用</string>
+    <string name="setup_online_tiles_on_desc">OpenFreeMap（デフォルト）から高詳細のベクタータイルをストリーミングします。後で［設定］→［地図］からプロバイダーを変更できます。</string>
+    <string name="setup_online_tiles_privacy">有効にすると、プロバイダーはあなたのIPアドレスと読み込んだタイル（おおよそ地図上で見ている地域）を確認できます。Trackerがアカウント、識別子、位置履歴を送信することはありません。</string>
+    <string name="setup_online_tiles_change_later">この設定はいつでも［設定］→［地図］→［オンライン地図タイル］で変更できます。</string>
+    <string name="setup_background_access_subtitle">画面がオフのときやアプリを閉じたときも移動を記録するには、Trackerをバックグラウンドで実行し続ける必要があります。端末のバッテリー設定で一時停止される場合があるため、自動トラッキングの信頼性を保つにはバックグラウンド動作を許可してください。</string>
+    <string name="setup_background_access_optional">任意ですが推奨します。この設定はいつでも［設定］→［トラッキング］で変更できます。</string>
+    <string name="background_reliability_title">信頼性の高いバックグラウンドトラッキング</string>
+    <string name="background_reliability_status_exempt">バックグラウンド動作が許可されています</string>
+    <string name="background_reliability_status_optimized">バッテリーの最適化がオンです</string>
+    <string name="background_reliability_exempt_desc">Trackerはバッテリーの最適化から除外されているため、バックグラウンドと自動トラッキングを安定して実行できます。</string>
+    <string name="background_reliability_optimized_desc">バッテリーの最適化によりTrackerがバックグラウンドで一時停止し、自動トラッキングが止まることがあります。動作を続けるにはバックグラウンド動作を許可してください。</string>
+    <string name="background_reliability_allow_action">バックグラウンド動作を許可</string>
+    <string name="background_reliability_samsung_hint">Samsung端末ではアプリが「スリープ中のアプリ」に入ることがあります。バッテリー設定を開き、Trackerをスリープ中のアプリから削除して、スリープ状態にしないよう設定してください。</string>
+    <string name="background_reliability_samsung_action">端末のバッテリー設定を開く</string>
+    <string name="settings_tracebox_title">クラッシュ診断</string>
+    <string name="settings_tracebox_root_summary">ローカルのクラッシュ、ANR、構造診断</string>
+    <string name="settings_tracebox_status_header">記録の状態</string>
+    <string name="settings_tracebox_toggle_title">クラッシュ診断を記録</string>
+    <string name="settings_tracebox_toggle_summary_off">記録はオフです。既存のローカル診断は削除するまで保持されます。</string>
+    <string name="settings_tracebox_toggle_summary_on">クラッシュ、ANR、固定の構造診断をローカルに記録します。</string>
+    <string name="settings_tracebox_readiness_label">ストレージの準備状態</string>
+    <string name="settings_tracebox_readiness_volatile">永続ストレージを開始中。揮発性の記録は利用できます</string>
+    <string name="settings_tracebox_readiness_durable">永続的な記録の準備ができました</string>
+    <string name="settings_tracebox_readiness_degraded">記録の品質が低下しています。一部の記録を利用できない場合があります</string>
+    <string name="settings_tracebox_readiness_closed">記録は閉じられています</string>
+    <string name="settings_tracebox_health_label">実行時の状態</string>
+    <string name="settings_tracebox_health_disabled">無効</string>
+    <string name="settings_tracebox_health_initializing">初期化中</string>
+    <string name="settings_tracebox_health_ready">準備完了</string>
+    <string name="settings_tracebox_health_degraded">低下</string>
+    <string name="settings_tracebox_health_deleting">ローカル診断を削除中</string>
+    <string name="settings_tracebox_health_closed">閉じられています</string>
+    <string name="settings_tracebox_package_header">診断パッケージ</string>
+    <string name="settings_tracebox_package_body">Traceboxはまず、確定したパッケージの正確な開示内容を表示します。承認して保存先を選ぶまで、何も保存または共有されません。</string>
+    <string name="settings_tracebox_package_review_action">パッケージを確認して承認</string>
+    <string name="settings_tracebox_package_save_action">承認済みパッケージを保存</string>
+    <string name="settings_tracebox_package_share_action">承認済みパッケージを共有</string>
+    <string name="settings_tracebox_share_limit">Androidは共有選択画面が開いたことを確認できますが、別のアプリがパッケージを受信したことは証明できません。</string>
+    <string name="settings_tracebox_data_header">Traceboxデータ</string>
+    <string name="settings_tracebox_data_body">Traceboxが所有する診断データとパッケージのステージングを削除します。すでに保存または送信したファイルは、保存先のアプリによって管理されます。</string>
+    <string name="settings_tracebox_delete_action">すべてのTraceboxデータを削除</string>
+    <string name="settings_tracebox_delete_confirm_title">すべてのクラッシュ診断を削除しますか？</string>
+    <string name="settings_tracebox_delete_confirm_body">Trackerから、Traceboxが所有するすべての診断データとパッケージのステージングを削除します。この操作は元に戻せません。</string>
+    <string name="settings_tracebox_delete_confirm_action">削除</string>
+    <string name="settings_tracebox_result_header">最後の結果</string>
+    <string name="settings_tracebox_result_enabled">クラッシュ診断を有効にしました。</string>
+    <string name="settings_tracebox_result_disabled">クラッシュ診断を無効にしました。既存のデータは削除されていません。</string>
+    <string name="settings_tracebox_result_policy_restricted">制限的なポリシーはローカルに保存されましたが、まだすべてのプロセスで確認されていません。</string>
+    <string name="settings_tracebox_result_policy_partial">ポリシーはローカルに保存されましたが、実行時の収束が完了していません。</string>
+    <string name="settings_tracebox_result_failed">操作はローカル永続化の境界まで到達しませんでした。</string>
+    <string name="settings_tracebox_result_delete_complete">Traceboxが所有するすべてのデータを削除しました。</string>
+    <string name="settings_tracebox_result_delete_pending">削除は部分的にしか完了しませんでした。一部のハンドラー所有データはまだ削除待ちです。</string>
+    <string name="settings_tracebox_result_delete_rejected">Traceboxが削除リクエストを拒否しました。</string>
+    <string name="settings_tracebox_result_review_ready">開示内容の準備ができました: 診断データ%2$dバイトを含む値が%1$d件あります。</string>
+    <string name="settings_tracebox_result_package_created">承認済み診断パッケージを保存または共有できます。</string>
+    <string name="settings_tracebox_result_approval_cancelled">パッケージの承認をキャンセルしました。パッケージは作成されていません。</string>
+    <string name="settings_tracebox_result_package_rejected">承認内容が確定したバイト列と一致しなくなったため、パッケージの作成を拒否しました。</string>
+    <string name="settings_tracebox_result_package_not_ready">診断パッケージの準備ができていません。先に確認して承認してください。</string>
+    <string name="settings_tracebox_result_save_complete">承認済みパッケージ全体を保存しました（%1$dバイト）。</string>
+    <string name="settings_tracebox_result_save_partial">%1$dバイトだけをコピーしました。保存先には不完全なパッケージが含まれている可能性があります。</string>
+    <string name="settings_tracebox_result_save_partial_cancelled">%1$dバイトの保存後にキャンセルしました。保存先には不完全なパッケージが含まれている可能性があります。</string>
+    <string name="settings_tracebox_result_save_failed">承認済みパッケージを保存できませんでした。</string>
+    <string name="settings_tracebox_result_save_cancelled">保存先が選択されませんでした。</string>
+    <string name="settings_tracebox_result_share_opened">Androidの共有選択画面を開きました。</string>
+    <string name="settings_tracebox_result_share_unknown">選択画面が閉じました。Androidは受信者がパッケージを受信したかどうかを証明できません。</string>
+    <string name="settings_tracebox_records_header">記録する内容</string>
+    <string name="settings_tracebox_records_body">クラッシュとANRの証拠に加え、アプリ構造と実行順序に関する事前定義済みコードの限定セットを記録します。TraceboxはTracker唯一のクラッシュ・診断記録機能です。</string>
+    <string name="settings_tracebox_privacy_header">記録しない内容</string>
+    <string name="settings_tracebox_privacy_body">記録APIは任意のテキスト、位置情報、アカウント詳細、端末識別子、センサー値を受け付けません。標準パッケージには生のクラッシュ成果物は含まれず、自動アップロードもされません。</string>
+</resources>

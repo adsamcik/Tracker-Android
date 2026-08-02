@@ -1,36 +1,52 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="activity_bicycle">bicycle</string>
-    <string name="activity_in_vehicle">In vehicle</string>
-    <string name="activity_name">Activity name</string>
-    <string name="activity_on_foot">On foot</string>
-    <string name="activity_raw_still">Still</string>
-    <string name="activity_raw_tilting">Tilting</string>
-    <string name="activity_still">Still</string>
-    <string name="activity_unknown">Unknown</string>
-    <string name="activity_vehicle">vehicle</string>
-    <string name="alert_confirm">Are you sure you want to %1$s?</string>
+    <string name="activity_walking">歩行</string>
+    <string name="activity_running">ランニング</string>
+    <string name="activity_bicycle">自転車</string>
+    <string name="activity_slope_sports">雪上スポーツ</string>
+    <string name="activity_land_vehicle">陸上車両</string>
+    <string name="activity_water_vehicle">水上車両</string>
+    <string name="activity_air_vehicle">航空機</string>
+    <string name="activity_in_vehicle">乗り物内</string>
+    <string name="activity_on_foot">徒歩</string>
+    <string name="activity_name">アクティビティ名</string>
+    <string name="activity_raw_still">静止</string>
+    <string name="activity_raw_tilting">傾き</string>
+    <string name="activity_still">静止</string>
+    <string name="activity_unknown">検出中…</string>
+    <string name="activity_vehicle">車両</string>
+    <string name="alert_confirm">%1$sを実行しますか？</string>
     <string name="cell_cdma">2G (CDMA)</string>
     <string name="cell_gsm">2G (GSM)</string>
     <string name="cell_lte">4G (LTE)</string>
-    <string name="cell_none">None</string>
+    <string name="cell_none">なし</string>
     <string name="cell_nr">5G (NR)</string>
-    <string name="cell_unknown">Unknown</string>
+    <string name="cell_unknown">不明</string>
     <string name="cell_wcdma">3G (WCDMA)</string>
-    <string name="channel_activity_watcher_description">Channel used exclusively for Activity Watcher service so you can easily get rid of that permanent notification.</string>
-    <string name="channel_activity_watcher_name">Activity Watcher</string>
-    <string name="channel_achievements_description">Notifications related to achievements.</string>
-    <string name="channel_achievements_name">Achievement</string>
-    <string name="channel_other_description">Other notifications that do not belong to any other category.</string>
-    <string name="channel_other_name">Other</string>
-    <string name="channel_track_description">Notifications related to tracking.</string>
-    <string name="channel_track_name">Tracking</string>
-    <string name="day_short">%d d</string>
-    <string name="generic_back">Back</string>
-    <string name="generic_cancel">Cancel</string>
+    <string name="channel_activity_watcher_description">常駐通知を簡単に消せるよう、アクティビティウォッチャーサービス専用に使用するチャンネルです。</string>
+    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
+    <string name="channel_activity_watcher_name">アクティビティウォッチャー</string>
+    <string name="channel_achievements_description">実績に関する通知。</string>
+    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
+    <string name="channel_achievements_name">実績</string>
+    <string name="channel_other_description">ほかのカテゴリに属さない通知。</string>
+    <string name="channel_other_id" translatable="false">other_channel_id</string>
+    <string name="channel_other_name">その他</string>
+    <string name="channel_track_description">トラッキングに関する通知。</string>
+    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
+    <string name="channel_track_name">トラッキング</string>
+    <string name="channel_goals_description">目標達成の通知。</string>
+    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
+    <string name="channel_goals_name">目標の進捗</string>
+    <string name="day_short">%d日</string>
+    <string name="generic_add">追加</string>
+    <string name="generic_back">戻る</string>
+    <string name="generic_cancel">キャンセル</string>
+    <string name="generic_delete">削除</string>
+    <string name="generic_edit">編集</string>
     <string name="generic_ok">OK</string>
-    <string name="generic_undo">undo</string>
-    <string name="hour_short">%d h</string>
-    <string name="minute_short">%d m</string>
-    <string name="second_short">%d s</string>
+    <string name="generic_undo">元に戻す</string>
+    <string name="hour_short">%d時間</string>
+    <string name="minute_short">%d分</string>
+    <string name="second_short">%d秒</string>
 </resources>

@@ -1,22 +1,218 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
-<resources>
-    <string name="description_map_search">Search button</string>
-    <string name="map_layer_cell_heatmap_description">Heatmap of cell signal. Heat changes based on the technology available.</string>
-    <string name="map_layer_cell_heatmap_title">Cell heatmap</string>
-    <string name="map_layer_location_heatmap_high">High density</string>
-    <string name="map_layer_location_heatmap_low">Low density</string>
-    <string name="map_layer_location_heatmap_medium">Medium density</string>
-    <string name="map_layer_wifi_count_heatmap_title">Wi-Fi count heatmap</string>
-    <string name="map_layer_wifi_heatmap_description">Heatmap based on the estimated number of Wi-Fi networks in an area.</string>
-    <string name="map_layer_wifi_heatmap_high">high density</string>
-    <string name="map_layer_wifi_heatmap_low">low density</string>
-    <string name="map_layer_wifi_heatmap_medium">medium density</string>
-    <string name="map_layer_wifi_heatmap_title">Wi-Fi heatmap</string>
-    <string name="permission_rationale_location_map">Precise location access is needed to display your location on the map.</string>
-    <string name="settings_map_max_heat_title">Max heat after visits</string>
-    <string name="settings_map_quality_title">Heatmap resolution</string>
-    <string name="settings_map_visit_threshold_title">Location visit time threshold</string>
-    <string name="tips_map_date_range_title">Date range</string>
-    <string name="tips_map_my_location_title">My location</string>
-    <string name="tips_map_sheet_description">Tapping or pulling up this bar will open more options for the map including layer selection and legend.</string>
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
+    <string name="module_map_title">地図</string>
+    <string name="description_map_search">検索ボタン</string>
+    <string name="map_layer_cell_heatmap_description">無線技術別に観測したセルラー環境です。淡い領域は通信中のセルが届いた場所を示し、光る中心は保守的に推定した基地局位置です。観測が周囲に集まるほど推定は精密になります。</string>
+    <string name="map_layer_cell_heatmap_title">セルラートポロジー</string>
+    <string name="map_layer_location_heatmap_high">高密度</string>
+    <string name="map_layer_location_heatmap_low">低密度</string>
+    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_medium">中密度</string>
+    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">個別の訪問</string>
+    <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">訪問</string>
+    <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">受け入れられた位置情報の相対密度です。滞在時間ではなく、個別の観測を表示します。</string>
+    <string name="map_layer_cell_radio_gsm">GSMのカバレッジ</string>
+    <string name="map_layer_cell_radio_wcdma">3G / WCDMA</string>
+    <string name="map_layer_cell_radio_lte">4G / LTE</string>
+    <string name="map_layer_cell_radio_nr">5G / NR</string>
+    <string name="map_layer_signal_coverage_title">電波の不感地帯</string>
+    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_description">セルラー信号が弱い、またはない場所を強調表示します。領域が赤いほどカバレッジは悪く、十分にカバーされた領域は透明のままです。</string>
+    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
+    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
+    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
+    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">シグナルオーロラ</string>
+    <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">オーロラ</string>
+    <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">セルラー信号をオーロラのような輝きで描画します。明るいシアン緑の中心の下に広い紫の光輪を表示します。データを再読み込みせずに明滅し、システムアニメーションを無効にすると静止します。</string>
+    <string name="map_layer_signal_aurora_faint" tools:ignore="MissingTranslation">弱い信号</string>
+    <string name="map_layer_signal_aurora_strong" tools:ignore="MissingTranslation">強い信号</string>
+    <string name="map_layer_speed_heatmap_description">さまざまなエリアでの移動速度を表すヒートマップです。</string>
+    <string name="map_layer_speed_very_slow">非常に遅い</string>
+    <string name="map_layer_speed_walking">歩行ペース</string>
+    <string name="map_layer_speed_running">ランニングペース</string>
+    <string name="map_layer_speed_moderate">中程度の速度</string>
+    <string name="map_layer_speed_fast">速い移動</string>
+    <string name="map_layer_speed_very_fast">非常に速い</string>
+    <string name="map_layer_speed_heatmap_title">速度ヒートマップ</string>
+    <string name="map_layer_legacy_heatmap_title">レガシーヒートマップ</string>
+    <string name="map_layer_legacy_heatmap_chip">レガシータイル</string>
+    <string name="map_layer_legacy_heatmap_description">元のSignalsアプリへのオマージュです。サーバーでタイルを描画していた当時のヒートマップのように、位置情報の密度を個別の25 mグリッドタイルで表示します。拡大すると四角形が見えます。</string>
+    <string name="map_layer_seasonal_title">季節の探検家</string>
+    <string name="map_layer_seasonal_chip">季節</string>
+    <string name="map_layer_seasonal_description">季節の記憶をつなぎ合わせた表示です。探索した各エリアは、初めて訪れた季節で色付けされます。夏だけ歩く小道や、冬にしか見ない通りを見つけてください。</string>
+    <string name="map_layer_season_spring">春</string>
+    <string name="map_layer_season_summer">夏</string>
+    <string name="map_layer_season_autumn">秋</string>
+    <string name="map_layer_season_winter">冬</string>
+    <string name="map_layer_terrain_title">地形としての生活</string>
+    <string name="map_layer_terrain_chip">地形</string>
+    <string name="map_layer_terrain_description">位置情報の密度を3Dで表示します。最も長く滞在した場所は高く光る台地となり、一度きりの場所は低く表示されます。地図を傾けてあなたの生活の起伏を見てみましょう。</string>
+    <string name="map_layer_terrain_low">めったに来ない</string>
+    <string name="map_layer_terrain_mid">ときどき</string>
+    <string name="map_layer_terrain_high">よく来る</string>
+    <string name="map_layer_places_title">よく行く場所</string>
+    <string name="map_layer_places_chip">場所</string>
+    <string name="map_layer_places_description">重要な場所をマーカーで表示します。訪問頻度に応じて大きさと色が変わります。自宅や職場は大きく暖色の点になり、一度だけ行った場所は小さく寒色の点になります。</string>
+    <string name="map_layer_places_rare">まれに</string>
+    <string name="map_layer_places_often">ときどき</string>
+    <string name="map_layer_places_anchor">あなたの拠点</string>
+    <string name="map_layer_speed_ribbon_title">速度リボン</string>
+    <string name="map_layer_speed_ribbon_chip">リボン</string>
+    <string name="map_layer_speed_ribbon_description">移動速度に応じてルートを色付けします。ゆっくりした紫の散歩から、赤く熱いスプリントや運転まで、色が流れます。速度ヒートマップと異なり、リボンは経路を保つため、どこで加速・減速したか正確に確認できます。</string>
+    <string name="map_layer_altitude_ribbon_title" tools:ignore="MissingTranslation">標高リボン</string>
+    <string name="map_layer_altitude_ribbon_chip" tools:ignore="MissingTranslation">標高</string>
+    <string name="map_layer_altitude_ribbon_description" tools:ignore="MissingTranslation">絶対標高に応じてルートを色付けします。濃い青の低地からシアンの山麓、暖色の山頂へと変化します。パンしてもスケールは固定され、同じ標高は常に同じ色で表示されます。</string>
+    <string name="map_layer_altitude_low" tools:ignore="MissingTranslation">低地</string>
+    <string name="map_layer_altitude_mid" tools:ignore="MissingTranslation">山麓</string>
+    <string name="map_layer_altitude_high" tools:ignore="MissingTranslation">高山</string>
+    <string name="map_layer_activity_ribbon_title" tools:ignore="MissingTranslation">アクティビティリボン</string>
+    <string name="map_layer_activity_ribbon_chip" tools:ignore="MissingTranslation">アクティビティ</string>
+    <string name="map_layer_activity_ribbon_description" tools:ignore="MissingTranslation">各位置情報に記録された信頼できる動作状態に応じてルートを色付けします。状態不明は灰色、静止中は青、移動中は緑です。</string>
+    <string name="map_layer_activity_unknown" tools:ignore="MissingTranslation">不明</string>
+    <string name="map_layer_activity_still" tools:ignore="MissingTranslation">静止</string>
+    <string name="map_layer_activity_moving" tools:ignore="MissingTranslation">移動中</string>
+    <string name="map_layer_ski_xray_title" tools:ignore="MissingTranslation">スキーX線</string>
+    <string name="map_layer_ski_xray_chip" tools:ignore="MissingTranslation">スキーX線</string>
+    <string name="map_layer_ski_xray_description" tools:ignore="MissingTranslation">検出されたスキー区間の診断表示です。ダウンヒル、リフト、歩行、休止を最も近い記録位置に結び付け、主な指標とともに表示します。</string>
+    <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">ダウンヒル</string>
+    <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">リフト</string>
+    <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">歩行または休止</string>
+    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">移動の星座</string>
+    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">移動</string>
+    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">よく行く場所の間を繰り返す移動が、曲線の星座になります。安定した弧が各ルートを表し、その上を彗星が移動します。弧が太いほど、その移動をより多く行っています。</string>
+    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">歩行</string>
+    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">サイクリング</string>
+    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">運転</string>
+    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">公共交通機関</string>
+    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">その他</string>
+    <string name="map_layer_fog_title">探検家の霧</string>
+    <string name="map_layer_fog_chip">霧</string>
+    <string name="map_layer_fog_description">霧から現れる世界です。足を踏み入れたすべてのエリアが明らかになり、よく知るほど明るく光ります。通り過ぎただけの場所は淡いもやのままですが、深く探索した場所は濃い金色に輝きます。未探索の地面は暗いままです。</string>
+    <string name="map_layer_fog_faint">通り過ぎた</string>
+    <string name="map_layer_fog_known">よく探索済み</string>
+    <string name="map_layer_first_contact_title">初訪問</string>
+    <string name="map_layer_first_contact_chip">発見</string>
+    <string name="map_layer_first_contact_description">発見のタイムラインです。各エリアは、初めて足を踏み入れた時期の新しさで色付けされます。昔見つけた場所は濃い藍色に薄れ、今週初めて訪れた場所は明るいシアンに輝きます。探索の物語を最新のフロンティアへたどってください。</string>
+    <string name="map_layer_first_contact_old">ずっと前</string>
+    <string name="map_layer_first_contact_recent">発見したばかり</string>
+    <string name="map_layer_vehicle_compliance_title">速度制限の遵守状況</string>
+    <string name="map_layer_vehicle_compliance_description">運転サンプルを、設定した基準速度制限との比較に応じて色付けしたポリラインです。</string>
+    <string name="map_layer_vehicle_compliance_way_under">制限を大きく下回る</string>
+    <string name="map_layer_vehicle_compliance_slow">制限未満</string>
+    <string name="map_layer_vehicle_compliance_at_limit">制限付近</string>
+    <string name="map_layer_vehicle_compliance_slightly_over">わずかに超過</string>
+    <string name="map_layer_vehicle_compliance_speeding">速度超過</string>
+    <string name="map_layer_location_polyline_description">記録した位置情報を時系列で結ぶ線です。</string>
+    <string name="map_layer_location_polyline_title">位置情報ポリライン</string>
+    <string name="map_layer_location_polyline_chip">ポリライン</string>
+    <string name="map_layer_wifi_count_heatmap_chip">Wi-Fiの重なり</string>
+    <string name="map_layer_vehicle_compliance_chip">速度超過</string>
+    <string name="map_layer_none_title">オーバーレイなし</string>
+    <string name="map_date_preset_week">先週</string>
+    <string name="map_date_preset_month">先月</string>
+    <string name="map_date_preset_custom">カスタム…</string>
+    <string name="map_date_today">今日</string>
+    <string name="map_date_yesterday">昨日</string>
+    <string name="map_date_this_week">今週</string>
+    <string name="map_layer_wifi_count_heatmap_title">Wi-Fiの重なり</string>
+    <string name="map_layer_wifi_count_heatmap_description">各場所で重なる個別のアクセスポイント数を表示します。同じAPを繰り返しスキャンしても1回として数えるため、より熱い領域は実際に無線カバレッジが密であることを示します。</string>
+    <string name="map_layer_wifi_heatmap_description">自身の観測から作成した帯域対応Wi-Fi星座です。色付きの領域は観測した2.4、5、6 GHzのカバレッジを示し、光る中心はサンプルの配置が十分な場合だけ表示するおおよそのAP位置です。</string>
+    <string name="map_layer_wifi_heatmap_high">多数のAPが重なっています</string>
+    <string name="map_layer_wifi_heatmap_low">少数のAPが重なっています</string>
+    <string name="map_layer_wifi_heatmap_medium">複数のAPが重なっています</string>
+    <string name="map_layer_wifi_heatmap_title">Wi-Fi星座</string>
+    <string name="map_layer_wifi_radio_24">2.4 GHzの到達範囲</string>
+    <string name="map_layer_wifi_radio_5">5 GHzの到達範囲</string>
+    <string name="map_layer_wifi_radio_6">6 GHzの到達範囲</string>
+    <string name="map_legend_label">凡例</string>
+    <string name="map_chip_layers">レイヤー</string>
+    <string name="map_chip_dates">日付</string>
+    <string name="permission_rationale_location_map">地図に現在地を表示するには、Trackerに位置情報へのアクセスが必要です。すべてのデータはこの端末に保存されます。</string>
+    <string name="map_location_permission_denied">位置を表示するには位置情報の権限が必要です</string>
+    <string name="map_open_settings">設定を開く</string>
+    <string name="settings_map_basemap_title">ベースマップ</string>
+    <string name="settings_map_basemap_custom">カスタム.pmtilesファイルを使用中（タップして削除）</string>
+    <string name="settings_map_basemap_default">内蔵ベースマップを使用中です。タップしてカスタム.pmtilesファイルをインポートします。</string>
+    <string name="basemap_import_error_source_open">このファイルを開けませんでした。別のファイルを試すか、Trackerと再共有してください。</string>
+    <string name="basemap_import_error_copy">ベースマップファイルをコピーできませんでした。空き容量を確認してからもう一度お試しください。</string>
+    <string name="basemap_import_error_invalid_format">有効なPMTilesファイルではありません: %1$s</string>
+    <string name="settings_map_advanced_section_title">詳細設定</string>
+    <string name="settings_map_max_heat_title">訪問後の最大ヒート</string>
+    <string name="settings_map_quality_title">ヒートマップの解像度</string>
+    <string name="settings_map_visit_threshold_title">位置情報の訪問時間しきい値</string>
+    <string name="settings_map_legacy_heatmap_title">レガシーヒートマップ（10 mタイル）</string>
+    <string name="settings_map_legacy_heatmap_subtitle">イースターエッグ: サーバー描画の元のSignalsヒートマップのように、位置情報の密度を個別の10 mグリッドタイルで描く「レガシーヒートマップ」レイヤーを追加します。</string>
+    <string name="settings_map_zoom_buttons_title">地図のズームボタン</string>
+    <string name="settings_map_zoom_buttons_subtitle">ピンチズームを使いにくい場合に、画面上の＋/−ボタンで地図をズームできるようにします。</string>
+    <string name="tips_map_date_range_title">日付範囲</string>
+    <string name="tips_map_my_location_title">現在地</string>
+    <string name="tips_map_sheet_description">このバーをタップまたは上に引き上げると、レイヤー選択や凡例を含む地図の追加オプションが開きます。</string>
+    <string name="map_search_placeholder">緯度、経度 例: 50.075, 14.437</string>
+    <string name="map_search_invalid_format">例: 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51'24"N 2°21'08"E</string>
+    <string name="map_search_clear">検索をクリア</string>
+    <string name="map_search_paste">クリップボードから検索に貼り付け</string>
+    <string name="map_search_clipboard_empty">クリップボードに座標がありません</string>
+    <string name="map_date_range_dialog_ok">OK</string>
+    <string name="map_date_range_dialog_cancel">キャンセル</string>
+    <string name="map_share_button">地図を共有</string>
+    <string name="map_share_sheet_title">地図を画像として共有</string>
+    <string name="map_share_sheet_subtitle">現在の表示と有効なレイヤーを静止画像として描画します。現在地が含まれることはありません。</string>
+    <string name="map_share_resolution_standard">標準（1080p）</string>
+    <string name="map_share_resolution_high">高画質（1440p）</string>
+    <string name="map_share_resolution_ultra">最高画質（4K）</string>
+    <string name="map_share_action">共有</string>
+    <string name="map_share_preparing">画像を準備中…</string>
+    <string name="map_share_error">地図画像を描画できませんでした。もう一度お試しください。</string>
+    <string name="map_date_range_all_time">すべての期間</string>
+    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_layers_title">地図レイヤー</string>
+    <string name="map_layer_load_error">このレイヤーを読み込めませんでした。別のレイヤーを選択してください。</string>
+    <string name="map_empty_subtitle_location">この表示または日付範囲に位置情報データがありません。ルートと地図の機能には、トラッキング中に収集した位置情報が必要です。</string>
+    <string name="map_empty_subtitle_cell">この表示または日付範囲に位置付きのセルデータがありません。位置情報なしで記録されたセルサンプルも保存されていますが、地図には表示できません。</string>
+    <string name="map_empty_subtitle_wifi">この表示または日付範囲に位置付きのWi-Fiデータがありません。位置情報なしで記録されたWi-Fi観測も保存されていますが、地図には表示できません。</string>
+    <string name="map_empty_subtitle_speed">この表示または日付範囲に速度データがありません。速度地図には、トラッキング中に収集した使用可能な位置情報サンプルが必要です。</string>
+    <string name="map_empty_subtitle_vehicle_compliance">表示できる道路照合済みの運転履歴がありません。OpenStreetMap地域を［設定］からインポートし、実際の道路にルートを照合できるように運転を記録してください。</string>
+    <string name="map_empty_dismiss" tools:ignore="MissingTranslation">データなしのメッセージを閉じる</string>
+    <string name="map_speed_probe_title">ここでの速度</string>
+    <string name="map_speed_probe_avg_label">平均</string>
+    <string name="map_speed_probe_max_label">最大</string>
+    <string name="map_speed_probe_empty">この場所には速度データがありません。ヒートのある場所をタップして速度を表示してください。</string>
+    <string name="map_speed_probe_hint">地図をタップして速度を表示</string>
+    <string name="map_speed_probe_dismiss">速度の詳細を閉じる</string>
+    <string name="map_place_callout_loading">場所を検索中…</string>
+    <string name="map_place_callout_empty">ここに場所が見つかりません</string>
+    <string name="map_place_callout_dismiss">場所の詳細を閉じる</string>
+    <string name="map_zoom_in">拡大</string>
+    <string name="map_zoom_out">縮小</string>
+    <string name="map_loading">地図を読み込み中…</string>
+    <string name="map_basemap_unavailable">地図のベースマップを準備できませんでした。地図を閉じて開き直してください。</string>
+    <string name="map_a11y_map_overview">地図の概要</string>
+    <string name="map_a11y_centered_on_location">地図は現在地を中心に表示されています</string>
+    <string name="map_a11y_showing_location">地図に現在地を表示しています</string>
+    <string name="map_a11y_loading_data">記録済み地図データを読み込み中</string>
+    <string name="map_a11y_no_recorded_data">選択したレイヤーには、この表示または日付範囲で地図に表示できるデータがありません</string>
+    <string name="map_a11y_no_layer_selected">地図レイヤーが選択されていません</string>
+    <string name="map_a11y_search_result_visible">検索結果のマーカーを表示中</string>
+    <string name="map_a11y_active_recording_visible">アクティブな記録経路を表示中</string>
+    <string name="map_a11y_recorded_route_history">記録済みルート履歴を表示中</string>
+    <string name="map_a11y_distinct_visits" tools:ignore="MissingTranslation">個別の受け入れ済み位置情報観測を表示中</string>
+    <string name="map_a11y_cell_heatmap">セルラーカバレッジ領域とおおよその通信基地局中心を表示中</string>
+    <string name="map_a11y_wifi_heatmap">Wi-Fi帯域、カバレッジ領域、おおよそのアクセスポイント中心を表示中</string>
+    <string name="map_a11y_wifi_count_heatmap">個別のWi-Fiアクセスポイントの重なりを表示中</string>
+    <string name="map_a11y_speed_heatmap">速度ヒートマップを表示中</string>
+    <string name="map_a11y_saved_map_data">保存済み地図データを表示中</string>
+    <string name="map_location_permission_opening_settings">位置情報へのアクセスが必要です。設定を開いています…</string>
+    <string name="map_permission_banner_dismiss">位置情報の権限メッセージを閉じる</string>
+    <string name="map_loading_layer">地図レイヤーを読み込み中</string>
+    <string name="map_a11y_world_scale">世界規模</string>
+    <string name="map_a11y_regional_scale">地域規模</string>
+    <string name="map_a11y_city_scale">都市規模</string>
+    <string name="map_a11y_neighborhood_scale">近隣規模</string>
+    <string name="map_a11y_street_scale">道路規模</string>
+    <string name="help_map_quality">描画詳細の倍率です。値を上げると詳細になりますが、古い端末では地図の読み込みが遅くなることがあります。</string>
+    <string name="help_max_heat_points">ヒートマップ表示で示す位置情報ポイントの最大数です。値を上げると詳細になりますが、描画が遅くなります。</string>
+    <string name="help_visit_threshold">地図上で「訪問」として記録されるまでに、同じ場所に滞在する必要がある時間です。短い停止による混雑を減らすには値を上げてください。</string>
 </resources>

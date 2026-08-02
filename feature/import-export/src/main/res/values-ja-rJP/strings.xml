@@ -1,0 +1,43 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_button">エクスポート</string>
+    <string name="export_default_file_name_range">Advention_export_data_%1$s__%2$s</string>
+    <string name="export_default_file_name_all">Advention_export_data_%1$s</string>
+    <string name="export_error_no_locations_in_interval">選択した期間に位置情報が見つかりません。</string>
+    <string name="export_error_no_databases">エクスポートできるアプリのデータベースがありません。</string>
+    <string name="export_error_no_uri">エクスポート先フォルダーが選択されていません</string>
+    <string name="export_error_stream_failed">ファイル%sへのストリームを作成できませんでした</string>
+    <string name="export_error_unknown">エクスポートに失敗しました。</string>
+    <string name="export_error_with_reason">エクスポートに失敗しました: %s</string>
+    <string name="export_file_name">ファイル名</string>
+    <string name="export_file_name_error">ファイル名には\/:"*?&lt;&gt;|を含めることはできません</string>
+    <string name="export_gpx_description">Adventionで%1$sから%2$sまで記録した位置情報データのエクスポート。</string>
+    <string name="export_gpx_error">GPXエクスポートが次のエラーで失敗しました: %s</string>
+    <string name="export_sensitivity_title">正確な位置情報データをエクスポートしますか？</string>
+    <string name="export_sensitivity_message">このエクスポート/共有には高精度の位置情報データが含まれ、データベースのエクスポートには生の無線メタデータが含まれる場合があります。保存先を信頼できる場合のみ続行してください。</string>
+    <string name="export_sensitivity_confirm">続行</string>
+    <string name="export_share_button">共有</string>
+    <string name="export_in_progress">エクスポート中…</string>
+    <string name="export_completed">エクスポートが完了しました。</string>
+    <string name="import_notification_error_failed_open_database">データベースファイル%sを開けませんでした</string>
+    <string name="import_notification_error_file_not_supported">ファイル%sはサポートされていません。</string>
+    <string name="import_notification_extracting">%sを展開中…</string>
+    <plurals name="import_notification_finished">
+        <item quantity="one">インポートが完了しました。%d件のレコードを正常にインポートしました。</item>
+        <item quantity="other">インポートが完了しました。%d件のレコードを正常にインポートしました。</item>
+    </plurals>
+    <string name="import_notification_finished_with_skipped">インポートが完了しました。%1$d件をインポートしました（%2$d件をスキップ）。</string>
+    <string name="import_notification_error_records_failed">制約違反のため、%d件のレコードをインポートできませんでした。</string>
+    <string name="import_notification_importing">%sをインポート中…</string>
+    <string name="import_notification_progress">インポート中…</string>
+    <string name="settings_export_dialog_from">開始</string>
+    <string name="settings_export_dialog_to">終了</string>
+    <string name="settings_export_no_data">エクスポートするデータがありません</string>
+    <string name="settings_export_title">エクスポート</string>
+    <string name="format_gpx">GPX</string>
+    <string name="format_kml">KML</string>
+    <string name="format_json">JSON</string>
+    <string name="format_database">データベースバックアップ（ZIP）</string>
+    <string name="settings_import_summary">対応する形式（%1$s）とアーカイブ（%2$s）からデータをインポートします。データベースのインポートは互換性のある行を統合し、既存データを置き換えません。</string>
+    <string name="settings_import_title">インポート</string>
+</resources>

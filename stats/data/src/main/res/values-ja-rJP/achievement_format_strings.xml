@@ -1,0 +1,222 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="ach_desc_with_active_days">解除するには、少なくとも%2$d日、異なる日に%1$sを記録してください。</string>
+    <string name="ach_title_distance_total">%1$sを移動</string>
+    <string name="ach_desc_distance_total">すべてのセッションで合計%1$sの記録距離を達成してください。</string>
+    <string name="ach_title_week_distance">今週%1$s</string>
+    <string name="ach_desc_week_distance">1つの暦週内に%1$sを移動してください。</string>
+    <string name="ach_title_best_day_distance">1日で%1$s</string>
+    <string name="ach_desc_best_day_distance">1日の移動距離として%1$sを達成してください。</string>
+    <string name="ach_title_max_session_distance">1セッションで%1$s</string>
+    <string name="ach_desc_max_session_distance">停止せずに%1$sを移動する1回のセッションを記録してください。</string>
+    <string name="ach_title_on_foot_distance">%1$sを歩くか走る</string>
+    <string name="ach_desc_on_foot_distance">徒歩（歩行とランニングの合計）で%1$sを移動してください。</string>
+    <string name="ach_title_cycling_distance">%1$sをサイクリング</string>
+    <string name="ach_desc_cycling_distance">合計%1$sをサイクリングしてください。</string>
+    <string name="ach_title_vehicle_distance">動力付きで%1$sを移動</string>
+    <string name="ach_desc_vehicle_distance">車、バス、電車、船、飛行機で%1$sを移動してください。</string>
+    <string name="ach_title_steps_total">%1$s歩を歩く</string>
+    <string name="ach_desc_steps_total">すべてのセッションで%1$s歩を記録してください。</string>
+    <string name="ach_title_best_daily_steps">1日で%1$s歩</string>
+    <string name="ach_desc_best_daily_steps">1日で%1$s歩を歩いてください。</string>
+    <plurals name="ach_title_sessions_total">
+        <item quantity="one">初回のセッション</item>
+        <item quantity="other">%1$s回のセッションを記録</item>
+    </plurals>
+    <string name="ach_desc_sessions_total">合計%1$s回のトラッキングセッションを記録してください。</string>
+    <plurals name="ach_title_distinct_cells">
+        <item quantity="one">最初のセルを発見</item>
+        <item quantity="other">%1$s個の地図セルを発見</item>
+    </plurals>
+    <string name="ach_desc_distinct_cells">地図上で%1$s個の異なるグリッドセル（各約1 km四方）を探索してください。</string>
+    <plurals name="ach_title_countries_visited">
+        <item quantity="one">%dか国を訪問</item>
+        <item quantity="other">%dか国を訪問</item>
+    </plurals>
+    <string name="ach_desc_countries_visited">%1$dか国で少なくとも1回のセッションを記録してください。</string>
+    <plurals name="ach_title_active_days">
+        <item quantity="one">最初のアクティブな日</item>
+        <item quantity="other">%1$s日アクティブ</item>
+    </plurals>
+    <string name="ach_desc_active_days">合計%1$s日、アクティビティを記録してください。</string>
+    <plurals name="ach_title_current_streak">
+        <item quantity="one">%d日連続</item>
+        <item quantity="other">%d日連続</item>
+    </plurals>
+    <string name="ach_desc_current_streak">%1$d日連続でアクティビティを記録してください。</string>
+    <plurals name="ach_title_best_streak">
+        <item quantity="one">自己ベスト: %d日</item>
+        <item quantity="other">自己ベスト: %d日</item>
+    </plurals>
+    <string name="ach_desc_best_streak">%1$d日連続の自己ベストトラッキングを達成してください。</string>
+    <plurals name="ach_title_months_active">
+        <item quantity="one">Trackerで%dか月</item>
+        <item quantity="other">Trackerで%dか月</item>
+    </plurals>
+    <string name="ach_desc_months_active">Trackerで%1$dか月、異なる月にアクティブになってください。</string>
+    <plurals name="ach_title_week_active_days">
+        <item quantity="one">今週%d日アクティブ</item>
+        <item quantity="other">今週%d日アクティブ</item>
+    </plurals>
+    <string name="ach_desc_week_active_days">1週間のうち%1$d日、アクティビティを記録してください。</string>
+    <plurals name="ach_title_app_age_days">
+        <item quantity="one">Trackerで最初の日</item>
+        <item quantity="other">Trackerで%1$s日</item>
+    </plurals>
+    <string name="ach_desc_app_age_days">Trackerを%1$s日間インストールしたままにしてください。</string>
+    <plurals name="ach_title_comeback_gap_days">
+        <item quantity="one">おかえりなさい</item>
+        <item quantity="other">%d日後におかえりなさい</item>
+    </plurals>
+    <string name="ach_desc_comeback_gap_days">%1$d日間の休止後にトラッキングへ戻ってください。</string>
+    <plurals name="ach_title_hours_of_day">
+        <item quantity="one">1日の%d時間帯に記録</item>
+        <item quantity="other">1日の%d時間帯に記録</item>
+    </plurals>
+    <string name="ach_desc_hours_of_day">すべてのセッションで、1日のうち%1$dの異なる時間帯にアクティビティを記録してください。</string>
+    <string name="ach_title_days_of_week">週の7日すべて</string>
+    <string name="ach_desc_days_of_week">すべての曜日で少なくとも1回アクティビティを記録してください。</string>
+    <plurals name="ach_title_activity_types">
+        <item quantity="one">%d種類のアクティビティを試す</item>
+        <item quantity="other">%d種類のアクティビティを試す</item>
+    </plurals>
+    <string name="ach_desc_activity_types">%1$d種類の異なるアクティビティ（歩行、サイクリング、運転など）でセッションを記録してください。</string>
+    <plurals name="ach_title_week_activity_types">
+        <item quantity="one">今週%d種類のアクティビティ</item>
+        <item quantity="other">今週%d種類のアクティビティ</item>
+    </plurals>
+    <string name="ach_desc_week_activity_types">1週間のうちに%1$d種類の異なるアクティビティを使用してください。</string>
+    <string name="ach_title_week_all_days">1週間の毎日を記録</string>
+    <string name="ach_desc_week_all_days">暦週の7日すべてでアクティビティを記録してください。</string>
+    <string name="ach_title_walk_cycle_drive">歩く、サイクリング、運転</string>
+    <string name="ach_desc_walk_cycle_drive">歩行、サイクリング、運転をそれぞれ少なくとも1回記録してください。</string>
+    <string name="ach_title_max_session_duration">%1$sのセッション</string>
+    <string name="ach_desc_max_session_duration">少なくとも%1$s続く1回のセッションを記録してください。</string>
+    <string name="ach_title_max_speed">%1$sに到達</string>
+    <string name="ach_desc_max_speed">セッション中に少なくとも%1$sの最高速度に達してください。</string>
+    <string name="ach_title_active_minutes">%1$s分アクティブ</string>
+    <string name="ach_desc_active_minutes">アクティブなトラッキング時間を%1$s分積み上げてください。</string>
+    <plurals name="ach_title_exports_total">
+        <item quantity="one">最初のエクスポート</item>
+        <item quantity="other">%d回のエクスポート</item>
+    </plurals>
+    <string name="ach_desc_exports_total">データを%1$d回エクスポートしてください。</string>
+    <plurals name="ach_title_seasons_explored">
+        <item quantity="one">1つの季節を通じて記録</item>
+        <item quantity="other">%d季節を通じて記録</item>
+    </plurals>
+    <string name="ach_desc_seasons_explored">%1$d種類の異なる季節（春/夏/秋/冬）にアクティビティを記録してください。</string>
+    <string name="ach_title_calendar_new_year">新年のトラッカー</string>
+    <string name="ach_desc_calendar_new_year">1月1日にセッションを記録してください。</string>
+    <string name="ach_title_calendar_leap_day">うるう日の先駆者</string>
+    <string name="ach_desc_calendar_leap_day">2月29日にセッションを記録してください。</string>
+    <string name="ach_title_calendar_summer_solstice">夏至</string>
+    <string name="ach_desc_calendar_summer_solstice">1年で最も昼が長い日にセッションを記録してください。</string>
+    <string name="ach_title_calendar_winter_solstice">冬至</string>
+    <string name="ach_desc_calendar_winter_solstice">1年で最も昼が短い日にセッションを記録してください。</string>
+    <plurals name="ach_title_night_sessions">
+        <item quantity="one">夜ふかし</item>
+        <item quantity="other">%1$s回の夜間セッション</item>
+    </plurals>
+    <string name="ach_desc_night_sessions">深夜0時から午前5時の間に開始するセッションを%1$d回記録してください。</string>
+    <plurals name="ach_title_dawn_sessions">
+        <item quantity="one">早起き</item>
+        <item quantity="other">%1$s回の早朝セッション</item>
+    </plurals>
+    <string name="ach_desc_dawn_sessions">午前5時から8時の間に開始するセッションを%1$d回記録してください。</string>
+    <plurals name="ach_title_user_created_sessions">
+        <item quantity="one">手動トラッカー</item>
+        <item quantity="other">手動で%1$s回のセッションを開始</item>
+    </plurals>
+    <string name="ach_desc_user_created_sessions">自分で手動開始したトラッキングセッションを%1$d回記録してください。</string>
+    <string name="ach_title_max_cycle_session">1回のライドで%1$sをサイクリング</string>
+    <string name="ach_desc_max_cycle_session">1回のライドで%1$sをサイクリングしてください。</string>
+    <plurals name="ach_title_triathlon_days">
+        <item quantity="one">マルチモーダルな日</item>
+        <item quantity="other">%d日間のマルチモーダル移動</item>
+    </plurals>
+    <string name="ach_desc_triathlon_days">%1$dの異なる日に、同じ日のうちに徒歩、自転車、動力付き交通機関で移動してください。</string>
+    <plurals name="ach_title_cell_all_seasons">
+        <item quantity="one">四季すべての場所</item>
+        <item quantity="other">%dか所で四季すべて</item>
+    </plurals>
+    <string name="ach_desc_cell_all_seasons">四季すべてにわたり%1$d個の地図セルを訪問してください。</string>
+    <string name="ach_title_max_cell_visits">1か所を%1$d回訪問</string>
+    <string name="ach_desc_max_cell_visits">1つの地図セルを%1$d回訪問してください。</string>
+    <plurals name="ach_title_cells_thorough">
+        <item quantity="one">セルを徹底的に探索</item>
+        <item quantity="other">%1$s個のセルを徹底的に探索</item>
+    </plurals>
+    <string name="ach_desc_cells_thorough">%1$d個の異なる地図セルを徹底的に探索してください。</string>
+    <string name="ach_title_max_cell_span">%1$s離れた場所に到達</string>
+    <string name="ach_desc_max_cell_span">少なくとも%1$s離れた2つの地図セルを発見してください。</string>
+    <plurals name="ach_title_max_cells_in_day">
+        <item quantity="one">1日にセルを発見</item>
+        <item quantity="other">1日に%d個のセルを発見</item>
+    </plurals>
+    <string name="ach_desc_max_cells_in_day">1日に%1$d個の新しい地図セルを発見してください。</string>
+    <string name="ach_title_max_cell_revisit_gap">%1$d日後に再訪</string>
+    <string name="ach_desc_max_cell_revisit_gap">初めて発見してから%1$d日後に地図セルを再訪してください。</string>
+    <plurals name="ach_title_perfect_months">
+        <item quantity="one">完璧な1か月</item>
+        <item quantity="other">%dか月の完璧な月</item>
+    </plurals>
+    <string name="ach_desc_perfect_months">%1$d暦月の毎日でアクティビティを記録してください。</string>
+    <plurals name="ach_title_export_formats">
+        <item quantity="one">1つのエクスポート形式を使用</item>
+        <item quantity="other">%d種類のエクスポート形式を使用</item>
+    </plurals>
+    <string name="ach_desc_export_formats">%1$d種類の異なるファイル形式でデータをエクスポートしてください。</string>
+    <string name="ach_title_player_level">レベル%1$dに到達</string>
+    <string name="ach_desc_player_level">プレイヤーレベル%1$dに到達してください。</string>
+    <string name="ach_title_best_day_xp">1日で%1$s XP</string>
+    <string name="ach_desc_best_day_xp">1日で%1$d XPを獲得してください。</string>
+    <plurals name="ach_title_minigames_played">
+        <item quantity="one">最初のミニゲームをプレイ</item>
+        <item quantity="other">%1$s個のミニゲームをプレイ</item>
+    </plurals>
+    <string name="ach_desc_minigames_played">%1$d回のミニゲーム走行を完了してください。</string>
+    <string name="ach_title_total_ascent">%1$s登る</string>
+    <string name="ach_desc_total_ascent">すべてのトラッキングで獲得標高（上昇）を合計%1$s積み上げてください。</string>
+    <plurals name="ach_title_xp_sources">
+        <item quantity="one">1つのXPソースから獲得</item>
+        <item quantity="other">%d個のXPソースから獲得</item>
+    </plurals>
+    <string name="ach_desc_xp_sources">トラッキングセッション、ミニゲーム、目標など%1$d種類の異なるソースからXPを獲得してください。</string>
+    <plurals name="ach_title_perfect_weeks">
+        <item quantity="one">完璧な1週間</item>
+        <item quantity="other">%d週間の完璧な週</item>
+    </plurals>
+    <string name="ach_desc_perfect_weeks">%1$d週間、毎日1日の歩数目標を達成してください。</string>
+    <plurals name="ach_title_goal_streak">
+        <item quantity="one">%d日連続の目標</item>
+        <item quantity="other">%d日連続の目標</item>
+    </plurals>
+    <string name="ach_desc_goal_streak">%1$d日連続で1日の歩数目標を達成してください。</string>
+    <plurals name="ach_title_achievements_unlocked">
+        <item quantity="one">実績を1つ解除</item>
+        <item quantity="other">%d個の実績を解除</item>
+    </plurals>
+    <string name="ach_desc_achievements_unlocked">合計%1$d個の実績を解除してください。</string>
+    <plurals name="ach_title_categories_completed">
+        <item quantity="one">カテゴリを完了</item>
+        <item quantity="other">%d個のカテゴリを完了</item>
+    </plurals>
+    <string name="ach_desc_categories_completed">%1$d種類の異なるカテゴリにあるすべての実績を解除してください。</string>
+    <plurals name="ach_duration_seconds">
+        <item quantity="one">%d秒</item>
+        <item quantity="other">%d秒</item>
+    </plurals>
+    <plurals name="ach_duration_minutes">
+        <item quantity="one">%d分</item>
+        <item quantity="other">%d分</item>
+    </plurals>
+    <plurals name="ach_duration_hours">
+        <item quantity="one">%d時間</item>
+        <item quantity="other">%d時間</item>
+    </plurals>
+    <plurals name="ach_duration_days">
+        <item quantity="one">%d日</item>
+        <item quantity="other">%d日</item>
+    </plurals>
+</resources>

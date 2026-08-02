@@ -1,8 +1,17 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-  <string name="notification_activity_watcher_info">Current activity %1$s (%2$d%%)</string>
-  <string name="notification_activity_watcher_ticker">Activity Watcher service active</string>
-  <string name="settings_activity_snackbar_message">Removed %s</string>
-  <string name="settings_activity_title">Activities</string>
-  <string name="settings_activity_watcher_title">Activity watcher</string>
+    <string name="notification_activity_watcher_info">現在のアクティビティ %1$s（%2$d%%）</string>
+    <string name="notification_activity_watcher_ticker">アクティビティウォッチャーサービスが有効です</string>
+    <string name="settings_activity_freq_default" translatable="false">30</string>
+    <string name="settings_activity_freq_key" translatable="false">activityUpdateRate</string>
+    <string name="settings_activity_snackbar_message">%sを削除しました</string>
+    <string name="settings_activity_title">アクティビティ</string>
+    <string name="settings_activity_watcher_default" translatable="false">true</string>
+    <string name="settings_activity_watcher_key" translatable="false">activityWatcherEnabled</string>
+    <string name="settings_activity_watcher_title">アクティビティウォッチャー</string>
+    <string name="settings_ski_infrastructure_title">スキーリフトデータ</string>
+    <string name="settings_ski_infrastructure_subtitle_loaded">読み込み済み（タップして削除）</string>
+    <string name="settings_ski_infrastructure_subtitle_none">読み込まれていません。タップしてski_infrastructure.db SQLiteファイルをインポートします。</string>
+    <string name="settings_ski_infrastructure_subtitle_info">%1$d基のリフト · 生成日 %2$s</string>
+    <string name="settings_ski_infrastructure_attribution">スキーリフトデータ © OpenStreetMapの貢献者（ODbL）</string>
 </resources>

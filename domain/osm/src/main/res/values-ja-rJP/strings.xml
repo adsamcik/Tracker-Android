@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="osm_import_notification_channel" translatable="false">OSM map import</string>
+    <string name="osm_import_notification_channel_description">ユーザーがインポートしたOpenStreetMap地域を解析している間に表示するフォアグラウンド通知です。</string>
+    <string name="osm_import_notification_title">OpenStreetMap地域をインポート中</string>
+    <string name="osm_import_notification_content">%1$d本の道路を解析しました</string>
+    <string name="osm_import_complete_title">OSM地域をインポートしました</string>
+    <string name="osm_import_complete_content">車両の速度制限チェック用のオフライン道路データの準備ができました。</string>
+    <string name="osm_import_failed_title">OSMのインポートに失敗しました</string>
+    <string name="osm_import_failed_content">オフライン地図のインポートを完了できませんでした。</string>
+</resources>

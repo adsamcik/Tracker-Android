@@ -1,3 +1,14 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="action_navigate_back">戻る</string>
+    <string name="permission_location_rationale_title" tools:ignore="MissingTranslation">位置情報へのアクセス</string>
+    <string name="permission_location_rationale_message" tools:ignore="MissingTranslation">ルートを記録して地図に表示するには、Trackerに位置情報へのアクセスが必要です。位置情報データはこの端末に保存され、サーバーに送信されることはありません。</string>
+    <string name="permission_activity_rationale_title" tools:ignore="MissingTranslation">身体活動の認識</string>
+    <string name="permission_activity_rationale_message" tools:ignore="MissingTranslation">Trackerは身体活動の認識を使用して、行動（歩行、サイクリング、運転、静止）を検出します。これにより、移動していないときは自動トラッキングを一時停止してバッテリーを節約できます。アクティビティデータはこの端末に保存され、サーバーに送信されることはありません。</string>
+    <string name="permission_background_location_rationale_title" tools:ignore="MissingTranslation">バックグラウンド位置情報</string>
+    <string name="permission_background_location_rationale_message" tools:ignore="MissingTranslation">アプリを切り替えたり画面を消したりしてもルートを記録し続けるには、Trackerがバックグラウンドで位置情報にアクセスする必要があります。記録した位置情報はこの端末に保存され、サーバーに送信されることはありません。次のシステム画面で「常に許可」を選択してください。「アプリの使用中のみ許可」では、Trackerの画面を開いている間だけ動作します。</string>
+    <string name="permission_allow" tools:ignore="MissingTranslation">許可</string>
+    <string name="permission_deny" tools:ignore="MissingTranslation">今回はしない</string>
+    <string name="permission_denied_tracking_disabled" tools:ignore="MissingTranslation">トラッキングを開始するには位置情報の権限が必要です</string>
+    <string name="permission_denied_settings_action" tools:ignore="MissingTranslation">設定を開く</string>
 </resources>
