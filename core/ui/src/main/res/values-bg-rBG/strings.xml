@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="action_navigate_back">Назад</string>
+    <string name="permission_location_rationale_title" tools:ignore="MissingTranslation">Достъп до местоположението</string>
+    <string name="permission_location_rationale_message" tools:ignore="MissingTranslation">Tracker се нуждае от достъп до местоположението, за да записва маршрута ви и да го показва на картата. Данните за местоположението остават на това устройство — нищо не се изпраща до сървър.</string>
+    <string name="permission_activity_rationale_title" tools:ignore="MissingTranslation">Разпознаване на активност</string>
+    <string name="permission_activity_rationale_message" tools:ignore="MissingTranslation">Tracker използва разпознаване на активност, за да установи какво правите (ходене, колоездене, шофиране, неподвижност), така че автоматичното проследяване да може да спира, когато не се движите, и да пести батерия. Данните за активността остават на това устройство — нищо не се изпраща до сървър.</string>
+    <string name="permission_background_location_rationale_title" tools:ignore="MissingTranslation">Местоположение във фонов режим</string>
+    <string name="permission_background_location_rationale_message" tools:ignore="MissingTranslation">За да продължи да записва маршрута ви, когато превключите приложенията или екранът се изключи, Tracker се нуждае от достъп до местоположението ви във фонов режим. Записаното местоположение остава на това устройство — нищо не се изпраща до сървър. При следващия системен прозорец изберете „Разрешаване през цялото време“; „Само докато използвате приложението“ позволява на Tracker да работи само когато екранът му е отворен.</string>
+    <string name="permission_allow" tools:ignore="MissingTranslation">Разрешаване</string>
+    <string name="permission_deny" tools:ignore="MissingTranslation">Не сега</string>
+    <string name="permission_denied_tracking_disabled" tools:ignore="MissingTranslation">За стартиране на проследяването е необходимо разрешение за местоположение</string>
+    <string name="permission_denied_settings_action" tools:ignore="MissingTranslation">Отваряне на настройките</string>
+</resources>

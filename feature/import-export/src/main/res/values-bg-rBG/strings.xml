@@ -1,0 +1,43 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_button">Експортиране</string>
+    <string name="export_default_file_name_range">Advention_export_data_%1$s__%2$s</string>
+    <string name="export_default_file_name_all">Advention_export_data_%1$s</string>
+    <string name="export_error_no_locations_in_interval">Не са намерени местоположения в избрания интервал.</string>
+    <string name="export_error_no_databases">Няма налични бази данни на приложението за експортиране.</string>
+    <string name="export_error_no_uri">Не е избрана папка за експортиране</string>
+    <string name="export_error_stream_failed">Не можа да се създаде поток към файла %s</string>
+    <string name="export_error_unknown">Експортирането е неуспешно.</string>
+    <string name="export_error_with_reason">Експортирането е неуспешно: %s</string>
+    <string name="export_file_name">Име на файла</string>
+    <string name="export_file_name_error">Имената на файловете не може да съдържат \/:"*?&amp;lt;&amp;gt;|</string>
+    <string name="export_gpx_description">Експорт на данни за местоположението от %1$s до %2$s, проследени с Advention.</string>
+    <string name="export_gpx_error">Експортирането на GPX е неуспешно с грешка: %s</string>
+    <string name="export_sensitivity_title">Да се експортират ли точни данни за местоположението?</string>
+    <string name="export_sensitivity_message">Това експортиране/споделяне съдържа данни за местоположение с пълна точност и може да включва необработени радио метаданни в експорти на база данни. Продължете само ако имате доверие на местоназначението.</string>
+    <string name="export_sensitivity_confirm">Продължаване</string>
+    <string name="export_share_button">Споделяне</string>
+    <string name="export_in_progress">Експортиране…</string>
+    <string name="export_completed">Експортирането завърши.</string>
+    <string name="import_notification_error_failed_open_database">Неуспешно отваряне на файла на базата данни %s</string>
+    <string name="import_notification_error_file_not_supported">Файлът %s не се поддържа.</string>
+    <string name="import_notification_extracting">Извличане на %s …</string>
+    <plurals name="import_notification_finished">
+        <item quantity="one">Импортирането завърши. Успешно е импортиран %d запис.</item>
+        <item quantity="other">Импортирането завърши. Успешно са импортирани %d записа.</item>
+    </plurals>
+    <string name="import_notification_finished_with_skipped">Импортирането завърши. Импортирани са %1$d записа (%2$d пропуснати).</string>
+    <string name="import_notification_error_records_failed">%d записа не можаха да бъдат импортирани поради нарушения на ограниченията.</string>
+    <string name="import_notification_importing">Импортиране на %s …</string>
+    <string name="import_notification_progress">Импортирането е в ход …</string>
+    <string name="settings_export_dialog_from">От</string>
+    <string name="settings_export_dialog_to">До</string>
+    <string name="settings_export_no_data">Няма данни за експортиране</string>
+    <string name="settings_export_title">Експортиране</string>
+    <string name="format_gpx">GPX</string>
+    <string name="format_kml">KML</string>
+    <string name="format_json">JSON</string>
+    <string name="format_database">Резервно копие на база данни (ZIP)</string>
+    <string name="settings_import_summary">Импортирайте данни от поддържани типове (%1$s) и архиви (%2$s). Импортирането на база данни обединява съвместимите редове; не заменя съществуващите данни.</string>
+    <string name="settings_import_title">Импортиране</string>
+</resources>

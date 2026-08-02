@@ -1,0 +1,159 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="dashboard_title">Табло за управление</string>
+    <string name="dashboard_tracking_title">Проследяване</string>
+    <string name="dashboard_recording">Записване</string>
+    <string name="dashboard_tracking_stopped_unexpectedly">Проследяването спря неочаквано</string>
+    <string name="dashboard_permission_banner_title">Разрешението за местоположение не е налично</string>
+    <string name="dashboard_permission_banner_subtitle">Tracker не може да записва маршрути, докато не предоставите достъп до местоположението. Докоснете, за да го разрешите.</string>
+    <string name="dashboard_permission_banner_cd">Банер за липсващо разрешение за местоположение; докоснете, за да предоставите достъп</string>
+    <!-- Accessibility content descriptions -->
+    <string name="dashboard_cd_activity_icon">Тип активност</string>
+    <string name="dashboard_cd_explore_icon">Изследване</string>
+    <string name="dashboard_cd_forward_arrow">Преглед на подробностите</string>
+    <string name="dashboard_cd_last_session">Последна сесия: продължителност %1$s, разстояние %2$s. Докоснете за подробности</string>
+    <string name="dashboard_cd_locked_badge">Проследяването е заключено</string>
+    <string name="dashboard_cd_open_settings">Отваряне на настройките</string>
+    <string name="dashboard_cd_start_tracking">Стартиране на проследяването</string>
+    <string name="dashboard_cd_start_tracking_permission">Стартиране на проследяването; необходимо е разрешение</string>
+    <plurals name="dashboard_cd_streak_banner">
+        <item quantity="one">Поредица: %1$d ден. Докоснете, за да видите подробностите за поредицата</item>
+        <item quantity="other">Поредица: %1$d дни. Докоснете, за да видите подробностите за поредицата</item>
+    </plurals>
+    <string name="dashboard_cd_streak_banner_empty">Започнете поредица. Докоснете, за да видите подробностите за поредицата</string>
+    <string name="dashboard_cd_stop_tracking">Спиране на проследяването</string>
+    <string name="dashboard_action_enable_location">Разрешаване на достъп до местоположението</string>
+    <string name="dashboard_action_view_details">Преглед на подробностите</string>
+    <string name="dashboard_action_view_map">Преглед на картата</string>
+    <string name="dashboard_action_view_streak_details">Преглед на подробностите за поредицата</string>
+    <string name="dashboard_action_open_tracking_settings">Настройки</string>
+    <string name="dashboard_action_restart_tracking">Рестартиране</string>
+    <!-- Format strings -->
+    <string name="dashboard_format_altitude_range">Профил на височината, %1$.0f–%2$.0f м</string>
+    <string name="dashboard_format_coordinates">%1$.6f, %2$.6f</string>
+    <string name="dashboard_format_speed_ms">%1$.1f м/сек</string>
+    <!-- Tracking state -->
+    <string name="dashboard_tracking_awaiting_gps">Изчакване на GPS сигнал…</string>
+    <string name="dashboard_tracking_recording_route">Записване на маршрута…</string>
+    <string name="dashboard_milestone_distance">км достигнати!</string>
+    <string name="dashboard_milestone_steps">крачки достигнати!</string>
+    <string name="dashboard_milestone_time">мин проследени!</string>
+    <string name="dashboard_milestone_points">+10 т.</string>
+    <!-- Idle state -->
+    <string name="dashboard_today_title">Днес</string>
+    <string name="dashboard_today_no_activity">Все още няма активност днес</string>
+    <string name="dashboard_today_distance">Разстояние</string>
+    <string name="dashboard_today_duration">Продължителност</string>
+    <string name="dashboard_today_steps">Крачки</string>
+    <string name="dashboard_today_trips">Пътувания</string>
+    <string name="dashboard_goal_get_started">Започнете</string>
+    <string name="dashboard_goal_on_track">По план</string>
+    <string name="dashboard_goal_ahead">Напред</string>
+    <string name="dashboard_goal_behind">Назад</string>
+    <string name="dashboard_streak_day_streak">дни поред</string>
+    <string name="dashboard_streak_start">Започнете поредица!</string>
+    <string name="dashboard_streak_trend_up">↑%1$d%% спрямо миналата седмица</string>
+    <string name="dashboard_streak_trend_down">↓%1$d%% спрямо миналата седмица</string>
+    <string name="dashboard_last_session_title">Последна сесия</string>
+    <string name="dashboard_last_session_duration">Продължителност</string>
+    <string name="dashboard_last_session_distance">Разстояние</string>
+    <string name="dashboard_last_session_steps">Крачки</string>
+    <string name="dashboard_last_session_view_map">Преглед на картата</string>
+    <string name="dashboard_recent_trips_title">Последни пътувания</string>
+    <string name="dashboard_recent_trips_empty">Няма скорошни пътувания. Стартирайте проследяване, за да виждате пътуванията си тук.</string>
+    <string name="dashboard_exploration_title">Изследване</string>
+    <string name="dashboard_exploration_new_today">Ново днес</string>
+    <string name="dashboard_exploration_total_cells">Общо клетки</string>
+    <string name="dashboard_exploration_seasons">Сезони</string>
+    <!-- Live charts -->
+    <string name="dashboard_live_charts_speed">Скорост</string>
+    <string name="dashboard_live_charts_altitude">Височина</string>
+    <!-- Sensor details card -->
+    <string name="dashboard_sensor_details_title">Подробности за сензорите</string>
+    <string name="dashboard_sensor_expand">Разгъване на подробностите за сензорите</string>
+    <string name="dashboard_sensor_collapse">Свиване на подробностите за сензорите</string>
+    <string name="dashboard_sensor_location_accuracy">Точност на местоположението</string>
+    <string name="dashboard_sensor_activity">Активност</string>
+    <string name="dashboard_sensor_wifi">WiFi мрежи</string>
+    <string name="dashboard_sensor_cell">Клетъчни кули</string>
+    <string name="dashboard_sensor_altitude">Височина</string>
+    <string name="dashboard_sensor_speed">Скорост</string>
+    <string name="dashboard_sensor_cell_types">Типове клетки</string>
+    <string name="dashboard_sensor_raw_coords">Координати (отстраняване на грешки)</string>
+    <!-- Glass metric card -->
+    <string name="dashboard_trend_up">Възходяща тенденция</string>
+    <string name="dashboard_trend_down">Низходяща тенденция</string>
+    <!-- Motivational text -->
+    <string name="dashboard_motivational_getting_started">Току-що започвате…</string>
+    <string name="dashboard_motivational_keep_going">Продължавайте! 💪</string>
+    <string name="dashboard_motivational_impressive">Впечатляваща сесия!</string>
+    <string name="dashboard_motivational_marathon">Изследовател на маратони! 🏆</string>
+    <string name="dashboard_motivational_morning">Добро утро! Готови ли сте за изследване?</string>
+    <string name="dashboard_motivational_afternoon">Добър ден! Продължавате ли да се движите?</string>
+    <string name="dashboard_motivational_evening">Добър вечер! Да прегледаме деня ви?</string>
+    <string name="dashboard_motivational_night">Режим за нощни птици 🦉</string>
+    <string name="dashboard_motivational_streak">🔥 Поредица от %1$d дни!</string>
+    <!-- Empty state -->
+    <string name="dashboard_empty_title">Вашето пътуване започва тук</string>
+    <string name="dashboard_empty_subtitle">Използвайте картата „Готово“ по-долу, за да предоставите достъп до местоположението при нужда и да започнете първото си приключение</string>
+    <string name="dashboard_empty_feature_explore">Изследвайте</string>
+    <string name="dashboard_empty_feature_explore_desc">Откривайте нови места и маршрути</string>
+    <string name="dashboard_empty_feature_achieve">Постигайте</string>
+    <string name="dashboard_empty_feature_achieve_desc">Задавайте цели и печелете точки</string>
+    <string name="dashboard_empty_feature_track">Проследявайте</string>
+    <string name="dashboard_empty_feature_track_desc">Записвайте разходки, бягания и пътувания</string>
+    <string name="dashboard_empty_feature_privacy">Поверителност</string>
+    <string name="dashboard_empty_feature_privacy_desc">Всички данни остават на устройството ви</string>
+    <string name="dashboard_empty_icon_desc">Илюстрация за проследяване на местоположението</string>
+    <string name="dashboard_empty_quick_start_title">Бърз старт</string>
+    <string name="dashboard_empty_quick_start_subtitle">Ето най-бързия начин да превърнете това празно табло за управление в полезни карти, сесии и дневен напредък.</string>
+    <string name="dashboard_empty_step_customize_title">Изберете своя стил на проследяване</string>
+    <string name="dashboard_empty_step_customize_desc">Отваряйте Настройки по всяко време, за да променяте предварителни настройки, използването на батерията и сензорите, които искате да записвате.</string>
+    <string name="dashboard_empty_step_start_title">Започнете първото си проследяване</string>
+    <string name="dashboard_empty_step_start_desc">Докоснете „Готово, когато сте готови“ по-горе, за да предоставите достъп до местоположението при нужда, след което започнете разходка, бягане, каране или сесия за проследяване във фонов режим.</string>
+    <string name="dashboard_empty_step_review_title">Преглеждайте карти и статистика</string>
+    <string name="dashboard_empty_step_review_desc">След първата ви сесия разделите Табло за управление, Карта и Статистика ще се запълнят със скорошна активност и анализи.</string>
+    <string name="dashboard_empty_fab_hint_title">Готово, когато сте готови</string>
+    <string name="dashboard_empty_fab_hint_desc">Докоснете тук, за да започнете първата си сесия за проследяване.</string>
+    <string name="dashboard_empty_fab_hint_desc_no_permission">Докоснете тук, за да предоставите достъп до местоположението, след което започнете първата си сесия за проследяване.</string>
+    <!-- Widget titles (used in DashboardWidget and customize sheet) -->
+    <string name="widget_today_progress">Напредък днес</string>
+    <string name="widget_streak">Поредица</string>
+    <string name="widget_last_session">Последна сесия</string>
+    <string name="widget_recent_trips">Последни пътувания</string>
+    <string name="widget_exploration">Изследване</string>
+    <!-- Customize dashboard sheet -->
+    <string name="dashboard_customize_title">Персонализиране на таблото за управление</string>
+    <string name="dashboard_customize_reset">Възстановяване по подразбиране</string>
+    <string name="dashboard_customize_cd_toggle">Превключване на видимостта на %1$s</string>
+    <string name="dashboard_customize_cd_drag_handle">Промяна на реда на %1$s</string>
+    <!-- Sparkline / visualization accessibility -->
+    <string name="dashboard_no_altitude_data">Няма данни за височината</string>
+    <string name="dashboard_cd_no_altitude_data">Няма налични данни за височината</string>
+    <string name="dashboard_cd_speed_sparkline">Минидиаграма за скоростта с %1$d точки данни</string>
+    <string name="dashboard_cd_session_path">Преглед на маршрута на сесията с %1$d точки</string>
+    <!-- Metric labels (used in FavoritesRepository) -->
+    <string name="dashboard_metric_speed">Скорост</string>
+    <string name="dashboard_metric_distance">Разстояние</string>
+    <string name="dashboard_metric_duration">Продължителност</string>
+    <string name="dashboard_metric_steps">Крачки</string>
+    <string name="dashboard_metric_altitude">Височина</string>
+    <string name="dashboard_metric_activity">Активност</string>
+    <string name="dashboard_metric_accuracy">Точност</string>
+    <string name="dashboard_metric_avg_speed">Средна скорост</string>
+    <string name="dashboard_metric_wifi">WiFi</string>
+    <string name="dashboard_metric_cell">Клетка</string>
+    <string name="dashboard_metric_coordinates">Координати</string>
+    <!-- Tracking action ring / pill -->
+    <string name="dashboard_ring_start_tracking">Стартиране на проследяването</string>
+    <string name="dashboard_ring_enable_location">Разрешаване на местоположението</string>
+    <string name="dashboard_pill_start">Старт</string>
+    <string name="dashboard_pill_stop">Стоп</string>
+    <string name="dashboard_pill_enable_location">Разрешаване на местоположението</string>
+    <!-- Session Insights Card (Task F) -->
+    <string name="dashboard_insights_title">Анализи на сесията</string>
+    <string name="dashboard_cd_insight_item">Анализ: %1$s</string>
+    <string name="widget_latest_achievement">Последно постижение</string>
+    <string name="dashboard_latest_achievement_title">Последно постижение</string>
+    <string name="dashboard_latest_achievement_empty">Продължете да проследявате, за да отключите първото си постижение</string>
+</resources>

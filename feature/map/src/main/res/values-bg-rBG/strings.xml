@@ -1,0 +1,228 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
+    <!-- Module title for distribution manifest -->
+    <string name="module_map_title">Карта</string>
+    <string name="description_map_search">Бутон за търсене</string>
+    <string name="map_layer_cell_heatmap_description">Наблюдаваният от вас клетъчен пейзаж по радиотехнология. Меките полета показват къде обслужващите клетки са ви достигали; светещите центрове са консервативни оценки на местата и се изострят само когато наблюденията ги обграждат.</string>
+    <string name="map_layer_cell_heatmap_title">Клетъчна топология</string>
+    <string name="map_layer_location_heatmap_high">Висока плътност</string>
+    <string name="map_layer_location_heatmap_low">Ниска плътност</string>
+    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_medium">Средна плътност</string>
+    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Различни посещения</string>
+    <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Посещения</string>
+    <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Относителна плътност на приетите поправки на местоположението. Показва различни наблюдения, а не прекарано време.</string>
+    <string name="map_layer_cell_radio_gsm">GSM покритие</string>
+    <string name="map_layer_cell_radio_wcdma">3G / WCDMA</string>
+    <string name="map_layer_cell_radio_lte">4G / LTE</string>
+    <string name="map_layer_cell_radio_nr">5G / NR</string>
+    <string name="map_layer_signal_coverage_title">Мъртви зони на сигнала</string>
+    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_description">Подчертава къде клетъчният ви сигнал е бил слаб или липсващ. Колкото по-червена е областта, толкова по-лошо е покритието; добре покритите области остават ясни.</string>
+    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
+    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
+    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
+    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Полярно сияние на сигнала</string>
+    <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Сияние</string>
+    <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">Клетъчният сигнал е изобразен като сияние: широк виолетов ореол под ярко синьо-зелено ядро. Сиянието пулсира без презареждане на данни и става неподвижно, когато системните анимации са изключени.</string>
+    <string name="map_layer_signal_aurora_faint" tools:ignore="MissingTranslation">Слаб сигнал</string>
+    <string name="map_layer_signal_aurora_strong" tools:ignore="MissingTranslation">Силен сигнал</string>
+    <string name="map_layer_speed_heatmap_description">Топлинна карта, представяща скоростта на движение в различни области.</string>
+    <string name="map_layer_speed_very_slow">Много бавно</string>
+    <string name="map_layer_speed_walking">Темпо на ходене</string>
+    <string name="map_layer_speed_running">Темпо на бягане</string>
+    <string name="map_layer_speed_moderate">Умерена скорост</string>
+    <string name="map_layer_speed_fast">Бързо движение</string>
+    <string name="map_layer_speed_very_fast">Много бързо</string>
+    <string name="map_layer_speed_heatmap_title">Топлинна карта на скоростта</string>
+    <string name="map_layer_legacy_heatmap_title">Стара топлинна карта</string>
+    <string name="map_layer_legacy_heatmap_chip">Стари плочки</string>
+    <string name="map_layer_legacy_heatmap_description">Спомен за първоначалното приложение Signals: плътността на местоположението ви е изобразена като отделни квадратни плочки от 25 м, както е изглеждала топлинната карта, когато плочките са се изобразявали на сървъра. Увеличете мащаба, за да видите квадратите.</string>
+    <string name="map_layer_seasonal_title">Сезонен изследовател</string>
+    <string name="map_layer_seasonal_chip">Сезони</string>
+    <string name="map_layer_seasonal_description">Пъстра мозайка от сезонни спомени: всяка изследвана област е оцветена според сезона, в който сте я посетили за първи път. Намерете пътеките, по които ходите само през лятото, или улиците, които виждате само през зимата.</string>
+    <string name="map_layer_season_spring">Пролет</string>
+    <string name="map_layer_season_summer">Лято</string>
+    <string name="map_layer_season_autumn">Есен</string>
+    <string name="map_layer_season_winter">Зима</string>
+    <string name="map_layer_terrain_title">Животът като релеф</string>
+    <string name="map_layer_terrain_chip">Релеф</string>
+    <string name="map_layer_terrain_description">Плътността на местоположението ви е издигната в 3D: местата, където прекарвате най-много време, се извисяват като светли плата, докато еднократните места остават ниски. Наклонете картата, за да видите релефа на живота си.</string>
+    <string name="map_layer_terrain_low">Рядко тук</string>
+    <string name="map_layer_terrain_mid">Понякога</string>
+    <string name="map_layer_terrain_high">Често тук</string>
+    <string name="map_layer_places_title">Чести места</string>
+    <string name="map_layer_places_chip">Места</string>
+    <string name="map_layer_places_description">Важните ви места като маркери, всеки с размер и цвят според честотата на посещенията. Домът и работата стават големи топли точки; място, което сте посетили веднъж, остава малко хладно.</string>
+    <string name="map_layer_places_rare">Рядко</string>
+    <string name="map_layer_places_often">Понякога</string>
+    <string name="map_layer_places_anchor">Вашите опори</string>
+    <string name="map_layer_speed_ribbon_title">Лента на скоростта</string>
+    <string name="map_layer_speed_ribbon_chip">Лента</string>
+    <string name="map_layer_speed_ribbon_description">Маршрутът ви е оцветен според скоростта ви, с плавен цвят от бавна виолетова разходка до червено-горещ спринт или шофиране. За разлика от топлинната карта на скоростта, лентата запазва пътя ви цял, за да виждате точно къде сте ускорили и забавили.</string>
+    <string name="map_layer_altitude_ribbon_title" tools:ignore="MissingTranslation">Лента за височина</string>
+    <string name="map_layer_altitude_ribbon_chip" tools:ignore="MissingTranslation">Височина</string>
+    <string name="map_layer_altitude_ribbon_description" tools:ignore="MissingTranslation">Маршрутът ви е оцветен според абсолютната височина — от дълбоки сини низини през цианови предпланини до топли планински височини. Мащабът остава фиксиран при преместване на картата, така че една и съща височина винаги запазва един и същ цвят.</string>
+    <string name="map_layer_altitude_low" tools:ignore="MissingTranslation">Низини</string>
+    <string name="map_layer_altitude_mid" tools:ignore="MissingTranslation">Предпланини</string>
+    <string name="map_layer_altitude_high" tools:ignore="MissingTranslation">Високи планини</string>
+    <string name="map_layer_activity_ribbon_title" tools:ignore="MissingTranslation">Лента на активността</string>
+    <string name="map_layer_activity_ribbon_chip" tools:ignore="MissingTranslation">Активност</string>
+    <string name="map_layer_activity_ribbon_description" tools:ignore="MissingTranslation">Маршрутът ви е оцветен според надеждно записаното състояние на движение при всяка поправка: сиво при неизвестно състояние, синьо при неподвижност и зелено при движение.</string>
+    <string name="map_layer_activity_unknown" tools:ignore="MissingTranslation">Неизвестно</string>
+    <string name="map_layer_activity_still" tools:ignore="MissingTranslation">Неподвижно</string>
+    <string name="map_layer_activity_moving" tools:ignore="MissingTranslation">В движение</string>
+    <string name="map_layer_ski_xray_title" tools:ignore="MissingTranslation">Ски рентген</string>
+    <string name="map_layer_ski_xray_chip" tools:ignore="MissingTranslation">Ски рентген</string>
+    <string name="map_layer_ski_xray_description" tools:ignore="MissingTranslation">Диагностичен изглед на разпознатите ски сегменти. Спусканията, лифтовете, ходенето и паузите са закрепени към най-близкото записано местоположение и са означени с основните си показатели.</string>
+    <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Спускане</string>
+    <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Лифт</string>
+    <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Ходене или пауза</string>
+    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Съзвездия от пътувания</string>
+    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Пътувания</string>
+    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Повтарящите се пътувания между честите ви места образуват извити съзвездия. Стабилна дъга показва всеки маршрут, докато комета се движи по него; по-дебелите дъги означават, че сте правили това пътуване по-често.</string>
+    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Ходене</string>
+    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Колоездене</string>
+    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Шофиране</string>
+    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Обществен транспорт</string>
+    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Друго</string>
+    <string name="map_layer_fog_title">Мъгла на изследователя</string>
+    <string name="map_layer_fog_chip">Мъгла</string>
+    <string name="map_layer_fog_description">Светът се появява от мъглата: всяка област, до която сте се докоснали, се разкрива и свети по-ярко, колкото по-добре сте я опознали. Местата, през които само сте минали, остават лека мараня; място, което сте изследвали задълбочено, гори в плътно злато. Неизследваната земя остава тъмна.</string>
+    <string name="map_layer_fog_faint">Минали сте оттук</string>
+    <string name="map_layer_fog_known">Добре изследвано</string>
+    <string name="map_layer_first_contact_title">Първи контакт</string>
+    <string name="map_layer_first_contact_chip">Откритие</string>
+    <string name="map_layer_first_contact_description">Хронология на откритията ви: всяка област е оцветена според това колко скоро сте стъпили там за първи път. Местата, които сте открили отдавна, избледняват до дълбоко индиго, а земята, която сте изследвали тази седмица, свети ярко в циан — прочетете историята на изследването си до най-новите си хоризонти.</string>
+    <string name="map_layer_first_contact_old">Отдавна</string>
+    <string name="map_layer_first_contact_recent">Току-що открито</string>
+    <string name="map_layer_vehicle_compliance_title">Съответствие със скоростта на превозното средство</string>
+    <string name="map_layer_vehicle_compliance_description">Полилиния от проби при шофиране, оцветена според сравнението на скоростта с конфигурираното ви базово ограничение.</string>
+    <string name="map_layer_vehicle_compliance_way_under">Далеч под ограничението</string>
+    <string name="map_layer_vehicle_compliance_slow">Под ограничението</string>
+    <string name="map_layer_vehicle_compliance_at_limit">Близо до ограничението</string>
+    <string name="map_layer_vehicle_compliance_slightly_over">Леко над ограничението</string>
+    <string name="map_layer_vehicle_compliance_speeding">Превишена скорост</string>
+    <string name="map_layer_location_polyline_description">Линия, която свързва записаните ви местоположения във времето.</string>
+    <string name="map_layer_location_polyline_title">Полилиния на местоположението</string>
+    <!-- Compact chip labels: long titles truncate to "Location polyli..." in the
+         layer chip on the map control bar (~360dp). Each chip label fits in
+         ~12 characters at typical font sizes. Fall back to titleRes for layers
+         whose titleRes already fits. -->
+    <string name="map_layer_location_polyline_chip">Полилиния</string>
+    <string name="map_layer_wifi_count_heatmap_chip">Припокриване на Wi-Fi</string>
+    <string name="map_layer_vehicle_compliance_chip">Превишена скорост</string>
+    <string name="map_layer_none_title">Без наслагване</string>
+    <string name="map_date_preset_week">Миналата седмица</string>
+    <string name="map_date_preset_month">Миналия месец</string>
+    <string name="map_date_preset_custom">Персонализиран…</string>
+    <string name="map_date_today">Днес</string>
+    <string name="map_date_yesterday">Вчера</string>
+    <string name="map_date_this_week">Тази седмица</string>
+    <string name="map_layer_wifi_count_heatmap_title">Припокриване на Wi-Fi</string>
+    <string name="map_layer_wifi_count_heatmap_description">Показва колко различни точки за достъп се припокриват на всяко място. Повторните сканирания на една и съща точка за достъп се броят веднъж, така че по-горещите области означават наистина по-плътно радиопокритие.</string>
+    <string name="map_layer_wifi_heatmap_description">Wi-Fi съзвездие, съобразено с честотната лента, от собствените ви наблюдения. Цветните полета показват наблюдавано покритие от 2,4, 5 и 6 GHz; светещите центрове са приблизителни позиции на точки за достъп и се показват само когато геометрията на пробите ги подкрепя.</string>
+    <string name="map_layer_wifi_heatmap_high">Много припокриващи се точки за достъп</string>
+    <string name="map_layer_wifi_heatmap_low">Малко припокриващи се точки за достъп</string>
+    <string name="map_layer_wifi_heatmap_medium">Няколко припокриващи се точки за достъп</string>
+    <string name="map_layer_wifi_heatmap_title">Wi-Fi съзвездие</string>
+    <string name="map_layer_wifi_radio_24">Обхват 2,4 GHz</string>
+    <string name="map_layer_wifi_radio_5">Обхват 5 GHz</string>
+    <string name="map_layer_wifi_radio_6">Обхват 6 GHz</string>
+    <string name="map_legend_label">Легенда</string>
+    <string name="map_chip_layers">Слой</string>
+    <string name="map_chip_dates">Дати</string>
+    <string name="permission_rationale_location_map">За да покаже местоположението ви на картата, Tracker се нуждае от достъп до местоположението. Всички данни остават на устройството ви.</string>
+    <string name="map_location_permission_denied">За показване на позицията ви е необходимо разрешение за местоположение</string>
+    <string name="map_open_settings">Отваряне на настройките</string>
+    <string name="settings_map_basemap_title">Базова карта</string>
+    <string name="settings_map_basemap_custom">Персонализиран файл .pmtiles е активен (докоснете за премахване)</string>
+    <string name="settings_map_basemap_default">Вградената базова карта е активна. Докоснете, за да импортирате персонализиран файл .pmtiles.</string>
+    <string name="basemap_import_error_source_open">Този файл не можа да бъде отворен. Опитайте с друг или го споделете отново с Tracker.</string>
+    <string name="basemap_import_error_copy">Файлът на базовата карта не можа да бъде копиран. Проверете дали има достатъчно свободно място и опитайте отново.</string>
+    <string name="basemap_import_error_invalid_format">Невалиден файл PMTiles: %1$s</string>
+    <string name="settings_map_advanced_section_title">Разширени настройки</string>
+    <string name="settings_map_max_heat_title">Максимална интензивност след посещения</string>
+    <string name="settings_map_quality_title">Разделителна способност на топлинната карта</string>
+    <string name="settings_map_visit_threshold_title">Праг за време на посещение на местоположение</string>
+    <string name="settings_map_legacy_heatmap_title">Стара топлинна карта (плочки 10 м)</string>
+    <string name="settings_map_legacy_heatmap_subtitle">Великденско яйце: добавя слой „Стара топлинна карта“, който изобразява плътността на местоположението като отделни квадратни плочки от 10 м, подобно на първоначалната топлинна карта на Signals, изобразявана на сървъра.</string>
+    <string name="settings_map_zoom_buttons_title">Бутони за мащабиране на картата</string>
+    <string name="settings_map_zoom_buttons_subtitle">Показва екранни бутони + и − за мащабиране на картата, когато мащабирането с щипване е трудно за използване.</string>
+    <string name="tips_map_date_range_title">Диапазон от дати</string>
+    <string name="tips_map_my_location_title">Моето местоположение</string>
+    <string name="tips_map_sheet_description">Докосването или издърпването нагоре на тази лента отваря още опции за картата, включително избор на слой и легенда.</string>
+    <!-- Map Sheet Controls -->
+    <!-- Keep short so it fits the search field at typical 360dp widths;
+         the full coordinate-format reference lives in map_search_invalid_format. -->
+    <string name="map_search_placeholder">Шир., Дълж. напр. 50.075, 14.437</string>
+    <string name="map_search_invalid_format">Опитайте: 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51′24″N 2°21′08″E</string>
+    <string name="map_search_clear">Изчистване на търсенето</string>
+    <string name="map_search_paste">Поставяне от клипборда в търсенето</string>
+    <string name="map_search_clipboard_empty">Клипбордът все още не съдържа координати</string>
+    <string name="map_date_range_dialog_ok">Готово</string>
+    <string name="map_date_range_dialog_cancel">Отказ</string>
+    <!-- Share map as image -->
+    <string name="map_share_button">Споделяне на картата</string>
+    <string name="map_share_sheet_title">Споделяне на картата като изображение</string>
+    <string name="map_share_sheet_subtitle">Изобразява текущия изглед и активния слой като статично изображение. Текущото ви местоположение никога не се включва.</string>
+    <string name="map_share_resolution_standard">Стандартно (1080p)</string>
+    <string name="map_share_resolution_high">Високо (1440p)</string>
+    <string name="map_share_resolution_ultra">Ултра (4K)</string>
+    <string name="map_share_action">Споделяне</string>
+    <string name="map_share_preparing">Подготвяне на изображението…</string>
+    <string name="map_share_error">Изображението на картата не можа да бъде изобразено. Опитайте отново.</string>
+    <string name="map_date_range_all_time">За цялото време</string>
+    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_layers_title">Слоеве на картата</string>
+    <string name="map_layer_load_error">Този слой не можа да бъде зареден. Опитайте да изберете друг.</string>
+    <string name="map_empty_subtitle_location">Няма данни за местоположение в този изглед или диапазон от дати. Функциите за маршрут и карта изискват данни за местоположение, събрани по време на проследяване.</string>
+    <string name="map_empty_subtitle_cell">Няма клетъчни данни с местоположение в този изглед или диапазон от дати. Клетъчните проби, записани без местоположение, се съхраняват, но не могат да се покажат на картата.</string>
+    <string name="map_empty_subtitle_wifi">Няма Wi-Fi данни с местоположение в този изглед или диапазон от дати. Wi-Fi наблюденията, записани без местоположение, се съхраняват, но не могат да се покажат на картата.</string>
+    <string name="map_empty_subtitle_speed">Няма данни за скоростта в този изглед или диапазон от дати. Картите на скоростта изискват използваеми проби за местоположение, събрани по време на проследяване.</string>
+    <string name="map_empty_subtitle_vehicle_compliance">Няма пътувания с автомобил, съпоставени с пътната мрежа, за показване. Импортирайте регион от OpenStreetMap (Настройки) и запишете няколко пътувания с автомобил, за да съпоставим маршрута ви с реални пътища.</string>
+    <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Скриване на съобщението за липса на данни</string>
+    <string name="map_speed_probe_title">Скорост тук</string>
+    <string name="map_speed_probe_avg_label">Средна</string>
+    <string name="map_speed_probe_max_label">Максимална</string>
+    <string name="map_speed_probe_empty">Няма данни за скоростта на това място. Докоснете зона с данни на топлинната карта, за да видите скоростите.</string>
+    <string name="map_speed_probe_hint">Докоснете картата, за да видите скоростите</string>
+    <string name="map_speed_probe_dismiss">Скриване на подробностите за скоростта</string>
+    <string name="map_place_callout_loading">Търсене на място…</string>
+    <string name="map_place_callout_empty">Тук не е намерено място</string>
+    <string name="map_place_callout_dismiss">Скриване на подробностите за мястото</string>
+    <string name="map_zoom_in">Увеличаване</string>
+    <string name="map_zoom_out">Намаляване</string>
+    <string name="map_loading">Зареждане на картата…</string>
+    <string name="map_basemap_unavailable">Основната карта не можа да бъде подготвена. Затворете и отворете отново картата, за да опитате пак.</string>
+    <string name="map_a11y_map_overview">Общ преглед на картата</string>
+    <string name="map_a11y_centered_on_location">Картата е центрирана върху местоположението ви</string>
+    <string name="map_a11y_showing_location">Картата показва местоположението ви</string>
+    <string name="map_a11y_loading_data">Зареждане на записаните данни за картата</string>
+    <string name="map_a11y_no_recorded_data">Избраният слой няма данни за картографиране в този изглед или диапазон от дати</string>
+    <string name="map_a11y_no_layer_selected">Не е избран слой на картата</string>
+    <string name="map_a11y_search_result_visible">Маркерът на резултата от търсенето е видим</string>
+    <string name="map_a11y_active_recording_visible">Пътят на активния запис е видим</string>
+    <string name="map_a11y_recorded_route_history">Показва се историята на записания маршрут</string>
+    <string name="map_a11y_distinct_visits" tools:ignore="MissingTranslation">Показват се различни приети наблюдения на местоположението</string>
+    <string name="map_a11y_cell_heatmap">Показват се полета на клетъчно покритие и приблизителни центрове на обслужващите станции</string>
+    <string name="map_a11y_wifi_heatmap">Показват се Wi-Fi честотни ленти, полета на покритие и приблизителни центрове на точки за достъп</string>
+    <string name="map_a11y_wifi_count_heatmap">Показва се припокриване на различни Wi-Fi точки за достъп</string>
+    <string name="map_a11y_speed_heatmap">Показва се топлинна карта на скоростта</string>
+    <string name="map_a11y_saved_map_data">Показват се запазени данни за картата</string>
+    <string name="map_location_permission_opening_settings">Необходим е достъп до местоположението. Отваряне на настройките…</string>
+    <string name="map_permission_banner_dismiss">Скриване на съобщението за разрешение за местоположение</string>
+    <string name="map_loading_layer">Зареждане на слой на картата</string>
+    <string name="map_a11y_world_scale">Световен мащаб</string>
+    <string name="map_a11y_regional_scale">Регионален мащаб</string>
+    <string name="map_a11y_city_scale">Градски мащаб</string>
+    <string name="map_a11y_neighborhood_scale">Квартален мащаб</string>
+    <string name="map_a11y_street_scale">Уличен мащаб</string>
+    <!-- Help Text for Map Settings -->
+    <string name="help_map_quality">Коефициент за детайлността на изобразяването. По-високите стойности показват повече детайли, но може да забавят зареждането на картата на по-стари устройства.</string>
+    <string name="help_max_heat_points">Максимален брой точки за местоположение, показвани в изгледа на топлинната карта. По-високите стойности означават повече детайли, но по-бавно изобразяване.</string>
+    <string name="help_visit_threshold">Колко време трябва да останете на едно място, преди да бъде отбелязано като „посещение“ на картата. Увеличете стойността, за да намалите шума от кратки спирания.</string>
+</resources>
