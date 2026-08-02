@@ -1,0 +1,504 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="app_name" translatable="false">Tracker</string>
+    <string name="key_last_app_version" translatable="false">lastVersion</string>
+    <string name="module_game_title">Hra</string>
+    <string name="module_map_title">Mapa</string>
+    <string name="module_statistics_title">Statistiky</string>
+    <string name="main_nav_tracker">Domů</string>
+    <string name="settings_clear_preferences_title">Vymazat předvolby</string>
+    <string name="settings_clear_preferences_message">Tím se resetují všechny předvolby aplikace (přepínače funkcí, nastavení rozhraní). Vaše sledovaná data nebudou ovlivněna. Pokračovat?</string>
+    <string name="settings_data_title">Data</string>
+    <string name="settings_debug_group_title">Ladění</string>
+    <string name="settings_debug_title">Možnosti vývojáře</string>
+    <string name="settings_debug_developer_tools_section">Nástroje pro vývojáře</string>
+    <string name="settings_debug_disable_developer_subtitle">Skrýt možnosti vývojáře v nastavení</string>
+    <string name="settings_debug_developer_mode_disabled_toast">Režim vývojáře byl vypnut</string>
+    <string name="settings_data_management_section">Správa dat</string>
+    <string name="settings_data_danger_zone_section">Nebezpečná zóna</string>
+    <string name="settings_osm_import_section">Data mapy (OpenStreetMap)</string>
+    <string name="settings_osm_import_action_title">Importovat oblast OSM</string>
+    <string name="settings_osm_import_action_summary">Vyberte soubor .osm.pbf. Kontrola dodržování předpisů vozidlem pak bude offline používat skutečné limity silnic.</string>
+    <string name="settings_osm_import_unavailable_title">Offline import mapy není k dispozici</string>
+    <string name="settings_osm_import_action_unavailable">Offline import mapy je dočasně nedostupný, dokud nejsou dokončeny ochrany bezpečnosti souborů.</string>
+    <string name="settings_osm_import_action_running">Probíhá importování — klepnutím zrušíte</string>
+    <string name="settings_osm_import_action_failed">Offline import mapy se nepodařilo dokončit.</string>
+    <string name="settings_osm_import_action_source_unavailable">Vybraný soubor mapy se nepodařilo otevřít.</string>
+    <plurals name="settings_osm_import_action_success">
+        <item quantity="one">Importována %1$d silnice z %2$d uzlů.</item>
+        <item quantity="few">Importovány %1$d silnice z %2$d uzlů.</item>
+        <item quantity="many">Importováno %1$d silnic z %2$d uzlů.</item>
+        <item quantity="other">Importováno %1$d silnic z %2$d uzlů.</item>
+    </plurals>
+    <string name="settings_osm_imports_empty">Dosud nebyla importována žádná oblast OpenStreetMap.</string>
+    <string name="settings_osm_imports_attribution">Data mapy © přispěvatelé OpenStreetMap (ODbL 1.0). Veškeré zpracování probíhá v zařízení.</string>
+    <plurals name="settings_osm_import_entry_subtitle">
+        <item quantity="one">%1$,d silnice · importováno %2$s</item>
+        <item quantity="few">%1$,d silnice · importovány %2$s</item>
+        <item quantity="many">%1$,d silnic · importováno %2$s</item>
+        <item quantity="other">%1$,d silnic · importováno %2$s</item>
+    </plurals>
+    <string name="settings_osm_import_remove_title">Odebrat importovanou oblast</string>
+    <string name="settings_osm_import_remove_message">Odebrat %1$s? Dokud oblast znovu neimportujete, bude kontrola dodržování předpisů vozidlem používat pevnou výchozí hodnotu.</string>
+    <string name="settings_incremental_backups_title">Přírůstkové zálohy</string>
+    <string name="settings_incremental_backups_summary">Exportovat pouze nová data od poslední zálohy. Zkracuje dobu exportu a velikost souboru.</string>
+    <string name="settings_reset_export_watermarks_title">Vynutit úplný export</string>
+    <string name="settings_reset_export_watermarks_summary">Příští automatická záloha bude obsahovat všechna data, nejen změny</string>
+    <string name="settings_reset_export_watermarks_done">Značky exportu byly resetovány — příští záloha bude úplným exportem</string>
+    <string name="settings_migration_backup_export_title">Exportovat bezpečnostní zálohu před aktualizací</string>
+    <!-- The integer arguments are database version identifiers, not quantities. -->
+    <string name="settings_migration_backup_export_summary" tools:ignore="PluralsCandidate">Úplná kopie databáze z v%1$d, vytvořená před migrací na v%2$d a soukromě uchovávaná až 30 dní</string>
+    <string name="settings_migration_backup_warning_title">Exportovat citlivou zálohu databáze?</string>
+    <string name="settings_migration_backup_warning_message">Tato záloha může obsahovat přesné polohy, pozorování Wi-Fi a mobilních sítí, aktivity a další soukromá data z doby před aktualizací. Uložte ji pouze na místo, kterému důvěřujete.</string>
+    <string name="settings_migration_backup_export_action">Exportovat zálohu</string>
+    <string name="settings_migration_backup_export_success">Záloha před aktualizací byla exportována</string>
+    <string name="settings_migration_backup_export_failure">Zálohu před aktualizací se nepodařilo exportovat</string>
+    <string name="settings_migration_backup_export_cleanup_required">Export se nezdařil. Odstraňte částečně exportovanou zálohu z vybraného umístění.</string>
+    <string name="settings_delete_data_success">Všechna shromážděná data byla smazána</string>
+    <string name="settings_delete_data_failure">Nepodařilo se smazat všechna shromážděná data</string>
+    <string name="settings_game_goals_title">Cíle</string>
+    <string name="settings_game_daily_target_title">Denní cíl kroků</string>
+    <string name="settings_game_weekly_target_title">Týdenní cíl kroků</string>
+    <string name="settings_game_daily_contribution_title">Maximální denní příspěvek</string>
+    <string name="settings_game_steps_unit">kroky</string>
+    <string name="settings_game_notifications_title">Oznámení</string>
+    <string name="settings_game_goal_notifications_title">Oznámení o postupu cíle</string>
+    <string name="settings_game_goal_notifications_summary" formatted="false">Zobrazit místní připomenutí po dosažení 75% a 90% osobního denního cíle.</string>
+    <string name="settings_game_during_games_title">Během her</string>
+    <string name="settings_game_haptics_title">Haptická odezva her</string>
+    <string name="settings_game_haptics_summary">Pro zpětnou vazbu ve hře používat jemné vibrace.</string>
+    <string name="settings_game_quiet_coaching_title">Nenápadné pokyny</string>
+    <string name="settings_game_quiet_coaching_summary">Při hře používat méně časté pokyny.</string>
+    <string name="settings_game_remember_setup_title">Zapamatovat poslední nastavení hry</string>
+    <string name="settings_game_remember_setup_summary">Příště znovu použít poslední cíl a obtížnost.</string>
+    <string name="settings_game_privacy_battery_title">Soukromí a baterie</string>
+    <string name="settings_game_privacy_battery_disclosure">Hry používají živou polohu pouze, když jsou aktivní, a pokud je k dispozici, znovu používají polohu Trackeru. Pozastavením se uvolní používání polohy hrou. V tomto zařízení se ukládá jen vaše skóre a body/XP; nezpracované herní polohy se neuchovávají.</string>
+    <string name="settings_game_loading">Načítání nastavení hry…</string>
+    <string name="settings_game_load_error">Nastavení hry se nepodařilo načíst. Zkuste to prosím znovu.</string>
+    <string name="settings_map_info_hint">Tato nastavení řídí kvalitu vizualizace mapy a výkon. Většina uživatelů může použít výchozí hodnoty.</string>
+    <string name="settings_map_online_tiles_section_title">Online mapové dlaždice</string>
+    <string name="settings_map_online_tiles_enable_title">Použít online mapové dlaždice</string>
+    <string name="settings_map_online_tiles_enable_subtitle_off">Vypnuto — používá se jen přibalená offline základní mapa. Žádné síťové požadavky.</string>
+    <string name="settings_map_online_tiles_enable_subtitle_on">Zapnuto — načítání dlaždic z %1$s</string>
+    <string name="settings_map_online_tiles_provider_title">Poskytovatel dlaždic</string>
+    <string name="settings_map_online_tiles_provider_openfreemap">OpenFreeMap (doporučeno)</string>
+    <string name="settings_map_online_tiles_provider_protomaps">Protomaps</string>
+    <string name="settings_map_online_tiles_provider_custom">Vlastní adresa URL</string>
+    <string name="settings_map_online_tiles_custom_url_label">Adresa URL stylu JSON</string>
+    <string name="settings_map_online_tiles_custom_url_hint">https://example.com/style.json</string>
+    <string name="settings_map_online_tiles_attribution_format">Uvedení zdroje: %1$s</string>
+    <string name="settings_map_online_tiles_privacy_disclosure">Online dlaždice jsou volitelné. Pokud jsou zapnuté, vybraný poskytovatel může vidět vaši IP adresu a načítané dlaždice (přibližně oblast mapy, kterou si prohlížíte). Tracker nikdy neodesílá účet, identifikátor ani historii polohy.</string>
+    <string name="settings_developer_mode_enabled_toast">Režim vývojáře byl zapnut</string>
+    <string name="settings_developer_mode_disable">Vypnout režim vývojáře</string>
+    <string name="settings_developer_mode_subtitle">Režim vývojáře je aktivní</string>
+    <plurals name="settings_developer_mode_tap_countdown">
+        <item quantity="one">Pro zapnutí režimu vývojáře klepněte ještě %d×</item>
+        <item quantity="few">Pro zapnutí režimu vývojáře klepněte ještě %d×</item>
+        <item quantity="many">Pro zapnutí režimu vývojáře klepněte ještě %d×</item>
+        <item quantity="other">Pro zapnutí režimu vývojáře klepněte ještě %d×</item>
+    </plurals>
+    <string name="settings_version_info_title">Informace o verzi</string>
+    <string name="settings_version_format">Verze: %1$s (%2$d)</string>
+    <string name="settings_language_summary">Aktuální jazyk: %s</string>
+    <string name="settings_language_title">Jazyk aplikace</string>
+    <string name="settings_units_auto_summary_on">Přizpůsobuje systém délkových jednotek rozpoznaným aktivitám</string>
+    <string name="settings_units_auto_summary_off">Používá vybraný systém délkových jednotek všude</string>
+    <string-array name="settings_length_system_names">
+        <item>Metrický</item>
+        <item>Imperiální (USC)</item>
+        <item>Starověký římský</item>
+        <item>Námořní</item>
+        <item>Letecký</item>
+    </string-array>
+    <string name="settings_length_system_title">Systém délkových jednotek</string>
+    <string-array name="settings_length_system_values" translatable="false">
+        <item>Metric</item>
+        <item>Imperial</item>
+        <item>AncientRoman</item>
+        <item>Sailing</item>
+        <item>Flying</item>
+    </string-array>
+    <string name="settings_licenses_title">Licence open source</string>
+    <string name="settings_licenses_subtitle">Zobrazit přibalená oznámení třetích stran zahrnutá v tomto sestavení.</string>
+    <string name="settings_licenses_loading">Načítání licencí…</string>
+    <string name="settings_licenses_unavailable">Nepodařilo se načíst přibalené licenční údaje třetích stran.</string>
+    <string name="settings_licenses_text_at_url">Úplné znění licence je k dispozici na: %1$s</string>
+    <string name="settings_privacy_policy_title">Zásady ochrany soukromí</string>
+    <string name="settings_privacy_policy_unavailable">Přibalené zásady ochrany soukromí se nepodařilo otevřít. Po restartování aplikace to zkuste znovu.</string>
+    <string name="settings_about_header">O aplikaci</string>
+    <string name="settings_about_app_title">Tracker od adsamcik</string>
+    <string name="settings_about_app_subtitle">Sledování polohy a aktivit s důrazem na soukromí</string>
+    <string name="about_title">O aplikaci</string>
+    <string name="about_app_name_label">Aplikace</string>
+    <string name="about_version_label">Verze</string>
+    <string name="about_version_format">%1$s (%2$d)</string>
+    <string name="about_build_commit_label">Commit sestavení</string>
+    <string name="about_commit_unavailable" translatable="false">N/A</string>
+    <string name="about_author">Autor</string>
+    <string name="about_author_value" translatable="false">Adsamcik</string>
+    <string name="about_email">E-mail</string>
+    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
+    <string name="about_github">GitHub</string>
+    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
+    <string name="about_links_title">Odkazy</string>
+    <string name="about_attributions_title">Uvedení zdrojů dat</string>
+    <string name="about_attribution_geonames_label">Názvy míst</string>
+    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
+    <string name="about_attribution_osm_label">Data map a ulic</string>
+    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
+    <string name="settings_module_group_title">Nastavení modulů</string>
+    <string name="settings_core_group_title">Jádro</string>
+    <string name="settings_other_title">Jednotky a zobrazení</string>
+    <string name="settings_remove_all_collected_data_summary">Smaže vaše sledovaná data (vlastní aktivity a nastavení zůstanou zachovány)</string>
+    <string name="settings_remove_all_collected_data_title">Smazat všechna shromážděná data</string>
+    <string-array name="settings_speed_format_names">
+        <item>Rychlost za sekundu (m/s)</item>
+        <item>Tempo na vzdálenost (min/km, min/mi)</item>
+        <item>Rychlost (km/h, mph)</item>
+    </string-array>
+    <string name="settings_speed_format_title">Formát rychlosti</string>
+    <string-array name="settings_speed_format_values" translatable="false">
+        <item>Second</item>
+        <item>Minute</item>
+        <item>Hour</item>
+    </string-array>
+    <string name="settings_title">Nastavení</string>
+    <string name="switch_state_on">Zapnuto</string>
+    <string name="switch_state_off">Vypnuto</string>
+    <!-- Onboarding Strings -->
+    <!-- Streamlined Onboarding (Apple-style single-screen) -->
+    <string name="onboarding_streamlined_title">Sledujte své cesty soukromě</string>
+    <string name="onboarding_streamlined_subtitle">Všechna data zůstávají v zařízení. Žádná synchronizace do cloudu ani sledování třetími stranami.</string>
+    <string name="onboarding_benefit_privacy_title">Soukromí na prvním místě</string>
+    <string name="onboarding_benefit_privacy_desc">Všechna sledovaná data zůstávají v zařízení. Žádné servery, žádná synchronizace do cloudu, úplná kontrola.</string>
+    <string name="onboarding_benefit_insights_title">Přehled o aktivitách</string>
+    <string name="onboarding_benefit_insights_desc">Zobrazujte své trasy na mapách, analyzujte statistiky a sledujte svůj pokrok v čase.</string>
+    <string name="onboarding_benefit_gamification_title">Úspěchy</string>
+    <string name="onboarding_benefit_gamification_desc">Odemkněte více než 150 úspěchů při chůzi, běhu, jízdě na kole a objevování — vše se získává místně v zařízení.</string>
+    <string name="onboarding_get_started">ZAČÍT</string>
+    <string name="onboarding_privacy_policy_button">Přečíst si zásady ochrany soukromí</string>
+    <string name="onboarding_state_read_error_message">Nepodařilo se ověřit, zda již bylo nastavení dokončeno, proto se nastavení zobrazuje kvůli ochraně vašich dat. Můžete bezpečně pokračovat.</string>
+    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
+    <string name="settings_auto_cleanup_old_data_title">Automaticky čistit stará data</string>
+    <string name="settings_auto_cleanup_old_data_summary_forever">Ponechat data navždy; automatické čištění stará data nesmaže</string>
+    <plurals name="settings_auto_cleanup_old_data_summary_years">
+        <item quantity="one">Automaticky odstranit data starší než %1$d rok</item>
+        <item quantity="few">Automaticky odstranit data starší než %1$d roky</item>
+        <item quantity="many">Automaticky odstranit data starší než %1$d let</item>
+        <item quantity="other">Automaticky odstranit data starší než %1$d let</item>
+    </plurals>
+    <!-- Data retention period options -->
+    <string name="settings_data_retention_years_title">Uchovávat data po dobu</string>
+    <string-array name="settings_data_retention_years_titles">
+        <item>Uchovávat navždy</item>
+        <item>1 rok</item>
+        <item>2 roky</item>
+        <item>3 roky</item>
+        <item>5 let</item>
+        <item>10 let</item>
+    </string-array>
+    <string-array name="settings_data_retention_years_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>5</item>
+        <item>10</item>
+    </string-array>
+    <!-- Common Buttons -->
+    <string name="button_continue">POKRAČOVAT</string>
+    <!-- Export: Format Selection -->
+    <string name="settings_export_data_title">Exportovat data</string>
+    <string name="settings_export_data_summary">Uložit sledovaná data v různých formátech</string>
+    <string name="export_format_dialog_title">Zvolte formát exportu</string>
+    <string name="export_format_gpx_name">GPX (doporučeno)</string>
+    <string name="export_format_gpx_desc">Body trasy v plné přesnosti pro zařízení GPS, fitness aplikace a univerzální kompatibilitu</string>
+    <string name="export_format_kml_name">KML</string>
+    <string name="export_format_kml_desc">Body trasy v plné přesnosti pro Google Earth a geografickou vizualizaci</string>
+    <string name="export_format_json_name">JSON</string>
+    <string name="export_format_json_desc">Průběžné polohy a souhrny relací; import sloučí data a znovu vytvoří část metadat</string>
+    <string name="export_format_db_name">Databáze</string>
+    <string name="export_format_db_desc">Nezpracovaná záloha SQLite se všemi daty a nastaveními; import sloučí kompatibilní řádky, nejde o úplné obnovení</string>
+    <string name="export_sensitivity_dialog_title">Exportovat přesná data o poloze?</string>
+    <string name="export_sensitivity_gpx_message">Tento export GPX obsahuje body trasy v plné přesnosti. Uložte jej nebo jej sdílejte pouze s lidmi a aplikacemi, kterým důvěřujete.</string>
+    <string name="export_sensitivity_kml_message">Tento export KML obsahuje body trasy v plné přesnosti. Uložte jej nebo jej sdílejte pouze s lidmi a aplikacemi, kterým důvěřujete.</string>
+    <string name="export_sensitivity_json_message">Tento export JSON obsahuje polohy v plné přesnosti a souhrny relací. Při importu může dojít ke ztrátě části odvozených metadat; ukládejte jej nebo jej sdílejte pouze s cíli, kterým důvěřujete.</string>
+    <string name="export_sensitivity_db_message">Tato nezpracovaná záloha databáze může obsahovat přesné polohy, rádiová data Wi-Fi/mobilních sítí, aktivity a nastavení. Uchovávejte ji soukromě a ukládejte ji jen na místo, kterému důvěřujete.</string>
+    <string name="export_sensitivity_confirm">Pokračovat v exportu</string>
+    <string name="settings_export_title">Export</string>
+    <string name="settings_import_summary">Import dat z podporovaných typů (%1$s) a archivů (%2$s). Importy databáze slučují kompatibilní řádky; nenahrazují stávající data.</string>
+    <string name="settings_import_title">Import</string>
+    <!-- Help Text for Advanced Settings (Progressive Disclosure) -->
+    <string name="got_it">Rozumím</string>
+    <!-- Battery Impact Strings -->
+    <string name="battery_impact_low">Nízký vliv</string>
+    <string name="battery_impact_moderate">Střední vliv</string>
+    <string name="battery_impact_high">Vysoký vliv</string>
+    <!-- Location Precision Mode Strings -->
+    <string name="precision_mode_title">Vyberte přesnost polohy</string>
+    <string name="precision_mode_approximate_title">Přibližná</string>
+    <string name="precision_mode_approximate_description">Poloha podle sítě. Vhodná pro sledování obecné oblasti s minimální spotřebou baterie.</string>
+    <string name="precision_mode_precise_title">Přesná</string>
+    <string name="precision_mode_precise_description">Poloha podle GPS. Nejlepší pro podrobné trasy, teplotní mapy a výzvy.</string>
+    <!-- Upgrade to Precise Prompt Strings -->
+    <string name="upgrade_to_precise_title">Odemknout přesné sledování</string>
+    <string name="upgrade_to_precise_message_general">Používáte přibližnou polohu. Pro vyšší přesnost přepněte na přesné sledování GPS.</string>
+    <string name="upgrade_to_precise_message_route_analysis">Pro přesnou analýzu tras a měření vzdálenosti se doporučuje přesná poloha.</string>
+    <string name="upgrade_to_precise_message_heatmap_detail">Přesná poloha poskytuje podrobnou vizualizaci teplotní mapy s jemným určením polohy.</string>
+    <string name="upgrade_to_precise_message_challenges">Mnoho výzev vyžaduje přesné sledování GPS, aby bylo možné přesně ověřit jejich dokončení.</string>
+    <string name="upgrade_to_precise_benefits_title">Výhody</string>
+    <string name="upgrade_to_precise_benefit_accurate_routes">Přesné tvary tras a podrobnosti cesty po jednotlivých odbočkách</string>
+    <string name="upgrade_to_precise_benefit_detailed_maps">Podrobná teplotní mapa a prostorová analýza</string>
+    <string name="upgrade_to_precise_benefit_precise_stats">Přesné měření vzdálenosti a rychlosti</string>
+    <string name="upgrade_to_precise_battery_title">Využití baterie</string>
+    <string name="upgrade_to_precise_battery_message">Přesná GPS spotřebuje více baterie. Odhadovaná doba sledování: 6–8 hodin na běžných zařízeních.</string>
+    <string name="upgrade_to_precise_button_upgrade">Povolit přesnou polohu</string>
+    <string name="upgrade_to_precise_button_cancel">Možná později</string>
+    <!-- Tracking Policy Preset Strings -->
+    <string name="tracking_preset_high_accuracy_name">Vysoká přesnost</string>
+    <string name="tracking_preset_high_accuracy_description">Nejlepší detail s nejrychlejšími aktualizacemi a zapnutými hlavními senzory</string>
+    <string name="tracking_preset_balanced_name">Vyvážený</string>
+    <string name="tracking_preset_balanced_description">Dobrá přesnost a přiměřená výdrž baterie pro každodenní sledování</string>
+    <string name="tracking_preset_power_save_name">Úspora energie</string>
+    <string name="tracking_preset_power_save_description">Nižší spotřeba baterie s méně častými aktualizacemi a omezenými senzory</string>
+    <string name="tracking_preset_custom_name">Vlastní</string>
+    <string name="tracking_preset_custom_description">Ručně nastavit každý parametr sledování</string>
+    <string name="tracking_preset_selector_title">Předvolba sledování</string>
+    <string name="tracking_preset_selector_subtitle">Vyberte profil, ze kterého chcete začít, a pak dolaďte libovolné nastavení níže.</string>
+    <string name="tracking_preset_custom_hint">Úprava libovolného nastavení níže vytvoří z aktuální předvolby vlastní profil.</string>
+    <string name="tracking_preset_customized_summary">Sledování jste doladili. Předvolbu výše vyberte pro resetování.</string>
+    <string name="settings_tracking_section_detection">Detekce a automatizace</string>
+    <string name="settings_tracking_section_sources">Zdroje dat</string>
+    <string name="settings_tracking_section_detail">Sběr polohy</string>
+    <string name="settings_tracking_section_notifications">Oznámení</string>
+    <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
+    <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
+    <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
+    <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
+    <!-- Tracking Policy Selector Strings -->
+    <string name="tracking_policy_selector_title">Zásady sledování</string>
+    <plurals name="tracking_policy_estimated_duration">
+        <item quantity="one">Odhadovaná doba sledování: %d hodina</item>
+        <item quantity="few">Odhadovaná doba sledování: %d hodiny</item>
+        <item quantity="many">Odhadovaná doba sledování: %d hodin</item>
+        <item quantity="other">Odhadovaná doba sledování: %d hodin</item>
+    </plurals>
+    <!-- Additional aliases for code compatibility -->
+    <string name="location_precision_selector_title">@string/precision_mode_title</string>
+    <string name="location_precision_selector_subtitle">Zvolte, s jakou přesností Tracker zaznamenává vaši polohu</string>
+    <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>
+    <string name="location_precision_approximate_description">@string/precision_mode_approximate_description</string>
+    <string name="location_precision_precise_title">@string/precision_mode_precise_title</string>
+    <string name="location_precision_precise_description">@string/precision_mode_precise_description</string>
+    <string name="precise">Přesná</string>
+    <string name="approximate">Přibližná</string>
+    <string name="tracking_policy_selector_subtitle">Vyberte předvolbu sledování nebo si upravte nastavení</string>
+    <string name="tracking_policy_custom_badge">Vlastní</string>
+    <string name="collapse_details">Skrýt podrobnosti</string>
+    <string name="expand_details">Zobrazit podrobnosti</string>
+    <string name="settings_section_collapse">Sbalit</string>
+    <string name="settings_section_expand">Rozbalit</string>
+    <string name="tracking_policy_details_title">Podrobnosti konfigurace</string>
+    <string name="preset_detail_location_precision">Přesnost polohy</string>
+    <string name="preset_detail_min_distance">Minimální vzdálenost</string>
+    <string name="preset_detail_min_time">Minimální čas</string>
+    <string name="preset_detail_accuracy">Požadovaná přesnost</string>
+    <string name="preset_detail_sensors">Senzory</string>
+    <string name="upgrade_benefit_accurate_routes">@string/upgrade_to_precise_benefit_accurate_routes</string>
+    <string name="upgrade_benefit_detailed_maps">@string/upgrade_to_precise_benefit_detailed_maps</string>
+    <string name="upgrade_benefit_precise_stats">@string/upgrade_to_precise_benefit_precise_stats</string>
+    <string name="upgrade_battery_impact_title">@string/upgrade_to_precise_battery_title</string>
+    <string name="upgrade_battery_impact_description">@string/upgrade_to_precise_battery_message</string>
+    <string name="upgrade_to_precise_confirm">@string/upgrade_to_precise_button_upgrade</string>
+    <string name="upgrade_to_precise_dismiss">@string/upgrade_to_precise_button_cancel</string>
+    <string name="upgrade_reason_general">@string/upgrade_to_precise_message_general</string>
+    <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
+    <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
+    <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
+    <!-- Settings screen strings -->
+    <string name="settings_auto_unit_switch_title">Automatické přepínání jednotek</string>
+    <string name="settings_module_map_subtitle">Kvalita teplotní mapy a možnosti vizualizace</string>
+    <string name="settings_module_game_subtitle">Cíle, úspěchy a milníky</string>
+    <string name="action_navigate_back">Přejít zpět</string>
+    <string name="action_help">Nápověda</string>
+    <!-- App Widgets -->
+    <string name="widget_loading">Načítání…</string>
+    <string name="widget_quick_start_name">Rychlý start Trackeru</string>
+    <string name="widget_quick_start_description">Jedním klepnutím spusťte nebo zastavte sledování polohy.</string>
+    <string name="widget_start_tracking">Spustit sledování</string>
+    <string name="widget_stop_tracking">Zastavit sledování</string>
+    <string name="widget_tracking_active">Sledování je aktivní</string>
+    <string name="widget_today_summary_name">Dnešní souhrn</string>
+    <string name="widget_today_summary_description">Zobrazte si na první pohled dnešní statistiky sledování.</string>
+    <string name="widget_today">Dnes</string>
+    <string name="widget_distance">Vzdálenost</string>
+    <string name="widget_steps">Kroky</string>
+    <string name="widget_sessions">Relace</string>
+    <string name="widget_duration">Doba trvání</string>
+    <string name="widget_no_data_today">Dnes nejsou k dispozici žádná sledovaná data</string>
+    <string name="widget_active_session_name">Aktivní relace</string>
+    <string name="widget_active_session_description">Sledujte aktuální relaci v reálném čase.</string>
+    <string name="widget_no_active_session">Žádná aktivní relace</string>
+    <string name="widget_tap_to_start">Klepnutím spusťte sledování</string>
+    <string name="widget_session_distance">Vzdálenost relace</string>
+    <string name="widget_session_steps">Kroky relace</string>
+    <string name="widget_session_duration">Doba trvání relace</string>
+    <string name="widget_current_speed">Aktuální rychlost</string>
+    <string name="widget_speed_unknown">—</string>
+    <string name="widget_speed_format_decimal">%.1f km/h</string>
+    <string name="widget_speed_format_whole">%d km/h</string>
+    <string name="widget_collections">Kolekce</string>
+    <string name="widget_path_preview">Náhled trasy</string>
+    <string name="widget_activity_unknown">Aktivita není k dispozici</string>
+    <string name="widget_goal_label">Cíl:</string>
+    <string name="widget_goal_progress">%1$s / %2$s kroků</string>
+    <string name="widget_format_km">%.1f km</string>
+    <string name="widget_format_meters">%d m</string>
+    <string name="widget_tier_off">Vypnuto</string>
+    <string name="widget_tier_ambient">Úsporný</string>
+    <string name="widget_tier_active">Aktivní</string>
+    <string name="widget_tier_precision">Přesný</string>
+    <!-- Smart Goal Notifications (Task D) -->
+    <string name="goal_notification_title_progress">Skvělý pokrok!</string>
+    <string name="goal_notification_title_almost">Už jen kousek!</string>
+    <plurals name="goal_notification_body_75">
+        <item quantity="one">Do denního cíle zbývá %1$d krok</item>
+        <item quantity="few">Do denního cíle zbývají %1$d kroky</item>
+        <item quantity="many">Do denního cíle zbývá %1$d kroků</item>
+        <item quantity="other">Do denního cíle zbývá %1$d kroků</item>
+    </plurals>
+    <plurals name="goal_notification_body_90">
+        <item quantity="one">Zbývá už jen %1$d krok!</item>
+        <item quantity="few">Zbývají už jen %1$d kroky!</item>
+        <item quantity="many">Zbývá už jen %1$d kroků!</item>
+        <item quantity="other">Zbývá už jen %1$d kroků!</item>
+    </plurals>
+    <string name="settings_smart_goal_notifications_title">Chytrá oznámení o cílech</string>
+    <string name="settings_smart_goal_notifications_summary">Dostávejte oznámení, když se blížíte dennímu cíli kroků</string>
+    <!-- First-time setup wizard -->
+    <string name="setup_how_to_track_title">Jak má sledování fungovat?</string>
+    <string name="setup_how_to_track_subtitle">Vyberte, kdy se sledování spustí a jak podrobné má být.</string>
+    <string name="setup_auto_tracking_title">Automatické sledování</string>
+    <string name="setup_auto_tracking_disabled">Vypnuto</string>
+    <string name="setup_auto_tracking_disabled_desc">Sledování spouštějte a zastavujte ručně.</string>
+    <string name="setup_auto_tracking_on_foot">Pěšky</string>
+    <string name="setup_auto_tracking_on_foot_desc">Automaticky sledovat chůzi a běh.</string>
+    <string name="setup_auto_tracking_in_motion">V pohybu</string>
+    <string name="setup_auto_tracking_in_motion_desc">Automaticky sledovat veškerý pohyb včetně řízení a jízdy na kole.</string>
+    <string name="setup_preset_title">Podrobnost sledování</string>
+    <string name="setup_what_to_collect_title">Co shromažďovat</string>
+    <string name="setup_what_to_collect_subtitle">Další možnosti jsou níže. Začněte objevovat bez oprávnění nebo je povolte později. Data zůstávají v tomto zařízení.</string>
+    <string name="setup_source_location">Poloha</string>
+    <string name="setup_source_location_desc">Zaznamenávejte své trasy a polohy na mapě.</string>
+    <string name="setup_source_activity">Aktivita</string>
+    <string name="setup_source_activity_desc">Zjistěte, zda jdete, běžíte, jedete na kole nebo řídíte.</string>
+    <string name="setup_source_steps">Kroky</string>
+    <string name="setup_source_steps_desc">Počítejte kroky pomocí krokoměru zařízení.</string>
+    <string name="setup_source_wifi">Sítě Wi-Fi</string>
+    <string name="setup_source_wifi_desc">Zaznamenávejte okolní sítě Wi-Fi ke zlepšení přesnosti polohy.</string>
+    <string name="setup_source_cell">Základnové stanice</string>
+    <string name="setup_source_cell_desc">Zaznamenávejte informace o základnových stanicích pro kontext polohy.</string>
+    <string name="setup_perm_location_why">Vyžadováno k zaznamenávání tras a jejich zobrazení na mapě. Poloha zůstává v tomto zařízení — nic se neodesílá na server.</string>
+    <string name="setup_perm_location_bg_why">Chcete-li trasu zaznamenávat i po přepnutí do jiné aplikace nebo při zhasnuté obrazovce, Tracker potřebuje přístup k vaší poloze na pozadí. Zaznamenaná poloha zůstává v tomto zařízení — nic se neodesílá na server. V dalším systémovém dialogu zvolte „Povolit vždy“, aby se aktivovalo automatické sledování; volba „Povolit jen při používání aplikace“ udrží Tracker aktivní pouze, když je jeho obrazovka otevřená.</string>
+    <string name="setup_perm_activity_why">Umožní Trackeru zjistit, co děláte (chůze, jízda na kole, řízení, klid), aby se automatické sledování mohlo pozastavit, když se nehýbete, a šetřit baterii. Data o aktivitě zůstávají v tomto zařízení — nic se neodesílá na server.</string>
+    <string name="setup_perm_notification_why">Tracker při zaznamenávání zobrazuje malé stavové oznámení, abyste na první pohled viděli, že je sledování zapnuté, a mohli je jedním klepnutím zastavit. Žádná marketingová ani propagační oznámení.</string>
+    <string name="setup_perm_wifi_why">Tracker může zaznamenávat přístupové body Wi-Fi, které telefon vidí během cesty, aby zlepšil přesnost polohy v místech se slabým GPS (uvnitř budov, pod zemí). Rádiová data zůstávají v tomto zařízení — nic se neodesílá na server. Povolte je jen, pokud je chcete používat.</string>
+    <string name="setup_perm_cell_why">Tracker může podél trasy zaznamenávat identifikátory základnových stanic, aby bylo možné určit polohu, když GPS není k dispozici. Rádiová data zůstávají v tomto zařízení — nic se neodesílá na server. Stav telefonu a přesnou polohu povolte jen, pokud je chcete používat.</string>
+    <string name="setup_perm_grant">Povolit</string>
+    <string name="setup_perm_grant_location_content_description">Povolit oprávnění k poloze</string>
+    <string name="setup_perm_grant_background_location_content_description">Povolit oprávnění k poloze na pozadí</string>
+    <string name="setup_perm_grant_activity_content_description">Povolit oprávnění k rozpoznávání aktivit</string>
+    <string name="setup_perm_grant_notification_content_description">Povolit oprávnění k oznámením</string>
+    <string name="setup_perm_grant_wifi_content_description">Povolit oprávnění k Wi-Fi</string>
+    <string name="setup_perm_grant_cell_content_description">Povolit oprávnění k rádiovým datům mobilní sítě</string>
+    <string name="setup_perm_granted">Povoleno ✓</string>
+    <string name="permission_grant_in_settings">Povolit v Nastavení →</string>
+    <string name="permission_disabled_due_to_denial">Funkce %1$s je vypnutá, protože bylo zamítnuto oprávnění. Povolte je v Nastavení.</string>
+    <string name="settings_wifi_permission_required">Vyžaduje oprávnění k Wi-Fi/poloze. Zapnutím přepínače jej povolíte — do té doby se žádná data Wi-Fi nezaznamenávají a zaznamenaná data zůstávají v tomto zařízení.</string>
+    <string name="settings_cell_permission_required">Vyžaduje oprávnění ke stavu telefonu a přesné poloze. Zapnutím přepínače jej povolíte — do té doby se žádná data mobilní sítě nezaznamenávají a zaznamenaná data zůstávají v tomto zařízení.</string>
+    <string name="settings_wifi_privacy_summary">Zaznamenává okolní sítě Wi-Fi ke zlepšení přesnosti polohy. Data zůstávají v tomto zařízení.</string>
+    <string name="settings_barometer_unavailable">Senzor tlaku není v tomto zařízení k dispozici.</string>
+    <string name="settings_activity_permission_required">Vyžaduje oprávnění k rozpoznávání aktivit. Zapnutím přepínače jej povolíte.</string>
+    <string name="settings_steps_unavailable">Senzor počítadla kroků není v tomto zařízení k dispozici.</string>
+    <string name="settings_cell_privacy_summary">Zaznamenává identifikátory základnových stanic ke zlepšení přesnosti polohy. Data zůstávají v tomto zařízení.</string>
+    <string name="setup_start_exploring">Začít objevovat</string>
+    <string name="setup_continue">Pokračovat</string>
+    <string name="setup_step_indicator">Krok %1$d z %2$d</string>
+    <!-- Onboarding step 4: opt-in online map tiles -->
+    <string name="setup_online_tiles_title">Online mapové dlaždice?</string>
+    <string name="setup_online_tiles_subtitle">Tracker obsahuje offline základní mapu, takže funguje bez sítě. Pokud chcete bohatší mapy, můžete místo toho streamovat dlaždice z veřejného poskytovatele.</string>
+    <string name="setup_online_tiles_off_title">Pouze offline (doporučeno)</string>
+    <string name="setup_online_tiles_off_desc">Žádné síťové požadavky. Používá se pouze přibalená základní mapa.</string>
+    <string name="setup_online_tiles_on_title">Použít online dlaždice</string>
+    <string name="setup_online_tiles_on_desc">Streamujte vektorové dlaždice s více podrobnostmi z OpenFreeMap (výchozí). Poskytovatele můžete později změnit v Nastavení → Mapa.</string>
+    <string name="setup_online_tiles_privacy">Pokud jsou dlaždice zapnuté, poskytovatel může vidět vaši IP adresu a načítané dlaždice — přibližně oblast mapy, na kterou se díváte. Tracker nikdy neodesílá účet, identifikátor ani historii polohy.</string>
+    <string name="setup_online_tiles_change_later">Toto můžete kdykoli změnit v Nastavení → Mapa → Online mapové dlaždice.</string>
+    <!-- Onboarding step: background access / battery optimization -->
+    <string name="setup_background_access_subtitle">Aby mohl Tracker zaznamenávat cesty i při vypnuté obrazovce nebo zavřené aplikaci, musí běžet na pozadí. Nastavení baterie telefonu jej může pozastavit — povolte činnost na pozadí, aby automatické sledování zůstalo spolehlivé.</string>
+    <string name="setup_background_access_optional">Volitelné, ale doporučené. Toto můžete kdykoli změnit v Nastavení → Sledování.</string>
+    <!-- Background reliability (shared: onboarding + settings) -->
+    <string name="background_reliability_title">Spolehlivé sledování na pozadí</string>
+    <string name="background_reliability_status_exempt">Činnost na pozadí je povolena</string>
+    <string name="background_reliability_status_optimized">Optimalizace baterie je zapnutá</string>
+    <string name="background_reliability_exempt_desc">Tracker je vyjmut z optimalizace baterie, takže sledování na pozadí a automatické sledování může spolehlivě běžet.</string>
+    <string name="background_reliability_optimized_desc">Optimalizace baterie může Tracker na pozadí pozastavit a zastavit automatické sledování. Povolte činnost na pozadí, aby dále běželo.</string>
+    <string name="background_reliability_allow_action">Povolit činnost na pozadí</string>
+    <string name="background_reliability_samsung_hint">Zařízení Samsung mohou aplikace zařadit také mezi \"Aplikace ve spánku\". Otevřete nastavení baterie, odeberte Tracker z Aplikací ve spánku a nastavte, aby nebyl uspáván.</string>
+    <string name="background_reliability_samsung_action">Otevřít nastavení baterie zařízení</string>
+    <!-- Local crash and diagnostic capture -->
+    <string name="settings_tracebox_title">Diagnostika pádů</string>
+    <string name="settings_tracebox_root_summary">Místní diagnostika pádů, ANR a struktury</string>
+    <string name="settings_tracebox_status_header">Stav záznamu</string>
+    <string name="settings_tracebox_toggle_title">Zaznamenávat diagnostiku pádů</string>
+    <string name="settings_tracebox_toggle_summary_off">Záznam je vypnutý. Stávající místní diagnostika zůstane, dokud ji nesmažete.</string>
+    <string name="settings_tracebox_toggle_summary_on">Pády, ANR a pevná strukturální diagnostika se zaznamenávají místně.</string>
+    <string name="settings_tracebox_readiness_label">Připravenost úložiště</string>
+    <string name="settings_tracebox_readiness_volatile">Spouští se trvalé úložiště; je k dispozici dočasný záznam</string>
+    <string name="settings_tracebox_readiness_durable">Trvalý záznam je připraven</string>
+    <string name="settings_tracebox_readiness_degraded">Záznam je omezený; některé záznamy nemusí být k dispozici</string>
+    <string name="settings_tracebox_readiness_closed">Záznam je uzavřen</string>
+    <string name="settings_tracebox_health_label">Stav běhu</string>
+    <string name="settings_tracebox_health_disabled">Vypnuto</string>
+    <string name="settings_tracebox_health_initializing">Inicializace</string>
+    <string name="settings_tracebox_health_ready">Připraveno</string>
+    <string name="settings_tracebox_health_degraded">Omezeno</string>
+    <string name="settings_tracebox_health_deleting">Mazání místní diagnostiky</string>
+    <string name="settings_tracebox_health_closed">Uzavřeno</string>
+    <string name="settings_tracebox_package_header">Diagnostický balíček</string>
+    <string name="settings_tracebox_package_body">Tracebox nejprve zobrazí přesné sdělení k dokončenému balíčku. Nic se neuloží ani nesdílí, dokud jej neschválíte a nezvolíte cíl.</string>
+    <string name="settings_tracebox_package_review_action">Zkontrolovat a schválit balíček</string>
+    <string name="settings_tracebox_package_save_action">Uložit schválený balíček</string>
+    <string name="settings_tracebox_package_share_action">Sdílet schválený balíček</string>
+    <string name="settings_tracebox_share_limit">Android může potvrdit otevření výběru, ale nemůže prokázat, že jiná aplikace balíček přijala.</string>
+    <string name="settings_tracebox_data_header">Data Traceboxu</string>
+    <string name="settings_tracebox_data_body">Tím se smaže diagnostika vlastněná Traceboxem a příprava balíčku. Soubory, které jste již uložili nebo odeslali, spravují jejich cílové aplikace.</string>
+    <string name="settings_tracebox_delete_action">Smazat všechna data Traceboxu</string>
+    <string name="settings_tracebox_delete_confirm_title">Smazat veškerou diagnostiku pádů?</string>
+    <string name="settings_tracebox_delete_confirm_body">Tím se z Trackeru odstraní veškerá diagnostika vlastněná Traceboxem a příprava balíčku. Akci nelze vrátit zpět.</string>
+    <string name="settings_tracebox_delete_confirm_action">Smazat</string>
+    <string name="settings_tracebox_result_header">Poslední výsledek</string>
+    <string name="settings_tracebox_result_enabled">Diagnostika pádů byla zapnuta.</string>
+    <string name="settings_tracebox_result_disabled">Diagnostika pádů byla vypnuta. Stávající data nebyla smazána.</string>
+    <string name="settings_tracebox_result_policy_restricted">Omezující zásady byly uloženy místně, ale dosud je nepotvrdil každý proces.</string>
+    <string name="settings_tracebox_result_policy_partial">Zásady byly uloženy místně, ale sjednocení běhu nebylo dokončeno.</string>
+    <string name="settings_tracebox_result_failed">Operace nedosáhla hranice místní trvalosti.</string>
+    <string name="settings_tracebox_result_delete_complete">Všechna data vlastněná Traceboxem byla smazána.</string>
+    <string name="settings_tracebox_result_delete_pending">Mazání bylo dokončeno jen částečně. Některá data vlastněná obslužnými prvky čekají na smazání.</string>
+    <string name="settings_tracebox_result_delete_rejected">Tracebox žádost o smazání odmítl.</string>
+    <string name="settings_tracebox_result_review_ready">Sdělení je připraveno: %1$d zahrnutých hodnot obsahuje %2$d bajtů diagnostických dat.</string>
+    <string name="settings_tracebox_result_package_created">Schválený diagnostický balíček je připraven k uložení nebo sdílení.</string>
+    <string name="settings_tracebox_result_approval_cancelled">Schválení balíčku bylo zrušeno. Žádný balíček nebyl vytvořen.</string>
+    <string name="settings_tracebox_result_package_rejected">Vytvoření balíčku bylo odmítnuto, protože schválení už neodpovídalo finálním bajtům.</string>
+    <string name="settings_tracebox_result_package_not_ready">Diagnostický balíček není připraven. Nejprve jej zkontrolujte a schvalte.</string>
+    <string name="settings_tracebox_result_save_complete">Úplný schválený balíček byl uložen (%1$d bajtů).</string>
+    <string name="settings_tracebox_result_save_partial">Zkopírováno bylo jen %1$d bajtů. Cíl může obsahovat neúplný balíček.</string>
+    <string name="settings_tracebox_result_save_partial_cancelled">Ukládání bylo zrušeno po %1$d bajtech. Cíl může obsahovat neúplný balíček.</string>
+    <string name="settings_tracebox_result_save_failed">Schválený balíček se nepodařilo uložit.</string>
+    <string name="settings_tracebox_result_save_cancelled">Nebyl vybrán cíl pro uložení.</string>
+    <string name="settings_tracebox_result_share_opened">Otevřel se systémový výběr sdílení Androidu.</string>
+    <string name="settings_tracebox_result_share_unknown">Výběr se vrátil. Android nemůže prokázat, zda příjemce balíček obdržel.</string>
+    <string name="settings_tracebox_records_header">Co zaznamenává</string>
+    <string name="settings_tracebox_records_body">Důkazy o pádu a ANR spolu s omezenou sadou předem definovaných kódů o struktuře aplikace a pořadí provádění. Tracebox je jediný záznamník pádů a diagnostiky Trackeru.</string>
+    <string name="settings_tracebox_privacy_header">Co vynechává</string>
+    <string name="settings_tracebox_privacy_body">Rozhraní záznamu nepřijímá žádný libovolný text, polohu, údaje o účtu, identifikátory zařízení ani údaje ze senzorů. Standardní balíčky vylučují nezpracované artefakty pádů a nikdy se automaticky nenahrávají.</string>
+</resources>

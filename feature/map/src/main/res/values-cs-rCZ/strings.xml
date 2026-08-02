@@ -1,15 +1,127 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
-<resources>
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
+    <!-- Module title for distribution manifest -->
+    <string name="module_map_title">Mapa</string>
     <string name="description_map_search">Tlačítko pro vyhledávání</string>
     <string name="map_layer_cell_heatmap_description">Pozorovaná mobilní síť podle rádiové technologie. Měkké plochy ukazují dosah obsluhujících buněk; zářící středy jsou opatrné odhady polohy stanovišť.</string>
     <string name="map_layer_cell_heatmap_title">Topologie mobilní sítě</string>
+    <string name="map_layer_location_heatmap_high">Vysoká hustota</string>
+    <string name="map_layer_location_heatmap_low">Nízká hustota</string>
+    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_medium">Střední hustota</string>
+    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Jedinečné návštěvy</string>
+    <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Návštěvy</string>
+    <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Relativní hustota přijatých určení polohy. Zobrazuje jedinečná pozorování, nikoli čas strávený na místě.</string>
     <string name="map_layer_cell_radio_gsm">Pokrytí GSM</string>
     <string name="map_layer_cell_radio_wcdma">3G / WCDMA</string>
     <string name="map_layer_cell_radio_lte">4G / LTE</string>
     <string name="map_layer_cell_radio_nr">5G / NR</string>
-    <string name="map_layer_location_heatmap_high">Vysoká hustota</string>
-    <string name="map_layer_location_heatmap_low">Nízká hustota</string>
-    <string name="map_layer_location_heatmap_medium">Střední hustota</string>
+    <string name="map_layer_signal_coverage_title">Mrtvé zóny signálu</string>
+    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_description">Zvýrazňuje místa, kde byl signál mobilní sítě slabý nebo chyběl. Čím červenější oblast, tím horší pokrytí; dobře pokryté oblasti zůstávají čisté.</string>
+    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
+    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
+    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
+    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Polární záře signálu</string>
+    <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Záře</string>
+    <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">Signál mobilní sítě vykreslený jako záře podobná polární záři: široký fialový halo pod jasným azurově zeleným jádrem. Záře pulzuje bez opětovného načítání dat a při vypnutých systémových animacích zůstane statická.</string>
+    <string name="map_layer_signal_aurora_faint" tools:ignore="MissingTranslation">Slabý signál</string>
+    <string name="map_layer_signal_aurora_strong" tools:ignore="MissingTranslation">Silný signál</string>
+    <string name="map_layer_speed_heatmap_description">Teplotní mapa znázorňující rychlost pohybu v různých oblastech.</string>
+    <string name="map_layer_speed_very_slow">Velmi pomalý pohyb</string>
+    <string name="map_layer_speed_walking">Tempo chůze</string>
+    <string name="map_layer_speed_running">Tempo běhu</string>
+    <string name="map_layer_speed_moderate">Střední rychlost</string>
+    <string name="map_layer_speed_fast">Rychlý pohyb</string>
+    <string name="map_layer_speed_very_fast">Velmi rychlý pohyb</string>
+    <string name="map_layer_speed_heatmap_title">Teplotní mapa rychlosti</string>
+    <string name="map_layer_legacy_heatmap_title">Historická teplotní mapa</string>
+    <string name="map_layer_legacy_heatmap_chip">Historické dlaždice</string>
+    <string name="map_layer_legacy_heatmap_description">Návrat k původní aplikaci Signals: hustota polohy jako samostatné dlaždice mřížky o velikosti 25\u202fm, tak jak vypadala teplotní mapa při vykreslování dlaždic na serveru. Přiblížením zobrazíte čtverce.</string>
+    <string name="map_layer_seasonal_title">Sezónní objevitel</string>
+    <string name="map_layer_seasonal_chip">Roční období</string>
+    <string name="map_layer_seasonal_description">Mozaika sezónních vzpomínek: každá prozkoumaná oblast je zbarvena podle ročního období, kdy jste ji poprvé navštívili. Najděte stezky, po kterých chodíte jen v létě, nebo ulice, které vídáte jen v zimě.</string>
+    <string name="map_layer_season_spring">Jaro</string>
+    <string name="map_layer_season_summer">Léto</string>
+    <string name="map_layer_season_autumn">Podzim</string>
+    <string name="map_layer_season_winter">Zima</string>
+    <string name="map_layer_terrain_title">Život jako terén</string>
+    <string name="map_layer_terrain_chip">Terén</string>
+    <string name="map_layer_terrain_description">Hustota polohy převedená do 3D: místa, kde trávíte nejvíce času, vystupují jako vysoké zářící stolové hory, zatímco jednorázově navštívená místa zůstávají nízko. Nakloňte mapu a uvidíte reliéf svého života.</string>
+    <string name="map_layer_terrain_low">Zřídka zde</string>
+    <string name="map_layer_terrain_mid">Někdy</string>
+    <string name="map_layer_terrain_high">Často zde</string>
+    <string name="map_layer_places_title">Častá místa</string>
+    <string name="map_layer_places_chip">Místa</string>
+    <string name="map_layer_places_description">Vaše důležitá místa jako značky, jejichž velikost a barva odpovídá četnosti návštěv. Domov a práce se stanou velkými teplými body; místo navštívené jednou zůstane malým chladným bodem.</string>
+    <string name="map_layer_places_rare">Zřídka</string>
+    <string name="map_layer_places_often">Někdy</string>
+    <string name="map_layer_places_anchor">Vaše kotvy</string>
+    <string name="map_layer_speed_ribbon_title">Pás rychlosti</string>
+    <string name="map_layer_speed_ribbon_chip">Pás</string>
+    <string name="map_layer_speed_ribbon_description">Trasa zbarvená podle rychlosti pohybu, plynulou barvou od pomalého fialového kroku k žhavě červenému sprintu nebo jízdě. Na rozdíl od teplotní mapy rychlosti pás zachovává celou cestu, takže přesně vidíte, kde jste zrychlili a zpomalili.</string>
+    <string name="map_layer_altitude_ribbon_title" tools:ignore="MissingTranslation">Pás nadmořské výšky</string>
+    <string name="map_layer_altitude_ribbon_chip" tools:ignore="MissingTranslation">Nadmořská výška</string>
+    <string name="map_layer_altitude_ribbon_description" tools:ignore="MissingTranslation">Trasa zbarvená podle absolutní nadmořské výšky, od tmavě modrých nížin přes azurové podhůří po teplé horské výšky. Měřítko při posouvání mapy zůstává pevné, takže stejná výška má vždy stejnou barvu.</string>
+    <string name="map_layer_altitude_low" tools:ignore="MissingTranslation">Nížiny</string>
+    <string name="map_layer_altitude_mid" tools:ignore="MissingTranslation">Podhůří</string>
+    <string name="map_layer_altitude_high" tools:ignore="MissingTranslation">Vysoké hory</string>
+    <string name="map_layer_activity_ribbon_title" tools:ignore="MissingTranslation">Pás aktivity</string>
+    <string name="map_layer_activity_ribbon_chip" tools:ignore="MissingTranslation">Aktivita</string>
+    <string name="map_layer_activity_ribbon_description" tools:ignore="MissingTranslation">Trasa zbarvená podle spolehlivého stavu pohybu zaznamenaného s každým určením polohy: šedě při neznámém stavu, modře v klidu a zeleně při pohybu.</string>
+    <string name="map_layer_activity_unknown" tools:ignore="MissingTranslation">Neznámý</string>
+    <string name="map_layer_activity_still" tools:ignore="MissingTranslation">V klidu</string>
+    <string name="map_layer_activity_moving" tools:ignore="MissingTranslation">V pohybu</string>
+    <string name="map_layer_ski_xray_title" tools:ignore="MissingTranslation">Lyžařský rentgen</string>
+    <string name="map_layer_ski_xray_chip" tools:ignore="MissingTranslation">Lyžařský rentgen</string>
+    <string name="map_layer_ski_xray_description" tools:ignore="MissingTranslation">Diagnostický pohled na zjištěné lyžařské úseky. Sjezdy, vleky, chůze a pauzy jsou ukotveny k nejbližší zaznamenané poloze a označeny hlavními metrikami.</string>
+    <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Sjezd</string>
+    <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Vlek</string>
+    <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Chůze nebo pauza</string>
+    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Souhvězdí cest</string>
+    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Cesty</string>
+    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Opakované cesty mezi častými místy se mění v zakřivená souhvězdí. Stabilní oblouk ukazuje každou trasu a podél něj cestuje kometa; silnější oblouky znamenají, že jste danou cestu absolvovali častěji.</string>
+    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Chůze</string>
+    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Jízda na kole</string>
+    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Řízení</string>
+    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Veřejná doprava</string>
+    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Ostatní</string>
+    <string name="map_layer_fog_title">Mlha objevitele</string>
+    <string name="map_layer_fog_chip">Mlha</string>
+    <string name="map_layer_fog_description">Svět vystupuje z mlhy: každá oblast, které jste se dotkli, se odhalí a září tím jasněji, čím důkladněji jste ji poznali. Místa, jimiž jste jen prošli, zůstávají slabým oparem; hluboce prozkoumané místo září sytě zlatě. Neprozkoumaná zem zůstává tmavá.</string>
+    <string name="map_layer_fog_faint">Pouze průchod</string>
+    <string name="map_layer_fog_known">Dobře prozkoumáno</string>
+    <string name="map_layer_first_contact_title">První kontakt</string>
+    <string name="map_layer_first_contact_chip">Objev</string>
+    <string name="map_layer_first_contact_description">Časová osa vašich objevů: každá oblast je zbarvena podle toho, jak nedávno jste do ní poprvé vstoupili. Místa objevená dávno vyblednou do tmavé indigové barvy, zatímco území prozkoumané tento týden září jasnou azurovou — čtěte příběh svého objevování až k nejnovějším hranicím.</string>
+    <string name="map_layer_first_contact_old">Dávno</string>
+    <string name="map_layer_first_contact_recent">Právě objeveno</string>
+    <string name="map_layer_vehicle_compliance_title">Dodržování rychlostních limitů vozidly</string>
+    <string name="map_layer_vehicle_compliance_description">Trasa vzorků jízdy zbarvená podle porovnání rychlosti s nastaveným výchozím limitem.</string>
+    <string name="map_layer_vehicle_compliance_way_under">Výrazně pod limitem</string>
+    <string name="map_layer_vehicle_compliance_slow">Pod limitem</string>
+    <string name="map_layer_vehicle_compliance_at_limit">U limitu</string>
+    <string name="map_layer_vehicle_compliance_slightly_over">Mírně nad limitem</string>
+    <string name="map_layer_vehicle_compliance_speeding">Překročení rychlosti</string>
+    <string name="map_layer_location_polyline_description">Čára spojující zaznamenané polohy v čase.</string>
+    <string name="map_layer_location_polyline_title">Trasa polohy</string>
+    <!-- Compact chip labels: long titles truncate to "Location polyli..." in the
+         layer chip on the map control bar (~360dp). Each chip label fits in
+         ~12 characters at typical font sizes. Fall back to titleRes for layers
+         whose titleRes already fits. -->
+    <string name="map_layer_location_polyline_chip">Trasa</string>
+    <string name="map_layer_wifi_count_heatmap_chip">Překrytí Wi-Fi</string>
+    <string name="map_layer_vehicle_compliance_chip">Rychlost</string>
+    <string name="map_layer_none_title">Bez překrytí</string>
+    <string name="map_date_preset_week">Minulý týden</string>
+    <string name="map_date_preset_month">Minulý měsíc</string>
+    <string name="map_date_preset_custom">Vlastní…</string>
+    <string name="map_date_today">Dnes</string>
+    <string name="map_date_yesterday">Včera</string>
+    <string name="map_date_this_week">Tento týden</string>
     <string name="map_layer_wifi_count_heatmap_title">Překryv Wi-Fi</string>
     <string name="map_layer_wifi_count_heatmap_description">Ukazuje počet různých přístupových bodů, které se v místě překrývají. Opakované skeny stejného bodu se počítají jen jednou.</string>
     <string name="map_layer_wifi_heatmap_description">Wi-Fi souhvězdí podle pásem z vašich pozorování. Barevné plochy ukazují dosah 2,4, 5 a 6 GHz; zářící středy jsou přibližné polohy přístupových bodů.</string>
@@ -20,11 +132,97 @@
     <string name="map_layer_wifi_radio_24">Dosah 2,4 GHz</string>
     <string name="map_layer_wifi_radio_5">Dosah 5 GHz</string>
     <string name="map_layer_wifi_radio_6">Dosah 6 GHz</string>
+    <string name="map_legend_label">Legenda</string>
+    <string name="map_chip_layers">Vrstva</string>
+    <string name="map_chip_dates">Data</string>
     <string name="permission_rationale_location_map">Přesná poloha je vyžadována.</string>
+    <string name="map_location_permission_denied">K zobrazení vaší polohy je vyžadováno oprávnění k poloze</string>
+    <string name="map_open_settings">Otevřít nastavení</string>
+    <string name="settings_map_basemap_title">Základní mapa</string>
+    <string name="settings_map_basemap_custom">Je aktivní vlastní soubor .pmtiles (klepnutím odeberete)</string>
+    <string name="settings_map_basemap_default">Je aktivní vestavěná základní mapa. Klepnutím importujete vlastní soubor .pmtiles.</string>
+    <string name="basemap_import_error_source_open">Tento soubor se nepodařilo otevřít. Zkuste jiný nebo jej znovu nasdílejte s Trackerem.</string>
+    <string name="basemap_import_error_copy">Soubor základní mapy se nepodařilo zkopírovat. Zkontrolujte dostatek volného místa a zkuste to znovu.</string>
+    <string name="basemap_import_error_invalid_format">Neplatný soubor PMTiles: %1$s</string>
+    <string name="settings_map_advanced_section_title">Pokročilá nastavení</string>
     <string name="settings_map_max_heat_title">Maximální teplota po výskytech</string>
     <string name="settings_map_quality_title">Rozlišení teplotní mapy</string>
     <string name="settings_map_visit_threshold_title">Časový práh pro návštěvu polohy</string>
+    <string name="settings_map_legacy_heatmap_title">Historická teplotní mapa (dlaždice 10\u202fm)</string>
+    <string name="settings_map_legacy_heatmap_subtitle">Velikonoční vajíčko: přidá vrstvu „Historická teplotní mapa“, která vykresluje hustotu polohy jako samostatné dlaždice mřížky o velikosti 10\u202fm, podobně jako původní teplotní mapa Signals vykreslovaná na serveru.</string>
+    <string name="settings_map_zoom_buttons_title">Tlačítka přiblížení mapy</string>
+    <string name="settings_map_zoom_buttons_subtitle">Zobrazí na mapě tlačítka + a − pro přiblížení, pokud se ovládání dvěma prsty používá obtížně.</string>
     <string name="tips_map_date_range_title">Časové období</string>
     <string name="tips_map_my_location_title">Moje poloha</string>
     <string name="tips_map_sheet_description">Kliknutím nebo tažením tohoto panelu vzhůru otevře nabídku vrstev pro mapu.</string>
+    <!-- Map Sheet Controls -->
+    <!-- Keep short so it fits the search field at typical 360dp widths;
+         the full coordinate-format reference lives in map_search_invalid_format. -->
+    <string name="map_search_placeholder">Zem. š., zem. d., např. 50.075, 14.437</string>
+    <string name="map_search_invalid_format">Zkuste 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51'24"N 2°21'08"E</string>
+    <string name="map_search_clear">Vymazat hledání</string>
+    <string name="map_search_paste">Vložit ze schránky do vyhledávání</string>
+    <string name="map_search_clipboard_empty">Schránka zatím neobsahuje souřadnice</string>
+    <string name="map_date_range_dialog_ok">OK</string>
+    <string name="map_date_range_dialog_cancel">Zrušit</string>
+    <!-- Share map as image -->
+    <string name="map_share_button">Sdílet mapu</string>
+    <string name="map_share_sheet_title">Sdílet mapu jako obrázek</string>
+    <string name="map_share_sheet_subtitle">Vykreslí aktuální pohled a aktivní vrstvu jako statický obrázek. Vaše živá poloha se nikdy nezahrne.</string>
+    <string name="map_share_resolution_standard">Standardní (1080p)</string>
+    <string name="map_share_resolution_high">Vysoké (1440p)</string>
+    <string name="map_share_resolution_ultra">Ultra (4K)</string>
+    <string name="map_share_action">Sdílet</string>
+    <string name="map_share_preparing">Příprava obrázku…</string>
+    <string name="map_share_error">Obrázek mapy se nepodařilo vykreslit. Zkuste to prosím znovu.</string>
+    <string name="map_date_range_all_time">Celé období</string>
+    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_layers_title">Vrstvy mapy</string>
+    <string name="map_layer_load_error">Tuto vrstvu se nepodařilo načíst. Zkuste vybrat jinou.</string>
+    <string name="map_empty_subtitle_location">V tomto zobrazení nebo rozsahu dat nejsou žádná data o poloze. Funkce trasy a mapy vyžadují polohu shromážděnou během sledování.</string>
+    <string name="map_empty_subtitle_cell">V tomto zobrazení nebo rozsahu dat nejsou žádná lokalizovaná data mobilní sítě. Vzorky buněk zaznamenané bez polohy jsou stále uloženy, ale na mapě se nemohou zobrazit.</string>
+    <string name="map_empty_subtitle_wifi">V tomto zobrazení nebo rozsahu dat nejsou žádná lokalizovaná data Wi-Fi. Pozorování Wi-Fi zaznamenaná bez polohy jsou stále uložena, ale na mapě se nemohou zobrazit.</string>
+    <string name="map_empty_subtitle_speed">V tomto zobrazení nebo rozsahu dat nejsou žádná data o rychlosti. Mapy rychlosti vyžadují použitelné vzorky polohy shromážděné během sledování.</string>
+    <string name="map_empty_subtitle_vehicle_compliance">Nejsou k dispozici žádné jízdy přiřazené k silnicím. Importujte oblast OpenStreetMap (Nastavení) a zaznamenejte nějakou jízdu, abychom mohli trasu přiřadit ke skutečným silnicím.</string>
+    <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Skrýt zprávu o chybějících datech</string>
+    <string name="map_speed_probe_title">Rychlost zde</string>
+    <string name="map_speed_probe_avg_label">Průměr</string>
+    <string name="map_speed_probe_max_label">Max.</string>
+    <string name="map_speed_probe_empty">V tomto místě nejsou žádná data o rychlosti. Klepněte na místo s teplotní mapou, chcete-li zobrazit rychlosti.</string>
+    <string name="map_speed_probe_hint">Klepnutím na mapu zobrazíte rychlosti</string>
+    <string name="map_speed_probe_dismiss">Skrýt podrobnosti rychlosti</string>
+    <string name="map_place_callout_loading">Hledání místa…</string>
+    <string name="map_place_callout_empty">Zde nebylo nalezeno žádné místo</string>
+    <string name="map_place_callout_dismiss">Skrýt podrobnosti místa</string>
+    <string name="map_zoom_in">Přiblížit</string>
+    <string name="map_zoom_out">Oddálit</string>
+    <string name="map_loading">Načítání mapy…</string>
+    <string name="map_basemap_unavailable">Základní mapu se nepodařilo připravit. Zavřete a znovu otevřete mapu a zkuste to znovu.</string>
+    <string name="map_a11y_map_overview">Přehled mapy</string>
+    <string name="map_a11y_centered_on_location">Mapa vycentrovaná na vaši polohu</string>
+    <string name="map_a11y_showing_location">Mapa zobrazuje vaši polohu</string>
+    <string name="map_a11y_loading_data">Načítání zaznamenaných dat mapy</string>
+    <string name="map_a11y_no_recorded_data">Vybraná vrstva nemá v tomto zobrazení nebo rozsahu dat žádná data zobrazitelná na mapě</string>
+    <string name="map_a11y_no_layer_selected">Není vybrána žádná vrstva mapy</string>
+    <string name="map_a11y_search_result_visible">Značka výsledku vyhledávání je viditelná</string>
+    <string name="map_a11y_active_recording_visible">Trasa aktivního záznamu je viditelná</string>
+    <string name="map_a11y_recorded_route_history">Zobrazuje historii zaznamenané trasy</string>
+    <string name="map_a11y_distinct_visits" tools:ignore="MissingTranslation">Zobrazuje jedinečná přijatá pozorování polohy</string>
+    <string name="map_a11y_cell_heatmap">Zobrazuje pole pokrytí mobilní sítě a přibližné středy obslužných stanovišť</string>
+    <string name="map_a11y_wifi_heatmap">Zobrazuje pásma Wi-Fi, pole pokrytí a přibližné středy přístupových bodů</string>
+    <string name="map_a11y_wifi_count_heatmap">Zobrazuje překrytí jedinečných přístupových bodů Wi-Fi</string>
+    <string name="map_a11y_speed_heatmap">Zobrazuje teplotní mapu rychlosti</string>
+    <string name="map_a11y_saved_map_data">Zobrazuje uložená data mapy</string>
+    <string name="map_location_permission_opening_settings">Je vyžadován přístup k poloze. Otevírání Nastavení…</string>
+    <string name="map_permission_banner_dismiss">Skrýt zprávu o oprávnění k poloze</string>
+    <string name="map_loading_layer">Načítání vrstvy mapy</string>
+    <string name="map_a11y_world_scale">Světové měřítko</string>
+    <string name="map_a11y_regional_scale">Regionální měřítko</string>
+    <string name="map_a11y_city_scale">Městské měřítko</string>
+    <string name="map_a11y_neighborhood_scale">Měřítko čtvrti</string>
+    <string name="map_a11y_street_scale">Měřítko ulice</string>
+    <!-- Help Text for Map Settings -->
+    <string name="help_map_quality">Násobitel podrobnosti vykreslování. Vyšší hodnoty zobrazí více podrobností, ale na starších zařízeních mohou zpomalit načítání mapy.</string>
+    <string name="help_max_heat_points">Maximální počet bodů polohy zobrazených v teplotní mapě. Vyšší hodnoty znamenají více podrobností, ale pomalejší vykreslování.</string>
+    <string name="help_visit_threshold">Doba, kterou musíte zůstat na jednom místě, než je na mapě označeno jako „návštěva“. Zvyšte ji, chcete-li omezit nepořádek z krátkých zastávek.</string>
 </resources>

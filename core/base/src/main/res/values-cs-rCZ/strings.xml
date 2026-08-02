@@ -1,14 +1,23 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="activity_bicycle">kolo</string>
+    <!-- Core activity types for location-based tracking -->
+    <string name="activity_walking">Chůze</string>
+    <string name="activity_running">Běh</string>
+    <string name="activity_bicycle">Jízda na kole</string>
+    <string name="activity_slope_sports">Sjezdové sporty</string>
+    <string name="activity_land_vehicle">Pozemní vozidlo</string>
+    <string name="activity_water_vehicle">Vodní vozidlo</string>
+    <string name="activity_air_vehicle">Letecké vozidlo</string>
+    <!-- Legacy/system activities -->
     <string name="activity_in_vehicle">Ve vozidle</string>
-    <string name="activity_name">Název aktivity</string>
     <string name="activity_on_foot">Pěšky</string>
+    <string name="activity_name">Název aktivity</string>
     <string name="activity_raw_still">V klidu</string>
     <string name="activity_raw_tilting">Naklánění</string>
     <string name="activity_still">V klidu</string>
     <string name="activity_unknown">Neznámý</string>
     <string name="activity_vehicle">vozidlo</string>
+    <!-- Extended activity catalog (historical translations now have defaults) -->
     <string name="alert_confirm">Jste si jistí, že chcete %1$s?</string>
     <string name="cell_cdma">2G (CDMA)</string>
     <string name="cell_gsm">2G (GSM)</string>
@@ -18,18 +27,33 @@
     <string name="cell_unknown">Neznámé</string>
     <string name="cell_wcdma">3G (WCDMA)</string>
     <string name="channel_activity_watcher_description">Kanál určený pro sledovač aktivity, abyste mohli tuto permanentní notifikaci jednoduše schovat.</string>
+    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
     <string name="channel_activity_watcher_name">Sledovač aktivity</string>
     <string name="channel_achievements_description">Kanál, který obsahuje notifikace související s úspěchy.</string>
+    <!--
+        channel_achievements_id value is intentionally kept as "challenge_channel_id"
+        (the original on-device channel identifier from the pre-Phase-13 challenge era)
+        so existing installs keep their user-configured channel settings on upgrade.
+        Resource KEY was renamed to channel_achievements_* during the challenges→achievements
+        rework; resource VALUE must not change.
+    -->
+    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
     <string name="channel_achievements_name">Úspěchy</string>
     <string name="channel_other_description">Kanál obsahující notifikace, které nepatří do žádného jiného kanálu.</string>
+    <string name="channel_other_id" translatable="false">other_channel_id</string>
     <string name="channel_other_name">Ostatní</string>
     <string name="channel_track_description">Kanál obsahující notifikace spojené se sběrem dat.</string>
+    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
     <string name="channel_track_name">Sběr dat</string>
     <string name="channel_goals_description">Upozornění při dokončení cíle.</string>
+    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
     <string name="channel_goals_name">Cíle</string>
     <string name="day_short">%d d</string>
+    <string name="generic_add">Přidat</string>
     <string name="generic_back">Zpět</string>
     <string name="generic_cancel">Zrušit</string>
+    <string name="generic_delete">Smazat</string>
+    <string name="generic_edit">Upravit</string>
     <string name="generic_ok">OK</string>
     <string name="generic_undo">vrátit</string>
     <string name="hour_short">%d h</string>

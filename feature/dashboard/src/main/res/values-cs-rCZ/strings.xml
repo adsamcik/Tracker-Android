@@ -1,0 +1,161 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="dashboard_title">Přehled</string>
+    <string name="dashboard_tracking_title">Sledování</string>
+    <string name="dashboard_recording">Záznam</string>
+    <string name="dashboard_tracking_stopped_unexpectedly">Sledování se neočekávaně zastavilo</string>
+    <string name="dashboard_permission_banner_title">Oprávnění k poloze není k dispozici</string>
+    <string name="dashboard_permission_banner_subtitle">Tracker nemůže zaznamenávat trasy, dokud nepovolíte přístup k poloze. Klepnutím jej povolíte.</string>
+    <string name="dashboard_permission_banner_cd">Banner nedostupného oprávnění k poloze; klepnutím povolíte přístup k poloze</string>
+    <!-- Accessibility content descriptions -->
+    <string name="dashboard_cd_activity_icon">Typ aktivity</string>
+    <string name="dashboard_cd_explore_icon">Objevování</string>
+    <string name="dashboard_cd_forward_arrow">Zobrazit podrobnosti</string>
+    <string name="dashboard_cd_last_session">Poslední relace: doba trvání %1$s, vzdálenost %2$s. Klepnutím zobrazíte podrobnosti</string>
+    <string name="dashboard_cd_locked_badge">Sledování je uzamčeno</string>
+    <string name="dashboard_cd_open_settings">Otevřít nastavení</string>
+    <string name="dashboard_cd_start_tracking">Spustit sledování</string>
+    <string name="dashboard_cd_start_tracking_permission">Spustit sledování, vyžaduje oprávnění</string>
+    <plurals name="dashboard_cd_streak_banner">
+        <item quantity="one">Série: %1$d den. Klepnutím zobrazíte podrobnosti série</item>
+        <item quantity="few">Série: %1$d dny. Klepnutím zobrazíte podrobnosti série</item>
+        <item quantity="many">Série: %1$d dnů. Klepnutím zobrazíte podrobnosti série</item>
+        <item quantity="other">Série: %1$d dnů. Klepnutím zobrazíte podrobnosti série</item>
+    </plurals>
+    <string name="dashboard_cd_streak_banner_empty">Začněte sérii. Klepnutím zobrazíte podrobnosti série</string>
+    <string name="dashboard_cd_stop_tracking">Zastavit sledování</string>
+    <string name="dashboard_action_enable_location">Povolit přístup k poloze</string>
+    <string name="dashboard_action_view_details">Zobrazit podrobnosti</string>
+    <string name="dashboard_action_view_map">Zobrazit mapu</string>
+    <string name="dashboard_action_view_streak_details">Zobrazit podrobnosti série</string>
+    <string name="dashboard_action_open_tracking_settings">Nastavení</string>
+    <string name="dashboard_action_restart_tracking">Restartovat</string>
+    <!-- Format strings -->
+    <string name="dashboard_format_altitude_range">Výškový profil, %1$.0f–%2$.0f m</string>
+    <string name="dashboard_format_coordinates">%1$.6f, %2$.6f</string>
+    <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
+    <!-- Tracking state -->
+    <string name="dashboard_tracking_awaiting_gps">Čekání na signál GPS…</string>
+    <string name="dashboard_tracking_recording_route">Zaznamenávání trasy…</string>
+    <string name="dashboard_milestone_distance">km dosaženo!</string>
+    <string name="dashboard_milestone_steps">kroků dosaženo!</string>
+    <string name="dashboard_milestone_time">min sledování!</string>
+    <string name="dashboard_milestone_points">+10 bodů</string>
+    <!-- Idle state -->
+    <string name="dashboard_today_title">Dnes</string>
+    <string name="dashboard_today_no_activity">Dnes zatím žádná aktivita</string>
+    <string name="dashboard_today_distance">Vzdálenost</string>
+    <string name="dashboard_today_duration">Doba trvání</string>
+    <string name="dashboard_today_steps">Kroky</string>
+    <string name="dashboard_today_trips">Cesty</string>
+    <string name="dashboard_goal_get_started">Začít</string>
+    <string name="dashboard_goal_on_track">Podle plánu</string>
+    <string name="dashboard_goal_ahead">Napřed</string>
+    <string name="dashboard_goal_behind">Pozadu</string>
+    <string name="dashboard_streak_day_streak">dní v řadě</string>
+    <string name="dashboard_streak_start">Začněte sérii!</string>
+    <string name="dashboard_streak_trend_up">↑%1$d%% oproti minulému týdnu</string>
+    <string name="dashboard_streak_trend_down">↓%1$d%% oproti minulému týdnu</string>
+    <string name="dashboard_last_session_title">Poslední relace</string>
+    <string name="dashboard_last_session_duration">Doba trvání</string>
+    <string name="dashboard_last_session_distance">Vzdálenost</string>
+    <string name="dashboard_last_session_steps">Kroky</string>
+    <string name="dashboard_last_session_view_map">Zobrazit mapu</string>
+    <string name="dashboard_recent_trips_title">Nedávné cesty</string>
+    <string name="dashboard_recent_trips_empty">Žádné nedávné cesty. Spusťte sledování a vaše cesty se zobrazí zde.</string>
+    <string name="dashboard_exploration_title">Objevování</string>
+    <string name="dashboard_exploration_new_today">Nové dnes</string>
+    <string name="dashboard_exploration_total_cells">Celkem buněk</string>
+    <string name="dashboard_exploration_seasons">Roční období</string>
+    <!-- Live charts -->
+    <string name="dashboard_live_charts_speed">Rychlost</string>
+    <string name="dashboard_live_charts_altitude">Nadmořská výška</string>
+    <!-- Sensor details card -->
+    <string name="dashboard_sensor_details_title">Podrobnosti senzorů</string>
+    <string name="dashboard_sensor_expand">Rozbalit podrobnosti senzorů</string>
+    <string name="dashboard_sensor_collapse">Sbalit podrobnosti senzorů</string>
+    <string name="dashboard_sensor_location_accuracy">Přesnost polohy</string>
+    <string name="dashboard_sensor_activity">Aktivita</string>
+    <string name="dashboard_sensor_wifi">Sítě Wi-Fi</string>
+    <string name="dashboard_sensor_cell">Základnové stanice</string>
+    <string name="dashboard_sensor_altitude">Nadmořská výška</string>
+    <string name="dashboard_sensor_speed">Rychlost</string>
+    <string name="dashboard_sensor_cell_types">Typy buněk</string>
+    <string name="dashboard_sensor_raw_coords">Souřadnice (ladění)</string>
+    <!-- Glass metric card -->
+    <string name="dashboard_trend_up">Rostoucí trend</string>
+    <string name="dashboard_trend_down">Klesající trend</string>
+    <!-- Motivational text -->
+    <string name="dashboard_motivational_getting_started">Teprve začínáte…</string>
+    <string name="dashboard_motivational_keep_going">Jen tak dál! 💪</string>
+    <string name="dashboard_motivational_impressive">Působivá relace!</string>
+    <string name="dashboard_motivational_marathon">Maratonský objevitel! 🏆</string>
+    <string name="dashboard_motivational_morning">Dobré ráno! Jste připraveni objevovat?</string>
+    <string name="dashboard_motivational_afternoon">Dobré odpoledne! Pokračujete v pohybu?</string>
+    <string name="dashboard_motivational_evening">Dobrý večer! Prohlédnout si den?</string>
+    <string name="dashboard_motivational_night">Noční sova 🦉</string>
+    <string name="dashboard_motivational_streak">🔥 %1$ddenní série!</string>
+    <!-- Empty state -->
+    <string name="dashboard_empty_title">Vaše cesta začíná tady</string>
+    <string name="dashboard_empty_subtitle">Pomocí karty Připraveno níže v případě potřeby povolte přístup k poloze a začněte své první dobrodružství</string>
+    <string name="dashboard_empty_feature_explore">Objevujte</string>
+    <string name="dashboard_empty_feature_explore_desc">Objevujte nová místa a trasy</string>
+    <string name="dashboard_empty_feature_achieve">Dosahujte cílů</string>
+    <string name="dashboard_empty_feature_achieve_desc">Nastavujte cíle a získávejte body</string>
+    <string name="dashboard_empty_feature_track">Sledujte</string>
+    <string name="dashboard_empty_feature_track_desc">Zaznamenávejte chůzi, běh a jízdy</string>
+    <string name="dashboard_empty_feature_privacy">Soukromí</string>
+    <string name="dashboard_empty_feature_privacy_desc">Všechna data zůstávají v zařízení</string>
+    <string name="dashboard_empty_icon_desc">Ilustrace sledování polohy</string>
+    <string name="dashboard_empty_quick_start_title">Rychlý začátek</string>
+    <string name="dashboard_empty_quick_start_subtitle">Toto je nejrychlejší způsob, jak z tohoto prázdného přehledu vytvořit užitečné mapy, relace a denní pokrok.</string>
+    <string name="dashboard_empty_step_customize_title">Zvolte styl sledování</string>
+    <string name="dashboard_empty_step_customize_desc">V Nastavení můžete kdykoli upravit předvolby, využití baterie a senzory, které chcete zaznamenávat.</string>
+    <string name="dashboard_empty_step_start_title">Spusťte první sledování</string>
+    <string name="dashboard_empty_step_start_desc">Klepnutím na „Až budete připraveni“ výše v případě potřeby povolte přístup k poloze a poté spusťte chůzi, běh, jízdu nebo relaci sledování na pozadí.</string>
+    <string name="dashboard_empty_step_review_title">Prohlédněte si mapy a statistiky</string>
+    <string name="dashboard_empty_step_review_desc">Po první relaci se na kartách Přehled, Mapa a Statistiky objeví nedávná aktivita a přehledy.</string>
+    <string name="dashboard_empty_fab_hint_title">Až budete připraveni</string>
+    <string name="dashboard_empty_fab_hint_desc">Klepnutím spusťte první relaci sledování.</string>
+    <string name="dashboard_empty_fab_hint_desc_no_permission">Klepnutím povolte přístup k poloze a poté spusťte první relaci sledování.</string>
+    <!-- Widget titles (used in DashboardWidget and customize sheet) -->
+    <string name="widget_today_progress">Dnešní pokrok</string>
+    <string name="widget_streak">Série</string>
+    <string name="widget_last_session">Poslední relace</string>
+    <string name="widget_recent_trips">Nedávné cesty</string>
+    <string name="widget_exploration">Objevování</string>
+    <!-- Customize dashboard sheet -->
+    <string name="dashboard_customize_title">Přizpůsobit přehled</string>
+    <string name="dashboard_customize_reset">Obnovit výchozí</string>
+    <string name="dashboard_customize_cd_toggle">Přepnout viditelnost %1$s</string>
+    <string name="dashboard_customize_cd_drag_handle">Změnit pořadí %1$s</string>
+    <!-- Sparkline / visualization accessibility -->
+    <string name="dashboard_no_altitude_data">Žádná data o nadmořské výšce</string>
+    <string name="dashboard_cd_no_altitude_data">Nejsou k dispozici žádná data o nadmořské výšce</string>
+    <string name="dashboard_cd_speed_sparkline">Minigraf rychlosti s %1$d datovými body</string>
+    <string name="dashboard_cd_session_path">Náhled trasy relace s %1$d body</string>
+    <!-- Metric labels (used in FavoritesRepository) -->
+    <string name="dashboard_metric_speed">Rychlost</string>
+    <string name="dashboard_metric_distance">Vzdálenost</string>
+    <string name="dashboard_metric_duration">Doba trvání</string>
+    <string name="dashboard_metric_steps">Kroky</string>
+    <string name="dashboard_metric_altitude">Nadmořská výška</string>
+    <string name="dashboard_metric_activity">Aktivita</string>
+    <string name="dashboard_metric_accuracy">Přesnost</string>
+    <string name="dashboard_metric_avg_speed">Prům. rychlost</string>
+    <string name="dashboard_metric_wifi">Wi-Fi</string>
+    <string name="dashboard_metric_cell">Buňka</string>
+    <string name="dashboard_metric_coordinates">Souřadnice</string>
+    <!-- Tracking action ring / pill -->
+    <string name="dashboard_ring_start_tracking">Spustit sledování</string>
+    <string name="dashboard_ring_enable_location">Povolit polohu</string>
+    <string name="dashboard_pill_start">Spustit</string>
+    <string name="dashboard_pill_stop">Zastavit</string>
+    <string name="dashboard_pill_enable_location">Povolit polohu</string>
+    <!-- Session Insights Card (Task F) -->
+    <string name="dashboard_insights_title">Přehledy relace</string>
+    <string name="dashboard_cd_insight_item">Přehled: %1$s</string>
+    <string name="widget_latest_achievement">Poslední úspěch</string>
+    <string name="dashboard_latest_achievement_title">Poslední úspěch</string>
+    <string name="dashboard_latest_achievement_empty">Pokračujte ve sledování a odemkněte svůj první úspěch</string>
+</resources>

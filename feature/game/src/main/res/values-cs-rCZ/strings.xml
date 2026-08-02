@@ -1,9 +1,257 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
+    <!-- Module title for distribution manifest -->
+    <string name="module_game_title">Hra</string>
+    <!-- Mini-Games -->
+    <string name="minigame_outrun_name">Únik</string>
+    <string name="minigame_outrun_description">Závod s duchem. Udržte si náskok!</string>
+    <string name="minigame_territory_name">Území</string>
+    <string name="minigame_territory_description">Zabírejte při chůzi nové buňky mřížky</string>
+    <string name="minigame_zenwalk_name">Zenová chůze</string>
+    <string name="minigame_zenwalk_description">Udržujte v zóně rovnoměrné tempo</string>
+    <string name="minigame_fuserun_name">Běh s roznětkou</string>
+    <string name="minigame_fuserun_description">Unikněte z každého virtuálního okruhu výbuchu dříve, než vyprší roznětka</string>
+    <string name="minigame_switchback_name">Serpentiny</string>
+    <string name="minigame_switchback_description">Projíždějte ostré střídavé zatáčky a budujte kombinaci plynulosti</string>
+    <string name="minigame_locked">Odemkne se na úrovni %1$d</string>
+    <!-- Game hub: Play section -->
+    <string name="game_play_section_title">Hrát</string>
+    <string name="game_progress_section_title">Postup</string>
+    <string name="minigame_outrun_goal_line">Udržujte náskok 25–100 m před duchem</string>
+    <string name="minigame_territory_goal_line">Zaberte pěšky 5–20 jedinečných buněk</string>
+    <string name="minigame_zenwalk_goal_line">Udržujte tempo po dobu 5–20 minut</string>
+    <string name="minigame_fuserun_goal_line">Zneškodněte 3–8 náloží před vypršením roznětek</string>
+    <string name="minigame_switchback_goal_line">Projďte pěšky 4–10 ostrých zatáček</string>
+    <string name="minigame_play_action_play">Hrát</string>
+    <string name="minigame_play_personal_best">Osobní rekord %1$s</string>
+    <string name="minigame_play_personal_best_talkback">Osobní rekord %1$s</string>
+    <string name="minigame_play_locked_summary">Dosáhněte úrovně %1$d pro odemknutí</string>
+    <string name="minigame_play_locked_detail">Získávejte XP hraním odemknutých her a sledováním aktivity, abyste postoupili na vyšší úroveň.</string>
+    <string name="minigame_play_locked_expand_cta">Dvojitým klepnutím zobrazíte postup odemknutí</string>
+    <string name="minigame_active_session_running">Probíhá — klepnutím na Hrát se vrátíte</string>
+    <string name="minigame_active_session_paused">Pozastaveno — klepnutím na Hrát obnovíte</string>
+    <!-- Unit-aware score labels -->
+    <string name="minigame_unit_meters">%1$d m</string>
+    <plurals name="minigame_unit_cells">
+        <item quantity="one">%1$d buňka</item>
+        <item quantity="few">%1$d buňky</item>
+        <item quantity="many">%1$d buněk</item>
+        <item quantity="other">%1$d buněk</item>
+    </plurals>
+    <plurals name="minigame_unit_charges">
+        <item quantity="one">%1$d nálož</item>
+        <item quantity="few">%1$d nálože</item>
+        <item quantity="many">%1$d náloží</item>
+        <item quantity="other">%1$d náloží</item>
+    </plurals>
+    <plurals name="minigame_unit_turns">
+        <item quantity="one">%1$d zatáčka</item>
+        <item quantity="few">%1$d zatáčky</item>
+        <item quantity="many">%1$d zatáček</item>
+        <item quantity="other">%1$d zatáček</item>
+    </plurals>
+    <!-- Mini-game session UI -->
+    <string name="minigame_view_past_scores">Zobrazit předchozí výsledky</string>
+    <string name="minigame_session_close">Zavřít</string>
+    <string name="minigame_session_play_again">Hrát znovu</string>
+    <string name="minigame_session_elapsed_format">%1$d:%2$02d</string>
+    <string name="minigame_session_permission_title">Je potřeba poloha</string>
+    <string name="minigame_session_permission_body">Minihry používají živou polohu k zaznamenání běhu. Kromě konečného skóre se nic neukládá.</string>
+    <string name="minigame_session_permission_grant">Povolit přístup</string>
+    <!-- Mini-game setup -->
+    <string name="minigame_setup_title">Nastavte si hru</string>
+    <string name="minigame_setup_goal_title">Cíl</string>
+    <string name="minigame_setup_difficulty_title">Obtížnost</string>
+    <string name="minigame_setup_start_cta">Spustit hru</string>
+    <string name="minigame_setup_remember">Zapamatovat toto nastavení</string>
+    <string name="minigame_setup_remember_description">Znovu otevřít tuto hru se stejným cílem a obtížností.</string>
+    <string name="minigame_setup_goal_meters">náskok %1$d m</string>
+    <plurals name="minigame_setup_goal_cells">
+        <item quantity="one">%1$d buňka</item>
+        <item quantity="few">%1$d buňky</item>
+        <item quantity="many">%1$d buněk</item>
+        <item quantity="other">%1$d buněk</item>
+    </plurals>
+    <string name="minigame_setup_goal_minutes">%1$d min v zóně</string>
+    <plurals name="minigame_setup_goal_charges">
+        <item quantity="one">%1$d nálož</item>
+        <item quantity="few">%1$d nálože</item>
+        <item quantity="many">%1$d náloží</item>
+        <item quantity="other">%1$d náloží</item>
+    </plurals>
+    <plurals name="minigame_setup_goal_turns">
+        <item quantity="one">%1$d zatáčka</item>
+        <item quantity="few">%1$d zatáčky</item>
+        <item quantity="many">%1$d zatáček</item>
+        <item quantity="other">%1$d zatáček</item>
+    </plurals>
+    <string name="minigame_difficulty_easy">Snadná</string>
+    <string name="minigame_difficulty_normal">Normální</string>
+    <string name="minigame_difficulty_hard">Těžká</string>
+    <!-- Mini-game session phases -->
+    <string name="minigame_session_starting">Příprava…</string>
+    <string name="minigame_session_finishing">Ukládání hry…</string>
+    <string name="minigame_session_paused_title">Pozastaveno</string>
+    <string name="minigame_session_pause_cta">Pozastavit</string>
+    <string name="minigame_session_resume_cta">Pokračovat</string>
+    <string name="minigame_session_finish_cta">Dokončit</string>
+    <string name="minigame_session_background_note">Hra pokračuje, i když opustíte tuto obrazovku. Pokračujte opětovným otevřením v části Hry.</string>
+    <string name="minigame_session_elapsed_label">Aktivní čas</string>
+    <string name="minigame_session_goal_progress">%1$d%% cíle</string>
+    <string name="minigame_session_goal_reached">Cíl splněn</string>
+    <!-- GPS signal quality -->
+    <string name="minigame_signal_good">Silný GPS signál</string>
+    <string name="minigame_signal_fair">Přiměřený GPS signál</string>
+    <string name="minigame_signal_poor">Slabý GPS signál</string>
+    <string name="minigame_signal_unavailable">Žádný GPS signál</string>
+    <string name="minigame_signal_unknown">Určování polohy…</string>
+    <string name="minigame_signal_stale">GPS má zpoždění</string>
+    <!-- Notification permission (contextual, optional) -->
+    <!-- Outrun visualization -->
+    <string name="minigame_outrun_best_run">Nejlepší v této hře</string>
+    <string name="minigame_outrun_personal_best">Osobní rekord</string>
+    <string name="minigame_outrun_warning">Duch se přibližuje</string>
+    <string name="minigame_outrun_move_to_start">Pohybem začněte závod</string>
+    <string name="minigame_outrun_gap_meters">%1$d m</string>
+    <string name="minigame_outrun_rail_description">Jste %1$d metrů před duchem. Nejlepší náskok v této hře: %2$d metrů.</string>
+    <string name="minigame_outrun_you">Vy</string>
+    <string name="minigame_outrun_ghost">Duch</string>
+    <string name="minigame_outrun_lead_value">Náskok %1$d m</string>
+    <string name="minigame_outrun_ghost_lead_value">Duch vede o %1$d m</string>
+    <string name="minigame_outrun_first_run">První běh</string>
+    <string name="minigame_outrun_keep_moving">Budujte náskok</string>
+    <string name="minigame_outrun_caught">Duch vás dostihl</string>
+    <string name="minigame_outrun_escaped">Utekli jste!</string>
+    <string name="minigame_outrun_escape_goal">Cíl úniku</string>
+    <string name="minigame_outrun_goal_value">%1$d / %2$d m</string>
+    <string name="minigame_outrun_goal_description">Cíl úniku je splněn z %1$d procent.</string>
+    <string name="minigame_outrun_description_waiting">Únik je připraven. Pohybem o více než dva metry spustíte pronásledování.</string>
+    <string name="minigame_outrun_description_warning">Nebezpečí. Duch je jen %1$d metrů za vámi. Nejlepší náskok v této hře: %2$d metrů.</string>
+    <string name="minigame_outrun_description_caught">Dostiženi. Duch vás předběhl o %1$d metrů. Nejlepší náskok v této hře: %2$d metrů.</string>
+    <string name="minigame_outrun_description_escaped">Cíl splněn. Utekli jste s náskokem %1$d metrů. Nejlepší náskok v této hře: %2$d metrů.</string>
+    <string name="minigame_outrun_description_finished">Běh dokončen. Konečný odstup byl %1$d metrů a nejlepší náskok %2$d metrů.</string>
+    <string name="minigame_outrun_ahead_of_best">Před osobním rekordem</string>
+    <!-- Territory visualization -->
+    <string name="minigame_territory_grid_description_detailed">Mapa území. Zabráných blízkých oblastí: %1$d; zvýrazněných oblastí hranice: %2$d. %3$s. %4$s.</string>
+    <string name="minigame_territory_current_highlighted">Aktuální oblast je zvýrazněna</string>
+    <string name="minigame_territory_current_waiting">Čekání na aktuální oblast</string>
+    <string name="minigame_territory_goal_complete">Cíl splněn</string>
+    <string name="minigame_territory_goal_in_progress">Cíl se plní</string>
+    <string name="minigame_territory_legend">Záře označuje aktuální oblast • Nápovědy k hranici: %1$d</string>
+    <!-- Zen Walk visualization -->
+    <string name="minigame_zen_pace_label">Tempo</string>
+    <string name="minigame_zen_pace_value">%1$s km/h</string>
+    <string name="minigame_zen_pace_unknown">—</string>
+    <string name="minigame_zen_target_zone">Cíl %1$s–%2$s km/h</string>
+    <string name="minigame_zen_calibration_title">Najděte svůj přirozený rytmus</string>
+    <string name="minigame_zen_calibration_hint">Choďte přirozeně, zatímco se tempo postupně ustálí</string>
+    <string name="minigame_zen_calibration_settled">Ustáleno z %1$d%%</string>
+    <string name="minigame_zen_calibration_description">Kalibrace tempa. Ustáleno z %1$d procent. Pokračujte v přirozené chůzi.</string>
+    <string name="minigame_zen_flow_waiting">Hledání rytmu</string>
+    <string name="minigame_zen_flow_settled">Rytmus je ustálený</string>
+    <string name="minigame_zen_flow_slower">Pozvolna zpomalujete</string>
+    <string name="minigame_zen_flow_faster">Pozvolna zrychlujete</string>
+    <string name="minigame_zen_flow_time">Plynulost %1$s</string>
+    <string name="minigame_zen_flow_description">Plynulost zenového tempa. %1$s. %2$s. %3$s. %4$s.</string>
+    <!-- Feedback announcements (TalkBack, edge-triggered only) -->
+    <string name="minigame_feedback_outrun_danger">Duch se přibližuje</string>
+    <string name="minigame_feedback_pb_crossed">Nový osobní rekord</string>
+    <string name="minigame_feedback_territory_claimed">Zabrali jste novou oblast</string>
+    <string name="minigame_feedback_fuse_critical">Kritická roznětka, hned se pohněte</string>
+    <string name="minigame_feedback_fuse_defused">Nálož zneškodněna</string>
+    <string name="minigame_feedback_turn_carved">Zatáčka projetá</string>
+    <string name="minigame_feedback_goal_reached">Cíl splněn</string>
+    <string name="minigame_feedback_zen_entered">Jste v zóně tempa</string>
+    <string name="minigame_feedback_zen_exited">Opustili jste zónu tempa</string>
+    <string name="minigame_feedback_completed">Běh dokončen</string>
+    <!-- Completion -->
+    <string name="minigame_completion_first_run_title">První běh zaznamenán!</string>
+    <string name="minigame_completion_new_best_title">Nový osobní rekord!</string>
+    <string name="minigame_completion_tied_title">Vyrovnali jste svůj rekord</string>
+    <string name="minigame_completion_behind_title">Dobrý běh</string>
+    <string name="minigame_completion_no_participation_title">Relace ukončena</string>
+    <string name="minigame_completion_result">Výsledek: %1$s</string>
+    <string name="minigame_completion_improvement">%1$s před předchozím rekordem</string>
+    <string name="minigame_completion_deficit">%1$s za svým rekordem</string>
+    <string name="minigame_completion_goal_reached">Cíl splněn: %1$s</string>
+    <string name="minigame_completion_goal_incomplete">Cíl nesplněn: %1$s</string>
+    <string name="minigame_completion_points">+%1$d bodů</string>
+    <string name="minigame_completion_points_zero">Za tento běh žádné body</string>
+    <string name="minigame_completion_change_setup">Změnit nastavení</string>
+    <string name="minigame_completion_done">Hotovo</string>
+    <!-- Failure -->
+    <string name="minigame_session_failed_title">Běh se nedokončil</string>
+    <string name="minigame_failure_permission">Ke hře je vyžadována přesná poloha. Povolte ji a zkuste to znovu.</string>
+    <string name="minigame_failure_location">Nepodařilo se získat spolehlivé určení polohy. Přejděte na místo s otevřenější oblohou a zkuste to znovu.</string>
+    <string name="minigame_failure_persistence">Tento běh se nepodařilo uložit. Zkuste to prosím znovu.</string>
+    <string name="minigame_failure_generic">Něco se pokazilo a běh se zastavil.</string>
+    <string name="minigame_session_try_again">Zkusit znovu</string>
+    <!-- Foreground game session service -->
+    <string name="game_session_channel_id" translatable="false">game_session</string>
+    <string name="game_session_channel_name">Aktivní hra</string>
+    <string name="game_session_channel_description">Udržuje aktivní minihru spuštěnou při vypnuté obrazovce</string>
+    <string name="game_session_notification_title">Hra Trackeru</string>
+    <string name="game_session_notification_public">Hra probíhá</string>
+    <string name="game_session_notification_starting">Spouštění hry…</string>
+    <string name="game_session_notification_preparing">Příprava %1$s…</string>
+    <string name="game_session_notification_active">%1$s · %2$d%% · %3$s</string>
+    <string name="game_session_notification_paused">%1$s pozastaveno</string>
+    <string name="game_session_notification_finishing">Ukládání výsledku…</string>
+    <string name="game_session_notification_finished">Hra dokončena</string>
+    <string name="game_session_notification_failed">Hra zastavena</string>
+    <string name="game_session_action_pause">Pozastavit</string>
+    <string name="game_session_action_resume">Pokračovat</string>
+    <string name="game_session_action_finish">Dokončit</string>
+    <!-- Mini-game scores history -->
+    <string name="minigame_scores_title">Předchozí běhy miniher</string>
+    <string name="minigame_scores_back">Zpět</string>
+    <string name="minigame_scores_empty_title">První běh na vás čeká</string>
+    <string name="minigame_scores_empty_body">Dokončete minihru a nastavte osobní rekord — každý překonaný běh se zobrazí zde.</string>
+    <string name="minigame_scores_rank_format">#%1$d</string>
+    <string name="minigame_scores_xp_format">+%1$d XP</string>
+    <string name="minigame_scores_personal_best">Osobní rekord</string>
+    <string name="minigame_scores_unknown_game">Minihra</string>
     <string name="goals_reached_notification">%1$s! Dosáhli jste svého %2$s cíle!</string>
     <string name="goals_daily_goal">denního</string>
     <string name="goals_weekly_goal">týdenního</string>
     <string name="goals_monthly_goal">měsíčního</string>
+    <!-- Game screen UI strings -->
+    <string name="game_steps_goals_title">Cíle kroků</string>
+    <string name="game_step_sensor_unavailable">Senzor kroků není k dispozici</string>
+    <string name="game_step_sensor_unavailable_detail">Toto zařízení nemá senzor počítadla kroků. Cíle kroků nelze sledovat.</string>
+    <string name="game_steps_today">Dnes</string>
+    <string name="game_steps_week">Týden</string>
+    <!-- Game empty states -->
+    <string name="game_loading">Načítání…</string>
+    <!-- Hero Level Card -->
+    <!-- Trophy Summary -->
+    <!-- Trophy Case Screen -->
+    <string name="action_navigate_back">Přejít zpět</string>
+    <!-- Medal labels -->
+    <string name="game_open_settings">Otevřít nastavení</string>
+    <string name="game_close">Zavřít</string>
+    <!-- Exploration card -->
+    <string name="exploration_title">Objevování</string>
+    <string name="exploration_cells_discovered">Objevené buňky</string>
+    <string name="exploration_current_streak">Aktuální série</string>
+    <string name="exploration_best_streak">Nejlepší série</string>
+    <string name="exploration_seasons_explored">Prozkoumaná roční období</string>
+    <plurals name="exploration_days_plural">
+        <item quantity="one">den</item>
+        <item quantity="few">dny</item>
+        <item quantity="many">dní</item>
+        <item quantity="other">dní</item>
+    </plurals>
+    <string name="exploration_of_four">ze 4</string>
+    <!-- Achievements card -->
+    <string name="achievements_title">Úspěchy</string>
+    <string name="achievements_bronze">Bronz</string>
+    <string name="achievements_silver">Stříbro</string>
+    <string name="achievements_gold">Zlato</string>
+    <string name="achievements_diamond">Diamant</string>
+    <string name="achievements_none_yet">Zatím nebyly odemknuty žádné úspěchy. Začněte objevovat!</string>
+    <string name="achievement_unlocked_notification_title">Úspěch odemknut: %1$s</string>
+    <string name="achievement_unlocked_notification_description">Dosažena úroveň %1$s</string>
     <string-array name="goals_encouragement">
         <item>Dobrá práce</item>
         <item>Velmi dobře</item>
@@ -19,11 +267,51 @@
         <item>Nádherně</item>
     </string-array>
     <string name="points_earned_today">dnes získané body</string>
-    <string name="achievements_mythic">Mythic</string>
-    <string name="game_view_all_achievements">View all</string>
-    <string name="game_recent_achievements">Recent unlocks</string>
-    <string name="game_next_achievements">Next up</string>
-    <string name="achievement_show_locked">Show locked</string>
+    <!-- Streak Milestones -->
+    <!-- Unlock Announcements -->
+    <string name="game_unlock_title">Nové odemčení!</string>
+    <string name="game_unlock_message">Dosáhli jste úrovně %1$d!</string>
+    <!-- Level Up -->
+    <!-- Weekly Ghost Leaderboard -->
+    <string name="leaderboard_title">Týdenní výzva</string>
+    <string name="leaderboard_metric_distance">Vzdálenost</string>
+    <string name="leaderboard_metric_steps">Kroky</string>
+    <string name="leaderboard_metric_active_time">Aktivní čas</string>
+    <string name="leaderboard_metric_sessions">Relace</string>
+    <string name="leaderboard_unit_km">km</string>
+    <string name="leaderboard_unit_steps">kroků</string>
+    <string name="leaderboard_unit_hours">h</string>
+    <string name="leaderboard_unit_sessions">cesty</string>
+    <string name="leaderboard_ghost_best_week">Nejlepší týden</string>
+    <string name="leaderboard_ghost_last_4_weeks">Průměr posledních 4 týdnů</string>
+    <string name="leaderboard_ghost_same_week_last_year">Stejný týden minulý rok</string>
+    <string name="leaderboard_ghost_average_week">Průměrný týden</string>
+    <string name="leaderboard_rank">#%1$d z %2$d</string>
+    <string name="leaderboard_vs_top">%1$s %2$s z cíle %3$s</string>
+    <string name="leaderboard_progress_description">%1$s z %2$s</string>
+    <string name="leaderboard_week_progress">Pokrok týdne</string>
+    <string name="leaderboard_monday">Po</string>
+    <string name="leaderboard_sunday">Ne</string>
+    <string name="leaderboard_you">Vy</string>
+    <string name="leaderboard_current_week">Tento týden</string>
+    <string name="leaderboard_empty_title">Zatím žádná historie k závodu</string>
+    <string name="leaderboard_empty_body">Dokončete alespoň jeden celý týden a odemkněte soupeře duchů — jsou vytvořeni z vašich vlastních minulých týdnů.</string>
+    <string name="leaderboard_error_title">Žebříček není k dispozici</string>
+    <string name="leaderboard_error_body">Vaše data jsou v tomto zařízení v bezpečí. Zkuste týdenní výzvu načíst znovu.</string>
+    <string name="leaderboard_retry">Opakovat</string>
+    <!-- Unlock feature display names -->
+    <string name="achievements_mythic">Mytický</string>
+    <string name="game_view_all_achievements">Zobrazit vše</string>
+    <string name="game_recent_achievements">Nedávno odemčeno</string>
+    <string name="game_next_achievements">Další na řadě</string>
+    <string name="achievement_show_locked">Zobrazit uzamčené</string>
+    <string name="achievement_show_locked_summary_off">Přepnutím zobrazíte katalog úspěchů, které můžete odemknout.</string>
+    <string name="achievement_empty_state_title">Zatím nejsou odemknuty žádné úspěchy</string>
+    <string name="achievement_empty_state_body">Začněte sledovat — první úspěch na vás čeká. Přepnutím možnosti „Zobrazit uzamčené“ si prohlédnete celý katalog.</string>
+    <string name="achievement_progress_percent">%1$d%%</string>
+    <string name="achievement_tier_label">Úroveň %1$s · +%2$d XP</string>
+    <string name="achievement_hero_title">Vaše vitrína s trofejemi</string>
+    <string name="achievement_hero_points">Získáno %1$d XP</string>
     <string name="achievement_hero_of_total">z %1$d</string>
     <string name="achievement_category_count_format">%1$d / %2$d</string>
     <string name="achievement_category_exploration">Průzkum</string>
@@ -34,4 +322,11 @@
     <string name="achievement_category_modes">Režimy</string>
     <string name="achievement_category_time">Čas</string>
     <string name="achievement_category_calendar">Kalendář</string>
+    <string name="achievement_unlocked_content_description">Odemknuto</string>
+    <string name="achievement_locked_content_description">Uzamčeno</string>
+    <!-- Achievement catalog format strings (ach_title_*, ach_desc_*,
+         ach_duration_*) moved to :stats-data/res/values/achievement_format_strings.xml
+         so :dashboard can render proper i18n'd titles without crossing the
+         :dashboard -> :game module boundary. See AchievementFormatting.kt
+         (now in :stats-data) and r8-dashboard-use-achievementformatting. -->
 </resources>
