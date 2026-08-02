@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="osm_import_notification_channel" translatable="false">OSM map import</string>
+    <string name="osm_import_notification_channel_description">Oznámenie v popredí zobrazené počas spracovania používateľom importovanej oblasti OpenStreetMap.</string>
+    <string name="osm_import_notification_title">Importuje sa oblasť OpenStreetMap</string>
+    <string name="osm_import_notification_content">Spracovaných %1$d ciest</string>
+    <string name="osm_import_complete_title">Oblasť OSM bola importovaná</string>
+    <string name="osm_import_complete_content">Offline údaje o cestách sú pripravené na kontrolu dodržiavania rýchlostných obmedzení vozidiel.</string>
+    <string name="osm_import_failed_title">Import OSM zlyhal</string>
+    <string name="osm_import_failed_content">Import offline mapy sa nepodarilo dokončiť.</string>
+</resources>

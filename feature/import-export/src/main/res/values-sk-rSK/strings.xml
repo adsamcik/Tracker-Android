@@ -1,0 +1,45 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_button">Exportovať</string>
+    <string name="export_default_file_name_range">Advention_export_data_%1$s__%2$s</string>
+    <string name="export_default_file_name_all">Advention_export_data_%1$s</string>
+    <string name="export_error_no_locations_in_interval">Vo vybranom intervale sa nenašli žiadne polohy.</string>
+    <string name="export_error_no_databases">Nie sú k dispozícii žiadne databázy aplikácie na export.</string>
+    <string name="export_error_no_uri">Nebola vybraná žiadna zložka exportu</string>
+    <string name="export_error_stream_failed">Nepodarilo sa vytvoriť tok do súboru %s</string>
+    <string name="export_error_unknown">Export zlyhal.</string>
+    <string name="export_error_with_reason">Export zlyhal: %s</string>
+    <string name="export_file_name">Názov súboru</string>
+    <string name="export_file_name_error">Názvy súborov nemôžu obsahovať \/:"*?&lt;&gt;|</string>
+    <string name="export_gpx_description">Export údajov o polohe od %1$s do %2$s sledovaných pomocou Advention.</string>
+    <string name="export_gpx_error">Export GPX zlyhal s chybou: %s</string>
+    <string name="export_sensitivity_title">Exportovať presné údaje o polohe?</string>
+    <string name="export_sensitivity_message">Tento export/zdieľanie obsahuje údaje o polohe s plnou presnosťou a v exportoch databázy môže zahŕňať nespracované rádiové metadáta. Pokračujte iba, ak cieľu dôverujete.</string>
+    <string name="export_sensitivity_confirm">Pokračovať</string>
+    <string name="export_share_button">Zdieľať</string>
+    <string name="export_in_progress">Exportuje sa…</string>
+    <string name="export_completed">Export dokončený.</string>
+    <string name="import_notification_error_failed_open_database">Nepodarilo sa otvoriť databázový súbor %s</string>
+    <string name="import_notification_error_file_not_supported">Súbor %s nie je podporovaný.</string>
+    <string name="import_notification_extracting">Rozbaľuje sa %s …</string>
+    <plurals name="import_notification_finished">
+        <item quantity="one">Import dokončený. Úspešne bol importovaný %d záznam.</item>
+        <item quantity="few">Import dokončený. Úspešne boli importované %d záznamy.</item>
+        <item quantity="many">Import dokončený. Úspešne bolo importovaných %d záznamov.</item>
+        <item quantity="other">Import dokončený. Úspešne bolo importovaných %d záznamov.</item>
+    </plurals>
+    <string name="import_notification_finished_with_skipped">Import dokončený. Importovaných %1$d záznamov (%2$d preskočených).</string>
+    <string name="import_notification_error_records_failed">%d záznamov sa nepodarilo importovať pre porušenie obmedzení.</string>
+    <string name="import_notification_importing">Importuje sa %s …</string>
+    <string name="import_notification_progress">Import prebieha …</string>
+    <string name="settings_export_dialog_from">Od</string>
+    <string name="settings_export_dialog_to">Do</string>
+    <string name="settings_export_no_data">Žiadne údaje na export</string>
+    <string name="settings_export_title">Exportovať</string>
+    <string name="format_gpx">GPX</string>
+    <string name="format_kml">KML</string>
+    <string name="format_json">JSON</string>
+    <string name="format_database">Záloha databázy (ZIP)</string>
+    <string name="settings_import_summary">Importovať údaje z podporovaných typov (%1$s) a archívov (%2$s). Importy databázy zlúčia kompatibilné riadky; nenahradia existujúce údaje.</string>
+    <string name="settings_import_title">Importovať</string>
+</resources>

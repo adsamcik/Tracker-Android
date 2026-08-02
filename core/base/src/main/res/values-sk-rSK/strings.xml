@@ -1,0 +1,52 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="activity_walking">Chôdza</string>
+    <string name="activity_running">Beh</string>
+    <string name="activity_bicycle">Bicyklovanie</string>
+    <string name="activity_slope_sports">Zimné športy na svahu</string>
+    <string name="activity_land_vehicle">Pozemné vozidlo</string>
+    <string name="activity_water_vehicle">Vodné vozidlo</string>
+    <string name="activity_air_vehicle">Letecké vozidlo</string>
+    <string name="activity_in_vehicle">Vo vozidle</string>
+    <string name="activity_on_foot">Pešo</string>
+    <string name="activity_name">Názov aktivity</string>
+    <string name="activity_raw_still">Bez pohybu</string>
+    <string name="activity_raw_tilting">Nakláňanie</string>
+    <string name="activity_still">Bez pohybu</string>
+    <string name="activity_unknown">Rozpoznáva sa…</string>
+    <string name="activity_vehicle">Vozidlo</string>
+    <string name="alert_confirm">Naozaj chcete %1$s?</string>
+    <string name="cell_cdma">2G (CDMA)</string>
+    <string name="cell_gsm">2G (GSM)</string>
+    <string name="cell_lte">4G (LTE)</string>
+    <string name="cell_none">Žiadne</string>
+    <string name="cell_nr">5G (NR)</string>
+    <string name="cell_unknown">Neznáme</string>
+    <string name="cell_wcdma">3G (WCDMA)</string>
+    <string name="channel_activity_watcher_description">Kanál používaný výlučne službou Sledovanie aktivity, aby ste sa mohli jednoducho zbaviť tohto trvalého oznámenia.</string>
+    <string name="channel_activity_watcher_id" translatable="false">challenge_activity_watcher_id</string>
+    <string name="channel_activity_watcher_name">Sledovanie aktivity</string>
+    <string name="channel_achievements_description">Oznámenia súvisiace s úspechmi.</string>
+    <string name="channel_achievements_id" translatable="false">challenge_channel_id</string>
+    <string name="channel_achievements_name">Úspech</string>
+    <string name="channel_other_description">Ostatné oznámenia, ktoré nepatria do žiadnej inej kategórie.</string>
+    <string name="channel_other_id" translatable="false">other_channel_id</string>
+    <string name="channel_other_name">Ostatné</string>
+    <string name="channel_track_description">Oznámenia súvisiace so sledovaním.</string>
+    <string name="channel_track_id" translatable="false">tracking_channel_id</string>
+    <string name="channel_track_name">Sledovanie</string>
+    <string name="channel_goals_description">Upozornenia na splnenie cieľa.</string>
+    <string name="channel_goals_id" translatable="false">goals_channel_id</string>
+    <string name="channel_goals_name">Postup cieľa</string>
+    <string name="day_short">%d d</string>
+    <string name="generic_add">Pridať</string>
+    <string name="generic_back">Späť</string>
+    <string name="generic_cancel">Zrušiť</string>
+    <string name="generic_delete">Odstrániť</string>
+    <string name="generic_edit">Upraviť</string>
+    <string name="generic_ok">OK</string>
+    <string name="generic_undo">späť</string>
+    <string name="hour_short">%d h</string>
+    <string name="minute_short">%d m</string>
+    <string name="second_short">%d s</string>
+</resources>

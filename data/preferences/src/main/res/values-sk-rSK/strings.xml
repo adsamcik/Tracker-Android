@@ -1,0 +1,21 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="passus">Tempo %s</string>
+    <string name="per_hour_abbr">%s/h</string>
+    <string name="per_minute_abbr">%s/m</string>
+    <string name="per_second_abbr">%s/s</string>
+    <string name="feet_abbr">%s ft</string>
+    <string name="kilometer_abbr">%s km</string>
+    <string name="meter_abbr">%s m</string>
+    <string name="mile_abbr">%s mi</string>
+    <string name="millepassus">%s rímska míľa</string>
+    <string name="fathom_abbr">%s siaha</string>
+    <string name="cable_abbr">%s kábel</string>
+    <string name="nautical_mile_abbr">%s nmi</string>
+    <string name="knot_abbr">%s kn</string>
+    <string name="flight_level_abbr">FL%s</string>
+    <string name="settings_statistics_auto_unit_switch_key" translatable="false">statisticsAutoUnitSwitch</string>
+    <string name="settings_statistics_auto_unit_switch_default" translatable="false">true</string>
+    <string name="settings_statistics_auto_unit_switch_title">Automaticky prepínať systém jednotiek</string>
+    <string name="settings_statistics_auto_unit_switch_summary">Pri zobrazení relácií s týmito aktivitami automaticky prepínať na námorné/letecké jednotky</string>
+</resources>
