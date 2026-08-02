@@ -1,33 +1,182 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="stats_cell_count">Cell count</string>
-    <string name="stats_collections">Collection count</string>
-    <string name="stats_distance_in_vehicle">Distance in vehicle</string>
-    <string name="stats_distance_on_foot">Distance on foot</string>
-    <string name="stats_distance_total">Distance</string>
-    <string name="stats_format_unknown_activity">session</string>
-    <string name="stats_location_count">Location count</string>
-    <string name="stats_session_count">Session count</string>
-    <string name="stats_steps">Step count</string>
-    <string name="stats_sum_title">Summary</string>
-    <string name="stats_time">Time spent tracking</string>
-    <string name="stats_weekly_title">Last 7 days</string>
-    <string name="stats_wifi_count">Wi-Fi count</string>
-    <string name="stats_error_generic">Something went wrong</string>
-    <string name="stats_append_error">Load more failed</string>
-    <string name="action_retry">Retry</string>
-    <string name="wifilist_count">Found %d Wi-Fi matching filter</string>
-    <string name="wifilist_filter_bssid">BSSID (identifier)</string>
-    <string name="wifilist_filter_capabilities">Capabilities</string>
-    <string name="wifilist_filter_count">How many to show</string>
-    <string name="wifilist_filter_frequency">Frequency</string>
-    <string name="wifilist_filter_ssid">SSID (name)</string>
+    <!-- Module title for distribution manifest -->
+    <string name="module_statistics_title">Statisztikák</string>
+    <string name="stats_cell_count">Cellák száma</string>
+    <string name="stats_collections">Gyűjtemények száma</string>
+    <string name="stats_distance_in_vehicle">Járműben megtett távolság</string>
+    <string name="stats_distance_on_foot">Gyalog megtett távolság</string>
+    <string name="stats_distance_total">Távolság</string>
+    <string name="stats_format_unknown_activity">munkamenet</string>
+    <string name="stats_location_count">Helyadatok száma</string>
+    <string name="stats_no_tracker_sessions">Még nincsenek nyomkövetési munkamenetek</string>
+    <string name="stats_empty_subtitle">Indítsa el a nyomkövetést, hogy itt láthassa tevékenységét</string>
+    <string name="stats_session_count">Munkamenetek száma</string>
+    <string name="stats_steps">Lépések száma</string>
+    <string name="stats_metric_not_available_short">n.a.</string>
+    <string name="stats_sum_title">Összegzés</string>
+    <string name="stats_time">Nyomkövetéssel töltött idő</string>
+    <string name="stats_weekly_title">Elmúlt 7 nap</string>
+    <string name="stats_wifi_count">Wi-Fi-hálózatok száma</string>
+    <string name="stats_wifi_chip_label">Wi-Fi-statisztikák</string>
+    <string name="stats_cell_signal_chip_label">Cellajel</string>
+    <string name="stats_filter_dates">Dátumok</string>
+    <string name="stats_filter_active_label">Megjelenítve: %1$s</string>
+    <string name="stats_filter_clear">Szűrő törlése</string>
+    <string name="stats_date_dialog_title">Dátumtartomány</string>
+    <string name="stats_date_summary_placeholder">Válasszon időszakot a munkamenetek szűréséhez</string>
+    <string name="stats_date_preset_today">Ma</string>
+    <string name="stats_date_preset_yesterday">Tegnap</string>
+    <string name="stats_date_preset_last_7_days">Elmúlt 7 nap</string>
+    <string name="stats_date_preset_last_30_days">Elmúlt 30 nap</string>
+    <string name="stats_date_preset_this_month">Ebben a hónapban</string>
+    <string name="stats_date_preset_last_month">Múlt hónap</string>
+    <string name="stats_date_preset_this_year">Ebben az évben</string>
+    <string name="stats_date_preset_all_time">Teljes időszak</string>
+    <string name="stats_sparse_summary_title">Röviden ezen a héten</string>
+    <string name="stats_sparse_summary_active_days">Aktív napok</string>
+    <string name="stats_sparse_summary_week_label">Napi tevékenység</string>
+    <plurals name="stats_sparse_summary_subtitle">
+        <item quantity="one">Csak %1$d munkamenet látható, ezért ez a tömör összegzés egészíti ki a többi közelmúltbeli tevékenységét.</item>
+        <item quantity="other">Csak %1$d munkamenet látható, ezért ez a tömör összegzés egészíti ki a többi közelmúltbeli tevékenységét.</item>
+    </plurals>
+    <string name="stats_error_generic">Valami hiba történt</string>
+    <string name="stats_loading">Munkamenetek betöltése…</string>
+    <string name="stats_append_error">Továbbiak betöltése sikertelen</string>
+    <string name="action_retry">Újrapróbálás</string>
+    <!-- Added for compose StatsScreen placeholders -->
+    <string name="stats_start_tracking_cta">Nyomkövetés indítása</string>
+    <plurals name="stats_trip_row_steps_content_description">
+        <item quantity="one">%1$s lépés</item>
+        <item quantity="other">%1$s lépés</item>
+    </plurals>
+    <!-- Date headers -->
+    <string name="stats_date_today">Ma</string>
+    <string name="stats_date_yesterday">Tegnap</string>
+    <!-- Summary dialog strings -->
+    <string name="stats_summary_loading">Összegzés betöltése…</string>
+    <string name="stats_summary_empty">Nem érhetők el összesítő statisztikák</string>
+    <string name="stats_summary_empty_subtitle">Indítsa el a nyomkövetést, hogy láthassa tevékenységének összegzését</string>
+    <string name="stats_summary_error">Nem sikerült betölteni az összegzést</string>
+    <!-- Week dialog strings -->
+    <string name="stats_week_loading">Heti statisztikák betöltése…</string>
+    <string name="stats_week_empty">Nem érhetők el heti statisztikák</string>
+    <string name="stats_week_empty_subtitle">Kövessen nyomon 7 napot a heti összegzés megtekintéséhez</string>
+    <string name="stats_week_error">Nem sikerült betölteni a heti statisztikákat</string>
+    <string name="stats_wifi_dialog_title">Wi-Fi-statisztikák</string>
+    <string name="stats_wifi_dialog_loading">Wi-Fi-statisztikák betöltése…</string>
+    <string name="stats_wifi_dialog_empty_title">Nem érhető el Wi-Fi-adat</string>
+    <string name="stats_wifi_dialog_empty_subtitle">A Wi-Fi-statisztikák a vizsgálatok gyűjtése után jelennek meg.</string>
+    <string name="stats_wifi_dialog_error">Nem sikerült betölteni a Wi-Fi-statisztikákat</string>
+    <string name="stats_wifi_unique_networks">Látott egyedi hálózatok</string>
+    <string name="stats_wifi_total_scans">Vizsgálatok összesen</string>
+    <string name="stats_wifi_average_per_scan">Vizsgálatonkénti átlagos hálózatszám</string>
+    <!-- Cell signal report screen -->
+    <string name="stats_cell_signal_dialog_title">Cellajel-jelentés</string>
+    <string name="stats_cell_signal_dialog_loading">Cellajel-jelentés betöltése…</string>
+    <string name="stats_cell_signal_dialog_empty_title">Nem érhető el cellaadat</string>
+    <string name="stats_cell_signal_dialog_empty_subtitle">A cellajel-statisztikák a minták gyűjtése után jelennek meg.</string>
+    <string name="stats_cell_signal_dialog_error">Nem sikerült betölteni a cellajel-jelentést</string>
+    <string name="stats_cell_signal_total_samples">Cellaminták</string>
+    <string name="stats_cell_signal_distinct_towers">Egyedi tornyok</string>
+    <string name="stats_cell_signal_section_networks">Hálózattípus szerint</string>
+    <string name="stats_cell_signal_section_towers">Leggyakrabban látott tornyok</string>
+    <!-- %1$s = share of samples (e.g. "80%"), %2$s = distinct tower count -->
+    <string name="stats_cell_signal_network_secondary">%1$s minta · %2$s torony</string>
+    <!-- %1$s = cell id, %2$s = sample count -->
+    <string name="stats_cell_signal_tower_detail">%1$s cella · %2$s minta</string>
+    <!-- %1$s = MCC, %2$s = MNC -->
+    <string name="stats_cell_signal_carrier">Szolgáltató: %1$s‑%2$s</string>
+    <!-- Trip detail screen -->
+    <string name="trip_detail_title">Út részletei</string>
+    <string name="trip_detail_not_found">Az út nem található</string>
+    <string name="trip_detail_not_found_subtitle">Lehet, hogy ezt az utat törölték</string>
+    <string name="trip_detail_error_title">Nem sikerült betölteni az utat</string>
+    <string name="trip_detail_retry">Újrapróbálás</string>
+    <string name="trip_detail_duration">Időtartam</string>
+    <string name="trip_detail_distance">Távolság</string>
+    <string name="trip_detail_date">Dátum</string>
+    <string name="trip_detail_steps">Lépések</string>
+    <string name="trip_detail_samples">Minták</string>
+    <string name="trip_detail_source">Forrás</string>
+    <string name="trip_detail_avg_speed">Átlagsebesség</string>
+    <string name="trip_detail_max_speed">Max. sebesség</string>
+    <string name="trip_detail_pace">Tempó</string>
+    <string name="trip_detail_activity_type">Tevékenységtípus</string>
+    <string name="trip_detail_start_time">Kezdési idő</string>
+    <string name="trip_detail_end_time">Befejezési idő</string>
+    <string name="trip_detail_elevation_gain">Emelkedés</string>
+    <string name="trip_detail_elevation_loss">Süllyedés</string>
+    <string name="trip_detail_max_altitude">Max. magasság</string>
+    <string name="trip_detail_route_map">Útvonaltérkép</string>
+    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_no_location_data">Nincs helyadat</string>
+    <string name="trip_detail_route_unavailable_legacy">Az útvonaltérkép nem érhető el régi munkamenetekhez</string>
+    <string name="trip_detail_route_no_gps_points">A távolság rögzítve, de nem érhető el GPS-útvonal</string>
+    <string name="trip_detail_delete">Törlés</string>
+    <string name="trip_detail_export_gpx">Exportálás GPX-ként</string>
+    <string name="trip_detail_delete_confirm_title">Törli az utat?</string>
+    <string name="trip_detail_delete_confirm_message">Ez az út véglegesen törlődik.</string>
+    <string name="trip_detail_delete_confirm">Törlés</string>
+    <string name="trip_detail_cancel">Mégse</string>
+    <string name="trip_detail_more_options">További beállítások</string>
+    <!-- Ski session detail -->
+    <string name="ski_detail_header">Síelési munkamenet</string>
+    <string name="ski_detail_runs">Menetek</string>
+    <string name="ski_detail_vertical">Szintkülönbség</string>
+    <string name="ski_detail_max_speed">Max. sebesség</string>
+    <string name="ski_detail_time_skiing">Síelés</string>
+    <string name="ski_detail_time_lifts">Felvonón</string>
+    <string name="ski_detail_run_label">%1$d. menet</string>
+    <string name="ski_detail_segment_stats">↓%1$s | ⚡%2$s | %3$s</string>
+    <string name="ski_detail_lift_stats">↑%1$s | %2$s</string>
+    <string name="wifilist_count">%d, a szűrőnek megfelelő Wi-Fi található</string>
+    <string name="wifilist_filter_bssid">BSSID (azonosító)</string>
+    <string name="wifilist_filter_capabilities">Képességek</string>
+    <string name="wifilist_filter_count">Megjelenítendő elemek száma</string>
+    <string name="wifilist_filter_frequency">Frekvencia</string>
+    <string name="wifilist_filter_ssid">SSID (név)</string>
     <string name="wifilist_item_frequency">%d MHz</string>
-    <string name="wifilist_title">Wi-Fi list</string>
+    <string name="wifilist_title">Wi-Fi-lista</string>
     <string name="wifilist_title_bssid">BSSID</string>
-    <string name="wifilist_title_capabilities">Capabilities</string>
-    <string name="wifilist_title_first_seen">First seen</string>
-    <string name="wifilist_title_frequency">Frequency</string>
-    <string name="wifilist_title_last_seen">Last seen</string>
+    <string name="wifilist_title_capabilities">Képességek</string>
+    <string name="wifilist_title_first_seen">Első észlelés</string>
+    <string name="wifilist_title_frequency">Frekvencia</string>
+    <string name="wifilist_title_last_seen">Utolsó észlelés</string>
     <string name="wifilist_title_ssid">SSID</string>
+    <!-- History tabs -->
+    <string name="history_tab_timeline">Idővonal</string>
+    <string name="history_tab_trips">Utazások</string>
+    <string name="history_tab_calendar">Naptár</string>
+    <string name="history_screen_title">Előzmények</string>
+    <plurals name="history_trip_count">
+        <item quantity="one">%d út</item>
+        <item quantity="other">%d út</item>
+    </plurals>
+    <!-- Timeline empty -->
+    <string name="history_timeline_empty_title">Még nincs tevékenység</string>
+    <string name="history_timeline_empty_desc">Indítsa el a nyomkövetést, hogy itt láthassa mozgási előzményeit</string>
+    <!-- Trips empty -->
+    <string name="history_trips_empty_title">Nincsenek rögzített utak</string>
+    <string name="history_trips_empty_desc">Az utak mozgás közben itt jelennek meg</string>
+    <string name="trip_gps_anomaly">GPS-anomália észlelve — a távolság pontatlan lehet</string>
+    <string name="trip_deleted_snackbar">Út törölve</string>
+    <!-- Calendar -->
+    <string name="history_calendar_previous_month">Előző hónap</string>
+    <string name="history_calendar_next_month">Következő hónap</string>
+    <string name="history_calendar_distance">Távolság</string>
+    <string name="history_calendar_steps">Lépések</string>
+    <string name="history_calendar_trips">Utazások</string>
+    <!-- Exploration -->
+    <string name="history_exploration_title">Felfedezés</string>
+    <string name="history_exploration_cells">Cellák</string>
+    <string name="history_exploration_streak">Sorozat</string>
+    <string name="history_exploration_best">Legjobb</string>
+    <!-- Navigation actions -->
+    <string name="action_navigate_back">Visszalépés</string>
+    <!-- History navigation -->
+    <string name="history_button_label">Előzmények</string>
+    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
+    <!-- Calendar heatmap -->
+    <string name="stats_heatmap_title">Tevékenység</string>
 </resources>

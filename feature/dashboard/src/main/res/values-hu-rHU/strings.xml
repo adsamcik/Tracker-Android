@@ -1,0 +1,159 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="dashboard_title">Irányítópult</string>
+    <string name="dashboard_tracking_title">Nyomkövetés</string>
+    <string name="dashboard_recording">Rögzítés</string>
+    <string name="dashboard_tracking_stopped_unexpectedly">A nyomkövetés váratlanul leállt</string>
+    <string name="dashboard_permission_banner_title">A helyengedély nem érhető el</string>
+    <string name="dashboard_permission_banner_subtitle">A Tracker nem tud útvonalakat rögzíteni, amíg nem ad helyhozzáférést. Koppintson az engedélyezéshez.</string>
+    <string name="dashboard_permission_banner_cd">A helyengedély nem elérhető figyelmeztetés; a helyhozzáférés megadásához koppintson</string>
+    <!-- Accessibility content descriptions -->
+    <string name="dashboard_cd_activity_icon">Tevékenységtípus</string>
+    <string name="dashboard_cd_explore_icon">Felfedezés</string>
+    <string name="dashboard_cd_forward_arrow">Részletek megtekintése</string>
+    <string name="dashboard_cd_last_session">Utolsó munkamenet: %1$s időtartam, %2$s távolság. Koppintson a részletekért</string>
+    <string name="dashboard_cd_locked_badge">Nyomkövetés zárolva</string>
+    <string name="dashboard_cd_open_settings">Beállítások megnyitása</string>
+    <string name="dashboard_cd_start_tracking">Nyomkövetés indítása</string>
+    <string name="dashboard_cd_start_tracking_permission">Nyomkövetés indítása, engedély szükséges</string>
+    <plurals name="dashboard_cd_streak_banner">
+        <item quantity="one">Sorozat: %1$d nap. Koppintson a sorozat részleteihez</item>
+        <item quantity="other">Sorozat: %1$d nap. Koppintson a sorozat részleteihez</item>
+    </plurals>
+    <string name="dashboard_cd_streak_banner_empty">Indítson sorozatot. Koppintson a sorozat részleteihez</string>
+    <string name="dashboard_cd_stop_tracking">Nyomkövetés leállítása</string>
+    <string name="dashboard_action_enable_location">Helyhozzáférés engedélyezése</string>
+    <string name="dashboard_action_view_details">Részletek megtekintése</string>
+    <string name="dashboard_action_view_map">Térkép megtekintése</string>
+    <string name="dashboard_action_view_streak_details">Sorozat részleteinek megtekintése</string>
+    <string name="dashboard_action_open_tracking_settings">Beállítások</string>
+    <string name="dashboard_action_restart_tracking">Nyomkövetés újraindítása</string>
+    <!-- Format strings -->
+    <string name="dashboard_format_altitude_range">Magasságprofil, %1$.0f–%2$.0f m</string>
+    <string name="dashboard_format_coordinates">%1$.6f, %2$.6f</string>
+    <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
+    <!-- Tracking state -->
+    <string name="dashboard_tracking_awaiting_gps">GPS-jelre vár…</string>
+    <string name="dashboard_tracking_recording_route">Útvonal rögzítése…</string>
+    <string name="dashboard_milestone_distance">km elérve!</string>
+    <string name="dashboard_milestone_steps">lépés teljesítve!</string>
+    <string name="dashboard_milestone_time">perc rögzítve!</string>
+    <string name="dashboard_milestone_points">+10 pont</string>
+    <!-- Idle state -->
+    <string name="dashboard_today_title">Ma</string>
+    <string name="dashboard_today_no_activity">Ma még nincs tevékenység</string>
+    <string name="dashboard_today_distance">Távolság</string>
+    <string name="dashboard_today_duration">Időtartam</string>
+    <string name="dashboard_today_steps">Lépések</string>
+    <string name="dashboard_today_trips">Utazások</string>
+    <string name="dashboard_goal_get_started">Kezdés</string>
+    <string name="dashboard_goal_on_track">Jó úton</string>
+    <string name="dashboard_goal_ahead">Előrébb jár</string>
+    <string name="dashboard_goal_behind">Lemaradásban</string>
+    <string name="dashboard_streak_day_streak">napos sorozat</string>
+    <string name="dashboard_streak_start">Indítson sorozatot!</string>
+    <string name="dashboard_streak_trend_up">↑%1$d%% az előző héthez képest</string>
+    <string name="dashboard_streak_trend_down">↓%1$d%% az előző héthez képest</string>
+    <string name="dashboard_last_session_title">Utolsó munkamenet</string>
+    <string name="dashboard_last_session_duration">Időtartam</string>
+    <string name="dashboard_last_session_distance">Távolság</string>
+    <string name="dashboard_last_session_steps">Lépések</string>
+    <string name="dashboard_last_session_view_map">Térkép megtekintése</string>
+    <string name="dashboard_recent_trips_title">Legutóbbi utak</string>
+    <string name="dashboard_recent_trips_empty">Nincsenek legutóbbi utak. Indítsa el a nyomkövetést, hogy itt láthassa útjait.</string>
+    <string name="dashboard_exploration_title">Felfedezés</string>
+    <string name="dashboard_exploration_new_today">Ma új</string>
+    <string name="dashboard_exploration_total_cells">Összes cella</string>
+    <string name="dashboard_exploration_seasons">Évszakok</string>
+    <!-- Live charts -->
+    <string name="dashboard_live_charts_speed">Sebesség</string>
+    <string name="dashboard_live_charts_altitude">Magasság</string>
+    <!-- Sensor details card -->
+    <string name="dashboard_sensor_details_title">Érzékelő részletei</string>
+    <string name="dashboard_sensor_expand">Érzékelő részleteinek kibontása</string>
+    <string name="dashboard_sensor_collapse">Érzékelő részleteinek összecsukása</string>
+    <string name="dashboard_sensor_location_accuracy">Helypontosság</string>
+    <string name="dashboard_sensor_activity">Tevékenység</string>
+    <string name="dashboard_sensor_wifi">Wi-Fi-hálózatok</string>
+    <string name="dashboard_sensor_cell">Mobilhálózati tornyok</string>
+    <string name="dashboard_sensor_altitude">Magasság</string>
+    <string name="dashboard_sensor_speed">Sebesség</string>
+    <string name="dashboard_sensor_cell_types">Cellatípusok</string>
+    <string name="dashboard_sensor_raw_coords">Koordináták (hibakeresés)</string>
+    <!-- Glass metric card -->
+    <string name="dashboard_trend_up">Emelkedő trend</string>
+    <string name="dashboard_trend_down">Csökkenő trend</string>
+    <!-- Motivational text -->
+    <string name="dashboard_motivational_getting_started">Épp csak elkezdte…</string>
+    <string name="dashboard_motivational_keep_going">Csak így tovább! 💪</string>
+    <string name="dashboard_motivational_impressive">Lenyűgöző munkamenet!</string>
+    <string name="dashboard_motivational_marathon">Maratoni felfedező! 🏆</string>
+    <string name="dashboard_motivational_morning">Jó reggelt! Készen áll a felfedezésre?</string>
+    <string name="dashboard_motivational_afternoon">Jó napot! Mozog tovább?</string>
+    <string name="dashboard_motivational_evening">Jó estét! Átnézi a napját?</string>
+    <string name="dashboard_motivational_night">Éjjeli bagoly mód 🦉</string>
+    <string name="dashboard_motivational_streak">🔥 %1$d napos sorozat!</string>
+    <!-- Empty state -->
+    <string name="dashboard_empty_title">Itt kezdődik az útja</string>
+    <string name="dashboard_empty_subtitle">Az alábbi Kész kártyával adjon helyhozzáférést, amikor szükséges, és kezdje el első kalandját</string>
+    <string name="dashboard_empty_feature_explore">Felfedezés</string>
+    <string name="dashboard_empty_feature_explore_desc">Fedezzen fel új helyeket és útvonalakat</string>
+    <string name="dashboard_empty_feature_achieve">Teljesítés</string>
+    <string name="dashboard_empty_feature_achieve_desc">Tűzzön ki célokat és szerezzen pontokat</string>
+    <string name="dashboard_empty_feature_track">Nyomkövetés</string>
+    <string name="dashboard_empty_feature_track_desc">Rögzítsen sétákat, futásokat és kerékpározásokat</string>
+    <string name="dashboard_empty_feature_privacy">Adatvédelem</string>
+    <string name="dashboard_empty_feature_privacy_desc">Minden adat az eszközén marad</string>
+    <string name="dashboard_empty_icon_desc">Helyadatkövetési illusztráció</string>
+    <string name="dashboard_empty_quick_start_title">Gyors kezdés</string>
+    <string name="dashboard_empty_quick_start_subtitle">Így változtathatja a lehető leggyorsabban ezt az üres irányítópultot hasznos térképekké, munkamenetekké és napi előrehaladássá.</string>
+    <string name="dashboard_empty_step_customize_title">Válassza ki a nyomkövetési stílusát</string>
+    <string name="dashboard_empty_step_customize_desc">Bármikor nyissa meg a Beállításokat az előbeállítások, az akkumulátorhasználat és a rögzíteni kívánt érzékelők módosításához.</string>
+    <string name="dashboard_empty_step_start_title">Indítsa el első nyomkövetését</string>
+    <string name="dashboard_empty_step_start_desc">Koppintson a fenti „Kész, ha Ön is” elemre a helyhozzáférés megadásához, ha szükséges, majd indítson sétát, futást, kerékpározást vagy háttérbeli nyomkövetési munkamenetet.</string>
+    <string name="dashboard_empty_step_review_title">Térképek és statisztikák áttekintése</string>
+    <string name="dashboard_empty_step_review_desc">Az első munkamenet után az Irányítópult, a Térkép és a Statisztika lapok a legutóbbi tevékenységgel és elemzésekkel töltődnek fel.</string>
+    <string name="dashboard_empty_fab_hint_title">Kész, ha Ön is</string>
+    <string name="dashboard_empty_fab_hint_desc">Koppintson ide az első nyomkövetési munkamenet indításához.</string>
+    <string name="dashboard_empty_fab_hint_desc_no_permission">Koppintson ide a helyhozzáférés megadásához, majd indítsa első nyomkövetési munkamenetét.</string>
+    <!-- Widget titles (used in DashboardWidget and customize sheet) -->
+    <string name="widget_today_progress">Mai előrehaladás</string>
+    <string name="widget_streak">Sorozat</string>
+    <string name="widget_last_session">Utolsó munkamenet</string>
+    <string name="widget_recent_trips">Legutóbbi utak</string>
+    <string name="widget_exploration">Felfedezés</string>
+    <!-- Customize dashboard sheet -->
+    <string name="dashboard_customize_title">Irányítópult testreszabása</string>
+    <string name="dashboard_customize_reset">Alapértelmezett visszaállítása</string>
+    <string name="dashboard_customize_cd_toggle">A(z) %1$s láthatóságának váltása</string>
+    <string name="dashboard_customize_cd_drag_handle">A(z) %1$s átrendezése</string>
+    <!-- Sparkline / visualization accessibility -->
+    <string name="dashboard_no_altitude_data">Nincs magassági adat</string>
+    <string name="dashboard_cd_no_altitude_data">Nem áll rendelkezésre magassági adat</string>
+    <string name="dashboard_cd_speed_sparkline">Sebesség-minigrafikon %1$d adatponttal</string>
+    <string name="dashboard_cd_session_path">Munkamenet útvonalának előnézete %1$d ponttal</string>
+    <!-- Metric labels (used in FavoritesRepository) -->
+    <string name="dashboard_metric_speed">Sebesség</string>
+    <string name="dashboard_metric_distance">Távolság</string>
+    <string name="dashboard_metric_duration">Időtartam</string>
+    <string name="dashboard_metric_steps">Lépések</string>
+    <string name="dashboard_metric_altitude">Magasság</string>
+    <string name="dashboard_metric_activity">Tevékenység</string>
+    <string name="dashboard_metric_accuracy">Pontosság</string>
+    <string name="dashboard_metric_avg_speed">Átlagsebesség</string>
+    <string name="dashboard_metric_wifi">Wi-Fi</string>
+    <string name="dashboard_metric_cell">Cella</string>
+    <string name="dashboard_metric_coordinates">Koordináták</string>
+    <!-- Tracking action ring / pill -->
+    <string name="dashboard_ring_start_tracking">Nyomkövetés indítása</string>
+    <string name="dashboard_ring_enable_location">Hely engedélyezése</string>
+    <string name="dashboard_pill_start">Indítás</string>
+    <string name="dashboard_pill_stop">Leállítás</string>
+    <string name="dashboard_pill_enable_location">Hely engedélyezése</string>
+    <!-- Session Insights Card (Task F) -->
+    <string name="dashboard_insights_title">Munkamenet-elemzés</string>
+    <string name="dashboard_cd_insight_item">Elemzés: %1$s</string>
+    <string name="widget_latest_achievement">Legutóbbi teljesítmény</string>
+    <string name="dashboard_latest_achievement_title">Legutóbbi teljesítmény</string>
+    <string name="dashboard_latest_achievement_empty">Folytassa a nyomkövetést az első teljesítmény feloldásához</string>
+</resources>

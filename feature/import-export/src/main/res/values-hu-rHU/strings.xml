@@ -1,0 +1,43 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_button">Exportálás</string>
+    <string name="export_default_file_name_range">Advention_export_data_%1$s__%2$s</string>
+    <string name="export_default_file_name_all">Advention_export_data_%1$s</string>
+    <string name="export_error_no_locations_in_interval">A kiválasztott időszakban nem találhatók helyadatok.</string>
+    <string name="export_error_no_databases">Nincsenek exportálható alkalmazás-adatbázisok.</string>
+    <string name="export_error_no_uri">Nincs kiválasztva exportmappa</string>
+    <string name="export_error_stream_failed">Nem hozható létre adatfolyam a következő fájlhoz: %s</string>
+    <string name="export_error_unknown">Az exportálás sikertelen.</string>
+    <string name="export_error_with_reason">Az exportálás sikertelen: %s</string>
+    <string name="export_file_name">Fájlnév</string>
+    <string name="export_file_name_error">A fájlnevek nem tartalmazhatnak \/:"*?&lt;&gt;|</string>
+    <string name="export_gpx_description">Az Advention által %1$s és %2$s között rögzített helyadatok exportja.</string>
+    <string name="export_gpx_error">A GPX-exportálás sikertelen, hiba: %s</string>
+    <string name="export_sensitivity_title">Pontos helyadatok exportálása?</string>
+    <string name="export_sensitivity_message">Ez az exportálás vagy megosztás teljes pontosságú helyadatokat tartalmaz, és adatbázis-export esetén nyers rádiós metaadatokat is tartalmazhat. Csak akkor folytassa, ha megbízik a célhelyben.</string>
+    <string name="export_sensitivity_confirm">Folytatás</string>
+    <string name="export_share_button">Megosztás</string>
+    <string name="export_in_progress">Exportálás…</string>
+    <string name="export_completed">Exportálás kész.</string>
+    <string name="import_notification_error_failed_open_database">Nem sikerült megnyitni a(z) %s adatbázisfájlt</string>
+    <string name="import_notification_error_file_not_supported">A(z) %s fájl nem támogatott.</string>
+    <string name="import_notification_extracting">Kibontás: %s …</string>
+    <plurals name="import_notification_finished">
+        <item quantity="one">Az importálás befejeződött. %d rekord importálása sikeres.</item>
+        <item quantity="other">Az importálás befejeződött. %d rekord importálása sikeres.</item>
+    </plurals>
+    <string name="import_notification_finished_with_skipped">Az importálás befejeződött. %1$d rekord importálva (%2$d kihagyva).</string>
+    <string name="import_notification_error_records_failed">%d rekord importálása meghiúsult megszorítási szabálysértés miatt.</string>
+    <string name="import_notification_importing">Importálás: %s …</string>
+    <string name="import_notification_progress">Importálás folyamatban …</string>
+    <string name="settings_export_dialog_from">Ettől</string>
+    <string name="settings_export_dialog_to">Eddig</string>
+    <string name="settings_export_no_data">Nincs exportálható adat</string>
+    <string name="settings_export_title">Exportálás</string>
+    <string name="format_gpx">GPX</string>
+    <string name="format_kml">KML</string>
+    <string name="format_json">JSON</string>
+    <string name="format_database">Adatbázis-mentés (ZIP)</string>
+    <string name="settings_import_summary">Adatok importálása támogatott típusokból (%1$s) és archívumokból (%2$s). Az adatbázis-importok egyesítik a kompatibilis sorokat, nem írják felül a meglévő adatokat.</string>
+    <string name="settings_import_title">Importálás</string>
+</resources>

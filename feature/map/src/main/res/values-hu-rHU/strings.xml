@@ -1,22 +1,228 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
-<resources>
-    <string name="description_map_search">Search button</string>
-    <string name="map_layer_cell_heatmap_description">Heatmap of cell signal. Heat changes based on the technology available.</string>
-    <string name="map_layer_cell_heatmap_title">Cell heatmap</string>
-    <string name="map_layer_location_heatmap_high">High density</string>
-    <string name="map_layer_location_heatmap_low">Low density</string>
-    <string name="map_layer_location_heatmap_medium">Medium density</string>
-    <string name="map_layer_wifi_count_heatmap_title">Wi-Fi count heatmap</string>
-    <string name="map_layer_wifi_heatmap_description">Heatmap based on the estimated number of Wi-Fi networks in an area.</string>
-    <string name="map_layer_wifi_heatmap_high">high density</string>
-    <string name="map_layer_wifi_heatmap_low">low density</string>
-    <string name="map_layer_wifi_heatmap_medium">medium density</string>
-    <string name="map_layer_wifi_heatmap_title">Wi-Fi heatmap</string>
-    <string name="permission_rationale_location_map">Precise location access is needed to display your location on the map.</string>
-    <string name="settings_map_max_heat_title">Max heat after visits</string>
-    <string name="settings_map_quality_title">Heatmap resolution</string>
-    <string name="settings_map_visit_threshold_title">Location visit time threshold</string>
-    <string name="tips_map_date_range_title">Date range</string>
-    <string name="tips_map_my_location_title">My location</string>
-    <string name="tips_map_sheet_description">Tapping or pulling up this bar will open more options for the map including layer selection and legend.</string>
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="trip_route_preview_unavailable" translatable="false">Route map preview could not be prepared</string>
+    <!-- Module title for distribution manifest -->
+    <string name="module_map_title">Térkép</string>
+    <string name="description_map_search">Keresés gomb</string>
+    <string name="map_layer_cell_heatmap_description">A cellajel hőtérképe. A hő a rendelkezésre álló technológiától függően változik.</string>
+    <string name="map_layer_cell_heatmap_title">Cellajel-hőtérkép</string>
+    <string name="map_layer_location_heatmap_high">Nagy sűrűség</string>
+    <string name="map_layer_location_heatmap_low">Alacsony sűrűség</string>
+    <string name="map_layer_location_heatmap_low_medium" translatable="false">Low-medium density</string>
+    <string name="map_layer_location_heatmap_medium">Közepes sűrűség</string>
+    <string name="map_layer_location_heatmap_peak" translatable="false">Peak density</string>
+    <string name="map_layer_distinct_visits_title" tools:ignore="MissingTranslation">Egyedi látogatások</string>
+    <string name="map_layer_distinct_visits_chip" tools:ignore="MissingTranslation">Látogatások</string>
+    <string name="map_layer_distinct_visits_description" tools:ignore="MissingTranslation">Az elfogadott helymeghatározások relatív sűrűsége. Egyedi megfigyeléseket mutat, nem az ott töltött időt.</string>
+    <string name="map_layer_cell_radio_gsm">GSM-lefedettség</string>
+    <string name="map_layer_cell_radio_wcdma">3G / WCDMA</string>
+    <string name="map_layer_cell_radio_lte">4G / LTE</string>
+    <string name="map_layer_cell_radio_nr">5G / NR</string>
+    <string name="map_layer_signal_coverage_title">Jelholt zónák</string>
+    <string name="map_layer_signal_coverage_chip" translatable="false">Dead zones</string>
+    <string name="map_layer_signal_coverage_description">Kiemeli azokat a helyeket, ahol a cellajel gyenge vagy hiányzott. Minél vörösebb a terület, annál rosszabb a lefedettség; a jól lefedett területek tiszták maradnak.</string>
+    <string name="map_layer_signal_coverage_weak" translatable="false">Weak</string>
+    <string name="map_layer_signal_coverage_poor" translatable="false">Poor</string>
+    <string name="map_layer_signal_coverage_very_poor" translatable="false">Very poor</string>
+    <string name="map_layer_signal_coverage_dead" translatable="false">Dead zone</string>
+    <string name="map_layer_signal_aurora_title" tools:ignore="MissingTranslation">Jel-aurora</string>
+    <string name="map_layer_signal_aurora_chip" tools:ignore="MissingTranslation">Auróra</string>
+    <string name="map_layer_signal_aurora_description" tools:ignore="MissingTranslation">A cellajel auroraszerű ragyogásként jelenik meg: a fényes ciánzöld mag alatt széles ibolyaszínű glóriával. A ragyogás adatújratöltés nélkül lélegzik, és a rendszeranimációk letiltásakor statikussá válik.</string>
+    <string name="map_layer_signal_aurora_faint" tools:ignore="MissingTranslation">Halvány jel</string>
+    <string name="map_layer_signal_aurora_strong" tools:ignore="MissingTranslation">Erős jel</string>
+    <string name="map_layer_speed_heatmap_description">Hőtérkép, amely a különböző területeken mért mozgási sebességet ábrázolja.</string>
+    <string name="map_layer_speed_very_slow">Nagyon lassú</string>
+    <string name="map_layer_speed_walking">Gyalogtempó</string>
+    <string name="map_layer_speed_running">Futótempó</string>
+    <string name="map_layer_speed_moderate">Mérsékelt sebesség</string>
+    <string name="map_layer_speed_fast">Gyors mozgás</string>
+    <string name="map_layer_speed_very_fast">Nagyon gyors</string>
+    <string name="map_layer_speed_heatmap_title">Sebesség-hőtérkép</string>
+    <string name="map_layer_legacy_heatmap_title">Régi hőtérkép</string>
+    <string name="map_layer_legacy_heatmap_chip">Régi csempék</string>
+    <string name="map_layer_legacy_heatmap_description">Visszatekintés az eredeti Signals alkalmazásra: a helyadat-sűrűség diszkrét 25 m-es rácscsempékként, úgy rajzolva, ahogyan a hőtérkép kinézett, amikor a csempéket a szerver renderelte. Nagyítson a négyzetek megtekintéséhez.</string>
+    <string name="map_layer_seasonal_title">Évszakos felfedező</string>
+    <string name="map_layer_seasonal_chip">Évszakok</string>
+    <string name="map_layer_seasonal_description">Évszakos emlékek foltvarrása: minden felfedezett terület annak az évszaknak a színét kapja, amikor először járt ott. Találja meg az ösvényeket, amelyeken csak nyáron sétál, vagy az utcákat, amelyeket csak télen lát.</string>
+    <string name="map_layer_season_spring">Tavasz</string>
+    <string name="map_layer_season_summer">Nyár</string>
+    <string name="map_layer_season_autumn">Ősz</string>
+    <string name="map_layer_season_winter">Tél</string>
+    <string name="map_layer_terrain_title">Élet mint domborzat</string>
+    <string name="map_layer_terrain_chip">Domborzat</string>
+    <string name="map_layer_terrain_description">A helyadat-sűrűségét 3D-ben emeli ki: a legtöbb időt töltött helyek magas, ragyogó fennsíkként emelkednek ki, míg az egyszer meglátogatott pontok alacsonyak maradnak. Döntse meg a térképet, hogy lássa élete domborzatát.</string>
+    <string name="map_layer_terrain_low">Ritkán itt</string>
+    <string name="map_layer_terrain_mid">Néha</string>
+    <string name="map_layer_terrain_high">Gyakran itt</string>
+    <string name="map_layer_places_title">Gyakori helyek</string>
+    <string name="map_layer_places_chip">Helyek</string>
+    <string name="map_layer_places_description">Fontos helyei jelölőkként, amelyek mérete és színe a látogatások gyakoriságától függ. Az otthon és a munka nagy, meleg pontokká válik; az egyszer meglátogatott hely kis, hűvös marad.</string>
+    <string name="map_layer_places_rare">Ritkán</string>
+    <string name="map_layer_places_often">Néha</string>
+    <string name="map_layer_places_anchor">Horgonyhelyei</string>
+    <string name="map_layer_speed_ribbon_title">Sebességszalag</string>
+    <string name="map_layer_speed_ribbon_chip">Szalag</string>
+    <string name="map_layer_speed_ribbon_description">Az útvonala a mozgási sebesség szerint festve, a lassú ibolyaszínű sétától a vörösen izzó sprintig vagy vezetésig áramló színekkel. A sebesség-hőtérképtől eltérően a szalag érintetlenül tartja az útvonalat, így pontosan láthatja, hol gyorsított és lassított.</string>
+    <string name="map_layer_altitude_ribbon_title" tools:ignore="MissingTranslation">Magassági szalag</string>
+    <string name="map_layer_altitude_ribbon_chip" tools:ignore="MissingTranslation">Magasság</string>
+    <string name="map_layer_altitude_ribbon_description" tools:ignore="MissingTranslation">Az útvonala abszolút tengerszint feletti magasság szerint festve, a mélykék alföldektől a ciánszínű előhegyeken át a meleg hegyvidéki magasságokig. A skála pásztázáskor rögzített marad, így ugyanaz a magasság mindig ugyanazt a színt tartja.</string>
+    <string name="map_layer_altitude_low" tools:ignore="MissingTranslation">Alföldek</string>
+    <string name="map_layer_altitude_mid" tools:ignore="MissingTranslation">Előhegyek</string>
+    <string name="map_layer_altitude_high" tools:ignore="MissingTranslation">Magashegység</string>
+    <string name="map_layer_activity_ribbon_title" tools:ignore="MissingTranslation">Tevékenységszalag</string>
+    <string name="map_layer_activity_ribbon_chip" tools:ignore="MissingTranslation">Tevékenység</string>
+    <string name="map_layer_activity_ribbon_description" tools:ignore="MissingTranslation">Az útvonal a minden helymeghatározással rögzített megbízható mozgásállapot szerint festve: szürke, ahol az állapot ismeretlen, kék mozdulatlanság közben, zöld mozgáskor.</string>
+    <string name="map_layer_activity_unknown" tools:ignore="MissingTranslation">Ismeretlen</string>
+    <string name="map_layer_activity_still" tools:ignore="MissingTranslation">Mozdulatlan</string>
+    <string name="map_layer_activity_moving" tools:ignore="MissingTranslation">Mozgásban</string>
+    <string name="map_layer_ski_xray_title" tools:ignore="MissingTranslation">Sí-röntgen</string>
+    <string name="map_layer_ski_xray_chip" tools:ignore="MissingTranslation">Sí-röntgen</string>
+    <string name="map_layer_ski_xray_description" tools:ignore="MissingTranslation">A felismert síszakaszok diagnosztikai nézete. A lesiklások, felvonók, séták és szünetek a legközelebbi rögzített helyhez vannak rögzítve, és főbb mutatóikkal felcímkézve.</string>
+    <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Lesiklás</string>
+    <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Felvonó</string>
+    <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Séta vagy szünet</string>
+    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Utazási csillagképek</string>
+    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Utazások</string>
+    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">A gyakori helyei közötti ismétlődő utazások ívelt csillagképekké válnak. Egy állandó ív minden útvonalat mutat, miközben egy üstökös halad rajta; a vastagabb ívek gyakoribb utazást jelentenek.</string>
+    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Gyaloglás</string>
+    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Kerékpározás</string>
+    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Vezetés</string>
+    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Tömegközlekedés</string>
+    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Egyéb</string>
+    <string name="map_layer_fog_title">Felfedező köde</string>
+    <string name="map_layer_fog_chip">Köd</string>
+    <string name="map_layer_fog_description">A világból a ködből kibontakozó térkép: minden érintett terület feltárul, és annál fényesebben ragyog, minél alaposabban ismerte meg. Az érintőlegesen bejárt helyek halvány ködösek maradnak; a mélyen felfedezett helyek tömör aranyként égnek. A felfedezetlen terület sötét marad.</string>
+    <string name="map_layer_fog_faint">Áthaladt rajta</string>
+    <string name="map_layer_fog_known">Jól felfedezett</string>
+    <string name="map_layer_first_contact_title">Első találkozás</string>
+    <string name="map_layer_first_contact_chip">Felfedezés</string>
+    <string name="map_layer_first_contact_description">Felfedezéseinek idővonala: minden terület annak megfelelően színeződik, milyen régen járt ott először. A rég felfedezett helyek mély indigóra halványulnak, míg az ezen a héten feltört föld ragyogó ciánszínben fénylik — olvassa felfedezése történetét a legújabb határok felé.</string>
+    <string name="map_layer_first_contact_old">Régen</string>
+    <string name="map_layer_first_contact_recent">Épp felfedezve</string>
+    <string name="map_layer_vehicle_compliance_title">Járműsebesség-szabálykövetés</string>
+    <string name="map_layer_vehicle_compliance_description">A vezetési minták törött vonala, amelyet a sebességnek a beállított alapkorláthoz viszonyított aránya színez.</string>
+    <string name="map_layer_vehicle_compliance_way_under">Jóval a korlát alatt</string>
+    <string name="map_layer_vehicle_compliance_slow">A korlát alatt</string>
+    <string name="map_layer_vehicle_compliance_at_limit">A korlát közelében</string>
+    <string name="map_layer_vehicle_compliance_slightly_over">Kissé felette</string>
+    <string name="map_layer_vehicle_compliance_speeding">Gyorshajtás</string>
+    <string name="map_layer_location_polyline_description">Vonal, amely időben összeköti rögzített helyadatait.</string>
+    <string name="map_layer_location_polyline_title">Helyadat-vonal</string>
+    <!-- Compact chip labels: long titles truncate to "Location polyli..." in the
+         layer chip on the map control bar (~360dp). Each chip label fits in
+         ~12 characters at typical font sizes. Fall back to titleRes for layers
+         whose titleRes already fits. -->
+    <string name="map_layer_location_polyline_chip">Vonal</string>
+    <string name="map_layer_wifi_count_heatmap_chip">Wi-Fi-átfedés</string>
+    <string name="map_layer_vehicle_compliance_chip">Gyorshajtás</string>
+    <string name="map_layer_none_title">Nincs fedvény</string>
+    <string name="map_date_preset_week">Múlt hét</string>
+    <string name="map_date_preset_month">Múlt hónap</string>
+    <string name="map_date_preset_custom">Egyéni…</string>
+    <string name="map_date_today">Ma</string>
+    <string name="map_date_yesterday">Tegnap</string>
+    <string name="map_date_this_week">Ezen a héten</string>
+    <string name="map_layer_wifi_count_heatmap_title">Wi-Fi-szám hőtérképe</string>
+    <string name="map_layer_wifi_count_heatmap_description">Megmutatja, hány különálló hozzáférési pont fed át minden helyen. Ugyanazon hozzáférési pont ismételt vizsgálata csak egyszer számít, ezért a forróbb területek valóban sűrűbb rádiós lefedettséget jelentenek.</string>
+    <string name="map_layer_wifi_heatmap_description">Hőtérkép egy területen lévő Wi-Fi-hálózatok becsült száma alapján.</string>
+    <string name="map_layer_wifi_heatmap_high">Nagy sűrűség</string>
+    <string name="map_layer_wifi_heatmap_low">Alacsony sűrűség</string>
+    <string name="map_layer_wifi_heatmap_medium">Közepes sűrűség</string>
+    <string name="map_layer_wifi_heatmap_title">Wi-Fi-hőtérkép</string>
+    <string name="map_layer_wifi_radio_24">2,4 GHz-es hatótáv</string>
+    <string name="map_layer_wifi_radio_5">5 GHz-es hatótáv</string>
+    <string name="map_layer_wifi_radio_6">6 GHz-es hatótáv</string>
+    <string name="map_legend_label">Jelmagyarázat</string>
+    <string name="map_chip_layers">Réteg</string>
+    <string name="map_chip_dates">Dátumok</string>
+    <string name="permission_rationale_location_map">Pontos helyhozzáférés szükséges a helyzet térképen való megjelenítéséhez.</string>
+    <string name="map_location_permission_denied">Helyengedély szükséges a helyzet megjelenítéséhez</string>
+    <string name="map_open_settings">Beállítások megnyitása</string>
+    <string name="settings_map_basemap_title">Alaptérkép</string>
+    <string name="settings_map_basemap_custom">Egyéni .pmtiles-fájl aktív (eltávolításhoz koppintson)</string>
+    <string name="settings_map_basemap_default">A beépített alaptérkép aktív. Egyéni .pmtiles-fájl importálásához koppintson.</string>
+    <string name="basemap_import_error_source_open">Nem sikerült megnyitni ezt a fájlt. Próbáljon másikat, vagy ossza meg újra a Trackerrel.</string>
+    <string name="basemap_import_error_copy">Nem sikerült átmásolni az alaptérképfájlt. Ellenőrizze, van-e elég szabad hely, majd próbálja újra.</string>
+    <string name="basemap_import_error_invalid_format">Nem érvényes PMTiles-fájl: %1$s</string>
+    <string name="settings_map_advanced_section_title">Speciális beállítások</string>
+    <string name="settings_map_max_heat_title">Maximális hő a látogatások után</string>
+    <string name="settings_map_quality_title">Hőtérkép felbontása</string>
+    <string name="settings_map_visit_threshold_title">Helylátogatás időbeli küszöbe</string>
+    <string name="settings_map_legacy_heatmap_title">Régi hőtérkép (10 m-es csempék)</string>
+    <string name="settings_map_legacy_heatmap_subtitle">Húsvéti tojás: hozzáad egy „Régi hőtérkép” réteget, amely a helyadat-sűrűséget diszkrét 10 m-es rácscsempékként rajzolja, mint az eredeti, szerver által renderelt Signals-hőtérkép.</string>
+    <string name="settings_map_zoom_buttons_title">Térkép nagyítási gombjai</string>
+    <string name="settings_map_zoom_buttons_subtitle">Jelenítse meg a képernyőn a + és − gombokat a térkép nagyításához, amikor a csippentéses nagyítás nehezen használható.</string>
+    <string name="tips_map_date_range_title">Dátumtartomány</string>
+    <string name="tips_map_my_location_title">Saját helyzet</string>
+    <string name="tips_map_sheet_description">Erre a sávra koppintva vagy felhúzva további térképbeállítások nyílnak meg, köztük a rétegválasztás és a jelmagyarázat.</string>
+    <!-- Map Sheet Controls -->
+    <!-- Keep short so it fits the search field at typical 360dp widths;
+         the full coordinate-format reference lives in map_search_invalid_format. -->
+    <string name="map_search_placeholder">Szél., hossz., pl. 50.075, 14.437</string>
+    <string name="map_search_invalid_format">Próbálja ezt: 48.8566, 2.3522 • 48.8566 2.3522 • É48.8566 K2.3522 • 48°51’24”É 2°21’08”K</string>
+    <string name="map_search_clear">Keresés törlése</string>
+    <string name="map_search_paste">Vágólap tartalmának beillesztése a keresőbe</string>
+    <string name="map_search_clipboard_empty">A vágólap még nem tartalmaz koordinátákat</string>
+    <string name="map_date_range_dialog_ok">OK</string>
+    <string name="map_date_range_dialog_cancel">Mégse</string>
+    <!-- Share map as image -->
+    <string name="map_share_button">Térkép megosztása</string>
+    <string name="map_share_sheet_title">Térkép megosztása képként</string>
+    <string name="map_share_sheet_subtitle">Az aktuális nézetet és aktív réteget statikus képként jeleníti meg. Az élő helyzet soha nem szerepel benne.</string>
+    <string name="map_share_resolution_standard">Normál (1080p)</string>
+    <string name="map_share_resolution_high">Nagy (1440p)</string>
+    <string name="map_share_resolution_ultra">Ultranagy (4K)</string>
+    <string name="map_share_action">Megosztás</string>
+    <string name="map_share_preparing">Kép előkészítése…</string>
+    <string name="map_share_error">Nem sikerült renderelni a térképképet. Próbálja újra.</string>
+    <string name="map_date_range_all_time">Teljes időszak</string>
+    <string name="map_date_range_selected_trip" translatable="false">Selected trip</string>
+    <string name="map_layers_title">Térképrétegek</string>
+    <string name="map_layer_load_error">Nem sikerült betölteni ezt a réteget. Próbáljon másikat kiválasztani.</string>
+    <string name="map_empty_subtitle_location">Ebben a nézetben vagy dátumtartományban nincs helyadat. Az útvonal- és térképfunkciók a nyomkövetés közben gyűjtött helyadatokat igénylik.</string>
+    <string name="map_empty_subtitle_cell">Ebben a nézetben vagy dátumtartományban nincs helyhez kapcsolt cellaadat. A hely nélkül rögzített cellaminták továbbra is mentve vannak, de nem jelenhetnek meg a térképen.</string>
+    <string name="map_empty_subtitle_wifi">Ebben a nézetben vagy dátumtartományban nincs helyhez kapcsolt Wi-Fi-adat. A hely nélkül rögzített Wi-Fi-megfigyelések továbbra is mentve vannak, de nem jelenhetnek meg a térképen.</string>
+    <string name="map_empty_subtitle_speed">Ebben a nézetben vagy dátumtartományban nincs sebességadat. A sebességtérképek használható, nyomkövetés közben gyűjtött helymintákat igényelnek.</string>
+    <string name="map_empty_subtitle_vehicle_compliance">Nincs megjeleníthető útra illesztett vezetés. Importáljon egy OpenStreetMap-régiót (Beállítások), és rögzítsen néhány vezetést, hogy útvonalát valós utakhoz illeszthessük.</string>
+    <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Nincs adat üzenet elvetése</string>
+    <string name="map_speed_probe_title">Sebesség itt</string>
+    <string name="map_speed_probe_avg_label">Átlag</string>
+    <string name="map_speed_probe_max_label">Max.</string>
+    <string name="map_speed_probe_empty">Ezen a ponton nincs sebességadat. Koppintson olyan helyre, ahol hő látható, a sebességek megtekintéséhez.</string>
+    <string name="map_speed_probe_hint">A sebességek megtekintéséhez koppintson a térképre</string>
+    <string name="map_speed_probe_dismiss">Sebességrészletek elvetése</string>
+    <string name="map_place_callout_loading">Hely keresése…</string>
+    <string name="map_place_callout_empty">Nem található hely itt</string>
+    <string name="map_place_callout_dismiss">Helyrészletek elvetése</string>
+    <string name="map_zoom_in">Nagyítás</string>
+    <string name="map_zoom_out">Kicsinyítés</string>
+    <string name="map_loading">Térkép betöltése…</string>
+    <string name="map_basemap_unavailable">A térkép alaptérképe nem készíthető elő. Zárja be és nyissa meg újra a térképet a próbálkozáshoz.</string>
+    <string name="map_a11y_map_overview">Térkép áttekintése</string>
+    <string name="map_a11y_centered_on_location">A térkép az Ön helyzetére központosítva</string>
+    <string name="map_a11y_showing_location">A térkép az Ön helyzetét mutatja</string>
+    <string name="map_a11y_loading_data">Rögzített térképadatok betöltése</string>
+    <string name="map_a11y_no_recorded_data">A kiválasztott réteghez nincs térképezhető adat ebben a nézetben vagy dátumtartományban</string>
+    <string name="map_a11y_no_layer_selected">Nincs kiválasztott térképréteg</string>
+    <string name="map_a11y_search_result_visible">Keresési eredmény jelölője látható</string>
+    <string name="map_a11y_active_recording_visible">Aktív rögzítés útvonala látható</string>
+    <string name="map_a11y_recorded_route_history">Rögzített útvonalelőzmények láthatók</string>
+    <string name="map_a11y_distinct_visits" tools:ignore="MissingTranslation">Az egyedi elfogadott helymegfigyelések láthatók</string>
+    <string name="map_a11y_cell_heatmap">A mobilhálózati lefedettségi mezők és közelítő kiszolgálóhely-központok láthatók</string>
+    <string name="map_a11y_wifi_heatmap">A Wi-Fi-sávok, lefedettségi mezők és közelítő hozzáférésipont-központok láthatók</string>
+    <string name="map_a11y_wifi_count_heatmap">A különálló Wi-Fi-hozzáférési pontok átfedése látható</string>
+    <string name="map_a11y_speed_heatmap">Sebesség-hőtérkép látható</string>
+    <string name="map_a11y_saved_map_data">Mentett térképadatok láthatók</string>
+    <string name="map_location_permission_opening_settings">Helyhozzáférés szükséges. Beállítások megnyitása…</string>
+    <string name="map_permission_banner_dismiss">Helyengedély üzenet elvetése</string>
+    <string name="map_loading_layer">Térképréteg betöltése</string>
+    <string name="map_a11y_world_scale">Világlépték</string>
+    <string name="map_a11y_regional_scale">Regionális lépték</string>
+    <string name="map_a11y_city_scale">Városi lépték</string>
+    <string name="map_a11y_neighborhood_scale">Környék léptéke</string>
+    <string name="map_a11y_street_scale">Utcaszint</string>
+    <!-- Help Text for Map Settings -->
+    <string name="help_map_quality">Renderelési részletességi szorzó. A magasabb értékek több részletet mutatnak, de régebbi eszközökön lassíthatják a térkép betöltését.</string>
+    <string name="help_max_heat_points">A hőtérkép nézetben megjelenített helypontok maximális száma. A magasabb értékek több részletet, de lassabb renderelést jelentenek.</string>
+    <string name="help_visit_threshold">Mennyi ideig kell egy helyen maradnia, mielőtt a térképen „látogatásként” jelenik meg. Növelje ezt az értéket a rövid megállások okozta zsúfoltság csökkentéséhez.</string>
 </resources>

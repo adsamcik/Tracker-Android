@@ -1,0 +1,490 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="app_name" translatable="false">Tracker</string>
+    <string name="key_last_app_version" translatable="false">lastVersion</string>
+    <string name="module_game_title">Játék</string>
+    <string name="module_map_title">Térkép</string>
+    <string name="module_statistics_title">Statisztikák</string>
+    <string name="main_nav_tracker">Kezdőlap</string>
+    <string name="settings_clear_preferences_title">Beállítások törlése</string>
+    <string name="settings_clear_preferences_message">Ezzel visszaállítja az alkalmazás összes beállítását (funkciókapcsolók, felületi beállítások). A nyomkövetési adatait ez nem érinti. Folytatja?</string>
+    <string name="settings_data_title">Adatok</string>
+    <string name="settings_debug_group_title">Hibakeresés</string>
+    <string name="settings_debug_title">Fejlesztői beállítások</string>
+    <string name="settings_debug_developer_tools_section">Fejlesztői eszközök</string>
+    <string name="settings_debug_disable_developer_subtitle">Fejlesztői beállítások elrejtése a beállításokból</string>
+    <string name="settings_debug_developer_mode_disabled_toast">Fejlesztői mód letiltva</string>
+    <string name="settings_data_management_section">Adatkezelés</string>
+    <string name="settings_data_danger_zone_section">Veszélyzóna</string>
+    <string name="settings_osm_import_section">Térképadatok (OpenStreetMap)</string>
+    <string name="settings_osm_import_action_title">OSM-régió importálása</string>
+    <string name="settings_osm_import_action_summary">Válasszon .osm.pbf fájlt. A járműszabályok ezután valós útvonal-korlátokat használnak offline.</string>
+    <string name="settings_osm_import_unavailable_title">Offline térképimportálás nem érhető el</string>
+    <string name="settings_osm_import_action_unavailable">Az offline térképimportálás átmenetileg nem érhető el, amíg a fájlbiztonsági védelem elkészül.</string>
+    <string name="settings_osm_import_action_running">Importálás — koppintson a megszakításhoz</string>
+    <string name="settings_osm_import_action_failed">Az offline térkép importálása nem fejezhető be.</string>
+    <string name="settings_osm_import_action_source_unavailable">A kiválasztott térképfájl nem nyitható meg.</string>
+    <plurals name="settings_osm_import_action_success">
+        <item quantity="one">%1$d út importálva %2$d csomópontból.</item>
+        <item quantity="other">%1$d út importálva %2$d csomópontból.</item>
+    </plurals>
+    <string name="settings_osm_imports_empty">Még nincs importált OpenStreetMap-régió.</string>
+    <string name="settings_osm_imports_attribution">Térképadatok © OpenStreetMap közreműködői (ODbL 1.0). Minden feldolgozás az eszközön történik.</string>
+    <plurals name="settings_osm_import_entry_subtitle">
+        <item quantity="one">%1$,d út · importálva: %2$s</item>
+        <item quantity="other">%1$,d út · importálva: %2$s</item>
+    </plurals>
+    <string name="settings_osm_import_remove_title">Importált régió eltávolítása</string>
+    <string name="settings_osm_import_remove_message">Eltávolítja: %1$s? A járműsebesség-szabálykövetés a rögzített alapértékre vált vissza, amíg újra nem importál régiót.</string>
+    <string name="settings_incremental_backups_title">Növekményes biztonsági mentések</string>
+    <string name="settings_incremental_backups_summary">Csak az utolsó biztonsági mentés óta keletkezett új adatokat exportálja. Csökkenti az exportálási időt és a fájlméretet.</string>
+    <string name="settings_reset_export_watermarks_title">Teljes exportálás kényszerítése</string>
+    <string name="settings_reset_export_watermarks_summary">A következő automatikus mentés minden adatot tartalmazni fog, nem csak a változásokat</string>
+    <string name="settings_reset_export_watermarks_done">Az exportálási jelölők visszaállítva — a következő mentés teljes export lesz</string>
+    <string name="settings_migration_backup_export_title">Frissítés előtti biztonsági mentés exportálása</string>
+    <!-- The integer arguments are database version identifiers, not quantities. -->
+    <string name="settings_migration_backup_export_summary" tools:ignore="PluralsCandidate">A v%1$d verzió teljes adatbázismásolata, amely a v%2$d verzióra való átállás előtt készült, és legfeljebb 30 napig marad meg privátan</string>
+    <string name="settings_migration_backup_warning_title">Érzékeny adatbázis-mentés exportálása?</string>
+    <string name="settings_migration_backup_warning_message">Ez a biztonsági mentés pontos helyadatokat, Wi-Fi- és cellamegfigyeléseket, tevékenységeket, valamint más, a frissítés előtti személyes adatokat tartalmazhat. Csak megbízható helyre mentse.</string>
+    <string name="settings_migration_backup_export_action">Biztonsági mentés exportálása</string>
+    <string name="settings_migration_backup_export_success">A frissítés előtti mentés exportálva</string>
+    <string name="settings_migration_backup_export_failure">Nem sikerült exportálni a frissítés előtti mentést</string>
+    <string name="settings_migration_backup_export_cleanup_required">Az exportálás sikertelen. Törölje a részben exportált mentést a kiválasztott helyről.</string>
+    <string name="settings_delete_data_success">Minden gyűjtött adat törölve</string>
+    <string name="settings_delete_data_failure">Nem sikerült törölni minden gyűjtött adatot</string>
+    <string name="settings_game_goals_title">Célok</string>
+    <string name="settings_game_daily_target_title">Napi lépéscél</string>
+    <string name="settings_game_weekly_target_title">Heti lépéscél</string>
+    <string name="settings_game_daily_contribution_title">Napi maximális hozzájárulás</string>
+    <string name="settings_game_steps_unit">lépés</string>
+    <string name="settings_game_notifications_title">Értesítések</string>
+    <string name="settings_game_goal_notifications_title">Célhaladási értesítések</string>
+    <string name="settings_game_goal_notifications_summary" formatted="false">Helyi emlékeztető küldése a napi cél 75%-ánál és 90%-ánál.</string>
+    <string name="settings_game_during_games_title">Játék közben</string>
+    <string name="settings_game_haptics_title">Játékon belüli rezgések</string>
+    <string name="settings_game_haptics_summary">Használjon finom rezgést a játék visszajelzéseihez.</string>
+    <string name="settings_game_quiet_coaching_title">Csendes edzői jelzések</string>
+    <string name="settings_game_quiet_coaching_summary">Játék közben ritkább útmutatást használ.</string>
+    <string name="settings_game_remember_setup_title">Utolsó játékbeállítás megjegyzése</string>
+    <string name="settings_game_remember_setup_summary">A következő alkalommal használja újra az utolsó célját és nehézségét.</string>
+    <string name="settings_game_privacy_battery_title">Adatvédelem és akkumulátor</string>
+    <string name="settings_game_privacy_battery_disclosure">A játékok csak aktív állapotban használnak élő helyadatokat, és amikor elérhető, újrahasználják a Tracker helyadatát. A szüneteltetés megszünteti a játék helyadat-használatát. Csak a pontszám és a pontok/XP kerülnek mentésre erre az eszközre; a nyers játékhelyek nem maradnak meg.</string>
+    <string name="settings_game_loading">Játékbeállítások betöltése…</string>
+    <string name="settings_game_load_error">A játékbeállítások nem tölthetők be. Próbálja újra.</string>
+    <string name="settings_map_info_hint">Ezek a beállítások a térkép megjelenítési minőségét és teljesítményét szabályozzák. A legtöbb felhasználó használhatja az alapértelmezett értékeket.</string>
+    <string name="settings_map_online_tiles_section_title">Online térképcsempék</string>
+    <string name="settings_map_online_tiles_enable_title">Online térképcsempék használata</string>
+    <string name="settings_map_online_tiles_enable_subtitle_off">Ki — csak a csomagolt offline alaptérkép használatos. Nincsenek hálózati kérések.</string>
+    <string name="settings_map_online_tiles_enable_subtitle_on">Be — csempék lekérése innen: %1$s</string>
+    <string name="settings_map_online_tiles_provider_title">Csempeszolgáltató</string>
+    <string name="settings_map_online_tiles_provider_openfreemap">OpenFreeMap (ajánlott)</string>
+    <string name="settings_map_online_tiles_provider_protomaps">Protomaps</string>
+    <string name="settings_map_online_tiles_provider_custom">Egyéni URL</string>
+    <string name="settings_map_online_tiles_custom_url_label">Stílus JSON URL-je</string>
+    <string name="settings_map_online_tiles_custom_url_hint">https://example.com/style.json</string>
+    <string name="settings_map_online_tiles_attribution_format">Forrásmegjelölés: %1$s</string>
+    <string name="settings_map_online_tiles_privacy_disclosure">Az online csempék használata választható. Bekapcsolva a kiválasztott szolgáltató láthatja IP-címét és a betöltött csempéket (megközelítőleg azt, hogy a térkép mely területét nézi). A Tracker soha nem küld fiókadatot, azonosítót vagy helyelőzményt.</string>
+    <string name="settings_developer_mode_enabled_toast">Fejlesztői mód engedélyezve</string>
+    <string name="settings_developer_mode_disable">Fejlesztői mód letiltása</string>
+    <string name="settings_developer_mode_subtitle">Fejlesztői mód aktív</string>
+    <plurals name="settings_developer_mode_tap_countdown">
+        <item quantity="one">Koppintson még %d alkalommal a fejlesztői mód engedélyezéséhez</item>
+        <item quantity="other">Koppintson még %d alkalommal a fejlesztői mód engedélyezéséhez</item>
+    </plurals>
+    <string name="settings_version_info_title">Verzióinformációk</string>
+    <string name="settings_version_format">Verzió: %1$s (%2$d)</string>
+    <string name="settings_language_summary">Jelenlegi nyelv: %s</string>
+    <string name="settings_language_title">Alkalmazás nyelve</string>
+    <string name="settings_units_auto_summary_on">A hosszúság mértékegységrendszerét az észlelt tevékenységekhez igazítja</string>
+    <string name="settings_units_auto_summary_off">A kiválasztott hosszúságmérték-rendszert mindenhol alkalmazza</string>
+    <string-array name="settings_length_system_names">
+        <item>Metrikus</item>
+        <item>Birodalmi (USC)</item>
+        <item>Ókori római</item>
+        <item>Vitorlázás</item>
+        <item>Repülés</item>
+    </string-array>
+    <string name="settings_length_system_title">Hosszúságmérték-rendszer</string>
+    <string-array name="settings_length_system_values" translatable="false">
+        <item>Metric</item>
+        <item>Imperial</item>
+        <item>AncientRoman</item>
+        <item>Sailing</item>
+        <item>Flying</item>
+    </string-array>
+    <string name="settings_licenses_title">Nyílt forráskódú licencek</string>
+    <string name="settings_licenses_subtitle">Az ebbe a buildbe foglalt harmadik féltől származó jogi nyilatkozatok megtekintése.</string>
+    <string name="settings_licenses_loading">Licencek betöltése…</string>
+    <string name="settings_licenses_unavailable">Nem tölthetők be a csomagolt harmadik féltől származó licencadatok.</string>
+    <string name="settings_licenses_text_at_url">A teljes licencszöveg itt érhető el: %1$s</string>
+    <string name="settings_privacy_policy_title">Adatvédelmi irányelv</string>
+    <string name="settings_privacy_policy_unavailable">A csomagolt adatvédelmi irányelv nem nyitható meg. Az alkalmazás újraindítása után próbálja újra.</string>
+    <string name="settings_about_header">Névjegy</string>
+    <string name="settings_about_app_title">Tracker, készítette: adsamcik</string>
+    <string name="settings_about_app_subtitle">Adatvédelem-központú hely- és tevékenységkövető</string>
+    <string name="about_title">Névjegy</string>
+    <string name="about_app_name_label">Alkalmazás</string>
+    <string name="about_version_label">Verzió</string>
+    <string name="about_version_format">%1$s (%2$d)</string>
+    <string name="about_build_commit_label">Build-azonosító</string>
+    <string name="about_commit_unavailable" translatable="false">N/A</string>
+    <string name="about_author">Szerző</string>
+    <string name="about_author_value" translatable="false">Adsamcik</string>
+    <string name="about_email">E-mail</string>
+    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
+    <string name="about_github">GitHub</string>
+    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
+    <string name="about_links_title">Hivatkozások</string>
+    <string name="about_attributions_title">Adatforrások</string>
+    <string name="about_attribution_geonames_label">Helynevek</string>
+    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
+    <string name="about_attribution_osm_label">Térkép- és utcaadatok</string>
+    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
+    <string name="settings_module_group_title">Modulbeállítások</string>
+    <string name="settings_core_group_title">Alapfunkciók</string>
+    <string name="settings_other_title">Mértékegységek és megjelenítés</string>
+    <string name="settings_remove_all_collected_data_summary">Törli a nyomkövetési adatokat (az egyéni tevékenységek és beállítások megmaradnak)</string>
+    <string name="settings_remove_all_collected_data_title">Minden gyűjtött adat törlése</string>
+    <string-array name="settings_speed_format_names">
+        <item>Sebesség másodpercenként (m/s)</item>
+        <item>Tempó távolságonként (perc/km, perc/mi)</item>
+        <item>Sebesség (km/h, mph)</item>
+    </string-array>
+    <string name="settings_speed_format_title">Sebesség formátuma</string>
+    <string-array name="settings_speed_format_values" translatable="false">
+        <item>Second</item>
+        <item>Minute</item>
+        <item>Hour</item>
+    </string-array>
+    <string name="settings_title">Beállítások</string>
+    <string name="switch_state_on">Be</string>
+    <string name="switch_state_off">Ki</string>
+    <!-- Onboarding Strings -->
+    <!-- Streamlined Onboarding (Apple-style single-screen) -->
+    <string name="onboarding_streamlined_title">Kövesse útjait privát módon</string>
+    <string name="onboarding_streamlined_subtitle">Minden adat az eszközén marad. Nincs felhőszinkronizálás vagy külső nyomkövetés.</string>
+    <string name="onboarding_benefit_privacy_title">Adatvédelem az első</string>
+    <string name="onboarding_benefit_privacy_desc">Minden nyomkövetési adat az eszközén marad. Nincsenek szerverek, nincs felhőszinkronizálás, teljes ellenőrzés az Ön kezében.</string>
+    <string name="onboarding_benefit_insights_title">Tevékenységelemzés</string>
+    <string name="onboarding_benefit_insights_desc">Tekintse meg útvonalait térképen, elemezze a statisztikákat, és kövesse nyomon előrehaladását idővel.</string>
+    <string name="onboarding_benefit_gamification_title">Teljesítmények</string>
+    <string name="onboarding_benefit_gamification_desc">Oldjon fel több mint 150 teljesítményt gyaloglás, futás, kerékpározás és felfedezés közben — mindet helyben, az eszközén szerezheti meg.</string>
+    <string name="onboarding_get_started">KEZDÉS</string>
+    <string name="onboarding_privacy_policy_button">Adatvédelmi irányelv elolvasása</string>
+    <string name="onboarding_state_read_error_message">Nem sikerült ellenőrizni, hogy a beállítás már befejeződött-e, ezért a beállítás az adatvédelem érdekében megjelenik. Biztonságosan folytathatja.</string>
+    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
+    <string name="settings_auto_cleanup_old_data_title">Régi adatok automatikus tisztítása</string>
+    <string name="settings_auto_cleanup_old_data_summary_forever">Az adatok korlátlan ideig megmaradnak; az automatikus tisztítás nem törli a régi adatokat</string>
+    <plurals name="settings_auto_cleanup_old_data_summary_years">
+        <item quantity="one">Az %1$d évnél régebbi adatok automatikus eltávolítása</item>
+        <item quantity="other">Az %1$d évnél régebbi adatok automatikus eltávolítása</item>
+    </plurals>
+    <!-- Data retention period options -->
+    <string name="settings_data_retention_years_title">Adatok megőrzésének ideje</string>
+    <string-array name="settings_data_retention_years_titles">
+        <item>Megőrzés korlátlan ideig</item>
+        <item>1 év</item>
+        <item>2 év</item>
+        <item>3 év</item>
+        <item>5 év</item>
+        <item>10 év</item>
+    </string-array>
+    <string-array name="settings_data_retention_years_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>5</item>
+        <item>10</item>
+    </string-array>
+    <!-- Common Buttons -->
+    <string name="button_continue">FOLYTATÁS</string>
+    <!-- Export: Format Selection -->
+    <string name="settings_export_data_title">Adatok exportálása</string>
+    <string name="settings_export_data_summary">Nyomkövetési adatok mentése többféle formátumban</string>
+    <string name="export_format_dialog_title">Exportálási formátum kiválasztása</string>
+    <string name="export_format_gpx_name">GPX (ajánlott)</string>
+    <string name="export_format_gpx_desc">Teljes pontosságú útvonalpontok GPS-eszközökhöz, fitneszalkalmazásokhoz és univerzális kompatibilitáshoz</string>
+    <string name="export_format_kml_name">KML</string>
+    <string name="export_format_kml_desc">Teljes pontosságú útvonalpontok a Google Earthhöz és földrajzi megjelenítéshez</string>
+    <string name="export_format_json_name">JSON</string>
+    <string name="export_format_json_desc">Helyadatfolyamok és munkamenet-összegzések; az importálás egyesíti az adatokat, és egyes metaadatokat újragenerál</string>
+    <string name="export_format_db_name">Adatbázis</string>
+    <string name="export_format_db_desc">Nyers SQLite-mentés minden adattal és beállítással; az importálás egyesíti a kompatibilis sorokat, nem teljes visszaállítás</string>
+    <string name="export_sensitivity_dialog_title">Pontos helyadatok exportálása?</string>
+    <string name="export_sensitivity_gpx_message">Ez a GPX-export teljes pontosságú útvonalpontokat tartalmaz. Csak olyan személyekkel és alkalmazásokkal mentse vagy ossza meg, amelyekben megbízik.</string>
+    <string name="export_sensitivity_kml_message">Ez a KML-export teljes pontosságú útvonalpontokat tartalmaz. Csak olyan személyekkel és alkalmazásokkal mentse vagy ossza meg, amelyekben megbízik.</string>
+    <string name="export_sensitivity_json_message">Ez a JSON-export teljes pontosságú helyadatokat és munkamenet-összegzéseket tartalmaz. Egyes származtatott metaadatok importáláskor veszteségesek; csak megbízható célhelyre mentse vagy ossza meg.</string>
+    <string name="export_sensitivity_db_message">Ez a nyers adatbázis-mentés pontos helyadatokat, Wi-Fi-/cellás rádióadatokat, tevékenységeket és beállításokat is tartalmazhat. Tartsa bizalmasan, és csak megbízható helyen tárolja.</string>
+    <string name="export_sensitivity_confirm">Exportálás folytatása</string>
+    <string name="settings_export_title">Exportálás</string>
+    <string name="settings_import_summary">Adatok importálása támogatott típusokból (%1$s) és archívumokból (%2$s). Az adatbázis-importok egyesítik a kompatibilis sorokat, nem írják felül a meglévő adatokat.</string>
+    <string name="settings_import_title">Importálás</string>
+    <!-- Help Text for Advanced Settings (Progressive Disclosure) -->
+    <string name="got_it">Értem</string>
+    <!-- Battery Impact Strings -->
+    <string name="battery_impact_low">Alacsony hatás</string>
+    <string name="battery_impact_moderate">Közepes hatás</string>
+    <string name="battery_impact_high">Nagy hatás</string>
+    <!-- Location Precision Mode Strings -->
+    <string name="precision_mode_title">Helypontosság kiválasztása</string>
+    <string name="precision_mode_approximate_title">Közelítő</string>
+    <string name="precision_mode_approximate_description">Hálózatalapú helymeghatározás. Általános területkövetéshez jó, minimális akkumulátorhasználattal.</string>
+    <string name="precision_mode_precise_title">Pontos</string>
+    <string name="precision_mode_precise_description">GPS-alapú helymeghatározás. A legjobb részletes útvonalakhoz, hőtérképekhez és kihívásokhoz.</string>
+    <!-- Upgrade to Precise Prompt Strings -->
+    <string name="upgrade_to_precise_title">Pontos nyomkövetés feloldása</string>
+    <string name="upgrade_to_precise_message_general">Jelenleg közelítő helyadatot használ. Váltson pontos GPS-nyomkövetésre a nagyobb pontosságért.</string>
+    <string name="upgrade_to_precise_message_route_analysis">A pontos helyadat ajánlott az útvonal pontos elemzéséhez és a távolságmérésekhez.</string>
+    <string name="upgrade_to_precise_message_heatmap_detail">A pontos helyadat részletes hőtérkép-megjelenítést és finom helymeghatározást biztosít.</string>
+    <string name="upgrade_to_precise_message_challenges">Számos kihívás pontos GPS-nyomkövetést igényel a teljesítés pontos ellenőrzéséhez.</string>
+    <string name="upgrade_to_precise_benefits_title">Előnyök</string>
+    <string name="upgrade_to_precise_benefit_accurate_routes">Pontosan kirajzolt útvonalak és részletes útvonalszakaszok</string>
+    <string name="upgrade_to_precise_benefit_detailed_maps">Részletes hőtérkép és térbeli elemzés</string>
+    <string name="upgrade_to_precise_benefit_precise_stats">Pontos távolság- és sebességmérés</string>
+    <string name="upgrade_to_precise_battery_title">Akkumulátorhasználat</string>
+    <string name="upgrade_to_precise_battery_message">A pontos GPS több akkumulátort használ. Becsült nyomkövetési idő: 6–8 óra átlagos eszközökön.</string>
+    <string name="upgrade_to_precise_button_upgrade">Pontos helyadat engedélyezése</string>
+    <string name="upgrade_to_precise_button_cancel">Talán később</string>
+    <!-- Tracking Policy Preset Strings -->
+    <string name="tracking_preset_high_accuracy_name">Nagy pontosság</string>
+    <string name="tracking_preset_high_accuracy_description">Legjobb részletesség a leggyorsabb frissítésekkel és minden fő érzékelő engedélyezésével</string>
+    <string name="tracking_preset_balanced_name">Kiegyensúlyozott</string>
+    <string name="tracking_preset_balanced_description">Jó pontosság és ésszerű akkumulátor-üzemidő a napi nyomkövetéshez</string>
+    <string name="tracking_preset_power_save_name">Energiatakarékos</string>
+    <string name="tracking_preset_power_save_description">Alacsonyabb akkumulátorhasználat ritkább frissítésekkel és kevesebb érzékelővel</string>
+    <string name="tracking_preset_custom_name">Egyéni</string>
+    <string name="tracking_preset_custom_description">Az egyes nyomkövetési paraméterek kézi beállítása</string>
+    <string name="tracking_preset_selector_title">Nyomkövetési előbeállítás</string>
+    <string name="tracking_preset_selector_subtitle">Válasszon egy kiinduló profilt, majd finomhangolja az alábbi beállításokat.</string>
+    <string name="tracking_preset_custom_hint">Az alábbi beállítások bármelyikének módosítása egyéni profilt hoz létre az aktuális előbeállításból.</string>
+    <string name="tracking_preset_customized_summary">Finomhangolta a nyomkövetést. A visszaállításhoz válasszon fent egy előbeállítást.</string>
+    <string name="settings_tracking_section_detection">Észlelés és automatizálás</string>
+    <string name="settings_tracking_section_sources">Adatforrások</string>
+    <string name="settings_tracking_section_detail">Helyadatgyűjtés</string>
+    <string name="settings_tracking_section_notifications">Értesítések</string>
+    <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
+    <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
+    <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
+    <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
+    <!-- Tracking Policy Selector Strings -->
+    <string name="tracking_policy_selector_title">Nyomkövetési szabályzat</string>
+    <plurals name="tracking_policy_estimated_duration">
+        <item quantity="one">Becsült nyomkövetés: %d óra</item>
+        <item quantity="other">Becsült nyomkövetés: %d óra</item>
+    </plurals>
+    <!-- Additional aliases for code compatibility -->
+    <string name="location_precision_selector_title">@string/precision_mode_title</string>
+    <string name="location_precision_selector_subtitle">Válassza ki, milyen pontossággal rögzítse a Tracker a helyadatokat</string>
+    <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>
+    <string name="location_precision_approximate_description">@string/precision_mode_approximate_description</string>
+    <string name="location_precision_precise_title">@string/precision_mode_precise_title</string>
+    <string name="location_precision_precise_description">@string/precision_mode_precise_description</string>
+    <string name="precise">Pontos</string>
+    <string name="approximate">Közelítő</string>
+    <string name="tracking_policy_selector_subtitle">Válasszon nyomkövetési előbeállítást, vagy szabja testre a beállításokat</string>
+    <string name="tracking_policy_custom_badge">Egyéni</string>
+    <string name="collapse_details">Részletek elrejtése</string>
+    <string name="expand_details">Részletek megjelenítése</string>
+    <string name="settings_section_collapse">Összecsukás</string>
+    <string name="settings_section_expand">Kibontás</string>
+    <string name="tracking_policy_details_title">Konfiguráció részletei</string>
+    <string name="preset_detail_location_precision">Helypontosság</string>
+    <string name="preset_detail_min_distance">Minimális távolság</string>
+    <string name="preset_detail_min_time">Minimális idő</string>
+    <string name="preset_detail_accuracy">Szükséges pontosság</string>
+    <string name="preset_detail_sensors">Érzékelők</string>
+    <string name="upgrade_benefit_accurate_routes">@string/upgrade_to_precise_benefit_accurate_routes</string>
+    <string name="upgrade_benefit_detailed_maps">@string/upgrade_to_precise_benefit_detailed_maps</string>
+    <string name="upgrade_benefit_precise_stats">@string/upgrade_to_precise_benefit_precise_stats</string>
+    <string name="upgrade_battery_impact_title">@string/upgrade_to_precise_battery_title</string>
+    <string name="upgrade_battery_impact_description">@string/upgrade_to_precise_battery_message</string>
+    <string name="upgrade_to_precise_confirm">@string/upgrade_to_precise_button_upgrade</string>
+    <string name="upgrade_to_precise_dismiss">@string/upgrade_to_precise_button_cancel</string>
+    <string name="upgrade_reason_general">@string/upgrade_to_precise_message_general</string>
+    <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
+    <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
+    <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
+    <!-- Settings screen strings -->
+    <string name="settings_auto_unit_switch_title">Mértékegységek automatikus váltása</string>
+    <string name="settings_module_map_subtitle">Hőtérkép minőségi és megjelenítési beállítások</string>
+    <string name="settings_module_game_subtitle">Célok, teljesítmények és mérföldkövek</string>
+    <string name="action_navigate_back">Visszalépés</string>
+    <string name="action_help">Súgó</string>
+    <!-- App Widgets -->
+    <string name="widget_loading">Betöltés…</string>
+    <string name="widget_quick_start_name">Tracker gyorsindítás</string>
+    <string name="widget_quick_start_description">Egyetlen koppintással indítsa vagy állítsa le a helyadatok nyomkövetését.</string>
+    <string name="widget_start_tracking">Nyomkövetés indítása</string>
+    <string name="widget_stop_tracking">Nyomkövetés leállítása</string>
+    <string name="widget_tracking_active">Nyomkövetés aktív</string>
+    <string name="widget_today_summary_name">Mai összegzés</string>
+    <string name="widget_today_summary_description">Tekintse át a mai nyomkövetési statisztikáit.</string>
+    <string name="widget_today">Ma</string>
+    <string name="widget_distance">Távolság</string>
+    <string name="widget_steps">Lépések</string>
+    <string name="widget_sessions">Munkamenetek</string>
+    <string name="widget_duration">Időtartam</string>
+    <string name="widget_no_data_today">Ma nincs nyomkövetési adat</string>
+    <string name="widget_active_session_name">Aktív munkamenet</string>
+    <string name="widget_active_session_description">Aktuális nyomkövetési munkamenet valós idejű figyelése.</string>
+    <string name="widget_no_active_session">Nincs aktív munkamenet</string>
+    <string name="widget_tap_to_start">Koppintson a nyomkövetés indításához</string>
+    <string name="widget_session_distance">Munkamenet távolsága</string>
+    <string name="widget_session_steps">Munkamenet lépései</string>
+    <string name="widget_session_duration">Munkamenet időtartama</string>
+    <string name="widget_current_speed">Jelenlegi sebesség</string>
+    <string name="widget_speed_unknown">—</string>
+    <string name="widget_speed_format_decimal">%.1f km/h</string>
+    <string name="widget_speed_format_whole">%d km/h</string>
+    <string name="widget_collections">Gyűjtemények</string>
+    <string name="widget_path_preview">Útvonal előnézete</string>
+    <string name="widget_activity_unknown">Tevékenység nem érhető el</string>
+    <string name="widget_goal_label">Cél:</string>
+    <string name="widget_goal_progress">%1$s / %2$s lépés</string>
+    <string name="widget_format_km">%.1f km</string>
+    <string name="widget_format_meters">%d m</string>
+    <string name="widget_tier_off">Ki</string>
+    <string name="widget_tier_ambient">Környezeti</string>
+    <string name="widget_tier_active">Aktív</string>
+    <string name="widget_tier_precision">Pontosság</string>
+    <!-- Smart Goal Notifications (Task D) -->
+    <string name="goal_notification_title_progress">Remek előrehaladás!</string>
+    <string name="goal_notification_title_almost">Már majdnem ott van!</string>
+    <plurals name="goal_notification_body_75">
+        <item quantity="one">%1$d lépés van hátra a napi cél eléréséhez</item>
+        <item quantity="other">%1$d lépés van hátra a napi cél eléréséhez</item>
+    </plurals>
+    <plurals name="goal_notification_body_90">
+        <item quantity="one">Már csak %1$d lépés van hátra!</item>
+        <item quantity="other">Már csak %1$d lépés van hátra!</item>
+    </plurals>
+    <string name="settings_smart_goal_notifications_title">Intelligens célértesítések</string>
+    <string name="settings_smart_goal_notifications_summary">Értesítés, amikor közel jár a napi lépéscélhoz</string>
+    <!-- First-time setup wizard -->
+    <string name="setup_how_to_track_title">Hogyan működjön a nyomkövetés?</string>
+    <string name="setup_how_to_track_subtitle">Válassza ki, mikor induljon a nyomkövetés és mennyire legyen részletes.</string>
+    <string name="setup_auto_tracking_title">Automatikus nyomkövetés</string>
+    <string name="setup_auto_tracking_disabled">Letiltva</string>
+    <string name="setup_auto_tracking_disabled_desc">A nyomkövetés kézi indítása és leállítása.</string>
+    <string name="setup_auto_tracking_on_foot">Gyalog</string>
+    <string name="setup_auto_tracking_on_foot_desc">A gyaloglás és futás automatikus nyomkövetése.</string>
+    <string name="setup_auto_tracking_in_motion">Mozgás közben</string>
+    <string name="setup_auto_tracking_in_motion_desc">Minden mozgás automatikus nyomkövetése, beleértve a vezetést és a kerékpározást is.</string>
+    <string name="setup_preset_title">Nyomkövetés részletessége</string>
+    <string name="setup_what_to_collect_title">Mit gyűjtsön?</string>
+    <string name="setup_what_to_collect_subtitle">További beállítások alább. Kezdje felfedezni engedélyek nélkül, vagy adja meg őket később. Az adatok ezen az eszközön maradnak.</string>
+    <string name="setup_source_location">Helyadatok</string>
+    <string name="setup_source_location_desc">Rögzítse útvonalait és helyzetét a térképen.</string>
+    <string name="setup_source_activity">Tevékenység</string>
+    <string name="setup_source_activity_desc">Gyaloglás, futás, kerékpározás vagy vezetés észlelése.</string>
+    <string name="setup_source_steps">Lépések</string>
+    <string name="setup_source_steps_desc">A lépések számlálása az eszköz lépésszámlálójával.</string>
+    <string name="setup_source_wifi">Wi-Fi-hálózatok</string>
+    <string name="setup_source_wifi_desc">A közeli Wi-Fi-hálózatok naplózása a helypontosság javításához.</string>
+    <string name="setup_source_cell">Mobilhálózati tornyok</string>
+    <string name="setup_source_cell_desc">A cellatorony-információk naplózása a helyadatok kontextusához.</string>
+    <string name="setup_perm_location_why">Az útvonalak rögzítéséhez és térképen való megjelenítéséhez szükséges. A helyadatok ezen az eszközön maradnak — semmi sem kerül szerverre.</string>
+    <string name="setup_perm_location_bg_why">Ahhoz, hogy a Tracker akkor is folytassa az útvonal rögzítését, amikor alkalmazást vált vagy a képernyő kikapcsol, szüksége van a helyadatok háttérbeli elérésére. A rögzített helyadatok ezen az eszközön maradnak — semmi sem kerül szerverre. A következő rendszerüzenetben válassza a "Mindig engedélyezés" lehetőséget az automatikus nyomkövetés bekapcsolásához; az "Engedélyezés csak az alkalmazás használata közben" csak nyitott képernyőn tartja működésben a Trackert.</string>
+    <string name="setup_perm_activity_why">A Tracker így észleli, hogy mit csinál (gyalogol, kerékpározik, vezet vagy mozdulatlan), ezért az automatikus nyomkövetés megállhat, amikor nem mozog, és kímélheti az akkumulátort. A tevékenységadatok ezen az eszközön maradnak — semmi sem kerül szerverre.</string>
+    <string name="setup_perm_notification_why">A Tracker rögzítés közben kis állapotértesítést jelenít meg, így egy pillantással láthatja, hogy a nyomkövetés aktív, és egy koppintással leállíthatja. Nincsenek marketing- vagy promóciós értesítések.</string>
+    <string name="setup_perm_wifi_why">A Tracker rögzítheti az utazás közben a telefon által észlelt Wi-Fi-hozzáférési pontokat, hogy javítsa a helypontosságot ott, ahol a GPS gyenge (beltéren, a föld alatt). A rádióadatok ezen az eszközön maradnak — semmi sem kerül szerverre. Csak akkor adja meg, ha szeretné.</string>
+    <string name="setup_perm_cell_why">A Tracker naplózhatja az útvonal mentén lévő cellatornyok azonosítóit, így a helyzet akkor is kikövetkeztethető, amikor a GPS nem érhető el. A rádióadatok ezen az eszközön maradnak — semmi sem kerül szerverre. Csak akkor adjon telefonállapot- és pontoshelyengedélyt, ha szeretné.</string>
+    <string name="setup_perm_grant">Engedélyezés</string>
+    <string name="setup_perm_grant_location_content_description">Helyengedély megadása</string>
+    <string name="setup_perm_grant_background_location_content_description">Háttérbeli helyengedély megadása</string>
+    <string name="setup_perm_grant_activity_content_description">Tevékenységfelismerési engedély megadása</string>
+    <string name="setup_perm_grant_notification_content_description">Értesítési engedély megadása</string>
+    <string name="setup_perm_grant_wifi_content_description">Wi-Fi-engedély megadása</string>
+    <string name="setup_perm_grant_cell_content_description">Cellás rádióengedély megadása</string>
+    <string name="setup_perm_granted">Engedélyezve ✓</string>
+    <string name="permission_grant_in_settings">Engedélyezés a Beállításokban →</string>
+    <string name="permission_disabled_due_to_denial">%1$s letiltva, mert az engedélyt elutasították. Az engedélyezéshez nyissa meg a Beállításokat.</string>
+    <string name="settings_wifi_permission_required">Wi-Fi-/helyengedély szükséges. Az engedélyezéshez kapcsolja be — addig nem rögzül Wi-Fi-adat, és a rögzített adatok ezen az eszközön maradnak.</string>
+    <string name="settings_cell_permission_required">Telefonállapot- és pontoshelyengedély szükséges. Az engedélyezéshez kapcsolja be — addig nem rögzül cellaadat, és a rögzített adatok ezen az eszközön maradnak.</string>
+    <string name="settings_wifi_privacy_summary">A közeli Wi-Fi-hálózatok rögzítésével javítja a helypontosságot. Az adatok ezen az eszközön maradnak.</string>
+    <string name="settings_barometer_unavailable">A nyomásérzékelő nem érhető el ezen az eszközön.</string>
+    <string name="settings_activity_permission_required">Tevékenységfelismerési engedély szükséges. Az engedélyezéshez kapcsolja be.</string>
+    <string name="settings_steps_unavailable">A lépésszámláló-érzékelő nem érhető el ezen az eszközön.</string>
+    <string name="settings_cell_privacy_summary">A cellatornyok azonosítóinak rögzítésével javítja a helypontosságot. Az adatok ezen az eszközön maradnak.</string>
+    <string name="setup_start_exploring">Felfedezés indítása</string>
+    <string name="setup_continue">Folytatás</string>
+    <string name="setup_step_indicator">%1$d. lépés / %2$d</string>
+    <!-- Onboarding step 4: opt-in online map tiles -->
+    <string name="setup_online_tiles_title">Online térképcsempék?</string>
+    <string name="setup_online_tiles_subtitle">A Tracker offline alaptérképpel érkezik, ezért hálózat nélkül is működik. Ha részletesebb térképeket szeretne, nyilvános szolgáltatótól is streamelhet csempéket.</string>
+    <string name="setup_online_tiles_off_title">Csak offline (ajánlott)</string>
+    <string name="setup_online_tiles_off_desc">Nincsenek hálózati kérések. Csak a csomagolt alaptérkép használatos.</string>
+    <string name="setup_online_tiles_on_title">Online csempék használata</string>
+    <string name="setup_online_tiles_on_desc">Részletesebb vektorcsempék streamelése az OpenFreeMaptől (alapértelmezett). A szolgáltatót később módosíthatja a Beállítások → Térkép pontban.</string>
+    <string name="setup_online_tiles_privacy">Bekapcsolva a szolgáltató láthatja az IP-címét és a betöltött csempéket — nagyjából azt, hogy a térkép mely területét nézi. A Tracker soha nem küld el fiókadatot, azonosítót vagy helyelőzményt.</string>
+    <string name="setup_online_tiles_change_later">Ezt bármikor módosíthatja a Beállítások → Térkép → Online térképcsempék pontban.</string>
+    <!-- Onboarding step: background access / battery optimization -->
+    <string name="setup_background_access_subtitle">Ahhoz, hogy a Tracker kikapcsolt képernyő vagy bezárt alkalmazás mellett is rögzíthesse az utakat, a háttérben kell futnia. A telefon akkumulátor-beállításai szüneteltethetik — engedélyezze a háttértevékenységet, hogy az automatikus nyomkövetés megbízható maradjon.</string>
+    <string name="setup_background_access_optional">Nem kötelező, de ajánlott. Ezt bármikor módosíthatja a Beállítások → Nyomkövetés pontban.</string>
+    <!-- Background reliability (shared: onboarding + settings) -->
+    <string name="background_reliability_title">Megbízható háttérbeli nyomkövetés</string>
+    <string name="background_reliability_status_exempt">Háttértevékenység engedélyezve</string>
+    <string name="background_reliability_status_optimized">Az akkumulátor-optimalizálás be van kapcsolva</string>
+    <string name="background_reliability_exempt_desc">A Tracker ki van zárva az akkumulátor-optimalizálásból, így a háttérbeli és automatikus nyomkövetés megbízhatóan működhet.</string>
+    <string name="background_reliability_optimized_desc">Az akkumulátor-optimalizálás szüneteltetheti a Trackert a háttérben, ami leállítja az automatikus nyomkövetést. Engedélyezze a háttértevékenységet a folyamatos működéshez.</string>
+    <string name="background_reliability_allow_action">Háttértevékenység engedélyezése</string>
+    <string name="background_reliability_samsung_hint">A Samsung készülékek az alkalmazásokat az "Alvó alkalmazások" közé is helyezhetik. Nyissa meg az akkumulátor-beállításokat, majd távolítsa el a Trackert az Alvó alkalmazások közül, és állítsa be, hogy ne kerüljön alvó állapotba.</string>
+    <string name="background_reliability_samsung_action">Eszköz akkumulátor-beállításainak megnyitása</string>
+    <!-- Local crash and diagnostic capture -->
+    <string name="settings_tracebox_title">Összeomlási diagnosztika</string>
+    <string name="settings_tracebox_root_summary">Helyi összeomlási, ANR- és szerkezeti diagnosztika</string>
+    <string name="settings_tracebox_status_header">Rögzítés állapota</string>
+    <string name="settings_tracebox_toggle_title">Összeomlási diagnosztika rögzítése</string>
+    <string name="settings_tracebox_toggle_summary_off">A rögzítés ki van kapcsolva. A meglévő helyi diagnosztikai adatok a törlésükig megmaradnak.</string>
+    <string name="settings_tracebox_toggle_summary_on">Az összeomlások, ANR-ek és rögzített szerkezeti diagnosztikák helyileg kerülnek rögzítésre.</string>
+    <string name="settings_tracebox_readiness_label">Tárhely készenléte</string>
+    <string name="settings_tracebox_readiness_volatile">Tartós tárhely indítása; ideiglenes rögzítés elérhető</string>
+    <string name="settings_tracebox_readiness_durable">A tartós rögzítés készen áll</string>
+    <string name="settings_tracebox_readiness_degraded">A rögzítés korlátozott; egyes rekordok nem érhetők el</string>
+    <string name="settings_tracebox_readiness_closed">A rögzítés lezárva</string>
+    <string name="settings_tracebox_health_label">Futásidejű állapot</string>
+    <string name="settings_tracebox_health_disabled">Letiltva</string>
+    <string name="settings_tracebox_health_initializing">Inicializálás</string>
+    <string name="settings_tracebox_health_ready">Kész</string>
+    <string name="settings_tracebox_health_degraded">Korlátozott</string>
+    <string name="settings_tracebox_health_deleting">Helyi diagnosztika törlése</string>
+    <string name="settings_tracebox_health_closed">Lezárva</string>
+    <string name="settings_tracebox_package_header">Diagnosztikai csomag</string>
+    <string name="settings_tracebox_package_body">A Tracebox először a végleges csomag pontos tájékoztatását jeleníti meg. Jóváhagyása és célhely kiválasztása előtt semmi nem kerül mentésre vagy megosztásra.</string>
+    <string name="settings_tracebox_package_review_action">Csomag áttekintése és jóváhagyása</string>
+    <string name="settings_tracebox_package_save_action">Jóváhagyott csomag mentése</string>
+    <string name="settings_tracebox_package_share_action">Jóváhagyott csomag megosztása</string>
+    <string name="settings_tracebox_share_limit">Az Android meg tudja erősíteni, hogy a választó megnyílt, de nem tudja bizonyítani, hogy egy másik alkalmazás megkapta a csomagot.</string>
+    <string name="settings_tracebox_data_header">Tracebox-adatok</string>
+    <string name="settings_tracebox_data_body">Ez törli a Tracebox tulajdonában lévő diagnosztikai adatokat és a csomag-előkészítést. A már mentett vagy elküldött fájlokat a célalkalmazások kezelik.</string>
+    <string name="settings_tracebox_delete_action">Minden Tracebox-adat törlése</string>
+    <string name="settings_tracebox_delete_confirm_title">Minden összeomlási diagnosztika törlése?</string>
+    <string name="settings_tracebox_delete_confirm_body">Ez eltávolítja a Trackerből az összes Tracebox-tulajdonú diagnosztikai adatot és csomag-előkészítést. A művelet nem vonható vissza.</string>
+    <string name="settings_tracebox_delete_confirm_action">Törlés</string>
+    <string name="settings_tracebox_result_header">Utolsó eredmény</string>
+    <string name="settings_tracebox_result_enabled">Összeomlási diagnosztika engedélyezve.</string>
+    <string name="settings_tracebox_result_disabled">Összeomlási diagnosztika letiltva. A meglévő adatok nem törlődtek.</string>
+    <string name="settings_tracebox_result_policy_restricted">A korlátozó szabályzat helyben elmentve, de még nem minden folyamat igazolta.</string>
+    <string name="settings_tracebox_result_policy_partial">A szabályzat helyben elmentve, de a futásidejű konvergencia nem teljes.</string>
+    <string name="settings_tracebox_result_failed">A művelet nem érte el a helyi tartóssági határt.</string>
+    <string name="settings_tracebox_result_delete_complete">Minden Tracebox-tulajdonú adat törölve.</string>
+    <string name="settings_tracebox_result_delete_pending">A törlés csak részben fejeződött be. Egyes kezelőhöz tartozó adatok törlése még függőben van.</string>
+    <string name="settings_tracebox_result_delete_rejected">A Tracebox elutasította a törlési kérést.</string>
+    <string name="settings_tracebox_result_review_ready">A tájékoztatás készen áll: %1$d belefoglalt érték %2$d bájt diagnosztikai adatot tartalmaz.</string>
+    <string name="settings_tracebox_result_package_created">A jóváhagyott diagnosztikai csomag készen áll mentésre vagy megosztásra.</string>
+    <string name="settings_tracebox_result_approval_cancelled">A csomag jóváhagyása megszakítva. Nem jött létre csomag.</string>
+    <string name="settings_tracebox_result_package_rejected">A csomag létrehozása elutasítva, mert a jóváhagyás már nem egyezett a végleges bájtokkal.</string>
+    <string name="settings_tracebox_result_package_not_ready">Nincs kész diagnosztikai csomag. Először tekintse át és hagyja jóvá.</string>
+    <string name="settings_tracebox_result_save_complete">A teljes jóváhagyott csomag mentve (%1$d bájt).</string>
+    <string name="settings_tracebox_result_save_partial">Csak %1$d bájt lett átmásolva. A célhelyen hiányos csomag lehet.</string>
+    <string name="settings_tracebox_result_save_partial_cancelled">A mentés %1$d bájt után megszakítva. A célhelyen hiányos csomag lehet.</string>
+    <string name="settings_tracebox_result_save_failed">A jóváhagyott csomag nem menthető.</string>
+    <string name="settings_tracebox_result_save_cancelled">Nem lett kiválasztva mentési célhely.</string>
+    <string name="settings_tracebox_result_share_opened">Megnyílt az Android megosztási választója.</string>
+    <string name="settings_tracebox_result_share_unknown">A választó visszatért. Az Android nem tudja bizonyítani, hogy a címzett megkapta a csomagot.</string>
+    <string name="settings_tracebox_records_header">A rögzített adatok</string>
+    <string name="settings_tracebox_records_body">Összeomlások és ANR-ek bizonyítékai, valamint előre meghatározott kódok korlátozott készlete az alkalmazás szerkezetéről és végrehajtási sorrendjéről. A Tracebox a Tracker egyetlen összeomlás- és diagnosztikarögzítője.</string>
+    <string name="settings_tracebox_privacy_header">A kihagyott adatok</string>
+    <string name="settings_tracebox_privacy_body">A rögzítési API nem fogad el tetszőleges szöveget, helyadatot, fiókadatot, eszközazonosítót vagy érzékelőértéket. A szabványos csomagok nem tartalmaznak nyers összeomlási leleteket, és soha nem töltődnek fel automatikusan.</string>
+</resources>

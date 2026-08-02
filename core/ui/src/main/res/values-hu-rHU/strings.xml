@@ -1,3 +1,14 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="action_navigate_back">Visszalépés</string>
+    <string name="permission_location_rationale_title" tools:ignore="MissingTranslation">Helyhozzáférés</string>
+    <string name="permission_location_rationale_message" tools:ignore="MissingTranslation">A Trackernek helyhozzáférésre van szüksége az útvonal rögzítéséhez és a térképen való megjelenítéséhez. A helyadatok ezen az eszközön maradnak — semmi sem kerül szerverre.</string>
+    <string name="permission_activity_rationale_title" tools:ignore="MissingTranslation">Tevékenységfelismerés</string>
+    <string name="permission_activity_rationale_message" tools:ignore="MissingTranslation">A Tracker a tevékenységfelismerést használja annak észlelésére, hogy mit csinál (gyalogol, kerékpározik, vezet vagy mozdulatlan), így az automatikus nyomkövetés megállhat, amikor nem mozog, és kímélheti az akkumulátort. A tevékenységadatok ezen az eszközön maradnak — semmi sem kerül szerverre.</string>
+    <string name="permission_background_location_rationale_title" tools:ignore="MissingTranslation">Háttérbeli helyhozzáférés</string>
+    <string name="permission_background_location_rationale_message" tools:ignore="MissingTranslation">Ahhoz, hogy a Tracker akkor is folytassa az útvonal rögzítését, amikor alkalmazást vált vagy a képernyő kikapcsol, szüksége van a helyadatok háttérbeli elérésére. A rögzített helyadatok ezen az eszközön maradnak — semmi sem kerül szerverre. A következő rendszerüzenetben válassza a "Mindig engedélyezés" lehetőséget; az "Engedélyezés csak az alkalmazás használata közben" csak nyitott képernyőn tartja működésben a Trackert.</string>
+    <string name="permission_allow" tools:ignore="MissingTranslation">Engedélyezés</string>
+    <string name="permission_deny" tools:ignore="MissingTranslation">Most nem</string>
+    <string name="permission_denied_tracking_disabled" tools:ignore="MissingTranslation">Helyengedély szükséges a nyomkövetés indításához</string>
+    <string name="permission_denied_settings_action" tools:ignore="MissingTranslation">Beállítások megnyitása</string>
 </resources>
