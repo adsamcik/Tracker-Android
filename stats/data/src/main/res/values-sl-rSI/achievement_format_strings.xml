@@ -1,7 +1,6 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="ach_desc_with_active_days">%1$s Spremljajte vsaj %2$d različnih dni, da ga odklenete.</string>
-    <!-- Distance-based -->
     <string name="ach_title_distance_total">Prepotujte %1$s</string>
     <string name="ach_desc_distance_total">V vseh sejah zabeležite skupno razdaljo %1$s.</string>
     <string name="ach_title_week_distance">%1$s ta teden</string>
@@ -16,12 +15,10 @@
     <string name="ach_desc_cycling_distance">Skupno prekolesarite %1$s.</string>
     <string name="ach_title_vehicle_distance">Motorizirano prepotujte %1$s</string>
     <string name="ach_desc_vehicle_distance">Z avtom, avtobusom, vlakom, ladjo ali letalom prepotujte %1$s.</string>
-    <!-- Steps -->
     <string name="ach_title_steps_total">Naredite %1$s korakov</string>
     <string name="ach_desc_steps_total">V vseh sejah zabeležite %1$s korakov.</string>
     <string name="ach_title_best_daily_steps">%1$s korakov v dnevu</string>
     <string name="ach_desc_best_daily_steps">V enem dnevu naredite %1$s korakov.</string>
-    <!-- Counts (plurals) -->
     <plurals name="ach_title_sessions_total">
         <item quantity="one">Prva seja</item>
         <item quantity="two">Zabeležite %1$s seji</item>
@@ -43,7 +40,6 @@
         <item quantity="other">Obiščite %d držav</item>
     </plurals>
     <string name="ach_desc_countries_visited">Zabeležite vsaj eno sejo v %1$d različnih državah.</string>
-    <!-- Days / streaks (plurals) -->
     <plurals name="ach_title_active_days">
         <item quantity="one">Prvi aktivni dan</item>
         <item quantity="two">%1$s aktivna dneva</item>
@@ -102,7 +98,6 @@
     <string name="ach_desc_hours_of_day">V vseh sejah zabeležite dejavnost v %1$d različnih urah dneva.</string>
     <string name="ach_title_days_of_week">Vseh sedem dni v tednu</string>
     <string name="ach_desc_days_of_week">Vsak dan v tednu vsaj enkrat spremljajte dejavnost.</string>
-    <!-- Activity diversity -->
     <plurals name="ach_title_activity_types">
         <item quantity="one">Preizkusite %d vrsto dejavnosti</item>
         <item quantity="two">Preizkusite %d vrsti dejavnosti</item>
@@ -121,14 +116,12 @@
     <string name="ach_desc_week_all_days">Vseh sedem dni koledarskega tedna zabeležite dejavnost.</string>
     <string name="ach_title_walk_cycle_drive">Hodite, kolesarite, vozite</string>
     <string name="ach_desc_walk_cycle_drive">Zabeležite vsaj eno sejo vsake vrste: hoje, kolesarjenja in vožnje.</string>
-    <!-- Time / speed -->
     <string name="ach_title_max_session_duration">Seja %1$s</string>
     <string name="ach_desc_max_session_duration">Zabeležite eno sejo, ki traja vsaj %1$s.</string>
     <string name="ach_title_max_speed">Dosezite %1$s</string>
     <string name="ach_desc_max_speed">Med sejo dosezite najvišjo hitrost vsaj %1$s.</string>
     <string name="ach_title_active_minutes">%1$s aktivnih minut</string>
     <string name="ach_desc_active_minutes">Zberite %1$s minut aktivnega sledenja.</string>
-    <!-- Other -->
     <plurals name="ach_title_exports_total">
         <item quantity="one">Prvi izvoz</item>
         <item quantity="two">%d izvoza</item>
@@ -143,7 +136,6 @@
         <item quantity="other">Spremljajte %d letnih časov</item>
     </plurals>
     <string name="ach_desc_seasons_explored">Zabeležite dejavnost v %1$d različnih letnih časih (pomlad/poletje/jesen/zima).</string>
-    <!-- Calendar specials -->
     <string name="ach_title_calendar_new_year">Sledilnik za novo leto</string>
     <string name="ach_desc_calendar_new_year">Zabeležite sejo 1. januarja.</string>
     <string name="ach_title_calendar_leap_day">Pionir prestopnega dne</string>
@@ -152,7 +144,6 @@
     <string name="ach_desc_calendar_summer_solstice">Zabeležite sejo na najdaljši dan v letu.</string>
     <string name="ach_title_calendar_winter_solstice">Zimski solsticij</string>
     <string name="ach_desc_calendar_winter_solstice">Zabeležite sejo na najkrajši dan v letu.</string>
-    <!-- Batch A: new metric families -->
     <plurals name="ach_title_night_sessions">
         <item quantity="one">Nočna sova</item>
         <item quantity="two">%1$s nočni seji</item>
@@ -224,7 +215,6 @@
         <item quantity="other">Uporabite %d oblik izvoza</item>
     </plurals>
     <string name="ach_desc_export_formats">Podatke izvozite v %1$d različnih oblikah datoteke.</string>
-    <!-- Batch B: progression / mini-games -->
     <string name="ach_title_player_level">Dosezite raven %1$d</string>
     <string name="ach_desc_player_level">Povzpnite se na raven igralca %1$d.</string>
     <string name="ach_title_best_day_xp">%1$s XP v dnevu</string>
@@ -236,10 +226,8 @@
         <item quantity="other">Igrajte %1$s miniiger</item>
     </plurals>
     <string name="ach_desc_minigames_played">Dokončajte %1$d zagonov miniiger.</string>
-    <!-- Elevation (#27) -->
     <string name="ach_title_total_ascent">Preplezajte %1$s</string>
     <string name="ach_desc_total_ascent">Med vsem sledenjem zberite %1$s skupnega višinskega vzpona.</string>
-    <!-- Goals / points loop (#7, #11) -->
     <plurals name="ach_title_xp_sources">
         <item quantity="one">Zaslužite iz enega vira XP</item>
         <item quantity="two">Zaslužite iz %d virov XP</item>
@@ -254,7 +242,6 @@
         <item quantity="other">%d popolnih tednov</item>
     </plurals>
     <string name="ach_desc_perfect_weeks">Vsak dan %1$d polnih tednov izpolnite dnevni cilj korakov.</string>
-    <!-- Goal streak (#8) + meta achievements (#24, #25) -->
     <plurals name="ach_title_goal_streak">
         <item quantity="one">%d-dnevni niz ciljev</item>
         <item quantity="two">%d-dnevni niz ciljev</item>
@@ -276,7 +263,6 @@
         <item quantity="other">Dokončajte %d kategorij</item>
     </plurals>
     <string name="ach_desc_categories_completed">Odklenite vsak dosežek v %1$d različnih kategorijah.</string>
-    <!-- Duration helper plurals (used inside titles for MAX_SESSION_DURATION) -->
     <plurals name="ach_duration_seconds">
         <item quantity="one">%d sekunda</item>
         <item quantity="two">%d sekundi</item>

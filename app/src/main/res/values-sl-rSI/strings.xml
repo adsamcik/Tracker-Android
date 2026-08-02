@@ -1,7 +1,5 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name" translatable="false">Tracker</string>
-    <string name="key_last_app_version" translatable="false">lastVersion</string>
     <string name="module_game_title">Igra</string>
     <string name="module_map_title">Zemljevid</string>
     <string name="module_statistics_title">Statistika</string>
@@ -46,7 +44,6 @@
     <string name="settings_reset_export_watermarks_summary">Naslednja samodejna varnostna kopija bo vsebovala vse podatke namesto le sprememb.</string>
     <string name="settings_reset_export_watermarks_done">Vodne oznake izvoza so ponastavljene — naslednja varnostna kopija bo celoten izvoz.</string>
     <string name="settings_migration_backup_export_title">Izvozi varnostno kopijo pred nadgradnjo</string>
-    <!-- The integer arguments are database version identifiers, not quantities. -->
     <string name="settings_migration_backup_export_summary" tools:ignore="PluralsCandidate">Celotna kopija zbirke podatkov iz v%1$d, ustvarjena pred selitvijo na v%2$d in zasebno shranjena do 30 dni</string>
     <string name="settings_migration_backup_warning_title">Izvoziti občutljivo varnostno kopijo zbirke podatkov?</string>
     <string name="settings_migration_backup_warning_message">Ta varnostna kopija lahko vsebuje natančne lokacije, opažanja omrežij Wi‑Fi in mobilnih celic, dejavnosti ter druge zasebne podatke iz obdobja pred nadgradnjo. Shranite jo le na mesto, ki mu zaupate.</string>
@@ -111,13 +108,6 @@
         <item>Letenje</item>
     </string-array>
     <string name="settings_length_system_title">Sistem dolžin</string>
-    <string-array name="settings_length_system_values" translatable="false">
-        <item>Metric</item>
-        <item>Imperial</item>
-        <item>AncientRoman</item>
-        <item>Sailing</item>
-        <item>Flying</item>
-    </string-array>
     <string name="settings_licenses_title">Licence odprte kode</string>
     <string name="settings_licenses_subtitle">Oglejte si priložena obvestila tretjih oseb, vključena v tej gradnji.</string>
     <string name="settings_licenses_loading">Nalaganje licenc …</string>
@@ -133,19 +123,13 @@
     <string name="about_version_label">Različica</string>
     <string name="about_version_format">%1$s (%2$d)</string>
     <string name="about_build_commit_label">Potrditev gradnje</string>
-    <string name="about_commit_unavailable" translatable="false">N/A</string>
     <string name="about_author">Avtor</string>
-    <string name="about_author_value" translatable="false">Adsamcik</string>
     <string name="about_email">E-pošta</string>
-    <string name="about_email_value" translatable="false">play@adsamcik.com</string>
     <string name="about_github">GitHub</string>
-    <string name="about_github_value" translatable="false">https://github.com/adsamcik/Tracker-Android</string>
     <string name="about_links_title">Povezave</string>
     <string name="about_attributions_title">Navedbe virov podatkov</string>
     <string name="about_attribution_geonames_label">Imena krajev</string>
-    <string name="about_attribution_geonames_value" translatable="false">GeoNames (CC BY 4.0)</string>
     <string name="about_attribution_osm_label">Podatki o zemljevidih in ulicah</string>
-    <string name="about_attribution_osm_value" translatable="false">© OpenStreetMap contributors (ODbL)</string>
     <string name="settings_module_group_title">Nastavitve modulov</string>
     <string name="settings_core_group_title">Jedro</string>
     <string name="settings_other_title">Enote in prikaz</string>
@@ -157,16 +141,9 @@
         <item>Hitrost (km/h, mph)</item>
     </string-array>
     <string name="settings_speed_format_title">Oblika hitrosti</string>
-    <string-array name="settings_speed_format_values" translatable="false">
-        <item>Second</item>
-        <item>Minute</item>
-        <item>Hour</item>
-    </string-array>
     <string name="settings_title">Nastavitve</string>
     <string name="switch_state_on">Vklopljeno</string>
     <string name="switch_state_off">Izklopljeno</string>
-    <!-- Onboarding Strings -->
-    <!-- Streamlined Onboarding (Apple-style single-screen) -->
     <string name="onboarding_streamlined_title">Zasebno sledite svojim potem</string>
     <string name="onboarding_streamlined_subtitle">Vsi podatki ostanejo v vaši napravi. Brez sinhronizacije v oblaku in sledenja tretjih oseb.</string>
     <string name="onboarding_benefit_privacy_title">Zasebnost na prvem mestu</string>
@@ -178,7 +155,6 @@
     <string name="onboarding_get_started">ZAČNITE</string>
     <string name="onboarding_privacy_policy_button">Preberi pravilnik o zasebnosti</string>
     <string name="onboarding_state_read_error_message">Nismo mogli preveriti, ali je bila nastavitev že dokončana, zato je prikazana, da ostanejo vaši podatki zasebni. Varno lahko nadaljujete.</string>
-    <string name="settings_smart_goal_notifications_key" translatable="false">smartGoalNotifications</string>
     <string name="settings_auto_cleanup_old_data_title">Samodejno čiščenje starih podatkov</string>
     <string name="settings_auto_cleanup_old_data_summary_forever">Podatke obdrži za vedno; samodejno čiščenje ne bo izbrisalo starih podatkov</string>
     <plurals name="settings_auto_cleanup_old_data_summary_years">
@@ -187,7 +163,6 @@
         <item quantity="few">Samodejno odstrani podatke, starejše od %1$d let</item>
         <item quantity="other">Samodejno odstrani podatke, starejše od %1$d let</item>
     </plurals>
-    <!-- Data retention period options -->
     <string name="settings_data_retention_years_title">Podatke obdrži</string>
     <string-array name="settings_data_retention_years_titles">
         <item>Obdrži za vedno</item>
@@ -197,17 +172,7 @@
         <item>5 let</item>
         <item>10 let</item>
     </string-array>
-    <string-array name="settings_data_retention_years_values" translatable="false">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-        <item>3</item>
-        <item>5</item>
-        <item>10</item>
-    </string-array>
-    <!-- Common Buttons -->
     <string name="button_continue">NADALJUJ</string>
-    <!-- Export: Format Selection -->
     <string name="settings_export_data_title">Izvozi podatke</string>
     <string name="settings_export_data_summary">Shrani podatke sledenja v različnih oblikah</string>
     <string name="export_format_dialog_title">Izberite obliko izvoza</string>
@@ -228,19 +193,15 @@
     <string name="settings_export_title">Izvoz</string>
     <string name="settings_import_summary">Uvozite podatke iz podprtih vrst (%1$s) in arhivov (%2$s). Uvoz zbirk podatkov združi združljive vrstice; ne zamenja obstoječih podatkov.</string>
     <string name="settings_import_title">Uvoz</string>
-    <!-- Help Text for Advanced Settings (Progressive Disclosure) -->
     <string name="got_it">Razumem</string>
-    <!-- Battery Impact Strings -->
     <string name="battery_impact_low">Majhen vpliv</string>
     <string name="battery_impact_moderate">Zmeren vpliv</string>
     <string name="battery_impact_high">Velik vpliv</string>
-    <!-- Location Precision Mode Strings -->
     <string name="precision_mode_title">Izberite natančnost lokacije</string>
     <string name="precision_mode_approximate_title">Približna</string>
     <string name="precision_mode_approximate_description">Lokacija na podlagi omrežja. Primerna za sledenje splošnemu območju z majhno porabo baterije.</string>
     <string name="precision_mode_precise_title">Natančna</string>
     <string name="precision_mode_precise_description">Lokacija na podlagi GPS. Najprimernejša za podrobne poti, toplotne zemljevide in izzive.</string>
-    <!-- Upgrade to Precise Prompt Strings -->
     <string name="upgrade_to_precise_title">Odklenite natančno sledenje</string>
     <string name="upgrade_to_precise_message_general">Uporabljate približno lokacijo. Za boljšo natančnost preklopite na natančno sledenje GPS.</string>
     <string name="upgrade_to_precise_message_route_analysis">Za natančno analizo poti in meritve razdalje priporočamo natančno lokacijo.</string>
@@ -254,7 +215,6 @@
     <string name="upgrade_to_precise_battery_message">Natančni GPS porabi več baterije. Ocenjeni čas sledenja: 6–8 ur v običajnih napravah.</string>
     <string name="upgrade_to_precise_button_upgrade">Omogoči natančno lokacijo</string>
     <string name="upgrade_to_precise_button_cancel">Morda pozneje</string>
-    <!-- Tracking Policy Preset Strings -->
     <string name="tracking_preset_high_accuracy_name">Visoka natančnost</string>
     <string name="tracking_preset_high_accuracy_description">Največ podrobnosti z najhitrejšimi posodobitvami in omogočenimi vsemi glavnimi senzorji</string>
     <string name="tracking_preset_balanced_name">Uravnoteženo</string>
@@ -275,7 +235,6 @@
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
-    <!-- Tracking Policy Selector Strings -->
     <string name="tracking_policy_selector_title">Pravilnik sledenja</string>
     <plurals name="tracking_policy_estimated_duration">
         <item quantity="one">Ocenjeno sledenje: %d ura</item>
@@ -283,7 +242,6 @@
         <item quantity="few">Ocenjeno sledenje: %d ure</item>
         <item quantity="other">Ocenjeno sledenje: %d ur</item>
     </plurals>
-    <!-- Additional aliases for code compatibility -->
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Izberite, kako natančno Tracker beleži vašo lokacijo</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>
@@ -315,13 +273,11 @@
     <string name="upgrade_reason_route_analysis">@string/upgrade_to_precise_message_route_analysis</string>
     <string name="upgrade_reason_heatmap">@string/upgrade_to_precise_message_heatmap_detail</string>
     <string name="upgrade_reason_challenges">@string/upgrade_to_precise_message_challenges</string>
-    <!-- Settings screen strings -->
     <string name="settings_auto_unit_switch_title">Samodejno preklapljanje enot</string>
     <string name="settings_module_map_subtitle">Kakovost toplotnega zemljevida in možnosti prikaza</string>
     <string name="settings_module_game_subtitle">Cilji, dosežki in mejniki</string>
     <string name="action_navigate_back">Nazaj</string>
     <string name="action_help">Pomoč</string>
-    <!-- App Widgets -->
     <string name="widget_loading">Nalaganje …</string>
     <string name="widget_quick_start_name">Hitri začetek Trackerja</string>
     <string name="widget_quick_start_description">Začnite ali ustavite sledenje lokaciji z enim tapom.</string>
@@ -358,7 +314,6 @@
     <string name="widget_tier_ambient">Ambientno</string>
     <string name="widget_tier_active">Aktivno</string>
     <string name="widget_tier_precision">Natančnost</string>
-    <!-- Smart Goal Notifications (Task D) -->
     <string name="goal_notification_title_progress">Odličen napredek!</string>
     <string name="goal_notification_title_almost">Skoraj ste tam!</string>
     <plurals name="goal_notification_body_75">
@@ -375,7 +330,6 @@
     </plurals>
     <string name="settings_smart_goal_notifications_title">Pametna obvestila o ciljih</string>
     <string name="settings_smart_goal_notifications_summary">Prejmite obvestilo, ko ste blizu dnevnemu cilju korakov</string>
-    <!-- First-time setup wizard -->
     <string name="setup_how_to_track_title">Kako naj deluje sledenje?</string>
     <string name="setup_how_to_track_subtitle">Izberite, kdaj se sledenje začne in kako podrobno naj bo.</string>
     <string name="setup_auto_tracking_title">Samodejno sledenje</string>
@@ -424,7 +378,6 @@
     <string name="setup_start_exploring">Začni raziskovati</string>
     <string name="setup_continue">Nadaljuj</string>
     <string name="setup_step_indicator">Korak %1$d od %2$d</string>
-    <!-- Onboarding step 4: opt-in online map tiles -->
     <string name="setup_online_tiles_title">Spletne kartografske ploščice?</string>
     <string name="setup_online_tiles_subtitle">Tracker vključuje osnovni zemljevid brez povezave, zato deluje brez omrežja. Če želite bogatejše zemljevide, lahko namesto tega pretakate ploščice javnega ponudnika.</string>
     <string name="setup_online_tiles_off_title">Samo brez povezave (priporočeno)</string>
@@ -433,10 +386,8 @@
     <string name="setup_online_tiles_on_desc">Pretakajte vektorske ploščice z več podrobnostmi iz OpenFreeMap (privzeto). Ponudnika lahko pozneje spremenite v Nastavitve → Zemljevid.</string>
     <string name="setup_online_tiles_privacy">Ko je ta možnost omogočena, lahko ponudnik vidi vaš naslov IP in ploščice, ki jih nalagate — približno območje zemljevida, ki ga gledate. Tracker nikoli ne pošlje računa, identifikatorja ali zgodovine lokacij.</string>
     <string name="setup_online_tiles_change_later">To lahko kadar koli spremenite v Nastavitve → Zemljevid → Spletne kartografske ploščice.</string>
-    <!-- Onboarding step: background access / battery optimization -->
     <string name="setup_background_access_subtitle">Da beleži potovanja, ko je zaslon izklopljen ali aplikacija zaprta, mora Tracker še naprej delovati v ozadju. Nastavitve baterije telefona ga lahko začasno ustavijo — dovolite dejavnost v ozadju, da samodejno sledenje ostane zanesljivo.</string>
     <string name="setup_background_access_optional">Izbirno, vendar priporočeno. To lahko kadar koli spremenite v Nastavitve → Sledenje.</string>
-    <!-- Background reliability (shared: onboarding + settings) -->
     <string name="background_reliability_title">Zanesljivo sledenje v ozadju</string>
     <string name="background_reliability_status_exempt">Dejavnost v ozadju je dovoljena</string>
     <string name="background_reliability_status_optimized">Optimizacija baterije je vklopljena</string>
@@ -445,7 +396,6 @@
     <string name="background_reliability_allow_action">Dovoli dejavnost v ozadju</string>
     <string name="background_reliability_samsung_hint">Naprave Samsung lahko aplikacije uvrstijo tudi med »Speče aplikacije«. Odprite nastavitve baterije, odstranite Tracker iz spečih aplikacij in nastavite, naj ga ne uspava.</string>
     <string name="background_reliability_samsung_action">Odpri nastavitve baterije naprave</string>
-    <!-- Local crash and diagnostic capture -->
     <string name="settings_tracebox_title">Diagnostika zrušitev</string>
     <string name="settings_tracebox_root_summary">Lokalna diagnostika zrušitev, ANR in strukture</string>
     <string name="settings_tracebox_status_header">Stanje zajemanja</string>

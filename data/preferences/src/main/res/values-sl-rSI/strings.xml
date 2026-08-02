@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="passus">%s tempo</string>
     <string name="per_hour_abbr">%s/h</string>
@@ -9,18 +9,11 @@
     <string name="meter_abbr">%s m</string>
     <string name="mile_abbr">%s milj</string>
     <string name="millepassus">%s rimska milja</string>
-    <!-- Sailing units -->
     <string name="fathom_abbr">%s sežnjev</string>
     <string name="cable_abbr">%s kablov</string>
     <string name="nautical_mile_abbr">%s nmi</string>
     <string name="knot_abbr">%s kn</string>
-    <!-- Flying units -->
     <string name="flight_level_abbr">FL%s</string>
-    <!-- Auto unit switch preference -->
-    <string name="settings_statistics_auto_unit_switch_key" translatable="false">statisticsAutoUnitSwitch</string>
-    <string name="settings_statistics_auto_unit_switch_default" translatable="false">true</string>
     <string name="settings_statistics_auto_unit_switch_title">Samodejno preklapljanje enot</string>
     <string name="settings_statistics_auto_unit_switch_summary">Pri prikazu sej s temi dejavnostmi samodejno preklopi na navtične ali letalske enote</string>
-    <!-- Location precision preference (Phase 2) -->
-    <!-- Precision upgrade tracking (Phase 2) -->
 </resources>

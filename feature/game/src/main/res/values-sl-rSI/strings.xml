@@ -1,8 +1,6 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <!-- Module title for distribution manifest -->
     <string name="module_game_title">Igra</string>
-    <!-- Mini-Games -->
     <string name="minigame_outrun_name">Outrun</string>
     <string name="minigame_outrun_description">Tekmujte z duhom. Ostanite v prednosti!</string>
     <string name="minigame_territory_name">Ozemlje</string>
@@ -14,7 +12,6 @@
     <string name="minigame_switchback_name">Serpentine</string>
     <string name="minigame_switchback_description">Z ostrimi izmeničnimi zavoji zgradite kombinacijo toka</string>
     <string name="minigame_locked">Odklene se na ravni %1$d</string>
-    <!-- Game hub: Play section -->
     <string name="game_play_section_title">Igraj</string>
     <string name="game_progress_section_title">Napredek</string>
     <string name="minigame_outrun_goal_line">Ohranite 25–100 m prednosti pred duhom</string>
@@ -30,7 +27,6 @@
     <string name="minigame_play_locked_expand_cta">Dvotapnite za prikaz načina odklepanja</string>
     <string name="minigame_active_session_running">Poteka — tapnite Igraj za vrnitev</string>
     <string name="minigame_active_session_paused">Začasno ustavljeno — tapnite Igraj za nadaljevanje</string>
-    <!-- Unit-aware score labels -->
     <string name="minigame_unit_meters">%1$d m</string>
     <plurals name="minigame_unit_cells">
         <item quantity="one">%1$d celica</item>
@@ -50,7 +46,6 @@
         <item quantity="few">%1$d zavoji</item>
         <item quantity="other">%1$d zavojev</item>
     </plurals>
-    <!-- Mini-game session UI -->
     <string name="minigame_view_past_scores">Prikaži pretekle rezultate</string>
     <string name="minigame_session_close">Zapri</string>
     <string name="minigame_session_play_again">Igraj znova</string>
@@ -58,7 +53,6 @@
     <string name="minigame_session_permission_title">Potrebna je lokacija</string>
     <string name="minigame_session_permission_body">Miniigre uporabljajo lokacijo v živo za spremljanje teka. Poleg končnega rezultata se ne shrani nič.</string>
     <string name="minigame_session_permission_grant">Dovoli dostop</string>
-    <!-- Mini-game setup -->
     <string name="minigame_setup_title">Nastavite tek</string>
     <string name="minigame_setup_goal_title">Cilj</string>
     <string name="minigame_setup_difficulty_title">Težavnost</string>
@@ -88,7 +82,6 @@
     <string name="minigame_difficulty_easy">Lahko</string>
     <string name="minigame_difficulty_normal">Običajno</string>
     <string name="minigame_difficulty_hard">Težko</string>
-    <!-- Mini-game session phases -->
     <string name="minigame_session_starting">Pripravljanje …</string>
     <string name="minigame_session_finishing">Shranjevanje teka …</string>
     <string name="minigame_session_paused_title">Začasno ustavljeno</string>
@@ -99,15 +92,12 @@
     <string name="minigame_session_elapsed_label">Aktivni čas</string>
     <string name="minigame_session_goal_progress">%1$d%% cilja</string>
     <string name="minigame_session_goal_reached">Cilj dosežen</string>
-    <!-- GPS signal quality -->
     <string name="minigame_signal_good">Močan GPS</string>
     <string name="minigame_signal_fair">Zadosten GPS</string>
     <string name="minigame_signal_poor">Šibek GPS</string>
     <string name="minigame_signal_unavailable">Ni signala GPS</string>
     <string name="minigame_signal_unknown">Določanje lokacije …</string>
     <string name="minigame_signal_stale">GPS zamuja</string>
-    <!-- Notification permission (contextual, optional) -->
-    <!-- Outrun visualization -->
     <string name="minigame_outrun_best_run">Najboljše v tem teku</string>
     <string name="minigame_outrun_personal_best">Osebni rekord</string>
     <string name="minigame_outrun_warning">Duh se približuje</string>
@@ -131,14 +121,12 @@
     <string name="minigame_outrun_description_escaped">Cilj dosežen. Pobegnili ste s prednostjo %1$d metrov. Najboljše v tem teku: %2$d metrov.</string>
     <string name="minigame_outrun_description_finished">Tek je končan. Končni razmik je bil %1$d metrov, najboljša prednost pa %2$d metrov.</string>
     <string name="minigame_outrun_ahead_of_best">Pred osebnim rekordom</string>
-    <!-- Territory visualization -->
     <string name="minigame_territory_grid_description_detailed">Zemljevid ozemlja. Osvojenih bližnjih območij: %1$d; označenih obmejnih območij: %2$d. %3$s. %4$s.</string>
     <string name="minigame_territory_current_highlighted">Trenutno območje je označeno</string>
     <string name="minigame_territory_current_waiting">Čakanje na trenutno območje</string>
     <string name="minigame_territory_goal_complete">Cilj dokončan</string>
     <string name="minigame_territory_goal_in_progress">Cilj poteka</string>
     <string name="minigame_territory_legend">Sij označuje trenutno območje • Namigi obmejnih območij: %1$d</string>
-    <!-- Zen Walk visualization -->
     <string name="minigame_zen_pace_label">Tempo</string>
     <string name="minigame_zen_pace_value">%1$s km/h</string>
     <string name="minigame_zen_pace_unknown">—</string>
@@ -153,7 +141,6 @@
     <string name="minigame_zen_flow_faster">Nežno se pospešujete</string>
     <string name="minigame_zen_flow_time">Tok %1$s</string>
     <string name="minigame_zen_flow_description">Tok zen tempa. %1$s. %2$s. %3$s. %4$s.</string>
-    <!-- Feedback announcements (TalkBack, edge-triggered only) -->
     <string name="minigame_feedback_outrun_danger">Duh se približuje</string>
     <string name="minigame_feedback_pb_crossed">Nov osebni rekord</string>
     <string name="minigame_feedback_territory_claimed">Osvojeno novo območje</string>
@@ -164,7 +151,6 @@
     <string name="minigame_feedback_zen_entered">Ste v območju tempa</string>
     <string name="minigame_feedback_zen_exited">Zapustili ste območje tempa</string>
     <string name="minigame_feedback_completed">Tek je končan</string>
-    <!-- Completion -->
     <string name="minigame_completion_first_run_title">Prvi tek je zabeležen!</string>
     <string name="minigame_completion_new_best_title">Nov osebni rekord!</string>
     <string name="minigame_completion_tied_title">Izenačili ste najboljše</string>
@@ -179,15 +165,12 @@
     <string name="minigame_completion_points_zero">V tem teku ni točk</string>
     <string name="minigame_completion_change_setup">Spremeni nastavitev</string>
     <string name="minigame_completion_done">Končano</string>
-    <!-- Failure -->
     <string name="minigame_session_failed_title">Tek se ni končal</string>
     <string name="minigame_failure_permission">Za igranje je potrebna natančna lokacija. Dovolite jo in poskusite znova.</string>
     <string name="minigame_failure_location">Zanesljive določitve lokacije nismo mogli pridobiti. Pojdite na kraj z bolj odprtim nebom in poskusite znova.</string>
     <string name="minigame_failure_persistence">Tega teka nismo mogli shraniti. Poskusite znova.</string>
     <string name="minigame_failure_generic">Nekaj je šlo narobe in tek se je ustavil.</string>
     <string name="minigame_session_try_again">Poskusi znova</string>
-    <!-- Foreground game session service -->
-    <string name="game_session_channel_id" translatable="false">game_session</string>
     <string name="game_session_channel_name">Aktivna igra</string>
     <string name="game_session_channel_description">Ohranja aktivno miniigro med izklopljenim zaslonom</string>
     <string name="game_session_notification_title">Igra Tracker</string>
@@ -202,7 +185,6 @@
     <string name="game_session_action_pause">Začasno ustavi</string>
     <string name="game_session_action_resume">Nadaljuj</string>
     <string name="game_session_action_finish">Končaj</string>
-    <!-- Mini-game scores history -->
     <string name="minigame_scores_title">Pretekli teki miniiger</string>
     <string name="minigame_scores_back">Nazaj</string>
     <string name="minigame_scores_empty_title">Prvi tek čaka</string>
@@ -215,22 +197,15 @@
     <string name="goals_daily_goal">dnevni</string>
     <string name="goals_weekly_goal">tedenski</string>
     <string name="goals_monthly_goal">mesečni</string>
-    <!-- Game screen UI strings -->
     <string name="game_steps_goals_title">Cilji korakov</string>
     <string name="game_step_sensor_unavailable">Senzor korakov ni na voljo</string>
     <string name="game_step_sensor_unavailable_detail">Ta naprava nima senzorja za štetje korakov. Ciljev korakov ni mogoče spremljati.</string>
     <string name="game_steps_today">Danes</string>
     <string name="game_steps_week">Teden</string>
-    <!-- Game empty states -->
     <string name="game_loading">Nalaganje …</string>
-    <!-- Hero Level Card -->
-    <!-- Trophy Summary -->
-    <!-- Trophy Case Screen -->
     <string name="action_navigate_back">Nazaj</string>
-    <!-- Medal labels -->
     <string name="game_open_settings">Odpri nastavitve</string>
     <string name="game_close">Zapri</string>
-    <!-- Exploration card -->
     <string name="exploration_title">Raziskovanje</string>
     <string name="exploration_cells_discovered">Odkrite celice</string>
     <string name="exploration_current_streak">Trenutni niz</string>
@@ -243,7 +218,6 @@
         <item quantity="other">dni</item>
     </plurals>
     <string name="exploration_of_four">od 4</string>
-    <!-- Achievements card -->
     <string name="achievements_title">Dosežki</string>
     <string name="achievements_bronze">Bron</string>
     <string name="achievements_silver">Srebro</string>
@@ -267,12 +241,8 @@
         <item>Čudovito</item>
     </string-array>
     <string name="points_earned_today">danes pridobljene točke</string>
-    <!-- Streak Milestones -->
-    <!-- Unlock Announcements -->
     <string name="game_unlock_title">Novo odklepanje!</string>
     <string name="game_unlock_message">Dosegli ste raven %1$d!</string>
-    <!-- Level Up -->
-    <!-- Weekly Ghost Leaderboard -->
     <string name="leaderboard_title">Tedenski izziv</string>
     <string name="leaderboard_metric_distance">Razdalja</string>
     <string name="leaderboard_metric_steps">Koraki</string>
@@ -299,7 +269,6 @@
     <string name="leaderboard_error_title">Lestvica ni na voljo</string>
     <string name="leaderboard_error_body">Podatki so varni v tej napravi. Znova poskusite naložiti tedenski izziv.</string>
     <string name="leaderboard_retry">Poskusi znova</string>
-    <!-- Unlock feature display names -->
     <string name="achievements_mythic">Mitično</string>
     <string name="game_view_all_achievements">Prikaži vse</string>
     <string name="game_recent_achievements">Nedavna odklepanja</string>
@@ -324,9 +293,4 @@
     <string name="achievement_category_calendar">Koledar</string>
     <string name="achievement_unlocked_content_description">Odklenjeno</string>
     <string name="achievement_locked_content_description">Zaklenjeno</string>
-    <!-- Achievement catalog format strings (ach_title_*, ach_desc_*,
-         ach_duration_*) moved to :stats-data/res/values/achievement_format_strings.xml
-         so :dashboard can render proper i18n'd titles without crossing the
-         :dashboard -> :game module boundary. See AchievementFormatting.kt
-         (now in :stats-data) and r8-dashboard-use-achievementformatting. -->
 </resources>

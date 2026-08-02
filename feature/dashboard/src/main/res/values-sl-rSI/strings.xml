@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="dashboard_title">Nadzorna plošča</string>
     <string name="dashboard_tracking_title">Sledenje</string>
@@ -7,7 +7,6 @@
     <string name="dashboard_permission_banner_title">Dovoljenje za lokacijo ni na voljo</string>
     <string name="dashboard_permission_banner_subtitle">Tracker ne more beležiti poti, dokler ne dovolite dostopa do lokacije. Tapnite za dovoljenje.</string>
     <string name="dashboard_permission_banner_cd">Pasica o nedostopnem dovoljenju za lokacijo; tapnite za dovoljenje dostopa do lokacije</string>
-    <!-- Accessibility content descriptions -->
     <string name="dashboard_cd_activity_icon">Vrsta dejavnosti</string>
     <string name="dashboard_cd_explore_icon">Raziskovanje</string>
     <string name="dashboard_cd_forward_arrow">Prikaži podrobnosti</string>
@@ -30,18 +29,15 @@
     <string name="dashboard_action_view_streak_details">Prikaži podrobnosti niza</string>
     <string name="dashboard_action_open_tracking_settings">Nastavitve</string>
     <string name="dashboard_action_restart_tracking">Znova zaženi</string>
-    <!-- Format strings -->
     <string name="dashboard_format_altitude_range">Višinski profil, %1$.0f–%2$.0f m</string>
     <string name="dashboard_format_coordinates">%1$.6f, %2$.6f</string>
     <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
-    <!-- Tracking state -->
     <string name="dashboard_tracking_awaiting_gps">Čakanje na signal GPS …</string>
     <string name="dashboard_tracking_recording_route">Beleženje poti …</string>
     <string name="dashboard_milestone_distance">doseženih km!</string>
     <string name="dashboard_milestone_steps">doseženih korakov!</string>
     <string name="dashboard_milestone_time">sledenih min!</string>
     <string name="dashboard_milestone_points">+10 točk</string>
-    <!-- Idle state -->
     <string name="dashboard_today_title">Danes</string>
     <string name="dashboard_today_no_activity">Danes še ni dejavnosti</string>
     <string name="dashboard_today_distance">Razdalja</string>
@@ -67,10 +63,8 @@
     <string name="dashboard_exploration_new_today">Novo danes</string>
     <string name="dashboard_exploration_total_cells">Skupaj celic</string>
     <string name="dashboard_exploration_seasons">Letni časi</string>
-    <!-- Live charts -->
     <string name="dashboard_live_charts_speed">Hitrost</string>
     <string name="dashboard_live_charts_altitude">Nadmorska višina</string>
-    <!-- Sensor details card -->
     <string name="dashboard_sensor_details_title">Podrobnosti senzorjev</string>
     <string name="dashboard_sensor_expand">Razširi podrobnosti senzorjev</string>
     <string name="dashboard_sensor_collapse">Strni podrobnosti senzorjev</string>
@@ -82,10 +76,8 @@
     <string name="dashboard_sensor_speed">Hitrost</string>
     <string name="dashboard_sensor_cell_types">Vrste celic</string>
     <string name="dashboard_sensor_raw_coords">Koordinate (odpravljanje napak)</string>
-    <!-- Glass metric card -->
     <string name="dashboard_trend_up">Trend narašča</string>
     <string name="dashboard_trend_down">Trend pada</string>
-    <!-- Motivational text -->
     <string name="dashboard_motivational_getting_started">Šele začenjate …</string>
     <string name="dashboard_motivational_keep_going">Kar tako naprej! 💪</string>
     <string name="dashboard_motivational_impressive">Impresivna seja!</string>
@@ -95,7 +87,6 @@
     <string name="dashboard_motivational_evening">Dober večer! Boste pregledali svoj dan?</string>
     <string name="dashboard_motivational_night">Način nočne sove 🦉</string>
     <string name="dashboard_motivational_streak">🔥 %1$d-dnevni niz!</string>
-    <!-- Empty state -->
     <string name="dashboard_empty_title">Vaše potovanje se začne tukaj</string>
     <string name="dashboard_empty_subtitle">S spodnjo kartico »Pripravljeni« po potrebi dovolite dostop do lokacije in začnite svojo prvo pustolovščino.</string>
     <string name="dashboard_empty_feature_explore">Raziščite</string>
@@ -118,23 +109,19 @@
     <string name="dashboard_empty_fab_hint_title">Ko ste pripravljeni</string>
     <string name="dashboard_empty_fab_hint_desc">Tapnite tukaj, da začnete prvo sejo sledenja.</string>
     <string name="dashboard_empty_fab_hint_desc_no_permission">Tapnite tukaj, da dovolite dostop do lokacije, nato pa začnete prvo sejo sledenja.</string>
-    <!-- Widget titles (used in DashboardWidget and customize sheet) -->
     <string name="widget_today_progress">Današnji napredek</string>
     <string name="widget_streak">Niz</string>
     <string name="widget_last_session">Zadnja seja</string>
     <string name="widget_recent_trips">Nedavne poti</string>
     <string name="widget_exploration">Raziskovanje</string>
-    <!-- Customize dashboard sheet -->
     <string name="dashboard_customize_title">Prilagodi nadzorno ploščo</string>
     <string name="dashboard_customize_reset">Ponastavi na privzeto</string>
     <string name="dashboard_customize_cd_toggle">Preklopi vidnost za %1$s</string>
     <string name="dashboard_customize_cd_drag_handle">Spremeni vrstni red za %1$s</string>
-    <!-- Sparkline / visualization accessibility -->
     <string name="dashboard_no_altitude_data">Ni podatkov o nadmorski višini</string>
     <string name="dashboard_cd_no_altitude_data">Podatki o nadmorski višini niso na voljo</string>
     <string name="dashboard_cd_speed_sparkline">Iskrični graf hitrosti z %1$d podatkovnimi točkami</string>
     <string name="dashboard_cd_session_path">Predogled poti seje z %1$d točkami</string>
-    <!-- Metric labels (used in FavoritesRepository) -->
     <string name="dashboard_metric_speed">Hitrost</string>
     <string name="dashboard_metric_distance">Razdalja</string>
     <string name="dashboard_metric_duration">Trajanje</string>
@@ -146,13 +133,11 @@
     <string name="dashboard_metric_wifi">Wi‑Fi</string>
     <string name="dashboard_metric_cell">Celica</string>
     <string name="dashboard_metric_coordinates">Koordinate</string>
-    <!-- Tracking action ring / pill -->
     <string name="dashboard_ring_start_tracking">Začni sledenje</string>
     <string name="dashboard_ring_enable_location">Omogoči lokacijo</string>
     <string name="dashboard_pill_start">Začni</string>
     <string name="dashboard_pill_stop">Ustavi</string>
     <string name="dashboard_pill_enable_location">Omogoči lokacijo</string>
-    <!-- Session Insights Card (Task F) -->
     <string name="dashboard_insights_title">Vpogledi v sejo</string>
     <string name="dashboard_cd_insight_item">Vpogled: %1$s</string>
     <string name="widget_latest_achievement">Najnovejši dosežek</string>

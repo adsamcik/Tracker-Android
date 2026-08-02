@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
     <string name="activity_title">Dejavnost</string>
     <string name="activity_value">%s</string>
@@ -64,12 +64,8 @@
     <string name="settings_auto_tracking_transition_summary">Način z manjšo porabo baterije (zaznavanje dejavnosti je nekoliko počasnejše)</string>
     <string name="settings_auto_tracking_transition_title">Uporabi prehode dejavnosti</string>
     <string name="settings_cell_enabled_title">Celica</string>
-    <string name="settings_disabled_recharge_default" translatable="false">false</string>
-    <string name="settings_disabled_recharge_key" translatable="false">stoppedUntilRecharge</string>
     <string name="settings_disabled_recharge_summary">Samodejno sledenje je onemogočeno, dokler telefon ni priključen na polnilnik</string>
     <string name="settings_disabled_recharge_title">Onemogočeno do polnjenja</string>
-    <string name="settings_disabled_time_default" translatable="false">0</string>
-    <string name="settings_disabled_time_key" translatable="false">stoppedUntilTime</string>
     <string name="settings_location_enabled_title">Lokacija</string>
     <string name="settings_notification_customize_summary">Spremenite, kaj in v katerem vrstnem redu se prikaže v obvestilu o sledenju.</string>
     <string name="settings_notification_customize_title">Prilagodi obvestilo</string>
@@ -143,17 +139,13 @@
     <string name="insight_comparison_desc">Ta seja je bila %1$d%% daljša od nedavnega povprečja</string>
     <string name="wifi_count_title">Število omrežij Wi‑Fi</string>
     <string name="wifi_count_value">Wi‑Fi %d</string>
-    <!-- Soft hint when Wi‑Fi permission is missing -->
     <string name="wifi_permission_hint_title">Dovolite Wi‑Fi za boljšo natančnost v zaprtih prostorih</string>
     <string name="wifi_permission_hint_text">V nastavitvah aplikacije dovolite Wi‑Fi za boljše določanje lokacije po signalu v zaprtih prostorih. Dokler ga ne dovolite, se radijski podatki Wi‑Fi ne zbirajo.</string>
-    <!-- Tracker Dashboard -->
-    <!-- Today Progress Card -->
     <string name="dashboard_today_title">Danes</string>
     <string name="dashboard_today_empty_title">Danes ni sej</string>
     <string name="dashboard_today_distance">Razdalja</string>
     <string name="dashboard_today_steps">Koraki</string>
     <string name="dashboard_today_duration">Trajanje</string>
-    <!-- Tracking Presets -->
     <string name="tracking_preset_title">Način sledenja</string>
     <string name="tracking_preset_battery_saver_title">Varčevanje z baterijo</string>
     <string name="tracking_preset_battery_saver_desc">Optimizirano za celodnevno sledenje</string>
@@ -162,35 +154,27 @@
     <string name="tracking_preset_high_precision_title">Visoka natančnost</string>
     <string name="tracking_preset_high_precision_desc">Največ podrobnosti in natančnosti</string>
     <string name="tracking_preset_custom_badge">Uporabljene so nastavitve po meri</string>
-    <!-- Battery Impact Indicators -->
     <string name="battery_impact_low">Majhen vpliv na baterijo</string>
     <string name="battery_impact_moderate">Zmeren vpliv na baterijo</string>
     <string name="battery_impact_high">Večja poraba baterije</string>
     <string name="battery_impact_high_warning">Ta konfiguracija lahko znatno skrajša življenjsko dobo baterije. Za celodnevno sledenje razmislite o uravnoteženem načinu.</string>
-    <!-- Advanced Settings Section -->
-    <!-- Help Text for Advanced Settings -->
     <string name="help_min_distance">Tracker počaka, da se premaknete za to razdaljo, preden zabeleži naslednjo lokacijo. Manjše vrednosti pomenijo podrobnejše poti, vendar večjo porabo baterije.</string>
     <string name="help_min_time">Kako pogosto Tracker preverja lokacijo. Manjše vrednosti pomenijo pogostejše posodobitve, vendar večjo porabo baterije.</string>
     <string name="help_required_accuracy">Prag natančnosti GPS. Tracker prezre posodobitve lokacije z natančnostjo, slabšo od te vrednosti. Manjša vrednost pomeni večjo natančnost, vendar lahko v slabih razmerah GPS preskoči posodobitve.</string>
     <string name="help_transition_detection">Tracker se samodejno zažene ali ustavi glede na vaše gibanje. Porabi manj baterije kot stalni GPS, vendar lahko zaznavanje sprememb dejavnosti zakasni.</string>
-    <!-- Policy Tier Indicator (Phase 4a) -->
     <string name="policy_tier_ambient">Ambientno</string>
     <string name="policy_tier_active">Aktivno</string>
     <string name="policy_tier_precision">Natančnost</string>
-    <!-- Recent Trips Card (Phase 4d) -->
     <string name="dashboard_recent_trips">Nedavne poti</string>
-    <!-- Hardcoded string extractions -->
     <string name="tracker_hide_details">Skrij podrobnosti</string>
     <string name="tracker_show_sensor_details">Prikaži podrobnosti senzorjev</string>
     <string name="tracker_view_map">Prikaži zemljevid</string>
     <string name="tracker_average_label">Povp.</string>
     <string name="tracker_accuracy_label">Natančnost</string>
     <string name="tracker_disabled">Onemogočeno</string>
-    <!-- Content descriptions -->
     <string name="tracker_lock_icon_desc">Stanje zaklepanja</string>
     <string name="tracker_settings_icon_desc">Nastavitve komponente</string>
     <string name="tracker_points_icon_desc">Napredek točk</string>
-    <!-- Hardcoded string extractions (HI-03) -->
     <string name="tracker_start_button">ZAČNI</string>
     <string name="tracker_duration_label">Trajanje</string>
     <string name="tracker_distance_label">Razdalja</string>
@@ -211,7 +195,6 @@
     <string name="policy_tier_status_prefix">Pravilnik GPS:</string>
     <string name="tracker_precision_chip_hint">Tapnite za preklop na %1$s</string>
     <string name="action_navigate_back">Nazaj</string>
-    <!-- Session Insights (Task F) -->
     <string name="insight_distance_title">Prevožena razdalja</string>
     <string name="insight_distance_desc">V tej seji ste prevozili %1$s.</string>
     <string name="insight_steps_title">Zabeleženi koraki</string>

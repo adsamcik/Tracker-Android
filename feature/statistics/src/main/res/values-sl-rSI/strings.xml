@@ -1,6 +1,5 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <!-- Module title for distribution manifest -->
     <string name="module_statistics_title">Statistika</string>
     <string name="stats_cell_count">Število celic</string>
     <string name="stats_collections">Število posodobitev</string>
@@ -46,7 +45,6 @@
     <string name="stats_loading">Nalaganje sej …</string>
     <string name="stats_append_error">Nalaganje več podatkov ni uspelo</string>
     <string name="action_retry">Poskusi znova</string>
-    <!-- Added for compose StatsScreen placeholders -->
     <string name="stats_start_tracking_cta">Začni sledenje</string>
     <plurals name="stats_trip_row_steps_content_description">
         <item quantity="one">%1$s korak</item>
@@ -54,15 +52,12 @@
         <item quantity="few">%1$s koraki</item>
         <item quantity="other">%1$s korakov</item>
     </plurals>
-    <!-- Date headers -->
     <string name="stats_date_today">Danes</string>
     <string name="stats_date_yesterday">Včeraj</string>
-    <!-- Summary dialog strings -->
     <string name="stats_summary_loading">Nalaganje povzetka …</string>
     <string name="stats_summary_empty">Statistika povzetka ni na voljo</string>
     <string name="stats_summary_empty_subtitle">Začnite sledenje, da vidite povzetek dejavnosti</string>
     <string name="stats_summary_error">Povzetka ni bilo mogoče naložiti</string>
-    <!-- Week dialog strings -->
     <string name="stats_week_loading">Nalaganje tedenske statistike …</string>
     <string name="stats_week_empty">Tedenska statistika ni na voljo</string>
     <string name="stats_week_empty_subtitle">Spremljajte 7 dni, da vidite tedenski povzetek</string>
@@ -75,7 +70,6 @@
     <string name="stats_wifi_unique_networks">Videna enolična omrežja</string>
     <string name="stats_wifi_total_scans">Skupno pregledov</string>
     <string name="stats_wifi_average_per_scan">Povprečno omrežij na pregled</string>
-    <!-- Cell signal report screen -->
     <string name="stats_cell_signal_dialog_title">Poročilo o signalu celice</string>
     <string name="stats_cell_signal_dialog_loading">Nalaganje poročila o signalu celice …</string>
     <string name="stats_cell_signal_dialog_empty_title">Podatki o celicah niso na voljo</string>
@@ -85,13 +79,9 @@
     <string name="stats_cell_signal_distinct_towers">Različne postaje</string>
     <string name="stats_cell_signal_section_networks">Po vrsti omrežja</string>
     <string name="stats_cell_signal_section_towers">Najpogosteje videne postaje</string>
-    <!-- %1$s = share of samples (e.g. "80%"), %2$s = distinct tower count -->
     <string name="stats_cell_signal_network_secondary">%1$s vzorcev · %2$s postaj</string>
-    <!-- %1$s = cell id, %2$s = sample count -->
     <string name="stats_cell_signal_tower_detail">Celica %1$s · %2$s vzorcev</string>
-    <!-- %1$s = MCC, %2$s = MNC -->
     <string name="stats_cell_signal_carrier">Operater %1$s‑%2$s</string>
-    <!-- Trip detail screen -->
     <string name="trip_detail_title">Podrobnosti poti</string>
     <string name="trip_detail_not_found">Pot ni najdena</string>
     <string name="trip_detail_not_found_subtitle">Ta pot je bila morda izbrisana</string>
@@ -113,7 +103,7 @@
     <string name="trip_detail_elevation_loss">Višinski spust</string>
     <string name="trip_detail_max_altitude">Najv. nadmorska višina</string>
     <string name="trip_detail_route_map">Zemljevid poti</string>
-    <string name="trip_detail_view_on_map" translatable="false">View on map</string>
+    <string name="trip_detail_view_on_map">Prikaži na zemljevidu</string>
     <string name="trip_detail_no_location_data">Ni podatkov o lokaciji</string>
     <string name="trip_detail_route_unavailable_legacy">Zemljevid poti ni na voljo za stare seje</string>
     <string name="trip_detail_route_no_gps_points">Razdalja je zabeležena, vendar pot GPS ni na voljo</string>
@@ -124,7 +114,6 @@
     <string name="trip_detail_delete_confirm">Izbriši</string>
     <string name="trip_detail_cancel">Prekliči</string>
     <string name="trip_detail_more_options">Več možnosti</string>
-    <!-- Ski session detail -->
     <string name="ski_detail_header">Smučarska seja</string>
     <string name="ski_detail_runs">Spusti</string>
     <string name="ski_detail_vertical">Višinska razlika</string>
@@ -148,7 +137,6 @@
     <string name="wifilist_title_frequency">Frekvenca</string>
     <string name="wifilist_title_last_seen">Nazadnje videno</string>
     <string name="wifilist_title_ssid">SSID</string>
-    <!-- History tabs -->
     <string name="history_tab_timeline">Časovnica</string>
     <string name="history_tab_trips">Poti</string>
     <string name="history_tab_calendar">Koledar</string>
@@ -159,30 +147,23 @@
         <item quantity="few">%d poti</item>
         <item quantity="other">%d poti</item>
     </plurals>
-    <!-- Timeline empty -->
     <string name="history_timeline_empty_title">Še ni dejavnosti</string>
     <string name="history_timeline_empty_desc">Začnite sledenje, da tukaj vidite zgodovino gibanja</string>
-    <!-- Trips empty -->
     <string name="history_trips_empty_title">Ni zabeleženih poti</string>
     <string name="history_trips_empty_desc">Poti se bodo prikazale, ko se premikate</string>
     <string name="trip_gps_anomaly">Zaznana je anomalija GPS — razdalja je lahko nenatančna</string>
     <string name="trip_deleted_snackbar">Pot je izbrisana</string>
-    <!-- Calendar -->
     <string name="history_calendar_previous_month">Prejšnji mesec</string>
     <string name="history_calendar_next_month">Naslednji mesec</string>
     <string name="history_calendar_distance">Razdalja</string>
     <string name="history_calendar_steps">Koraki</string>
     <string name="history_calendar_trips">Poti</string>
-    <!-- Exploration -->
     <string name="history_exploration_title">Raziskovanje</string>
     <string name="history_exploration_cells">Celice</string>
     <string name="history_exploration_streak">Niz</string>
     <string name="history_exploration_best">Najboljše</string>
-    <!-- Navigation actions -->
     <string name="action_navigate_back">Nazaj</string>
-    <!-- History navigation -->
     <string name="history_button_label">Zgodovina</string>
-    <string name="history_view_trip_on_map" translatable="false">View trip on map</string>
-    <!-- Calendar heatmap -->
+    <string name="history_view_trip_on_map">Prikaži pot na zemljevidu</string>
     <string name="stats_heatmap_title">Dejavnost</string>
 </resources>
