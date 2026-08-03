@@ -75,12 +75,6 @@ class TrackingSettingsViewModelTest {
         coEvery { trackingParamsRepository.setBarometerEnabled(any()) } answers {
             paramsFlow.value = paramsFlow.value.copy(barometerEnabled = firstArg())
         }
-        coEvery { trackingParamsRepository.setSkiDetectionEnabled(any()) } answers {
-            paramsFlow.value = paramsFlow.value.copy(skiDetectionEnabled = firstArg())
-        }
-        coEvery { trackingParamsRepository.setPlaneDetectionEnabled(any()) } answers {
-            paramsFlow.value = paramsFlow.value.copy(planeDetectionEnabled = firstArg())
-        }
         coEvery { trackingParamsRepository.setTransitionDetectionEnabled(any()) } answers {
             paramsFlow.value = paramsFlow.value.copy(transitionDetectionEnabled = firstArg())
         }

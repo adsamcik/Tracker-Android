@@ -15,10 +15,7 @@ data class TrackingParamsState(
     val minTimeSeconds: Int = DEFAULT_MIN_TIME,
     val requiredAccuracyMeters: Int = DEFAULT_REQUIRED_ACCURACY,
     val presetName: String = DEFAULT_PRESET,
-    val skiDetectionEnabled: Boolean = false,
     val vehicleSpeedLimitBaselineMps: Double = DEFAULT_VEHICLE_SPEED_LIMIT_MPS,
-    val sailingDetectionEnabled: Boolean = false,
-    val planeDetectionEnabled: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_MIN_DISTANCE = 10

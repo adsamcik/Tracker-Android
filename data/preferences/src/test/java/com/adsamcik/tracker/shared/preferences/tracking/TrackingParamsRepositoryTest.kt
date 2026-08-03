@@ -75,18 +75,6 @@ class TrackingParamsRepositoryTest {
 			_data.value = _data.value.copy(presetName = preset.name)
 		}
 
-		override suspend fun setSkiDetectionEnabled(enabled: Boolean) {
-			_data.value = _data.value.copy(skiDetectionEnabled = enabled)
-		}
-
-		override suspend fun setSailingDetectionEnabled(enabled: Boolean) {
-			_data.value = _data.value.copy(sailingDetectionEnabled = enabled)
-		}
-
-		override suspend fun setPlaneDetectionEnabled(enabled: Boolean) {
-			_data.value = _data.value.copy(planeDetectionEnabled = enabled)
-		}
-
 		override suspend fun setVehicleSpeedLimitBaselineMps(mps: Double) {
 			_data.value = _data.value.copy(vehicleSpeedLimitBaselineMps = mps)
 		}
@@ -175,11 +163,6 @@ class TrackingParamsRepositoryTest {
 			repository.data.first().presetName shouldBe "POWER_SAVE"
 		}
 
-		@Test
-		fun `setSkiDetectionEnabled updates state`() = runTest {
-			repository.setSkiDetectionEnabled(true)
-			repository.data.first().skiDetectionEnabled shouldBe true
-		}
 	}
 
 	@Nested

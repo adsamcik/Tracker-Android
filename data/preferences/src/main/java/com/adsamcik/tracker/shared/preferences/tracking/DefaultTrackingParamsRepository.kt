@@ -30,10 +30,7 @@ private object TrackingParamsSerializer : Serializer<TrackingParamsProto> {
         .setMinTimeSeconds(PreferenceKeys.TRACKING_MIN_TIME_DEFAULT)
         .setRequiredAccuracyMeters(PreferenceKeys.TRACKING_REQUIRED_ACCURACY_DEFAULT)
         .setPresetName(TrackingParamsState.DEFAULT_PRESET)
-        .setSkiDetectionEnabled(PreferenceKeys.SKI_INFRASTRUCTURE_ENABLED_DEFAULT)
         .setVehicleSpeedLimitBaselineMps(TrackingParamsState.DEFAULT_VEHICLE_SPEED_LIMIT_MPS)
-        .setSailingDetectionEnabled(false)
-        .setPlaneDetectionEnabled(false)
         .setLegacyMigrated(false)
         .build()
 
@@ -93,9 +90,6 @@ class DefaultTrackingParamsRepository(
     override suspend fun setMinTimeSeconds(seconds: Int) = updateField { setMinTimeSeconds(seconds.coerceAtLeast(1)) }
     override suspend fun setRequiredAccuracyMeters(meters: Int) = updateField { setRequiredAccuracyMeters(meters.coerceAtLeast(1)) }
     override suspend fun setPreset(preset: TrackingPreset) = updateField { setPresetName(preset.name) }
-    override suspend fun setSkiDetectionEnabled(enabled: Boolean) = updateField { setSkiDetectionEnabled(enabled) }
-    override suspend fun setSailingDetectionEnabled(enabled: Boolean) = updateField { setSailingDetectionEnabled(enabled) }
-    override suspend fun setPlaneDetectionEnabled(enabled: Boolean) = updateField { setPlaneDetectionEnabled(enabled) }
     override suspend fun setVehicleSpeedLimitBaselineMps(mps: Double) = updateField {
         setVehicleSpeedLimitBaselineMps(mps.clampVehicleSpeedLimit())
     }
@@ -167,11 +161,6 @@ class DefaultTrackingParamsRepository(
             )
             val preset = sp.getString("tracking_preset", TrackingParamsState.DEFAULT_PRESET)
                 ?: TrackingParamsState.DEFAULT_PRESET
-            val skiDetectionEnabled = spBool(
-                PreferenceKeys.SKI_INFRASTRUCTURE_ENABLED,
-                PreferenceKeys.SKI_INFRASTRUCTURE_ENABLED_DEFAULT
-            )
-
             context.trackingParamsDataStore.updateData {
                 TrackingParamsProto.newBuilder()
                     .setLocationEnabled(locationEnabled)
@@ -187,10 +176,7 @@ class DefaultTrackingParamsRepository(
                     .setMinTimeSeconds(minTime)
                     .setRequiredAccuracyMeters(requiredAccuracy)
                     .setPresetName(preset)
-                    .setSkiDetectionEnabled(skiDetectionEnabled)
                     .setVehicleSpeedLimitBaselineMps(TrackingParamsState.DEFAULT_VEHICLE_SPEED_LIMIT_MPS)
-                    .setSailingDetectionEnabled(false)
-                    .setPlaneDetectionEnabled(false)
                     .setLegacyMigrated(true)
                     .build()
             }
@@ -235,13 +221,10 @@ private fun TrackingParamsProto.toDomain(): TrackingParamsState {
         requiredAccuracyMeters = if (usePresetCadence) preset.requiredAccuracyMeters
             else requiredAccuracyMeters.takeIf { it > 0 } ?: TrackingParamsState.DEFAULT_REQUIRED_ACCURACY,
         presetName = preset.name,
-        skiDetectionEnabled = skiDetectionEnabled,
         vehicleSpeedLimitBaselineMps = vehicleSpeedLimitBaselineMps
             .takeIf { it > 0.0 }
             ?.clampVehicleSpeedLimit()
             ?: TrackingParamsState.DEFAULT_VEHICLE_SPEED_LIMIT_MPS,
-        sailingDetectionEnabled = sailingDetectionEnabled,
-        planeDetectionEnabled = planeDetectionEnabled,
     )
 }
 
@@ -260,10 +243,7 @@ private fun TrackingParamsState.toProto(): TrackingParamsProto =
         .setMinTimeSeconds(minTimeSeconds)
         .setRequiredAccuracyMeters(requiredAccuracyMeters)
         .setPresetName(presetName)
-        .setSkiDetectionEnabled(skiDetectionEnabled)
         .setVehicleSpeedLimitBaselineMps(vehicleSpeedLimitBaselineMps.clampVehicleSpeedLimit())
-        .setSailingDetectionEnabled(sailingDetectionEnabled)
-        .setPlaneDetectionEnabled(planeDetectionEnabled)
         .setLegacyMigrated(true)
         .build()
 

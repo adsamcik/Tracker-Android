@@ -46,10 +46,7 @@ data class TrackingSettingsUiState(
     val minTime: Int = 2,
     val requiredAccuracy: Int = 50,
     val hasValidSources: Boolean = true,
-    val skiDetectionEnabled: Boolean = false,
     val vehicleSpeedLimitKmh: Int = 50,
-    val sailingDetectionEnabled: Boolean = false,
-    val planeDetectionEnabled: Boolean = false,
 )
 
 @HiltViewModel
@@ -120,10 +117,6 @@ class TrackingSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             val effectiveEnabled = enabled && context.hasPressureSensor
             trackingParamsRepository.setBarometerEnabled(effectiveEnabled)
-            if (!effectiveEnabled) {
-                trackingParamsRepository.setSkiDetectionEnabled(false)
-                trackingParamsRepository.setPlaneDetectionEnabled(false)
-            }
             markCustomPreset()
         }
     }
@@ -161,28 +154,6 @@ class TrackingSettingsViewModel @Inject constructor(
     fun setNotificationStyled(enabled: Boolean) {
         viewModelScope.launch {
             trackingParamsRepository.setNotificationStyled(enabled)
-        }
-    }
-
-    fun setSkiDetectionEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            trackingParamsRepository.setSkiDetectionEnabled(
-                enabled && _uiState.value.barometerEnabled,
-            )
-        }
-    }
-
-    fun setSailingDetectionEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            trackingParamsRepository.setSailingDetectionEnabled(enabled)
-        }
-    }
-
-    fun setPlaneDetectionEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            trackingParamsRepository.setPlaneDetectionEnabled(
-                enabled && _uiState.value.barometerEnabled,
-            )
         }
     }
 
@@ -225,8 +196,6 @@ class TrackingSettingsViewModel @Inject constructor(
                     wifiEnabled = config.wifiEnabled,
                     cellEnabled = config.cellEnabled,
                     barometerEnabled = config.barometerEnabled,
-                    skiDetectionEnabled = skiDetectionEnabled && config.barometerEnabled,
-                    planeDetectionEnabled = planeDetectionEnabled && config.barometerEnabled,
                     transitionDetectionEnabled = transitionDetectionEnabled,
                     minDistanceMeters = config.minDistanceMeters,
                     minTimeSeconds = config.minTimeSeconds,
@@ -278,10 +247,7 @@ class TrackingSettingsViewModel @Inject constructor(
                     cellAvailable = cellPermissionGranted,
                     barometerAvailable = barometerAvailable,
                 ),
-                skiDetectionEnabled = params.skiDetectionEnabled && effectiveBarometerEnabled,
                 vehicleSpeedLimitKmh = mpsToKmh(params.vehicleSpeedLimitBaselineMps),
-                sailingDetectionEnabled = params.sailingDetectionEnabled,
-                planeDetectionEnabled = params.planeDetectionEnabled && effectiveBarometerEnabled,
             )
         }
         recalculateBatteryImpact()

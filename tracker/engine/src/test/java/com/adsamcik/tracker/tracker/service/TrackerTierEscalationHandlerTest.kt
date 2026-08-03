@@ -414,7 +414,6 @@ class TrackerTierEscalationHandlerTest {
 			stepsEnabled = stepsEnabled,
 			wifiEnabled = false,
 			cellEnabled = false,
-			skiDetectionEnabled = false,
 		)
 	}
 

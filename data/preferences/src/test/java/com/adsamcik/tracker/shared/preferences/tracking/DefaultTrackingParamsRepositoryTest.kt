@@ -40,17 +40,15 @@ class DefaultTrackingParamsRepositoryTest {
     }
 
     @Test
-    fun `migration keeps string mode, legacy ski flag, and wifi default`() = runTest {
+    fun `migration keeps string mode and wifi default`() = runTest {
         PreferenceManager.getDefaultSharedPreferences(context).edit()
             .putString(PreferenceKeys.TRACKING_ACTIVITY_MODE, "2")
-            .putBoolean(PreferenceKeys.SKI_INFRASTRUCTURE_ENABLED, true)
             .commit()
 
         val repo = DefaultTrackingParamsRepository(context, Dispatchers.IO)
         val state = repo.data.first()
 
         assertEquals(2, state.autoTrackingMode)
-        assertTrue(state.skiDetectionEnabled)
         assertFalse(state.wifiEnabled)
     }
 

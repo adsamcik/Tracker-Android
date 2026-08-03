@@ -46,7 +46,6 @@ class TrackingSettingsScreenTest {
         minTime = 2,
         requiredAccuracy = 50,
         hasValidSources = true,
-        skiDetectionEnabled = false,
     )
 
     private fun scrollTo(text: String) {
@@ -80,8 +79,6 @@ class TrackingSettingsScreenTest {
         composeTestRule.onNodeWithText("Use activity transitions", substring = true).assertIsDisplayed()
         scrollTo("Colored notifications")
         composeTestRule.onNodeWithText("Colored notifications", substring = true).assertIsDisplayed()
-        scrollTo("Ski detection")
-        composeTestRule.onNodeWithText("Ski detection", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -114,22 +111,6 @@ class TrackingSettingsScreenTest {
         scrollTo("Colored notifications")
         composeTestRule.onNodeWithText("Colored notifications", substring = true).performClick()
         newValue shouldBe false // Was true, toggling makes false
-    }
-
-    @Test
-    fun skiDetectionToggleCallsCallback() {
-        var newValue: Boolean? = null
-        composeTestRule.setContent {
-            AppTheme {
-                TrackingSettingsContent(
-                    uiState = defaultUiState,
-                    onSkiDetectionChanged = { newValue = it },
-                )
-            }
-        }
-        scrollTo("Ski detection")
-        composeTestRule.onNodeWithText("Ski detection", substring = true).performClick()
-        newValue shouldBe true // Was false, toggling makes true
     }
 
     @Test

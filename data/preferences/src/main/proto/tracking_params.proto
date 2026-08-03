@@ -36,7 +36,8 @@ message TrackingParamsProto {
   string preset_name = 14;
 
   // Ski detection
-  bool ski_detection_enabled = 15;
+  // Legacy detector toggles. Detection is now passive and automatically requirement-gated.
+  bool ski_detection_enabled = 15 [deprecated = true];
 
   // Vehicle speed compliance baseline (m/s).
   // Used by the "Vehicle speed compliance" map layer to colour driving routes.
@@ -44,10 +45,10 @@ message TrackingParamsProto {
   double vehicle_speed_limit_baseline_mps = 16;
 
   // Sailing/boating detection (GPS speed + step rate based; see SailingDetectionConfig).
-  bool sailing_detection_enabled = 17;
+  bool sailing_detection_enabled = 17 [deprecated = true];
 
   // Plane/flight detection (barometric altitude + step rate based; see PlaneDetectionConfig).
-  bool plane_detection_enabled = 18;
+  bool plane_detection_enabled = 18 [deprecated = true];
 
   // Raw pressure capture. Optional preserves the historical default (enabled) for files written
   // before this field existed while still allowing users to explicitly disable it.

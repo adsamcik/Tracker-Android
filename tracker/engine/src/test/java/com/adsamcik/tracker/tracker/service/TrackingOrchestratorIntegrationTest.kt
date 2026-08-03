@@ -94,7 +94,6 @@ class TrackingOrchestratorIntegrationTest {
 					stepsEnabled = false,
 					wifiEnabled = false,
 					cellEnabled = false,
-					skiDetectionEnabled = false,
 				),
 			),
 			dailySummaryFallbackEnqueuer = { fallbackEnqueueCount++ },
@@ -160,7 +159,6 @@ class TrackingOrchestratorIntegrationTest {
 					stepsEnabled = false,
 					wifiEnabled = false,
 					cellEnabled = false,
-					skiDetectionEnabled = false,
 				),
 			),
 			dailySummaryFallbackEnqueuer = {},
@@ -341,15 +339,6 @@ class TrackingOrchestratorIntegrationTest {
 		}
 		override suspend fun setPreset(preset: TrackingPreset) {
 			state.update { it.copy(presetName = preset.name) }
-		}
-		override suspend fun setSkiDetectionEnabled(enabled: Boolean) {
-			state.update { it.copy(skiDetectionEnabled = enabled) }
-		}
-		override suspend fun setSailingDetectionEnabled(enabled: Boolean) {
-			state.update { it.copy(sailingDetectionEnabled = enabled) }
-		}
-		override suspend fun setPlaneDetectionEnabled(enabled: Boolean) {
-			state.update { it.copy(planeDetectionEnabled = enabled) }
 		}
 		override suspend fun setVehicleSpeedLimitBaselineMps(mps: Double) {
 			state.update { it.copy(vehicleSpeedLimitBaselineMps = mps) }

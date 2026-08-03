@@ -55,11 +55,6 @@ class TrackingParamsStateTest {
 		}
 
 		@Test
-		fun `default state has ski detection disabled`() {
-			TrackingParamsState().skiDetectionEnabled shouldBe false
-		}
-
-		@Test
 		fun `default distance matches companion constant`() {
 			TrackingParamsState().minDistanceMeters shouldBe TrackingParamsState.DEFAULT_MIN_DISTANCE
 		}
@@ -178,7 +173,6 @@ class TrackingParamsStateTest {
 				minTimeSeconds = 55,
 				requiredAccuracyMeters = 200,
 				presetName = "CUSTOM",
-				skiDetectionEnabled = true,
 			)
 			state.locationEnabled shouldBe false
 			state.wifiEnabled shouldBe true
@@ -188,7 +182,6 @@ class TrackingParamsStateTest {
 			state.minDistanceMeters shouldBe 99
 			state.minTimeSeconds shouldBe 55
 			state.requiredAccuracyMeters shouldBe 200
-			state.skiDetectionEnabled shouldBe true
 		}
 
 		@Test
