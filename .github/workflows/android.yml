@@ -14,6 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: read
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
       - name: Check unused string resources
@@ -69,6 +72,13 @@ jobs:
         run: |
           chmod +x gradlew
           echo "MAPS_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" > local.properties
+      - name: Verify Tracebox package access
+        run: >-
+          ./gradlew :app:dependencyInsight
+          --configuration debugRuntimeClasspath
+          --dependency io.github.tracebox:tracebox
+          --refresh-dependencies
+          --no-daemon --stacktrace --console=plain
       - name: Run unit tests (all modules)
         run: |
           ./gradlew --no-daemon --stacktrace testDebugUnitTest
@@ -88,6 +98,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: read
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up JDK 21

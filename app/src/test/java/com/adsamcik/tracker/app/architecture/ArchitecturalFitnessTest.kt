@@ -66,6 +66,37 @@ class ArchitecturalFitnessTest {
 		}
 
 		@Test
+		fun `CI consumes immutable Tracebox packages with a scoped workflow token`() {
+			val settings = projectRoot.resolve("settings.gradle.kts").readText()
+			val androidWorkflow = projectRoot.resolve(".github/workflows/android.yml").readText()
+			val codeqlWorkflow = projectRoot.resolve(".github/workflows/codeql.yml").readText()
+			val workflowToken = "GITHUB_TOKEN: $" + "{{ github.token }}"
+
+			buildList {
+				if ("if (!providers.environmentVariable(\"CI\").isPresent)" !in settings) {
+					add("settings.gradle.kts -> CI must not resolve Tracebox from Maven Local")
+				}
+				if ("https://maven.pkg.github.com/adsamcik/tracebox" !in settings) {
+					add("settings.gradle.kts -> Tracebox GitHub Packages repository is missing")
+				}
+				if (Regex("(?m)^\\s+packages: read\\s*$").findAll(androidWorkflow).count() < 2) {
+					add("android.yml -> both Gradle jobs need packages: read")
+				}
+				if (androidWorkflow.windowed(workflowToken.length).count { it == workflowToken } < 2) {
+					add("android.yml -> both Gradle jobs must expose github.token to Gradle")
+				}
+				if ("Verify Tracebox package access" !in androidWorkflow ||
+					"--refresh-dependencies" !in androidWorkflow
+				) {
+					add("android.yml -> forced Tracebox package resolution check is missing")
+				}
+				if ("packages: read" !in codeqlWorkflow || workflowToken !in codeqlWorkflow) {
+					add("codeql.yml -> manual Gradle build needs read-only package authentication")
+				}
+			}.shouldBeEmpty()
+		}
+
+		@Test
 		fun `Application installs Tracebox during attachment and excludes its handler`() {
 			val source = projectRoot.resolve(
 				"app/src/main/java/com/adsamcik/tracker/app/Application.kt",

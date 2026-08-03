@@ -31,6 +31,10 @@ bridge:
 - Tracker explicitly configures the available share/save/delete actions and
   reset policy in code; direct upload stays disabled until Tracker supplies a
   real authenticated backend through `TraceboxDiagnosticUploader`; and
+- GitHub Actions resolves Tracebox from GitHub Packages with a read-only
+  workflow token, skips Maven Local under `CI`, and refreshes the dependency
+  before the full test suite so a cached/local artifact cannot mask access loss;
+  CodeQL uses the same read-only package path; and
 - the old Tracker diagnostics controller, ViewModel, screen, fixed catalog, and
   their tests/resources are deleted.
 

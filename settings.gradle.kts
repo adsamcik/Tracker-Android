@@ -10,11 +10,13 @@ pluginManagement {
 dependencyResolutionManagement {
 	repositoriesMode = RepositoriesMode.FAIL_ON_PROJECT_REPOS
 	repositories {
-		// An exact locally published Tracebox build may override the immutable GitHub package.
-		// Restrict Maven Local to the Tracebox group so it cannot affect other dependencies.
-		mavenLocal {
-			content {
-				includeGroup("io.github.tracebox")
+		// Local development may override Tracebox with an exact Maven Local publication. CI must
+		// always prove that the immutable GitHub package can be consumed from a clean checkout.
+		if (!providers.environmentVariable("CI").isPresent) {
+			mavenLocal {
+				content {
+					includeGroup("io.github.tracebox")
+				}
 			}
 		}
 		maven {
