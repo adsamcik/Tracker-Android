@@ -5,7 +5,6 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
-import com.adsamcik.tracker.stats.engine.policy.DefaultPolicyEscalationEngine
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.SessionTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.ActivityTrackerComponent
@@ -22,19 +21,19 @@ import com.adsamcik.tracker.tracker.controller.toLiveState
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Result of component construction and optional ski/sailing/plane state wiring.
+ * Result of component construction. Passive detectors are always present and self-gate on their
+ * declared cycle-data requirements.
  */
 internal data class ComponentSet(
 	val dataComponents: List<DataTrackerComponent>,
-	val skiTrackingComponent: SkiTrackingComponent?,
-	val skiSegmentWriter: SkiSegmentWriter?,
-	val sailingTrackingComponent: SailingTrackingComponent?,
-	val planeTrackingComponent: PlaneTrackingComponent?,
+	val skiTrackingComponent: SkiTrackingComponent,
+	val skiSegmentWriter: SkiSegmentWriter,
+	val sailingTrackingComponent: SailingTrackingComponent,
+	val planeTrackingComponent: PlaneTrackingComponent,
 	val sessionComponent: SessionTrackerComponent,
 )
 
@@ -54,24 +53,20 @@ internal class TrackerComponentFactory(
 	/**
 	 * Build and enable all tracker components for a new session.
 	 *
-	 * Which data/pre components are created is derived from the user's per-source toggles
-	 * (read fresh inside this call), not from [tier]. [tier] is retained only so the result can be
-	 * wrapped in the tier-configuration model; it no longer selects sources.
+	 * Data-source components honor the user's source toggles internally. Passive activity detectors
+	 * are always created; [PostProcessingStage] invokes them only when their required cycle data is
+	 * present.
 	 *
 	 * @param context            Android context for component lifecycle calls.
 	 * @param isSessionUserInitiated  whether the session was started by the user.
-	 * @param tier               starting [PolicyTier] (governs trigger cadence, not source set).
 	 * @param notificationComponent shared notification component instance.
-	 * @param trackingPolicyManager policy manager for adaptive location filtering (nullable).
-	 * @param escalationEngine   engine for ski tracking component wiring.
-	 * @param controller         service controller for forwarding ski state.
-	 * @param scope              coroutine scope for ski state collection.
+	 * @param controller         service controller for forwarding detector state.
+	 * @param scope              coroutine scope for detector state collection.
 	 */
 	suspend fun create(
 		context: Context,
 		isSessionUserInitiated: Boolean,
 		notificationComponent: NotificationComponent,
-		escalationEngine: DefaultPolicyEscalationEngine,
 		controller: TrackerServiceController,
 		scope: CoroutineScope,
 	): ComponentSet {
@@ -105,7 +100,6 @@ internal class TrackerComponentFactory(
 
 			buildSkiComponents(
 				context = context,
-				escalationEngine = escalationEngine,
 				controller = controller,
 				scope = scope,
 				stateCollectorJobs = stateCollectorJobs,
@@ -115,14 +109,12 @@ internal class TrackerComponentFactory(
 			}
 			sailingTracking = buildSailingComponent(
 				context,
-				escalationEngine,
 				controller,
 				scope,
 				stateCollectorJobs,
 			)
 			planeTracking = buildPlaneComponent(
 				context,
-				escalationEngine,
 				controller,
 				scope,
 				stateCollectorJobs,
@@ -130,10 +122,10 @@ internal class TrackerComponentFactory(
 
 			return ComponentSet(
 				dataComponents = dataComponents,
-				skiTrackingComponent = skiTracking,
-				skiSegmentWriter = skiWriter,
-				sailingTrackingComponent = sailingTracking,
-				planeTrackingComponent = planeTracking,
+				skiTrackingComponent = requireNotNull(skiTracking),
+				skiSegmentWriter = requireNotNull(skiWriter),
+				sailingTrackingComponent = requireNotNull(sailingTracking),
+				planeTrackingComponent = requireNotNull(planeTracking),
 				sessionComponent = requireNotNull(sessionComponent),
 			)
 		} catch (failure: Exception) {
@@ -194,17 +186,12 @@ internal class TrackerComponentFactory(
 
 	private suspend fun buildSkiComponents(
 		context: Context,
-		escalationEngine: DefaultPolicyEscalationEngine,
 		controller: TrackerServiceController,
 		scope: CoroutineScope,
 		stateCollectorJobs: MutableList<Job>,
-	): Pair<SkiTrackingComponent?, SkiSegmentWriter?> {
-		val skiEnabled = trackingParamsRepository.data.first().skiDetectionEnabled
-		if (!skiEnabled) return null to null
-
-		val segmentWriter = SkiSegmentWriter()
+	): Pair<SkiTrackingComponent, SkiSegmentWriter> {
+		val segmentWriter = SkiSegmentWriter(appDatabase)
 		val skiComponent = SkiTrackingComponent().also {
-			it.setEscalationEngine(escalationEngine)
 			it.setSecondaryListener(segmentWriter)
 			stateCollectorJobs += scope.launch {
 				it.skiState.collect { skiState ->
@@ -227,16 +214,11 @@ internal class TrackerComponentFactory(
 
 	private suspend fun buildSailingComponent(
 		context: Context,
-		escalationEngine: DefaultPolicyEscalationEngine,
 		controller: TrackerServiceController,
 		scope: CoroutineScope,
 		stateCollectorJobs: MutableList<Job>,
-	): SailingTrackingComponent? {
-		val sailingEnabled = trackingParamsRepository.data.first().sailingDetectionEnabled
-		if (!sailingEnabled) return null
-
+	): SailingTrackingComponent {
 		val sailingComponent = SailingTrackingComponent().also {
-			it.setEscalationEngine(escalationEngine)
 			stateCollectorJobs += scope.launch {
 				it.sailingState.collect { sailingState ->
 					controller.updateSailingState(sailingState?.toLiveState())
@@ -256,16 +238,11 @@ internal class TrackerComponentFactory(
 
 	private suspend fun buildPlaneComponent(
 		context: Context,
-		escalationEngine: DefaultPolicyEscalationEngine,
 		controller: TrackerServiceController,
 		scope: CoroutineScope,
 		stateCollectorJobs: MutableList<Job>,
-	): PlaneTrackingComponent? {
-		val planeEnabled = trackingParamsRepository.data.first().planeDetectionEnabled
-		if (!planeEnabled) return null
-
+	): PlaneTrackingComponent {
 		val planeComponent = PlaneTrackingComponent().also {
-			it.setEscalationEngine(escalationEngine)
 			stateCollectorJobs += scope.launch {
 				it.planeState.collect { planeState ->
 					controller.updatePlaneState(planeState?.toLiveState())

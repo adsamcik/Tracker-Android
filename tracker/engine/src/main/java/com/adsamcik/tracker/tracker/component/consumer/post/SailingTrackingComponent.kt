@@ -3,13 +3,9 @@ package com.adsamcik.tracker.tracker.component.consumer.post
 import android.content.Context
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.stats.api.PolicyEscalationEngine
-import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.engine.sailing.RealTimeSailingDetector
 import com.adsamcik.tracker.stats.engine.sailing.RealTimeSailingState
 import com.adsamcik.tracker.stats.engine.sailing.SailingDetectionConfig
-import com.adsamcik.tracker.stats.engine.sailing.SailingState
-import com.adsamcik.tracker.stats.engine.sailing.SailingStateListener
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
@@ -20,28 +16,23 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Real-time sailing/boating tracking component that detects sailing activity from GPS speed
- * (no barometer/vertical-rate signal — see [SailingDetectionConfig] kdoc for why), then
- * adaptively manages the GPS tier.
+ * (no barometer/vertical-rate signal — see [SailingDetectionConfig] kdoc for why).
  *
- * Runs as a [PostTrackerComponent] in every tier (including AMBIENT), mirroring
- * [SkiTrackingComponent]'s structure. When sailing is detected, locks the escalation engine to
- * [PolicyTier.PRECISION] for an accurate track; releases the lock once back to IDLE/WALK.
+ * Runs passively when the tracking pipeline already supplies location data. It never starts GPS,
+ * changes request fidelity, or changes collection cadence.
  *
  * Unlike ski detection, this does not query external infrastructure (no marina/harbor dataset)
- * and does not persist discrete run segments — it only drives GPS-tier adaptation and exposes
- * state for auto-tagging the session's activity as sailing.
+ * and does not persist discrete run segments. It exposes state for downstream classification.
  *
- * No required data: operates on whatever GPS speed and local activity-recognition context are
- * available. Without context, speed is reported only as boat-like motion and cannot trigger a
- * precision-tier lock.
+ * Location is required. Activity recognition and steps are optional corroborating inputs.
  */
-internal class SailingTrackingComponent : PostTrackerComponent, SailingStateListener {
-	override val requiredData: Collection<TrackerComponentRequirement> = emptyList()
+internal class SailingTrackingComponent : PostTrackerComponent {
+	override val requiredData: Collection<TrackerComponentRequirement> = listOf(
+		TrackerComponentRequirement.LOCATION,
+	)
 
 	private val config = SailingDetectionConfig()
 	private val detector = RealTimeSailingDetector(config)
-	private var escalationEngine: PolicyEscalationEngine? = null
-
 	private val _sailingState = MutableStateFlow<RealTimeSailingState?>(null)
 
 	/** Previous monotonic collection time for step-rate calculation. */
@@ -56,24 +47,13 @@ internal class SailingTrackingComponent : PostTrackerComponent, SailingStateList
 	 */
 	val sailingState: StateFlow<RealTimeSailingState?> = _sailingState.asStateFlow()
 
-	/**
-	 * Set the policy escalation engine for adaptive GPS management.
-	 * Must be called before [onEnable].
-	 */
-	fun setEscalationEngine(engine: PolicyEscalationEngine?) {
-		this.escalationEngine = engine
-	}
-
 	override suspend fun onEnable(context: Context) {
 		detector.reset()
-		detector.setListener(this)
 		lastCollectionElapsedTimeMs = 0L
 		lastSessionDistanceM = 0f
 	}
 
 	override suspend fun onDisable(context: Context) {
-		detector.setListener(null)
-		escalationEngine?.clearMinimumTier()
 		_sailingState.value = null
 		lastCollectionElapsedTimeMs = 0L
 		lastSessionDistanceM = 0f
@@ -121,24 +101,5 @@ internal class SailingTrackingComponent : PostTrackerComponent, SailingStateList
 			hasStrongVehicleOrBicycleSignature = hasStrongVehicleOrBicycleSignature,
 		)
 		_sailingState.value = state
-	}
-
-	/**
-	 * Called by [RealTimeSailingDetector] when the confirmed sailing state transitions.
-	 * Manages GPS tier based on the current phase.
-	 */
-	override fun onStateChanged(previousState: SailingState, newState: RealTimeSailingState) {
-		val engine = escalationEngine ?: return
-
-		when (newState.state) {
-			SailingState.SAILING -> {
-				engine.setMinimumTier(PolicyTier.PRECISION, "sailing detected")
-			}
-			SailingState.IDLE, SailingState.WALK -> {
-				if (newState.totalSailingDurationMs > 0L) {
-					engine.clearMinimumTier()
-				}
-			}
-		}
 	}
 }

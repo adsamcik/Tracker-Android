@@ -20,7 +20,6 @@ import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.mapper.toEntity
 import com.adsamcik.tracker.shared.base.mapper.toModel
-import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.shared.model.LocationSample
@@ -31,7 +30,6 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.first
 
 @HiltWorker
 internal class ActivityRecognitionWorker @AssistedInject constructor(
@@ -39,7 +37,6 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 	@Assisted workerParams: WorkerParameters,
 	private val database: AppDatabase,
 	private val skiInfrastructureManager: SkiInfrastructureManager,
-	private val trackingParamsRepository: TrackingParamsRepository,
 ) :
 	CoroutineWorker(
 		context,
@@ -93,20 +90,15 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 
 		val minStart = segments.minOf { it.startTimeMs }
 		val maxEnd = segments.maxOf { it.endTimeMs }
-		val skiDetectionEnabled = trackingParamsRepository.data.first().skiDetectionEnabled
 		val allLocationSamplesDeferred = async { loadLocationSamplesBetween(minStart, maxEnd) }
 		val allActivitySnapshotsDeferred = async { loadActivitySnapshotsBetween(minStart, maxEnd) }
-		val allPressureDeferred = if (skiDetectionEnabled) {
-			async { database.pressureSampleDao().getAllBetween(minStart, maxEnd) }
-		} else {
-			null
-		}
+		val allPressureDeferred = async { database.pressureSampleDao().getAllBetween(minStart, maxEnd) }
 
 		val allActivitySnapshots = allActivitySnapshotsDeferred.await()
 		val allLocations = allLocationSamplesDeferred.await().mapNotNull {
 			it.toActivityLocation(allActivitySnapshots)
 		}
-		val allPressure = allPressureDeferred?.await().orEmpty()
+		val allPressure = allPressureDeferred.await()
 
 		for (segment in segments) {
 			val segmentLocations = allLocations.filter {
@@ -115,7 +107,7 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 			val segmentPressure = allPressure.filter {
 				it.timeMs in segment.startTimeMs..segment.endTimeMs
 			}
-			processSession(segment, segmentLocations, segmentPressure, skiDetectionEnabled, database)
+			processSession(segment, segmentLocations, segmentPressure, database)
 		}
 	}
 
@@ -168,13 +160,12 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 		segment: SessionSegment,
 		locationCollection: List<ActivityLocation>,
 		pressureSamples: List<PressureSample>,
-		skiDetectionEnabled: Boolean,
 		database: AppDatabase
 	): Result = coroutineScope {
 		val recognizers = buildList {
 			add(OnFootActivityRecognizer())
 			add(VehicleActivityRecognizer())
-			if (skiDetectionEnabled) add(SkiActivityRecognizer())
+			if (pressureSamples.isNotEmpty()) add(SkiActivityRecognizer())
 		}
 
 		recognizers.filterIsInstance<SkiActivityRecognizer>().forEach {

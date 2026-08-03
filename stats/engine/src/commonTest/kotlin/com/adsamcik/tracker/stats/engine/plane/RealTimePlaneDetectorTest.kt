@@ -202,6 +202,24 @@ class RealTimePlaneDetectorTest {
 		}
 
 		@Test
+		fun `first resumed sample expires a stale pressure stream`() {
+			val fastConfig = PlaneDetectionConfig(
+				baroMedianWindow = 1,
+				verticalRateEmaAlpha = 1f,
+				minStateDurationMs = 1_000L,
+				minQualifiedClimbAltitudeGainM = 10f,
+				pressureFreshnessTimeoutMs = 3_000L,
+			)
+			detector = RealTimePlaneDetector(fastConfig)
+
+			feedAltitude(durationSeconds = 5, verticalRateMps = 5f, speedMps = 60f)
+			val resumedAt = t + fastConfig.pressureFreshnessTimeoutMs
+			val afterGap = detector.onSample(resumedAt, altitudeM, speedMps = 60f)
+
+			afterGap?.state shouldBe PlaneState.UNKNOWN
+		}
+
+		@Test
 		fun `tracks max speed while airborne`() {
 			feedAltitude(durationSeconds = 40, verticalRateMps = 10f, speedMps = 100f)
 			feedAltitude(durationSeconds = 30, verticalRateMps = 0f, speedMps = 200f)

@@ -7,12 +7,12 @@ import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
-import com.adsamcik.tracker.stats.engine.policy.DefaultPolicyEscalationEngine
 import com.adsamcik.tracker.tracker.component.consumer.data.ActivityTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.CellTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.LocationTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.data.WifiTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
+import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.controller.DefaultTrackerServiceController
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
@@ -22,6 +22,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -48,10 +49,12 @@ class TrackerComponentFactorySeparationTest {
 	private lateinit var database: AppDatabase
 	private lateinit var testDispatcherProvider: DispatchersProvider
 	private val testDispatcher = StandardTestDispatcher()
+	private val createdSets = mutableListOf<ComponentSet>()
 
 	@Before
 	fun setUp() {
 		Dispatchers.setMain(testDispatcher)
+		createdSets.clear()
 		context = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 		testDispatcherProvider = TestDispatchersProvider(testDispatcher)
@@ -59,6 +62,16 @@ class TrackerComponentFactorySeparationTest {
 
 	@After
 	fun tearDown() {
+		runBlocking {
+			createdSets.asReversed().forEach { set ->
+				set.planeTrackingComponent.onDisable(context)
+				set.sailingTrackingComponent.onDisable(context)
+				set.skiTrackingComponent.onDisable(context)
+				set.skiSegmentWriter.onDisable(context)
+				set.dataComponents.asReversed().forEach { it.onDisable(context) }
+				set.sessionComponent.onDisable(context)
+			}
+		}
 		database.close()
 		Dispatchers.resetMain()
 	}
@@ -81,10 +94,9 @@ class TrackerComponentFactorySeparationTest {
 			context = context,
 			isSessionUserInitiated = true,
 			notificationComponent = NotificationComponent(),
-			escalationEngine = DefaultPolicyEscalationEngine(),
 			controller = DefaultTrackerServiceController(),
 			scope = scope,
-		)
+		).also(createdSets::add)
 	}
 
 	@Test
@@ -96,7 +108,6 @@ class TrackerComponentFactorySeparationTest {
 				stepsEnabled = false,
 				wifiEnabled = false,
 				cellEnabled = false,
-				skiDetectionEnabled = false,
 			),
 			backgroundScope,
 		)
@@ -118,7 +129,6 @@ class TrackerComponentFactorySeparationTest {
 				stepsEnabled = false,
 				wifiEnabled = true,
 				cellEnabled = false,
-				skiDetectionEnabled = false,
 			),
 			backgroundScope,
 		)
@@ -140,7 +150,6 @@ class TrackerComponentFactorySeparationTest {
 				stepsEnabled = false,
 				wifiEnabled = false,
 				cellEnabled = true,
-				skiDetectionEnabled = false,
 			),
 			backgroundScope,
 		)
@@ -160,7 +169,6 @@ class TrackerComponentFactorySeparationTest {
 				stepsEnabled = false,
 				wifiEnabled = false,
 				cellEnabled = false,
-				skiDetectionEnabled = false,
 			),
 			backgroundScope,
 		)
@@ -180,7 +188,6 @@ class TrackerComponentFactorySeparationTest {
 				stepsEnabled = true,
 				wifiEnabled = true,
 				cellEnabled = true,
-				skiDetectionEnabled = false,
 			),
 			backgroundScope,
 		)
@@ -191,5 +198,23 @@ class TrackerComponentFactorySeparationTest {
 		set.dataComponents.any { it is CellTrackerComponent } shouldBe true
 		set.dataComponents.any { it is ActivityTrackerComponent } shouldBe true
 		set.dataComponents shouldHaveSize 4
+	}
+
+	@Test
+	fun `passive detectors are always constructed and self gate on required data`() = runTest(testDispatcher) {
+		val set = createComponentSet(
+			TrackingParamsState(
+				locationEnabled = false,
+				activityEnabled = false,
+				stepsEnabled = false,
+				barometerEnabled = false,
+			),
+			backgroundScope,
+		)
+		advanceUntilIdle()
+
+		set.skiTrackingComponent.requiredData shouldBe listOf(TrackerComponentRequirement.PRESSURE)
+		set.sailingTrackingComponent.requiredData shouldBe listOf(TrackerComponentRequirement.LOCATION)
+		set.planeTrackingComponent.requiredData shouldBe listOf(TrackerComponentRequirement.PRESSURE)
 	}
 }

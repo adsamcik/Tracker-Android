@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.data.LocationData
 import com.adsamcik.tracker.tracker.data.collection.CellScanData
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.collection.WifiScanData
+import com.adsamcik.tracker.tracker.component.producer.PressureReading
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
 import org.junit.jupiter.api.DisplayName
@@ -31,6 +32,7 @@ class TrackerComponentRequirementTest {
 		location = mockk<LocationData>(relaxed = true),
 		cellScan = mockk<CellScanData>(relaxed = true),
 		wifiScan = mockk<WifiScanData>(relaxed = true),
+		pressure = mockk<PressureReading>(relaxed = true),
 		stepDelta = 10,
 	)
 
@@ -39,8 +41,8 @@ class TrackerComponentRequirementTest {
 	inner class Completeness {
 
 		@Test
-		fun `has exactly 5 requirements`() {
-			TrackerComponentRequirement.entries.size shouldBe 5
+		fun `has exactly 6 requirements`() {
+			TrackerComponentRequirement.entries.size shouldBe 6
 		}
 
 		@Test
@@ -81,6 +83,13 @@ class TrackerComponentRequirementTest {
 			val withLoc = emptyCycle().copy(location = mockk(relaxed = true))
 			TrackerComponentRequirement.LOCATION.isRequirementFulfilled(withLoc) shouldBe true
 			TrackerComponentRequirement.LOCATION.isRequirementFulfilled(emptyCycle()) shouldBe false
+		}
+
+		@Test
+		fun `PRESSURE requires pressure`() {
+			val withPressure = emptyCycle().copy(pressure = mockk(relaxed = true))
+			TrackerComponentRequirement.PRESSURE.isRequirementFulfilled(withPressure) shouldBe true
+			TrackerComponentRequirement.PRESSURE.isRequirementFulfilled(emptyCycle()) shouldBe false
 		}
 
 		@Test

@@ -3,11 +3,7 @@ package com.adsamcik.tracker.tracker.component.consumer.post
 import android.content.Context
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.stats.api.PolicyEscalationEngine
-import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.engine.plane.PlaneDetectionConfig
-import com.adsamcik.tracker.stats.engine.plane.PlaneState
-import com.adsamcik.tracker.stats.engine.plane.PlaneStateListener
 import com.adsamcik.tracker.stats.engine.plane.RealTimePlaneDetector
 import com.adsamcik.tracker.stats.engine.plane.RealTimePlaneState
 import com.adsamcik.tracker.tracker.component.PostTrackerComponent
@@ -22,27 +18,21 @@ import kotlinx.coroutines.flow.asStateFlow
  * barometric (cabin-pressure) altitude — always available, unlike GPS at cruise altitude — with
  * GPS speed only as an optional corroborator (see [PlaneDetectionConfig] kdoc).
  *
- * Runs as a [PostTrackerComponent] in every tier (including AMBIENT), mirroring
- * [SkiTrackingComponent]'s structure. Manages the GPS tier based on the current flight phase:
- * - CLIMBING → ACTIVE (coarse GPS suffices; barometer already tracks the climb)
- * - DESCENDING → PRECISION (approach/landing track is worth the extra GPS detail)
- * - CRUISING → releases any lock (GPS is frequently unavailable at altitude; forcing a tier
- *   would just waste battery for no data)
- * - IDLE/WALK → releases lock once some airborne time has accumulated
+ * Runs passively when the tracking pipeline already supplies pressure data. It never starts GPS,
+ * changes request fidelity, or changes collection cadence.
  *
  * Unlike ski detection, this does not query external infrastructure (no airport/airspace
- * dataset) and does not persist discrete flight segments — it only drives GPS-tier adaptation
- * and exposes state for auto-tagging the session's activity as a flight.
+ * dataset) and does not persist discrete flight segments. It exposes state for downstream
+ * classification.
  *
- * No required data: operates on whatever barometer data is available. A sustained barometric gap
- * transitions the detector to UNKNOWN rather than fabricating a landing.
+ * Pressure is required. GPS speed and steps are optional corroborating inputs.
  */
-internal class PlaneTrackingComponent : PostTrackerComponent, PlaneStateListener {
-	override val requiredData: Collection<TrackerComponentRequirement> = emptyList()
+internal class PlaneTrackingComponent : PostTrackerComponent {
+	override val requiredData: Collection<TrackerComponentRequirement> = listOf(
+		TrackerComponentRequirement.PRESSURE,
+	)
 
 	private val detector = RealTimePlaneDetector(PlaneDetectionConfig())
-	private var escalationEngine: PolicyEscalationEngine? = null
-
 	private val _planeState = MutableStateFlow<RealTimePlaneState?>(null)
 
 	/** Previous collection timestamp for step rate calculation. */
@@ -54,23 +44,12 @@ internal class PlaneTrackingComponent : PostTrackerComponent, PlaneStateListener
 	 */
 	val planeState: StateFlow<RealTimePlaneState?> = _planeState.asStateFlow()
 
-	/**
-	 * Set the policy escalation engine for adaptive GPS management.
-	 * Must be called before [onEnable].
-	 */
-	fun setEscalationEngine(engine: PolicyEscalationEngine?) {
-		this.escalationEngine = engine
-	}
-
 	override suspend fun onEnable(context: Context) {
 		detector.reset()
-		detector.setListener(this)
 		lastCollectionTimeMs = 0L
 	}
 
 	override suspend fun onDisable(context: Context) {
-		detector.setListener(null)
-		escalationEngine?.clearMinimumTier()
 		_planeState.value = null
 		lastCollectionTimeMs = 0L
 	}
@@ -82,13 +61,7 @@ internal class PlaneTrackingComponent : PostTrackerComponent, PlaneStateListener
 		cycle: TrackingCycle,
 	) {
 		val timeMs = cycle.elapsedRealtimeNanos / 1_000_000L
-		val reading = cycle.pressure
-		if (reading == null) {
-			if (_planeState.value != null) {
-				_planeState.value = detector.onDataGap(timeMs)
-			}
-			return
-		}
+		val reading = cycle.pressure ?: return
 
 		val speedMps = collectionData.estimatedSpeedMps ?: 0f
 
@@ -110,34 +83,6 @@ internal class PlaneTrackingComponent : PostTrackerComponent, PlaneStateListener
 		)
 		if (state != null) {
 			_planeState.value = state
-		}
-	}
-
-	/**
-	 * Called by [RealTimePlaneDetector] when the confirmed flight state transitions.
-	 * Manages GPS tier based on the current flight phase.
-	 */
-	override fun onStateChanged(previousState: PlaneState, newState: RealTimePlaneState) {
-		val engine = escalationEngine ?: return
-
-		when (newState.state) {
-			PlaneState.CLIMBING -> {
-				engine.setMinimumTier(PolicyTier.ACTIVE, "plane climb detected")
-			}
-			PlaneState.DESCENDING -> {
-				engine.setMinimumTier(PolicyTier.PRECISION, "plane descent detected")
-			}
-			PlaneState.CRUISING -> {
-				// GPS is frequently unavailable at cruise altitude; forcing a minimum tier here
-				// would just burn battery with no data to show for it.
-				engine.clearMinimumTier()
-			}
-			PlaneState.IDLE, PlaneState.WALK -> {
-				if (newState.totalAirborneDurationMs > 0L) {
-					engine.clearMinimumTier()
-				}
-			}
-			PlaneState.UNKNOWN -> engine.clearMinimumTier()
 		}
 	}
 }

@@ -58,11 +58,12 @@ internal fun processedAltitudeDeltaIfContinuous(
  * On each transition, writes the *completed* previous segment as a
  * [SkiRunSegment] row.
  */
-internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
+internal class SkiSegmentWriter(
+	private val database: AppDatabase,
+) : PostTrackerComponent, SkiStateListener {
 	private val dispatchers = DefaultDispatchersProvider
 	override val requiredData: Collection<TrackerComponentRequirement> = emptyList()
 
-	private lateinit var database: AppDatabase
 	private var scope: CoroutineScope? = null
 	private var sessionId: Long = 0L
 
@@ -83,7 +84,6 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 	private var lastEventTimeMs: Long = 0L
 
 	override suspend fun onEnable(context: Context) {
-		database = AppDatabase.database(context)
 		scope = CoroutineScope(SupervisorJob() + dispatchers.default)
 		runIndex = 0
 		segmentStartTimeMs = 0L
@@ -113,6 +113,12 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 	) {
 		sessionId = session.id
 		lastEventTimeMs = cycle.timestampMs
+		updateSegmentAltitude(collectionData.processedAltitude)
+
+		// The writer is present for every session, but it has no work until the detector emits its
+		// first phase transition. Avoid duplicating location distance calculations for ordinary
+		// non-ski sessions.
+		if (segmentStartTimeMs <= 0L) return
 
 		// Accumulate metrics for the current segment
 		collectionData.location?.let { loc ->
@@ -132,7 +138,6 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 			lastLongitude = loc.longitude
 			hasLastLocation = true
 		}
-		updateSegmentAltitude(collectionData.processedAltitude)
 	}
 
 	override fun onStateChanged(previousState: SkiState, newState: RealTimeSkiState) {

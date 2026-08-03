@@ -316,7 +316,6 @@ internal class TrackingOrchestrator(
 			context = context,
 			isSessionUserInitiated = isSessionUserInitiated,
 			notificationComponent = notificationComponent,
-			escalationEngine = escalationEngine,
 			controller = controller,
 			scope = sessionScope,
 		)

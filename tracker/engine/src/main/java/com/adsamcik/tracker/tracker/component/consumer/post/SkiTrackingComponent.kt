@@ -5,8 +5,6 @@ import com.adsamcik.tracker.activity.ski.SkiInfrastructureManager
 import com.adsamcik.tracker.stats.api.ski.SkiLift
 import com.adsamcik.tracker.shared.base.data.CollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
-import com.adsamcik.tracker.stats.api.PolicyEscalationEngine
-import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.engine.ski.RealTimeSkiDetector
 import com.adsamcik.tracker.stats.engine.ski.RealTimeSkiState
 import com.adsamcik.tracker.stats.engine.ski.SkiDetectionConfig
@@ -25,20 +23,16 @@ import dagger.hilt.components.SingletonComponent
 
 /**
  * Real-time ski tracking component that detects skiing activity from
- * barometric pressure and GPS speed, then adaptively manages the GPS tier.
+ * barometric pressure and optional GPS speed.
  *
- * Runs as a [PostTrackerComponent] in every tier (including AMBIENT).
- * When skiing is detected, it locks the escalation engine to appropriate
- * tiers based on the current ski phase:
- * - DESCENDING → PRECISION (2-3s GPS for detailed track)
- * - ASCENDING → ACTIVE (coarse GPS for lift path)
- * - IDLE/WALK → releases lock (engine manages normally)
+ * Runs as a passive [PostTrackerComponent] whenever a cycle contains pressure data. Detection
+ * never changes sensor acquisition or GPS fidelity; optional location, speed, and steps only
+ * improve classification and segment metadata when the tracking pipeline already supplies them.
  *
  * On the first LIFT_UP detection, queries [SkiInfrastructureManager] for
  * nearby ski lifts. If found, lowers the confirmation threshold to 1 cycle.
  *
- * No required data: operates on whatever sensors are available.
- * If barometer data is missing, the component silently does nothing.
+ * Pressure is the only required input, enforced by [TrackerComponentRequirement].
  */
 @EntryPoint
 @InstallIn(SingletonComponent::class)
@@ -47,10 +41,11 @@ internal interface SkiTrackingComponentEntryPoint {
 }
 
 internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
-	override val requiredData: Collection<TrackerComponentRequirement> = emptyList()
+	override val requiredData: Collection<TrackerComponentRequirement> = listOf(
+		TrackerComponentRequirement.PRESSURE,
+	)
 
 	private val detector = RealTimeSkiDetector(SkiDetectionConfig())
-	private var escalationEngine: PolicyEscalationEngine? = null
 
 	private val _skiState = MutableStateFlow<RealTimeSkiState?>(null)
 
@@ -60,7 +55,10 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 	private val listenerLock = Any()
 	private var secondaryListeners: List<SkiStateListener> = emptyList()
 
-	/** Infrastructure manager for resort proximity check. */
+	/** Application context retained so infrastructure is loaded only after a lift is detected. */
+	private var applicationContext: Context? = null
+
+	/** Infrastructure manager for resort proximity check, created lazily on first use. */
 	private var infrastructureManager: SkiInfrastructureManager? = null
 
 	/** Whether proximity has already been checked this session. */
@@ -75,14 +73,6 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 	 * Emits on every collection cycle that has barometric data.
 	 */
 	val skiState: StateFlow<RealTimeSkiState?> = _skiState.asStateFlow()
-
-	/**
-	 * Set the policy escalation engine for adaptive GPS management.
-	 * Must be called before [onEnable].
-	 */
-	fun setEscalationEngine(engine: PolicyEscalationEngine?) {
-		this.escalationEngine = engine
-	}
 
 	/**
 	 * Set a secondary listener that receives the same state transitions.
@@ -105,26 +95,19 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 		detector.setListener(this)
 		lastCollectionElapsedTimeMs = null
 		proximityChecked = false
-		infrastructureManager = try {
-			val mgr = EntryPointAccessors.fromApplication(
-				context.applicationContext,
-				SkiTrackingComponentEntryPoint::class.java,
-			).skiInfrastructureManager()
-			if (mgr.isAvailable()) mgr else null
-		} catch (@Suppress("TooGenericExceptionCaught") _: Exception) {
-			null
-		}
+		applicationContext = context.applicationContext
+		infrastructureManager = null
 	}
 
 	override suspend fun onDisable(context: Context) {
 		runCatching { detector.finish() }.getOrNull()
 		detector.setListener(null)
-		escalationEngine?.clearMinimumTier()
 		_skiState.value = null
 		lastCollectionElapsedTimeMs = null
 		// M7 fix: close infrastructure manager to release resources
 		runCatching { (infrastructureManager as? java.io.Closeable)?.close() }.getOrNull()
 		infrastructureManager = null
+		applicationContext = null
 		proximityChecked = false
 		nearbyLifts = emptyList()
 	}
@@ -176,7 +159,6 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 
 	/**
 	 * Called by [RealTimeSkiDetector] when the confirmed ski state transitions.
-	 * Manages GPS tier based on the current ski phase.
 	 */
 	override fun onStateChanged(previousState: SkiState, newState: RealTimeSkiState) {
 		_skiState.value = newState
@@ -186,8 +168,6 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 			runCatching { listener.onStateChanged(previousState, newState) }
 		}
 
-		val engine = escalationEngine ?: return
-
 		// On first LIFT_UP, check proximity to known ski lifts
 		if (newState.state == SkiState.LIFT_UP && !proximityChecked) {
 			checkResortProximity()
@@ -196,20 +176,6 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 		// Match nearest lift type on each LIFT_UP entry
 		if (newState.state == SkiState.LIFT_UP && previousState != SkiState.LIFT_UP) {
 			matchNearestLiftType()
-		}
-
-		when (newState.state) {
-			SkiState.DOWNHILL_RUN -> {
-				engine.setMinimumTier(PolicyTier.PRECISION, "ski descent detected")
-			}
-			SkiState.LIFT_UP -> {
-				engine.setMinimumTier(PolicyTier.ACTIVE, "ski lift ascent")
-			}
-			SkiState.IDLE, SkiState.WALK -> {
-				if (newState.completedRunCount > 0) {
-					engine.clearMinimumTier()
-				}
-			}
 		}
 	}
 
@@ -222,14 +188,28 @@ internal class SkiTrackingComponent : PostTrackerComponent, SkiStateListener {
 	 * Caches results for lift type matching on subsequent LIFT_UP entries.
 	 */
 	private fun checkResortProximity() {
-		proximityChecked = true
-		val mgr = infrastructureManager ?: return
 		if (lastLat == 0.0 && lastLon == 0.0) return
+		proximityChecked = true
+		val mgr = infrastructureManager ?: loadInfrastructureManager() ?: return
 
 		val radiusDeg = PROXIMITY_RADIUS_M / METERS_PER_DEGREE
 		nearbyLifts = mgr.findLiftsNearby(lastLat, lastLon, radiusDeg)
 		if (nearbyLifts.isNotEmpty()) {
 			detector.setNearResort(true)
+		}
+	}
+
+	private fun loadInfrastructureManager(): SkiInfrastructureManager? {
+		val context = applicationContext ?: return null
+		return try {
+			EntryPointAccessors.fromApplication(
+				context,
+				SkiTrackingComponentEntryPoint::class.java,
+			).skiInfrastructureManager()
+				.takeIf { it.isAvailable() }
+				.also { infrastructureManager = it }
+		} catch (@Suppress("TooGenericExceptionCaught") _: Exception) {
+			null
 		}
 	}
 

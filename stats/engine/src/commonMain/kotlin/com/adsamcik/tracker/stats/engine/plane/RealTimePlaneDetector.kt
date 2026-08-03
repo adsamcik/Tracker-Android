@@ -198,7 +198,16 @@ class RealTimePlaneDetector(
 		stepRatePerMin: Float = 0f,
 	): RealTimePlaneState? = synchronized(lock) {
 		if (!speedMps.isFinite() || !stepRatePerMin.isFinite()) return null
-		val verticalRate = verticalRateCalc.onNewSample(timeMs, altitudeM) ?: return null
+		val stateAfterGap = if (
+			hasAcceptedSample &&
+			timeMs > lastBarometricSampleTimeMs &&
+			timeMs - lastBarometricSampleTimeMs >= config.pressureFreshnessTimeoutMs
+		) {
+			onDataGap(timeMs)
+		} else {
+			null
+		}
+		val verticalRate = verticalRateCalc.onNewSample(timeMs, altitudeM) ?: return stateAfterGap
 		lastVerticalRateMps = verticalRate
 		lastSampleTimeMs = timeMs
 		lastBarometricSampleTimeMs = timeMs

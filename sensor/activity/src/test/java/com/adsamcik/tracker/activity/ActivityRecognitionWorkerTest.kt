@@ -17,8 +17,6 @@ import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.Trip
-import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
-import com.adsamcik.tracker.testing.fake.FakeTrackingParamsRepository
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -47,7 +45,6 @@ class ActivityRecognitionWorkerTest {
 	private val activitySnapshotDao: ActivitySnapshotDao = mockk(relaxed = true)
 	private val pressureSampleDao: PressureSampleDao = mockk(relaxed = true)
 	private val segmentDao: SessionSegmentDao = mockk(relaxed = true)
-	private lateinit var trackingParamsRepository: FakeTrackingParamsRepository
 
 	@Before
 	fun setUp() {
@@ -62,9 +59,6 @@ class ActivityRecognitionWorkerTest {
 		coEvery { activitySnapshotDao.getLatestBefore(any()) } returns null
 		coEvery { activitySnapshotDao.getAllBetween(any(), any()) } returns emptyList()
 		coEvery { pressureSampleDao.getAllBetween(any(), any()) } returns emptyList()
-		trackingParamsRepository = FakeTrackingParamsRepository(
-			TrackingParamsState(skiDetectionEnabled = true),
-		)
 	}
 
 	@After
@@ -86,7 +80,6 @@ class ActivityRecognitionWorkerTest {
 			params,
 			database,
 			skiInfrastructureManager,
-			trackingParamsRepository,
 		)
 	}
 
@@ -102,7 +95,6 @@ class ActivityRecognitionWorkerTest {
 			params,
 			database,
 			skiInfrastructureManager,
-			trackingParamsRepository,
 		)
 	}
 
@@ -277,8 +269,7 @@ class ActivityRecognitionWorkerTest {
 		} }
 
 	@Test
-	fun `doWork skips pressure loading when ski detection is disabled`()  { runTest {
-			trackingParamsRepository.setSkiDetectionEnabled(false)
+	fun `doWork checks for pressure data without a detector preference`()  { runTest {
 			val trip = createTrip(id = 13L)
 			coEvery { tripDao.getById(13L) } returns trip
 			val samples = createLocationSamples(count = 20)
@@ -290,7 +281,7 @@ class ActivityRecognitionWorkerTest {
 			val result = worker.doWork()
 
 			result shouldBe ListenableWorker.Result.success()
-			coVerify(exactly = 0) { pressureSampleDao.getAllBetween(any(), any()) }
+			coVerify(exactly = 1) { pressureSampleDao.getAllBetween(any(), any()) }
 		} }
 
 	@Test
@@ -306,7 +297,6 @@ class ActivityRecognitionWorkerTest {
 				params,
 				database,
 				skiInfrastructureManager,
-				trackingParamsRepository,
 			)
 
 			val result = worker.doWork()

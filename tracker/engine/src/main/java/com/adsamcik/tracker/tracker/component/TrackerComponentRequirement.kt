@@ -10,6 +10,7 @@ internal enum class TrackerComponentRequirement {
 	WIFI,
 	CELL,
 	LOCATION,
+	PRESSURE,
 	STEP,
 	ACTIVITY;
 
@@ -17,6 +18,7 @@ internal enum class TrackerComponentRequirement {
 		WIFI -> cycle.wifiScan != null
 		CELL -> cycle.cellScan != null
 		LOCATION -> cycle.location != null
+		PRESSURE -> cycle.pressure != null
 		STEP -> cycle.stepDelta != null
 		ACTIVITY -> cycle.activity != null
 	}
