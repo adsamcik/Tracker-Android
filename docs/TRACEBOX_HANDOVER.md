@@ -1,13 +1,13 @@
 # Tracebox / Tracker v10 handover
 
 Date: 2026-08-03
-Scope: `Tracebox 0.1.0-alpha.2`, host tests, and one x86_64 emulator
+Scope: `Tracebox 0.1.0-alpha.3`, host tests, and one x86_64 emulator
 
 ## Branches
 
 - Tracker: `dev/v10`
 - Tracebox: `codex/personal-project-scope`
-- Tracebox release tag: `v0.1.0-alpha.2`
+- Tracebox release tag: `v0.1.0-alpha.3`
 
 ## Final integration
 
@@ -15,7 +15,7 @@ Tracker is hard-migrated to Tracebox with no product flavor or compatibility
 bridge:
 
 - `tracebox`, `tracebox-native`, and `tracebox-ui-compose` are unconditional
-  normal-app dependencies pinned to `0.1.0-alpha.2`;
+  normal-app dependencies pinned to `0.1.0-alpha.3`;
 - native code remains an explicit optional dependency for other Tracebox hosts;
 - Tracebox installs before Hilt startup and its handler process skips Tracker
   application initialization;
@@ -25,8 +25,12 @@ bridge:
 - verbose/debug/info/warn/error levels, Logcat mirroring, performance timings,
   thresholds, and capture kinds are runtime-controlled by one persisted policy;
 - tracking-cycle and OSM reindex performance boundaries use Tracebox timings;
-- the library-owned Compose diagnostics screen supplies controls, status,
-  review, package save/share, and deletion; and
+- the library-owned Compose diagnostics screen leads with a casual reviewed
+  share-to-developer action and keeps runtime/capture controls collapsed under
+  advanced options;
+- Tracker explicitly configures the available share/save/delete actions and
+  reset policy in code; direct upload stays disabled until Tracker supplies a
+  real authenticated backend through `TraceboxDiagnosticUploader`; and
 - the old Tracker diagnostics controller, ViewModel, screen, fixed catalog, and
   their tests/resources are deleted.
 

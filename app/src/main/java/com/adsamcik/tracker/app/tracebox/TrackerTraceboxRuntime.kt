@@ -22,6 +22,8 @@ import javax.inject.Singleton
 internal object TrackerTraceboxRuntime {
     private val lock = Any()
 
+    val defaultPolicy: TraceboxPolicy = TraceboxPolicy.standard()
+
     @Volatile
     private var installed: TraceboxHandle? = null
 
@@ -29,7 +31,7 @@ internal object TrackerTraceboxRuntime {
         installed ?: Tracebox.install(
             context,
             TraceboxConfiguration.Builder()
-                .setInitialPolicy(TraceboxPolicy.standard())
+                .setInitialPolicy(defaultPolicy)
                 .setNativeCaptureEnabled(true)
                 .setPersistRequestedProfile(true)
                 .build(),

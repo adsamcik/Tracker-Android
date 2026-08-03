@@ -36,6 +36,7 @@ import com.adsamcik.tracker.app.settings.game.GameSettingsScreen
 import com.adsamcik.tracker.app.settings.map.MapSettingsScreen
 import com.adsamcik.tracker.app.settings.root.RootSettingsScreen
 import com.adsamcik.tracker.app.settings.tracking.TrackingSettingsScreen
+import com.adsamcik.tracker.app.tracebox.TrackerTraceboxUi
 import com.adsamcik.tracker.shared.utils.style.compose.ridgelineSettle
 import dev.tracebox.Tracebox
 import dev.tracebox.ui.compose.TraceboxDiagnosticsScreen
@@ -117,6 +118,7 @@ fun SettingsRoute(
                         handle = checkNotNull(Tracebox.current()) {
                             "Tracebox must be installed before opening diagnostics settings"
                         },
+                        configuration = TrackerTraceboxUi.configuration,
                     )
                     SettingsScreen.Statistics -> {
                         // Statistics sub-screen removed — navigate back to root as defensive fallback.
