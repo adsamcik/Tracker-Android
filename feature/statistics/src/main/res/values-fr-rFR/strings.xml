@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="module_statistics_title">Statistiques</string>
     <string name="stats_cell_count">Nombre de cellules</string>

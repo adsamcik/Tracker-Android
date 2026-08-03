@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="activity_walking">Marche</string>
     <string name="activity_running">Course à pied</string>
@@ -9,7 +9,7 @@
     <string name="activity_air_vehicle">Véhicule aérien</string>
     <string name="activity_in_vehicle">En véhicule</string>
     <string name="activity_on_foot">À pied</string>
-    <string name="activity_name">Nom de l'activité</string>
+    <string name="activity_name">Nom de l\'activité</string>
     <string name="activity_raw_still">Immobile</string>
     <string name="activity_raw_tilting">Inclinaison</string>
     <string name="activity_still">Immobile</string>
@@ -23,16 +23,16 @@
     <string name="cell_nr">5G (NR)</string>
     <string name="cell_unknown">Inconnu</string>
     <string name="cell_wcdma">3G (WCDMA)</string>
-    <string name="channel_activity_watcher_description">Canal utilisé exclusivement par le service de surveillance de l'activité afin de vous permettre de supprimer facilement cette notification persistante.</string>
-    <string name="channel_activity_watcher_name">Surveillance de l'activité</string>
+    <string name="channel_activity_watcher_description">Canal utilisé exclusivement par le service de surveillance de l\'activité afin de vous permettre de supprimer facilement cette notification persistante.</string>
+    <string name="channel_activity_watcher_name">Surveillance de l\'activité</string>
     <string name="channel_achievements_description">Notifications liées aux succès.</string>
     <string name="channel_achievements_name">Succès</string>
-    <string name="channel_other_description">Autres notifications n'appartenant à aucune autre catégorie.</string>
+    <string name="channel_other_description">Autres notifications n\'appartenant à aucune autre catégorie.</string>
     <string name="channel_other_name">Autres</string>
     <string name="channel_track_description">Notifications liées au suivi.</string>
     <string name="channel_track_name">Suivi</string>
     <string name="channel_goals_description">Alertes de réalisation des objectifs.</string>
-    <string name="channel_goals_name">Progression de l'objectif</string>
+    <string name="channel_goals_name">Progression de l\'objectif</string>
     <string name="day_short">%d j</string>
     <string name="generic_add">Ajouter</string>
     <string name="generic_back">Retour</string>

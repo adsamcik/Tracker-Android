@@ -102,7 +102,7 @@
     <string name="minigame_outrun_escaped">您成功逃脫！</string>
     <string name="minigame_outrun_escape_goal">逃脫目標</string>
     <string name="minigame_outrun_goal_value">%1$d / %2$d 公尺</string>
-    <string name="minigame_outrun_goal_description">逃脫目標已完成 %1$d%。</string>
+    <string name="minigame_outrun_goal_description">逃脫目標已完成 %1$d%%。</string>
     <string name="minigame_outrun_description_waiting">「超越幽靈」已準備就緒。移動超過兩公尺以開始追逐。</string>
     <string name="minigame_outrun_description_warning">危險。幽靈僅在您身後 %1$d 公尺。本次最佳領先 %2$d 公尺。</string>
     <string name="minigame_outrun_description_caught">被追上。幽靈以 %1$d 公尺超越您。本次最佳領先 %2$d 公尺。</string>
@@ -122,7 +122,7 @@
     <string name="minigame_zen_calibration_title">找出自然節奏</string>
     <string name="minigame_zen_calibration_hint">自然步行，讓步速慢慢穩定下來</string>
     <string name="minigame_zen_calibration_settled">已穩定 %1$d%%</string>
-    <string name="minigame_zen_calibration_description">步速校準。已穩定 %1$d%。保持自然步行。</string>
+    <string name="minigame_zen_calibration_description">步速校準。已穩定 %1$d%%。保持自然步行。</string>
     <string name="minigame_zen_flow_waiting">正在尋找您的節奏</string>
     <string name="minigame_zen_flow_settled">已穩定進入您的節奏</string>
     <string name="minigame_zen_flow_slower">正慢慢變慢</string>

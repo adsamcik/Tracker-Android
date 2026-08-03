@@ -343,7 +343,7 @@
     <string name="setup_perm_activity_why">Lader Tracker registrere, hvad du foretager dig (går, cykler, kører eller står stille), så automatisk sporing kan sættes på pause, når du ikke bevæger dig, og spare batteri. Aktivitetsdata bliver på denne enhed — intet sendes til en server.</string>
     <string name="setup_perm_notification_why">Tracker viser en lille statusnotifikation, mens den registrerer, så du hurtigt kan se, at sporingen er slået til, og stoppe den med ét tryk. Ingen markedsførings- eller reklamemeddelelser.</string>
     <string name="setup_perm_wifi_why">Tracker kan registrere Wi-Fi-adgangspunkter, som din telefon ser under en tur, for at forbedre placeringsnøjagtigheden steder, hvor GPS er svag (indendørs eller under jorden). Radiodata bliver på denne enhed — intet sendes til en server. Giv kun adgang, hvis du ønsker det.</string>
-    <string name="setup_perm_cell_why">Tracker kan registrere mobilmaster-ID'er langs din rute, så placeringen kan udledes, når GPS ikke er tilgængelig. Radiodata bliver på denne enhed — intet sendes til en server. Giv kun adgang til telefontilstand og præcis placering, hvis du ønsker det.</string>
+    <string name="setup_perm_cell_why">Tracker kan registrere mobilmaster-ID\'er langs din rute, så placeringen kan udledes, når GPS ikke er tilgængelig. Radiodata bliver på denne enhed — intet sendes til en server. Giv kun adgang til telefontilstand og præcis placering, hvis du ønsker det.</string>
     <string name="setup_perm_grant">Giv adgang</string>
     <string name="setup_perm_grant_location_content_description">Giv placeringstilladelse</string>
     <string name="setup_perm_grant_background_location_content_description">Giv tilladelse til placering i baggrunden</string>
@@ -360,7 +360,7 @@
     <string name="settings_barometer_unavailable">Tryksensor er ikke tilgængelig på denne enhed.</string>
     <string name="settings_activity_permission_required">Kræver tilladelse til aktivitetsgenkendelse. Slå til for at give adgang.</string>
     <string name="settings_steps_unavailable">Skridttællersensor er ikke tilgængelig på denne enhed.</string>
-    <string name="settings_cell_privacy_summary">Registrerer mobilmaster-ID'er for at forbedre placeringsnøjagtigheden. Data bliver på denne enhed.</string>
+    <string name="settings_cell_privacy_summary">Registrerer mobilmaster-ID\'er for at forbedre placeringsnøjagtigheden. Data bliver på denne enhed.</string>
     <string name="setup_start_exploring">Begynd at udforske</string>
     <string name="setup_continue">Fortsæt</string>
     <string name="setup_step_indicator">Trin %1$d af %2$d</string>

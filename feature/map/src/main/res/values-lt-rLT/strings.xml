@@ -151,7 +151,7 @@
     <string name="tips_map_my_location_title">Mano vieta</string>
     <string name="tips_map_sheet_description">Palietus arba patraukus šią juostą aukštyn, bus atidaryta daugiau žemėlapio parinkčių, įskaitant sluoksnių pasirinkimą ir legendą.</string>
     <string name="map_search_placeholder">Plt., ilg. pvz. 50.075, 14.437</string>
-    <string name="map_search_invalid_format">Bandykite 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51'24"N 2°21'08"E</string>
+    <string name="map_search_invalid_format">Bandykite 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51\'24"N 2°21\'08"E</string>
     <string name="map_search_clear">Išvalyti paiešką</string>
     <string name="map_search_paste">Įklijuoti iš mainų srities į paiešką</string>
     <string name="map_search_clipboard_empty">Mainų srityje dar nėra koordinačių</string>

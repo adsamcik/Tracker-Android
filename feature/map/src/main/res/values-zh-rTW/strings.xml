@@ -151,7 +151,7 @@
     <string name="tips_map_my_location_title">我的位置</string>
     <string name="tips_map_sheet_description">輕觸或向上拉動此列可開啟更多地圖選項，包括圖層選擇與圖例。</string>
     <string name="map_search_placeholder">緯度、經度，例如 50.075, 14.437</string>
-    <string name="map_search_invalid_format">請嘗試 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51'24"N 2°21'08"E</string>
+    <string name="map_search_invalid_format">請嘗試 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51\'24"N 2°21\'08"E</string>
     <string name="map_search_clear">清除搜尋</string>
     <string name="map_search_paste">將剪貼簿內容貼到搜尋欄</string>
     <string name="map_search_clipboard_empty">剪貼簿尚未包含座標</string>

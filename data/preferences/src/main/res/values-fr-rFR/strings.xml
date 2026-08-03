@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="passus">%s allure</string>
     <string name="per_hour_abbr">%s/h</string>
@@ -14,6 +14,6 @@
     <string name="nautical_mile_abbr">%s nmi</string>
     <string name="knot_abbr">%s kn</string>
     <string name="flight_level_abbr">FL%s</string>
-    <string name="settings_statistics_auto_unit_switch_title">Changement automatique d'unité</string>
-    <string name="settings_statistics_auto_unit_switch_summary">Passe automatiquement aux unités maritimes ou aéronautiques lors de l'affichage de sessions avec ces activités</string>
+    <string name="settings_statistics_auto_unit_switch_title">Changement automatique d\'unité</string>
+    <string name="settings_statistics_auto_unit_switch_summary">Passe automatiquement aux unités maritimes ou aéronautiques lors de l\'affichage de sessions avec ces activités</string>
 </resources>

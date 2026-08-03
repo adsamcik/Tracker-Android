@@ -151,7 +151,7 @@
     <string name="tips_map_my_location_title">Moja lokacija</string>
     <string name="tips_map_sheet_description">Dodirom ili povlačenjem ove trake prema gore otvorit ćete dodatne mogućnosti karte, uključujući odabir sloja i legendu.</string>
     <string name="map_search_placeholder">Šir., duž. npr. 50.075, 14.437</string>
-    <string name="map_search_invalid_format">Pokušajte 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51'24"N 2°21'08"E</string>
+    <string name="map_search_invalid_format">Pokušajte 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51\'24"N 2°21\'08"E</string>
     <string name="map_search_clear">Očisti pretraživanje</string>
     <string name="map_search_paste">Zalijepi iz međuspremnika u pretraživanje</string>
     <string name="map_search_clipboard_empty">Međuspremnik još ne sadrži koordinate</string>
