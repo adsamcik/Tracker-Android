@@ -35,9 +35,10 @@ import com.adsamcik.tracker.app.settings.debug.DebugSettingsScreen
 import com.adsamcik.tracker.app.settings.game.GameSettingsScreen
 import com.adsamcik.tracker.app.settings.map.MapSettingsScreen
 import com.adsamcik.tracker.app.settings.root.RootSettingsScreen
-import com.adsamcik.tracker.app.settings.tracebox.TraceboxDiagnosticsScreen
 import com.adsamcik.tracker.app.settings.tracking.TrackingSettingsScreen
 import com.adsamcik.tracker.shared.utils.style.compose.ridgelineSettle
+import dev.tracebox.Tracebox
+import dev.tracebox.ui.compose.TraceboxDiagnosticsScreen
 
 // Contract: Entry route for settings; manages hierarchical navigation & hosts category screens.
 // Thin navigation shell — screen implementations live in per-screen packages.
@@ -112,7 +113,11 @@ fun SettingsRoute(
                     SettingsScreen.Export -> DataSettingsScreen() // Export merged into Data
                     SettingsScreen.Map -> MapSettingsScreen()
                     SettingsScreen.Game -> GameSettingsScreen()
-                    SettingsScreen.Diagnostics -> TraceboxDiagnosticsScreen()
+                    SettingsScreen.Diagnostics -> TraceboxDiagnosticsScreen(
+                        handle = checkNotNull(Tracebox.current()) {
+                            "Tracebox must be installed before opening diagnostics settings"
+                        },
+                    )
                     SettingsScreen.Statistics -> {
                         // Statistics sub-screen removed — navigate back to root as defensive fallback.
                         LaunchedEffect(Unit) { currentScreen = SettingsScreen.Root }

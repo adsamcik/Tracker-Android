@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.osm.reindex
 
-import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
-import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
+import dev.tracebox.Tracebox
 import com.adsamcik.tracker.osm.io.OsmCellCoverage
 import com.adsamcik.tracker.osm.io.OsmGridIndex
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
@@ -64,7 +63,7 @@ class OsmWayCellReindexer @Inject constructor(
 	 */
 	suspend fun reindexIfNeeded(): Int = withContext(dispatchers.io) {
 		if (!needsReindex()) return@withContext 0
-		reindex()
+		Tracebox.log.performanceSuspend("Reindex OSM way cells") { reindex() }
 	}
 
 	/**
@@ -107,7 +106,7 @@ class OsmWayCellReindexer @Inject constructor(
 			} catch (cancellation: kotlinx.coroutines.CancellationException) {
 				throw cancellation
 			} catch (t: Throwable) {
-				TrackerDiagnostics.record(TrackerDiagnosticCode.OSM_IMPORT_FAILED)
+				Tracebox.log.error(t, "OSM import failed")
 				throw t
 			}
 		}

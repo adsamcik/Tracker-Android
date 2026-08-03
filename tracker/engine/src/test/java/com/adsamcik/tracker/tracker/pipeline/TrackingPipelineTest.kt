@@ -1,24 +1,15 @@
 package com.adsamcik.tracker.tracker.pipeline
 
 import android.content.Context
-import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
-import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 
 class TrackingPipelineTest {
 	private val context: Context = mockk(relaxed = true)
-	private val diagnostics = mutableListOf<TrackerDiagnosticCode>()
-
-	@AfterEach
-	fun clearDiagnostics() {
-		TrackerDiagnostics.clear()
-	}
 
 	private fun cycleContext(): CycleContext = CycleContext(
 		cycle = TestCycleFactory.minimal(),
@@ -71,8 +62,7 @@ class TrackingPipelineTest {
 	}
 
 	@Test
-	fun `ordinary stage failure records Tracebox event and continues`() = runTest {
-		TrackerDiagnostics.install { diagnostics += it }
+	fun `ordinary stage failure continues with the next stage`() = runTest {
 		val calls = mutableListOf<String>()
 		val pipeline = TrackingPipeline(
 			listOf(
@@ -84,7 +74,6 @@ class TrackingPipelineTest {
 		pipeline.execute(context, cycleContext())
 
 		calls shouldBe listOf("failed", "after")
-		diagnostics shouldBe listOf(TrackerDiagnosticCode.TRACKING_PIPELINE_STAGE_FAILED)
 	}
 
 	@Test

@@ -1,8 +1,6 @@
 package com.adsamcik.tracker.tracker.service
 
 import android.location.Location
-import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
-import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.shared.base.data.LocationData
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import io.kotest.matchers.collections.shouldContainExactly
@@ -64,12 +62,10 @@ class TrackingCycleDispatcherTest {
 	}
 
 	@Test
-	fun `reports processing failures without terminating the worker`() = runTest {
+	fun `processing failures do not terminate the worker`() = runTest {
 		val dispatcher = StandardTestDispatcher(testScheduler)
 		val expectedFailure = IllegalStateException("cycle failed")
-		val diagnostics = mutableListOf<TrackerDiagnosticCode>()
 		val processedTimes = mutableListOf<Long>()
-		TrackerDiagnostics.install(diagnostics::add)
 		val subject = TrackingCycleDispatcher(
 			scope = this,
 			dispatcher = dispatcher,
@@ -85,11 +81,9 @@ class TrackingCycleDispatcherTest {
 			subject.enqueue(cycleWithFixes(2L))
 			advanceUntilIdle()
 
-			diagnostics shouldContainExactly listOf(TrackerDiagnosticCode.TRACKING_CYCLE_FAILED)
 			processedTimes shouldContainExactly listOf(2L)
 		} finally {
 			subject.cancel()
-			TrackerDiagnostics.clear()
 		}
 	}
 

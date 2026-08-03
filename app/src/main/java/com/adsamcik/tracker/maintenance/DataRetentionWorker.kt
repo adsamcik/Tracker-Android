@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.maintenance
 
+import dev.tracebox.Tracebox
 import android.content.Context
 import androidx.hilt.work.HiltWorker
 import androidx.annotation.WorkerThread
@@ -9,8 +10,6 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
-import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
-import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
@@ -78,8 +77,8 @@ class DataRetentionWorker @AssistedInject constructor(
 			}
         } catch (e: CancellationException) {
             throw e
-        } catch (_: Exception) {
-            TrackerDiagnostics.record(TrackerDiagnosticCode.RETENTION_FAILED)
+        } catch (error: Exception) {
+            Tracebox.log.error(error, "Data retention failed")
             Result.retry()
         }
     }

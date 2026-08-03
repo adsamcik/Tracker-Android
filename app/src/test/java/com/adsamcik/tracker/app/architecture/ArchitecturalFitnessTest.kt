@@ -45,9 +45,12 @@ class ArchitecturalFitnessTest {
 		fun `app has one unconditional Tracebox dependency path`() {
 			val buildText = projectRoot.resolve("app/build.gradle.kts").readText()
 			buildList {
-				if ("implementation(libs.tracebox)" !in buildText) {
-					add("app/build.gradle.kts -> missing implementation(libs.tracebox)")
-				}
+				listOf(
+					"implementation(libs.tracebox)",
+					"implementation(libs.tracebox.native)",
+					"implementation(libs.tracebox.ui.compose)",
+				).filterNot(buildText::contains)
+					.mapTo(this) { "app/build.gradle.kts -> missing $it" }
 				listOf(
 					"traceboxTrial",
 					"TRACEBOX_TRIAL_AVAILABLE",
@@ -113,7 +116,7 @@ class ArchitecturalFitnessTest {
 			val strings = projectRoot.resolve("app/src/main/res/values/strings.xml").readText()
 
 			buildList {
-				if ("SettingsScreen.Diagnostics -> TraceboxDiagnosticsScreen()" !in settingsRoute) {
+				if ("SettingsScreen.Diagnostics -> TraceboxDiagnosticsScreen(" !in settingsRoute) {
 					add("Settings diagnostics route must open TraceboxDiagnosticsScreen")
 				}
 				if ("onNavigate(SettingsScreen.Diagnostics)" !in rootSettings) {
@@ -140,6 +143,10 @@ class ArchitecturalFitnessTest {
 				listOf(
 					"CrashManagerActivity",
 					"pre-Tracebox",
+					"TrackerDiagnostics",
+					"TrackerDiagnosticCode",
+					"TraceboxDiagnosticsController",
+					"TraceboxDiagnosticsViewModel",
 					"settings_debug_crash_manager",
 					"settings_debug_log_viewer",
 				).filterTo(this) { marker -> marker in manifest || marker in strings }
@@ -348,20 +355,19 @@ class ArchitecturalFitnessTest {
 		}
 
 		@Test
-		fun `diagnostics contracts are Android and Room free`() {
-			val diagnosticsDir = projectRoot.resolve("core/diagnostics/src/main")
-			check(diagnosticsDir.isDirectory) {
-				"Expected :core:diagnostics production sources at ${diagnosticsDir.absolutePath}"
+		fun `diagnostics boundary reexports Tracebox without a Tracker facade`() {
+			val buildText = projectRoot.resolve("core/diagnostics/build.gradle.kts").readText()
+			if ("api(libs.tracebox)" !in buildText) {
+				error(":core:diagnostics must expose Tracebox directly")
 			}
-
-			val violations = findImportsMatching(
-				sourceDir = diagnosticsDir,
-				pattern = Regex(
-					"""^import\s+(?:android\.|androidx\.room\.|com\.adsamcik\.tracker\.logger\.)"""
-				),
-				excludeDirs = STANDARD_EXCLUDES,
-			)
-			violations.shouldBeEmpty()
+			val diagnosticsDir = projectRoot.resolve("core/diagnostics/src/main")
+			if (diagnosticsDir.exists()) {
+				findPatternMatching(
+					sourceDir = diagnosticsDir,
+					pattern = Regex("TrackerDiagnostics|TrackerDiagnosticCode|TrackerLog"),
+					excludeDirs = STANDARD_EXCLUDES,
+				).shouldBeEmpty()
+			}
 		}
 
 		@Test

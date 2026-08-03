@@ -1,8 +1,7 @@
 package com.adsamcik.tracker.tracker.pipeline.stages
 
+import dev.tracebox.Tracebox
 import android.content.Context
-import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
-import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.PlaneTrackingComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.SailingTrackingComponent
@@ -31,8 +30,8 @@ internal class PostProcessingStage(
 				block()
 			} catch (error: CancellationException) {
 				throw error
-			} catch (_: Exception) {
-				TrackerDiagnostics.record(TrackerDiagnosticCode.TRACKING_PIPELINE_STAGE_FAILED)
+			} catch (error: Exception) {
+				Tracebox.log.error(error, "Tracking pipeline stage failed")
 			}
 		}
 

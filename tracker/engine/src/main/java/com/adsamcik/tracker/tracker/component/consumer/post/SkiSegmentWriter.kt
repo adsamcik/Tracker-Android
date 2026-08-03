@@ -1,8 +1,7 @@
 package com.adsamcik.tracker.tracker.component.consumer.post
 
+import dev.tracebox.Tracebox
 import android.content.Context
-import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
-import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.data.CollectionData
@@ -171,8 +170,8 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 				database.skiRunSegmentDao().insert(segment.toEntity())
 			} catch (error: CancellationException) {
 				throw error
-			} catch (_: Exception) {
-				TrackerDiagnostics.record(TrackerDiagnosticCode.PERSISTENCE_WRITE_FAILED)
+			} catch (error: Exception) {
+				Tracebox.log.error(error, "Tracking persistence write failed")
 			}
 		}
 	}
@@ -185,8 +184,8 @@ internal class SkiSegmentWriter : PostTrackerComponent, SkiStateListener {
 				database.skiRunSegmentDao().insert(segment.toEntity())
 			} catch (error: CancellationException) {
 				throw error
-			} catch (_: Exception) {
-				TrackerDiagnostics.record(TrackerDiagnosticCode.PERSISTENCE_WRITE_FAILED)
+			} catch (error: Exception) {
+				Tracebox.log.error(error, "Tracking persistence write failed")
 			}
 		}
 	}

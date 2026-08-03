@@ -228,6 +228,8 @@ dependencies {
 
     // Tracebox is Tracker's sole production crash and diagnostic recorder.
     implementation(libs.tracebox)
+    implementation(libs.tracebox.native)
+    implementation(libs.tracebox.ui.compose)
 
     // Compose
     androidTestImplementation(platform(libs.compose.bom))

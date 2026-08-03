@@ -3,7 +3,7 @@
 kotlin = "2.4.10"
 ksp = "2.3.10"
 agp = "9.3.1"
-tracebox = "0.1.0-personal.2c968863"
+tracebox = "0.1.0-alpha.2"
 
 # Tools
 benmanes = "0.57.0"
@@ -110,6 +110,8 @@ protobuf-gradlePlugin = { group = "com.google.protobuf", name = "protobuf-gradle
 # Arrow
 arrow-core = { group = "io.arrow-kt", name = "arrow-core", version.ref = "arrow" }
 tracebox = { group = "io.github.tracebox", name = "tracebox", version.ref = "tracebox" }
+tracebox-native = { group = "io.github.tracebox", name = "tracebox-native", version.ref = "tracebox" }
+tracebox-ui-compose = { group = "io.github.tracebox", name = "tracebox-ui-compose", version.ref = "tracebox" }
 
 # Test libraries - JUnit 5 (for unit tests)
 junit5-bom = { group = "org.junit", name = "junit-bom", version.ref = "junit5" }

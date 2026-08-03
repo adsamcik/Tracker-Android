@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.app.activity
 
+import dev.tracebox.Tracebox
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -33,8 +34,6 @@ import com.adsamcik.tracker.feature.game.api.navigation.Game
 import com.adsamcik.tracker.feature.map.api.navigation.Map
 import com.adsamcik.tracker.app.ui.navigation.Setup
 import com.adsamcik.tracker.feature.statistics.api.navigation.Stats
-import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
-import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
@@ -289,7 +288,7 @@ class MainActivityViewModel @Inject constructor(
             try {
                 StartupDestination.valueOf(name)
             } catch (_: IllegalArgumentException) {
-                TrackerDiagnostics.record(TrackerDiagnosticCode.NAVIGATION_DESTINATION_REJECTED)
+                Tracebox.log.warn("Navigation destination was rejected")
                 StartupDestination.Pending
             }
         } ?: StartupDestination.Pending

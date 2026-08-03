@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.app
 
+import dev.tracebox.Tracebox
 import android.annotation.SuppressLint
 import android.app.ActivityManager
 import android.content.Context
@@ -18,8 +19,6 @@ import com.adsamcik.tracker.app.tracebox.TrackerTraceboxRuntime
 import com.adsamcik.tracker.app.tracebox.currentTrackerProcessName
 import com.adsamcik.tracker.app.tracebox.isTraceboxHandlerProcessName
 import com.adsamcik.tracker.app.tracebox.isTrackerMainProcessName
-import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
-import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker
 import com.adsamcik.tracker.notification.GoalNotificationWorker
 import com.adsamcik.tracker.notification.NotificationChannels
@@ -201,7 +200,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 			schedulingFailed = true
 		}
 		if (schedulingFailed) {
-			TrackerDiagnostics.record(TrackerDiagnosticCode.RETENTION_FAILED)
+			Tracebox.log.error("Data retention failed")
 		}
 	}
 
@@ -221,10 +220,10 @@ class Application : AndroidApplication(), Configuration.Provider {
 				collectedDataDeletionService.reconcilePendingDeletion()
 			} catch (error: CancellationException) {
 				throw error
-			} catch (_: Exception) {
+			} catch (error: Exception) {
 				// Reconciliation is retryable while its marker remains. File-system, SQLite,
 				// Tracebox, and directory-fsync failures must not cancel the rest of startup.
-				TrackerDiagnostics.record(TrackerDiagnosticCode.RETENTION_FAILED)
+				Tracebox.log.error(error, "Data retention failed")
 			}
 			try {
 				if (trackingStartupGuard.wasForceStopped(this@Application)) {
@@ -235,8 +234,8 @@ class Application : AndroidApplication(), Configuration.Provider {
 				if (!isRobolectricUnitTest()) {
 					initializeModules()
 				}
-			} catch (_: Throwable) {
-				TrackerDiagnostics.record(TrackerDiagnosticCode.APP_INITIALIZATION_FAILED)
+			} catch (error: Throwable) {
+				Tracebox.log.error(error, "Application initialization failed")
 			} finally {
 				isStartupReady = true
 			}
@@ -283,8 +282,8 @@ class Application : AndroidApplication(), Configuration.Provider {
 				}
 				initializeClasses()
 				initializeFeatures()
-			} catch (_: Throwable) {
-				TrackerDiagnostics.record(TrackerDiagnosticCode.APP_INITIALIZATION_FAILED)
+			} catch (error: Throwable) {
+				Tracebox.log.error(error, "Application initialization failed")
 			}
 		}
 	}
@@ -295,8 +294,8 @@ class Application : AndroidApplication(), Configuration.Provider {
 		appScope.launch(dispatchers.io) {
 			try {
 				initializeDatabaseMaintenance()
-			} catch (_: Throwable) {
-				TrackerDiagnostics.record(TrackerDiagnosticCode.RETENTION_FAILED)
+			} catch (error: Throwable) {
+				Tracebox.log.error(error, "Data retention failed")
 			}
 		}
 	}

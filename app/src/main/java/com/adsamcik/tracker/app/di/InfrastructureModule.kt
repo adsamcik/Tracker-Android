@@ -2,8 +2,7 @@ package com.adsamcik.tracker.app.di
 
 import android.content.Context
 import androidx.lifecycle.ProcessLifecycleOwner
-import com.adsamcik.tracker.app.tracebox.TraceboxDeleteResult
-import com.adsamcik.tracker.app.tracebox.TraceboxDiagnosticsController
+import com.adsamcik.tracker.app.tracebox.TrackerTraceboxHandleProvider
 import com.adsamcik.tracker.network.DefaultNetworkGateway
 import com.adsamcik.tracker.network.NetworkGateway
 import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
@@ -80,6 +79,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import javax.inject.Singleton
+import dev.tracebox.api.DeleteReport
+import dev.tracebox.api.DeleteRequest
+import kotlinx.coroutines.withContext
 
 /**
  * Hilt module providing core infrastructure dependencies.
@@ -188,15 +190,19 @@ object InfrastructureModule {
         exportPlanStore: ExportPlanStore,
         writerQuiescer: CollectedDataWriterQuiescer,
 		collectedDataLifecycleStore: CollectedDataLifecycleStore,
-        traceboxDiagnosticsController: TraceboxDiagnosticsController,
+        dispatchersProvider: DispatchersProvider,
+        traceboxHandleProvider: TrackerTraceboxHandleProvider,
     ): CollectedDataDeletionService = DefaultCollectedDataDeletionService(
         context = context,
         pointsAwardedDao = pointsDatabase.pointsAwardedDao(),
         exportPlanStore = exportPlanStore,
         writerQuiescer = writerQuiescer,
-		collectedDataLifecycleStore = collectedDataLifecycleStore,
+        collectedDataLifecycleStore = collectedDataLifecycleStore,
         traceboxDataDeletion = {
-            traceboxDiagnosticsController.deleteAllData() == TraceboxDeleteResult.COMPLETE
+            withContext(dispatchersProvider.io) {
+                traceboxHandleProvider.handle.delete(DeleteRequest.ALL_TRACEBOX_DATA) ==
+                    DeleteReport.COMPLETE
+            }
         },
     )
 

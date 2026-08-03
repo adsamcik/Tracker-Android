@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.osm.reindex
 
-import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
-import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
+import dev.tracebox.Tracebox
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.dao.OsmImportDao
 import com.adsamcik.tracker.shared.base.database.data.OsmImportEntity
@@ -61,7 +60,7 @@ class OsmModuleInitializer @Inject constructor(
 				// Cell index stays empty → DefaultSpeedLimitSource keeps
 				// returning the fixed baseline. Safe; just lose the OSM-specific
 				// precision for this session.
-				TrackerDiagnostics.record(TrackerDiagnosticCode.OSM_IMPORT_FAILED)
+				Tracebox.log.error(t, "OSM import failed")
 			}
 		}
 	}

@@ -3,17 +3,11 @@ package com.adsamcik.tracker.app.tracebox
 import android.app.ActivityManager
 import android.content.Context
 import android.os.Build
-import android.os.SystemClock
-import com.adsamcik.tracker.diagnostics.TrackerDiagnosticKind
-import com.adsamcik.tracker.diagnostics.TrackerDiagnosticSink
-import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.tracebox.Tracebox
 import dev.tracebox.TraceboxConfiguration
-import dev.tracebox.api.Diagnostics
-import dev.tracebox.api.DiagnosticsProfile
 import dev.tracebox.api.TraceboxHandle
-import dev.tracebox.api.generated.GeneratedDiagnostics
+import dev.tracebox.api.TraceboxPolicy
 import java.io.FileInputStream
 import java.io.IOException
 import javax.inject.Inject
@@ -35,38 +29,12 @@ internal object TrackerTraceboxRuntime {
         installed ?: Tracebox.install(
             context,
             TraceboxConfiguration.Builder()
-                .setInitialProfile(DiagnosticsProfile.STANDARD_DIAGNOSTICS)
+                .setInitialPolicy(TraceboxPolicy.standard())
+                .setNativeCaptureEnabled(true)
                 .setPersistRequestedProfile(true)
                 .build(),
-        ).also { handle ->
-            installTrackerDiagnosticSink(handle.diagnostics)
-            installed = handle
-        }
+        ).also { installed = it }
     }
-}
-
-internal fun installTrackerDiagnosticSink(diagnostics: Diagnostics) {
-    TrackerDiagnostics.install(
-        TrackerDiagnosticSink { code ->
-            when (code.kind) {
-                TrackerDiagnosticKind.BREADCRUMB -> {
-                    GeneratedDiagnostics.breadcrumb(
-                        diagnostics = diagnostics,
-                        code = code.wireCode,
-                        monotonic_time_ns = SystemClock.elapsedRealtimeNanos().toULong(),
-                    )
-                }
-
-                TrackerDiagnosticKind.HANDLED_ERROR -> {
-                    GeneratedDiagnostics.handledError(
-                        diagnostics = diagnostics,
-                        kind = code.wireCode,
-                        frame_count = 0u,
-                    )
-                }
-            }
-        },
-    )
 }
 
 @Singleton

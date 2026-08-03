@@ -10,9 +10,8 @@ pluginManagement {
 dependencyResolutionManagement {
 	repositoriesMode = RepositoriesMode.FAIL_ON_PROJECT_REPOS
 	repositories {
-		// Tracebox release candidates are consumed from Maven Local before publication.
-		// Restrict this repository to its group so local artifacts
-		// cannot affect the rest of Tracker's dependency graph.
+		// An exact locally published Tracebox build may override the immutable GitHub package.
+		// Restrict Maven Local to the Tracebox group so it cannot affect other dependencies.
 		mavenLocal {
 			content {
 				includeGroup("io.github.tracebox")

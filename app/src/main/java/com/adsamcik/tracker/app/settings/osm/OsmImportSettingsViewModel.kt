@@ -1,13 +1,12 @@
 package com.adsamcik.tracker.app.settings.osm
 
+import dev.tracebox.Tracebox
 import android.content.Context
 import android.database.Cursor
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
-import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.osm.imp.OsmImportController
 import com.adsamcik.tracker.osm.imp.OsmImportRequest
 import com.adsamcik.tracker.osm.imp.OsmImportState
@@ -53,13 +52,13 @@ class OsmImportSettingsViewModel @Inject constructor(
 
 	val uiState: StateFlow<OsmImportUiState> = combine(
 		controller.observeImports()
-			.catch {
-				recordImportFailure()
+			.catch { error ->
+				recordImportFailure(error)
 				emit(emptyList())
 			},
 		controller.observeImportState()
-			.catch {
-				recordImportFailure()
+			.catch { error ->
+				recordImportFailure(error)
 				emit(OsmImportState.Idle)
 			},
 	) { imports, runtime ->
@@ -98,7 +97,7 @@ class OsmImportSettingsViewModel @Inject constructor(
 	fun removeImport(import: OsmImportSummary) {
 		viewModelScope.launch(dispatchers.io) {
 			runCatching { controller.removeImport(import.id) }
-				.onFailure { recordImportFailure() }
+				.onFailure(::recordImportFailure)
 		}
 	}
 
@@ -125,11 +124,11 @@ class OsmImportSettingsViewModel @Inject constructor(
 		return if (idx >= 0 && !isNull(idx)) getLong(idx) else null
 	}
 
-	private fun recordImportFailure() {
-		TrackerDiagnostics.record(TrackerDiagnosticCode.OSM_IMPORT_FAILED)
+	private fun recordImportFailure(error: Throwable) {
+		Tracebox.log.error(error, "OSM import failed")
 	}
 
 	private fun recordInvalidImport() {
-		TrackerDiagnostics.record(TrackerDiagnosticCode.OSM_IMPORT_WARNING)
+		Tracebox.log.warn("OSM import completed with rejected input records")
 	}
 }

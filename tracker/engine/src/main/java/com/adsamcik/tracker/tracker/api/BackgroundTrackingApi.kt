@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.api
 
+import dev.tracebox.Tracebox
 import android.content.Context
 import androidx.annotation.MainThread
 import com.adsamcik.tracker.activity.ActivityChangeRequestData
@@ -12,8 +13,6 @@ import com.adsamcik.tracker.activity.api.backend.ActivityUpdate
 import com.adsamcik.tracker.activity.api.backend.ActivityUpdateSource
 import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
 import com.adsamcik.tracker.activity.api.backend.TransitionUpdate
-import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
-import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
@@ -456,8 +455,8 @@ object BackgroundTrackingApi {
 				block()
 			} catch (e: CancellationException) {
 				throw e
-			} catch (_: Exception) {
-				TrackerDiagnostics.record(TrackerDiagnosticCode.ACTIVITY_RECOGNITION_FAILED)
+			} catch (error: Exception) {
+				Tracebox.log.error(error, "Activity recognition failed")
 			}
 		}
 	}
@@ -494,8 +493,8 @@ object BackgroundTrackingApi {
 				}
 				paramsInitialized = true
 			}
-			.catch {
-				TrackerDiagnostics.record(TrackerDiagnosticCode.APP_INITIALIZATION_FAILED)
+			.catch { error ->
+				Tracebox.log.error(error, "Application initialization failed")
 			}
 			.launchIn(scope)
 
@@ -504,8 +503,8 @@ object BackgroundTrackingApi {
 			R.string.settings_disabled_recharge_key,
 			R.string.settings_disabled_recharge_default
 		).onEach { disabledUntilRecharge = it }
-			.catch {
-				TrackerDiagnostics.record(TrackerDiagnosticCode.APP_INITIALIZATION_FAILED)
+			.catch { error ->
+				Tracebox.log.error(error, "Application initialization failed")
 			}
 			.launchIn(scope)
 
@@ -514,8 +513,8 @@ object BackgroundTrackingApi {
 			com.adsamcik.tracker.activity.R.string.settings_activity_freq_key,
 			com.adsamcik.tracker.activity.R.string.settings_activity_freq_default
 		).onEach { activityFreqSeconds = it }
-			.catch {
-				TrackerDiagnostics.record(TrackerDiagnosticCode.APP_INITIALIZATION_FAILED)
+			.catch { error ->
+				Tracebox.log.error(error, "Application initialization failed")
 			}
 			.launchIn(scope)
 
@@ -524,8 +523,8 @@ object BackgroundTrackingApi {
 			com.adsamcik.tracker.activity.R.string.settings_activity_watcher_key,
 			com.adsamcik.tracker.activity.R.string.settings_activity_watcher_default
 		).onEach { activityWatcherEnabled = it }
-			.catch {
-				TrackerDiagnostics.record(TrackerDiagnosticCode.APP_INITIALIZATION_FAILED)
+			.catch { error ->
+				Tracebox.log.error(error, "Application initialization failed")
 			}
 			.launchIn(scope)
 	}

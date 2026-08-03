@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.osm.io
 
-import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
-import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
+import dev.tracebox.Tracebox
 import com.adsamcik.tracker.osm.OsmRoadClass
 import com.adsamcik.tracker.shared.model.geo.CheckedCoordinateE7
 import com.adsamcik.tracker.shared.model.geo.CircularLongitudeInterval
@@ -180,7 +179,7 @@ class OsmPbfStreamingParser(
 			rejectionCounts.invalidLongitudeCoverageWays > 0L ||
 			rejectionCounts.excessiveCellCoverageWays > 0L
 		) {
-			TrackerDiagnostics.record(TrackerDiagnosticCode.OSM_IMPORT_WARNING)
+			Tracebox.log.warn("OSM import completed with rejected input records")
 		}
 
 		return if (emittedWays == 0L) {

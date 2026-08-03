@@ -1,13 +1,12 @@
 package com.adsamcik.tracker.activity.api.backend
 
+import dev.tracebox.Tracebox
 import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.receiver.ActivityReceiver
-import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
-import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
@@ -89,7 +88,7 @@ class GmsActivityRecognitionBackend @Inject constructor(
 	override suspend fun startUpdates(config: RecognitionConfig): Boolean =
 		subscriptionMutex.withLock {
 			if (!isAvailable) {
-				TrackerDiagnostics.record(TrackerDiagnosticCode.ACTIVITY_RECOGNITION_FAILED)
+				Tracebox.log.warn("Activity recognition is unavailable")
 				return@withLock false
 			}
 
@@ -119,7 +118,7 @@ class GmsActivityRecognitionBackend @Inject constructor(
 				}
 				throw e
 			} catch (e: Exception) {
-				TrackerDiagnostics.record(TrackerDiagnosticCode.ACTIVITY_RECOGNITION_FAILED)
+				Tracebox.log.error(e, "Activity recognition failed")
 				withContext(NonCancellable) {
 					rollbackSubscriptions(client, intent, e)
 				}
@@ -135,7 +134,7 @@ class GmsActivityRecognitionBackend @Inject constructor(
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Exception) {
-			TrackerDiagnostics.record(TrackerDiagnosticCode.ACTIVITY_RECOGNITION_FAILED)
+			Tracebox.log.error(e, "Activity recognition failed")
 			throw e
 		}
 	}

@@ -1,9 +1,8 @@
 package com.adsamcik.tracker.app.ui
 
+import dev.tracebox.Tracebox
 import androidx.lifecycle.ViewModel
 import com.adsamcik.tracker.feature.dashboard.api.navigation.Dashboard
-import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
-import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,7 +29,7 @@ class MainViewModel @Inject constructor() : ViewModel() {
     }
 
     fun recordUnrecognizedDestination() {
-        TrackerDiagnostics.record(TrackerDiagnosticCode.NAVIGATION_DESTINATION_REJECTED)
+        Tracebox.log.warn("Navigation destination was rejected")
     }
     
     /**

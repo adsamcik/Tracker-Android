@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.app.maintenance
 
+import dev.tracebox.Tracebox
 import android.content.Context
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
@@ -12,8 +13,6 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
-import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
-import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
@@ -68,8 +67,8 @@ class RetentionPipelineWorker @AssistedInject constructor(
             } else {
                 Result.success()
             }
-        } catch (@Suppress("TooGenericExceptionCaught") _: Exception) {
-            TrackerDiagnostics.record(TrackerDiagnosticCode.RETENTION_FAILED)
+        } catch (@Suppress("TooGenericExceptionCaught") error: Exception) {
+            Tracebox.log.error(error, "Data retention failed")
             Result.retry()
         }
     }

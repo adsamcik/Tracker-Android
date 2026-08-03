@@ -1,11 +1,10 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import dev.tracebox.Tracebox
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.Serializer
 import androidx.datastore.dataStore
-import com.adsamcik.tracker.diagnostics.TrackerDiagnosticCode
-import com.adsamcik.tracker.diagnostics.TrackerDiagnostics
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.stats.api.repository.LiveStats
 import com.adsamcik.tracker.stats.api.repository.LiveStatsRepository
@@ -26,8 +25,8 @@ private object LiveStatsSerializer : Serializer<LiveStatsProto> {
 
 	override suspend fun readFrom(input: InputStream): LiveStatsProto = try {
 		LiveStatsProto.parseFrom(input)
-	} catch (_: Exception) {
-		TrackerDiagnostics.record(TrackerDiagnosticCode.LIVE_STATS_CORRUPTED)
+	} catch (error: Exception) {
+		Tracebox.log.error(error, "Live statistics data was corrupt")
 		defaultValue
 	}
 
