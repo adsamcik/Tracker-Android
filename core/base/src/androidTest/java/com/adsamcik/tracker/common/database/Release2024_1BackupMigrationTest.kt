@@ -7,6 +7,7 @@ import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.CURRENT_DATABASE_VERSION
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupStore
 import com.adsamcik.tracker.shared.base.database.migration.MigrationBackupOpenHelperFactory
 import org.junit.After
@@ -51,7 +52,7 @@ class Release2024_1BackupMigrationTest {
 					delegate = FrameworkSQLiteOpenHelperFactory(),
 					backupStore = backupStore,
 					databaseName = DATABASE_NAME,
-					targetVersion = CURRENT_VERSION,
+					targetVersion = CURRENT_DATABASE_VERSION,
 				),
 			)
 			.addMigrations(*AppDatabase.migrations)
@@ -59,7 +60,7 @@ class Release2024_1BackupMigrationTest {
 		database = migrated
 
 		val target = migrated.openHelper.writableDatabase
-		assertEquals(CURRENT_VERSION, target.version)
+		assertEquals(CURRENT_DATABASE_VERSION, target.version)
 		assertEquals(6, count(target, "location_sample"))
 		assertEquals(6, count(target, "location_observation"))
 		assertEquals(6, count(target, "activity_snapshot"))
@@ -175,6 +176,5 @@ class Release2024_1BackupMigrationTest {
 		const val DATABASE_NAME = "release_2024_1_backup.db"
 		const val FIXTURE = "baseline/2024.1/main_database.db"
 		const val RELEASE_VERSION = 10
-		const val CURRENT_VERSION = 38
 	}
 }

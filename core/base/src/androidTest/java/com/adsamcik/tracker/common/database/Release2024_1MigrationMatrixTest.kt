@@ -5,6 +5,7 @@ import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.CURRENT_DATABASE_VERSION
 import org.junit.Rule
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -19,7 +20,8 @@ class Release2024_1MigrationMatrixTest {
 	@get:Rule
 	val helper = MigrationTestHelper(
 		InstrumentationRegistry.getInstrumentation(),
-		AppDatabase::class.java.canonicalName,
+		AppDatabase::class.java,
+		emptyList(),
 		FrameworkSQLiteOpenHelperFactory(),
 	)
 
@@ -195,8 +197,6 @@ class Release2024_1MigrationMatrixTest {
 
 	private companion object {
 		const val RELEASE_DATABASE_VERSION = 10
-		const val CURRENT_DATABASE_VERSION = 40
-
 		val migrations = AppDatabase.migrations.filter { it.startVersion >= RELEASE_DATABASE_VERSION }
 	}
 }

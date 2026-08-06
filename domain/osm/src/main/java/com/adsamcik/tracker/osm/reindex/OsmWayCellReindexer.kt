@@ -15,7 +15,7 @@ import javax.inject.Singleton
 
 /**
  * Rebuilds [com.adsamcik.tracker.shared.base.database.data.OsmWayCellEntity]
- * rows after [com.adsamcik.tracker.shared.base.database.MIGRATION_31_32] has
+ * rows after the unreleased v27 migration has
  * cleared the table for the new 0.01° [OsmGridIndex] cell size.
  *
  * The reindexer reads only published directed-bbox columns of `osm_way` via

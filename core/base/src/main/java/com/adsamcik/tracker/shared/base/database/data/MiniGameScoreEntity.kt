@@ -11,7 +11,7 @@ import androidx.room.PrimaryKey
  * The `played_at DESC` index backs `MiniGameScoreDao.getRecent(limit)` which
  * drives the dashboard "recent runs" panel; without it Room would scan the
  * entire score history every time the dashboard recomposes. Added in
- * AppDatabase v31 (see [com.adsamcik.tracker.shared.base.database.MIGRATION_30_31]).
+ * Added to the unreleased v27 schema.
  */
 @Entity(
 	tableName = "minigame_score",

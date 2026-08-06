@@ -14,6 +14,9 @@ import androidx.room.PrimaryKey
 	tableName = "step_interval",
 	indices = [
 		Index(value = ["start_time_ms", "end_time_ms"], name = "idx_step_interval_time_range"),
+		// Retention and latest-reading queries are keyed by the interval end. The range index
+		// starts with start_time_ms and cannot efficiently serve either access pattern.
+		Index(value = ["end_time_ms"], name = "idx_step_interval_end_time"),
 		Index(
 			value = ["source_signal_id"],
 			unique = true,

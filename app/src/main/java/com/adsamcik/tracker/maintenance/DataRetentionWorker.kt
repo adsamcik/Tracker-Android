@@ -161,6 +161,11 @@ class DataRetentionWorker @AssistedInject constructor(
             }
             appDatabase.trackerStateEventDao().deleteOlderThan(cutoffMillis)
             locationSampleDao.deleteOlderThan(cutoffMillis)
+			appDatabase.stepIntervalDao().deleteOlderThan(cutoffMillis)
+			appDatabase.activitySnapshotDao().deleteOlderThan(cutoffMillis)
+			appDatabase.trackerRunDao().deleteOlderThan(cutoffMillis)
+			appDatabase.pressureSampleDao().deleteOlderThan(cutoffMillis)
+			appDatabase.skiRunSegmentDao().deleteOlderThan(cutoffMillis)
             wifiObservationDao.deleteOlderThan(cutoffMillis)
             cellSampleDao.deleteOlderThan(cutoffMillis)
             sessionSegmentDao.deleteOlderThan(cutoffMillis)

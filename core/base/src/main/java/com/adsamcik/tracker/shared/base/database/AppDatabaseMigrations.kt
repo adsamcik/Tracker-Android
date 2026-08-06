@@ -21,63 +21,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * ┌────────────┬─────────────┬──────────────────────────────────────────┐
  * │ DB Version │ App Version │ Status & Notes                           │
  * ├────────────┼─────────────┼──────────────────────────────────────────┤
- * │ 40         │ 400         │ 🚧 UNRELEASED - Durable content-addressed│
- * │            │             │    import job and entry receipts.        │
- * │ 39         │ 400         │ 🚧 UNRELEASED - OSM import publication  │
- * │            │             │    status and crash-orphan recovery.     │
- * │ 38         │ 400         │ 🚧 UNRELEASED - Reconstructable raw     │
- * │            │             │    location evidence and source revision.│
- * │ 37         │ 400         │ 🚧 UNRELEASED - Durable signal identity,│
- * │            │             │    replay idempotency, leases, and      │
- * │            │             │    permanent-failure quarantine.        │
- * │ 36         │ 400         │ 🚧 UNRELEASED - Raw location evidence,  │
- * │            │             │    canonical observed-presence pyramid.  │
- * │ 35         │ 400         │ 🚧 UNRELEASED - Preserve every 2024.1   │
- * │            │             │    legacy field during v10 migration.    │
- * │ 34         │ 400         │ 🚧 UNRELEASED - Global WAL recovery     │
- * │            │             │    ordering index on pending_signal.     │
- * │ 33         │ 400         │ 🚧 UNRELEASED - Add cell_index_built    │
- * │            │             │    column to osm_import for crash-safe   │
- * │            │             │    reindex progress tracking.            │
- * │ 32         │ 400         │ 🚧 UNRELEASED - Drop osm_way_cell rows  │
- * │            │             │    so the new 0.01° (~1.1 km) OsmGridIndex│
- * │            │             │    cells can be rebuilt by the background │
- * │            │             │    reindexer on next launch.              │
- * │ 29         │ 400         │ 🚧 UNRELEASED - OSM road graph tables   │
- * │            │             │    (osm_import, osm_way, osm_way_cell)   │
- * │ 28         │ 400         │ 🚧 UNRELEASED - Drop challenges, rebuild │
- * │            │             │    achievement_progress per metric       │
- * │ 27         │ 400         │ 🚧 UNRELEASED - Challenge DB fold       │
- * │            │             │    (challenge tables + minigame scores)  │
- * │ 26         │ 385         │ 🚧 UNRELEASED - Analytics/export indices │
- * │            │             │    (domain_event, export_log,            │
- * │            │             │    inferred_trip)                        │
- * │ 25         │ 385         │ 🚧 UNRELEASED - Durable signal WAL       │
- * │            │             │    (pending_signal)                      │
- * │ 24         │ 385         │ 🚧 UNRELEASED - Achievement notified_at  │
- * │ 23         │ 385         │ 🚧 UNRELEASED - Query indices for route  │
- * │            │             │    cache/export/live stats               │
- * │ 22         │ 385         │ 🚧 UNRELEASED - 5G cell ID widening      │
- * │ 21         │ 385         │ 🚧 UNRELEASED - Drop legacy tables       │
- * │            │             │    (tracker_session, location_data,      │
- * │            │             │    wifi_data, cell_location,             │
- * │            │             │    location_wifi_count)                  │
- * │ 20         │ 385         │ 🚧 UNRELEASED - has_distance_anomaly     │
- * │ 18         │ 385         │ 🚧 UNRELEASED - Ski detection tables     │
- * │            │             │    (pressure_sample, ski_run_segment)     │
- * │ 17         │ 385         │ 🚧 UNRELEASED - Route compression & storage │
- * │            │             │    (route_cache, export_log,             │
- * │            │             │    storage_size_snapshot)                │
- * │ 16         │ 385         │ 🚧 UNRELEASED - Exploration & gamification  │
- * │            │             │    (exploration_cell, exploration_streak,│
- * │            │             │    achievement_progress, personal_record)│
- * │ 15         │ 385         │ 🚧 UNRELEASED - Trip inference tables     │
- * │            │             │    (frequent_place, inferred_trip,       │
- * │            │             │    trip_leg)                             │
- * │ 14         │ 385         │ 🚧 UNRELEASED - Aggregator/summary       │
- * │            │             │    tables (daily_summary, live_stats)    │
- * │ 13         │ 385         │ 🚧 UNRELEASED - Sessionless tracking     │
- * │            │             │    foundation (7 new tables)             │
+ * │ 27         │ 400         │ 🚧 UNRELEASED - all schema work since   │
+ * │            │             │    versionCode 385 is folded here       │
+ * │ 26         │ 385         │ ✅ RELEASED - 2024.3.0 alpha 2          │
  * │ 12         │ 384         │ ✅ RELEASED - Last session-based schema  │
  * │ 11         │ 380-383     │ ✅ RELEASED                              │
  * │ 10         │ 370-379     │ ✅ RELEASED                              │
@@ -1401,9 +1347,9 @@ val MIGRATION_25_26: Migration = object : Migration(25, 26) {
 			execSQL("CREATE INDEX IF NOT EXISTS index_domain_event_event_type_processor_id ON domain_event(event_type, processor_id)")
 			execSQL("CREATE INDEX IF NOT EXISTS index_export_log_started_at ON export_log(started_at)")
 			execSQL("CREATE INDEX IF NOT EXISTS index_inferred_trip_segment_id ON inferred_trip(segment_id)")
-			// Declared on SessionSegment entity and present in v26.json, but
-			// no prior migration created it — fresh installs had it, upgrades
-			// did not. Backfill here while v26 is still unreleased.
+			// Declared on SessionSegment and present in v26.json, but no earlier
+			// migration created it. Keep it here for upgrades crossing 25 -> 26;
+			// MIGRATION_26_27 repeats it for installations already on released v26.
 			execSQL("CREATE INDEX IF NOT EXISTS idx_session_segment_primary_activity ON session_segment(primary_activity)")
 			// Index end_time_ms so the cross-midnight overlap query (introduced in
 			// commit 415f7ff4f) can choose the more selective predicate when
@@ -1429,14 +1375,9 @@ val MIGRATION_25_26: Migration = object : Migration(25, 26) {
 val MIGRATION_26_27: Migration = object : Migration(26, 27) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		with(db) {
-			// Defensive index reconciliation: MIGRATION_25_26 was updated in-place to
-			// drop the old single-column timestamp_ms index and create the composite
-			// (timestamp_ms, id) one, add idx_session_segment_end_time_ms, and add a
-			// last_processed_id column on domain_event_cursor. Devs already at v26
-			// (which is unreleased, so this is testers + CI) skip MIGRATION_25_26
-			// entirely, leaving their schema out of sync with the entity declarations.
-			// Run the same DDL here idempotently so the v26→v27 upgrade brings them
-			// up to spec without a destructive migration.
+			// Version 26 shipped in versionCode 385. Those installations do not rerun
+			// MIGRATION_25_26, so reconcile the indexes and cursor column here as
+			// idempotent DDL before applying the rest of the unreleased v27 schema.
 			execSQL("DROP INDEX IF EXISTS index_domain_event_timestamp_ms")
 			execSQL("CREATE INDEX IF NOT EXISTS index_domain_event_timestamp_ms_id ON domain_event(timestamp_ms, id)")
 			execSQL("CREATE INDEX IF NOT EXISTS idx_session_segment_end_time_ms ON session_segment(end_time_ms)")
@@ -1480,6 +1421,41 @@ val MIGRATION_26_27: Migration = object : Migration(26, 27) {
 				)
 				""".trimIndent(),
 			)
+		}
+
+		// Version 26 is the schema shipped in versionCode 385. None of the
+		// following schema work has shipped, so apply it as implementation
+		// detail of this single release-boundary migration. The individual
+		// steps remain separately testable, but are deliberately not
+		// registered with Room as database versions.
+		MIGRATION_27_28.migrate(db)
+		MIGRATION_28_29.migrate(db)
+		MIGRATION_29_30.migrate(db)
+		MIGRATION_30_31.migrate(db)
+		MIGRATION_31_32.migrate(db)
+		MIGRATION_32_33.migrate(db)
+		MIGRATION_33_34.migrate(db)
+		MIGRATION_34_35.migrate(db)
+		MIGRATION_35_36.migrate(db)
+		MIGRATION_36_37.migrate(db)
+		MIGRATION_37_38.migrate(db)
+		MIGRATION_38_39.migrate(db)
+		MIGRATION_39_40.migrate(db)
+
+		// Final v27 query-plan reconciliation. These replace left-prefix indexes with the
+		// composite keys used by cursor pagination and add the end-time key used by frequent
+		// step lookups and retention. Version 27 has not shipped, so this remains part of the
+		// single released 26 -> 27 boundary rather than consuming more database versions.
+		with(db) {
+			execSQL("CREATE INDEX IF NOT EXISTS idx_step_interval_end_time ON step_interval(end_time_ms)")
+			execSQL("DROP INDEX IF EXISTS idx_cell_sample_time")
+			execSQL("DROP INDEX IF EXISTS idx_cell_sample_cell_id")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_cell_sample_time_id ON cell_sample(time_ms, id)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_cell_sample_identity ON cell_sample(mcc, mnc, cell_id)")
+			execSQL("DROP INDEX IF EXISTS idx_wifi_obs_time")
+			execSQL("DROP INDEX IF EXISTS idx_wifi_obs_bssid")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_wifi_obs_time_id ON wifi_observation(time_ms, id)")
+			execSQL("CREATE INDEX IF NOT EXISTS idx_wifi_obs_bssid_time ON wifi_observation(bssid, time_ms)")
 		}
 	}
 }
@@ -2156,7 +2132,7 @@ val MIGRATION_38_39: Migration = object : Migration(38, 39) {
 val MIGRATION_39_40: Migration = object : Migration(39, 40) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		with(db) {
-			// Schema 40 is unreleased. Preserve all earlier bare altitude rows as explicitly unknown
+			// Schema 27 is unreleased. Preserve all earlier bare altitude rows as explicitly unknown
 			// rather than claiming that an old `alt_m` value used an Android-model MSL datum.
 			addColumnIfMissing(
 				this,
@@ -2424,7 +2400,7 @@ val MIGRATION_39_40: Migration = object : Migration(39, 40) {
 			}
 			// All OSM schemas are unreleased. Reset only the graph tables so a
 			// development database cannot carry the former global-primary-key
-			// layout into schema 40. Retained import headers are deliberately
+			// layout into schema 27. Retained import headers are deliberately
 			// marked legacy by the bbox default above and startup asks for a
 			// re-import rather than guessing their old graph semantics.
 			if (tableExists(this, "osm_way_cell")) {

@@ -66,7 +66,7 @@ class Release2024_1MigrationTest {
 	}
 
 	@Test
-	fun `actual v10 binary migrates through Room and validates the complete v40 schema`() {
+	fun `actual v10 binary migrates through Room and validates the complete v27 schema`() {
 		val database = migrateAppDatabase()
 		val raw = database.openHelper.writableDatabase
 
@@ -706,7 +706,7 @@ class Release2024_1MigrationTest {
 
 	private companion object {
 		const val RELEASE_APP_DATABASE_VERSION = 10
-		const val CURRENT_APP_DATABASE_VERSION = 40
+		const val CURRENT_APP_DATABASE_VERSION = 27
 
 		val rangeOfNativeActivityIds = (-34..-2).toList()
 

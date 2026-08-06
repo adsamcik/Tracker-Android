@@ -233,7 +233,7 @@ class OsmDispatcherIntegrationTest {
 
 	@Test
 	fun `osm_way_cell empty during reindex window falls back to fixed silently`() = runTest {
-		// Mirrors the on-disk state immediately after MIGRATION_31_32 runs but
+		// Mirrors the on-disk state while the unreleased v27 migration's OSM reindex runs but
 		// before OsmWayCellReindexer rebuilds osm_way_cell: osm_import and
 		// osm_way are intact, the cell index is empty. The dispatcher must
 		// return the baseline without throwing — OsmSpeedLimitSource returns

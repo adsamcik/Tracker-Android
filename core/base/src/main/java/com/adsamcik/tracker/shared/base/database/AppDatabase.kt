@@ -103,16 +103,20 @@ import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBack
 import com.adsamcik.tracker.shared.base.database.migration.MigrationBackupOpenHelperFactory
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 
+internal const val CURRENT_DATABASE_VERSION = 27
 
 /**
  * Provides access to main database.
  * Contains only common data nothing module specific.
  *
- * CURRENT VERSION: 40 (App versionCode: 400 - UNRELEASED)
+ * CURRENT VERSION: 27 (App versionCode: 400 - UNRELEASED)
+ *
+ * Version 26 shipped in versionCode 385. All schema work since that release is
+ * intentionally folded into the single 26 -> 27 migration until versionCode 400 ships.
  * See AppDatabaseMigrations.kt for full version history and migration rules.
  */
 @Database(
-		version = 40,
+		version = CURRENT_DATABASE_VERSION,
 		entities = [
 			// Core reference entities
 			SessionActivity::class,
@@ -421,19 +425,6 @@ abstract class AppDatabase : RoomDatabase() {
 			MIGRATION_24_25,
 			MIGRATION_25_26,
 			MIGRATION_26_27,
-			MIGRATION_27_28,
-			MIGRATION_28_29,
-			MIGRATION_29_30,
-			MIGRATION_30_31,
-			MIGRATION_31_32,
-			MIGRATION_32_33,
-			MIGRATION_33_34,
-			MIGRATION_34_35,
-			MIGRATION_35_36,
-			MIGRATION_36_37,
-			MIGRATION_37_38,
-			MIGRATION_38_39,
-			MIGRATION_39_40,
 		)
 
 		override fun setupDatabase(database: Builder<AppDatabase>) {
@@ -564,7 +555,5 @@ abstract class AppDatabase : RoomDatabase() {
 			// but covered by the same "delete everything" semantics).
 			database.osmImportDao().deleteAllTables()
 		}
-
-		private const val CURRENT_DATABASE_VERSION = 40
 	}
 }

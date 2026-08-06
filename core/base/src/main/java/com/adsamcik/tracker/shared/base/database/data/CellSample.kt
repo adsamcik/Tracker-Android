@@ -13,8 +13,8 @@ import androidx.room.PrimaryKey
 @Entity(
 	tableName = "cell_sample",
 	indices = [
-		Index(value = ["time_ms"], name = "idx_cell_sample_time"),
-		Index(value = ["cell_id"], name = "idx_cell_sample_cell_id"),
+		Index(value = ["time_ms", "id"], name = "idx_cell_sample_time_id"),
+		Index(value = ["mcc", "mnc", "cell_id"], name = "idx_cell_sample_identity"),
 		Index(value = ["lat_e7", "lon_e7"], name = "idx_cell_sample_coords"),
 		Index(
 			value = ["source_signal_id", "source_item_index"],

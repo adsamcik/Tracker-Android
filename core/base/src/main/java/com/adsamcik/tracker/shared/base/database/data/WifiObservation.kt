@@ -13,8 +13,8 @@ import androidx.room.PrimaryKey
 @Entity(
 	tableName = "wifi_observation",
 	indices = [
-		Index(value = ["time_ms"], name = "idx_wifi_obs_time"),
-		Index(value = ["bssid"], name = "idx_wifi_obs_bssid"),
+		Index(value = ["time_ms", "id"], name = "idx_wifi_obs_time_id"),
+		Index(value = ["bssid", "time_ms"], name = "idx_wifi_obs_bssid_time"),
 		Index(value = ["lat_e7", "lon_e7"], name = "idx_wifi_obs_coords"),
 		Index(
 			value = ["source_signal_id", "source_item_index"],
