@@ -333,6 +333,7 @@
     <string name="setup_auto_tracking_in_motion">În mișcare</string>
     <string name="setup_auto_tracking_in_motion_desc">Urmărește automat orice deplasare, inclusiv condusul și ciclismul.</string>
     <string name="setup_preset_title">Detaliile urmăririi</string>
+    <string name="setup_recommended">Recomandat</string>
     <string name="setup_what_to_collect_title">Ce se colectează</string>
     <string name="setup_what_to_collect_subtitle">Mai multe opțiuni mai jos. Începe să explorezi fără permisiuni sau acordă-le mai târziu. Datele rămân pe acest dispozitiv.</string>
     <string name="setup_source_location">Locație</string>

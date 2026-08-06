@@ -333,6 +333,7 @@
     <string name="setup_auto_tracking_in_motion">U pokretu</string>
     <string name="setup_auto_tracking_in_motion_desc">Automatski pratite svako kretanje, uključujući vožnju i bicikliranje.</string>
     <string name="setup_preset_title">Pojedinosti praćenja</string>
+    <string name="setup_recommended">Preporučeno</string>
     <string name="setup_what_to_collect_title">Što prikupljati</string>
     <string name="setup_what_to_collect_subtitle">Više opcija nalazi se u nastavku. Počnite istraživati bez dozvola ili ih odobrite kasnije. Podaci ostaju na ovom uređaju.</string>
     <string name="setup_source_location">Lokacija</string>

@@ -82,6 +82,34 @@ class HowToTrackStepTest {
     }
 
     @Test
+    fun practicalDefaults_areMarkedRecommended() {
+        composeTestRule.setContent {
+            AppTheme {
+                HowToTrackStep(
+                    autoTrackingMode = 1,
+                    trackingPreset = TrackingPolicyPreset.BALANCED,
+                    onAutoTrackingModeChange = {},
+                    onPresetChange = {},
+                    onContinue = {},
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag(
+            testTag = "setup_auto_tracking_recommended",
+            useUnmergedTree = true,
+        )
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeTestRule.onNodeWithTag(
+            testTag = "setup_preset_recommended",
+            useUnmergedTree = true,
+        )
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    @Test
     fun highPrecisionPreset_scrollsClearOfPinnedContinueButton() {
         composeTestRule.setContent {
             AppTheme {

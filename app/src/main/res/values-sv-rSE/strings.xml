@@ -326,6 +326,7 @@
     <string name="setup_auto_tracking_in_motion">I rörelse</string>
     <string name="setup_auto_tracking_in_motion_desc">Spåra alla rörelser automatiskt, inklusive bilkörning och cykling.</string>
     <string name="setup_preset_title">Spårningsdetaljer</string>
+    <string name="setup_recommended">Rekommenderas</string>
     <string name="setup_what_to_collect_title">Vad ska samlas in</string>
     <string name="setup_what_to_collect_subtitle">Fler alternativ finns nedan. Börja utforska utan behörigheter eller bevilja dem senare. Data stannar på enheten.</string>
     <string name="setup_source_location">Plats</string>

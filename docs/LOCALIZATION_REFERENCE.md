@@ -6,9 +6,9 @@ or moving default resources.
 
 ## Scope
 
-The canonical source contains **1546** string-like Android resources
+The canonical source contains **1547** string-like Android resources
 (strings, plurals, string arrays, and integer arrays), of which
-**1513** are user-facing and eligible for translation. English is
+**1514** are user-facing and eligible for translation. English is
 the default resource set and is not duplicated as a locale bucket.
 
 | Qualifier | Language | Scope |
@@ -66,7 +66,7 @@ the default resource set and is not duplicated as a locale bucket.
 
 | Module | Resources |
 | --- | ---: |
-| app | 358 |
+| app | 359 |
 | core/base | 51 |
 | core/ui | 11 |
 | data/preferences | 23 |
@@ -90,43 +90,43 @@ as complete translations; other locale buckets may remain partial.
 | --- | ---: |
 | values-af-rZA | 176 |
 | values-ar-rSA | 176 |
-| values-bg-rBG | 1513 |
+| values-bg-rBG | 1514 |
 | values-ca-rES | 176 |
-| values-cs-rCZ | 1513 |
-| values-da-rDK | 1513 |
-| values-de-rDE | 1513 |
-| values-el-rGR | 1513 |
-| values-es-rES | 1513 |
-| values-et-rEE | 1513 |
-| values-fi-rFI | 1513 |
-| values-fr-rFR | 1513 |
-| values-ga-rIE | 1513 |
-| values-hi-rIN | 1513 |
-| values-hr-rHR | 1513 |
-| values-hu-rHU | 1513 |
-| values-it-rIT | 1513 |
+| values-cs-rCZ | 1514 |
+| values-da-rDK | 1514 |
+| values-de-rDE | 1514 |
+| values-el-rGR | 1514 |
+| values-es-rES | 1514 |
+| values-et-rEE | 1514 |
+| values-fi-rFI | 1514 |
+| values-fr-rFR | 1514 |
+| values-ga-rIE | 1514 |
+| values-hi-rIN | 1514 |
+| values-hr-rHR | 1514 |
+| values-hu-rHU | 1514 |
+| values-it-rIT | 1514 |
 | values-iw-rIL | 176 |
-| values-ja-rJP | 1513 |
+| values-ja-rJP | 1514 |
 | values-ko-rKR | 176 |
-| values-lt-rLT | 1513 |
-| values-lv-rLV | 1513 |
-| values-mt-rMT | 1513 |
-| values-nl-rNL | 1513 |
+| values-lt-rLT | 1514 |
+| values-lv-rLV | 1514 |
+| values-mt-rMT | 1514 |
+| values-nl-rNL | 1514 |
 | values-no-rNO | 176 |
-| values-pl-rPL | 1513 |
+| values-pl-rPL | 1514 |
 | values-pt-rBR | 176 |
-| values-pt-rPT | 1513 |
-| values-ro-rRO | 1513 |
+| values-pt-rPT | 1514 |
+| values-ro-rRO | 1514 |
 | values-ru-rRU | 176 |
-| values-sk-rSK | 1513 |
-| values-sl-rSI | 1513 |
+| values-sk-rSK | 1514 |
+| values-sl-rSI | 1514 |
 | values-sr-rSP | 176 |
-| values-sv-rSE | 1513 |
+| values-sv-rSE | 1514 |
 | values-tr-rTR | 176 |
 | values-uk-rUA | 176 |
 | values-vi-rVN | 176 |
-| values-zh-rCN | 1513 |
-| values-zh-rTW | 1513 |
+| values-zh-rCN | 1514 |
+| values-zh-rTW | 1514 |
 
 ## JSON reference schema
 

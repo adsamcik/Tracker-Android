@@ -318,7 +318,7 @@ class SetupViewModel @Inject constructor(
         autoTrackingMode = get<Int>(KEY_AUTO_TRACKING_MODE) ?: 1,
         trackingPreset = get<String>(KEY_TRACKING_PRESET)
             ?.let { runCatching { TrackingPolicyPreset.valueOf(it) }.getOrNull() }
-            ?: TrackingPolicyPreset.DEFAULT,
+            ?: TrackingPolicyPreset.BALANCED,
         locationEnabled = get<Boolean>(KEY_LOCATION_ENABLED) ?: true,
         locationPrecision = get<String>(KEY_LOCATION_PRECISION)
             ?.let { runCatching { LocationPrecisionMode.valueOf(it) }.getOrNull() }

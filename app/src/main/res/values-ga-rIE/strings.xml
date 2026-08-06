@@ -326,6 +326,7 @@
     <string name="setup_auto_tracking_in_motion">Ag gluaiseacht</string>
     <string name="setup_auto_tracking_in_motion_desc">Rianaigh gach gluaiseacht go huathoibríoch, lena n-áirítear tiomáint agus rothaíocht.</string>
     <string name="setup_preset_title">Sonraí rianaithe</string>
+    <string name="setup_recommended">Molta</string>
     <string name="setup_what_to_collect_title">Cad atá le bailiú</string>
     <string name="setup_what_to_collect_subtitle">Tá tuilleadh roghanna thíos. Tosaigh ag taiscéaladh gan cheadanna nó deonaigh iad níos déanaí. Fanann na sonraí ar an ngléas seo.</string>
     <string name="setup_source_location">Suíomh</string>

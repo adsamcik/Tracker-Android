@@ -326,6 +326,7 @@
     <string name="setup_auto_tracking_in_motion">गतिमान</string>
     <string name="setup_auto_tracking_in_motion_desc">वाहन चलाने और साइकिल चलाने सहित हर गति को अपने-आप ट्रैक करें।</string>
     <string name="setup_preset_title">ट्रैकिंग विवरण</string>
+    <string name="setup_recommended">अनुशंसित</string>
     <string name="setup_what_to_collect_title">क्या एकत्र करें</string>
     <string name="setup_what_to_collect_subtitle">अधिक विकल्प नीचे हैं। अनुमति के बिना खोज शुरू करें या उन्हें बाद में दें। डेटा इसी डिवाइस पर रहता है।</string>
     <string name="setup_source_location">स्थान</string>

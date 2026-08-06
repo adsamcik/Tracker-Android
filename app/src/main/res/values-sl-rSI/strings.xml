@@ -340,6 +340,7 @@
     <string name="setup_auto_tracking_in_motion">V gibanju</string>
     <string name="setup_auto_tracking_in_motion_desc">Samodejno spremljaj vse gibanje, vključno z vožnjo in kolesarjenjem.</string>
     <string name="setup_preset_title">Podrobnost sledenja</string>
+    <string name="setup_recommended">Priporočeno</string>
     <string name="setup_what_to_collect_title">Kaj zbirati</string>
     <string name="setup_what_to_collect_subtitle">Spodaj je več možnosti. Začnite raziskovati brez dovoljenj ali jih odobrite pozneje. Podatki ostanejo v tej napravi.</string>
     <string name="setup_source_location">Lokacija</string>

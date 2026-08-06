@@ -340,6 +340,7 @@
     <string name="setup_auto_tracking_in_motion">V pohybe</string>
     <string name="setup_auto_tracking_in_motion_desc">Automaticky sledovať všetok pohyb vrátane jazdy autom a cyklistiky.</string>
     <string name="setup_preset_title">Podrobnosti sledovania</string>
+    <string name="setup_recommended">Odporúčané</string>
     <string name="setup_what_to_collect_title">Čo zbierať</string>
     <string name="setup_what_to_collect_subtitle">Nižšie nájdete ďalšie možnosti. Začnite objavovať bez povolení alebo ich udeľte neskôr. Údaje zostávajú v tomto zariadení.</string>
     <string name="setup_source_location">Poloha</string>

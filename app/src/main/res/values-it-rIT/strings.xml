@@ -326,6 +326,7 @@
     <string name="setup_auto_tracking_in_motion">In movimento</string>
     <string name="setup_auto_tracking_in_motion_desc">Traccia automaticamente ogni movimento, inclusi guida e ciclismo.</string>
     <string name="setup_preset_title">Dettaglio del tracciamento</string>
+    <string name="setup_recommended">Consigliato</string>
     <string name="setup_what_to_collect_title">Cosa raccogliere</string>
     <string name="setup_what_to_collect_subtitle">Altre opzioni qui sotto. Inizia a esplorare senza autorizzazioni oppure concedile in seguito. I dati restano su questo dispositivo.</string>
     <string name="setup_source_location">Posizione</string>

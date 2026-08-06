@@ -326,6 +326,7 @@
     <string name="setup_auto_tracking_in_motion">Σε κίνηση</string>
     <string name="setup_auto_tracking_in_motion_desc">Αυτόματη καταγραφή κάθε κίνησης, συμπεριλαμβανομένης της οδήγησης και της ποδηλασίας.</string>
     <string name="setup_preset_title">Λεπτομέρεια καταγραφής</string>
+    <string name="setup_recommended">Προτείνεται</string>
     <string name="setup_what_to_collect_title">Τι θα συλλέγεται</string>
     <string name="setup_what_to_collect_subtitle">Περισσότερες επιλογές παρακάτω. Ξεκινήστε την εξερεύνηση χωρίς άδειες ή παραχωρήστε τες αργότερα. Τα δεδομένα παραμένουν σε αυτή τη συσκευή.</string>
     <string name="setup_source_location">Τοποθεσία</string>

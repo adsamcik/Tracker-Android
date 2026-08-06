@@ -426,6 +426,7 @@
     <string name="setup_auto_tracking_in_motion">In Motion</string>
     <string name="setup_auto_tracking_in_motion_desc">Automatically track all movement including driving and cycling.</string>
     <string name="setup_preset_title">Tracking Detail</string>
+    <string name="setup_recommended">Recommended</string>
     <string name="setup_what_to_collect_title">What to Collect</string>
     <string name="setup_what_to_collect_subtitle">More options below. Start exploring without permissions or grant them later. Data stays on this device.</string>
     <string name="setup_source_location">Location</string>

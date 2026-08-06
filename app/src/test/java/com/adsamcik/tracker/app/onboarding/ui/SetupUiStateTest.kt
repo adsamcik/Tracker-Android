@@ -159,8 +159,8 @@ class SetupUiStateTest {
         }
 
         @Test
-        fun `default preset is DEFAULT`() {
-            assertEquals(TrackingPolicyPreset.DEFAULT, SetupUiState().trackingPreset)
+        fun `default preset is balanced for everyday use`() {
+            assertEquals(TrackingPolicyPreset.BALANCED, SetupUiState().trackingPreset)
         }
 
         @Test

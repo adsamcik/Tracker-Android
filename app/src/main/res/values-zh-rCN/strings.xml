@@ -326,6 +326,7 @@
     <string name="setup_auto_tracking_in_motion">移动时</string>
     <string name="setup_auto_tracking_in_motion_desc">自动跟踪所有移动，包括驾车和骑行。</string>
     <string name="setup_preset_title">跟踪细节</string>
+    <string name="setup_recommended">推荐</string>
     <string name="setup_what_to_collect_title">要收集的内容</string>
     <string name="setup_what_to_collect_subtitle">下方还有更多选项。您可先不授予权限开始探索，也可稍后授予。数据保留在此设备上。</string>
     <string name="setup_source_location">位置</string>

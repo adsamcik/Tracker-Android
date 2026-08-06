@@ -326,6 +326,7 @@
     <string name="setup_auto_tracking_in_motion">В движение</string>
     <string name="setup_auto_tracking_in_motion_desc">Автоматично проследявайте всяко движение, включително шофиране и колоездене.</string>
     <string name="setup_preset_title">Подробност на проследяването</string>
+    <string name="setup_recommended">Препоръчително</string>
     <string name="setup_what_to_collect_title">Какво да се събира</string>
     <string name="setup_what_to_collect_subtitle">Още опции има по-долу. Започнете да разглеждате без разрешения или ги предоставете по-късно. Данните остават на това устройство.</string>
     <string name="setup_source_location">Местоположение</string>

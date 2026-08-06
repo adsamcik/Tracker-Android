@@ -326,6 +326,7 @@
     <string name="setup_auto_tracking_in_motion">Liikkeellä</string>
     <string name="setup_auto_tracking_in_motion_desc">Seuraa kaikkea liikettä automaattisesti, myös ajoa ja pyöräilyä.</string>
     <string name="setup_preset_title">Seurannan yksityiskohdat</string>
+    <string name="setup_recommended">Suositeltu</string>
     <string name="setup_what_to_collect_title">Mitä kerätään</string>
     <string name="setup_what_to_collect_subtitle">Lisää vaihtoehtoja alla. Aloita tutkiminen ilman käyttöoikeuksia tai myönnä ne myöhemmin. Tiedot pysyvät tällä laitteella.</string>
     <string name="setup_source_location">Sijainti</string>

@@ -12,7 +12,7 @@ data class SetupUiState(
     // Step 2 – How to Track
     /** 0 = disabled, 1 = on foot, 2 = in motion. */
     val autoTrackingMode: Int = 1,
-    val trackingPreset: TrackingPolicyPreset = TrackingPolicyPreset.DEFAULT,
+    val trackingPreset: TrackingPolicyPreset = TrackingPolicyPreset.BALANCED,
 
     // Step 3 – What to Collect
     val locationEnabled: Boolean = true,

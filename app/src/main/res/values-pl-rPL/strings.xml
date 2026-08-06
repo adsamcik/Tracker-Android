@@ -340,6 +340,7 @@
     <string name="setup_auto_tracking_in_motion">W ruchu</string>
     <string name="setup_auto_tracking_in_motion_desc">Automatycznie śledź każdy ruch, w tym jazdę samochodem i na rowerze.</string>
     <string name="setup_preset_title">Szczegółowość śledzenia</string>
+    <string name="setup_recommended">Zalecane</string>
     <string name="setup_what_to_collect_title">Co zbierać</string>
     <string name="setup_what_to_collect_subtitle">Więcej opcji znajduje się poniżej. Zacznij odkrywać bez uprawnień lub przyznaj je później. Dane pozostają na tym urządzeniu.</string>
     <string name="setup_source_location">Lokalizacja</string>

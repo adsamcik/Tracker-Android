@@ -326,6 +326,7 @@
     <string name="setup_auto_tracking_in_motion">In Bewegung</string>
     <string name="setup_auto_tracking_in_motion_desc">Alle Bewegungen einschließlich Autofahren und Radfahren automatisch aufzeichnen.</string>
     <string name="setup_preset_title">Aufzeichnungsdetail</string>
+    <string name="setup_recommended">Empfohlen</string>
     <string name="setup_what_to_collect_title">Was erfassen</string>
     <string name="setup_what_to_collect_subtitle">Weitere Optionen findest du unten. Beginne ohne Berechtigungen mit dem Erkunden oder gewähre sie später. Daten bleiben auf diesem Gerät.</string>
     <string name="setup_source_location">Standort</string>

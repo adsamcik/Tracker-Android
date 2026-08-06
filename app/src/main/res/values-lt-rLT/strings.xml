@@ -333,6 +333,7 @@
     <string name="setup_auto_tracking_in_motion">Judant</string>
     <string name="setup_auto_tracking_in_motion_desc">Automatiškai sekti bet kokį judėjimą, įskaitant vairavimą ir važiavimą dviračiu.</string>
     <string name="setup_preset_title">Sekimo detalumas</string>
+    <string name="setup_recommended">Rekomenduojama</string>
     <string name="setup_what_to_collect_title">Ką rinkti</string>
     <string name="setup_what_to_collect_subtitle">Daugiau parinkčių rasite žemiau. Pradėkite tyrinėti be leidimų arba suteikite juos vėliau. Duomenys lieka šiame įrenginyje.</string>
     <string name="setup_source_location">Vieta</string>

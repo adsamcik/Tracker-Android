@@ -9,9 +9,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -90,6 +93,7 @@ fun HowToTrackStep(
             selected = autoTrackingMode == 1,
             title = stringResource(R.string.setup_auto_tracking_on_foot),
             description = stringResource(R.string.setup_auto_tracking_on_foot_desc),
+            recommended = true,
             onClick = { onAutoTrackingModeChange(1) },
         )
 
@@ -114,16 +118,16 @@ fun HowToTrackStep(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        TrackingPolicyPreset.entries.filter { it != TrackingPolicyPreset.BALANCED || true }
-            .forEach { preset ->
-                PresetCard(
-                    selected = trackingPreset == preset,
-                    preset = preset,
-                    onClick = { onPresetChange(preset) },
-                    modifier = Modifier.testTag(preset.testTag),
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-            }
+        TrackingPolicyPreset.entries.forEach { preset ->
+            PresetCard(
+                selected = trackingPreset == preset,
+                preset = preset,
+                recommended = preset == TrackingPolicyPreset.BALANCED,
+                onClick = { onPresetChange(preset) },
+                modifier = Modifier.testTag(preset.testTag),
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
     }
 }
 
@@ -132,6 +136,7 @@ private fun AutoTrackingModeCard(
     selected: Boolean,
     title: String,
     description: String,
+    recommended: Boolean = false,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -161,11 +166,22 @@ private fun AutoTrackingModeCard(
             )
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (recommended) {
+                        RecommendationBadge(
+                            modifier = Modifier.testTag("setup_auto_tracking_recommended"),
+                        )
+                    }
+                }
                 Text(
                     text = description,
                     style = MaterialTheme.typography.bodySmall,
@@ -180,6 +196,7 @@ private fun AutoTrackingModeCard(
 private fun PresetCard(
     selected: Boolean,
     preset: TrackingPolicyPreset,
+    recommended: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -209,11 +226,22 @@ private fun PresetCard(
             )
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(preset.nameRes),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = stringResource(preset.nameRes),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (recommended) {
+                        RecommendationBadge(
+                            modifier = Modifier.testTag("setup_preset_recommended"),
+                        )
+                    }
+                }
                 Text(
                     text = stringResource(preset.descriptionRes),
                     style = MaterialTheme.typography.bodySmall,
@@ -228,6 +256,23 @@ private fun PresetCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun RecommendationBadge(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shape = CircleShape,
+    ) {
+        Text(
+            text = stringResource(R.string.setup_recommended),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+        )
     }
 }
 

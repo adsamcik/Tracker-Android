@@ -326,6 +326,7 @@
     <string name="setup_auto_tracking_in_motion">Liikumises</string>
     <string name="setup_auto_tracking_in_motion_desc">Jälgige automaatselt kõiki liikumisi, sealhulgas auto- ja jalgrattasõitu.</string>
     <string name="setup_preset_title">Jälgimise detailsus</string>
+    <string name="setup_recommended">Soovitatud</string>
     <string name="setup_what_to_collect_title">Mida koguda</string>
     <string name="setup_what_to_collect_subtitle">Rohkem valikuid on allpool. Alustage avastamist ilma lubadeta või andke need hiljem. Andmed jäävad sellele seadmele.</string>
     <string name="setup_source_location">Asukoht</string>

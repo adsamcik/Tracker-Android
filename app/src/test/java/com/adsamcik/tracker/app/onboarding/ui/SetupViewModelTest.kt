@@ -104,9 +104,9 @@ class SetupViewModelTest {
         }
 
         @Test
-        fun `default tracking preset is DEFAULT`() {
+        fun `default tracking preset is balanced for everyday use`() {
             val vm = createViewModel()
-            vm.state.value.trackingPreset shouldBe TrackingPolicyPreset.DEFAULT
+            vm.state.value.trackingPreset shouldBe TrackingPolicyPreset.BALANCED
         }
 
         @Test
