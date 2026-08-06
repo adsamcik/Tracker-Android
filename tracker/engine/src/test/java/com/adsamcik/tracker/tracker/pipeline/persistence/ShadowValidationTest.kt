@@ -42,6 +42,7 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.assertions.withClue
 import io.mockk.every
 import io.mockk.coEvery
 import io.mockk.mockk
@@ -425,6 +426,96 @@ class ShadowValidationTest {
 			val captured = slot<Collection<LocationSample>>()
 			coVerify(exactly = 1) { locationDao.insert(capture(captured)) }
 			captured.captured.first().policy.shouldBeNull()
+		}
+	}
+
+	@Nested
+	@DisplayName("Source independence matrix")
+	inner class SourceIndependenceMatrix {
+		@Test
+		fun `all 64 source payload combinations persist only their own tables`() = runTest {
+			for (mask in 0 until (1 shl PERSISTED_SOURCE_COUNT)) {
+				// Give every combination a fresh processor and mocks. This catches both missing writes
+				// and state leaking from a previously enabled source.
+				setup()
+				startProcessor()
+				val hasLocation = mask.hasSource(LOCATION_SOURCE)
+				val hasActivity = mask.hasSource(ACTIVITY_SOURCE)
+				val hasSteps = mask.hasSource(STEP_SOURCE)
+				val hasCell = mask.hasSource(CELL_SOURCE)
+				val hasWifi = mask.hasSource(WIFI_SOURCE)
+				val hasPressure = mask.hasSource(PRESSURE_SOURCE)
+
+				processor.onSignal(
+					fullSignal(
+						location = fullLocationSignal().takeIf { hasLocation },
+						activity = ActivitySignal(
+							DetectedActivityType.WALKING,
+							ActivityConfidence(85),
+						).takeIf { hasActivity },
+						steps = StepSignal(
+							stepDelta = StepCount(15),
+							totalStepsSinceBoot = 5_000L,
+						).takeIf { hasSteps },
+						cells = CellSignal(
+							towers = listOf(CellTowerReading(12_345L, "230", "01", 13, -85)),
+						).takeIf { hasCell },
+						wifi = WifiSignal(
+							networks = listOf(
+								WifiNetworkReading(
+									bssid = "AA:BB:CC:DD:EE:FF",
+									ssid = "matrix",
+									capabilities = "[WPA2]",
+									frequency = 2_412,
+									level = -65,
+								),
+							),
+						).takeIf { hasWifi },
+						pressure = PressureSignal(1_013.25f, 120f).takeIf { hasPressure },
+					),
+				)
+				processor.onFlush()
+
+				withClue("source mask ${mask.toString(2).padStart(PERSISTED_SOURCE_COUNT, '0')}") {
+					coVerify(exactly = hasLocation.asCount()) {
+						locationDao.insert(any<Collection<LocationSample>>())
+					}
+					coVerify(exactly = hasActivity.asCount()) {
+						activityDao.insert(any<Collection<ActivitySnapshot>>())
+					}
+					coVerify(exactly = hasSteps.asCount()) {
+						stepDao.insert(any<Collection<StepInterval>>())
+					}
+					coVerify(exactly = hasCell.asCount()) {
+						cellDao.insert(any<Collection<CellSample>>())
+					}
+					coVerify(exactly = hasWifi.asCount()) {
+						wifiDao.insert(any<Collection<WifiObservation>>())
+					}
+					coVerify(exactly = hasPressure.asCount()) {
+						pressureDao.insert(any<Collection<PressureSample>>())
+					}
+				}
+
+				if (!hasLocation && hasCell) {
+					val captured = slot<Collection<CellSample>>()
+					coVerify { cellDao.insert(capture(captured)) }
+					captured.captured.single().apply {
+						latE7.shouldBeNull()
+						lonE7.shouldBeNull()
+						provenance shouldBe CoordinateProvenance.UNKNOWN
+					}
+				}
+				if (!hasLocation && hasWifi) {
+					val captured = slot<Collection<WifiObservation>>()
+					coVerify { wifiDao.insert(capture(captured)) }
+					captured.captured.single().apply {
+						latE7.shouldBeNull()
+						lonE7.shouldBeNull()
+						provenance shouldBe CoordinateProvenance.UNKNOWN
+					}
+				}
+			}
 		}
 	}
 
@@ -1303,5 +1394,15 @@ class ShadowValidationTest {
 	companion object {
 		private const val BASE_TIME = 1_700_000_000_000L
 		private const val BASE_ELAPSED_NANOS = 123_456_789_000_000L
+		private const val LOCATION_SOURCE = 0
+		private const val ACTIVITY_SOURCE = 1
+		private const val STEP_SOURCE = 2
+		private const val CELL_SOURCE = 3
+		private const val WIFI_SOURCE = 4
+		private const val PRESSURE_SOURCE = 5
+		private const val PERSISTED_SOURCE_COUNT = 6
+
+		private fun Int.hasSource(source: Int): Boolean = this and (1 shl source) != 0
+		private fun Boolean.asCount(): Int = if (this) 1 else 0
 	}
 }

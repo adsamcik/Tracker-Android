@@ -128,6 +128,40 @@ class LocationTrackerComponentTest {
 	}
 
 	@Test
+	fun `horizontal accuracy exactly at configured threshold is accepted`() = runTest {
+		component.onEnable(RuntimeEnvironment.getApplication())
+		val location = createAndroidLocation().apply { accuracy = 50f }
+		val collectionData = MutableCollectionData()
+
+		component.onDataUpdated(createCycle(location), collectionData)
+
+		collectionData.location.shouldNotBeNull()
+		collectionData.location?.horizontalAccuracy shouldBe 50f
+	}
+
+	@Test
+	fun `horizontal accuracy worse than configured threshold is rejected`() = runTest {
+		component.onEnable(RuntimeEnvironment.getApplication())
+		val location = createAndroidLocation().apply { accuracy = 50.01f }
+		val collectionData = MutableCollectionData()
+
+		component.onDataUpdated(createCycle(location), collectionData)
+
+		collectionData.location.shouldBeNull()
+	}
+
+	@Test
+	fun `location without horizontal accuracy is rejected`() = runTest {
+		component.onEnable(RuntimeEnvironment.getApplication())
+		val location = createAndroidLocation().apply { removeAccuracy() }
+		val collectionData = MutableCollectionData()
+
+		component.onDataUpdated(createCycle(location), collectionData)
+
+		collectionData.location.shouldBeNull()
+	}
+
+	@Test
 	fun `onDisable clears processor`() = runTest {
 		val context = RuntimeEnvironment.getApplication()
 		component.onEnable(context)

@@ -219,5 +219,50 @@ class TrackingParamsStateTest {
 				barometerAvailable = false,
 			) shouldBe false
 		}
+
+		@Test
+		fun `every enabled and available source combination is evaluated independently`() {
+			// Six independently configurable sources produce 64 enabled-state combinations and
+			// 64 runtime-availability combinations. Exercise the complete 4,096-state product so
+			// adding a dependency between two sources cannot silently make another source unusable.
+			for (enabledMask in 0 until (1 shl SOURCE_COUNT)) {
+				for (availableMask in 0 until (1 shl SOURCE_COUNT)) {
+					val enabled = BooleanArray(SOURCE_COUNT) { bit -> enabledMask and (1 shl bit) != 0 }
+					val available = BooleanArray(SOURCE_COUNT) { bit ->
+						availableMask and (1 shl bit) != 0
+					}
+					val state = TrackingParamsState(
+						locationEnabled = enabled[LOCATION],
+						activityEnabled = enabled[ACTIVITY],
+						stepsEnabled = enabled[STEPS],
+						wifiEnabled = enabled[WIFI],
+						cellEnabled = enabled[CELL],
+						barometerEnabled = enabled[BAROMETER],
+					)
+					val expected = enabled.indices.any { source ->
+						enabled[source] && available[source]
+					}
+
+					state.hasAnyCaptureSource(
+						locationAvailable = available[LOCATION],
+						activityAvailable = available[ACTIVITY],
+						stepsAvailable = available[STEPS],
+						wifiAvailable = available[WIFI],
+						cellAvailable = available[CELL],
+						barometerAvailable = available[BAROMETER],
+					) shouldBe expected
+				}
+			}
+		}
+	}
+
+	private companion object {
+		const val LOCATION = 0
+		const val ACTIVITY = 1
+		const val STEPS = 2
+		const val WIFI = 3
+		const val CELL = 4
+		const val BAROMETER = 5
+		const val SOURCE_COUNT = 6
 	}
 }
