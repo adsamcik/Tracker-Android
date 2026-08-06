@@ -71,12 +71,6 @@
     <string name="settings_notification_customize_title">Prispôsobiť oznámenie</string>
     <string name="settings_notification_styled_summary">Použiť farbu štýlu aplikácie pre oznámenia.</string>
     <string name="settings_notification_styled_title">Farebné oznámenia</string>
-    <string name="settings_ski_detection_title">Rozpoznávanie lyžovania</string>
-    <string name="settings_ski_detection_summary">Automaticky rozpoznávať lyžovanie podľa vzorcov barometra a prispôsobovať sledovanie GPS podľa fázy lyžovania.</string>
-    <string name="settings_sailing_detection_title">Rozpoznávanie plavby</string>
-    <string name="settings_sailing_detection_summary">Automaticky rozpoznávať plavbu/plavbu loďou z rýchlosti GPS a podľa toho prispôsobiť sledovanie GPS. Len podľa rýchlosti — môže sa spustiť aj pri aktivitách s podobnou rýchlosťou, ako je bicyklovanie.</string>
-    <string name="settings_plane_detection_title">Rozpoznávanie letu</string>
-    <string name="settings_plane_detection_summary">Automaticky rozpoznávať lety podľa zmien barometrickej výšky a prispôsobovať sledovanie GPS podľa fázy letu. Funguje aj bez GPS v cestovnej výške.</string>
     <string name="ski_notification_title">Lyžiarske štatistiky</string>
     <string name="ski_notification_text">🎿 Zjazd č. %1$d | ↓%2$s | ⚡%3$s</string>
     <string name="ski_notification_lift">Jazda %1$s</string>

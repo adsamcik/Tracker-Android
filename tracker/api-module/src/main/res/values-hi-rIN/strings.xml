@@ -69,12 +69,6 @@
     <string name="settings_notification_customize_title">सूचना अनुकूलित करें</string>
     <string name="settings_notification_styled_summary">सूचनाओं के लिए ऐप शैली का रंग उपयोग करें।</string>
     <string name="settings_notification_styled_title">रंगीन सूचनाएँ</string>
-    <string name="settings_ski_detection_title">स्की पहचान</string>
-    <string name="settings_ski_detection_summary">बैरोमीटर पैटर्न से स्कीइंग स्वतः पहचानें और स्की चरण के अनुसार GPS ट्रैकिंग अनुकूलित करें।</string>
-    <string name="settings_sailing_detection_title">नौकायन पहचान</string>
-    <string name="settings_sailing_detection_summary">GPS गति से नौकायन/बोटिंग स्वतः पहचानें और उसी अनुसार GPS ट्रैकिंग अनुकूलित करें। केवल गति आधारित — साइकिल जैसी समान गति गतिविधियों के लिए भी ट्रिगर हो सकता है।</string>
-    <string name="settings_plane_detection_title">उड़ान पहचान</string>
-    <string name="settings_plane_detection_summary">बैरोमेट्रिक ऊँचाई बदलाव से उड़ानें स्वतः पहचानें और उड़ान चरण के अनुसार GPS ट्रैकिंग अनुकूलित करें। क्रूज़ ऊँचाई पर GPS बिना भी काम करता है।</string>
     <string name="ski_notification_title">स्की आँकड़े</string>
     <string name="ski_notification_text">🎿 रन #%1$d | ↓%2$s | ⚡%3$s</string>
     <string name="ski_notification_lift">%1$s सवारी</string>

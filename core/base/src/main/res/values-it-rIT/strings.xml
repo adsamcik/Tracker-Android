@@ -39,8 +39,10 @@
     <string name="generic_cancel">Annulla</string>
     <string name="generic_delete">Elimina</string>
     <string name="generic_edit">Modifica</string>
+    <string name="generic_no">No</string>
     <string name="generic_ok">OK</string>
     <string name="generic_undo">annulla</string>
+    <string name="generic_yes">Sì</string>
     <string name="hour_short">%d h</string>
     <string name="minute_short">%d m</string>
     <string name="second_short">%d s</string>

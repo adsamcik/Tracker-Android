@@ -69,12 +69,6 @@
     <string name="settings_notification_customize_title">Benachrichtigung anpassen</string>
     <string name="settings_notification_styled_summary">Verwende die Stilfarbe deiner App für Benachrichtigungen.</string>
     <string name="settings_notification_styled_title">Farbige Benachrichtigungen</string>
-    <string name="settings_ski_detection_title">Ski-Erkennung</string>
-    <string name="settings_ski_detection_summary">Erkennt Skifahren automatisch anhand von Barometermustern und passt die GPS-Aufzeichnung an die Skiphase an.</string>
-    <string name="settings_sailing_detection_title">Segelerkennung</string>
-    <string name="settings_sailing_detection_summary">Erkennt Segeln bzw. Bootfahren automatisch anhand der GPS-Geschwindigkeit und passt die GPS-Aufzeichnung entsprechend an. Nur geschwindigkeitsbasiert — kann auch bei ähnlich schnellen Aktivitäten wie Radfahren ausgelöst werden.</string>
-    <string name="settings_plane_detection_title">Flugerkennung</string>
-    <string name="settings_plane_detection_summary">Erkennt Flüge automatisch anhand barometrischer Höhenänderungen und passt die GPS-Aufzeichnung an die Flugphase an. Funktioniert in Reiseflughöhe auch ohne GPS.</string>
     <string name="ski_notification_title">Ski-Statistiken</string>
     <string name="ski_notification_text">🎿 Abfahrt Nr. %1$d | ↓%2$s | ⚡%3$s</string>
     <string name="ski_notification_lift">%1$s Fahrt</string>

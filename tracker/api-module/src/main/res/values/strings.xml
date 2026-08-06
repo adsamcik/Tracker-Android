@@ -90,12 +90,6 @@
     <string name="settings_notification_customize_title">Customize notification</string>
     <string name="settings_notification_styled_summary">Use your app style color for notifications.</string>
     <string name="settings_notification_styled_title">Colored notifications</string>
-    <string name="settings_ski_detection_title">Ski detection</string>
-    <string name="settings_ski_detection_summary">Auto-detect skiing from barometer patterns and adapt GPS tracking per ski phase.</string>
-    <string name="settings_sailing_detection_title">Sailing detection</string>
-    <string name="settings_sailing_detection_summary">Auto-detect sailing/boating from GPS speed and adapt GPS tracking accordingly. Speed-based only — may also trigger for similar-speed activities like cycling.</string>
-    <string name="settings_plane_detection_title">Flight detection</string>
-    <string name="settings_plane_detection_summary">Auto-detect flights from barometric altitude changes and adapt GPS tracking per flight phase. Works even without GPS at cruise altitude.</string>
     <string name="ski_notification_title">Ski stats</string>
     <string name="ski_notification_text">🎿 Run #%1$d | ↓%2$s | ⚡%3$s</string>
     <string name="ski_notification_lift">%1$s ride</string>

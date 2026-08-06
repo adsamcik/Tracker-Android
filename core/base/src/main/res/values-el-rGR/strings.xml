@@ -39,8 +39,10 @@
     <string name="generic_cancel">Ακύρωση</string>
     <string name="generic_delete">Διαγραφή</string>
     <string name="generic_edit">Επεξεργασία</string>
+    <string name="generic_no">Όχι</string>
     <string name="generic_ok">OK</string>
     <string name="generic_undo">αναίρεση</string>
+    <string name="generic_yes">Ναι</string>
     <string name="hour_short">%d ω.</string>
     <string name="minute_short">%d λ.</string>
     <string name="second_short">%d δ.</string>

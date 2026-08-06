@@ -70,12 +70,6 @@
     <string name="settings_notification_customize_title">Prilagodi obavijest</string>
     <string name="settings_notification_styled_summary">Upotrijebite boju stila aplikacije za obavijesti.</string>
     <string name="settings_notification_styled_title">Obojene obavijesti</string>
-    <string name="settings_ski_detection_title">Otkrivanje skijanja</string>
-    <string name="settings_ski_detection_summary">Automatski otkrijte skijanje po uzorcima barometra i prilagodite GPS praćenje svakoj fazi skijanja.</string>
-    <string name="settings_sailing_detection_title">Otkrivanje jedrenja</string>
-    <string name="settings_sailing_detection_summary">Automatski otkrijte jedrenje/plovidbu prema GPS brzini i prilagodite GPS praćenje. Temelji se samo na brzini — može se aktivirati i za aktivnosti slične brzine poput bicikliranja.</string>
-    <string name="settings_plane_detection_title">Otkrivanje leta</string>
-    <string name="settings_plane_detection_summary">Automatski otkrijte letove prema promjenama barometarske visine i prilagodite GPS praćenje svakoj fazi leta. Radi čak i bez GPS-a na visini krstarenja.</string>
     <string name="ski_notification_title">Statistika skijanja</string>
     <string name="ski_notification_text">🎿 Spust #%1$d | ↓%2$s | ⚡%3$s</string>
     <string name="ski_notification_lift">vožnja %1$s</string>

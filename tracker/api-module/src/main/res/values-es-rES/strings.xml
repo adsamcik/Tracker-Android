@@ -69,12 +69,6 @@
     <string name="settings_notification_customize_title">Personalizar notificación</string>
     <string name="settings_notification_styled_summary">Usa el color de estilo de la aplicación en las notificaciones.</string>
     <string name="settings_notification_styled_title">Notificaciones con color</string>
-    <string name="settings_ski_detection_title">Detección de esquí</string>
-    <string name="settings_ski_detection_summary">Detecta automáticamente el esquí mediante patrones del barómetro y adapta el seguimiento GPS a cada fase de esquí.</string>
-    <string name="settings_sailing_detection_title">Detección de navegación</string>
-    <string name="settings_sailing_detection_summary">Detecta automáticamente la navegación a vela o en barco por la velocidad GPS y adapta el seguimiento GPS. Solo se basa en la velocidad, por lo que también puede activarse con actividades de velocidad similar, como el ciclismo.</string>
-    <string name="settings_plane_detection_title">Detección de vuelos</string>
-    <string name="settings_plane_detection_summary">Detecta automáticamente vuelos mediante cambios de altitud barométrica y adapta el seguimiento GPS a cada fase del vuelo. Funciona incluso sin GPS a la altitud de crucero.</string>
     <string name="ski_notification_title">Estadísticas de esquí</string>
     <string name="ski_notification_text">🎿 Descenso n.º %1$d | ↓%2$s | ⚡%3$s</string>
     <string name="ski_notification_lift">Trayecto de %1$s</string>

@@ -39,8 +39,10 @@
     <string name="generic_cancel">Cealaigh</string>
     <string name="generic_delete">Scrios</string>
     <string name="generic_edit">Cuir in eagar</string>
+    <string name="generic_no">Níl</string>
     <string name="generic_ok">OK</string>
     <string name="generic_undo">Cealaigh</string>
+    <string name="generic_yes">Tá</string>
     <string name="hour_short">%d u</string>
     <string name="minute_short">%d n</string>
     <string name="second_short">%d s</string>

@@ -69,12 +69,6 @@
     <string name="settings_notification_customize_title">Tilpas notifikation</string>
     <string name="settings_notification_styled_summary">Brug appens stilfarve til notifikationer.</string>
     <string name="settings_notification_styled_title">Farvede notifikationer</string>
-    <string name="settings_ski_detection_title">Skiregistrering</string>
-    <string name="settings_ski_detection_summary">Registrér automatisk skiløb ud fra barometermønstre, og tilpas GPS-sporing efter skifase.</string>
-    <string name="settings_sailing_detection_title">Sejladsregistrering</string>
-    <string name="settings_sailing_detection_summary">Registrér automatisk sejlads og bådfart ud fra GPS-hastighed, og tilpas GPS-sporing derefter. Kun hastighedsbaseret — kan også udløses ved aktiviteter med lignende hastighed som cykling.</string>
-    <string name="settings_plane_detection_title">Flyregistrering</string>
-    <string name="settings_plane_detection_summary">Registrér automatisk flyvninger ud fra barometriske højdeforandringer, og tilpas GPS-sporing efter flyfase. Virker også uden GPS i marchhøjde.</string>
     <string name="ski_notification_title">Skistatistik</string>
     <string name="ski_notification_text">🎿 Nedfart #%1$d | ↓%2$s | ⚡%3$s</string>
     <string name="ski_notification_lift">%1$s tur</string>

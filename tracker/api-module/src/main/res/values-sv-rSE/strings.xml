@@ -69,12 +69,6 @@
     <string name="settings_notification_customize_title">Anpassa avisering</string>
     <string name="settings_notification_styled_summary">Använd appens stilfärg för aviseringar.</string>
     <string name="settings_notification_styled_title">Färgade aviseringar</string>
-    <string name="settings_ski_detection_title">Skididentifiering</string>
-    <string name="settings_ski_detection_summary">Identifiera skidåkning automatiskt från barometermönster och anpassa GPS-spårning efter skidfas.</string>
-    <string name="settings_sailing_detection_title">Seglingsidentifiering</string>
-    <string name="settings_sailing_detection_summary">Identifiera segling/båtliv automatiskt från GPS-hastighet och anpassa GPS-spårningen därefter. Endast hastighetsbaserat — kan även utlösas för aktiviteter med liknande hastighet som cykling.</string>
-    <string name="settings_plane_detection_title">Flygidentifiering</string>
-    <string name="settings_plane_detection_summary">Identifiera flyg automatiskt från barometriska höjdförändringar och anpassa GPS-spårning efter flygfas. Fungerar även utan GPS på marschhöjd.</string>
     <string name="ski_notification_title">Skidstatistik</string>
     <string name="ski_notification_text">🎿 Åk #%1$d | ↓%2$s | ⚡%3$s</string>
     <string name="ski_notification_lift">%1$s liftfärd</string>

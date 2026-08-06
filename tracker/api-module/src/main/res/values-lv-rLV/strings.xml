@@ -69,12 +69,6 @@
     <string name="settings_notification_customize_title">Pielāgot paziņojumu</string>
     <string name="settings_notification_styled_summary">Paziņojumiem izmantojiet lietotnes stila krāsu.</string>
     <string name="settings_notification_styled_title">Krāsaini paziņojumi</string>
-    <string name="settings_ski_detection_title">Slēpošanas noteikšana</string>
-    <string name="settings_ski_detection_summary">Automātiski noteikt slēpošanu pēc barometra modeļiem un pielāgot GPS izsekošanu katrai slēpošanas fāzei.</string>
-    <string name="settings_sailing_detection_title">Burāšanas noteikšana</string>
-    <string name="settings_sailing_detection_summary">Automātiski noteikt burāšanu vai laivošanu pēc GPS ātruma un atbilstoši pielāgot GPS izsekošanu. Tikai pēc ātruma — var aktivizēties arī līdzīga ātruma aktivitātēm, piemēram, braukšanai ar velosipēdu.</string>
-    <string name="settings_plane_detection_title">Lidojuma noteikšana</string>
-    <string name="settings_plane_detection_summary">Automātiski noteikt lidojumus pēc barometriskā augstuma izmaiņām un pielāgot GPS izsekošanu katrai lidojuma fāzei. Darbojas arī bez GPS kruīza augstumā.</string>
     <string name="ski_notification_title">Slēpošanas statistika</string>
     <string name="ski_notification_text">🎿 Nobrauciens #%1$d | ↓%2$s | ⚡%3$s</string>
     <string name="ski_notification_lift">%1$s brauciens</string>

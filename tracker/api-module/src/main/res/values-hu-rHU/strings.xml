@@ -69,12 +69,6 @@
     <string name="settings_notification_customize_title">Értesítés testreszabása</string>
     <string name="settings_notification_styled_summary">Értesítésekhez használja az alkalmazásstílus színét.</string>
     <string name="settings_notification_styled_title">Színes értesítések</string>
-    <string name="settings_ski_detection_title">Síelés felismerése</string>
-    <string name="settings_ski_detection_summary">A síelés automatikus felismerése a barométer mintázatai alapján, és a GPS-követés alkalmazkodása a síelési fázishoz.</string>
-    <string name="settings_sailing_detection_title">Vitorlázás felismerése</string>
-    <string name="settings_sailing_detection_summary">A vitorlázás/csónakázás automatikus felismerése GPS-sebesség alapján, és a GPS-követés ennek megfelelő módosítása. Csak sebességalapú — hasonló sebességű tevékenységeknél, például kerékpározásnál is aktiválódhat.</string>
-    <string name="settings_plane_detection_title">Repülés felismerése</string>
-    <string name="settings_plane_detection_summary">Repülések automatikus felismerése a barometrikus magasság változásából, és a GPS-követés alkalmazkodása a repülési fázishoz. Utazómagasságon GPS nélkül is működik.</string>
     <string name="ski_notification_title">Síelési statisztikák</string>
     <string name="ski_notification_text">🎿 %1$d. menet | ↓%2$s | ⚡%3$s</string>
     <string name="ski_notification_lift">%1$s felvonóút</string>

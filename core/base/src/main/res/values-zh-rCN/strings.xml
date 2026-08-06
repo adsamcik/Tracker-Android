@@ -39,8 +39,10 @@
     <string name="generic_cancel">取消</string>
     <string name="generic_delete">删除</string>
     <string name="generic_edit">编辑</string>
+    <string name="generic_no">否</string>
     <string name="generic_ok">确定</string>
     <string name="generic_undo">撤销</string>
+    <string name="generic_yes">是</string>
     <string name="hour_short">%d 小时</string>
     <string name="minute_short">%d 分钟</string>
     <string name="second_short">%d 秒</string>

@@ -39,8 +39,10 @@
     <string name="generic_cancel">Anulează</string>
     <string name="generic_delete">Șterge</string>
     <string name="generic_edit">Editează</string>
+    <string name="generic_no">Nu</string>
     <string name="generic_ok">OK</string>
     <string name="generic_undo">Anulează</string>
+    <string name="generic_yes">Da</string>
     <string name="hour_short">%d h</string>
     <string name="minute_short">%d m</string>
     <string name="second_short">%d s</string>

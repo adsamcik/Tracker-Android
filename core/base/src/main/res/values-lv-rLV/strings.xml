@@ -39,8 +39,10 @@
     <string name="generic_cancel">Atcelt</string>
     <string name="generic_delete">Dzēst</string>
     <string name="generic_edit">Rediģēt</string>
+    <string name="generic_no">Nē</string>
     <string name="generic_ok">OK</string>
     <string name="generic_undo">atsaukt</string>
+    <string name="generic_yes">Jā</string>
     <string name="hour_short">%d h</string>
     <string name="minute_short">%d m</string>
     <string name="second_short">%d s</string>

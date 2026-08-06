@@ -39,8 +39,10 @@
     <string name="generic_cancel">Peruuta</string>
     <string name="generic_delete">Poista</string>
     <string name="generic_edit">Muokkaa</string>
+    <string name="generic_no">Ei</string>
     <string name="generic_ok">OK</string>
     <string name="generic_undo">kumoa</string>
+    <string name="generic_yes">Kyllä</string>
     <string name="hour_short">%d h</string>
     <string name="minute_short">%d min</string>
     <string name="second_short">%d s</string>

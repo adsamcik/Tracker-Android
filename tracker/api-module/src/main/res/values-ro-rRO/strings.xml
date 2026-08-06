@@ -70,12 +70,6 @@
     <string name="settings_notification_customize_title">Personalizează notificarea</string>
     <string name="settings_notification_styled_summary">Folosește culoarea stilului aplicației pentru notificări.</string>
     <string name="settings_notification_styled_title">Notificări colorate</string>
-    <string name="settings_ski_detection_title">Detectare schi</string>
-    <string name="settings_ski_detection_summary">Detectează automat schiul după tiparele barometrului și adaptează urmărirea GPS pentru fiecare fază a schiului.</string>
-    <string name="settings_sailing_detection_title">Detectare navigație</string>
-    <string name="settings_sailing_detection_summary">Detectează automat navigația/plimbarea cu barca după viteza GPS și adaptează urmărirea GPS în consecință. Se bazează doar pe viteză — poate fi declanșată și de activități cu viteză similară, precum ciclismul.</string>
-    <string name="settings_plane_detection_title">Detectare zbor</string>
-    <string name="settings_plane_detection_summary">Detectează automat zborurile după schimbările altitudinii barometrice și adaptează urmărirea GPS pentru fiecare fază a zborului. Funcționează chiar și fără GPS la altitudine de croazieră.</string>
     <string name="ski_notification_title">Statistici schi</string>
     <string name="ski_notification_text">🎿 Alergare #%1$d | ↓%2$s | ⚡%3$s</string>
     <string name="ski_notification_lift">Urcare de %1$s</string>

@@ -69,12 +69,6 @@
     <string name="settings_notification_customize_title">Προσαρμογή ειδοποίησης</string>
     <string name="settings_notification_styled_summary">Χρήση του χρώματος στυλ της εφαρμογής στις ειδοποιήσεις.</string>
     <string name="settings_notification_styled_title">Έγχρωμες ειδοποιήσεις</string>
-    <string name="settings_ski_detection_title">Ανίχνευση σκι</string>
-    <string name="settings_ski_detection_summary">Αυτόματη ανίχνευση σκι από τα μοτίβα του βαρόμετρου και προσαρμογή της καταγραφής GPS σε κάθε φάση του σκι.</string>
-    <string name="settings_sailing_detection_title">Ανίχνευση ιστιοπλοΐας</string>
-    <string name="settings_sailing_detection_summary">Αυτόματη ανίχνευση ιστιοπλοΐας/πλεύσης από την ταχύτητα GPS και αντίστοιχη προσαρμογή της καταγραφής GPS. Βασίζεται μόνο στην ταχύτητα — μπορεί επίσης να ενεργοποιηθεί για δραστηριότητες με παρόμοια ταχύτητα, όπως η ποδηλασία.</string>
-    <string name="settings_plane_detection_title">Ανίχνευση πτήσης</string>
-    <string name="settings_plane_detection_summary">Αυτόματη ανίχνευση πτήσεων από τις βαρομετρικές μεταβολές υψομέτρου και προσαρμογή της καταγραφής GPS σε κάθε φάση πτήσης. Λειτουργεί ακόμη και χωρίς GPS σε ύψος πλεύσης.</string>
     <string name="ski_notification_title">Στατιστικά σκι</string>
     <string name="ski_notification_text">🎿 Διαδρομή #%1$d | ↓%2$s | ⚡%3$s</string>
     <string name="ski_notification_lift">διαδρομή %1$s</string>

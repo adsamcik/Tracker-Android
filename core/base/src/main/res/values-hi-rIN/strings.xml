@@ -39,8 +39,10 @@
     <string name="generic_cancel">रद्द करें</string>
     <string name="generic_delete">हटाएँ</string>
     <string name="generic_edit">संपादित करें</string>
+    <string name="generic_no">नहीं</string>
     <string name="generic_ok">ठीक है</string>
     <string name="generic_undo">पूर्ववत करें</string>
+    <string name="generic_yes">हाँ</string>
     <string name="hour_short">%d घं.</string>
     <string name="minute_short">%d मि.</string>
     <string name="second_short">%d से.</string>

@@ -39,8 +39,10 @@
     <string name="generic_cancel">Annuleren</string>
     <string name="generic_delete">Verwijderen</string>
     <string name="generic_edit">Bewerken</string>
+    <string name="generic_no">Nee</string>
     <string name="generic_ok">OK</string>
     <string name="generic_undo">Ongedaan maken</string>
+    <string name="generic_yes">Ja</string>
     <string name="hour_short">%d h</string>
     <string name="minute_short">%d m</string>
     <string name="second_short">%d s</string>

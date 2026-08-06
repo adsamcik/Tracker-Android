@@ -39,8 +39,10 @@
     <string name="generic_cancel">Ikkanċella</string>
     <string name="generic_delete">Ħassar</string>
     <string name="generic_edit">Editja</string>
+    <string name="generic_no">Le</string>
     <string name="generic_ok">OK</string>
     <string name="generic_undo">annulla</string>
+    <string name="generic_yes">Iva</string>
     <string name="hour_short">%d s</string>
     <string name="minute_short">%d min</string>
     <string name="second_short">%d s</string>

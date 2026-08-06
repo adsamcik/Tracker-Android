@@ -69,12 +69,6 @@
     <string name="settings_notification_customize_title">Melding aanpassen</string>
     <string name="settings_notification_styled_summary">Gebruik de kleur van je appstijl voor meldingen.</string>
     <string name="settings_notification_styled_title">Gekleurde meldingen</string>
-    <string name="settings_ski_detection_title">Skidetectie</string>
-    <string name="settings_ski_detection_summary">Detecteer skiën automatisch op basis van barometerpatronen en pas GPS-tracking aan voor elke skifase.</string>
-    <string name="settings_sailing_detection_title">Zeildetectie</string>
-    <string name="settings_sailing_detection_summary">Detecteer zeilen of varen automatisch op basis van GPS-snelheid en pas GPS-tracking dienovereenkomstig aan. Alleen op snelheid gebaseerd — kan ook worden geactiveerd bij activiteiten met vergelijkbare snelheid, zoals fietsen.</string>
-    <string name="settings_plane_detection_title">Vliegdetectie</string>
-    <string name="settings_plane_detection_summary">Detecteer vluchten automatisch op basis van barometrische hoogteveranderingen en pas GPS-tracking aan voor elke vluchtfase. Werkt zelfs zonder GPS op kruishoogte.</string>
     <string name="ski_notification_title">Skistatistieken</string>
     <string name="ski_notification_text">🎿 Afdaling #%1$d | ↓%2$s | ⚡%3$s</string>
     <string name="ski_notification_lift">Rit van %1$s</string>

@@ -373,28 +373,6 @@
 
     <issue
         id="MissingTranslation"
-        message="&quot;settings_ski_detection_title&quot; is not translated in &quot;de&quot; (German), &quot;no&quot; (Norwegian), &quot;fi&quot; (Finnish), &quot;ru&quot; (Russian), &quot;pt&quot; (Portuguese), &quot;fr&quot; (French), &quot;hu&quot; (Hungarian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;sv&quot; (Swedish), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;el&quot; (Greek), &quot;it&quot; (Italian), &quot;es&quot; (Spanish), &quot;iw&quot; (Hebrew), &quot;zh&quot; (Chinese), &quot;cs&quot; (Czech), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;ja&quot; (Japanese), &quot;pl&quot; (Polish), &quot;da&quot; (Danish), &quot;ro&quot; (Romanian), &quot;nl&quot; (Dutch), &quot;tr&quot; (Turkish)"
-        errorLine1="    &lt;string name=&quot;settings_ski_detection_title&quot;>Ski detection&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="104"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="MissingTranslation"
-        message="&quot;settings_ski_detection_summary&quot; is not translated in &quot;de&quot; (German), &quot;no&quot; (Norwegian), &quot;fi&quot; (Finnish), &quot;ru&quot; (Russian), &quot;pt&quot; (Portuguese), &quot;fr&quot; (French), &quot;hu&quot; (Hungarian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;sv&quot; (Swedish), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;el&quot; (Greek), &quot;it&quot; (Italian), &quot;es&quot; (Spanish), &quot;iw&quot; (Hebrew), &quot;zh&quot; (Chinese), &quot;cs&quot; (Czech), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;ja&quot; (Japanese), &quot;pl&quot; (Polish), &quot;da&quot; (Danish), &quot;ro&quot; (Romanian), &quot;nl&quot; (Dutch), &quot;tr&quot; (Turkish)"
-        errorLine1="    &lt;string name=&quot;settings_ski_detection_summary&quot;>Auto-detect skiing from barometer patterns and adapt GPS tracking per ski phase.&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="105"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="MissingTranslation"
         message="&quot;ski_notification_title&quot; is not translated in &quot;de&quot; (German), &quot;no&quot; (Norwegian), &quot;fi&quot; (Finnish), &quot;ru&quot; (Russian), &quot;pt&quot; (Portuguese), &quot;fr&quot; (French), &quot;hu&quot; (Hungarian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;sv&quot; (Swedish), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;el&quot; (Greek), &quot;it&quot; (Italian), &quot;es&quot; (Spanish), &quot;iw&quot; (Hebrew), &quot;zh&quot; (Chinese), &quot;cs&quot; (Czech), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;ja&quot; (Japanese), &quot;pl&quot; (Polish), &quot;da&quot; (Danish), &quot;ro&quot; (Romanian), &quot;nl&quot; (Dutch), &quot;tr&quot; (Turkish)"
         errorLine1="    &lt;string name=&quot;ski_notification_title&quot;>Ski stats&lt;/string>"
         errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">

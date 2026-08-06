@@ -71,12 +71,6 @@
     <string name="settings_notification_customize_title">Dostosuj powiadomienie</string>
     <string name="settings_notification_styled_summary">Używaj koloru stylu aplikacji dla powiadomień.</string>
     <string name="settings_notification_styled_title">Kolorowe powiadomienia</string>
-    <string name="settings_ski_detection_title">Wykrywanie jazdy na nartach</string>
-    <string name="settings_ski_detection_summary">Automatycznie wykrywaj jazdę na nartach na podstawie wzorców barometru i dostosowuj śledzenie GPS do fazy jazdy.</string>
-    <string name="settings_sailing_detection_title">Wykrywanie żeglowania</string>
-    <string name="settings_sailing_detection_summary">Automatycznie wykrywaj żeglowanie i pływanie na podstawie prędkości GPS oraz odpowiednio dostosowuj śledzenie GPS. Tylko na podstawie prędkości — może też uruchamiać się przy aktywnościach o podobnej prędkości, takich jak jazda rowerem.</string>
-    <string name="settings_plane_detection_title">Wykrywanie lotu</string>
-    <string name="settings_plane_detection_summary">Automatycznie wykrywaj loty na podstawie zmian wysokości barometrycznej i dostosowuj śledzenie GPS do fazy lotu. Działa nawet bez GPS na wysokości przelotowej.</string>
     <string name="ski_notification_title">Statystyki narciarskie</string>
     <string name="ski_notification_text">🎿 Run #%1$d | ↓%2$s | ⚡%3$s</string>
     <string name="ski_notification_lift">Przejazd %1$s</string>

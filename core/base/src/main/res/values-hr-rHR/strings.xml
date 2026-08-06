@@ -39,8 +39,10 @@
     <string name="generic_cancel">Odustani</string>
     <string name="generic_delete">Izbriši</string>
     <string name="generic_edit">Uredi</string>
+    <string name="generic_no">Ne</string>
     <string name="generic_ok">U redu</string>
     <string name="generic_undo">poništi</string>
+    <string name="generic_yes">Da</string>
     <string name="hour_short">%d h</string>
     <string name="minute_short">%d m</string>
     <string name="second_short">%d s</string>

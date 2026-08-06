@@ -69,12 +69,6 @@
     <string name="settings_notification_customize_title">Personalizza notifica</string>
     <string name="settings_notification_styled_summary">Usa il colore dello stile dell\'app per le notifiche.</string>
     <string name="settings_notification_styled_title">Notifiche colorate</string>
-    <string name="settings_ski_detection_title">Rilevamento sci</string>
-    <string name="settings_ski_detection_summary">Rileva automaticamente lo sci dai modelli del barometro e adatta il tracciamento GPS a ogni fase dello sci.</string>
-    <string name="settings_sailing_detection_title">Rilevamento navigazione</string>
-    <string name="settings_sailing_detection_summary">Rileva automaticamente la navigazione a vela o in barca dalla velocità GPS e adatta di conseguenza il tracciamento GPS. Basato solo sulla velocità — può attivarsi anche per attività a velocità simile come il ciclismo.</string>
-    <string name="settings_plane_detection_title">Rilevamento volo</string>
-    <string name="settings_plane_detection_summary">Rileva automaticamente i voli dai cambiamenti di altitudine barometrica e adatta il tracciamento GPS a ogni fase del volo. Funziona anche senza GPS all\'altitudine di crociera.</string>
     <string name="ski_notification_title">Statistiche sci</string>
     <string name="ski_notification_text">🎿 Discesa n. %1$d | ↓%2$s | ⚡%3$s</string>
     <string name="ski_notification_lift">Salita di %1$s</string>

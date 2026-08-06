@@ -69,12 +69,6 @@
     <string name="settings_notification_customize_title">Mukauta ilmoitusta</string>
     <string name="settings_notification_styled_summary">Käytä sovelluksesi tyyliväriä ilmoituksissa.</string>
     <string name="settings_notification_styled_title">Värilliset ilmoitukset</string>
-    <string name="settings_ski_detection_title">Hiihtotunnistus</string>
-    <string name="settings_ski_detection_summary">Tunnista hiihto automaattisesti ilmanpaineanturin kuvioista ja sovita GPS-seuranta hiihtovaiheeseen.</string>
-    <string name="settings_sailing_detection_title">Purjehduksen tunnistus</string>
-    <string name="settings_sailing_detection_summary">Tunnista purjehdus tai veneily automaattisesti GPS-nopeudesta ja sovita GPS-seuranta vastaavasti. Vain nopeuteen perustuva tunnistus — voi käynnistyä myös samannopeuksisissa aktiviteeteissa, kuten pyöräilyssä.</string>
-    <string name="settings_plane_detection_title">Lennon tunnistus</string>
-    <string name="settings_plane_detection_summary">Tunnista lennot automaattisesti ilmanpainekorkeuden muutoksista ja sovita GPS-seuranta lentovaiheeseen. Toimii myös ilman GPS:ää matkalentokorkeudessa.</string>
     <string name="ski_notification_title">Hiihtotilastot</string>
     <string name="ski_notification_text">🎿 Lasku nro %1$d | ↓%2$s | ⚡%3$s</string>
     <string name="ski_notification_lift">%1$s ajo</string>

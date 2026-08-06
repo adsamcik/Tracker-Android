@@ -69,12 +69,6 @@
     <string name="settings_notification_customize_title">自定义通知</string>
     <string name="settings_notification_styled_summary">对通知使用应用样式颜色。</string>
     <string name="settings_notification_styled_title">彩色通知</string>
-    <string name="settings_ski_detection_title">滑雪检测</string>
-    <string name="settings_ski_detection_summary">根据气压计模式自动检测滑雪，并按滑雪阶段调整 GPS 跟踪。</string>
-    <string name="settings_sailing_detection_title">航海检测</string>
-    <string name="settings_sailing_detection_summary">根据 GPS 速度自动检测航海/划船，并相应调整 GPS 跟踪。仅基于速度 — 也可能因骑行等相近速度的活动而触发。</string>
-    <string name="settings_plane_detection_title">飞行检测</string>
-    <string name="settings_plane_detection_summary">根据气压海拔变化自动检测飞行，并按飞行阶段调整 GPS 跟踪。即使在巡航海拔没有 GPS 时也可工作。</string>
     <string name="ski_notification_title">滑雪统计</string>
     <string name="ski_notification_text">🎿 滑行 #%1$d | ↓%2$s | ⚡%3$s</string>
     <string name="ski_notification_lift">%1$s 次乘坐</string>

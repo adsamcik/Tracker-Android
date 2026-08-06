@@ -39,8 +39,10 @@
     <string name="generic_cancel">Atšaukti</string>
     <string name="generic_delete">Ištrinti</string>
     <string name="generic_edit">Redaguoti</string>
+    <string name="generic_no">Ne</string>
     <string name="generic_ok">Gerai</string>
     <string name="generic_undo">anuliuoti</string>
+    <string name="generic_yes">Taip</string>
     <string name="hour_short">%d val.</string>
     <string name="minute_short">%d min.</string>
     <string name="second_short">%d sek.</string>

@@ -23,7 +23,8 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 RESOURCE_TAGS = {"string", "plurals", "string-array", "integer-array"}
 SOURCE_SUFFIXES = {".gradle", ".java", ".kt", ".pro", ".xml"}
 RESOURCE_CLASS_REFERENCE = re.compile(
-    r"\b(?:[A-Za-z_][A-Za-z0-9_]*\.)*R\.(?:string|plurals|array|integer)\."
+    r"\b(?:[A-Za-z_][A-Za-z0-9_]*\.)*(?:[A-Za-z_][A-Za-z0-9_]*)?R\."
+    r"(?:string|plurals|array|integer)\."
     r"([A-Za-z_][A-Za-z0-9_]*)"
 )
 RESOURCE_XML_REFERENCE = re.compile(

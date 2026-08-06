@@ -69,12 +69,6 @@
     <string name="settings_notification_customize_title">通知をカスタマイズ</string>
     <string name="settings_notification_styled_summary">通知にアプリのスタイルカラーを使用します。</string>
     <string name="settings_notification_styled_title">色付きの通知</string>
-    <string name="settings_ski_detection_title">スキー検出</string>
-    <string name="settings_ski_detection_summary">気圧計パターンからスキーを自動検出し、スキーの段階に応じてGPSトラッキングを調整します。</string>
-    <string name="settings_sailing_detection_title">セーリング検出</string>
-    <string name="settings_sailing_detection_summary">GPS速度からセーリング/ボートを自動検出し、それに応じてGPSトラッキングを調整します。速度だけに基づくため、サイクリングなど同程度の速度のアクティビティでも作動する場合があります。</string>
-    <string name="settings_plane_detection_title">飛行検出</string>
-    <string name="settings_plane_detection_summary">気圧による高度変化から飛行を自動検出し、飛行段階に応じてGPSトラッキングを調整します。巡航高度ではGPSがなくても動作します。</string>
     <string name="ski_notification_title">スキー統計</string>
     <string name="ski_notification_text">🎿 滑走 #%1$d | ↓%2$s | ⚡%3$s</string>
     <string name="ski_notification_lift">%1$s回の乗車</string>

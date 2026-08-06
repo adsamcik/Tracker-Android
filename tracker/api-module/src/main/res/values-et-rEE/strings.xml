@@ -69,12 +69,6 @@
     <string name="settings_notification_customize_title">Kohanda märguannet</string>
     <string name="settings_notification_styled_summary">Kasuta märguannete jaoks oma rakenduse stiilivärvi.</string>
     <string name="settings_notification_styled_title">Värvilised märguanded</string>
-    <string name="settings_ski_detection_title">Suusatamise tuvastamine</string>
-    <string name="settings_ski_detection_summary">Tuvasta suusatamine automaatselt baromeetri mustrite järgi ja kohanda GPS-i jälgimist suusafaasi alusel.</string>
-    <string name="settings_sailing_detection_title">Purjetamise tuvastamine</string>
-    <string name="settings_sailing_detection_summary">Tuvasta purjetamine või paadisõit automaatselt GPS-i kiiruse järgi ja kohanda GPS-i jälgimist vastavalt. Ainult kiirusepõhine — võib käivituda ka sarnase kiirusega tegevuste, näiteks jalgrattasõidu puhul.</string>
-    <string name="settings_plane_detection_title">Lennu tuvastamine</string>
-    <string name="settings_plane_detection_summary">Tuvasta lennud automaatselt baromeetrilise kõrguse muutuste järgi ja kohanda GPS-i jälgimist lennufaasi alusel. Toimib ka ilma GPS-ita reisikõrgusel.</string>
     <string name="ski_notification_title">Suusastatistika</string>
     <string name="ski_notification_text">🎿 Laskumine nr %1$d | ↓%2$s | ⚡%3$s</string>
     <string name="ski_notification_lift">%1$s sõit</string>

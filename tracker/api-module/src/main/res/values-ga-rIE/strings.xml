@@ -69,12 +69,6 @@
     <string name="settings_notification_customize_title">Saincheap fógra</string>
     <string name="settings_notification_styled_summary">Úsáid dath stíle d’aip le haghaidh fógraí.</string>
     <string name="settings_notification_styled_title">Fógraí daite</string>
-    <string name="settings_ski_detection_title">Braite sciála</string>
-    <string name="settings_ski_detection_summary">Braith sciáil go huathoibríoch ó phatrúin baraiméadair agus oiriúnaigh rianú GPS do gach céim sciála.</string>
-    <string name="settings_sailing_detection_title">Braite seoltóireachta</string>
-    <string name="settings_sailing_detection_summary">Braith seoltóireacht/bádóireacht go huathoibríoch ó luas GPS agus oiriúnaigh rianú GPS dá réir. Bunaithe ar luas amháin — d’fhéadfadh sé gníomhaíochtaí ar luas comhchosúil amhail rothaíocht a spreagadh freisin.</string>
-    <string name="settings_plane_detection_title">Braite eitilte</string>
-    <string name="settings_plane_detection_summary">Braith eitiltí go huathoibríoch ó athruithe airde baraiméadracha agus oiriúnaigh rianú GPS do gach céim eitilte. Oibríonn sé fiú gan GPS ag airde cúrsála.</string>
     <string name="ski_notification_title">Staitisticí sciála</string>
     <string name="ski_notification_text">🎿 Rith #%1$d | ↓%2$s | ⚡%3$s</string>
     <string name="ski_notification_lift">Turas %1$s</string>

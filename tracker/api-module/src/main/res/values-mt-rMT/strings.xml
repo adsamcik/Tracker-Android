@@ -69,12 +69,6 @@
     <string name="settings_notification_customize_title">Ippersonalizza n-notifika</string>
     <string name="settings_notification_styled_summary">Uża l-kulur tal-istil tal-applikazzjoni għan-notifiki.</string>
     <string name="settings_notification_styled_title">Notifiki ikkuluriti</string>
-    <string name="settings_ski_detection_title">Sejbien tal-iskijjar</string>
-    <string name="settings_ski_detection_summary">Induna awtomatikament bl-iskijjar minn xejriet tal-barometru u adatta t-traċċar GPS għal kull fażi tal-iskijjar.</string>
-    <string name="settings_sailing_detection_title">Sejbien tat-tbaħħir</string>
-    <string name="settings_sailing_detection_summary">Induna awtomatikament bit-tbaħħir minn veloċità GPS u adatta t-traċċar GPS skont dan. Ibbażat biss fuq il-veloċità — jista’ jinxtegħel ukoll għal attivitajiet b’veloċità simili bħaċ-ċikliżmu.</string>
-    <string name="settings_plane_detection_title">Sejbien tat-titjira</string>
-    <string name="settings_plane_detection_summary">Induna awtomatikament bit-titjiriet minn bidliet fl-altitudni barometrika u adatta t-traċċar GPS għal kull fażi tat-titjira. Jaħdem anke mingħajr GPS fl-altitudni tal-kruċiera.</string>
     <string name="ski_notification_title">Statistika tal-iskijjar</string>
     <string name="ski_notification_text">🎿 Ġirja #%1$d | ↓%2$s | ⚡%3$s</string>
     <string name="ski_notification_lift">Vjaġġ ta’ %1$s</string>

@@ -39,8 +39,10 @@
     <string name="generic_cancel">キャンセル</string>
     <string name="generic_delete">削除</string>
     <string name="generic_edit">編集</string>
+    <string name="generic_no">いいえ</string>
     <string name="generic_ok">OK</string>
     <string name="generic_undo">元に戻す</string>
+    <string name="generic_yes">はい</string>
     <string name="hour_short">%d時間</string>
     <string name="minute_short">%d分</string>
     <string name="second_short">%d秒</string>

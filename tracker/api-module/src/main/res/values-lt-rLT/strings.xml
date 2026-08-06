@@ -70,12 +70,6 @@
     <string name="settings_notification_customize_title">Tinkinti pranešimą</string>
     <string name="settings_notification_styled_summary">Pranešimams naudoti programos stiliaus spalvą.</string>
     <string name="settings_notification_styled_title">Spalvoti pranešimai</string>
-    <string name="settings_ski_detection_title">Slidinėjimo aptikimas</string>
-    <string name="settings_ski_detection_summary">Automatiškai aptikti slidinėjimą pagal barometro duomenų modelius ir pritaikyti GPS sekimą pagal slidinėjimo etapą.</string>
-    <string name="settings_sailing_detection_title">Buriavimo aptikimas</string>
-    <string name="settings_sailing_detection_summary">Automatiškai aptikti buriavimą ar plaukimą pagal GPS greitį ir atitinkamai pritaikyti GPS sekimą. Nustatoma tik pagal greitį, todėl gali įsijungti ir panašaus greičio veikloms, pavyzdžiui, važiavimui dviračiu.</string>
-    <string name="settings_plane_detection_title">Skrydžio aptikimas</string>
-    <string name="settings_plane_detection_summary">Automatiškai aptikti skrydžius pagal barometrinio aukščio pokyčius ir pritaikyti GPS sekimą pagal skrydžio etapą. Veikia net ir be GPS kreiseriniame aukštyje.</string>
     <string name="ski_notification_title">Slidinėjimo statistika</string>
     <string name="ski_notification_text">🎿 Nusileidimas Nr. %1$d | ↓%2$s | ⚡%3$s</string>
     <string name="ski_notification_lift">%1$s keltuvu</string>

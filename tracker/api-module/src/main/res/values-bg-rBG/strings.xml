@@ -69,12 +69,6 @@
     <string name="settings_notification_customize_title">Персонализиране на известието</string>
     <string name="settings_notification_styled_summary">Използвайте цвета на стила на приложението за известия.</string>
     <string name="settings_notification_styled_title">Цветни известия</string>
-    <string name="settings_ski_detection_title">Разпознаване на ски</string>
-    <string name="settings_ski_detection_summary">Автоматично разпознаване на каране на ски по модели на барометъра и адаптиране на GPS проследяването към всяка ски фаза.</string>
-    <string name="settings_sailing_detection_title">Разпознаване на плаване</string>
-    <string name="settings_sailing_detection_summary">Автоматично разпознаване на плаване/лодка по GPS скоростта и съответно адаптиране на GPS проследяването. Само въз основа на скоростта — може да се задейства и при активности с подобна скорост, като колоездене.</string>
-    <string name="settings_plane_detection_title">Разпознаване на полет</string>
-    <string name="settings_plane_detection_summary">Автоматично разпознаване на полети по промени в барометричната височина и адаптиране на GPS проследяването към фазата на полета. Работи дори без GPS на крейсерска височина.</string>
     <string name="ski_notification_title">Статистика за ски</string>
     <string name="ski_notification_text">🎿 Спускане №%1$d | ↓%2$s | ⚡%3$s</string>
     <string name="ski_notification_lift">пътуване %1$s</string>

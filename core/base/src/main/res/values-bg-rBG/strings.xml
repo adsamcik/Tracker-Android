@@ -39,8 +39,10 @@
     <string name="generic_cancel">Отказ</string>
     <string name="generic_delete">Изтриване</string>
     <string name="generic_edit">Редактиране</string>
+    <string name="generic_no">Не</string>
     <string name="generic_ok">ОК</string>
     <string name="generic_undo">отмяна</string>
+    <string name="generic_yes">Да</string>
     <string name="hour_short">%d ч</string>
     <string name="minute_short">%d мин</string>
     <string name="second_short">%d сек</string>

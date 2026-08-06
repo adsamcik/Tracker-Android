@@ -39,8 +39,10 @@
     <string name="generic_cancel">Mégse</string>
     <string name="generic_delete">Törlés</string>
     <string name="generic_edit">Szerkesztés</string>
+    <string name="generic_no">Nem</string>
     <string name="generic_ok">OK</string>
     <string name="generic_undo">visszavonás</string>
+    <string name="generic_yes">Igen</string>
     <string name="hour_short">%d ó</string>
     <string name="minute_short">%d p</string>
     <string name="second_short">%d mp</string>
