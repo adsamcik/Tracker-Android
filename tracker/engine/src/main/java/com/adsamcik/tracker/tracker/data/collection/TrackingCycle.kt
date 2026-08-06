@@ -53,7 +53,7 @@ internal fun TrackingCycle.hasPersistableProducerPayload(): Boolean =
 	(activityFresh && activity != null) ||
 		(cellScanFresh && cellScan != null) ||
 		wifiScan != null ||
-		(stepDelta != null && stepDelta > 0) ||
+		(stepDelta != null && (stepDelta > 0 || stepSensorReset)) ||
 		pressure != null
 
 /** True for a provider callback containing only rejected raw fixes. */

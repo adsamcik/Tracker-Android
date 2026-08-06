@@ -94,6 +94,20 @@ class SignalAdapterTest {
 	}
 
 	@Test
+	fun `zero stepDelta with sensor reset produces reset evidence`() {
+		val signal = SignalAdapter.buildSignal(
+			timestampMs = 6000L,
+			stepDelta = 0,
+			totalStepsSinceBoot = 0L,
+			stepSensorReset = true,
+		)
+
+		signal.steps.shouldNotBeNull()
+		signal.steps?.stepDelta?.raw shouldBe 0
+		signal.steps?.sensorReset shouldBe true
+	}
+
+	@Test
 	fun `accuracy null with lat lon present produces null location`() {
 		val signal = SignalAdapter.buildSignal(
 			timestampMs = 7000L,

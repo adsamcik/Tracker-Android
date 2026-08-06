@@ -185,6 +185,8 @@ class TrackingCycleTest {
 			base.copy(wifiScan = mockk(relaxed = true))
 				.hasPersistableProducerPayload() shouldBe true
 			base.copy(stepDelta = 0).hasPersistableProducerPayload() shouldBe false
+			base.copy(stepDelta = 0, stepSensorReset = true)
+				.hasPersistableProducerPayload() shouldBe true
 			base.copy(stepDelta = 1).hasPersistableProducerPayload() shouldBe true
 			base.copy(pressure = PressureReading(1_013.25f, 0f))
 				.hasPersistableProducerPayload() shouldBe true

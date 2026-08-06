@@ -47,7 +47,7 @@ internal class StepDataProducer(
 			if (stepCountSinceLastCollection < 0) {
 				return@synchronized
 			}
-			if (stepCountSinceLastCollection > 0) {
+			if (stepCountSinceLastCollection > 0 || sensorResetDetected) {
 				builder.stepDelta = stepCountSinceLastCollection
 				builder.totalStepsSinceBoot = if (lastStepCount >= 0) lastStepCount.toLong() else null
 				builder.stepSensorValueStart = stepValueAtCollectionStart
@@ -171,10 +171,10 @@ internal class StepDataProducer(
 					firstEventElapsedRealtimeNanos = event.timestamp
 				}
 				lastEventElapsedRealtimeNanos = event.timestamp
-				if (lastStepCount >= 0 && stepCount > 0) {
+				if (lastStepCount >= 0) {
 					//In case sensor would overflow and reset to 0 at some point
 					if (lastStepCount > stepCount) {
-						this.stepCountSinceLastCollection += stepCount
+						this.stepCountSinceLastCollection += stepCount.coerceAtLeast(0)
 						sensorResetDetected = true
 					} else {
 						this.stepCountSinceLastCollection += stepCount - lastStepCount

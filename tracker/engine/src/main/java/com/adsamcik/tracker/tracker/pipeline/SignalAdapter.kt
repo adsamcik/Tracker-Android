@@ -195,7 +195,7 @@ object SignalAdapter {
 			null
 		}
 
-		val stepSignal = if (stepDelta != null && stepDelta > 0) {
+		val stepSignal = if (stepDelta != null && (stepDelta > 0 || stepSensorReset)) {
 			StepSignal(
 				stepDelta = StepCount.coerced(stepDelta),
 				totalStepsSinceBoot = totalStepsSinceBoot ?: 0L,

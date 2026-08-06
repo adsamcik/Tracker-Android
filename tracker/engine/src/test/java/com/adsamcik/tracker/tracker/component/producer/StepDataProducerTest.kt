@@ -167,14 +167,18 @@ class StepDataProducerTest {
 	}
 
 	@Test
-	fun `zero step count event after initialization does not accumulate`() {
+	fun `counter reset exactly to zero emits a durable reset interval`() {
 		// First event sets lastStepCount
 		producer.onSensorChanged(createSensorEvent(Sensor.TYPE_STEP_COUNTER, 50f))
-		// Second event with stepCount = 0 is skipped (stepCount > 0 check fails)
+		// Android can reset the cumulative counter to exactly zero after reboot/sensor restart.
 		producer.onSensorChanged(createSensorEvent(Sensor.TYPE_STEP_COUNTER, 0f))
 
 		getLastStepCount() shouldBe 0
 		getStepCountSinceLastCollection() shouldBe 0
+		val builder = createBuilder()
+		producer.onDataRequest(builder)
+		builder.stepDelta shouldBe 0
+		builder.stepSensorReset shouldBe true
 	}
 
 	@Test
