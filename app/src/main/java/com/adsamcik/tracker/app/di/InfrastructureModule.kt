@@ -9,6 +9,7 @@ import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
 import com.adsamcik.tracker.app.settings.CollectedDataWriterQuiescer
 import com.adsamcik.tracker.app.settings.DefaultCollectedDataDeletionService
 import com.adsamcik.tracker.app.settings.DefaultCollectedDataWriterQuiescer
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbiter
 import com.adsamcik.tracker.impexp.exporter.automation.ExportAutomationController
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.points.database.PointsDatabase
@@ -190,6 +191,7 @@ object InfrastructureModule {
         exportPlanStore: ExportPlanStore,
         writerQuiescer: CollectedDataWriterQuiescer,
 		collectedDataLifecycleStore: CollectedDataLifecycleStore,
+		activityRegistrationArbiter: ActivityRegistrationArbiter,
         dispatchersProvider: DispatchersProvider,
         traceboxHandleProvider: TrackerTraceboxHandleProvider,
     ): CollectedDataDeletionService = DefaultCollectedDataDeletionService(
@@ -198,6 +200,7 @@ object InfrastructureModule {
         exportPlanStore = exportPlanStore,
         writerQuiescer = writerQuiescer,
         collectedDataLifecycleStore = collectedDataLifecycleStore,
+		activityRegistrationArbiter = activityRegistrationArbiter,
         traceboxDataDeletion = {
             withContext(dispatchersProvider.io) {
                 traceboxHandleProvider.handle.delete(DeleteRequest.ALL_TRACEBOX_DATA) ==

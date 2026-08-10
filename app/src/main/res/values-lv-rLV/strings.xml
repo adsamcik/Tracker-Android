@@ -204,7 +204,6 @@
     <string name="upgrade_to_precise_benefit_detailed_maps">Detalizēta siltumkarte un telpiskā analīze</string>
     <string name="upgrade_to_precise_benefit_precise_stats">Precīzi attāluma un ātruma mērījumi</string>
     <string name="upgrade_to_precise_battery_title">Akumulatora patēriņš</string>
-    <string name="upgrade_to_precise_battery_message">Precīzs GPS patērē vairāk akumulatora. Paredzamais izsekošanas laiks: 6–8 stundas parastās ierīcēs.</string>
     <string name="upgrade_to_precise_button_upgrade">Iespējot precīzu atrašanās vietu</string>
     <string name="upgrade_to_precise_button_cancel">Varbūt vēlāk</string>
     <string name="tracking_preset_high_accuracy_name">Augsta precizitāte</string>
@@ -228,10 +227,6 @@
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
     <string name="tracking_policy_selector_title">Izsekošanas politika</string>
-    <plurals name="tracking_policy_estimated_duration">
-        <item quantity="one">Paredzamais izsekošanas laiks: %d stunda</item>
-        <item quantity="other">Paredzamais izsekošanas laiks: %d stundas</item>
-    </plurals>
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Izvēlieties, cik precīzi Tracker ieraksta jūsu atrašanās vietu</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>

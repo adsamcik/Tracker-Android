@@ -208,7 +208,6 @@
     <string name="upgrade_to_precise_benefit_detailed_maps">Detaljna toplinska karta i prostorna analiza</string>
     <string name="upgrade_to_precise_benefit_precise_stats">Precizna mjerenja udaljenosti i brzine</string>
     <string name="upgrade_to_precise_battery_title">Upotreba baterije</string>
-    <string name="upgrade_to_precise_battery_message">Precizni GPS troši više baterije. Procijenjeno vrijeme praćenja: 6–8 sati na uobičajenim uređajima.</string>
     <string name="upgrade_to_precise_button_upgrade">Omogući preciznu lokaciju</string>
     <string name="upgrade_to_precise_button_cancel">Možda kasnije</string>
     <string name="tracking_preset_high_accuracy_name">Visoka točnost</string>
@@ -232,11 +231,6 @@
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
     <string name="tracking_policy_selector_title">Pravila praćenja</string>
-    <plurals name="tracking_policy_estimated_duration">
-        <item quantity="one">Procijenjeno praćenje: %d sat</item>
-        <item quantity="other">Procijenjeno praćenje: %d sati</item>
-        <item quantity="few">Procijenjeno praćenje: %d sata</item>
-    </plurals>
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Odaberite koliko precizno Tracker bilježi vašu lokaciju</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>

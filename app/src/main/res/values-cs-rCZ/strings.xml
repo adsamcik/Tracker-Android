@@ -212,7 +212,6 @@
     <string name="upgrade_to_precise_benefit_detailed_maps">Podrobná teplotní mapa a prostorová analýza</string>
     <string name="upgrade_to_precise_benefit_precise_stats">Přesné měření vzdálenosti a rychlosti</string>
     <string name="upgrade_to_precise_battery_title">Využití baterie</string>
-    <string name="upgrade_to_precise_battery_message">Přesná GPS spotřebuje více baterie. Odhadovaná doba sledování: 6–8 hodin na běžných zařízeních.</string>
     <string name="upgrade_to_precise_button_upgrade">Povolit přesnou polohu</string>
     <string name="upgrade_to_precise_button_cancel">Možná později</string>
     <string name="tracking_preset_high_accuracy_name">Vysoká přesnost</string>
@@ -236,12 +235,6 @@
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
     <string name="tracking_policy_selector_title">Zásady sledování</string>
-    <plurals name="tracking_policy_estimated_duration">
-        <item quantity="one">Odhadovaná doba sledování: %d hodina</item>
-        <item quantity="few">Odhadovaná doba sledování: %d hodiny</item>
-        <item quantity="many">Odhadovaná doba sledování: %d hodin</item>
-        <item quantity="other">Odhadovaná doba sledování: %d hodin</item>
-    </plurals>
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Zvolte, s jakou přesností Tracker zaznamenává vaši polohu</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>

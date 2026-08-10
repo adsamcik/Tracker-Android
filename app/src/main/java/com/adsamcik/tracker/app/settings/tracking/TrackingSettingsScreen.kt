@@ -41,6 +41,9 @@ import com.adsamcik.tracker.app.settings.components.SwitchSettingsItem
 import com.adsamcik.tracker.app.settings.components.SwitchSettingsItemWithHelp
 import com.adsamcik.tracker.app.settings.ui.TrackingPresetSelector
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
+import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
+import com.adsamcik.tracker.tracker.source.model.SourceKind
 
 @Composable
 fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) {
@@ -109,6 +112,8 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
             }
         },
         onBarometerEnabledChanged = { trackingVm.setBarometerEnabled(it) },
+        onAdvancedSourceControlsChanged = { trackingVm.setAdvancedSourceControlsEnabled(it) },
+        onSourceFrequencyChanged = trackingVm::setSourceFrequency,
         onWifiEnabledChanged = { enabled ->
             if (enabled && !uiState.wifiPermissionGranted) {
                 val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -156,6 +161,8 @@ internal fun TrackingSettingsContent(
     onBarometerEnabledChanged: (Boolean) -> Unit = {},
     onWifiEnabledChanged: (Boolean) -> Unit = {},
     onCellEnabledChanged: (Boolean) -> Unit = {},
+    onAdvancedSourceControlsChanged: (Boolean) -> Unit = {},
+    onSourceFrequencyChanged: (TrackingSourceComponent, SourceCollectionFrequency) -> Unit = { _, _ -> },
     onVehicleSpeedLimitKmhChanged: (Int) -> Unit = {},
     onNotificationCustomize: () -> Unit = {},
 ) {
@@ -242,6 +249,10 @@ internal fun TrackingSettingsContent(
             )
         }
 
+        uiState.batteryEstimate?.let { estimate ->
+            item { BatteryEstimateCard(estimate) }
+        }
+
         // Battery warning for high impact
         if (uiState.currentBatteryImpact == com.adsamcik.tracker.app.common.ui.BatteryImpact.HIGH) {
             item {
@@ -283,77 +294,145 @@ internal fun TrackingSettingsContent(
             )
         }
         item {
-            SwitchSettingsItem(
-                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_location_enabled_title),
-                checked = uiState.locationEnabled,
-                onCheckedChange = onLocationEnabledChanged,
-            )
+            EffectiveTrackingStatusCard(uiState)
         }
         item {
             SwitchSettingsItem(
-                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_activity_enabled_title),
-                subtitle = if (uiState.activityPermissionGranted) {
-                    null
-                } else {
-                    stringResource(com.adsamcik.tracker.R.string.settings_activity_permission_required)
-                },
-                checked = uiState.activityEnabled,
-                onCheckedChange = onActivityEnabledChanged,
+                title = stringResource(com.adsamcik.tracker.R.string.settings_advanced_source_controls_title),
+                subtitle = stringResource(com.adsamcik.tracker.R.string.settings_advanced_source_controls_summary),
+                checked = uiState.advancedSourceControlsEnabled,
+                onCheckedChange = onAdvancedSourceControlsChanged,
             )
         }
-        item {
-            SwitchSettingsItem(
-                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_steps_enabled_title),
-                subtitle = when {
-                    !uiState.stepCounterAvailable -> stringResource(
-                        com.adsamcik.tracker.R.string.settings_steps_unavailable,
-                    )
-                    !uiState.activityPermissionGranted -> stringResource(
+        if (uiState.advancedSourceControlsEnabled) {
+            item {
+                SourceFrequencySettingsItem(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_location_enabled_title),
+                    frequency = uiState.sourceCollectionSettings.location,
+                    status = uiState.sourceStatuses[SourceKind.LOCATION],
+                    onFrequencySelected = { frequency ->
+                        onSourceFrequencyChanged(TrackingSourceComponent.LOCATION, frequency)
+                    },
+                )
+            }
+            item {
+                SourceFrequencySettingsItem(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_activity_enabled_title),
+                    frequency = uiState.sourceCollectionSettings.activity,
+                    status = uiState.sourceStatuses[SourceKind.ACTIVITY],
+                    onFrequencySelected = { frequency ->
+                        onSourceFrequencyChanged(TrackingSourceComponent.ACTIVITY, frequency)
+                    },
+                )
+            }
+            item {
+                SourceFrequencySettingsItem(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_steps_enabled_title),
+                    frequency = uiState.sourceCollectionSettings.steps,
+                    status = uiState.sourceStatuses[SourceKind.STEPS],
+                    onFrequencySelected = { frequency ->
+                        onSourceFrequencyChanged(TrackingSourceComponent.STEPS, frequency)
+                    },
+                )
+            }
+            item {
+                SourceFrequencySettingsItem(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_barometer_enabled_title),
+                    frequency = uiState.sourceCollectionSettings.pressure,
+                    status = uiState.sourceStatuses[SourceKind.PRESSURE],
+                    onFrequencySelected = { frequency ->
+                        onSourceFrequencyChanged(TrackingSourceComponent.PRESSURE, frequency)
+                    },
+                )
+            }
+            item {
+                SourceFrequencySettingsItem(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_enabled_title),
+                    frequency = uiState.sourceCollectionSettings.wifi,
+                    status = uiState.sourceStatuses[SourceKind.WIFI],
+                    onFrequencySelected = { frequency ->
+                        onSourceFrequencyChanged(TrackingSourceComponent.WIFI, frequency)
+                    },
+                )
+            }
+            item {
+                SourceFrequencySettingsItem(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_cell_enabled_title),
+                    frequency = uiState.sourceCollectionSettings.cell,
+                    status = uiState.sourceStatuses[SourceKind.CELL],
+                    onFrequencySelected = { frequency ->
+                        onSourceFrequencyChanged(TrackingSourceComponent.CELL, frequency)
+                    },
+                )
+            }
+        } else {
+            item {
+                SwitchSettingsItem(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_location_enabled_title),
+                    checked = uiState.locationEnabled,
+                    onCheckedChange = onLocationEnabledChanged,
+                )
+            }
+            item {
+                SwitchSettingsItem(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_activity_enabled_title),
+                    subtitle = if (uiState.activityPermissionGranted) null else stringResource(
                         com.adsamcik.tracker.R.string.settings_activity_permission_required,
-                    )
-                    else -> null
-                },
-                checked = uiState.stepsEnabled,
-                onCheckedChange = onStepsEnabledChanged,
-                enabled = uiState.stepCounterAvailable,
-            )
-        }
-        item {
-            SwitchSettingsItem(
-                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_barometer_enabled_title),
-                subtitle = if (uiState.barometerAvailable) {
-                    null
-                } else {
-                    stringResource(com.adsamcik.tracker.R.string.settings_barometer_unavailable)
-                },
-                checked = uiState.barometerEnabled,
-                onCheckedChange = onBarometerEnabledChanged,
-                enabled = uiState.barometerAvailable,
-            )
-        }
-        item {
-            SwitchSettingsItem(
-                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_enabled_title),
-                subtitle = if (uiState.wifiPermissionGranted) {
-                    stringResource(com.adsamcik.tracker.R.string.settings_wifi_privacy_summary)
-                } else {
-                    stringResource(com.adsamcik.tracker.R.string.settings_wifi_permission_required)
-                },
-                checked = uiState.wifiEnabled,
-                onCheckedChange = onWifiEnabledChanged,
-            )
-        }
-        item {
-            SwitchSettingsItem(
-                title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_cell_enabled_title),
-                subtitle = if (uiState.cellPermissionGranted) {
-                    stringResource(com.adsamcik.tracker.R.string.settings_cell_privacy_summary)
-                } else {
-                    stringResource(com.adsamcik.tracker.R.string.settings_cell_permission_required)
-                },
-                checked = uiState.cellEnabled,
-                onCheckedChange = onCellEnabledChanged,
-            )
+                    ),
+                    checked = uiState.activityEnabled,
+                    onCheckedChange = onActivityEnabledChanged,
+                )
+            }
+            item {
+                SwitchSettingsItem(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_steps_enabled_title),
+                    subtitle = when {
+                        !uiState.stepCounterAvailable -> stringResource(com.adsamcik.tracker.R.string.settings_steps_unavailable)
+                        !uiState.activityPermissionGranted -> stringResource(
+                            com.adsamcik.tracker.R.string.settings_activity_permission_required,
+                        )
+                        else -> null
+                    },
+                    checked = uiState.stepsEnabled,
+                    onCheckedChange = onStepsEnabledChanged,
+                    enabled = uiState.stepCounterAvailable,
+                )
+            }
+            item {
+                SwitchSettingsItem(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_barometer_enabled_title),
+                    subtitle = if (uiState.barometerAvailable) null else stringResource(
+                        com.adsamcik.tracker.R.string.settings_barometer_unavailable,
+                    ),
+                    checked = uiState.barometerEnabled,
+                    onCheckedChange = onBarometerEnabledChanged,
+                    enabled = uiState.barometerAvailable,
+                )
+            }
+            item {
+                SwitchSettingsItem(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_wifi_enabled_title),
+                    subtitle = if (uiState.wifiPermissionGranted) {
+                        stringResource(com.adsamcik.tracker.R.string.settings_wifi_privacy_summary)
+                    } else {
+                        stringResource(com.adsamcik.tracker.R.string.settings_wifi_permission_required)
+                    },
+                    checked = uiState.wifiEnabled,
+                    onCheckedChange = onWifiEnabledChanged,
+                )
+            }
+            item {
+                SwitchSettingsItem(
+                    title = stringResource(com.adsamcik.tracker.tracker.R.string.settings_cell_enabled_title),
+                    subtitle = if (uiState.cellPermissionGranted) {
+                        stringResource(com.adsamcik.tracker.R.string.settings_cell_privacy_summary)
+                    } else {
+                        stringResource(com.adsamcik.tracker.R.string.settings_cell_permission_required)
+                    },
+                    checked = uiState.cellEnabled,
+                    onCheckedChange = onCellEnabledChanged,
+                )
+            }
         }
 
         // These parameters only control location requests/filtering, not other source cadences.

@@ -212,7 +212,6 @@
     <string name="upgrade_to_precise_benefit_detailed_maps">Szczegółowa mapa cieplna i analiza przestrzenna</string>
     <string name="upgrade_to_precise_benefit_precise_stats">Precyzyjne pomiary odległości i prędkości</string>
     <string name="upgrade_to_precise_battery_title">Zużycie baterii</string>
-    <string name="upgrade_to_precise_battery_message">Dokładny GPS zużywa więcej baterii. Szacowany czas śledzenia: 6–8 godzin na typowych urządzeniach.</string>
     <string name="upgrade_to_precise_button_upgrade">Włącz dokładną lokalizację</string>
     <string name="upgrade_to_precise_button_cancel">Może później</string>
     <string name="tracking_preset_high_accuracy_name">Wysoka dokładność</string>
@@ -236,12 +235,6 @@
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
     <string name="tracking_policy_selector_title">Zasady śledzenia</string>
-    <plurals name="tracking_policy_estimated_duration">
-        <item quantity="one">Szacowany czas śledzenia: %d godzina</item>
-        <item quantity="few">Szacowany czas śledzenia: %d godziny</item>
-        <item quantity="many">Szacowany czas śledzenia: %d godzin</item>
-        <item quantity="other">Szacowany czas śledzenia: %d godziny</item>
-    </plurals>
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Wybierz, z jaką dokładnością Tracker rejestruje lokalizację</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>

@@ -40,6 +40,11 @@ class TrackingParamsStateTest {
 		}
 
 		@Test
+		fun `default semantic controls mirror legacy enabled sources`() {
+			TrackingParamsState().sourceCollectionSettings shouldBe SourceCollectionSettings()
+		}
+
+		@Test
 		fun `default state has auto tracking mode 1`() {
 			TrackingParamsState().autoTrackingMode shouldBe 1
 		}

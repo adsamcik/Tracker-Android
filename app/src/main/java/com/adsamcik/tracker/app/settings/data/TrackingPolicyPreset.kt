@@ -132,46 +132,4 @@ data class TrackingPresetSettings(
 
     // Advanced options
     val useTransitionDetection: Boolean
-) {
-    /**
-     * Calculate battery impact based on settings
-     */
-    fun calculateBatteryImpact(): BatteryImpact {
-        var score = 0
-
-        // Location precision and frequency are primary factors
-        if (locationEnabled) {
-            score += if (requirePreciseLocation) 3 else 1
-            if (minTimeSeconds < 10) score += 2
-            if (minDistanceMeters < 10) score += 2
-            if (requiredAccuracyMeters < 30) score += 1
-        }
-
-        // Additional sensors
-        if (activityEnabled) score += 1
-        if (stepsEnabled) score += 1
-        if (wifiEnabled) score += 1
-        if (cellEnabled) score += 1
-        if (barometerEnabled) score += 1
-
-        // Transition detection reduces battery
-        if (!useTransitionDetection && locationEnabled) score += 1
-
-        return when {
-            score <= 4 -> BatteryImpact.LOW
-            score <= 9 -> BatteryImpact.MODERATE
-            else -> BatteryImpact.HIGH
-        }
-    }
-
-    /**
-     * Get estimated tracking duration in hours (rough estimate)
-     */
-    fun estimatedTrackingHours(): Int {
-        return when (calculateBatteryImpact()) {
-            BatteryImpact.LOW -> 12
-            BatteryImpact.MODERATE -> 8
-            BatteryImpact.HIGH -> 4
-        }
-    }
-}
+)

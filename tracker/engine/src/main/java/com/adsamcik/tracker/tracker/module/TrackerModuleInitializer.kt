@@ -8,6 +8,7 @@ import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
+import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -20,6 +21,7 @@ class TrackerModuleInitializer @Inject constructor(
 	@ApplicationScope private val applicationScope: CoroutineScope,
 	private val lockManager: LockManager,
 	private val trackingStartupGuard: TrackingStartupGuard,
+	private val sourcePipelineRecovery: SourcePipelineRecovery,
 ) : ModuleInitializer {
 	override val priority: Int = 20
 
@@ -30,6 +32,7 @@ class TrackerModuleInitializer @Inject constructor(
 		applicationScope.launch {
 			BackgroundTrackingApi.initialize(context)
 			lockManager.initializeFromPersistence(context)
+			sourcePipelineRecovery.drainCommittedWork()
 		}
 	}
 }

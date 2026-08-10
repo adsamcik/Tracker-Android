@@ -204,7 +204,6 @@
     <string name="upgrade_to_precise_benefit_detailed_maps">Λεπτομερής θερμικός χάρτης και χωρική ανάλυση</string>
     <string name="upgrade_to_precise_benefit_precise_stats">Ακριβείς μετρήσεις απόστασης και ταχύτητας</string>
     <string name="upgrade_to_precise_battery_title">Χρήση μπαταρίας</string>
-    <string name="upgrade_to_precise_battery_message">Το ακριβές GPS χρησιμοποιεί περισσότερη μπαταρία. Εκτιμώμενος χρόνος καταγραφής: 6–8 ώρες σε τυπικές συσκευές.</string>
     <string name="upgrade_to_precise_button_upgrade">Ενεργοποίηση ακριβούς τοποθεσίας</string>
     <string name="upgrade_to_precise_button_cancel">Ίσως αργότερα</string>
     <string name="tracking_preset_high_accuracy_name">Υψηλή ακρίβεια</string>
@@ -228,10 +227,6 @@
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
     <string name="tracking_policy_selector_title">Πολιτική καταγραφής</string>
-    <plurals name="tracking_policy_estimated_duration">
-        <item quantity="one">Εκτιμώμενη καταγραφή: %d ώρα</item>
-        <item quantity="other">Εκτιμώμενη καταγραφή: %d ώρες</item>
-    </plurals>
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Επιλέξτε πόσο ακριβώς καταγράφει το Tracker την τοποθεσία σας</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>

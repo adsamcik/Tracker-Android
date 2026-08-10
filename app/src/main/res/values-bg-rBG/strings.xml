@@ -204,7 +204,6 @@
     <string name="upgrade_to_precise_benefit_detailed_maps">Подробна топлинна карта и пространствен анализ</string>
     <string name="upgrade_to_precise_benefit_precise_stats">Точни измервания на разстояние и скорост</string>
     <string name="upgrade_to_precise_battery_title">Използване на батерията</string>
-    <string name="upgrade_to_precise_battery_message">Точният GPS използва повече батерия. Очаквано време за проследяване: 6–8 часа на типични устройства.</string>
     <string name="upgrade_to_precise_button_upgrade">Активиране на точно местоположение</string>
     <string name="upgrade_to_precise_button_cancel">Може би по-късно</string>
     <string name="tracking_preset_high_accuracy_name">Висока точност</string>
@@ -228,10 +227,6 @@
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
     <string name="tracking_policy_selector_title">Политика за проследяване</string>
-    <plurals name="tracking_policy_estimated_duration">
-        <item quantity="one">Очаквано проследяване: %d час</item>
-        <item quantity="other">Очаквано проследяване: %d часа</item>
-    </plurals>
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Изберете с каква точност Tracker да записва местоположението ви</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>

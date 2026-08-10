@@ -12,6 +12,7 @@ import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.pruneSourceEventStorageBefore
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
@@ -69,6 +70,7 @@ class DataRetentionWorker @AssistedInject constructor(
 			migrationBackupRepository.deleteAll()
 			when (pruneRawData(cutoff, lifecycle, now)) {
 				RawRetentionPruneResult.PRUNED -> {
+					appDatabase.pruneSourceEventStorageBefore(cutoff)
 					Result.success()
 				}
 				RawRetentionPruneResult.DEFERRED_FOR_PENDING_SIGNALS -> {
@@ -155,6 +157,7 @@ class DataRetentionWorker @AssistedInject constructor(
             appDatabase.trajectoryReconstructionDao().deleteWithSourceBefore(cutoffMillis)
             val observationDao = appDatabase.locationObservationDao()
             observationDao.deleteOlderThan(cutoffMillis)
+			appDatabase.locationProjectionDao().deleteObservationsOlderThan(cutoffMillis)
             appDatabase.locationObservationDecisionDao().apply {
                 deleteOlderThan(cutoffMillis)
                 deleteWithoutObservation()

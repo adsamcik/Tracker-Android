@@ -204,7 +204,6 @@
     <string name="upgrade_to_precise_benefit_detailed_maps">詳細なヒートマップと空間分析</string>
     <string name="upgrade_to_precise_benefit_precise_stats">正確な距離と速度の測定</string>
     <string name="upgrade_to_precise_battery_title">バッテリー使用量</string>
-    <string name="upgrade_to_precise_battery_message">高精度GPSはより多くのバッテリーを使用します。推定トラッキング時間: 一般的な端末で6〜8時間。</string>
     <string name="upgrade_to_precise_button_upgrade">高精度の位置情報を有効化</string>
     <string name="upgrade_to_precise_button_cancel">後で</string>
     <string name="tracking_preset_high_accuracy_name">高精度</string>
@@ -228,10 +227,6 @@
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
     <string name="tracking_policy_selector_title">トラッキングポリシー</string>
-    <plurals name="tracking_policy_estimated_duration">
-        <item quantity="one">推定トラッキング時間: %d時間</item>
-        <item quantity="other">推定トラッキング時間: %d時間</item>
-    </plurals>
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Trackerが位置情報を記録する精度を選択します</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>

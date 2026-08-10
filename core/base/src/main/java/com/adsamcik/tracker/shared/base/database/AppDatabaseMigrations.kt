@@ -1456,8 +1456,415 @@ val MIGRATION_26_27: Migration = object : Migration(26, 27) {
 			execSQL("DROP INDEX IF EXISTS idx_wifi_obs_bssid")
 			execSQL("CREATE INDEX IF NOT EXISTS idx_wifi_obs_time_id ON wifi_observation(time_ms, id)")
 			execSQL("CREATE INDEX IF NOT EXISTS idx_wifi_obs_bssid_time ON wifi_observation(bssid, time_ms)")
+			// `(time_ms, id)` is a left-prefix replacement for the single-column index and
+			// avoids maintaining two B-trees for every high-frequency location insert.
+			execSQL("DROP INDEX IF EXISTS idx_location_sample_time")
+			createSourceEventPipelineTables()
 		}
 	}
+}
+
+private fun SupportSQLiteDatabase.createSourceEventPipelineTables() {
+	execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS source_event_wal (
+			admission_ordinal INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+			event_id TEXT NOT NULL,
+			provider_dedup_key TEXT,
+			logical_tracking_id TEXT,
+			service_run_id TEXT,
+			source_kind INTEGER NOT NULL,
+			source_instance_id TEXT NOT NULL,
+			registration_generation INTEGER NOT NULL,
+			source_sequence INTEGER NOT NULL,
+			config_revision INTEGER,
+			plan_attribution INTEGER NOT NULL,
+			clock_domain_id TEXT NOT NULL,
+			observed_elapsed_nanos INTEGER NOT NULL,
+			received_elapsed_nanos INTEGER NOT NULL,
+			wall_time_ms INTEGER,
+			wall_time_uncertainty_ms INTEGER,
+			captured_collected_data_epoch INTEGER NOT NULL,
+			acquired_at_ms INTEGER NOT NULL,
+			quality_flags INTEGER NOT NULL,
+			quality_confidence REAL,
+			payload_version INTEGER NOT NULL,
+			payload BLOB NOT NULL,
+			payload_checksum TEXT NOT NULL,
+			created_at_ms INTEGER NOT NULL
+		)
+		""".trimIndent(),
+	)
+	execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_source_event_wal_event_id ON source_event_wal(event_id)")
+	execSQL(
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_source_event_wal_provider_dedup " +
+			"ON source_event_wal(source_kind, provider_dedup_key)",
+	)
+	execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_source_event_wal_tracking_ordinal " +
+			"ON source_event_wal(logical_tracking_id, admission_ordinal)",
+	)
+	execSQL(
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_source_event_wal_source_sequence " +
+			"ON source_event_wal(source_kind, source_instance_id, source_sequence)",
+	)
+	execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_source_event_wal_lifecycle " +
+			"ON source_event_wal(captured_collected_data_epoch, acquired_at_ms)",
+	)
+	execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_source_event_wal_retention " +
+			"ON source_event_wal(created_at_ms, admission_ordinal)",
+	)
+
+	execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS source_projection_registration (
+			projection_id TEXT NOT NULL,
+			projection_version INTEGER NOT NULL,
+			activation_ordinal INTEGER NOT NULL,
+			retention_required INTEGER NOT NULL,
+			status TEXT NOT NULL,
+			created_at_ms INTEGER NOT NULL,
+			PRIMARY KEY(projection_id, projection_version)
+		)
+		""".trimIndent(),
+	)
+	execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_source_projection_registration_status " +
+			"ON source_projection_registration(status, activation_ordinal)",
+	)
+	execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS source_projection_checkpoint (
+			projection_id TEXT NOT NULL,
+			projection_version INTEGER NOT NULL,
+			contiguous_admission_ordinal INTEGER NOT NULL,
+			state_version INTEGER NOT NULL,
+			updated_at_ms INTEGER NOT NULL,
+			PRIMARY KEY(projection_id, projection_version)
+		)
+		""".trimIndent(),
+	)
+	execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_source_projection_checkpoint_ordinal " +
+			"ON source_projection_checkpoint(contiguous_admission_ordinal)",
+	)
+	execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS source_projection_failure (
+			projection_id TEXT NOT NULL,
+			projection_version INTEGER NOT NULL,
+			admission_ordinal INTEGER NOT NULL,
+			attempt_count INTEGER NOT NULL,
+			failure_code TEXT NOT NULL,
+			terminal INTEGER NOT NULL,
+			last_attempt_at_ms INTEGER NOT NULL,
+			PRIMARY KEY(projection_id, projection_version, admission_ordinal)
+		)
+		""".trimIndent(),
+	)
+	execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_source_projection_failure_retry " +
+			"ON source_projection_failure(terminal, last_attempt_at_ms)",
+	)
+	execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS source_projection_join_state (
+			projection_id TEXT NOT NULL,
+			projection_version INTEGER NOT NULL,
+			state_key TEXT NOT NULL,
+			logical_tracking_id TEXT,
+			minimum_required_ordinal INTEGER NOT NULL,
+			payload_version INTEGER NOT NULL,
+			payload BLOB NOT NULL,
+			updated_at_ms INTEGER NOT NULL,
+			PRIMARY KEY(projection_id, projection_version, state_key)
+		)
+		""".trimIndent(),
+	)
+	execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_source_projection_join_tracking " +
+			"ON source_projection_join_state(logical_tracking_id)",
+	)
+	execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_source_projection_join_updated " +
+			"ON source_projection_join_state(updated_at_ms)",
+	)
+	execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_source_projection_join_retention " +
+			"ON source_projection_join_state(minimum_required_ordinal)",
+	)
+	execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS source_projection_outbox (
+			stable_id TEXT NOT NULL,
+			projection_id TEXT NOT NULL,
+			projection_version INTEGER NOT NULL,
+			admission_ordinal INTEGER NOT NULL,
+			effect_kind TEXT NOT NULL,
+			payload_version INTEGER NOT NULL,
+			payload BLOB NOT NULL,
+			created_at_ms INTEGER NOT NULL,
+			delivered_at_ms INTEGER,
+			PRIMARY KEY(stable_id)
+		)
+		""".trimIndent(),
+	)
+	execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_source_projection_outbox_delivery " +
+			"ON source_projection_outbox(delivered_at_ms, created_at_ms)",
+	)
+	execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_source_projection_outbox_kind_pending " +
+			"ON source_projection_outbox(effect_kind, delivered_at_ms, admission_ordinal)",
+	)
+
+	execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS location_projection_observation (
+			event_id TEXT NOT NULL,
+			logical_tracking_id TEXT NOT NULL,
+			admission_ordinal INTEGER NOT NULL,
+			elapsed_realtime_nanos INTEGER NOT NULL,
+			wall_time_ms INTEGER NOT NULL,
+			latitude_degrees REAL NOT NULL,
+			longitude_degrees REAL NOT NULL,
+			horizontal_accuracy_meters REAL NOT NULL,
+			altitude_meters REAL,
+			vertical_accuracy_meters REAL,
+			speed_meters_per_second REAL,
+			PRIMARY KEY(event_id)
+		)
+		""".trimIndent(),
+	)
+	execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_location_projection_observation_order " +
+			"ON location_projection_observation(" +
+			"logical_tracking_id, elapsed_realtime_nanos, wall_time_ms, event_id)",
+	)
+	execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_location_projection_observation_retention " +
+			"ON location_projection_observation(wall_time_ms)",
+	)
+	execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_location_projection_observation_ordinal " +
+			"ON location_projection_observation(admission_ordinal)",
+	)
+	execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS location_projection_point (
+			event_id TEXT NOT NULL,
+			logical_tracking_id TEXT NOT NULL,
+			revision INTEGER NOT NULL,
+			accepted INTEGER NOT NULL,
+			rejection TEXT,
+			latitude_degrees REAL NOT NULL,
+			longitude_degrees REAL NOT NULL,
+			segment_distance_meters REAL NOT NULL,
+			cumulative_distance_meters REAL NOT NULL,
+			estimated_speed_meters_per_second REAL,
+			raw_wgs84_altitude_meters REAL,
+			vertical_accuracy_meters REAL,
+			elapsed_realtime_nanos INTEGER NOT NULL,
+			PRIMARY KEY(event_id),
+			FOREIGN KEY(event_id) REFERENCES location_projection_observation(event_id)
+				ON UPDATE CASCADE ON DELETE CASCADE
+		)
+		""".trimIndent(),
+	)
+	execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_location_projection_point_tracking " +
+			"ON location_projection_point(logical_tracking_id)",
+	)
+	execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS source_coordinator_lease (
+			lease_name TEXT NOT NULL,
+			owner_token TEXT NOT NULL,
+			acquired_at_ms INTEGER NOT NULL,
+			expires_at_ms INTEGER NOT NULL,
+			PRIMARY KEY(lease_name)
+		)
+		""".trimIndent(),
+	)
+	execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS source_registration_state (
+			source_kind INTEGER NOT NULL,
+			owner_scope TEXT NOT NULL,
+			source_instance_id TEXT NOT NULL,
+			clock_domain_id TEXT NOT NULL,
+			registration_generation INTEGER NOT NULL,
+			next_sequence INTEGER NOT NULL,
+			applied_revision INTEGER,
+			collected_data_epoch INTEGER NOT NULL,
+			updated_at_ms INTEGER NOT NULL,
+			PRIMARY KEY(source_kind, owner_scope)
+		)
+		""".trimIndent(),
+	)
+
+	execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS logical_tracking_session (
+			logical_tracking_id TEXT NOT NULL,
+			state TEXT NOT NULL,
+			lifecycle_revision INTEGER NOT NULL,
+			desired_plan_revision INTEGER NOT NULL,
+			rollout_revision INTEGER NOT NULL,
+			start_origin TEXT NOT NULL,
+			clock_domain_id TEXT NOT NULL,
+			started_at_ms INTEGER NOT NULL,
+			started_elapsed_nanos INTEGER NOT NULL,
+			cutoff_at_ms INTEGER,
+			cutoff_elapsed_nanos INTEGER,
+			completed_at_ms INTEGER,
+			final_admission_ordinal INTEGER,
+			failure_code TEXT,
+			PRIMARY KEY(logical_tracking_id)
+		)
+		""".trimIndent(),
+	)
+	execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_logical_tracking_session_state " +
+			"ON logical_tracking_session(state, started_at_ms)",
+	)
+	execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS source_service_run (
+			service_run_id TEXT NOT NULL,
+			logical_tracking_id TEXT NOT NULL,
+			state TEXT NOT NULL,
+			desired_plan_revision INTEGER NOT NULL,
+			rollout_revision INTEGER NOT NULL,
+			foreground_capability_flags INTEGER NOT NULL,
+			started_at_ms INTEGER NOT NULL,
+			started_elapsed_nanos INTEGER NOT NULL,
+			completed_at_ms INTEGER,
+			completion_reason TEXT,
+			PRIMARY KEY(service_run_id)
+		)
+		""".trimIndent(),
+	)
+	execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_source_service_run_tracking " +
+			"ON source_service_run(logical_tracking_id, started_at_ms)",
+	)
+	execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS source_event_session_binding (
+			event_id TEXT NOT NULL,
+			binding_revision INTEGER NOT NULL,
+			admission_ordinal INTEGER NOT NULL,
+			logical_tracking_id TEXT NOT NULL,
+			service_run_id TEXT,
+			binding_reason TEXT NOT NULL,
+			decision_status TEXT NOT NULL,
+			clock_domain_id TEXT NOT NULL,
+			interval_start_elapsed_nanos INTEGER NOT NULL,
+			interval_end_elapsed_nanos INTEGER,
+			bound_at_ms INTEGER NOT NULL,
+			PRIMARY KEY(event_id, binding_revision)
+		)
+		""".trimIndent(),
+	)
+	execSQL(
+		"CREATE INDEX IF NOT EXISTS idx_source_event_binding_tracking " +
+			"ON source_event_session_binding(logical_tracking_id, admission_ordinal)",
+	)
+	execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS source_session_completeness (
+			logical_tracking_id TEXT NOT NULL,
+			source_kind INTEGER NOT NULL,
+			source_instance_id TEXT NOT NULL,
+			registration_generation INTEGER NOT NULL,
+			last_admission_ordinal INTEGER,
+			last_source_sequence INTEGER,
+			app_drain_complete INTEGER NOT NULL,
+			provider_coverage TEXT NOT NULL,
+			stop_status TEXT NOT NULL,
+			unresolved_sequence_start INTEGER,
+			unresolved_sequence_end INTEGER,
+			updated_at_ms INTEGER NOT NULL,
+			PRIMARY KEY(logical_tracking_id, source_kind, source_instance_id)
+		)
+		""".trimIndent(),
+	)
+	execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS source_runtime_state (
+			source_kind INTEGER NOT NULL,
+			owner_scope TEXT NOT NULL,
+			source_instance_id TEXT NOT NULL,
+			clock_domain_id TEXT NOT NULL,
+			registration_generation INTEGER NOT NULL,
+			last_provider_sequence INTEGER NOT NULL,
+			last_admitted_source_sequence INTEGER,
+			last_admission_ordinal INTEGER,
+			state_version INTEGER NOT NULL,
+			payload BLOB NOT NULL,
+			updated_at_ms INTEGER NOT NULL,
+			PRIMARY KEY(source_kind, owner_scope)
+		)
+		""".trimIndent(),
+	)
+	execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS acquisition_plan_revision (
+			revision INTEGER NOT NULL,
+			plan_id TEXT NOT NULL,
+			created_at_ms INTEGER NOT NULL,
+			status TEXT NOT NULL,
+			PRIMARY KEY(revision)
+		)
+		""".trimIndent(),
+	)
+	execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS source_desired_plan (
+			revision INTEGER NOT NULL,
+			source_kind INTEGER NOT NULL,
+			payload_version INTEGER NOT NULL,
+			payload BLOB NOT NULL,
+			payload_checksum TEXT NOT NULL,
+			PRIMARY KEY(revision, source_kind)
+		)
+		""".trimIndent(),
+	)
+	execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS source_applied_plan_state (
+			source_kind INTEGER NOT NULL,
+			desired_revision INTEGER NOT NULL,
+			applied_revision INTEGER,
+			source_instance_id TEXT,
+			registration_generation INTEGER,
+			applied_at_elapsed_nanos INTEGER,
+			status TEXT NOT NULL,
+			degraded_reasons TEXT NOT NULL,
+			updated_at_ms INTEGER NOT NULL,
+			PRIMARY KEY(source_kind)
+		)
+		""".trimIndent(),
+	)
+	execSQL(
+		"""
+		CREATE TABLE IF NOT EXISTS tracking_rollout_state (
+			id INTEGER NOT NULL,
+			revision INTEGER NOT NULL,
+			schema_version INTEGER NOT NULL,
+			coordinator_mode TEXT NOT NULL,
+			projection_mode TEXT NOT NULL,
+			source_owners TEXT NOT NULL,
+			semantic_settings_enabled INTEGER NOT NULL,
+			battery_estimate_mode TEXT NOT NULL,
+			updated_at_ms INTEGER NOT NULL,
+			PRIMARY KEY(id)
+		)
+		""".trimIndent(),
+	)
 }
 
 /**

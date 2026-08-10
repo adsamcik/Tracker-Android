@@ -9,6 +9,8 @@ import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbiter
+import com.adsamcik.tracker.activity.api.registration.DefaultActivityRegistrationArbiter
 
 /**
  * Hilt bindings for activity-recognition implementations.
@@ -19,8 +21,14 @@ abstract class ActivityRecognitionModule {
     @Binds
     @Singleton
     abstract fun bindBackend(
-        impl: GmsActivityRecognitionBackend,
+        impl: ArbitratedActivityRecognitionBackend,
     ): ActivityRecognitionBackend
+
+	@Binds
+	@Singleton
+	abstract fun bindActivityRegistrationArbiter(
+		impl: DefaultActivityRegistrationArbiter,
+	): ActivityRegistrationArbiter
 
     @Binds
     @Singleton

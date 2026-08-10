@@ -264,6 +264,27 @@
     <string name="battery_impact_low">Low impact</string>
     <string name="battery_impact_moderate">Moderate impact</string>
     <string name="battery_impact_high">High impact</string>
+    <string name="settings_battery_estimate_title" translatable="false">Estimated tracking impact</string>
+    <string name="settings_battery_confidence" translatable="false">Confidence: %1$s</string>
+    <string name="settings_battery_drivers" translatable="false">Main drivers: %1$s</string>
+    <string name="settings_battery_comparison" translatable="false">Comparison: %1$s</string>
+    <string name="settings_battery_assumptions" translatable="false">Assumptions: %1$s</string>
+    <string name="settings_battery_generic_prior" translatable="false">No trustworthy percentage range is available yet. This relative estimate uses generic device behavior.</string>
+    <string name="settings_battery_observed_range" translatable="false">Observed total device drain in comparable sessions: %1$.1f–%2$.1f%% per hour.</string>
+    <string name="settings_battery_incremental_range" translatable="false">Estimated incremental Tracker drain: %1$.1f–%2$.1f%% per hour.</string>
+    <string name="settings_battery_relative_range" translatable="false">Relative comparison range: %1$.1f–%2$.1f. This is not a device-drain percentage.</string>
+    <string name="settings_battery_platform_caveat" translatable="false">Android may batch, delay, or throttle delivery. Source costs can share wakeups and are not simply additive.</string>
+
+    <string name="settings_effective_status_title" translatable="false">Requested and effective status</string>
+    <string name="settings_effective_status_running" translatable="false">Tracking is active. Requested plan r%1$s; applied plan r%2$s.</string>
+    <string name="settings_effective_status_idle" translatable="false">Tracking is not active. Saved requests are shown below; permissions and device constraints are evaluated without pretending a provider is running.</string>
+    <string name="settings_runtime_telemetry_title" translatable="false">Local runtime telemetry (since app start)</string>
+    <string name="settings_runtime_telemetry_summary" translatable="false">Projected events: %1$d • plan revisions: %2$d • tracking frames: %3$d • frame wake lock: %4$d ms</string>
+    <string name="settings_advanced_source_controls_title" translatable="false">Advanced source controls</string>
+    <string name="settings_advanced_source_controls_summary" translatable="false">Choose a semantic responsiveness goal per source. Android timing remains best-effort.</string>
+    <string name="settings_source_requested" translatable="false">Requested: %1$s</string>
+    <string name="settings_source_effective" translatable="false">Effective: %1$s</string>
+    <string name="settings_source_frequency_dialog" translatable="false">%1$s responsiveness</string>
 
     <!-- Location Precision Mode Strings -->
     <string name="precision_mode_title">Choose Location Precision</string>
@@ -284,7 +305,7 @@
     <string name="upgrade_to_precise_benefit_detailed_maps">Detailed heatmap and spatial analysis</string>
     <string name="upgrade_to_precise_benefit_precise_stats">Precise distance and speed measurements</string>
     <string name="upgrade_to_precise_battery_title">Battery Usage</string>
-    <string name="upgrade_to_precise_battery_message">Precise GPS uses more battery. Estimated tracking time: 6–8 hours on typical devices.</string>
+    <string name="upgrade_to_precise_battery_message" translatable="false">Precise GPS is usually a dominant battery driver. Actual impact depends on delivery, batching, movement, and your device.</string>
     <string name="upgrade_to_precise_button_upgrade">Enable Precise Location</string>
     <string name="upgrade_to_precise_button_cancel">Maybe Later</string>
 
@@ -312,10 +333,6 @@
 
     <!-- Tracking Policy Selector Strings -->
     <string name="tracking_policy_selector_title">Tracking Policy</string>
-    <plurals name="tracking_policy_estimated_duration">
-        <item quantity="one">Estimated tracking: %d hour</item>
-        <item quantity="other">Estimated tracking: %d hours</item>
-    </plurals>
 
     <!-- Additional aliases for code compatibility -->
     <string name="location_precision_selector_title">@string/precision_mode_title</string>

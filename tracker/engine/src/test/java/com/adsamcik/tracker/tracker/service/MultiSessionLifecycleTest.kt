@@ -22,8 +22,6 @@ import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.stats.api.value.StepCount
-import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
-import com.adsamcik.tracker.tracker.component.NoTimer
 import com.adsamcik.tracker.tracker.controller.DefaultTrackerServiceController
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import io.kotest.matchers.collections.shouldHaveSize
@@ -170,8 +168,6 @@ class MultiSessionLifecycleTest {
 			isSessionUserInitiated = true,
 			initialTier = PolicyTier.PRECISION,
 			scope = backgroundScope,
-			timerReceiver = mockk(relaxed = true),
-			timerAccessor = NoOpTimerAccessor(),
 		)
 		advanceUntilIdle()
 
@@ -219,8 +215,6 @@ class MultiSessionLifecycleTest {
 			isSessionUserInitiated = true,
 			initialTier = PolicyTier.PRECISION,
 			scope = scope,
-			timerReceiver = mockk(relaxed = true),
-			timerAccessor = NoOpTimerAccessor(),
 		)
 		testDispatcher.scheduler.advanceUntilIdle()
 
@@ -409,11 +403,4 @@ class MultiSessionLifecycleTest {
 		}
 	}
 
-	private class NoOpTimerAccessor : TrackerTierEscalationHandler.TimerAccessor {
-		private var timer: CollectionTriggerComponent = NoTimer()
-		override fun get(): CollectionTriggerComponent = timer
-		override fun set(timer: CollectionTriggerComponent) {
-			this.timer = timer
-		}
-	}
 }

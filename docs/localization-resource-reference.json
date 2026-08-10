@@ -7614,6 +7614,361 @@
       "module": "app",
       "default_path": "app/src/main/res/values/strings.xml",
       "resource_file": "strings.xml",
+      "name": "settings_battery_estimate_title",
+      "kind": "string",
+      "translatable": false,
+      "formatted": true,
+      "attributes": {
+        "translatable": "false"
+      },
+      "value": "Estimated tracking impact",
+      "format_tokens": [],
+      "usage_files": [],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "settings_battery_confidence",
+      "kind": "string",
+      "translatable": false,
+      "formatted": true,
+      "attributes": {
+        "translatable": "false"
+      },
+      "value": "Confidence: %1$s",
+      "format_tokens": [
+        "%1$s"
+      ],
+      "usage_files": [],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "settings_battery_drivers",
+      "kind": "string",
+      "translatable": false,
+      "formatted": true,
+      "attributes": {
+        "translatable": "false"
+      },
+      "value": "Main drivers: %1$s",
+      "format_tokens": [
+        "%1$s"
+      ],
+      "usage_files": [],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "settings_battery_comparison",
+      "kind": "string",
+      "translatable": false,
+      "formatted": true,
+      "attributes": {
+        "translatable": "false"
+      },
+      "value": "Comparison: %1$s",
+      "format_tokens": [
+        "%1$s"
+      ],
+      "usage_files": [],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "settings_battery_assumptions",
+      "kind": "string",
+      "translatable": false,
+      "formatted": true,
+      "attributes": {
+        "translatable": "false"
+      },
+      "value": "Assumptions: %1$s",
+      "format_tokens": [
+        "%1$s"
+      ],
+      "usage_files": [],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "settings_battery_generic_prior",
+      "kind": "string",
+      "translatable": false,
+      "formatted": true,
+      "attributes": {
+        "translatable": "false"
+      },
+      "value": "No trustworthy percentage range is available yet. This relative estimate uses generic device behavior.",
+      "format_tokens": [],
+      "usage_files": [],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "settings_battery_observed_range",
+      "kind": "string",
+      "translatable": false,
+      "formatted": true,
+      "attributes": {
+        "translatable": "false"
+      },
+      "value": "Observed total device drain in comparable sessions: %1$.1f–%2$.1f%% per hour.",
+      "format_tokens": [
+        "%1$.1f",
+        "%2$.1f"
+      ],
+      "usage_files": [],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "settings_battery_incremental_range",
+      "kind": "string",
+      "translatable": false,
+      "formatted": true,
+      "attributes": {
+        "translatable": "false"
+      },
+      "value": "Estimated incremental Tracker drain: %1$.1f–%2$.1f%% per hour.",
+      "format_tokens": [
+        "%1$.1f",
+        "%2$.1f"
+      ],
+      "usage_files": [],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "settings_battery_relative_range",
+      "kind": "string",
+      "translatable": false,
+      "formatted": true,
+      "attributes": {
+        "translatable": "false"
+      },
+      "value": "Relative comparison range: %1$.1f–%2$.1f. This is not a device-drain percentage.",
+      "format_tokens": [
+        "%1$.1f",
+        "%2$.1f"
+      ],
+      "usage_files": [],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "settings_battery_platform_caveat",
+      "kind": "string",
+      "translatable": false,
+      "formatted": true,
+      "attributes": {
+        "translatable": "false"
+      },
+      "value": "Android may batch, delay, or throttle delivery. Source costs can share wakeups and are not simply additive.",
+      "format_tokens": [],
+      "usage_files": [],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "settings_effective_status_title",
+      "kind": "string",
+      "translatable": false,
+      "formatted": true,
+      "attributes": {
+        "translatable": "false"
+      },
+      "value": "Requested and effective status",
+      "format_tokens": [],
+      "usage_files": [],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "settings_effective_status_running",
+      "kind": "string",
+      "translatable": false,
+      "formatted": true,
+      "attributes": {
+        "translatable": "false"
+      },
+      "value": "Tracking is active. Requested plan r%1$s; applied plan r%2$s.",
+      "format_tokens": [
+        "%1$s",
+        "%2$s"
+      ],
+      "usage_files": [],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "settings_effective_status_idle",
+      "kind": "string",
+      "translatable": false,
+      "formatted": true,
+      "attributes": {
+        "translatable": "false"
+      },
+      "value": "Tracking is not active. Saved requests are shown below; permissions and device constraints are evaluated without pretending a provider is running.",
+      "format_tokens": [],
+      "usage_files": [],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "settings_runtime_telemetry_title",
+      "kind": "string",
+      "translatable": false,
+      "formatted": true,
+      "attributes": {
+        "translatable": "false"
+      },
+      "value": "Local runtime telemetry (since app start)",
+      "format_tokens": [],
+      "usage_files": [],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "settings_runtime_telemetry_summary",
+      "kind": "string",
+      "translatable": false,
+      "formatted": true,
+      "attributes": {
+        "translatable": "false"
+      },
+      "value": "Projected events: %1$d • plan revisions: %2$d • tracking frames: %3$d • frame wake lock: %4$d ms",
+      "format_tokens": [
+        "%1$d",
+        "%2$d",
+        "%3$d",
+        "%4$d"
+      ],
+      "usage_files": [],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "settings_advanced_source_controls_title",
+      "kind": "string",
+      "translatable": false,
+      "formatted": true,
+      "attributes": {
+        "translatable": "false"
+      },
+      "value": "Advanced source controls",
+      "format_tokens": [],
+      "usage_files": [
+        "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt"
+      ],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "settings_advanced_source_controls_summary",
+      "kind": "string",
+      "translatable": false,
+      "formatted": true,
+      "attributes": {
+        "translatable": "false"
+      },
+      "value": "Choose a semantic responsiveness goal per source. Android timing remains best-effort.",
+      "format_tokens": [],
+      "usage_files": [
+        "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt"
+      ],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "settings_source_requested",
+      "kind": "string",
+      "translatable": false,
+      "formatted": true,
+      "attributes": {
+        "translatable": "false"
+      },
+      "value": "Requested: %1$s",
+      "format_tokens": [
+        "%1$s"
+      ],
+      "usage_files": [],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "settings_source_effective",
+      "kind": "string",
+      "translatable": false,
+      "formatted": true,
+      "attributes": {
+        "translatable": "false"
+      },
+      "value": "Effective: %1$s",
+      "format_tokens": [
+        "%1$s"
+      ],
+      "usage_files": [],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "settings_source_frequency_dialog",
+      "kind": "string",
+      "translatable": false,
+      "formatted": true,
+      "attributes": {
+        "translatable": "false"
+      },
+      "value": "%1$s responsiveness",
+      "format_tokens": [
+        "%1$s"
+      ],
+      "usage_files": [],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
       "name": "precision_mode_title",
       "kind": "string",
       "translatable": true,
@@ -8628,10 +8983,12 @@
       "resource_file": "strings.xml",
       "name": "upgrade_to_precise_battery_message",
       "kind": "string",
-      "translatable": true,
+      "translatable": false,
       "formatted": true,
-      "attributes": {},
-      "value": "Precise GPS uses more battery. Estimated tracking time: 6–8 hours on typical devices.",
+      "attributes": {
+        "translatable": "false"
+      },
+      "value": "Precise GPS is usually a dominant battery driver. Actual impact depends on delivery, batching, movement, and your device.",
       "format_tokens": [],
       "usage_files": [
         "app/src/main/res/values-bg-rBG/strings.xml",
@@ -8663,35 +9020,7 @@
         "app/src/main/res/values-zh-rTW/strings.xml",
         "app/src/main/res/values/strings.xml"
       ],
-      "existing_locale_qualifiers": [
-        "values-bg-rBG",
-        "values-cs-rCZ",
-        "values-da-rDK",
-        "values-de-rDE",
-        "values-el-rGR",
-        "values-es-rES",
-        "values-et-rEE",
-        "values-fi-rFI",
-        "values-fr-rFR",
-        "values-ga-rIE",
-        "values-hi-rIN",
-        "values-hr-rHR",
-        "values-hu-rHU",
-        "values-it-rIT",
-        "values-ja-rJP",
-        "values-lt-rLT",
-        "values-lv-rLV",
-        "values-mt-rMT",
-        "values-nl-rNL",
-        "values-pl-rPL",
-        "values-pt-rPT",
-        "values-ro-rRO",
-        "values-sk-rSK",
-        "values-sl-rSI",
-        "values-sv-rSE",
-        "values-zh-rCN",
-        "values-zh-rTW"
-      ]
+      "existing_locale_qualifiers": []
     },
     {
       "module": "app",
@@ -9840,61 +10169,6 @@
       "attributes": {},
       "value": "Tracking Policy",
       "format_tokens": [],
-      "usage_files": [
-        "app/src/main/java/com/adsamcik/tracker/app/settings/ui/TrackingPolicySelector.kt"
-      ],
-      "existing_locale_qualifiers": [
-        "values-bg-rBG",
-        "values-cs-rCZ",
-        "values-da-rDK",
-        "values-de-rDE",
-        "values-el-rGR",
-        "values-es-rES",
-        "values-et-rEE",
-        "values-fi-rFI",
-        "values-fr-rFR",
-        "values-ga-rIE",
-        "values-hi-rIN",
-        "values-hr-rHR",
-        "values-hu-rHU",
-        "values-it-rIT",
-        "values-ja-rJP",
-        "values-lt-rLT",
-        "values-lv-rLV",
-        "values-mt-rMT",
-        "values-nl-rNL",
-        "values-pl-rPL",
-        "values-pt-rPT",
-        "values-ro-rRO",
-        "values-sk-rSK",
-        "values-sl-rSI",
-        "values-sv-rSE",
-        "values-zh-rCN",
-        "values-zh-rTW"
-      ]
-    },
-    {
-      "module": "app",
-      "default_path": "app/src/main/res/values/strings.xml",
-      "resource_file": "strings.xml",
-      "name": "tracking_policy_estimated_duration",
-      "kind": "plurals",
-      "translatable": true,
-      "formatted": true,
-      "attributes": {},
-      "value": [
-        {
-          "quantity": "one",
-          "value": "Estimated tracking: %d hour"
-        },
-        {
-          "quantity": "other",
-          "value": "Estimated tracking: %d hours"
-        }
-      ],
-      "format_tokens": [
-        "%d"
-      ],
       "usage_files": [
         "app/src/main/java/com/adsamcik/tracker/app/settings/ui/TrackingPolicySelector.kt"
       ],
@@ -65334,10 +65608,7 @@
       "attributes": {},
       "value": "Looking for GPS — location in use",
       "format_tokens": [],
-      "usage_files": [
-        "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/component/trigger/AndroidLocationCollectionTrigger.kt",
-        "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/component/trigger/FusedLocationCollectionTrigger.kt"
-      ],
+      "usage_files": [],
       "existing_locale_qualifiers": [
         "values-af-rZA",
         "values-ar-rSA",
@@ -66931,9 +67202,7 @@
       "attributes": {},
       "value": "Ambient timer",
       "format_tokens": [],
-      "usage_files": [
-        "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/component/trigger/AmbientCollectionTrigger.kt"
-      ],
+      "usage_files": [],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
         "values-cs-rCZ",
@@ -66975,9 +67244,7 @@
       "attributes": {},
       "value": "Interval-based",
       "format_tokens": [],
-      "usage_files": [
-        "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/component/trigger/HandlerCollectionTrigger.kt"
-      ],
+      "usage_files": [],
       "existing_locale_qualifiers": [
         "values-af-rZA",
         "values-ar-rSA",
@@ -67031,9 +67298,7 @@
       "attributes": {},
       "value": "Google Play location",
       "format_tokens": [],
-      "usage_files": [
-        "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/component/trigger/FusedLocationCollectionTrigger.kt"
-      ],
+      "usage_files": [],
       "existing_locale_qualifiers": [
         "values-af-rZA",
         "values-ar-rSA",
@@ -67087,9 +67352,7 @@
       "attributes": {},
       "value": "Android location",
       "format_tokens": [],
-      "usage_files": [
-        "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/component/trigger/AndroidLocationCollectionTrigger.kt"
-      ],
+      "usage_files": [],
       "existing_locale_qualifiers": [
         "values-af-rZA",
         "values-ar-rSA",

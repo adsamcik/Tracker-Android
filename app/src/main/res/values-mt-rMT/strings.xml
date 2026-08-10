@@ -204,7 +204,6 @@
     <string name="upgrade_to_precise_benefit_detailed_maps">Mappa termika dettaljata u analiżi spazjali</string>
     <string name="upgrade_to_precise_benefit_precise_stats">Kejl preċiż tad-distanza u l-veloċità</string>
     <string name="upgrade_to_precise_battery_title">Użu tal-batterija</string>
-    <string name="upgrade_to_precise_battery_message">GPS preċiż juża aktar batterija. Ħin stmat ta’ traċċar: 6–8 sigħat fuq tagħmir tipiku.</string>
     <string name="upgrade_to_precise_button_upgrade">Ippermetti post preċiż</string>
     <string name="upgrade_to_precise_button_cancel">Forsi aktar tard</string>
     <string name="tracking_preset_high_accuracy_name">Preċiżjoni għolja</string>
@@ -228,10 +227,6 @@
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
     <string name="tracking_policy_selector_title">Politika tat-traċċar</string>
-    <plurals name="tracking_policy_estimated_duration">
-        <item quantity="one">Traċċar stmat: %d siegħa</item>
-        <item quantity="other">Traċċar stmat: %d sigħat</item>
-    </plurals>
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Agħżel kemm Tracker jirreġistra l-post tiegħek b’preċiżjoni</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>

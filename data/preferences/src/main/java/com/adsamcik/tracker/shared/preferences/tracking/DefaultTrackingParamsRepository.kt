@@ -31,6 +31,13 @@ private object TrackingParamsSerializer : Serializer<TrackingParamsProto> {
         .setRequiredAccuracyMeters(PreferenceKeys.TRACKING_REQUIRED_ACCURACY_DEFAULT)
         .setPresetName(TrackingParamsState.DEFAULT_PRESET)
         .setVehicleSpeedLimitBaselineMps(TrackingParamsState.DEFAULT_VEHICLE_SPEED_LIMIT_MPS)
+		.setLocationFrequency(SourceCollectionFrequency.BALANCED.stableCode)
+		.setActivityFrequency(SourceCollectionFrequency.BALANCED.stableCode)
+		.setStepsFrequency(SourceCollectionFrequency.BALANCED.stableCode)
+		.setPressureFrequency(SourceCollectionFrequency.BALANCED.stableCode)
+		.setWifiFrequency(SourceCollectionFrequency.OFF.stableCode)
+		.setCellFrequency(SourceCollectionFrequency.OFF.stableCode)
+		.setSourceSettingsVersion(TrackingParamsState.CURRENT_SOURCE_SETTINGS_VERSION)
         .setLegacyMigrated(false)
         .build()
 
@@ -78,12 +85,54 @@ class DefaultTrackingParamsRepository(
         }
     }
 
-    override suspend fun setLocationEnabled(enabled: Boolean) = updateField { setLocationEnabled(enabled) }
-    override suspend fun setActivityEnabled(enabled: Boolean) = updateField { setActivityEnabled(enabled) }
-    override suspend fun setStepsEnabled(enabled: Boolean) = updateField { setStepsEnabled(enabled) }
-    override suspend fun setWifiEnabled(enabled: Boolean) = updateField { setWifiEnabled(enabled) }
-    override suspend fun setCellEnabled(enabled: Boolean) = updateField { setCellEnabled(enabled) }
-    override suspend fun setBarometerEnabled(enabled: Boolean) = updateField { setBarometerEnabled(enabled) }
+    override suspend fun setLocationEnabled(enabled: Boolean) = update {
+		copy(
+			locationEnabled = enabled,
+			sourceCollectionSettings = sourceCollectionSettings.copy(
+				location = sourceCollectionSettings.location.forEnabled(enabled),
+			),
+		)
+	}
+    override suspend fun setActivityEnabled(enabled: Boolean) = update {
+		copy(
+			activityEnabled = enabled,
+			sourceCollectionSettings = sourceCollectionSettings.copy(
+				activity = sourceCollectionSettings.activity.forEnabled(enabled),
+			),
+		)
+	}
+    override suspend fun setStepsEnabled(enabled: Boolean) = update {
+		copy(
+			stepsEnabled = enabled,
+			sourceCollectionSettings = sourceCollectionSettings.copy(
+				steps = sourceCollectionSettings.steps.forEnabled(enabled),
+			),
+		)
+	}
+    override suspend fun setWifiEnabled(enabled: Boolean) = update {
+		copy(
+			wifiEnabled = enabled,
+			sourceCollectionSettings = sourceCollectionSettings.copy(
+				wifi = sourceCollectionSettings.wifi.forEnabled(enabled),
+			),
+		)
+	}
+    override suspend fun setCellEnabled(enabled: Boolean) = update {
+		copy(
+			cellEnabled = enabled,
+			sourceCollectionSettings = sourceCollectionSettings.copy(
+				cell = sourceCollectionSettings.cell.forEnabled(enabled),
+			),
+		)
+	}
+    override suspend fun setBarometerEnabled(enabled: Boolean) = update {
+		copy(
+			barometerEnabled = enabled,
+			sourceCollectionSettings = sourceCollectionSettings.copy(
+				pressure = sourceCollectionSettings.pressure.forEnabled(enabled),
+			),
+		)
+	}
     override suspend fun setTransitionDetectionEnabled(enabled: Boolean) = updateField { setTransitionDetectionEnabled(enabled) }
     override suspend fun setNotificationStyled(enabled: Boolean) = updateField { setNotificationStyled(enabled) }
     override suspend fun setMinDistanceMeters(meters: Int) = updateField { setMinDistanceMeters(meters.coerceAtLeast(1)) }
@@ -93,6 +142,34 @@ class DefaultTrackingParamsRepository(
     override suspend fun setVehicleSpeedLimitBaselineMps(mps: Double) = updateField {
         setVehicleSpeedLimitBaselineMps(mps.clampVehicleSpeedLimit())
     }
+
+	override suspend fun setSourceFrequency(
+		component: TrackingSourceComponent,
+		frequency: SourceCollectionFrequency,
+	) = update {
+		val next = when (component) {
+			TrackingSourceComponent.LOCATION -> sourceCollectionSettings.copy(location = frequency)
+			TrackingSourceComponent.ACTIVITY -> sourceCollectionSettings.copy(activity = frequency)
+			TrackingSourceComponent.STEPS -> sourceCollectionSettings.copy(steps = frequency)
+			TrackingSourceComponent.PRESSURE -> sourceCollectionSettings.copy(pressure = frequency)
+			TrackingSourceComponent.WIFI -> sourceCollectionSettings.copy(wifi = frequency)
+			TrackingSourceComponent.CELL -> sourceCollectionSettings.copy(cell = frequency)
+		}
+		copy(
+			locationEnabled = if (component == TrackingSourceComponent.LOCATION) frequency != SourceCollectionFrequency.OFF else locationEnabled,
+			activityEnabled = if (component == TrackingSourceComponent.ACTIVITY) frequency != SourceCollectionFrequency.OFF else activityEnabled,
+			stepsEnabled = if (component == TrackingSourceComponent.STEPS) frequency != SourceCollectionFrequency.OFF else stepsEnabled,
+			barometerEnabled = if (component == TrackingSourceComponent.PRESSURE) frequency != SourceCollectionFrequency.OFF else barometerEnabled,
+			wifiEnabled = if (component == TrackingSourceComponent.WIFI) frequency != SourceCollectionFrequency.OFF else wifiEnabled,
+			cellEnabled = if (component == TrackingSourceComponent.CELL) frequency != SourceCollectionFrequency.OFF else cellEnabled,
+			sourceCollectionSettings = next,
+			sourceSettingsVersion = TrackingParamsState.CURRENT_SOURCE_SETTINGS_VERSION,
+		)
+	}
+
+	override suspend fun setAdvancedSourceControlsEnabled(enabled: Boolean) = update {
+		copy(advancedSourceControlsEnabled = enabled)
+	}
 
     @Suppress("DEPRECATION")
     private suspend fun updateField(block: TrackingParamsProto.Builder.() -> TrackingParamsProto.Builder) {
@@ -225,6 +302,17 @@ private fun TrackingParamsProto.toDomain(): TrackingParamsState {
             .takeIf { it > 0.0 }
             ?.clampVehicleSpeedLimit()
             ?: TrackingParamsState.DEFAULT_VEHICLE_SPEED_LIMIT_MPS,
+		sourceCollectionSettings = SourceCollectionSettings(
+			location = frequencyOrLegacy(hasLocationFrequency(), locationFrequency, locationEnabled),
+			activity = frequencyOrLegacy(hasActivityFrequency(), activityFrequency, activityEnabled),
+			steps = frequencyOrLegacy(hasStepsFrequency(), stepsFrequency, stepsEnabled),
+			pressure = frequencyOrLegacy(hasPressureFrequency(), pressureFrequency, if (hasBarometerEnabled()) barometerEnabled else true),
+			wifi = frequencyOrLegacy(hasWifiFrequency(), wifiFrequency, wifiEnabled || wifiNetworkEnabled || wifiLocationCountEnabled),
+			cell = frequencyOrLegacy(hasCellFrequency(), cellFrequency, cellEnabled),
+		),
+		advancedSourceControlsEnabled = advancedSourceControlsEnabled,
+		sourceSettingsVersion = sourceSettingsVersion.takeIf { it > 0 }
+			?: TrackingParamsState.CURRENT_SOURCE_SETTINGS_VERSION,
     )
 }
 
@@ -244,8 +332,34 @@ private fun TrackingParamsState.toProto(): TrackingParamsProto =
         .setRequiredAccuracyMeters(requiredAccuracyMeters)
         .setPresetName(presetName)
         .setVehicleSpeedLimitBaselineMps(vehicleSpeedLimitBaselineMps.clampVehicleSpeedLimit())
+		.setLocationFrequency(sourceCollectionSettings.location.stableCode)
+		.setActivityFrequency(sourceCollectionSettings.activity.stableCode)
+		.setStepsFrequency(sourceCollectionSettings.steps.stableCode)
+		.setPressureFrequency(sourceCollectionSettings.pressure.stableCode)
+		.setWifiFrequency(sourceCollectionSettings.wifi.stableCode)
+		.setCellFrequency(sourceCollectionSettings.cell.stableCode)
+		.setAdvancedSourceControlsEnabled(advancedSourceControlsEnabled)
+		.setSourceSettingsVersion(TrackingParamsState.CURRENT_SOURCE_SETTINGS_VERSION)
         .setLegacyMigrated(true)
         .build()
+
+private fun frequencyOrLegacy(
+	hasSemanticValue: Boolean,
+	semanticValue: Int,
+	legacyEnabled: Boolean,
+): SourceCollectionFrequency = if (hasSemanticValue) {
+	SourceCollectionFrequency.fromStableCode(semanticValue)
+} else if (legacyEnabled) {
+	SourceCollectionFrequency.BALANCED
+} else {
+	SourceCollectionFrequency.OFF
+}
+
+private fun SourceCollectionFrequency.forEnabled(enabled: Boolean): SourceCollectionFrequency = when {
+	!enabled -> SourceCollectionFrequency.OFF
+	this == SourceCollectionFrequency.OFF -> SourceCollectionFrequency.BALANCED
+	else -> this
+}
 
 private fun Double.clampVehicleSpeedLimit(): Double {
     val minMps = TrackingParamsState.MIN_VEHICLE_SPEED_LIMIT_KMH / 3.6

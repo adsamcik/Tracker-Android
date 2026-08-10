@@ -208,7 +208,6 @@
     <string name="upgrade_to_precise_benefit_detailed_maps">Detalus šilumos žemėlapis ir erdvinė analizė</string>
     <string name="upgrade_to_precise_benefit_precise_stats">Tikslūs atstumo ir greičio matavimai</string>
     <string name="upgrade_to_precise_battery_title">Akumuliatoriaus naudojimas</string>
-    <string name="upgrade_to_precise_battery_message">Tikslus GPS naudoja daugiau akumuliatoriaus energijos. Numatyta sekimo trukmė: 6–8 valandos įprastuose įrenginiuose.</string>
     <string name="upgrade_to_precise_button_upgrade">Įjungti tikslią vietą</string>
     <string name="upgrade_to_precise_button_cancel">Gal vėliau</string>
     <string name="tracking_preset_high_accuracy_name">Didelis tikslumas</string>
@@ -232,11 +231,6 @@
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
     <string name="tracking_policy_selector_title">Sekimo politika</string>
-    <plurals name="tracking_policy_estimated_duration">
-        <item quantity="one">Numatoma sekimo trukmė: %d valanda</item>
-        <item quantity="few">Numatoma sekimo trukmė: %d valandos</item>
-        <item quantity="other">Numatoma sekimo trukmė: %d valandų</item>
-    </plurals>
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Pasirinkite, kokiu tikslumu „Tracker“ įrašo jūsų vietą</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>

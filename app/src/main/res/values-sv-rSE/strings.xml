@@ -204,7 +204,6 @@
     <string name="upgrade_to_precise_benefit_detailed_maps">Detaljerad värmekarta och rumslig analys</string>
     <string name="upgrade_to_precise_benefit_precise_stats">Exakta mätningar av avstånd och hastighet</string>
     <string name="upgrade_to_precise_battery_title">Batterianvändning</string>
-    <string name="upgrade_to_precise_battery_message">Exakt GPS använder mer batteri. Beräknad spårningstid: 6–8 timmar på vanliga enheter.</string>
     <string name="upgrade_to_precise_button_upgrade">Aktivera exakt plats</string>
     <string name="upgrade_to_precise_button_cancel">Kanske senare</string>
     <string name="tracking_preset_high_accuracy_name">Hög noggrannhet</string>
@@ -228,10 +227,6 @@
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
     <string name="tracking_policy_selector_title">Spårningspolicy</string>
-    <plurals name="tracking_policy_estimated_duration">
-        <item quantity="one">Beräknad spårning: %d timme</item>
-        <item quantity="other">Beräknad spårning: %d timmar</item>
-    </plurals>
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Välj hur exakt Tracker registrerar din plats</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>

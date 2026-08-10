@@ -208,7 +208,6 @@
     <string name="upgrade_to_precise_benefit_detailed_maps">Hartă termică detaliată și analiză spațială</string>
     <string name="upgrade_to_precise_benefit_precise_stats">Măsurători precise ale distanței și vitezei</string>
     <string name="upgrade_to_precise_battery_title">Consum de baterie</string>
-    <string name="upgrade_to_precise_battery_message">GPS-ul precis consumă mai multă baterie. Timp estimat de urmărire: 6–8 ore pe dispozitive obișnuite.</string>
     <string name="upgrade_to_precise_button_upgrade">Activează locația precisă</string>
     <string name="upgrade_to_precise_button_cancel">Poate mai târziu</string>
     <string name="tracking_preset_high_accuracy_name">Acuratețe ridicată</string>
@@ -232,11 +231,6 @@
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
     <string name="tracking_policy_selector_title">Politica de urmărire</string>
-    <plurals name="tracking_policy_estimated_duration">
-        <item quantity="one">Urmărire estimată: %d oră</item>
-        <item quantity="few">Urmărire estimată: %d ore</item>
-        <item quantity="other">Urmărire estimată: %d ore</item>
-    </plurals>
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Alege cât de precis înregistrează Tracker locația ta</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>

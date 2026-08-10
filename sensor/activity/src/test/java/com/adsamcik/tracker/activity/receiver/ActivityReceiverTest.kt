@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
+import com.adsamcik.tracker.activity.api.ingress.ActivityIngressResult
+import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.google.android.gms.location.ActivityRecognitionResult
@@ -12,6 +14,7 @@ import com.google.android.gms.location.ActivityTransitionResult
 import dagger.hilt.android.EntryPointAccessors
 import io.kotest.matchers.shouldBe
 import io.mockk.every
+import io.mockk.coEvery
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
@@ -23,6 +26,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
@@ -33,6 +38,7 @@ class ActivityReceiverTest {
 		get() = ApplicationProvider.getApplicationContext()
 
 	private lateinit var mockBackend: GmsActivityRecognitionBackend
+	private lateinit var mockIngress: ActivityRecognitionEventIngress
 
 	@Before
 	fun setUp() {
@@ -44,8 +50,12 @@ class ActivityReceiverTest {
 
 		// Mock the Hilt EntryPoint so the receiver can obtain the backend.
 		mockBackend = mockk(relaxed = true)
+		mockIngress = mockk()
+		coEvery { mockIngress.admit(any()) } returns ActivityIngressResult.durable(1, 0)
 		val mockEntryPoint = mockk<ActivityReceiverEntryPoint> {
 			every { backend() } returns mockBackend
+			every { eventIngress() } returns mockIngress
+			every { applicationScope() } returns CoroutineScope(Dispatchers.Unconfined)
 		}
 		mockkStatic(EntryPointAccessors::class)
 		every {
@@ -73,6 +83,7 @@ class ActivityReceiverTest {
 		val gmsDetectedActivity = mockGmsDetectedActivity(activityType, confidenceValue)
 		val result: ActivityRecognitionResult = mockk {
 			every { mostProbableActivity } returns gmsDetectedActivity
+			every { elapsedRealtimeMillis } returns 5_000L
 		}
 		val intent: Intent = mockk(relaxed = true)
 
@@ -114,6 +125,23 @@ class ActivityReceiverTest {
 				)
 			}
 		}
+
+	@Test
+	fun `does not publish process local effects when durable handoff fails`() {
+		coEvery { mockIngress.admit(any()) } returns ActivityIngressResult.retryable(
+			admittedCount = 0,
+			duplicateCount = 0,
+			failureCode = "storage_unavailable",
+		)
+		val intent = intentWithActivityResult(
+			com.google.android.gms.location.DetectedActivity.WALKING,
+			85,
+		)
+
+		receiver.onReceive(context, intent)
+
+		verify(exactly = 0) { mockBackend.onActivityResult(any(), any()) }
+	}
 
 		@Test
 		fun `passes elapsed time to backend`() {

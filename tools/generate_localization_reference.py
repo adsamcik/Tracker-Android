@@ -163,7 +163,13 @@ def source_usages(files: list[Path]) -> dict[str, list[str]]:
     for relative_path in files:
         if relative_path.suffix not in SOURCE_SUFFIXES:
             continue
-        content = (REPOSITORY_ROOT / relative_path).read_text(encoding="utf-8")
+        source_path = REPOSITORY_ROOT / relative_path
+        # `git ls-files` includes tracked files deleted in an unstaged worktree. Documentation
+        # generation must reflect the working tree that is being reviewed, not fail on those
+        # pending deletions.
+        if not source_path.is_file():
+            continue
+        content = source_path.read_text(encoding="utf-8")
         relative_name = relative_path.as_posix()
         for name in RESOURCE_XML_REFERENCE.findall(content):
             usages[name].add(relative_name)

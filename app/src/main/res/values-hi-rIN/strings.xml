@@ -204,7 +204,6 @@
     <string name="upgrade_to_precise_benefit_detailed_maps">विस्तृत हीटमैप और स्थानिक विश्लेषण</string>
     <string name="upgrade_to_precise_benefit_precise_stats">सटीक दूरी और गति माप</string>
     <string name="upgrade_to_precise_battery_title">बैटरी उपयोग</string>
-    <string name="upgrade_to_precise_battery_message">सटीक GPS अधिक बैटरी उपयोग करता है। अनुमानित ट्रैकिंग समय: सामान्य डिवाइस पर 6–8 घंटे।</string>
     <string name="upgrade_to_precise_button_upgrade">सटीक स्थान सक्षम करें</string>
     <string name="upgrade_to_precise_button_cancel">शायद बाद में</string>
     <string name="tracking_preset_high_accuracy_name">उच्च सटीकता</string>
@@ -228,10 +227,6 @@
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
     <string name="tracking_policy_selector_title">ट्रैकिंग नीति</string>
-    <plurals name="tracking_policy_estimated_duration">
-        <item quantity="one">अनुमानित ट्रैकिंग: %d घंटा</item>
-        <item quantity="other">अनुमानित ट्रैकिंग: %d घंटे</item>
-    </plurals>
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">चुनें कि Tracker आपके स्थान को कितनी सटीकता से रिकॉर्ड करे</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>

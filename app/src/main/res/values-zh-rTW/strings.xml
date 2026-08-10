@@ -204,7 +204,6 @@
     <string name="upgrade_to_precise_benefit_detailed_maps">詳細的熱點圖與空間分析</string>
     <string name="upgrade_to_precise_benefit_precise_stats">精確的距離與速度測量</string>
     <string name="upgrade_to_precise_battery_title">電池用量</string>
-    <string name="upgrade_to_precise_battery_message">精確 GPS 使用較多電量。預估追蹤時間：一般裝置為 6–8 小時。</string>
     <string name="upgrade_to_precise_button_upgrade">啟用精確位置</string>
     <string name="upgrade_to_precise_button_cancel">稍後再說</string>
     <string name="tracking_preset_high_accuracy_name">高準確度</string>
@@ -228,10 +227,6 @@
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
     <string name="tracking_policy_selector_title">追蹤原則</string>
-    <plurals name="tracking_policy_estimated_duration">
-        <item quantity="one">預估追蹤時間：%d 小時</item>
-        <item quantity="other">預估追蹤時間：%d 小時</item>
-    </plurals>
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">選擇 Tracker 記錄您位置的準確程度</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>

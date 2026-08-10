@@ -7,6 +7,8 @@ import androidx.work.Operation
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.adsamcik.tracker.activity.api.ActivityRecognitionApi
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbiter
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
 import com.adsamcik.tracker.impexp.importer.DataImporter
 import com.adsamcik.tracker.impexp.exporter.automation.ExportAutomationController
@@ -188,6 +190,7 @@ class DefaultCollectedDataDeletionService(
 	private val exportPlanStore: ExportPlanStore,
 	private val writerQuiescer: CollectedDataWriterQuiescer,
 	private val collectedDataLifecycleStore: CollectedDataLifecycleStore,
+	private val activityRegistrationArbiter: ActivityRegistrationArbiter? = null,
 	private val traceboxDataDeletion: suspend () -> Boolean,
 	private val appDatabaseDeletion: suspend (Context, Long, Long?, Long) -> Unit =
 		{ context, epoch, retainedFromMs, updatedAtMs ->
@@ -227,6 +230,13 @@ class DefaultCollectedDataDeletionService(
 			// captured the old epoch can no longer publish after this point.
 			val lifecycleUpdatedAtMs = System.currentTimeMillis()
 			val lifecycle = collectedDataLifecycleStore.beginFullDeletion(lifecycleUpdatedAtMs)
+			activityRegistrationArbiter?.closeForCollectedDataDeletion()?.let { result ->
+				if (result.status == ActivityRegistrationStatus.FAILED) {
+					throw DatabaseMigrationBackupException(
+						"Could not fence activity-recognition callbacks: ${result.failureCode}",
+					)
+				}
+			}
 			writerQuiescer.quiesce()
 			performDeletion(
 				epoch = lifecycle.epoch,
@@ -237,7 +247,11 @@ class DefaultCollectedDataDeletionService(
 			deleteDiagnostics()
 			clearDeletionMarker()
 		} finally {
-			writerQuiescer.resume()
+			try {
+				writerQuiescer.resume()
+			} finally {
+				activityRegistrationArbiter?.resumeAfterCollectedDataDeletion()
+			}
 		}
 	}
 
