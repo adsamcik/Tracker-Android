@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.receiver.ActivityReceiver
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
@@ -86,6 +87,12 @@ class GmsActivityRecognitionBackend @Inject constructor(
 	}
 
 	override suspend fun startUpdates(config: RecognitionConfig): Boolean =
+		applyRegistration(config, LEGACY_IDENTITY)
+
+	internal suspend fun applyRegistration(
+		config: RecognitionConfig,
+		identity: ActivityRegistrationIdentity,
+	): Boolean =
 		subscriptionMutex.withLock {
 			if (!isAvailable) {
 				Tracebox.log.warn("Activity recognition is unavailable")
@@ -93,7 +100,7 @@ class GmsActivityRecognitionBackend @Inject constructor(
 			}
 
 			val client = ActivityRecognition.getClient(context)
-			val intent = getActivityDetectionPendingIntent()
+			val intent = getActivityDetectionPendingIntent(identity)
 
 			val recognitionTask = if (config.intervalSeconds > 0) {
 				requestActivityRecognition(client, intent, config.intervalSeconds)
@@ -127,10 +134,19 @@ class GmsActivityRecognitionBackend @Inject constructor(
 		}
 
 	override suspend fun stopUpdates() = subscriptionMutex.withLock {
+		removeRegistrationLocked(LEGACY_IDENTITY)
+	}
+
+	internal suspend fun removeRegistration(identity: ActivityRegistrationIdentity) = subscriptionMutex.withLock {
+		removeRegistrationLocked(identity)
+	}
+
+	private suspend fun removeRegistrationLocked(identity: ActivityRegistrationIdentity) {
 		val client = ActivityRecognition.getClient(context)
-		val intent = getActivityDetectionPendingIntent()
+		val intent = getActivityDetectionPendingIntent(identity)
 		try {
 			removeAllSubscriptions(client, intent)
+			intent.cancel()
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Exception) {
@@ -249,17 +265,30 @@ class GmsActivityRecognitionBackend @Inject constructor(
 			.build()
 	}
 
-	private fun getActivityDetectionPendingIntent(): PendingIntent {
+	private fun getActivityDetectionPendingIntent(identity: ActivityRegistrationIdentity): PendingIntent {
 		val intent = Intent(context, ActivityReceiver::class.java)
+			.setAction("${context.packageName}.ACTIVITY_RECOGNITION.${identity.sourceInstanceId}.${identity.registrationGeneration}")
+			.putExtra(EXTRA_SOURCE_INSTANCE_ID, identity.sourceInstanceId)
+			.putExtra(EXTRA_REGISTRATION_GENERATION, identity.registrationGeneration)
+			.putExtra(EXTRA_COLLECTED_DATA_EPOCH, identity.collectedDataEpoch)
+			.putExtra(EXTRA_APPLIED_REVISION, identity.appliedRevision ?: NO_REVISION)
 		return PendingIntent.getBroadcast(
 			context,
-			REQUEST_CODE_PENDING_INTENT,
+			requestCode(identity),
 			intent,
 			PendingIntent.FLAG_UPDATE_CURRENT.or(PendingIntent.FLAG_MUTABLE),
 		)
 	}
 
 	companion object {
-		private const val REQUEST_CODE_PENDING_INTENT = 4561201
+		internal const val EXTRA_SOURCE_INSTANCE_ID = "activity_registration_source_instance_id"
+		internal const val EXTRA_REGISTRATION_GENERATION = "activity_registration_generation"
+		internal const val EXTRA_COLLECTED_DATA_EPOCH = "activity_registration_collected_data_epoch"
+		internal const val EXTRA_APPLIED_REVISION = "activity_registration_applied_revision"
+		internal const val NO_REVISION = Long.MIN_VALUE
+		private val LEGACY_IDENTITY = ActivityRegistrationIdentity("legacy", 0L, 0L, null)
+
+		private fun requestCode(identity: ActivityRegistrationIdentity): Int =
+			31 * identity.sourceInstanceId.hashCode() + identity.registrationGeneration.hashCode()
 	}
 }

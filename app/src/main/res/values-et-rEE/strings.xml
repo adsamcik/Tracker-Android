@@ -204,7 +204,6 @@
     <string name="upgrade_to_precise_benefit_detailed_maps">Detailne soojuskaart ja ruumiline analüüs</string>
     <string name="upgrade_to_precise_benefit_precise_stats">Täpsed vahemaa- ja kiirusmõõtmised</string>
     <string name="upgrade_to_precise_battery_title">Akukasutus</string>
-    <string name="upgrade_to_precise_battery_message">Täpne GPS kasutab rohkem akut. Hinnanguline jälgimisaeg: tavaseadmetes 6–8 tundi.</string>
     <string name="upgrade_to_precise_button_upgrade">Luba täpne asukoht</string>
     <string name="upgrade_to_precise_button_cancel">Võib-olla hiljem</string>
     <string name="tracking_preset_high_accuracy_name">Suur täpsus</string>
@@ -228,10 +227,6 @@
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
     <string name="tracking_policy_selector_title">Jälgimispoliitika</string>
-    <plurals name="tracking_policy_estimated_duration">
-        <item quantity="one">Hinnanguline jälgimine: %d tund</item>
-        <item quantity="other">Hinnanguline jälgimine: %d tundi</item>
-    </plurals>
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Valige, kui täpselt Tracker teie asukohta salvestab</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>

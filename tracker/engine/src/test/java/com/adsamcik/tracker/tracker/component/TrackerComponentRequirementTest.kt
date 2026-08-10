@@ -5,7 +5,7 @@ import com.adsamcik.tracker.shared.base.data.LocationData
 import com.adsamcik.tracker.tracker.data.collection.CellScanData
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.collection.WifiScanData
-import com.adsamcik.tracker.tracker.component.producer.PressureReading
+import com.adsamcik.tracker.tracker.data.collection.PressureReading
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
 import org.junit.jupiter.api.DisplayName

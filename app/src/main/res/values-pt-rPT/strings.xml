@@ -204,7 +204,6 @@
     <string name="upgrade_to_precise_benefit_detailed_maps">Mapa de calor detalhado e análise espacial</string>
     <string name="upgrade_to_precise_benefit_precise_stats">Medições precisas de distância e velocidade</string>
     <string name="upgrade_to_precise_battery_title">Utilização da bateria</string>
-    <string name="upgrade_to_precise_battery_message">O GPS preciso consome mais bateria. Tempo de monitorização estimado: 6–8 horas em dispositivos típicos.</string>
     <string name="upgrade_to_precise_button_upgrade">Ativar localização precisa</string>
     <string name="upgrade_to_precise_button_cancel">Talvez mais tarde</string>
     <string name="tracking_preset_high_accuracy_name">Alta precisão</string>
@@ -228,10 +227,6 @@
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
     <string name="tracking_policy_selector_title">Política de monitorização</string>
-    <plurals name="tracking_policy_estimated_duration">
-        <item quantity="one">Monitorização estimada: %d hora</item>
-        <item quantity="other">Monitorização estimada: %d horas</item>
-    </plurals>
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Escolha com que precisão o Tracker regista a sua localização</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>

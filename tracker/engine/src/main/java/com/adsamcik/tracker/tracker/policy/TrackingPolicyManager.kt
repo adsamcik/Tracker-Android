@@ -10,6 +10,10 @@ import com.adsamcik.tracker.shared.base.database.data.TrackerStateEvent
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.engine.policy.DefaultPolicyEscalationEngine
 import com.adsamcik.tracker.tracker.data.TrackingClockDomain
+import com.adsamcik.tracker.tracker.source.model.DemandReason
+import com.adsamcik.tracker.tracker.source.model.EvidenceQuality
+import com.adsamcik.tracker.tracker.source.model.SourceDemand
+import com.adsamcik.tracker.tracker.source.model.SourceKind
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -72,6 +76,11 @@ class TrackingPolicyManager(
 	 * Current tracking policy state.
 	 */
 	val currentPolicy: StateFlow<TrackingPolicy> = _currentPolicy.asStateFlow()
+
+	private val _sourceDemands = MutableStateFlow(demandsFor(_currentPolicy.value))
+
+	/** Evidence requirements emitted by policy; platform acquisition remains coordinator-owned. */
+	val sourceDemands: StateFlow<List<SourceDemand>> = _sourceDemands.asStateFlow()
 
 	private var currentRunId: Long? = null
 	private var lastTransitionTime: Long = 0L
@@ -156,9 +165,8 @@ class TrackingPolicyManager(
 	}
 
 	/**
-	 * Refreshes the bounded active lease while tracking is actually producing cycles. If the process
-	 * dies or no trustworthy activity arrives, the most recent state event naturally expires rather
-	 * than being extended to a later process's wall clock.
+	 * Refreshes the bounded active lease from the coordinator lifecycle tick. If the process dies,
+	 * the most recent state event naturally expires rather than being extended by collection input.
 	 */
 	suspend fun heartbeatIfDue() = stateMutex.withLock {
 		val nowElapsed = Time.elapsedRealtimeNanos
@@ -171,7 +179,7 @@ class TrackingPolicyManager(
 			wallTimeMs = Time.nowMillis,
 			state = TrackerStateEvent.HEARTBEAT,
 			policy = _currentPolicy.value.name,
-			reason = "TRACKING_CYCLE",
+			reason = "COORDINATOR_LIFECYCLE_TICK",
 		)
 		lastStateHeartbeatElapsedRealtimeNanos = nowElapsed
 	}
@@ -311,6 +319,7 @@ class TrackingPolicyManager(
 		if (oldPolicy == newPolicy) return@withLock
 
 		_currentPolicy.value = newPolicy
+		_sourceDemands.value = demandsFor(newPolicy)
 
 		val run = TrackerRun(
 			startTimeMs = timeMs,
@@ -340,6 +349,7 @@ class TrackingPolicyManager(
 		if (oldPolicy == newPolicy) return
 
 		_currentPolicy.value = newPolicy
+		_sourceDemands.value = demandsFor(newPolicy)
 
 		val run = TrackerRun(
 			startTimeMs = timeMs,
@@ -470,5 +480,29 @@ class TrackingPolicyManager(
 		private const val COOLDOWN_DURATION_MS = 5 * 60 * 1000L
 		private const val HEARTBEAT_INTERVAL_NANOS = 30L * Time.SECOND_IN_NANOSECONDS
 		private const val ACTIVE_LEASE_NANOS = 2L * Time.MINUTE_IN_SECONDS * Time.SECOND_IN_NANOSECONDS
+
+		internal fun demandsFor(policy: TrackingPolicy): List<SourceDemand> = when (policy) {
+			TrackingPolicy.PASSIVE_LOW -> listOf(
+				SourceDemand(SourceKind.ACTIVITY, 120_000, 60_000, EvidenceQuality.EFFICIENT, DemandReason.POLICY),
+				SourceDemand(SourceKind.STEPS, 120_000, 60_000, EvidenceQuality.EFFICIENT, DemandReason.POLICY),
+			)
+			TrackingPolicy.MOVEMENT_SUSPECTED -> listOf(
+				SourceDemand(SourceKind.ACTIVITY, 30_000, 15_000, EvidenceQuality.BALANCED, DemandReason.POLICY),
+				SourceDemand(SourceKind.STEPS, 30_000, 15_000, EvidenceQuality.BALANCED, DemandReason.POLICY),
+				SourceDemand(SourceKind.LOCATION, 60_000, 30_000, EvidenceQuality.EFFICIENT, DemandReason.POLICY),
+			)
+			TrackingPolicy.ACTIVE_MODERATE -> listOf(
+				SourceDemand(SourceKind.ACTIVITY, 15_000, 5_000, EvidenceQuality.BALANCED, DemandReason.POLICY),
+				SourceDemand(SourceKind.STEPS, 15_000, 5_000, EvidenceQuality.BALANCED, DemandReason.POLICY),
+				SourceDemand(SourceKind.LOCATION, 15_000, 5_000, EvidenceQuality.BALANCED, DemandReason.POLICY),
+			)
+			TrackingPolicy.ACTIVE_ELEVATED,
+			TrackingPolicy.USER_INITIATED,
+			-> listOf(
+				SourceDemand(SourceKind.ACTIVITY, 5_000, 2_000, EvidenceQuality.HIGH, DemandReason.POLICY),
+				SourceDemand(SourceKind.STEPS, 5_000, 2_000, EvidenceQuality.HIGH, DemandReason.POLICY),
+				SourceDemand(SourceKind.LOCATION, 5_000, 1_000, EvidenceQuality.HIGH, DemandReason.POLICY),
+			)
+		}
 	}
 }

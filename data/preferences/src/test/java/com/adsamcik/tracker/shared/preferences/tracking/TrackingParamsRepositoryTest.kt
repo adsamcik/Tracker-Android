@@ -78,6 +78,26 @@ class TrackingParamsRepositoryTest {
 		override suspend fun setVehicleSpeedLimitBaselineMps(mps: Double) {
 			_data.value = _data.value.copy(vehicleSpeedLimitBaselineMps = mps)
 		}
+
+		override suspend fun setSourceFrequency(
+			component: TrackingSourceComponent,
+			frequency: SourceCollectionFrequency,
+		) {
+			val current = _data.value.sourceCollectionSettings
+			val next = when (component) {
+				TrackingSourceComponent.LOCATION -> current.copy(location = frequency)
+				TrackingSourceComponent.ACTIVITY -> current.copy(activity = frequency)
+				TrackingSourceComponent.STEPS -> current.copy(steps = frequency)
+				TrackingSourceComponent.PRESSURE -> current.copy(pressure = frequency)
+				TrackingSourceComponent.WIFI -> current.copy(wifi = frequency)
+				TrackingSourceComponent.CELL -> current.copy(cell = frequency)
+			}
+			_data.value = _data.value.copy(sourceCollectionSettings = next)
+		}
+
+		override suspend fun setAdvancedSourceControlsEnabled(enabled: Boolean) {
+			_data.value = _data.value.copy(advancedSourceControlsEnabled = enabled)
+		}
 	}
 
 	@Nested

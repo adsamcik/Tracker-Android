@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 27,
-    "identityHash": "bbb23f5760573b66b46c7b2fbf9485af",
+    "identityHash": "17e46e0b75109116937749a846dab596",
     "entities": [
       {
         "tableName": "activity",
@@ -343,15 +343,6 @@
         },
         "indices": [
           {
-            "name": "idx_location_sample_time",
-            "unique": false,
-            "columnNames": [
-              "time_ms"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `idx_location_sample_time` ON `${TABLE_NAME}` (`time_ms`)"
-          },
-          {
             "name": "idx_location_sample_time_id",
             "unique": false,
             "columnNames": [
@@ -637,6 +628,223 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_location_observation_clock` ON `${TABLE_NAME}` (`clock_domain_id`, `fix_elapsed_realtime_nanos`)"
+          }
+        ]
+      },
+      {
+        "tableName": "location_projection_observation",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`event_id` TEXT NOT NULL, `logical_tracking_id` TEXT NOT NULL, `admission_ordinal` INTEGER NOT NULL, `elapsed_realtime_nanos` INTEGER NOT NULL, `wall_time_ms` INTEGER NOT NULL, `latitude_degrees` REAL NOT NULL, `longitude_degrees` REAL NOT NULL, `horizontal_accuracy_meters` REAL NOT NULL, `altitude_meters` REAL, `vertical_accuracy_meters` REAL, `speed_meters_per_second` REAL, PRIMARY KEY(`event_id`))",
+        "fields": [
+          {
+            "fieldPath": "eventId",
+            "columnName": "event_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "logicalTrackingId",
+            "columnName": "logical_tracking_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "admissionOrdinal",
+            "columnName": "admission_ordinal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "elapsedRealtimeNanos",
+            "columnName": "elapsed_realtime_nanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "wallTimeMs",
+            "columnName": "wall_time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "latitudeDegrees",
+            "columnName": "latitude_degrees",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "longitudeDegrees",
+            "columnName": "longitude_degrees",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "horizontalAccuracyMeters",
+            "columnName": "horizontal_accuracy_meters",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "altitudeMeters",
+            "columnName": "altitude_meters",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "verticalAccuracyMeters",
+            "columnName": "vertical_accuracy_meters",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "speedMetersPerSecond",
+            "columnName": "speed_meters_per_second",
+            "affinity": "REAL"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "event_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_location_projection_observation_order",
+            "unique": false,
+            "columnNames": [
+              "logical_tracking_id",
+              "elapsed_realtime_nanos",
+              "wall_time_ms",
+              "event_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_location_projection_observation_order` ON `${TABLE_NAME}` (`logical_tracking_id`, `elapsed_realtime_nanos`, `wall_time_ms`, `event_id`)"
+          },
+          {
+            "name": "idx_location_projection_observation_retention",
+            "unique": false,
+            "columnNames": [
+              "wall_time_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_location_projection_observation_retention` ON `${TABLE_NAME}` (`wall_time_ms`)"
+          },
+          {
+            "name": "idx_location_projection_observation_ordinal",
+            "unique": false,
+            "columnNames": [
+              "admission_ordinal"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_location_projection_observation_ordinal` ON `${TABLE_NAME}` (`admission_ordinal`)"
+          }
+        ]
+      },
+      {
+        "tableName": "location_projection_point",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`event_id` TEXT NOT NULL, `logical_tracking_id` TEXT NOT NULL, `revision` INTEGER NOT NULL, `accepted` INTEGER NOT NULL, `rejection` TEXT, `latitude_degrees` REAL NOT NULL, `longitude_degrees` REAL NOT NULL, `segment_distance_meters` REAL NOT NULL, `cumulative_distance_meters` REAL NOT NULL, `estimated_speed_meters_per_second` REAL, `raw_wgs84_altitude_meters` REAL, `vertical_accuracy_meters` REAL, `elapsed_realtime_nanos` INTEGER NOT NULL, PRIMARY KEY(`event_id`), FOREIGN KEY(`event_id`) REFERENCES `location_projection_observation`(`event_id`) ON UPDATE CASCADE ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "eventId",
+            "columnName": "event_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "logicalTrackingId",
+            "columnName": "logical_tracking_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accepted",
+            "columnName": "accepted",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rejection",
+            "columnName": "rejection",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "latitudeDegrees",
+            "columnName": "latitude_degrees",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "longitudeDegrees",
+            "columnName": "longitude_degrees",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "segmentDistanceMeters",
+            "columnName": "segment_distance_meters",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cumulativeDistanceMeters",
+            "columnName": "cumulative_distance_meters",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "estimatedSpeedMetersPerSecond",
+            "columnName": "estimated_speed_meters_per_second",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "rawWgs84AltitudeMeters",
+            "columnName": "raw_wgs84_altitude_meters",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "verticalAccuracyMeters",
+            "columnName": "vertical_accuracy_meters",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "elapsedRealtimeNanos",
+            "columnName": "elapsed_realtime_nanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "event_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_location_projection_point_tracking",
+            "unique": false,
+            "columnNames": [
+              "logical_tracking_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_location_projection_point_tracking` ON `${TABLE_NAME}` (`logical_tracking_id`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "location_projection_observation",
+            "onDelete": "CASCADE",
+            "onUpdate": "CASCADE",
+            "columns": [
+              "event_id"
+            ],
+            "referencedColumns": [
+              "event_id"
+            ]
           }
         ]
       },
@@ -1677,6 +1885,1320 @@
           "autoGenerate": false,
           "columnNames": [
             "id"
+          ]
+        }
+      },
+      {
+        "tableName": "source_event_wal",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`admission_ordinal` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `event_id` TEXT NOT NULL, `provider_dedup_key` TEXT, `logical_tracking_id` TEXT, `service_run_id` TEXT, `source_kind` INTEGER NOT NULL, `source_instance_id` TEXT NOT NULL, `registration_generation` INTEGER NOT NULL, `source_sequence` INTEGER NOT NULL, `config_revision` INTEGER, `plan_attribution` INTEGER NOT NULL, `clock_domain_id` TEXT NOT NULL, `observed_elapsed_nanos` INTEGER NOT NULL, `received_elapsed_nanos` INTEGER NOT NULL, `wall_time_ms` INTEGER, `wall_time_uncertainty_ms` INTEGER, `captured_collected_data_epoch` INTEGER NOT NULL, `acquired_at_ms` INTEGER NOT NULL, `quality_flags` INTEGER NOT NULL, `quality_confidence` REAL, `payload_version` INTEGER NOT NULL, `payload` BLOB NOT NULL, `payload_checksum` TEXT NOT NULL, `created_at_ms` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "admissionOrdinal",
+            "columnName": "admission_ordinal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "eventId",
+            "columnName": "event_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "providerDedupKey",
+            "columnName": "provider_dedup_key",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "logicalTrackingId",
+            "columnName": "logical_tracking_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "serviceRunId",
+            "columnName": "service_run_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceKind",
+            "columnName": "source_kind",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceInstanceId",
+            "columnName": "source_instance_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "registrationGeneration",
+            "columnName": "registration_generation",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceSequence",
+            "columnName": "source_sequence",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "configRevision",
+            "columnName": "config_revision",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "planAttribution",
+            "columnName": "plan_attribution",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "clockDomainId",
+            "columnName": "clock_domain_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "observedElapsedNanos",
+            "columnName": "observed_elapsed_nanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "receivedElapsedNanos",
+            "columnName": "received_elapsed_nanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "wallTimeMs",
+            "columnName": "wall_time_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "wallTimeUncertaintyMs",
+            "columnName": "wall_time_uncertainty_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "capturedCollectedDataEpoch",
+            "columnName": "captured_collected_data_epoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "acquiredAtMs",
+            "columnName": "acquired_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "qualityFlags",
+            "columnName": "quality_flags",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "qualityConfidence",
+            "columnName": "quality_confidence",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "payloadVersion",
+            "columnName": "payload_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payload",
+            "columnName": "payload",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payloadChecksum",
+            "columnName": "payload_checksum",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMs",
+            "columnName": "created_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "admission_ordinal"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_source_event_wal_event_id",
+            "unique": true,
+            "columnNames": [
+              "event_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_source_event_wal_event_id` ON `${TABLE_NAME}` (`event_id`)"
+          },
+          {
+            "name": "idx_source_event_wal_provider_dedup",
+            "unique": true,
+            "columnNames": [
+              "source_kind",
+              "provider_dedup_key"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_source_event_wal_provider_dedup` ON `${TABLE_NAME}` (`source_kind`, `provider_dedup_key`)"
+          },
+          {
+            "name": "idx_source_event_wal_tracking_ordinal",
+            "unique": false,
+            "columnNames": [
+              "logical_tracking_id",
+              "admission_ordinal"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_source_event_wal_tracking_ordinal` ON `${TABLE_NAME}` (`logical_tracking_id`, `admission_ordinal`)"
+          },
+          {
+            "name": "idx_source_event_wal_source_sequence",
+            "unique": true,
+            "columnNames": [
+              "source_kind",
+              "source_instance_id",
+              "source_sequence"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_source_event_wal_source_sequence` ON `${TABLE_NAME}` (`source_kind`, `source_instance_id`, `source_sequence`)"
+          },
+          {
+            "name": "idx_source_event_wal_lifecycle",
+            "unique": false,
+            "columnNames": [
+              "captured_collected_data_epoch",
+              "acquired_at_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_source_event_wal_lifecycle` ON `${TABLE_NAME}` (`captured_collected_data_epoch`, `acquired_at_ms`)"
+          },
+          {
+            "name": "idx_source_event_wal_retention",
+            "unique": false,
+            "columnNames": [
+              "created_at_ms",
+              "admission_ordinal"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_source_event_wal_retention` ON `${TABLE_NAME}` (`created_at_ms`, `admission_ordinal`)"
+          }
+        ]
+      },
+      {
+        "tableName": "source_projection_registration",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`projection_id` TEXT NOT NULL, `projection_version` INTEGER NOT NULL, `activation_ordinal` INTEGER NOT NULL, `retention_required` INTEGER NOT NULL, `status` TEXT NOT NULL, `created_at_ms` INTEGER NOT NULL, PRIMARY KEY(`projection_id`, `projection_version`))",
+        "fields": [
+          {
+            "fieldPath": "projectionId",
+            "columnName": "projection_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "projectionVersion",
+            "columnName": "projection_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activationOrdinal",
+            "columnName": "activation_ordinal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "retentionRequired",
+            "columnName": "retention_required",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMs",
+            "columnName": "created_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "projection_id",
+            "projection_version"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_source_projection_registration_status",
+            "unique": false,
+            "columnNames": [
+              "status",
+              "activation_ordinal"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_source_projection_registration_status` ON `${TABLE_NAME}` (`status`, `activation_ordinal`)"
+          }
+        ]
+      },
+      {
+        "tableName": "source_projection_checkpoint",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`projection_id` TEXT NOT NULL, `projection_version` INTEGER NOT NULL, `contiguous_admission_ordinal` INTEGER NOT NULL, `state_version` INTEGER NOT NULL, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`projection_id`, `projection_version`))",
+        "fields": [
+          {
+            "fieldPath": "projectionId",
+            "columnName": "projection_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "projectionVersion",
+            "columnName": "projection_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "contiguousAdmissionOrdinal",
+            "columnName": "contiguous_admission_ordinal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stateVersion",
+            "columnName": "state_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMs",
+            "columnName": "updated_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "projection_id",
+            "projection_version"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_source_projection_checkpoint_ordinal",
+            "unique": false,
+            "columnNames": [
+              "contiguous_admission_ordinal"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_source_projection_checkpoint_ordinal` ON `${TABLE_NAME}` (`contiguous_admission_ordinal`)"
+          }
+        ]
+      },
+      {
+        "tableName": "source_projection_failure",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`projection_id` TEXT NOT NULL, `projection_version` INTEGER NOT NULL, `admission_ordinal` INTEGER NOT NULL, `attempt_count` INTEGER NOT NULL, `failure_code` TEXT NOT NULL, `terminal` INTEGER NOT NULL, `last_attempt_at_ms` INTEGER NOT NULL, PRIMARY KEY(`projection_id`, `projection_version`, `admission_ordinal`))",
+        "fields": [
+          {
+            "fieldPath": "projectionId",
+            "columnName": "projection_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "projectionVersion",
+            "columnName": "projection_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "admissionOrdinal",
+            "columnName": "admission_ordinal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attemptCount",
+            "columnName": "attempt_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "failureCode",
+            "columnName": "failure_code",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "terminal",
+            "columnName": "terminal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastAttemptAtMs",
+            "columnName": "last_attempt_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "projection_id",
+            "projection_version",
+            "admission_ordinal"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_source_projection_failure_retry",
+            "unique": false,
+            "columnNames": [
+              "terminal",
+              "last_attempt_at_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_source_projection_failure_retry` ON `${TABLE_NAME}` (`terminal`, `last_attempt_at_ms`)"
+          }
+        ]
+      },
+      {
+        "tableName": "source_projection_join_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`projection_id` TEXT NOT NULL, `projection_version` INTEGER NOT NULL, `state_key` TEXT NOT NULL, `logical_tracking_id` TEXT, `minimum_required_ordinal` INTEGER NOT NULL, `payload_version` INTEGER NOT NULL, `payload` BLOB NOT NULL, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`projection_id`, `projection_version`, `state_key`))",
+        "fields": [
+          {
+            "fieldPath": "projectionId",
+            "columnName": "projection_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "projectionVersion",
+            "columnName": "projection_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stateKey",
+            "columnName": "state_key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "logicalTrackingId",
+            "columnName": "logical_tracking_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "minimumRequiredOrdinal",
+            "columnName": "minimum_required_ordinal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payloadVersion",
+            "columnName": "payload_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payload",
+            "columnName": "payload",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMs",
+            "columnName": "updated_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "projection_id",
+            "projection_version",
+            "state_key"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_source_projection_join_tracking",
+            "unique": false,
+            "columnNames": [
+              "logical_tracking_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_source_projection_join_tracking` ON `${TABLE_NAME}` (`logical_tracking_id`)"
+          },
+          {
+            "name": "idx_source_projection_join_updated",
+            "unique": false,
+            "columnNames": [
+              "updated_at_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_source_projection_join_updated` ON `${TABLE_NAME}` (`updated_at_ms`)"
+          },
+          {
+            "name": "idx_source_projection_join_retention",
+            "unique": false,
+            "columnNames": [
+              "minimum_required_ordinal"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_source_projection_join_retention` ON `${TABLE_NAME}` (`minimum_required_ordinal`)"
+          }
+        ]
+      },
+      {
+        "tableName": "source_projection_outbox",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`stable_id` TEXT NOT NULL, `projection_id` TEXT NOT NULL, `projection_version` INTEGER NOT NULL, `admission_ordinal` INTEGER NOT NULL, `effect_kind` TEXT NOT NULL, `payload_version` INTEGER NOT NULL, `payload` BLOB NOT NULL, `created_at_ms` INTEGER NOT NULL, `delivered_at_ms` INTEGER, PRIMARY KEY(`stable_id`))",
+        "fields": [
+          {
+            "fieldPath": "stableId",
+            "columnName": "stable_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "projectionId",
+            "columnName": "projection_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "projectionVersion",
+            "columnName": "projection_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "admissionOrdinal",
+            "columnName": "admission_ordinal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effectKind",
+            "columnName": "effect_kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payloadVersion",
+            "columnName": "payload_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payload",
+            "columnName": "payload",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMs",
+            "columnName": "created_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deliveredAtMs",
+            "columnName": "delivered_at_ms",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "stable_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_source_projection_outbox_delivery",
+            "unique": false,
+            "columnNames": [
+              "delivered_at_ms",
+              "created_at_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_source_projection_outbox_delivery` ON `${TABLE_NAME}` (`delivered_at_ms`, `created_at_ms`)"
+          },
+          {
+            "name": "idx_source_projection_outbox_kind_pending",
+            "unique": false,
+            "columnNames": [
+              "effect_kind",
+              "delivered_at_ms",
+              "admission_ordinal"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_source_projection_outbox_kind_pending` ON `${TABLE_NAME}` (`effect_kind`, `delivered_at_ms`, `admission_ordinal`)"
+          }
+        ]
+      },
+      {
+        "tableName": "source_coordinator_lease",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`lease_name` TEXT NOT NULL, `owner_token` TEXT NOT NULL, `acquired_at_ms` INTEGER NOT NULL, `expires_at_ms` INTEGER NOT NULL, PRIMARY KEY(`lease_name`))",
+        "fields": [
+          {
+            "fieldPath": "leaseName",
+            "columnName": "lease_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ownerToken",
+            "columnName": "owner_token",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "acquiredAtMs",
+            "columnName": "acquired_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "expiresAtMs",
+            "columnName": "expires_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "lease_name"
+          ]
+        }
+      },
+      {
+        "tableName": "source_registration_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`source_kind` INTEGER NOT NULL, `owner_scope` TEXT NOT NULL, `source_instance_id` TEXT NOT NULL, `clock_domain_id` TEXT NOT NULL, `registration_generation` INTEGER NOT NULL, `next_sequence` INTEGER NOT NULL, `applied_revision` INTEGER, `collected_data_epoch` INTEGER NOT NULL, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`source_kind`, `owner_scope`))",
+        "fields": [
+          {
+            "fieldPath": "sourceKind",
+            "columnName": "source_kind",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ownerScope",
+            "columnName": "owner_scope",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceInstanceId",
+            "columnName": "source_instance_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "clockDomainId",
+            "columnName": "clock_domain_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "registrationGeneration",
+            "columnName": "registration_generation",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nextSequence",
+            "columnName": "next_sequence",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "appliedRevision",
+            "columnName": "applied_revision",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "collectedDataEpoch",
+            "columnName": "collected_data_epoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMs",
+            "columnName": "updated_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "source_kind",
+            "owner_scope"
+          ]
+        }
+      },
+      {
+        "tableName": "logical_tracking_session",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`logical_tracking_id` TEXT NOT NULL, `state` TEXT NOT NULL, `lifecycle_revision` INTEGER NOT NULL, `desired_plan_revision` INTEGER NOT NULL, `rollout_revision` INTEGER NOT NULL, `start_origin` TEXT NOT NULL, `clock_domain_id` TEXT NOT NULL, `started_at_ms` INTEGER NOT NULL, `started_elapsed_nanos` INTEGER NOT NULL, `cutoff_at_ms` INTEGER, `cutoff_elapsed_nanos` INTEGER, `completed_at_ms` INTEGER, `final_admission_ordinal` INTEGER, `failure_code` TEXT, PRIMARY KEY(`logical_tracking_id`))",
+        "fields": [
+          {
+            "fieldPath": "logicalTrackingId",
+            "columnName": "logical_tracking_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lifecycleRevision",
+            "columnName": "lifecycle_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "desiredPlanRevision",
+            "columnName": "desired_plan_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rolloutRevision",
+            "columnName": "rollout_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startOrigin",
+            "columnName": "start_origin",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "clockDomainId",
+            "columnName": "clock_domain_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAtMs",
+            "columnName": "started_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedElapsedNanos",
+            "columnName": "started_elapsed_nanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cutoffAtMs",
+            "columnName": "cutoff_at_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "cutoffElapsedNanos",
+            "columnName": "cutoff_elapsed_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "completedAtMs",
+            "columnName": "completed_at_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "finalAdmissionOrdinal",
+            "columnName": "final_admission_ordinal",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "failureCode",
+            "columnName": "failure_code",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "logical_tracking_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_logical_tracking_session_state",
+            "unique": false,
+            "columnNames": [
+              "state",
+              "started_at_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_logical_tracking_session_state` ON `${TABLE_NAME}` (`state`, `started_at_ms`)"
+          }
+        ]
+      },
+      {
+        "tableName": "source_service_run",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`service_run_id` TEXT NOT NULL, `logical_tracking_id` TEXT NOT NULL, `state` TEXT NOT NULL, `desired_plan_revision` INTEGER NOT NULL, `rollout_revision` INTEGER NOT NULL, `foreground_capability_flags` INTEGER NOT NULL, `started_at_ms` INTEGER NOT NULL, `started_elapsed_nanos` INTEGER NOT NULL, `completed_at_ms` INTEGER, `completion_reason` TEXT, PRIMARY KEY(`service_run_id`))",
+        "fields": [
+          {
+            "fieldPath": "serviceRunId",
+            "columnName": "service_run_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "logicalTrackingId",
+            "columnName": "logical_tracking_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "desiredPlanRevision",
+            "columnName": "desired_plan_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rolloutRevision",
+            "columnName": "rollout_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "foregroundCapabilityFlags",
+            "columnName": "foreground_capability_flags",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAtMs",
+            "columnName": "started_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedElapsedNanos",
+            "columnName": "started_elapsed_nanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedAtMs",
+            "columnName": "completed_at_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "completionReason",
+            "columnName": "completion_reason",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "service_run_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_source_service_run_tracking",
+            "unique": false,
+            "columnNames": [
+              "logical_tracking_id",
+              "started_at_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_source_service_run_tracking` ON `${TABLE_NAME}` (`logical_tracking_id`, `started_at_ms`)"
+          }
+        ]
+      },
+      {
+        "tableName": "source_event_session_binding",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`event_id` TEXT NOT NULL, `binding_revision` INTEGER NOT NULL, `admission_ordinal` INTEGER NOT NULL, `logical_tracking_id` TEXT NOT NULL, `service_run_id` TEXT, `binding_reason` TEXT NOT NULL, `decision_status` TEXT NOT NULL, `clock_domain_id` TEXT NOT NULL, `interval_start_elapsed_nanos` INTEGER NOT NULL, `interval_end_elapsed_nanos` INTEGER, `bound_at_ms` INTEGER NOT NULL, PRIMARY KEY(`event_id`, `binding_revision`))",
+        "fields": [
+          {
+            "fieldPath": "eventId",
+            "columnName": "event_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bindingRevision",
+            "columnName": "binding_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "admissionOrdinal",
+            "columnName": "admission_ordinal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "logicalTrackingId",
+            "columnName": "logical_tracking_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "serviceRunId",
+            "columnName": "service_run_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "bindingReason",
+            "columnName": "binding_reason",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "decisionStatus",
+            "columnName": "decision_status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "clockDomainId",
+            "columnName": "clock_domain_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "intervalStartElapsedNanos",
+            "columnName": "interval_start_elapsed_nanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "intervalEndElapsedNanos",
+            "columnName": "interval_end_elapsed_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "boundAtMs",
+            "columnName": "bound_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "event_id",
+            "binding_revision"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_source_event_binding_tracking",
+            "unique": false,
+            "columnNames": [
+              "logical_tracking_id",
+              "admission_ordinal"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_source_event_binding_tracking` ON `${TABLE_NAME}` (`logical_tracking_id`, `admission_ordinal`)"
+          }
+        ]
+      },
+      {
+        "tableName": "source_session_completeness",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`logical_tracking_id` TEXT NOT NULL, `source_kind` INTEGER NOT NULL, `source_instance_id` TEXT NOT NULL, `registration_generation` INTEGER NOT NULL, `last_admission_ordinal` INTEGER, `last_source_sequence` INTEGER, `app_drain_complete` INTEGER NOT NULL, `provider_coverage` TEXT NOT NULL, `stop_status` TEXT NOT NULL, `unresolved_sequence_start` INTEGER, `unresolved_sequence_end` INTEGER, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`logical_tracking_id`, `source_kind`, `source_instance_id`))",
+        "fields": [
+          {
+            "fieldPath": "logicalTrackingId",
+            "columnName": "logical_tracking_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceKind",
+            "columnName": "source_kind",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceInstanceId",
+            "columnName": "source_instance_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "registrationGeneration",
+            "columnName": "registration_generation",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastAdmissionOrdinal",
+            "columnName": "last_admission_ordinal",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastSourceSequence",
+            "columnName": "last_source_sequence",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "appDrainComplete",
+            "columnName": "app_drain_complete",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "providerCoverage",
+            "columnName": "provider_coverage",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stopStatus",
+            "columnName": "stop_status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "unresolvedSequenceStart",
+            "columnName": "unresolved_sequence_start",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "unresolvedSequenceEnd",
+            "columnName": "unresolved_sequence_end",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "updatedAtMs",
+            "columnName": "updated_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "logical_tracking_id",
+            "source_kind",
+            "source_instance_id"
+          ]
+        }
+      },
+      {
+        "tableName": "tracking_rollout_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `revision` INTEGER NOT NULL, `schema_version` INTEGER NOT NULL, `coordinator_mode` TEXT NOT NULL, `projection_mode` TEXT NOT NULL, `source_owners` TEXT NOT NULL, `semantic_settings_enabled` INTEGER NOT NULL, `battery_estimate_mode` TEXT NOT NULL, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "schemaVersion",
+            "columnName": "schema_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "coordinatorMode",
+            "columnName": "coordinator_mode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "projectionMode",
+            "columnName": "projection_mode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceOwners",
+            "columnName": "source_owners",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "semanticSettingsEnabled",
+            "columnName": "semantic_settings_enabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "batteryEstimateMode",
+            "columnName": "battery_estimate_mode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMs",
+            "columnName": "updated_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "acquisition_plan_revision",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`revision` INTEGER NOT NULL, `plan_id` TEXT NOT NULL, `created_at_ms` INTEGER NOT NULL, `status` TEXT NOT NULL, PRIMARY KEY(`revision`))",
+        "fields": [
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "planId",
+            "columnName": "plan_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMs",
+            "columnName": "created_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "revision"
+          ]
+        }
+      },
+      {
+        "tableName": "source_desired_plan",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`revision` INTEGER NOT NULL, `source_kind` INTEGER NOT NULL, `payload_version` INTEGER NOT NULL, `payload` BLOB NOT NULL, `payload_checksum` TEXT NOT NULL, PRIMARY KEY(`revision`, `source_kind`))",
+        "fields": [
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceKind",
+            "columnName": "source_kind",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payloadVersion",
+            "columnName": "payload_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payload",
+            "columnName": "payload",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payloadChecksum",
+            "columnName": "payload_checksum",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "revision",
+            "source_kind"
+          ]
+        }
+      },
+      {
+        "tableName": "source_applied_plan_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`source_kind` INTEGER NOT NULL, `desired_revision` INTEGER NOT NULL, `applied_revision` INTEGER, `source_instance_id` TEXT, `registration_generation` INTEGER, `applied_at_elapsed_nanos` INTEGER, `status` TEXT NOT NULL, `degraded_reasons` TEXT NOT NULL, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`source_kind`))",
+        "fields": [
+          {
+            "fieldPath": "sourceKind",
+            "columnName": "source_kind",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "desiredRevision",
+            "columnName": "desired_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "appliedRevision",
+            "columnName": "applied_revision",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "sourceInstanceId",
+            "columnName": "source_instance_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "registrationGeneration",
+            "columnName": "registration_generation",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "appliedAtElapsedNanos",
+            "columnName": "applied_at_elapsed_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "degradedReasons",
+            "columnName": "degraded_reasons",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMs",
+            "columnName": "updated_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "source_kind"
+          ]
+        }
+      },
+      {
+        "tableName": "source_runtime_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`source_kind` INTEGER NOT NULL, `owner_scope` TEXT NOT NULL, `source_instance_id` TEXT NOT NULL, `clock_domain_id` TEXT NOT NULL, `registration_generation` INTEGER NOT NULL, `last_provider_sequence` INTEGER NOT NULL, `last_admitted_source_sequence` INTEGER, `last_admission_ordinal` INTEGER, `state_version` INTEGER NOT NULL, `payload` BLOB NOT NULL, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`source_kind`, `owner_scope`))",
+        "fields": [
+          {
+            "fieldPath": "sourceKind",
+            "columnName": "source_kind",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ownerScope",
+            "columnName": "owner_scope",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceInstanceId",
+            "columnName": "source_instance_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "clockDomainId",
+            "columnName": "clock_domain_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "registrationGeneration",
+            "columnName": "registration_generation",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastProviderSequence",
+            "columnName": "last_provider_sequence",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastAdmittedSourceSequence",
+            "columnName": "last_admitted_source_sequence",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastAdmissionOrdinal",
+            "columnName": "last_admission_ordinal",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "stateVersion",
+            "columnName": "state_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payload",
+            "columnName": "payload",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMs",
+            "columnName": "updated_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "source_kind",
+            "owner_scope"
           ]
         }
       },
@@ -4820,7 +6342,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'bbb23f5760573b66b46c7b2fbf9485af')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '17e46e0b75109116937749a846dab596')"
     ]
   }
 }

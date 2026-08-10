@@ -11,6 +11,17 @@ import com.adsamcik.tracker.app.common.ui.BatteryImpact
 import com.adsamcik.tracker.app.settings.TrackingSettingsUiState
 import com.adsamcik.tracker.app.settings.tracking.TrackingSettingsContent
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
+import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
+import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionSettings
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
+import com.adsamcik.tracker.tracker.source.battery.BatteryImpactEstimate
+import com.adsamcik.tracker.tracker.source.battery.EstimateConfidence
+import com.adsamcik.tracker.tracker.source.battery.EstimateTarget
+import com.adsamcik.tracker.tracker.source.battery.EvidenceSource
+import com.adsamcik.tracker.tracker.source.battery.ImpactAssumption
+import com.adsamcik.tracker.tracker.source.battery.ImpactDriver
+import com.adsamcik.tracker.tracker.source.battery.ImpactLevel
+import com.adsamcik.tracker.tracker.source.coordinator.TrackingCoordinatorMetrics
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import io.kotest.matchers.shouldBe
 import org.junit.Rule
@@ -163,6 +174,90 @@ class TrackingSettingsScreenTest {
         composeTestRule.onNodeWithText("Activity").assertIsDisplayed()
         scrollTo("Barometer")
         composeTestRule.onNodeWithText("Barometer").assertIsDisplayed()
+    }
+
+    @Test
+    fun effectiveStatusExplainsThatIdlePreviewIsNotAnAppliedPlan() {
+        composeTestRule.setContent {
+            AppTheme { TrackingSettingsContent(uiState = defaultUiState) }
+        }
+
+        scrollTo("Requested and effective status")
+        composeTestRule.onNodeWithTag("effectiveTrackingStatus").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Tracking is not active", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun advancedSourceControlPublishesSemanticFrequencyChoice() {
+        var selected: Pair<TrackingSourceComponent, SourceCollectionFrequency>? = null
+        composeTestRule.setContent {
+            AppTheme {
+                TrackingSettingsContent(
+                    uiState = defaultUiState.copy(
+                        advancedSourceControlsEnabled = true,
+                        sourceCollectionSettings = SourceCollectionSettings(),
+                    ),
+                    onSourceFrequencyChanged = { source, frequency -> selected = source to frequency },
+                )
+            }
+        }
+
+        scrollTo("Requested: Balanced")
+        composeTestRule.onNodeWithTag("sourceFrequency-Location").performClick()
+        composeTestRule.onNodeWithText("Responsive").performClick()
+        selected shouldBe (TrackingSourceComponent.LOCATION to SourceCollectionFrequency.RESPONSIVE)
+    }
+
+    @Test
+    fun batteryCardShowsConfidenceAndDoesNotInventHoursOrPercentages() {
+        val estimate = BatteryImpactEstimate(
+            level = ImpactLevel.MODERATE,
+            estimatedPercentPerHour = null,
+            estimateTarget = EstimateTarget.QUALITATIVE_RELATIVE_TRACKER_IMPACT,
+            candidatePlanId = "candidate",
+            comparisonBaselineId = "balanced",
+            evidenceSource = EvidenceSource.GENERIC_PRIOR,
+            sampleCount = 0,
+            observationDurationMs = 0,
+            confidence = EstimateConfidence.LOW,
+            uncertainty = null,
+            dominantDrivers = listOf(ImpactDriver.LOCATION),
+            assumptions = listOf(ImpactAssumption("generic_device_prior")),
+            calibrationVersion = 0,
+        )
+        composeTestRule.setContent {
+            AppTheme {
+                TrackingSettingsContent(uiState = defaultUiState.copy(batteryEstimate = estimate))
+            }
+        }
+
+        scrollTo("Estimated tracking impact")
+        composeTestRule.onNodeWithTag("batteryEstimateCard").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Confidence: Low").assertIsDisplayed()
+        scrollTo("No trustworthy percentage")
+        composeTestRule.onNodeWithText("No trustworthy percentage", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun activeStatusShowsPayloadFreeRuntimeTelemetry() {
+        composeTestRule.setContent {
+            AppTheme {
+                TrackingSettingsContent(
+                    uiState = defaultUiState.copy(
+                        trackingActive = true,
+                        desiredPlanRevision = 8L,
+                        appliedPlanRevision = 8L,
+                        runtimeTelemetry = TrackingCoordinatorMetrics.ZERO.copy(
+                            projectedEventCount = 9L,
+                            planRevisionCount = 2L,
+                        ),
+                    ),
+                )
+            }
+        }
+
+        scrollTo("Local runtime telemetry")
+        composeTestRule.onNodeWithText("Projected events: 9", substring = true).assertIsDisplayed()
     }
 
     @Test

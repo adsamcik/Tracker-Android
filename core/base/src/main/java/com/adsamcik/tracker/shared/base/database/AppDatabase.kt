@@ -24,6 +24,7 @@ import com.adsamcik.tracker.shared.base.database.dao.ImportReceiptDao
 import com.adsamcik.tracker.shared.base.database.dao.LiveStatsDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDao
+import com.adsamcik.tracker.shared.base.database.dao.LocationProjectionDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDecisionDao
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.database.dao.OsmImportDao
@@ -51,6 +52,8 @@ import com.adsamcik.tracker.shared.base.database.data.LegacyLocationWifiCount
 import com.adsamcik.tracker.shared.base.database.data.LegacyRejectedTrackerSession
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.LocationObservation
+import com.adsamcik.tracker.shared.base.database.data.LocationProjectionObservationEntity
+import com.adsamcik.tracker.shared.base.database.data.LocationProjectionPointEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationObservationDecision
 import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
 import com.adsamcik.tracker.shared.base.database.data.OsmImportEntity
@@ -82,6 +85,11 @@ import com.adsamcik.tracker.shared.base.database.dao.QuarantinedSignalDao
 import com.adsamcik.tracker.shared.base.database.dao.SkiRunSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.StorageSizeSnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceEvidenceStateDao
+import com.adsamcik.tracker.shared.base.database.dao.SourceEventWalDao
+import com.adsamcik.tracker.shared.base.database.dao.SourceProjectionStateDao
+import com.adsamcik.tracker.shared.base.database.dao.SourceRegistrationStateDao
+import com.adsamcik.tracker.shared.base.database.dao.SourceSessionDao
+import com.adsamcik.tracker.shared.base.database.dao.TrackingRolloutStateDao
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
 import com.adsamcik.tracker.shared.base.database.data.ExplorationCellEntity
@@ -95,6 +103,25 @@ import com.adsamcik.tracker.shared.base.database.data.PressureSample
 import com.adsamcik.tracker.shared.base.database.data.SkiRunSegment
 import com.adsamcik.tracker.shared.base.database.data.StorageSizeSnapshotEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceCoordinatorLeaseEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventSessionBindingEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionCheckpointEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionJoinStateEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionRegistrationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+import com.adsamcik.tracker.shared.base.database.data.TrackingRolloutStateEntity
+import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceAppliedPlanStateEntity
+import com.adsamcik.tracker.shared.base.database.dao.SourcePlanStateDao
+import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
+import com.adsamcik.tracker.shared.base.database.dao.SourceRuntimeStateDao
 import com.adsamcik.tracker.shared.base.database.dao.DomainEventDao
 import com.adsamcik.tracker.shared.base.database.data.DomainEventCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.DomainEventEntity
@@ -124,6 +151,8 @@ internal const val CURRENT_DATABASE_VERSION = 27
 			// Sessionless architecture entities
 			LocationSample::class,
 			LocationObservation::class,
+			LocationProjectionObservationEntity::class,
+			LocationProjectionPointEntity::class,
 			LocationObservationDecision::class,
 			StepInterval::class,
 			ActivitySnapshot::class,
@@ -132,6 +161,23 @@ internal const val CURRENT_DATABASE_VERSION = 27
 			TrackerRun::class,
 			TrackerStateEvent::class,
 			SourceEvidenceState::class,
+			SourceEventWalEntity::class,
+			SourceProjectionRegistrationEntity::class,
+			SourceProjectionCheckpointEntity::class,
+			SourceProjectionFailureEntity::class,
+			SourceProjectionJoinStateEntity::class,
+			SourceProjectionOutboxEntity::class,
+			SourceCoordinatorLeaseEntity::class,
+			SourceRegistrationStateEntity::class,
+			LogicalTrackingSessionEntity::class,
+			SourceServiceRunEntity::class,
+			SourceEventSessionBindingEntity::class,
+			SourceSessionCompletenessEntity::class,
+			TrackingRolloutStateEntity::class,
+			AcquisitionPlanRevisionEntity::class,
+			SourceDesiredPlanEntity::class,
+			SourceAppliedPlanStateEntity::class,
+			SourceRuntimeStateEntity::class,
 			SessionSegment::class,
 			LegacyRejectedTrackerSession::class,
 			LegacyLocationWifiCount::class,
@@ -215,6 +261,8 @@ abstract class AppDatabase : RoomDatabase() {
 
 	abstract fun locationObservationDao(): LocationObservationDao
 
+	abstract fun locationProjectionDao(): LocationProjectionDao
+
 	abstract fun locationObservationDecisionDao(): LocationObservationDecisionDao
 
 	/**
@@ -245,6 +293,20 @@ abstract class AppDatabase : RoomDatabase() {
 	abstract fun trackerStateEventDao(): TrackerStateEventDao
 
 	abstract fun sourceEvidenceStateDao(): SourceEvidenceStateDao
+
+	abstract fun sourceEventWalDao(): SourceEventWalDao
+
+	abstract fun sourceProjectionStateDao(): SourceProjectionStateDao
+
+	abstract fun sourceRegistrationStateDao(): SourceRegistrationStateDao
+
+	abstract fun sourceSessionDao(): SourceSessionDao
+
+	abstract fun trackingRolloutStateDao(): TrackingRolloutStateDao
+
+	abstract fun sourcePlanStateDao(): SourcePlanStateDao
+
+	abstract fun sourceRuntimeStateDao(): SourceRuntimeStateDao
 
 	/**
 	 * Provides access to inferred session segments.
@@ -502,6 +564,23 @@ abstract class AppDatabase : RoomDatabase() {
 		}
 
 		private fun deleteCollectedRows(database: AppDatabase) {
+			// Source-event pipeline. Delete dependent state before immutable evidence.
+			database.locationProjectionDao().deleteAllObservations()
+			database.sourceProjectionStateDao().deleteAllJoinState()
+			database.sourceProjectionStateDao().deleteAllOutbox()
+			database.sourceProjectionStateDao().deleteAllFailures()
+			database.sourceProjectionStateDao().deleteAllCheckpoints()
+			database.sourceProjectionStateDao().deleteAllRegistrations()
+			database.sourceProjectionStateDao().deleteAllLeases()
+			database.sourceRegistrationStateDao().deleteAll()
+			database.sourcePlanStateDao().deleteAllAppliedStates()
+			database.sourceRuntimeStateDao().deleteAll()
+			database.sourceSessionDao().deleteAllCompleteness()
+			database.sourceSessionDao().deleteAllBindings()
+			database.sourceSessionDao().deleteAllServiceRuns()
+			database.sourceSessionDao().deleteAllSessions()
+			database.sourceEventWalDao().deleteAll()
+
 			// Sessionless architecture tables
 			database.locationSampleDao().deleteAll()
 			database.locationObservationDao().deleteAll()

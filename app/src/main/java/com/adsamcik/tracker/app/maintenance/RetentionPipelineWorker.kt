@@ -12,6 +12,7 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
+import com.adsamcik.tracker.shared.base.database.pruneSourceEventStorageBefore
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
@@ -54,7 +55,9 @@ class RetentionPipelineWorker @AssistedInject constructor(
                 // it postpones the physical delete.
                 val lifecycle = collectedDataLifecycleStore.advanceRetainedFrom(cutoff)
                 migrationBackupRepository.deleteAll()
-                purgeRawData(appDatabase, cutoff, lifecycle, now)
+                val result = purgeRawData(appDatabase, cutoff, lifecycle, now)
+                appDatabase.pruneSourceEventStorageBefore(cutoff)
+                result
             }
             purgeWifiCellData(appDatabase, config, now)
             purgeTripData(appDatabase, config, now)
@@ -99,6 +102,7 @@ class RetentionPipelineWorker @AssistedInject constructor(
             db.trajectoryReconstructionDao().deleteWithSourceBefore(cutoff)
             val observationDao = db.locationObservationDao()
             observationDao.deleteOlderThan(cutoff)
+            db.locationProjectionDao().deleteObservationsOlderThan(cutoff)
             db.locationObservationDecisionDao().apply {
                 deleteOlderThan(cutoff)
                 deleteWithoutObservation()

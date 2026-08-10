@@ -9,16 +9,13 @@ import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.processor.SignalProcessor
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.stats.engine.policy.DefaultPolicyEscalationEngine
-import com.adsamcik.tracker.tracker.component.DataProducerManager
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
-import com.adsamcik.tracker.tracker.component.TrackerTimerManager
-import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
-import com.adsamcik.tracker.tracker.component.trigger.AmbientCollectionTrigger
 import com.adsamcik.tracker.tracker.component.consumer.SessionTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.PlaneTrackingComponent
@@ -28,15 +25,12 @@ import com.adsamcik.tracker.tracker.component.consumer.post.SkiTrackingComponent
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 
 import com.adsamcik.tracker.tracker.control.NoOpTrackingControlOutputSink
-import com.adsamcik.tracker.tracker.control.NoOpTrackingControlAcquisitionOutcomeSink
-import com.adsamcik.tracker.tracker.control.TrackingControlAcquisitionOutcomeSink
 import com.adsamcik.tracker.tracker.control.TrackingControlOutputSink
 import com.adsamcik.tracker.tracker.control.TrackingControlShadow
 import com.adsamcik.tracker.tracker.control.TrackingDecisionFeatureFlags
 import com.adsamcik.tracker.tracker.data.TrackingClockDomain
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.data.collection.isLocationObservationOnly
-import com.adsamcik.tracker.tracker.data.collection.hasPersistableProducerPayload
 import com.adsamcik.tracker.tracker.data.session.toSnapshot
 import com.adsamcik.tracker.tracker.pipeline.CycleContext
 import com.adsamcik.tracker.tracker.pipeline.ProcessorPipeline
@@ -49,13 +43,22 @@ import com.adsamcik.tracker.tracker.pipeline.stages.SessionUpdateStage
 import com.adsamcik.tracker.tracker.pipeline.stages.SignalDispatchStage
 import com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
 import com.adsamcik.tracker.tracker.policy.RoomTrackerStateEvidenceWriter
+import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
+import com.adsamcik.tracker.tracker.source.coordinator.ProjectionMode
+import com.adsamcik.tracker.tracker.source.coordinator.SourceOwner
+import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
+import com.adsamcik.tracker.tracker.source.model.SourceDemand
+import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -80,10 +83,9 @@ internal class TrackingOrchestrator(
 	private val dispatchers: DispatchersProvider,
 	private val appDatabase: AppDatabase,
 	private val trackingParamsRepository: TrackingParamsRepository,
+	private val trackingRolloutStateStore: TrackingRolloutStateStore = RoomTrackingRolloutStateStore(appDatabase),
 	private val dailySummaryFallbackEnqueuer: (Context) -> Unit = DailySummaryMaterializationWorker::runOnce,
 	private val enableNotifications: Boolean = true,
-	private val foregroundServiceTypeUpdater: (Boolean, Boolean, Boolean) -> Boolean =
-		{ _, _, _ -> true },
 	private val runtimeTierAdjuster: (PolicyTier) -> PolicyTier = { it },
 	/**
 	 * Optional callback invoked AFTER the in-orchestrator `DailySummaryAggregator` writes a row.
@@ -97,22 +99,16 @@ internal class TrackingOrchestrator(
 	private val trackingDecisionFeatureFlags: TrackingDecisionFeatureFlags = TrackingDecisionFeatureFlags(),
 	/** Debug/research sink for ordered shadow decisions; production default intentionally discards. */
 	private val trackingControlOutputSink: TrackingControlOutputSink = NoOpTrackingControlOutputSink,
-	/** Uses the same recorder when it supports correlated platform acquisition outcomes. */
-	private val trackingControlAcquisitionOutcomeSink: TrackingControlAcquisitionOutcomeSink =
-		(trackingControlOutputSink as? TrackingControlAcquisitionOutcomeSink)
-			?: NoOpTrackingControlAcquisitionOutcomeSink,
+	/** Delivers semantic settings plus policy evidence requirements to the event coordinator. */
+	private val onSourcePlanInputsChanged: suspend (TrackingParamsState, List<SourceDemand>) -> Unit = { _, _ -> },
 ) {
 	private val componentMutex = Mutex()
 
-	private var dataProducerManager: DataProducerManager? = null
 	private var trackingPolicyManager: TrackingPolicyManager? = null
 	private var processorPipeline: ProcessorPipeline? = null
 	private var trackingPipeline: TrackingPipeline? = null
-	private var pendingFinalCycle: TrackingCycle? = null
 	private var sessionComponent: SessionTrackerComponent? = null
 	private var sessionJob: Job? = null
-	private var controlTimerReceiver: TrackerTimerReceiver? = null
-	private var controlSessionScope: CoroutineScope? = null
 
 	@Volatile
 	private var controlLocationEnabled: Boolean = true
@@ -155,8 +151,6 @@ internal class TrackingOrchestrator(
 	 * @param isSessionUserInitiated whether the session was started by the user.
 	 * @param initialTier          initial [PolicyTier] for this session.
 	 * @param scope                coroutine scope for launching observation coroutines.
-	 * @param timerReceiver        timer callback receiver (the service).
-	 * @param timerAccessor        accessor for swapping the timer during tier escalation.
 	 */
 	@Suppress("LongMethod")
 	suspend fun initialize(
@@ -164,10 +158,10 @@ internal class TrackingOrchestrator(
 		isSessionUserInitiated: Boolean,
 		initialTier: PolicyTier,
 		scope: CoroutineScope,
-		timerReceiver: TrackerTimerReceiver,
-		timerAccessor: TrackerTierEscalationHandler.TimerAccessor,
 		/** Durable logical identity supplied by the service; legacy callers fall back to segment id. */
 		logicalTrackingId: String? = null,
+		/** Immutable physical-source ownership snapshot for this service run. */
+		rolloutState: TrackingRolloutState? = null,
 	) = componentMutex.withLock {
 		val previousSessionJob = sessionJob
 		try {
@@ -186,15 +180,14 @@ internal class TrackingOrchestrator(
 		val newSessionJob = SupervisorJob(scope.coroutineContext[Job])
 		val sessionScope = CoroutineScope(scope.coroutineContext + newSessionJob)
 		sessionJob = newSessionJob
-		controlTimerReceiver = timerReceiver
-		controlSessionScope = sessionScope
 		currentTier = initialTier
 		val clockDomainId = TrackingClockDomain.beginSession(context)
 
-		dataProducerManager = DataProducerManager(
-			context = context,
-			trackingParamsRepository = trackingParamsRepository,
-		).apply { onEnable() }
+		val effectiveRolloutState = rolloutState ?: trackingRolloutStateStore.load()
+		val initialTrackingParams = trackingParamsRepository.data.first()
+		check(effectiveRolloutState.projectionMode == ProjectionMode.EVENT_CANONICAL &&
+			effectiveRolloutState.sourceOwners.values.all { it == SourceOwner.EVENT }
+		) { "Phase 10 runtime requires event-canonical source ownership" }
 
 		// Initialize the new 4-tier escalation engine
 		val escalationEngine = DefaultPolicyEscalationEngine()
@@ -213,6 +206,22 @@ internal class TrackingOrchestrator(
 		).apply {
 			start() // Start tracking run + engine
 		}
+		val policyManager = requireNotNull(trackingPolicyManager)
+		// Lifecycle evidence is refreshed independently of collection callbacks or location timers.
+		sessionScope.launch {
+			while (isActive) {
+				policyManager.heartbeatIfDue()
+				delay(POLICY_LIFECYCLE_TICK_MILLIS)
+			}
+		}
+		sessionScope.launch {
+			combine(
+				trackingParamsRepository.data,
+				policyManager.sourceDemands,
+			) { settings, demands -> settings to demands }
+				.distinctUntilChanged()
+				.collect { (settings, demands) -> onSourcePlanInputsChanged(settings, demands) }
+		}
 
 		// Observe engine state changes for UI and timer updates
 		sessionScope.launch {
@@ -221,62 +230,40 @@ internal class TrackingOrchestrator(
 			}
 		}
 
-		// Initialize tier escalation handler. Component/producer lists are now built up-front by
-		// source toggle, so the handler only swaps the collection trigger + escalates the pipeline.
+		// The tier handler updates processing state only. Per-source runtimes own acquisition.
 		tierEscalationHandler = TrackerTierEscalationHandler(
 			componentMutex = componentMutex,
 			controller = controller,
-			trackingParamsRepository = trackingParamsRepository,
 			tierAdjuster = runtimeTierAdjuster,
-			gpsTriggerFactory = { TrackerTimerManager.getSelected(it, dispatchers.main) },
-			ambientTriggerFactory = { AmbientCollectionTrigger(dispatchers.main) },
-			foregroundServiceTypeUpdater = foregroundServiceTypeUpdater,
 			onEffectiveTierChanged = { currentTier = it },
 		).apply {
 			this.currentTier = initialTier
 			this.processorPipeline = null // set below after pipeline creation
-			this.timerAccessor = timerAccessor
 		}
-		if (!trackingDecisionFeatureFlags.applyAcquisitionRequests) {
-			tierEscalationHandler.configureCurrentLocationRequest(
-				requireNotNull(trackingPolicyManager).currentPolicy.value,
-			)
-		}
-
 		// Observe policy changes and delegate tier/interval updates
 		trackingPolicyManager?.let { policyManager ->
 			sessionScope.launch {
 				policyManager.currentPolicy.collect { newPolicy ->
-					if (trackingDecisionFeatureFlags.applyAcquisitionRequests) {
-						tierEscalationHandler.onPolicyTierChangedWithoutAcquisition(
-							policy = newPolicy,
-							scope = sessionScope,
-						)
-						componentMutex.withLock {
-							if (trackingControlShadow.snapshot()?.logicalTrackingId != null) {
-								trackingControlShadow.onPolicy(
-									policy = newPolicy,
-									wallTimeMs = Time.nowMillis,
-									elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
-									locationEnabled = controlLocationEnabled,
-								)
-								applyControlAcquisitionIfEnabled(context, timerReceiver, sessionScope)
-							}
+					tierEscalationHandler.onPolicyChanged(
+						policy = newPolicy,
+						scope = sessionScope,
+					)
+					componentMutex.withLock {
+						if (trackingControlShadow.snapshot()?.logicalTrackingId != null) {
+							trackingControlShadow.onPolicy(
+								policy = newPolicy,
+								wallTimeMs = Time.nowMillis,
+								elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
+								locationEnabled = controlLocationEnabled,
+							)
 						}
-					} else {
-						tierEscalationHandler.onPolicyChanged(
-							policy = newPolicy,
-							context = context,
-							timerReceiver = timerReceiver,
-							scope = sessionScope,
-						)
 					}
 				}
 			}
 		}
 
-		// Apply cadence, fidelity preset, and location-toggle changes to the running trigger.
-		// Producers already observe their individual toggles; consumers are always present.
+		// Semantic settings revisions are forwarded to the event coordinator; no global trigger is
+		// swapped or rescheduled here.
 		sessionScope.launch {
 			trackingParamsRepository.data
 				.distinctUntilChanged()
@@ -284,26 +271,19 @@ internal class TrackingOrchestrator(
 				.collect { params ->
 					controlLocationEnabled = params.locationEnabled
 					val policy = trackingPolicyManager?.currentPolicy?.value ?: return@collect
-					if (trackingDecisionFeatureFlags.applyAcquisitionRequests) {
-						tierEscalationHandler.onPolicyTierChangedWithoutAcquisition(
-							policy = policy,
-							scope = sessionScope,
-						)
-						componentMutex.withLock {
-							if (trackingControlShadow.snapshot()?.logicalTrackingId != null) {
-								trackingControlShadow.onPolicy(
-									policy = policy,
-									wallTimeMs = Time.nowMillis,
-									elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
-									locationEnabled = controlLocationEnabled,
-								)
-								applyControlAcquisitionIfEnabled(context, timerReceiver, sessionScope)
-							}
+					tierEscalationHandler.onPolicyChanged(
+						policy = policy,
+						scope = sessionScope,
+					)
+					componentMutex.withLock {
+						if (trackingControlShadow.snapshot()?.logicalTrackingId != null) {
+							trackingControlShadow.onPolicy(
+								policy = policy,
+								wallTimeMs = Time.nowMillis,
+								elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
+								locationEnabled = controlLocationEnabled,
+							)
 						}
-					} else {
-						tierEscalationHandler.onPolicyChanged(
-							policy, context, timerReceiver, sessionScope,
-						)
 					}
 				}
 		}
@@ -326,7 +306,7 @@ internal class TrackingOrchestrator(
 		skiSegmentWriter = componentSet.skiSegmentWriter
 		sailingTrackingComponent = componentSet.sailingTrackingComponent
 		planeTrackingComponent = componentSet.planeTrackingComponent
-		controlLocationEnabled = trackingParamsRepository.data.first().locationEnabled
+		controlLocationEnabled = initialTrackingParams.locationEnabled
 		trackingControlShadow.begin(
 			logicalTrackingId = logicalTrackingId ?: "segment:${session.id}",
 			isUserInitiated = isSessionUserInitiated,
@@ -336,8 +316,6 @@ internal class TrackingOrchestrator(
 			initialTier = initialTier,
 			locationEnabled = controlLocationEnabled,
 		)
-		applyControlAcquisitionIfEnabled(context, timerReceiver, sessionScope)
-
 		// Emit initial session via controller
 		controller.updateSession(session.toSnapshot())
 
@@ -379,33 +357,6 @@ internal class TrackingOrchestrator(
 	}
 
 	/**
-	 * Serializes Android provider callbacks into the same shadow-control stream as collection
-	 * evidence. The legacy notification and stop paths remain owned by [TrackerService].
-	 */
-	fun onLocationProviderAvailabilityChanged(
-		context: Context,
-		available: Boolean,
-		reason: String,
-	) {
-		if (!trackingDecisionFeatureFlags.shadowEnabled) return
-		val sessionScope = controlSessionScope ?: return
-		sessionScope.launch {
-			componentMutex.withLock {
-				if (controlSessionScope !== sessionScope) return@withLock
-				trackingControlShadow.onProviderAvailability(
-					available = available,
-					reason = reason,
-					wallTimeMs = Time.nowMillis,
-					elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
-				)
-				controlTimerReceiver?.let { timerReceiver ->
-					applyControlAcquisitionIfEnabled(context, timerReceiver, sessionScope)
-				}
-			}
-		}
-	}
-
-	/**
 	 * Shut down all tracking components.
 	 *
 	 * @param context     Android context for component lifecycle calls.
@@ -434,37 +385,9 @@ internal class TrackingOrchestrator(
 		}
 	}
 
-	fun onBatteryLevelChanged(
-		context: Context,
-		timerReceiver: TrackerTimerReceiver,
-		scope: CoroutineScope,
-	) {
+	fun onBatteryLevelChanged(scope: CoroutineScope) {
 		val policy = trackingPolicyManager?.currentPolicy?.value ?: return
-		if (trackingDecisionFeatureFlags.applyAcquisitionRequests) {
-			tierEscalationHandler.onPolicyTierChangedWithoutAcquisition(policy, scope)
-			applyControlAcquisitionIfEnabled(context, timerReceiver, scope)
-			return
-		}
-		tierEscalationHandler.onPolicyChanged(policy, context, timerReceiver, scope)
-	}
-
-	private fun applyControlAcquisitionIfEnabled(
-		context: Context,
-		timerReceiver: TrackerTimerReceiver,
-		scope: CoroutineScope,
-	) {
-		if (!trackingDecisionFeatureFlags.applyAcquisitionRequests || !::tierEscalationHandler.isInitialized) {
-			return
-		}
-		trackingControlShadow.latestAcquisitionCommand()?.let { command ->
-			tierEscalationHandler.onControlAcquisitionRequest(
-				command = command,
-				context = context,
-				timerReceiver = timerReceiver,
-				scope = scope,
-				outcomeSink = trackingControlAcquisitionOutcomeSink,
-			)
-		}
+		tierEscalationHandler.onPolicyChanged(policy, scope)
 	}
 
 	/**
@@ -481,8 +404,6 @@ internal class TrackingOrchestrator(
 		controller.updateSkiState(null)
 		controller.updateSailingState(null)
 		controller.updatePlaneState(null)
-		controlTimerReceiver = null
-		controlSessionScope = null
 	}
 
 	fun markServiceStopped() {
@@ -492,8 +413,7 @@ internal class TrackingOrchestrator(
 	// ---- private implementation ----
 
 	private fun hasSessionState(): Boolean {
-		return dataProducerManager != null ||
-			trackingPolicyManager != null ||
+		return trackingPolicyManager != null ||
 			processorPipeline != null ||
 			trackingPipeline != null ||
 			sessionComponent != null ||
@@ -535,10 +455,8 @@ internal class TrackingOrchestrator(
 			trackingControlShadow.onRawLocationObservations(triggerCycle)
 		}
 		if (triggerCycle.isLocationObservationOnly()) return
-		trackingPolicyManager?.heartbeatIfDue()
-
 		trackingControlShadow.onCuratedLocationDecision(triggerCycle, accepted = true)
-		val cycle = requireNotNull(dataProducerManager).getData(triggerCycle)
+		val cycle = triggerCycle
 		trackingPolicyManager?.currentPolicy?.value?.let { policy ->
 			trackingControlShadow.onPolicy(
 				policy = policy,
@@ -548,11 +466,6 @@ internal class TrackingOrchestrator(
 			)
 		}
 		trackingControlShadow.onCycleSignals(cycle)
-		val receiver = controlTimerReceiver
-		val scope = controlSessionScope
-		if (receiver != null && scope != null) {
-			applyControlAcquisitionIfEnabled(context, receiver, scope)
-		}
 		executeCycle(context, cycle)
 	}
 
@@ -596,48 +509,6 @@ internal class TrackingOrchestrator(
 			if (shutdownFailure == null) shutdownFailure = failure
 		}
 
-		if (sessionComponent != null && trackingPipeline != null) {
-			val manager = dataProducerManager
-			if (manager != null) {
-				if (pendingFinalCycle != null) {
-					try {
-						executeCycle(context, requireNotNull(pendingFinalCycle))
-						pendingFinalCycle = null
-					} catch (e: CancellationException) {
-						throw e
-					} catch (e: Exception) {
-						recordCriticalFailure("Failed to replay final tracking cycle", e)
-					}
-				}
-			}
-			if (manager != null && pendingFinalCycle == null) {
-				try {
-					manager.flushPendingSensorBatches()
-				} catch (e: CancellationException) {
-					throw e
-				} catch (e: Exception) {
-					recordCriticalFailure("Failed to flush final sensor batches", e)
-				}
-				try {
-					val finalCycle = manager.getData(
-						TrackingCycle(
-							timestampMs = Time.nowMillis,
-							elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
-						),
-					)
-					if (finalCycle.hasPersistableProducerPayload()) {
-						pendingFinalCycle = finalCycle
-						executeCycle(context, requireNotNull(pendingFinalCycle))
-						pendingFinalCycle = null
-					}
-				} catch (e: CancellationException) {
-					throw e
-				} catch (e: Exception) {
-					recordCriticalFailure("Failed to process final tracking cycle", e)
-				}
-			}
-		}
-
 		// Finalize session data BEFORE stopping the pipeline. The pipeline's
 		// stop() calls AggregatorProcessor.onStop() which emits SessionEnded.
 		// Downstream consumers (AchievementWorker,
@@ -672,16 +543,6 @@ internal class TrackingOrchestrator(
 
 		shutdownFailure?.let { throw it }
 
-		dataProducerManager?.let { manager ->
-			try {
-				manager.onDisable()
-				dataProducerManager = null
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				recordCriticalFailure("Failed to disable tracking data producers", e)
-			}
-		}
 		try {
 			trackingPolicyManager?.stop()
 			trackingPolicyManager = null
@@ -784,13 +645,17 @@ internal class TrackingOrchestrator(
 			wallTimeMs = Time.nowMillis,
 			elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
 		)
-		controlTimerReceiver = null
-		controlSessionScope = null
 		shutdownFailure?.let { throw it }
 		return ShutdownResult(
 			dailySummaryMaterialized = dailySummaryMaterialized,
 			fallbackEnqueued = fallbackEnqueued,
 		)
+	}
+
+	fun currentSourceDemands(): List<SourceDemand> = trackingPolicyManager?.sourceDemands?.value.orEmpty()
+
+	private companion object {
+		const val POLICY_LIFECYCLE_TICK_MILLIS = 30_000L
 	}
 }
 

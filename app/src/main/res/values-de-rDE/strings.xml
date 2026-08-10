@@ -204,7 +204,6 @@
     <string name="upgrade_to_precise_benefit_detailed_maps">Detaillierte Heatmaps und räumliche Analyse</string>
     <string name="upgrade_to_precise_benefit_precise_stats">Präzise Entfernungs- und Geschwindigkeitsmessungen</string>
     <string name="upgrade_to_precise_battery_title">Akkuverbrauch</string>
-    <string name="upgrade_to_precise_battery_message">Präzises GPS verbraucht mehr Akku. Geschätzte Aufzeichnungszeit: 6–8 Stunden auf üblichen Geräten.</string>
     <string name="upgrade_to_precise_button_upgrade">Präzisen Standort aktivieren</string>
     <string name="upgrade_to_precise_button_cancel">Vielleicht später</string>
     <string name="tracking_preset_high_accuracy_name">Hohe Genauigkeit</string>
@@ -228,10 +227,6 @@
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
     <string name="tracking_policy_selector_title">Aufzeichnungsrichtlinie</string>
-    <plurals name="tracking_policy_estimated_duration">
-        <item quantity="one">Geschätzte Aufzeichnungsdauer: %d Stunde</item>
-        <item quantity="other">Geschätzte Aufzeichnungsdauer: %d Stunden</item>
-    </plurals>
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Wähle, wie genau Tracker deinen Standort aufzeichnet</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>

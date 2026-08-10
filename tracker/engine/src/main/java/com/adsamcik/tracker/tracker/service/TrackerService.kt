@@ -2,13 +2,17 @@ package com.adsamcik.tracker.tracker.service
 
 import dev.tracebox.Tracebox
 import android.annotation.SuppressLint
+import android.Manifest
 import android.app.Notification
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.PowerManager
+import android.os.SystemClock
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.extension.getSystemServiceTyped
@@ -20,6 +24,7 @@ import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
 import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
 import com.adsamcik.tracker.shared.base.service.CoreService
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.processor.SignalProcessor
@@ -27,13 +32,7 @@ import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.api.TrackerServiceContract
-import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
-import com.adsamcik.tracker.tracker.component.NoTimer
-import com.adsamcik.tracker.tracker.component.TrackerTimerErrorData
-import com.adsamcik.tracker.tracker.component.TrackerTimerErrorSeverity
 import com.adsamcik.tracker.tracker.component.TrackerTimerManager
-import com.adsamcik.tracker.tracker.component.TrackerTimerReceiver
-import com.adsamcik.tracker.tracker.component.trigger.AmbientCollectionTrigger
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.policy.BatteryAwarePolicy
@@ -52,6 +51,29 @@ import com.adsamcik.tracker.tracker.resilience.TrackingStopCandidateReason
 import com.adsamcik.tracker.tracker.resilience.shouldScheduleTrackerRestart
 import com.adsamcik.tracker.tracker.shortcut.ShortcutData
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
+import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
+import com.adsamcik.tracker.tracker.source.coordinator.PlanResolutionContext
+import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
+import com.adsamcik.tracker.tracker.source.coordinator.SessionStartOrigin
+import com.adsamcik.tracker.tracker.source.coordinator.SourceConstraint
+import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanEnvironment
+import com.adsamcik.tracker.tracker.source.coordinator.SourceSessionPlanInputs
+import com.adsamcik.tracker.tracker.source.coordinator.SourceSessionReconfigureOutcome
+import com.adsamcik.tracker.tracker.source.coordinator.SourceSessionStartOutcome
+import com.adsamcik.tracker.tracker.source.coordinator.SourceSessionStartRequest
+import com.adsamcik.tracker.tracker.source.coordinator.SourceOwner
+import com.adsamcik.tracker.tracker.source.coordinator.TrackerServiceSourceSession
+import com.adsamcik.tracker.tracker.source.coordinator.TrackingCoordinatorTelemetry
+import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
+import com.adsamcik.tracker.tracker.source.coordinator.TrackingSessionOwnership
+import com.adsamcik.tracker.tracker.source.control.CollectionMotionController
+import com.adsamcik.tracker.tracker.source.control.LocationCollectionStrategy
+import com.adsamcik.tracker.tracker.source.control.acquisitionProfile
+import com.adsamcik.tracker.tracker.source.model.SourceDemand
+import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
+import com.adsamcik.tracker.tracker.source.projection.EventTrackingFrameConsumer
+import com.adsamcik.tracker.tracker.source.projection.EventTrackingFrameOutboxDispatcher
 import com.adsamcik.tracker.tracker.worker.HistoricalTrajectoryReconstructionWorker
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
@@ -64,14 +86,18 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
+import androidx.core.content.ContextCompat
 import javax.inject.Inject
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
@@ -79,12 +105,12 @@ import java.util.concurrent.atomic.AtomicLong
 /**
  * Android lifecycle shell for the tracking service.
  *
- * Owns Android-specific concerns (foreground notification, wake lock, timer,
+ * Owns Android-specific concerns (foreground notification, wake lock,
  * shortcuts, intent parsing) and delegates all business logic to
  * [TrackingOrchestrator].
  */
 @AndroidEntryPoint
-internal class TrackerService : CoreService(), TrackerTimerReceiver {
+internal class TrackerService : CoreService() {
 	private lateinit var powerManager: PowerManager
 	private lateinit var wakeLock: PowerManager.WakeLock
 
@@ -121,14 +147,35 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	@Inject
 	lateinit var activeTrackingSessionStore: ActiveTrackingSessionStore
 
+	@Inject
+	lateinit var sourcePipelineRecovery: SourcePipelineRecovery
+
+	@Inject
+	lateinit var sourceSession: TrackerServiceSourceSession
+
+	@Inject
+	lateinit var collectionMotionController: CollectionMotionController
+
+	@Inject
+	lateinit var trackingRolloutStateStore: RoomTrackingRolloutStateStore
+
+	@Inject
+	lateinit var bootClockDomainProvider: BootClockDomainProvider
+
+	@Inject
+	lateinit var coordinatorTelemetry: TrackingCoordinatorTelemetry
+
+	@Inject
+	lateinit var trackingFrameEffects: EventTrackingFrameOutboxDispatcher
+
 	private lateinit var orchestrator: TrackingOrchestrator
 
 	private var lockObservationJob: Job? = null
 	private var initializationJob: Job? = null
 	private var batteryObservationJob: Job? = null
+	private var collectionMotionObservationJob: Job? = null
 	private var sessionRecoveryJob: Job? = null
 	private var descriptorObservationJob: Job? = null
-	private var timerComponent: CollectionTriggerComponent = NoTimer()
 	private lateinit var cycleDispatcher: TrackingCycleDispatcher
 	private var cycleDispatcherScope: CoroutineScope? = null
 	private var serviceGeneration: Long = 0L
@@ -137,10 +184,15 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	private var sessionInfo: TrackerSessionInfo? = null
 	private var activeSessionDescriptor: ActiveTrackingSessionDescriptor? = null
 	private var gracefulStopRequested = false
+	private var stopReason: TrackingStopCandidateReason = TrackingStopCandidateReason.UNKNOWN
+	private var coordinatorMetricBaseline: com.adsamcik.tracker.tracker.source.coordinator.TrackingCoordinatorMetrics? = null
+	private var sessionRolloutState: TrackingRolloutState? = null
 	private val restartScheduled = AtomicBoolean(false)
 	private var foregroundStarted = false
 	private var activeForegroundServiceType: Int? = null
 	private var activeForegroundRequirements: ForegroundServiceRequirements? = null
+	private val trackingFrameOwnerToken: String
+		get() = "tracker-service:$serviceGeneration"
 
 	override fun onCreate() {
 		super.onCreate()
@@ -167,13 +219,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			dispatchers = dispatchers,
 			appDatabase = appDatabase,
 			trackingParamsRepository = trackingParamsRepository,
-			foregroundServiceTypeUpdater = { requiresLocation, requiresHealth, stopServiceOnFailure ->
-				ensureForegroundStarted(
-					requiresLocation = requiresLocation,
-					requiresHealth = requiresHealth,
-					stopServiceOnFailure = stopServiceOnFailure,
-				)
-			},
 			runtimeTierAdjuster = { requestedTier ->
 				val preserveRequestedFidelity = sessionInfo?.isInitiatedByUser == true ||
 					com.adsamcik.tracker.tracker.api.BackgroundTrackingApi.cachedParams.preset ==
@@ -184,6 +229,16 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				metricDirtyTracker.markDirty(
 					com.adsamcik.tracker.stats.api.metric.MetricKeys.TABLE_DAILY_SUMMARY
 				)
+			},
+			onSourcePlanInputsChanged = { settings, demands ->
+				val rollout = sessionRolloutState
+				val foregroundReady = rollout == null || prepareForegroundForSourcePlan(settings, rollout)
+				val reconfigured = if (foregroundReady) runCatching {
+					sourceSession.reconfigure(sourcePlanInputs(settings, demands))
+				}.getOrNull() else null
+				if (reconfigured == null || reconfigured is SourceSessionReconfigureOutcome.Rejected) {
+					requestGracefulStop(reason = TrackingStopCandidateReason.INTERNAL_FAILURE)
+				}
 			},
 		)
 		createCycleDispatcher()
@@ -235,7 +290,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 							requestGracefulStop(startId)
 							return@launch
 						}
-						beginSession(descriptor, startId)
+						beginSession(descriptor, startId, isRecovery = true)
 					}
 					is ActiveTrackingSessionStoreResult.Failure -> {
 						Tracebox.log.error("Tracking session recovery failed")
@@ -266,6 +321,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				policyTier = recoveredTier ?: PolicyTier.OFF,
 			),
 			startId,
+			isRecovery = isWatchdogRestart || intent == null,
 		)
 
 		return if (isUserInitiated) START_REDELIVER_INTENT else START_NOT_STICKY
@@ -329,9 +385,12 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	private fun beginSession(
 		startDescriptor: ActiveTrackingSessionDescriptor,
 		startId: Int,
+		isRecovery: Boolean = false,
 	) {
 		Tracebox.log.debug("Tracking session start requested")
 		gracefulStopRequested = false
+		stopReason = TrackingStopCandidateReason.UNKNOWN
+		coordinatorMetricBaseline = coordinatorTelemetry.snapshot()
 		restartScheduled.set(false)
 		// A restart retains the logical session identity but is a distinct Android-service run.
 		val serviceRunDescriptor = startDescriptor.forNewServiceRun(System.currentTimeMillis())
@@ -390,19 +449,18 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				) {
 					recoverIncompleteTeardown(previousServiceTeardown)
 					saveActiveSession(provisionalDescriptor)
-					timerComponent.onDisable(this@TrackerService)
-					timerComponent = NoTimer()
+					trackingFrameEffects.detach(trackingFrameOwnerToken)
 					if (!quiesceCycleDispatcherForReplacement()) {
 						requestGracefulStop(reason = TrackingStopCandidateReason.INTERNAL_FAILURE)
 						return@runAfter
 					}
 					createCycleDispatcher()
 
-					// The collection trigger is chosen from BOTH the battery tier and whether the user
-					// wants location. A GPS trigger only runs when location is enabled AND the tier is
-					// GPS-capable; otherwise the lightweight non-GPS trigger drives cycles so any
-					// combination of Wi-Fi/cell/activity/step sources is still collected without GPS.
+					// Resolve semantic source plans before starting the event-owned session runtimes.
 					val trackingParams = trackingParamsRepository.data.first()
+					val rolloutState = trackingRolloutStateStore.load()
+					sessionRolloutState = rolloutState
+					val ownership = TrackingSessionOwnership.resolve(rolloutState, trackingParams)
 					if (!trackingParams.hasAnyCaptureSource(
 						locationAvailable = hasLocationPermission,
 						activityAvailable = hasActivityPermission,
@@ -431,7 +489,7 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 					} else {
 						batteryAwarePolicy.adjustForBattery(requestedInitialTier)
 					}
-					val requiresLocation = locationEnabled && initialTier.isGpsEnabled
+					val requiresLocation = locationEnabled
 					val requiresHealth = trackingParams.activityEnabled || trackingParams.stepsEnabled
 					if (!ensureForegroundStarted(requiresLocation, requiresHealth)) {
 						return@runAfter
@@ -443,49 +501,72 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 					}
 					controller.updatePolicyTier(initialTier)
 					observeDescriptorTierChanges(descriptor)
-					val useGpsTrigger = locationEnabled && initialTier.isGpsEnabled
-					timerComponent = if (useGpsTrigger) {
-						TrackerTimerManager.getSelected(this@TrackerService, dispatchers.main)
-					} else {
-						AmbientCollectionTrigger(dispatchers.main)
-					}
-
-					val timerAccessor = object : TrackerTierEscalationHandler.TimerAccessor {
-						override fun get() = timerComponent
-						override fun set(timer: CollectionTriggerComponent) {
-							timerComponent = timer
-						}
-					}
-
 					withContext(dispatchers.default) {
 						orchestrator.initialize(
 							context = this@TrackerService,
 							isSessionUserInitiated = isUserInitiated,
 							initialTier = initialTier,
 							scope = this@TrackerService,
-							timerReceiver = this@TrackerService,
-							timerAccessor = timerAccessor,
 							logicalTrackingId = descriptor.logicalTrackingId,
+							rolloutState = rolloutState,
 						)
 					}
+					trackingFrameEffects.attach(
+						trackingFrameOwnerToken,
+						descriptor.logicalTrackingId,
+						EventTrackingFrameConsumer { cycle ->
+							val completion = cycleDispatcher.enqueue(cycle)
+							completion.join()
+							check(!completion.isCancelled) { "Event tracking-frame delivery failed" }
+						},
+					)
+					collectionMotionController.startSession(
+						descriptor.logicalTrackingId,
+						descriptor.serviceRunId,
+						SystemClock.elapsedRealtimeNanos(),
+						initialMotion = !isUserInitiated && !isRecovery,
+					)
+					when (val sourceStart = sourceSession.start(
+						SourceSessionStartRequest(
+							rollout = rolloutState,
+							ownership = ownership,
+							logicalTrackingId = descriptor.logicalTrackingId,
+							serviceRunId = descriptor.serviceRunId,
+							origin = when {
+								isRecovery -> SessionStartOrigin.RESTORE_AFTER_PROCESS_DEATH
+								isUserInitiated -> SessionStartOrigin.MANUAL_FOREGROUND
+								else -> SessionStartOrigin.AUTOMATIC_ACTIVITY_TRANSITION
+							},
+							foregroundCapabilityFlags = activeForegroundServiceType?.toLong() ?: 0L,
+							planInputs = sourcePlanInputs(trackingParams, orchestrator.currentSourceDemands()),
+							ownerToken = "event-source:$serviceGeneration:${descriptor.serviceRunId}",
+						),
+					)) {
+						is SourceSessionStartOutcome.Rejected -> {
+							collectionMotionController.stopSession(descriptor.serviceRunId)
+							error("Event source session start rejected: ${sourceStart.result}")
+						}
+						else -> Unit
+					}
+					sourcePipelineRecovery.drainCommittedWork()
+					observeCollectionMotionPolicy()
 
 					batteryObservationJob?.cancel()
 					batteryObservationJob = launch {
 						batteryAwarePolicy.batteryLevelUpdates.collect {
-							orchestrator.onBatteryLevelChanged(
-								context = this@TrackerService,
-								timerReceiver = this@TrackerService,
-								scope = this@TrackerService,
-							)
+							orchestrator.onBatteryLevelChanged(scope = this@TrackerService)
+							val currentSettings = trackingParamsRepository.data.first()
+							val sourceResult = runCatching {
+								sourceSession.reconfigure(
+									sourcePlanInputs(currentSettings, orchestrator.currentSourceDemands()),
+								)
+							}.getOrNull()
+							if (sourceResult == null || sourceResult is SourceSessionReconfigureOutcome.Rejected) {
+								requestGracefulStop(reason = TrackingStopCandidateReason.INTERNAL_FAILURE)
+							}
 						}
 					}
 
-					if (timerComponent.hasRequiredPermissions(this@TrackerService)) {
-						timerComponent.onEnable(this@TrackerService, this@TrackerService)
-					} else {
-						Tracebox.log.error("Tracking start failed")
-						requestGracefulStop(reason = TrackingStopCandidateReason.PERMISSION_UNAVAILABLE)
-					}
 				}
 			} catch (e: TimeoutCancellationException) {
 				Tracebox.log.error(e, "Tracking start failed")
@@ -513,6 +594,36 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 					activeSessionDescriptor = updated
 					saveActiveSession(updated)
 				}
+		}
+	}
+
+	private fun observeCollectionMotionPolicy() {
+		collectionMotionObservationJob?.cancel()
+		collectionMotionObservationJob = launch {
+			launch {
+				collectionMotionController.policy
+					.map { it.acquisitionProfile }
+					.distinctUntilChanged()
+					.collect { profile ->
+						coordinatorTelemetry.recordMotionPolicyChange(
+							stationaryOptimized = profile.stationary,
+							fullFidelity = profile.locationStrategy == LocationCollectionStrategy.FULL_FIDELITY,
+						)
+						val currentSettings = trackingParamsRepository.data.first()
+						val result = runCatching {
+							sourceSession.reconfigure(
+								sourcePlanInputs(currentSettings, orchestrator.currentSourceDemands()),
+							)
+						}.getOrNull()
+						if (result == null || result is SourceSessionReconfigureOutcome.Rejected) {
+							requestGracefulStop(reason = TrackingStopCandidateReason.INTERNAL_FAILURE)
+						}
+					}
+			}
+			while (isActive) {
+				delay(MOTION_POLICY_TICK_MILLIS)
+				collectionMotionController.tick(SystemClock.elapsedRealtimeNanos())
+			}
 		}
 	}
 
@@ -629,9 +740,8 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		}
 	}
 
-	override fun onUpdate(cycle: TrackingCycle): Job = cycleDispatcher.enqueue(cycle)
-
 	private suspend fun processCycleUpdate(cycle: TrackingCycle) {
+		val wakeLockStartedAtNanos = Time.elapsedRealtimeNanos
 		wakeLock.acquire(Time.SECOND_IN_MILLISECONDS * 10L)
 		try {
 			Tracebox.log.performanceSuspend("Process tracking cycle") {
@@ -639,6 +749,9 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 			}
 		} finally {
 			if (wakeLock.isHeld) wakeLock.release()
+			coordinatorTelemetry.recordTrackingFrame(
+				wakeLockNanos = Time.elapsedRealtimeNanos - wakeLockStartedAtNanos,
+			)
 		}
 
 		// Power-save check (Android concern, kept in service)
@@ -690,21 +803,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		return cancelled
 	}
 
-	override fun onError(errorData: TrackerTimerErrorData) {
-		when (errorData.severity) {
-			TrackerTimerErrorSeverity.STOP_SERVICE ->
-				requestGracefulStop(reason = TrackingStopCandidateReason.TIMER_FAILURE)
-			TrackerTimerErrorSeverity.NOTIFY_USER -> orchestrator.notificationComponent.onError(
-				this,
-				errorData.messageRes
-			)
-		}
-	}
-
-	override fun onLocationProviderAvailabilityChanged(available: Boolean, reason: String) {
-		orchestrator.onLocationProviderAvailabilityChanged(this, available, reason)
-	}
-
 	private fun requestGracefulStop(
 		startId: Int? = null,
 		reason: TrackingStopCandidateReason = TrackingStopCandidateReason.EXPLICIT_REQUEST,
@@ -712,8 +810,11 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		if (gracefulStopRequested) return
 		Tracebox.log.debug("Tracking stop requested: {}", reason)
 		gracefulStopRequested = true
+		stopReason = reason
 		descriptorObservationJob?.cancel()
 		descriptorObservationJob = null
+		collectionMotionObservationJob?.cancel()
+		collectionMotionObservationJob = null
 		// Initialization can still be suspended on preferences, foreground setup, or component
 		// construction.  Cancel it before persisting the candidate so it cannot later overwrite the
 		// terminal descriptor with the provisional ACTIVE record.
@@ -787,7 +888,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		// the UID state; retain the receiver fallback for vendor lifecycle variants.
 		scheduleRestartWatchdog(restartBeforeTeardown = true)
 		// Capture references before super.onDestroy() cancels the coroutine scope
-		val timerRef = timerComponent
 		val initializationRef = initializationJob
 		val precedingTeardown = synchronized(SERVICE_GENERATION_LOCK) {
 			lastTeardownGate
@@ -799,8 +899,6 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 		descriptorObservationJob?.cancel()
 		descriptorObservationJob = null
 		val context: Context = this
-		disableTimerBestEffort(timerRef, context)
-
 		super.onDestroy()
 		stopForeground(STOP_FOREGROUND_REMOVE)
 
@@ -887,11 +985,15 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 	}
 
 	private suspend fun performTeardown(context: Context) {
-		try {
-			disableTimerBestEffort(timerComponent, context)
-		} finally {
-			timerComponent = NoTimer()
+		val serviceRunId = activeSessionDescriptor?.serviceRunId
+		retryTrackingShutdown {
+			sourceSession.stop(
+				reason = stopReason.name,
+				preserveLogicalSession = !gracefulStopRequested,
+			)
 		}
+		serviceRunId?.let(collectionMotionController::stopSession)
+		sourcePipelineRecovery.drainCommittedWork()
 		val shutdownSequence = try {
 			drainCyclesThenShutdown(
 				drain = {
@@ -952,18 +1054,93 @@ internal class TrackerService : CoreService(), TrackerTimerReceiver {
 				failure,
 			)
 		}
+		trackingFrameEffects.detach(trackingFrameOwnerToken)
+		coordinatorMetricBaseline?.let { baseline ->
+			Tracebox.log.debug(
+				"Tracking coordinator session metrics: {}",
+				coordinatorTelemetry.snapshot() - baseline,
+			)
+		}
+		coordinatorMetricBaseline = null
 		HistoricalTrajectoryReconstructionWorker.schedule(context)
 	}
 
-	private fun disableTimerBestEffort(timer: CollectionTriggerComponent, context: Context) {
-		try {
-			timer.onDisable(context)
-		} catch (_: Exception) {
-			Tracebox.log.warn("Tracking shutdown was degraded")
+	private suspend fun sourcePlanInputs(
+		settings: TrackingParamsState,
+		demands: List<SourceDemand>,
+	): SourceSessionPlanInputs {
+		val packageManager = packageManager
+		val foreground = activeForegroundRequirements
+		val locationFeature = packageManager.hasSystemFeature(PackageManager.FEATURE_LOCATION)
+		val wifiFeature = packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI)
+		val cellFeature = packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) ||
+			(Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+				packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_RADIO_ACCESS))
+		val constraints = mapOf(
+			SourceKind.LOCATION to SourceConstraint(
+				hardwareAvailable = locationFeature,
+				permissionGranted = hasLocationPermission,
+				foregroundCapabilityLegal = foreground?.requiresLocation == true,
+			),
+			SourceKind.ACTIVITY to SourceConstraint(
+				hardwareAvailable = Assist.isPlayServicesAvailable(this),
+				permissionGranted = hasActivityPermission,
+				foregroundCapabilityLegal = foreground?.requiresHealth == true,
+			),
+			SourceKind.STEPS to SourceConstraint(
+				hardwareAvailable = hasStepCounterSensor,
+				permissionGranted = hasActivityPermission,
+				foregroundCapabilityLegal = foreground?.requiresHealth == true,
+			),
+			SourceKind.PRESSURE to SourceConstraint(hardwareAvailable = hasPressureSensor),
+			SourceKind.WIFI to SourceConstraint(
+				hardwareAvailable = wifiFeature,
+				permissionGranted = hasWifiScanPermission,
+			),
+			SourceKind.CELL to SourceConstraint(
+				hardwareAvailable = cellFeature,
+				permissionGranted = hasCellScanPermission,
+			),
+		)
+		return SourceSessionPlanInputs(
+			settings = settings,
+			environment = SourcePlanEnvironment(
+				locationBackend = TrackerTimerManager.getSelectedLocationBackend(this),
+				preciseLocationAvailable = ContextCompat.checkSelfPermission(
+					this,
+					Manifest.permission.ACCESS_FINE_LOCATION,
+				) == PackageManager.PERMISSION_GRANTED,
+				subscriptionIds = emptySet(),
+			),
+			resolutionContext = PlanResolutionContext(
+				constraints = constraints,
+				powerSaver = powerManager.isPowerSaveMode,
+				doze = powerManager.isDeviceIdleMode,
+				severeThermalPressure = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+					powerManager.currentThermalStatus >= PowerManager.THERMAL_STATUS_SEVERE,
+				motionProfile = collectionMotionController.policy.value.acquisitionProfile,
+			),
+			demands = demands,
+			clockDomainId = bootClockDomainProvider.current(),
+		)
+	}
+
+	private fun prepareForegroundForSourcePlan(
+		settings: TrackingParamsState,
+		rollout: TrackingRolloutState,
+	): Boolean {
+		check(rollout.sourceOwners.getValue(SourceKind.LOCATION) == SourceOwner.EVENT) {
+			"Location source must be event-owned before foreground capabilities are applied"
 		}
+		val requiresLocation = settings.locationEnabled
+		return ensureForegroundStarted(
+			requiresLocation = requiresLocation,
+			requiresHealth = settings.activityEnabled || settings.stepsEnabled,
+		)
 	}
 
 	companion object {
+		private const val MOTION_POLICY_TICK_MILLIS = 30_000L
 		private val SERVICE_GENERATION_LOCK = Any()
 		private val SERVICE_GENERATION_COUNTER = AtomicLong()
 		private val TRACKING_LIFECYCLE_BARRIER = TrackingLifecycleBarrier()

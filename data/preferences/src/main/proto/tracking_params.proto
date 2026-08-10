@@ -54,6 +54,17 @@ message TrackingParamsProto {
   // before this field existed while still allowing users to explicitly disable it.
   optional bool barometer_enabled = 19;
 
+  // Versioned semantic per-source controls. Values use SourceCollectionFrequency stable codes:
+  // 0 = OFF, 1 = BATTERY_SAVER, 2 = BALANCED, 3 = RESPONSIVE.
+  optional int32 location_frequency = 20;
+  optional int32 activity_frequency = 21;
+  optional int32 steps_frequency = 22;
+  optional int32 pressure_frequency = 23;
+  optional int32 wifi_frequency = 24;
+  optional int32 cell_frequency = 25;
+  bool advanced_source_controls_enabled = 26;
+  int32 source_settings_version = 27;
+
   // Internal migration marker so legacy Preferences import runs only once.
   bool legacy_migrated = 1000;
 }

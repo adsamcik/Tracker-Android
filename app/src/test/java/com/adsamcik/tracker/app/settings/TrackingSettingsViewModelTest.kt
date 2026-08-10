@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.app.settings
 
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.PowerManager
 import com.adsamcik.tracker.app.common.ui.BatteryImpact
 import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
 import com.adsamcik.tracker.shared.base.extension.hasSelfPermission
@@ -8,6 +10,13 @@ import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.tracker.source.battery.QualitativeBatteryImpactEstimator
+import com.adsamcik.tracker.tracker.source.coordinator.DefaultTrackingSettingsStatusProvider
+import com.adsamcik.tracker.tracker.source.coordinator.SemanticAcquisitionPlanFactory
+import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanResolver
+import com.adsamcik.tracker.tracker.source.coordinator.TrackingCoordinatorTelemetry
+import com.adsamcik.tracker.tracker.source.coordinator.EffectiveSourceState
+import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.every
@@ -33,11 +42,18 @@ class TrackingSettingsViewModelTest {
 
     private val testDispatcher = UnconfinedTestDispatcher()
     private val context: Context = mockk(relaxed = true)
+    private val packageManager: PackageManager = mockk(relaxed = true)
     private var permissionsGranted = true
 
     // Backing state for the fake repository
     private val paramsFlow = MutableStateFlow(TrackingParamsState())
     private val trackingParamsRepository: TrackingParamsRepository = mockk()
+    private val trackingStatusProvider = DefaultTrackingSettingsStatusProvider(
+        SemanticAcquisitionPlanFactory(),
+        SourcePlanResolver(),
+        QualitativeBatteryImpactEstimator(),
+        TrackingCoordinatorTelemetry(),
+    )
 
     @BeforeEach
     fun setUp() {
@@ -48,6 +64,9 @@ class TrackingSettingsViewModelTest {
         every { context.hasSelfPermission(any()) } answers { permissionsGranted }
         every { context.hasPressureSensor } returns true
         every { context.hasStepCounterSensor } returns true
+        every { context.packageManager } returns packageManager
+        every { packageManager.hasSystemFeature(any()) } returns true
+        every { context.getSystemService(PowerManager::class.java) } returns null
 
         every { trackingParamsRepository.data } returns paramsFlow
 
@@ -104,7 +123,7 @@ class TrackingSettingsViewModelTest {
     private fun createViewModel(): TrackingSettingsViewModel {
         paramsFlow.value = TrackingParamsState()
         permissionsGranted = true
-        return TrackingSettingsViewModel(context, trackingParamsRepository)
+        return TrackingSettingsViewModel(context, trackingParamsRepository, trackingStatusProvider)
     }
 
     // =========================================================================
@@ -227,13 +246,15 @@ class TrackingSettingsViewModelTest {
         }
 
         @Test
-        fun `barometer is disabled when the device has no pressure sensor`() = runTest(testDispatcher) {
+        fun `barometer request remains stored when the device has no pressure sensor`() = runTest(testDispatcher) {
             every { context.hasPressureSensor } returns false
             val vm = createViewModel()
             advanceUntilIdle()
 
             vm.uiState.value.barometerAvailable shouldBe false
-            vm.uiState.value.barometerEnabled shouldBe false
+            vm.uiState.value.barometerEnabled shouldBe true
+            vm.uiState.value.sourceStatuses.getValue(SourceKind.PRESSURE).state shouldBe
+                EffectiveSourceState.BLOCKED
         }
     }
 
@@ -496,14 +517,14 @@ class TrackingSettingsViewModelTest {
         fun `applyPreset persists requested wifi when wifi permission is denied`() =
             runTest(testDispatcher) {
                 permissionsGranted = false
-                val vm = TrackingSettingsViewModel(context, trackingParamsRepository)
+                val vm = TrackingSettingsViewModel(context, trackingParamsRepository, trackingStatusProvider)
                 advanceUntilIdle()
 
                 vm.applyPreset(TrackingPreset.HIGH_ACCURACY)
                 advanceUntilIdle()
 
                 paramsFlow.value.wifiEnabled shouldBe true
-                vm.uiState.value.wifiEnabled shouldBe false
+                vm.uiState.value.wifiEnabled shouldBe true
             }
     }
 
@@ -516,9 +537,9 @@ class TrackingSettingsViewModelTest {
             runTest(testDispatcher) {
                 permissionsGranted = false
                 paramsFlow.value = TrackingParamsState(wifiEnabled = true)
-                val vm = TrackingSettingsViewModel(context, trackingParamsRepository)
+                val vm = TrackingSettingsViewModel(context, trackingParamsRepository, trackingStatusProvider)
                 advanceUntilIdle()
-                vm.uiState.value.wifiEnabled shouldBe false
+                vm.uiState.value.wifiEnabled shouldBe true
 
                 permissionsGranted = true
                 vm.refreshPermissionState()

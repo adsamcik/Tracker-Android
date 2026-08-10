@@ -3,12 +3,8 @@ package com.adsamcik.tracker.tracker.api
 import dev.tracebox.Tracebox
 import android.content.Context
 import androidx.annotation.MainThread
-import com.adsamcik.tracker.activity.ActivityChangeRequestData
-import com.adsamcik.tracker.activity.ActivityRequestData
 import com.adsamcik.tracker.activity.ActivityTransitionData
-import com.adsamcik.tracker.activity.ActivityTransitionRequestData
 import com.adsamcik.tracker.activity.ActivityTransitionType
-import com.adsamcik.tracker.activity.api.ActivityRequestManager
 import com.adsamcik.tracker.activity.api.backend.ActivityUpdate
 import com.adsamcik.tracker.activity.api.backend.ActivityUpdateSource
 import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
@@ -36,6 +32,8 @@ import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.resilience.TrackingStopCandidateReason
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
+import com.adsamcik.tracker.tracker.source.runtime.AutomaticStartTransitionMonitor
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -55,7 +53,7 @@ import kotlinx.coroutines.launch
 @EntryPoint
 @InstallIn(SingletonComponent::class)
 interface BackgroundTrackingApiEntryPoint {
-	fun activityRequestManager(): ActivityRequestManager
+	fun automaticStartTransitionMonitor(): AutomaticStartTransitionMonitor
 	fun lockManager(): LockManager
 	fun trackerStateReader(): TrackerStateReader
 	fun trackingParamsRepository(): TrackingParamsRepository
@@ -139,9 +137,6 @@ object BackgroundTrackingApi {
 
 	private fun cachedParamsSnapshot(): TrackingParamsState = synchronized(paramsLock) { cachedParams }
 
-	private fun activityRequestManager(context: Context): ActivityRequestManager =
-		getEntryPoint(context).activityRequestManager()
-
 	private fun updateCachedParams(newParams: TrackingParamsState): TrackingParamsState =
 		synchronized(paramsLock) {
 			val previousParams = cachedParams
@@ -218,6 +213,23 @@ object BackgroundTrackingApi {
 			) {
 				TrackerServiceApi.startService(context, isUserInitiated = false)
 			}
+		}
+	}
+
+	/** Replays a post-admission activity effect; safe to invoke more than once after a crash. */
+	internal fun handleDurableActivityEvidence(
+		context: Context,
+		activity: DetectedActivityType,
+		confidence: Int,
+		transitionType: ActivityTransitionType?,
+	) {
+		if (transitionType == null) {
+			handleActivityUpdate(context.applicationContext, RecognizedActivity(activity, confidence))
+		} else {
+			handleTransitionUpdate(
+				context.applicationContext,
+				ActivityTransitionData(activity, transitionType),
+			)
 		}
 	}
 
@@ -335,55 +347,30 @@ object BackgroundTrackingApi {
 		return transitions
 	}
 
-	private fun getTransitions(): ActivityTransitionRequestData {
-		val transitions = buildTransitions()
-		return ActivityTransitionRequestData(transitions)
-	}
-
-	private fun getActivityRequest(): ActivityChangeRequestData {
-		return ActivityChangeRequestData(activityFreqSeconds)
-	}
-
 	private fun reinitializeRequest(context: Context, useTransitionApi: Boolean) {
 		val generation = ++requestMutationGeneration
-
-		val requestData = if (useTransitionApi) {
-			ActivityRequestData(this::class, transitionData = getTransitions())
-		} else {
-			ActivityRequestData(this::class, changeData = getActivityRequest())
-		}
-
-		val requestManager = activityRequestManager(context)
+		val monitor = getEntryPoint(context).automaticStartTransitionMonitor()
 		val watcherController = getWatcherController(context)
 		enqueueRequestMutation {
 			try {
-				check(requestManager.requestActivity(context, requestData)) {
-					"Unable to apply background activity recognition request"
-				}
+				val result = monitor.reconcile(
+					enabled = true,
+					useTransitionApi = useTransitionApi,
+					continuousIntervalSeconds = activityFreqSeconds,
+					transitions = buildTransitions().toSet(),
+				)
+				check(result.status == ActivityRegistrationStatus.APPLIED ||
+					result.status == ActivityRegistrationStatus.DEGRADED
+				) { "Unable to apply background activity recognition request: ${result.failureCode}" }
 				if (generation != requestMutationGeneration || !isActive) {
 					return@enqueueRequestMutation
 				}
 
-				val replacementJob = if (useTransitionApi) {
-					// Transition API is already high-confidence; the step corroborator only helps the
-					// confidence-based change API, so release the sensor while transitions are used.
-					stepCorroborator.stop(context)
-					val configuredTransitions = requireNotNull(requestData.transitionData).transitionList
-					requestManager.transitionUpdates
-						.onEach { updates ->
-							selectNewestConfiguredTransition(configuredTransitions, updates)
-								?.let { handleTransitionUpdate(context, it) }
-						}
-						.launchIn(requireNotNull(preferenceScope))
-				} else {
-					stepCorroborator.start(context)
-					requestManager.activityUpdates
-						.filter(::isChangeDetectionUpdate)
-						.onEach { handleActivityUpdate(context, it.activity) }
-						.launchIn(requireNotNull(preferenceScope))
-				}
+				// Activity callbacks are consumed from durable projection outbox. Keep the optional
+				// step corroborator only for confidence-based recognition requests.
+				if (useTransitionApi) stepCorroborator.stop(context) else stepCorroborator.start(context)
 				recognitionUpdatesJob?.cancel()
-				recognitionUpdatesJob = replacementJob
+				recognitionUpdatesJob = null
 				watcherController.poke()
 			} catch (exception: CancellationException) {
 				throw exception
@@ -406,7 +393,15 @@ object BackgroundTrackingApi {
 							}
 						},
 					) {
-						requestManager.removeActivityRequest(context, this::class)
+						val cleanup = monitor.reconcile(
+							enabled = false,
+							useTransitionApi = false,
+							continuousIntervalSeconds = activityFreqSeconds,
+							transitions = emptySet(),
+						)
+						check(cleanup.status != ActivityRegistrationStatus.FAILED) {
+							"Unable to clear automatic activity demand: ${cleanup.failureCode}"
+						}
 					}
 					if (removed) watcherController.poke()
 				}
@@ -428,7 +423,7 @@ object BackgroundTrackingApi {
 		cancelAutomaticStopGrace()
 		val generation = ++requestMutationGeneration
 
-		val requestManager = activityRequestManager(context)
+		val monitor = getEntryPoint(context).automaticStartTransitionMonitor()
 		val watcherController = getWatcherController(context)
 		enqueueRequestMutation {
 			if (generation != requestMutationGeneration || isActive) {
@@ -440,7 +435,15 @@ object BackgroundTrackingApi {
 			val removed = reconcileActivityRequestRemoval(
 				shouldContinue = { generation == requestMutationGeneration && !isActive },
 			) {
-				requestManager.removeActivityRequest(context, this::class)
+				val result = monitor.reconcile(
+					enabled = false,
+					useTransitionApi = false,
+					continuousIntervalSeconds = activityFreqSeconds,
+					transitions = emptySet(),
+				)
+				check(result.status != ActivityRegistrationStatus.FAILED) {
+					"Unable to clear automatic activity demand: ${result.failureCode}"
+				}
 			}
 			if (removed) watcherController.poke()
 		}

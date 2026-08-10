@@ -3,7 +3,6 @@ package com.adsamcik.tracker.tracker.data.collection
 import android.location.Location
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.LocationData
-import com.adsamcik.tracker.tracker.component.producer.PressureReading
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.mockk.every

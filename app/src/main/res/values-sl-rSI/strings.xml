@@ -212,7 +212,6 @@
     <string name="upgrade_to_precise_benefit_detailed_maps">Podrobni toplotni zemljevidi in prostorska analiza</string>
     <string name="upgrade_to_precise_benefit_precise_stats">Natančne meritve razdalje in hitrosti</string>
     <string name="upgrade_to_precise_battery_title">Poraba baterije</string>
-    <string name="upgrade_to_precise_battery_message">Natančni GPS porabi več baterije. Ocenjeni čas sledenja: 6–8 ur v običajnih napravah.</string>
     <string name="upgrade_to_precise_button_upgrade">Omogoči natančno lokacijo</string>
     <string name="upgrade_to_precise_button_cancel">Morda pozneje</string>
     <string name="tracking_preset_high_accuracy_name">Visoka natančnost</string>
@@ -236,12 +235,6 @@
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
     <string name="tracking_policy_selector_title">Pravilnik sledenja</string>
-    <plurals name="tracking_policy_estimated_duration">
-        <item quantity="one">Ocenjeno sledenje: %d ura</item>
-        <item quantity="two">Ocenjeno sledenje: %d uri</item>
-        <item quantity="few">Ocenjeno sledenje: %d ure</item>
-        <item quantity="other">Ocenjeno sledenje: %d ur</item>
-    </plurals>
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Izberite, kako natančno Tracker beleži vašo lokacijo</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>

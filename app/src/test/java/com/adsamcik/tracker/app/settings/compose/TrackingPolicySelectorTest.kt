@@ -108,7 +108,7 @@ class TrackingPolicySelectorTest {
     }
 
     @Test
-    fun selectedPresetShowsEstimatedDuration() {
+    fun selectedPresetDoesNotClaimFixedTrackingDuration() {
         composeTestRule.setContent {
             AppTheme {
                 TrackingPolicySelector(
@@ -117,8 +117,7 @@ class TrackingPolicySelectorTest {
                 )
             }
         }
-        // Estimated tracking duration "Estimated tracking: 8 hours"
-        composeTestRule.onNodeWithText("8", substring = true).assertExists()
+        composeTestRule.onNodeWithText("Estimated tracking", substring = true).assertDoesNotExist()
     }
 
     @Test

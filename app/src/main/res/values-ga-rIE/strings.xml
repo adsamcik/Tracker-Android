@@ -204,7 +204,6 @@
     <string name="upgrade_to_precise_benefit_detailed_maps">Léarscáil teasa mhionsonraithe agus anailís spásúil</string>
     <string name="upgrade_to_precise_benefit_precise_stats">Tomhais bheachta faid agus luais</string>
     <string name="upgrade_to_precise_battery_title">Úsáid ceallra</string>
-    <string name="upgrade_to_precise_battery_message">Úsáideann GPS beacht níos mó ceallra. Am rianaithe measta: 6–8 n-uaire ar ghnáthghléasanna.</string>
     <string name="upgrade_to_precise_button_upgrade">Cumasaigh suíomh beacht</string>
     <string name="upgrade_to_precise_button_cancel">B’fhéidir níos déanaí</string>
     <string name="tracking_preset_high_accuracy_name">Cruinneas ard</string>
@@ -228,10 +227,6 @@
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
     <string name="tracking_policy_selector_title">Beartas rianaithe</string>
-    <plurals name="tracking_policy_estimated_duration">
-        <item quantity="one">Rianú measta: %d uair</item>
-        <item quantity="other">Rianú measta: %d uair</item>
-    </plurals>
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Roghnaigh cé chomh cruinn is a thaifeadann Tracker do shuíomh</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>

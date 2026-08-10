@@ -204,7 +204,6 @@
     <string name="upgrade_to_precise_benefit_detailed_maps">Részletes hőtérkép és térbeli elemzés</string>
     <string name="upgrade_to_precise_benefit_precise_stats">Pontos távolság- és sebességmérés</string>
     <string name="upgrade_to_precise_battery_title">Akkumulátorhasználat</string>
-    <string name="upgrade_to_precise_battery_message">A pontos GPS több akkumulátort használ. Becsült nyomkövetési idő: 6–8 óra átlagos eszközökön.</string>
     <string name="upgrade_to_precise_button_upgrade">Pontos helyadat engedélyezése</string>
     <string name="upgrade_to_precise_button_cancel">Talán később</string>
     <string name="tracking_preset_high_accuracy_name">Nagy pontosság</string>
@@ -228,10 +227,6 @@
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
     <string name="tracking_policy_selector_title">Nyomkövetési szabályzat</string>
-    <plurals name="tracking_policy_estimated_duration">
-        <item quantity="one">Becsült nyomkövetés: %d óra</item>
-        <item quantity="other">Becsült nyomkövetés: %d óra</item>
-    </plurals>
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Válassza ki, milyen pontossággal rögzítse a Tracker a helyadatokat</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>

@@ -204,7 +204,6 @@
     <string name="upgrade_to_precise_benefit_detailed_maps">Yksityiskohtainen lämpökartta ja paikkatietoanalyysi</string>
     <string name="upgrade_to_precise_benefit_precise_stats">Tarkat etäisyys- ja nopeusmittaukset</string>
     <string name="upgrade_to_precise_battery_title">Akun käyttö</string>
-    <string name="upgrade_to_precise_battery_message">Tarkka GPS kuluttaa enemmän akkua. Arvioitu seuranta-aika: 6–8 tuntia tavallisilla laitteilla.</string>
     <string name="upgrade_to_precise_button_upgrade">Ota tarkka sijainti käyttöön</string>
     <string name="upgrade_to_precise_button_cancel">Ehkä myöhemmin</string>
     <string name="tracking_preset_high_accuracy_name">Korkea tarkkuus</string>
@@ -228,10 +227,6 @@
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
     <string name="tracking_preset_high_precision_description">@string/tracking_preset_high_accuracy_description</string>
     <string name="tracking_policy_selector_title">Seurantakäytäntö</string>
-    <plurals name="tracking_policy_estimated_duration">
-        <item quantity="one">Arvioitu seuranta: %d tunti</item>
-        <item quantity="other">Arvioitu seuranta: %d tuntia</item>
-    </plurals>
     <string name="location_precision_selector_title">@string/precision_mode_title</string>
     <string name="location_precision_selector_subtitle">Valitse, kuinka tarkasti Tracker tallentaa sijaintisi</string>
     <string name="location_precision_approximate_title">@string/precision_mode_approximate_title</string>

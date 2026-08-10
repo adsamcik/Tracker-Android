@@ -3,14 +3,22 @@ package com.adsamcik.tracker.activity.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionType
-import com.adsamcik.tracker.activity.api.backend.ActivityRecognitionBackend
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
 import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
-import com.adsamcik.tracker.activity.api.backend.RecognitionConfig
 import com.adsamcik.tracker.activity.api.backend.TransitionUpdate
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_APPLIED_REVISION
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_COLLECTED_DATA_EPOCH
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_REGISTRATION_GENERATION
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_SOURCE_INSTANCE_ID
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.NO_REVISION
+import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
+import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidence
+import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
+import com.adsamcik.tracker.activity.api.ingress.ActivityTransitionEvidence
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.stats.api.threshold.ActivityTypeMapping
 import com.google.android.gms.location.ActivityRecognitionResult
 import com.google.android.gms.location.ActivityTransitionEvent
@@ -19,142 +27,171 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
-/**
- * Hilt EntryPoint for accessing the activity recognition backend from
- * the BroadcastReceiver (which cannot use constructor injection).
- */
+/** Dependencies needed by the manifest BroadcastReceiver in a cold process. */
 @EntryPoint
 @InstallIn(SingletonComponent::class)
 interface ActivityReceiverEntryPoint {
 	fun backend(): GmsActivityRecognitionBackend
+	fun eventIngress(): ActivityRecognitionEventIngress
+
+	@ApplicationScope
+	fun applicationScope(): CoroutineScope
 }
 
 /**
- * BroadcastReceiver that receives PendingIntent callbacks from Google Play
- * Services activity recognition.
+ * Receives Google Play Services activity callbacks.
  *
- * This receiver is a thin relay: it parses the GMS intent and forwards the
- * results to [GmsActivityRecognitionBackend], which exposes them as Flows
- * via the [ActivityRecognitionBackend] interface.
- *
+ * A callback is first admitted to durable source ingress. The legacy process-local flows and
+ * last-activity cache are updated only after every supported event in the delivery is durable.
  */
 internal class ActivityReceiver : BroadcastReceiver() {
 	override fun onReceive(context: Context, intent: Intent) {
 		val hasActivityResult = ActivityRecognitionResult.hasResult(intent)
-		val hasActivityTransitionResult = ActivityTransitionResult.hasResult(intent)
+		val hasTransitionResult = ActivityTransitionResult.hasResult(intent)
+		if (!hasActivityResult && !hasTransitionResult) return
 
 		val entryPoint = EntryPointAccessors.fromApplication(
 			context.applicationContext,
 			ActivityReceiverEntryPoint::class.java,
 		)
-		val backend = entryPoint.backend()
-
-		if (hasActivityResult) {
-			val result = requireNotNull(ActivityRecognitionResult.extractResult(intent))
-			onActivityResult(result, backend)
-		}
-
-		if (hasActivityTransitionResult) {
-			val result = requireNotNull(ActivityTransitionResult.extractResult(intent))
-			onActivityTransitionResult(result, backend)
-
-			if (!hasActivityResult) {
-				setActivityResultFromTransition(result.transitionEvents.last(), backend)
+		val receivedElapsedRealtimeMillis = Time.elapsedRealtimeMillis
+		val delivery = parseDelivery(
+			registrationIdentity = intent.registrationIdentity(),
+			activityResult = if (hasActivityResult) {
+				requireNotNull(ActivityRecognitionResult.extractResult(intent))
+			} else {
+				null
+			},
+			transitionResult = if (hasTransitionResult) {
+				requireNotNull(ActivityTransitionResult.extractResult(intent))
+			} else {
+				null
+			},
+			receivedElapsedRealtimeMillis = receivedElapsedRealtimeMillis,
+			receivedWallTimeMs = System.currentTimeMillis(),
+		)
+		val pendingResult = goAsync()
+		entryPoint.applicationScope().launch {
+			try {
+				val admission = withTimeout(DURABLE_HANDOFF_TIMEOUT_MS) {
+					entryPoint.eventIngress().admit(delivery.batch)
+				}
+				if (admission.isDurable) delivery.publishTo(entryPoint.backend())
+			} catch (_: Throwable) {
+				// A failed handoff must not leak a non-durable in-process effect.
+			} finally {
+				pendingResult.finish()
 			}
 		}
 	}
 
-	private fun onActivityResult(
-		result: ActivityRecognitionResult,
-		backend: GmsActivityRecognitionBackend,
-	) {
-		val mostProbableActivity = result.mostProbableActivity
-		val detectedActivity = RecognizedActivity(
-			type = ActivityTypeMapping.fromPlayServicesCode(mostProbableActivity.type),
-			confidence = mostProbableActivity.confidence.coerceIn(0, 100),
-		)
-		val elapsedTimeMillis = Time.elapsedRealtimeMillis
-
-		Companion.lastActivity = detectedActivity
-		backend.onActivityResult(detectedActivity, elapsedTimeMillis)
-
-	}
-
-	/**
-	 * Sets last activity from transition.
-	 * Does not call callbacks as this should only update last activity for better access.
-	 */
-	private fun setActivityResultFromTransition(
-		transition: ActivityTransitionEvent,
-		backend: GmsActivityRecognitionBackend,
-	) {
-		val detectedActivity = RecognizedActivity(
-			type = ActivityTypeMapping.fromPlayServicesCode(transition.activityType),
-			confidence = TRANSITION_ACTIVITY_CONFIDENCE,
-		)
-		Companion.lastActivity = detectedActivity
-		backend.onTransitionActivityResult(detectedActivity, transition.elapsedRealTimeNanos)
-
-	}
-
-	private fun onActivityTransitionResult(
-		result: ActivityTransitionResult,
-		backend: GmsActivityRecognitionBackend,
-	) {
-		val transitionUpdates = result.transitionEvents.mapNotNull { event ->
+	private fun parseDelivery(
+		registrationIdentity: ActivityRegistrationIdentity?,
+		activityResult: ActivityRecognitionResult?,
+		transitionResult: ActivityTransitionResult?,
+		receivedElapsedRealtimeMillis: Long,
+		receivedWallTimeMs: Long,
+	): ParsedActivityDelivery {
+		val recognizedActivity = activityResult?.mostProbableActivity?.let { detected ->
+			RecognizedActivity(
+				type = ActivityTypeMapping.fromPlayServicesCode(detected.type),
+				confidence = detected.confidence.coerceIn(0, 100),
+			)
+		}
+		val recognitionElapsedNanos = activityResult?.elapsedRealtimeMillis
+			?.coerceAtLeast(0L)
+			?.times(NANOS_PER_MILLISECOND)
+			?: receivedElapsedRealtimeMillis * NANOS_PER_MILLISECOND
+		val transitionEvents = transitionResult?.transitionEvents.orEmpty()
+		val transitionUpdates = transitionEvents.mapNotNull { event ->
 			val transitionType = ActivityTransitionType.entries
 				.firstOrNull { it.value == event.transitionType }
-			if (transitionType == null) {
-				return@mapNotNull null
-			}
+				?: return@mapNotNull null
 			TransitionUpdate(
 				activityType = ActivityTypeMapping.fromPlayServicesCode(event.activityType),
 				transitionType = transitionType,
 				elapsedRealTimeNanos = event.elapsedRealTimeNanos,
 			)
 		}
-		backend.onTransitionResult(transitionUpdates)
+		return ParsedActivityDelivery(
+			batch = ActivityRecognitionEvidenceBatch(
+				receivedElapsedRealtimeNanos = receivedElapsedRealtimeMillis * NANOS_PER_MILLISECOND,
+				receivedWallTimeMs = receivedWallTimeMs,
+				registrationIdentity = registrationIdentity,
+				recognitions = recognizedActivity?.let { activity ->
+					listOf(
+						ActivityRecognitionEvidence(
+							activityType = activity.type,
+							confidencePercent = activity.confidence,
+							providerElapsedRealtimeNanos = recognitionElapsedNanos,
+						),
+					)
+				}.orEmpty(),
+				transitions = transitionUpdates.map { update ->
+					ActivityTransitionEvidence(
+						activityType = update.activityType,
+						transitionType = update.transitionType,
+						providerElapsedRealtimeNanos = update.elapsedRealTimeNanos,
+					)
+				},
+			),
+			recognizedActivity = recognizedActivity,
+			// Preserve the legacy backend contract while the durable event keeps provider time.
+			recognitionElapsedRealtimeMillis = receivedElapsedRealtimeMillis,
+			transitionUpdates = transitionUpdates,
+			lastTransition = if (activityResult == null) transitionEvents.lastOrNull() else null,
+		)
+	}
+
+	private fun Intent.registrationIdentity(): ActivityRegistrationIdentity? {
+		val sourceInstanceId = getStringExtra(EXTRA_SOURCE_INSTANCE_ID) ?: return null
+		if (!hasExtra(EXTRA_REGISTRATION_GENERATION) || !hasExtra(EXTRA_COLLECTED_DATA_EPOCH)) return null
+		val revision = getLongExtra(EXTRA_APPLIED_REVISION, NO_REVISION).takeUnless { it == NO_REVISION }
+		return runCatching {
+			ActivityRegistrationIdentity(
+				sourceInstanceId = sourceInstanceId,
+				registrationGeneration = getLongExtra(EXTRA_REGISTRATION_GENERATION, -1L),
+				collectedDataEpoch = getLongExtra(EXTRA_COLLECTED_DATA_EPOCH, -1L),
+				appliedRevision = revision,
+			)
+		}.getOrNull()
+	}
+
+	private data class ParsedActivityDelivery(
+		val batch: ActivityRecognitionEvidenceBatch,
+		val recognizedActivity: RecognizedActivity?,
+		val recognitionElapsedRealtimeMillis: Long,
+		val transitionUpdates: List<TransitionUpdate>,
+		val lastTransition: ActivityTransitionEvent?,
+	) {
+		fun publishTo(backend: GmsActivityRecognitionBackend) {
+			recognizedActivity?.let { activity ->
+				lastActivity = activity
+				backend.onActivityResult(activity, recognitionElapsedRealtimeMillis)
+			}
+			if (transitionUpdates.isNotEmpty()) backend.onTransitionResult(transitionUpdates)
+			lastTransition?.let { transition ->
+				val activity = RecognizedActivity(
+					type = ActivityTypeMapping.fromPlayServicesCode(transition.activityType),
+					confidence = TRANSITION_ACTIVITY_CONFIDENCE,
+				)
+				lastActivity = activity
+				backend.onTransitionActivityResult(activity, transition.elapsedRealTimeNanos)
+			}
+		}
 	}
 
 	companion object {
 		private const val TRANSITION_ACTIVITY_CONFIDENCE = 100
+		private const val NANOS_PER_MILLISECOND = 1_000_000L
+		private const val DURABLE_HANDOFF_TIMEOUT_MS = 8_000L
 
-		/**
-		 * The most recently detected activity.  Updated on each activity or transition
-		 * broadcast received.  Defaults to UNKNOWN before the first update.
-		 *
-		 * Written only by [ActivityReceiver.onReceive].
-		 */
 		@Volatile
 		var lastActivity: RecognizedActivity = RecognizedActivity.UNKNOWN
 			internal set
-
-		/**
-		 * Starts activity recognition via the Hilt-provided backend.
-		 * Callers should check [android.Manifest.permission.ACTIVITY_RECOGNITION] before calling.
-		 */
-		suspend fun startActivityRecognition(
-			context: Context,
-			interval: Int,
-			transitions: Collection<ActivityTransitionData>,
-		): Boolean {
-			val backend = EntryPointAccessors.fromApplication(
-				context.applicationContext,
-				ActivityReceiverEntryPoint::class.java,
-			).backend()
-			return backend.startUpdates(RecognitionConfig(interval, transitions))
-		}
-
-		/**
-		 * Stops activity recognition via the Hilt-provided backend.
-		 */
-		suspend fun stopActivityRecognition(context: Context) {
-			val backend = EntryPointAccessors.fromApplication(
-				context.applicationContext,
-				ActivityReceiverEntryPoint::class.java,
-			).backend()
-			backend.stopUpdates()
-		}
 	}
 }

@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
 import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
+import com.adsamcik.tracker.activity.api.ingress.ActivityIngressResult
+import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.google.android.gms.location.ActivityRecognitionResult
@@ -12,6 +14,7 @@ import dagger.hilt.android.EntryPointAccessors
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.mockk.every
+import io.mockk.coEvery
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
@@ -28,6 +31,8 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
@@ -36,6 +41,7 @@ class ActivityReceiverThreadSafetyTest {
 	private val receiver = ActivityReceiver()
 
 	private lateinit var mockBackend: GmsActivityRecognitionBackend
+	private lateinit var mockIngress: ActivityRecognitionEventIngress
 
 	@Before
 	fun setUp() {
@@ -45,10 +51,14 @@ class ActivityReceiverThreadSafetyTest {
 
 		// Mock the Hilt EntryPoint
 		mockBackend = mockk(relaxed = true)
+		mockIngress = mockk()
+		coEvery { mockIngress.admit(any()) } returns ActivityIngressResult.durable(1, 0)
 		every { mockBackend.lastActivity } returns RecognizedActivity(DetectedActivityType.UNKNOWN, 0)
 		every { mockBackend.lastActivityElapsedTimeMillis } returns 0L
 		val mockEntryPoint = mockk<ActivityReceiverEntryPoint> {
 			every { backend() } returns mockBackend
+			every { eventIngress() } returns mockIngress
+			every { applicationScope() } returns CoroutineScope(Dispatchers.Unconfined)
 		}
 		mockkStatic(EntryPointAccessors::class)
 		every {
@@ -72,6 +82,7 @@ class ActivityReceiverThreadSafetyTest {
 		}
 		val result = mockk<ActivityRecognitionResult> {
 			every { mostProbableActivity } returns gmsActivity
+			every { elapsedRealtimeMillis } returns 1L
 		}
 
 		every { ActivityRecognitionResult.hasResult(any()) } returns true

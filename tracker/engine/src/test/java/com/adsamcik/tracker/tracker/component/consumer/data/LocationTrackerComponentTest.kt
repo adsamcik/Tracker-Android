@@ -11,7 +11,7 @@ import com.adsamcik.tracker.tracker.altitude.AltitudeProcessor
 import com.adsamcik.tracker.tracker.altitude.GeoidAltitudeConversionOutcome
 import com.adsamcik.tracker.tracker.altitude.GeoidAltitudeConverter
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
-import com.adsamcik.tracker.tracker.component.producer.PressureReading
+import com.adsamcik.tracker.tracker.data.collection.PressureReading
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull

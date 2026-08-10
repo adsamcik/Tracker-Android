@@ -19,8 +19,6 @@ import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import com.adsamcik.tracker.stats.api.repository.UnconsumedEvent
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import com.adsamcik.tracker.stats.api.value.EpochMs
-import com.adsamcik.tracker.tracker.component.CollectionTriggerComponent
-import com.adsamcik.tracker.tracker.component.NoTimer
 import com.adsamcik.tracker.tracker.controller.DefaultTrackerServiceController
 import io.kotest.matchers.collections.shouldHaveAtLeastSize
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
@@ -144,8 +142,6 @@ class SessionCrashRecoveryTest {
 			isSessionUserInitiated = true,
 			initialTier = PolicyTier.PRECISION,
 			scope = backgroundScope,
-			timerReceiver = mockk(relaxed = true),
-			timerAccessor = NoOpTimerAccessor(),
 		)
 		testDispatcher.scheduler.advanceUntilIdle()
 
@@ -259,8 +255,6 @@ class SessionCrashRecoveryTest {
 			isSessionUserInitiated = true,
 			initialTier = PolicyTier.PRECISION,
 			scope = scope,
-			timerReceiver = mockk(relaxed = true),
-			timerAccessor = NoOpTimerAccessor(),
 		)
 		testDispatcher.scheduler.advanceUntilIdle()
 		orchestrator.shutdown(context)
@@ -377,14 +371,6 @@ class SessionCrashRecoveryTest {
 		}
 		override suspend fun setVehicleSpeedLimitBaselineMps(mps: Double) {
 			state.update { it.copy(vehicleSpeedLimitBaselineMps = mps) }
-		}
-	}
-
-	private class NoOpTimerAccessor : TrackerTierEscalationHandler.TimerAccessor {
-		private var timer: CollectionTriggerComponent = NoTimer()
-		override fun get(): CollectionTriggerComponent = timer
-		override fun set(timer: CollectionTriggerComponent) {
-			this.timer = timer
 		}
 	}
 
