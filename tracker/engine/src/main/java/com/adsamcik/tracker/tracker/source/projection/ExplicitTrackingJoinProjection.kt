@@ -89,6 +89,7 @@ class ExplicitTrackingJoinProjection @Inject constructor(
 					kind = OUTBOX_KIND,
 					payloadVersion = JoinedFrameEffectCodec.VERSION,
 					payload = JoinedFrameEffectCodec.encode(anchor.consumerId, frame),
+					requiresDelivery = false,
 				),
 			)
 			anchor.lastFrameId = frame.frameId

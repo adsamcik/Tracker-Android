@@ -4,6 +4,11 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.tracker.altitude.BarometricAltitudeFormula
+import com.adsamcik.tracker.tracker.source.model.ActivityRecognitionPayload
+import com.adsamcik.tracker.tracker.source.model.CellObservationEvidence
+import com.adsamcik.tracker.tracker.source.model.CellRefreshOutcome
+import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
+import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
@@ -15,6 +20,8 @@ import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
 import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
+import com.adsamcik.tracker.tracker.source.model.WifiAccessPointEvidence
+import com.adsamcik.tracker.tracker.source.model.WifiResultSnapshotPayload
 import com.adsamcik.tracker.tracker.source.runtime.PressureWindowAccumulator
 import com.adsamcik.tracker.tracker.source.runtime.StepWindowAccumulator
 import io.kotest.matchers.floats.plusOrMinus
@@ -109,8 +116,43 @@ class EventTrackingFrameProjectionTest {
 	}
 
 	@Test
+	fun `all event-owned source payloads round trip into terminal tracking cycles`() {
+		val payloads = listOf(
+			LocationFixPayload(50.0, 14.0, 5f, 250.0, 4f, 2f, 90f, "gps"),
+			ActivityRecognitionPayload(activityType = 1, confidencePercent = 88, providerElapsedRealtimeNanos = 10L),
+			WifiResultSnapshotPayload(
+				listOf(WifiAccessPointEvidence("0123456789abcdef", 5_200, -60)),
+				platformTimestampMs = 1L,
+				resultAgeMs = 0L,
+			),
+			CellSnapshotPayload(
+				subscriptionId = 1,
+				observations = listOf(
+					CellObservationEvidence("fedcba9876543210", "LTE", true, -90, 10L),
+				),
+				refreshOutcome = CellRefreshOutcome.CALLBACK,
+			),
+		)
+
+		val cycles = payloads.mapIndexed { index, payload ->
+			val cycle = requireNotNull(event("source-$index", index + 1L, payload).toEventTrackingFrame())
+			val encoded = EventTrackingFrameEffectCodec.encode("tracking", cycle)
+			EventTrackingFrameEffectCodec.decode(encoded, EventTrackingFrameEffectCodec.VERSION).cycle
+		}
+
+		cycles[0].location?.lastLocation?.latitude shouldBe 50.0
+		cycles[0].location?.lastFixMetadata?.sourceEventId shouldBe "source-0"
+		cycles[1].activity?.activityType shouldBe 7
+		cycles[1].activity?.confidence shouldBe 88
+		cycles[2].normalizedWifiScan?.networks?.single()?.bssid shouldBe "0123456789abcdef"
+		cycles[2].normalizedWifiScan?.networks?.single()?.level shouldBe -60
+		cycles[3].normalizedCellScan?.towers?.single()?.networkType shouldBe 4
+		cycles[3].normalizedCellScan?.towers?.single()?.signalStrength shouldBe -90
+	}
+
+	@Test
 	fun `committed event frame is delivered once and retains stable identity`() = runTest {
-		val projection = EventTrackingFrameProjection()
+		val projection = EventTrackingFrameProjection(database)
 		val projections = ProjectionDispatcher(database, setOf(projection))
 		projections.registerAll(1L)
 		val payload = StepCounterWindowPayload("boot", 100, 105, 5, 10, 20, 1, 2, false)

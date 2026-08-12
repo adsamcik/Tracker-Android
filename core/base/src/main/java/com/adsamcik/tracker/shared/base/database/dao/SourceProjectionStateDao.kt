@@ -35,6 +35,27 @@ interface SourceProjectionStateDao {
 	suspend fun registration(projectionId: String, projectionVersion: Int): SourceProjectionRegistrationEntity?
 
 	@Query(
+		"UPDATE source_projection_registration SET status = :status " +
+			"WHERE projection_id = :projectionId AND projection_version = :projectionVersion",
+	)
+	suspend fun updateRegistrationStatus(
+		projectionId: String,
+		projectionVersion: Int,
+		status: String,
+	): Int
+
+	@Query(
+		"UPDATE source_projection_registration SET status = :retiredStatus " +
+			"WHERE projection_id = :projectionId AND projection_version != :activeVersion " +
+			"AND status != :retiredStatus",
+	)
+	suspend fun retireOtherRegistrationVersions(
+		projectionId: String,
+		activeVersion: Int,
+		retiredStatus: String,
+	): Int
+
+	@Query(
 		"SELECT * FROM source_projection_checkpoint " +
 			"WHERE projection_id = :projectionId AND projection_version = :projectionVersion",
 	)
@@ -133,10 +154,29 @@ interface SourceProjectionStateDao {
 	suspend fun pendingOutbox(effectKind: String, limit: Int): List<SourceProjectionOutboxEntity>
 
 	@Query(
+		"SELECT * FROM source_projection_outbox WHERE delivered_at_ms IS NULL " +
+			"AND effect_kind = :effectKind AND (admission_ordinal > :afterOrdinal OR " +
+			"(admission_ordinal = :afterOrdinal AND stable_id > :afterStableId)) " +
+			"ORDER BY admission_ordinal ASC, stable_id ASC LIMIT :limit",
+	)
+	suspend fun pendingOutboxAfter(
+		effectKind: String,
+		afterOrdinal: Long,
+		afterStableId: String,
+		limit: Int,
+	): List<SourceProjectionOutboxEntity>
+
+	@Query(
 		"UPDATE source_projection_outbox SET delivered_at_ms = :deliveredAtMs " +
 			"WHERE stable_id = :stableId AND delivered_at_ms IS NULL",
 	)
 	suspend fun markOutboxDelivered(stableId: String, deliveredAtMs: Long): Int
+
+	@Query(
+		"UPDATE source_projection_outbox SET delivered_at_ms = :completedAtMs " +
+			"WHERE effect_kind IN (:effectKinds) AND delivered_at_ms IS NULL",
+	)
+	suspend fun completeOutboxKinds(effectKinds: List<String>, completedAtMs: Long): Int
 
 	@Query(
 		"DELETE FROM source_projection_outbox WHERE stable_id IN (" +

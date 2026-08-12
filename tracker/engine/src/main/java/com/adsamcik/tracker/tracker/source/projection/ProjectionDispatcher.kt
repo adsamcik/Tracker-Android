@@ -24,7 +24,8 @@ class ProjectionDispatcher @Inject constructor(
 		projections.forEach { projection ->
 			database.withTransaction {
 				val dao = database.sourceProjectionStateDao()
-				if (dao.registration(projection.id, projection.version) == null) {
+				val registration = dao.registration(projection.id, projection.version)
+				if (registration == null) {
 					dao.register(
 						SourceProjectionRegistrationEntity(
 							projectionId = projection.id,
@@ -44,7 +45,12 @@ class ProjectionDispatcher @Inject constructor(
 							updatedAtMs = System.currentTimeMillis(),
 						),
 					)
+				} else if (registration.status != STATUS_ACTIVE) {
+					check(dao.updateRegistrationStatus(projection.id, projection.version, STATUS_ACTIVE) == 1) {
+						"Unable to activate projection ${projection.id} v${projection.version}"
+					}
 				}
+				dao.retireOtherRegistrationVersions(projection.id, projection.version, STATUS_RETIRED)
 			}
 		}
 	}
@@ -127,6 +133,7 @@ class ProjectionDispatcher @Inject constructor(
 
 	private companion object {
 		const val STATUS_ACTIVE = "ACTIVE"
+		const val STATUS_RETIRED = "RETIRED"
 	}
 }
 
@@ -160,6 +167,7 @@ private class RoomProjectionContext(
 	private val admissionOrdinal: Long,
 ) : ProjectionContext {
 	override suspend fun recordOutbox(effect: ProjectionOutboxEffect) {
+		val createdAtMs = System.currentTimeMillis()
 		database.sourceProjectionStateDao().insertOutbox(
 			SourceProjectionOutboxEntity(
 				stableId = effect.stableId,
@@ -169,8 +177,8 @@ private class RoomProjectionContext(
 				effectKind = effect.kind,
 				payloadVersion = effect.payloadVersion,
 				payload = effect.payload,
-				createdAtMs = System.currentTimeMillis(),
-				deliveredAtMs = null,
+				createdAtMs = createdAtMs,
+				deliveredAtMs = createdAtMs.takeUnless { effect.requiresDelivery },
 			),
 		)
 	}

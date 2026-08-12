@@ -86,6 +86,32 @@ class ProjectionDispatcherTest {
 		state?.payload?.toList() shouldBe listOf(1.toByte(), 2.toByte())
 	}
 
+	@Test
+	fun `new projection version retires the prior checkpoint and starts replay from activation`() = runTest {
+		val first = ProjectionDispatcher(database, setOf(VersionedProjection(1)))
+		first.registerAll(1L)
+		first.dispatch(event(1L)).complete shouldBe true
+
+		val upgraded = ProjectionDispatcher(database, setOf(VersionedProjection(2)))
+		upgraded.registerAll(1L)
+
+		database.sourceProjectionStateDao().registration("versioned", 1)?.status shouldBe "RETIRED"
+		database.sourceProjectionStateDao().registration("versioned", 2)?.status shouldBe "ACTIVE"
+		database.sourceProjectionStateDao().checkpoint("versioned", 2)
+			?.contiguousAdmissionOrdinal shouldBe 0L
+		upgraded.dispatch(event(1L)).complete shouldBe true
+	}
+
+	@Test
+	fun `projection records without delivery endpoints are completed at commit`() = runTest {
+		val subject = ProjectionDispatcher(database, setOf(CompletedRecordProjection()))
+		subject.registerAll(1L)
+
+		subject.dispatch(event(1L)).complete shouldBe true
+
+		database.sourceProjectionStateDao().pendingOutbox("record", 10).size shouldBe 0
+	}
+
 	private fun event(ordinal: Long) = AdmittedSourceEvent(
 		eventId = SourceEventId("event-$ordinal"),
 		admissionOrdinal = ordinal,
@@ -152,4 +178,23 @@ private class RetentionProjection : Projection {
 		)
 	}
 
+}
+
+private class VersionedProjection(override val version: Int) : Projection {
+	override val id = "versioned"
+	override suspend fun apply(
+		event: AdmittedSourceEvent<out com.adsamcik.tracker.tracker.source.model.SourcePayload>,
+		context: ProjectionContext,
+	) = Unit
+}
+
+private class CompletedRecordProjection : Projection {
+	override val id = "completed-record"
+	override val version = 1
+	override suspend fun apply(
+		event: AdmittedSourceEvent<out com.adsamcik.tracker.tracker.source.model.SourcePayload>,
+		context: ProjectionContext,
+	) {
+		context.recordOutbox(ProjectionOutboxEffect("record-1", "record", 1, byteArrayOf(1), false))
+	}
 }

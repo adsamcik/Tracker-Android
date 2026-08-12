@@ -3,6 +3,8 @@ package com.adsamcik.tracker.tracker.data.collection
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.LocationData
 import com.adsamcik.tracker.shared.base.data.LocationProviderObservation
+import com.adsamcik.tracker.stats.api.signal.CellTowerReading
+import com.adsamcik.tracker.stats.api.signal.WifiNetworkReading
 import java.util.UUID
 
 /**
@@ -22,6 +24,10 @@ internal data class TrackingCycle(
 	val cellScan: CellScanData? = null,
 	val cellScanFresh: Boolean = false,
 	val wifiScan: WifiScanData? = null,
+	/** Normalized event-owned cell evidence that no longer has an Android CellInfo wrapper. */
+	val normalizedCellScan: NormalizedCellScanData? = null,
+	/** Normalized event-owned Wi-Fi evidence that no longer has an Android ScanResult wrapper. */
+	val normalizedWifiScan: NormalizedWifiScanData? = null,
 	val stepDelta: Int? = null,
 	val totalStepsSinceBoot: Long? = null,
 	val stepSensorValueStart: Int = 0,
@@ -51,7 +57,9 @@ internal data class TrackingCycle(
 internal fun TrackingCycle.hasPersistableProducerPayload(): Boolean =
 	(activityFresh && activity != null) ||
 		(cellScanFresh && cellScan != null) ||
+		normalizedCellScan?.towers?.isNotEmpty() == true ||
 		wifiScan != null ||
+		normalizedWifiScan?.networks?.isNotEmpty() == true ||
 		(stepDelta != null && (stepDelta > 0 || stepSensorReset)) ||
 		pressure != null
 
@@ -64,3 +72,17 @@ internal fun TrackingCycle.isLocationObservationOnly(): Boolean =
 		wifiScan == null &&
 		stepDelta == null &&
 		pressure == null
+
+internal data class NormalizedCellScanData(
+	val towers: List<CellTowerReading>,
+	val observedAtMs: Long,
+	val observedElapsedRealtimeNanos: Long,
+	val sourceSequence: Long,
+)
+
+internal data class NormalizedWifiScanData(
+	val networks: List<WifiNetworkReading>,
+	val observedAtMs: Long,
+	val observedElapsedRealtimeNanos: Long,
+	val sourceSequence: Long,
+)

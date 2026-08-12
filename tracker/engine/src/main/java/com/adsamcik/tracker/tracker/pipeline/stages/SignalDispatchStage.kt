@@ -40,7 +40,7 @@ internal class SignalDispatchStage(
 			// A partial curated object is not an accepted persisted sample.
 			val locationAccepted = collectionData.location?.horizontalAccuracy != null
 
-			val cellTowers = cycle.cellScan
+			val cellTowers = cycle.normalizedCellScan?.towers ?: cycle.cellScan
 				?.takeIf { cycle.cellScanFresh }
 				?.registeredCells
 				?.map { cell ->
@@ -54,7 +54,7 @@ internal class SignalDispatchStage(
 				)
 			}
 
-			val wifiNetworks = collectionData.wifi?.inRange?.map { network ->
+			val wifiNetworks = cycle.normalizedWifiScan?.networks ?: collectionData.wifi?.inRange?.map { network ->
 				com.adsamcik.tracker.stats.api.signal.WifiNetworkReading(
 					bssid = network.bssid,
 					ssid = network.ssid.orEmpty(),
@@ -139,15 +139,21 @@ internal class SignalDispatchStage(
 				stepSourceFirstSequence = cycle.stepSourceFirstSequence,
 				stepSourceLastSequence = cycle.stepSourceLastSequence,
 				cellTowers = cellTowers,
-				cellObservedAtMs = cycle.cellScan?.observedAtEpochMs,
+				cellObservedAtMs = cycle.normalizedCellScan?.observedAtMs
+					?: cycle.cellScan?.observedAtEpochMs,
 				cellObservedElapsedRealtimeNanos =
-					cycle.cellScan?.observedAtElapsedRealtimeNanos,
-				cellSourceSequence = cycle.cellScan?.sourceSequence,
+					cycle.normalizedCellScan?.observedElapsedRealtimeNanos
+						?: cycle.cellScan?.observedAtElapsedRealtimeNanos,
+				cellSourceSequence = cycle.normalizedCellScan?.sourceSequence
+					?: cycle.cellScan?.sourceSequence,
 				wifiNetworks = wifiNetworks,
 				pressureHpa = cycle.pressure?.pressureHpa,
-				wifiTimestampMs = collectionData.wifi?.time,
-				wifiElapsedRealtimeNanos = cycle.wifiScan?.relativeTimeNanos,
-				wifiSourceSequence = cycle.wifiScan?.sourceSequence,
+				wifiTimestampMs = cycle.normalizedWifiScan?.observedAtMs
+					?: collectionData.wifi?.time,
+				wifiElapsedRealtimeNanos = cycle.normalizedWifiScan?.observedElapsedRealtimeNanos
+					?: cycle.wifiScan?.relativeTimeNanos,
+				wifiSourceSequence = cycle.normalizedWifiScan?.sourceSequence
+					?: cycle.wifiScan?.sourceSequence,
 				wifiLatitude = collectionData.wifi?.location?.latitude,
 				wifiLongitude = collectionData.wifi?.location?.longitude,
 				wifiCoordinateProvenance = if (collectionData.wifi?.location != null) {

@@ -66,6 +66,7 @@ class LocationDomainProjection @Inject constructor(
 						kind = kind,
 						payloadVersion = LocationProjectionCodec.VERSION,
 						payload = LocationProjectionCodec.encodeEffect(logicalTrackingId, point),
+						requiresDelivery = false,
 					),
 				)
 			}
@@ -82,7 +83,7 @@ class LocationDomainProjection @Inject constructor(
 		const val SPEED_EFFECT_KIND = "location-speed-v1"
 		const val ALTITUDE_EFFECT_KIND = "location-altitude-v1"
 		const val POLICY_EFFECT_KIND = "location-policy-evidence-v1"
-		private val LOCATION_EFFECT_KINDS = listOf(
+		internal val LOCATION_EFFECT_KINDS = listOf(
 			ROUTE_EFFECT_KIND,
 			SPEED_EFFECT_KIND,
 			ALTITUDE_EFFECT_KIND,

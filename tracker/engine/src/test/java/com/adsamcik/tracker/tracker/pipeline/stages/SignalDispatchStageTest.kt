@@ -9,11 +9,15 @@ import com.adsamcik.tracker.stats.api.processor.ProcessorContext
 import com.adsamcik.tracker.stats.api.processor.ProcessorDescriptor
 import com.adsamcik.tracker.stats.api.processor.SignalProcessor
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
+import com.adsamcik.tracker.stats.api.signal.CellTowerReading
+import com.adsamcik.tracker.stats.api.signal.WifiNetworkReading
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.tracker.pipeline.CycleContext
 import com.adsamcik.tracker.tracker.pipeline.ProcessorPipeline
 import com.adsamcik.tracker.tracker.pipeline.TestCycleFactory
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
+import com.adsamcik.tracker.tracker.data.collection.NormalizedCellScanData
+import com.adsamcik.tracker.tracker.data.collection.NormalizedWifiScanData
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -123,6 +127,53 @@ class SignalDispatchStageTest {
 
 		processor.observedSignals[0].activityFresh shouldBe true
 		processor.observedSignals[1].activityFresh shouldBe false
+	}
+
+	@Test
+	fun `dispatches normalized event-owned Wi-Fi and cell snapshots`() = runTest {
+		val processor = CapturingProcessor()
+		val processorPipeline = ProcessorPipeline(processors = setOf(processor))
+		val stage = SignalDispatchStage(
+			processorPipelineProvider = { processorPipeline },
+			currentTierProvider = { PolicyTier.AMBIENT },
+		)
+		processorPipeline.start(PolicyTier.AMBIENT, EpochMs(0L))
+
+		stage.process(
+			context,
+			CycleContext(
+				TrackingCycle(
+					1_000L,
+					1_000_000_000L,
+					normalizedWifiScan = NormalizedWifiScanData(
+						listOf(WifiNetworkReading("token", "", "", 5_200, -60)),
+						1_000L,
+						1_000_000_000L,
+						1L,
+					),
+				),
+				MutableCollectionData(1_000L),
+			),
+		)
+		stage.process(
+			context,
+			CycleContext(
+				TrackingCycle(
+					2_000L,
+					2_000_000_000L,
+					normalizedCellScan = NormalizedCellScanData(
+						listOf(CellTowerReading(1L, "", "", 4, -90)),
+						2_000L,
+						2_000_000_000L,
+						2L,
+					),
+				),
+				MutableCollectionData(2_000L),
+			),
+		)
+
+		processor.observedSignals[0].wifi?.networks?.single()?.bssid shouldBe "token"
+		processor.observedSignals[1].cells?.towers?.single()?.signalStrength shouldBe -90
 	}
 
 	@Test

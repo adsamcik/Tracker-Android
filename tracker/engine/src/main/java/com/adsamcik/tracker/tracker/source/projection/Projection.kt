@@ -29,4 +29,6 @@ data class ProjectionOutboxEffect(
 	val kind: String,
 	val payloadVersion: Int,
 	val payload: ByteArray,
+	/** False for replayable projection records that have no external delivery endpoint. */
+	val requiresDelivery: Boolean = true,
 )
