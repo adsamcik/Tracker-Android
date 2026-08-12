@@ -24,6 +24,8 @@ import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
 import com.adsamcik.tracker.tracker.source.model.StableActivityTypeCode
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
 import com.adsamcik.tracker.tracker.source.control.CollectionMotionController
+import dev.tracebox.Tracebox
+import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -93,9 +95,21 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 				}
 			}
 		}.getOrElse { failure ->
+			if (failure is CancellationException) throw failure
 			ActivityIngressResult.retryable(0, 0, failure.javaClass.simpleName.ifBlank { "storage_unavailable" })
 		}
-		if (result.isDurable) runCatching { sourcePipelineRecovery.drainCommittedWork() }
+		if (result.isDurable) {
+			try {
+				val recovered = sourcePipelineRecovery.drainCommittedWork()
+				if (recovered.drain !is com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult.Complete) {
+					Tracebox.log.warn("Activity source projection recovery was deferred")
+				}
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (error: Throwable) {
+				Tracebox.log.error(error, "Activity source projection recovery failed")
+			}
+		}
 		return result
 	}
 

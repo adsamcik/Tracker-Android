@@ -9,6 +9,8 @@ import com.adsamcik.tracker.tracker.source.control.CollectionMotionController
 import com.adsamcik.tracker.tracker.source.runtime.SourceAdmissionFailureCode
 import com.adsamcik.tracker.tracker.source.runtime.SourceAdmissionHandoff
 import com.adsamcik.tracker.tracker.source.runtime.SourceEventSink
+import dev.tracebox.Tracebox
+import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -44,7 +46,16 @@ class DurableSourceEventSinkFactory private constructor(
 		val result = ingress.admit(candidate)
 		if (result.isDurable) {
 			motionController?.onDurableEvidence(candidate)
-			runCatching { recovery?.drainCommittedWork() }
+			try {
+				val recovered = recovery?.drainCommittedWork()
+				if (recovered != null && recovered.drain !is com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult.Complete) {
+					Tracebox.log.warn("Durable source projection recovery was deferred")
+				}
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (error: Throwable) {
+				Tracebox.log.error(error, "Durable source projection recovery failed")
+			}
 		}
 		return result.toHandoff()
 	}

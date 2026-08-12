@@ -515,7 +515,15 @@ object BackgroundTrackingApi {
 			ctx,
 			com.adsamcik.tracker.activity.R.string.settings_activity_freq_key,
 			com.adsamcik.tracker.activity.R.string.settings_activity_freq_default
-		).onEach { activityFreqSeconds = it }
+		).onEach { frequencySeconds ->
+			val changed = frequencySeconds != activityFreqSeconds
+			activityFreqSeconds = frequencySeconds
+			if (changed && isActive) {
+				reinitializeRequest(ctx, cachedParamsSnapshot().transitionDetectionEnabled)
+			} else {
+				getWatcherController(ctx).poke()
+			}
+		}
 			.catch { error ->
 				Tracebox.log.error(error, "Application initialization failed")
 			}

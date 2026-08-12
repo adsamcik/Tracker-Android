@@ -29,6 +29,8 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import dev.tracebox.Tracebox
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -83,9 +85,16 @@ internal class ActivityReceiver : BroadcastReceiver() {
 				val admission = withTimeout(DURABLE_HANDOFF_TIMEOUT_MS) {
 					admitWithRetry(entryPoint.eventIngress(), delivery.batch)
 				}
-				if (admission.isDurable) delivery.publishTo(entryPoint.backend())
-			} catch (_: Throwable) {
+				if (admission.isDurable) {
+					delivery.publishTo(entryPoint.backend())
+				} else {
+					Tracebox.log.warn("Activity callback durable handoff was not completed")
+				}
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (error: Throwable) {
 				// A failed handoff must not leak a non-durable in-process effect.
+				Tracebox.log.error(error, "Activity callback durable handoff failed")
 			} finally {
 				pendingResult.finish()
 			}

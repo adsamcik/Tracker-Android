@@ -570,7 +570,7 @@ internal class TrackerService : CoreService() {
 						descriptor.logicalTrackingId,
 						descriptor.serviceRunId,
 						SystemClock.elapsedRealtimeNanos(),
-						initialMotion = !isUserInitiated && !isRecovery,
+						initialMotion = true,
 					)
 					when (val sourceStart = sourceSession.start(
 						SourceSessionStartRequest(
