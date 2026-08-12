@@ -121,6 +121,48 @@ class AuthoritativeSessionCoordinatorTest {
 		database.sourceSessionDao().session("logical-1")?.desiredPlanRevision shouldBe 2L
 	}
 
+	@Test
+	fun `source start failure closes partial runtimes and marks durable lifecycle failed`() = runTest {
+		runtime.throwOnStart = true
+
+		val failed = subject.start(
+			startRequest().copy(logicalTrackingId = "logical-failed", serviceRunId = "run-failed"),
+		).shouldBeInstanceOf<SessionStartResult.Failed>()
+
+		failed.code shouldBe "NO_SOURCE_STARTED"
+		database.sourceSessionDao().session("logical-failed")?.state shouldBe SessionLifecycleState.FAILED.name
+		database.sourceSessionDao().serviceRun("run-failed")?.state shouldBe SessionLifecycleState.FAILED.name
+		runtime.closed shouldBe true
+	}
+
+	@Test
+	fun `failed reconfiguration restores the previous plan atomically`() = runTest {
+		subject.start(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		runtime.failRevisions += 2L
+
+		val result = subject.reconfigure(reconfigureRequest(2L))
+			.shouldBeInstanceOf<SessionReconfigureResult.RolledBack>()
+
+		result.restoredRevision shouldBe 1L
+		runtime.currentRevision shouldBe 1L
+		runtime.reconfiguredRevisions shouldBe listOf(2L, 1L)
+		database.sourceSessionDao().activeSession()?.state shouldBe SessionLifecycleState.RUNNING.name
+		database.sourceSessionDao().activeSession()?.desiredPlanRevision shouldBe 1L
+		database.sourcePlanStateDao().revision(2L)?.status shouldBe DesiredPlanStatus.FAILED.name
+	}
+
+	@Test
+	fun `rollback failure stops sources and marks the session failed`() = runTest {
+		val started = subject.start(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		runtime.failRevisions += setOf(1L, 2L)
+
+		subject.reconfigure(reconfigureRequest(2L))
+			.shouldBeInstanceOf<SessionReconfigureResult.Failed>()
+
+		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe SessionLifecycleState.FAILED.name
+		runtime.closed shouldBe true
+	}
+
 	private fun startRequest() = SessionStartRequest(
 		ownerToken = "test-owner",
 		origin = SessionStartOrigin.MANUAL_FOREGROUND,
@@ -135,6 +177,18 @@ class AuthoritativeSessionCoordinatorTest {
 		foregroundCapabilityFlags = 0,
 		wallTimeMs = 1_000,
 		elapsedRealtimeNanos = 1_000_000,
+	)
+
+	private fun reconfigureRequest(revision: Long) = SessionReconfigureRequest(
+		ownerToken = "test-owner",
+		plan = AcquisitionPlanRevision(
+			revision = revision,
+			planId = "plan-$revision",
+			createdAtMs = revision * 1_000L,
+			plans = mapOf(SourceKind.STEPS to StepsPlan(revision, true, 2_000, 2_000, true)),
+		),
+		wallTimeMs = revision * 1_000L,
+		elapsedRealtimeNanos = revision * 1_000_000L,
 	)
 
 	private fun fixedEventRolloutStore() = object : TrackingRolloutStateStore {
@@ -159,13 +213,30 @@ private class FakeStepsRuntime(private val database: AppDatabase) : SourceRuntim
 	override val capabilities = MutableStateFlow(SourceCapabilities(true, true, true, 100, 1))
 	var stateObservedAtStart: String? = null
 	var closed = false
+	var throwOnStart = false
+	val failRevisions = mutableSetOf<Long>()
+	val reconfiguredRevisions = mutableListOf<Long>()
+	var currentRevision: Long? = null
 
 	override suspend fun start(plan: StepsPlan, sink: SourceEventSink): SourceStartResult {
 		stateObservedAtStart = database.sourceSessionDao().activeSession()?.state
+		if (throwOnStart) error("start failed")
+		currentRevision = plan.revision
 		return SourceStartResult.Started(applied(plan))
 	}
 
-	override suspend fun reconfigure(plan: StepsPlan): SourceApplyResult = SourceApplyResult.Applied(applied(plan))
+	override suspend fun reconfigure(plan: StepsPlan): SourceApplyResult {
+		reconfiguredRevisions += plan.revision
+		if (plan.revision in failRevisions) {
+			currentRevision = null
+			return SourceApplyResult.Failed(
+				applied(plan).copy(appliedRevision = null, status = SourceApplyStatus.FAILED),
+				retryable = false,
+			)
+		}
+		currentRevision = plan.revision
+		return SourceApplyResult.Applied(applied(plan))
+	}
 
 	override suspend fun quiesce(cutoff: SessionCutoff) = SourceStopAck(
 		source = source,
@@ -187,6 +258,7 @@ private class FakeStepsRuntime(private val database: AppDatabase) : SourceRuntim
 
 	override suspend fun close() {
 		closed = true
+		currentRevision = null
 	}
 
 	private fun applied(plan: SourcePlan) = AppliedSourcePlan(

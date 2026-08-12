@@ -11,6 +11,7 @@ import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.kotest.assertions.throwables.shouldThrow
 import io.mockk.coEvery
 import io.mockk.mockk
 import io.mockk.slot
@@ -80,6 +81,30 @@ class TrackerServiceSourceSessionTest {
 		subject.reconfigure(
 			inputs(settings(steps = SourceCollectionFrequency.BALANCED)),
 		).shouldBeInstanceOf<SourceSessionReconfigureOutcome.Started>()
+	}
+
+	@Test
+	fun `startup exception clears the in-memory active session`() = runTest {
+		val rollout = TrackingRolloutState.eventCanonical(revision = 5)
+		val enabledSettings = settings(steps = SourceCollectionFrequency.BALANCED)
+		coEvery { lifecycle.start(any()) } throws IllegalStateException("coordinator failed")
+
+		shouldThrow<IllegalStateException> {
+			subject.start(
+				SourceSessionStartRequest(
+					rollout = rollout,
+					ownership = TrackingSessionOwnership.resolve(rollout, enabledSettings),
+					logicalTrackingId = "logical",
+					serviceRunId = "run",
+					origin = SessionStartOrigin.MANUAL_FOREGROUND,
+					foregroundCapabilityFlags = 1,
+					planInputs = inputs(enabledSettings),
+					ownerToken = "owner",
+				),
+			)
+		}
+
+		subject.reconfigure(inputs(enabledSettings)) shouldBe SourceSessionReconfigureOutcome.NotActive
 	}
 
 	private fun inputs(settings: TrackingParamsState) = SourceSessionPlanInputs(

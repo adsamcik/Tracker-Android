@@ -24,9 +24,12 @@ import com.adsamcik.tracker.tracker.source.runtime.SourceStopStatus
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 /** Room-first lifecycle actor for logical tracking sessions and their service runs. */
@@ -113,12 +116,22 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					state.status in setOf(SourceApplyStatus.APPLIED, SourceApplyStatus.DEGRADED)
 			}
 			if (!hasRunningSource) {
+				closePlanRuntimes(request.plan)
+				planStore.updateStatus(request.plan.revision, DesiredPlanStatus.FAILED)
 				markStartFailed(logicalTrackingId, serviceRunId, request.wallTimeMs, "NO_SOURCE_STARTED")
 				SessionStartResult.Failed(logicalTrackingId, serviceRunId, applied, "NO_SOURCE_STARTED")
 			} else {
 				markRunning(logicalTrackingId, serviceRunId)
 				SessionStartResult.Started(logicalTrackingId, serviceRunId, applied, effectiveStatus)
 			}
+		} catch (cancelled: CancellationException) {
+			withContext(NonCancellable) { recoverInterruptedStart(request, "START_CANCELLED") }
+			throw cancelled
+		} catch (failure: Throwable) {
+			recoverInterruptedStart(
+				request,
+				"START_EXCEPTION:${failure.javaClass.simpleName.ifBlank { "UNKNOWN" }}",
+			) ?: throw failure
 		} finally {
 			releaseLease(request.ownerToken)
 		}
@@ -188,6 +201,8 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			markRunning(session.logicalTrackingId, serviceRunId)
 			SessionStartResult.Started(session.logicalTrackingId, serviceRunId, applied, effectiveStatus)
 		} else {
+			closePlanRuntimes(request.plan)
+			planStore.updateStatus(request.plan.revision, DesiredPlanStatus.FAILED)
 			markStartFailed(session.logicalTrackingId, serviceRunId, request.wallTimeMs, "NO_SOURCE_RESTORED")
 			SessionStartResult.Failed(
 				session.logicalTrackingId,
@@ -205,12 +220,20 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		val rolloutFailure = rollout.validateEventPlan(sessionForRollout.rolloutRevision, request.plan)
 		if (rolloutFailure != null) return SessionReconfigureResult.InvalidRollout(rolloutFailure)
 		if (!acquireLease(request.ownerToken)) return SessionReconfigureResult.Busy
+		var recoverySession: LogicalTrackingSessionEntity? = null
+		var recoveryPreviousPlan: AcquisitionPlanRevision? = null
+		val attempted = mutableListOf<AppliedSourcePlan>()
 		return try {
 			val session = database.sourceSessionDao().activeSession()
 				?: return SessionReconfigureResult.NoActiveSession
+			recoverySession = session
 			if (session.state != SessionLifecycleState.RUNNING.name) {
 				return SessionReconfigureResult.InvalidState(session.state)
 			}
+			val previousPlan = requireNotNull(planStore.load(session.desiredPlanRevision)) {
+				"Active session plan ${session.desiredPlanRevision} is missing"
+			}
+			recoveryPreviousPlan = previousPlan
 			planStore.persistDesired(request.plan, DesiredPlanStatus.APPLYING)
 			database.sourceSessionDao().updateSession(
 				session.copy(
@@ -222,7 +245,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			val existing = database.sourcePlanStateDao().appliedStates().associateBy { it.sourceKind }
 			val serviceRun = requireNotNull(database.sourceSessionDao().latestServiceRun(session.logicalTrackingId))
 			val sink = sinkFactory.forSession(session.logicalTrackingId, serviceRun.serviceRunId)
-			val applied = request.plan.plans.values.sortedBy { it.source.stableCode }.map { plan ->
+			for (plan in request.plan.plans.values.sortedBy { it.source.stableCode }) {
 				renewLease(request.ownerToken)
 				val state = if (existing[plan.source.stableCode]?.sourceInstanceId == null) {
 					startSource(plan, sink, request.elapsedRealtimeNanos)
@@ -230,10 +253,49 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					reconfigureSource(plan, request.elapsedRealtimeNanos)
 				}
 				planStore.saveApplied(state, request.wallTimeMs)
-				state
+				attempted += state
+				if (state.status.requiresCoordinatorRollback) break
 			}
-			val status = applied.desiredStatus()
+			val applicationFailed = attempted.any { state ->
+				state.status.requiresCoordinatorRollback
+			}
+			if (applicationFailed) {
+				val restored = rollbackAttemptedSources(previousPlan, attempted, request)
+				planStore.updateStatus(request.plan.revision, DesiredPlanStatus.FAILED)
+				if (restored.all { it.status.isSuccessfulRestoration }) {
+					val updated = requireNotNull(database.sourceSessionDao().session(session.logicalTrackingId))
+					database.sourceSessionDao().updateSession(
+						updated.copy(
+							state = SessionLifecycleState.RUNNING.name,
+							lifecycleRevision = updated.lifecycleRevision + 1,
+							desiredPlanRevision = previousPlan.revision,
+						),
+					)
+					return SessionReconfigureResult.RolledBack(
+						request.plan.revision,
+						previousPlan.revision,
+						attempted,
+						restored,
+						"SOURCE_APPLY_FAILED",
+					)
+				}
+				closePlanRuntimes(previousPlan, request.plan)
+				markStartFailed(
+					session.logicalTrackingId,
+					serviceRun.serviceRunId,
+					request.wallTimeMs,
+					"PLAN_ROLLBACK_FAILED",
+				)
+				return SessionReconfigureResult.Failed(
+					request.plan.revision,
+					attempted,
+					restored,
+					"PLAN_ROLLBACK_FAILED",
+				)
+			}
+			val status = attempted.desiredStatus()
 			planStore.updateStatus(request.plan.revision, status)
+			planStore.updateStatus(previousPlan.revision, DesiredPlanStatus.SUPERSEDED)
 			val updated = requireNotNull(database.sourceSessionDao().session(session.logicalTrackingId))
 			database.sourceSessionDao().updateSession(
 				updated.copy(
@@ -241,10 +303,119 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					lifecycleRevision = updated.lifecycleRevision + 1,
 				),
 			)
-			SessionReconfigureResult.Applied(request.plan.revision, applied, status)
+			SessionReconfigureResult.Applied(request.plan.revision, attempted, status)
+		} catch (cancelled: CancellationException) {
+			withContext(NonCancellable) {
+				recoverInterruptedReconfiguration(
+					request,
+					recoverySession,
+					recoveryPreviousPlan,
+					attempted,
+					"RECONFIGURE_CANCELLED",
+				)
+			}
+			throw cancelled
+		} catch (failure: Throwable) {
+			recoverInterruptedReconfiguration(
+				request,
+				recoverySession,
+				recoveryPreviousPlan,
+				attempted,
+				"RECONFIGURE_EXCEPTION:${failure.javaClass.simpleName.ifBlank { "UNKNOWN" }}",
+			) ?: throw failure
 		} finally {
 			releaseLease(request.ownerToken)
 		}
+	}
+
+	private suspend fun rollbackAttemptedSources(
+		previousPlan: AcquisitionPlanRevision,
+		attempted: List<AppliedSourcePlan>,
+		request: SessionReconfigureRequest,
+	): List<AppliedSourcePlan> = attempted.asReversed().map { attemptedState ->
+		val oldPlan = requireNotNull(previousPlan.plans[attemptedState.source])
+		val restored = reconfigureSource(oldPlan, request.elapsedRealtimeNanos)
+		planStore.saveApplied(restored, request.wallTimeMs)
+		restored
+	}.reversed()
+
+	private suspend fun recoverInterruptedStart(
+		request: SessionStartRequest,
+		failureCode: String,
+	): SessionStartResult.Failed? {
+		val session = database.sourceSessionDao().activeSession()?.takeIf { active ->
+			active.state == SessionLifecycleState.STARTING.name &&
+				active.desiredPlanRevision == request.plan.revision
+		} ?: return null
+		closePlanRuntimes(request.plan)
+		val serviceRun = database.sourceSessionDao().latestServiceRun(session.logicalTrackingId)
+			?: return null
+		if (database.sourcePlanStateDao().revision(request.plan.revision) != null) {
+			planStore.updateStatus(request.plan.revision, DesiredPlanStatus.FAILED)
+		}
+		markStartFailed(session.logicalTrackingId, serviceRun.serviceRunId, request.wallTimeMs, failureCode)
+		return SessionStartResult.Failed(
+			session.logicalTrackingId,
+			serviceRun.serviceRunId,
+			emptyList(),
+			failureCode,
+		)
+	}
+
+	private suspend fun recoverInterruptedReconfiguration(
+		request: SessionReconfigureRequest,
+		session: LogicalTrackingSessionEntity?,
+		previousPlan: AcquisitionPlanRevision?,
+		attempted: List<AppliedSourcePlan>,
+		failureCode: String,
+	): SessionReconfigureResult? {
+		if (session == null || previousPlan == null) return null
+		val current = database.sourceSessionDao().session(session.logicalTrackingId) ?: return null
+		if (current.state != SessionLifecycleState.RECONFIGURING.name) return null
+		val restored = rollbackAttemptedSources(previousPlan, attempted, request)
+		if (database.sourcePlanStateDao().revision(request.plan.revision) != null) {
+			planStore.updateStatus(request.plan.revision, DesiredPlanStatus.FAILED)
+		}
+		return if (restored.all { it.status.isSuccessfulRestoration }) {
+			database.sourceSessionDao().updateSession(
+				current.copy(
+					state = SessionLifecycleState.RUNNING.name,
+					lifecycleRevision = current.lifecycleRevision + 1,
+					desiredPlanRevision = previousPlan.revision,
+				),
+			)
+			SessionReconfigureResult.RolledBack(
+				request.plan.revision,
+				previousPlan.revision,
+				attempted,
+				restored,
+				failureCode,
+			)
+		} else {
+			closePlanRuntimes(previousPlan, request.plan)
+			val serviceRun = requireNotNull(database.sourceSessionDao().latestServiceRun(session.logicalTrackingId))
+			markStartFailed(
+				session.logicalTrackingId,
+				serviceRun.serviceRunId,
+				request.wallTimeMs,
+				"PLAN_ROLLBACK_FAILED",
+			)
+			SessionReconfigureResult.Failed(
+				request.plan.revision,
+				attempted,
+				restored,
+				"PLAN_ROLLBACK_FAILED:$failureCode",
+			)
+		}
+	}
+
+	private suspend fun closePlanRuntimes(vararg plans: AcquisitionPlanRevision) {
+		plans.asSequence()
+			.flatMap { it.plans.values.asSequence() }
+			.map(SourcePlan::source)
+			.distinct()
+			.filter { it in runtimes.registeredSources() }
+			.forEach { source -> runCatching { runtimes.close(source) } }
 	}
 
 	suspend fun stop(request: SessionStopRequest): SessionStopResult {
@@ -557,6 +728,16 @@ private fun List<AppliedSourcePlan>.desiredStatus(): DesiredPlanStatus = when {
 	else -> DesiredPlanStatus.DEGRADED
 }
 
+private val SourceApplyStatus.requiresCoordinatorRollback: Boolean
+	get() = this in setOf(SourceApplyStatus.ROLLED_BACK, SourceApplyStatus.BLOCKED, SourceApplyStatus.FAILED)
+
+private val SourceApplyStatus.isSuccessfulRestoration: Boolean
+	get() = this in setOf(
+		SourceApplyStatus.APPLIED,
+		SourceApplyStatus.DEGRADED,
+		SourceApplyStatus.ROLLED_BACK,
+	)
+
 private fun timeoutAck(
 	source: SourceKind,
 	applied: com.adsamcik.tracker.shared.base.database.data.SourceAppliedPlanStateEntity?,
@@ -627,6 +808,19 @@ sealed interface SessionReconfigureResult {
 		val revision: Long,
 		val applied: List<AppliedSourcePlan>,
 		val status: DesiredPlanStatus,
+	) : SessionReconfigureResult
+	data class RolledBack(
+		val attemptedRevision: Long,
+		val restoredRevision: Long,
+		val attempted: List<AppliedSourcePlan>,
+		val restored: List<AppliedSourcePlan>,
+		val code: String,
+	) : SessionReconfigureResult
+	data class Failed(
+		val attemptedRevision: Long,
+		val attempted: List<AppliedSourcePlan>,
+		val restored: List<AppliedSourcePlan>,
+		val code: String,
 	) : SessionReconfigureResult
 	data class InvalidState(val state: String) : SessionReconfigureResult
 	data object NoActiveSession : SessionReconfigureResult

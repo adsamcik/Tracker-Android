@@ -8,6 +8,7 @@ import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.SourceDemand
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -60,6 +61,7 @@ sealed interface SourceSessionStartOutcome {
 
 sealed interface SourceSessionReconfigureOutcome {
 	data class Applied(val result: SessionReconfigureResult.Applied) : SourceSessionReconfigureOutcome
+	data class RolledBack(val result: SessionReconfigureResult.RolledBack) : SourceSessionReconfigureOutcome
 	data class Started(val result: SessionStartResult.Started) : SourceSessionReconfigureOutcome
 	data object NotActive : SourceSessionReconfigureOutcome
 	data object Unchanged : SourceSessionReconfigureOutcome
@@ -108,7 +110,21 @@ class TrackerServiceSourceSession @Inject constructor(
 		check(request.rollout.coordinatorMode == CoordinatorMode.EVENT) {
 			"Event-owned sources require event coordinator mode"
 		}
-		val result = startCoordinator(session, request.planInputs)
+		val result = try {
+			startCoordinator(session, request.planInputs)
+		} catch (cancelled: CancellationException) {
+			active = null
+			settingsStatusProvider.publishFailure("SESSION_START_CANCELLED")
+			settingsStatusProvider.publishInactive()
+			throw cancelled
+		} catch (failure: Throwable) {
+			active = null
+			settingsStatusProvider.publishFailure(
+				"SESSION_START_EXCEPTION:${failure.javaClass.simpleName.ifBlank { "UNKNOWN" }}",
+			)
+			settingsStatusProvider.publishInactive()
+			throw failure
+		}
 		if (result is SessionStartResult.Started) {
 			session.coordinatorStarted = true
 			settingsStatusProvider.publishApplied(result.applied)
@@ -126,14 +142,26 @@ class TrackerServiceSourceSession @Inject constructor(
 		if (session.lastInputs == inputs) return@withLock SourceSessionReconfigureOutcome.Unchanged
 		if (!session.coordinatorStarted) {
 			val ownership = TrackingSessionOwnership.resolve(session.rollout, inputs.settings)
-			session.lastInputs = inputs
 			if (!ownership.eventCoordinatorRequired) {
+				session.lastInputs = inputs
 				settingsStatusProvider.publishActivePreview(inputs.settings, session.rollout, inputs)
 				return@withLock SourceSessionReconfigureOutcome.Unchanged
 			}
-			val started = startCoordinator(session, inputs)
+			val started = try {
+				startCoordinator(session, inputs)
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (failure: Throwable) {
+				settingsStatusProvider.publishFailure("SESSION_START_EXCEPTION")
+				return@withLock SourceSessionReconfigureOutcome.Rejected(
+					SessionReconfigureResult.InvalidState(
+						"START_EXCEPTION:${failure.javaClass.simpleName.ifBlank { "UNKNOWN" }}",
+					),
+				)
+			}
 			return@withLock if (started is SessionStartResult.Started) {
 				session.coordinatorStarted = true
+				session.lastInputs = inputs
 				settingsStatusProvider.publishApplied(started.applied)
 				SourceSessionReconfigureOutcome.Started(started)
 			} else {
@@ -152,13 +180,26 @@ class TrackerServiceSourceSession @Inject constructor(
 				elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
 			),
 		)
-		if (result is SessionReconfigureResult.Applied) {
-			session.lastInputs = inputs
-			settingsStatusProvider.publishApplied(result.applied)
-			SourceSessionReconfigureOutcome.Applied(result)
-		} else {
-			settingsStatusProvider.publishFailure("PLAN_RECONFIGURE_REJECTED")
-			SourceSessionReconfigureOutcome.Rejected(result)
+		when (result) {
+			is SessionReconfigureResult.Applied -> {
+				session.lastInputs = inputs
+				settingsStatusProvider.publishApplied(result.applied)
+				SourceSessionReconfigureOutcome.Applied(result)
+			}
+			is SessionReconfigureResult.RolledBack -> {
+				settingsStatusProvider.publishApplied(result.restored)
+				settingsStatusProvider.publishFailure("PLAN_RECONFIGURE_ROLLED_BACK:${result.code}")
+				SourceSessionReconfigureOutcome.RolledBack(result)
+			}
+			is SessionReconfigureResult.Failed -> {
+				active = null
+				settingsStatusProvider.publishFailure(result.code)
+				SourceSessionReconfigureOutcome.Rejected(result)
+			}
+			else -> {
+				settingsStatusProvider.publishFailure("PLAN_RECONFIGURE_REJECTED")
+				SourceSessionReconfigureOutcome.Rejected(result)
+			}
 		}
 	}
 
