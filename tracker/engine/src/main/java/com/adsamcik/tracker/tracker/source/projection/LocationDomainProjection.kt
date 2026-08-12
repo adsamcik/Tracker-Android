@@ -19,7 +19,8 @@ import kotlin.math.sqrt
  * Replayable location-domain projection for route, speed, altitude and policy evidence.
  *
  * State is ordered by provider observation time, not WAL admission order. A late fix recomputes
- * affected point revisions and emits append-only corrections with stable point identities.
+ * affected point revisions and emits append-only corrections with stable point identities. The
+ * normal ordered path reconstructs its accumulator from indexed latest rows and advances once.
  */
 class LocationDomainProjection @Inject constructor(
 	private val database: AppDatabase,
@@ -34,7 +35,7 @@ class LocationDomainProjection @Inject constructor(
 		val payload = event.evidence.payload as? LocationFixPayload ?: return
 		val logicalTrackingId = event.evidence.logicalTrackingId?.value ?: return
 		val dao = database.locationProjectionDao()
-		dao.upsertObservation(LocationProjectionObservationEntity(
+		val observationEntity = LocationProjectionObservationEntity(
 			eventId = event.eventId.value,
 			logicalTrackingId = logicalTrackingId,
 			admissionOrdinal = event.admissionOrdinal,
@@ -46,7 +47,23 @@ class LocationDomainProjection @Inject constructor(
 			altitudeMeters = payload.altitudeMeters,
 			verticalAccuracyMeters = payload.verticalAccuracyMeters,
 			speedMetersPerSecond = payload.speedMetersPerSecond,
-		))
+		)
+		val observation = observationEntity.toObservation()
+		val previousLatest = dao.latestObservation(logicalTrackingId)?.toObservation()
+		val incrementalState = when {
+			previousLatest == null -> LocationAccumulatorState()
+			compareLocationOrder(previousLatest, observation) >= 0 -> null
+			dao.point(observation.eventId) != null -> null
+			else -> loadAccumulatorState(logicalTrackingId, previousLatest)
+		}
+		dao.upsertObservation(observationEntity)
+		if (incrementalState != null) {
+			val derived = advanceLocationTrack(incrementalState, observation).point.copy(revision = 1)
+			recordEffects(context, logicalTrackingId, listOf(derived))
+			dao.upsertPoints(listOf(derived.toEntity(logicalTrackingId)))
+			return
+		}
+
 		val recalculated = deriveLocationTrack(
 			dao.observations(logicalTrackingId).map(LocationProjectionObservationEntity::toObservation),
 		)
@@ -58,6 +75,39 @@ class LocationDomainProjection @Inject constructor(
 			if (old?.semanticEquals(point) == true) old else point.copy(revision = (old?.revision ?: 0) + 1)
 		}
 		val changed = next.filter { point -> previous[point.eventId]?.semanticEquals(point) != true }
+		recordEffects(context, logicalTrackingId, changed)
+		if (changed.isNotEmpty()) {
+			dao.upsertPoints(changed.map { it.toEntity(logicalTrackingId) })
+		}
+	}
+
+	private suspend fun loadAccumulatorState(
+		logicalTrackingId: String,
+		latestObservation: LocationObservation,
+	): LocationAccumulatorState? {
+		val dao = database.locationProjectionDao()
+		val latestPoint = dao.point(latestObservation.eventId) ?: return null
+		val accepted = dao.latestAcceptedObservation(logicalTrackingId)?.toObservation()
+		if (accepted == null && latestPoint.rejection != LocationRejection.LOW_ACCURACY.name) return null
+		val acceptedPoint = accepted?.let { dao.point(it.eventId) ?: return null }
+		val pending = dao.latestUnconfirmedTeleportObservation(logicalTrackingId)
+			?.toObservation()
+			?.takeIf { candidate ->
+				accepted != null && compareLocationOrder(accepted, candidate) < 0
+			}
+		return LocationAccumulatorState(
+			accepted = accepted,
+			pending = pending,
+			cumulativeDistanceMeters = latestPoint.cumulativeDistanceMeters,
+			smoothedSpeedMetersPerSecond = acceptedPoint?.estimatedSpeedMetersPerSecond ?: 0.0,
+		)
+	}
+
+	private suspend fun recordEffects(
+		context: ProjectionContext,
+		logicalTrackingId: String,
+		changed: List<LocationDerivedPoint>,
+	) {
 		changed.forEach { point ->
 			LOCATION_EFFECT_KINDS.forEach { kind ->
 				context.recordOutbox(
@@ -70,9 +120,6 @@ class LocationDomainProjection @Inject constructor(
 					),
 				)
 			}
-		}
-		if (changed.isNotEmpty()) {
-			dao.upsertPoints(changed.map { it.toEntity(logicalTrackingId) })
 		}
 	}
 
@@ -116,6 +163,18 @@ internal data class LocationDerivedPoint(
 )
 
 internal enum class LocationRejection { LOW_ACCURACY, NON_MONOTONIC_OR_DUPLICATE, TELEPORT_UNCONFIRMED }
+
+internal data class LocationAccumulatorState(
+	val accepted: LocationObservation? = null,
+	val pending: LocationObservation? = null,
+	val cumulativeDistanceMeters: Double = 0.0,
+	val smoothedSpeedMetersPerSecond: Double = 0.0,
+)
+
+internal data class LocationDerivation(
+	val point: LocationDerivedPoint,
+	val state: LocationAccumulatorState,
+)
 
 private fun LocationProjectionObservationEntity.toObservation() = LocationObservation(
 	eventId = eventId,
@@ -167,64 +226,86 @@ private fun LocationDerivedPoint.toEntity(logicalTrackingId: String) = LocationP
 
 internal fun deriveLocationTrack(input: List<LocationObservation>): List<LocationDerivedPoint> {
 	val observations = input.sortedWith(
-		compareBy<LocationObservation>(LocationObservation::elapsedRealtimeNanos)
-			.thenBy(LocationObservation::wallTimeMs)
-			.thenBy(LocationObservation::eventId),
+		LOCATION_OBSERVATION_ORDER,
 	)
-	val output = mutableListOf<LocationDerivedPoint>()
-	var accepted: LocationObservation? = null
-	var pending: LocationObservation? = null
-	var cumulative = 0.0
-	var smoothedSpeed = 0.0
-	for (observation in observations) {
-		val payload = observation.payload
-		if (!payload.horizontalAccuracyMeters.isFinite() || payload.horizontalAccuracyMeters > MAX_ACCURACY_METERS) {
-			output += observation.rejected(LocationRejection.LOW_ACCURACY, cumulative)
-			continue
-		}
-		val anchor = accepted
-		if (anchor != null && !isStrictlyNewer(anchor, observation)) {
-			output += observation.rejected(LocationRejection.NON_MONOTONIC_OR_DUPLICATE, cumulative)
-			continue
-		}
-		if (anchor != null && isTeleport(anchor, observation)) {
-			val candidate = pending
-			if (candidate != null && confirmsReacquisition(candidate, observation)) {
-				pending = null
-				accepted = observation
-				smoothedSpeed = 0.0
-				output += observation.accepted(0.0, cumulative, payload.speedMetersPerSecond?.toDouble())
-			} else {
-				pending = observation
-				output += observation.rejected(LocationRejection.TELEPORT_UNCONFIRMED, cumulative)
-			}
-			continue
-		}
-		pending = null
-		val distance = anchor?.let { distanceMeters(it, observation) } ?: 0.0
-		cumulative += distance
-		val speed = if (anchor == null) {
-			payload.speedMetersPerSecond?.toDouble()
-		} else {
-			val seconds = elapsedSeconds(anchor, observation)
-			val calculated = seconds?.takeIf { it > 0.0 }?.let { distance / it }
-			val recorded = payload.speedMetersPerSecond?.toDouble()?.takeIf { it > 0.0 }
-			val raw = when {
-				calculated == null -> recorded
-				recorded == null -> calculated
-				abs(calculated - recorded) / recorded >= MAX_ALLOWED_SPEED_DIFFERENCE -> calculated
-				else -> recorded
-			}
-			raw?.let { value ->
-				(if (smoothedSpeed <= 0.0) value else SPEED_SMOOTHING_ALPHA * value +
-					(1.0 - SPEED_SMOOTHING_ALPHA) * smoothedSpeed).also { smoothedSpeed = it }
-			}
-		}
-		accepted = observation
-		output += observation.accepted(distance, cumulative, speed)
+	var state = LocationAccumulatorState()
+	return observations.map { observation ->
+		advanceLocationTrack(state, observation).also { state = it.state }.point
 	}
-	return output
 }
+
+internal fun advanceLocationTrack(
+	state: LocationAccumulatorState,
+	observation: LocationObservation,
+): LocationDerivation {
+	val cumulative = state.cumulativeDistanceMeters
+	val payload = observation.payload
+	if (!payload.horizontalAccuracyMeters.isFinite() || payload.horizontalAccuracyMeters > MAX_ACCURACY_METERS) {
+		return LocationDerivation(observation.rejected(LocationRejection.LOW_ACCURACY, cumulative), state)
+	}
+	val anchor = state.accepted
+	if (anchor != null && !isStrictlyNewer(anchor, observation)) {
+		return LocationDerivation(
+			observation.rejected(LocationRejection.NON_MONOTONIC_OR_DUPLICATE, cumulative),
+			state,
+		)
+	}
+	if (anchor != null && isTeleport(anchor, observation)) {
+		val candidate = state.pending
+		return if (candidate != null && confirmsReacquisition(candidate, observation)) {
+			val speed = payload.speedMetersPerSecond?.toDouble()
+			LocationDerivation(
+				observation.accepted(0.0, cumulative, speed),
+				state.copy(
+					accepted = observation,
+					pending = null,
+					smoothedSpeedMetersPerSecond = speed ?: 0.0,
+				),
+			)
+		} else {
+			LocationDerivation(
+				observation.rejected(LocationRejection.TELEPORT_UNCONFIRMED, cumulative),
+				state.copy(pending = observation),
+			)
+		}
+	}
+
+	val distance = anchor?.let { distanceMeters(it, observation) } ?: 0.0
+	val nextCumulative = cumulative + distance
+	val speed = if (anchor == null) {
+		payload.speedMetersPerSecond?.toDouble()
+	} else {
+		val seconds = elapsedSeconds(anchor, observation)
+		val calculated = seconds?.takeIf { it > 0.0 }?.let { distance / it }
+		val recorded = payload.speedMetersPerSecond?.toDouble()?.takeIf { it > 0.0 }
+		val raw = when {
+			calculated == null -> recorded
+			recorded == null -> calculated
+			abs(calculated - recorded) / recorded >= MAX_ALLOWED_SPEED_DIFFERENCE -> calculated
+			else -> recorded
+		}
+		raw?.let { value ->
+			if (state.smoothedSpeedMetersPerSecond <= 0.0) value else SPEED_SMOOTHING_ALPHA * value +
+				(1.0 - SPEED_SMOOTHING_ALPHA) * state.smoothedSpeedMetersPerSecond
+		}
+	}
+	return LocationDerivation(
+		observation.accepted(distance, nextCumulative, speed),
+		LocationAccumulatorState(
+			accepted = observation,
+			pending = null,
+			cumulativeDistanceMeters = nextCumulative,
+			smoothedSpeedMetersPerSecond = speed ?: 0.0,
+		),
+	)
+}
+
+private val LOCATION_OBSERVATION_ORDER = compareBy<LocationObservation>(LocationObservation::elapsedRealtimeNanos)
+	.thenBy(LocationObservation::wallTimeMs)
+	.thenBy(LocationObservation::eventId)
+
+private fun compareLocationOrder(first: LocationObservation, second: LocationObservation): Int =
+	LOCATION_OBSERVATION_ORDER.compare(first, second)
 
 private fun LocationObservation.accepted(distance: Double, cumulative: Double, speed: Double?) = LocationDerivedPoint(
 	eventId, accepted = true, rejection = null,
