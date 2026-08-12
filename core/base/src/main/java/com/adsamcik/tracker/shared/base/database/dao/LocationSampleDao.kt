@@ -74,6 +74,25 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 	suspend fun getLatestBetween(fromMs: Long, toMs: Long): LocationSample?
 
 	/**
+	 * Read the newest coordinate-bearing fixes for bounded live-route recovery.
+	 * The result is newest-first so SQLite can satisfy the limit without reading an entire trip.
+	 */
+	@Query(
+		"""
+		SELECT * FROM location_sample
+		WHERE time_ms >= :fromMs AND time_ms <= :toMs
+			AND lat_e7 IS NOT NULL AND lon_e7 IS NOT NULL
+		ORDER BY time_ms DESC, id DESC
+		LIMIT :limit
+		"""
+	)
+	suspend fun getRecentWithCoordinatesBetween(
+		fromMs: Long,
+		toMs: Long,
+		limit: Int,
+	): List<LocationSample>
+
+	/**
 	 * Get the next ordered chunk within a viewport. Handles antimeridian-crossing bounds
 	 * (`eastE7 < westE7`) while retaining the same stable keyset cursor as the unbounded query.
 	 */

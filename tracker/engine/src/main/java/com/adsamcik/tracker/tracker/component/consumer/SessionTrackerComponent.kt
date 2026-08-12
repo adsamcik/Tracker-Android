@@ -41,6 +41,7 @@ internal class SessionTrackerComponent(
 	private val isUserInitiated: Boolean,
 	private val sessionSegmentDao: SessionSegmentDao,
 	private val trackingParamsRepository: TrackingParamsRepository? = null,
+	private val resumeSessionSegmentId: Long? = null,
 ) : DataTrackerComponent,
 	CoroutineScope {
 	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf()
@@ -70,6 +71,8 @@ internal class SessionTrackerComponent(
 	private var collectedPressureCount = 0
 	private val preferenceJobs = mutableListOf<Job>()
 	private val activityEvidence = mutableMapOf<Int, ActivityEvidence>()
+	private var restoredDominantActivity: Pair<Int, Int>? = null
+	private var sessionCreatedAt: Long = Time.nowMillis
 	private data class ActivityEvidence(var confidenceScore: Long = 0L, var confidenceTotal: Long = 0L, var observations: Int = 0)
 
 	override suspend fun onDataUpdated(
@@ -200,7 +203,7 @@ internal class SessionTrackerComponent(
 			sampleCount = session.collections,
 			source = if (isUserInitiated) SegmentSource.USER_CREATED else SegmentSource.INFERRED_HIGH_CONFIDENCE,
 			inferenceVersion = "tracker_v2",
-			createdAt = Time.nowMillis,
+			createdAt = sessionCreatedAt,
 			hasDistanceAnomaly = hasAnomaly,
 		)
 
@@ -233,7 +236,7 @@ internal class SessionTrackerComponent(
 		)
 		?.let { (activityType, evidence) ->
 			activityType to (evidence.confidenceTotal / evidence.observations.coerceAtLeast(1)).toInt()
-		}
+		} ?: restoredDominantActivity
 
 	private fun Int.toDetectedActivityType(): DetectedActivityType? = when (this) {
 		DetectedActivity.WALKING.value -> DetectedActivityType.WALKING
@@ -291,8 +294,39 @@ internal class SessionTrackerComponent(
 	@WorkerThread
 	private suspend fun initializeSession() {
 		val now = Time.nowMillis
-		// Always start a new session segment — resume logic is handled at the
-		// SessionSegment level (the segment is upserted on every update).
+		val expectedSource = if (isUserInitiated) {
+			SegmentSource.USER_CREATED
+		} else {
+			SegmentSource.INFERRED_HIGH_CONFIDENCE
+		}
+		val resumable = resumeSessionSegmentId
+			?.let { segmentId -> sessionSegmentDao.getById(segmentId) }
+			?.takeIf { segment ->
+				segment.source == expectedSource &&
+					segment.startTimeMs <= segment.endTimeMs &&
+					segment.endTimeMs <= now &&
+					now - segment.endTimeMs <= SESSION_RESUME_TIMEOUT
+			}
+		if (resumable != null) {
+			mutableSession = MutableTrackerSession(
+				id = resumable.id,
+				start = resumable.startTimeMs,
+				end = now,
+				isUserInitiated = isUserInitiated,
+				collections = resumable.sampleCount,
+				distanceInM = resumable.distanceM,
+				distanceOnFootInM = 0f,
+				distanceInVehicleInM = 0f,
+				steps = resumable.steps ?: 0,
+			)
+			restoredDominantActivity = resumable.primaryActivity?.let { activity ->
+				activity to (resumable.activityConfidence ?: 0)
+			}
+			sessionCreatedAt = resumable.createdAt
+			isNewSession = false
+			return
+		}
+
 		val session = MutableTrackerSession(now, isUserInitiated)
 		val segment = SessionSegment(
 			id = 0,
@@ -303,13 +337,15 @@ internal class SessionTrackerComponent(
 			primaryActivity = null,
 			activityConfidence = null,
 			sampleCount = 0,
-			source = if (isUserInitiated) SegmentSource.USER_CREATED else SegmentSource.INFERRED_HIGH_CONFIDENCE,
+			source = expectedSource,
 			inferenceVersion = "tracker_v2",
 			createdAt = now,
 			hasDistanceAnomaly = false,
 		)
 		session.id = sessionSegmentDao.insert(segment)
 		mutableSession = session
+		sessionCreatedAt = now
+		restoredDominantActivity = null
 		isNewSession = true
 	}
 

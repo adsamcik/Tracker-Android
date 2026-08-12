@@ -12,6 +12,7 @@ class ActiveTrackingSessionDescriptorTest {
 		policyTier = PolicyTier.PRECISION,
 		logicalTrackingId = "logical-session",
 		serviceRunId = "service-run-one",
+		sessionSegmentId = 42L,
 	)
 
 	@Test
@@ -19,6 +20,7 @@ class ActiveTrackingSessionDescriptorTest {
 		val replacement = descriptor.forNewServiceRun(changedAtEpochMs = 100L)
 
 		replacement.logicalTrackingId shouldBe descriptor.logicalTrackingId
+		replacement.sessionSegmentId shouldBe 42L
 		replacement.serviceRunId shouldNotBe descriptor.serviceRunId
 		replacement.lifecycleRevision shouldBe 1L
 		replacement.lifecycleChangedAtEpochMs shouldBe 100L

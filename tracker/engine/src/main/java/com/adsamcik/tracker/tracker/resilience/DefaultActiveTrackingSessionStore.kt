@@ -135,6 +135,7 @@ private fun ActiveTrackingSessionProto.toDescriptor(): ActiveTrackingSessionDesc
 		lifecycleRevision = lifecycleRevision,
 		lifecycleChangedAtEpochMs = lifecycleChangedAtEpochMs.takeIf { it > 0L },
 		stopCandidate = stopCandidate,
+		sessionSegmentId = sessionSegmentId.takeIf { it > 0L },
 	)
 }
 
@@ -156,6 +157,7 @@ private fun ActiveTrackingSessionDescriptor.toProto(): ActiveTrackingSessionProt
 		.setLifecycleChangedAtEpochMs(lifecycleChangedAtEpochMs ?: 0L)
 		.setStopCandidateReason(stopCandidate?.reason?.name.orEmpty())
 		.setStopCandidateRequestedAtEpochMs(stopCandidate?.requestedAtEpochMs ?: 0L)
+		.setSessionSegmentId(sessionSegmentId ?: 0L)
 		.build()
 
 /**

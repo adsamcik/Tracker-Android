@@ -50,19 +50,15 @@ import java.time.ZoneId
 /**
  * Session crash recovery contract test.
  *
- * Simulates the "process killed mid-session" scenario by writing an orphan
+ * Simulates the "process killed mid-session" scenario by writing an active
  * [SessionSegment] row directly to the database (as the
  * [com.adsamcik.tracker.tracker.component.consumer.SessionTrackerComponent]
  * would have written before the crash), then exercising the next
  * [TrackingOrchestrator] lifecycle to pin the recovery contract:
  *
- *  1. **Orphan preservation:** `initialize()` does NOT scan for, mutate,
- *     or delete unfinished session_segment rows. The row from a crashed
- *     session is preserved byte-identical. A new zero-distance placeholder
- *     segment IS added for the freshly started session, but the crashed
- *     session's data is never touched. This documents an intentional
- *     design choice — the tracker treats existing rows as ground truth
- *     and never destructively "cleans up" stale data on startup.
+ *  1. **Exact recovery:** when the durable active-session descriptor supplies
+ *     the exact recent segment ID, `initialize()` resumes that row and restores
+ *     its metrics without scanning for or guessing among recent rows.
  *
  *  2. **Daily-summary catch-up:** The orchestrator's shutdown path calls
  *     `DailySummaryAggregator.materializeToday()`, which re-reads ALL
@@ -100,11 +96,11 @@ class SessionCrashRecoveryTest {
 	}
 
 	@Test
-	fun `initialize preserves orphan session_segment row written by a crashed session`() = runTest(testDispatcher) {
+	fun `initialize resumes exact recent segment without creating a placeholder`() = runTest(testDispatcher) {
 		// Simulate a crash mid-session: the SessionTrackerComponent had time to
 		// persist a segment row, but the process died before shutdown() ran.
-		val orphanStartMs = todayStartMs() + ONE_HOUR_MS * 6L
-		val orphanEndMs = orphanStartMs + ONE_HOUR_MS
+		val orphanEndMs = System.currentTimeMillis() - 1_000L
+		val orphanStartMs = orphanEndMs - ONE_HOUR_MS
 		val orphanId = database.sessionSegmentDao().insert(
 			SessionSegment(
 				startTimeMs = orphanStartMs,
@@ -142,16 +138,14 @@ class SessionCrashRecoveryTest {
 			isSessionUserInitiated = true,
 			initialTier = PolicyTier.PRECISION,
 			scope = backgroundScope,
+			resumeSessionSegmentId = orphanId,
 		)
 		testDispatcher.scheduler.advanceUntilIdle()
 
-		// CONTRACT: initialize() is non-destructive with respect to existing
-		// session_segment rows. The orphan row is preserved byte-identical.
-		// A new zero-distance placeholder segment is added for the freshly
-		// started session, but the crashed session's data is never mutated
-		// or deleted.
+		// CONTRACT: exact recovery restores the same live aggregate and does not
+		// create a second placeholder segment. Initialization itself is non-destructive.
 		val afterInit = database.sessionSegmentDao().getAllBetween(0L, Long.MAX_VALUE)
-		afterInit shouldHaveAtLeastSize 1
+		afterInit.size shouldBe 1
 		val preserved = afterInit.single { it.id == orphanId }
 		preserved.id shouldBe orphanId
 		preserved.startTimeMs shouldBe orphanStartMs
@@ -160,6 +154,14 @@ class SessionCrashRecoveryTest {
 		preserved.steps shouldBe 4_000
 		preserved.source shouldBe SegmentSource.USER_CREATED
 		preserved.inferenceVersion shouldBe "crashed-v1"
+		orchestrator.currentSessionSegmentId() shouldBe orphanId
+		controller.sessionFlow.value.shouldNotBeNull().apply {
+			id shouldBe orphanId
+			start shouldBe orphanStartMs
+			distanceInM shouldBe 2_500f.plusOrMinus(0.001f)
+			steps shouldBe 4_000
+			collections shouldBe 12
+		}
 
 		// Clean shutdown so other tests are not affected by lingering state.
 		orchestrator.shutdown(context)

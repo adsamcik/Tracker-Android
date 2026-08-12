@@ -91,7 +91,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
@@ -540,13 +539,12 @@ internal class TrackerService : CoreService() {
 					if (!ensureForegroundStarted(requiresLocation, requiresHealth)) {
 						return@runAfter
 					}
-					val descriptor = provisionalDescriptor.copy(policyTier = initialTier)
+					var descriptor = provisionalDescriptor.copy(policyTier = initialTier)
 					activeSessionDescriptor = descriptor
 					if (descriptor != provisionalDescriptor) {
 						saveActiveSession(descriptor)
 					}
 					controller.updatePolicyTier(initialTier)
-					observeDescriptorTierChanges(descriptor)
 					withContext(dispatchers.default) {
 						orchestrator.initialize(
 							context = this@TrackerService,
@@ -554,9 +552,16 @@ internal class TrackerService : CoreService() {
 							initialTier = initialTier,
 							scope = this@TrackerService,
 							logicalTrackingId = descriptor.logicalTrackingId,
+							resumeSessionSegmentId = descriptor.sessionSegmentId,
 							rolloutState = rolloutState,
 						)
 					}
+					descriptor = descriptor.copy(
+						sessionSegmentId = orchestrator.currentSessionSegmentId(),
+					)
+					activeSessionDescriptor = descriptor
+					saveActiveSession(descriptor)
+					observeDescriptorTierChanges(descriptor)
 					trackingFrameEffects.attach(
 						trackingFrameOwnerToken,
 						descriptor.logicalTrackingId,
@@ -632,11 +637,9 @@ internal class TrackerService : CoreService() {
 		descriptorObservationJob?.cancel()
 		descriptorObservationJob = launch {
 			controller.policyTierFlow
-				.drop(1)
-				.distinctUntilChanged()
 				.collect { tier ->
 					if (tier == PolicyTier.OFF) return@collect
-					val updated = initialDescriptor.copy(policyTier = tier)
+					val updated = (activeSessionDescriptor ?: initialDescriptor).copy(policyTier = tier)
 					activeSessionDescriptor = updated
 					saveActiveSession(updated)
 				}

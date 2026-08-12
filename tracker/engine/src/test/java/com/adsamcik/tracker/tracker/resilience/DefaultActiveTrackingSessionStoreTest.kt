@@ -28,6 +28,7 @@ class DefaultActiveTrackingSessionStoreTest {
 			isUserInitiated = true,
 			isAmbient = false,
 			policyTier = PolicyTier.PRECISION,
+			sessionSegmentId = 42L,
 		)
 
 		store.save(descriptor) shouldBe ActiveTrackingSessionStoreResult.Success(descriptor)

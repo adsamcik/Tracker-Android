@@ -66,6 +66,7 @@ internal class TrackerComponentFactory(
 	suspend fun create(
 		context: Context,
 		isSessionUserInitiated: Boolean,
+		resumeSessionSegmentId: Long? = null,
 		notificationComponent: NotificationComponent,
 		controller: TrackerServiceController,
 		scope: CoroutineScope,
@@ -84,6 +85,7 @@ internal class TrackerComponentFactory(
 				isSessionUserInitiated,
 				appDatabase.sessionSegmentDao(),
 				trackingParamsRepository,
+				resumeSessionSegmentId,
 			).apply {
 				onEnable(context)
 			}

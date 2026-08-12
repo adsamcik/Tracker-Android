@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.base.data.MutableTrackerSession
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.data.collection.PressureReading
@@ -140,6 +141,84 @@ class SessionTrackerComponentTest {
 
 		intField(component, "minDistanceInMeters") shouldBe 33
 		intField(component, "minUpdateDelayInSeconds") shouldBe 7
+		component.onDisable(context)
+	}
+
+	@Test
+	fun resumesExactRecentSegmentWithMetricsAndAuditTimestamp() = runTest {
+		val now = System.currentTimeMillis()
+		val existing = SessionSegment(
+			id = 42L,
+			startTimeMs = now - 60_000L,
+			endTimeMs = now - 1_000L,
+			distanceM = 321f,
+			steps = 456,
+			primaryActivity = DetectedActivity.WALKING.value,
+			activityConfidence = 87,
+			sampleCount = 12,
+			source = SegmentSource.USER_CREATED,
+			inferenceVersion = "tracker_v2",
+			createdAt = now - 61_000L,
+		)
+		coEvery { mockSegmentDao.getById(42L) } returns existing
+		val params = MutableStateFlow(TrackingParamsState())
+		val repository: TrackingParamsRepository = mockk { every { data } returns params }
+		val component = SessionTrackerComponent(
+			isUserInitiated = true,
+			sessionSegmentDao = mockSegmentDao,
+			trackingParamsRepository = repository,
+			resumeSessionSegmentId = 42L,
+		)
+
+		component.onEnable(context)
+
+		component.isNewSession shouldBe false
+		component.session.id shouldBe 42L
+		component.session.start shouldBe existing.startTimeMs
+		component.session.distanceInM shouldBe 321f
+		component.session.steps shouldBe 456
+		component.session.collections shouldBe 12
+
+		val persisted = mutableListOf<SessionSegment>()
+		coEvery { mockSegmentDao.update(capture(persisted)) } returns Unit
+		component.onDisable(context)
+		persisted.single().createdAt shouldBe existing.createdAt
+		persisted.single().primaryActivity shouldBe existing.primaryActivity
+		persisted.single().activityConfidence shouldBe existing.activityConfidence
+		coVerify(exactly = 0) { mockSegmentDao.insert(any<SessionSegment>()) }
+	}
+
+	@Test
+	fun staleExactSegmentFallsBackToNewSessionWithoutMutatingOldRow() = runTest {
+		val now = System.currentTimeMillis()
+		coEvery { mockSegmentDao.getById(42L) } returns SessionSegment(
+			id = 42L,
+			startTimeMs = now - SessionTrackerComponent.SESSION_RESUME_TIMEOUT - 2_000L,
+			endTimeMs = now - SessionTrackerComponent.SESSION_RESUME_TIMEOUT - 1_000L,
+			distanceM = 100f,
+			steps = 10,
+			primaryActivity = null,
+			activityConfidence = null,
+			sampleCount = 3,
+			source = SegmentSource.USER_CREATED,
+			inferenceVersion = "tracker_v2",
+			createdAt = now - SessionTrackerComponent.SESSION_RESUME_TIMEOUT - 2_000L,
+		)
+		coEvery { mockSegmentDao.insert(any<SessionSegment>()) } returns 99L
+		val params = MutableStateFlow(TrackingParamsState())
+		val repository: TrackingParamsRepository = mockk { every { data } returns params }
+		val component = SessionTrackerComponent(
+			isUserInitiated = true,
+			sessionSegmentDao = mockSegmentDao,
+			trackingParamsRepository = repository,
+			resumeSessionSegmentId = 42L,
+		)
+
+		component.onEnable(context)
+
+		component.isNewSession shouldBe true
+		component.session.id shouldBe 99L
+		coVerify(exactly = 0) { mockSegmentDao.update(match<SessionSegment> { it.id == 42L }) }
 		component.onDisable(context)
 	}
 

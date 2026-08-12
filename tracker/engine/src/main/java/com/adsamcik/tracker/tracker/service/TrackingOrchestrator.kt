@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator
+import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.stats.api.PolicyTier
@@ -64,6 +65,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /**
  * Orchestrates core tracking logic: component initialization, per-cycle data
@@ -160,6 +162,8 @@ internal class TrackingOrchestrator(
 		scope: CoroutineScope,
 		/** Durable logical identity supplied by the service; legacy callers fall back to segment id. */
 		logicalTrackingId: String? = null,
+		/** Exact online aggregate to resume after process death; null always creates a new segment. */
+		resumeSessionSegmentId: Long? = null,
 		/** Immutable physical-source ownership snapshot for this service run. */
 		rolloutState: TrackingRolloutState? = null,
 	) = componentMutex.withLock {
@@ -295,6 +299,7 @@ internal class TrackingOrchestrator(
 		val componentSet = componentFactory.create(
 			context = context,
 			isSessionUserInitiated = isSessionUserInitiated,
+			resumeSessionSegmentId = resumeSessionSegmentId,
 			notificationComponent = notificationComponent,
 			controller = controller,
 			scope = sessionScope,
@@ -306,6 +311,32 @@ internal class TrackingOrchestrator(
 		skiSegmentWriter = componentSet.skiSegmentWriter
 		sailingTrackingComponent = componentSet.sailingTrackingComponent
 		planeTrackingComponent = componentSet.planeTrackingComponent
+		if (!componentSet.sessionComponent.isNewSession && resumeSessionSegmentId == session.id) {
+			val recoveredPath = withContext(dispatchers.io) {
+				appDatabase.locationSampleDao()
+					.getRecentWithCoordinatesBetween(
+						fromMs = session.start,
+						toMs = Time.nowMillis,
+						limit = MAX_RECOVERED_PATH_POINTS,
+					)
+					.asReversed()
+					.mapNotNull { sample ->
+						val latitude = sample.latE7 ?: return@mapNotNull null
+						val longitude = sample.lonE7 ?: return@mapNotNull null
+						Location(
+							time = sample.timeMs,
+							latitude = latitude / 10_000_000.0,
+							longitude = longitude / 10_000_000.0,
+							altitude = sample.altitudeM?.toDouble(),
+							horizontalAccuracy = sample.hAccM,
+							verticalAccuracy = sample.vAccM,
+							speed = sample.speedMps,
+							speedAccuracy = sample.speedAccuracyMps,
+						)
+					}
+			}
+			controller.restorePathPoints(session.id, recoveredPath)
+		}
 		controlLocationEnabled = initialTrackingParams.locationEnabled
 		trackingControlShadow.begin(
 			logicalTrackingId = logicalTrackingId ?: "segment:${session.id}",
@@ -654,8 +685,11 @@ internal class TrackingOrchestrator(
 
 	fun currentSourceDemands(): List<SourceDemand> = trackingPolicyManager?.sourceDemands?.value.orEmpty()
 
+	fun currentSessionSegmentId(): Long = session.id
+
 	private companion object {
 		const val POLICY_LIFECYCLE_TICK_MILLIS = 30_000L
+		const val MAX_RECOVERED_PATH_POINTS = 512
 	}
 }
 

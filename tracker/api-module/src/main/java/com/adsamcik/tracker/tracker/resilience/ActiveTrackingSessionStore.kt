@@ -86,6 +86,8 @@ data class ActiveTrackingSessionDescriptor(
 	/** Optional wall-clock audit time; never use it to bridge duration across a restart. */
 	val lifecycleChangedAtEpochMs: Long? = null,
 	val stopCandidate: TrackingStopCandidate? = null,
+	/** Exact derived segment currently receiving this logical session's online aggregates. */
+	val sessionSegmentId: Long? = null,
 ) {
 	init {
 		require(logicalTrackingId.isNotBlank()) { "logicalTrackingId must not be blank" }
@@ -93,6 +95,9 @@ data class ActiveTrackingSessionDescriptor(
 		require(lifecycleRevision >= 0L) { "lifecycleRevision must not be negative" }
 		require(lifecycleChangedAtEpochMs == null || lifecycleChangedAtEpochMs >= 0L) {
 			"lifecycleChangedAtEpochMs must not be negative"
+		}
+		require(sessionSegmentId == null || sessionSegmentId > 0L) {
+			"sessionSegmentId must be positive when present"
 		}
 		if (lifecycleState == LogicalTrackingLifecycleState.STOP_CANDIDATE) {
 			require(stopCandidate != null) {
