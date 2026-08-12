@@ -119,6 +119,7 @@ class PersistenceProcessor @Inject constructor(
 	private val pendingSignalClaimDao: PendingSignalClaimDao? = null,
 	private val durableBuffer: DurableSignalBuffer,
 	private val transactor: TrackingPersistenceTransactor,
+	private val rawLocationObservationRepair: RawLocationObservationRepair? = null,
 ) : DurableSignalProcessor {
 
 	override val descriptor = ProcessorDescriptor(
@@ -191,6 +192,7 @@ class PersistenceProcessor @Inject constructor(
 		pendingIds.clear()
 		pendingAdmissions.clear()
 		pendingClaimToken = null
+		rawLocationObservationRepair?.repairMissingCanonicalObservations()
 		recoverPendingSignals()
 		pipelineActive = true
 	}
@@ -932,7 +934,7 @@ class PersistenceProcessor @Inject constructor(
 			"Location decisions require LocationObservationDecisionDao"
 		}
 		val decisions = bufferedDecisions.map { buffered ->
-			check(locationObservationDao.existsBySourceEventId(buffered.signal.sourceEventId)) {
+			require(locationObservationDao.existsBySourceEventId(buffered.signal.sourceEventId)) {
 				"Cannot persist ${buffered.signal.decision} decision without raw observation " +
 					"${buffered.signal.sourceEventId}"
 			}

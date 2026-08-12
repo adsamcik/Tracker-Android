@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.projection
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.data.LocationIngressDisposition
 import com.adsamcik.tracker.tracker.altitude.BarometricAltitudeFormula
 import com.adsamcik.tracker.tracker.source.model.ActivityRecognitionPayload
 import com.adsamcik.tracker.tracker.source.model.CellObservationEvidence
@@ -142,6 +143,9 @@ class EventTrackingFrameProjectionTest {
 
 		cycles[0].location?.lastLocation?.latitude shouldBe 50.0
 		cycles[0].location?.lastFixMetadata?.sourceEventId shouldBe "source-0"
+		cycles[0].locationObservations.single().metadata.sourceEventId shouldBe "source-0"
+		cycles[0].locationObservations.single().ingressDisposition shouldBe
+			LocationIngressDisposition.DELIVERED_VALID
 		cycles[1].activity?.activityType shouldBe 7
 		cycles[1].activity?.confidence shouldBe 88
 		cycles[2].normalizedWifiScan?.networks?.single()?.bssid shouldBe "0123456789abcdef"

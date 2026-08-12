@@ -5,6 +5,8 @@ import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.data.LocationData
 import com.adsamcik.tracker.shared.base.data.LocationFixMetadata
+import com.adsamcik.tracker.shared.base.data.LocationIngressDisposition
+import com.adsamcik.tracker.shared.base.data.LocationProviderObservation
 import com.adsamcik.tracker.stats.api.signal.CellTowerReading
 import com.adsamcik.tracker.stats.api.signal.WifiNetworkReading
 import com.adsamcik.tracker.tracker.altitude.BarometricAltitudeFormula
@@ -84,6 +86,13 @@ internal fun AdmittedSourceEvent<out SourcePayload>.toEventTrackingFrame(): Trac
 				payload.speedMetersPerSecond?.let { speed = it }
 				payload.bearingDegrees?.let { bearing = it }
 			}
+			val metadata = LocationFixMetadata(
+				callbackId = evidence.providerDedupKey,
+				sourceEventId = eventId.value,
+				clockDomainId = evidence.clockDomainId,
+				receivedAtMs = evidence.acquiredAtMs,
+				receivedElapsedRealtimeNanos = evidence.receivedElapsedRealtimeNanos,
+			)
 			TrackingCycle(
 				timestampMs = timestampMs,
 				elapsedRealtimeNanos = evidence.observedElapsedRealtimeNanos,
@@ -91,14 +100,13 @@ internal fun AdmittedSourceEvent<out SourcePayload>.toEventTrackingFrame(): Trac
 					locations = listOf(location),
 					previousLocation = null,
 					distance = null,
-					fixMetadata = listOf(
-						LocationFixMetadata(
-							callbackId = evidence.providerDedupKey,
-							sourceEventId = eventId.value,
-							clockDomainId = evidence.clockDomainId,
-							receivedAtMs = timestampMs,
-							receivedElapsedRealtimeNanos = evidence.receivedElapsedRealtimeNanos,
-						),
+					fixMetadata = listOf(metadata),
+				),
+				locationObservations = listOf(
+					LocationProviderObservation(
+						location = location,
+						metadata = metadata,
+						ingressDisposition = LocationIngressDisposition.DELIVERED_VALID,
 					),
 				),
 				rawGpsAltitude = payload.altitudeMeters,
@@ -442,6 +450,13 @@ internal object EventTrackingFrameEffectCodec {
 						timestampMs = timestamp,
 						elapsedRealtimeNanos = elapsed,
 						location = LocationData(listOf(location), null, null, listOf(metadata)),
+						locationObservations = listOf(
+							LocationProviderObservation(
+								location = location,
+								metadata = metadata,
+								ingressDisposition = LocationIngressDisposition.DELIVERED_VALID,
+							),
+						),
 						rawGpsAltitude = location.altitude.takeIf { location.hasAltitude() },
 						persistenceSignalId = persistenceId,
 					)

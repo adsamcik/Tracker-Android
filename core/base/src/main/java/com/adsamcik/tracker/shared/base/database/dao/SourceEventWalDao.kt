@@ -60,6 +60,26 @@ interface SourceEventWalDao {
 	)
 	suspend fun eventsAfter(afterOrdinal: Long, limit: Int): List<SourceEventWalEntity>
 
+	/**
+	 * Authoritative location evidence that predates its canonical raw-observation row.
+	 *
+	 * This is intentionally WAL-driven rather than projection-driven: a projection failure must
+	 * not make the raw provider evidence impossible to repair.
+	 */
+	@Query(
+		"SELECT wal.* FROM source_event_wal AS wal " +
+			"LEFT JOIN location_observation AS observation " +
+			"ON observation.source_event_id = wal.event_id " +
+			"WHERE wal.source_kind = :sourceKind AND wal.admission_ordinal > :afterOrdinal " +
+			"AND observation.id IS NULL " +
+			"ORDER BY wal.admission_ordinal ASC LIMIT :limit",
+	)
+	suspend fun locationEventsMissingCanonicalObservation(
+		sourceKind: Int,
+		afterOrdinal: Long,
+		limit: Int,
+	): List<SourceEventWalEntity>
+
 	@Query("SELECT MAX(admission_ordinal) FROM source_event_wal")
 	suspend fun maximumAdmissionOrdinal(): Long?
 
