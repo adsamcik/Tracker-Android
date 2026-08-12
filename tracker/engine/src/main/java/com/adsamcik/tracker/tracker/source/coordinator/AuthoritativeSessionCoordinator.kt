@@ -529,22 +529,24 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			plan.plans.values.forEach { planItem ->
 				if (planItem.source in runtimes.registeredSources()) runCatching { runtimes.close(planItem.source) }
 			}
-			val latest = requireNotNull(database.sourceSessionDao().session(cutoffSession.logicalTrackingId))
-			database.sourceSessionDao().updateSession(
-				latest.copy(
-					state = SessionLifecycleState.RUNNING.name,
-					lifecycleRevision = latest.lifecycleRevision + 1,
-					cutoffAtMs = null,
-					cutoffElapsedNanos = null,
-				),
-			)
-			val serviceRun = database.sourceSessionDao().latestServiceRun(cutoffSession.logicalTrackingId)
-			if (serviceRun != null && serviceRun.completedAtMs == null) {
-				database.sourceSessionDao().updateServiceRun(
-					serviceRun.copy(
-						state = SessionLifecycleState.CLOSED.name,
-						completedAtMs = request.wallTimeMs,
-						completionReason = request.reason,
+			database.withTransaction {
+				val latest = requireNotNull(database.sourceSessionDao().session(cutoffSession.logicalTrackingId))
+				val serviceRun = database.sourceSessionDao().latestServiceRun(cutoffSession.logicalTrackingId)
+				if (serviceRun != null && serviceRun.completedAtMs == null) {
+					database.sourceSessionDao().updateServiceRun(
+						serviceRun.copy(
+							state = SessionLifecycleState.CLOSED.name,
+							completedAtMs = request.wallTimeMs,
+							completionReason = request.reason,
+						),
+					)
+				}
+				database.sourceSessionDao().updateSession(
+					latest.copy(
+						state = SessionLifecycleState.RUNNING.name,
+						lifecycleRevision = latest.lifecycleRevision + 1,
+						cutoffAtMs = null,
+						cutoffElapsedNanos = null,
 					),
 				)
 			}

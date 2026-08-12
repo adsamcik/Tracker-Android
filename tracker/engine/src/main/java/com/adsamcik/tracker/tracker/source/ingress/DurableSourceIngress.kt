@@ -126,44 +126,45 @@ class RoomDurableSourceIngress @Inject constructor(
 				}
 				val guardedState = requireNotNull(state)
 				val results = encodedCandidates.map { (candidate, encoded) ->
-					if (candidate.capturedCollectedDataEpoch != guardedState.collectedDataEpoch) {
+					val admittedCandidate = candidate.withAdmissibleSessionAttribution(database)
+					if (admittedCandidate.capturedCollectedDataEpoch != guardedState.collectedDataEpoch) {
 						abortBatch(AdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_COLLECTED_DATA_EPOCH))
 					}
-					if (guardedState.retainedFromMs?.let { candidate.acquiredAtMs < it } == true) {
+					if (guardedState.retainedFromMs?.let { admittedCandidate.acquiredAtMs < it } == true) {
 						abortBatch(AdmissionResult.PermanentFailure(AdmissionFailureCode.BEFORE_RETENTION_BOUNDARY))
 					}
 
-					val existing = candidate.providerDedupKey?.let { key ->
-						walDao.identityByProviderDedupKey(candidate.source.stableCode, key)
+					val existing = admittedCandidate.providerDedupKey?.let { key ->
+						walDao.identityByProviderDedupKey(admittedCandidate.source.stableCode, key)
 					} ?: walDao.identityBySourceSequence(
-						candidate.source.stableCode,
-						candidate.sourceInstanceId.value,
-						candidate.sourceSequence,
+						admittedCandidate.source.stableCode,
+						admittedCandidate.sourceInstanceId.value,
+						admittedCandidate.sourceSequence,
 					)
 					if (existing != null) {
-						val duplicate = existing.resolveDuplicate(candidate, encoded)
+						val duplicate = existing.resolveDuplicate(admittedCandidate, encoded)
 						if (duplicate is AdmissionResult.PermanentFailure) abortBatch(duplicate)
 						return@map duplicate
 					}
 
 					val eventId = SourceEventId(UUID.randomUUID().toString())
 					val rowId = walDao.insertIgnoringDuplicate(
-						candidate.toEntity(eventId, encoded, System.currentTimeMillis()),
+						admittedCandidate.toEntity(eventId, encoded, System.currentTimeMillis()),
 					)
 					val admitted = if (rowId < 0L) {
-						candidate.providerDedupKey?.let { key ->
-							walDao.identityByProviderDedupKey(candidate.source.stableCode, key)
+						admittedCandidate.providerDedupKey?.let { key ->
+							walDao.identityByProviderDedupKey(admittedCandidate.source.stableCode, key)
 						} ?: walDao.identityBySourceSequence(
-							candidate.source.stableCode,
-							candidate.sourceInstanceId.value,
-							candidate.sourceSequence,
+							admittedCandidate.source.stableCode,
+							admittedCandidate.sourceInstanceId.value,
+							admittedCandidate.sourceSequence,
 						)
 					} else null
 					if (rowId < 0L && admitted == null) {
 						abortBatch(AdmissionResult.RetryableFailure(AdmissionFailureCode.STORAGE_UNAVAILABLE))
 					}
 					if (admitted != null) {
-						val duplicate = admitted.resolveDuplicate(candidate, encoded)
+						val duplicate = admitted.resolveDuplicate(admittedCandidate, encoded)
 						if (duplicate is AdmissionResult.PermanentFailure) abortBatch(duplicate)
 						return@map duplicate
 					}
@@ -252,6 +253,31 @@ private fun abortBatch(result: AdmissionResult): Nothing = throw BatchAdmissionA
 
 private fun repeatedFailure(size: Int, failure: AdmissionResult): List<AdmissionResult> =
 	List(size) { failure }
+
+@Suppress("UNCHECKED_CAST")
+private suspend fun SourceEvidenceCandidate<*>.withAdmissibleSessionAttribution(
+	database: AppDatabase,
+): SourceEvidenceCandidate<*> {
+	val logicalId = logicalTrackingId ?: return this
+	val session = database.sourceSessionDao().session(logicalId.value)
+	val sessionAcceptsEvidence = session != null &&
+		session.state in ATTRIBUTABLE_SESSION_STATES &&
+		(session.cutoffElapsedNanos == null || observedElapsedRealtimeNanos <= session.cutoffElapsedNanos)
+	val typed = this as SourceEvidenceCandidate<SourcePayload>
+	if (!sessionAcceptsEvidence) {
+		return typed.copy(logicalTrackingId = null, serviceRunId = null)
+	}
+	val runId = serviceRunId ?: return this
+	val run = database.sourceSessionDao().serviceRun(runId.value)
+	val runAcceptsEvidence = run != null &&
+		run.logicalTrackingId == logicalId.value &&
+		run.completedAtMs == null &&
+		run.state !in TERMINAL_SERVICE_RUN_STATES
+	return if (runAcceptsEvidence) this else typed.copy(serviceRunId = null)
+}
+
+private val ATTRIBUTABLE_SESSION_STATES = setOf("STARTING", "RUNNING", "RECONFIGURING", "QUIESCING")
+private val TERMINAL_SERVICE_RUN_STATES = setOf("CLOSED", "FAILED")
 
 private fun SourceEvidenceCandidate<*>.toEntity(
 	eventId: SourceEventId,

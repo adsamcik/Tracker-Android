@@ -4,10 +4,14 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
+import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
+import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -125,16 +129,100 @@ class RoomDurableSourceIngressTest {
 		result.code shouldBe AdmissionFailureCode.LIFECYCLE_BARRIER_IN_PROGRESS
 	}
 
+	@Test
+	fun `draining session cannot receive a late callback even when it was reserved earlier`() = runTest {
+		insertSession(state = "DRAINING", runState = "RUNNING", cutoffElapsedNanos = 200L)
+
+		subject.admit(candidate(sequence = 1L, logicalTrackingId = "tracking", serviceRunId = "run"))
+			.shouldBeInstanceOf<AdmissionResult.Admitted>()
+
+		val evidence = subject.committedBatch(0L, 1).single().evidence
+		evidence.logicalTrackingId shouldBe null
+		evidence.serviceRunId shouldBe null
+	}
+
+	@Test
+	fun `post-cutoff callback is unbound and a completed service run is never attributed`() = runTest {
+		insertSession(state = "QUIESCING", runState = "CLOSED", cutoffElapsedNanos = 50L)
+
+		subject.admit(
+			candidate(
+				sequence = 1L,
+				logicalTrackingId = "tracking",
+				serviceRunId = "run",
+				observedElapsedRealtimeNanos = 60L,
+			),
+		).shouldBeInstanceOf<AdmissionResult.Admitted>()
+
+		val evidence = subject.committedBatch(0L, 1).single().evidence
+		evidence.logicalTrackingId shouldBe null
+		evidence.serviceRunId shouldBe null
+	}
+
+	@Test
+	fun `active logical session retains evidence but strips a completed service run`() = runTest {
+		insertSession(state = "RUNNING", runState = "CLOSED", cutoffElapsedNanos = null)
+
+		subject.admit(candidate(sequence = 1L, logicalTrackingId = "tracking", serviceRunId = "run"))
+			.shouldBeInstanceOf<AdmissionResult.Admitted>()
+
+		val evidence = subject.committedBatch(0L, 1).single().evidence
+		evidence.logicalTrackingId shouldBe LogicalTrackingId("tracking")
+		evidence.serviceRunId shouldBe null
+	}
+
+	private suspend fun insertSession(
+		state: String,
+		runState: String,
+		cutoffElapsedNanos: Long?,
+	) {
+		database.sourceSessionDao().insertSession(
+			LogicalTrackingSessionEntity(
+				logicalTrackingId = "tracking",
+				state = state,
+				lifecycleRevision = 1L,
+				desiredPlanRevision = 1L,
+				rolloutRevision = 1L,
+				startOrigin = "MANUAL_FOREGROUND",
+				clockDomainId = "boot",
+				startedAtMs = 1L,
+				startedElapsedNanos = 1L,
+				cutoffAtMs = cutoffElapsedNanos,
+				cutoffElapsedNanos = cutoffElapsedNanos,
+				completedAtMs = null,
+				finalAdmissionOrdinal = null,
+				failureCode = null,
+			),
+		)
+		database.sourceSessionDao().insertServiceRun(
+			SourceServiceRunEntity(
+				serviceRunId = "run",
+				logicalTrackingId = "tracking",
+				state = runState,
+				desiredPlanRevision = 1L,
+				rolloutRevision = 1L,
+				foregroundCapabilityFlags = 0L,
+				startedAtMs = 1L,
+				startedElapsedNanos = 1L,
+				completedAtMs = 2L.takeIf { runState == "CLOSED" },
+				completionReason = "test".takeIf { runState == "CLOSED" },
+			),
+		)
+	}
+
 	private fun candidate(
 		sequence: Long,
 		activityType: Int = 3,
 		epoch: Long = 0L,
 		acquiredAtMs: Long = 100L,
 		providerDedupKey: String? = null,
+		logicalTrackingId: String? = null,
+		serviceRunId: String? = null,
+		observedElapsedRealtimeNanos: Long = 100L,
 	) = SourceEvidenceCandidate(
 		providerDedupKey = providerDedupKey,
-		logicalTrackingId = null,
-		serviceRunId = null,
+		logicalTrackingId = logicalTrackingId?.let(::LogicalTrackingId),
+		serviceRunId = serviceRunId?.let(::ServiceRunId),
 		source = SourceKind.ACTIVITY,
 		sourceInstanceId = SourceInstanceId("activity-instance"),
 		registrationGeneration = 1L,
@@ -142,7 +230,7 @@ class RoomDurableSourceIngressTest {
 		configRevision = 1L,
 		planAttribution = PlanAttribution.CAPTURED_REGISTRATION,
 		clockDomainId = "boot",
-		observedElapsedRealtimeNanos = 100L,
+		observedElapsedRealtimeNanos = observedElapsedRealtimeNanos,
 		receivedElapsedRealtimeNanos = 110L,
 		wallTimeMs = acquiredAtMs,
 		wallTimeUncertaintyMs = 1L,
