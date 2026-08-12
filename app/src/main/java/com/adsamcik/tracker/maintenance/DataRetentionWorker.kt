@@ -10,7 +10,6 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
-import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.pruneSourceEventStorageBefore
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
@@ -25,12 +24,7 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleS
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onEach
 
 /**
  * Periodic worker that deletes data older than N years to honor auto-cleanup setting.
@@ -56,12 +50,12 @@ class DataRetentionWorker @AssistedInject constructor(
             return Result.success()
         }
 
-        val years = config.dataRetentionYears
-        if (years == 0) {
-            return Result.success()
-        }
-        val now = System.currentTimeMillis()
-        val cutoff = now - yearsToMillis(years)
+		val years = config.dataRetentionYears
+		if (years == 0) {
+			return Result.success()
+		}
+		val now = System.currentTimeMillis()
+		val cutoff = computeCutoffMillis(years, now)
         return try {
 			// The policy and backup cleanup precede the physical delete, so a WAL
 			// entry can defer that delete without preserving expired history in a
@@ -87,22 +81,6 @@ class DataRetentionWorker @AssistedInject constructor(
 
     companion object {
         private const val ONE_YEAR_MILLIS: Long = 365L * 24L * 60L * 60L * 1000L
-
-        /**
-         * Initialize observation of the auto-cleanup setting and sync schedule.
-         * Legacy entry point for non-Hilt callers (OnboardingActivity, tests).
-         * Production code should use [DataRetentionScheduler] instead.
-         */
-        @Deprecated(
-            message = "Use the injected DataRetentionScheduler.initialize() WorkManager scheduling path instead of DataRetentionWorker.initialize()."
-        )
-        fun initialize(context: Context) {
-            val appContext = context.applicationContext
-            val store = RetentionConfigStore(appContext, DefaultDispatchersProvider.io)
-            store.config.map { it.autoCleanupEnabled }.onEach { enabled ->
-                syncScheduling(appContext, enabled)
-            }.launchIn(CoroutineScope(SupervisorJob()))
-        }
 
         /** Schedule weekly cleanup with unique work policy. */
         fun ensureScheduled(context: Context) {

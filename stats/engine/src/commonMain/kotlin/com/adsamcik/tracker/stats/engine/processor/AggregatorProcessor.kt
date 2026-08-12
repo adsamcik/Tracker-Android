@@ -10,6 +10,8 @@ import com.adsamcik.tracker.stats.api.metric.MetricSnapshot
 import com.adsamcik.tracker.stats.api.processor.ProcessorContext
 import com.adsamcik.tracker.stats.api.processor.ProcessorDescriptor
 import com.adsamcik.tracker.stats.api.processor.SignalProcessor
+import com.adsamcik.tracker.stats.api.repository.LiveStats
+import com.adsamcik.tracker.stats.api.repository.LiveStatsRepository
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
@@ -35,6 +37,7 @@ import com.adsamcik.tracker.stats.engine.aggregator.StreamingAggregator
  * short-circuit can correctly fire.
  */
 class AggregatorProcessor(
+	private val liveStatsRepository: LiveStatsRepository,
 	private val aggregator: StreamingAggregator = StreamingAggregator(),
 	private val dirtyTracker: MetricDirtyTracker? = null,
 ) : SignalProcessor {
@@ -50,9 +53,6 @@ class AggregatorProcessor(
 
 	override suspend fun onStart(context: ProcessorContext) {
 		sessionId = context.sessionId
-		if (context.checkpoint != null) {
-			restore(context.checkpoint!!)
-		}
 		if (!aggregator.isActive) {
 			aggregator.start(context.startTimestamp.raw)
 		}
@@ -84,6 +84,18 @@ class AggregatorProcessor(
 
 	override suspend fun onFlush(): List<DomainEvent> {
 		val snap = aggregator.snapshot()
+		liveStatsRepository.updateLiveStats(
+			LiveStats(
+				dateEpochDay = snap.lastUpdateMs / MILLIS_PER_DAY,
+				sessionDistance = DistanceM.coerced(snap.sessionDistanceM),
+				sessionSteps = StepCount.coerced(snap.sessionSteps),
+				sessionDuration = DurationMs(snap.sessionDurationMs.coerceAtLeast(0L)),
+				dayTotalDistance = DistanceM.coerced(snap.dayTotalDistanceM),
+				dayTotalSteps = StepCount.coerced(snap.dayTotalSteps),
+				dayTotalDuration = DurationMs(snap.dayTotalDurationMs.coerceAtLeast(0L)),
+				lastUpdatedMs = snap.lastUpdateMs,
+			),
+		)
 		return listOf(
 			DomainEvent.DailySummaryUpdated(
 				timestampMs = EpochMs(snap.lastUpdateMs),
@@ -99,6 +111,7 @@ class AggregatorProcessor(
 
 	override suspend fun onStop(): List<DomainEvent> {
 		val snap = aggregator.stop()
+		liveStatsRepository.clear()
 		return listOf(
 			DomainEvent.SessionEnded(
 				timestampMs = EpochMs(snap.lastUpdateMs),
@@ -156,9 +169,7 @@ class AggregatorProcessor(
 		)
 	}
 
-	override fun checkpoint(): ByteArray = aggregator.serialize()
-
-	override fun restore(state: ByteArray) {
-		aggregator.deserialize(state)
+	private companion object {
+		const val MILLIS_PER_DAY = 86_400_000L
 	}
 }

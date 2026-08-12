@@ -83,8 +83,6 @@
     <string name="settings_tracking_notice_summary">Om technische redenen vereisen de meeste wijzigingen aan trackinginstellingen een herstart van tracking. (Als tracking actief is, stop je deze en start je opnieuw. De app sluiten en openen helpt mogelijk niet)</string>
     <string name="settings_tracking_required_accuracy_title">Vereiste locatienauwkeurigheid</string>
     <string name="settings_tracking_title">Locatietracking</string>
-    <string name="settings_vehicle_speed_limit_baseline_title">Basislimiet voor voertuigsnelheid</string>
-    <string name="help_vehicle_speed_limit_baseline">Wordt gebruikt door de kaartlaag Naleving van voertuigsnelheid. Rijmonsters krijgen een kleur op basis van de vergelijking van hun snelheid met deze basislimiet. Kies een waarde die past bij de limieten waar je het vaakst rijdt (bijv. 50 km/h in steden, 90 km/h op snelwegen).</string>
     <string name="settings_wifi_enabled_title">Wifi</string>
     <string name="shortcut_start_tracking">Tracking starten</string>
     <string name="shortcut_start_tracking_long">Trackingservice starten</string>

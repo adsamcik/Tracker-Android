@@ -89,32 +89,6 @@ data class CellSample(
 	@ColumnInfo(name = "created_at")
 	val createdAt: Long,
 
-	/**
-	 * Altitude retained from the 2024.1 cell observation.
-	 */
-	@ColumnInfo(name = "legacy_alt_m")
-	val legacyAltM: Double? = null,
-
-	/** Original text MCC retained before conversion to the modern numeric field. */
-	@ColumnInfo(name = "legacy_mcc")
-	val legacyMcc: String? = null,
-
-	/** Original text MNC retained before conversion to the modern numeric field. */
-	@ColumnInfo(name = "legacy_mnc")
-	val legacyMnc: String? = null,
-
-	/** Original primary key from cell_location. */
-	@ColumnInfo(name = "legacy_source_id")
-	val legacySourceId: Long? = null,
-
-	/** Exact latitude retained before E7 conversion. */
-	@ColumnInfo(name = "legacy_lat")
-	val legacyLat: Double? = null,
-
-	/** Exact longitude retained before E7 conversion. */
-	@ColumnInfo(name = "legacy_lon")
-	val legacyLon: Double? = null,
-
 	/** Stable pending-signal identity for this fan-out item. */
 	@ColumnInfo(name = "source_signal_id")
 	val sourceSignalId: String? = null,

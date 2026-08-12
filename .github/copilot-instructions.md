@@ -27,7 +27,7 @@ Rule of thumb: depend on `*:api` contract modules, never on another feature's im
 | `:core:testing` | Test fakes, utilities (was `testing-common`) |
 | `:data:preferences` | Typed preferences, settings repos, retention (was `spreferences`) |
 | `:stats:api` / `:stats:engine` / `:stats:data` | Stats contracts (depend on `:core:model`, NOT the DB) / algorithms / data layer (were `stats-*`) |
-| `:domain:points` / `:domain:osm` | Points calculation / OpenStreetMap place lookup (were `points`/`osm`) |
+| `:domain:points` / `:domain:geocoder` | Points calculation / bundled offline place lookup |
 | `:tracker:api` | Tracking contracts: `TrackerServiceController`, `LockManager`, `BackgroundTrackingApi`, session/insight types |
 | `:tracker:engine` | Tracking impl: `TrackerService`, component pipeline, producers/consumers, policy, notification (no UI) |
 | `:feature:tracker` | Tracking Compose UI (`TrackerRoute`) |
@@ -74,8 +74,8 @@ Data flow: `Sensors -> Producers -> TempData -> Pre/Data/Post-Components -> Room
 ---
 
 ## 6. Data Layer
-- Room v26 (26 entities). Paging/window queries only. Explicit SQL for hot paths.
-- **Every schema change requires migration + test.**
+- Room v27 (`main_database_v27`, 51 application tables). The released `main_database` file is a preserved v26 legacy vault read only by the frozen importer/export path.
+- Paging/window queries only. Explicit SQL for hot paths. **Every v27+ schema change requires migration + test.**
 - **DataStore (proto) for new key-value storage.** No new SharedPreferences. Legacy SharedPreferences (`LegacyPreferenceStore`, `PreferenceFlows`) is still read for migration compatibility — do not add new writes through it.
 
 ---

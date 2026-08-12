@@ -62,8 +62,6 @@ class ShutdownOrderingTest {
 				),
 			)
 
-			override fun checkpoint(): ByteArray? = null
-			override fun restore(state: ByteArray) {}
 		}
 
 		val pipeline = ProcessorPipeline(
@@ -122,8 +120,6 @@ class ShutdownOrderingTest {
 				),
 			)
 
-			override fun checkpoint(): ByteArray? = null
-			override fun restore(state: ByteArray) {}
 		}
 
 		val pipeline = ProcessorPipeline(

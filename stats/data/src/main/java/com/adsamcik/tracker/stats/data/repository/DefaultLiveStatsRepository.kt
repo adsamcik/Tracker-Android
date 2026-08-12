@@ -20,11 +20,14 @@ class DefaultLiveStatsRepository @Inject constructor(
 				LiveStats()
 			} else {
 				LiveStats(
+					dateEpochDay = entity.dateEpochDay,
 					sessionDistance = DistanceM.coerced(entity.sessionDistanceM),
 					sessionSteps = StepCount.coerced(entity.sessionSteps),
 					sessionDuration = DurationMs(entity.sessionDurationMs.coerceAtLeast(0L)),
 					dayTotalDistance = DistanceM.coerced(entity.dayTotalDistanceM),
 					dayTotalSteps = StepCount.coerced(entity.dayTotalSteps),
+					dayTotalDuration = DurationMs(entity.dayTotalDurationMs.coerceAtLeast(0L)),
+					lastUpdatedMs = entity.lastUpdatedMs,
 				)
 			}
 		}
@@ -32,14 +35,14 @@ class DefaultLiveStatsRepository @Inject constructor(
 
 	override suspend fun updateLiveStats(stats: LiveStats) {
 		liveStatsDao.upsert(
-			dateEpochDay = java.time.LocalDate.now().toEpochDay(),
+			dateEpochDay = stats.dateEpochDay,
 			sessionDistanceM = stats.sessionDistance.raw,
 			sessionSteps = stats.sessionSteps.raw,
 			sessionDurationMs = stats.sessionDuration.raw,
 			dayTotalDistanceM = stats.dayTotalDistance.raw,
 			dayTotalSteps = stats.dayTotalSteps.raw,
-			dayTotalDurationMs = stats.sessionDuration.raw, // Will be enriched
-			lastUpdatedMs = System.currentTimeMillis(),
+			dayTotalDurationMs = stats.dayTotalDuration.raw,
+			lastUpdatedMs = stats.lastUpdatedMs,
 		)
 	}
 

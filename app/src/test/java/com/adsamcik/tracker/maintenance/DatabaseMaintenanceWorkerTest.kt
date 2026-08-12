@@ -1,98 +1,97 @@
 package com.adsamcik.tracker.maintenance
 
 import android.content.Context
-import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.test.core.app.ApplicationProvider
+import androidx.work.Configuration
 import androidx.work.ListenableWorker
-import androidx.work.PeriodicWorkRequest
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.work.testing.SynchronousExecutor
+import androidx.work.testing.WorkManagerTestInitHelper
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import io.kotest.matchers.shouldBe
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.mockkStatic
 import io.mockk.coVerify
+import io.mockk.mockk
 import io.mockk.unmockkAll
-import io.mockk.verify
 import kotlinx.coroutines.runBlocking
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Disabled
-import org.junit.jupiter.api.Nested
-import org.junit.jupiter.api.Test
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [28])
 class DatabaseMaintenanceWorkerTest {
 
-	@AfterEach
+	private lateinit var context: Context
+	private val workerParams = mockk<WorkerParameters>(relaxed = true)
+	private val sessionSegmentDao = mockk<SessionSegmentDao>(relaxed = true)
+
+	@Before
+	fun setUp() {
+		context = ApplicationProvider.getApplicationContext()
+		WorkManagerTestInitHelper.initializeTestWorkManager(
+			context,
+			Configuration.Builder()
+				.setMinimumLoggingLevel(android.util.Log.DEBUG)
+				.setExecutor(SynchronousExecutor())
+				.setTaskExecutor(SynchronousExecutor())
+				.build(),
+		)
+	}
+
+	@After
 	fun tearDown() {
 		unmockkAll()
 	}
 
-	@Nested
-	inner class DoWork {
-
-		private val appContext = mockk<Context>(relaxed = true)
-		private val context = mockk<Context>(relaxed = true) {
-			every { applicationContext } returns appContext
-		}
-		private val workerParams = mockk<WorkerParameters>(relaxed = true)
-		private val sessionSegmentDao = mockk<SessionSegmentDao>(relaxed = true)
-
-		private fun executeDoWork(): ListenableWorker.Result {
-			return runBlocking {
-				DatabaseMaintenanceWorker(context, workerParams, sessionSegmentDao).doWork()
-			}
-		}
-
-		@Test
-		fun `returns success`() {
-			executeDoWork() shouldBe ListenableWorker.Result.success()
-		}
-
-		@Test
-		fun `deletes empty session segments through dao`() {
-			executeDoWork()
-			coVerify(exactly = 1) { sessionSegmentDao.deleteEmpty() }
-		}
+	@Test
+	fun `returns success`() {
+		executeDoWork() shouldBe ListenableWorker.Result.success()
 	}
 
-	@Disabled("WorkManager.getInstance static mock causes AbstractMethodError with MockK")
-	@Nested
-	inner class Schedule {
+	@Test
+	fun `deletes empty session segments through dao`() {
+		executeDoWork()
+		coVerify(exactly = 1) { sessionSegmentDao.deleteEmpty() }
+	}
 
-		private val context = mockk<Context>(relaxed = true)
-		private val mockWorkManager = mockk<WorkManager>(relaxed = true)
+	@Test
+	fun `schedules maintenance as unique periodic work`() {
+		DatabaseMaintenanceWorker.schedule(context)
 
-		@BeforeEach
-		fun setUp() {
-			mockkStatic("androidx.work.WorkManager")
-			every { WorkManager.getInstance(any()) } returns mockWorkManager
-		}
+		val active = activeMaintenanceWork()
+		assertEquals(1, active.size)
+		assertEquals(WorkInfo.State.ENQUEUED, active.single().state)
+	}
 
-		@Test
-		fun `enqueues unique periodic work with maintenance id`() {
-			DatabaseMaintenanceWorker.schedule(context)
+	@Test
+	fun `scheduling again keeps the existing maintenance work`() {
+		DatabaseMaintenanceWorker.schedule(context)
+		val originalId = activeMaintenanceWork().single().id
 
-			verify {
-				mockWorkManager.enqueueUniquePeriodicWork(
-					eq("AppDatabaseMaintenance"),
-					any(),
-					any<PeriodicWorkRequest>()
-				)
-			}
-		}
+		DatabaseMaintenanceWorker.schedule(context)
 
-		@Test
-		fun `uses KEEP policy for existing periodic work`() {
-			DatabaseMaintenanceWorker.schedule(context)
+		val active = activeMaintenanceWork()
+		assertEquals(1, active.size)
+		assertEquals(originalId, active.single().id)
+	}
 
-			verify {
-				mockWorkManager.enqueueUniquePeriodicWork(
-					any(),
-					eq(ExistingPeriodicWorkPolicy.KEEP),
-					any<PeriodicWorkRequest>()
-				)
-			}
-		}
+	private fun executeDoWork(): ListenableWorker.Result = runBlocking {
+		DatabaseMaintenanceWorker(context, workerParams, sessionSegmentDao).doWork()
+	}
+
+	private fun activeMaintenanceWork(): List<WorkInfo> {
+		val work = WorkManager.getInstance(context)
+			.getWorkInfosForUniqueWork(DatabaseMaintenanceWorker.MAINTENANCE_UNIQUE_ID)
+			.get()
+		val active = work.filterNot { it.state.isFinished }
+		assertTrue("expected maintenance work, found ${work.map { it.state }}", active.isNotEmpty())
+		return active
 	}
 }

@@ -83,8 +83,6 @@
     <string name="settings_tracking_notice_summary">Για τεχνικούς λόγους, οι περισσότερες αλλαγές στις ρυθμίσεις του Tracker απαιτούν επανεκκίνηση της καταγραφής. (Αν η καταγραφή είναι ενεργή, απλώς διακόψτε την και ξεκινήστε την ξανά. Το κλείσιμο και το άνοιγμα της εφαρμογής ίσως δεν βοηθήσει)</string>
     <string name="settings_tracking_required_accuracy_title">Απαιτούμενη ακρίβεια τοποθεσίας</string>
     <string name="settings_tracking_title">Καταγραφή</string>
-    <string name="settings_vehicle_speed_limit_baseline_title">Βασικό όριο ταχύτητας οχήματος</string>
-    <string name="help_vehicle_speed_limit_baseline">Χρησιμοποιείται από το επίπεδο χάρτη συμμόρφωσης ταχύτητας οχήματος. Τα δείγματα οδήγησης χρωματίζονται ανάλογα με το πώς συγκρίνεται η ταχύτητά τους με αυτό το βασικό όριο. Επιλέξτε μια τιμή που αντιστοιχεί στα όρια όπου οδηγείτε συχνότερα (π.χ. 50 km/h για πόλεις, 90 km/h για αυτοκινητόδρομους).</string>
     <string name="settings_wifi_enabled_title">Wi‑Fi</string>
     <string name="shortcut_start_tracking">Έναρξη καταγραφής</string>
     <string name="shortcut_start_tracking_long">Έναρξη υπηρεσίας καταγραφής</string>

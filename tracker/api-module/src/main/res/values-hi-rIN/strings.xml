@@ -83,8 +83,6 @@
     <string name="settings_tracking_notice_summary">ट्रैकिंग फिर शुरू करने पर बदलाव लागू होंगे</string>
     <string name="settings_tracking_required_accuracy_title">आवश्यक स्थान सटीकता</string>
     <string name="settings_tracking_title">ट्रैकिंग</string>
-    <string name="settings_vehicle_speed_limit_baseline_title">वाहन गति सीमा आधाररेखा</string>
-    <string name="help_vehicle_speed_limit_baseline">वाहन गति अनुपालन मानचित्र परत में उपयोग होता है। ड्राइविंग नमूने इस आधाररेखा से उनकी गति की तुलना के अनुसार रंगे जाते हैं। ऐसा मान चुनें जो आपकी सामान्य ड्राइविंग जगह की सीमा से मेल खाता हो (जैसे शहर के लिए 50 किमी/घं, राजमार्ग के लिए 90 किमी/घं)।</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="shortcut_start_tracking">ट्रैकिंग शुरू करें</string>
     <string name="shortcut_start_tracking_long">स्थान ट्रैकिंग शुरू करें</string>

@@ -55,6 +55,8 @@ data class EffectiveSourceStatus(
 data class TrackingSettingsPreview(
 	val batteryEstimate: BatteryImpactEstimate,
 	val sources: Map<SourceKind, EffectiveSourceStatus>,
+	val requestedPlans: Map<SourceKind, SourcePlan>,
+	val frequencyOptions: Map<SourceKind, Map<SourceCollectionFrequency, SourcePlan>>,
 )
 
 data class TrackingRuntimeStatus(
@@ -65,6 +67,7 @@ data class TrackingRuntimeStatus(
 	val appliedRevision: Long? = null,
 	val batteryEstimate: BatteryImpactEstimate? = null,
 	val sources: Map<SourceKind, EffectiveSourceStatus> = emptyMap(),
+	val requestedPlans: Map<SourceKind, SourcePlan> = emptyMap(),
 	val failureCode: String? = null,
 )
 
@@ -123,7 +126,38 @@ class DefaultTrackingSettingsStatusProvider @Inject constructor(
 				resolved = resolved,
 				active = false,
 			),
+			requestedPlans = desired.plans,
+			frequencyOptions = if (settings.advancedSourceControlsEnabled) {
+				frequencyOptions(settings, environment)
+			} else {
+				emptyMap()
+			},
 		)
+	}
+
+	private fun frequencyOptions(
+		settings: TrackingParamsState,
+		environment: TrackingSettingsPreviewEnvironment,
+	): Map<SourceKind, Map<SourceCollectionFrequency, SourcePlan>> {
+		val plansByFrequency = SourceCollectionFrequency.entries.associateWith { frequency ->
+			val current = settings.sourceCollectionSettings
+			val optionSettings = settings.copy(
+				sourceCollectionSettings = current.copy(
+					location = frequency,
+					activity = frequency,
+					steps = frequency,
+					pressure = frequency,
+					wifi = frequency,
+					cell = frequency,
+				),
+			)
+			planFactory.create(optionSettings, 0L, 0L, environment.planEnvironment).plans
+		}
+		return SourceKind.entries.associateWith { source ->
+			SourceCollectionFrequency.entries.associateWith { frequency ->
+				checkNotNull(plansByFrequency.getValue(frequency)[source])
+			}
+		}
 	}
 
 	override fun publishActivePreview(
@@ -161,6 +195,7 @@ class DefaultTrackingSettingsStatusProvider @Inject constructor(
 				comparisonBaselineId = "requested:${resolved.desired.planId}",
 			),
 			sources = statuses(settings, rollout, resolved, active = true),
+			requestedPlans = resolved.desired.plans,
 		)
 	}
 

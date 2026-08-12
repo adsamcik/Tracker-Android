@@ -286,7 +286,6 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				}
 				else -> return SessionStopResult.DrainPending(cutoffSession.logicalTrackingId, finalOrdinal)
 			}
-			eventCoordinator.flushThrough(finalOrdinal)
 			val finalizing = requireNotNull(database.sourceSessionDao().session(cutoffSession.logicalTrackingId)).copy(
 				state = SessionLifecycleState.FINALIZING.name,
 				lifecycleRevision = draining.lifecycleRevision + 1,
@@ -356,7 +355,6 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				}
 				else -> return SessionSuspendResult.DrainPending(cutoffSession.logicalTrackingId, finalOrdinal)
 			}
-			eventCoordinator.flushThrough(finalOrdinal)
 			plan.plans.values.forEach { planItem ->
 				if (planItem.source in runtimes.registeredSources()) runCatching { runtimes.close(planItem.source) }
 			}

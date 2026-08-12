@@ -108,9 +108,6 @@ class ExplicitTrackingJoinProjection @Inject constructor(
 		)
 	}
 
-	override suspend fun flush(cutoffOrdinal: Long) = Unit
-	override suspend fun checkpoint() = ProjectionCheckpoint(id, version, 0L, STATE_VERSION)
-
 	private fun AdmittedSourceEvent<out SourcePayload>.toJoinCandidateState(): ExplicitJoinCandidateState {
 		val (windowStart, windowEnd) = when (val sourcePayload = evidence.payload) {
 			is PressureWindowPayload -> sourcePayload.windowStartElapsedRealtimeNanos to

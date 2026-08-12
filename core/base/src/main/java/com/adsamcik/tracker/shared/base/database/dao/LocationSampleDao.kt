@@ -7,26 +7,6 @@ import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.model.AltitudeDatum
 import kotlinx.coroutines.flow.Flow
 
-/**
- * Compact projection of a [LocationSample] joined to its driving session segment.
- * Used by the vehicle speed compliance map layer; carries only the columns needed
- * for plotting and bucket classification.
- */
-data class VehicleSpeedSampleRow(
-	@ColumnInfo(name = "time_ms")
-	val timeMs: Long,
-	@ColumnInfo(name = "id")
-	val id: Long,
-	@ColumnInfo(name = "lat_e7")
-	val latE7: Int,
-	@ColumnInfo(name = "lon_e7")
-	val lonE7: Int,
-	@ColumnInfo(name = "speed_mps")
-	val speedMps: Float,
-	@ColumnInfo(name = "h_acc_m")
-	val hAccM: Float?,
-)
-
 /** Minimal ordered altitude projection for datum-safe aggregate calculations. */
 data class OrderedAltitudeSampleRow(
 	@ColumnInfo(name = "alt_m")
@@ -157,97 +137,6 @@ interface LocationSampleDao : BaseDao<LocationSample> {
 		southE7: Int,
 		westE7: Int,
 	): LocationSample?
-
-	/**
-	 * Get the next ordered chunk of location samples within a time range that fall
-	 * inside a driving session segment, filtered to samples with coordinates and
-	 * a known, trustworthy speed. Used by the vehicle speed compliance map layer.
-	 *
-	 * A single low-accuracy or coarse fix can report an implausible instantaneous
-	 * speed even though the numeric value itself is unremarkable, which would
-	 * otherwise let one bad fix mis-colour a whole road-matched stretch as
-	 * speeding/way-under. `quality` and `speed_accuracy_mps` gate this out the
-	 * same way `LocationSample.hasTrustworthySpeed()` does for trip statistics
-	 * (feature:statistics TripDetailPresenterViewModel).
-	 *
-	 * Uses (time_ms, id) as a stable cursor (identical to [getChunkBetweenOrdered])
-	 * and INNER JOINs `session_segment` so the planner can use the segment time
-	 * range and primary_activity indexes.
-	 */
-	@Query(
-		"""
-		SELECT ls.time_ms AS time_ms,
-		       ls.id AS id,
-		       ls.lat_e7 AS lat_e7,
-		       ls.lon_e7 AS lon_e7,
-		       ls.speed_mps AS speed_mps,
-		       ls.h_acc_m AS h_acc_m
-		FROM location_sample ls
-		INNER JOIN session_segment ss
-			ON ls.time_ms BETWEEN ss.start_time_ms AND ss.end_time_ms
-		WHERE ss.primary_activity IN (:drivingActivities)
-			AND ls.lat_e7 IS NOT NULL
-			AND ls.lon_e7 IS NOT NULL
-			AND ls.speed_mps IS NOT NULL
-			AND ls.quality NOT IN ('LOW', 'COARSE')
-			AND (ls.speed_accuracy_mps IS NULL OR ls.speed_accuracy_mps <= 3.0)
-			AND ls.time_ms >= :fromMs
-			AND ls.time_ms <= :toMs
-			AND (
-				:afterTimeMs IS NULL
-				OR ls.time_ms > :afterTimeMs
-				OR (ls.time_ms = :afterTimeMs AND ls.id > COALESCE(:afterId, 0))
-			)
-		ORDER BY ls.time_ms ASC, ls.id ASC
-		LIMIT :limit
-		"""
-	)
-	suspend fun getDrivingChunkBetweenOrdered(
-		fromMs: Long,
-		toMs: Long,
-		drivingActivities: List<Int>,
-		afterTimeMs: Long?,
-		afterId: Long?,
-		limit: Int,
-	): List<VehicleSpeedSampleRow>
-
-	@Query(
-		"""
-		SELECT ls.time_ms AS time_ms,
-		       ls.id AS id,
-		       ls.lat_e7 AS lat_e7,
-		       ls.lon_e7 AS lon_e7,
-		       ls.speed_mps AS speed_mps,
-		       ls.h_acc_m AS h_acc_m
-		FROM location_sample ls
-		INNER JOIN session_segment ss
-			ON ls.time_ms BETWEEN ss.start_time_ms AND ss.end_time_ms
-		WHERE ss.primary_activity IN (:drivingActivities)
-			AND ls.lat_e7 IS NOT NULL
-			AND ls.lon_e7 IS NOT NULL
-			AND ls.speed_mps IS NOT NULL
-			AND ls.quality NOT IN ('LOW', 'COARSE')
-			AND (ls.speed_accuracy_mps IS NULL OR ls.speed_accuracy_mps <= 3.0)
-			AND ls.time_ms >= :fromMs
-			AND ls.time_ms <= :toMs
-		ORDER BY ls.time_ms DESC, ls.id DESC
-		LIMIT 1
-		"""
-	)
-	suspend fun getLatestDrivingBetween(
-		fromMs: Long,
-		toMs: Long,
-		drivingActivities: List<Int>,
-	): VehicleSpeedSampleRow?
-
-	/**
-	 * Get location samples within time range as Flow.
-	 */
-	@Deprecated(
-		message = "Unbounded location flows can allocate very large lists. Use getAllBetweenFlowLimited for UI flows or getChunkBetweenOrdered for exports.",
-	)
-	@Query("SELECT * FROM location_sample WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms")
-	fun getAllBetweenFlow(fromMs: Long, toMs: Long): Flow<List<LocationSample>>
 
 	/**
 	 * Observe a bounded window of location samples within a time range.

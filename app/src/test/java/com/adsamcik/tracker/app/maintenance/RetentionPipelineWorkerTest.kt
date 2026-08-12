@@ -43,17 +43,6 @@ class RetentionPipelineWorkerTest {
 		fun defaultExplorationRetentionIsZero() {
 			assertEquals(0, RetentionConfigState().explorationRetentionDays)
 		}
-
-		@Test
-		fun defaultExportBeforePurgeIsDisabled() {
-			assertFalse(RetentionConfigState().exportBeforePurge)
-		}
-
-		@Test
-		fun defaultLegacySessionRetentionMatchesRaw() {
-			val c = RetentionConfigState()
-			assertEquals(c.rawDataRetentionDays, c.legacySessionRetentionDays)
-		}
 	}
 
 	@Nested
@@ -71,11 +60,6 @@ class RetentionPipelineWorkerTest {
 		@Test
 		fun zeroTripRetentionMeansKeepForever() {
 			assertEquals(0, RetentionConfigState(tripRetentionDays = 0).tripRetentionDays)
-		}
-
-		@Test
-		fun zeroLegacyRetentionMeansKeepForever() {
-			assertEquals(0, RetentionConfigState(legacySessionRetentionDays = 0).legacySessionRetentionDays)
 		}
 	}
 
@@ -112,26 +96,6 @@ class RetentionPipelineWorkerTest {
 	}
 
 	@Nested
-	inner class ExportBeforePurgeGuard {
-		@Test
-		fun exportBeforePurgeDefaultsToFalse() {
-			assertFalse(RetentionConfigState().exportBeforePurge)
-		}
-
-		@Test
-		fun exportBeforePurgeCanBeEnabled() {
-			assertTrue(RetentionConfigState(exportBeforePurge = true).exportBeforePurge)
-		}
-
-		@Test
-		fun autoPurgeAndExportBeforePurgeAreIndependent() {
-			val config = RetentionConfigState(autoPurgeEnabled = true, exportBeforePurge = true)
-			assertTrue(config.autoPurgeEnabled)
-			assertTrue(config.exportBeforePurge)
-		}
-	}
-
-	@Nested
 	inner class ConfigCustomization {
 		@Test
 		fun customRawRetentionIsRespected() {
@@ -147,8 +111,6 @@ class RetentionPipelineWorkerTest {
 				dailySummaryRetentionDays = 180,
 				explorationRetentionDays = 365,
 				autoPurgeEnabled = true,
-				exportBeforePurge = true,
-				legacySessionRetentionDays = 7,
 			)
 			assertEquals(30, c.rawDataRetentionDays)
 			assertEquals(60, c.wifiCellRetentionDays)
@@ -156,8 +118,6 @@ class RetentionPipelineWorkerTest {
 			assertEquals(180, c.dailySummaryRetentionDays)
 			assertEquals(365, c.explorationRetentionDays)
 			assertTrue(c.autoPurgeEnabled)
-			assertTrue(c.exportBeforePurge)
-			assertEquals(7, c.legacySessionRetentionDays)
 		}
 	}
 

@@ -1,5 +1,6 @@
 plugins {
 	id("tracker.android.library")
+	id("tracker.android.instrumented-test")
 }
 
 android {

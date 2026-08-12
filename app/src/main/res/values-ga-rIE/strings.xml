@@ -14,26 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">Díchumasaíodh mód forbróra</string>
     <string name="settings_data_management_section">Bainistiú sonraí</string>
     <string name="settings_data_danger_zone_section">Crios contúirte</string>
-    <string name="settings_osm_import_section">Sonraí léarscáile (OpenStreetMap)</string>
-    <string name="settings_osm_import_action_title">Iompórtáil réigiún OSM</string>
-    <string name="settings_osm_import_action_summary">Roghnaigh comhad .osm.pbf. Úsáidfidh comhlíonadh feithicle fíortheorainneacha bóthair as líne ansin.</string>
-    <string name="settings_osm_import_unavailable_title">Níl iompórtáil léarscáile as líne ar fáil</string>
-    <string name="settings_osm_import_action_unavailable">Níl iompórtáil léarscáile as líne ar fáil go sealadach agus cosaintí sábháilteachta comhaid á gcur i gcrích.</string>
-    <string name="settings_osm_import_action_running">Ag iompórtáil — sconna chun cealú</string>
-    <string name="settings_osm_import_action_failed">Níorbh fhéidir iompórtáil na léarscáile as líne a chur i gcrích.</string>
-    <string name="settings_osm_import_action_source_unavailable">Níorbh fhéidir an comhad léarscáile roghnaithe a oscailt.</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">Iompórtáladh %1$d bóthar ó %2$d nód.</item>
-        <item quantity="other">Iompórtáladh %1$d bóthar ó %2$d nód.</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">Níor iompórtáladh réigiún OpenStreetMap fós.</string>
-    <string name="settings_osm_imports_attribution">Sonraí léarscáile © rannpháirtithe OpenStreetMap (ODbL 1.0). Déantar gach próiseáil ar an ngléas.</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d bóthar · iompórtáilte %2$s</item>
-        <item quantity="other">%1$,d bóthar · iompórtáilte %2$s</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">Bain an réigiún iompórtáilte</string>
-    <string name="settings_osm_import_remove_message">Bain %1$s? Fillfidh comhlíonadh feithicle ar an mbunlíne sheasta go dtí go n-iompórtálfaidh tú réigiún arís.</string>
     <string name="settings_incremental_backups_title">Cúltacaí incriminteacha</string>
     <string name="settings_incremental_backups_summary">Ná heaspórtáil ach sonraí nua ón gcúltaca deireanach. Laghdaíonn sé seo an t-am easpórtála agus méid an chomhaid.</string>
     <string name="settings_reset_export_watermarks_title">Cuir easpórtáil iomlán i bhfeidhm</string>
@@ -362,9 +342,9 @@
     <string name="setup_step_indicator">Céim %1$d de %2$d</string>
     <string name="setup_online_tiles_title">Tíleanna léarscáile ar líne?</string>
     <string name="setup_online_tiles_subtitle">Tagann bunléarscáil as líne le Tracker, mar sin oibríonn sé gan líonra. Más mian leat léarscáileanna níos saibhre, is féidir leat tíleanna a shruthú ó sholáthraí poiblí.</string>
-    <string name="setup_online_tiles_off_title">As líne amháin (molta)</string>
+    <string name="setup_online_tiles_off_title">As líne amháin</string>
     <string name="setup_online_tiles_off_desc">Gan iarratais líonra. Ní úsáidtear ach an bhunléarscáil chuachta.</string>
-    <string name="setup_online_tiles_on_title">Úsáid tíleanna ar líne</string>
+    <string name="setup_online_tiles_on_title">Úsáid tíleanna ar líne (molta)</string>
     <string name="setup_online_tiles_on_desc">Sruthaigh tíleanna veicteora níos mionsonraithe ó OpenFreeMap (réamhshocrú). Is féidir leat an soláthraí a athrú níos déanaí i Socruithe → Léarscáil.</string>
     <string name="setup_online_tiles_privacy">Nuair atá sé cumasaithe, is féidir leis an soláthraí do sheoladh IP agus na tíleanna a lódálann tú a fheiceáil — go garbh, cén limistéar den léarscáil atá á fheiceáil agat. Ní sheolann Tracker cuntas, aitheantas ná stair suímh riamh.</string>
     <string name="setup_online_tiles_change_later">Is féidir leat é seo a athrú am ar bith i Socruithe → Léarscáil → Tíleanna léarscáile ar líne.</string>

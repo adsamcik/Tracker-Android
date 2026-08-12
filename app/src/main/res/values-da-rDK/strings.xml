@@ -14,26 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">Udviklertilstand er deaktiveret</string>
     <string name="settings_data_management_section">Datahåndtering</string>
     <string name="settings_data_danger_zone_section">Farezone</string>
-    <string name="settings_osm_import_section">Kortdata (OpenStreetMap)</string>
-    <string name="settings_osm_import_action_title">Importér OSM-region</string>
-    <string name="settings_osm_import_action_summary">Vælg en .osm.pbf-fil. Overholdelse af køretøjsregler bruger derefter faktiske vejgrænser offline.</string>
-    <string name="settings_osm_import_unavailable_title">Offlinekortimport er ikke tilgængelig</string>
-    <string name="settings_osm_import_action_unavailable">Offlinekortimport er midlertidigt utilgængelig, mens filbeskyttelsen færdiggøres.</string>
-    <string name="settings_osm_import_action_running">Importerer — tryk for at annullere</string>
-    <string name="settings_osm_import_action_failed">Offlinekortimporten kunne ikke fuldføres.</string>
-    <string name="settings_osm_import_action_source_unavailable">Den valgte kortfil kunne ikke åbnes.</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">Importerede %1$d vej fra %2$d noder.</item>
-        <item quantity="other">Importerede %1$d veje fra %2$d noder.</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">Ingen OpenStreetMap-region er importeret endnu.</string>
-    <string name="settings_osm_imports_attribution">Kortdata © bidragydere til OpenStreetMap (ODbL 1.0). Al behandling sker på enheden.</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d vej · importeret %2$s</item>
-        <item quantity="other">%1$,d veje · importeret %2$s</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">Fjern importeret region</string>
-    <string name="settings_osm_import_remove_message">Fjern %1$s? Overholdelse af køretøjsregler falder tilbage til den faste grundlinje, indtil du importerer en region igen.</string>
     <string name="settings_incremental_backups_title">Trinvise sikkerhedskopier</string>
     <string name="settings_incremental_backups_summary">Eksportér kun nye data siden sidste sikkerhedskopi. Det reducerer eksporttiden og filstørrelsen.</string>
     <string name="settings_reset_export_watermarks_title">Gennemtving fuld eksport</string>
@@ -362,9 +342,9 @@
     <string name="setup_step_indicator">Trin %1$d af %2$d</string>
     <string name="setup_online_tiles_title">Onlinekortfliser?</string>
     <string name="setup_online_tiles_subtitle">Tracker leveres med et offlinegrundkort, så den virker uden netværk. Hvis du vil have mere detaljerede kort, kan du i stedet hente fliser fra en offentlig udbyder.</string>
-    <string name="setup_online_tiles_off_title">Kun offline (anbefalet)</string>
+    <string name="setup_online_tiles_off_title">Kun offline</string>
     <string name="setup_online_tiles_off_desc">Ingen netværksanmodninger. Kun det medfølgende grundkort bruges.</string>
-    <string name="setup_online_tiles_on_title">Brug onlinefliser</string>
+    <string name="setup_online_tiles_on_title">Brug onlinefliser (anbefalet)</string>
     <string name="setup_online_tiles_on_desc">Hent vektorfliser med flere detaljer fra OpenFreeMap (standard). Du kan ændre udbyderen senere i Indstillinger → Kort.</string>
     <string name="setup_online_tiles_privacy">Når det er slået til, kan udbyderen se din IP-adresse og de fliser, du indlæser — omtrent hvilket område af kortet du ser på. Tracker sender aldrig en konto, en identifikator eller din placeringshistorik.</string>
     <string name="setup_online_tiles_change_later">Du kan når som helst ændre dette i Indstillinger → Kort → Onlinekortfliser.</string>

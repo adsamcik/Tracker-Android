@@ -74,11 +74,6 @@ class TrackingCoordinator @Inject constructor(
 		return database.pruneSourceEventStorageBefore(createdBeforeMs).walEventsDeleted
 	}
 
-	suspend fun flushThrough(cutoffOrdinal: Long) {
-		require(cutoffOrdinal >= 0L)
-		projections.flush(cutoffOrdinal)
-	}
-
 	private suspend fun acquireLease(ownerToken: String): Boolean = database.withTransaction {
 		val now = System.currentTimeMillis()
 		val dao = database.sourceProjectionStateDao()

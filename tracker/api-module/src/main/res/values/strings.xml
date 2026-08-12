@@ -105,8 +105,6 @@
 
     <string name="settings_tracking_required_accuracy_title">Required location accuracy</string>
     <string name="settings_tracking_title">Tracking</string>
-    <string name="settings_vehicle_speed_limit_baseline_title">Vehicle speed limit baseline</string>
-    <string name="help_vehicle_speed_limit_baseline">Used by the Vehicle speed compliance map layer. Driving samples are coloured by how their speed compares to this baseline. Choose a value matching the limits where you drive most often (e.g. 50 km/h for cities, 90 km/h for highways).</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
 
     <string name="shortcut_start_tracking">Start tracking</string>

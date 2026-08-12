@@ -53,12 +53,6 @@
     <string name="map_layer_terrain_low">めったに来ない</string>
     <string name="map_layer_terrain_mid">ときどき</string>
     <string name="map_layer_terrain_high">よく来る</string>
-    <string name="map_layer_places_title">よく行く場所</string>
-    <string name="map_layer_places_chip">場所</string>
-    <string name="map_layer_places_description">重要な場所をマーカーで表示します。訪問頻度に応じて大きさと色が変わります。自宅や職場は大きく暖色の点になり、一度だけ行った場所は小さく寒色の点になります。</string>
-    <string name="map_layer_places_rare">まれに</string>
-    <string name="map_layer_places_often">ときどき</string>
-    <string name="map_layer_places_anchor">あなたの拠点</string>
     <string name="map_layer_speed_ribbon_title">速度リボン</string>
     <string name="map_layer_speed_ribbon_chip">リボン</string>
     <string name="map_layer_speed_ribbon_description">移動速度に応じてルートを色付けします。ゆっくりした紫の散歩から、赤く熱いスプリントや運転まで、色が流れます。速度ヒートマップと異なり、リボンは経路を保つため、どこで加速・減速したか正確に確認できます。</string>
@@ -80,9 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">ダウンヒル</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">リフト</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">歩行または休止</string>
-    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">移動の星座</string>
-    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">移動</string>
-    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">よく行く場所の間を繰り返す移動が、曲線の星座になります。安定した弧が各ルートを表し、その上を彗星が移動します。弧が太いほど、その移動をより多く行っています。</string>
     <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">歩行</string>
     <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">サイクリング</string>
     <string name="map_layer_trip_car" tools:ignore="MissingTranslation">運転</string>
@@ -98,18 +89,10 @@
     <string name="map_layer_first_contact_description">発見のタイムラインです。各エリアは、初めて足を踏み入れた時期の新しさで色付けされます。昔見つけた場所は濃い藍色に薄れ、今週初めて訪れた場所は明るいシアンに輝きます。探索の物語を最新のフロンティアへたどってください。</string>
     <string name="map_layer_first_contact_old">ずっと前</string>
     <string name="map_layer_first_contact_recent">発見したばかり</string>
-    <string name="map_layer_vehicle_compliance_title">速度制限の遵守状況</string>
-    <string name="map_layer_vehicle_compliance_description">運転サンプルを、設定した基準速度制限との比較に応じて色付けしたポリラインです。</string>
-    <string name="map_layer_vehicle_compliance_way_under">制限を大きく下回る</string>
-    <string name="map_layer_vehicle_compliance_slow">制限未満</string>
-    <string name="map_layer_vehicle_compliance_at_limit">制限付近</string>
-    <string name="map_layer_vehicle_compliance_slightly_over">わずかに超過</string>
-    <string name="map_layer_vehicle_compliance_speeding">速度超過</string>
     <string name="map_layer_location_polyline_description">記録した位置情報を時系列で結ぶ線です。</string>
     <string name="map_layer_location_polyline_title">位置情報ポリライン</string>
     <string name="map_layer_location_polyline_chip">ポリライン</string>
     <string name="map_layer_wifi_count_heatmap_chip">Wi-Fiの重なり</string>
-    <string name="map_layer_vehicle_compliance_chip">速度超過</string>
     <string name="map_layer_none_title">オーバーレイなし</string>
     <string name="map_date_preset_week">先週</string>
     <string name="map_date_preset_month">先月</string>
@@ -174,7 +157,6 @@
     <string name="map_empty_subtitle_cell">この表示または日付範囲に位置付きのセルデータがありません。位置情報なしで記録されたセルサンプルも保存されていますが、地図には表示できません。</string>
     <string name="map_empty_subtitle_wifi">この表示または日付範囲に位置付きのWi-Fiデータがありません。位置情報なしで記録されたWi-Fi観測も保存されていますが、地図には表示できません。</string>
     <string name="map_empty_subtitle_speed">この表示または日付範囲に速度データがありません。速度地図には、トラッキング中に収集した使用可能な位置情報サンプルが必要です。</string>
-    <string name="map_empty_subtitle_vehicle_compliance">表示できる道路照合済みの運転履歴がありません。OpenStreetMap地域を［設定］からインポートし、実際の道路にルートを照合できるように運転を記録してください。</string>
     <string name="map_empty_dismiss" tools:ignore="MissingTranslation">データなしのメッセージを閉じる</string>
     <string name="map_speed_probe_title">ここでの速度</string>
     <string name="map_speed_probe_avg_label">平均</string>

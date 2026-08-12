@@ -14,28 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">Kūrėjo režimas išjungtas</string>
     <string name="settings_data_management_section">Duomenų tvarkymas</string>
     <string name="settings_data_danger_zone_section">Pavojinga zona</string>
-    <string name="settings_osm_import_section">Žemėlapio duomenys („OpenStreetMap“)</string>
-    <string name="settings_osm_import_action_title">Importuoti OSM regioną</string>
-    <string name="settings_osm_import_action_summary">Pasirinkite .osm.pbf failą. Tada transporto priemonių atitiktis neprisijungus naudos tikrus kelių apribojimus.</string>
-    <string name="settings_osm_import_unavailable_title">Neprisijungus naudojamo žemėlapio importas nepasiekiamas</string>
-    <string name="settings_osm_import_action_unavailable">Neprisijungus naudojamo žemėlapio importas laikinai nepasiekiamas, kol baigiamos failų saugos priemonės.</string>
-    <string name="settings_osm_import_action_running">Importuojama – palieskite, kad atšauktumėte</string>
-    <string name="settings_osm_import_action_failed">Nepavyko užbaigti neprisijungus naudojamo žemėlapio importo.</string>
-    <string name="settings_osm_import_action_source_unavailable">Nepavyko atidaryti pasirinkto žemėlapio failo.</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">Importuotas %1$d kelias iš %2$d mazgų.</item>
-        <item quantity="few">Importuoti %1$d keliai iš %2$d mazgų.</item>
-        <item quantity="other">Importuota %1$d kelių iš %2$d mazgų.</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">Dar neimportuotas joks „OpenStreetMap“ regionas.</string>
-    <string name="settings_osm_imports_attribution">Žemėlapio duomenys © „OpenStreetMap“ bendradarbiai (ODbL 1.0). Visi duomenys apdorojami įrenginyje.</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d kelias · importuota %2$s</item>
-        <item quantity="few">%1$,d keliai · importuota %2$s</item>
-        <item quantity="other">%1$,d kelių · importuota %2$s</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">Pašalinti importuotą regioną</string>
-    <string name="settings_osm_import_remove_message">Pašalinti %1$s? Kol iš naujo neimportuosite regiono, transporto priemonių atitiktis naudos fiksuotą etaloną.</string>
     <string name="settings_incremental_backups_title">Laipsniškos atsarginės kopijos</string>
     <string name="settings_incremental_backups_summary">Eksportuoti tik naujus duomenis nuo paskutinės atsarginės kopijos. Taip sutrumpėja eksportavimo laikas ir sumažėja failo dydis.</string>
     <string name="settings_reset_export_watermarks_title">Priverstinai eksportuoti visus duomenis</string>
@@ -368,9 +346,9 @@
     <string name="setup_step_indicator">%1$d veiksmas iš %2$d</string>
     <string name="setup_online_tiles_title">Internetinės žemėlapio plytelės?</string>
     <string name="setup_online_tiles_subtitle">„Tracker“ pateikiamas su neprisijungus veikiančiu pagrindiniu žemėlapiu, todėl veikia be tinklo. Jei norite turtingesnių žemėlapių, galite vietoj to gauti plyteles iš viešo teikėjo.</string>
-    <string name="setup_online_tiles_off_title">Tik neprisijungus (rekomenduojama)</string>
+    <string name="setup_online_tiles_off_title">Tik neprisijungus</string>
     <string name="setup_online_tiles_off_desc">Tinklo užklausų nėra. Naudojamas tik pridėtas pagrindinis žemėlapis.</string>
-    <string name="setup_online_tiles_on_title">Naudoti internetines plyteles</string>
+    <string name="setup_online_tiles_on_title">Naudoti internetines plyteles (rekomenduojama)</string>
     <string name="setup_online_tiles_on_desc">Gaukite detalesnes vektorines plyteles iš „OpenFreeMap“ (numatyta). Teikėją vėliau galėsite pakeisti pasirinkę Nustatymai → Žemėlapis.</string>
     <string name="setup_online_tiles_privacy">Kai ši parinktis įjungta, teikėjas gali matyti jūsų IP adresą ir įkeliamas plyteles – apytiksliai, kurią žemėlapio sritį peržiūrite. „Tracker“ niekada nesiunčia paskyros, identifikatoriaus ar vietos istorijos.</string>
     <string name="setup_online_tiles_change_later">Tai bet kada galite pakeisti pasirinkę Nustatymai → Žemėlapis → Internetinės žemėlapio plytelės.</string>

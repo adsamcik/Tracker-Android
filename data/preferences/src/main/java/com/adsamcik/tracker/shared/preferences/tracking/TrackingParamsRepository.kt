@@ -41,12 +41,4 @@ interface TrackingParamsRepository {
 	suspend fun setAdvancedSourceControlsEnabled(enabled: Boolean) {
 		update { copy(advancedSourceControlsEnabled = enabled) }
 	}
-
-    /**
-     * Set the user-configured baseline speed limit (m/s) used by the
-     * "Vehicle speed compliance" map layer to colour driving routes.
-     * Values are clamped to [TrackingParamsState.MIN_VEHICLE_SPEED_LIMIT_KMH,
-     * TrackingParamsState.MAX_VEHICLE_SPEED_LIMIT_KMH] converted to m/s.
-     */
-    suspend fun setVehicleSpeedLimitBaselineMps(mps: Double)
 }

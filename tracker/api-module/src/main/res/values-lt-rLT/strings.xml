@@ -84,8 +84,6 @@
     <string name="settings_tracking_notice_summary">Pakeitimai įsigalios iš naujo pradėjus sekimą</string>
     <string name="settings_tracking_required_accuracy_title">Reikalingas vietos tikslumas</string>
     <string name="settings_tracking_title">Sekimas</string>
-    <string name="settings_vehicle_speed_limit_baseline_title">Transporto priemonės greičio ribos etalonas</string>
-    <string name="help_vehicle_speed_limit_baseline">Naudojama transporto priemonės greičio atitikties žemėlapio sluoksnyje. Vairavimo pavyzdžiai nuspalvinami pagal jų greičio palyginimą su šiuo etalonu. Pasirinkite reikšmę, atitinkančią ribas, kur dažniausiai vairuojate (pvz., 50 km/h miestuose, 90 km/h greitkeliuose).</string>
     <string name="settings_wifi_enabled_title">Wi‑Fi</string>
     <string name="shortcut_start_tracking">Pradėti sekimą</string>
     <string name="shortcut_start_tracking_long">Pradėti vietos sekimą</string>

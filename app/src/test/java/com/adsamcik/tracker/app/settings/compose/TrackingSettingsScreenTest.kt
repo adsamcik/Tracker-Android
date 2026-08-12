@@ -6,6 +6,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import com.adsamcik.tracker.app.common.ui.BatteryImpact
 import com.adsamcik.tracker.app.settings.TrackingSettingsUiState
@@ -13,6 +14,7 @@ import com.adsamcik.tracker.app.settings.tracking.TrackingSettingsContent
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionSettings
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.source.battery.BatteryImpactEstimate
 import com.adsamcik.tracker.tracker.source.battery.EstimateConfidence
@@ -22,6 +24,9 @@ import com.adsamcik.tracker.tracker.source.battery.ImpactAssumption
 import com.adsamcik.tracker.tracker.source.battery.ImpactDriver
 import com.adsamcik.tracker.tracker.source.battery.ImpactLevel
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingCoordinatorMetrics
+import com.adsamcik.tracker.tracker.source.coordinator.SemanticAcquisitionPlanFactory
+import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanEnvironment
+import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import io.kotest.matchers.shouldBe
 import org.junit.Rule
@@ -51,6 +56,8 @@ class TrackingSettingsScreenTest {
         stepsEnabled = true,
         wifiEnabled = true,
         cellEnabled = false,
+        autoTrackingMode = 1,
+        autoTrackingEnabled = true,
         transitionDetectionEnabled = true,
         notificationStyled = true,
         minDistance = 10,
@@ -74,9 +81,19 @@ class TrackingSettingsScreenTest {
     }
 
     @Test
-    fun displaysTrackingNotice() {
+    fun trackingNoticeIsHiddenWhileIdle() {
         composeTestRule.setContent {
             AppTheme { TrackingSettingsContent(uiState = defaultUiState) }
+        }
+        composeTestRule.onNodeWithText("Changes take effect", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun trackingNoticeAppearsDuringAnActiveTrip() {
+        composeTestRule.setContent {
+            AppTheme {
+                TrackingSettingsContent(uiState = defaultUiState.copy(trackingActive = true))
+            }
         }
         composeTestRule.onNodeWithText("Changes take effect", substring = true).assertIsDisplayed()
     }
@@ -86,10 +103,62 @@ class TrackingSettingsScreenTest {
         composeTestRule.setContent {
             AppTheme { TrackingSettingsContent(uiState = defaultUiState) }
         }
-        scrollTo("Use activity transitions")
-        composeTestRule.onNodeWithText("Use activity transitions", substring = true).assertIsDisplayed()
+        scrollTo("Battery-efficient motion detection")
+        composeTestRule.onNodeWithText("Battery-efficient motion detection", substring = true).assertIsDisplayed()
         scrollTo("Colored notifications")
         composeTestRule.onNodeWithText("Colored notifications", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun automaticTrackingModeIsVisibleAndExplainsCurrentBehavior() {
+        composeTestRule.setContent {
+            AppTheme { TrackingSettingsContent(uiState = defaultUiState) }
+        }
+
+        scrollTo("Automatic tracking")
+        composeTestRule.onNodeWithTag("automaticTrackingMode").assertIsDisplayed()
+        scrollTo("Automatically track walking and running.")
+        composeTestRule.onNodeWithText("Automatically track walking and running.", substring = true)
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun automaticTrackingModeSelectorChangesModeDirectly() {
+        var selectedMode: Int? = null
+        composeTestRule.setContent {
+            AppTheme {
+                TrackingSettingsContent(
+                    uiState = defaultUiState,
+                    onAutoTrackingModeChanged = { selectedMode = it },
+                )
+            }
+        }
+
+        scrollTo("Automatically track all movement")
+        composeTestRule.onNodeWithTag("automaticTrackingModeOption-2").performClick()
+        composeTestRule.waitForIdle()
+
+        selectedMode shouldBe 2
+    }
+
+    @Test
+    fun transitionDetectionIsHiddenWhenAutomaticTrackingIsDisabled() {
+        composeTestRule.setContent {
+            AppTheme {
+                TrackingSettingsContent(
+                    uiState = defaultUiState.copy(
+                        autoTrackingMode = 0,
+                        autoTrackingEnabled = false,
+                    ),
+                )
+            }
+        }
+
+        scrollTo("Automatic tracking")
+        composeTestRule.onNodeWithText("Battery-efficient motion detection", substring = true)
+            .assertDoesNotExist()
+        composeTestRule.onNodeWithText("Start and stop tracking manually.", substring = true)
+            .assertIsDisplayed()
     }
 
     @Test
@@ -103,8 +172,8 @@ class TrackingSettingsScreenTest {
                 )
             }
         }
-        scrollTo("Use activity transitions")
-        composeTestRule.onNodeWithText("Use activity transitions", substring = true).performClick()
+        scrollTo("Battery-efficient motion detection")
+        composeTestRule.onNodeWithText("Battery-efficient motion detection", substring = true).performClick()
         newValue shouldBe false // Was true, toggling makes false
     }
 
@@ -133,6 +202,7 @@ class TrackingSettingsScreenTest {
                 )
             }
         }
+        scrollTo("Enable at least one tracking")
         composeTestRule.onNodeWithText("Enable at least one tracking", substring = true)
             .assertIsDisplayed()
     }
@@ -155,12 +225,12 @@ class TrackingSettingsScreenTest {
         composeTestRule.setContent {
             AppTheme { TrackingSettingsContent(uiState = defaultUiState) }
         }
-        // Settings are no longer hidden behind a collapsed "Advanced" section — each
-        // group has a visible header and its controls are reachable by scrolling.
-        scrollTo("Data sources")
-        composeTestRule.onNodeWithText("Data sources", substring = true).assertIsDisplayed()
-        scrollTo("Location collection")
-        composeTestRule.onNodeWithText("Location collection", substring = true).assertIsDisplayed()
+        // Everyday source controls are visible first; detailed frequency controls are
+        // an explicitly labelled drill-down rather than a switch with unclear effects.
+        scrollTo("Data collected")
+        composeTestRule.onNodeWithText("Data collected", substring = true).assertIsDisplayed()
+        scrollTo("Advanced controls")
+        composeTestRule.onNodeWithText("Advanced controls", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -182,9 +252,13 @@ class TrackingSettingsScreenTest {
             AppTheme { TrackingSettingsContent(uiState = defaultUiState) }
         }
 
+        scrollTo("Technical status")
+        composeTestRule.onNodeWithTag("technicalStatusToggle").performClick()
         scrollTo("Requested and effective status")
         composeTestRule.onNodeWithTag("effectiveTrackingStatus").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Tracking is not active", substring = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Tracking is not active", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
     }
 
     @Test
@@ -202,10 +276,51 @@ class TrackingSettingsScreenTest {
             }
         }
 
-        scrollTo("Requested: Balanced")
+        scrollTo("Location")
         composeTestRule.onNodeWithTag("sourceFrequency-Location").performClick()
         composeTestRule.onNodeWithText("Responsive").performClick()
         selected shouldBe (TrackingSourceComponent.LOCATION to SourceCollectionFrequency.RESPONSIVE)
+    }
+
+    @Test
+    fun advancedSourcesShowTheirActualRequestedCadence() {
+        val responsive = SourceCollectionSettings(
+            location = SourceCollectionFrequency.RESPONSIVE,
+            activity = SourceCollectionFrequency.RESPONSIVE,
+            steps = SourceCollectionFrequency.RESPONSIVE,
+            pressure = SourceCollectionFrequency.RESPONSIVE,
+            wifi = SourceCollectionFrequency.RESPONSIVE,
+            cell = SourceCollectionFrequency.RESPONSIVE,
+        )
+        val plans = SemanticAcquisitionPlanFactory().create(
+            settings = TrackingParamsState(sourceCollectionSettings = responsive),
+            revision = 0L,
+            createdAtMs = 0L,
+            environment = SourcePlanEnvironment(LocationBackend.FUSED, true, emptySet()),
+        ).plans
+        composeTestRule.setContent {
+            AppTheme {
+                TrackingSettingsContent(
+                    uiState = defaultUiState.copy(
+                        advancedSourceControlsEnabled = true,
+                        sourceCollectionSettings = responsive,
+                        sourcePlans = plans,
+                    ),
+                )
+            }
+        }
+
+        listOf(
+            "1 sec updates",
+            "Continuous",
+            "≤ 5 sec batching",
+            "20 samples/sec",
+            "Active scan",
+            "Network changes",
+        ).forEach { cadence ->
+            scrollTo(cadence)
+            composeTestRule.onNodeWithText(cadence, substring = true).assertIsDisplayed()
+        }
     }
 
     @Test
@@ -231,8 +346,13 @@ class TrackingSettingsScreenTest {
             }
         }
 
-        scrollTo("Estimated tracking impact")
+        composeTestRule.onNodeWithTag("batteryEstimateCard").assertDoesNotExist()
+        scrollTo("Technical status")
+        composeTestRule.onNodeWithTag("technicalStatusToggle").performClick()
+        scrollTo("Estimated current battery use")
         composeTestRule.onNodeWithTag("batteryEstimateCard").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Confidence: Low").assertDoesNotExist()
+        composeTestRule.onNodeWithText("How this estimate works").performClick()
         composeTestRule.onNodeWithText("Confidence: Low").assertIsDisplayed()
         scrollTo("No trustworthy percentage")
         composeTestRule.onNodeWithText("No trustworthy percentage", substring = true).assertIsDisplayed()
@@ -256,19 +376,28 @@ class TrackingSettingsScreenTest {
             }
         }
 
+        scrollTo("Technical status")
+        composeTestRule.onNodeWithTag("technicalStatusToggle").performClick()
         scrollTo("Local runtime telemetry")
-        composeTestRule.onNodeWithText("Projected events: 9", substring = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Projected events: 9", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
     }
 
     @Test
-    fun locationControlsHiddenWhenLocationSourceIsDisabled() {
+    fun locationFiltersHiddenWhenLocationSourceIsDisabled() {
         composeTestRule.setContent {
             AppTheme {
-                TrackingSettingsContent(uiState = defaultUiState.copy(locationEnabled = false))
+                TrackingSettingsContent(
+                    uiState = defaultUiState.copy(
+                        advancedSourceControlsEnabled = true,
+                        locationEnabled = false,
+                    ),
+                )
             }
         }
 
-        composeTestRule.onNodeWithText("Location collection", substring = true).assertDoesNotExist()
+        composeTestRule.onNodeWithText("Location filters", substring = true).assertDoesNotExist()
     }
 
     @Test
@@ -281,7 +410,7 @@ class TrackingSettingsScreenTest {
             }
         }
         composeTestRule.onNodeWithText("Balanced", substring = true).assertDoesNotExist()
-        composeTestRule.onNodeWithText("Use activity transitions", substring = true)
+        composeTestRule.onNodeWithText("Battery-efficient motion detection", substring = true)
             .assertDoesNotExist()
     }
 }

@@ -53,12 +53,6 @@
     <string name="map_layer_terrain_low">Рядко тук</string>
     <string name="map_layer_terrain_mid">Понякога</string>
     <string name="map_layer_terrain_high">Често тук</string>
-    <string name="map_layer_places_title">Чести места</string>
-    <string name="map_layer_places_chip">Места</string>
-    <string name="map_layer_places_description">Важните ви места като маркери, всеки с размер и цвят според честотата на посещенията. Домът и работата стават големи топли точки; място, което сте посетили веднъж, остава малко хладно.</string>
-    <string name="map_layer_places_rare">Рядко</string>
-    <string name="map_layer_places_often">Понякога</string>
-    <string name="map_layer_places_anchor">Вашите опори</string>
     <string name="map_layer_speed_ribbon_title">Лента на скоростта</string>
     <string name="map_layer_speed_ribbon_chip">Лента</string>
     <string name="map_layer_speed_ribbon_description">Маршрутът ви е оцветен според скоростта ви, с плавен цвят от бавна виолетова разходка до червено-горещ спринт или шофиране. За разлика от топлинната карта на скоростта, лентата запазва пътя ви цял, за да виждате точно къде сте ускорили и забавили.</string>
@@ -80,9 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Спускане</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Лифт</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Ходене или пауза</string>
-    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Съзвездия от пътувания</string>
-    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Пътувания</string>
-    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Повтарящите се пътувания между честите ви места образуват извити съзвездия. Стабилна дъга показва всеки маршрут, докато комета се движи по него; по-дебелите дъги означават, че сте правили това пътуване по-често.</string>
     <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Ходене</string>
     <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Колоездене</string>
     <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Шофиране</string>
@@ -98,18 +89,10 @@
     <string name="map_layer_first_contact_description">Хронология на откритията ви: всяка област е оцветена според това колко скоро сте стъпили там за първи път. Местата, които сте открили отдавна, избледняват до дълбоко индиго, а земята, която сте изследвали тази седмица, свети ярко в циан — прочетете историята на изследването си до най-новите си хоризонти.</string>
     <string name="map_layer_first_contact_old">Отдавна</string>
     <string name="map_layer_first_contact_recent">Току-що открито</string>
-    <string name="map_layer_vehicle_compliance_title">Съответствие със скоростта на превозното средство</string>
-    <string name="map_layer_vehicle_compliance_description">Полилиния от проби при шофиране, оцветена според сравнението на скоростта с конфигурираното ви базово ограничение.</string>
-    <string name="map_layer_vehicle_compliance_way_under">Далеч под ограничението</string>
-    <string name="map_layer_vehicle_compliance_slow">Под ограничението</string>
-    <string name="map_layer_vehicle_compliance_at_limit">Близо до ограничението</string>
-    <string name="map_layer_vehicle_compliance_slightly_over">Леко над ограничението</string>
-    <string name="map_layer_vehicle_compliance_speeding">Превишена скорост</string>
     <string name="map_layer_location_polyline_description">Линия, която свързва записаните ви местоположения във времето.</string>
     <string name="map_layer_location_polyline_title">Полилиния на местоположението</string>
     <string name="map_layer_location_polyline_chip">Полилиния</string>
     <string name="map_layer_wifi_count_heatmap_chip">Припокриване на Wi-Fi</string>
-    <string name="map_layer_vehicle_compliance_chip">Превишена скорост</string>
     <string name="map_layer_none_title">Без наслагване</string>
     <string name="map_date_preset_week">Миналата седмица</string>
     <string name="map_date_preset_month">Миналия месец</string>
@@ -174,7 +157,6 @@
     <string name="map_empty_subtitle_cell">Няма клетъчни данни с местоположение в този изглед или диапазон от дати. Клетъчните проби, записани без местоположение, се съхраняват, но не могат да се покажат на картата.</string>
     <string name="map_empty_subtitle_wifi">Няма Wi-Fi данни с местоположение в този изглед или диапазон от дати. Wi-Fi наблюденията, записани без местоположение, се съхраняват, но не могат да се покажат на картата.</string>
     <string name="map_empty_subtitle_speed">Няма данни за скоростта в този изглед или диапазон от дати. Картите на скоростта изискват използваеми проби за местоположение, събрани по време на проследяване.</string>
-    <string name="map_empty_subtitle_vehicle_compliance">Няма пътувания с автомобил, съпоставени с пътната мрежа, за показване. Импортирайте регион от OpenStreetMap (Настройки) и запишете няколко пътувания с автомобил, за да съпоставим маршрута ви с реални пътища.</string>
     <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Скриване на съобщението за липса на данни</string>
     <string name="map_speed_probe_title">Скорост тук</string>
     <string name="map_speed_probe_avg_label">Средна</string>

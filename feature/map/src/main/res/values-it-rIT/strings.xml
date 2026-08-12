@@ -53,12 +53,6 @@
     <string name="map_layer_terrain_low">Raramente qui</string>
     <string name="map_layer_terrain_mid">A volte</string>
     <string name="map_layer_terrain_high">Spesso qui</string>
-    <string name="map_layer_places_title">Luoghi frequenti</string>
-    <string name="map_layer_places_chip">Luoghi</string>
-    <string name="map_layer_places_description">I tuoi luoghi importanti come indicatori, ciascuno dimensionato e colorato in base alla frequenza delle visite. Casa e lavoro diventano grandi punti caldi; un luogo visitato una volta resta piccolo e freddo.</string>
-    <string name="map_layer_places_rare">Raramente</string>
-    <string name="map_layer_places_often">A volte</string>
-    <string name="map_layer_places_anchor">I tuoi punti fermi</string>
     <string name="map_layer_speed_ribbon_title">Nastro della velocità</string>
     <string name="map_layer_speed_ribbon_chip">Nastro</string>
     <string name="map_layer_speed_ribbon_description">Il tuo percorso è dipinto in base alla velocità di movimento, con colori che scorrono dal viola di una passeggiata lenta al rosso acceso di uno sprint o di una guida. A differenza della mappa di calore della velocità, il nastro conserva intatto il tracciato, così vedi esattamente dove hai accelerato e rallentato.</string>
@@ -80,9 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Discesa</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Impianto</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Camminata o pausa</string>
-    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Costellazioni di viaggi</string>
-    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Viaggi</string>
-    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Gli spostamenti ripetuti tra i luoghi frequenti diventano costellazioni curve. Un arco stabile mostra ogni percorso mentre una cometa viaggia lungo di esso; archi più spessi indicano che hai compiuto quel viaggio più spesso.</string>
     <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Camminata</string>
     <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Bicicletta</string>
     <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Guida</string>
@@ -98,18 +89,10 @@
     <string name="map_layer_first_contact_description">Una cronologia delle tue scoperte: ogni area è colorata in base a quanto recentemente ci hai messo piede per la prima volta. I luoghi trovati molto tempo fa sfumano nell\'indaco profondo, mentre il terreno scoperto questa settimana brilla di ciano: leggi la storia della tua esplorazione fino alle frontiere più recenti.</string>
     <string name="map_layer_first_contact_old">Molto tempo fa</string>
     <string name="map_layer_first_contact_recent">Appena scoperto</string>
-    <string name="map_layer_vehicle_compliance_title">Conformità della velocità dei veicoli</string>
-    <string name="map_layer_vehicle_compliance_description">Polilinea dei campioni di guida colorata in base al confronto della velocità con il limite di riferimento configurato.</string>
-    <string name="map_layer_vehicle_compliance_way_under">Molto sotto il limite</string>
-    <string name="map_layer_vehicle_compliance_slow">Sotto il limite</string>
-    <string name="map_layer_vehicle_compliance_at_limit">Vicino al limite</string>
-    <string name="map_layer_vehicle_compliance_slightly_over">Leggermente oltre</string>
-    <string name="map_layer_vehicle_compliance_speeding">Eccesso di velocità</string>
     <string name="map_layer_location_polyline_description">Linea che collega nel tempo le posizioni registrate.</string>
     <string name="map_layer_location_polyline_title">Polilinea delle posizioni</string>
     <string name="map_layer_location_polyline_chip">Polilinea</string>
     <string name="map_layer_wifi_count_heatmap_chip">Sovrapposizione Wi-Fi</string>
-    <string name="map_layer_vehicle_compliance_chip">Eccesso di velocità</string>
     <string name="map_layer_none_title">Nessuna sovrapposizione</string>
     <string name="map_date_preset_week">Settimana scorsa</string>
     <string name="map_date_preset_month">Mese scorso</string>
@@ -174,7 +157,6 @@
     <string name="map_empty_subtitle_cell">Nessun dato cellulare localizzato in questa vista o intervallo di date. I campioni cellulari registrati senza posizione vengono comunque salvati, ma non possono apparire sulla mappa.</string>
     <string name="map_empty_subtitle_wifi">Nessun dato Wi-Fi localizzato in questa vista o intervallo di date. Le osservazioni Wi-Fi registrate senza posizione vengono comunque salvate, ma non possono apparire sulla mappa.</string>
     <string name="map_empty_subtitle_speed">Nessun dato di velocità in questa vista o intervallo di date. Le mappe della velocità richiedono campioni di posizione utilizzabili raccolti durante il tracciamento.</string>
-    <string name="map_empty_subtitle_vehicle_compliance">Nessuna guida associata alle strade da mostrare. Importa una regione OpenStreetMap (Impostazioni) e registra alcuni spostamenti in auto per associare il percorso alle strade reali.</string>
     <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Ignora messaggio senza dati</string>
     <string name="map_speed_probe_title">Velocità qui</string>
     <string name="map_speed_probe_avg_label">Media</string>

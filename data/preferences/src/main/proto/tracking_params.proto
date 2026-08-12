@@ -39,10 +39,9 @@ message TrackingParamsProto {
   // Legacy detector toggles. Detection is now passive and automatically requirement-gated.
   bool ski_detection_enabled = 15 [deprecated = true];
 
-  // Vehicle speed compliance baseline (m/s).
-  // Used by the "Vehicle speed compliance" map layer to colour driving routes.
-  // 0 means "use default" (50 km/h).
-  double vehicle_speed_limit_baseline_mps = 16;
+  // Removed with the deferred vehicle-compliance feature. Never reuse its wire identity.
+  reserved 16;
+  reserved "vehicle_speed_limit_baseline_mps";
 
   // Sailing/boating detection (GPS speed + step rate based; see SailingDetectionConfig).
   bool sailing_detection_enabled = 17 [deprecated = true];

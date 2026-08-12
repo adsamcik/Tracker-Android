@@ -53,12 +53,6 @@
     <string name="map_layer_terrain_low">Reti šeit</string>
     <string name="map_layer_terrain_mid">Dažreiz</string>
     <string name="map_layer_terrain_high">Bieži šeit</string>
-    <string name="map_layer_places_title">Biežas vietas</string>
-    <string name="map_layer_places_chip">Vietas</string>
-    <string name="map_layer_places_description">Jūsu svarīgās vietas kā marķieri, kuru izmērs un krāsa atspoguļo apmeklējuma biežumu. Mājas un darbs kļūst par lieliem siltiem punktiem; vieta, kur bijāt vienreiz, paliek mazs vēss punkts.</string>
-    <string name="map_layer_places_rare">Reti</string>
-    <string name="map_layer_places_often">Dažreiz</string>
-    <string name="map_layer_places_anchor">Jūsu pieturas punkti</string>
     <string name="map_layer_speed_ribbon_title">Ātruma lente</string>
     <string name="map_layer_speed_ribbon_chip">Lente</string>
     <string name="map_layer_speed_ribbon_description">Jūsu maršruts ir iekrāsots pēc pārvietošanās ātruma — plūstošā krāsā no lēnas violetas pastaigas līdz sarkani karstam sprintam vai braucienam. Atšķirībā no ātruma siltumkartes lente saglabā maršruta līniju, lai redzētu, kur tieši paātrinājāties un palēninājāties.</string>
@@ -80,9 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Nobrauciens lejup</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Pacēlājs</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Pastaiga vai pauze</string>
-    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Braucienu zvaigznāji</string>
-    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Braucieni</string>
-    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Atkārtoti ceļojumi starp biežajām vietām kļūst par liektiem zvaigznājiem. Stabils loks parāda katru maršrutu, kamēr pa to pārvietojas komēta; biezāki loki nozīmē, ka šo braucienu veicāt biežāk.</string>
     <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Iešana</string>
     <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Braukšana ar velosipēdu</string>
     <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Auto vadīšana</string>
@@ -98,18 +89,10 @@
     <string name="map_layer_first_contact_description">Jūsu atklājumu laika skala: katrs apgabals ir iekrāsots pēc tā, cik sen tajā pirmoreiz spērāt kāju. Sen atrastās vietas izbalē līdz dziļam indigo, bet šonedēļ atklātā zeme mirdz spilgti ciānā — lasiet savas izpētes stāstu no jaunākajām robežām uz āru.</string>
     <string name="map_layer_first_contact_old">Sen</string>
     <string name="map_layer_first_contact_recent">Tikko atklāts</string>
-    <string name="map_layer_vehicle_compliance_title">Transportlīdzekļu ātruma atbilstība</string>
-    <string name="map_layer_vehicle_compliance_description">Braukšanas paraugu līnija ir iekrāsota pēc ātruma salīdzinājuma ar jūsu konfigurēto pamata ierobežojumu.</string>
-    <string name="map_layer_vehicle_compliance_way_under">Krietni zem ierobežojuma</string>
-    <string name="map_layer_vehicle_compliance_slow">Zem ierobežojuma</string>
-    <string name="map_layer_vehicle_compliance_at_limit">Pie ierobežojuma</string>
-    <string name="map_layer_vehicle_compliance_slightly_over">Nedaudz virs ierobežojuma</string>
-    <string name="map_layer_vehicle_compliance_speeding">Ātruma pārsniegšana</string>
     <string name="map_layer_location_polyline_description">Līnija, kas laika gaitā savieno jūsu ierakstītās atrašanās vietas.</string>
     <string name="map_layer_location_polyline_title">Atrašanās vietu līnija</string>
     <string name="map_layer_location_polyline_chip">Līnija</string>
     <string name="map_layer_wifi_count_heatmap_chip">Wi-Fi pārklāšanās</string>
-    <string name="map_layer_vehicle_compliance_chip">Ātruma pārsniegšana</string>
     <string name="map_layer_none_title">Bez pārklājuma</string>
     <string name="map_date_preset_week">Pagājušā nedēļa</string>
     <string name="map_date_preset_month">Pagājušais mēnesis</string>
@@ -174,7 +157,6 @@
     <string name="map_empty_subtitle_cell">Šajā skatā vai datumu diapazonā nav lokalizētu šūnu datu. Bez atrašanās vietas ierakstītie šūnu paraugi joprojām tiek saglabāti, taču nevar parādīties kartē.</string>
     <string name="map_empty_subtitle_wifi">Šajā skatā vai datumu diapazonā nav lokalizētu Wi-Fi datu. Bez atrašanās vietas ierakstītie Wi-Fi novērojumi joprojām tiek saglabāti, taču nevar parādīties kartē.</string>
     <string name="map_empty_subtitle_speed">Šajā skatā vai datumu diapazonā nav ātruma datu. Ātruma kartēm nepieciešami izmantojami atrašanās vietas paraugi, kas savākti izsekošanas laikā.</string>
-    <string name="map_empty_subtitle_vehicle_compliance">Nav ceļiem piesaistītu braucienu, ko rādīt. Importējiet OpenStreetMap reģionu sadaļā Iestatījumi un ierakstiet dažus braucienus, lai maršrutu varētu sasaistīt ar reāliem ceļiem.</string>
     <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Noraidīt ziņojumu par datu neesamību</string>
     <string name="map_speed_probe_title">Ātrums šeit</string>
     <string name="map_speed_probe_avg_label">Vidējais</string>

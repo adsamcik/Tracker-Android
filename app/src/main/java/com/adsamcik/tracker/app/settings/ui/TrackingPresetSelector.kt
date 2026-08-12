@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.app.settings.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,7 +17,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -39,6 +45,7 @@ fun TrackingPresetSelector(
     onPresetSelected: (TrackingPreset) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var expanded by remember { mutableStateOf(false) }
     val presets = listOf(
         TrackingPreset.HIGH_ACCURACY,
         TrackingPreset.BALANCED,
@@ -52,31 +59,48 @@ fun TrackingPresetSelector(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            text = stringResource(R.string.tracking_preset_selector_title),
-            style = MaterialTheme.typography.titleMedium,
-        )
-        Text(
             text = stringResource(R.string.tracking_preset_selector_subtitle),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        Column(
-            modifier = Modifier.selectableGroup(),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            presets.forEach { preset ->
+        if (expanded) {
+            Column(
+                modifier = Modifier.selectableGroup(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                presets.forEach { preset ->
+                    PresetOptionCard(
+                        preset = preset,
+                        selected = preset == selectedPreset,
+                        batteryImpact = preset.batteryImpact(currentBatteryImpact),
+                        onClick = {
+                            onPresetSelected(preset)
+                            expanded = false
+                        },
+                    )
+                }
+            }
+        } else if (selectedPreset == TrackingPreset.CUSTOM) {
+            CustomProfileIndicator(currentBatteryImpact = currentBatteryImpact)
+        } else {
+            presets.firstOrNull { preset -> preset == selectedPreset }?.let { selected ->
                 PresetOptionCard(
-                    preset = preset,
-                    selected = preset == selectedPreset,
-                    batteryImpact = preset.batteryImpact(currentBatteryImpact),
-                    onClick = { onPresetSelected(preset) },
+                    preset = selected,
+                    selected = true,
+                    batteryImpact = selected.batteryImpact(currentBatteryImpact),
+                    onClick = { expanded = true },
+                    showRadio = false,
                 )
             }
         }
 
-        if (selectedPreset == TrackingPreset.CUSTOM) {
-            CustomProfileIndicator(currentBatteryImpact = currentBatteryImpact)
+        TextButton(onClick = { expanded = !expanded }) {
+            Text(
+                text = stringResource(
+                    if (expanded) R.string.tracking_preset_done else R.string.tracking_preset_change,
+                ),
+            )
         }
     }
 }
@@ -88,6 +112,7 @@ private fun PresetOptionCard(
     batteryImpact: BatteryImpact,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    showRadio: Boolean = true,
 ) {
     Card(
         colors = CardDefaults.cardColors(
@@ -107,10 +132,16 @@ private fun PresetOptionCard(
         ),
         modifier = modifier
             .fillMaxWidth()
-            .selectable(
-                selected = selected,
-                onClick = onClick,
-                role = Role.RadioButton,
+            .then(
+                if (showRadio) {
+                    Modifier.selectable(
+                        selected = selected,
+                        onClick = onClick,
+                        role = Role.RadioButton,
+                    )
+                } else {
+                    Modifier.clickable(role = Role.Button, onClick = onClick)
+                },
             ),
     ) {
         Row(
@@ -118,7 +149,9 @@ private fun PresetOptionCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            RadioButton(selected = selected, onClick = null)
+            if (showRadio) {
+                RadioButton(selected = selected, onClick = null)
+            }
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(2.dp),

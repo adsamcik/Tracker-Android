@@ -184,8 +184,8 @@ class SetupUiStateTest {
         }
 
         @Test
-        fun `default has online map tiles disabled`() {
-            assertFalse(SetupUiState().onlineMapTilesEnabled)
+        fun `default has online map tiles enabled`() {
+            assertTrue(SetupUiState().onlineMapTilesEnabled)
         }
     }
 }

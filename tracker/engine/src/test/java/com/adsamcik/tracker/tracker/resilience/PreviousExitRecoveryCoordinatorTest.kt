@@ -3,6 +3,9 @@ package com.adsamcik.tracker.tracker.resilience
 import android.app.ApplicationExitInfo
 import com.adsamcik.tracker.stats.api.PolicyTier
 import io.kotest.matchers.shouldBe
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
@@ -11,7 +14,10 @@ class PreviousExitRecoveryCoordinatorTest {
 	fun `abnormal exits enqueue an expedited WAL drain`() = runTest {
 		val store = RecordingStore()
 		val scheduler = RecordingScheduler()
-		val coordinator = PreviousExitRecoveryCoordinator(store, scheduler)
+		val finalizer = mockk<ForceStopSourceSessionFinalizer>(relaxed = true)
+		coEvery { finalizer.finalize(any()) } returns
+			ForceStopSourceSessionFinalization.NO_ACTIVE_SESSION
+		val coordinator = PreviousExitRecoveryCoordinator(store, scheduler, finalizer)
 
 		listOf(
 			ApplicationExitInfo.REASON_LOW_MEMORY,
@@ -25,19 +31,24 @@ class PreviousExitRecoveryCoordinatorTest {
 
 		scheduler.enqueueCount shouldBe 5
 		store.clearCount shouldBe 0
+		coVerify(exactly = 0) { finalizer.finalize(any()) }
 	}
 
 	@Test
-	fun `user requested exit clears descriptor and suppresses restart`() = runTest {
+	fun `user requested exit is ambiguous and does not suppress recovery`() = runTest {
 		val store = RecordingStore()
 		val scheduler = RecordingScheduler()
-		val coordinator = PreviousExitRecoveryCoordinator(store, scheduler)
+		val finalizer = mockk<ForceStopSourceSessionFinalizer>(relaxed = true)
+		coEvery { finalizer.finalize(any()) } returns
+			ForceStopSourceSessionFinalization.NO_ACTIVE_SESSION
+		val coordinator = PreviousExitRecoveryCoordinator(store, scheduler, finalizer)
 
 		coordinator.handle(ApplicationExitInfo.REASON_USER_REQUESTED) shouldBe
-			PreviousExitRecoveryAction.SUPPRESS_RESTART
+			PreviousExitRecoveryAction.NONE
 
-		store.clearCount shouldBe 1
+		store.clearCount shouldBe 0
 		scheduler.enqueueCount shouldBe 0
+		coVerify(exactly = 0) { finalizer.finalize(any()) }
 	}
 
 	@Test
@@ -77,4 +88,3 @@ class PreviousExitRecoveryCoordinatorTest {
 		}
 	}
 }
-

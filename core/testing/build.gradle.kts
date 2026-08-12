@@ -40,13 +40,17 @@ dependencies {
     // Compose testing
     implementation(libs.compose.ui.test.junit4)
 
-    // JUnit 5 (for modern unit tests)
-    implementation(platform(libs.junit5.bom))
-    implementation(libs.junit5.jupiter)
-    implementation(libs.junit5.jupiter.params)
-    runtimeOnly(libs.junit5.jupiter.engine)
+    // The main artifact contains a JVM-only JUnit 5 extension, but its Android test helpers
+    // are also consumed by instrumented tests. Keep Jupiter off the published runtime variant
+    // so its runner jars are not packaged into Android test APKs.
+    compileOnly(platform(libs.junit5.bom))
+    compileOnly(libs.junit5.jupiter.api)
+    testImplementation(platform(libs.junit5.bom))
+    testImplementation(libs.junit5.jupiter)
+    testImplementation(libs.junit5.jupiter.params)
+    testRuntimeOnly(libs.junit5.jupiter.engine)
     // Vintage engine for JUnit 4 compatibility during migration
-    runtimeOnly(libs.junit5.vintage.engine)
+    testRuntimeOnly(libs.junit5.vintage.engine)
     testRuntimeOnly(libs.junit.platform.launcher)
 
     // AndroidX Test (JUnit 4 for instrumented tests)

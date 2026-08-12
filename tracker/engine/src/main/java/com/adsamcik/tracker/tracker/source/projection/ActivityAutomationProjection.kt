@@ -41,9 +41,6 @@ class ActivityAutomationProjection @Inject constructor() : Projection {
 		)
 	}
 
-	override suspend fun flush(cutoffOrdinal: Long) = Unit
-	override suspend fun checkpoint() = ProjectionCheckpoint(id, version, 0, 1)
-
 	private fun encode(kind: Int, activityType: Int, confidence: Int, transitionType: Int): ByteArray =
 		ByteArrayOutputStream().use { bytes ->
 			DataOutputStream(bytes).use { output ->

@@ -58,6 +58,12 @@ interface ImportReceiptDao {
 	@Query("DELETE FROM import_entry_receipt")
 	fun deleteAllEntries()
 
+	@Query("DELETE FROM import_entry_receipt WHERE job_id != :preservedJobId")
+	fun deleteAllEntriesExcept(preservedJobId: String)
+
 	@Query("DELETE FROM import_job_receipt")
 	fun deleteAllJobs()
+
+	@Query("DELETE FROM import_job_receipt WHERE job_id != :preservedJobId")
+	fun deleteAllJobsExcept(preservedJobId: String)
 }

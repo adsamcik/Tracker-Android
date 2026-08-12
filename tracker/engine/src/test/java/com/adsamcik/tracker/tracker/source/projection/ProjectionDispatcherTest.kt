@@ -124,8 +124,6 @@ private class OutboxProjection : Projection {
 		applyCount++
 		context.recordOutbox(ProjectionOutboxEffect("effect-${event.eventId.value}", "test", 1, byteArrayOf(1)))
 	}
-	override suspend fun flush(cutoffOrdinal: Long) = Unit
-	override suspend fun checkpoint() = ProjectionCheckpoint(id, version, 0, 1)
 }
 
 private class FailingProjection : Projection {
@@ -135,8 +133,6 @@ private class FailingProjection : Projection {
 		event: AdmittedSourceEvent<out com.adsamcik.tracker.tracker.source.model.SourcePayload>,
 		context: ProjectionContext,
 	): Unit = error("expected")
-	override suspend fun flush(cutoffOrdinal: Long) = Unit
-	override suspend fun checkpoint() = ProjectionCheckpoint(id, version, 0, 1)
 }
 
 private class RetentionProjection : Projection {
@@ -156,6 +152,4 @@ private class RetentionProjection : Projection {
 		)
 	}
 
-	override suspend fun flush(cutoffOrdinal: Long) = Unit
-	override suspend fun checkpoint() = ProjectionCheckpoint(id, version, 0, 1)
 }

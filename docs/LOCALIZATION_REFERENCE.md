@@ -6,9 +6,9 @@ or moving default resources.
 
 ## Scope
 
-The canonical source contains **1566** string-like Android resources
+The canonical source contains **1604** string-like Android resources
 (strings, plurals, string arrays, and integer arrays), of which
-**1512** are user-facing and eligible for translation. English is
+**1518** are user-facing and eligible for translation. English is
 the default resource set and is not duplicated as a locale bucket.
 
 | Qualifier | Language | Scope |
@@ -66,19 +66,18 @@ the default resource set and is not duplicated as a locale bucket.
 
 | Module | Resources |
 | --- | ---: |
-| app | 378 |
+| app | 444 |
 | core/base | 51 |
 | core/ui | 11 |
 | data/preferences | 23 |
-| domain/osm | 8 |
 | feature/dashboard | 138 |
 | feature/game | 246 |
 | feature/import-export | 37 |
-| feature/map | 215 |
+| feature/map | 197 |
 | feature/statistics | 151 |
 | sensor/activity-api | 14 |
 | stats/data | 117 |
-| tracker/api-module | 177 |
+| tracker/api-module | 175 |
 
 ## Current localization coverage
 
@@ -90,43 +89,43 @@ as complete translations; other locale buckets may remain partial.
 | --- | ---: |
 | values-af-rZA | 176 |
 | values-ar-rSA | 176 |
-| values-bg-rBG | 1512 |
+| values-bg-rBG | 1470 |
 | values-ca-rES | 176 |
-| values-cs-rCZ | 1512 |
-| values-da-rDK | 1512 |
-| values-de-rDE | 1512 |
-| values-el-rGR | 1512 |
-| values-es-rES | 1512 |
-| values-et-rEE | 1512 |
-| values-fi-rFI | 1512 |
-| values-fr-rFR | 1512 |
-| values-ga-rIE | 1512 |
-| values-hi-rIN | 1512 |
-| values-hr-rHR | 1512 |
-| values-hu-rHU | 1512 |
-| values-it-rIT | 1512 |
+| values-cs-rCZ | 1470 |
+| values-da-rDK | 1470 |
+| values-de-rDE | 1470 |
+| values-el-rGR | 1470 |
+| values-es-rES | 1470 |
+| values-et-rEE | 1470 |
+| values-fi-rFI | 1470 |
+| values-fr-rFR | 1470 |
+| values-ga-rIE | 1470 |
+| values-hi-rIN | 1470 |
+| values-hr-rHR | 1470 |
+| values-hu-rHU | 1470 |
+| values-it-rIT | 1470 |
 | values-iw-rIL | 176 |
-| values-ja-rJP | 1512 |
+| values-ja-rJP | 1470 |
 | values-ko-rKR | 176 |
-| values-lt-rLT | 1512 |
-| values-lv-rLV | 1512 |
-| values-mt-rMT | 1512 |
-| values-nl-rNL | 1512 |
+| values-lt-rLT | 1470 |
+| values-lv-rLV | 1470 |
+| values-mt-rMT | 1470 |
+| values-nl-rNL | 1470 |
 | values-no-rNO | 176 |
-| values-pl-rPL | 1512 |
+| values-pl-rPL | 1470 |
 | values-pt-rBR | 176 |
-| values-pt-rPT | 1512 |
-| values-ro-rRO | 1512 |
+| values-pt-rPT | 1470 |
+| values-ro-rRO | 1470 |
 | values-ru-rRU | 176 |
-| values-sk-rSK | 1512 |
-| values-sl-rSI | 1512 |
+| values-sk-rSK | 1470 |
+| values-sl-rSI | 1470 |
 | values-sr-rSP | 176 |
-| values-sv-rSE | 1512 |
+| values-sv-rSE | 1470 |
 | values-tr-rTR | 176 |
 | values-uk-rUA | 176 |
 | values-vi-rVN | 176 |
-| values-zh-rCN | 1512 |
-| values-zh-rTW | 1512 |
+| values-zh-rCN | 1470 |
+| values-zh-rTW | 1470 |
 
 ## JSON reference schema
 

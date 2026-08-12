@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
-import android.location.Location
+import com.adsamcik.tracker.testing.fake.FakeLocationSource
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -21,7 +21,7 @@ class LocationEvidenceNormalizerTest {
 
 		val sorted = normalizeLocationBatch(listOf(late, firstTie, early, secondTie))
 
-		assertEquals(listOf("early", "first-tie", "second-tie", "late"), sorted.map(Location::getProvider))
+		assertEquals(listOf("early", "first-tie", "second-tie", "late"), sorted.map { it.provider })
 	}
 
 	@Test
@@ -29,30 +29,33 @@ class LocationEvidenceNormalizerTest {
 		val valid = location("gps", 1_000L, 1L)
 		assertTrue(valid.isValidLocationEvidence())
 
-		val invalidCoordinate = Location(valid).apply { latitude = Double.NaN }
+		val invalidCoordinate = location("gps", 1_000L, 1L).apply { latitude = Double.NaN }
 		assertFalse(invalidCoordinate.isValidLocationEvidence())
 
-		val missingAccuracy = Location(valid).apply { removeAccuracy() }
+		val missingAccuracy = location("gps", 1_000L, 1L).apply { removeAccuracy() }
 		assertFalse(missingAccuracy.isValidLocationEvidence())
 	}
 
 	@Test
 	fun `deduplicates only identical provider observations after event-time sorting`() {
 		val original = location("gps", 2_000L, 200L)
-		val identical = Location(original)
-		val sameTimeDifferentCoordinate = Location(original).apply { latitude = 50.0001 }
+		val identical = location("gps", 2_000L, 200L)
+		val sameTimeDifferentCoordinate = location("gps", 2_000L, 200L).apply { latitude = 50.0001 }
 
 		val normalized = normalizeLocationBatch(listOf(identical, sameTimeDifferentCoordinate, original))
 
 		assertEquals(2, normalized.size)
-		assertEquals(listOf(50.0, 50.0001), normalized.map(Location::getLatitude))
+		assertEquals(listOf(50.0, 50.0001), normalized.map { it.latitude })
 	}
 
-	private fun location(provider: String, elapsedNanos: Long, wallTimeMs: Long) = Location(provider).apply {
-		latitude = 50.0
-		longitude = 14.0
-		accuracy = 5f
-		time = wallTimeMs
-		elapsedRealtimeNanos = elapsedNanos
-	}
+	private fun location(provider: String, elapsedNanos: Long, wallTimeMs: Long) =
+		FakeLocationSource.createLocation(
+			lat = 50.0,
+			lon = 14.0,
+			accuracy = 5f,
+			time = wallTimeMs,
+			provider = provider,
+		).apply {
+			elapsedRealtimeNanos = elapsedNanos
+		}
 }

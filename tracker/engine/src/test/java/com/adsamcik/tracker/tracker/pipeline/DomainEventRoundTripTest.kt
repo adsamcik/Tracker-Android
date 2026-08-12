@@ -56,8 +56,6 @@ class DomainEventRoundTripTest {
 			),
 		)
 
-		override fun checkpoint(): ByteArray? = null
-		override fun restore(state: ByteArray) {}
 	}
 
 	/** Processor that emits a SessionStarted event on flush. */
@@ -86,8 +84,6 @@ class DomainEventRoundTripTest {
 		}
 
 		override suspend fun onStop(): List<DomainEvent> = emptyList()
-		override fun checkpoint(): ByteArray? = null
-		override fun restore(state: ByteArray) {}
 	}
 
 	// endregion

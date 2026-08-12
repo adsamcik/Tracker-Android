@@ -6,6 +6,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.filled.BatterySaver
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -22,6 +30,8 @@ import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.settings.GameSettingsUiState
 import com.adsamcik.tracker.app.settings.GameSettingsViewModel
 import com.adsamcik.tracker.app.settings.components.SettingsGroupCard
+import com.adsamcik.tracker.app.settings.components.SettingsNoticeCard
+import com.adsamcik.tracker.app.settings.components.SettingsRowDivider
 import com.adsamcik.tracker.app.settings.components.SliderSettingsItem
 import com.adsamcik.tracker.app.settings.components.SwitchSettingsItem
 import com.adsamcik.tracker.game.goals.settings.GoalsSettingsState
@@ -77,7 +87,10 @@ internal fun GameSettingsContent(
 		horizontalAlignment = Alignment.CenterHorizontally,
 	) {
 		item {
-			SettingsGroupCard(title = stringResource(R.string.settings_game_goals_title)) {
+			SettingsGroupCard(
+				title = stringResource(R.string.settings_game_goals_title),
+				icon = Icons.Default.EmojiEvents,
+			) {
 				SliderSettingsItem(
 					title = stringResource(R.string.settings_game_daily_target_title),
 					value = dailyGoal.toFloat(),
@@ -86,6 +99,7 @@ internal fun GameSettingsContent(
 					valueLabel = { "${stepFormatter.format(it.toInt())} $stepsUnit" },
 					onValueChange = { onDailyStepGoalChanged(it.toInt()) },
 				)
+				SettingsRowDivider()
 				SliderSettingsItem(
 					title = stringResource(R.string.settings_game_weekly_target_title),
 					value = weeklyGoal.toFloat(),
@@ -94,6 +108,7 @@ internal fun GameSettingsContent(
 					valueLabel = { "${stepFormatter.format(it.toInt())} $stepsUnit" },
 					onValueChange = { onWeeklyStepGoalChanged(it.toInt()) },
 				)
+				SettingsRowDivider()
 				SliderSettingsItem(
 					title = stringResource(R.string.settings_game_daily_contribution_title),
 					value = dailyLimit,
@@ -106,10 +121,14 @@ internal fun GameSettingsContent(
 			Spacer(Modifier.height(16.dp))
 		}
 		item {
-			SettingsGroupCard(title = stringResource(R.string.settings_game_notifications_title)) {
+			SettingsGroupCard(
+				title = stringResource(R.string.settings_game_notifications_title),
+				icon = Icons.Default.Notifications,
+			) {
 				SwitchSettingsItem(
 					title = stringResource(R.string.settings_game_goal_notifications_title),
 					subtitle = stringResource(R.string.settings_game_goal_notifications_summary),
+					icon = Icons.Default.Notifications,
 					checked = settings.notificationsEnabled,
 					onCheckedChange = onNotificationsEnabledChanged,
 				)
@@ -117,22 +136,30 @@ internal fun GameSettingsContent(
 			Spacer(Modifier.height(16.dp))
 		}
 		item {
-			SettingsGroupCard(title = stringResource(R.string.settings_game_during_games_title)) {
+			SettingsGroupCard(
+				title = stringResource(R.string.settings_game_during_games_title),
+				icon = Icons.Default.SportsEsports,
+			) {
 				SwitchSettingsItem(
 					title = stringResource(R.string.settings_game_haptics_title),
 					subtitle = stringResource(R.string.settings_game_haptics_summary),
+					icon = Icons.Default.Vibration,
 					checked = settings.gameHapticsEnabled,
 					onCheckedChange = onGameHapticsEnabledChanged,
 				)
+				SettingsRowDivider()
 				SwitchSettingsItem(
 					title = stringResource(R.string.settings_game_quiet_coaching_title),
 					subtitle = stringResource(R.string.settings_game_quiet_coaching_summary),
+					icon = Icons.AutoMirrored.Filled.VolumeOff,
 					checked = settings.quietCoachingEnabled,
 					onCheckedChange = onQuietCoachingEnabledChanged,
 				)
+				SettingsRowDivider()
 				SwitchSettingsItem(
 					title = stringResource(R.string.settings_game_remember_setup_title),
 					subtitle = stringResource(R.string.settings_game_remember_setup_summary),
+					icon = Icons.Default.Save,
 					checked = settings.rememberLastSetup,
 					onCheckedChange = onRememberLastSetupChanged,
 				)
@@ -140,14 +167,11 @@ internal fun GameSettingsContent(
 			Spacer(Modifier.height(16.dp))
 		}
 		item {
-			SettingsGroupCard(title = stringResource(R.string.settings_game_privacy_battery_title)) {
-				Text(
-					text = stringResource(R.string.settings_game_privacy_battery_disclosure),
-					style = MaterialTheme.typography.bodyMedium,
-					color = MaterialTheme.colorScheme.onSurfaceVariant,
-					modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
-				)
-			}
+			SettingsNoticeCard(
+				title = stringResource(R.string.settings_game_privacy_battery_title),
+				text = stringResource(R.string.settings_game_privacy_battery_disclosure),
+				icon = Icons.Default.BatterySaver,
+			)
 		}
 	}
 }

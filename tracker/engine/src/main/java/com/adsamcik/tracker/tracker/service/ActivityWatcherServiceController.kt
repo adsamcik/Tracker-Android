@@ -5,6 +5,7 @@ import android.os.Build
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.adsamcik.tracker.shared.base.extension.startForegroundServiceSafely
+import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
@@ -74,6 +75,23 @@ class ActivityWatcherServiceController @Inject constructor(
 			trackerLocked = currentTrackerLocked(),
 			trackerRunning = trackerStateReader.isServiceRunning,
 		)
+	}
+
+	/**
+	 * Applies the user-facing mode to the legacy watcher-service bridge immediately.
+	 * Activity-recognition registration itself is reconciled by [BackgroundTrackingApi]'s
+	 * TrackingParams observer; this keeps the optional foreground watcher in the same state.
+	 */
+	override fun applyAutoTrackingMode(mode: Int) {
+		require(mode >= 0) { "Automatic tracking mode must not be negative" }
+		val enabled = mode > 0
+		Preferences(context).edit {
+			setBoolean(
+				context.getString(com.adsamcik.tracker.activity.R.string.settings_activity_watcher_key),
+				enabled,
+			)
+		}
+		poke(watcherPreference = enabled, autoTracking = mode)
 	}
 
 	override fun pauseForDataDeletion() {

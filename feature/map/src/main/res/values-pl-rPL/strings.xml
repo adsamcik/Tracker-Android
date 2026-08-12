@@ -53,12 +53,6 @@
     <string name="map_layer_terrain_low">Rzadko tutaj</string>
     <string name="map_layer_terrain_mid">Czasami</string>
     <string name="map_layer_terrain_high">Często tutaj</string>
-    <string name="map_layer_places_title">Często odwiedzane miejsca</string>
-    <string name="map_layer_places_chip">Miejsca</string>
-    <string name="map_layer_places_description">Ważne miejsca jako znaczniki, których rozmiar i kolor zależą od częstotliwości odwiedzin. Dom i praca stają się dużymi ciepłymi punktami; miejsce odwiedzone raz pozostaje małe i chłodne.</string>
-    <string name="map_layer_places_rare">Rzadko</string>
-    <string name="map_layer_places_often">Czasami</string>
-    <string name="map_layer_places_anchor">Twoje punkty odniesienia</string>
     <string name="map_layer_speed_ribbon_title">Wstęga prędkości</string>
     <string name="map_layer_speed_ribbon_chip">Wstęga</string>
     <string name="map_layer_speed_ribbon_description">Trasa malowana według szybkości ruchu, płynnym kolorem od powolnego fioletowego spaceru do czerwonego sprintu lub jazdy. W przeciwieństwie do mapy cieplnej prędkości wstęga zachowuje przebieg ścieżki, więc dokładnie widać, gdzie nastąpiło przyspieszenie i zwolnienie.</string>
@@ -80,9 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Zjazd</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Wyciąg</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Spacer lub przerwa</string>
-    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Konstelacje podróży</string>
-    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Podróże</string>
-    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Powtarzające się podróże między często odwiedzanymi miejscami stają się zakrzywionymi konstelacjami. Stabilny łuk pokazuje każdą trasę, a kometa przesuwa się po nim; grubsze łuki oznaczają częstsze podróże.</string>
     <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Chodzenie</string>
     <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Jazda na rowerze</string>
     <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Jazda samochodem</string>
@@ -98,18 +89,10 @@
     <string name="map_layer_first_contact_description">Oś czasu odkryć: każdy obszar jest zabarwiony według tego, jak dawno po raz pierwszy tam dotarto. Miejsca odkryte dawno temu bledną do głębokiego indygo, a tereny odkryte w tym tygodniu świecą jasnym cyjanem — poznaj historię odkrywania aż po najnowsze granice.</string>
     <string name="map_layer_first_contact_old">Dawno temu</string>
     <string name="map_layer_first_contact_recent">Właśnie odkryte</string>
-    <string name="map_layer_vehicle_compliance_title">Zgodność prędkości pojazdu</string>
-    <string name="map_layer_vehicle_compliance_description">Polilinia próbek jazdy zabarwiona według porównania prędkości ze skonfigurowanym limitem bazowym.</string>
-    <string name="map_layer_vehicle_compliance_way_under">Znacznie poniżej limitu</string>
-    <string name="map_layer_vehicle_compliance_slow">Poniżej limitu</string>
-    <string name="map_layer_vehicle_compliance_at_limit">Blisko limitu</string>
-    <string name="map_layer_vehicle_compliance_slightly_over">Nieznacznie powyżej</string>
-    <string name="map_layer_vehicle_compliance_speeding">Przekroczenie prędkości</string>
     <string name="map_layer_location_polyline_description">Linia łącząca zarejestrowane lokalizacje w czasie.</string>
     <string name="map_layer_location_polyline_title">Polilinia lokalizacji</string>
     <string name="map_layer_location_polyline_chip">Polilinia</string>
     <string name="map_layer_wifi_count_heatmap_chip">Nakładanie Wi‑Fi</string>
-    <string name="map_layer_vehicle_compliance_chip">Przekroczenia</string>
     <string name="map_layer_none_title">Bez nakładki</string>
     <string name="map_date_preset_week">Ostatni tydzień</string>
     <string name="map_date_preset_month">Ostatni miesiąc</string>
@@ -174,7 +157,6 @@
     <string name="map_empty_subtitle_cell">Brak danych sieci komórkowej z lokalizacją w tym widoku lub zakresie dat. Próbki sieci zarejestrowane bez lokalizacji są nadal zapisywane, ale nie mogą pojawić się na mapie.</string>
     <string name="map_empty_subtitle_wifi">Brak danych Wi‑Fi z lokalizacją w tym widoku lub zakresie dat. Obserwacje Wi‑Fi zarejestrowane bez lokalizacji są nadal zapisywane, ale nie mogą pojawić się na mapie.</string>
     <string name="map_empty_subtitle_speed">Brak danych prędkości w tym widoku lub zakresie dat. Mapy prędkości wymagają użytecznych próbek lokalizacji zebranych podczas śledzenia.</string>
-    <string name="map_empty_subtitle_vehicle_compliance">Brak jazd dopasowanych do dróg do pokazania. Zaimportuj region OpenStreetMap (Ustawienia) i zarejestruj jazdę, aby dopasować trasę do rzeczywistych dróg.</string>
     <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Zamknij komunikat o braku danych</string>
     <string name="map_speed_probe_title">Prędkość tutaj</string>
     <string name="map_speed_probe_avg_label">Średnia</string>

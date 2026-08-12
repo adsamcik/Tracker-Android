@@ -31,13 +31,16 @@ class SegmentDetectorProcessor(
 	)
 
 	private val pendingEvents = mutableListOf<DomainEvent>()
+	private var lastLocationTimestamp: EpochMs? = null
 
 	override suspend fun onStart(context: ProcessorContext) {
 		pendingEvents.clear()
+		lastLocationTimestamp = null
 	}
 
 	override fun onSignal(signal: TrackingSignal) {
 		val location = signal.location ?: return
+		lastLocationTimestamp = signal.timestampMs
 
 		val segSignal = SegmentSignal(
 			timestampMs = signal.timestampMs.raw,
@@ -51,13 +54,16 @@ class SegmentDetectorProcessor(
 			distanceDeltaM = location.distanceDelta?.raw,
 		)
 
-		val event = detector.onSignal(segSignal) ?: return
+		queueEvent(detector.onSignal(segSignal), signal.timestampMs)
+	}
 
+	private fun queueEvent(event: SegmentEvent?, timestamp: EpochMs) {
 		when (event) {
+			null -> Unit
 			is SegmentEvent.TripStarted -> {
 				pendingEvents.add(
 					DomainEvent.TripStarted(
-						timestampMs = signal.timestampMs,
+						timestampMs = timestamp,
 						processorId = descriptor.id,
 						triggerActivity = event.triggerActivity,
 					),
@@ -67,7 +73,7 @@ class SegmentDetectorProcessor(
 				onTripCompleted?.invoke()
 				pendingEvents.add(
 					DomainEvent.TripCompleted(
-						timestampMs = signal.timestampMs,
+						timestampMs = timestamp,
 						processorId = descriptor.id,
 						tripStartMs = EpochMs(event.startTimeMs),
 						distance = DistanceM.coerced(event.totalDistanceM),
@@ -91,10 +97,13 @@ class SegmentDetectorProcessor(
 	}
 
 	override suspend fun onStop(): List<DomainEvent> {
-		detector.reset()
+		val finalTimestamp = lastLocationTimestamp
+		if (finalTimestamp == null) {
+			detector.reset()
+		} else {
+			queueEvent(detector.forceEnd(finalTimestamp.raw), finalTimestamp)
+		}
+		lastLocationTimestamp = null
 		return onFlush()
 	}
-
-	override fun checkpoint(): ByteArray = detector.serialize()
-	override fun restore(state: ByteArray) { detector.deserialize(state) }
 }

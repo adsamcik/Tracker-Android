@@ -53,12 +53,6 @@
     <string name="map_layer_terrain_low">Sjældent her</string>
     <string name="map_layer_terrain_mid">Af og til</string>
     <string name="map_layer_terrain_high">Ofte her</string>
-    <string name="map_layer_places_title">Hyppige steder</string>
-    <string name="map_layer_places_chip">Steder</string>
-    <string name="map_layer_places_description">Dine vigtige steder som markører, hver med størrelse og farve efter hvor ofte du besøger dem. Hjem og arbejde bliver store, varme prikker; et sted, du kun har været ét enkelt gang, forbliver en lille, kølig prik.</string>
-    <string name="map_layer_places_rare">Sjældent</string>
-    <string name="map_layer_places_often">Af og til</string>
-    <string name="map_layer_places_anchor">Dine holdepunkter</string>
     <string name="map_layer_speed_ribbon_title">Hastighedsbånd</string>
     <string name="map_layer_speed_ribbon_chip">Bånd</string>
     <string name="map_layer_speed_ribbon_description">Din rute farvelægges efter, hvor hurtigt du bevægede dig, med flydende farver fra en langsom violet spadseretur til en rødglødende sprint eller køretur. I modsætning til hastighedsvarmekortet bevarer båndet din sti, så du kan se præcis, hvor du satte farten op og sænkede den.</string>
@@ -80,9 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Nedfart</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Skilift</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Gåtur eller pause</string>
-    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Rute-konstellationer</string>
-    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Ture</string>
-    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Gentagne rejser mellem dine hyppige steder bliver til buede konstellationer. En stabil bue viser hver rute, mens en komet bevæger sig langs den; tykkere buer betyder, at du foretog den rejse oftere.</string>
     <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Gang</string>
     <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Cykling</string>
     <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Kørsel</string>
@@ -98,18 +89,10 @@
     <string name="map_layer_first_contact_description">En tidslinje over dine opdagelser: hvert område er farvet efter, hvor længe siden du først satte fod der. Steder, du fandt for længe siden, falmer til dyb indigo, mens terræn, du åbnede op for i denne uge, lyser klart cyan — læs historien om din udforskning ud til dine nyeste grænser.</string>
     <string name="map_layer_first_contact_old">For længe siden</string>
     <string name="map_layer_first_contact_recent">Netop opdaget</string>
-    <string name="map_layer_vehicle_compliance_title">Overholdelse af køretøjshastighed</string>
-    <string name="map_layer_vehicle_compliance_description">Polylinje med kørselsprøver farvelagt efter, hvordan hastigheden sammenlignes med din konfigurerede grundgrænse.</string>
-    <string name="map_layer_vehicle_compliance_way_under">Langt under grænsen</string>
-    <string name="map_layer_vehicle_compliance_slow">Under grænsen</string>
-    <string name="map_layer_vehicle_compliance_at_limit">Nær grænsen</string>
-    <string name="map_layer_vehicle_compliance_slightly_over">Lidt over</string>
-    <string name="map_layer_vehicle_compliance_speeding">For høj fart</string>
     <string name="map_layer_location_polyline_description">Linje, der forbinder dine registrerede placeringer over tid.</string>
     <string name="map_layer_location_polyline_title">Positionspolylinje</string>
     <string name="map_layer_location_polyline_chip">Polylinje</string>
     <string name="map_layer_wifi_count_heatmap_chip">Wi-Fi-overlap</string>
-    <string name="map_layer_vehicle_compliance_chip">For høj fart</string>
     <string name="map_layer_none_title">Ingen overlejring</string>
     <string name="map_date_preset_week">Sidste uge</string>
     <string name="map_date_preset_month">Sidste måned</string>
@@ -174,7 +157,6 @@
     <string name="map_empty_subtitle_cell">Ingen mobilnetværksdata med placering i denne visning eller dette datointerval. Mobilprøver, der er registreret uden placering, gemmes stadig, men kan ikke vises på kortet.</string>
     <string name="map_empty_subtitle_wifi">Ingen Wi-Fi-data med placering i denne visning eller dette datointerval. Wi-Fi-observationer, der er registreret uden placering, gemmes stadig, men kan ikke vises på kortet.</string>
     <string name="map_empty_subtitle_speed">Ingen hastighedsdata i denne visning eller dette datointerval. Hastighedskort kræver brugbare placeringsprøver indsamlet under sporing.</string>
-    <string name="map_empty_subtitle_vehicle_compliance">Ingen vejtilpassede kørsler at vise. Importér en OpenStreetMap-region (Indstillinger), og registrér noget kørsel, så vi kan tilpasse din rute til rigtige veje.</string>
     <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Afvis meddelelse om manglende data</string>
     <string name="map_speed_probe_title">Hastighed her</string>
     <string name="map_speed_probe_avg_label">Gennemsnit</string>

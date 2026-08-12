@@ -83,8 +83,6 @@
     <string name="settings_tracking_notice_summary">変更はトラッキングを再開すると反映されます</string>
     <string name="settings_tracking_required_accuracy_title">必要な位置情報の精度</string>
     <string name="settings_tracking_title">トラッキング</string>
-    <string name="settings_vehicle_speed_limit_baseline_title">車両速度制限の基準</string>
-    <string name="help_vehicle_speed_limit_baseline">「速度制限の遵守状況」地図レイヤーで使用します。運転サンプルはこの基準との速度比較に応じて色付けされます。主に運転する場所の制限に合った値を選択してください（例: 市街地では50 km/h、高速道路では90 km/h）。</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="shortcut_start_tracking">トラッキングを開始</string>
     <string name="shortcut_start_tracking_long">位置情報トラッキングを開始</string>

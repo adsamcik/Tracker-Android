@@ -4,27 +4,32 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -137,41 +142,62 @@ fun NotificationManagementRoute(
 				CircularProgressIndicator()
 			}
 		} else {
-			val rowHeight = 56.dp
+			val rowHeight = 72.dp
 			val rowHeightPx = with(LocalDensity.current) { rowHeight.toPx() }
 			LazyColumn(
 				modifier = Modifier
 					.fillMaxSize()
-					.padding(padding)
+					.padding(padding),
+				contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp),
 			) {
-				itemsIndexed(items, key = { _, it -> it.id }) { index, item ->
-					val isDragging = index == viewModel.draggingIndex
-					NotificationItemRow(
-						item = item,
-						rowHeight = rowHeight,
-						isDragging = isDragging,
-						onEdit = { editTarget = item },
-						modifier = Modifier.pointerInput(items) {
-							detectDragGesturesAfterLongPress(
-								onDragStart = { viewModel.setDragging(index) },
-								onDragEnd = {
-									viewModel.setDragging(null)
-									viewModel.persistOrder()
-								},
-								onDragCancel = { viewModel.setDragging(null) },
-								onDrag = { change, dragAmount ->
-									change.consume()
-									val current = viewModel.draggingIndex ?: return@detectDragGesturesAfterLongPress
-									val offsetY = dragAmount.y
-									if (offsetY > rowHeightPx / 2 && current < items.lastIndex) {
-										viewModel.moveItem(current, current + 1)
-									} else if (offsetY < -rowHeightPx / 2 && current > 0) {
-										viewModel.moveItem(current, current - 1)
-									}
-								}
-							)
-						}
+				item {
+					Text(
+						text = stringResource(R.string.settings_notification_customize_summary),
+						style = MaterialTheme.typography.bodyMedium,
+						color = MaterialTheme.colorScheme.onSurfaceVariant,
+						modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
 					)
+					Card(
+						modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+						colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+					) {
+						Column {
+							items.forEachIndexed { index, item ->
+								val isDragging = index == viewModel.draggingIndex
+								NotificationItemRow(
+									item = item,
+									rowHeight = rowHeight,
+									isDragging = isDragging,
+									onEdit = { editTarget = item },
+									modifier = Modifier.pointerInput(items) {
+										detectDragGesturesAfterLongPress(
+											onDragStart = { viewModel.setDragging(index) },
+											onDragEnd = {
+												viewModel.setDragging(null)
+												viewModel.persistOrder()
+											},
+											onDragCancel = { viewModel.setDragging(null) },
+											onDrag = { change, dragAmount ->
+												change.consume()
+												val current = viewModel.draggingIndex ?: return@detectDragGesturesAfterLongPress
+												if (dragAmount.y > rowHeightPx / 2 && current < items.lastIndex) {
+													viewModel.moveItem(current, current + 1)
+												} else if (dragAmount.y < -rowHeightPx / 2 && current > 0) {
+													viewModel.moveItem(current, current - 1)
+												}
+											},
+										)
+									},
+								)
+								if (index != items.lastIndex) {
+									HorizontalDivider(
+										modifier = Modifier.padding(start = 68.dp),
+										color = MaterialTheme.colorScheme.outlineVariant,
+									)
+									}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -221,16 +247,26 @@ private fun NotificationItemRow(
 	Row(
 		modifier
 			.fillMaxWidth()
-			.height(rowHeight)
+			.heightIn(min = rowHeight)
 			.background(bg)
-			.padding(horizontal = 8.dp),
+			.padding(horizontal = 12.dp, vertical = 8.dp),
 		verticalAlignment = Alignment.CenterVertically
 	) {
-		Icon(Icons.Filled.DragIndicator, contentDescription = "Drag", modifier = Modifier.size(32.dp))
-		Spacer(Modifier.width(4.dp))
+		Surface(
+			shape = RoundedCornerShape(12.dp),
+			color = MaterialTheme.colorScheme.primaryContainer,
+			contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+			modifier = Modifier.size(40.dp),
+		) {
+			Box(contentAlignment = Alignment.Center) {
+				Icon(Icons.Filled.DragIndicator, contentDescription = "Drag", modifier = Modifier.size(22.dp))
+			}
+		}
+		Spacer(Modifier.width(12.dp))
 		Text(
 			text = stringResource(id = item.titleRes),
-			modifier = Modifier.weight(1f)
+			style = MaterialTheme.typography.titleMedium,
+			modifier = Modifier.weight(1f),
 		)
 		if (item.isInTitle) {
 			Icon(painterResource(id = R.drawable.ic_format_title), contentDescription = "Title", modifier = Modifier.size(20.dp))

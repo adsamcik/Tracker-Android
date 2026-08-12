@@ -6,7 +6,6 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceEventSessionBindingEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 
@@ -42,8 +41,12 @@ interface SourceSessionDao {
 	)
 	suspend fun latestServiceRun(logicalTrackingId: String): SourceServiceRunEntity?
 
-	@Insert(onConflict = OnConflictStrategy.ABORT)
-	suspend fun bindEvent(entity: SourceEventSessionBindingEntity)
+	@Query(
+		"SELECT * FROM source_service_run WHERE logical_tracking_id = :logicalTrackingId " +
+			"AND (completed_at_ms IS NULL OR state NOT IN ('CLOSED', 'FAILED')) " +
+			"ORDER BY started_at_ms ASC",
+	)
+	suspend fun incompleteServiceRuns(logicalTrackingId: String): List<SourceServiceRunEntity>
 
 	@Insert(onConflict = OnConflictStrategy.REPLACE)
 	suspend fun saveCompleteness(entity: SourceSessionCompletenessEntity)
@@ -53,9 +56,6 @@ interface SourceSessionDao {
 
 	@Query("DELETE FROM source_session_completeness")
 	fun deleteAllCompleteness()
-
-	@Query("DELETE FROM source_event_session_binding")
-	fun deleteAllBindings()
 
 	@Query("DELETE FROM source_service_run")
 	fun deleteAllServiceRuns()

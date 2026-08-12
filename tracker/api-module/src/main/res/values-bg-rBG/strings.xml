@@ -83,8 +83,6 @@
     <string name="settings_tracking_notice_summary">Промените влизат в сила, когато рестартирате проследяването</string>
     <string name="settings_tracking_required_accuracy_title">Необходима точност на местоположението</string>
     <string name="settings_tracking_title">Проследяване</string>
-    <string name="settings_vehicle_speed_limit_baseline_title">Базова линия за ограничение на скоростта на превозни средства</string>
-    <string name="help_vehicle_speed_limit_baseline">Използва се от слоя на картата за съответствие със скоростта на превозни средства. Пробите при шофиране се оцветяват според това как скоростта им се сравнява с тази базова линия. Изберете стойност, съответстваща на ограниченията там, където шофирате най-често (напр. 50 км/ч за градове, 90 км/ч за магистрали).</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="shortcut_start_tracking">Стартиране на проследяването</string>
     <string name="shortcut_start_tracking_long">Стартиране на проследяването на местоположението</string>

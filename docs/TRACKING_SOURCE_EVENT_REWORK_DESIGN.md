@@ -2,7 +2,7 @@
 
 > **Status:** Phase 10 code present; terminal-consumer, physical-device, calibration, performance, and canonical-writer gates pending
 > **Branch:** codex/tracking-source-event-rework
-> **Last updated:** 2026-08-10
+> **Last updated:** 2026-08-11
 > **Decision:** Replace global collection-cycle acquisition with centrally coordinated,
 > source-native event acquisition. Retain one service lifecycle, one durable ingress,
 > one ordering authority, and explicit temporal projections.
@@ -201,8 +201,9 @@ was delivered.
 Every admission and projection participates in the existing collected-data lifecycle
 epoch. A callback captured before full deletion or retention advancement cannot commit
 after the barrier and recreate deleted data. Full deletion atomically advances the
-lifecycle epoch and clears raw events, join state, projection state, bindings,
-completeness records, and canonical destinations.
+lifecycle epoch and clears raw events (including their immutable admission-time
+session/run attribution), join state, projection state, completeness records, and
+canonical destinations.
 
 ### 5.9 Privacy remains local
 
@@ -595,7 +596,7 @@ revision rows are removed by foreign-key cascade.
 
 Full collected-data deletion or retained-from advancement updates SourceEvidenceState and
 deletes source_event_wal, projection registrations/checkpoints/failures/join state,
-coordinator leases, session bindings, source completeness, and canonical destinations in
+coordinator leases, source completeness, and canonical destinations in
 the same deletion transaction. Admission and projection revalidate the captured lifecycle
 epoch inside their write transactions. Fault tests cover deletion before admission,
 during admission, after admission before projection, and during projection.
@@ -640,21 +641,24 @@ inferred from the currently applied configuration at receive time.
 
 ### 10.5 Late events
 
-Late events are never silently reassigned to a newer session. The session-boundary
-projection uses observation time, cutoff, clock domain, and source watermark:
+Late events are never silently reassigned after admission. Every `source_event_wal`
+row atomically captures its optional `logical_tracking_id` and `service_run_id` from
+the admission context, and those ownership fields are immutable. The
+session-boundary projection uses observation time, cutoff, clock domain, and source
+watermark without rewriting that attribution:
 
-- event observed before cutoff and admitted within grace: attach to ending session;
-- event observed before cutoff but admitted after finalization: apply the projection's
-  registered late-correction policy: versioned recomputation, append-only correction, or
-  quarantine. No projection decides eligibility ad hoc;
-- event observed after cutoff: attach to the next eligible session or remain unbound;
+- event observed before cutoff and admitted while the ending session still owns
+  admission: retain that captured session/run attribution;
+- event observed before cutoff but admitted after finalization: retain the admission
+  attribution it actually received (including unbound), then apply the projection's
+  registered late-correction or quarantine policy without changing ownership;
+- event observed after cutoff: retain its admission-time owner or remain unbound;
 - ambiguous clock domain: quarantine with diagnostics, never guess.
 
-Bindings are immutable revisioned decisions in source_event_session_binding, not a
-mutable logical_tracking_id update on the raw event. Each binding stores event ID,
-logical session ID, binding revision, reason, decision status, clock domain, and the
-observation-time interval/cutoff used. Exactly one binding revision is canonical while
-correction history remains auditable.
+There is no second session-binding ledger. A revisioned post-hoc binding table would
+duplicate the attribution already carried by the immutable WAL row without a producer
+or consumer. Projection correction history belongs to the projection's own durable
+state/output records, not to mutable source-event ownership.
 
 ---
 
@@ -1018,15 +1022,17 @@ STARTING persists logical session identity, service-run identity, clock domain, 
 revision before source registrations become authoritative.
 
 Room is the canonical authority for logical-session lifecycle, service-run epochs,
-cutoffs, source completeness, and source-event bindings. ActiveTrackingSessionStore
+cutoffs, source completeness, and admission-attributed source events.
+ActiveTrackingSessionStore
 becomes an Android restart mirror of the canonical Room lifecycle revision. Room commits
 first; the DataStore mirror updates afterward and is reconciled from Room on startup. No
 atomic cross-store write is assumed.
 
-Add immutable logical_tracking_session, service_run, and
-source_event_session_binding records. Preserve current semantics in which one logical
-session may contain multiple SessionSegments across service-run restarts; every segment
-stores its logical session and service-run identity.
+Keep immutable `logical_tracking_session` and `service_run` records. Each admitted
+`source_event_wal` row stores its optional logical-session and service-run identity
+directly. Preserve current semantics in which one logical session may contain multiple
+SessionSegments across service-run restarts; every segment stores its logical session
+and service-run identity.
 
 ### 16.2 Automatic start
 
@@ -1336,13 +1342,33 @@ Tracking settings have one versioned Proto/DataStore source of truth:
 1. Persist a semantic-settings schema version.
 2. Map existing locationEnabled, source toggles, minTimeSeconds, minDistanceMeters,
    requiredAccuracyMeters, presetName, and legacyMigrated state into one desired plan.
-3. Keep legacy reads and forward writes during the compatibility window.
+3. Import released SharedPreferences once, then atomically persist explicit per-source frequencies
+   and the semantic schema version. Legacy protobuf fields remain decode-only compatibility inputs.
 4. Record the first release in which legacy fields stop influencing runtime.
 5. Define downgrade behavior explicitly; an older binary may ignore new semantic fields,
    but must not be described as restoring their meaning.
 
 Migration is idempotent and covered for fresh install, already-migrated preferences,
 partial legacy state, and every preset.
+
+The version-1 implementation uses this deterministic mapping:
+
+| Previous persisted value | Version-1 semantic value |
+|---|---|
+| Source enabled | `BALANCED` |
+| Source disabled | `OFF` |
+| Any of unified Wi-Fi, Wi-Fi network, or Wi-Fi count enabled | Wi-Fi `BALANCED` |
+| Barometer optional field absent | Pressure `BALANCED` (historical enabled default) |
+| Explicit semantic frequency already present | Preserve it; normalize unknown stable codes to `BALANCED` |
+| Advanced controls absent | Disabled |
+
+The import normalizes preset aliases and former preset cadence, limits automatic-tracking mode to
+the supported `0..2` range, and replaces non-positive distance/time/accuracy values with safe
+defaults. Each legacy
+SharedPreferences field is decoded independently, so a wrong-typed or damaged entry falls back
+without discarding unrelated valid settings. A failed DataStore transaction does not advance a
+migration marker and is retried. Concurrent first collectors receive the same complete atomic
+result. Future semantic schema versions are read without being downgraded.
 
 ---
 
@@ -1691,6 +1717,23 @@ uses the source-plan qualitative estimator and shows level, dominant drivers, as
 comparison identity, and confidence; it does not invent percentages or tracking hours. Local
 calibration remains deliberately disabled until the Phase 8 device metrics are validated.
 
+The user-facing hierarchy uses progressive disclosure. Casual users first choose automatic-
+tracking behavior, a quality preset, and straightforward on/off data sources. Per-source cadence,
+location filters, and driving-display tuning are opened explicitly through Advanced controls.
+Battery-estimate methodology, requested/effective state, permissions, and local runtime telemetry
+live under Technical status instead of duplicating the preset's impact label on the main screen.
+Related controls share visually separated cards, section icons provide orientation, and every row
+retains a full-size semantic click target for switch, radio-button, or button accessibility.
+Advanced source rows show the semantic profile together with the concrete requested plan, such as
+location request interval and displacement, activity-recognition latency, sensor batching and
+aggregation, or connectivity refresh limits. These values are projected from the same canonical
+`SourcePlan` instances used by the runtime. Event-driven sources and Android rate limits are named
+as such; the UI does not present a requested cadence as a delivery guarantee. The selected profile
+is a high-prominence, color-coded pill with a three-level intensity indicator and dropdown affordance;
+the concrete plan is split into short, wrapping cadence badges instead of embedded in explanatory
+paragraphs. Advanced-mode purpose copy is limited to one line, while simple mode retains the fuller
+casual-user explanation.
+
 Gate:
 
 - settings accessibility and migration tests pass;
@@ -1786,6 +1829,15 @@ quarantined rather than crashing startup.
   database-file copying with a sanitized SQLite snapshot; a table inside main_database
   cannot be excluded from the existing whole-file backup.
 - Database migration tests cover upgrades from every supported schema fixture.
+- Release verification includes the actual 2024.1 database binary fixture through Room schema 27,
+  the shipped v26-to-v27 reconciliation path, the complete preferences module suite, and exact
+  pre-source-settings protobuf fixtures with no fields 20–27. The preference fixtures verify all
+  source mappings, legacy preset aliases, malformed-field isolation, partial migration repair,
+  concurrency, idempotency, and future-version preservation.
+- Verification on 2026-08-10 passed 13 tracking-parameter migration tests, 16 binary-fixture Room
+  migration tests, 5 v26 reconciliation tests, 34 settings-consumer tests, and 42 automatic-runtime
+  tests on the JVM. A connected Android 16 emulator also passed the 4-case historical schema
+  matrix and the migration-backup ordering test through the platform SQLite/Room implementation.
 - Raw-event retention is independent from user-visible history retention but never shorter
   than the unprojected/replay requirement.
 
@@ -1917,7 +1969,7 @@ Primary Android references used by the reviewer:
 | --- | --- | --- |
 | New WAL bypassed collected-data deletion epoch and could resurrect deleted data | Blocker | Added epoch/acquired-time validation, atomic deletion scope, and deletion fault tests |
 | One mutable Projected state could not support multiple projections | Blocker | WAL is immutable; added projection registration/checkpoint/failure/join state and one coordinator lease |
-| Session authority conflicted with ActiveTrackingSessionStore and late binding was undefined | Blocker | Room is canonical; DataStore is a reconciled mirror; added logical session/run/binding records |
+| Session authority conflicted with ActiveTrackingSessionStore and late attribution was undefined | Blocker | Room is canonical; DataStore is a reconciled mirror; logical session/run records and immutable admission-time IDs on `source_event_wal` define ownership without a second binding table |
 | Stable ID/sequence claims were impossible across registration/process boundaries | Blocker | Added source instance/generation, provider dedup key, per-instance sequence scope, and honest pre-admission gaps |
 | Join checkpoint could pass and delete inputs needed for a future bracket | Blocker | Pending join state and checkpoint advancement are transactional with bounded missing-input finalization |
 | Raw WAL exclusion from exports was false for whole-database backup | Blocker | Structured versus full backup semantics and sensitive-data disclosure are explicit |

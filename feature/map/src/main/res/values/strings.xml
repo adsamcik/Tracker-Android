@@ -58,12 +58,6 @@
     <string name="map_layer_terrain_low">Rarely here</string>
     <string name="map_layer_terrain_mid">Sometimes</string>
     <string name="map_layer_terrain_high">Often here</string>
-    <string name="map_layer_places_title">Frequent places</string>
-    <string name="map_layer_places_chip">Places</string>
-    <string name="map_layer_places_description">Your important places as markers, each sized and coloured by how often you visit. Home and work become big warm dots; a place you went once stays a small cool one.</string>
-    <string name="map_layer_places_rare">Rarely</string>
-    <string name="map_layer_places_often">Sometimes</string>
-    <string name="map_layer_places_anchor">Your anchors</string>
     <string name="map_layer_speed_ribbon_title">Speed ribbon</string>
     <string name="map_layer_speed_ribbon_chip">Ribbon</string>
     <string name="map_layer_speed_ribbon_description">Your route painted by how fast you were moving, flowing colour from a slow violet amble to a red-hot sprint or drive. Unlike the speed heatmap, the ribbon keeps your path intact so you can see exactly where you sped up and slowed down.</string>
@@ -85,9 +79,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Downhill run</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Lift</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Walk or pause</string>
-    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Trip constellations</string>
-    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Trips</string>
-    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Repeated journeys between your frequent places become curved constellations. A stable arc shows each route while a comet travels along it; thicker arcs mean you made that journey more often.</string>
     <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Walking</string>
     <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Cycling</string>
     <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Driving</string>
@@ -103,13 +94,6 @@
     <string name="map_layer_first_contact_description">A timeline of your discoveries: each area is coloured by how recently you first set foot there. The places you found long ago fade to deep indigo, while ground you broke this week glows bright cyan\u2014read the story of your exploration outward to your newest frontiers.</string>
     <string name="map_layer_first_contact_old">Long ago</string>
     <string name="map_layer_first_contact_recent">Just discovered</string>
-    <string name="map_layer_vehicle_compliance_title">Vehicle speed compliance</string>
-    <string name="map_layer_vehicle_compliance_description">Polyline of driving samples coloured by how the speed compares to your configured baseline limit.</string>
-    <string name="map_layer_vehicle_compliance_way_under">Way under limit</string>
-    <string name="map_layer_vehicle_compliance_slow">Below limit</string>
-    <string name="map_layer_vehicle_compliance_at_limit">Near limit</string>
-    <string name="map_layer_vehicle_compliance_slightly_over">Slightly over</string>
-    <string name="map_layer_vehicle_compliance_speeding">Speeding</string>
     <string name="map_layer_location_polyline_description">Line connecting your recorded locations over time.</string>
     <string name="map_layer_location_polyline_title">Location polyline</string>
     <!-- Compact chip labels: long titles truncate to "Location polyli..." in the
@@ -118,7 +102,6 @@
          whose titleRes already fits. -->
     <string name="map_layer_location_polyline_chip">Polyline</string>
     <string name="map_layer_wifi_count_heatmap_chip">Wi-Fi overlap</string>
-    <string name="map_layer_vehicle_compliance_chip">Speeding</string>
     <string name="map_layer_none_title">No overlay</string>
     <string name="map_date_preset_week">Last week</string>
     <string name="map_date_preset_month">Last month</string>
@@ -193,7 +176,6 @@
     <string name="map_empty_subtitle_cell">No located cell data in this view or date range. Cell samples recorded without location are still saved, but cannot appear on the map.</string>
     <string name="map_empty_subtitle_wifi">No located Wi-Fi data in this view or date range. Wi-Fi observations recorded without location are still saved, but cannot appear on the map.</string>
     <string name="map_empty_subtitle_speed">No speed data in this view or date range. Speed maps require usable location samples collected while tracking.</string>
-    <string name="map_empty_subtitle_vehicle_compliance">No road-matched drives to show. Import an OpenStreetMap region (Settings) and record some driving so we can match your route to real roads.</string>
     <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Dismiss no-data message</string>
     <string name="map_speed_probe_title">Speed here</string>
     <string name="map_speed_probe_avg_label">Average</string>

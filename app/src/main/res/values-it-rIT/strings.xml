@@ -14,26 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">Modalità sviluppatore disattivata</string>
     <string name="settings_data_management_section">Gestione dati</string>
     <string name="settings_data_danger_zone_section">Zona pericolosa</string>
-    <string name="settings_osm_import_section">Dati mappa (OpenStreetMap)</string>
-    <string name="settings_osm_import_action_title">Importa regione OSM</string>
-    <string name="settings_osm_import_action_summary">Scegli un file .osm.pbf. La verifica della conformità dei veicoli userà quindi i limiti stradali reali offline.</string>
-    <string name="settings_osm_import_unavailable_title">Importazione mappa offline non disponibile</string>
-    <string name="settings_osm_import_action_unavailable">L\'importazione della mappa offline non è temporaneamente disponibile mentre vengono completate le protezioni per la sicurezza dei file.</string>
-    <string name="settings_osm_import_action_running">Importazione in corso — tocca per annullare</string>
-    <string name="settings_osm_import_action_failed">Non è stato possibile completare l\'importazione della mappa offline.</string>
-    <string name="settings_osm_import_action_source_unavailable">Non è stato possibile aprire il file della mappa selezionato.</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">Importata %1$d strada da %2$d nodi.</item>
-        <item quantity="other">Importate %1$d strade da %2$d nodi.</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">Nessuna regione OpenStreetMap ancora importata.</string>
-    <string name="settings_osm_imports_attribution">Dati mappa © contributori di OpenStreetMap (ODbL 1.0). Tutta l\'elaborazione avviene sul dispositivo.</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d strada · importata %2$s</item>
-        <item quantity="other">%1$,d strade · importate %2$s</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">Rimuovi regione importata</string>
-    <string name="settings_osm_import_remove_message">Rimuovere %1$s? La verifica della conformità dei veicoli tornerà al valore di base fisso finché non importerai di nuovo una regione.</string>
     <string name="settings_incremental_backups_title">Backup incrementali</string>
     <string name="settings_incremental_backups_summary">Esporta solo i nuovi dati dall\'ultimo backup. Riduce il tempo di esportazione e le dimensioni del file.</string>
     <string name="settings_reset_export_watermarks_title">Forza esportazione completa</string>
@@ -362,9 +342,9 @@
     <string name="setup_step_indicator">Passaggio %1$d di %2$d</string>
     <string name="setup_online_tiles_title">Tile mappa online?</string>
     <string name="setup_online_tiles_subtitle">Tracker include una mappa di base offline, quindi funziona senza rete. Se desideri mappe più ricche, puoi invece scaricare tile da un fornitore pubblico.</string>
-    <string name="setup_online_tiles_off_title">Solo offline (consigliato)</string>
+    <string name="setup_online_tiles_off_title">Solo offline</string>
     <string name="setup_online_tiles_off_desc">Nessuna richiesta di rete. Viene usata solo la mappa di base inclusa.</string>
-    <string name="setup_online_tiles_on_title">Usa tile online</string>
+    <string name="setup_online_tiles_on_title">Usa tile online (consigliato)</string>
     <string name="setup_online_tiles_on_desc">Scarica tile vettoriali più dettagliate da OpenFreeMap (predefinito). Puoi cambiare fornitore in seguito in Impostazioni → Mappa.</string>
     <string name="setup_online_tiles_privacy">Quando è abilitato, il fornitore può vedere il tuo indirizzo IP e le tile che carichi — approssimativamente quale area della mappa stai guardando. Tracker non invia mai un account, un identificatore o la cronologia delle posizioni.</string>
     <string name="setup_online_tiles_change_later">Puoi cambiare questa opzione in qualsiasi momento in Impostazioni → Mappa → Tile mappa online.</string>

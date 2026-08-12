@@ -87,10 +87,6 @@ class FakeTrackingParamsRepository(
 		_state.update { it.copy(presetName = preset.name) }
 	}
 
-	override suspend fun setVehicleSpeedLimitBaselineMps(mps: Double) {
-		_state.update { it.copy(vehicleSpeedLimitBaselineMps = mps) }
-	}
-
 	/** Reset to default state (useful between tests). */
 	fun reset() {
 		_state.value = TrackingParamsState()

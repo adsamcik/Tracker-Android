@@ -28,7 +28,7 @@ import org.robolectric.annotation.Config
 
 /**
  * Verifies JSON serialization round-trip for all [DomainEvent] subtypes
- * through [DefaultDomainEventRepository]'s persist/getUnconsumed public API.
+ * through [DefaultDomainEventRepository]'s persist/composite-cursor consumption API.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])

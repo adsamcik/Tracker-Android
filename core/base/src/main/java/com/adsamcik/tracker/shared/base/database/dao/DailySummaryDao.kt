@@ -137,7 +137,7 @@ interface DailySummaryDao : BaseDao<DailySummaryEntity> {
 
 	/**
 	 * Count days with at least [minTripsPerDay] trips across all time.
-	 * Used as the cumulative [MetricKeys.ACTIVE_DAYS][com.adsamcik.tracker.stats.api.metric.MetricKeys.ACTIVE_DAYS] value.
+	 * Used as the cumulative [MetricKeys.ACTIVE_DAYS_TOTAL][com.adsamcik.tracker.stats.api.metric.MetricKeys.ACTIVE_DAYS_TOTAL] value.
 	 */
 	@Query("SELECT COUNT(*) FROM daily_summary WHERE trip_count >= :minTripsPerDay")
 	suspend fun countActiveDays(minTripsPerDay: Int): Long
@@ -145,7 +145,7 @@ interface DailySummaryDao : BaseDao<DailySummaryEntity> {
 	/**
 	 * Count days in the range whose epoch-day falls within [[fromDay], [toDay]] and that
 	 * recorded at least [minTripsPerDay] trips.
-	 * Used as the windowed [MetricKeys.ACTIVE_DAYS][com.adsamcik.tracker.stats.api.metric.MetricKeys.ACTIVE_DAYS] value.
+	 * Used as the windowed [MetricKeys.ACTIVE_DAYS_TOTAL][com.adsamcik.tracker.stats.api.metric.MetricKeys.ACTIVE_DAYS_TOTAL] value.
 	 */
 	@Query(
 		"""

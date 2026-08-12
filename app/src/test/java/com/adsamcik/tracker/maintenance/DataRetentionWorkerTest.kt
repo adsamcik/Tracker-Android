@@ -19,28 +19,21 @@ import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
+import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
-import com.adsamcik.tracker.shared.preferences.retention.resetRetentionConfigForTests
+import io.mockk.every
 import io.mockk.mockk
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.test.setMain
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
-import org.junit.After
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class DataRetentionWorkerTest {
@@ -49,7 +42,9 @@ class DataRetentionWorkerTest {
     }
 
     private lateinit var context: Context
-    private lateinit var retentionStore: RetentionConfigStore
+    private val retentionStore: RetentionConfigStore = mockk {
+        every { config } returns flowOf(RetentionConfigState(autoCleanupEnabled = false))
+    }
     private val testDispatcher = StandardTestDispatcher()
     private val mockDatabase: AppDatabase = mockk(relaxed = true)
     private val locationSampleDao: LocationSampleDao = mockk(relaxed = true)
@@ -62,13 +57,7 @@ class DataRetentionWorkerTest {
 
     @Before
     fun setUp() {
-        Dispatchers.setMain(testDispatcher)
         context = ApplicationProvider.getApplicationContext()
-        runTest(testDispatcher) {
-            resetRetentionConfigForTests(context)
-            advanceUntilIdle()
-        }
-        retentionStore = RetentionConfigStore(context, testDispatcher)
         val config = Configuration.Builder()
             .setMinimumLoggingLevel(android.util.Log.DEBUG)
             .setExecutor(SynchronousExecutor())
@@ -77,26 +66,8 @@ class DataRetentionWorkerTest {
         WorkManagerTestInitHelper.initializeTestWorkManager(context, config)
     }
 
-    @After
-    fun tearDown() {
-        runTest(testDispatcher) {
-            resetRetentionConfigForTests(context)
-            advanceUntilIdle()
-        }
-        Dispatchers.resetMain()
-    }
-
     @Test
-    @Ignore(
-        "TODO: Flaky/hangs under StandardTestDispatcher. The RetentionConfigStore.config flow's " +
-            "onStart migration races with the test's update(); runTest body doesn't complete in 1 min. " +
-            "Pre-existing test infrastructure issue (not introduced by privacy-defaults fix). " +
-            "Recover by replacing StandardTestDispatcher pattern with a fake DataStore."
-    )
     fun `doWork returns success and does nothing when disabled`() = runTest(testDispatcher) {
-        retentionStore.update { copy(autoCleanupEnabled = false) }
-        advanceUntilIdle()
-
         val worker = TestListenableWorkerBuilder<DataRetentionWorker>(context)
             .setWorkerFactory(object : WorkerFactory() {
                 override fun createWorker(
@@ -123,7 +94,6 @@ class DataRetentionWorkerTest {
 
         // Call doWork() directly to avoid blocking thread with startWork().get()
         val result = worker.doWork()
-        advanceUntilIdle()
         assertEquals(ListenableWorker.Result.success(), result)
     }
 

@@ -39,9 +39,6 @@ class EventTrackingFrameProjection @Inject constructor() : Projection {
 		)
 	}
 
-	override suspend fun flush(cutoffOrdinal: Long) = Unit
-	override suspend fun checkpoint() = ProjectionCheckpoint(id, version, 0L, 1)
-
 	companion object {
 		const val ID = "event-tracking-frame"
 		const val OUTBOX_KIND = "event-tracking-frame-v1"

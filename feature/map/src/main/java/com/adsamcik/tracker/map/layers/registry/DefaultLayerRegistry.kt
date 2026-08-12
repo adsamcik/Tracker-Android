@@ -7,7 +7,6 @@ import com.adsamcik.tracker.map.data.GeoRepositoryImpl
 import com.adsamcik.tracker.map.layers.base.BaseMapLayer
 import com.adsamcik.tracker.map.layers.impl.LocationPathLayer
 import com.adsamcik.tracker.map.layers.impl.HeatmapColorRamps
-import com.adsamcik.tracker.map.layers.impl.VehicleComplianceLayer
 import com.adsamcik.tracker.map.perf.PerformanceManager
 import com.adsamcik.tracker.map.presentation.bridge.MapLibreLayerConfig
 import com.adsamcik.tracker.map.presentation.udf.LatLngModel
@@ -21,11 +20,9 @@ import com.adsamcik.tracker.map.viz.catalog.firstContact
 import com.adsamcik.tracker.map.viz.catalog.FIRST_CONTACT_RAMP
 import com.adsamcik.tracker.map.viz.catalog.fogOfWonder
 import com.adsamcik.tracker.map.viz.catalog.FOG_RAMP
-import com.adsamcik.tracker.map.viz.catalog.frequentPlaces
 import com.adsamcik.tracker.map.viz.catalog.legacyTileHeatmap
 import com.adsamcik.tracker.map.viz.catalog.lifeAsTerrain
 import com.adsamcik.tracker.map.viz.catalog.locationDensityHeatmap
-import com.adsamcik.tracker.map.viz.catalog.PLACES_RAMP
 import com.adsamcik.tracker.map.viz.catalog.SEASONAL_RAMP
 import com.adsamcik.tracker.map.viz.catalog.seasonalPalimpsest
 import com.adsamcik.tracker.map.viz.catalog.signalCoverageHeatmap
@@ -33,8 +30,6 @@ import com.adsamcik.tracker.map.viz.catalog.signalAurora
 import com.adsamcik.tracker.map.viz.catalog.AURORA_CORE_RAMP
 import com.adsamcik.tracker.map.viz.catalog.AURORA_HALO_RAMP
 import com.adsamcik.tracker.map.viz.catalog.skiXRay
-import com.adsamcik.tracker.map.viz.catalog.tripConstellations
-import com.adsamcik.tracker.map.viz.ARC_CATEGORY_COLORS
 import com.adsamcik.tracker.map.viz.catalog.speedHeatmap
 import com.adsamcik.tracker.map.viz.catalog.speedRibbon
 import com.adsamcik.tracker.map.viz.catalog.SPEED_RIBBON_RAMP
@@ -385,65 +380,6 @@ class DefaultLayerRegistry(
             )
         )
 
-        // Vehicle Speed Compliance
-        add(
-            LayerDescriptor(
-                id = "vehicle_compliance",
-                titleRes = R.string.map_layer_vehicle_compliance_title,
-                chipLabelRes = R.string.map_layer_vehicle_compliance_chip,
-                iconRes = null,
-                capabilities = LayerCapabilities(isPolyline = true),
-                recipe = LayerRecipe(factory = LayerFactory {
-                    LayerEntry(
-                        build = { ctx ->
-                            val dao = AppDatabase.database(ctx).locationSampleDao()
-                            val provider = VehicleComplianceProvider(
-                                dao = dao,
-                                roadMatcher = ctx.roadMatcher(),
-                                dispatchers = dispatchers,
-                            )
-                            VehicleComplianceLayer(
-                                resultProvider = provider::load,
-                                perf = PerformanceManager(),
-                            )
-                        },
-                        legend = MapLayerData(
-                            info = MapLayerInfo(
-                                "VehicleComplianceLayer",
-                                R.string.map_layer_vehicle_compliance_title,
-                            ),
-                            colorList = HeatmapColorRamps.VehicleCompliance.map { it.second },
-                            legend = MapLegend(
-                                description = R.string.map_layer_vehicle_compliance_description,
-                                valueList = listOf(
-                                    MapLegendValue(
-                                        R.string.map_layer_vehicle_compliance_way_under,
-                                        HeatmapColorRamps.VehicleCompliance[0].second,
-                                    ),
-                                    MapLegendValue(
-                                        R.string.map_layer_vehicle_compliance_slow,
-                                        HeatmapColorRamps.VehicleCompliance[1].second,
-                                    ),
-                                    MapLegendValue(
-                                        R.string.map_layer_vehicle_compliance_at_limit,
-                                        HeatmapColorRamps.VehicleCompliance[2].second,
-                                    ),
-                                    MapLegendValue(
-                                        R.string.map_layer_vehicle_compliance_slightly_over,
-                                        HeatmapColorRamps.VehicleCompliance[3].second,
-                                    ),
-                                    MapLegendValue(
-                                        R.string.map_layer_vehicle_compliance_speeding,
-                                        HeatmapColorRamps.VehicleCompliance[4].second,
-                                    ),
-                                )
-                            )
-                        )
-                    )
-                })
-            )
-        )
-
         // Location Polyline
         add(
             LayerDescriptor(
@@ -604,37 +540,6 @@ class DefaultLayerRegistry(
                                     MapLegendValue(R.string.map_layer_season_summer, SEASONAL_RAMP[1].second),
                                     MapLegendValue(R.string.map_layer_season_autumn, SEASONAL_RAMP[2].second),
                                     MapLegendValue(R.string.map_layer_season_winter, SEASONAL_RAMP[3].second),
-                                )
-                            )
-                        )
-                    )
-                })
-            )
-        )
-
-        // Frequent places — circle markers sized/coloured by visit frequency (Circle shape).
-        add(
-            LayerDescriptor(
-                id = "frequent_places",
-                titleRes = R.string.map_layer_places_title,
-                chipLabelRes = R.string.map_layer_places_chip,
-                iconRes = null,
-                capabilities = LayerCapabilities(isHeatmap = false, supportsQuality = false),
-                recipe = LayerRecipe(factory = LayerFactory {
-                    LayerEntry(
-                        build = { ctx ->
-                            val dao = AppDatabase.database(ctx).frequentPlaceDao()
-                            frequentPlaces(dao).toLayer()
-                        },
-                        legend = MapLayerData(
-                            info = MapLayerInfo("FrequentPlaces", R.string.map_layer_places_title),
-                            colorList = PLACES_RAMP.map { it.second },
-                            legend = MapLegend(
-                                description = R.string.map_layer_places_description,
-                                valueList = listOf(
-                                    MapLegendValue(R.string.map_layer_places_rare, PLACES_RAMP[0].second),
-                                    MapLegendValue(R.string.map_layer_places_often, PLACES_RAMP[1].second),
-                                    MapLegendValue(R.string.map_layer_places_anchor, PLACES_RAMP[2].second),
                                 )
                             )
                         )
@@ -806,45 +711,6 @@ class DefaultLayerRegistry(
                                     MapLegendValue(R.string.map_layer_ski_downhill, 0xFF29B6F6.toInt()),
                                     MapLegendValue(R.string.map_layer_ski_lift, 0xFFFFB300.toInt()),
                                     MapLegendValue(R.string.map_layer_ski_walk, 0xFFAB47BC.toInt()),
-                                ),
-                            ),
-                        ),
-                    )
-                }),
-            )
-        )
-
-        // Trip constellations — grouped directed place-to-place arcs with property-only comet flow.
-        add(
-            LayerDescriptor(
-                id = "trip_constellations",
-                titleRes = R.string.map_layer_trip_constellations_title,
-                chipLabelRes = R.string.map_layer_trip_constellations_chip,
-                iconRes = null,
-                capabilities = LayerCapabilities(isHeatmap = false, supportsQuality = false),
-                recipe = LayerRecipe(factory = LayerFactory {
-                    LayerEntry(
-                        build = { ctx ->
-                            val database = AppDatabase.database(ctx)
-                            tripConstellations(
-                                tripDao = database.inferredTripDao(),
-                                placeDao = database.frequentPlaceDao(),
-                            ).toLayer()
-                        },
-                        legend = MapLayerData(
-                            info = MapLayerInfo(
-                                "TripConstellations",
-                                R.string.map_layer_trip_constellations_title,
-                            ),
-                            colorList = ARC_CATEGORY_COLORS.values.toList(),
-                            legend = MapLegend(
-                                description = R.string.map_layer_trip_constellations_description,
-                                valueList = listOf(
-                                    MapLegendValue(R.string.map_layer_trip_walk, requireNotNull(ARC_CATEGORY_COLORS["walk"])),
-                                    MapLegendValue(R.string.map_layer_trip_bike, requireNotNull(ARC_CATEGORY_COLORS["bike"])),
-                                    MapLegendValue(R.string.map_layer_trip_car, requireNotNull(ARC_CATEGORY_COLORS["car"])),
-                                    MapLegendValue(R.string.map_layer_trip_transit, requireNotNull(ARC_CATEGORY_COLORS["transit"])),
-                                    MapLegendValue(R.string.map_layer_trip_other, requireNotNull(ARC_CATEGORY_COLORS["other"])),
                                 ),
                             ),
                         ),

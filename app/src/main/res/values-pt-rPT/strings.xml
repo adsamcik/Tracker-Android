@@ -14,26 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">Modo de programador desativado</string>
     <string name="settings_data_management_section">Gestão de dados</string>
     <string name="settings_data_danger_zone_section">Zona de perigo</string>
-    <string name="settings_osm_import_section">Dados de mapa (OpenStreetMap)</string>
-    <string name="settings_osm_import_action_title">Importar região OSM</string>
-    <string name="settings_osm_import_action_summary">Selecione um ficheiro .osm.pbf. A verificação de conformidade de veículos passará a usar offline os limites reais das estradas.</string>
-    <string name="settings_osm_import_unavailable_title">Importação de mapa offline indisponível</string>
-    <string name="settings_osm_import_action_unavailable">A importação de mapa offline está temporariamente indisponível enquanto se concluem as proteções de segurança de ficheiros.</string>
-    <string name="settings_osm_import_action_running">A importar — toque para cancelar</string>
-    <string name="settings_osm_import_action_failed">Não foi possível concluir a importação do mapa offline.</string>
-    <string name="settings_osm_import_action_source_unavailable">Não foi possível abrir o ficheiro de mapa selecionado.</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">Importada %1$d estrada de %2$d nós.</item>
-        <item quantity="other">Importadas %1$d estradas de %2$d nós.</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">Ainda não foi importada nenhuma região do OpenStreetMap.</string>
-    <string name="settings_osm_imports_attribution">Dados de mapa © colaboradores do OpenStreetMap (ODbL 1.0). Todo o processamento é efetuado no dispositivo.</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d estrada · importada %2$s</item>
-        <item quantity="other">%1$,d estradas · importadas %2$s</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">Remover região importada</string>
-    <string name="settings_osm_import_remove_message">Remover %1$s? A conformidade do veículo regressará à referência fixa até voltar a importar uma região.</string>
     <string name="settings_incremental_backups_title">Cópias de segurança incrementais</string>
     <string name="settings_incremental_backups_summary">Exporte apenas os novos dados desde a última cópia de segurança. Reduz o tempo de exportação e o tamanho do ficheiro.</string>
     <string name="settings_reset_export_watermarks_title">Forçar exportação completa</string>
@@ -362,9 +342,9 @@
     <string name="setup_step_indicator">Passo %1$d de %2$d</string>
     <string name="setup_online_tiles_title">Mosaicos de mapa online?</string>
     <string name="setup_online_tiles_subtitle">O Tracker inclui um mapa base offline para funcionar sem rede. Se quiser mapas mais ricos, pode receber mosaicos de um fornecedor público.</string>
-    <string name="setup_online_tiles_off_title">Apenas offline (recomendado)</string>
+    <string name="setup_online_tiles_off_title">Apenas offline</string>
     <string name="setup_online_tiles_off_desc">Sem pedidos de rede. É utilizado apenas o mapa base incluído.</string>
-    <string name="setup_online_tiles_on_title">Usar mosaicos online</string>
+    <string name="setup_online_tiles_on_title">Usar mosaicos online (recomendado)</string>
     <string name="setup_online_tiles_on_desc">Receba mosaicos vetoriais com mais detalhe do OpenFreeMap (predefinido). Pode alterar o fornecedor mais tarde em Definições → Mapa.</string>
     <string name="setup_online_tiles_privacy">Quando ativado, o fornecedor pode ver o seu endereço IP e os mosaicos que carrega — aproximadamente a área do mapa que está a ver. O Tracker nunca envia uma conta, um identificador ou o histórico das suas localizações.</string>
     <string name="setup_online_tiles_change_later">Pode alterar isto a qualquer momento em Definições → Mapa → Mosaicos de mapa online.</string>

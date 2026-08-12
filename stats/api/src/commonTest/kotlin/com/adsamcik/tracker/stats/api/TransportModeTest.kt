@@ -196,24 +196,6 @@ class TransportModeTest {
 	}
 
 	@Nested
-	inner class TripSourceValues {
-
-		@Test
-		fun `TripSource has three values`() {
-			TripSource.entries shouldHaveSize 3
-		}
-
-		@Test
-		fun `TripSource values are ordered correctly`() {
-			TripSource.entries shouldBe listOf(
-				TripSource.USER_CREATED,
-				TripSource.REALTIME_DETECTION,
-				TripSource.BATCH_INFERENCE,
-			)
-		}
-	}
-
-	@Nested
 	inner class DetectedActivityTypeValues {
 
 		@Test

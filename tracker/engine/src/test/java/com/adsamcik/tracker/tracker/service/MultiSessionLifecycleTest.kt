@@ -305,8 +305,6 @@ class MultiSessionLifecycleTest {
 			)
 		}
 
-		override fun checkpoint(): ByteArray? = null
-		override fun restore(state: ByteArray) = Unit
 	}
 
 	/** Does nothing. Used by the empty-session test. */
@@ -321,8 +319,6 @@ class MultiSessionLifecycleTest {
 		override fun onSignal(signal: TrackingSignal) = Unit
 		override suspend fun onFlush(): List<DomainEvent> = emptyList()
 		override suspend fun onStop(): List<DomainEvent> = emptyList()
-		override fun checkpoint(): ByteArray? = null
-		override fun restore(state: ByteArray) = Unit
 	}
 
 	private class RecordingDomainEventRepository : DomainEventRepository {
@@ -333,20 +329,10 @@ class MultiSessionLifecycleTest {
 		}
 
 		override fun observeEvents(since: EpochMs): Flow<List<DomainEvent>> = emptyFlow()
-		@Suppress("OVERRIDE_DEPRECATION")
-		override suspend fun getUnconsumedBatch(
-			consumerId: String,
-			limit: Int,
-		): List<DomainEvent> = emptyList()
 		override suspend fun getUnconsumedBatchWithIds(
 			consumerId: String,
 			limit: Int,
 		): List<UnconsumedEvent> = emptyList()
-		@Suppress("OVERRIDE_DEPRECATION")
-		override suspend fun markConsumed(
-			consumerId: String,
-			upToTimestamp: EpochMs,
-		) = Unit
 		override suspend fun markBatchConsumed(
 			consumerId: String,
 			upToTimestamp: EpochMs,
@@ -397,9 +383,6 @@ class MultiSessionLifecycleTest {
 		}
 		override suspend fun setPreset(preset: TrackingPreset) {
 			state.update { it.copy(presetName = preset.name) }
-		}
-		override suspend fun setVehicleSpeedLimitBaselineMps(mps: Double) {
-			state.update { it.copy(vehicleSpeedLimitBaselineMps = mps) }
 		}
 	}
 

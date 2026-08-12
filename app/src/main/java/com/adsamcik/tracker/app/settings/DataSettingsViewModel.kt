@@ -9,6 +9,9 @@ import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupException
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
+import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseRepository
+import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseState
+import com.adsamcik.tracker.shared.base.database.legacy.LegacyImportStatus
 import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
@@ -47,12 +50,34 @@ enum class DataDeletionResult {
     Failure,
 }
 
+data class LegacyDatabaseUiInfo(
+    val sourceVersion: Int,
+    val sizeBytes: Long,
+    val importStatus: LegacyImportStatus,
+    val completedAtMs: Long?,
+    val importedRows: Long,
+    val skippedRows: Long,
+    val canDelete: Boolean,
+)
+
+enum class LegacyDatabaseExportResult {
+    Success,
+    Failure,
+    CleanupRequired,
+}
+
+enum class LegacyDatabaseDeleteResult {
+    Success,
+    Failure,
+}
+
 data class DataSettingsUiState(
     val autoCleanupEnabled: Boolean = false,
     val dataRetentionYears: Int = RetentionConfigState.DEFAULT_RETENTION_YEARS,
     val incrementalBackupsEnabled: Boolean = true,
     val smartGoalNotificationsEnabled: Boolean = true,
     val migrationBackup: MigrationBackupUiInfo? = null,
+    val legacyDatabase: LegacyDatabaseUiInfo? = null,
 )
 
 @HiltViewModel
@@ -62,6 +87,7 @@ class DataSettingsViewModel @Inject constructor(
     private val exportPlanStore: ExportPlanStore,
     private val preferences: Preferences,
     private val backupRepository: DatabaseMigrationBackupRepository,
+    private val legacyDatabaseRepository: LegacyDatabaseRepository,
     private val dispatchers: DispatchersProvider,
     private val deletionService: CollectedDataDeletionService,
 ) : ViewModel() {
@@ -96,13 +122,37 @@ class DataSettingsViewModel @Inject constructor(
             .catch {
                 emit(null)
             },
-    ) { config, plans, smartGoalNotificationsEnabled, backup ->
+        legacyDatabaseRepository.states
+            .flowOn(dispatchers.io)
+            .catch { error ->
+                emit(
+                    LegacyDatabaseState(
+                        database = null,
+                        importStatus = LegacyImportStatus.FAILED,
+                        report = null,
+                        lastError = error.message,
+                        externallyExported = false,
+                    ),
+                )
+            },
+    ) { config, plans, smartGoalNotificationsEnabled, backup, legacy ->
         DataSettingsUiState(
             autoCleanupEnabled = config.autoCleanupEnabled,
             dataRetentionYears = config.dataRetentionYears,
             incrementalBackupsEnabled = plans.all { it.incrementalEnabled },
             smartGoalNotificationsEnabled = smartGoalNotificationsEnabled,
             migrationBackup = backup,
+            legacyDatabase = legacy.database?.let { database ->
+                LegacyDatabaseUiInfo(
+                    sourceVersion = database.sourceVersion,
+                    sizeBytes = database.sizeBytes,
+                    importStatus = legacy.importStatus,
+                    completedAtMs = legacy.report?.completedAtMs,
+                    importedRows = legacy.report?.importedRows?.values?.sum() ?: 0L,
+                    skippedRows = legacy.report?.skippedRows?.values?.sum() ?: 0L,
+                    canDelete = legacy.canDelete,
+                )
+            },
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DataSettingsUiState())
 
@@ -129,7 +179,6 @@ class DataSettingsViewModel @Inject constructor(
                         tripRetentionDays = retentionDays,
                         dailySummaryRetentionDays = retentionDays,
                         explorationRetentionDays = retentionDays,
-                        legacySessionRetentionDays = retentionDays,
                     )
                 }
             }.getOrNull()
@@ -185,6 +234,53 @@ class DataSettingsViewModel @Inject constructor(
                     cleanupFailedExport(destination)
                 } catch (_: SecurityException) {
                     cleanupFailedExport(destination)
+                }
+            }
+            onResult(result)
+        }
+    }
+
+    fun exportLegacyDatabase(
+        destination: Uri,
+        onResult: (LegacyDatabaseExportResult) -> Unit,
+    ) {
+        viewModelScope.launch {
+            val result = withContext(dispatchers.io) {
+                val output = try {
+                    appContext.contentResolver.openOutputStream(destination, "rwt")
+                } catch (_: IOException) {
+                    null
+                } catch (_: SecurityException) {
+                    null
+                } ?: return@withContext LegacyDatabaseExportResult.Failure
+
+                try {
+                    legacyDatabaseRepository.export(output)
+                    LegacyDatabaseExportResult.Success
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    when (cleanupFailedExport(destination)) {
+                        MigrationBackupExportResult.CleanupRequired ->
+                            LegacyDatabaseExportResult.CleanupRequired
+                        else -> LegacyDatabaseExportResult.Failure
+                    }
+                }
+            }
+            onResult(result)
+        }
+    }
+
+    fun deleteLegacyDatabase(onResult: (LegacyDatabaseDeleteResult) -> Unit) {
+        viewModelScope.launch {
+            val result = withContext(dispatchers.io) {
+                try {
+                    legacyDatabaseRepository.delete()
+                    LegacyDatabaseDeleteResult.Success
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    LegacyDatabaseDeleteResult.Failure
                 }
             }
             onResult(result)

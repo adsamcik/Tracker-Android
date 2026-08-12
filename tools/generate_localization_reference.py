@@ -93,7 +93,10 @@ def git_files() -> list[Path]:
         encoding="utf-8",
         text=True,
     )
-    return [Path(path) for path in result.stdout.splitlines()]
+    tracked_paths = [Path(path) for path in result.stdout.splitlines()]
+    # `git ls-files` includes tracked files deleted in an unstaged worktree. Generated
+    # references describe the tree under review, so deleted resources must be omitted.
+    return [path for path in tracked_paths if (REPOSITORY_ROOT / path).is_file()]
 
 
 def resource_file(relative_path: Path) -> ResourceFile | None:

@@ -13,8 +13,9 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.Configuration
 import com.adsamcik.tracker.app.event.PrecisionUpgradeDomainEventConsumer
-import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
 import com.adsamcik.tracker.app.startup.ModuleInitializerCoordinator
+import com.adsamcik.tracker.app.startup.LegacyDatabaseStartupResult
+import com.adsamcik.tracker.app.startup.LegacyDatabaseUpgradeCoordinator
 import com.adsamcik.tracker.app.tracebox.TrackerTraceboxRuntime
 import com.adsamcik.tracker.app.tracebox.currentTrackerProcessName
 import com.adsamcik.tracker.app.tracebox.isTraceboxHandlerProcessName
@@ -42,13 +43,13 @@ import com.adsamcik.tracker.tracker.resilience.PreviousExitRecoveryAction
 import com.adsamcik.tracker.tracker.resilience.PreviousExitRecoveryCoordinator
 import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Provider
-import kotlin.coroutines.cancellation.CancellationException
 
 
 /**
@@ -84,7 +85,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 	lateinit var moduleInitializerCoordinator: ModuleInitializerCoordinator
 
 	@Inject
-	lateinit var collectedDataDeletionService: CollectedDataDeletionService
+	lateinit var legacyDatabaseUpgradeCoordinator: LegacyDatabaseUpgradeCoordinator
 
 	@Inject
 	lateinit var networkGateway: NetworkGateway
@@ -119,6 +120,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 	@Volatile
 	var isStartupReady: Boolean = false
 	private set
+	private val startupReconciliationCompletion = CompletableDeferred<Unit>()
 
 	private val deferredStartupStarted = AtomicBoolean(false)
 	private val maintenanceStartupStarted = AtomicBoolean(false)
@@ -155,6 +157,8 @@ class Application : AndroidApplication(), Configuration.Provider {
 	private fun initializeImportantSingletons() {
 		ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
 			override fun onStart(owner: LifecycleOwner) {
+				if (!startupReconciliationCompletion.isCompleted) return
+				if (!legacyDatabaseUpgradeCoordinator.isReady()) return
 				if (trackingStartupGuard.isAutoRecoverySuppressed(this@Application)) return
 				activityWatcherController.poke()
 				// Reconcile automatic detection with the current ACTIVITY_RECOGNITION permission:
@@ -217,20 +221,20 @@ class Application : AndroidApplication(), Configuration.Provider {
 	private fun startBackgroundStartup() {
 		appScope.launch(dispatchers.io) {
 			try {
-				collectedDataDeletionService.reconcilePendingDeletion()
-			} catch (error: CancellationException) {
-				throw error
-			} catch (error: Exception) {
-				// Reconciliation is retryable while its marker remains. File-system, SQLite,
-				// Tracebox, and directory-fsync failures must not cancel the rest of startup.
-				Tracebox.log.error(error, "Data retention failed")
-			}
-			try {
-				if (trackingStartupGuard.wasForceStopped(this@Application)) {
+				val recoveryAction = determineStartupRecoveryAction()
+				if (recoveryAction is ApplicationStartupRecoveryAction.ConfirmedForceStop) {
+					// Set the process guard before any legacy inspection or target Room open.
 					trackingStartupGuard.suppressAutoRecoveryForCurrentProcess()
-					previousExitRecoveryCoordinator.suppressAfterForceStop()
 				}
-				reconcilePreviousExit()
+				when (val legacy = legacyDatabaseUpgradeCoordinator.ensureReady()) {
+					LegacyDatabaseStartupResult.Ready -> Unit
+					is LegacyDatabaseStartupResult.Failed -> {
+						Tracebox.log.error("Legacy database import failed: ${legacy.message}")
+						return@launch
+					}
+				}
+				applyStartupRecovery(recoveryAction)
+				startupReconciliationCompletion.complete(Unit)
 				if (!isRobolectricUnitTest()) {
 					initializeModules()
 				}
@@ -238,37 +242,53 @@ class Application : AndroidApplication(), Configuration.Provider {
 				Tracebox.log.error(error, "Application initialization failed")
 			} finally {
 				isStartupReady = true
+				startupReconciliationCompletion.complete(Unit)
 			}
 		}
 	}
 
 	private fun isRobolectricUnitTest(): Boolean = Build.FINGERPRINT == "robolectric"
 
-	/**
-	 * Reconciles the previous process exit reason on Android 11+ with tracking recovery.
-	 * Abnormal exits enqueue an expedited WAL drain; a user-requested termination suppresses
-	 * tracking recovery for this process.
-	 */
 	@WorkerThread
-	private suspend fun reconcilePreviousExit(): PreviousExitRecoveryAction {
-		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-			return PreviousExitRecoveryAction.NONE
-		}
+	private fun determineStartupRecoveryAction(): ApplicationStartupRecoveryAction {
+		val mainProcessExit = previousMainProcessExit()
+		return applicationStartupRecoveryAction(
+			confirmedForceStop = trackingStartupGuard.wasForceStopped(this),
+			mainProcessExit = mainProcessExit,
+			fallbackTimestampMs = System.currentTimeMillis(),
+		)
+	}
 
-		return try {
-			val activityManager = getSystemService(ActivityManager::class.java)
-				?: return PreviousExitRecoveryAction.NONE
-			val exitInfo = activityManager
-				.getHistoricalProcessExitReasons(packageName, 0, 1)
-				.firstOrNull() ?: return PreviousExitRecoveryAction.NONE
-
-			val action = previousExitRecoveryCoordinator.handle(exitInfo.reason)
-			if (action == PreviousExitRecoveryAction.SUPPRESS_RESTART) {
-				trackingStartupGuard.suppressAutoRecoveryForCurrentProcess()
+	@WorkerThread
+	private suspend fun applyStartupRecovery(
+		action: ApplicationStartupRecoveryAction,
+	): PreviousExitRecoveryAction = when (action) {
+			is ApplicationStartupRecoveryAction.ConfirmedForceStop -> {
+				previousExitRecoveryCoordinator.suppressAfterForceStop(action.completedAtMs)
+				PreviousExitRecoveryAction.NONE
 			}
-			action
+			is ApplicationStartupRecoveryAction.PreviousExit ->
+				previousExitRecoveryCoordinator.handle(action.reason)
+			ApplicationStartupRecoveryAction.None -> PreviousExitRecoveryAction.NONE
+	}
+
+	@WorkerThread
+	private fun previousMainProcessExit(): HistoricalProcessExit? {
+		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
+		return try {
+			val activityManager = getSystemService(ActivityManager::class.java) ?: return null
+			val records = activityManager
+				.getHistoricalProcessExitReasons(packageName, 0, HISTORICAL_EXIT_RECORD_LIMIT)
+				.map { exitInfo ->
+					HistoricalProcessExit(
+						processName = exitInfo.processName,
+						reason = exitInfo.reason,
+						timestampMs = exitInfo.timestamp,
+					)
+				}
+			mostRecentMainProcessExit(records, packageName)
 		} catch (_: RuntimeException) {
-			PreviousExitRecoveryAction.NONE
+			null
 		}
 	}
 
@@ -276,6 +296,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 		if (!deferredStartupStarted.compareAndSet(false, true)) return
 
 		appScope.launch(dispatchers.io) {
+			awaitStartupReconciliation()
 			try {
 				coroutineScope {
 					launch { warmUp() }
@@ -292,12 +313,17 @@ class Application : AndroidApplication(), Configuration.Provider {
 		if (!maintenanceStartupStarted.compareAndSet(false, true)) return
 
 		appScope.launch(dispatchers.io) {
+			awaitStartupReconciliation()
 			try {
 				initializeDatabaseMaintenance()
 			} catch (error: Throwable) {
 				Tracebox.log.error(error, "Data retention failed")
 			}
 		}
+	}
+
+	internal suspend fun awaitStartupReconciliation() {
+		startupReconciliationCompletion.await()
 	}
 
 	@WorkerThread
@@ -352,4 +378,39 @@ class Application : AndroidApplication(), Configuration.Provider {
 		startBackgroundStartup()
 	}
 
+	private companion object {
+		const val HISTORICAL_EXIT_RECORD_LIMIT = 16
+	}
+}
+
+internal data class HistoricalProcessExit(
+	val processName: String?,
+	val reason: Int,
+	val timestampMs: Long,
+)
+
+internal fun mostRecentMainProcessExit(
+	records: List<HistoricalProcessExit>,
+	mainProcessName: String,
+): HistoricalProcessExit? = records
+	.asSequence()
+	.filter { it.processName == mainProcessName }
+	.maxByOrNull { it.timestampMs }
+
+internal sealed interface ApplicationStartupRecoveryAction {
+	data class ConfirmedForceStop(val completedAtMs: Long) : ApplicationStartupRecoveryAction
+	data class PreviousExit(val reason: Int) : ApplicationStartupRecoveryAction
+	data object None : ApplicationStartupRecoveryAction
+}
+
+internal fun applicationStartupRecoveryAction(
+	confirmedForceStop: Boolean,
+	mainProcessExit: HistoricalProcessExit?,
+	fallbackTimestampMs: Long,
+): ApplicationStartupRecoveryAction = when {
+	confirmedForceStop -> ApplicationStartupRecoveryAction.ConfirmedForceStop(
+		completedAtMs = mainProcessExit?.timestampMs ?: fallbackTimestampMs,
+	)
+	mainProcessExit != null -> ApplicationStartupRecoveryAction.PreviousExit(mainProcessExit.reason)
+	else -> ApplicationStartupRecoveryAction.None
 }

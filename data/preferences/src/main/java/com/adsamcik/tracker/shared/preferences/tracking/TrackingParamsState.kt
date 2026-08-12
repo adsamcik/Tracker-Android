@@ -15,7 +15,6 @@ data class TrackingParamsState(
     val minTimeSeconds: Int = DEFAULT_MIN_TIME,
     val requiredAccuracyMeters: Int = DEFAULT_REQUIRED_ACCURACY,
     val presetName: String = DEFAULT_PRESET,
-    val vehicleSpeedLimitBaselineMps: Double = DEFAULT_VEHICLE_SPEED_LIMIT_MPS,
 	val sourceCollectionSettings: SourceCollectionSettings = SourceCollectionSettings(),
 	val advancedSourceControlsEnabled: Boolean = false,
 	val sourceSettingsVersion: Int = CURRENT_SOURCE_SETTINGS_VERSION,
@@ -26,16 +25,6 @@ data class TrackingParamsState(
         const val DEFAULT_REQUIRED_ACCURACY = 50
         const val DEFAULT_PRESET = "BALANCED"
 		const val CURRENT_SOURCE_SETTINGS_VERSION = 1
-
-        /** Minimum user-configurable baseline speed limit in km/h. */
-        const val MIN_VEHICLE_SPEED_LIMIT_KMH = 30
-        /** Maximum user-configurable baseline speed limit in km/h. */
-        const val MAX_VEHICLE_SPEED_LIMIT_KMH = 130
-        /** Default baseline speed limit in km/h (50 km/h ≈ urban driving). */
-        const val DEFAULT_VEHICLE_SPEED_LIMIT_KMH = 50
-        /** Default baseline speed limit in m/s. */
-        const val DEFAULT_VEHICLE_SPEED_LIMIT_MPS: Double =
-            DEFAULT_VEHICLE_SPEED_LIMIT_KMH / 3.6
     }
 
     val preset: TrackingPreset

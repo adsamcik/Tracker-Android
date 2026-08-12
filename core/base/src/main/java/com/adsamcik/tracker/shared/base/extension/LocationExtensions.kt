@@ -61,10 +61,11 @@ object LocationExtensions {
 			estimate.altitude = to.altitude
 		}
 
-		estimate.time = from.time + (to.time - from.time * delta).toLong()
+		estimate.time = interpolateTimestampMillis(from.time, to.time, delta)
 
 		return estimate
 	}
+
+	internal fun interpolateTimestampMillis(fromTimeMs: Long, toTimeMs: Long, delta: Double): Long =
+		fromTimeMs + ((toTimeMs - fromTimeMs) * delta).toLong()
 }
-
-

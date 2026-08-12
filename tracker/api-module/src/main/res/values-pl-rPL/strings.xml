@@ -85,8 +85,6 @@
     <string name="settings_tracking_notice_summary">Zmiany zaczną obowiązywać po ponownym uruchomieniu śledzenia</string>
     <string name="settings_tracking_required_accuracy_title">Wymagana dokładność lokalizacji</string>
     <string name="settings_tracking_title">Śledzenie</string>
-    <string name="settings_vehicle_speed_limit_baseline_title">Bazowe ograniczenie prędkości pojazdu</string>
-    <string name="help_vehicle_speed_limit_baseline">Używane przez warstwę mapy zgodności prędkości pojazdu. Próbki jazdy są kolorowane według porównania ich prędkości z tą wartością bazową. Wybierz wartość odpowiadającą ograniczeniom tam, gdzie najczęściej jeździsz (np. 50 km/h w miastach, 90 km/h na autostradach).</string>
     <string name="settings_wifi_enabled_title">Wi‑Fi</string>
     <string name="shortcut_start_tracking">Rozpocznij śledzenie</string>
     <string name="shortcut_start_tracking_long">Rozpocznij śledzenie lokalizacji</string>

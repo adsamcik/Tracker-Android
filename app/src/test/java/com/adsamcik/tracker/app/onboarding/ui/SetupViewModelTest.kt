@@ -262,9 +262,9 @@ class SetupViewModelTest {
     inner class OnlineMapTilesStep {
 
         @Test
-        fun `online map tiles default to disabled`() {
+        fun `online map tiles default to enabled`() {
             val vm = createViewModel()
-            vm.state.value.onlineMapTilesEnabled shouldBe false
+            vm.state.value.onlineMapTilesEnabled shouldBe true
         }
 
         @Test

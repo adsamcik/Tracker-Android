@@ -18,6 +18,11 @@ abstract class ObjectBaseDatabase<T : RoomDatabase>(private val type: Class<T>) 
 
 	protected abstract fun setupDatabase(database: RoomDatabase.Builder<T>)
 
+	/** Context-aware builder hook for databases that need creation-time file coordination. */
+	protected open fun setupDatabase(context: Context, database: RoomDatabase.Builder<T>) {
+		setupDatabase(database)
+	}
+
 	protected open fun openHelperFactory(
 		context: Context,
 		delegate: SupportSQLiteOpenHelper.Factory,
@@ -33,7 +38,7 @@ abstract class ObjectBaseDatabase<T : RoomDatabase>(private val type: Class<T>) 
 				.openHelperFactory(openHelperFactory(context.applicationContext, delegateFactory))
 				// Enable WAL for improved concurrent read/write performance and reduced writer stalls
 				.setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-				.apply { setupDatabase(this) }
+				.apply { setupDatabase(context.applicationContext, this) }
 				.build()
 		this.instance = instance
 		return instance

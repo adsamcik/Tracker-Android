@@ -9,8 +9,6 @@ interface Projection {
 	val retentionRequired: Boolean get() = true
 	val maximumAttemptsPerEvent: Int get() = 3
 	suspend fun apply(event: AdmittedSourceEvent<out SourcePayload>, context: ProjectionContext)
-	suspend fun flush(cutoffOrdinal: Long)
-	suspend fun checkpoint(): ProjectionCheckpoint
 }
 
 interface ProjectionContext {
@@ -25,13 +23,6 @@ interface ProjectionContext {
 	)
 	suspend fun removeJoinState(key: String)
 }
-
-data class ProjectionCheckpoint(
-	val projectionId: String,
-	val projectionVersion: Int,
-	val contiguousAdmissionOrdinal: Long,
-	val stateVersion: Int,
-)
 
 data class ProjectionOutboxEffect(
 	val stableId: String,

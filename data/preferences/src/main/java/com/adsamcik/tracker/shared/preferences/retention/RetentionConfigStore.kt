@@ -110,8 +110,6 @@ class RetentionConfigStore(
                         .setDailySummaryRetentionDays(currentState.dailySummaryRetentionDays)
                         .setExplorationRetentionDays(currentState.explorationRetentionDays)
                         .setAutoPurgeEnabled(currentState.autoPurgeEnabled)
-                        .setExportBeforePurge(currentState.exportBeforePurge)
-                        .setLegacySessionRetentionDays(currentState.legacySessionRetentionDays)
                         .setInitialized(true)
                 }
 
@@ -146,10 +144,6 @@ private fun RetentionConfigProto.toDomain(): RetentionConfigState {
         ),
         explorationRetentionDays = explorationRetentionDays.coerceAtLeast(0),
         autoPurgeEnabled = autoPurgeEnabled,
-        exportBeforePurge = exportBeforePurge,
-        legacySessionRetentionDays = legacySessionRetentionDays.withDefaultIfNegative(
-            RetentionConfigState.DEFAULT_RAW_DAYS
-        ),
         autoCleanupEnabled = autoCleanupEnabled,
         dataRetentionYears = dataRetentionYears.withDefaultIfNegative(RetentionConfigState.DEFAULT_RETENTION_YEARS),
     )
@@ -163,8 +157,6 @@ private fun RetentionConfigState.toProto(): RetentionConfigProto =
         .setDailySummaryRetentionDays(dailySummaryRetentionDays)
         .setExplorationRetentionDays(explorationRetentionDays)
         .setAutoPurgeEnabled(autoPurgeEnabled)
-        .setExportBeforePurge(exportBeforePurge)
-        .setLegacySessionRetentionDays(legacySessionRetentionDays)
         .setAutoCleanupEnabled(autoCleanupEnabled)
         .setDataRetentionYears(dataRetentionYears)
         .setInitialized(true)

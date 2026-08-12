@@ -1,5 +1,10 @@
 # Tracebox / Tracker v10 handover
 
+> **ARCHIVAL NOTE (2026-08-11):** This handover describes the dated v10 branch
+> snapshot below. Its OSM timing and test references are historical; the unreleased
+> OSM module and persistence/settings surface were removed for the v27 storage
+> release.
+
 Date: 2026-08-03
 Scope: `Tracebox 0.1.0-alpha.3`, host tests, and one x86_64 emulator
 

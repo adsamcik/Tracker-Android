@@ -53,12 +53,6 @@
     <string name="map_layer_terrain_low">Sällan här</string>
     <string name="map_layer_terrain_mid">Ibland</string>
     <string name="map_layer_terrain_high">Ofta här</string>
-    <string name="map_layer_places_title">Vanliga platser</string>
-    <string name="map_layer_places_chip">Platser</string>
-    <string name="map_layer_places_description">Dina viktiga platser som markörer, där storlek och färg visar hur ofta du besöker dem. Hem och arbete blir stora varma punkter; en plats du besökt en gång förblir liten och sval.</string>
-    <string name="map_layer_places_rare">Sällan</string>
-    <string name="map_layer_places_often">Ibland</string>
-    <string name="map_layer_places_anchor">Dina ankare</string>
     <string name="map_layer_speed_ribbon_title">Hastighetsband</string>
     <string name="map_layer_speed_ribbon_chip">Band</string>
     <string name="map_layer_speed_ribbon_description">Din rutt målad efter hur snabbt du rörde dig, med flytande färg från en långsam violett promenad till en rödglödande sprint eller bilfärd. Till skillnad från hastighetsvärmekartan håller bandet din väg samman så att du ser exakt var du ökade och minskade farten.</string>
@@ -80,9 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Utförsåk</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Lift</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Promenad eller paus</string>
-    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Resekonstellationer</string>
-    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Resor</string>
-    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Återkommande resor mellan dina vanliga platser blir böjda konstellationer. En stabil båge visar varje rutt medan en komet färdas längs den; tjockare bågar betyder att du gjorde resan oftare.</string>
     <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Gång</string>
     <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Cykling</string>
     <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Bilresa</string>
@@ -98,18 +89,10 @@
     <string name="map_layer_first_contact_description">En tidslinje över dina upptäckter: varje område färgas av hur nyligen du först satte din fot där. Platser du hittade för länge sedan tonar mot djup indigo, medan mark du bröt ny på denna vecka lyser klart cyan — läs din utforskningshistoria ut mot de nyaste gränserna.</string>
     <string name="map_layer_first_contact_old">Länge sedan</string>
     <string name="map_layer_first_contact_recent">Just upptäckt</string>
-    <string name="map_layer_vehicle_compliance_title">Efterlevnad av fordonshastighet</string>
-    <string name="map_layer_vehicle_compliance_description">Polylinje med körprov färgad efter hur hastigheten förhåller sig till din konfigurerade basgräns.</string>
-    <string name="map_layer_vehicle_compliance_way_under">Långt under gränsen</string>
-    <string name="map_layer_vehicle_compliance_slow">Under gränsen</string>
-    <string name="map_layer_vehicle_compliance_at_limit">Nära gränsen</string>
-    <string name="map_layer_vehicle_compliance_slightly_over">Något över</string>
-    <string name="map_layer_vehicle_compliance_speeding">Fortkörning</string>
     <string name="map_layer_location_polyline_description">Linje som ansluter dina registrerade platser över tid.</string>
     <string name="map_layer_location_polyline_title">Platslinje</string>
     <string name="map_layer_location_polyline_chip">Linje</string>
     <string name="map_layer_wifi_count_heatmap_chip">Wi-Fi-överlappning</string>
-    <string name="map_layer_vehicle_compliance_chip">Fortkörning</string>
     <string name="map_layer_none_title">Ingen överlagring</string>
     <string name="map_date_preset_week">Förra veckan</string>
     <string name="map_date_preset_month">Förra månaden</string>
@@ -174,7 +157,6 @@
     <string name="map_empty_subtitle_cell">Inga platsbestämda celldata i denna vy eller detta datumintervall. Cellprov som registrerats utan plats sparas fortfarande, men kan inte visas på kartan.</string>
     <string name="map_empty_subtitle_wifi">Inga platsbestämda Wi-Fi-data i denna vy eller detta datumintervall. Wi-Fi-observationer som registrerats utan plats sparas fortfarande, men kan inte visas på kartan.</string>
     <string name="map_empty_subtitle_speed">Inga hastighetsdata i denna vy eller detta datumintervall. Hastighetskartor kräver användbara platsprov som samlats in under spårning.</string>
-    <string name="map_empty_subtitle_vehicle_compliance">Inga vägmatchade körningar att visa. Importera en OpenStreetMap-region (Inställningar) och registrera lite körning så att vi kan matcha din rutt med verkliga vägar.</string>
     <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Stäng meddelandet om inga data</string>
     <string name="map_speed_probe_title">Hastighet här</string>
     <string name="map_speed_probe_avg_label">Genomsnitt</string>

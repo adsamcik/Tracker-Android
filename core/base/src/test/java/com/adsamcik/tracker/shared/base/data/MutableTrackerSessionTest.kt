@@ -55,7 +55,8 @@ class MutableTrackerSessionTest {
 				distanceInM = 1000f,
 				distanceOnFootInM = 500f,
 				distanceInVehicleInM = 300f,
-				steps = 2000
+				steps = 2000,
+				sessionActivityId = 42L,
 			)
 			val copy = MutableTrackerSession(source)
 			copy.id shouldBe 5L
@@ -67,6 +68,7 @@ class MutableTrackerSessionTest {
 			copy.distanceOnFootInM shouldBe 500f
 			copy.distanceInVehicleInM shouldBe 300f
 			copy.steps shouldBe 2000
+			copy.sessionActivityId shouldBe 42L
 		}
 	}
 

@@ -53,12 +53,6 @@
     <string name="map_layer_terrain_low">Zelden hier</string>
     <string name="map_layer_terrain_mid">Soms</string>
     <string name="map_layer_terrain_high">Vaak hier</string>
-    <string name="map_layer_places_title">Veelbezochte plaatsen</string>
-    <string name="map_layer_places_chip">Plaatsen</string>
-    <string name="map_layer_places_description">Je belangrijke plaatsen als markeringen, elk zo groot en gekleurd op basis van hoe vaak je er komt. Thuis en werk worden grote warme stippen; een plek die je één keer bezocht blijft klein en koel.</string>
-    <string name="map_layer_places_rare">Zelden</string>
-    <string name="map_layer_places_often">Soms</string>
-    <string name="map_layer_places_anchor">Je ankerpunten</string>
     <string name="map_layer_speed_ribbon_title">Snelheidslint</string>
     <string name="map_layer_speed_ribbon_chip">Lint</string>
     <string name="map_layer_speed_ribbon_description">Je route gekleurd naar hoe snel je bewoog, met vloeiende kleuren van een trage violette wandeling naar een roodgloeiende sprint of autorit. Anders dan de snelheidswarmtekaart houdt het lint je pad intact, zodat je precies ziet waar je versnelde en vertraagde.</string>
@@ -80,9 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Afdaling</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Skilift</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Wandelen of pauzeren</string>
-    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Ritconstellaties</string>
-    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Ritten</string>
-    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Herhaalde reizen tussen je vaak bezochte plaatsen worden gebogen sterrenbeelden. Een stabiele boog toont elke route terwijl een komeet erlangs beweegt; dikkere bogen betekenen dat je die reis vaker hebt gemaakt.</string>
     <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Wandelen</string>
     <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Fietsen</string>
     <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Autorijden</string>
@@ -98,18 +89,10 @@
     <string name="map_layer_first_contact_description">Een tijdlijn van je ontdekkingen: elk gebied is gekleurd naar hoe recent je er voor het eerst kwam. Plekken die je lang geleden vond vervagen naar diep indigo, terwijl grond die je deze week betrad helder cyaan oplicht—lees het verhaal van je verkenning naar je nieuwste grenzen.</string>
     <string name="map_layer_first_contact_old">Lang geleden</string>
     <string name="map_layer_first_contact_recent">Net ontdekt</string>
-    <string name="map_layer_vehicle_compliance_title">Naleving van voertuigsnelheid</string>
-    <string name="map_layer_vehicle_compliance_description">Polylijn van rijmonsters, gekleurd naar de vergelijking van de snelheid met je geconfigureerde basislimiet.</string>
-    <string name="map_layer_vehicle_compliance_way_under">Ruim onder limiet</string>
-    <string name="map_layer_vehicle_compliance_slow">Onder limiet</string>
-    <string name="map_layer_vehicle_compliance_at_limit">Rond limiet</string>
-    <string name="map_layer_vehicle_compliance_slightly_over">Iets boven limiet</string>
-    <string name="map_layer_vehicle_compliance_speeding">Te hard rijden</string>
     <string name="map_layer_location_polyline_description">Lijn die je vastgelegde locaties in de tijd verbindt.</string>
     <string name="map_layer_location_polyline_title">Locatiepolylijn</string>
     <string name="map_layer_location_polyline_chip">Polylijn</string>
     <string name="map_layer_wifi_count_heatmap_chip">Wifi-overlap</string>
-    <string name="map_layer_vehicle_compliance_chip">Te hard rijden</string>
     <string name="map_layer_none_title">Geen overlay</string>
     <string name="map_date_preset_week">Vorige week</string>
     <string name="map_date_preset_month">Vorige maand</string>
@@ -174,7 +157,6 @@
     <string name="map_empty_subtitle_cell">Geen gelokaliseerde celgegevens in deze weergave of dit datumbereik. Celmonsters die zonder locatie zijn vastgelegd worden nog steeds opgeslagen, maar kunnen niet op de kaart verschijnen.</string>
     <string name="map_empty_subtitle_wifi">Geen gelokaliseerde wifi-gegevens in deze weergave of dit datumbereik. Wifi-waarnemingen die zonder locatie zijn vastgelegd worden nog steeds opgeslagen, maar kunnen niet op de kaart verschijnen.</string>
     <string name="map_empty_subtitle_speed">Geen snelheidsgegevens in deze weergave of dit datumbereik. Snelheidskaarten vereisen bruikbare locatiemonsters die tijdens tracking zijn verzameld.</string>
-    <string name="map_empty_subtitle_vehicle_compliance">Geen aan wegen gekoppelde ritten om te tonen. Importeer een OpenStreetMap-regio (Instellingen) en leg wat autoritten vast zodat we je route aan echte wegen kunnen koppelen.</string>
     <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Bericht over geen gegevens sluiten</string>
     <string name="map_speed_probe_title">Snelheid hier</string>
     <string name="map_speed_probe_avg_label">Gemiddelde</string>

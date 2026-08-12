@@ -83,8 +83,6 @@
     <string name="settings_tracking_notice_summary">Tiocfaidh athruithe i bhfeidhm nuair a atosóidh tú rianú</string>
     <string name="settings_tracking_required_accuracy_title">Cruinneas suímh riachtanach</string>
     <string name="settings_tracking_title">Rianú</string>
-    <string name="settings_vehicle_speed_limit_baseline_title">Bunlíne teorainn luais feithicle</string>
-    <string name="help_vehicle_speed_limit_baseline">Úsáideann an tsraith léarscáile Comhlíonadh luais feithicle í. Dathaítear samplaí tiomána de réir mar a chuirtear a luas i gcomparáid leis an mbunlíne seo. Roghnaigh luach a mheaitseálann na teorainneacha áit a dtiomáineann tú is minice (m.sh. 50 km/u i gcathracha, 90 km/u ar mhórbhealaí).</string>
     <string name="settings_wifi_enabled_title">Wi‑Fi</string>
     <string name="shortcut_start_tracking">Tosaigh rianú</string>
     <string name="shortcut_start_tracking_long">Tosaigh rianú suímh</string>

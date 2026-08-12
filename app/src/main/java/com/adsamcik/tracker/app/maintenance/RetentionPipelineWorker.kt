@@ -39,10 +39,6 @@ class RetentionPipelineWorker @AssistedInject constructor(
 
         if (!storedConfig.autoPurgeEnabled && !storedConfig.autoCleanupEnabled) return Result.success()
 
-        if (config.exportBeforePurge) {
-            return Result.success()
-        }
-
         return try {
             val now = System.currentTimeMillis()
 
@@ -139,10 +135,6 @@ class RetentionPipelineWorker @AssistedInject constructor(
         if (config.tripRetentionDays == 0) return
         val cutoff = now - config.tripRetentionDays.toLong() * Time.DAY_IN_MILLISECONDS
         db.sessionSegmentDao().deleteOlderThan(cutoff)
-        db.inferredTripDao().deleteOlderThan(cutoff)
-        db.tripLegDao().deleteOlderThan(cutoff)
-        db.frequentPlaceDao().deleteOlderThan(cutoff)
-        db.routeCacheDao().deleteOlderThan(cutoff)
     }
 
     private suspend fun purgeDailySummaries(db: AppDatabase, config: RetentionConfigState, now: Long) {
@@ -158,7 +150,6 @@ class RetentionPipelineWorker @AssistedInject constructor(
         db.explorationCellDao().deleteOlderThan(cutoff)
         db.explorationStreakDao().deleteOlderThan(cutoff)
         db.achievementProgressDao().deleteOlderThan(cutoff)
-        db.personalRecordDao().deleteOlderThan(cutoff)
     }
 
 	private suspend fun purgeOperationalData(db: AppDatabase, config: RetentionConfigState, now: Long) {
@@ -181,7 +172,6 @@ class RetentionPipelineWorker @AssistedInject constructor(
             tripRetentionDays = days,
             dailySummaryRetentionDays = days,
             explorationRetentionDays = days,
-            legacySessionRetentionDays = days,
             autoPurgeEnabled = true,
         )
     }

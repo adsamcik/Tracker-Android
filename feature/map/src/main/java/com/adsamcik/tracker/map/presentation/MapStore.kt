@@ -894,7 +894,6 @@ class MapStore @Inject constructor(
         "legacy_heatmap",
         "life_terrain",
         "ski_xray",
-        "trip_constellations",
         "seasonal_palimpsest",
         "fog_of_wonder",
         "first_contact",

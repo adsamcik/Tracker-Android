@@ -131,15 +131,18 @@ After all consumers are migrated:
 
 ---
 
-## 8. Proto DataStore for Live Stats
+## 8. Canonical Room Live Stats
 
-Currently `DefaultLiveStatsRepository` uses Room. Migrate to Proto DataStore for lower-latency
-live tracking stats (updated every tracking cycle).
+`live_stats` in the main Room database is the single canonical live aggregate. The
+aggregator remains in memory between flushes; each `AggregatorProcessor` flush writes
+its current snapshot through `DefaultLiveStatsRepository`/`LiveStatsDao`, and processor
+stop clears the transient row. This keeps lifecycle, observation, and deletion semantics
+on the same database transaction boundary.
 
-- ✅ Define `live_stats.proto` schema
-- ✅ Create `ProtoLiveStatsRepository` backed by DataStore
-- ✅ Replace Room-based implementation in `StatsDataModule`
-- ✅ ~~Verify performance improvement~~ (runtime validation, not blocking)
+- ✅ Retain `LiveStatsEntity`, `LiveStatsDao`, and `DefaultLiveStatsRepository`
+- ✅ Persist the aggregate on `AggregatorProcessor` flush and clear it on stop
+- ✅ Bind the Room repository in `StatsDataModule`
+- ✅ Remove the redundant Proto schema, DataStore repository, binding, dependency, and tests
 
 ---
 
@@ -156,7 +159,7 @@ live tracking stats (updated every tracking cycle).
 ### 9.2 Integration tests
 - ✅ Full pipeline: mock sensors → ProcessorPipeline → Room → Repository → Presenter
 - ✅ Domain event round-trip: processor emits → Room → consumer receives
-- ✅ Crash recovery: checkpoint/restore for each processor
+- ✅ Crash recovery uses Room/WAL, durable pending-signal replay, and active source-projection checkpoints; the unused generic per-processor checkpoint/restore API was removed
 
 ### 9.3 Migration tests
 - ✅ Room migration test for domain_event table
@@ -189,6 +192,6 @@ After all of the above is verified:
 | **P1** | §3 Wire presenters | User-visible improvement |
 | **P2** | §1.3 Remove PostTrackerComponents | After dual-run validation |
 | **P2** | §7 Remove broadcast infra | After all consumers migrated |
-| **P2** | §8 Proto DataStore | Performance optimization |
+| **P2** | §8 Canonical Room live stats | Remove duplicate state ownership |
 | **P3** | §9 Tests | Ongoing throughout |
 | **P3** | §10 Cleanup | Final phase |

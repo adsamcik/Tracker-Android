@@ -53,12 +53,6 @@
     <string name="map_layer_terrain_low">Selten hier</string>
     <string name="map_layer_terrain_mid">Manchmal</string>
     <string name="map_layer_terrain_high">Oft hier</string>
-    <string name="map_layer_places_title">Häufige Orte</string>
-    <string name="map_layer_places_chip">Orte</string>
-    <string name="map_layer_places_description">Deine wichtigen Orte als Markierungen, deren Größe und Farbe zeigen, wie oft du sie besuchst. Zuhause und Arbeit werden zu großen warmen Punkten; ein einmal besuchter Ort bleibt klein und kühl.</string>
-    <string name="map_layer_places_rare">Selten</string>
-    <string name="map_layer_places_often">Manchmal</string>
-    <string name="map_layer_places_anchor">Deine Anker</string>
     <string name="map_layer_speed_ribbon_title">Geschwindigkeitsband</string>
     <string name="map_layer_speed_ribbon_chip">Band</string>
     <string name="map_layer_speed_ribbon_description">Deine Route wird nach deiner Bewegungsgeschwindigkeit eingefärbt, mit fließenden Farben von einem langsamen violetten Spaziergang bis zu einem feurig roten Sprint oder einer Fahrt. Anders als die Geschwindigkeits-Heatmap behält das Band deinen Weg bei, sodass du genau siehst, wo du beschleunigt und abgebremst hast.</string>
@@ -80,9 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Abfahrt</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Lift</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Gehen oder Pause</string>
-    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Fahrtkonstellationen</string>
-    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Fahrten</string>
-    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Wiederholte Wege zwischen deinen häufigen Orten werden zu geschwungenen Konstellationen. Ein stabiler Bogen zeigt jede Route, während ein Komet darauf entlangläuft; dickere Bögen bedeuten, dass du diesen Weg öfter zurückgelegt hast.</string>
     <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Gehen</string>
     <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Radfahren</string>
     <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Autofahren</string>
@@ -98,18 +89,10 @@
     <string name="map_layer_first_contact_description">Eine Zeitleiste deiner Entdeckungen: Jeder Bereich ist danach gefärbt, wie lange dein erster Besuch zurückliegt. Orte, die du vor langer Zeit gefunden hast, verblassen zu tiefem Indigo, während diese Woche entdecktes Gelände hell cyan leuchtet — lies die Geschichte deiner Erkundung bis zu deinen neuesten Grenzen.</string>
     <string name="map_layer_first_contact_old">Vor langer Zeit</string>
     <string name="map_layer_first_contact_recent">Gerade entdeckt</string>
-    <string name="map_layer_vehicle_compliance_title">Einhaltung von Geschwindigkeitsbegrenzungen</string>
-    <string name="map_layer_vehicle_compliance_description">Polylinie von Fahrproben, die danach eingefärbt ist, wie die Geschwindigkeit mit deiner festgelegten Grundbegrenzung verglichen wird.</string>
-    <string name="map_layer_vehicle_compliance_way_under">Weit unter dem Limit</string>
-    <string name="map_layer_vehicle_compliance_slow">Unter dem Limit</string>
-    <string name="map_layer_vehicle_compliance_at_limit">Nahe am Limit</string>
-    <string name="map_layer_vehicle_compliance_slightly_over">Leicht darüber</string>
-    <string name="map_layer_vehicle_compliance_speeding">Zu schnell</string>
     <string name="map_layer_location_polyline_description">Linie, die deine aufgezeichneten Standorte im Zeitverlauf verbindet.</string>
     <string name="map_layer_location_polyline_title">Standort-Polylinie</string>
     <string name="map_layer_location_polyline_chip">Polylinie</string>
     <string name="map_layer_wifi_count_heatmap_chip">WLAN-Überlappung</string>
-    <string name="map_layer_vehicle_compliance_chip">Zu schnell</string>
     <string name="map_layer_none_title">Kein Overlay</string>
     <string name="map_date_preset_week">Letzte Woche</string>
     <string name="map_date_preset_month">Letzter Monat</string>
@@ -174,7 +157,6 @@
     <string name="map_empty_subtitle_cell">Keine verorteten Mobilfunkdaten in dieser Ansicht oder diesem Datumsbereich. Ohne Standort aufgezeichnete Funkzellproben werden weiterhin gespeichert, können aber nicht auf der Karte erscheinen.</string>
     <string name="map_empty_subtitle_wifi">Keine verorteten WLAN-Daten in dieser Ansicht oder diesem Datumsbereich. Ohne Standort aufgezeichnete WLAN-Beobachtungen werden weiterhin gespeichert, können aber nicht auf der Karte erscheinen.</string>
     <string name="map_empty_subtitle_speed">Keine Geschwindigkeitsdaten in dieser Ansicht oder diesem Datumsbereich. Geschwindigkeitskarten benötigen brauchbare Standortproben, die während der Aufzeichnung gesammelt wurden.</string>
-    <string name="map_empty_subtitle_vehicle_compliance">Keine straßenzugeordneten Fahrten zum Anzeigen. Importiere eine OpenStreetMap-Region (Einstellungen) und zeichne einige Fahrten auf, damit wir deine Route echten Straßen zuordnen können.</string>
     <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Meldung „Keine Daten“ schließen</string>
     <string name="map_speed_probe_title">Geschwindigkeit hier</string>
     <string name="map_speed_probe_avg_label">Durchschnitt</string>

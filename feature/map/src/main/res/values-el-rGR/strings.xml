@@ -53,12 +53,6 @@
     <string name="map_layer_terrain_low">Σπάνια εδώ</string>
     <string name="map_layer_terrain_mid">Μερικές φορές</string>
     <string name="map_layer_terrain_high">Συχνά εδώ</string>
-    <string name="map_layer_places_title">Συχνά μέρη</string>
-    <string name="map_layer_places_chip">Μέρη</string>
-    <string name="map_layer_places_description">Τα σημαντικά σας μέρη ως δείκτες, με μέγεθος και χρώμα ανάλογα με τη συχνότητα επίσκεψης. Το σπίτι και η εργασία γίνονται μεγάλες θερμές κουκκίδες· ένα μέρος που επισκεφθήκατε μία φορά παραμένει μικρό και ψυχρό.</string>
-    <string name="map_layer_places_rare">Σπάνια</string>
-    <string name="map_layer_places_often">Μερικές φορές</string>
-    <string name="map_layer_places_anchor">Τα σημεία αναφοράς σας</string>
     <string name="map_layer_speed_ribbon_title">Κορδέλα ταχύτητας</string>
     <string name="map_layer_speed_ribbon_chip">Κορδέλα</string>
     <string name="map_layer_speed_ribbon_description">Η διαδρομή σας χρωματίζεται ανάλογα με την ταχύτητα κίνησης, με χρώμα που ρέει από αργό ιώδες περπάτημα σε κόκκινο καυτό σπριντ ή οδήγηση. Σε αντίθεση με τον θερμικό χάρτη ταχύτητας, η κορδέλα διατηρεί τη διαδρομή σας ανέπαφη, ώστε να βλέπετε ακριβώς πού επιταχύνατε και επιβραδύνατε.</string>
@@ -80,9 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Κατάβαση</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Αναβατήρας</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Περπάτημα ή παύση</string>
-    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Αστερισμοί διαδρομών</string>
-    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Διαδρομές</string>
-    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Οι επαναλαμβανόμενες διαδρομές ανάμεσα στα συχνά μέρη σας γίνονται καμπυλωτοί αστερισμοί. Ένα σταθερό τόξο δείχνει κάθε διαδρομή ενώ ένας κομήτης ταξιδεύει κατά μήκος του· τα παχύτερα τόξα σημαίνουν ότι κάνατε τη διαδρομή συχνότερα.</string>
     <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Περπάτημα</string>
     <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Ποδηλασία</string>
     <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Οδήγηση</string>
@@ -98,18 +89,10 @@
     <string name="map_layer_first_contact_description">Χρονολόγιο των ανακαλύψεών σας: κάθε περιοχή χρωματίζεται ανάλογα με το πόσο πρόσφατα πατήσατε εκεί για πρώτη φορά. Τα μέρη που βρήκατε πριν καιρό ξεθωριάζουν σε βαθύ λουλακί, ενώ η γη που πρωτοπατήσατε αυτή την εβδομάδα λάμπει σε φωτεινό κυανό—διαβάστε την ιστορία της εξερεύνησής σας προς τα νεότερα σύνορά σας.</string>
     <string name="map_layer_first_contact_old">Πριν πολύ καιρό</string>
     <string name="map_layer_first_contact_recent">Μόλις ανακαλύφθηκε</string>
-    <string name="map_layer_vehicle_compliance_title">Συμμόρφωση ταχύτητας οχήματος</string>
-    <string name="map_layer_vehicle_compliance_description">Πολυγραμμή δειγμάτων οδήγησης χρωματισμένη ανάλογα με το πώς συγκρίνεται η ταχύτητα με το διαμορφωμένο βασικό όριό σας.</string>
-    <string name="map_layer_vehicle_compliance_way_under">Πολύ κάτω από το όριο</string>
-    <string name="map_layer_vehicle_compliance_slow">Κάτω από το όριο</string>
-    <string name="map_layer_vehicle_compliance_at_limit">Κοντά στο όριο</string>
-    <string name="map_layer_vehicle_compliance_slightly_over">Ελαφρώς πάνω</string>
-    <string name="map_layer_vehicle_compliance_speeding">Υπέρβαση ταχύτητας</string>
     <string name="map_layer_location_polyline_description">Γραμμή που συνδέει τις καταγεγραμμένες τοποθεσίες σας με την πάροδο του χρόνου.</string>
     <string name="map_layer_location_polyline_title">Πολυγραμμή τοποθεσίας</string>
     <string name="map_layer_location_polyline_chip">Πολυγραμμή</string>
     <string name="map_layer_wifi_count_heatmap_chip">Επικάλυψη Wi‑Fi</string>
-    <string name="map_layer_vehicle_compliance_chip">Υπέρβαση</string>
     <string name="map_layer_none_title">Χωρίς επικάλυψη</string>
     <string name="map_date_preset_week">Τελευταία εβδομάδα</string>
     <string name="map_date_preset_month">Τελευταίος μήνας</string>
@@ -174,7 +157,6 @@
     <string name="map_empty_subtitle_cell">Δεν υπάρχουν δεδομένα κινητής με τοποθεσία σε αυτή την προβολή ή το εύρος ημερομηνιών. Τα δείγματα κινητής που καταγράφηκαν χωρίς τοποθεσία παραμένουν αποθηκευμένα, αλλά δεν μπορούν να εμφανιστούν στον χάρτη.</string>
     <string name="map_empty_subtitle_wifi">Δεν υπάρχουν δεδομένα Wi‑Fi με τοποθεσία σε αυτή την προβολή ή το εύρος ημερομηνιών. Οι παρατηρήσεις Wi‑Fi που καταγράφηκαν χωρίς τοποθεσία παραμένουν αποθηκευμένες, αλλά δεν μπορούν να εμφανιστούν στον χάρτη.</string>
     <string name="map_empty_subtitle_speed">Δεν υπάρχουν δεδομένα ταχύτητας σε αυτή την προβολή ή το εύρος ημερομηνιών. Οι χάρτες ταχύτητας απαιτούν χρήσιμα δείγματα τοποθεσίας που συλλέχθηκαν κατά την καταγραφή.</string>
-    <string name="map_empty_subtitle_vehicle_compliance">Δεν υπάρχουν αντιστοιχισμένες σε δρόμο διαδρομές οδήγησης προς εμφάνιση. Εισαγάγετε μια περιοχή OpenStreetMap (Ρυθμίσεις) και καταγράψτε λίγη οδήγηση, ώστε να αντιστοιχίσουμε τη διαδρομή σας σε πραγματικούς δρόμους.</string>
     <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Απόρριψη μηνύματος χωρίς δεδομένα</string>
     <string name="map_speed_probe_title">Ταχύτητα εδώ</string>
     <string name="map_speed_probe_avg_label">Μέσος όρος</string>

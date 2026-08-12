@@ -1,8 +1,11 @@
 package com.adsamcik.tracker.app
 
+import android.os.Build
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -27,6 +30,14 @@ import org.junit.runners.model.Statement
 class StandardFlowsTest {
 
     private val composeRule = createAndroidComposeRule<MainActivityCompose>()
+    private val runtimePermissions = mutableListOf(
+        android.Manifest.permission.ACCESS_FINE_LOCATION,
+        android.Manifest.permission.ACCESS_COARSE_LOCATION,
+    ).apply {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            add(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }.toTypedArray()
 
     @get:Rule
     val ruleChain: RuleChain = RuleChain.outerRule(object : TestRule {
@@ -39,11 +50,7 @@ class StandardFlowsTest {
             }
         }
     })
-    .around(GrantPermissionRule.grant(
-        android.Manifest.permission.ACCESS_FINE_LOCATION,
-        android.Manifest.permission.ACCESS_COARSE_LOCATION,
-        android.Manifest.permission.POST_NOTIFICATIONS
-    ))
+    .around(GrantPermissionRule.grant(*runtimePermissions))
     .around(composeRule)
 
     private val context get() = composeRule.activity
@@ -56,36 +63,69 @@ class StandardFlowsTest {
     @Test
     fun trackingFlow_startAndStopTracking() {
         // 1. Start on Tracker tab
-        composeRule.onNodeWithTag("nav_tracker").performClick()
+        composeRule.onNodeWithTag("nav_dashboard").performClick()
         composeRule.waitForIdle()
 
-        // 2. Verify Start Tracking button is visible and enabled
-        composeRule.onNodeWithTag("tracking_fab")
+        // 2. Start tracking from the current dashboard mode. A fresh profile uses the EMPTY
+        // tile, while a profile with history uses the IDLE action ring (or its sticky pill).
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            DASHBOARD_START_CONTROL_TAGS.any(::hasNodeWithTag)
+        }
+        val startControlTag = DASHBOARD_START_CONTROL_TAGS.first(::hasNodeWithTag)
+        composeRule.onNodeWithTag(startControlTag)
+            .assertIsDisplayed()
+            .assertIsEnabled()
+            .performClick()
+
+        // 3. Verify UI changes to TRACKING mode. Its current stop affordance is the sticky pill;
+        // the old dashboard tracking FAB is not part of this screen anymore.
+        val trackingPillStopDescription = context.getString(
+            com.adsamcik.tracker.dashboard.R.string.dashboard_pill_stop
+        )
+        composeRule.waitUntil(timeoutMillis = 15_000) {
+            hasNodeWithTag(TRACKING_PILL_TAG)
+        }
+        composeRule.onNodeWithContentDescription(trackingPillStopDescription)
             .assertIsDisplayed()
             .assertIsEnabled()
 
-        // 3. Start Tracking
-        composeRule.onNodeWithTag("tracking_fab").performClick()
-        composeRule.waitForIdle()
-
-
-        // 4. Verify UI changes to "Tracking" state
-        // The FAB icon changes to Stop.
-        val stopDescription = context.getString(com.adsamcik.tracker.tracker.R.string.description_tracking_stop)
-        composeRule.onNodeWithContentDescription(stopDescription).assertIsDisplayed()
-
-        // 5. Stop Tracking. Auto-tracking is on by default, so stopping now prompts a choice
+        // 4. Stop Tracking. Auto-tracking normally prompts for a stop option, but the flow also
+        // supports configurations where the service stops immediately.
+        val idleStartDescription = context.getString(
+            com.adsamcik.tracker.dashboard.R.string.dashboard_cd_start_tracking
+        )
+        val trackingPillStartDescription = context.getString(
+            com.adsamcik.tracker.dashboard.R.string.dashboard_pill_start
+        )
         // (stop for N minutes / until charging / just stop) instead of stopping immediately —
-        // pick "just stop" to preserve this test's original intent.
-        composeRule.onNodeWithTag("tracking_fab").performClick()
-        composeRule.waitForIdle()
-        composeRule.onNodeWithTag("stop_tracking_option_just_stop").performClick()
-        composeRule.waitForIdle()
+        // pick "just stop" when that choice is shown.
+        composeRule.onNodeWithTag(TRACKING_PILL_TAG).performClick()
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            hasNodeWithTag(STOP_JUST_STOP_TAG) ||
+                hasIdleStartControl(idleStartDescription, trackingPillStartDescription)
+        }
+        if (hasNodeWithTag(STOP_JUST_STOP_TAG)) {
+            composeRule.onNodeWithTag(STOP_JUST_STOP_TAG).performClick()
+        }
 
-        // 6. Verify UI returns to "Idle" state
-        val startDescription = context.getString(com.adsamcik.tracker.tracker.R.string.description_tracking_start)
-        composeRule.onNodeWithContentDescription(startDescription).assertIsDisplayed()
+        // 5. Verify UI returns to "Idle" state.
+        composeRule.waitUntil(timeoutMillis = 15_000) {
+            hasIdleStartControl(idleStartDescription, trackingPillStartDescription)
+        }
     }
+
+    private fun hasNodeWithTag(tag: String): Boolean =
+        composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
+
+    private fun hasIdleStartControl(
+        idleStartDescription: String,
+        trackingPillStartDescription: String,
+    ): Boolean =
+        hasNodeWithTag("dashboard_tile_track") ||
+            composeRule.onAllNodesWithContentDescription(idleStartDescription)
+                .fetchSemanticsNodes().isNotEmpty() ||
+            composeRule.onAllNodesWithContentDescription(trackingPillStartDescription)
+                .fetchSemanticsNodes().isNotEmpty()
 
     @Test
     fun mapFlow_navigationAndInteraction() {
@@ -123,11 +163,13 @@ class StandardFlowsTest {
     @Test
     fun settingsFlow_accessFromTracker() {
         // 1. Navigate to Tracker tab
-        composeRule.onNodeWithTag("nav_tracker").performClick()
+        composeRule.onNodeWithTag("nav_dashboard").performClick()
         composeRule.waitForIdle()
 
         // 2. Click Settings button
-        val settingsDesc = context.getString(com.adsamcik.tracker.tracker.R.string.description_settings)
+        val settingsDesc = context.getString(
+            com.adsamcik.tracker.dashboard.R.string.dashboard_cd_open_settings
+        )
         composeRule.onNodeWithContentDescription(settingsDesc).performClick()
         composeRule.waitForIdle()
 
@@ -142,6 +184,16 @@ class StandardFlowsTest {
         composeRule.waitForIdle()
 
         // 5. Verify Tracker screen is displayed
-        composeRule.onNodeWithTag("nav_tracker").assertIsSelected()
+        composeRule.onNodeWithTag("nav_dashboard").assertIsSelected()
+    }
+
+    private companion object {
+        val DASHBOARD_START_CONTROL_TAGS = listOf(
+            "dashboard_tile_track",
+            "tracking_action_ring",
+            "tracking_pill",
+        )
+        const val TRACKING_PILL_TAG = "tracking_pill"
+        const val STOP_JUST_STOP_TAG = "stop_tracking_option_just_stop"
     }
 }

@@ -3,6 +3,8 @@ package com.adsamcik.tracker.app.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.adsamcik.tracker.app.startup.LegacyDatabaseStartupResult
+import com.adsamcik.tracker.app.startup.LegacyDatabaseUpgradeCoordinator
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
 import dagger.hilt.android.EntryPointAccessors
@@ -55,6 +57,7 @@ class BootReceiverTest {
 
 		private val lockManager = mockk<LockManager>(relaxed = true)
 		private val startupGuard = mockk<TrackingStartupGuard>()
+		private val legacyDatabaseUpgradeCoordinator = mockk<LegacyDatabaseUpgradeCoordinator>()
 		private val testScope = CoroutineScope(
 			UnconfinedTestDispatcher() + CoroutineExceptionHandler { _, _ -> }
 		)
@@ -66,8 +69,12 @@ class BootReceiverTest {
 		@BeforeEach
 		fun setUp() {
 			coEvery { lockManager.initializeFromPersistence(any()) } just Runs
+			coEvery { legacyDatabaseUpgradeCoordinator.ensureReady() } returns
+				LegacyDatabaseStartupResult.Ready
 			every { entryPoint.lockManager() } returns lockManager
 			every { entryPoint.trackingStartupGuard() } returns startupGuard
+			every { entryPoint.legacyDatabaseUpgradeCoordinator() } returns
+				legacyDatabaseUpgradeCoordinator
 			every { startupGuard.isAutoRecoverySuppressed(any()) } returns false
 			every { entryPoint.appScope() } returns testScope
 			every { context.applicationContext } returns context
@@ -117,6 +124,17 @@ class BootReceiverTest {
 
 			receiver.onReceive(context, bootIntent())
 
+			verify { pendingResult.finish() }
+		}
+
+		@Test
+		fun `failed legacy startup does not rearm tracking`() {
+			coEvery { legacyDatabaseUpgradeCoordinator.ensureReady() } returns
+				LegacyDatabaseStartupResult.Failed("legacy import failed")
+
+			receiver.onReceive(context, bootIntent())
+
+			coVerify(exactly = 0) { lockManager.initializeFromPersistence(any()) }
 			verify { pendingResult.finish() }
 		}
 	}

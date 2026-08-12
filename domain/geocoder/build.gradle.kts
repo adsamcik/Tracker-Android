@@ -22,8 +22,6 @@ android {
 }
 
 dependencies {
-    // OSM grid index + polyline codec are reused for street-level reverse geocoding.
-    implementation(project(":domain:osm"))
     implementation(project(":core:base"))
     implementation(project(":core:common"))
 	implementation(project(":core:model"))
@@ -31,12 +29,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.core.ktx)
 
-    // Room (read existing osm_* tables via DAO injection)
-    implementation(libs.androidx.room.runtime)
-    implementation(libs.androidx.room.ktx)
-
     // DI annotations
     implementation(libs.javax.inject)
 
-    testImplementation(libs.androidx.room.testing)
 }

@@ -1,6 +1,6 @@
 # Tracker Android architecture overview
 
-> **Last verified:** 2026-07-31
+> **Last verified:** 2026-08-11
 
 Tracker is a local-first Android application. Location, activity, Wi-Fi, cell, and
 step data are collected and persisted on-device. The application has no backend,
@@ -8,7 +8,7 @@ remote sync, analytics, or telemetry.
 
 ## Module graph
 
-The project currently includes **32 application Gradle modules**, plus the
+The project currently includes **31 application Gradle modules**, plus the
 `:tools:ski-data-generator` tooling module. The authoritative include list is
 `settings.gradle.kts`; dependency versions are managed in `gradle/libs.versions.toml`.
 
@@ -24,7 +24,7 @@ The project currently includes **32 application Gradle modules**, plus the
 ├── :tracker:engine ── :tracker:api, :tracker:control
 ├── :sensor:activity ── :sensor:activity-api
 ├── :stats:data ── :stats:engine ── :stats:api
-├── :domain:points, :domain:osm, :domain:geocoder
+├── :domain:points, :domain:geocoder
 ├── :data:preferences
 └── :core:base, :core:model, :core:common, :core:ui,
     :core:diagnostics, :core:network,
@@ -49,7 +49,7 @@ layout.
 | `:core:testing` | Test fakes and test utilities |
 | `:data:preferences` | Typed preferences, settings repositories, retention, and unit-aware measurement formatting |
 | `:stats:api` / `:stats:engine` / `:stats:data` | Statistics contracts, algorithms, and persistence adapters |
-| `:domain:points` / `:domain:osm` / `:domain:geocoder` | Points, OSM, and place lookup domain services |
+| `:domain:points` / `:domain:geocoder` | Points and bundled offline place lookup domain services |
 | `:tracker:api` / `:tracker:engine` | Immutable tracking and notification-settings contracts; Android foreground-service and notification runtime |
 | `:tracker:control` | Android-free tracking decision model and reducer, currently evaluated from the engine |
 | `:sensor:activity-api` / `:sensor:activity` | Activity-recognition contracts and Play Services implementation |
@@ -65,7 +65,7 @@ Historical names still occur in package names and migration fixtures. The Gradle
 module paths above are the current paths: for example `sbase` → `core/base`,
 `sutils` → `core/ui`, `spreferences` → `data/preferences`,
 `stats-*` → `stats/*`, `points` → `domain/points`,
-`osm` → `domain/osm`, `impexp` → `feature/import-export`, and the former flat
+`impexp` → `feature/import-export`, and the former flat
 feature modules → `feature/*`.
 
 ## Runtime data flow
@@ -104,8 +104,9 @@ table; `:feature:tracker` never sees either implementation type.
 Feature presentation follows feature-owned data ports. ViewModels consume
 repositories for activity management (including built-in activity localization),
 dashboard history and layout, game progress, scores, and leaderboard reads,
-tracker recent trips, and import/export metadata/streaming. App-owned OSM settings
-consume entity-free `OsmImportSummary` values through `OsmImportController`.
+tracker recent trips, and import/export metadata/streaming. The unreleased offline
+OSM importer/matcher and its settings surface were removed for v27; Git history
+retains that work if a user-facing offline-map feature is deliberately resumed.
 Room adapters remain behind those boundaries, so ViewModels do not inject DAOs or
 persistence entities and Compose/UI code does not open `AppDatabase`.
 
@@ -148,9 +149,14 @@ implementation depends on another feature implementation.
 
 The main Room database is `AppDatabase` in
 `core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt`.
-Its current schema version is **40**. Other local databases include the
-preferences and points databases; their versions are independent.
-Schema changes require a Room migration and a migration test.
+Its current schema version is **27** and its long-lived active filename is
+`main_database_v27`. A released pre-v27 `main_database` is treated as a preserved
+legacy vault: a frozen raw-SQL importer reads relevant v26 data while Room creates
+the fresh v27 database, and older public versions are normalized only on a
+disposable copy through public migrations ending at v26. Normal active migrations
+are currently empty. Other local databases include the preferences and points
+databases; their versions are independent. Future v27+ schema changes require a
+Room migration and migration test.
 
 ## Dependency direction
 

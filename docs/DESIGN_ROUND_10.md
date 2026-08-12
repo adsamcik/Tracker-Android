@@ -243,51 +243,60 @@ Already implemented as `SettingsGroupCard`. Codified tokens:
 ```kotlin
 @Composable
 fun SettingsGroupCard(
-    title: String? = null,      // titleMedium, onSurface, padding(start=16, top=16, bottom=8)
+    title: String? = null,      // titleMedium heading outside the card
+    icon: ImageVector? = null,  // 20dp section-orientation icon
+    tone: SettingsItemTone = SettingsItemTone.Default,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    // Title outside card
+    // Title and icon outside card
     // Card:
     //   containerColor = surfaceContainer
     //   shape = default (medium = TerrainCardShape)
     //   horizontalPadding = 16.dp (on Card modifier)
-    //   internal Column padding = vertical 4.dp
+    //   SettingsRowDivider inset = 72.dp (aligned with text after 40dp icon tile)
 }
 ```
 
-**Group spacing:** 16.dp top margin between groups (via `Modifier.padding(top = 16.dp)` on each group).
+**Group spacing:** 12–16.dp top margin between groups. Every destination uses grouped cards; loose rows are not mixed with card groups.
 
 #### 6.3 Settings Item Variants
 
 | Variant | Component | Leading | Trailing | Touch Target |
 |---------|-----------|---------|----------|-------------|
-| Navigation | `SettingsItem` | Icon (24dp) | None (implicit chevron from ListItem) | Full row, min 56dp height |
-| Switch | `SwitchSettingsItem` | None | `Switch` | Full row clickable OR switch alone |
-| Value display | `SettingsItemWithValue` | Icon (24dp) | None | Full row |
-| Dialog picker | `DialogListPreference` | None | None | Full row → shows AlertDialog |
-| Slider | `SliderSettingsItem` | None | Value label (bodyMedium) | Slider track + thumb |
+| Navigation | `SettingsItem` | Unique icon in a 40dp themed tile | None | Full row, min 56dp height |
+| Switch | `SwitchSettingsItem` | Optional icon tile | `Switch` | Entire row uses switch semantics |
+| Static value | `SettingsSummaryItem` | Optional icon tile | None | Non-clickable metadata row |
+| Dialog picker | `DialogListPreference` | Optional icon tile | Selected-value pill | Full row → single-choice dialog |
+| Slider | `SliderSettingsItem` | None | Selected-value pill | Slider track + thumb |
+| Notice | `SettingsNoticeCard` | Optional 22dp icon | None | Neutral, info, warning, or danger tone |
 
 **Typography within items:**
 - Headline: `titleMedium` (default from `ListItem`)
 - Subtitle: `bodySmall`, `onSurfaceVariant`
-- Value: `bodyMedium`
+- Value: `labelLarge` in a `secondaryContainer` pill so the current selection is visually explicit
+
+**Icon rule:** use a distinct pictogram for each user concept. Reusing an icon for a section heading and its primary row is acceptable; unrelated rows in one card must not share an icon.
+
+Tracking sources use a dedicated native-vector family (`ic_tracking_source_*`) rather than generic Material symbols. Each drawable uses a 32dp viewport, rounded strokes, a distinct silhouette, and Compose-applied theme tint inside a 40–44dp `primaryContainer` tile. The same source asset must appear in simple switches and advanced frequency controls. Validate additions at their rendered 24–27dp size in both light and dark themes; do not judge source artwork only at editor zoom.
 
 #### 6.4 Danger Zone — Design Spec
 
 The `DataSettingsScreen` already implements this correctly. Codified pattern:
 
 ```kotlin
-// Section header
-SectionHeader("Danger Zone")  // titleSmall, error color (NOT primary)
-
-// Danger action item
-SettingsItem(
-    title = "Remove all collected data",
-    subtitle = "This action cannot be undone",  // bodySmall, error
+SettingsGroupCard(
+    title = "Danger Zone",
     icon = Icons.Filled.DeleteForever,
-    iconTint = MaterialTheme.colorScheme.error,  // Red icon
-    onClick = { showDeleteDialog = true }
-)
+    tone = SettingsItemTone.Danger,
+) {
+    SettingsItem(
+        title = "Remove all collected data",
+        subtitle = "This action cannot be undone",
+        icon = Icons.Filled.DeleteForever,
+        tone = SettingsItemTone.Danger,
+        onClick = { showDeleteDialog = true },
+    )
+}
 
 // Confirmation dialog
 AlertDialog(

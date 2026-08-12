@@ -2,7 +2,6 @@ plugins {
     id("tracker.android.library")
     id("tracker.android.hilt")
     id("tracker.android.test")
-    id("tracker.android.protobuf")
 }
 
 android {
@@ -27,8 +26,6 @@ dependencies {
     implementation(project(":core:base"))
     implementation(project(":core:diagnostics"))
     implementation(project(":data:preferences"))
-    implementation(project(":domain:osm"))
-
     // Core
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.core.ktx)
@@ -36,10 +33,6 @@ dependencies {
 
     // Arrow
     implementation(libs.arrow.core)
-
-    // DataStore proto (live stats)
-    implementation(libs.androidx.datastore.core)
-    implementation(libs.protobuf.java)
 
     // Hilt worker bridge
     implementation(libs.hilt.work)

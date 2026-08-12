@@ -14,26 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">डेवलपर मोड बंद है</string>
     <string name="settings_data_management_section">डेटा प्रबंधन</string>
     <string name="settings_data_danger_zone_section">खतरे का क्षेत्र</string>
-    <string name="settings_osm_import_section">मानचित्र डेटा (OpenStreetMap)</string>
-    <string name="settings_osm_import_action_title">OSM क्षेत्र आयात करें</string>
-    <string name="settings_osm_import_action_summary">.osm.pbf फ़ाइल चुनें। इसके बाद वाहन अनुपालन ऑफ़लाइन वास्तविक सड़क सीमाओं का उपयोग करेगा।</string>
-    <string name="settings_osm_import_unavailable_title">ऑफ़लाइन मानचित्र आयात उपलब्ध नहीं है</string>
-    <string name="settings_osm_import_action_unavailable">फ़ाइल-सुरक्षा सुरक्षा उपाय पूरे होने तक ऑफ़लाइन मानचित्र आयात अस्थायी रूप से उपलब्ध नहीं है।</string>
-    <string name="settings_osm_import_action_running">आयात हो रहा है — रद्द करने के लिए टैप करें</string>
-    <string name="settings_osm_import_action_failed">ऑफ़लाइन मानचित्र आयात पूरा नहीं हो सका।</string>
-    <string name="settings_osm_import_action_source_unavailable">चुनी गई मानचित्र फ़ाइल नहीं खोली जा सकी।</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">%2$d नोड से %1$d सड़क आयात हुई।</item>
-        <item quantity="other">%2$d नोड से %1$d सड़कें आयात हुईं।</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">अभी तक कोई OpenStreetMap क्षेत्र आयात नहीं किया गया है।</string>
-    <string name="settings_osm_imports_attribution">मानचित्र डेटा © OpenStreetMap योगदानकर्ता (ODbL 1.0)। सारा प्रसंस्करण डिवाइस पर होता है।</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d सड़क · आयात %2$s</item>
-        <item quantity="other">%1$,d सड़कें · आयात %2$s</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">आयातित क्षेत्र हटाएँ</string>
-    <string name="settings_osm_import_remove_message">%1$s हटाएँ? वाहन अनुपालन क्षेत्र फिर से आयात करने तक स्थिर आधाररेखा पर लौट जाएगा।</string>
     <string name="settings_incremental_backups_title">क्रमिक बैकअप</string>
     <string name="settings_incremental_backups_summary">पिछले बैकअप के बाद का केवल नया डेटा निर्यात करें। निर्यात समय और फ़ाइल आकार घटता है।</string>
     <string name="settings_reset_export_watermarks_title">पूर्ण निर्यात बाध्य करें</string>
@@ -362,9 +342,9 @@
     <string name="setup_step_indicator">चरण %1$d / %2$d</string>
     <string name="setup_online_tiles_title">ऑनलाइन मानचित्र टाइलें?</string>
     <string name="setup_online_tiles_subtitle">Tracker में ऑफ़लाइन आधार-मानचित्र शामिल है, इसलिए यह बिना नेटवर्क के काम करता है। अधिक समृद्ध मानचित्र चाहिए तो आप सार्वजनिक प्रदाता से टाइलें स्ट्रीम कर सकते हैं।</string>
-    <string name="setup_online_tiles_off_title">केवल ऑफ़लाइन (अनुशंसित)</string>
+    <string name="setup_online_tiles_off_title">केवल ऑफ़लाइन</string>
     <string name="setup_online_tiles_off_desc">कोई नेटवर्क अनुरोध नहीं। केवल शामिल आधार-मानचित्र उपयोग होता है।</string>
-    <string name="setup_online_tiles_on_title">ऑनलाइन टाइलें उपयोग करें</string>
+    <string name="setup_online_tiles_on_title">ऑनलाइन टाइलें उपयोग करें (अनुशंसित)</string>
     <string name="setup_online_tiles_on_desc">OpenFreeMap (डिफ़ॉल्ट) से अधिक-विस्तृत वेक्टर टाइलें स्ट्रीम करें। आप बाद में सेटिंग → मानचित्र में प्रदाता बदल सकते हैं।</string>
     <string name="setup_online_tiles_privacy">सक्षम होने पर प्रदाता आपका IP पता और लोड की गई टाइलें देख सकता है — लगभग मानचित्र का वह क्षेत्र जिसे आप देख रहे हैं। Tracker कभी खाता, पहचानकर्ता या स्थान इतिहास नहीं भेजता।</string>
     <string name="setup_online_tiles_change_later">इसे कभी भी सेटिंग → मानचित्र → ऑनलाइन मानचित्र टाइलें में बदल सकते हैं।</string>

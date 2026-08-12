@@ -25,20 +25,20 @@ FEATURE MODULES:
   feature/import-export - GPX/KML/JSON/SQLite import/export
 
 SHARED LIBRARIES:
-  core/base (Room DB v40, no Compose) | core/ui (AppTheme + screen-local permission UI)
+  core/base (Room DB v27, no Compose) | core/ui (AppTheme + screen-local permission UI)
   data/preferences | core/sqlite-runtime
 
 DOMAIN/ANALYTICS:
   stats/api (contracts) | stats/engine (algorithms) | stats/data
   tracker/control (pure tracking decision reducer)
-  domain/points | domain/osm | domain/geocoder
+  domain/points | domain/geocoder
 
 SUPPORTING:
   core/diagnostics | core/testing
 
 BOUNDARIES:
   Feature ViewModels -> feature repositories/ports -> Room adapters
-  App OSM settings -> OsmImportController -> OSM DAO/worker
+  App startup/Data settings -> frozen v26 importer + LegacyDatabaseRepository -> legacy vault
   App diagnostics -> core/diagnostics (payload-free) -> Tracebox
   feature/statistics -> feature/map/api RoutePreviewRenderer
   feature/statistics -> feature/statistics/api TripGpxExporter <- feature/import-export adapter
@@ -136,10 +136,10 @@ TrackerService (Foreground Service + WakeLock)
 
 <!-- context-init:managed -->
 
-- **Version:** 40
-- **46 entities:** the authoritative list is the `entities` array on `AppDatabase`
+- **Version:** 27; active file `main_database_v27`, preserved released-v26 vault `main_database`
+- **51 application tables:** the authoritative list is the `entities` array on `AppDatabase`
 - **Type Converters:** CellType, DetectedActivity, GeoFeatureProperties, Sessionless
-- **Key DAOs:** LocationSampleDao, WifiObservationDao, CellSampleDao, SessionSegmentDao, TripDao, ActivitySnapshotDao, StepIntervalDao, FrequentPlaceDao, ExplorationCellDao, SkiRunSegmentDao, PressureSampleDao, DomainEventDao
+- **Key DAOs:** LocationSampleDao, LocationObservationDao, WifiObservationDao, CellSampleDao, SessionSegmentDao, TripDao, ActivitySnapshotDao, StepIntervalDao, ExplorationCellDao, SkiRunSegmentDao, PressureSampleDao, DomainEventDao
 
 ### Navigation Graph
 

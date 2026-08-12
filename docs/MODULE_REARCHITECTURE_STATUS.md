@@ -1,10 +1,10 @@
 # Module Rearchitecture — Status & Roadmap
 
 > Branch: `dev/v10`
-> Last updated: 2026-07-31
+> Last updated: 2026-08-11
 
 This document records the module rearchitecture currently present on `dev/v10`.
-The Gradle project contains 32 application modules (including API contract modules), plus
+The Gradle project contains 31 application modules (including API contract modules), plus
 the `:tools:ski-data-generator` tooling module. The `build-logic` included build is
 separate from that count.
 
@@ -23,7 +23,7 @@ separate from that count.
 :data:preferences            preferences / settings / retention (was spreferences)
 :stats:api                   stats contracts — depends on :core:model, NOT the DB (was stats-api)
 :stats:engine /:stats:data   algorithms / data layer (were stats-engine / stats-data)
-:domain:points /:domain:osm  points calc / OSM lookup (were points / osm)
+:domain:points              points calculation (was points)
 :tracker:api                 tracking contracts (TrackerServiceController, LockManager, BackgroundTrackingApi, …; directory `tracker/api-module`)
 :tracker:control             pure Kotlin tracking evidence, state, and decision reducer
 :tracker:engine              tracking impl (service, pipeline, producers/consumers — no UI)
@@ -120,7 +120,7 @@ were deleted rather than relocated. The unused Activity Result permission facade
 and timer-permission entry point were also removed; active permission flows remain
 owned by their screens.
 
-As a result, `:tracker:engine`, `:stats:data`, `:domain:points`, `:domain:osm`,
+As a result, `:tracker:engine`, `:stats:data`, `:domain:points`,
 and `:sensor:activity` no longer depend on `:core:ui`.
 
 ### Feature presentation data ports and sibling contracts (COMPLETE)
@@ -129,10 +129,14 @@ Feature ViewModels no longer inject `AppDatabase` or Room DAOs. Activity
 management (including built-in activity localization), dashboard history and
 layout, game exploration/achievement, score, and leaderboard reads, tracker
 recent trips, and import/export presentation now consume feature-facing
-repositories. App-owned OSM settings consume entity-free `OsmImportSummary`
-values and delete imports through `OsmImportController`. Room adapters and Hilt
-bindings remain behind those boundaries, and the presentation-facing contracts
+repositories. Room adapters and Hilt bindings remain behind those boundaries,
+and the presentation-facing contracts
 expose shared models or immutable feature-owned snapshots.
+
+The unreleased `:domain:osm` importer/matcher, its persistence tables, and its
+app-owned settings were removed during the v27 storage cleanup. Offline OSM is a
+deferred feature rather than a current module boundary; Git history preserves the
+prototype if the product deliberately resumes it.
 
 The two remaining feature implementation edges were also removed.
 `:feature:statistics` embeds trip previews through `RoutePreviewRenderer` from

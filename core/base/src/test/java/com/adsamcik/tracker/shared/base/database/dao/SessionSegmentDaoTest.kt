@@ -82,81 +82,7 @@ class SessionSegmentDaoTest {
 	}
 
 	@Test
-	fun `mapped legacy activity participates in typed statistics`() = runBlocking {
-		dao.insert(
-			createSegment(
-				startTimeMs = 100L,
-				endTimeMs = 300L,
-				distanceM = 200f,
-				primaryActivity = null,
-				legacyActivityId = LEGACY_HIKING_ACTIVITY_ID,
-				source = SegmentSource.LEGACY_MIGRATION,
-			),
-		)
-
-		val summary = dao.getSummary(ON_FOOT_ACTIVITY_TYPES, IN_VEHICLE_ACTIVITY_TYPES)
-		val summaryBetween = dao.getSummaryBetween(
-			fromMs = 0L,
-			toMs = 400L,
-			onFootActivities = ON_FOOT_ACTIVITY_TYPES,
-			inVehicleActivities = IN_VEHICLE_ACTIVITY_TYPES,
-		)
-
-		assertEquals(200f, summary.onFootDistanceM, 0.001f)
-		assertEquals(200f, summaryBetween.onFootDistanceM, 0.001f)
-		assertEquals(1L, dao.countByActivity(DetectedActivity.WALKING.value))
-		assertEquals(1L, dao.countByActivities(ON_FOOT_ACTIVITY_TYPES))
-		assertEquals(1L, dao.countDistinctActivities())
-		assertEquals(1L, dao.countDistinctActivitiesBetween(0L, 400L))
-		assertEquals(1L, dao.countDistinctDaysByActivities(ON_FOOT_ACTIVITY_TYPES))
-		assertEquals(1L, dao.countByActivitiesBetween(0L, 400L, ON_FOOT_ACTIVITY_TYPES))
-		assertEquals(200L, dao.sumDistanceByActivities(ON_FOOT_ACTIVITY_TYPES))
-		assertEquals(200L, dao.sumDistanceByActivitiesBetween(0L, 400L, ON_FOOT_ACTIVITY_TYPES))
-		assertEquals(200L, dao.maxDistanceByActivities(ON_FOOT_ACTIVITY_TYPES))
-	}
-
-	@Test
-	fun `unknown legacy activity remains excluded from typed statistics`() = runBlocking {
-		dao.insert(
-			createSegment(
-				startTimeMs = 100L,
-				endTimeMs = 300L,
-				distanceM = 200f,
-				primaryActivity = null,
-				legacyActivityId = UNKNOWN_CUSTOM_LEGACY_ACTIVITY_ID,
-				source = SegmentSource.LEGACY_MIGRATION,
-			),
-		)
-
-		val summary = dao.getSummary(ON_FOOT_ACTIVITY_TYPES, IN_VEHICLE_ACTIVITY_TYPES)
-
-		assertEquals(0f, summary.onFootDistanceM, 0.001f)
-		assertEquals(0f, summary.inVehicleDistanceM, 0.001f)
-		assertEquals(0L, dao.countByActivity(DetectedActivity.WALKING.value))
-		assertEquals(0L, dao.countDistinctActivities())
-		assertEquals(0L, dao.sumDistanceByActivities(ON_FOOT_ACTIVITY_TYPES))
-	}
-
-	@Test
-	fun `primary activity takes precedence over contradictory legacy activity`() = runBlocking {
-		dao.insert(
-			createSegment(
-				startTimeMs = 100L,
-				endTimeMs = 300L,
-				distanceM = 200f,
-				primaryActivity = DetectedActivity.WALKING.value,
-				legacyActivityId = LEGACY_BICYCLE_ACTIVITY_ID,
-			),
-		)
-
-		assertEquals(1L, dao.countByActivity(DetectedActivity.WALKING.value))
-		assertEquals(0L, dao.countByActivity(DetectedActivity.ON_BICYCLE.value))
-		assertEquals(200L, dao.sumDistanceByActivities(ON_FOOT_ACTIVITY_TYPES))
-		assertEquals(0L, dao.sumDistanceByActivities(listOf(DetectedActivity.ON_BICYCLE.value)))
-	}
-
-	@Test
-	fun `mapped legacy activities satisfy triathlon day`() = runBlocking {
+	fun `canonical activities satisfy triathlon day`() = runBlocking {
 		val day = LocalDate.of(2026, 1, 10)
 			.atStartOfDay(ZoneId.systemDefault())
 			.toInstant()
@@ -166,9 +92,7 @@ class SessionSegmentDaoTest {
 				day + 1_000L,
 				day + 2_000L,
 				100f,
-				null,
-				LEGACY_HIKING_ACTIVITY_ID,
-				SegmentSource.LEGACY_MIGRATION,
+				DetectedActivity.WALKING.value,
 			),
 		)
 		dao.insert(
@@ -176,9 +100,7 @@ class SessionSegmentDaoTest {
 				day + 3_000L,
 				day + 4_000L,
 				100f,
-				null,
-				LEGACY_BICYCLE_ACTIVITY_ID,
-				SegmentSource.LEGACY_MIGRATION,
+				DetectedActivity.ON_BICYCLE.value,
 			),
 		)
 		dao.insert(
@@ -186,9 +108,7 @@ class SessionSegmentDaoTest {
 				day + 5_000L,
 				day + 6_000L,
 				100f,
-				null,
-				LEGACY_TRAIN_ACTIVITY_ID,
-				SegmentSource.LEGACY_MIGRATION,
+				DetectedActivity.IN_VEHICLE.value,
 			),
 		)
 
@@ -207,8 +127,6 @@ class SessionSegmentDaoTest {
 		endTimeMs: Long,
 		distanceM: Float,
 		primaryActivity: Int?,
-		legacyActivityId: Long? = null,
-		source: SegmentSource = SegmentSource.USER_CREATED,
 	): SessionSegment {
 		return SessionSegment(
 			startTimeMs = startTimeMs,
@@ -218,10 +136,9 @@ class SessionSegmentDaoTest {
 			primaryActivity = primaryActivity,
 			activityConfidence = 90,
 			sampleCount = 10,
-			source = source,
+			source = SegmentSource.USER_CREATED,
 			inferenceVersion = "test",
 			createdAt = startTimeMs,
-			legacyActivityId = legacyActivityId,
 		)
 	}
 
@@ -308,11 +225,6 @@ class SessionSegmentDaoTest {
 	}
 
 	private companion object {
-		const val LEGACY_HIKING_ACTIVITY_ID = -19L
-		const val LEGACY_BICYCLE_ACTIVITY_ID = -4L
-		const val LEGACY_TRAIN_ACTIVITY_ID = -34L
-		const val UNKNOWN_CUSTOM_LEGACY_ACTIVITY_ID = 7L
-
 		val ON_FOOT_ACTIVITY_TYPES = listOf(
 			DetectedActivity.WALKING.value,
 			DetectedActivity.RUNNING.value,

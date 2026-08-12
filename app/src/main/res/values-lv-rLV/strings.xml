@@ -14,26 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">Izstrādātāja režīms ir atspējots</string>
     <string name="settings_data_management_section">Datu pārvaldība</string>
     <string name="settings_data_danger_zone_section">Bīstamā zona</string>
-    <string name="settings_osm_import_section">Kartes dati (OpenStreetMap)</string>
-    <string name="settings_osm_import_action_title">Importēt OSM reģionu</string>
-    <string name="settings_osm_import_action_summary">Izvēlieties .osm.pbf failu. Pēc tam transportlīdzekļu atbilstības pārbaude bezsaistē izmantos faktiskos ceļu ierobežojumus.</string>
-    <string name="settings_osm_import_unavailable_title">Bezsaistes kartes importēšana nav pieejama</string>
-    <string name="settings_osm_import_action_unavailable">Bezsaistes kartes importēšana īslaicīgi nav pieejama, kamēr tiek pabeigta failu drošības aizsardzība.</string>
-    <string name="settings_osm_import_action_running">Notiek importēšana — pieskarieties, lai atceltu</string>
-    <string name="settings_osm_import_action_failed">Bezsaistes kartes importēšanu nevarēja pabeigt.</string>
-    <string name="settings_osm_import_action_source_unavailable">Atlasīto kartes failu nevarēja atvērt.</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">Importēts %1$d ceļš no %2$d mezgliem.</item>
-        <item quantity="other">Importēti %1$d ceļi no %2$d mezgliem.</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">Vēl nav importēts neviens OpenStreetMap reģions.</string>
-    <string name="settings_osm_imports_attribution">Kartes dati © OpenStreetMap līdzautori (ODbL 1.0). Visa apstrāde notiek ierīcē.</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d ceļš · importēts %2$s</item>
-        <item quantity="other">%1$,d ceļi · importēti %2$s</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">Noņemt importēto reģionu</string>
-    <string name="settings_osm_import_remove_message">Vai noņemt %1$s? Transportlīdzekļu atbilstības pārbaude izmantos fiksēto pamata līmeni, līdz atkārtoti importēsiet reģionu.</string>
     <string name="settings_incremental_backups_title">Pakāpeniskas dublējumkopijas</string>
     <string name="settings_incremental_backups_summary">Eksportējiet tikai jaunus datus kopš pēdējās dublējumkopijas. Tas samazina eksporta laiku un faila lielumu.</string>
     <string name="settings_reset_export_watermarks_title">Piespiedu pilnais eksports</string>
@@ -362,9 +342,9 @@
     <string name="setup_step_indicator">%1$d. solis no %2$d</string>
     <string name="setup_online_tiles_title">Tiešsaistes kartes mozaīkas?</string>
     <string name="setup_online_tiles_subtitle">Tracker komplektā ir bezsaistes pamatkarte, tāpēc tas darbojas bez tīkla. Ja vēlaties bagātīgākas kartes, varat straumēt mozaīkas no publiska nodrošinātāja.</string>
-    <string name="setup_online_tiles_off_title">Tikai bezsaistē (ieteicams)</string>
+    <string name="setup_online_tiles_off_title">Tikai bezsaistē</string>
     <string name="setup_online_tiles_off_desc">Tīkla pieprasījumu nav. Tiek izmantota tikai iekļautā pamatkarte.</string>
-    <string name="setup_online_tiles_on_title">Izmantot tiešsaistes mozaīkas</string>
+    <string name="setup_online_tiles_on_title">Izmantot tiešsaistes mozaīkas (ieteicams)</string>
     <string name="setup_online_tiles_on_desc">Straumējiet detalizētākas vektoru mozaīkas no OpenFreeMap (noklusējums). Vēlāk varat mainīt nodrošinātāju sadaļā Iestatījumi → Karte.</string>
     <string name="setup_online_tiles_privacy">Kad funkcija ir iespējota, nodrošinātājs var redzēt jūsu IP adresi un ielādētās mozaīkas — aptuveni kartes apgabalu, ko skatāt. Tracker nekad nesūta kontu, identifikatoru vai jūsu atrašanās vietu vēsturi.</string>
     <string name="setup_online_tiles_change_later">To jebkurā laikā varat mainīt sadaļā Iestatījumi → Karte → Tiešsaistes kartes mozaīkas.</string>

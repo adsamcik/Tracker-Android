@@ -15,6 +15,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -63,8 +64,7 @@ fun SettingsRoute(
     }
 
     Scaffold(
-        // Opaque container stops other Settings sub-screens bleeding through the AnimatedContent
-        // transition (setting is rendered inside AnimatedContent below).
+        // Base color behind the page stack. Each animated page also draws its own opaque Surface.
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             TopAppBar(
@@ -90,41 +90,51 @@ fun SettingsRoute(
                 modifier = Modifier.fillMaxSize(),
                 transitionSpec = {
                     val isForward = targetState != SettingsScreen.Root
-                    if (isForward) {
+                    val transform = if (isForward) {
                         slideInHorizontally(animationSpec = navigationTransitionSpec) { it } togetherWith
                             slideOutHorizontally(animationSpec = navigationTransitionSpec) { -it / 3 }
                     } else {
                         slideInHorizontally(animationSpec = navigationTransitionSpec) { -it / 3 } togetherWith
                             slideOutHorizontally(animationSpec = navigationTransitionSpec) { it }
                     }
+                    // AnimatedContent keeps both pages alive during the slide. Put the target page
+                    // above the outgoing page so text and controls cannot visually interleave.
+                    transform.apply { targetContentZIndex = 1f }
                 },
                 label = "SettingsNavigation"
             ) { screen ->
-                when (screen) {
-                    SettingsScreen.Root -> RootSettingsScreen(
-                        viewModel = vm,
-                        onNavigate = { currentScreen = it },
-                        onNavigateToActivities = onNavigateToActivities,
-                        onNavigateToAbout = onNavigateToAbout,
-                    )
-                    SettingsScreen.Tracking -> TrackingSettingsScreen(
-                        onNavigateToNotificationManagement = onNavigateToNotificationManagement
-                    )
-                    SettingsScreen.Data -> DataSettingsScreen()
-                    SettingsScreen.Export -> DataSettingsScreen() // Export merged into Data
-                    SettingsScreen.Map -> MapSettingsScreen()
-                    SettingsScreen.Game -> GameSettingsScreen()
-                    SettingsScreen.Diagnostics -> TraceboxDiagnosticsScreen(
-                        handle = checkNotNull(Tracebox.current()) {
-                            "Tracebox must be installed before opening diagnostics settings"
-                        },
-                        configuration = TrackerTraceboxUi.configuration,
-                    )
-                    SettingsScreen.Statistics -> {
-                        // Statistics sub-screen removed — navigate back to root as defensive fallback.
-                        LaunchedEffect(Unit) { currentScreen = SettingsScreen.Root }
+                // The outer Scaffold background is not enough: both AnimatedContent children are
+                // composited simultaneously. Each child must paint an opaque full-screen layer.
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.surface,
+                ) {
+                    when (screen) {
+                        SettingsScreen.Root -> RootSettingsScreen(
+                            viewModel = vm,
+                            onNavigate = { currentScreen = it },
+                            onNavigateToActivities = onNavigateToActivities,
+                            onNavigateToAbout = onNavigateToAbout,
+                        )
+                        SettingsScreen.Tracking -> TrackingSettingsScreen(
+                            onNavigateToNotificationManagement = onNavigateToNotificationManagement
+                        )
+                        SettingsScreen.Data -> DataSettingsScreen()
+                        SettingsScreen.Export -> DataSettingsScreen() // Export merged into Data
+                        SettingsScreen.Map -> MapSettingsScreen()
+                        SettingsScreen.Game -> GameSettingsScreen()
+                        SettingsScreen.Diagnostics -> TraceboxDiagnosticsScreen(
+                            handle = checkNotNull(Tracebox.current()) {
+                                "Tracebox must be installed before opening diagnostics settings"
+                            },
+                            configuration = TrackerTraceboxUi.configuration,
+                        )
+                        SettingsScreen.Statistics -> {
+                            // Statistics sub-screen removed — navigate back to root as defensive fallback.
+                            LaunchedEffect(Unit) { currentScreen = SettingsScreen.Root }
+                        }
+                        SettingsScreen.Debug -> DebugSettingsScreen()
                     }
-                    SettingsScreen.Debug -> DebugSettingsScreen()
                 }
             }
         }

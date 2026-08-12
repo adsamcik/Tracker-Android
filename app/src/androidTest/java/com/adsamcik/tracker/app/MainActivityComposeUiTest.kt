@@ -33,7 +33,7 @@ class MainActivityComposeUiTest {
 
     @Test
     fun smoke_launches_tracker_selected_by_default() {
-        composeRule.onNodeWithTag("nav_tracker")
+        composeRule.onNodeWithTag("nav_dashboard")
             .assertIsSelected()
     }
 
@@ -42,7 +42,7 @@ class MainActivityComposeUiTest {
         composeRule.onNodeWithTag("nav_stats").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("nav_stats").assertIsSelected()
-        composeRule.onNodeWithTag("nav_tracker")
+        composeRule.onNodeWithTag("nav_dashboard")
             .assertIsNotSelected()
 
         composeRule.onNodeWithTag("nav_game").performClick()
@@ -53,7 +53,7 @@ class MainActivityComposeUiTest {
             composeRule.activity.onBackPressedDispatcher.onBackPressed()
         }
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag("nav_tracker").assertIsSelected()
+        composeRule.onNodeWithTag("nav_dashboard").assertIsSelected()
     }
 
     // Note: Intent-based tests moved to MainActivityIntentTest.kt using ActivityScenario

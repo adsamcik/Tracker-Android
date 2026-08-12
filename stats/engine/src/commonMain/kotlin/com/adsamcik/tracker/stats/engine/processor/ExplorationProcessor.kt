@@ -26,11 +26,7 @@ class ExplorationProcessor(
 
 	private val pendingEvents = mutableListOf<DomainEvent>()
 
-	override suspend fun onStart(context: ProcessorContext) {
-		if (context.checkpoint != null) {
-			restore(context.checkpoint!!)
-		}
-	}
+	override suspend fun onStart(context: ProcessorContext) = Unit
 
 	override fun onSignal(signal: TrackingSignal) {
 		val location = signal.location ?: return
@@ -68,7 +64,4 @@ class ExplorationProcessor(
 		engine.finalize(com.adsamcik.tracker.stats.api.platform.currentTimeMillis())
 		return onFlush()
 	}
-
-	override fun checkpoint(): ByteArray = engine.serialize()
-	override fun restore(state: ByteArray) { engine.deserialize(state) }
 }

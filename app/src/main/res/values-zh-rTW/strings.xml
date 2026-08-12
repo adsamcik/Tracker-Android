@@ -14,26 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">開發人員模式已停用</string>
     <string name="settings_data_management_section">資料管理</string>
     <string name="settings_data_danger_zone_section">危險區</string>
-    <string name="settings_osm_import_section">地圖資料（OpenStreetMap）</string>
-    <string name="settings_osm_import_action_title">匯入 OSM 區域</string>
-    <string name="settings_osm_import_action_summary">選擇 .osm.pbf 檔案。之後，車輛合規功能會離線使用實際道路限速。</string>
-    <string name="settings_osm_import_unavailable_title">離線地圖匯入無法使用</string>
-    <string name="settings_osm_import_action_unavailable">在完成檔案安全性保護前，暫時無法使用離線地圖匯入。</string>
-    <string name="settings_osm_import_action_running">正在匯入 — 輕觸即可取消</string>
-    <string name="settings_osm_import_action_failed">無法完成離線地圖匯入。</string>
-    <string name="settings_osm_import_action_source_unavailable">無法開啟所選地圖檔案。</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">已從 %2$d 個節點匯入 %1$d 條道路。</item>
-        <item quantity="other">已從 %2$d 個節點匯入 %1$d 條道路。</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">尚未匯入 OpenStreetMap 區域。</string>
-    <string name="settings_osm_imports_attribution">地圖資料 © OpenStreetMap 貢獻者 (ODbL 1.0)。所有處理均在裝置上進行。</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d 條道路 · 於 %2$s 匯入</item>
-        <item quantity="other">%1$,d 條道路 · 於 %2$s 匯入</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">移除已匯入區域</string>
-    <string name="settings_osm_import_remove_message">要移除 %1$s 嗎？在重新匯入區域前，車輛合規功能會改用固定基準值。</string>
     <string name="settings_incremental_backups_title">漸進式備份</string>
     <string name="settings_incremental_backups_summary">僅匯出自上次備份後的新資料。可減少匯出時間與檔案大小。</string>
     <string name="settings_reset_export_watermarks_title">強制完整匯出</string>
@@ -362,9 +342,9 @@
     <string name="setup_step_indicator">第 %1$d 步，共 %2$d 步</string>
     <string name="setup_online_tiles_title">使用線上地圖圖磚？</string>
     <string name="setup_online_tiles_subtitle">Tracker 隨附離線底圖，因此不需網路即可運作。若想要更豐富的地圖，可改為從公開提供者串流圖磚。</string>
-    <string name="setup_online_tiles_off_title">僅離線（建議）</string>
+    <string name="setup_online_tiles_off_title">僅離線</string>
     <string name="setup_online_tiles_off_desc">不發出網路要求。僅使用隨附的底圖。</string>
-    <string name="setup_online_tiles_on_title">使用線上圖磚</string>
+    <string name="setup_online_tiles_on_title">使用線上圖磚（建議）</string>
     <string name="setup_online_tiles_on_desc">從 OpenFreeMap（預設）串流更高細節的向量圖磚。稍後可在「設定 → 地圖」變更提供者。</string>
     <string name="setup_online_tiles_privacy">啟用時，提供者可看見您的 IP 位址及所載入的圖磚 — 約略反映您正在查看的地圖區域。Tracker 絕不會傳送帳戶、識別碼或位置記錄。</string>
     <string name="setup_online_tiles_change_later">您可隨時在「設定 → 地圖 → 線上地圖圖磚」變更此項目。</string>

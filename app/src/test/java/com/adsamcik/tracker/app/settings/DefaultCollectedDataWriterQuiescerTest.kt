@@ -22,7 +22,6 @@ import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import com.adsamcik.tracker.tracker.resilience.PendingSignalDrainWork
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
 import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
-import com.adsamcik.tracker.osm.imp.OsmImportWorker
 import io.kotest.matchers.shouldBe
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -93,12 +92,6 @@ class DefaultCollectedDataWriterQuiescerTest {
 			ExistingWorkPolicy.REPLACE,
 			dailySummary,
 		).result.get()
-		val osmImport = delayedWork()
-		workManager.enqueueUniqueWork(
-			OsmImportWorker.UNIQUE_WORK_NAME,
-			ExistingWorkPolicy.REPLACE,
-			osmImport,
-		).result.get()
 		val import = delayedWork()
 		workManager.enqueueUniqueWork(
 			DataImporter.UNIQUE_WORK_NAME,
@@ -138,7 +131,7 @@ class DefaultCollectedDataWriterQuiescerTest {
 
 		quiescer.quiesce()
 
-		(requests + dailySummary + osmImport + import + pendingSignalDrain + retention +
+		(requests + dailySummary + import + pendingSignalDrain + retention +
 			legacyRetention + databaseMaintenance).forEach { request ->
 			workManager.getWorkInfoById(request.id).get()?.state shouldBe WorkInfo.State.CANCELLED
 		}

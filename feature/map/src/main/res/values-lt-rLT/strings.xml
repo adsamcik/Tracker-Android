@@ -53,12 +53,6 @@
     <string name="map_layer_terrain_low">Retai čia</string>
     <string name="map_layer_terrain_mid">Kartais</string>
     <string name="map_layer_terrain_high">Dažnai čia</string>
-    <string name="map_layer_places_title">Dažnos vietos</string>
-    <string name="map_layer_places_chip">Vietos</string>
-    <string name="map_layer_places_description">Svarbios vietos žymimos ženklais, kurių dydis ir spalva priklauso nuo apsilankymo dažnio. Namai ir darbas tampa dideliais šiltais taškais, o vieną kartą aplankyta vieta lieka maža ir vėsi.</string>
-    <string name="map_layer_places_rare">Retai</string>
-    <string name="map_layer_places_often">Kartais</string>
-    <string name="map_layer_places_anchor">Jūsų atramos</string>
     <string name="map_layer_speed_ribbon_title">Greičio juosta</string>
     <string name="map_layer_speed_ribbon_chip">Juosta</string>
     <string name="map_layer_speed_ribbon_description">Maršrutas nuspalvintas pagal judėjimo greitį: spalva teka nuo lėto violetinio pasivaikščiojimo iki raudonai karšto sprinto ar važiavimo. Kitaip nei greičio šilumos žemėlapis, juosta išlaiko maršrutą nepažeistą, todėl tiksliai matote, kur pagreitėjote ir sulėtėjote.</string>
@@ -80,9 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Nusileidimas</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Keltuvas</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Ėjimas arba pauzė</string>
-    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Kelionių žvaigždynai</string>
-    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Kelionės</string>
-    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Pasikartojančios kelionės tarp dažnų vietų tampa lenktais žvaigždynais. Stabili arka rodo kiekvieną maršrutą, o juo keliauja kometa; storesnės arkos reiškia, kad šią kelionę atlikote dažniau.</string>
     <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Ėjimas</string>
     <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Važiavimas dviračiu</string>
     <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Vairavimas</string>
@@ -98,18 +89,10 @@
     <string name="map_layer_first_contact_description">Jūsų atradimų laiko juosta: kiekviena sritis nuspalvinta pagal tai, kaip neseniai pirmą kartą joje apsilankėte. Seniai atrastos vietos blunka iki sodrios indigo spalvos, o šią savaitę atrasta žemė švyti ryškia žydra – perskaitykite savo tyrinėjimo istoriją iki naujausių pakraščių.</string>
     <string name="map_layer_first_contact_old">Seniai</string>
     <string name="map_layer_first_contact_recent">Ką tik atrasta</string>
-    <string name="map_layer_vehicle_compliance_title">Transporto priemonės greičio atitiktis</string>
-    <string name="map_layer_vehicle_compliance_description">Vairavimo pavyzdžių polilinija nuspalvinta pagal greičio palyginimą su sukonfigūruota ribine verte.</string>
-    <string name="map_layer_vehicle_compliance_way_under">Gerokai žemiau ribos</string>
-    <string name="map_layer_vehicle_compliance_slow">Žemiau ribos</string>
-    <string name="map_layer_vehicle_compliance_at_limit">Prie ribos</string>
-    <string name="map_layer_vehicle_compliance_slightly_over">Šiek tiek virš ribos</string>
-    <string name="map_layer_vehicle_compliance_speeding">Greičio viršijimas</string>
     <string name="map_layer_location_polyline_description">Linija, laikui bėgant jungianti įrašytas vietas.</string>
     <string name="map_layer_location_polyline_title">Vietos polilinija</string>
     <string name="map_layer_location_polyline_chip">Polilinija</string>
     <string name="map_layer_wifi_count_heatmap_chip">Wi‑Fi persidengimas</string>
-    <string name="map_layer_vehicle_compliance_chip">Greičio viršijimas</string>
     <string name="map_layer_none_title">Be perdangos</string>
     <string name="map_date_preset_week">Praėjusi savaitė</string>
     <string name="map_date_preset_month">Praėjęs mėnuo</string>
@@ -174,7 +157,6 @@
     <string name="map_empty_subtitle_cell">Šiame rodinyje ar datų intervale nėra su vieta susietų ląstelių duomenų. Ląstelių pavyzdžiai, įrašyti be vietos, vis tiek išsaugomi, bet negali būti rodomi žemėlapyje.</string>
     <string name="map_empty_subtitle_wifi">Šiame rodinyje ar datų intervale nėra su vieta susietų Wi‑Fi duomenų. Wi‑Fi stebėjimai, įrašyti be vietos, vis tiek išsaugomi, bet negali būti rodomi žemėlapyje.</string>
     <string name="map_empty_subtitle_speed">Šiame rodinyje ar datų intervale nėra greičio duomenų. Greičio žemėlapiams reikia tinkamų sekimo metu surinktų vietos pavyzdžių.</string>
-    <string name="map_empty_subtitle_vehicle_compliance">Nėra su keliais susietų važiavimų, kuriuos būtų galima rodyti. Importuokite „OpenStreetMap“ regioną (Nustatymai) ir užfiksuokite važiavimo duomenų, kad maršrutas būtų susietas su tikrais keliais.</string>
     <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Atmesti pranešimą, kad nėra duomenų</string>
     <string name="map_speed_probe_title">Greitis čia</string>
     <string name="map_speed_probe_avg_label">Vidurkis</string>

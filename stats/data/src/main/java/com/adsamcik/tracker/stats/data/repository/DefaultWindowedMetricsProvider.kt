@@ -38,11 +38,11 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 
 	private suspend fun collectCumulative(metric: String): Long = when (metric) {
 		MetricKeys.STEPS,
-		MetricKeys.TOTAL_STEPS,
+		MetricKeys.STEPS_TOTAL,
 		-> dailySummaryDao.sumTotalSteps()
 
 		MetricKeys.DISTANCE_M -> dailySummaryDao.sumTotalDistance()
-		MetricKeys.TOTAL_DISTANCE_KM -> dailySummaryDao.sumTotalDistance() / METERS_PER_KM
+		MetricKeys.DISTANCE_TOTAL_M -> dailySummaryDao.sumTotalDistance()
 		MetricKeys.ACTIVE_MINUTES -> dailySummaryDao.sumActiveMinutes()
 		MetricKeys.CELLS_DISCOVERED -> explorationCellDao.countAtLevelLong(EXPLORATION_CELL_LEVEL)
 		MetricKeys.UNIQUE_AREAS -> explorationCellDao.countAtLevelLong(AREA_CELL_LEVEL)
@@ -56,13 +56,13 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 			sessionSegmentDao.countByActivity(ACTIVITY_NATIVE_BICYCLE)
 		MetricKeys.BEST_DAILY_STEPS -> dailySummaryDao.maxDailySteps()
 		MetricKeys.LONGEST_TRIP_KM -> sessionSegmentDao.maxSegmentDistance() / METERS_PER_KM
-		MetricKeys.TOTAL_TRIPS -> dailySummaryDao.sumTotalTrips()
-		MetricKeys.TRANSPORT_MODE_COUNT -> sessionSegmentDao.countDistinctActivities()
+		MetricKeys.SESSIONS_TOTAL -> dailySummaryDao.sumTotalTrips()
+		MetricKeys.ACTIVITY_TYPES_USED -> sessionSegmentDao.countDistinctActivities()
 		MetricKeys.SEASONS_EXPLORED -> countSeasonsExplored()
 		MetricKeys.DAILY_STREAK -> explorationStreakDao.getByType(DAILY_STREAK_TYPE)?.bestCount?.toLong() ?: 0L
 		MetricKeys.WEEKLY_STREAK -> explorationStreakDao.getByType(WEEKLY_STREAK_TYPE)?.bestCount?.toLong() ?: 0L
 		MetricKeys.TOTAL_EXPORTS -> exportLogDao.countTotal()
-		MetricKeys.ACTIVE_DAYS -> dailySummaryDao.countActiveDays(MetricKeys.MIN_DAILY_TRIPS)
+		MetricKeys.ACTIVE_DAYS_TOTAL -> dailySummaryDao.countActiveDays(MetricKeys.MIN_DAILY_TRIPS)
 		else -> 0L
 	}
 
@@ -78,11 +78,11 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 
 		return when (metric) {
 			MetricKeys.STEPS,
-			MetricKeys.TOTAL_STEPS,
+			MetricKeys.STEPS_TOTAL,
 			-> dailySummaryDao.sumStepsBetween(fromDay, toDay)
 
 			MetricKeys.DISTANCE_M -> dailySummaryDao.sumTotalDistanceBetween(fromDay, toDay)
-			MetricKeys.TOTAL_DISTANCE_KM -> dailySummaryDao.sumTotalDistanceBetween(fromDay, toDay) / METERS_PER_KM
+			MetricKeys.DISTANCE_TOTAL_M -> dailySummaryDao.sumTotalDistanceBetween(fromDay, toDay)
 			MetricKeys.ACTIVE_MINUTES -> dailySummaryDao.sumActiveMinutesBetween(fromDay, toDay)
 			MetricKeys.CELLS_DISCOVERED -> explorationCellDao.countDiscoveredBetween(fromMs, toMs, EXPLORATION_CELL_LEVEL)
 			MetricKeys.UNIQUE_AREAS -> explorationCellDao.countDiscoveredBetween(fromMs, toMs, AREA_CELL_LEVEL)
@@ -101,12 +101,12 @@ class DefaultWindowedMetricsProvider @Inject constructor(
 				toMs = toMs,
 				activityTypes = CYCLING_ACTIVITY_IDS,
 			)
-			MetricKeys.TOTAL_TRIPS -> dailySummaryDao.sumTripsBetween(fromDay, toDay)
-			MetricKeys.ACTIVE_DAYS -> dailySummaryDao.countActiveDaysBetween(fromDay, toDay, MetricKeys.MIN_DAILY_TRIPS)
+			MetricKeys.SESSIONS_TOTAL -> dailySummaryDao.sumTripsBetween(fromDay, toDay)
+			MetricKeys.ACTIVE_DAYS_TOTAL -> dailySummaryDao.countActiveDaysBetween(fromDay, toDay, MetricKeys.MIN_DAILY_TRIPS)
 
 			MetricKeys.BEST_DAILY_STEPS,
 			MetricKeys.LONGEST_TRIP_KM,
-			MetricKeys.TRANSPORT_MODE_COUNT,
+			MetricKeys.ACTIVITY_TYPES_USED,
 			MetricKeys.SEASONS_EXPLORED,
 			MetricKeys.DAILY_STREAK,
 			MetricKeys.WEEKLY_STREAK,

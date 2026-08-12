@@ -16,7 +16,6 @@ interface SignalProcessor {
 
 	/**
 	 * Called once when tracking starts.
-	 * Restore state from checkpoint if available.
 	 */
 	suspend fun onStart(context: ProcessorContext)
 
@@ -38,15 +37,4 @@ interface SignalProcessor {
 	 * Returns domain events produced during stop.
 	 */
 	suspend fun onStop(): List<DomainEvent>
-
-	/**
-	 * Serialize current state for crash recovery.
-	 * Returns null if processor has no state to checkpoint.
-	 */
-	fun checkpoint(): ByteArray?
-
-	/**
-	 * Restore state from a checkpoint.
-	 */
-	fun restore(state: ByteArray)
 }

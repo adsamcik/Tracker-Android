@@ -125,10 +125,6 @@ class ProjectionDispatcher @Inject constructor(
 		return ProjectionDispatchResult(event.admissionOrdinal, failures, quarantined)
 	}
 
-	suspend fun flush(cutoffOrdinal: Long) {
-		projections.forEach { projection -> projection.flush(cutoffOrdinal) }
-	}
-
 	private companion object {
 		const val STATUS_ACTIVE = "ACTIVE"
 	}

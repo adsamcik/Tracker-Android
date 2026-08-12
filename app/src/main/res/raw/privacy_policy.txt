@@ -21,7 +21,7 @@ Data created by the app stays on your device. This can include:
 
 ## Network Use
 
-Tracker Android can operate fully offline. The app does not make network calls for tracking, analytics, crash reporting, or remote storage. Network access is disabled for online map tiles by default and is enabled only if you opt in. You can turn online map tiles off at any time to use only the bundled offline basemap.
+Tracker Android can operate fully offline. The app does not make network calls for tracking, analytics, crash reporting, or remote storage. Online map tiles are recommended during setup for a richer map experience and are enabled only after you complete setup with that choice selected. You can choose the bundled offline basemap during setup or turn online map tiles off at any time.
 
 ## Permissions
 
@@ -43,7 +43,7 @@ Used only when you choose to import or export data through Android's system file
 
 ## Map Data (OpenStreetMap)
 
-Tracker Android can optionally use OpenStreetMap data to provide accurate per-road speed limits. When you import a `.osm.pbf` region file through the in-app picker, the file is parsed and stored entirely on your device. No part of the imported map data, your location, or your trips is ever uploaded.
+Tracker Android does not import or store `.osm.pbf` region files. Map data shown by the bundled basemap or optional online tile providers may incorporate OpenStreetMap data.
 
 OpenStreetMap data is © OpenStreetMap contributors and licensed under the Open Database License (ODbL) 1.0. See https://www.openstreetmap.org/copyright for details.
 

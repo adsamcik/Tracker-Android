@@ -94,8 +94,6 @@ class ProcessorPipelineTest {
 			return stopEvents()
 		}
 
-		override fun checkpoint(): ByteArray? = null
-		override fun restore(state: ByteArray) {}
 	}
 
 	private class DurableRecordingProcessor(

@@ -59,7 +59,7 @@ include(
 )
 include(":data:preferences")
 include(":stats:api", ":stats:engine", ":stats:data")
-include(":domain:points", ":domain:osm", ":domain:geocoder")
+include(":domain:points", ":domain:geocoder")
 include(":sensor:activity-api", ":sensor:activity")
 include(":feature:map:api", ":feature:map", ":feature:statistics:api", ":feature:statistics", ":feature:dashboard:api", ":feature:dashboard", ":feature:game:api", ":feature:game", ":feature:activity", ":feature:import-export", ":feature:tracker")
 include(":tools:ski-data-generator")

@@ -53,12 +53,6 @@
     <string name="map_layer_terrain_low">Redko tukaj</string>
     <string name="map_layer_terrain_mid">Včasih</string>
     <string name="map_layer_terrain_high">Pogosto tukaj</string>
-    <string name="map_layer_places_title">Pogosti kraji</string>
-    <string name="map_layer_places_chip">Kraji</string>
-    <string name="map_layer_places_description">Pomembni kraji kot oznake, katerih velikost in barva sta odvisni od pogostosti obiska. Dom in delo postaneta veliki topli piki; kraj, ki ste ga obiskali enkrat, ostane majhna hladna pika.</string>
-    <string name="map_layer_places_rare">Redko</string>
-    <string name="map_layer_places_often">Včasih</string>
-    <string name="map_layer_places_anchor">Vaša sidrišča</string>
     <string name="map_layer_speed_ribbon_title">Trak hitrosti</string>
     <string name="map_layer_speed_ribbon_chip">Trak</string>
     <string name="map_layer_speed_ribbon_description">Pot je pobarvana glede na hitrost gibanja, s tekočo barvo od počasnega vijoličastega sprehoda do rdeče vročega šprinta ali vožnje. Za razliko od toplotnega zemljevida hitrosti trak ohrani pot, zato natančno vidite, kje ste pospešili in upočasnili.</string>
@@ -80,9 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Spust navzdol</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Žičnica</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Hoja ali premor</string>
-    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Ozvezdja poti</string>
-    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Poti</string>
-    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Ponavljajoča se potovanja med pogostimi kraji postanejo ukrivljena ozvezdja. Stabilen lok prikazuje vsako pot, po njem pa potuje komet; debelejši loki pomenijo, da ste pot opravili pogosteje.</string>
     <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Hoja</string>
     <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Kolesarjenje</string>
     <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Vožnja</string>
@@ -98,18 +89,10 @@
     <string name="map_layer_first_contact_description">Časovnica odkritij: vsako območje je obarvano glede na to, kako nedavno ste tja prvič stopili. Kraji, ki ste jih našli davno, zbledijo v globoko indigo, tla, ki ste jih odkrili ta teden, pa žarijo v svetlem cianu — zgodbo raziskovanja berite navzven proti najnovejšim mejam.</string>
     <string name="map_layer_first_contact_old">Davno</string>
     <string name="map_layer_first_contact_recent">Pravkar odkrito</string>
-    <string name="map_layer_vehicle_compliance_title">Skladnost hitrosti vozila</string>
-    <string name="map_layer_vehicle_compliance_description">Polilinija vzorcev vožnje, pobarvana glede na primerjavo hitrosti z nastavljeno osnovno omejitvijo.</string>
-    <string name="map_layer_vehicle_compliance_way_under">Krepko pod omejitvijo</string>
-    <string name="map_layer_vehicle_compliance_slow">Pod omejitvijo</string>
-    <string name="map_layer_vehicle_compliance_at_limit">Blizu omejitve</string>
-    <string name="map_layer_vehicle_compliance_slightly_over">Nekoliko nad omejitvijo</string>
-    <string name="map_layer_vehicle_compliance_speeding">Prehitra vožnja</string>
     <string name="map_layer_location_polyline_description">Črta, ki skozi čas povezuje zabeležene lokacije.</string>
     <string name="map_layer_location_polyline_title">Polilinija lokacije</string>
     <string name="map_layer_location_polyline_chip">Polilinija</string>
     <string name="map_layer_wifi_count_heatmap_chip">Prekrivanje Wi‑Fi</string>
-    <string name="map_layer_vehicle_compliance_chip">Prehitra vožnja</string>
     <string name="map_layer_none_title">Brez prekrivne plasti</string>
     <string name="map_date_preset_week">Prejšnji teden</string>
     <string name="map_date_preset_month">Prejšnji mesec</string>
@@ -174,7 +157,6 @@
     <string name="map_empty_subtitle_cell">V tem prikazu ali časovnem obdobju ni podatkov o lociranih celicah. Vzorci celic, zabeleženi brez lokacije, so še shranjeni, vendar se ne morejo prikazati na zemljevidu.</string>
     <string name="map_empty_subtitle_wifi">V tem prikazu ali časovnem obdobju ni podatkov o lociranem omrežju Wi‑Fi. Opažanja Wi‑Fi, zabeležena brez lokacije, so še shranjena, vendar se ne morejo prikazati na zemljevidu.</string>
     <string name="map_empty_subtitle_speed">V tem prikazu ali časovnem obdobju ni podatkov o hitrosti. Zemljevidi hitrosti zahtevajo uporabne vzorce lokacije, zbrane med sledenjem.</string>
-    <string name="map_empty_subtitle_vehicle_compliance">Ni voženj, usklajenih s cestami, za prikaz. Uvozite regijo OpenStreetMap (Nastavitve) in zabeležite nekaj voženj, da lahko pot uskladimo z dejanskimi cestami.</string>
     <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Opusti sporočilo o manjkajočih podatkih</string>
     <string name="map_speed_probe_title">Hitrost tukaj</string>
     <string name="map_speed_probe_avg_label">Povprečje</string>

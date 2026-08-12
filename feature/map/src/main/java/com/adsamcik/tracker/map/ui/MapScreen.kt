@@ -477,7 +477,6 @@ fun MapScreen(
         "wifi_heatmap",
         "wifi_count_heatmap" -> stringResource(com.adsamcik.tracker.map.R.string.map_empty_subtitle_wifi)
         "speed_heatmap" -> stringResource(com.adsamcik.tracker.map.R.string.map_empty_subtitle_speed)
-        "vehicle_compliance" -> stringResource(com.adsamcik.tracker.map.R.string.map_empty_subtitle_vehicle_compliance)
         else -> stringResource(com.adsamcik.tracker.map.R.string.map_empty_subtitle_location)
     }
 

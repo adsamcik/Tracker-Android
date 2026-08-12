@@ -6,7 +6,6 @@ import javax.inject.Singleton
 
 enum class PreviousExitRecoveryAction {
 	ENQUEUE_WAL_DRAIN,
-	SUPPRESS_RESTART,
 	NONE,
 }
 
@@ -16,7 +15,6 @@ fun recoveryActionForExitReason(reason: Int): PreviousExitRecoveryAction = when 
 	ApplicationExitInfo.REASON_CRASH,
 	ApplicationExitInfo.REASON_CRASH_NATIVE,
 	ApplicationExitInfo.REASON_ANR -> PreviousExitRecoveryAction.ENQUEUE_WAL_DRAIN
-	ApplicationExitInfo.REASON_USER_REQUESTED -> PreviousExitRecoveryAction.SUPPRESS_RESTART
 	else -> PreviousExitRecoveryAction.NONE
 }
 
@@ -24,21 +22,26 @@ fun recoveryActionForExitReason(reason: Int): PreviousExitRecoveryAction = when 
 class PreviousExitRecoveryCoordinator @Inject constructor(
 	private val activeSessionStore: ActiveTrackingSessionStore,
 	private val pendingSignalDrainScheduler: PendingSignalDrainScheduler,
+	private val forceStopSourceSessionFinalizer: ForceStopSourceSessionFinalizer,
 ) {
 	suspend fun handle(reason: Int): PreviousExitRecoveryAction {
 		val action = recoveryActionForExitReason(reason)
 		when (action) {
 			PreviousExitRecoveryAction.ENQUEUE_WAL_DRAIN ->
 				pendingSignalDrainScheduler.enqueueExpedited()
-			PreviousExitRecoveryAction.SUPPRESS_RESTART ->
-				activeSessionStore.clear()
 			PreviousExitRecoveryAction.NONE -> Unit
 		}
 		return action
 	}
 
-	suspend fun suppressAfterForceStop() {
-		activeSessionStore.clear()
+	suspend fun suppressAfterForceStop(
+		completedAtMs: Long = System.currentTimeMillis(),
+	): ForceStopSourceSessionFinalization {
+		val finalization = forceStopSourceSessionFinalizer.finalize(completedAtMs)
+		when (val result = activeSessionStore.clear()) {
+			is ActiveTrackingSessionStoreResult.Success -> Unit
+			is ActiveTrackingSessionStoreResult.Failure -> throw result.cause
+		}
+		return finalization
 	}
 }
-

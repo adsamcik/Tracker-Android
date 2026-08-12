@@ -264,9 +264,9 @@ class SetupViewModel @Inject constructor(
             )
         }
 
-        // Online map tiles is opt-in. Only the on-state needs writing — the
-        // datastore default already represents the off-state, but we always
-        // mirror the user's choice so re-running onboarding stays idempotent.
+        // Mirror the onboarding choice explicitly. Online is recommended for
+        // the lowest-friction experience, while users can still select the
+        // bundled offline map before completing setup.
         onlineMapTilesRepository.setEnabled(s.onlineMapTilesEnabled)
 
         // Poke activity watcher so it picks up the new settings immediately
@@ -338,7 +338,7 @@ class SetupViewModel @Inject constructor(
         activityPermissionDenied = get<Boolean>(KEY_ACTIVITY_PERMISSION_DENIED) ?: false,
         wifiPermissionDenied = get<Boolean>(KEY_WIFI_PERMISSION_DENIED) ?: false,
         cellPermissionDenied = get<Boolean>(KEY_CELL_PERMISSION_DENIED) ?: false,
-        onlineMapTilesEnabled = get<Boolean>(KEY_ONLINE_MAP_TILES_ENABLED) ?: false,
+        onlineMapTilesEnabled = get<Boolean>(KEY_ONLINE_MAP_TILES_ENABLED) ?: true,
     )
 
     private companion object {

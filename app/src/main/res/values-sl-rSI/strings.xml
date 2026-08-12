@@ -14,30 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">Razvijalski način je onemogočen</string>
     <string name="settings_data_management_section">Upravljanje podatkov</string>
     <string name="settings_data_danger_zone_section">Območje nevarnosti</string>
-    <string name="settings_osm_import_section">Podatki zemljevida (OpenStreetMap)</string>
-    <string name="settings_osm_import_action_title">Uvozi regijo OSM</string>
-    <string name="settings_osm_import_action_summary">Izberite datoteko .osm.pbf. Skladnost vozila bo nato brez povezave uporabljala dejanske omejitve cest.</string>
-    <string name="settings_osm_import_unavailable_title">Uvoz zemljevida brez povezave ni na voljo</string>
-    <string name="settings_osm_import_action_unavailable">Uvoz zemljevida brez povezave začasno ni na voljo, dokler ne dokončamo zaščite varnosti datotek.</string>
-    <string name="settings_osm_import_action_running">Uvažanje — tapnite za preklic</string>
-    <string name="settings_osm_import_action_failed">Uvoza zemljevida brez povezave ni bilo mogoče dokončati.</string>
-    <string name="settings_osm_import_action_source_unavailable">Izbrane datoteke zemljevida ni bilo mogoče odpreti.</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">Uvožena je %1$d cesta iz %2$d vozlišč.</item>
-        <item quantity="two">Uvoženi sta %1$d cesti iz %2$d vozlišč.</item>
-        <item quantity="few">Uvožene so %1$d ceste iz %2$d vozlišč.</item>
-        <item quantity="other">Uvoženih je %1$d cest iz %2$d vozlišč.</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">Še ni bila uvožena nobena regija OpenStreetMap.</string>
-    <string name="settings_osm_imports_attribution">Podatki zemljevida © sodelavci projekta OpenStreetMap (ODbL 1.0). Vsa obdelava poteka v napravi.</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d cesta · uvoženo %2$s</item>
-        <item quantity="two">%1$,d cesti · uvoženo %2$s</item>
-        <item quantity="few">%1$,d ceste · uvoženo %2$s</item>
-        <item quantity="other">%1$,d cest · uvoženo %2$s</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">Odstrani uvoženo regijo</string>
-    <string name="settings_osm_import_remove_message">Želite odstraniti %1$s? Skladnost vozila se bo vrnila na fiksno osnovno vrednost, dokler znova ne uvozite regije.</string>
     <string name="settings_incremental_backups_title">Postopne varnostne kopije</string>
     <string name="settings_incremental_backups_summary">Izvozite le nove podatke od zadnje varnostne kopije. To zmanjša čas izvoza in velikost datoteke.</string>
     <string name="settings_reset_export_watermarks_title">Vsili celoten izvoz</string>
@@ -374,9 +350,9 @@
     <string name="setup_step_indicator">Korak %1$d od %2$d</string>
     <string name="setup_online_tiles_title">Spletne kartografske ploščice?</string>
     <string name="setup_online_tiles_subtitle">Tracker vključuje osnovni zemljevid brez povezave, zato deluje brez omrežja. Če želite bogatejše zemljevide, lahko namesto tega pretakate ploščice javnega ponudnika.</string>
-    <string name="setup_online_tiles_off_title">Samo brez povezave (priporočeno)</string>
+    <string name="setup_online_tiles_off_title">Samo brez povezave</string>
     <string name="setup_online_tiles_off_desc">Brez omrežnih zahtev. Uporablja se le priloženi osnovni zemljevid.</string>
-    <string name="setup_online_tiles_on_title">Uporabi spletne ploščice</string>
+    <string name="setup_online_tiles_on_title">Uporabi spletne ploščice (priporočeno)</string>
     <string name="setup_online_tiles_on_desc">Pretakajte vektorske ploščice z več podrobnostmi iz OpenFreeMap (privzeto). Ponudnika lahko pozneje spremenite v Nastavitve → Zemljevid.</string>
     <string name="setup_online_tiles_privacy">Ko je ta možnost omogočena, lahko ponudnik vidi vaš naslov IP in ploščice, ki jih nalagate — približno območje zemljevida, ki ga gledate. Tracker nikoli ne pošlje računa, identifikatorja ali zgodovine lokacij.</string>
     <string name="setup_online_tiles_change_later">To lahko kadar koli spremenite v Nastavitve → Zemljevid → Spletne kartografske ploščice.</string>

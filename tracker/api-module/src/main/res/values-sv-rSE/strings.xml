@@ -83,8 +83,6 @@
     <string name="settings_tracking_notice_summary">Ändringarna börjar gälla när du startar om spårningen</string>
     <string name="settings_tracking_required_accuracy_title">Krävd platsnoggrannhet</string>
     <string name="settings_tracking_title">Spårning</string>
-    <string name="settings_vehicle_speed_limit_baseline_title">Baslinje för fordonshastighetsgräns</string>
-    <string name="help_vehicle_speed_limit_baseline">Används av kartlagret Efterlevnad av fordonshastighet. Körprov färgas efter hur deras hastighet jämförs med denna baslinje. Välj ett värde som matchar gränserna där du oftast kör (t.ex. 50 km/h i städer, 90 km/h på motorvägar).</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="shortcut_start_tracking">Starta spårning</string>
     <string name="shortcut_start_tracking_long">Starta platsspårning</string>

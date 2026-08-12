@@ -14,28 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">Razvojni način rada je onemogućen</string>
     <string name="settings_data_management_section">Upravljanje podacima</string>
     <string name="settings_data_danger_zone_section">Rizična zona</string>
-    <string name="settings_osm_import_section">Podaci karte (OpenStreetMap)</string>
-    <string name="settings_osm_import_action_title">Uvezi OSM regiju</string>
-    <string name="settings_osm_import_action_summary">Odaberite datoteku .osm.pbf. Provjera usklađenosti vozila tada će izvan mreže upotrebljavati stvarna ograničenja cesta.</string>
-    <string name="settings_osm_import_unavailable_title">Izvanmrežni uvoz karte nije dostupan</string>
-    <string name="settings_osm_import_action_unavailable">Izvanmrežni uvoz karte privremeno nije dostupan dok se ne dovrše zaštite sigurnosti datoteka.</string>
-    <string name="settings_osm_import_action_running">Uvoz — dodirnite za otkazivanje</string>
-    <string name="settings_osm_import_action_failed">Izvanmrežni uvoz karte nije moguće dovršiti.</string>
-    <string name="settings_osm_import_action_source_unavailable">Odabranu datoteku karte nije moguće otvoriti.</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">Uvezena je %1$d cesta iz %2$d čvorova.</item>
-        <item quantity="few">Uvezene su %1$d ceste iz %2$d čvorova.</item>
-        <item quantity="other">Uvezeno je %1$d cesta iz %2$d čvorova.</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">Još nije uvezena nijedna OpenStreetMap regija.</string>
-    <string name="settings_osm_imports_attribution">Podaci karte © doprinositelji OpenStreetMapa (ODbL 1.0). Sva se obrada odvija na uređaju.</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d cesta · uvezeno %2$s</item>
-        <item quantity="few">%1$,d ceste · uvezeno %2$s</item>
-        <item quantity="other">%1$,d cesta · uvezeno %2$s</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">Ukloni uvezenu regiju</string>
-    <string name="settings_osm_import_remove_message">Ukloniti %1$s? Provjera usklađenosti vozila vratit će se na fiksnu osnovnu vrijednost dok ponovno ne uvezete regiju.</string>
     <string name="settings_incremental_backups_title">Postupne sigurnosne kopije</string>
     <string name="settings_incremental_backups_summary">Izvezite samo nove podatke od posljednje sigurnosne kopije. Smanjuje vrijeme izvoza i veličinu datoteke.</string>
     <string name="settings_reset_export_watermarks_title">Prisili potpuni izvoz</string>
@@ -368,9 +346,9 @@
     <string name="setup_step_indicator">Korak %1$d od %2$d</string>
     <string name="setup_online_tiles_title">Mrežne pločice karte?</string>
     <string name="setup_online_tiles_subtitle">Tracker dolazi s izvanmrežnom osnovnom kartom pa radi bez mreže. Ako želite bogatije karte, umjesto toga možete preuzimati pločice s javnog pružatelja.</string>
-    <string name="setup_online_tiles_off_title">Samo izvan mreže (preporučeno)</string>
+    <string name="setup_online_tiles_off_title">Samo izvan mreže</string>
     <string name="setup_online_tiles_off_desc">Nema mrežnih zahtjeva. Upotrebljava se samo priložena osnovna karta.</string>
-    <string name="setup_online_tiles_on_title">Upotrebljavaj mrežne pločice</string>
+    <string name="setup_online_tiles_on_title">Upotrebljavaj mrežne pločice (preporučeno)</string>
     <string name="setup_online_tiles_on_desc">Preuzimajte vektorske pločice s više pojedinosti s OpenFreeMapa (zadano). Pružatelja možete kasnije promijeniti u Postavkama → Karta.</string>
     <string name="setup_online_tiles_privacy">Dok je uključeno, pružatelj može vidjeti vašu IP adresu i pločice koje učitavate — otprilike koje područje karte gledate. Tracker nikada ne šalje račun, identifikator ni povijest lokacija.</string>
     <string name="setup_online_tiles_change_later">Ovo možete bilo kada promijeniti u Postavkama → Karta → Mrežne pločice karte.</string>

@@ -162,18 +162,6 @@ data class LocationSample(
 	@ColumnInfo(name = "calibration_version", defaultValue = "0")
 	val calibrationVersion: Int = 0,
 
-	/** Exact latitude retained from the pre-E7 2024.1 schema. */
-	@ColumnInfo(name = "legacy_lat")
-	val legacyLat: Double? = null,
-
-	/** Exact longitude retained from the pre-E7 2024.1 schema. */
-	@ColumnInfo(name = "legacy_lon")
-	val legacyLon: Double? = null,
-
-	/** Exact altitude retained from the 2024.1 schema. */
-	@ColumnInfo(name = "legacy_alt_m")
-	val legacyAltM: Double? = null,
-
 	/** Stable pending-signal identity used to make replay idempotent. */
 	@ColumnInfo(name = "source_signal_id")
 	val sourceSignalId: String? = null,

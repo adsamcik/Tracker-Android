@@ -19,6 +19,8 @@ import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 
 import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.DashboardCustomize
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GpsFixed
@@ -29,6 +31,7 @@ import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -53,9 +56,9 @@ import com.adsamcik.tracker.app.settings.SettingsScreen
 import com.adsamcik.tracker.app.settings.SettingsViewModel
 import com.adsamcik.tracker.app.settings.components.DialogListPreference
 import com.adsamcik.tracker.app.settings.components.PrivacyPolicyDialog
-import com.adsamcik.tracker.app.settings.components.SectionHeader
 import com.adsamcik.tracker.app.settings.components.SettingsGroupCard
 import com.adsamcik.tracker.app.settings.components.SettingsItem
+import com.adsamcik.tracker.app.settings.components.SettingsRowDivider
 import com.adsamcik.tracker.app.settings.components.SwitchSettingsItem
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsState
 import com.adsamcik.tracker.shared.preferences.type.LengthSystem
@@ -119,6 +122,7 @@ internal fun RootSettingsContent(
         item {
             SettingsGroupCard(
                 title = stringResource(R.string.settings_core_group_title),
+                icon = Icons.Default.DashboardCustomize,
                 modifier = Modifier.padding(top = 12.dp)
             ) {
                 SettingsItem(
@@ -126,11 +130,13 @@ internal fun RootSettingsContent(
                     icon = Icons.Default.GpsFixed,
                     onClick = { onNavigate(SettingsScreen.Tracking) }
                 )
+                SettingsRowDivider()
                 SettingsItem(
                     title = stringResource(R.string.settings_data_title),
                     icon = Icons.Default.Folder,
                     onClick = { onNavigate(SettingsScreen.Data) }
                 )
+                SettingsRowDivider()
                 SettingsItem(
                     title = stringResource(com.adsamcik.tracker.activity.R.string.settings_activity_title),
                     icon = Icons.AutoMirrored.Filled.DirectionsRun,
@@ -143,6 +149,7 @@ internal fun RootSettingsContent(
         item {
             SettingsGroupCard(
                 title = stringResource(R.string.settings_other_title),
+                icon = Icons.Default.Tune,
                 modifier = Modifier.padding(top = 12.dp)
             ) {
                 // Length system
@@ -158,6 +165,7 @@ internal fun RootSettingsContent(
                         onLengthSystemSelected(lengthValues[selectedIndex])
                     }
                 )
+                SettingsRowDivider()
 
                 // Auto unit switch
                 SwitchSettingsItem(
@@ -167,6 +175,7 @@ internal fun RootSettingsContent(
                     checked = state.autoUnitSwitch,
                     onCheckedChange = onAutoUnitSwitchChanged
                 )
+                SettingsRowDivider()
 
                 // Speed format
                 val speedNames = stringArrayResource(R.array.settings_speed_format_names).toList()
@@ -181,6 +190,7 @@ internal fun RootSettingsContent(
                         onSpeedFormatSelected(speedValues[selectedIndex])
                     }
                 )
+                SettingsRowDivider()
 
                 // Language
                 SettingsItem(
@@ -201,6 +211,7 @@ internal fun RootSettingsContent(
         item {
             SettingsGroupCard(
                 title = stringResource(R.string.settings_module_group_title),
+                icon = Icons.Default.Category,
                 modifier = Modifier.padding(top = 12.dp)
             ) {
                 SettingsItem(
@@ -209,6 +220,7 @@ internal fun RootSettingsContent(
                     icon = Icons.Default.Map,
                     onClick = { onNavigate(SettingsScreen.Map) }
                 )
+                SettingsRowDivider()
                 SettingsItem(
                     title = stringResource(R.string.module_game_title),
                     subtitle = stringResource(R.string.settings_module_game_subtitle),
@@ -223,6 +235,7 @@ internal fun RootSettingsContent(
         item {
             SettingsGroupCard(
                 title = stringResource(R.string.settings_about_header),
+                icon = Icons.Default.Info,
                 modifier = Modifier.padding(top = 12.dp)
             ) {
                 SettingsItem(
@@ -231,6 +244,7 @@ internal fun RootSettingsContent(
                     icon = Icons.Default.Info,
                     onClick = onNavigateToAbout
                 )
+                SettingsRowDivider()
                 SettingsItem(
                     title = stringResource(R.string.settings_licenses_title),
                     icon = Icons.AutoMirrored.Filled.Article,
@@ -238,11 +252,13 @@ internal fun RootSettingsContent(
                         context.startActivity(Intent(context, ThirdPartyLicensesActivity::class.java))
                     }
                 )
+                SettingsRowDivider()
                 SettingsItem(
                     title = stringResource(R.string.settings_privacy_policy_title),
                     icon = Icons.Default.PrivacyTip,
                     onClick = { showPrivacyPolicy = true }
                 )
+                SettingsRowDivider()
                 SettingsItem(
                     title = stringResource(R.string.settings_tracebox_title),
                     subtitle = stringResource(R.string.settings_tracebox_root_summary),
@@ -258,6 +274,7 @@ internal fun RootSettingsContent(
                 SettingsGroupCard(
                     modifier = Modifier.padding(top = 12.dp),
                     title = stringResource(R.string.settings_debug_group_title),
+                    icon = Icons.Default.BugReport,
                 ) {
                     SettingsItem(
                         title = stringResource(R.string.settings_debug_title),
@@ -299,7 +316,7 @@ internal fun RootSettingsContent(
                         }
                     },
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
                 )
             ) {
                 Column(

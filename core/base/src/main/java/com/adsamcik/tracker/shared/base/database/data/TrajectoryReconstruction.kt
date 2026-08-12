@@ -160,35 +160,6 @@ data class TrajectorySourceLinkEntity(
 )
 
 @Entity(
-	tableName = "route_hypothesis",
-	foreignKeys = [
-		ForeignKey(
-			entity = TrajectoryReconstructionRunEntity::class,
-			parentColumns = ["run_id"],
-			childColumns = ["run_id"],
-			onDelete = ForeignKey.CASCADE,
-		),
-	],
-	indices = [Index(value = ["run_id", "rank"], unique = true, name = "idx_route_hypothesis_rank")],
-)
-data class RouteHypothesisEntity(
-	@PrimaryKey(autoGenerate = true)
-	val id: Long = 0,
-	@ColumnInfo(name = "run_id")
-	val runId: String,
-	val rank: Int,
-	val probability: Double,
-	@ColumnInfo(name = "map_version")
-	val mapVersion: String?,
-	@ColumnInfo(name = "travel_mode")
-	val travelMode: String,
-	@ColumnInfo(name = "encoded_geometry")
-	val encodedGeometry: ByteArray?,
-	@ColumnInfo(name = "unmatched_spans")
-	val unmatchedSpans: String?,
-)
-
-@Entity(
 	tableName = "visit_interval",
 	foreignKeys = [
 		ForeignKey(

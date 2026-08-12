@@ -23,7 +23,7 @@ class TrackingPresetSelectorTest {
     val composeTestRule = createComposeRule()
 
     @Test
-    fun displaysTitleAndSubtitle() {
+    fun displaysPlainLanguageSubtitle() {
         composeTestRule.setContent {
             AppTheme {
                 TrackingPresetSelector(
@@ -33,11 +33,11 @@ class TrackingPresetSelectorTest {
                 )
             }
         }
-        composeTestRule.onNodeWithText("Tracking", substring = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("balance between route detail", substring = true).assertIsDisplayed()
     }
 
     @Test
-    fun displaysAllPresetCards() {
+    fun showsOnlyCurrentPresetUntilChangeIsRequested() {
         composeTestRule.setContent {
             AppTheme {
                 TrackingPresetSelector(
@@ -47,9 +47,11 @@ class TrackingPresetSelectorTest {
                 )
             }
         }
-        // Preset names from string resources
-        composeTestRule.onNodeWithText("High Accuracy", substring = true).assertIsDisplayed()
         composeTestRule.onNodeWithText("Balanced", substring = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("High Accuracy", substring = true).assertDoesNotExist()
+
+        composeTestRule.onNodeWithText("Compare options").performClick()
+        composeTestRule.onNodeWithText("High Accuracy", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -64,6 +66,7 @@ class TrackingPresetSelectorTest {
                 )
             }
         }
+        composeTestRule.onNodeWithText("Compare options").performClick()
         composeTestRule.onNodeWithText("High Accuracy", substring = true).performClick()
         selected shouldBe TrackingPreset.HIGH_ACCURACY
     }
@@ -94,8 +97,7 @@ class TrackingPresetSelectorTest {
                 )
             }
         }
-        // Verify the selector renders with the title visible
-        composeTestRule.onNodeWithText("Tracking", substring = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Power Save", substring = true).assertIsDisplayed()
     }
 
     @Test

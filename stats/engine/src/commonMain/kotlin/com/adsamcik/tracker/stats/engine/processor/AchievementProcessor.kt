@@ -195,32 +195,4 @@ class AchievementProcessor(
 				?.key
 		}
 	}
-
-	override fun checkpoint(): ByteArray {
-		val baos = java.io.ByteArrayOutputStream()
-		val dos = java.io.DataOutputStream(baos)
-		dos.writeInt(previousProgress.size)
-		for ((key, pair) in previousProgress) {
-			dos.writeUTF(key)
-			dos.writeLong(pair.first)
-			dos.writeBoolean(pair.second != null)
-			if (pair.second != null) dos.writeInt(pair.second!!.ordinal)
-		}
-		dos.flush()
-		return baos.toByteArray()
-	}
-
-	override fun restore(state: ByteArray) {
-		val dis = java.io.DataInputStream(java.io.ByteArrayInputStream(state))
-		previousProgress.clear()
-		previousPacingDays.clear()
-		val size = dis.readInt()
-		repeat(size) {
-			val key = dis.readUTF()
-			val value = dis.readLong()
-			val hasTier = dis.readBoolean()
-			val tier = if (hasTier) AchievementTier.entries[dis.readInt()] else null
-			previousProgress[key] = Pair(value, tier)
-		}
-	}
 }

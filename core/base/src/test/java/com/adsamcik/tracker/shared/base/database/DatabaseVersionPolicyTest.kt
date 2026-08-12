@@ -7,6 +7,7 @@ class DatabaseVersionPolicyTest {
 	@Test
 	fun `unreleased schema work uses one version after released version 26`() {
 		assertEquals(27, CURRENT_DATABASE_VERSION)
-		assertEquals(27, AppDatabase.migrations.maxOf { it.endVersion })
+		assertEquals(26, AppDatabase.legacyPublicMigrationsThroughV26.maxOf { it.endVersion })
+		assertEquals(0, AppDatabase.activeMigrations.size)
 	}
 }

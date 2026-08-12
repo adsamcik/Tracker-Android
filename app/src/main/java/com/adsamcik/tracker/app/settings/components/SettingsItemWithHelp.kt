@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material3.AlertDialog
@@ -95,11 +94,7 @@ fun SliderSettingsItemWithHelp(
                 enabled = enabled,
             )
             Spacer(Modifier.width(12.dp))
-            Text(
-                text = valueLabel(value),
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.widthIn(min = 60.dp)
-            )
+            SettingsValuePill(valueLabel(value))
         }
     }
     

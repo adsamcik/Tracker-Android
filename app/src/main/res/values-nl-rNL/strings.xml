@@ -14,26 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">Ontwikkelaarsmodus uitgeschakeld</string>
     <string name="settings_data_management_section">Gegevensbeheer</string>
     <string name="settings_data_danger_zone_section">Gevarenzone</string>
-    <string name="settings_osm_import_section">Kaartgegevens (OpenStreetMap)</string>
-    <string name="settings_osm_import_action_title">OSM-regio importeren</string>
-    <string name="settings_osm_import_action_summary">Kies een .osm.pbf-bestand. De controle op voertuignaleving gebruikt dan offline de werkelijke wegbeperkingen.</string>
-    <string name="settings_osm_import_unavailable_title">Offline-kaartimport niet beschikbaar</string>
-    <string name="settings_osm_import_action_unavailable">Offline-kaartimport is tijdelijk niet beschikbaar terwijl de beveiliging van bestanden wordt voltooid.</string>
-    <string name="settings_osm_import_action_running">Importeren — tik om te annuleren</string>
-    <string name="settings_osm_import_action_failed">Offline-kaartimport kon niet worden voltooid.</string>
-    <string name="settings_osm_import_action_source_unavailable">Het geselecteerde kaartbestand kon niet worden geopend.</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">%1$d weg uit %2$d knooppunten geïmporteerd.</item>
-        <item quantity="other">%1$d wegen uit %2$d knooppunten geïmporteerd.</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">Nog geen OpenStreetMap-regio geïmporteerd.</string>
-    <string name="settings_osm_imports_attribution">Kaartgegevens © bijdragers aan OpenStreetMap (ODbL 1.0). Alle verwerking gebeurt op het apparaat.</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d weg · geïmporteerd %2$s</item>
-        <item quantity="other">%1$,d wegen · geïmporteerd %2$s</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">Geïmporteerde regio verwijderen</string>
-    <string name="settings_osm_import_remove_message">%1$s verwijderen? De controle op voertuignaleving valt terug op de vaste basiswaarde tot je opnieuw een regio importeert.</string>
     <string name="settings_incremental_backups_title">Incrementele back-ups</string>
     <string name="settings_incremental_backups_summary">Exporteer alleen nieuwe gegevens sinds de laatste back-up. Verkort de exporttijd en vermindert de bestandsgrootte.</string>
     <string name="settings_reset_export_watermarks_title">Volledige export forceren</string>
@@ -362,9 +342,9 @@
     <string name="setup_step_indicator">Stap %1$d van %2$d</string>
     <string name="setup_online_tiles_title">Online kaarttegels?</string>
     <string name="setup_online_tiles_subtitle">Tracker wordt geleverd met een offline-basiskaart, zodat hij zonder netwerk werkt. Voor rijkere kaarten kun je in plaats daarvan tegels van een openbare provider streamen.</string>
-    <string name="setup_online_tiles_off_title">Alleen offline (aanbevolen)</string>
+    <string name="setup_online_tiles_off_title">Alleen offline</string>
     <string name="setup_online_tiles_off_desc">Geen netwerkverzoeken. Alleen de meegeleverde basiskaart wordt gebruikt.</string>
-    <string name="setup_online_tiles_on_title">Online tegels gebruiken</string>
+    <string name="setup_online_tiles_on_title">Online tegels gebruiken (aanbevolen)</string>
     <string name="setup_online_tiles_on_desc">Stream vectortegels met meer detail van OpenFreeMap (standaard). Je kunt de provider later wijzigen in Instellingen → Kaart.</string>
     <string name="setup_online_tiles_privacy">Wanneer deze optie is ingeschakeld, kan de provider je IP-adres zien en welke tegels je laadt — ruwweg welk gebied op de kaart je bekijkt. Tracker verzendt nooit een account, identificatiecode of je locatiegeschiedenis.</string>
     <string name="setup_online_tiles_change_later">Je kunt dit altijd wijzigen via Instellingen → Kaart → Online-kaarttegels.</string>

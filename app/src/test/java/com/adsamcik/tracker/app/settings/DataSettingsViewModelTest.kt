@@ -9,6 +9,11 @@ import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackup
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupException
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
+import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseRepository
+import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseInfo
+import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseState
+import com.adsamcik.tracker.shared.base.database.legacy.LegacyImportReport
+import com.adsamcik.tracker.shared.base.database.legacy.LegacyImportStatus
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
@@ -48,7 +53,9 @@ class DataSettingsViewModelTest {
     private val contentResolver: ContentResolver = mockk()
     private val backupRepository: DatabaseMigrationBackupRepository = mockk()
     private val deletionService: CollectedDataDeletionService = mockk()
+    private val legacyDatabaseRepository: LegacyDatabaseRepository = mockk()
     private val backupFlow = MutableStateFlow<DatabaseMigrationBackup?>(null)
+    private val legacyStateFlow = MutableStateFlow(emptyLegacyState())
     private val preferences: Preferences = mockk()
     private val smartGoalNotificationsFlow = MutableStateFlow(true)
 
@@ -57,19 +64,18 @@ class DataSettingsViewModelTest {
         Dispatchers.setMain(testDispatcher)
         configFlow.value = RetentionConfigState()
         backupFlow.value = null
+        legacyStateFlow.value = emptyLegacyState()
 
         every { retentionConfigStore.config } returns configFlow
         every { exportPlanStore.plans } returns MutableStateFlow(emptyList())
         every { appContext.contentResolver } returns contentResolver
         every { backupRepository.backups } returns backupFlow
+        every { legacyDatabaseRepository.states } returns legacyStateFlow
         every { backupRepository.latestBackup() } returns null
         coEvery { deletionService.deleteAll() } just Runs
         every { appContext.getString(R.string.settings_smart_goal_notifications_key) } returns "smartGoalNotifications"
         every { preferences.observeBoolean("smartGoalNotifications", true) } returns smartGoalNotificationsFlow
-        every { preferences.edit(any()) } answers {
-            firstArg<com.adsamcik.tracker.shared.preferences.MutablePreferences.() -> Unit>()
-            Unit
-        }
+        every { preferences.edit(any()) } just Runs
         coEvery { retentionConfigStore.update(any()) } answers {
             @Suppress("UNCHECKED_CAST")
             val block = invocation.args[0] as (RetentionConfigState.() -> RetentionConfigState)
@@ -88,6 +94,7 @@ class DataSettingsViewModelTest {
         exportPlanStore = exportPlanStore,
         preferences = preferences,
         backupRepository = backupRepository,
+        legacyDatabaseRepository = legacyDatabaseRepository,
         dispatchers = TestDispatchersProvider(testDispatcher),
         deletionService = deletionService,
     )
@@ -381,6 +388,66 @@ class DataSettingsViewModelTest {
     }
 
     @Nested
+    @DisplayName("Legacy database vault")
+    inner class LegacyDatabaseVault {
+
+        @Test
+        fun `exposes legacy size status and aggregate report`() = runTest(testDispatcher) {
+            legacyStateFlow.value = LegacyDatabaseState(
+                database = legacyInfo(),
+                importStatus = LegacyImportStatus.COMPLETE,
+                report = LegacyImportReport(
+                    sourceVersion = 26,
+                    importedRows = mapOf("location_sample" to 4L, "step_interval" to 3L),
+                    skippedRows = mapOf("achievement_progress" to 2L),
+                    completedAtMs = 1234L,
+                ),
+                lastError = null,
+                externallyExported = false,
+            )
+
+            createViewModel().uiState.test {
+                var state = awaitItem()
+                if (state.legacyDatabase == null) state = awaitItem()
+                state.legacyDatabase?.sourceVersion shouldBe 26
+                state.legacyDatabase?.sizeBytes shouldBe 4096L
+                state.legacyDatabase?.importedRows shouldBe 7L
+                state.legacyDatabase?.skippedRows shouldBe 2L
+                state.legacyDatabase?.canDelete shouldBe true
+            }
+        }
+
+        @Test
+        fun `exports through repository and reports success`() = runTest(testDispatcher) {
+            val uri: Uri = mockk()
+            val output = ByteArrayOutputStream()
+            every { contentResolver.openOutputStream(uri, "rwt") } returns output
+            every { legacyDatabaseRepository.export(output) } answers {
+                output.write(byteArrayOf(4, 2))
+                legacyInfo()
+            }
+            var result: LegacyDatabaseExportResult? = null
+
+            createViewModel().exportLegacyDatabase(uri) { result = it }
+
+            result shouldBe LegacyDatabaseExportResult.Success
+            output.toByteArray().toList() shouldBe listOf<Byte>(4, 2)
+            verify(exactly = 1) { legacyDatabaseRepository.export(output) }
+        }
+
+        @Test
+        fun `deletes only through guarded repository action`() = runTest(testDispatcher) {
+            every { legacyDatabaseRepository.delete() } returns 4096L
+            var result: LegacyDatabaseDeleteResult? = null
+
+            createViewModel().deleteLegacyDatabase { result = it }
+
+            result shouldBe LegacyDatabaseDeleteResult.Success
+            verify(exactly = 1) { legacyDatabaseRepository.delete() }
+        }
+    }
+
+    @Nested
     @DisplayName("Collected data deletion")
     inner class CollectedDataDeletion {
 
@@ -427,4 +494,20 @@ class DataSettingsViewModelTest {
         targetVersion = 35,
         createdAtMs = 1_700_000_000_000L,
     )
+
+    private fun legacyInfo() = LegacyDatabaseInfo(
+        file = File("main_database"),
+        sourceVersion = 26,
+        sizeBytes = 4096L,
+    )
+
+    private companion object {
+        fun emptyLegacyState() = LegacyDatabaseState(
+            database = null,
+            importStatus = LegacyImportStatus.NOT_STARTED,
+            report = null,
+            lastError = null,
+            externallyExported = false,
+        )
+    }
 }

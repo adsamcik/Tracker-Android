@@ -1,19 +1,13 @@
 package com.adsamcik.tracker.app.settings.map
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.PrivacyTip
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -26,14 +20,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.settings.MapSettingsViewModel
-import com.adsamcik.tracker.app.settings.components.SettingsItem
+import com.adsamcik.tracker.app.settings.components.SettingsGroupCard
+import com.adsamcik.tracker.app.settings.components.SettingsItemWithValue
+import com.adsamcik.tracker.app.settings.components.SettingsNoticeCard
+import com.adsamcik.tracker.app.settings.components.SettingsRowDivider
 import com.adsamcik.tracker.app.settings.components.SingleChoiceDialog
 import com.adsamcik.tracker.app.settings.components.SwitchSettingsItem
 import com.adsamcik.tracker.map.online.TileProvider
@@ -56,92 +51,64 @@ fun OnlineTilesSection(viewModel: MapSettingsViewModel) {
 	val state by viewModel.onlineTiles.collectAsState()
 	val provider = TileProvider.resolve(state.providerId, state.customUrl)
 
-	Text(
-		text = stringResource(R.string.settings_map_online_tiles_section_title),
-		style = MaterialTheme.typography.titleSmall,
-		color = MaterialTheme.colorScheme.primary,
-		modifier = Modifier
-			.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp)
-			.semantics { heading() },
-	)
-
-	Card(
-		modifier = Modifier
-			.fillMaxWidth()
-			.padding(horizontal = 16.dp, vertical = 4.dp),
-		colors = CardDefaults.cardColors(
-			containerColor = MaterialTheme.colorScheme.surfaceVariant,
-		),
-	) {
-		Row(
-			modifier = Modifier.padding(16.dp),
-			horizontalArrangement = Arrangement.spacedBy(12.dp),
+	Column(modifier = Modifier.padding(top = 12.dp)) {
+		SettingsGroupCard(
+			title = stringResource(R.string.settings_map_online_tiles_section_title),
+			icon = Icons.Default.Cloud,
 		) {
-			Icon(
-				Icons.Default.PrivacyTip,
-				contentDescription = null,
-				tint = MaterialTheme.colorScheme.onSurfaceVariant,
+			SwitchSettingsItem(
+				title = stringResource(R.string.settings_map_online_tiles_enable_title),
+				subtitle = if (state.enabled) {
+					stringResource(R.string.settings_map_online_tiles_enable_subtitle_on, provider.displayName)
+				} else {
+					stringResource(R.string.settings_map_online_tiles_enable_subtitle_off)
+				},
+				icon = Icons.Default.Cloud,
+				checked = state.enabled,
+				onCheckedChange = viewModel::setOnlineTilesEnabled,
 			)
-			Text(
-				text = stringResource(R.string.settings_map_online_tiles_privacy_disclosure),
-				style = MaterialTheme.typography.bodyMedium,
-				color = MaterialTheme.colorScheme.onSurfaceVariant,
-			)
+
+			if (state.enabled) {
+				SettingsRowDivider()
+				ProviderPickerItem(
+					activeProviderId = state.providerId,
+					onProviderSelected = viewModel::setOnlineProviderId,
+				)
+
+				if (state.providerId == TileProvider.Custom.ID) {
+					SettingsRowDivider()
+					OutlinedTextField(
+						value = state.customUrl,
+						onValueChange = viewModel::setOnlineCustomUrl,
+						label = { Text(stringResource(R.string.settings_map_online_tiles_custom_url_label)) },
+						placeholder = { Text(stringResource(R.string.settings_map_online_tiles_custom_url_hint)) },
+						singleLine = true,
+						keyboardOptions = KeyboardOptions(
+							capitalization = KeyboardCapitalization.None,
+							autoCorrectEnabled = false,
+							keyboardType = KeyboardType.Uri,
+						),
+						modifier = Modifier
+							.fillMaxWidth()
+							.padding(16.dp)
+							.testTag("OnlineTilesCustomUrlField"),
+					)
+				}
+
+				Text(
+					text = stringResource(R.string.settings_map_online_tiles_attribution_format, provider.attribution),
+					style = MaterialTheme.typography.labelSmall,
+					color = MaterialTheme.colorScheme.onSurfaceVariant,
+					modifier = Modifier.padding(start = 68.dp, end = 16.dp, bottom = 12.dp),
+				)
+			}
 		}
-	}
-
-	SwitchSettingsItem(
-		title = stringResource(R.string.settings_map_online_tiles_enable_title),
-		subtitle = if (state.enabled) {
-			stringResource(
-				R.string.settings_map_online_tiles_enable_subtitle_on,
-				provider.displayName,
-			)
-		} else {
-			stringResource(R.string.settings_map_online_tiles_enable_subtitle_off)
-		},
-		icon = Icons.Default.Cloud,
-		checked = state.enabled,
-		onCheckedChange = viewModel::setOnlineTilesEnabled,
-	)
-
-	if (state.enabled) {
-		ProviderPickerItem(
-			activeProviderId = state.providerId,
-			onProviderSelected = viewModel::setOnlineProviderId,
-		)
-
-		if (state.providerId == TileProvider.Custom.ID) {
-			OutlinedTextField(
-				value = state.customUrl,
-				onValueChange = viewModel::setOnlineCustomUrl,
-				label = { Text(stringResource(R.string.settings_map_online_tiles_custom_url_label)) },
-				placeholder = { Text(stringResource(R.string.settings_map_online_tiles_custom_url_hint)) },
-				singleLine = true,
-				keyboardOptions = KeyboardOptions(
-					capitalization = KeyboardCapitalization.None,
-					autoCorrectEnabled = false,
-					keyboardType = KeyboardType.Uri,
-				),
-				modifier = Modifier
-					.fillMaxWidth()
-					.padding(horizontal = 16.dp, vertical = 4.dp)
-					.testTag("OnlineTilesCustomUrlField"),
-			)
-		}
-
-		Text(
-			text = stringResource(
-				R.string.settings_map_online_tiles_attribution_format,
-				provider.attribution,
-			),
-			style = MaterialTheme.typography.bodySmall,
-			color = MaterialTheme.colorScheme.onSurfaceVariant,
-			modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+		SettingsNoticeCard(
+			text = stringResource(R.string.settings_map_online_tiles_privacy_disclosure),
+			icon = Icons.Default.PrivacyTip,
+			modifier = Modifier.padding(top = 8.dp),
 		)
 	}
-
-	Spacer(Modifier.height(8.dp))
 }
 
 /**
@@ -174,9 +141,10 @@ private fun ProviderPickerItem(
 		.coerceAtLeast(0)
 	var showDialog by remember { mutableStateOf(false) }
 
-	SettingsItem(
+	SettingsItemWithValue(
 		title = stringResource(R.string.settings_map_online_tiles_provider_title),
-		subtitle = labels[activeIndex],
+		value = labels[activeIndex],
+		icon = Icons.Default.Public,
 		onClick = { showDialog = true },
 		modifier = Modifier.testTag("OnlineTilesProviderPicker"),
 	)

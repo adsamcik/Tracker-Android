@@ -81,26 +81,6 @@ data class WifiObservation(
 	@ColumnInfo(name = "created_at")
 	val createdAt: Long,
 
-	/**
-	 * First-seen timestamp retained from the 2024.1 aggregate Wi-Fi record.
-	 */
-	@ColumnInfo(name = "legacy_first_seen_ms")
-	val legacyFirstSeenMs: Long? = null,
-
-	/**
-	 * Altitude retained from the 2024.1 aggregate Wi-Fi record.
-	 */
-	@ColumnInfo(name = "legacy_alt_m")
-	val legacyAltM: Double? = null,
-
-	/** Exact latitude retained before E7 conversion. */
-	@ColumnInfo(name = "legacy_lat")
-	val legacyLat: Double? = null,
-
-	/** Exact longitude retained before E7 conversion. */
-	@ColumnInfo(name = "legacy_lon")
-	val legacyLon: Double? = null,
-
 	/** Stable pending-signal identity for this fan-out item. */
 	@ColumnInfo(name = "source_signal_id")
 	val sourceSignalId: String? = null,

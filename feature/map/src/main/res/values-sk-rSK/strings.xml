@@ -53,12 +53,6 @@
     <string name="map_layer_terrain_low">Zriedka tu</string>
     <string name="map_layer_terrain_mid">Niekedy</string>
     <string name="map_layer_terrain_high">Často tu</string>
-    <string name="map_layer_places_title">Časté miesta</string>
-    <string name="map_layer_places_chip">Miesta</string>
-    <string name="map_layer_places_description">Vaše dôležité miesta ako značky, pričom ich veľkosť a farba závisia od frekvencie návštev. Domov a práca sa stanú veľkými teplými bodmi; miesto navštívené raz zostane malým chladným bodom.</string>
-    <string name="map_layer_places_rare">Zriedka</string>
-    <string name="map_layer_places_often">Niekedy</string>
-    <string name="map_layer_places_anchor">Vaše kotvy</string>
     <string name="map_layer_speed_ribbon_title">Stuha rýchlosti</string>
     <string name="map_layer_speed_ribbon_chip">Stuha</string>
     <string name="map_layer_speed_ribbon_description">Vaša trasa je zafarbená podľa rýchlosti pohybu, s plynulou farbou od pomalej fialovej chôdze po červený šprint alebo jazdu. Na rozdiel od teplotnej mapy rýchlosti stuha zachováva vašu trasu, takže presne vidíte, kde ste zrýchlili a spomalili.</string>
@@ -80,9 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Zjazd</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Vlek</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Chôdza alebo prestávka</string>
-    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Súhvezdia ciest</string>
-    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Cesty</string>
-    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Opakované cesty medzi častými miestami sa menia na zakrivené súhvezdia. Stabilný oblúk zobrazuje každú trasu, zatiaľ čo po ňom putuje kométa; hrubšie oblúky znamenajú častejšiu cestu.</string>
     <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Chôdza</string>
     <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Bicyklovanie</string>
     <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Jazda autom</string>
@@ -98,18 +89,10 @@
     <string name="map_layer_first_contact_description">Časová os vašich objavov: každá oblasť je zafarbená podľa toho, ako nedávno ste tam prvýkrát vstúpili. Miesta nájdené dávno miznú do tmavého indiga, zatiaľ čo pôda objavená tento týždeň žiari jasnou azúrovou — čítajte príbeh svojho objavovania smerom k najnovším hraniciam.</string>
     <string name="map_layer_first_contact_old">Dávno</string>
     <string name="map_layer_first_contact_recent">Práve objavené</string>
-    <string name="map_layer_vehicle_compliance_title">Dodržiavanie rýchlostných obmedzení vozidiel</string>
-    <string name="map_layer_vehicle_compliance_description">Línia vzoriek jazdy zafarbená podľa porovnania rýchlosti s nakonfigurovaným základným limitom.</string>
-    <string name="map_layer_vehicle_compliance_way_under">Výrazne pod limitom</string>
-    <string name="map_layer_vehicle_compliance_slow">Pod limitom</string>
-    <string name="map_layer_vehicle_compliance_at_limit">Blízko limitu</string>
-    <string name="map_layer_vehicle_compliance_slightly_over">Mierne nad limitom</string>
-    <string name="map_layer_vehicle_compliance_speeding">Prekračovanie rýchlosti</string>
     <string name="map_layer_location_polyline_description">Čiara spájajúca vaše zaznamenané polohy v čase.</string>
     <string name="map_layer_location_polyline_title">Línia polohy</string>
     <string name="map_layer_location_polyline_chip">Línia</string>
     <string name="map_layer_wifi_count_heatmap_chip">Prekrytie Wi-Fi</string>
-    <string name="map_layer_vehicle_compliance_chip">Prekračovanie rýchlosti</string>
     <string name="map_layer_none_title">Bez prekrytia</string>
     <string name="map_date_preset_week">Minulý týždeň</string>
     <string name="map_date_preset_month">Minulý mesiac</string>
@@ -174,7 +157,6 @@
     <string name="map_empty_subtitle_cell">V tomto zobrazení alebo rozsahu dátumov nie sú žiadne lokalizované bunkové údaje. Vzorky buniek zaznamenané bez polohy sa stále ukladajú, ale nemôžu sa zobraziť na mape.</string>
     <string name="map_empty_subtitle_wifi">V tomto zobrazení alebo rozsahu dátumov nie sú žiadne lokalizované údaje Wi-Fi. Pozorovania Wi-Fi zaznamenané bez polohy sa stále ukladajú, ale nemôžu sa zobraziť na mape.</string>
     <string name="map_empty_subtitle_speed">V tomto zobrazení alebo rozsahu dátumov nie sú žiadne údaje o rýchlosti. Mapy rýchlosti vyžadujú použiteľné vzorky polohy zhromaždené počas sledovania.</string>
-    <string name="map_empty_subtitle_vehicle_compliance">Nie sú k dispozícii žiadne jazdy priradené k cestám. Importujte oblasť OpenStreetMap (Nastavenia) a zaznamenajte nejakú jazdu, aby bolo možné priradiť trasu ku skutočným cestám.</string>
     <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Skryť správu o chýbajúcich údajoch</string>
     <string name="map_speed_probe_title">Rýchlosť tu</string>
     <string name="map_speed_probe_avg_label">Priemer</string>

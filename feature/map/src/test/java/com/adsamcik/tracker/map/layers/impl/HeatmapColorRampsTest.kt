@@ -44,11 +44,4 @@ class HeatmapColorRampsTest {
         }
     }
 
-    @Test
-    @DisplayName("vehicle compliance colours stay opaque (rendered as solid lines)")
-    fun vehicleComplianceOpaque() {
-        HeatmapColorRamps.VehicleCompliance.forEach { (_, argb) ->
-            check(alpha(argb) == 0xFF) { "VehicleCompliance colours must be opaque" }
-        }
-    }
 }

@@ -84,8 +84,6 @@
     <string name="settings_tracking_notice_summary">Modificările intră în vigoare când repornești urmărirea</string>
     <string name="settings_tracking_required_accuracy_title">Precizia necesară a locației</string>
     <string name="settings_tracking_title">Urmărire</string>
-    <string name="settings_vehicle_speed_limit_baseline_title">Referință pentru limita de viteză a vehiculului</string>
-    <string name="help_vehicle_speed_limit_baseline">Folosită de stratul de hartă Conformitatea vitezei vehiculului. Eșantioanele de condus sunt colorate după comparația vitezei cu această referință. Alege o valoare care corespunde limitelor unde conduci cel mai des (de ex. 50 km/h în orașe, 90 km/h pe autostrăzi).</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="shortcut_start_tracking">Pornește urmărirea</string>
     <string name="shortcut_start_tracking_long">Pornește urmărirea locației</string>

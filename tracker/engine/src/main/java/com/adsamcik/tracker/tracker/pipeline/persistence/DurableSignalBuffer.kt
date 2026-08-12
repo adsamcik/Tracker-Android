@@ -435,14 +435,25 @@ class DurableSignalBuffer @Inject constructor(
 		val signal: TrackingSignal?
 			get() = (payload as? PendingSignalDecodeResult.Valid)?.signal
 
-		/** Convenience constructor for legacy tests and hand-built fixtures. */
+		/** Convenience constructor for focused tests and hand-built current-format fixtures. */
 		constructor(id: Long, signal: TrackingSignal?) : this(
+			id,
+			signal,
+			signal?.let(SignalSerializer::encode),
+		)
+
+		private constructor(
+			id: Long,
+			signal: TrackingSignal?,
+			encoded: SignalSerializer.EncodedSignal?,
+		) : this(
 			id = id,
-			signalId = "legacy-pending-$id",
+			signalId = "test-pending-$id",
 			sessionId = 0L,
-			envelopeVersion = SignalSerializer.LEGACY_ENVELOPE_VERSION,
-			payloadChecksum = null,
-			signalJson = signal?.let(SignalSerializer::serialize).orEmpty(),
+			envelopeVersion = SignalSerializer.CURRENT_ENVELOPE_VERSION,
+			payloadChecksum = encoded?.payloadChecksum
+				?: SignalSerializer.payloadChecksum(""),
+			signalJson = encoded?.payloadJson.orEmpty(),
 			createdAt = 0L,
 			capturedEpoch = 0L,
 			acquiredAtMs = signal?.timestampMs?.raw ?: 0L,
@@ -455,13 +466,7 @@ class DurableSignalBuffer @Inject constructor(
 	}
 
 	private fun PendingSignalEntity.toPeekedSignal(): PeekedSignal {
-		val isLegacy = envelopeVersion == SignalSerializer.LEGACY_ENVELOPE_VERSION
-		val resolvedSignalId = signalId.ifBlank {
-			// Migrations cannot synthesize a UUID for an existing row. Its immutable
-			// primary key gives legacy rows a deterministic identity.
-			"legacy-pending-$id"
-		}
-		val decodedPayload = if (!isLegacy && signalId.isBlank()) {
+		val decodedPayload = if (signalId.isBlank()) {
 			PendingSignalDecodeResult.Malformed(PendingSignalDecodeFailure.MISSING_SIGNAL_ID)
 		} else {
 			SignalSerializer.decode(
@@ -472,7 +477,7 @@ class DurableSignalBuffer @Inject constructor(
 		}
 		return PeekedSignal(
 			id = id,
-			signalId = resolvedSignalId,
+			signalId = signalId,
 			sessionId = sessionId,
 			envelopeVersion = envelopeVersion,
 			payloadChecksum = payloadChecksum,

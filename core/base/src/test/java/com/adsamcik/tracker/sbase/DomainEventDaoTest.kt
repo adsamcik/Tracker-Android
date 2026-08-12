@@ -154,7 +154,7 @@ class DomainEventDaoTest {
 		// Insert two events sharing timestamp 1000ms — typical batch case (e.g.
 		// session-end emits SessionEnded + DailySummaryUpdated at the same millis).
 		dao.insertAll(listOf(eventAt(1_000L), eventAt(1_000L), eventAt(2_000L)))
-		val all = dao.observeSince(0L).first().sortedBy { it.id }
+		val all = dao.observeSinceLimited(0L, TEST_READ_LIMIT).first().sortedBy { it.id }
 		all.size shouldBe 3
 		val firstAt1000 = all[0]
 		val secondAt1000 = all[1]
@@ -176,7 +176,7 @@ class DomainEventDaoTest {
 	@Test
 	fun `id cursor stops a fully consumed same-ms boundary from being re-delivered`() = runTest {
 		dao.insertAll(listOf(eventAt(1_000L), eventAt(1_000L)))
-		val all = dao.observeSince(0L).first().sortedBy { it.id }
+		val all = dao.observeSinceLimited(0L, TEST_READ_LIMIT).first().sortedBy { it.id }
 		val secondAt1000 = all[1]
 		dao.upsertCursor(
 			consumerId = "c1",
@@ -289,7 +289,7 @@ class DomainEventDaoTest {
 	// endregion id-query planner regression
 
 	private suspend fun DomainEventDao.remainingTimestamps(): List<Long> =
-		observeSince(0L).first().map(DomainEventEntity::timestampMs)
+		observeSinceLimited(0L, TEST_READ_LIMIT).first().map(DomainEventEntity::timestampMs)
 
 	private fun eventAt(timestampMs: Long): DomainEventEntity =
 		DomainEventEntity(
@@ -306,5 +306,6 @@ class DomainEventDaoTest {
 		const val SEEK_BATCH_LIMIT = 50
 		const val PLAN_PROBE_ROW_COUNT = 64
 		const val PLAN_PROBE_LIMIT = 32
+		const val TEST_READ_LIMIT = 10_000
 	}
 }

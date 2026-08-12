@@ -285,6 +285,23 @@ class DurableSignalBufferTest {
 		}
 	}
 
+	private fun currentPendingEntity(
+		signal: TrackingSignal,
+		createdAt: Long,
+		sessionId: Long = this.sessionId,
+		signalId: String = "fixture-$createdAt",
+	): PendingSignalEntity {
+		val encoded = SignalSerializer.encode(signal)
+		return PendingSignalEntity(
+			signalId = signalId,
+			sessionId = sessionId,
+			envelopeVersion = encoded.envelopeVersion,
+			payloadChecksum = encoded.payloadChecksum,
+			signalJson = encoded.payloadJson,
+			createdAt = createdAt,
+		)
+	}
+
 	// endregion
 
 	// region stage
@@ -639,19 +656,13 @@ class DurableSignalBufferTest {
 
 		fakeDao.insertAll(
 			listOf(
-				PendingSignalEntity(
-					sessionId = sessionId,
-					signalJson = SignalSerializer.serialize(createSignal()),
-					createdAt = 1L,
-				),
-				PendingSignalEntity(
-					sessionId = sessionId,
+				currentPendingEntity(createSignal(), createdAt = 1L),
+				currentPendingEntity(createSignal(), createdAt = 2L).copy(
 					signalJson = "{corrupt garbage!!!",
-					createdAt = 2L,
+					payloadChecksum = SignalSerializer.payloadChecksum("{corrupt garbage!!!"),
 				),
-				PendingSignalEntity(
-					sessionId = sessionId,
-					signalJson = SignalSerializer.serialize(createSignal(1_700_000_099_000L)),
+				currentPendingEntity(
+					createSignal(1_700_000_099_000L),
 					createdAt = 3L,
 				),
 			),
@@ -684,23 +695,20 @@ class DurableSignalBufferTest {
 	}
 
 	@Test
-	fun peekSynthesizesDeterministicIdentityForLegacyRows() = runTest {
+	fun peekRejectsCurrentRowsWithoutSignalIdentity() = runTest {
 		val testDispatcher = StandardTestDispatcher(testScheduler)
 		buffer = createBufferWithDispatchers(TestDispatchersProvider(testDispatcher))
 
-		val id = fakeDao.insertAll(
+		fakeDao.insertAll(
 			listOf(
-				PendingSignalEntity(
-					sessionId = sessionId,
-					signalJson = SignalSerializer.serialize(createSignal()),
-					createdAt = 1L,
-				),
+				currentPendingEntity(createSignal(), createdAt = 1L, signalId = ""),
 			),
-		).single()
+		)
 
 		val entry = buffer.peekBatch().single()
-		entry.signalId shouldBe "legacy-pending-$id"
-		entry.payload.shouldBeInstanceOf<PendingSignalDecodeResult.Valid>()
+		entry.signalId shouldBe ""
+		val result = entry.payload.shouldBeInstanceOf<PendingSignalDecodeResult.Malformed>()
+		result.reason shouldBe PendingSignalDecodeFailure.MISSING_SIGNAL_ID
 	}
 
 	// endregion
@@ -806,10 +814,10 @@ class DurableSignalBufferTest {
 
 		fakeDao.insertAll(
 			listOf(
-				PendingSignalEntity(
-					sessionId = 999L,
-					signalJson = SignalSerializer.serialize(createSignal()),
+				currentPendingEntity(
+					signal = createSignal(),
 					createdAt = System.currentTimeMillis(),
+					sessionId = 999L,
 				),
 			),
 		)

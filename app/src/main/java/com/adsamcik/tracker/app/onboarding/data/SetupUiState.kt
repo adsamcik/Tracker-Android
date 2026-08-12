@@ -39,8 +39,8 @@ data class SetupUiState(
     val wifiPermissionDenied: Boolean = false,
     val cellPermissionDenied: Boolean = false,
 
-    // Step 4 – Online Map Tiles (opt-in, off by default)
-    val onlineMapTilesEnabled: Boolean = false,
+    // Step 4 – Online Map Tiles (recommended for the easiest map experience)
+    val onlineMapTilesEnabled: Boolean = true,
 ) {
     /** Progress fraction 0..1 based on current step. */
     val progress: Float

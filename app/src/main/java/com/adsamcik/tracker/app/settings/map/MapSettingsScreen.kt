@@ -2,10 +2,8 @@ package com.adsamcik.tracker.app.settings.map
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -14,9 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Terrain
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
@@ -36,7 +32,11 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.adsamcik.tracker.app.settings.BasemapImportFailure
 import com.adsamcik.tracker.app.settings.MapSettingsViewModel
 import com.adsamcik.tracker.app.settings.components.ExpandableSection
+import com.adsamcik.tracker.app.settings.components.SettingsGroupCard
 import com.adsamcik.tracker.app.settings.components.SettingsItem
+import com.adsamcik.tracker.app.settings.components.SettingsNoticeCard
+import com.adsamcik.tracker.app.settings.components.SettingsNoticeTone
+import com.adsamcik.tracker.app.settings.components.SettingsRowDivider
 import com.adsamcik.tracker.app.settings.components.SliderSettingsItemWithHelp
 import com.adsamcik.tracker.app.settings.components.SwitchSettingsItem
 
@@ -76,65 +76,24 @@ fun MapSettingsScreen(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
     ) {
-        // Info card explaining map settings purpose
         item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Info,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    Text(
-                        stringResource(com.adsamcik.tracker.R.string.settings_map_info_hint),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
-            }
+            SettingsNoticeCard(
+                text = stringResource(com.adsamcik.tracker.R.string.settings_map_info_hint),
+                icon = Icons.Default.Info,
+                tone = SettingsNoticeTone.Info,
+                modifier = Modifier.padding(vertical = 8.dp),
+            )
         }
 
-        // Basemap import/reset
         item {
-            val importLauncher = rememberLauncherForActivityResult(
+            val basemapImportLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.OpenDocument()
             ) { uri ->
                 if (uri != null) {
                     viewModel.importBasemap(uri)
                 }
             }
-
-            SettingsItem(
-                title = stringResource(com.adsamcik.tracker.map.R.string.settings_map_basemap_title),
-                subtitle = if (basemapPath != null) {
-                    stringResource(com.adsamcik.tracker.map.R.string.settings_map_basemap_custom)
-                } else {
-                    stringResource(com.adsamcik.tracker.map.R.string.settings_map_basemap_default)
-                },
-                icon = Icons.Default.Map,
-                onClick = {
-                    if (basemapPath != null) {
-                        viewModel.clearBasemap()
-                    } else {
-                        importLauncher.launch(arrayOf("application/octet-stream", "*/*"))
-                    }
-                }
-            )
-        }
-
-        // Ski infrastructure import/reset
-        item {
-            val importLauncher = rememberLauncherForActivityResult(
+            val skiImportLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.OpenDocument()
             ) { uri ->
                 if (uri != null) {
@@ -159,26 +118,41 @@ fun MapSettingsScreen(
                 stringResource(com.adsamcik.tracker.activity.R.string.settings_ski_infrastructure_subtitle_none)
             }
 
-            SettingsItem(
-                title = stringResource(com.adsamcik.tracker.activity.R.string.settings_ski_infrastructure_title),
-                subtitle = subtitle,
-                icon = Icons.Default.Terrain,
-                onClick = {
-                    if (skiInfraLoaded) {
-                        viewModel.clearSkiInfrastructure()
+            SettingsGroupCard(
+                title = stringResource(com.adsamcik.tracker.R.string.settings_map_offline_data_section),
+                icon = Icons.Default.Map,
+            ) {
+                SettingsItem(
+                    title = stringResource(com.adsamcik.tracker.map.R.string.settings_map_basemap_title),
+                    subtitle = if (basemapPath != null) {
+                        stringResource(com.adsamcik.tracker.map.R.string.settings_map_basemap_custom)
                     } else {
-                        importLauncher.launch(arrayOf("application/octet-stream", "application/x-sqlite3", "*/*"))
-                    }
-                }
-            )
-
-            if (skiInfraLoaded) {
-                Text(
-                    text = stringResource(com.adsamcik.tracker.activity.R.string.settings_ski_infrastructure_attribution),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 56.dp, end = 16.dp, bottom = 8.dp)
+                        stringResource(com.adsamcik.tracker.map.R.string.settings_map_basemap_default)
+                    },
+                    icon = Icons.Default.Map,
+                    onClick = {
+                        if (basemapPath != null) viewModel.clearBasemap()
+                        else basemapImportLauncher.launch(arrayOf("application/octet-stream", "*/*"))
+                    },
                 )
+                SettingsRowDivider()
+                SettingsItem(
+                    title = stringResource(com.adsamcik.tracker.activity.R.string.settings_ski_infrastructure_title),
+                    subtitle = subtitle,
+                    icon = Icons.Default.Terrain,
+                    onClick = {
+                        if (skiInfraLoaded) viewModel.clearSkiInfrastructure()
+                        else skiImportLauncher.launch(arrayOf("application/octet-stream", "application/x-sqlite3", "*/*"))
+                    },
+                )
+                if (skiInfraLoaded) {
+                    Text(
+                        text = stringResource(com.adsamcik.tracker.activity.R.string.settings_ski_infrastructure_attribution),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 68.dp, end = 16.dp, bottom = 12.dp),
+                    )
+                }
             }
         }
 
@@ -191,7 +165,9 @@ fun MapSettingsScreen(
         item {
             ExpandableSection(
                 title = stringResource(com.adsamcik.tracker.map.R.string.settings_map_advanced_section_title),
-                initiallyExpanded = false
+                initiallyExpanded = false,
+                icon = Icons.Default.Tune,
+                modifier = Modifier.padding(top = 4.dp),
             ) {
                 val qualityValues = MapSettingOptions.quality
                 val qualityIndex = sliderIndexForValue(quality, qualityValues)
@@ -205,6 +181,7 @@ fun MapSettingsScreen(
                     onValueChange = { viewModel.setQuality(valueForSliderIndex(it, qualityValues)) },
                     helpTextRes = com.adsamcik.tracker.map.R.string.help_map_quality
                 )
+                SettingsRowDivider()
 
                 val heatValues = MapSettingOptions.maxHeat
                 val heatIndex = sliderIndexForValue(maxHeat, heatValues)
@@ -218,6 +195,7 @@ fun MapSettingsScreen(
                     onValueChange = { viewModel.setMaxHeat(valueForSliderIndex(it, heatValues)) },
                     helpTextRes = com.adsamcik.tracker.map.R.string.help_max_heat_points
                 )
+                SettingsRowDivider()
 
                 val visitValues = MapSettingOptions.visitThresholdSeconds
                 val visitIndex = sliderIndexForValue(visitThreshold, visitValues)
@@ -231,6 +209,7 @@ fun MapSettingsScreen(
                     onValueChange = { viewModel.setVisitThreshold(valueForSliderIndex(it, visitValues)) },
                     helpTextRes = com.adsamcik.tracker.map.R.string.help_visit_threshold
                 )
+                SettingsRowDivider()
 
                 SwitchSettingsItem(
                     title = stringResource(com.adsamcik.tracker.map.R.string.settings_map_legacy_heatmap_title),
@@ -238,6 +217,7 @@ fun MapSettingsScreen(
                     checked = legacyHeatmap,
                     onCheckedChange = { viewModel.setLegacyHeatmap(it) },
                 )
+                SettingsRowDivider()
 
                 SwitchSettingsItem(
                     title = stringResource(com.adsamcik.tracker.map.R.string.settings_map_zoom_buttons_title),

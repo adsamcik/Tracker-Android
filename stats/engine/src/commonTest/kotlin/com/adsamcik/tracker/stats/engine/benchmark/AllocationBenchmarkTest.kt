@@ -16,6 +16,7 @@ import com.adsamcik.tracker.stats.api.value.LonE7
 import com.adsamcik.tracker.stats.api.value.SpeedMps
 import com.adsamcik.tracker.stats.api.value.StepCount
 import com.adsamcik.tracker.stats.engine.aggregator.StreamingAggregator
+import com.adsamcik.tracker.stats.engine.FakeLiveStatsRepository
 import com.adsamcik.tracker.stats.engine.exploration.CellDiscoveryEngine
 import com.adsamcik.tracker.stats.engine.processor.AggregatorProcessor
 import com.adsamcik.tracker.stats.engine.processor.ExplorationProcessor
@@ -52,7 +53,10 @@ class AllocationBenchmarkTest {
 
 	@BeforeEach
 	fun setup() {
-		aggregatorProcessor = AggregatorProcessor(StreamingAggregator())
+		aggregatorProcessor = AggregatorProcessor(
+			liveStatsRepository = FakeLiveStatsRepository(),
+			aggregator = StreamingAggregator(),
+		)
 		segmentProcessor = SegmentDetectorProcessor(SessionSegmentDetector())
 		explorationProcessor = ExplorationProcessor(CellDiscoveryEngine())
 	}

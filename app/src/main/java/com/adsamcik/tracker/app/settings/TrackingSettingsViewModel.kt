@@ -14,6 +14,7 @@ import com.adsamcik.tracker.shared.base.extension.hasPreciseLocationPermission
 import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
 import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
 import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
+import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
@@ -32,6 +33,8 @@ import com.adsamcik.tracker.tracker.source.coordinator.TrackingSettingsPreviewEn
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingSettingsStatusProvider
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.model.SourcePlan
+import com.adsamcik.tracker.tracker.service.ActivityWatcherController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -59,6 +62,7 @@ data class TrackingSettingsUiState(
     val stepCounterAvailable: Boolean = true,
     val wifiPermissionGranted: Boolean = false,
     val cellPermissionGranted: Boolean = false,
+    val autoTrackingMode: Int = 0,
     val autoTrackingEnabled: Boolean = false,
     val transitionDetectionEnabled: Boolean = true,
     val notificationStyled: Boolean = true,
@@ -66,10 +70,11 @@ data class TrackingSettingsUiState(
     val minTime: Int = 2,
     val requiredAccuracy: Int = 50,
     val hasValidSources: Boolean = true,
-    val vehicleSpeedLimitKmh: Int = 50,
     val advancedSourceControlsEnabled: Boolean = false,
     val sourceCollectionSettings: SourceCollectionSettings = SourceCollectionSettings(),
     val sourceStatuses: Map<SourceKind, EffectiveSourceStatus> = emptyMap(),
+    val sourcePlans: Map<SourceKind, SourcePlan> = emptyMap(),
+    val sourceFrequencyOptions: Map<SourceKind, Map<SourceCollectionFrequency, SourcePlan>> = emptyMap(),
     val trackingActive: Boolean = false,
     val desiredPlanRevision: Long? = null,
     val appliedPlanRevision: Long? = null,
@@ -82,6 +87,7 @@ class TrackingSettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val trackingParamsRepository: TrackingParamsRepository,
     private val trackingStatusProvider: TrackingSettingsStatusProvider,
+    private val activityWatcherController: ActivityWatcherController,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TrackingSettingsUiState())
@@ -207,19 +213,34 @@ class TrackingSettingsViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Selects which recognized movement may start an automatic tracking session.
+     *
+     * The persisted values intentionally match [GroupedActivity] ordinals:
+     * STILL (0) disables automation, ON_FOOT (1) starts for walking/running, and
+     * IN_VEHICLE (2) accepts all known movement. [BackgroundTrackingApi] observes
+     * this state and immediately reconciles its activity-recognition registration.
+     */
+    fun setAutoTrackingMode(mode: Int) {
+        require(mode in AUTO_TRACKING_MODE_DISABLED..AUTO_TRACKING_MODE_ALL_MOVEMENT) {
+            "Unsupported automatic tracking mode: $mode"
+        }
+        viewModelScope.launch {
+            trackingParamsRepository.update { copy(autoTrackingMode = mode) }
+            activityWatcherController.applyAutoTrackingMode(mode)
+        }
+    }
+
+    fun onAutoTrackingPermissionResult(requestedMode: Int, granted: Boolean) {
+        _uiState.update { it.copy(activityPermissionGranted = granted) }
+        if (granted) setAutoTrackingMode(requestedMode)
+    }
+
     fun setNotificationStyled(enabled: Boolean) {
         viewModelScope.launch {
             trackingParamsRepository.setNotificationStyled(enabled)
         }
     }
-
-    fun setVehicleSpeedLimitKmh(kmh: Int) {
-        viewModelScope.launch {
-            val mps = kmh / KMH_PER_MPS
-            trackingParamsRepository.setVehicleSpeedLimitBaselineMps(mps)
-        }
-    }
-
     fun setMinDistance(distance: Int) {
         viewModelScope.launch {
             trackingParamsRepository.setMinDistanceMeters(distance)
@@ -319,6 +340,7 @@ class TrackingSettingsViewModel @Inject constructor(
                 stepCounterAvailable = stepCounterAvailable,
                 wifiPermissionGranted = wifiPermissionGranted,
                 cellPermissionGranted = cellPermissionGranted,
+                autoTrackingMode = params.autoTrackingMode,
                 autoTrackingEnabled = params.autoTrackingMode > 0,
                 transitionDetectionEnabled = params.transitionDetectionEnabled,
                 notificationStyled = params.notificationStyled,
@@ -332,10 +354,11 @@ class TrackingSettingsViewModel @Inject constructor(
                     cellAvailable = cellPermissionGranted,
                     barometerAvailable = barometerAvailable,
                 ),
-                vehicleSpeedLimitKmh = mpsToKmh(params.vehicleSpeedLimitBaselineMps),
                 advancedSourceControlsEnabled = params.advancedSourceControlsEnabled,
                 sourceCollectionSettings = params.sourceCollectionSettings,
                 sourceStatuses = if (runtimeStatus.active) runtimeStatus.sources else preview.sources,
+                sourcePlans = if (runtimeStatus.active) runtimeStatus.requestedPlans else preview.requestedPlans,
+                sourceFrequencyOptions = preview.frequencyOptions,
                 trackingActive = runtimeStatus.active,
                 desiredPlanRevision = runtimeStatus.desiredRevision,
                 appliedPlanRevision = runtimeStatus.appliedRevision,
@@ -395,9 +418,8 @@ class TrackingSettingsViewModel @Inject constructor(
     }
 
     private companion object {
-        const val KMH_PER_MPS = 3.6
-
-        fun mpsToKmh(mps: Double): Int = (mps * KMH_PER_MPS).toInt().coerceIn(30, 130)
+        const val AUTO_TRACKING_MODE_DISABLED = 0
+        const val AUTO_TRACKING_MODE_ALL_MOVEMENT = 2
 
         fun ImpactLevel.toUiImpact(): BatteryImpact = when (this) {
             ImpactLevel.LOW -> BatteryImpact.LOW

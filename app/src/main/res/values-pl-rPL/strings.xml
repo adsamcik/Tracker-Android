@@ -14,30 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">Tryb programisty wyłączony</string>
     <string name="settings_data_management_section">Zarządzanie danymi</string>
     <string name="settings_data_danger_zone_section">Strefa zagrożenia</string>
-    <string name="settings_osm_import_section">Dane mapy (OpenStreetMap)</string>
-    <string name="settings_osm_import_action_title">Importuj region OSM</string>
-    <string name="settings_osm_import_action_summary">Wybierz plik .osm.pbf. Kontrola zgodności pojazdu będzie następnie korzystać offline z rzeczywistych ograniczeń dróg.</string>
-    <string name="settings_osm_import_unavailable_title">Import mapy offline jest niedostępny</string>
-    <string name="settings_osm_import_action_unavailable">Import mapy offline jest tymczasowo niedostępny podczas kończenia zabezpieczeń plików.</string>
-    <string name="settings_osm_import_action_running">Importowanie — dotknij, aby anulować</string>
-    <string name="settings_osm_import_action_failed">Nie udało się ukończyć importu mapy offline.</string>
-    <string name="settings_osm_import_action_source_unavailable">Nie można było otworzyć wybranego pliku mapy.</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">Zaimportowano %1$d drogę z %2$d węzłów.</item>
-        <item quantity="few">Zaimportowano %1$d drogi z %2$d węzłów.</item>
-        <item quantity="many">Zaimportowano %1$d dróg z %2$d węzłów.</item>
-        <item quantity="other">Zaimportowano %1$d dróg z %2$d węzłów.</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">Nie zaimportowano jeszcze żadnego regionu OpenStreetMap.</string>
-    <string name="settings_osm_imports_attribution">Dane mapy © współtwórcy OpenStreetMap (ODbL 1.0). Całe przetwarzanie odbywa się na urządzeniu.</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d droga · zaimportowano %2$s</item>
-        <item quantity="few">%1$,d drogi · zaimportowano %2$s</item>
-        <item quantity="many">%1$,d dróg · zaimportowano %2$s</item>
-        <item quantity="other">%1$,d dróg · zaimportowano %2$s</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">Usuń zaimportowany region</string>
-    <string name="settings_osm_import_remove_message">Usunąć %1$s? Kontrola zgodności pojazdu będzie korzystać ze stałej wartości bazowej do czasu ponownego importu regionu.</string>
     <string name="settings_incremental_backups_title">Kopie przyrostowe</string>
     <string name="settings_incremental_backups_summary">Eksportuj tylko nowe dane od ostatniej kopii zapasowej. Skraca to czas eksportu i zmniejsza rozmiar pliku.</string>
     <string name="settings_reset_export_watermarks_title">Wymuś pełny eksport</string>
@@ -374,9 +350,9 @@
     <string name="setup_step_indicator">Krok %1$d z %2$d</string>
     <string name="setup_online_tiles_title">Kafelki map online?</string>
     <string name="setup_online_tiles_subtitle">Tracker zawiera mapę bazową offline, więc działa bez sieci. Jeśli chcesz bogatszych map, możesz zamiast tego pobierać kafelki od publicznego dostawcy.</string>
-    <string name="setup_online_tiles_off_title">Tylko offline (zalecane)</string>
+    <string name="setup_online_tiles_off_title">Tylko offline</string>
     <string name="setup_online_tiles_off_desc">Bez żądań sieciowych. Używana jest tylko dołączona mapa bazowa.</string>
-    <string name="setup_online_tiles_on_title">Używaj kafelków online</string>
+    <string name="setup_online_tiles_on_title">Używaj kafelków online (zalecane)</string>
     <string name="setup_online_tiles_on_desc">Pobieraj wektorowe kafelki o większej szczegółowości z OpenFreeMap (domyślnie). Dostawcę można później zmienić w Ustawienia → Mapa.</string>
     <string name="setup_online_tiles_privacy">Po włączeniu dostawca może zobaczyć Twój adres IP i ładowane kafelki — w przybliżeniu obszar oglądanej mapy. Tracker nigdy nie wysyła konta, identyfikatora ani historii lokalizacji.</string>
     <string name="setup_online_tiles_change_later">Możesz to zmienić w dowolnym momencie w Ustawienia → Mapa → Kafelki map online.</string>

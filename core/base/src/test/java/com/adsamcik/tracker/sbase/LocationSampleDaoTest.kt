@@ -81,7 +81,7 @@ class LocationSampleDaoTest {
 		val sample = createSample(timeMs = 5000L, latE7 = 500_000_000, lonE7 = 140_000_000)
 		dao.insert(sample)
 
-		val results = dao.getAllBetweenFlow(4000L, 6000L).first()
+		val results = dao.getAllBetweenFlowLimited(4000L, 6000L, TEST_READ_LIMIT).first()
 		results shouldHaveSize 1
 		results[0].timeMs shouldBe 5000L
 		results[0].latE7 shouldBe 500_000_000
@@ -92,7 +92,7 @@ class LocationSampleDaoTest {
 	fun `getAllBetween returns empty for no matches`()  { runTest {
 		dao.insert(createSample(timeMs = 1000L))
 
-		dao.getAllBetweenFlow(5000L, 6000L).first().shouldBeEmpty()
+		dao.getAllBetweenFlowLimited(5000L, 6000L, TEST_READ_LIMIT).first().shouldBeEmpty()
 	} }
 
 	@Test
@@ -101,7 +101,7 @@ class LocationSampleDaoTest {
 		dao.insert(createSample(timeMs = 1000L))
 		dao.insert(createSample(timeMs = 2000L))
 
-		val results = dao.getAllBetweenFlow(0L, 5000L).first()
+		val results = dao.getAllBetweenFlowLimited(0L, 5000L, TEST_READ_LIMIT).first()
 		results shouldHaveSize 3
 		results[0].timeMs shouldBe 1000L
 		results[1].timeMs shouldBe 2000L
@@ -138,12 +138,12 @@ class LocationSampleDaoTest {
 	} }
 
 	@Test
-	fun `getAllBetweenFlow emits matching samples`()  { runTest {
+	fun `getAllBetweenFlowLimited emits matching samples`()  { runTest {
 		dao.insert(createSample(timeMs = 1000L))
 		dao.insert(createSample(timeMs = 2000L))
 		dao.insert(createSample(timeMs = 5000L))
 
-		val results = dao.getAllBetweenFlow(0L, 3000L).first()
+		val results = dao.getAllBetweenFlowLimited(0L, 3000L, TEST_READ_LIMIT).first()
 		results shouldHaveSize 2
 	} }
 
@@ -234,7 +234,7 @@ class LocationSampleDaoTest {
 		deleted shouldBe 2
 
 		dao.countBetween(0L, Long.MAX_VALUE) shouldBe 1
-		val remaining = dao.getAllBetweenFlow(0L, Long.MAX_VALUE).first()
+		val remaining = dao.getAllBetweenFlowLimited(0L, Long.MAX_VALUE, TEST_READ_LIMIT).first()
 		remaining[0].timeMs shouldBe 5000L
 	} }
 
@@ -281,7 +281,7 @@ class LocationSampleDaoTest {
 		)
 		dao.insert(sample)
 
-		val result = dao.getAllBetweenFlow(4000L, 6000L).first().single()
+		val result = dao.getAllBetweenFlowLimited(4000L, 6000L, TEST_READ_LIMIT).first().single()
 		result.latE7 shouldBe 500_123_456
 		result.lonE7 shouldBe 139_876_543
 		result.altitudeM shouldBe 42.5f
@@ -318,7 +318,7 @@ class LocationSampleDaoTest {
 		)
 		dao.insert(sample)
 
-		val result = dao.getAllBetweenFlow(0L, 2000L).first().single()
+		val result = dao.getAllBetweenFlowLimited(0L, 2000L, TEST_READ_LIMIT).first().single()
 		result.latE7.shouldBeNull()
 		result.lonE7.shouldBeNull()
 		result.altitudeM.shouldBeNull()
@@ -326,4 +326,8 @@ class LocationSampleDaoTest {
 		result.policy.shouldBeNull()
 		result.bucketId.shouldBeNull()
 	} }
+
+	private companion object {
+		const val TEST_READ_LIMIT = 10_000
+	}
 }

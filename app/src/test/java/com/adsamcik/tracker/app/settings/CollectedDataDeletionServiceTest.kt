@@ -7,6 +7,7 @@ import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.impexp.exporter.proto.ExportPlansProto
 import com.adsamcik.tracker.points.database.PointsAwardedDao
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupException
+import com.adsamcik.tracker.shared.base.database.legacy.LEGACY_DATABASE_NAME
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import io.kotest.matchers.shouldBe
@@ -68,6 +69,7 @@ class CollectedDataDeletionServiceTest {
 		var capturedEpoch: Long? = null
 		var capturedRetainedFromMs: Long? = null
 		val service = createService { _, epoch, retainedFromMs, _ ->
+			context.getDatabasePath(LEGACY_DATABASE_NAME).exists() shouldBe false
 			appDeletionCount++
 			capturedEpoch = epoch
 			capturedRetainedFromMs = retainedFromMs
@@ -237,6 +239,7 @@ class CollectedDataDeletionServiceTest {
 
 	private companion object {
 		val RETIRED_DATABASE_NAMES = listOf(
+			LEGACY_DATABASE_NAME,
 			"stats_database",
 			"challenge_database",
 		)

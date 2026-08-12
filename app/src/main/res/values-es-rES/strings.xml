@@ -14,26 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">Modo de desarrollador desactivado</string>
     <string name="settings_data_management_section">Gestión de datos</string>
     <string name="settings_data_danger_zone_section">Zona de peligro</string>
-    <string name="settings_osm_import_section">Datos de mapas (OpenStreetMap)</string>
-    <string name="settings_osm_import_action_title">Importar región OSM</string>
-    <string name="settings_osm_import_action_summary">Selecciona un archivo .osm.pbf. La conformidad de los vehículos utilizará entonces límites reales de las carreteras sin conexión.</string>
-    <string name="settings_osm_import_unavailable_title">Importación de mapas sin conexión no disponible</string>
-    <string name="settings_osm_import_action_unavailable">La importación de mapas sin conexión no está disponible temporalmente mientras se completan las protecciones de seguridad de archivos.</string>
-    <string name="settings_osm_import_action_running">Importando — toca para cancelar</string>
-    <string name="settings_osm_import_action_failed">No se pudo completar la importación del mapa sin conexión.</string>
-    <string name="settings_osm_import_action_source_unavailable">No se pudo abrir el archivo de mapa seleccionado.</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">Se ha importado %1$d carretera de %2$d nodos.</item>
-        <item quantity="other">Se han importado %1$d carreteras de %2$d nodos.</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">Aún no se ha importado ninguna región de OpenStreetMap.</string>
-    <string name="settings_osm_imports_attribution">Datos de mapas © colaboradores de OpenStreetMap (ODbL 1.0). Todo el procesamiento se realiza en el dispositivo.</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d carretera · importada %2$s</item>
-        <item quantity="other">%1$,d carreteras · importadas %2$s</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">Eliminar región importada</string>
-    <string name="settings_osm_import_remove_message">¿Eliminar %1$s? La conformidad de los vehículos volverá a la base fija hasta que vuelvas a importar una región.</string>
     <string name="settings_incremental_backups_title">Copias de seguridad incrementales</string>
     <string name="settings_incremental_backups_summary">Exporta solo los datos nuevos desde la última copia de seguridad. Reduce el tiempo de exportación y el tamaño del archivo.</string>
     <string name="settings_reset_export_watermarks_title">Forzar exportación completa</string>
@@ -362,9 +342,9 @@
     <string name="setup_step_indicator">Paso %1$d de %2$d</string>
     <string name="setup_online_tiles_title">¿Teselas de mapa en línea?</string>
     <string name="setup_online_tiles_subtitle">Tracker incluye un mapa base sin conexión para funcionar sin red. Si deseas mapas más completos, puedes usar teselas en streaming desde un proveedor público.</string>
-    <string name="setup_online_tiles_off_title">Solo sin conexión (recomendado)</string>
+    <string name="setup_online_tiles_off_title">Solo sin conexión</string>
     <string name="setup_online_tiles_off_desc">No se realizan solicitudes de red. Solo se usa el mapa base incluido.</string>
-    <string name="setup_online_tiles_on_title">Usar teselas en línea</string>
+    <string name="setup_online_tiles_on_title">Usar teselas en línea (recomendado)</string>
     <string name="setup_online_tiles_on_desc">Transmite teselas vectoriales con más detalle desde OpenFreeMap (predeterminado). Puedes cambiar el proveedor más tarde en Ajustes → Mapa.</string>
     <string name="setup_online_tiles_privacy">Mientras está activado, el proveedor puede ver tu dirección IP y qué teselas cargas; aproximadamente qué zona del mapa estás mirando. Tracker nunca envía una cuenta, identificador ni tu historial de ubicaciones.</string>
     <string name="setup_online_tiles_change_later">Puedes cambiarlo en cualquier momento en Ajustes → Mapa → Teselas de mapa en línea.</string>

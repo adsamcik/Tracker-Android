@@ -14,26 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">Η λειτουργία προγραμματιστή απενεργοποιήθηκε</string>
     <string name="settings_data_management_section">Διαχείριση δεδομένων</string>
     <string name="settings_data_danger_zone_section">Επικίνδυνη ζώνη</string>
-    <string name="settings_osm_import_section">Δεδομένα χάρτη (OpenStreetMap)</string>
-    <string name="settings_osm_import_action_title">Εισαγωγή περιοχής OSM</string>
-    <string name="settings_osm_import_action_summary">Επιλέξτε ένα αρχείο .osm.pbf. Η συμμόρφωση οχήματος θα χρησιμοποιεί τότε πραγματικά όρια δρόμων εκτός σύνδεσης.</string>
-    <string name="settings_osm_import_unavailable_title">Η εισαγωγή χάρτη εκτός σύνδεσης δεν είναι διαθέσιμη</string>
-    <string name="settings_osm_import_action_unavailable">Η εισαγωγή χάρτη εκτός σύνδεσης δεν είναι προσωρινά διαθέσιμη μέχρι να ολοκληρωθούν οι προστασίες ασφάλειας αρχείων.</string>
-    <string name="settings_osm_import_action_running">Γίνεται εισαγωγή — πατήστε για ακύρωση</string>
-    <string name="settings_osm_import_action_failed">Δεν ήταν δυνατή η ολοκλήρωση της εισαγωγής χάρτη εκτός σύνδεσης.</string>
-    <string name="settings_osm_import_action_source_unavailable">Δεν ήταν δυνατό το άνοιγμα του επιλεγμένου αρχείου χάρτη.</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">Εισήχθη %1$d δρόμος από %2$d κόμβους.</item>
-        <item quantity="other">Εισήχθησαν %1$d δρόμοι από %2$d κόμβους.</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">Δεν έχει εισαχθεί ακόμη περιοχή OpenStreetMap.</string>
-    <string name="settings_osm_imports_attribution">Δεδομένα χάρτη © συνεισφέροντες του OpenStreetMap (ODbL 1.0). Όλη η επεξεργασία γίνεται στη συσκευή.</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d δρόμος · εισήχθη %2$s</item>
-        <item quantity="other">%1$,d δρόμοι · εισήχθησαν %2$s</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">Αφαίρεση εισαγμένης περιοχής</string>
-    <string name="settings_osm_import_remove_message">Να αφαιρεθεί το %1$s; Η συμμόρφωση οχήματος θα επιστρέψει στο σταθερό βασικό όριο μέχρι να εισαγάγετε ξανά μια περιοχή.</string>
     <string name="settings_incremental_backups_title">Αυξητικά αντίγραφα ασφαλείας</string>
     <string name="settings_incremental_backups_summary">Εξαγωγή μόνο νέων δεδομένων από το τελευταίο αντίγραφο ασφαλείας. Μειώνει τον χρόνο εξαγωγής και το μέγεθος αρχείου.</string>
     <string name="settings_reset_export_watermarks_title">Επιβολή πλήρους εξαγωγής</string>
@@ -362,9 +342,9 @@
     <string name="setup_step_indicator">Βήμα %1$d από %2$d</string>
     <string name="setup_online_tiles_title">Διαδικτυακές ψηφίδες χάρτη;</string>
     <string name="setup_online_tiles_subtitle">Το Tracker διαθέτει βασικό χάρτη εκτός σύνδεσης, ώστε να λειτουργεί χωρίς δίκτυο. Αν θέλετε πλουσιότερους χάρτες, μπορείτε αντί γι’ αυτό να μεταδίδετε ψηφίδες από δημόσιο πάροχο.</string>
-    <string name="setup_online_tiles_off_title">Μόνο εκτός σύνδεσης (συνιστάται)</string>
+    <string name="setup_online_tiles_off_title">Μόνο εκτός σύνδεσης</string>
     <string name="setup_online_tiles_off_desc">Χωρίς αιτήματα δικτύου. Χρησιμοποιείται μόνο ο ενσωματωμένος βασικός χάρτης.</string>
-    <string name="setup_online_tiles_on_title">Χρήση διαδικτυακών ψηφίδων</string>
+    <string name="setup_online_tiles_on_title">Χρήση διαδικτυακών ψηφίδων (συνιστάται)</string>
     <string name="setup_online_tiles_on_desc">Μεταδώστε διανυσματικές ψηφίδες υψηλότερης λεπτομέρειας από το OpenFreeMap (προεπιλογή). Μπορείτε να αλλάξετε πάροχο αργότερα στις Ρυθμίσεις → Χάρτης.</string>
     <string name="setup_online_tiles_privacy">Όταν είναι ενεργό, ο πάροχος μπορεί να δει τη διεύθυνση IP σας και ποιες ψηφίδες φορτώνετε — κατά προσέγγιση ποια περιοχή του χάρτη κοιτάζετε. Το Tracker δεν στέλνει ποτέ λογαριασμό, αναγνωριστικό ή ιστορικό τοποθεσίας.</string>
     <string name="setup_online_tiles_change_later">Μπορείτε να το αλλάξετε οποιαδήποτε στιγμή στις Ρυθμίσεις → Χάρτης → Διαδικτυακές ψηφίδες χάρτη.</string>

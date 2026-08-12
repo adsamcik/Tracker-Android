@@ -53,12 +53,6 @@
     <string name="map_layer_terrain_low">Rari hawn</string>
     <string name="map_layer_terrain_mid">Kultant</string>
     <string name="map_layer_terrain_high">Spiss hawn</string>
-    <string name="map_layer_places_title">Postijiet frekwenti</string>
-    <string name="map_layer_places_chip">Postijiet</string>
-    <string name="map_layer_places_description">Il-postijiet importanti tiegħek bħala markaturi, kull wieħed bid-daqs u l-kulur skont kemm iżżuru. Id-dar u x-xogħol isiru tikek kbar sħan; post li żort darba jibqa’ wieħed żgħir frisk.</string>
-    <string name="map_layer_places_rare">Rari</string>
-    <string name="map_layer_places_often">Kultant</string>
-    <string name="map_layer_places_anchor">L-ankri tiegħek</string>
     <string name="map_layer_speed_ribbon_title">Żigarella tal-veloċità</string>
     <string name="map_layer_speed_ribbon_chip">Żigarella</string>
     <string name="map_layer_speed_ribbon_description">Ir-rotta tiegħek miżbugħa skont kemm kont miexi malajr, b’kulur li jgħaddi minn pass vjola bil-mod għal sprint jew sewqan aħmar jaħraq. B’differenza mill-mappa termika tal-veloċità, iż-żigarella żżomm il-mogħdija tiegħek intatta sabiex tara eżatt fejn aċċellerajt u naqqast.</string>
@@ -80,9 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Ġirja għan-niżla</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Lift tal-iskijjar</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Mixja jew pawża</string>
-    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Kostellazzjonijiet ta’ vjaġġi</string>
-    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Vjaġġi</string>
-    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Vjaġġi ripetuti bejn il-postijiet frekwenti tiegħek isiru kostellazzjonijiet mgħawġa. Ark stabbli juri kull rotta waqt li kometa tgħaddi tulha; arkijiet eħxen ifissru li għamilt dak il-vjaġġ aktar spiss.</string>
     <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Mixi</string>
     <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Ċikliżmu</string>
     <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Sewqan</string>
@@ -98,18 +89,10 @@
     <string name="map_layer_first_contact_description">Kronoloġija tal-iskoperti tiegħek: kull żona tingħata kulur skont kemm żortha l-ewwel riċentement. Il-postijiet li sibt żmien ilu jisparixxu f’indigo skur, waqt li l-art li esplorajt din il-ġimgħa tiddi ċjan qawwi — aqra l-istorja tal-esplorazzjoni tiegħek lejn l-aktar fruntieri ġodda.</string>
     <string name="map_layer_first_contact_old">Żmien ilu</string>
     <string name="map_layer_first_contact_recent">Għadha kif ġiet skoperta</string>
-    <string name="map_layer_vehicle_compliance_title">Konformità tal-veloċità tal-vetturi</string>
-    <string name="map_layer_vehicle_compliance_description">Linja ta’ kampjuni tas-sewqan ikkulurita skont kif il-veloċità titqabbel mal-limitu bażi kkonfigurat tiegħek.</string>
-    <string name="map_layer_vehicle_compliance_way_under">Ħafna taħt il-limitu</string>
-    <string name="map_layer_vehicle_compliance_slow">Taħt il-limitu</string>
-    <string name="map_layer_vehicle_compliance_at_limit">Viċin il-limitu</string>
-    <string name="map_layer_vehicle_compliance_slightly_over">Ftit fuq il-limitu</string>
-    <string name="map_layer_vehicle_compliance_speeding">Qiegħed issuq malajr wisq</string>
     <string name="map_layer_location_polyline_description">Linja li tgħaqqad il-postijiet irreġistrati tiegħek maż-żmien.</string>
     <string name="map_layer_location_polyline_title">Polilinija tal-post</string>
     <string name="map_layer_location_polyline_chip">Polilinija</string>
     <string name="map_layer_wifi_count_heatmap_chip">Sovrappożizzjoni Wi-Fi</string>
-    <string name="map_layer_vehicle_compliance_chip">Eċċess ta’ veloċità</string>
     <string name="map_layer_none_title">Ebda saff</string>
     <string name="map_date_preset_week">Il-ġimgħa li għaddiet</string>
     <string name="map_date_preset_month">Ix-xahar li għadda</string>
@@ -174,7 +157,6 @@
     <string name="map_empty_subtitle_cell">Ebda dejta taċ-ċelloli b’post f’din il-veduta jew firxa tad-dati. Kampjuni taċ-ċelloli rreġistrati mingħajr post għadhom salvati, imma ma jistgħux jidhru fuq il-mappa.</string>
     <string name="map_empty_subtitle_wifi">Ebda dejta Wi-Fi b’post f’din il-veduta jew firxa tad-dati. Osservazzjonijiet Wi-Fi rreġistrati mingħajr post għadhom salvati, imma ma jistgħux jidhru fuq il-mappa.</string>
     <string name="map_empty_subtitle_speed">Ebda dejta tal-veloċità f’din il-veduta jew firxa tad-dati. Il-mapep tal-veloċità jeħtieġu kampjuni ta’ post li jistgħu jintużaw miġbura waqt it-traċċar.</string>
-    <string name="map_empty_subtitle_vehicle_compliance">Ebda sewqan imqabbel mat-triq x’turi. Importa reġjun OpenStreetMap (Issettjar) u rreġistra xi sewqan biex nistgħu nqabblu r-rotta tiegħek ma’ toroq reali.</string>
     <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Aħbi l-messaġġ ta’ ebda dejta</string>
     <string name="map_speed_probe_title">Veloċità hawn</string>
     <string name="map_speed_probe_avg_label">Medja</string>

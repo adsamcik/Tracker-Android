@@ -20,8 +20,6 @@ import com.adsamcik.tracker.stats.api.repository.TripRepository
 import com.adsamcik.tracker.stats.api.repository.WindowedMetricsProvider
 import com.adsamcik.tracker.stats.api.repository.WifiObservationRepository
 import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
-import com.adsamcik.tracker.stats.api.roadmatch.RoadMatcher
-import com.adsamcik.tracker.stats.api.speed.SpeedLimitSource
 import com.adsamcik.tracker.stats.data.metric.DefaultMetricDirtyTracker
 import com.adsamcik.tracker.stats.data.metric.DefaultPersistentDirtyState
 import com.adsamcik.tracker.stats.data.metric.DurableMetricDirtyTracker
@@ -32,17 +30,15 @@ import com.adsamcik.tracker.stats.data.repository.DefaultDailySummaryRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultDomainEventRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultExplorationRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultLocationSampleRepository
+import com.adsamcik.tracker.stats.data.repository.DefaultLiveStatsRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultSessionStatsRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultSkiRunSegmentRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultTripRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultWifiObservationRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultWindowedMetricsProvider
-import com.adsamcik.tracker.stats.data.repository.ProtoLiveStatsRepository
 import com.adsamcik.tracker.stats.data.scheduler.WorkManagerAchievementEvaluationScheduler
 import com.adsamcik.tracker.stats.data.worker.AchievementEvaluationTransactionRunner
 import com.adsamcik.tracker.stats.data.worker.RoomAchievementEvaluationTransactionRunner
-import com.adsamcik.tracker.stats.data.roadmatch.DefaultRoadMatcher
-import com.adsamcik.tracker.stats.data.speed.DefaultSpeedLimitSource
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -105,7 +101,7 @@ abstract class StatsDataModule {
 
 	@Binds
 	@Singleton
-	abstract fun bindLiveStatsRepository(impl: ProtoLiveStatsRepository): LiveStatsRepository
+	abstract fun bindLiveStatsRepository(impl: DefaultLiveStatsRepository): LiveStatsRepository
 
 	@Binds
 	@Singleton
@@ -143,14 +139,6 @@ abstract class StatsDataModule {
 	abstract fun bindAchievementEvaluationTransactionRunner(
 		impl: RoomAchievementEvaluationTransactionRunner,
 	): AchievementEvaluationTransactionRunner
-
-	@Binds
-	@Singleton
-	abstract fun bindSpeedLimitSource(impl: DefaultSpeedLimitSource): SpeedLimitSource
-
-	@Binds
-	@Singleton
-	abstract fun bindRoadMatcher(impl: DefaultRoadMatcher): RoadMatcher
 
 	/**
 	 * Companion holds [Provides] functions that need explicit construction

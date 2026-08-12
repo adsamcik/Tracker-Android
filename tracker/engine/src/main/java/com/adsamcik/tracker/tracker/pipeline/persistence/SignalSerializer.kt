@@ -74,7 +74,6 @@ enum class PendingSignalDecodeFailure(val code: String) {
  * payload in a versioned envelope and records a checksum in the Room row.
  */
 internal object SignalSerializer {
-	internal const val LEGACY_ENVELOPE_VERSION = 0
 	internal const val CURRENT_ENVELOPE_VERSION = 1
 	private const val TRACKING_SIGNAL_TYPE_CODE = "tracking_signal"
 	private const val TYPE_FIELD = "type"
@@ -129,7 +128,7 @@ internal object SignalSerializer {
 	}
 
 	// region Serialization — StringBuilder for minimal allocation
-	fun serialize(signal: TrackingSignal): String = buildString(256) {
+	private fun serialize(signal: TrackingSignal): String = buildString(256) {
 		append("{\"ts\":")
 		append(signal.timestampMs.raw)
 		append(",\"ern\":")
@@ -448,18 +447,12 @@ internal object SignalSerializer {
 	// endregion
 
 	// region Deserialization — JSONObject for simplicity (cold path only)
-	/**
-	 * Decode a row using its persisted envelope metadata.
-	 *
-	 * Version zero is the pre-envelope format. It deliberately has no checksum
-	 * because old rows did not record one; all new writes use version one.
-	 */
+	/** Decode a row using its persisted envelope metadata. */
 	fun decode(
 		envelopeVersion: Int,
 		payloadJson: String,
 		payloadChecksum: String?,
 	): PendingSignalDecodeResult = when (envelopeVersion) {
-		LEGACY_ENVELOPE_VERSION -> decodeLegacyPayload(payloadJson)
 		CURRENT_ENVELOPE_VERSION -> {
 			if (payloadChecksum.isNullOrBlank()) {
 				PendingSignalDecodeResult.Malformed(
@@ -477,39 +470,6 @@ internal object SignalSerializer {
 			PendingSignalDecodeFailure.UNSUPPORTED_ENVELOPE_VERSION,
 		)
 	}
-
-	/**
-	 * Compatibility convenience for callers that only have JSON. Production WAL
-	 * recovery must call [decode] so it verifies the checksum and version.
-	 */
-	fun deserialize(json: String): TrackingSignal? = when (val result = decodeUnverifiedJson(json)) {
-		is PendingSignalDecodeResult.Valid -> result.signal
-		else -> null
-	}
-
-	private fun decodeLegacyPayload(payloadJson: String): PendingSignalDecodeResult = try {
-		PendingSignalDecodeResult.Valid(
-			JSONObject(payloadJson).toTrackingSignal(strictCodes = false),
-		)
-	} catch (@Suppress("TooGenericExceptionCaught") e: UnsupportedSignalEncodingException) {
-		PendingSignalDecodeResult.Unsupported(e.reason)
-	} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-		PendingSignalDecodeResult.Malformed(PendingSignalDecodeFailure.MALFORMED_PAYLOAD)
-	}
-
-	private fun decodeUnverifiedJson(payloadJson: String): PendingSignalDecodeResult = try {
-		val objectValue = JSONObject(payloadJson)
-		if (objectValue.has(TYPE_FIELD) || objectValue.has(PAYLOAD_FIELD)) {
-			decodeEnvelopeObject(objectValue)
-		} else {
-			PendingSignalDecodeResult.Valid(objectValue.toTrackingSignal(strictCodes = false))
-		}
-	} catch (@Suppress("TooGenericExceptionCaught") e: UnsupportedSignalEncodingException) {
-		PendingSignalDecodeResult.Unsupported(e.reason)
-	} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-		PendingSignalDecodeResult.Malformed(PendingSignalDecodeFailure.MALFORMED_PAYLOAD)
-	}
-
 	private fun decodeCurrentEnvelope(payloadJson: String): PendingSignalDecodeResult = try {
 		decodeEnvelopeObject(JSONObject(payloadJson))
 	} catch (@Suppress("TooGenericExceptionCaught") e: UnsupportedSignalEncodingException) {
@@ -529,7 +489,7 @@ internal object SignalSerializer {
 		val payload = envelope.opt(PAYLOAD_FIELD) as? JSONObject
 			?: return PendingSignalDecodeResult.Malformed(PendingSignalDecodeFailure.MALFORMED_ENVELOPE)
 		return try {
-			PendingSignalDecodeResult.Valid(payload.toTrackingSignal(strictCodes = true))
+			PendingSignalDecodeResult.Valid(payload.toTrackingSignal())
 		} catch (e: UnsupportedSignalEncodingException) {
 			PendingSignalDecodeResult.Unsupported(e.reason)
 		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
@@ -537,21 +497,21 @@ internal object SignalSerializer {
 		}
 	}
 
-	private fun JSONObject.toTrackingSignal(strictCodes: Boolean) = TrackingSignal(
+	private fun JSONObject.toTrackingSignal() = TrackingSignal(
 		timestampMs = EpochMs(getLong("ts")),
 		elapsedRealtimeNanos = optLong("ern", 0L),
 		clockDomainId = optString("cd", "").takeIf(String::isNotBlank),
 		bootClockDomainId = optString("bd", "").takeIf(String::isNotBlank),
 		locationObservation = optJSONObject("obs")?.toLocationObservationSignal(),
 		location = optJSONObject("loc")?.toLocationSignal(),
-			locationDecision = optJSONObject("dec")?.toLocationDecisionSignal(strictCodes),
-		activity = optJSONObject("act")?.toActivitySignal(strictCodes),
+		locationDecision = optJSONObject("dec")?.toLocationDecisionSignal(),
+		activity = optJSONObject("act")?.toActivitySignal(),
 		activityFresh = optBoolean("af", has("act")),
 		steps = optJSONObject("stp")?.toStepSignal(),
 		cells = optJSONArray("cel")?.toCellSignal(optJSONObject("cst")),
-		wifi = toWifiSignal(strictCodes),
+		wifi = toWifiSignal(),
 		pressure = optJSONObject("prs")?.toPressureSignal(),
-		policy = optJSONObject("pol")?.toPolicySignal(strictCodes),
+		policy = optJSONObject("pol")?.toPolicySignal(),
 	)
 	// endregion
 
@@ -623,10 +583,10 @@ internal object SignalSerializer {
 		sourceEventId = optString("eid", "").takeIf(String::isNotBlank),
 	)
 
-	private fun JSONObject.toLocationDecisionSignal(strictCodes: Boolean): LocationDecisionSignal {
+	private fun JSONObject.toLocationDecisionSignal(): LocationDecisionSignal {
 		val sourceEventId = getString("eid").takeIf(String::isNotBlank)
 			?: throw IllegalArgumentException("Location decision is missing source event id")
-		val decision = getString("out").toLocationDecision(strictCodes)
+		val decision = getString("out").toLocationDecision()
 		return LocationDecisionSignal(
 			sourceEventId = sourceEventId,
 			decision = decision,
@@ -634,15 +594,10 @@ internal object SignalSerializer {
 		)
 	}
 
-	private fun JSONObject.toActivitySignal(strictCodes: Boolean): ActivitySignal {
+	private fun JSONObject.toActivitySignal(): ActivitySignal {
 		val encodedType = get("t")
-		val type = when {
-			encodedType is String -> encodedType.toActivityType(strictCodes)
-			!strictCodes && encodedType is Number -> {
-				DetectedActivityType.entries.getOrElse(encodedType.toInt()) {
-					DetectedActivityType.UNKNOWN
-				}
-			}
+		val type = when (encodedType) {
+			is String -> encodedType.toActivityType()
 			else -> throw IllegalArgumentException("Activity type must use a stable string code")
 		}
 		return ActivitySignal(
@@ -676,7 +631,7 @@ internal object SignalSerializer {
 		return CellSignal(towers, stampObject?.toObservationStamp())
 	}
 
-	private fun JSONObject.toWifiSignal(strictCodes: Boolean): WifiSignal? {
+	private fun JSONObject.toWifiSignal(): WifiSignal? {
 		val array = optJSONArray("wfi") ?: return null
 		val networks = (0 until array.length()).map { i ->
 			val n = array.getJSONObject(i)
@@ -693,18 +648,7 @@ internal object SignalSerializer {
 			encodedProvenance == null || encodedProvenance === JSONObject.NULL ->
 				ObservationCoordinateProvenance.UNKNOWN
 			encodedProvenance is String ->
-				encodedProvenance.toCoordinateProvenance(strictCodes)
-			encodedProvenance is Number -> {
-				if (!strictCodes) {
-					ObservationCoordinateProvenance.entries.getOrElse(encodedProvenance.toInt()) {
-						ObservationCoordinateProvenance.UNKNOWN
-					}
-				} else {
-					throw IllegalArgumentException(
-						"Wi-Fi coordinate provenance must use a stable string code",
-					)
-				}
-			}
+				encodedProvenance.toCoordinateProvenance()
 			else -> throw IllegalArgumentException(
 				"Wi-Fi coordinate provenance must use a stable string code",
 			)
@@ -758,13 +702,10 @@ internal object SignalSerializer {
 		permissionPrecision = optString("perm", "").takeIf(String::isNotBlank),
 	)
 
-	private fun JSONObject.toPolicySignal(strictCodes: Boolean): PolicySignal {
+	private fun JSONObject.toPolicySignal(): PolicySignal {
 		val encodedTier = get("tier")
-		val tier = when {
-			encodedTier is String -> encodedTier.toPolicyTier(strictCodes)
-			!strictCodes && encodedTier is Number -> {
-				PolicyTier.entries.getOrElse(encodedTier.toInt()) { PolicyTier.OFF }
-			}
+		val tier = when (encodedTier) {
+			is String -> encodedTier.toPolicyTier()
 			else -> throw IllegalArgumentException("Policy tier must use a stable string code")
 		}
 		return PolicySignal(
@@ -786,7 +727,7 @@ internal object SignalSerializer {
 		DetectedActivityType.UNKNOWN -> "unknown"
 	}
 
-	private fun String.toActivityType(strictCodes: Boolean): DetectedActivityType = when (this) {
+	private fun String.toActivityType(): DetectedActivityType = when (this) {
 		"still" -> DetectedActivityType.STILL
 		"walking" -> DetectedActivityType.WALKING
 		"running" -> DetectedActivityType.RUNNING
@@ -795,14 +736,9 @@ internal object SignalSerializer {
 		"on_foot" -> DetectedActivityType.ON_FOOT
 		"tilting" -> DetectedActivityType.TILTING
 		"unknown" -> DetectedActivityType.UNKNOWN
-		else -> {
-			if (strictCodes) {
-				throw UnsupportedSignalEncodingException(
-					PendingSignalDecodeFailure.UNSUPPORTED_ACTIVITY_TYPE,
-				)
-			}
-			DetectedActivityType.UNKNOWN
-		}
+		else -> throw UnsupportedSignalEncodingException(
+			PendingSignalDecodeFailure.UNSUPPORTED_ACTIVITY_TYPE,
+		)
 	}
 
 	private fun PolicyTier.stableCode(): String = when (this) {
@@ -812,19 +748,14 @@ internal object SignalSerializer {
 		PolicyTier.PRECISION -> "precision"
 	}
 
-	private fun String.toPolicyTier(strictCodes: Boolean): PolicyTier = when (this) {
+	private fun String.toPolicyTier(): PolicyTier = when (this) {
 		"off" -> PolicyTier.OFF
 		"ambient" -> PolicyTier.AMBIENT
 		"active" -> PolicyTier.ACTIVE
 		"precision" -> PolicyTier.PRECISION
-		else -> {
-			if (strictCodes) {
-				throw UnsupportedSignalEncodingException(
-					PendingSignalDecodeFailure.UNSUPPORTED_POLICY_TIER,
-				)
-			}
-			PolicyTier.OFF
-		}
+		else -> throw UnsupportedSignalEncodingException(
+			PendingSignalDecodeFailure.UNSUPPORTED_POLICY_TIER,
+		)
 	}
 
 	private fun LocationDecision.stableCode(): String = when (this) {
@@ -832,13 +763,9 @@ internal object SignalSerializer {
 		LocationDecision.REJECTED -> "rejected"
 	}
 
-	private fun String.toLocationDecision(strictCodes: Boolean): LocationDecision = when (this) {
+	private fun String.toLocationDecision(): LocationDecision = when (this) {
 		"accepted" -> LocationDecision.ACCEPTED
 		"rejected" -> LocationDecision.REJECTED
-		// Version-zero rows used enum names. Keep them readable but never allow
-		// a versioned envelope to depend on Kotlin enum spelling.
-		"ACCEPTED" if !strictCodes -> LocationDecision.ACCEPTED
-		"REJECTED" if !strictCodes -> LocationDecision.REJECTED
 		else -> throw UnsupportedSignalEncodingException(
 			PendingSignalDecodeFailure.UNSUPPORTED_LOCATION_DECISION,
 		)
@@ -850,20 +777,13 @@ internal object SignalSerializer {
 		ObservationCoordinateProvenance.INTERPOLATED -> "interpolated"
 	}
 
-	private fun String.toCoordinateProvenance(
-		strictCodes: Boolean,
-	): ObservationCoordinateProvenance = when (this) {
+	private fun String.toCoordinateProvenance(): ObservationCoordinateProvenance = when (this) {
 		"unknown" -> ObservationCoordinateProvenance.UNKNOWN
 		"direct" -> ObservationCoordinateProvenance.DIRECT
 		"interpolated" -> ObservationCoordinateProvenance.INTERPOLATED
-		else -> {
-			if (strictCodes) {
-				throw UnsupportedSignalEncodingException(
-					PendingSignalDecodeFailure.UNSUPPORTED_WIFI_COORDINATE_PROVENANCE,
-				)
-			}
-			ObservationCoordinateProvenance.UNKNOWN
-		}
+		else -> throw UnsupportedSignalEncodingException(
+			PendingSignalDecodeFailure.UNSUPPORTED_WIFI_COORDINATE_PROVENANCE,
+		)
 	}
 
 	private class UnsupportedSignalEncodingException(

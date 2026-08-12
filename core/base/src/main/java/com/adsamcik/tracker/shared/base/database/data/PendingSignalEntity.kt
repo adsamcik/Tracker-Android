@@ -49,9 +49,9 @@ data class PendingSignalEntity(
 	@ColumnInfo(name = "session_id")
 	val sessionId: Long,
 
-	/** Version of the durable serialization envelope; zero denotes legacy JSON. */
-	@ColumnInfo(name = "envelope_version", defaultValue = "0")
-	val envelopeVersion: Int = 0,
+	/** Version of the durable serialization envelope. */
+	@ColumnInfo(name = "envelope_version", defaultValue = "1")
+	val envelopeVersion: Int = 1,
 
 	/** SHA-256 checksum of [signalJson] for versioned envelopes. */
 	@ColumnInfo(name = "payload_checksum")

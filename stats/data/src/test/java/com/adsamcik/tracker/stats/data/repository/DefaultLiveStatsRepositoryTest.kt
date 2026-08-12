@@ -45,36 +45,42 @@ class DefaultLiveStatsRepositoryTest {
 		)
 
 		val stats = repository.observeLiveStats().first()
+		stats.dateEpochDay shouldBe 20_000L
 		stats.sessionDistance shouldBe DistanceM.ZERO
 		stats.sessionSteps shouldBe StepCount.ZERO
 		stats.sessionDuration shouldBe DurationMs.ZERO
 		stats.dayTotalDistance shouldBe DistanceM.ZERO
 		stats.dayTotalSteps shouldBe StepCount.ZERO
+		stats.dayTotalDuration shouldBe DurationMs.ZERO
+		stats.lastUpdatedMs shouldBe 123L
 	}
 
 	@Test
 	fun `updateLiveStats writes expected values to dao`() = runTest {
 		coJustRun { dao.upsert(any(), any(), any(), any(), any(), any(), any(), any()) }
 		val stats = LiveStats(
+			dateEpochDay = 20_000L,
 			sessionDistance = DistanceM(10f),
 			sessionSteps = StepCount(200),
 			sessionDuration = DurationMs(8_000L),
 			dayTotalDistance = DistanceM(50f),
 			dayTotalSteps = StepCount(700),
+			dayTotalDuration = DurationMs(28_000L),
+			lastUpdatedMs = 123_456L,
 		)
 
 		repository.updateLiveStats(stats)
 
 		coVerify {
 			dao.upsert(
-				any(),
+				dateEpochDay = 20_000L,
 				sessionDistanceM = 10f,
 				sessionSteps = 200,
 				sessionDurationMs = 8_000L,
 				dayTotalDistanceM = 50f,
 				dayTotalSteps = 700,
-				dayTotalDurationMs = 8_000L,
-				lastUpdatedMs = any(),
+				dayTotalDurationMs = 28_000L,
+				lastUpdatedMs = 123_456L,
 			)
 		}
 	}

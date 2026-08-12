@@ -53,12 +53,6 @@
     <string name="map_layer_terrain_low">Rar aici</string>
     <string name="map_layer_terrain_mid">Uneori</string>
     <string name="map_layer_terrain_high">Des aici</string>
-    <string name="map_layer_places_title">Locuri frecvente</string>
-    <string name="map_layer_places_chip">Locuri</string>
-    <string name="map_layer_places_description">Locurile tale importante apar ca marcatori, fiecare dimensionat și colorat după frecvența vizitelor. Acasă și serviciul devin puncte mari și calde; un loc vizitat o singură dată rămâne mic și rece.</string>
-    <string name="map_layer_places_rare">Rar</string>
-    <string name="map_layer_places_often">Uneori</string>
-    <string name="map_layer_places_anchor">Reperele tale</string>
     <string name="map_layer_speed_ribbon_title">Bandă de viteză</string>
     <string name="map_layer_speed_ribbon_chip">Bandă</string>
     <string name="map_layer_speed_ribbon_description">Ruta ta este colorată după viteza de deplasare, de la o plimbare lentă violetă la un sprint sau condus roșu-aprins. Spre deosebire de harta termică a vitezei, banda păstrează traseul intact, pentru a vedea exact unde ai accelerat și ai încetinit.</string>
@@ -80,9 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Coborâre</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Instalație</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Mers pe jos sau pauză</string>
-    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Constelații de călătorii</string>
-    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Călătorii</string>
-    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Călătoriile repetate între locurile frecvente devin constelații curbe. Un arc stabil arată fiecare rută, iar o cometă se deplasează de-a lungul lui; arcele mai groase înseamnă că ai făcut acea călătorie mai des.</string>
     <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Mers pe jos</string>
     <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Ciclism</string>
     <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Condus</string>
@@ -98,18 +89,10 @@
     <string name="map_layer_first_contact_description">O cronologie a descoperirilor tale: fiecare zonă este colorată după cât de recent ai pășit acolo pentru prima dată. Locurile descoperite demult se estompează spre indigo închis, iar terenul explorat în această săptămână strălucește cyan intens — citește povestea explorării tale până la cele mai noi frontiere.</string>
     <string name="map_layer_first_contact_old">Demult</string>
     <string name="map_layer_first_contact_recent">Tocmai descoperit</string>
-    <string name="map_layer_vehicle_compliance_title">Conformitatea vitezei vehiculului</string>
-    <string name="map_layer_vehicle_compliance_description">Polilinie de eșantioane de condus colorate după compararea vitezei cu limita de referință configurată.</string>
-    <string name="map_layer_vehicle_compliance_way_under">Mult sub limită</string>
-    <string name="map_layer_vehicle_compliance_slow">Sub limită</string>
-    <string name="map_layer_vehicle_compliance_at_limit">Aproape de limită</string>
-    <string name="map_layer_vehicle_compliance_slightly_over">Ușor peste limită</string>
-    <string name="map_layer_vehicle_compliance_speeding">Depășire de viteză</string>
     <string name="map_layer_location_polyline_description">Linie care conectează în timp locațiile tale înregistrate.</string>
     <string name="map_layer_location_polyline_title">Polilinie de locație</string>
     <string name="map_layer_location_polyline_chip">Polilinie</string>
     <string name="map_layer_wifi_count_heatmap_chip">Suprapunere Wi-Fi</string>
-    <string name="map_layer_vehicle_compliance_chip">Depășire de viteză</string>
     <string name="map_layer_none_title">Fără suprapunere</string>
     <string name="map_date_preset_week">Săptămâna trecută</string>
     <string name="map_date_preset_month">Luna trecută</string>
@@ -174,7 +157,6 @@
     <string name="map_empty_subtitle_cell">Nu există date celulare localizate în această vizualizare sau în acest interval de date. Eșantioanele celulare înregistrate fără locație sunt păstrate, dar nu pot apărea pe hartă.</string>
     <string name="map_empty_subtitle_wifi">Nu există date Wi-Fi localizate în această vizualizare sau în acest interval de date. Observațiile Wi-Fi înregistrate fără locație sunt păstrate, dar nu pot apărea pe hartă.</string>
     <string name="map_empty_subtitle_speed">Nu există date de viteză în această vizualizare sau în acest interval de date. Hărțile vitezei necesită eșantioane de locație utilizabile colectate în timpul urmăririi.</string>
-    <string name="map_empty_subtitle_vehicle_compliance">Nu există deplasări corelate cu drumurile de afișat. Importă o regiune OpenStreetMap (Setări) și înregistrează câteva deplasări cu mașina pentru a potrivi ruta cu drumurile reale.</string>
     <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Închide mesajul fără date</string>
     <string name="map_speed_probe_title">Viteza aici</string>
     <string name="map_speed_probe_avg_label">Medie</string>

@@ -14,26 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">Arendajarežiim on keelatud</string>
     <string name="settings_data_management_section">Andmehaldus</string>
     <string name="settings_data_danger_zone_section">Ohtlik tsoon</string>
-    <string name="settings_osm_import_section">Kaardiandmed (OpenStreetMap)</string>
-    <string name="settings_osm_import_action_title">Impordi OSM-i piirkond</string>
-    <string name="settings_osm_import_action_summary">Valige .osm.pbf-fail. Sõidukite nõuete järgimiseks kasutatakse siis võrguühenduseta tegelikke teepiiranguid.</string>
-    <string name="settings_osm_import_unavailable_title">Võrguühenduseta kaardi import pole saadaval</string>
-    <string name="settings_osm_import_action_unavailable">Võrguühenduseta kaardi import pole ajutiselt saadaval, kuni failiohutuse kaitsed on lõpule viidud.</string>
-    <string name="settings_osm_import_action_running">Importimine — puudutage tühistamiseks</string>
-    <string name="settings_osm_import_action_failed">Võrguühenduseta kaardi importimist ei saanud lõpule viia.</string>
-    <string name="settings_osm_import_action_source_unavailable">Valitud kaardifaili ei saanud avada.</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">Imporditi %1$d tee %2$d sõlmest.</item>
-        <item quantity="other">Imporditi %1$d teed %2$d sõlmest.</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">Ühtegi OpenStreetMapi piirkonda pole veel imporditud.</string>
-    <string name="settings_osm_imports_attribution">Kaardiandmed © OpenStreetMapi kaasautorid (ODbL 1.0). Kogu töötlemine toimub seadmes.</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d tee · imporditud %2$s</item>
-        <item quantity="other">%1$,d teed · imporditud %2$s</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">Eemalda imporditud piirkond</string>
-    <string name="settings_osm_import_remove_message">Kas eemaldada %1$s? Sõidukite nõuete järgimine kasutab kindlat etaloni, kuni impordite piirkonna uuesti.</string>
     <string name="settings_incremental_backups_title">Järkjärgulised varukoopiad</string>
     <string name="settings_incremental_backups_summary">Ekspordi ainult pärast viimast varukoopiat lisandunud andmed. Vähendab ekspordiaega ja failisuurust.</string>
     <string name="settings_reset_export_watermarks_title">Sunni täielik eksport</string>
@@ -362,9 +342,9 @@
     <string name="setup_step_indicator">Samm %1$d/%2$d</string>
     <string name="setup_online_tiles_title">Veebipõhised kaardipaanid?</string>
     <string name="setup_online_tiles_subtitle">Tracker sisaldab võrguühenduseta aluskaarti, nii et see töötab ilma võrguta. Kui soovite rikkalikumaid kaarte, saate selle asemel voogedastada paane avalikult pakkujalt.</string>
-    <string name="setup_online_tiles_off_title">Ainult võrguühenduseta (soovitatav)</string>
+    <string name="setup_online_tiles_off_title">Ainult võrguühenduseta</string>
     <string name="setup_online_tiles_off_desc">Võrgupäringuid ei tehta. Kasutatakse ainult kaasatud aluskaarti.</string>
-    <string name="setup_online_tiles_on_title">Kasuta veebipõhiseid kaardipaane</string>
+    <string name="setup_online_tiles_on_title">Kasuta veebipõhiseid kaardipaane (soovitatav)</string>
     <string name="setup_online_tiles_on_desc">Voogedasta detailsemaid vektorpaneele OpenFreeMapist (vaikimisi). Pakkujat saate hiljem muuta menüüs Seaded → Kaart.</string>
     <string name="setup_online_tiles_privacy">Kui see on lubatud, näeb pakkuja teie IP-aadressi ja laaditavaid paane — ligikaudu seda kaardiala, mida vaatate. Tracker ei saada kunagi kontot, tunnust ega teie asukohaajalugu.</string>
     <string name="setup_online_tiles_change_later">Saate seda igal ajal muuta menüüs Seaded → Kaart → Veebipõhised kaardipaanid.</string>

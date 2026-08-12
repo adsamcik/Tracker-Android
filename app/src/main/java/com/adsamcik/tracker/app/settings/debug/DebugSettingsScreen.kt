@@ -1,10 +1,13 @@
 package com.adsamcik.tracker.app.settings.debug
 
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
@@ -13,7 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.R
-import com.adsamcik.tracker.app.settings.components.SectionHeader
+import com.adsamcik.tracker.app.settings.components.SettingsGroupCard
 import com.adsamcik.tracker.app.settings.components.SettingsItem
 
 @Composable
@@ -32,6 +35,10 @@ fun DebugSettingsScreen() {
         // Disable developer mode option (only in release builds when enabled)
         if (!com.adsamcik.tracker.BuildConfig.DEBUG && developerModeEnabled) {
             item {
+                SettingsGroupCard(
+                    title = stringResource(R.string.settings_debug_group_title),
+                    icon = Icons.Default.Build,
+                ) {
                 SettingsItem(
                     title = stringResource(R.string.settings_developer_mode_disable),
                     subtitle = stringResource(R.string.settings_debug_disable_developer_subtitle),
@@ -45,17 +52,22 @@ fun DebugSettingsScreen() {
                         ).show()
                     }
                 )
+                }
             }
         }
 
         // Developer tools (only show in debug/dev builds)
         if (com.adsamcik.tracker.BuildConfig.DEBUG || com.adsamcik.tracker.BuildConfig.BUILD_TYPE == "dev") {
             item {
-                SectionHeader(stringResource(R.string.settings_debug_developer_tools_section))
-            }
-
-            item {
-                com.adsamcik.tracker.app.debug.SeedDataSection()
+                SettingsGroupCard(
+                    title = stringResource(R.string.settings_debug_developer_tools_section),
+                    icon = Icons.Default.Build,
+                    modifier = Modifier.padding(top = 12.dp),
+                ) {
+                    Box(modifier = Modifier.padding(16.dp)) {
+                        com.adsamcik.tracker.app.debug.SeedDataSection()
+                    }
+                }
             }
         }
     }

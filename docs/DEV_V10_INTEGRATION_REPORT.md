@@ -1,5 +1,12 @@
 # Dev/v10 adversarial research integration report
 
+> **ARCHIVAL NOTE (2026-08-11):** This report records the `dev/v10` snapshot at
+> the commit named below. The unreleased `:domain:osm` module, OSM persistence,
+> matcher/settings surfaces, and generic processor checkpoint API were later
+> removed or deferred during the v27 storage release. Their descriptions below
+> are historical evidence, not the current application architecture. See
+> `V27_STORAGE_RELEASE_IMPLEMENTATION_PLAN.md` for the current decision.
+
 > **Last verified:** 2026-07-22
 > **Research packs:** 10, each pinned to `94c964d03`
 > **Final `dev/v10` tip:** `fb2684d53`

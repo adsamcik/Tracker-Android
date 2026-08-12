@@ -14,26 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">Utvecklarläget är avstängt</string>
     <string name="settings_data_management_section">Datahantering</string>
     <string name="settings_data_danger_zone_section">Riskzon</string>
-    <string name="settings_osm_import_section">Kartdata (OpenStreetMap)</string>
-    <string name="settings_osm_import_action_title">Importera OSM-region</string>
-    <string name="settings_osm_import_action_summary">Välj en .osm.pbf-fil. Fordonsefterlevnad använder sedan verkliga vägbegränsningar offline.</string>
-    <string name="settings_osm_import_unavailable_title">Offlineimport av karta är inte tillgänglig</string>
-    <string name="settings_osm_import_action_unavailable">Offlineimport av karta är tillfälligt otillgänglig medan filskyddet färdigställs.</string>
-    <string name="settings_osm_import_action_running">Importerar — tryck för att avbryta</string>
-    <string name="settings_osm_import_action_failed">Offlineimporten av kartan kunde inte slutföras.</string>
-    <string name="settings_osm_import_action_source_unavailable">Den valda kartfilen kunde inte öppnas.</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">Importerade %1$d väg från %2$d noder.</item>
-        <item quantity="other">Importerade %1$d vägar från %2$d noder.</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">Ingen OpenStreetMap-region har importerats ännu.</string>
-    <string name="settings_osm_imports_attribution">Kartdata © OpenStreetMap-bidragsgivare (ODbL 1.0). All bearbetning sker på enheten.</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d väg · importerad %2$s</item>
-        <item quantity="other">%1$,d vägar · importerade %2$s</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">Ta bort importerad region</string>
-    <string name="settings_osm_import_remove_message">Ta bort %1$s? Fordonsefterlevnad återgår till den fasta baslinjen tills du importerar en region igen.</string>
     <string name="settings_incremental_backups_title">Inkrementella säkerhetskopior</string>
     <string name="settings_incremental_backups_summary">Exportera bara nya data sedan senaste säkerhetskopian. Minskar exporttiden och filstorleken.</string>
     <string name="settings_reset_export_watermarks_title">Tvinga fullständig export</string>
@@ -362,9 +342,9 @@
     <string name="setup_step_indicator">Steg %1$d av %2$d</string>
     <string name="setup_online_tiles_title">Onlinekartbrickor?</string>
     <string name="setup_online_tiles_subtitle">Tracker levereras med en offlinebaskarta och fungerar därför utan nätverk. Om du vill ha rikare kartor kan du i stället strömma kartbrickor från en offentlig leverantör.</string>
-    <string name="setup_online_tiles_off_title">Endast offline (rekommenderas)</string>
+    <string name="setup_online_tiles_off_title">Endast offline</string>
     <string name="setup_online_tiles_off_desc">Inga nätverksförfrågningar. Endast den medföljande baskartan används.</string>
-    <string name="setup_online_tiles_on_title">Använd onlinekartbrickor</string>
+    <string name="setup_online_tiles_on_title">Använd onlinekartbrickor (rekommenderas)</string>
     <string name="setup_online_tiles_on_desc">Strömma vektorkartbrickor med högre detaljnivå från OpenFreeMap (standard). Du kan byta leverantör senare i Inställningar → Karta.</string>
     <string name="setup_online_tiles_privacy">När detta är aktiverat kan leverantören se din IP-adress och vilka kartbrickor du läser in — ungefär vilket område på kartan du tittar på. Tracker skickar aldrig ett konto, en identifierare eller din platshistorik.</string>
     <string name="setup_online_tiles_change_later">Du kan ändra detta när som helst i Inställningar → Karta → Onlinekartbrickor.</string>

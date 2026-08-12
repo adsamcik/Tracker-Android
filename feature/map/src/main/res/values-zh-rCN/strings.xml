@@ -53,12 +53,6 @@
     <string name="map_layer_terrain_low">很少到此</string>
     <string name="map_layer_terrain_mid">有时到此</string>
     <string name="map_layer_terrain_high">经常到此</string>
-    <string name="map_layer_places_title">常去地点</string>
-    <string name="map_layer_places_chip">地点</string>
-    <string name="map_layer_places_description">以标记显示您的重要地点，标记的大小和颜色由访问频率决定。家和工作地点会成为温暖的大点；只去过一次的地点则保持冷色小点。</string>
-    <string name="map_layer_places_rare">很少</string>
-    <string name="map_layer_places_often">有时</string>
-    <string name="map_layer_places_anchor">您的锚点</string>
     <string name="map_layer_speed_ribbon_title">速度丝带</string>
     <string name="map_layer_speed_ribbon_chip">丝带</string>
     <string name="map_layer_speed_ribbon_description">按移动速度为路线着色，从缓慢的紫色漫步到炽热红色的冲刺或驾驶。与速度热力图不同，丝带会保留完整路径，让您准确看到何处加速和减速。</string>
@@ -80,9 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">下坡滑行</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">缆车</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">步行或暂停</string>
-    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">行程星座</string>
-    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">行程</string>
-    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">常去地点之间的重复行程会形成弯曲星座。每条稳定弧线表示一条路线，彗星沿弧线移动；弧线越粗，表示您进行该行程越频繁。</string>
     <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">步行</string>
     <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">骑行</string>
     <string name="map_layer_trip_car" tools:ignore="MissingTranslation">驾车</string>
@@ -98,18 +89,10 @@
     <string name="map_layer_first_contact_description">您的发现时间线：每个区域按您首次踏足的时间远近着色。很久以前发现的地点会渐变为深靛蓝，而本周开拓的区域会发出明亮青光—沿着探索故事向外走向最新的前沿。</string>
     <string name="map_layer_first_contact_old">很久以前</string>
     <string name="map_layer_first_contact_recent">刚刚发现</string>
-    <string name="map_layer_vehicle_compliance_title">车辆速度合规性</string>
-    <string name="map_layer_vehicle_compliance_description">按速度与您配置的基线限速之比较为驾车样本折线着色。</string>
-    <string name="map_layer_vehicle_compliance_way_under">远低于限速</string>
-    <string name="map_layer_vehicle_compliance_slow">低于限速</string>
-    <string name="map_layer_vehicle_compliance_at_limit">接近限速</string>
-    <string name="map_layer_vehicle_compliance_slightly_over">略超限速</string>
-    <string name="map_layer_vehicle_compliance_speeding">超速</string>
     <string name="map_layer_location_polyline_description">随时间连接您记录位置的线条。</string>
     <string name="map_layer_location_polyline_title">位置折线</string>
     <string name="map_layer_location_polyline_chip">折线</string>
     <string name="map_layer_wifi_count_heatmap_chip">Wi-Fi 重叠</string>
-    <string name="map_layer_vehicle_compliance_chip">超速</string>
     <string name="map_layer_none_title">无叠加层</string>
     <string name="map_date_preset_week">上周</string>
     <string name="map_date_preset_month">上月</string>
@@ -174,7 +157,6 @@
     <string name="map_empty_subtitle_cell">此视图或日期范围内没有带位置的蜂窝数据。未带位置记录的蜂窝样本仍会保存，但无法显示在地图上。</string>
     <string name="map_empty_subtitle_wifi">此视图或日期范围内没有带位置的 Wi-Fi 数据。未带位置记录的 Wi-Fi 观测仍会保存，但无法显示在地图上。</string>
     <string name="map_empty_subtitle_speed">此视图或日期范围内没有速度数据。速度地图需要跟踪时收集的可用位置样本。</string>
-    <string name="map_empty_subtitle_vehicle_compliance">没有可显示的道路匹配驾车记录。请导入 OpenStreetMap 区域（设置），并记录一些驾车行程，以便将您的路线匹配到真实道路。</string>
     <string name="map_empty_dismiss" tools:ignore="MissingTranslation">关闭无数据消息</string>
     <string name="map_speed_probe_title">此处速度</string>
     <string name="map_speed_probe_avg_label">平均</string>

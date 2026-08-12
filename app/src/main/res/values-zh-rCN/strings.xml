@@ -14,26 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">开发者模式已关闭</string>
     <string name="settings_data_management_section">数据管理</string>
     <string name="settings_data_danger_zone_section">危险区域</string>
-    <string name="settings_osm_import_section">地图数据（OpenStreetMap）</string>
-    <string name="settings_osm_import_action_title">导入 OSM 区域</string>
-    <string name="settings_osm_import_action_summary">选择 .osm.pbf 文件。随后可离线使用真实道路限速来检查车辆合规性。</string>
-    <string name="settings_osm_import_unavailable_title">无法离线导入地图</string>
-    <string name="settings_osm_import_action_unavailable">文件安全保护完成前，离线地图导入暂时不可用。</string>
-    <string name="settings_osm_import_action_running">正在导入 — 点按以取消</string>
-    <string name="settings_osm_import_action_failed">无法完成离线地图导入。</string>
-    <string name="settings_osm_import_action_source_unavailable">无法打开所选地图文件。</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">已从 %2$d 个节点导入 %1$d 条道路。</item>
-        <item quantity="other">已从 %2$d 个节点导入 %1$d 条道路。</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">尚未导入 OpenStreetMap 区域。</string>
-    <string name="settings_osm_imports_attribution">地图数据 © OpenStreetMap 贡献者（ODbL 1.0）。所有处理均在设备上完成。</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d 条道路 · 导入于 %2$s</item>
-        <item quantity="other">%1$,d 条道路 · 导入于 %2$s</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">移除已导入区域</string>
-    <string name="settings_osm_import_remove_message">要移除 %1$s 吗？在重新导入区域之前，车辆合规性将恢复使用固定基线。</string>
     <string name="settings_incremental_backups_title">增量备份</string>
     <string name="settings_incremental_backups_summary">仅导出自上次备份以来的新数据，从而减少导出时间和文件大小。</string>
     <string name="settings_reset_export_watermarks_title">强制完整导出</string>
@@ -362,9 +342,9 @@
     <string name="setup_step_indicator">第 %1$d 步，共 %2$d 步</string>
     <string name="setup_online_tiles_title">在线地图瓦片？</string>
     <string name="setup_online_tiles_subtitle">Tracker 随附离线底图，因此无需网络也可工作。若需要更丰富的地图，可改为从公共提供商流式加载瓦片。</string>
-    <string name="setup_online_tiles_off_title">仅离线（推荐）</string>
+    <string name="setup_online_tiles_off_title">仅离线</string>
     <string name="setup_online_tiles_off_desc">不发出网络请求。仅使用随附的底图。</string>
-    <string name="setup_online_tiles_on_title">使用在线瓦片</string>
+    <string name="setup_online_tiles_on_title">使用在线瓦片（推荐）</string>
     <string name="setup_online_tiles_on_desc">从 OpenFreeMap（默认）流式加载更高细节的矢量瓦片。您可以稍后在“设置 → 地图”中更改提供商。</string>
     <string name="setup_online_tiles_privacy">启用后，提供商可看到您的 IP 地址及您加载的瓦片 — 即您正在查看的大致地图区域。Tracker 绝不会发送帐户、标识符或您的位置历史记录。</string>
     <string name="setup_online_tiles_change_later">您可随时在“设置 → 地图 → 在线地图瓦片”中更改此设置。</string>

@@ -278,12 +278,6 @@ class PersistenceProcessor @Inject constructor(
 		}
 	}
 
-	override fun checkpoint(): ByteArray? = null
-
-	override fun restore(state: ByteArray) {
-		// No checkpoint support yet
-	}
-
 	/** Parse [signal] into the typed destination buffers (no staging, no I/O). */
 	private fun bufferSignal(signal: TrackingSignal, sourceSignalId: String) {
 		val location = signal.location

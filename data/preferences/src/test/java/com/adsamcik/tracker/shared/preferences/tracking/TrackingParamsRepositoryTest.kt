@@ -75,10 +75,6 @@ class TrackingParamsRepositoryTest {
 			_data.value = _data.value.copy(presetName = preset.name)
 		}
 
-		override suspend fun setVehicleSpeedLimitBaselineMps(mps: Double) {
-			_data.value = _data.value.copy(vehicleSpeedLimitBaselineMps = mps)
-		}
-
 		override suspend fun setSourceFrequency(
 			component: TrackingSourceComponent,
 			frequency: SourceCollectionFrequency,

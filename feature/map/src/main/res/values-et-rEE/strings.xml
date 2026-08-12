@@ -53,12 +53,6 @@
     <string name="map_layer_terrain_low">Harva siin</string>
     <string name="map_layer_terrain_mid">Mõnikord</string>
     <string name="map_layer_terrain_high">Sageli siin</string>
-    <string name="map_layer_places_title">Sagedased kohad</string>
-    <string name="map_layer_places_chip">Kohad</string>
-    <string name="map_layer_places_description">Teie olulised kohad markeritena, mille suurus ja värv sõltuvad külastussagedusest. Kodu ja töö muutuvad suurteks soojadeks punktideks; üks kord külastatud koht jääb väikeseks ja jahedaks.</string>
-    <string name="map_layer_places_rare">Harva</string>
-    <string name="map_layer_places_often">Mõnikord</string>
-    <string name="map_layer_places_anchor">Teie tugipunktid</string>
     <string name="map_layer_speed_ribbon_title">Kiiruslint</string>
     <string name="map_layer_speed_ribbon_chip">Lint</string>
     <string name="map_layer_speed_ribbon_description">Teie marsruut on värvitud liikumiskiiruse järgi, voolates aeglasest violetsest jalutuskäigust punakuuma sprindi või sõiduni. Erinevalt kiiruse soojuskaardist säilitab lint teie teekonna, nii et näete täpselt, kus kiirenesite ja aeglustusite.</string>
@@ -80,9 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Laskumine</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Tõstuk</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Kõnd või paus</string>
-    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Reiside tähtkujud</string>
-    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Reisid</string>
-    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Korduvad teekonnad sagedaste kohtade vahel muutuvad kaarjateks tähtkujudeks. Stabiilne kaar näitab igat marsruuti, mida mööda liigub komeet; paksemad kaared tähendavad, et tegite selle teekonna sagedamini.</string>
     <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Kõndimine</string>
     <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Jalgrattasõit</string>
     <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Autosõit</string>
@@ -98,18 +89,10 @@
     <string name="map_layer_first_contact_description">Teie avastuste ajajoon: iga ala on värvitud selle järgi, kui hiljuti sinna esimest korda astusite. Ammu leitud kohad tuhmuvad sügavaks indigoks, sel nädalal avastatud maa helendab erksa tsüaanina — lugege oma avastuslugu kuni uusimate piirideni.</string>
     <string name="map_layer_first_contact_old">Ammu</string>
     <string name="map_layer_first_contact_recent">Äsja avastatud</string>
-    <string name="map_layer_vehicle_compliance_title">Sõiduki kiirusnõuete järgimine</string>
-    <string name="map_layer_vehicle_compliance_description">Sõiduproovide murdjoon, mille värv näitab kiiruse võrdlust teie seadistatud etalonpiiranguga.</string>
-    <string name="map_layer_vehicle_compliance_way_under">Palju alla piiri</string>
-    <string name="map_layer_vehicle_compliance_slow">Alla piiri</string>
-    <string name="map_layer_vehicle_compliance_at_limit">Piiri lähedal</string>
-    <string name="map_layer_vehicle_compliance_slightly_over">Veidi üle piiri</string>
-    <string name="map_layer_vehicle_compliance_speeding">Kiiruseületus</string>
     <string name="map_layer_location_polyline_description">Joon, mis ühendab teie aja jooksul salvestatud asukohad.</string>
     <string name="map_layer_location_polyline_title">Asukoha murdjoon</string>
     <string name="map_layer_location_polyline_chip">Murdjoon</string>
     <string name="map_layer_wifi_count_heatmap_chip">Wi‑Fi kattuvus</string>
-    <string name="map_layer_vehicle_compliance_chip">Kiiruseületus</string>
     <string name="map_layer_none_title">Ülekate puudub</string>
     <string name="map_date_preset_week">Eelmine nädal</string>
     <string name="map_date_preset_month">Eelmine kuu</string>
@@ -174,7 +157,6 @@
     <string name="map_empty_subtitle_cell">Selles vaates või kuupäevavahemikus pole asukohaga seotud mobiiliraku andmeid. Ilma asukohata salvestatud mobiiliraku proovid on alles, kuid neid ei saa kaardil kuvada.</string>
     <string name="map_empty_subtitle_wifi">Selles vaates või kuupäevavahemikus pole asukohaga seotud Wi‑Fi andmeid. Ilma asukohata salvestatud Wi‑Fi vaatlused on alles, kuid neid ei saa kaardil kuvada.</string>
     <string name="map_empty_subtitle_speed">Selles vaates või kuupäevavahemikus pole kiirusandmeid. Kiiruskaardid vajavad jälgimise ajal kogutud kasutuskõlblikke asukohaproove.</string>
-    <string name="map_empty_subtitle_vehicle_compliance">Pole teega sobitatud sõite, mida kuvada. Importige OpenStreetMapi piirkond (Seaded) ja salvestage mõned sõidud, et saaksime teie marsruudi päris teedega sobitada.</string>
     <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Loobu andmete puudumise teatest</string>
     <string name="map_speed_probe_title">Kiirus siin</string>
     <string name="map_speed_probe_avg_label">Keskmine</string>

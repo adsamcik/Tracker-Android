@@ -303,6 +303,34 @@ class BackgroundTrackingApiLogicTest {
 	}
 
 	@Nested
+	@DisplayName("stop session when automation is disabled")
+	inner class StopSessionWhenAutomationDisabled {
+		@Test
+		fun `disabled mode stops an automatic session`() {
+			shouldStopSessionWhenAutoTrackingDisabled(
+				newMode = GroupedActivity.STILL.ordinal,
+				isUserInitiated = false,
+			) shouldBe true
+		}
+
+		@Test
+		fun `disabled mode preserves a manual session`() {
+			shouldStopSessionWhenAutoTrackingDisabled(
+				newMode = GroupedActivity.STILL.ordinal,
+				isUserInitiated = true,
+			) shouldBe false
+		}
+
+		@Test
+		fun `movement mode does not stop the current session`() {
+			shouldStopSessionWhenAutoTrackingDisabled(
+				newMode = GroupedActivity.ON_FOOT.ordinal,
+				isUserInitiated = false,
+			) shouldBe false
+		}
+	}
+
+	@Nested
 	@DisplayName("automatic continuation grace")
 	inner class AutomaticContinuationGrace {
 		@Test

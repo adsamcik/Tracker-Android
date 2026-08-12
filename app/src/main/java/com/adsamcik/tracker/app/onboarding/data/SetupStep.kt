@@ -18,7 +18,7 @@ enum class SetupStep(val index: Int) {
     /** Optional battery-optimization exemption for reliable background tracking. */
     BackgroundAccess(3),
 
-    /** Opt-in online map tile provider (off by default). */
+    /** Online map tile provider choice (online recommended by default). */
     OnlineMapTiles(4);
 
     companion object {

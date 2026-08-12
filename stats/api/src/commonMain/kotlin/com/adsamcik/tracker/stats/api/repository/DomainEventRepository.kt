@@ -27,49 +27,11 @@ interface DomainEventRepository {
 	fun observeEvents(since: EpochMs): Flow<List<DomainEvent>>
 
 	/**
-	 * Legacy id-less unconsumed batch fetch. Same-millisecond rows beyond [limit] are
-	 * lost when paired with [markConsumed] because that ack writes [Long.MAX_VALUE]
-	 * for `last_processed_id` and advances past every id at that timestamp.
-	 *
-	 * Use [getUnconsumedBatchWithIds] + [markBatchConsumed] for new consumers.
-	 *
-	 * **Migration note:** the IDE quick-fix maps this call to
-	 * `getUnconsumedBatchWithIds(consumerId, limit).map { it.event }` which preserves
-	 * the `List<DomainEvent>` return type. Callers that also need to ack via row id
-	 * should migrate the full fetch + ack pair together:
-	 * `getUnconsumedBatchWithIds` → process → `markBatchConsumed`.
-	 */
-	@Deprecated(
-		message = "Same-ms event-skip risk when paired with timestamp-only ack. " +
-			"Use getUnconsumedBatchWithIds + markBatchConsumed for precise composite-cursor consumption.",
-		replaceWith = ReplaceWith("getUnconsumedBatchWithIds(consumerId, limit).map { it.event }"),
-		level = DeprecationLevel.ERROR,
-	)
-	suspend fun getUnconsumedBatch(consumerId: String, limit: Int): List<DomainEvent>
-
-	/**
 	 * Fetch the next unconsumed batch in persisted-id order. Use with
 	 * [markBatchConsumed] so events inserted later are delivered even when their
 	 * event timestamps precede previously consumed events.
 	 */
 	suspend fun getUnconsumedBatchWithIds(consumerId: String, limit: Int): List<UnconsumedEvent>
-
-	/**
-	 * Legacy timestamp-only ack. Pairs unsafely with [getUnconsumedBatch]: when a
-	 * bounded batch leaves same-millisecond rows on the table, this ack writes
-	 * [Long.MAX_VALUE] for `last_processed_id` and skips every leftover row at that
-	 * timestamp.
-	 *
-	 * Use [markBatchConsumed] with the actual persisted id of the last event processed.
-	 */
-	@Deprecated(
-		message = "Same-ms event-skip risk: ack writes Long.MAX_VALUE id sentinel, " +
-			"skipping every same-ms event beyond the batch limit. " +
-			"No safe drop-in replacement exists — migrate the full fetch+ack pair: " +
-			"getUnconsumedBatchWithIds then markBatchConsumed with the last event's actual id.",
-		level = DeprecationLevel.ERROR,
-	)
-	suspend fun markConsumed(consumerId: String, upToTimestamp: EpochMs)
 
 	/**
 	 * Advance the inclusive delivery cursor to [upToEventId]. [upToTimestamp] is retained

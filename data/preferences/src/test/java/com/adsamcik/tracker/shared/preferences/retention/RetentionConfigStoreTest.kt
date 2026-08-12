@@ -59,7 +59,6 @@ class RetentionConfigStoreTest {
 	fun `default state has auto purge disabled`() {
 		val state = RetentionConfigState()
 		state.autoPurgeEnabled shouldBe false
-		state.exportBeforePurge shouldBe false
 	}
 
 	@Test
@@ -101,8 +100,6 @@ class RetentionConfigStoreTest {
 			.setDailySummaryRetentionDays(180)
 			.setExplorationRetentionDays(365)
 			.setAutoPurgeEnabled(true)
-			.setExportBeforePurge(true)
-			.setLegacySessionRetentionDays(120)
 			.setInitialized(true)
 			.build()
 
@@ -115,8 +112,6 @@ class RetentionConfigStoreTest {
 		parsed.dailySummaryRetentionDays shouldBe 180
 		parsed.explorationRetentionDays shouldBe 365
 		parsed.autoPurgeEnabled shouldBe true
-		parsed.exportBeforePurge shouldBe true
-		parsed.legacySessionRetentionDays shouldBe 120
 		parsed.initialized shouldBe true
 	}
 
@@ -130,8 +125,6 @@ class RetentionConfigStoreTest {
 		proto.dailySummaryRetentionDays shouldBe 0
 		proto.explorationRetentionDays shouldBe 0
 		proto.autoPurgeEnabled shouldBe false
-		proto.exportBeforePurge shouldBe false
-		proto.legacySessionRetentionDays shouldBe 0
 		proto.initialized shouldBe false
 	}
 
@@ -156,8 +149,6 @@ class RetentionConfigStoreTest {
 				dailySummaryRetentionDays = 180,
 				explorationRetentionDays = 365,
 				autoPurgeEnabled = true,
-				exportBeforePurge = true,
-				legacySessionRetentionDays = 120,
 			)
 		}
 
@@ -168,8 +159,6 @@ class RetentionConfigStoreTest {
 		config.dailySummaryRetentionDays shouldBe 180
 		config.explorationRetentionDays shouldBe 365
 		config.autoPurgeEnabled shouldBe true
-		config.exportBeforePurge shouldBe true
-		config.legacySessionRetentionDays shouldBe 120
 	} }
 
 	@Test
@@ -242,12 +231,6 @@ class RetentionConfigStoreTest {
 	fun `zero wifi cell days reads back as keep forever`()  { runTest {
 		store.update { copy(wifiCellRetentionDays = 0) }
 		store.config.first().wifiCellRetentionDays shouldBe 0
-	} }
-
-	@Test
-	fun `zero legacy session days reads back as keep forever`()  { runTest {
-		store.update { copy(legacySessionRetentionDays = 0) }
-		store.config.first().legacySessionRetentionDays shouldBe 0
 	} }
 
 	@Test

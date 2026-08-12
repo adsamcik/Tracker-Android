@@ -1904,6 +1904,17 @@ Four functional levels. Tonal-first — shadow supplements but never leads.
 *   **List:** `ListItem` rows — plan name headline, cadence+scope supporting text, `RidgelineSwitch` trailing.
 *   **Create/Edit:** Full-screen form. Format, cadence, scope, destination (SAF folder picker), filename prefix.
 
+### 30.3 Settings Visual Grammar
+
+*   Every settings destination uses `SettingsGroupCard`; do not mix loose rows with grouped cards on the same page.
+*   Section titles may use a 20dp orientation icon. Each row uses a distinct concept icon in a 40dp themed tile.
+*   Tracking sources use the native `ic_tracking_source_*` vector family in both simple and advanced controls. Keep a 32dp viewport, rounded geometry, distinct silhouettes, and Compose theme tint; visually verify each asset at its rendered 24–27dp size in light and dark themes.
+*   Current picker and slider values use `SettingsValuePill`, never supporting-text prose.
+*   Related rows are separated with the shared 72dp-inset `SettingsRowDivider`.
+*   Explanations use `SettingsNoticeCard` with neutral/info/warning/danger tones instead of page-specific banner implementations.
+*   Static metadata uses `SettingsSummaryItem`; interactive rows retain full-row button, switch, or radio semantics.
+*   Destructive groups and rows use `SettingsItemTone.Danger` so irreversible actions cannot be mistaken for ordinary navigation.
+
 ## 31. Settings Danger Zone — Delete All Data
 
 ### 31.1 Location

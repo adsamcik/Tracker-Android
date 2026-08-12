@@ -14,30 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">Režim vývojáře byl vypnut</string>
     <string name="settings_data_management_section">Správa dat</string>
     <string name="settings_data_danger_zone_section">Nebezpečná zóna</string>
-    <string name="settings_osm_import_section">Data mapy (OpenStreetMap)</string>
-    <string name="settings_osm_import_action_title">Importovat oblast OSM</string>
-    <string name="settings_osm_import_action_summary">Vyberte soubor .osm.pbf. Kontrola dodržování předpisů vozidlem pak bude offline používat skutečné limity silnic.</string>
-    <string name="settings_osm_import_unavailable_title">Offline import mapy není k dispozici</string>
-    <string name="settings_osm_import_action_unavailable">Offline import mapy je dočasně nedostupný, dokud nejsou dokončeny ochrany bezpečnosti souborů.</string>
-    <string name="settings_osm_import_action_running">Probíhá importování — klepnutím zrušíte</string>
-    <string name="settings_osm_import_action_failed">Offline import mapy se nepodařilo dokončit.</string>
-    <string name="settings_osm_import_action_source_unavailable">Vybraný soubor mapy se nepodařilo otevřít.</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">Importována %1$d silnice z %2$d uzlů.</item>
-        <item quantity="few">Importovány %1$d silnice z %2$d uzlů.</item>
-        <item quantity="many">Importováno %1$d silnic z %2$d uzlů.</item>
-        <item quantity="other">Importováno %1$d silnic z %2$d uzlů.</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">Dosud nebyla importována žádná oblast OpenStreetMap.</string>
-    <string name="settings_osm_imports_attribution">Data mapy © přispěvatelé OpenStreetMap (ODbL 1.0). Veškeré zpracování probíhá v zařízení.</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d silnice · importováno %2$s</item>
-        <item quantity="few">%1$,d silnice · importovány %2$s</item>
-        <item quantity="many">%1$,d silnic · importováno %2$s</item>
-        <item quantity="other">%1$,d silnic · importováno %2$s</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">Odebrat importovanou oblast</string>
-    <string name="settings_osm_import_remove_message">Odebrat %1$s? Dokud oblast znovu neimportujete, bude kontrola dodržování předpisů vozidlem používat pevnou výchozí hodnotu.</string>
     <string name="settings_incremental_backups_title">Přírůstkové zálohy</string>
     <string name="settings_incremental_backups_summary">Exportovat pouze nová data od poslední zálohy. Zkracuje dobu exportu a velikost souboru.</string>
     <string name="settings_reset_export_watermarks_title">Vynutit úplný export</string>
@@ -374,9 +350,9 @@
     <string name="setup_step_indicator">Krok %1$d z %2$d</string>
     <string name="setup_online_tiles_title">Online mapové dlaždice?</string>
     <string name="setup_online_tiles_subtitle">Tracker obsahuje offline základní mapu, takže funguje bez sítě. Pokud chcete bohatší mapy, můžete místo toho streamovat dlaždice z veřejného poskytovatele.</string>
-    <string name="setup_online_tiles_off_title">Pouze offline (doporučeno)</string>
+    <string name="setup_online_tiles_off_title">Pouze offline</string>
     <string name="setup_online_tiles_off_desc">Žádné síťové požadavky. Používá se pouze přibalená základní mapa.</string>
-    <string name="setup_online_tiles_on_title">Použít online dlaždice</string>
+    <string name="setup_online_tiles_on_title">Použít online dlaždice (doporučeno)</string>
     <string name="setup_online_tiles_on_desc">Streamujte vektorové dlaždice s více podrobnostmi z OpenFreeMap (výchozí). Poskytovatele můžete později změnit v Nastavení → Mapa.</string>
     <string name="setup_online_tiles_privacy">Pokud jsou dlaždice zapnuté, poskytovatel může vidět vaši IP adresu a načítané dlaždice — přibližně oblast mapy, na kterou se díváte. Tracker nikdy neodesílá účet, identifikátor ani historii polohy.</string>
     <string name="setup_online_tiles_change_later">Toto můžete kdykoli změnit v Nastavení → Mapa → Online mapové dlaždice.</string>

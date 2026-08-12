@@ -35,7 +35,7 @@ constructor(
 			callback = callback,
 			allowDataLossOnRecovery = allowDataLossOnRecovery,
 		).also { helper ->
-			helper.setWriteAheadLoggingEnabled(writeAheadLoggingEnabled)
+			helper.setRequestedWriteAheadLoggingEnabled(writeAheadLoggingEnabled)
 		}
 	}
 
@@ -49,7 +49,7 @@ constructor(
 	override fun setWriteAheadLoggingEnabled(enabled: Boolean) {
 		synchronized(this) {
 			if (lazyDelegate.isInitialized()) {
-				delegate.setWriteAheadLoggingEnabled(enabled)
+				delegate.setRequestedWriteAheadLoggingEnabled(enabled)
 			}
 			writeAheadLoggingEnabled = enabled
 		}
@@ -95,6 +95,13 @@ constructor(
 		},
 	) {
 		private var migrated = false
+		private var requestedWriteAheadLoggingEnabled = false
+
+		@Synchronized
+		fun setRequestedWriteAheadLoggingEnabled(enabled: Boolean) {
+			requestedWriteAheadLoggingEnabled = enabled
+			super.setWriteAheadLoggingEnabled(enabled)
+		}
 
 		@Synchronized
 		fun getSupportDatabase(writable: Boolean): SupportSQLiteDatabase {
@@ -183,12 +190,29 @@ constructor(
 		}
 
 		override fun onConfigure(database: VendorSQLiteDatabase) {
+			applyRequestedWriteAheadLoggingMode(database)
 			if (!migrated && callback.version != database.version) {
 				// Avoid stale cached statements while schema migration callbacks run.
 				database.setMaxSqlCacheSize(1)
 			}
 			invokeCallback(CallbackStage.ON_CONFIGURE) {
 				callback.onConfigure(getWrappedDatabase(dbRef, database))
+			}
+		}
+
+		private fun applyRequestedWriteAheadLoggingMode(database: VendorSQLiteDatabase) {
+			if (
+				database.isReadOnly ||
+				database.isWriteAheadLoggingEnabled == requestedWriteAheadLoggingEnabled
+			) {
+				return
+			}
+			if (requestedWriteAheadLoggingEnabled) {
+				check(database.enableWriteAheadLogging()) {
+					"SQLiteX could not enable write-ahead logging before database callbacks"
+				}
+			} else {
+				database.disableWriteAheadLogging()
 			}
 		}
 

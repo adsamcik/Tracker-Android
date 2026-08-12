@@ -2,10 +2,8 @@ package com.adsamcik.tracker.app.settings.about
 
 import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -22,7 +20,6 @@ import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -42,6 +39,8 @@ import com.adsamcik.tracker.app.activity.licenses.ThirdPartyLicensesActivity
 import com.adsamcik.tracker.app.settings.components.SettingsGroupCard
 import com.adsamcik.tracker.app.settings.components.SettingsItem
 import com.adsamcik.tracker.app.settings.components.PrivacyPolicyDialog
+import com.adsamcik.tracker.app.settings.components.SettingsRowDivider
+import com.adsamcik.tracker.app.settings.components.SettingsSummaryItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,14 +77,17 @@ fun AboutScreen(
             item {
                 SettingsGroupCard(
                     title = stringResource(R.string.about_title),
+                    icon = Icons.Default.Info,
                 ) {
-                    AboutValue(
-                        label = stringResource(R.string.about_app_name_label),
+                    SettingsSummaryItem(
+                        title = stringResource(R.string.about_app_name_label),
                         value = stringResource(R.string.settings_about_app_title),
+                        icon = Icons.Default.Info,
                         modifier = Modifier.testTag("about_screen_app_name"),
                     )
-                    AboutValue(
-                        label = stringResource(R.string.about_version_label),
+                    SettingsRowDivider()
+                    SettingsSummaryItem(
+                        title = stringResource(R.string.about_version_label),
                         value = stringResource(
                             R.string.about_version_format,
                             BuildConfig.VERSION_NAME,
@@ -93,9 +95,11 @@ fun AboutScreen(
                         ),
                         modifier = Modifier.testTag("about_screen_version"),
                     )
-                    AboutValue(
-                        label = stringResource(R.string.about_build_commit_label),
+                    SettingsRowDivider()
+                    SettingsSummaryItem(
+                        title = stringResource(R.string.about_build_commit_label),
                         value = buildCommitOrNull() ?: stringResource(R.string.about_commit_unavailable),
+                        icon = Icons.Default.Code,
                         modifier = Modifier.testTag("about_screen_build_commit"),
                     )
                 }
@@ -104,29 +108,26 @@ fun AboutScreen(
             item {
                 SettingsGroupCard(
                     title = stringResource(R.string.about_author),
+                    icon = Icons.Default.Person,
                 ) {
-                    AboutValue(
-                        label = stringResource(R.string.about_author),
+                    SettingsSummaryItem(
+                        title = stringResource(R.string.about_author),
                         value = stringResource(R.string.about_author_value),
-                        icon = {
-                            Icon(Icons.Default.Person, contentDescription = null)
-                        },
+                        icon = Icons.Default.Person,
                         modifier = Modifier.testTag("about_screen_author"),
                     )
-                    AboutValue(
-                        label = stringResource(R.string.about_email),
+                    SettingsRowDivider()
+                    SettingsSummaryItem(
+                        title = stringResource(R.string.about_email),
                         value = stringResource(R.string.about_email_value),
-                        icon = {
-                            Icon(Icons.Default.Email, contentDescription = null)
-                        },
+                        icon = Icons.Default.Email,
                         modifier = Modifier.testTag("about_screen_email"),
                     )
-                    AboutValue(
-                        label = stringResource(R.string.about_github),
+                    SettingsRowDivider()
+                    SettingsSummaryItem(
+                        title = stringResource(R.string.about_github),
                         value = stringResource(R.string.about_github_value),
-                        icon = {
-                            Icon(Icons.Default.Code, contentDescription = null)
-                        },
+                        icon = Icons.Default.Code,
                         modifier = Modifier.testTag("about_screen_github_link"),
                     )
                 }
@@ -135,21 +136,19 @@ fun AboutScreen(
             item {
                 SettingsGroupCard(
                     title = stringResource(R.string.about_attributions_title),
+                    icon = Icons.Default.Place,
                 ) {
-                    AboutValue(
-                        label = stringResource(R.string.about_attribution_geonames_label),
+                    SettingsSummaryItem(
+                        title = stringResource(R.string.about_attribution_geonames_label),
                         value = stringResource(R.string.about_attribution_geonames_value),
-                        icon = {
-                            Icon(Icons.Default.Place, contentDescription = null)
-                        },
+                        icon = Icons.Default.Place,
                         modifier = Modifier.testTag("about_screen_attribution_geonames"),
                     )
-                    AboutValue(
-                        label = stringResource(R.string.about_attribution_osm_label),
+                    SettingsRowDivider()
+                    SettingsSummaryItem(
+                        title = stringResource(R.string.about_attribution_osm_label),
                         value = stringResource(R.string.about_attribution_osm_value),
-                        icon = {
-                            Icon(Icons.Default.Map, contentDescription = null)
-                        },
+                        icon = Icons.Default.Map,
                         modifier = Modifier.testTag("about_screen_attribution_osm"),
                     )
                 }
@@ -158,6 +157,7 @@ fun AboutScreen(
             item {
                 SettingsGroupCard(
                     title = stringResource(R.string.about_links_title),
+                    icon = Icons.AutoMirrored.Filled.Article,
                 ) {
                     SettingsItem(
                         title = stringResource(R.string.settings_privacy_policy_title),
@@ -165,6 +165,7 @@ fun AboutScreen(
                         modifier = Modifier.testTag("about_screen_privacy_policy"),
                         onClick = { showPrivacyPolicy = true },
                     )
+                    SettingsRowDivider()
                     SettingsItem(
                         title = stringResource(R.string.settings_licenses_title),
                         icon = Icons.AutoMirrored.Filled.Article,
@@ -182,37 +183,6 @@ fun AboutScreen(
         PrivacyPolicyDialog(
             onDismissRequest = { showPrivacyPolicy = false },
         )
-    }
-}
-
-@Composable
-private fun AboutValue(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-    icon: (@Composable () -> Unit)? = null,
-) {
-    androidx.compose.foundation.layout.Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        icon?.invoke() ?: Icon(Icons.Default.Info, contentDescription = null)
-        Column(
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = value,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        }
     }
 }
 

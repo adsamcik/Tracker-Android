@@ -68,50 +68,6 @@ interface DomainEventDao {
 	)
 	suspend fun getUnconsumedBatchById(lastId: Long, limit: Int): List<DomainEventEntity>
 
-	/**
-	 * Legacy timestamp-ordered CTE batch fetch. Delivery consumers must use
-	 * [getCursor] + [getUnconsumedBatchById] so delayed events are not skipped.
-	 */
-	@Deprecated(
-		message = "Use getCursor(consumerId) + getUnconsumedBatchById(lastId, limit) for insertion-ordered delivery.",
-		replaceWith = ReplaceWith("getCursor(consumerId).let { c -> getUnconsumedBatchById(c?.lastProcessedId ?: 0L, boundaryOffset + 1) }"),
-	)
-	@Query(
-		"""
-		WITH cursor_value AS (
-			SELECT
-				COALESCE((SELECT last_processed_ms FROM domain_event_cursor WHERE consumer_id = :consumerId), 0) AS last_ms,
-				COALESCE((SELECT last_processed_id FROM domain_event_cursor WHERE consumer_id = :consumerId), 0) AS last_id
-		),
-		batch_boundary AS (
-			SELECT timestamp_ms AS boundary_ms, id AS boundary_id
-			FROM domain_event
-			WHERE
-				timestamp_ms > (SELECT last_ms FROM cursor_value)
-				OR (timestamp_ms = (SELECT last_ms FROM cursor_value) AND id > (SELECT last_id FROM cursor_value))
-			ORDER BY timestamp_ms ASC, id ASC
-			LIMIT 1 OFFSET :boundaryOffset
-		)
-		SELECT *
-		FROM domain_event
-		WHERE
-			(
-				timestamp_ms > (SELECT last_ms FROM cursor_value)
-				OR (timestamp_ms = (SELECT last_ms FROM cursor_value) AND id > (SELECT last_id FROM cursor_value))
-			)
-			AND (
-				(SELECT boundary_ms FROM batch_boundary) IS NULL
-				OR timestamp_ms < (SELECT boundary_ms FROM batch_boundary)
-				OR (timestamp_ms = (SELECT boundary_ms FROM batch_boundary) AND id <= (SELECT boundary_id FROM batch_boundary))
-			)
-		ORDER BY timestamp_ms ASC, id ASC
-		"""
-	)
-	suspend fun getUnconsumedBatchFor(
-		consumerId: String,
-		boundaryOffset: Int,
-	): List<DomainEventEntity>
-
 	/** Advance both cursor fields monotonically so stale acknowledgements cannot regress progress. */
 	@Query(
 		"""
@@ -127,12 +83,6 @@ interface DomainEventDao {
 		lastProcessedMs: Long,
 		lastProcessedId: Long,
 	)
-
-	@Deprecated(
-		message = "Unbounded domain-event flows can allocate very large lists. Use observeSinceLimited or cursor batches.",
-	)
-	@Query("SELECT * FROM domain_event WHERE timestamp_ms >= :sinceMs ORDER BY timestamp_ms ASC, id ASC")
-	fun observeSince(sinceMs: Long): Flow<List<DomainEventEntity>>
 
 	@Query(
 		"""

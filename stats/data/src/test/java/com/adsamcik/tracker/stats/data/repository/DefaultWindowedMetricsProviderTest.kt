@@ -41,24 +41,36 @@ class DefaultWindowedMetricsProviderTest {
 	fun `collect returns cumulative steps`() = runTest {
 		coEvery { dailySummaryDao.sumTotalSteps() } returns 12_345L
 
-		val result = provider.collect(MetricKeys.TOTAL_STEPS, TimeWindow.Cumulative)
+		val result = provider.collect(MetricKeys.STEPS_TOTAL, TimeWindow.Cumulative)
 
 		result shouldBe 12_345L
 	}
 
 	@Test
-	fun `collect returns interval distance in km`() = runTest {
+	fun `collect returns canonical interval total distance in meters`() = runTest {
 		// Provider now converts the window's ms → epoch-day before calling the DAO so
 		// the SQLite index on date_epoch_day is usable. The test asserts the result;
 		// exact day-conversion math is covered by dedicated tests.
 		coEvery { dailySummaryDao.sumTotalDistanceBetween(any(), any()) } returns 15_500L
 
 		val result = provider.collect(
-			metric = MetricKeys.TOTAL_DISTANCE_KM,
+			metric = MetricKeys.DISTANCE_TOTAL_M,
 			window = TimeWindow.Interval(1_000L, 5_000L),
 		)
 
-		result shouldBe 15L
+		result shouldBe 15_500L
+	}
+
+	@Test
+	fun `collect returns canonical cumulative total distance in meters`() = runTest {
+		coEvery { dailySummaryDao.sumTotalDistance() } returns 42_125L
+
+		val result = provider.collect(
+			metric = MetricKeys.DISTANCE_TOTAL_M,
+			window = TimeWindow.Cumulative,
+		)
+
+		result shouldBe 42_125L
 	}
 
 	@Test
@@ -169,7 +181,7 @@ class DefaultWindowedMetricsProviderTest {
 		} returns 4L
 
 		val result = provider.collect(
-			metric = MetricKeys.ACTIVE_DAYS,
+			metric = MetricKeys.ACTIVE_DAYS_TOTAL,
 			window = TimeWindow.Interval(10_000L, 50_000L),
 		)
 
@@ -181,7 +193,7 @@ class DefaultWindowedMetricsProviderTest {
 		coEvery { dailySummaryDao.countActiveDays(MetricKeys.MIN_DAILY_TRIPS) } returns 12L
 
 		val result = provider.collect(
-			metric = MetricKeys.ACTIVE_DAYS,
+			metric = MetricKeys.ACTIVE_DAYS_TOTAL,
 			window = TimeWindow.Cumulative,
 		)
 
@@ -195,7 +207,7 @@ class DefaultWindowedMetricsProviderTest {
 		} returns 3L
 
 		val result = provider.collect(
-			metric = MetricKeys.ACTIVE_DAYS,
+			metric = MetricKeys.ACTIVE_DAYS_TOTAL,
 			window = TimeWindow.Rolling(durationMs = 7L * 24 * 60 * 60 * 1000L),
 		)
 

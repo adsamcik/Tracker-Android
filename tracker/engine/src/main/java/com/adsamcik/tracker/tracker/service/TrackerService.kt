@@ -4,6 +4,7 @@ import dev.tracebox.Tracebox
 import android.annotation.SuppressLint
 import android.Manifest
 import android.app.Notification
+import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -267,6 +268,62 @@ internal class TrackerService : CoreService() {
 
 		val recoveredSessionInfo = sessionInfo ?: controller.sessionInfoFlow.value
 		val isWatchdogRestart = intent?.hasExtra(ARG_POLICY_TIER) == true
+		when (
+			trackerServiceStartRecoveryDisposition(
+				startFlags = flags,
+				hasInMemorySession = recoveredSessionInfo != null,
+				gracefulStopRequested = gracefulStopRequested,
+				isWatchdogStart = isWatchdogRestart,
+			)
+		) {
+			TrackerServiceStartRecoveryDisposition.RESOLVE_DURABLE_START -> {
+				val requestedDescriptor = intent?.toNewStartDescriptor()
+				sessionRecoveryJob?.cancel()
+				sessionRecoveryJob = launch {
+					val resolution = resolveTrackerServiceStartRequest(
+						storeResult = activeTrackingSessionStore.read(),
+						requestedDescriptor = requestedDescriptor,
+					)
+					if (gracefulStopRequested) return@launch
+					when (resolution) {
+						is TrackerServiceStartRequestResolution.Begin -> {
+							beginSession(
+								resolution.descriptor,
+								startId,
+								isRecovery = resolution.isRecovery,
+							)
+						}
+						is TrackerServiceStartRequestResolution.StoreFailure -> {
+							Tracebox.log.error(
+								resolution.cause,
+								"Tracking session recovery failed",
+							)
+							requestGracefulStop(startId)
+						}
+						TrackerServiceStartRequestResolution.DoNotStart ->
+							requestGracefulStop(startId)
+					}
+				}
+				return if (
+					intent == null ||
+					flags and Service.START_FLAG_REDELIVERY != 0 ||
+					requestedDescriptor?.isUserInitiated == true
+				) {
+					START_REDELIVER_INTENT
+				} else {
+					START_NOT_STICKY
+				}
+			}
+			TrackerServiceStartRecoveryDisposition.IGNORE_DUPLICATE_REDELIVERY ->
+				return if (recoveredSessionInfo?.isInitiatedByUser == true) {
+					START_REDELIVER_INTENT
+				} else {
+					START_NOT_STICKY
+				}
+			TrackerServiceStartRecoveryDisposition.IGNORE_AFTER_GRACEFUL_STOP ->
+				return START_NOT_STICKY
+			TrackerServiceStartRecoveryDisposition.HANDLE_START_INTENT -> Unit
+		}
 		val watchdogDescriptor = intent?.takeIf { isWatchdogRestart }?.toRestartDescriptor()
 		if (isWatchdogRestart && watchdogDescriptor?.isRestartEligible != true) {
 			requestGracefulStop(startId)
@@ -279,28 +336,6 @@ internal class TrackerService : CoreService() {
 				START_NOT_STICKY
 			}
 		}
-		if (intent == null && recoveredSessionInfo == null) {
-			sessionRecoveryJob?.cancel()
-			sessionRecoveryJob = launch {
-				when (val result = activeTrackingSessionStore.read()) {
-					is ActiveTrackingSessionStoreResult.Success -> {
-						val descriptor = result.descriptor
-						?.takeIf { it.isRestartEligible }
-						?: run {
-							requestGracefulStop(startId)
-							return@launch
-						}
-						beginSession(descriptor, startId, isRecovery = true)
-					}
-					is ActiveTrackingSessionStoreResult.Failure -> {
-						Tracebox.log.error("Tracking session recovery failed")
-						requestGracefulStop(startId)
-					}
-				}
-			}
-			return START_REDELIVER_INTENT
-		}
-
 		val isUserInitiated = watchdogDescriptor?.isUserInitiated
 			?: intent?.getBooleanExtra(ARG_IS_USER_INITIATED, false)
 			?: recoveredSessionInfo?.isInitiatedByUser
@@ -374,6 +409,17 @@ internal class TrackerService : CoreService() {
 				0L,
 			).takeIf { it > 0L },
 			stopCandidate = stopCandidate,
+		)
+	}
+
+	private fun Intent.toNewStartDescriptor(): ActiveTrackingSessionDescriptor {
+		val isUserInitiated = getBooleanExtra(ARG_IS_USER_INITIATED, false)
+		return ActiveTrackingSessionDescriptor(
+			isUserInitiated = isUserInitiated,
+			isAmbient = getBooleanExtra(ARG_IS_AMBIENT, false),
+			policyTier = getStringExtra(ARG_POLICY_TIER)
+				?.let { name -> PolicyTier.entries.firstOrNull { it.name == name } }
+				?: PolicyTier.OFF,
 		)
 	}
 
@@ -899,8 +945,16 @@ internal class TrackerService : CoreService() {
 		descriptorObservationJob?.cancel()
 		descriptorObservationJob = null
 		val context: Context = this
-		super.onDestroy()
+		// Close notification dispatch before asynchronous teardown. A final cycle can otherwise post
+		// the same notification ID after stopForeground removes it, leaving an ongoing notification
+		// that no service owns and that the user cannot dismiss.
+		if (::orchestrator.isInitialized) {
+			orchestrator.notificationComponent.onServiceStopped(context)
+		} else {
+			TrackerNotificationManager.cancelTrackingNotification(context)
+		}
 		stopForeground(STOP_FOREGROUND_REMOVE)
+		super.onDestroy()
 
 		// Cancel lock observation job to prevent leaks
 		lockObservationJob?.cancel()
@@ -1164,6 +1218,59 @@ internal class TrackerService : CoreService() {
 		private const val FINAL_TEARDOWN_INITIAL_RETRY_DELAY_MILLIS = 500L
 		private const val FINAL_TEARDOWN_MAX_RETRY_DELAY_MILLIS = 2_000L
 		private const val FINAL_TEARDOWN_ATTEMPT_TIMEOUT_MILLIS = 5_000L
+	}
+}
+
+internal enum class TrackerServiceStartRecoveryDisposition {
+	RESOLVE_DURABLE_START,
+	IGNORE_DUPLICATE_REDELIVERY,
+	IGNORE_AFTER_GRACEFUL_STOP,
+	HANDLE_START_INTENT,
+}
+
+internal fun trackerServiceStartRecoveryDisposition(
+	startFlags: Int,
+	hasInMemorySession: Boolean,
+	gracefulStopRequested: Boolean,
+	isWatchdogStart: Boolean,
+): TrackerServiceStartRecoveryDisposition {
+	val isRedelivery = startFlags and Service.START_FLAG_REDELIVERY != 0
+	return when {
+		gracefulStopRequested ->
+			TrackerServiceStartRecoveryDisposition.IGNORE_AFTER_GRACEFUL_STOP
+		isWatchdogStart -> TrackerServiceStartRecoveryDisposition.HANDLE_START_INTENT
+		isRedelivery && hasInMemorySession ->
+			TrackerServiceStartRecoveryDisposition.IGNORE_DUPLICATE_REDELIVERY
+		!hasInMemorySession -> TrackerServiceStartRecoveryDisposition.RESOLVE_DURABLE_START
+		else -> TrackerServiceStartRecoveryDisposition.HANDLE_START_INTENT
+	}
+}
+
+internal sealed interface TrackerServiceStartRequestResolution {
+	data class Begin(
+		val descriptor: ActiveTrackingSessionDescriptor,
+		val isRecovery: Boolean,
+	) : TrackerServiceStartRequestResolution
+
+	data class StoreFailure(val cause: Throwable) : TrackerServiceStartRequestResolution
+	data object DoNotStart : TrackerServiceStartRequestResolution
+}
+
+internal fun resolveTrackerServiceStartRequest(
+	storeResult: ActiveTrackingSessionStoreResult,
+	requestedDescriptor: ActiveTrackingSessionDescriptor?,
+): TrackerServiceStartRequestResolution = when (storeResult) {
+	is ActiveTrackingSessionStoreResult.Failure ->
+		TrackerServiceStartRequestResolution.StoreFailure(storeResult.cause)
+	is ActiveTrackingSessionStoreResult.Success -> {
+		val storedDescriptor = storeResult.descriptor
+		when {
+			storedDescriptor?.isRestartEligible == true ->
+				TrackerServiceStartRequestResolution.Begin(storedDescriptor, isRecovery = true)
+			storedDescriptor == null && requestedDescriptor != null ->
+				TrackerServiceStartRequestResolution.Begin(requestedDescriptor, isRecovery = false)
+			else -> TrackerServiceStartRequestResolution.DoNotStart
+		}
 	}
 }
 

@@ -6,7 +6,6 @@ const val TABLE_EXPLORATION_CELL_NAME = "exploration_cell"
 const val TABLE_EXPLORATION_STREAK_NAME = "exploration_streak"
 const val TABLE_EXPORT_LOG_NAME = "export_log"
 const val TABLE_AGGREGATOR_STATE_NAME = "aggregator_state"
-const val TABLE_OSM_IMPORT_NAME = "osm_import"
 const val TABLE_XP_LEDGER_NAME = "xp_ledger"
 const val TABLE_PLAYER_PROFILE_NAME = "player_profile"
 const val TABLE_MINI_GAME_SCORE_NAME = "minigame_score"
@@ -87,7 +86,6 @@ object MetricKeys {
 	const val TABLE_EXPLORATION_STREAK = TABLE_EXPLORATION_STREAK_NAME
 	const val TABLE_EXPORT_LOG = TABLE_EXPORT_LOG_NAME
 	const val TABLE_AGGREGATOR_STATE = TABLE_AGGREGATOR_STATE_NAME
-	const val TABLE_OSM_IMPORT = TABLE_OSM_IMPORT_NAME
 	const val TABLE_XP_LEDGER = TABLE_XP_LEDGER_NAME
 	const val TABLE_PLAYER_PROFILE = TABLE_PLAYER_PROFILE_NAME
 	const val TABLE_MINI_GAME_SCORE = TABLE_MINI_GAME_SCORE_NAME
@@ -138,11 +136,6 @@ object MetricKeys {
 	const val BEST_DAY_DISTANCE_M = "best_day_distance_m"
 	const val EXPORTS_TOTAL = "exports_total"
 	const val SEASONS_EXPLORED = "seasons_explored"
-	@Deprecated("Use MetricKey.STEPS_TOTAL.storageKey") const val TOTAL_STEPS = STEPS_TOTAL
-	@Deprecated("Use MetricKey.DISTANCE_TOTAL_M.storageKey") const val TOTAL_DISTANCE_KM = DISTANCE_TOTAL_M
-	@Deprecated("Use MetricKey.SESSIONS_TOTAL.storageKey") const val TOTAL_TRIPS = SESSIONS_TOTAL
-	@Deprecated("Use MetricKey.ACTIVITY_TYPES_USED.storageKey") const val TRANSPORT_MODE_COUNT = ACTIVITY_TYPES_USED
-	@Deprecated("Use MetricKey.ACTIVE_DAYS_TOTAL.storageKey") const val ACTIVE_DAYS = ACTIVE_DAYS_TOTAL
 	fun sourceTables(metric: MetricKey): Set<String> = metric.sourceTables
 	fun sourceTables(metric: String): Set<String> = MetricKey.fromStorageKey(metric)?.sourceTables ?: emptySet()
 	fun isKnown(metric: String): Boolean = MetricKey.fromStorageKey(metric) != null

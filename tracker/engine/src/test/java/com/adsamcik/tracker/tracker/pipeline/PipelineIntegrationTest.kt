@@ -69,8 +69,6 @@ class PipelineIntegrationTest {
 		}
 
 		override suspend fun onStop(): List<DomainEvent> = onFlush()
-		override fun checkpoint(): ByteArray? = null
-		override fun restore(state: ByteArray) {}
 	}
 
 	// endregion

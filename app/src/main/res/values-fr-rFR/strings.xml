@@ -14,26 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">Mode développeur désactivé</string>
     <string name="settings_data_management_section">Gestion des données</string>
     <string name="settings_data_danger_zone_section">Zone dangereuse</string>
-    <string name="settings_osm_import_section">Données cartographiques (OpenStreetMap)</string>
-    <string name="settings_osm_import_action_title">Importer une région OSM</string>
-    <string name="settings_osm_import_action_summary">Choisissez un fichier .osm.pbf. Le respect des limitations de vitesse des véhicules utilisera alors hors connexion les limites routières réelles.</string>
-    <string name="settings_osm_import_unavailable_title">Importation de carte hors connexion indisponible</string>
-    <string name="settings_osm_import_action_unavailable">L’importation de carte hors connexion est temporairement indisponible pendant la finalisation des protections de sécurité des fichiers.</string>
-    <string name="settings_osm_import_action_running">Importation — appuyez pour annuler</string>
-    <string name="settings_osm_import_action_failed">L’importation de carte hors connexion n’a pas pu être terminée.</string>
-    <string name="settings_osm_import_action_source_unavailable">Le fichier de carte sélectionné n’a pas pu être ouvert.</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">%1$d route importée à partir de %2$d nœuds.</item>
-        <item quantity="other">%1$d routes importées à partir de %2$d nœuds.</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">Aucune région OpenStreetMap importée pour le moment.</string>
-    <string name="settings_osm_imports_attribution">Données cartographiques © contributeurs OpenStreetMap (ODbL 1.0). Tous les traitements sont effectués sur l’appareil.</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d route · importée le %2$s</item>
-        <item quantity="other">%1$,d routes · importées le %2$s</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">Supprimer la région importée</string>
-    <string name="settings_osm_import_remove_message">Supprimer %1$s ? Le respect des limitations de vitesse des véhicules reviendra à la référence fixe jusqu’à ce que vous réimportiez une région.</string>
     <string name="settings_incremental_backups_title">Sauvegardes incrémentielles</string>
     <string name="settings_incremental_backups_summary">Exporte uniquement les nouvelles données depuis la dernière sauvegarde. Réduit la durée d’exportation et la taille du fichier.</string>
     <string name="settings_reset_export_watermarks_title">Forcer une exportation complète</string>
@@ -362,9 +342,9 @@
     <string name="setup_step_indicator">Étape %1$d sur %2$d</string>
     <string name="setup_online_tiles_title">Tuiles de carte en ligne ?</string>
     <string name="setup_online_tiles_subtitle">Tracker inclut un fond de carte hors connexion ; il fonctionne donc sans réseau. Si vous souhaitez des cartes plus riches, vous pouvez plutôt diffuser des tuiles depuis un fournisseur public.</string>
-    <string name="setup_online_tiles_off_title">Hors connexion uniquement (recommandé)</string>
+    <string name="setup_online_tiles_off_title">Hors connexion uniquement</string>
     <string name="setup_online_tiles_off_desc">Aucune requête réseau. Seul le fond de carte inclus est utilisé.</string>
-    <string name="setup_online_tiles_on_title">Utiliser des tuiles en ligne</string>
+    <string name="setup_online_tiles_on_title">Utiliser des tuiles en ligne (recommandé)</string>
     <string name="setup_online_tiles_on_desc">Diffuse des tuiles vectorielles plus détaillées depuis OpenFreeMap (par défaut). Vous pourrez changer de fournisseur plus tard dans Paramètres → Carte.</string>
     <string name="setup_online_tiles_privacy">Lorsqu’il est activé, le fournisseur peut voir votre adresse IP et les tuiles que vous chargez — donc approximativement la zone de la carte que vous consultez. Tracker n’envoie jamais de compte, d’identifiant ou de votre historique de localisation.</string>
     <string name="setup_online_tiles_change_later">Vous pouvez modifier ce choix à tout moment dans Paramètres → Carte → Tuiles de carte en ligne.</string>

@@ -203,40 +203,6 @@ class CellDiscoveryEngine(
 		else -> DiscoveryQuality.PASSED_THROUGH
 	}
 
-	/** Serialize all mutable state for crash-recovery checkpointing. */
-	fun serialize(): ByteArray {
-		val baos = java.io.ByteArrayOutputStream()
-		val dos = java.io.DataOutputStream(baos)
-		dos.writeInt(discovered.size)
-		for (token in discovered) { dos.writeUTF(token) }
-		dos.writeBoolean(currentCellId != null)
-		if (currentCellId != null) {
-			dos.writeLong(currentCellId!!)
-			dos.writeUTF(currentToken!!)
-		}
-		dos.writeLong(cellEntryTimeMs)
-		dos.writeLong(cellAccumulatedMs)
-		dos.flush()
-		return baos.toByteArray()
-	}
-
-	/** Restore mutable state from a checkpoint produced by [serialize]. */
-	fun deserialize(data: ByteArray) {
-		val dis = java.io.DataInputStream(java.io.ByteArrayInputStream(data))
-		discovered.clear()
-		val size = dis.readInt()
-		repeat(size) { discovered.add(dis.readUTF()) }
-		if (dis.readBoolean()) {
-			currentCellId = dis.readLong()
-			currentToken = dis.readUTF()
-		} else {
-			currentCellId = null
-			currentToken = null
-		}
-		cellEntryTimeMs = dis.readLong()
-		cellAccumulatedMs = dis.readLong()
-	}
-
 	companion object {
 		/**
 		 * Determine the season bitmask bit for a given timestamp.

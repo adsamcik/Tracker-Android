@@ -18,44 +18,35 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupStore
+import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseRepository
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivityDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
-import com.adsamcik.tracker.shared.base.database.dao.CellOperatorDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.DomainEventDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
 import com.adsamcik.tracker.shared.base.database.dao.ExportLogDao
-import com.adsamcik.tracker.shared.base.database.dao.FrequentPlaceDao
 import com.adsamcik.tracker.shared.base.database.dao.GeneralDao
-import com.adsamcik.tracker.shared.base.database.dao.InferredTripDao
 import com.adsamcik.tracker.shared.base.database.dao.LiveStatsDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDecisionDao
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
-import com.adsamcik.tracker.shared.base.database.dao.OsmImportDao
-import com.adsamcik.tracker.shared.base.database.dao.OsmWayCellDao
-import com.adsamcik.tracker.shared.base.database.dao.OsmWayDao
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalClaimDao
 import com.adsamcik.tracker.shared.base.database.dao.QuarantinedSignalDao
-import com.adsamcik.tracker.shared.base.database.dao.PersonalRecordDao
 import com.adsamcik.tracker.shared.base.database.dao.PlayerProfileDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
-import com.adsamcik.tracker.shared.base.database.dao.RouteCacheDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.SkiRunSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
-import com.adsamcik.tracker.shared.base.database.dao.StorageSizeSnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceEvidenceStateDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerStateEventDao
 import com.adsamcik.tracker.shared.base.database.dao.TripDao
-import com.adsamcik.tracker.shared.base.database.dao.TripLegDao
 import com.adsamcik.tracker.shared.base.database.dao.TrajectoryReconstructionDao
 import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
@@ -171,6 +162,12 @@ object InfrastructureModule {
 
     @Provides
     @Singleton
+    fun provideLegacyDatabaseRepository(
+        @ApplicationContext context: Context,
+    ): LegacyDatabaseRepository = LegacyDatabaseRepository(context)
+
+    @Provides
+    @Singleton
     fun provideCollectedDataWriterQuiescer(
         @ApplicationContext context: Context,
         trackerStateReader: TrackerStateReader,
@@ -211,9 +208,6 @@ object InfrastructureModule {
 
     // DAO Providers - enable direct DAO injection without going through AppDatabase.
     // DAOs are lightweight proxies to the singleton database and do not need @Singleton scoping.
-
-    @Provides
-    fun provideCellOperatorDao(database: AppDatabase): CellOperatorDao = database.cellOperatorDao()
 
     @Provides
     fun provideActivityDao(database: AppDatabase): ActivityDao = database.activityDao()
@@ -271,15 +265,6 @@ object InfrastructureModule {
     fun provideLiveStatsDao(database: AppDatabase): LiveStatsDao = database.liveStatsDao()
 
     @Provides
-    fun provideFrequentPlaceDao(database: AppDatabase): FrequentPlaceDao = database.frequentPlaceDao()
-
-    @Provides
-    fun provideInferredTripDao(database: AppDatabase): InferredTripDao = database.inferredTripDao()
-
-    @Provides
-    fun provideTripLegDao(database: AppDatabase): TripLegDao = database.tripLegDao()
-
-    @Provides
     fun provideTrajectoryReconstructionDao(database: AppDatabase): TrajectoryReconstructionDao =
         database.trajectoryReconstructionDao()
 
@@ -293,16 +278,7 @@ object InfrastructureModule {
     fun provideAchievementProgressDao(database: AppDatabase): AchievementProgressDao = database.achievementProgressDao()
 
     @Provides
-    fun providePersonalRecordDao(database: AppDatabase): PersonalRecordDao = database.personalRecordDao()
-
-    @Provides
-    fun provideRouteCacheDao(database: AppDatabase): RouteCacheDao = database.routeCacheDao()
-
-    @Provides
     fun provideExportLogDao(database: AppDatabase): ExportLogDao = database.exportLogDao()
-
-    @Provides
-    fun provideStorageSizeSnapshotDao(database: AppDatabase): StorageSizeSnapshotDao = database.storageSizeSnapshotDao()
 
     @Provides
     fun provideDomainEventDao(database: AppDatabase): DomainEventDao = database.domainEventDao()
@@ -332,17 +308,6 @@ object InfrastructureModule {
 
     @Provides
     fun provideMiniGameScoreDao(database: AppDatabase): MiniGameScoreDao = database.miniGameScoreDao()
-
-    // OSM road graph DAOs (Phase 2 vehicle speed compliance)
-
-    @Provides
-    fun provideOsmImportDao(database: AppDatabase): OsmImportDao = database.osmImportDao()
-
-    @Provides
-    fun provideOsmWayDao(database: AppDatabase): OsmWayDao = database.osmWayDao()
-
-    @Provides
-    fun provideOsmWayCellDao(database: AppDatabase): OsmWayCellDao = database.osmWayCellDao()
 
     /**
      * Provides the singleton [NetworkGateway] — the ONLY allowed network egress

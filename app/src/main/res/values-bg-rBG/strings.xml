@@ -14,26 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">Режимът за разработчици е изключен</string>
     <string name="settings_data_management_section">Управление на данните</string>
     <string name="settings_data_danger_zone_section">Опасна зона</string>
-    <string name="settings_osm_import_section">Данни за картата (OpenStreetMap)</string>
-    <string name="settings_osm_import_action_title">Импортиране на OSM регион</string>
-    <string name="settings_osm_import_action_summary">Изберете файл .osm.pbf. След това проверката за съответствие на превозните средства ще използва реални пътни ограничения офлайн.</string>
-    <string name="settings_osm_import_unavailable_title">Импортирането на офлайн карта не е налично</string>
-    <string name="settings_osm_import_action_unavailable">Импортирането на офлайн карта временно не е налично, докато се довършат защитите за безопасност на файловете.</string>
-    <string name="settings_osm_import_action_running">Импортиране — докоснете за отказ</string>
-    <string name="settings_osm_import_action_failed">Импортирането на офлайн карта не можа да бъде завършено.</string>
-    <string name="settings_osm_import_action_source_unavailable">Избраният файл с карта не можа да бъде отворен.</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">Импортирана е %1$d пътна отсечка от %2$d възела.</item>
-        <item quantity="other">Импортирани са %1$d пътни отсечки от %2$d възела.</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">Все още не е импортиран регион от OpenStreetMap.</string>
-    <string name="settings_osm_imports_attribution">Данни за картата © сътрудниците на OpenStreetMap (ODbL 1.0). Цялата обработка се извършва на устройството.</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d пътна отсечка · импортирана %2$s</item>
-        <item quantity="other">%1$,d пътни отсечки · импортирани %2$s</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">Премахване на импортиран регион</string>
-    <string name="settings_osm_import_remove_message">Да се премахне ли %1$s? Проверката за съответствие на превозните средства ще се върне към фиксираната базова линия, докато не импортирате отново регион.</string>
     <string name="settings_incremental_backups_title">Инкрементни резервни копия</string>
     <string name="settings_incremental_backups_summary">Експортирайте само новите данни от последното резервно копие. Намалява времето за експортиране и размера на файла.</string>
     <string name="settings_reset_export_watermarks_title">Принудително пълно експортиране</string>
@@ -362,9 +342,9 @@
     <string name="setup_step_indicator">Стъпка %1$d от %2$d</string>
     <string name="setup_online_tiles_title">Онлайн плочки за карта?</string>
     <string name="setup_online_tiles_subtitle">Tracker се предлага с офлайн базова карта, така че работи без мрежа. Ако искате по-богати карти, вместо това може да предавате плочки от публичен доставчик.</string>
-    <string name="setup_online_tiles_off_title">Само офлайн (препоръчително)</string>
+    <string name="setup_online_tiles_off_title">Само офлайн</string>
     <string name="setup_online_tiles_off_desc">Няма мрежови заявки. Използва се само включената базова карта.</string>
-    <string name="setup_online_tiles_on_title">Използване на онлайн плочки</string>
+    <string name="setup_online_tiles_on_title">Използване на онлайн плочки (препоръчително)</string>
     <string name="setup_online_tiles_on_desc">Предавайте векторни плочки с повече детайли от OpenFreeMap (по подразбиране). Можете да смените доставчика по-късно в Настройки → Карта.</string>
     <string name="setup_online_tiles_privacy">Докато е включено, доставчикът може да вижда IP адреса ви и кои плочки зареждате — приблизително коя област от картата разглеждате. Tracker никога не изпраща акаунт, идентификатор или история на местоположенията ви.</string>
     <string name="setup_online_tiles_change_later">Можете да промените това по всяко време в Настройки → Карта → Онлайн плочки за карта.</string>

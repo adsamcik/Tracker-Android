@@ -75,9 +75,6 @@ class LocationDomainProjection @Inject constructor(
 		}
 	}
 
-	override suspend fun flush(cutoffOrdinal: Long) = Unit
-	override suspend fun checkpoint() = ProjectionCheckpoint(id, version, 0L, 1)
-
 	companion object {
 		const val ID = "location-domain"
 		const val VERSION = 1

@@ -36,7 +36,7 @@ class MainActivityIntentTest {
 		composeRule.waitForIdle()
 		
 		// Tracker should be selected by default
-		composeRule.onNodeWithTag("nav_tracker").assertIsSelected()
+		composeRule.onNodeWithTag("nav_dashboard").assertIsSelected()
 	}
 	
 	@Test
@@ -49,7 +49,7 @@ class MainActivityIntentTest {
 		
 		// Map should now be selected
 		composeRule.onNodeWithTag("nav_map").assertIsSelected()
-		composeRule.onNodeWithTag("nav_tracker").assertIsNotSelected()
+		composeRule.onNodeWithTag("nav_dashboard").assertIsNotSelected()
 	}
 
 	@Test
@@ -62,7 +62,7 @@ class MainActivityIntentTest {
 		
 		// Stats should now be selected
 		composeRule.onNodeWithTag("nav_stats").assertIsSelected()
-		composeRule.onNodeWithTag("nav_tracker").assertIsNotSelected()
+		composeRule.onNodeWithTag("nav_dashboard").assertIsNotSelected()
 	}
 
 	@Test
@@ -75,6 +75,6 @@ class MainActivityIntentTest {
 		
 		// Game should now be selected
 		composeRule.onNodeWithTag("nav_game").assertIsSelected()
-		composeRule.onNodeWithTag("nav_tracker").assertIsNotSelected()
+		composeRule.onNodeWithTag("nav_dashboard").assertIsNotSelected()
 	}
 }

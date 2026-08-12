@@ -14,28 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">Modul dezvoltator a fost dezactivat</string>
     <string name="settings_data_management_section">Gestionarea datelor</string>
     <string name="settings_data_danger_zone_section">Zonă periculoasă</string>
-    <string name="settings_osm_import_section">Date de hartă (OpenStreetMap)</string>
-    <string name="settings_osm_import_action_title">Importă regiunea OSM</string>
-    <string name="settings_osm_import_action_summary">Alege un fișier .osm.pbf. Conformitatea vehiculelor va folosi apoi offline limitele reale de viteză ale drumurilor.</string>
-    <string name="settings_osm_import_unavailable_title">Importul hărții offline nu este disponibil</string>
-    <string name="settings_osm_import_action_unavailable">Importul hărții offline este temporar indisponibil până la finalizarea măsurilor de siguranță pentru fișiere.</string>
-    <string name="settings_osm_import_action_running">Se importă — atinge pentru a anula</string>
-    <string name="settings_osm_import_action_failed">Importul hărții offline nu a putut fi finalizat.</string>
-    <string name="settings_osm_import_action_source_unavailable">Fișierul de hartă selectat nu a putut fi deschis.</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">S-a importat %1$d drum din %2$d noduri.</item>
-        <item quantity="few">S-au importat %1$d drumuri din %2$d noduri.</item>
-        <item quantity="other">S-au importat %1$d drumuri din %2$d noduri.</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">Nu a fost importată încă nicio regiune OpenStreetMap.</string>
-    <string name="settings_osm_imports_attribution">Date de hartă © contribuitorii OpenStreetMap (ODbL 1.0). Toată prelucrarea are loc pe dispozitiv.</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d drum · importat %2$s</item>
-        <item quantity="few">%1$,d drumuri · importate %2$s</item>
-        <item quantity="other">%1$,d drumuri · importate %2$s</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">Elimină regiunea importată</string>
-    <string name="settings_osm_import_remove_message">Elimini %1$s? Conformitatea vehiculelor va reveni la valoarea de referință fixă până când imporți din nou o regiune.</string>
     <string name="settings_incremental_backups_title">Copii de siguranță incrementale</string>
     <string name="settings_incremental_backups_summary">Exportă doar datele noi de la ultima copie de siguranță. Reduce timpul de export și dimensiunea fișierului.</string>
     <string name="settings_reset_export_watermarks_title">Forțează exportul complet</string>
@@ -368,9 +346,9 @@
     <string name="setup_step_indicator">Pasul %1$d din %2$d</string>
     <string name="setup_online_tiles_title">Dale de hartă online?</string>
     <string name="setup_online_tiles_subtitle">Tracker include o hartă de bază offline, astfel încât funcționează fără rețea. Dacă dorești hărți mai bogate, poți prelua dale de la un furnizor public.</string>
-    <string name="setup_online_tiles_off_title">Numai offline (recomandat)</string>
+    <string name="setup_online_tiles_off_title">Numai offline</string>
     <string name="setup_online_tiles_off_desc">Fără solicitări de rețea. Este folosită numai harta de bază inclusă.</string>
-    <string name="setup_online_tiles_on_title">Folosește dale online</string>
+    <string name="setup_online_tiles_on_title">Folosește dale online (recomandat)</string>
     <string name="setup_online_tiles_on_desc">Preia dale vectoriale mai detaliate de la OpenFreeMap (implicit). Poți schimba mai târziu furnizorul în Setări → Hartă.</string>
     <string name="setup_online_tiles_privacy">Cât timp este activat, furnizorul poate vedea adresa ta IP și dalele pe care le încarci — aproximativ zona hărții pe care o privești. Tracker nu trimite niciodată un cont, un identificator sau istoricul locațiilor.</string>
     <string name="setup_online_tiles_change_later">Poți schimba aceasta oricând din Setări → Hartă → Dale de hartă online.</string>

@@ -17,6 +17,7 @@ import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanResolver
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingCoordinatorTelemetry
 import com.adsamcik.tracker.tracker.source.coordinator.EffectiveSourceState
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.service.ActivityWatcherController
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.every
@@ -48,6 +49,7 @@ class TrackingSettingsViewModelTest {
     // Backing state for the fake repository
     private val paramsFlow = MutableStateFlow(TrackingParamsState())
     private val trackingParamsRepository: TrackingParamsRepository = mockk()
+    private val activityWatcherController: ActivityWatcherController = mockk(relaxed = true)
     private val trackingStatusProvider = DefaultTrackingSettingsStatusProvider(
         SemanticAcquisitionPlanFactory(),
         SourcePlanResolver(),
@@ -123,7 +125,12 @@ class TrackingSettingsViewModelTest {
     private fun createViewModel(): TrackingSettingsViewModel {
         paramsFlow.value = TrackingParamsState()
         permissionsGranted = true
-        return TrackingSettingsViewModel(context, trackingParamsRepository, trackingStatusProvider)
+        return TrackingSettingsViewModel(
+            context,
+            trackingParamsRepository,
+            trackingStatusProvider,
+            activityWatcherController,
+        )
     }
 
     // =========================================================================
@@ -331,10 +338,57 @@ class TrackingSettingsViewModelTest {
             advanceUntilIdle()
             // Default autoTrackingMode is 1 -> true
             vm.uiState.value.autoTrackingEnabled shouldBe true
+            vm.uiState.value.autoTrackingMode shouldBe 1
 
             paramsFlow.value = paramsFlow.value.copy(autoTrackingMode = 0)
             advanceUntilIdle()
             vm.uiState.value.autoTrackingEnabled shouldBe false
+            vm.uiState.value.autoTrackingMode shouldBe 0
+        }
+
+        @Test
+        fun `setAutoTrackingMode persists all supported modes`() = runTest(testDispatcher) {
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            vm.setAutoTrackingMode(2)
+            advanceUntilIdle()
+            vm.uiState.value.autoTrackingMode shouldBe 2
+            vm.uiState.value.autoTrackingEnabled shouldBe true
+            io.mockk.verify { activityWatcherController.applyAutoTrackingMode(2) }
+
+            vm.setAutoTrackingMode(0)
+            advanceUntilIdle()
+            vm.uiState.value.autoTrackingMode shouldBe 0
+            vm.uiState.value.autoTrackingEnabled shouldBe false
+        }
+
+        @Test
+        fun `granted auto tracking permission applies requested mode`() = runTest(testDispatcher) {
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            vm.setAutoTrackingMode(0)
+            advanceUntilIdle()
+            vm.onAutoTrackingPermissionResult(requestedMode = 2, granted = true)
+            advanceUntilIdle()
+
+            vm.uiState.value.autoTrackingMode shouldBe 2
+            vm.uiState.value.activityPermissionGranted shouldBe true
+        }
+
+        @Test
+        fun `denied auto tracking permission preserves current mode`() = runTest(testDispatcher) {
+            val vm = createViewModel()
+            advanceUntilIdle()
+
+            vm.setAutoTrackingMode(0)
+            advanceUntilIdle()
+            vm.onAutoTrackingPermissionResult(requestedMode = 2, granted = false)
+            advanceUntilIdle()
+
+            vm.uiState.value.autoTrackingMode shouldBe 0
+            vm.uiState.value.activityPermissionGranted shouldBe false
         }
     }
 
@@ -517,7 +571,12 @@ class TrackingSettingsViewModelTest {
         fun `applyPreset persists requested wifi when wifi permission is denied`() =
             runTest(testDispatcher) {
                 permissionsGranted = false
-                val vm = TrackingSettingsViewModel(context, trackingParamsRepository, trackingStatusProvider)
+                val vm = TrackingSettingsViewModel(
+                    context,
+                    trackingParamsRepository,
+                    trackingStatusProvider,
+                    activityWatcherController,
+                )
                 advanceUntilIdle()
 
                 vm.applyPreset(TrackingPreset.HIGH_ACCURACY)
@@ -537,7 +596,12 @@ class TrackingSettingsViewModelTest {
             runTest(testDispatcher) {
                 permissionsGranted = false
                 paramsFlow.value = TrackingParamsState(wifiEnabled = true)
-                val vm = TrackingSettingsViewModel(context, trackingParamsRepository, trackingStatusProvider)
+                val vm = TrackingSettingsViewModel(
+                    context,
+                    trackingParamsRepository,
+                    trackingStatusProvider,
+                    activityWatcherController,
+                )
                 advanceUntilIdle()
                 vm.uiState.value.wifiEnabled shouldBe true
 

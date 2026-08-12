@@ -83,8 +83,6 @@
     <string name="settings_tracking_notice_summary">重新開始追蹤後變更才會生效</string>
     <string name="settings_tracking_required_accuracy_title">所需位置準確度</string>
     <string name="settings_tracking_title">追蹤</string>
-    <string name="settings_vehicle_speed_limit_baseline_title">車速限速基準</string>
-    <string name="help_vehicle_speed_limit_baseline">由「車速合規」地圖圖層使用。駕駛樣本會依速度與此基準的比較結果著色。請選擇符合您最常駕駛地區限速的值（例如城市 50 公里／小時、高速公路 90 公里／小時）。</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="shortcut_start_tracking">開始追蹤</string>
     <string name="shortcut_start_tracking_long">開始位置追蹤</string>

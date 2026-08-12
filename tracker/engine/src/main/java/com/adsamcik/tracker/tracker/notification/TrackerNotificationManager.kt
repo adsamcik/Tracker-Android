@@ -98,6 +98,10 @@ class TrackerNotificationManager(
 		const val NOTIFICATION_ID: Int = -7643
 		private const val START_FAILED_NOTIFICATION_ID: Int = -7644
 
+		internal fun cancelTrackingNotification(context: Context) {
+			context.notificationManager.cancel(NOTIFICATION_ID)
+		}
+
 		fun getForegroundNotification(
 			context: Context,
 			usesLocation: Boolean,

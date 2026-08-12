@@ -16,6 +16,7 @@ import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.points.database.PointsAwardedDao
 import com.adsamcik.tracker.points.event.PointsDomainEventConsumer
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.legacy.LEGACY_DATABASE_NAME
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupException
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.stats.data.worker.AchievementWorker
@@ -26,7 +27,6 @@ import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
 import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
 import com.adsamcik.tracker.tracker.worker.HistoricalTrajectoryReconstructionWorker
-import com.adsamcik.tracker.osm.imp.OsmImportWorker
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.ExecutionException
@@ -92,10 +92,6 @@ class DefaultCollectedDataWriterQuiescer(
 					HistoricalTrajectoryReconstructionWorker.UNIQUE_WORK_NAME,
 				),
 				"historical reconstruction",
-			)
-			awaitCancellation(
-				workManager.cancelUniqueWork(OsmImportWorker.UNIQUE_WORK_NAME),
-				"OSM import",
 			)
 			awaitCancellation(
 				DataImporter.cancel(context),
@@ -280,8 +276,10 @@ class DefaultCollectedDataDeletionService(
 		updatedAtMs: Long,
 	) {
 		pointsAwardedDao.deleteAll()
-		appDatabaseDeletion(context, epoch, retainedFromMs, updatedAtMs)
+		// A durable full-delete request must remove the v26 vault before any operation can
+		// create/open v27 and trigger its one-shot import callback.
 		RETIRED_DATABASE_NAMES.forEach(::deleteRetiredDatabase)
+		appDatabaseDeletion(context, epoch, retainedFromMs, updatedAtMs)
 	}
 
 	private fun deleteRetiredDatabase(databaseName: String) {
@@ -338,6 +336,7 @@ class DefaultCollectedDataDeletionService(
 
 	private companion object {
 		val RETIRED_DATABASE_NAMES = listOf(
+			LEGACY_DATABASE_NAME,
 			"stats_database",
 			"challenge_database",
 		)

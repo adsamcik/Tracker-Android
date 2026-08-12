@@ -72,11 +72,9 @@ licensesdialog = "2.2.0"
 simplify = "1.0.0"
 cardview = "1.0.0"
 
-# OSM PBF parsing (offline, ODbL data shipped by the user via SAF)
-osmpbf = "1.6.1"
-
 # HTTP client — routed exclusively through :network NetworkGateway.
-# NO module may import okhttp directly; consumers depend on :network instead.
+# ArchitecturalFitnessTest prevents production modules outside :core:network from
+# constructing clients; approved library adapters receive its shared Call.Factory.
 okhttp = "5.4.0"
 
 # Testing - JUnit 5 (Modern) & JUnit 4 (Android instrumented tests)
@@ -253,10 +251,7 @@ androidx-cardview = { group = "androidx.cardview", name = "cardview", version.re
 licensesdialog = { group = "de.psdev.licensesdialog", name = "licensesdialog", version.ref = "licensesdialog" }
 simplify = { group = "com.goebl", name = "simplify", version.ref = "simplify" }
 
-# OSM PBF parser (official OpenStreetMap Java binding for the protobuf binary format, ASL2; offline only).
-osmpbf = { group = "org.openstreetmap.pbf", name = "osmpbf", version.ref = "osmpbf" }
-
-# HTTP — :network module ONLY. Lint rule (TODO) should prevent any other module from importing okhttp3.
+# HTTP — client construction is owned by :core:network and enforced by ArchitecturalFitnessTest.
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 okhttp-mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "okhttp" }
 okhttp-tls = { group = "com.squareup.okhttp3", name = "okhttp-tls", version.ref = "okhttp" }

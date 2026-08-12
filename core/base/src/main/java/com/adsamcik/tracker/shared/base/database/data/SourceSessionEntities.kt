@@ -45,25 +45,6 @@ data class SourceServiceRunEntity(
 )
 
 @Entity(
-	tableName = "source_event_session_binding",
-	primaryKeys = ["event_id", "binding_revision"],
-	indices = [Index(value = ["logical_tracking_id", "admission_ordinal"], name = "idx_source_event_binding_tracking")],
-)
-data class SourceEventSessionBindingEntity(
-	@ColumnInfo(name = "event_id") val eventId: String,
-	@ColumnInfo(name = "binding_revision") val bindingRevision: Long,
-	@ColumnInfo(name = "admission_ordinal") val admissionOrdinal: Long,
-	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String,
-	@ColumnInfo(name = "service_run_id") val serviceRunId: String?,
-	@ColumnInfo(name = "binding_reason") val bindingReason: String,
-	@ColumnInfo(name = "decision_status") val decisionStatus: String,
-	@ColumnInfo(name = "clock_domain_id") val clockDomainId: String,
-	@ColumnInfo(name = "interval_start_elapsed_nanos") val intervalStartElapsedNanos: Long,
-	@ColumnInfo(name = "interval_end_elapsed_nanos") val intervalEndElapsedNanos: Long?,
-	@ColumnInfo(name = "bound_at_ms") val boundAtMs: Long,
-)
-
-@Entity(
 	tableName = "source_session_completeness",
 	primaryKeys = ["logical_tracking_id", "source_kind", "source_instance_id"],
 )

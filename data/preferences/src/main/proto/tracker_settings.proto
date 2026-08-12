@@ -5,6 +5,9 @@ option java_multiple_files = true;
 
 // Proto for tracker application settings. Extend with new optional fields; never reuse field numbers.
 message TrackerSettingsProto {
+  reserved 4;
+  reserved "legacy_dual_write_disabled";
+
   // Whether automatic unit switching is enabled (statistics length system adapts to activity)
   bool auto_unit_switch = 1;
   // Preferred length system selection (legacy key lengthSystem)
@@ -26,10 +29,6 @@ message TrackerSettingsProto {
     SPEED_FORMAT_HOUR = 3;
   }
   SpeedFormatProto speed_format = 3;
-
-  // When true, cell/wifi components write to both legacy and new tables (migration period).
-  // Defaults to true (proto3 default is false, so we treat unset as true in the domain layer).
-  bool legacy_dual_write_disabled = 4;
 
   // Internal migration marker so legacy SharedPreferences import runs only once.
   bool legacy_migrated = 1000;

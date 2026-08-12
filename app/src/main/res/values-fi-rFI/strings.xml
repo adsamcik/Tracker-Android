@@ -14,26 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">Kehittäjätila poistettu käytöstä</string>
     <string name="settings_data_management_section">Tietojen hallinta</string>
     <string name="settings_data_danger_zone_section">Vaaravyöhyke</string>
-    <string name="settings_osm_import_section">Karttatiedot (OpenStreetMap)</string>
-    <string name="settings_osm_import_action_title">Tuo OSM-alue</string>
-    <string name="settings_osm_import_action_summary">Valitse .osm.pbf-tiedosto. Ajoneuvojen nopeusrajoitusten noudattaminen käyttää sitten todellisia nopeusrajoituksia offline-tilassa.</string>
-    <string name="settings_osm_import_unavailable_title">Offline-kartan tuonti ei ole käytettävissä</string>
-    <string name="settings_osm_import_action_unavailable">Offline-kartan tuonti ei ole tilapäisesti käytettävissä, kun tiedostoturvasuojaus viimeistellään.</string>
-    <string name="settings_osm_import_action_running">Tuodaan — peruuta napauttamalla</string>
-    <string name="settings_osm_import_action_failed">Offline-kartan tuontia ei voitu suorittaa.</string>
-    <string name="settings_osm_import_action_source_unavailable">Valittua karttatiedostoa ei voitu avata.</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">Tuotiin %1$d tie %2$d solmusta.</item>
-        <item quantity="other">Tuotiin %1$d tietä %2$d solmusta.</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">OpenStreetMap-aluetta ei ole vielä tuotu.</string>
-    <string name="settings_osm_imports_attribution">Karttatiedot © OpenStreetMapin avustajat (ODbL 1.0). Kaikki käsittely tapahtuu laitteella.</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d tie · tuotu %2$s</item>
-        <item quantity="other">%1$,d tietä · tuotu %2$s</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">Poista tuotu alue</string>
-    <string name="settings_osm_import_remove_message">Poistetaanko %1$s? Ajoneuvojen nopeusrajoitusten tarkistus käyttää kiinteää perusarvoa, kunnes tuot alueen uudelleen.</string>
     <string name="settings_incremental_backups_title">Kasvavat varmuuskopiot</string>
     <string name="settings_incremental_backups_summary">Vie vain viimeisen varmuuskopion jälkeen syntyneet tiedot. Lyhentää vientiaikaa ja pienentää tiedostokokoa.</string>
     <string name="settings_reset_export_watermarks_title">Pakota täydellinen vienti</string>
@@ -362,9 +342,9 @@
     <string name="setup_step_indicator">Vaihe %1$d / %2$d</string>
     <string name="setup_online_tiles_title">Verkkokarttalaatat?</string>
     <string name="setup_online_tiles_subtitle">Trackerissa on offline-taustakartta, joten se toimii ilman verkkoyhteyttä. Jos haluat monipuolisempia karttoja, voit käyttää julkisen tarjoajan karttalaattavirtaa.</string>
-    <string name="setup_online_tiles_off_title">Vain offline (suositeltu)</string>
+    <string name="setup_online_tiles_off_title">Vain offline</string>
     <string name="setup_online_tiles_off_desc">Ei verkkopyyntöjä. Käytetään vain mukana toimitettua taustakarttaa.</string>
-    <string name="setup_online_tiles_on_title">Käytä verkkokarttalaattoja</string>
+    <string name="setup_online_tiles_on_title">Käytä verkkokarttalaattoja (suositeltu)</string>
     <string name="setup_online_tiles_on_desc">Käytä yksityiskohtaisempia vektorikarttalaattoja OpenFreeMapista (oletus). Voit vaihtaa tarjoajaa myöhemmin kohdassa Asetukset → Kartta.</string>
     <string name="setup_online_tiles_privacy">Kun toiminto on käytössä, tarjoaja näkee IP-osoitteesi ja lataamasi karttalaatat — suurin piirtein katsomasi kartta-alueen. Tracker ei koskaan lähetä tiliä, tunnistetta tai sijaintihistoriaasi.</string>
     <string name="setup_online_tiles_change_later">Voit muuttaa tämän milloin tahansa kohdassa Asetukset → Kartta → Verkkokarttalaatat.</string>

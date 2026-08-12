@@ -197,6 +197,24 @@ class SignalSerializerTest {
 		),
 	)
 
+	private fun roundTrip(signal: TrackingSignal): TrackingSignal {
+		val encoded = SignalSerializer.encode(signal)
+		return SignalSerializer.decode(
+			envelopeVersion = encoded.envelopeVersion,
+			payloadJson = encoded.payloadJson,
+			payloadChecksum = encoded.payloadChecksum,
+		).shouldBeInstanceOf<PendingSignalDecodeResult.Valid>().signal
+	}
+
+	private fun decodeCurrentPayload(payloadJson: String): PendingSignalDecodeResult {
+		val envelopeJson = """{"type":"tracking_signal","payload":$payloadJson}"""
+		return SignalSerializer.decode(
+			envelopeVersion = SignalSerializer.CURRENT_ENVELOPE_VERSION,
+			payloadJson = envelopeJson,
+			payloadChecksum = SignalSerializer.payloadChecksum(envelopeJson),
+		)
+	}
+
 	// endregion
 
 	@Test
@@ -285,38 +303,14 @@ class SignalSerializerTest {
 	}
 
 	@Test
-	fun `legacy ordinal payloads remain readable`() {
-		val result = SignalSerializer.decode(
-			envelopeVersion = SignalSerializer.LEGACY_ENVELOPE_VERSION,
-			payloadJson = """{"ts":1700000000000,"act":{"t":1,"c":50}}""",
-			payloadChecksum = null,
-		).shouldBeInstanceOf<PendingSignalDecodeResult.Valid>()
-
-		result.signal.activity.shouldNotBeNull().type shouldBe DetectedActivityType.WALKING
-	}
-
-	@Test
-	fun `legacy metadata cannot bypass current envelope checksum verification`() {
-		val encoded = SignalSerializer.encode(createMinimalSignal())
-
-		val result = SignalSerializer.decode(
-			envelopeVersion = SignalSerializer.LEGACY_ENVELOPE_VERSION,
-			payloadJson = encoded.payloadJson,
-			payloadChecksum = null,
-		).shouldBeInstanceOf<PendingSignalDecodeResult.Malformed>()
-
-		result.reason shouldBe PendingSignalDecodeFailure.MALFORMED_PAYLOAD
-	}
-
-	@Test
 	fun `serializer writes stable enum codes rather than ordinals`() {
-		val json = SignalSerializer.serialize(
+		val json = SignalSerializer.encode(
 			TrackingSignal(
 				timestampMs = EpochMs(1_700_000_000_000L),
 				activity = ActivitySignal(DetectedActivityType.RUNNING, ActivityConfidence(90)),
 				policy = PolicySignal(PolicyTier.PRECISION),
 			),
-		)
+		).payloadJson
 
 		json.contains("\"t\":\"running\"") shouldBe true
 		json.contains("\"tier\":\"precision\"") shouldBe true
@@ -326,10 +320,8 @@ class SignalSerializerTest {
 	@Test
 	fun fullSignal() {
 		val original = createFullSignal()
-		val json = SignalSerializer.serialize(original)
-		val restored = SignalSerializer.deserialize(json)
+		val restored = roundTrip(original)
 
-		restored.shouldNotBeNull()
 		restored.timestampMs shouldBe original.timestampMs
 		restored.elapsedRealtimeNanos shouldBe original.elapsedRealtimeNanos
 
@@ -408,10 +400,8 @@ class SignalSerializerTest {
 	@Test
 	fun minimalSignal() {
 		val original = createMinimalSignal()
-		val json = SignalSerializer.serialize(original)
-		val restored = SignalSerializer.deserialize(json)
+		val restored = roundTrip(original)
 
-		restored.shouldNotBeNull()
 		restored.timestampMs shouldBe original.timestampMs
 		restored.elapsedRealtimeNanos shouldBe 0L
 		restored.location.shouldBeNull()
@@ -426,10 +416,8 @@ class SignalSerializerTest {
 	@Test
 	fun locationOnly() {
 		val original = createLocationOnlySignal()
-		val json = SignalSerializer.serialize(original)
-		val restored = SignalSerializer.deserialize(json)
+		val restored = roundTrip(original)
 
-		restored.shouldNotBeNull()
 		restored.timestampMs shouldBe original.timestampMs
 		restored.location.shouldNotBeNull()
 		restored.location!!.coordinate shouldBe original.location!!.coordinate
@@ -470,8 +458,7 @@ class SignalSerializerTest {
 			),
 		)
 
-		val restored = SignalSerializer.deserialize(SignalSerializer.serialize(original))
-			.shouldNotBeNull()
+		val restored = roundTrip(original)
 
 		restored.timestampMs shouldBe original.timestampMs
 		restored.elapsedRealtimeNanos shouldBe original.elapsedRealtimeNanos
@@ -491,8 +478,7 @@ class SignalSerializerTest {
 			),
 		)
 
-		val restored = SignalSerializer.deserialize(SignalSerializer.serialize(original))
-			.shouldNotBeNull()
+		val restored = roundTrip(original)
 		val observation = restored.locationObservation.shouldNotBeNull()
 
 		observation.coordinate.shouldBeNull()
@@ -502,10 +488,8 @@ class SignalSerializerTest {
 	@Test
 	fun activityOnly() {
 		val original = createActivityOnlySignal()
-		val json = SignalSerializer.serialize(original)
-		val restored = SignalSerializer.deserialize(json)
+		val restored = roundTrip(original)
 
-		restored.shouldNotBeNull()
 		restored.timestampMs shouldBe original.timestampMs
 		restored.activity.shouldNotBeNull()
 		restored.activity!!.type shouldBe DetectedActivityType.RUNNING
@@ -520,10 +504,8 @@ class SignalSerializerTest {
 			timestampMs = EpochMs(1_700_000_000_000L),
 			policy = PolicySignal(tier = PolicyTier.PRECISION, policyName = null),
 		)
-		val json = SignalSerializer.serialize(original)
-		val restored = SignalSerializer.deserialize(json)
+		val restored = roundTrip(original)
 
-		restored.shouldNotBeNull()
 		restored.policy.shouldNotBeNull()
 		restored.policy!!.tier shouldBe PolicyTier.PRECISION
 		restored.policy!!.policyName.shouldBeNull()
@@ -541,10 +523,8 @@ class SignalSerializerTest {
 				sensorReset = true,
 			),
 		)
-		val json = SignalSerializer.serialize(original)
-		val restored = SignalSerializer.deserialize(json)
+		val restored = roundTrip(original)
 
-		restored.shouldNotBeNull()
 		val s = restored.steps.shouldNotBeNull()
 		s.sensorReset shouldBe true
 		s.sensorValueStart shouldBe 65535
@@ -568,10 +548,8 @@ class SignalSerializerTest {
 				),
 			),
 		)
-		val json = SignalSerializer.serialize(original)
-		val restored = SignalSerializer.deserialize(json)
+		val restored = roundTrip(original)
 
-		restored.shouldNotBeNull()
 		val net = restored.wifi.shouldNotBeNull().networks.first()
 		net.ssid shouldBe original.wifi!!.networks.first().ssid
 	}
@@ -592,10 +570,8 @@ class SignalSerializerTest {
 				),
 			),
 		)
-		val json = SignalSerializer.serialize(original)
-		val restored = SignalSerializer.deserialize(json)
+		val restored = roundTrip(original)
 
-		restored.shouldNotBeNull()
 		val tower = restored.cells.shouldNotBeNull().towers.first()
 		tower.mnc shouldBe "0\\1"
 	}
@@ -611,10 +587,8 @@ class SignalSerializerTest {
 				provider = "test\"provider",
 			),
 		)
-		val json = SignalSerializer.serialize(original)
-		val restored = SignalSerializer.deserialize(json)
+		val restored = roundTrip(original)
 
-		restored.shouldNotBeNull()
 		restored.location.shouldNotBeNull().provider shouldBe "test\"provider"
 	}
 
@@ -627,40 +601,38 @@ class SignalSerializerTest {
 				policyName = "outdoor\\walk\ting",
 			),
 		)
-		val json = SignalSerializer.serialize(original)
-		val restored = SignalSerializer.deserialize(json)
+		val restored = roundTrip(original)
 
-		restored.shouldNotBeNull()
 		restored.policy.shouldNotBeNull().policyName shouldBe "outdoor\\walk\ting"
 	}
 
 
 	@Test
-	fun corruptedJson() {
-		SignalSerializer.deserialize("{not valid json!!!}").shouldBeNull()
-	}
+	fun `current envelope rejects malformed JSON`() {
+		val payload = "{not valid json!!!}"
 
-	@Test
-	fun emptyString() {
-		SignalSerializer.deserialize("").shouldBeNull()
-	}
+		val result = SignalSerializer.decode(
+			envelopeVersion = SignalSerializer.CURRENT_ENVELOPE_VERSION,
+			payloadJson = payload,
+			payloadChecksum = SignalSerializer.payloadChecksum(payload),
+		).shouldBeInstanceOf<PendingSignalDecodeResult.Malformed>()
 
-	@Test
-	fun randomGarbage() {
-		SignalSerializer.deserialize("abc123!@#").shouldBeNull()
+		result.reason shouldBe PendingSignalDecodeFailure.MALFORMED_ENVELOPE
 	}
 
 	@Test
 	fun missingTimestamp() {
-		SignalSerializer.deserialize("""{"ern":123}""").shouldBeNull()
+		val result = decodeCurrentPayload("""{"ern":123}""")
+			.shouldBeInstanceOf<PendingSignalDecodeResult.Malformed>()
+
+		result.reason shouldBe PendingSignalDecodeFailure.MALFORMED_PAYLOAD
 	}
 
 	@Test
 	fun partialJson() {
-		val json = """{"ts":1700000000000}"""
-		val restored = SignalSerializer.deserialize(json)
+		val restored = decodeCurrentPayload("""{"ts":1700000000000}""")
+			.shouldBeInstanceOf<PendingSignalDecodeResult.Valid>().signal
 
-		restored.shouldNotBeNull()
 		restored.timestampMs shouldBe EpochMs(1_700_000_000_000L)
 		restored.elapsedRealtimeNanos shouldBe 0L
 		restored.location.shouldBeNull()
@@ -673,10 +645,10 @@ class SignalSerializerTest {
 	}
 
 	@Test
-	fun `historical durable location payload defaults missing altitude contract to unknown`() {
-		val restored = SignalSerializer.deserialize(
+	fun `current location payload defaults missing altitude contract to unknown`() {
+		val restored = decodeCurrentPayload(
 			"""{"ts":1700000000000,"loc":{"lat":500000000,"lon":140000000,"hAcc":5.0,"alt":250.0,"rAlt":248.0,"prov":"gps"}}""",
-		).shouldNotBeNull()
+		).shouldBeInstanceOf<PendingSignalDecodeResult.Valid>().signal
 		val location = restored.location.shouldNotBeNull()
 
 		location.altitudeM shouldBe 250.0f
@@ -692,9 +664,9 @@ class SignalSerializerTest {
 
 	@Test
 	fun `unknown altitude contract codes decode conservatively`() {
-		val restored = SignalSerializer.deserialize(
+		val restored = decodeCurrentPayload(
 			"""{"ts":1700000000000,"loc":{"lat":500000000,"lon":140000000,"hAcc":5.0,"altDatum":"future_datum","altSource":"future_source","altStatus":"future_status","rawAltDatum":"future_raw","prov":"gps"}}""",
-		).shouldNotBeNull()
+		).shouldBeInstanceOf<PendingSignalDecodeResult.Valid>().signal
 		val location = restored.location.shouldNotBeNull()
 
 		location.altitudeDatum shouldBe AltitudeDatum.UNKNOWN_LEGACY
@@ -704,25 +676,21 @@ class SignalSerializerTest {
 	}
 
 	@Test
-	fun invalidActivityOrdinal() {
-		val json = """{"ts":1700000000000,"act":{"t":999,"c":50}}"""
-		val restored = SignalSerializer.deserialize(json)
+	fun `current activity type rejects numeric ordinal`() {
+		val result = decodeCurrentPayload(
+			"""{"ts":1700000000000,"act":{"t":1,"c":50}}""",
+		).shouldBeInstanceOf<PendingSignalDecodeResult.Malformed>()
 
-		restored.shouldNotBeNull()
-		restored.activity.shouldNotBeNull()
-		restored.activity!!.type shouldBe DetectedActivityType.UNKNOWN
-		restored.activity!!.confidence shouldBe ActivityConfidence(50)
+		result.reason shouldBe PendingSignalDecodeFailure.MALFORMED_PAYLOAD
 	}
 
 	@Test
-	fun invalidPolicyTierOrdinal() {
-		val json = """{"ts":1700000000000,"pol":{"tier":999}}"""
-		val restored = SignalSerializer.deserialize(json)
+	fun `current policy tier rejects numeric ordinal`() {
+		val result = decodeCurrentPayload(
+			"""{"ts":1700000000000,"pol":{"tier":1}}""",
+		).shouldBeInstanceOf<PendingSignalDecodeResult.Malformed>()
 
-		restored.shouldNotBeNull()
-		restored.policy.shouldNotBeNull()
-		restored.policy!!.tier shouldBe PolicyTier.OFF
-		restored.policy!!.policyName.shouldBeNull()
+		result.reason shouldBe PendingSignalDecodeFailure.MALFORMED_PAYLOAD
 	}
 
 
@@ -753,10 +721,8 @@ class SignalSerializerTest {
 						speed = null,
 					),
 				)
-				val json = SignalSerializer.serialize(original)
-				val restored = SignalSerializer.deserialize(json)
+				val restored = roundTrip(original)
 
-				restored.shouldNotBeNull()
 				val resLoc = restored.location.shouldNotBeNull()
 				resLoc.coordinate.lat.raw shouldBe lat.raw
 				resLoc.coordinate.lon.raw shouldBe lon.raw
@@ -777,10 +743,8 @@ class SignalSerializerTest {
 				speed = null,
 			),
 		)
-		val json = SignalSerializer.serialize(original)
-		val restored = SignalSerializer.deserialize(json)
+		val restored = roundTrip(original)
 
-		restored.shouldNotBeNull()
 		val resLoc = restored.location.shouldNotBeNull()
 		// The raw int must come back bit-identical
 		resLoc.coordinate.lat.raw shouldBe 488_566_123
@@ -794,10 +758,8 @@ class SignalSerializerTest {
 			timestampMs = EpochMs(1_700_000_000_000L),
 			cells = CellSignal(towers = emptyList()),
 		)
-		val json = SignalSerializer.serialize(original)
-		val restored = SignalSerializer.deserialize(json)
+		val restored = roundTrip(original)
 
-		restored.shouldNotBeNull()
 		restored.cells.shouldNotBeNull().towers.size shouldBe 0
 	}
 
@@ -807,10 +769,8 @@ class SignalSerializerTest {
 			timestampMs = EpochMs(1_700_000_000_000L),
 			wifi = WifiSignal(networks = emptyList()),
 		)
-		val json = SignalSerializer.serialize(original)
-		val restored = SignalSerializer.deserialize(json)
+		val restored = roundTrip(original)
 
-		restored.shouldNotBeNull()
 		restored.wifi.shouldNotBeNull().networks.size shouldBe 0
 	}
 
@@ -824,10 +784,8 @@ class SignalSerializerTest {
 				speed = SpeedMps(0.0f),
 			),
 		)
-		val json = SignalSerializer.serialize(original)
-		val restored = SignalSerializer.deserialize(json)
+		val restored = roundTrip(original)
 
-		restored.shouldNotBeNull()
 		restored.location.shouldNotBeNull().speed shouldBe SpeedMps(0.0f)
 	}
 
@@ -840,10 +798,8 @@ class SignalSerializerTest {
 				confidence = ActivityConfidence(100),
 			),
 		)
-		val json = SignalSerializer.serialize(original)
-		val restored = SignalSerializer.deserialize(json)
+		val restored = roundTrip(original)
 
-		restored.shouldNotBeNull()
 		restored.activity.shouldNotBeNull().confidence shouldBe ActivityConfidence(100)
 	}
 
@@ -857,10 +813,8 @@ class SignalSerializerTest {
 					confidence = ActivityConfidence(50),
 				),
 			)
-			val json = SignalSerializer.serialize(original)
-			val restored = SignalSerializer.deserialize(json)
+			val restored = roundTrip(original)
 
-			restored.shouldNotBeNull()
 			restored.activity.shouldNotBeNull().type shouldBe type
 		}
 	}
@@ -872,10 +826,8 @@ class SignalSerializerTest {
 				timestampMs = EpochMs(1_700_000_000_000L),
 				policy = PolicySignal(tier = tier, policyName = "test-$tier"),
 			)
-			val json = SignalSerializer.serialize(original)
-			val restored = SignalSerializer.deserialize(json)
+			val restored = roundTrip(original)
 
-			restored.shouldNotBeNull()
 			restored.policy.shouldNotBeNull().tier shouldBe tier
 		}
 	}

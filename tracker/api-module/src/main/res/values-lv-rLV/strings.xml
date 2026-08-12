@@ -83,8 +83,6 @@
     <string name="settings_tracking_notice_summary">Izmaiņas stājas spēkā, kad restartējat izsekošanu</string>
     <string name="settings_tracking_required_accuracy_title">Nepieciešamā atrašanās vietas precizitāte</string>
     <string name="settings_tracking_title">Izsekošana</string>
-    <string name="settings_vehicle_speed_limit_baseline_title">Transportlīdzekļu ātruma ierobežojuma pamats</string>
-    <string name="help_vehicle_speed_limit_baseline">Izmanto kartes slānis Transportlīdzekļu ātruma atbilstība. Braukšanas paraugi ir iekrāsoti pēc to ātruma salīdzinājuma ar šo pamatu. Izvēlieties vērtību, kas atbilst ierobežojumiem vietās, kur braucat visbiežāk (piemēram, 50 km/h pilsētās, 90 km/h uz šosejām).</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="shortcut_start_tracking">Sākt izsekošanu</string>
     <string name="shortcut_start_tracking_long">Sākt atrašanās vietas izsekošanu</string>

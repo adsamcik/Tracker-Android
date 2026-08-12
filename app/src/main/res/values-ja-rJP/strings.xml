@@ -14,26 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">開発者モードを無効にしました</string>
     <string name="settings_data_management_section">データ管理</string>
     <string name="settings_data_danger_zone_section">危険な操作</string>
-    <string name="settings_osm_import_section">地図データ（OpenStreetMap）</string>
-    <string name="settings_osm_import_action_title">OSM地域をインポート</string>
-    <string name="settings_osm_import_action_summary">.osm.pbfファイルを選択してください。以降、車両の速度制限チェックでは実際の道路制限をオフラインで使用します。</string>
-    <string name="settings_osm_import_unavailable_title">オフライン地図のインポートは利用できません</string>
-    <string name="settings_osm_import_action_unavailable">ファイル安全性保護の実装中のため、オフライン地図のインポートは一時的に利用できません。</string>
-    <string name="settings_osm_import_action_running">インポート中 — タップしてキャンセル</string>
-    <string name="settings_osm_import_action_failed">オフライン地図のインポートを完了できませんでした。</string>
-    <string name="settings_osm_import_action_source_unavailable">選択した地図ファイルを開けませんでした。</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">%2$d個のノードから%1$d本の道路をインポートしました。</item>
-        <item quantity="other">%2$d個のノードから%1$d本の道路をインポートしました。</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">OpenStreetMapの地域はまだインポートされていません。</string>
-    <string name="settings_osm_imports_attribution">地図データ © OpenStreetMapの貢献者（ODbL 1.0）。すべての処理は端末上で行われます。</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d本の道路 · %2$sにインポート</item>
-        <item quantity="other">%1$,d本の道路 · %2$sにインポート</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">インポート済み地域を削除</string>
-    <string name="settings_osm_import_remove_message">%1$sを削除しますか？地域を再インポートするまで、車両の速度制限チェックは固定ベースラインに戻ります。</string>
     <string name="settings_incremental_backups_title">増分バックアップ</string>
     <string name="settings_incremental_backups_summary">前回のバックアップ以降の新しいデータだけをエクスポートします。エクスポート時間とファイルサイズを削減します。</string>
     <string name="settings_reset_export_watermarks_title">完全エクスポートを強制</string>
@@ -362,9 +342,9 @@
     <string name="setup_step_indicator">ステップ%1$d / %2$d</string>
     <string name="setup_online_tiles_title">オンライン地図タイルを使用しますか？</string>
     <string name="setup_online_tiles_subtitle">Trackerにはオフラインベースマップが含まれているため、ネットワークなしでも使えます。より豊かな地図が必要な場合は、公開プロバイダーからタイルをストリーミングできます。</string>
-    <string name="setup_online_tiles_off_title">オフラインのみ（推奨）</string>
+    <string name="setup_online_tiles_off_title">オフラインのみ</string>
     <string name="setup_online_tiles_off_desc">ネットワーク要求は行いません。同梱のベースマップのみを使用します。</string>
-    <string name="setup_online_tiles_on_title">オンラインタイルを使用</string>
+    <string name="setup_online_tiles_on_title">オンラインタイルを使用（推奨）</string>
     <string name="setup_online_tiles_on_desc">OpenFreeMap（デフォルト）から高詳細のベクタータイルをストリーミングします。後で［設定］→［地図］からプロバイダーを変更できます。</string>
     <string name="setup_online_tiles_privacy">有効にすると、プロバイダーはあなたのIPアドレスと読み込んだタイル（おおよそ地図上で見ている地域）を確認できます。Trackerがアカウント、識別子、位置履歴を送信することはありません。</string>
     <string name="setup_online_tiles_change_later">この設定はいつでも［設定］→［地図］→［オンライン地図タイル］で変更できます。</string>

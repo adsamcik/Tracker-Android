@@ -4,7 +4,6 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import com.adsamcik.tracker.shared.base.database.data.RouteHypothesisEntity
 import com.adsamcik.tracker.shared.base.database.data.TrajectoryReconstructionRunEntity
 import com.adsamcik.tracker.shared.base.database.data.TrajectorySourceLinkEntity
 import com.adsamcik.tracker.shared.base.database.data.TrajectoryStateEntity
@@ -20,9 +19,6 @@ interface TrajectoryReconstructionDao {
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertSourceLinks(links: List<TrajectorySourceLinkEntity>)
-
-	@Insert(onConflict = OnConflictStrategy.ABORT)
-	suspend fun insertRouteHypotheses(hypotheses: List<RouteHypothesisEntity>)
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertVisitIntervals(visits: List<VisitIntervalEntity>)
@@ -80,7 +76,7 @@ interface TrajectoryReconstructionDao {
 	/**
 	 * Derived states cannot outlive the raw source range that explains them.
 	 *
-	 * Deleting the run cascades to states, visits, hypotheses, and source links.
+	 * Deleting the run cascades to states, visits, and source links.
 	 */
 	@Query("DELETE FROM trajectory_reconstruction_run WHERE source_start_ms < :beforeMs")
 	suspend fun deleteWithSourceBefore(beforeMs: Long): Int

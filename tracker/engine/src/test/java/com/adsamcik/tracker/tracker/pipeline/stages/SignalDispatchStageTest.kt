@@ -231,8 +231,5 @@ class SignalDispatchStageTest {
 
 		override suspend fun onStop(): List<DomainEvent> = emptyList()
 
-		override fun checkpoint(): ByteArray? = null
-
-		override fun restore(state: ByteArray) = Unit
 	}
 }

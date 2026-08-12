@@ -84,8 +84,6 @@
     <string name="settings_tracking_notice_summary">Promjene stupaju na snagu kada ponovno pokrenete praćenje</string>
     <string name="settings_tracking_required_accuracy_title">Potrebna točnost lokacije</string>
     <string name="settings_tracking_title">Praćenje</string>
-    <string name="settings_vehicle_speed_limit_baseline_title">Osnovno ograničenje brzine vozila</string>
-    <string name="help_vehicle_speed_limit_baseline">Upotrebljava se na sloju karte usklađenosti brzine vozila. Uzorci vožnje obojeni su prema usporedbi njihove brzine s ovom osnovnom vrijednošću. Odaberite vrijednost koja odgovara ograničenjima na mjestima gdje najčešće vozite (npr. 50 km/h u gradovima, 90 km/h na autocestama).</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="shortcut_start_tracking">Pokreni praćenje</string>
     <string name="shortcut_start_tracking_long">Pokreni praćenje lokacije</string>

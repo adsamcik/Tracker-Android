@@ -85,8 +85,6 @@
     <string name="settings_tracking_notice_summary">Zmeny sa prejavia po reštartovaní sledovania</string>
     <string name="settings_tracking_required_accuracy_title">Požadovaná presnosť polohy</string>
     <string name="settings_tracking_title">Sledovanie</string>
-    <string name="settings_vehicle_speed_limit_baseline_title">Základná hodnota rýchlostného limitu vozidiel</string>
-    <string name="help_vehicle_speed_limit_baseline">Používa vrstva mapy Dodržiavanie rýchlostných obmedzení vozidiel. Vzorky jazdy sú zafarbené podľa porovnania ich rýchlosti s touto základnou hodnotou. Vyberte hodnotu zodpovedajúcu limitom, kde jazdíte najčastejšie (napr. 50 km/h v mestách, 90 km/h na cestách).</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="shortcut_start_tracking">Spustiť sledovanie</string>
     <string name="shortcut_start_tracking_long">Spustiť sledovanie polohy</string>

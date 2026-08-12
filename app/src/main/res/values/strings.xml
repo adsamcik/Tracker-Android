@@ -25,26 +25,6 @@
 
     <string name="settings_data_management_section">Data Management</string>
     <string name="settings_data_danger_zone_section">Danger Zone</string>
-    <string name="settings_osm_import_section">Map data (OpenStreetMap)</string>
-    <string name="settings_osm_import_action_title">Import OSM region</string>
-    <string name="settings_osm_import_action_summary">Pick a .osm.pbf file. Vehicle compliance will then use real road limits offline.</string>
-    <string name="settings_osm_import_unavailable_title">Offline map import unavailable</string>
-    <string name="settings_osm_import_action_unavailable">Offline map import is temporarily unavailable while file-safety protections are completed.</string>
-    <string name="settings_osm_import_action_running">Importing — tap to cancel</string>
-    <string name="settings_osm_import_action_failed">Offline map import could not be completed.</string>
-    <string name="settings_osm_import_action_source_unavailable">The selected map file could not be opened.</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">Imported %1$d road from %2$d nodes.</item>
-        <item quantity="other">Imported %1$d roads from %2$d nodes.</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">No OpenStreetMap region imported yet.</string>
-    <string name="settings_osm_imports_attribution">Map data © OpenStreetMap contributors (ODbL 1.0). All processing happens on-device.</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d road · imported %2$s</item>
-        <item quantity="other">%1$,d roads · imported %2$s</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">Remove imported region</string>
-    <string name="settings_osm_import_remove_message">Remove %1$s? Vehicle compliance will fall back to the fixed baseline until you re-import a region.</string>
 
     <string name="settings_incremental_backups_title">Incremental backups</string>
     <string name="settings_incremental_backups_summary">Only export new data since last backup. Reduces export time and file size.</string>
@@ -63,6 +43,28 @@
     <string name="settings_migration_backup_export_success">Pre-upgrade backup exported</string>
     <string name="settings_migration_backup_export_failure">Could not export the pre-upgrade backup</string>
     <string name="settings_migration_backup_export_cleanup_required">Export failed. Delete the partially exported backup from the selected location.</string>
+    <!-- English fallback for the v27-only recovery surface; keep these translatable for later curated translations. -->
+    <string name="legacy_database_import_failed_title" tools:ignore="MissingTranslation">Legacy database import needs attention</string>
+    <string name="legacy_database_import_failed_message" tools:ignore="MissingTranslation">Your original database is still safe on this device. Retry the import or export it before starting fresh.</string>
+    <string name="legacy_database_size" tools:ignore="MissingTranslation">Legacy database size: %1$s</string>
+    <string name="legacy_database_retry" tools:ignore="MissingTranslation">Retry import</string>
+    <string name="legacy_database_export" tools:ignore="MissingTranslation">Export legacy database</string>
+    <string name="legacy_database_delete" tools:ignore="MissingTranslation">Delete legacy database and start fresh</string>
+    <string name="legacy_database_export_success" tools:ignore="MissingTranslation">Legacy database exported</string>
+    <string name="legacy_database_export_failure" tools:ignore="MissingTranslation">Could not export the legacy database</string>
+    <string name="legacy_database_export_cleanup_required" tools:ignore="MissingTranslation">The export failed and the incomplete destination could not be removed. Delete it manually.</string>
+    <string name="legacy_database_vault_title" tools:ignore="MissingTranslation">Legacy database vault</string>
+    <string name="legacy_database_vault_summary" tools:ignore="MissingTranslation">Version %1$d · %2$s · %3$s</string>
+    <string name="legacy_database_vault_details" tools:ignore="MissingTranslation">Source version: %1$d\nStorage: %2$s\nImport: %3$s\nImported rows: %4$d\nRows retained only in the vault: %5$d</string>
+    <string name="legacy_database_completed_at" tools:ignore="MissingTranslation">Import completed: %1$s</string>
+    <string name="legacy_database_status_not_started" tools:ignore="MissingTranslation">Not imported</string>
+    <string name="legacy_database_status_running" tools:ignore="MissingTranslation">Importing</string>
+    <string name="legacy_database_status_complete" tools:ignore="MissingTranslation">Import complete</string>
+    <string name="legacy_database_status_failed" tools:ignore="MissingTranslation">Import failed</string>
+    <string name="legacy_database_delete_confirm_title" tools:ignore="MissingTranslation">Delete the legacy database?</string>
+    <string name="legacy_database_delete_confirm_message" tools:ignore="MissingTranslation">This permanently removes %1$s from this device. Your v27 data is not affected. Keep the exported copy if you may need the original database later.</string>
+    <string name="legacy_database_delete_success" tools:ignore="MissingTranslation">Legacy database deleted</string>
+    <string name="legacy_database_delete_failure" tools:ignore="MissingTranslation">Could not delete the legacy database</string>
     <string name="settings_delete_data_success">All collected data was deleted</string>
     <string name="settings_delete_data_failure">Could not delete all collected data</string>
     <string name="settings_game_goals_title">Goals</string>
@@ -85,6 +87,7 @@
     <string name="settings_game_loading">Loading game settings…</string>
     <string name="settings_game_load_error">Game settings could not be loaded. Please try again.</string>
     <string name="settings_map_info_hint">These settings control map visualization quality and performance. Most users can use default values.</string>
+    <string name="settings_map_offline_data_section">Offline map data</string>
     <string name="settings_map_online_tiles_section_title">Online map tiles</string>
     <string name="settings_map_online_tiles_enable_title">Use online map tiles</string>
     <string name="settings_map_online_tiles_enable_subtitle_off">Off — only the bundled offline basemap is used. No network requests.</string>
@@ -264,7 +267,10 @@
     <string name="battery_impact_low">Low impact</string>
     <string name="battery_impact_moderate">Moderate impact</string>
     <string name="battery_impact_high">High impact</string>
-    <string name="settings_battery_estimate_title" translatable="false">Estimated tracking impact</string>
+    <string name="settings_battery_estimate_title" translatable="false">Estimated current battery use</string>
+    <string name="settings_battery_estimate_summary" translatable="false">An approximate comparison for these settings. Actual use varies with movement, signal conditions, and your device.</string>
+    <string name="settings_battery_estimate_show_details" translatable="false">How this estimate works</string>
+    <string name="settings_battery_estimate_hide_details" translatable="false">Hide estimate details</string>
     <string name="settings_battery_confidence" translatable="false">Confidence: %1$s</string>
     <string name="settings_battery_drivers" translatable="false">Main drivers: %1$s</string>
     <string name="settings_battery_comparison" translatable="false">Comparison: %1$s</string>
@@ -280,11 +286,40 @@
     <string name="settings_effective_status_idle" translatable="false">Tracking is not active. Saved requests are shown below; permissions and device constraints are evaluated without pretending a provider is running.</string>
     <string name="settings_runtime_telemetry_title" translatable="false">Local runtime telemetry (since app start)</string>
     <string name="settings_runtime_telemetry_summary" translatable="false">Projected events: %1$d • plan revisions: %2$d • tracking frames: %3$d • frame wake lock: %4$d ms</string>
-    <string name="settings_advanced_source_controls_title" translatable="false">Advanced source controls</string>
-    <string name="settings_advanced_source_controls_summary" translatable="false">Choose a semantic responsiveness goal per source. Android timing remains best-effort.</string>
+    <string name="settings_advanced_source_controls_title" translatable="false">Advanced controls</string>
+    <string name="settings_advanced_source_controls_summary" translatable="false">Set individual update frequency and location filters.</string>
+    <string name="settings_source_frequency_summary" translatable="false">%1$s\n%2$s</string>
+    <string name="settings_source_frequency_line" translatable="false">%1$s · %2$s</string>
+    <string name="settings_source_cadence_disabled" translatable="false">Not collected</string>
+    <string name="settings_source_cadence_location" translatable="false">Every %1$s while active; minimum %2$s movement</string>
+    <string name="settings_source_cadence_location_available" translatable="false">As location updates are available while active</string>
+    <string name="settings_source_cadence_activity_events" translatable="false">Event-driven activity changes</string>
+    <string name="settings_source_cadence_activity_continuous" translatable="false">Continuous recognition every %1$s</string>
+    <string name="settings_source_cadence_steps" translatable="false">Sensor updates may batch for up to %1$s</string>
+    <string name="settings_source_cadence_pressure" translatable="false">%1$d samples/sec; summarized every %2$s</string>
+    <string name="settings_source_cadence_wifi_active" translatable="false">Scan attempt at most once every %1$s</string>
+    <string name="settings_source_cadence_wifi_events" translatable="false">Android network events; refresh at most every %1$s</string>
+    <string name="settings_source_cadence_wifi_cached" translatable="false">Cached results; refresh at most every %1$s</string>
+    <string name="settings_source_cadence_cell_events" translatable="false">Network changes; refresh at most every %1$s</string>
+    <string name="settings_source_cadence_unavailable" translatable="false">Cadence preview unavailable</string>
+    <string name="settings_source_badge_updates" translatable="false">%1$s updates</string>
+    <string name="settings_source_badge_minimum" translatable="false">%1$s minimum</string>
+    <string name="settings_source_badge_as_available" translatable="false">As available</string>
+    <string name="settings_source_badge_continuous" translatable="false">Continuous</string>
+    <string name="settings_source_badge_checks" translatable="false">%1$s checks</string>
+    <string name="settings_source_badge_activity_changes" translatable="false">Activity changes</string>
+    <string name="settings_source_badge_batching" translatable="false">≤ %1$s batching</string>
+    <string name="settings_source_badge_samples" translatable="false">%1$d samples/sec</string>
+    <string name="settings_source_badge_summaries" translatable="false">%1$s summaries</string>
+    <string name="settings_source_badge_active_scan" translatable="false">Active scan</string>
+    <string name="settings_source_badge_android_events" translatable="false">Android events</string>
+    <string name="settings_source_badge_cached" translatable="false">Cached results</string>
+    <string name="settings_source_badge_attempt_limit" translatable="false">≤ %1$s attempts</string>
+    <string name="settings_source_badge_network_changes" translatable="false">Network changes</string>
+    <string name="settings_source_badge_refresh_limit" translatable="false">≤ %1$s refresh</string>
     <string name="settings_source_requested" translatable="false">Requested: %1$s</string>
     <string name="settings_source_effective" translatable="false">Effective: %1$s</string>
-    <string name="settings_source_frequency_dialog" translatable="false">%1$s responsiveness</string>
+    <string name="settings_source_frequency_dialog" translatable="false">%1$s collection frequency</string>
 
     <!-- Location Precision Mode Strings -->
     <string name="precision_mode_title">Choose Location Precision</string>
@@ -319,13 +354,38 @@
     <string name="tracking_preset_custom_name">Custom</string>
     <string name="tracking_preset_custom_description">Manually tune each tracking parameter</string>
     <string name="tracking_preset_selector_title">Tracking Preset</string>
-    <string name="tracking_preset_selector_subtitle">Pick a profile to start from, then fine-tune any setting below.</string>
+    <string name="tracking_preset_selector_subtitle">Choose the balance between route detail and battery life.</string>
+    <string name="tracking_preset_change">Compare options</string>
+    <string name="tracking_preset_done">Show selected only</string>
     <string name="tracking_preset_custom_hint">Adjusting any setting below builds a Custom profile from the current preset.</string>
     <string name="tracking_preset_customized_summary">You\'ve fine-tuned tracking. Pick a preset above to reset.</string>
+    <string name="settings_tracking_section_start_stop">Automatic tracking</string>
+    <string name="settings_tracking_section_battery_detail">Tracking quality</string>
+    <string name="settings_tracking_section_data_collected">Data collected</string>
     <string name="settings_tracking_section_detection">Detection &amp; automation</string>
     <string name="settings_tracking_section_sources">Data sources</string>
-    <string name="settings_tracking_section_detail">Location collection</string>
+    <string name="settings_tracking_section_detail">Location filters</string>
     <string name="settings_tracking_section_notifications">Notifications</string>
+    <string name="settings_transition_detection_friendly_title">Battery-efficient motion detection</string>
+    <string name="settings_transition_detection_friendly_summary">Uses Android activity changes to avoid frequent background checks. Automatic starts may react a little more slowly.</string>
+    <string name="settings_location_source_summary">Records your route, distance, and speed. Usually the largest battery cost.</string>
+    <string name="settings_activity_source_summary">Recognizes walking, cycling, driving, and stillness to label trips and reduce unnecessary collection.</string>
+    <string name="settings_steps_source_summary">Records step counts while walking or running using your phone’s step sensor.</string>
+    <string name="settings_barometer_source_summary">Uses air pressure to improve altitude and elevation changes.</string>
+    <string name="settings_wifi_source_summary">Records nearby Wi-Fi networks to add local context. Data stays on this device.</string>
+    <string name="settings_cell_source_summary">Records nearby cell towers to add location context. Data stays on this device.</string>
+    <string name="settings_location_source_compact">Route, distance, and speed</string>
+    <string name="settings_activity_source_compact">Movement type and stillness</string>
+    <string name="settings_steps_source_compact">Walking and running steps</string>
+    <string name="settings_barometer_source_compact">Altitude and elevation</string>
+    <string name="settings_wifi_source_compact">Nearby network context</string>
+    <string name="settings_cell_source_compact">Nearby tower context</string>
+    <string name="settings_source_summary_with_status">%1$s\n%2$s</string>
+    <string name="settings_technical_status_title">Technical status</string>
+    <string name="settings_technical_status_summary">Battery estimate, permissions, and collection status.</string>
+    <string name="settings_technical_status_attention">Some collection sources need attention. Open for details.</string>
+    <string name="settings_simple_source_controls_title">Use simple controls</string>
+    <string name="settings_simple_source_controls_summary">Show straightforward on/off switches for each data source.</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
@@ -442,6 +502,7 @@
     <string name="setup_auto_tracking_on_foot_desc">Automatically track walking and running.</string>
     <string name="setup_auto_tracking_in_motion">In Motion</string>
     <string name="setup_auto_tracking_in_motion_desc">Automatically track all movement including driving and cycling.</string>
+    <string name="settings_auto_tracking_mode_summary">Choose which movement should start and stop trips automatically.</string>
     <string name="setup_preset_title">Tracking Detail</string>
     <string name="setup_recommended">Recommended</string>
     <string name="setup_what_to_collect_title">What to Collect</string>
@@ -484,12 +545,12 @@
     <string name="setup_continue">Continue</string>
     <string name="setup_step_indicator">Step %1$d of %2$d</string>
 
-    <!-- Onboarding step 4: opt-in online map tiles -->
+    <!-- Onboarding step 4: online map tile choice -->
     <string name="setup_online_tiles_title">Online map tiles?</string>
     <string name="setup_online_tiles_subtitle">Tracker ships with an offline basemap so it works with no network. If you want richer maps, you can stream tiles from a public provider instead.</string>
-    <string name="setup_online_tiles_off_title">Offline only (recommended)</string>
+    <string name="setup_online_tiles_off_title">Offline only</string>
     <string name="setup_online_tiles_off_desc">No network requests. Only the bundled basemap is used.</string>
-    <string name="setup_online_tiles_on_title">Use online tiles</string>
+    <string name="setup_online_tiles_on_title">Use online tiles (recommended)</string>
     <string name="setup_online_tiles_on_desc">Stream higher-detail vector tiles from OpenFreeMap (default). You can change provider later in Settings → Map.</string>
     <string name="setup_online_tiles_privacy">While enabled, the provider can see your IP address and which tiles you load — roughly which area of the map you are looking at. Tracker never sends an account, identifier, or your location history.</string>
     <string name="setup_online_tiles_change_later">You can change this any time in Settings → Map → Online map tiles.</string>

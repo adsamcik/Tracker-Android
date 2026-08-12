@@ -14,21 +14,17 @@ import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.DomainEventDao
 import com.adsamcik.tracker.shared.base.database.dao.ExportLogDao
-import com.adsamcik.tracker.shared.base.database.dao.FrequentPlaceDao
-import com.adsamcik.tracker.shared.base.database.dao.InferredTripDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDecisionDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
-import com.adsamcik.tracker.shared.base.database.dao.RouteCacheDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.SkiRunSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceEvidenceStateDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerStateEventDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
-import com.adsamcik.tracker.shared.base.database.dao.TripLegDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
@@ -90,10 +86,6 @@ class RetentionPipelineWorkerRobolectricTest {
 		val cellDao: CellSampleDao = mockk(relaxed = true)
 		val wifiDao: WifiObservationDao = mockk(relaxed = true)
 		val sessionDao: SessionSegmentDao = mockk(relaxed = true)
-		val inferredTripDao: InferredTripDao = mockk(relaxed = true)
-		val tripLegDao: TripLegDao = mockk(relaxed = true)
-		val frequentPlaceDao: FrequentPlaceDao = mockk(relaxed = true)
-		val routeCacheDao: RouteCacheDao = mockk(relaxed = true)
 		val dailySummaryDao: DailySummaryDao = mockk(relaxed = true)
 		val domainEventDao: DomainEventDao = mockk(relaxed = true)
 		val exportLogDao: ExportLogDao = mockk(relaxed = true)
@@ -116,15 +108,10 @@ class RetentionPipelineWorkerRobolectricTest {
 		every { db.cellSampleDao() } returns cellDao
 		every { db.wifiObservationDao() } returns wifiDao
 		every { db.sessionSegmentDao() } returns sessionDao
-		every { db.inferredTripDao() } returns inferredTripDao
-		every { db.tripLegDao() } returns tripLegDao
-		every { db.frequentPlaceDao() } returns frequentPlaceDao
-		every { db.routeCacheDao() } returns routeCacheDao
 		every { db.dailySummaryDao() } returns dailySummaryDao
 		every { db.explorationCellDao() } returns mockk(relaxed = true)
 		every { db.explorationStreakDao() } returns mockk(relaxed = true)
 		every { db.achievementProgressDao() } returns mockk(relaxed = true)
-		every { db.personalRecordDao() } returns mockk(relaxed = true)
 		every { db.domainEventDao() } returns domainEventDao
 		every { db.exportLogDao() } returns exportLogDao
 		every { db.pendingSignalDao() } returns pendingSignalDao
@@ -162,10 +149,6 @@ class RetentionPipelineWorkerRobolectricTest {
 		coVerify(exactly = 1) { cellDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { wifiDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { sessionDao.deleteOlderThan(any()) }
-		coVerify(exactly = 1) { inferredTripDao.deleteOlderThan(any()) }
-		coVerify(exactly = 1) { tripLegDao.deleteOlderThan(any()) }
-		coVerify(exactly = 1) { frequentPlaceDao.deleteOlderThan(any()) }
-		coVerify(exactly = 1) { routeCacheDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { dailySummaryDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { domainEventDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { exportLogDao.deleteOlderThan(any()) }
@@ -202,7 +185,18 @@ class RetentionPipelineWorkerRobolectricTest {
 				),
 			)
 			db.pendingSignalDao().insertAll(
-				listOf(PendingSignalEntity(sessionId = 7L, signalJson = "{}", createdAt = 1L)),
+				listOf(
+					PendingSignalEntity(
+						signalId = "retention-fixture-1",
+						sessionId = 7L,
+						envelopeVersion = 1,
+						payloadChecksum =
+							"1280fde14031e7b67bce77ff73860e29dbb51d1f3698679d28f2f93ed1beb128",
+						signalJson =
+							"""{"type":"tracking_signal","payload":{"ts":1,"ern":0}}""",
+						createdAt = 1L,
+					),
+				),
 			)
 
 			assertEquals(

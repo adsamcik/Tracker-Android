@@ -53,12 +53,6 @@
     <string name="map_layer_terrain_low">Harvoin täällä</string>
     <string name="map_layer_terrain_mid">Joskus</string>
     <string name="map_layer_terrain_high">Usein täällä</string>
-    <string name="map_layer_places_title">Usein käydyt paikat</string>
-    <string name="map_layer_places_chip">Paikat</string>
-    <string name="map_layer_places_description">Tärkeät paikkasi näkyvät merkkeinä, joiden koko ja väri kertovat käyntitiheydestä. Koti ja työ kasvavat suuriksi lämpimiksi pisteiksi; kerran käymäsi paikka jää pieneksi viileäksi pisteeksi.</string>
-    <string name="map_layer_places_rare">Harvoin</string>
-    <string name="map_layer_places_often">Joskus</string>
-    <string name="map_layer_places_anchor">Tukikohtasi</string>
     <string name="map_layer_speed_ribbon_title">Nopeusnauha</string>
     <string name="map_layer_speed_ribbon_chip">Nauha</string>
     <string name="map_layer_speed_ribbon_description">Reittisi on maalattu liikkumisnopeutesi mukaan: väri kulkee hitaasta violetista kävelystä punakuumaan juoksuun tai ajoon. Toisin kuin nopeuslämpökartta, nauha säilyttää reittisi ehjänä, joten näet tarkasti, missä kiihdytit ja hidastit.</string>
@@ -80,9 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Lasku</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Hissi</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Kävely tai tauko</string>
-    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Matkojen tähtikuviot</string>
-    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Matkat</string>
-    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Toistuvat matkat usein käymiesi paikkojen välillä muodostavat kaarevia tähtikuvioita. Vakaa kaari näyttää jokaisen reitin, jota pitkin kulkee komeetta; paksummat kaaret tarkoittavat, että teit matkan useammin.</string>
     <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Kävely</string>
     <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Pyöräily</string>
     <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Autoilu</string>
@@ -98,18 +89,10 @@
     <string name="map_layer_first_contact_description">Löytöjesi aikajana: jokainen alue väritetään sen mukaan, kuinka äskettäin astuit siellä ensi kerran. Kauan sitten löytämäsi paikat haalistuvat syvän indigonsinisiksi, kun taas tällä viikolla löytämäsi maa hohtaa kirkkaan syaanina — lue tutkimusretkesi tarina uusimpia rajoja kohti.</string>
     <string name="map_layer_first_contact_old">Kauan sitten</string>
     <string name="map_layer_first_contact_recent">Juuri löydetty</string>
-    <string name="map_layer_vehicle_compliance_title">Ajoneuvon nopeusrajoitusten noudattaminen</string>
-    <string name="map_layer_vehicle_compliance_description">Ajokertojen viiva, jonka väri ilmaisee, miten nopeus vertautuu määrittämääsi perusrajoitukseen.</string>
-    <string name="map_layer_vehicle_compliance_way_under">Selvästi alle rajan</string>
-    <string name="map_layer_vehicle_compliance_slow">Alle rajan</string>
-    <string name="map_layer_vehicle_compliance_at_limit">Lähellä rajaa</string>
-    <string name="map_layer_vehicle_compliance_slightly_over">Hieman yli rajan</string>
-    <string name="map_layer_vehicle_compliance_speeding">Ylinopeus</string>
     <string name="map_layer_location_polyline_description">Viiva, joka yhdistää tallennetut sijaintisi ajan kuluessa.</string>
     <string name="map_layer_location_polyline_title">Sijaintiviiva</string>
     <string name="map_layer_location_polyline_chip">Viiva</string>
     <string name="map_layer_wifi_count_heatmap_chip">Wi-Fi-päällekkäisyys</string>
-    <string name="map_layer_vehicle_compliance_chip">Ylinopeus</string>
     <string name="map_layer_none_title">Ei peittokuvaa</string>
     <string name="map_date_preset_week">Viime viikko</string>
     <string name="map_date_preset_month">Viime kuukausi</string>
@@ -174,7 +157,6 @@
     <string name="map_empty_subtitle_cell">Tässä näkymässä tai päivämäärävälillä ei ole paikannettuja tukiasematietoja. Ilman sijaintia tallennetut solunäytteet säilyvät silti, mutta eivät voi näkyä kartalla.</string>
     <string name="map_empty_subtitle_wifi">Tässä näkymässä tai päivämäärävälillä ei ole paikannettuja Wi-Fi-tietoja. Ilman sijaintia tallennetut Wi-Fi-havainnot säilyvät silti, mutta eivät voi näkyä kartalla.</string>
     <string name="map_empty_subtitle_speed">Tässä näkymässä tai päivämäärävälillä ei ole nopeustietoja. Nopeuskartat tarvitsevat käyttökelpoisia seurannan aikana kerättyjä sijaintinäytteitä.</string>
-    <string name="map_empty_subtitle_vehicle_compliance">Näytettäväksi ei ole tiehen sovitettuja ajokertoja. Tuo OpenStreetMap-alue (Asetukset) ja tallenna ajoa, jotta reittisi voidaan sovittaa oikeille teille.</string>
     <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Sulje ei tietoja -viesti</string>
     <string name="map_speed_probe_title">Nopeus tässä</string>
     <string name="map_speed_probe_avg_label">Keskiarvo</string>

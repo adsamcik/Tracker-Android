@@ -53,12 +53,6 @@
     <string name="map_layer_terrain_low">Is annamh anseo</string>
     <string name="map_layer_terrain_mid">Uaireanta</string>
     <string name="map_layer_terrain_high">Go minic anseo</string>
-    <string name="map_layer_places_title">Áiteanna minic</string>
-    <string name="map_layer_places_chip">Áiteanna</string>
-    <string name="map_layer_places_description">Do chuid áiteanna tábhachtacha mar mharcóirí, agus méid agus dath gach ceann ag brath ar mhinicíocht do chuairte. Éiríonn baile agus obair ina bponcanna móra te; fanann áit ar thug tú cuairt uirthi uair amháin beag agus fionnuar.</string>
-    <string name="map_layer_places_rare">Go hannamh</string>
-    <string name="map_layer_places_often">Uaireanta</string>
-    <string name="map_layer_places_anchor">Do phríomháiteanna</string>
     <string name="map_layer_speed_ribbon_title">Ribín luais</string>
     <string name="map_layer_speed_ribbon_chip">Ribín</string>
     <string name="map_layer_speed_ribbon_description">Tá do bhealach péinteáilte de réir luas do ghluaiseachta, le dath ag sreabhadh ó shiúl mall corcra go rith tapa nó tiomáint dearg-the. Murab ionann agus an léarscáil teasa luais, coinníonn an ribín do chosán slán ionas go bhfeicfidh tú cá háit ar luasghéaraigh agus ar mhoilligh tú.</string>
@@ -80,9 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Rith síos an cnoc</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Ardaitheoir</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Siúl nó sos</string>
-    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Réadbhuíonta turais</string>
-    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Turais</string>
-    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">Éiríonn turais athfhillteacha idir d’áiteanna minice ina réadbhuíonta cuartha. Taispeánann stua seasmhach gach bealach agus taistealaíonn cóiméad leis; ciallaíonn stuanna níos tibhe go ndearna tú an turas sin níos minice.</string>
     <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Ag siúl</string>
     <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Rothaíocht</string>
     <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Tiomáint</string>
@@ -98,18 +89,10 @@
     <string name="map_layer_first_contact_description">Amlíne de do chuid fionnachtana: tá dath ar gach limistéar de réir cé chomh déanaí a leag tú cos ann den chéad uair. Téann áiteanna a fuair tú fadó i bhfiúis dhomhain, agus lonraíonn talamh nua na seachtaine seo i gcian geal — léigh scéal do thaiscéalaíochta amach go dtí na teorainneacha is nuaí.</string>
     <string name="map_layer_first_contact_old">Fadó</string>
     <string name="map_layer_first_contact_recent">Díreach aimsithe</string>
-    <string name="map_layer_vehicle_compliance_title">Comhlíonadh luais feithicle</string>
-    <string name="map_layer_vehicle_compliance_description">Polailíne de shamplaí tiomána atá daite de réir mar a chuirtear an luas i gcomparáid le do theorainn bhunlíne chumraithe.</string>
-    <string name="map_layer_vehicle_compliance_way_under">I bhfad faoin teorainn</string>
-    <string name="map_layer_vehicle_compliance_slow">Faoin teorainn</string>
-    <string name="map_layer_vehicle_compliance_at_limit">Gar don teorainn</string>
-    <string name="map_layer_vehicle_compliance_slightly_over">Beagán os cionn</string>
-    <string name="map_layer_vehicle_compliance_speeding">Ag luasghéarú</string>
     <string name="map_layer_location_polyline_description">Líne a nascann do shuímh taifeadta le himeacht ama.</string>
     <string name="map_layer_location_polyline_title">Polailíne suímh</string>
     <string name="map_layer_location_polyline_chip">Polailíne</string>
     <string name="map_layer_wifi_count_heatmap_chip">Forluí Wi‑Fi</string>
-    <string name="map_layer_vehicle_compliance_chip">Ag luasghéarú</string>
     <string name="map_layer_none_title">Gan fhorleagan</string>
     <string name="map_date_preset_week">An tseachtain seo caite</string>
     <string name="map_date_preset_month">An mhí seo caite</string>
@@ -174,7 +157,6 @@
     <string name="map_empty_subtitle_cell">Níl sonraí cille le suíomh sa radharc nó sa raon dátaí seo. Sábháiltear samplaí cille a taifeadadh gan suíomh fós, ach ní féidir iad a thaispeáint ar an léarscáil.</string>
     <string name="map_empty_subtitle_wifi">Níl sonraí Wi‑Fi le suíomh sa radharc nó sa raon dátaí seo. Sábháiltear breathnuithe Wi‑Fi a taifeadadh gan suíomh fós, ach ní féidir iad a thaispeáint ar an léarscáil.</string>
     <string name="map_empty_subtitle_speed">Níl sonraí luais sa radharc nó sa raon dátaí seo. Teastaíonn samplaí suímh inúsáidte a bailíodh le linn rianaithe ó léarscáileanna luais.</string>
-    <string name="map_empty_subtitle_vehicle_compliance">Níl aon thiomáint mheaitseáilte le bóthar le taispeáint. Iompórtáil réigiún OpenStreetMap (Socruithe) agus taifead roinnt tiomána ionas gur féidir linn do bhealach a mheaitseáil le fíorbhealaí.</string>
     <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Dún teachtaireacht gan sonraí</string>
     <string name="map_speed_probe_title">Luas anseo</string>
     <string name="map_speed_probe_avg_label">Meán</string>

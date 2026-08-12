@@ -5,7 +5,6 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.work.Configuration
 import androidx.work.OneTimeWorkRequestBuilder
-import androidx.test.platform.app.InstrumentationRegistry
 import androidx.work.WorkManager
 import androidx.work.testing.SynchronousExecutor
 import androidx.work.testing.WorkManagerTestInitHelper
@@ -89,12 +88,7 @@ class DataRetentionInstrumentationTest {
     fun retention_applied_on_next_worker_tick_after_restart() {
         val wm = WorkManager.getInstance(context)
 
-        // Ensure initialize runs on main thread to mirror app startup wiring
-        InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            DataRetentionWorker.initialize(context)
-        }
-
-        // Enqueue a one-time work for deterministic execution with SynchronousExecutor
+		// Enqueue a one-time work for deterministic execution with SynchronousExecutor
         val req = OneTimeWorkRequestBuilder<DataRetentionWorker>()
             .build()
         wm.enqueue(req).result.get()

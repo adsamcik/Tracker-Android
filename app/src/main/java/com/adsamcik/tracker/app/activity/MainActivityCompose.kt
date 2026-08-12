@@ -7,18 +7,30 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.SemanticsPropertiesAndroid
 import androidx.compose.ui.semantics.semantics
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -33,9 +45,14 @@ import com.adsamcik.tracker.feature.dashboard.api.navigation.Dashboard
 import com.adsamcik.tracker.feature.game.api.navigation.Game
 import com.adsamcik.tracker.feature.map.api.navigation.Map
 import com.adsamcik.tracker.app.ui.navigation.Setup
+import com.adsamcik.tracker.app.startup.LegacyDatabaseStartupResult
+import com.adsamcik.tracker.app.startup.LegacyDatabaseUpgradeCoordinator
 import com.adsamcik.tracker.feature.statistics.api.navigation.Stats
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
+import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseRepository
+import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseState
+import com.adsamcik.tracker.shared.base.database.legacy.LegacyImportStatus
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -44,8 +61,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.widget.Toast
 import javax.inject.Inject
 import java.util.UUID
 
@@ -60,7 +79,35 @@ class MainActivityCompose : ComponentActivity() {
 
     @Inject lateinit var dispatchers: DispatchersProvider
     @Inject lateinit var onboardingRepository: com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
+    @Inject lateinit var legacyDatabaseRepository: LegacyDatabaseRepository
+    @Inject lateinit var legacyDatabaseUpgradeCoordinator: LegacyDatabaseUpgradeCoordinator
     private val viewModel by viewModels<MainActivityViewModel>()
+
+    private val legacyExportLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("application/vnd.sqlite3")
+    ) { destination ->
+        destination ?: return@registerForActivityResult
+        lifecycleScope.launch(dispatchers.io) {
+            val exported = runCatching {
+                contentResolver.openOutputStream(destination, "w")?.let(legacyDatabaseRepository::export)
+                    ?: error("Could not open export destination")
+            }.isSuccess
+            if (!exported) {
+                runCatching {
+                    if (contentResolver.delete(destination, null, null) <= 0) {
+                        contentResolver.openOutputStream(destination, "rwt")?.use { it.flush() }
+                    }
+                }
+            }
+            withContext(dispatchers.main) {
+                Toast.makeText(
+                    this@MainActivityCompose,
+                    if (exported) R.string.legacy_database_export_success else R.string.legacy_database_export_failure,
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Install splash screen before super.onCreate
@@ -87,12 +134,7 @@ class MainActivityCompose : ComponentActivity() {
 
         val mainImmediate = (dispatchers.main as? MainCoroutineDispatcher)?.immediate ?: dispatchers.main
 
-        lifecycleScope.launch(dispatchers.io) {
-            val destination = resolveStartupDestination(onboardingRepository)
-            withContext(mainImmediate) {
-                viewModel.setStartupDestination(destination)
-            }
-        }
+        resolveStartup(mainImmediate)
     }
 
     override fun onStart() {
@@ -117,12 +159,35 @@ class MainActivityCompose : ComponentActivity() {
         intent.removeExtra(LEGACY_EXTRA_OPEN_GAME)
     }
 
+    private fun resolveStartup(mainDispatcher: kotlin.coroutines.CoroutineContext, retry: Boolean = false) {
+        lifecycleScope.launch(dispatchers.io) {
+            (application as Application).awaitStartupReconciliation()
+            val destination = when (legacyDatabaseUpgradeCoordinator.ensureReady(retry)) {
+                LegacyDatabaseStartupResult.Ready -> resolveStartupDestination(onboardingRepository)
+                is LegacyDatabaseStartupResult.Failed -> StartupDestination.LegacyRecovery
+            }
+            withContext(mainDispatcher) { viewModel.setStartupDestination(destination) }
+        }
+    }
+
     @Composable
     private fun ComposeRoot(viewModel: MainActivityViewModel) {
         val darkTheme = isSystemInDarkTheme()
         val selectedTab by viewModel.selectedTab.collectAsStateWithLifecycle()
         val deepNavigationRequest by viewModel.deepNavigationRequest.collectAsStateWithLifecycle()
         val startupDestination by viewModel.startupDestination.collectAsStateWithLifecycle()
+        val legacyStates = remember(legacyDatabaseRepository, dispatchers.io) {
+            legacyDatabaseRepository.states.flowOn(dispatchers.io)
+        }
+        val legacyState by legacyStates.collectAsStateWithLifecycle(
+            initialValue = LegacyDatabaseState(
+                database = null,
+                importStatus = LegacyImportStatus.NOT_STARTED,
+                report = null,
+                lastError = null,
+                externallyExported = false,
+            ),
+        )
 
         when (startupDestination) {
             StartupDestination.Pending -> {
@@ -135,6 +200,43 @@ class MainActivityCompose : ComponentActivity() {
                             CircularProgressIndicator()
                         }
                     }
+                }
+                return
+            }
+
+            StartupDestination.LegacyRecovery -> {
+                AppTheme(darkTheme = darkTheme) {
+                    LegacyDatabaseRecoveryScreen(
+                        message = legacyState.lastError,
+                        sizeBytes = legacyState.database?.sizeBytes ?: 0L,
+                        canDelete = legacyState.canDelete,
+                        onRetry = {
+                            viewModel.setStartupDestination(StartupDestination.Pending)
+                            val mainImmediate = (dispatchers.main as? MainCoroutineDispatcher)?.immediate
+                                ?: dispatchers.main
+                            resolveStartup(mainImmediate, retry = true)
+                        },
+                        onExport = {
+                            legacyExportLauncher.launch("tracker-legacy-v${legacyState.database?.sourceVersion ?: 26}.db")
+                        },
+                        onDelete = {
+                            lifecycleScope.launch(dispatchers.io) {
+                                val deleted = runCatching { legacyDatabaseRepository.delete() }.isSuccess
+                                withContext(dispatchers.main) {
+                                    if (deleted) {
+                                        viewModel.setStartupDestination(StartupDestination.Pending)
+                                        resolveStartup(dispatchers.main)
+                                    } else {
+                                        Toast.makeText(
+                                            this@MainActivityCompose,
+                                            R.string.legacy_database_delete_failure,
+                                            Toast.LENGTH_LONG,
+                                        ).show()
+                                    }
+                                }
+                            }
+                        },
+                    )
                 }
                 return
             }
@@ -214,9 +316,113 @@ data class DeepNavigationRequest(
 
 enum class StartupDestination {
     Pending,
+    LegacyRecovery,
     Onboarding,
     OnboardingReadFailed,
     Main,
+}
+
+@Composable
+private fun LegacyDatabaseRecoveryScreen(
+    message: String?,
+    sizeBytes: Long,
+    canDelete: Boolean,
+    onRetry: () -> Unit,
+    onExport: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+    Surface(color = MaterialTheme.colorScheme.background) {
+        Box(
+            modifier = Modifier.fillMaxSize().padding(32.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = androidx.compose.ui.res.stringResource(R.string.legacy_database_import_failed_title),
+                    style = MaterialTheme.typography.headlineSmall,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = message ?: androidx.compose.ui.res.stringResource(
+                        R.string.legacy_database_import_failed_message,
+                    ),
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = androidx.compose.ui.res.stringResource(
+                        R.string.legacy_database_size,
+                        android.text.format.Formatter.formatFileSize(
+                            androidx.compose.ui.platform.LocalContext.current,
+                            sizeBytes,
+                        ),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Spacer(Modifier.height(24.dp))
+                Button(onClick = onRetry) {
+                    Text(androidx.compose.ui.res.stringResource(R.string.legacy_database_retry))
+                }
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = onExport) {
+                    Text(androidx.compose.ui.res.stringResource(R.string.legacy_database_export))
+                }
+                if (canDelete) {
+                    Spacer(Modifier.height(8.dp))
+                    Button(onClick = { showDeleteConfirmation = true }) {
+                        Text(androidx.compose.ui.res.stringResource(R.string.legacy_database_delete))
+                    }
+                }
+            }
+        }
+    }
+    if (showDeleteConfirmation) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = {
+                Text(androidx.compose.ui.res.stringResource(R.string.legacy_database_delete_confirm_title))
+            },
+            text = {
+                Text(
+                    androidx.compose.ui.res.stringResource(
+                        R.string.legacy_database_delete_confirm_message,
+                        android.text.format.Formatter.formatFileSize(
+                            androidx.compose.ui.platform.LocalContext.current,
+                            sizeBytes,
+                        ),
+                    ),
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteConfirmation = false
+                        onDelete()
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                    ),
+                ) {
+                    Text(
+                        androidx.compose.ui.res.stringResource(
+                            com.adsamcik.tracker.shared.base.R.string.generic_delete,
+                        ),
+                    )
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showDeleteConfirmation = false }) {
+                    Text(
+                        androidx.compose.ui.res.stringResource(
+                            com.adsamcik.tracker.shared.base.R.string.generic_cancel,
+                        ),
+                    )
+                }
+            },
+        )
+    }
 }
 
 internal val StartupDestination.requiresOnboarding: Boolean
@@ -354,5 +560,3 @@ class MainActivityViewModel @Inject constructor(
         const val KEY_STARTUP_DESTINATION = "main_startup_destination"
     }
 }
-
-

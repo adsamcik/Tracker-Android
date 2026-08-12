@@ -1,5 +1,9 @@
 # Agent C: Proto DataStore & Async Refactoring
 
+> **Archived proposal.** This plan is not the current architecture. The proposed
+> `tracking_toggles` store never gained a production caller and was removed; tracking source
+> settings remain owned by `TrackingParamsRepository`.
+
 **Assigned Plans**: 2, 5  
 **Est. Time**: 10 hours  
 **Dependencies**: Plan 5 depends on Plan 2

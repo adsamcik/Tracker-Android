@@ -53,12 +53,6 @@
     <string name="map_layer_terrain_low">कभी-कभार यहाँ</string>
     <string name="map_layer_terrain_mid">कभी-कभी</string>
     <string name="map_layer_terrain_high">अक्सर यहाँ</string>
-    <string name="map_layer_places_title">बार-बार जाने की जगहें</string>
-    <string name="map_layer_places_chip">जगहें</string>
-    <string name="map_layer_places_description">आपकी महत्वपूर्ण जगहें मार्कर के रूप में, हर एक का आकार और रंग आपके दौरों के अनुसार। घर और काम बड़े गर्म बिंदु बनते हैं; जहाँ एक बार गए वह छोटा ठंडा बिंदु रहता है।</string>
-    <string name="map_layer_places_rare">कभी-कभार</string>
-    <string name="map_layer_places_often">कभी-कभी</string>
-    <string name="map_layer_places_anchor">आपके प्रमुख स्थान</string>
     <string name="map_layer_speed_ribbon_title">गति रिबन</string>
     <string name="map_layer_speed_ribbon_chip">रिबन</string>
     <string name="map_layer_speed_ribbon_description">आपका मार्ग आपकी गति के अनुसार रंगा हुआ है, धीमी बैंगनी चाल से लाल-गर्म स्प्रिंट या ड्राइव तक बहते रंग। गति हीटमैप से अलग, रिबन आपका पथ अक्षुण्ण रखता है, ताकि आप ठीक देख सकें कि कब तेज़ या धीमे हुए।</string>
@@ -80,9 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">डाउनहिल रन</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">लिफ्ट</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">चलना या विराम</string>
-    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">यात्रा नक्षत्र</string>
-    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">यात्राएँ</string>
-    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">आपकी बार-बार वाली जगहों के बीच दोहराई यात्राएँ वक्र नक्षत्र बनती हैं। स्थिर चाप हर मार्ग दिखाता है और एक धूमकेतु उस पर चलता है; मोटे चाप का अर्थ है कि आपने वह यात्रा अधिक बार की।</string>
     <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">चलना</string>
     <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">साइकिल चलाना</string>
     <string name="map_layer_trip_car" tools:ignore="MissingTranslation">वाहन चलाना</string>
@@ -98,18 +89,10 @@
     <string name="map_layer_first_contact_description">आपकी खोजों की समयरेखा: हर क्षेत्र को उस समय के अनुसार रंगा जाता है जब आपने पहली बार वहाँ कदम रखा। बहुत पहले मिली जगहें गहरे इंडिगो में फीकी होती हैं, जबकि इस सप्ताह की नई ज़मीन चमकीले सियान में चमकती है — नई सीमाओं तक अपनी खोज की कहानी पढ़ें।</string>
     <string name="map_layer_first_contact_old">बहुत पहले</string>
     <string name="map_layer_first_contact_recent">अभी खोजा गया</string>
-    <string name="map_layer_vehicle_compliance_title">वाहन गति अनुपालन</string>
-    <string name="map_layer_vehicle_compliance_description">ड्राइविंग नमूनों की पॉलीलाइन, आपकी कॉन्फ़िगर आधाररेखा सीमा से गति की तुलना के अनुसार रंगी हुई।</string>
-    <string name="map_layer_vehicle_compliance_way_under">सीमा से बहुत कम</string>
-    <string name="map_layer_vehicle_compliance_slow">सीमा से कम</string>
-    <string name="map_layer_vehicle_compliance_at_limit">सीमा के पास</string>
-    <string name="map_layer_vehicle_compliance_slightly_over">थोड़ा अधिक</string>
-    <string name="map_layer_vehicle_compliance_speeding">तेज़ रफ़्तार</string>
     <string name="map_layer_location_polyline_description">समय के साथ आपके रिकॉर्ड स्थानों को जोड़ती रेखा।</string>
     <string name="map_layer_location_polyline_title">स्थान पॉलीलाइन</string>
     <string name="map_layer_location_polyline_chip">पॉलीलाइन</string>
     <string name="map_layer_wifi_count_heatmap_chip">Wi-Fi ओवरलैप</string>
-    <string name="map_layer_vehicle_compliance_chip">तेज़ रफ़्तार</string>
     <string name="map_layer_none_title">कोई ओवरले नहीं</string>
     <string name="map_date_preset_week">पिछला सप्ताह</string>
     <string name="map_date_preset_month">पिछला महीना</string>
@@ -174,7 +157,6 @@
     <string name="map_empty_subtitle_cell">इस दृश्य या तिथि सीमा में कोई स्थानयुक्त सेल डेटा नहीं है। स्थान बिना रिकॉर्ड सेल नमूने फिर भी सहेजे जाते हैं, पर मानचित्र पर नहीं दिख सकते।</string>
     <string name="map_empty_subtitle_wifi">इस दृश्य या तिथि सीमा में कोई स्थानयुक्त Wi-Fi डेटा नहीं है। स्थान बिना रिकॉर्ड Wi-Fi अवलोकन फिर भी सहेजे जाते हैं, पर मानचित्र पर नहीं दिख सकते।</string>
     <string name="map_empty_subtitle_speed">इस दृश्य या तिथि सीमा में कोई गति डेटा नहीं है। गति मानचित्रों को ट्रैकिंग के दौरान एकत्र उपयोगी स्थान नमूने चाहिए।</string>
-    <string name="map_empty_subtitle_vehicle_compliance">दिखाने के लिए कोई सड़क-मिलान ड्राइव नहीं है। OpenStreetMap क्षेत्र (सेटिंग) आयात करें और कुछ ड्राइविंग रिकॉर्ड करें, ताकि हम आपका मार्ग वास्तविक सड़कों से मिला सकें।</string>
     <string name="map_empty_dismiss" tools:ignore="MissingTranslation">डेटा नहीं संदेश हटाएँ</string>
     <string name="map_speed_probe_title">यहाँ गति</string>
     <string name="map_speed_probe_avg_label">औसत</string>

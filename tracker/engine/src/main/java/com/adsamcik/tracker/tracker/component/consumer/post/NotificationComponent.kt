@@ -55,12 +55,22 @@ internal class NotificationComponent :
 	private val delimiter = ", "
 
 	override suspend fun onDisable(context: Context) {
-		trackerNotificationManager = null
-		contentComponentList.clear()
-		titleComponentList.clear()
+		onServiceStopped(context)
+	}
+
+	/**
+	 * Prevents a final in-flight tracking cycle from recreating the foreground notification after
+	 * the service has removed it. This is synchronous because service teardown continues on a
+	 * separate scope after [android.app.Service.onDestroy] returns.
+	 */
+	fun onServiceStopped(context: Context) {
 		synchronized(notificationLock) {
+			trackerNotificationManager = null
+			contentComponentList.clear()
+			titleComponentList.clear()
 			lastPayload = null
 			updateGate.reset()
+			TrackerNotificationManager.cancelTrackingNotification(context)
 		}
 	}
 
@@ -97,11 +107,12 @@ internal class NotificationComponent :
 			collectionData: CollectionData,
 			cycle: TrackingCycle
 	) {
-		val payload = NotificationPayload(
-			title = generateTitle(context, collectionData, session),
-			text = buildNotificationText(context, session, collectionData),
-		)
 		synchronized(notificationLock) {
+			if (trackerNotificationManager == null) return
+			val payload = NotificationPayload(
+				title = generateTitle(context, collectionData, session),
+				text = buildNotificationText(context, session, collectionData),
+			)
 			lastPayload = payload
 			if (updateGate.shouldUpdate(payload, cycle.elapsedRealtimeNanos)) {
 				notify(generateNotification(payload))
@@ -110,16 +121,16 @@ internal class NotificationComponent :
 	}
 
 	fun onForegroundServiceTypeChanged() {
-		if (trackerNotificationManager == null) return
 		synchronized(notificationLock) {
+			if (trackerNotificationManager == null) return
 			updateGate.reset()
 			lastPayload?.let { notify(generateNotification(it)) }
 		}
 	}
 
 	fun onError(context: Context, @StringRes textRes: Int) {
-		val manager = trackerNotificationManager ?: return
 		synchronized(notificationLock) {
+			val manager = trackerNotificationManager ?: return
 			updateGate.reset()
 			val builder = manager.createBuilder()
 			builder.setContentTitle(context.getString(textRes))

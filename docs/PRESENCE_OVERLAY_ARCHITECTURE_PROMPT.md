@@ -2,7 +2,9 @@
 
 > **SUPERSEDED:** Historical research prompt for the observed-presence subsystem. Its
 > `presence_interval`, `analysis_cell`, and related compaction tables were removed
-> in `MIGRATION_36_37`; they are not part of the current `AppDatabase`.
+> in `MIGRATION_36_37`; they are not part of the current `AppDatabase`. The supplied
+> snapshot also predates removal of the unreleased `:domain:osm` module and OSM
+> persistence/settings in v27, so those passages are archival rather than current.
 
 You are a geospatial-algorithm engineer, GIS rendering specialist, trajectory-analysis researcher, Android/Room architect, and mobile performance researcher advising the implementation team for Tracker Android.
 

@@ -544,6 +544,12 @@ object BackgroundTrackingApi {
 				reinitializeRequest(context, cachedParamsSnapshot().transitionDetectionEnabled)
 			AutoTrackingPreferenceAction.NONE -> Unit
 		}
+		if (value == GroupedActivity.STILL.ordinal && TrackerServiceApi.isActive(context)) {
+			val sessionInfo = TrackerServiceApi.sessionInfoFlow(context).value
+			if (shouldStopSessionWhenAutoTrackingDisabled(value, sessionInfo?.isInitiatedByUser)) {
+				TrackerServiceApi.stopService(context, TrackingStopCandidateReason.EXPLICIT_REQUEST)
+			}
+		}
 	}
 
 	private fun handleTransitionPreferenceChange(enabled: Boolean) {
@@ -768,6 +774,12 @@ internal fun resolveAutoTrackingPreferenceAction(
 		else -> AutoTrackingPreferenceAction.NONE
 	}
 }
+
+/** Turning automation off ends an automatic session but never tears down a manual one. */
+internal fun shouldStopSessionWhenAutoTrackingDisabled(
+	newMode: Int,
+	isUserInitiated: Boolean?,
+): Boolean = newMode == GroupedActivity.STILL.ordinal && isUserInitiated == false
 
 /** Pure logic: checks if background tracking can be activated for the given activity and preferences. */
 internal fun canBackgroundTrackWithParams(

@@ -14,26 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">Il-modalità tal-iżviluppatur diżattivata</string>
     <string name="settings_data_management_section">Ġestjoni tad-dejta</string>
     <string name="settings_data_danger_zone_section">Żona ta’ periklu</string>
-    <string name="settings_osm_import_section">Dejta tal-mappa (OpenStreetMap)</string>
-    <string name="settings_osm_import_action_title">Importa reġjun OSM</string>
-    <string name="settings_osm_import_action_summary">Agħżel fajl .osm.pbf. Il-konformità tal-vetturi mbagħad tuża limiti reali tat-toroq mingħajr konnessjoni.</string>
-    <string name="settings_osm_import_unavailable_title">Importazzjoni tal-mappa mingħajr konnessjoni mhix disponibbli</string>
-    <string name="settings_osm_import_action_unavailable">L-importazzjoni tal-mappa mingħajr konnessjoni temporanjament mhix disponibbli waqt li jitlestew il-protezzjonijiet tas-sigurtà tal-fajls.</string>
-    <string name="settings_osm_import_action_running">Qed jiġi importat — tektek biex tikkanċella</string>
-    <string name="settings_osm_import_action_failed">L-importazzjoni tal-mappa mingħajr konnessjoni ma setgħetx titlesta.</string>
-    <string name="settings_osm_import_action_source_unavailable">Il-fajl tal-mappa magħżul ma setax jinfetaħ.</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">Importata %1$d triq minn %2$d nodi.</item>
-        <item quantity="other">Importati %1$d toroq minn %2$d nodi.</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">Għad ma ġie importat ebda reġjun OpenStreetMap.</string>
-    <string name="settings_osm_imports_attribution">Dejta tal-mappa © kontributuri ta’ OpenStreetMap (ODbL 1.0). L-ipproċessar kollu jsir fuq it-tagħmir.</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d triq · importata %2$s</item>
-        <item quantity="other">%1$,d toroq · importati %2$s</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">Neħħi reġjun importat</string>
-    <string name="settings_osm_import_remove_message">Tneħħi %1$s? Il-konformità tal-vetturi terġa’ lura għal-linja bażi fissa sakemm terġa’ timporta reġjun.</string>
     <string name="settings_incremental_backups_title">Kopji ta’ riżerva inkrementali</string>
     <string name="settings_incremental_backups_summary">Esporta biss dejta ġdida mill-aħħar kopja ta’ riżerva. Inaqqas il-ħin tal-esportazzjoni u d-daqs tal-fajl.</string>
     <string name="settings_reset_export_watermarks_title">Forza esportazzjoni sħiħa</string>
@@ -362,9 +342,9 @@
     <string name="setup_step_indicator">Pass %1$d minn %2$d</string>
     <string name="setup_online_tiles_title">Madum tal-mappa online?</string>
     <string name="setup_online_tiles_subtitle">Tracker jiġi b’mappa bażi offline sabiex jaħdem mingħajr netwerk. Jekk trid mapep aktar sinjuri, tista’ minflok tistrimja madum minn fornitur pubbliku.</string>
-    <string name="setup_online_tiles_off_title">Offline biss (rakkomandat)</string>
+    <string name="setup_online_tiles_off_title">Offline biss</string>
     <string name="setup_online_tiles_off_desc">Ebda talbiet tan-netwerk. Tintgħaża biss il-mappa bażi integrata.</string>
-    <string name="setup_online_tiles_on_title">Uża madum online</string>
+    <string name="setup_online_tiles_on_title">Uża madum online (rakkomandat)</string>
     <string name="setup_online_tiles_on_desc">Istrimja madum vettorjali b’aktar dettall minn OpenFreeMap (awtomatiku). Tista’ tibdel il-fornitur aktar tard fl-Issettjar → Mappa.</string>
     <string name="setup_online_tiles_privacy">Meta jkun attivat, il-fornitur jista’ jara l-indirizz IP tiegħek u liema madum tgħabbi — bejn wieħed u ieħor liema żona tal-mappa qed tara. Tracker qatt ma jibgħat kont, identifikatur jew l-istorja tal-post tiegħek.</string>
     <string name="setup_online_tiles_change_later">Tista’ tibdel dan fi kwalunkwe ħin fl-Issettjar → Mappa → Madum tal-mappa online.</string>

@@ -50,9 +50,10 @@ fun DialogListPreference(
     var showDialog by remember { mutableStateOf(false) }
     val currentIndex = entryValues.indexOf(currentValue).coerceAtLeast(0)
 
-    SettingsItem(
+    SettingsItemWithValue(
         title = title,
-        subtitle = subtitle ?: entries.getOrNull(currentIndex) ?: currentValue,
+        value = entries.getOrNull(currentIndex) ?: currentValue,
+        subtitle = subtitle,
         icon = icon,
         onClick = { showDialog = true },
         modifier = modifier

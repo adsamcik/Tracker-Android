@@ -14,26 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">Entwicklermodus deaktiviert</string>
     <string name="settings_data_management_section">Datenverwaltung</string>
     <string name="settings_data_danger_zone_section">Gefahrenbereich</string>
-    <string name="settings_osm_import_section">Kartendaten (OpenStreetMap)</string>
-    <string name="settings_osm_import_action_title">OSM-Region importieren</string>
-    <string name="settings_osm_import_action_summary">Wähle eine .osm.pbf-Datei aus. Die Einhaltung von Fahrzeug-Geschwindigkeitsbegrenzungen verwendet dann echte Straßenbegrenzungen offline.</string>
-    <string name="settings_osm_import_unavailable_title">Offline-Kartenimport nicht verfügbar</string>
-    <string name="settings_osm_import_action_unavailable">Der Offline-Kartenimport ist vorübergehend nicht verfügbar, während Schutzvorkehrungen für die Dateisicherheit abgeschlossen werden.</string>
-    <string name="settings_osm_import_action_running">Import läuft — zum Abbrechen tippen</string>
-    <string name="settings_osm_import_action_failed">Offline-Kartenimport konnte nicht abgeschlossen werden.</string>
-    <string name="settings_osm_import_action_source_unavailable">Die ausgewählte Kartendatei konnte nicht geöffnet werden.</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">%1$d Straße aus %2$d Knoten importiert.</item>
-        <item quantity="other">%1$d Straßen aus %2$d Knoten importiert.</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">Noch keine OpenStreetMap-Region importiert.</string>
-    <string name="settings_osm_imports_attribution">Kartendaten © OpenStreetMap-Mitwirkende (ODbL 1.0). Die gesamte Verarbeitung erfolgt auf dem Gerät.</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d Straße · importiert %2$s</item>
-        <item quantity="other">%1$,d Straßen · importiert %2$s</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">Importierte Region entfernen</string>
-    <string name="settings_osm_import_remove_message">%1$s entfernen? Die Einhaltung von Fahrzeug-Geschwindigkeitsbegrenzungen verwendet den festen Grundwert, bis du erneut eine Region importierst.</string>
     <string name="settings_incremental_backups_title">Inkrementelle Sicherungen</string>
     <string name="settings_incremental_backups_summary">Exportiere nur neue Daten seit der letzten Sicherung. Das reduziert Exportzeit und Dateigröße.</string>
     <string name="settings_reset_export_watermarks_title">Vollständigen Export erzwingen</string>
@@ -362,9 +342,9 @@
     <string name="setup_step_indicator">Schritt %1$d von %2$d</string>
     <string name="setup_online_tiles_title">Online-Kartenkacheln?</string>
     <string name="setup_online_tiles_subtitle">Tracker wird mit einer Offline-Basiskarte ausgeliefert und funktioniert daher ohne Netzwerk. Wenn du umfangreichere Karten möchtest, kannst du stattdessen Kacheln von einem öffentlichen Anbieter streamen.</string>
-    <string name="setup_online_tiles_off_title">Nur offline (empfohlen)</string>
+    <string name="setup_online_tiles_off_title">Nur offline</string>
     <string name="setup_online_tiles_off_desc">Keine Netzwerkanfragen. Nur die integrierte Basiskarte wird verwendet.</string>
-    <string name="setup_online_tiles_on_title">Online-Kacheln verwenden</string>
+    <string name="setup_online_tiles_on_title">Online-Kacheln verwenden (empfohlen)</string>
     <string name="setup_online_tiles_on_desc">Streame Vektorkacheln mit höherem Detailgrad von OpenFreeMap (Standard). Du kannst den Anbieter später unter Einstellungen → Karte ändern.</string>
     <string name="setup_online_tiles_privacy">Wenn diese Option aktiviert ist, kann der Anbieter deine IP-Adresse und die geladenen Kacheln sehen — also ungefähr den Kartenausschnitt, den du ansiehst. Tracker sendet niemals ein Konto, eine Kennung oder deinen Standortverlauf.</string>
     <string name="setup_online_tiles_change_later">Du kannst dies jederzeit unter Einstellungen → Karte → Online-Kartenkacheln ändern.</string>

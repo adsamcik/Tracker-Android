@@ -83,8 +83,6 @@
     <string name="settings_tracking_notice_summary">Per motivi tecnici, la maggior parte delle modifiche alle impostazioni di Tracker richiede il riavvio del tracciamento. Se il tracciamento è attivo, interrompilo e riavvialo. Chiudere e riaprire l\'app potrebbe non essere sufficiente.</string>
     <string name="settings_tracking_required_accuracy_title">Precisione della posizione richiesta</string>
     <string name="settings_tracking_title">Tracciamento</string>
-    <string name="settings_vehicle_speed_limit_baseline_title">Valore di base del limite di velocità dei veicoli</string>
-    <string name="help_vehicle_speed_limit_baseline">Usato dal livello della mappa Conformità della velocità dei veicoli. I campioni di guida sono colorati in base a come la loro velocità si confronta con questo valore. Scegli un valore adatto ai limiti dove guidi più spesso (ad esempio 50 km/h in città, 90 km/h in autostrada).</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="shortcut_start_tracking">Avvia tracciamento</string>
     <string name="shortcut_start_tracking_long">Avvia servizio di tracciamento</string>

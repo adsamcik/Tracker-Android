@@ -14,6 +14,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.adsamcik.tracker.app.settings.components.SettingsItem
 import com.adsamcik.tracker.app.settings.components.SettingsItemWithValue
+import com.adsamcik.tracker.app.settings.components.SettingsNoticeCard
+import com.adsamcik.tracker.app.settings.components.SettingsSummaryItem
 import com.adsamcik.tracker.app.settings.components.SwitchSettingsItem
 import com.adsamcik.tracker.app.settings.components.SliderSettingsItem
 import com.adsamcik.tracker.app.settings.components.SectionHeader
@@ -105,6 +107,18 @@ class SettingsComponentsTest {
         }
         composeTestRule.onNodeWithText("Unit").performClick()
         clicked shouldBe true
+    }
+
+    @Test
+    fun settingsItemWithValue_exposesSelectionAndTouchTarget() {
+        composeTestRule.setContent {
+            AppTheme {
+                SettingsItemWithValue(title = "Unit", value = "Metric", onClick = {})
+            }
+        }
+
+        composeTestRule.onNodeWithContentDescription("Unit: Metric")
+            .assertMinTouchTargetSize()
     }
 
     // endregion
@@ -242,6 +256,30 @@ class SettingsComponentsTest {
             }
         }
         composeTestRule.onNodeWithText("Child item").assertIsDisplayed()
+    }
+
+    @Test
+    fun settingsSummaryItem_exposesStaticLabelAndValue() {
+        composeTestRule.setContent {
+            AppTheme {
+                SettingsSummaryItem(title = "Version", value = "10.0")
+            }
+        }
+
+        composeTestRule.onNodeWithContentDescription("Version: 10.0")
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun settingsNoticeCard_displaysTitleAndMessage() {
+        composeTestRule.setContent {
+            AppTheme {
+                SettingsNoticeCard(title = "Privacy", text = "Data stays on this device")
+            }
+        }
+
+        composeTestRule.onNodeWithText("Privacy").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Data stays on this device").assertIsDisplayed()
     }
 
     // endregion

@@ -85,8 +85,6 @@
     <string name="settings_tracking_notice_summary">Z technických důvodů vyžaduje většina změn trackování restart záznamu. (Pokud je tracker aktivní, stačí ho vypnout a zapnout. Zavření a otevření aplikace nemusí fungovat.)</string>
     <string name="settings_tracking_required_accuracy_title">Požadovaná přesnost polohy</string>
     <string name="settings_tracking_title">Sběr dat</string>
-    <string name="settings_vehicle_speed_limit_baseline_title">Výchozí limit rychlosti vozidel</string>
-    <string name="help_vehicle_speed_limit_baseline">Používá vrstva mapy dodržování rychlostních limitů vozidly. Vzorky jízdy jsou zbarveny podle porovnání jejich rychlosti s touto výchozí hodnotou. Zvolte hodnotu odpovídající limitům v místech, kde nejčastěji jezdíte (např. 50 km/h ve městech, 90 km/h na dálnicích).</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="shortcut_start_tracking">Spustit záznam</string>
     <string name="shortcut_start_tracking_long">Spustit záznamovou službu</string>

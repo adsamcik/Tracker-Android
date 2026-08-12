@@ -50,7 +50,7 @@ class NavigationComprehensiveTest {
 	fun allNavigationTabs_areDisplayed() {
 		composeRule.waitForIdle()
 
-		composeRule.onNodeWithTag("nav_tracker").assertIsDisplayed()
+		composeRule.onNodeWithTag("nav_dashboard").assertIsDisplayed()
 		composeRule.onNodeWithTag("nav_stats").assertIsDisplayed()
 		composeRule.onNodeWithTag("nav_map").assertIsDisplayed()
 		composeRule.onNodeWithTag("nav_game").assertIsDisplayed()
@@ -58,10 +58,10 @@ class NavigationComprehensiveTest {
 
 	@Test
 	fun navigation_trackerTab_selectsCorrectly() {
-		composeRule.onNodeWithTag("nav_tracker").performClick()
+		composeRule.onNodeWithTag("nav_dashboard").performClick()
 		composeRule.waitForIdle()
 
-		composeRule.onNodeWithTag("nav_tracker").assertIsSelected()
+		composeRule.onNodeWithTag("nav_dashboard").assertIsSelected()
 		composeRule.onNodeWithTag("nav_stats").assertIsNotSelected()
 		composeRule.onNodeWithTag("nav_game").assertIsNotSelected()
 	}
@@ -72,7 +72,7 @@ class NavigationComprehensiveTest {
 		composeRule.waitForIdle()
 
 		composeRule.onNodeWithTag("nav_stats").assertIsSelected()
-		composeRule.onNodeWithTag("nav_tracker").assertIsNotSelected()
+		composeRule.onNodeWithTag("nav_dashboard").assertIsNotSelected()
 		composeRule.onNodeWithTag("nav_game").assertIsNotSelected()
 	}
 
@@ -83,7 +83,7 @@ class NavigationComprehensiveTest {
 
 		composeRule.onNodeWithTag("nav_game").assertIsSelected()
 		composeRule.onNodeWithTag("nav_stats").assertIsNotSelected()
-		composeRule.onNodeWithTag("nav_tracker").assertIsNotSelected()
+		composeRule.onNodeWithTag("nav_dashboard").assertIsNotSelected()
 	}
 
 
@@ -106,7 +106,7 @@ class NavigationComprehensiveTest {
 		composeRule.waitForIdle()
 
 		// Should return to tracker
-		composeRule.onNodeWithTag("nav_tracker").assertIsSelected()
+		composeRule.onNodeWithTag("nav_dashboard").assertIsSelected()
 	}
 
 	@Test
@@ -123,7 +123,7 @@ class NavigationComprehensiveTest {
 		composeRule.waitForIdle()
 
 		// Should return to tracker
-		composeRule.onNodeWithTag("nav_tracker").assertIsSelected()
+		composeRule.onNodeWithTag("nav_dashboard").assertIsSelected()
 	}
 
 	@Test
@@ -140,7 +140,7 @@ class NavigationComprehensiveTest {
 		composeRule.waitForIdle()
 
 		// Should return to tracker
-		composeRule.onNodeWithTag("nav_tracker").assertIsSelected()
+		composeRule.onNodeWithTag("nav_dashboard").assertIsSelected()
 	}
 
 	// endregion
@@ -159,7 +159,7 @@ class NavigationComprehensiveTest {
 		composeRule.waitForIdle()
 
 		// All nav items should have minimum 48dp touch targets
-		composeRule.onNodeWithTag("nav_tracker").assertMinTouchTargetSize()
+		composeRule.onNodeWithTag("nav_dashboard").assertMinTouchTargetSize()
 		composeRule.onNodeWithTag("nav_stats").assertMinTouchTargetSize()
 		composeRule.onNodeWithTag("nav_map").assertMinTouchTargetSize()
 		composeRule.onNodeWithTag("nav_game").assertMinTouchTargetSize()
@@ -170,7 +170,7 @@ class NavigationComprehensiveTest {
 		composeRule.waitForIdle()
 
 		// All nav items should have accessible text (either text or content description)
-		composeRule.onNodeWithTag("nav_tracker").assertHasAccessibleText()
+		composeRule.onNodeWithTag("nav_dashboard").assertHasAccessibleText()
 		composeRule.onNodeWithTag("nav_stats").assertHasAccessibleText()
 		composeRule.onNodeWithTag("nav_map").assertHasAccessibleText()
 		composeRule.onNodeWithTag("nav_game").assertHasAccessibleText()
@@ -185,7 +185,7 @@ class NavigationComprehensiveTest {
 	@Test
 	fun tabSwitch_preservesPreviousTabState() {
 		// Navigate to tracker, potentially interact, then switch tabs
-		composeRule.onNodeWithTag("nav_tracker").performClick()
+		composeRule.onNodeWithTag("nav_dashboard").performClick()
 		composeRule.waitForIdle()
 
 		// Switch to stats
@@ -193,10 +193,10 @@ class NavigationComprehensiveTest {
 		composeRule.waitForIdle()
 
 		// Return to tracker - should maintain its state
-		composeRule.onNodeWithTag("nav_tracker").performClick()
+		composeRule.onNodeWithTag("nav_dashboard").performClick()
 		composeRule.waitForIdle()
 
-		composeRule.onNodeWithTag("nav_tracker").assertIsSelected()
+		composeRule.onNodeWithTag("nav_dashboard").assertIsSelected()
 	}
 
 	// endregion

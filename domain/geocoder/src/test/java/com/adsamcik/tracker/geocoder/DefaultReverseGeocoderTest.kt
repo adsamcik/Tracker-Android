@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.geocoder
 
-import com.adsamcik.tracker.geocoder.osm.OsmStreetResolver
 import com.adsamcik.tracker.geocoder.places.PlacesAssetReader
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import io.mockk.coVerify
@@ -16,10 +15,8 @@ import org.junit.jupiter.api.Test
 class DefaultReverseGeocoderTest {
 
     private val placesReader = mockk<PlacesAssetReader>()
-    private val osmStreetResolver = mockk<OsmStreetResolver>()
     private val geocoder = DefaultReverseGeocoder(
         placesReader = placesReader,
-        osmStreetResolver = osmStreetResolver,
         dispatchers = TestDispatchersProvider(Dispatchers.Unconfined),
     )
 
@@ -33,7 +30,6 @@ class DefaultReverseGeocoderTest {
         geocoder.reverseGeocode(0.0, Double.NEGATIVE_INFINITY).shouldBeNull()
 
         coVerify(exactly = 0) { placesReader.dataset() }
-        coVerify(exactly = 0) { osmStreetResolver.nearestRoadName(any(), any()) }
     }
 
     @Test
@@ -42,7 +38,6 @@ class DefaultReverseGeocoderTest {
         geocoder.reverseGeocode(-90.0000001, 0.0).shouldBeNull()
 
         coVerify(exactly = 0) { placesReader.dataset() }
-        coVerify(exactly = 0) { osmStreetResolver.nearestRoadName(any(), any()) }
     }
 
     @Test

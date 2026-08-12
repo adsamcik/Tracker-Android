@@ -5,7 +5,7 @@ import com.adsamcik.tracker.stats.api.PolicyTier
 /**
  * Metadata describing a SignalProcessor.
  *
- * @property id Unique identifier for this processor (used for checkpoint keys)
+ * @property id Unique identifier for this processor
  * @property requiredTier Minimum policy tier needed for this processor to run
  * @property flushIntervalMs How often onFlush() should be called (default 30s)
  * @property priority Execution order within the pipeline (lower = first)

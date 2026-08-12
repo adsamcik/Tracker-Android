@@ -32,9 +32,10 @@ import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 /**
  * Step 4 – Online map tiles.
  *
- * Pure choice screen: "Offline only (recommended)" vs "Use online tiles".
- * Defaults to OFF so the wizard can be tapped through without ever opting
- * the user into network traffic.
+ * Pure choice screen: "Use online tiles (recommended)" vs "Offline only".
+ * Defaults to online for the easiest map experience. The privacy disclosure
+ * remains visible and users can choose the bundled offline map before setup
+ * writes the preference.
  *
  * Provider/URL configuration is intentionally NOT exposed here — keeping
  * the onboarding step minimal and the full picker lives in
@@ -75,23 +76,23 @@ fun OnlineMapTilesStep(
 		Spacer(modifier = Modifier.height(20.dp))
 
 		ChoiceCard(
-			icon = Icons.Default.CloudOff,
-			title = stringResource(R.string.setup_online_tiles_off_title),
-			description = stringResource(R.string.setup_online_tiles_off_desc),
-			selected = !enabled,
-			onSelect = { onEnabledChange(false) },
-			testTag = "setup_online_tiles_off_choice",
-		)
-
-		Spacer(modifier = Modifier.height(12.dp))
-
-		ChoiceCard(
 			icon = Icons.Default.CloudQueue,
 			title = stringResource(R.string.setup_online_tiles_on_title),
 			description = stringResource(R.string.setup_online_tiles_on_desc),
 			selected = enabled,
 			onSelect = { onEnabledChange(true) },
 			testTag = "setup_online_tiles_on_choice",
+		)
+
+		Spacer(modifier = Modifier.height(12.dp))
+
+		ChoiceCard(
+			icon = Icons.Default.CloudOff,
+			title = stringResource(R.string.setup_online_tiles_off_title),
+			description = stringResource(R.string.setup_online_tiles_off_desc),
+			selected = !enabled,
+			onSelect = { onEnabledChange(false) },
+			testTag = "setup_online_tiles_off_choice",
 		)
 
 		Spacer(modifier = Modifier.height(20.dp))

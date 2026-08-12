@@ -35,13 +35,6 @@ class DefaultDomainEventRepository @Inject constructor(
 		}
 	}
 
-	@Suppress("OVERRIDE_DEPRECATION", "DEPRECATION")
-	override suspend fun getUnconsumedBatch(consumerId: String, limit: Int): List<DomainEvent> {
-		require(limit > 0) { "limit must be greater than zero" }
-		return dao.getUnconsumedBatchFor(consumerId, boundaryOffset = limit - 1)
-			.mapNotNull { it.toDomain() }
-	}
-
 	override suspend fun getUnconsumedBatchWithIds(
 		consumerId: String,
 		limit: Int,
@@ -56,14 +49,6 @@ class DefaultDomainEventRepository @Inject constructor(
 				com.adsamcik.tracker.stats.api.repository.UnconsumedEvent(domain, entity.id)
 			}
 		}
-	}
-
-	@Suppress("OVERRIDE_DEPRECATION")
-	override suspend fun markConsumed(consumerId: String, upToTimestamp: EpochMs) {
-		// Legacy timestamp-only ack: use Long.MAX_VALUE as the id sentinel so any event
-		// with timestamp_ms <= upToTimestamp is considered consumed regardless of id.
-		// Prefer markBatchConsumed for new code.
-		dao.upsertCursor(consumerId, upToTimestamp.raw, Long.MAX_VALUE)
 	}
 
 	override suspend fun markBatchConsumed(

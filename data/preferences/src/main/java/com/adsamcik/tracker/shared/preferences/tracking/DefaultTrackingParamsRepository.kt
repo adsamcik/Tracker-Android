@@ -30,7 +30,6 @@ private object TrackingParamsSerializer : Serializer<TrackingParamsProto> {
         .setMinTimeSeconds(PreferenceKeys.TRACKING_MIN_TIME_DEFAULT)
         .setRequiredAccuracyMeters(PreferenceKeys.TRACKING_REQUIRED_ACCURACY_DEFAULT)
         .setPresetName(TrackingParamsState.DEFAULT_PRESET)
-        .setVehicleSpeedLimitBaselineMps(TrackingParamsState.DEFAULT_VEHICLE_SPEED_LIMIT_MPS)
 		.setLocationFrequency(SourceCollectionFrequency.BALANCED.stableCode)
 		.setActivityFrequency(SourceCollectionFrequency.BALANCED.stableCode)
 		.setStepsFrequency(SourceCollectionFrequency.BALANCED.stableCode)
@@ -139,9 +138,6 @@ class DefaultTrackingParamsRepository(
     override suspend fun setMinTimeSeconds(seconds: Int) = updateField { setMinTimeSeconds(seconds.coerceAtLeast(1)) }
     override suspend fun setRequiredAccuracyMeters(meters: Int) = updateField { setRequiredAccuracyMeters(meters.coerceAtLeast(1)) }
     override suspend fun setPreset(preset: TrackingPreset) = updateField { setPresetName(preset.name) }
-    override suspend fun setVehicleSpeedLimitBaselineMps(mps: Double) = updateField {
-        setVehicleSpeedLimitBaselineMps(mps.clampVehicleSpeedLimit())
-    }
 
 	override suspend fun setSourceFrequency(
 		component: TrackingSourceComponent,
@@ -194,15 +190,36 @@ class DefaultTrackingParamsRepository(
     private suspend fun ensureMigrated() = withContext(io) {
         try {
             val current = context.trackingParamsDataStore.data.first()
-            if (current.legacyMigrated) return@withContext
+            if (current.legacyMigrated) {
+                if (current.sourceSettingsVersion < TrackingParamsState.CURRENT_SOURCE_SETTINGS_VERSION) {
+                    context.trackingParamsDataStore.updateData { stored ->
+                        stored.withCurrentSourceSettings()
+                    }
+                }
+                return@withContext
+            }
 
             // Read directly from SharedPreferences — the legacy source.
             val sp = PreferenceManager.getDefaultSharedPreferences(context)
 
-            fun spBool(key: String, def: Boolean): Boolean = sp.getBoolean(key, def)
-            fun spInt(key: String, def: Int): Int = sp.getInt(key, def)
-            fun spIntFromString(key: String, def: Int): Int =
-                sp.getString(key, null)?.toIntOrNull() ?: def
+            // Read each field independently. SharedPreferences throws ClassCastException when an
+            // older or damaged install contains a value with the wrong type; one bad field must
+            // not discard every other valid tracking preference during upgrade.
+            fun spBool(key: String, def: Boolean): Boolean = when (val value = sp.all[key]) {
+                is Boolean -> value
+                is String -> value.toBooleanStrictOrNull() ?: def
+                is Number -> value.toInt() != 0
+                else -> def
+            }
+            fun spInt(key: String, def: Int): Int = when (val value = sp.all[key]) {
+                is Number -> value.toInt()
+                is String -> value.toIntOrNull() ?: def
+                else -> def
+            }
+            fun spString(key: String, def: String): String = when (val value = sp.all[key]) {
+                is String -> value
+                else -> def
+            }
 
             val locationEnabled = spBool(PreferenceKeys.LOCATION_ENABLED, PreferenceKeys.LOCATION_ENABLED_DEFAULT)
             val activityEnabled = spBool(PreferenceKeys.ACTIVITY_ENABLED, PreferenceKeys.ACTIVITY_ENABLED_DEFAULT)
@@ -218,10 +235,10 @@ class DefaultTrackingParamsRepository(
                 PreferenceKeys.BAROMETER_ENABLED,
                 PreferenceKeys.BAROMETER_ENABLED_DEFAULT,
             )
-            val autoTrackingMode = spIntFromString(
+            val autoTrackingMode = spInt(
                 PreferenceKeys.TRACKING_ACTIVITY_MODE,
                 PreferenceKeys.TRACKING_ACTIVITY_MODE_DEFAULT
-            )
+            ).takeIf { it in 0..2 } ?: PreferenceKeys.TRACKING_ACTIVITY_MODE_DEFAULT
             val transitionEnabled = spBool(
                 PreferenceKeys.AUTO_TRACKING_TRANSITION_ENABLED,
                 PreferenceKeys.AUTO_TRACKING_TRANSITION_ENABLED_DEFAULT
@@ -230,14 +247,21 @@ class DefaultTrackingParamsRepository(
                 PreferenceKeys.NOTIFICATION_STYLED,
                 PreferenceKeys.NOTIFICATION_STYLED_DEFAULT
             )
-            val minDistance = spInt(PreferenceKeys.TRACKING_MIN_DISTANCE, PreferenceKeys.TRACKING_MIN_DISTANCE_DEFAULT)
-            val minTime = spInt(PreferenceKeys.TRACKING_MIN_TIME, PreferenceKeys.TRACKING_MIN_TIME_DEFAULT)
+            val minDistance = spInt(
+                PreferenceKeys.TRACKING_MIN_DISTANCE,
+                PreferenceKeys.TRACKING_MIN_DISTANCE_DEFAULT,
+            ).takeIf { it > 0 } ?: PreferenceKeys.TRACKING_MIN_DISTANCE_DEFAULT
+            val minTime = spInt(
+                PreferenceKeys.TRACKING_MIN_TIME,
+                PreferenceKeys.TRACKING_MIN_TIME_DEFAULT,
+            ).takeIf { it > 0 } ?: PreferenceKeys.TRACKING_MIN_TIME_DEFAULT
             val requiredAccuracy = spInt(
                 PreferenceKeys.TRACKING_REQUIRED_ACCURACY,
                 PreferenceKeys.TRACKING_REQUIRED_ACCURACY_DEFAULT
-            )
-            val preset = sp.getString("tracking_preset", TrackingParamsState.DEFAULT_PRESET)
-                ?: TrackingParamsState.DEFAULT_PRESET
+            ).takeIf { it > 0 } ?: PreferenceKeys.TRACKING_REQUIRED_ACCURACY_DEFAULT
+            val preset = TrackingPreset.fromName(
+                spString("tracking_preset", TrackingParamsState.DEFAULT_PRESET),
+            ).name
             context.trackingParamsDataStore.updateData {
                 TrackingParamsProto.newBuilder()
                     .setLocationEnabled(locationEnabled)
@@ -253,16 +277,13 @@ class DefaultTrackingParamsRepository(
                     .setMinTimeSeconds(minTime)
                     .setRequiredAccuracyMeters(requiredAccuracy)
                     .setPresetName(preset)
-                    .setVehicleSpeedLimitBaselineMps(TrackingParamsState.DEFAULT_VEHICLE_SPEED_LIMIT_MPS)
                     .setLegacyMigrated(true)
                     .build()
+                    .withCurrentSourceSettings()
             }
         } catch (_: Exception) {
-            runCatching {
-                context.trackingParamsDataStore.updateData { current ->
-                    current.toBuilder().setLegacyMigrated(true).build()
-                }
-            }
+            // Leave migration markers untouched so a transient I/O failure can be retried. The
+            // serializer/domain defaults keep this read safe without claiming migration succeeded.
         }
     }
 }
@@ -298,10 +319,6 @@ private fun TrackingParamsProto.toDomain(): TrackingParamsState {
         requiredAccuracyMeters = if (usePresetCadence) preset.requiredAccuracyMeters
             else requiredAccuracyMeters.takeIf { it > 0 } ?: TrackingParamsState.DEFAULT_REQUIRED_ACCURACY,
         presetName = preset.name,
-        vehicleSpeedLimitBaselineMps = vehicleSpeedLimitBaselineMps
-            .takeIf { it > 0.0 }
-            ?.clampVehicleSpeedLimit()
-            ?: TrackingParamsState.DEFAULT_VEHICLE_SPEED_LIMIT_MPS,
 		sourceCollectionSettings = SourceCollectionSettings(
 			location = frequencyOrLegacy(hasLocationFrequency(), locationFrequency, locationEnabled),
 			activity = frequencyOrLegacy(hasActivityFrequency(), activityFrequency, activityEnabled),
@@ -331,7 +348,6 @@ private fun TrackingParamsState.toProto(): TrackingParamsProto =
         .setMinTimeSeconds(minTimeSeconds)
         .setRequiredAccuracyMeters(requiredAccuracyMeters)
         .setPresetName(presetName)
-        .setVehicleSpeedLimitBaselineMps(vehicleSpeedLimitBaselineMps.clampVehicleSpeedLimit())
 		.setLocationFrequency(sourceCollectionSettings.location.stableCode)
 		.setActivityFrequency(sourceCollectionSettings.activity.stableCode)
 		.setStepsFrequency(sourceCollectionSettings.steps.stableCode)
@@ -355,14 +371,71 @@ private fun frequencyOrLegacy(
 	SourceCollectionFrequency.OFF
 }
 
+@Suppress("DEPRECATION")
+private fun TrackingParamsProto.withCurrentSourceSettings(): TrackingParamsProto {
+	if (sourceSettingsVersion >= TrackingParamsState.CURRENT_SOURCE_SETTINGS_VERSION) return this
+
+	val effectiveWifiEnabled = wifiEnabled || wifiNetworkEnabled || wifiLocationCountEnabled
+	val effectiveBarometerEnabled = if (hasBarometerEnabled()) {
+		barometerEnabled
+	} else {
+		PreferenceKeys.BAROMETER_ENABLED_DEFAULT
+	}
+	val normalizedPreset = TrackingPreset.fromName(presetName)
+	val usesLegacyHighAccuracyCadence = normalizedPreset == TrackingPreset.HIGH_ACCURACY &&
+		minDistanceMeters == 5 && minTimeSeconds == 1 && requiredAccuracyMeters == 100
+	val normalizedMinDistance = if (usesLegacyHighAccuracyCadence) {
+		normalizedPreset.minDistanceMeters
+	} else {
+		minDistanceMeters.takeIf { it > 0 } ?: TrackingParamsState.DEFAULT_MIN_DISTANCE
+	}
+	val normalizedMinTime = if (usesLegacyHighAccuracyCadence) {
+		normalizedPreset.minTimeSeconds
+	} else {
+		minTimeSeconds.takeIf { it > 0 } ?: TrackingParamsState.DEFAULT_MIN_TIME
+	}
+	val normalizedRequiredAccuracy = if (usesLegacyHighAccuracyCadence) {
+		normalizedPreset.requiredAccuracyMeters
+	} else {
+		requiredAccuracyMeters.takeIf { it > 0 } ?: TrackingParamsState.DEFAULT_REQUIRED_ACCURACY
+	}
+	fun migratedFrequency(
+		hasSemanticValue: Boolean,
+		semanticValue: Int,
+		legacyEnabled: Boolean,
+	): Int = frequencyOrLegacy(hasSemanticValue, semanticValue, legacyEnabled).stableCode
+
+	return toBuilder()
+		.setWifiEnabled(effectiveWifiEnabled)
+		.clearWifiNetworkEnabled()
+		.clearWifiLocationCountEnabled()
+		.setBarometerEnabled(effectiveBarometerEnabled)
+		.setAutoTrackingMode(
+			autoTrackingMode.takeIf { it in 0..2 } ?: PreferenceKeys.TRACKING_ACTIVITY_MODE_DEFAULT,
+		)
+		.setMinDistanceMeters(normalizedMinDistance)
+		.setMinTimeSeconds(normalizedMinTime)
+		.setRequiredAccuracyMeters(normalizedRequiredAccuracy)
+		.setPresetName(normalizedPreset.name)
+		.setLocationFrequency(migratedFrequency(hasLocationFrequency(), locationFrequency, locationEnabled))
+		.setActivityFrequency(migratedFrequency(hasActivityFrequency(), activityFrequency, activityEnabled))
+		.setStepsFrequency(migratedFrequency(hasStepsFrequency(), stepsFrequency, stepsEnabled))
+		.setPressureFrequency(
+			migratedFrequency(
+				hasPressureFrequency(),
+				pressureFrequency,
+				effectiveBarometerEnabled,
+			),
+		)
+		.setWifiFrequency(migratedFrequency(hasWifiFrequency(), wifiFrequency, effectiveWifiEnabled))
+		.setCellFrequency(migratedFrequency(hasCellFrequency(), cellFrequency, cellEnabled))
+		.setSourceSettingsVersion(TrackingParamsState.CURRENT_SOURCE_SETTINGS_VERSION)
+		.setLegacyMigrated(true)
+		.build()
+}
+
 private fun SourceCollectionFrequency.forEnabled(enabled: Boolean): SourceCollectionFrequency = when {
 	!enabled -> SourceCollectionFrequency.OFF
 	this == SourceCollectionFrequency.OFF -> SourceCollectionFrequency.BALANCED
 	else -> this
-}
-
-private fun Double.clampVehicleSpeedLimit(): Double {
-    val minMps = TrackingParamsState.MIN_VEHICLE_SPEED_LIMIT_KMH / 3.6
-    val maxMps = TrackingParamsState.MAX_VEHICLE_SPEED_LIMIT_KMH / 3.6
-    return coerceIn(minMps, maxMps)
 }

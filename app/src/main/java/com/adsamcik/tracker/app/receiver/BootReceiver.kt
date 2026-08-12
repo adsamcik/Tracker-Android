@@ -4,6 +4,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.app.startup.LegacyDatabaseStartupResult
+import com.adsamcik.tracker.app.startup.LegacyDatabaseUpgradeCoordinator
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
@@ -21,6 +23,7 @@ class BootReceiver : BroadcastReceiver() {
 	interface BootReceiverEntryPoint {
 		fun lockManager(): LockManager
 		fun trackingStartupGuard(): TrackingStartupGuard
+		fun legacyDatabaseUpgradeCoordinator(): LegacyDatabaseUpgradeCoordinator
 		@ApplicationScope fun appScope(): CoroutineScope
 	}
 
@@ -34,6 +37,8 @@ class BootReceiver : BroadcastReceiver() {
 			val pendingResult = goAsync()
 			entryPoint.appScope().launch {
 				try {
+					val legacyStartup = entryPoint.legacyDatabaseUpgradeCoordinator().ensureReady()
+					if (legacyStartup !is LegacyDatabaseStartupResult.Ready) return@launch
 					entryPoint.lockManager().initializeFromPersistence(context)
 					// Re-arm background auto-tracking after a reboot WITHOUT starting any
 					// foreground service: Android 14+ forbids launching a location FGS from

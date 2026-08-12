@@ -53,12 +53,6 @@
     <string name="map_layer_terrain_low">Ritkán itt</string>
     <string name="map_layer_terrain_mid">Néha</string>
     <string name="map_layer_terrain_high">Gyakran itt</string>
-    <string name="map_layer_places_title">Gyakori helyek</string>
-    <string name="map_layer_places_chip">Helyek</string>
-    <string name="map_layer_places_description">Fontos helyei jelölőkként, amelyek mérete és színe a látogatások gyakoriságától függ. Az otthon és a munka nagy, meleg pontokká válik; az egyszer meglátogatott hely kis, hűvös marad.</string>
-    <string name="map_layer_places_rare">Ritkán</string>
-    <string name="map_layer_places_often">Néha</string>
-    <string name="map_layer_places_anchor">Horgonyhelyei</string>
     <string name="map_layer_speed_ribbon_title">Sebességszalag</string>
     <string name="map_layer_speed_ribbon_chip">Szalag</string>
     <string name="map_layer_speed_ribbon_description">Az útvonala a mozgási sebesség szerint festve, a lassú ibolyaszínű sétától a vörösen izzó sprintig vagy vezetésig áramló színekkel. A sebesség-hőtérképtől eltérően a szalag érintetlenül tartja az útvonalat, így pontosan láthatja, hol gyorsított és lassított.</string>
@@ -80,9 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Lesiklás</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Felvonó</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Séta vagy szünet</string>
-    <string name="map_layer_trip_constellations_title" tools:ignore="MissingTranslation">Utazási csillagképek</string>
-    <string name="map_layer_trip_constellations_chip" tools:ignore="MissingTranslation">Utazások</string>
-    <string name="map_layer_trip_constellations_description" tools:ignore="MissingTranslation">A gyakori helyei közötti ismétlődő utazások ívelt csillagképekké válnak. Egy állandó ív minden útvonalat mutat, miközben egy üstökös halad rajta; a vastagabb ívek gyakoribb utazást jelentenek.</string>
     <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Gyaloglás</string>
     <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Kerékpározás</string>
     <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Vezetés</string>
@@ -98,18 +89,10 @@
     <string name="map_layer_first_contact_description">Felfedezéseinek idővonala: minden terület annak megfelelően színeződik, milyen régen járt ott először. A rég felfedezett helyek mély indigóra halványulnak, míg az ezen a héten feltört föld ragyogó ciánszínben fénylik — olvassa felfedezése történetét a legújabb határok felé.</string>
     <string name="map_layer_first_contact_old">Régen</string>
     <string name="map_layer_first_contact_recent">Épp felfedezve</string>
-    <string name="map_layer_vehicle_compliance_title">Járműsebesség-szabálykövetés</string>
-    <string name="map_layer_vehicle_compliance_description">A vezetési minták törött vonala, amelyet a sebességnek a beállított alapkorláthoz viszonyított aránya színez.</string>
-    <string name="map_layer_vehicle_compliance_way_under">Jóval a korlát alatt</string>
-    <string name="map_layer_vehicle_compliance_slow">A korlát alatt</string>
-    <string name="map_layer_vehicle_compliance_at_limit">A korlát közelében</string>
-    <string name="map_layer_vehicle_compliance_slightly_over">Kissé felette</string>
-    <string name="map_layer_vehicle_compliance_speeding">Gyorshajtás</string>
     <string name="map_layer_location_polyline_description">Vonal, amely időben összeköti rögzített helyadatait.</string>
     <string name="map_layer_location_polyline_title">Helyadat-vonal</string>
     <string name="map_layer_location_polyline_chip">Vonal</string>
     <string name="map_layer_wifi_count_heatmap_chip">Wi-Fi-átfedés</string>
-    <string name="map_layer_vehicle_compliance_chip">Gyorshajtás</string>
     <string name="map_layer_none_title">Nincs fedvény</string>
     <string name="map_date_preset_week">Múlt hét</string>
     <string name="map_date_preset_month">Múlt hónap</string>
@@ -174,7 +157,6 @@
     <string name="map_empty_subtitle_cell">Ebben a nézetben vagy dátumtartományban nincs helyhez kapcsolt cellaadat. A hely nélkül rögzített cellaminták továbbra is mentve vannak, de nem jelenhetnek meg a térképen.</string>
     <string name="map_empty_subtitle_wifi">Ebben a nézetben vagy dátumtartományban nincs helyhez kapcsolt Wi-Fi-adat. A hely nélkül rögzített Wi-Fi-megfigyelések továbbra is mentve vannak, de nem jelenhetnek meg a térképen.</string>
     <string name="map_empty_subtitle_speed">Ebben a nézetben vagy dátumtartományban nincs sebességadat. A sebességtérképek használható, nyomkövetés közben gyűjtött helymintákat igényelnek.</string>
-    <string name="map_empty_subtitle_vehicle_compliance">Nincs megjeleníthető útra illesztett vezetés. Importáljon egy OpenStreetMap-régiót (Beállítások), és rögzítsen néhány vezetést, hogy útvonalát valós utakhoz illeszthessük.</string>
     <string name="map_empty_dismiss" tools:ignore="MissingTranslation">Nincs adat üzenet elvetése</string>
     <string name="map_speed_probe_title">Sebesség itt</string>
     <string name="map_speed_probe_avg_label">Átlag</string>

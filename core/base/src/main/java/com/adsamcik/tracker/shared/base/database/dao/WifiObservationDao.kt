@@ -107,12 +107,7 @@ interface WifiObservationDao : BaseDao<WifiObservation> {
 	@Query(
 		"""
 		SELECT COUNT(*) AS total_observations,
-			COUNT(DISTINCT CASE
-				WHEN source_signal_id IS NULL
-					OR source_signal_id LIKE 'legacy:wifi_observation:%'
-					THEN 'legacy-time:' || time_ms
-				ELSE source_signal_id
-			END) AS distinct_scan_times
+			COUNT(DISTINCT source_signal_id) AS distinct_scan_times
 		FROM wifi_observation
 		"""
 	)

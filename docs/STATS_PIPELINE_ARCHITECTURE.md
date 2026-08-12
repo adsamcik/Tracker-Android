@@ -1,8 +1,8 @@
 # Stats Architecture — Processor Pipeline Design
 
-> **Status:** Foundation implemented, integration pending  
+> **Status:** Implemented; v27 storage ownership reviewed
 > **Branch:** `feature/stats-architecture-rework`  
-> **Last Updated:** February 2026
+> **Last Updated:** 2026-08-11
 
 ---
 
@@ -80,7 +80,7 @@ SignalAdapter ─── converts raw data ──→ TrackingSignal (value classe
   ▼
 ProcessorPipeline ─── delivers to all registered SignalProcessors
   │
-  ├─→ AggregatorProcessor ──→ LiveStatsDao (distance, steps, duration)
+  ├─→ AggregatorProcessor flush ──→ LiveStatsRepository ──→ Room live_stats
   ├─→ SegmentDetectorProcessor ──→ Trip/DailySummaryEntity + DomainEvent
   ├─→ ExplorationProcessor ──→ ExplorationCellDao
   └─→ AchievementProcessor ──→ AchievementProgressEntity + DomainEvent
@@ -96,6 +96,12 @@ ProcessorPipeline ─── delivers to all registered SignalProcessors
                           ▼
                     Presenters → Compose UI
 ```
+
+`live_stats` is one transient canonical Room row, not a second durable history.
+`AggregatorProcessor` keeps the hot aggregate in memory between flushes, writes the
+current snapshot through the Room repository on flush, and clears the row on stop.
+The former Proto/DataStore implementation duplicated this ownership without an
+independent consumer and has been removed.
 
 ### Domain Events (replacing Broadcasts)
 
@@ -128,10 +134,8 @@ interface SignalProcessor {
     val descriptor: ProcessorDescriptor  // id, tier, priority
     suspend fun onStart(context: ProcessorContext)
     fun onSignal(signal: TrackingSignal)  // FAST — no I/O
-    suspend fun onFlush()                  // batch persist to Room
-    suspend fun onStop()
-    suspend fun checkpoint(): ByteArray
-    suspend fun restore(data: ByteArray)
+    suspend fun onFlush(): List<DomainEvent> // batch persist and emit durable work
+    suspend fun onStop(): List<DomainEvent>  // final flush and cleanup
 }
 ```
 

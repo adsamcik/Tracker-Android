@@ -14,26 +14,6 @@
     <string name="settings_debug_developer_mode_disabled_toast">Fejlesztői mód letiltva</string>
     <string name="settings_data_management_section">Adatkezelés</string>
     <string name="settings_data_danger_zone_section">Veszélyzóna</string>
-    <string name="settings_osm_import_section">Térképadatok (OpenStreetMap)</string>
-    <string name="settings_osm_import_action_title">OSM-régió importálása</string>
-    <string name="settings_osm_import_action_summary">Válasszon .osm.pbf fájlt. A járműszabályok ezután valós útvonal-korlátokat használnak offline.</string>
-    <string name="settings_osm_import_unavailable_title">Offline térképimportálás nem érhető el</string>
-    <string name="settings_osm_import_action_unavailable">Az offline térképimportálás átmenetileg nem érhető el, amíg a fájlbiztonsági védelem elkészül.</string>
-    <string name="settings_osm_import_action_running">Importálás — koppintson a megszakításhoz</string>
-    <string name="settings_osm_import_action_failed">Az offline térkép importálása nem fejezhető be.</string>
-    <string name="settings_osm_import_action_source_unavailable">A kiválasztott térképfájl nem nyitható meg.</string>
-    <plurals name="settings_osm_import_action_success">
-        <item quantity="one">%1$d út importálva %2$d csomópontból.</item>
-        <item quantity="other">%1$d út importálva %2$d csomópontból.</item>
-    </plurals>
-    <string name="settings_osm_imports_empty">Még nincs importált OpenStreetMap-régió.</string>
-    <string name="settings_osm_imports_attribution">Térképadatok © OpenStreetMap közreműködői (ODbL 1.0). Minden feldolgozás az eszközön történik.</string>
-    <plurals name="settings_osm_import_entry_subtitle">
-        <item quantity="one">%1$,d út · importálva: %2$s</item>
-        <item quantity="other">%1$,d út · importálva: %2$s</item>
-    </plurals>
-    <string name="settings_osm_import_remove_title">Importált régió eltávolítása</string>
-    <string name="settings_osm_import_remove_message">Eltávolítja: %1$s? A járműsebesség-szabálykövetés a rögzített alapértékre vált vissza, amíg újra nem importál régiót.</string>
     <string name="settings_incremental_backups_title">Növekményes biztonsági mentések</string>
     <string name="settings_incremental_backups_summary">Csak az utolsó biztonsági mentés óta keletkezett új adatokat exportálja. Csökkenti az exportálási időt és a fájlméretet.</string>
     <string name="settings_reset_export_watermarks_title">Teljes exportálás kényszerítése</string>
@@ -362,9 +342,9 @@
     <string name="setup_step_indicator">%1$d. lépés / %2$d</string>
     <string name="setup_online_tiles_title">Online térképcsempék?</string>
     <string name="setup_online_tiles_subtitle">A Tracker offline alaptérképpel érkezik, ezért hálózat nélkül is működik. Ha részletesebb térképeket szeretne, nyilvános szolgáltatótól is streamelhet csempéket.</string>
-    <string name="setup_online_tiles_off_title">Csak offline (ajánlott)</string>
+    <string name="setup_online_tiles_off_title">Csak offline</string>
     <string name="setup_online_tiles_off_desc">Nincsenek hálózati kérések. Csak a csomagolt alaptérkép használatos.</string>
-    <string name="setup_online_tiles_on_title">Online csempék használata</string>
+    <string name="setup_online_tiles_on_title">Online csempék használata (ajánlott)</string>
     <string name="setup_online_tiles_on_desc">Részletesebb vektorcsempék streamelése az OpenFreeMaptől (alapértelmezett). A szolgáltatót később módosíthatja a Beállítások → Térkép pontban.</string>
     <string name="setup_online_tiles_privacy">Bekapcsolva a szolgáltató láthatja az IP-címét és a betöltött csempéket — nagyjából azt, hogy a térkép mely területét nézi. A Tracker soha nem küld el fiókadatot, azonosítót vagy helyelőzményt.</string>
     <string name="setup_online_tiles_change_later">Ezt bármikor módosíthatja a Beállítások → Térkép → Online térképcsempék pontban.</string>

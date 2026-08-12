@@ -194,8 +194,6 @@ dependencies {
     implementation(project(":feature:game"))
     implementation(project(":feature:dashboard:api"))
     implementation(project(":feature:dashboard"))
-    implementation(project(":domain:osm"))
-
     // Core
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.appcompat)
