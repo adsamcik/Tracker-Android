@@ -46,11 +46,6 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 			if (capturedIdentity.collectedDataEpoch != lifecycle.epoch) {
 				return@runCatching ActivityIngressResult.rejected(0, 0, "STALE_COLLECTED_DATA_EPOCH")
 			}
-			var admittedCount = 0
-			var duplicateCount = 0
-			var retryableFailure: String? = null
-			var permanentFailure: String? = null
-
 			val evidence = buildList {
 				batch.recognitions.forEach { recognition ->
 					add(ActivityEvidence.Recognition(recognition))
@@ -60,41 +55,42 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 				}
 			}.sortedBy(ActivityEvidence::observedElapsedRealtimeNanos)
 
-			evidence.forEach { event ->
-				val admissionContext = reserveSequence(capturedIdentity, lifecycle.epoch, batch.receivedWallTimeMs)
-					?: return@runCatching ActivityIngressResult.rejected(
-						admittedCount,
-						duplicateCount,
-						"STALE_REGISTRATION_GENERATION",
-					)
-				val candidate = event.toCandidate(batch, lifecycle.epoch, admissionContext)
-				val result = sourceIngress.admit(candidate)
-				when (result) {
-					is AdmissionResult.Admitted -> {
-						admittedCount++
-						motionController.onDurableEvidence(candidate)
-					}
-					is AdmissionResult.Duplicate -> {
-						duplicateCount++
-						motionController.onDurableEvidence(candidate)
-					}
-					is AdmissionResult.RetryableFailure -> retryableFailure = result.code.name
-					is AdmissionResult.PermanentFailure -> permanentFailure = result.code.name
-				}
+			val admissionContexts = reserveSequences(
+				capturedIdentity,
+				lifecycle.epoch,
+				batch.receivedWallTimeMs,
+				evidence.size,
+			) ?: return@runCatching ActivityIngressResult.rejected(
+				0,
+				0,
+				"STALE_REGISTRATION_GENERATION",
+			)
+			val candidates = evidence.zip(admissionContexts) { event, context ->
+				event.toCandidate(batch, lifecycle.epoch, context)
 			}
+			val admissionResults = sourceIngress.admitBatch(candidates)
+			val admittedCount = admissionResults.count { it is AdmissionResult.Admitted }
+			val duplicateCount = admissionResults.count { it is AdmissionResult.Duplicate }
+			val permanentFailure = admissionResults.filterIsInstance<AdmissionResult.PermanentFailure>()
+				.firstOrNull()
+			val retryableFailure = admissionResults.filterIsInstance<AdmissionResult.RetryableFailure>()
+				.firstOrNull()
 
 			when {
 				permanentFailure != null -> ActivityIngressResult.rejected(
-					admittedCount,
-					duplicateCount,
-					checkNotNull(permanentFailure),
+					0,
+					0,
+					permanentFailure.code.name,
 				)
 				retryableFailure != null -> ActivityIngressResult.retryable(
-					admittedCount,
-					duplicateCount,
-					checkNotNull(retryableFailure),
+					0,
+					0,
+					retryableFailure.code.name,
 				)
-				else -> ActivityIngressResult.durable(admittedCount, duplicateCount)
+				else -> {
+					candidates.forEach { candidate -> motionController.onDurableEvidence(candidate) }
+					ActivityIngressResult.durable(admittedCount, duplicateCount)
+				}
 			}
 		}.getOrElse { failure ->
 			ActivityIngressResult.retryable(0, 0, failure.javaClass.simpleName.ifBlank { "storage_unavailable" })
@@ -103,11 +99,12 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 		return result
 	}
 
-	private suspend fun reserveSequence(
+	private suspend fun reserveSequences(
 		identity: com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity,
 		collectedDataEpoch: Long,
 		updatedAtMs: Long,
-	): ActivityAdmissionContext? = database.withTransaction {
+		count: Int,
+	): List<ActivityAdmissionContext>? = database.withTransaction {
 		val dao = database.sourceRegistrationStateDao()
 		val current = dao.get(SourceKind.ACTIVITY.stableCode, OWNER_SCOPE) ?: return@withTransaction null
 		if (current.sourceInstanceId != identity.sourceInstanceId ||
@@ -116,12 +113,14 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 			current.collectedDataEpoch != identity.collectedDataEpoch ||
 			current.appliedRevision != identity.appliedRevision
 		) return@withTransaction null
-		val allocated = dao.allocateSequence(SourceKind.ACTIVITY.stableCode, OWNER_SCOPE, updatedAtMs)
 		val activeSession = database.sourceSessionDao().activeSession()
 		val serviceRunId = activeSession?.let { session ->
 			database.sourceSessionDao().latestServiceRun(session.logicalTrackingId)?.serviceRunId
 		}
-		ActivityAdmissionContext(allocated, activeSession?.logicalTrackingId, serviceRunId)
+		List(count) {
+			val allocated = dao.allocateSequence(SourceKind.ACTIVITY.stableCode, OWNER_SCOPE, updatedAtMs)
+			ActivityAdmissionContext(allocated, activeSession?.logicalTrackingId, serviceRunId)
+		}
 	}
 
 	private fun ActivityEvidence.toCandidate(

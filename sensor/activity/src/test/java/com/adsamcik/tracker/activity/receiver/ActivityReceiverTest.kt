@@ -15,6 +15,7 @@ import dagger.hilt.android.EntryPointAccessors
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
@@ -141,6 +142,23 @@ class ActivityReceiverTest {
 		receiver.onReceive(context, intent)
 
 		verify(exactly = 0) { mockBackend.onActivityResult(any(), any()) }
+	}
+
+	@Test
+	fun `retries a transient durable handoff before publishing`() {
+		coEvery { mockIngress.admit(any()) } returnsMany listOf(
+			ActivityIngressResult.retryable(0, 0, "storage_unavailable"),
+			ActivityIngressResult.durable(1, 0),
+		)
+		val intent = intentWithActivityResult(
+			com.google.android.gms.location.DetectedActivity.WALKING,
+			85,
+		)
+
+		receiver.onReceive(context, intent)
+
+		coVerify(exactly = 2) { mockIngress.admit(any()) }
+		verify(exactly = 1) { mockBackend.onActivityResult(any(), any()) }
 	}
 
 		@Test

@@ -56,6 +56,33 @@ class RoomDurableSourceIngressTest {
 	}
 
 	@Test
+	fun `first admission initializes a missing lifecycle guard from durable lifecycle`() = runTest {
+		database.clearAllTables()
+
+		val admitted = subject.admit(candidate(sequence = 1L))
+			.shouldBeInstanceOf<AdmissionResult.Admitted>()
+
+		admitted.admissionOrdinal shouldBe 1L
+		database.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe 0L
+	}
+
+	@Test
+	fun `batch collision rolls back every event in the provider delivery`() = runTest {
+		val results = subject.admitBatch(
+			listOf(
+				candidate(sequence = 1L, activityType = 3),
+				candidate(sequence = 1L, activityType = 7),
+			),
+		)
+
+		results.forEach {
+			it.shouldBeInstanceOf<AdmissionResult.PermanentFailure>().code shouldBe
+				AdmissionFailureCode.IDENTITY_COLLISION
+		}
+		database.sourceEventWalDao().countAll() shouldBe 0L
+	}
+
+	@Test
 	fun `same source sequence with different evidence is rejected as collision`() = runTest {
 		subject.admit(candidate(sequence = 1L, activityType = 3))
 

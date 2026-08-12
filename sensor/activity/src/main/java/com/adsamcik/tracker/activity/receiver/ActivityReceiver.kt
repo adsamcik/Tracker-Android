@@ -12,6 +12,8 @@ import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.C
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_REGISTRATION_GENERATION
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_SOURCE_INSTANCE_ID
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.NO_REVISION
+import com.adsamcik.tracker.activity.api.ingress.ActivityIngressResult
+import com.adsamcik.tracker.activity.api.ingress.ActivityIngressStatus
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidence
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
@@ -28,6 +30,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 
@@ -78,7 +81,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		entryPoint.applicationScope().launch {
 			try {
 				val admission = withTimeout(DURABLE_HANDOFF_TIMEOUT_MS) {
-					entryPoint.eventIngress().admit(delivery.batch)
+					admitWithRetry(entryPoint.eventIngress(), delivery.batch)
 				}
 				if (admission.isDurable) delivery.publishTo(entryPoint.backend())
 			} catch (_: Throwable) {
@@ -87,6 +90,19 @@ internal class ActivityReceiver : BroadcastReceiver() {
 				pendingResult.finish()
 			}
 		}
+	}
+
+	private suspend fun admitWithRetry(
+		ingress: ActivityRecognitionEventIngress,
+		batch: ActivityRecognitionEvidenceBatch,
+	): ActivityIngressResult {
+		var result = ingress.admit(batch)
+		for (delayMs in RETRY_DELAYS_MS) {
+			if (result.status != ActivityIngressStatus.RETRYABLE) return result
+			delay(delayMs)
+			result = ingress.admit(batch)
+		}
+		return result
 	}
 
 	private fun parseDelivery(
@@ -189,6 +205,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		private const val TRANSITION_ACTIVITY_CONFIDENCE = 100
 		private const val NANOS_PER_MILLISECOND = 1_000_000L
 		private const val DURABLE_HANDOFF_TIMEOUT_MS = 8_000L
+		private val RETRY_DELAYS_MS = longArrayOf(0L, 50L, 250L, 1_000L)
 
 		@Volatile
 		var lastActivity: RecognizedActivity = RecognizedActivity.UNKNOWN

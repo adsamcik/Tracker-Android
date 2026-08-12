@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.ingress
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.SourceEventIdentityRow
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
@@ -22,6 +23,11 @@ import javax.inject.Singleton
 
 interface DurableSourceIngress {
 	suspend fun admit(candidate: SourceEvidenceCandidate<*>): AdmissionResult
+	/**
+	 * Admits one provider delivery as a single transaction. If any candidate cannot be admitted,
+	 * no candidate in the batch is committed and every returned entry describes that failure.
+	 */
+	suspend fun admitBatch(candidates: List<SourceEvidenceCandidate<*>>): List<AdmissionResult>
 	suspend fun committedBatch(afterOrdinal: Long, limit: Int): List<AdmittedSourceEvent<out SourcePayload>>
 	suspend fun checkpoint(consumer: String, ordinal: Long)
 }
@@ -65,78 +71,119 @@ class RoomDurableSourceIngress @Inject constructor(
 	private val lifecycleStore: CollectedDataLifecycleStore,
 	private val payloadCodec: DefaultSourcePayloadCodec,
 ) : DurableSourceIngress {
-	override suspend fun admit(candidate: SourceEvidenceCandidate<*>): AdmissionResult {
-		val lifecycle = lifecycleStore.snapshot()
-		if (candidate.capturedCollectedDataEpoch != lifecycle.epoch) {
-			return AdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_COLLECTED_DATA_EPOCH)
-		}
-		if (lifecycle.retainedFromMs?.let { candidate.acquiredAtMs < it } == true) {
-			return AdmissionResult.PermanentFailure(AdmissionFailureCode.BEFORE_RETENTION_BOUNDARY)
-		}
-		val encoded = runCatching { payloadCodec.encode(candidate.payload, candidate.payloadVersion) }
-			.getOrElse {
-				return AdmissionResult.PermanentFailure(AdmissionFailureCode.UNSUPPORTED_PAYLOAD)
-			}
+	override suspend fun admit(candidate: SourceEvidenceCandidate<*>): AdmissionResult =
+		admitBatch(listOf(candidate)).single()
 
-		return runCatching {
+	override suspend fun admitBatch(
+		candidates: List<SourceEvidenceCandidate<*>>,
+	): List<AdmissionResult> {
+		if (candidates.isEmpty()) return emptyList()
+		val lifecycle = lifecycleStore.snapshot()
+		val encodedCandidates = candidates.map { candidate ->
+			if (candidate.capturedCollectedDataEpoch != lifecycle.epoch) {
+				return repeatedFailure(
+					candidates.size,
+					AdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_COLLECTED_DATA_EPOCH),
+				)
+			}
+			if (lifecycle.retainedFromMs?.let { candidate.acquiredAtMs < it } == true) {
+				return repeatedFailure(
+					candidates.size,
+					AdmissionResult.PermanentFailure(AdmissionFailureCode.BEFORE_RETENTION_BOUNDARY),
+				)
+			}
+			val encoded = runCatching { payloadCodec.encode(candidate.payload, candidate.payloadVersion) }
+				.getOrElse {
+					return repeatedFailure(
+						candidates.size,
+						AdmissionResult.PermanentFailure(AdmissionFailureCode.UNSUPPORTED_PAYLOAD),
+					)
+				}
+			EncodedCandidate(candidate, encoded)
+		}
+
+		return try {
 			database.withTransaction {
 				val stateDao = database.sourceEvidenceStateDao()
-				val state = stateDao.get()
+				val walDao = database.sourceEventWalDao()
+				var state = stateDao.get()
+				if (state == null && walDao.countAll() == 0L) {
+					stateDao.ensure(
+						SourceEvidenceState(
+							collectedDataEpoch = lifecycle.epoch,
+							retainedFromMs = lifecycle.retainedFromMs,
+							updatedAtMs = System.currentTimeMillis(),
+						),
+					)
+					state = stateDao.get()
+				}
 				if (state == null || state.collectedDataEpoch != lifecycle.epoch ||
 					state.retainedFromMs != lifecycle.retainedFromMs
 				) {
-					return@withTransaction AdmissionResult.RetryableFailure(
-						AdmissionFailureCode.LIFECYCLE_BARRIER_IN_PROGRESS,
+					abortBatch(
+						AdmissionResult.RetryableFailure(AdmissionFailureCode.LIFECYCLE_BARRIER_IN_PROGRESS),
 					)
 				}
-				if (candidate.capturedCollectedDataEpoch != state.collectedDataEpoch) {
-					return@withTransaction AdmissionResult.PermanentFailure(
-						AdmissionFailureCode.STALE_COLLECTED_DATA_EPOCH,
-					)
-				}
-				if (state.retainedFromMs?.let { candidate.acquiredAtMs < it } == true) {
-					return@withTransaction AdmissionResult.PermanentFailure(
-						AdmissionFailureCode.BEFORE_RETENTION_BOUNDARY,
-					)
-				}
+				val guardedState = requireNotNull(state)
+				val results = encodedCandidates.map { (candidate, encoded) ->
+					if (candidate.capturedCollectedDataEpoch != guardedState.collectedDataEpoch) {
+						abortBatch(AdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_COLLECTED_DATA_EPOCH))
+					}
+					if (guardedState.retainedFromMs?.let { candidate.acquiredAtMs < it } == true) {
+						abortBatch(AdmissionResult.PermanentFailure(AdmissionFailureCode.BEFORE_RETENTION_BOUNDARY))
+					}
 
-				val walDao = database.sourceEventWalDao()
-				val existing = candidate.providerDedupKey?.let { key ->
-					walDao.identityByProviderDedupKey(candidate.source.stableCode, key)
-				} ?: walDao.identityBySourceSequence(
-					candidate.source.stableCode,
-					candidate.sourceInstanceId.value,
-					candidate.sourceSequence,
-				)
-				if (existing != null) return@withTransaction existing.resolveDuplicate(candidate, encoded)
-
-				val eventId = SourceEventId(UUID.randomUUID().toString())
-				val rowId = walDao.insertIgnoringDuplicate(
-					candidate.toEntity(eventId, encoded, System.currentTimeMillis()),
-				)
-				val admitted = if (rowId < 0L) {
-					candidate.providerDedupKey?.let { key ->
+					val existing = candidate.providerDedupKey?.let { key ->
 						walDao.identityByProviderDedupKey(candidate.source.stableCode, key)
 					} ?: walDao.identityBySourceSequence(
 						candidate.source.stableCode,
 						candidate.sourceInstanceId.value,
 						candidate.sourceSequence,
 					)
-				} else null
-				if (rowId < 0L && admitted == null) {
-					return@withTransaction AdmissionResult.RetryableFailure(
-						AdmissionFailureCode.STORAGE_UNAVAILABLE,
-					)
-				}
-				if (admitted != null) return@withTransaction admitted.resolveDuplicate(candidate, encoded)
+					if (existing != null) {
+						val duplicate = existing.resolveDuplicate(candidate, encoded)
+						if (duplicate is AdmissionResult.PermanentFailure) abortBatch(duplicate)
+						return@map duplicate
+					}
 
-				check(stateDao.incrementRevision(System.currentTimeMillis()) == 1) {
-					"Unable to advance source-evidence revision after WAL admission"
+					val eventId = SourceEventId(UUID.randomUUID().toString())
+					val rowId = walDao.insertIgnoringDuplicate(
+						candidate.toEntity(eventId, encoded, System.currentTimeMillis()),
+					)
+					val admitted = if (rowId < 0L) {
+						candidate.providerDedupKey?.let { key ->
+							walDao.identityByProviderDedupKey(candidate.source.stableCode, key)
+						} ?: walDao.identityBySourceSequence(
+							candidate.source.stableCode,
+							candidate.sourceInstanceId.value,
+							candidate.sourceSequence,
+						)
+					} else null
+					if (rowId < 0L && admitted == null) {
+						abortBatch(AdmissionResult.RetryableFailure(AdmissionFailureCode.STORAGE_UNAVAILABLE))
+					}
+					if (admitted != null) {
+						val duplicate = admitted.resolveDuplicate(candidate, encoded)
+						if (duplicate is AdmissionResult.PermanentFailure) abortBatch(duplicate)
+						return@map duplicate
+					}
+
+					AdmissionResult.Admitted(eventId, rowId)
 				}
-				AdmissionResult.Admitted(eventId, rowId)
+				if (results.any { it is AdmissionResult.Admitted }) {
+					check(stateDao.incrementRevision(System.currentTimeMillis()) == 1) {
+						"Unable to advance source-evidence revision after WAL admission"
+					}
+				}
+				results
 			}
-		}.getOrElse {
-			AdmissionResult.RetryableFailure(AdmissionFailureCode.STORAGE_UNAVAILABLE)
+		} catch (aborted: BatchAdmissionAborted) {
+			repeatedFailure(candidates.size, aborted.result)
+		} catch (_: Throwable) {
+			repeatedFailure(
+				candidates.size,
+				AdmissionResult.RetryableFailure(AdmissionFailureCode.STORAGE_UNAVAILABLE),
+			)
 		}
 	}
 
@@ -193,6 +240,18 @@ class RoomDurableSourceIngress @Inject constructor(
 		)
 	}
 }
+
+private data class EncodedCandidate(
+	val candidate: SourceEvidenceCandidate<*>,
+	val encoded: EncodedSourcePayload,
+)
+
+private class BatchAdmissionAborted(val result: AdmissionResult) : RuntimeException()
+
+private fun abortBatch(result: AdmissionResult): Nothing = throw BatchAdmissionAborted(result)
+
+private fun repeatedFailure(size: Int, failure: AdmissionResult): List<AdmissionResult> =
+	List(size) { failure }
 
 private fun SourceEvidenceCandidate<*>.toEntity(
 	eventId: SourceEventId,
