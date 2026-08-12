@@ -260,9 +260,10 @@ private suspend fun SourceEvidenceCandidate<*>.withAdmissibleSessionAttribution(
 ): SourceEvidenceCandidate<*> {
 	val logicalId = logicalTrackingId ?: return this
 	val session = database.sourceSessionDao().session(logicalId.value)
+	val cutoffElapsedNanos = session?.cutoffElapsedNanos
 	val sessionAcceptsEvidence = session != null &&
 		session.state in ATTRIBUTABLE_SESSION_STATES &&
-		(session.cutoffElapsedNanos == null || observedElapsedRealtimeNanos <= session.cutoffElapsedNanos)
+		(cutoffElapsedNanos == null || observedElapsedRealtimeNanos <= cutoffElapsedNanos)
 	val typed = this as SourceEvidenceCandidate<SourcePayload>
 	if (!sessionAcceptsEvidence) {
 		return typed.copy(logicalTrackingId = null, serviceRunId = null)
