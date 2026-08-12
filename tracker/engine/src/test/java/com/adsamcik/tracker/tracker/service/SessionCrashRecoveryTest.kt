@@ -12,13 +12,17 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.event.DomainEvent
+import com.adsamcik.tracker.stats.api.metric.MetricKey
 import com.adsamcik.tracker.stats.api.processor.ProcessorContext
 import com.adsamcik.tracker.stats.api.processor.ProcessorDescriptor
 import com.adsamcik.tracker.stats.api.processor.SignalProcessor
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
+import com.adsamcik.tracker.stats.api.repository.LiveStats
+import com.adsamcik.tracker.stats.api.repository.LiveStatsRepository
 import com.adsamcik.tracker.stats.api.repository.UnconsumedEvent
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import com.adsamcik.tracker.stats.api.value.EpochMs
+import com.adsamcik.tracker.stats.engine.processor.AggregatorProcessor
 import com.adsamcik.tracker.tracker.controller.DefaultTrackerServiceController
 import io.kotest.matchers.collections.shouldHaveAtLeastSize
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
@@ -34,6 +38,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.update
+
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -121,9 +126,10 @@ class SessionCrashRecoveryTest {
 		// service would do after the OS killed the prior process.
 		val controller = DefaultTrackerServiceController()
 		val domainEvents = RecordingDomainEventRepository()
+		val statsProcessor = AggregatorProcessor(RecordingLiveStatsRepository())
 		val orchestrator = TrackingOrchestrator(
 			controller = controller,
-			signalProcessors = setOf(NoOpProcessor()),
+			signalProcessors = setOf(NoOpProcessor(), statsProcessor),
 			domainEventRepository = domainEvents,
 			dispatchers = dispatchersProvider,
 			appDatabase = database,
@@ -161,6 +167,10 @@ class SessionCrashRecoveryTest {
 			distanceInM shouldBe 2_500f.plusOrMinus(0.001f)
 			steps shouldBe 4_000
 			collections shouldBe 12
+		}
+		statsProcessor.snapshotMetrics().apply {
+			valueOf(MetricKey.MAX_SESSION_DISTANCE_M) shouldBe 2_500.0
+			valueOf(MetricKey.MAX_SESSION_DURATION_MS) shouldBeGreaterThanOrEqualTo ONE_HOUR_MS.toDouble()
 		}
 
 		// Clean shutdown so other tests are not affected by lingering state.
@@ -311,6 +321,13 @@ class SessionCrashRecoveryTest {
 			upToTimestamp: EpochMs,
 			upToEventId: Long,
 		) = Unit
+	}
+
+	private class RecordingLiveStatsRepository : LiveStatsRepository {
+		private val state = MutableStateFlow(LiveStats())
+		override fun observeLiveStats(): Flow<LiveStats> = state.asStateFlow()
+		override suspend fun updateLiveStats(stats: LiveStats) { state.value = stats }
+		override suspend fun clear() { state.value = LiveStats() }
 	}
 
 	private class FakeTrackingParamsRepository(

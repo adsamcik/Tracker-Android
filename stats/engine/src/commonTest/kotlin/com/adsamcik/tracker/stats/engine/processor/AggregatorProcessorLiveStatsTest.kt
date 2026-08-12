@@ -73,6 +73,49 @@ class AggregatorProcessorLiveStatsTest {
 	}
 
 	@Test
+	fun `local day resolver controls live stats and rolls day totals forward`() = runTest {
+		val repository = FakeLiveStatsRepository()
+		val dayBoundary = 10_000L
+		val processor = AggregatorProcessor(
+			liveStatsRepository = repository,
+			aggregator = StreamingAggregator(),
+			epochDayResolver = { timestampMs -> if (timestampMs < dayBoundary) 7L else 8L },
+		)
+		processor.onStart(ProcessorContext(startTimestamp = EpochMs(9_000L)))
+		processor.seedDayTotals(100f, 20, 2_000L, 1)
+		processor.onSignal(
+			TrackingSignal(
+				timestampMs = EpochMs(9_500L),
+				location = LocationSignal(
+					coordinate = CoordinateE7(LatE7(0), LonE7(0)),
+					horizontalAccuracyM = 5f,
+					speed = null,
+					distanceDelta = DistanceM(10f),
+				),
+			),
+		)
+		processor.onSignal(
+			TrackingSignal(
+				timestampMs = EpochMs(10_500L),
+				location = LocationSignal(
+					coordinate = CoordinateE7(LatE7(0), LonE7(0)),
+					horizontalAccuracyM = 5f,
+					speed = null,
+					distanceDelta = DistanceM(5f),
+				),
+			),
+		)
+
+		processor.onFlush()
+
+		val live = repository.updates.single()
+		live.dateEpochDay shouldBe 8L
+		live.sessionDistance shouldBe DistanceM(15f)
+		live.dayTotalDistance shouldBe DistanceM(5f)
+		live.dayTotalDuration shouldBe DurationMs(1_000L)
+	}
+
+	@Test
 	fun `stop clears persisted live stats after the final snapshot is captured`() = runTest {
 		val repository = FakeLiveStatsRepository()
 		val processor = AggregatorProcessor(

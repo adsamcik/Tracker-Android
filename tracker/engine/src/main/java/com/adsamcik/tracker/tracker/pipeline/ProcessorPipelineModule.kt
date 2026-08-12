@@ -17,6 +17,8 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
 import javax.inject.Singleton
+import java.time.Instant
+import java.time.ZoneId
 
 /**
  * Hilt module that provides SignalProcessor instances via multibinding.
@@ -48,6 +50,12 @@ object ProcessorPipelineModule {
 		return AggregatorProcessor(
 			liveStatsRepository = liveStatsRepository,
 			dirtyTracker = dirtyTracker,
+			epochDayResolver = { timestampMs ->
+				Instant.ofEpochMilli(timestampMs)
+					.atZone(ZoneId.systemDefault())
+					.toLocalDate()
+					.toEpochDay()
+			},
 		)
 	}
 

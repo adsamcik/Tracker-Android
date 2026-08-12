@@ -40,6 +40,7 @@ class AggregatorProcessor(
 	private val liveStatsRepository: LiveStatsRepository,
 	private val aggregator: StreamingAggregator = StreamingAggregator(),
 	private val dirtyTracker: MetricDirtyTracker? = null,
+	private val epochDayResolver: (Long) -> Long = { timestampMs -> timestampMs / MILLIS_PER_DAY },
 ) : SignalProcessor {
 
 	override val descriptor = ProcessorDescriptor(
@@ -50,15 +51,22 @@ class AggregatorProcessor(
 	)
 
 	private var sessionId: Long = 0L
+	private var currentDayEpoch: Long = 0L
 
 	override suspend fun onStart(context: ProcessorContext) {
 		sessionId = context.sessionId
+		currentDayEpoch = epochDayResolver(context.startTimestamp.raw)
 		if (!aggregator.isActive) {
 			aggregator.start(context.startTimestamp.raw)
 		}
 	}
 
 	override fun onSignal(signal: TrackingSignal) {
+		val signalDay = epochDayResolver(signal.timestampMs.raw)
+		if (signalDay != currentDayEpoch) {
+			aggregator.rolloverDay()
+			currentDayEpoch = signalDay
+		}
 		val distanceDelta = signal.location?.distanceDelta?.raw
 		val stepDelta = signal.steps?.stepDelta?.raw ?: 0
 		aggregator.onSignal(
@@ -86,7 +94,7 @@ class AggregatorProcessor(
 		val snap = aggregator.snapshot()
 		liveStatsRepository.updateLiveStats(
 			LiveStats(
-				dateEpochDay = snap.lastUpdateMs / MILLIS_PER_DAY,
+				dateEpochDay = currentDayEpoch,
 				sessionDistance = DistanceM.coerced(snap.sessionDistanceM),
 				sessionSteps = StepCount.coerced(snap.sessionSteps),
 				sessionDuration = DurationMs(snap.sessionDurationMs.coerceAtLeast(0L)),
@@ -100,7 +108,7 @@ class AggregatorProcessor(
 			DomainEvent.DailySummaryUpdated(
 				timestampMs = EpochMs(snap.lastUpdateMs),
 				processorId = descriptor.id,
-				dayEpoch = snap.sessionStartMs / 86_400_000L,
+				dayEpoch = currentDayEpoch,
 				totalDistance = DistanceM.coerced(snap.dayTotalDistanceM),
 				totalSteps = StepCount.coerced(snap.dayTotalSteps),
 				totalDuration = DurationMs(snap.dayTotalDurationMs.coerceAtLeast(0L)),
@@ -141,6 +149,30 @@ class AggregatorProcessor(
 		if (distanceM != 0f || steps != 0 || durationMs != 0L || trips != 0) {
 			markStateDirty()
 		}
+	}
+
+	fun restoreSessionTotals(
+		distanceM: Float,
+		steps: Int,
+		durationMs: Long,
+		sampleCount: Int,
+		lastUpdateMs: Long,
+		dayDistanceM: Float,
+		daySteps: Int,
+		dayDurationMs: Long,
+	) {
+		aggregator.restoreSessionTotals(
+			distanceM = distanceM,
+			steps = steps,
+			durationMs = durationMs,
+			sampleCount = sampleCount,
+			lastUpdateMs = lastUpdateMs,
+			dayDistanceM = dayDistanceM,
+			daySteps = daySteps,
+			dayDurationMs = dayDurationMs,
+		)
+		currentDayEpoch = epochDayResolver(lastUpdateMs)
+		if (distanceM != 0f || steps != 0 || durationMs != 0L || sampleCount != 0) markStateDirty()
 	}
 
 	private fun markStateDirty() {

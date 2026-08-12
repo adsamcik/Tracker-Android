@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -22,6 +23,8 @@ class SourceRecoveryIntegrityInstrumentationTest {
 		val quarantined = database.quarantinedSignalDao().countAll()
 		val sourceEvents = database.sourceEventWalDao().countAll()
 		val observations = database.locationObservationDao().countAll()
+		val openRuns = database.trackerRunDao().countOpenRuns()
+		val hasLiveStats = database.liveStatsDao().get() != null
 		val missing = database.sourceEventWalDao().locationEventsMissingCanonicalObservation(
 			sourceKind = SourceKind.LOCATION.stableCode,
 			afterOrdinal = 0L,
@@ -31,10 +34,12 @@ class SourceRecoveryIntegrityInstrumentationTest {
 		Log.i(
 			TAG,
 			"sourceEvents=$sourceEvents observations=$observations " +
-				"pending=$pending quarantined=$quarantined missingLocationCanonical=${missing.size}",
+				"pending=$pending quarantined=$quarantined missingLocationCanonical=${missing.size} " +
+				"openRuns=$openRuns hasLiveStats=$hasLiveStats",
 		)
 		assertEquals("pending persistence WAL must drain after recovery", 0, pending)
 		assertEquals("every retained location WAL event needs a canonical raw observation", 0, missing.size)
+		assertTrue("at most one tracker run may remain open", openRuns <= 1)
 	}
 
 	private companion object {

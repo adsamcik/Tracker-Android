@@ -16,6 +16,7 @@ import com.adsamcik.tracker.stats.api.processor.SignalProcessor
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.stats.engine.policy.DefaultPolicyEscalationEngine
+import com.adsamcik.tracker.stats.engine.processor.AggregatorProcessor
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.SessionTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
@@ -357,11 +358,39 @@ internal class TrackingOrchestrator(
 			requireDurableAdmission = true,
 		)
 		processorPipeline = pipeline
+		val aggregatorProcessor = signalProcessors.filterIsInstance<AggregatorProcessor>().singleOrNull()
+		val isResuming = !componentSet.sessionComponent.isNewSession
+		val liveStatsSeed = aggregatorProcessor?.let {
+			withContext(dispatchers.io) {
+				appDatabase.liveStatsRecoverySeed(session, isResuming)
+			}
+		}
 		pipeline.start(
 			tier = initialTier,
-			startTimestamp = EpochMs(Time.nowMillis),
+			startTimestamp = EpochMs(session.start),
+			isResuming = isResuming,
 			sessionId = session.id,
 		)
+		if (aggregatorProcessor != null && liveStatsSeed != null) {
+			aggregatorProcessor.seedDayTotals(
+				distanceM = liveStatsSeed.priorDayDistanceM,
+				steps = liveStatsSeed.priorDaySteps,
+				durationMs = liveStatsSeed.priorDayDurationMs,
+				trips = liveStatsSeed.priorDayTrips,
+			)
+			if (isResuming) {
+				aggregatorProcessor.restoreSessionTotals(
+					distanceM = session.distanceInM,
+					steps = session.steps,
+					durationMs = (session.end - session.start).coerceAtLeast(0L),
+					sampleCount = session.collections,
+					lastUpdateMs = session.end,
+					dayDistanceM = liveStatsSeed.restoredDayDistanceM,
+					daySteps = liveStatsSeed.restoredDaySteps,
+					dayDurationMs = liveStatsSeed.restoredDayDurationMs,
+				)
+			}
+		}
 		trackingPipeline = createTrackingPipeline(sessionScope)
 
 		// Wire mutable references into tier escalation handler

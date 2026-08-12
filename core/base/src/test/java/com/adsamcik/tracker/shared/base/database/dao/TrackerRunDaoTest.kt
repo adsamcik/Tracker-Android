@@ -41,6 +41,7 @@ class TrackerRunDaoTest {
 		dao.closeOpenRuns(endTimeMs = 3_000L) shouldBe 2
 
 		dao.getActiveRun() shouldBe null
+		dao.countOpenRuns() shouldBe 0
 		val runs = dao.getOverlapping(fromMs = 0L, toMs = 10_000L).associateBy { it.startTimeMs }
 		runs.getValue(500L).endTimeMs shouldBe 750L
 		runs.getValue(1_000L).endTimeMs shouldBe 3_000L
@@ -66,6 +67,7 @@ class TrackerRunDaoTest {
 		dao.deleteOlderThan(beforeMs = 1_000L) shouldBe 1
 
 		dao.getActiveRun()?.startTimeMs shouldBe 100L
+		dao.countOpenRuns() shouldBe 1
 		dao.getOverlapping(fromMs = 0L, toMs = 2_000L).map { it.startTimeMs } shouldBe listOf(100L, 400L)
 	}
 

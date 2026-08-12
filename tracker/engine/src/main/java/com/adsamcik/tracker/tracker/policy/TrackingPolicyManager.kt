@@ -111,7 +111,10 @@ class TrackingPolicyManager(
 			createdAt = now,
 		)
 
-		currentRunId = withContext(dispatchers.io) { trackerRunDao.insert(run) }
+		currentRunId = withContext(dispatchers.io) {
+			trackerRunDao.closeOpenRuns(now)
+			trackerRunDao.insert(run)
+		}
 		appendStateEvidence(
 			elapsedRealtimeNanos = elapsedNow,
 			wallTimeMs = now,

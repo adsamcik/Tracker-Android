@@ -617,7 +617,7 @@ class TrackingPolicyManagerTest {
 	}
 
 	@Test
-	fun `start does not bridge a previous orphaned run to this session`() = runTest {
+	fun `start closes every previous orphaned run before creating this session`() = runTest {
 		val manager = TrackingPolicyManager(
 			context = context,
 			isUserInitiated = false,
@@ -627,8 +627,10 @@ class TrackingPolicyManagerTest {
 
 		startAndAwait(manager)
 
-		coVerify(exactly = 0) { trackerRunDao.closeOpenRuns(any()) }
-		coVerify(exactly = 1) { trackerRunDao.insert(any<TrackerRun>()) }
+		coVerifyOrder {
+			trackerRunDao.closeOpenRuns(any())
+			trackerRunDao.insert(any<TrackerRun>())
+		}
 	}
 
 	@Test
