@@ -1270,7 +1270,7 @@ internal fun resolveTrackerServiceStartRequest(
 		when {
 			storedDescriptor?.isRestartEligible == true ->
 				TrackerServiceStartRequestResolution.Begin(storedDescriptor, isRecovery = true)
-			storedDescriptor == null && requestedDescriptor != null ->
+			requestedDescriptor != null ->
 				TrackerServiceStartRequestResolution.Begin(requestedDescriptor, isRecovery = false)
 			else -> TrackerServiceStartRequestResolution.DoNotStart
 		}

@@ -5,6 +5,7 @@ import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionDescriptor
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStoreResult
 import com.adsamcik.tracker.tracker.resilience.LogicalTrackingLifecycleState
+import com.adsamcik.tracker.tracker.resilience.TrackingStopCandidateReason
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import org.junit.Test
@@ -74,7 +75,7 @@ class TrackerServiceRedeliveryRecoveryTest {
 	}
 
 	@Test
-	fun `store failure and ineligible durable state fail safely`() {
+	fun `store failure fails safely but new request supersedes ineligible durable state`() {
 		val requested = descriptor()
 		val failure = IllegalStateException("durable store unavailable")
 
@@ -87,6 +88,25 @@ class TrackerServiceRedeliveryRecoveryTest {
 				descriptor().copy(lifecycleState = LogicalTrackingLifecycleState.PAUSED),
 			),
 			requestedDescriptor = requested,
+		) shouldBe TrackerServiceStartRequestResolution.Begin(requested, isRecovery = false)
+	}
+
+	@Test
+	fun `new request supersedes stop candidate left by interrupted teardown`() {
+		val requested = descriptor(logicalTrackingId = "new-logical-session")
+		val staleStopCandidate = descriptor(logicalTrackingId = "stopped-logical-session")
+			.proposeStop(
+				reason = TrackingStopCandidateReason.EXPLICIT_REQUEST,
+				changedAtEpochMs = 1_000L,
+			)
+
+		resolveTrackerServiceStartRequest(
+			storeResult = ActiveTrackingSessionStoreResult.Success(staleStopCandidate),
+			requestedDescriptor = requested,
+		) shouldBe TrackerServiceStartRequestResolution.Begin(requested, isRecovery = false)
+		resolveTrackerServiceStartRequest(
+			storeResult = ActiveTrackingSessionStoreResult.Success(staleStopCandidate),
+			requestedDescriptor = null,
 		) shouldBe TrackerServiceStartRequestResolution.DoNotStart
 	}
 
