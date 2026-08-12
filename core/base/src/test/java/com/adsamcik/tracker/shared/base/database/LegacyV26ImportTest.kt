@@ -193,6 +193,40 @@ class LegacyV26ImportTest {
 	}
 
 	@Test
+	fun `compatible pre-release v34 imports the released data subset without mutating source`() {
+		prepareReleasedV26 { database ->
+			seedV26EdgeRows(database)
+			database.execSQL("CREATE TABLE unreleased_v34_metadata(id INTEGER PRIMARY KEY)")
+			database.version = 34
+		}
+
+		val active = openActive()
+
+		hasCompletedLegacyImport(active) shouldBe true
+		count(active, "location_sample") shouldBe 1L
+		count(active, "location_observation") shouldBe 1L
+		LegacyDatabaseRepository(context).currentState().report?.sourceVersion shouldBe 34
+		SQLiteDatabase.openDatabase(
+			context.getDatabasePath(LEGACY_DATABASE_NAME).path,
+			null,
+			SQLiteDatabase.OPEN_READONLY,
+		).use { source ->
+			source.version shouldBe 34
+			androidCount(source, "location_sample") shouldBe 1L
+			androidCount(source, "unreleased_v34_metadata") shouldBe 0L
+		}
+	}
+
+	@Test
+	fun `later incompatible development schema remains rejected`() {
+		prepareReleasedV26 { database -> database.version = 35 }
+
+		shouldThrow<LegacyDatabaseException> { openActive() }
+		LegacyDatabaseRepository(context).currentState().importStatus shouldBe
+			LegacyImportStatus.FAILED
+	}
+
+	@Test
 	fun `older public database is normalized on a disposable copy and source stays unchanged`() {
 		copyFixtureToLegacy()
 

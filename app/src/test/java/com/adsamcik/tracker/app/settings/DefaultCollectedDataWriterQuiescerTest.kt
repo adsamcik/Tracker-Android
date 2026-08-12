@@ -122,14 +122,21 @@ class DefaultCollectedDataWriterQuiescerTest {
 			ExistingWorkPolicy.REPLACE,
 			databaseMaintenance,
 		).result.get()
+		var workManagerResolutions = 0
 		val quiescer = DefaultCollectedDataWriterQuiescer(
 			context = context,
 			trackerStateReader = trackerStateReader,
 			activityWatcherController = activityWatcherController,
 			exportAutomationController = exportAutomationController,
+			workManagerProvider = {
+				workManagerResolutions += 1
+				workManager
+			},
 		)
+		workManagerResolutions shouldBe 0
 
 		quiescer.quiesce()
+		workManagerResolutions shouldBe 1
 
 		(requests + dailySummary + import + pendingSignalDrain + retention +
 			legacyRetention + databaseMaintenance).forEach { request ->

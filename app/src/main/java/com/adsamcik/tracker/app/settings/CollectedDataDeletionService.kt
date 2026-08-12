@@ -54,8 +54,13 @@ class DefaultCollectedDataWriterQuiescer(
 	private val trackerStateReader: TrackerStateReader,
 	private val activityWatcherController: ActivityWatcherController,
 	private val exportAutomationController: ExportAutomationController,
+	private val workManagerProvider: () -> WorkManager = { WorkManager.getInstance(context) },
 ) : CollectedDataWriterQuiescer {
-	private val workManager = WorkManager.getInstance(context)
+	// This quiescer is an eager dependency of legacy-database startup. Resolving WorkManager in the
+	// constructor revives restored workers before that startup gate has opened Room, allowing them
+	// to race the one-shot legacy import. Defer initialization until an actual deletion needs to
+	// inspect or cancel background writers.
+	private val workManager by lazy(LazyThreadSafetyMode.SYNCHRONIZED, workManagerProvider)
 	private var restoreRetentionSchedule = false
 	private var restoreDatabaseMaintenance = false
 

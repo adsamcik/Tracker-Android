@@ -41,7 +41,7 @@ internal class LegacyV26DatabaseNormalizer(
 
 	fun prepare(): PreparedLegacyDatabase {
 		val info = repository.prepareForRead()
-		if (info.sourceVersion == RELEASED_DATABASE_VERSION) {
+		if (info.sourceVersion in RELEASED_DATABASE_VERSION..LATEST_DIRECT_IMPORT_VERSION) {
 			return PreparedLegacyDatabase(info.file, info.sourceVersion, emptyList())
 		}
 		if (info.sourceVersion !in oldestSupportedVersion() until RELEASED_DATABASE_VERSION) {
@@ -141,6 +141,10 @@ internal class LegacyV26DatabaseNormalizer(
 	private companion object {
 		const val STAGING_DATABASE_NAME = "legacy_import_v26_staging"
 		const val RELEASED_DATABASE_VERSION = 26
+		// Versions 27-34 were pre-release extensions of v26. They only added ignored tables,
+		// columns, and indices; the released-data subset copied by LegacyV26Importer is unchanged.
+		// Later development schemas changed evidence semantics and must remain explicitly rejected.
+		const val LATEST_DIRECT_IMPORT_VERSION = 34
 		const val MIN_FREE_SPACE_BYTES = 10L * 1024L * 1024L
 
 		fun databaseFamily(file: File): List<File> = listOf(

@@ -193,8 +193,10 @@ class LegacyV26Importer(
 	}
 
 	private fun validateReleasedSchema(source: SQLiteDatabase) {
-		if (source.version != RELEASED_DATABASE_VERSION) {
-			throw LegacyDatabaseException("The importer requires normalized schema v26")
+		if (source.version !in RELEASED_DATABASE_VERSION..LATEST_DIRECT_IMPORT_VERSION) {
+			throw LegacyDatabaseException(
+				"The importer requires schema v$RELEASED_DATABASE_VERSION..v$LATEST_DIRECT_IMPORT_VERSION",
+			)
 		}
 		val actualTables = source.rawQuery(
 			"SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
@@ -325,6 +327,7 @@ class LegacyV26Importer(
 
 	private companion object {
 		const val RELEASED_DATABASE_VERSION = 26
+		const val LATEST_DIRECT_IMPORT_VERSION = 34
 
 		val importedTables = listOf(
 			TableCopySpec("activity", listOf("id", "name", "iconName")),
