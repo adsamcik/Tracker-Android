@@ -459,6 +459,18 @@ class SetupViewModelTest {
             vm.state.value.backgroundLocationGranted shouldBe true
         }
 
+		@Test
+		fun `declining background location preserves manual foreground capability`() {
+			val vm = createViewModel()
+			vm.onLocationPermissionResult(locationResults(precise = true))
+
+			vm.declineBackgroundLocation()
+
+			vm.state.value.locationEnabled shouldBe true
+			vm.state.value.backgroundLocationDeclined shouldBe true
+			vm.state.value.manualLocationOnly shouldBe true
+		}
+
         @Test
         fun `onActivityPermissionResult updates state`() {
             val vm = createViewModel()
