@@ -360,4 +360,9 @@
     <string name="background_reliability_samsung_action">Avaa laitteen akkuasetukset</string>
     <string name="settings_tracebox_title">Kaatumisdiagnostiikka</string>
     <string name="settings_tracebox_root_summary">Paikallinen kaatumis-, ANR- ja rakenteellinen diagnostiikka</string>
+    <string name="setup_background_location_title">Salli taustasijainti automaattista seurantaa varten</string>
+    <string name="setup_background_location_disclosure">Automaattinen seuranta käynnistyy Trackerin ollessa taustalla ja tallentaa reittisi, vaikka sovelluksen näyttö ei olisi avoinna. Sijaintitiedot pysyvät tässä laitteessa. Valitse sovelluksen sijaintiasetuksissa ”%1$s”.</string>
+    <string name="setup_background_location_open_settings">Avaa sijaintiasetukset</string>
+    <string name="setup_background_location_decline">Ei nyt</string>
+    <string name="setup_background_location_manual_only">Manuaalinen seuranta etualalla on yhä käytettävissä. Automaattinen sijainnin seuranta pysyy poissa käytöstä, kunnes taustasijainti sallitaan.</string>
 </resources>

@@ -360,4 +360,9 @@
     <string name="background_reliability_samsung_action">Oscail socruithe ceallra an ghléis</string>
     <string name="settings_tracebox_title">Diagnóisic tuairteála</string>
     <string name="settings_tracebox_root_summary">Diagnóisic áitiúil maidir le tuairteanna, ANR agus struchtúr</string>
+    <string name="setup_background_location_title">Ceadaigh suíomh sa chúlra don rianú uathoibríoch</string>
+    <string name="setup_background_location_disclosure">Tosaíonn rianú uathoibríoch agus Tracker sa chúlra agus taifeadann sé do bhealach fiú nuair nach bhfuil scáileán na haipe oscailte. Fanann sonraí suímh ar an ngléas seo. I socruithe suímh na haipe, roghnaigh “%1$s”.</string>
+    <string name="setup_background_location_open_settings">Oscail socruithe suímh</string>
+    <string name="setup_background_location_decline">Ní anois</string>
+    <string name="setup_background_location_manual_only">Beidh rianú láimhe sa tulra ar fáil fós. Fanfaidh rianú suímh uathoibríoch múchta go dtí go gceadófar suíomh sa chúlra.</string>
 </resources>

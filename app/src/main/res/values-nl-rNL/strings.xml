@@ -360,4 +360,9 @@
     <string name="background_reliability_samsung_action">Batterij-instellingen van apparaat openen</string>
     <string name="settings_tracebox_title">Crashdiagnostiek</string>
     <string name="settings_tracebox_root_summary">Lokale crash-, ANR- en structurele diagnostiek</string>
+    <string name="setup_background_location_title">Locatie op de achtergrond toestaan voor automatisch bijhouden</string>
+    <string name="setup_background_location_disclosure">Automatisch bijhouden start wanneer Tracker op de achtergrond actief is en registreert je route ook wanneer het appscherm niet geopend is. Locatiegegevens blijven op dit apparaat. Kies in de locatie-instellingen van de app ‘%1$s’.</string>
+    <string name="setup_background_location_open_settings">Locatie-instellingen openen</string>
+    <string name="setup_background_location_decline">Niet nu</string>
+    <string name="setup_background_location_manual_only">Handmatig bijhouden op de voorgrond blijft beschikbaar. Automatisch bijhouden van de locatie blijft uit totdat locatie op de achtergrond is toegestaan.</string>
 </resources>

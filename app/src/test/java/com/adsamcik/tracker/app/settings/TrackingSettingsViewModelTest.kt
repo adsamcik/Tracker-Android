@@ -7,6 +7,8 @@ import com.adsamcik.tracker.app.common.ui.BatteryImpact
 import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
 import com.adsamcik.tracker.shared.base.extension.hasSelfPermission
 import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
+import com.adsamcik.tracker.shared.base.extension.TrackingPermissionCapabilities
+import com.adsamcik.tracker.shared.base.extension.trackingPermissionCapabilities
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
@@ -63,7 +65,20 @@ class TrackingSettingsViewModelTest {
 
         // Mock hasSelfPermission (called by inline hasPreciseLocationPermission)
         mockkStatic("com.adsamcik.tracker.shared.base.extension.ContextExtensionsKt")
+        mockkStatic("com.adsamcik.tracker.shared.base.extension.TrackingPermissionCapabilitiesKt")
         every { context.hasSelfPermission(any()) } answers { permissionsGranted }
+        every { context.trackingPermissionCapabilities(any()) } answers {
+            TrackingPermissionCapabilities.evaluate(
+                apiLevel = 34,
+                locationFeatureAvailable = true,
+                wifiFeatureAvailable = true,
+                locationServicesEnabled = true,
+                coarseLocationGranted = permissionsGranted,
+                preciseLocationGranted = permissionsGranted,
+                backgroundLocationGranted = permissionsGranted,
+                nearbyWifiGranted = permissionsGranted,
+            )
+        }
         every { context.hasPressureSensor } returns true
         every { context.hasStepCounterSensor } returns true
         every { context.packageManager } returns packageManager
@@ -120,6 +135,7 @@ class TrackingSettingsViewModelTest {
     fun tearDown() {
         Dispatchers.resetMain()
         unmockkStatic("com.adsamcik.tracker.shared.base.extension.ContextExtensionsKt")
+        unmockkStatic("com.adsamcik.tracker.shared.base.extension.TrackingPermissionCapabilitiesKt")
     }
 
     private fun createViewModel(): TrackingSettingsViewModel {

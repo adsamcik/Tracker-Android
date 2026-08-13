@@ -558,6 +558,11 @@
     <!-- Onboarding step: background access / battery optimization -->
     <string name="setup_background_access_subtitle">To record trips while the screen is off or the app is closed, Tracker needs to keep running in the background. Phone battery settings can pause it — allow background activity so auto-tracking stays reliable.</string>
     <string name="setup_background_access_optional">Optional, but recommended. You can change this any time in Settings → Tracking.</string>
+    <string name="setup_background_location_title">Allow background location for automatic tracking</string>
+    <string name="setup_background_location_disclosure">Automatic tracking starts while Tracker is in the background and records your route even when its screen is not open. Location stays on this device. In the app location settings, choose “%1$s”.</string>
+    <string name="setup_background_location_open_settings">Open location settings</string>
+    <string name="setup_background_location_decline">Not now</string>
+    <string name="setup_background_location_manual_only">Manual foreground tracking remains available. Automatic location tracking will stay off until background location is allowed.</string>
 
     <!-- Background reliability (shared: onboarding + settings) -->
     <string name="background_reliability_title">Reliable background tracking</string>

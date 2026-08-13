@@ -24,7 +24,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    <!-- API 33+: Required for Wi‑Fi scanning without location; see Onboarding permission mapping -->
+    <!-- API 33+: Scan APIs require this in addition to precise location for physical-location evidence. -->
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" />
     <!--
         INTERNET re-enabled (was previously stripped via tools:node="remove"). Every byte of

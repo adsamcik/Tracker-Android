@@ -368,4 +368,9 @@
     <string name="background_reliability_samsung_action">Otvoriť nastavenia batérie zariadenia</string>
     <string name="settings_tracebox_title">Diagnostika zlyhaní</string>
     <string name="settings_tracebox_root_summary">Lokálna diagnostika zlyhaní, ANR a štruktúry</string>
+    <string name="setup_background_location_title">Povoliť polohu na pozadí pre automatické sledovanie</string>
+    <string name="setup_background_location_disclosure">Automatické sledovanie sa spustí, keď Tracker beží na pozadí, a zaznamenáva vašu trasu, aj keď obrazovka aplikácie nie je otvorená. Údaje o polohe zostávajú v tomto zariadení. V nastaveniach polohy aplikácie vyberte „%1$s“.</string>
+    <string name="setup_background_location_open_settings">Otvoriť nastavenia polohy</string>
+    <string name="setup_background_location_decline">Teraz nie</string>
+    <string name="setup_background_location_manual_only">Ručné sledovanie v popredí zostáva dostupné. Automatické sledovanie polohy zostane vypnuté, kým nebude povolená poloha na pozadí.</string>
 </resources>

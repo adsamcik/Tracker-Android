@@ -1,12 +1,9 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
-import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager
-import android.location.LocationManager
 import android.os.Build
-import androidx.core.content.ContextCompat
 import com.adsamcik.tracker.shared.base.assist.Assist
+import com.adsamcik.tracker.shared.base.extension.trackingPermissionCapabilities
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
@@ -120,21 +117,14 @@ class AndroidLocationDeviceStateProvider @Inject constructor(
 	@ApplicationContext private val context: Context,
 ) : LocationDeviceStateProvider {
 	override fun snapshot(): LocationDeviceState {
-		val manager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-		val locationEnabled = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-			manager.isLocationEnabled
-		} else {
-			manager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
-				manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
-		}
+		val capabilities = context.trackingPermissionCapabilities()
 		return LocationDeviceState(
-			apiLevel = Build.VERSION.SDK_INT,
-			locationFeatureAvailable = context.packageManager.hasSystemFeature(PackageManager.FEATURE_LOCATION),
-			locationServicesEnabled = locationEnabled,
-			coarsePermission = granted(Manifest.permission.ACCESS_COARSE_LOCATION),
-			finePermission = granted(Manifest.permission.ACCESS_FINE_LOCATION),
-			backgroundLocationPermission = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
-				granted(Manifest.permission.ACCESS_BACKGROUND_LOCATION),
+			apiLevel = capabilities.apiLevel,
+			locationFeatureAvailable = capabilities.locationFeatureAvailable,
+			locationServicesEnabled = capabilities.locationServicesEnabled,
+			coarsePermission = capabilities.coarseLocationGranted,
+			finePermission = capabilities.preciseLocationGranted,
+			backgroundLocationPermission = capabilities.backgroundLocationGranted,
 			fusedProviderAvailable = Assist.isPlayServicesAvailable(context),
 			// TrackerService promotes its location type before applying the source plan. The service
 			// owns manifest/type legality; the runtime still consumes this explicit matrix field.
@@ -142,8 +132,5 @@ class AndroidLocationDeviceStateProvider @Inject constructor(
 			backgroundForegroundServiceStartLegal = true,
 		)
 	}
-
-	private fun granted(permission: String): Boolean =
-		ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
 }
 

@@ -90,7 +90,10 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
     val wifiPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { results ->
-        trackingVm.onWifiPermissionResult(results.values.any { it })
+        val precise = results[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        val nearby = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            results[Manifest.permission.NEARBY_WIFI_DEVICES] == true
+        trackingVm.onWifiPermissionResult(precise && nearby)
     }
     val cellPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -161,7 +164,11 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
         onWifiEnabledChanged = { enabled ->
             if (enabled && !uiState.wifiPermissionGranted) {
                 val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    arrayOf(Manifest.permission.NEARBY_WIFI_DEVICES)
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION,
+                        Manifest.permission.NEARBY_WIFI_DEVICES,
+                    )
                 } else {
                     arrayOf(
                         Manifest.permission.ACCESS_FINE_LOCATION,
@@ -266,6 +273,29 @@ internal fun TrackingSettingsContent(
                 selectedMode = uiState.autoTrackingMode.coerceIn(0, 2),
                 onModeSelected = onAutoTrackingModeChanged,
             )
+        }
+        if (uiState.autoTrackingEnabled && uiState.locationEnabled &&
+            uiState.permissionCapabilities.isManualLocationOnly
+        ) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .testTag("automaticTrackingManualOnly"),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    ),
+                ) {
+                    Text(
+                        text = stringResource(
+                            com.adsamcik.tracker.R.string.setup_background_location_manual_only,
+                        ),
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
         }
         if (uiState.autoTrackingEnabled) {
             item {

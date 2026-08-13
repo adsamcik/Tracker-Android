@@ -88,11 +88,10 @@ fun WhatToCollectStep(
     onStepsEnabledChange: (Boolean) -> Unit,
     onWifiEnabledChange: (Boolean) -> Unit,
     onCellEnabledChange: (Boolean) -> Unit,
-    onLocationPermissionResult: (Boolean) -> Unit,
-    onBackgroundLocationResult: (Boolean) -> Unit,
+    onLocationPermissionResult: (Map<String, Boolean>) -> Unit,
     onActivityPermissionResult: (Boolean) -> Unit,
     onNotificationPermissionResult: (Boolean) -> Unit,
-    onWifiPermissionResult: (Boolean) -> Unit,
+    onWifiPermissionResult: (Map<String, Boolean>) -> Unit,
     onCellPermissionResult: (Boolean) -> Unit,
     onComplete: () -> Unit,
     modifier: Modifier = Modifier,
@@ -100,16 +99,8 @@ fun WhatToCollectStep(
     // Permission launchers
     val locationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
-    ) { results ->
-        val granted = results.values.any { it }
-        onLocationPermissionResult(granted)
-    }
-
-    val backgroundLocationLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        onBackgroundLocationResult(granted)
-    }
+        onLocationPermissionResult,
+    )
 
     val activityLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -125,9 +116,8 @@ fun WhatToCollectStep(
 
     val wifiLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
-    ) { results ->
-        onWifiPermissionResult(results.values.any { it })
-    }
+        onWifiPermissionResult,
+    )
 
     val cellLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -198,27 +188,6 @@ fun WhatToCollectStep(
                     PermissionGrantedBadge()
                 }
 
-                // Background location permission (needed for auto-tracking)
-                if (state.needsBackgroundLocationPermission &&
-                    state.locationPermissionGranted &&
-                    !state.backgroundLocationGranted
-                ) {
-                    PermissionExplanation(
-                        explanation = stringResource(R.string.setup_perm_location_bg_why),
-                        grantContentDescription = stringResource(R.string.setup_perm_grant_background_location_content_description),
-                        rationaleTestTag = "setup_perm_background_location_rationale",
-                        grantButtonTestTag = "setup_perm_background_location_grant",
-                        onGrant = {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                backgroundLocationLauncher.launch(
-                                    Manifest.permission.ACCESS_BACKGROUND_LOCATION,
-                                )
-                            }
-                        },
-                    )
-                } else if (state.backgroundLocationGranted && state.needsBackgroundLocationPermission) {
-                    PermissionGrantedBadge()
-                }
             }
         }
 
@@ -306,7 +275,11 @@ fun WhatToCollectStep(
                         grantButtonTestTag = "setup_perm_wifi_grant",
                         onGrant = {
                             val perms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                arrayOf(Manifest.permission.NEARBY_WIFI_DEVICES)
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                                    Manifest.permission.NEARBY_WIFI_DEVICES,
+                                )
                             } else {
                                 arrayOf(
                                     Manifest.permission.ACCESS_FINE_LOCATION,

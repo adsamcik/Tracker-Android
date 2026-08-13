@@ -360,4 +360,9 @@
     <string name="background_reliability_samsung_action">Öppna enhetens batteriinställningar</string>
     <string name="settings_tracebox_title">Kraschdiagnostik</string>
     <string name="settings_tracebox_root_summary">Lokal krasch-, ANR- och strukturdiagnostik</string>
+    <string name="setup_background_location_title">Tillåt plats i bakgrunden för automatisk spårning</string>
+    <string name="setup_background_location_disclosure">Automatisk spårning startar när Tracker körs i bakgrunden och registrerar din rutt även när appens skärm inte är öppen. Platsdata stannar på den här enheten. Välj ”%1$s” i appens platsinställningar.</string>
+    <string name="setup_background_location_open_settings">Öppna platsinställningar</string>
+    <string name="setup_background_location_decline">Inte nu</string>
+    <string name="setup_background_location_manual_only">Manuell spårning i förgrunden är fortfarande tillgänglig. Automatisk platsspårning förblir avstängd tills plats i bakgrunden tillåts.</string>
 </resources>

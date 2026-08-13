@@ -364,4 +364,9 @@
     <string name="background_reliability_samsung_action">Deschide setările bateriei dispozitivului</string>
     <string name="settings_tracebox_title">Diagnosticare a blocărilor</string>
     <string name="settings_tracebox_root_summary">Diagnosticare locală pentru blocări, ANR și structură</string>
+    <string name="setup_background_location_title">Permiteți locația în fundal pentru urmărirea automată</string>
+    <string name="setup_background_location_disclosure">Urmărirea automată pornește când Tracker rulează în fundal și vă înregistrează traseul chiar și atunci când ecranul aplicației nu este deschis. Datele de locație rămân pe acest dispozitiv. În setările de locație ale aplicației, alegeți „%1$s”.</string>
+    <string name="setup_background_location_open_settings">Deschideți setările de locație</string>
+    <string name="setup_background_location_decline">Nu acum</string>
+    <string name="setup_background_location_manual_only">Urmărirea manuală în prim-plan rămâne disponibilă. Urmărirea automată a locației va rămâne oprită până când locația în fundal este permisă.</string>
 </resources>

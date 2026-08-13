@@ -121,13 +121,13 @@ class SetupUiStateTest {
 
         @Test
         fun `wifi permission needed when wifi enabled but not granted`() {
-            val state = SetupUiState(wifiEnabled = true, wifiPermissionGranted = false)
+            val state = SetupUiState(wifiEnabled = true)
             assertTrue(state.needsWifiPermission)
         }
 
         @Test
         fun `wifi permission not needed when wifi disabled`() {
-            val state = SetupUiState(wifiEnabled = false, wifiPermissionGranted = false)
+            val state = SetupUiState(wifiEnabled = false)
             assertFalse(state.needsWifiPermission)
         }
 

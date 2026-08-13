@@ -360,4 +360,9 @@
     <string name="background_reliability_samsung_action">Ouvrir les paramètres de batterie de l’appareil</string>
     <string name="settings_tracebox_title">Diagnostics de plantage</string>
     <string name="settings_tracebox_root_summary">Diagnostics locaux de plantage, d’ANR et de structure</string>
+    <string name="setup_background_location_title">Autoriser la localisation en arrière-plan pour le suivi automatique</string>
+    <string name="setup_background_location_disclosure">Le suivi automatique démarre lorsque Tracker est en arrière-plan et enregistre votre itinéraire même lorsque son écran n’est pas ouvert. La localisation reste sur cet appareil. Dans les paramètres de localisation de l’application, choisissez « %1$s ».</string>
+    <string name="setup_background_location_open_settings">Ouvrir les paramètres de localisation</string>
+    <string name="setup_background_location_decline">Pas maintenant</string>
+    <string name="setup_background_location_manual_only">Le suivi manuel au premier plan reste disponible. Le suivi automatique de la localisation restera désactivé tant que la localisation en arrière-plan ne sera pas autorisée.</string>
 </resources>

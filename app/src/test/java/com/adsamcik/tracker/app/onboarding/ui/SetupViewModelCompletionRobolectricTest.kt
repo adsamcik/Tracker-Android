@@ -9,6 +9,8 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
 import com.adsamcik.tracker.shared.base.extension.hasSelfPermission
 import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
+import com.adsamcik.tracker.shared.base.extension.TrackingPermissionCapabilities
+import com.adsamcik.tracker.shared.base.extension.trackingPermissionCapabilities
 import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesRepository
 import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesState
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
@@ -51,6 +53,7 @@ class SetupViewModelCompletionRobolectricTest {
 	private val onboardingRepository: OnboardingRepository = mockk(relaxed = true)
 	private val activityWatcherController: ActivityWatcherServiceController = mockk(relaxed = true)
 	private val dataRetentionScheduler: DataRetentionScheduler = mockk(relaxed = true)
+	private var currentCapabilities = preciseCapabilities(backgroundGranted = true)
 
 	private val dispatchers = object : DispatchersProvider {
 		override val main: CoroutineDispatcher = testDispatcher
@@ -64,8 +67,11 @@ class SetupViewModelCompletionRobolectricTest {
 		Dispatchers.setMain(testDispatcher)
 		appContext = ApplicationProvider.getApplicationContext()
 		paramsFlow.value = TrackingParamsState()
+		currentCapabilities = preciseCapabilities(backgroundGranted = true)
 		mockkStatic("com.adsamcik.tracker.shared.base.extension.ContextExtensionsKt")
+		mockkStatic("com.adsamcik.tracker.shared.base.extension.TrackingPermissionCapabilitiesKt")
 		every { appContext.hasSelfPermission(any()) } returns true
+		every { appContext.trackingPermissionCapabilities(any()) } answers { currentCapabilities }
 		every { appContext.hasPressureSensor } returns true
 		every { appContext.hasStepCounterSensor } returns true
 		every { trackingParamsRepository.data } returns paramsFlow
@@ -86,6 +92,7 @@ class SetupViewModelCompletionRobolectricTest {
 	fun tearDown() {
 		Dispatchers.resetMain()
 		unmockkStatic("com.adsamcik.tracker.shared.base.extension.ContextExtensionsKt")
+		unmockkStatic("com.adsamcik.tracker.shared.base.extension.TrackingPermissionCapabilitiesKt")
 	}
 
 	@Test
@@ -125,4 +132,44 @@ class SetupViewModelCompletionRobolectricTest {
 		state.preset shouldBe TrackingPreset.HIGH_ACCURACY
 		onlineTilesFlow.value.enabled shouldBe true
 	}
+
+	@Test
+	fun `declined background access preserves manual location and disables automatic mode`() =
+		runTest(testDispatcher) {
+			currentCapabilities = preciseCapabilities(backgroundGranted = false)
+			val vm = SetupViewModel(
+				appContext = appContext,
+				savedStateHandle = SavedStateHandle(),
+				dispatchers = dispatchers,
+				onboardingRepository = onboardingRepository,
+				activityWatcherController = activityWatcherController,
+				dataRetentionScheduler = dataRetentionScheduler,
+				trackingParamsRepository = trackingParamsRepository,
+				onlineMapTilesRepository = onlineMapTilesRepository,
+			)
+			vm.setLocationEnabled(true)
+			vm.setAutoTrackingMode(2)
+			vm.onActivityPermissionResult(true)
+			vm.declineBackgroundLocation()
+
+			vm.completeSetup { }
+			advanceUntilIdle()
+
+			paramsFlow.value.locationEnabled shouldBe true
+			paramsFlow.value.autoTrackingMode shouldBe 0
+			vm.state.value.backgroundLocationDeclined shouldBe true
+			vm.state.value.manualLocationOnly shouldBe true
+		}
 }
+
+private fun preciseCapabilities(backgroundGranted: Boolean) =
+	TrackingPermissionCapabilities.evaluate(
+		apiLevel = 34,
+		locationFeatureAvailable = true,
+		wifiFeatureAvailable = true,
+		locationServicesEnabled = true,
+		coarseLocationGranted = true,
+		preciseLocationGranted = true,
+		backgroundLocationGranted = backgroundGranted,
+		nearbyWifiGranted = true,
+	)

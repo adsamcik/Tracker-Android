@@ -364,4 +364,9 @@
     <string name="background_reliability_samsung_action">Atidaryti įrenginio akumuliatoriaus nustatymus</string>
     <string name="settings_tracebox_title">Strigčių diagnostika</string>
     <string name="settings_tracebox_root_summary">Vietinė strigčių, ANR ir struktūrinė diagnostika</string>
+    <string name="setup_background_location_title">Leisti vietovę fone automatiniam sekimui</string>
+    <string name="setup_background_location_disclosure">Automatinis sekimas pradedamas, kai Tracker veikia fone, ir įrašo jūsų maršrutą net tada, kai programos ekranas neatidarytas. Vietovės duomenys lieka šiame įrenginyje. Programos vietovės nustatymuose pasirinkite „%1$s“.</string>
+    <string name="setup_background_location_open_settings">Atidaryti vietovės nustatymus</string>
+    <string name="setup_background_location_decline">Ne dabar</string>
+    <string name="setup_background_location_manual_only">Rankinis sekimas priekiniame plane lieka pasiekiamas. Automatinis vietovės sekimas liks išjungtas, kol nebus leista vietovė fone.</string>
 </resources>

@@ -360,4 +360,9 @@
     <string name="background_reliability_samsung_action">Отваряне на настройките за батерията на устройството</string>
     <string name="settings_tracebox_title">Диагностика при сривове</string>
     <string name="settings_tracebox_root_summary">Локална диагностика на сривове, ANR и структура</string>
+    <string name="setup_background_location_title">Разрешете местоположението във фонов режим за автоматично проследяване</string>
+    <string name="setup_background_location_disclosure">Автоматичното проследяване започва, докато Tracker е във фонов режим, и записва маршрута ви дори когато екранът му не е отворен. Местоположението остава на това устройство. В настройките за местоположение на приложението изберете „%1$s“.</string>
+    <string name="setup_background_location_open_settings">Отваряне на настройките за местоположение</string>
+    <string name="setup_background_location_decline">Не сега</string>
+    <string name="setup_background_location_manual_only">Ръчното проследяване на преден план остава достъпно. Автоматичното проследяване на местоположението ще остане изключено, докато местоположението във фонов режим не бъде разрешено.</string>
 </resources>

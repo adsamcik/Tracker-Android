@@ -89,6 +89,50 @@ class BackgroundTrackingApiLogicTest {
 	}
 
 	@Nested
+	@DisplayName("automatic start eligibility")
+	inner class AutomaticStartEligibility {
+		@Test
+		fun `configured location requires background access for an automatic start`() {
+			val params = TrackingParamsState(locationEnabled = true)
+
+			isAutomaticStartEligible(
+				params = params,
+				locationAvailable = true,
+				backgroundLocationAvailable = false,
+			) shouldBe false
+		}
+
+		@Test
+		fun `background location grant permits an automatic location start`() {
+			val params = TrackingParamsState(locationEnabled = true)
+
+			isAutomaticStartEligible(
+				params = params,
+				locationAvailable = true,
+				backgroundLocationAvailable = true,
+			) shouldBe true
+		}
+
+		@Test
+		fun `manual-only location does not block an automatic non-location plan`() {
+			val params = TrackingParamsState(
+				locationEnabled = false,
+				activityEnabled = true,
+				stepsEnabled = false,
+				wifiEnabled = false,
+				cellEnabled = false,
+				barometerEnabled = false,
+			)
+
+			isAutomaticStartEligible(
+				params = params,
+				locationAvailable = true,
+				backgroundLocationAvailable = false,
+			) shouldBe true
+		}
+	}
+
+	@Nested
 	@DisplayName("canBackgroundTrackWithParams")
 	inner class CanBackgroundTrackWithParams {
 		@Test

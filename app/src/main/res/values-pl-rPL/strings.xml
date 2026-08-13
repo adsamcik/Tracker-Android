@@ -368,4 +368,9 @@
     <string name="background_reliability_samsung_action">Otwórz ustawienia baterii urządzenia</string>
     <string name="settings_tracebox_title">Diagnostyka awarii</string>
     <string name="settings_tracebox_root_summary">Lokalna diagnostyka awarii, ANR i struktury</string>
+    <string name="setup_background_location_title">Zezwól na lokalizację w tle dla automatycznego śledzenia</string>
+    <string name="setup_background_location_disclosure">Automatyczne śledzenie uruchamia się, gdy Tracker działa w tle, i zapisuje trasę nawet wtedy, gdy ekran aplikacji nie jest otwarty. Dane lokalizacji pozostają na tym urządzeniu. W ustawieniach lokalizacji aplikacji wybierz „%1$s”.</string>
+    <string name="setup_background_location_open_settings">Otwórz ustawienia lokalizacji</string>
+    <string name="setup_background_location_decline">Nie teraz</string>
+    <string name="setup_background_location_manual_only">Ręczne śledzenie na pierwszym planie pozostaje dostępne. Automatyczne śledzenie lokalizacji pozostanie wyłączone do czasu zezwolenia na lokalizację w tle.</string>
 </resources>
