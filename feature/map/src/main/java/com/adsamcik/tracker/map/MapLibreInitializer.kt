@@ -5,6 +5,7 @@ import android.os.StrictMode
 import androidx.annotation.VisibleForTesting
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import dev.tracebox.Tracebox
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.MainCoroutineDispatcher
 import kotlinx.coroutines.withContext
@@ -14,6 +15,32 @@ import kotlinx.coroutines.flow.asStateFlow
 import okhttp3.Call
 import org.maplibre.android.MapLibre
 import org.maplibre.android.module.http.HttpRequestUtil
+
+/** Result of requesting installation of MapLibre's process-wide HTTP factory. */
+sealed interface MapLibreHttpFactoryInstallResult {
+    /** The SDK must initialize before MapLibre permits installing the factory. */
+    data object PendingSdkInitialization : MapLibreHttpFactoryInstallResult
+
+    sealed interface Success : MapLibreHttpFactoryInstallResult
+
+    /** The requested factory was installed by this call. */
+    data object Installed : Success
+
+    /** The exact requested factory was already installed. */
+    data object AlreadyInstalled : Success
+
+    /** Installation failed and MapLibre online networking remains disabled. */
+    data class Failure(
+        val reason: MapLibreHttpFactoryFailureReason,
+    ) : MapLibreHttpFactoryInstallResult
+}
+
+/** Privacy-safe failure categories. No exception message, URL, or host is retained. */
+enum class MapLibreHttpFactoryFailureReason(internal val diagnosticCode: String) {
+    FACTORY_ABSENT("factory_absent"),
+    LINKAGE_ERROR("linkage_error"),
+    INSTALLATION_EXCEPTION("installation_exception"),
+}
 
 /**
  * Initializes the MapLibre SDK on the UI thread before the map composable renders.
@@ -45,10 +72,25 @@ import org.maplibre.android.module.http.HttpRequestUtil
  */
 object MapLibreInitializer {
 
-    private val _isReady = MutableStateFlow(false)
+    private val _isSdkReady = MutableStateFlow(false)
 
-    /** Observe to gate the [org.maplibre.compose.map.MaplibreMap] composable. */
-    val isReady: StateFlow<Boolean> = _isReady.asStateFlow()
+    /** Observe to gate SDK-backed rendering, including fully offline maps. */
+    val isSdkReady: StateFlow<Boolean> = _isSdkReady.asStateFlow()
+
+    private val _isOnlineReady = MutableStateFlow(false)
+
+    /**
+     * True only after MapLibre has accepted the NetworkGateway-controlled factory.
+     * Online styles must never be selected while this is false.
+     */
+    val isOnlineReady: StateFlow<Boolean> = _isOnlineReady.asStateFlow()
+
+    private val _lastHttpCallFactoryFailure =
+        MutableStateFlow<MapLibreHttpFactoryFailureReason?>(null)
+
+    /** Latest privacy-safe installation diagnostic, cleared after a successful install. */
+    val lastHttpCallFactoryFailure: StateFlow<MapLibreHttpFactoryFailureReason?> =
+        _lastHttpCallFactoryFailure.asStateFlow()
 
     @Volatile
     private var initialized = false
@@ -67,8 +109,8 @@ object MapLibreInitializer {
      * traffic shares the gateway's interceptor chain (kill switch, allowlist,
      * rate limit).
      *
-     * Idempotent — safe to call from multiple call sites; a `null` argument
-     * is a no-op (does not unregister an already-set factory).
+     * Idempotent — safe to call from multiple call sites. A `null` argument is
+     * an explicit fail-closed result and never enables MapLibre networking.
      *
      * # Ordering relative to [initialize]
      *
@@ -89,23 +131,52 @@ object MapLibreInitializer {
      * allowlist / rate limit) is silently bypassed for the entire map
      * subsystem (R7 emulator finding: maplibre-init-order).
      */
-    fun setHttpCallFactory(callFactory: Call.Factory?) {
-        if (callFactory == null) return
+    fun setHttpCallFactory(callFactory: Call.Factory?): MapLibreHttpFactoryInstallResult =
         synchronized(this) {
-            if (registeredCallFactory === callFactory) return
+            if (callFactory == null) {
+                pendingCallFactory = null
+                return@synchronized recordInstallationFailureLocked(
+                    MapLibreHttpFactoryFailureReason.FACTORY_ABSENT,
+                )
+            }
+            if (registeredCallFactory === callFactory) {
+                _isOnlineReady.value = true
+                _lastHttpCallFactoryFailure.value = null
+                return@synchronized MapLibreHttpFactoryInstallResult.AlreadyInstalled
+            }
+            pendingCallFactory = callFactory
+            _isOnlineReady.value = false
             if (!initialized) {
                 // MapLibre.getInstance() hasn't run yet. Eager
                 // HttpRequestUtil.setOkHttpClient would touch
                 // HttpRequestImpl.<clinit> -> MapLibre.validateMapLibre() ->
                 // MapLibreConfigurationException. Defer until initialize().
-                pendingCallFactory = callFactory
-                return
+                return@synchronized MapLibreHttpFactoryInstallResult.PendingSdkInitialization
             }
             applyCallFactoryLocked(callFactory)
         }
+
+    /** Retry the most recently requested factory without changing its identity. */
+    fun retryHttpCallFactoryInstallation(): MapLibreHttpFactoryInstallResult = synchronized(this) {
+        val pending = pendingCallFactory
+        if (pending == null) {
+            return@synchronized if (registeredCallFactory != null) {
+                _isOnlineReady.value = true
+                _lastHttpCallFactoryFailure.value = null
+                MapLibreHttpFactoryInstallResult.AlreadyInstalled
+            } else {
+                recordInstallationFailureLocked(MapLibreHttpFactoryFailureReason.FACTORY_ABSENT)
+            }
+        }
+        if (!initialized) {
+            return@synchronized MapLibreHttpFactoryInstallResult.PendingSdkInitialization
+        }
+        applyCallFactoryLocked(pending)
     }
 
-    private fun applyCallFactoryLocked(callFactory: Call.Factory) {
+    private fun applyCallFactoryLocked(
+        callFactory: Call.Factory,
+    ): MapLibreHttpFactoryInstallResult =
         try {
             HttpRequestUtil.setOkHttpClient(callFactory)
             // Only record the factory as registered AFTER the static setter
@@ -118,16 +189,25 @@ object MapLibreInitializer {
             // replaced (R3 round 7 finding: mapinit-factory-record-order).
             registeredCallFactory = callFactory
             if (pendingCallFactory === callFactory) pendingCallFactory = null
+            _isOnlineReady.value = true
+            _lastHttpCallFactoryFailure.value = null
+            MapLibreHttpFactoryInstallResult.Installed
         } catch (_: LinkageError) {
-            // Same JVM-without-native-lib path as initialize(); on Robolectric
-            // unit tests both UnsatisfiedLinkError and NoClassDefFoundError can
-            // surface when MapLibre's native HTTP impl class can't link. The
-            // production path always has the native lib loaded -- silent skip
-            // is the right behavior in tests.
-            return
+            recordInstallationFailureLocked(MapLibreHttpFactoryFailureReason.LINKAGE_ERROR)
         } catch (_: Exception) {
-            return
+            recordInstallationFailureLocked(MapLibreHttpFactoryFailureReason.INSTALLATION_EXCEPTION)
         }
+
+    private fun recordInstallationFailureLocked(
+        reason: MapLibreHttpFactoryFailureReason,
+    ): MapLibreHttpFactoryInstallResult.Failure {
+        _isOnlineReady.value = false
+        _lastHttpCallFactoryFailure.value = reason
+        Tracebox.log.error(
+            "MapLibre gateway HTTP factory installation failed; " +
+                "online networking remains disabled (${reason.diagnosticCode})",
+        )
+        return MapLibreHttpFactoryInstallResult.Failure(reason)
     }
 
     suspend fun initialize(
@@ -156,7 +236,6 @@ object MapLibreInitializer {
                         StrictMode.setThreadPolicy(previousPolicy)
                     }
                     initialized = true
-                    _isReady.value = true
                     // Apply any factory that was stashed by setHttpCallFactory
                     // calls that ran before MapLibre was bootstrapped.
                     // Without this, the NetworkPolicyAggregator wired up in
@@ -167,6 +246,9 @@ object MapLibreInitializer {
                     if (pending != null && registeredCallFactory !== pending) {
                         applyCallFactoryLocked(pending)
                     }
+                    // SDK readiness is intentionally independent from network readiness so
+                    // bundled and user-imported PMTiles keep working when installation fails.
+                    _isSdkReady.value = true
                     true
                 } catch (_: UnsatisfiedLinkError) {
                     false
@@ -184,7 +266,9 @@ object MapLibreInitializer {
     internal fun reset() {
         synchronized(this) {
             initialized = false
-            _isReady.value = false
+            _isSdkReady.value = false
+            _isOnlineReady.value = false
+            _lastHttpCallFactoryFailure.value = null
             registeredCallFactory = null
             pendingCallFactory = null
         }

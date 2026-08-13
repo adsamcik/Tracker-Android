@@ -93,7 +93,7 @@ fun TripRouteMapPreview(
 	val context = LocalContext.current
 	val isDark = isSystemInDarkTheme()
 
-	val mapLibreReady by MapLibreInitializer.isReady.collectAsState()
+	val mapLibreSdkReady by MapLibreInitializer.isSdkReady.collectAsState()
 	val prefs = remember { Preferences(context) }
 	val customPath by prefs.observeString(MapPreferenceKeys.BASEMAP_PATH, "")
 		.collectAsState(initial = "")
@@ -103,7 +103,7 @@ fun TripRouteMapPreview(
 	var mapLoadFailed by remember { mutableStateOf(false) }
 
 	LaunchedEffect(Unit) {
-		if (!mapLibreReady) {
+		if (!mapLibreSdkReady) {
 			MapLibreInitializer.initialize(context.applicationContext)
 		}
 		try {
@@ -204,7 +204,7 @@ fun TripRouteMapPreview(
 		when (
 			tripPreviewContentState(
 				hasBaseStyle = baseStyle != null,
-				mapLibreReady = mapLibreReady,
+				mapLibreReady = mapLibreSdkReady,
 				routePointCount = routeCoords.size,
 				preparingBasemap = preparingBasemap,
 				mapLoadFailed = mapLoadFailed,
