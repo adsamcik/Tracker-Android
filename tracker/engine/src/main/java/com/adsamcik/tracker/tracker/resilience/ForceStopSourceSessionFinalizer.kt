@@ -22,9 +22,16 @@ class ForceStopSourceSessionFinalizer @Inject constructor(
 		require(completedAtMs >= 0L) { "completedAtMs must not be negative" }
 		val database = databaseProvider.get()
 		return database.withTransaction {
+			// The user-visible run is a separate projection from the source-session lifecycle. It
+			// can remain open when shutdown cleared the recovery descriptor just before process death.
+			val trackerRunsClosed = database.trackerRunDao().closeOpenRuns(completedAtMs)
 			val dao = database.sourceSessionDao()
 			val session = dao.activeSession()
-				?: return@withTransaction ForceStopSourceSessionFinalization.NO_ACTIVE_SESSION
+				?: return@withTransaction if (trackerRunsClosed > 0) {
+					ForceStopSourceSessionFinalization.FINALIZED
+				} else {
+					ForceStopSourceSessionFinalization.NO_ACTIVE_SESSION
+				}
 
 			dao.incompleteServiceRuns(session.logicalTrackingId).forEach { run ->
 				check(

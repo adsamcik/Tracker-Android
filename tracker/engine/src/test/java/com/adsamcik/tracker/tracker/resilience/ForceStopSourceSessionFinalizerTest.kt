@@ -3,8 +3,10 @@ package com.adsamcik.tracker.tracker.resilience
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.database.data.TrackerRun
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.source.coordinator.SessionLifecycleState
 import io.kotest.matchers.shouldBe
@@ -39,6 +41,7 @@ class ForceStopSourceSessionFinalizerTest {
 			store,
 			NoOpDrainScheduler,
 			finalizer(),
+			noPendingSignalProvider(),
 		)
 
 		coordinator.suppressAfterForceStop(completedAtMs = 5_000L) shouldBe
@@ -69,6 +72,7 @@ class ForceStopSourceSessionFinalizerTest {
 			store,
 			NoOpDrainScheduler,
 			finalizer(),
+			noPendingSignalProvider(),
 		)
 
 		coordinator.suppressAfterForceStop(completedAtMs = 5_000L) shouldBe
@@ -128,6 +132,25 @@ class ForceStopSourceSessionFinalizerTest {
 		finalizer.finalize(completedAtMs = 5_000L) shouldBe
 			ForceStopSourceSessionFinalization.NO_ACTIVE_SESSION
 		providerCalls shouldBe 1
+	}
+
+	@Test
+	fun `force-stop closes orphan tracker run even when source session already stopped`() = runTest {
+		database.trackerRunDao().insert(
+			TrackerRun(
+				startTimeMs = 1_000L,
+				endTimeMs = null,
+				policy = "PRECISION",
+				policyParams = null,
+				userInitiated = true,
+				createdAt = 1_000L,
+			),
+		)
+
+		finalizer().finalize(completedAtMs = 5_000L) shouldBe
+			ForceStopSourceSessionFinalization.FINALIZED
+		database.trackerRunDao().countOpenRuns() shouldBe 0
+		database.trackerRunDao().getLatestCompletedRun()?.endTimeMs shouldBe 5_000L
 	}
 
 	private suspend fun insertRunningSession() {
@@ -215,6 +238,9 @@ class ForceStopSourceSessionFinalizerTest {
 	private object NoOpDrainScheduler : PendingSignalDrainScheduler {
 		override fun enqueueExpedited() = Unit
 	}
+
+	private fun noPendingSignalProvider(): Provider<PendingSignalDao> =
+		Provider { database.pendingSignalDao() }
 
 	private companion object {
 		const val LOGICAL_ID = "force-stopped-logical-session"

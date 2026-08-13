@@ -1,7 +1,9 @@
 package com.adsamcik.tracker.tracker.resilience
 
 import android.app.ApplicationExitInfo
+import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 
 enum class PreviousExitRecoveryAction {
@@ -23,6 +25,7 @@ class PreviousExitRecoveryCoordinator @Inject constructor(
 	private val activeSessionStore: ActiveTrackingSessionStore,
 	private val pendingSignalDrainScheduler: PendingSignalDrainScheduler,
 	private val forceStopSourceSessionFinalizer: ForceStopSourceSessionFinalizer,
+	private val pendingSignalDaoProvider: Provider<PendingSignalDao>,
 ) {
 	suspend fun handle(reason: Int): PreviousExitRecoveryAction {
 		val action = recoveryActionForExitReason(reason)
@@ -32,6 +35,19 @@ class PreviousExitRecoveryCoordinator @Inject constructor(
 			PreviousExitRecoveryAction.NONE -> Unit
 		}
 		return action
+	}
+
+	/**
+	 * Reconciles durable persistence independently of the prior process-exit classification.
+	 *
+	 * Android reports a user force-stop and an in-app/adb process stop through paths where automatic
+	 * tracking recovery must remain suppressed. Already-admitted WAL rows are different: replaying
+	 * them only completes committed storage work and never restarts collection.
+	 */
+	suspend fun enqueueDrainIfPending(): Boolean {
+		if (!pendingSignalDaoProvider.get().hasAny()) return false
+		pendingSignalDrainScheduler.enqueueExpedited()
+		return true
 	}
 
 	suspend fun suppressAfterForceStop(

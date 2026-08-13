@@ -262,7 +262,8 @@ class Application : AndroidApplication(), Configuration.Provider {
 	@WorkerThread
 	private suspend fun applyStartupRecovery(
 		action: ApplicationStartupRecoveryAction,
-	): PreviousExitRecoveryAction = when (action) {
+	): PreviousExitRecoveryAction {
+		val result = when (action) {
 			is ApplicationStartupRecoveryAction.ConfirmedForceStop -> {
 				previousExitRecoveryCoordinator.suppressAfterForceStop(action.completedAtMs)
 				PreviousExitRecoveryAction.NONE
@@ -270,6 +271,11 @@ class Application : AndroidApplication(), Configuration.Provider {
 			is ApplicationStartupRecoveryAction.PreviousExit ->
 				previousExitRecoveryCoordinator.handle(action.reason)
 			ApplicationStartupRecoveryAction.None -> PreviousExitRecoveryAction.NONE
+		}
+		// A force-stop suppresses new collection, not completion of WAL rows that were already
+		// durably admitted. This also covers missing/ambiguous historical exit records.
+		previousExitRecoveryCoordinator.enqueueDrainIfPending()
+		return result
 	}
 
 	@WorkerThread

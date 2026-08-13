@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.resilience
 
 import android.app.ApplicationExitInfo
+import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.stats.api.PolicyTier
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
@@ -8,6 +9,7 @@ import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
+import javax.inject.Provider
 
 class PreviousExitRecoveryCoordinatorTest {
 	@Test
@@ -17,7 +19,12 @@ class PreviousExitRecoveryCoordinatorTest {
 		val finalizer = mockk<ForceStopSourceSessionFinalizer>(relaxed = true)
 		coEvery { finalizer.finalize(any()) } returns
 			ForceStopSourceSessionFinalization.NO_ACTIVE_SESSION
-		val coordinator = PreviousExitRecoveryCoordinator(store, scheduler, finalizer)
+		val coordinator = PreviousExitRecoveryCoordinator(
+			store,
+			scheduler,
+			finalizer,
+			pendingSignalProvider(false),
+		)
 
 		listOf(
 			ApplicationExitInfo.REASON_LOW_MEMORY,
@@ -41,7 +48,12 @@ class PreviousExitRecoveryCoordinatorTest {
 		val finalizer = mockk<ForceStopSourceSessionFinalizer>(relaxed = true)
 		coEvery { finalizer.finalize(any()) } returns
 			ForceStopSourceSessionFinalization.NO_ACTIVE_SESSION
-		val coordinator = PreviousExitRecoveryCoordinator(store, scheduler, finalizer)
+		val coordinator = PreviousExitRecoveryCoordinator(
+			store,
+			scheduler,
+			finalizer,
+			pendingSignalProvider(false),
+		)
 
 		coordinator.handle(ApplicationExitInfo.REASON_USER_REQUESTED) shouldBe
 			PreviousExitRecoveryAction.NONE
@@ -49,6 +61,26 @@ class PreviousExitRecoveryCoordinatorTest {
 		store.clearCount shouldBe 0
 		scheduler.enqueueCount shouldBe 0
 		coVerify(exactly = 0) { finalizer.finalize(any()) }
+	}
+
+	@Test
+	fun `pending WAL is drained even when exit classification suppresses tracking recovery`() = runTest {
+		val store = RecordingStore()
+		val scheduler = RecordingScheduler()
+		val finalizer = mockk<ForceStopSourceSessionFinalizer>(relaxed = true)
+		val coordinator = PreviousExitRecoveryCoordinator(
+			store,
+			scheduler,
+			finalizer,
+			pendingSignalProvider(true),
+		)
+
+		coordinator.handle(ApplicationExitInfo.REASON_USER_REQUESTED) shouldBe
+			PreviousExitRecoveryAction.NONE
+		scheduler.enqueueCount shouldBe 0
+
+		coordinator.enqueueDrainIfPending() shouldBe true
+		scheduler.enqueueCount shouldBe 1
 	}
 
 	@Test
@@ -61,6 +93,12 @@ class PreviousExitRecoveryCoordinatorTest {
 		override fun enqueueExpedited() {
 			enqueueCount++
 		}
+	}
+
+	private fun pendingSignalProvider(hasPending: Boolean): Provider<PendingSignalDao> {
+		val dao = mockk<PendingSignalDao>()
+		coEvery { dao.hasAny() } returns hasPending
+		return Provider { dao }
 	}
 
 	private class RecordingStore : ActiveTrackingSessionStore {
