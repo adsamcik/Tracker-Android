@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.map
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.StrictMode
 import android.util.Log
@@ -198,6 +199,7 @@ object MapLibreInitializer {
             recordInstallationFailureLocked(MapLibreHttpFactoryFailureReason.INSTALLATION_EXCEPTION)
         }
 
+    @SuppressLint("LogNotTimber")
     private fun recordInstallationFailureLocked(
         reason: MapLibreHttpFactoryFailureReason,
     ): MapLibreHttpFactoryInstallResult.Failure {
