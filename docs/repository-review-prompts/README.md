@@ -1,9 +1,10 @@
 # Tracker Android Repository Review Prompt Pack
 
-This pack contains standalone prompts for independent agents reviewing
-`adsamcik/Tracker-Android` through GitHub. The agents do not need a local clone,
-shell, Android SDK, emulator, or write access. They may use official web
-documentation when the specialist prompt calls for current external standards.
+This pack contains standalone prompts for independent agents reviewing the
+[`dev/v10` branch of `adsamcik/Tracker-Android`](https://github.com/adsamcik/Tracker-Android/tree/dev/v10)
+through GitHub. The agents do not need a local clone, shell, Android SDK,
+emulator, or write access. They may use official web documentation when the
+specialist prompt calls for current external standards.
 
 ## Prompts
 
@@ -18,16 +19,16 @@ documentation when the specialist prompt calls for current external standards.
 
 ## How to use the pack
 
-Give each specialist agent exactly one prompt. Replace these variables before
-dispatching it:
+Give each specialist agent exactly one prompt. The repository and branch are
+already fixed to `https://github.com/adsamcik/Tracker-Android` and `dev/v10`.
+Replace `{{AS_OF_DATE}}` with the review date, or instruct the agent to fill it
+with the date on which the review begins.
 
-- `{{REPOSITORY}}`: normally `adsamcik/Tracker-Android`
-- `{{REF}}`: the exact branch, tag, or commit to review
-- `{{AS_OF_DATE}}`: the date on which the review is run
-
-Always prefer an immutable commit SHA for `{{REF}}`. If starting from a branch,
-the prompt requires the agent to resolve that branch to a SHA and use SHA-pinned
-GitHub permalinks throughout the report.
+Each specialist must resolve `refs/heads/dev/v10` from GitHub at the start of
+its review and report the resulting immutable commit SHA. Dispatch the agents
+close together and confirm that they resolved the same SHA before synthesis. If
+the branch advances between reviews, rerun the out-of-date reviews or explicitly
+pin a coordinated run to one SHA; do not combine findings from different trees.
 
 Run the seven specialist reviews independently. Then give their complete reports
 to the synthesis agent with the synthesis prompt. Keeping the reviews independent
@@ -37,12 +38,14 @@ conflicts and removing duplicates.
 ## Important GitHub baseline note
 
 The prompt pack was tailored after inspecting the local repository on
-2026-08-13. At that time, local `dev/v10` was 12 commits ahead of
-`origin/dev/v10` (`5e223d54d2487fe168f036b6437d5710e8f7b669` locally versus
-`f0469c384670bb125fdb24d3b8cb00def1cf4c1c` upstream). A GitHub-only agent
-cannot review commits that have not been pushed. Push the intended review ref
-before dispatching the agents; never let an agent silently fall back to another
-branch.
+2026-08-13. A direct GitHub remote check on that date resolved
+`refs/heads/dev/v10` to
+`f0469c384670bb125fdb24d3b8cb00def1cf4c1c`. That SHA is a verification record,
+not a permanent pin: reviewers must resolve the branch again when they start.
+A GitHub-only agent cannot review local commits or working-tree changes that
+have not been pushed to `dev/v10`, including this prompt pack until it is
+published. Never let an agent silently fall back to the default branch, another
+ref, a pull-request head, or a cached/local checkout.
 
 ## Repository context supplied for orientation
 

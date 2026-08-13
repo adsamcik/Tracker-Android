@@ -2,9 +2,9 @@
 
 ## Assignment
 
-Repository: `{{REPOSITORY}}`
+Repository: `https://github.com/adsamcik/Tracker-Android`
 
-Requested ref: `{{REF}}`
+GitHub branch: `dev/v10` (`refs/heads/dev/v10`)
 
 Synthesis date: `{{AS_OF_DATE}}`
 
@@ -25,8 +25,10 @@ post reviews, open issues, rerun workflows, or invent missing evidence.
 
 ## Synthesis contract
 
-- Confirm that all reports reviewed the same repository commit SHA. If not, stop
-  and list the mismatches; findings from different revisions must not be merged.
+- Confirm that every report reviewed `refs/heads/dev/v10` from the specified
+  GitHub repository and that all reports resolved it to the same commit SHA. If
+  not, stop and list the mismatches; findings from different revisions must not
+  be merged.
 - Preserve immutable GitHub and official-source links. Open the most important or
   disputed sources yourself before accepting a claim.
 - Deduplicate by root cause, not wording. A missing CI gate, stale instruction,

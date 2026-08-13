@@ -2,9 +2,9 @@
 
 ## Assignment
 
-Repository: `{{REPOSITORY}}`
+Repository: `https://github.com/adsamcik/Tracker-Android`
 
-Requested ref: `{{REF}}`
+GitHub branch: `dev/v10` (`refs/heads/dev/v10`)
 
 Review date: `{{AS_OF_DATE}}`
 
@@ -17,12 +17,15 @@ issues/comments.
 
 ## GitHub-only operating contract
 
-Resolve the requested ref to an immutable SHA. Cite opened test and production
-files with SHA-pinned line permalinks. Inspect corresponding production behavior
-for every sampled test; a test cannot be judged from its name alone. Use recent
-Actions results only if accessible and cite their URLs. Do not claim tests pass,
-fail, are flaky, or cover runtime behavior without execution evidence. Mark such
-claims `unverified` and specify the needed run.
+Resolve `refs/heads/dev/v10` in the specified GitHub repository to an immutable
+SHA at review start. If unavailable, stop. Never substitute the default branch,
+another ref, a pull-request head, a cached snapshot, or a local checkout. Cite
+opened test and production files with SHA-pinned line permalinks. Inspect
+corresponding production behavior for every sampled test; a test cannot be
+judged from its name alone. Use recent Actions results only if accessible and
+cite their URLs. Do not claim tests pass, fail, are flaky, or cover runtime
+behavior without execution evidence. Mark such claims `unverified` and specify
+the needed run.
 
 ## Repository-specific review scope
 

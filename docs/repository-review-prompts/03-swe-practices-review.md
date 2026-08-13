@@ -2,9 +2,9 @@
 
 ## Assignment
 
-Repository: `{{REPOSITORY}}`
+Repository: `https://github.com/adsamcik/Tracker-Android`
 
-Requested ref: `{{REF}}`
+GitHub branch: `dev/v10` (`refs/heads/dev/v10`)
 
 Review date: `{{AS_OF_DATE}}`
 
@@ -16,12 +16,14 @@ settings, issues, pull requests, releases, or branch protections.
 
 ## GitHub-only operating contract
 
-Resolve the requested ref to an immutable SHA and use SHA-pinned blob permalinks.
+Resolve `refs/heads/dev/v10` in the specified GitHub repository to an immutable
+SHA at review start and use SHA-pinned blob permalinks. If unavailable, stop.
 Use GitHub history, pull requests, issues, releases, Actions/check metadata, and
 repository settings only when permissions expose them. If branch protection,
 environments, rulesets, secret scanning, or security settings are inaccessible,
 mark them `unverified`; absence from the tree is not proof that a GitHub setting
-is disabled. Never substitute another ref and never claim to have run local
+is disabled. Never substitute the default branch, another ref, a pull-request
+head, a cached snapshot, or a local checkout, and never claim to have run local
 commands.
 
 Evaluate practices relative to this product's risks: private location/activity

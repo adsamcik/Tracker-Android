@@ -2,9 +2,9 @@
 
 ## Assignment
 
-Repository: `{{REPOSITORY}}`
+Repository: `https://github.com/adsamcik/Tracker-Android`
 
-Requested ref: `{{REF}}`
+GitHub branch: `dev/v10` (`refs/heads/dev/v10`)
 
 Review date: `{{AS_OF_DATE}}`
 
@@ -17,8 +17,10 @@ incremental correction is inadequate.
 
 ## GitHub-only operating contract
 
-1. Resolve `{{REF}}` to one immutable commit SHA. If the ref is unavailable, stop
-   and report that exact blocker; never substitute the default branch.
+1. Resolve `refs/heads/dev/v10` in the specified GitHub repository to one
+   immutable commit SHA at review start. If the branch is unavailable, stop and
+   report that exact blocker. Never substitute the default branch, another ref,
+   a pull-request head, a cached snapshot, or a local checkout.
 2. Use GitHub repository reads, code search, commit/PR history, and dependency
    metadata only. You may inspect public upstream documentation when needed, but
    all claims about this codebase must be supported by the selected commit.
@@ -89,7 +91,7 @@ size reflects justified orchestration or mixed ownership.
 
 Return a Markdown report with these sections:
 
-1. **Review metadata** — repository, requested ref, resolved SHA, review date,
+1. **Review metadata** — repository, branch, resolved SHA, review date,
    evidence sources available, and GitHub-only limitations.
 2. **Architecture verdict** — one paragraph and a score from 0 to 5. Define the
    score in repository terms; do not compute it from finding counts.

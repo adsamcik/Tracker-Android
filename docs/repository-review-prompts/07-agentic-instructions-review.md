@@ -2,9 +2,9 @@
 
 ## Assignment
 
-Repository: `{{REPOSITORY}}`
+Repository: `https://github.com/adsamcik/Tracker-Android`
 
-Requested ref: `{{REF}}`
+GitHub branch: `dev/v10` (`refs/heads/dev/v10`)
 
 Review date: `{{AS_OF_DATE}}`
 
@@ -17,13 +17,16 @@ their side-effecting workflows.
 
 ## GitHub-only operating contract
 
-Resolve `{{REF}}` to an immutable SHA and cite opened files with SHA-pinned line
-permalinks. Use current first-party documentation for each claimed instruction
-mechanism or file convention (for example GitHub Copilot, Codex/AGENTS.md, or an
-Agent Skills specification). Do not assume that a plausible filename is
-automatically loaded. Do not execute emulator/QC orchestration, dispatch agents,
-post GitHub comments, or create files. Treat model names, tool names, and product
-capabilities as time-sensitive.
+Resolve `refs/heads/dev/v10` in the specified GitHub repository to an immutable
+SHA at review start and cite opened files with SHA-pinned line permalinks. If the
+branch is unavailable, stop. Never substitute the default branch, another ref,
+a pull-request head, a cached snapshot, or a local checkout. Use current
+first-party documentation for each claimed instruction mechanism or file
+convention (for example GitHub Copilot, Codex/AGENTS.md, or an Agent Skills
+specification). Do not assume that a plausible filename is automatically loaded.
+Do not execute emulator/QC orchestration, dispatch agents, post GitHub comments,
+or create files. Treat model names, tool names, and product capabilities as
+time-sensitive.
 
 ## Repository-specific inventory
 

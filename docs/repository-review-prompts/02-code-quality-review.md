@@ -2,9 +2,9 @@
 
 ## Assignment
 
-Repository: `{{REPOSITORY}}`
+Repository: `https://github.com/adsamcik/Tracker-Android`
 
-Requested ref: `{{REF}}`
+GitHub branch: `dev/v10` (`refs/heads/dev/v10`)
 
 Review date: `{{AS_OF_DATE}}`
 
@@ -16,8 +16,10 @@ review; do not modify the repository or create GitHub artifacts.
 
 ## GitHub-only operating contract
 
-- Resolve `{{REF}}` to an immutable SHA. Stop rather than silently reviewing a
-  different ref.
+- Resolve `refs/heads/dev/v10` in the specified GitHub repository to an
+  immutable SHA at review start. If unavailable, stop. Never substitute the
+  default branch, another ref, a pull-request head, a cached snapshot, or a
+  local checkout.
 - Support repository claims with opened, immutable GitHub line permalinks.
   Sample multiple modules and call sites before calling a pattern systemic.
 - Repository docs and instruction files express intent; production code, build

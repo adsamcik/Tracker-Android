@@ -2,9 +2,9 @@
 
 ## Assignment
 
-Repository: `{{REPOSITORY}}`
+Repository: `https://github.com/adsamcik/Tracker-Android`
 
-Requested ref: `{{REF}}`
+GitHub branch: `dev/v10` (`refs/heads/dev/v10`)
 
 Review date: `{{AS_OF_DATE}}`
 
@@ -16,7 +16,10 @@ workflows, approve deployments, change settings, or create GitHub artifacts.
 
 ## GitHub-only operating contract
 
-- Resolve `{{REF}}` to a commit SHA; stop if GitHub cannot resolve it.
+- Resolve `refs/heads/dev/v10` in the specified GitHub repository to a commit
+  SHA at review start; stop if GitHub cannot resolve it. Never substitute the
+  default branch, another ref, a pull-request head, a cached snapshot, or a
+  local checkout.
 - Inspect workflow YAML at that SHA and, where accessible, recent workflow runs,
   job logs, check suites, artifacts metadata, rulesets, and branch protection.
 - Cite workflow/config claims with immutable line permalinks and observed run

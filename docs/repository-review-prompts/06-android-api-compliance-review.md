@@ -2,9 +2,9 @@
 
 ## Assignment
 
-Repository: `{{REPOSITORY}}`
+Repository: `https://github.com/adsamcik/Tracker-Android`
 
-Requested ref: `{{REF}}`
+GitHub branch: `dev/v10` (`refs/heads/dev/v10`)
 
 Review date: `{{AS_OF_DATE}}`
 
@@ -16,7 +16,10 @@ Console certification. Remain read-only.
 
 ## GitHub and source contract
 
-1. Resolve `{{REF}}` to an immutable SHA; never fall back to another ref.
+1. Resolve `refs/heads/dev/v10` in the specified GitHub repository to an
+   immutable SHA at review start. If unavailable, stop. Never substitute the
+   default branch, another ref, a pull-request head, a cached snapshot, or a
+   local checkout.
 2. Cite repository facts with immutable GitHub line permalinks.
 3. At the start of the review, refresh every time-sensitive requirement from
    current first-party sources: `developer.android.com`, official Google Play
