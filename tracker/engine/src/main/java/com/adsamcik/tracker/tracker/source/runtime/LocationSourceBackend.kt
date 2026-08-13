@@ -138,13 +138,22 @@ private fun LocationMode.toFusedPriority(precise: Boolean): Int = when (this) {
 	}
 }
 
-private fun LocationMode.toFrameworkProvider(manager: LocationManager): String = when (this) {
+internal fun LocationMode.toFrameworkProvider(manager: LocationManager): String = when (this) {
 	LocationMode.DISABLED, LocationMode.PASSIVE -> LocationManager.PASSIVE_PROVIDER
 	LocationMode.LOW_POWER, LocationMode.BALANCED ->
 		if (manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
 			LocationManager.NETWORK_PROVIDER
+		} else if (manager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+			LocationManager.GPS_PROVIDER
 		} else {
 			LocationManager.PASSIVE_PROVIDER
 		}
-	LocationMode.HIGH_ACCURACY, LocationMode.PROBE -> LocationManager.GPS_PROVIDER
+	LocationMode.HIGH_ACCURACY, LocationMode.PROBE ->
+		if (manager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+			LocationManager.GPS_PROVIDER
+		} else if (manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+			LocationManager.NETWORK_PROVIDER
+		} else {
+			LocationManager.PASSIVE_PROVIDER
+		}
 }

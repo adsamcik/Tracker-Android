@@ -106,16 +106,19 @@ class LocationSourceRuntime @Inject internal constructor(
 			appliedState(source, plan.revision, null, SourceApplyStatus.APPLIED, SystemClock.elapsedRealtimeNanos()),
 		)
 		_capabilities.value = currentCapabilities()
+		val deviceState = deviceStateProvider.snapshot()
 		val application = prerequisiteEvaluator.evaluate(
 			plan,
-			deviceStateProvider.snapshot(),
+			deviceState,
 			LocationStartContext.SESSION_ALREADY_FOREGROUND,
 		)
 		if (application.status == LocationPlanApplicationStatus.BLOCKED) return SourceStartResult.Blocked(
 			appliedState(source, plan.revision, null, SourceApplyStatus.BLOCKED, SystemClock.elapsedRealtimeNanos())
 				.copy(degradedReasons = application.reasons),
 		)
-		val effectivePlan = application.plan
+		var effectivePlan = application.plan
+		var applicationStatus = application.status
+		var degradedReasons = application.reasons
 		val nextRegistration = runCatching {
 			registrations.begin(source, plan.revision, System.currentTimeMillis())
 		}.getOrElse {
@@ -124,7 +127,7 @@ class LocationSourceRuntime @Inject internal constructor(
 				retryable = true,
 			)
 		}
-		val backend: LocationSourceBackendController = when (effectivePlan.backend) {
+		var backend: LocationSourceBackendController = when (effectivePlan.backend) {
 			LocationBackend.FUSED -> fusedBackend
 			LocationBackend.FRAMEWORK -> frameworkBackend
 		}
@@ -139,7 +142,25 @@ class LocationSourceRuntime @Inject internal constructor(
 		metrics = RuntimeAdmissionMetrics()
 		acceptingCallbacks = true
 		actor = applicationScope.launch { consume(nextQueue, nextRegistration, sink) }
-		val started = backend.start(effectivePlan) { locations -> onLocationBatch(locations) }
+		var started = backend.start(effectivePlan) { locations -> onLocationBatch(locations) }
+		if (!started && effectivePlan.backend == LocationBackend.FUSED) {
+			val fallbackApplication = prerequisiteEvaluator.evaluate(
+				effectivePlan.copy(backend = LocationBackend.FRAMEWORK),
+				deviceState,
+				LocationStartContext.SESSION_ALREADY_FOREGROUND,
+			)
+			if (fallbackApplication.status != LocationPlanApplicationStatus.BLOCKED) {
+				effectivePlan = fallbackApplication.plan
+				currentPlan = effectivePlan
+				backend = frameworkBackend
+				activeBackend = backend
+				started = backend.start(effectivePlan) { locations -> onLocationBatch(locations) }
+				if (started) {
+					applicationStatus = LocationPlanApplicationStatus.DEGRADED
+					degradedReasons = fallbackApplication.reasons + SourceDegradedReason.PROVIDER_UNAVAILABLE
+				}
+			}
+		}
 		if (!started) {
 			synchronized(callbackLock) {
 				acceptingCallbacks = false
@@ -152,15 +173,16 @@ class LocationSourceRuntime @Inject internal constructor(
 				retryable = true,
 			)
 		}
-		val approximate = application.status == LocationPlanApplicationStatus.DEGRADED
+		_capabilities.value = currentCapabilities(backend)
+		val degraded = applicationStatus == LocationPlanApplicationStatus.DEGRADED
 		val state = appliedState(
 			source,
 			plan.revision,
 			nextRegistration,
-			if (approximate) SourceApplyStatus.DEGRADED else SourceApplyStatus.APPLIED,
+			if (degraded) SourceApplyStatus.DEGRADED else SourceApplyStatus.APPLIED,
 			SystemClock.elapsedRealtimeNanos(),
-		).copy(degradedReasons = application.reasons)
-		return if (approximate) SourceStartResult.Degraded(state) else SourceStartResult.Started(state)
+		).copy(degradedReasons = degradedReasons)
+		return if (degraded) SourceStartResult.Degraded(state) else SourceStartResult.Started(state)
 	}
 
 	private suspend fun shutdownLocked(cutoff: SessionCutoff?): SourceStopAck {
@@ -318,13 +340,13 @@ class LocationSourceRuntime @Inject internal constructor(
 		}
 	}
 
-	private fun currentCapabilities(): SourceCapabilities {
+	private fun currentCapabilities(backend: LocationSourceBackendController? = null): SourceCapabilities {
 		val device = deviceStateProvider.snapshot()
 		val permission = device.coarsePermission || device.finePermission
 		return SourceCapabilities(
-		available = device.locationFeatureAvailable && permission,
-		batchingSupported = true,
-		flushSupported = true,
+			available = device.locationFeatureAvailable && permission,
+			batchingSupported = backend?.batchingSupported ?: device.fusedProviderAvailable,
+			flushSupported = backend?.flushSupported ?: device.fusedProviderAvailable,
 		maximumBatchSize = null,
 		minimumDelayMs = null,
 		degradedReasons = if (permission) emptySet() else setOf(SourceDegradedReason.PERMISSION_MISSING),

@@ -44,6 +44,27 @@ class LocationPrerequisiteEvaluator @Inject constructor() {
 		device: LocationDeviceState,
 		startContext: LocationStartContext,
 	): LocationPlanApplication {
+		if (plan.backend == LocationBackend.FUSED && !device.fusedProviderAvailable) {
+			val frameworkApplication = evaluateWithoutBackendFallback(
+				plan.copy(backend = LocationBackend.FRAMEWORK),
+				device,
+				startContext,
+			)
+			if (frameworkApplication.status != LocationPlanApplicationStatus.BLOCKED) {
+				return frameworkApplication.copy(
+					status = LocationPlanApplicationStatus.DEGRADED,
+					reasons = frameworkApplication.reasons + SourceDegradedReason.PROVIDER_UNAVAILABLE,
+				)
+			}
+		}
+		return evaluateWithoutBackendFallback(plan, device, startContext)
+	}
+
+	private fun evaluateWithoutBackendFallback(
+		plan: LocationPlan,
+		device: LocationDeviceState,
+		startContext: LocationStartContext,
+	): LocationPlanApplication {
 		if (!plan.enabled) return LocationPlanApplication(plan, LocationPlanApplicationStatus.APPLIED, emptySet())
 		val reasons = mutableSetOf<SourceDegradedReason>()
 		if (!device.locationFeatureAvailable) reasons += SourceDegradedReason.HARDWARE_UNAVAILABLE
