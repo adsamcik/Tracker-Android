@@ -10,6 +10,10 @@ plugins {
 android {
     namespace = "com.adsamcik.tracker.map"
 
+    compileOptions {
+        isCoreLibraryDesugaringEnabled = true
+    }
+
     lint {
         baseline = file("lint-baseline.xml")
     }
@@ -26,6 +30,8 @@ kotlin {
 }
 
 dependencies {
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
+
     // Removed :app dependency as part of converting to a library module
     implementation(project(":feature:map:api"))
     implementation(project(":core:base"))
