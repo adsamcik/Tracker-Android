@@ -76,8 +76,6 @@ dependencies {
     testImplementation(kotlin("reflect"))
     testImplementation(libs.turbine)
     testImplementation(project(":core:testing"))
-    androidTestImplementation(libs.mockito.android)
-    androidTestImplementation(libs.mockito.kotlin)
     androidTestImplementation(project(":core:testing"))
 }
 
