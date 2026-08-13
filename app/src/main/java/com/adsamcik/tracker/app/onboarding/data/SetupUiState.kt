@@ -2,6 +2,8 @@ package com.adsamcik.tracker.app.onboarding.data
 
 import com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionMode
 import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
+import com.adsamcik.tracker.shared.base.extension.PermissionGrantHistory
+import com.adsamcik.tracker.shared.base.extension.TrackingPermissionCapabilities
 
 /**
  * Immutable UI state for the first-time setup wizard.
@@ -24,17 +26,17 @@ data class SetupUiState(
     val cellEnabled: Boolean = false,
 
     // Permissions (tracked so the UI can show granted/pending status)
-    val locationPermissionGranted: Boolean = false,
-    val backgroundLocationGranted: Boolean = false,
+    val permissionCapabilities: TrackingPermissionCapabilities = TrackingPermissionCapabilities.denied(),
+    val permissionHistory: PermissionGrantHistory = PermissionGrantHistory(),
     val activityPermissionGranted: Boolean = false,
     val notificationPermissionGranted: Boolean = false,
-    val wifiPermissionGranted: Boolean = false,
     val cellPermissionGranted: Boolean = false,
 
     // Denial alerts — set when the user asked to collect a source but denied its
     // runtime permission. The source is auto-disabled and the UI surfaces a
     // recoverable inline alert until the user re-toggles it.
     val locationPermissionDenied: Boolean = false,
+    val backgroundLocationDeclined: Boolean = false,
     val activityPermissionDenied: Boolean = false,
     val wifiPermissionDenied: Boolean = false,
     val cellPermissionDenied: Boolean = false,
@@ -42,6 +44,21 @@ data class SetupUiState(
     // Step 4 – Online Map Tiles (recommended for the easiest map experience)
     val onlineMapTilesEnabled: Boolean = true,
 ) {
+	val locationPermissionGranted: Boolean
+		get() = permissionCapabilities.hasForegroundLocation
+
+	val preciseLocationPermissionGranted: Boolean
+		get() = permissionCapabilities.hasPreciseLocation
+
+	val backgroundLocationGranted: Boolean
+		get() = permissionCapabilities.hasBackgroundLocation
+
+	val wifiPermissionGranted: Boolean
+		get() = permissionCapabilities.hasWifiScanPermissions
+
+	val manualLocationOnly: Boolean
+		get() = locationEnabled && permissionCapabilities.isManualLocationOnly
+
     /** Progress fraction 0..1 based on current step. */
     val progress: Float
         get() = (currentStep.index + 1).toFloat() / SetupStep.totalSteps

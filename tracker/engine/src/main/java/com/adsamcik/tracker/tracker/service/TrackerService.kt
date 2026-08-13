@@ -23,6 +23,7 @@ import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
 import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
 import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
 import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
+import com.adsamcik.tracker.shared.base.extension.trackingPermissionCapabilities
 import com.adsamcik.tracker.shared.base.service.CoreService
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
@@ -1127,6 +1128,7 @@ internal class TrackerService : CoreService() {
 		demands: List<SourceDemand>,
 	): SourceSessionPlanInputs {
 		val packageManager = packageManager
+		val permissionCapabilities = trackingPermissionCapabilities()
 		val foreground = activeForegroundRequirements
 		val locationFeature = packageManager.hasSystemFeature(PackageManager.FEATURE_LOCATION)
 		val wifiFeature = packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI)
@@ -1136,7 +1138,7 @@ internal class TrackerService : CoreService() {
 		val constraints = mapOf(
 			SourceKind.LOCATION to SourceConstraint(
 				hardwareAvailable = locationFeature,
-				permissionGranted = hasLocationPermission,
+				permissionGranted = permissionCapabilities.hasForegroundLocation,
 				foregroundCapabilityLegal = foreground?.requiresLocation == true,
 			),
 			SourceKind.ACTIVITY to SourceConstraint(
@@ -1152,7 +1154,7 @@ internal class TrackerService : CoreService() {
 			SourceKind.PRESSURE to SourceConstraint(hardwareAvailable = hasPressureSensor),
 			SourceKind.WIFI to SourceConstraint(
 				hardwareAvailable = wifiFeature,
-				permissionGranted = hasWifiScanPermission,
+				permissionGranted = permissionCapabilities.hasWifiScanPermissions,
 			),
 			SourceKind.CELL to SourceConstraint(
 				hardwareAvailable = cellFeature,
@@ -1163,10 +1165,7 @@ internal class TrackerService : CoreService() {
 			settings = settings,
 			environment = SourcePlanEnvironment(
 				locationBackend = TrackerTimerManager.getSelectedLocationBackend(this),
-				preciseLocationAvailable = ContextCompat.checkSelfPermission(
-					this,
-					Manifest.permission.ACCESS_FINE_LOCATION,
-				) == PackageManager.PERMISSION_GRANTED,
+				preciseLocationAvailable = permissionCapabilities.hasPreciseLocation,
 				subscriptionIds = emptySet(),
 			),
 			resolutionContext = PlanResolutionContext(

@@ -36,6 +36,9 @@ import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
 import android.app.Application as AndroidApplication
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.shared.base.extension.ForegroundLocationCapability
+import com.adsamcik.tracker.shared.base.extension.trackingPermissionCapabilities
+import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.store.PreferenceFlushLifecycleObserver
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
@@ -161,12 +164,27 @@ class Application : AndroidApplication(), Configuration.Provider {
 				if (!legacyDatabaseUpgradeCoordinator.isReady()) return
 				if (trackingStartupGuard.isAutoRecoverySuppressed(this@Application)) return
 				activityWatcherController.poke()
+				reconcilePersistedLocationPrecision()
 				// Reconcile automatic detection with the current ACTIVITY_RECOGNITION permission:
 				// disables detection if the permission was revoked while backgrounded, and re-arms it
 				// if the user re-granted it (e.g. returning from system settings).
 				BackgroundTrackingApi.revalidatePermissions(this@Application)
 			}
 		})
+	}
+
+	private fun reconcilePersistedLocationPrecision() {
+		val precision = when (trackingPermissionCapabilities().foregroundLocation) {
+			ForegroundLocationCapability.PRECISE -> "PRECISE"
+			ForegroundLocationCapability.APPROXIMATE -> "APPROXIMATE"
+			else -> return
+		}
+		Preferences(this).edit {
+			setString(
+				com.adsamcik.tracker.shared.preferences.R.string.settings_location_precision_key,
+				precision,
+			)
+		}
 	}
 
 	private fun initializeDatabaseMaintenance() {

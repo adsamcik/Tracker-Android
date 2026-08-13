@@ -14,7 +14,10 @@ import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 import com.adsamcik.tracker.shared.base.extension.hasCellScanPermission
 import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
 import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
-import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
+import com.adsamcik.tracker.shared.base.extension.ForegroundLocationCapability
+import com.adsamcik.tracker.shared.base.extension.PermissionGrantHistory
+import com.adsamcik.tracker.shared.base.extension.TrackingPermissionCapabilities
+import com.adsamcik.tracker.shared.base.extension.trackingPermissionCapabilities
 import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesRepository
@@ -33,7 +36,6 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import com.adsamcik.tracker.activity.R as ActivityR
 import com.adsamcik.tracker.shared.preferences.R as PrefR
-import com.adsamcik.tracker.tracker.R as TrackerR
 
 /**
  * ViewModel for the first-time setup wizard.
@@ -53,9 +55,12 @@ class SetupViewModel @Inject constructor(
     private val onlineMapTilesRepository: OnlineMapTilesRepository,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(
-        savedStateHandle.restoreDraft(
+    private val restoredDraft = savedStateHandle.restoreDraft(
             stepCounterAvailable = appContext.hasStepCounterSensor,
+        )
+    private val _state = MutableStateFlow(
+        restoredDraft.withCapabilities(
+            appContext.trackingPermissionCapabilities(restoredDraft.permissionHistory),
         ),
     )
     val state: StateFlow<SetupUiState> = _state.asStateFlow()
@@ -122,16 +127,21 @@ class SetupViewModel @Inject constructor(
 
     // region Permissions
 
-    fun onLocationPermissionResult(granted: Boolean) {
+    fun onLocationPermissionResult(results: Map<String, Boolean>) {
+        val current = _state.value
+        val capabilities = current.permissionCapabilities.withGrants(
+            coarseLocationGranted = results[android.Manifest.permission.ACCESS_COARSE_LOCATION] == true,
+            preciseLocationGranted = results[android.Manifest.permission.ACCESS_FINE_LOCATION] == true,
+            history = current.permissionHistory,
+        )
         updateState {
-            if (granted) {
-                it.copy(locationPermissionGranted = true, locationPermissionDenied = false)
+            if (capabilities.hasForegroundLocation) {
+                it.withCapabilities(capabilities).copy(locationPermissionDenied = false)
             } else {
                 // Honor the user's intent: if they want to collect a source but deny its
                 // permission, disable that collection and alert them rather than silently
                 // leaving a toggle on that records nothing.
-                it.copy(
-                    locationPermissionGranted = false,
+                it.withCapabilities(capabilities).copy(
                     locationEnabled = false,
                     locationPermissionDenied = true,
                 )
@@ -140,8 +150,31 @@ class SetupViewModel @Inject constructor(
     }
 
     fun onBackgroundLocationResult(granted: Boolean) {
-        updateState { it.copy(backgroundLocationGranted = granted) }
+        updateState {
+            it.withCapabilities(
+                it.permissionCapabilities.withGrants(
+                    backgroundLocationGranted = granted,
+                    history = it.permissionHistory,
+                ),
+            ).copy(backgroundLocationDeclined = !granted)
+        }
     }
+
+	fun declineBackgroundLocation() {
+		updateState { it.copy(backgroundLocationDeclined = true) }
+	}
+
+	/** Re-read Settings grants/revocations and precise-to-approximate changes on every resume. */
+	fun refreshPermissionCapabilities() {
+		updateState { current ->
+			val capabilities = appContext.trackingPermissionCapabilities(current.permissionHistory)
+			current.withCapabilities(capabilities).copy(
+				locationPermissionDenied = current.locationPermissionDenied &&
+					!capabilities.hasForegroundLocation,
+				wifiPermissionDenied = current.wifiPermissionDenied && !capabilities.hasWifiScanPermissions,
+			)
+		}
+	}
 
     fun onActivityPermissionResult(granted: Boolean) {
         updateState {
@@ -162,13 +195,22 @@ class SetupViewModel @Inject constructor(
         updateState { it.copy(notificationPermissionGranted = granted) }
     }
 
-    fun onWifiPermissionResult(granted: Boolean) {
+    fun onWifiPermissionResult(results: Map<String, Boolean>) {
+        val current = _state.value
+        val capabilities = current.permissionCapabilities.withGrants(
+            coarseLocationGranted = current.permissionCapabilities.coarseLocationGranted ||
+                results[android.Manifest.permission.ACCESS_COARSE_LOCATION] == true,
+            preciseLocationGranted = current.permissionCapabilities.preciseLocationGranted ||
+                results[android.Manifest.permission.ACCESS_FINE_LOCATION] == true,
+            nearbyWifiGranted = current.permissionCapabilities.nearbyWifiGranted ||
+                results[android.Manifest.permission.NEARBY_WIFI_DEVICES] == true,
+            history = current.permissionHistory,
+        )
         updateState {
-            if (granted) {
-                it.copy(wifiPermissionGranted = true, wifiPermissionDenied = false)
+            if (capabilities.hasWifiScanPermissions) {
+                it.withCapabilities(capabilities).copy(wifiPermissionDenied = false)
             } else {
-                it.copy(
-                    wifiPermissionGranted = false,
+                it.withCapabilities(capabilities).copy(
                     wifiEnabled = false,
                     wifiPermissionDenied = true,
                 )
@@ -226,28 +268,37 @@ class SetupViewModel @Inject constructor(
     private suspend fun applyPreferences(s: SetupUiState) {
         val preferences = Preferences(appContext)
         val preset = s.trackingPreset.settings
-        val wifiAllowed = s.wifiEnabled && appContext.hasWifiScanPermission
+        val capabilities = appContext.trackingPermissionCapabilities(s.permissionHistory)
+        val locationAllowed = s.locationEnabled && capabilities.hasForegroundLocation
+        val wifiAllowed = s.wifiEnabled && capabilities.wifiFeatureAvailable &&
+            capabilities.hasWifiScanPermissions
         val cellAllowed = s.cellEnabled && appContext.hasCellScanPermission
         val activityAllowed = s.activityPermissionGranted || appContext.hasActivityPermission
-        val effectiveMode = if (activityAllowed) s.autoTrackingMode else 0
+        val automaticLocationAllowed = !locationAllowed || capabilities.hasBackgroundLocation
+        val effectiveMode = if (activityAllowed && automaticLocationAllowed) s.autoTrackingMode else 0
+        val effectivePrecision = if (capabilities.hasPreciseLocation) {
+            LocationPrecisionMode.PRECISE
+        } else {
+            LocationPrecisionMode.APPROXIMATE
+        }
 
         preferences.edit {
             // Location precision
             setString(
                 appContext.getString(PrefR.string.settings_location_precision_key),
-                s.locationPrecision.name,
+                effectivePrecision.name,
             )
 
             // Activity watcher service flag is still a legacy preference bridge.
             setBoolean(
                 appContext.getString(ActivityR.string.settings_activity_watcher_key),
-                s.autoTrackingMode > 0,
+                effectiveMode > 0,
             )
         }
 
         trackingParamsRepository.update {
             copy(
-                locationEnabled = s.locationEnabled,
+                locationEnabled = locationAllowed,
                 activityEnabled = s.activityEnabled && activityAllowed,
                 stepsEnabled = s.stepsEnabled &&
                     s.stepCounterAvailable && activityAllowed,
@@ -300,13 +351,16 @@ class SetupViewModel @Inject constructor(
         savedStateHandle[KEY_STEPS_ENABLED] = state.stepsEnabled
         savedStateHandle[KEY_WIFI_ENABLED] = state.wifiEnabled
         savedStateHandle[KEY_CELL_ENABLED] = state.cellEnabled
-        savedStateHandle[KEY_LOCATION_PERMISSION_GRANTED] = state.locationPermissionGranted
-        savedStateHandle[KEY_BACKGROUND_LOCATION_GRANTED] = state.backgroundLocationGranted
+        savedStateHandle[KEY_FOREGROUND_LOCATION_EVER_GRANTED] =
+            state.permissionHistory.foregroundLocationGranted
+        savedStateHandle[KEY_BACKGROUND_LOCATION_EVER_GRANTED] =
+            state.permissionHistory.backgroundLocationGranted
+        savedStateHandle[KEY_WIFI_SCAN_EVER_GRANTED] = state.permissionHistory.wifiScanGranted
         savedStateHandle[KEY_ACTIVITY_PERMISSION_GRANTED] = state.activityPermissionGranted
         savedStateHandle[KEY_NOTIFICATION_PERMISSION_GRANTED] = state.notificationPermissionGranted
-        savedStateHandle[KEY_WIFI_PERMISSION_GRANTED] = state.wifiPermissionGranted
         savedStateHandle[KEY_CELL_PERMISSION_GRANTED] = state.cellPermissionGranted
         savedStateHandle[KEY_LOCATION_PERMISSION_DENIED] = state.locationPermissionDenied
+        savedStateHandle[KEY_BACKGROUND_LOCATION_DECLINED] = state.backgroundLocationDeclined
         savedStateHandle[KEY_ACTIVITY_PERMISSION_DENIED] = state.activityPermissionDenied
         savedStateHandle[KEY_WIFI_PERMISSION_DENIED] = state.wifiPermissionDenied
         savedStateHandle[KEY_CELL_PERMISSION_DENIED] = state.cellPermissionDenied
@@ -328,13 +382,16 @@ class SetupViewModel @Inject constructor(
         stepCounterAvailable = stepCounterAvailable,
         wifiEnabled = get<Boolean>(KEY_WIFI_ENABLED) ?: false,
         cellEnabled = get<Boolean>(KEY_CELL_ENABLED) ?: false,
-        locationPermissionGranted = get<Boolean>(KEY_LOCATION_PERMISSION_GRANTED) ?: false,
-        backgroundLocationGranted = get<Boolean>(KEY_BACKGROUND_LOCATION_GRANTED) ?: false,
+        permissionHistory = PermissionGrantHistory(
+            foregroundLocationGranted = get<Boolean>(KEY_FOREGROUND_LOCATION_EVER_GRANTED) ?: false,
+            backgroundLocationGranted = get<Boolean>(KEY_BACKGROUND_LOCATION_EVER_GRANTED) ?: false,
+            wifiScanGranted = get<Boolean>(KEY_WIFI_SCAN_EVER_GRANTED) ?: false,
+        ),
         activityPermissionGranted = get<Boolean>(KEY_ACTIVITY_PERMISSION_GRANTED) ?: false,
         notificationPermissionGranted = get<Boolean>(KEY_NOTIFICATION_PERMISSION_GRANTED) ?: false,
-        wifiPermissionGranted = get<Boolean>(KEY_WIFI_PERMISSION_GRANTED) ?: false,
         cellPermissionGranted = get<Boolean>(KEY_CELL_PERMISSION_GRANTED) ?: false,
         locationPermissionDenied = get<Boolean>(KEY_LOCATION_PERMISSION_DENIED) ?: false,
+        backgroundLocationDeclined = get<Boolean>(KEY_BACKGROUND_LOCATION_DECLINED) ?: false,
         activityPermissionDenied = get<Boolean>(KEY_ACTIVITY_PERMISSION_DENIED) ?: false,
         wifiPermissionDenied = get<Boolean>(KEY_WIFI_PERMISSION_DENIED) ?: false,
         cellPermissionDenied = get<Boolean>(KEY_CELL_PERMISSION_DENIED) ?: false,
@@ -351,16 +408,48 @@ class SetupViewModel @Inject constructor(
         const val KEY_STEPS_ENABLED = "setup_steps_enabled"
         const val KEY_WIFI_ENABLED = "setup_wifi_enabled"
         const val KEY_CELL_ENABLED = "setup_cell_enabled"
-        const val KEY_LOCATION_PERMISSION_GRANTED = "setup_location_permission_granted"
-        const val KEY_BACKGROUND_LOCATION_GRANTED = "setup_background_location_granted"
+        const val KEY_FOREGROUND_LOCATION_EVER_GRANTED = "setup_foreground_location_ever_granted"
+        const val KEY_BACKGROUND_LOCATION_EVER_GRANTED = "setup_background_location_ever_granted"
+        const val KEY_WIFI_SCAN_EVER_GRANTED = "setup_wifi_scan_ever_granted"
         const val KEY_ACTIVITY_PERMISSION_GRANTED = "setup_activity_permission_granted"
         const val KEY_NOTIFICATION_PERMISSION_GRANTED = "setup_notification_permission_granted"
-        const val KEY_WIFI_PERMISSION_GRANTED = "setup_wifi_permission_granted"
         const val KEY_CELL_PERMISSION_GRANTED = "setup_cell_permission_granted"
         const val KEY_LOCATION_PERMISSION_DENIED = "setup_location_permission_denied"
+        const val KEY_BACKGROUND_LOCATION_DECLINED = "setup_background_location_declined"
         const val KEY_ACTIVITY_PERMISSION_DENIED = "setup_activity_permission_denied"
         const val KEY_WIFI_PERMISSION_DENIED = "setup_wifi_permission_denied"
         const val KEY_CELL_PERMISSION_DENIED = "setup_cell_permission_denied"
         const val KEY_ONLINE_MAP_TILES_ENABLED = "setup_online_map_tiles_enabled"
     }
 }
+
+private fun SetupUiState.withCapabilities(
+    capabilities: TrackingPermissionCapabilities,
+): SetupUiState = copy(
+    permissionCapabilities = capabilities,
+    permissionHistory = capabilities.recordGrants(permissionHistory),
+    locationPrecision = when (capabilities.foregroundLocation) {
+        ForegroundLocationCapability.PRECISE -> LocationPrecisionMode.PRECISE
+        ForegroundLocationCapability.APPROXIMATE -> LocationPrecisionMode.APPROXIMATE
+        else -> locationPrecision
+    },
+    backgroundLocationDeclined = backgroundLocationDeclined && !capabilities.hasBackgroundLocation,
+)
+
+private fun TrackingPermissionCapabilities.withGrants(
+    coarseLocationGranted: Boolean = this.coarseLocationGranted,
+    preciseLocationGranted: Boolean = this.preciseLocationGranted,
+    backgroundLocationGranted: Boolean = this.backgroundLocationGranted,
+    nearbyWifiGranted: Boolean = this.nearbyWifiGranted,
+    history: PermissionGrantHistory = PermissionGrantHistory(),
+): TrackingPermissionCapabilities = TrackingPermissionCapabilities.evaluate(
+    apiLevel = apiLevel,
+    locationFeatureAvailable = locationFeatureAvailable,
+    wifiFeatureAvailable = wifiFeatureAvailable,
+    locationServicesEnabled = locationServicesEnabled,
+    coarseLocationGranted = coarseLocationGranted,
+    preciseLocationGranted = preciseLocationGranted,
+    backgroundLocationGranted = backgroundLocationGranted,
+    nearbyWifiGranted = nearbyWifiGranted,
+    history = history,
+)

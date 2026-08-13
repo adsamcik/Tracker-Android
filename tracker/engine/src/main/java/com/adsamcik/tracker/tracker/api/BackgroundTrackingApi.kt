@@ -20,11 +20,10 @@ import dagger.hilt.components.SingletonComponent
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 import com.adsamcik.tracker.shared.base.extension.hasCellScanPermission
-import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
 import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
 import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
-import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
 import com.adsamcik.tracker.shared.base.extension.powerManager
+import com.adsamcik.tracker.shared.base.extension.trackingPermissionCapabilities
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
@@ -266,14 +265,16 @@ object BackgroundTrackingApi {
 
 	private fun canTrackerServiceBeStarted(context: Context): Boolean {
 		val entryPoint = getEntryPoint(context)
+		val capabilities = context.trackingPermissionCapabilities()
 		return !entryPoint.lockManager().isLocked &&
 			!context.powerManager.isPowerSaveMode &&
-			hasAnythingToTrack(
+			isAutomaticStartEligible(
 				params = cachedParamsSnapshot(),
-				locationAvailable = context.hasLocationPermission,
+				locationAvailable = capabilities.hasForegroundLocation,
+				backgroundLocationAvailable = capabilities.hasBackgroundLocation,
 				activityAvailable = context.hasActivityPermission,
 				stepsAvailable = context.hasActivityPermission && context.hasStepCounterSensor,
-				wifiAvailable = context.hasWifiScanPermission,
+				wifiAvailable = capabilities.hasWifiScan,
 				cellAvailable = context.hasCellScanPermission,
 				barometerAvailable = context.hasPressureSensor,
 			)
@@ -724,6 +725,33 @@ internal fun hasAnythingToTrack(
 	cellAvailable = cellAvailable,
 	barometerAvailable = barometerAvailable,
 )
+
+/**
+ * An automatic callback is a background start. If its configured plan includes location, Android
+ * 10+ background access must be effective before dispatching the service; foreground/coarse access
+ * alone remains valid for a later user-initiated manual session.
+ */
+internal fun isAutomaticStartEligible(
+	params: TrackingParamsState,
+	locationAvailable: Boolean,
+	backgroundLocationAvailable: Boolean,
+	activityAvailable: Boolean = true,
+	stepsAvailable: Boolean = true,
+	wifiAvailable: Boolean = true,
+	cellAvailable: Boolean = true,
+	barometerAvailable: Boolean = true,
+): Boolean {
+	if (params.locationEnabled && (!locationAvailable || !backgroundLocationAvailable)) return false
+	return hasAnythingToTrack(
+		params = params,
+		locationAvailable = locationAvailable,
+		activityAvailable = activityAvailable,
+		stepsAvailable = stepsAvailable,
+		wifiAvailable = wifiAvailable,
+		cellAvailable = cellAvailable,
+		barometerAvailable = barometerAvailable,
+	)
+}
 
 /** Action to take when the auto-tracking activity requirement preference changes. */
 internal enum class AutoTrackingPreferenceAction { NONE, ENABLE, DISABLE, REINITIALIZE }

@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.app.onboarding.ui
 
+import android.Manifest
 import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import com.adsamcik.tracker.app.onboarding.data.SetupStep
@@ -7,6 +8,10 @@ import com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionMode
 import com.adsamcik.tracker.app.settings.data.TrackingPolicyPreset
 import com.adsamcik.tracker.maintenance.DataRetentionScheduler
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.base.extension.TrackingPermissionCapabilities
+import com.adsamcik.tracker.shared.base.extension.ForegroundLocationCapability
+import com.adsamcik.tracker.shared.base.extension.PermissionGrantHistory
+import com.adsamcik.tracker.shared.base.extension.trackingPermissionCapabilities
 import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesRepository
 import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesState
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
@@ -18,6 +23,8 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +41,20 @@ private const val AUTO_TRACKING_MODE_DISABLED = 0
 private const val AUTO_TRACKING_MODE_ON_FOOT = 1
 private const val AUTO_TRACKING_MODE_IN_MOTION = 2
 
+private fun locationResults(
+	precise: Boolean = false,
+	approximate: Boolean = precise,
+): Map<String, Boolean> = mapOf(
+	Manifest.permission.ACCESS_FINE_LOCATION to precise,
+	Manifest.permission.ACCESS_COARSE_LOCATION to approximate,
+)
+
+private fun wifiResults(granted: Boolean = false): Map<String, Boolean> = mapOf(
+	Manifest.permission.ACCESS_FINE_LOCATION to granted,
+	Manifest.permission.ACCESS_COARSE_LOCATION to granted,
+	Manifest.permission.NEARBY_WIFI_DEVICES to granted,
+)
+
 @OptIn(ExperimentalCoroutinesApi::class)
 @DisplayName("SetupViewModel")
 class SetupViewModelTest {
@@ -48,10 +69,14 @@ class SetupViewModelTest {
     private val trackingParamsRepository: TrackingParamsRepository = mockk()
     private val onlineTilesFlow = MutableStateFlow(OnlineMapTilesState())
     private val onlineMapTilesRepository: OnlineMapTilesRepository = mockk()
+    private var currentCapabilities = TrackingPermissionCapabilities.denied(apiLevel = 34)
 
     @BeforeEach
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+		mockkStatic("com.adsamcik.tracker.shared.base.extension.TrackingPermissionCapabilitiesKt")
+		currentCapabilities = TrackingPermissionCapabilities.denied(apiLevel = 34)
+		every { appContext.trackingPermissionCapabilities(any()) } answers { currentCapabilities }
         paramsFlow.value = TrackingParamsState()
         onlineTilesFlow.value = OnlineMapTilesState()
         every { dispatchers.io } returns testDispatcher
@@ -72,6 +97,7 @@ class SetupViewModelTest {
     @AfterEach
     fun tearDown() {
         Dispatchers.resetMain()
+		unmockkStatic("com.adsamcik.tracker.shared.base.extension.TrackingPermissionCapabilitiesKt")
     }
 
     private fun createViewModel(
@@ -357,13 +383,78 @@ class SetupViewModelTest {
         @Test
         fun `onLocationPermissionResult updates state`() {
             val vm = createViewModel()
-            vm.onLocationPermissionResult(true)
+            vm.onLocationPermissionResult(locationResults(precise = true))
             vm.state.value.locationPermissionGranted shouldBe true
         }
+
+		@Test
+		fun `coarse-only result is approximate and never precise`() {
+			val vm = createViewModel()
+
+			vm.onLocationPermissionResult(locationResults(approximate = true))
+
+			vm.state.value.locationPermissionGranted shouldBe true
+			vm.state.value.preciseLocationPermissionGranted shouldBe false
+			vm.state.value.locationPrecision shouldBe LocationPrecisionMode.APPROXIMATE
+		}
+
+		@Test
+		fun `Settings precise downgrade is detected on resume refresh`() {
+			currentCapabilities = TrackingPermissionCapabilities.evaluate(
+				apiLevel = 31,
+				locationFeatureAvailable = true,
+				wifiFeatureAvailable = true,
+				locationServicesEnabled = true,
+				coarseLocationGranted = false,
+				preciseLocationGranted = true,
+				backgroundLocationGranted = true,
+				nearbyWifiGranted = true,
+			)
+			val vm = createViewModel()
+			currentCapabilities = TrackingPermissionCapabilities.evaluate(
+				apiLevel = 31,
+				locationFeatureAvailable = true,
+				wifiFeatureAvailable = true,
+				locationServicesEnabled = true,
+				coarseLocationGranted = true,
+				preciseLocationGranted = false,
+				backgroundLocationGranted = true,
+				nearbyWifiGranted = true,
+			)
+
+			vm.refreshPermissionCapabilities()
+
+			vm.state.value.locationPrecision shouldBe LocationPrecisionMode.APPROXIMATE
+			vm.state.value.preciseLocationPermissionGranted shouldBe false
+		}
+
+		@Test
+		fun `grant history survives process recreation and exposes Settings revocation`() {
+			val handle = SavedStateHandle()
+			val original = createViewModel(handle)
+			original.onLocationPermissionResult(locationResults(precise = true))
+			currentCapabilities = TrackingPermissionCapabilities.evaluate(
+				apiLevel = 34,
+				locationFeatureAvailable = true,
+				wifiFeatureAvailable = true,
+				locationServicesEnabled = true,
+				coarseLocationGranted = false,
+				preciseLocationGranted = false,
+				backgroundLocationGranted = false,
+				nearbyWifiGranted = false,
+				history = PermissionGrantHistory(foregroundLocationGranted = true),
+			)
+
+			val recreated = createViewModel(handle)
+
+			recreated.state.value.permissionCapabilities.foregroundLocation shouldBe
+				ForegroundLocationCapability.REVOKED
+		}
 
         @Test
         fun `onBackgroundLocationResult updates state`() {
             val vm = createViewModel()
+            vm.onLocationPermissionResult(locationResults(precise = true))
             vm.onBackgroundLocationResult(true)
             vm.state.value.backgroundLocationGranted shouldBe true
         }
@@ -385,7 +476,7 @@ class SetupViewModelTest {
         @Test
         fun `onWifiPermissionResult updates state`() {
             val vm = createViewModel()
-            vm.onWifiPermissionResult(true)
+            vm.onWifiPermissionResult(wifiResults(granted = true))
             vm.state.value.wifiPermissionGranted shouldBe true
         }
 
@@ -400,7 +491,7 @@ class SetupViewModelTest {
         fun `denied location permission disables location and flags alert`() {
             val vm = createViewModel()
             vm.setLocationEnabled(true)
-            vm.onLocationPermissionResult(false)
+            vm.onLocationPermissionResult(locationResults())
             val state = vm.state.value
             state.locationEnabled shouldBe false
             state.locationPermissionGranted shouldBe false
@@ -421,7 +512,7 @@ class SetupViewModelTest {
         fun `denied wifi permission disables wifi and flags alert`() {
             val vm = createViewModel()
             vm.setWifiEnabled(true)
-            vm.onWifiPermissionResult(false)
+            vm.onWifiPermissionResult(wifiResults())
             val state = vm.state.value
             state.wifiEnabled shouldBe false
             state.wifiPermissionDenied shouldBe true
@@ -441,7 +532,7 @@ class SetupViewModelTest {
         fun `re-enabling a denied source clears its alert`() {
             val vm = createViewModel()
             vm.setWifiEnabled(true)
-            vm.onWifiPermissionResult(false)
+            vm.onWifiPermissionResult(wifiResults())
             vm.state.value.wifiPermissionDenied shouldBe true
 
             vm.setWifiEnabled(true)
@@ -476,7 +567,7 @@ class SetupViewModelTest {
             vm.setTrackingPreset(TrackingPolicyPreset.HIGH_PRECISION)
             vm.setLocationEnabled(true)
             vm.setCellEnabled(true)
-            vm.onLocationPermissionResult(true)
+            vm.onLocationPermissionResult(locationResults(precise = true))
 
             val state = vm.state.value
             state.autoTrackingMode shouldBe AUTO_TRACKING_MODE_IN_MOTION

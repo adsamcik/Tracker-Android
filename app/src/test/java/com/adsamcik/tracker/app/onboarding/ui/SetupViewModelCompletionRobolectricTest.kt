@@ -9,6 +9,8 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
 import com.adsamcik.tracker.shared.base.extension.hasSelfPermission
 import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
+import com.adsamcik.tracker.shared.base.extension.TrackingPermissionCapabilities
+import com.adsamcik.tracker.shared.base.extension.trackingPermissionCapabilities
 import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesRepository
 import com.adsamcik.tracker.shared.preferences.map.OnlineMapTilesState
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
@@ -65,7 +67,19 @@ class SetupViewModelCompletionRobolectricTest {
 		appContext = ApplicationProvider.getApplicationContext()
 		paramsFlow.value = TrackingParamsState()
 		mockkStatic("com.adsamcik.tracker.shared.base.extension.ContextExtensionsKt")
+		mockkStatic("com.adsamcik.tracker.shared.base.extension.TrackingPermissionCapabilitiesKt")
 		every { appContext.hasSelfPermission(any()) } returns true
+		every { appContext.trackingPermissionCapabilities(any()) } returns
+			TrackingPermissionCapabilities.evaluate(
+				apiLevel = 34,
+				locationFeatureAvailable = true,
+				wifiFeatureAvailable = true,
+				locationServicesEnabled = true,
+				coarseLocationGranted = true,
+				preciseLocationGranted = true,
+				backgroundLocationGranted = true,
+				nearbyWifiGranted = true,
+			)
 		every { appContext.hasPressureSensor } returns true
 		every { appContext.hasStepCounterSensor } returns true
 		every { trackingParamsRepository.data } returns paramsFlow
@@ -86,6 +100,7 @@ class SetupViewModelCompletionRobolectricTest {
 	fun tearDown() {
 		Dispatchers.resetMain()
 		unmockkStatic("com.adsamcik.tracker.shared.base.extension.ContextExtensionsKt")
+		unmockkStatic("com.adsamcik.tracker.shared.base.extension.TrackingPermissionCapabilitiesKt")
 	}
 
 	@Test
