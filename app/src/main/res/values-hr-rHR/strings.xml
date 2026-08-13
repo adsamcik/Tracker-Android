@@ -196,12 +196,8 @@
     <string name="tracking_preset_power_save_description">Manja potrošnja baterije uz rjeđa ažuriranja i manje senzora</string>
     <string name="tracking_preset_custom_name">Prilagođeno</string>
     <string name="tracking_preset_custom_description">Ručno prilagodite svaki parametar praćenja</string>
-    <string name="tracking_preset_selector_title">Profil praćenja</string>
     <string name="tracking_preset_selector_subtitle">Odaberite profil za početak, a zatim precizno prilagodite bilo koju postavku u nastavku.</string>
-    <string name="tracking_preset_custom_hint">Prilagodbom bilo koje postavke u nastavku stvara se prilagođeni profil iz trenutačne postavke.</string>
     <string name="tracking_preset_customized_summary">Fino ste prilagodili praćenje. Za poništavanje odaberite prethodnu postavku.</string>
-    <string name="settings_tracking_section_detection">Otkrivanje i automatizacija</string>
-    <string name="settings_tracking_section_sources">Izvori podataka</string>
     <string name="settings_tracking_section_detail">Prikupljanje lokacije</string>
     <string name="settings_tracking_section_notifications">Obavijesti</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
@@ -336,11 +332,9 @@
     <string name="permission_disabled_due_to_denial">%1$s je onemogućen jer je dozvola odbijena. Dopustite je u postavkama da biste ga omogućili.</string>
     <string name="settings_wifi_permission_required">Potrebna je Wi-Fi/lokacijska dozvola. Uključite prekidač da biste je odobrili — do tada se Wi-Fi podaci ne bilježe, a zabilježeni podaci ostaju na ovom uređaju.</string>
     <string name="settings_cell_permission_required">Potrebna je dozvola za stanje telefona i preciznu lokaciju. Uključite prekidač da biste je odobrili — do tada se podaci o baznim stanicama ne bilježe, a zabilježeni podaci ostaju na ovom uređaju.</string>
-    <string name="settings_wifi_privacy_summary">Bilježi obližnje Wi-Fi mreže radi bolje točnosti lokacije. Podaci ostaju na ovom uređaju.</string>
     <string name="settings_barometer_unavailable">Senzor tlaka nije dostupan na ovom uređaju.</string>
     <string name="settings_activity_permission_required">Potrebna je dozvola za prepoznavanje aktivnosti. Uključite prekidač da biste je odobrili.</string>
     <string name="settings_steps_unavailable">Senzor brojača koraka nije dostupan na ovom uređaju.</string>
-    <string name="settings_cell_privacy_summary">Bilježi identifikatore baznih stanica radi bolje točnosti lokacije. Podaci ostaju na ovom uređaju.</string>
     <string name="setup_start_exploring">Počnite istraživati</string>
     <string name="setup_continue">Nastavi</string>
     <string name="setup_step_indicator">Korak %1$d od %2$d</string>

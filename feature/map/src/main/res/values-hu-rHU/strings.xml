@@ -74,11 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Lesiklás</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Felvonó</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Séta vagy szünet</string>
-    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Gyaloglás</string>
-    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Kerékpározás</string>
-    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Vezetés</string>
-    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Tömegközlekedés</string>
-    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Egyéb</string>
     <string name="map_layer_fog_title">Felfedező köde</string>
     <string name="map_layer_fog_chip">Köd</string>
     <string name="map_layer_fog_description">A világból a ködből kibontakozó térkép: minden érintett terület feltárul, és annál fényesebben ragyog, minél alaposabban ismerte meg. Az érintőlegesen bejárt helyek halvány ködösek maradnak; a mélyen felfedezett helyek tömör aranyként égnek. A felfedezetlen terület sötét marad.</string>

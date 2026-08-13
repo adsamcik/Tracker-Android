@@ -74,11 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">डाउनहिल रन</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">लिफ्ट</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">चलना या विराम</string>
-    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">चलना</string>
-    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">साइकिल चलाना</string>
-    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">वाहन चलाना</string>
-    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">सार्वजनिक परिवहन</string>
-    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">अन्य</string>
     <string name="map_layer_fog_title">खोजकर्ता का कोहरा</string>
     <string name="map_layer_fog_chip">कोहरा</string>
     <string name="map_layer_fog_description">कोहरे से उभरती दुनिया: आपके छुए हर क्षेत्र का खुलासा होता है और जितना गहराई से उसे जाना, उतना अधिक चमकता है। जिन जगहों से केवल गुज़रे वे हलकी धुंध रहती हैं; जहाँ खूब खोजा वह ठोस सुनहरा चमकता है। अनखोजी भूमि अंधेरी रहती है।</string>

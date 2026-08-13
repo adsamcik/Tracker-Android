@@ -74,11 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Lasku</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Hissi</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Kävely tai tauko</string>
-    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Kävely</string>
-    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Pyöräily</string>
-    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Autoilu</string>
-    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Joukkoliikenne</string>
-    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Muu</string>
     <string name="map_layer_fog_title">Tutkijan sumu</string>
     <string name="map_layer_fog_chip">Sumu</string>
     <string name="map_layer_fog_description">Maailma nousee sumusta: jokainen koskettamasi alue paljastuu ja hohtaa sitä kirkkaammin, mitä perusteellisemmin siihen tutustuit. Paikat, joiden läpi vain kuljit, jäävät himmeäksi usvaksi; syvästi tutkimasi alue hohtaa kiinteän kullanvärisenä. Tutkimaton maa pysyy pimeänä.</string>

@@ -45,7 +45,6 @@
         <item quantity="one">Автоматичното проследяване е заключено за %1$d минута.</item>
         <item quantity="other">Автоматичното проследяване е заключено за %1$d минути.</item>
     </plurals>
-    <string name="notification_looking_for_gps">Търсене на GPS — местоположението се използва</string>
     <string name="notification_starting">Tracker се стартира — местоположението се използва</string>
     <string name="notification_starting_without_location">Tracker се стартира</string>
     <string name="notification_stop">Спиране</string>
@@ -59,8 +58,6 @@
     <string name="notification_tracking_start_failed_title">Проследяването не можа да започне</string>
     <string name="notification_tracking_start_failed_text">Отворете приложението, за да прегледате разрешенията и да възобновите проследяването.</string>
     <string name="settings_activity_enabled_title">Активност</string>
-    <string name="settings_auto_tracking_transition_summary">Енергийно ефективен режим (малко по-бавно разпознаване на активност)</string>
-    <string name="settings_auto_tracking_transition_title">Използване на преходи на активността</string>
     <string name="settings_cell_enabled_title">Клетка</string>
     <string name="settings_disabled_recharge_summary">Автоматичното проследяване е изключено, докато телефонът ви не бъде свързан със зарядно устройство</string>
     <string name="settings_disabled_recharge_title">Изключено до зареждане</string>
@@ -74,10 +71,6 @@
     <string name="ski_notification_lift">пътуване %1$s</string>
     <string name="settings_barometer_enabled_title">Барометър</string>
     <string name="settings_steps_enabled_title">Броене на крачки</string>
-    <string name="settings_tracker_timer_ambient">Фонов таймер</string>
-    <string name="settings_tracker_timer_clock">Въз основа на интервал</string>
-    <string name="settings_tracker_timer_fused">Местоположение от Google Play</string>
-    <string name="settings_tracker_timer_location">Местоположение от Android</string>
     <string name="settings_tracking_min_distance_title">Минимално разстояние между обновяванията</string>
     <string name="settings_tracking_min_time_title">Минимално закъснение между обновяванията</string>
     <string name="settings_tracking_notice_summary">Промените влизат в сила, когато рестартирате проследяването</string>

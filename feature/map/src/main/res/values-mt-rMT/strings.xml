@@ -74,11 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Ġirja għan-niżla</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Lift tal-iskijjar</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Mixja jew pawża</string>
-    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Mixi</string>
-    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Ċikliżmu</string>
-    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Sewqan</string>
-    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Trasport pubbliku</string>
-    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Oħrajn</string>
     <string name="map_layer_fog_title">Ċpar tal-esploratur</string>
     <string name="map_layer_fog_chip">Ċpar</string>
     <string name="map_layer_fog_description">Id-dinja li toħroġ miċ-ċpar: kull żona li messet tiġi żvelata u tiddi aktar ma sirtha taf sew. Postijiet li għaddejt biss minnhom jibqgħu ċpar ħafif; imkien li esplorajt fil-fond jaqbad deheb solidu. Art mhux esplorata tibqa’ skura.</string>

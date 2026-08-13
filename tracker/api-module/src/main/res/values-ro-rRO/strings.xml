@@ -46,7 +46,6 @@
         <item quantity="few">Urmărirea automată a fost blocată pentru %1$d minute.</item>
         <item quantity="other">Urmărirea automată a fost blocată pentru %1$d minute.</item>
     </plurals>
-    <string name="notification_looking_for_gps">Se caută GPS — locația este utilizată</string>
     <string name="notification_starting">Tracker pornește — locația este utilizată</string>
     <string name="notification_starting_without_location">Tracker pornește</string>
     <string name="notification_stop">Oprește</string>
@@ -60,8 +59,6 @@
     <string name="notification_tracking_start_failed_title">Urmărirea nu a putut porni</string>
     <string name="notification_tracking_start_failed_text">Deschide aplicația pentru a revizui permisiunile și a relua urmărirea.</string>
     <string name="settings_activity_enabled_title">Activitate</string>
-    <string name="settings_auto_tracking_transition_summary">Mod eficient pentru baterie (detectarea activității este puțin mai lentă)</string>
-    <string name="settings_auto_tracking_transition_title">Folosește tranzițiile activității</string>
     <string name="settings_cell_enabled_title">Celulă</string>
     <string name="settings_disabled_recharge_summary">Urmărirea automată este dezactivată până când telefonul este conectat la încărcător</string>
     <string name="settings_disabled_recharge_title">Dezactivată până la reîncărcare</string>
@@ -75,10 +72,6 @@
     <string name="ski_notification_lift">Urcare de %1$s</string>
     <string name="settings_barometer_enabled_title">Barometru</string>
     <string name="settings_steps_enabled_title">Număr de pași</string>
-    <string name="settings_tracker_timer_ambient">Cronometru ambiental</string>
-    <string name="settings_tracker_timer_clock">Bazat pe interval</string>
-    <string name="settings_tracker_timer_fused">Locație Google Play</string>
-    <string name="settings_tracker_timer_location">Locație Android</string>
     <string name="settings_tracking_min_distance_title">Distanța minimă între actualizări</string>
     <string name="settings_tracking_min_time_title">Întârzierea minimă între actualizări</string>
     <string name="settings_tracking_notice_summary">Modificările intră în vigoare când repornești urmărirea</string>

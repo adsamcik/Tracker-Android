@@ -74,11 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Descida</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Teleférico</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Caminhada ou pausa</string>
-    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Caminhar</string>
-    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Ciclismo</string>
-    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Condução</string>
-    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Transporte público</string>
-    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Outros</string>
     <string name="map_layer_fog_title">Névoa do explorador</string>
     <string name="map_layer_fog_chip">Névoa</string>
     <string name="map_layer_fog_description">O mundo a emergir da névoa: cada área que tocou é revelada e brilha mais quanto melhor a conheceu. Os locais por onde apenas passou mantêm uma bruma ténue; um sítio que explorou profundamente arde em ouro sólido. O terreno inexplorado permanece escuro.</string>

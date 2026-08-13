@@ -198,12 +198,8 @@
     <string name="tracking_preset_power_save_description">Manjša poraba baterije z redkejšimi posodobitvami in manj senzorji</string>
     <string name="tracking_preset_custom_name">Po meri</string>
     <string name="tracking_preset_custom_description">Ročno prilagodite vsak parameter sledenja</string>
-    <string name="tracking_preset_selector_title">Prednastavitev sledenja</string>
     <string name="tracking_preset_selector_subtitle">Izberite profil za začetek, nato pa natančno prilagodite spodnje nastavitve.</string>
-    <string name="tracking_preset_custom_hint">Če prilagodite katero koli spodnjo nastavitev, se iz trenutne prednastavitve ustvari profil po meri.</string>
     <string name="tracking_preset_customized_summary">Natančno ste prilagodili sledenje. Za ponastavitev izberite zgornjo prednastavitev.</string>
-    <string name="settings_tracking_section_detection">Zaznavanje in avtomatizacija</string>
-    <string name="settings_tracking_section_sources">Viri podatkov</string>
     <string name="settings_tracking_section_detail">Zbiranje lokacije</string>
     <string name="settings_tracking_section_notifications">Obvestila</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
@@ -340,11 +336,9 @@
     <string name="permission_disabled_due_to_denial">%1$s je onemogočeno, ker je bilo dovoljenje zavrnjeno. Za omogočanje dovolite v nastavitvah.</string>
     <string name="settings_wifi_permission_required">Zahteva dovoljenje za Wi‑Fi/lokacijo. Vklopite stikalo za dovoljenje — do takrat se podatki Wi‑Fi ne beležijo in zabeleženi podatki ostanejo v tej napravi.</string>
     <string name="settings_cell_permission_required">Zahteva dovoljenje za stanje telefona in natančno lokacijo. Vklopite stikalo za dovoljenje — do takrat se podatki celic ne beležijo in zabeleženi podatki ostanejo v tej napravi.</string>
-    <string name="settings_wifi_privacy_summary">Beleži bližnja omrežja Wi‑Fi za boljšo natančnost lokacije. Podatki ostanejo v tej napravi.</string>
     <string name="settings_barometer_unavailable">Senzor tlaka v tej napravi ni na voljo.</string>
     <string name="settings_activity_permission_required">Zahteva dovoljenje za prepoznavanje dejavnosti. Vklopite stikalo za dovoljenje.</string>
     <string name="settings_steps_unavailable">Senzor števca korakov v tej napravi ni na voljo.</string>
-    <string name="settings_cell_privacy_summary">Beleži ID-je baznih postaj za boljšo natančnost lokacije. Podatki ostanejo v tej napravi.</string>
     <string name="setup_start_exploring">Začni raziskovati</string>
     <string name="setup_continue">Nadaljuj</string>
     <string name="setup_step_indicator">Korak %1$d od %2$d</string>

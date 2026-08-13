@@ -45,7 +45,6 @@
         <item quantity="one">Automaattinen seuranta on lukittu %1$d minuutiksi.</item>
         <item quantity="other">Automaattinen seuranta on lukittu %1$d minuutiksi.</item>
     </plurals>
-    <string name="notification_looking_for_gps">Etsitään GPS-signaalia — sijainti käytössä</string>
     <string name="notification_starting">Tracker käynnistyy — sijainti käytössä</string>
     <string name="notification_starting_without_location">Tracker käynnistyy</string>
     <string name="notification_stop">Lopeta</string>
@@ -59,8 +58,6 @@
     <string name="notification_tracking_start_failed_title">Seurantaa ei voitu aloittaa</string>
     <string name="notification_tracking_start_failed_text">Avaa sovellus tarkistaaksesi käyttöoikeudet ja jatkaaksesi seurantaa.</string>
     <string name="settings_activity_enabled_title">Aktiivisuus</string>
-    <string name="settings_auto_tracking_transition_summary">Akkutehokas tila (aktiivisuuden tunnistus on hieman hitaampi)</string>
-    <string name="settings_auto_tracking_transition_title">Käytä aktiivisuussiirtymiä</string>
     <string name="settings_cell_enabled_title">Solu</string>
     <string name="settings_disabled_recharge_summary">Automaattinen seuranta on poistettu käytöstä, kunnes puhelin yhdistetään laturiin</string>
     <string name="settings_disabled_recharge_title">Poistettu käytöstä lataukseen asti</string>
@@ -74,10 +71,6 @@
     <string name="ski_notification_lift">%1$s ajo</string>
     <string name="settings_barometer_enabled_title">Ilmanpaineanturi</string>
     <string name="settings_steps_enabled_title">Askelmäärä</string>
-    <string name="settings_tracker_timer_ambient">Ympäristöajastin</string>
-    <string name="settings_tracker_timer_clock">Aikaväliperusteinen</string>
-    <string name="settings_tracker_timer_fused">Google Play -sijainti</string>
-    <string name="settings_tracker_timer_location">Android-sijainti</string>
     <string name="settings_tracking_min_distance_title">Pienin etäisyys päivitysten välillä</string>
     <string name="settings_tracking_min_time_title">Pienin viive päivitysten välillä</string>
     <string name="settings_tracking_notice_summary">Muutokset tulevat voimaan, kun käynnistät seurannan uudelleen</string>

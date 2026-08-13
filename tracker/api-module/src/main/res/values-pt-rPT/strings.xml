@@ -45,7 +45,6 @@
         <item quantity="one">A monitorização automática foi bloqueada durante %1$d minuto.</item>
         <item quantity="other">A monitorização automática foi bloqueada durante %1$d minutos.</item>
     </plurals>
-    <string name="notification_looking_for_gps">A procurar GPS — localização em uso</string>
     <string name="notification_starting">Tracker a iniciar — localização em uso</string>
     <string name="notification_starting_without_location">Tracker a iniciar</string>
     <string name="notification_stop">Parar</string>
@@ -59,8 +58,6 @@
     <string name="notification_tracking_start_failed_title">Não foi possível iniciar a monitorização</string>
     <string name="notification_tracking_start_failed_text">Abra a aplicação para rever as permissões e retomar a monitorização.</string>
     <string name="settings_activity_enabled_title">Atividade</string>
-    <string name="settings_auto_tracking_transition_summary">Modo eficiente em bateria (deteção de atividade ligeiramente mais lenta)</string>
-    <string name="settings_auto_tracking_transition_title">Usar transições de atividade</string>
     <string name="settings_cell_enabled_title">Celular</string>
     <string name="settings_disabled_recharge_summary">A monitorização automática está desativada até o telemóvel estar ligado a um carregador</string>
     <string name="settings_disabled_recharge_title">Desativado até carregar</string>
@@ -74,10 +71,6 @@
     <string name="ski_notification_lift">Viagem de %1$s</string>
     <string name="settings_barometer_enabled_title">Barómetro</string>
     <string name="settings_steps_enabled_title">Contagem de passos</string>
-    <string name="settings_tracker_timer_ambient">Temporizador ambiente</string>
-    <string name="settings_tracker_timer_clock">Baseado em intervalo</string>
-    <string name="settings_tracker_timer_fused">Localização do Google Play</string>
-    <string name="settings_tracker_timer_location">Localização do Android</string>
     <string name="settings_tracking_min_distance_title">Distância mínima entre atualizações</string>
     <string name="settings_tracking_min_time_title">Atraso mínimo entre atualizações</string>
     <string name="settings_tracking_notice_summary">As alterações têm efeito ao reiniciar a monitorização</string>

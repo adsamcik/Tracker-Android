@@ -79,11 +79,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Downhill run</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Lift</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Walk or pause</string>
-    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Walking</string>
-    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Cycling</string>
-    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Driving</string>
-    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Transit</string>
-    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Other</string>
     <string name="map_layer_fog_title">Explorer\u2019s fog</string>
     <string name="map_layer_fog_chip">Fog</string>
     <string name="map_layer_fog_description">The world emerging from the fog: every area you\u2019ve touched is revealed, glowing brighter the more thoroughly you got to know it. Places you merely passed through stay a faint haze; somewhere you explored deeply burns solid gold. Unexplored ground stays dark.</string>

@@ -47,7 +47,6 @@
         <item quantity="few">Samodejno sledenje je zaklenjeno za %1$d minute.</item>
         <item quantity="other">Samodejno sledenje je zaklenjeno za %1$d minut.</item>
     </plurals>
-    <string name="notification_looking_for_gps">Iskanje GPS — lokacija je v uporabi</string>
     <string name="notification_starting">Tracker se zaganja — lokacija je v uporabi</string>
     <string name="notification_starting_without_location">Tracker se zaganja</string>
     <string name="notification_stop">Ustavi</string>
@@ -61,8 +60,6 @@
     <string name="notification_tracking_start_failed_title">Sledenja ni bilo mogoče začeti</string>
     <string name="notification_tracking_start_failed_text">Odprite aplikacijo, preglejte dovoljenja in nadaljujte s sledenjem.</string>
     <string name="settings_activity_enabled_title">Dejavnost</string>
-    <string name="settings_auto_tracking_transition_summary">Način z manjšo porabo baterije (zaznavanje dejavnosti je nekoliko počasnejše)</string>
-    <string name="settings_auto_tracking_transition_title">Uporabi prehode dejavnosti</string>
     <string name="settings_cell_enabled_title">Celica</string>
     <string name="settings_disabled_recharge_summary">Samodejno sledenje je onemogočeno, dokler telefon ni priključen na polnilnik</string>
     <string name="settings_disabled_recharge_title">Onemogočeno do polnjenja</string>
@@ -76,10 +73,6 @@
     <string name="ski_notification_lift">vožnja %1$s</string>
     <string name="settings_barometer_enabled_title">Barometer</string>
     <string name="settings_steps_enabled_title">Štetje korakov</string>
-    <string name="settings_tracker_timer_ambient">Ambientni časovnik</string>
-    <string name="settings_tracker_timer_clock">Na podlagi intervalov</string>
-    <string name="settings_tracker_timer_fused">Lokacija Google Play</string>
-    <string name="settings_tracker_timer_location">Lokacija Android</string>
     <string name="settings_tracking_min_distance_title">Najmanjša razdalja med posodobitvami</string>
     <string name="settings_tracking_min_time_title">Najmanjši zamik med posodobitvami</string>
     <string name="settings_tracking_notice_summary">Spremembe začnejo veljati, ko znova zaženete sledenje</string>

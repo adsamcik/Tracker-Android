@@ -45,7 +45,6 @@
         <item quantity="one">Automatisk sporing er låst i %1$d minut.</item>
         <item quantity="other">Automatisk sporing er låst i %1$d minutter.</item>
     </plurals>
-    <string name="notification_looking_for_gps">Looking for GPS</string>
     <string name="notification_starting">Starting Tracker service</string>
     <string name="notification_starting_without_location">Tracker starter</string>
     <string name="notification_stop">Stop</string>
@@ -59,8 +58,6 @@
     <string name="notification_tracking_start_failed_title">Sporingen kunne ikke starte</string>
     <string name="notification_tracking_start_failed_text">Åbn appen for at gennemgå tilladelser og genoptage sporing.</string>
     <string name="settings_activity_enabled_title">Aktivitet</string>
-    <string name="settings_auto_tracking_transition_summary">Overgange kan reducere batteriforbruget ved automatisk sporing, men aktivitetsændringer kan reagere langsommere.</string>
-    <string name="settings_auto_tracking_transition_title">Brug aktivitetsovergange</string>
     <string name="settings_cell_enabled_title">Mobilnetværk</string>
     <string name="settings_disabled_recharge_summary">Automatisk sporing er deaktiveret, indtil din telefon er tilsluttet en oplader</string>
     <string name="settings_disabled_recharge_title">Deaktiveret indtil opladning</string>
@@ -74,10 +71,6 @@
     <string name="ski_notification_lift">%1$s tur</string>
     <string name="settings_barometer_enabled_title">Barometer</string>
     <string name="settings_steps_enabled_title">Skridttælling</string>
-    <string name="settings_tracker_timer_ambient">Baggrundstimer</string>
-    <string name="settings_tracker_timer_clock">Timer</string>
-    <string name="settings_tracker_timer_fused">Google Play-placering</string>
-    <string name="settings_tracker_timer_location">Android-placering</string>
     <string name="settings_tracking_min_distance_title">Mindste afstand mellem indsamlinger</string>
     <string name="settings_tracking_min_time_title">Minimum delay between collections</string>
     <string name="settings_tracking_notice_summary">Af tekniske årsager kræver de fleste ændringer af sporingsindstillingerne, at sporingen genstartes. (Hvis sporing er aktiv, skal du blot stoppe den og starte igen. Det hjælper måske ikke at lukke og åbne appen.)</string>
