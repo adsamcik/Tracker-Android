@@ -364,4 +364,9 @@
     <string name="background_reliability_samsung_action">Otvori postavke baterije uređaja</string>
     <string name="settings_tracebox_title">Dijagnostika rušenja</string>
     <string name="settings_tracebox_root_summary">Lokalna dijagnostika rušenja, ANR-a i strukture</string>
+    <string name="setup_background_location_title">Dopustite lokaciju u pozadini za automatsko praćenje</string>
+    <string name="setup_background_location_disclosure">Automatsko praćenje pokreće se dok je Tracker u pozadini i bilježi vašu rutu čak i kada zaslon aplikacije nije otvoren. Podaci o lokaciji ostaju na ovom uređaju. U postavkama lokacije aplikacije odaberite „%1$s”.</string>
+    <string name="setup_background_location_open_settings">Otvori postavke lokacije</string>
+    <string name="setup_background_location_decline">Ne sada</string>
+    <string name="setup_background_location_manual_only">Ručno praćenje u prvom planu ostaje dostupno. Automatsko praćenje lokacije ostat će isključeno dok se ne dopusti lokacija u pozadini.</string>
 </resources>

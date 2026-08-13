@@ -360,4 +360,9 @@
     <string name="background_reliability_samsung_action">開啟裝置電池設定</string>
     <string name="settings_tracebox_title">崩潰診斷</string>
     <string name="settings_tracebox_root_summary">本機崩潰、ANR 與結構診斷</string>
+    <string name="setup_background_location_title">允許背景位置資訊以進行自動追蹤</string>
+    <string name="setup_background_location_disclosure">Tracker 在背景執行時會啟動自動追蹤，即使應用程式畫面未開啟也會記錄您的路線。位置資訊只會保留在此裝置上。請在應用程式位置資訊設定中選擇「%1$s」。</string>
+    <string name="setup_background_location_open_settings">開啟位置資訊設定</string>
+    <string name="setup_background_location_decline">稍後再說</string>
+    <string name="setup_background_location_manual_only">仍可在前景手動追蹤。在允許背景位置資訊之前，自動位置追蹤將保持關閉。</string>
 </resources>

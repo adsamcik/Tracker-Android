@@ -360,4 +360,9 @@
     <string name="background_reliability_samsung_action">端末のバッテリー設定を開く</string>
     <string name="settings_tracebox_title">クラッシュ診断</string>
     <string name="settings_tracebox_root_summary">ローカルのクラッシュ、ANR、構造診断</string>
+    <string name="setup_background_location_title">自動トラッキングのためにバックグラウンド位置情報を許可</string>
+    <string name="setup_background_location_disclosure">Tracker がバックグラウンドにあるときに自動トラッキングが開始され、アプリの画面が開いていなくてもルートを記録します。位置情報はこの端末内に保存されます。アプリの位置情報設定で「%1$s」を選択してください。</string>
+    <string name="setup_background_location_open_settings">位置情報設定を開く</string>
+    <string name="setup_background_location_decline">今はしない</string>
+    <string name="setup_background_location_manual_only">フォアグラウンドでの手動トラッキングは引き続き利用できます。バックグラウンド位置情報が許可されるまで、自動位置トラッキングはオフのままです。</string>
 </resources>

@@ -360,4 +360,9 @@
     <string name="background_reliability_samsung_action">Άνοιγμα ρυθμίσεων μπαταρίας συσκευής</string>
     <string name="settings_tracebox_title">Διαγνωστικά σφαλμάτων</string>
     <string name="settings_tracebox_root_summary">Τοπικά διαγνωστικά σφαλμάτων, ANR και δομής</string>
+    <string name="setup_background_location_title">Να επιτρέπεται η τοποθεσία στο παρασκήνιο για αυτόματη καταγραφή</string>
+    <string name="setup_background_location_disclosure">Η αυτόματη καταγραφή ξεκινά ενώ το Tracker βρίσκεται στο παρασκήνιο και καταγράφει τη διαδρομή σας ακόμη και όταν η οθόνη του δεν είναι ανοιχτή. Η τοποθεσία παραμένει σε αυτήν τη συσκευή. Στις ρυθμίσεις τοποθεσίας της εφαρμογής, επιλέξτε «%1$s».</string>
+    <string name="setup_background_location_open_settings">Άνοιγμα ρυθμίσεων τοποθεσίας</string>
+    <string name="setup_background_location_decline">Όχι τώρα</string>
+    <string name="setup_background_location_manual_only">Η μη αυτόματη καταγραφή στο προσκήνιο παραμένει διαθέσιμη. Η αυτόματη καταγραφή τοποθεσίας θα παραμείνει απενεργοποιημένη μέχρι να επιτραπεί η τοποθεσία στο παρασκήνιο.</string>
 </resources>

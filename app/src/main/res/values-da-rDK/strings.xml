@@ -360,4 +360,9 @@
     <string name="background_reliability_samsung_action">Åbn enhedens batteriindstillinger</string>
     <string name="settings_tracebox_title">Nedbrudsdiagnostik</string>
     <string name="settings_tracebox_root_summary">Lokal diagnostik af nedbrud, ANR og struktur</string>
+    <string name="setup_background_location_title">Tillad placering i baggrunden til automatisk sporing</string>
+    <string name="setup_background_location_disclosure">Automatisk sporing starter, mens Tracker er i baggrunden, og registrerer din rute, selv når appens skærm ikke er åben. Placeringsdata forbliver på denne enhed. Vælg “%1$s” i appens placeringsindstillinger.</string>
+    <string name="setup_background_location_open_settings">Åbn placeringsindstillinger</string>
+    <string name="setup_background_location_decline">Ikke nu</string>
+    <string name="setup_background_location_manual_only">Manuel sporing i forgrunden er stadig tilgængelig. Automatisk placeringssporing forbliver deaktiveret, indtil placering i baggrunden tillades.</string>
 </resources>
