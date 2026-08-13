@@ -74,6 +74,8 @@ import javax.inject.Singleton
 import dev.tracebox.api.DeleteReport
 import dev.tracebox.api.DeleteRequest
 import kotlinx.coroutines.withContext
+import android.location.LocationManager
+import com.adsamcik.tracker.shared.base.assist.Assist
 
 /**
  * Hilt module providing core infrastructure dependencies.
@@ -94,6 +96,8 @@ object InfrastructureModule {
     ): UiLocationProvider = DefaultUiLocationProvider(
         client = LocationServices.getFusedLocationProviderClient(context),
         processLifecycle = ProcessLifecycleOwner.get().lifecycle,
+        locationManager = context.getSystemService(LocationManager::class.java),
+        fusedAvailable = { Assist.isPlayServicesAvailable(context) },
     )
 
     /**
