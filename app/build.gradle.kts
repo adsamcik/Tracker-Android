@@ -273,5 +273,6 @@ dependencies {
     testImplementation(project(":stats:engine"))
     testImplementation(libs.turbine)
     androidTestImplementation(project(":core:testing"))
+    androidTestImplementation(project(":core:sqlite-runtime"))
     testImplementation(project(":core:testing"))
 }
