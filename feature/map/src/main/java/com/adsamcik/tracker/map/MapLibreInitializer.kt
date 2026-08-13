@@ -1,12 +1,11 @@
 package com.adsamcik.tracker.map
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.os.StrictMode
-import android.util.Log
 import androidx.annotation.VisibleForTesting
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import dev.tracebox.Tracebox
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.MainCoroutineDispatcher
 import kotlinx.coroutines.withContext
@@ -199,14 +198,12 @@ object MapLibreInitializer {
             recordInstallationFailureLocked(MapLibreHttpFactoryFailureReason.INSTALLATION_EXCEPTION)
         }
 
-    @SuppressLint("LogNotTimber")
     private fun recordInstallationFailureLocked(
         reason: MapLibreHttpFactoryFailureReason,
     ): MapLibreHttpFactoryInstallResult.Failure {
         _isOnlineReady.value = false
         _lastHttpCallFactoryFailure.value = reason
-        Log.e(
-            TAG,
+        Tracebox.log.error(
             "MapLibre gateway HTTP factory installation failed; " +
                 "online networking remains disabled (${reason.diagnosticCode})",
         )
@@ -276,6 +273,4 @@ object MapLibreInitializer {
             pendingCallFactory = null
         }
     }
-
-    private const val TAG = "MapLibreInitializer"
 }

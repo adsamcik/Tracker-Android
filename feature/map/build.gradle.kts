@@ -37,6 +37,7 @@ dependencies {
     implementation(project(":stats:api"))
     implementation(project(":domain:geocoder"))
     implementation(project(":core:network"))
+    implementation(project(":core:diagnostics"))
 
     // Core
     implementation(libs.kotlinx.coroutines.android)
