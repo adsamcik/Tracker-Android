@@ -9,18 +9,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Unit tests
+  source_hygiene:
+    name: Source hygiene
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read
-    env:
-      GITHUB_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
       - name: Check unused string resources
         run: python3 tools/check_unused_string_resources.py
+
+  locale_hygiene:
+    name: Locale hygiene
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
       - name: Validate completed locale resources
         run: |
           for qualifier in \
@@ -54,6 +59,17 @@ jobs:
           do
             python3 tools/validate_locale_resources.py "$qualifier"
           done
+
+  host_tests:
+    name: Host tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
@@ -80,21 +96,30 @@ jobs:
           --refresh-dependencies
           --no-daemon --stacktrace --console=plain
       - name: Run unit tests (all modules)
+        id: unit_tests
+        run: ./gradlew testDebugUnitTest --no-daemon --stacktrace --console=plain
+      - name: Verify unit-test reports
+        if: ${{ !cancelled() && steps.unit_tests.outcome != 'skipped' }}
         run: |
-          ./gradlew --no-daemon --stacktrace testDebugUnitTest
+          report="$(find . -type f -path '*/build/test-results/testDebugUnitTest/*.xml' -size +0c -print -quit)"
+          if [ -z "$report" ]; then
+            echo "testDebugUnitTest completed without producing a non-empty XML test report." >&2
+            exit 1
+          fi
+          echo "Found unit-test evidence at $report"
       - name: Upload test reports
-        if: always()
+        if: ${{ always() && steps.unit_tests.outcome != 'skipped' }}
         uses: actions/upload-artifact@v4
         with:
           name: test-reports
           path: |
             **/build/reports/tests/**
             **/build/test-results/**/*.xml
+          if-no-files-found: error
           retention-days: 7
 
-  build:
-    name: Assemble release
-    needs: test
+  build_validation:
+    name: Build and static validation
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -122,28 +147,106 @@ jobs:
           chmod +x gradlew
           echo "MAPS_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" > local.properties
       - name: Run debug lint
+        id: debug_lint
         run: ./gradlew lintDebug --no-daemon --stacktrace --console=plain
       - name: Run release lint
+        id: release_lint
+        if: ${{ !cancelled() }}
         run: ./gradlew :app:lintRelease --no-daemon --stacktrace --console=plain
+      - name: Verify lint reports
+        if: ${{ !cancelled() && steps.debug_lint.outcome != 'skipped' && steps.release_lint.outcome != 'skipped' }}
+        run: |
+          for variant in debug release
+          do
+            report="$(find app/build/reports -type f -name "lint-results-$variant.*" -size +0c -print -quit)"
+            if [ -z "$report" ]; then
+              echo "lint$variant completed without producing a non-empty app lint report." >&2
+              exit 1
+            fi
+            echo "Found $variant lint evidence at $report"
+          done
+      - name: Verify release SQLite runtime
+        if: ${{ !cancelled() }}
+        run: ./gradlew verifyReleaseSqliteRuntime --no-daemon --stacktrace --console=plain
       - name: Build minified release
+        id: minified_release
+        if: ${{ !cancelled() }}
         run: ./gradlew :app:assembleRelease --no-daemon --stacktrace --console=plain
+      - name: Verify minified release APK
+        if: ${{ !cancelled() && steps.minified_release.outcome == 'success' }}
+        run: |
+          apk="$(find app/build/outputs/apk/release -type f -name '*.apk' -size +0c -print -quit)"
+          if [ -z "$apk" ]; then
+            echo "assembleRelease completed without producing a non-empty APK." >&2
+            exit 1
+          fi
+          echo "Found minified release APK at $apk"
       - name: Build diagnostic release (nominify)
+        id: diagnostic_release
+        if: ${{ !cancelled() }}
         run: ./gradlew :app:assembleRelease_nominify --no-daemon --stacktrace --console=plain
+      - name: Verify diagnostic release APK
+        if: ${{ !cancelled() && steps.diagnostic_release.outcome == 'success' }}
+        run: |
+          apk="$(find app/build/outputs/apk/release_nominify -type f -name '*.apk' -size +0c -print -quit)"
+          if [ -z "$apk" ]; then
+            echo "assembleRelease_nominify completed without producing a non-empty APK." >&2
+            exit 1
+          fi
+          echo "Found diagnostic release APK at $apk"
       - name: Check Room schema drift
+        if: ${{ !cancelled() }}
         run: ./gradlew checkRoomSchemaDrift --no-daemon --stacktrace --console=plain
       - name: Upload build reports
-        if: always()
+        if: ${{ always() && (steps.debug_lint.outcome != 'skipped' || steps.release_lint.outcome != 'skipped') }}
         uses: actions/upload-artifact@v4
         with:
           name: build-reports
-          path: build/reports/
+          path: '**/build/reports/**'
+          if-no-files-found: error
           retention-days: 7
       - name: Upload APKs
-        if: success()
+        if: ${{ always() && (steps.minified_release.outcome != 'skipped' || steps.diagnostic_release.outcome != 'skipped') }}
         uses: actions/upload-artifact@v4
         with:
           name: app-outputs
           path: |
             app/build/outputs/**
             */build/outputs/**
+          if-no-files-found: error
           retention-days: 7
+
+  ci:
+    name: CI
+    if: ${{ always() }}
+    needs:
+      - source_hygiene
+      - locale_hygiene
+      - host_tests
+      - build_validation
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Require all CI evidence
+        env:
+          SOURCE_HYGIENE_RESULT: ${{ needs.source_hygiene.result }}
+          LOCALE_HYGIENE_RESULT: ${{ needs.locale_hygiene.result }}
+          HOST_TESTS_RESULT: ${{ needs.host_tests.result }}
+          BUILD_VALIDATION_RESULT: ${{ needs.build_validation.result }}
+        run: |
+          failed=0
+          for check in \
+            "source_hygiene=$SOURCE_HYGIENE_RESULT" \
+            "locale_hygiene=$LOCALE_HYGIENE_RESULT" \
+            "host_tests=$HOST_TESTS_RESULT" \
+            "build_validation=$BUILD_VALIDATION_RESULT"
+          do
+            name="${check%%=*}"
+            result="${check#*=}"
+            echo "$name: $result"
+            if [ "$result" != "success" ]; then
+              failed=1
+            fi
+          done
+          exit "$failed"
