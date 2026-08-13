@@ -89,12 +89,22 @@ jobs:
           chmod +x gradlew
           echo "MAPS_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" > local.properties
       - name: Verify Tracebox package access
-        run: >-
-          ./gradlew :app:dependencyInsight
-          --configuration debugRuntimeClasspath
-          --dependency io.github.tracebox:tracebox
-          --refresh-dependencies
-          --no-daemon --stacktrace --console=plain
+        run: |
+          set -o pipefail
+          report="$(mktemp)"
+          ./gradlew :app:dependencyInsight \
+            --configuration debugRuntimeClasspath \
+            --dependency io.github.tracebox:tracebox \
+            --refresh-dependencies \
+            --no-daemon --stacktrace --console=plain 2>&1 | tee "$report"
+          if grep -Eq '^io\.github\.tracebox:[^ ]+:[^ ]+ FAILED$' "$report"; then
+            echo "Tracebox artifacts did not resolve from GitHub Packages." >&2
+            exit 1
+          fi
+          if ! grep -Eq '^io\.github\.tracebox:tracebox:[^ ]+' "$report"; then
+            echo "Tracebox dependency evidence was absent from dependencyInsight." >&2
+            exit 1
+          fi
       - name: Run unit tests (all modules)
         id: unit_tests
         run: ./gradlew testDebugUnitTest --no-daemon --stacktrace --console=plain
