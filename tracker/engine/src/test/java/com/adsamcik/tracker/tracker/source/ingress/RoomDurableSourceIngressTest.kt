@@ -21,6 +21,8 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.CancellationException
+import io.kotest.assertions.throwables.shouldThrow
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -127,6 +129,21 @@ class RoomDurableSourceIngressTest {
 			.shouldBeInstanceOf<AdmissionResult.RetryableFailure>()
 
 		result.code shouldBe AdmissionFailureCode.LIFECYCLE_BARRIER_IN_PROGRESS
+	}
+
+	@Test
+	fun `lifecycle cancellation propagates before admission`() = runTest {
+		val cancelledIngress = RoomDurableSourceIngress(
+			database,
+			object : CollectedDataLifecycleStore by lifecycle {
+				override suspend fun snapshot(): CollectedDataLifecycleSnapshot {
+					throw CancellationException("cancel admission")
+				}
+			},
+			DefaultSourcePayloadCodec(),
+		)
+
+		shouldThrow<CancellationException> { cancelledIngress.admit(candidate(sequence = 1L)) }
 	}
 
 	@Test

@@ -35,7 +35,7 @@ data class EncodedSourcePayload(
 @Singleton
 class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 	override fun encode(payload: SourcePayload, payloadVersion: Int): EncodedSourcePayload {
-		require(payloadVersion == CURRENT_VERSION) { "Unsupported source payload version $payloadVersion" }
+		if (payloadVersion != CURRENT_VERSION) throw UnsupportedSourcePayloadException()
 		val bytes = ByteArrayOutputStream().use { buffer ->
 			DataOutputStream(buffer).use { output -> output.writePayload(payload) }
 			buffer.toByteArray()
@@ -130,7 +130,7 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 				}
 				writeInt(payload.refreshOutcome.ordinal)
 			}
-			else -> error("Unsupported source payload ${payload::class.java.name}")
+			else -> throw UnsupportedSourcePayloadException()
 		}
 	}
 
@@ -247,3 +247,5 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 		const val TYPE_CELL_SNAPSHOT = 8
 	}
 }
+
+internal class UnsupportedSourcePayloadException : IllegalArgumentException("Unsupported source payload")

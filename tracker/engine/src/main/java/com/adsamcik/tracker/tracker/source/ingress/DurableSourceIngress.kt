@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.dao.SourceEventIdentityRow
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.tracker.failure.isTrackingOperationalFailure
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
@@ -93,13 +94,14 @@ class RoomDurableSourceIngress @Inject constructor(
 					AdmissionResult.PermanentFailure(AdmissionFailureCode.BEFORE_RETENTION_BOUNDARY),
 				)
 			}
-			val encoded = runCatching { payloadCodec.encode(candidate.payload, candidate.payloadVersion) }
-				.getOrElse {
+			val encoded = try {
+				payloadCodec.encode(candidate.payload, candidate.payloadVersion)
+			} catch (_: UnsupportedSourcePayloadException) {
 					return repeatedFailure(
 						candidates.size,
 						AdmissionResult.PermanentFailure(AdmissionFailureCode.UNSUPPORTED_PAYLOAD),
 					)
-				}
+			}
 			EncodedCandidate(candidate, encoded)
 		}
 
@@ -183,7 +185,8 @@ class RoomDurableSourceIngress @Inject constructor(
 			repeatedFailure(candidates.size, aborted.result)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
-		} catch (_: Throwable) {
+		} catch (failure: Exception) {
+			if (!failure.isTrackingOperationalFailure()) throw failure
 			repeatedFailure(
 				candidates.size,
 				AdmissionResult.RetryableFailure(AdmissionFailureCode.STORAGE_UNAVAILABLE),

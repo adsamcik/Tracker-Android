@@ -31,6 +31,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.processor.SignalProcessor
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
+import com.adsamcik.tracker.tracker.failure.isTrackingOperationalFailure
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.api.TrackerServiceContract
@@ -63,6 +64,7 @@ import com.adsamcik.tracker.tracker.source.coordinator.SourceSessionPlanInputs
 import com.adsamcik.tracker.tracker.source.coordinator.SourceSessionReconfigureOutcome
 import com.adsamcik.tracker.tracker.source.coordinator.SourceSessionStartOutcome
 import com.adsamcik.tracker.tracker.source.coordinator.SourceSessionStartRequest
+import com.adsamcik.tracker.tracker.source.coordinator.SourceSessionStopOutcome
 import com.adsamcik.tracker.tracker.source.coordinator.SourceOwner
 import com.adsamcik.tracker.tracker.source.coordinator.TrackerServiceSourceSession
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingCoordinatorTelemetry
@@ -84,7 +86,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
@@ -234,9 +235,11 @@ internal class TrackerService : CoreService() {
 			onSourcePlanInputsChanged = { settings, demands ->
 				val rollout = sessionRolloutState
 				val foregroundReady = rollout == null || prepareForegroundForSourcePlan(settings, rollout)
-				val reconfigured = if (foregroundReady) runCatching {
+				val reconfigured = if (foregroundReady) {
 					sourceSession.reconfigure(sourcePlanInputs(settings, demands))
-				}.getOrNull() else null
+				} else {
+					null
+				}
 				if (reconfigured == null || reconfigured is SourceSessionReconfigureOutcome.Rejected) {
 					requestGracefulStop(reason = TrackingStopCandidateReason.INTERNAL_FAILURE)
 				}
@@ -596,7 +599,9 @@ internal class TrackerService : CoreService() {
 					)) {
 						is SourceSessionStartOutcome.Rejected -> {
 							collectionMotionController.stopSession(descriptor.serviceRunId)
-							error("Event source session start rejected: ${sourceStart.result}")
+							Tracebox.log.error("Tracking source session start was rejected")
+							requestGracefulStop(reason = TrackingStopCandidateReason.INITIALIZATION_FAILURE)
+							return@runAfter
 						}
 						else -> Unit
 					}
@@ -608,11 +613,9 @@ internal class TrackerService : CoreService() {
 						batteryAwarePolicy.batteryLevelUpdates.collect {
 							orchestrator.onBatteryLevelChanged(scope = this@TrackerService)
 							val currentSettings = trackingParamsRepository.data.first()
-							val sourceResult = runCatching {
-								sourceSession.reconfigure(
-									sourcePlanInputs(currentSettings, orchestrator.currentSourceDemands()),
-								)
-							}.getOrNull()
+							val sourceResult = sourceSession.reconfigure(
+								sourcePlanInputs(currentSettings, orchestrator.currentSourceDemands()),
+							)
 							if (sourceResult == null || sourceResult is SourceSessionReconfigureOutcome.Rejected) {
 								requestGracefulStop(reason = TrackingStopCandidateReason.INTERNAL_FAILURE)
 							}
@@ -620,13 +623,11 @@ internal class TrackerService : CoreService() {
 					}
 
 				}
-			} catch (e: TimeoutCancellationException) {
-				Tracebox.log.error(e, "Tracking start failed")
-				requestGracefulStop(reason = TrackingStopCandidateReason.INITIALIZATION_FAILURE)
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {
-				Tracebox.log.error(e, "Tracking start failed")
+				if (!e.isTrackingOperationalFailure()) throw e
+				Tracebox.log.error("Tracking start failed: storage unavailable")
 				requestGracefulStop(reason = TrackingStopCandidateReason.INITIALIZATION_FAILURE)
 			}
 		}
@@ -660,11 +661,9 @@ internal class TrackerService : CoreService() {
 							fullFidelity = profile.locationStrategy == LocationCollectionStrategy.FULL_FIDELITY,
 						)
 						val currentSettings = trackingParamsRepository.data.first()
-						val result = runCatching {
-							sourceSession.reconfigure(
-								sourcePlanInputs(currentSettings, orchestrator.currentSourceDemands()),
-							)
-						}.getOrNull()
+						val result = sourceSession.reconfigure(
+							sourcePlanInputs(currentSettings, orchestrator.currentSourceDemands()),
+						)
 						if (result == null || result is SourceSessionReconfigureOutcome.Rejected) {
 							requestGracefulStop(reason = TrackingStopCandidateReason.INTERNAL_FAILURE)
 						}
@@ -832,6 +831,7 @@ internal class TrackerService : CoreService() {
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Exception) {
+			if (!e.isTrackingOperationalFailure()) throw e
 			false
 		}
 
@@ -843,6 +843,7 @@ internal class TrackerService : CoreService() {
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Exception) {
+			if (!e.isTrackingOperationalFailure()) throw e
 			false
 		}
 		cycleDispatcherScope?.cancel()
@@ -1045,10 +1046,16 @@ internal class TrackerService : CoreService() {
 	private suspend fun performTeardown(context: Context) {
 		val serviceRunId = activeSessionDescriptor?.serviceRunId
 		retryTrackingShutdown {
-			sourceSession.stop(
+			when (val outcome = sourceSession.stop(
 				reason = stopReason.name,
 				preserveLogicalSession = !gracefulStopRequested,
-			)
+			)) {
+				SourceSessionStopOutcome.Stopped,
+				SourceSessionStopOutcome.NotActive,
+				-> Unit
+				is SourceSessionStopOutcome.Retryable ->
+					throw TrackingShutdownRetryException(outcome.code.name)
+			}
 		}
 		serviceRunId?.let(collectionMotionController::stopSession)
 		sourcePipelineRecovery.drainCommittedWork()
@@ -1085,7 +1092,10 @@ internal class TrackerService : CoreService() {
 					cycleDispatcher.cancelAndJoin()
 				}
 				finalCycleCancellationFailure = null
+			} catch (e: CancellationException) {
+				throw e
 			} catch (e: Exception) {
+				if (!e.isTrackingOperationalFailure() && e !is TrackingShutdownRetryException) throw e
 				finalCycleCancellationFailure = e
 			}
 		}
@@ -1312,6 +1322,7 @@ internal suspend fun <T : Any> drainCyclesThenShutdown(
 	} catch (exception: CancellationException) {
 		throw exception
 	} catch (exception: Exception) {
+		if (!exception.isTrackingOperationalFailure()) throw exception
 		drainFailure = exception
 		false
 	}
@@ -1325,6 +1336,7 @@ internal suspend fun <T : Any> drainCyclesThenShutdown(
 	} catch (exception: CancellationException) {
 		throw exception
 	} catch (exception: Exception) {
+		if (!exception.isTrackingOperationalFailure()) throw exception
 		cycleCancellationFailure = exception
 		false
 	}
@@ -1347,6 +1359,7 @@ internal suspend fun <T : Any> drainCyclesThenShutdown(
 		} catch (exception: CancellationException) {
 			throw exception
 		} catch (exception: Exception) {
+			if (!exception.isTrackingOperationalFailure()) throw exception
 			shutdownFailure = exception
 			null
 		}

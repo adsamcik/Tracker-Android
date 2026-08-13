@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.coordinator
 
 import android.app.Application
+import android.database.sqlite.SQLiteException
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceEventSinkFactory
@@ -27,9 +28,11 @@ import com.adsamcik.tracker.tracker.source.runtime.SourceStopAck
 import com.adsamcik.tracker.tracker.source.runtime.SourceStopStatus
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.kotest.assertions.throwables.shouldThrow
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -122,17 +125,42 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `source start failure closes partial runtimes and marks durable lifecycle failed`() = runTest {
-		runtime.throwOnStart = true
+	fun `programmer error during source start propagates after lifecycle recovery`() = runTest {
+		runtime.startFailure = IllegalStateException("start failed")
 
-		val failed = subject.start(
-			startRequest().copy(logicalTrackingId = "logical-failed", serviceRunId = "run-failed"),
-		).shouldBeInstanceOf<SessionStartResult.Failed>()
+		shouldThrow<IllegalStateException> {
+			subject.start(
+				startRequest().copy(logicalTrackingId = "logical-failed", serviceRunId = "run-failed"),
+			)
+		}
 
-		failed.code shouldBe "NO_SOURCE_STARTED"
 		database.sourceSessionDao().session("logical-failed")?.state shouldBe SessionLifecycleState.FAILED.name
 		database.sourceSessionDao().serviceRun("run-failed")?.state shouldBe SessionLifecycleState.FAILED.name
 		runtime.closed shouldBe true
+	}
+
+	@Test
+	fun `start cancellation propagates after lifecycle recovery`() = runTest {
+		runtime.startFailure = CancellationException("cancel start")
+
+		shouldThrow<CancellationException> {
+			subject.start(
+				startRequest().copy(logicalTrackingId = "logical-cancelled", serviceRunId = "run-cancelled"),
+			)
+		}
+
+		database.sourceSessionDao().session("logical-cancelled")?.state shouldBe SessionLifecycleState.FAILED.name
+	}
+
+	@Test
+	fun `controlled SQLite start failure becomes a typed recovery result`() = runTest {
+		runtime.startFailure = SQLiteException("database unavailable")
+
+		val failed = subject.start(
+			startRequest().copy(logicalTrackingId = "logical-storage", serviceRunId = "run-storage"),
+		).shouldBeInstanceOf<SessionStartResult.Failed>()
+
+		failed.code shouldBe "START_STORAGE_UNAVAILABLE"
 	}
 
 	@Test
@@ -161,6 +189,40 @@ class AuthoritativeSessionCoordinatorTest {
 
 		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe SessionLifecycleState.FAILED.name
 		runtime.closed shouldBe true
+	}
+
+	@Test
+	fun `reconfigure cancellation propagates after restoring the previous plan`() = runTest {
+		subject.start(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		runtime.reconfigureFailures[2L] = CancellationException("cancel reconfigure")
+
+		shouldThrow<CancellationException> { subject.reconfigure(reconfigureRequest(2L)) }
+
+		database.sourceSessionDao().activeSession()?.state shouldBe SessionLifecycleState.RUNNING.name
+		database.sourceSessionDao().activeSession()?.desiredPlanRevision shouldBe 1L
+	}
+
+	@Test
+	fun `controlled SQLite reconfigure failure becomes a typed rollback`() = runTest {
+		subject.start(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		runtime.reconfigureFailures[2L] = SQLiteException("database unavailable")
+
+		val rolledBack = subject.reconfigure(reconfigureRequest(2L))
+			.shouldBeInstanceOf<SessionReconfigureResult.RolledBack>()
+
+		rolledBack.code shouldBe "RECONFIGURE_STORAGE_UNAVAILABLE"
+	}
+
+	@Test
+	fun `stop cancellation propagates`() = runTest {
+		subject.start(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		runtime.quiesceFailure = CancellationException("cancel stop")
+
+		shouldThrow<CancellationException> {
+			subject.stop(
+				SessionStopRequest("test-owner", "manual", 2_000, 2_000_000, perSourceTimeoutMs = 100),
+			)
+		}
 	}
 
 	private fun startRequest() = SessionStartRequest(
@@ -213,20 +275,23 @@ private class FakeStepsRuntime(private val database: AppDatabase) : SourceRuntim
 	override val capabilities = MutableStateFlow(SourceCapabilities(true, true, true, 100, 1))
 	var stateObservedAtStart: String? = null
 	var closed = false
-	var throwOnStart = false
+	var startFailure: Throwable? = null
 	val failRevisions = mutableSetOf<Long>()
+	val reconfigureFailures = mutableMapOf<Long, Throwable>()
+	var quiesceFailure: Throwable? = null
 	val reconfiguredRevisions = mutableListOf<Long>()
 	var currentRevision: Long? = null
 
 	override suspend fun start(plan: StepsPlan, sink: SourceEventSink): SourceStartResult {
 		stateObservedAtStart = database.sourceSessionDao().activeSession()?.state
-		if (throwOnStart) error("start failed")
+		startFailure?.let { throw it }
 		currentRevision = plan.revision
 		return SourceStartResult.Started(applied(plan))
 	}
 
 	override suspend fun reconfigure(plan: StepsPlan): SourceApplyResult {
 		reconfiguredRevisions += plan.revision
+		reconfigureFailures[plan.revision]?.let { throw it }
 		if (plan.revision in failRevisions) {
 			currentRevision = null
 			return SourceApplyResult.Failed(
@@ -238,7 +303,9 @@ private class FakeStepsRuntime(private val database: AppDatabase) : SourceRuntim
 		return SourceApplyResult.Applied(applied(plan))
 	}
 
-	override suspend fun quiesce(cutoff: SessionCutoff) = SourceStopAck(
+	override suspend fun quiesce(cutoff: SessionCutoff): SourceStopAck {
+		quiesceFailure?.let { throw it }
+		return SourceStopAck(
 		source = source,
 		sourceInstanceId = SourceInstanceId("steps-instance"),
 		registrationGeneration = 1,
@@ -254,7 +321,8 @@ private class FakeStepsRuntime(private val database: AppDatabase) : SourceRuntim
 		providerCoverage = ProviderCoverage.CALLBACKS_ENTERED_BEFORE_BARRIER,
 		appDrainComplete = true,
 		status = SourceStopStatus.COMPLETE,
-	)
+		)
+	}
 
 	override suspend fun close() {
 		closed = true
