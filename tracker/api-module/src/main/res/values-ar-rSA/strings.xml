@@ -43,7 +43,6 @@
         <item quantity="many">Auto tracking has been locked for %1$d minutes.</item>
         <item quantity="other">Auto tracking has been locked for %1$d minutes.</item>
     </plurals>
-    <string name="notification_looking_for_gps">Looking for GPS</string>
     <string name="notification_starting">Starting Tracker service</string>
     <string name="notification_stop">Stop</string>
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Stop for %d minutes</string>
@@ -51,8 +50,6 @@
     <string name="notification_tracker_active_ticker">Tracker is active</string>
     <string name="notification_tracking_active">Tracking</string>
     <string name="settings_activity_enabled_title">Activity</string>
-    <string name="settings_auto_tracking_transition_summary">Transitions may reduce battery usage when auto tracking, but activity changes might be less reactive.</string>
-    <string name="settings_auto_tracking_transition_title">Use activity transitions</string>
     <string name="settings_cell_enabled_title">Cell</string>
     <string name="settings_disabled_recharge_summary">Automatic tracking is disabled until your phone is connected to a charger</string>
     <string name="settings_disabled_recharge_title">Disabled until recharge</string>
@@ -61,9 +58,6 @@
     <string name="settings_notification_customize_title">Customize notification</string>
     <string name="settings_notification_styled_summary">Use your app style color for notifications.</string>
     <string name="settings_notification_styled_title">Colored notifications</string>
-    <string name="settings_tracker_timer_clock">Timer</string>
-    <string name="settings_tracker_timer_fused">Google Play location</string>
-    <string name="settings_tracker_timer_location">Android location</string>
     <string name="settings_tracking_min_distance_title">Minimum distance between collections</string>
     <string name="settings_tracking_min_time_title">Minimum delay between collections</string>
     <string name="settings_tracking_notice_summary">Due to technical reasons, most changes to tracker settings require restart of tracking. (If tracking is active just stop it and start it again. Closing and opening app might not help)</string>

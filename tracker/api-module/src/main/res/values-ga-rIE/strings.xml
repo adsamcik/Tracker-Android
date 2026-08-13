@@ -45,7 +45,6 @@
         <item quantity="one">Tá rianú uathoibríoch faoi ghlas ar feadh %1$d nóiméid.</item>
         <item quantity="other">Tá rianú uathoibríoch faoi ghlas ar feadh %1$d nóiméad.</item>
     </plurals>
-    <string name="notification_looking_for_gps">Ag lorg GPS — suíomh in úsáid</string>
     <string name="notification_starting">Tá Tracker ag tosú — suíomh in úsáid</string>
     <string name="notification_starting_without_location">Tá Tracker ag tosú</string>
     <string name="notification_stop">Stad</string>
@@ -59,8 +58,6 @@
     <string name="notification_tracking_start_failed_title">Níorbh fhéidir rianú a thosú</string>
     <string name="notification_tracking_start_failed_text">Oscail an aip chun ceadanna a athbhreithniú agus rianú a atosú.</string>
     <string name="settings_activity_enabled_title">Gníomhaíocht</string>
-    <string name="settings_auto_tracking_transition_summary">Mód éifeachtúil ó thaobh ceallra (braite gníomhaíochta beagán níos moille)</string>
-    <string name="settings_auto_tracking_transition_title">Úsáid aistrithe gníomhaíochta</string>
     <string name="settings_cell_enabled_title">Cill</string>
     <string name="settings_disabled_recharge_summary">Díchumasaítear rianú uathoibríoch go dtí go nascann do ghuthán le luchtóir</string>
     <string name="settings_disabled_recharge_title">Díchumasaithe go dtí athluchtú</string>
@@ -74,10 +71,6 @@
     <string name="ski_notification_lift">Turas %1$s</string>
     <string name="settings_barometer_enabled_title">Baraiméadar</string>
     <string name="settings_steps_enabled_title">Líon céimeanna</string>
-    <string name="settings_tracker_timer_ambient">Amadóir comhthimpeallach</string>
-    <string name="settings_tracker_timer_clock">Bunaithe ar eatramh</string>
-    <string name="settings_tracker_timer_fused">Suíomh Google Play</string>
-    <string name="settings_tracker_timer_location">Suíomh Android</string>
     <string name="settings_tracking_min_distance_title">Fad íosta idir nuashonruithe</string>
     <string name="settings_tracking_min_time_title">Moill íosta idir nuashonruithe</string>
     <string name="settings_tracking_notice_summary">Tiocfaidh athruithe i bhfeidhm nuair a atosóidh tú rianú</string>

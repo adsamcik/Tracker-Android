@@ -74,11 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Utförsåk</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Lift</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Promenad eller paus</string>
-    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Gång</string>
-    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Cykling</string>
-    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Bilresa</string>
-    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Kollektivtrafik</string>
-    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Övrigt</string>
     <string name="map_layer_fog_title">Utforskarens dimma</string>
     <string name="map_layer_fog_chip">Dimma</string>
     <string name="map_layer_fog_description">Världen träder fram ur dimman: varje område du har rört vid avslöjas och lyser starkare ju mer ingående du har lärt känna det. Platser du bara passerat förbi förblir en svag dis; platser du utforskat djupt brinner i rent guld. Outforskad mark förblir mörk.</string>

@@ -74,11 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Nedfart</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Skilift</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Gåtur eller pause</string>
-    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Gang</string>
-    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Cykling</string>
-    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Kørsel</string>
-    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Offentlig transport</string>
-    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Andet</string>
     <string name="map_layer_fog_title">Udforskerens tåge</string>
     <string name="map_layer_fog_chip">Tåge</string>
     <string name="map_layer_fog_description">Verden, der træder frem af tågen: hvert område, du har berørt, afsløres og lyser klarere, jo grundigere du har lært det at kende. Steder, du kun passerede, forbliver en svag dis; et sted, du udforskede dybt, brænder gyldent. Uudforsket terræn forbliver mørkt.</string>

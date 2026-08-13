@@ -288,8 +288,6 @@
     <string name="settings_runtime_telemetry_summary" translatable="false">Projected events: %1$d • plan revisions: %2$d • tracking frames: %3$d • frame wake lock: %4$d ms</string>
     <string name="settings_advanced_source_controls_title" translatable="false">Advanced controls</string>
     <string name="settings_advanced_source_controls_summary" translatable="false">Set individual update frequency and location filters.</string>
-    <string name="settings_source_frequency_summary" translatable="false">%1$s\n%2$s</string>
-    <string name="settings_source_frequency_line" translatable="false">%1$s · %2$s</string>
     <string name="settings_source_cadence_disabled" translatable="false">Not collected</string>
     <string name="settings_source_cadence_location" translatable="false">Every %1$s while active; minimum %2$s movement</string>
     <string name="settings_source_cadence_location_available" translatable="false">As location updates are available while active</string>
@@ -317,8 +315,6 @@
     <string name="settings_source_badge_attempt_limit" translatable="false">≤ %1$s attempts</string>
     <string name="settings_source_badge_network_changes" translatable="false">Network changes</string>
     <string name="settings_source_badge_refresh_limit" translatable="false">≤ %1$s refresh</string>
-    <string name="settings_source_requested" translatable="false">Requested: %1$s</string>
-    <string name="settings_source_effective" translatable="false">Effective: %1$s</string>
     <string name="settings_source_frequency_dialog" translatable="false">%1$s collection frequency</string>
 
     <!-- Location Precision Mode Strings -->
@@ -353,17 +349,13 @@
     <string name="tracking_preset_power_save_description">Lower battery use with less frequent updates and reduced sensors</string>
     <string name="tracking_preset_custom_name">Custom</string>
     <string name="tracking_preset_custom_description">Manually tune each tracking parameter</string>
-    <string name="tracking_preset_selector_title">Tracking Preset</string>
     <string name="tracking_preset_selector_subtitle">Choose the balance between route detail and battery life.</string>
     <string name="tracking_preset_change">Compare options</string>
     <string name="tracking_preset_done">Show selected only</string>
-    <string name="tracking_preset_custom_hint">Adjusting any setting below builds a Custom profile from the current preset.</string>
     <string name="tracking_preset_customized_summary">You\'ve fine-tuned tracking. Pick a preset above to reset.</string>
     <string name="settings_tracking_section_start_stop">Automatic tracking</string>
     <string name="settings_tracking_section_battery_detail">Tracking quality</string>
     <string name="settings_tracking_section_data_collected">Data collected</string>
-    <string name="settings_tracking_section_detection">Detection &amp; automation</string>
-    <string name="settings_tracking_section_sources">Data sources</string>
     <string name="settings_tracking_section_detail">Location filters</string>
     <string name="settings_tracking_section_notifications">Notifications</string>
     <string name="settings_transition_detection_friendly_title">Battery-efficient motion detection</string>
@@ -385,7 +377,6 @@
     <string name="settings_technical_status_summary">Battery estimate, permissions, and collection status.</string>
     <string name="settings_technical_status_attention">Some collection sources need attention. Open for details.</string>
     <string name="settings_simple_source_controls_title">Use simple controls</string>
-    <string name="settings_simple_source_controls_summary">Show straightforward on/off switches for each data source.</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
@@ -536,11 +527,9 @@
 
     <string name="settings_wifi_permission_required">Requires Wi-Fi/location permission. Toggle on to grant — no Wi-Fi data is recorded until then, and recorded data stays on this device.</string>
     <string name="settings_cell_permission_required">Requires phone state and precise location permission. Toggle on to grant — no cell data is recorded until then, and recorded data stays on this device.</string>
-    <string name="settings_wifi_privacy_summary">Records nearby Wi-Fi networks to improve location accuracy. Data stays on this device.</string>
     <string name="settings_barometer_unavailable">Pressure sensor is not available on this device.</string>
     <string name="settings_activity_permission_required">Requires activity recognition permission. Toggle on to grant.</string>
     <string name="settings_steps_unavailable">Step counter sensor is not available on this device.</string>
-    <string name="settings_cell_privacy_summary">Records cell tower IDs to improve location accuracy. Data stays on this device.</string>
     <string name="setup_start_exploring">Start Exploring</string>
     <string name="setup_continue">Continue</string>
     <string name="setup_step_indicator">Step %1$d of %2$d</string>

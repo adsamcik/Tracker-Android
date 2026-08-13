@@ -74,11 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Spust navzdol</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Žičnica</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Hoja ali premor</string>
-    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Hoja</string>
-    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Kolesarjenje</string>
-    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Vožnja</string>
-    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Javni prevoz</string>
-    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Drugo</string>
     <string name="map_layer_fog_title">Raziskovalčeva megla</string>
     <string name="map_layer_fog_chip">Megla</string>
     <string name="map_layer_fog_description">Svet, ki se dviga iz megle: razkrito je vsako območje, ki ste se ga dotaknili, in bolj ko ste ga spoznali, močneje žari. Kraji, skozi katere ste le šli, ostanejo rahel opar; globoko raziskani kraji žarijo v polnem zlatu. Neraziskana tla ostanejo temna.</string>

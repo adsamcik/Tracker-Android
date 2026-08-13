@@ -46,7 +46,6 @@
         <item quantity="few">Automatsko praćenje zaključano je na %1$d minute.</item>
         <item quantity="other">Automatsko praćenje zaključano je na %1$d minuta.</item>
     </plurals>
-    <string name="notification_looking_for_gps">Traženje GPS-a — lokacija je u upotrebi</string>
     <string name="notification_starting">Pokretanje Trackera — lokacija je u upotrebi</string>
     <string name="notification_starting_without_location">Pokretanje Trackera</string>
     <string name="notification_stop">Zaustavi</string>
@@ -60,8 +59,6 @@
     <string name="notification_tracking_start_failed_title">Nije moguće pokrenuti praćenje</string>
     <string name="notification_tracking_start_failed_text">Otvorite aplikaciju da biste provjerili dozvole i nastavili praćenje.</string>
     <string name="settings_activity_enabled_title">Aktivnost</string>
-    <string name="settings_auto_tracking_transition_summary">Način rada koji štedi bateriju (nešto sporije otkrivanje aktivnosti)</string>
-    <string name="settings_auto_tracking_transition_title">Upotrebljavaj prijelaze aktivnosti</string>
     <string name="settings_cell_enabled_title">Ćelija</string>
     <string name="settings_disabled_recharge_summary">Automatsko praćenje onemogućeno je dok telefon ne priključite na punjač</string>
     <string name="settings_disabled_recharge_title">Onemogućeno do punjenja</string>
@@ -75,10 +72,6 @@
     <string name="ski_notification_lift">vožnja %1$s</string>
     <string name="settings_barometer_enabled_title">Barometar</string>
     <string name="settings_steps_enabled_title">Brojanje koraka</string>
-    <string name="settings_tracker_timer_ambient">Pozadinski mjerač vremena</string>
-    <string name="settings_tracker_timer_clock">Temeljeno na intervalu</string>
-    <string name="settings_tracker_timer_fused">Google Play lokacija</string>
-    <string name="settings_tracker_timer_location">Android lokacija</string>
     <string name="settings_tracking_min_distance_title">Najmanja udaljenost između ažuriranja</string>
     <string name="settings_tracking_min_time_title">Najmanje kašnjenje između ažuriranja</string>
     <string name="settings_tracking_notice_summary">Promjene stupaju na snagu kada ponovno pokrenete praćenje</string>

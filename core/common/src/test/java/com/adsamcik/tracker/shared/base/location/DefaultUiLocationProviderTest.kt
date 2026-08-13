@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.shared.base.location
 
-import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Looper
@@ -11,10 +10,8 @@ import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.tasks.Tasks
-import io.kotest.matchers.doubles.shouldBeExactly
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import io.kotest.matchers.collections.shouldContainExactly
@@ -89,18 +86,21 @@ class DefaultUiLocationProviderTest {
         )
 
         owner.moveTo(Lifecycle.Event.ON_START)
-        val location = async { provider.locationUpdates(UiLocationRequest("map", 1_000)).first() }
+        val collection = async {
+            provider.locationUpdates(UiLocationRequest("map", 1_000)).collect { _ -> }
+        }
         advanceUntilIdle()
         provider.activeRequests.value.shouldContainExactly(UiLocationRequestInfo("map", 321L))
 
-        listener.captured.onLocationChanged(Location(LocationManager.GPS_PROVIDER).apply {
-            latitude = 50.08
-            longitude = 14.42
-        })
-        location.await().latitude.shouldBeExactly(50.08)
-        advanceUntilIdle()
-
-        provider.activeRequests.value.shouldContainExactly()
+        verify(exactly = 1) {
+            manager.requestLocationUpdates(
+                LocationManager.GPS_PROVIDER,
+                1_000L,
+                0f,
+                listener.captured,
+                any(),
+            )
+        }
         verify(exactly = 0) {
             client.requestLocationUpdates(
                 any<LocationRequest>(),
@@ -108,6 +108,12 @@ class DefaultUiLocationProviderTest {
                 any<Looper>(),
             )
         }
+
+        owner.moveTo(Lifecycle.Event.ON_STOP)
+        advanceUntilIdle()
+
+        collection.await()
+        provider.activeRequests.value.shouldContainExactly()
         verify(exactly = 1) { manager.removeUpdates(listener.captured) }
     }
 

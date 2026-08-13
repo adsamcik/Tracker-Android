@@ -198,12 +198,8 @@
     <string name="tracking_preset_power_save_description">Mniejsze zużycie baterii dzięki rzadszym aktualizacjom i ograniczonym czujnikom</string>
     <string name="tracking_preset_custom_name">Własny</string>
     <string name="tracking_preset_custom_description">Ręcznie dostosuj każdy parametr śledzenia</string>
-    <string name="tracking_preset_selector_title">Profil śledzenia</string>
     <string name="tracking_preset_selector_subtitle">Wybierz profil początkowy, a następnie dostosuj dowolne ustawienie poniżej.</string>
-    <string name="tracking_preset_custom_hint">Zmiana dowolnego ustawienia poniżej tworzy profil własny na podstawie bieżącego profilu.</string>
     <string name="tracking_preset_customized_summary">Dostosowano śledzenie. Wybierz powyżej profil, aby je zresetować.</string>
-    <string name="settings_tracking_section_detection">Wykrywanie i automatyzacja</string>
-    <string name="settings_tracking_section_sources">Źródła danych</string>
     <string name="settings_tracking_section_detail">Zbieranie lokalizacji</string>
     <string name="settings_tracking_section_notifications">Powiadomienia</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
@@ -340,11 +336,9 @@
     <string name="permission_disabled_due_to_denial">%1$s wyłączone, ponieważ odmówiono uprawnienia. Przyznaj je w ustawieniach, aby włączyć.</string>
     <string name="settings_wifi_permission_required">Wymaga uprawnienia do Wi‑Fi/lokalizacji. Włącz przełącznik, aby je przyznać — do tego czasu dane Wi‑Fi nie są rejestrowane, a zarejestrowane dane pozostają na tym urządzeniu.</string>
     <string name="settings_cell_permission_required">Wymaga uprawnienia do stanu telefonu i dokładnej lokalizacji. Włącz przełącznik, aby je przyznać — do tego czasu dane sieci komórkowej nie są rejestrowane, a zarejestrowane dane pozostają na tym urządzeniu.</string>
-    <string name="settings_wifi_privacy_summary">Rejestruje pobliskie sieci Wi‑Fi, aby poprawić dokładność lokalizacji. Dane pozostają na tym urządzeniu.</string>
     <string name="settings_barometer_unavailable">Czujnik ciśnienia nie jest dostępny na tym urządzeniu.</string>
     <string name="settings_activity_permission_required">Wymaga uprawnienia do rozpoznawania aktywności. Włącz przełącznik, aby je przyznać.</string>
     <string name="settings_steps_unavailable">Czujnik krokomierza nie jest dostępny na tym urządzeniu.</string>
-    <string name="settings_cell_privacy_summary">Rejestruje identyfikatory stacji bazowych, aby poprawić dokładność lokalizacji. Dane pozostają na tym urządzeniu.</string>
     <string name="setup_start_exploring">Rozpocznij odkrywanie</string>
     <string name="setup_continue">Kontynuuj</string>
     <string name="setup_step_indicator">Krok %1$d z %2$d</string>

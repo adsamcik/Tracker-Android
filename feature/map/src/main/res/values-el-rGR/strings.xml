@@ -74,11 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Κατάβαση</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Αναβατήρας</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Περπάτημα ή παύση</string>
-    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Περπάτημα</string>
-    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Ποδηλασία</string>
-    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Οδήγηση</string>
-    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Δημόσια μετακίνηση</string>
-    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Άλλο</string>
     <string name="map_layer_fog_title">Ομίχλη εξερευνητή</string>
     <string name="map_layer_fog_chip">Ομίχλη</string>
     <string name="map_layer_fog_description">Ο κόσμος αναδύεται από την ομίχλη: κάθε περιοχή που έχετε αγγίξει αποκαλύπτεται και λάμπει περισσότερο όσο πληρέστερα τη γνωρίσατε. Μέρη από τα οποία απλώς περάσατε μένουν αχνή θολούρα· ένα μέρος που εξερευνήσατε σε βάθος καίει σε συμπαγές χρυσό. Το ανεξερεύνητο έδαφος μένει σκοτεινό.</string>

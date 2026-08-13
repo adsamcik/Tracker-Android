@@ -74,11 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">下坡滑行</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">纜車</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">步行或暫停</string>
-    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">步行</string>
-    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">騎自行車</string>
-    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">開車</string>
-    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">大眾運輸</string>
-    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">其他</string>
     <string name="map_layer_fog_title">探索者之霧</string>
     <string name="map_layer_fog_chip">迷霧</string>
     <string name="map_layer_fog_description">世界從迷霧中浮現：您踏足過的每個區域都會揭露，探索得越徹底便越明亮。僅路過的地方保持淡霧；深度探索的地點則燃起金色光芒。未探索的地面仍是黑暗。</string>

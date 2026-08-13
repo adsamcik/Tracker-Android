@@ -45,7 +45,6 @@
         <item quantity="one">El seguimiento automático se bloqueó durante %1$d minuto.</item>
         <item quantity="other">El seguimiento automático se bloqueó durante %1$d minutos.</item>
     </plurals>
-    <string name="notification_looking_for_gps">Buscando GPS; ubicación en uso</string>
     <string name="notification_starting">Starting Tracker service</string>
     <string name="notification_starting_without_location">Iniciando Tracker</string>
     <string name="notification_stop">Detener</string>
@@ -59,8 +58,6 @@
     <string name="notification_tracking_start_failed_title">No se pudo iniciar el seguimiento</string>
     <string name="notification_tracking_start_failed_text">Abre la aplicación para revisar los permisos y reanudar el seguimiento.</string>
     <string name="settings_activity_enabled_title">Actividad</string>
-    <string name="settings_auto_tracking_transition_summary">Modo eficiente para la batería (detección de actividad ligeramente más lenta)</string>
-    <string name="settings_auto_tracking_transition_title">Usar transiciones de actividad</string>
     <string name="settings_cell_enabled_title">Red móvil</string>
     <string name="settings_disabled_recharge_summary">El seguimiento automático está desactivado hasta que el teléfono se conecte a un cargador</string>
     <string name="settings_disabled_recharge_title">Desactivado hasta la carga</string>
@@ -74,10 +71,6 @@
     <string name="ski_notification_lift">Trayecto de %1$s</string>
     <string name="settings_barometer_enabled_title">Barómetro</string>
     <string name="settings_steps_enabled_title">Recuento de pasos</string>
-    <string name="settings_tracker_timer_ambient">Temporizador ambiental</string>
-    <string name="settings_tracker_timer_clock">Timer</string>
-    <string name="settings_tracker_timer_fused">Ubicación de Google Play</string>
-    <string name="settings_tracker_timer_location">Ubicación de Android</string>
     <string name="settings_tracking_min_distance_title">Distancia mínima entre actualizaciones</string>
     <string name="settings_tracking_min_time_title">Minimum delay between collections</string>
     <string name="settings_tracking_notice_summary">Los cambios surten efecto al reiniciar el seguimiento</string>

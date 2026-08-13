@@ -74,11 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Spust</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Žičara</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Hodanje ili stanka</string>
-    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Hodanje</string>
-    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Bicikliranje</string>
-    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Vožnja</string>
-    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Javni prijevoz</string>
-    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Ostalo</string>
     <string name="map_layer_fog_title">Magla istraživača</string>
     <string name="map_layer_fog_chip">Magla</string>
     <string name="map_layer_fog_description">Svijet izranja iz magle: svako područje koje ste dotaknuli otkriva se i svijetli jače što ste ga bolje upoznali. Mjesta kroz koja ste samo prošli ostaju slaba izmaglica, a duboko istražena mjesta sjaje čvrstim zlatom. Neistraženo tlo ostaje tamno.</string>

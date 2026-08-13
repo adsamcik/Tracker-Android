@@ -74,11 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Descente</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Remontée</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Marche ou pause</string>
-    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Marche</string>
-    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Vélo</string>
-    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Conduite</string>
-    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Transports en commun</string>
-    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Autre</string>
     <string name="map_layer_fog_title">Brouillard de l’explorateur</string>
     <string name="map_layer_fog_chip">Brouillard</string>
     <string name="map_layer_fog_description">Le monde émergeant du brouillard : chaque zone que vous avez touchée est révélée, brillant davantage à mesure que vous la connaissez. Les lieux que vous avez seulement traversés restent une légère brume ; les zones explorées en profondeur brillent d’un or intense. Les terrains inexplorés restent sombres.</string>

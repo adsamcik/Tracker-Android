@@ -74,11 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Afdaling</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Skilift</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Wandelen of pauzeren</string>
-    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Wandelen</string>
-    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Fietsen</string>
-    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Autorijden</string>
-    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Openbaar vervoer</string>
-    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Overig</string>
     <string name="map_layer_fog_title">Verkennersmist</string>
     <string name="map_layer_fog_chip">Mist</string>
     <string name="map_layer_fog_description">De wereld die uit de mist opdoemt: elk gebied dat je hebt aangeraakt wordt onthuld en gloeit helderder naarmate je het beter hebt leren kennen. Plekken waar je alleen langs kwam blijven een lichte waas; een plek die je grondig verkende brandt goudgeel. Onverkende grond blijft donker.</string>

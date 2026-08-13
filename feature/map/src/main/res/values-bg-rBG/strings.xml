@@ -74,11 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Спускане</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Лифт</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Ходене или пауза</string>
-    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Ходене</string>
-    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Колоездене</string>
-    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Шофиране</string>
-    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Обществен транспорт</string>
-    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Друго</string>
     <string name="map_layer_fog_title">Мъгла на изследователя</string>
     <string name="map_layer_fog_chip">Мъгла</string>
     <string name="map_layer_fog_description">Светът се появява от мъглата: всяка област, до която сте се докоснали, се разкрива и свети по-ярко, колкото по-добре сте я опознали. Местата, през които само сте минали, остават лека мараня; място, което сте изследвали задълбочено, гори в плътно злато. Неизследваната земя остава тъмна.</string>

@@ -74,11 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Nusileidimas</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Keltuvas</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Ėjimas arba pauzė</string>
-    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Ėjimas</string>
-    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Važiavimas dviračiu</string>
-    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Vairavimas</string>
-    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Viešasis transportas</string>
-    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Kita</string>
     <string name="map_layer_fog_title">Tyrinėtojo rūkas</string>
     <string name="map_layer_fog_chip">Rūkas</string>
     <string name="map_layer_fog_description">Pasaulis išnyra iš rūko: kiekviena jūsų aplankyta sritis atskleidžiama ir švyti ryškiau, kuo geriau ją pažįstate. Vietos, pro kurias tik praėjote, lieka blankioje migloje; giliai ištirta vieta dega sodriu auksu. Neištirta žemė lieka tamsi.</string>

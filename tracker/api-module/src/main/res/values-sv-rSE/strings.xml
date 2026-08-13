@@ -45,7 +45,6 @@
         <item quantity="one">Automatisk spårning har låsts i %1$d minut.</item>
         <item quantity="other">Automatisk spårning har låsts i %1$d minuter.</item>
     </plurals>
-    <string name="notification_looking_for_gps">Söker GPS — plats används</string>
     <string name="notification_starting">Tracker startar — plats används</string>
     <string name="notification_starting_without_location">Tracker startar</string>
     <string name="notification_stop">Stoppa</string>
@@ -59,8 +58,6 @@
     <string name="notification_tracking_start_failed_title">Spårningen kunde inte starta</string>
     <string name="notification_tracking_start_failed_text">Öppna appen för att granska behörigheter och återuppta spårningen.</string>
     <string name="settings_activity_enabled_title">Aktivitet</string>
-    <string name="settings_auto_tracking_transition_summary">Batterisnålt läge (något långsammare aktivitetsidentifiering)</string>
-    <string name="settings_auto_tracking_transition_title">Använd aktivitetsövergångar</string>
     <string name="settings_cell_enabled_title">Cell</string>
     <string name="settings_disabled_recharge_summary">Automatisk spårning är inaktiverad tills telefonen ansluts till en laddare</string>
     <string name="settings_disabled_recharge_title">Inaktiverad tills laddning</string>
@@ -74,10 +71,6 @@
     <string name="ski_notification_lift">%1$s liftfärd</string>
     <string name="settings_barometer_enabled_title">Barometer</string>
     <string name="settings_steps_enabled_title">Antal steg</string>
-    <string name="settings_tracker_timer_ambient">Omgivningstimer</string>
-    <string name="settings_tracker_timer_clock">Intervallbaserad</string>
-    <string name="settings_tracker_timer_fused">Google Play-plats</string>
-    <string name="settings_tracker_timer_location">Android-plats</string>
     <string name="settings_tracking_min_distance_title">Minsta avstånd mellan uppdateringar</string>
     <string name="settings_tracking_min_time_title">Minsta fördröjning mellan uppdateringar</string>
     <string name="settings_tracking_notice_summary">Ändringarna börjar gälla när du startar om spårningen</string>

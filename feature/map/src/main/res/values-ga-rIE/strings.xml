@@ -74,11 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Rith síos an cnoc</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Ardaitheoir</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Siúl nó sos</string>
-    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Ag siúl</string>
-    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Rothaíocht</string>
-    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Tiomáint</string>
-    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Iompar poiblí</string>
-    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Eile</string>
     <string name="map_layer_fog_title">Ceo an taiscéalaí</string>
     <string name="map_layer_fog_chip">Ceo</string>
     <string name="map_layer_fog_description">An domhan ag teacht amach as an gceo: nochtar gach limistéar ar bhain tú leis, agus lonraíonn sé níos gile dá mhéad aithne a chuir tú air. Fanann áiteanna nár rith tú ach tríothu mar cheo fann; dóann áit a ndearna tú taiscéaladh domhain uirthi in ór soladach. Fanann talamh gan taiscéaladh dorcha.</string>

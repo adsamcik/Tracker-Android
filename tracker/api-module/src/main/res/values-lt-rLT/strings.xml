@@ -46,7 +46,6 @@
         <item quantity="few">Automatinis sekimas užrakintas %1$d minutėms.</item>
         <item quantity="other">Automatinis sekimas užrakintas %1$d minučių.</item>
     </plurals>
-    <string name="notification_looking_for_gps">Ieškoma GPS – naudojama vieta</string>
     <string name="notification_starting">„Tracker“ paleidžiamas – naudojama vieta</string>
     <string name="notification_starting_without_location">„Tracker“ paleidžiamas</string>
     <string name="notification_stop">Sustabdyti</string>
@@ -60,8 +59,6 @@
     <string name="notification_tracking_start_failed_title">Nepavyko pradėti sekimo</string>
     <string name="notification_tracking_start_failed_text">Atidarykite programą, peržiūrėkite leidimus ir tęskite sekimą.</string>
     <string name="settings_activity_enabled_title">Veikla</string>
-    <string name="settings_auto_tracking_transition_summary">Akumuliatorių tausojantis režimas (veikla aptinkama šiek tiek lėčiau)</string>
-    <string name="settings_auto_tracking_transition_title">Naudoti veiklos perėjimus</string>
     <string name="settings_cell_enabled_title">Ląstelė</string>
     <string name="settings_disabled_recharge_summary">Automatinis sekimas išjungtas, kol telefonas nebus prijungtas prie įkroviklio</string>
     <string name="settings_disabled_recharge_title">Išjungta iki įkrovimo</string>
@@ -75,10 +72,6 @@
     <string name="ski_notification_lift">%1$s keltuvu</string>
     <string name="settings_barometer_enabled_title">Barometras</string>
     <string name="settings_steps_enabled_title">Žingsnių skaičius</string>
-    <string name="settings_tracker_timer_ambient">Aplinkos laikmatis</string>
-    <string name="settings_tracker_timer_clock">Pagal intervalą</string>
-    <string name="settings_tracker_timer_fused">„Google Play“ vieta</string>
-    <string name="settings_tracker_timer_location">„Android“ vieta</string>
     <string name="settings_tracking_min_distance_title">Mažiausias atstumas tarp atnaujinimų</string>
     <string name="settings_tracking_min_time_title">Mažiausia delsa tarp atnaujinimų</string>
     <string name="settings_tracking_notice_summary">Pakeitimai įsigalios iš naujo pradėjus sekimą</string>

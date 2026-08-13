@@ -45,7 +45,6 @@
         <item quantity="one">Η αυτόματη καταγραφή κλειδώθηκε για %1$d λεπτό.</item>
         <item quantity="other">Η αυτόματη καταγραφή κλειδώθηκε για %1$d λεπτά.</item>
     </plurals>
-    <string name="notification_looking_for_gps">Αναζήτηση GPS</string>
     <string name="notification_starting">Εκκίνηση υπηρεσίας Tracker</string>
     <string name="notification_starting_without_location">Το Tracker εκκινείται</string>
     <string name="notification_stop">Διακοπή</string>
@@ -59,8 +58,6 @@
     <string name="notification_tracking_start_failed_title">Δεν ήταν δυνατή η έναρξη της καταγραφής</string>
     <string name="notification_tracking_start_failed_text">Ανοίξτε την εφαρμογή για να ελέγξετε τις άδειες και να συνεχίσετε την καταγραφή.</string>
     <string name="settings_activity_enabled_title">Δραστηριότητα</string>
-    <string name="settings_auto_tracking_transition_summary">Οι μεταβάσεις μπορεί να μειώνουν την κατανάλωση μπαταρίας κατά την αυτόματη καταγραφή, αλλά οι αλλαγές δραστηριότητας ενδέχεται να ανιχνεύονται λιγότερο άμεσα.</string>
-    <string name="settings_auto_tracking_transition_title">Χρήση μεταβάσεων δραστηριότητας</string>
     <string name="settings_cell_enabled_title">Κελί</string>
     <string name="settings_disabled_recharge_summary">Η αυτόματη καταγραφή είναι απενεργοποιημένη έως ότου το τηλέφωνό σας συνδεθεί σε φορτιστή</string>
     <string name="settings_disabled_recharge_title">Απενεργοποιημένη έως τη φόρτιση</string>
@@ -74,10 +71,6 @@
     <string name="ski_notification_lift">διαδρομή %1$s</string>
     <string name="settings_barometer_enabled_title">Βαρόμετρο</string>
     <string name="settings_steps_enabled_title">Αριθμός βημάτων</string>
-    <string name="settings_tracker_timer_ambient">Χρονοδιακόπτης περιβάλλοντος</string>
-    <string name="settings_tracker_timer_clock">Χρονοδιακόπτης</string>
-    <string name="settings_tracker_timer_fused">Τοποθεσία Google Play</string>
-    <string name="settings_tracker_timer_location">Τοποθεσία Android</string>
     <string name="settings_tracking_min_distance_title">Ελάχιστη απόσταση μεταξύ συλλογών</string>
     <string name="settings_tracking_min_time_title">Ελάχιστη καθυστέρηση μεταξύ συλλογών</string>
     <string name="settings_tracking_notice_summary">Για τεχνικούς λόγους, οι περισσότερες αλλαγές στις ρυθμίσεις του Tracker απαιτούν επανεκκίνηση της καταγραφής. (Αν η καταγραφή είναι ενεργή, απλώς διακόψτε την και ξεκινήστε την ξανά. Το κλείσιμο και το άνοιγμα της εφαρμογής ίσως δεν βοηθήσει)</string>

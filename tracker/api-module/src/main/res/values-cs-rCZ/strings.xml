@@ -47,7 +47,6 @@
         <item quantity="many">Automatické sledování bylo uzamčeno na %1$d minut.</item>
         <item quantity="other">Automatické sledování bylo uzamčeno na %1$d minut.</item>
     </plurals>
-    <string name="notification_looking_for_gps">Hledání GPS</string>
     <string name="notification_starting">Spouštění služby Tracker</string>
     <string name="notification_starting_without_location">Tracker se spouští</string>
     <string name="notification_stop">Zastavit</string>
@@ -61,8 +60,6 @@
     <string name="notification_tracking_start_failed_title">Sledování se nepodařilo spustit</string>
     <string name="notification_tracking_start_failed_text">Otevřete aplikaci, zkontrolujte oprávnění a obnovte sledování.</string>
     <string name="settings_activity_enabled_title">Aktivita</string>
-    <string name="settings_auto_tracking_transition_summary">Přechody mohou snížit využití baterie při zapnutém automatickém zaznamenávání, ale mohou být méně reaktivní vůči změnám.</string>
-    <string name="settings_auto_tracking_transition_title">Používat přechody aktivit</string>
     <string name="settings_cell_enabled_title">Mobilní sítě</string>
     <string name="settings_disabled_recharge_summary">Automatický sběr dat bude vypnutý, dokud nepřipojíte telefon k nabíječce</string>
     <string name="settings_disabled_recharge_title">Vypnout do nabití</string>
@@ -76,10 +73,6 @@
     <string name="ski_notification_lift">Jízda %1$s</string>
     <string name="settings_barometer_enabled_title">Barometer</string>
     <string name="settings_steps_enabled_title">Počet kroků</string>
-    <string name="settings_tracker_timer_ambient">Časovač na pozadí</string>
-    <string name="settings_tracker_timer_clock">Časovač</string>
-    <string name="settings_tracker_timer_fused">Google Play lokalizace</string>
-    <string name="settings_tracker_timer_location">Android lokalizace</string>
     <string name="settings_tracking_min_distance_title">Minimální vzdálenost mezi sběry</string>
     <string name="settings_tracking_min_time_title">Minimální prodleva mezi sběry</string>
     <string name="settings_tracking_notice_summary">Z technických důvodů vyžaduje většina změn trackování restart záznamu. (Pokud je tracker aktivní, stačí ho vypnout a zapnout. Zavření a otevření aplikace nemusí fungovat.)</string>

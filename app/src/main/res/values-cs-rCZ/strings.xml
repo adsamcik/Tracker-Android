@@ -198,12 +198,8 @@
     <string name="tracking_preset_power_save_description">Nižší spotřeba baterie s méně častými aktualizacemi a omezenými senzory</string>
     <string name="tracking_preset_custom_name">Vlastní</string>
     <string name="tracking_preset_custom_description">Ručně nastavit každý parametr sledování</string>
-    <string name="tracking_preset_selector_title">Předvolba sledování</string>
     <string name="tracking_preset_selector_subtitle">Vyberte profil, ze kterého chcete začít, a pak dolaďte libovolné nastavení níže.</string>
-    <string name="tracking_preset_custom_hint">Úprava libovolného nastavení níže vytvoří z aktuální předvolby vlastní profil.</string>
     <string name="tracking_preset_customized_summary">Sledování jste doladili. Předvolbu výše vyberte pro resetování.</string>
-    <string name="settings_tracking_section_detection">Detekce a automatizace</string>
-    <string name="settings_tracking_section_sources">Zdroje dat</string>
     <string name="settings_tracking_section_detail">Sběr polohy</string>
     <string name="settings_tracking_section_notifications">Oznámení</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
@@ -340,11 +336,9 @@
     <string name="permission_disabled_due_to_denial">Funkce %1$s je vypnutá, protože bylo zamítnuto oprávnění. Povolte je v Nastavení.</string>
     <string name="settings_wifi_permission_required">Vyžaduje oprávnění k Wi-Fi/poloze. Zapnutím přepínače jej povolíte — do té doby se žádná data Wi-Fi nezaznamenávají a zaznamenaná data zůstávají v tomto zařízení.</string>
     <string name="settings_cell_permission_required">Vyžaduje oprávnění ke stavu telefonu a přesné poloze. Zapnutím přepínače jej povolíte — do té doby se žádná data mobilní sítě nezaznamenávají a zaznamenaná data zůstávají v tomto zařízení.</string>
-    <string name="settings_wifi_privacy_summary">Zaznamenává okolní sítě Wi-Fi ke zlepšení přesnosti polohy. Data zůstávají v tomto zařízení.</string>
     <string name="settings_barometer_unavailable">Senzor tlaku není v tomto zařízení k dispozici.</string>
     <string name="settings_activity_permission_required">Vyžaduje oprávnění k rozpoznávání aktivit. Zapnutím přepínače jej povolíte.</string>
     <string name="settings_steps_unavailable">Senzor počítadla kroků není v tomto zařízení k dispozici.</string>
-    <string name="settings_cell_privacy_summary">Zaznamenává identifikátory základnových stanic ke zlepšení přesnosti polohy. Data zůstávají v tomto zařízení.</string>
     <string name="setup_start_exploring">Začít objevovat</string>
     <string name="setup_continue">Pokračovat</string>
     <string name="setup_step_indicator">Krok %1$d z %2$d</string>

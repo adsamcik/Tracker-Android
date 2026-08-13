@@ -194,12 +194,8 @@
     <string name="tracking_preset_power_save_description">Alacsonyabb akkumulátorhasználat ritkább frissítésekkel és kevesebb érzékelővel</string>
     <string name="tracking_preset_custom_name">Egyéni</string>
     <string name="tracking_preset_custom_description">Az egyes nyomkövetési paraméterek kézi beállítása</string>
-    <string name="tracking_preset_selector_title">Nyomkövetési előbeállítás</string>
     <string name="tracking_preset_selector_subtitle">Válasszon egy kiinduló profilt, majd finomhangolja az alábbi beállításokat.</string>
-    <string name="tracking_preset_custom_hint">Az alábbi beállítások bármelyikének módosítása egyéni profilt hoz létre az aktuális előbeállításból.</string>
     <string name="tracking_preset_customized_summary">Finomhangolta a nyomkövetést. A visszaállításhoz válasszon fent egy előbeállítást.</string>
-    <string name="settings_tracking_section_detection">Észlelés és automatizálás</string>
-    <string name="settings_tracking_section_sources">Adatforrások</string>
     <string name="settings_tracking_section_detail">Helyadatgyűjtés</string>
     <string name="settings_tracking_section_notifications">Értesítések</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
@@ -332,11 +328,9 @@
     <string name="permission_disabled_due_to_denial">%1$s letiltva, mert az engedélyt elutasították. Az engedélyezéshez nyissa meg a Beállításokat.</string>
     <string name="settings_wifi_permission_required">Wi-Fi-/helyengedély szükséges. Az engedélyezéshez kapcsolja be — addig nem rögzül Wi-Fi-adat, és a rögzített adatok ezen az eszközön maradnak.</string>
     <string name="settings_cell_permission_required">Telefonállapot- és pontoshelyengedély szükséges. Az engedélyezéshez kapcsolja be — addig nem rögzül cellaadat, és a rögzített adatok ezen az eszközön maradnak.</string>
-    <string name="settings_wifi_privacy_summary">A közeli Wi-Fi-hálózatok rögzítésével javítja a helypontosságot. Az adatok ezen az eszközön maradnak.</string>
     <string name="settings_barometer_unavailable">A nyomásérzékelő nem érhető el ezen az eszközön.</string>
     <string name="settings_activity_permission_required">Tevékenységfelismerési engedély szükséges. Az engedélyezéshez kapcsolja be.</string>
     <string name="settings_steps_unavailable">A lépésszámláló-érzékelő nem érhető el ezen az eszközön.</string>
-    <string name="settings_cell_privacy_summary">A cellatornyok azonosítóinak rögzítésével javítja a helypontosságot. Az adatok ezen az eszközön maradnak.</string>
     <string name="setup_start_exploring">Felfedezés indítása</string>
     <string name="setup_continue">Folytatás</string>
     <string name="setup_step_indicator">%1$d. lépés / %2$d</string>

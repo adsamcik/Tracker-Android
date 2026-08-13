@@ -45,7 +45,6 @@
         <item quantity="one">Automaatne jälgimine on lukustatud %1$d minutiks.</item>
         <item quantity="other">Automaatne jälgimine on lukustatud %1$d minutiks.</item>
     </plurals>
-    <string name="notification_looking_for_gps">GPS-i otsimine — asukoht kasutusel</string>
     <string name="notification_starting">Tracker käivitub — asukoht kasutusel</string>
     <string name="notification_starting_without_location">Tracker käivitub</string>
     <string name="notification_stop">Peata</string>
@@ -59,8 +58,6 @@
     <string name="notification_tracking_start_failed_title">Jälgimist ei saanud alustada</string>
     <string name="notification_tracking_start_failed_text">Avage rakendus, et vaadata üle load ja jätkata jälgimist.</string>
     <string name="settings_activity_enabled_title">Tegevus</string>
-    <string name="settings_auto_tracking_transition_summary">Akusäästlik režiim (tegevuse tuvastus on veidi aeglasem)</string>
-    <string name="settings_auto_tracking_transition_title">Kasuta tegevuse üleminekuid</string>
     <string name="settings_cell_enabled_title">Mobiilirakk</string>
     <string name="settings_disabled_recharge_summary">Automaatne jälgimine on keelatud, kuni telefon on ühendatud laadijaga</string>
     <string name="settings_disabled_recharge_title">Keelatud kuni laadimiseni</string>
@@ -74,10 +71,6 @@
     <string name="ski_notification_lift">%1$s sõit</string>
     <string name="settings_barometer_enabled_title">Baromeeter</string>
     <string name="settings_steps_enabled_title">Sammude arv</string>
-    <string name="settings_tracker_timer_ambient">Taustataimer</string>
-    <string name="settings_tracker_timer_clock">Intervallipõhine</string>
-    <string name="settings_tracker_timer_fused">Google Play asukoht</string>
-    <string name="settings_tracker_timer_location">Androidi asukoht</string>
     <string name="settings_tracking_min_distance_title">Minimaalne vahemaa uuenduste vahel</string>
     <string name="settings_tracking_min_time_title">Minimaalne viivitus uuenduste vahel</string>
     <string name="settings_tracking_notice_summary">Muudatused jõustuvad, kui taaskäivitate jälgimise</string>
