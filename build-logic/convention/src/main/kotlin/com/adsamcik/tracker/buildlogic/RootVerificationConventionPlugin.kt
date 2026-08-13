@@ -36,6 +36,101 @@ private const val BUNDLED_SQLITE_RUNTIME_SHA3 =
 private val BUNDLED_SQLITE_RUNTIME_ABIS =
     listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
 
+internal object QualityGateContract {
+    private val androidProjects = listOf(
+        ":app",
+        ":core:base",
+        ":core:common",
+        ":core:diagnostics",
+        ":core:network",
+        ":core:sqlite-runtime",
+        ":core:testing",
+        ":core:ui",
+        ":data:preferences",
+        ":domain:geocoder",
+        ":domain:points",
+        ":feature:activity",
+        ":feature:dashboard",
+        ":feature:dashboard:api",
+        ":feature:game",
+        ":feature:game:api",
+        ":feature:import-export",
+        ":feature:map",
+        ":feature:map:api",
+        ":feature:statistics",
+        ":feature:statistics:api",
+        ":feature:tracker",
+        ":sensor:activity",
+        ":sensor:activity-api",
+        ":stats:data",
+        ":tracker:api",
+        ":tracker:engine",
+    )
+
+    private val kmpProjects = listOf(
+        ":core:model",
+        ":stats:api",
+        ":stats:engine",
+        ":tracker:control",
+    )
+
+    private val architectureProjects = listOf(
+        ":app",
+        ":core:common",
+        ":core:ui",
+        ":feature:activity",
+        ":feature:dashboard",
+        ":feature:game",
+        ":feature:statistics",
+        ":feature:tracker",
+        ":sensor:activity",
+        ":tracker:api",
+    )
+
+    val ciUnitTestDependencies: List<String> =
+        androidProjects.map { "$it:testDebugUnitTest" } +
+            kmpProjects.flatMap { project ->
+                listOf(
+                    "$project:jvmTest",
+                    "$project:testAndroidHostTest",
+                )
+            }
+
+    val ciLintDependencies: List<String> =
+        androidProjects.map { "$it:lintRelease" }
+
+    val ciArchitectureCheckDependencies: List<String> =
+        architectureProjects.map { "$it:testDebugUnitTest" }
+
+    val ciCheckDependencies: List<String> = listOf(
+        ":ciUnitTest",
+        ":ciLint",
+        ":detekt",
+        ":checkRoomSchemaDrift",
+        ":ciArchitectureCheck",
+        ":verifyReleaseSqliteRuntime",
+    )
+
+    private val aggregateDependencies: Map<String, List<String>> = mapOf(
+        ":ciUnitTest" to ciUnitTestDependencies,
+        ":ciLint" to ciLintDependencies,
+        ":ciArchitectureCheck" to ciArchitectureCheckDependencies,
+        ":ciCheck" to ciCheckDependencies,
+    )
+
+    fun isReachableFromCiCheck(taskPath: String): Boolean {
+        val visited = mutableSetOf<String>()
+
+        fun visit(candidate: String): Boolean {
+            if (!visited.add(candidate)) return false
+            if (candidate == taskPath) return true
+            return aggregateDependencies[candidate].orEmpty().any(::visit)
+        }
+
+        return visit(":ciCheck")
+    }
+}
+
 private fun parseNumericVersion(raw: String): List<Int> = raw
     .substringBefore('-')
     .split('.')
@@ -238,6 +333,31 @@ class RootVerificationConventionPlugin : Plugin<Project> {
         with(target) {
             require(this == rootProject) {
                 "tracker.root.verification must only be applied to the root project"
+            }
+
+            tasks.register("ciUnitTest") {
+                group = "verification"
+                description =
+                    "Runs every repository-owned Android JVM, KMP JVM, and KMP Android-host test suite."
+                dependsOn(QualityGateContract.ciUnitTestDependencies)
+            }
+
+            tasks.register("ciLint") {
+                group = "verification"
+                description = "Runs blocking release lint for every Android application and library."
+                dependsOn(QualityGateContract.ciLintDependencies)
+            }
+
+            tasks.register("ciArchitectureCheck") {
+                group = "verification"
+                description = "Runs every repository architecture and module-boundary test suite."
+                dependsOn(QualityGateContract.ciArchitectureCheckDependencies)
+            }
+
+            tasks.register("ciCheck") {
+                group = "verification"
+                description = "Runs the complete repository-owned CI quality-gate contract."
+                dependsOn(QualityGateContract.ciCheckDependencies)
             }
 
             val verifyVendoredRuntime =
