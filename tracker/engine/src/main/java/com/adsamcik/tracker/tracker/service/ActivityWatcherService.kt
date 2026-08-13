@@ -12,6 +12,7 @@ import com.adsamcik.tracker.activity.R
 import com.adsamcik.tracker.activity.api.ActivityRequestManager
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
+import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 import com.adsamcik.tracker.shared.base.extension.notificationManager
 import com.adsamcik.tracker.shared.base.service.CoreService
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
@@ -78,22 +79,32 @@ class ActivityWatcherService : CoreService() {
 
 	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
 		super.onStartCommand(intent, flags, startId)
+		if (!hasActivityPermission) {
+			stopSelf(startId)
+			return START_NOT_STICKY
+		}
 		return START_REDELIVER_INTENT
 	}
 
-	private fun startForegroundCompat(notification: Notification): Boolean =
-		startForegroundTolerant(sdkInt = Build.VERSION.SDK_INT) {
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-				// SPECIAL_USE foreground service type is available from Android 14.
+	private fun startForegroundCompat(notification: Notification): Boolean {
+		val candidates = activityWatcherForegroundServiceTypeCandidates(
+			sdkInt = Build.VERSION.SDK_INT,
+			hasActivityPermission = hasActivityPermission,
+		)
+		if (candidates.isEmpty()) return false
+		val type = candidates.single()
+		return startForegroundTolerant(sdkInt = Build.VERSION.SDK_INT) {
+			if (type != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
 				startForeground(
 					NOTIFICATION_ID,
 					notification,
-					ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
+					type,
 				)
 			} else {
 				startForeground(NOTIFICATION_ID, notification)
 			}
 		}
+	}
 
 	private fun updateNotification(): Notification {
 		val intent = packageManager.getLaunchIntentForPackage(packageName)
@@ -173,3 +184,14 @@ internal inline fun startForegroundTolerant(
 internal fun isForegroundServiceStartRestriction(sdkInt: Int, exceptionClassName: String): Boolean =
 	sdkInt >= Build.VERSION_CODES.S &&
 		exceptionClassName == "android.app.ForegroundServiceStartNotAllowedException"
+
+/** Activity recognition satisfies the Android 14+ health foreground-service prerequisite. */
+internal fun activityWatcherForegroundServiceTypeCandidates(
+	sdkInt: Int,
+	hasActivityPermission: Boolean,
+): List<Int?> = when {
+	!hasActivityPermission -> emptyList()
+	sdkInt >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ->
+		listOf(ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH)
+	else -> listOf(null)
+}

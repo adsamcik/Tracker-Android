@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.service
 import android.content.pm.ServiceInfo
 import android.os.Build
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.tracker.api.TrackerForegroundServiceRequirements
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -15,128 +16,133 @@ class ForegroundServiceTypeCandidatesTest {
 	private val health = ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH
 	private val specialUse = ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
 
-	private val android14 = Build.VERSION_CODES.UPSIDE_DOWN_CAKE
-	private val android13 = Build.VERSION_CODES.TIRAMISU
-
 	@Nested
-	@DisplayName("before Android 14")
-	inner class BeforeAndroid14 {
+	@DisplayName("source combinations")
+	inner class SourceCombinations {
 		@Test
-		fun `location session uses location type when permission is held`() {
-			candidates(
-				sdkInt = android13,
-				requiresLocation = true,
-				requiresHealth = false,
-				hasLocationPermission = true,
-				hasActivityPermission = false,
-			) shouldBe listOf(location)
+		fun `API 34 and 37 map every non-empty source combination to the minimum type set`() {
+			val combinations = listOf(
+				requirements(location = true) to location,
+				requirements(health = true) to health,
+				requirements(signal = true) to specialUse,
+				requirements(location = true, health = true) to (location or health),
+				requirements(location = true, signal = true) to location,
+				requirements(health = true, signal = true) to health,
+				requirements(location = true, health = true, signal = true) to (location or health),
+			)
+
+			listOf(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, 37).forEach { sdkInt ->
+				combinations.forEach { (requirements, expectedType) ->
+					candidates(sdkInt, requirements) shouldBe listOf(expectedType)
+				}
+			}
 		}
 
 		@Test
-		fun `non-location session starts without a typed foreground service`() {
+		fun `pre-29 start is untyped and API 29 through 33 only type location`() {
+			candidates(28, requirements(health = true)) shouldBe listOf(null)
+			candidates(Build.VERSION_CODES.TIRAMISU, requirements(location = true)) shouldBe
+				listOf(location)
+			candidates(Build.VERSION_CODES.TIRAMISU, requirements(health = true)) shouldBe
+				listOf(null)
+			candidates(Build.VERSION_CODES.TIRAMISU, requirements(signal = true)) shouldBe
+				listOf(null)
+		}
+	}
+
+	@Nested
+	@DisplayName("permission revocation")
+	inner class PermissionRevocation {
+		@Test
+		fun `location requirement never falls back after location permission is revoked`() {
 			candidates(
-				sdkInt = android13,
-				requiresLocation = false,
-				requiresHealth = true,
-				hasLocationPermission = true,
+				sdkInt = 37,
+				requirements = requirements(location = true, health = true, signal = true),
+				hasLocationPermission = false,
+			) shouldBe emptyList()
+		}
+
+		@Test
+		fun `health-only mode stops after activity permission is revoked`() {
+			candidates(
+				sdkInt = 37,
+				requirements = requirements(health = true),
+				hasActivityPermission = false,
+			) shouldBe emptyList()
+		}
+
+		@Test
+		fun `health plus signals narrows to special-use after activity permission is revoked`() {
+			candidates(
+				sdkInt = 37,
+				requirements = requirements(health = true, signal = true),
+				hasActivityPermission = false,
+			) shouldBe listOf(specialUse)
+		}
+	}
+
+	@Nested
+	@DisplayName("start restart and transitions")
+	inner class StartRestartAndTransitions {
+		@Test
+		fun `API 34 and 37 fresh start and restart use the same exact declaration`() {
+			listOf(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, 37).forEach { sdkInt ->
+				listOf("start", "restart").forEach {
+					candidates(
+						sdkInt,
+						requirements(location = true, health = true, signal = true),
+					) shouldBe listOf(location or health)
+				}
+			}
+		}
+
+		@Test
+		fun `type transitions add and remove only source-backed bits`() {
+			val sequence = listOf(
+				requirements(signal = true),
+				requirements(health = true, signal = true),
+				requirements(location = true, health = true, signal = true),
+				requirements(location = true, signal = true),
+				requirements(signal = true),
+			)
+
+			sequence.map { candidates(37, it).single() } shouldBe listOf(
+				specialUse,
+				health,
+				location or health,
+				location,
+				specialUse,
+			)
+		}
+	}
+
+	@Nested
+	@DisplayName("activity watcher")
+	inner class ActivityWatcher {
+		@Test
+		fun `activity monitoring uses health on API 34 and 37`() {
+			listOf(Build.VERSION_CODES.UPSIDE_DOWN_CAKE, 37).forEach { sdkInt ->
+				activityWatcherForegroundServiceTypeCandidates(
+					sdkInt = sdkInt,
+					hasActivityPermission = true,
+				) shouldBe listOf(health)
+			}
+		}
+
+		@Test
+		fun `activity monitoring cannot promote after permission revocation`() {
+			activityWatcherForegroundServiceTypeCandidates(
+				sdkInt = 37,
+				hasActivityPermission = false,
+			) shouldBe emptyList()
+		}
+
+		@Test
+		fun `activity monitoring remains untyped before API 34`() {
+			activityWatcherForegroundServiceTypeCandidates(
+				sdkInt = Build.VERSION_CODES.TIRAMISU,
 				hasActivityPermission = true,
 			) shouldBe listOf(null)
-		}
-
-		@Test
-		fun `location session has no fallback when permission is missing`() {
-			candidates(
-				sdkInt = android13,
-				requiresLocation = true,
-				requiresHealth = false,
-				hasLocationPermission = false,
-				hasActivityPermission = true,
-			) shouldBe emptyList()
-		}
-	}
-
-	@Nested
-	@DisplayName("Android 14+ GPS session")
-	inner class GpsSession {
-		@Test
-		fun `declares location and health when both sources are active`() {
-			candidates(
-				sdkInt = android14,
-				requiresLocation = true,
-				requiresHealth = true,
-				hasLocationPermission = true,
-				hasActivityPermission = true,
-			) shouldBe listOf(location or health)
-		}
-
-		@Test
-		fun `declares only location when health access is unavailable`() {
-			candidates(
-				sdkInt = android14,
-				requiresLocation = true,
-				requiresHealth = true,
-				hasLocationPermission = true,
-				hasActivityPermission = false,
-			) shouldBe listOf(location)
-		}
-
-		@Test
-		fun `has no non-location fallback when location is required`() {
-			candidates(
-				sdkInt = android14,
-				requiresLocation = true,
-				requiresHealth = true,
-				hasLocationPermission = false,
-				hasActivityPermission = true,
-			) shouldBe emptyList()
-		}
-	}
-
-	@Nested
-	@DisplayName("Android 14+ non-location session")
-	inner class NonLocationSession {
-		@Test
-		fun `uses health when activity or step collection is active`() {
-			candidates(
-				sdkInt = android14,
-				requiresLocation = false,
-				requiresHealth = true,
-				hasLocationPermission = true,
-				hasActivityPermission = true,
-			) shouldBe listOf(health)
-		}
-
-		@Test
-		fun `never offers location merely because location permission is held`() {
-			candidates(
-				sdkInt = android14,
-				requiresLocation = false,
-				requiresHealth = true,
-				hasLocationPermission = true,
-				hasActivityPermission = true,
-			) shouldBe listOf(health)
-		}
-
-		@Test
-		fun `uses special-use when health access is unavailable`() {
-			candidates(
-				sdkInt = android14,
-				requiresLocation = false,
-				requiresHealth = true,
-				hasLocationPermission = true,
-				hasActivityPermission = false,
-			) shouldBe listOf(specialUse)
-		}
-
-		@Test
-		fun `signal-only session uses special-use even when other permissions are held`() {
-			candidates(
-				sdkInt = android14,
-				requiresLocation = false,
-				requiresHealth = false,
-				hasLocationPermission = true,
-				hasActivityPermission = true,
-			) shouldBe listOf(specialUse)
 		}
 	}
 
@@ -180,16 +186,20 @@ class ForegroundServiceTypeCandidatesTest {
 		}
 	}
 
+	private fun requirements(
+		location: Boolean = false,
+		health: Boolean = false,
+		signal: Boolean = false,
+	) = TrackerForegroundServiceRequirements(location, health, signal)
+
 	private fun candidates(
 		sdkInt: Int,
-		requiresLocation: Boolean,
-		requiresHealth: Boolean,
-		hasLocationPermission: Boolean,
-		hasActivityPermission: Boolean,
+		requirements: TrackerForegroundServiceRequirements,
+		hasLocationPermission: Boolean = true,
+		hasActivityPermission: Boolean = true,
 	): List<Int?> = foregroundServiceTypeCandidates(
 		sdkInt = sdkInt,
-		requiresLocation = requiresLocation,
-		requiresHealth = requiresHealth,
+		requirements = requirements,
 		hasLocationPermission = hasLocationPermission,
 		hasActivityPermission = hasActivityPermission,
 	)

@@ -60,6 +60,23 @@ class ActivityWatcherServiceControllerTest {
 		verify(exactly = 1) { service.stopSelf() }
 	}
 
+	@Test
+	fun `stops watcher when activity recognition permission is revoked`() {
+		val service = mockk<ActivityWatcherService>(relaxed = true)
+		controller.serviceInstance = service
+
+		controller.poke(
+			watcherPreference = true,
+			updateInterval = 15,
+			autoTracking = 1,
+			trackerLocked = false,
+			trackerRunning = false,
+			hasActivityPermission = false,
+		)
+
+		verify(exactly = 1) { service.stopSelf() }
+	}
+
 	private class FixedProvider<T>(private val value: T) : Provider<T> {
 		override fun get(): T = value
 	}
