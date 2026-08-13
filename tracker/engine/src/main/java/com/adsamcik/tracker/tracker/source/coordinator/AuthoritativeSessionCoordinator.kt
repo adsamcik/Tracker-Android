@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceCoordinatorLeaseEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+import com.adsamcik.tracker.tracker.failure.isTrackingOperationalFailure
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceEventSinkFactory
 import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.AppliedSourcePlan
@@ -127,11 +128,16 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		} catch (cancelled: CancellationException) {
 			withContext(NonCancellable) { recoverInterruptedStart(request, "START_CANCELLED") }
 			throw cancelled
-		} catch (failure: Throwable) {
-			recoverInterruptedStart(
-				request,
-				"START_EXCEPTION:${failure.javaClass.simpleName.ifBlank { "UNKNOWN" }}",
-			) ?: throw failure
+		} catch (failure: Exception) {
+			if (!failure.isTrackingOperationalFailure()) {
+				try {
+					recoverInterruptedStart(request, "START_EXCEPTION")
+				} catch (recoveryFailure: Throwable) {
+					failure.addSuppressed(recoveryFailure)
+				}
+				throw failure
+			}
+			recoverInterruptedStart(request, "START_STORAGE_UNAVAILABLE") ?: throw failure
 		} finally {
 			releaseLease(request.ownerToken)
 		}
@@ -315,13 +321,27 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				)
 			}
 			throw cancelled
-		} catch (failure: Throwable) {
+		} catch (failure: Exception) {
+			if (!failure.isTrackingOperationalFailure()) {
+				try {
+					recoverInterruptedReconfiguration(
+						request,
+						recoverySession,
+						recoveryPreviousPlan,
+						attempted,
+						"RECONFIGURE_EXCEPTION",
+					)
+				} catch (recoveryFailure: Throwable) {
+					failure.addSuppressed(recoveryFailure)
+				}
+				throw failure
+			}
 			recoverInterruptedReconfiguration(
 				request,
 				recoverySession,
 				recoveryPreviousPlan,
 				attempted,
-				"RECONFIGURE_EXCEPTION:${failure.javaClass.simpleName.ifBlank { "UNKNOWN" }}",
+				"RECONFIGURE_STORAGE_UNAVAILABLE",
 			) ?: throw failure
 		} finally {
 			releaseLease(request.ownerToken)
@@ -415,7 +435,15 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			.map(SourcePlan::source)
 			.distinct()
 			.filter { it in runtimes.registeredSources() }
-			.forEach { source -> runCatching { runtimes.close(source) } }
+			.forEach { source ->
+				try {
+					runtimes.close(source)
+				} catch (cancelled: CancellationException) {
+					throw cancelled
+				} catch (failure: Exception) {
+					if (!failure.isTrackingOperationalFailure()) throw failure
+				}
+			}
 	}
 
 	suspend fun stop(request: SessionStopRequest): SessionStopResult {
@@ -464,7 +492,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			)
 			database.sourceSessionDao().updateSession(finalizing)
 			plan.plans.values.forEach { planItem ->
-				if (planItem.source in runtimes.registeredSources()) runCatching { runtimes.close(planItem.source) }
+				if (planItem.source in runtimes.registeredSources()) runtimes.close(planItem.source)
 			}
 			val closed = finalizing.copy(
 				state = SessionLifecycleState.CLOSED.name,
@@ -527,7 +555,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				else -> return SessionSuspendResult.DrainPending(cutoffSession.logicalTrackingId, finalOrdinal)
 			}
 			plan.plans.values.forEach { planItem ->
-				if (planItem.source in runtimes.registeredSources()) runCatching { runtimes.close(planItem.source) }
+				if (planItem.source in runtimes.registeredSources()) runtimes.close(planItem.source)
 			}
 			database.withTransaction {
 				val latest = requireNotNull(database.sourceSessionDao().session(cutoffSession.logicalTrackingId))
@@ -565,9 +593,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 	} else if (plan.source !in runtimes.registeredSources()) {
 		failedApplied(plan, elapsedNanos, SourceApplyStatus.BLOCKED)
 	} else {
-		runCatching { runtimes.start(plan, sink).applied }.getOrElse {
-			failedApplied(plan, elapsedNanos, SourceApplyStatus.FAILED)
-		}
+		runtimes.start(plan, sink).applied
 	}
 
 	private suspend fun reconfigureSource(plan: SourcePlan, elapsedNanos: Long): AppliedSourcePlan =
@@ -576,9 +602,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		} else if (plan.source !in runtimes.registeredSources()) {
 			failedApplied(plan, elapsedNanos, SourceApplyStatus.BLOCKED)
 		} else {
-			runCatching { runtimes.reconfigure(plan).applied }.getOrElse {
-				failedApplied(plan, elapsedNanos, SourceApplyStatus.FAILED)
-			}
+			runtimes.reconfigure(plan).applied
 		}
 
 	private suspend fun quiesceSources(

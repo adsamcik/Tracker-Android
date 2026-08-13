@@ -21,6 +21,8 @@ import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.runtime.AndroidLocationDeviceStateProvider
 import com.adsamcik.tracker.tracker.source.runtime.LocationDeviceStateProvider
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
+import com.adsamcik.tracker.tracker.api.TrackerForegroundServiceRequirementsProvider
+import com.adsamcik.tracker.tracker.service.DefaultTrackerForegroundServiceRequirementsProvider
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -74,6 +76,11 @@ abstract class TrackerEngineBindings {
 	abstract fun bindLocationDeviceStateProvider(
 		impl: AndroidLocationDeviceStateProvider,
 	): LocationDeviceStateProvider
+
+	@Binds
+	abstract fun bindTrackerForegroundServiceRequirementsProvider(
+		impl: DefaultTrackerForegroundServiceRequirementsProvider,
+	): TrackerForegroundServiceRequirementsProvider
 
 	@Multibinds
 	abstract fun bindSourceProjections(): Set<Projection>

@@ -32,6 +32,7 @@ internal interface TrackerServiceApiEntryPoint {
 	fun trackerServiceController(): TrackerServiceController
 	fun activityWatcherController(): ActivityWatcherController
 	fun activeTrackingSessionStore(): ActiveTrackingSessionStore
+	fun trackerForegroundServiceRequirementsProvider(): TrackerForegroundServiceRequirementsProvider
 	@ApplicationScope fun applicationScope(): CoroutineScope
 }
 
@@ -47,6 +48,9 @@ object TrackerServiceContract {
 	const val ARG_LIFECYCLE_CHANGED_AT_EPOCH_MS = "logicalLifecycleChangedAtEpochMs"
 	const val ARG_STOP_CANDIDATE_REASON = "stopCandidateReason"
 	const val ARG_STOP_CANDIDATE_REQUESTED_AT_EPOCH_MS = "stopCandidateRequestedAtEpochMs"
+	const val ARG_REQUIRES_LOCATION = "requiresLocationForegroundType"
+	const val ARG_REQUIRES_HEALTH = "requiresHealthForegroundType"
+	const val ARG_HAS_SIGNAL_SOURCES = "hasSignalForegroundSources"
 }
 
 /**
@@ -71,17 +75,16 @@ object TrackerServiceApi {
 	}
 
 	private fun startServiceInternal(context: Context, isUserInitiated: Boolean, isAmbient: Boolean) {
+		val requirements = getEntryPoint(context)
+			.trackerForegroundServiceRequirementsProvider()
+			.current(isUserInitiated, isAmbient)
+			?: return
 		// Use the restriction-tolerant start: background activity-recognition updates
 		// can trigger this from a background-restricted context on Android 12+, where a
 		// raw startForegroundService would throw ForegroundServiceStartNotAllowedException
 		// and crash the delivering receiver. When blocked, the start is skipped; tracking
 		// is re-triggered by the next activity transition or when the app is foregrounded.
-		val intent = Intent().setClassName(context, TrackerServiceContract.SERVICE_CLASS_NAME).apply {
-			putExtra(TrackerServiceContract.ARG_IS_USER_INITIATED, isUserInitiated)
-			if (isAmbient) {
-				putExtra(TrackerServiceContract.ARG_IS_AMBIENT, true)
-			}
-		}
+		val intent = createStartIntent(context, isUserInitiated, isAmbient, requirements)
 		startForegroundServiceSafely(context, intent)
 	}
 
@@ -90,7 +93,14 @@ object TrackerServiceApi {
 		descriptor: ActiveTrackingSessionDescriptor,
 	): Boolean {
 		if (!descriptor.isRestartEligible) return false
-		return startForegroundServiceSafely(context, createRestartIntent(context, descriptor))
+		val requirements = getEntryPoint(context)
+			.trackerForegroundServiceRequirementsProvider()
+			.current(descriptor.isUserInitiated, descriptor.isAmbient)
+			?: return false
+		return startForegroundServiceSafely(
+			context,
+			createRestartIntent(context, descriptor, requirements),
+		)
 	}
 
 	private fun startForegroundServiceSafely(context: Context, intent: Intent): Boolean {
@@ -140,9 +150,21 @@ object TrackerServiceApi {
 		}
 	}
 
+	internal fun createStartIntent(
+		context: Context,
+		isUserInitiated: Boolean,
+		isAmbient: Boolean,
+		requirements: TrackerForegroundServiceRequirements,
+	): Intent = Intent().setClassName(context, TrackerServiceContract.SERVICE_CLASS_NAME).apply {
+		putExtra(TrackerServiceContract.ARG_IS_USER_INITIATED, isUserInitiated)
+		if (isAmbient) putExtra(TrackerServiceContract.ARG_IS_AMBIENT, true)
+		putForegroundRequirements(requirements)
+	}
+
 	internal fun createRestartIntent(
 		context: Context,
 		descriptor: ActiveTrackingSessionDescriptor,
+		requirements: TrackerForegroundServiceRequirements? = null,
 	): Intent = Intent().setClassName(context, TrackerServiceContract.SERVICE_CLASS_NAME).apply {
 		putExtra(TrackerServiceContract.ARG_IS_USER_INITIATED, descriptor.isUserInitiated)
 		putExtra(TrackerServiceContract.ARG_IS_AMBIENT, descriptor.isAmbient)
@@ -159,6 +181,15 @@ object TrackerServiceApi {
 				putExtra(TrackerServiceContract.ARG_STOP_CANDIDATE_REQUESTED_AT_EPOCH_MS, it)
 			}
 		}
+		requirements?.let { putForegroundRequirements(it) }
+	}
+
+	private fun Intent.putForegroundRequirements(
+		requirements: TrackerForegroundServiceRequirements,
+	) {
+		putExtra(TrackerServiceContract.ARG_REQUIRES_LOCATION, requirements.requiresLocation)
+		putExtra(TrackerServiceContract.ARG_REQUIRES_HEALTH, requirements.requiresHealth)
+		putExtra(TrackerServiceContract.ARG_HAS_SIGNAL_SOURCES, requirements.hasSignalSources)
 	}
 
 	/**

@@ -5,6 +5,7 @@ import android.os.Build
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.adsamcik.tracker.shared.base.extension.startForegroundServiceSafely
+import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.controller.LockManager
@@ -111,12 +112,13 @@ class ActivityWatcherServiceController @Inject constructor(
 		autoTracking: Int = BackgroundTrackingApi.cachedParams.autoTrackingMode,
 		trackerLocked: Boolean = currentTrackerLocked(),
 		trackerRunning: Boolean = trackerStateReader.isServiceRunning,
+		hasActivityPermission: Boolean = context.hasActivityPermission,
 	) {
 		if (dataDeletionPaused) {
 			serviceInstance?.stopSelf()
 			return
 		}
-		if (updateInterval > 0 && autoTracking > 0) {
+		if (hasActivityPermission && updateInterval > 0 && autoTracking > 0) {
 			if (watcherPreference && !trackerLocked && !trackerRunning) {
 				if (serviceInstance == null) {
 					if (!canStartForegroundService()) {

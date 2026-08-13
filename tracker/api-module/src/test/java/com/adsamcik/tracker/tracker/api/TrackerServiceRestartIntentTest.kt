@@ -16,6 +16,11 @@ class TrackerServiceRestartIntentTest {
 	@Test
 	fun `restart intent preserves durable session flags and tier`() {
 		val context = ApplicationProvider.getApplicationContext<Context>()
+		val requirements = TrackerForegroundServiceRequirements(
+			requiresLocation = true,
+			requiresHealth = true,
+			hasSignalSources = true,
+		)
 		val intent = TrackerServiceApi.createRestartIntent(
 			context,
 			ActiveTrackingSessionDescriptor(
@@ -27,6 +32,7 @@ class TrackerServiceRestartIntentTest {
 				lifecycleRevision = 7L,
 				lifecycleChangedAtEpochMs = 1_234L,
 			),
+			requirements,
 		)
 
 		intent.component?.className shouldBe TrackerServiceContract.SERVICE_CLASS_NAME
@@ -39,5 +45,30 @@ class TrackerServiceRestartIntentTest {
 		intent.getLongExtra(TrackerServiceContract.ARG_LIFECYCLE_REVISION, -1L) shouldBe 7L
 		intent.getLongExtra(TrackerServiceContract.ARG_LIFECYCLE_CHANGED_AT_EPOCH_MS, -1L) shouldBe
 			1_234L
+		intent.getBooleanExtra(TrackerServiceContract.ARG_REQUIRES_LOCATION, false) shouldBe true
+		intent.getBooleanExtra(TrackerServiceContract.ARG_REQUIRES_HEALTH, false) shouldBe true
+		intent.getBooleanExtra(TrackerServiceContract.ARG_HAS_SIGNAL_SOURCES, false) shouldBe true
+	}
+
+	@Test
+	fun `fresh start intent carries requirements before service dispatch`() {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val intent = TrackerServiceApi.createStartIntent(
+			context = context,
+			isUserInitiated = false,
+			isAmbient = true,
+			requirements = TrackerForegroundServiceRequirements(
+				requiresLocation = false,
+				requiresHealth = true,
+				hasSignalSources = false,
+			),
+		)
+
+		intent.component?.className shouldBe TrackerServiceContract.SERVICE_CLASS_NAME
+		intent.getBooleanExtra(TrackerServiceContract.ARG_IS_USER_INITIATED, true) shouldBe false
+		intent.getBooleanExtra(TrackerServiceContract.ARG_IS_AMBIENT, false) shouldBe true
+		intent.getBooleanExtra(TrackerServiceContract.ARG_REQUIRES_LOCATION, true) shouldBe false
+		intent.getBooleanExtra(TrackerServiceContract.ARG_REQUIRES_HEALTH, false) shouldBe true
+		intent.getBooleanExtra(TrackerServiceContract.ARG_HAS_SIGNAL_SOURCES, true) shouldBe false
 	}
 }

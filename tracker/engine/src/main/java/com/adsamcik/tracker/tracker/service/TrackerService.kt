@@ -2,7 +2,6 @@ package com.adsamcik.tracker.tracker.service
 
 import dev.tracebox.Tracebox
 import android.annotation.SuppressLint
-import android.Manifest
 import android.app.Notification
 import android.app.Service
 import android.content.Context
@@ -22,7 +21,6 @@ import com.adsamcik.tracker.shared.base.extension.hasCellScanPermission
 import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
 import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
 import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
-import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
 import com.adsamcik.tracker.shared.base.extension.trackingPermissionCapabilities
 import com.adsamcik.tracker.shared.base.service.CoreService
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
@@ -31,9 +29,12 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.processor.SignalProcessor
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
+import com.adsamcik.tracker.tracker.failure.isTrackingOperationalFailure
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.api.TrackerServiceContract
+import com.adsamcik.tracker.tracker.api.TrackerForegroundServiceRequirements
+import com.adsamcik.tracker.tracker.api.TrackerForegroundServiceRequirementsProvider
 import com.adsamcik.tracker.tracker.component.TrackerTimerManager
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
@@ -63,6 +64,7 @@ import com.adsamcik.tracker.tracker.source.coordinator.SourceSessionPlanInputs
 import com.adsamcik.tracker.tracker.source.coordinator.SourceSessionReconfigureOutcome
 import com.adsamcik.tracker.tracker.source.coordinator.SourceSessionStartOutcome
 import com.adsamcik.tracker.tracker.source.coordinator.SourceSessionStartRequest
+import com.adsamcik.tracker.tracker.source.coordinator.SourceSessionStopOutcome
 import com.adsamcik.tracker.tracker.source.coordinator.SourceOwner
 import com.adsamcik.tracker.tracker.source.coordinator.TrackerServiceSourceSession
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingCoordinatorTelemetry
@@ -84,7 +86,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
@@ -169,6 +170,9 @@ internal class TrackerService : CoreService() {
 	@Inject
 	lateinit var trackingFrameEffects: EventTrackingFrameOutboxDispatcher
 
+	@Inject
+	lateinit var foregroundRequirementsProvider: TrackerForegroundServiceRequirementsProvider
+
 	private lateinit var orchestrator: TrackingOrchestrator
 
 	private var lockObservationJob: Job? = null
@@ -191,7 +195,7 @@ internal class TrackerService : CoreService() {
 	private val restartScheduled = AtomicBoolean(false)
 	private var foregroundStarted = false
 	private var activeForegroundServiceType: Int? = null
-	private var activeForegroundRequirements: ForegroundServiceRequirements? = null
+	private var activeForegroundRequirements: TrackerForegroundServiceRequirements? = null
 	private val trackingFrameOwnerToken: String
 		get() = "tracker-service:$serviceGeneration"
 
@@ -201,11 +205,6 @@ internal class TrackerService : CoreService() {
 			serviceGeneration = SERVICE_GENERATION_COUNTER.incrementAndGet()
 			activeServiceGeneration = serviceGeneration
 		}
-
-		// Promote immediately with a neutral type. The session configuration is loaded in
-		// onStartCommand, then startForeground is called again with the exact active source types
-		// before any GPS or health collection is enabled.
-		ensureForegroundStarted(requiresLocation = false, requiresHealth = false)
 
 		powerManager = getSystemServiceTyped(Context.POWER_SERVICE)
 		wakeLock = powerManager.newWakeLock(
@@ -234,9 +233,11 @@ internal class TrackerService : CoreService() {
 			onSourcePlanInputsChanged = { settings, demands ->
 				val rollout = sessionRolloutState
 				val foregroundReady = rollout == null || prepareForegroundForSourcePlan(settings, rollout)
-				val reconfigured = if (foregroundReady) runCatching {
+				val reconfigured = if (foregroundReady) {
 					sourceSession.reconfigure(sourcePlanInputs(settings, demands))
-				}.getOrNull() else null
+				} else {
+					null
+				}
 				if (reconfigured == null || reconfigured is SourceSessionReconfigureOutcome.Rejected) {
 					requestGracefulStop(reason = TrackingStopCandidateReason.INTERNAL_FAILURE)
 				}
@@ -263,6 +264,30 @@ internal class TrackerService : CoreService() {
 
 		if (intent?.action == TrackerServiceContract.ACTION_GRACEFUL_STOP) {
 			requestGracefulStop(startId, intent.stopCandidateReason())
+			return START_NOT_STICKY
+		}
+
+		val promotionIsUserInitiated = intent?.getBooleanExtra(ARG_IS_USER_INITIATED, false)
+			?: sessionInfo?.isInitiatedByUser
+			?: DEFAULT_IS_USER_INITIATED
+		val promotionIsAmbient = intent?.getBooleanExtra(ARG_IS_AMBIENT, false)
+			?: activeSessionDescriptor?.isAmbient
+			?: false
+		val promotionRequirements = intent?.foregroundRequirements()
+			?: foregroundRequirementsProvider.current(
+				promotionIsUserInitiated,
+				promotionIsAmbient,
+			)
+		if (promotionRequirements == null) {
+			onForegroundStartFailed(stopService = true)
+			return START_NOT_STICKY
+		}
+		if (
+			!ensureForegroundStarted(
+				requirements = promotionRequirements,
+				requiresBackgroundLocation = !promotionIsUserInitiated && !promotionIsAmbient,
+			)
+		) {
 			return START_NOT_STICKY
 		}
 
@@ -423,6 +448,34 @@ internal class TrackerService : CoreService() {
 		)
 	}
 
+	private fun Intent.foregroundRequirements(): TrackerForegroundServiceRequirements? {
+		if (
+			!hasExtra(TrackerServiceContract.ARG_REQUIRES_LOCATION) &&
+			!hasExtra(TrackerServiceContract.ARG_REQUIRES_HEALTH) &&
+			!hasExtra(TrackerServiceContract.ARG_HAS_SIGNAL_SOURCES)
+		) {
+			return null
+		}
+		val requiresLocation = getBooleanExtra(
+			TrackerServiceContract.ARG_REQUIRES_LOCATION,
+			false,
+		)
+		val requiresHealth = getBooleanExtra(
+			TrackerServiceContract.ARG_REQUIRES_HEALTH,
+			false,
+		)
+		val hasSignalSources = getBooleanExtra(
+			TrackerServiceContract.ARG_HAS_SIGNAL_SOURCES,
+			false,
+		)
+		if (!requiresLocation && !requiresHealth && !hasSignalSources) return null
+		return TrackerForegroundServiceRequirements(
+			requiresLocation = requiresLocation,
+			requiresHealth = requiresHealth,
+			hasSignalSources = hasSignalSources,
+		)
+	}
+
 	private fun Intent.stopCandidateReason(): TrackingStopCandidateReason =
 		getStringExtra(TrackerServiceContract.ARG_STOP_CANDIDATE_REASON)
 			?.let { name -> TrackingStopCandidateReason.entries.firstOrNull { it.name == name } }
@@ -507,21 +560,19 @@ internal class TrackerService : CoreService() {
 					val rolloutState = trackingRolloutStateStore.load()
 					sessionRolloutState = rolloutState
 					val ownership = TrackingSessionOwnership.resolve(rolloutState, trackingParams)
-					if (!trackingParams.hasAnyCaptureSource(
-						locationAvailable = hasLocationPermission,
-						activityAvailable = hasActivityPermission,
-						stepsAvailable = hasActivityPermission && hasStepCounterSensor,
-						wifiAvailable = hasWifiScanPermission,
-						cellAvailable = hasCellScanPermission,
-						barometerAvailable = hasPressureSensor,
-					)) {
+					val foregroundRequirements = resolveForegroundRequirements(
+						settings = trackingParams,
+						isUserInitiated = isUserInitiated,
+						isAmbient = isAmbient,
+					)
+					if (foregroundRequirements == null) {
 						requestGracefulStop(
 							startId,
 							TrackingStopCandidateReason.CAPTURE_UNAVAILABLE,
 						)
 						return@runAfter
 					}
-					val locationEnabled = trackingParams.locationEnabled
+					val locationEnabled = foregroundRequirements.requiresLocation
 					val requestedInitialTier = resolveInitialPolicyTier(
 						isUserInitiated = isUserInitiated,
 						isAmbient = isAmbient,
@@ -535,9 +586,10 @@ internal class TrackerService : CoreService() {
 					} else {
 						batteryAwarePolicy.adjustForBattery(requestedInitialTier)
 					}
-					val requiresLocation = locationEnabled
-					val requiresHealth = trackingParams.activityEnabled || trackingParams.stepsEnabled
-					if (!ensureForegroundStarted(requiresLocation, requiresHealth)) {
+					if (!ensureForegroundStarted(
+						requirements = foregroundRequirements,
+						requiresBackgroundLocation = !isUserInitiated && !isAmbient,
+					)) {
 						return@runAfter
 					}
 					var descriptor = provisionalDescriptor.copy(policyTier = initialTier)
@@ -596,7 +648,9 @@ internal class TrackerService : CoreService() {
 					)) {
 						is SourceSessionStartOutcome.Rejected -> {
 							collectionMotionController.stopSession(descriptor.serviceRunId)
-							error("Event source session start rejected: ${sourceStart.result}")
+							Tracebox.log.error("Tracking source session start was rejected")
+							requestGracefulStop(reason = TrackingStopCandidateReason.INITIALIZATION_FAILURE)
+							return@runAfter
 						}
 						else -> Unit
 					}
@@ -608,11 +662,9 @@ internal class TrackerService : CoreService() {
 						batteryAwarePolicy.batteryLevelUpdates.collect {
 							orchestrator.onBatteryLevelChanged(scope = this@TrackerService)
 							val currentSettings = trackingParamsRepository.data.first()
-							val sourceResult = runCatching {
-								sourceSession.reconfigure(
-									sourcePlanInputs(currentSettings, orchestrator.currentSourceDemands()),
-								)
-							}.getOrNull()
+							val sourceResult = sourceSession.reconfigure(
+								sourcePlanInputs(currentSettings, orchestrator.currentSourceDemands()),
+							)
 							if (sourceResult == null || sourceResult is SourceSessionReconfigureOutcome.Rejected) {
 								requestGracefulStop(reason = TrackingStopCandidateReason.INTERNAL_FAILURE)
 							}
@@ -620,13 +672,11 @@ internal class TrackerService : CoreService() {
 					}
 
 				}
-			} catch (e: TimeoutCancellationException) {
-				Tracebox.log.error(e, "Tracking start failed")
-				requestGracefulStop(reason = TrackingStopCandidateReason.INITIALIZATION_FAILURE)
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {
-				Tracebox.log.error(e, "Tracking start failed")
+				if (!e.isTrackingOperationalFailure()) throw e
+				Tracebox.log.error("Tracking start failed: storage unavailable")
 				requestGracefulStop(reason = TrackingStopCandidateReason.INITIALIZATION_FAILURE)
 			}
 		}
@@ -660,11 +710,9 @@ internal class TrackerService : CoreService() {
 							fullFidelity = profile.locationStrategy == LocationCollectionStrategy.FULL_FIDELITY,
 						)
 						val currentSettings = trackingParamsRepository.data.first()
-						val result = runCatching {
-							sourceSession.reconfigure(
-								sourcePlanInputs(currentSettings, orchestrator.currentSourceDemands()),
-							)
-						}.getOrNull()
+						val result = sourceSession.reconfigure(
+							sourcePlanInputs(currentSettings, orchestrator.currentSourceDemands()),
+						)
 						if (result == null || result is SourceSessionReconfigureOutcome.Rejected) {
 							requestGracefulStop(reason = TrackingStopCandidateReason.INTERNAL_FAILURE)
 						}
@@ -689,41 +737,24 @@ internal class TrackerService : CoreService() {
 	 */
 	@Synchronized
 	private fun ensureForegroundStarted(
-		requiresLocation: Boolean,
-		requiresHealth: Boolean,
+		requirements: TrackerForegroundServiceRequirements,
+		requiresBackgroundLocation: Boolean = false,
 		stopServiceOnFailure: Boolean = true,
 	): Boolean {
-		val requirements = ForegroundServiceRequirements(requiresLocation, requiresHealth)
-
-		if (requiresLocation && !hasLocationPermission) {
+		val permissionCapabilities = trackingPermissionCapabilities()
+		if (
+			requirements.requiresLocation &&
+			(!permissionCapabilities.hasForegroundLocation ||
+				(requiresBackgroundLocation && !permissionCapabilities.hasBackgroundLocation))
+		) {
 			onForegroundStartFailed(stopServiceOnFailure)
 			return false
 		}
 
-		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-			if (foregroundStarted && activeForegroundRequirements == requirements) return true
-			val notification = TrackerNotificationManager.getForegroundNotification(
-				context = this,
-				usesLocation = requiresLocation,
-				isUserInitiatedSession = sessionInfo?.isInitiatedByUser,
-			)
-			return if (tryStartForeground(notification, type = null)) {
-				foregroundStarted = true
-				activeForegroundServiceType = null
-				activeForegroundRequirements = requirements
-				onForegroundServiceTypeChanged()
-				true
-			} else {
-				onForegroundStartFailed(stopServiceOnFailure)
-				false
-			}
-		}
-
 		val candidates = foregroundServiceTypeCandidates(
 			sdkInt = Build.VERSION.SDK_INT,
-			requiresLocation = requiresLocation,
-			requiresHealth = requiresHealth,
-			hasLocationPermission = hasLocationPermission,
+			requirements = requirements,
+			hasLocationPermission = permissionCapabilities.hasForegroundLocation,
 			hasActivityPermission = hasActivityPermission,
 		)
 		val preferredType = candidates.firstOrNull()
@@ -741,7 +772,7 @@ internal class TrackerService : CoreService() {
 
 		val notification = TrackerNotificationManager.getForegroundNotification(
 			context = this,
-			usesLocation = requiresLocation,
+			usesLocation = requirements.requiresLocation,
 			isUserInitiatedSession = sessionInfo?.isInitiatedByUser,
 		)
 		for (type in candidates) {
@@ -832,6 +863,7 @@ internal class TrackerService : CoreService() {
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Exception) {
+			if (!e.isTrackingOperationalFailure()) throw e
 			false
 		}
 
@@ -843,6 +875,7 @@ internal class TrackerService : CoreService() {
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Exception) {
+			if (!e.isTrackingOperationalFailure()) throw e
 			false
 		}
 		cycleDispatcherScope?.cancel()
@@ -1045,10 +1078,16 @@ internal class TrackerService : CoreService() {
 	private suspend fun performTeardown(context: Context) {
 		val serviceRunId = activeSessionDescriptor?.serviceRunId
 		retryTrackingShutdown {
-			sourceSession.stop(
+			when (val outcome = sourceSession.stop(
 				reason = stopReason.name,
 				preserveLogicalSession = !gracefulStopRequested,
-			)
+			)) {
+				SourceSessionStopOutcome.Stopped,
+				SourceSessionStopOutcome.NotActive,
+				-> Unit
+				is SourceSessionStopOutcome.Retryable ->
+					throw TrackingShutdownRetryException(outcome.code.name)
+			}
 		}
 		serviceRunId?.let(collectionMotionController::stopSession)
 		sourcePipelineRecovery.drainCommittedWork()
@@ -1085,7 +1124,10 @@ internal class TrackerService : CoreService() {
 					cycleDispatcher.cancelAndJoin()
 				}
 				finalCycleCancellationFailure = null
+			} catch (e: CancellationException) {
+				throw e
 			} catch (e: Exception) {
+				if (!e.isTrackingOperationalFailure() && e !is TrackingShutdownRetryException) throw e
 				finalCycleCancellationFailure = e
 			}
 		}
@@ -1188,10 +1230,39 @@ internal class TrackerService : CoreService() {
 		check(rollout.sourceOwners.getValue(SourceKind.LOCATION) == SourceOwner.EVENT) {
 			"Location source must be event-owned before foreground capabilities are applied"
 		}
-		val requiresLocation = settings.locationEnabled
+		val descriptor = activeSessionDescriptor ?: return false
+		val requirements = resolveForegroundRequirements(
+			settings = settings,
+			isUserInitiated = descriptor.isUserInitiated,
+			isAmbient = descriptor.isAmbient,
+		) ?: return false
 		return ensureForegroundStarted(
-			requiresLocation = requiresLocation,
-			requiresHealth = settings.activityEnabled || settings.stepsEnabled,
+			requirements = requirements,
+			requiresBackgroundLocation = !descriptor.isUserInitiated && !descriptor.isAmbient,
+		)
+	}
+
+	private fun resolveForegroundRequirements(
+		settings: TrackingParamsState,
+		isUserInitiated: Boolean,
+		isAmbient: Boolean,
+	): TrackerForegroundServiceRequirements? {
+		val capabilities = trackingPermissionCapabilities()
+		val packageManager = packageManager
+		val cellFeature = packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) ||
+			(Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+				packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_RADIO_ACCESS))
+		return resolveTrackerForegroundServiceRequirements(
+			params = settings,
+			isUserInitiated = isUserInitiated,
+			isAmbient = isAmbient,
+			locationAvailable = capabilities.hasForegroundLocation,
+			backgroundLocationAvailable = capabilities.hasBackgroundLocation,
+			activityAvailable = hasActivityPermission && Assist.isPlayServicesAvailable(this),
+			stepsAvailable = hasActivityPermission && hasStepCounterSensor,
+			wifiAvailable = capabilities.hasWifiScan,
+			cellAvailable = hasCellScanPermission && cellFeature,
+			barometerAvailable = hasPressureSensor,
 		)
 	}
 
@@ -1312,6 +1383,7 @@ internal suspend fun <T : Any> drainCyclesThenShutdown(
 	} catch (exception: CancellationException) {
 		throw exception
 	} catch (exception: Exception) {
+		if (!exception.isTrackingOperationalFailure()) throw exception
 		drainFailure = exception
 		false
 	}
@@ -1325,6 +1397,7 @@ internal suspend fun <T : Any> drainCyclesThenShutdown(
 	} catch (exception: CancellationException) {
 		throw exception
 	} catch (exception: Exception) {
+		if (!exception.isTrackingOperationalFailure()) throw exception
 		cycleCancellationFailure = exception
 		false
 	}
@@ -1347,6 +1420,7 @@ internal suspend fun <T : Any> drainCyclesThenShutdown(
 		} catch (exception: CancellationException) {
 			throw exception
 		} catch (exception: Exception) {
+			if (!exception.isTrackingOperationalFailure()) throw exception
 			shutdownFailure = exception
 			null
 		}
@@ -1371,7 +1445,7 @@ internal suspend fun <T : Any> drainCyclesThenShutdown(
  * ACTIVITY_RECOGNITION. Permission possession alone never adds a type: location is declared only
  * while a GPS trigger is active, and health only while activity or step collection is configured.
  *
- * [ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE] covers neutral startup and signal-only sessions.
+ * [ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE] covers only a genuine signal-only session.
  * A location-required session has no non-location fallback because it must not access GPS under an
  * inaccurate foreground declaration.
  *
@@ -1381,40 +1455,36 @@ internal suspend fun <T : Any> drainCyclesThenShutdown(
 @SuppressLint("InlinedApi")
 internal fun foregroundServiceTypeCandidates(
 	sdkInt: Int,
-	requiresLocation: Boolean,
-	requiresHealth: Boolean,
+	requirements: TrackerForegroundServiceRequirements,
 	hasLocationPermission: Boolean,
 	hasActivityPermission: Boolean,
 ): List<Int?> {
+	if (requirements.requiresLocation && !hasLocationPermission) return emptyList()
+	val hasLegalLocation = requirements.requiresLocation && hasLocationPermission
+	val hasLegalHealth = requirements.requiresHealth && hasActivityPermission
+	val hasLegalSignals = requirements.hasSignalSources
+	if (!hasLegalLocation && !hasLegalHealth && !hasLegalSignals) return emptyList()
+
+	if (sdkInt < Build.VERSION_CODES.Q) return listOf(null)
 	if (sdkInt < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-		return when {
-			requiresLocation && hasLocationPermission ->
-				listOf(ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
-			requiresLocation -> emptyList()
-			else -> listOf(null)
-		}
-	}
-	if (requiresLocation) {
-		if (!hasLocationPermission) return emptyList()
-		val healthType = if (requiresHealth && hasActivityPermission) {
-			ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH
+		return if (hasLegalLocation) {
+			listOf(ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
 		} else {
-			ServiceInfo.FOREGROUND_SERVICE_TYPE_NONE
+			listOf(null)
 		}
-		val combinedType = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or healthType
-		return listOf(combinedType)
 	}
-	return if (requiresHealth && hasActivityPermission) {
+	if (hasLegalLocation) {
+		return listOf(
+			ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or
+				(if (hasLegalHealth) ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH else 0),
+		)
+	}
+	return if (hasLegalHealth) {
 		listOf(ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH)
 	} else {
 		listOf(ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
 	}
 }
-
-private data class ForegroundServiceRequirements(
-	val requiresLocation: Boolean,
-	val requiresHealth: Boolean,
-)
 
 /**
  * Resolves the startup policy tier before battery capping is applied.
