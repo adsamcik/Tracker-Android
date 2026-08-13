@@ -20,6 +20,7 @@ import com.adsamcik.tracker.tracker.source.model.toStableFlags
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 
 interface DurableSourceIngress {
 	suspend fun admit(candidate: SourceEvidenceCandidate<*>): AdmissionResult
@@ -180,6 +181,8 @@ class RoomDurableSourceIngress @Inject constructor(
 			}
 		} catch (aborted: BatchAdmissionAborted) {
 			repeatedFailure(candidates.size, aborted.result)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
 		} catch (_: Throwable) {
 			repeatedFailure(
 				candidates.size,

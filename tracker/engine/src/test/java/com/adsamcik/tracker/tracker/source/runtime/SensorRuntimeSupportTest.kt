@@ -81,6 +81,27 @@ class SensorRuntimeSupportTest {
 		recovered.metrics.gapClassifications shouldBe setOf(RuntimeGapClassification.PROCESS_RESTARTED)
 	}
 
+	@Test
+	fun `callback overflow is durably summarized without unbounded per-event state`() {
+		val metrics = RuntimeAdmissionMetrics()
+		metrics.recordFailure(10L, 1_010L, RuntimeGapClassification.CALLBACK_BUFFER_OVERFLOW)
+		val checkpoint = SensorRuntimeCheckpoint(
+			RuntimeCheckpointLifecycle.ACTIVE,
+			metrics.snapshot(),
+			componentStateVersion = 1,
+			componentPayload = ByteArray(0),
+		)
+		val restored = requireNotNull(
+			decodeSensorRuntimeCheckpoint(entity(encodeSensorRuntimeCheckpoint(checkpoint)), 1),
+		)
+
+		restored.metrics.failedAdmissionCount shouldBe 1_001L
+		restored.metrics.unresolvedSequenceStart shouldBe 10L
+		restored.metrics.unresolvedSequenceEndInclusive shouldBe 1_010L
+		restored.metrics.gapClassifications shouldBe
+			setOf(RuntimeGapClassification.CALLBACK_BUFFER_OVERFLOW)
+	}
+
 	private fun entity(payload: ByteArray) = SourceRuntimeStateEntity(
 		sourceKind = 3,
 		ownerScope = "session",

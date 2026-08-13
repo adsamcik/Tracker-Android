@@ -145,6 +145,37 @@ class GmsActivityRecognitionBackendTest {
 	}
 
 	@Test
+	fun `stalled activity subscriber keeps a bounded queue and receives the newest state`() = runTest {
+		val releaseCollector = CompletableDeferred<Unit>()
+		val received = mutableListOf<ActivityUpdate>()
+		val expectedCount = GmsActivityRecognitionBackend.LIVE_UPDATE_BUFFER_CAPACITY + 1
+		val collector = launch {
+			backend.activityUpdates
+				.onEach {
+					received += it
+					if (received.size == 1) releaseCollector.await()
+				}
+				.take(expectedCount)
+				.collect {}
+		}
+		runCurrent()
+
+		val burstSize = GmsActivityRecognitionBackend.LIVE_UPDATE_BUFFER_CAPACITY * 4
+		repeat(burstSize) { index ->
+			backend.onActivityResult(
+				activity = RecognizedActivity(DetectedActivityType.WALKING, 80),
+				elapsedTimeMillis = index.toLong(),
+			)
+		}
+		releaseCollector.complete(Unit)
+		advanceUntilIdle()
+
+		received shouldHaveSize expectedCount
+		received.last().elapsedTimeMillis shouldBe (burstSize - 1).toLong()
+		collector.cancel()
+	}
+
+	@Test
 	fun `transition events are emitted as one ordered batch`() = runTest {
 		val updates = listOf(
 			TransitionUpdate(

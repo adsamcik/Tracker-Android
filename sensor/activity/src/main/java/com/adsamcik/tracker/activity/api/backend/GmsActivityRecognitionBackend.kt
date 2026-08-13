@@ -23,6 +23,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -65,8 +66,14 @@ class GmsActivityRecognitionBackend @Inject constructor(
 
 	private val subscriptionMutex = Mutex()
 
-	private val activityUpdateQueue = Channel<ActivityUpdate>(Channel.UNLIMITED)
-	private val transitionUpdateQueue = Channel<List<TransitionUpdate>>(Channel.UNLIMITED)
+	private val activityUpdateQueue = Channel<ActivityUpdate>(
+		capacity = LIVE_UPDATE_BUFFER_CAPACITY,
+		onBufferOverflow = BufferOverflow.DROP_OLDEST,
+	)
+	private val transitionUpdateQueue = Channel<List<TransitionUpdate>>(
+		capacity = LIVE_UPDATE_BUFFER_CAPACITY,
+		onBufferOverflow = BufferOverflow.DROP_OLDEST,
+	)
 	private val _activityUpdates = MutableSharedFlow<ActivityUpdate>()
 	override val activityUpdates: Flow<ActivityUpdate> = _activityUpdates.asSharedFlow()
 
@@ -281,6 +288,7 @@ class GmsActivityRecognitionBackend @Inject constructor(
 	}
 
 	companion object {
+		internal const val LIVE_UPDATE_BUFFER_CAPACITY = 64
 		internal const val EXTRA_SOURCE_INSTANCE_ID = "activity_registration_source_instance_id"
 		internal const val EXTRA_REGISTRATION_GENERATION = "activity_registration_generation"
 		internal const val EXTRA_COLLECTED_DATA_EPOCH = "activity_registration_collected_data_epoch"
