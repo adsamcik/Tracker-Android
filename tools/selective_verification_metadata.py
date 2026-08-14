@@ -130,6 +130,13 @@ def component_coordinate(component: ET.Element) -> tuple[str, str, str]:
     )
 
 
+def canonical_content_matches(existing: bytes, generated: bytes) -> bool:
+    """Compare canonical metadata while tolerating Git's Windows checkout endings."""
+    return existing.replace(b"\r\n", b"\n") == generated.replace(
+        b"\r\n", b"\n"
+    )
+
+
 def sha256_artifacts(components: Iterable[ET.Element]) -> dict[str, set[str]]:
     artifacts: dict[str, set[str]] = {}
     for component in components:
@@ -226,7 +233,7 @@ def select_metadata(
     tree.write(rendered, encoding="utf-8", xml_declaration=True)
     rendered_bytes = rendered.getvalue()
     if check:
-        if metadata.read_bytes() != rendered_bytes:
+        if not canonical_content_matches(metadata.read_bytes(), rendered_bytes):
             raise SelectiveVerificationError(
                 "verification metadata does not match the reviewed selective policy; "
                 "regenerate, reduce, and review it"
