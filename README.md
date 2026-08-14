@@ -32,12 +32,10 @@ Tracker is a free, open-source, offline location and activity tracker. All track
 - Android Studio (latest stable)
 - JDK 21 for Gradle (application bytecode targets Java 17)
 - Android SDK 37 (compile and target)
-- Tracebox `0.1.0-personal.2c968863` published to Maven Local:
-
-```bash
-cd ../Tracebox
-./gradlew.bat publishToMavenLocal -PtraceboxVersion=0.1.0-personal.2c968863
-```
+- Tracebox artifacts at the version declared by `tracebox` in
+  [`gradle/libs.versions.toml`](gradle/libs.versions.toml). CI resolves that immutable package from
+  GitHub Packages. For local Tracebox development, publish the same catalog version to Maven Local
+  before building Tracker.
 
 Tracebox is built into every Tracker variant and is the sole crash and diagnostics recorder; there
 is no migration flavor or legacy logger fallback.
