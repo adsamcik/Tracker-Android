@@ -22,6 +22,7 @@ from release_native import (
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 GIT_OBJECT_RE = re.compile(r"^[0-9a-f]{40,64}$")
 FIXED_TRACEBOX_VERSION = "0.1.0-alpha.3"
+BUNDLETOOL_COORDINATE = "com.android.tools.build:bundletool:1.18.3"
 
 
 def sha256_file(path: Path) -> str:
@@ -311,6 +312,10 @@ def validate_release_manifest(manifest: Mapping[str, Any]) -> None:
         raise ReleaseValidationError("Room schema evidence is empty")
     _require_sha256(room.get("sha256"), "room.sha256")
 
+    tooling = manifest.get("tooling")
+    if not isinstance(tooling, dict) or tooling.get("bundletoolCoordinate") != BUNDLETOOL_COORDINATE:
+        raise ReleaseValidationError("pinned bundletool evidence is missing")
+
     sqlite = manifest.get("sqlite")
     if not isinstance(sqlite, dict):
         raise ReleaseValidationError("SQLite evidence is missing")
@@ -412,6 +417,7 @@ def build_release_manifest(
         "artifacts": artifacts,
         "evidence": evidence,
         "room": room_schema_evidence(repo_root),
+        "tooling": dict(release_inputs["tooling"]),
         "sqlite": dict(release_inputs["sqlite"]),
         "maplibre": {
             **dict(release_inputs["maplibre"]),

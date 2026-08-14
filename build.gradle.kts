@@ -133,15 +133,31 @@ val testReleaseEvidence = tasks.register<Exec>("testReleaseEvidence") {
 	)
 }
 
+val verifyReleaseDependencyMetadata = tasks.register<Exec>("verifyReleaseDependencyMetadata") {
+	group = "verification"
+	description = "Verifies the canonical selective dependency checksum policy."
+	workingDir(rootDir)
+	inputs.files(
+		layout.projectDirectory.file("tools/selective_verification_metadata.py"),
+		layout.projectDirectory.file("release/release-inputs.json"),
+		layout.projectDirectory.file("gradle/verification-metadata.xml"),
+	)
+	commandLine(
+		releasePythonExecutable.get(),
+		"tools/selective_verification_metadata.py",
+		"--check",
+	)
+}
+
 tasks.named("ciCheck").configure {
-	dependsOn(testReleaseEvidence)
+	dependsOn(testReleaseEvidence, verifyReleaseDependencyMetadata)
 }
 
 tasks.register<CollectReleaseEvidenceTask>("releaseValidation") {
 	group = "verification"
 	description =
 		"Builds the release AAB and representative unsigned APK set, then records strict evidence."
-	dependsOn(testReleaseEvidence, ":app:bundleRelease")
+	dependsOn(testReleaseEvidence, verifyReleaseDependencyMetadata, ":app:bundleRelease")
 	outputs.upToDateWhen { false }
 	validationScript.set(layout.projectDirectory.file("tools/release_validation.py"))
 	releaseInputs.set(layout.projectDirectory.file("release/release-inputs.json"))

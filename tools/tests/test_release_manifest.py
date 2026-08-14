@@ -56,6 +56,7 @@ def manifest_fixture() -> dict:
             record("source-commit"),
         ],
         "room": {"count": 1, "sha256": HASH, "schemas": []},
+        "tooling": {"bundletoolCoordinate": "com.android.tools.build:bundletool:1.18.3"},
         "sqlite": {"sha256": HASH, "sha3_256": HASH, "sourceId": "fixed"},
         "tracebox": {
             "version": "0.1.0-alpha.3",
@@ -74,6 +75,12 @@ def manifest_fixture() -> dict:
 class ReleaseManifestValidationTest(unittest.TestCase):
     def test_accepts_complete_fixture(self) -> None:
         validate_release_manifest(manifest_fixture())
+
+    def test_rejects_controlled_unpinned_bundletool(self) -> None:
+        manifest = manifest_fixture()
+        manifest["tooling"]["bundletoolCoordinate"] = "com.android.tools.build:bundletool:latest"
+        with self.assertRaisesRegex(ReleaseValidationError, "pinned bundletool"):
+            validate_release_manifest(manifest)
 
     def test_rejects_controlled_snapshot_tracebox_coordinate(self) -> None:
         manifest = manifest_fixture()

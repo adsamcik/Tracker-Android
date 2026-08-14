@@ -48,6 +48,9 @@
     "resolvedAndroidCoordinate": "org.maplibre.gl:android-sdk:13.4.1",
     "emulatorOpenGlCoordinate": "org.maplibre.gl:android-sdk-opengl:13.4.1"
   },
+  "tooling": {
+    "bundletoolCoordinate": "com.android.tools.build:bundletool:1.18.3"
+  },
   "tracebox": {
     "version": "0.1.0-alpha.3",
     "tag": "v0.1.0-alpha.3",
