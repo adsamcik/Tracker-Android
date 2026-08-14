@@ -1,9 +1,9 @@
 """
-android_qc — Prompt templates for dual-model evaluation.
+android_qc — Prompt templates for capability-driven evaluation.
 
 Each prompt type has:
 - A shared system preamble
-- Model-specific task addendums (GPT 5.4 xhigh vs Opus 4.6 1M high)
+- A visual-first or state-first task addendum
 - A user prompt template with {{placeholders}}
 """
 from __future__ import annotations
@@ -38,7 +38,7 @@ Check object shape:
 
 # ── 5A. Per-Screen Evaluation ────────────────────────────────────────────────
 
-SCREEN_GPT_TASK = """
+SCREEN_VISUAL_TASK = """
 Task:
 Evaluate one Android screen for user-visible defects.
 Prioritize screenshot truth and element-tree anomalies: clipping, overlap,
@@ -47,7 +47,7 @@ disabled/enabled mismatch, wrong selection state, off-screen CTA,
 bottom-bar overlap, tiny tap targets (<48dp), incorrect element classification.
 Keep `hyp` empty unless directly implied by evidence."""
 
-SCREEN_OPUS_TASK = """
+SCREEN_STATE_TASK = """
 Task:
 Evaluate one Android screen for defects, state mismatches, and contradictions
 with context or prior flow state.
@@ -98,14 +98,14 @@ Screenshot is the attached image."""
 
 # ── 5B. Per-Transition Evaluation ────────────────────────────────────────────
 
-TRANSITION_GPT_TASK = """
+TRANSITION_VISUAL_TASK = """
 Task:
 Evaluate whether the action caused the correct visible change.
 Focus on immediate visible delta: correct route, change/no-change, loading/
 confirmation feedback, control state changes, appearance/disappearance of content,
 duplicate submission signs, stuck spinner, wrong destination, unexpected overlays."""
 
-TRANSITION_OPUS_TASK = """
+TRANSITION_STATE_TASK = """
 Task:
 Evaluate whether the action produced the intended route, state change, and data change.
 Reason about action semantics, expected flow progression, persistence, idempotency,
@@ -161,13 +161,13 @@ image0 = before, image1 = after."""
 
 # ── 5C. Flow Checkpoint Evaluation ───────────────────────────────────────────
 
-CHECKPOINT_GPT_TASK = """
+CHECKPOINT_VISUAL_TASK = """
 Task:
 Evaluate whether the flow is visibly progressing correctly at this checkpoint.
 Focus on current-screen evidence, carried data visible on screen, missing
 required controls, wrong progress indicators, incorrect enabled/disabled states."""
 
-CHECKPOINT_OPUS_TASK = """
+CHECKPOINT_STATE_TASK = """
 Task:
 Evaluate whether the multi-step flow is progressing correctly and data/state
 remain coherent across steps. Reason about state persistence, carried entities,
@@ -220,13 +220,13 @@ INPUT
 
 # ── 5D. Synthesis Evaluation ─────────────────────────────────────────────────
 
-SYNTHESIS_GPT_TASK = """
+SYNTHESIS_VISUAL_TASK = """
 Task:
 Cluster, dedupe, and compress all findings into a final report.
 Merge duplicate findings with same or near-same `dk`. Be conservative on severity
 escalation. Preserve evidence refs. Max 12 deduped issues."""
 
-SYNTHESIS_OPUS_TASK = """
+SYNTHESIS_STATE_TASK = """
 Task:
 Cluster, dedupe, and severity-finalize all findings. Resolve conflicts by evidence
 quality and user impact, not vote count. Favor findings supported across screens.
@@ -270,7 +270,7 @@ Severity reflects final user impact, not raw count."""
 
 # ── 5E. Next-Action Decision ─────────────────────────────────────────────────
 
-NEXT_ACTION_GPT_TASK = """
+NEXT_ACTION_VISUAL_TASK = """
 Task:
 Pick the best next action to maximize coverage gain and issue detection.
 Favor deterministic actions: dismiss dialog, tap primary CTA, open uncovered branch,
@@ -279,7 +279,7 @@ Up to 5 candidates. Be fast and pragmatic.
 
 Action kinds: tap | type | scroll | swipe | back | wait | long_press | finish_flow | stop"""
 
-NEXT_ACTION_OPUS_TASK = """
+NEXT_ACTION_STATE_TASK = """
 Task:
 Pick the best next action to maximize coverage gain and issue detection.
 Also account for unresolved hypotheses and branch value over next 2-3 steps.
@@ -326,36 +326,36 @@ INPUT
 
 PROMPT_CONFIGS = {
     "screen": {
-        "gpt_task": SCREEN_GPT_TASK,
-        "opus_task": SCREEN_OPUS_TASK,
+        "visual_task": SCREEN_VISUAL_TASK,
+        "state_task": SCREEN_STATE_TASK,
         "output_schema": SCREEN_OUTPUT_SCHEMA,
         "user_template": SCREEN_USER_TEMPLATE,
         "max_issues": 8,
     },
     "transition": {
-        "gpt_task": TRANSITION_GPT_TASK,
-        "opus_task": TRANSITION_OPUS_TASK,
+        "visual_task": TRANSITION_VISUAL_TASK,
+        "state_task": TRANSITION_STATE_TASK,
         "output_schema": TRANSITION_OUTPUT_SCHEMA,
         "user_template": TRANSITION_USER_TEMPLATE,
         "max_issues": 8,
     },
     "checkpoint": {
-        "gpt_task": CHECKPOINT_GPT_TASK,
-        "opus_task": CHECKPOINT_OPUS_TASK,
+        "visual_task": CHECKPOINT_VISUAL_TASK,
+        "state_task": CHECKPOINT_STATE_TASK,
         "output_schema": CHECKPOINT_OUTPUT_SCHEMA,
         "user_template": CHECKPOINT_USER_TEMPLATE,
         "max_issues": 8,
     },
     "synthesis": {
-        "gpt_task": SYNTHESIS_GPT_TASK,
-        "opus_task": SYNTHESIS_OPUS_TASK,
+        "visual_task": SYNTHESIS_VISUAL_TASK,
+        "state_task": SYNTHESIS_STATE_TASK,
         "output_schema": SYNTHESIS_OUTPUT_SCHEMA,
         "user_template": SYNTHESIS_USER_TEMPLATE,
         "max_issues": 12,
     },
     "next_action": {
-        "gpt_task": NEXT_ACTION_GPT_TASK,
-        "opus_task": NEXT_ACTION_OPUS_TASK,
+        "visual_task": NEXT_ACTION_VISUAL_TASK,
+        "state_task": NEXT_ACTION_STATE_TASK,
         "output_schema": NEXT_ACTION_OUTPUT_SCHEMA,
         "user_template": NEXT_ACTION_USER_TEMPLATE,
         "max_issues": 0,
@@ -363,10 +363,12 @@ PROMPT_CONFIGS = {
 }
 
 
-def build_system_prompt(prompt_type: str, model: str) -> str:
-    """Build the full system prompt for a given prompt type and model."""
+def build_system_prompt(prompt_type: str, focus: str = "visual") -> str:
+    """Build the full system prompt for a prompt type and review focus."""
+    if focus not in {"visual", "state"}:
+        raise ValueError(f"Unknown evaluator focus: {focus}")
     config = PROMPT_CONFIGS[prompt_type]
-    task = config["gpt_task"] if model == "gpt" else config["opus_task"]
+    task = config[f"{focus}_task"]
     preamble = SHARED_PREAMBLE.format(max_issues=config["max_issues"])
     schema = config["output_schema"]
     return f"{preamble}\n{task}\n\nReturn this exact top-level shape:\n{schema}"

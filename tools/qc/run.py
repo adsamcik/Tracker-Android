@@ -27,8 +27,8 @@ def main():
                         help="Print orchestrator prompt and exit")
     parser.add_argument("--print-eval", choices=["screen", "transition", "checkpoint", "synthesis"],
                         help="Print a sample evaluator dispatch prompt and exit")
-    parser.add_argument("--model", choices=["gpt", "opus"], default="gpt",
-                        help="Model focus for --print-eval")
+    parser.add_argument("--focus", choices=["visual", "state"], default="visual",
+                        help="Review focus for --print-eval")
     args = parser.parse_args()
 
     mock_locations = [
@@ -62,7 +62,7 @@ def main():
         }
         prompt = build_evaluator_dispatch(
             mode=args.print_eval,
-            model=args.model,
+            focus=args.focus,
             screenshot_description="Dashboard with bottom nav, FAB, and Today card",
             elements_compressed=sample_elements,
             context=sample_context,
@@ -75,7 +75,7 @@ def main():
 
     # Default: print invocation instructions
     print("=" * 60)
-    print("  android_qc — Unified Multi-Model QC Skill")
+    print("  android_qc — Capability-driven QC helpers")
     print("=" * 60)
     print()
     print(f"  Package:  {args.package}")
@@ -87,11 +87,11 @@ def main():
     print("1. In Copilot CLI, say:")
     print('   "Run QC on the app"')
     print()
-    print("2. Or dispatch the orchestrator directly:")
+    print("2. Or generate a capability-neutral workflow prompt:")
     print()
     print("   from tools.qc.orchestrator import generate_orchestrator_prompt")
     print(f'   prompt = generate_orchestrator_prompt("{args.package}", depth="{args.depth}")')
-    print("   # Then pass `prompt` to a general-purpose task agent")
+    print("   # Then use the invocation mechanism available in your environment")
     print()
     print("3. Preview prompts:")
     print("   python -m tools.qc.run --print-prompt       # orchestrator")

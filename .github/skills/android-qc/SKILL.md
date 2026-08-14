@@ -1,160 +1,90 @@
 ---
 name: android-qc
 description: >
-  Comprehensive Android app QC testing using dual-model parallel evaluation.
-  Use this skill when asked to test the app, run QC, find bugs on the emulator,
-  or perform quality checks on the Android app. Dispatches GPT 5.4 (xhigh reasoning)
-  and Opus 4.6 1M (high reasoning) evaluator agents in parallel on every screen
-  and transition, reconciling their findings into a structured report.
+  Evidence-driven Android app QC on one representative emulator configuration.
+  Use when asked to test the app, run QC, find emulator-visible bugs, or perform
+  interactive quality checks. Adapts to available device and evaluator tools.
 ---
 
-# Android QC Skill
+# Android QC skill
 
-Systematic quality control of the Android app running on an emulator.
-Dispatches two evaluator sub-agents (GPT 5.4 xhigh + Opus 4.6 1M high) in
-parallel on every screen and transition. Disagreement between models is itself
-a high-value signal.
+Run systematic QC against a single representative emulator/API configuration. Record the device,
+API level, orientation, app build, and tested commit in the report. Do not expand the run into an
+API/device matrix unless the user explicitly requests one.
 
-## Architecture
+## Capability discovery
 
-```
-You (orchestrator)
-  │
-  ├── MCP emulator tools (device control)
-  ├── tools/qc/ Python module (state + reconciliation)
-  │
-  └── For each screen/transition, dispatch two background task agents:
-      ├── GPT 5.4 evaluator  (xhigh reasoning · fast visual triage)
-      └── Opus 4.6 1M evaluator (high reasoning · deep state/logic reasoning)
-          │
-          └── Reconcile → findings[]
-```
+1. Inventory the device-control, screenshot, element-inspection, log/crash-detection, and evaluator
+   capabilities available in the current environment.
+2. Use the environment's real tool and dispatch interfaces. Do not assume MCP command names,
+   evaluator model identifiers, background-task syntax, or a particular agent type.
+3. One evaluator is sufficient. If a second independent evaluator is available, it may be used to
+   broaden review, but lack of a second evaluator must not block QC.
+4. If required device-control capabilities are unavailable, report the missing capability instead
+   of inventing a command.
 
-## How to Run
+## Evidence standard
 
-### Step 1: Initialize state
+Evaluator output is a hypothesis, regardless of evaluator identity or confidence. Confirm a finding
+only when it is supported by at least one inspectable source: code, a screenshot/element reference,
+logs or crash output, or interactive reproduction. Agreement between evaluators can prioritize a
+hypothesis but does not replace evidence. Findings created from direct tool facts, such as a captured
+crash, may be confirmed immediately.
+
+## Workflow
+
+1. Build/install the requested app variant and claim one representative emulator.
+2. Establish a clean baseline: stop and launch the app, set the chosen orientation, detect launch
+   failures, and capture the first screenshot, element tree, activity, and relevant logs.
+3. Discover screens breadth-first and record actions, routes, state changes, and evidence references.
+4. Evaluate screens and transitions using the available evaluator(s). Use the visual focus for
+   screenshot/layout inspection and the state focus for cross-screen/state reasoning when useful.
+5. Exercise representative core flows, then resilience checks that fit the time budget on the same
+   emulator configuration.
+6. Reconcile hypotheses, reproduce material findings interactively where possible, deduplicate by
+   `dk`, and report coverage gaps and the recorded device configuration.
+
+The Python package under `tools/qc` provides data models, prompt builders, reconciliation, state,
+and report generation. It does not dispatch agents or control devices.
 
 ```python
-import sys; sys.path.insert(0, '.')
-from tools.qc.models import (
-    Finding, Severity, IssueType, Phase, EvalResult,
-    Evidence, FindingStatus, ScreenSignature
-)
-from tools.qc.reconcile import reconcile_findings, merge_next_actions, add_tool_finding
-from tools.qc.prompts import compress_elements, compress_findings, compress_actions
-from tools.qc.state import QCState
+from tools.qc.models import EvalResult, Phase
 from tools.qc.orchestrator import build_evaluator_dispatch
+from tools.qc.reconcile import reconcile_findings
 
-state = QCState(
-    package_name="com.adsamcik.tracker.debug",
-    depth="standard",
-    time_budget_seconds=1800,
-)
-```
-
-### Step 2: Bootstrap
-
-```
-android_claim_device(device="emulator-5554", agentId="qc", workload="extensive")
-android_terminate_app(device, "com.adsamcik.tracker.debug")
-android_set_orientation(device, "portrait")
-android_launch_app(device, "com.adsamcik.tracker.debug")
-android_wait_for_element(device, timeoutMs=15000)
-android_detect_crash(device)
-```
-
-Capture baseline:
-```
-screenshot = android_take_screenshot(device)
-elements = android_list_elements(device)
-activity = android_get_current_activity(device)
-```
-
-### Step 3: Evaluate (repeat for every screen)
-
-Build dispatch prompts using the Python helper:
-
-```python
-elements_compressed = compress_elements(raw_elements_list)
-context = state.prompt_context()
-
-gpt_prompt = build_evaluator_dispatch(
-    "screen", "gpt",
-    screenshot_description="<describe what you see>",
-    elements_compressed=elements_compressed,
+visual_prompt = build_evaluator_dispatch(
+    "screen",
+    "visual",
+    screenshot_description="<describe only what is visible>",
+    elements_compressed=elements,
     context=context,
-    screen_id="dashboard", route="home", activity=activity_name
+    screen_id="dashboard",
+    route="home/dashboard",
+    activity=activity,
 )
 
-opus_prompt = build_evaluator_dispatch(
-    "screen", "opus",
-    screenshot_description="<describe what you see>",
-    elements_compressed=elements_compressed,
-    context=context,
-    screen_id="dashboard", route="home", activity=activity_name
+primary = EvalResult.from_json("available-evaluator", "screen", primary_json)
+secondary = (
+    EvalResult.from_json("second-available-evaluator", "screen", secondary_json)
+    if secondary_json is not None
+    else None
+)
+findings, disagreements = reconcile_findings(
+    primary,
+    secondary,
+    "dashboard",
+    Phase.SCREEN_QC,
 )
 ```
 
-Dispatch both in parallel:
-```
-gpt_agent = task(agent_type="qc-evaluator", model="gpt-5.4",
-                 mode="background", description="QC eval: dashboard",
-                 prompt=gpt_prompt)
+Reconciliation behavior:
 
-opus_agent = task(agent_type="qc-evaluator", model="claude-opus-4.6-1m",
-                  mode="background", description="QC eval: dashboard",
-                  prompt=opus_prompt)
-```
+| Inputs | Result |
+| --- | --- |
+| One evaluator reports a finding | Suspected hypothesis |
+| Two evaluators match without cited evidence | Suspected hypothesis |
+| Two evaluators match with screenshot/element/text/action evidence | Confirmed |
+| Direct code, log, crash, or interactive reproduction evidence | Confirmed |
+| No evaluator reports a problem | No model finding; report coverage limits separately |
 
-Wait for both, parse JSON, reconcile:
-```python
-gpt_eval = EvalResult.from_json("gpt", "screen", gpt_json)
-opus_eval = EvalResult.from_json("opus", "screen", opus_json)
-findings, disagreements = reconcile_findings(gpt_eval, opus_eval, "dashboard", Phase.SCREEN_QC)
-state.add_findings(findings)
-state.add_disagreements(disagreements)
-```
-
-### Step 4: Repeat across phases
-
-1. **Bootstrap** — launch, detect crashes
-2. **Discover** — BFS screen enumeration via nav affordances
-3. **Screen QC** — per-screen dual evaluation + control interaction
-4. **Flow validation** — cross-screen user journeys (tracking, settings, export)
-5. **Resilience** — orientation, lifecycle, stress
-6. **Synthesis** — deduplicate, cluster, finalize report
-
-### Step 5: Generate report
-
-```python
-report = state.build_report("qc-run-001", device="emulator-5554", android_version="16")
-print(report.to_json())
-```
-
-## Reconciliation Rules
-
-| GPT says | Opus says | Resolution |
-|----------|-----------|------------|
-| Issue | Issue | **Auto-confirm** at higher severity |
-| Issue | No issue | **Suspected** |
-| No issue | Issue | **Confirmed** (Opus caught deeper issue) |
-| No issue | No issue | **Clean** |
-
-## Severity Scale
-
-- `blocker` — app crashes, stuck, unusable
-- `critical` — core behavior wrong, data loss
-- `major` — primary task impaired, wrong data
-- `minor` — workaround exists, secondary issue
-- `nit` — cosmetic
-
-## Files
-
-| Path | Purpose |
-|------|---------|
-| `tools/qc/models.py` | Data models, taxonomy, enums |
-| `tools/qc/prompts.py` | Prompt templates + compression |
-| `tools/qc/reconcile.py` | Finding reconciliation logic |
-| `tools/qc/state.py` | State accumulator + report generation |
-| `tools/qc/orchestrator.py` | `build_evaluator_dispatch()` prompt builder |
-| `tools/qc/run.py` | CLI: `python -m tools.qc.run --help` |
+Run focused helper tests with `python -m unittest tools.qc.test_reconcile`.
