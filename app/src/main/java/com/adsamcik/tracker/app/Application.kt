@@ -247,7 +247,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 				when (val legacy = legacyDatabaseUpgradeCoordinator.ensureReady()) {
 					LegacyDatabaseStartupResult.Ready -> Unit
 					is LegacyDatabaseStartupResult.Failed -> {
-						Tracebox.log.error("Legacy database import failed: ${legacy.message}")
+						Tracebox.log.error("Legacy database import failed")
 						return@launch
 					}
 				}

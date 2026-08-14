@@ -58,7 +58,10 @@ class RawLocationObservationRepair @Inject constructor(
 			}
 		}
 		if (repaired > 0) {
-			Tracebox.log.info("Repaired $repaired canonical raw location observations from source WAL")
+			Tracebox.log.info(
+				"Repaired {} canonical raw location observations from source WAL",
+				repaired,
+			)
 		}
 		return repaired
 	}
@@ -67,7 +70,7 @@ class RawLocationObservationRepair @Inject constructor(
 		val payload = try {
 			payloadCodec.decode(SourceKind.LOCATION, payloadVersion, payload) as LocationFixPayload
 		} catch (@Suppress("TooGenericExceptionCaught") error: Exception) {
-			Tracebox.log.error(error, "Unable to decode location source event $eventId during raw repair")
+			Tracebox.log.error(error, "Unable to decode a location source event during raw repair")
 			return null
 		}
 		val hasValidCoordinate = payload.latitudeDegrees.isFinite() && payload.longitudeDegrees.isFinite() &&

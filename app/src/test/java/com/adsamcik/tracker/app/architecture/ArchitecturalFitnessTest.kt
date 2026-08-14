@@ -219,6 +219,37 @@ class ArchitecturalFitnessTest {
 		}
 
 		@Test
+		fun `Tracebox calls keep runtime payloads out of templates and tracked values out of arguments`() {
+			val sensitiveTrackedValue = Regex(
+				"""\b(?:latitude|longitude|latE7|lonE7|eventId|providerDedupKey|sourceSignalId)\b""",
+			)
+			val violations = projectRoot.walkTopDown()
+				.onEnter { directory ->
+					!directory.isInExcludedDirectory(
+						STANDARD_EXCLUDES + listOf("src/test", "src/androidTest", "src/testFixtures"),
+					)
+				}
+				.filter { file -> file.isFile && file.extension == "kt" }
+				.filterNot { file ->
+					file.isInExcludedDirectory(
+						STANDARD_EXCLUDES + listOf("src/test", "src/androidTest", "src/testFixtures"),
+					)
+				}
+				.flatMap { file ->
+					TRACEBOX_LOG_CALL_PATTERN.findAll(file.readText()).mapNotNull { call ->
+						if ('$' in call.value || sensitiveTrackedValue.containsMatchIn(call.value)) {
+							"${file.relativeTo(projectRoot)}: ${call.value.replace('\n', ' ')}"
+						} else {
+							null
+						}
+					}
+				}
+				.toList()
+
+			violations.shouldBeEmpty()
+		}
+
+		@Test
 		fun `retired logging modules and APIs cannot return`() {
 			val retiredModuleNames = listOf("logging", "logging-api")
 			val retiredTypeName = "Tracker" + "Log"
@@ -848,6 +879,12 @@ class ArchitecturalFitnessTest {
 		// `Dispatchers.IOSomething` false positives.
 		private val DISPATCHERS_USAGE_PATTERN = Regex(
 			"""(?<![A-Za-z0-9_])Dispatchers\.(IO|Main|Default)\b"""
+		)
+
+		private val TRACEBOX_LOG_CALL_PATTERN = Regex(
+			"""Tracebox\.log\.(?:verbose|debug|info|warn|error|performance|performanceSuspend)""" +
+				"""\s*\((?:[^()]|\([^()]*\))*\)""",
+			setOf(RegexOption.DOT_MATCHES_ALL),
 		)
 
 		private val PROJECT_DEPENDENCY_PATTERN = Regex(

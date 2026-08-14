@@ -25,12 +25,12 @@ class SourcePipelineRecovery @Inject constructor(
 		) + trackingFrameEffects.completeTerminalLegacyEffects()
 		val drain = coordinator.drainAvailable(owner)
 		val activityDelivered = if (drain is CoordinatorDrainResult.Complete) {
-			drainOutboxToQuiescence("activity automation", activityEffects::drain)
+			drainOutboxToQuiescence(SourceOutbox.ACTIVITY_AUTOMATION, activityEffects::drain)
 		} else {
 			0
 		}
 		val trackingFramesDelivered = if (drain is CoordinatorDrainResult.Complete) {
-			drainOutboxToQuiescence("tracking frame", trackingFrameEffects::drain)
+			drainOutboxToQuiescence(SourceOutbox.TRACKING_FRAME, trackingFrameEffects::drain)
 		} else {
 			0
 		}
@@ -43,7 +43,7 @@ class SourcePipelineRecovery @Inject constructor(
 	}
 
 	private suspend fun drainOutboxToQuiescence(
-		name: String,
+		outbox: SourceOutbox,
 		drainBatch: suspend (Int) -> Int,
 	): Int {
 		var delivered = 0
@@ -52,13 +52,18 @@ class SourcePipelineRecovery @Inject constructor(
 			delivered += batch
 			if (batch < OUTBOX_BATCH_SIZE) return delivered
 		}
-		Tracebox.log.warn("$name outbox drain reached its safety bound")
+		Tracebox.log.warn("Source outbox {} drain reached its safety bound", outbox)
 		return delivered
 	}
 
 	private companion object {
 		const val OUTBOX_BATCH_SIZE = 100
 		const val MAX_OUTBOX_DRAIN_BATCHES = 100
+	}
+
+	private enum class SourceOutbox {
+		ACTIVITY_AUTOMATION,
+		TRACKING_FRAME,
 	}
 }
 
