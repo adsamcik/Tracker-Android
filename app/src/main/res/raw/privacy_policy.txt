@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Effective date:** July 19, 2026
+**Effective date:** August 15, 2026
 
 Tracker Android is developed by Adsamcik and provided as an open-source, privacy-first app.
 
@@ -18,6 +18,10 @@ Data created by the app stays on your device. This can include:
 * activity recognition and step-related data
 * app settings and local app data
 * local Tracebox crash, ANR, and fixed structural diagnostics that remain on-device unless you review, approve, and export a diagnostic package
+
+## Local Crash Diagnostics
+
+Tracebox records crash, ANR, and bounded structural troubleshooting information locally. Tracker does not put precise coordinates, route history, tracked event identifiers, or exception messages into its diagnostic log calls. Runtime strings and unknown objects are treated as private and redacted by default. Tracebox does not contain an automatic upload client: a diagnostic package can leave the device only after you open diagnostics, review its disclosure, approve it, and choose an Android save or share destination. You can delete Tracebox data from the diagnostics screen, and Tracker's app-wide collected-data deletion also includes it.
 
 ## Network Use
 
@@ -56,6 +60,8 @@ Tracker does not attach your tracking database, recorded routes, advertising ide
 ## Exports
 
 Exports are created only when you explicitly request them. Tracker Android can export your data in formats such as GPX, KML, and JSON. Exported data goes only to the file location or app you choose. Standard exports may contain precise location history and are not automatically encrypted by Tracker, so their privacy depends on the destination and how you protect or share the file.
+
+An approved Tracebox diagnostic package follows the same destination rule, but is separate from tracking-data exports and is designed to contain diagnostic structure rather than your tracking database or route history.
 
 ## No Ads or Tracking
 

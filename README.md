@@ -34,11 +34,14 @@ Tracker is a free, open-source, offline location and activity tracker. All track
 - Android SDK 37 (compile and target)
 - Tracebox artifacts at the version declared by `tracebox` in
   [`gradle/libs.versions.toml`](gradle/libs.versions.toml). CI resolves that immutable package from
-  GitHub Packages. For local Tracebox development, publish the same catalog version to Maven Local
-  before building Tracker.
+  GitHub Packages. For local Tracebox development, publish an immutable candidate to an isolated
+  Maven repository and pass `-PtraceboxLocalRepository=<path>` plus
+  `-PtraceboxVersionOverride=<version>` to Gradle. Those validation seams fail closed in CI.
 
 Tracebox is built into every Tracker variant and is the sole crash and diagnostics recorder; there
 is no migration flavor or legacy logger fallback.
+The complete integration and release activation contract is documented in
+[`docs/TRACEBOX_INTEGRATION.md`](docs/TRACEBOX_INTEGRATION.md).
 
 ### Build & Test
 

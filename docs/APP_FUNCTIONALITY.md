@@ -679,9 +679,12 @@ installs it during `Application.attachBaseContext()`, before content providers
 and `Application.onCreate()`, while Tracebox's private handler process skips the
 Tracker application graph to avoid recursive installation.
 
-Application code emits only fixed, payload-free breadcrumbs and handled-error
-codes through `:core:diagnostics`. Tracker has no parallel diagnostic Room storage,
-file-fallback migration, or legacy crash/log viewer.
+Application code emits only static templates with bounded structural values such
+as counts, durations, and enums. Precise coordinates, tracked identifiers,
+exception messages, and arbitrary object rendering are excluded. The
+`:core:diagnostics` module re-exports the Tracebox API as a dependency boundary;
+it does not own a parallel facade or data store. Tracker has no diagnostic Room
+storage, file-fallback migration, or legacy crash/log viewer.
 
 ### 10.2 Diagnostics Controls
 
@@ -695,7 +698,9 @@ The Tracebox settings screen exposes the supported diagnostic workflow:
 - save or share the approved package through Android system UI.
 
 Tracker does not render raw crash records or free-form application logs in its
-own UI.
+own UI. The app-wide collected-data deletion transaction also deletes all
+Tracebox-owned data. A partial handler-process deletion keeps a durable marker
+and is retried during startup before the transaction is considered complete.
 
 ---
 

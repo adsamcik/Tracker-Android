@@ -1,5 +1,8 @@
 package com.adsamcik.tracker.app.tracebox
 
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import com.adsamcik.tracker.R
 import dev.tracebox.ui.compose.TraceboxAdvancedControls
 import dev.tracebox.ui.compose.TraceboxDiagnosticsUiConfiguration
 import dev.tracebox.ui.compose.TraceboxDiagnosticsUiStrings
@@ -8,16 +11,21 @@ import dev.tracebox.ui.compose.TraceboxPrimaryAction
 
 /** Tracker's product choices for Tracebox's reusable casual/advanced diagnostics screen. */
 internal object TrackerTraceboxUi {
-    val configuration = TraceboxDiagnosticsUiConfiguration(
+    @Composable
+    fun configuration(): TraceboxDiagnosticsUiConfiguration = configuration(
         strings = TraceboxDiagnosticsUiStrings(
-            title = "Help improve Tracker",
-            description =
-                "If Tracker behaved unexpectedly, share local diagnostics with the developer.",
-            supportTitle = "Share diagnostics with the developer",
-            supportDescription =
-                "Recent crashes, errors, and performance context can help identify what went wrong.",
-            reviewAndShare = "Review and share with developer",
+            title = stringResource(R.string.tracebox_help_title),
+            description = stringResource(R.string.tracebox_help_description),
+            supportTitle = stringResource(R.string.tracebox_support_title),
+            supportDescription = stringResource(R.string.tracebox_support_description),
+            reviewAndShare = stringResource(R.string.tracebox_review_and_share),
         ),
+    )
+
+    internal fun configuration(
+        strings: TraceboxDiagnosticsUiStrings,
+    ) = TraceboxDiagnosticsUiConfiguration(
+        strings = strings,
         // Tracker already owns the settings app bar, so the reusable screen should not repeat it.
         showHeading = false,
         primaryAction = TraceboxPrimaryAction.SHARE,
