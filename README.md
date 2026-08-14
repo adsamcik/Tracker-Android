@@ -1,5 +1,4 @@
 ![Build Status](https://github.com/adsamcik/Tracker-Android/workflows/Android%20CI/badge.svg)
-[![Codacy Badge](https://api.codacy.com/project/badge/Grade/43cf544eff334ca0a3a15c7791a64e27)](https://www.codacy.com/app/adsamcik/Tracker-Android?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=adsamcik/Tracker-Android&amp;utm_campaign=Badge_Grade)
 [![Crowdin](https://badges.crowdin.net/advention/localized.svg)](https://crowdin.com/project/advention)
 
 <a href='https://play.google.com/store/apps/details?id=com.adsamcik.tracker&utm_campaign=Github&pcampaignid=pcampaignidMKT-Other-global-all-co-prtnr-py-PartBadge-Mar2515-1'><img alt='Get it on Google Play' src='https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png' height="50px"/></a>
@@ -49,8 +48,11 @@ is no migration flavor or legacy logger fallback.
 # Build debug APK
 ./gradlew.bat :app:assembleDebug
 
-# Run all unit tests
-./gradlew.bat testDebugUnitTest
+# Run every repository-owned JVM/host unit-test suite
+./gradlew.bat ciUnitTest
+
+# Run the complete repository quality-gate contract
+./gradlew.bat ciCheck --continue
 
 # Run specific module tests
 ./gradlew.bat :tracker:engine:testDebugUnitTest
@@ -59,6 +61,9 @@ is no migration flavor or legacy logger fallback.
 # Run connected tests (requires device/emulator)
 ./gradlew.bat :app:connectedDebugAndroidTest
 ```
+
+The exact task, workflow, artifact, baseline, and branch-protection contract is documented in
+[QUALITY_GATES.md](QUALITY_GATES.md).
 
 ### Tech Stack
 

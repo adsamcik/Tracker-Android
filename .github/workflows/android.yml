@@ -60,8 +60,8 @@ jobs:
             python3 tools/validate_locale_resources.py "$qualifier"
           done
 
-  host_tests:
-    name: Host tests
+  quality_gates:
+    name: Repository quality gates
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -105,31 +105,43 @@ jobs:
             echo "Tracebox dependency evidence was absent from dependencyInsight." >&2
             exit 1
           fi
-      - name: Run unit tests (all modules)
-        id: unit_tests
-        run: ./gradlew testDebugUnitTest --no-daemon --stacktrace --console=plain
-      - name: Verify unit-test reports
-        if: ${{ !cancelled() && steps.unit_tests.outcome != 'skipped' }}
+      - name: Run repository quality gates
+        id: quality_gates
+        run: ./gradlew ciCheck --continue --no-daemon --stacktrace --console=plain
+      - name: Verify unit-test report classes
+        if: ${{ !cancelled() && steps.quality_gates.outcome == 'success' }}
         run: |
-          report="$(find . -type f -path '*/build/test-results/testDebugUnitTest/*.xml' -size +0c -print -quit)"
-          if [ -z "$report" ]; then
-            echo "testDebugUnitTest completed without producing a non-empty XML test report." >&2
+          build_logic_report="$(find build-logic/convention/build/test-results/test -type f -name '*.xml' -size +0c -print -quit)"
+          if [ -z "$build_logic_report" ]; then
+            echo "Build-logic tests completed without producing a non-empty XML test report." >&2
             exit 1
           fi
-          echo "Found unit-test evidence at $report"
-      - name: Upload test reports
-        if: ${{ always() && steps.unit_tests.outcome != 'skipped' }}
+          echo "Found build-logic test evidence at $build_logic_report"
+          for suite in testDebugUnitTest jvmTest testAndroidHostTest
+          do
+            report="$(find . -type f -path "*/build/test-results/$suite/*.xml" -size +0c -print -quit)"
+            if [ -z "$report" ]; then
+              echo "$suite completed without producing a non-empty XML test report." >&2
+              exit 1
+            fi
+            echo "Found $suite evidence at $report"
+          done
+      - name: Upload quality-gate reports
+        if: ${{ always() && steps.quality_gates.outcome != 'skipped' }}
         uses: actions/upload-artifact@v4
         with:
-          name: test-reports
+          name: quality-gate-reports
           path: |
             **/build/reports/tests/**
             **/build/test-results/**/*.xml
+            **/build/reports/lint-results-*/**
+            **/build/reports/lint-results-*.*
+            build/reports/detekt/**
           if-no-files-found: error
           retention-days: 7
 
   build_validation:
-    name: Build and static validation
+    name: Build release outputs
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -156,28 +168,6 @@ jobs:
         run: |
           chmod +x gradlew
           echo "MAPS_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" > local.properties
-      - name: Run debug lint
-        id: debug_lint
-        run: ./gradlew lintDebug --no-daemon --stacktrace --console=plain
-      - name: Run release lint
-        id: release_lint
-        if: ${{ !cancelled() }}
-        run: ./gradlew :app:lintRelease --no-daemon --stacktrace --console=plain
-      - name: Verify lint reports
-        if: ${{ !cancelled() && steps.debug_lint.outcome != 'skipped' && steps.release_lint.outcome != 'skipped' }}
-        run: |
-          for variant in debug release
-          do
-            report="$(find app/build/reports -type f -name "lint-results-$variant.*" -size +0c -print -quit)"
-            if [ -z "$report" ]; then
-              echo "lint$variant completed without producing a non-empty app lint report." >&2
-              exit 1
-            fi
-            echo "Found $variant lint evidence at $report"
-          done
-      - name: Verify release SQLite runtime
-        if: ${{ !cancelled() }}
-        run: ./gradlew verifyReleaseSqliteRuntime --no-daemon --stacktrace --console=plain
       - name: Build minified release
         id: minified_release
         if: ${{ !cancelled() }}
@@ -204,17 +194,6 @@ jobs:
             exit 1
           fi
           echo "Found diagnostic release APK at $apk"
-      - name: Check Room schema drift
-        if: ${{ !cancelled() }}
-        run: ./gradlew checkRoomSchemaDrift --no-daemon --stacktrace --console=plain
-      - name: Upload build reports
-        if: ${{ always() && (steps.debug_lint.outcome != 'skipped' || steps.release_lint.outcome != 'skipped') }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-reports
-          path: '**/build/reports/**'
-          if-no-files-found: error
-          retention-days: 7
       - name: Upload APKs
         if: ${{ always() && (steps.minified_release.outcome != 'skipped' || steps.diagnostic_release.outcome != 'skipped') }}
         uses: actions/upload-artifact@v4
@@ -232,7 +211,7 @@ jobs:
     needs:
       - source_hygiene
       - locale_hygiene
-      - host_tests
+      - quality_gates
       - build_validation
     runs-on: ubuntu-latest
     permissions:
@@ -242,14 +221,14 @@ jobs:
         env:
           SOURCE_HYGIENE_RESULT: ${{ needs.source_hygiene.result }}
           LOCALE_HYGIENE_RESULT: ${{ needs.locale_hygiene.result }}
-          HOST_TESTS_RESULT: ${{ needs.host_tests.result }}
+          QUALITY_GATES_RESULT: ${{ needs.quality_gates.result }}
           BUILD_VALIDATION_RESULT: ${{ needs.build_validation.result }}
         run: |
           failed=0
           for check in \
             "source_hygiene=$SOURCE_HYGIENE_RESULT" \
             "locale_hygiene=$LOCALE_HYGIENE_RESULT" \
-            "host_tests=$HOST_TESTS_RESULT" \
+            "quality_gates=$QUALITY_GATES_RESULT" \
             "build_validation=$BUILD_VALIDATION_RESULT"
           do
             name="${check%%=*}"

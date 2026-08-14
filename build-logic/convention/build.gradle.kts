@@ -17,6 +17,14 @@ dependencies {
     compileOnly(libs.hilt.gradlePlugin)
     compileOnly(libs.compose.compiler.gradlePlugin)
     implementation(libs.protobuf.gradlePlugin)
+
+    testImplementation(platform(libs.junit5.bom))
+    testImplementation(libs.junit5.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 gradlePlugin {

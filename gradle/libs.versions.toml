@@ -7,6 +7,7 @@ tracebox = "0.1.0-alpha.3"
 
 # Tools
 benmanes = "0.57.0"
+detekt = "2.0.0-alpha.6"
 ossLicenses = "0.13.0"
 desugarJdkLibs = "2.1.5"
 
@@ -272,3 +273,4 @@ ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 oss-licenses = { id = "com.google.android.gms.oss-licenses-plugin", version.ref = "ossLicenses" }
 benmanes-versions = { id = "io.github.ben-manes.versions", version.ref = "benmanes" }
+detekt = { id = "dev.detekt", version.ref = "detekt" }

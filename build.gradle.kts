@@ -1,7 +1,11 @@
 import java.util.Locale
+import dev.detekt.gradle.Detekt
+import dev.detekt.gradle.DetektCreateBaselineTask
+import dev.detekt.gradle.extensions.FailOnSeverity
 
 plugins {
 	id("tracker.root.verification")
+	alias(libs.plugins.detekt)
 	// gradlew dependencyUpdates -Drevision=release
 	alias(libs.plugins.benmanes.versions)
 	alias(libs.plugins.android.application) apply false
@@ -13,6 +17,41 @@ plugins {
 	alias(libs.plugins.kotlin.compose) apply false
 	alias(libs.plugins.ksp) apply false
 	alias(libs.plugins.hilt) apply false
+}
+
+detekt {
+	source.setFrom(layout.projectDirectory)
+	config.setFrom(layout.projectDirectory.file("detekt.yml"))
+	baseline.set(layout.projectDirectory.file("detekt-baseline.xml"))
+	buildUponDefaultConfig.set(true)
+	parallel.set(true)
+	ignoreFailures.set(false)
+	failOnSeverity.set(FailOnSeverity.Error)
+	basePath.set(layout.projectDirectory)
+}
+
+fun PatternFilterable.configureRepositoryDetektSources() {
+	include("**/*.kt", "**/*.kts")
+	exclude(
+		"**/.gradle/**",
+		"**/build/**",
+		"**/generated/**",
+		"**/node_modules/**",
+	)
+}
+
+tasks.withType<Detekt>().configureEach {
+	configureRepositoryDetektSources()
+	reports {
+		html.required.set(true)
+		checkstyle.required.set(true)
+		sarif.required.set(true)
+		markdown.required.set(true)
+	}
+}
+
+tasks.withType<DetektCreateBaselineTask>().configureEach {
+	configureRepositoryDetektSources()
 }
 
 // OpenGL map renderer toggle (emulator builds only). See the dependency-substitution block in
