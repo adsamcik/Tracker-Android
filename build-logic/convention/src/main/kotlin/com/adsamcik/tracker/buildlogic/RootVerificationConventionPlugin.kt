@@ -37,6 +37,8 @@ private val BUNDLED_SQLITE_RUNTIME_ABIS =
     listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
 
 internal object QualityGateContract {
+    const val buildLogicTestTask = ":build-logic:convention:test"
+
     private val androidProjects = listOf(
         ":app",
         ":core:base",
@@ -87,7 +89,7 @@ internal object QualityGateContract {
         ":tracker:api",
     )
 
-    val ciUnitTestDependencies: List<String> =
+    val rootCiUnitTestDependencies: List<String> =
         androidProjects.map { "$it:testDebugUnitTest" } +
             kmpProjects.flatMap { project ->
                 listOf(
@@ -95,6 +97,9 @@ internal object QualityGateContract {
                     "$project:testAndroidHostTest",
                 )
             }
+
+    val ciUnitTestDependencies: List<String> =
+        listOf(buildLogicTestTask) + rootCiUnitTestDependencies
 
     val ciLintDependencies: List<String> =
         androidProjects.map { "$it:lintRelease" }
@@ -339,7 +344,8 @@ class RootVerificationConventionPlugin : Plugin<Project> {
                 group = "verification"
                 description =
                     "Runs every repository-owned Android JVM, KMP JVM, and KMP Android-host test suite."
-                dependsOn(QualityGateContract.ciUnitTestDependencies)
+                dependsOn(QualityGateContract.rootCiUnitTestDependencies)
+                dependsOn(gradle.includedBuild("build-logic").task(":convention:test"))
             }
 
             tasks.register("ciLint") {

@@ -111,6 +111,12 @@ jobs:
       - name: Verify unit-test report classes
         if: ${{ !cancelled() && steps.quality_gates.outcome == 'success' }}
         run: |
+          build_logic_report="$(find build-logic/convention/build/test-results/test -type f -name '*.xml' -size +0c -print -quit)"
+          if [ -z "$build_logic_report" ]; then
+            echo "Build-logic tests completed without producing a non-empty XML test report." >&2
+            exit 1
+          fi
+          echo "Found build-logic test evidence at $build_logic_report"
           for suite in testDebugUnitTest jvmTest testAndroidHostTest
           do
             report="$(find . -type f -path "*/build/test-results/$suite/*.xml" -size +0c -print -quit)"

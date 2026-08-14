@@ -6,6 +6,13 @@ import org.junit.jupiter.api.Test
 
 class QualityGateContractTest {
     @Test
+    fun `build logic contract tests reach ciCheck`() {
+        assertTrue(
+            QualityGateContract.isReachableFromCiCheck(QualityGateContract.buildLogicTestTask),
+        )
+    }
+
+    @Test
     fun `every KMP JVM and Android host suite reaches ciCheck`() {
         val expectedKmpTasks = setOf(
             ":core:model:jvmTest",

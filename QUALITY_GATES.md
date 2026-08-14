@@ -15,7 +15,8 @@ the Kotlin Multiplatform (KMP) JVM and Android host suites.
 
 ### `ciUnitTest`
 
-`ciUnitTest` runs 35 explicitly owned tasks. It runs `<module>:testDebugUnitTest` for every Android
+`ciUnitTest` runs 36 explicitly owned tasks. It first runs the included-build contract test
+`:build-logic:convention:test`. It also runs `<module>:testDebugUnitTest` for every Android
 application or library below:
 
 - `:app`
