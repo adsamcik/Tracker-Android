@@ -17,6 +17,8 @@ The compact `release-manifest.json` binds the source commit/tree and unique app 
 AAB, APK set, representative APK, merged manifest, BundleConfig protobuf/JSON, R8 mapping,
 native-symbol archive, dependency metadata, Room schemas, vendored SQLite input, MapLibre and
 Tracebox coordinates, and CI run identity. Every recorded file has a SHA-256 digest.
+The workflow runs `checkRoomSchemaDrift` first and hashes every recursively nested, Git-tracked
+Room schema JSON file.
 
 The native-symbol archive deterministically contains every symbol table AGP can extract from the
 packaged libraries. The manifest lists each covered ABI/library and explicitly lists packaged

@@ -160,7 +160,12 @@ tasks.register<CollectReleaseEvidenceTask>("releaseValidation") {
 	notCompatibleWithConfigurationCache(
 		"The Google OSS Licenses release task is not configuration-cache serializable."
 	)
-	dependsOn(testReleaseEvidence, verifyReleaseDependencyMetadata, ":app:bundleRelease")
+	dependsOn(
+		testReleaseEvidence,
+		verifyReleaseDependencyMetadata,
+		"checkRoomSchemaDrift",
+		":app:bundleRelease",
+	)
 	outputs.upToDateWhen { false }
 	validationScript.set(layout.projectDirectory.file("tools/release_validation.py"))
 	releaseInputs.set(layout.projectDirectory.file("release/release-inputs.json"))

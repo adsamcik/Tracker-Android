@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import copy
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from release_manifest import validate_release_manifest  # noqa: E402
+from release_manifest import room_schema_evidence, validate_release_manifest  # noqa: E402
 from release_native import ReleaseValidationError  # noqa: E402
 
 HASH = "a" * 64
@@ -90,6 +93,25 @@ def manifest_fixture() -> dict:
 
 
 class ReleaseManifestValidationTest(unittest.TestCase):
+    def test_collects_nested_tracked_room_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            relative = Path("module/schemas/example.Database/3.json")
+            schema = root / relative
+            schema.parent.mkdir(parents=True)
+            schema.write_text('{"formatVersion": 1}', encoding="utf-8")
+            git_result = subprocess.CompletedProcess(
+                args=[],
+                returncode=0,
+                stdout=(relative.as_posix() + "\0").encode("utf-8"),
+                stderr=b"",
+            )
+            with patch("release_manifest.subprocess.run", return_value=git_result):
+                evidence = room_schema_evidence(root)
+
+            self.assertEqual(evidence["count"], 1)
+            self.assertEqual(evidence["schemas"][0]["path"], relative.as_posix())
+
     def test_accepts_complete_fixture(self) -> None:
         validate_release_manifest(manifest_fixture())
 

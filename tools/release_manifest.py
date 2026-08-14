@@ -167,13 +167,37 @@ def validate_high_value_inputs(
 
 
 def room_schema_evidence(repo_root: Path) -> dict[str, Any]:
-    schema_paths = sorted(
-        path
-        for path in repo_root.rglob("schemas/*.json")
-        if ".gradle" not in path.parts and "build" not in path.parts
+    result = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "ls-files",
+            "-z",
+            "--",
+            ":(glob)**/schemas/**/*.json",
+        ],
+        check=False,
+        capture_output=True,
     )
+    if result.returncode != 0:
+        message = result.stderr.decode("utf-8", errors="replace").strip()
+        raise ReleaseValidationError(f"unable to enumerate committed Room schemas: {message}")
+    relative_paths = sorted(
+        Path(raw.decode("utf-8"))
+        for raw in result.stdout.split(b"\0")
+        if raw
+    )
+    schema_paths = [repo_root / relative for relative in relative_paths]
     if not schema_paths:
         raise ReleaseValidationError("no committed Room schema JSON files were found")
+    for path in schema_paths:
+        if not path.is_file():
+            raise ReleaseValidationError(f"committed Room schema is missing: {path}")
+        try:
+            json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ReleaseValidationError(f"invalid Room schema JSON {path}: {exc}") from exc
     schemas = [
         {
             "path": path.relative_to(repo_root).as_posix(),
