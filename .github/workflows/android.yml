@@ -15,7 +15,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Check unused string resources
         run: python3 tools/check_unused_string_resources.py
 
@@ -25,7 +25,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Validate completed locale resources
         run: |
           for qualifier in \
@@ -69,19 +69,19 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           java-version: '21'
           distribution: 'temurin'
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
         with:
           cmdline-tools-version: 14742923
           packages: ''
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
         with:
           cache-read-only: ${{ github.event_name == 'pull_request' }}
       - name: Prepare for build
@@ -128,7 +128,7 @@ jobs:
           done
       - name: Upload quality-gate reports
         if: ${{ always() && steps.quality_gates.outcome != 'skipped' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: quality-gate-reports
           path: |
@@ -141,7 +141,7 @@ jobs:
           retention-days: 7
 
   build_validation:
-    name: Build release outputs
+    name: Validate release bundle evidence
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -149,59 +149,39 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           java-version: '21'
           distribution: 'temurin'
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
         with:
           cmdline-tools-version: 14742923
           packages: ''
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
         with:
           cache-read-only: ${{ github.event_name == 'pull_request' }}
       - name: Prepare for build
         run: |
           chmod +x gradlew
           echo "MAPS_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" > local.properties
-      - name: Build minified release
-        id: minified_release
+      - name: Run non-deploying release validation
+        id: release_validation
         if: ${{ !cancelled() }}
-        run: ./gradlew :app:assembleRelease --no-daemon --stacktrace --console=plain
-      - name: Verify minified release APK
-        if: ${{ !cancelled() && steps.minified_release.outcome == 'success' }}
-        run: |
-          apk="$(find app/build/outputs/apk/release -type f -name '*.apk' -size +0c -print -quit)"
-          if [ -z "$apk" ]; then
-            echo "assembleRelease completed without producing a non-empty APK." >&2
-            exit 1
-          fi
-          echo "Found minified release APK at $apk"
-      - name: Build diagnostic release (nominify)
-        id: diagnostic_release
-        if: ${{ !cancelled() }}
-        run: ./gradlew :app:assembleRelease_nominify --no-daemon --stacktrace --console=plain
-      - name: Verify diagnostic release APK
-        if: ${{ !cancelled() && steps.diagnostic_release.outcome == 'success' }}
-        run: |
-          apk="$(find app/build/outputs/apk/release_nominify -type f -name '*.apk' -size +0c -print -quit)"
-          if [ -z "$apk" ]; then
-            echo "assembleRelease_nominify completed without producing a non-empty APK." >&2
-            exit 1
-          fi
-          echo "Found diagnostic release APK at $apk"
-      - name: Upload APKs
-        if: ${{ always() && (steps.minified_release.outcome != 'skipped' || steps.diagnostic_release.outcome != 'skipped') }}
-        uses: actions/upload-artifact@v4
+        run: ./gradlew releaseValidation --no-daemon --stacktrace --console=plain
+      - name: Upload release evidence
+        if: ${{ always() && steps.release_validation.outcome != 'skipped' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: app-outputs
+          name: release-evidence-${{ github.sha }}
           path: |
-            app/build/outputs/**
-            */build/outputs/**
+            build/release-evidence/**
+            app/build/outputs/bundle/release/*.aab
+            app/build/outputs/mapping/release/**
+            app/build/outputs/native-debug-symbols/release/**
           if-no-files-found: error
           retention-days: 7
 

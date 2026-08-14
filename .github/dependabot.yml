@@ -1,0 +1,16 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    target-branch: dev/v10
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Prague
+    groups:
+      reviewed-actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: ci
