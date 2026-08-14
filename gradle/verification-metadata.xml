@@ -17,6 +17,9 @@
          <artifact name="datastore-core-android-1.2.1.module">
             <sha256 value="6d076302e90965cc51d924c4b67a65a9fa91bdde7d107bc579ca3a22155086d5" origin="Reviewed release graph" />
          </artifact>
+         <artifact name="datastore-core-android-1.2.1.pom">
+            <sha256 value="c3fefdacba527360d7b3565a9def666753003496ce90e398adab167cd7c6304f" origin="Reviewed release graph" />
+         </artifact>
          <artifact name="datastore-core.aar">
             <sha256 value="435edad7bcb1fbb1a2a46de7be4d6daf299479b3328ebf757ebdfe02810cbdd8" origin="Reviewed release graph" />
          </artifact>
@@ -27,6 +30,9 @@
          </artifact>
          <artifact name="graphics-path-1.0.1.module">
             <sha256 value="3f6fc7e96f8a1fd21045da7f2e332aef528aa1f56b6455fb8f25043aafa0e1b8" origin="Reviewed release graph" />
+         </artifact>
+         <artifact name="graphics-path-1.0.1.pom">
+            <sha256 value="866fb357c7146f5f7678ad44e4bc6c2823d568defce1ed2805bb6c899606b228" origin="Reviewed release graph" />
          </artifact>
       </component>
       <component group="com.android.tools.build" name="bundletool" version="1.18.3">
@@ -44,6 +50,9 @@
          <artifact name="tracebox-0.1.0-alpha.3.module">
             <sha256 value="e29cfce0bfb757d342ca6043f74233ed30c42f3e9a16ec5426f6e45c246ce0d3" origin="Reviewed release graph" />
          </artifact>
+         <artifact name="tracebox-0.1.0-alpha.3.pom">
+            <sha256 value="921c527aae5905fc49b0b386c787ec0c0108b3b647ce5e9d7bd78b407198eff3" origin="Reviewed release graph" />
+         </artifact>
       </component>
       <component group="io.github.tracebox" name="tracebox-anr-exit" version="0.1.0-alpha.3">
          <artifact name="tracebox-anr-exit-0.1.0-alpha.3.aar">
@@ -51,6 +60,9 @@
          </artifact>
          <artifact name="tracebox-anr-exit-0.1.0-alpha.3.module">
             <sha256 value="f557dc64efc3a4f1bc5cc2f46e44f9fec79feaf7f4427c2fad456056477d7e5f" origin="Reviewed release graph" />
+         </artifact>
+         <artifact name="tracebox-anr-exit-0.1.0-alpha.3.pom">
+            <sha256 value="504d3ef2274a555b2ed8974de797faf46a4847a4737d1851a6de9214e9ad287c" origin="Reviewed release graph" />
          </artifact>
       </component>
       <component group="io.github.tracebox" name="tracebox-api" version="0.1.0-alpha.3">
@@ -60,6 +72,9 @@
          <artifact name="tracebox-api-0.1.0-alpha.3.module">
             <sha256 value="60d1a27f03618826d0e77a68aa0fbe732a700939458a8e7cedf6af6b52f0c9d6" origin="Reviewed release graph" />
          </artifact>
+         <artifact name="tracebox-api-0.1.0-alpha.3.pom">
+            <sha256 value="36a192ad03aa682ef5909f3147521b833bc66171b2fce2ccc13353f44d719272" origin="Reviewed release graph" />
+         </artifact>
       </component>
       <component group="io.github.tracebox" name="tracebox-core" version="0.1.0-alpha.3">
          <artifact name="tracebox-core-0.1.0-alpha.3.aar">
@@ -67,6 +82,9 @@
          </artifact>
          <artifact name="tracebox-core-0.1.0-alpha.3.module">
             <sha256 value="af605adb1c07dbd6e5bf6ef10ddec47c35ba3926bdce6bcc2e739f95d09a3fb6" origin="Reviewed release graph" />
+         </artifact>
+         <artifact name="tracebox-core-0.1.0-alpha.3.pom">
+            <sha256 value="8b12f4a3c4622040e0ce94c8a1f7529769f29c72baaf9ff2826a9f99563fd0a5" origin="Reviewed release graph" />
          </artifact>
       </component>
       <component group="io.github.tracebox" name="tracebox-directboot" version="0.1.0-alpha.3">
@@ -76,6 +94,9 @@
          <artifact name="tracebox-directboot-0.1.0-alpha.3.module">
             <sha256 value="b1372d3a397e5c4b910a6c724c216d87e17843bfbde9179c05b5e5659639a730" origin="Reviewed release graph" />
          </artifact>
+         <artifact name="tracebox-directboot-0.1.0-alpha.3.pom">
+            <sha256 value="d69c2fb009b197e57a20b4bc384f56b7a6f86b1ff9d9f0a2a04332654e8ca546" origin="Reviewed release graph" />
+         </artifact>
       </component>
       <component group="io.github.tracebox" name="tracebox-export" version="0.1.0-alpha.3">
          <artifact name="tracebox-export-0.1.0-alpha.3.aar">
@@ -83,6 +104,9 @@
          </artifact>
          <artifact name="tracebox-export-0.1.0-alpha.3.module">
             <sha256 value="25db0c2b4c00a656178023fb2e9dfcc1fde51808d6caca1d5de96fb41b282709" origin="Reviewed release graph" />
+         </artifact>
+         <artifact name="tracebox-export-0.1.0-alpha.3.pom">
+            <sha256 value="760126b4f5d496d00dd8bc715e88803717dfe19c17b179e546efb59921d413bb" origin="Reviewed release graph" />
          </artifact>
       </component>
       <component group="io.github.tracebox" name="tracebox-export-ui" version="0.1.0-alpha.3">
@@ -92,6 +116,9 @@
          <artifact name="tracebox-export-ui-0.1.0-alpha.3.module">
             <sha256 value="1d05abc6984c66d7a1337466929af814ad0a6696500f521e4eec5ff6db36022d" origin="Reviewed release graph" />
          </artifact>
+         <artifact name="tracebox-export-ui-0.1.0-alpha.3.pom">
+            <sha256 value="ca323ddf9e537d46c5cd814ce78a5df3fb38cab7068202bf95e23a867e267e55" origin="Reviewed release graph" />
+         </artifact>
       </component>
       <component group="io.github.tracebox" name="tracebox-native" version="0.1.0-alpha.3">
          <artifact name="tracebox-native-0.1.0-alpha.3.aar">
@@ -99,6 +126,9 @@
          </artifact>
          <artifact name="tracebox-native-0.1.0-alpha.3.module">
             <sha256 value="a12b230a58263a10ce7f98f61afc4df9ec6e84184d20df56af40ce4a46e9a078" origin="Reviewed release graph" />
+         </artifact>
+         <artifact name="tracebox-native-0.1.0-alpha.3.pom">
+            <sha256 value="bec72f64258ef6b64851e7fd83789c1fe075ea554f389153a4e538e063867d8c" origin="Reviewed release graph" />
          </artifact>
       </component>
       <component group="io.github.tracebox" name="tracebox-storage" version="0.1.0-alpha.3">
@@ -108,6 +138,9 @@
          <artifact name="tracebox-storage-0.1.0-alpha.3.module">
             <sha256 value="84f47ef1e10ddb147a43a4c6da07ba472ac251345dcf0a32cce6a0ba9fe6c2df" origin="Reviewed release graph" />
          </artifact>
+         <artifact name="tracebox-storage-0.1.0-alpha.3.pom">
+            <sha256 value="cdfb04115b04b939999de20ba22637ea67205772460e2f8da3d453c33f61eebb" origin="Reviewed release graph" />
+         </artifact>
       </component>
       <component group="io.github.tracebox" name="tracebox-ui-compose" version="0.1.0-alpha.3">
          <artifact name="tracebox-ui-compose-0.1.0-alpha.3.aar">
@@ -115,6 +148,9 @@
          </artifact>
          <artifact name="tracebox-ui-compose-0.1.0-alpha.3.module">
             <sha256 value="5e7bdafb57100713388e72d1317ec21689180dab766bd406833327e69e0943ae" origin="Reviewed release graph" />
+         </artifact>
+         <artifact name="tracebox-ui-compose-0.1.0-alpha.3.pom">
+            <sha256 value="fb8cf563cb8ffb4ad3b582c187bf8ac2dc32c050ab7e2ee19c83b511f58f989b" origin="Reviewed release graph" />
          </artifact>
       </component>
       <component group="org.maplibre.compose" name="maplibre-compose" version="0.13.1">
@@ -126,6 +162,9 @@
          <artifact name="maplibre-compose-android-0.13.1.module">
             <sha256 value="01dc3623368451b6357cb2c3e2bcd47118703b85c8a125766aae7f99c991fd2c" origin="Reviewed release graph" />
          </artifact>
+         <artifact name="maplibre-compose-android-0.13.1.pom">
+            <sha256 value="8c6c0922bc089783a8ea8e3b078c9ed0f9c0573c264347e43611c1f6d55ec199" origin="Reviewed release graph" />
+         </artifact>
          <artifact name="maplibre-compose.aar">
             <sha256 value="8726cca40ce2901af45bfe06e97d6426bae52b924e4c6a3065fc55e537ed97b2" origin="Reviewed release graph" />
          </artifact>
@@ -136,6 +175,9 @@
          </artifact>
          <artifact name="android-sdk-13.4.1.module">
             <sha256 value="f0a6ce10f801cecb698e44969981a61fc4853154726f62e634f18302c17b19b4" origin="Reviewed release graph" />
+         </artifact>
+         <artifact name="android-sdk-13.4.1.pom">
+            <sha256 value="57cd9e5f5597369c24084da088e6a0305207865d5f4f074b105d4a2c5384cd72" origin="Reviewed release graph" />
          </artifact>
       </component>
    </components>

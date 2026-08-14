@@ -157,6 +157,9 @@ tasks.register<CollectReleaseEvidenceTask>("releaseValidation") {
 	group = "verification"
 	description =
 		"Builds the release AAB and representative unsigned APK set, then records strict evidence."
+	notCompatibleWithConfigurationCache(
+		"The Google OSS Licenses release task is not configuration-cache serializable."
+	)
 	dependsOn(testReleaseEvidence, verifyReleaseDependencyMetadata, ":app:bundleRelease")
 	outputs.upToDateWhen { false }
 	validationScript.set(layout.projectDirectory.file("tools/release_validation.py"))

@@ -8,7 +8,7 @@ publishes, or requests signing material; production signing and Play publication
 Run it from a clean commit with an Android SDK, JDK 21, and Python 3 available:
 
 ```text
-./gradlew releaseValidation --no-daemon --stacktrace --console=plain
+./gradlew releaseValidation --no-configuration-cache --no-daemon --stacktrace --console=plain
 ```
 
 The compact `release-manifest.json` binds the source commit/tree and unique app version to the
@@ -55,6 +55,7 @@ resolved release graph, then regenerate and reduce metadata:
 ```text
 ./gradlew --write-verification-metadata sha256 :app:dependencies --configuration releaseRuntimeClasspath
 ./gradlew --write-verification-metadata sha256 dependencies --configuration releaseBundletool
+./gradlew --write-verification-metadata sha256 :app:releaseOssLicensesTask --no-configuration-cache
 python tools/selective_verification_metadata.py
 python tools/selective_verification_metadata.py --check
 ./gradlew testReleaseEvidence

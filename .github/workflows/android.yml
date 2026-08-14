@@ -171,7 +171,7 @@ jobs:
       - name: Run non-deploying release validation
         id: release_validation
         if: ${{ !cancelled() }}
-        run: ./gradlew releaseValidation --no-daemon --stacktrace --console=plain
+        run: ./gradlew releaseValidation --no-configuration-cache --no-daemon --stacktrace --console=plain
       - name: Upload release evidence
         if: ${{ always() && steps.release_validation.outcome != 'skipped' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
