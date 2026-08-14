@@ -13,7 +13,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
-from release_native import ReleaseValidationError
+from release_native import (
+    PAGE_ALIGNMENT_16K,
+    SIXTEEN_KB_ABIS,
+    ReleaseValidationError,
+)
 
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 GIT_OBJECT_RE = re.compile(r"^[0-9a-f]{40,64}$")
@@ -341,9 +345,16 @@ def validate_release_manifest(manifest: Mapping[str, Any]) -> None:
                 raise ReleaseValidationError(
                     f"native.{collection_name}[{index}] is missing RELRO"
                 )
-            if min(record.get("loadAlignments", [0])) < 16 * 1024:
+            abi = record.get("abi")
+            required_alignment = record.get("requiredLoadAlignment")
+            expected_alignment = PAGE_ALIGNMENT_16K if abi in SIXTEEN_KB_ABIS else 4096
+            if required_alignment != expected_alignment:
                 raise ReleaseValidationError(
-                    f"native.{collection_name}[{index}] is below 16 KiB alignment"
+                    f"native.{collection_name}[{index}] has inconsistent required alignment"
+                )
+            if min(record.get("loadAlignments", [0])) < required_alignment:
+                raise ReleaseValidationError(
+                    f"native.{collection_name}[{index}] is below required alignment"
                 )
 
 

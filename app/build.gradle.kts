@@ -113,6 +113,9 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             buildConfigField("boolean", "COMPOSE_MAIN", "true")
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
             releaseSigningConfig?.let {
                 signingConfig = it
             }

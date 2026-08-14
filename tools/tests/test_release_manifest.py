@@ -33,6 +33,7 @@ def manifest_fixture() -> dict:
         "sha256": HASH,
         "elfClass": 64,
         "loadAlignments": [16384],
+        "requiredLoadAlignment": 16384,
         "relro": True,
     }
     return {
@@ -99,7 +100,7 @@ class ReleaseManifestValidationTest(unittest.TestCase):
     def test_rejects_controlled_unaligned_native_manifest(self) -> None:
         manifest = manifest_fixture()
         manifest["native"]["aab"][0]["loadAlignments"] = [4096]
-        with self.assertRaisesRegex(ReleaseValidationError, "below 16 KiB"):
+        with self.assertRaisesRegex(ReleaseValidationError, "below required alignment"):
             validate_release_manifest(manifest)
 
 

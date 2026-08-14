@@ -22,7 +22,7 @@
     },
     {
       "name": "libmaplibre.so",
-      "coordinate": "org.maplibre.gl:android-sdk:13.0.2",
+      "coordinate": "org.maplibre.gl:android-sdk:13.4.1",
       "abis": ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"]
     },
     {
@@ -45,7 +45,7 @@
   },
   "maplibre": {
     "composeCoordinate": "org.maplibre.compose:maplibre-compose:0.13.1",
-    "resolvedAndroidCoordinate": "org.maplibre.gl:android-sdk:13.0.2",
+    "resolvedAndroidCoordinate": "org.maplibre.gl:android-sdk:13.4.1",
     "emulatorOpenGlCoordinate": "org.maplibre.gl:android-sdk-opengl:13.4.1"
   },
   "tracebox": {

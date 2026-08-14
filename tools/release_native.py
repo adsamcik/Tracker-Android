@@ -15,7 +15,9 @@ from typing import Any, Iterable, Mapping, Sequence
 
 PT_LOAD = 1
 PT_GNU_RELRO = 0x6474E552
-MIN_PAGE_ALIGNMENT = 16 * 1024
+PAGE_ALIGNMENT_4K = 4 * 1024
+PAGE_ALIGNMENT_16K = 16 * 1024
+SIXTEEN_KB_ABIS = frozenset({"arm64-v8a", "x86_64"})
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -38,7 +40,12 @@ def _power_of_two(value: int) -> bool:
     return value > 0 and value & (value - 1) == 0
 
 
-def inspect_elf(data: bytes, label: str = "<memory>") -> ElfInfo:
+def inspect_elf(
+    data: bytes,
+    label: str = "<memory>",
+    *,
+    minimum_alignment: int = PAGE_ALIGNMENT_16K,
+) -> ElfInfo:
     """Parse the ELF program headers without relying on a host NDK tool."""
     if len(data) < 64 or data[:4] != b"\x7fELF":
         raise ReleaseValidationError(f"{label}: packaged .so is not a valid ELF file")
@@ -90,9 +97,10 @@ def inspect_elf(data: bytes, label: str = "<memory>") -> ElfInfo:
             raise ReleaseValidationError(
                 f"{label}: ELF LOAD segment has invalid p_align={alignment}"
             )
-        if alignment < MIN_PAGE_ALIGNMENT:
+        if alignment < minimum_alignment:
             raise ReleaseValidationError(
-                f"{label}: ELF LOAD p_align={alignment} is below 16 KiB"
+                f"{label}: ELF LOAD p_align={alignment} is below required "
+                f"{minimum_alignment // 1024} KiB"
             )
         if file_offset % alignment != virtual_address % alignment:
             raise ReleaseValidationError(
@@ -170,7 +178,12 @@ def validate_native_entries(
             raise ReleaseValidationError(f"{label}: duplicate native file {abi}/{name}")
         seen.add(pair)
 
-        elf = inspect_elf(data, f"{label}:{member_path}")
+        minimum_alignment = (
+            PAGE_ALIGNMENT_16K if abi in SIXTEEN_KB_ABIS else PAGE_ALIGNMENT_4K
+        )
+        elf = inspect_elf(
+            data, f"{label}:{member_path}", minimum_alignment=minimum_alignment
+        )
         digest = sha256_bytes(data)
         if not SHA256_RE.fullmatch(digest):
             raise AssertionError("hashlib returned a malformed SHA-256")
@@ -183,6 +196,7 @@ def validate_native_entries(
                 "sha256": digest,
                 "elfClass": elf.elf_class,
                 "loadAlignments": list(elf.load_alignments),
+                "requiredLoadAlignment": minimum_alignment,
                 "relro": elf.has_relro,
             }
         )

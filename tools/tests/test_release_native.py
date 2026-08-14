@@ -81,7 +81,7 @@ class NativeReleaseValidationTest(unittest.TestCase):
         self.assertTrue(result.has_relro)
 
     def test_rejects_controlled_4k_elf(self) -> None:
-        with self.assertRaisesRegex(ReleaseValidationError, "below 16 KiB"):
+        with self.assertRaisesRegex(ReleaseValidationError, "below required 16 KiB"):
             inspect_elf(elf64(alignment=0x1000), "bad-4k.so")
 
     def test_rejects_controlled_missing_relro(self) -> None:
@@ -92,6 +92,25 @@ class NativeReleaseValidationTest(unittest.TestCase):
         with self.assertRaisesRegex(ReleaseValidationError, "unknown native file"):
             validate_native_entries(
                 [("base/lib/arm64-v8a/libunreviewed.so", elf64())],
+                release_inputs(),
+                "fixture.aab",
+            )
+
+    def test_accepts_4k_alignment_for_32_bit_abi(self) -> None:
+        inputs = release_inputs()
+        inputs["expectedAbis"] = ["armeabi-v7a"]
+        inputs["nativeLibraries"][0]["abis"] = ["armeabi-v7a"]
+        result = validate_native_entries(
+            [("base/lib/armeabi-v7a/libknown.so", elf64(alignment=0x1000))],
+            inputs,
+            "fixture.aab",
+        )
+        self.assertEqual(4096, result[0]["requiredLoadAlignment"])
+
+    def test_rejects_4k_alignment_for_64_bit_abi(self) -> None:
+        with self.assertRaisesRegex(ReleaseValidationError, "below required 16 KiB"):
+            validate_native_entries(
+                [("base/lib/arm64-v8a/libknown.so", elf64(alignment=0x1000))],
                 release_inputs(),
                 "fixture.aab",
             )
