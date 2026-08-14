@@ -34,6 +34,7 @@
     <ID>BracesOnIfStatements:ActivitySourceRuntime.kt:ActivitySourceRuntime$else</ID>
     <ID>BracesOnIfStatements:ActivitySourceRuntime.kt:ActivitySourceRuntime$if</ID>
     <ID>BracesOnIfStatements:ActivityTrackerComponent.kt:ActivityTrackerComponent$if</ID>
+    <ID>BracesOnIfStatements:ActivityWatcherService.kt:ActivityWatcherService$if</ID>
     <ID>BracesOnIfStatements:ActivityWatcherService.kt:if</ID>
     <ID>BracesOnIfStatements:ActivityWatcherServiceController.kt:ActivityWatcherServiceController$if</ID>
     <ID>BracesOnIfStatements:AdaptiveLayout.kt:else</ID>
@@ -62,7 +63,6 @@
     <ID>BracesOnIfStatements:Assist.kt:Assist$if</ID>
     <ID>BracesOnIfStatements:AuthoritativeSessionCoordinator.kt:AuthoritativeSessionCoordinator$if</ID>
     <ID>BracesOnIfStatements:AuthoritativeSessionCoordinatorTest.kt:AuthoritativeSessionCoordinatorTest.&lt;no name provided&gt;$if</ID>
-    <ID>BracesOnIfStatements:AuthoritativeSessionCoordinatorTest.kt:FakeStepsRuntime$if</ID>
     <ID>BracesOnIfStatements:BackgroundReliabilityCard.kt:if</ID>
     <ID>BracesOnIfStatements:BackgroundTrackingApi.kt:BackgroundTrackingApi$if</ID>
     <ID>BracesOnIfStatements:BackgroundTrackingApi.kt:if</ID>
@@ -146,6 +146,7 @@
     <ID>BracesOnIfStatements:DefaultAchievementMetricsProvider.kt:DefaultAchievementMetricsProvider$else</ID>
     <ID>BracesOnIfStatements:DefaultAchievementMetricsProvider.kt:DefaultAchievementMetricsProvider$if</ID>
     <ID>BracesOnIfStatements:DefaultAchievementRepository.kt:DefaultAchievementRepository$if</ID>
+    <ID>BracesOnIfStatements:DefaultActiveTrackingSessionStore.kt:DefaultActiveTrackingSessionStore$if</ID>
     <ID>BracesOnIfStatements:DefaultActiveTrackingSessionStore.kt:if</ID>
     <ID>BracesOnIfStatements:DefaultActivityRegistrationArbiter.kt:DefaultActivityRegistrationArbiter$else</ID>
     <ID>BracesOnIfStatements:DefaultActivityRegistrationArbiter.kt:DefaultActivityRegistrationArbiter$if</ID>
@@ -660,6 +661,7 @@
     <ID>BracesOnIfStatements:TrackerDashboardStatsCards.kt:if</ID>
     <ID>BracesOnIfStatements:TrackerDashboardTrackingComponents.kt:else</ID>
     <ID>BracesOnIfStatements:TrackerDashboardTrackingComponents.kt:if</ID>
+    <ID>BracesOnIfStatements:TrackerForegroundServiceRequirementsProvider.kt:if</ID>
     <ID>BracesOnIfStatements:TrackerModuleInitializer.kt:TrackerModuleInitializer$if</ID>
     <ID>BracesOnIfStatements:TrackerNotificationChannels.kt:TrackerNotificationChannels$if</ID>
     <ID>BracesOnIfStatements:TrackerRestartReceiver.kt:TrackerRestartReceiver$if</ID>
@@ -667,6 +669,7 @@
     <ID>BracesOnIfStatements:TrackerRoute.kt:if</ID>
     <ID>BracesOnIfStatements:TrackerService.kt:TrackerService$else</ID>
     <ID>BracesOnIfStatements:TrackerService.kt:TrackerService$if</ID>
+    <ID>BracesOnIfStatements:TrackerService.kt:else</ID>
     <ID>BracesOnIfStatements:TrackerService.kt:if</ID>
     <ID>BracesOnIfStatements:TrackerServiceApi.kt:TrackerServiceApi$if</ID>
     <ID>BracesOnIfStatements:TrackerServiceSourceSession.kt:TrackerServiceSourceSession$if</ID>
@@ -777,6 +780,7 @@
     <ID>ComplexCondition:ResearchControlTraceReplay.kt:ResearchControlTraceReplay$prior != null &amp;&amp; prior.lastClockDomain == envelope.clockDomain &amp;&amp; prior.lastElapsedNanos != null &amp;&amp; entry.eventElapsedNanos != null &amp;&amp; entry.eventElapsedNanos &lt; prior.lastElapsedNanos</ID>
     <ID>ComplexCondition:RoomActivityRecognitionEventIngress.kt:RoomActivityRecognitionEventIngress$current.sourceInstanceId != identity.sourceInstanceId || current.registrationGeneration != identity.registrationGeneration || current.collectedDataEpoch != collectedDataEpoch || current.collectedDataEpoch != identity.collectedDataEpoch || current.appliedRevision != identity.appliedRevision</ID>
     <ID>ComplexCondition:SessionTrackerComponent.kt:SessionTrackerComponent$isNewSession &amp;&amp; collectedLocationCount == 0 &amp;&amp; collectedActivityCount == 0 &amp;&amp; collectedPressureCount == 0 &amp;&amp; mutableSession.steps == 0</ID>
+    <ID>ComplexCondition:TrackerForegroundServiceRequirementsProvider.kt:!isUserInitiated &amp;&amp; !isAmbient &amp;&amp; params.locationEnabled &amp;&amp; (!locationAvailable || !backgroundLocationAvailable)</ID>
     <ID>CyclomaticComplexMethod:AchievementArtworkIcon.kt:@DrawableRes private fun metricPictogramRes: Int</ID>
     <ID>CyclomaticComplexMethod:AchievementDetailItemCard.kt:@Composable internal fun AchievementDetailCard</ID>
     <ID>CyclomaticComplexMethod:AchievementEvaluatorContractTest.kt:AchievementEvaluatorContractTest$private suspend fun assertEvaluatorsAgree</ID>
@@ -1006,6 +1010,7 @@
     <ID>CyclomaticComplexMethod:TrackerDashboardStatsCards.kt:@Composable internal fun StatusAndQuickStatsCard</ID>
     <ID>CyclomaticComplexMethod:TrackerDashboardTrackingComponents.kt:@Composable internal fun ComponentCard</ID>
     <ID>CyclomaticComplexMethod:TrackerDashboardTrackingComponents.kt:internal fun buildLocationMetrics: ComponentMetrics?</ID>
+    <ID>CyclomaticComplexMethod:TrackerForegroundServiceRequirementsProvider.kt:internal fun resolveTrackerForegroundServiceRequirements: TrackerForegroundServiceRequirements?</ID>
     <ID>CyclomaticComplexMethod:TrackerRestartReceiver.kt:TrackerRestartReceiver$private fun Intent.toDescriptor: ActiveTrackingSessionDescriptor?</ID>
     <ID>CyclomaticComplexMethod:TrackerRoute.kt:@Composable fun TrackerRoute</ID>
     <ID>CyclomaticComplexMethod:TrackerService.kt:@SuppressLint("InlinedApi") internal fun foregroundServiceTypeCandidates: List&lt;Int?&gt;</ID>
@@ -1016,7 +1021,7 @@
     <ID>CyclomaticComplexMethod:TrackerService.kt:TrackerService$private suspend fun performTeardown</ID>
     <ID>CyclomaticComplexMethod:TrackerService.kt:internal suspend fun &lt;T : Any&gt; drainCyclesThenShutdown: TrackingShutdownSequenceResult&lt;T&gt;</ID>
     <ID>CyclomaticComplexMethod:TrackerServiceSourceSession.kt:TrackerServiceSourceSession$suspend fun reconfigure: SourceSessionReconfigureOutcome</ID>
-    <ID>CyclomaticComplexMethod:TrackerServiceSourceSession.kt:TrackerServiceSourceSession$suspend fun stop</ID>
+    <ID>CyclomaticComplexMethod:TrackerServiceSourceSession.kt:TrackerServiceSourceSession$suspend fun stop: SourceSessionStopOutcome</ID>
     <ID>CyclomaticComplexMethod:TrackerServiceSourceSession.kt:private fun TrackingParamsState.enabledSemanticSources: Set&lt;SourceKind&gt;</ID>
     <ID>CyclomaticComplexMethod:TrackingActionRing.kt:@Composable internal fun TrackingActionRing</ID>
     <ID>CyclomaticComplexMethod:TrackingContent.kt:@Composable private fun MapHeroCard</ID>
@@ -2332,6 +2337,7 @@
     <ID>MatchingDeclarationName:RetentionConfig.kt:RetentionConfigState</ID>
     <ID>MatchingDeclarationName:RuleRegistryQualifiers.kt:AchievementRules</ID>
     <ID>MatchingDeclarationName:SourceEventStorageMaintenance.kt:SourceEventStoragePruneResult</ID>
+    <ID>MatchingDeclarationName:TrackerForegroundServiceRequirementsProvider.kt:DefaultTrackerForegroundServiceRequirementsProvider : TrackerForegroundServiceRequirementsProvider</ID>
     <ID>MaxLineLength:AchievementCard.kt:Box</ID>
     <ID>MaxLineLength:AchievementCard.kt:Icon(Icons.Outlined.EmojiEvents, contentDescription = null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)</ID>
     <ID>MaxLineLength:AchievementCard.kt:Row</ID>
@@ -2732,12 +2738,15 @@
     <ID>ReturnCount:SwitchbackSession.kt:SwitchbackSession$override fun onLocationUpdate</ID>
     <ID>ReturnCount:TemporalHeatmap.kt:TemporalHeatmapAggregator$private fun candidatePath: CandidatePath?</ID>
     <ID>ReturnCount:TerritorySession.kt:TerritorySession$override fun onLocationUpdate</ID>
+    <ID>ReturnCount:TrackerService.kt:@SuppressLint("InlinedApi") internal fun foregroundServiceTypeCandidates: List&lt;Int?&gt;</ID>
     <ID>ReturnCount:TrackerService.kt:TrackerService$@Synchronized private fun ensureForegroundStarted: Boolean</ID>
     <ID>ReturnCount:TrackerService.kt:TrackerService$override fun onStartCommand: Int</ID>
     <ID>ReturnCount:TrackingDecisionEngine.kt:TrackingDecisionReducer$private fun desiredAcquisition: AcquisitionRequest</ID>
     <ID>ReturnCount:TransportModeClassifier.kt:TransportModeClassifier$fun classify: TransportMode</ID>
     <ID>ReturnCount:WifiSourceRuntime.kt:WifiSourceRuntime$private suspend fun startLocked: SourceStartResult</ID>
     <ID>ReturnCount:ZenWalkSession.kt:ZenWalkSession$override fun onLocationUpdate</ID>
+    <ID>ThrowsCount:AuthoritativeSessionCoordinator.kt:AuthoritativeSessionCoordinator$suspend fun reconfigure: SessionReconfigureResult</ID>
+    <ID>ThrowsCount:AuthoritativeSessionCoordinator.kt:AuthoritativeSessionCoordinator$suspend fun start: SessionStartResult</ID>
     <ID>ThrowsCount:CollectedDataDeletionService.kt:DefaultCollectedDataDeletionService$private suspend fun deleteDiagnostics</ID>
     <ID>ThrowsCount:DataImporter.kt:ImportJobRunner$private suspend fun processEntry: ImportResult</ID>
     <ID>ThrowsCount:DatabaseMigrationBackupStore.kt:DatabaseMigrationBackupStore$private fun writeDeletionMarker</ID>
@@ -2747,13 +2756,17 @@
     <ID>ThrowsCount:ProcessorPipeline.kt:ProcessorPipeline$private suspend fun persistPendingEvents</ID>
     <ID>ThrowsCount:RootVerificationConventionPlugin.kt:VerifyVendoredSqliteRuntimeTask$@TaskAction fun verify</ID>
     <ID>ThrowsCount:SQLiteXSupportSQLiteOpenHelper.kt:SQLiteXSupportSQLiteOpenHelper.OpenHelper$private fun recoverOrThrow: VendorSQLiteDatabase</ID>
+    <ID>ThrowsCount:TrackerService.kt:TrackerService$private suspend fun performTeardown</ID>
+    <ID>ThrowsCount:TrackerService.kt:TrackerService$private suspend fun quiesceCycleDispatcherForReplacement: Boolean</ID>
     <ID>ThrowsCount:TrackerService.kt:internal suspend fun &lt;T : Any&gt; drainCyclesThenShutdown: TrackingShutdownSequenceResult&lt;T&gt;</ID>
+    <ID>ThrowsCount:TrackingLifecycleBarrier.kt:internal suspend fun &lt;T&gt; retryTrackingShutdown: T</ID>
     <ID>ThrowsCount:TrackingOrchestrator.kt:TrackingOrchestrator$private suspend fun destroyComponents: ShutdownResult</ID>
     <ID>ThrowsCount:ZipArchiveExtractor.kt:ZipArchiveExtractor$override suspend fun extract: Boolean</ID>
     <ID>TooGenericExceptionCaught:AchievementProcessor.kt:AchievementProcessor$t: Throwable</ID>
     <ID>TooGenericExceptionCaught:ActivityReceiver.kt:ActivityReceiver$error: Throwable</ID>
     <ID>TooGenericExceptionCaught:Application.kt:Application$error: Throwable</ID>
-    <ID>TooGenericExceptionCaught:AuthoritativeSessionCoordinator.kt:AuthoritativeSessionCoordinator$failure: Throwable</ID>
+    <ID>TooGenericExceptionCaught:AuthoritativeSessionCoordinator.kt:AuthoritativeSessionCoordinator$failure: Exception</ID>
+    <ID>TooGenericExceptionCaught:AuthoritativeSessionCoordinator.kt:AuthoritativeSessionCoordinator$recoveryFailure: Throwable</ID>
     <ID>TooGenericExceptionCaught:BackgroundTrackingApi.kt:BackgroundTrackingApi$error: Exception</ID>
     <ID>TooGenericExceptionCaught:BackgroundTrackingApi.kt:BackgroundTrackingApi$exception: Exception</ID>
     <ID>TooGenericExceptionCaught:BackgroundTrackingApi.kt:exception: Exception</ID>
@@ -2767,7 +2780,6 @@
     <ID>TooGenericExceptionCaught:DatabaseExporter.kt:SQLiteDatabaseCopyLockProvider$exception: Exception</ID>
     <ID>TooGenericExceptionCaught:DatabaseImport.kt:DatabaseImport$exception: Exception</ID>
     <ID>TooGenericExceptionCaught:DatabaseRetry.kt:e: Exception</ID>
-    <ID>TooGenericExceptionCaught:DefaultActiveTrackingSessionStore.kt:ActiveTrackingSessionSerializer$exception: Exception</ID>
     <ID>TooGenericExceptionCaught:DefaultActiveTrackingSessionStore.kt:DefaultActiveTrackingSessionStore$exception: Exception</ID>
     <ID>TooGenericExceptionCaught:DefaultActivityRequestManager.kt:DefaultActivityRequestManager$exception: Exception</ID>
     <ID>TooGenericExceptionCaught:DefaultCellSignalRepository.kt:DefaultCellSignalRepository$e: Exception</ID>
@@ -2781,6 +2793,7 @@
     <ID>TooGenericExceptionCaught:DefaultWifiObservationRepository.kt:DefaultWifiObservationRepository$e: Exception</ID>
     <ID>TooGenericExceptionCaught:DummyDataSeeder.kt:DummyDataSeeder$e: Exception</ID>
     <ID>TooGenericExceptionCaught:DurableSourceEventSink.kt:DurableSourceEventSinkFactory$error: Throwable</ID>
+    <ID>TooGenericExceptionCaught:DurableSourceIngress.kt:RoomDurableSourceIngress$failure: Exception</ID>
     <ID>TooGenericExceptionCaught:EncryptedResearchTraceExporter.kt:EncryptedResearchTraceExporter$exception: Exception</ID>
     <ID>TooGenericExceptionCaught:ExportPlanStore.kt:ExportPlansSerializer$error: Exception</ID>
     <ID>TooGenericExceptionCaught:ExportPlanWorker.kt:ExportPlanWorker$e: Exception</ID>
@@ -2813,7 +2826,7 @@
     <ID>TooGenericExceptionCaught:TrackerService.kt:TrackerService$e: Exception</ID>
     <ID>TooGenericExceptionCaught:TrackerService.kt:exception: Exception</ID>
     <ID>TooGenericExceptionCaught:TrackerServiceApi.kt:TrackerServiceApi$exception: RuntimeException</ID>
-    <ID>TooGenericExceptionCaught:TrackerServiceSourceSession.kt:TrackerServiceSourceSession$failure: Throwable</ID>
+    <ID>TooGenericExceptionCaught:TrackerServiceSourceSession.kt:TrackerServiceSourceSession$failure: Exception</ID>
     <ID>TooGenericExceptionCaught:TrackerTierEscalationHandler.kt:TrackerTierEscalationHandler$e: Exception</ID>
     <ID>TooGenericExceptionCaught:TrackingCycleDispatcher.kt:TrackingCycleDispatcher$e: Exception</ID>
     <ID>TooGenericExceptionCaught:TrackingLifecycleBarrier.kt:exception: Exception</ID>
@@ -3845,6 +3858,7 @@
     <ID>UndocumentedPublicClass:TrackerCollectionSnapshot.kt:TrackerNetworkOperatorSnapshot</ID>
     <ID>UndocumentedPublicClass:TrackerCollectionSnapshot.kt:TrackerWifiSnapshot</ID>
     <ID>UndocumentedPublicClass:TrackerEngineBindings.kt:TrackerEngineBindings</ID>
+    <ID>UndocumentedPublicClass:TrackerForegroundServiceRequirementsProvider.kt:DefaultTrackerForegroundServiceRequirementsProvider : TrackerForegroundServiceRequirementsProvider</ID>
     <ID>UndocumentedPublicClass:TrackerLiveDetectionState.kt:LivePlanePhase</ID>
     <ID>UndocumentedPublicClass:TrackerLiveDetectionState.kt:LivePlaneState</ID>
     <ID>UndocumentedPublicClass:TrackerLiveDetectionState.kt:LiveSailingPhase</ID>
@@ -3870,6 +3884,11 @@
     <ID>UndocumentedPublicClass:TrackerServiceSourceSession.kt:SourceSessionStartOutcome$Rejected : SourceSessionStartOutcome</ID>
     <ID>UndocumentedPublicClass:TrackerServiceSourceSession.kt:SourceSessionStartOutcome$Started : SourceSessionStartOutcome</ID>
     <ID>UndocumentedPublicClass:TrackerServiceSourceSession.kt:SourceSessionStartRequest</ID>
+    <ID>UndocumentedPublicClass:TrackerServiceSourceSession.kt:SourceSessionStopOutcome</ID>
+    <ID>UndocumentedPublicClass:TrackerServiceSourceSession.kt:SourceSessionStopOutcome$NotActive : SourceSessionStopOutcome</ID>
+    <ID>UndocumentedPublicClass:TrackerServiceSourceSession.kt:SourceSessionStopOutcome$Retryable : SourceSessionStopOutcome</ID>
+    <ID>UndocumentedPublicClass:TrackerServiceSourceSession.kt:SourceSessionStopOutcome$Stopped : SourceSessionStopOutcome</ID>
+    <ID>UndocumentedPublicClass:TrackerServiceSourceSession.kt:SourceSessionStopRetryCode</ID>
     <ID>UndocumentedPublicClass:TrackerServiceSourceSession.kt:TrackingSessionOwnership$Companion</ID>
     <ID>UndocumentedPublicClass:TrackerSession.kt:TrackerSession$Companion</ID>
     <ID>UndocumentedPublicClass:TrackerSessionInfo.kt:TrackerSessionInfo$CREATOR : Creator</ID>
@@ -4962,11 +4981,13 @@
     <ID>UndocumentedPublicFunction:TrackerEngineBindings.kt:TrackerEngineBindings$@Binds abstract fun bindDurableSourceIngress: DurableSourceIngress</ID>
     <ID>UndocumentedPublicFunction:TrackerEngineBindings.kt:TrackerEngineBindings$@Binds abstract fun bindLocationDeviceStateProvider: LocationDeviceStateProvider</ID>
     <ID>UndocumentedPublicFunction:TrackerEngineBindings.kt:TrackerEngineBindings$@Binds abstract fun bindSessionInsightsGenerator: SessionInsightsGenerator</ID>
+    <ID>UndocumentedPublicFunction:TrackerEngineBindings.kt:TrackerEngineBindings$@Binds abstract fun bindTrackerForegroundServiceRequirementsProvider: TrackerForegroundServiceRequirementsProvider</ID>
     <ID>UndocumentedPublicFunction:TrackerEngineBindings.kt:TrackerEngineBindings$@Binds abstract fun bindTrackerNotificationSettingsRepository: TrackerNotificationSettingsRepository</ID>
     <ID>UndocumentedPublicFunction:TrackerEngineBindings.kt:TrackerEngineBindings$@Binds abstract fun bindTrackingRolloutStateStore: TrackingRolloutStateStore</ID>
     <ID>UndocumentedPublicFunction:TrackerEngineBindings.kt:TrackerEngineBindings$@Binds abstract fun bindTrackingSettingsStatusProvider: TrackingSettingsStatusProvider</ID>
     <ID>UndocumentedPublicFunction:TrackerEngineBindings.kt:TrackerEngineBindings$@Multibinds abstract fun bindSourceProjections: Set&lt;Projection&gt;</ID>
     <ID>UndocumentedPublicFunction:TrackerEngineBindings.kt:TrackerEngineBindings$@Multibinds abstract fun bindSourceRuntimes: Set&lt;SourceRuntime&lt;out SourcePlan&gt;&gt;</ID>
+    <ID>UndocumentedPublicFunction:TrackerForegroundServiceRequirements.kt:TrackerForegroundServiceRequirementsProvider$fun current: TrackerForegroundServiceRequirements?</ID>
     <ID>UndocumentedPublicFunction:TrackerNotificationManager.kt:TrackerNotificationManager$fun createBuilder: NotificationCompat.Builder</ID>
     <ID>UndocumentedPublicFunction:TrackerNotificationManager.kt:TrackerNotificationManager$fun notify</ID>
     <ID>UndocumentedPublicFunction:TrackerNotificationManager.kt:TrackerNotificationManager.Companion$fun getForegroundNotification: Notification</ID>
@@ -4980,7 +5001,7 @@
     <ID>UndocumentedPublicFunction:TrackerServiceApi.kt:TrackerServiceApi$fun restartService: Boolean</ID>
     <ID>UndocumentedPublicFunction:TrackerServiceSourceSession.kt:TrackerServiceSourceSession$suspend fun reconfigure: SourceSessionReconfigureOutcome</ID>
     <ID>UndocumentedPublicFunction:TrackerServiceSourceSession.kt:TrackerServiceSourceSession$suspend fun start: SourceSessionStartOutcome</ID>
-    <ID>UndocumentedPublicFunction:TrackerServiceSourceSession.kt:TrackerServiceSourceSession$suspend fun stop</ID>
+    <ID>UndocumentedPublicFunction:TrackerServiceSourceSession.kt:TrackerServiceSourceSession$suspend fun stop: SourceSessionStopOutcome</ID>
     <ID>UndocumentedPublicFunction:TrackerServiceSourceSession.kt:TrackingSessionOwnership.Companion$fun resolve: TrackingSessionOwnership</ID>
     <ID>UndocumentedPublicFunction:TrackerSettingsQuick.kt:TrackerSettingsQuick$fun effectiveLengthSystem: LengthSystem</ID>
     <ID>UndocumentedPublicFunction:TrackerSettingsQuick.kt:TrackerSettingsQuick$fun lengthSystem: LengthSystem</ID>

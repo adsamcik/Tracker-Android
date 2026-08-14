@@ -80,8 +80,8 @@ Detekt, lint, Room, architecture, and native failure task is reachable from `ciC
 
 ## Baseline policy
 
-Detekt uses the checked-in `detekt.yml` and `detekt-baseline.xml`. The initial baseline records 5,123
-existing findings. Detekt configuration validation and warnings-as-errors are enabled, and an
+Detekt uses the checked-in `detekt.yml` and `detekt-baseline.xml`. The reviewed baseline records 5,144
+finding IDs. Detekt configuration validation and warnings-as-errors are enabled, and an
 unbaselined finding fails `detekt`.
 
 Android lint is blocking for applications and libraries (`abortOnError = true`). Each Android module
