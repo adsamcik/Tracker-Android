@@ -68,13 +68,26 @@ class ArchitecturalFitnessTest {
 		@Test
 		fun `CI consumes immutable Tracebox packages with a scoped workflow token`() {
 			val settings = projectRoot.resolve("settings.gradle.kts").readText()
+			val rootBuild = projectRoot.resolve("build.gradle.kts").readText()
 			val androidWorkflow = projectRoot.resolve(".github/workflows/android.yml").readText()
 			val codeqlWorkflow = projectRoot.resolve(".github/workflows/codeql.yml").readText()
 			val workflowToken = "GITHUB_TOKEN: $" + "{{ github.token }}"
 
 			buildList {
-				if ("if (!providers.environmentVariable(\"CI\").isPresent)" !in settings) {
+				if ("traceboxLocalRepository == null && " +
+					"!providers.environmentVariable(\"CI\").isPresent" !in settings
+				) {
 					add("settings.gradle.kts -> CI must not resolve Tracebox from Maven Local")
+				}
+				if ("traceboxLocalRepository is a local validation seam and must not be used in CI" !in
+					settings
+				) {
+					add("settings.gradle.kts -> isolated Tracebox repository must be forbidden in CI")
+				}
+				if ("traceboxVersionOverride is a local validation seam and must not be used in CI" !in
+					rootBuild
+				) {
+					add("build.gradle.kts -> Tracebox version override must be forbidden in CI")
 				}
 				if ("https://maven.pkg.github.com/adsamcik/tracebox" !in settings) {
 					add("settings.gradle.kts -> Tracebox GitHub Packages repository is missing")
