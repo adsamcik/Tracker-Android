@@ -2,9 +2,8 @@
 name: qc-evaluator
 description: >
   Focused QC evaluator for Android screen analysis. Returns structured JSON
-  findings. Has no tools — purely analytical. Used as a sub-agent dispatched
-  by the android-qc skill to GPT 5.4 (xhigh reasoning) and Opus 4.6 1M
-  (high reasoning) in parallel.
+  findings. Has no tools and is purely analytical. The android-qc skill may use
+  any available evaluator model and does not require multiple evaluators.
 tools: []
 ---
 
@@ -80,3 +79,4 @@ Return **JSON only**. No markdown. No prose. No code fences.
 3. Use only evidence provided — do not invent observations
 4. Prefer precision over recall — weak evidence means lower `conf`
 5. Empty `issues` array is valid when nothing is wrong
+6. Findings are hypotheses; cite only supplied screenshot, element, text, and action evidence

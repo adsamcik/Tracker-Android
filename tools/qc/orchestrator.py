@@ -1,14 +1,13 @@
 """
-android_qc — Orchestrator helpers for sub-agent dispatch.
+android_qc — Prompt helpers for capability-driven QC evaluation.
 
-Generates prompts for the QC evaluator sub-agents (GPT 5.4 xhigh + Opus 4.6 1M high)
-and the top-level orchestrator agent.
+This module builds prompts but does not dispatch evaluators or control devices.
 
 Usage:
     from tools.qc.orchestrator import build_evaluator_dispatch, generate_orchestrator_prompt
 
     # Build a prompt for one evaluator sub-agent
-    prompt = build_evaluator_dispatch("screen", "gpt", screenshot_desc, elements, context,
+    prompt = build_evaluator_dispatch("screen", "visual", screenshot_desc, elements, context,
                                       screen_id="home", route="dashboard", activity="pkg/.Main")
 
     # Generate the full orchestrator launch prompt
@@ -17,18 +16,15 @@ Usage:
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
-AGENT_DIR = Path(__file__).parent.parent.parent / ".agent" / "agents"
-
-GPT_FOCUS = """FOCUS: Prioritize screenshot truth and element-tree anomalies:
+VISUAL_FOCUS = """FOCUS: Prioritize screenshot truth and element-tree anomalies:
 clipping, overlap, truncation, misalignment, duplicate/missing controls,
 bad spacing, disabled/enabled mismatch, wrong selection state, off-screen CTA,
 bottom-bar overlap, tiny tap targets (<48dp), incorrect element classification.
 Keep hyp empty unless directly implied by evidence."""
 
-OPUS_FOCUS = """FOCUS: Prioritize cross-screen/state reasoning: incorrect
+STATE_FOCUS = """FOCUS: Prioritize cross-screen/state reasoning: incorrect
 persistence, stale data, wrong confirmation state, contradictory UI, missing
 feedback, unexpected route/content, hidden logic issues visible through
 current evidence. Use hyp for likely root cause only when grounded in evidence."""
@@ -45,7 +41,7 @@ ISSUE_SCHEMA = '{"id":"str","sev":"blocker|critical|major|minor|nit","type":"vis
 
 def build_evaluator_dispatch(
     mode: str,
-    model: str,
+    focus: str,
     screenshot_description: str,
     elements_compressed: dict,
     context: dict,
@@ -56,13 +52,15 @@ def build_evaluator_dispatch(
 
     Args:
         mode: "screen", "transition", "checkpoint", or "synthesis"
-        model: "gpt" or "opus" — determines focus directive
+        focus: "visual" or "state" — determines the review emphasis
         screenshot_description: Human-readable description of what's on screen
         elements_compressed: Compressed element tree from compress_elements()
         context: State context dict (from state.prompt_context())
         **extra: Additional fields (screen_id, route, activity, etc.)
     """
-    focus = GPT_FOCUS if model == "gpt" else OPUS_FOCUS
+    if focus not in {"visual", "state"}:
+        raise ValueError(f"Unknown evaluator focus: {focus}")
+    focus_directive = VISUAL_FOCUS if focus == "visual" else STATE_FOCUS
 
     eval_input: dict[str, Any] = {
         "mode": mode,
@@ -99,7 +97,7 @@ def build_evaluator_dispatch(
 
     return f"""You are a QC Evaluator for Android app testing.
 
-{focus}
+{focus_directive}
 
 MODE: {mode}
 
@@ -259,7 +257,7 @@ Provide a structured summary:
 3. Overall UX grade (A through F) with 1-sentence justification"""
 
 
-SELF_IMPROVE_PROMPT_TEMPLATE = """You just completed a dual-model UX review of an Android screen. Reflect on the process and provide feedback on how to improve the skill itself.
+SELF_IMPROVE_PROMPT_TEMPLATE = """You just completed an evaluator-assisted UX review of an Android screen. Reflect on the process and provide feedback on how to improve the skill itself.
 
 The following findings were produced:
 
@@ -273,13 +271,13 @@ The following findings were produced:
 
 Answer these questions:
 
-1. **Blind spots**: What types of issues did BOTH models miss or underweight? Think about what a human QA tester or UX designer would catch that was absent.
+1. **Blind spots**: What types of issues did the evaluation miss or underweight? Think about what a human QA tester or UX designer would catch that was absent.
 
 2. **Prompt gaps**: Which prompt instructions were too vague, leading to inconsistent results? Which were too prescriptive, preventing creative observations?
 
 3. **New steps needed**: Should we add any new analysis steps? (e.g., dark mode check, landscape check, empty state analysis, error state analysis, animation/motion review)
 
-4. **Reconciliation improvements**: Was the dual-model approach valuable here? Were there meaningful disagreements? How could we make disagreements more productive?
+4. **Reconciliation improvements**: If multiple evaluators were available, did they add evidence or only repeat hypotheses? How could disagreements become more productive?
 
 5. **Concrete prompt edits**: Suggest 2-3 specific wording changes to the defect or UX prompts that would improve detection quality. Give exact text to add, remove, or modify.
 
@@ -320,12 +318,7 @@ def generate_orchestrator_prompt(
     apk_path: str | None = None,
     risk_hints: dict | None = None,
 ) -> str:
-    """Generate the launch prompt for the QC orchestrator agent."""
-    orchestrator_md = AGENT_DIR / "qc_orchestrator.md"
-    agent_instructions = ""
-    if orchestrator_md.exists():
-        agent_instructions = orchestrator_md.read_text(encoding="utf-8")
-
+    """Generate a capability-neutral launch prompt for the repository QC workflow."""
     params = {
         "package": package_name,
         "depth": depth,
@@ -335,12 +328,12 @@ def generate_orchestrator_prompt(
         "risk_hints": risk_hints or {},
     }
 
-    return f"""Execute the android_qc skill with these parameters:
+    return f"""Execute the repository Android QC workflow in .github/skills/android-qc/SKILL.md
+with these parameters:
 
 {json.dumps(params, indent=2)}
 
-Read and follow the orchestrator instructions below.
-
----
-
-{agent_instructions}"""
+First discover the device-control and evaluator capabilities available in the current environment.
+Use one representative emulator/API configuration. One evaluator is sufficient; a second is
+optional. Use only real invocation interfaces, and treat evaluator output as hypotheses until it is
+supported by code, screenshots or element evidence, logs, or interactive reproduction."""
