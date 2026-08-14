@@ -128,7 +128,7 @@ val testReleaseEvidence = tasks.register<Exec>("testReleaseEvidence") {
 		"-s",
 		"tools/tests",
 		"-p",
-		"test_release_*.py",
+		"test_*.py",
 		"-v",
 	)
 }
@@ -156,7 +156,7 @@ tasks.named("ciCheck").configure {
 tasks.register<CollectReleaseEvidenceTask>("releaseValidation") {
 	group = "verification"
 	description =
-		"Builds the release AAB and representative unsigned APK set, then records strict evidence."
+		"Builds the release AAB and representative debug-signed APK set, then records strict evidence."
 	notCompatibleWithConfigurationCache(
 		"The Google OSS Licenses release task is not configuration-cache serializable."
 	)

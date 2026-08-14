@@ -316,6 +316,16 @@ def validate_release_manifest(manifest: Mapping[str, Any]) -> None:
     if not isinstance(tooling, dict) or tooling.get("bundletoolCoordinate") != BUNDLETOOL_COORDINATE:
         raise ReleaseValidationError("pinned bundletool evidence is missing")
 
+    signing = manifest.get("signingAndPublication")
+    if not isinstance(signing, dict):
+        raise ReleaseValidationError("signing and publication evidence is missing")
+    if signing.get("representativeApkSetSigning") != "bundletool-debug-key-only":
+        raise ReleaseValidationError("representative APK-set signing is not debug-only")
+    if signing.get("releaseSigning") != "manual-not-captured":
+        raise ReleaseValidationError("release signing must remain manual and uncaptured")
+    if signing.get("publication") != "manual-not-performed":
+        raise ReleaseValidationError("release evidence must not claim publication")
+
     sqlite = manifest.get("sqlite")
     if not isinstance(sqlite, dict):
         raise ReleaseValidationError("SQLite evidence is missing")
@@ -435,10 +445,12 @@ def build_release_manifest(
             "pageAlignment": "PAGE_ALIGNMENT_16K",
         },
         "signingAndPublication": {
-            "status": "not-captured",
+            "releaseSigning": "manual-not-captured",
+            "representativeApkSetSigning": "bundletool-debug-key-only",
+            "publication": "manual-not-performed",
             "note": (
-                "Release signing and Play publication remain manual and are intentionally "
-                "outside this non-deploying evidence task."
+                "Bundletool debug-signs only the representative APK set. Release signing "
+                "and Play publication remain manual and outside this non-deploying task."
             ),
         },
     }

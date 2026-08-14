@@ -18,7 +18,11 @@ from release_manifest import (
     copy_evidence,
     write_release_manifest,
 )
-from release_native import ReleaseValidationError, validate_native_archives
+from release_native import (
+    ReleaseValidationError,
+    find_android_build_tool,
+    validate_native_archives,
+)
 
 BUNDLETOOL_MAIN = "com.android.tools.build.bundletool.BundleToolMain"
 
@@ -136,6 +140,7 @@ def collect_release_evidence(args: argparse.Namespace) -> Path:
     artifacts_dir = output / "artifacts"
     artifacts_dir.mkdir(parents=True)
     apk_set = artifacts_dir / "release-universal.apks"
+    aapt2 = find_android_build_tool("aapt2", args.aapt2)
     _run_bundletool(
         args.bundletool_classpath,
         [
@@ -144,6 +149,7 @@ def collect_release_evidence(args: argparse.Namespace) -> Path:
             f"--output={apk_set}",
             "--mode=universal",
             "--overwrite",
+            f"--aapt2={aapt2}",
         ],
     )
 
@@ -327,6 +333,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--repo-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--bundletool-classpath", required=True)
+    parser.add_argument("--aapt2", type=Path)
     parser.add_argument("--zipalign", type=Path)
     parser.add_argument(
         "--allow-dirty",

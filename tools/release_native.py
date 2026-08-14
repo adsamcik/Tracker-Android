@@ -254,13 +254,13 @@ def _version_key(path: Path) -> tuple[int, ...]:
     return tuple(int(number) for number in numbers)
 
 
-def find_zipalign(explicit: Path | None = None) -> Path:
+def find_android_build_tool(name: str, explicit: Path | None = None) -> Path:
     if explicit is not None:
         if explicit.is_file():
-            return explicit
-        raise ReleaseValidationError(f"zipalign does not exist: {explicit}")
+            return explicit.resolve()
+        raise ReleaseValidationError(f"{name} does not exist: {explicit}")
 
-    executable = "zipalign.exe" if os.name == "nt" else "zipalign"
+    executable = f"{name}.exe" if os.name == "nt" else name
     for variable in ("ANDROID_HOME", "ANDROID_SDK_ROOT"):
         raw = os.environ.get(variable)
         if not raw:
@@ -271,10 +271,14 @@ def find_zipalign(explicit: Path | None = None) -> Path:
         for version_dir in sorted(build_tools.iterdir(), key=_version_key, reverse=True):
             candidate = version_dir / executable
             if candidate.is_file():
-                return candidate
+                return candidate.resolve()
     raise ReleaseValidationError(
-        "zipalign was not found; set ANDROID_HOME/ANDROID_SDK_ROOT or pass --zipalign"
+        f"{name} was not found; set ANDROID_HOME/ANDROID_SDK_ROOT or pass --{name}"
     )
+
+
+def find_zipalign(explicit: Path | None = None) -> Path:
+    return find_android_build_tool("zipalign", explicit)
 
 
 def check_zipalign(apk: Path, zipalign: Path) -> str:

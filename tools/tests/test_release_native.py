@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import os
 import struct
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from release_native import (  # noqa: E402
     ReleaseValidationError,
+    find_android_build_tool,
     inspect_elf,
     validate_native_entries,
 )
@@ -75,6 +79,31 @@ def release_inputs() -> dict:
 
 
 class NativeReleaseValidationTest(unittest.TestCase):
+    def test_resolves_latest_sdk_build_tool(self) -> None:
+        executable = "aapt2.exe" if os.name == "nt" else "aapt2"
+        with tempfile.TemporaryDirectory() as temporary:
+            sdk = Path(temporary)
+            older = sdk / "build-tools" / "34.0.0" / executable
+            newer = sdk / "build-tools" / "35.0.1" / executable
+            older.parent.mkdir(parents=True)
+            newer.parent.mkdir(parents=True)
+            older.touch()
+            newer.touch()
+            with patch.dict(
+                os.environ,
+                {"ANDROID_HOME": str(sdk), "ANDROID_SDK_ROOT": str(sdk)},
+            ):
+                self.assertEqual(find_android_build_tool("aapt2"), newer.resolve())
+
+    def test_rejects_missing_sdk_build_tool(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            with patch.dict(
+                os.environ,
+                {"ANDROID_HOME": temporary, "ANDROID_SDK_ROOT": temporary},
+            ):
+                with self.assertRaisesRegex(ReleaseValidationError, "aapt2 was not found"):
+                    find_android_build_tool("aapt2")
+
     def test_accepts_16k_elf_with_relro(self) -> None:
         result = inspect_elf(elf64(), "good.so")
         self.assertEqual((0x4000,), result.load_alignments)

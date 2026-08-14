@@ -1,9 +1,11 @@
 # Release validation evidence
 
 `releaseValidation` is a non-deploying verification task for the release artifact Play would
-review. It builds `bundleRelease`, uses the pinned bundletool classpath to create an unsigned
-universal APK set, and writes evidence beneath `build/release-evidence/`. It never signs,
-publishes, or requests signing material; production signing and Play publication remain manual.
+review. It builds `bundleRelease`, uses the pinned bundletool classpath and the installed SDK's
+`aapt2` to create a universal APK set, and writes evidence beneath `build/release-evidence/`.
+Bundletool applies only its local debug key to that representative APK; the task never supplies
+release signing material or publishes anything. Production signing and Play publication remain
+manual.
 
 Run it from a clean commit with an Android SDK, JDK 21, and Python 3 available:
 

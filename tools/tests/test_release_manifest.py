@@ -69,6 +69,11 @@ def manifest_fixture() -> dict:
             "aab": [copy.deepcopy(native_record)],
             "apks": [copy.deepcopy(native_record)],
         },
+        "signingAndPublication": {
+            "releaseSigning": "manual-not-captured",
+            "representativeApkSetSigning": "bundletool-debug-key-only",
+            "publication": "manual-not-performed",
+        },
     }
 
 
@@ -80,6 +85,12 @@ class ReleaseManifestValidationTest(unittest.TestCase):
         manifest = manifest_fixture()
         manifest["tooling"]["bundletoolCoordinate"] = "com.android.tools.build:bundletool:latest"
         with self.assertRaisesRegex(ReleaseValidationError, "pinned bundletool"):
+            validate_release_manifest(manifest)
+
+    def test_rejects_release_signed_representative_apk_set(self) -> None:
+        manifest = manifest_fixture()
+        manifest["signingAndPublication"]["representativeApkSetSigning"] = "release"
+        with self.assertRaisesRegex(ReleaseValidationError, "APK-set signing"):
             validate_release_manifest(manifest)
 
     def test_rejects_controlled_snapshot_tracebox_coordinate(self) -> None:
