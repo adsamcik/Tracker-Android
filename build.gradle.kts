@@ -1,4 +1,5 @@
 import java.util.Locale
+import com.adsamcik.tracker.buildlogic.CollectReleaseEvidenceTask
 import dev.detekt.gradle.Detekt
 import dev.detekt.gradle.DetektCreateBaselineTask
 import dev.detekt.gradle.extensions.FailOnSeverity
@@ -62,6 +63,15 @@ val useOpenGlMapRenderer: Boolean = providers.gradleProperty("useOpenGlMapRender
 	.map(String::toBoolean)
 	.getOrElse(false)
 val maplibreOpenGlModule: String = libs.maplibre.android.opengl.get().toString()
+val maplibreVulkanModule =
+	"org.maplibre.gl:android-sdk:${libs.versions.maplibreAndroid.get()}"
+val maplibreRendererModule =
+	if (useOpenGlMapRenderer) maplibreOpenGlModule else maplibreVulkanModule
+val maplibreRendererReason = if (useOpenGlMapRenderer) {
+	"Vulkan renderer segfaults on software-emulated GPUs; use the OpenGL native build"
+} else {
+	"Release native SDK is pinned to the reviewed 16 KiB-aligned MapLibre version"
+}
 
 subprojects {
 	tasks.withType<JavaCompile>().configureEach {
@@ -74,22 +84,95 @@ subprojects {
 	// native-SDK build (not runtime-toggleable), so we swap the whole native SDK for its drop-in
 	// OpenGL build. Pass -PuseOpenGlMapRenderer=true to enable; device and release builds keep
 	// Vulkan by leaving the flag unset.
-	if (useOpenGlMapRenderer) {
-		configurations.configureEach {
-			resolutionStrategy.dependencySubstitution {
-				substitute(module("org.maplibre.gl:android-sdk"))
-					.using(module(maplibreOpenGlModule))
-					.because(
-						"Vulkan renderer segfaults on software-emulated GPUs; " +
-							"use the OpenGL native build for emulator builds (-PuseOpenGlMapRenderer)"
-					)
-			}
+	configurations.configureEach {
+		resolutionStrategy.dependencySubstitution {
+			substitute(module("org.maplibre.gl:android-sdk"))
+				.using(module(maplibreRendererModule))
+				.because(maplibreRendererReason)
 		}
 	}
 }
 
 tasks.register("clean", Delete::class) {
 	delete(rootProject.layout.buildDirectory)
+}
+
+val releaseBundletool = configurations.create("releaseBundletool") {
+	isCanBeConsumed = false
+	isCanBeResolved = true
+	description = "Pinned bundletool classpath for non-deploying release evidence"
+}
+
+dependencies {
+	add(releaseBundletool.name, libs.android.bundletool)
+}
+
+val releasePythonExecutable = providers.environmentVariable("PYTHON").orElse(
+	if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
+		"python"
+	} else {
+		"python3"
+	}
+)
+val releaseEvidenceOutput = layout.buildDirectory.dir("release-evidence")
+
+val testReleaseEvidence = tasks.register<Exec>("testReleaseEvidence") {
+	group = "verification"
+	description = "Runs controlled bad-input fixtures for release evidence validators."
+	workingDir(rootDir)
+	commandLine(
+		releasePythonExecutable.get(),
+		"-m",
+		"unittest",
+		"discover",
+		"-s",
+		"tools/tests",
+		"-p",
+		"test_*.py",
+		"-v",
+	)
+}
+
+val verifyReleaseDependencyMetadata = tasks.register<Exec>("verifyReleaseDependencyMetadata") {
+	group = "verification"
+	description = "Verifies the canonical selective dependency checksum policy."
+	workingDir(rootDir)
+	inputs.files(
+		layout.projectDirectory.file("tools/selective_verification_metadata.py"),
+		layout.projectDirectory.file("release/release-inputs.json"),
+		layout.projectDirectory.file("gradle/verification-metadata.xml"),
+	)
+	commandLine(
+		releasePythonExecutable.get(),
+		"tools/selective_verification_metadata.py",
+		"--check",
+	)
+}
+
+tasks.named("ciCheck").configure {
+	dependsOn(testReleaseEvidence, verifyReleaseDependencyMetadata)
+}
+
+tasks.register<CollectReleaseEvidenceTask>("releaseValidation") {
+	group = "verification"
+	description =
+		"Builds the release AAB and representative debug-signed APK set, then records strict evidence."
+	notCompatibleWithConfigurationCache(
+		"The Google OSS Licenses release task is not configuration-cache serializable."
+	)
+	dependsOn(
+		testReleaseEvidence,
+		verifyReleaseDependencyMetadata,
+		"checkRoomSchemaDrift",
+		":app:bundleRelease",
+	)
+	outputs.upToDateWhen { false }
+	validationScript.set(layout.projectDirectory.file("tools/release_validation.py"))
+	releaseInputs.set(layout.projectDirectory.file("release/release-inputs.json"))
+	bundletoolClasspath.from(releaseBundletool)
+	pythonExecutable.set(releasePythonExecutable)
+	repositoryDirectory.set(layout.projectDirectory)
+	evidenceDirectory.set(releaseEvidenceOutput)
 }
 
 /**

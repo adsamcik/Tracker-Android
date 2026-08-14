@@ -11,10 +11,12 @@ import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
+import org.gradle.api.tasks.Classpath
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.Internal
+import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
@@ -328,6 +330,48 @@ abstract class CheckRoomSchemaDriftTask @Inject constructor(
             throw GradleException(
                 "Room schema drift detected. Commit generated schema JSON changes or fix " +
                     "the migration.\n$schemaStatus",
+            )
+        }
+    }
+}
+
+@DisableCachingByDefault(because = "Release evidence binds Git and CI process state")
+abstract class CollectReleaseEvidenceTask @Inject constructor(
+    private val execOperations: ExecOperations,
+) : DefaultTask() {
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val validationScript: RegularFileProperty
+
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val releaseInputs: RegularFileProperty
+
+    @get:Classpath
+    abstract val bundletoolClasspath: ConfigurableFileCollection
+
+    @get:Input
+    abstract val pythonExecutable: Property<String>
+
+    @get:Internal
+    abstract val repositoryDirectory: DirectoryProperty
+
+    @get:OutputDirectory
+    abstract val evidenceDirectory: DirectoryProperty
+
+    @TaskAction
+    fun collect() {
+        execOperations.exec {
+            workingDir(repositoryDirectory.get().asFile)
+            commandLine(
+                pythonExecutable.get(),
+                validationScript.get().asFile.absolutePath,
+                "--repo-root",
+                repositoryDirectory.get().asFile.absolutePath,
+                "--output",
+                evidenceDirectory.get().asFile.absolutePath,
+                "--bundletool-classpath",
+                bundletoolClasspath.asPath,
             )
         }
     }

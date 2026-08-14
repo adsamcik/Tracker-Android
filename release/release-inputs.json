@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "application": {
+    "applicationId": "com.adsamcik.tracker"
+  },
+  "expectedAbis": [
+    "arm64-v8a",
+    "armeabi-v7a",
+    "x86",
+    "x86_64"
+  ],
+  "nativeLibraries": [
+    {
+      "name": "libandroidx.graphics.path.so",
+      "coordinate": "androidx.graphics:graphics-path:1.0.1",
+      "abis": ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"]
+    },
+    {
+      "name": "libdatastore_shared_counter.so",
+      "coordinate": "androidx.datastore:datastore-core-android:1.2.1",
+      "abis": ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"]
+    },
+    {
+      "name": "libmaplibre.so",
+      "coordinate": "org.maplibre.gl:android-sdk:13.4.1",
+      "abis": ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"]
+    },
+    {
+      "name": "libsqliteX.so",
+      "coordinate": "vendored:sqlite-android:3.53.3",
+      "abis": ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"]
+    },
+    {
+      "name": "libtracebox_crashpad.so",
+      "coordinate": "io.github.tracebox:tracebox-native:0.1.0-alpha.3",
+      "abis": ["arm64-v8a", "x86_64"]
+    }
+  ],
+  "sqlite": {
+    "version": "3.53.3",
+    "sourceId": "2026-06-26 20:14:12 d4c0e51e4aeb96955b99185ab9cde75c339e2c29c3f3f12428d364a10d782c62",
+    "aar": "core/sqlite-runtime/libs/sqlite-android-3530300.aar",
+    "sha256": "9ffbcf351536524b82a9476f9e0f095b195b576f96c38cd4f814164293550fe4",
+    "sha3_256": "d7a6e906a0d06472b56ef7bb4824a6be7b5eb5f162b24be0a0bad2e0c917ed93"
+  },
+  "maplibre": {
+    "composeCoordinate": "org.maplibre.compose:maplibre-compose:0.13.1",
+    "resolvedAndroidCoordinate": "org.maplibre.gl:android-sdk:13.4.1",
+    "emulatorOpenGlCoordinate": "org.maplibre.gl:android-sdk-opengl:13.4.1"
+  },
+  "tooling": {
+    "bundletoolCoordinate": "com.android.tools.build:bundletool:1.18.3"
+  },
+  "tracebox": {
+    "version": "0.1.0-alpha.3",
+    "tag": "v0.1.0-alpha.3",
+    "tagObject": "a392235e8672b2116275c4be5c06374f274c4af2",
+    "sourceCommit": "3515e413bff5001d626abd2cae9aee5276d51e29",
+    "sourceTree": "0be7516708f9a13bf2bca68954e359080c007e6d",
+    "repository": "https://github.com/adsamcik/Tracebox",
+    "artifactSha256": {
+      "tracebox-0.1.0-alpha.3.aar": "12d64339833e1f738e385f8ff15065288c8991cff1ce214ef90321605b8ad6a1",
+      "tracebox-native-0.1.0-alpha.3.aar": "bd00982d5a79df87c2ff53754d5ba67118d3f34a246a831525bb841d43852291",
+      "tracebox-ui-compose-0.1.0-alpha.3.aar": "51e409f131504d153f7b37ed8d57dfbfe1d90e4c742e167da738ef5c9d2b7c14"
+    }
+  }
+}
