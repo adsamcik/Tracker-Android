@@ -5,6 +5,7 @@ import struct
 import sys
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -12,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from release_native import (  # noqa: E402
     ReleaseValidationError,
+    archive_native_symbols,
     find_android_build_tool,
     inspect_elf,
     validate_native_entries,
@@ -79,6 +81,47 @@ def release_inputs() -> dict:
 
 
 class NativeReleaseValidationTest(unittest.TestCase):
+    def test_archives_exact_native_symbol_coverage(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            symbol = root / "symbols" / "arm64-v8a" / "libknown.so.sym"
+            symbol.parent.mkdir(parents=True)
+            symbol.write_bytes(b"symbol-table")
+            archive = root / "out" / "native-debug-symbols.zip"
+
+            coverage = archive_native_symbols(
+                root / "symbols",
+                archive,
+                [
+                    {"abi": "arm64-v8a", "name": "libknown.so"},
+                    {"abi": "x86_64", "name": "libknown.so"},
+                ],
+            )
+
+            self.assertEqual(len(coverage["entries"]), 1)
+            self.assertEqual(
+                coverage["unavailable"],
+                [{"abi": "x86_64", "name": "libknown.so"}],
+            )
+            with zipfile.ZipFile(archive) as generated:
+                self.assertEqual(
+                    generated.namelist(),
+                    ["arm64-v8a/libknown.so.sym"],
+                )
+
+    def test_rejects_symbol_for_unknown_native_library(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            symbol = root / "symbols" / "arm64-v8a" / "libunknown.so.sym"
+            symbol.parent.mkdir(parents=True)
+            symbol.write_bytes(b"symbol-table")
+            with self.assertRaisesRegex(ReleaseValidationError, "no packaged library"):
+                archive_native_symbols(
+                    root / "symbols",
+                    root / "native-debug-symbols.zip",
+                    [{"abi": "arm64-v8a", "name": "libknown.so"}],
+                )
+
     def test_resolves_latest_sdk_build_tool(self) -> None:
         executable = "aapt2.exe" if os.name == "nt" else "aapt2"
         with tempfile.TemporaryDirectory() as temporary:

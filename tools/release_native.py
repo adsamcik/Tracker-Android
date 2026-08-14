@@ -296,6 +296,67 @@ def check_zipalign(apk: Path, zipalign: Path) -> str:
     return output
 
 
+def archive_native_symbols(
+    symbol_root: Path,
+    destination: Path,
+    native_records: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Archive every AGP-emitted symbol table and report exact coverage."""
+    if not symbol_root.is_dir():
+        raise ReleaseValidationError(f"native symbol table directory is missing: {symbol_root}")
+
+    known = {(str(record["abi"]), str(record["name"])) for record in native_records}
+    symbol_files = sorted(path for path in symbol_root.rglob("*") if path.is_file())
+    if not symbol_files:
+        raise ReleaseValidationError(f"native symbol table directory is empty: {symbol_root}")
+
+    covered: set[tuple[str, str]] = set()
+    entries: list[dict[str, Any]] = []
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(destination, "w") as archive:
+        for symbol_file in symbol_files:
+            relative = symbol_file.relative_to(symbol_root)
+            if len(relative.parts) != 2 or not relative.name.endswith(".so.sym"):
+                raise ReleaseValidationError(
+                    f"unknown native symbol table layout: {relative.as_posix()}"
+                )
+            key = (relative.parts[0], relative.name.removesuffix(".sym"))
+            if key not in known:
+                raise ReleaseValidationError(
+                    f"native symbol table has no packaged library: {key[0]}/{key[1]}"
+                )
+            data = symbol_file.read_bytes()
+            if not data:
+                raise ReleaseValidationError(
+                    f"native symbol table is empty: {relative.as_posix()}"
+                )
+
+            archive_name = relative.as_posix()
+            info = zipfile.ZipInfo(archive_name, date_time=(1980, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = 0o644 << 16
+            archive.writestr(info, data)
+            covered.add(key)
+            entries.append(
+                {
+                    "abi": key[0],
+                    "name": key[1],
+                    "path": archive_name,
+                    "sha256": hashlib.sha256(data).hexdigest(),
+                }
+            )
+
+    unavailable = [
+        {"abi": abi, "name": name}
+        for abi, name in sorted(known - covered)
+    ]
+    return {
+        "format": "AGP_SYMBOL_TABLE",
+        "entries": entries,
+        "unavailable": unavailable,
+    }
+
+
 def _safe_extract_member(archive: zipfile.ZipFile, member: zipfile.ZipInfo, output: Path) -> Path:
     target = (output / member.filename).resolve()
     output_root = output.resolve()

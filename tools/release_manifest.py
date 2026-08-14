@@ -371,6 +371,16 @@ def validate_release_manifest(manifest: Mapping[str, Any]) -> None:
                 raise ReleaseValidationError(
                     f"native.{collection_name}[{index}] is below required alignment"
                 )
+    symbols = native.get("symbols")
+    if not isinstance(symbols, dict) or symbols.get("format") != "AGP_SYMBOL_TABLE":
+        raise ReleaseValidationError("native symbol coverage evidence is missing")
+    symbol_entries = symbols.get("entries")
+    if not isinstance(symbol_entries, list) or not symbol_entries:
+        raise ReleaseValidationError("native symbol coverage is empty")
+    for index, entry in enumerate(symbol_entries):
+        _require_sha256(entry.get("sha256"), f"native.symbols.entries[{index}].sha256")
+    if not isinstance(symbols.get("unavailable"), list):
+        raise ReleaseValidationError("unavailable native symbol coverage is missing")
 
 
 def write_release_manifest(manifest: Mapping[str, Any], destination: Path) -> None:
@@ -441,6 +451,7 @@ def build_release_manifest(
             "abis": list(native_inventory["abis"]),
             "aab": list(native_inventory["aab"]),
             "apks": list(native_inventory["apks"]),
+            "symbols": dict(native_inventory["symbols"]),
             "zipalign": native_inventory["zipalign"],
             "pageAlignment": "PAGE_ALIGNMENT_16K",
         },

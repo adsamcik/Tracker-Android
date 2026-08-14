@@ -18,6 +18,10 @@ AAB, APK set, representative APK, merged manifest, BundleConfig protobuf/JSON, R
 native-symbol archive, dependency metadata, Room schemas, vendored SQLite input, MapLibre and
 Tracebox coordinates, and CI run identity. Every recorded file has a SHA-256 digest.
 
+The native-symbol archive deterministically contains every symbol table AGP can extract from the
+packaged libraries. The manifest lists each covered ABI/library and explicitly lists packaged
+prebuilt libraries for which the upstream AAR exposes no extractable symbol table.
+
 Native validation is allowlist-based and fails for unknown or missing `.so` files. It checks
 every ELF LOAD segment, requires 16 KiB alignment for the 64-bit Play requirement
 (`arm64-v8a` and `x86_64`), requires at least 4 KiB for packaged 32-bit ABIs, requires GNU RELRO

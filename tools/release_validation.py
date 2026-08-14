@@ -20,6 +20,7 @@ from release_manifest import (
 )
 from release_native import (
     ReleaseValidationError,
+    archive_native_symbols,
     find_android_build_tool,
     validate_native_archives,
 )
@@ -207,14 +208,19 @@ def collect_release_evidence(args: argparse.Namespace) -> Path:
         [app_build / "outputs" / "mapping" / "release" / "mapping.txt"],
         "R8 mapping",
     )
-    native_symbols = _single_file(
-        (
-            app_build
-            / "outputs"
-            / "native-debug-symbols"
-            / "release"
-        ).glob("*.zip"),
-        "native symbols archive",
+    native_symbol_root = (
+        app_build
+        / "intermediates"
+        / "native_symbol_tables"
+        / "release"
+        / "extractReleaseNativeSymbolTables"
+        / "out"
+    )
+    native_symbols = output / "native-symbols" / "native-debug-symbols.zip"
+    native_inventory["symbols"] = archive_native_symbols(
+        native_symbol_root,
+        native_symbols,
+        native_inventory["aab"],
     )
     dependency_json = _first_file(
         [
@@ -268,10 +274,7 @@ def collect_release_evidence(args: argparse.Namespace) -> Path:
         ),
         (
             "native-symbols",
-            copy_evidence(
-                native_symbols,
-                output / "native-symbols" / native_symbols.name,
-            ),
+            native_symbols,
         ),
         (
             "dependency-metadata",

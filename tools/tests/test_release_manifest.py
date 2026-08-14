@@ -68,6 +68,18 @@ def manifest_fixture() -> dict:
             "abis": ["arm64-v8a"],
             "aab": [copy.deepcopy(native_record)],
             "apks": [copy.deepcopy(native_record)],
+            "symbols": {
+                "format": "AGP_SYMBOL_TABLE",
+                "entries": [
+                    {
+                        "abi": "arm64-v8a",
+                        "name": "libfixture.so",
+                        "path": "arm64-v8a/libfixture.so.sym",
+                        "sha256": HASH,
+                    }
+                ],
+                "unavailable": [],
+            },
         },
         "signingAndPublication": {
             "releaseSigning": "manual-not-captured",
@@ -91,6 +103,12 @@ class ReleaseManifestValidationTest(unittest.TestCase):
         manifest = manifest_fixture()
         manifest["signingAndPublication"]["representativeApkSetSigning"] = "release"
         with self.assertRaisesRegex(ReleaseValidationError, "APK-set signing"):
+            validate_release_manifest(manifest)
+
+    def test_rejects_missing_native_symbol_coverage(self) -> None:
+        manifest = manifest_fixture()
+        del manifest["native"]["symbols"]
+        with self.assertRaisesRegex(ReleaseValidationError, "symbol coverage"):
             validate_release_manifest(manifest)
 
     def test_rejects_controlled_snapshot_tracebox_coordinate(self) -> None:
