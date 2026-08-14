@@ -164,6 +164,7 @@ tasks.register<CollectReleaseEvidenceTask>("releaseValidation") {
 		testReleaseEvidence,
 		verifyReleaseDependencyMetadata,
 		"checkRoomSchemaDrift",
+		":app:sdkReleaseDependencyData",
 		":app:bundleRelease",
 	)
 	outputs.upToDateWhen { false }
