@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<issues format="6" by="lint 9.1.0" type="baseline" client="gradle" dependencies="false" name="AGP (9.1.0)" variant="all" version="9.1.0">
+<issues format="6" by="lint 9.3.1" type="baseline" client="gradle" dependencies="false" name="AGP (9.3.1)" variant="all" version="9.3.1">
 
     <issue
         id="MissingPermission"
@@ -8,7 +8,7 @@
         errorLine2="        ^">
         <location
             file="src/main/java/com/adsamcik/tracker/impexp/exporter/automation/ExportPlanWorker.kt"
-            line="331"
+            line="431"
             column="9"/>
     </issue>
 
@@ -19,569 +19,96 @@
         errorLine2="        ^">
         <location
             file="src/main/java/com/adsamcik/tracker/impexp/exporter/automation/ExportPlanWorker.kt"
-            line="331"
+            line="431"
             column="9"/>
     </issue>
 
     <issue
-        id="CheckResult"
-        message="The result of `onAllNodes` is not used"
-        errorLine1="        composeTestRule.onAllNodes("
-        errorLine2="        ^">
+        id="MissingQuantity"
+        message="For locale &quot;es&quot; (Spanish) the following quantity should also be defined: `many`"
+        errorLine1="    &lt;plurals name=&quot;import_notification_finished&quot;>"
+        errorLine2="    ^">
         <location
-            file="src/androidTest/java/com/adsamcik/tracker/impexp/ImportExportScreenTest.kt"
-            line="261"
-            column="9"/>
+            file="src/main/res/values-es-rES/strings.xml"
+            line="25"
+            column="5"/>
     </issue>
 
     <issue
-        id="AndroidGradlePluginVersion"
-        message="A newer version of Gradle than 9.3.1 is available: 9.4.0"
-        errorLine1="distributionUrl=https\://services.gradle.org/distributions/gradle-9.3.1-bin.zip"
-        errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        id="MissingQuantity"
+        message="For locale &quot;fr&quot; (French) the following quantity should also be defined: `many` (e.g. &quot;1000000 de jours&quot;)"
+        errorLine1="    &lt;plurals name=&quot;import_notification_finished&quot;>"
+        errorLine2="    ^">
         <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/wrapper/gradle-wrapper.properties"
-            line="3"
-            column="17"/>
+            file="src/main/res/values-fr-rFR/strings.xml"
+            line="25"
+            column="5"/>
     </issue>
 
     <issue
-        id="GradleDependency"
-        message="A newer version of com.google.android.gms.oss-licenses-plugin than 0.10.7 is available: 0.10.10"
-        errorLine1="ossLicenses = &quot;0.10.7&quot;"
-        errorLine2="              ~~~~~~~~">
+        id="MissingQuantity"
+        message="For locale &quot;ga&quot; (Irish) the following quantities should also be defined: `few` (e.g. &quot;3 cinn, 3 huaire, 3 chat, 3 éan, 3 bhróg&quot;), `many` (e.g. &quot;7 gcinn, 7 n-uaire, 7 gcat, 7 n-éan, 7 mbróg&quot;), `two` (e.g. &quot;2 cheann, 2 uair, 2 chat, 2 éan, 2 bhróig&quot;)"
+        errorLine1="    &lt;plurals name=&quot;import_notification_finished&quot;>"
+        errorLine2="    ^">
         <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="17"
-            column="15"/>
+            file="src/main/res/values-ga-rIE/strings.xml"
+            line="25"
+            column="5"/>
     </issue>
 
     <issue
-        id="GradleDependency"
-        message="A newer version of androidx.core:core-ktx than 1.16.0 is available: 1.18.0"
-        errorLine1="coreKtx = &quot;1.16.0&quot;"
-        errorLine2="          ~~~~~~~~">
+        id="MissingQuantity"
+        message="For locale &quot;it&quot; (Italian) the following quantity should also be defined: `many`"
+        errorLine1="    &lt;plurals name=&quot;import_notification_finished&quot;>"
+        errorLine2="    ^">
         <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="21"
-            column="11"/>
+            file="src/main/res/values-it-rIT/strings.xml"
+            line="25"
+            column="5"/>
     </issue>
 
     <issue
-        id="GradleDependency"
-        message="A newer version of androidx.core:core-location-altitude than 1.0.0-alpha02 is available: 1.0.0-rc01"
-        errorLine1="coreLocationAltitude = &quot;1.0.0-alpha02&quot;"
-        errorLine2="                       ~~~~~~~~~~~~~~~">
+        id="MissingQuantity"
+        message="For locale &quot;lt&quot; (Lithuanian) the following quantity should also be defined: `many` (e.g. &quot;1.1 obuolio&quot;)"
+        errorLine1="    &lt;plurals name=&quot;import_notification_finished&quot;>"
+        errorLine2="    ^">
         <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="22"
-            column="24"/>
+            file="src/main/res/values-lt-rLT/strings.xml"
+            line="25"
+            column="5"/>
     </issue>
 
     <issue
-        id="GradleDependency"
-        message="A newer version of com.google.android.material:material than 1.13.0-rc01 is available: 1.13.0"
-        errorLine1="material = &quot;1.13.0-rc01&quot;"
-        errorLine2="           ~~~~~~~~~~~~~">
+        id="MissingQuantity"
+        message="For locale &quot;lv&quot; (Latvian) the following quantity should also be defined: `zero` (e.g. &quot;0 diennakšu&quot;)"
+        errorLine1="    &lt;plurals name=&quot;import_notification_finished&quot;>"
+        errorLine2="    ^">
         <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="24"
-            column="12"/>
+            file="src/main/res/values-lv-rLV/strings.xml"
+            line="25"
+            column="5"/>
     </issue>
 
     <issue
-        id="GradleDependency"
-        message="A newer version of androidx.paging:paging-compose than 3.4.1 is available: 3.4.2"
-        errorLine1="paging = &quot;3.4.1&quot;"
-        errorLine2="         ~~~~~~~">
+        id="MissingQuantity"
+        message="For locale &quot;mt&quot; (Maltese) the following quantities should also be defined: `few` (e.g. &quot;2&quot;), `many` (e.g. &quot;11&quot;), `two`"
+        errorLine1="    &lt;plurals name=&quot;import_notification_finished&quot;>"
+        errorLine2="    ^">
         <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="30"
-            column="10"/>
+            file="src/main/res/values-mt-rMT/strings.xml"
+            line="25"
+            column="5"/>
     </issue>
 
     <issue
-        id="GradleDependency"
-        message="A newer version of androidx.paging:paging-runtime than 3.4.1 is available: 3.4.2"
-        errorLine1="paging = &quot;3.4.1&quot;"
-        errorLine2="         ~~~~~~~">
+        id="MissingQuantity"
+        message="For locale &quot;pt&quot; (Portuguese) the following quantity should also be defined: `many`"
+        errorLine1="    &lt;plurals name=&quot;import_notification_finished&quot;>"
+        errorLine2="    ^">
         <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="30"
-            column="10"/>
-    </issue>
-
-    <issue
-        id="GradleDependency"
-        message="A newer version of androidx.activity:activity-compose than 1.12.4 is available: 1.13.0"
-        errorLine1="activityCompose = &quot;1.12.4&quot;"
-        errorLine2="                  ~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="31"
-            column="19"/>
-    </issue>
-
-    <issue
-        id="GradleDependency"
-        message="A newer version of androidx.core:core-splashscreen than 1.0.1 is available: 1.2.0"
-        errorLine1="splashScreen = &quot;1.0.1&quot;"
-        errorLine2="               ~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="32"
-            column="16"/>
-    </issue>
-
-    <issue
-        id="GradleDependency"
-        message="A newer version of androidx.compose:compose-bom than 2026.02.00 is available: 2026.03.00"
-        errorLine1="composeBom = &quot;2026.02.00&quot;"
-        errorLine2="             ~~~~~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="35"
-            column="14"/>
-    </issue>
-
-    <issue
-        id="GradleDependency"
-        message="A newer version of androidx.datastore:datastore than 1.2.0 is available: 1.2.1"
-        errorLine1="datastore = &quot;1.2.0&quot;"
-        errorLine2="            ~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="39"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="GradleDependency"
-        message="A newer version of androidx.datastore:datastore-preferences than 1.2.0 is available: 1.2.1"
-        errorLine1="datastore = &quot;1.2.0&quot;"
-        errorLine2="            ~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="39"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="GradleDependency"
-        message="A newer version of com.google.android.gms:play-services-base than 18.7.2 is available: 18.10.0"
-        errorLine1="playServicesBase = &quot;18.7.2&quot;"
-        errorLine2="                   ~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="49"
-            column="20"/>
-    </issue>
-
-    <issue
-        id="GradleDependency"
-        message="A newer version of com.google.android.gms:play-services-oss-licenses than 17.2.2 is available: 17.4.0"
-        errorLine1="ossLicensesLib = &quot;17.2.2&quot;"
-        errorLine2="                 ~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="75"
-            column="18"/>
-    </issue>
-
-    <issue
-        id="GradleDependency"
-        message="A newer version of androidx.test:rules than 1.6.1 is available: 1.7.0"
-        errorLine1="androidxTestRules = &quot;1.6.1&quot;"
-        errorLine2="                    ~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="99"
-            column="21"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of org.jetbrains.kotlin.android than 2.2.20 is available: 2.3.20"
-        errorLine1="kotlin = &quot;2.2.20&quot;"
-        errorLine2="         ~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="3"
-            column="10"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of org.jetbrains.kotlin.multiplatform than 2.2.20 is available: 2.3.20"
-        errorLine1="kotlin = &quot;2.2.20&quot;"
-        errorLine2="         ~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="3"
-            column="10"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of org.jetbrains.kotlin.plugin.compose than 2.2.20 is available: 2.3.20"
-        errorLine1="kotlin = &quot;2.2.20&quot;"
-        errorLine2="         ~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="3"
-            column="10"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of org.jetbrains.kotlin.plugin.parcelize than 2.2.20 is available: 2.3.20"
-        errorLine1="kotlin = &quot;2.2.20&quot;"
-        errorLine2="         ~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="3"
-            column="10"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of org.jetbrains.kotlin.plugin.serialization than 2.2.20 is available: 2.3.20"
-        errorLine1="kotlin = &quot;2.2.20&quot;"
-        errorLine2="         ~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="3"
-            column="10"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of com.github.ben-manes.versions than 0.52.0 is available: 0.53.0"
-        errorLine1="benmanes = &quot;0.52.0&quot;"
-        errorLine2="           ~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="15"
-            column="12"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of com.materialkolor:material-kolor than 3.0.1 is available: 4.1.1"
-        errorLine1="materialKolor = &quot;3.0.1&quot;"
-        errorLine2="                ~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="37"
-            column="17"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of com.google.protobuf:protobuf-java than 3.25.3 is available: 4.34.0"
-        errorLine1="protobuf = &quot;3.25.3&quot;"
-        errorLine2="           ~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="40"
-            column="12"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of com.google.protobuf:protobuf-javalite than 3.25.3 is available: 4.34.0"
-        errorLine1="protobuf = &quot;3.25.3&quot;"
-        errorLine2="           ~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="40"
-            column="12"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of com.google.protobuf than 0.9.4 is available: 0.9.6"
-        errorLine1="protobufPlugin = &quot;0.9.4&quot;"
-        errorLine2="                 ~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="41"
-            column="18"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of dev.chrisbanes.haze:haze than 1.7.1 is available: 1.7.2"
-        errorLine1="haze = &quot;1.7.1&quot;"
-        errorLine2="       ~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="43"
-            column="8"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of io.arrow-kt:arrow-core than 2.1.2 is available: 2.2.2"
-        errorLine1="arrow = &quot;2.1.2&quot;"
-        errorLine2="        ~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="60"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of io.arrow-kt:arrow-fx-coroutines than 2.1.2 is available: 2.2.2"
-        errorLine1="arrow = &quot;2.1.2&quot;"
-        errorLine2="        ~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="60"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of org.junit.jupiter:junit-jupiter-api than 5.11.4 is available: 6.0.3"
-        errorLine1="junit5 = &quot;5.11.4&quot;"
-        errorLine2="         ~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="81"
-            column="10"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of org.junit.jupiter:junit-jupiter-engine than 5.11.4 is available: 6.0.3"
-        errorLine1="junit5 = &quot;5.11.4&quot;"
-        errorLine2="         ~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="81"
-            column="10"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of org.junit:junit-bom than 5.11.4 is available: 6.0.3"
-        errorLine1="junit5 = &quot;5.11.4&quot;"
-        errorLine2="         ~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="81"
-            column="10"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of org.robolectric:robolectric than 4.15.1 is available: 4.16.1"
-        errorLine1="robolectric = &quot;4.15.1&quot;"
-        errorLine2="              ~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="90"
-            column="15"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of org.mockito:mockito-core than 5.19.0 is available: 5.23.0"
-        errorLine1="mockitoCore = &quot;5.19.0&quot;"
-        errorLine2="              ~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="91"
-            column="15"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of org.mockito:mockito-android than 5.19.0 is available: 5.23.0"
-        errorLine1="mockitoAndroid = &quot;5.19.0&quot;"
-        errorLine2="                 ~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="93"
-            column="18"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of org.mockito.kotlin:mockito-kotlin than 6.0.0 is available: 6.2.3"
-        errorLine1="mockitoKotlin = &quot;6.0.0&quot;"
-        errorLine2="                ~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="94"
-            column="17"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of io.mockk:mockk than 1.13.16 is available: 1.14.9"
-        errorLine1="mockk = &quot;1.13.16&quot;"
-        errorLine2="        ~~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="95"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of io.mockk:mockk-agent than 1.13.16 is available: 1.14.9"
-        errorLine1="mockk = &quot;1.13.16&quot;"
-        errorLine2="        ~~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="95"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of io.mockk:mockk-android than 1.13.16 is available: 1.14.9"
-        errorLine1="mockk = &quot;1.13.16&quot;"
-        errorLine2="        ~~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="95"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of io.kotest:kotest-assertions-core than 6.0.0.M2 is available: 6.1.7"
-        errorLine1="kotest = &quot;6.0.0.M2&quot;"
-        errorLine2="         ~~~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="100"
-            column="10"/>
-    </issue>
-
-    <issue
-        id="NewerVersionAvailable"
-        message="A newer version of io.kotest:kotest-property than 6.0.0.M2 is available: 6.1.7"
-        errorLine1="kotest = &quot;6.0.0.M2&quot;"
-        errorLine2="         ~~~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="100"
-            column="10"/>
-    </issue>
-
-    <issue
-        id="SimilarGradleDependency"
-        message="There are multiple dependencies androidx.glance:glance-appwidget but with different version"
-        errorLine1="glance-appwidget = { group = &quot;androidx.glance&quot;, name = &quot;glance-appwidget&quot;, version.ref = &quot;glance&quot; }"
-        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="209"
-            column="21"/>
-    </issue>
-
-    <issue
-        id="SimilarGradleDependency"
-        message="There are multiple dependencies androidx.glance:glance-material3 but with different version"
-        errorLine1="glance-material3 = { group = &quot;androidx.glance&quot;, name = &quot;glance-material3&quot;, version.ref = &quot;glance&quot; }"
-        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="210"
-            column="21"/>
-    </issue>
-
-    <issue
-        id="SimilarGradleDependency"
-        message="There are multiple dependencies androidx.glance:glance-appwidget but with different version"
-        errorLine1="androidx-glance-appwidget = { group = &quot;androidx.glance&quot;, name = &quot;glance-appwidget&quot;, version.ref = &quot;glance&quot; }"
-        errorLine2="                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="236"
-            column="30"/>
-    </issue>
-
-    <issue
-        id="SimilarGradleDependency"
-        message="There are multiple dependencies androidx.glance:glance-material3 but with different version"
-        errorLine1="androidx-glance-material3 = { group = &quot;androidx.glance&quot;, name = &quot;glance-material3&quot;, version.ref = &quot;glance&quot; }"
-        errorLine2="                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="$HOME/Downloads/Tracker-Android-dev-v10/Tracker-Android-dev-v10/gradle/libs.versions.toml"
-            line="237"
-            column="30"/>
-    </issue>
-
-    <issue
-        id="MissingTranslation"
-        message="&quot;import_notification_finished_with_skipped&quot; is not translated in &quot;cs&quot; (Czech)"
-        errorLine1="    &lt;string name=&quot;import_notification_finished_with_skipped&quot;>Import finished. Imported %1$d records (%2$d skipped).&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="23"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="MissingTranslation"
-        message="&quot;import_notification_error_records_failed&quot; is not translated in &quot;cs&quot; (Czech)"
-        errorLine1="    &lt;string name=&quot;import_notification_error_records_failed&quot;>%d records failed to import due to constraint violations.&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="24"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="MissingTranslation"
-        message="&quot;format_gpx&quot; is not translated in &quot;cs&quot; (Czech)"
-        errorLine1="    &lt;string name=&quot;format_gpx&quot;>GPX&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="40"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="MissingTranslation"
-        message="&quot;format_kml&quot; is not translated in &quot;cs&quot; (Czech)"
-        errorLine1="    &lt;string name=&quot;format_kml&quot;>KML&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="41"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="MissingTranslation"
-        message="&quot;format_json&quot; is not translated in &quot;cs&quot; (Czech)"
-        errorLine1="    &lt;string name=&quot;format_json&quot;>JSON&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="42"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="MissingTranslation"
-        message="&quot;format_database&quot; is not translated in &quot;cs&quot; (Czech)"
-        errorLine1="    &lt;string name=&quot;format_database&quot;>Database&lt;/string>"
-        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="43"
-            column="13"/>
+            file="src/main/res/values-pt-rPT/strings.xml"
+            line="25"
+            column="5"/>
     </issue>
 
     <issue
@@ -591,7 +118,7 @@
         errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/values/strings.xml"
-            line="23"
+            line="30"
             column="5"/>
     </issue>
 
@@ -602,7 +129,40 @@
         errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/values/strings.xml"
-            line="24"
+            line="31"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="UnusedQuantity"
+        message="For language &quot;ja&quot; (Japanese) the following quantities are not relevant: `one`"
+        errorLine1="    &lt;plurals name=&quot;import_notification_finished&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-ja-rJP/strings.xml"
+            line="25"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="UnusedQuantity"
+        message="For language &quot;zh&quot; (Chinese) the following quantities are not relevant: `one`"
+        errorLine1="    &lt;plurals name=&quot;import_notification_finished&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-zh-rCN/strings.xml"
+            line="25"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="UnusedQuantity"
+        message="For language &quot;zh&quot; (Chinese) the following quantities are not relevant: `one`"
+        errorLine1="    &lt;plurals name=&quot;import_notification_finished&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-zh-rTW/strings.xml"
+            line="25"
             column="5"/>
     </issue>
 
@@ -613,7 +173,7 @@
         errorLine2="                  ~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorker.kt"
-            line="42"
+            line="58"
             column="19"/>
     </issue>
 
