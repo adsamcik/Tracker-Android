@@ -63,6 +63,12 @@ smoke resolved the exact ten AARs and byte-compared them with the verified local
 compiled its production and test sources against that candidate, and focused bootstrap, runtime,
 UI, telemetry, architecture, localization, deletion, and license contracts passed.
 
+Tracker also assembled the `10.0.0` (`versionCode` 400) debug APK against that exact isolated
+candidate. The packaged manifest preserves `android:fullBackupContent="false"`, the restrictive
+data-extraction rules, `android:extractNativeLibs="false"`, and the non-exported handler service in
+`:tracebox_handler`. The APK contains `libtracebox_crashpad.so` for `arm64-v8a`, `armeabi-v7a`,
+`x86`, and `x86_64`.
+
 Tracebox also has a separately committed isolated-publication workflow. It publishes all ten
 modules with `-PtraceboxLocalRepository=<path> publishFoundation`, rejects the user's global
 `~/.m2/repository`, and fails closed when `CI` is present.
@@ -72,7 +78,11 @@ modules with `-PtraceboxLocalRepository=<path> publishFoundation`, rejects the u
 The committed July API 36 x86_64 emulator evidence is historical and contains a native-crash
 failure; it is not evidence for this candidate. The only currently installed API 36.1 AVD is a
 Google Play image with non-rootable `adbd`, while Tracebox's representative qualification requires
-a rootable Google APIs/AOSP image to verify private artifacts and UID-scoped blocked egress.
+a rootable Google APIs/AOSP image to verify private artifacts and UID-scoped blocked egress. A
+read-only cold boot of that installed AVD succeeded before APK assembly, but after assembly the host
+had only 1.8 GiB free and the emulator rejected a second launch for insufficient disk space. The
+candidate APK therefore was not installed or exercised on-device; static packaging and host-test
+evidence must not be reported as a runtime smoke.
 
 Before declaring the immutable alpha release ready, run one bounded current-candidate Tracebox
 emulator qualification on API 36 x86_64/4 KiB. Then run the smaller Tracker smoke: launch to ready,
