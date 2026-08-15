@@ -20,6 +20,7 @@ import com.adsamcik.tracker.app.tracebox.TrackerTraceboxRuntime
 import com.adsamcik.tracker.app.tracebox.currentTrackerProcessName
 import com.adsamcik.tracker.app.tracebox.isTraceboxHandlerProcessName
 import com.adsamcik.tracker.app.tracebox.isTrackerMainProcessName
+import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker
 import com.adsamcik.tracker.notification.GoalNotificationWorker
 import com.adsamcik.tracker.notification.NotificationChannels
@@ -188,42 +189,23 @@ class Application : AndroidApplication(), Configuration.Provider {
 	}
 
 	private fun initializeDatabaseMaintenance() {
-		var schedulingFailed = false
-		try {
-			GoalResetScheduler.ensureScheduled(this)
-		} catch (_: IllegalStateException) {
-			schedulingFailed = true
+		val schedulingFailure = listOfNotNull(
+			maintenanceSchedulingFailure { GoalResetScheduler.ensureScheduled(this) },
+			maintenanceSchedulingFailure { DatabaseMaintenanceWorker.schedule(this) },
+			maintenanceSchedulingFailure { dataRetentionScheduler.initialize() },
+			maintenanceSchedulingFailure { DailySummaryMaterializationWorker.schedule(this) },
+			maintenanceSchedulingFailure { GoalNotificationWorker.schedule(this) },
+		).firstOrNull()
+		schedulingFailure?.let { error ->
+			Tracebox.log.error(error, TrackerTraceboxTemplates.DATA_RETENTION_FAILED)
 		}
-		// Schedule periodic DB maintenance if WorkManager is available
-		try {
-			DatabaseMaintenanceWorker.schedule(this)
-		} catch (_: IllegalStateException) {
-			// In unit tests (Robolectric), WorkManager might not be initialized yet.
-			schedulingFailed = true
-		}
-		// Ensure weekly auto-cleanup job is in sync with preference
-		try {
-			dataRetentionScheduler.initialize()
-		} catch (_: IllegalStateException) {
-			// In unit tests (Robolectric), WorkManager might not be initialized yet.
-			schedulingFailed = true
-		}
-		// Schedule daily summary materialization (stats rearchitecture Phase 3)
-		try {
-			DailySummaryMaterializationWorker.schedule(this)
-		} catch (_: IllegalStateException) {
-			// In unit tests (Robolectric), WorkManager might not be initialized yet.
-			schedulingFailed = true
-		}
-		// Schedule smart goal notification checks every 2 hours
-		try {
-			GoalNotificationWorker.schedule(this)
-		} catch (_: IllegalStateException) {
-			schedulingFailed = true
-		}
-		if (schedulingFailed) {
-			Tracebox.log.error("Data retention failed")
-		}
+	}
+
+	private fun maintenanceSchedulingFailure(schedule: () -> Unit): IllegalStateException? = try {
+		schedule()
+		null
+	} catch (error: IllegalStateException) {
+		error
 	}
 
 	/**
@@ -247,17 +229,18 @@ class Application : AndroidApplication(), Configuration.Provider {
 				when (val legacy = legacyDatabaseUpgradeCoordinator.ensureReady()) {
 					LegacyDatabaseStartupResult.Ready -> Unit
 					is LegacyDatabaseStartupResult.Failed -> {
-						Tracebox.log.error("Legacy database import failed")
+						Tracebox.log.error(TrackerTraceboxTemplates.LEGACY_DATABASE_IMPORT_FAILED)
 						return@launch
 					}
 				}
 				applyStartupRecovery(recoveryAction)
+				Tracebox.log.info(TrackerTraceboxTemplates.APPLICATION_STARTUP_RECONCILED)
 				startupReconciliationCompletion.complete(Unit)
 				if (!isRobolectricUnitTest()) {
 					initializeModules()
 				}
 			} catch (error: Throwable) {
-				Tracebox.log.error(error, "Application initialization failed")
+				Tracebox.log.error(error, TrackerTraceboxTemplates.APPLICATION_INITIALIZATION_FAILED)
 			} finally {
 				isStartupReady = true
 				startupReconciliationCompletion.complete(Unit)
@@ -328,7 +311,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 				initializeClasses()
 				initializeFeatures()
 			} catch (error: Throwable) {
-				Tracebox.log.error(error, "Application initialization failed")
+				Tracebox.log.error(error, TrackerTraceboxTemplates.APPLICATION_INITIALIZATION_FAILED)
 			}
 		}
 	}
@@ -341,7 +324,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 			try {
 				initializeDatabaseMaintenance()
 			} catch (error: Throwable) {
-				Tracebox.log.error(error, "Data retention failed")
+				Tracebox.log.error(error, TrackerTraceboxTemplates.DATA_RETENTION_FAILED)
 			}
 		}
 	}
@@ -382,6 +365,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 			TrackerTraceboxRuntime.install(this)
 		}
 		super.onCreate()
+		Tracebox.log.info(TrackerTraceboxTemplates.APPLICATION_PROCESS_STARTED)
 
 		// Wire MapLibre's HTTP through the project NetworkGateway so tile/style/sprite
 		// fetches share the kill switch + allowlist + rate-limit interceptors that

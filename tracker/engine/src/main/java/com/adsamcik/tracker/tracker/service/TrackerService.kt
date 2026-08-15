@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.service
 
 import dev.tracebox.Tracebox
+import dev.tracebox.api.public
 import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.Service
@@ -11,6 +12,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.PowerManager
 import android.os.SystemClock
+import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
@@ -321,7 +323,7 @@ internal class TrackerService : CoreService() {
 						is TrackerServiceStartRequestResolution.StoreFailure -> {
 							Tracebox.log.error(
 								resolution.cause,
-								"Tracking session recovery failed",
+								TrackerTraceboxTemplates.TRACKING_SESSION_RECOVERY_FAILED,
 							)
 							requestGracefulStop(startId)
 						}
@@ -486,7 +488,7 @@ internal class TrackerService : CoreService() {
 		startId: Int,
 		isRecovery: Boolean = false,
 	) {
-		Tracebox.log.debug("Tracking session start requested")
+		Tracebox.log.info(TrackerTraceboxTemplates.TRACKING_SESSION_START_REQUESTED)
 		gracefulStopRequested = false
 		stopReason = TrackingStopCandidateReason.UNKNOWN
 		coordinatorMetricBaseline = coordinatorTelemetry.snapshot()
@@ -648,7 +650,9 @@ internal class TrackerService : CoreService() {
 					)) {
 						is SourceSessionStartOutcome.Rejected -> {
 							collectionMotionController.stopSession(descriptor.serviceRunId)
-							Tracebox.log.error("Tracking source session start was rejected")
+							Tracebox.log.error(
+								TrackerTraceboxTemplates.TRACKING_SOURCE_SESSION_START_REJECTED,
+							)
 							requestGracefulStop(reason = TrackingStopCandidateReason.INITIALIZATION_FAILURE)
 							return@runAfter
 						}
@@ -670,13 +674,17 @@ internal class TrackerService : CoreService() {
 							}
 						}
 					}
+					Tracebox.log.info(TrackerTraceboxTemplates.TRACKING_SESSION_STARTED)
 
 				}
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {
 				if (!e.isTrackingOperationalFailure()) throw e
-				Tracebox.log.error("Tracking start failed: storage unavailable")
+				Tracebox.log.error(
+					e,
+					TrackerTraceboxTemplates.TRACKING_START_STORAGE_UNAVAILABLE,
+				)
 				requestGracefulStop(reason = TrackingStopCandidateReason.INITIALIZATION_FAILURE)
 			}
 		}
@@ -815,7 +823,7 @@ internal class TrackerService : CoreService() {
 
 	private fun onForegroundStartFailed(stopService: Boolean) {
 		if (stopService) {
-			Tracebox.log.error("Tracking start failed")
+			Tracebox.log.error(TrackerTraceboxTemplates.TRACKING_START_FAILED)
 			TrackerNotificationManager.postStartFailedNotification(this)
 			requestGracefulStop(reason = TrackingStopCandidateReason.PERMISSION_UNAVAILABLE)
 		}
@@ -825,7 +833,7 @@ internal class TrackerService : CoreService() {
 		val wakeLockStartedAtNanos = Time.elapsedRealtimeNanos
 		wakeLock.acquire(Time.SECOND_IN_MILLISECONDS * 10L)
 		try {
-			Tracebox.log.performanceSuspend("Process tracking cycle") {
+			Tracebox.log.performanceSuspend(TrackerTraceboxTemplates.PROCESS_TRACKING_CYCLE) {
 				orchestrator.onCycleUpdate(this@TrackerService, cycle)
 			}
 		} finally {
@@ -881,7 +889,7 @@ internal class TrackerService : CoreService() {
 		cycleDispatcherScope?.cancel()
 		cycleDispatcherScope = null
 		if (!drained || !cancelled) {
-			Tracebox.log.warn("Tracking shutdown was degraded")
+			Tracebox.log.warn(TrackerTraceboxTemplates.TRACKING_SHUTDOWN_DEGRADED)
 		}
 		return cancelled
 	}
@@ -891,7 +899,10 @@ internal class TrackerService : CoreService() {
 		reason: TrackingStopCandidateReason = TrackingStopCandidateReason.EXPLICIT_REQUEST,
 	) {
 		if (gracefulStopRequested) return
-		Tracebox.log.debug("Tracking stop requested: {}", reason)
+		Tracebox.log.info(
+			TrackerTraceboxTemplates.TRACKING_STOP_REQUESTED,
+			public(reason),
+		)
 		gracefulStopRequested = true
 		stopReason = reason
 		descriptorObservationJob?.cancel()
@@ -927,7 +938,10 @@ internal class TrackerService : CoreService() {
 			?: return
 		val result = activeTrackingSessionStore.clearIfCurrent(stopCandidate)
 		if (result is ActiveTrackingSessionStoreResult.Failure) {
-			Tracebox.log.error("Tracking session store failed")
+			Tracebox.log.error(
+				result.cause,
+				TrackerTraceboxTemplates.TRACKING_SESSION_STORE_FAILED,
+			)
 			return
 		}
 		// Do not overwrite a newer service run's descriptor if it won the atomic comparison.
@@ -937,8 +951,12 @@ internal class TrackerService : CoreService() {
 	}
 
 	private suspend fun saveActiveSession(descriptor: ActiveTrackingSessionDescriptor) {
-		if (activeTrackingSessionStore.save(descriptor) is ActiveTrackingSessionStoreResult.Failure) {
-			Tracebox.log.error("Tracking session store failed")
+		val result = activeTrackingSessionStore.save(descriptor)
+		if (result is ActiveTrackingSessionStoreResult.Failure) {
+			Tracebox.log.error(
+				result.cause,
+				TrackerTraceboxTemplates.TRACKING_SESSION_STORE_FAILED,
+			)
 		}
 	}
 
@@ -1137,7 +1155,7 @@ internal class TrackerService : CoreService() {
 			finalCycleCancellationFailure != null ||
 			shutdownSequence.shutdownResult == null
 		) {
-			Tracebox.log.warn("Tracking shutdown was degraded")
+			Tracebox.log.warn(TrackerTraceboxTemplates.TRACKING_SHUTDOWN_DEGRADED)
 			orchestrator.enqueueDailySummaryFallback(context)
 			retryTrackingShutdown(
 				maxAttempts = FINAL_TEARDOWN_MAX_ATTEMPTS,
@@ -1159,6 +1177,7 @@ internal class TrackerService : CoreService() {
 			Tracebox.log.recordCoordinatorSessionMetrics(coordinatorTelemetry.snapshot() - baseline)
 		}
 		coordinatorMetricBaseline = null
+		Tracebox.log.info(TrackerTraceboxTemplates.TRACKING_SESSION_STOPPED)
 		HistoricalTrajectoryReconstructionWorker.schedule(context)
 	}
 

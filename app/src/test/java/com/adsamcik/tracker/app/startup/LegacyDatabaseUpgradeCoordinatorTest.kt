@@ -80,7 +80,7 @@ class LegacyDatabaseUpgradeCoordinatorTest {
 		val result = coordinator.ensureReady()
 
 		result.shouldBeInstanceOf<LegacyDatabaseStartupResult.Failed>().message shouldBe
-			"The v27 database opened without a completed legacy import marker"
+			"IllegalStateException"
 		verify(exactly = 0) { repository.markComplete() }
 		coordinator.isReady() shouldBe false
 	}
@@ -93,7 +93,8 @@ class LegacyDatabaseUpgradeCoordinatorTest {
 
 		val result = coordinator.ensureReady()
 
-		result.shouldBeInstanceOf<LegacyDatabaseStartupResult.Failed>().message shouldBe "broken vault"
+		result.shouldBeInstanceOf<LegacyDatabaseStartupResult.Failed>().message shouldBe
+			"IllegalStateException"
 		verify { repository.markFailed(failure) }
 		verify(exactly = 0) { openHelper.writableDatabase }
 		coordinator.isReady() shouldBe false
@@ -119,7 +120,7 @@ class LegacyDatabaseUpgradeCoordinatorTest {
 		val result = coordinator.ensureReady()
 
 		result.shouldBeInstanceOf<LegacyDatabaseStartupResult.Failed>().message shouldBe
-			"deletion remains pending"
+			"IllegalStateException"
 		coVerify(exactly = 1) { collectedDataDeletionService.reconcilePendingDeletion() }
 		verify(exactly = 0) { repository.inspect() }
 		verify(exactly = 0) { openHelper.writableDatabase }

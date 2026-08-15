@@ -1,10 +1,12 @@
 package com.adsamcik.tracker.app.startup
 
 import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
+import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseRepository
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyImportStatus
 import com.adsamcik.tracker.shared.base.database.legacy.hasCompletedLegacyImport
+import dev.tracebox.Tracebox
 import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
@@ -62,9 +64,10 @@ class LegacyDatabaseUpgradeCoordinator @Inject constructor(
 			throw error
 		} catch (error: Throwable) {
 			readyForThisProcess.set(false)
+			Tracebox.log.error(error, TrackerTraceboxTemplates.LEGACY_DATABASE_IMPORT_FAILED)
 			repository.markFailed(error)
 			LegacyDatabaseStartupResult.Failed(
-				error.message ?: "Legacy database import failed",
+				error::class.java.simpleName,
 			)
 		}
 	}

@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.pipeline
 
+import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import dev.tracebox.Tracebox
 import android.content.Context
 import kotlinx.coroutines.CancellationException
@@ -17,7 +18,7 @@ internal class TrackingPipeline(
 			} catch (error: CancellationException) {
 				throw error
 			} catch (error: Exception) {
-				Tracebox.log.error(error, "Tracking pipeline stage failed")
+				Tracebox.log.error(error, TrackerTraceboxTemplates.TRACKING_PIPELINE_STAGE_FAILED)
 				StageResult.Continue
 			}
 			if (result == StageResult.Skip) break

@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.pipeline.persistence
 
+import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import dev.tracebox.Tracebox
 import android.database.sqlite.SQLiteConstraintException
 import com.adsamcik.tracker.shared.base.Time
@@ -275,7 +276,7 @@ class PersistenceProcessor @Inject constructor(
 		} catch (e: CancellationException) {
 			throw e
 		} catch (@Suppress("TooGenericExceptionCaught") error: Exception) {
-			Tracebox.log.error(error, "Tracking persistence write failed")
+			Tracebox.log.error(error, TrackerTraceboxTemplates.TRACKING_PERSISTENCE_WRITE_FAILED)
 			return DurableAdmissionStatus.FAILED
 		}
 	}
@@ -673,7 +674,7 @@ class PersistenceProcessor @Inject constructor(
 			lastPersistenceFailure = e
 			commitStatusUnknown = true
 			if (reconcileUnknownCommit() == CommitResolution.COMMITTED) return true
-			Tracebox.log.error(e, "Tracking persistence write failed")
+			Tracebox.log.error(e, TrackerTraceboxTemplates.TRACKING_PERSISTENCE_WRITE_FAILED)
 			return false
 		} catch (e: CancellationException) {
 			lastPersistenceFailure = e
@@ -686,7 +687,7 @@ class PersistenceProcessor @Inject constructor(
 			lastPersistenceFailure = e
 			commitStatusUnknown = true
 			if (reconcileUnknownCommit() == CommitResolution.COMMITTED) return true
-			Tracebox.log.error(e, "Tracking persistence write failed")
+			Tracebox.log.error(e, TrackerTraceboxTemplates.TRACKING_PERSISTENCE_WRITE_FAILED)
 			return false
 		}
 
@@ -828,7 +829,7 @@ class PersistenceProcessor @Inject constructor(
 				CommitResolution.ROLLED_BACK
 			}
 			else -> {
-				Tracebox.log.error("Persistence commit became inconsistent")
+				Tracebox.log.error(TrackerTraceboxTemplates.PERSISTENCE_COMMIT_INCONSISTENT)
 				CommitResolution.UNKNOWN
 			}
 		}

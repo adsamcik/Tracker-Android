@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.coordinator
 
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationOutboxDispatcher
 import com.adsamcik.tracker.tracker.source.projection.EventTrackingFrameOutboxDispatcher
 import com.adsamcik.tracker.tracker.source.projection.ExplicitTrackingJoinProjection
@@ -25,12 +26,12 @@ class SourcePipelineRecovery @Inject constructor(
 		) + trackingFrameEffects.completeTerminalLegacyEffects()
 		val drain = coordinator.drainAvailable(owner)
 		val activityDelivered = if (drain is CoordinatorDrainResult.Complete) {
-			drainOutboxToQuiescence(SourceOutbox.ACTIVITY_AUTOMATION, activityEffects::drain)
+			drainOutboxToQuiescence(activityEffects::drain)
 		} else {
 			0
 		}
 		val trackingFramesDelivered = if (drain is CoordinatorDrainResult.Complete) {
-			drainOutboxToQuiescence(SourceOutbox.TRACKING_FRAME, trackingFrameEffects::drain)
+			drainOutboxToQuiescence(trackingFrameEffects::drain)
 		} else {
 			0
 		}
@@ -43,7 +44,6 @@ class SourcePipelineRecovery @Inject constructor(
 	}
 
 	private suspend fun drainOutboxToQuiescence(
-		outbox: SourceOutbox,
 		drainBatch: suspend (Int) -> Int,
 	): Int {
 		var delivered = 0
@@ -52,18 +52,13 @@ class SourcePipelineRecovery @Inject constructor(
 			delivered += batch
 			if (batch < OUTBOX_BATCH_SIZE) return delivered
 		}
-		Tracebox.log.warn("Source outbox {} drain reached its safety bound", outbox)
+		Tracebox.log.warn(TrackerTraceboxTemplates.SOURCE_OUTBOX_DRAIN_BOUNDED)
 		return delivered
 	}
 
 	private companion object {
 		const val OUTBOX_BATCH_SIZE = 100
 		const val MAX_OUTBOX_DRAIN_BATCHES = 100
-	}
-
-	private enum class SourceOutbox {
-		ACTIVITY_AUTOMATION,
-		TRACKING_FRAME,
 	}
 }
 

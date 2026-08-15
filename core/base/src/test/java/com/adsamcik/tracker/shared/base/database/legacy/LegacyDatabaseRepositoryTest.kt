@@ -90,7 +90,7 @@ class LegacyDatabaseRepositoryTest {
 
 		val state = repository.currentState()
 		state.importStatus shouldBe LegacyImportStatus.FAILED
-		state.lastError shouldBe "broken source"
+		state.lastError shouldBe "IllegalStateException"
 	}
 
 	private fun createLegacyDatabase() {

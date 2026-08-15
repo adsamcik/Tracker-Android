@@ -29,6 +29,7 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import dev.tracebox.Tracebox
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -88,13 +89,13 @@ internal class ActivityReceiver : BroadcastReceiver() {
 				if (admission.isDurable) {
 					delivery.publishTo(entryPoint.backend())
 				} else {
-					Tracebox.log.warn("Activity callback durable handoff was not completed")
+					Tracebox.log.warn(TrackerTraceboxTemplates.ACTIVITY_CALLBACK_HANDOFF_INCOMPLETE)
 				}
 			} catch (cancelled: CancellationException) {
 				throw cancelled
 			} catch (error: Throwable) {
 				// A failed handoff must not leak a non-durable in-process effect.
-				Tracebox.log.error(error, "Activity callback durable handoff failed")
+				Tracebox.log.error(error, TrackerTraceboxTemplates.ACTIVITY_CALLBACK_HANDOFF_FAILED)
 			} finally {
 				pendingResult.finish()
 			}

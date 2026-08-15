@@ -230,10 +230,7 @@ class ArchitecturalFitnessTest {
 		}
 
 		@Test
-		fun `Tracebox calls keep runtime payloads out of templates and tracked values out of arguments`() {
-			val sensitiveTrackedValue = Regex(
-				"""\b(?:latitude|longitude|latE7|lonE7|eventId|providerDedupKey|sourceSignalId)\b""",
-			)
+		fun `Tracebox calls use static templates and explicitly classified safe arguments`() {
 			val violations = projectRoot.walkTopDown()
 				.onEnter { directory ->
 					!directory.isInExcludedDirectory(
@@ -247,17 +244,41 @@ class ArchitecturalFitnessTest {
 					)
 				}
 				.flatMap { file ->
-					TRACEBOX_LOG_CALL_PATTERN.findAll(file.readText()).mapNotNull { call ->
-						if ('$' in call.value || sensitiveTrackedValue.containsMatchIn(call.value)) {
-							"${file.relativeTo(projectRoot)}: ${call.value.replace('\n', ' ')}"
-						} else {
-							null
+					extractTraceboxCalls(file.readText()).flatMap { call ->
+						traceboxCallViolations(call).map { reason ->
+							"${file.relativeTo(projectRoot)}: $reason: ${call.replace('\n', ' ')}"
 						}
 					}
 				}
 				.toList()
 
 			violations.shouldBeEmpty()
+		}
+
+		@Test
+		fun `Tracker Tracebox template catalog contains only single static literals`() {
+			val templateFile = projectRoot.resolve(
+				"core/diagnostics/src/main/java/com/adsamcik/tracker/diagnostics/" +
+					"TrackerTraceboxTemplates.kt",
+			)
+			check(templateFile.isFile) { "Missing Tracker Tracebox template catalog" }
+			val source = templateFile.readText()
+			val declarationCount = Regex("""\bconst\s+val\b""").findAll(source).count()
+			val literalDeclarations = TRACEBOX_STATIC_TEMPLATE_DECLARATION.findAll(source).toList()
+			buildList {
+				if (literalDeclarations.size != declarationCount) {
+					add("Every template must be a const val initialized by one string literal")
+				}
+				literalDeclarations.forEach { declaration ->
+					val template = declaration.groupValues[2]
+					if ('$' in template) {
+						add("${declaration.groupValues[1]} contains interpolation")
+					}
+				}
+				if ('+' in source) {
+					add("Template catalog contains string concatenation")
+				}
+			}.shouldBeEmpty()
 		}
 
 		@Test
@@ -870,6 +891,105 @@ class ArchitecturalFitnessTest {
 			trimmed.startsWith("/*")
 	}
 
+	private fun extractTraceboxCalls(source: String): Sequence<String> = sequence {
+		TRACEBOX_LOG_CALL_START_PATTERN.findAll(source).forEach { match ->
+			var cursor = match.range.last + 1
+			while (cursor < source.length && source[cursor].isWhitespace()) cursor++
+			if (cursor >= source.length || source[cursor] != '(') return@forEach
+			val end = matchingParenthesis(source, cursor) ?: return@forEach
+			yield(source.substring(match.range.first, end + 1))
+		}
+	}
+
+	@Suppress("CyclomaticComplexMethod")
+	private fun matchingParenthesis(source: String, openingIndex: Int): Int? {
+		var depth = 0
+		var inString = false
+		var escaped = false
+		for (index in openingIndex until source.length) {
+			val character = source[index]
+			if (inString) {
+				when {
+					escaped -> escaped = false
+					character == '\\' -> escaped = true
+					character == '"' -> inString = false
+				}
+				continue
+			}
+			when (character) {
+				'"' -> inString = true
+				'(' -> depth++
+				')' -> {
+					depth--
+					if (depth == 0) return index
+				}
+			}
+		}
+		return null
+	}
+
+	private fun traceboxCallViolations(call: String): List<String> {
+		val method = call.substringBefore('(').substringAfterLast('.')
+		val arguments = splitTopLevelArguments(call.substringAfter('(').dropLast(1))
+		val templateIndex = if (
+			method == "error" &&
+			arguments.firstOrNull()?.trim()?.startsWith("TrackerTraceboxTemplates.") == false
+		) {
+			1
+		} else {
+			0
+		}
+		return buildList {
+			val template = arguments.getOrNull(templateIndex)
+			if (template == null || !TRACEBOX_TEMPLATE_REFERENCE.matches(template.trim())) {
+				add("template is not a TrackerTraceboxTemplates constant")
+			}
+			if (TRACEBOX_EXCEPTION_MESSAGE_PATTERN.containsMatchIn(call)) {
+				add("exception message or rendered stack was supplied")
+			}
+			arguments.drop(templateIndex + 1).forEach { argument ->
+				val trimmed = argument.trim()
+				if (!TRACEBOX_CLASSIFIED_ARGUMENT.matches(trimmed)) {
+					add("runtime argument is not explicitly privacy-classified")
+				}
+				if (TRACEBOX_PROHIBITED_ARGUMENT_NAME.containsMatchIn(trimmed)) {
+					add("runtime argument references prohibited tracked or identifying data")
+				}
+			}
+		}
+	}
+
+	@Suppress("CyclomaticComplexMethod")
+	private fun splitTopLevelArguments(arguments: String): List<String> {
+		if (arguments.isBlank()) return emptyList()
+		val result = mutableListOf<String>()
+		var start = 0
+		var depth = 0
+		var inString = false
+		var escaped = false
+		arguments.forEachIndexed { index, character ->
+			if (inString) {
+				when {
+					escaped -> escaped = false
+					character == '\\' -> escaped = true
+					character == '"' -> inString = false
+				}
+				return@forEachIndexed
+			}
+			when (character) {
+				'"' -> inString = true
+				'(', '[', '{' -> depth++
+				')', ']', '}' -> depth--
+				',' -> if (depth == 0) {
+					result += arguments.substring(start, index)
+					start = index + 1
+				}
+			}
+		}
+		result += arguments.substring(start)
+		return result.filterNot(String::isBlank)
+	}
+
 	companion object {
 		// Exclude build artifacts, IDE caches, AND git worktrees (`.worktrees/`) —
 		// worktrees contain other branches' source trees that aren't part of the
@@ -892,10 +1012,31 @@ class ArchitecturalFitnessTest {
 			"""(?<![A-Za-z0-9_])Dispatchers\.(IO|Main|Default)\b"""
 		)
 
-		private val TRACEBOX_LOG_CALL_PATTERN = Regex(
-			"""Tracebox\.log\.(?:verbose|debug|info|warn|error|performance|performanceSuspend)""" +
-				"""\s*\((?:[^()]|\([^()]*\))*\)""",
-			setOf(RegexOption.DOT_MATCHES_ALL),
+		private val TRACEBOX_LOG_CALL_START_PATTERN = Regex(
+			"""Tracebox\.log\.(?:verbose|debug|info|warn|error|performance|performanceStart|performanceSuspend)""",
+		)
+
+		private val TRACEBOX_TEMPLATE_REFERENCE = Regex(
+			"""TrackerTraceboxTemplates\.[A-Z][A-Z0-9_]*""",
+		)
+
+		private val TRACEBOX_CLASSIFIED_ARGUMENT = Regex(
+			"""(?:public|sensitive|pii|secret|argument)\s*\([\s\S]*\)""",
+		)
+
+		private val TRACEBOX_EXCEPTION_MESSAGE_PATTERN = Regex(
+			"""\.(?:message|localizedMessage|stackTraceToString)\b""",
+		)
+
+		private val TRACEBOX_PROHIBITED_ARGUMENT_NAME = Regex(
+			"""\b(?:latitude|longitude|latE7|lonE7|coordinate|ssid|bssid|uri|url|host|filename|""" +
+				"""fileName|path|userText|database|contents|logicalTrackingId|serviceRunId|eventId|""" +
+				"""providerDedupKey|sourceSignalId|deviceId|userId|androidId|advertisingId|networkId)\b""",
+			RegexOption.IGNORE_CASE,
+		)
+
+		private val TRACEBOX_STATIC_TEMPLATE_DECLARATION = Regex(
+			"""const\s+val\s+([A-Z][A-Z0-9_]*)\s*=\s*"([^"\r\n]*)"""",
 		)
 
 		private val PROJECT_DEPENDENCY_PATTERN = Regex(

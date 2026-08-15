@@ -3,9 +3,11 @@ package com.adsamcik.tracker.map
 import android.content.Context
 import android.os.StrictMode
 import androidx.annotation.VisibleForTesting
+import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import dev.tracebox.Tracebox
+import dev.tracebox.api.public
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.MainCoroutineDispatcher
 import kotlinx.coroutines.withContext
@@ -192,22 +194,33 @@ object MapLibreInitializer {
             _isOnlineReady.value = true
             _lastHttpCallFactoryFailure.value = null
             MapLibreHttpFactoryInstallResult.Installed
-        } catch (_: LinkageError) {
-            recordInstallationFailureLocked(MapLibreHttpFactoryFailureReason.LINKAGE_ERROR)
-        } catch (_: Exception) {
-            recordInstallationFailureLocked(MapLibreHttpFactoryFailureReason.INSTALLATION_EXCEPTION)
+        } catch (error: LinkageError) {
+            recordInstallationFailureLocked(MapLibreHttpFactoryFailureReason.LINKAGE_ERROR, error)
+        } catch (@Suppress("TooGenericExceptionCaught") error: Exception) {
+            recordInstallationFailureLocked(
+                MapLibreHttpFactoryFailureReason.INSTALLATION_EXCEPTION,
+                error,
+            )
         }
 
     private fun recordInstallationFailureLocked(
         reason: MapLibreHttpFactoryFailureReason,
+        cause: Throwable? = null,
     ): MapLibreHttpFactoryInstallResult.Failure {
         _isOnlineReady.value = false
         _lastHttpCallFactoryFailure.value = reason
-        Tracebox.log.error(
-            "MapLibre gateway HTTP factory installation failed; " +
-                "online networking remains disabled ({})",
-            reason,
-        )
+        if (cause == null) {
+            Tracebox.log.error(
+                TrackerTraceboxTemplates.MAPLIBRE_HTTP_FACTORY_INSTALLATION_FAILED,
+                public(reason),
+            )
+        } else {
+            Tracebox.log.error(
+                cause,
+                TrackerTraceboxTemplates.MAPLIBRE_HTTP_FACTORY_INSTALLATION_FAILED,
+                public(reason),
+            )
+        }
         return MapLibreHttpFactoryInstallResult.Failure(reason)
     }
 
@@ -251,11 +264,19 @@ object MapLibreInitializer {
                     // bundled and user-imported PMTiles keep working when installation fails.
                     _isSdkReady.value = true
                     true
-                } catch (_: UnsatisfiedLinkError) {
+                } catch (error: UnsatisfiedLinkError) {
+                    Tracebox.log.error(
+                        error,
+                        TrackerTraceboxTemplates.MAPLIBRE_SDK_INITIALIZATION_FAILED,
+                    )
                     false
                 } catch (e: CancellationException) {
                     throw e
-                } catch (_: Exception) {
+                } catch (@Suppress("TooGenericExceptionCaught") error: Exception) {
+                    Tracebox.log.error(
+                        error,
+                        TrackerTraceboxTemplates.MAPLIBRE_SDK_INITIALIZATION_FAILED,
+                    )
                     false
                 }
             }
