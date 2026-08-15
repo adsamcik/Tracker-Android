@@ -79,10 +79,6 @@ android {
         versionName = "10.0.0"
     }
 
-    androidResources {
-        localeFilters += "en"
-    }
-
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
     }

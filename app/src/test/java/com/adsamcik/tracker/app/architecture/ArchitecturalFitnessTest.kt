@@ -287,6 +287,38 @@ class ArchitecturalFitnessTest {
 		}
 
 		@Test
+		fun `declared Tracker locales package localized diagnostics entry resources`() {
+			val appBuild = projectRoot.resolve("app/build.gradle.kts").readText()
+			val localeConfig = projectRoot.resolve(
+				"app/src/main/res/xml/locales_config.xml",
+			).readText()
+			val localizedStringFiles = projectRoot.resolve("app/src/main/res")
+				.listFiles()
+				.orEmpty()
+				.filter { directory -> directory.isDirectory && directory.name.startsWith("values-") }
+				.map { directory -> directory.resolve("strings.xml") }
+
+			buildList {
+				if ("localeFilters" in appBuild) {
+					add("app/build.gradle.kts must not strip declared non-English locales")
+				}
+				localizedStringFiles.forEach { strings ->
+					val source = strings.readText()
+					listOf("settings_tracebox_title", "settings_tracebox_root_summary").forEach { name ->
+						if ("name=\"$name\"" !in source) {
+							add("${strings.relativeTo(projectRoot)} is missing $name")
+						}
+					}
+				}
+				if (localizedStringFiles.size !=
+					Regex("""<locale\s+android:name="""").findAll(localeConfig).count() - 1
+				) {
+					add("locale config and localized resource directory counts differ")
+				}
+			}.shouldBeEmpty()
+		}
+
+		@Test
 		fun `Android production sources contain no alternate diagnostics writer`() {
 			findPatternMatching(
 				sourceDir = projectRoot,
