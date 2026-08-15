@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.maintenance
 
+import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import dev.tracebox.Tracebox
 import android.content.Context
 import androidx.hilt.work.HiltWorker
@@ -74,7 +75,7 @@ class DataRetentionWorker @AssistedInject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (error: Exception) {
-            Tracebox.log.error(error, "Data retention failed")
+            Tracebox.log.error(error, TrackerTraceboxTemplates.DATA_RETENTION_FAILED)
             Result.retry()
         }
     }

@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.component.consumer.post
 
+import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import dev.tracebox.Tracebox
 import android.content.Context
 import com.adsamcik.tracker.shared.base.Time
@@ -176,7 +177,7 @@ internal class SkiSegmentWriter(
 			} catch (error: CancellationException) {
 				throw error
 			} catch (error: Exception) {
-				Tracebox.log.error(error, "Tracking persistence write failed")
+				Tracebox.log.error(error, TrackerTraceboxTemplates.TRACKING_PERSISTENCE_WRITE_FAILED)
 			}
 		}
 	}
@@ -190,7 +191,7 @@ internal class SkiSegmentWriter(
 			} catch (error: CancellationException) {
 				throw error
 			} catch (error: Exception) {
-				Tracebox.log.error(error, "Tracking persistence write failed")
+				Tracebox.log.error(error, TrackerTraceboxTemplates.TRACKING_PERSISTENCE_WRITE_FAILED)
 			}
 		}
 	}

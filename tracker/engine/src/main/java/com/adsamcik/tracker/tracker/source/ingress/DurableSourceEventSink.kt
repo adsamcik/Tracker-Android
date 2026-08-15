@@ -9,6 +9,7 @@ import com.adsamcik.tracker.tracker.source.control.CollectionMotionController
 import com.adsamcik.tracker.tracker.source.runtime.SourceAdmissionFailureCode
 import com.adsamcik.tracker.tracker.source.runtime.SourceAdmissionHandoff
 import com.adsamcik.tracker.tracker.source.runtime.SourceEventSink
+import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import dev.tracebox.Tracebox
 import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
@@ -49,12 +50,12 @@ class DurableSourceEventSinkFactory private constructor(
 			try {
 				val recovered = recovery?.drainCommittedWork()
 				if (recovered != null && recovered.drain !is com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult.Complete) {
-					Tracebox.log.warn("Durable source projection recovery was deferred")
+					Tracebox.log.warn(TrackerTraceboxTemplates.DURABLE_SOURCE_RECOVERY_DEFERRED)
 				}
 			} catch (cancelled: CancellationException) {
 				throw cancelled
 			} catch (error: Throwable) {
-				Tracebox.log.error(error, "Durable source projection recovery failed")
+				Tracebox.log.error(error, TrackerTraceboxTemplates.DURABLE_SOURCE_RECOVERY_FAILED)
 			}
 		}
 		return result.toHandoff()

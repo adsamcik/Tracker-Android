@@ -9,6 +9,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
+import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import dev.tracebox.Tracebox
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
@@ -37,12 +38,12 @@ class TrackerModuleInitializer @Inject constructor(
 				lockManager.initializeFromPersistence(context)
 				val recovery = sourcePipelineRecovery.drainCommittedWork()
 				if (recovery.drain !is com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult.Complete) {
-					Tracebox.log.warn("Startup source projection recovery was deferred")
+					Tracebox.log.warn(TrackerTraceboxTemplates.STARTUP_SOURCE_RECOVERY_DEFERRED)
 				}
 			} catch (cancelled: CancellationException) {
 				throw cancelled
 			} catch (error: Throwable) {
-				Tracebox.log.error(error, "Tracker module initialization failed")
+				Tracebox.log.error(error, TrackerTraceboxTemplates.TRACKER_MODULE_INITIALIZATION_FAILED)
 			}
 		}
 	}

@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.activity.api.backend
 
+import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import dev.tracebox.Tracebox
 import android.annotation.SuppressLint
 import android.app.PendingIntent
@@ -102,7 +103,7 @@ class GmsActivityRecognitionBackend @Inject constructor(
 	): Boolean =
 		subscriptionMutex.withLock {
 			if (!isAvailable) {
-				Tracebox.log.warn("Activity recognition is unavailable")
+				Tracebox.log.warn(TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_UNAVAILABLE)
 				return@withLock false
 			}
 
@@ -132,7 +133,7 @@ class GmsActivityRecognitionBackend @Inject constructor(
 				}
 				throw e
 			} catch (e: Exception) {
-				Tracebox.log.error(e, "Activity recognition failed")
+				Tracebox.log.error(e, TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_FAILED)
 				withContext(NonCancellable) {
 					rollbackSubscriptions(client, intent, e)
 				}
@@ -157,7 +158,7 @@ class GmsActivityRecognitionBackend @Inject constructor(
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Exception) {
-			Tracebox.log.error(e, "Activity recognition failed")
+			Tracebox.log.error(e, TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_FAILED)
 			throw e
 		}
 	}

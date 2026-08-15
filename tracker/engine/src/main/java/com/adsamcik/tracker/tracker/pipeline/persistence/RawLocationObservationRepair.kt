@@ -15,7 +15,9 @@ import com.adsamcik.tracker.stats.api.value.LonE7
 import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import dev.tracebox.Tracebox
+import dev.tracebox.api.public
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -59,8 +61,8 @@ class RawLocationObservationRepair @Inject constructor(
 		}
 		if (repaired > 0) {
 			Tracebox.log.info(
-				"Repaired {} canonical raw location observations from source WAL",
-				repaired,
+				TrackerTraceboxTemplates.RAW_LOCATION_REPAIR_COMPLETED,
+				public(repaired),
 			)
 		}
 		return repaired
@@ -70,7 +72,7 @@ class RawLocationObservationRepair @Inject constructor(
 		val payload = try {
 			payloadCodec.decode(SourceKind.LOCATION, payloadVersion, payload) as LocationFixPayload
 		} catch (@Suppress("TooGenericExceptionCaught") error: Exception) {
-			Tracebox.log.error(error, "Unable to decode a location source event during raw repair")
+			Tracebox.log.error(error, TrackerTraceboxTemplates.RAW_LOCATION_REPAIR_DECODE_FAILED)
 			return null
 		}
 		val hasValidCoordinate = payload.latitudeDegrees.isFinite() && payload.longitudeDegrees.isFinite() &&

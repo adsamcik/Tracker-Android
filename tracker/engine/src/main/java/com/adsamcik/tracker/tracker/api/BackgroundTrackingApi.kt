@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.api
 
+import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import dev.tracebox.Tracebox
 import android.content.Context
 import androidx.annotation.MainThread
@@ -460,7 +461,7 @@ object BackgroundTrackingApi {
 			} catch (e: CancellationException) {
 				throw e
 			} catch (error: Exception) {
-				Tracebox.log.error(error, "Activity recognition failed")
+				Tracebox.log.error(error, TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_FAILED)
 			}
 		}
 	}
@@ -498,7 +499,7 @@ object BackgroundTrackingApi {
 				paramsInitialized = true
 			}
 			.catch { error ->
-				Tracebox.log.error(error, "Application initialization failed")
+				Tracebox.log.error(error, TrackerTraceboxTemplates.APPLICATION_INITIALIZATION_FAILED)
 			}
 			.launchIn(scope)
 
@@ -508,7 +509,7 @@ object BackgroundTrackingApi {
 			R.string.settings_disabled_recharge_default
 		).onEach { disabledUntilRecharge = it }
 			.catch { error ->
-				Tracebox.log.error(error, "Application initialization failed")
+				Tracebox.log.error(error, TrackerTraceboxTemplates.APPLICATION_INITIALIZATION_FAILED)
 			}
 			.launchIn(scope)
 
@@ -526,7 +527,7 @@ object BackgroundTrackingApi {
 			}
 		}
 			.catch { error ->
-				Tracebox.log.error(error, "Application initialization failed")
+				Tracebox.log.error(error, TrackerTraceboxTemplates.APPLICATION_INITIALIZATION_FAILED)
 			}
 			.launchIn(scope)
 
@@ -536,7 +537,7 @@ object BackgroundTrackingApi {
 			com.adsamcik.tracker.activity.R.string.settings_activity_watcher_default
 		).onEach { activityWatcherEnabled = it }
 			.catch { error ->
-				Tracebox.log.error(error, "Application initialization failed")
+				Tracebox.log.error(error, TrackerTraceboxTemplates.APPLICATION_INITIALIZATION_FAILED)
 			}
 			.launchIn(scope)
 	}
