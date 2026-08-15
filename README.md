@@ -23,7 +23,9 @@ Tracker is a free, open-source, offline location and activity tracker. All track
 - Record local crash, ANR, and fixed-code diagnostics with Tracebox; nothing is uploaded automatically
 - Supported languages: English, Czech
 - Supported length systems: metric, imperial (USC), ancient roman, sailing, flying
-- Does not upload your tracked data anywhere. Android system backup is controlled by the operating system and can be disabled separately.
+- Does not upload your tracked data anywhere. Android cloud backup and device-to-device transfer
+  are disabled for all Tracker app storage; data leaves only through an export, save, or share
+  action you choose.
 
 ## Development
 
@@ -33,10 +35,10 @@ Tracker is a free, open-source, offline location and activity tracker. All track
 - JDK 21 for Gradle (application bytecode targets Java 17)
 - Android SDK 37 (compile and target)
 - Tracebox artifacts at the version declared by `tracebox` in
-  [`gradle/libs.versions.toml`](gradle/libs.versions.toml). CI resolves that immutable package from
-  GitHub Packages. For local Tracebox development, publish an immutable candidate to an isolated
-  Maven repository and pass `-PtraceboxLocalRepository=<path>` plus
-  `-PtraceboxVersionOverride=<version>` to Gradle. Those validation seams fail closed in CI.
+  [`gradle/libs.versions.toml`](gradle/libs.versions.toml). CI resolves only that immutable package
+  from GitHub Packages. For unpublished Tracebox work, use the explicit disposable-repository
+  workflow in [`docs/TRACEBOX_INTEGRATION.md`](docs/TRACEBOX_INTEGRATION.md); do not publish a
+  candidate to the user's global Maven Local cache. The local validation seams fail closed in CI.
 
 Tracebox is built into every Tracker variant and is the sole crash and diagnostics recorder; there
 is no migration flavor or legacy logger fallback.
@@ -83,6 +85,13 @@ Contributions to Tracker are welcome. If you want any new feature (even if it's 
 
 Tracker uses Crowdin to crowdsource translations. You can help with translating the application today at [https://crowdin.com/project/advention](https://crowdin.com/project/advention).
 
+## Support and diagnostics
+
+For issue-reporting steps, diagnostic privacy guidance, deletion behavior, and degraded native
+capture guidance, see [`docs/SUPPORT.md`](docs/SUPPORT.md). Tracker never sends a diagnostic package
+automatically: you review its disclosure and choose an Android save/share destination. Do not post
+tracking databases, routes, coordinates, network names, or other personal exports in a public issue.
+
 ## Versioning
 
 For readability it's separeted by spaces and underscores however these are not present it the actual versioning, see example.
@@ -113,3 +122,6 @@ Most stable releases meant for general public
 ## Legal
 
 Google Play and the Google Play logo are trademarks of Google LLC.
+
+Tracker is licensed under GPL-3.0. Tracebox is licensed under Apache-2.0; its pinned Crashpad and
+native-component notices are bundled in the app under **Settings → Open source licenses**.

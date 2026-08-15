@@ -204,6 +204,29 @@ class ArchitecturalFitnessTest {
 		}
 
 		@Test
+		fun `repository and in-app privacy policies preserve the Tracebox product contract`() {
+			val repositoryPolicy = projectRoot.resolve("privacypolicy.md").readText()
+			val inAppPolicy = projectRoot.resolve(
+				"app/src/main/res/raw/privacy_policy.txt",
+			).readText()
+			val requiredStatements = listOf(
+				"Tracebox has no automatic upload client",
+				"review its disclosure, approve it",
+				"policy change, deletion, or diagnostics-screen disposal",
+				"Android cloud backup and device-to-device transfer are disabled",
+				"keeps a local deletion marker and retries at startup",
+			)
+
+			buildList {
+				if (repositoryPolicy != inAppPolicy) {
+					add("repository and bundled privacy policies must remain identical")
+				}
+				requiredStatements.filterNot(repositoryPolicy::contains)
+					.mapTo(this) { "privacy policy is missing: $it" }
+			}.shouldBeEmpty()
+		}
+
+		@Test
 		fun `release retains useful local stacks and records deterministic build identity`() {
 			val appBuild = projectRoot.resolve("app/build.gradle.kts").readText()
 			val proguard = projectRoot.resolve("app/proguard-rules.pro").readText()
