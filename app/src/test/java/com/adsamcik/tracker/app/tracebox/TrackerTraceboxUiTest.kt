@@ -34,6 +34,7 @@ class TrackerTraceboxUiTest {
         configuration.packageActions.deleteAllData shouldBe true
         configuration.advancedControls.visible shouldBe true
         configuration.advancedControls.initiallyExpanded shouldBe false
+        configuration.advancedControls.resetToDefaults shouldBe true
         configuration.defaultPolicy shouldBe TrackerTraceboxRuntime.defaultPolicy
     }
 
