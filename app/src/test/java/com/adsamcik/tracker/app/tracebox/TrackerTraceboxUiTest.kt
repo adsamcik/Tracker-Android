@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.app.tracebox
 
+import com.adsamcik.tracker.R
 import dev.tracebox.ui.compose.TraceboxDiagnosticsUiStrings
 import dev.tracebox.ui.compose.TraceboxPrimaryAction
 import io.kotest.matchers.shouldBe
@@ -8,7 +9,10 @@ import org.junit.Test
 class TrackerTraceboxUiTest {
     @Test
     fun `casual share is primary and technical controls begin collapsed`() {
-        val strings = TraceboxDiagnosticsUiStrings(title = "Localized diagnostics")
+        val strings = TraceboxDiagnosticsUiStrings(
+            title = R.string.settings_tracebox_title,
+            description = R.string.settings_tracebox_root_summary,
+        )
         val configuration = TrackerTraceboxUi.configuration(strings)
 
         configuration.strings shouldBe strings

@@ -1,7 +1,5 @@
 package com.adsamcik.tracker.app.tracebox
 
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.res.stringResource
 import com.adsamcik.tracker.R
 import dev.tracebox.ui.compose.TraceboxAdvancedControls
 import dev.tracebox.ui.compose.TraceboxDiagnosticsUiConfiguration
@@ -11,11 +9,10 @@ import dev.tracebox.ui.compose.TraceboxPrimaryAction
 
 /** Tracker's product choices for Tracebox's reusable casual/advanced diagnostics screen. */
 internal object TrackerTraceboxUi {
-    @Composable
     fun configuration(): TraceboxDiagnosticsUiConfiguration = configuration(
         strings = TraceboxDiagnosticsUiStrings(
-            title = stringResource(R.string.settings_tracebox_title),
-            description = stringResource(R.string.settings_tracebox_root_summary),
+            title = R.string.settings_tracebox_title,
+            description = R.string.settings_tracebox_root_summary,
         ),
     )
 

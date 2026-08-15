@@ -3,7 +3,9 @@ package com.adsamcik.tracker.tracker.service
 import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingCoordinatorMetrics
 import dev.tracebox.api.LogCategory
+import dev.tracebox.api.LogArgument
 import dev.tracebox.api.LogLevel
+import dev.tracebox.api.LogTemplate
 import dev.tracebox.api.PerformanceMeasurement
 import dev.tracebox.api.Privacy
 import dev.tracebox.api.PrivacyConfiguration
@@ -48,12 +50,12 @@ class TrackerTelemetryTest {
 		private val performanceEnabled: Boolean,
 	) : TraceboxLogger {
 		lateinit var level: LogLevel
-		lateinit var template: String
-		lateinit var arguments: Array<out Any?>
+		lateinit var template: LogTemplate
+		lateinit var arguments: Array<out LogArgument>
 		val enabledChecks = mutableListOf<Pair<LogLevel, LogCategory>>()
 		var performanceCalls = 0
-		lateinit var performanceTemplate: String
-		lateinit var performanceArguments: Array<out Any?>
+		lateinit var performanceTemplate: LogTemplate
+		lateinit var performanceArguments: Array<out LogArgument>
 		var performanceSucceeded = false
 
 		override fun isEnabled(level: LogLevel, category: LogCategory): Boolean {
@@ -61,18 +63,22 @@ class TrackerTelemetryTest {
 			return performanceEnabled
 		}
 
-		override fun log(level: LogLevel, template: String, vararg arguments: Any?) {
+		override fun log(level: LogLevel, template: LogTemplate, vararg arguments: LogArgument) {
 			this.level = level
 			this.template = template
 			this.arguments = arguments
 		}
 
-		override fun error(throwable: Throwable, template: String, vararg arguments: Any?) =
+		override fun error(
+			throwable: Throwable,
+			template: LogTemplate,
+			vararg arguments: LogArgument,
+		) =
 			error("Throwable logging is not expected in this test")
 
 		override fun performanceStart(
-			template: String,
-			vararg arguments: Any?,
+			template: LogTemplate,
+			vararg arguments: LogArgument,
 		): PerformanceMeasurement {
 			performanceCalls++
 			performanceTemplate = template

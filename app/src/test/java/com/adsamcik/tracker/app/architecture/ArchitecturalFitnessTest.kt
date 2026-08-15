@@ -130,6 +130,12 @@ class ArchitecturalFitnessTest {
 			val handlerGuard = source.indexOf("isTraceboxHandlerProcessName(processName, packageName)")
 			val install = source.indexOf("TrackerTraceboxRuntime.install(this)")
 			val onCreate = source.indexOf("override fun onCreate()")
+			val onCreateHandlerGuard = source.indexOf(
+				"isTraceboxHandlerProcessName(processName, packageName)",
+				onCreate,
+			)
+			val onCreateInstall = source.indexOf("TrackerTraceboxRuntime.install(this)", onCreate)
+			val onCreateSuper = source.indexOf("super.onCreate()", onCreate)
 			buildList {
 				if (attach < 0 || attachSuper < attach || onCreate < 0 || attachSuper > onCreate) {
 					add("Tracebox bootstrap must run from Application.attachBaseContext")
@@ -140,6 +146,12 @@ class ArchitecturalFitnessTest {
 				if (install < 0 || install > onCreate) {
 					add("Tracebox must install before providers and Application.onCreate")
 				}
+				if (onCreateHandlerGuard < onCreate || onCreateHandlerGuard > onCreateSuper) {
+					add("Tracebox handler isolation must precede generated Hilt Application startup")
+				}
+				if (onCreateInstall < onCreateHandlerGuard || onCreateInstall > onCreateSuper) {
+					add("main-process Tracebox installation must precede generated Hilt startup")
+				}
 				listOf(
 					"Reporter.initialize(",
 					"Logger.initialize(",
@@ -147,6 +159,72 @@ class ArchitecturalFitnessTest {
 					"TraceboxTrial",
 					"TRACEBOX_TRIAL_AVAILABLE",
 				).filterTo(this) { marker -> marker in source }
+			}.shouldBeEmpty()
+		}
+
+		@Test
+		fun `Android backup and device transfer exclude all Tracker and Tracebox storage`() {
+			val manifest = projectRoot.resolve("app/src/main/AndroidManifest.xml").readText()
+			val rules = projectRoot.resolve(
+				"app/src/main/res/xml/data_extraction_rules.xml",
+			).readText()
+			val excludedDomains = listOf(
+				"root",
+				"file",
+				"database",
+				"sharedpref",
+				"external",
+				"device_root",
+				"device_file",
+				"device_database",
+				"device_sharedpref",
+			)
+
+			buildList {
+				if ("android:allowBackup=\"false\"" !in manifest) {
+					add("Android backup must be disabled")
+				}
+				if ("android:fullBackupContent=\"false\"" !in manifest) {
+					add("legacy Android full backup must be disabled")
+				}
+				if ("android:dataExtractionRules=\"@xml/data_extraction_rules\"" !in manifest) {
+					add("Android data extraction rules must be attached")
+				}
+				listOf("cloud-backup", "device-transfer").forEach { section ->
+					val body = rules.substringAfter("<$section>", missingDelimiterValue = "")
+						.substringBefore("</$section>", missingDelimiterValue = "")
+					if (body.isEmpty()) add("$section exclusion section is missing")
+					excludedDomains.forEach { domain ->
+						if ("<exclude domain=\"$domain\" path=\".\" />" !in body) {
+							add("$section must exclude the complete $domain domain")
+						}
+					}
+				}
+			}.shouldBeEmpty()
+		}
+
+		@Test
+		fun `release retains useful local stacks and records deterministic build identity`() {
+			val appBuild = projectRoot.resolve("app/build.gradle.kts").readText()
+			val proguard = projectRoot.resolve("app/proguard-rules.pro").readText()
+			val releaseManifest = projectRoot.resolve("tools/release_manifest.py").readText()
+			val workflow = projectRoot.resolve(".github/workflows/android.yml").readText()
+
+			buildList {
+				if ("isMinifyEnabled = true" !in appBuild || "isShrinkResources = true" !in appBuild) {
+					add("release must exercise R8 minification and resource shrinking")
+				}
+				if ("-keepattributes SourceFile,LineNumberTable" !in proguard) {
+					add("release must retain source and line metadata for local Tracebox stacks")
+				}
+				if ("\"r8-mapping\"" !in releaseManifest || "source['commit'][:12]" !in releaseManifest) {
+					add("release evidence must bind R8 mapping to the source-qualified release ID")
+				}
+				if ("app/build/outputs/mapping/release/**" !in workflow ||
+					"app/build/outputs/native-debug-symbols/release/**" !in workflow
+				) {
+					add("CI must retain R8 mapping and native symbol evidence")
+				}
 			}.shouldBeEmpty()
 		}
 
@@ -263,11 +341,11 @@ class ArchitecturalFitnessTest {
 			)
 			check(templateFile.isFile) { "Missing Tracker Tracebox template catalog" }
 			val source = templateFile.readText()
-			val declarationCount = Regex("""\bconst\s+val\b""").findAll(source).count()
+			val declarationCount = Regex("""\bval\s+[A-Z][A-Z0-9_]*\s*=""").findAll(source).count()
 			val literalDeclarations = TRACEBOX_STATIC_TEMPLATE_DECLARATION.findAll(source).toList()
 			buildList {
 				if (literalDeclarations.size != declarationCount) {
-					add("Every template must be a const val initialized by one string literal")
+					add("Every template must be a val initialized by LogTemplate.of with one string literal")
 				}
 				literalDeclarations.forEach { declaration ->
 					val template = declaration.groupValues[2]
@@ -1036,7 +1114,7 @@ class ArchitecturalFitnessTest {
 		)
 
 		private val TRACEBOX_STATIC_TEMPLATE_DECLARATION = Regex(
-			"""const\s+val\s+([A-Z][A-Z0-9_]*)\s*=\s*"([^"\r\n]*)"""",
+			"""val\s+([A-Z][A-Z0-9_]*)\s*=\s*(?:\r?\n\s*)?LogTemplate\.of\(\s*"([^"\r\n]*)"\s*,?\s*\)""",
 		)
 
 		private val PROJECT_DEPENDENCY_PATTERN = Regex(
