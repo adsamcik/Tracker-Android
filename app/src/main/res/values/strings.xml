@@ -566,10 +566,5 @@
     <!-- Local crash and diagnostic capture -->
     <string name="settings_tracebox_title">Crash diagnostics</string>
     <string name="settings_tracebox_root_summary">Local crash, ANR, and structural diagnostics</string>
-    <string name="tracebox_help_title">Help improve Tracker</string>
-    <string name="tracebox_help_description">If Tracker behaved unexpectedly, share local diagnostics with the developer.</string>
-    <string name="tracebox_support_title">Share diagnostics with the developer</string>
-    <string name="tracebox_support_description">Recent crashes, errors, and performance context can help identify what went wrong.</string>
-    <string name="tracebox_review_and_share">Review and share with developer</string>
 
 </resources>

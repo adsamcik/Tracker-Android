@@ -65,8 +65,11 @@ val useOpenGlMapRenderer: Boolean = providers.gradleProperty("useOpenGlMapRender
 val maplibreOpenGlModule: String = libs.maplibre.android.opengl.get().toString()
 val maplibreVulkanModule =
 	"org.maplibre.gl:android-sdk:${libs.versions.maplibreAndroid.get()}"
-val maplibreRendererModule =
-	if (useOpenGlMapRenderer) maplibreOpenGlModule else maplibreVulkanModule
+val maplibreRendererModule = if (useOpenGlMapRenderer) {
+	maplibreOpenGlModule
+} else {
+	maplibreVulkanModule
+}
 val maplibreRendererReason = if (useOpenGlMapRenderer) {
 	"Vulkan renderer segfaults on software-emulated GPUs; use the OpenGL native build"
 } else {

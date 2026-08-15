@@ -14,11 +14,8 @@ internal object TrackerTraceboxUi {
     @Composable
     fun configuration(): TraceboxDiagnosticsUiConfiguration = configuration(
         strings = TraceboxDiagnosticsUiStrings(
-            title = stringResource(R.string.tracebox_help_title),
-            description = stringResource(R.string.tracebox_help_description),
-            supportTitle = stringResource(R.string.tracebox_support_title),
-            supportDescription = stringResource(R.string.tracebox_support_description),
-            reviewAndShare = stringResource(R.string.tracebox_review_and_share),
+            title = stringResource(R.string.settings_tracebox_title),
+            description = stringResource(R.string.settings_tracebox_root_summary),
         ),
     )
 

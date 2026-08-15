@@ -73,40 +73,51 @@ class ArchitecturalFitnessTest {
 			val codeqlWorkflow = projectRoot.resolve(".github/workflows/codeql.yml").readText()
 			val workflowToken = "GITHUB_TOKEN: $" + "{{ github.token }}"
 
-			buildList {
-				if ("traceboxLocalRepository == null && " +
-					"!providers.environmentVariable(\"CI\").isPresent" !in settings
-				) {
-					add("settings.gradle.kts -> CI must not resolve Tracebox from Maven Local")
-				}
-				if ("traceboxLocalRepository is a local validation seam and must not be used in CI" !in
-					settings
-				) {
-					add("settings.gradle.kts -> isolated Tracebox repository must be forbidden in CI")
-				}
-				if ("traceboxVersionOverride is a local validation seam and must not be used in CI" !in
-					rootBuild
-				) {
-					add("build.gradle.kts -> Tracebox version override must be forbidden in CI")
-				}
-				if ("https://maven.pkg.github.com/adsamcik/tracebox" !in settings) {
-					add("settings.gradle.kts -> Tracebox GitHub Packages repository is missing")
-				}
-				if (Regex("(?m)^\\s+packages: read\\s*$").findAll(androidWorkflow).count() < 2) {
-					add("android.yml -> both Gradle jobs need packages: read")
-				}
-				if (androidWorkflow.windowed(workflowToken.length).count { it == workflowToken } < 2) {
-					add("android.yml -> both Gradle jobs must expose github.token to Gradle")
-				}
-				if ("Verify Tracebox package access" !in androidWorkflow ||
-					"--refresh-dependencies" !in androidWorkflow
-				) {
-					add("android.yml -> forced Tracebox package resolution check is missing")
-				}
-				if ("packages: read" !in codeqlWorkflow || workflowToken !in codeqlWorkflow) {
-					add("codeql.yml -> manual Gradle build needs read-only package authentication")
-				}
-			}.shouldBeEmpty()
+			(
+				traceboxRepositoryViolations(settings, rootBuild) +
+					traceboxWorkflowViolations(androidWorkflow, codeqlWorkflow, workflowToken)
+			).shouldBeEmpty()
+		}
+
+		private fun traceboxRepositoryViolations(
+			settings: String,
+			rootBuild: String,
+		): List<String> = buildList {
+			if ("traceboxLocalRepository == null && " +
+				"!providers.environmentVariable(\"CI\").isPresent" !in settings
+			) {
+				add("settings.gradle.kts -> CI must not resolve Tracebox from Maven Local")
+			}
+			if ("traceboxLocalRepository is a local validation seam and must not be used in CI" !in settings) {
+				add("settings.gradle.kts -> isolated Tracebox repository must be forbidden in CI")
+			}
+			if ("traceboxVersionOverride is a local validation seam and must not be used in CI" !in rootBuild) {
+				add("build.gradle.kts -> Tracebox version override must be forbidden in CI")
+			}
+			if ("https://maven.pkg.github.com/adsamcik/tracebox" !in settings) {
+				add("settings.gradle.kts -> Tracebox GitHub Packages repository is missing")
+			}
+		}
+
+		private fun traceboxWorkflowViolations(
+			androidWorkflow: String,
+			codeqlWorkflow: String,
+			workflowToken: String,
+		): List<String> = buildList {
+			if (Regex("(?m)^\\s+packages: read\\s*$").findAll(androidWorkflow).count() < 2) {
+				add("android.yml -> both Gradle jobs need packages: read")
+			}
+			if (androidWorkflow.windowed(workflowToken.length).count { it == workflowToken } < 2) {
+				add("android.yml -> both Gradle jobs must expose github.token to Gradle")
+			}
+			if ("Verify Tracebox package access" !in androidWorkflow ||
+				"--refresh-dependencies" !in androidWorkflow
+			) {
+				add("android.yml -> forced Tracebox package resolution check is missing")
+			}
+			if ("packages: read" !in codeqlWorkflow || workflowToken !in codeqlWorkflow) {
+				add("codeql.yml -> manual Gradle build needs read-only package authentication")
+			}
 		}
 
 		@Test
