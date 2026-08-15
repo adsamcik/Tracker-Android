@@ -68,32 +68,56 @@ class ArchitecturalFitnessTest {
 		@Test
 		fun `CI consumes immutable Tracebox packages with a scoped workflow token`() {
 			val settings = projectRoot.resolve("settings.gradle.kts").readText()
+			val rootBuild = projectRoot.resolve("build.gradle.kts").readText()
 			val androidWorkflow = projectRoot.resolve(".github/workflows/android.yml").readText()
 			val codeqlWorkflow = projectRoot.resolve(".github/workflows/codeql.yml").readText()
 			val workflowToken = "GITHUB_TOKEN: $" + "{{ github.token }}"
 
-			buildList {
-				if ("if (!providers.environmentVariable(\"CI\").isPresent)" !in settings) {
-					add("settings.gradle.kts -> CI must not resolve Tracebox from Maven Local")
-				}
-				if ("https://maven.pkg.github.com/adsamcik/tracebox" !in settings) {
-					add("settings.gradle.kts -> Tracebox GitHub Packages repository is missing")
-				}
-				if (Regex("(?m)^\\s+packages: read\\s*$").findAll(androidWorkflow).count() < 2) {
-					add("android.yml -> both Gradle jobs need packages: read")
-				}
-				if (androidWorkflow.windowed(workflowToken.length).count { it == workflowToken } < 2) {
-					add("android.yml -> both Gradle jobs must expose github.token to Gradle")
-				}
-				if ("Verify Tracebox package access" !in androidWorkflow ||
-					"--refresh-dependencies" !in androidWorkflow
-				) {
-					add("android.yml -> forced Tracebox package resolution check is missing")
-				}
-				if ("packages: read" !in codeqlWorkflow || workflowToken !in codeqlWorkflow) {
-					add("codeql.yml -> manual Gradle build needs read-only package authentication")
-				}
-			}.shouldBeEmpty()
+			(
+				traceboxRepositoryViolations(settings, rootBuild) +
+					traceboxWorkflowViolations(androidWorkflow, codeqlWorkflow, workflowToken)
+			).shouldBeEmpty()
+		}
+
+		private fun traceboxRepositoryViolations(
+			settings: String,
+			rootBuild: String,
+		): List<String> = buildList {
+			if ("traceboxLocalRepository == null && " +
+				"!providers.environmentVariable(\"CI\").isPresent" !in settings
+			) {
+				add("settings.gradle.kts -> CI must not resolve Tracebox from Maven Local")
+			}
+			if ("traceboxLocalRepository is a local validation seam and must not be used in CI" !in settings) {
+				add("settings.gradle.kts -> isolated Tracebox repository must be forbidden in CI")
+			}
+			if ("traceboxVersionOverride is a local validation seam and must not be used in CI" !in rootBuild) {
+				add("build.gradle.kts -> Tracebox version override must be forbidden in CI")
+			}
+			if ("https://maven.pkg.github.com/adsamcik/tracebox" !in settings) {
+				add("settings.gradle.kts -> Tracebox GitHub Packages repository is missing")
+			}
+		}
+
+		private fun traceboxWorkflowViolations(
+			androidWorkflow: String,
+			codeqlWorkflow: String,
+			workflowToken: String,
+		): List<String> = buildList {
+			if (Regex("(?m)^\\s+packages: read\\s*$").findAll(androidWorkflow).count() < 2) {
+				add("android.yml -> both Gradle jobs need packages: read")
+			}
+			if (androidWorkflow.windowed(workflowToken.length).count { it == workflowToken } < 2) {
+				add("android.yml -> both Gradle jobs must expose github.token to Gradle")
+			}
+			if ("Verify Tracebox package access" !in androidWorkflow ||
+				"--refresh-dependencies" !in androidWorkflow
+			) {
+				add("android.yml -> forced Tracebox package resolution check is missing")
+			}
+			if ("packages: read" !in codeqlWorkflow || workflowToken !in codeqlWorkflow) {
+				add("codeql.yml -> manual Gradle build needs read-only package authentication")
+			}
 		}
 
 		@Test
@@ -203,6 +227,37 @@ class ArchitecturalFitnessTest {
 				),
 				skipComments = true,
 			).shouldBeEmpty()
+		}
+
+		@Test
+		fun `Tracebox calls keep runtime payloads out of templates and tracked values out of arguments`() {
+			val sensitiveTrackedValue = Regex(
+				"""\b(?:latitude|longitude|latE7|lonE7|eventId|providerDedupKey|sourceSignalId)\b""",
+			)
+			val violations = projectRoot.walkTopDown()
+				.onEnter { directory ->
+					!directory.isInExcludedDirectory(
+						STANDARD_EXCLUDES + listOf("src/test", "src/androidTest", "src/testFixtures"),
+					)
+				}
+				.filter { file -> file.isFile && file.extension == "kt" }
+				.filterNot { file ->
+					file.isInExcludedDirectory(
+						STANDARD_EXCLUDES + listOf("src/test", "src/androidTest", "src/testFixtures"),
+					)
+				}
+				.flatMap { file ->
+					TRACEBOX_LOG_CALL_PATTERN.findAll(file.readText()).mapNotNull { call ->
+						if ('$' in call.value || sensitiveTrackedValue.containsMatchIn(call.value)) {
+							"${file.relativeTo(projectRoot)}: ${call.value.replace('\n', ' ')}"
+						} else {
+							null
+						}
+					}
+				}
+				.toList()
+
+			violations.shouldBeEmpty()
 		}
 
 		@Test
@@ -835,6 +890,12 @@ class ArchitecturalFitnessTest {
 		// `Dispatchers.IOSomething` false positives.
 		private val DISPATCHERS_USAGE_PATTERN = Regex(
 			"""(?<![A-Za-z0-9_])Dispatchers\.(IO|Main|Default)\b"""
+		)
+
+		private val TRACEBOX_LOG_CALL_PATTERN = Regex(
+			"""Tracebox\.log\.(?:verbose|debug|info|warn|error|performance|performanceSuspend)""" +
+				"""\s*\((?:[^()]|\([^()]*\))*\)""",
+			setOf(RegexOption.DOT_MATCHES_ALL),
 		)
 
 		private val PROJECT_DEPENDENCY_PATTERN = Regex(

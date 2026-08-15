@@ -335,6 +335,7 @@ abstract class CheckRoomSchemaDriftTask @Inject constructor(
     }
 }
 
+/** Generates non-deploying release evidence bound to the current source, artifacts, and CI state. */
 @DisableCachingByDefault(because = "Release evidence binds Git and CI process state")
 abstract class CollectReleaseEvidenceTask @Inject constructor(
     private val execOperations: ExecOperations,
@@ -359,6 +360,7 @@ abstract class CollectReleaseEvidenceTask @Inject constructor(
     @get:OutputDirectory
     abstract val evidenceDirectory: DirectoryProperty
 
+    /** Executes the repository validator with every input needed for reproducible evidence. */
     @TaskAction
     fun collect() {
         execOperations.exec {

@@ -1156,10 +1156,7 @@ internal class TrackerService : CoreService() {
 		}
 		trackingFrameEffects.detach(trackingFrameOwnerToken)
 		coordinatorMetricBaseline?.let { baseline ->
-			Tracebox.log.debug(
-				"Tracking coordinator session metrics: {}",
-				coordinatorTelemetry.snapshot() - baseline,
-			)
+			Tracebox.log.recordCoordinatorSessionMetrics(coordinatorTelemetry.snapshot() - baseline)
 		}
 		coordinatorMetricBaseline = null
 		HistoricalTrajectoryReconstructionWorker.schedule(context)

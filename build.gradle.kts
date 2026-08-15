@@ -65,12 +65,19 @@ val useOpenGlMapRenderer: Boolean = providers.gradleProperty("useOpenGlMapRender
 val maplibreOpenGlModule: String = libs.maplibre.android.opengl.get().toString()
 val maplibreVulkanModule =
 	"org.maplibre.gl:android-sdk:${libs.versions.maplibreAndroid.get()}"
-val maplibreRendererModule =
-	if (useOpenGlMapRenderer) maplibreOpenGlModule else maplibreVulkanModule
+val maplibreRendererModule = if (useOpenGlMapRenderer) {
+	maplibreOpenGlModule
+} else {
+	maplibreVulkanModule
+}
 val maplibreRendererReason = if (useOpenGlMapRenderer) {
 	"Vulkan renderer segfaults on software-emulated GPUs; use the OpenGL native build"
 } else {
 	"Release native SDK is pinned to the reviewed 16 KiB-aligned MapLibre version"
+}
+val traceboxVersionOverride = providers.gradleProperty("traceboxVersionOverride").orNull
+check(traceboxVersionOverride == null || !providers.environmentVariable("CI").isPresent) {
+	"traceboxVersionOverride is a local validation seam and must not be used in CI"
 }
 
 subprojects {
@@ -85,6 +92,14 @@ subprojects {
 	// OpenGL build. Pass -PuseOpenGlMapRenderer=true to enable; device and release builds keep
 	// Vulkan by leaving the flag unset.
 	configurations.configureEach {
+		traceboxVersionOverride?.let { candidateVersion ->
+			resolutionStrategy.eachDependency {
+				if (requested.group == "io.github.tracebox") {
+					useVersion(candidateVersion)
+					because("Validate Tracker against an isolated local Tracebox candidate")
+				}
+			}
+		}
 		resolutionStrategy.dependencySubstitution {
 			substitute(module("org.maplibre.gl:android-sdk"))
 				.using(module(maplibreRendererModule))

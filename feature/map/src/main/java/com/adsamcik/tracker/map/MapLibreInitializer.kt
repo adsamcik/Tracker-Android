@@ -36,10 +36,10 @@ sealed interface MapLibreHttpFactoryInstallResult {
 }
 
 /** Privacy-safe failure categories. No exception message, URL, or host is retained. */
-enum class MapLibreHttpFactoryFailureReason(internal val diagnosticCode: String) {
-    FACTORY_ABSENT("factory_absent"),
-    LINKAGE_ERROR("linkage_error"),
-    INSTALLATION_EXCEPTION("installation_exception"),
+enum class MapLibreHttpFactoryFailureReason {
+    FACTORY_ABSENT,
+    LINKAGE_ERROR,
+    INSTALLATION_EXCEPTION,
 }
 
 /**
@@ -205,7 +205,8 @@ object MapLibreInitializer {
         _lastHttpCallFactoryFailure.value = reason
         Tracebox.log.error(
             "MapLibre gateway HTTP factory installation failed; " +
-                "online networking remains disabled (${reason.diagnosticCode})",
+                "online networking remains disabled ({})",
+            reason,
         )
         return MapLibreHttpFactoryInstallResult.Failure(reason)
     }
