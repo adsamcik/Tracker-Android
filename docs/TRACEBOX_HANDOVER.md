@@ -2,18 +2,18 @@
 
 Date: 2026-08-16
 Tracker integration branch: `dev/v10`
-Tracker activation source: `0f18c7980708b6928d5fe19a1b9b490fc54a46ad`
-Tracebox release source: `b8330785677322eef8a9cf9d0d7220a9565f4b57`
+Tracker activation source: `76ccc1c93153da1f5d82ee2e74121776f4a4d4b6`
+Tracebox release source: `b49e8fda94e0bd65859eb080cacd624d9b72a7f5`
 
 ## Activation status
 
-Tracker's production catalog points to the immutable `0.1.0-alpha.6` package. Annotated tag
-`v0.1.0-alpha.6` (tag object `7929795e5b680a36f4e5feeadb125a4b56c2b22e`) resolves to source
-commit `b8330785677322eef8a9cf9d0d7220a9565f4b57` and tree
-`7a79a1f89e4e926afe7363c3d80f9700d2ff60e2` on remote Tracebox `main`.
+Tracker's production catalog points to the immutable `0.1.0-alpha.7` package. Annotated tag
+`v0.1.0-alpha.7` (tag object `9888d2b8ab2741516ae44125ec0742a2007d96a1`) resolves to source
+commit `b49e8fda94e0bd65859eb080cacd624d9b72a7f5` and tree
+`4d9b6f98579c431f99e2731118b332fc27b07fee` on remote Tracebox `main`.
 
 All ten AARs are available from GitHub Packages and the
-[public prerelease](https://github.com/adsamcik/Tracebox/releases/tag/v0.1.0-alpha.6). Tracker's
+[public prerelease](https://github.com/adsamcik/Tracebox/releases/tag/v0.1.0-alpha.7). Tracker's
 strict dependency metadata and `release/release-inputs.json` bind the resolved graph and direct
 artifacts to that release. A local candidate remains validation evidence, never a production
 dependency, and must not shadow the catalog pin through Maven Local.
@@ -55,7 +55,7 @@ dependency, and must not shadow the catalog pin through Maven Local.
 ## Published release evidence
 
 Tracebox host and release readiness passed on JDK 21 at the exact release commit in
-[CI run 31938190813](https://github.com/adsamcik/Tracebox/actions/runs/31938190813).
+[CI run 31947413036](https://github.com/adsamcik/Tracebox/actions/runs/31947413036).
 The bounded host checks cover toolchain/lock validation, generated-artifact drift, malicious
 corpora, schema goldens, Gradle plugin contracts, Rust format/clippy/workspace tests, native host
 CTest, Android JVM/fixture contracts, release lint, and the static no-network boundary.
@@ -68,13 +68,13 @@ including 16 KiB alignment requirements for 64-bit binaries:
 - `x86`
 - `x86_64`
 
-The protected [release run 31938736920](https://github.com/adsamcik/Tracebox/actions/runs/31938736920)
+The protected [release run 31948121433](https://github.com/adsamcik/Tracebox/actions/runs/31948121433)
 published all ten modules and attached all ten AARs plus the checksum and legal files to the
 prerelease. Every Maven POM and AAR endpoint returned HTTP 200. Independently downloaded Maven and
 release AARs matched the published checksum file byte-for-byte. Tracker then resolved the complete
 ten-module graph from GitHub Packages with strict verification enabled.
 
-The alpha.6 native AAR contains `libtracebox_crashpad.so` for `arm64-v8a`, `armeabi-v7a`, `x86`,
+The alpha.7 native AAR contains `libtracebox_crashpad.so` for `arm64-v8a`, `armeabi-v7a`, `x86`,
 and `x86_64`. Its AAR hash and each embedded ABI payload were checked against the published
 checksum and Tracebox's reviewed native-input lock. Tracker deliberately filters production,
 development-from-release, and release-validation artifacts to `arm64-v8a`; other AAR payloads are
@@ -89,10 +89,12 @@ modules with `-PtraceboxLocalRepository=<path> publishFoundation`, rejects the u
 Tracebox's committed personal-release evidence
 `evidence/personal-release/API36-x86_64-4096-alpha4.json` records 13/13 passing checks on the
 representative API 36 x86_64/4 KiB emulator. The downstream alpha.5 Tracker smoke remains evidence
-for the unchanged startup, handler, native, policy, UI, review/share, and staging-cleanup paths.
-Alpha.6 adds a bounded, policy-gated instantaneous performance observation; it does not change
-schema, capture, native, UI, package, or deletion behavior. The exact alpha.6 host, release,
-published-consumer, and Tracker deterministic tests close that API/runtime delta.
+for startup, native loading, policy, UI, review/share, and staging-cleanup paths that alpha.7 leaves
+unchanged. Alpha.7 adds reduced repeated OOM and bounded stack-overflow capture, immediate
+handler-death withdrawal and coalesced recovery, storage-pressure write suspension with explicit
+retry points, and bounded UID-wide multiprocess exit-history import. The exact alpha.7 host,
+release, published-consumer, and Tracker deterministic tests close those runtime deltas;
+emulator-only process-death injection remains in the bounded manual qualification lane.
 
 Tracker's product wiring is protected by focused bootstrap, handler-isolation, policy persistence,
 localized UI, upload-disabled, deletion, backup exclusion, license, telemetry, and architecture
@@ -113,15 +115,15 @@ interleavings that a smoke is not intended to replace.
 ## Canonical history achieved
 
 Canonical Tracebox history means the reviewed release commit is present on remote `main` and an
-annotated immutable tag points to that exact commit. This has been achieved for `v0.1.0-alpha.6`.
+annotated immutable tag points to that exact commit. This has been achieved for `v0.1.0-alpha.7`.
 It makes the source independently retrievable and lets Tracker attest the tag object, source
 commit/tree, package metadata, and AAR digests. It did not require rewriting or squashing working
 history.
 
-At Tracker activation source `0f18c7980708b6928d5fe19a1b9b490fc54a46ad`, the complete
-ten-module graph resolved from GitHub Packages with Maven Local disabled, the 23 focused
+At Tracker activation source `76ccc1c93153da1f5d82ee2e74121776f4a4d4b6`, the complete
+ten-module graph resolved from GitHub Packages with Maven Local disabled, the 24 focused
 release-attestation tests passed, canonical selective metadata retained 16 reviewed components,
-and strict `:app:compileReleaseKotlin` completed 413 actionable tasks. Repository integration is
+and strict `:app:compileReleaseKotlin` completed 415 actionable tasks. Repository integration is
 accepted only after the rebased branch also passes `ciUnitTest`, `ciCheck --continue`, and clean
 `releaseValidation`; those aggregate gates remain the authoritative final record.
 

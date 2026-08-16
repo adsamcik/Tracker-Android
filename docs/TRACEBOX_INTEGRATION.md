@@ -118,13 +118,13 @@ Tracker release validation retains R8 `SourceFile` and `LineNumberTable` metadat
 mapping, native-symbol archive, Tracebox coordinates, source identity, and build identity. Offline
 retrace/symbolication must match the exact release identity; it never guesses across builds.
 
-Tracker currently consumes the attested immutable `0.1.0-alpha.6` release. The local override
+Tracker currently consumes the attested immutable `0.1.0-alpha.7` release. The local override
 remains validation evidence, not a production dependency, and release/CI builds continue to resolve
 only the catalog-pinned package with strict verification.
 
 ## Post-release consumer qualification
 
-The immutable alpha.6 package resolved its complete ten-module graph from GitHub Packages with
+The immutable alpha.7 package resolved its complete ten-module graph from GitHub Packages with
 Maven Local disabled, passed strict checksum verification, and compiled Tracker's release sources.
 The reusable Tracebox AAR remains multi-ABI, while Tracker's production and release-validation
 artifacts deliberately package only `arm64-v8a`.
@@ -132,8 +132,8 @@ artifacts deliberately package only `arm64-v8a`.
 The representative alpha.5 emulator smoke remains evidence for the unchanged startup, handler,
 native loading, persisted policy, localized UI, package review, share/save, upload-disabled, and
 staging-cleanup paths. It is recorded in
-`evidence/personal-release/tracker-alpha5-integration.json`. Alpha.6 adds only the bounded,
-policy-gated instantaneous performance observation used by Tracker's startup/lifecycle samples; it
-does not change schema, capture, native, UI, package, or deletion behavior. Deterministic alpha.6
-tests and release validation are authoritative for the new measurement semantics and all
-failure-boundary interleavings.
+`evidence/personal-release/tracker-alpha5-integration.json`. Alpha.7 additionally covers repeated
+OOM, bounded stack overflow, handler death, storage pressure, and UID-wide multiprocess exit
+history. Deterministic alpha.7 tests and release validation are authoritative for fault-boundary
+interleavings; the bounded manual emulator lane remains responsible for destructive process-death
+injection.
