@@ -82,8 +82,8 @@ def parse_coordinate(value: str, label: str) -> tuple[str, str, str]:
 
 def expected_coordinates(release_inputs: Mapping[str, Any]) -> set[tuple[str, str, str]]:
     tracebox_version = str(release_inputs["tracebox"]["version"])
-    if tracebox_version != "0.1.0-alpha.5" or "SNAPSHOT" in tracebox_version.upper():
-        raise SelectiveVerificationError("Tracebox must remain fixed at 0.1.0-alpha.5")
+    if tracebox_version != "0.1.0-alpha.6" or "SNAPSHOT" in tracebox_version.upper():
+        raise SelectiveVerificationError("Tracebox must remain fixed at 0.1.0-alpha.6")
 
     expected = {
         (TRACEBOX_GROUP, module, tracebox_version)
@@ -188,12 +188,12 @@ def select_metadata(
         coordinate = component_coordinate(component)
         group, _, version = coordinate
         if group == TRACEBOX_GROUP:
-            if version != tracebox_version:
-                raise SelectiveVerificationError(
-                    "generated metadata contains an unexpected Tracebox coordinate: "
-                    + ":".join(coordinate)
-                )
-            selected.append(component)
+            # Gradle merges newly generated checksums into the existing file. During an
+            # intentional immutable-version rotation, keep only the version attested by
+            # release-inputs.json; required-module and digest validation below still fail
+            # closed if the new graph is incomplete or does not match the reviewed AARs.
+            if version == tracebox_version:
+                selected.append(component)
         elif coordinate in expected:
             selected.append(component)
 

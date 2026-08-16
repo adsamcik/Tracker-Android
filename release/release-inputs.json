@@ -29,7 +29,7 @@
     },
     {
       "name": "libtracebox_crashpad.so",
-      "coordinate": "io.github.tracebox:tracebox-native:0.1.0-alpha.5",
+      "coordinate": "io.github.tracebox:tracebox-native:0.1.0-alpha.6",
       "abis": ["arm64-v8a"]
     }
   ],
@@ -49,16 +49,16 @@
     "bundletoolCoordinate": "com.android.tools.build:bundletool:1.18.3"
   },
   "tracebox": {
-    "version": "0.1.0-alpha.5",
-    "tag": "v0.1.0-alpha.5",
-    "tagObject": "d5aa7408ae8398d5b931b13e858943ef062c6ee2",
-    "sourceCommit": "75651a0f43ac7e8308cab3814e7e1f0241018cf4",
-    "sourceTree": "b66944db50db1d70474ed34e28497d7bb7c1438e",
+    "version": "0.1.0-alpha.6",
+    "tag": "v0.1.0-alpha.6",
+    "tagObject": "7929795e5b680a36f4e5feeadb125a4b56c2b22e",
+    "sourceCommit": "b8330785677322eef8a9cf9d0d7220a9565f4b57",
+    "sourceTree": "7a79a1f89e4e926afe7363c3d80f9700d2ff60e2",
     "repository": "https://github.com/adsamcik/Tracebox",
     "artifactSha256": {
-      "tracebox-0.1.0-alpha.5.aar": "a15a9a0f74ee5540b55e1e2a7cc16d5ef462fb8e402011d162af96526340ff3b",
-      "tracebox-native-0.1.0-alpha.5.aar": "71cb1773f416deeb63c9747a8daeb7fc520c716311dd8ac9ae8b7730a923330e",
-      "tracebox-ui-compose-0.1.0-alpha.5.aar": "c40cdd83728cb703d85aad1c07ed703153bcd75f525d66f1dd99eec6739e09f2"
+      "tracebox-0.1.0-alpha.6.aar": "9a21202fa34155608f5b3ac84a6f8028e1fe3236c188762b6a31bd3781466115",
+      "tracebox-native-0.1.0-alpha.6.aar": "71cb1773f416deeb63c9747a8daeb7fc520c716311dd8ac9ae8b7730a923330e",
+      "tracebox-ui-compose-0.1.0-alpha.6.aar": "c40cdd83728cb703d85aad1c07ed703153bcd75f525d66f1dd99eec6739e09f2"
     }
   }
 }
