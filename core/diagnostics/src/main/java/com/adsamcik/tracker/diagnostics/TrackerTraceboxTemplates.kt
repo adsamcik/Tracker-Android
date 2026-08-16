@@ -34,6 +34,9 @@ object TrackerTraceboxTemplates {
 	)
 	val APPLICATION_RESOURCE_MEASUREMENT_FAILED =
 		LogTemplate.of("Application resource measurement failed")
+	val APPLICATION_REPEATED_LOW_MEMORY_EXITS = LogTemplate.of(
+		"Application observed repeated low-memory exits: count {}, window hours {}",
+	)
 	val APPLICATION_STARTUP_RECONCILED =
 		LogTemplate.of("Application startup reconciliation completed")
 	val DATA_RETENTION_FAILED = LogTemplate.of("Data retention failed")

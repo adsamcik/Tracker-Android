@@ -2,6 +2,7 @@ package com.adsamcik.tracker.app
 
 import android.annotation.SuppressLint
 import android.app.ActivityManager
+import android.app.ApplicationExitInfo
 import android.app.Application as AndroidApplication
 import android.content.Context
 import android.os.Build
@@ -49,6 +50,7 @@ import com.adsamcik.tracker.tracker.resilience.PreviousExitRecoveryCoordinator
 import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
 import dagger.hilt.android.HiltAndroidApp
 import dev.tracebox.Tracebox
+import dev.tracebox.api.public
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
@@ -254,11 +256,27 @@ class Application : AndroidApplication(), Configuration.Provider {
 
 	@WorkerThread
 	private fun determineStartupRecoveryAction(): ApplicationStartupRecoveryAction {
-		val mainProcessExit = previousMainProcessExit()
+		val nowMs = System.currentTimeMillis()
+		val exitHistory = historicalProcessExits()
+		val repeatedLowMemoryExitCount = recentMainProcessExitCount(
+			records = exitHistory,
+			mainProcessName = packageName,
+			reason = ApplicationExitInfo.REASON_LOW_MEMORY,
+			nowMs = nowMs,
+			windowMs = REPEATED_LOW_MEMORY_WINDOW_MS,
+		)
+		if (repeatedLowMemoryExitCount >= REPEATED_LOW_MEMORY_EXIT_THRESHOLD) {
+			Tracebox.log.warn(
+				TrackerTraceboxTemplates.APPLICATION_REPEATED_LOW_MEMORY_EXITS,
+				public(repeatedLowMemoryExitCount),
+				public(REPEATED_LOW_MEMORY_WINDOW_HOURS),
+			)
+		}
+		val mainProcessExit = mostRecentMainProcessExit(exitHistory, packageName)
 		return applicationStartupRecoveryAction(
 			confirmedForceStop = trackingStartupGuard.wasForceStopped(this),
 			mainProcessExit = mainProcessExit,
-			fallbackTimestampMs = System.currentTimeMillis(),
+			fallbackTimestampMs = nowMs,
 		)
 	}
 
@@ -282,11 +300,11 @@ class Application : AndroidApplication(), Configuration.Provider {
 	}
 
 	@WorkerThread
-	private fun previousMainProcessExit(): HistoricalProcessExit? {
-		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
+	private fun historicalProcessExits(): List<HistoricalProcessExit> {
+		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return emptyList()
 		return try {
-			val activityManager = getSystemService(ActivityManager::class.java) ?: return null
-			val records = activityManager
+			val activityManager = getSystemService(ActivityManager::class.java) ?: return emptyList()
+			activityManager
 				.getHistoricalProcessExitReasons(packageName, 0, HISTORICAL_EXIT_RECORD_LIMIT)
 				.map { exitInfo ->
 					HistoricalProcessExit(
@@ -295,9 +313,8 @@ class Application : AndroidApplication(), Configuration.Provider {
 						timestampMs = exitInfo.timestamp,
 					)
 				}
-			mostRecentMainProcessExit(records, packageName)
 		} catch (_: RuntimeException) {
-			null
+			emptyList()
 		}
 	}
 
@@ -398,6 +415,10 @@ class Application : AndroidApplication(), Configuration.Provider {
 
 	private companion object {
 		const val HISTORICAL_EXIT_RECORD_LIMIT = 16
+		const val REPEATED_LOW_MEMORY_EXIT_THRESHOLD = 2
+		const val REPEATED_LOW_MEMORY_WINDOW_HOURS = 24
+		const val REPEATED_LOW_MEMORY_WINDOW_MS =
+			REPEATED_LOW_MEMORY_WINDOW_HOURS * 60L * 60L * 1_000L
 	}
 }
 
@@ -414,6 +435,22 @@ internal fun mostRecentMainProcessExit(
 	.asSequence()
 	.filter { it.processName == mainProcessName }
 	.maxByOrNull { it.timestampMs }
+
+internal fun recentMainProcessExitCount(
+	records: List<HistoricalProcessExit>,
+	mainProcessName: String,
+	reason: Int,
+	nowMs: Long,
+	windowMs: Long,
+): Int {
+	require(windowMs > 0L)
+	val cutoffMs = (nowMs - windowMs).coerceAtLeast(0L)
+	return records.count { exit ->
+		exit.processName == mainProcessName &&
+			exit.reason == reason &&
+			exit.timestampMs in cutoffMs..nowMs
+	}
+}
 
 internal sealed interface ApplicationStartupRecoveryAction {
 	data class ConfirmedForceStop(val completedAtMs: Long) : ApplicationStartupRecoveryAction
