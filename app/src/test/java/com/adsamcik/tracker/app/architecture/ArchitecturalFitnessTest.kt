@@ -256,6 +256,7 @@ class ArchitecturalFitnessTest {
 			).readText()
 			val requiredStatements = listOf(
 				"Tracebox has no automatic upload client",
+				"Performance measurements are disabled by default",
 				"review its disclosure, approve it",
 				"policy change, deletion, or diagnostics-screen disposal",
 				"Android cloud backup and device-to-device transfer are disabled",

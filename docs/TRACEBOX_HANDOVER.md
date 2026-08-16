@@ -28,6 +28,12 @@ dependency, and must not shadow the catalog pin through Maven Local.
   database content, and stable user/device identifiers are excluded.
 - Unexpected failures keep the throwable for structural stack capture; low-volume lifecycle
   breadcrumbs and independently gated performance timings remain.
+- The performance category also supports bounded instantaneous observations. Tracker uses it for a
+  single process-start elapsed/CPU sample and lifecycle-bound battery/power and memory snapshots;
+  the standard policy leaves this disabled and no polling or aggregation is introduced.
+- Tracker exposes process foreground entries, coalesced in-process source-timer firings/requests,
+  and existing frame wake-lock duration as distinct fields. None is represented as privileged
+  Android system-wide wakeup history.
 - Tracker requests the standard policy, persists the requested policy, and exposes the same standard
   policy through restore defaults.
 - The diagnostics UI is resource-backed. Tracker packages every declared locale, provides localized

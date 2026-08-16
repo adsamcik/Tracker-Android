@@ -24,7 +24,8 @@ Data created by the app stays on your device. This can include:
 * location history, routes, and trip/session records
 * activity recognition and step-related data
 * app settings and local app data
-* local Tracebox crash, ANR, process-exit, and fixed structural diagnostics
+* local Tracebox crash, ANR, process-exit, fixed structural diagnostics, and optional performance
+  measurements
 
 ## Local Crash Diagnostics
 
@@ -33,6 +34,14 @@ Tracker's private app storage. Tracker does not put precise coordinates, route h
 identifiers, URIs, filenames, user text, database contents, stable user/device identifiers, or
 exception messages into its diagnostic log calls. Runtime strings and unknown objects are private
 and redacted by default.
+
+Performance measurements are disabled by default. If you enable them in diagnostics, Tracker makes
+low-frequency local observations only at process startup, app foreground/background transitions,
+and the end of a tracking session. These can include startup elapsed and CPU time, process memory
+use and memory-pressure level, battery level/charge/energy counters when Android exposes them,
+charging and power-mode state, app foreground entries, and tracking wake-lock duration. Separately,
+fixed structural diagnostics can include bounded in-process source-timer counts. Tracker does not
+continuously poll these values or claim access to Android's system-wide battery or wakeup history.
 
 Tracebox has no automatic upload client. A diagnostic package can leave the device only after you
 open diagnostics, review its disclosure, approve it, and choose an Android save or share

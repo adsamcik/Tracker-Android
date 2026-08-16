@@ -691,6 +691,14 @@ exception messages, and arbitrary object rendering are excluded. The
 it does not own a parallel facade or data store. Tracker has no diagnostic Room
 storage, file-fallback migration, or legacy crash/log viewer.
 
+The standard diagnostics policy keeps performance observations disabled. If the user enables the
+separate performance category, Tracker records bounded process-start elapsed/CPU time; battery,
+charging, power-mode, process-memory, and memory-pressure snapshots at app foreground/background
+boundaries; and tracking-session frame wake-lock duration. Structural diagnostics and the local
+technical-status UI also expose counts for coalesced in-process source timers. Memory work runs off
+the main thread, unsupported battery counters are marked unavailable, and no periodic polling or
+system-wide wakeup claim is made.
+
 ### 10.2 Diagnostics Controls
 
 The Tracebox settings screen exposes the supported diagnostic workflow:

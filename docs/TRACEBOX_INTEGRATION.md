@@ -25,6 +25,16 @@ product copy, runtime defaults, and the decision to expose only save/share actio
 - Tracker persists the requested runtime policy. A fresh install starts with
   `TraceboxPolicy.standard()`, and the UI's restore-defaults action reapplies that same product
   default rather than a separate UI-only profile.
+- Performance observations are disabled by that standard policy and remain independently gated.
+  When a user enables them, Tracker records one startup clock sample, battery/power and memory
+  snapshots at process foreground/background boundaries, and tracking-session duration totals.
+  Expensive memory sampling runs off the main
+  thread. There is no periodic sampler, time-series aggregator, or network path.
+- Tracker's structural coordinator summary and local technical-status UI expose explicit
+  source-timer firing and coalesced-request counts. “Source timer wakeup” means an in-process timer
+  fired while Tracker's service was active. Tracker separately reports frame wake-lock duration and
+  process foreground entries; it does not label any of these as Android system-wide or hardware
+  wakeup statistics.
 
 ## User disclosure and deletion
 
