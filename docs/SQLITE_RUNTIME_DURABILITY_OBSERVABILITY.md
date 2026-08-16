@@ -15,8 +15,9 @@ not production logs.
 
 Release builds now package the official SQLite Android binding at SQLite `3.53.3`, vendored at
 `core/sqlite-runtime/libs/sqlite-android-3530300.aar`. Its upstream AAR SHA3-256 is
-`d7a6e906a0d06472b56ef7bb4824a6be7b5eb5f162b24be0a0bad2e0c917ed93`; all four packaged ABIs
-(`arm64-v8a`, `armeabi-v7a`, `x86`, and `x86_64`) contain source ID
+`d7a6e906a0d06472b56ef7bb4824a6be7b5eb5f162b24be0a0bad2e0c917ed93`; the reusable input AAR
+retains its reviewed ABI inventory while Tracker packages only `arm64-v8a`, whose binary contains
+source ID
 `2026-06-26 20:14:12 d4c0e51e4aeb96955b99185ab9cde75c339e2c29c3f3f12428d364a10d782c62`.
 This source postdates the SQLite `3.51.3` WAL-reset fix. The Room integration is
 isolated in `:core:sqlite-runtime`; `:core:base` selects its

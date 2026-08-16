@@ -681,8 +681,8 @@ Tracker application graph to avoid recursive installation.
 
 Tracker enables optional native capture and keeps managed capture operational when native setup is
 unavailable. The readiness/health UI reports that condition as degraded. Production release
-evidence requires `libtracebox_crashpad.so` for every supported ABI (`arm64-v8a`, `armeabi-v7a`,
-`x86`, and `x86_64`) and binds native symbols to the exact build identity.
+evidence requires `libtracebox_crashpad.so` for Tracker's supported phone ABI (`arm64-v8a`) and
+binds native symbols to the exact build identity. Debug-only emulator ABIs are not shipped.
 
 Application code emits only static templates with bounded structural values such
 as counts, durations, and enums. Precise coordinates, tracked identifiers,

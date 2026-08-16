@@ -54,7 +54,7 @@ The bounded host checks cover toolchain/lock validation, generated-artifact drif
 corpora, schema goldens, Gradle plugin contracts, Rust format/clippy/workspace tests, native host
 CTest, Android JVM/fixture contracts, release lint, and the static no-network boundary.
 
-The locked native build produced all four Tracker ABIs and passed the library's prebuilt checks,
+The locked reusable Tracebox AAR produced all four library ABIs and passed its prebuilt checks,
 including 16 KiB alignment requirements for 64-bit binaries:
 
 - `arm64-v8a`
@@ -70,8 +70,9 @@ ten-module graph from GitHub Packages with strict verification enabled.
 
 The alpha.5 native AAR contains `libtracebox_crashpad.so` for `arm64-v8a`, `armeabi-v7a`, `x86`,
 and `x86_64`. Its AAR hash and each embedded ABI payload were checked against the published
-checksum and Tracebox's reviewed native-input lock. Tracker's release input allowlist now requires
-all four ABIs.
+checksum and Tracebox's reviewed native-input lock. Tracker deliberately filters production,
+development-from-release, and release-validation artifacts to `arm64-v8a`; other AAR payloads are
+not part of Tracker's supported phone ABI surface.
 
 Tracebox also has a separately committed isolated-publication workflow. It publishes all ten
 modules with `-PtraceboxLocalRepository=<path> publishFoundation`, rejects the user's global

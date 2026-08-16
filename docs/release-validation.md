@@ -26,7 +26,7 @@ prebuilt libraries for which the upstream AAR exposes no extractable symbol tabl
 
 Native validation is allowlist-based and fails for unknown or missing `.so` files. It checks
 every ELF LOAD segment, requires 16 KiB alignment for the 64-bit Play requirement
-(`arm64-v8a` and `x86_64`), requires at least 4 KiB for packaged 32-bit ABIs, requires GNU RELRO
+(`arm64-v8a`), rejects every non-ARM64 packaged ABI, requires GNU RELRO
 for every `.so`, requires `PAGE_ALIGNMENT_16K` in the bundle configuration, and runs
 `zipalign -c -P 16 -v 4` on the generated universal APK. Controlled bad-input fixtures run via
 `testReleaseEvidence` and prove the alignment, RELRO, allowlist, fixed-coordinate, digest, and

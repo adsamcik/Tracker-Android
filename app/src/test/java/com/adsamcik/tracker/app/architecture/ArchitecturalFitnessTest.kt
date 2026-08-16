@@ -42,6 +42,34 @@ class ArchitecturalFitnessTest {
 	@Nested
 	inner class `Tracebox production integration` {
 		@Test
+		fun `release packages only the ARM64 phone ABI`() {
+			val appBuild = projectRoot.resolve("app/build.gradle.kts").readText()
+			val releaseInputs = projectRoot.resolve("release/release-inputs.json").readText()
+			val declaredNativeAbiLists = Regex(
+				""""abis"\s*:\s*\[([^]]*)]""",
+			).findAll(releaseInputs).map { it.groupValues[1] }.toList()
+
+			buildList {
+				if ("abiFilters += listOf(\"arm64-v8a\")" !in appBuild) {
+					add("app/build.gradle.kts -> release ABI filter is not ARM64-only")
+				}
+				if (!Regex(
+					""""expectedAbis"\s*:\s*\[\s*"arm64-v8a"\s*]""",
+					RegexOption.DOT_MATCHES_ALL,
+				).containsMatchIn(releaseInputs)) {
+					add("release/release-inputs.json -> expected ABI inventory is not ARM64-only")
+				}
+				if (declaredNativeAbiLists.isEmpty() || declaredNativeAbiLists.any { abiList ->
+					Regex(""""([^"\\]+)"""").findAll(abiList)
+						.map { it.groupValues[1] }
+						.toList() != listOf("arm64-v8a")
+				}) {
+					add("release/release-inputs.json -> every packaged native library must be ARM64-only")
+				}
+			}.shouldBeEmpty()
+		}
+
+		@Test
 		fun `app has one unconditional Tracebox dependency path`() {
 			val buildText = projectRoot.resolve("app/build.gradle.kts").readText()
 			buildList {

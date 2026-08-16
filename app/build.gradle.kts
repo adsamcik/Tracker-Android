@@ -111,6 +111,7 @@ android {
             buildConfigField("boolean", "COMPOSE_MAIN", "true")
             ndk {
                 debugSymbolLevel = "SYMBOL_TABLE"
+                abiFilters += listOf("arm64-v8a")
             }
             releaseSigningConfig?.let {
                 signingConfig = it

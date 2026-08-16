@@ -20,8 +20,8 @@ product copy, runtime defaults, and the decision to expose only save/share actio
   client, upload worker, analytics integration, or automatic egress path.
 - Managed capture remains available when the optional native runtime cannot initialize. Native
   readiness reports an explicit degraded state instead of disabling managed crash, ANR, exit, and
-  structural diagnostics. A production release must nevertheless package the native library for
-  all Tracker ABIs: `arm64-v8a`, `armeabi-v7a`, `x86`, and `x86_64`.
+  structural diagnostics. Tracker production releases support and package only the phone target
+  `arm64-v8a`; debug builds may retain emulator ABIs as local development conveniences.
 - Tracker persists the requested runtime policy. A fresh install starts with
   `TraceboxPolicy.standard()`, and the UI's restore-defaults action reapplies that same product
   default rather than a separate UI-only profile.

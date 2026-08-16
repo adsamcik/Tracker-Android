@@ -4,36 +4,33 @@
     "applicationId": "com.adsamcik.tracker"
   },
   "expectedAbis": [
-    "arm64-v8a",
-    "armeabi-v7a",
-    "x86",
-    "x86_64"
+    "arm64-v8a"
   ],
   "nativeLibraries": [
     {
       "name": "libandroidx.graphics.path.so",
       "coordinate": "androidx.graphics:graphics-path:1.0.1",
-      "abis": ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"]
+      "abis": ["arm64-v8a"]
     },
     {
       "name": "libdatastore_shared_counter.so",
       "coordinate": "androidx.datastore:datastore-core-android:1.2.1",
-      "abis": ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"]
+      "abis": ["arm64-v8a"]
     },
     {
       "name": "libmaplibre.so",
       "coordinate": "org.maplibre.gl:android-sdk:13.4.1",
-      "abis": ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"]
+      "abis": ["arm64-v8a"]
     },
     {
       "name": "libsqliteX.so",
       "coordinate": "vendored:sqlite-android:3.53.3",
-      "abis": ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"]
+      "abis": ["arm64-v8a"]
     },
     {
       "name": "libtracebox_crashpad.so",
       "coordinate": "io.github.tracebox:tracebox-native:0.1.0-alpha.5",
-      "abis": ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"]
+      "abis": ["arm64-v8a"]
     }
   ],
   "sqlite": {
