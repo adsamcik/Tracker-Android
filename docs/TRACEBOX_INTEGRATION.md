@@ -118,22 +118,22 @@ Tracker release validation retains R8 `SourceFile` and `LineNumberTable` metadat
 mapping, native-symbol archive, Tracebox coordinates, source identity, and build identity. Offline
 retrace/symbolication must match the exact release identity; it never guesses across builds.
 
-Tracker currently consumes the attested immutable `0.1.0-alpha.5` release. The local override
+Tracker currently consumes the attested immutable `0.1.0-alpha.6` release. The local override
 remains validation evidence, not a production dependency, and release/CI builds continue to resolve
 only the catalog-pinned package with strict verification.
 
 ## Post-release consumer qualification
 
-The immutable alpha.5 package has completed its downstream Tracker smoke on the representative
-`Codex_Tracebox_Release_API36` emulator (API 36, `x86_64`, 4 KiB pages). Strict
-`:app:installDebug` succeeded, two cold launches were crash-free, and the main application and
-private `:tracebox_handler` processes were live together. Both loaded the packaged x86_64 native
-runtime.
+The immutable alpha.6 package resolved its complete ten-module graph from GitHub Packages with
+Maven Local disabled, passed strict checksum verification, and compiled Tracker's release sources.
+The reusable Tracebox AAR remains multi-ABI, while Tracker's production and release-validation
+artifacts deliberately package only `arm64-v8a`.
 
-The smoke also confirmed persisted Tracebox policy/profile/control state across force-stop and
-restart, the localized Settings entry and durable/ready diagnostics UI, exact package review,
-Android share/save with no upload action, and approved-package staging cleanup when the screen was
-disposed. Tracebox records the structured evidence in
-`evidence/personal-release/tracker-alpha5-integration.json`; Tracker's deterministic host and
-release tests remain the contract for startup ordering, privacy, degradation, deletion, backup,
-R8/build identity, and failure interleavings.
+The representative alpha.5 emulator smoke remains evidence for the unchanged startup, handler,
+native loading, persisted policy, localized UI, package review, share/save, upload-disabled, and
+staging-cleanup paths. It is recorded in
+`evidence/personal-release/tracker-alpha5-integration.json`. Alpha.6 adds only the bounded,
+policy-gated instantaneous performance observation used by Tracker's startup/lifecycle samples; it
+does not change schema, capture, native, UI, package, or deletion behavior. Deterministic alpha.6
+tests and release validation are authoritative for the new measurement semantics and all
+failure-boundary interleavings.

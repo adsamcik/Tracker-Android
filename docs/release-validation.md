@@ -40,7 +40,7 @@ reviewed pull requests.
 
 Gradle dependency verification is deliberately selective. Strict checksums cover:
 
-- every `io.github.tracebox` module in the fixed `0.1.0-alpha.5` release graph;
+- every `io.github.tracebox` module in the fixed `0.1.0-alpha.6` release graph;
 - the MapLibre Compose and packaged `org.maplibre.gl:android-sdk` inputs;
 - the AndroidX Graphics Path and DataStore artifacts that contribute native libraries; and
 - the pinned bundletool artifact and metadata used to create the representative APK set.
@@ -49,10 +49,10 @@ Other Central artifacts are explicitly trusted by scoped rules rather than copie
 high-maintenance checksum blanket. The vendored SQLite AAR is outside Gradle module verification;
 the release task validates its recorded SHA-256 and SHA3-256 directly.
 
-Tracebox `0.1.0-alpha.5` is a fixed alpha, never a SNAPSHOT. The reviewed inputs bind it to tag
-`v0.1.0-alpha.5`, annotated tag object `d5aa7408ae8398d5b931b13e858943ef062c6ee2`, source commit
-`75651a0f43ac7e8308cab3814e7e1f0241018cf4`, source tree
-`b66944db50db1d70474ed34e28497d7bb7c1438e`, and the direct AAR SHA-256 values in
+Tracebox `0.1.0-alpha.6` is a fixed alpha, never a SNAPSHOT. The reviewed inputs bind it to tag
+`v0.1.0-alpha.6`, annotated tag object `7929795e5b680a36f4e5feeadb125a4b56c2b22e`, source commit
+`b8330785677322eef8a9cf9d0d7220a9565f4b57`, source tree
+`7a79a1f89e4e926afe7363c3d80f9700d2ff60e2`, and the direct AAR SHA-256 values in
 `release/release-inputs.json`.
 
 ## Reviewed update procedure
