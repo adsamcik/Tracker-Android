@@ -99,9 +99,17 @@ It makes the source independently retrievable and lets Tracker attest the tag ob
 commit/tree, package metadata, and AAR digests. It did not require rewriting or squashing working
 history.
 
-Before merging Tracker, run `ciUnitTest`, `ciCheck --continue`, and `releaseValidation` without
-local candidate properties. The release task must record the exact alpha.5 coordinates, four-ABI
-native set, R8 mapping, native-symbol archive, Tracker source identity, and build identity.
+Tracker's pre-integration gates passed with no local candidate properties and strict dependency
+verification:
+
+- clean `releaseValidation`: 1,172 actionable tasks; exact alpha.5 coordinates, the four-ABI native
+  set, R8 mapping, native-symbol archive, Tracker source identity, and build identity were recorded;
+- `ciUnitTest`: 994 actionable tasks and all repository-owned host/JVM suites passed;
+- `ciCheck --continue`: 1,987 actionable tasks and the complete lint, Detekt, architecture,
+  dependency-metadata, release-evidence, and host-test aggregate passed.
+
+The same relevant gates are rerun after rebasing onto the latest local `dev/v10` before the branch
+is merged.
 
 ## Local candidate command
 
