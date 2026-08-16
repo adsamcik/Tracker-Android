@@ -125,33 +125,32 @@ class ArchitecturalFitnessTest {
 			val source = projectRoot.resolve(
 				"app/src/main/java/com/adsamcik/tracker/app/Application.kt",
 			).readText()
-			val attach = source.indexOf("override fun attachBaseContext(base: Context)")
-			val attachSuper = source.indexOf("super.attachBaseContext(base)", attach)
-			val handlerGuard = source.indexOf("isTraceboxHandlerProcessName(processName, packageName)")
-			val install = source.indexOf("TrackerTraceboxRuntime.install(this)")
-			val onCreate = source.indexOf("override fun onCreate()")
-			val onCreateHandlerGuard = source.indexOf(
-				"isTraceboxHandlerProcessName(processName, packageName)",
-				onCreate,
-			)
-			val onCreateInstall = source.indexOf("TrackerTraceboxRuntime.install(this)", onCreate)
-			val onCreateSuper = source.indexOf("super.onCreate()", onCreate)
 			buildList {
-				if (attach < 0 || attachSuper < attach || onCreate < 0 || attachSuper > onCreate) {
-					add("Tracebox bootstrap must run from Application.attachBaseContext")
-				}
-				if (handlerGuard < attachSuper || handlerGuard > install) {
-					add("Tracebox handler guard must precede attachment-time installation")
-				}
-				if (install < 0 || install > onCreate) {
-					add("Tracebox must install before providers and Application.onCreate")
-				}
-				if (onCreateHandlerGuard < onCreate || onCreateHandlerGuard > onCreateSuper) {
-					add("Tracebox handler isolation must precede generated Hilt Application startup")
-				}
-				if (onCreateInstall < onCreateHandlerGuard || onCreateInstall > onCreateSuper) {
-					add("main-process Tracebox installation must precede generated Hilt startup")
-				}
+				addAll(
+					orderedMarkerViolations(
+						source = source,
+						contract = "Tracebox attachment bootstrap",
+						markers = listOf(
+							"override fun attachBaseContext(base: Context)",
+							"super.attachBaseContext(base)",
+							"isTraceboxHandlerProcessName(processName, packageName)",
+							"TrackerTraceboxRuntime.install(this)",
+							"override fun onCreate()",
+						),
+					),
+				)
+				addAll(
+					orderedMarkerViolations(
+						source = source,
+						contract = "Tracebox generated Hilt startup",
+						markers = listOf(
+							"override fun onCreate()",
+							"isTraceboxHandlerProcessName(processName, packageName)",
+							"TrackerTraceboxRuntime.install(this)",
+							"super.onCreate()",
+						),
+					),
+				)
 				listOf(
 					"Reporter.initialize(",
 					"Logger.initialize(",
@@ -193,7 +192,9 @@ class ArchitecturalFitnessTest {
 				listOf("cloud-backup", "device-transfer").forEach { section ->
 					val body = rules.substringAfter("<$section>", missingDelimiterValue = "")
 						.substringBefore("</$section>", missingDelimiterValue = "")
-					if (body.isEmpty()) add("$section exclusion section is missing")
+					if (body.isEmpty()) {
+						add("$section exclusion section is missing")
+					}
 					excludedDomains.forEach { domain ->
 						if ("<exclude domain=\"$domain\" path=\".\" />" !in body) {
 							add("$section must exclude the complete $domain domain")
@@ -201,6 +202,22 @@ class ArchitecturalFitnessTest {
 					}
 				}
 			}.shouldBeEmpty()
+		}
+
+		private fun orderedMarkerViolations(
+			source: String,
+			contract: String,
+			markers: List<String>,
+		): List<String> {
+			var nextIndex = 0
+			markers.forEach { marker ->
+				val markerIndex = source.indexOf(marker, startIndex = nextIndex)
+				if (markerIndex < 0) {
+					return listOf("$contract -> missing or out-of-order marker: $marker")
+				}
+				nextIndex = markerIndex + marker.length
+			}
+			return emptyList()
 		}
 
 		@Test
