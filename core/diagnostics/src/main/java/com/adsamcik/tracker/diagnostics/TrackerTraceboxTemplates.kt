@@ -23,6 +23,17 @@ object TrackerTraceboxTemplates {
 		LogTemplate.of("Activity source projection recovery failed")
 	val APPLICATION_INITIALIZATION_FAILED = LogTemplate.of("Application initialization failed")
 	val APPLICATION_PROCESS_STARTED = LogTemplate.of("Application process started")
+	val APPLICATION_STARTUP_MEASUREMENT = LogTemplate.of(
+		"Application startup measurement: process elapsed ms {}, process CPU ms {}",
+	)
+	val APPLICATION_BATTERY_POWER_MEASUREMENT = LogTemplate.of(
+		"Application battery and power measurement: foreground {}, foreground entries {}, battery service available {}, battery percent available {}, battery percent {}, charging {}, charge available {}, charge uAh {}, energy available {}, energy nWh {}, interactive {}, device idle {}, power save {}",
+	)
+	val APPLICATION_MEMORY_MEASUREMENT = LogTemplate.of(
+		"Application memory measurement: foreground {}, foreground entries {}, process PSS KiB {}, Java heap used KiB {}, native heap allocated KiB {}, trim level {}",
+	)
+	val APPLICATION_RESOURCE_MEASUREMENT_FAILED =
+		LogTemplate.of("Application resource measurement failed")
 	val APPLICATION_STARTUP_RECONCILED =
 		LogTemplate.of("Application startup reconciliation completed")
 	val DATA_RETENTION_FAILED = LogTemplate.of("Data retention failed")
@@ -49,7 +60,7 @@ object TrackerTraceboxTemplates {
 	val STEP_COUNTER_REGRESSED = LogTemplate.of("Step counter regressed")
 	val TRACKER_MODULE_INITIALIZATION_FAILED = LogTemplate.of("Tracker module initialization failed")
 	val TRACKING_COORDINATOR_SESSION_COUNTS = LogTemplate.of(
-		"Tracking coordinator session counts: projection drains {}, projected events {}, plan revisions {}, frames {}, motion policy changes {}, stationary optimizations {}, fidelity restores {}",
+		"Tracking coordinator session counts: projection drains {}, projected events {}, plan revisions {}, frames {}, source timer wakeups {}, source requests served {}, motion policy changes {}, stationary optimizations {}, fidelity restores {}",
 	)
 	val TRACKING_COORDINATOR_SESSION_TIMINGS = LogTemplate.of(
 		"Tracking coordinator session timings: projection duration ns {}, wake lock ns {}",

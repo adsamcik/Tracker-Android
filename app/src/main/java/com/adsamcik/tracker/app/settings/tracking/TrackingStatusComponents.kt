@@ -236,6 +236,8 @@ internal fun EffectiveTrackingStatusCard(
 						metrics.planRevisionCount,
 						metrics.trackingFrameCount,
 						metrics.trackingFrameWakeLockNanos / 1_000_000L,
+						metrics.sourceTimerWakeupCount,
+						metrics.sourceTimerRequestCount,
 					),
 					style = MaterialTheme.typography.bodySmall,
 					color = MaterialTheme.colorScheme.onSecondaryContainer,

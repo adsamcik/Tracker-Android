@@ -285,7 +285,7 @@
     <string name="settings_effective_status_running" translatable="false">Tracking is active. Requested plan r%1$s; applied plan r%2$s.</string>
     <string name="settings_effective_status_idle" translatable="false">Tracking is not active. Saved requests are shown below; permissions and device constraints are evaluated without pretending a provider is running.</string>
     <string name="settings_runtime_telemetry_title" translatable="false">Local runtime telemetry (since app start)</string>
-    <string name="settings_runtime_telemetry_summary" translatable="false">Projected events: %1$d • plan revisions: %2$d • tracking frames: %3$d • frame wake lock: %4$d ms</string>
+    <string name="settings_runtime_telemetry_summary" translatable="false">Projected events: %1$d • plan revisions: %2$d • tracking frames: %3$d • frame wake lock: %4$d ms • source timer wakeups: %5$d • source requests served: %6$d</string>
     <string name="settings_advanced_source_controls_title" translatable="false">Advanced controls</string>
     <string name="settings_advanced_source_controls_summary" translatable="false">Set individual update frequency and location filters.</string>
     <string name="settings_source_cadence_disabled" translatable="false">Not collected</string>

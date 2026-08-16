@@ -2,8 +2,6 @@ package com.adsamcik.tracker.tracker.service
 
 import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingCoordinatorMetrics
-import dev.tracebox.api.LogCategory
-import dev.tracebox.api.LogLevel
 import dev.tracebox.api.TraceboxLogger
 import dev.tracebox.api.public
 
@@ -15,15 +13,15 @@ internal fun TraceboxLogger.recordCoordinatorSessionMetrics(metrics: TrackingCoo
 		public(metrics.projectedEventCount),
 		public(metrics.planRevisionCount),
 		public(metrics.trackingFrameCount),
+		public(metrics.sourceTimerWakeupCount),
+		public(metrics.sourceTimerRequestCount),
 		public(metrics.motionPolicyChangeCount),
 		public(metrics.stationaryOptimizationCount),
 		public(metrics.fullFidelityRestoreCount),
 	)
-	if (isEnabled(LogLevel.INFO, LogCategory.PERFORMANCE)) {
-		performanceStart(
-			TrackerTraceboxTemplates.TRACKING_COORDINATOR_SESSION_TIMINGS,
-			public(metrics.projectionDrainNanos),
-			public(metrics.trackingFrameWakeLockNanos),
-		).success()
-	}
+	performanceEvent(
+		TrackerTraceboxTemplates.TRACKING_COORDINATOR_SESSION_TIMINGS,
+		public(metrics.projectionDrainNanos),
+		public(metrics.trackingFrameWakeLockNanos),
+	)
 }

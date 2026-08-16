@@ -1191,7 +1191,7 @@ class ArchitecturalFitnessTest {
 		)
 
 		private val TRACEBOX_LOG_CALL_START_PATTERN = Regex(
-			"""Tracebox\.log\.(?:verbose|debug|info|warn|error|performance|performanceStart|performanceSuspend)""",
+			"""(?:Tracebox\.log|logger)\.(?:verbose|debug|info|warn|error|performance|performanceEvent|performanceStart|performanceSuspend)""",
 		)
 
 		private val TRACEBOX_TEMPLATE_REFERENCE = Regex(

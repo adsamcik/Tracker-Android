@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.runtime
 
 import android.os.SystemClock
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.tracker.source.coordinator.TrackingCoordinatorTelemetry
 import com.adsamcik.tracker.tracker.source.coordinator.WakeupPlanner
 import com.adsamcik.tracker.tracker.source.coordinator.WakeupPriority
 import com.adsamcik.tracker.tracker.source.coordinator.WakeupRequest
@@ -37,6 +38,7 @@ internal interface SourceWakeupScheduler {
 internal class CoalescingSourceWakeupScheduler @Inject constructor(
 	private val planner: WakeupPlanner,
 	@ApplicationScope private val scope: CoroutineScope,
+	private val telemetry: TrackingCoordinatorTelemetry,
 ) : SourceWakeupScheduler {
 	private val mutex = Mutex()
 	private val tasks = linkedMapOf<String, ScheduledSourceTask>()
@@ -73,6 +75,7 @@ internal class CoalescingSourceWakeupScheduler @Inject constructor(
 				restartDriverLocked()
 				ready
 			}
+			if (due.isNotEmpty()) telemetry.recordSourceTimerWakeup(due.size)
 			due.forEach { task -> scope.launch { task.action() } }
 		}
 	}

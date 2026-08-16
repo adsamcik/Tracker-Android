@@ -1,8 +1,8 @@
 package com.adsamcik.tracker.app
 
-import dev.tracebox.Tracebox
 import android.annotation.SuppressLint
 import android.app.ActivityManager
+import android.app.Application as AndroidApplication
 import android.content.Context
 import android.os.Build
 import androidx.annotation.MainThread
@@ -16,6 +16,8 @@ import com.adsamcik.tracker.app.event.PrecisionUpgradeDomainEventConsumer
 import com.adsamcik.tracker.app.startup.ModuleInitializerCoordinator
 import com.adsamcik.tracker.app.startup.LegacyDatabaseStartupResult
 import com.adsamcik.tracker.app.startup.LegacyDatabaseUpgradeCoordinator
+import com.adsamcik.tracker.app.tracebox.AndroidTrackerRuntimeMeasurementSource
+import com.adsamcik.tracker.app.tracebox.TrackerRuntimeMeasurements
 import com.adsamcik.tracker.app.tracebox.TrackerTraceboxRuntime
 import com.adsamcik.tracker.app.tracebox.currentTrackerProcessName
 import com.adsamcik.tracker.app.tracebox.isTraceboxHandlerProcessName
@@ -34,7 +36,6 @@ import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
 import com.adsamcik.tracker.tracker.shortcut.Shortcuts
 import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
-import android.app.Application as AndroidApplication
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.extension.ForegroundLocationCapability
@@ -47,6 +48,7 @@ import com.adsamcik.tracker.tracker.resilience.PreviousExitRecoveryAction
 import com.adsamcik.tracker.tracker.resilience.PreviousExitRecoveryCoordinator
 import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
 import dagger.hilt.android.HiltAndroidApp
+import dev.tracebox.Tracebox
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
@@ -366,6 +368,13 @@ class Application : AndroidApplication(), Configuration.Provider {
 		}
 		super.onCreate()
 		Tracebox.log.info(TrackerTraceboxTemplates.APPLICATION_PROCESS_STARTED)
+		val measurements = TrackerRuntimeMeasurements(
+			logger = Tracebox.log,
+			source = AndroidTrackerRuntimeMeasurementSource(this),
+			scope = appScope,
+			dispatcher = dispatchers.io,
+		)
+		ProcessLifecycleOwner.get().lifecycle.addObserver(measurements)
 
 		// Wire MapLibre's HTTP through the project NetworkGateway so tile/style/sprite
 		// fetches share the kill switch + allowlist + rate-limit interceptors that
@@ -384,6 +393,7 @@ class Application : AndroidApplication(), Configuration.Provider {
 		)
 		
 		startBackgroundStartup()
+		measurements.recordStartup()
 	}
 
 	private companion object {

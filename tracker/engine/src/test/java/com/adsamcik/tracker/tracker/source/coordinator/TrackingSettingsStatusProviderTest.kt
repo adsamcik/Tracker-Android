@@ -148,6 +148,7 @@ class TrackingSettingsStatusProviderTest {
 		telemetry.recordProjectionDrain(events = 4, durationNanos = 2_000L)
 		telemetry.recordPlanRevision()
 		telemetry.recordTrackingFrame(wakeLockNanos = 3_000L)
+		telemetry.recordSourceTimerWakeup(requests = 3)
 		telemetry.recordMotionPolicyChange(stationaryOptimized = true, fullFidelity = false)
 		telemetry.recordMotionPolicyChange(stationaryOptimized = false, fullFidelity = true)
 
@@ -158,6 +159,8 @@ class TrackingSettingsStatusProviderTest {
 			planRevisionCount = 1L,
 			trackingFrameCount = 1L,
 			trackingFrameWakeLockNanos = 3_000L,
+			sourceTimerWakeupCount = 1L,
+			sourceTimerRequestCount = 3L,
 			motionPolicyChangeCount = 2L,
 			stationaryOptimizationCount = 1L,
 			fullFidelityRestoreCount = 1L,

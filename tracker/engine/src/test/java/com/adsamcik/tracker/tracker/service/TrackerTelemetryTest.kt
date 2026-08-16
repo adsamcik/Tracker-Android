@@ -23,12 +23,14 @@ class TrackerTelemetryTest {
 
 		logger.level shouldBe LogLevel.INFO
 		logger.template shouldBe TrackerTraceboxTemplates.TRACKING_COORDINATOR_SESSION_COUNTS
-		logger.renderedArguments() shouldContainExactly listOf("1", "2", "4", "5", "7", "8", "9")
+		logger.renderedArguments() shouldContainExactly listOf(
+			"1", "2", "4", "5", "10", "11", "7", "8", "9",
+		)
 		logger.arguments.forEach { argument ->
 			PrivacyConfiguration.defaults().render(argument).privacy shouldBe Privacy.PUBLIC
 		}
 		logger.performanceCalls shouldBe 0
-		logger.enabledChecks shouldContainExactly listOf(LogLevel.INFO to LogCategory.PERFORMANCE)
+		logger.enabledChecks shouldContainExactly listOf(LogLevel.DEBUG to LogCategory.PERFORMANCE)
 	}
 
 	@Test
@@ -110,6 +112,8 @@ class TrackerTelemetryTest {
 			planRevisionCount = 4,
 			trackingFrameCount = 5,
 			trackingFrameWakeLockNanos = 6,
+			sourceTimerWakeupCount = 10,
+			sourceTimerRequestCount = 11,
 			motionPolicyChangeCount = 7,
 			stationaryOptimizationCount = 8,
 			fullFidelityRestoreCount = 9,
