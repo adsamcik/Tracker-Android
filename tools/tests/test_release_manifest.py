@@ -62,7 +62,7 @@ def manifest_fixture() -> dict:
         "tooling": {"bundletoolCoordinate": "com.android.tools.build:bundletool:1.18.3"},
         "sqlite": {"sha256": HASH, "sha3_256": HASH, "sourceId": "fixed"},
         "tracebox": {
-            "version": "0.1.0-alpha.3",
+            "version": "0.1.0-alpha.5",
             "sourceCommit": COMMIT,
             "sourceTree": TREE,
             "artifactSha256": {"tracebox.aar": HASH},
@@ -135,8 +135,8 @@ class ReleaseManifestValidationTest(unittest.TestCase):
 
     def test_rejects_controlled_snapshot_tracebox_coordinate(self) -> None:
         manifest = manifest_fixture()
-        manifest["tracebox"]["version"] = "0.1.0-alpha.3-SNAPSHOT"
-        with self.assertRaisesRegex(ReleaseValidationError, "fixed alpha.3"):
+        manifest["tracebox"]["version"] = "0.1.0-alpha.5-SNAPSHOT"
+        with self.assertRaisesRegex(ReleaseValidationError, "fixed 0.1.0-alpha.5"):
             validate_release_manifest(manifest)
 
     def test_rejects_controlled_bad_artifact_hash(self) -> None:

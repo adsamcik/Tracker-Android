@@ -21,7 +21,7 @@ from release_native import (
 
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 GIT_OBJECT_RE = re.compile(r"^[0-9a-f]{40,64}$")
-FIXED_TRACEBOX_VERSION = "0.1.0-alpha.3"
+FIXED_TRACEBOX_VERSION = "0.1.0-alpha.5"
 BUNDLETOOL_COORDINATE = "com.android.tools.build:bundletool:1.18.3"
 
 
@@ -113,7 +113,7 @@ def validate_high_value_inputs(
     tracebox_version = tracebox["version"]
     if tracebox_version != FIXED_TRACEBOX_VERSION or "SNAPSHOT" in tracebox_version.upper():
         raise ReleaseValidationError(
-            "Tracebox must remain fixed at 0.1.0-alpha.3 and must never resolve as a SNAPSHOT"
+            f"Tracebox must remain fixed at {FIXED_TRACEBOX_VERSION} and must never resolve as a SNAPSHOT"
         )
     tracebox_coordinates = sorted(
         coordinate
@@ -363,7 +363,9 @@ def validate_release_manifest(manifest: Mapping[str, Any]) -> None:
         raise ReleaseValidationError("Tracebox evidence is missing")
     version_value = tracebox.get("version")
     if version_value != FIXED_TRACEBOX_VERSION or "SNAPSHOT" in str(version_value).upper():
-        raise ReleaseValidationError("Tracebox release evidence is not fixed alpha.3")
+        raise ReleaseValidationError(
+            f"Tracebox release evidence is not fixed {FIXED_TRACEBOX_VERSION}"
+        )
     _require_git_object(tracebox.get("sourceCommit"), "tracebox.sourceCommit")
     _require_git_object(tracebox.get("sourceTree"), "tracebox.sourceTree")
     for name, digest in tracebox.get("artifactSha256", {}).items():

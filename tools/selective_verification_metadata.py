@@ -82,8 +82,8 @@ def parse_coordinate(value: str, label: str) -> tuple[str, str, str]:
 
 def expected_coordinates(release_inputs: Mapping[str, Any]) -> set[tuple[str, str, str]]:
     tracebox_version = str(release_inputs["tracebox"]["version"])
-    if tracebox_version != "0.1.0-alpha.3" or "SNAPSHOT" in tracebox_version.upper():
-        raise SelectiveVerificationError("Tracebox must remain fixed at 0.1.0-alpha.3")
+    if tracebox_version != "0.1.0-alpha.5" or "SNAPSHOT" in tracebox_version.upper():
+        raise SelectiveVerificationError("Tracebox must remain fixed at 0.1.0-alpha.5")
 
     expected = {
         (TRACEBOX_GROUP, module, tracebox_version)
