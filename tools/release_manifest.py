@@ -21,7 +21,7 @@ from release_native import (
 
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 GIT_OBJECT_RE = re.compile(r"^[0-9a-f]{40,64}$")
-FIXED_TRACEBOX_VERSION = "0.1.0-alpha.6"
+FIXED_TRACEBOX_VERSION = "0.1.0-alpha.7"
 BUNDLETOOL_COORDINATE = "com.android.tools.build:bundletool:1.18.3"
 
 

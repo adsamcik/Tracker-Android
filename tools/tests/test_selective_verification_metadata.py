@@ -28,8 +28,8 @@ class CanonicalMetadataComparisonTest(unittest.TestCase):
         self.assertFalse(canonical_content_matches(changed, generated))
 
     def test_discards_stale_tracebox_version_during_rotation(self) -> None:
-        current_version = "0.1.0-alpha.6"
-        stale_version = "0.1.0-alpha.5"
+        current_version = "0.1.0-alpha.7"
+        stale_version = "0.1.0-alpha.6"
         tracebox_modules = ("tracebox", "tracebox-native", "tracebox-ui-compose")
         fixed_coordinates = (
             ("org.maplibre.compose", "maplibre-compose", "0.13.1"),
