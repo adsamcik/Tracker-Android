@@ -108,5 +108,6 @@ Tracker release validation retains R8 `SourceFile` and `LineNumberTable` metadat
 mapping, native-symbol archive, Tracebox coordinates, source identity, and build identity. Offline
 retrace/symbolication must match the exact release identity; it never guesses across builds.
 
-Until that immutable package exists, Tracker's default build deliberately remains on its last
-attested Tracebox release. The local override is validation evidence, not a production dependency.
+Tracker currently consumes the attested immutable `0.1.0-alpha.5` release. The local override
+remains validation evidence, not a production dependency, and release/CI builds continue to resolve
+only the catalog-pinned package with strict verification.

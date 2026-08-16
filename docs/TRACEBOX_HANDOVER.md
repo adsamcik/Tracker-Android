@@ -1,19 +1,21 @@
 # Tracebox / Tracker product handover
 
-Date: 2026-08-15
+Date: 2026-08-16
 Tracker branch: `codex/finish-tracebox-product`
-Tracebox candidate source: `c38c6f26dab662b3918f25fa19a53675b996de41`
+Tracebox release source: `75651a0f43ac7e8308cab3814e7e1f0241018cf4`
 
 ## Activation status
 
-Tracker's production catalog still points to the last remotely published and attested package,
-`0.1.0-alpha.3`. The hardened runtime has been qualified locally as the uniquely versioned
-candidate `0.1.0-alpha.4-c38c6f2`, but no immutable remote Tracebox tag/package newer than
-`v0.1.0-alpha.3` exists yet. A local candidate is evidence, not a production dependency.
+Tracker's production catalog points to the immutable `0.1.0-alpha.5` package. Annotated tag
+`v0.1.0-alpha.5` (tag object `d5aa7408ae8398d5b931b13e858943ef062c6ee2`) resolves to source
+commit `75651a0f43ac7e8308cab3814e7e1f0241018cf4` and tree
+`b66944db50db1d70474ed34e28497d7bb7c1438e` on remote Tracebox `main`.
 
-Do not change Tracker's catalog, dependency-verification metadata, or release input attestation
-until all ten `0.1.0-alpha.4` AARs are published from an annotated tag on remote Tracebox
-`main`. Never overwrite alpha.3 or silently resolve a candidate from Maven Local.
+All ten AARs are available from GitHub Packages and the
+[public prerelease](https://github.com/adsamcik/Tracebox/releases/tag/v0.1.0-alpha.5). Tracker's
+strict dependency metadata and `release/release-inputs.json` bind the resolved graph and direct
+artifacts to that release. A local candidate remains validation evidence, never a production
+dependency, and must not shadow the catalog pin through Maven Local.
 
 ## Product integration completed
 
@@ -43,12 +45,13 @@ until all ten `0.1.0-alpha.4` AARs are published from an annotated tag on remote
 - Tracker's license UI loads Tracebox's canonical notice resource and verifies all pinned Crashpad
   component sections.
 
-## Candidate evidence
+## Published release evidence
 
-Tracebox host readiness passed on JDK 21 at `c38c6f2`: all 14 bounded host checks passed, including
-toolchain/lock validation, generated-artifact drift, malicious corpora, schema goldens, Gradle plugin
-contracts, Rust format/clippy/workspace tests, native host CTest, Android JVM/fixture contracts,
-release lint, and the static no-network boundary.
+Tracebox host and release readiness passed on JDK 21 at the exact release commit in
+[candidate CI run 31920730963](https://github.com/adsamcik/Tracebox/actions/runs/31920730963).
+The bounded host checks cover toolchain/lock validation, generated-artifact drift, malicious
+corpora, schema goldens, Gradle plugin contracts, Rust format/clippy/workspace tests, native host
+CTest, Android JVM/fixture contracts, release lint, and the static no-network boundary.
 
 The locked native build produced all four Tracker ABIs and passed the library's prebuilt checks,
 including 16 KiB alignment requirements for 64-bit binaries:
@@ -58,16 +61,16 @@ including 16 KiB alignment requirements for 64-bit binaries:
 - `x86`
 - `x86_64`
 
-All ten candidate modules were published to a disposable file repository. Tracebox's clean-consumer
-smoke resolved the exact ten AARs and byte-compared them with the verified local builds. Tracker
-compiled its production and test sources against that candidate, and focused bootstrap, runtime,
-UI, telemetry, architecture, localization, deletion, and license contracts passed.
+The protected [release run 31921376667](https://github.com/adsamcik/Tracebox/actions/runs/31921376667)
+published all ten modules and attached all ten AARs plus the checksum and legal files to the
+prerelease. Every Maven POM and AAR endpoint returned HTTP 200. Independently downloaded Maven and
+release AARs matched the published checksum file byte-for-byte. Tracker then resolved the complete
+ten-module graph from GitHub Packages with strict verification enabled.
 
-Tracker also assembled the `10.0.0` (`versionCode` 400) debug APK against that exact isolated
-candidate. The packaged manifest preserves `android:fullBackupContent="false"`, the restrictive
-data-extraction rules, `android:extractNativeLibs="false"`, and the non-exported handler service in
-`:tracebox_handler`. The APK contains `libtracebox_crashpad.so` for `arm64-v8a`, `armeabi-v7a`,
-`x86`, and `x86_64`.
+The alpha.5 native AAR contains `libtracebox_crashpad.so` for `arm64-v8a`, `armeabi-v7a`, `x86`,
+and `x86_64`. Its AAR hash and each embedded ABI payload were checked against the published
+checksum and Tracebox's reviewed native-input lock. Tracker's release input allowlist now requires
+all four ABIs.
 
 Tracebox also has a separately committed isolated-publication workflow. It publishes all ten
 modules with `-PtraceboxLocalRepository=<path> publishFoundation`, rejects the user's global
@@ -75,39 +78,30 @@ modules with `-PtraceboxLocalRepository=<path> publishFoundation`, rejects the u
 
 ## Runtime qualification boundary
 
-The committed July API 36 x86_64 emulator evidence is historical and contains a native-crash
-failure; it is not evidence for this candidate. The only currently installed API 36.1 AVD is a
-Google Play image with non-rootable `adbd`, while Tracebox's representative qualification requires
-a rootable Google APIs/AOSP image to verify private artifacts and UID-scoped blocked egress. A
-read-only cold boot of that installed AVD succeeded before APK assembly, but after assembly the host
-had only 1.8 GiB free and the emulator rejected a second launch for insufficient disk space. The
-candidate APK therefore was not installed or exercised on-device; static packaging and host-test
-evidence must not be reported as a runtime smoke.
+Tracebox's committed personal-release evidence
+`evidence/personal-release/API36-x86_64-4096-alpha4.json` records 13/13 passing checks on the
+representative API 36 x86_64/4 KiB emulator. Alpha.5 changes only release engineering and the
+versioned hash lock for the already-qualified native inputs; it does not change runtime code,
+public API, schema, or privacy behavior. The alpha.4 emulator evidence therefore remains the
+accepted runtime qualification for this release lineage, while the exact alpha.5 host, package,
+ABI, and consumer checks close the release delta.
 
-Before declaring the immutable alpha release ready, run one bounded current-candidate Tracebox
-emulator qualification on API 36 x86_64/4 KiB. Then run the smaller Tracker smoke: launch to ready,
-confirm the handler process, change/reset policy across restart, exercise save/share or complete
-deletion, and inspect managed/native readiness.
+Tracker's product wiring is protected by focused bootstrap, handler-isolation, policy persistence,
+localized UI, upload-disabled, deletion, backup exclusion, license, telemetry, and architecture
+tests. A future device smoke may add observational evidence, but it must not replace these
+deterministic contracts or claim access to handler-private files on a non-rootable Play image.
 
-## Why canonical history is required
+## Canonical history achieved
 
-Canonical Tracebox history means the reviewed release commit is present on protected remote
-`main` and a protected annotated `v0.1.0-alpha.4` tag points to that exact commit. This is
-required because the current local Tracebox `main` contains work not present on `origin/main`.
-Canonicalizing it makes the source independently retrievable and lets Tracker attest the tag
-object, source commit/tree, and package digests. It does not mean rewriting or squashing working
+Canonical Tracebox history means the reviewed release commit is present on remote `main` and an
+annotated immutable tag points to that exact commit. This has been achieved for `v0.1.0-alpha.5`.
+It makes the source independently retrievable and lets Tracker attest the tag object, source
+commit/tree, package metadata, and AAR digests. It did not require rewriting or squashing working
 history.
 
-Publishing is an external repository mutation and needs explicit maintainer authorization:
-
-1. integrate the isolated-publication commit into local Tracebox `main`;
-2. push the reviewed Tracebox commits to remote `main`;
-3. create and push the protected annotated `v0.1.0-alpha.4` tag;
-4. approve the protected release job and verify all ten immutable package endpoints;
-5. update Tracker's version, strict checksums, Tracebox source/tag/AAR attestations, and native ABI
-   declaration;
-6. run Tracker `ciUnitTest`, `ciCheck --continue`, and `releaseValidation` without local
-   overrides; then merge the Tracker feature branch into local `dev/v10`.
+Before merging Tracker, run `ciUnitTest`, `ciCheck --continue`, and `releaseValidation` without
+local candidate properties. The release task must record the exact alpha.5 coordinates, four-ABI
+native set, R8 mapping, native-symbol archive, Tracker source identity, and build identity.
 
 ## Local candidate command
 
