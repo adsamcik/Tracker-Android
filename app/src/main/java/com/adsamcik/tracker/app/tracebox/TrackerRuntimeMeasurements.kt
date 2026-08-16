@@ -34,7 +34,9 @@ internal class TrackerRuntimeMeasurements(
 	private val foregroundEntries = AtomicLong()
 
 	fun recordStartup() {
-		if (!performanceMeasurementsEnabled()) return
+		if (!performanceMeasurementsEnabled()) {
+			return
+		}
 		val processElapsedMs = (
 			source.elapsedRealtimeMs() - source.processStartedAtElapsedRealtimeMs()
 		).coerceAtLeast(0L)
@@ -60,12 +62,16 @@ internal class TrackerRuntimeMeasurements(
 	}
 
 	private fun recordResourceSnapshot(foreground: Boolean, foregroundEntryCount: Long) {
-		if (!performanceMeasurementsEnabled()) return
+		if (!performanceMeasurementsEnabled()) {
+			return
+		}
 		scope.launch(dispatcher) {
-			if (!performanceMeasurementsEnabled()) return@launch
+			if (!performanceMeasurementsEnabled()) {
+				return@launch
+			}
 			val snapshot = try {
 				source.resourceSnapshot()
-			} catch (error: RuntimeException) {
+			} catch (@Suppress("TooGenericExceptionCaught") error: RuntimeException) {
 				logger.error(error, TrackerTraceboxTemplates.APPLICATION_RESOURCE_MEASUREMENT_FAILED)
 				return@launch
 			}

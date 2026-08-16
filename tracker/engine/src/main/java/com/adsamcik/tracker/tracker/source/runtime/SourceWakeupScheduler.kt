@@ -75,7 +75,9 @@ internal class CoalescingSourceWakeupScheduler @Inject constructor(
 				restartDriverLocked()
 				ready
 			}
-			if (due.isNotEmpty()) telemetry.recordSourceTimerWakeup(due.size)
+			if (due.isNotEmpty()) {
+				telemetry.recordSourceTimerWakeup(due.size)
+			}
 			due.forEach { task -> scope.launch { task.action() } }
 		}
 	}
