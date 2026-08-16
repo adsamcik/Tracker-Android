@@ -1,7 +1,8 @@
 # Tracebox / Tracker product handover
 
 Date: 2026-08-16
-Tracker branch: `codex/finish-tracebox-product`
+Tracker integration branch: `dev/v10`
+Tracker qualification source: `63c0be268e0b1cbfb140c66cc079e56a39eabff6`
 Tracebox release source: `75651a0f43ac7e8308cab3814e7e1f0241018cf4`
 
 ## Activation status
@@ -88,8 +89,19 @@ ABI, and consumer checks close the release delta.
 
 Tracker's product wiring is protected by focused bootstrap, handler-isolation, policy persistence,
 localized UI, upload-disabled, deletion, backup exclusion, license, telemetry, and architecture
-tests. A future device smoke may add observational evidence, but it must not replace these
-deterministic contracts or claim access to handler-private files on a non-rootable Play image.
+tests. The downstream alpha.5 smoke then passed on the representative API 36 x86_64/4 KiB
+emulator (`Codex_Tracebox_Release_API36`): strict `:app:installDebug` completed 657 actionable
+tasks, two cold launches completed without a fatal exception, the application and private handler
+were simultaneously live, and both processes loaded the packaged x86_64
+`libtracebox_crashpad.so`.
+
+The same smoke observed persisted policy/profile/control and identity state across force-stop and
+restart, the marked no-backup Tracebox root, a durable/ready localized diagnostics screen, exact
+review of one 109-byte privacy-transformed package, Android sharing with no upload action, and
+removal of the staged `.tbdiag` after screen disposal. The structured cross-repository result is
+`Tracebox/evidence/personal-release/tracker-alpha5-integration.json` at Tracebox commit
+`570951f` or later. Deterministic tests remain authoritative for failure-boundary and deletion
+interleavings that a smoke is not intended to replace.
 
 ## Canonical history achieved
 
@@ -108,8 +120,9 @@ verification:
 - `ciCheck --continue`: 1,987 actionable tasks and the complete lint, Detekt, architecture,
   dependency-metadata, release-evidence, and host-test aggregate passed.
 
-The same relevant gates are rerun after rebasing onto the latest local `dev/v10` before the branch
-is merged.
+Those gates were rerun after the integration branch was rebased onto the latest local `dev/v10`;
+the verified integration was then merged as commit
+`63c0be268e0b1cbfb140c66cc079e56a39eabff6`.
 
 ## Local candidate command
 

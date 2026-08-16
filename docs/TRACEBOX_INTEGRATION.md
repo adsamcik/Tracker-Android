@@ -111,3 +111,19 @@ retrace/symbolication must match the exact release identity; it never guesses ac
 Tracker currently consumes the attested immutable `0.1.0-alpha.5` release. The local override
 remains validation evidence, not a production dependency, and release/CI builds continue to resolve
 only the catalog-pinned package with strict verification.
+
+## Post-release consumer qualification
+
+The immutable alpha.5 package has completed its downstream Tracker smoke on the representative
+`Codex_Tracebox_Release_API36` emulator (API 36, `x86_64`, 4 KiB pages). Strict
+`:app:installDebug` succeeded, two cold launches were crash-free, and the main application and
+private `:tracebox_handler` processes were live together. Both loaded the packaged x86_64 native
+runtime.
+
+The smoke also confirmed persisted Tracebox policy/profile/control state across force-stop and
+restart, the localized Settings entry and durable/ready diagnostics UI, exact package review,
+Android share/save with no upload action, and approved-package staging cleanup when the screen was
+disposed. Tracebox records the structured evidence in
+`evidence/personal-release/tracker-alpha5-integration.json`; Tracker's deterministic host and
+release tests remain the contract for startup ordering, privacy, degradation, deletion, backup,
+R8/build identity, and failure interleavings.
