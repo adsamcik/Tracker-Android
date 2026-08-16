@@ -122,6 +122,34 @@ class NativeReleaseValidationTest(unittest.TestCase):
                     [{"abi": "arm64-v8a", "name": "libknown.so"}],
                 )
 
+    def test_ignores_symbol_table_for_unshipped_abi(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            arm64_symbol = root / "symbols" / "arm64-v8a" / "libknown.so.sym"
+            arm64_symbol.parent.mkdir(parents=True)
+            arm64_symbol.write_bytes(b"arm64-symbol-table")
+            filtered_symbol = root / "symbols" / "armeabi-v7a" / "libknown.so.sym"
+            filtered_symbol.parent.mkdir(parents=True)
+            filtered_symbol.write_bytes(b"filtered-symbol-table")
+            archive = root / "native-debug-symbols.zip"
+
+            coverage = archive_native_symbols(
+                root / "symbols",
+                archive,
+                [{"abi": "arm64-v8a", "name": "libknown.so"}],
+            )
+
+            self.assertEqual(
+                [(entry["abi"], entry["name"]) for entry in coverage["entries"]],
+                [("arm64-v8a", "libknown.so")],
+            )
+            self.assertEqual(coverage["unavailable"], [])
+            with zipfile.ZipFile(archive) as generated:
+                self.assertEqual(
+                    generated.namelist(),
+                    ["arm64-v8a/libknown.so.sym"],
+                )
+
     def test_resolves_latest_sdk_build_tool(self) -> None:
         executable = "aapt2.exe" if os.name == "nt" else "aapt2"
         with tempfile.TemporaryDirectory() as temporary:

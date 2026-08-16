@@ -301,11 +301,12 @@ def archive_native_symbols(
     destination: Path,
     native_records: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
-    """Archive every AGP-emitted symbol table and report exact coverage."""
+    """Archive AGP symbol tables for packaged libraries and report exact coverage."""
     if not symbol_root.is_dir():
         raise ReleaseValidationError(f"native symbol table directory is missing: {symbol_root}")
 
     known = {(str(record["abi"]), str(record["name"])) for record in native_records}
+    packaged_abis = {abi for abi, _ in known}
     symbol_files = sorted(path for path in symbol_root.rglob("*") if path.is_file())
     if not symbol_files:
         raise ReleaseValidationError(f"native symbol table directory is empty: {symbol_root}")
@@ -322,6 +323,11 @@ def archive_native_symbols(
                 )
             key = (relative.parts[0], relative.name.removesuffix(".sym"))
             if key not in known:
+                # AGP extracts every ABI offered by an upstream AAR even when the application
+                # packaging filter excludes that ABI. Those tables do not describe the shipped
+                # APK set and must not expand its symbol-coverage or ABI contract.
+                if key[0] not in packaged_abis:
+                    continue
                 raise ReleaseValidationError(
                     f"native symbol table has no packaged library: {key[0]}/{key[1]}"
                 )

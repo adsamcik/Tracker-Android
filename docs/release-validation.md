@@ -22,7 +22,10 @@ Room schema JSON file.
 
 The native-symbol archive deterministically contains every symbol table AGP can extract from the
 packaged libraries. The manifest lists each covered ABI/library and explicitly lists packaged
-prebuilt libraries for which the upstream AAR exposes no extractable symbol table.
+prebuilt libraries for which the upstream AAR exposes no extractable symbol table. AGP can extract
+tables for additional ABIs offered by an upstream AAR even when application packaging filters those
+ABIs out; the collector excludes those unshipped tables and still rejects an unknown library within
+the packaged ARM64 ABI.
 
 Native validation is allowlist-based and fails for unknown or missing `.so` files. It checks
 every ELF LOAD segment, requires 16 KiB alignment for the 64-bit Play requirement
