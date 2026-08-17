@@ -321,6 +321,7 @@ def collect_release_evidence(args: argparse.Namespace) -> Path:
         aab=aab,
         apk_set=apk_set,
         apks=apk_paths,
+        merged_manifest=merged_manifest,
         evidence_files=copied_evidence,
         dependency_metadata=dependency_json,
         native_inventory=native_inventory,

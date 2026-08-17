@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import subprocess
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
@@ -23,6 +24,155 @@ SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 GIT_OBJECT_RE = re.compile(r"^[0-9a-f]{40,64}$")
 FIXED_TRACEBOX_VERSION = "0.1.0-alpha.7"
 BUNDLETOOL_COORDINATE = "com.android.tools.build:bundletool:1.18.3"
+ANDROID_NAMESPACE = "http://schemas.android.com/apk/res/android"
+SPECIAL_USE_SUBTYPE_PROPERTY = "android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+SENSITIVE_PERMISSIONS = frozenset(
+    {
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACTIVITY_RECOGNITION",
+        "android.permission.NEARBY_WIFI_DEVICES",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.READ_PHONE_STATE",
+        "com.google.android.gms.permission.ACTIVITY_RECOGNITION",
+    }
+)
+
+
+def _android_attribute(name: str) -> str:
+    return f"{{{ANDROID_NAMESPACE}}}{name}"
+
+
+def _required_attribute(element: ET.Element, name: str, label: str) -> str:
+    value = element.get(name)
+    if value is None or not value.strip():
+        raise ReleaseValidationError(f"{label} is missing")
+    return value.strip()
+
+
+def _positive_integer(value: str, label: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise ReleaseValidationError(f"{label} is not an integer: {value}") from exc
+    if parsed <= 0:
+        raise ReleaseValidationError(f"{label} must be positive: {parsed}")
+    return parsed
+
+
+def inspect_merged_manifest(path: Path) -> dict[str, Any]:
+    """Record Play-relevant declarations from AGP's merged release manifest."""
+    try:
+        root = ET.parse(path).getroot()
+    except ET.ParseError as exc:
+        raise ReleaseValidationError(f"invalid merged release manifest {path}: {exc}") from exc
+    if root.tag != "manifest":
+        raise ReleaseValidationError(f"{path}: root element must be manifest")
+
+    application_id = _required_attribute(root, "package", "manifest package")
+    version_name = _required_attribute(
+        root, _android_attribute("versionName"), "manifest versionName"
+    )
+    version_code = _positive_integer(
+        _required_attribute(
+            root, _android_attribute("versionCode"), "manifest versionCode"
+        ),
+        "manifest versionCode",
+    )
+
+    uses_sdk = root.findall("uses-sdk")
+    if len(uses_sdk) != 1:
+        raise ReleaseValidationError(
+            f"{path}: expected exactly one uses-sdk element, found {len(uses_sdk)}"
+        )
+    target_sdk = _positive_integer(
+        _required_attribute(
+            uses_sdk[0],
+            _android_attribute("targetSdkVersion"),
+            "merged manifest targetSdkVersion",
+        ),
+        "merged manifest targetSdkVersion",
+    )
+
+    permission_elements = [
+        *root.findall("uses-permission"),
+        *root.findall("uses-permission-sdk-23"),
+    ]
+    requested_permissions = sorted(
+        {
+            _required_attribute(
+                element,
+                _android_attribute("name"),
+                "merged manifest permission name",
+            )
+            for element in permission_elements
+        }
+    )
+    requested_sensitive_permissions = sorted(
+        set(requested_permissions).intersection(SENSITIVE_PERMISSIONS)
+    )
+
+    applications = root.findall("application")
+    if len(applications) != 1:
+        raise ReleaseValidationError(
+            f"{path}: expected exactly one application element, found {len(applications)}"
+        )
+    foreground_services: list[dict[str, Any]] = []
+    for service in applications[0].findall("service"):
+        raw_types = service.get(_android_attribute("foregroundServiceType"))
+        if raw_types is None:
+            continue
+        service_name = _required_attribute(
+            service,
+            _android_attribute("name"),
+            "foreground service name",
+        )
+        service_types = sorted(
+            {value.strip() for value in raw_types.split("|") if value.strip()}
+        )
+        if not service_types:
+            raise ReleaseValidationError(
+                f"foreground service {service_name} declares no service type"
+            )
+        special_use_values = [
+            child.get(_android_attribute("value"), "").strip()
+            for child in service.findall("property")
+            if child.get(_android_attribute("name")) == SPECIAL_USE_SUBTYPE_PROPERTY
+        ]
+        if "specialUse" in service_types:
+            if len(special_use_values) != 1 or not special_use_values[0]:
+                raise ReleaseValidationError(
+                    f"foreground service {service_name} must declare exactly one non-empty "
+                    f"{SPECIAL_USE_SUBTYPE_PROPERTY}"
+                )
+            special_use_subtype: str | None = special_use_values[0]
+        else:
+            if special_use_values:
+                raise ReleaseValidationError(
+                    f"foreground service {service_name} declares a specialUse subtype "
+                    "without the specialUse type"
+                )
+            special_use_subtype = None
+        foreground_services.append(
+            {
+                "name": service_name,
+                "types": service_types,
+                "specialUseSubtype": special_use_subtype,
+            }
+        )
+
+    return {
+        "applicationId": application_id,
+        "versionName": version_name,
+        "versionCode": version_code,
+        "targetSdk": target_sdk,
+        "requestedPermissions": requested_permissions,
+        "requestedSensitivePermissions": requested_sensitive_permissions,
+        "foregroundServices": sorted(
+            foreground_services, key=lambda item: str(item["name"])
+        ),
+    }
 
 
 def sha256_file(path: Path) -> str:
@@ -296,6 +446,51 @@ def validate_release_manifest(manifest: Mapping[str, Any]) -> None:
         if key not in version:
             raise ReleaseValidationError(f"release manifest version.{key} is missing")
 
+    android_manifest = manifest.get("androidManifest")
+    if not isinstance(android_manifest, dict):
+        raise ReleaseValidationError("structured Android manifest evidence is missing")
+    for key in ("applicationId", "versionName", "versionCode"):
+        if android_manifest.get(key) != version.get(key):
+            raise ReleaseValidationError(
+                f"androidManifest.{key} does not match version.{key}"
+            )
+    if not isinstance(android_manifest.get("targetSdk"), int) or android_manifest["targetSdk"] <= 0:
+        raise ReleaseValidationError("androidManifest.targetSdk must be a positive integer")
+    requested_permissions = android_manifest.get("requestedPermissions")
+    sensitive_permissions = android_manifest.get("requestedSensitivePermissions")
+    if not isinstance(requested_permissions, list) or not all(
+        isinstance(value, str) and value for value in requested_permissions
+    ):
+        raise ReleaseValidationError("Android requested-permission evidence is missing")
+    if not isinstance(sensitive_permissions, list) or not sensitive_permissions:
+        raise ReleaseValidationError("Android sensitive-permission evidence is missing")
+    if not set(sensitive_permissions).issubset(requested_permissions):
+        raise ReleaseValidationError(
+            "Android sensitive-permission evidence is not a subset of requested permissions"
+        )
+    foreground_services = android_manifest.get("foregroundServices")
+    if not isinstance(foreground_services, list) or not foreground_services:
+        raise ReleaseValidationError("Android foreground-service evidence is missing")
+    special_use_services = 0
+    for index, service in enumerate(foreground_services):
+        if not isinstance(service, dict) or not service.get("name"):
+            raise ReleaseValidationError(
+                f"androidManifest.foregroundServices[{index}] is incomplete"
+            )
+        service_types = service.get("types")
+        if not isinstance(service_types, list) or not service_types:
+            raise ReleaseValidationError(
+                f"androidManifest.foregroundServices[{index}].types is empty"
+            )
+        if "specialUse" in service_types:
+            special_use_services += 1
+            if not service.get("specialUseSubtype"):
+                raise ReleaseValidationError(
+                    f"androidManifest.foregroundServices[{index}] is missing specialUse subtype"
+                )
+    if special_use_services == 0:
+        raise ReleaseValidationError("Android specialUse foreground-service evidence is missing")
+
     artifacts = manifest.get("artifacts")
     if not isinstance(artifacts, list):
         raise ReleaseValidationError("release manifest artifacts must be a list")
@@ -397,6 +592,23 @@ def validate_release_manifest(manifest: Mapping[str, Any]) -> None:
                 raise ReleaseValidationError(
                     f"native.{collection_name}[{index}] is below required alignment"
                 )
+            if record.get("loadAlignmentResult") != "PASS":
+                raise ReleaseValidationError(
+                    f"native.{collection_name}[{index}] alignment result is not PASS"
+                )
+    apk_zip_alignment = native.get("apkZipAlignment")
+    if not isinstance(apk_zip_alignment, list) or not apk_zip_alignment:
+        raise ReleaseValidationError("APK ZIP alignment evidence is missing")
+    for index, record in enumerate(apk_zip_alignment):
+        if (
+            not isinstance(record, dict)
+            or not record.get("path")
+            or record.get("pageSize") != PAGE_ALIGNMENT_16K
+            or record.get("result") != "PASS"
+        ):
+            raise ReleaseValidationError(
+                f"native.apkZipAlignment[{index}] is incomplete or not PASS"
+            )
     symbols = native.get("symbols")
     if not isinstance(symbols, dict) or symbols.get("format") != "AGP_SYMBOL_TABLE":
         raise ReleaseValidationError("native symbol coverage evidence is missing")
@@ -426,13 +638,35 @@ def build_release_manifest(
     aab: Path,
     apk_set: Path,
     apks: Sequence[Path],
+    merged_manifest: Path,
     evidence_files: Sequence[tuple[str, Path]],
     dependency_metadata: Path,
     native_inventory: Mapping[str, Any],
     allow_dirty: bool = False,
 ) -> dict[str, Any]:
     source = source_identity(repo_root, allow_dirty=allow_dirty)
-    version = parse_application_identity(repo_root / "app" / "build.gradle.kts")
+    configured_version = parse_application_identity(
+        repo_root / "app" / "build.gradle.kts"
+    )
+    android_manifest = inspect_merged_manifest(merged_manifest)
+    version = {
+        key: android_manifest[key]
+        for key in ("applicationId", "versionName", "versionCode")
+    }
+    if version != configured_version:
+        raise ReleaseValidationError(
+            f"merged manifest identity {version} does not match app configuration "
+            f"{configured_version}"
+        )
+    application_inputs = release_inputs["application"]
+    if android_manifest["applicationId"] != application_inputs["applicationId"]:
+        raise ReleaseValidationError(
+            "merged manifest application ID does not match reviewed release inputs"
+        )
+    if android_manifest["targetSdk"] != application_inputs["targetSdk"]:
+        raise ReleaseValidationError(
+            "merged manifest target SDK does not match reviewed release inputs"
+        )
     dependencies = load_dependencies(dependency_metadata)
     resolved = validate_high_value_inputs(
         repo_root, release_inputs, dependencies
@@ -459,6 +693,7 @@ def build_release_manifest(
         "generatedAtUtc": datetime.now(timezone.utc).isoformat(),
         "source": source,
         "version": version,
+        "androidManifest": android_manifest,
         "ci": ci_context(source["commit"]),
         "artifacts": artifacts,
         "evidence": evidence,
@@ -479,6 +714,14 @@ def build_release_manifest(
             "apks": list(native_inventory["apks"]),
             "symbols": dict(native_inventory["symbols"]),
             "zipalign": native_inventory["zipalign"],
+            "apkZipAlignment": [
+                {
+                    "path": _relative_path(Path(item["path"]), repo_root),
+                    "pageSize": item["pageSize"],
+                    "result": item["result"],
+                }
+                for item in native_inventory["apkArtifacts"]
+            ],
             "pageAlignment": "PAGE_ALIGNMENT_16K",
         },
         "signingAndPublication": {
