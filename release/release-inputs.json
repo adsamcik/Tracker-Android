@@ -1,7 +1,8 @@
 {
   "schemaVersion": 1,
   "application": {
-    "applicationId": "com.adsamcik.tracker"
+    "applicationId": "com.adsamcik.tracker",
+    "targetSdk": 37
   },
   "expectedAbis": [
     "arm64-v8a"

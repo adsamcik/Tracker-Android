@@ -10,7 +10,11 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from release_manifest import room_schema_evidence, validate_release_manifest  # noqa: E402
+from release_manifest import (  # noqa: E402
+    inspect_merged_manifest,
+    room_schema_evidence,
+    validate_release_manifest,
+)
 from release_native import ReleaseValidationError  # noqa: E402
 
 HASH = "a" * 64
@@ -37,6 +41,7 @@ def manifest_fixture() -> dict:
         "elfClass": 64,
         "loadAlignments": [16384],
         "requiredLoadAlignment": 16384,
+        "loadAlignmentResult": "PASS",
         "relro": True,
     }
     return {
@@ -47,6 +52,25 @@ def manifest_fixture() -> dict:
             "applicationId": "example.app",
             "versionName": "1.0",
             "versionCode": 1,
+        },
+        "androidManifest": {
+            "applicationId": "example.app",
+            "versionName": "1.0",
+            "versionCode": 1,
+            "targetSdk": 37,
+            "requestedPermissions": [
+                "android.permission.ACCESS_BACKGROUND_LOCATION",
+            ],
+            "requestedSensitivePermissions": [
+                "android.permission.ACCESS_BACKGROUND_LOCATION",
+            ],
+            "foregroundServices": [
+                {
+                    "name": "example.TrackerService",
+                    "types": ["location", "specialUse"],
+                    "specialUseSubtype": "local_device_signal_collection",
+                }
+            ],
         },
         "artifacts": [record("aab"), record("apk-set"), record("apk")],
         "evidence": [
@@ -71,6 +95,13 @@ def manifest_fixture() -> dict:
             "abis": ["arm64-v8a"],
             "aab": [copy.deepcopy(native_record)],
             "apks": [copy.deepcopy(native_record)],
+            "apkZipAlignment": [
+                {
+                    "path": "build/release-evidence/apks/universal.apk",
+                    "pageSize": 16384,
+                    "result": "PASS",
+                }
+            ],
             "symbols": {
                 "format": "AGP_SYMBOL_TABLE",
                 "entries": [
@@ -93,6 +124,63 @@ def manifest_fixture() -> dict:
 
 
 class ReleaseManifestValidationTest(unittest.TestCase):
+    def test_inspects_play_relevant_merged_manifest_declarations(self) -> None:
+        manifest_xml = """\
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="example.app"
+    android:versionCode="1"
+    android:versionName="1.0">
+    <uses-sdk android:targetSdkVersion="37" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <application>
+        <service
+            android:name="example.TrackerService"
+            android:foregroundServiceType="location|specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="local_device_signal_collection" />
+        </service>
+    </application>
+</manifest>
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "AndroidManifest.xml"
+            path.write_text(manifest_xml, encoding="utf-8")
+
+            evidence = inspect_merged_manifest(path)
+
+        self.assertEqual(evidence["applicationId"], "example.app")
+        self.assertEqual(evidence["targetSdk"], 37)
+        self.assertEqual(
+            evidence["requestedSensitivePermissions"],
+            ["android.permission.ACCESS_BACKGROUND_LOCATION"],
+        )
+        self.assertEqual(
+            evidence["foregroundServices"][0]["specialUseSubtype"],
+            "local_device_signal_collection",
+        )
+
+    def test_rejects_special_use_without_subtype(self) -> None:
+        manifest_xml = """\
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="example.app"
+    android:versionCode="1"
+    android:versionName="1.0">
+    <uses-sdk android:targetSdkVersion="37" />
+    <application>
+        <service
+            android:name="example.TrackerService"
+            android:foregroundServiceType="specialUse" />
+    </application>
+</manifest>
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "AndroidManifest.xml"
+            path.write_text(manifest_xml, encoding="utf-8")
+            with self.assertRaisesRegex(ReleaseValidationError, "exactly one non-empty"):
+                inspect_merged_manifest(path)
+
     def test_collects_nested_tracked_room_schema(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -159,6 +247,12 @@ class ReleaseManifestValidationTest(unittest.TestCase):
         manifest = manifest_fixture()
         manifest["native"]["aab"][0]["loadAlignments"] = [4096]
         with self.assertRaisesRegex(ReleaseValidationError, "below required alignment"):
+            validate_release_manifest(manifest)
+
+    def test_rejects_nonpassing_apk_zip_alignment(self) -> None:
+        manifest = manifest_fixture()
+        manifest["native"]["apkZipAlignment"][0]["result"] = "FAIL"
+        with self.assertRaisesRegex(ReleaseValidationError, "not PASS"):
             validate_release_manifest(manifest)
 
 

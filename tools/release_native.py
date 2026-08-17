@@ -197,6 +197,7 @@ def validate_native_entries(
                 "elfClass": elf.elf_class,
                 "loadAlignments": list(elf.load_alignments),
                 "requiredLoadAlignment": minimum_alignment,
+                "loadAlignmentResult": "PASS",
                 "relro": elf.has_relro,
             }
         )
@@ -418,10 +419,13 @@ def validate_native_archives(
                     native_entries_from_zip(apk_archive), release_inputs, apk.name
                 )
             apk_records.extend(records)
+            zipalign_output = check_zipalign(apk, zipalign_path)
             apk_artifacts.append(
                 {
                     "path": apk,
-                    "zipalignOutput": check_zipalign(apk, zipalign_path),
+                    "pageSize": PAGE_ALIGNMENT_16K,
+                    "result": "PASS",
+                    "zipalignOutput": zipalign_output,
                 }
             )
 

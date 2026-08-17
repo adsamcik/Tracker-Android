@@ -206,6 +206,7 @@ class NativeReleaseValidationTest(unittest.TestCase):
             "fixture.aab",
         )
         self.assertEqual(4096, result[0]["requiredLoadAlignment"])
+        self.assertEqual("PASS", result[0]["loadAlignmentResult"])
 
     def test_rejects_4k_alignment_for_64_bit_abi(self) -> None:
         with self.assertRaisesRegex(ReleaseValidationError, "below required 16 KiB"):
