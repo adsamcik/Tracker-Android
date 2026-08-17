@@ -16,7 +16,10 @@ Run it from a clean commit with an Android SDK, JDK 21, and Python 3 available:
 The compact `release-manifest.json` binds the source commit/tree and unique app version to the
 AAB, APK set, representative APK, merged manifest, BundleConfig protobuf/JSON, R8 mapping,
 native-symbol archive, dependency metadata, Room schemas, vendored SQLite input, MapLibre and
-Tracebox coordinates, and CI run identity. Every recorded file has a SHA-256 digest.
+Tracebox coordinates, and CI run identity. Every recorded file has a SHA-256 digest. Its structured
+`androidManifest` block records the built application ID/version, target SDK, all requested
+permissions, the reviewed sensitive-permission subset, foreground-service types, and each
+`specialUse` subtype from AGP's merged release manifest.
 The workflow runs `checkRoomSchemaDrift` first and hashes every recursively nested, Git-tracked
 Room schema JSON file.
 
@@ -33,7 +36,22 @@ every ELF LOAD segment, requires 16 KiB alignment for the 64-bit Play requiremen
 for every `.so`, requires `PAGE_ALIGNMENT_16K` in the bundle configuration, and runs
 `zipalign -c -P 16 -v 4` on the generated universal APK. Controlled bad-input fixtures run via
 `testReleaseEvidence` and prove the alignment, RELRO, allowlist, fixed-coordinate, digest, and
-manifest-completeness gates fail closed.
+manifest-completeness gates fail closed. Successful native records carry an explicit
+`loadAlignmentResult: "PASS"`; `native.apkZipAlignment` records the official SDK `zipalign` result
+for each representative APK.
+
+## Retained artifact paths
+
+The build-validation job uploads these paths together as `release-evidence-<commit>`:
+
+- `build/release-evidence/**`, including `release-manifest.json`, the representative APK set/APK,
+  merged manifest, bundle configuration, native-symbol archive, and dependency evidence;
+- `app/build/outputs/bundle/release/*.aab` (the Play-distribution artifact);
+- `app/build/outputs/mapping/release/**`; and
+- `app/build/outputs/native-debug-symbols/release/**`.
+
+The workflow uses `if-no-files-found: error`; a missing AAB or evidence directory therefore fails
+artifact retention rather than silently producing a partial upload.
 
 ## Cryptographically closed inputs
 
