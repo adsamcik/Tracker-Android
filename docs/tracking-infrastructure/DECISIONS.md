@@ -789,7 +789,7 @@ Each entry records repository evidence and does not duplicate the final architec
 
 ## TI-D088 — Released-v27 recovery is a startup fence plus frozen compatibility drain
 
-- Status: `ACCEPTED_FOR_CONTAINMENT`; runtime drain remains `BLOCKED`
+- Status: `ACCEPTED_FOR_CONTAINMENT`; frozen runtime drain implemented, process-wide startup fence remains `BLOCKED`
 - Owner/date: lead orchestrator after three independent v27 recovery adversaries, 2026-08-22
 - Alternatives: let the ordinary live coordinator reinterpret pending v27 WAL; gate only the normal
   `Application` initialization path; build a generic migration/receipt/restore platform; record one
@@ -802,7 +802,7 @@ Each entry records repository evidence and does not duplicate the final architec
   A fully projected pending effect also proved capable of losing its originating WAL under routine
   maintenance. Full restore has no safe hot-singleton replacement seam, and partial Tracker database
   merge can bypass full-database recognition.
-- Decision: the unreleased v28 migration captures an immutable admission high-watermark/data epoch,
+- Decision: the unreleased v28 migration captures an immutable admission/outbox high-watermark/data epoch,
   snapshots or seeds only the four exact released v1 targets, deactivates all v1 registrations, and
   starts current v2 projections at `cutoff + 1`. Live outbox dispatch is keyed by projection ID and
   version. Pending legacy effects and blocked targets retain the required WAL until a durable bridge
@@ -817,3 +817,12 @@ Each entry records repository evidence and does not duplicate the final architec
   crash/retry, epoch/deletion races and every target disposition pass. Production backup-wrapper
   proof, cold empty-target restore, and partial-database merge rejection are separate narrow slices;
   no general hot restore or provenance-free import framework is authorized.
+
+## TI-D089 — Frozen-v27 destinations are narrow, semantic, and truthfully partial
+
+- Status: `ACCEPTED_AFTER_FRESH_R1_ADVERSARIAL_REVIEW`
+- Owner/date: lead orchestrator after released-code inspection and fresh data/lifecycle/product attacks, 2026-08-22
+- Alternatives: run current v2 projectors over v27 rows; suppress every legacy effect; copy all four v1 projectors into a permanent compatibility framework; recover only the two existing typed facts through one startup-only adapter
+- Evidence: released v27 Activity effects can restart automation from stale motion; joined-frame effects had no production consumer; Location v1 wrote noncanonical shadow state and cannot be replayed without creating a second writer. Event-frame v1 alone carried durable Steps/Pressure facts with stable `source-event:<eventId>` destination identity. Released pruning could remove raw WAL after outbox creation but before typed commit, and released SignalAdapter audit stamps legitimately differ from WAL-enriched stamps. SQLite AUTOINCREMENT/ignored inserts make ordinal holes normal rather than proof of loss. A fresh implementation adversary also demonstrated that an outbox-only ordinal may exceed a missing/reset WAL sequence, that an outbox may lie below its writer activation, and that identity-matched WAL/outbox payloads may still disagree semantically.
+- Decision: the one-time drain suppresses Activity v1 as `SUPPRESSED_STALE_CONTROL`, suppresses joined frames as `SUPPRESSED_UNWIRED_OUTPUT`, preserves Location shadow byte-for-byte as `LOCATION_SHADOW_RETAINED` or truthfully `LOCATION_SHADOW_PARTIAL`, and bridges event-frame v1 only into existing `StepInterval`/`PressureSample` destinations. The immutable cutoff is the maximum of the WAL sequence, retained WAL, and retained outbox ordinals. Raw-WAL bridge transactions atomically verify/classify payload, insert-or-semantically-verify the typed fact, record terminal poison/collision evidence, and advance the fenced cursor. Pending event-frame outboxes without raw WAL use one frozen effect fallback and become `BRIDGED_TYPED_FACTS_PARTIAL` with `LEGACY_UNKNOWN` clock provenance; no current-boot metadata is invented. Nonpositive or pre-activation outboxes are terminally quarantined, and an outbox paired to raw WAL must equal the exact frozen v1 semantic cycle before it can be acknowledged as already bridged. Sparse ordinals advance without a false partial result, unknown target/outbox generations block startup, and target terminalization requires its immutable cutoff.
+- Consequences: this adds no live materializer, generic receipt platform, Activity callback, joined-frame consumer, or Location canonical writer. Exact semantic duplicates are accepted despite known released audit-stamp variants; changed metric/window fields never overwrite and become auditable collisions. Event-frame poison evidence is retained until normal retention/full deletion. Focused DAO, bridge, projection, and recovery tests must stay green, followed by the connected v27 migration proof. Live v2 work still cannot run until the separate process-wide startup fence makes this drain terminal first.

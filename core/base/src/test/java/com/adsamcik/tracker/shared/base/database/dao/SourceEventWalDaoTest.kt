@@ -107,10 +107,11 @@ class SourceEventWalDaoTest {
 	@Test
 	fun `pending v27 target pins wal retention until its required cutoff is dispositioned`() = runTest {
 		val legacy = database.legacyV27ProjectionDrainDao()
+		database.sourceEvidenceStateDao().ensure()
 		legacy.saveDrain(
 			LegacyV27ProjectionDrainEntity(
 				cutoffAdmissionOrdinal = 2,
-				collectedDataEpoch = 4,
+				collectedDataEpoch = 0,
 				status = LegacyV27ProjectionDrainEntity.STATUS_PENDING,
 				ownerBootId = null,
 				ownerToken = null,
@@ -160,13 +161,29 @@ class SourceEventWalDaoTest {
 		database.pruneSourceEventStorageBefore(createdBeforeMs = 100).walEventsDeleted shouldBe 0
 		wal.countAll() shouldBe 3
 
-		legacy.saveTarget(
-			target.copy(
-				lastCompletedOrdinal = 2,
-				disposition = "DRAINED",
-				completedAtMs = 200,
-			),
-		)
+		legacy.acquireLease("boot", "owner", 100, 1_000, 100) shouldBe 1
+		legacy.advanceTarget(
+			"location-domain",
+			1,
+			0,
+			2,
+			"boot",
+			"owner",
+			1,
+			101,
+		) shouldBe 1
+		legacy.terminalizeTarget(
+			"location-domain",
+			1,
+			2,
+			LegacyV27ProjectionTargetEntity.DISPOSITION_BRIDGED_TYPED_FACTS,
+			200,
+			null,
+			"boot",
+			"owner",
+			1,
+			102,
+		) shouldBe 1
 		database.pruneSourceEventStorageBefore(createdBeforeMs = 100).walEventsDeleted shouldBe 1
 		wal.getByEventId("event-1") shouldBe null
 		wal.getByEventId("event-2")?.eventId shouldBe "event-2"

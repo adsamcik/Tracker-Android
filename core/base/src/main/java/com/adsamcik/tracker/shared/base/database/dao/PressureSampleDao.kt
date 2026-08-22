@@ -11,6 +11,9 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface PressureSampleDao : BaseDao<PressureSample> {
 
+    @Query("SELECT * FROM pressure_sample WHERE source_signal_id = :sourceSignalId LIMIT 1")
+    suspend fun getBySourceSignalId(sourceSignalId: String): PressureSample?
+
     /** Get all pressure samples within time range, ordered by time. */
     @Query("SELECT * FROM pressure_sample WHERE time_ms >= :fromMs AND time_ms <= :toMs ORDER BY time_ms")
     suspend fun getAllBetween(fromMs: Long, toMs: Long): List<PressureSample>

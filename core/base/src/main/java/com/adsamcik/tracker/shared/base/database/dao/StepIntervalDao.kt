@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.Flow
  */
 @Dao
 interface StepIntervalDao : BaseDao<StepInterval> {
+	@Query("SELECT * FROM step_interval WHERE source_signal_id = :sourceSignalId LIMIT 1")
+	suspend fun getBySourceSignalId(sourceSignalId: String): StepInterval?
+
 	@Query(
 		"""
 		SELECT * FROM step_interval

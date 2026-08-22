@@ -1469,7 +1469,8 @@ val MIGRATION_27_28: Migration = object : Migration(27, 28) {
 				FROM (
 					SELECT MAX(
 						COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'source_event_wal'), 0),
-						COALESCE((SELECT MAX(admission_ordinal) FROM source_event_wal), 0)
+						COALESCE((SELECT MAX(admission_ordinal) FROM source_event_wal), 0),
+						COALESCE((SELECT MAX(admission_ordinal) FROM source_projection_outbox), 0)
 					) AS cutoff_admission_ordinal
 				) AS boundary
 				""".trimIndent(),
@@ -1486,13 +1487,31 @@ val MIGRATION_27_28: Migration = object : Migration(27, 28) {
 					registration.activation_ordinal,
 					COALESCE(checkpoint.contiguous_admission_ordinal, registration.activation_ordinal - 1),
 					drain.cutoff_admission_ordinal,
-					MAX(
-						COALESCE(checkpoint.contiguous_admission_ordinal, registration.activation_ordinal - 1),
-						COALESCE(
-							(SELECT MIN(admission_ordinal) - 1 FROM source_event_wal),
-							drain.cutoff_admission_ordinal
+					CASE
+						-- A projection checkpoint proves only that the v1 event-frame outbox was
+						-- created. It does not prove that the process-local destination committed
+						-- the corresponding typed Steps/Pressure fact. Revisit every retained row;
+						-- the destination's stable source_signal_id makes that bridge idempotent.
+						WHEN registration.projection_id = 'event-tracking-frame'
+							AND registration.projection_version = 1
+						THEN MAX(
+							registration.activation_ordinal - 1,
+							COALESCE(
+								(SELECT MIN(admission_ordinal) - 1 FROM source_event_wal),
+								drain.cutoff_admission_ordinal
+							)
 						)
-					),
+						ELSE MAX(
+							COALESCE(
+								checkpoint.contiguous_admission_ordinal,
+								registration.activation_ordinal - 1
+							),
+							COALESCE(
+								(SELECT MIN(admission_ordinal) - 1 FROM source_event_wal),
+								drain.cutoff_admission_ordinal
+							)
+						)
+					END,
 					registration.retention_required, registration.status,
 					CASE WHEN registration.projection_version = 1 AND registration.projection_id IN (
 						'activity-automation', 'event-tracking-frame',

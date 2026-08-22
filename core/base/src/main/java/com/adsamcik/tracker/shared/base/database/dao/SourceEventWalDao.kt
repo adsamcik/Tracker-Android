@@ -87,6 +87,23 @@ interface SourceEventWalDao {
 	)
 	suspend fun eventsAfter(afterOrdinal: Long, limit: Int): List<SourceEventWalEntity>
 
+	/**
+	 * Reads only the immutable released-v27 recovery interval.
+	 *
+	 * Admission ordinals are high-water marks, not a promise of a dense sequence. Callers may move
+	 * their durable cursor directly to [throughOrdinal] after this returns no rows.
+	 */
+	@Query(
+		"SELECT * FROM source_event_wal WHERE admission_ordinal > :afterOrdinal " +
+			"AND admission_ordinal <= :throughOrdinal " +
+			"ORDER BY admission_ordinal ASC LIMIT :limit",
+	)
+	suspend fun eventsAfterThrough(
+		afterOrdinal: Long,
+		throughOrdinal: Long,
+		limit: Int,
+	): List<SourceEventWalEntity>
+
 	@Query("SELECT MAX(admission_ordinal) FROM source_event_wal")
 	suspend fun maximumAdmissionOrdinal(): Long?
 

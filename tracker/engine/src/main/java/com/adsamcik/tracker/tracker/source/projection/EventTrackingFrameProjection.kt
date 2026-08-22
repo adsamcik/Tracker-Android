@@ -48,8 +48,21 @@ class EventTrackingFrameProjection @Inject constructor() : Projection {
 
 internal fun AdmittedSourceEvent<out SourcePayload>.toEventTrackingFrame(): TrackingCycle? {
 	val timestampMs = evidence.wallTimeMs ?: evidence.acquiredAtMs
-	val persistenceId = "source-event:${eventId.value}"
-	return when (val payload = evidence.payload) {
+	return releasedV1EventTrackingFrame(
+		eventId = eventId.value,
+		timestampMs = timestampMs,
+		payload = evidence.payload,
+	)
+}
+
+/** Frozen conversion contract emitted by `event-tracking-frame` v1 in released database v27. */
+internal fun releasedV1EventTrackingFrame(
+	eventId: String,
+	timestampMs: Long,
+	payload: SourcePayload,
+): TrackingCycle? {
+	val persistenceId = "source-event:$eventId"
+	return when (payload) {
 		is StepCounterWindowPayload -> {
 			// TYPE_STEP_COUNTER's first callback establishes the legacy producer baseline and
 			// did not emit a cycle. A real counter reset remains observable even at zero.
@@ -101,6 +114,8 @@ internal fun AdmittedSourceEvent<out SourcePayload>.toEventTrackingFrame(): Trac
 				elapsedRealtimeNanos = payload.windowEndElapsedRealtimeNanos,
 				pressure = PressureReading(
 					pressureHpa = mean,
+					// Released-v27 compatibility only. This standard-atmosphere result is not
+					// a calibrated elevation and must not become a new vertical product claim.
 					altitudeM = BarometricAltitudeFormula.pressureToAltitudeM(mean)?.toFloat() ?: Float.NaN,
 					sampleCount = payload.sampleCount,
 					minPressureHpa = payload.minimumHectopascals,

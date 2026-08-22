@@ -43,6 +43,9 @@ class AppDatabaseMigration27To28Test {
 		context.deleteDatabase(UNSUPPORTED_PROJECTION_TEST_DATABASE)
 		context.deleteDatabase(PRUNED_WAL_TEST_DATABASE)
 		context.deleteDatabase(OUTBOX_ONLY_TEST_DATABASE)
+		context.deleteDatabase(OUTBOX_BOUNDARY_TEST_DATABASE)
+		context.deleteDatabase(EVENT_FRAME_CHECKPOINT_TEST_DATABASE)
+		context.deleteDatabase(EVENT_FRAME_ACTIVATION_TEST_DATABASE)
 	}
 
 	@After
@@ -51,6 +54,9 @@ class AppDatabaseMigration27To28Test {
 		context.deleteDatabase(UNSUPPORTED_PROJECTION_TEST_DATABASE)
 		context.deleteDatabase(PRUNED_WAL_TEST_DATABASE)
 		context.deleteDatabase(OUTBOX_ONLY_TEST_DATABASE)
+		context.deleteDatabase(OUTBOX_BOUNDARY_TEST_DATABASE)
+		context.deleteDatabase(EVENT_FRAME_CHECKPOINT_TEST_DATABASE)
+		context.deleteDatabase(EVENT_FRAME_ACTIVATION_TEST_DATABASE)
 	}
 
 	@Test
@@ -207,6 +213,115 @@ class AppDatabaseMigration27To28Test {
 				assertEquals(0L, cursor.getLong(0))
 			}
 			assertTableCount(database, "source_projection_outbox", 1)
+		}
+	}
+
+	@Test
+	fun pendingV27OutboxDefinesTheImmutableDrainBoundaryWithoutWalHistory() {
+		helper.createDatabase(OUTBOX_BOUNDARY_TEST_DATABASE, 27).use { database ->
+			PopulatedV27Fixture.seed(database)
+			database.execSQL("DELETE FROM source_event_wal")
+			database.execSQL("DELETE FROM sqlite_sequence WHERE name = 'source_event_wal'")
+			database.execSQL(
+				"UPDATE source_projection_outbox SET admission_ordinal = 7 " +
+					"WHERE stable_id = 'v27-outbox'",
+			)
+
+			assertTableCount(database, "source_event_wal", 0)
+			database.query(
+				"SELECT seq FROM sqlite_sequence WHERE name = 'source_event_wal'",
+			).use { cursor -> assertFalse(cursor.moveToFirst()) }
+		}
+
+		helper.runMigrationsAndValidate(
+			OUTBOX_BOUNDARY_TEST_DATABASE,
+			28,
+			true,
+			MIGRATION_27_28,
+		).use { database ->
+			database.query(
+				"SELECT cutoff_admission_ordinal, status " +
+					"FROM legacy_v27_projection_drain WHERE id = 1",
+			).use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals(7L, cursor.getLong(0))
+				assertEquals("PENDING", cursor.getString(1))
+			}
+			database.query(
+				"SELECT required_through_ordinal FROM legacy_v27_projection_target " +
+					"WHERE projection_id = 'location-domain' AND projection_version = 1",
+			).use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals(7L, cursor.getLong(0))
+			}
+		}
+	}
+
+	@Test
+	fun eventFrameDestinationRecoveryStartsAtTheRetainedFloorNotTheProjectionCheckpoint() {
+		helper.createDatabase(EVENT_FRAME_CHECKPOINT_TEST_DATABASE, 27).use { database ->
+			PopulatedV27Fixture.seed(database)
+			database.execSQL(
+				"INSERT INTO source_projection_registration " +
+					"(projection_id, projection_version, activation_ordinal, retention_required, " +
+					"status, created_at_ms) VALUES ('event-tracking-frame', 1, 1, 1, " +
+					"'ACTIVE', ${PopulatedV27Fixture.START_MS})",
+			)
+			database.execSQL(
+				"INSERT INTO source_projection_checkpoint " +
+					"(projection_id, projection_version, contiguous_admission_ordinal, " +
+					"state_version, updated_at_ms) VALUES ('event-tracking-frame', 1, 1, 1, " +
+					"${PopulatedV27Fixture.START_MS})",
+			)
+		}
+
+		helper.runMigrationsAndValidate(
+			EVENT_FRAME_CHECKPOINT_TEST_DATABASE,
+			28,
+			true,
+			MIGRATION_27_28,
+		).use { database ->
+			database.query(
+				"SELECT initial_checkpoint_ordinal, last_completed_ordinal, " +
+					"required_through_ordinal FROM legacy_v27_projection_target " +
+					"WHERE projection_id = 'event-tracking-frame' AND projection_version = 1",
+			).use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals(1L, cursor.getLong(0))
+				assertEquals(0L, cursor.getLong(1))
+				assertEquals(1L, cursor.getLong(2))
+			}
+		}
+	}
+
+	@Test
+	fun eventFrameDestinationRecoveryNeverCrossesItsOriginalActivationBoundary() {
+		helper.createDatabase(EVENT_FRAME_ACTIVATION_TEST_DATABASE, 27).use { database ->
+			PopulatedV27Fixture.seed(database)
+			database.execSQL(
+				"INSERT INTO source_projection_registration " +
+					"(projection_id, projection_version, activation_ordinal, retention_required, " +
+					"status, created_at_ms) VALUES ('event-tracking-frame', 1, 2, 1, " +
+					"'ACTIVE', ${PopulatedV27Fixture.START_MS})",
+			)
+		}
+
+		helper.runMigrationsAndValidate(
+			EVENT_FRAME_ACTIVATION_TEST_DATABASE,
+			28,
+			true,
+			MIGRATION_27_28,
+		).use { database ->
+			database.query(
+				"SELECT initial_activation_ordinal, last_completed_ordinal, " +
+					"required_through_ordinal FROM legacy_v27_projection_target " +
+					"WHERE projection_id = 'event-tracking-frame' AND projection_version = 1",
+			).use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals(2L, cursor.getLong(0))
+				assertEquals(1L, cursor.getLong(1))
+				assertEquals(1L, cursor.getLong(2))
+			}
 		}
 	}
 
@@ -583,5 +698,8 @@ class AppDatabaseMigration27To28Test {
 		const val UNSUPPORTED_PROJECTION_TEST_DATABASE = "migration-27-28-unsupported-projection"
 		const val PRUNED_WAL_TEST_DATABASE = "migration-27-28-pruned-wal"
 		const val OUTBOX_ONLY_TEST_DATABASE = "migration-27-28-outbox-only"
+		const val OUTBOX_BOUNDARY_TEST_DATABASE = "migration-27-28-outbox-boundary"
+		const val EVENT_FRAME_CHECKPOINT_TEST_DATABASE = "migration-27-28-event-frame-checkpoint"
+		const val EVENT_FRAME_ACTIVATION_TEST_DATABASE = "migration-27-28-event-frame-activation"
 	}
 }
