@@ -21,7 +21,9 @@ import com.adsamcik.tracker.impexp.importer.ImportResult
 import com.adsamcik.tracker.impexp.importer.RoomImportReceiptStore
 import com.adsamcik.tracker.impexp.importer.computeImportJobId
 import com.adsamcik.tracker.impexp.importer.archive.ArchiveExtractor
+import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveClassification
 import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveExtractor
+import com.adsamcik.tracker.impexp.importer.file.DatabaseImportFailure
 import com.adsamcik.tracker.impexp.importer.file.FileImport
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -86,10 +88,14 @@ class ImportWorker @AssistedInject constructor(
 
             if (importResult.failedCount > 0) {
                 showErrorNotification(
-                    context.getString(
-                        R.string.import_notification_error_records_failed,
-                        importResult.failedCount
-                    )
+                    importResult.errors.singleOrNull()
+                        ?.takeIf {
+                            it == DatabaseImportFailure.TrackerDatabaseRestoreRequired.message
+                        }
+                        ?: context.getString(
+                            R.string.import_notification_error_records_failed,
+                            importResult.failedCount
+                        )
                 )
                 return Result.failure()
             }
@@ -159,6 +165,16 @@ class ImportWorker @AssistedInject constructor(
             context.getString(R.string.import_notification_extracting, file.name),
             true
         )
+        if (
+            extractor is ZipArchiveExtractor &&
+            extractor.classifyForMergeImport(context, file) ==
+            ZipArchiveClassification.TRACKER_DATABASE_BACKUP
+        ) {
+            return ImportResult(
+                failedCount = 1,
+                errors = listOf(DatabaseImportFailure.TrackerDatabaseRestoreRequired.message),
+            )
+        }
 
         return importJobRunner.importArchive(
             jobId = jobId,

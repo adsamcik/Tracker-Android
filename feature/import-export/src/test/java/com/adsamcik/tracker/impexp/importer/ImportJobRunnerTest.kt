@@ -101,6 +101,22 @@ class ImportJobRunnerTest {
 		importCalls shouldBe 1
 	}
 
+	@Test
+	fun `failed import remains incomplete and can be selected again`() = runTest {
+		val store = FakeImportReceiptStore()
+		val runner = ImportJobRunner(store) { 789L }
+		val failure = ImportResult(
+			failedCount = 1,
+			errors = listOf("Full database restore is required"),
+		)
+
+		runner.start(JOB_ID, "backup.zip", 100L) shouldBe true
+		runner.completeIfSuccessful(JOB_ID, failure)
+
+		store.jobStatus(JOB_ID) shouldBe ImportJobReceiptEntity.STATUS_IN_PROGRESS
+		runner.start(JOB_ID, "backup.zip", 100L) shouldBe true
+	}
+
 	private fun mockArchive(bytes: ByteArray): DocumentFile = mockFile("backup.zip", bytes).also {
 		every { it.isDirectory } returns false
 	}
@@ -181,6 +197,8 @@ class ImportJobRunnerTest {
 		override suspend fun putEntry(entry: ImportEntryReceiptEntity) {
 			entries[entry.jobId to entry.entryKey] = entry
 		}
+
+		fun jobStatus(jobId: String): String? = jobs[jobId]?.status
 	}
 
 	private companion object {

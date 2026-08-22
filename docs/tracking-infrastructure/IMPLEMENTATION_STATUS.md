@@ -450,7 +450,7 @@ Three fresh read-only reviewers attacked the actual containment diff and executa
 | R1-D03 radio replay identity fails across process/generation changes | `BLOCKER` | `ACCEPTED` | TI-182 restart/generation replay proof blocks both radio materializers |
 | R1-D04 checksum-valid pending v27 WAL would be quarantined as corruption | `BLOCKER` | `MITIGATED_LOCALLY` | pending rows are checksum-classified as verified or mismatch and focused DAO/admission tests pass; one-time released-projection drain, populated migration and no-new-purpose proof remain TI-184 |
 | R1-D05 migration fixture omits released facts and exposes legacy active ghosts | `HIGH` | `MITIGATED_LOCALLY` | the populated fixture preserves all six typed source families/history/WAL state and terminalizes nonprovable session/service/tracker runtime before production DAO reads; emulator reopen/delete/reopen passes |
-| R1-D06 delete followed by old merge import resurrects base/derived data | `BLOCKER` | `ACCEPTED` | remove derived products from merge import and stage provenance-bearing base facts through a scoped fence/writer before typed import activation |
+| R1-D06 delete followed by old merge import resurrects base/derived data | `BLOCKER` | `MITIGATED_CONTAINMENT` | recognizable v2-v28 Tracker databases and `tracker-database-backup` ZIPs now fail before merge mutation and cannot report zero-row success; provenance-bearing partial/foreign database merge still requires scoped fences and writer staging before typed import activation |
 | R1-D07 cancellation can consume sequence/state without a WAL fact | `HIGH` | `ACCEPTED` | atomic allocate+admit or explicit durable gaps and coordinator/service cancellation propagation remain TI-312 work |
 | R1-D08 identity-free containment cannot backfill identity products | `HIGH` | `MITIGATED` | TI-D087 splits aggregate and identity tiers; containment rows are explicitly unavailable to unique-network/cell/map products |
 | R1-D09 no atomic destination-owner fence protects a real cutover | `BLOCKER` | `ACCEPTED` | add the narrow fence only with an actual candidate writer; both legacy and candidate transactions must recheck it; Location remains protected |
@@ -465,3 +465,18 @@ Three fresh read-only reviewers attacked the actual containment diff and executa
 | R1-P09 device matrix was universal yet lacked per-source numeric budgets | `MEDIUM` | `MITIGATED` | TI-212 uses source-relevant devices and current Power Profiler/system trace/Macrobenchmark; each source still needs a baseline, quality floor and active/write/wakeup budget |
 
 The accepted blockers are data-loss, privacy, sole-source, or truthful-product boundaries—not invitations to rebuild the removed generic platform. The next structural implementation remains TI-180/TI-181/TI-184, with TI-213 proceeding independently and no source inheriting another source's rollout blocker.
+
+## Latest database-backup import containment evidence
+
+- Raw Tracker databases with the released schema signature are classified before merge planning or
+  target mutation and return an explicit restore-required failure. A deleted target therefore cannot
+  be repopulated by selecting an older full Tracker database as a merge import.
+- `tracker-database-backup` ZIPs are boundedly preclassified from their manifest before any archive
+  entry reaches an importer. Their extensionless database entries are no longer skipped and followed
+  by a misleading zero-row `COMPLETE` job.
+- Failed backup selections remain incomplete and can be selected again after the separately gated
+  cold-start, empty-target restore path exists. This containment commit does not implement restore
+  and does not authorize provenance-free partial database merge.
+- The complete `:feature:import-export:testDebugUnitTest` suite passes 317/317 together with
+  `:feature:import-export:lintDebug`; the lint report contains only the module's recorded translated
+  plural baseline and no changed-file finding.

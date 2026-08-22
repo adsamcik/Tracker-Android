@@ -77,7 +77,7 @@ class DatabaseImportCollisionTest {
 			target.execSQL("INSERT INTO parent (id, name) VALUES (1, 'existing')")
 			source.execSQL("INSERT INTO parent (id, name) VALUES (1, 'imported')")
 
-			val failure = DatabaseImport().importDatabase(source, target)
+			val failure = testImporter().importDatabase(source, target)
 				.shouldBeInstanceOf<DatabaseImportResult.Failure>()
 
 			failure.reason.message shouldContain
@@ -87,15 +87,15 @@ class DatabaseImportCollisionTest {
 		}
 
 	@Test
-	fun `application database schema remains importable`() =
+	fun `application database schema requires restore instead of merge import`() =
 		withDatabases { sourceRoom, targetRoom ->
 			val source = sourceRoom.openHelper.writableDatabase
 			val target = targetRoom.openHelper.writableDatabase
 
-			val result = testImporter().importDatabase(source, target)
-				.shouldBeInstanceOf<DatabaseImportResult.Success>()
+			val failure = DatabaseImport().importDatabase(source, target)
+				.shouldBeInstanceOf<DatabaseImportResult.Failure>()
 
-			result.result.failedCount shouldBe 0
+			failure.reason shouldBe DatabaseImportFailure.TrackerDatabaseRestoreRequired
 		}
 
 	@Test
@@ -181,7 +181,7 @@ class DatabaseImportCollisionTest {
 		}
 
 	@Test
-	fun `merge imports user facts without installing source control state`() =
+	fun `old Tracker database cannot resurrect facts after collected data deletion`() =
 		withDatabases { sourceRoom, targetRoom ->
 			val source = sourceRoom.openHelper.writableDatabase
 			val target = targetRoom.openHelper.writableDatabase
@@ -189,41 +189,35 @@ class DatabaseImportCollisionTest {
 				"INSERT INTO activity (id, name, iconName) VALUES (1000, 'Imported custom activity', NULL)",
 			)
 			source.execSQL(
-				"INSERT INTO source_policy_authority " +
-					"(id, bootstrap_state, current_policy_revision, legacy_settings_fingerprint, updated_at_ms) " +
-					"VALUES (1, 'ACTIVE', 99, 'foreign-install', 999)",
-			)
-			source.execSQL(
-				"INSERT INTO source_demand " +
-					"(demand_id, consumer_id, source_kind, purpose, logical_tracking_id, manifest_revision, " +
-					"source_policy_revision, consent_epoch, persistence_eligible, qos_code, maximum_age_ms, " +
-					"desired_latency_ms, requested_boot_id, requested_elapsed_realtime_nanos, requested_at_ms, " +
-					"status, retire_boot_id, retire_elapsed_realtime_nanos, retired_at_ms) VALUES " +
-					"('foreign-demand', 'foreign-consumer', 1, 'AMBIENT_PRODUCT', NULL, NULL, " +
-					"99, 7, 1, 2, 30000, 1000, 'foreign-boot', 100, 999, 'ACTIVE', NULL, NULL, NULL)",
+				"INSERT INTO daily_summary " +
+					"(date_epoch_day, total_distance_m, total_steps, total_duration_ms, trip_count, " +
+					"active_tracking_ms, last_updated_ms, created_at) " +
+					"VALUES (20000, 123.0, 45, 60000, 1, 60000, 1000, 1000)",
 			)
 			target.execSQL(
-				"INSERT INTO source_policy_authority " +
-					"(id, bootstrap_state, current_policy_revision, legacy_settings_fingerprint, updated_at_ms) " +
-					"VALUES (1, 'UNINITIALIZED', 0, NULL, 1)",
+				"INSERT OR REPLACE INTO source_evidence_state " +
+					"(id, revision, collected_data_epoch, retained_from_ms, updated_at_ms) " +
+					"VALUES (1, 41, 7, 5000, 9000)",
 			)
 
-			val result = DatabaseImport().importDatabase(source, target)
-				.shouldBeInstanceOf<DatabaseImportResult.Success>()
-				.result
+			val failure = DatabaseImport().importDatabase(source, target)
+				.shouldBeInstanceOf<DatabaseImportResult.Failure>()
 
-			result.failedCount shouldBe 0
+			failure.reason shouldBe DatabaseImportFailure.TrackerDatabaseRestoreRequired
 			target.singleInt(
 				"SELECT COUNT(*) FROM activity WHERE name = 'Imported custom activity'",
-			) shouldBe 1
+			) shouldBe 0
+			target.singleInt("SELECT COUNT(*) FROM daily_summary WHERE date_epoch_day = 20000") shouldBe 0
 			target.query(
-				"SELECT bootstrap_state, current_policy_revision FROM source_policy_authority WHERE id = 1",
+				"SELECT revision, collected_data_epoch, retained_from_ms, updated_at_ms " +
+					"FROM source_evidence_state WHERE id = 1",
 			).use {
 				it.moveToFirst() shouldBe true
-				it.getString(0) shouldBe "UNINITIALIZED"
-				it.getLong(1) shouldBe 0L
+				it.getLong(0) shouldBe 41L
+				it.getLong(1) shouldBe 7L
+				it.getLong(2) shouldBe 5000L
+				it.getLong(3) shouldBe 9000L
 			}
-			target.singleInt("SELECT COUNT(*) FROM source_demand") shouldBe 0
 		}
 
 	private fun withDatabases(block: (AppDatabase, AppDatabase) -> Unit) {
@@ -239,7 +233,15 @@ class DatabaseImportCollisionTest {
 	}
 
 	private fun testImporter() = DatabaseImport(
-		setOf("parent", "child", "unique_item", "a_valid", "z_child", "blob_item"),
+		allowedMergeTables = setOf(
+			"parent",
+			"child",
+			"unique_item",
+			"a_valid",
+			"z_child",
+			"blob_item",
+		),
+		rejectTrackerDatabaseBackups = false,
 	)
 
 	private fun createParentChildSchema(

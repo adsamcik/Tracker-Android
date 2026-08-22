@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.documentfile.provider.DocumentFile
 import com.adsamcik.tracker.impexp.importer.FileImportStream
 import com.adsamcik.tracker.shared.base.extension.openInputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FilterInputStream
 import java.io.IOException
@@ -27,6 +28,87 @@ internal class ZipArchiveExtractor(
 	private val tempInputStreamFactory: (File) -> InputStream = { it.inputStream() },
 ) : ArchiveExtractor {
 	override val supportedExtensions: Collection<String> = listOf("zip")
+
+	/**
+	 * Identifies full-database backups before any entry is handed to a merge importer. The
+	 * exporter writes its manifest last, so classification must inspect the complete archive.
+	 */
+	fun classifyForMergeImport(
+		context: Context,
+		file: DocumentFile,
+	): ZipArchiveClassification {
+		require(!file.isDirectory) { "Directory is not a zip file" }
+		val declaredSourceSize = file.length()
+		if (declaredSourceSize > MAX_COMPRESSED_INPUT_BYTES) {
+			throw IOException(
+				"Zip archive exceeds compressed input size limit " +
+					"($MAX_COMPRESSED_INPUT_BYTES bytes)."
+			)
+		}
+
+		val source = file.openInputStream(context) ?: return ZipArchiveClassification.GENERAL_IMPORT
+		LimitedCountingInputStream(source, MAX_COMPRESSED_INPUT_BYTES).use { countedSource ->
+			ZipInputStream(countedSource).use { zipStream ->
+				var totalBytesRead = 0L
+				var entryCount = 0
+				while (true) {
+					val entry = zipStream.nextEntry ?: break
+					entryCount++
+					if (entryCount > MAX_ENTRY_COUNT) {
+						throw IOException(
+							"Zip archive exceeds entry count limit ($MAX_ENTRY_COUNT)."
+						)
+					}
+
+					try {
+						if (entry.isDirectory) continue
+						validateDeclaredEntry(entry)
+						val budgetRemaining = MAX_TOTAL_BYTES - totalBytesRead
+						if (budgetRemaining <= 0L) {
+							throw IOException(
+								"Zip archive exceeds total uncompressed size limit " +
+									"($MAX_TOTAL_BYTES bytes); refusing to inspect more."
+							)
+						}
+
+						val compressedBytesBefore = countedSource.bytesRead
+						val declaredRatioLimit = entry.compressedSize
+							.takeIf { it > 0L }
+							?.let(::maximumExpandedBytes)
+							?: Long.MAX_VALUE
+						val output = if (entry.name == BACKUP_MANIFEST_FILE) {
+							ByteArrayOutputStream()
+						} else {
+							DISCARDING_OUTPUT
+						}
+						val limit = minOf(
+							MAX_ENTRY_BYTES,
+							budgetRemaining,
+							declaredRatioLimit,
+							if (output is ByteArrayOutputStream) MAX_MANIFEST_BYTES else Long.MAX_VALUE,
+						)
+						val read = zipStream.copyToWithLimit(output, limit, entry.name)
+						totalBytesRead += read
+						val compressedSize = entry.compressedSize
+							.takeIf { it > 0L }
+							?: (countedSource.bytesRead - compressedBytesBefore).takeIf { it > 0L }
+						if (compressedSize != null && read > 0L) {
+							validateCompressionRatio(entry.name, read, compressedSize)
+						}
+						if (
+							output is ByteArrayOutputStream &&
+							isTrackerDatabaseBackupManifest(output.toByteArray())
+						) {
+							return ZipArchiveClassification.TRACKER_DATABASE_BACKUP
+						}
+					} finally {
+						zipStream.closeEntry()
+					}
+				}
+			}
+		}
+		return ZipArchiveClassification.GENERAL_IMPORT
+	}
 
 	override suspend fun extract(
 		context: Context,
@@ -228,6 +310,9 @@ internal class ZipArchiveExtractor(
 			!WINDOWS_ABSOLUTE_PATH.matches(normalized)
 	}
 
+	private fun isTrackerDatabaseBackupManifest(bytes: ByteArray): Boolean =
+		TRACKER_BACKUP_MANIFEST_PREFIX.containsMatchIn(bytes.toString(Charsets.UTF_8))
+
 	private class LimitedCountingInputStream(
 		delegate: InputStream,
 		private val limit: Long,
@@ -256,6 +341,16 @@ internal class ZipArchiveExtractor(
 	}
 
 	internal companion object {
+		private const val BACKUP_MANIFEST_FILE = "manifest.json"
+		private const val MAX_MANIFEST_BYTES = 64L * 1024L
+		private val TRACKER_BACKUP_MANIFEST_PREFIX = Regex(
+			"""^\uFEFF?\s*\{\s*"format"\s*:\s*"tracker-database-backup"\s*[,}]"""
+		)
+		private val DISCARDING_OUTPUT = object : OutputStream() {
+			override fun write(value: Int) = Unit
+
+			override fun write(buffer: ByteArray, offset: Int, length: Int) = Unit
+		}
 		const val ZIP_IMPORT_CACHE_DIR = "zip-import"
 		val WINDOWS_ABSOLUTE_PATH = Regex("^[A-Za-z]:/.*")
 
@@ -276,4 +371,9 @@ internal class ZipArchiveExtractor(
 
 		const val BUFFER_SIZE = 8 * 1024
 	}
+}
+
+internal enum class ZipArchiveClassification {
+	GENERAL_IMPORT,
+	TRACKER_DATABASE_BACKUP,
 }

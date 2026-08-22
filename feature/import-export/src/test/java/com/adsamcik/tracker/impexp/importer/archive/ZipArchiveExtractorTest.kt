@@ -292,6 +292,38 @@ class ZipArchiveExtractorTest {
 	}
 
 	@Nested
+	@DisplayName("Merge-import classification")
+	inner class MergeImportClassification {
+		@Test
+		fun `Tracker database backup is recognized even when manifest follows database entries`() {
+			val archive = buildZipBytes(
+				listOf(
+					"databases/main_database_v27" to "SQLite database bytes".toByteArray(),
+					"manifest.json" to (
+						"""{"format":"tracker-database-backup","version":1,"databases":[]}"""
+					).toByteArray(),
+				)
+			)
+
+			extractor.classifyForMergeImport(mockContext, mockFile(archive)) shouldBe
+				ZipArchiveClassification.TRACKER_DATABASE_BACKUP
+		}
+
+		@Test
+		fun `ordinary portable archive remains eligible for merge import`() {
+			val archive = buildZipBytes(
+				listOf(
+					"track.gpx" to "<gpx/>".toByteArray(),
+					"export.json" to "{}".toByteArray(),
+				)
+			)
+
+			extractor.classifyForMergeImport(mockContext, mockFile(archive)) shouldBe
+				ZipArchiveClassification.GENERAL_IMPORT
+		}
+	}
+
+	@Nested
 	@DisplayName("Resource limits")
 	inner class ResourceLimits {
 		@Test

@@ -21,6 +21,7 @@ import java.io.File
  */
 internal class DatabaseImport(
 	private val allowedMergeTables: Set<String> = USER_DATA_TABLES,
+	private val rejectTrackerDatabaseBackups: Boolean = true,
 ) : FileImport {
 	override val supportedExtensions: Collection<String> = listOf("db")
 	override val transactionMode: ImportTransactionMode = ImportTransactionMode.IMPORTER_MANAGED
@@ -71,12 +72,21 @@ internal class DatabaseImport(
 		to: SupportSQLiteDatabase,
 	): DatabaseImportResult {
 		return try {
+			val allSourceTableNames = from.getAllTables()
+			if (
+				rejectTrackerDatabaseBackups &&
+				TRACKER_DATABASE_SIGNATURES.any(allSourceTableNames::containsAll)
+			) {
+				return DatabaseImportResult.Failure(
+					DatabaseImportFailure.TrackerDatabaseRestoreRequired,
+				)
+			}
 			from.findUnsupportedSchemaObject()?.let {
 				throw DatabaseImportPlanningException(
 					DatabaseImportFailure.UnsupportedSchemaObject(it.type, it.name),
 				)
 			}
-			val allSourceTables = from.getAllTables()
+			val allSourceTables = allSourceTableNames
 				.filterNot(::isSystemTable)
 				.map { from.getTable(it) }
 			val sourceTablesByName = allSourceTables.associateBy { it.tableName }
@@ -465,6 +475,11 @@ internal class DatabaseImport(
 		const val IMPORT_MODE = "READ_ONLY_COMPUTED_REMAP_TRANSACTION"
 		private const val IMPORT_CACHE_DIR = "database-import"
 		private val SYSTEM_TABLES = setOf("room_master_table", "android_metadata")
+		private val TRACKER_DATABASE_SIGNATURES = listOf(
+			setOf("tracking_session", "location_data", "wifi_data", "cell_data"),
+			setOf("tracker_session", "location_data", "wifi_data"),
+			setOf("tracker_run", "session_segment", "location_sample"),
+		)
 
 		/**
 		 * Tables whose rows are user-owned facts or user-visible products and are safe to merge.
@@ -518,6 +533,11 @@ internal sealed interface DatabaseImportResult {
 
 internal sealed interface DatabaseImportFailure {
 	val message: String
+
+	data object TrackerDatabaseRestoreRequired : DatabaseImportFailure {
+		override val message: String =
+			"Tracker database backups require restore and cannot be merged into existing data."
+	}
 
 	data class ConstraintViolation(val tableName: String) : DatabaseImportFailure {
 		override val message: String = "Constraint violation in table $tableName"
