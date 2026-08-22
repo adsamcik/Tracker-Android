@@ -106,6 +106,8 @@ data class WifiAccessPointEvidence(
 	val identifierToken: String,
 	val frequencyMhz: Int,
 	val signalLevelDbm: Int,
+	/** Elapsed-realtime timestamp at which this individual AP was last seen by the provider. */
+	val providerTimestampNanos: Long? = null,
 )
 
 data class CellSnapshotPayload(

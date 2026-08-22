@@ -63,7 +63,7 @@ class TrackerServiceSourceSessionTest {
 				ownership = initialOwnership,
 				logicalTrackingId = "logical",
 				serviceRunId = "run",
-				origin = SessionStartOrigin.MANUAL_FOREGROUND,
+				origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
 				foregroundCapabilityFlags = 1,
 				planInputs = inputs(initialSettings),
 				ownerToken = "owner",
@@ -82,6 +82,54 @@ class TrackerServiceSourceSessionTest {
 		).shouldBeInstanceOf<SourceSessionReconfigureOutcome.Started>()
 	}
 
+	@Test
+	fun `newer policy input received before start supersedes the captured request`() = runTest {
+		val rollout = TrackingRolloutState.eventCanonical(revision = 5)
+		val captured = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)
+		val revoked = settings(SourceCollectionFrequency.OFF, sourcePolicyRevision = 2)
+		subject.reconfigure(inputs(revoked)) shouldBe SourceSessionReconfigureOutcome.NotActive
+		subject.reconfigure(inputs(captured)) shouldBe SourceSessionReconfigureOutcome.NotActive
+
+		val result = subject.start(
+			SourceSessionStartRequest(
+				rollout = rollout,
+				ownership = TrackingSessionOwnership.resolve(rollout, captured),
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+				foregroundCapabilityFlags = 1,
+				planInputs = inputs(captured),
+				ownerToken = "owner",
+			),
+		)
+
+		result shouldBe SourceSessionStartOutcome.NotRequired
+	}
+
+	@Test
+	fun `latest environment wins when pending inputs share a policy revision`() = runTest {
+		val rollout = TrackingRolloutState.eventCanonical(revision = 5)
+		val captured = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 2)
+		val revoked = settings(SourceCollectionFrequency.OFF, sourcePolicyRevision = 2)
+		subject.reconfigure(inputs(captured)) shouldBe SourceSessionReconfigureOutcome.NotActive
+		subject.reconfigure(inputs(revoked)) shouldBe SourceSessionReconfigureOutcome.NotActive
+
+		val result = subject.start(
+			SourceSessionStartRequest(
+				rollout = rollout,
+				ownership = TrackingSessionOwnership.resolve(rollout, captured),
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+				foregroundCapabilityFlags = 1,
+				planInputs = inputs(captured),
+				ownerToken = "owner",
+			),
+		)
+
+		result shouldBe SourceSessionStartOutcome.NotRequired
+	}
+
 	private fun inputs(settings: TrackingParamsState) = SourceSessionPlanInputs(
 		settings = settings,
 		environment = SourcePlanEnvironment(LocationBackend.FRAMEWORK, true, emptySet()),
@@ -95,13 +143,17 @@ class TrackerServiceSourceSessionTest {
 		clockDomainId = "boot-1",
 	)
 
-	private fun settings(steps: SourceCollectionFrequency) = TrackingParamsState(
+	private fun settings(
+		steps: SourceCollectionFrequency,
+		sourcePolicyRevision: Long? = null,
+	) = TrackingParamsState(
 		locationEnabled = false,
 		activityEnabled = false,
 		stepsEnabled = steps != SourceCollectionFrequency.OFF,
 		wifiEnabled = false,
 		cellEnabled = false,
 		barometerEnabled = false,
+		sourcePolicyRevision = sourcePolicyRevision,
 		sourceCollectionSettings = SourceCollectionSettings(
 			location = SourceCollectionFrequency.OFF,
 			activity = SourceCollectionFrequency.OFF,

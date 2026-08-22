@@ -126,7 +126,7 @@ fun WhatToCollectStep(
     val wifiLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { results ->
-        onWifiPermissionResult(results.values.any { it })
+        onWifiPermissionResult(results[Manifest.permission.ACCESS_FINE_LOCATION] == true)
     }
 
     val cellLauncher = rememberLauncherForActivityResult(
@@ -305,15 +305,12 @@ fun WhatToCollectStep(
                         rationaleTestTag = "setup_perm_wifi_rationale",
                         grantButtonTestTag = "setup_perm_wifi_grant",
                         onGrant = {
-                            val perms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                arrayOf(Manifest.permission.NEARBY_WIFI_DEVICES)
-                            } else {
+                            wifiLauncher.launch(
                                 arrayOf(
                                     Manifest.permission.ACCESS_FINE_LOCATION,
                                     Manifest.permission.ACCESS_COARSE_LOCATION,
-                                )
-                            }
-                            wifiLauncher.launch(perms)
+                                ),
+                            )
                         },
                     )
                 } else {

@@ -5,7 +5,11 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntentVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 
@@ -21,10 +25,103 @@ interface SourceSessionDao {
 	suspend fun session(logicalTrackingId: String): LogicalTrackingSessionEntity?
 
 	@Query(
-		"SELECT * FROM logical_tracking_session WHERE state NOT IN ('CLOSED', 'FAILED') " +
+		"SELECT * FROM logical_tracking_session WHERE state NOT IN ('FINALIZED', 'CLOSED', 'FAILED') " +
 			"ORDER BY started_at_ms DESC LIMIT 1",
 	)
 	suspend fun activeSession(): LogicalTrackingSessionEntity?
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	suspend fun insertManifest(entity: SessionManifestVersionEntity)
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	suspend fun insertManifestSources(entities: List<SessionManifestSourceEntity>)
+
+	@Query(
+		"SELECT * FROM session_manifest_version WHERE logical_tracking_id = :logicalTrackingId " +
+			"ORDER BY manifest_revision ASC",
+	)
+	suspend fun manifests(logicalTrackingId: String): List<SessionManifestVersionEntity>
+
+	@Query(
+		"SELECT * FROM session_manifest_version WHERE logical_tracking_id = :logicalTrackingId " +
+			"AND manifest_revision = :manifestRevision",
+	)
+	suspend fun manifest(logicalTrackingId: String, manifestRevision: Long): SessionManifestVersionEntity?
+
+	@Query(
+		"SELECT * FROM session_manifest_version WHERE logical_tracking_id = :logicalTrackingId " +
+			"AND manifest_revision > :manifestRevision ORDER BY manifest_revision ASC LIMIT 1",
+	)
+	suspend fun nextManifest(
+		logicalTrackingId: String,
+		manifestRevision: Long,
+	): SessionManifestVersionEntity?
+
+	@Query(
+		"SELECT * FROM session_manifest_source WHERE logical_tracking_id = :logicalTrackingId " +
+			"AND manifest_revision = :manifestRevision ORDER BY purpose, source_kind",
+	)
+	suspend fun manifestSources(
+		logicalTrackingId: String,
+		manifestRevision: Long,
+	): List<SessionManifestSourceEntity>
+
+	@Query(
+		"SELECT * FROM session_manifest_source WHERE logical_tracking_id = :logicalTrackingId " +
+			"AND manifest_revision = :manifestRevision AND source_kind = :sourceKind " +
+			"AND purpose = :purpose",
+	)
+	suspend fun manifestSource(
+		logicalTrackingId: String,
+		manifestRevision: Long,
+		sourceKind: Int,
+		purpose: String,
+	): SessionManifestSourceEntity?
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	suspend fun insertLifecycleIntent(entity: SessionLifecycleIntentVersionEntity)
+
+	@Query(
+		"SELECT * FROM session_lifecycle_intent_version WHERE logical_tracking_id = :logicalTrackingId " +
+			"ORDER BY intent_revision ASC",
+	)
+	suspend fun lifecycleIntents(logicalTrackingId: String): List<SessionLifecycleIntentVersionEntity>
+
+	@Query(
+		"SELECT * FROM session_lifecycle_intent_version WHERE logical_tracking_id = :logicalTrackingId " +
+			"AND intent_revision = :intentRevision",
+	)
+	suspend fun lifecycleIntent(
+		logicalTrackingId: String,
+		intentRevision: Long,
+	): SessionLifecycleIntentVersionEntity?
+
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	suspend fun insertLifecycleActions(entities: List<LifecycleDesiredActionEntity>)
+
+	@Update
+	suspend fun updateLifecycleAction(entity: LifecycleDesiredActionEntity): Int
+
+	@Query("SELECT * FROM lifecycle_desired_action WHERE action_id = :actionId")
+	suspend fun lifecycleAction(actionId: String): LifecycleDesiredActionEntity?
+
+	@Query(
+		"SELECT * FROM lifecycle_desired_action WHERE logical_tracking_id = :logicalTrackingId " +
+			"ORDER BY action_revision ASC",
+	)
+	suspend fun lifecycleActions(logicalTrackingId: String): List<LifecycleDesiredActionEntity>
+
+	@Query(
+		"SELECT * FROM lifecycle_desired_action WHERE status IN " +
+			"('PENDING', 'APPLYING', 'TEMPORARILY_ILLEGAL') ORDER BY requested_at_ms, action_revision",
+	)
+	suspend fun pendingLifecycleActions(): List<LifecycleDesiredActionEntity>
+
+	@Query(
+		"SELECT COALESCE(MAX(action_revision), 0) FROM lifecycle_desired_action " +
+			"WHERE logical_tracking_id = :logicalTrackingId",
+	)
+	suspend fun maximumActionRevision(logicalTrackingId: String): Long
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertServiceRun(entity: SourceServiceRunEntity)
@@ -43,7 +140,7 @@ interface SourceSessionDao {
 
 	@Query(
 		"SELECT * FROM source_service_run WHERE logical_tracking_id = :logicalTrackingId " +
-			"AND (completed_at_ms IS NULL OR state NOT IN ('CLOSED', 'FAILED')) " +
+			"AND completed_at_ms IS NULL AND state NOT IN ('FINALIZED', 'CLOSED', 'FAILED') " +
 			"ORDER BY started_at_ms ASC",
 	)
 	suspend fun incompleteServiceRuns(logicalTrackingId: String): List<SourceServiceRunEntity>
@@ -56,6 +153,18 @@ interface SourceSessionDao {
 
 	@Query("DELETE FROM source_session_completeness")
 	fun deleteAllCompleteness()
+
+	@Query("DELETE FROM lifecycle_desired_action")
+	fun deleteAllLifecycleActions()
+
+	@Query("DELETE FROM session_manifest_source")
+	fun deleteAllManifestSources()
+
+	@Query("DELETE FROM session_lifecycle_intent_version")
+	fun deleteAllLifecycleIntents()
+
+	@Query("DELETE FROM session_manifest_version")
+	fun deleteAllManifests()
 
 	@Query("DELETE FROM source_service_run")
 	fun deleteAllServiceRuns()

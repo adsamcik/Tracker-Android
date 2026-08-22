@@ -17,6 +17,28 @@ import org.junit.jupiter.api.Test
 
 @DisplayName("BackgroundTrackingApi Logic")
 class BackgroundTrackingApiLogicTest {
+	@Nested
+	@DisplayName("control policy")
+	inner class ControlPolicy {
+		@Test
+		fun `denied activity control forces automatic tracking off`() {
+			effectiveAutomaticControlMode(GroupedActivity.ON_FOOT.ordinal, controlEligible = false) shouldBe
+				GroupedActivity.STILL.ordinal
+		}
+
+		@Test
+		fun `eligible activity control preserves the configured mode`() {
+			effectiveAutomaticControlMode(GroupedActivity.ON_FOOT.ordinal, controlEligible = true) shouldBe
+				GroupedActivity.ON_FOOT.ordinal
+		}
+
+		@Test
+		fun `step corroboration requires its own control epoch and recognition mode`() {
+			shouldUseStepCorroboration(useTransitionApi = false, stepControlEligible = false) shouldBe false
+			shouldUseStepCorroboration(useTransitionApi = true, stepControlEligible = true) shouldBe false
+			shouldUseStepCorroboration(useTransitionApi = false, stepControlEligible = true) shouldBe true
+		}
+	}
 
 	@Nested
 	@DisplayName("hasAnythingToTrack")
@@ -260,6 +282,15 @@ class BackgroundTrackingApiLogicTest {
 				newMode = GroupedActivity.STILL.ordinal,
 				isActive = false,
 				hasActivityPermission = false,
+			) shouldBe AutoTrackingPreferenceAction.NONE
+		}
+
+		@Test
+		fun `STILL while inactive with permission remains disabled`() {
+			resolveAutoTrackingPreferenceAction(
+				newMode = GroupedActivity.STILL.ordinal,
+				isActive = false,
+				hasActivityPermission = true,
 			) shouldBe AutoTrackingPreferenceAction.NONE
 		}
 

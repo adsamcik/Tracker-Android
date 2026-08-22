@@ -41,5 +41,20 @@ class SourcePayloadCodecTest {
 			encoded.checksum.length shouldBe 64
 		}
 	}
-}
 
+	@Test
+	fun `version two preserves each Wi-Fi observation time`() {
+		val payload = WifiResultSnapshotPayload(
+			accessPoints = listOf(
+				WifiAccessPointEvidence("", 2_412, -45, providerTimestampNanos = 100L),
+				WifiAccessPointEvidence("", 5_200, -60, providerTimestampNanos = 200L),
+			),
+			platformTimestampMs = 0L,
+			resultAgeMs = 3L,
+		)
+
+		val encoded = codec.encode(payload, 2)
+
+		codec.decode(payload.source, 2, encoded.bytes) shouldBe payload
+	}
+}

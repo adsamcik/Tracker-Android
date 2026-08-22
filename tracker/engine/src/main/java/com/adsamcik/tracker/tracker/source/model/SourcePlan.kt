@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.source.model
 
+import java.security.MessageDigest
+
 sealed interface SourcePlan {
 	val source: SourceKind
 	val revision: Long
@@ -103,11 +105,13 @@ data class AcquisitionPlanRevision(
 	val planId: String,
 	val createdAtMs: Long,
 	val plans: Map<SourceKind, SourcePlan>,
+	val sourcePolicyRevision: Long? = null,
 ) {
 	init {
 		require(revision >= 0L)
 		require(planId.isNotBlank())
 		require(createdAtMs >= 0L)
+		require(sourcePolicyRevision == null || sourcePolicyRevision > 0L)
 		require(plans.all { (source, plan) -> source == plan.source && plan.revision == revision }) {
 			"Every source plan must match its map key and desired-plan revision"
 		}
@@ -139,3 +143,30 @@ enum class SourceDegradedReason {
 	PLATFORM_THROTTLED,
 }
 
+/** Stable identity of the Android/provider work, deliberately excluding the global plan revision. */
+fun SourcePlan.physicalConfigurationFingerprint(): String {
+	val canonical = when (this) {
+		is LocationPlan -> listOf(
+			source, backend, mode, requestedIntervalMs, minimumUpdateIntervalMs,
+			minimumDisplacementMeters, maximumBatchDelayMs, probeDurationMs, preciseLocationAvailable,
+		)
+		is ActivityPlan -> listOf(
+			source, mode, desiredDetectionLatencyMs, confidenceThresholdPercent,
+			transitionTypes.sorted().joinToString(","),
+		)
+		is StepsPlan -> listOf(source, enabled, maximumReportLatencyMs)
+		is PressurePlan -> listOf(source, enabled, hardwareSamplePeriodMicros, maximumReportLatencyMicros)
+		is WifiPlan -> listOf(
+			source, mode, minimumAttemptIntervalMs, backoff.initialDelayMs,
+			backoff.maximumDelayMs, backoff.multiplier,
+		)
+		is CellPlan -> listOf(
+			source, mode, minimumRefreshAttemptIntervalMs,
+			subscriptionIds.sorted().joinToString(","), backoff.initialDelayMs,
+			backoff.maximumDelayMs, backoff.multiplier,
+		)
+	}.joinToString("\u001f")
+	return MessageDigest.getInstance("SHA-256")
+		.digest(canonical.toByteArray(Charsets.UTF_8))
+		.joinToString("") { byte -> "%02x".format(byte) }
+}

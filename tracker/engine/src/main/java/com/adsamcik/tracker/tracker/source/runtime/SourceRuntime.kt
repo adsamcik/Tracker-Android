@@ -13,7 +13,7 @@ interface SourceRuntime<P : SourcePlan> {
 	val capabilities: StateFlow<SourceCapabilities>
 
 	suspend fun start(plan: P, sink: SourceEventSink): SourceStartResult
-	suspend fun reconfigure(plan: P): SourceApplyResult
+	suspend fun reconfigure(plan: P, sink: SourceEventSink): SourceApplyResult
 	suspend fun quiesce(cutoff: SessionCutoff): SourceStopAck
 	suspend fun close()
 }
@@ -30,6 +30,8 @@ sealed interface SourceAdmissionHandoff {
 }
 
 enum class SourceAdmissionFailureCode {
+	STALE_REGISTRATION_GENERATION,
+	SOURCE_POLICY_STALE,
 	STALE_COLLECTED_DATA_EPOCH,
 	BEFORE_RETENTION_BOUNDARY,
 	INVALID_EVIDENCE,
@@ -97,4 +99,3 @@ enum class ProviderCoverage {
 }
 
 enum class SourceStopStatus { COMPLETE, TIMED_OUT, PERMISSION_LOST, PROVIDER_FAILED, PROCESS_RESTARTED }
-

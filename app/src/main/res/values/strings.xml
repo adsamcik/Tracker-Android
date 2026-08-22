@@ -366,6 +366,8 @@
     <string name="settings_tracking_section_sources">Data sources</string>
     <string name="settings_tracking_section_detail">Location filters</string>
     <string name="settings_tracking_section_notifications">Notifications</string>
+    <string name="settings_source_policy_unavailable_title" tools:ignore="MissingTranslation">Tracking settings unavailable</string>
+    <string name="settings_source_policy_unavailable_summary" tools:ignore="MissingTranslation">Your saved source choices have not been changed. Tracker is retrying the secure settings store automatically; collection remains off until it recovers.</string>
     <string name="settings_transition_detection_friendly_title">Battery-efficient motion detection</string>
     <string name="settings_transition_detection_friendly_summary">Uses Android activity changes to avoid frequent background checks. Automatic starts may react a little more slowly.</string>
     <string name="settings_location_source_summary">Records your route, distance, and speed. Usually the largest battery cost.</string>

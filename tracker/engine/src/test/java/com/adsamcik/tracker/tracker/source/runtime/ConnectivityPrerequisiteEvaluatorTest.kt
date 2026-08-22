@@ -10,28 +10,18 @@ import com.adsamcik.tracker.tracker.source.model.WifiMode
 import com.adsamcik.tracker.tracker.source.model.WifiPlan
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 import org.junit.Test
 
 class ConnectivityPrerequisiteEvaluatorTest {
 	@Test
-	fun `target 33 Wi-Fi scan requires both fine location and nearby Wi-Fi grants`() {
-		val noFine = WifiPrerequisiteEvaluator.evaluate(wifiPlan(), wifiDevice(api = 33, fine = false))
-		val noNearby = WifiPrerequisiteEvaluator.evaluate(wifiPlan(), wifiDevice(api = 33, nearby = false))
-		val both = WifiPrerequisiteEvaluator.evaluate(wifiPlan(), wifiDevice(api = 33))
+	fun `Wi-Fi scan requires fine location without an unrelated nearby devices grant`() {
+		val noFine = WifiPrerequisiteEvaluator.evaluate(wifiPlan(), wifiDevice(fine = false))
+		val fineOnly = WifiPrerequisiteEvaluator.evaluate(wifiPlan(), wifiDevice())
 
 		assertEquals(SourceApplyStatus.BLOCKED, noFine.status)
-		assertEquals(SourceApplyStatus.BLOCKED, noNearby.status)
-		assertEquals(SourceApplyStatus.APPLIED, both.status)
+		assertEquals(SourceApplyStatus.APPLIED, fineOnly.status)
 		assertTrue(SourceDegradedReason.PERMISSION_MISSING in noFine.reasons)
-	}
-
-	@Test
-	fun `API 32 Wi-Fi scan does not require nearby Wi-Fi grant`() {
-		val result = WifiPrerequisiteEvaluator.evaluate(wifiPlan(), wifiDevice(api = 32, nearby = false))
-
-		assertEquals(SourceApplyStatus.APPLIED, result.status)
 	}
 
 	@Test
@@ -87,21 +77,13 @@ class ConnectivityPrerequisiteEvaluatorTest {
 	}
 
 	@Test
-	fun `semantic dedupe preserves freshness heartbeats and modem timestamps`() {
-		assertFalse(ConnectivitySnapshotGate.shouldAdmitWifi("same", "same", 2_000_000_000, 1_500_000_000, 1_000))
-		assertTrue(ConnectivitySnapshotGate.shouldAdmitWifi("same", "same", 2_500_000_000, 1_500_000_000, 1_000))
-		assertFalse(ConnectivitySnapshotGate.shouldAdmitCell("same", 123, "same", 123))
-		assertTrue(ConnectivitySnapshotGate.shouldAdmitCell("same", 124, "same", 123))
-	}
-
-	@Test
-	fun `identifier tokens do not expose provider identifiers`() {
-		val raw = "aa:bb:cc:dd:ee:ff"
-		val token = stableIdentifierToken("wifi-bssid", raw)
-
-		assertNotEquals(raw, token)
-		assertFalse(token.contains(raw))
-		assertEquals(token, stableIdentifierToken("wifi-bssid", raw))
+	fun `snapshot identity suppresses interleaved replay but preserves new provider observations`() {
+		val gate = BoundedReplayIdentityGate()
+		assertTrue(gate.shouldAdmit("same-content:time-1"))
+		gate.record("same-content:time-1")
+		assertTrue(gate.shouldAdmit("same-content:time-2"))
+		gate.record("same-content:time-2")
+		assertFalse(gate.shouldAdmit("same-content:time-1"))
 	}
 
 	private fun wifiPlan() = WifiPlan(1, WifiMode.ACTIVE_ATTEMPTS, 60_000, 120_000, 300_000, backoff())
@@ -109,12 +91,10 @@ class ConnectivityPrerequisiteEvaluatorTest {
 	private fun backoff() = RetryBackoff(30_000, 1_800_000)
 
 	private fun wifiDevice(
-		api: Int = 33,
 		fine: Boolean = true,
-		nearby: Boolean = true,
 		locationServices: Boolean = true,
 		idle: Boolean = false,
-	) = WifiDeviceState(api, true, fine, nearby, locationServices, idle)
+	) = WifiDeviceState(true, fine, locationServices, idle)
 
 	private fun cellDevice(
 		api: Int = 31,
@@ -122,5 +102,5 @@ class ConnectivityPrerequisiteEvaluatorTest {
 		fine: Boolean = true,
 		phone: Boolean = true,
 		refresh: Boolean = api >= 29,
-	) = CellDeviceState(api, radio, fine, phone, refresh)
+	) = CellDeviceState(radio, fine, phone, refresh)
 }

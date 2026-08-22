@@ -47,7 +47,7 @@ class TrackingSettingsViewModelTest {
     private var permissionsGranted = true
 
     // Backing state for the fake repository
-    private val paramsFlow = MutableStateFlow(TrackingParamsState())
+	private val paramsFlow = MutableStateFlow(TrackingParamsState(sourcePolicyRevision = 1L))
     private val trackingParamsRepository: TrackingParamsRepository = mockk()
     private val activityWatcherController: ActivityWatcherController = mockk(relaxed = true)
     private val trackingStatusProvider = DefaultTrackingSettingsStatusProvider(

@@ -109,6 +109,24 @@ class SourceEventWalDaoTest {
 	}
 
 	@Test
+	fun `source maintenance never advances retained floor across a non-expired ordinal`() = runTest {
+		val wal = database.sourceEventWalDao()
+		val projection = database.sourceProjectionStateDao()
+		projection.register(SourceProjectionRegistrationEntity("raw", 1, 1, true, "ACTIVE", 0))
+		projection.saveCheckpoint(SourceProjectionCheckpointEntity("raw", 1, 3, 1, 100))
+		wal.insertIgnoringDuplicate(event("old-prefix", 1L).copy(createdAtMs = 10))
+		wal.insertIgnoringDuplicate(event("retained-middle", 2L).copy(createdAtMs = 200))
+		wal.insertIgnoringDuplicate(event("old-tail", 3L).copy(createdAtMs = 10))
+
+		val result = database.pruneSourceEventStorageBefore(createdBeforeMs = 100, batchSize = 10)
+
+		result.walEventsDeleted shouldBe 1
+		wal.getByEventId("old-prefix") shouldBe null
+		wal.getByEventId("retained-middle")?.eventId shouldBe "retained-middle"
+		wal.getByEventId("old-tail")?.eventId shouldBe "old-tail"
+	}
+
+	@Test
 	fun `source storage hot paths use their composite indexes`() {
 		queryPlan(
 			"SELECT event_id, admission_ordinal, payload_checksum FROM source_event_wal " +

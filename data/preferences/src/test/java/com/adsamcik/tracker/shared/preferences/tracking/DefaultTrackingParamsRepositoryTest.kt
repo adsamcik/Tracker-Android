@@ -15,6 +15,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -284,7 +285,7 @@ class DefaultTrackingParamsRepositoryTest {
     }
 
     @Test
-    fun `partially migrated datastore preserves explicit frequencies and repairs missing ones`() = runTest {
+	fun `unknown source frequency fails closed without rewriting retained intent`() = runTest {
         writeTrackingProto(
             TrackingParamsProto.newBuilder()
                 .setLegacyMigrated(true)
@@ -295,16 +296,31 @@ class DefaultTrackingParamsRepositoryTest {
                 .build(),
         )
 
-        val state = DefaultTrackingParamsRepository(context, Dispatchers.IO).data.first()
+		val failure = runCatching {
+			DefaultTrackingParamsRepository(context, Dispatchers.IO).data.first()
+		}.exceptionOrNull()
 
-        assertEquals(SourceCollectionFrequency.RESPONSIVE, state.sourceCollectionSettings.location)
-        assertEquals(SourceCollectionFrequency.BALANCED, state.sourceCollectionSettings.activity)
-        assertEquals(SourceCollectionFrequency.BALANCED, state.sourceCollectionSettings.pressure)
-        val persisted = readTrackingProto()
-        assertEquals(SourceCollectionFrequency.RESPONSIVE.stableCode, persisted.locationFrequency)
-        assertEquals(SourceCollectionFrequency.BALANCED.stableCode, persisted.activityFrequency)
-        assertEquals(TrackingParamsState.CURRENT_SOURCE_SETTINGS_VERSION, persisted.sourceSettingsVersion)
-    }
+		assertNotNull(failure)
+		val persisted = readTrackingProto()
+		assertEquals(SourceCollectionFrequency.RESPONSIVE.stableCode, persisted.locationFrequency)
+		assertEquals(999, persisted.activityFrequency)
+		assertEquals(0, persisted.sourceSettingsVersion)
+	}
+
+	@Test
+	fun `corrupt datastore fails closed without replacing it with defaults`() = runTest {
+		val file = context.filesDir.resolve("datastore/tracking_params.pb")
+		file.parentFile?.mkdirs()
+		val corrupt = byteArrayOf(0x0a, 0x7f, 0x01, 0x02)
+		file.writeBytes(corrupt)
+
+		val failure = runCatching {
+			DefaultTrackingParamsRepository(context, Dispatchers.IO).data.first()
+		}.exceptionOrNull()
+
+		assertNotNull(failure)
+		assertTrue(file.readBytes().contentEquals(corrupt))
+	}
 
     @Test
     fun `completed migration is idempotent and ignores later legacy preference changes`() = runTest {

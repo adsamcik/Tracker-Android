@@ -3,6 +3,9 @@ package com.adsamcik.tracker.tracker.source.coordinator
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -63,6 +66,9 @@ class TrackingRolloutStateStoreTest {
 
 	@Test
 	fun `event coordinator refuses a source that persisted rollout does not own`() = runTest {
+		RoomSourcePolicyRepository(database) {
+			SourcePolicyEffectiveTime("boot-1", 1L, 1L)
+		}.bootstrapFromLegacy(TrackingParamsState(legacySettingsMigrationCompleted = true))
 		val ingress = io.mockk.mockk<com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress>()
 		val coordinator = AuthoritativeSessionCoordinator(
 			database,
@@ -77,20 +83,22 @@ class TrackingRolloutStateStoreTest {
 			planId = "guard-test",
 			createdAtMs = 1,
 			plans = mapOf(
-				SourceKind.STEPS to com.adsamcik.tracker.tracker.source.model.StepsPlan(1, true, 0, 1_000, false),
+				SourceKind.STEPS to com.adsamcik.tracker.tracker.source.model.StepsPlan(1, true, 60_000, 15_000, false),
 			),
+			sourcePolicyRevision = 1,
 		)
 
 		coordinator.start(
 			SessionStartRequest(
 				ownerToken = "guard-test",
-				origin = SessionStartOrigin.MANUAL_FOREGROUND,
+				origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
 				plan = plan,
 				rolloutRevision = 0,
 				clockDomainId = "boot-1",
 				foregroundCapabilityFlags = 0,
 				wallTimeMs = 1,
 				elapsedRealtimeNanos = 1,
+				zoneId = "Europe/Prague",
 			),
 		).shouldBeInstanceOf<SessionStartResult.InvalidRollout>()
 	}

@@ -27,11 +27,21 @@ class RoomSourcePlanStore @Inject constructor(
 			}
 			if (existing == null) {
 				dao.insertRevision(
-					AcquisitionPlanRevisionEntity(plan.revision, plan.planId, plan.createdAtMs, status.name),
+					AcquisitionPlanRevisionEntity(
+						plan.revision,
+						plan.planId,
+						plan.createdAtMs,
+						status.name,
+						plan.sourcePolicyRevision,
+					),
 				)
 				dao.insertDesiredPlans(encoded)
 			} else {
 				check(existing.planId == plan.planId) { "Plan revision identity collision" }
+				check(existing.createdAtMs == plan.createdAtMs) { "Plan revision creation-time collision" }
+				check(existing.sourcePolicyRevision == plan.sourcePolicyRevision) {
+					"Plan revision source-policy collision"
+				}
 				val stored = dao.desiredPlans(plan.revision)
 				check(stored.map { it.sourceKind to it.payloadChecksum } ==
 					encoded.map { it.sourceKind to it.payloadChecksum }) {
@@ -49,7 +59,13 @@ class RoomSourcePlanStore @Inject constructor(
 			val source = SourceKind.entries.single { it.stableCode == entity.sourceKind }
 			source to codec.decode(entity.payload)
 		}
-		AcquisitionPlanRevision(header.revision, header.planId, header.createdAtMs, plans)
+		AcquisitionPlanRevision(
+			header.revision,
+			header.planId,
+			header.createdAtMs,
+			plans,
+			header.sourcePolicyRevision,
+		)
 	}
 
 	suspend fun saveApplied(state: AppliedSourcePlan, updatedAtMs: Long) {

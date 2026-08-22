@@ -6,8 +6,13 @@ import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidence
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
 import com.adsamcik.tracker.activity.api.ingress.ActivityTransitionEvidence
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
+import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.source.model.ActivityRecognitionPayload
@@ -22,6 +27,7 @@ import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
 import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
 import com.adsamcik.tracker.tracker.source.model.StableActivityTypeCode
+import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
 import com.adsamcik.tracker.tracker.source.control.CollectionMotionController
 import javax.inject.Inject
@@ -41,10 +47,14 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 		val capturedIdentity = batch.registrationIdentity
 			?: return ActivityIngressResult.rejected(0, 0, "MISSING_REGISTRATION_IDENTITY")
 
-		val result = runCatching {
+		val result = runCatchingNonCancellation {
 			val lifecycle = lifecycleStore.snapshot()
 			if (capturedIdentity.collectedDataEpoch != lifecycle.epoch) {
-				return@runCatching ActivityIngressResult.rejected(0, 0, "STALE_COLLECTED_DATA_EPOCH")
+				return@runCatchingNonCancellation ActivityIngressResult.rejected(
+					0,
+					0,
+					"STALE_COLLECTED_DATA_EPOCH",
+				)
 			}
 			var admittedCount = 0
 			var duplicateCount = 0
@@ -61,8 +71,13 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 			}.sortedBy(ActivityEvidence::observedElapsedRealtimeNanos)
 
 			evidence.forEach { event ->
-				val admissionContext = reserveSequence(capturedIdentity, lifecycle.epoch, batch.receivedWallTimeMs)
-					?: return@runCatching ActivityIngressResult.rejected(
+				val admissionContext = reserveSequence(
+					capturedIdentity,
+					lifecycle.epoch,
+					event.observedElapsedRealtimeNanos,
+					batch.receivedWallTimeMs,
+				)
+					?: return@runCatchingNonCancellation ActivityIngressResult.rejected(
 						admittedCount,
 						duplicateCount,
 						"STALE_REGISTRATION_GENERATION",
@@ -99,29 +114,52 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 		}.getOrElse { failure ->
 			ActivityIngressResult.retryable(0, 0, failure.javaClass.simpleName.ifBlank { "storage_unavailable" })
 		}
-		if (result.isDurable) runCatching { sourcePipelineRecovery.drainCommittedWork() }
+		if (result.isDurable) runCatchingNonCancellation { sourcePipelineRecovery.drainCommittedWork() }
 		return result
 	}
 
 	private suspend fun reserveSequence(
 		identity: com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity,
 		collectedDataEpoch: Long,
+		observedElapsedRealtimeNanos: Long,
 		updatedAtMs: Long,
 	): ActivityAdmissionContext? = database.withTransaction {
 		val dao = database.sourceRegistrationStateDao()
 		val current = dao.get(SourceKind.ACTIVITY.stableCode, OWNER_SCOPE) ?: return@withTransaction null
 		if (current.sourceInstanceId != identity.sourceInstanceId ||
-			current.registrationGeneration != identity.registrationGeneration ||
-			current.collectedDataEpoch != collectedDataEpoch ||
-			current.collectedDataEpoch != identity.collectedDataEpoch ||
-			current.appliedRevision != identity.appliedRevision
+			current.clockDomainId != identity.clockDomainId ||
+			current.collectedDataEpoch != identity.collectedDataEpoch
 		) return@withTransaction null
+		val brokerDao = database.sourceBrokerDao()
+		val providerRegistration = brokerDao.registrationAtObservedTime(
+			SourceKind.ACTIVITY.stableCode,
+			identity.registrationGeneration,
+			identity.sourceInstanceId,
+			identity.clockDomainId,
+			identity.physicalConfigurationFingerprint,
+			observedElapsedRealtimeNanos,
+		) ?: return@withTransaction null
+		if (providerRegistration.collectedDataEpoch != collectedDataEpoch ||
+			providerRegistration.collectedDataEpoch != identity.collectedDataEpoch
+		) return@withTransaction null
+		val authorization = brokerDao.authorizationAt(
+			SourceKind.ACTIVITY.stableCode,
+			identity.registrationGeneration,
+			identity.clockDomainId,
+			observedElapsedRealtimeNanos,
+		).toAuthorizationSnapshotOrNull() ?: return@withTransaction null
+		if (authorization.isDenied) return@withTransaction null
+		val captureRows = authorization.authorizedMembers.filter { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
+		if (captureRows.size > 1) return@withTransaction null
+		val captureEligibility = captureRows.singleOrNull()
 		val allocated = dao.allocateSequence(SourceKind.ACTIVITY.stableCode, OWNER_SCOPE, updatedAtMs)
-		val activeSession = database.sourceSessionDao().activeSession()
-		val serviceRunId = activeSession?.let { session ->
-			database.sourceSessionDao().latestServiceRun(session.logicalTrackingId)?.serviceRunId
-		}
-		ActivityAdmissionContext(allocated, activeSession?.logicalTrackingId, serviceRunId)
+		ActivityAdmissionContext(
+			identity,
+			allocated.nextSequence,
+			providerRegistration,
+			authorization,
+			captureEligibility,
+		)
 	}
 
 	private fun ActivityEvidence.toCandidate(
@@ -129,7 +167,7 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 		collectedDataEpoch: Long,
 		admissionContext: ActivityAdmissionContext,
 	): SourceEvidenceCandidate<out SourcePayload> {
-		val registration = admissionContext.registration
+		val identity = admissionContext.identity
 		val observedNanos = observedElapsedRealtimeNanos
 		val clockUncertain = observedNanos > batch.receivedElapsedRealtimeNanos
 		val delayNanos = if (clockUncertain) 0L else batch.receivedElapsedRealtimeNanos - observedNanos
@@ -138,27 +176,35 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 			if (clockUncertain) add(SourceQualityFlag.CLOCK_UNCERTAIN)
 			if (delayNanos >= BATCHED_AFTER_NANOS) add(SourceQualityFlag.BATCHED)
 		}
-		val attribution = if (registration.appliedRevision == null) {
-			PlanAttribution.RECEIVE_TIME_ONLY
-		} else {
+		val attribution = if (admissionContext.captureAuthorization != null) {
 			PlanAttribution.CAPTURED_REGISTRATION
+		} else {
+			PlanAttribution.RECEIVE_TIME_ONLY
 		}
 		return SourceEvidenceCandidate(
-			providerDedupKey = providerDedupKey(registration),
-			logicalTrackingId = admissionContext.logicalTrackingId?.let(::LogicalTrackingId),
-			serviceRunId = admissionContext.serviceRunId?.let(::ServiceRunId),
+			providerDedupKey = providerDedupKey(identity),
+			logicalTrackingId = admissionContext.captureAuthorization?.logicalTrackingId?.let(::LogicalTrackingId),
+			serviceRunId = admissionContext.captureAuthorization?.serviceRunId?.let(::ServiceRunId),
 			source = SourceKind.ACTIVITY,
-			sourceInstanceId = SourceInstanceId(registration.sourceInstanceId),
-			registrationGeneration = registration.registrationGeneration,
-			sourceSequence = registration.nextSequence,
-			configRevision = registration.appliedRevision,
+			sourceInstanceId = SourceInstanceId(identity.sourceInstanceId),
+			registrationGeneration = identity.registrationGeneration,
+			physicalConfigurationFingerprint = admissionContext.providerRegistration.physicalConfigurationFingerprint,
+			authorizationRevision = admissionContext.authorization.authorizationRevision,
+			registrationPurposeEligibilityMask = admissionContext.authorization.purposeEligibilityMask,
+			registrationEligibilityFingerprint = admissionContext.authorization.authorizationFingerprint,
+			sourceSequence = admissionContext.sourceSequence,
+			configRevision = admissionContext.providerRegistration.registrationGeneration,
 			planAttribution = attribution,
-			clockDomainId = registration.clockDomainId,
+			clockDomainId = identity.clockDomainId,
 			observedElapsedRealtimeNanos = observedNanos,
 			receivedElapsedRealtimeNanos = batch.receivedElapsedRealtimeNanos,
 			wallTimeMs = acquiredAtMs,
 			wallTimeUncertaintyMs = if (clockUncertain) null else 1L,
 			capturedCollectedDataEpoch = collectedDataEpoch,
+			sourcePolicyRevision = admissionContext.captureAuthorization?.sourcePolicyRevision,
+			captureConsentEpoch = admissionContext.captureAuthorization?.consentEpoch,
+			sessionManifestRevision = admissionContext.captureAuthorization?.manifestRevision,
+			lifecycleLeaseGeneration = admissionContext.captureAuthorization?.lifecycleLeaseGeneration,
 			acquiredAtMs = acquiredAtMs,
 			quality = SourceQuality(confidence = confidence, flags = qualityFlags),
 			payloadVersion = 1,
@@ -167,16 +213,18 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 	}
 
 	private data class ActivityAdmissionContext(
-		val registration: SourceRegistrationStateEntity,
-		val logicalTrackingId: String?,
-		val serviceRunId: String?,
+		val identity: ActivityRegistrationIdentity,
+		val sourceSequence: Long,
+		val providerRegistration: ProviderRegistrationGenerationEntity,
+		val authorization: SourceAuthorizationSnapshot,
+		val captureAuthorization: SourceAuthorizationEntity?,
 	)
 
 	private sealed interface ActivityEvidence {
 		val observedElapsedRealtimeNanos: Long
 		val confidence: Float
 		val payload: SourcePayload
-		fun providerDedupKey(registration: SourceRegistrationStateEntity): String
+		fun providerDedupKey(identity: ActivityRegistrationIdentity): String
 
 		data class Recognition(val evidence: ActivityRecognitionEvidence) : ActivityEvidence {
 			override val observedElapsedRealtimeNanos: Long = evidence.providerElapsedRealtimeNanos
@@ -187,8 +235,8 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 				providerElapsedRealtimeNanos = evidence.providerElapsedRealtimeNanos,
 			)
 
-			override fun providerDedupKey(registration: SourceRegistrationStateEntity): String =
-			"${registration.sourceInstanceId}:recognition:${evidence.providerElapsedRealtimeNanos}:" +
+			override fun providerDedupKey(identity: ActivityRegistrationIdentity): String =
+			"${identity.sourceInstanceId}:recognition:${evidence.providerElapsedRealtimeNanos}:" +
 				"${evidence.activityType.name}:${evidence.confidencePercent}"
 		}
 
@@ -201,14 +249,14 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 				providerElapsedRealtimeNanos = evidence.providerElapsedRealtimeNanos,
 			)
 
-			override fun providerDedupKey(registration: SourceRegistrationStateEntity): String =
-			"${registration.sourceInstanceId}:transition:${evidence.providerElapsedRealtimeNanos}:" +
+			override fun providerDedupKey(identity: ActivityRegistrationIdentity): String =
+			"${identity.sourceInstanceId}:transition:${evidence.providerElapsedRealtimeNanos}:" +
 				"${evidence.activityType.name}:${evidence.transitionType.name}"
 		}
 	}
 
 	private companion object {
-		const val OWNER_SCOPE = "activity-registration-arbiter"
+		const val OWNER_SCOPE = "source-broker:2"
 		const val NANOS_PER_MILLISECOND = 1_000_000L
 		const val BATCHED_AFTER_NANOS = 5L * 1_000L * NANOS_PER_MILLISECOND
 	}

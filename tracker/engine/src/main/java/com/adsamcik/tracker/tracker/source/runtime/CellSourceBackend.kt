@@ -30,6 +30,7 @@ import javax.inject.Singleton
 internal data class CellBackendSnapshot(
 	val subscriptionId: Int?,
 	val observations: List<CellBackendObservation>,
+	val providerItemCount: Int = observations.size,
 )
 
 internal data class CellBackendObservation(
@@ -90,13 +91,6 @@ internal class AndroidCellSourceBackend @Inject constructor(
 		}
 		registrations.clear()
 		return success
-	}
-
-	@SuppressLint("MissingPermission")
-	fun readCached(): List<CellBackendSnapshot> = registrations.mapNotNull { (subscriptionId, registration) ->
-		runCatching {
-			registration.manager.allCellInfo?.toBackendSnapshot(subscriptionId)
-		}.getOrNull()
 	}
 
 	@SuppressLint("MissingPermission")
@@ -165,6 +159,7 @@ private fun List<CellInfo>.toBackendSnapshot(subscriptionId: Int?) = CellBackend
 	subscriptionId = subscriptionId,
 	observations = mapNotNull(CellInfo::toBackendObservation)
 		.sortedWith(compareBy(CellBackendObservation::radioType, CellBackendObservation::identity)),
+	providerItemCount = size,
 )
 
 @Suppress("DEPRECATION")

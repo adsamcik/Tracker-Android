@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.SourceDemand
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -39,6 +40,7 @@ data class SourceSessionPlanInputs(
 	val resolutionContext: PlanResolutionContext,
 	val demands: List<SourceDemand>,
 	val clockDomainId: String,
+	val zoneId: String = ZoneId.systemDefault().id,
 )
 
 data class SourceSessionStartRequest(
@@ -81,11 +83,17 @@ class TrackerServiceSourceSession @Inject constructor(
 ) {
 	private val mutex = Mutex()
 	private var active: ActiveSession? = null
+	private var pendingInputs: SourceSessionPlanInputs? = null
 
 	suspend fun start(request: SourceSessionStartRequest): SourceSessionStartOutcome = mutex.withLock {
 		require(request.rollout == request.ownership.rollout) { "Ownership must use the supplied rollout snapshot" }
 		require(request.logicalTrackingId.isNotBlank())
 		require(request.serviceRunId.isNotBlank())
+		val planInputs = pendingInputs
+			?.takeIf { pending -> pending.isAtLeastAsCurrentAs(request.planInputs) }
+			?: request.planInputs
+		pendingInputs = null
+		val ownership = TrackingSessionOwnership.resolve(request.rollout, planInputs.settings)
 		val session = ActiveSession(
 			rollout = request.rollout,
 			ownerToken = request.ownerToken,
@@ -93,22 +101,22 @@ class TrackerServiceSourceSession @Inject constructor(
 			serviceRunId = request.serviceRunId,
 			origin = request.origin,
 			foregroundCapabilityFlags = request.foregroundCapabilityFlags,
-			lastInputs = request.planInputs,
+			lastInputs = planInputs,
 			coordinatorStarted = false,
 		)
 		active = session
-		if (!request.ownership.eventCoordinatorRequired) {
+		if (!ownership.eventCoordinatorRequired) {
 			settingsStatusProvider.publishActivePreview(
-				request.planInputs.settings,
+				planInputs.settings,
 				request.rollout,
-				request.planInputs,
+				planInputs,
 			)
 			return@withLock SourceSessionStartOutcome.NotRequired
 		}
 		check(request.rollout.coordinatorMode == CoordinatorMode.EVENT) {
 			"Event-owned sources require event coordinator mode"
 		}
-		val result = startCoordinator(session, request.planInputs)
+		val result = startCoordinator(session, planInputs)
 		if (result is SessionStartResult.Started) {
 			session.coordinatorStarted = true
 			settingsStatusProvider.publishApplied(result.applied)
@@ -122,7 +130,12 @@ class TrackerServiceSourceSession @Inject constructor(
 	}
 
 	suspend fun reconfigure(inputs: SourceSessionPlanInputs): SourceSessionReconfigureOutcome = mutex.withLock {
-		val session = active ?: return@withLock SourceSessionReconfigureOutcome.NotActive
+		val session = active ?: run {
+			pendingInputs = pendingInputs
+				?.takeIf { current -> current.isNewerThan(inputs) }
+				?: inputs
+			return@withLock SourceSessionReconfigureOutcome.NotActive
+		}
 		if (session.lastInputs == inputs) return@withLock SourceSessionReconfigureOutcome.Unchanged
 		if (!session.coordinatorStarted) {
 			val ownership = TrackingSessionOwnership.resolve(session.rollout, inputs.settings)
@@ -150,6 +163,10 @@ class TrackerServiceSourceSession @Inject constructor(
 				plan = plan,
 				wallTimeMs = Time.nowMillis,
 				elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
+				clockDomainId = inputs.clockDomainId,
+				zoneId = inputs.zoneId,
+				foregroundCapabilityFlags = session.foregroundCapabilityFlags,
+				controlDependencies = controlDependencies(session.origin, inputs.settings),
 			),
 		)
 		if (result is SessionReconfigureResult.Applied) {
@@ -164,6 +181,7 @@ class TrackerServiceSourceSession @Inject constructor(
 
 	suspend fun stop(reason: String, preserveLogicalSession: Boolean) = mutex.withLock {
 		val session = active ?: run {
+			pendingInputs = null
 			settingsStatusProvider.publishInactive()
 			return@withLock
 		}
@@ -179,6 +197,7 @@ class TrackerServiceSourceSession @Inject constructor(
 					reason = reason,
 					wallTimeMs = Time.nowMillis,
 					elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
+					clockDomainId = session.lastInputs.clockDomainId,
 				),
 			)) {
 				is SessionSuspendResult.Suspended,
@@ -196,6 +215,7 @@ class TrackerServiceSourceSession @Inject constructor(
 					reason = reason,
 					wallTimeMs = Time.nowMillis,
 					elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
+					clockDomainId = session.lastInputs.clockDomainId,
 				),
 			)) {
 				is SessionStopResult.Stopped,
@@ -225,6 +245,8 @@ class TrackerServiceSourceSession @Inject constructor(
 				foregroundCapabilityFlags = session.foregroundCapabilityFlags,
 				wallTimeMs = Time.nowMillis,
 				elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
+				zoneId = inputs.zoneId,
+				controlDependencies = controlDependencies(session.origin, inputs.settings),
 				logicalTrackingId = session.logicalTrackingId,
 				serviceRunId = session.serviceRunId,
 			),
@@ -254,6 +276,7 @@ class TrackerServiceSourceSession @Inject constructor(
 			planId = "${desired.planId}-event-rollout-${rollout.revision}",
 			createdAtMs = desired.createdAtMs,
 			plans = eventPlans,
+			sourcePolicyRevision = desired.sourcePolicyRevision,
 		)
 	}
 
@@ -267,6 +290,30 @@ class TrackerServiceSourceSession @Inject constructor(
 		var lastInputs: SourceSessionPlanInputs,
 		var coordinatorStarted: Boolean,
 	)
+}
+
+private fun controlDependencies(
+	origin: SessionStartOrigin,
+	settings: TrackingParamsState,
+): Set<SourceKind> = if (origin != SessionStartOrigin.AUTOMATIC_BACKGROUND_START) {
+	emptySet()
+} else {
+	buildSet {
+		add(SourceKind.ACTIVITY)
+		if (!settings.transitionDetectionEnabled) add(SourceKind.STEPS)
+	}
+}
+
+private fun SourceSessionPlanInputs.isNewerThan(other: SourceSessionPlanInputs): Boolean {
+	val candidateRevision = settings.sourcePolicyRevision ?: return false
+	val otherRevision = other.settings.sourcePolicyRevision
+	return otherRevision == null || candidateRevision > otherRevision
+}
+
+private fun SourceSessionPlanInputs.isAtLeastAsCurrentAs(other: SourceSessionPlanInputs): Boolean {
+	val candidateRevision = settings.sourcePolicyRevision ?: return false
+	val otherRevision = other.settings.sourcePolicyRevision
+	return otherRevision == null || candidateRevision >= otherRevision
 }
 
 private fun TrackingParamsState.enabledSemanticSources(): Set<SourceKind> = buildSet {

@@ -72,6 +72,12 @@ The app collects data from multiple device sensors simultaneously:
 | **Wi-Fi Scanner** | • BSSID (MAC address)<br>• SSID (network name)<br>• Signal strength (RSSI)<br>• Frequency<br>• Count per location | `ACCESS_FINE_LOCATION` |
 | **Cell Towers** | • Cell ID (CID)<br>• Location Area Code (LAC)<br>• Signal strength<br>• Network operator | `READ_PHONE_STATE` (optional) |
 
+The rows above describe the released legacy radio product. The unreleased v28 source-event
+candidate currently persists identity-free Wi-Fi/Cell coverage, band/technology, signal quality,
+and provider-time evidence only. Unique-network, distinct-cell, and radio-map products remain
+legacy-owned until a purpose/consent-epoch keyed identity with rotation/deletion and shadow parity
+is explicitly approved; v28 containment rows are not silently treated as equivalent raw history.
+
 ### 1.2 Tracking Modes
 
 #### Manual Tracking
@@ -750,14 +756,13 @@ Following Apple-style UX philosophy:
 
 | Permission | Purpose | Required? |
 |------------|---------|-----------|
-| `ACCESS_FINE_LOCATION` | Precise GPS tracking | Optional (can use coarse) |
+| `ACCESS_FINE_LOCATION` | Precise location and Wi-Fi scan results | Optional unless those sources are enabled |
 | `ACCESS_COARSE_LOCATION` | Approximate location | Yes |
 | `ACCESS_BACKGROUND_LOCATION` | Track when app is closed | Optional |
 | `ACTIVITY_RECOGNITION` | Detect walking/driving/etc. | Optional |
 | `POST_NOTIFICATIONS` | Show tracking notification | Yes (Android 13+) |
 | `FOREGROUND_SERVICE` | Keep tracking alive | Yes |
 | `READ_PHONE_STATE` | Cell tower details | Optional |
-| `NEARBY_WIFI_DEVICES` | Wi-Fi scanning (Android 13+) | Optional |
 
 ### Data Storage
 

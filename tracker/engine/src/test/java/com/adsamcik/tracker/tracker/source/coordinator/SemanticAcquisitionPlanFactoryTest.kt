@@ -22,6 +22,7 @@ class SemanticAcquisitionPlanFactoryTest {
 	@Test
 	fun `each component frequency controls only its own source plan`() {
 		val settings = TrackingParamsState(
+			sourcePolicyRevision = 42,
 			sourceCollectionSettings = SourceCollectionSettings(
 				location = SourceCollectionFrequency.RESPONSIVE,
 				activity = SourceCollectionFrequency.OFF,
@@ -34,6 +35,7 @@ class SemanticAcquisitionPlanFactoryTest {
 
 		val plan = subject.create(settings, 3, 100, environment)
 
+		plan.sourcePolicyRevision shouldBe 42
 		(plan.plans[SourceKind.LOCATION] as LocationPlan).mode shouldBe LocationMode.HIGH_ACCURACY
 		(plan.plans[SourceKind.WIFI] as WifiPlan).mode shouldBe WifiMode.CACHED_ONLY
 		plan.plans.filterKeys { it !in setOf(SourceKind.LOCATION, SourceKind.WIFI) }

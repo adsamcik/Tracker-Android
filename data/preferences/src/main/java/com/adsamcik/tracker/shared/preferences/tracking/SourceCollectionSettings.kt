@@ -8,8 +8,8 @@ enum class SourceCollectionFrequency(val stableCode: Int) {
 
 	companion object {
 		fun fromStableCode(value: Int): SourceCollectionFrequency = entries
-			.firstOrNull { it.stableCode == value }
-			?: BALANCED
+			.singleOrNull { it.stableCode == value }
+			?: throw IllegalArgumentException("Unknown source collection frequency code $value")
 	}
 }
 
@@ -22,4 +22,15 @@ data class SourceCollectionSettings(
 	val cell: SourceCollectionFrequency = SourceCollectionFrequency.OFF,
 )
 
-enum class TrackingSourceComponent { LOCATION, ACTIVITY, STEPS, PRESSURE, WIFI, CELL }
+enum class TrackingSourceComponent(val stableCode: Int) {
+	LOCATION(1),
+	ACTIVITY(2),
+	STEPS(3),
+	PRESSURE(4),
+	WIFI(5),
+	CELL(6);
+
+	companion object {
+		fun fromStableCode(value: Int): TrackingSourceComponent = entries.single { it.stableCode == value }
+	}
+}

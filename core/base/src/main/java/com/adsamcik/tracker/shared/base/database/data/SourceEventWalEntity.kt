@@ -4,6 +4,7 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import java.security.MessageDigest
 
 @Entity(
 	tableName = "source_event_wal",
@@ -51,6 +52,14 @@ data class SourceEventWalEntity(
 	val sourceInstanceId: String,
 	@ColumnInfo(name = "registration_generation")
 	val registrationGeneration: Long,
+	@ColumnInfo(name = "physical_configuration_fingerprint")
+	val physicalConfigurationFingerprint: String? = null,
+	@ColumnInfo(name = "authorization_revision")
+	val authorizationRevision: Long? = null,
+	@ColumnInfo(name = "authorization_purpose_eligibility_mask", defaultValue = "0")
+	val authorizationPurposeEligibilityMask: Long = 0L,
+	@ColumnInfo(name = "authorization_fingerprint")
+	val authorizationFingerprint: String? = null,
 	@ColumnInfo(name = "source_sequence")
 	val sourceSequence: Long,
 	@ColumnInfo(name = "config_revision")
@@ -69,6 +78,14 @@ data class SourceEventWalEntity(
 	val wallTimeUncertaintyMs: Long?,
 	@ColumnInfo(name = "captured_collected_data_epoch")
 	val capturedCollectedDataEpoch: Long,
+	@ColumnInfo(name = "source_policy_revision")
+	val sourcePolicyRevision: Long? = null,
+	@ColumnInfo(name = "capture_consent_epoch")
+	val captureConsentEpoch: Long? = null,
+	@ColumnInfo(name = "session_manifest_revision")
+	val sessionManifestRevision: Long? = null,
+	@ColumnInfo(name = "lifecycle_lease_generation")
+	val lifecycleLeaseGeneration: Long? = null,
 	@ColumnInfo(name = "acquired_at_ms")
 	val acquiredAtMs: Long,
 	@ColumnInfo(name = "quality_flags")
@@ -81,6 +98,75 @@ data class SourceEventWalEntity(
 	val payload: ByteArray,
 	@ColumnInfo(name = "payload_checksum")
 	val payloadChecksum: String,
+	@ColumnInfo(name = "integrity_identity", defaultValue = "'LEGACY_PENDING_CHECKSUM'")
+	val integrityIdentity: String = LEGACY_PENDING_CHECKSUM,
 	@ColumnInfo(name = "created_at_ms")
 	val createdAtMs: Long,
-)
+) {
+	fun calculatedPayloadChecksum(): String = payload.sha256()
+
+	fun calculatedIntegrityIdentity(): String {
+		val canonical = listOf(
+			logicalTrackingId,
+			serviceRunId,
+			sourceKind,
+			sourceInstanceId,
+			registrationGeneration,
+			physicalConfigurationFingerprint,
+			authorizationRevision,
+			authorizationPurposeEligibilityMask,
+			authorizationFingerprint,
+			sourceSequence,
+			providerDedupKey,
+			configRevision,
+			planAttribution,
+			clockDomainId,
+			observedElapsedNanos,
+			receivedElapsedNanos,
+			wallTimeMs,
+			wallTimeUncertaintyMs,
+			capturedCollectedDataEpoch,
+			sourcePolicyRevision,
+			captureConsentEpoch,
+			sessionManifestRevision,
+			lifecycleLeaseGeneration,
+			acquiredAtMs,
+			qualityFlags,
+			qualityConfidence,
+			payloadVersion,
+			calculatedPayloadChecksum(),
+		).joinToString(separator = "") { value ->
+			val text = value?.toString()
+			if (text == null) "-1:" else "${text.length}:$text"
+		}
+		return MessageDigest.getInstance("SHA-256")
+			.digest(canonical.toByteArray())
+			.joinToString("") { byte -> "%02x".format(byte) }
+	}
+
+	fun hasQualifiedIntegrity(): Boolean = integrityIdentity !in LEGACY_INTEGRITY_IDENTITIES &&
+		payloadChecksum == calculatedPayloadChecksum() &&
+		integrityIdentity == calculatedIntegrityIdentity()
+
+	fun hasVerifiedLegacyPayload(): Boolean =
+		integrityIdentity == LEGACY_CHECKSUM_VERIFIED && payloadChecksum == calculatedPayloadChecksum()
+
+	fun hasPendingLegacyPayload(): Boolean =
+		integrityIdentity == LEGACY_PENDING_CHECKSUM && payloadChecksum == calculatedPayloadChecksum()
+
+	companion object {
+		const val LEGACY_PENDING_CHECKSUM = "LEGACY_PENDING_CHECKSUM"
+		const val LEGACY_CHECKSUM_VERIFIED = "LEGACY_CHECKSUM_VERIFIED"
+		const val LEGACY_CHECKSUM_MISMATCH = "LEGACY_CHECKSUM_MISMATCH"
+		val LEGACY_INTEGRITY_IDENTITIES = setOf(
+			LEGACY_PENDING_CHECKSUM,
+			LEGACY_CHECKSUM_VERIFIED,
+			LEGACY_CHECKSUM_MISMATCH,
+			"LEGACY_UNKNOWN",
+		)
+	}
+}
+
+private fun ByteArray.sha256(): String = MessageDigest.getInstance("SHA-256")
+	.digest(this)
+	.joinToString(separator = "") { byte -> "%02x".format(byte) }

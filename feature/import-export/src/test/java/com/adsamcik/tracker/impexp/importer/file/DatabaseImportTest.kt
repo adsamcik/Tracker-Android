@@ -18,6 +18,16 @@ class DatabaseImportTest {
 	}
 
 	@Test
+	fun `merge allowlist contains user facts but excludes runtime authority`() {
+		DatabaseImport.USER_DATA_TABLES.contains("step_interval") shouldBe true
+		DatabaseImport.USER_DATA_TABLES.contains("session_segment") shouldBe true
+		DatabaseImport.USER_DATA_TABLES.contains("source_policy_authority") shouldBe false
+		DatabaseImport.USER_DATA_TABLES.contains("source_demand") shouldBe false
+		DatabaseImport.USER_DATA_TABLES.contains("logical_tracking_session") shouldBe false
+		DatabaseImport.USER_DATA_TABLES.contains("source_event_wal") shouldBe false
+	}
+
+	@Test
 	fun `table and column identity are schema-name based`() {
 		ImportColumn("id", true, true) shouldBe ImportColumn("id", false, false)
 		ImportTable("sample", listOf(ImportColumn("id", true, true))) shouldBe

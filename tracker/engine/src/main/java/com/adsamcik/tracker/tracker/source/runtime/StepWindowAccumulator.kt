@@ -10,9 +10,25 @@ internal data class StepBaseline(
 	val cumulativeCount: Long,
 	val elapsedRealtimeNanos: Long,
 	val providerSequence: Long,
+	val boundary: StepBaselineBoundary? = null,
 )
 
-internal class StepWindowAccumulator(private var baseline: StepBaseline?) {
+internal data class StepBaselineBoundary(
+	val registrationGeneration: Long,
+	val eligibilityFingerprint: String,
+) {
+	init {
+		require(registrationGeneration > 0L)
+		require(eligibilityFingerprint.isNotBlank())
+	}
+}
+
+internal class StepWindowAccumulator(
+	initialBaseline: StepBaseline?,
+	private val boundary: StepBaselineBoundary? = initialBaseline?.boundary,
+) {
+	private var baseline = initialBaseline?.takeIf { it.boundary == boundary }
+
 	fun accept(
 		bootClockDomainId: String,
 		cumulativeCount: Long,
@@ -38,7 +54,7 @@ internal class StepWindowAccumulator(private var baseline: StepBaseline?) {
 			lastProviderSequence = providerSequence,
 			baselineReset = reset,
 		)
-		baseline = StepBaseline(cumulativeCount, elapsedRealtimeNanos, providerSequence)
+		baseline = StepBaseline(cumulativeCount, elapsedRealtimeNanos, providerSequence, boundary)
 		return payload
 	}
 
@@ -47,6 +63,8 @@ internal class StepWindowAccumulator(private var baseline: StepBaseline?) {
 
 internal fun StepBaseline.encode(): ByteArray = ByteArrayOutputStream().use { bytes ->
 	DataOutputStream(bytes).use { output ->
+		output.writeLong(boundary?.registrationGeneration ?: NO_REGISTRATION_GENERATION)
+		output.writeUTF(boundary?.eligibilityFingerprint.orEmpty())
 		output.writeLong(cumulativeCount)
 		output.writeLong(elapsedRealtimeNanos)
 		output.writeLong(providerSequence)
@@ -54,11 +72,29 @@ internal fun StepBaseline.encode(): ByteArray = ByteArrayOutputStream().use { by
 	bytes.toByteArray()
 }
 
-internal fun decodeStepBaseline(payload: ByteArray, version: Int): StepBaseline? = runCatching {
+internal fun decodeStepBaseline(
+	payload: ByteArray,
+	version: Int,
+	expectedBoundary: StepBaselineBoundary? = null,
+): StepBaseline? = runCatching {
 	if (version != STEP_BASELINE_VERSION || payload.isEmpty()) return@runCatching null
 	DataInputStream(ByteArrayInputStream(payload)).use { input ->
-		StepBaseline(input.readLong(), input.readLong(), input.readLong())
+		val registrationGeneration = input.readLong()
+		val eligibilityFingerprint = input.readUTF()
+		val boundary = if (registrationGeneration == NO_REGISTRATION_GENERATION && eligibilityFingerprint.isEmpty()) {
+			null
+		} else {
+			StepBaselineBoundary(registrationGeneration, eligibilityFingerprint)
+		}
+		if (expectedBoundary != null && boundary != expectedBoundary) return@runCatching null
+		StepBaseline(
+			input.readLong(),
+			input.readLong(),
+			input.readLong(),
+			boundary,
+		).also { require(input.available() == 0) }
 	}
 }.getOrNull()
 
-internal const val STEP_BASELINE_VERSION = 1
+internal const val STEP_BASELINE_VERSION = 2
+private const val NO_REGISTRATION_GENERATION = 0L

@@ -1,7 +1,9 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import android.os.SystemClock
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
@@ -9,13 +11,11 @@ import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
-import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
 import com.adsamcik.tracker.tracker.source.model.WifiAccessPointEvidence
 import com.adsamcik.tracker.tracker.source.model.WifiMode
 import com.adsamcik.tracker.tracker.source.model.WifiPlan
+import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import com.adsamcik.tracker.tracker.source.model.WifiResultSnapshotPayload
-import com.adsamcik.tracker.tracker.source.model.WifiScanAttemptOutcome
-import com.adsamcik.tracker.tracker.source.model.WifiScanAttemptPayload
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -58,14 +58,10 @@ class WifiSourceRuntime @Inject internal constructor(
 		startLocked(plan, sink)
 	}
 
-	override suspend fun reconfigure(plan: WifiPlan): SourceApplyResult = lifecycleMutex.withLock {
-		val sink = currentSink
+	override suspend fun reconfigure(plan: WifiPlan, sink: SourceEventSink): SourceApplyResult = lifecycleMutex.withLock {
 		if (currentPlan != null) shutdownLocked(null)
 		if (!plan.enabled) return@withLock SourceApplyResult.Applied(
 			appliedState(source, plan.revision, null, SourceApplyStatus.APPLIED, SystemClock.elapsedRealtimeNanos()),
-		)
-		if (sink == null) return@withLock SourceApplyResult.Failed(
-			appliedState(source, plan.revision, null, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()), false,
 		)
 		when (val result = startLocked(plan, sink)) {
 			is SourceStartResult.Started -> SourceApplyResult.Applied(result.applied)
@@ -95,8 +91,8 @@ class WifiSourceRuntime @Inject internal constructor(
 			appliedState(source, plan.revision, null, SourceApplyStatus.BLOCKED, SystemClock.elapsedRealtimeNanos())
 				.copy(degradedReasons = application.reasons),
 		)
-		val nextRegistration = runCatching {
-			registrations.begin(source, plan.revision, System.currentTimeMillis())
+		val nextRegistration = runCatchingNonCancellation {
+			registrations.begin(source, plan.revision, plan.physicalConfigurationFingerprint(), System.currentTimeMillis())
 		}.getOrElse {
 			return SourceStartResult.Failed(
 				appliedState(source, plan.revision, null, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()), true,
@@ -111,14 +107,28 @@ class WifiSourceRuntime @Inject internal constructor(
 		cutoffElapsedNanos = null
 		metrics = RuntimeAdmissionMetrics()
 		accepting = true
-		actor = applicationScope.launch { consume(nextQueue, nextRegistration, sink) }
-		val started = backend.start(::onBackendEvent)
+		val started = backend.start { event -> onBackendEvent(nextRegistration, event) }
 		if (!started) {
-			shutdownLocked(null)
+			registrations.markFailed(nextRegistration, "PROVIDER_REGISTRATION_FAILED", System.currentTimeMillis())
+			synchronized(callbackLock) { accepting = false; nextQueue.close() }
+			clearActiveState()
 			return SourceStartResult.Failed(
 				appliedState(source, plan.revision, nextRegistration, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()), true,
 			)
 		}
+		val accepted = runCatchingNonCancellation {
+			registrations.markAccepted(nextRegistration, System.currentTimeMillis())
+		}.isSuccess
+		if (!accepted) {
+			runCatching { backend.stop() }
+			registrations.markFailed(nextRegistration, "REGISTRATION_ACCEPTANCE_STALE", System.currentTimeMillis())
+			synchronized(callbackLock) { accepting = false; nextQueue.close() }
+			clearActiveState()
+			return SourceStartResult.Failed(
+				appliedState(source, plan.revision, nextRegistration, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()), true,
+			)
+		}
+		actor = applicationScope.launch { consume(nextQueue, nextRegistration, sink) }
 		nextCallbackSequence()?.let { enqueue(WifiRuntimeInput.Started(it)) }
 		val state = appliedState(
 			source, plan.revision, nextRegistration, application.status, SystemClock.elapsedRealtimeNanos(),
@@ -142,7 +152,7 @@ class WifiSourceRuntime @Inject internal constructor(
 				.coerceAtLeast(1L)
 		} ?: DEFAULT_DRAIN_TIMEOUT_MS
 		val drained = activeActor == null || withTimeoutOrNull(remainingMs) { activeActor.join(); true } == true
-		if (!drained) activeActor?.cancelAndJoin()
+		if (!drained) activeActor.cancelAndJoin()
 		val admission = metrics.snapshot()
 		val ack = SourceStopAck(
 			source, SourceInstanceId(activeRegistration.state.sourceInstanceId),
@@ -157,17 +167,23 @@ class WifiSourceRuntime @Inject internal constructor(
 				else -> SourceStopStatus.COMPLETE
 			},
 		)
+		if (removed == RegistrationRemovalOutcome.FAILED) {
+			registrations.markFailed(activeRegistration, "PROVIDER_REMOVAL_FAILED", System.currentTimeMillis())
+		} else {
+			registrations.markRetired(activeRegistration, System.currentTimeMillis())
+		}
 		clearActiveState()
 		return ack
 	}
 
-	private fun onBackendEvent(event: WifiBackendEvent) {
-		val sequence = nextCallbackSequence() ?: return
+	private fun onBackendEvent(callbackRegistration: SourceRegistration, event: WifiBackendEvent) {
+		val sequence = nextCallbackSequence(callbackRegistration) ?: return
 		enqueue(WifiRuntimeInput.Backend(event, sequence))
 	}
 
-	private fun nextCallbackSequence(): Long? = synchronized(callbackLock) {
-		if (!accepting) null else ++callbackSequence
+	private fun nextCallbackSequence(callbackRegistration: SourceRegistration? = registration): Long? =
+		synchronized(callbackLock) {
+		if (!accepting || registration !== callbackRegistration) null else ++callbackSequence
 	}
 
 	private fun enqueue(input: WifiRuntimeInput) {
@@ -185,23 +201,24 @@ class WifiSourceRuntime @Inject internal constructor(
 		var pendingAttemptId: String? = null
 		var lastAttemptAtMs = Long.MIN_VALUE
 		var backoff = RuntimeBackoffState()
-		var lastFingerprint: String? = null
-		var lastSnapshotAtNanos = Long.MIN_VALUE
-		var deferredRecorded = false
+		val replayGate = BoundedReplayIdentityGate()
+		val acquisitionBudget = DirectAcquisitionBudget(
+			maximumAttempts = MAX_ACTIVE_ATTEMPTS_PER_REGISTRATION,
+			directCaptureRequested = activeRegistration.purposeEligibilityMask and
+				SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L,
+		)
 
 		suspend fun scheduleAttempt() {
 			val plan = currentPlan ?: return
-			if (plan.mode != WifiMode.ACTIVE_ATTEMPTS) return
+			if (plan.mode != WifiMode.ACTIVE_ATTEMPTS || !acquisitionBudget.canRequest) {
+				wakeups.cancel(WAKEUP_ID)
+				return
+			}
 			val application = WifiPrerequisiteEvaluator.evaluate(plan, deviceStateProvider.wifi())
 			if (application.activeAttemptsDeferred) {
 				wakeups.cancel(WAKEUP_ID)
-				if (!deferredRecorded) {
-					deferredRecorded = true
-					admitAttempt(activeRegistration, sink, "idle", WifiScanAttemptOutcome.DEFERRED_IDLE, null, null)
-				}
 				return
 			}
-			deferredRecorded = false
 			val now = SystemClock.elapsedRealtime()
 			val earliest = nextAttemptDeadlineMs(
 				now,
@@ -220,43 +237,26 @@ class WifiSourceRuntime @Inject internal constructor(
 		for (input in inputs) {
 			when (input) {
 				is WifiRuntimeInput.Started -> {
-					if (currentPlan?.mode != WifiMode.OFF) {
-						backend.readSnapshot()?.let { snapshot ->
-							val admitted = admitSnapshot(
-								snapshot, activeRegistration, sink, true, null,
-								lastFingerprint, lastSnapshotAtNanos,
-							)
-							if (admitted != null) {
-								lastFingerprint = admitted.first
-								lastSnapshotAtNanos = admitted.second
-							}
-						}
-					}
 					scheduleAttempt()
 				}
 				is WifiRuntimeInput.Attempt -> {
-					val plan = currentPlan ?: continue
+					if (currentPlan == null || !acquisitionBudget.consumeRequest()) continue
 					val attemptId = UUID.randomUUID().toString()
 					val now = SystemClock.elapsedRealtime()
 					lastAttemptAtMs = now
-					admitAttempt(activeRegistration, sink, attemptId, WifiScanAttemptOutcome.REQUESTED, null, null)
 					when (backend.requestScan()) {
 						WifiRequestOutcome.ACCEPTED -> {
 							pendingAttemptId = attemptId
 							backoff = backoff.succeeded()
-							admitAttempt(activeRegistration, sink, attemptId, WifiScanAttemptOutcome.ACCEPTED, null, null)
 						}
 						WifiRequestOutcome.THROTTLED -> {
 							backoff = backoff.failed()
-							admitAttempt(activeRegistration, sink, attemptId, WifiScanAttemptOutcome.THROTTLED, null, null)
 						}
 						WifiRequestOutcome.PERMISSION_BLOCKED -> {
 							backoff = backoff.failed()
-							admitAttempt(activeRegistration, sink, attemptId, WifiScanAttemptOutcome.PERMISSION_BLOCKED, null, null)
 						}
 						WifiRequestOutcome.PROVIDER_FAILED -> {
 							backoff = backoff.failed()
-							admitAttempt(activeRegistration, sink, attemptId, WifiScanAttemptOutcome.PROVIDER_FAILED, null, null)
 						}
 					}
 					scheduleAttempt()
@@ -265,25 +265,16 @@ class WifiSourceRuntime @Inject internal constructor(
 					WifiBackendEvent.IdleStateChanged -> scheduleAttempt()
 					is WifiBackendEvent.Results -> {
 						val linkedAttempt = pendingAttemptId
-						val age = event.snapshot?.freshestTimestampNanos?.let {
-							((event.receivedElapsedRealtimeNanos - it).coerceAtLeast(0L) / NANOS_PER_MILLISECOND)
-						}
-						admitAttempt(
-							activeRegistration, sink,
-							linkedAttempt ?: "provider:${event.receivedElapsedRealtimeNanos}",
-							WifiScanAttemptOutcome.RESULTS_AVAILABLE,
-							event.snapshot?.accessPoints?.size, age,
-							linked = linkedAttempt != null,
-						)
 						if (event.resultsUpdated != false && event.snapshot != null) {
 							val admitted = admitSnapshot(
-								event.snapshot, activeRegistration, sink, false, linkedAttempt,
-								lastFingerprint, lastSnapshotAtNanos,
+								event.snapshot, activeRegistration, sink, linkedAttempt,
+								replayGate, event.resultsUpdated == true,
 								event.receivedElapsedRealtimeNanos, event.receivedWallTimeMs,
 							)
 							if (admitted != null) {
-								lastFingerprint = admitted.first
-								lastSnapshotAtNanos = admitted.second
+								replayGate.record(admitted)
+								acquisitionBudget.markQualifiedEvidence()
+								wakeups.cancel(WAKEUP_ID)
 							}
 						}
 						pendingAttemptId = null
@@ -293,80 +284,64 @@ class WifiSourceRuntime @Inject internal constructor(
 		}
 	}
 
-	private suspend fun admitAttempt(
-		registration: SourceRegistration,
-		sink: SourceEventSink,
-		attemptId: String,
-		outcome: WifiScanAttemptOutcome,
-		resultCount: Int?,
-		resultAgeMs: Long?,
-		linked: Boolean = true,
-	) {
-		val nowElapsed = SystemClock.elapsedRealtimeNanos()
-		val flags = buildSet {
-			if (outcome == WifiScanAttemptOutcome.THROTTLED) add(SourceQualityFlag.THROTTLED)
-			if (outcome == WifiScanAttemptOutcome.PERMISSION_BLOCKED) add(SourceQualityFlag.PERMISSION_DEGRADED)
-			if (outcome in setOf(WifiScanAttemptOutcome.PROVIDER_FAILED, WifiScanAttemptOutcome.LOCATION_SERVICES_DISABLED)) {
-				add(SourceQualityFlag.PROVIDER_DEGRADED)
-			}
-		}
-		admit(
-			registration, sink, nowElapsed, nowElapsed, System.currentTimeMillis(),
-			if (linked) registration.state.appliedRevision else null,
-			if (linked) PlanAttribution.LINKED_ATTEMPT else PlanAttribution.RECEIVE_TIME_ONLY,
-			SourceQuality(flags = flags),
-			WifiScanAttemptPayload(attemptId, outcome, resultCount, resultAgeMs),
-			"attempt:$attemptId:${outcome.name}",
-		)
-	}
-
 	private suspend fun admitSnapshot(
 		snapshot: WifiBackendSnapshot,
 		registration: SourceRegistration,
 		sink: SourceEventSink,
-		cached: Boolean,
 		linkedAttemptId: String?,
-		lastFingerprint: String?,
-		lastSnapshotAtNanos: Long,
+		replayGate: BoundedReplayIdentityGate,
+		confirmedFreshEmptyCallback: Boolean,
 		receivedElapsedNanos: Long = SystemClock.elapsedRealtimeNanos(),
 		receivedWallTimeMs: Long = System.currentTimeMillis(),
-	): Pair<String, Long>? {
+	): String? {
 		val plan = currentPlan ?: return null
-		val observed = snapshot.freshestTimestampNanos ?: receivedElapsedNanos
+		val eligibleAccessPoints = freshProviderObservations(
+			snapshot.accessPoints,
+			receivedElapsedNanos,
+			plan.maximumAcceptableResultAgeMs,
+			WifiBackendAccessPoint::providerTimestampNanos,
+		)
+		val emptyCoverage = shouldAdmitCoverageOnly(
+			providerItemCount = snapshot.accessPoints.size,
+			eligibleItemCount = eligibleAccessPoints.size,
+			providerDeliveryConfirmedFresh = confirmedFreshEmptyCallback,
+		)
+		if (eligibleAccessPoints.isEmpty() && !emptyCoverage) return null
+		val normalized = eligibleAccessPoints.map(WifiBackendAccessPoint::toMinimizedEvidence).sortedWith(
+			compareBy<WifiAccessPointEvidence>(
+				WifiAccessPointEvidence::frequencyMhz,
+				WifiAccessPointEvidence::signalLevelDbm,
+				WifiAccessPointEvidence::providerTimestampNanos,
+			),
+		)
+		val observed = normalized.mapNotNull(WifiAccessPointEvidence::providerTimestampNanos)
+			.maxOrNull() ?: receivedElapsedNanos
 		val ageMs = ((receivedElapsedNanos - observed).coerceAtLeast(0L) / NANOS_PER_MILLISECOND)
-		if (ageMs > plan.maximumAcceptableResultAgeMs) return null
-		val evidence = snapshot.accessPoints.map { accessPoint ->
-			WifiAccessPointEvidence(
-				stableIdentifierToken("wifi-bssid", accessPoint.bssid),
-				accessPoint.frequencyMhz,
-				accessPoint.signalLevelDbm,
-			)
-		}.sortedWith(compareBy(WifiAccessPointEvidence::identifierToken, WifiAccessPointEvidence::frequencyMhz))
-		val fingerprint = evidence.joinToString("|") {
-			"${it.identifierToken}:${it.frequencyMhz}:${it.signalLevelDbm}"
+		val snapshotIdentity = if (emptyCoverage) {
+			"coverage-empty:$receivedElapsedNanos"
+		} else normalized.joinToString("|") { item ->
+			"${item.frequencyMhz}:${item.signalLevelDbm}:${item.providerTimestampNanos}"
 		}
-		if (!ConnectivitySnapshotGate.shouldAdmitWifi(
-				fingerprint,
-				lastFingerprint,
-				receivedElapsedNanos,
-				lastSnapshotAtNanos,
-				plan.unchangedResultDedupeWindowMs,
-			)
-		) return null
-		val attribution = if (linkedAttemptId != null) PlanAttribution.LINKED_ATTEMPT else PlanAttribution.RECEIVE_TIME_ONLY
+		if (!replayGate.shouldAdmit(snapshotIdentity)) return null
+		val attribution = when {
+			linkedAttemptId != null -> PlanAttribution.LINKED_ATTEMPT
+			emptyCoverage -> PlanAttribution.CAPTURED_REGISTRATION
+			else -> PlanAttribution.RECEIVE_TIME_ONLY
+		}
 		val wallTime = receivedWallTimeMs - ageMs
 		admit(
 			registration, sink, observed, receivedElapsedNanos, wallTime,
 			if (linkedAttemptId != null) registration.state.appliedRevision else null,
 			attribution,
-			SourceQuality(flags = buildSet {
-				if (cached) add(SourceQualityFlag.CACHED)
-				if (snapshot.freshestTimestampNanos == null) add(SourceQualityFlag.CLOCK_UNCERTAIN)
-			}),
-			WifiResultSnapshotPayload(evidence, observed / NANOS_PER_MILLISECOND, ageMs),
-			"snapshot:$observed:$fingerprint",
-		)
-		return fingerprint to receivedElapsedNanos
+			SourceQuality(),
+			WifiResultSnapshotPayload(
+				accessPoints = normalized,
+				platformTimestampMs = if (emptyCoverage) null else observed / NANOS_PER_MILLISECOND,
+				resultAgeMs = ageMs,
+			),
+			"snapshot:$snapshotIdentity",
+		).takeIf { it } ?: return null
+		return snapshotIdentity
 	}
 
 	private suspend fun admit(
@@ -380,16 +355,20 @@ class WifiSourceRuntime @Inject internal constructor(
 		quality: SourceQuality,
 		payload: com.adsamcik.tracker.tracker.source.model.SourcePayload,
 		dedupKey: String,
-	) {
-		if (cutoffElapsedNanos?.let { observedNanos > it } == true) return
-		val sourceSequence = runCatching {
+	): Boolean {
+		if (cutoffElapsedNanos?.let { observedNanos > it } == true) return false
+		val sourceSequence = runCatchingNonCancellation {
 			registrations.allocateSequence(registration, System.currentTimeMillis())
-		}.getOrElse { metrics.recordFailure(callbackSequence); return }
+		}.getOrElse { metrics.recordFailure(callbackSequence); return false }
 		val candidate = SourceEvidenceCandidate(
 			providerDedupKey = "${registration.state.sourceInstanceId}:${registration.state.registrationGeneration}:$dedupKey",
 			logicalTrackingId = null, serviceRunId = null, source = source,
 			sourceInstanceId = SourceInstanceId(registration.state.sourceInstanceId),
 			registrationGeneration = registration.state.registrationGeneration,
+			physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
+			authorizationRevision = registration.authorization.authorizationRevision,
+			registrationPurposeEligibilityMask = registration.purposeEligibilityMask,
+			registrationEligibilityFingerprint = registration.eligibilityFingerprint,
 			sourceSequence = sourceSequence, configRevision = configRevision,
 			planAttribution = attribution, clockDomainId = registration.state.clockDomainId,
 			observedElapsedRealtimeNanos = observedNanos.coerceAtLeast(0L),
@@ -397,25 +376,32 @@ class WifiSourceRuntime @Inject internal constructor(
 			wallTimeMs = wallTimeMs.coerceAtLeast(0L), wallTimeUncertaintyMs = 1L,
 			capturedCollectedDataEpoch = registration.state.collectedDataEpoch,
 			acquiredAtMs = wallTimeMs.coerceAtLeast(0L), quality = quality,
-			payloadVersion = 1, payload = payload,
+			payloadVersion = WIFI_PAYLOAD_VERSION, payload = payload,
 		)
 		when (val handoff = sink.admitWithBoundedRetry(candidate)) {
-			is SourceAdmissionHandoff.Durable -> metrics.recordDurable(sourceSequence, handoff.admissionOrdinal)
-			is SourceAdmissionHandoff.Duplicate -> metrics.recordDurable(sourceSequence, handoff.existingAdmissionOrdinal)
+			is SourceAdmissionHandoff.Durable -> {
+				metrics.recordDurable(sourceSequence, handoff.admissionOrdinal)
+				return true
+			}
+			is SourceAdmissionHandoff.Duplicate -> {
+				metrics.recordDurable(sourceSequence, handoff.existingAdmissionOrdinal)
+				return true
+			}
 			is SourceAdmissionHandoff.RetryableFailure,
-			is SourceAdmissionHandoff.TerminalFailure -> metrics.recordFailure(sourceSequence)
+			is SourceAdmissionHandoff.TerminalFailure -> {
+				metrics.recordFailure(sourceSequence)
+				return false
+			}
 		}
 	}
 
 	private fun capabilitiesNow(): SourceCapabilities {
 		val state = deviceStateProvider.wifi()
 		val available = state.wifiFeatureAvailable && state.fineLocationPermission &&
-			(state.apiLevel < 33 || state.nearbyWifiPermission) && state.locationServicesEnabled
+			state.locationServicesEnabled
 		val reasons = buildSet {
 			if (!state.wifiFeatureAvailable) add(SourceDegradedReason.HARDWARE_UNAVAILABLE)
-			if (!state.fineLocationPermission || (state.apiLevel >= 33 && !state.nearbyWifiPermission)) {
-				add(SourceDegradedReason.PERMISSION_MISSING)
-			}
+			if (!state.fineLocationPermission) add(SourceDegradedReason.PERMISSION_MISSING)
 			if (!state.locationServicesEnabled) add(SourceDegradedReason.PROVIDER_UNAVAILABLE)
 		}
 		return SourceCapabilities(
@@ -449,11 +435,20 @@ class WifiSourceRuntime @Inject internal constructor(
 	}
 
 	private companion object {
+		const val WIFI_PAYLOAD_VERSION = 2
 		const val WAKEUP_ID = "wifi-active-attempt"
 		const val CALLBACK_BUFFER_CAPACITY = 64
 		const val DEFAULT_DRAIN_TIMEOUT_MS = 3_000L
 		const val NANOS_PER_MILLISECOND = 1_000_000L
 		const val MAX_COALESCE_WINDOW_MS = 5_000L
 		const val MINIMUM_PLATFORM_SCAN_INTERVAL_MS = 30_000L
+		const val MAX_ACTIVE_ATTEMPTS_PER_REGISTRATION = 1
 	}
 }
+
+internal fun WifiBackendAccessPoint.toMinimizedEvidence() = WifiAccessPointEvidence(
+	identifierToken = WITHHELD_RADIO_IDENTIFIER_TOKEN,
+	frequencyMhz = frequencyMhz,
+	signalLevelDbm = signalLevelDbm,
+	providerTimestampNanos = requireNotNull(providerTimestampNanos),
+)

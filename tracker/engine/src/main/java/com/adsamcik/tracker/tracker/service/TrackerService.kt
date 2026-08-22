@@ -507,9 +507,12 @@ internal class TrackerService : CoreService() {
 					val rolloutState = trackingRolloutStateStore.load()
 					sessionRolloutState = rolloutState
 					val ownership = TrackingSessionOwnership.resolve(rolloutState, trackingParams)
+					val locationAvailable = hasLocationPermission &&
+						packageManager.hasSystemFeature(PackageManager.FEATURE_LOCATION)
+					val activityAvailable = hasActivityPermission && Assist.isPlayServicesAvailable(this@TrackerService)
 					if (!trackingParams.hasAnyCaptureSource(
-						locationAvailable = hasLocationPermission,
-						activityAvailable = hasActivityPermission,
+						locationAvailable = locationAvailable,
+						activityAvailable = activityAvailable,
 						stepsAvailable = hasActivityPermission && hasStepCounterSensor,
 						wifiAvailable = hasWifiScanPermission,
 						cellAvailable = hasCellScanPermission,
@@ -535,8 +538,10 @@ internal class TrackerService : CoreService() {
 					} else {
 						batteryAwarePolicy.adjustForBattery(requestedInitialTier)
 					}
-					val requiresLocation = locationEnabled
-					val requiresHealth = trackingParams.activityEnabled || trackingParams.stepsEnabled
+					val requiresLocation = locationEnabled && locationAvailable
+					val requiresHealth =
+						(trackingParams.activityEnabled && activityAvailable) ||
+							(trackingParams.stepsEnabled && hasActivityPermission && hasStepCounterSensor)
 					if (!ensureForegroundStarted(requiresLocation, requiresHealth)) {
 						return@runAfter
 					}
@@ -579,9 +584,9 @@ internal class TrackerService : CoreService() {
 							logicalTrackingId = descriptor.logicalTrackingId,
 							serviceRunId = descriptor.serviceRunId,
 							origin = when {
-								isRecovery -> SessionStartOrigin.RESTORE_AFTER_PROCESS_DEATH
-								isUserInitiated -> SessionStartOrigin.MANUAL_FOREGROUND
-								else -> SessionStartOrigin.AUTOMATIC_ACTIVITY_TRANSITION
+								isRecovery -> SessionStartOrigin.RECOVERY
+								isUserInitiated -> SessionStartOrigin.MANUAL_FOREGROUND_START
+								else -> SessionStartOrigin.AUTOMATIC_BACKGROUND_START
 							},
 							foregroundCapabilityFlags = activeForegroundServiceType?.toLong() ?: 0L,
 							planInputs = sourcePlanInputs(trackingParams, orchestrator.currentSourceDemands()),
@@ -1186,10 +1191,13 @@ internal class TrackerService : CoreService() {
 		check(rollout.sourceOwners.getValue(SourceKind.LOCATION) == SourceOwner.EVENT) {
 			"Location source must be event-owned before foreground capabilities are applied"
 		}
-		val requiresLocation = settings.locationEnabled
+		val requiresLocation = settings.locationEnabled && hasLocationPermission &&
+			packageManager.hasSystemFeature(PackageManager.FEATURE_LOCATION)
 		return ensureForegroundStarted(
 			requiresLocation = requiresLocation,
-			requiresHealth = settings.activityEnabled || settings.stepsEnabled,
+			requiresHealth =
+				(settings.activityEnabled && hasActivityPermission && Assist.isPlayServicesAvailable(this)) ||
+					(settings.stepsEnabled && hasActivityPermission && hasStepCounterSensor),
 		)
 	}
 

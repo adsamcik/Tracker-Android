@@ -1366,7 +1366,385 @@ val MIGRATION_25_26: Migration = object : Migration(25, 26) {
 }
 
 
+/** The released v26 database is imported into a fresh current-schema active file. */
+
 /**
- * The released v26 database is imported into a fresh v27 file. Internal unreleased schema
- * iterations beyond v26 deliberately have no in-place migration contract here.
+ * Version 27 -> 28: add the authoritative, immutable source-policy ledger.
+ *
+ * Existing v27 installs are migrated additively. The singleton authority starts fail-closed and
+ * is activated only after the application has transactionally imported the legacy source settings.
  */
+val MIGRATION_27_28: Migration = object : Migration(27, 28) {
+	override fun migrate(db: SupportSQLiteDatabase) {
+		with(db) {
+			execSQL(
+				"ALTER TABLE acquisition_plan_revision " +
+					"ADD COLUMN source_policy_revision INTEGER",
+			)
+			execSQL("ALTER TABLE source_event_wal ADD COLUMN source_policy_revision INTEGER")
+			execSQL("ALTER TABLE source_event_wal ADD COLUMN capture_consent_epoch INTEGER")
+			execSQL("ALTER TABLE source_event_wal ADD COLUMN session_manifest_revision INTEGER")
+			execSQL("ALTER TABLE source_event_wal ADD COLUMN lifecycle_lease_generation INTEGER")
+			execSQL("ALTER TABLE source_event_wal ADD COLUMN physical_configuration_fingerprint TEXT")
+			execSQL("ALTER TABLE source_event_wal ADD COLUMN authorization_revision INTEGER")
+			execSQL(
+				"ALTER TABLE source_event_wal ADD COLUMN " +
+					"authorization_purpose_eligibility_mask INTEGER NOT NULL DEFAULT 0",
+			)
+			execSQL("ALTER TABLE source_event_wal ADD COLUMN authorization_fingerprint TEXT")
+			execSQL(
+				"ALTER TABLE source_event_wal " +
+					"ADD COLUMN integrity_identity TEXT NOT NULL DEFAULT 'LEGACY_PENDING_CHECKSUM'",
+			)
+			execSQL(
+				"ALTER TABLE logical_tracking_session " +
+					"ADD COLUMN session_mode TEXT NOT NULL DEFAULT 'LEGACY_UNKNOWN'",
+			)
+			execSQL("ALTER TABLE logical_tracking_session ADD COLUMN current_manifest_revision INTEGER")
+			execSQL("ALTER TABLE logical_tracking_session ADD COLUMN current_intent_revision INTEGER")
+			execSQL(
+				"ALTER TABLE logical_tracking_session " +
+					"ADD COLUMN lifecycle_lease_generation INTEGER NOT NULL DEFAULT 0",
+			)
+			execSQL("ALTER TABLE logical_tracking_session ADD COLUMN lifecycle_boot_id TEXT")
+			execSQL("ALTER TABLE logical_tracking_session ADD COLUMN automation_epoch INTEGER")
+			execSQL(
+				"ALTER TABLE source_service_run " +
+					"ADD COLUMN boot_id TEXT NOT NULL DEFAULT 'LEGACY_UNKNOWN'",
+			)
+			execSQL("ALTER TABLE source_service_run ADD COLUMN lease_generation INTEGER NOT NULL DEFAULT 0")
+			execSQL(
+				"ALTER TABLE source_service_run " +
+					"ADD COLUMN start_origin TEXT NOT NULL DEFAULT 'LEGACY_UNKNOWN'",
+			)
+			execSQL(
+				"ALTER TABLE source_service_run " +
+					"ADD COLUMN desired_foreground_capability_flags INTEGER NOT NULL DEFAULT 0",
+			)
+			execSQL("ALTER TABLE source_service_run ADD COLUMN applied_foreground_capability_flags INTEGER")
+			execSQL(
+				"ALTER TABLE source_service_run " +
+					"ADD COLUMN runtime_acknowledgement TEXT NOT NULL DEFAULT 'PENDING'",
+			)
+			execSQL("ALTER TABLE source_service_run ADD COLUMN runtime_failure_code TEXT")
+			execSQL("ALTER TABLE source_service_run ADD COLUMN run_revision INTEGER NOT NULL DEFAULT 0")
+			execSQL(
+				"UPDATE source_service_run SET " +
+					"desired_foreground_capability_flags = foreground_capability_flags, " +
+					"applied_foreground_capability_flags = CASE " +
+					"WHEN state = 'RUNNING' THEN foreground_capability_flags ELSE NULL END, " +
+					"runtime_acknowledgement = CASE " +
+					"WHEN state = 'RUNNING' THEN 'LEGACY_ACTIVE' " +
+					"WHEN state IN ('CLOSED', 'FAILED') THEN 'LEGACY_TERMINAL' ELSE 'PENDING' END",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS source_policy_authority (
+					id INTEGER NOT NULL,
+					bootstrap_state TEXT NOT NULL,
+					current_policy_revision INTEGER NOT NULL,
+					legacy_settings_fingerprint TEXT,
+					updated_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(id)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS source_policy (
+					policy_revision INTEGER NOT NULL,
+					source_kind INTEGER NOT NULL,
+					enabled INTEGER NOT NULL,
+					qos_code INTEGER NOT NULL,
+					location_min_time_seconds INTEGER,
+					location_min_distance_meters INTEGER,
+					location_required_accuracy_meters INTEGER,
+					capture_persistence_eligible INTEGER NOT NULL,
+					control_persistence_eligible INTEGER NOT NULL,
+					ambient_persistence_eligible INTEGER NOT NULL,
+					capture_consent_epoch INTEGER,
+					control_consent_epoch INTEGER,
+					ambient_consent_epoch INTEGER,
+					effective_boot_id TEXT NOT NULL,
+					effective_elapsed_realtime_nanos INTEGER NOT NULL,
+					effective_wall_time_ms INTEGER NOT NULL,
+					change_reason TEXT NOT NULL,
+					PRIMARY KEY(policy_revision, source_kind)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_source_policy_source_revision " +
+					"ON source_policy(source_kind, policy_revision)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS source_consent_epoch (
+					source_kind INTEGER NOT NULL,
+					purpose TEXT NOT NULL,
+					epoch INTEGER NOT NULL,
+					eligible INTEGER NOT NULL,
+					persistence_eligible INTEGER NOT NULL,
+					policy_revision INTEGER NOT NULL,
+					effective_boot_id TEXT NOT NULL,
+					effective_elapsed_realtime_nanos INTEGER NOT NULL,
+					effective_wall_time_ms INTEGER NOT NULL,
+					change_reason TEXT NOT NULL,
+					PRIMARY KEY(source_kind, purpose, epoch)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_source_consent_epoch_policy " +
+					"ON source_consent_epoch(source_kind, purpose, policy_revision)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS source_demand (
+					demand_id TEXT NOT NULL,
+					consumer_id TEXT NOT NULL,
+					source_kind INTEGER NOT NULL,
+					purpose TEXT NOT NULL,
+					logical_tracking_id TEXT,
+					service_run_id TEXT,
+					manifest_revision INTEGER,
+					lifecycle_lease_generation INTEGER,
+					source_policy_revision INTEGER NOT NULL,
+					consent_epoch INTEGER NOT NULL,
+					persistence_eligible INTEGER NOT NULL,
+					qos_code INTEGER NOT NULL,
+					maximum_age_ms INTEGER NOT NULL,
+					desired_latency_ms INTEGER NOT NULL,
+					requested_boot_id TEXT NOT NULL,
+					requested_elapsed_realtime_nanos INTEGER NOT NULL,
+					requested_at_ms INTEGER NOT NULL,
+					status TEXT NOT NULL,
+					retire_boot_id TEXT,
+					retire_elapsed_realtime_nanos INTEGER,
+					retired_at_ms INTEGER,
+					PRIMARY KEY(demand_id)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_source_demand_consumer " +
+					"ON source_demand(consumer_id, source_kind, purpose, status)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_source_demand_active " +
+					"ON source_demand(source_kind, status, requested_elapsed_realtime_nanos)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_source_demand_manifest " +
+					"ON source_demand(logical_tracking_id, manifest_revision)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS provider_registration_generation (
+					source_kind INTEGER NOT NULL,
+					registration_generation INTEGER NOT NULL,
+					source_instance_id TEXT NOT NULL,
+					owner_scope TEXT NOT NULL,
+					clock_domain_id TEXT NOT NULL,
+					physical_configuration_fingerprint TEXT NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					status TEXT NOT NULL,
+					reserved_at_ms INTEGER NOT NULL,
+					reserved_elapsed_realtime_nanos INTEGER NOT NULL,
+					accepted_at_ms INTEGER,
+					accepted_elapsed_realtime_nanos INTEGER,
+					retired_at_ms INTEGER,
+					retired_elapsed_realtime_nanos INTEGER,
+					failure_code TEXT,
+					PRIMARY KEY(source_kind, registration_generation)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_provider_registration_instance " +
+					"ON provider_registration_generation(source_instance_id)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_provider_registration_status " +
+					"ON provider_registration_generation(source_kind, status)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS source_authorization (
+					source_kind INTEGER NOT NULL,
+					registration_generation INTEGER NOT NULL,
+					authorization_revision INTEGER NOT NULL,
+					member_id TEXT NOT NULL,
+					authorization_fingerprint TEXT NOT NULL,
+					purpose_eligibility_mask INTEGER NOT NULL,
+					demand_id TEXT,
+					consumer_id TEXT,
+					purpose TEXT,
+					source_policy_revision INTEGER,
+					consent_epoch INTEGER,
+					persistence_eligible INTEGER NOT NULL,
+					effective_boot_id TEXT NOT NULL,
+					effective_elapsed_realtime_nanos INTEGER NOT NULL,
+					effective_wall_time_ms INTEGER NOT NULL,
+					logical_tracking_id TEXT,
+					service_run_id TEXT,
+					manifest_revision INTEGER,
+					lifecycle_lease_generation INTEGER,
+					PRIMARY KEY(source_kind, registration_generation, authorization_revision, member_id)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_source_authorization_manifest " +
+					"ON source_authorization(logical_tracking_id, manifest_revision, purpose)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_source_authorization_observed_time " +
+					"ON source_authorization(source_kind, registration_generation, effective_boot_id, " +
+					"effective_elapsed_realtime_nanos, authorization_revision)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS session_manifest_version (
+					logical_tracking_id TEXT NOT NULL,
+					manifest_revision INTEGER NOT NULL,
+					session_mode TEXT NOT NULL,
+					source_policy_revision INTEGER NOT NULL,
+					acquisition_plan_revision INTEGER NOT NULL,
+					rollout_revision INTEGER NOT NULL,
+					start_origin TEXT NOT NULL,
+					effective_boot_id TEXT NOT NULL,
+					effective_elapsed_realtime_nanos INTEGER NOT NULL,
+					effective_wall_time_ms INTEGER NOT NULL,
+					zone_id TEXT NOT NULL,
+					automation_epoch INTEGER,
+					change_reason TEXT NOT NULL,
+					manifest_checksum TEXT NOT NULL,
+					PRIMARY KEY(logical_tracking_id, manifest_revision)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_session_manifest_effective " +
+					"ON session_manifest_version(logical_tracking_id, effective_elapsed_realtime_nanos)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_session_manifest_policy " +
+					"ON session_manifest_version(source_policy_revision)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS session_manifest_source (
+					logical_tracking_id TEXT NOT NULL,
+					manifest_revision INTEGER NOT NULL,
+					source_kind INTEGER NOT NULL,
+					purpose TEXT NOT NULL,
+					consent_epoch INTEGER NOT NULL,
+					persistence_eligible INTEGER NOT NULL,
+					qos_code INTEGER NOT NULL,
+					PRIMARY KEY(logical_tracking_id, manifest_revision, source_kind, purpose)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_session_manifest_source_lookup " +
+					"ON session_manifest_source(logical_tracking_id, source_kind, purpose, manifest_revision)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS session_lifecycle_intent_version (
+					logical_tracking_id TEXT NOT NULL,
+					intent_revision INTEGER NOT NULL,
+					manifest_revision INTEGER NOT NULL,
+					desired_state TEXT NOT NULL,
+					start_origin TEXT NOT NULL,
+					request_boot_id TEXT NOT NULL,
+					requested_elapsed_realtime_nanos INTEGER NOT NULL,
+					requested_wall_time_ms INTEGER NOT NULL,
+					automation_epoch INTEGER,
+					trigger_id TEXT,
+					trigger_kind TEXT,
+					trigger_boot_id TEXT,
+					trigger_observed_elapsed_realtime_nanos INTEGER,
+					trigger_received_elapsed_realtime_nanos INTEGER,
+					trigger_expires_elapsed_realtime_nanos INTEGER,
+					stop_reason TEXT,
+					stop_deadline_boot_id TEXT,
+					stop_deadline_elapsed_realtime_nanos INTEGER,
+					intent_checksum TEXT NOT NULL,
+					PRIMARY KEY(logical_tracking_id, intent_revision)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_session_lifecycle_intent_requested " +
+					"ON session_lifecycle_intent_version(logical_tracking_id, requested_elapsed_realtime_nanos)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS lifecycle_desired_action (
+					action_id TEXT NOT NULL,
+					logical_tracking_id TEXT NOT NULL,
+					service_run_id TEXT NOT NULL,
+					manifest_revision INTEGER NOT NULL,
+					action_revision INTEGER NOT NULL,
+					action_family TEXT NOT NULL,
+					source_kind INTEGER,
+					desired_state TEXT NOT NULL,
+					desired_plan_revision INTEGER NOT NULL,
+					source_policy_revision INTEGER NOT NULL,
+					consent_epoch INTEGER,
+					start_origin TEXT NOT NULL,
+					boot_id TEXT NOT NULL,
+					lease_generation INTEGER NOT NULL,
+					requested_at_ms INTEGER NOT NULL,
+					requested_elapsed_realtime_nanos INTEGER NOT NULL,
+					status TEXT NOT NULL,
+					attempt_count INTEGER NOT NULL,
+					acknowledged_at_ms INTEGER,
+					acknowledged_elapsed_realtime_nanos INTEGER,
+					failure_code TEXT,
+					retry_trigger TEXT,
+					source_instance_id TEXT,
+					registration_generation INTEGER,
+					PRIMARY KEY(action_id)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_lifecycle_action_revision " +
+					"ON lifecycle_desired_action(logical_tracking_id, action_revision)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_lifecycle_action_pending " +
+					"ON lifecycle_desired_action(status, requested_at_ms)",
+			)
+			// v27 used a wall-clock-only projection lease. Lease rows are ephemeral, so discard any
+			// in-flight owner and extend that shared table for boot-aware monotonic reconciliation.
+			execSQL("DELETE FROM source_coordinator_lease")
+			execSQL(
+				"ALTER TABLE source_coordinator_lease ADD COLUMN " +
+					"boot_id TEXT NOT NULL DEFAULT 'LEGACY_UNKNOWN'",
+			)
+			execSQL(
+				"ALTER TABLE source_coordinator_lease ADD COLUMN generation INTEGER NOT NULL DEFAULT 0",
+			)
+			execSQL(
+				"ALTER TABLE source_coordinator_lease ADD COLUMN " +
+					"acquired_elapsed_realtime_nanos INTEGER NOT NULL DEFAULT 0",
+			)
+			execSQL(
+				"ALTER TABLE source_coordinator_lease ADD COLUMN " +
+					"expires_elapsed_realtime_nanos INTEGER NOT NULL DEFAULT 0",
+			)
+			execSQL(
+				"""
+				INSERT OR IGNORE INTO source_policy_authority (
+					id, bootstrap_state, current_policy_revision,
+					legacy_settings_fingerprint, updated_at_ms
+				) VALUES (1, 'UNINITIALIZED', 0, NULL, 0)
+				""".trimIndent(),
+			)
+		}
+	}
+}

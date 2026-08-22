@@ -5,6 +5,9 @@ import com.adsamcik.tracker.tracker.source.control.CollectionMotionState
 import com.adsamcik.tracker.tracker.source.control.LocationCollectionStrategy
 import com.adsamcik.tracker.tracker.source.control.MotionPolicyReason
 import com.adsamcik.tracker.tracker.source.control.acquisitionProfile
+import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
+import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionSettings
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.ActivityMode
 import com.adsamcik.tracker.tracker.source.model.ActivityPlan
@@ -60,7 +63,7 @@ class SourcePlanResolverTest {
 	}
 
 	@Test
-	fun `policy demand tightens enabled source without re-enabling user-disabled source`() {
+	fun `strongest demand cannot exceed policy plan or re-enable disabled source`() {
 		val desired = plan().copy(
 			plans = plan().plans + (
 				SourceKind.LOCATION to (plan().plans.getValue(SourceKind.LOCATION) as LocationPlan).copy(
@@ -81,9 +84,9 @@ class SourcePlanResolverTest {
 		)
 
 		val location = resolved.applicablePlans.getValue(SourceKind.LOCATION) as LocationPlan
-		location.mode shouldBe LocationMode.HIGH_ACCURACY
-		location.requestedIntervalMs shouldBe 5_000L
-		location.minimumUpdateIntervalMs shouldBe 1_000L
+		location.mode shouldBe LocationMode.BALANCED
+		location.requestedIntervalMs shouldBe 60_000L
+		location.minimumUpdateIntervalMs shouldBe 30_000L
 
 		val wifiOff = (desired.plans.getValue(SourceKind.WIFI) as WifiPlan).copy(mode = WifiMode.OFF)
 		val offResolved = SourcePlanResolver().resolve(
@@ -92,6 +95,39 @@ class SourcePlanResolverTest {
 			PlanResolutionContext(emptyMap(), powerSaver = false, doze = false, severeThermalPressure = false),
 		)
 		(offResolved.applicablePlans.getValue(SourceKind.WIFI) as WifiPlan).mode shouldBe WifiMode.OFF
+	}
+
+	@Test
+	fun `strongest demands cannot upgrade any source above battery saver policy`() {
+		val batterySaver = SourceCollectionSettings(
+			location = SourceCollectionFrequency.BATTERY_SAVER,
+			activity = SourceCollectionFrequency.BATTERY_SAVER,
+			steps = SourceCollectionFrequency.BATTERY_SAVER,
+			pressure = SourceCollectionFrequency.BATTERY_SAVER,
+			wifi = SourceCollectionFrequency.BATTERY_SAVER,
+			cell = SourceCollectionFrequency.BATTERY_SAVER,
+		)
+		val desired = SemanticAcquisitionPlanFactory().create(
+			settings = TrackingParamsState(
+				wifiEnabled = true,
+				cellEnabled = true,
+				sourceCollectionSettings = batterySaver,
+			),
+			revision = 3,
+			createdAtMs = 100,
+			environment = SourcePlanEnvironment(LocationBackend.FUSED, true, emptySet()),
+		)
+		val demands = SourceKind.entries.map { source ->
+			SourceDemand(source, 1, 1, EvidenceQuality.HIGH, DemandReason.POLICY)
+		}
+
+		val resolved = SourcePlanResolver().resolve(
+			desired,
+			demands,
+			PlanResolutionContext(emptyMap(), powerSaver = false, doze = false, severeThermalPressure = false),
+		)
+
+		resolved.applicablePlans shouldBe desired.plans
 	}
 
 	@Test

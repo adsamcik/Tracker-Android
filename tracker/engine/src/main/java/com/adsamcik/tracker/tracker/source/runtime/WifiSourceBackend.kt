@@ -29,13 +29,18 @@ internal data class WifiBackendAccessPoint(
 	val frequencyMhz: Int,
 	val signalLevelDbm: Int,
 	val platformTimestampMicros: Long,
-)
+) {
+	val providerTimestampNanos: Long?
+		get() = platformTimestampMicros
+			.takeIf { it > 0L && it <= Long.MAX_VALUE / MICROS_TO_NANOS }
+			?.times(MICROS_TO_NANOS)
+
+	private companion object { const val MICROS_TO_NANOS = 1_000L }
+}
 
 internal data class WifiBackendSnapshot(val accessPoints: List<WifiBackendAccessPoint>) {
 	val freshestTimestampNanos: Long?
-		get() = accessPoints.maxOfOrNull(WifiBackendAccessPoint::platformTimestampMicros)?.times(MICROS_TO_NANOS)
-
-	private companion object { const val MICROS_TO_NANOS = 1_000L }
+		get() = accessPoints.mapNotNull(WifiBackendAccessPoint::providerTimestampNanos).maxOrNull()
 }
 
 internal enum class WifiRequestOutcome { ACCEPTED, THROTTLED, PERMISSION_BLOCKED, PROVIDER_FAILED }
@@ -53,14 +58,17 @@ internal class AndroidWifiSourceBackend @Inject constructor(
 		val next = object : BroadcastReceiver() {
 			override fun onReceive(context: Context, intent: Intent) {
 				when (intent.action) {
-					WifiManager.SCAN_RESULTS_AVAILABLE_ACTION -> callback(
-						WifiBackendEvent.Results(
-							snapshot = readSnapshot(),
-							resultsUpdated = intent.getResultsUpdatedOrNull(),
-							receivedElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(),
-							receivedWallTimeMs = System.currentTimeMillis(),
-						),
-					)
+					WifiManager.SCAN_RESULTS_AVAILABLE_ACTION -> {
+						val resultsUpdated = intent.getResultsUpdatedOrNull()
+						callback(
+							WifiBackendEvent.Results(
+								snapshot = if (shouldReadWifiSnapshot(resultsUpdated)) readSnapshot() else null,
+								resultsUpdated = resultsUpdated,
+								receivedElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(),
+								receivedWallTimeMs = System.currentTimeMillis(),
+							),
+						)
+					}
 					PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED -> callback(WifiBackendEvent.IdleStateChanged)
 				}
 			}
@@ -98,7 +106,6 @@ internal class AndroidWifiSourceBackend @Inject constructor(
 	fun readSnapshot(): WifiBackendSnapshot? = try {
 		wifiManager?.scanResults
 			?.map { it.toBackendAccessPoint() }
-			?.takeIf(List<*>::isNotEmpty)
 			?.let(::WifiBackendSnapshot)
 	} catch (_: SecurityException) {
 		null

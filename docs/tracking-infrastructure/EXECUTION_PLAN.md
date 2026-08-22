@@ -133,16 +133,19 @@ and a production-query assertion exists where the item produces user-visible fac
    replaces the unshipped eligibility table with `source_authorization`, and separates physical
    provider generation from authority. Use/retention class, structural-zone identity, source
    cursor/gap, deletion and destination-owner records remain deliberately unimplemented.
-3. Build the populated v27 fixture and run host compilation immediately; execute it on the first
-   available emulator/device before schema freeze.
+3. Build the populated v27 fixture and run host compilation immediately; execute it on the booted
+   `Medium_Phone` AVD before schema freeze. The existing shallow migration test proves only that the
+   instrumentation/migration harness runs; it is not populated-schema or recovery evidence.
 4. Extend the now-tested observed-time authorization seam with authorization-homogeneous splitting
    for each source and process-stable source-native delivery identity. Preserve checksum-valid
    pending v27 WAL for its released legacy projection instead of quarantining it as corruption.
 5. Carry the locally passing TI-213 Dashboard decision into device permission-result evidence and
    audit every other manual start entry point; do not broaden this into history UI work.
-6. Make physical reconfiguration accepted-before-retire: a replacement provider must be accepted
-   before the prior generation is fenced, and replacement failure must retain the prior working
-   registration. Prove this with provider fakes before enabling any `broker_v2:<source>`.
+6. Make physical reconfiguration provider-specific. Preserve the prior registration through
+   replacement acceptance only where the Android/provider API offers generation-addressable overlap;
+   otherwise use a fenced break-before-make transition whose unavoidable gap is explicit and whose
+   rollback/retry behavior is proven with provider fakes. Do not claim a universal zero-gap handoff
+   before enabling any `broker_v2:<source>`.
 7. Implement the smallest end-to-end vertical, Steps, with its own writer/cursor/correction,
    deletion/export and one production query. Generalize only after that concrete proof. The default
    source order remains scheduling preference; a blocked Steps gate cannot block Pressure or another
@@ -150,8 +153,9 @@ and a production-query assertion exists where the item produces user-visible fac
 
 ## Recorded blockers and explicit decisions
 
-- No emulator/device is currently attached, so migration, reboot, Doze, permission, FIFO, radio,
-  and OEM evidence cannot yet pass.
+- A local `Medium_Phone` AVD is available and the shallow v27→v28 instrumentation test executes.
+  The realistic populated migration/reopen/recovery fixture, physical-provider behavior, reboot,
+  Doze, permission, FIFO, radio, and representative OEM/device evidence remain unverified.
 - Final retention durations and privacy copy remain product/privacy decisions. Implement policy
   fields and deletion mechanics without choosing final values.
 - Whether step corroboration remains automatic control still requires explicit resolution before

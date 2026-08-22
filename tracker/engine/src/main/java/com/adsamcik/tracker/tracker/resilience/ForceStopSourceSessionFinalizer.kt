@@ -30,9 +30,12 @@ class ForceStopSourceSessionFinalizer @Inject constructor(
 				check(
 					dao.updateServiceRun(
 						run.copy(
-							state = SessionLifecycleState.CLOSED.name,
+							state = SessionLifecycleState.FINALIZED.name,
 							completedAtMs = completedAtMs,
 							completionReason = FORCE_STOP_COMPLETION_REASON,
+							runtimeAcknowledgement = "TERMINAL_FAILURE",
+							runtimeFailureCode = FORCE_STOP_COMPLETION_REASON,
+							runRevision = run.runRevision + 1L,
 						),
 					) == 1,
 				) { "Force-stop source service run changed during finalization" }
@@ -41,8 +44,8 @@ class ForceStopSourceSessionFinalizer @Inject constructor(
 				dao.updateSession(
 					session.copy(
 						// A force-stop cannot prove source quiescence, projection drain, or
-						// completeness, so do not claim the normally finalized CLOSED state.
-						state = SessionLifecycleState.FAILED.name,
+						// completeness. Finalize it as interrupted with an explicit failure code.
+						state = SessionLifecycleState.FINALIZED.name,
 						lifecycleRevision = session.lifecycleRevision + 1L,
 						completedAtMs = completedAtMs,
 						failureCode = FORCE_STOP_COMPLETION_REASON,

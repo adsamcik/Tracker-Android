@@ -7,6 +7,7 @@ import java.io.DataInputStream
 import java.io.DataOutputStream
 
 internal data class PressureAccumulatorState(
+	val boundary: PressureAccumulatorBoundary,
 	val sampleCount: Int,
 	val mean: Double,
 	val sumSquaredDeviations: Double,
@@ -18,24 +19,49 @@ internal data class PressureAccumulatorState(
 	val lastProviderSequence: Long,
 )
 
+/**
+ * Immutable identity of the provider registration whose samples may contribute to a window.
+ *
+ * The eligibility fingerprint includes the durable demand vector (and therefore its manifest
+ * revisions). Keeping it beside the registration generation prevents a checkpoint from joining
+ * samples that were collected for different capture/control purposes.
+ */
+internal data class PressureAccumulatorBoundary(
+	val registrationGeneration: Long,
+	val eligibilityFingerprint: String,
+	val appliedRevision: Long,
+) {
+	init {
+		require(registrationGeneration >= 0L)
+		require(eligibilityFingerprint.isNotBlank())
+		require(appliedRevision >= 0L)
+	}
+}
+
 internal class PressureWindowAccumulator(
 	private val windowNanos: Long,
+	private val boundary: PressureAccumulatorBoundary = UNSCOPED_PRESSURE_BOUNDARY,
 	private var state: PressureAccumulatorState? = null,
 ) {
 	init {
 		require(windowNanos > 0L)
+		require(state == null || state?.boundary == boundary) {
+			"A pressure window cannot cross a registration or demand-eligibility boundary"
+		}
 	}
 
 	/** Returns the completed prior window; the incoming sample starts the next window. */
 	fun add(pressureHectopascals: Float, elapsedNanos: Long, providerSequence: Long): PressureWindowPayload? {
 		val current = state
-		val completed = if (current != null && elapsedNanos - current.windowStartElapsedNanos >= windowNanos) {
+		val windowElapsed = current != null && elapsedNanos - current.windowStartElapsedNanos >= windowNanos
+		val completed = if (current != null && windowElapsed) {
 			current.toPayload()
 		} else {
 			null
 		}
-		state = if (current == null || completed != null) {
+		state = if (current == null || windowElapsed) {
 			PressureAccumulatorState(
+				boundary = boundary,
 				sampleCount = 1,
 				mean = pressureHectopascals.toDouble(),
 				sumSquaredDeviations = 0.0,
@@ -64,6 +90,7 @@ internal class PressureWindowAccumulator(
 		return completed
 	}
 
+	/** A single-sample drain remains durable evidence; product stability is carried separately. */
 	fun drain(): PressureWindowPayload? = state?.toPayload().also { state = null }
 
 	fun snapshot(): PressureAccumulatorState? = state
@@ -83,6 +110,9 @@ private fun PressureAccumulatorState.toPayload() = PressureWindowPayload(
 
 internal fun PressureAccumulatorState.encode(): ByteArray = ByteArrayOutputStream().use { bytes ->
 	DataOutputStream(bytes).use { output ->
+		output.writeLong(boundary.registrationGeneration)
+		output.writeUTF(boundary.eligibilityFingerprint)
+		output.writeLong(boundary.appliedRevision)
 		output.writeInt(sampleCount)
 		output.writeDouble(mean)
 		output.writeDouble(sumSquaredDeviations)
@@ -96,10 +126,19 @@ internal fun PressureAccumulatorState.encode(): ByteArray = ByteArrayOutputStrea
 	bytes.toByteArray()
 }
 
-internal fun decodePressureAccumulator(payload: ByteArray, version: Int): PressureAccumulatorState? = runCatching {
+internal fun decodePressureAccumulator(
+	payload: ByteArray,
+	version: Int,
+	expectedBoundary: PressureAccumulatorBoundary? = null,
+): PressureAccumulatorState? = runCatching {
 	if (version != PRESSURE_ACCUMULATOR_VERSION || payload.isEmpty()) return@runCatching null
 	DataInputStream(ByteArrayInputStream(payload)).use { input ->
-		PressureAccumulatorState(
+		val decoded = PressureAccumulatorState(
+			boundary = PressureAccumulatorBoundary(
+				registrationGeneration = input.readLong(),
+				eligibilityFingerprint = input.readUTF(),
+				appliedRevision = input.readLong(),
+			),
 			sampleCount = input.readInt(),
 			mean = input.readDouble(),
 			sumSquaredDeviations = input.readDouble(),
@@ -109,8 +148,18 @@ internal fun decodePressureAccumulator(payload: ByteArray, version: Int): Pressu
 			windowEndElapsedNanos = input.readLong(),
 			firstProviderSequence = input.readLong(),
 			lastProviderSequence = input.readLong(),
-		).takeIf { it.sampleCount > 0 }
+		)
+		require(input.available() == 0)
+		decoded.takeIf { state ->
+			state.sampleCount > 0 && (expectedBoundary == null || state.boundary == expectedBoundary)
+		}
 	}
 }.getOrNull()
 
-internal const val PRESSURE_ACCUMULATOR_VERSION = 1
+private val UNSCOPED_PRESSURE_BOUNDARY = PressureAccumulatorBoundary(
+	registrationGeneration = 0L,
+	eligibilityFingerprint = "unscoped-test-or-projection",
+	appliedRevision = 0L,
+)
+
+internal const val PRESSURE_ACCUMULATOR_VERSION = 2

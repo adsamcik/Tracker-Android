@@ -30,6 +30,7 @@ class SemanticAcquisitionPlanFactory @Inject constructor() {
 			revision = revision,
 			planId = "semantic-v${settings.sourceSettingsVersion}-${settings.presetName.lowercase()}",
 			createdAtMs = createdAtMs,
+			sourcePolicyRevision = settings.sourcePolicyRevision,
 			plans = mapOf(
 				SourceKind.LOCATION to locationPlan(settings, frequency.location, revision, environment),
 				SourceKind.ACTIVITY to activityPlan(frequency.activity, revision),

@@ -35,22 +35,28 @@ data class EncodedSourcePayload(
 @Singleton
 class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 	override fun encode(payload: SourcePayload, payloadVersion: Int): EncodedSourcePayload {
-		require(payloadVersion == CURRENT_VERSION) { "Unsupported source payload version $payloadVersion" }
+		require(payloadVersion in MINIMUM_VERSION..CURRENT_VERSION) {
+			"Unsupported source payload version $payloadVersion"
+		}
 		val bytes = ByteArrayOutputStream().use { buffer ->
-			DataOutputStream(buffer).use { output -> output.writePayload(payload) }
+			DataOutputStream(buffer).use { output -> output.writePayload(payload, payloadVersion) }
 			buffer.toByteArray()
 		}
 		return EncodedSourcePayload(bytes, bytes.sha256())
 	}
 
 	override fun decode(source: SourceKind, payloadVersion: Int, bytes: ByteArray): SourcePayload {
-		require(payloadVersion == CURRENT_VERSION) { "Unsupported source payload version $payloadVersion" }
-		val payload = DataInputStream(ByteArrayInputStream(bytes)).use { input -> input.readPayload() }
+		require(payloadVersion in MINIMUM_VERSION..CURRENT_VERSION) {
+			"Unsupported source payload version $payloadVersion"
+		}
+		val payload = DataInputStream(ByteArrayInputStream(bytes)).use { input ->
+			input.readPayload(payloadVersion)
+		}
 		require(payload.source == source) { "Encoded payload source does not match WAL source" }
 		return payload
 	}
 
-	private fun DataOutputStream.writePayload(payload: SourcePayload) {
+	private fun DataOutputStream.writePayload(payload: SourcePayload, payloadVersion: Int) {
 		when (payload) {
 			is LocationFixPayload -> {
 				writeInt(TYPE_LOCATION_FIX)
@@ -113,6 +119,9 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 					writeUTF(accessPoint.identifierToken)
 					writeInt(accessPoint.frequencyMhz)
 					writeInt(accessPoint.signalLevelDbm)
+					if (payloadVersion >= WIFI_ITEM_TIME_VERSION) {
+						writeNullableLong(accessPoint.providerTimestampNanos)
+					}
 				}
 				writeNullableLong(payload.platformTimestampMs)
 				writeNullableLong(payload.resultAgeMs)
@@ -134,7 +143,7 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 		}
 	}
 
-	private fun DataInputStream.readPayload(): SourcePayload = when (val type = readInt()) {
+	private fun DataInputStream.readPayload(payloadVersion: Int): SourcePayload = when (val type = readInt()) {
 		TYPE_LOCATION_FIX -> LocationFixPayload(
 			latitudeDegrees = readDouble(),
 			longitudeDegrees = readDouble(),
@@ -177,7 +186,14 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 		)
 		TYPE_WIFI_RESULTS -> WifiResultSnapshotPayload(
 			accessPoints = List(readBoundedCount()) {
-				WifiAccessPointEvidence(readUTF(), readInt(), readInt())
+				WifiAccessPointEvidence(
+					identifierToken = readUTF(),
+					frequencyMhz = readInt(),
+					signalLevelDbm = readInt(),
+					providerTimestampNanos = if (payloadVersion >= WIFI_ITEM_TIME_VERSION) {
+						readNullableLong()
+					} else null,
+				)
 			},
 			platformTimestampMs = readNullableLong(),
 			resultAgeMs = readNullableLong(),
@@ -235,7 +251,9 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 		.joinToString(separator = "") { byte -> "%02x".format(byte) }
 
 	private companion object {
-		const val CURRENT_VERSION = 1
+		const val MINIMUM_VERSION = 1
+		const val CURRENT_VERSION = 2
+		const val WIFI_ITEM_TIME_VERSION = 2
 		const val MAX_COLLECTION_SIZE = 100_000
 		const val TYPE_LOCATION_FIX = 1
 		const val TYPE_ACTIVITY_TRANSITION = 2

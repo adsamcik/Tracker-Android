@@ -106,19 +106,45 @@ interface SourceProjectionStateDao {
 	suspend fun insertLeaseIfAbsent(entity: SourceCoordinatorLeaseEntity): Long
 
 	@Query(
-		"UPDATE source_coordinator_lease SET owner_token = :ownerToken, acquired_at_ms = :nowMs, " +
-			"expires_at_ms = :expiresAtMs WHERE lease_name = :leaseName " +
-			"AND (owner_token = :ownerToken OR expires_at_ms <= :nowMs)",
+		"UPDATE source_coordinator_lease SET " +
+			"owner_token = :ownerToken, boot_id = :bootId, " +
+			"generation = CASE WHEN owner_token = :ownerToken AND boot_id = :bootId " +
+			"AND expires_elapsed_realtime_nanos > :nowElapsedNanos " +
+			"THEN generation ELSE generation + 1 END, " +
+			"acquired_at_ms = :nowMs, expires_at_ms = :expiresAtMs, " +
+			"acquired_elapsed_realtime_nanos = :nowElapsedNanos, " +
+			"expires_elapsed_realtime_nanos = :expiresElapsedNanos " +
+			"WHERE lease_name = :leaseName AND (" +
+			"(owner_token = :ownerToken AND boot_id = :bootId) OR " +
+			"boot_id != :bootId OR expires_elapsed_realtime_nanos <= :nowElapsedNanos)",
 	)
 	suspend fun acquireOrRenewLease(
 		leaseName: String,
 		ownerToken: String,
+		bootId: String,
 		nowMs: Long,
 		expiresAtMs: Long,
+		nowElapsedNanos: Long,
+		expiresElapsedNanos: Long,
 	): Int
 
-	@Query("DELETE FROM source_coordinator_lease WHERE lease_name = :leaseName AND owner_token = :ownerToken")
-	suspend fun releaseLease(leaseName: String, ownerToken: String): Int
+	@Query("SELECT * FROM source_coordinator_lease WHERE lease_name = :leaseName")
+	suspend fun lease(leaseName: String): SourceCoordinatorLeaseEntity?
+
+	@Query(
+		"UPDATE source_coordinator_lease SET expires_at_ms = :nowMs, " +
+			"expires_elapsed_realtime_nanos = :nowElapsedNanos " +
+			"WHERE lease_name = :leaseName AND owner_token = :ownerToken AND boot_id = :bootId " +
+			"AND generation = :generation",
+	)
+	suspend fun releaseLease(
+		leaseName: String,
+		ownerToken: String,
+		bootId: String,
+		generation: Long,
+		nowMs: Long,
+		nowElapsedNanos: Long,
+	): Int
 
 	@Query(
 		"SELECT * FROM source_projection_outbox WHERE delivered_at_ms IS NULL " +

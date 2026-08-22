@@ -28,11 +28,11 @@ class SourceRuntimeRegistry @Inject constructor(
 	}
 
 	@Suppress("UNCHECKED_CAST")
-	suspend fun reconfigure(plan: SourcePlan): SourceApplyResult {
+	suspend fun reconfigure(plan: SourcePlan, sink: SourceEventSink): SourceApplyResult {
 		val runtime = requireNotNull(runtimesBySource[plan.source]) {
 			"No source runtime is registered for ${plan.source}"
 		} as SourceRuntime<SourcePlan>
-		return runtime.reconfigure(plan)
+		return runtime.reconfigure(plan, sink)
 	}
 
 	suspend fun quiesce(source: SourceKind, cutoff: SessionCutoff): SourceStopAck =

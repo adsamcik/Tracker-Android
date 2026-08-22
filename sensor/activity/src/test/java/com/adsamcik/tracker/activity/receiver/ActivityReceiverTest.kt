@@ -4,6 +4,11 @@ import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_CLOCK_DOMAIN_ID
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_COLLECTED_DATA_EPOCH
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_PHYSICAL_CONFIGURATION_FINGERPRINT
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_REGISTRATION_GENERATION
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_SOURCE_INSTANCE_ID
 import com.adsamcik.tracker.activity.api.ingress.ActivityIngressResult
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
 import com.adsamcik.tracker.shared.base.Time
@@ -15,6 +20,7 @@ import dagger.hilt.android.EntryPointAccessors
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
@@ -141,6 +147,33 @@ class ActivityReceiverTest {
 		receiver.onReceive(context, intent)
 
 		verify(exactly = 0) { mockBackend.onActivityResult(any(), any()) }
+	}
+
+	@Test
+	fun `passes only physical registration identity to durable ingress`() {
+		val intent = intentWithActivityResult(
+			com.google.android.gms.location.DetectedActivity.WALKING,
+			85,
+		)
+		every { intent.getStringExtra(EXTRA_SOURCE_INSTANCE_ID) } returns "activity-instance"
+		every { intent.hasExtra(EXTRA_REGISTRATION_GENERATION) } returns true
+		every { intent.hasExtra(EXTRA_COLLECTED_DATA_EPOCH) } returns true
+		every { intent.getLongExtra(EXTRA_REGISTRATION_GENERATION, any()) } returns 12L
+		every { intent.getLongExtra(EXTRA_COLLECTED_DATA_EPOCH, any()) } returns 4L
+		every { intent.getStringExtra(EXTRA_CLOCK_DOMAIN_ID) } returns "boot-4"
+		every { intent.getStringExtra(EXTRA_PHYSICAL_CONFIGURATION_FINGERPRINT) } returns "physical-config"
+
+		receiver.onReceive(context, intent)
+
+		coVerify {
+			mockIngress.admit(match { batch ->
+				batch.registrationIdentity?.sourceInstanceId == "activity-instance" &&
+					batch.registrationIdentity?.registrationGeneration == 12L &&
+					batch.registrationIdentity?.collectedDataEpoch == 4L &&
+					batch.registrationIdentity?.clockDomainId == "boot-4" &&
+					batch.registrationIdentity?.physicalConfigurationFingerprint == "physical-config"
+			})
+		}
 	}
 
 		@Test

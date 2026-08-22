@@ -11,6 +11,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.transformLatest
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.InputStream
 import java.io.OutputStream
@@ -40,11 +44,8 @@ private object TrackingParamsSerializer : Serializer<TrackingParamsProto> {
         .setLegacyMigrated(false)
         .build()
 
-    override suspend fun readFrom(input: InputStream): TrackingParamsProto = try {
+    override suspend fun readFrom(input: InputStream): TrackingParamsProto =
         TrackingParamsProto.parseFrom(input)
-    } catch (_: Exception) {
-        defaultValue
-    }
 
     override suspend fun writeTo(t: TrackingParamsProto, output: OutputStream) {
         t.writeTo(output)
@@ -70,9 +71,17 @@ class DefaultTrackingParamsRepository(
     private val io: CoroutineDispatcher,
 ) : TrackingParamsRepository {
 
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     override val data: Flow<TrackingParamsState> = context.trackingParamsDataStore.data
         .onStart { ensureMigrated() }
         .map { it.toDomain() }
+		.transformLatest { state ->
+			emit(state)
+			while (!state.legacySettingsMigrationCompleted) {
+				delay(MIGRATION_RETRY_DELAY_MS)
+				if (ensureMigrated()) return@transformLatest
+			}
+		}
 
     override suspend fun update(block: TrackingParamsState.() -> TrackingParamsState) {
         withContext(io) {
@@ -187,7 +196,7 @@ class DefaultTrackingParamsRepository(
     }
 
     @Suppress("DEPRECATION")
-    private suspend fun ensureMigrated() = withContext(io) {
+    private suspend fun ensureMigrated(): Boolean = withContext(io) {
         try {
             val current = context.trackingParamsDataStore.data.first()
             if (current.legacyMigrated) {
@@ -196,7 +205,7 @@ class DefaultTrackingParamsRepository(
                         stored.withCurrentSourceSettings()
                     }
                 }
-                return@withContext
+				return@withContext true
             }
 
             // Read directly from SharedPreferences — the legacy source.
@@ -281,16 +290,25 @@ class DefaultTrackingParamsRepository(
                     .build()
                     .withCurrentSourceSettings()
             }
-        } catch (_: Exception) {
-            // Leave migration markers untouched so a transient I/O failure can be retried. The
-            // serializer/domain defaults keep this read safe without claiming migration succeeded.
+			true
+		} catch (_: Exception) {
+			currentCoroutineContext().ensureActive()
+			// Leave migration markers untouched so a transient I/O or semantic failure can be
+			// retried. Never replace unreadable retained intent with enable-by-default values.
+			false
         }
     }
+
+	private companion object {
+		const val MIGRATION_RETRY_DELAY_MS = 250L
+	}
 }
 
 @Suppress("DEPRECATION")
 private fun TrackingParamsProto.toDomain(): TrackingParamsState {
-    if (!legacyMigrated) return TrackingParamsState()
+	if (!legacyMigrated) {
+		return TrackingParamsState(legacySettingsMigrationCompleted = false)
+	}
     val preset = TrackingPreset.fromName(presetName)
     val usePresetCadence = preset == TrackingPreset.HIGH_ACCURACY &&
         minDistanceMeters == 5 &&
@@ -330,6 +348,7 @@ private fun TrackingParamsProto.toDomain(): TrackingParamsState {
 		advancedSourceControlsEnabled = advancedSourceControlsEnabled,
 		sourceSettingsVersion = sourceSettingsVersion.takeIf { it > 0 }
 			?: TrackingParamsState.CURRENT_SOURCE_SETTINGS_VERSION,
+		legacySettingsMigrationCompleted = true,
     )
 }
 

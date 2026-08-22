@@ -64,6 +64,8 @@ class TrackingSettingsScreenTest {
         minTime = 2,
         requiredAccuracy = 50,
         hasValidSources = true,
+		sourcePolicyAvailable = true,
+		sourcePolicyRevision = 1L,
     )
 
     private fun scrollTo(text: String) {
@@ -79,6 +81,24 @@ class TrackingSettingsScreenTest {
         scrollTo("Balanced")
         composeTestRule.onNodeWithText("Balanced", substring = true).assertIsDisplayed()
     }
+
+	@Test
+	fun unavailablePolicyShowsAnHonestNonEditableState() {
+		composeTestRule.setContent {
+			AppTheme {
+				TrackingSettingsContent(
+					uiState = defaultUiState.copy(
+						sourcePolicyAvailable = false,
+						sourcePolicyRevision = null,
+					),
+				)
+			}
+		}
+
+		composeTestRule.onNodeWithTag("trackingSettingsUnavailable").assertIsDisplayed()
+		composeTestRule.onNodeWithText("Tracking settings unavailable").assertIsDisplayed()
+		composeTestRule.onNodeWithTag("trackingSettingsList").assertDoesNotExist()
+	}
 
     @Test
     fun trackingNoticeIsHiddenWhileIdle() {

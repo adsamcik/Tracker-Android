@@ -4,6 +4,7 @@ import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
+import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
 import com.adsamcik.tracker.tracker.source.control.CollectionMotionController
 import com.adsamcik.tracker.tracker.source.runtime.SourceAdmissionFailureCode
@@ -44,7 +45,7 @@ class DurableSourceEventSinkFactory private constructor(
 		val result = ingress.admit(candidate)
 		if (result.isDurable) {
 			motionController?.onDurableEvidence(candidate)
-			runCatching { recovery?.drainCommittedWork() }
+			runCatchingNonCancellation { recovery?.drainCommittedWork() }
 		}
 		return result.toHandoff()
 	}
@@ -70,6 +71,12 @@ private fun AdmissionResult.toHandoff(): SourceAdmissionHandoff = when (this) {
 }
 
 private fun AdmissionFailureCode.toRuntimeCode(): SourceAdmissionFailureCode = when (this) {
+	AdmissionFailureCode.STALE_REGISTRATION_GENERATION ->
+		SourceAdmissionFailureCode.STALE_REGISTRATION_GENERATION
+	AdmissionFailureCode.AUTHORIZATION_BOUNDARY_SPLIT_REQUIRED ->
+		SourceAdmissionFailureCode.INVALID_EVIDENCE
+	AdmissionFailureCode.STALE_SOURCE_POLICY -> SourceAdmissionFailureCode.SOURCE_POLICY_STALE
+	AdmissionFailureCode.STALE_SESSION_MANIFEST -> SourceAdmissionFailureCode.SOURCE_POLICY_STALE
 	AdmissionFailureCode.STALE_COLLECTED_DATA_EPOCH -> SourceAdmissionFailureCode.STALE_COLLECTED_DATA_EPOCH
 	AdmissionFailureCode.BEFORE_RETENTION_BOUNDARY -> SourceAdmissionFailureCode.BEFORE_RETENTION_BOUNDARY
 	AdmissionFailureCode.UNSUPPORTED_PAYLOAD -> SourceAdmissionFailureCode.CODEC_UNSUPPORTED

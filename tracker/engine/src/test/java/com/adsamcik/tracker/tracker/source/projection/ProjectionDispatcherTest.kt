@@ -74,6 +74,24 @@ class ProjectionDispatcherTest {
 	}
 
 	@Test
+	fun `raw integrity quarantine advances without invoking projection code`() = runTest {
+		val projection = OutboxProjection()
+		val subject = ProjectionDispatcher(database, setOf(projection))
+		subject.registerAll(1L)
+
+		subject.quarantineRawEvent(1L, "RAW_PAYLOAD_INTEGRITY_SOURCE_2")
+		subject.dispatch(event(2L)).complete shouldBe true
+
+		projection.applyCount shouldBe 1
+		database.sourceProjectionStateDao().failure("outbox", 1, 1)?.also { failure ->
+			failure.terminal shouldBe true
+			failure.failureCode shouldBe "RAW_PAYLOAD_INTEGRITY_SOURCE_2"
+		}
+		database.sourceProjectionStateDao().checkpoint("outbox", 1)
+			?.contiguousAdmissionOrdinal shouldBe 2L
+	}
+
+	@Test
 	fun `durable join state retains the oldest buffered admission ordinal`() = runTest {
 		val subject = ProjectionDispatcher(database, setOf(RetentionProjection()))
 		subject.registerAll(1L)

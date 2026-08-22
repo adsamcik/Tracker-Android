@@ -1,10 +1,13 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import android.os.SystemClock
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.model.CellMode
 import com.adsamcik.tracker.tracker.source.model.CellObservationEvidence
 import com.adsamcik.tracker.tracker.source.model.CellPlan
+import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import com.adsamcik.tracker.tracker.source.model.CellRefreshOutcome
 import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
@@ -56,14 +59,10 @@ class CellSourceRuntime @Inject internal constructor(
 		startLocked(plan, sink)
 	}
 
-	override suspend fun reconfigure(plan: CellPlan): SourceApplyResult = lifecycleMutex.withLock {
-		val sink = currentSink
+	override suspend fun reconfigure(plan: CellPlan, sink: SourceEventSink): SourceApplyResult = lifecycleMutex.withLock {
 		if (currentPlan != null) shutdownLocked(null)
 		if (!plan.enabled) return@withLock SourceApplyResult.Applied(
 			appliedState(source, plan.revision, null, SourceApplyStatus.APPLIED, SystemClock.elapsedRealtimeNanos()),
-		)
-		if (sink == null) return@withLock SourceApplyResult.Failed(
-			appliedState(source, plan.revision, null, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()), false,
 		)
 		when (val result = startLocked(plan, sink)) {
 			is SourceStartResult.Started -> SourceApplyResult.Applied(result.applied)
@@ -93,8 +92,8 @@ class CellSourceRuntime @Inject internal constructor(
 			appliedState(source, plan.revision, null, SourceApplyStatus.BLOCKED, SystemClock.elapsedRealtimeNanos())
 				.copy(degradedReasons = application.reasons),
 		)
-		val nextRegistration = runCatching {
-			registrations.begin(source, plan.revision, System.currentTimeMillis())
+		val nextRegistration = runCatchingNonCancellation {
+			registrations.begin(source, plan.revision, plan.physicalConfigurationFingerprint(), System.currentTimeMillis())
 		}.getOrElse {
 			return SourceStartResult.Failed(
 				appliedState(source, plan.revision, null, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()), true,
@@ -109,13 +108,27 @@ class CellSourceRuntime @Inject internal constructor(
 		cutoffElapsedNanos = null
 		metrics = RuntimeAdmissionMetrics()
 		accepting = true
-		actor = applicationScope.launch { consume(nextQueue, nextRegistration, sink) }
-		if (!backend.start(plan.subscriptionIds, ::onBackendSnapshot)) {
-			shutdownLocked(null)
+		if (!backend.start(plan.subscriptionIds) { snapshot -> onBackendSnapshot(nextRegistration, snapshot) }) {
+			registrations.markFailed(nextRegistration, "PROVIDER_REGISTRATION_FAILED", System.currentTimeMillis())
+			synchronized(callbackLock) { accepting = false; nextQueue.close() }
+			clearActiveState()
 			return SourceStartResult.Failed(
 				appliedState(source, plan.revision, nextRegistration, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()), true,
 			)
 		}
+		val accepted = runCatchingNonCancellation {
+			registrations.markAccepted(nextRegistration, System.currentTimeMillis())
+		}.isSuccess
+		if (!accepted) {
+			runCatching { backend.stop() }
+			registrations.markFailed(nextRegistration, "REGISTRATION_ACCEPTANCE_STALE", System.currentTimeMillis())
+			synchronized(callbackLock) { accepting = false; nextQueue.close() }
+			clearActiveState()
+			return SourceStartResult.Failed(
+				appliedState(source, plan.revision, nextRegistration, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()), true,
+			)
+		}
+		actor = applicationScope.launch { consume(nextQueue, nextRegistration, sink) }
 		nextCallbackSequence()?.let { enqueue(CellRuntimeInput.Started(it)) }
 		val state = appliedState(
 			source, plan.revision, nextRegistration, application.status, SystemClock.elapsedRealtimeNanos(),
@@ -140,7 +153,7 @@ class CellSourceRuntime @Inject internal constructor(
 				.coerceAtLeast(1L)
 		} ?: DEFAULT_DRAIN_TIMEOUT_MS
 		val drained = activeActor == null || withTimeoutOrNull(remainingMs) { activeActor.join(); true } == true
-		if (!drained) activeActor?.cancelAndJoin()
+		if (!drained) activeActor.cancelAndJoin()
 		val admission = metrics.snapshot()
 		val ack = SourceStopAck(
 			source, SourceInstanceId(activeRegistration.state.sourceInstanceId),
@@ -155,17 +168,23 @@ class CellSourceRuntime @Inject internal constructor(
 				else -> SourceStopStatus.COMPLETE
 			},
 		)
+		if (removed == RegistrationRemovalOutcome.FAILED) {
+			registrations.markFailed(activeRegistration, "PROVIDER_REMOVAL_FAILED", System.currentTimeMillis())
+		} else {
+			registrations.markRetired(activeRegistration, System.currentTimeMillis())
+		}
 		clearActiveState()
 		return ack
 	}
 
-	private fun onBackendSnapshot(snapshot: CellBackendSnapshot) {
-		val sequence = nextCallbackSequence() ?: return
+	private fun onBackendSnapshot(callbackRegistration: SourceRegistration, snapshot: CellBackendSnapshot) {
+		val sequence = nextCallbackSequence(callbackRegistration) ?: return
 		enqueue(CellRuntimeInput.Snapshot(snapshot, CellRefreshOutcome.CALLBACK, sequence))
 	}
 
-	private fun nextCallbackSequence(): Long? = synchronized(callbackLock) {
-		if (!accepting) null else ++callbackSequence
+	private fun nextCallbackSequence(callbackRegistration: SourceRegistration? = registration): Long? =
+		synchronized(callbackLock) {
+		if (!accepting || registration !== callbackRegistration) null else ++callbackSequence
 	}
 
 	private fun enqueue(input: CellRuntimeInput) {
@@ -183,12 +202,21 @@ class CellSourceRuntime @Inject internal constructor(
 		var lastRefreshAtMs = Long.MIN_VALUE
 		var backoff = RuntimeBackoffState()
 		var awaitingRefresh = false
-		val lastSignatureBySubscription = mutableMapOf<Int?, String>()
-		val lastProviderTimeBySubscription = mutableMapOf<Int?, Long?>()
+		val replayGateBySubscription = mutableMapOf<Int?, BoundedReplayIdentityGate>()
+		val acquisitionBudget = DirectAcquisitionBudget(
+			maximumAttempts = MAX_REFRESH_ATTEMPTS_PER_REGISTRATION,
+			directCaptureRequested = activeRegistration.purposeEligibilityMask and
+				SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L,
+		)
 
 		suspend fun scheduleRefresh() {
 			val plan = currentPlan ?: return
-			if (plan.mode != CellMode.OBSERVE_AND_SPARSE_REFRESH) return
+			if (!shouldScheduleCellRefresh(plan.mode, deviceStateProvider.cell().refreshApiAvailable) ||
+				!acquisitionBudget.canRequest
+			) {
+				wakeups.cancel(REFRESH_WAKEUP_ID)
+				return
+			}
 			val now = SystemClock.elapsedRealtime()
 			val earliest = nextAttemptDeadlineMs(
 				now,
@@ -206,44 +234,62 @@ class CellSourceRuntime @Inject internal constructor(
 			}
 		}
 
-		suspend fun recordSnapshot(snapshot: CellBackendSnapshot, outcome: CellRefreshOutcome) {
-			val plan = currentPlan ?: return
-			val providerTime = snapshot.observations.mapNotNull(CellBackendObservation::providerTimestampNanos).maxOrNull()
+		suspend fun recordSnapshot(snapshot: CellBackendSnapshot, outcome: CellRefreshOutcome): Boolean {
+			val plan = currentPlan ?: return false
 			val nowNanos = SystemClock.elapsedRealtimeNanos()
-			val ageMs = providerTime?.let { (nowNanos - it).coerceAtLeast(0L) / NANOS_PER_MILLISECOND }
-			if (outcome == CellRefreshOutcome.CACHED && ageMs != null && ageMs > plan.maximumAcceptableCachedAgeMs) return
-			val observations = snapshot.observations.map { observation ->
-				CellObservationEvidence(
-					identifierToken = stableIdentifierToken("cell", observation.identity),
-					radioType = observation.radioType,
-					registered = observation.registered,
-					signalLevelDbm = observation.signalLevelDbm,
-					providerTimestampNanos = observation.providerTimestampNanos,
-				)
-			}.sortedWith(compareBy(CellObservationEvidence::radioType, CellObservationEvidence::identifierToken))
-			val signature = observations.joinToString("|") {
-				"${it.identifierToken}:${it.radioType}:${it.registered}:${it.signalLevelDbm}"
+			val eligibleObservations = freshProviderObservations(
+				snapshot.observations,
+				nowNanos,
+				plan.maximumAcceptableCachedAgeMs,
+				CellBackendObservation::providerTimestampNanos,
+			)
+			val emptyCoverage = shouldAdmitCoverageOnly(
+				providerItemCount = snapshot.providerItemCount,
+				eligibleItemCount = eligibleObservations.size,
+				providerDeliveryConfirmedFresh = true,
+			)
+			if (eligibleObservations.isEmpty() && !emptyCoverage) return false
+			val providerTime = eligibleObservations
+				.mapNotNull(CellBackendObservation::providerTimestampNanos)
+				.maxOrNull() ?: nowNanos
+			val observations = eligibleObservations.map(CellBackendObservation::toMinimizedEvidence).sortedWith(
+				compareBy(
+					CellObservationEvidence::radioType,
+					CellObservationEvidence::identifierToken,
+					CellObservationEvidence::registered,
+					CellObservationEvidence::signalLevelDbm,
+					CellObservationEvidence::providerTimestampNanos,
+				),
+			)
+			val snapshotIdentity = if (emptyCoverage) {
+				"coverage-empty:$nowNanos"
+			} else observations.joinToString("|") {
+				"${it.radioType}:${it.registered}:${it.signalLevelDbm}:${it.providerTimestampNanos}"
 			}
-			if (!ConnectivitySnapshotGate.shouldAdmitCell(
-					signature,
-					providerTime,
-					lastSignatureBySubscription[snapshot.subscriptionId],
-					lastProviderTimeBySubscription[snapshot.subscriptionId],
+			val replayGate = replayGateBySubscription.getOrPut(snapshot.subscriptionId) {
+				BoundedReplayIdentityGate()
+			}
+			if (!replayGate.shouldAdmit(snapshotIdentity)) return false
+			return if (admitSnapshot(
+					activeRegistration, sink, observations,
+					outcome, providerTime, nowNanos, PlanAttribution.CAPTURED_REGISTRATION,
 				)
-			) return
-			lastSignatureBySubscription[snapshot.subscriptionId] = signature
-			lastProviderTimeBySubscription[snapshot.subscriptionId] = providerTime
-			admitSnapshot(activeRegistration, sink, snapshot.subscriptionId, observations, outcome, providerTime, nowNanos)
+			) {
+				replayGate.record(snapshotIdentity)
+				true
+			} else false
 		}
 
 		for (input in inputs) {
 			when (input) {
 				is CellRuntimeInput.Started -> {
-					backend.readCached().forEach { recordSnapshot(it, CellRefreshOutcome.CACHED) }
 					scheduleRefresh()
 				}
 				is CellRuntimeInput.Snapshot -> {
-					recordSnapshot(input.snapshot, input.outcome)
+					if (recordSnapshot(input.snapshot, input.outcome)) {
+						acquisitionBudget.markQualifiedEvidence()
+						wakeups.cancel(REFRESH_WAKEUP_ID)
+					}
 					if (awaitingRefresh) {
 						awaitingRefresh = false
 						wakeups.cancel(TIMEOUT_WAKEUP_ID)
@@ -252,27 +298,24 @@ class CellSourceRuntime @Inject internal constructor(
 					scheduleRefresh()
 				}
 				is CellRuntimeInput.Refresh -> {
+					if (!acquisitionBudget.consumeRequest()) continue
 					lastRefreshAtMs = SystemClock.elapsedRealtime()
-					when (backend.requestRefresh(::onBackendSnapshot)) {
+					when (backend.requestRefresh { snapshot -> onBackendSnapshot(activeRegistration, snapshot) }) {
 						CellRefreshRequestOutcome.REQUESTED -> {
 							awaitingRefresh = true
-							admitOutcome(activeRegistration, sink, CellRefreshOutcome.REFRESH_REQUESTED)
 							val timeoutAt = SystemClock.elapsedRealtime() + REFRESH_TIMEOUT_MS
 							wakeups.schedule(
 								sourceWakeupRequest(TIMEOUT_WAKEUP_ID, source, timeoutAt, 0L),
 							) { nextCallbackSequence()?.let { enqueue(CellRuntimeInput.Timeout(it)) } }
 						}
 						CellRefreshRequestOutcome.NOT_SUPPORTED -> {
-							backend.readCached().forEach { recordSnapshot(it, CellRefreshOutcome.CACHED) }
 							backoff = backoff.succeeded()
 						}
 						CellRefreshRequestOutcome.PERMISSION_BLOCKED -> {
 							backoff = backoff.failed()
-							admitOutcome(activeRegistration, sink, CellRefreshOutcome.PERMISSION_BLOCKED)
 						}
 						CellRefreshRequestOutcome.PROVIDER_FAILED -> {
 							backoff = backoff.failed()
-							admitOutcome(activeRegistration, sink, CellRefreshOutcome.PROVIDER_FAILED)
 						}
 					}
 					scheduleRefresh()
@@ -280,35 +323,26 @@ class CellSourceRuntime @Inject internal constructor(
 				is CellRuntimeInput.Timeout -> if (awaitingRefresh) {
 					awaitingRefresh = false
 					backoff = backoff.failed()
-					admitOutcome(activeRegistration, sink, CellRefreshOutcome.REFRESH_TIMEOUT)
 					scheduleRefresh()
 				}
 			}
 		}
 	}
 
-	private suspend fun admitOutcome(
-		registration: SourceRegistration,
-		sink: SourceEventSink,
-		outcome: CellRefreshOutcome,
-	) = admitSnapshot(
-		registration, sink, null, emptyList(), outcome, null, SystemClock.elapsedRealtimeNanos(),
-	)
-
 	private suspend fun admitSnapshot(
 		registration: SourceRegistration,
 		sink: SourceEventSink,
-		subscriptionId: Int?,
 		observations: List<CellObservationEvidence>,
 		outcome: CellRefreshOutcome,
 		providerTimeNanos: Long?,
 		receivedNanos: Long,
-	) {
+		attribution: PlanAttribution,
+	): Boolean {
 		val observed = providerTimeNanos ?: receivedNanos
-		if (cutoffElapsedNanos?.let { observed > it } == true) return
-		val sourceSequence = runCatching {
+		if (cutoffElapsedNanos?.let { observed > it } == true) return false
+		val sourceSequence = runCatchingNonCancellation {
 			registrations.allocateSequence(registration, System.currentTimeMillis())
-		}.getOrElse { metrics.recordFailure(callbackSequence); return }
+		}.getOrElse { metrics.recordFailure(callbackSequence); return false }
 		val delayMs = (receivedNanos - observed).coerceAtLeast(0L) / NANOS_PER_MILLISECOND
 		val wallTime = (System.currentTimeMillis() - delayMs).coerceAtLeast(0L)
 		val flags = buildSet {
@@ -325,25 +359,41 @@ class CellSourceRuntime @Inject internal constructor(
 		}
 		val candidate = SourceEvidenceCandidate(
 			providerDedupKey = "${registration.state.sourceInstanceId}:${registration.state.registrationGeneration}:" +
-				"$subscriptionId:${outcome.name}:$observed:$fingerprint",
+				"${outcome.name}:$observed:$fingerprint",
 			logicalTrackingId = null, serviceRunId = null, source = source,
 			sourceInstanceId = SourceInstanceId(registration.state.sourceInstanceId),
 			registrationGeneration = registration.state.registrationGeneration,
-			sourceSequence = sourceSequence, configRevision = registration.state.appliedRevision,
-			planAttribution = PlanAttribution.CAPTURED_REGISTRATION,
+			physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
+			authorizationRevision = registration.authorization.authorizationRevision,
+			registrationPurposeEligibilityMask = registration.purposeEligibilityMask,
+			registrationEligibilityFingerprint = registration.eligibilityFingerprint,
+			sourceSequence = sourceSequence,
+			configRevision = registration.state.appliedRevision.takeUnless {
+				attribution == PlanAttribution.RECEIVE_TIME_ONLY
+			},
+			planAttribution = attribution,
 			clockDomainId = registration.state.clockDomainId,
 			observedElapsedRealtimeNanos = observed.coerceAtLeast(0L),
 			receivedElapsedRealtimeNanos = receivedNanos.coerceAtLeast(0L),
 			wallTimeMs = wallTime, wallTimeUncertaintyMs = if (providerTimeNanos == null) delayMs else 1L,
 			capturedCollectedDataEpoch = registration.state.collectedDataEpoch,
 			acquiredAtMs = wallTime, quality = SourceQuality(flags = flags), payloadVersion = 1,
-			payload = CellSnapshotPayload(subscriptionId, observations, outcome),
+			payload = minimizedCellSnapshotPayload(observations, outcome),
 		)
 		when (val handoff = sink.admitWithBoundedRetry(candidate)) {
-			is SourceAdmissionHandoff.Durable -> metrics.recordDurable(sourceSequence, handoff.admissionOrdinal)
-			is SourceAdmissionHandoff.Duplicate -> metrics.recordDurable(sourceSequence, handoff.existingAdmissionOrdinal)
+			is SourceAdmissionHandoff.Durable -> {
+				metrics.recordDurable(sourceSequence, handoff.admissionOrdinal)
+				return true
+			}
+			is SourceAdmissionHandoff.Duplicate -> {
+				metrics.recordDurable(sourceSequence, handoff.existingAdmissionOrdinal)
+				return true
+			}
 			is SourceAdmissionHandoff.RetryableFailure,
-			is SourceAdmissionHandoff.TerminalFailure -> metrics.recordFailure(sourceSequence)
+			is SourceAdmissionHandoff.TerminalFailure -> {
+				metrics.recordFailure(sourceSequence)
+				return false
+			}
 		}
 	}
 
@@ -399,5 +449,23 @@ class CellSourceRuntime @Inject internal constructor(
 		const val MAX_COALESCE_WINDOW_MS = 5_000L
 		const val REFRESH_TIMEOUT_MS = 20_000L
 		const val MINIMUM_SPARSE_REFRESH_MS = 60_000L
+		const val MAX_REFRESH_ATTEMPTS_PER_REGISTRATION = 1
 	}
 }
+
+internal fun CellBackendObservation.toMinimizedEvidence() = CellObservationEvidence(
+	identifierToken = WITHHELD_RADIO_IDENTIFIER_TOKEN,
+	radioType = radioType,
+	registered = registered,
+	signalLevelDbm = signalLevelDbm,
+	providerTimestampNanos = providerTimestampNanos,
+)
+
+internal fun minimizedCellSnapshotPayload(
+	observations: List<CellObservationEvidence>,
+	outcome: CellRefreshOutcome,
+) = CellSnapshotPayload(
+	subscriptionId = null,
+	observations = observations,
+	refreshOutcome = outcome,
+)

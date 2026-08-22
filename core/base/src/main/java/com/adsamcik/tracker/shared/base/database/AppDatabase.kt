@@ -82,6 +82,10 @@ import com.adsamcik.tracker.shared.base.database.data.PressureSample
 import com.adsamcik.tracker.shared.base.database.data.SkiRunSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntentVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceCoordinatorLeaseEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionCheckpointEntity
@@ -97,7 +101,15 @@ import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEnt
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAppliedPlanStateEntity
 import com.adsamcik.tracker.shared.base.database.dao.SourcePlanStateDao
+import com.adsamcik.tracker.shared.base.database.dao.SourcePolicyDao
+import com.adsamcik.tracker.shared.base.database.dao.SourceBrokerDao
 import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.dao.SourceRuntimeStateDao
 import com.adsamcik.tracker.shared.base.database.dao.DomainEventDao
 import com.adsamcik.tracker.shared.base.database.data.DomainEventCursorEntity
@@ -110,17 +122,17 @@ import com.adsamcik.tracker.shared.base.database.legacy.LegacyImportRoomCallback
 import com.adsamcik.tracker.shared.base.database.legacy.LEGACY_IMPORT_JOB_ID
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 
-internal const val CURRENT_DATABASE_VERSION = 27
+internal const val CURRENT_DATABASE_VERSION = 28
 
 /**
  * Provides access to main database.
  * Contains only common data nothing module specific.
  *
- * CURRENT VERSION: 27 (App versionCode: 400 - UNRELEASED)
+ * CURRENT VERSION: 28 (App versionCode: 400 - UNRELEASED)
  *
- * Version 26 shipped in versionCode 385. All schema work since that release is
- * intentionally folded into the single 26 -> 27 migration until versionCode 400 ships.
- * See AppDatabaseMigrations.kt for full version history and migration rules.
+ * Version 26 shipped in versionCode 385. Version 27 established the stable active database file
+ * and is now the frozen compatibility boundary. Version 28 is the first additive in-place
+ * migration on that file. See AppDatabaseMigrations.kt for the full history and migration rules.
  */
 @Database(
 		version = CURRENT_DATABASE_VERSION,
@@ -151,11 +163,21 @@ internal const val CURRENT_DATABASE_VERSION = 27
 			LogicalTrackingSessionEntity::class,
 			SourceServiceRunEntity::class,
 			SourceSessionCompletenessEntity::class,
+			SessionManifestVersionEntity::class,
+			SessionManifestSourceEntity::class,
+			SessionLifecycleIntentVersionEntity::class,
+			LifecycleDesiredActionEntity::class,
 			TrackingRolloutStateEntity::class,
 			AcquisitionPlanRevisionEntity::class,
 			SourceDesiredPlanEntity::class,
 			SourceAppliedPlanStateEntity::class,
 			SourceRuntimeStateEntity::class,
+			SourcePolicyAuthorityEntity::class,
+			SourcePolicyEntity::class,
+			SourceConsentEpochEntity::class,
+			SourceDemandEntity::class,
+			ProviderRegistrationGenerationEntity::class,
+			SourceAuthorizationEntity::class,
 			SessionSegment::class,
 			DailySummaryEntity::class,
 			LiveStatsEntity::class,
@@ -266,6 +288,10 @@ abstract class AppDatabase : RoomDatabase() {
 	abstract fun sourcePlanStateDao(): SourcePlanStateDao
 
 	abstract fun sourceRuntimeStateDao(): SourceRuntimeStateDao
+
+	abstract fun sourcePolicyDao(): SourcePolicyDao
+
+	abstract fun sourceBrokerDao(): SourceBrokerDao
 
 	/**
 	 * Provides access to inferred session segments.
@@ -396,7 +422,7 @@ abstract class AppDatabase : RoomDatabase() {
 			MIGRATION_25_26,
 		)
 		/** Normal in-place migrations for the stable v27+ active database filename. */
-		internal val activeMigrations: Array<Migration> = emptyArray()
+		internal val activeMigrations: Array<Migration> = arrayOf(MIGRATION_27_28)
 
 		override fun setupDatabase(database: Builder<AppDatabase>) {
 			database.addMigrations(*activeMigrations)
@@ -475,6 +501,22 @@ abstract class AppDatabase : RoomDatabase() {
 
 		internal fun deleteAllCollectedData(database: AppDatabase) {
 			database.runInTransaction {
+				val sqlite = database.openHelper.writableDatabase
+				sqlite.execSQL(
+					"INSERT OR IGNORE INTO source_evidence_state " +
+						"(id, revision, collected_data_epoch, retained_from_ms, updated_at_ms) " +
+						"VALUES (1, 0, 0, NULL, 0)",
+				)
+				val currentEpoch = sqlite.query(
+					"SELECT collected_data_epoch FROM source_evidence_state WHERE id = 1",
+				).use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else 0L }
+				val nextEpoch = currentEpoch + 1L
+				val updatedAtMs = System.currentTimeMillis()
+				sqlite.execSQL(
+					"UPDATE source_evidence_state SET collected_data_epoch = ?, revision = revision + 1, " +
+						"updated_at_ms = ? WHERE id = 1",
+					arrayOf(nextEpoch, updatedAtMs),
+				)
 				deleteCollectedRows(database)
 			}
 		}
@@ -482,6 +524,9 @@ abstract class AppDatabase : RoomDatabase() {
 		private fun deleteCollectedRows(database: AppDatabase) {
 			// Source-event pipeline. Delete dependent state before immutable evidence.
 			database.locationProjectionDao().deleteAllObservations()
+			database.sourceBrokerDao().deleteAllAuthorizations()
+			database.sourceBrokerDao().deleteAllRegistrations()
+			database.sourceBrokerDao().deleteAllDemands()
 			database.sourceProjectionStateDao().deleteAllJoinState()
 			database.sourceProjectionStateDao().deleteAllOutbox()
 			database.sourceProjectionStateDao().deleteAllFailures()
@@ -492,6 +537,10 @@ abstract class AppDatabase : RoomDatabase() {
 			database.sourcePlanStateDao().deleteAllAppliedStates()
 			database.sourceRuntimeStateDao().deleteAll()
 			database.sourceSessionDao().deleteAllCompleteness()
+			database.sourceSessionDao().deleteAllLifecycleActions()
+			database.sourceSessionDao().deleteAllLifecycleIntents()
+			database.sourceSessionDao().deleteAllManifestSources()
+			database.sourceSessionDao().deleteAllManifests()
 			database.sourceSessionDao().deleteAllServiceRuns()
 			database.sourceSessionDao().deleteAllSessions()
 			database.sourceEventWalDao().deleteAll()

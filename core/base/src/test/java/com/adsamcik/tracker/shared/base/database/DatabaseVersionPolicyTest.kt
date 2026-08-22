@@ -5,9 +5,9 @@ import org.junit.Test
 
 class DatabaseVersionPolicyTest {
 	@Test
-	fun `unreleased schema work uses one version after released version 26`() {
-		assertEquals(27, CURRENT_DATABASE_VERSION)
+	fun `version 28 starts the additive active database migration chain`() {
+		assertEquals(28, CURRENT_DATABASE_VERSION)
 		assertEquals(26, AppDatabase.legacyPublicMigrationsThroughV26.maxOf { it.endVersion })
-		assertEquals(0, AppDatabase.activeMigrations.size)
+		assertEquals(listOf(27 to 28), AppDatabase.activeMigrations.map { it.startVersion to it.endVersion })
 	}
 }

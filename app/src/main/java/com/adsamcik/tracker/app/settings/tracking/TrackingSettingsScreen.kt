@@ -90,7 +90,7 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
     val wifiPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { results ->
-        trackingVm.onWifiPermissionResult(results.values.any { it })
+        trackingVm.onWifiPermissionResult(results[Manifest.permission.ACCESS_FINE_LOCATION] == true)
     }
     val cellPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -160,15 +160,12 @@ fun TrackingSettingsScreen(onNavigateToNotificationManagement: () -> Unit = {}) 
         onSourceFrequencyChanged = trackingVm::setSourceFrequency,
         onWifiEnabledChanged = { enabled ->
             if (enabled && !uiState.wifiPermissionGranted) {
-                val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    arrayOf(Manifest.permission.NEARBY_WIFI_DEVICES)
-                } else {
+                wifiPermissionLauncher.launch(
                     arrayOf(
                         Manifest.permission.ACCESS_FINE_LOCATION,
                         Manifest.permission.ACCESS_COARSE_LOCATION,
-                    )
-                }
-                wifiPermissionLauncher.launch(permissions)
+                    ),
+                )
             } else {
                 trackingVm.setWifiEnabled(enabled)
             }
@@ -210,6 +207,49 @@ internal fun TrackingSettingsContent(
     onNotificationCustomize: () -> Unit = {},
 ) {
     if (!uiState.isLoaded) return
+    if (!uiState.sourcePolicyAvailable) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().testTag("trackingSettingsUnavailable"),
+            contentPadding = PaddingValues(16.dp),
+        ) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                    ),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.Top,
+                    ) {
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                stringResource(
+                                    com.adsamcik.tracker.R.string.settings_source_policy_unavailable_title,
+                                ),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                            )
+                            Text(
+                                stringResource(
+                                    com.adsamcik.tracker.R.string.settings_source_policy_unavailable_summary,
+                                ),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        return
+    }
     var technicalDetailsExpanded by remember { mutableStateOf(false) }
     val sourceNeedsAttention = uiState.runtimeFailureCode != null ||
         uiState.sourceStatuses.values.any { status ->

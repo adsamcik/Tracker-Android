@@ -31,12 +31,18 @@ suspend fun AppDatabase.pruneSourceEventStorageBefore(
 			if (safeOrdinal <= 0L) {
 				return@withTransaction SourceEventStoragePruneResult(0, 0)
 			}
+			val walDao = sourceEventWalDao()
+			val firstNonPrunable = walDao.firstNonPrunableOrdinal(safeOrdinal, createdBeforeMs)
+			val pruneThroughOrdinal = firstNonPrunable?.minus(1L) ?: safeOrdinal
+			if (pruneThroughOrdinal <= 0L) {
+				return@withTransaction SourceEventStoragePruneResult(0, 0)
+			}
+			val deleted = walDao.deleteContiguousPrefixBatch(
+				pruneThroughOrdinal = pruneThroughOrdinal,
+				limit = batchSize,
+			)
 			SourceEventStoragePruneResult(
-				walEventsDeleted = sourceEventWalDao().deleteProjectedBatch(
-					safeOrdinal = safeOrdinal,
-					createdBeforeMs = createdBeforeMs,
-					limit = batchSize,
-				),
+				walEventsDeleted = deleted,
 				deliveredEffectsDeleted = projectionDao.deleteDeliveredOutboxBatch(
 					safeOrdinal = safeOrdinal,
 					deliveredBeforeMs = createdBeforeMs,

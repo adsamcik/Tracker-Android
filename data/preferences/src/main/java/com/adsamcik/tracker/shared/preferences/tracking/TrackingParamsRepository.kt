@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.shared.preferences.tracking
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
 /** Repository boundary for tracking parameter settings. */
 interface TrackingParamsRepository {
@@ -23,6 +24,16 @@ interface TrackingParamsRepository {
     suspend fun setMinTimeSeconds(seconds: Int)
     suspend fun setRequiredAccuracyMeters(meters: Int)
     suspend fun setPreset(preset: TrackingPreset)
+
+	/**
+	 * Returns settings only when their legacy migration durably completed. Policy bootstrap must
+	 * use this boundary instead of treating serializer defaults as verified user configuration.
+	 */
+	suspend fun verifiedSnapshotForPolicyBootstrap(): TrackingParamsState = data.first().also { state ->
+		if (!state.legacySettingsMigrationCompleted) {
+			throw LegacySourceSettingsUnavailableException()
+		}
+	}
 	suspend fun setSourceFrequency(component: TrackingSourceComponent, frequency: SourceCollectionFrequency) {
 		update {
 			val current = sourceCollectionSettings

@@ -19,7 +19,9 @@ import java.io.File
  * are copied, so the untrusted source database is never mutated. The target merge is one
  * transaction, so an unsupported constraint or broken foreign key rolls back the complete import.
  */
-internal class DatabaseImport : FileImport {
+internal class DatabaseImport(
+	private val allowedMergeTables: Set<String> = USER_DATA_TABLES,
+) : FileImport {
 	override val supportedExtensions: Collection<String> = listOf("db")
 	override val transactionMode: ImportTransactionMode = ImportTransactionMode.IMPORTER_MANAGED
 
@@ -263,7 +265,7 @@ internal class DatabaseImport : FileImport {
 	): List<String> {
 		val targetTables = toDatabase.getAllTables().toSet()
 		return fromDatabase.getAllTables().filter {
-			!isSystemTable(it) && it in targetTables
+			!isSystemTable(it) && it in targetTables && it in allowedMergeTables
 		}
 	}
 
@@ -463,6 +465,39 @@ internal class DatabaseImport : FileImport {
 		const val IMPORT_MODE = "READ_ONLY_COMPUTED_REMAP_TRANSACTION"
 		private const val IMPORT_CACHE_DIR = "database-import"
 		private val SYSTEM_TABLES = setOf("room_master_table", "android_metadata")
+
+		/**
+		 * Tables whose rows are user-owned facts or user-visible products and are safe to merge.
+		 * Runtime authority, lifecycle, leases, cursors, queues, and import/export audit state are
+		 * deliberately absent: those rows were authorized by another installation and must never
+		 * become active through a data merge. A whole-database restore is a separate operation.
+		 */
+		internal val USER_DATA_TABLES = setOf(
+			"activity",
+			"location_sample",
+			"location_observation",
+			"location_projection_observation",
+			"location_projection_point",
+			"location_observation_decision",
+			"step_interval",
+			"activity_snapshot",
+			"cell_sample",
+			"wifi_observation",
+			"session_segment",
+			"daily_summary",
+			"trajectory_reconstruction_run",
+			"trajectory_state",
+			"trajectory_source_link",
+			"visit_interval",
+			"exploration_cell",
+			"exploration_streak",
+			"achievement_progress",
+			"pressure_sample",
+			"ski_run_segment",
+			"xp_ledger",
+			"player_profile",
+			"minigame_score",
+		)
 	}
 }
 

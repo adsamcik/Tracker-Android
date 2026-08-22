@@ -6,6 +6,7 @@ import com.adsamcik.tracker.game.repository.GameRepository
 import com.adsamcik.tracker.game.goals.settings.DefaultGoalsSettingsRepository
 import com.adsamcik.tracker.game.goals.settings.GoalsSettingsRepository
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
+import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.preferences.map.DefaultMapSettingsRepository
 import com.adsamcik.tracker.shared.preferences.map.DefaultOnlineMapTilesRepository
 import com.adsamcik.tracker.shared.preferences.map.MapSettingsRepository
@@ -18,7 +19,13 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.DefaultCollectedDataLif
 import com.adsamcik.tracker.shared.preferences.settings.DefaultTrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.DefaultTrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.AndroidSourcePolicyEffectiveTimeProvider
+import com.adsamcik.tracker.shared.preferences.tracking.AuthoritativeTrackingParamsRepository
+import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.time.Clock
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -26,6 +33,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineScope
 
 /**
  * Hilt module providing repository bindings.
@@ -105,9 +113,26 @@ abstract class RepositoryModule {
 		fun provideTrackingParamsRepository(
 			@ApplicationContext context: Context,
 			dispatchers: DispatchersProvider,
-		): TrackingParamsRepository = DefaultTrackingParamsRepository(
-			context = context,
-			io = dispatchers.io,
+			sourcePolicyRepository: SourcePolicyRepository,
+			@ApplicationScope applicationScope: CoroutineScope,
+		): TrackingParamsRepository = AuthoritativeTrackingParamsRepository(
+			legacy = DefaultTrackingParamsRepository(
+				context = context,
+				io = dispatchers.io,
+			),
+			sourcePolicyRepository = sourcePolicyRepository,
+			applicationScope = applicationScope,
+		)
+
+		@Provides
+		@Singleton
+		fun provideSourcePolicyRepository(
+			@ApplicationContext context: Context,
+			database: AppDatabase,
+			clock: Clock,
+		): SourcePolicyRepository = RoomSourcePolicyRepository(
+			database = database,
+			effectiveTimeProvider = AndroidSourcePolicyEffectiveTimeProvider(context, clock),
 		)
 
 		@Provides

@@ -7,6 +7,10 @@ data class SourceEvidenceCandidate<T : SourcePayload>(
 	val source: SourceKind,
 	val sourceInstanceId: SourceInstanceId,
 	val registrationGeneration: Long,
+	val physicalConfigurationFingerprint: String? = null,
+	val authorizationRevision: Long? = null,
+	val registrationPurposeEligibilityMask: Long = 0L,
+	val registrationEligibilityFingerprint: String? = null,
 	val sourceSequence: Long,
 	val configRevision: Long?,
 	val planAttribution: PlanAttribution,
@@ -16,6 +20,10 @@ data class SourceEvidenceCandidate<T : SourcePayload>(
 	val wallTimeMs: Long?,
 	val wallTimeUncertaintyMs: Long?,
 	val capturedCollectedDataEpoch: Long,
+	val sourcePolicyRevision: Long? = null,
+	val captureConsentEpoch: Long? = null,
+	val sessionManifestRevision: Long? = null,
+	val lifecycleLeaseGeneration: Long? = null,
 	val acquiredAtMs: Long,
 	val quality: SourceQuality,
 	val payloadVersion: Int,
@@ -24,6 +32,13 @@ data class SourceEvidenceCandidate<T : SourcePayload>(
 	init {
 		require(payload.source == source) { "Payload source must match candidate source" }
 		require(registrationGeneration >= 0L) { "Registration generation must not be negative" }
+		require(physicalConfigurationFingerprint == null || physicalConfigurationFingerprint.isNotBlank())
+		require(authorizationRevision == null || authorizationRevision > 0L)
+		require(registrationPurposeEligibilityMask >= 0L) { "Registration purpose mask must not be negative" }
+		require((registrationPurposeEligibilityMask == 0L) == (registrationEligibilityFingerprint == null)) {
+			"Registration purpose mask and eligibility fingerprint must be stamped together"
+		}
+		require(registrationEligibilityFingerprint == null || registrationEligibilityFingerprint.isNotBlank())
 		require(sourceSequence >= 0L) { "Source sequence must not be negative" }
 		require(configRevision == null || configRevision >= 0L) { "Config revision must not be negative" }
 		require(clockDomainId.isNotBlank()) { "Clock domain ID must not be blank" }
@@ -33,6 +48,24 @@ data class SourceEvidenceCandidate<T : SourcePayload>(
 			"Wall-time uncertainty must not be negative"
 		}
 		require(capturedCollectedDataEpoch >= 0L) { "Collected-data epoch must not be negative" }
+		require(sourcePolicyRevision == null || sourcePolicyRevision > 0L) {
+			"Source-policy revision must be positive when present"
+		}
+		require(captureConsentEpoch == null || captureConsentEpoch >= 0L) {
+			"Capture-consent epoch must not be negative"
+		}
+		require((sourcePolicyRevision == null) == (captureConsentEpoch == null)) {
+			"Source-policy and capture-consent authorization must be stamped together"
+		}
+		require(sessionManifestRevision == null || sessionManifestRevision > 0L) {
+			"Session-manifest revision must be positive when present"
+		}
+		require(lifecycleLeaseGeneration == null || lifecycleLeaseGeneration > 0L) {
+			"Lifecycle lease generation must be positive when present"
+		}
+		require((sessionManifestRevision == null) == (lifecycleLeaseGeneration == null)) {
+			"Session-manifest and lifecycle-lease authorization must be stamped together"
+		}
 		require(acquiredAtMs >= 0L) { "Acquisition time must not be negative" }
 		require(payloadVersion > 0) { "Payload version must be positive" }
 		require(planAttribution == PlanAttribution.RECEIVE_TIME_ONLY || configRevision != null) {
@@ -57,3 +90,15 @@ data class AdmittedSourceEvent<T : SourcePayload>(
 	}
 }
 
+@Suppress("UNCHECKED_CAST")
+fun SourceEvidenceCandidate<*>.withCaptureAuthorization(
+	sourcePolicyRevision: Long,
+	captureConsentEpoch: Long,
+	sessionManifestRevision: Long,
+	lifecycleLeaseGeneration: Long,
+): SourceEvidenceCandidate<*> = (this as SourceEvidenceCandidate<SourcePayload>).copy(
+	sourcePolicyRevision = sourcePolicyRevision,
+	captureConsentEpoch = captureConsentEpoch,
+	sessionManifestRevision = sessionManifestRevision,
+	lifecycleLeaseGeneration = lifecycleLeaseGeneration,
+)

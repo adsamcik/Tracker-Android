@@ -888,13 +888,9 @@ WifiPlan contains:
 - exponential backoff;
 - plan revision.
 
-The runtime records separate events for:
-
-- scan attempt;
-- accepted or rejected attempt;
-- results available broadcast;
-- result snapshot with platform timestamp/freshness;
-- throttled, permission-blocked, location-services-disabled, and provider-failure states.
+The observation WAL records only qualified result deliveries, with per-item provider time and an
+explicit fresh-empty coverage case. Scan attempts, throttling, permission failures, provider
+failures, and idle deferral are operational telemetry/status rather than observation facts.
 
 Android permission checks must reflect the APIs actually used and target SDK. For
 startScan() and getScanResults() in this application, NEARBY_WIFI_DEVICES does not replace

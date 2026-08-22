@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.dashboard.ui.compose
 
 import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.SnackbarHostState
@@ -34,10 +36,10 @@ import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.GoalProgress
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
-import com.adsamcik.tracker.shared.base.extension.hasCellScanPermission
 import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
+import com.adsamcik.tracker.shared.base.extension.hasPreciseLocationPermission
+import com.adsamcik.tracker.shared.base.extension.hasReadPhonePermission
 import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
-import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
 import com.adsamcik.tracker.shared.utils.compose.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.utils.compose.permission.PermissionDeniedSnackbar
 import com.adsamcik.tracker.shared.utils.compose.permission.PermissionType
@@ -107,7 +109,43 @@ fun DashboardRoute(
 	val lastSessionData by trackerState.lastSessionFlow.collectAsState()
 	val lastPathPoints by trackerState.lastPathPointsFlow.collectAsState()
 	val trackingParams by viewModel.trackingParams.collectAsState()
-	val locationPermissionSatisfied = !trackingParams.locationEnabled || hasLocationPermission
+
+	fun resolveManualStartDecision(
+		preciseLocationPermissionOverride: Boolean? = null,
+	): DashboardManualStartDecision = resolveDashboardManualStartDecision(
+		params = trackingParams,
+		capabilities = dashboardCaptureCapabilities(
+			context = context,
+			anyLocationPermissionGranted = hasLocationPermission,
+			preciseLocationPermissionOverride = preciseLocationPermissionOverride,
+		),
+	)
+
+	fun showNoAvailableCaptureSource() {
+		coroutineScope.launch {
+			val result = snackbarHostState.showSnackbar(
+				message = context.getString(com.adsamcik.tracker.tracker.R.string.error_nothing_to_track),
+				actionLabel = context.getString(R.string.dashboard_action_open_tracking_settings),
+			)
+			if (result == SnackbarResult.ActionPerformed) {
+				onOpenSettings()
+			}
+		}
+	}
+
+	fun requestManualStart(preciseLocationPermissionOverride: Boolean? = null) {
+		when (resolveManualStartDecision(preciseLocationPermissionOverride)) {
+			DashboardManualStartDecision.START ->
+				TrackerServiceApi.startService(context, isUserInitiated = true)
+			DashboardManualStartDecision.REQUEST_PRECISE_LOCATION_PERMISSION ->
+				viewModel.requestPermission()
+			DashboardManualStartDecision.NO_AVAILABLE_CAPTURE_SOURCE ->
+				showNoAvailableCaptureSource()
+		}
+	}
+
+	val manualStartPermissionSatisfied =
+		resolveManualStartDecision() != DashboardManualStartDecision.REQUEST_PRECISE_LOCATION_PERMISSION
 
 	// Observe daily/gamification state
 	val defaultGoalProgress = remember {
@@ -226,7 +264,7 @@ fun DashboardRoute(
 		dashboardMode = dashboardMode,
 		isTracking = isTracking,
 		isLocked = isLocked,
-		hasLocationPermission = locationPermissionSatisfied,
+		hasLocationPermission = manualStartPermissionSatisfied,
 		policyTier = policyTier,
 		sessionData = displaySession,
 		collectionSnapshot = collectionSnapshot,
@@ -254,7 +292,7 @@ fun DashboardRoute(
 			onPermissionResult = { granted ->
 				viewModel.onPermissionResult(granted)
 				if (granted) {
-					TrackerServiceApi.startService(context, isUserInitiated = true)
+					requestManualStart(preciseLocationPermissionOverride = true)
 				}
 			},
 			onDismiss = {
@@ -295,29 +333,7 @@ fun DashboardRoute(
 		onToggleTracking = { shouldStart ->
 			if (shouldStart) {
 				userRequestedStop = false
-				if (!trackingParams.hasAnyCaptureSource(
-					activityAvailable = context.hasActivityPermission,
-					stepsAvailable = context.hasActivityPermission && context.hasStepCounterSensor,
-					wifiAvailable = context.hasWifiScanPermission,
-					cellAvailable = context.hasCellScanPermission,
-					barometerAvailable = context.hasPressureSensor,
-				)) {
-					coroutineScope.launch {
-						val result = snackbarHostState.showSnackbar(
-							message = context.getString(com.adsamcik.tracker.tracker.R.string.error_nothing_to_track),
-							actionLabel = context.getString(R.string.dashboard_action_open_tracking_settings),
-						)
-						if (result == SnackbarResult.ActionPerformed) {
-							onOpenSettings()
-						}
-					}
-					return@DashboardScreen
-				}
-				if (locationPermissionSatisfied) {
-					TrackerServiceApi.startService(context, isUserInitiated = true)
-				} else {
-					viewModel.requestPermission()
-				}
+				requestManualStart()
 			} else if (trackingParams.autoTrackingMode != GroupedActivity.STILL.ordinal) {
 				// Auto-tracking is enabled and would likely restart the session moments after a
 				// plain stop (see BackgroundTrackingApi's activity callbacks). Let the user pick
@@ -432,4 +448,29 @@ private fun DailySummary?.withUnifiedSteps(goalStepsToday: Int): DailySummary? {
 		totalSteps == goalStepsToday -> this
 		else -> copy(totalSteps = goalStepsToday)
 	}
+}
+
+private fun dashboardCaptureCapabilities(
+	context: android.content.Context,
+	anyLocationPermissionGranted: Boolean,
+	preciseLocationPermissionOverride: Boolean? = null,
+): DashboardCaptureCapabilities {
+	val packageManager = context.packageManager
+	val preciseLocationPermissionGranted = preciseLocationPermissionOverride
+		?: context.hasPreciseLocationPermission
+	val cellHardwareAvailable = packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) ||
+		(Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+			packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_RADIO_ACCESS))
+
+	return DashboardCaptureCapabilities(
+		locationHardwareAvailable = packageManager.hasSystemFeature(PackageManager.FEATURE_LOCATION),
+		anyLocationPermissionGranted = anyLocationPermissionGranted || preciseLocationPermissionGranted,
+		preciseLocationPermissionGranted = preciseLocationPermissionGranted,
+		activityPermissionGranted = context.hasActivityPermission,
+		stepCounterAvailable = context.hasStepCounterSensor,
+		wifiHardwareAvailable = packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI),
+		cellHardwareAvailable = cellHardwareAvailable,
+		readPhoneStatePermissionGranted = context.hasReadPhonePermission,
+		pressureSensorAvailable = context.hasPressureSensor,
+	)
 }

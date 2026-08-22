@@ -1,21 +1,34 @@
 package com.adsamcik.tracker.activity.api.registration
 
 import android.content.Context
+import android.os.SystemClock
 import android.provider.Settings
 import androidx.room.withTransaction
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
 import com.adsamcik.tracker.activity.api.backend.RecognitionConfig
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
+import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
+import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
+import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /** Serializes and fences every physical GMS activity-recognition registration. */
 @Singleton
@@ -24,11 +37,24 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 	private val database: AppDatabase,
 	private val lifecycleStore: CollectedDataLifecycleStore,
 	private val backend: GmsActivityRecognitionBackend,
+	@ApplicationScope appScope: CoroutineScope,
 ) : ActivityRegistrationArbiter {
 	private val mutex = Mutex()
 	private val demands = mutableMapOf<ActivityRegistrationOwner, ActivityRegistrationDemand>()
 	@Volatile private var current = EMPTY_SNAPSHOT
 	private var deletionPaused = false
+	private val conservativeProcessBootId = "process-${UUID.randomUUID()}"
+
+	init {
+		// Session manifests may add/remove Activity as CONTROL without starting ActivitySourceRuntime.
+		// Observe the durable authority so an unchanged physical request is still rotated onto the
+		// exact new purpose/consent vector.
+		appScope.launch {
+			database.invalidationTracker
+				.createFlow("source_demand", emitInitialState = false)
+				.collect { reconcileDurableDemands() }
+		}
+	}
 
 	override suspend fun setDemand(
 		owner: ActivityRegistrationOwner,
@@ -40,6 +66,10 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 
 	override suspend fun clearDemand(owner: ActivityRegistrationOwner): ActivityRegistrationResult = mutex.withLock {
 		demands.remove(owner)
+		reconcileLocked()
+	}
+
+	override suspend fun reconcileDurableDemands(): ActivityRegistrationResult = mutex.withLock {
 		reconcileLocked()
 	}
 
@@ -63,26 +93,81 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		hydratePersistedIdentityIfNeeded()
 		val combined = combineDemands()
 		if (deletionPaused) return applied(current)
-		if (!combined.enabled) return fenceAndRemoveLocked(clearOwners = true)
+		val cleanupComplete = cleanupRetiringRegistrationsLocked()
+		if (!combined.enabled) {
+			val stopped = fenceAndRemoveLocked(clearOwners = true)
+			return if (!cleanupComplete && stopped.status == ActivityRegistrationStatus.APPLIED) {
+				ActivityRegistrationResult(
+					ActivityRegistrationStatus.DEGRADED,
+					stopped.snapshot,
+					ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED,
+					retryable = true,
+				)
+			} else {
+				stopped
+			}
+		}
+		if (!cleanupComplete) {
+			return failure(
+				if (current.active) ActivityRegistrationStatus.DEGRADED else ActivityRegistrationStatus.FAILED,
+				ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED,
+				true,
+			)
+		}
+		val durableEligibility = database.sourceBrokerDao().authorizationDemands(ACTIVITY_SOURCE_KIND)
+		if (durableEligibility.isEmpty()) {
+			fenceAndRemoveLocked(clearOwners = false)
+			return failure(
+				ActivityRegistrationStatus.BLOCKED,
+				ActivityRegistrationFailureCode.MISSING_DURABLE_DEMAND,
+				false,
+			)
+		}
+		val eligibilityMask = SourceBrokerAuthorization.purposeMask(durableEligibility)
+		if (eligibilityMask == 0L) {
+			fenceAndRemoveLocked(clearOwners = false)
+			return failure(
+				ActivityRegistrationStatus.BLOCKED,
+				ActivityRegistrationFailureCode.MISSING_DURABLE_DEMAND,
+				false,
+			)
+		}
 		if (!context.hasActivityPermission) {
 			return failure(ActivityRegistrationStatus.BLOCKED, ActivityRegistrationFailureCode.PERMISSION_MISSING, false)
 		}
 		if (!backend.isAvailable) {
 			return failure(ActivityRegistrationStatus.BLOCKED, ActivityRegistrationFailureCode.PROVIDER_UNAVAILABLE, true)
 		}
-		if (current.active && current.matches(combined)) {
+		val physicalConfigurationFingerprint = combined.physicalConfigurationFingerprint()
+		if (current.active && current.matches(combined, physicalConfigurationFingerprint)) {
+			try {
+				rotateAuthorization(
+					requireNotNull(current.identity),
+					durableEligibility,
+					System.currentTimeMillis(),
+					SystemClock.elapsedRealtimeNanos(),
+				)
+			} catch (error: CancellationException) {
+				throw error
+			} catch (_: Exception) {
+				return failure(
+					ActivityRegistrationStatus.FAILED,
+					ActivityRegistrationFailureCode.STORAGE_UNAVAILABLE,
+					true,
+				)
+			}
 			current = current.copy(owners = combined.owners)
 			return applied(current)
 		}
 
-		val oldIdentity = current.identity
-		val identity = try {
-			reserveIdentity(combined.appliedRevision)
+		val reservation = try {
+			reserveIdentity(combined, physicalConfigurationFingerprint)
 		} catch (error: CancellationException) {
 			throw error
 		} catch (_: Exception) {
 			return failure(ActivityRegistrationStatus.FAILED, ActivityRegistrationFailureCode.STORAGE_UNAVAILABLE, true)
 		}
+		val identity = reservation.identity
 		val registered = backend.applyRegistration(
 			RecognitionConfig(
 				intervalSeconds = combined.intervalSeconds ?: 0,
@@ -91,9 +176,46 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			identity,
 		)
 		if (!registered) {
-			oldIdentity?.let { runCatching { backend.removeRegistration(it) } }
-			current = ActivityRegistrationSnapshot(false, identity, combined.owners, null, emptySet())
-			return failure(ActivityRegistrationStatus.FAILED, ActivityRegistrationFailureCode.PROVIDER_REGISTRATION_FAILED, true)
+			try {
+				markRegistrationFailed(identity, "PROVIDER_REGISTRATION_FAILED")
+			} catch (error: CancellationException) {
+				throw error
+			} catch (_: Exception) {
+				// The unaccepted reservation remains non-authoritative and recoverable.
+			}
+			return failure(
+				if (current.active) ActivityRegistrationStatus.DEGRADED else ActivityRegistrationStatus.FAILED,
+				ActivityRegistrationFailureCode.PROVIDER_REGISTRATION_FAILED,
+				true,
+			)
+		}
+		val previous = try {
+			withContext(NonCancellable) {
+				database.sourceBrokerDao().acceptReservedReplacement(
+					reservedState = reservation.state,
+					expectedPointerGeneration = reservation.predecessorState?.registrationGeneration,
+					expectedPointerInstanceId = reservation.predecessorState?.sourceInstanceId,
+					requiredAuthorizationFingerprint = null,
+					acceptedAtMs = System.currentTimeMillis(),
+					acceptedElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(),
+				)
+			}
+		} catch (error: CancellationException) {
+			throw error
+		} catch (_: Exception) {
+			removeProviderOnly(identity, nonCancellable = true)
+			try {
+				markRegistrationFailed(identity, "ACTIVATION_STORAGE_FAILED")
+			} catch (error: CancellationException) {
+				throw error
+			} catch (_: Exception) {
+				// The reservation remains non-authoritative and is safe to recover or fail later.
+			}
+			return failure(
+				if (current.active) ActivityRegistrationStatus.DEGRADED else ActivityRegistrationStatus.FAILED,
+				ActivityRegistrationFailureCode.STORAGE_UNAVAILABLE,
+				true,
+			)
 		}
 
 		current = ActivityRegistrationSnapshot(
@@ -103,39 +225,51 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			continuousRecognitionIntervalSeconds = combined.intervalSeconds,
 			transitions = combined.transitions,
 		)
-		if (oldIdentity != null && oldIdentity != identity) {
-			val removed = runCatching { backend.removeRegistration(oldIdentity) }.isSuccess
-			if (!removed) {
-				return ActivityRegistrationResult(
-					ActivityRegistrationStatus.DEGRADED,
-					current,
-					ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED,
-					retryable = true,
-				)
-			}
+		val removalFailed = previous != null &&
+			!removeAndCompleteRegistration(previous, nonCancellable = true)
+		currentCoroutineContext().ensureActive()
+		if (removalFailed) {
+			return ActivityRegistrationResult(
+				ActivityRegistrationStatus.DEGRADED,
+				current,
+				ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED,
+				retryable = true,
+			)
 		}
 		return applied(current)
 	}
 
 	private suspend fun fenceAndRemoveLocked(clearOwners: Boolean): ActivityRegistrationResult {
 		hydratePersistedIdentityIfNeeded()
+		if (!current.active) {
+			current = current.copy(owners = if (clearOwners) emptySet() else demands.keys.toSet())
+			return applied(current)
+		}
 		val oldIdentity = current.identity
-		val fence = try {
-			reserveIdentity(appliedRevision = null)
-		} catch (error: CancellationException) {
-			throw error
-		} catch (_: Exception) {
-			return failure(ActivityRegistrationStatus.FAILED, ActivityRegistrationFailureCode.STORAGE_UNAVAILABLE, true)
+		if (oldIdentity != null) {
+			try {
+				retireRegistration(oldIdentity, "DEMAND_REMOVED")
+			} catch (error: CancellationException) {
+				throw error
+			} catch (_: Exception) {
+				return failure(ActivityRegistrationStatus.FAILED, ActivityRegistrationFailureCode.STORAGE_UNAVAILABLE, true)
+			}
 		}
 		current = ActivityRegistrationSnapshot(
 			active = false,
-			identity = fence,
+			identity = oldIdentity,
 			owners = if (clearOwners) emptySet() else demands.keys.toSet(),
 			continuousRecognitionIntervalSeconds = null,
 			transitions = emptySet(),
 		)
 		if (oldIdentity == null) return applied(current)
-		return if (runCatching { backend.removeRegistration(oldIdentity) }.isSuccess) {
+		val retiring = requireNotNull(
+			database.sourceBrokerDao().registration(
+				ACTIVITY_SOURCE_KIND,
+				oldIdentity.registrationGeneration,
+			),
+		)
+		return if (removeAndCompleteRegistration(retiring, nonCancellable = true)) {
 			applied(current)
 		} else {
 			ActivityRegistrationResult(
@@ -147,23 +281,77 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		}
 	}
 
-	private suspend fun reserveIdentity(appliedRevision: Long?): ActivityRegistrationIdentity {
+	private suspend fun reserveIdentity(
+		combined: CombinedDemand,
+		physicalConfigurationFingerprint: String,
+	): ReservedActivityRegistration {
 		val lifecycle = lifecycleStore.snapshot()
 		val clockDomainId = currentClockDomain()
+		val nowMs = System.currentTimeMillis()
+		val nowElapsed = SystemClock.elapsedRealtimeNanos()
 		return database.withTransaction {
+			val brokerDao = database.sourceBrokerDao()
+			val demands = brokerDao.authorizationDemands(ACTIVITY_SOURCE_KIND)
+			require(demands.isNotEmpty()) {
+				"Activity registration requires an active durable broker demand"
+			}
+			val purposeEligibilityMask = SourceBrokerAuthorization.purposeMask(demands)
+			require(purposeEligibilityMask > 0L) {
+				"Activity broker demand has no recognized purpose eligibility"
+			}
 			val dao = database.sourceRegistrationStateDao()
 			val existing = dao.get(ACTIVITY_SOURCE_KIND, OWNER_SCOPE)
+			val authorizationFingerprint = SourceBrokerAuthorization.fingerprint(demands)
+			val reusable = brokerDao.latestReservedRegistration(ACTIVITY_SOURCE_KIND, OWNER_SCOPE)
+				?.takeIf { reserved ->
+					reserved.clockDomainId == clockDomainId &&
+						reserved.collectedDataEpoch == lifecycle.epoch &&
+						reserved.physicalConfigurationFingerprint == physicalConfigurationFingerprint &&
+						brokerDao.latestAuthorization(ACTIVITY_SOURCE_KIND, reserved.registrationGeneration)
+							.toAuthorizationSnapshotOrNull()?.authorizationFingerprint == authorizationFingerprint &&
+						(existing == null || reserved.registrationGeneration >= existing.registrationGeneration)
+				}
+			if (reusable != null) {
+				val state = if (existing == null) {
+					SourceRegistrationStateEntity(
+						sourceKind = ACTIVITY_SOURCE_KIND,
+						ownerScope = OWNER_SCOPE,
+						sourceInstanceId = reusable.sourceInstanceId,
+						clockDomainId = reusable.clockDomainId,
+						registrationGeneration = reusable.registrationGeneration,
+						nextSequence = 0L,
+						appliedRevision = combined.appliedRevision,
+						collectedDataEpoch = reusable.collectedDataEpoch,
+						updatedAtMs = nowMs,
+					)
+				} else {
+					existing.copy(
+						sourceInstanceId = reusable.sourceInstanceId,
+						clockDomainId = reusable.clockDomainId,
+						registrationGeneration = reusable.registrationGeneration,
+						appliedRevision = combined.appliedRevision,
+						collectedDataEpoch = reusable.collectedDataEpoch,
+						updatedAtMs = nowMs,
+					)
+				}
+				return@withTransaction ReservedActivityRegistration(
+					identity = reusable.toActivityRegistrationIdentity(),
+					state = state,
+					predecessorState = existing,
+				)
+			}
+			val registrationGeneration = brokerDao.maximumRegistrationGeneration(ACTIVITY_SOURCE_KIND) + 1L
 			val next = if (existing == null) {
 				SourceRegistrationStateEntity(
 					sourceKind = ACTIVITY_SOURCE_KIND,
 					ownerScope = OWNER_SCOPE,
 					sourceInstanceId = UUID.randomUUID().toString(),
 					clockDomainId = clockDomainId,
-					registrationGeneration = 0L,
+					registrationGeneration = registrationGeneration,
 					nextSequence = 0L,
-					appliedRevision = appliedRevision,
+					appliedRevision = combined.appliedRevision,
 					collectedDataEpoch = lifecycle.epoch,
-					updatedAtMs = System.currentTimeMillis(),
+					updatedAtMs = nowMs,
 				)
 			} else {
 				existing.copy(
@@ -171,34 +359,175 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 						existing.clockDomainId == clockDomainId && existing.collectedDataEpoch == lifecycle.epoch
 					) existing.sourceInstanceId else UUID.randomUUID().toString(),
 					clockDomainId = clockDomainId,
-					registrationGeneration = existing.registrationGeneration + 1L,
+					registrationGeneration = registrationGeneration,
 					nextSequence = if (
 						existing.clockDomainId == clockDomainId && existing.collectedDataEpoch == lifecycle.epoch
 					) existing.nextSequence else 0L,
-					appliedRevision = appliedRevision,
+					appliedRevision = combined.appliedRevision,
 					collectedDataEpoch = lifecycle.epoch,
-					updatedAtMs = System.currentTimeMillis(),
+					updatedAtMs = nowMs,
 				)
 			}
-			dao.replace(next)
-			ActivityRegistrationIdentity(
-				next.sourceInstanceId,
-				next.registrationGeneration,
-				next.collectedDataEpoch,
-				next.appliedRevision,
+			brokerDao.insertRegistration(
+				ProviderRegistrationGenerationEntity(
+					sourceKind = ACTIVITY_SOURCE_KIND,
+					registrationGeneration = next.registrationGeneration,
+					sourceInstanceId = next.sourceInstanceId,
+					ownerScope = OWNER_SCOPE,
+					clockDomainId = next.clockDomainId,
+					physicalConfigurationFingerprint = physicalConfigurationFingerprint,
+					collectedDataEpoch = next.collectedDataEpoch,
+					status = ProviderRegistrationGenerationEntity.STATUS_RESERVED,
+					reservedAtMs = nowMs,
+					reservedElapsedRealtimeNanos = nowElapsed,
+					acceptedAtMs = null,
+					acceptedElapsedRealtimeNanos = null,
+					retiredAtMs = null,
+					retiredElapsedRealtimeNanos = null,
+					failureCode = null,
+				),
+			)
+			val authorizationRevision = brokerDao.maximumAuthorizationRevision(ACTIVITY_SOURCE_KIND) + 1L
+			brokerDao.insertAuthorizations(
+				SourceBrokerAuthorization.rows(
+					ACTIVITY_SOURCE_KIND,
+					next.registrationGeneration,
+					authorizationRevision,
+					demands,
+					clockDomainId,
+					nowElapsed,
+					nowMs,
+				),
+			)
+			ReservedActivityRegistration(
+				identity = ActivityRegistrationIdentity(
+					sourceInstanceId = next.sourceInstanceId,
+					registrationGeneration = next.registrationGeneration,
+					collectedDataEpoch = next.collectedDataEpoch,
+					clockDomainId = next.clockDomainId,
+					physicalConfigurationFingerprint = physicalConfigurationFingerprint,
+				),
+				state = next,
+				predecessorState = existing,
 			)
 		}
+	}
+
+	private suspend fun retireRegistration(identity: ActivityRegistrationIdentity, reason: String) {
+		val nowMs = System.currentTimeMillis()
+		val nowElapsed = SystemClock.elapsedRealtimeNanos()
+		database.withTransaction {
+			rotateAuthorization(identity, emptyList(), nowMs, nowElapsed)
+			check(database.sourceBrokerDao().markRegistrationRetiring(
+				ACTIVITY_SOURCE_KIND,
+				identity.registrationGeneration,
+				identity.sourceInstanceId,
+				nowMs,
+				nowElapsed,
+				reason,
+			) == 1) { "Activity provider registration is not active" }
+		}
+	}
+
+	private suspend fun cleanupRetiringRegistrationsLocked(): Boolean {
+		val pending = database.sourceBrokerDao().pendingProviderRemovals(ACTIVITY_SOURCE_KIND)
+		for (registration in pending) {
+			if (!removeAndCompleteRegistration(registration, nonCancellable = false)) return false
+		}
+		return true
+	}
+
+	private suspend fun removeAndCompleteRegistration(
+		registration: ProviderRegistrationGenerationEntity,
+		nonCancellable: Boolean,
+	): Boolean = runProviderCleanup(nonCancellable) {
+		backend.removeRegistration(registration.toActivityRegistrationIdentity())
+		check(
+			database.sourceBrokerDao().completeRegistrationRetirement(
+				registration.sourceKind,
+				registration.registrationGeneration,
+				registration.sourceInstanceId,
+			) == 1,
+		)
+	}
+
+	private suspend fun removeProviderOnly(
+		identity: ActivityRegistrationIdentity,
+		nonCancellable: Boolean,
+	): Boolean = runProviderCleanup(nonCancellable) {
+		backend.removeRegistration(identity)
+	}
+
+	private suspend fun runProviderCleanup(
+		nonCancellable: Boolean,
+		block: suspend () -> Unit,
+	): Boolean = try {
+		if (nonCancellable) {
+			val result = withContext(NonCancellable) { runCatching { block() } }
+			currentCoroutineContext().ensureActive()
+			result.getOrThrow()
+		} else {
+			block()
+		}
+		true
+	} catch (error: CancellationException) {
+		throw error
+	} catch (_: Exception) {
+		false
+	}
+
+	private suspend fun markRegistrationFailed(identity: ActivityRegistrationIdentity, reason: String) {
+		database.sourceBrokerDao().finishRegistration(
+			ACTIVITY_SOURCE_KIND,
+			identity.registrationGeneration,
+			identity.sourceInstanceId,
+			ProviderRegistrationGenerationEntity.STATUS_FAILED,
+			System.currentTimeMillis(),
+			SystemClock.elapsedRealtimeNanos(),
+			reason,
+		)
+	}
+
+	private suspend fun rotateAuthorization(
+		identity: ActivityRegistrationIdentity,
+		demands: List<com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity>,
+		wallTimeMs: Long,
+		elapsedRealtimeNanos: Long,
+	) {
+		val dao = database.sourceBrokerDao()
+		val current = dao.latestAuthorization(ACTIVITY_SOURCE_KIND, identity.registrationGeneration)
+			.toAuthorizationSnapshotOrNull()
+		val fingerprint = SourceBrokerAuthorization.fingerprint(demands)
+		if (current?.authorizationFingerprint == fingerprint) return
+		val revision = dao.maximumAuthorizationRevision(ACTIVITY_SOURCE_KIND) + 1L
+		dao.insertAuthorizations(
+			SourceBrokerAuthorization.rows(
+				ACTIVITY_SOURCE_KIND,
+				identity.registrationGeneration,
+				revision,
+				demands,
+				identity.clockDomainId,
+				elapsedRealtimeNanos,
+				wallTimeMs,
+			),
+		)
 	}
 
 	private suspend fun hydratePersistedIdentityIfNeeded() {
 		if (current.identity != null) return
 		val persisted = database.sourceRegistrationStateDao().get(ACTIVITY_SOURCE_KIND, OWNER_SCOPE) ?: return
+		val generation = database.sourceBrokerDao().registration(
+			ACTIVITY_SOURCE_KIND,
+			persisted.registrationGeneration,
+		) ?: return
 		current = current.copy(
+			active = generation.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
 			identity = ActivityRegistrationIdentity(
 				persisted.sourceInstanceId,
 				persisted.registrationGeneration,
 				persisted.collectedDataEpoch,
-				persisted.appliedRevision,
+				generation.clockDomainId,
+				generation.physicalConfigurationFingerprint,
 			),
 		)
 	}
@@ -216,12 +545,16 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 	private fun currentClockDomain(): String {
 		val bootCount = Settings.Global.getInt(context.contentResolver, Settings.Global.BOOT_COUNT, -1)
 		if (bootCount >= 0) return "android-boot-count:$bootCount"
-		val estimatedBootMs = System.currentTimeMillis() - android.os.SystemClock.elapsedRealtime()
-		return "android-boot-epoch-hour:${estimatedBootMs / 3_600_000L}"
+		return conservativeProcessBootId
 	}
 
-	private fun ActivityRegistrationSnapshot.matches(demand: CombinedDemand): Boolean =
-		continuousRecognitionIntervalSeconds == demand.intervalSeconds && transitions == demand.transitions
+	private fun ActivityRegistrationSnapshot.matches(
+		demand: CombinedDemand,
+		physicalConfigurationFingerprint: String,
+	): Boolean =
+		continuousRecognitionIntervalSeconds == demand.intervalSeconds &&
+			transitions == demand.transitions &&
+			identity?.physicalConfigurationFingerprint == physicalConfigurationFingerprint
 
 	private fun applied(snapshot: ActivityRegistrationSnapshot) =
 		ActivityRegistrationResult(ActivityRegistrationStatus.APPLIED, snapshot)
@@ -239,11 +572,45 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		val appliedRevision: Long?,
 	) {
 		val enabled: Boolean get() = intervalSeconds != null || transitions.isNotEmpty()
+
+		fun physicalConfigurationFingerprint(): String {
+			val canonical = buildString {
+				append(intervalSeconds ?: 0)
+				append('\u001f')
+				transitions.sortedWith(
+					compareBy<com.adsamcik.tracker.activity.ActivityTransitionData> { it.activity.name }
+						.thenBy { it.type.value },
+				).forEach { transition ->
+					append(transition.activity.name)
+					append(':')
+					append(transition.type.value)
+					append('\u001e')
+				}
+			}
+			return MessageDigest.getInstance("SHA-256")
+				.digest(canonical.toByteArray(Charsets.UTF_8))
+				.joinToString("") { byte -> "%02x".format(byte) }
+		}
 	}
+
+	private data class ReservedActivityRegistration(
+		val identity: ActivityRegistrationIdentity,
+		val state: SourceRegistrationStateEntity,
+		val predecessorState: SourceRegistrationStateEntity?,
+	)
+
+	private fun ProviderRegistrationGenerationEntity.toActivityRegistrationIdentity() =
+		ActivityRegistrationIdentity(
+			sourceInstanceId = sourceInstanceId,
+			registrationGeneration = registrationGeneration,
+			collectedDataEpoch = collectedDataEpoch,
+			clockDomainId = clockDomainId,
+			physicalConfigurationFingerprint = physicalConfigurationFingerprint,
+		)
 
 	private companion object {
 		const val ACTIVITY_SOURCE_KIND = 2
-		const val OWNER_SCOPE = "activity-registration-arbiter"
+		const val OWNER_SCOPE = "source-broker:2"
 		val EMPTY_SNAPSHOT = ActivityRegistrationSnapshot(false, null, emptySet(), null, emptySet())
 	}
 }

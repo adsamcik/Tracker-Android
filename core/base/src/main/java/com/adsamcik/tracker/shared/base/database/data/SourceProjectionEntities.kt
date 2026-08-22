@@ -96,4 +96,11 @@ data class SourceCoordinatorLeaseEntity(
 	@ColumnInfo(name = "owner_token") val ownerToken: String,
 	@ColumnInfo(name = "acquired_at_ms") val acquiredAtMs: Long,
 	@ColumnInfo(name = "expires_at_ms") val expiresAtMs: Long,
+	@ColumnInfo(name = "boot_id", defaultValue = "'LEGACY_UNKNOWN'")
+	val bootId: String = "LEGACY_UNKNOWN",
+	@ColumnInfo(name = "generation", defaultValue = "0") val generation: Long = 0,
+	@ColumnInfo(name = "acquired_elapsed_realtime_nanos", defaultValue = "0")
+	val acquiredElapsedRealtimeNanos: Long = 0,
+	@ColumnInfo(name = "expires_elapsed_realtime_nanos", defaultValue = "0")
+	val expiresElapsedRealtimeNanos: Long = 0,
 )

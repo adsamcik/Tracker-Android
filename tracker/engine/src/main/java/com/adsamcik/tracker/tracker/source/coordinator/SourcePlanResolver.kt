@@ -9,7 +9,6 @@ import com.adsamcik.tracker.tracker.source.model.ActivityMode
 import com.adsamcik.tracker.tracker.source.model.ActivityPlan
 import com.adsamcik.tracker.tracker.source.model.CellMode
 import com.adsamcik.tracker.tracker.source.model.CellPlan
-import com.adsamcik.tracker.tracker.source.model.EvidenceQuality
 import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.tracker.source.model.PressurePlan
@@ -77,7 +76,10 @@ class SourcePlanResolver @Inject constructor() {
 					reason == SourceDegradedReason.FOREGROUND_CAPABILITY_MISSING ||
 					reason == SourceDegradedReason.BACKGROUND_START_ILLEGAL
 			}
-			var applicable = if (blocked) plan.disabled() else plan.applyDemand(dominant[source])
+			// The desired plan is the policy-derived QoS ceiling. A demand describes a
+			// consumer requirement; it may diagnose degradation, but must never silently
+			// upgrade physical acquisition beyond the effective SourcePolicy.
+			var applicable = if (blocked) plan.disabled() else plan
 			if (context.powerSaver) {
 				when (applicable) {
 					is LocationPlan -> if (applicable.mode == LocationMode.HIGH_ACCURACY) {
@@ -111,52 +113,6 @@ class SourcePlanResolver @Inject constructor() {
 			degradedReasons = degradation,
 			dominantDemand = dominant,
 		)
-	}
-
-	/** Tightens an enabled user plan to satisfy policy freshness without re-enabling an off source. */
-	private fun SourcePlan.applyDemand(demand: SourceDemand?): SourcePlan {
-		if (demand == null || !enabled) return this
-		val latencyMs = demand.desiredLatencyMs.coerceAtLeast(1L)
-		val ageMs = demand.maximumAgeMs.coerceAtLeast(1L)
-		return when (this) {
-			is LocationPlan -> copy(
-				mode = when {
-					demand.quality == EvidenceQuality.HIGH -> LocationMode.HIGH_ACCURACY
-					demand.quality == EvidenceQuality.BALANCED && mode in setOf(LocationMode.PASSIVE, LocationMode.LOW_POWER) ->
-						LocationMode.BALANCED
-					else -> mode
-				},
-				requestedIntervalMs = minOf(requestedIntervalMs, ageMs),
-				minimumUpdateIntervalMs = minOf(minimumUpdateIntervalMs, latencyMs),
-				maximumBatchDelayMs = minOf(maximumBatchDelayMs, latencyMs),
-			)
-			is ActivityPlan -> copy(
-				mode = if (demand.quality == EvidenceQuality.HIGH) {
-					ActivityMode.CONTINUOUS_RECOGNITION
-				} else mode,
-				desiredDetectionLatencyMs = minOf(desiredDetectionLatencyMs, latencyMs),
-			)
-			is StepsPlan -> copy(
-				maximumReportLatencyMs = minOf(maximumReportLatencyMs, latencyMs),
-				projectionCheckpointIntervalMs = minOf(projectionCheckpointIntervalMs, ageMs),
-				movementPolicyNeedsLowLatency = movementPolicyNeedsLowLatency || demand.quality == EvidenceQuality.HIGH,
-			)
-			is PressurePlan -> copy(
-				maximumReportLatencyMicros = minOf(
-					maximumReportLatencyMicros.toLong(),
-					latencyMs.coerceAtMost(Int.MAX_VALUE / 1_000L) * 1_000L,
-				).toInt(),
-				aggregationWindowMs = minOf(aggregationWindowMs, ageMs),
-			)
-			is WifiPlan -> copy(
-				minimumAttemptIntervalMs = minOf(minimumAttemptIntervalMs, latencyMs),
-				maximumAcceptableResultAgeMs = minOf(maximumAcceptableResultAgeMs, ageMs),
-			)
-			is CellPlan -> copy(
-				minimumRefreshAttemptIntervalMs = minOf(minimumRefreshAttemptIntervalMs, latencyMs),
-				maximumAcceptableCachedAgeMs = minOf(maximumAcceptableCachedAgeMs, ageMs),
-			)
-		}
 	}
 
 	private fun SourcePlan.disabled(): SourcePlan = when (this) {

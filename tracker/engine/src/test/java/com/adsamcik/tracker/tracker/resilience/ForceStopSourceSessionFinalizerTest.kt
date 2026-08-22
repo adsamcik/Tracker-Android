@@ -45,13 +45,13 @@ class ForceStopSourceSessionFinalizerTest {
 			ForceStopSourceSessionFinalization.FINALIZED
 
 		val session = database.sourceSessionDao().session(LOGICAL_ID)
-		session?.state shouldBe SessionLifecycleState.FAILED.name
+		session?.state shouldBe SessionLifecycleState.FINALIZED.name
 		session?.lifecycleRevision shouldBe 4L
 		session?.completedAtMs shouldBe 5_000L
 		session?.failureCode shouldBe
 			ForceStopSourceSessionFinalizer.FORCE_STOP_COMPLETION_REASON
 		val run = database.sourceSessionDao().serviceRun(RUN_ID)
-		run?.state shouldBe SessionLifecycleState.CLOSED.name
+		run?.state shouldBe SessionLifecycleState.FINALIZED.name
 		run?.completedAtMs shouldBe 5_000L
 		run?.completionReason shouldBe
 			ForceStopSourceSessionFinalizer.FORCE_STOP_COMPLETION_REASON
@@ -75,9 +75,9 @@ class ForceStopSourceSessionFinalizerTest {
 			ForceStopSourceSessionFinalization.FINALIZED
 
 		database.sourceSessionDao().session(LOGICAL_ID)?.state shouldBe
-			SessionLifecycleState.FAILED.name
+			SessionLifecycleState.FINALIZED.name
 		database.sourceSessionDao().serviceRun(RUN_ID)?.state shouldBe
-			SessionLifecycleState.CLOSED.name
+			SessionLifecycleState.FINALIZED.name
 		store.descriptor shouldBe null
 		store.clearCount shouldBe 1
 	}
@@ -87,12 +87,12 @@ class ForceStopSourceSessionFinalizerTest {
 		insertRunningSession()
 		insertServiceRun(
 			serviceRunId = OLDER_RUN_ID,
-			state = SessionLifecycleState.RUNNING,
+			state = SessionLifecycleState.ACTIVE,
 			startedAtMs = 500L,
 		)
 		insertServiceRun(
 			serviceRunId = CLOSED_RUN_ID,
-			state = SessionLifecycleState.CLOSED,
+			state = SessionLifecycleState.FINALIZED,
 			startedAtMs = 250L,
 			completedAtMs = 750L,
 			completionReason = "NORMAL_STOP",
@@ -104,7 +104,7 @@ class ForceStopSourceSessionFinalizerTest {
 		database.sourceSessionDao().incompleteServiceRuns(LOGICAL_ID) shouldBe emptyList()
 		listOf(RUN_ID, OLDER_RUN_ID).forEach { serviceRunId ->
 			val run = database.sourceSessionDao().serviceRun(serviceRunId)
-			run?.state shouldBe SessionLifecycleState.CLOSED.name
+			run?.state shouldBe SessionLifecycleState.FINALIZED.name
 			run?.completedAtMs shouldBe 5_000L
 			run?.completionReason shouldBe
 				ForceStopSourceSessionFinalizer.FORCE_STOP_COMPLETION_REASON
@@ -134,7 +134,7 @@ class ForceStopSourceSessionFinalizerTest {
 		database.sourceSessionDao().insertSession(
 			LogicalTrackingSessionEntity(
 				logicalTrackingId = LOGICAL_ID,
-				state = SessionLifecycleState.RUNNING.name,
+				state = SessionLifecycleState.ACTIVE.name,
 				lifecycleRevision = 3L,
 				desiredPlanRevision = 7L,
 				rolloutRevision = 2L,
@@ -151,7 +151,7 @@ class ForceStopSourceSessionFinalizerTest {
 		)
 		insertServiceRun(
 			serviceRunId = RUN_ID,
-			state = SessionLifecycleState.RUNNING,
+			state = SessionLifecycleState.ACTIVE,
 			startedAtMs = 1_000L,
 		)
 	}

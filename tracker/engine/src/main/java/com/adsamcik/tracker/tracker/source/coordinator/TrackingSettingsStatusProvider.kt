@@ -61,6 +61,7 @@ data class TrackingSettingsPreview(
 
 data class TrackingRuntimeStatus(
 	val active: Boolean = false,
+	val sourcePolicyRevision: Long? = null,
 	val rolloutRevision: Long? = null,
 	val planId: String? = null,
 	val desiredRevision: Long? = null,
@@ -183,9 +184,11 @@ class DefaultTrackingSettingsStatusProvider @Inject constructor(
 			planId = "${resolved.desired.planId}-effective",
 			createdAtMs = resolved.desired.createdAtMs,
 			plans = resolved.applicablePlans,
+			sourcePolicyRevision = resolved.desired.sourcePolicyRevision,
 		)
 		mutableRuntimeStatus.value = TrackingRuntimeStatus(
 			active = true,
+			sourcePolicyRevision = resolved.desired.sourcePolicyRevision,
 			rolloutRevision = rollout.revision,
 			planId = resolved.desired.planId,
 			desiredRevision = resolved.desired.revision.takeIf { it > 0L },

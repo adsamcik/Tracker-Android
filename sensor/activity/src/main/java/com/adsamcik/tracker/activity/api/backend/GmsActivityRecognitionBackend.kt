@@ -271,7 +271,8 @@ class GmsActivityRecognitionBackend @Inject constructor(
 			.putExtra(EXTRA_SOURCE_INSTANCE_ID, identity.sourceInstanceId)
 			.putExtra(EXTRA_REGISTRATION_GENERATION, identity.registrationGeneration)
 			.putExtra(EXTRA_COLLECTED_DATA_EPOCH, identity.collectedDataEpoch)
-			.putExtra(EXTRA_APPLIED_REVISION, identity.appliedRevision ?: NO_REVISION)
+			.putExtra(EXTRA_CLOCK_DOMAIN_ID, identity.clockDomainId)
+			.putExtra(EXTRA_PHYSICAL_CONFIGURATION_FINGERPRINT, identity.physicalConfigurationFingerprint)
 		return PendingIntent.getBroadcast(
 			context,
 			requestCode(identity),
@@ -284,9 +285,16 @@ class GmsActivityRecognitionBackend @Inject constructor(
 		internal const val EXTRA_SOURCE_INSTANCE_ID = "activity_registration_source_instance_id"
 		internal const val EXTRA_REGISTRATION_GENERATION = "activity_registration_generation"
 		internal const val EXTRA_COLLECTED_DATA_EPOCH = "activity_registration_collected_data_epoch"
-		internal const val EXTRA_APPLIED_REVISION = "activity_registration_applied_revision"
-		internal const val NO_REVISION = Long.MIN_VALUE
-		private val LEGACY_IDENTITY = ActivityRegistrationIdentity("legacy", 0L, 0L, null)
+		internal const val EXTRA_CLOCK_DOMAIN_ID = "activity_registration_clock_domain_id"
+		internal const val EXTRA_PHYSICAL_CONFIGURATION_FINGERPRINT =
+			"activity_registration_physical_configuration_fingerprint"
+		private val LEGACY_IDENTITY = ActivityRegistrationIdentity(
+			sourceInstanceId = "legacy",
+			registrationGeneration = 1L,
+			collectedDataEpoch = 0L,
+			clockDomainId = "LEGACY_UNQUALIFIED",
+			physicalConfigurationFingerprint = "legacy-unbrokered",
+		)
 
 		private fun requestCode(identity: ActivityRegistrationIdentity): Int =
 			31 * identity.sourceInstanceId.hashCode() + identity.registrationGeneration.hashCode()

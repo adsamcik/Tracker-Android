@@ -18,13 +18,17 @@ data class TrackingParamsState(
 	val sourceCollectionSettings: SourceCollectionSettings = SourceCollectionSettings(),
 	val advancedSourceControlsEnabled: Boolean = false,
 	val sourceSettingsVersion: Int = CURRENT_SOURCE_SETTINGS_VERSION,
+	/** True only after the legacy settings source completed its durable migration. */
+	val legacySettingsMigrationCompleted: Boolean = false,
+	/** Effective Room policy revision; null means the state is not an authoritative projection. */
+	val sourcePolicyRevision: Long? = null,
 ) {
     companion object {
         const val DEFAULT_MIN_DISTANCE = 10
         const val DEFAULT_MIN_TIME = 2
         const val DEFAULT_REQUIRED_ACCURACY = 50
         const val DEFAULT_PRESET = "BALANCED"
-		const val CURRENT_SOURCE_SETTINGS_VERSION = 1
+		const val CURRENT_SOURCE_SETTINGS_VERSION = 2
     }
 
     val preset: TrackingPreset

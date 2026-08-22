@@ -6,6 +6,7 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Looper
+import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
@@ -55,7 +56,7 @@ internal class FusedLocationSourceBackend @Inject constructor(
 				plan.preciseLocationAvailable && plan.mode in setOf(LocationMode.HIGH_ACCURACY, LocationMode.PROBE),
 			)
 			.build()
-		return runCatching {
+		return runCatchingNonCancellation {
 			client.requestLocationUpdates(request, nextCallback, Looper.getMainLooper()).await()
 			callback = nextCallback
 			true
@@ -65,13 +66,13 @@ internal class FusedLocationSourceBackend @Inject constructor(
 	override suspend fun flush(): ProviderFlushOutcome = if (callback == null) {
 		ProviderFlushOutcome.NOT_REQUESTED
 	} else {
-		runCatching { client.flushLocations().await() }
+		runCatchingNonCancellation { client.flushLocations().await() }
 			.fold({ ProviderFlushOutcome.COMPLETE }, { ProviderFlushOutcome.FAILED })
 	}
 
 	override suspend fun stop(): RegistrationRemovalOutcome {
 		val active = callback ?: return RegistrationRemovalOutcome.NOT_REGISTERED
-		return runCatching { client.removeLocationUpdates(active).await() }
+		return runCatchingNonCancellation { client.removeLocationUpdates(active).await() }
 			.fold(
 				onSuccess = {
 					callback = null

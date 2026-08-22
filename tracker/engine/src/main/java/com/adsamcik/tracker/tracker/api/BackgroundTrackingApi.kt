@@ -28,6 +28,9 @@ import com.adsamcik.tracker.shared.base.extension.powerManager
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.resilience.TrackingStopCandidateReason
 import com.adsamcik.tracker.tracker.R
@@ -45,6 +48,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.launch
 
 /**
@@ -57,6 +61,7 @@ interface BackgroundTrackingApiEntryPoint {
 	fun lockManager(): LockManager
 	fun trackerStateReader(): TrackerStateReader
 	fun trackingParamsRepository(): TrackingParamsRepository
+	fun sourcePolicyRepository(): SourcePolicyRepository
 	fun activityWatcherController(): ActivityWatcherController
 }
 
@@ -71,6 +76,7 @@ object BackgroundTrackingApi {
 
 	private var preferenceScope: CoroutineScope? = null
 	private var trackingParamsJob: Job? = null
+	private var sourcePolicyJob: Job? = null
 	private var disabledRechargeJob: Job? = null
 	private var activityFreqJob: Job? = null
 	private var activityWatcherJob: Job? = null
@@ -88,6 +94,7 @@ object BackgroundTrackingApi {
 	// confirms recent walking. Only widens starts; never blocks one the full threshold would allow.
 	private const val STEP_CORROBORATED_CONFIDENCE = 50
 	private const val DEFAULT_ACTIVITY_FREQ_SECONDS = 10
+	private const val SOURCE_POLICY_RETRY_DELAY_MILLIS = 250L
 	/** Allows a contradictory automatic-activity update to be corrected before a terminal stop. */
 	private const val AUTOMATIC_STOP_GRACE_MILLIS = 30_000L
 	private var appContext: Context? = null
@@ -117,6 +124,10 @@ object BackgroundTrackingApi {
 
 	/** Whether the first TrackingParams emission has been processed. */
 	private var paramsInitialized = false
+	@Volatile
+	private var activityControlEligible = false
+	@Volatile
+	private var stepControlEligible = false
 
 	/**
 	 * Corroborates lower-confidence ON_FOOT detections with the hardware step counter. Active only
@@ -368,7 +379,11 @@ object BackgroundTrackingApi {
 
 				// Activity callbacks are consumed from durable projection outbox. Keep the optional
 				// step corroborator only for confidence-based recognition requests.
-				if (useTransitionApi) stepCorroborator.stop(context) else stepCorroborator.start(context)
+				if (!shouldUseStepCorroboration(useTransitionApi, stepControlEligible)) {
+					stepCorroborator.stop(context)
+				} else {
+					stepCorroborator.start(context)
+				}
 				recognitionUpdatesJob?.cancel()
 				recognitionUpdatesJob = null
 				watcherController.poke()
@@ -481,6 +496,26 @@ object BackgroundTrackingApi {
 		val scope = CoroutineScope(SupervisorJob() + mainImmediate)
 		preferenceScope = scope
 
+		sourcePolicyJob = entryPoint.sourcePolicyRepository().states
+			.onEach { authority ->
+				val snapshot = (authority as? SourcePolicyAuthorityState.Active)?.snapshot
+				reconcileControlEligibility(
+					activityEligible = snapshot
+						?.get(TrackingSourceComponent.ACTIVITY)
+						?.controlConsentEpoch != null,
+					stepEligible = snapshot
+						?.get(TrackingSourceComponent.STEPS)
+						?.controlConsentEpoch != null,
+				)
+			}
+			.retryWhen { error, _ ->
+				reconcileControlEligibility(activityEligible = false, stepEligible = false)
+				Tracebox.log.error(error, "SourcePolicy observation failed")
+				delay(SOURCE_POLICY_RETRY_DELAY_MILLIS)
+				true
+			}
+			.launchIn(scope)
+
 		trackingParamsJob = entryPoint.trackingParamsRepository().data
 			.onEach { params ->
 				val previousParams = updateCachedParams(params)
@@ -537,18 +572,36 @@ object BackgroundTrackingApi {
 		// A preference change changes the continuation predicate, so an old incompatible reading
 		// must never finish a grace timer under a different policy.
 		cancelAutomaticStopGrace()
-		when (resolveAutoTrackingPreferenceAction(value, isActive, context.hasActivityPermission)) {
+		val effectiveValue = effectiveAutomaticControlMode(value, activityControlEligible)
+		when (resolveAutoTrackingPreferenceAction(effectiveValue, isActive, context.hasActivityPermission)) {
 			AutoTrackingPreferenceAction.DISABLE -> disable(context)
 			AutoTrackingPreferenceAction.ENABLE -> enable(context)
 			AutoTrackingPreferenceAction.REINITIALIZE ->
 				reinitializeRequest(context, cachedParamsSnapshot().transitionDetectionEnabled)
 			AutoTrackingPreferenceAction.NONE -> Unit
 		}
-		if (value == GroupedActivity.STILL.ordinal && TrackerServiceApi.isActive(context)) {
+		if (effectiveValue == GroupedActivity.STILL.ordinal && TrackerServiceApi.isActive(context)) {
 			val sessionInfo = TrackerServiceApi.sessionInfoFlow(context).value
-			if (shouldStopSessionWhenAutoTrackingDisabled(value, sessionInfo?.isInitiatedByUser)) {
+			if (shouldStopSessionWhenAutoTrackingDisabled(effectiveValue, sessionInfo?.isInitiatedByUser)) {
 				TrackerServiceApi.stopService(context, TrackingStopCandidateReason.EXPLICIT_REQUEST)
 			}
+		}
+	}
+
+	private fun reconcileControlEligibility(activityEligible: Boolean, stepEligible: Boolean) {
+		val previousActivityEligibility = activityControlEligible
+		val previousStepEligibility = stepControlEligible
+		activityControlEligible = activityEligible
+		stepControlEligible = stepEligible
+		val context = appContext ?: return
+		when {
+			!activityEligible && isActive ->
+				handleTrackingActivityPreferenceChange(cachedParamsSnapshot().autoTrackingMode)
+			activityEligible && !previousActivityEligibility && paramsInitialized ->
+				handleTrackingActivityPreferenceChange(cachedParamsSnapshot().autoTrackingMode)
+			isActive && previousStepEligibility != stepEligible &&
+				!cachedParamsSnapshot().transitionDetectionEnabled ->
+				reinitializeRequest(context, useTransitionApi = false)
 		}
 	}
 
@@ -578,7 +631,10 @@ object BackgroundTrackingApi {
 			resolveDetectionPermissionAction(
 				isActive = isActive,
 				hasActivityPermission = ctx.hasActivityPermission,
-				autoTrackingMode = cachedParamsSnapshot().autoTrackingMode,
+				autoTrackingMode = effectiveAutomaticControlMode(
+					cachedParamsSnapshot().autoTrackingMode,
+					activityControlEligible,
+				),
 			)
 		) {
 			AutoTrackingPreferenceAction.DISABLE -> disable(ctx)
@@ -603,6 +659,8 @@ object BackgroundTrackingApi {
 
 		trackingParamsJob?.cancel()
 		trackingParamsJob = null
+		sourcePolicyJob?.cancel()
+		sourcePolicyJob = null
 		disabledRechargeJob?.cancel()
 		disabledRechargeJob = null
 		activityFreqJob?.cancel()
@@ -632,6 +690,8 @@ object BackgroundTrackingApi {
 		activityFreqSeconds = DEFAULT_ACTIVITY_FREQ_SECONDS
 		activityWatcherEnabled = false
 		paramsInitialized = false
+		activityControlEligible = false
+		stepControlEligible = false
 	}
 }
 
@@ -720,6 +780,14 @@ internal fun hasAnythingToTrack(
 /** Action to take when the auto-tracking activity requirement preference changes. */
 internal enum class AutoTrackingPreferenceAction { NONE, ENABLE, DISABLE, REINITIALIZE }
 
+internal fun effectiveAutomaticControlMode(configuredMode: Int, controlEligible: Boolean): Int =
+	configuredMode.takeIf { controlEligible } ?: GroupedActivity.STILL.ordinal
+
+internal fun shouldUseStepCorroboration(
+	useTransitionApi: Boolean,
+	stepControlEligible: Boolean,
+): Boolean = !useTransitionApi && stepControlEligible
+
 /** The automatic-tracking controller never tears down a user session from activity recognition. */
 internal enum class AutomaticTrackingContinuationAction { KEEP, SCHEDULE_STOP_GRACE }
 
@@ -769,8 +837,9 @@ internal fun resolveAutoTrackingPreferenceAction(
 	val isStill = newMode == GroupedActivity.STILL.ordinal
 	return when {
 		isStill && isActive -> AutoTrackingPreferenceAction.DISABLE
+		isStill -> AutoTrackingPreferenceAction.NONE
 		!isActive && hasActivityPermission -> AutoTrackingPreferenceAction.ENABLE
-		isActive && !isStill -> AutoTrackingPreferenceAction.REINITIALIZE
+		isActive -> AutoTrackingPreferenceAction.REINITIALIZE
 		else -> AutoTrackingPreferenceAction.NONE
 	}
 }

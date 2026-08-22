@@ -7,11 +7,11 @@ import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
 import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
 import com.adsamcik.tracker.activity.api.backend.TransitionUpdate
-import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_APPLIED_REVISION
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_COLLECTED_DATA_EPOCH
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_REGISTRATION_GENERATION
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_SOURCE_INSTANCE_ID
-import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.NO_REVISION
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_CLOCK_DOMAIN_ID
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_PHYSICAL_CONFIGURATION_FINGERPRINT
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidence
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
@@ -149,14 +149,20 @@ internal class ActivityReceiver : BroadcastReceiver() {
 
 	private fun Intent.registrationIdentity(): ActivityRegistrationIdentity? {
 		val sourceInstanceId = getStringExtra(EXTRA_SOURCE_INSTANCE_ID) ?: return null
-		if (!hasExtra(EXTRA_REGISTRATION_GENERATION) || !hasExtra(EXTRA_COLLECTED_DATA_EPOCH)) return null
-		val revision = getLongExtra(EXTRA_APPLIED_REVISION, NO_REVISION).takeUnless { it == NO_REVISION }
+		if (!hasExtra(EXTRA_REGISTRATION_GENERATION) ||
+			!hasExtra(EXTRA_COLLECTED_DATA_EPOCH) ||
+			getStringExtra(EXTRA_CLOCK_DOMAIN_ID) == null ||
+			getStringExtra(EXTRA_PHYSICAL_CONFIGURATION_FINGERPRINT) == null
+		) return null
 		return runCatching {
 			ActivityRegistrationIdentity(
 				sourceInstanceId = sourceInstanceId,
 				registrationGeneration = getLongExtra(EXTRA_REGISTRATION_GENERATION, -1L),
 				collectedDataEpoch = getLongExtra(EXTRA_COLLECTED_DATA_EPOCH, -1L),
-				appliedRevision = revision,
+				clockDomainId = requireNotNull(getStringExtra(EXTRA_CLOCK_DOMAIN_ID)),
+				physicalConfigurationFingerprint = requireNotNull(
+					getStringExtra(EXTRA_PHYSICAL_CONFIGURATION_FINGERPRINT),
+				),
 			)
 		}.getOrNull()
 	}

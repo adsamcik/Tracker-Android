@@ -17,7 +17,11 @@ interface SourceEventWalDao {
 
 	@Query(
 		"SELECT event_id, admission_ordinal, provider_dedup_key, source_instance_id, " +
-			"registration_generation, source_sequence, payload_version, payload_checksum " +
+			"registration_generation, physical_configuration_fingerprint, authorization_revision, " +
+			"authorization_purpose_eligibility_mask, authorization_fingerprint, " +
+			"source_sequence, source_policy_revision, " +
+			"capture_consent_epoch, session_manifest_revision, lifecycle_lease_generation, " +
+			"payload_version, payload_checksum, integrity_identity " +
 			"FROM source_event_wal WHERE source_kind = :sourceKind " +
 			"AND provider_dedup_key = :providerDedupKey LIMIT 1",
 	)
@@ -28,7 +32,11 @@ interface SourceEventWalDao {
 
 	@Query(
 		"SELECT event_id, admission_ordinal, provider_dedup_key, source_instance_id, " +
-			"registration_generation, source_sequence, payload_version, payload_checksum " +
+			"registration_generation, physical_configuration_fingerprint, authorization_revision, " +
+			"authorization_purpose_eligibility_mask, authorization_fingerprint, " +
+			"source_sequence, source_policy_revision, " +
+			"capture_consent_epoch, session_manifest_revision, lifecycle_lease_generation, " +
+			"payload_version, payload_checksum, integrity_identity " +
 			"FROM source_event_wal WHERE source_kind = :sourceKind " +
 			"AND source_instance_id = :sourceInstanceId AND source_sequence = :sourceSequence LIMIT 1",
 	)
@@ -63,6 +71,28 @@ interface SourceEventWalDao {
 	@Query("SELECT MAX(admission_ordinal) FROM source_event_wal")
 	suspend fun maximumAdmissionOrdinal(): Long?
 
+	@Query("SELECT MIN(admission_ordinal) FROM source_event_wal")
+	suspend fun minimumAdmissionOrdinal(): Long?
+
+	@Query(
+		"SELECT MIN(admission_ordinal) FROM source_event_wal " +
+			"WHERE integrity_identity IN ('LEGACY_PENDING_CHECKSUM', 'LEGACY_CHECKSUM_VERIFIED', " +
+			"'LEGACY_CHECKSUM_MISMATCH', 'LEGACY_UNKNOWN')",
+	)
+	suspend fun minimumUnqualifiedIntegrityOrdinal(): Long?
+
+	@Query(
+		"UPDATE source_event_wal SET integrity_identity = :classification " +
+			"WHERE admission_ordinal = :admissionOrdinal AND integrity_identity = 'LEGACY_PENDING_CHECKSUM'",
+	)
+	suspend fun classifyPendingLegacyPayload(admissionOrdinal: Long, classification: String): Int
+
+	@Query(
+		"SELECT MIN(admission_ordinal) FROM source_event_wal " +
+			"WHERE admission_ordinal <= :safeOrdinal AND created_at_ms >= :createdBeforeMs",
+	)
+	suspend fun firstNonPrunableOrdinal(safeOrdinal: Long, createdBeforeMs: Long): Long?
+
 	@Query("SELECT COUNT(*) FROM source_event_wal")
 	suspend fun countAll(): Long
 
@@ -81,6 +111,14 @@ interface SourceEventWalDao {
 		limit: Int,
 	): Int
 
+	@Query(
+		"DELETE FROM source_event_wal WHERE admission_ordinal IN (" +
+			"SELECT admission_ordinal FROM source_event_wal " +
+			"WHERE admission_ordinal <= :pruneThroughOrdinal " +
+			"ORDER BY admission_ordinal LIMIT :limit)",
+	)
+	suspend fun deleteContiguousPrefixBatch(pruneThroughOrdinal: Long, limit: Int): Int
+
 	@Query("DELETE FROM source_event_wal")
 	fun deleteAll()
 }
@@ -92,7 +130,16 @@ data class SourceEventIdentityRow(
 	@ColumnInfo(name = "provider_dedup_key") val providerDedupKey: String?,
 	@ColumnInfo(name = "source_instance_id") val sourceInstanceId: String,
 	@ColumnInfo(name = "registration_generation") val registrationGeneration: Long,
+	@ColumnInfo(name = "physical_configuration_fingerprint") val physicalConfigurationFingerprint: String?,
+	@ColumnInfo(name = "authorization_revision") val authorizationRevision: Long?,
+	@ColumnInfo(name = "authorization_purpose_eligibility_mask") val authorizationPurposeEligibilityMask: Long,
+	@ColumnInfo(name = "authorization_fingerprint") val authorizationFingerprint: String?,
 	@ColumnInfo(name = "source_sequence") val sourceSequence: Long,
+	@ColumnInfo(name = "source_policy_revision") val sourcePolicyRevision: Long?,
+	@ColumnInfo(name = "capture_consent_epoch") val captureConsentEpoch: Long?,
+	@ColumnInfo(name = "session_manifest_revision") val sessionManifestRevision: Long?,
+	@ColumnInfo(name = "lifecycle_lease_generation") val lifecycleLeaseGeneration: Long?,
 	@ColumnInfo(name = "payload_version") val payloadVersion: Int,
 	@ColumnInfo(name = "payload_checksum") val payloadChecksum: String,
+	@ColumnInfo(name = "integrity_identity") val integrityIdentity: String,
 )

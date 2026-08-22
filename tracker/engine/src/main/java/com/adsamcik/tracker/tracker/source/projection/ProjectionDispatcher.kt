@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.projection
 
 import androidx.room.withTransaction
+import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionCheckpointEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
@@ -53,7 +54,7 @@ class ProjectionDispatcher @Inject constructor(
 		val failures = mutableListOf<ProjectionFailure>()
 		val quarantined = mutableListOf<ProjectionQuarantine>()
 		for (projection in projections) {
-			val failure = runCatching {
+			val failure = runCatchingNonCancellation {
 				database.withTransaction {
 					val dao = database.sourceProjectionStateDao()
 					val checkpoint = requireNotNull(dao.checkpoint(projection.id, projection.version)) {
@@ -123,6 +124,46 @@ class ProjectionDispatcher @Inject constructor(
 			}
 		}
 		return ProjectionDispatchResult(event.admissionOrdinal, failures, quarantined)
+	}
+
+	/**
+	 * Permanently quarantines a raw event that failed integrity or decoding before any projection
+	 * received it. The operation is idempotent across crashes: projections already past the ordinal
+	 * are left unchanged, while each remaining contiguous checkpoint advances with a durable failure.
+	 */
+	suspend fun quarantineRawEvent(admissionOrdinal: Long, failureCode: String) {
+		require(admissionOrdinal > 0L)
+		require(failureCode.isNotBlank())
+		for (projection in projections) {
+			database.withTransaction {
+				val dao = database.sourceProjectionStateDao()
+				val checkpoint = requireNotNull(dao.checkpoint(projection.id, projection.version)) {
+					"Projection ${projection.id} is not registered"
+				}
+				if (admissionOrdinal <= checkpoint.contiguousAdmissionOrdinal) return@withTransaction
+				check(admissionOrdinal == checkpoint.contiguousAdmissionOrdinal + 1L) {
+					"Raw quarantine cannot skip admission ordinal " +
+						"${checkpoint.contiguousAdmissionOrdinal + 1L} for ${projection.id}"
+				}
+				dao.saveFailure(
+					SourceProjectionFailureEntity(
+						projectionId = projection.id,
+						projectionVersion = projection.version,
+						admissionOrdinal = admissionOrdinal,
+						attemptCount = 1,
+						failureCode = failureCode,
+						terminal = true,
+						lastAttemptAtMs = System.currentTimeMillis(),
+					),
+				)
+				dao.saveCheckpoint(
+					checkpoint.copy(
+						contiguousAdmissionOrdinal = admissionOrdinal,
+						updatedAtMs = System.currentTimeMillis(),
+					),
+				)
+			}
+		}
 	}
 
 	private companion object {

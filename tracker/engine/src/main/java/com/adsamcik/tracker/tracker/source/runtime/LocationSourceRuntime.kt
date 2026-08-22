@@ -4,10 +4,12 @@ import android.content.Context
 import android.location.Location
 import android.os.SystemClock
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
+import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
@@ -61,8 +63,7 @@ class LocationSourceRuntime @Inject internal constructor(
 		startLocked(plan, sink)
 	}
 
-	override suspend fun reconfigure(plan: LocationPlan): SourceApplyResult = lifecycleMutex.withLock {
-		val sink = currentSink
+	override suspend fun reconfigure(plan: LocationPlan, sink: SourceEventSink): SourceApplyResult = lifecycleMutex.withLock {
 		if (currentPlan != null) {
 			val previous = shutdownLocked(null)
 			if (!previous.appDrainComplete) {
@@ -75,12 +76,6 @@ class LocationSourceRuntime @Inject internal constructor(
 		if (!plan.enabled) {
 			return@withLock SourceApplyResult.Applied(
 				appliedState(source, plan.revision, null, SourceApplyStatus.APPLIED, SystemClock.elapsedRealtimeNanos()),
-			)
-		}
-		if (sink == null) {
-			return@withLock SourceApplyResult.Failed(
-				appliedState(source, plan.revision, null, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()),
-				retryable = false,
 			)
 		}
 		when (val result = startLocked(plan, sink)) {
@@ -116,8 +111,8 @@ class LocationSourceRuntime @Inject internal constructor(
 				.copy(degradedReasons = application.reasons),
 		)
 		val effectivePlan = application.plan
-		val nextRegistration = runCatching {
-			registrations.begin(source, plan.revision, System.currentTimeMillis())
+		val nextRegistration = runCatchingNonCancellation {
+			registrations.begin(source, plan.revision, plan.physicalConfigurationFingerprint(), System.currentTimeMillis())
 		}.getOrElse {
 			return SourceStartResult.Failed(
 				appliedState(source, plan.revision, null, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()),
@@ -138,9 +133,9 @@ class LocationSourceRuntime @Inject internal constructor(
 		cutoffElapsedNanos = null
 		metrics = RuntimeAdmissionMetrics()
 		acceptingCallbacks = true
-		actor = applicationScope.launch { consume(nextQueue, nextRegistration, sink) }
-		val started = backend.start(effectivePlan) { locations -> onLocationBatch(locations) }
+		val started = backend.start(effectivePlan) { locations -> onLocationBatch(nextRegistration, locations) }
 		if (!started) {
+			registrations.markFailed(nextRegistration, "PROVIDER_REGISTRATION_FAILED", System.currentTimeMillis())
 			synchronized(callbackLock) {
 				acceptingCallbacks = false
 				nextQueue.close()
@@ -152,6 +147,23 @@ class LocationSourceRuntime @Inject internal constructor(
 				retryable = true,
 			)
 		}
+		val accepted = runCatchingNonCancellation {
+			registrations.markAccepted(nextRegistration, System.currentTimeMillis())
+		}.isSuccess
+		if (!accepted) {
+			runCatching { backend.stop() }
+			registrations.markFailed(nextRegistration, "REGISTRATION_ACCEPTANCE_STALE", System.currentTimeMillis())
+			synchronized(callbackLock) {
+				acceptingCallbacks = false
+				nextQueue.close()
+			}
+			clearActiveState()
+			return SourceStartResult.Failed(
+				appliedState(source, plan.revision, nextRegistration, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()),
+				retryable = true,
+			)
+		}
+		actor = applicationScope.launch { consume(nextQueue, nextRegistration, sink) }
 		val approximate = application.status == LocationPlanApplicationStatus.DEGRADED
 		val state = appliedState(
 			source,
@@ -212,16 +224,21 @@ class LocationSourceRuntime @Inject internal constructor(
 				else -> SourceStopStatus.COMPLETE
 			},
 		)
+		if (removal == RegistrationRemovalOutcome.FAILED) {
+			registrations.markFailed(activeRegistration, "PROVIDER_REMOVAL_FAILED", System.currentTimeMillis())
+		} else {
+			registrations.markRetired(activeRegistration, System.currentTimeMillis())
+		}
 		clearActiveState()
 		return ack
 	}
 
-	private fun onLocationBatch(locations: List<Location>) {
+	private fun onLocationBatch(callbackRegistration: SourceRegistration, locations: List<Location>) {
 		if (locations.isEmpty()) return
 		val receivedElapsed = SystemClock.elapsedRealtimeNanos()
 		val receivedWall = System.currentTimeMillis()
 		synchronized(callbackLock) {
-			if (!acceptingCallbacks) return
+			if (!acceptingCallbacks || registration !== callbackRegistration) return
 			val callbackSequence = ++callbackEntrySequence
 			val accepted = queue?.trySend(
 				RawLocationBatch(locations.map(::Location), receivedElapsed, receivedWall, callbackSequence),
@@ -262,7 +279,7 @@ class LocationSourceRuntime @Inject internal constructor(
 			metrics.recordFailure(batch.callbackSequence)
 			return
 		}
-		val sourceSequence = runCatching {
+		val sourceSequence = runCatchingNonCancellation {
 			registrations.allocateSequence(activeRegistration, batch.receivedWallTimeMs)
 		}.getOrElse {
 			metrics.recordFailure(batch.callbackSequence)
@@ -281,6 +298,10 @@ class LocationSourceRuntime @Inject internal constructor(
 			source = source,
 			sourceInstanceId = SourceInstanceId(activeRegistration.state.sourceInstanceId),
 			registrationGeneration = activeRegistration.state.registrationGeneration,
+			physicalConfigurationFingerprint = activeRegistration.physicalConfigurationFingerprint,
+			authorizationRevision = activeRegistration.authorization.authorizationRevision,
+			registrationPurposeEligibilityMask = activeRegistration.purposeEligibilityMask,
+			registrationEligibilityFingerprint = activeRegistration.eligibilityFingerprint,
 			sourceSequence = sourceSequence,
 			configRevision = activeRegistration.state.appliedRevision,
 			planAttribution = PlanAttribution.CAPTURED_REGISTRATION,

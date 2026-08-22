@@ -5,6 +5,9 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbite
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationDemand
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationOwner
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationResult
+import android.os.SystemClock
+import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.projection.TrackingJoinSpecs
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -12,22 +15,41 @@ import javax.inject.Singleton
 @Singleton
 class AutomaticStartTransitionMonitor @Inject constructor(
 	private val arbiter: ActivityRegistrationArbiter,
+	private val sourceBroker: SourceBroker,
+	private val clockDomainProvider: BootClockDomainProvider,
 ) {
 	suspend fun reconcile(
 		enabled: Boolean,
 		useTransitionApi: Boolean,
 		continuousIntervalSeconds: Int,
 		transitions: Set<ActivityTransitionData>,
-	): ActivityRegistrationResult = if (!enabled) {
-		arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
-	} else {
-		arbiter.setDemand(
+	): ActivityRegistrationResult {
+		val elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+		val desiredLatencyMs = continuousIntervalSeconds.coerceAtLeast(1) * 1_000L
+		val durableDemand = sourceBroker.replaceAutomaticControlDemand(
+			consumerId = AUTOMATIC_CONTROL_CONSUMER,
+			source = SourceKind.ACTIVITY,
+			enabled = enabled,
+			bootId = clockDomainProvider.current(),
+			elapsedRealtimeNanos = elapsedRealtimeNanos,
+			wallTimeMs = System.currentTimeMillis(),
+			maximumAgeMs = TrackingJoinSpecs.ACTIVITY_CONTEXT_MAX_AGE_MS,
+			desiredLatencyMs = desiredLatencyMs,
+		)
+		return if (!enabled || durableDemand == null) {
+			arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+		} else {
+			arbiter.setDemand(
 			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
 			ActivityRegistrationDemand(
 				continuousRecognitionIntervalSeconds = continuousIntervalSeconds.takeUnless { useTransitionApi },
 				transitions = transitions.takeIf { useTransitionApi }.orEmpty(),
 			),
-		)
+			)
+		}
+	}
+
+	private companion object {
+		const val AUTOMATIC_CONTROL_CONSUMER = "app:automatic-start:activity"
 	}
 }
-

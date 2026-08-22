@@ -47,7 +47,7 @@ class ActivitySourceRuntime @Inject constructor(
 		result.toStart(plan)
 	}
 
-	override suspend fun reconfigure(plan: ActivityPlan): SourceApplyResult = mutex.withLock {
+	override suspend fun reconfigure(plan: ActivityPlan, sink: SourceEventSink): SourceApplyResult = mutex.withLock {
 		val result = applyPlan(plan)
 		currentPlan = plan.takeIf(ActivityPlan::enabled)
 		result.toApply(plan)
@@ -175,7 +175,7 @@ class ActivitySourceRuntime @Inject constructor(
 	}
 
 	private companion object {
-		const val ARBITER_OWNER_SCOPE = "activity-registration-arbiter"
+		const val ARBITER_OWNER_SCOPE = "source-broker:2"
 		val SESSION_ACTIVITY_TYPES = setOf(
 			DetectedActivityType.STILL,
 			DetectedActivityType.ON_FOOT,

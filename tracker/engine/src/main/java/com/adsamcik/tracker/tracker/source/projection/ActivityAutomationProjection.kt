@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.source.projection
 
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.tracker.source.model.ActivityRecognitionPayload
 import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
@@ -16,6 +17,9 @@ class ActivityAutomationProjection @Inject constructor() : Projection {
 		event: AdmittedSourceEvent<out SourcePayload>,
 		context: ProjectionContext,
 	) {
+		if (event.evidence.registrationPurposeEligibilityMask and
+			SourceBrokerPurpose.MASK_CONTROL_AUTOSTART == 0L
+		) return
 		val payload = when (val sourcePayload = event.evidence.payload) {
 			is ActivityRecognitionPayload -> encode(
 				KIND_RECOGNITION,

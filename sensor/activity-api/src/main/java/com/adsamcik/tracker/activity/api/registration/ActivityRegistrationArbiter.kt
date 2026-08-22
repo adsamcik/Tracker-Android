@@ -11,6 +11,8 @@ import com.adsamcik.tracker.activity.ActivityTransitionData
 interface ActivityRegistrationArbiter {
 	suspend fun setDemand(owner: ActivityRegistrationOwner, demand: ActivityRegistrationDemand): ActivityRegistrationResult
 	suspend fun clearDemand(owner: ActivityRegistrationOwner): ActivityRegistrationResult
+	/** Reconciles an unchanged physical request after its durable purpose/consent vector changes. */
+	suspend fun reconcileDurableDemands(): ActivityRegistrationResult
 	suspend fun closeForCollectedDataDeletion(): ActivityRegistrationResult
 	suspend fun resumeAfterCollectedDataDeletion(): ActivityRegistrationResult
 	fun snapshot(): ActivityRegistrationSnapshot
@@ -39,12 +41,15 @@ data class ActivityRegistrationIdentity(
 	val sourceInstanceId: String,
 	val registrationGeneration: Long,
 	val collectedDataEpoch: Long,
-	val appliedRevision: Long?,
+	val clockDomainId: String,
+	val physicalConfigurationFingerprint: String,
 ) {
 	init {
 		require(sourceInstanceId.isNotBlank())
-		require(registrationGeneration >= 0L)
+		require(registrationGeneration > 0L)
 		require(collectedDataEpoch >= 0L)
+		require(clockDomainId.isNotBlank())
+		require(physicalConfigurationFingerprint.isNotBlank())
 	}
 }
 
@@ -67,6 +72,7 @@ enum class ActivityRegistrationStatus { APPLIED, DEGRADED, BLOCKED, FAILED }
 
 enum class ActivityRegistrationFailureCode {
 	PERMISSION_MISSING,
+	MISSING_DURABLE_DEMAND,
 	PROVIDER_UNAVAILABLE,
 	PROVIDER_REGISTRATION_FAILED,
 	PROVIDER_REMOVAL_FAILED,

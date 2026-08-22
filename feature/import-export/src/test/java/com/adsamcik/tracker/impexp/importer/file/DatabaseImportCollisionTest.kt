@@ -32,7 +32,7 @@ class DatabaseImportCollisionTest {
 				"INSERT INTO child (id, parent_id, value) VALUES (1, 1, 'imported-child')",
 			)
 
-			val result = DatabaseImport().importDatabase(source, target)
+			val result = testImporter().importDatabase(source, target)
 				.shouldBeInstanceOf<DatabaseImportResult.Success>()
 				.result
 
@@ -92,7 +92,7 @@ class DatabaseImportCollisionTest {
 			val source = sourceRoom.openHelper.writableDatabase
 			val target = targetRoom.openHelper.writableDatabase
 
-			val result = DatabaseImport().importDatabase(source, target)
+			val result = testImporter().importDatabase(source, target)
 				.shouldBeInstanceOf<DatabaseImportResult.Success>()
 
 			result.result.failedCount shouldBe 0
@@ -110,7 +110,7 @@ class DatabaseImportCollisionTest {
 				"INSERT INTO unique_item (id, code) VALUES (1, 'duplicate'), (2, 'fresh')",
 			)
 
-			val result = DatabaseImport().importDatabase(source, target)
+			val result = testImporter().importDatabase(source, target)
 				.shouldBeInstanceOf<DatabaseImportResult.Success>()
 				.result
 
@@ -131,7 +131,7 @@ class DatabaseImportCollisionTest {
 			source.execSQL("INSERT INTO a_valid (id, value) VALUES (1, 'must-roll-back')")
 			source.execSQL("INSERT INTO z_child (id, parent_id) VALUES (1, 999)")
 
-			val result = DatabaseImport().importCopiedDatabase(source, targetRoom)
+			val result = testImporter().importCopiedDatabase(source, targetRoom)
 
 			result.failedCount shouldBe 1
 			result.errors.single() shouldContain "Constraint violation in table z_child"
@@ -149,7 +149,7 @@ class DatabaseImportCollisionTest {
 			target.execSQL("INSERT INTO blob_item (id, payload) VALUES (1, X'00')")
 			source.execSQL("INSERT INTO blob_item (id, payload) VALUES (1, X'0102FF')")
 
-			DatabaseImport().importDatabase(source, target)
+			testImporter().importDatabase(source, target)
 				.shouldBeInstanceOf<DatabaseImportResult.Success>()
 
 			target.query("SELECT payload FROM blob_item WHERE id != 1").use {
@@ -169,7 +169,7 @@ class DatabaseImportCollisionTest {
 			source.execSQL("INSERT INTO parent (id, name) VALUES (1, 'imported')")
 			source.execSQL("INSERT INTO child (id, parent_id, value) VALUES (1, 1, 'skipped')")
 
-			val result = DatabaseImport().importDatabase(source, target)
+			val result = testImporter().importDatabase(source, target)
 				.shouldBeInstanceOf<DatabaseImportResult.Success>()
 				.result
 
@@ -178,6 +178,52 @@ class DatabaseImportCollisionTest {
 			target.singleInt("SELECT COUNT(*) FROM child") shouldBe 0
 			source.singleInt("SELECT parent_id FROM child") shouldBe 1
 			source.query("PRAGMA foreign_key_check").use { it.count shouldBe 0 }
+		}
+
+	@Test
+	fun `merge imports user facts without installing source control state`() =
+		withDatabases { sourceRoom, targetRoom ->
+			val source = sourceRoom.openHelper.writableDatabase
+			val target = targetRoom.openHelper.writableDatabase
+			source.execSQL(
+				"INSERT INTO activity (id, name, iconName) VALUES (1000, 'Imported custom activity', NULL)",
+			)
+			source.execSQL(
+				"INSERT INTO source_policy_authority " +
+					"(id, bootstrap_state, current_policy_revision, legacy_settings_fingerprint, updated_at_ms) " +
+					"VALUES (1, 'ACTIVE', 99, 'foreign-install', 999)",
+			)
+			source.execSQL(
+				"INSERT INTO source_demand " +
+					"(demand_id, consumer_id, source_kind, purpose, logical_tracking_id, manifest_revision, " +
+					"source_policy_revision, consent_epoch, persistence_eligible, qos_code, maximum_age_ms, " +
+					"desired_latency_ms, requested_boot_id, requested_elapsed_realtime_nanos, requested_at_ms, " +
+					"status, retire_boot_id, retire_elapsed_realtime_nanos, retired_at_ms) VALUES " +
+					"('foreign-demand', 'foreign-consumer', 1, 'AMBIENT_PRODUCT', NULL, NULL, " +
+					"99, 7, 1, 2, 30000, 1000, 'foreign-boot', 100, 999, 'ACTIVE', NULL, NULL, NULL)",
+			)
+			target.execSQL(
+				"INSERT INTO source_policy_authority " +
+					"(id, bootstrap_state, current_policy_revision, legacy_settings_fingerprint, updated_at_ms) " +
+					"VALUES (1, 'UNINITIALIZED', 0, NULL, 1)",
+			)
+
+			val result = DatabaseImport().importDatabase(source, target)
+				.shouldBeInstanceOf<DatabaseImportResult.Success>()
+				.result
+
+			result.failedCount shouldBe 0
+			target.singleInt(
+				"SELECT COUNT(*) FROM activity WHERE name = 'Imported custom activity'",
+			) shouldBe 1
+			target.query(
+				"SELECT bootstrap_state, current_policy_revision FROM source_policy_authority WHERE id = 1",
+			).use {
+				it.moveToFirst() shouldBe true
+				it.getString(0) shouldBe "UNINITIALIZED"
+				it.getLong(1) shouldBe 0L
+			}
+			target.singleInt("SELECT COUNT(*) FROM source_demand") shouldBe 0
 		}
 
 	private fun withDatabases(block: (AppDatabase, AppDatabase) -> Unit) {
@@ -191,6 +237,10 @@ class DatabaseImportCollisionTest {
 			targetRoom.close()
 		}
 	}
+
+	private fun testImporter() = DatabaseImport(
+		setOf("parent", "child", "unique_item", "a_valid", "z_child", "blob_item"),
+	)
 
 	private fun createParentChildSchema(
 		database: SupportSQLiteDatabase,
