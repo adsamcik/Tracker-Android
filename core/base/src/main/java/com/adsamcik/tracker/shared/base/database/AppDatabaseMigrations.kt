@@ -1374,6 +1374,8 @@ val MIGRATION_25_26: Migration = object : Migration(25, 26) {
  * Existing v27 installs are migrated additively. The singleton authority starts fail-closed and
  * is activated only after the application has transactionally imported the legacy source settings.
  */
+internal const val V28_MIGRATION_INTERRUPTION_REASON = "V28_MIGRATION_INTERRUPTED"
+
 val MIGRATION_27_28: Migration = object : Migration(27, 28) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		with(db) {
@@ -1433,10 +1435,38 @@ val MIGRATION_27_28: Migration = object : Migration(27, 28) {
 					"desired_foreground_capability_flags = foreground_capability_flags, " +
 					"applied_foreground_capability_flags = CASE " +
 					"WHEN state = 'RUNNING' THEN foreground_capability_flags ELSE NULL END, " +
+					"start_origin = COALESCE((SELECT session.start_origin " +
+					"FROM logical_tracking_session AS session " +
+					"WHERE session.logical_tracking_id = source_service_run.logical_tracking_id), " +
+					"'LEGACY_UNKNOWN'), " +
 					"runtime_acknowledgement = CASE " +
 					"WHEN state = 'RUNNING' THEN 'LEGACY_ACTIVE' " +
 					"WHEN state IN ('CLOSED', 'FAILED') THEN 'LEGACY_TERMINAL' ELSE 'PENDING' END",
 			)
+			// A v27 runtime cannot survive the binary replacement that performs this migration. Its
+			// manifest, consent, boot lease, and provider acknowledgement are unprovable in v28, so
+			// retaining a nonterminal row would expose a ghost session before recovery can run. Use
+			// only existing factual boundaries; never extend legacy activity to migration wall time.
+			execSQL(
+				"UPDATE logical_tracking_session SET " +
+					"state = 'FINALIZED', lifecycle_revision = lifecycle_revision + 1, " +
+					"completed_at_ms = COALESCE(completed_at_ms, cutoff_at_ms, started_at_ms), " +
+					"failure_code = '$V28_MIGRATION_INTERRUPTION_REASON' " +
+					"WHERE state NOT IN ('FINALIZED', 'CLOSED', 'FAILED')",
+			)
+			execSQL(
+				"UPDATE source_service_run SET " +
+					"state = 'FINALIZED', completed_at_ms = COALESCE(completed_at_ms, started_at_ms), " +
+					"completion_reason = '$V28_MIGRATION_INTERRUPTION_REASON', " +
+					"runtime_acknowledgement = 'TERMINAL_FAILURE', " +
+					"runtime_failure_code = '$V28_MIGRATION_INTERRUPTION_REASON', " +
+					"run_revision = run_revision + 1 " +
+					"WHERE state NOT IN ('FINALIZED', 'CLOSED', 'FAILED')",
+			)
+			// tracker_run has no interruption/completeness field. Closing at its own known start is
+			// conservative: downstream queries cannot fabricate an open-ended interval, while typed
+			// observations and materialized session segments retain the actual released history.
+			execSQL("UPDATE tracker_run SET end_time_ms = start_time_ms WHERE end_time_ms IS NULL")
 			execSQL(
 				"""
 				CREATE TABLE IF NOT EXISTS source_policy_authority (
