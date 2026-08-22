@@ -1384,6 +1384,10 @@ val MIGRATION_27_28: Migration = object : Migration(27, 28) {
 					"ADD COLUMN source_policy_revision INTEGER",
 			)
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN source_policy_revision INTEGER")
+			execSQL("ALTER TABLE source_event_wal ADD COLUMN delivery_identity TEXT")
+			execSQL("ALTER TABLE source_event_wal ADD COLUMN delivery_unit_index INTEGER")
+			execSQL("ALTER TABLE source_event_wal ADD COLUMN delivery_unit_count INTEGER")
+			execSQL("ALTER TABLE source_event_wal ADD COLUMN observed_interval_start_nanos INTEGER")
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN capture_consent_epoch INTEGER")
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN session_manifest_revision INTEGER")
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN lifecycle_lease_generation INTEGER")
@@ -1397,6 +1401,11 @@ val MIGRATION_27_28: Migration = object : Migration(27, 28) {
 			execSQL(
 				"ALTER TABLE source_event_wal " +
 					"ADD COLUMN integrity_identity TEXT NOT NULL DEFAULT 'LEGACY_PENDING_CHECKSUM'",
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_source_event_wal_delivery_unit " +
+					"ON source_event_wal(source_kind, captured_collected_data_epoch, " +
+					"clock_domain_id, delivery_identity, delivery_unit_index)",
 			)
 			execSQL(
 				"ALTER TABLE logical_tracking_session " +

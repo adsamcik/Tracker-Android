@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEnti
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
@@ -24,15 +25,21 @@ import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
+import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
+import com.adsamcik.tracker.tracker.source.model.SourceDeliveryUnit
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
+import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
+import com.adsamcik.tracker.tracker.source.model.sourceDeliveryIdentity
 import io.kotest.matchers.shouldBe
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -157,6 +164,329 @@ class RoomDurableSourceIngressTest {
 
 		duplicate.eventId shouldBe admitted.eventId
 		database.sourceEventWalDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `source delivery allocates contiguous sequences and commits every unit atomically`() = runTest {
+		val delivery = delivery(
+			candidate(sequence = 700L, activityType = 3),
+			candidate(sequence = 900L, activityType = 7, observedElapsedNanos = 101L),
+		)
+
+		val admitted = subject.admit(delivery).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+
+		admitted.units.map { it.unitIndex } shouldBe listOf(0, 1)
+		val rows = database.sourceEventWalDao().eventsAfter(0L, 10)
+		rows.map { it.sourceSequence } shouldBe listOf(0L, 1L)
+		rows.map { it.deliveryIdentity } shouldBe listOf(delivery.identity.value, delivery.identity.value)
+		rows.map { it.deliveryUnitIndex } shouldBe listOf(0, 1)
+		rows.map { it.deliveryUnitCount } shouldBe listOf(2, 2)
+		rows.map { it.providerDedupKey } shouldBe listOf(null, null)
+		database.sourceRegistrationStateDao().get(
+			SourceKind.ACTIVITY.stableCode,
+			SOURCE_OWNER_SCOPE,
+		)?.nextSequence shouldBe 2L
+		database.sourceEvidenceStateDao().get()?.revision shouldBe 1L
+	}
+
+	@Test
+	fun `source delivery encoding cancellation propagates without allocating or persisting`() = runTest {
+		val cancellingSubject = RoomDurableSourceIngress(
+			database,
+			lifecycle,
+			object : SourcePayloadCodec by DefaultSourcePayloadCodec() {
+				override fun encode(
+					payload: SourcePayload,
+					payloadVersion: Int,
+				): EncodedSourcePayload = throw CancellationException("test cancellation")
+			},
+		)
+
+		shouldThrow<CancellationException> {
+			cancellingSubject.admit(delivery(candidate(sequence = 700L, activityType = 3)))
+		}
+
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRegistrationStateDao().get(
+			SourceKind.ACTIVITY.stableCode,
+			SOURCE_OWNER_SCOPE,
+		)?.nextSequence shouldBe 0L
+		database.sourceEvidenceStateDao().get()?.revision shouldBe 0L
+	}
+
+	@Test
+	fun `exact source delivery replay ignores process local envelope and allocates no sequence`() = runTest {
+		val initial = delivery(
+			candidate(sequence = 10L, activityType = 3),
+			candidate(sequence = 11L, activityType = 7, observedElapsedNanos = 101L),
+		)
+		val admitted = subject.admit(initial).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		val replay = initial.copy(
+			units = initial.units.mapIndexed { index, unit ->
+				unit.copy(
+					evidence = unit.evidence.copy(
+						providerDedupKey = "must-not-be-indexed-$index",
+						sourceInstanceId = SourceInstanceId("new-process-instance"),
+						registrationGeneration = 99L,
+						physicalConfigurationFingerprint = "new-physical-generation",
+						authorizationRevision = 99L,
+						registrationPurposeEligibilityMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+						registrationEligibilityFingerprint = "new-authorization",
+						sourceSequence = 9_000L + index,
+						receivedElapsedRealtimeNanos = 50_000L + index,
+						wallTimeMs = 75_000L + index,
+						wallTimeUncertaintyMs = 500L + index,
+						acquiredAtMs = 75_000L + index,
+						quality = SourceQuality(
+							confidence = 0.25f,
+							flags = setOf(SourceQualityFlag.BATCHED, SourceQualityFlag.CLOCK_UNCERTAIN),
+						),
+					),
+				)
+			},
+		)
+
+		val duplicate = subject.admit(replay).shouldBeInstanceOf<DeliveryAdmissionResult.Duplicate>()
+
+		duplicate.units shouldBe admitted.units
+		database.sourceEventWalDao().countAll() shouldBe 2L
+		database.sourceRegistrationStateDao().get(
+			SourceKind.ACTIVITY.stableCode,
+			SOURCE_OWNER_SCOPE,
+		)?.nextSequence shouldBe 2L
+	}
+
+	@Test
+	fun `delayed callback from historically valid replaced generation uses shared sequence space`() = runTest {
+		database.sourceBrokerDao().finishRegistration(
+			sourceKind = SourceKind.ACTIVITY.stableCode,
+			registrationGeneration = 1L,
+			sourceInstanceId = "activity-instance",
+			status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+			retiredAtMs = 200L,
+			retiredElapsedRealtimeNanos = 200L,
+			failureCode = "REPLACED",
+		) shouldBe 1
+		database.sourceBrokerDao().insertRegistration(
+			ProviderRegistrationGenerationEntity(
+				sourceKind = SourceKind.ACTIVITY.stableCode,
+				registrationGeneration = 2L,
+				sourceInstanceId = "activity-instance",
+				ownerScope = SOURCE_OWNER_SCOPE,
+				clockDomainId = "boot",
+				physicalConfigurationFingerprint = CONTROL_PHYSICAL_CONFIG,
+				collectedDataEpoch = 0L,
+				status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+				reservedAtMs = 200L,
+				reservedElapsedRealtimeNanos = 200L,
+				acceptedAtMs = 200L,
+				acceptedElapsedRealtimeNanos = 200L,
+				retiredAtMs = null,
+				retiredElapsedRealtimeNanos = null,
+				failureCode = null,
+			),
+		)
+		val current = requireNotNull(
+			database.sourceRegistrationStateDao().get(SourceKind.ACTIVITY.stableCode, SOURCE_OWNER_SCOPE),
+		)
+		database.sourceRegistrationStateDao().replace(
+			current.copy(registrationGeneration = 2L, updatedAtMs = 200L),
+		)
+
+		val admitted = subject.admit(delivery(candidate(sequence = 900L, observedElapsedNanos = 100L)))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+
+		admitted.units.single().unitIndex shouldBe 0
+		val stored = database.sourceEventWalDao().eventsAfter(0L, 10).single()
+		stored.registrationGeneration shouldBe 1L
+		stored.sourceSequence shouldBe 0L
+		database.sourceRegistrationStateDao().get(
+			SourceKind.ACTIVITY.stableCode,
+			SOURCE_OWNER_SCOPE,
+		)?.let { state ->
+			state.registrationGeneration shouldBe 2L
+			state.nextSequence shouldBe 1L
+		}
+	}
+
+	@Test
+	fun `reused source delivery identity with changed native payload is rejected`() = runTest {
+		val initial = delivery(candidate(sequence = 1L, activityType = 3))
+		subject.admit(initial).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		val changed = initial.copy(
+			units = listOf(
+				initial.units.single().copy(
+					evidence = candidate(sequence = 999L, activityType = 7),
+				),
+			),
+		)
+
+		val collision = subject.admit(changed)
+			.shouldBeInstanceOf<DeliveryAdmissionResult.PermanentFailure>()
+
+		collision.code shouldBe AdmissionFailureCode.IDENTITY_COLLISION
+		database.sourceEventWalDao().countAll() shouldBe 1L
+		database.sourceRegistrationStateDao().get(
+			SourceKind.ACTIVITY.stableCode,
+			SOURCE_OWNER_SCOPE,
+		)?.nextSequence shouldBe 1L
+	}
+
+	@Test
+	fun `delivery split into authorization homogeneous units commits mixed revisions atomically`() = runTest {
+		val prior = database.sourceBrokerDao().latestAuthorization(SourceKind.ACTIVITY.stableCode, 1L)
+		database.sourceBrokerDao().insertAuthorizations(
+			prior.map { row ->
+				row.copy(
+					authorizationRevision = 2L,
+					effectiveElapsedRealtimeNanos = 101L,
+					effectiveWallTimeMs = 101L,
+				)
+			},
+		)
+		val delivery = delivery(
+			candidate(sequence = 1L, activityType = 3, observedElapsedNanos = 100L),
+			candidate(sequence = 2L, activityType = 7, observedElapsedNanos = 101L),
+		)
+
+		val result = subject.admit(delivery).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+
+		result.units.map { it.unitIndex } shouldBe listOf(0, 1)
+		val stored = database.sourceEventWalDao().eventsAfter(0L, 10)
+		stored.map { it.authorizationRevision } shouldBe listOf(1L, 2L)
+		stored.map { it.sourceSequence } shouldBe listOf(0L, 1L)
+		database.sourceRegistrationStateDao().get(
+			SourceKind.ACTIVITY.stableCode,
+			SOURCE_OWNER_SCOPE,
+		)?.nextSequence shouldBe 2L
+	}
+
+	@Test
+	fun `single delivery unit spanning authorization boundary requires source splitting`() = runTest {
+		val prior = database.sourceBrokerDao().latestAuthorization(SourceKind.ACTIVITY.stableCode, 1L)
+		database.sourceBrokerDao().insertAuthorizations(
+			prior.map { row ->
+				row.copy(
+					authorizationRevision = 2L,
+					effectiveElapsedRealtimeNanos = 101L,
+					effectiveWallTimeMs = 101L,
+				)
+			},
+		)
+		val candidate = candidate(sequence = 1L, activityType = 3, observedElapsedNanos = 102L)
+		val delivery = SourceDeliveryCandidate(
+			identity = sourceDeliveryIdentity("provider-delivery-1".encodeToByteArray()),
+			units = listOf(
+				SourceDeliveryUnit(
+					unitIndex = 0,
+					evidence = candidate,
+					observedIntervalStartElapsedRealtimeNanos = 100L,
+				),
+			),
+		)
+
+		val result = subject.admit(delivery)
+			.shouldBeInstanceOf<DeliveryAdmissionResult.PermanentFailure>()
+
+		result.code shouldBe AdmissionFailureCode.AUTHORIZATION_BOUNDARY_SPLIT_REQUIRED
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRegistrationStateDao().get(
+			SourceKind.ACTIVITY.stableCode,
+			SOURCE_OWNER_SCOPE,
+		)?.nextSequence shouldBe 0L
+	}
+
+	@Test
+	fun `single delivery unit spanning physical retirement requires source splitting`() = runTest {
+		database.sourceBrokerDao().finishRegistration(
+			sourceKind = SourceKind.ACTIVITY.stableCode,
+			registrationGeneration = 1L,
+			sourceInstanceId = "activity-instance",
+			status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+			retiredAtMs = 101L,
+			retiredElapsedRealtimeNanos = 101L,
+			failureCode = "TEST_RETIREMENT",
+		) shouldBe 1
+		val candidate = candidate(sequence = 1L, activityType = 3, observedElapsedNanos = 102L)
+		val delivery = SourceDeliveryCandidate(
+			identity = sourceDeliveryIdentity("provider-delivery-1".encodeToByteArray()),
+			units = listOf(
+				SourceDeliveryUnit(
+					unitIndex = 0,
+					evidence = candidate,
+					observedIntervalStartElapsedRealtimeNanos = 100L,
+				),
+			),
+		)
+
+		val result = subject.admit(delivery)
+			.shouldBeInstanceOf<DeliveryAdmissionResult.PermanentFailure>()
+
+		result.code shouldBe AdmissionFailureCode.AUTHORIZATION_BOUNDARY_SPLIT_REQUIRED
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRegistrationStateDao().get(
+			SourceKind.ACTIVITY.stableCode,
+			SOURCE_OWNER_SCOPE,
+		)?.nextSequence shouldBe 0L
+	}
+
+	@Test
+	fun `delivery keeps pre revoke unit and omits denied unit with stable replay gap`() = runTest {
+		database.sourceBrokerDao().insertAuthorizations(
+			SourceBrokerAuthorization.rows(
+				SourceKind.ACTIVITY.stableCode,
+				1L,
+				2L,
+				emptyList(),
+				"boot",
+				101L,
+				101L,
+			),
+		)
+		val delivery = delivery(
+			candidate(sequence = 1L, activityType = 3, observedElapsedNanos = 100L),
+			candidate(sequence = 2L, activityType = 7, observedElapsedNanos = 101L),
+		)
+
+		val admitted = subject.admit(delivery).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		val duplicate = subject.admit(delivery).shouldBeInstanceOf<DeliveryAdmissionResult.Duplicate>()
+
+		admitted.units.map { it.unitIndex } shouldBe listOf(0)
+		duplicate.units shouldBe admitted.units
+		val stored = database.sourceEventWalDao().eventsAfter(0L, 10).single()
+		stored.deliveryUnitIndex shouldBe 0
+		stored.deliveryUnitCount shouldBe 2
+		stored.authorizationRevision shouldBe 1L
+		stored.sourceSequence shouldBe 0L
+		database.sourceRegistrationStateDao().get(
+			SourceKind.ACTIVITY.stableCode,
+			SOURCE_OWNER_SCOPE,
+		)?.nextSequence shouldBe 1L
+	}
+
+	@Test
+	fun `delivery keeps post retention floor unit and replays its original sparse index`() = runTest {
+		lifecycle.update(CollectedDataLifecycleSnapshot(0L, 150L))
+		database.sourceEvidenceStateDao().updateLifecycle(0L, 150L, 150L) shouldBe 1
+		val delivery = delivery(
+			candidate(sequence = 1L, activityType = 3, acquiredAtMs = 100L),
+			candidate(sequence = 2L, activityType = 7, acquiredAtMs = 200L, observedElapsedNanos = 101L),
+		)
+
+		val admitted = subject.admit(delivery).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		val duplicate = subject.admit(delivery).shouldBeInstanceOf<DeliveryAdmissionResult.Duplicate>()
+
+		admitted.units.map { it.unitIndex } shouldBe listOf(1)
+		duplicate.units shouldBe admitted.units
+		val stored = database.sourceEventWalDao().eventsAfter(0L, 10).single()
+		stored.deliveryUnitIndex shouldBe 1
+		stored.deliveryUnitCount shouldBe 2
+		stored.acquiredAtMs shouldBe 200L
+		stored.sourceSequence shouldBe 0L
+		database.sourceRegistrationStateDao().get(
+			SourceKind.ACTIVITY.stableCode,
+			SOURCE_OWNER_SCOPE,
+		)?.nextSequence shouldBe 1L
 	}
 
 	@Test
@@ -379,6 +709,13 @@ class RoomDurableSourceIngressTest {
 		lifecycleLeaseGeneration = 7L,
 	)
 
+	private fun delivery(vararg candidates: SourceEvidenceCandidate<*>) = SourceDeliveryCandidate(
+		identity = sourceDeliveryIdentity("provider-delivery-1".encodeToByteArray()),
+		units = candidates.mapIndexed { index, evidence ->
+			SourceDeliveryUnit(index, evidence)
+		},
+	)
+
 	private suspend fun installSession(
 		sessionState: String = "ACTIVE",
 		runState: String = "ACTIVE",
@@ -480,6 +817,19 @@ class RoomDurableSourceIngressTest {
 	}
 
 	private suspend fun installRegistrationGeneration() {
+		database.sourceRegistrationStateDao().insertIfAbsent(
+			SourceRegistrationStateEntity(
+				sourceKind = SourceKind.ACTIVITY.stableCode,
+				ownerScope = SOURCE_OWNER_SCOPE,
+				sourceInstanceId = "activity-instance",
+				clockDomainId = "boot",
+				registrationGeneration = 1L,
+				nextSequence = 0L,
+				appliedRevision = 1L,
+				collectedDataEpoch = 0L,
+				updatedAtMs = 50L,
+			),
+		)
 		database.sourceBrokerDao().insertRegistration(
 			ProviderRegistrationGenerationEntity(
 				sourceKind = SourceKind.ACTIVITY.stableCode,
@@ -606,6 +956,7 @@ class RoomDurableSourceIngressTest {
 		const val CONTROL_ONLY_FINGERPRINT = "test-control-only"
 		const val TEST_PHYSICAL_CONFIG = "physical-config"
 		const val CONTROL_PHYSICAL_CONFIG = "control-physical-config"
+		val SOURCE_OWNER_SCOPE = "source-broker:${SourceKind.ACTIVITY.stableCode}"
 		const val TEST_ELIGIBILITY_MASK = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT or
 			SourceBrokerPurpose.MASK_SESSION_CAPTURE
 	}

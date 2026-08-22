@@ -303,6 +303,10 @@ class AppDatabaseMigration27To28Test {
 		assertNull(wal.sessionManifestRevision)
 		assertNull(wal.lifecycleLeaseGeneration)
 		assertEquals(0L, wal.authorizationPurposeEligibilityMask)
+		assertNull(wal.deliveryIdentity)
+		assertNull(wal.deliveryUnitIndex)
+		assertNull(wal.deliveryUnitCount)
+		assertNull(wal.observedIntervalStartNanos)
 
 		assertEquals(1, database.pendingSignalDao().countAll())
 		assertNotNull(database.importReceiptDao().getJob(PopulatedV27Fixture.IMPORT_JOB_ID))

@@ -12,6 +12,9 @@ interface SourceEventWalDao {
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insertIgnoringDuplicate(entity: SourceEventWalEntity): Long
 
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	suspend fun insertDeliveryUnits(entities: List<SourceEventWalEntity>): List<Long>
+
 	@Query("SELECT * FROM source_event_wal WHERE event_id = :eventId LIMIT 1")
 	suspend fun getByEventId(eventId: String): SourceEventWalEntity?
 
@@ -61,6 +64,22 @@ interface SourceEventWalDao {
 		sourceInstanceId: String,
 		sourceSequence: Long,
 	): SourceEventWalEntity?
+
+	@Query(
+		"SELECT event_id, admission_ordinal, delivery_unit_index, delivery_unit_count, " +
+			"observed_elapsed_nanos, observed_interval_start_nanos, " +
+			"payload_version, payload_checksum " +
+			"FROM source_event_wal WHERE source_kind = :sourceKind " +
+			"AND captured_collected_data_epoch = :collectedDataEpoch " +
+			"AND clock_domain_id = :clockDomainId AND delivery_identity = :deliveryIdentity " +
+			"ORDER BY delivery_unit_index ASC",
+	)
+	suspend fun deliveryUnits(
+		sourceKind: Int,
+		collectedDataEpoch: Long,
+		clockDomainId: String,
+		deliveryIdentity: String,
+	): List<SourceDeliveryUnitIdentityRow>
 
 	@Query(
 		"SELECT * FROM source_event_wal WHERE admission_ordinal > :afterOrdinal " +
@@ -142,4 +161,16 @@ data class SourceEventIdentityRow(
 	@ColumnInfo(name = "payload_version") val payloadVersion: Int,
 	@ColumnInfo(name = "payload_checksum") val payloadChecksum: String,
 	@ColumnInfo(name = "integrity_identity") val integrityIdentity: String,
+)
+
+/** Payload-free projection used to recognize an exact replay of a process-stable delivery. */
+data class SourceDeliveryUnitIdentityRow(
+	@ColumnInfo(name = "event_id") val eventId: String,
+	@ColumnInfo(name = "admission_ordinal") val admissionOrdinal: Long,
+	@ColumnInfo(name = "delivery_unit_index") val deliveryUnitIndex: Int?,
+	@ColumnInfo(name = "delivery_unit_count") val deliveryUnitCount: Int?,
+	@ColumnInfo(name = "observed_elapsed_nanos") val observedElapsedNanos: Long,
+	@ColumnInfo(name = "observed_interval_start_nanos") val observedIntervalStartNanos: Long?,
+	@ColumnInfo(name = "payload_version") val payloadVersion: Int,
+	@ColumnInfo(name = "payload_checksum") val payloadChecksum: String,
 )

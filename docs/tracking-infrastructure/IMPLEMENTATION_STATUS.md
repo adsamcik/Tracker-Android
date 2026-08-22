@@ -374,6 +374,34 @@ No repository command was found for a separate Detekt task in CI. Device/OEM, do
 - Integration-owner connected rerun on `Medium_Phone`: `BUILD SUCCESSFUL in 17s`; 1/1 test; 104 tasks. Core unit plus committed Room-schema guard: `BUILD SUCCESSFUL in 9s`; 85 tasks. The implementation run also passed Android-test compilation, core lint, and the same connected test.
 - This closes the populated migration/ghost-runtime/deletion-reopen slice only. Portable export/import, backup recovery, legacy-WAL one-time drain, physical-provider/reboot/Doze/OEM behavior and per-source product queries remain unverified.
 
+## Latest atomic source-delivery admission evidence
+
+- The unreleased v28 WAL now records an opaque source-native delivery identity, original unit index
+  and count, and observed interval start. Legacy v27 rows migrate with null delivery metadata and
+  keep their released interpretation.
+- `DurableSourceDeliveryIngress` encodes a complete provider delivery before entering Room, resolves
+  every unit against historical physical-registration and authorization intervals, omits denied or
+  pre-retention units without renumbering eligible siblings, and rejects an unsplit unit that spans
+  an authorization or physical boundary.
+- Eligible units allocate one contiguous source-sequence range and insert with `ABORT` in the same
+  Room transaction. Injected insertion conflict rolls the sequence allocation and the whole WAL
+  batch back. Injected cancellation during payload encoding propagates with zero allocation, and
+  cancellation after a batch insert rolls both the WAL write and sequence range back.
+- Exact replay is recognized before process-local registration-state validation and compares only
+  the source-native unit structure, observed interval, payload version, and checksum. Receipt clocks,
+  wall-time reconstruction, quality metadata, source instance, provider generation, and local
+  sequence do not turn the same delivery into a new fact. A delivery with historically denied units
+  replays as the same sparse persisted subset.
+- Focused DAO/ingress implementation run: `BUILD SUCCESSFUL in 2m 45s`; the first integration-owner
+  rerun was `BUILD SUCCESSFUL in 10s`, and the physical-retirement regression rerun was
+  `BUILD SUCCESSFUL in 1m 54s`; the cancellation-injection rerun was `BUILD SUCCESSFUL in 1m 57s`.
+  Populated v27→v28 connected migration runs on `Medium_Phone` remained
+  green (`28s` implementation run; `20s` integration-owner rerun). The full debug app assembles in
+  `1m 5s`, and affected-module lint succeeds in `1m 26s` with only recorded baseline findings.
+- This is substrate, not a source-completion claim. No provider adapter calls the delivery API yet;
+  per-purpose epoch/use-retention stamping, source cursors/gaps, scoped deletion/no-resurrection,
+  bounded provider batch limits, and canonical materialization/product queries remain unimplemented.
+
 ## Latest pre-wiring R1b evidence
 
 - Three new `gpt-5.6-sol` high-reasoning reviewers independently completed read-only data/migration, Android/privacy/power, and product/validation attacks. They re-read the full design and live diff, ran repository-reference/static inspections, and made no edits or Gradle invocations.
@@ -439,7 +467,7 @@ Three fresh read-only reviewers attacked the actual containment diff and executa
 | --- | --- | --- | --- |
 | R1-A01 successful fresh-empty Wi-Fi/Cell callbacks were dropped | `BLOCKER` | `MITIGATED` | confirmed fresh empty is persisted as zero coverage; failed/unknown/all-stale delivery remains absent; runtime-fake/device proof remains |
 | R1-A02 paid Wi-Fi scans/Cell refreshes could continue for registration lifetime | `HIGH` | `MITIGATED` | TI-D083 adds finite direct-capture-only first-evidence budgets and keeps passive callbacks; calibration/reconfiguration/device evidence remains TI-212 |
-| R1-A03 exact replay identity is only in-memory and generation-local | `HIGH` | `ACCEPTED` | TI-182 requires source-native process-stable identity reconstructed before sequence allocation; current gate is containment only |
+| R1-A03 exact replay identity is only in-memory and generation-local | `HIGH` | `MITIGATED_SUBSTRATE` | atomic delivery admission now reconstructs a compact source-native identity before sequence allocation and recognizes exact replay across process-local receipt metadata and registration changes; no provider adapter uses it yet, so no source rollout is unblocked |
 | R1-A04 Wi-Fi lost child provider time | `HIGH` | `MITIGATED` | payload v2 retains each admitted AP's provider elapsed time and decodes v1 unchanged |
 | R1-A05 radio identifiers were unkeyed and Cell retained subscription identity | `HIGH` | `MITIGATED` | containment withholds identifiers; TI-D087 makes identity products unavailable until purpose/epoch HMAC rotation and non-identifying SIM grouping exist |
 | R1-A06 cancellation was swallowed as storage/projection failure | `HIGH` | `ACCEPTED` | generic guarded `runCatching` sites now rethrow cancellation; coordinator catches, sequence allocation and boundary injection remain TI-312 blockers |
@@ -447,11 +475,11 @@ Three fresh read-only reviewers attacked the actual containment diff and executa
 | R1-A08 attempt/result linkage and oversized delivery identity were weak | `MEDIUM` | `ACCEPTED` | operational attempt identity and compact source-native delivery identity belong to TI-182/TI-212; no product claim depends on current diagnostics |
 | R1-D01 receipt-time authority rejects valid pre-revocation evidence | `BLOCKER` | `MITIGATED_LOCALLY` | ingress now resolves immutable authorization by observed boot/elapsed time, accepts valid pre-boundary evidence and denies exact/post boundary; six source-specific batch/window splitters and device proof remain |
 | R1-D02 physical generation and authorization lifetime are inseparable | `BLOCKER` | `MITIGATED_LOCALLY` | unreleased v28 now has physical-only generations and independent authorization revisions; shared acceptance and Activity provider fakes prove accepted-before-retire replacement, failed-replacement preservation, durable stale cleanup and cancellation convergence. The five non-Activity provider handoffs and process recovery remain independently gated. |
-| R1-D03 radio replay identity fails across process/generation changes | `BLOCKER` | `ACCEPTED` | TI-182 restart/generation replay proof blocks both radio materializers |
+| R1-D03 radio replay identity fails across process/generation changes | `BLOCKER` | `MITIGATED_SUBSTRATE` | the WAL/DAO seam now persists process-stable delivery identity and exact sparse-subset replay, but Wi-Fi and Cell do not yet construct privacy-safe canonical delivery bytes or call this seam; both materializers remain blocked |
 | R1-D04 checksum-valid pending v27 WAL would be quarantined as corruption | `BLOCKER` | `MITIGATED_LOCALLY` | pending rows are checksum-classified as verified or mismatch and focused DAO/admission tests pass; one-time released-projection drain, populated migration and no-new-purpose proof remain TI-184 |
 | R1-D05 migration fixture omits released facts and exposes legacy active ghosts | `HIGH` | `MITIGATED_LOCALLY` | the populated fixture preserves all six typed source families/history/WAL state and terminalizes nonprovable session/service/tracker runtime before production DAO reads; emulator reopen/delete/reopen passes |
 | R1-D06 delete followed by old merge import resurrects base/derived data | `BLOCKER` | `MITIGATED_CONTAINMENT` | recognizable v2-v28 Tracker databases and `tracker-database-backup` ZIPs now fail before merge mutation and cannot report zero-row success; provenance-bearing partial/foreign database merge still requires scoped fences and writer staging before typed import activation |
-| R1-D07 cancellation can consume sequence/state without a WAL fact | `HIGH` | `ACCEPTED` | atomic allocate+admit or explicit durable gaps and coordinator/service cancellation propagation remain TI-312 work |
+| R1-D07 cancellation can consume sequence/state without a WAL fact | `HIGH` | `MITIGATED_SUBSTRATE` | encode cancellation propagates with zero state, and cancellation after delivery insert rolls back both the WAL batch and its transaction-local contiguous sequence range; legacy single-event adapters and future cursor/gap processing remain gated |
 | R1-D08 identity-free containment cannot backfill identity products | `HIGH` | `MITIGATED` | TI-D087 splits aggregate and identity tiers; containment rows are explicitly unavailable to unique-network/cell/map products |
 | R1-D09 no atomic destination-owner fence protects a real cutover | `BLOCKER` | `ACCEPTED` | add the narrow fence only with an actual candidate writer; both legacy and candidate transactions must recheck it; Location remains protected |
 | R1-P01 first Steps vertical had a circular dependency | `BLOCKER` | `MITIGATED` | TI-410 now owns its local writer/cursor/correction/deletion/export/query slice; TI-322 generalizes only afterward; add plan-DAG test |

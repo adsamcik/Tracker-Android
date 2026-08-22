@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 28,
-    "identityHash": "0eab602306705052d48d14144980e6e3",
+    "identityHash": "776835408de370095165be85296c9e06",
     "entities": [
       {
         "tableName": "activity",
@@ -1795,7 +1795,7 @@
       },
       {
         "tableName": "source_event_wal",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`admission_ordinal` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `event_id` TEXT NOT NULL, `provider_dedup_key` TEXT, `logical_tracking_id` TEXT, `service_run_id` TEXT, `source_kind` INTEGER NOT NULL, `source_instance_id` TEXT NOT NULL, `registration_generation` INTEGER NOT NULL, `physical_configuration_fingerprint` TEXT, `authorization_revision` INTEGER, `authorization_purpose_eligibility_mask` INTEGER NOT NULL DEFAULT 0, `authorization_fingerprint` TEXT, `source_sequence` INTEGER NOT NULL, `config_revision` INTEGER, `plan_attribution` INTEGER NOT NULL, `clock_domain_id` TEXT NOT NULL, `observed_elapsed_nanos` INTEGER NOT NULL, `received_elapsed_nanos` INTEGER NOT NULL, `wall_time_ms` INTEGER, `wall_time_uncertainty_ms` INTEGER, `captured_collected_data_epoch` INTEGER NOT NULL, `source_policy_revision` INTEGER, `capture_consent_epoch` INTEGER, `session_manifest_revision` INTEGER, `lifecycle_lease_generation` INTEGER, `acquired_at_ms` INTEGER NOT NULL, `quality_flags` INTEGER NOT NULL, `quality_confidence` REAL, `payload_version` INTEGER NOT NULL, `payload` BLOB NOT NULL, `payload_checksum` TEXT NOT NULL, `integrity_identity` TEXT NOT NULL DEFAULT 'LEGACY_PENDING_CHECKSUM', `created_at_ms` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`admission_ordinal` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `event_id` TEXT NOT NULL, `provider_dedup_key` TEXT, `delivery_identity` TEXT, `delivery_unit_index` INTEGER, `delivery_unit_count` INTEGER, `logical_tracking_id` TEXT, `service_run_id` TEXT, `source_kind` INTEGER NOT NULL, `source_instance_id` TEXT NOT NULL, `registration_generation` INTEGER NOT NULL, `physical_configuration_fingerprint` TEXT, `authorization_revision` INTEGER, `authorization_purpose_eligibility_mask` INTEGER NOT NULL DEFAULT 0, `authorization_fingerprint` TEXT, `source_sequence` INTEGER NOT NULL, `config_revision` INTEGER, `plan_attribution` INTEGER NOT NULL, `clock_domain_id` TEXT NOT NULL, `observed_elapsed_nanos` INTEGER NOT NULL, `observed_interval_start_nanos` INTEGER, `received_elapsed_nanos` INTEGER NOT NULL, `wall_time_ms` INTEGER, `wall_time_uncertainty_ms` INTEGER, `captured_collected_data_epoch` INTEGER NOT NULL, `source_policy_revision` INTEGER, `capture_consent_epoch` INTEGER, `session_manifest_revision` INTEGER, `lifecycle_lease_generation` INTEGER, `acquired_at_ms` INTEGER NOT NULL, `quality_flags` INTEGER NOT NULL, `quality_confidence` REAL, `payload_version` INTEGER NOT NULL, `payload` BLOB NOT NULL, `payload_checksum` TEXT NOT NULL, `integrity_identity` TEXT NOT NULL DEFAULT 'LEGACY_PENDING_CHECKSUM', `created_at_ms` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "admissionOrdinal",
@@ -1813,6 +1813,21 @@
             "fieldPath": "providerDedupKey",
             "columnName": "provider_dedup_key",
             "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "deliveryIdentity",
+            "columnName": "delivery_identity",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "deliveryUnitIndex",
+            "columnName": "delivery_unit_index",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "deliveryUnitCount",
+            "columnName": "delivery_unit_count",
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "logicalTrackingId",
@@ -1892,6 +1907,11 @@
             "columnName": "observed_elapsed_nanos",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "observedIntervalStartNanos",
+            "columnName": "observed_interval_start_nanos",
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "receivedElapsedNanos",
@@ -2050,6 +2070,19 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_source_event_wal_retention` ON `${TABLE_NAME}` (`created_at_ms`, `admission_ordinal`)"
+          },
+          {
+            "name": "idx_source_event_wal_delivery_unit",
+            "unique": true,
+            "columnNames": [
+              "source_kind",
+              "captured_collected_data_epoch",
+              "clock_domain_id",
+              "delivery_identity",
+              "delivery_unit_index"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_source_event_wal_delivery_unit` ON `${TABLE_NAME}` (`source_kind`, `captured_collected_data_epoch`, `clock_domain_id`, `delivery_identity`, `delivery_unit_index`)"
           }
         ]
       },
@@ -6397,7 +6430,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '0eab602306705052d48d14144980e6e3')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '776835408de370095165be85296c9e06')"
     ]
   }
 }

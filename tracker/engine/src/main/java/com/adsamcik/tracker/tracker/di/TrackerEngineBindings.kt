@@ -7,8 +7,10 @@ import com.adsamcik.tracker.tracker.notification.TrackerNotificationSettingsRepo
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
 import com.adsamcik.tracker.tracker.service.ActivityWatcherServiceController
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
+import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.ingress.RoomActivityRecognitionEventIngress
 import com.adsamcik.tracker.tracker.source.ingress.RoomDurableSourceIngress
+import com.adsamcik.tracker.tracker.source.ingress.SourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.projection.Projection
 import com.adsamcik.tracker.tracker.source.runtime.SourceRuntime
 import com.adsamcik.tracker.tracker.source.model.SourcePlan
@@ -49,6 +51,11 @@ abstract class TrackerEngineBindings {
 	abstract fun bindDurableSourceIngress(
 		impl: RoomDurableSourceIngress,
 	): DurableSourceIngress
+
+	@Binds
+	abstract fun bindSourcePayloadCodec(
+		impl: DefaultSourcePayloadCodec,
+	): SourcePayloadCodec
 
 	@Binds
 	abstract fun bindActivityRecognitionEventIngress(

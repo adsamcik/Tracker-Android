@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.shared.base.database.dao
 
 import android.app.Application
+import android.database.sqlite.SQLiteConstraintException
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.pruneSourceEventStorageBefore
@@ -14,7 +16,9 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProjectionRegistrati
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.database.data.TrackingRolloutStateEntity
 import io.kotest.matchers.shouldBe
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.string.shouldContain
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -171,6 +175,92 @@ class SourceEventWalDaoTest {
 		dao.allocateSequence(2, "automatic-start-monitor", 101).nextSequence shouldBe 0L
 		dao.allocateSequence(2, "automatic-start-monitor", 102).nextSequence shouldBe 1L
 		dao.get(2, "automatic-start-monitor")?.nextSequence shouldBe 2L
+	}
+
+	@Test
+	fun `registration sequence range is contiguous and advances once by its unit count`() = runTest {
+		val dao = database.sourceRegistrationStateDao()
+		dao.insertIfAbsent(
+			SourceRegistrationStateEntity(
+				sourceKind = 3,
+				ownerScope = "source-broker:3",
+				sourceInstanceId = "wifi-instance",
+				clockDomainId = "android-boot-count:4",
+				registrationGeneration = 5,
+				nextSequence = 11,
+				appliedRevision = null,
+				collectedDataEpoch = 1,
+				updatedAtMs = 100,
+			),
+		)
+
+		dao.allocateSequenceRange(3, "source-broker:3", 3, 101) shouldBe 11L..13L
+		dao.get(3, "source-broker:3")?.nextSequence shouldBe 14L
+	}
+
+	@Test
+	fun `failed delivery insert rolls back its entire sequence range and wal batch`() = runTest {
+		val stateDao = database.sourceRegistrationStateDao()
+		val walDao = database.sourceEventWalDao()
+		stateDao.insertIfAbsent(
+			SourceRegistrationStateEntity(
+				sourceKind = 1,
+				ownerScope = "source-broker:1",
+				sourceInstanceId = "instance",
+				clockDomainId = "boot",
+				registrationGeneration = 1,
+				nextSequence = 11,
+				appliedRevision = null,
+				collectedDataEpoch = 0,
+				updatedAtMs = 100,
+			),
+		)
+		walDao.insertIgnoringDuplicate(event("existing-event", 99L))
+
+		shouldThrow<SQLiteConstraintException> {
+			database.withTransaction {
+				val sequences = stateDao.allocateSequenceRange(1, "source-broker:1", 2, 101).toList()
+				walDao.insertDeliveryUnits(
+					listOf(
+						event("new-event", sequences[0]),
+						event("existing-event", sequences[1]),
+					),
+				)
+			}
+		}
+
+		stateDao.get(1, "source-broker:1")?.nextSequence shouldBe 11L
+		walDao.countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `cancelled delivery transaction rolls back its sequence range and wal batch`() = runTest {
+		val stateDao = database.sourceRegistrationStateDao()
+		val walDao = database.sourceEventWalDao()
+		stateDao.insertIfAbsent(
+			SourceRegistrationStateEntity(
+				sourceKind = 1,
+				ownerScope = "source-broker:1",
+				sourceInstanceId = "instance",
+				clockDomainId = "boot",
+				registrationGeneration = 1,
+				nextSequence = 11,
+				appliedRevision = null,
+				collectedDataEpoch = 0,
+				updatedAtMs = 100,
+			),
+		)
+
+		shouldThrow<CancellationException> {
+			database.withTransaction {
+				val sequence = stateDao.allocateSequenceRange(1, "source-broker:1", 1, 101).first
+				walDao.insertDeliveryUnits(listOf(event("cancelled-event", sequence)))
+				throw CancellationException("test cancellation")
+			}
+		}
+
+		stateDao.get(1, "source-broker:1")?.nextSequence shouldBe 11L
+		walDao.countAll() shouldBe 0L
 	}
 
 	private fun queryPlan(sql: String): String = buildString {

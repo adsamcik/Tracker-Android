@@ -24,6 +24,17 @@ interface SourceRegistrationStateDao {
 	)
 	suspend fun incrementSequence(sourceKind: Int, ownerScope: String, updatedAtMs: Long): Int
 
+	@Query(
+		"UPDATE source_registration_state SET next_sequence = next_sequence + :count, " +
+			"updated_at_ms = :updatedAtMs WHERE source_kind = :sourceKind AND owner_scope = :ownerScope",
+	)
+	suspend fun incrementSequenceBy(
+		sourceKind: Int,
+		ownerScope: String,
+		count: Int,
+		updatedAtMs: Long,
+	): Int
+
 	@Transaction
 	suspend fun allocateSequence(sourceKind: Int, ownerScope: String, updatedAtMs: Long): SourceRegistrationStateEntity {
 		check(incrementSequence(sourceKind, ownerScope, updatedAtMs) == 1) {
@@ -31,6 +42,26 @@ interface SourceRegistrationStateDao {
 		}
 		val updated = requireNotNull(get(sourceKind, ownerScope))
 		return updated.copy(nextSequence = updated.nextSequence - 1L)
+	}
+
+	@Transaction
+	suspend fun allocateSequenceRange(
+		sourceKind: Int,
+		ownerScope: String,
+		count: Int,
+		updatedAtMs: Long,
+	): LongRange {
+		require(count > 0)
+		val current = requireNotNull(get(sourceKind, ownerScope)) {
+			"Source registration is not reserved"
+		}
+		check(current.nextSequence <= Long.MAX_VALUE - count.toLong()) {
+			"Source sequence exhausted"
+		}
+		check(incrementSequenceBy(sourceKind, ownerScope, count, updatedAtMs) == 1) {
+			"Source registration is not reserved"
+		}
+		return current.nextSequence..(current.nextSequence + count - 1L)
 	}
 
 	@Query("DELETE FROM source_registration_state")

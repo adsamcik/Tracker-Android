@@ -32,6 +32,17 @@ import java.security.MessageDigest
 			value = ["created_at_ms", "admission_ordinal"],
 			name = "idx_source_event_wal_retention",
 		),
+		Index(
+			value = [
+				"source_kind",
+				"captured_collected_data_epoch",
+				"clock_domain_id",
+				"delivery_identity",
+				"delivery_unit_index",
+			],
+			unique = true,
+			name = "idx_source_event_wal_delivery_unit",
+		),
 	],
 )
 data class SourceEventWalEntity(
@@ -42,6 +53,12 @@ data class SourceEventWalEntity(
 	val eventId: String,
 	@ColumnInfo(name = "provider_dedup_key")
 	val providerDedupKey: String?,
+	@ColumnInfo(name = "delivery_identity")
+	val deliveryIdentity: String? = null,
+	@ColumnInfo(name = "delivery_unit_index")
+	val deliveryUnitIndex: Int? = null,
+	@ColumnInfo(name = "delivery_unit_count")
+	val deliveryUnitCount: Int? = null,
 	@ColumnInfo(name = "logical_tracking_id")
 	val logicalTrackingId: String?,
 	@ColumnInfo(name = "service_run_id")
@@ -70,6 +87,8 @@ data class SourceEventWalEntity(
 	val clockDomainId: String,
 	@ColumnInfo(name = "observed_elapsed_nanos")
 	val observedElapsedNanos: Long,
+	@ColumnInfo(name = "observed_interval_start_nanos")
+	val observedIntervalStartNanos: Long? = null,
 	@ColumnInfo(name = "received_elapsed_nanos")
 	val receivedElapsedNanos: Long,
 	@ColumnInfo(name = "wall_time_ms")
@@ -107,6 +126,9 @@ data class SourceEventWalEntity(
 
 	fun calculatedIntegrityIdentity(): String {
 		val canonical = listOf(
+			deliveryIdentity,
+			deliveryUnitIndex,
+			deliveryUnitCount,
 			logicalTrackingId,
 			serviceRunId,
 			sourceKind,
@@ -122,6 +144,7 @@ data class SourceEventWalEntity(
 			planAttribution,
 			clockDomainId,
 			observedElapsedNanos,
+			observedIntervalStartNanos,
 			receivedElapsedNanos,
 			wallTimeMs,
 			wallTimeUncertaintyMs,

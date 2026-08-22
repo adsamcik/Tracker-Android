@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.ingress
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.SourceEventIdentityRow
+import com.adsamcik.tracker.shared.base.database.dao.SourceDeliveryUnitIdentityRow
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity.Companion.LEGACY_CHECKSUM_MISMATCH
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity.Companion.LEGACY_CHECKSUM_VERIFIED
@@ -19,6 +20,8 @@ import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import kotlinx.coroutines.CancellationException
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
+import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
+import com.adsamcik.tracker.tracker.source.model.SourceDeliveryUnit
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -35,6 +38,24 @@ interface DurableSourceIngress {
 	suspend fun admit(candidate: SourceEvidenceCandidate<*>): AdmissionResult
 	suspend fun committedBatch(afterOrdinal: Long, limit: Int): List<AdmittedSourceEvent<out SourcePayload>>
 	suspend fun checkpoint(consumer: String, ordinal: Long)
+}
+
+/** Batch admission contract adopted source-by-source without widening legacy ingress mocks. */
+interface DurableSourceDeliveryIngress {
+	suspend fun admit(delivery: SourceDeliveryCandidate): DeliveryAdmissionResult
+}
+
+sealed interface DeliveryAdmissionResult {
+	data class Admitted(val units: List<AdmittedUnit>) : DeliveryAdmissionResult
+	data class Duplicate(val units: List<AdmittedUnit>) : DeliveryAdmissionResult
+	data class RetryableFailure(val code: AdmissionFailureCode) : DeliveryAdmissionResult
+	data class PermanentFailure(val code: AdmissionFailureCode) : DeliveryAdmissionResult
+
+	data class AdmittedUnit(
+		val unitIndex: Int,
+		val eventId: SourceEventId,
+		val admissionOrdinal: Long,
+	)
 }
 
 sealed interface AdmissionResult {
@@ -78,8 +99,8 @@ enum class AdmissionFailureCode {
 class RoomDurableSourceIngress @Inject constructor(
 	private val database: AppDatabase,
 	private val lifecycleStore: CollectedDataLifecycleStore,
-	private val payloadCodec: DefaultSourcePayloadCodec,
-) : DurableSourceIngress {
+	private val payloadCodec: SourcePayloadCodec,
+) : DurableSourceIngress, DurableSourceDeliveryIngress {
 	override suspend fun admit(candidate: SourceEvidenceCandidate<*>): AdmissionResult {
 		val lifecycle = lifecycleStore.snapshot()
 		if (candidate.capturedCollectedDataEpoch != lifecycle.epoch) {
@@ -88,7 +109,9 @@ class RoomDurableSourceIngress @Inject constructor(
 		if (lifecycle.retainedFromMs?.let { candidate.acquiredAtMs < it } == true) {
 			return AdmissionResult.PermanentFailure(AdmissionFailureCode.BEFORE_RETENTION_BOUNDARY)
 		}
-		val encoded = runCatching { payloadCodec.encode(candidate.payload, candidate.payloadVersion) }
+		val encoded = runCatchingNonCancellation {
+			payloadCodec.encode(candidate.payload, candidate.payloadVersion)
+		}
 			.getOrElse {
 				return AdmissionResult.PermanentFailure(AdmissionFailureCode.UNSUPPORTED_PAYLOAD)
 			}
@@ -225,6 +248,204 @@ class RoomDurableSourceIngress @Inject constructor(
 		}
 	}
 
+	override suspend fun admit(delivery: SourceDeliveryCandidate): DeliveryAdmissionResult {
+		val lifecycle = lifecycleStore.snapshot()
+		if (delivery.capturedCollectedDataEpoch != lifecycle.epoch) {
+			return DeliveryAdmissionResult.PermanentFailure(
+				AdmissionFailureCode.STALE_COLLECTED_DATA_EPOCH,
+			)
+		}
+		val encodedUnits = buildList {
+			for (unit in delivery.units) {
+				val encoded = runCatchingNonCancellation {
+					payloadCodec.encode(unit.evidence.payload, unit.evidence.payloadVersion)
+				}.getOrElse {
+					return DeliveryAdmissionResult.PermanentFailure(
+						AdmissionFailureCode.UNSUPPORTED_PAYLOAD,
+					)
+				}
+				add(EncodedDeliveryUnit(unit, encoded))
+			}
+		}
+
+		return runCatchingNonCancellation {
+			database.withTransaction<DeliveryAdmissionResult> transaction@ {
+				val stateDao = database.sourceEvidenceStateDao()
+				val evidenceState = stateDao.get()
+				if (evidenceState == null || evidenceState.collectedDataEpoch != lifecycle.epoch ||
+					evidenceState.retainedFromMs != lifecycle.retainedFromMs
+				) {
+					return@transaction DeliveryAdmissionResult.RetryableFailure(
+						AdmissionFailureCode.LIFECYCLE_BARRIER_IN_PROGRESS,
+					)
+				}
+
+				val walDao = database.sourceEventWalDao()
+				val existing = walDao.deliveryUnits(
+					delivery.source.stableCode,
+					delivery.capturedCollectedDataEpoch,
+					delivery.clockDomainId,
+					delivery.identity.value,
+				)
+				if (existing.isNotEmpty()) {
+					return@transaction resolveDeliveryReplay(delivery, encodedUnits, existing)
+				}
+
+				val authorized = mutableListOf<AuthorizedDeliveryUnit>()
+				var emptyDeliveryFailure = AdmissionFailureCode.STALE_SOURCE_POLICY
+				for (unit in encodedUnits) {
+					val evidence = unit.sourceUnit.evidence
+					if (evidence.capturedCollectedDataEpoch != evidenceState.collectedDataEpoch) {
+						return@transaction DeliveryAdmissionResult.PermanentFailure(
+							AdmissionFailureCode.STALE_COLLECTED_DATA_EPOCH,
+						)
+					}
+					if (evidenceState.retainedFromMs?.let { evidence.acquiredAtMs < it } == true) {
+						emptyDeliveryFailure = AdmissionFailureCode.BEFORE_RETENTION_BOUNDARY
+						continue
+					}
+					val physicalFingerprint = evidence.physicalConfigurationFingerprint
+						?: return@transaction DeliveryAdmissionResult.PermanentFailure(
+							AdmissionFailureCode.STALE_REGISTRATION_GENERATION,
+						)
+					val brokerDao = database.sourceBrokerDao()
+					val registration = brokerDao.registrationAtObservedTime(
+						evidence.source.stableCode,
+						evidence.registrationGeneration,
+						evidence.sourceInstanceId.value,
+						evidence.clockDomainId,
+						physicalFingerprint,
+						evidence.observedElapsedRealtimeNanos,
+					)
+					val intervalStart = unit.sourceUnit.observedIntervalStartElapsedRealtimeNanos
+					val startRegistration = if (intervalStart < evidence.observedElapsedRealtimeNanos) {
+						brokerDao.registrationAtObservedTime(
+							evidence.source.stableCode,
+							evidence.registrationGeneration,
+							evidence.sourceInstanceId.value,
+							evidence.clockDomainId,
+							physicalFingerprint,
+							intervalStart,
+						)
+					} else {
+						registration
+					}
+					if ((registration == null) != (startRegistration == null)) {
+						return@transaction DeliveryAdmissionResult.PermanentFailure(
+							AdmissionFailureCode.AUTHORIZATION_BOUNDARY_SPLIT_REQUIRED,
+						)
+					}
+					if (registration == null) {
+						emptyDeliveryFailure = AdmissionFailureCode.STALE_REGISTRATION_GENERATION
+						continue
+					}
+					if (registration.collectedDataEpoch != evidence.capturedCollectedDataEpoch) {
+						return@transaction DeliveryAdmissionResult.PermanentFailure(
+							AdmissionFailureCode.STALE_COLLECTED_DATA_EPOCH,
+						)
+					}
+					val authorization = brokerDao.authorizationAt(
+						evidence.source.stableCode,
+						evidence.registrationGeneration,
+						evidence.clockDomainId,
+						evidence.observedElapsedRealtimeNanos,
+					).toAuthorizationSnapshotOrNull()
+					if (intervalStart < evidence.observedElapsedRealtimeNanos) {
+						val startAuthorization = brokerDao.authorizationAt(
+							evidence.source.stableCode,
+							evidence.registrationGeneration,
+							evidence.clockDomainId,
+							intervalStart,
+						).toAuthorizationSnapshotOrNull()
+						if (startAuthorization?.authorizationRevision != authorization?.authorizationRevision) {
+							return@transaction DeliveryAdmissionResult.PermanentFailure(
+								AdmissionFailureCode.AUTHORIZATION_BOUNDARY_SPLIT_REQUIRED,
+							)
+						}
+					}
+					if (authorization == null || authorization.isDenied) {
+						emptyDeliveryFailure = AdmissionFailureCode.STALE_SOURCE_POLICY
+						continue
+					}
+					val captureMembers = authorization.authorizedMembers.filter { member ->
+						member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+					}
+					if (captureMembers.size > 1) {
+						return@transaction DeliveryAdmissionResult.PermanentFailure(
+							AdmissionFailureCode.STALE_SESSION_MANIFEST,
+						)
+					}
+					authorized += AuthorizedDeliveryUnit(
+						unit,
+						authorization,
+						captureMembers.singleOrNull(),
+					)
+				}
+				if (authorized.isEmpty()) {
+					return@transaction DeliveryAdmissionResult.PermanentFailure(emptyDeliveryFailure)
+				}
+				val firstEvidence = authorized.first().encoded.sourceUnit.evidence
+				val ownerScope = "source-broker:${delivery.source.stableCode}"
+				val registrationState = database.sourceRegistrationStateDao().get(
+					delivery.source.stableCode,
+					ownerScope,
+				) ?: return@transaction DeliveryAdmissionResult.RetryableFailure(
+					AdmissionFailureCode.STORAGE_UNAVAILABLE,
+				)
+				if (registrationState.sourceInstanceId != firstEvidence.sourceInstanceId.value ||
+					registrationState.clockDomainId != delivery.clockDomainId ||
+					registrationState.collectedDataEpoch != delivery.capturedCollectedDataEpoch
+				) {
+					return@transaction DeliveryAdmissionResult.PermanentFailure(
+						AdmissionFailureCode.STALE_REGISTRATION_GENERATION,
+					)
+				}
+				val now = System.currentTimeMillis()
+				val sequences = database.sourceRegistrationStateDao().allocateSequenceRange(
+					delivery.source.stableCode,
+					ownerScope,
+					authorized.size,
+					now,
+				).toList()
+				val entities = authorized.mapIndexed { index, unit ->
+					val eventId = SourceEventId(UUID.randomUUID().toString())
+					unit.encoded.sourceUnit.evidence.toEntity(
+						eventId = eventId,
+						encoded = unit.encoded.payload,
+						createdAtMs = now,
+						authorization = unit.authorization,
+						captureAuthorization = unit.captureAuthorization,
+						deliveryIdentity = delivery.identity.value,
+						deliveryUnitIndex = unit.encoded.sourceUnit.unitIndex,
+						deliveryUnitCount = delivery.units.size,
+						observedIntervalStartNanos =
+							unit.encoded.sourceUnit.observedIntervalStartElapsedRealtimeNanos,
+						allocatedSourceSequence = sequences[index],
+						persistProviderDedupKey = false,
+					)
+				}
+				val rowIds = walDao.insertDeliveryUnits(entities)
+				check(rowIds.size == entities.size && rowIds.all { it > 0L }) {
+					"Unable to append every source delivery unit"
+				}
+				check(stateDao.incrementRevision(now) == 1) {
+					"Unable to advance source-evidence revision after delivery admission"
+				}
+				DeliveryAdmissionResult.Admitted(
+					entities.mapIndexed { index, entity ->
+						DeliveryAdmissionResult.AdmittedUnit(
+							unitIndex = requireNotNull(entity.deliveryUnitIndex),
+							eventId = SourceEventId(entity.eventId),
+							admissionOrdinal = rowIds[index],
+						)
+					},
+				)
+			}
+		}.getOrElse {
+			DeliveryAdmissionResult.RetryableFailure(AdmissionFailureCode.STORAGE_UNAVAILABLE)
+		}
+	}
+
 	override suspend fun committedBatch(
 		afterOrdinal: Long,
 		limit: Int,
@@ -335,10 +556,19 @@ private fun SourceEvidenceCandidate<*>.toEntity(
 	createdAtMs: Long,
 	authorization: SourceAuthorizationSnapshot,
 	captureAuthorization: SourceAuthorizationEntity?,
+	deliveryIdentity: String? = null,
+	deliveryUnitIndex: Int? = null,
+	deliveryUnitCount: Int? = null,
+	observedIntervalStartNanos: Long? = null,
+	allocatedSourceSequence: Long = sourceSequence,
+	persistProviderDedupKey: Boolean = true,
 ): SourceEventWalEntity {
 	val entity = SourceEventWalEntity(
 		eventId = eventId.value,
-		providerDedupKey = providerDedupKey,
+		providerDedupKey = providerDedupKey.takeIf { persistProviderDedupKey },
+		deliveryIdentity = deliveryIdentity,
+		deliveryUnitIndex = deliveryUnitIndex,
+		deliveryUnitCount = deliveryUnitCount,
 		logicalTrackingId = captureAuthorization?.logicalTrackingId,
 		serviceRunId = captureAuthorization?.serviceRunId,
 		sourceKind = source.stableCode,
@@ -348,7 +578,7 @@ private fun SourceEvidenceCandidate<*>.toEntity(
 		authorizationRevision = authorization.authorizationRevision,
 		authorizationPurposeEligibilityMask = authorization.purposeEligibilityMask,
 		authorizationFingerprint = authorization.authorizationFingerprint,
-		sourceSequence = sourceSequence,
+		sourceSequence = allocatedSourceSequence,
 		configRevision = configRevision,
 		planAttribution = if (captureAuthorization != null) {
 			PlanAttribution.CAPTURED_REGISTRATION.ordinal
@@ -359,6 +589,7 @@ private fun SourceEvidenceCandidate<*>.toEntity(
 		},
 		clockDomainId = clockDomainId,
 		observedElapsedNanos = observedElapsedRealtimeNanos,
+		observedIntervalStartNanos = observedIntervalStartNanos,
 		receivedElapsedNanos = receivedElapsedRealtimeNanos,
 		wallTimeMs = wallTimeMs,
 		wallTimeUncertaintyMs = wallTimeUncertaintyMs,
@@ -376,6 +607,56 @@ private fun SourceEvidenceCandidate<*>.toEntity(
 		createdAtMs = createdAtMs,
 	)
 	return entity.copy(integrityIdentity = entity.calculatedIntegrityIdentity())
+}
+
+private data class EncodedDeliveryUnit(
+	val sourceUnit: SourceDeliveryUnit,
+	val payload: EncodedSourcePayload,
+)
+
+private data class AuthorizedDeliveryUnit(
+	val encoded: EncodedDeliveryUnit,
+	val authorization: SourceAuthorizationSnapshot,
+	val captureAuthorization: SourceAuthorizationEntity?,
+)
+
+private fun resolveDeliveryReplay(
+	delivery: SourceDeliveryCandidate,
+	encoded: List<EncodedDeliveryUnit>,
+	existing: List<SourceDeliveryUnitIdentityRow>,
+): DeliveryAdmissionResult {
+	val existingIndexes = existing.mapNotNull(SourceDeliveryUnitIdentityRow::deliveryUnitIndex)
+	if (existingIndexes.size != existing.size || existingIndexes.distinct().size != existing.size ||
+		existing.any { row ->
+			row.deliveryUnitCount != delivery.units.size ||
+				requireNotNull(row.deliveryUnitIndex) !in encoded.indices
+		}
+	) {
+		return DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.IDENTITY_COLLISION)
+	}
+	val exact = existing.all { stored ->
+		val candidate = encoded[requireNotNull(stored.deliveryUnitIndex)]
+		val evidence = candidate.sourceUnit.evidence
+		stored.deliveryUnitIndex == candidate.sourceUnit.unitIndex &&
+			stored.observedElapsedNanos == evidence.observedElapsedRealtimeNanos &&
+			stored.observedIntervalStartNanos ==
+				candidate.sourceUnit.observedIntervalStartElapsedRealtimeNanos &&
+			stored.payloadVersion == evidence.payloadVersion &&
+			stored.payloadChecksum == candidate.payload.checksum
+	}
+	return if (exact) {
+		DeliveryAdmissionResult.Duplicate(
+			existing.map { stored ->
+				DeliveryAdmissionResult.AdmittedUnit(
+					unitIndex = requireNotNull(stored.deliveryUnitIndex),
+					eventId = SourceEventId(stored.eventId),
+					admissionOrdinal = stored.admissionOrdinal,
+				)
+			},
+		)
+	} else {
+		DeliveryAdmissionResult.PermanentFailure(AdmissionFailureCode.IDENTITY_COLLISION)
+	}
 }
 
 private fun SourceEventIdentityRow.resolveDuplicate(
