@@ -5,13 +5,14 @@ import android.content.Context
 import android.content.Intent
 import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
-import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
-import com.adsamcik.tracker.activity.api.backend.TransitionUpdate
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_CLOCK_DOMAIN_ID
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_COLLECTED_DATA_EPOCH
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_PHYSICAL_CONFIGURATION_FINGERPRINT
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_REGISTRATION_GENERATION
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_SOURCE_INSTANCE_ID
-import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_CLOCK_DOMAIN_ID
-import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_PHYSICAL_CONFIGURATION_FINGERPRINT
+import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
+import com.adsamcik.tracker.activity.api.backend.TransitionUpdate
+import com.adsamcik.tracker.activity.api.ingress.ActivityDurableSelection
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidence
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
@@ -21,7 +22,6 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.stats.api.threshold.ActivityTypeMapping
 import com.google.android.gms.location.ActivityRecognitionResult
-import com.google.android.gms.location.ActivityTransitionEvent
 import com.google.android.gms.location.ActivityTransitionResult
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -80,7 +80,9 @@ internal class ActivityReceiver : BroadcastReceiver() {
 				val admission = withTimeout(DURABLE_HANDOFF_TIMEOUT_MS) {
 					entryPoint.eventIngress().admit(delivery.batch)
 				}
-				if (admission.isDurable) delivery.publishTo(entryPoint.backend())
+				if (admission.isDurable) {
+					delivery.publishTo(entryPoint.backend(), admission.durableSelection)
+				}
 			} catch (_: Throwable) {
 				// A failed handoff must not leak a non-durable in-process effect.
 			} finally {
@@ -143,7 +145,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 			// Preserve the legacy backend contract while the durable event keeps provider time.
 			recognitionElapsedRealtimeMillis = receivedElapsedRealtimeMillis,
 			transitionUpdates = transitionUpdates,
-			lastTransition = if (activityResult == null) transitionEvents.lastOrNull() else null,
+			publishTransitionAsActivity = activityResult == null,
 		)
 	}
 
@@ -172,17 +174,23 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		val recognizedActivity: RecognizedActivity?,
 		val recognitionElapsedRealtimeMillis: Long,
 		val transitionUpdates: List<TransitionUpdate>,
-		val lastTransition: ActivityTransitionEvent?,
+		val publishTransitionAsActivity: Boolean,
 	) {
-		fun publishTo(backend: GmsActivityRecognitionBackend) {
-			recognizedActivity?.let { activity ->
+		fun publishTo(
+			backend: GmsActivityRecognitionBackend,
+			selection: ActivityDurableSelection,
+		) {
+			recognizedActivity?.takeIf { 0 in selection.recognitionIndexes }?.let { activity ->
 				lastActivity = activity
 				backend.onActivityResult(activity, recognitionElapsedRealtimeMillis)
 			}
-			if (transitionUpdates.isNotEmpty()) backend.onTransitionResult(transitionUpdates)
-			lastTransition?.let { transition ->
+			val selectedTransitions = transitionUpdates.filterIndexed { index, _ ->
+				index in selection.transitionIndexes
+			}
+			if (selectedTransitions.isNotEmpty()) backend.onTransitionResult(selectedTransitions)
+			selectedTransitions.lastOrNull()?.takeIf { publishTransitionAsActivity }?.let { transition ->
 				val activity = RecognizedActivity(
-					type = ActivityTypeMapping.fromPlayServicesCode(transition.activityType),
+					type = transition.activityType,
 					confidence = TRANSITION_ACTIVITY_CONFIDENCE,
 				)
 				lastActivity = activity

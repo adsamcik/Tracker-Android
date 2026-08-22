@@ -1,44 +1,25 @@
 package com.adsamcik.tracker.tracker.source.ingress
 
-import androidx.room.withTransaction
+import com.adsamcik.tracker.activity.api.ingress.ActivityDurableSelection
 import com.adsamcik.tracker.activity.api.ingress.ActivityIngressResult
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
-import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidence
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
-import com.adsamcik.tracker.activity.api.ingress.ActivityTransitionEvidence
-import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
-import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
-import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
-import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
-import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
-import com.adsamcik.tracker.stats.api.DetectedActivityType
-import com.adsamcik.tracker.tracker.source.model.ActivityRecognitionPayload
-import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
-import com.adsamcik.tracker.tracker.source.model.PlanAttribution
-import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
-import com.adsamcik.tracker.tracker.source.model.ServiceRunId
-import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
-import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
-import com.adsamcik.tracker.tracker.source.model.SourceKind
-import com.adsamcik.tracker.tracker.source.model.SourcePayload
-import com.adsamcik.tracker.tracker.source.model.SourceQuality
-import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
-import com.adsamcik.tracker.tracker.source.model.StableActivityTypeCode
-import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
+import com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
 import com.adsamcik.tracker.tracker.source.control.CollectionMotionController
+import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
+import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.model.SourcePayload
+import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Durable adapter for the app-scoped activity callback PendingIntent. */
+/** Durable atomic-delivery adapter for the app-scoped Activity callback PendingIntent. */
 @Singleton
 class RoomActivityRecognitionEventIngress @Inject constructor(
-	private val database: AppDatabase,
-	private val lifecycleStore: CollectedDataLifecycleStore,
-	private val sourceIngress: DurableSourceIngress,
+	private val deliveryFactory: ActivitySourceDeliveryFactory,
+	private val deliveryIngress: DurableSourceDeliveryIngress,
+	private val committedIngress: DurableSourceIngress,
 	private val sourcePipelineRecovery: SourcePipelineRecovery,
 	private val motionController: CollectionMotionController,
 ) : ActivityRecognitionEventIngress {
@@ -46,229 +27,121 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 		if (batch.eventCount == 0) return ActivityIngressResult.durable(0, 0)
 		val capturedIdentity = batch.registrationIdentity
 			?: return ActivityIngressResult.rejected(0, 0, "MISSING_REGISTRATION_IDENTITY")
-
-		val result = runCatchingNonCancellation {
-			val lifecycle = lifecycleStore.snapshot()
-			if (capturedIdentity.collectedDataEpoch != lifecycle.epoch) {
-				return@runCatchingNonCancellation ActivityIngressResult.rejected(
-					0,
-					0,
-					"STALE_COLLECTED_DATA_EPOCH",
-				)
-			}
-			var admittedCount = 0
-			var duplicateCount = 0
-			var retryableFailure: String? = null
-			var permanentFailure: String? = null
-
-			val evidence = buildList {
-				batch.recognitions.forEach { recognition ->
-					add(ActivityEvidence.Recognition(recognition))
-				}
-				batch.transitions.forEach { transition ->
-					add(ActivityEvidence.Transition(transition))
-				}
-			}.sortedBy(ActivityEvidence::observedElapsedRealtimeNanos)
-
-			evidence.forEach { event ->
-				val admissionContext = reserveSequence(
-					capturedIdentity,
-					lifecycle.epoch,
-					event.observedElapsedRealtimeNanos,
-					batch.receivedWallTimeMs,
-				)
-					?: return@runCatchingNonCancellation ActivityIngressResult.rejected(
-						admittedCount,
-						duplicateCount,
-						"STALE_REGISTRATION_GENERATION",
-					)
-				val candidate = event.toCandidate(batch, lifecycle.epoch, admissionContext)
-				val result = sourceIngress.admit(candidate)
-				when (result) {
-					is AdmissionResult.Admitted -> {
-						admittedCount++
-						motionController.onDurableEvidence(candidate)
-					}
-					is AdmissionResult.Duplicate -> {
-						duplicateCount++
-						motionController.onDurableEvidence(candidate)
-					}
-					is AdmissionResult.RetryableFailure -> retryableFailure = result.code.name
-					is AdmissionResult.PermanentFailure -> permanentFailure = result.code.name
-				}
-			}
-
-			when {
-				permanentFailure != null -> ActivityIngressResult.rejected(
-					admittedCount,
-					duplicateCount,
-					checkNotNull(permanentFailure),
-				)
-				retryableFailure != null -> ActivityIngressResult.retryable(
-					admittedCount,
-					duplicateCount,
-					checkNotNull(retryableFailure),
-				)
-				else -> ActivityIngressResult.durable(admittedCount, duplicateCount)
-			}
+		val delivery = deliveryFactory.create(batch, capturedIdentity)
+		val admission = runCatchingNonCancellation {
+			deliveryIngress.admit(delivery.candidate)
 		}.getOrElse { failure ->
-			ActivityIngressResult.retryable(0, 0, failure.javaClass.simpleName.ifBlank { "storage_unavailable" })
+			return ActivityIngressResult.retryable(0, 0, failure.failureCode())
 		}
-		if (result.isDurable) runCatchingNonCancellation { sourcePipelineRecovery.drainCommittedWork() }
-		return result
+		return when (admission) {
+			is DeliveryAdmissionResult.Admitted -> completeDurableAdmission(
+				delivery,
+				admission.units,
+				admittedCount = admission.units.size,
+				duplicateCount = 0,
+			)
+			is DeliveryAdmissionResult.Duplicate -> completeDurableAdmission(
+				delivery,
+				admission.units,
+				admittedCount = 0,
+				duplicateCount = admission.units.size,
+				publishNewEffects = false,
+			)
+			is DeliveryAdmissionResult.RetryableFailure -> ActivityIngressResult.retryable(
+				0,
+				0,
+				admission.code.name,
+			)
+			is DeliveryAdmissionResult.PermanentFailure -> ActivityIngressResult.rejected(
+				0,
+				0,
+				admission.code.name,
+			)
+		}
 	}
 
-	private suspend fun reserveSequence(
-		identity: com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity,
-		collectedDataEpoch: Long,
-		observedElapsedRealtimeNanos: Long,
-		updatedAtMs: Long,
-	): ActivityAdmissionContext? = database.withTransaction {
-		val dao = database.sourceRegistrationStateDao()
-		val current = dao.get(SourceKind.ACTIVITY.stableCode, OWNER_SCOPE) ?: return@withTransaction null
-		if (current.sourceInstanceId != identity.sourceInstanceId ||
-			current.clockDomainId != identity.clockDomainId ||
-			current.collectedDataEpoch != identity.collectedDataEpoch
-		) return@withTransaction null
-		val brokerDao = database.sourceBrokerDao()
-		val providerRegistration = brokerDao.registrationAtObservedTime(
-			SourceKind.ACTIVITY.stableCode,
-			identity.registrationGeneration,
-			identity.sourceInstanceId,
-			identity.clockDomainId,
-			identity.physicalConfigurationFingerprint,
-			observedElapsedRealtimeNanos,
-		) ?: return@withTransaction null
-		if (providerRegistration.collectedDataEpoch != collectedDataEpoch ||
-			providerRegistration.collectedDataEpoch != identity.collectedDataEpoch
-		) return@withTransaction null
-		val authorization = brokerDao.authorizationAt(
-			SourceKind.ACTIVITY.stableCode,
-			identity.registrationGeneration,
-			identity.clockDomainId,
-			observedElapsedRealtimeNanos,
-		).toAuthorizationSnapshotOrNull() ?: return@withTransaction null
-		if (authorization.isDenied) return@withTransaction null
-		val captureRows = authorization.authorizedMembers.filter { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
-		if (captureRows.size > 1) return@withTransaction null
-		val captureEligibility = captureRows.singleOrNull()
-		val allocated = dao.allocateSequence(SourceKind.ACTIVITY.stableCode, OWNER_SCOPE, updatedAtMs)
-		ActivityAdmissionContext(
-			identity,
-			allocated.nextSequence,
-			providerRegistration,
-			authorization,
-			captureEligibility,
+	private suspend fun completeDurableAdmission(
+		delivery: ActivitySourceDelivery,
+		units: List<DeliveryAdmissionResult.AdmittedUnit>,
+		admittedCount: Int,
+		duplicateCount: Int,
+		publishNewEffects: Boolean = true,
+	): ActivityIngressResult {
+		val orderedUnits = units.sortedBy(DeliveryAdmissionResult.AdmittedUnit::unitIndex)
+		if (orderedUnits.isEmpty() || admittedCount + duplicateCount != orderedUnits.size ||
+			orderedUnits.map { it.unitIndex }.distinct().size != orderedUnits.size ||
+			orderedUnits.any { it.unitIndex !in delivery.originalEvents.indices }
+		) {
+			return ActivityIngressResult.rejected(0, 0, INVALID_DURABLE_SELECTION)
+		}
+		val completion = runCatchingNonCancellation {
+			val loaded = orderedUnits.map { unit -> loadExactCommittedEvent(unit) }
+			loaded to sourcePipelineRecovery.drainCommittedWork()
+		}.getOrElse { failure ->
+			return ActivityIngressResult.retryable(
+				admittedCount,
+				duplicateCount,
+				failure.failureCode(),
+			)
+		}
+		val targetOrdinal = orderedUnits.maxOf(DeliveryAdmissionResult.AdmittedUnit::admissionOrdinal)
+		val drain = completion.second.drain
+		if (drain !is CoordinatorDrainResult.Complete || drain.lastCompletedOrdinal < targetOrdinal) {
+			return ActivityIngressResult.retryable(
+				admittedCount,
+				duplicateCount,
+				drain.failureCode(),
+			)
+		}
+
+		if (!publishNewEffects) {
+			return ActivityIngressResult.durable(0, duplicateCount)
+		}
+
+		// Every exact row is loaded and recovery reached this delivery before transient publication.
+		completion.first.forEach { event -> motionController.onDurableEvidence(event.evidence) }
+		val recognitionIndexes = mutableSetOf<Int>()
+		val transitionIndexes = mutableSetOf<Int>()
+		orderedUnits.forEach { unit ->
+			when (val original = delivery.originalEvents[unit.unitIndex]) {
+				is ActivityOriginalEvent.Recognition -> recognitionIndexes += original.index
+				is ActivityOriginalEvent.Transition -> transitionIndexes += original.index
+			}
+		}
+		return ActivityIngressResult.durable(
+			admittedCount,
+			duplicateCount,
+			ActivityDurableSelection(recognitionIndexes, transitionIndexes),
 		)
 	}
 
-	private fun ActivityEvidence.toCandidate(
-		batch: ActivityRecognitionEvidenceBatch,
-		collectedDataEpoch: Long,
-		admissionContext: ActivityAdmissionContext,
-	): SourceEvidenceCandidate<out SourcePayload> {
-		val identity = admissionContext.identity
-		val observedNanos = observedElapsedRealtimeNanos
-		val clockUncertain = observedNanos > batch.receivedElapsedRealtimeNanos
-		val delayNanos = if (clockUncertain) 0L else batch.receivedElapsedRealtimeNanos - observedNanos
-		val acquiredAtMs = (batch.receivedWallTimeMs - delayNanos / NANOS_PER_MILLISECOND).coerceAtLeast(0L)
-		val qualityFlags = buildSet {
-			if (clockUncertain) add(SourceQualityFlag.CLOCK_UNCERTAIN)
-			if (delayNanos >= BATCHED_AFTER_NANOS) add(SourceQualityFlag.BATCHED)
+	private suspend fun loadExactCommittedEvent(
+		unit: DeliveryAdmissionResult.AdmittedUnit,
+	): AdmittedSourceEvent<out SourcePayload> {
+		check(unit.admissionOrdinal > 0L) { "Committed Activity admission ordinal must be positive" }
+		val event = committedIngress.committedBatch(unit.admissionOrdinal - 1L, 1).singleOrNull()
+			?: error("Committed Activity event is unavailable")
+		check(event.admissionOrdinal == unit.admissionOrdinal) {
+			"Committed Activity admission ordinal does not match"
 		}
-		val attribution = if (admissionContext.captureAuthorization != null) {
-			PlanAttribution.CAPTURED_REGISTRATION
-		} else {
-			PlanAttribution.RECEIVE_TIME_ONLY
-		}
-		return SourceEvidenceCandidate(
-			providerDedupKey = providerDedupKey(identity),
-			logicalTrackingId = admissionContext.captureAuthorization?.logicalTrackingId?.let(::LogicalTrackingId),
-			serviceRunId = admissionContext.captureAuthorization?.serviceRunId?.let(::ServiceRunId),
-			source = SourceKind.ACTIVITY,
-			sourceInstanceId = SourceInstanceId(identity.sourceInstanceId),
-			registrationGeneration = identity.registrationGeneration,
-			physicalConfigurationFingerprint = admissionContext.providerRegistration.physicalConfigurationFingerprint,
-			authorizationRevision = admissionContext.authorization.authorizationRevision,
-			registrationPurposeEligibilityMask = admissionContext.authorization.purposeEligibilityMask,
-			registrationEligibilityFingerprint = admissionContext.authorization.authorizationFingerprint,
-			sourceSequence = admissionContext.sourceSequence,
-			configRevision = admissionContext.providerRegistration.registrationGeneration,
-			planAttribution = attribution,
-			clockDomainId = identity.clockDomainId,
-			observedElapsedRealtimeNanos = observedNanos,
-			receivedElapsedRealtimeNanos = batch.receivedElapsedRealtimeNanos,
-			wallTimeMs = acquiredAtMs,
-			wallTimeUncertaintyMs = if (clockUncertain) null else 1L,
-			capturedCollectedDataEpoch = collectedDataEpoch,
-			sourcePolicyRevision = admissionContext.captureAuthorization?.sourcePolicyRevision,
-			captureConsentEpoch = admissionContext.captureAuthorization?.consentEpoch,
-			sessionManifestRevision = admissionContext.captureAuthorization?.manifestRevision,
-			lifecycleLeaseGeneration = admissionContext.captureAuthorization?.lifecycleLeaseGeneration,
-			acquiredAtMs = acquiredAtMs,
-			quality = SourceQuality(confidence = confidence, flags = qualityFlags),
-			payloadVersion = 1,
-			payload = payload,
-		)
+		check(event.eventId == unit.eventId) { "Committed Activity event ID does not match" }
+		check(event.evidence.source == SourceKind.ACTIVITY) { "Committed event is not Activity evidence" }
+		return event
 	}
 
-	private data class ActivityAdmissionContext(
-		val identity: ActivityRegistrationIdentity,
-		val sourceSequence: Long,
-		val providerRegistration: ProviderRegistrationGenerationEntity,
-		val authorization: SourceAuthorizationSnapshot,
-		val captureAuthorization: SourceAuthorizationEntity?,
-	)
+	private fun Throwable.failureCode(): String = javaClass.simpleName.ifBlank {
+		COMMITTED_EVENT_RELOAD_FAILED
+	}
 
-	private sealed interface ActivityEvidence {
-		val observedElapsedRealtimeNanos: Long
-		val confidence: Float
-		val payload: SourcePayload
-		fun providerDedupKey(identity: ActivityRegistrationIdentity): String
-
-		data class Recognition(val evidence: ActivityRecognitionEvidence) : ActivityEvidence {
-			override val observedElapsedRealtimeNanos: Long = evidence.providerElapsedRealtimeNanos
-			override val confidence: Float = evidence.confidencePercent / 100f
-			override val payload: SourcePayload = ActivityRecognitionPayload(
-				activityType = stableActivityCode(evidence.activityType),
-				confidencePercent = evidence.confidencePercent,
-				providerElapsedRealtimeNanos = evidence.providerElapsedRealtimeNanos,
-			)
-
-			override fun providerDedupKey(identity: ActivityRegistrationIdentity): String =
-			"${identity.sourceInstanceId}:recognition:${evidence.providerElapsedRealtimeNanos}:" +
-				"${evidence.activityType.name}:${evidence.confidencePercent}"
-		}
-
-		data class Transition(val evidence: ActivityTransitionEvidence) : ActivityEvidence {
-			override val observedElapsedRealtimeNanos: Long = evidence.providerElapsedRealtimeNanos
-			override val confidence: Float = 1f
-			override val payload: SourcePayload = ActivityTransitionPayload(
-				activityType = stableActivityCode(evidence.activityType),
-				transitionType = evidence.transitionType.value,
-				providerElapsedRealtimeNanos = evidence.providerElapsedRealtimeNanos,
-			)
-
-			override fun providerDedupKey(identity: ActivityRegistrationIdentity): String =
-			"${identity.sourceInstanceId}:transition:${evidence.providerElapsedRealtimeNanos}:" +
-				"${evidence.activityType.name}:${evidence.transitionType.name}"
-		}
+	private fun CoordinatorDrainResult.failureCode(): String = when (this) {
+		is CoordinatorDrainResult.Complete -> "PIPELINE_DRAIN_INCOMPLETE"
+		CoordinatorDrainResult.LeaseUnavailable -> "PIPELINE_LEASE_UNAVAILABLE"
+		is CoordinatorDrainResult.LeaseLost -> "PIPELINE_LEASE_LOST"
+		is CoordinatorDrainResult.ProjectionFailed -> "PIPELINE_PROJECTION_FAILED"
 	}
 
 	private companion object {
-		const val OWNER_SCOPE = "source-broker:2"
-		const val NANOS_PER_MILLISECOND = 1_000_000L
-		const val BATCHED_AFTER_NANOS = 5L * 1_000L * NANOS_PER_MILLISECOND
+		const val INVALID_DURABLE_SELECTION = "INVALID_DURABLE_SELECTION"
+		const val COMMITTED_EVENT_RELOAD_FAILED = "COMMITTED_EVENT_RELOAD_FAILED"
 	}
-}
-
-private fun stableActivityCode(activityType: DetectedActivityType): Int = when (activityType) {
-	DetectedActivityType.STILL -> StableActivityTypeCode.STILL
-	DetectedActivityType.WALKING -> StableActivityTypeCode.WALKING
-	DetectedActivityType.RUNNING -> StableActivityTypeCode.RUNNING
-	DetectedActivityType.ON_BICYCLE -> StableActivityTypeCode.ON_BICYCLE
-	DetectedActivityType.IN_VEHICLE -> StableActivityTypeCode.IN_VEHICLE
-	DetectedActivityType.ON_FOOT -> StableActivityTypeCode.ON_FOOT
-	DetectedActivityType.TILTING -> StableActivityTypeCode.TILTING
-	DetectedActivityType.UNKNOWN -> StableActivityTypeCode.UNKNOWN
 }

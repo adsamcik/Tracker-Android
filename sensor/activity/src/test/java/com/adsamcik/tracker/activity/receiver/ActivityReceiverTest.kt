@@ -9,6 +9,8 @@ import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.C
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_PHYSICAL_CONFIGURATION_FINGERPRINT
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_REGISTRATION_GENERATION
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_SOURCE_INSTANCE_ID
+import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
+import com.adsamcik.tracker.activity.api.ingress.ActivityDurableSelection
 import com.adsamcik.tracker.activity.api.ingress.ActivityIngressResult
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
 import com.adsamcik.tracker.shared.base.Time
@@ -26,14 +28,15 @@ import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
@@ -48,6 +51,7 @@ class ActivityReceiverTest {
 
 	@Before
 	fun setUp() {
+		ActivityReceiver.lastActivity = RecognizedActivity.UNKNOWN
 		mockkStatic(ActivityRecognitionResult::class)
 		mockkStatic(ActivityTransitionResult::class)
 		mockkObject(Time)
@@ -57,7 +61,11 @@ class ActivityReceiverTest {
 		// Mock the Hilt EntryPoint so the receiver can obtain the backend.
 		mockBackend = mockk(relaxed = true)
 		mockIngress = mockk()
-		coEvery { mockIngress.admit(any()) } returns ActivityIngressResult.durable(1, 0)
+		coEvery { mockIngress.admit(any()) } returns ActivityIngressResult.durable(
+			1,
+			0,
+			ActivityDurableSelection(recognitionIndexes = setOf(0)),
+		)
 		val mockEntryPoint = mockk<ActivityReceiverEntryPoint> {
 			every { backend() } returns mockBackend
 			every { eventIngress() } returns mockIngress
@@ -150,6 +158,51 @@ class ActivityReceiverTest {
 	}
 
 	@Test
+	fun `durable empty selection publishes nothing`() {
+		coEvery { mockIngress.admit(any()) } returns ActivityIngressResult.durable(0, 0)
+		val intent = intentWithActivityResult(
+			com.google.android.gms.location.DetectedActivity.WALKING,
+			85,
+		)
+
+		receiver.onReceive(context, intent)
+
+		verify(exactly = 0) { mockBackend.onActivityResult(any(), any()) }
+	}
+
+	@Test
+	fun `duplicate transition produces no backend or cache effect`() {
+		coEvery { mockIngress.admit(any()) } returns ActivityIngressResult.durable(0, 1)
+		val prior = RecognizedActivity(DetectedActivityType.STILL, 91)
+		ActivityReceiver.lastActivity = prior
+		val transition: ActivityTransitionEvent = mockk {
+			every { activityType } returns com.google.android.gms.location.DetectedActivity.WALKING
+			every { elapsedRealTimeNanos } returns 4_000_000_000L
+			every { transitionType } returns
+				com.google.android.gms.location.ActivityTransition.ACTIVITY_TRANSITION_ENTER
+		}
+
+		receiver.onReceive(context, intentWithTransitionResult(listOf(transition)))
+
+		verify(exactly = 0) { mockBackend.onTransitionResult(any()) }
+		verify(exactly = 0) { mockBackend.onTransitionActivityResult(any(), any()) }
+		ActivityReceiver.lastActivity shouldBe prior
+	}
+
+	@Test
+	fun `cancelled handoff publishes nothing`() {
+		coEvery { mockIngress.admit(any()) } throws CancellationException("cancelled")
+		val intent = intentWithActivityResult(
+			com.google.android.gms.location.DetectedActivity.WALKING,
+			85,
+		)
+
+		receiver.onReceive(context, intent)
+
+		verify(exactly = 0) { mockBackend.onActivityResult(any(), any()) }
+	}
+
+	@Test
 	fun `passes only physical registration identity to durable ingress`() {
 		val intent = intentWithActivityResult(
 			com.google.android.gms.location.DetectedActivity.WALKING,
@@ -194,8 +247,13 @@ class ActivityReceiverTest {
 
 	// region onReceive with transition result
 
-		@Test
-		fun `forwards transition to backend`() {
+	@Test
+	fun `forwards transition to backend`() {
+		coEvery { mockIngress.admit(any()) } returns ActivityIngressResult.durable(
+			1,
+			0,
+			ActivityDurableSelection(transitionIndexes = setOf(0)),
+		)
 			val transitionEvent: ActivityTransitionEvent = mockk {
 				every { activityType } returns com.google.android.gms.location.DetectedActivity.ON_BICYCLE
 				every { elapsedRealTimeNanos } returns 7777L
@@ -214,8 +272,13 @@ class ActivityReceiverTest {
 			}
 		}
 
-		@Test
-		fun `forwards last transition event elapsed time to backend`() {
+	@Test
+	fun `forwards last transition event elapsed time to backend`() {
+		coEvery { mockIngress.admit(any()) } returns ActivityIngressResult.durable(
+			1,
+			0,
+			ActivityDurableSelection(transitionIndexes = setOf(1)),
+		)
 			val event1: ActivityTransitionEvent = mockk {
 				every { activityType } returns com.google.android.gms.location.DetectedActivity.STILL
 				every { elapsedRealTimeNanos } returns 1000L
@@ -231,10 +294,15 @@ class ActivityReceiverTest {
 			receiver.onReceive(context, intent)
 
 			// setActivityResultFromTransition uses the last event
-			verify {
-				mockBackend.onTransitionActivityResult(any(), eq(2000L))
-			}
+		verify {
+			mockBackend.onTransitionActivityResult(any(), eq(2000L))
 		}
+		verify {
+			mockBackend.onTransitionResult(match { updates ->
+				updates.size == 1 && updates.single().elapsedRealTimeNanos == 2000L
+			})
+		}
+	}
 	// endregion
 
 	// region onReceive with no results

@@ -1,371 +1,248 @@
 package com.adsamcik.tracker.tracker.source.ingress
 
-import android.app.Application
-import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidence
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
+import com.adsamcik.tracker.activity.api.ingress.ActivityTransitionEvidence
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
-import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
-import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
-import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
-import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
-import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.stats.api.DetectedActivityType
-import com.adsamcik.tracker.tracker.source.control.CollectionMotionController
+import com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
-import com.adsamcik.tracker.tracker.source.model.PlanAttribution
-import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
+import com.adsamcik.tracker.tracker.source.coordinator.SourceRecoveryResult
+import com.adsamcik.tracker.tracker.source.control.CollectionMotionController
+import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
+import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
+import io.mockk.verify
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
-import org.junit.After
 import org.junit.Before
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
 class RoomActivityRecognitionEventIngressTest {
-	private lateinit var database: AppDatabase
-	private lateinit var durableIngress: DurableSourceIngress
+	private lateinit var deliveryIngress: DurableSourceDeliveryIngress
+	private lateinit var committedIngress: DurableSourceIngress
 	private lateinit var recovery: SourcePipelineRecovery
+	private lateinit var motionController: CollectionMotionController
 	private lateinit var subject: RoomActivityRecognitionEventIngress
-	private val capturedCandidate = slot<SourceEvidenceCandidate<*>>()
+	private val capturedDelivery = slot<SourceDeliveryCandidate>()
 
 	@Before
 	fun setUp() {
-		val application: Application = ApplicationProvider.getApplicationContext()
-		database = AppDatabase.testDatabase(application)
-		durableIngress = mockk()
-		coEvery { durableIngress.admit(capture(capturedCandidate)) } returns
-			AdmissionResult.Admitted(SourceEventId("event-1"), 1L)
+		deliveryIngress = mockk()
+		committedIngress = mockk()
 		recovery = mockk(relaxed = true)
+		coEvery { recovery.drainCommittedWork() } returns completedRecovery()
+		motionController = mockk(relaxed = true)
 		subject = RoomActivityRecognitionEventIngress(
-			database,
-			FakeActivityLifecycleStore(CollectedDataLifecycleSnapshot(EPOCH, null)),
-			durableIngress,
+			ActivitySourceDeliveryFactory(),
+			deliveryIngress,
+			committedIngress,
 			recovery,
-			CollectionMotionController(),
+			motionController,
 		)
 	}
 
-	@After
-	fun tearDown() = database.close()
-
 	@Test
-	fun `control-only callback remains sessionless while a logical session is active`() = runTest {
-		insertActiveSession()
-		insertRegistration(CONTROL_FINGERPRINT)
-
-		val result = subject.admit(batch(identity()))
-
-		result.isDurable shouldBe true
-		capturedCandidate.captured.logicalTrackingId shouldBe null
-		capturedCandidate.captured.serviceRunId shouldBe null
-		capturedCandidate.captured.sourcePolicyRevision shouldBe null
-		capturedCandidate.captured.captureConsentEpoch shouldBe null
-		capturedCandidate.captured.planAttribution shouldBe PlanAttribution.RECEIVE_TIME_ONLY
-		capturedCandidate.captured.registrationPurposeEligibilityMask shouldBe
-			SourceBrokerPurpose.MASK_CONTROL_AUTOSTART
-	}
-
-	@Test
-	fun `callback with stale physical configuration is rejected before durable ingress`() = runTest {
-		insertRegistration(CONTROL_FINGERPRINT)
-
-		val result = subject.admit(batch(identity("stale-physical-config")))
-
-		result.isDurable shouldBe false
-		result.failureCode shouldBe "STALE_REGISTRATION_GENERATION"
-		coVerify(exactly = 0) { durableIngress.admit(any()) }
-	}
-
-	@Test
-	fun `callback observed before control demand activation is rejected before sequence allocation`() = runTest {
-		insertRegistration(CONTROL_FINGERPRINT, effectiveElapsedRealtimeNanos = 1_500_000_000L)
-
-		val result = subject.admit(batch(identity()))
-
-		result.isDurable shouldBe false
-		result.failureCode shouldBe "STALE_REGISTRATION_GENERATION"
-		database.sourceRegistrationStateDao().get(SourceKind.ACTIVITY.stableCode, OWNER_SCOPE)
-			?.nextSequence shouldBe 0L
-		coVerify(exactly = 0) { durableIngress.admit(any()) }
-	}
-
-	@Test
-	fun `late pre-handoff callback keeps its validated old identity while borrowing only global sequence`() = runTest {
-		insertHandoffRegistrations()
-
-		val result = subject.admit(batch(identity(), observedElapsedRealtimeNanos = 1_000_000_000L))
-
-		result.isDurable shouldBe true
-		capturedCandidate.captured.sourceInstanceId.value shouldBe INSTANCE_ID
-		capturedCandidate.captured.registrationGeneration shouldBe GENERATION
-		capturedCandidate.captured.clockDomainId shouldBe BOOT_ID
-		capturedCandidate.captured.sourceSequence shouldBe 7L
-		database.sourceRegistrationStateDao().get(SourceKind.ACTIVITY.stableCode, OWNER_SCOPE)
-			?.sourceInstanceId shouldBe INSTANCE_ID
-		database.sourceRegistrationStateDao().get(SourceKind.ACTIVITY.stableCode, OWNER_SCOPE)
-			?.nextSequence shouldBe 8L
-	}
-
-	@Test
-	fun `old callback at the exact handoff boundary is rejected without sequence allocation`() = runTest {
-		insertHandoffRegistrations()
-
-		val result = subject.admit(batch(identity(), observedElapsedRealtimeNanos = HANDOFF_NANOS))
-
-		result.isDurable shouldBe false
-		result.failureCode shouldBe "STALE_REGISTRATION_GENERATION"
-		database.sourceRegistrationStateDao().get(SourceKind.ACTIVITY.stableCode, OWNER_SCOPE)
-			?.nextSequence shouldBe 7L
-		coVerify(exactly = 0) { durableIngress.admit(any()) }
-	}
-
-	@Test
-	fun `callback cannot borrow sequence from a different source instance`() = runTest {
-		insertHandoffRegistrations(pointerInstanceId = NEW_INSTANCE_ID)
-
-		val result = subject.admit(batch(identity(), observedElapsedRealtimeNanos = 1_000_000_000L))
-
-		result.isDurable shouldBe false
-		result.failureCode shouldBe "STALE_REGISTRATION_GENERATION"
-		database.sourceRegistrationStateDao().get(SourceKind.ACTIVITY.stableCode, OWNER_SCOPE)
-			?.nextSequence shouldBe 7L
-		coVerify(exactly = 0) { durableIngress.admit(any()) }
-	}
-
-	private suspend fun insertRegistration(
-		fingerprint: String,
-		effectiveElapsedRealtimeNanos: Long = 90L,
-	) {
-		database.sourceRegistrationStateDao().replace(
-			SourceRegistrationStateEntity(
-				sourceKind = SourceKind.ACTIVITY.stableCode,
-				ownerScope = OWNER_SCOPE,
-				sourceInstanceId = INSTANCE_ID,
-				clockDomainId = BOOT_ID,
-				registrationGeneration = GENERATION,
-				nextSequence = 0L,
-				appliedRevision = null,
-				collectedDataEpoch = EPOCH,
-				updatedAtMs = 100L,
-			),
+	fun `one atomic call maps sparse canonical units to selected original events`() = runTest {
+		val units = listOf(
+			DeliveryAdmissionResult.AdmittedUnit(2, SourceEventId("event-2"), 12L),
+			DeliveryAdmissionResult.AdmittedUnit(0, SourceEventId("event-0"), 10L),
 		)
-		database.sourceBrokerDao().insertRegistration(
-			ProviderRegistrationGenerationEntity(
-				sourceKind = SourceKind.ACTIVITY.stableCode,
-				registrationGeneration = GENERATION,
-				sourceInstanceId = INSTANCE_ID,
-				ownerScope = OWNER_SCOPE,
-				clockDomainId = BOOT_ID,
-				collectedDataEpoch = EPOCH,
-				physicalConfigurationFingerprint = PHYSICAL_CONFIG,
-				status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
-				reservedAtMs = 90L,
-				reservedElapsedRealtimeNanos = 80L,
-				acceptedAtMs = 100L,
-				acceptedElapsedRealtimeNanos = 90L,
-				retiredAtMs = null,
-				retiredElapsedRealtimeNanos = null,
-				failureCode = null,
-			),
-		)
-		database.sourceBrokerDao().insertAuthorizations(
+		coEvery { deliveryIngress.admit(capture(capturedDelivery)) } returns
+			DeliveryAdmissionResult.Admitted(units)
+		coEvery { committedIngress.committedBatch(any(), 1) } answers {
+			val ordinal = firstArg<Long>() + 1L
+			val unitIndex = if (ordinal == 10L) 0 else 2
 			listOf(
-				SourceAuthorizationEntity(
-					sourceKind = SourceKind.ACTIVITY.stableCode,
-					registrationGeneration = GENERATION,
-					authorizationRevision = 1L,
-					memberId = "demand:control-demand",
-					authorizationFingerprint = fingerprint,
-					purposeEligibilityMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
-					demandId = "control-demand",
-					consumerId = "app:auto",
-					purpose = SourceBrokerPurpose.CONTROL_AUTOSTART,
-					sourcePolicyRevision = 4L,
-					consentEpoch = 9L,
-					persistenceEligible = true,
-					effectiveBootId = BOOT_ID,
-					effectiveElapsedRealtimeNanos = effectiveElapsedRealtimeNanos,
-					effectiveWallTimeMs = 90L,
-					logicalTrackingId = null,
-					serviceRunId = null,
-					manifestRevision = null,
-					lifecycleLeaseGeneration = null,
+				AdmittedSourceEvent(
+					SourceEventId("event-$unitIndex"),
+					ordinal,
+					capturedDelivery.captured.units[unitIndex].evidence,
 				),
-			),
+			)
+		}
+		val batch = batch(
+			recognitions = listOf(recognition(30L)),
+			transitions = listOf(transition(10L), transition(20L)),
 		)
+
+		val result = subject.admit(batch)
+
+		result.isDurable shouldBe true
+		result.admittedCount shouldBe 2
+		result.durableSelection.recognitionIndexes shouldBe setOf(0)
+		result.durableSelection.transitionIndexes shouldBe setOf(0)
+		coVerify(exactly = 1) { deliveryIngress.admit(any()) }
+		coVerify { committedIngress.committedBatch(9L, 1) }
+		coVerify { committedIngress.committedBatch(11L, 1) }
+		coVerify(exactly = 1) { recovery.drainCommittedWork() }
+		verify(exactly = 2) { motionController.onDurableEvidence(any()) }
 	}
 
-	private suspend fun insertActiveSession() {
-		database.sourceSessionDao().insertSession(
-			LogicalTrackingSessionEntity(
-				logicalTrackingId = "session-1",
-				state = "ACTIVE",
-				lifecycleRevision = 1L,
-				desiredPlanRevision = 1L,
-				rolloutRevision = 1L,
-				startOrigin = "AUTOMATIC",
-				clockDomainId = BOOT_ID,
-				startedAtMs = 100L,
-				startedElapsedNanos = 100L,
-				cutoffAtMs = null,
-				cutoffElapsedNanos = null,
-				completedAtMs = null,
-				finalAdmissionOrdinal = null,
-				failureCode = null,
-				sessionMode = "AUTOMATIC",
-				currentManifestRevision = 1L,
-				currentIntentRevision = 1L,
-				lifecycleLeaseGeneration = 1L,
-				lifecycleBootId = BOOT_ID,
-				automationEpoch = 1L,
-			),
-		)
+	@Test
+	fun `writer reloaded evidence rather than adapter candidate drives motion`() = runTest {
+		val unit = DeliveryAdmissionResult.AdmittedUnit(0, SourceEventId("writer-event"), 4L)
+		coEvery { deliveryIngress.admit(capture(capturedDelivery)) } returns
+			DeliveryAdmissionResult.Admitted(listOf(unit))
+		val writerEvidence = slot<com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate<*>>()
+		coEvery { committedIngress.committedBatch(3L, 1) } answers {
+			val stamped = capturedDelivery.captured.units.single().evidence
+				.let { evidence ->
+					@Suppress("UNCHECKED_CAST")
+					(evidence as com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate<
+						com.adsamcik.tracker.tracker.source.model.SourcePayload
+					>).copy(
+						authorizationRevision = 7L,
+						registrationPurposeEligibilityMask = 1L,
+						registrationEligibilityFingerprint = "writer-authorization",
+					)
+				}
+			listOf(AdmittedSourceEvent(unit.eventId, unit.admissionOrdinal, stamped))
+		}
+		every { motionController.onDurableEvidence(capture(writerEvidence)) } returns Unit
+
+		subject.admit(batch(recognitions = listOf(recognition(30L))))
+
+		writerEvidence.captured.authorizationRevision shouldBe 7L
+		writerEvidence.captured.registrationEligibilityFingerprint shouldBe "writer-authorization"
 	}
 
-	private suspend fun insertHandoffRegistrations(pointerInstanceId: String = INSTANCE_ID) {
-		database.sourceRegistrationStateDao().replace(
-			SourceRegistrationStateEntity(
-				sourceKind = SourceKind.ACTIVITY.stableCode,
-				ownerScope = OWNER_SCOPE,
-				sourceInstanceId = pointerInstanceId,
-				clockDomainId = BOOT_ID,
-				registrationGeneration = 2L,
-				nextSequence = 7L,
-				appliedRevision = null,
-				collectedDataEpoch = EPOCH,
-				updatedAtMs = 1_500L,
-			),
+	@Test
+	fun `duplicate result is durable but produces no repeated transient effect`() = runTest {
+		val unit = DeliveryAdmissionResult.AdmittedUnit(0, SourceEventId("existing"), 8L)
+		coEvery { deliveryIngress.admit(capture(capturedDelivery)) } returns
+			DeliveryAdmissionResult.Duplicate(listOf(unit))
+		coEvery { committedIngress.committedBatch(7L, 1) } answers {
+			listOf(AdmittedSourceEvent(unit.eventId, 8L, capturedDelivery.captured.units.single().evidence))
+		}
+
+		val result = subject.admit(batch(recognitions = listOf(recognition(30L))))
+
+		result.admittedCount shouldBe 0
+		result.duplicateCount shouldBe 1
+		result.durableSelection.isEmpty shouldBe true
+		coVerify(exactly = 1) { deliveryIngress.admit(any()) }
+		coVerify(exactly = 1) { recovery.drainCommittedWork() }
+		verify(exactly = 0) { motionController.onDurableEvidence(any()) }
+	}
+
+	@Test
+	fun `non-complete recovery withholds every transient effect`() = runTest {
+		val unit = DeliveryAdmissionResult.AdmittedUnit(0, SourceEventId("event"), 8L)
+		coEvery { deliveryIngress.admit(capture(capturedDelivery)) } returns
+			DeliveryAdmissionResult.Admitted(listOf(unit))
+		coEvery { committedIngress.committedBatch(7L, 1) } answers {
+			listOf(AdmittedSourceEvent(unit.eventId, 8L, capturedDelivery.captured.units.single().evidence))
+		}
+		val failures = listOf(
+			CoordinatorDrainResult.LeaseUnavailable to "PIPELINE_LEASE_UNAVAILABLE",
+			CoordinatorDrainResult.LeaseLost(7L, 0) to "PIPELINE_LEASE_LOST",
+			CoordinatorDrainResult.ProjectionFailed(7L, 0, "activity", 8L) to
+				"PIPELINE_PROJECTION_FAILED",
+			CoordinatorDrainResult.Complete(7L, 1) to "PIPELINE_DRAIN_INCOMPLETE",
 		)
-		listOf(
-			ProviderRegistrationGenerationEntity(
-				sourceKind = SourceKind.ACTIVITY.stableCode,
-				registrationGeneration = GENERATION,
-				sourceInstanceId = INSTANCE_ID,
-				ownerScope = OWNER_SCOPE,
-				clockDomainId = BOOT_ID,
-				collectedDataEpoch = EPOCH,
-				physicalConfigurationFingerprint = PHYSICAL_CONFIG,
-				status = ProviderRegistrationGenerationEntity.STATUS_RETIRING,
-				reservedAtMs = 90L,
-				reservedElapsedRealtimeNanos = 80L,
-				acceptedAtMs = 100L,
-				acceptedElapsedRealtimeNanos = 90L,
-				retiredAtMs = 1_500L,
-				retiredElapsedRealtimeNanos = HANDOFF_NANOS,
-				failureCode = "SUPERSEDED_BY_NEW_GENERATION",
-			),
-			ProviderRegistrationGenerationEntity(
-				sourceKind = SourceKind.ACTIVITY.stableCode,
-				registrationGeneration = 2L,
-				sourceInstanceId = INSTANCE_ID,
-				ownerScope = OWNER_SCOPE,
-				clockDomainId = BOOT_ID,
-				collectedDataEpoch = EPOCH,
-				physicalConfigurationFingerprint = "physical-config-v2",
-				status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
-				reservedAtMs = 1_400L,
-				reservedElapsedRealtimeNanos = HANDOFF_NANOS - 1L,
-				acceptedAtMs = 1_500L,
-				acceptedElapsedRealtimeNanos = HANDOFF_NANOS,
-				retiredAtMs = null,
-				retiredElapsedRealtimeNanos = null,
-				failureCode = null,
-			),
-		).forEach { database.sourceBrokerDao().insertRegistration(it) }
-		database.sourceBrokerDao().insertAuthorizations(
+
+		failures.forEach { (drain, expectedCode) ->
+			coEvery { recovery.drainCommittedWork() } returns SourceRecoveryResult(drain, 0, 0)
+
+			val result = subject.admit(batch(recognitions = listOf(recognition(30L))))
+
+			result.isDurable shouldBe false
+			result.failureCode shouldBe expectedCode
+			result.durableSelection.isEmpty shouldBe true
+		}
+
+		coVerify(exactly = failures.size) { recovery.drainCommittedWork() }
+		verify(exactly = 0) { motionController.onDurableEvidence(any()) }
+	}
+
+	@Test
+	fun `unsupported rejected empty and mismatched reloads select nothing`() = runTest {
+		val empty = subject.admit(batch())
+		empty.durableSelection.isEmpty shouldBe true
+		coVerify(exactly = 0) { deliveryIngress.admit(any()) }
+
+		coEvery { deliveryIngress.admit(any()) } returns DeliveryAdmissionResult.PermanentFailure(
+			AdmissionFailureCode.UNSUPPORTED_PAYLOAD,
+		)
+		val rejected = subject.admit(batch(recognitions = listOf(recognition(30L))))
+		rejected.isDurable shouldBe false
+		rejected.durableSelection.isEmpty shouldBe true
+
+		val unit = DeliveryAdmissionResult.AdmittedUnit(0, SourceEventId("expected"), 2L)
+		coEvery { deliveryIngress.admit(capture(capturedDelivery)) } returns
+			DeliveryAdmissionResult.Admitted(listOf(unit))
+		coEvery { committedIngress.committedBatch(1L, 1) } answers {
 			listOf(
-				controlAuthorization(GENERATION, 1L, 90L),
-				controlAuthorization(2L, 2L, HANDOFF_NANOS),
-			),
-		)
+				AdmittedSourceEvent(
+					SourceEventId("wrong"),
+					2L,
+					capturedDelivery.captured.units.single().evidence,
+				),
+			)
+		}
+		val mismatch = subject.admit(batch(recognitions = listOf(recognition(30L))))
+		mismatch.isDurable shouldBe false
+		mismatch.durableSelection.isEmpty shouldBe true
+		coVerify(exactly = 0) { recovery.drainCommittedWork() }
+		verify(exactly = 0) { motionController.onDurableEvidence(any()) }
 	}
 
-	private fun controlAuthorization(
-		generation: Long,
-		revision: Long,
-		effectiveElapsedRealtimeNanos: Long,
-	) = SourceAuthorizationEntity(
-		sourceKind = SourceKind.ACTIVITY.stableCode,
-		registrationGeneration = generation,
-		authorizationRevision = revision,
-		memberId = "demand:control-demand-$generation",
-		authorizationFingerprint = "$CONTROL_FINGERPRINT-$generation",
-		purposeEligibilityMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
-		demandId = "control-demand-$generation",
-		consumerId = "app:auto",
-		purpose = SourceBrokerPurpose.CONTROL_AUTOSTART,
-		sourcePolicyRevision = 4L,
-		consentEpoch = 9L,
-		persistenceEligible = true,
-		effectiveBootId = BOOT_ID,
-		effectiveElapsedRealtimeNanos = effectiveElapsedRealtimeNanos,
-		effectiveWallTimeMs = 90L,
-		logicalTrackingId = null,
-		serviceRunId = null,
-		manifestRevision = null,
-		lifecycleLeaseGeneration = null,
-	)
+	@Test
+	fun `cancellation propagates and selects nothing`() = runTest {
+		coEvery { deliveryIngress.admit(any()) } throws CancellationException("cancelled")
 
-	private fun identity(physicalConfigurationFingerprint: String = PHYSICAL_CONFIG) = ActivityRegistrationIdentity(
-		sourceInstanceId = INSTANCE_ID,
-		registrationGeneration = GENERATION,
-		collectedDataEpoch = EPOCH,
-		clockDomainId = BOOT_ID,
-		physicalConfigurationFingerprint = physicalConfigurationFingerprint,
-	)
+		shouldThrow<CancellationException> {
+			subject.admit(batch(recognitions = listOf(recognition(30L))))
+		}
+
+		coVerify(exactly = 0) { committedIngress.committedBatch(any(), any()) }
+		verify(exactly = 0) { motionController.onDurableEvidence(any()) }
+	}
 
 	private fun batch(
-		identity: ActivityRegistrationIdentity,
-		observedElapsedRealtimeNanos: Long = 1_000_000_000L,
+		recognitions: List<ActivityRecognitionEvidence> = emptyList(),
+		transitions: List<ActivityTransitionEvidence> = emptyList(),
 	) = ActivityRecognitionEvidenceBatch(
-		receivedElapsedRealtimeNanos = 2_000_000_000L,
-		receivedWallTimeMs = 2_000L,
-		registrationIdentity = identity,
-		recognitions = listOf(
-			ActivityRecognitionEvidence(
-				activityType = DetectedActivityType.WALKING,
-				confidencePercent = 90,
-				providerElapsedRealtimeNanos = observedElapsedRealtimeNanos,
-			),
-		),
+		receivedElapsedRealtimeNanos = 100L,
+		receivedWallTimeMs = 1_000L,
+		registrationIdentity = identity(),
+		recognitions = recognitions,
+		transitions = transitions,
 	)
 
-	private companion object {
-		const val OWNER_SCOPE = "source-broker:2"
-		const val INSTANCE_ID = "activity-instance"
-		const val NEW_INSTANCE_ID = "activity-instance-new"
-		const val BOOT_ID = "boot-1"
-		const val GENERATION = 1L
-		const val EPOCH = 7L
-		const val PHYSICAL_CONFIG = "physical-config"
-		const val CONTROL_FINGERPRINT = "control-fingerprint"
-		const val HANDOFF_NANOS = 1_500_000_000L
-	}
-}
+	private fun recognition(at: Long) = ActivityRecognitionEvidence(
+		DetectedActivityType.WALKING,
+		90,
+		at,
+	)
 
-private class FakeActivityLifecycleStore(initial: CollectedDataLifecycleSnapshot) : CollectedDataLifecycleStore {
-	private val state = MutableStateFlow(initial)
-	override val snapshots: Flow<CollectedDataLifecycleSnapshot> = state
-	override suspend fun snapshot(): CollectedDataLifecycleSnapshot = state.value
-	override suspend fun beginFullDeletion(deletedAtMs: Long): CollectedDataLifecycleSnapshot =
-		state.value.copy(epoch = state.value.epoch + 1L, retainedFromMs = deletedAtMs).also { state.emit(it) }
+	private fun transition(at: Long) = ActivityTransitionEvidence(
+		DetectedActivityType.WALKING,
+		ActivityTransitionType.ENTER,
+		at,
+	)
 
-	override suspend fun advanceRetainedFrom(retainedFromMs: Long): CollectedDataLifecycleSnapshot =
-		state.value.copy(retainedFromMs = retainedFromMs).also { state.emit(it) }
+	private fun identity() = ActivityRegistrationIdentity(
+		sourceInstanceId = "activity-instance",
+		registrationGeneration = 1L,
+		collectedDataEpoch = 1L,
+		clockDomainId = "boot-1",
+		physicalConfigurationFingerprint = "physical-config",
+	)
+
+	private fun completedRecovery() = SourceRecoveryResult(
+		CoordinatorDrainResult.Complete(Long.MAX_VALUE, 0),
+		0,
+		0,
+	)
 }

@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
 import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
+import com.adsamcik.tracker.activity.api.ingress.ActivityDurableSelection
 import com.adsamcik.tracker.activity.api.ingress.ActivityIngressResult
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
 import com.adsamcik.tracker.shared.base.Time
@@ -52,7 +53,11 @@ class ActivityReceiverThreadSafetyTest {
 		// Mock the Hilt EntryPoint
 		mockBackend = mockk(relaxed = true)
 		mockIngress = mockk()
-		coEvery { mockIngress.admit(any()) } returns ActivityIngressResult.durable(1, 0)
+		coEvery { mockIngress.admit(any()) } returns ActivityIngressResult.durable(
+			1,
+			0,
+			ActivityDurableSelection(recognitionIndexes = setOf(0)),
+		)
 		every { mockBackend.lastActivity } returns RecognizedActivity(DetectedActivityType.UNKNOWN, 0)
 		every { mockBackend.lastActivityElapsedTimeMillis } returns 0L
 		val mockEntryPoint = mockk<ActivityReceiverEntryPoint> {

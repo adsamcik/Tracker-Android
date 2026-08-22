@@ -2,6 +2,9 @@ package com.adsamcik.tracker.tracker.source.ingress
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidence
+import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
@@ -21,6 +24,11 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTim
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePurpose
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
+import com.adsamcik.tracker.stats.api.DetectedActivityType
+import com.adsamcik.tracker.tracker.source.control.CollectionMotionController
+import com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult
+import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
+import com.adsamcik.tracker.tracker.source.coordinator.SourceRecoveryResult
 import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
@@ -37,6 +45,9 @@ import com.adsamcik.tracker.tracker.source.model.sourceDeliveryIdentity
 import io.kotest.matchers.shouldBe
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.mockk.coEvery
+import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.CancellationException
@@ -187,6 +198,57 @@ class RoomDurableSourceIngressTest {
 			SOURCE_OWNER_SCOPE,
 		)?.nextSequence shouldBe 2L
 		database.sourceEvidenceStateDao().get()?.revision shouldBe 1L
+	}
+
+	@Test
+	fun `Activity adapter persists the eligible sparse subset once through real Room admission`() = runTest {
+		val recovery = mockk<SourcePipelineRecovery>()
+		val motion = mockk<CollectionMotionController>(relaxed = true)
+		coEvery { recovery.drainCommittedWork() } returns SourceRecoveryResult(
+			CoordinatorDrainResult.Complete(Long.MAX_VALUE, 0),
+			0,
+			0,
+		)
+		val adapter = RoomActivityRecognitionEventIngress(
+			ActivitySourceDeliveryFactory(),
+			subject,
+			subject,
+			recovery,
+			motion,
+		)
+		val delivery = ActivityRecognitionEvidenceBatch(
+			receivedElapsedRealtimeNanos = 100L,
+			receivedWallTimeMs = 1_000L,
+			registrationIdentity = ActivityRegistrationIdentity(
+				sourceInstanceId = "activity-instance",
+				registrationGeneration = 1L,
+				collectedDataEpoch = 0L,
+				clockDomainId = "boot",
+				physicalConfigurationFingerprint = TEST_PHYSICAL_CONFIG,
+			),
+			recognitions = listOf(
+				ActivityRecognitionEvidence(DetectedActivityType.STILL, 90, 40L),
+				ActivityRecognitionEvidence(DetectedActivityType.WALKING, 90, 60L),
+			),
+		)
+
+		val admitted = adapter.admit(delivery)
+
+		admitted.admittedCount shouldBe 1
+		admitted.duplicateCount shouldBe 0
+		admitted.durableSelection.recognitionIndexes shouldBe setOf(1)
+		val persisted = database.sourceEventWalDao().eventsAfter(0L, 10).single()
+		persisted.observedElapsedNanos shouldBe 60L
+		persisted.authorizationRevision shouldBe 1L
+		persisted.logicalTrackingId shouldBe TEST_SESSION_ID
+
+		val duplicate = adapter.admit(delivery)
+
+		duplicate.admittedCount shouldBe 0
+		duplicate.duplicateCount shouldBe 1
+		duplicate.durableSelection.isEmpty shouldBe true
+		database.sourceEventWalDao().countAll() shouldBe 1L
+		verify(exactly = 1) { motion.onDurableEvidence(any()) }
 	}
 
 	@Test
