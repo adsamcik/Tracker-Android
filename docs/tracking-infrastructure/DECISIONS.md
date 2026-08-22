@@ -470,7 +470,7 @@ Each entry records repository evidence and does not duplicate the final architec
 - Alternatives: retain all 11 current policy/lifecycle/broker additions; remove the five lifecycle additions and keep three broker tables; collapse to authority+policy, one compact immutable session intent, one desired-action outbox, one boot-aware lease mechanism, one durable registration-generation record, and one narrow deletion fence
 - Evidence: R2 reviewers disagreed materially. The test-only `LeanTrackingRecoveryModelTest` proves 8 scenarios with policy plus one immutable intent stream, one action outbox, one boot-aware lease and one generation row carrying a bounded eligibility vector. The focused comparison plus current coordinator tests passes 21 tests (`BUILD SUCCESSFUL in 2m 14s`). Static ownership inspection also shows that normalized manifest/source/intent, demand, generation and eligibility rows all have real production SQL callers today.
 - Decision: keep the normalized manifest/source/intent rows, desired-action outbox, durable demands, provider generations and eligibility rows for this release; replacing their queryable rows with encoded vectors would create substantial churn before a product vertical. Collapse only `lifecycle_reconcile_lease` into the existing `source_coordinator_lease`, upgrade that shared table to boot-aware elapsed-time generations, and use distinct lease names for projection and lifecycle reconciliation.
-- Consequences: v28 now has 61 entities. `source_coordinator_lease` retains v27's diagnostic wall times but authorization uses boot/process identity, elapsed realtime and generation. The deeper compact model remains test evidence, not production code, and may be reconsidered only when Ambient Steps demonstrates a concrete maintenance or product benefit.
+- Consequences: v28 had 61 entities at this decision point. TI-D088 later adds only two concrete released-v27 recovery records, bringing the current schema to 63. `source_coordinator_lease` retains v27's diagnostic wall times but authorization uses boot/process identity, elapsed realtime and generation. The deeper compact model remains test evidence, not production code, and may be reconsidered only when Ambient Steps demonstrates a concrete maintenance or product benefit.
 
 ## TI-D053 — Ambient Steps is the first proving vertical; its continuity promise is unresolved
 
@@ -786,3 +786,34 @@ Each entry records repository evidence and does not duplicate the final architec
 - Evidence: withholding provider/subscription identity still supports per-callback counts, Wi-Fi band mix, Cell technology/quality distribution and coverage. It cannot support unique/new network counts, AP/cell continuity, radio heatmap clustering, or reliable multi-SIM completion. Once raw identity is discarded, these products cannot be reconstructed retroactively.
 - Decision: v28 containment rows are not product-backfillable into identity-dependent screens. The first radio tier may expose explicitly identity-free aggregate history. Unique-network/distinct-cell/map products remain `UNAVAILABLE` for those rows until admission creates per-install purpose/epoch-keyed HMAC tokens with version/rotation/deletion guarantees; Cell additionally needs a non-identifying registration-local SIM grouping contract.
 - Consequences: legacy radio ownership remains separate until shadow parity and an explicit cutover decision. Product tests must distinguish aggregate availability from identity-product availability instead of presenting a silently partial screen.
+
+## TI-D088 — Released-v27 recovery is a startup fence plus frozen compatibility drain
+
+- Status: `ACCEPTED_FOR_CONTAINMENT`; runtime drain remains `BLOCKED`
+- Owner/date: lead orchestrator after three independent v27 recovery adversaries, 2026-08-22
+- Alternatives: let the ordinary live coordinator reinterpret pending v27 WAL; gate only the normal
+  `Application` initialization path; build a generic migration/receipt/restore platform; record one
+  narrow durable recovery obligation and require one process-wide startup authority
+- Evidence: released v27 had exactly four v1 projections. Current Activity v1 semantics have changed,
+  effect dispatch previously matched only free-form effect kind, and a v27 crash may leave WAL,
+  checkpoint, and undelivered outbox at different transaction boundaries. Android can cold-start
+  receivers/services outside the normal application initializer, while eager Room/DataStore
+  consumers can begin policy/provider work before `LegacyDatabaseUpgradeCoordinator` completes.
+  A fully projected pending effect also proved capable of losing its originating WAL under routine
+  maintenance. Full restore has no safe hot-singleton replacement seam, and partial Tracker database
+  merge can bypass full-database recognition.
+- Decision: the unreleased v28 migration captures an immutable admission high-watermark/data epoch,
+  snapshots or seeds only the four exact released v1 targets, deactivates all v1 registrations, and
+  starts current v2 projections at `cutoff + 1`. Live outbox dispatch is keyed by projection ID and
+  version. Pending legacy effects and blocked targets retain the required WAL until a durable bridge
+  or terminal disposition; bounded maintenance may then remove terminal payloads. The next runtime
+  slice must expose one process-single-flight `TrackingStartupFence` used by every provider,
+  receiver, service, policy bootstrap and module initializer. Deletion wins before drain; checksum-
+  valid rows are decoded only by frozen v1 code; old Activity/control and unsafe session-bound effects
+  are suppressed with auditable disposition; no v27 row acquires v28 purpose/consent/manifest state.
+- Consequences: current containment raises v28 from 61 to 63 entities without restoring the removed
+  generic Phase 3 platform. Location recovery is shadow-only and cannot become a second canonical
+  writer. Source materializers and production UI wiring remain prohibited until startup ordering,
+  crash/retry, epoch/deletion races and every target disposition pass. Production backup-wrapper
+  proof, cold empty-target restore, and partial-database merge rejection are separate narrow slices;
+  no general hot restore or provenance-free import framework is authorized.

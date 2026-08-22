@@ -11,7 +11,7 @@ import javax.inject.Inject
 
 class ActivityAutomationProjection @Inject constructor() : Projection {
 	override val id: String = ID
-	override val version: Int = 1
+	override val version: Int = VERSION
 
 	override suspend fun apply(
 		event: AdmittedSourceEvent<out SourcePayload>,
@@ -58,6 +58,7 @@ class ActivityAutomationProjection @Inject constructor() : Projection {
 
 	companion object {
 		const val ID = "activity-automation"
+		const val VERSION = 2
 		const val OUTBOX_KIND = "activity-automation-v1"
 		const val KIND_RECOGNITION = 1
 		const val KIND_TRANSITION = 2

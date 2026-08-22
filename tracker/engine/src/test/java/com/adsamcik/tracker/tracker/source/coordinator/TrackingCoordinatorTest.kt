@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.coordinator
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.LegacyV27ProjectionDrainEntity
 import com.adsamcik.tracker.tracker.source.ingress.AdmissionResult
 import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
@@ -65,6 +66,43 @@ class TrackingCoordinatorTest {
 			?.contiguousAdmissionOrdinal shouldBe 2L
 	}
 
+	@Test
+	fun `live projection generation starts strictly after a migrated v27 cutoff`() = runTest {
+		database.legacyV27ProjectionDrainDao().saveDrain(
+			LegacyV27ProjectionDrainEntity(
+				cutoffAdmissionOrdinal = 5,
+				collectedDataEpoch = 7,
+				status = LegacyV27ProjectionDrainEntity.STATUS_PENDING,
+				ownerBootId = null,
+				ownerToken = null,
+				leaseGeneration = 0,
+				leaseExpiresElapsedNanos = null,
+				startedAtMs = null,
+				completedAtMs = null,
+				suppressedOutboxCount = 0,
+				failureCode = null,
+			),
+		)
+		val projection = RecordingProjection()
+		val ingress = OrderedIngress(listOf(healthyEvent(6L)))
+		val coordinator = TrackingCoordinator(
+			database = database,
+			ingress = ingress,
+			projections = ProjectionDispatcher(database, setOf(projection)),
+		)
+
+		val result = coordinator.drainAvailable("v28-owner")
+			.shouldBeInstanceOf<CoordinatorDrainResult.Complete>()
+
+		result.lastCompletedOrdinal shouldBe 6L
+		projection.appliedOrdinals shouldBe listOf(6L)
+		ingress.requestedAfterOrdinals.first() shouldBe 5L
+		database.sourceProjectionStateDao().registration("recording", 1)
+			?.activationOrdinal shouldBe 6L
+		database.sourceProjectionStateDao().checkpoint("recording", 1)
+			?.contiguousAdmissionOrdinal shouldBe 6L
+	}
+
 	private fun healthyEvent(ordinal: Long) = AdmittedSourceEvent(
 		eventId = SourceEventId("event-$ordinal"),
 		admissionOrdinal = ordinal,
@@ -110,6 +148,25 @@ private class PoisonThenHealthyIngress(
 		}
 		afterOrdinal == 1L -> listOf(healthy)
 		else -> emptyList()
+	}
+
+	override suspend fun checkpoint(consumer: String, ordinal: Long) = Unit
+}
+
+private class OrderedIngress(
+	private val events: List<AdmittedSourceEvent<out SourcePayload>>,
+) : DurableSourceIngress {
+	val requestedAfterOrdinals = mutableListOf<Long>()
+
+	override suspend fun admit(candidate: SourceEvidenceCandidate<*>): AdmissionResult =
+		error("Admission is not used by this test")
+
+	override suspend fun committedBatch(
+		afterOrdinal: Long,
+		limit: Int,
+	): List<AdmittedSourceEvent<out SourcePayload>> {
+		requestedAfterOrdinals += afterOrdinal
+		return events.filter { it.admissionOrdinal > afterOrdinal }.take(limit)
 	}
 
 	override suspend fun checkpoint(consumer: String, ordinal: Long) = Unit

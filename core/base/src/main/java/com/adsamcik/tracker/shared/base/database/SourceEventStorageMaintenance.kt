@@ -25,9 +25,15 @@ suspend fun AppDatabase.pruneSourceEventStorageBefore(
 		val batch = withTransaction {
 			val projectionDao = sourceProjectionStateDao()
 			val checkpoint = projectionDao.minimumRequiredCheckpoint()
-				?: return@withTransaction SourceEventStoragePruneResult(0, 0)
 			val joinBoundary = projectionDao.minimumJoinRequiredOrdinal()
-			val safeOrdinal = joinBoundary?.let { minOf(checkpoint, it - 1L) } ?: checkpoint
+			val legacyDao = legacyV27ProjectionDrainDao()
+			val safeOrdinal = listOfNotNull(
+				checkpoint,
+				joinBoundary?.minus(1L),
+				legacyDao.minimumPendingOrdinal()?.minus(1L),
+				legacyDao.minimumPendingOutboxOrdinal()?.minus(1L),
+				legacyDao.minimumBlockedWalOrdinal()?.minus(1L),
+			).minOrNull() ?: return@withTransaction SourceEventStoragePruneResult(0, 0)
 			if (safeOrdinal <= 0L) {
 				return@withTransaction SourceEventStoragePruneResult(0, 0)
 			}

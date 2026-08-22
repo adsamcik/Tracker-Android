@@ -19,6 +19,7 @@ import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.GeneralDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportReceiptDao
 import com.adsamcik.tracker.shared.base.database.dao.LiveStatsDao
+import com.adsamcik.tracker.shared.base.database.dao.LegacyV27ProjectionDrainDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationProjectionDao
@@ -39,6 +40,8 @@ import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportEntryReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportJobReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.LiveStatsEntity
+import com.adsamcik.tracker.shared.base.database.data.LegacyV27ProjectionDrainEntity
+import com.adsamcik.tracker.shared.base.database.data.LegacyV27ProjectionTargetEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.LocationObservation
 import com.adsamcik.tracker.shared.base.database.data.LocationProjectionObservationEntity
@@ -159,6 +162,8 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			SourceProjectionJoinStateEntity::class,
 			SourceProjectionOutboxEntity::class,
 			SourceCoordinatorLeaseEntity::class,
+			LegacyV27ProjectionDrainEntity::class,
+			LegacyV27ProjectionTargetEntity::class,
 			SourceRegistrationStateEntity::class,
 			LogicalTrackingSessionEntity::class,
 			SourceServiceRunEntity::class,
@@ -278,6 +283,8 @@ abstract class AppDatabase : RoomDatabase() {
 	abstract fun sourceEventWalDao(): SourceEventWalDao
 
 	abstract fun sourceProjectionStateDao(): SourceProjectionStateDao
+
+	abstract fun legacyV27ProjectionDrainDao(): LegacyV27ProjectionDrainDao
 
 	abstract fun sourceRegistrationStateDao(): SourceRegistrationStateDao
 
@@ -533,6 +540,8 @@ abstract class AppDatabase : RoomDatabase() {
 			database.sourceProjectionStateDao().deleteAllCheckpoints()
 			database.sourceProjectionStateDao().deleteAllRegistrations()
 			database.sourceProjectionStateDao().deleteAllLeases()
+			database.legacyV27ProjectionDrainDao().deleteAllTargets()
+			database.legacyV27ProjectionDrainDao().deleteDrain()
 			database.sourceRegistrationStateDao().deleteAll()
 			database.sourcePlanStateDao().deleteAllAppliedStates()
 			database.sourceRuntimeStateDao().deleteAll()

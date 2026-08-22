@@ -87,8 +87,11 @@ TI-180 as follows:
 | Extend additively | `source_event_wal` and released runtime/plan state | Preserve legacy rows as `LEGACY_UNQUALIFIED`; add delivery identity/range, authorization, all applicable epochs, use/retention class, counts, and origin. Runtime baselines rotate only with real physical/data-epoch changes. |
 | Add only when its transaction contract is ready | source cursor/gap, scoped deletion fence, destination owner, fact membership, day/source completeness, Wi-Fi/Cell headers | Keep records narrow and source-driven. Do not create generic contribution/accounting tables. |
 
-The current 61-table `28.json` is therefore not frozen. Host compilation is useful, but only the
-populated Android migration/open/reopen/product test can close TI-184.
+The current 63-table `28.json` is therefore not frozen. Two of those additions are the narrowly
+scoped released-v27 recovery obligation/target tables; they do not recreate the removed generic
+Phase 3 platform. Populated Android migration/open/reopen execution is necessary but not sufficient
+to close TI-184: the process-wide startup fence, frozen drain, backup recovery, export/import, and
+production-query assertions must also pass.
 
 ## Work items
 
@@ -102,7 +105,7 @@ and a production-query assertion exists where the item produces user-visible fac
 | TI-181 | Final plan §4.3–4.4; TI-D057; immutable intent, purpose separation | A/B | broker entities/DAO, `SourceRegistrationRepository`, supervisor boundary | TI-180 | Unchanged normalized provider configuration survives session/manifest/consent changes without stop/start; authorization revision rotates at the exact boot/elapsed boundary; delayed callbacks resolve authorization by observed time | broker/registration property tests; provider fake crash/retry test | `broker_v2:<source>` required; rollback retires new demand and retains facts | `IN_PROGRESS` |
 | TI-182 | Final plan §8.3; TI-D055/TI-D071; replay safety | D | WAL envelope/DAO/ingress/payload codecs | TI-180, TI-181 | Stable logical delivery identity is independent of local retries; authorization-homogeneous units are stored; exact cache replay is zero-effect across process death; retained-floor metadata cannot wait for pruned ordinals | Atomic delivery admission, sparse authorization filtering, delayed-generation acceptance, exact replay/collision and rollback tests pass; Activity now uses the seam and exact duplicates produce no repeated motion/backend effect; the other five adapters, cursor/gap processing, deletion fences and retained-floor/no-resurrection proof remain | `writer_v2:<source>` off; rollback stops consumption, never deletes WAL/facts | `IN_PROGRESS` |
 | TI-183 | Final plan §8–9; one writer, no resurrection | D | source cursors/gaps, deletion fences, destination owner fence | TI-180 | One cursor/gap lane per source; scoped source/purpose/time deletion fences replay and import; one persisted destination owner generation fences both legacy and target writes | cursor/gap, delete→replay/import, latched cutover/rollback tests | Per-source owner flag; rollback changes owner only after drain/catch-up | `BLOCKED` |
-| TI-184 | TI-D068; migration safety | A/G | `AppDatabaseMigration27To28Test`, fixture assets, production query/export/delete/import paths | TI-180–TI-183 | Populated v27 opens, migrates, closes, reopens, queries, exports, deletes, and recovers without fabricated authority or lost facts; checksum-valid pending v27 WAL drains once only through its released legacy projection contract; interrupted automatic state is inert/finalized before any active read | populated migrate/reopen/production-DAO/delete/reopen passes on `Medium_Phone`; full Tracker database/backup selection now fails before merge mutation or false completion; cold empty-target restore, portable export/provenance-fenced merge, and legacy-WAL drain remain | Backup/recovery marker required; migration failure must preserve recoverable v27 database | `IN_PROGRESS` |
+| TI-184 | TI-D068/TI-D085/TI-D088; migration safety | A/C/D/G | v27 recovery tables/DAO, frozen decoder/projectors, process startup fence, `AppDatabaseMigration27To28Test`, backup, production query/export/delete/import paths | TI-180–TI-183 | Populated v27 opens, migrates, closes, reopens, queries, exports, deletes, and recovers without fabricated authority or lost facts; a transaction-captured admission high-watermark isolates exact released v1 targets from live v2 projections; pending legacy effects retain their WAL until bridged or terminally suppressed; checksum-valid v27 WAL drains once through only its frozen released contract before any provider/service/policy path opens; interrupted automatic state and old Activity effects cannot restart | Four populated migration cases pass on `Medium_Phone`, including unknown target fail-closed, fully pruned WAL high-watermark, and outbox-without-WAL recovery obligation. Host retention/outbox and v1/v2 isolation tests pass. Process-wide startup fence, frozen destination drain/crash matrix, production backup-wrapper proof, cold empty-target restore, partial-database merge containment, portable export and production history queries remain | No rollout flag; startup fails closed. Migration backup remains recoverable; live v2 writers start at cutoff + 1 and Location stays legacy-owned | `IN_PROGRESS` |
 | TI-210 | Final plan §4.4; TI-D057/TI-D059; one physical owner | B | app-scoped `SourceSupervisor`, six adapters, demand reconciler | TI-181 | Exactly one physical owner/source; only direct capture/control/ambient demands affect lifetime; compatible demands merge; removal/reconcile is idempotent; optional context cannot acquire a provider | six manual/automatic registration-set integration tests; process-death reconciliation tests | `supervisor_v2:<source>`; rollback hands ownership back only after callback barrier | `BLOCKED` |
 | TI-211 | Final plan §4.5/§9; no ghosts, Android legality | C | coordinator, service gateway, desired-action outbox/reconciler | TI-180, TI-210 | Durable intent precedes external start; accepted runtime follows; real start origin and exact FGS type union are used; boot/automation epoch fences stale starts; `STOPPING`/`FINALIZED` never restart | transaction-boundary crash tests; reboot/process-kill instrumentation; Android-version legality tests | `lifecycle_v2`; rollback finalizes or safely resumes durable intent | `BLOCKED` |
 | TI-212 | TI-D078/TI-D083; battery honesty | B/G | plan optimizer, source adapters, diagnostics | TI-210 | User-visible modes correspond to measured physical mechanisms; identical rungs collapse; passive/callback/FIFO modes are preferred; active probes are finite, direct-demand-only, stop after qualified evidence, and cannot be started by enrichment | fake plan properties plus Android Studio Power Profiler/system trace/Macrobenchmark and source-relevant device runs per rung | Per-source QoS ceiling; rollback selects cheaper proven rung | `BLOCKED` |
@@ -135,15 +138,17 @@ and a production-query assertion exists where the item produces user-visible fac
    cursor/gap, deletion and destination-owner records remain deliberately unimplemented.
 3. Preserve the now-passing populated v27→v28 fixture on `Medium_Phone`: all six typed source
    families survive, unprovable runtime is terminal before production DAO reads, authority remains
-   fail-closed, and production deletion/reopen proves no Location-child resurrection. Extend TI-184
-   separately with portable export/import and backup-recovery evidence; do not fold those paths into
-   schema migration code.
+   fail-closed, exact v1 projection targets are durably isolated, and production deletion/reopen
+   proves no Location-child resurrection. The four-case suite also covers an unknown target,
+   pruned-WAL admission high-watermark, and an outbox-only recovery obligation.
 4. Continue adopting the now-tested atomic delivery-admission seam source by source. Activity is the
    first integrated adapter: one PendingIntent callback becomes one canonical delivery, sparse Room
    admission maps back to exact original members, exact duplicates are transiently zero-effect, and
    publication is withheld unless recovery reaches the admitted ordinal. The remaining five
-   splitters, source cursors/gaps, scoped deletion, retained-floor no-resurrection, and the released
-   v27-WAL drain remain separate gates.
+   splitters, source cursors/gaps, scoped deletion and retained-floor no-resurrection remain separate
+   gates. Before any of them, implement the process-single-flight startup fence and frozen v27 drain:
+   deletion wins, no provider/policy/service work starts early, v1 Activity/control effects are
+   suppressed, and every target reaches an auditable terminal disposition under crash/retry.
 5. Carry the locally passing TI-213 Dashboard decision into device permission-result evidence and
    audit every other manual start entry point; do not broaden this into history UI work.
 6. Make physical reconfiguration provider-specific. Preserve the prior registration through
@@ -159,9 +164,10 @@ and a production-query assertion exists where the item produces user-visible fac
 
 ## Recorded blockers and explicit decisions
 
-- A local `Medium_Phone` AVD is available and the shallow v27→v28 instrumentation test executes.
-  The realistic populated migration/reopen/recovery fixture, physical-provider behavior, reboot,
-  Doze, permission, FIFO, radio, and representative OEM/device evidence remain unverified.
+- A local `Medium_Phone` AVD is available and the four-case populated v27→v28 migration suite passes.
+  This proves schema/open/reopen/fact/deletion containment, not the runtime legacy drain. Process
+  startup races, production backup-wrapper recovery, provider behavior, reboot, Doze, permission,
+  FIFO, radio, and representative OEM/device evidence remain unverified.
 - Final retention durations and privacy copy remain product/privacy decisions. Implement policy
   fields and deletion mechanics without choosing final values.
 - Whether step corroboration remains automatic control still requires explicit resolution before

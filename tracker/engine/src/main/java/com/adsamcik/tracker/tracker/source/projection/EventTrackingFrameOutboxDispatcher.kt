@@ -42,7 +42,12 @@ class EventTrackingFrameOutboxDispatcher @Inject constructor(
 		val activeEndpoint = synchronized(lock) { endpoint } ?: return 0
 		var delivered = 0
 		database.sourceProjectionStateDao()
-			.pendingOutbox(EventTrackingFrameProjection.OUTBOX_KIND, limit)
+			.pendingOutbox(
+				EventTrackingFrameProjection.ID,
+				EventTrackingFrameProjection.VERSION,
+				EventTrackingFrameProjection.OUTBOX_KIND,
+				limit,
+			)
 			.forEach { effect ->
 				val delivery = EventTrackingFrameEffectCodec.decode(effect.payload, effect.payloadVersion)
 				if (delivery.logicalTrackingId != activeEndpoint.logicalTrackingId) return@forEach

@@ -49,6 +49,9 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 		require(payloadVersion in MINIMUM_VERSION..CURRENT_VERSION) {
 			"Unsupported source payload version $payloadVersion"
 		}
+		if (payloadVersion == LEGACY_V27_VERSION) {
+			return LegacyV27SourcePayloadDecoder.decode(source, bytes)
+		}
 		val payload = DataInputStream(ByteArrayInputStream(bytes)).use { input ->
 			input.readPayload(payloadVersion)
 		}
@@ -253,6 +256,7 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 	private companion object {
 		const val MINIMUM_VERSION = 1
 		const val CURRENT_VERSION = 2
+		const val LEGACY_V27_VERSION = 1
 		const val WIFI_ITEM_TIME_VERSION = 2
 		const val MAX_COLLECTION_SIZE = 100_000
 		const val TYPE_LOCATION_FIX = 1

@@ -133,7 +133,7 @@ class ExplicitTrackingJoinProjection @Inject constructor(
 
 	companion object {
 		const val ID = "explicit-tracking-joins"
-		const val VERSION = 1
+		const val VERSION = 2
 		const val OUTBOX_KIND = "tracking-joined-frame-v1"
 		internal const val STATE_KEY = "tracking-consumer-joins"
 		private const val STATE_VERSION = 1

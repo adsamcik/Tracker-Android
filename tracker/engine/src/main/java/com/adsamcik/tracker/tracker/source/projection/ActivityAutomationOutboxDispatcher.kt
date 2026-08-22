@@ -19,7 +19,12 @@ class ActivityAutomationOutboxDispatcher @Inject constructor(
 	suspend fun drain(limit: Int = 100): Int {
 		var delivered = 0
 		database.sourceProjectionStateDao()
-			.pendingOutbox(ActivityAutomationProjection.OUTBOX_KIND, limit)
+			.pendingOutbox(
+				ActivityAutomationProjection.ID,
+				ActivityAutomationProjection.VERSION,
+				ActivityAutomationProjection.OUTBOX_KIND,
+				limit,
+			)
 			.forEach { effect ->
 			val decoded = decode(effect.payload)
 			BackgroundTrackingApi.handleDurableActivityEvidence(

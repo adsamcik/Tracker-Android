@@ -21,7 +21,7 @@ import javax.inject.Inject
  */
 class EventTrackingFrameProjection @Inject constructor() : Projection {
 	override val id: String = ID
-	override val version: Int = 1
+	override val version: Int = VERSION
 
 	override suspend fun apply(
 		event: AdmittedSourceEvent<out SourcePayload>,
@@ -41,6 +41,7 @@ class EventTrackingFrameProjection @Inject constructor() : Projection {
 
 	companion object {
 		const val ID = "event-tracking-frame"
+		const val VERSION = 2
 		const val OUTBOX_KIND = "event-tracking-frame-v1"
 	}
 }

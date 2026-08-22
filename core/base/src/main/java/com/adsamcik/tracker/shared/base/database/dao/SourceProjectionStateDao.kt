@@ -148,28 +148,56 @@ interface SourceProjectionStateDao {
 
 	@Query(
 		"SELECT * FROM source_projection_outbox WHERE delivered_at_ms IS NULL " +
+			"AND terminal_disposition IS NULL " +
 			"ORDER BY created_at_ms ASC LIMIT :limit",
 	)
 	suspend fun pendingOutbox(limit: Int): List<SourceProjectionOutboxEntity>
 
 	@Query(
 		"SELECT * FROM source_projection_outbox WHERE delivered_at_ms IS NULL " +
-			"AND effect_kind = :effectKind ORDER BY admission_ordinal ASC LIMIT :limit",
+			"AND terminal_disposition IS NULL AND effect_kind = :effectKind " +
+			"ORDER BY admission_ordinal ASC LIMIT :limit",
 	)
 	suspend fun pendingOutbox(effectKind: String, limit: Int): List<SourceProjectionOutboxEntity>
 
 	@Query(
+		"SELECT * FROM source_projection_outbox WHERE delivered_at_ms IS NULL " +
+			"AND terminal_disposition IS NULL AND projection_id = :projectionId " +
+			"AND projection_version = :projectionVersion AND effect_kind = :effectKind " +
+			"ORDER BY admission_ordinal ASC LIMIT :limit",
+	)
+	suspend fun pendingOutbox(
+		projectionId: String,
+		projectionVersion: Int,
+		effectKind: String,
+		limit: Int,
+	): List<SourceProjectionOutboxEntity>
+
+	@Query(
 		"UPDATE source_projection_outbox SET delivered_at_ms = :deliveredAtMs " +
-			"WHERE stable_id = :stableId AND delivered_at_ms IS NULL",
+			"WHERE stable_id = :stableId AND delivered_at_ms IS NULL " +
+			"AND terminal_disposition IS NULL",
 	)
 	suspend fun markOutboxDelivered(stableId: String, deliveredAtMs: Long): Int
 
 	@Query(
+		"UPDATE source_projection_outbox SET terminal_disposition = :disposition, " +
+			"terminal_at_ms = :terminalAtMs WHERE admission_ordinal <= :cutoffAdmissionOrdinal " +
+			"AND delivered_at_ms IS NULL AND terminal_disposition IS NULL",
+	)
+	suspend fun terminalizeUndeliveredThrough(
+		cutoffAdmissionOrdinal: Long,
+		disposition: String,
+		terminalAtMs: Long,
+	): Int
+
+	@Query(
 		"DELETE FROM source_projection_outbox WHERE stable_id IN (" +
 			"SELECT stable_id FROM source_projection_outbox " +
-			"WHERE delivered_at_ms IS NOT NULL AND delivered_at_ms < :deliveredBeforeMs " +
+			"WHERE ((delivered_at_ms IS NOT NULL AND delivered_at_ms < :deliveredBeforeMs) " +
+			"OR (terminal_at_ms IS NOT NULL AND terminal_at_ms < :deliveredBeforeMs)) " +
 			"AND admission_ordinal <= :safeOrdinal " +
-			"ORDER BY delivered_at_ms, admission_ordinal LIMIT :limit)",
+			"ORDER BY COALESCE(delivered_at_ms, terminal_at_ms), admission_ordinal LIMIT :limit)",
 	)
 	suspend fun deleteDeliveredOutboxBatch(
 		safeOrdinal: Long,

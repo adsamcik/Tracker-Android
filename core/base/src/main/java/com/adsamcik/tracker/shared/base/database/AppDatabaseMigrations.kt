@@ -1398,6 +1398,12 @@ val MIGRATION_27_28: Migration = object : Migration(27, 28) {
 					"authorization_purpose_eligibility_mask INTEGER NOT NULL DEFAULT 0",
 			)
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN authorization_fingerprint TEXT")
+			execSQL("ALTER TABLE source_projection_outbox ADD COLUMN terminal_disposition TEXT")
+			execSQL("ALTER TABLE source_projection_outbox ADD COLUMN terminal_at_ms INTEGER")
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_source_projection_outbox_terminal " +
+					"ON source_projection_outbox(terminal_at_ms, admission_ordinal)",
+			)
 			execSQL(
 				"ALTER TABLE source_event_wal " +
 					"ADD COLUMN integrity_identity TEXT NOT NULL DEFAULT 'LEGACY_PENDING_CHECKSUM'",
@@ -1406,6 +1412,147 @@ val MIGRATION_27_28: Migration = object : Migration(27, 28) {
 				"CREATE UNIQUE INDEX IF NOT EXISTS idx_source_event_wal_delivery_unit " +
 					"ON source_event_wal(source_kind, captured_collected_data_epoch, " +
 					"clock_domain_id, delivery_identity, delivery_unit_index)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS legacy_v27_projection_drain (
+					id INTEGER NOT NULL,
+					source_schema_version INTEGER NOT NULL,
+					contract_version INTEGER NOT NULL,
+					cutoff_admission_ordinal INTEGER NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					status TEXT NOT NULL,
+					owner_boot_id TEXT,
+					owner_token TEXT,
+					lease_generation INTEGER NOT NULL,
+					lease_expires_elapsed_nanos INTEGER,
+					started_at_ms INTEGER,
+					completed_at_ms INTEGER,
+					suppressed_outbox_count INTEGER NOT NULL,
+					failure_code TEXT,
+					PRIMARY KEY(id)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS legacy_v27_projection_target (
+					projection_id TEXT NOT NULL,
+					projection_version INTEGER NOT NULL,
+					initial_activation_ordinal INTEGER NOT NULL,
+					initial_checkpoint_ordinal INTEGER NOT NULL,
+					required_through_ordinal INTEGER NOT NULL,
+					last_completed_ordinal INTEGER NOT NULL,
+					retention_required INTEGER NOT NULL,
+					initial_registration_status TEXT NOT NULL,
+					disposition TEXT NOT NULL,
+					completed_at_ms INTEGER,
+					failure_code TEXT,
+					PRIMARY KEY(projection_id, projection_version)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"""
+				INSERT INTO legacy_v27_projection_drain (
+					id, source_schema_version, contract_version, cutoff_admission_ordinal,
+					collected_data_epoch, status, owner_boot_id, owner_token,
+					lease_generation, lease_expires_elapsed_nanos, started_at_ms, completed_at_ms,
+					suppressed_outbox_count, failure_code
+				)
+				SELECT 1, 27, 1, boundary.cutoff_admission_ordinal,
+					COALESCE((SELECT collected_data_epoch FROM source_evidence_state WHERE id = 1), 0),
+					CASE WHEN EXISTS (SELECT 1 FROM source_event_wal) OR EXISTS (
+						SELECT 1 FROM source_projection_outbox WHERE delivered_at_ms IS NULL
+					) THEN 'PENDING' ELSE 'NOT_REQUIRED' END,
+					NULL, NULL, 0, NULL, NULL, NULL, 0, NULL
+				FROM (
+					SELECT MAX(
+						COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'source_event_wal'), 0),
+						COALESCE((SELECT MAX(admission_ordinal) FROM source_event_wal), 0)
+					) AS cutoff_admission_ordinal
+				) AS boundary
+				""".trimIndent(),
+			)
+			execSQL(
+				"""
+				INSERT OR IGNORE INTO legacy_v27_projection_target (
+					projection_id, projection_version, initial_activation_ordinal,
+					initial_checkpoint_ordinal, required_through_ordinal, last_completed_ordinal,
+					retention_required,
+					initial_registration_status, disposition, completed_at_ms, failure_code
+				)
+				SELECT registration.projection_id, registration.projection_version,
+					registration.activation_ordinal,
+					COALESCE(checkpoint.contiguous_admission_ordinal, registration.activation_ordinal - 1),
+					drain.cutoff_admission_ordinal,
+					MAX(
+						COALESCE(checkpoint.contiguous_admission_ordinal, registration.activation_ordinal - 1),
+						COALESCE(
+							(SELECT MIN(admission_ordinal) - 1 FROM source_event_wal),
+							drain.cutoff_admission_ordinal
+						)
+					),
+					registration.retention_required, registration.status,
+					CASE WHEN registration.projection_version = 1 AND registration.projection_id IN (
+						'activity-automation', 'event-tracking-frame',
+						'explicit-tracking-joins', 'location-domain'
+					) THEN 'PENDING' ELSE 'BLOCKED_UNSUPPORTED' END,
+					NULL,
+					CASE WHEN registration.projection_version = 1 AND registration.projection_id IN (
+						'activity-automation', 'event-tracking-frame',
+						'explicit-tracking-joins', 'location-domain'
+					) THEN NULL ELSE 'UNSUPPORTED_LEGACY_PROJECTION' END
+				FROM source_projection_registration AS registration
+				LEFT JOIN source_projection_checkpoint AS checkpoint
+					ON checkpoint.projection_id = registration.projection_id
+					AND checkpoint.projection_version = registration.projection_version
+				JOIN legacy_v27_projection_drain AS drain ON drain.id = 1
+				WHERE drain.status = 'PENDING'
+				""".trimIndent(),
+			)
+			listOf(
+				"activity-automation",
+				"event-tracking-frame",
+				"explicit-tracking-joins",
+				"location-domain",
+			).forEach { projectionId ->
+				execSQL(
+					"""
+					INSERT OR IGNORE INTO legacy_v27_projection_target (
+						projection_id, projection_version, initial_activation_ordinal,
+						initial_checkpoint_ordinal, required_through_ordinal, last_completed_ordinal,
+						retention_required,
+						initial_registration_status, disposition, completed_at_ms, failure_code
+					)
+					SELECT '$projectionId', 1, 1, 0, cutoff_admission_ordinal,
+						COALESCE(
+							(SELECT MIN(admission_ordinal) - 1 FROM source_event_wal),
+							cutoff_admission_ordinal
+						),
+						1,
+						'NOT_REGISTERED_AT_MIGRATION', 'PENDING', NULL, NULL
+					FROM legacy_v27_projection_drain
+					WHERE id = 1 AND status = 'PENDING'
+					""".trimIndent(),
+				)
+			}
+			execSQL(
+				"""
+				UPDATE legacy_v27_projection_drain
+				SET status = 'BLOCKED_UNSUPPORTED_TARGET',
+					failure_code = 'UNSUPPORTED_LEGACY_PROJECTION'
+				WHERE id = 1 AND EXISTS (
+					SELECT 1 FROM legacy_v27_projection_target
+					WHERE disposition = 'BLOCKED_UNSUPPORTED'
+				)
+				""".trimIndent(),
+			)
+			// v1 rows are a frozen compatibility generation. Keeping them ACTIVE would let the
+			// ordinary v28 coordinator consume legacy ordinals or pin its global cursor.
+			execSQL(
+				"UPDATE source_projection_registration SET status = 'LEGACY_V27_PENDING' " +
+					"WHERE status = 'ACTIVE'",
 			)
 			execSQL(
 				"ALTER TABLE logical_tracking_session " +

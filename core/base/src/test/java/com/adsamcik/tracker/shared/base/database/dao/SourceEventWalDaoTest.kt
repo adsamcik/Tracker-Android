@@ -8,6 +8,8 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.pruneSourceEventStorageBefore
 import com.adsamcik.tracker.shared.base.database.data.LocationProjectionObservationEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationProjectionPointEntity
+import com.adsamcik.tracker.shared.base.database.data.LegacyV27ProjectionDrainEntity
+import com.adsamcik.tracker.shared.base.database.data.LegacyV27ProjectionTargetEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionCheckpointEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionJoinStateEntity
@@ -62,6 +64,120 @@ class SourceEventWalDaoTest {
 		dao.saveCheckpoint(SourceProjectionCheckpointEntity("session", 1, 7, 1, 100))
 
 		dao.minimumRequiredCheckpoint() shouldBe 7L
+	}
+
+	@Test
+	fun `live outbox delivery cannot consume a released v27 projection generation`() = runTest {
+		val dao = database.sourceProjectionStateDao()
+		dao.insertOutbox(
+			SourceProjectionOutboxEntity(
+				stableId = "legacy-effect",
+				projectionId = "activity-automation",
+				projectionVersion = 1,
+				admissionOrdinal = 1,
+				effectKind = "activity-automation-v1",
+				payloadVersion = 1,
+				payload = byteArrayOf(1),
+				createdAtMs = 10,
+				deliveredAtMs = null,
+			),
+		)
+		dao.insertOutbox(
+			SourceProjectionOutboxEntity(
+				stableId = "live-effect",
+				projectionId = "activity-automation",
+				projectionVersion = 2,
+				admissionOrdinal = 2,
+				effectKind = "activity-automation-v1",
+				payloadVersion = 1,
+				payload = byteArrayOf(2),
+				createdAtMs = 20,
+				deliveredAtMs = null,
+			),
+		)
+
+		dao.pendingOutbox("activity-automation", 2, "activity-automation-v1", 10)
+			.map { it.stableId } shouldBe listOf("live-effect")
+		dao.terminalizeUndeliveredThrough(1, "MIGRATION_SUPPRESSED_CONTROL", 30) shouldBe 1
+		dao.pendingOutbox("activity-automation-v1", 10)
+			.map { it.stableId } shouldBe listOf("live-effect")
+		dao.markOutboxDelivered("legacy-effect", 40) shouldBe 0
+	}
+
+	@Test
+	fun `pending v27 target pins wal retention until its required cutoff is dispositioned`() = runTest {
+		val legacy = database.legacyV27ProjectionDrainDao()
+		legacy.saveDrain(
+			LegacyV27ProjectionDrainEntity(
+				cutoffAdmissionOrdinal = 2,
+				collectedDataEpoch = 4,
+				status = LegacyV27ProjectionDrainEntity.STATUS_PENDING,
+				ownerBootId = null,
+				ownerToken = null,
+				leaseGeneration = 0,
+				leaseExpiresElapsedNanos = null,
+				startedAtMs = null,
+				completedAtMs = null,
+				suppressedOutboxCount = 0,
+				failureCode = null,
+			),
+		)
+		val target = LegacyV27ProjectionTargetEntity(
+			projectionId = "location-domain",
+			projectionVersion = 1,
+			initialActivationOrdinal = 1,
+			initialCheckpointOrdinal = 0,
+			requiredThroughOrdinal = 2,
+			lastCompletedOrdinal = 0,
+			retentionRequired = true,
+			initialRegistrationStatus = "ACTIVE",
+			disposition = LegacyV27ProjectionTargetEntity.DISPOSITION_PENDING,
+			completedAtMs = null,
+			failureCode = null,
+		)
+		legacy.saveTarget(target)
+		val projection = database.sourceProjectionStateDao()
+		projection.register(SourceProjectionRegistrationEntity("location-domain", 2, 3, true, "ACTIVE", 0))
+		projection.saveCheckpoint(SourceProjectionCheckpointEntity("location-domain", 2, 3, 1, 100))
+		val wal = database.sourceEventWalDao()
+		(1L..3L).forEach { ordinal ->
+			wal.insertIgnoringDuplicate(event("event-$ordinal", ordinal).copy(createdAtMs = 10))
+		}
+		projection.insertOutbox(
+			SourceProjectionOutboxEntity(
+				stableId = "legacy-event-frame-2",
+				projectionId = "event-tracking-frame",
+				projectionVersion = 1,
+				admissionOrdinal = 2,
+				effectKind = "event-tracking-frame-v1",
+				payloadVersion = 1,
+				payload = byteArrayOf(2),
+				createdAtMs = 10,
+				deliveredAtMs = null,
+			),
+		)
+
+		database.pruneSourceEventStorageBefore(createdBeforeMs = 100).walEventsDeleted shouldBe 0
+		wal.countAll() shouldBe 3
+
+		legacy.saveTarget(
+			target.copy(
+				lastCompletedOrdinal = 2,
+				disposition = "DRAINED",
+				completedAtMs = 200,
+			),
+		)
+		database.pruneSourceEventStorageBefore(createdBeforeMs = 100).walEventsDeleted shouldBe 1
+		wal.getByEventId("event-1") shouldBe null
+		wal.getByEventId("event-2")?.eventId shouldBe "event-2"
+		wal.getByEventId("event-3")?.eventId shouldBe "event-3"
+
+		projection.terminalizeUndeliveredThrough(2, "MIGRATION_BRIDGED", 20) shouldBe 1
+		val finalPrune = database.pruneSourceEventStorageBefore(createdBeforeMs = 100)
+		finalPrune.walEventsDeleted shouldBe 2
+		finalPrune.deliveredEffectsDeleted shouldBe 1
+		wal.countAll() shouldBe 0
+		projection.pendingOutbox(10) shouldBe emptyList()
 	}
 
 	@Test

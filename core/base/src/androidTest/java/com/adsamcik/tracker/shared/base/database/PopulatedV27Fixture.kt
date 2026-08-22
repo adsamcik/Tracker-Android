@@ -240,18 +240,18 @@ internal object PopulatedV27Fixture {
 		execSQL(
 			"INSERT INTO source_projection_registration " +
 				"(projection_id, projection_version, activation_ordinal, retention_required, " +
-				"status, created_at_ms) VALUES ('legacy-location', 1, 1, 1, 'ACTIVE', $START_MS)",
+				"status, created_at_ms) VALUES ('location-domain', 1, 1, 1, 'ACTIVE', $START_MS)",
 		)
 		execSQL(
 			"INSERT INTO source_projection_checkpoint " +
 				"(projection_id, projection_version, contiguous_admission_ordinal, state_version, " +
-				"updated_at_ms) VALUES ('legacy-location', 1, 0, 1, $START_MS)",
+				"updated_at_ms) VALUES ('location-domain', 1, 0, 1, $START_MS)",
 		)
 		execSQL(
 			"INSERT INTO source_projection_outbox " +
 				"(stable_id, projection_id, projection_version, admission_ordinal, effect_kind, " +
 				"payload_version, payload, created_at_ms, delivered_at_ms) VALUES " +
-				"('v27-outbox', 'legacy-location', 1, 1, 'LOCATION', 1, ?, $START_MS, NULL)",
+				"('v27-outbox', 'location-domain', 1, 1, 'LOCATION', 1, ?, $START_MS, NULL)",
 			arrayOf(byteArrayOf(4, 5, 6)),
 		)
 		execSQL(

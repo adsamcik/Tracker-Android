@@ -113,6 +113,24 @@ class EventTrackingFrameProjectionTest {
 		val projection = EventTrackingFrameProjection()
 		val projections = ProjectionDispatcher(database, setOf(projection))
 		projections.registerAll(1L)
+		val legacyCycle = event(
+			"legacy-step",
+			1L,
+			StepCounterWindowPayload("boot", 90, 95, 5, 1, 2, 1, 2, false),
+		).toEventTrackingFrame() ?: error("missing legacy frame")
+		database.sourceProjectionStateDao().insertOutbox(
+			com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity(
+				stableId = "legacy-v1-frame",
+				projectionId = EventTrackingFrameProjection.ID,
+				projectionVersion = 1,
+				admissionOrdinal = 1,
+				effectKind = EventTrackingFrameProjection.OUTBOX_KIND,
+				payloadVersion = EventTrackingFrameEffectCodec.VERSION,
+				payload = EventTrackingFrameEffectCodec.encode("tracking", legacyCycle),
+				createdAtMs = 1,
+				deliveredAtMs = null,
+			),
+		)
 		val payload = StepCounterWindowPayload("boot", 100, 105, 5, 10, 20, 1, 2, false)
 		projections.dispatch(event("durable-step", 1L, payload)).complete shouldBe true
 
@@ -126,6 +144,8 @@ class EventTrackingFrameProjectionTest {
 
 		received.single().persistenceSignalId shouldBe "source-event:durable-step"
 		received.single().stepDelta shouldBe 5
+		database.sourceProjectionStateDao().pendingOutbox(10)
+			.map { it.stableId } shouldBe listOf("legacy-v1-frame")
 	}
 
 	private fun event(

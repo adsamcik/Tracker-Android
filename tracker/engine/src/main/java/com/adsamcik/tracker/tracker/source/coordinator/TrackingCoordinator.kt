@@ -36,7 +36,9 @@ class TrackingCoordinator @Inject constructor(
 		var cursor = 0L
 		var count = 0
 		return try {
-			projections.registerAll(1L)
+			val activationOrdinal = database.legacyV27ProjectionDrainDao()
+				.liveActivationOrdinal() ?: 1L
+			projections.registerAll(activationOrdinal)
 			cursor = database.sourceProjectionStateDao().minimumActiveCheckpoint()
 				?: database.sourceEventWalDao().maximumAdmissionOrdinal()
 				?: 0L

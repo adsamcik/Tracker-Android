@@ -77,7 +77,7 @@ class LocationDomainProjection @Inject constructor(
 
 	companion object {
 		const val ID = "location-domain"
-		const val VERSION = 1
+		const val VERSION = 2
 		const val ROUTE_EFFECT_KIND = "location-route-point-v1"
 		const val SPEED_EFFECT_KIND = "location-speed-v1"
 		const val ALTITUDE_EFFECT_KIND = "location-altitude-v1"

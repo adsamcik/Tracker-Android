@@ -8,6 +8,7 @@ import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.LegacyV27ProjectionDrainEntity
 import com.adsamcik.tracker.sqlite.runtime.SQLiteXSupportSQLiteOpenHelperFactory
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -39,11 +40,17 @@ class AppDatabaseMigration27To28Test {
 	@Before
 	fun deleteDatabaseBeforeTest() {
 		context.deleteDatabase(TEST_DATABASE)
+		context.deleteDatabase(UNSUPPORTED_PROJECTION_TEST_DATABASE)
+		context.deleteDatabase(PRUNED_WAL_TEST_DATABASE)
+		context.deleteDatabase(OUTBOX_ONLY_TEST_DATABASE)
 	}
 
 	@After
 	fun deleteDatabaseAfterTest() {
 		context.deleteDatabase(TEST_DATABASE)
+		context.deleteDatabase(UNSUPPORTED_PROJECTION_TEST_DATABASE)
+		context.deleteDatabase(PRUNED_WAL_TEST_DATABASE)
+		context.deleteDatabase(OUTBOX_ONLY_TEST_DATABASE)
 	}
 
 	@Test
@@ -87,6 +94,119 @@ class AppDatabaseMigration27To28Test {
 			} finally {
 				database.close()
 			}
+		}
+	}
+
+	@Test
+	fun unexpectedV27ProjectionIsDurablyBlockedAndCannotRemainLive() {
+		helper.createDatabase(UNSUPPORTED_PROJECTION_TEST_DATABASE, 27).use { database ->
+			PopulatedV27Fixture.seed(database)
+			database.execSQL(
+				"INSERT INTO source_projection_registration " +
+					"(projection_id, projection_version, activation_ordinal, retention_required, " +
+					"status, created_at_ms) VALUES ('unknown-release-projection', 9, 1, 1, " +
+					"'ACTIVE', ${PopulatedV27Fixture.START_MS})",
+			)
+			database.execSQL(
+				"INSERT INTO source_projection_checkpoint " +
+					"(projection_id, projection_version, contiguous_admission_ordinal, " +
+					"state_version, updated_at_ms) VALUES ('unknown-release-projection', 9, 0, 1, " +
+					"${PopulatedV27Fixture.START_MS})",
+			)
+		}
+
+		helper.runMigrationsAndValidate(
+			UNSUPPORTED_PROJECTION_TEST_DATABASE,
+			28,
+			true,
+			MIGRATION_27_28,
+		).use { database ->
+			database.query(
+				"SELECT status, failure_code FROM legacy_v27_projection_drain WHERE id = 1",
+			).use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals("BLOCKED_UNSUPPORTED_TARGET", cursor.getString(0))
+				assertEquals("UNSUPPORTED_LEGACY_PROJECTION", cursor.getString(1))
+			}
+			database.query(
+				"SELECT disposition, failure_code FROM legacy_v27_projection_target " +
+					"WHERE projection_id = 'unknown-release-projection' AND projection_version = 9",
+			).use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals("BLOCKED_UNSUPPORTED", cursor.getString(0))
+				assertEquals("UNSUPPORTED_LEGACY_PROJECTION", cursor.getString(1))
+			}
+			database.query(
+				"SELECT status FROM source_projection_registration " +
+					"WHERE projection_id = 'unknown-release-projection' AND projection_version = 9",
+			).use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals("LEGACY_V27_PENDING", cursor.getString(0))
+			}
+		}
+	}
+
+	@Test
+	fun prunedV27WalHighWatermarkStillFencesTheLiveGeneration() {
+		helper.createDatabase(PRUNED_WAL_TEST_DATABASE, 27).use { database ->
+			PopulatedV27Fixture.seed(database)
+			database.execSQL("DELETE FROM source_projection_outbox")
+			database.execSQL("DELETE FROM source_event_wal")
+		}
+
+		helper.runMigrationsAndValidate(
+			PRUNED_WAL_TEST_DATABASE,
+			28,
+			true,
+			MIGRATION_27_28,
+		).use { database ->
+			database.query(
+				"SELECT cutoff_admission_ordinal, status FROM legacy_v27_projection_drain WHERE id = 1",
+			).use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals(1L, cursor.getLong(0))
+				assertEquals("NOT_REQUIRED", cursor.getString(1))
+			}
+			assertTableCount(database, "legacy_v27_projection_target", 0)
+			database.query(
+				"SELECT status FROM source_projection_registration " +
+					"WHERE projection_id = 'location-domain' AND projection_version = 1",
+			).use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals("LEGACY_V27_PENDING", cursor.getString(0))
+			}
+		}
+	}
+
+	@Test
+	fun pendingV27OutboxWithoutWalStillRequiresSuppressionRecovery() {
+		helper.createDatabase(OUTBOX_ONLY_TEST_DATABASE, 27).use { database ->
+			PopulatedV27Fixture.seed(database)
+			database.execSQL("DELETE FROM source_event_wal")
+		}
+
+		helper.runMigrationsAndValidate(
+			OUTBOX_ONLY_TEST_DATABASE,
+			28,
+			true,
+			MIGRATION_27_28,
+		).use { database ->
+			database.query(
+				"SELECT cutoff_admission_ordinal, status FROM legacy_v27_projection_drain WHERE id = 1",
+			).use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals(1L, cursor.getLong(0))
+				assertEquals("PENDING", cursor.getString(1))
+			}
+			assertTableCount(database, "legacy_v27_projection_target", 4)
+			database.query(
+				"SELECT COUNT(*) FROM legacy_v27_projection_target " +
+					"WHERE last_completed_ordinal < required_through_ordinal",
+			).use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals(0L, cursor.getLong(0))
+			}
+			assertTableCount(database, "source_projection_outbox", 1)
 		}
 	}
 
@@ -171,6 +291,8 @@ class AppDatabaseMigration27To28Test {
 		assertTableCount(database, "source_projection_registration", 1)
 		assertTableCount(database, "source_projection_checkpoint", 1)
 		assertTableCount(database, "source_projection_outbox", 1)
+		assertTableCount(database, "legacy_v27_projection_drain", 1)
+		assertTableCount(database, "legacy_v27_projection_target", 4)
 		assertTableCount(database, "source_session_completeness", 1)
 		assertTableCount(database, "pending_signal", 1)
 		assertTableCount(database, "import_job_receipt", 1)
@@ -311,9 +433,41 @@ class AppDatabaseMigration27To28Test {
 		assertEquals(1, database.pendingSignalDao().countAll())
 		assertNotNull(database.importReceiptDao().getJob(PopulatedV27Fixture.IMPORT_JOB_ID))
 		assertNotNull(database.importReceiptDao().getEntry(PopulatedV27Fixture.IMPORT_JOB_ID, "entry-1"))
-		assertNotNull(database.sourceProjectionStateDao().registration("legacy-location", 1))
-		assertNotNull(database.sourceProjectionStateDao().checkpoint("legacy-location", 1))
+		val legacyRegistration = requireNotNull(
+			database.sourceProjectionStateDao().registration("location-domain", 1),
+		)
+		assertEquals("LEGACY_V27_PENDING", legacyRegistration.status)
+		assertNotNull(database.sourceProjectionStateDao().checkpoint("location-domain", 1))
 		assertEquals(1, database.sourceProjectionStateDao().pendingOutbox(10).size)
+
+		val legacyDrain = requireNotNull(database.legacyV27ProjectionDrainDao().get())
+		assertEquals(1L, legacyDrain.cutoffAdmissionOrdinal)
+		assertEquals(7L, legacyDrain.collectedDataEpoch)
+		assertEquals(LegacyV27ProjectionDrainEntity.STATUS_PENDING, legacyDrain.status)
+		assertEquals(0L, legacyDrain.leaseGeneration)
+		assertNull(legacyDrain.ownerBootId)
+		assertNull(legacyDrain.ownerToken)
+		assertNull(legacyDrain.leaseExpiresElapsedNanos)
+		assertEquals(2L, database.legacyV27ProjectionDrainDao().liveActivationOrdinal())
+		assertEquals(1L, database.legacyV27ProjectionDrainDao().minimumPendingOrdinal())
+		val targets = database.legacyV27ProjectionDrainDao().targets()
+		assertEquals(
+			setOf(
+				"activity-automation",
+				"event-tracking-frame",
+				"explicit-tracking-joins",
+				"location-domain",
+			),
+			targets.map { it.projectionId }.toSet(),
+		)
+		val locationTarget = targets.single { it.projectionId == "location-domain" }
+		assertEquals(0L, locationTarget.initialCheckpointOrdinal)
+		assertEquals(0L, locationTarget.lastCompletedOrdinal)
+		assertEquals(1L, locationTarget.requiredThroughOrdinal)
+		assertEquals("ACTIVE", locationTarget.initialRegistrationStatus)
+		assertTrue(targets.filterNot { it.projectionId == "location-domain" }.all {
+			it.initialRegistrationStatus == "NOT_REGISTERED_AT_MIGRATION"
+		})
 	}
 
 	private suspend fun assertFailClosedAuthorityAndNoGhostRuntime(database: AppDatabase) {
@@ -390,6 +544,8 @@ class AppDatabaseMigration27To28Test {
 		)
 		assertNull(database.dailySummaryDao().getByDay(PopulatedV27Fixture.DAY_EPOCH))
 		assertEquals(0L, database.sourceEventWalDao().countAll())
+		assertNull(database.legacyV27ProjectionDrainDao().get())
+		assertTrue(database.legacyV27ProjectionDrainDao().targets().isEmpty())
 		assertEquals(0, database.pendingSignalDao().countAll())
 		assertNull(database.importReceiptDao().getJob(PopulatedV27Fixture.IMPORT_JOB_ID))
 		assertNull(database.sourceSessionDao().session(PopulatedV27Fixture.LOGICAL_TRACKING_ID))
@@ -424,5 +580,8 @@ class AppDatabaseMigration27To28Test {
 
 	private companion object {
 		const val TEST_DATABASE = "migration-27-28-populated"
+		const val UNSUPPORTED_PROJECTION_TEST_DATABASE = "migration-27-28-unsupported-projection"
+		const val PRUNED_WAL_TEST_DATABASE = "migration-27-28-pruned-wal"
+		const val OUTBOX_ONLY_TEST_DATABASE = "migration-27-28-outbox-only"
 	}
 }

@@ -75,6 +75,10 @@ data class SourceProjectionJoinStateEntity(
 			value = ["effect_kind", "delivered_at_ms", "admission_ordinal"],
 			name = "idx_source_projection_outbox_kind_pending",
 		),
+		Index(
+			value = ["terminal_at_ms", "admission_ordinal"],
+			name = "idx_source_projection_outbox_terminal",
+		),
 	],
 )
 data class SourceProjectionOutboxEntity(
@@ -87,6 +91,8 @@ data class SourceProjectionOutboxEntity(
 	@ColumnInfo(name = "payload") val payload: ByteArray,
 	@ColumnInfo(name = "created_at_ms") val createdAtMs: Long,
 	@ColumnInfo(name = "delivered_at_ms") val deliveredAtMs: Long?,
+	@ColumnInfo(name = "terminal_disposition") val terminalDisposition: String? = null,
+	@ColumnInfo(name = "terminal_at_ms") val terminalAtMs: Long? = null,
 )
 
 @Entity(tableName = "source_coordinator_lease")

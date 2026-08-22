@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 28,
-    "identityHash": "776835408de370095165be85296c9e06",
+    "identityHash": "e6d7d7209b4b91f172aaa79c3f38ff8e",
     "entities": [
       {
         "tableName": "activity",
@@ -2361,7 +2361,7 @@
       },
       {
         "tableName": "source_projection_outbox",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`stable_id` TEXT NOT NULL, `projection_id` TEXT NOT NULL, `projection_version` INTEGER NOT NULL, `admission_ordinal` INTEGER NOT NULL, `effect_kind` TEXT NOT NULL, `payload_version` INTEGER NOT NULL, `payload` BLOB NOT NULL, `created_at_ms` INTEGER NOT NULL, `delivered_at_ms` INTEGER, PRIMARY KEY(`stable_id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`stable_id` TEXT NOT NULL, `projection_id` TEXT NOT NULL, `projection_version` INTEGER NOT NULL, `admission_ordinal` INTEGER NOT NULL, `effect_kind` TEXT NOT NULL, `payload_version` INTEGER NOT NULL, `payload` BLOB NOT NULL, `created_at_ms` INTEGER NOT NULL, `delivered_at_ms` INTEGER, `terminal_disposition` TEXT, `terminal_at_ms` INTEGER, PRIMARY KEY(`stable_id`))",
         "fields": [
           {
             "fieldPath": "stableId",
@@ -2415,6 +2415,16 @@
             "fieldPath": "deliveredAtMs",
             "columnName": "delivered_at_ms",
             "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "terminalDisposition",
+            "columnName": "terminal_disposition",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "terminalAtMs",
+            "columnName": "terminal_at_ms",
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -2444,6 +2454,16 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_source_projection_outbox_kind_pending` ON `${TABLE_NAME}` (`effect_kind`, `delivered_at_ms`, `admission_ordinal`)"
+          },
+          {
+            "name": "idx_source_projection_outbox_terminal",
+            "unique": false,
+            "columnNames": [
+              "terminal_at_ms",
+              "admission_ordinal"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_source_projection_outbox_terminal` ON `${TABLE_NAME}` (`terminal_at_ms`, `admission_ordinal`)"
           }
         ]
       },
@@ -2508,6 +2528,173 @@
           "autoGenerate": false,
           "columnNames": [
             "lease_name"
+          ]
+        }
+      },
+      {
+        "tableName": "legacy_v27_projection_drain",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `source_schema_version` INTEGER NOT NULL, `contract_version` INTEGER NOT NULL, `cutoff_admission_ordinal` INTEGER NOT NULL, `collected_data_epoch` INTEGER NOT NULL, `status` TEXT NOT NULL, `owner_boot_id` TEXT, `owner_token` TEXT, `lease_generation` INTEGER NOT NULL, `lease_expires_elapsed_nanos` INTEGER, `started_at_ms` INTEGER, `completed_at_ms` INTEGER, `suppressed_outbox_count` INTEGER NOT NULL, `failure_code` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceSchemaVersion",
+            "columnName": "source_schema_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "contractVersion",
+            "columnName": "contract_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cutoffAdmissionOrdinal",
+            "columnName": "cutoff_admission_ordinal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "collectedDataEpoch",
+            "columnName": "collected_data_epoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ownerBootId",
+            "columnName": "owner_boot_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "ownerToken",
+            "columnName": "owner_token",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "leaseGeneration",
+            "columnName": "lease_generation",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "leaseExpiresElapsedNanos",
+            "columnName": "lease_expires_elapsed_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "startedAtMs",
+            "columnName": "started_at_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "completedAtMs",
+            "columnName": "completed_at_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "suppressedOutboxCount",
+            "columnName": "suppressed_outbox_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "failureCode",
+            "columnName": "failure_code",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "legacy_v27_projection_target",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`projection_id` TEXT NOT NULL, `projection_version` INTEGER NOT NULL, `initial_activation_ordinal` INTEGER NOT NULL, `initial_checkpoint_ordinal` INTEGER NOT NULL, `required_through_ordinal` INTEGER NOT NULL, `last_completed_ordinal` INTEGER NOT NULL, `retention_required` INTEGER NOT NULL, `initial_registration_status` TEXT NOT NULL, `disposition` TEXT NOT NULL, `completed_at_ms` INTEGER, `failure_code` TEXT, PRIMARY KEY(`projection_id`, `projection_version`))",
+        "fields": [
+          {
+            "fieldPath": "projectionId",
+            "columnName": "projection_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "projectionVersion",
+            "columnName": "projection_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "initialActivationOrdinal",
+            "columnName": "initial_activation_ordinal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "initialCheckpointOrdinal",
+            "columnName": "initial_checkpoint_ordinal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "requiredThroughOrdinal",
+            "columnName": "required_through_ordinal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastCompletedOrdinal",
+            "columnName": "last_completed_ordinal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "retentionRequired",
+            "columnName": "retention_required",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "initialRegistrationStatus",
+            "columnName": "initial_registration_status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "disposition",
+            "columnName": "disposition",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedAtMs",
+            "columnName": "completed_at_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "failureCode",
+            "columnName": "failure_code",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "projection_id",
+            "projection_version"
           ]
         }
       },
@@ -6430,7 +6617,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '776835408de370095165be85296c9e06')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e6d7d7209b4b91f172aaa79c3f38ff8e')"
     ]
   }
 }
