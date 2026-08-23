@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.activity.receiver
 
+import android.Manifest
+import android.app.Application
 import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
@@ -13,6 +15,7 @@ import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
 import com.adsamcik.tracker.activity.api.ingress.ActivityDurableSelection
 import com.adsamcik.tracker.activity.api.ingress.ActivityIngressResult
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
+import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.google.android.gms.location.ActivityRecognitionResult
@@ -31,11 +34,19 @@ import io.mockk.verify
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
@@ -142,10 +153,10 @@ class ActivityReceiverTest {
 
 	@Test
 	fun `does not publish process local effects when durable handoff fails`() {
-		coEvery { mockIngress.admit(any()) } returns ActivityIngressResult.retryable(
+		coEvery { mockIngress.admit(any()) } returns ActivityIngressResult.rejected(
 			admittedCount = 0,
 			duplicateCount = 0,
-			failureCode = "storage_unavailable",
+			failureCode = "invalid_delivery",
 		)
 		val intent = intentWithActivityResult(
 			com.google.android.gms.location.DetectedActivity.WALKING,
@@ -154,6 +165,81 @@ class ActivityReceiverTest {
 
 		receiver.onReceive(context, intent)
 
+		verify(exactly = 0) { mockBackend.onActivityResult(any(), any()) }
+	}
+
+	@Test
+	fun `retryable callback admission retries the exact delivery until durable`() = runTest {
+		val retryable = ActivityIngressResult.retryable(
+			admittedCount = 0,
+			duplicateCount = 0,
+			failureCode = "storage_unavailable",
+		)
+		val durable = ActivityIngressResult.durable(
+			admittedCount = 1,
+			duplicateCount = 0,
+			durableSelection = ActivityDurableSelection(recognitionIndexes = setOf(0)),
+		)
+		val admissions = ArrayDeque(listOf(retryable, durable))
+		var permissionChecks = 0
+		var attempts = 0
+		var published: ActivityIngressResult? = null
+
+		admitActivityCallbackWithRetry(
+			hasActivityPermission = {
+				permissionChecks += 1
+				true
+			},
+			admit = {
+				attempts += 1
+				admissions.removeFirst()
+			},
+			onDurable = { published = it },
+		)
+
+		attempts shouldBe 2
+		permissionChecks shouldBe 2
+		published shouldBe durable
+	}
+
+	@Test
+	fun `permission revoked during retry terminates before another ingress call`() = runTest {
+		var hasPermission = true
+		var permissionChecks = 0
+		var attempts = 0
+		var published = false
+
+		admitActivityCallbackWithRetry(
+			hasActivityPermission = {
+				permissionChecks += 1
+				hasPermission
+			},
+			admit = {
+				attempts += 1
+				hasPermission = false
+				ActivityIngressResult.retryable(0, 0, "storage_unavailable")
+			},
+			onDurable = { published = true },
+		)
+
+		attempts shouldBe 1
+		permissionChecks shouldBe 2
+		published shouldBe false
+	}
+
+	@Test
+	@Config(sdk = [34])
+	fun `permission revoked before callback creates no durable Activity write`() {
+		val application = ApplicationProvider.getApplicationContext<Application>()
+		shadowOf(application).denyPermissions(Manifest.permission.ACTIVITY_RECOGNITION)
+		val intent = intentWithActivityResult(
+			com.google.android.gms.location.DetectedActivity.WALKING,
+			85,
+		)
+
+		receiver.onReceive(application, intent)
+
+		coVerify(exactly = 0) { mockIngress.admit(any()) }
 		verify(exactly = 0) { mockBackend.onActivityResult(any(), any()) }
 	}
 
@@ -200,6 +286,99 @@ class ActivityReceiverTest {
 		receiver.onReceive(context, intent)
 
 		verify(exactly = 0) { mockBackend.onActivityResult(any(), any()) }
+	}
+
+	@Test
+	fun `external cancellation remains cancelled and still completes callback work`() = runTest {
+		var finishCount = 0
+		val job = launch {
+			runBoundedActivityCallbackWork(
+				receivedElapsedRealtimeMillis = 5_000L,
+				currentElapsedRealtimeMillis = { 5_000L },
+				work = { throw CancellationException("application scope cancelled") },
+				finish = { finishCount += 1 },
+			)
+		}
+
+		job.join()
+
+		job.isCancelled shouldBe true
+		finishCount shouldBe 1
+	}
+
+	@OptIn(ExperimentalCoroutinesApi::class)
+	@Test
+	fun `never returning ingress is cancelled and completion runs inside total budget`() {
+		val scheduler = TestCoroutineScheduler()
+		val scope = TestScope(StandardTestDispatcher(scheduler))
+		var ingressCancelled = false
+		coEvery { mockIngress.admit(any()) } coAnswers {
+			try {
+				awaitCancellation()
+			} finally {
+				ingressCancelled = true
+			}
+		}
+		var completedAtMs: Long? = null
+		scope.launch {
+			runBoundedActivityCallbackWork(
+				receivedElapsedRealtimeMillis = 5_000L,
+				currentElapsedRealtimeMillis = { 5_000L },
+				work = {
+					mockIngress.admit(mockk<ActivityRecognitionEvidenceBatch>())
+				},
+				finish = { completedAtMs = scheduler.currentTime },
+			)
+		}
+		scheduler.runCurrent()
+		completedAtMs shouldBe null
+
+		scheduler.advanceTimeBy(ACTIVITY_CALLBACK_WORK_BUDGET_MS - 1L)
+		scheduler.runCurrent()
+		completedAtMs shouldBe null
+		ingressCancelled shouldBe false
+
+		scheduler.advanceTimeBy(1L)
+		scheduler.runCurrent()
+		ingressCancelled shouldBe true
+		completedAtMs shouldBe ACTIVITY_CALLBACK_WORK_BUDGET_MS
+		scheduler.currentTime shouldBe ACTIVITY_CALLBACK_WORK_BUDGET_MS
+		verify(exactly = 0) { mockBackend.onActivityResult(any(), any()) }
+	}
+
+	@OptIn(ExperimentalCoroutinesApi::class)
+	@Test
+	fun `retryable admission exhausts deadline without reporting durable success`() {
+		val scheduler = TestCoroutineScheduler()
+		val scope = TestScope(StandardTestDispatcher(scheduler))
+		var attempts = 0
+		var published = false
+		var completedAtMs: Long? = null
+		scope.launch {
+			runBoundedActivityCallbackWork(
+				receivedElapsedRealtimeMillis = 5_000L,
+				currentElapsedRealtimeMillis = { 5_000L },
+				work = {
+					admitActivityCallbackWithRetry(
+						hasActivityPermission = { true },
+						admit = {
+							attempts += 1
+							ActivityIngressResult.retryable(0, 0, "storage_unavailable")
+						},
+						onDurable = { published = true },
+					)
+				},
+				finish = { completedAtMs = scheduler.currentTime },
+			)
+		}
+
+		scheduler.advanceTimeBy(ACTIVITY_CALLBACK_WORK_BUDGET_MS)
+		scheduler.runCurrent()
+
+		(attempts > 1) shouldBe true
+		published shouldBe false
+		completedAtMs shouldBe ACTIVITY_CALLBACK_WORK_BUDGET_MS
+		scheduler.currentTime shouldBe ACTIVITY_CALLBACK_WORK_BUDGET_MS
 	}
 
 	@Test
