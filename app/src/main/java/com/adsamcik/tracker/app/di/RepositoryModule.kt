@@ -26,6 +26,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.time.Clock
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -127,12 +128,15 @@ abstract class RepositoryModule {
 		@Provides
 		@Singleton
 		fun provideSourcePolicyRepository(
-			@ApplicationContext context: Context,
 			database: AppDatabase,
 			clock: Clock,
+			bootClockDomainProvider: BootClockDomainProvider,
 		): SourcePolicyRepository = RoomSourcePolicyRepository(
 			database = database,
-			effectiveTimeProvider = AndroidSourcePolicyEffectiveTimeProvider(context, clock),
+			effectiveTimeProvider = AndroidSourcePolicyEffectiveTimeProvider(
+				bootClockDomainProvider,
+				clock,
+			),
 		)
 
 		@Provides

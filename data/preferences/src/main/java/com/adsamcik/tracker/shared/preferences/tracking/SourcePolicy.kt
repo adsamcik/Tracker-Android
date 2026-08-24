@@ -1,9 +1,7 @@
 package com.adsamcik.tracker.shared.preferences.tracking
 
-import android.content.Context
-import android.provider.Settings
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.base.time.Clock
-import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 
 enum class SourcePurpose(val stableName: String) {
@@ -44,16 +42,11 @@ fun interface SourcePolicyEffectiveTimeProvider {
  * deliberately used so elapsed values can never be joined across an unverified process boundary.
  */
 class AndroidSourcePolicyEffectiveTimeProvider(
-	context: Context,
+	private val bootClockDomainProvider: BootClockDomainProvider,
 	private val clock: Clock,
 ) : SourcePolicyEffectiveTimeProvider {
-	private val appContext = context.applicationContext
-	private val conservativeProcessBootId = "process-${UUID.randomUUID()}"
-
 	override fun now(): SourcePolicyEffectiveTime = SourcePolicyEffectiveTime(
-		bootId = runCatching {
-			"android-boot-${Settings.Global.getInt(appContext.contentResolver, Settings.Global.BOOT_COUNT)}"
-		}.getOrDefault(conservativeProcessBootId),
+		bootId = bootClockDomainProvider.current(),
 		elapsedRealtimeNanos = clock.elapsedRealtimeNanos(),
 		wallTimeMs = clock.currentTimeMillis(),
 	)

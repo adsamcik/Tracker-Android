@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.di
 
+import android.content.Context
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjection
 import com.adsamcik.tracker.tracker.source.projection.ExplicitTrackingJoinProjection
 import com.adsamcik.tracker.tracker.source.projection.EventTrackingFrameProjection
@@ -23,8 +24,10 @@ import com.adsamcik.tracker.tracker.source.runtime.WifiSourceRuntime
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
+import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -91,7 +94,10 @@ object SourcePipelineModule {
 	)
 
 	@Provides
-	fun provideBootClockDomainProvider(provider: AndroidBootClockDomainProvider): BootClockDomainProvider = provider
+	@Singleton
+	fun provideBootClockDomainProvider(
+		@ApplicationContext context: Context,
+	): BootClockDomainProvider = AndroidBootClockDomainProvider(context)
 
 	@Provides
 	@IntoSet

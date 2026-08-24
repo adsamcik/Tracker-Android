@@ -1,8 +1,6 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
-import android.content.Context
 import android.os.SystemClock
-import android.provider.Settings
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
@@ -13,39 +11,14 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.tracker.source.model.SourceKind
-import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
-interface BootClockDomainProvider {
-	fun current(): String
-}
-
-@Singleton
-class AndroidBootClockDomainProvider @Inject constructor(
-	@ApplicationContext private val context: Context,
-) : BootClockDomainProvider {
-	private val conservativeProcessBootId = "process-${UUID.randomUUID()}"
-
-	override fun current(): String {
-		val bootCount = Settings.Global.getInt(
-			context.contentResolver,
-			Settings.Global.BOOT_COUNT,
-			UNKNOWN_BOOT_COUNT,
-		)
-		if (bootCount >= 0) return "android-boot-count:$bootCount"
-
-		// An unreadable BOOT_COUNT cannot safely be replaced by a wall-clock estimate: clock
-		// changes can split one boot or join two boots. A process boundary is conservative, but it
-		// never authorizes an elapsed-time lease or callback across an unverified reboot.
-		return conservativeProcessBootId
-	}
-
-	private companion object {
-		const val UNKNOWN_BOOT_COUNT = -1
-	}
-}
+typealias BootClockDomainProvider =
+	com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
+typealias AndroidBootClockDomainProvider =
+	com.adsamcik.tracker.shared.base.time.AndroidBootClockDomainProvider
 
 data class SourceRegistration(
 	val ownerScope: String,
