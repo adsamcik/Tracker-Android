@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 28,
-    "identityHash": "fde8198388fd6c71377b0a8069f43a0c",
+    "identityHash": "f23c84216abfd1757b863e4df7d3e7cb",
     "entities": [
       {
         "tableName": "activity",
@@ -1596,7 +1596,7 @@
       },
       {
         "tableName": "tracker_run",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER, `policy` TEXT NOT NULL, `policy_params` TEXT, `user_initiated` INTEGER NOT NULL, `created_at` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER, `policy` TEXT NOT NULL, `policy_params` TEXT, `user_initiated` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, `legacy_runtime_fenced` INTEGER NOT NULL DEFAULT 0)",
         "fields": [
           {
             "fieldPath": "id",
@@ -1637,6 +1637,13 @@
             "columnName": "created_at",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "legacyRuntimeFenced",
+            "columnName": "legacy_runtime_fenced",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
           }
         ],
         "primaryKey": {
@@ -6983,7 +6990,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'fde8198388fd6c71377b0a8069f43a0c')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f23c84216abfd1757b863e4df7d3e7cb')"
     ]
   }
 }

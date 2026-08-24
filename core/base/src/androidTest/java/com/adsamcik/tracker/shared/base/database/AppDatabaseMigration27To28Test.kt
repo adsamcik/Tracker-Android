@@ -355,7 +355,7 @@ class AppDatabaseMigration27To28Test {
 			assertTrue(cursor.moveToFirst())
 			assertEquals("FINALIZED", cursor.getString(0))
 			assertEquals(4L, cursor.getLong(1))
-			assertEquals(PopulatedV27Fixture.START_MS, cursor.getLong(2))
+			assertTrue(cursor.isNull(2))
 			assertEquals(V28_MIGRATION_INTERRUPTION_REASON, cursor.getString(3))
 			assertEquals("LEGACY_UNKNOWN", cursor.getString(4))
 			assertTrue(cursor.isNull(5))
@@ -373,7 +373,7 @@ class AppDatabaseMigration27To28Test {
 		).use { cursor ->
 			assertTrue(cursor.moveToFirst())
 			assertEquals("FINALIZED", cursor.getString(0))
-			assertEquals(PopulatedV27Fixture.START_MS, cursor.getLong(1))
+			assertTrue(cursor.isNull(1))
 			assertEquals(V28_MIGRATION_INTERRUPTION_REASON, cursor.getString(2))
 			assertEquals("LEGACY_UNKNOWN", cursor.getString(3))
 			assertEquals(0L, cursor.getLong(4))
@@ -384,9 +384,12 @@ class AppDatabaseMigration27To28Test {
 			assertEquals(V28_MIGRATION_INTERRUPTION_REASON, cursor.getString(9))
 			assertEquals(1L, cursor.getLong(10))
 		}
-		database.query("SELECT end_time_ms FROM tracker_run WHERE id = 1").use { cursor ->
+		database.query(
+			"SELECT end_time_ms, legacy_runtime_fenced FROM tracker_run WHERE id = 1",
+		).use { cursor ->
 			assertTrue(cursor.moveToFirst())
-			assertEquals(PopulatedV27Fixture.START_MS, cursor.getLong(0))
+			assertTrue(cursor.isNull(0))
+			assertEquals(1L, cursor.getLong(1))
 		}
 		assertTableCount(database, "source_coordinator_lease", 0)
 		assertTableCount(database, "source_policy", 0)
@@ -664,7 +667,7 @@ class AppDatabaseMigration27To28Test {
 		val session = requireNotNull(database.sourceSessionDao().session(PopulatedV27Fixture.LOGICAL_TRACKING_ID))
 		assertEquals("FINALIZED", session.state)
 		assertEquals(V28_MIGRATION_INTERRUPTION_REASON, session.failureCode)
-		assertEquals(PopulatedV27Fixture.START_MS, session.completedAtMs)
+		assertNull(session.completedAtMs)
 		assertTrue(database.sourceSessionDao().manifests(session.logicalTrackingId).isEmpty())
 		assertTrue(database.sourceSessionDao().lifecycleIntents(session.logicalTrackingId).isEmpty())
 
@@ -673,13 +676,19 @@ class AppDatabaseMigration27To28Test {
 		assertEquals("AUTOMATIC_BACKGROUND_START", service.startOrigin)
 		assertEquals(V28_MIGRATION_INTERRUPTION_REASON, service.completionReason)
 		assertEquals(V28_MIGRATION_INTERRUPTION_REASON, service.runtimeFailureCode)
+		assertNull(service.completedAtMs)
 		assertTrue(database.sourceSessionDao().incompleteServiceRuns(session.logicalTrackingId).isEmpty())
 		assertNull(database.trackerRunDao().getActiveRun())
+		assertEquals(
+			0,
+			database.trackerRunDao().closeOpenRuns(PopulatedV27Fixture.END_MS + 1),
+		)
 		val trackerRun = database.trackerRunDao().getAllBetween(
 			PopulatedV27Fixture.START_MS,
 			PopulatedV27Fixture.END_MS,
 		).single()
-		assertEquals(PopulatedV27Fixture.START_MS, trackerRun.endTimeMs)
+		assertNull(trackerRun.endTimeMs)
+		assertTrue(trackerRun.legacyRuntimeFenced)
 		assertFalse(trackerRun.userInitiated)
 	}
 

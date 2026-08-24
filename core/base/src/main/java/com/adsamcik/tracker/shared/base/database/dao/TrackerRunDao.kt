@@ -58,9 +58,15 @@ interface TrackerRunDao : BaseDao<TrackerRun> {
 	fun getAllBetweenFlow(fromMs: Long, toMs: Long): Flow<List<TrackerRun>>
 
 	/**
-	 * Get currently active run (end_time_ms is null).
+	 * Get the current-process run whose end is still open.
+	 *
+	 * A migrated legacy row may retain a null factual end while being durably fenced from runtime
+	 * ownership. Such a row is historical/diagnostic evidence, not an active run.
 	 */
-	@Query("SELECT * FROM tracker_run WHERE end_time_ms IS NULL ORDER BY start_time_ms DESC LIMIT 1")
+	@Query(
+		"SELECT * FROM tracker_run WHERE end_time_ms IS NULL AND legacy_runtime_fenced = 0 " +
+			"ORDER BY start_time_ms DESC LIMIT 1",
+	)
 	suspend fun getActiveRun(): TrackerRun?
 
 	@Query(
@@ -84,7 +90,7 @@ interface TrackerRunDao : BaseDao<TrackerRun> {
 		"""
 		UPDATE tracker_run
 		SET end_time_ms = MAX(start_time_ms, :endTimeMs)
-		WHERE end_time_ms IS NULL
+		WHERE end_time_ms IS NULL AND legacy_runtime_fenced = 0
 		""",
 	)
 	suspend fun closeOpenRuns(endTimeMs: Long): Int
@@ -92,7 +98,10 @@ interface TrackerRunDao : BaseDao<TrackerRun> {
 	/**
 	 * End an active run.
 	 */
-	@Query("UPDATE tracker_run SET end_time_ms = :endTimeMs WHERE id = :id")
+	@Query(
+		"UPDATE tracker_run SET end_time_ms = :endTimeMs " +
+			"WHERE id = :id AND legacy_runtime_fenced = 0",
+	)
 	suspend fun endRun(id: Long, endTimeMs: Long)
 
 	/**

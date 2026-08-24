@@ -69,9 +69,22 @@ class TrackerRunDaoTest {
 		dao.getOverlapping(fromMs = 0L, toMs = 2_000L).map { it.startTimeMs } shouldBe listOf(100L, 400L)
 	}
 
+	@Test
+	fun `legacy fenced run keeps unknown end without appearing active or being closed later`() = runTest {
+		dao.insert(run(startTimeMs = 100L, endTimeMs = null, legacyRuntimeFenced = true))
+
+		dao.getActiveRun() shouldBe null
+		dao.closeOpenRuns(endTimeMs = 3_000L) shouldBe 0
+
+		val retained = dao.getOverlapping(fromMs = 0L, toMs = 2_000L).single()
+		retained.endTimeMs shouldBe null
+		retained.legacyRuntimeFenced shouldBe true
+	}
+
 	private fun run(
 		startTimeMs: Long,
 		endTimeMs: Long?,
+		legacyRuntimeFenced: Boolean = false,
 	): TrackerRun = TrackerRun(
 		startTimeMs = startTimeMs,
 		endTimeMs = endTimeMs,
@@ -79,5 +92,6 @@ class TrackerRunDaoTest {
 		policyParams = null,
 		userInitiated = false,
 		createdAt = startTimeMs,
+		legacyRuntimeFenced = legacyRuntimeFenced,
 	)
 }

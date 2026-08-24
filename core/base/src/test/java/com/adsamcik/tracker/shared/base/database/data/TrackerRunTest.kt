@@ -32,6 +32,7 @@ class TrackerRunTest {
 			r.policyParams shouldBe null
 			r.userInitiated shouldBe true
 			r.createdAt shouldBe 1000L
+			r.legacyRuntimeFenced shouldBe false
 		}
 
 		@Test

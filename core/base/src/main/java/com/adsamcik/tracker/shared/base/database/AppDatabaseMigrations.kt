@@ -1380,6 +1380,10 @@ val MIGRATION_27_28: Migration = object : Migration(27, 28) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		with(db) {
 			execSQL(
+				"ALTER TABLE tracker_run ADD COLUMN " +
+					"legacy_runtime_fenced INTEGER NOT NULL DEFAULT 0",
+			)
+			execSQL(
 				"ALTER TABLE source_evidence_state ADD COLUMN " +
 					"deleted_source_event_high_water_ordinal INTEGER NOT NULL DEFAULT 0",
 			)
@@ -1655,28 +1659,30 @@ val MIGRATION_27_28: Migration = object : Migration(27, 28) {
 			)
 			// A v27 runtime cannot survive the binary replacement that performs this migration. Its
 			// manifest, consent, boot lease, and provider acknowledgement are unprovable in v28, so
-			// retaining a nonterminal row would expose a ghost session before recovery can run. Use
-			// only existing factual boundaries; never extend legacy activity to migration wall time.
+			// retaining a nonterminal state would expose a ghost session before recovery can run.
+			// State and factual completion are separate: terminalize ownership without inventing a
+			// completion instant from the start or another unrelated retained observation.
 			execSQL(
 				"UPDATE logical_tracking_session SET " +
 					"state = 'FINALIZED', lifecycle_revision = lifecycle_revision + 1, " +
-					"completed_at_ms = COALESCE(completed_at_ms, cutoff_at_ms, started_at_ms), " +
 					"failure_code = '$V28_MIGRATION_INTERRUPTION_REASON' " +
 					"WHERE state NOT IN ('FINALIZED', 'CLOSED', 'FAILED')",
 			)
 			execSQL(
 				"UPDATE source_service_run SET " +
-					"state = 'FINALIZED', completed_at_ms = COALESCE(completed_at_ms, started_at_ms), " +
+					"state = 'FINALIZED', " +
 					"completion_reason = '$V28_MIGRATION_INTERRUPTION_REASON', " +
 					"runtime_acknowledgement = 'TERMINAL_FAILURE', " +
 					"runtime_failure_code = '$V28_MIGRATION_INTERRUPTION_REASON', " +
 					"run_revision = run_revision + 1 " +
 					"WHERE state NOT IN ('FINALIZED', 'CLOSED', 'FAILED')",
 			)
-			// tracker_run has no interruption/completeness field. Closing at its own known start is
-			// conservative: downstream queries cannot fabricate an open-ended interval, while typed
-			// observations and materialized session segments retain the actual released history.
-			execSQL("UPDATE tracker_run SET end_time_ms = start_time_ms WHERE end_time_ms IS NULL")
+			// tracker_run historically used a nullable end for both factual interval completion and
+			// runtime liveness. Preserve the unknown end, and fence only runtime ownership so neither
+			// migration nor a later close-open-runs sweep fabricates a boundary.
+			execSQL(
+				"UPDATE tracker_run SET legacy_runtime_fenced = 1 WHERE end_time_ms IS NULL",
+			)
 			execSQL(
 				"""
 				CREATE TABLE IF NOT EXISTS source_policy_authority (
