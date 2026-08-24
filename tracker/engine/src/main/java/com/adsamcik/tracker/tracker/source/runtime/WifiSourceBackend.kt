@@ -12,6 +12,7 @@ import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 
 internal sealed interface WifiBackendEvent {
 	data class Results(
@@ -70,6 +71,7 @@ internal class AndroidWifiSourceBackend internal constructor(
 
 	private var receiver: BroadcastReceiver? = null
 
+	@Synchronized
 	fun start(callback: (WifiBackendEvent) -> Unit): Boolean {
 		if (receiver != null || wifiManager == null) return false
 		val next = object : BroadcastReceiver() {
@@ -90,7 +92,10 @@ internal class AndroidWifiSourceBackend internal constructor(
 				}
 			}
 		}
-		return runCatching {
+		// Retain the exact provisional receiver before crossing into Android. Registration can
+		// side-effect and then throw; cleanup must remain a separate, runtime-ordered operation.
+		receiver = next
+		return try {
 			registerReceiver(
 				next,
 				IntentFilter().apply {
@@ -98,23 +103,38 @@ internal class AndroidWifiSourceBackend internal constructor(
 					addAction(PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED)
 				},
 			)
-			receiver = next
 			true
-		}.getOrDefault(false)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: RuntimeException) {
+			false
+		}
 	}
 
+	@Synchronized
 	fun stop(): Boolean {
 		val active = receiver ?: return true
-		return runCatching {
+		return try {
 			unregisterReceiver(active)
-			receiver = null
+			if (receiver === active) receiver = null
 			true
-		}.getOrDefault(false)
+		} catch (_: IllegalArgumentException) {
+			// Android's exact "receiver not registered" result proves there is no remaining
+			// provider work for this handle, including a pre-side-effect registration failure.
+			if (receiver === active) receiver = null
+			true
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: RuntimeException) {
+			false
+		}
 	}
 
 	@Suppress("DEPRECATION")
 	fun requestScan(): WifiRequestOutcome = try {
 		if (wifiManager?.startScan() == true) WifiRequestOutcome.ACCEPTED else WifiRequestOutcome.THROTTLED
+	} catch (cancelled: CancellationException) {
+		throw cancelled
 	} catch (_: SecurityException) {
 		WifiRequestOutcome.PERMISSION_BLOCKED
 	} catch (_: RuntimeException) {
@@ -125,6 +145,8 @@ internal class AndroidWifiSourceBackend internal constructor(
 		wifiManager?.scanResults
 			?.map { it.toBackendAccessPoint() }
 			?.let(::WifiBackendSnapshot)
+	} catch (cancelled: CancellationException) {
+		throw cancelled
 	} catch (_: SecurityException) {
 		null
 	} catch (_: RuntimeException) {
