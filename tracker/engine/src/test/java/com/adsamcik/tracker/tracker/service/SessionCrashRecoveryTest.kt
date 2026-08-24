@@ -20,6 +20,8 @@ import com.adsamcik.tracker.stats.api.repository.UnconsumedEvent
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.tracker.controller.DefaultTrackerServiceController
+import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
+import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.matchers.collections.shouldHaveAtLeastSize
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.floats.plusOrMinus
@@ -142,6 +144,7 @@ class SessionCrashRecoveryTest {
 			isSessionUserInitiated = true,
 			initialTier = PolicyTier.PRECISION,
 			scope = backgroundScope,
+			rolloutState = allEventShadow(),
 		)
 		testDispatcher.scheduler.advanceUntilIdle()
 
@@ -255,6 +258,7 @@ class SessionCrashRecoveryTest {
 			isSessionUserInitiated = true,
 			initialTier = PolicyTier.PRECISION,
 			scope = scope,
+			rolloutState = allEventShadow(),
 		)
 		testDispatcher.scheduler.advanceUntilIdle()
 		orchestrator.shutdown(context)
@@ -269,6 +273,8 @@ class SessionCrashRecoveryTest {
 			cellEnabled = false,
 		),
 	)
+
+	private fun allEventShadow() = TrackingRolloutState.eventShadow(SourceKind.entries.toSet())
 
 	private fun todayStartMs(): Long = startOfLocalDayMs(LocalDate.now().toEpochDay())
 

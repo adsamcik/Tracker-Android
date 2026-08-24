@@ -24,6 +24,8 @@ import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.stats.api.value.StepCount
 import com.adsamcik.tracker.tracker.controller.DefaultTrackerServiceController
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
+import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
+import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
@@ -168,6 +170,7 @@ class MultiSessionLifecycleTest {
 			isSessionUserInitiated = true,
 			initialTier = PolicyTier.PRECISION,
 			scope = backgroundScope,
+			rolloutState = allEventShadow(),
 		)
 		advanceUntilIdle()
 
@@ -215,6 +218,7 @@ class MultiSessionLifecycleTest {
 			isSessionUserInitiated = true,
 			initialTier = PolicyTier.PRECISION,
 			scope = scope,
+			rolloutState = allEventShadow(),
 		)
 		testDispatcher.scheduler.advanceUntilIdle()
 
@@ -250,6 +254,8 @@ class MultiSessionLifecycleTest {
 			cellEnabled = false,
 		),
 	)
+
+	private fun allEventShadow() = TrackingRolloutState.eventShadow(SourceKind.entries.toSet())
 
 	private fun location(timeMs: Long, latitude: Double, longitude: Double): Location {
 		return Location("gps").apply {

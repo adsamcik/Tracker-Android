@@ -71,15 +71,12 @@ class EventTrackingFrameProjectionTest {
 		projectedNormal.first().stepSourceFirstSequence shouldBe 2L
 		projectedNormal.last().stepSourceLastSequence shouldBe 3L
 
-		val projectedReset = event(
-			"reset",
-			4L,
-			requireNotNull(newAccumulator.accept("boot", 2L, 40L, 4L)),
-		).toEventTrackingFrame()
-
-		projectedReset?.stepDelta shouldBe 2
-		projectedReset?.stepSensorReset shouldBe true
-		projectedReset?.totalStepsSinceBoot shouldBe 2L
+		val resetPayload = requireNotNull(newAccumulator.accept("boot", 2L, 40L, 4L))
+		resetPayload.deltaCount shouldBe 0L
+		resetPayload.baselineReset shouldBe true
+		resetPayload.firstCumulativeCount shouldBe 2L
+		resetPayload.lastCumulativeCount shouldBe 2L
+		event("reset", 4L, resetPayload).toEventTrackingFrame() shouldBe null
 	}
 
 	@Test
