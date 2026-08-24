@@ -13,6 +13,27 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class LocationEvidenceNormalizerTest {
 	@Test
+	fun `missing provider elapsed time is not replaced by callback receipt time`() {
+		val location = location(elapsedNanos = 0L)
+
+		assertEquals(null, location.qualifiedObservedElapsedRealtimeNanos(receivedElapsedRealtimeNanos = 10L))
+	}
+
+	@Test
+	fun `future provider elapsed time is rejected before admission`() {
+		val location = location(elapsedNanos = 11L)
+
+		assertEquals(null, location.qualifiedObservedElapsedRealtimeNanos(receivedElapsedRealtimeNanos = 10L))
+	}
+
+	@Test
+	fun `provider elapsed time at callback receipt is qualified`() {
+		val location = location(elapsedNanos = 10L)
+
+		assertEquals(10L, location.qualifiedObservedElapsedRealtimeNanos(receivedElapsedRealtimeNanos = 10L))
+	}
+
+	@Test
 	fun `sorts a fused batch by provider event time with stable ties`() {
 		val late = location("late", 3_000L, 300L)
 		val firstTie = location("first-tie", 1_000L, 200L)
@@ -48,7 +69,11 @@ class LocationEvidenceNormalizerTest {
 		assertEquals(listOf(50.0, 50.0001), normalized.map { it.latitude })
 	}
 
-	private fun location(provider: String, elapsedNanos: Long, wallTimeMs: Long) =
+	private fun location(
+		provider: String = "gps",
+		elapsedNanos: Long,
+		wallTimeMs: Long = 1L,
+	) =
 		FakeLocationSource.createLocation(
 			lat = 50.0,
 			lon = 14.0,

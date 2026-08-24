@@ -3,12 +3,41 @@ package com.adsamcik.tracker.tracker.source.runtime
 import android.location.Location
 import com.adsamcik.tracker.shared.base.constant.CoordinateConstants
 
-/** Stable event-time ordering for provider batches; input order breaks exact ties. */
+/** Canonical source-field ordering for provider batches, independent of callback list permutation. */
 internal fun normalizeLocationBatch(locations: List<Location>): List<Location> = locations
 	.withIndex()
-	.sortedWith(compareBy({ it.value.elapsedRealtimeNanos }, { it.value.time }, { it.index }))
-	.distinctBy { indexed -> indexed.value.providerObservationIdentity() }
-	.map { indexed -> indexed.value }
+	.map { indexed ->
+		IndexedProviderObservation(
+			indexed.index,
+			indexed.value,
+			indexed.value.providerObservationIdentity(),
+		)
+	}
+	.sortedWith(
+		compareBy<IndexedProviderObservation>(
+			{ it.identity.elapsedRealtimeNanos },
+			{ it.identity.wallTimeMs },
+			{ it.identity.provider },
+			{ it.identity.latitude },
+			{ it.identity.longitude },
+			{ it.identity.accuracy },
+			{ it.identity.altitude },
+			{ it.identity.verticalAccuracy },
+			{ it.identity.speed },
+			{ it.identity.bearing },
+			// Only exact provider-observation duplicates can reach this tie-breaker; distinctBy
+			// removes them, so their incoming order cannot affect delivery bytes or unit order.
+			{ it.originalIndex },
+		),
+	)
+	.distinctBy(IndexedProviderObservation::identity)
+	.map(IndexedProviderObservation::location)
+
+private data class IndexedProviderObservation(
+	val originalIndex: Int,
+	val location: Location,
+	val identity: ProviderObservationIdentity,
+)
 
 private fun Location.providerObservationIdentity() = ProviderObservationIdentity(
 	provider = provider,
@@ -41,3 +70,16 @@ internal fun Location.isValidLocationEvidence(): Boolean =
 		latitude in CoordinateConstants.MIN_LATITUDE..CoordinateConstants.MAX_LATITUDE &&
 		longitude in CoordinateConstants.MIN_LONGITUDE..CoordinateConstants.MAX_LONGITUDE &&
 		hasAccuracy() && accuracy.isFinite() && accuracy >= 0f
+
+/**
+ * Returns only provider-observed monotonic time from the current boot domain.
+ *
+ * Receipt time is deliberately not a fallback: doing so would turn an undated cached fix into a
+ * fresh observation. Future provider time is likewise unverifiable and is rejected before any
+ * source identity or sequence is allocated.
+ */
+internal fun Location.qualifiedObservedElapsedRealtimeNanos(
+	receivedElapsedRealtimeNanos: Long,
+): Long? = elapsedRealtimeNanos.takeIf { observed ->
+	receivedElapsedRealtimeNanos >= 0L && observed > 0L && observed <= receivedElapsedRealtimeNanos
+}

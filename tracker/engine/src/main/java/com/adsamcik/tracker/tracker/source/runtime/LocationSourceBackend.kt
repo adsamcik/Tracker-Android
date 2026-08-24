@@ -24,24 +24,48 @@ internal interface LocationSourceBackendController {
 	val backend: LocationBackend
 	val batchingSupported: Boolean
 	val flushSupported: Boolean
-	suspend fun start(plan: LocationPlan, onLocations: (List<Location>) -> Unit): Boolean
+	val hasRetainedRegistration: Boolean
+	suspend fun start(
+		plan: LocationPlan,
+		onLocations: (List<Location>) -> Unit,
+	): LocationBackendStartOutcome
 	suspend fun flush(): ProviderFlushOutcome
 	suspend fun stop(): RegistrationRemovalOutcome
 }
 
+internal enum class LocationBackendStartOutcome {
+	STARTED,
+	CLEANUP_REQUIRED,
+	BLOCKED_BY_RETAINED_REGISTRATION,
+}
+
+internal data class FusedLocationBackendOperations(
+	val requestUpdates: suspend (LocationRequest, LocationCallback) -> Unit,
+	val flushLocations: suspend () -> Unit,
+	val removeUpdates: suspend (LocationCallback) -> Unit,
+)
+
 @Singleton
-internal class FusedLocationSourceBackend @Inject constructor(
-	@ApplicationContext context: Context,
+internal class FusedLocationSourceBackend internal constructor(
+	private val operations: FusedLocationBackendOperations,
 ) : LocationSourceBackendController {
+	@Inject
+	constructor(
+		@ApplicationContext context: Context,
+	) : this(fusedLocationBackendOperations(context))
+
 	override val backend = LocationBackend.FUSED
 	override val batchingSupported = true
 	override val flushSupported = true
-	private val client = LocationServices.getFusedLocationProviderClient(context)
 	private var callback: LocationCallback? = null
+	override val hasRetainedRegistration: Boolean get() = callback != null
 
 	@SuppressLint("MissingPermission")
-	override suspend fun start(plan: LocationPlan, onLocations: (List<Location>) -> Unit): Boolean {
-		check(callback == null) { "Fused location backend is already registered" }
+	override suspend fun start(
+		plan: LocationPlan,
+		onLocations: (List<Location>) -> Unit,
+	): LocationBackendStartOutcome {
+		if (callback != null) return LocationBackendStartOutcome.BLOCKED_BY_RETAINED_REGISTRATION
 		val nextCallback = object : LocationCallback() {
 			override fun onLocationResult(result: LocationResult) {
 				if (result.locations.isNotEmpty()) onLocations(result.locations.map(::Location))
@@ -56,23 +80,26 @@ internal class FusedLocationSourceBackend @Inject constructor(
 				plan.preciseLocationAvailable && plan.mode in setOf(LocationMode.HIGH_ACCURACY, LocationMode.PROBE),
 			)
 			.build()
-		return runCatchingNonCancellation {
-			client.requestLocationUpdates(request, nextCallback, Looper.getMainLooper()).await()
-			callback = nextCallback
-			true
-		}.getOrDefault(false)
+		// Keep the exact callback before the provider call. A failed/ambiguous Task can have applied
+		// its side effect, so only the runtime's durable retirement path may remove this object.
+		callback = nextCallback
+		return runCatchingNonCancellation { operations.requestUpdates(request, nextCallback) }
+			.fold(
+				onSuccess = { LocationBackendStartOutcome.STARTED },
+				onFailure = { LocationBackendStartOutcome.CLEANUP_REQUIRED },
+			)
 	}
 
 	override suspend fun flush(): ProviderFlushOutcome = if (callback == null) {
 		ProviderFlushOutcome.NOT_REQUESTED
 	} else {
-		runCatchingNonCancellation { client.flushLocations().await() }
+		runCatchingNonCancellation { operations.flushLocations() }
 			.fold({ ProviderFlushOutcome.COMPLETE }, { ProviderFlushOutcome.FAILED })
 	}
 
 	override suspend fun stop(): RegistrationRemovalOutcome {
 		val active = callback ?: return RegistrationRemovalOutcome.NOT_REGISTERED
-		return runCatchingNonCancellation { client.removeLocationUpdates(active).await() }
+		return runCatchingNonCancellation { operations.removeUpdates(active) }
 			.fold(
 				onSuccess = {
 					callback = null
@@ -83,41 +110,69 @@ internal class FusedLocationSourceBackend @Inject constructor(
 	}
 }
 
+private fun fusedLocationBackendOperations(context: Context): FusedLocationBackendOperations {
+	val client = LocationServices.getFusedLocationProviderClient(context)
+	return FusedLocationBackendOperations(
+		requestUpdates = { request, callback ->
+			client.requestLocationUpdates(request, callback, Looper.getMainLooper()).await()
+		},
+		flushLocations = { client.flushLocations().await() },
+		removeUpdates = { callback -> client.removeLocationUpdates(callback).await() },
+	)
+}
+
+internal data class FrameworkLocationBackendOperations(
+	val isProviderEnabled: (String) -> Boolean,
+	val requestUpdates: (String, Long, Float, LocationListener) -> Unit,
+	val removeUpdates: (LocationListener) -> Unit,
+)
+
 @Singleton
-internal class FrameworkLocationSourceBackend @Inject constructor(
-	@ApplicationContext context: Context,
+internal class FrameworkLocationSourceBackend internal constructor(
+	private val operations: FrameworkLocationBackendOperations,
 ) : LocationSourceBackendController {
+	@Inject
+	constructor(
+		@ApplicationContext context: Context,
+	) : this(frameworkLocationBackendOperations(context))
+
 	override val backend = LocationBackend.FRAMEWORK
 	override val batchingSupported = false
 	override val flushSupported = false
-	private val manager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
 	private var listener: LocationListener? = null
+	override val hasRetainedRegistration: Boolean get() = listener != null
 
 	@SuppressLint("MissingPermission")
-	override suspend fun start(plan: LocationPlan, onLocations: (List<Location>) -> Unit): Boolean {
-		check(listener == null) { "Framework location backend is already registered" }
-		val provider = plan.mode.toFrameworkProvider(manager)
+	override suspend fun start(
+		plan: LocationPlan,
+		onLocations: (List<Location>) -> Unit,
+	): LocationBackendStartOutcome {
+		if (listener != null) return LocationBackendStartOutcome.BLOCKED_BY_RETAINED_REGISTRATION
 		val nextListener = object : LocationListener {
 			override fun onLocationChanged(location: Location) = onLocations(listOf(Location(location)))
 		}
-		return runCatching {
-			manager.requestLocationUpdates(
+		// LocationManager throws synchronously on many failures, but the exact listener is still
+		// retained first so an OEM that applies-then-throws cannot escape runtime-owned cleanup.
+		listener = nextListener
+		return runCatchingNonCancellation {
+			val provider = plan.mode.toFrameworkProvider(operations.isProviderEnabled)
+			operations.requestUpdates(
 				provider,
 				plan.requestedIntervalMs.coerceAtLeast(0L),
 				plan.minimumDisplacementMeters.coerceAtLeast(0f),
 				nextListener,
-				Looper.getMainLooper(),
 			)
-			listener = nextListener
-			true
-		}.getOrDefault(false)
+		}.fold(
+			onSuccess = { LocationBackendStartOutcome.STARTED },
+			onFailure = { LocationBackendStartOutcome.CLEANUP_REQUIRED },
+		)
 	}
 
 	override suspend fun flush() = ProviderFlushOutcome.NOT_SUPPORTED
 
 	override suspend fun stop(): RegistrationRemovalOutcome {
 		val active = listener ?: return RegistrationRemovalOutcome.NOT_REGISTERED
-		return runCatching { manager.removeUpdates(active) }
+		return runCatchingNonCancellation { operations.removeUpdates(active) }
 			.fold(
 				onSuccess = {
 					listener = null
@@ -126,6 +181,23 @@ internal class FrameworkLocationSourceBackend @Inject constructor(
 				onFailure = { RegistrationRemovalOutcome.FAILED },
 			)
 	}
+}
+
+private fun frameworkLocationBackendOperations(context: Context): FrameworkLocationBackendOperations {
+	val manager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+	return FrameworkLocationBackendOperations(
+		isProviderEnabled = manager::isProviderEnabled,
+		requestUpdates = { provider, intervalMs, displacementMeters, listener ->
+			manager.requestLocationUpdates(
+				provider,
+				intervalMs,
+				displacementMeters,
+				listener,
+				Looper.getMainLooper(),
+			)
+		},
+		removeUpdates = manager::removeUpdates,
+	)
 }
 
 private fun LocationMode.toFusedPriority(precise: Boolean): Int = when (this) {
@@ -139,10 +211,10 @@ private fun LocationMode.toFusedPriority(precise: Boolean): Int = when (this) {
 	}
 }
 
-private fun LocationMode.toFrameworkProvider(manager: LocationManager): String = when (this) {
+private fun LocationMode.toFrameworkProvider(isProviderEnabled: (String) -> Boolean): String = when (this) {
 	LocationMode.DISABLED, LocationMode.PASSIVE -> LocationManager.PASSIVE_PROVIDER
 	LocationMode.LOW_POWER, LocationMode.BALANCED ->
-		if (manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+		if (isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
 			LocationManager.NETWORK_PROVIDER
 		} else {
 			LocationManager.PASSIVE_PROVIDER
