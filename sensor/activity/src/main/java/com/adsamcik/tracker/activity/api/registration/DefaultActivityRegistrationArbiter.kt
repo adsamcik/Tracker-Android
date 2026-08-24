@@ -49,6 +49,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 	private val mutex = Mutex()
 	private val demands = mutableMapOf<ActivityRegistrationOwner, ActivityRegistrationDemand>()
 	@Volatile private var current = EMPTY_SNAPSHOT
+	private var systemRegistrationRequiresRearm = false
 	private var deletionPaused = false
 
 	init {
@@ -244,10 +245,53 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 				true,
 			)
 		}
+		val currentClockDomainId = bootClockDomainProvider.current()
+		val currentIdentity = current.identity
+		if (systemRegistrationRequiresRearm &&
+			currentIdentity != null &&
+			currentIdentity.matches(
+				physicalConfigurationFingerprint,
+				currentClockDomainId,
+				lifecycle.epoch,
+			)
+		) {
+			try {
+				rotateAuthorization(
+					currentIdentity,
+					durableEligibility,
+					System.currentTimeMillis(),
+					SystemClock.elapsedRealtimeNanos(),
+				)
+			} catch (error: CancellationException) {
+				throw error
+			} catch (_: Exception) {
+				return failure(
+					ActivityRegistrationStatus.FAILED,
+					ActivityRegistrationFailureCode.STORAGE_UNAVAILABLE,
+					true,
+				)
+			}
+			val registered = backend.applyRegistration(combined.toRecognitionConfig(), currentIdentity)
+			if (!registered) {
+				return failure(
+					ActivityRegistrationStatus.FAILED,
+					ActivityRegistrationFailureCode.PROVIDER_REGISTRATION_FAILED,
+					true,
+				)
+			}
+			systemRegistrationRequiresRearm = false
+			current = current.copy(
+				active = true,
+				owners = combined.owners,
+				continuousRecognitionIntervalSeconds = combined.intervalSeconds,
+				transitions = combined.transitions,
+			)
+			return applied(current)
+		}
 		if (current.active && current.matches(
 				combined,
 				physicalConfigurationFingerprint,
-				bootClockDomainProvider.current(),
+				currentClockDomainId,
 				lifecycle.epoch,
 			)
 		) {
@@ -279,15 +323,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			return failure(ActivityRegistrationStatus.FAILED, ActivityRegistrationFailureCode.STORAGE_UNAVAILABLE, true)
 		}
 		val identity = reservation.identity
-		val registered = backend.applyRegistration(
-			RecognitionConfig(
-				intervalSeconds = combined.intervalSeconds ?: 0,
-				requestedTransitions = combined.transitions,
-				automaticRecognitionEligible = combined.automaticRecognitionEligible,
-				automaticTransitions = combined.automaticTransitions,
-			),
-			identity,
-		)
+		val registered = backend.applyRegistration(combined.toRecognitionConfig(), identity)
 		if (!registered) {
 			try {
 				markRegistrationFailed(identity, "PROVIDER_REGISTRATION_FAILED")
@@ -338,6 +374,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			continuousRecognitionIntervalSeconds = combined.intervalSeconds,
 			transitions = combined.transitions,
 		)
+		systemRegistrationRequiresRearm = false
 		val removalFailed = previous != null &&
 			!removeAndCompleteRegistration(previous, nonCancellable = true)
 		currentCoroutineContext().ensureActive()
@@ -354,7 +391,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 
 	private suspend fun fenceAndRemoveLocked(clearOwners: Boolean): ActivityRegistrationResult {
 		hydratePersistedIdentityIfNeeded()
-		if (!current.active) {
+		if (!current.active && !systemRegistrationRequiresRearm) {
 			current = current.copy(owners = if (clearOwners) emptySet() else demands.keys.toSet())
 			return applied(current)
 		}
@@ -375,6 +412,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			continuousRecognitionIntervalSeconds = null,
 			transitions = emptySet(),
 		)
+		systemRegistrationRequiresRearm = false
 		if (oldIdentity == null) return applied(current)
 		val retiring = requireNotNull(
 			database.sourceBrokerDao().registration(
@@ -717,8 +755,14 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			ACTIVITY_SOURCE_KIND,
 			persisted.registrationGeneration,
 		) ?: return
+		val isSystemRegistrationAwaitingRearm =
+			generation.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE &&
+				generation.providerResidency ==
+				ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE
+		systemRegistrationRequiresRearm = isSystemRegistrationAwaitingRearm
 		current = current.copy(
-			active = generation.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+			active = generation.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE &&
+				!isSystemRegistrationAwaitingRearm,
 			identity = ActivityRegistrationIdentity(
 				persisted.sourceInstanceId,
 				persisted.registrationGeneration,
@@ -754,6 +798,15 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			identity?.clockDomainId == clockDomainId &&
 			identity?.collectedDataEpoch == collectedDataEpoch
 
+	private fun ActivityRegistrationIdentity.matches(
+		physicalConfigurationFingerprint: String,
+		clockDomainId: String,
+		collectedDataEpoch: Long,
+	): Boolean =
+		this.physicalConfigurationFingerprint == physicalConfigurationFingerprint &&
+			this.clockDomainId == clockDomainId &&
+			this.collectedDataEpoch == collectedDataEpoch
+
 	private fun applied(snapshot: ActivityRegistrationSnapshot) =
 		ActivityRegistrationResult(ActivityRegistrationStatus.APPLIED, snapshot)
 
@@ -772,6 +825,13 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		val appliedRevision: Long?,
 	) {
 		val enabled: Boolean get() = intervalSeconds != null || transitions.isNotEmpty()
+
+		fun toRecognitionConfig() = RecognitionConfig(
+			intervalSeconds = intervalSeconds ?: 0,
+			requestedTransitions = transitions,
+			automaticRecognitionEligible = automaticRecognitionEligible,
+			automaticTransitions = automaticTransitions,
+		)
 
 		fun physicalConfigurationFingerprint(): String {
 			val canonical = buildString {

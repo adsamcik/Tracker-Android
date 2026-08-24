@@ -34,6 +34,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -67,15 +68,7 @@ class DefaultActivityRegistrationArbiterTest {
 		clockDomainId = "android-boot-count:7"
 		database = AppDatabase.testDatabase(application)
 		backend = mockk()
-		coEvery { backend.applyRegistration(any(), any()) } coAnswers {
-			appliedConfigs += arg<RecognitionConfig>(0)
-			val identity = arg<ActivityRegistrationIdentity>(1)
-			appliedIdentities += identity
-			statusesObservedAtProviderCall += requireNotNull(
-				database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, identity.registrationGeneration),
-			).status
-			true
-		}
+		stubSuccessfulProviderApply()
 		coEvery { backend.removeRegistration(any()) } coAnswers {
 			removedIdentities += arg<ActivityRegistrationIdentity>(0)
 		}
@@ -96,18 +89,32 @@ class DefaultActivityRegistrationArbiterTest {
 		appScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
 		startupGate = FakeTrackingStartupGate()
 		lifecycleStore = FakeLifecycleStore(CollectedDataLifecycleSnapshot(7L, null))
-		subject = DefaultActivityRegistrationArbiter(
-			application,
-			BootClockDomainProvider { clockDomainId },
-			database,
-			lifecycleStore,
-			backend,
-			Provider { startupGate },
-			cleanupStore,
-			cleanupScheduler,
-			appScope,
-		)
+		subject = createSubject(appScope)
 	}
+
+	private fun stubSuccessfulProviderApply() {
+		coEvery { backend.applyRegistration(any(), any()) } coAnswers {
+			appliedConfigs += arg<RecognitionConfig>(0)
+			val identity = arg<ActivityRegistrationIdentity>(1)
+			appliedIdentities += identity
+			statusesObservedAtProviderCall += requireNotNull(
+				database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, identity.registrationGeneration),
+			).status
+			true
+		}
+	}
+
+	private fun createSubject(scope: CoroutineScope) = DefaultActivityRegistrationArbiter(
+		application,
+		BootClockDomainProvider { clockDomainId },
+		database,
+		lifecycleStore,
+		backend,
+		Provider { startupGate },
+		cleanupStore,
+		cleanupScheduler,
+		scope,
+	)
 
 	@After
 	fun tearDown() {
@@ -311,6 +318,87 @@ class DefaultActivityRegistrationArbiterTest {
 		)
 		requireNotNull(unrelatedRevision.snapshot.identity) shouldBe firstIdentity
 		coVerify(exactly = 1) { backend.applyRegistration(any(), any()) }
+	}
+
+	@Test
+	fun `fresh arbiter rearms hydrated active identity once then keeps the warm fast path`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
+		)
+		val requestedDemand = ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5)
+		val first = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			requestedDemand,
+		)
+		val identity = requireNotNull(first.snapshot.identity)
+		appScope.cancel()
+		appScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+		subject = createSubject(appScope)
+
+		val coldReconcile = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			requestedDemand,
+		)
+		val warmReconcile = subject.reconcileDurableDemands()
+
+		coldReconcile.status shouldBe ActivityRegistrationStatus.APPLIED
+		coldReconcile.snapshot.active shouldBe true
+		coldReconcile.snapshot.identity shouldBe identity
+		warmReconcile.status shouldBe ActivityRegistrationStatus.APPLIED
+		warmReconcile.snapshot.active shouldBe true
+		warmReconcile.snapshot.identity shouldBe identity
+		database.sourceBrokerDao().maximumRegistrationGeneration(ACTIVITY_SOURCE_KIND) shouldBe 1L
+		statusesObservedAtProviderCall shouldBe listOf(
+			ProviderRegistrationGenerationEntity.STATUS_RESERVED,
+			ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+		)
+		coVerify(exactly = 2) { backend.applyRegistration(any(), identity) }
+		coVerify(exactly = 0) { backend.removeRegistration(any()) }
+	}
+
+	@Test
+	fun `failed cold rearm stays inactive and retries the accepted identity`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
+		)
+		val requestedDemand = ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5)
+		val first = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			requestedDemand,
+		)
+		val identity = requireNotNull(first.snapshot.identity)
+		appScope.cancel()
+		appScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+		subject = createSubject(appScope)
+		coEvery { backend.applyRegistration(any(), identity) } returns false
+
+		val failed = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			requestedDemand,
+		)
+
+		failed.status shouldBe ActivityRegistrationStatus.FAILED
+		failed.failureCode shouldBe ActivityRegistrationFailureCode.PROVIDER_REGISTRATION_FAILED
+		failed.retryable shouldBe true
+		failed.snapshot.active shouldBe false
+		failed.snapshot.identity shouldBe identity
+		database.sourceBrokerDao().registration(
+			ACTIVITY_SOURCE_KIND,
+			identity.registrationGeneration,
+		)?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+		database.sourceBrokerDao().maximumRegistrationGeneration(ACTIVITY_SOURCE_KIND) shouldBe 1L
+
+		stubSuccessfulProviderApply()
+		val retried = subject.reconcileDurableDemands()
+		val warmReconcile = subject.reconcileDurableDemands()
+
+		retried.status shouldBe ActivityRegistrationStatus.APPLIED
+		retried.snapshot.active shouldBe true
+		retried.snapshot.identity shouldBe identity
+		warmReconcile.status shouldBe ActivityRegistrationStatus.APPLIED
+		warmReconcile.snapshot.active shouldBe true
+		coVerify(exactly = 3) { backend.applyRegistration(any(), identity) }
+		coVerify(exactly = 0) { backend.removeRegistration(any()) }
 	}
 
 	@Test
