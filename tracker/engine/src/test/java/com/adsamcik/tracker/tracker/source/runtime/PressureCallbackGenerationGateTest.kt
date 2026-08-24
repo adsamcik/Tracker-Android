@@ -26,4 +26,16 @@ class PressureCallbackGenerationGateTest {
 		assertTrue(gate.retire(active))
 		assertFalse(gate.accepts(active))
 	}
+
+	@Test
+	fun `same physical generation resume uses a fresh token and keeps the old listener fenced`() {
+		val gate = PressureCallbackGenerationGate()
+		val beforePause = gate.activate(9L, "same-physical-configuration")
+
+		assertTrue(gate.retire(beforePause))
+		val afterResume = gate.activate(9L, "same-physical-configuration")
+
+		assertFalse(gate.accepts(beforePause))
+		assertTrue(gate.accepts(afterResume))
+	}
 }

@@ -1,10 +1,6 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.io.DataInputStream
-import java.io.DataOutputStream
 
 internal data class PressureAccumulatorState(
 	val boundary: PressureAccumulatorBoundary,
@@ -23,31 +19,31 @@ internal data class PressureAccumulatorState(
  * Immutable identity of the provider registration whose samples may contribute to a window.
  *
  * The eligibility fingerprint includes the durable demand vector (and therefore its manifest
- * revisions). Keeping it beside the registration generation prevents a checkpoint from joining
- * samples that were collected for different capture/control purposes.
+ * revisions). Keeping it beside the registration generation prevents one in-process accumulator
+ * from joining samples collected for different capture/control purposes.
  */
 internal data class PressureAccumulatorBoundary(
 	val registrationGeneration: Long,
 	val eligibilityFingerprint: String,
 	val appliedRevision: Long,
+	val authorizationRevision: Long = 0L,
 ) {
 	init {
 		require(registrationGeneration >= 0L)
 		require(eligibilityFingerprint.isNotBlank())
 		require(appliedRevision >= 0L)
+		require(authorizationRevision >= 0L)
 	}
 }
 
 internal class PressureWindowAccumulator(
 	private val windowNanos: Long,
 	private val boundary: PressureAccumulatorBoundary = UNSCOPED_PRESSURE_BOUNDARY,
-	private var state: PressureAccumulatorState? = null,
 ) {
+	private var state: PressureAccumulatorState? = null
+
 	init {
 		require(windowNanos > 0L)
-		require(state == null || state?.boundary == boundary) {
-			"A pressure window cannot cross a registration or demand-eligibility boundary"
-		}
 	}
 
 	/** Returns the completed prior window; the incoming sample starts the next window. */
@@ -96,6 +92,101 @@ internal class PressureWindowAccumulator(
 	fun snapshot(): PressureAccumulatorState? = state
 }
 
+internal data class PressureWindowCapacityDecision(
+	val pendingWindowCount: Int,
+	val pauseAcquisition: Boolean,
+)
+
+/**
+ * Bounds every retained completed window, including the actor's current FIFO head. One slot is
+ * reserved for the partial window closed while acquisition is retired.
+ */
+internal class PressureWindowCapacityGuard(
+	val maximumPendingWindows: Int,
+	private val terminalReserve: Int = 1,
+) {
+	private val acquisitionLimit = maximumPendingWindows - terminalReserve
+	var pendingWindowCount: Int = 0
+		private set
+
+	init {
+		require(maximumPendingWindows > 1)
+		require(terminalReserve in 1 until maximumPendingWindows)
+	}
+
+	fun acquisitionWindowEnqueued(): PressureWindowCapacityDecision {
+		check(pendingWindowCount < acquisitionLimit) {
+			"Pressure acquisition must be retired before its bounded window lane overflows"
+		}
+		pendingWindowCount++
+		return PressureWindowCapacityDecision(
+			pendingWindowCount = pendingWindowCount,
+			pauseAcquisition = pendingWindowCount == acquisitionLimit,
+		)
+	}
+
+	fun terminalWindowEnqueued(): PressureWindowCapacityDecision {
+		check(pendingWindowCount < maximumPendingWindows) {
+			"Pressure terminal reserve was exhausted"
+		}
+		pendingWindowCount++
+		return PressureWindowCapacityDecision(pendingWindowCount, pauseAcquisition = false)
+	}
+
+	fun windowSettled() {
+		check(pendingWindowCount > 0) { "Pressure window settlement underflow" }
+		pendingWindowCount--
+	}
+}
+
+/** Coordinates one event-driven resume only after the overflow gap is present in a checkpoint. */
+internal class PressureCapacityResumeGate(
+	private val lowWaterWindowCount: Int,
+) {
+	var capacityPaused: Boolean = false
+		private set
+	var postGapCheckpointDurable: Boolean = false
+		private set
+	var activeGapSequence: Long? = null
+		private set
+	private var resumeScheduled = false
+
+	init {
+		require(lowWaterWindowCount >= 0)
+	}
+
+	fun onCapacityPause(gapSequence: Long) {
+		require(gapSequence > 0L)
+		capacityPaused = true
+		postGapCheckpointDurable = false
+		activeGapSequence = gapSequence
+		resumeScheduled = false
+	}
+
+	fun onSuccessfulPostGapCheckpoint(
+		pendingWindowCount: Int,
+		checkpointedGapSequence: Long?,
+	): Boolean {
+		require(pendingWindowCount >= 0)
+		if (!capacityPaused || checkpointedGapSequence != activeGapSequence) return false
+		postGapCheckpointDurable = true
+		if (resumeScheduled || pendingWindowCount > lowWaterWindowCount) return false
+		resumeScheduled = true
+		return true
+	}
+
+	fun onResumeSucceeded() {
+		capacityPaused = false
+		postGapCheckpointDurable = false
+		activeGapSequence = null
+		resumeScheduled = false
+	}
+
+	fun fenceResume() {
+		resumeScheduled = false
+	}
+}
+
 private fun PressureAccumulatorState.toPayload() = PressureWindowPayload(
 	sampleCount = sampleCount,
 	meanHectopascals = mean,
@@ -108,58 +199,11 @@ private fun PressureAccumulatorState.toPayload() = PressureWindowPayload(
 	lastProviderSequence = lastProviderSequence,
 )
 
-internal fun PressureAccumulatorState.encode(): ByteArray = ByteArrayOutputStream().use { bytes ->
-	DataOutputStream(bytes).use { output ->
-		output.writeLong(boundary.registrationGeneration)
-		output.writeUTF(boundary.eligibilityFingerprint)
-		output.writeLong(boundary.appliedRevision)
-		output.writeInt(sampleCount)
-		output.writeDouble(mean)
-		output.writeDouble(sumSquaredDeviations)
-		output.writeFloat(minimum)
-		output.writeFloat(maximum)
-		output.writeLong(windowStartElapsedNanos)
-		output.writeLong(windowEndElapsedNanos)
-		output.writeLong(firstProviderSequence)
-		output.writeLong(lastProviderSequence)
-	}
-	bytes.toByteArray()
-}
-
-internal fun decodePressureAccumulator(
-	payload: ByteArray,
-	version: Int,
-	expectedBoundary: PressureAccumulatorBoundary? = null,
-): PressureAccumulatorState? = runCatching {
-	if (version != PRESSURE_ACCUMULATOR_VERSION || payload.isEmpty()) return@runCatching null
-	DataInputStream(ByteArrayInputStream(payload)).use { input ->
-		val decoded = PressureAccumulatorState(
-			boundary = PressureAccumulatorBoundary(
-				registrationGeneration = input.readLong(),
-				eligibilityFingerprint = input.readUTF(),
-				appliedRevision = input.readLong(),
-			),
-			sampleCount = input.readInt(),
-			mean = input.readDouble(),
-			sumSquaredDeviations = input.readDouble(),
-			minimum = input.readFloat(),
-			maximum = input.readFloat(),
-			windowStartElapsedNanos = input.readLong(),
-			windowEndElapsedNanos = input.readLong(),
-			firstProviderSequence = input.readLong(),
-			lastProviderSequence = input.readLong(),
-		)
-		require(input.available() == 0)
-		decoded.takeIf { state ->
-			state.sampleCount > 0 && (expectedBoundary == null || state.boundary == expectedBoundary)
-		}
-	}
-}.getOrNull()
-
 private val UNSCOPED_PRESSURE_BOUNDARY = PressureAccumulatorBoundary(
 	registrationGeneration = 0L,
 	eligibilityFingerprint = "unscoped-test-or-projection",
 	appliedRevision = 0L,
+	authorizationRevision = 0L,
 )
 
-internal const val PRESSURE_ACCUMULATOR_VERSION = 2
+internal const val PRESSURE_RUNTIME_COMPONENT_VERSION = 4
