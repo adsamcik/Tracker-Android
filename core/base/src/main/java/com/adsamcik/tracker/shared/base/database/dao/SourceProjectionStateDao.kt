@@ -173,12 +173,26 @@ interface SourceProjectionStateDao {
 		limit: Int,
 	): List<SourceProjectionOutboxEntity>
 
+	@Query("SELECT * FROM source_projection_outbox WHERE stable_id = :stableId")
+	suspend fun outbox(stableId: String): SourceProjectionOutboxEntity?
+
 	@Query(
 		"UPDATE source_projection_outbox SET delivered_at_ms = :deliveredAtMs " +
 			"WHERE stable_id = :stableId AND delivered_at_ms IS NULL " +
 			"AND terminal_disposition IS NULL",
 	)
 	suspend fun markOutboxDelivered(stableId: String, deliveredAtMs: Long): Int
+
+	@Query(
+		"UPDATE source_projection_outbox SET terminal_disposition = :disposition, " +
+			"terminal_at_ms = :terminalAtMs WHERE stable_id = :stableId " +
+			"AND delivered_at_ms IS NULL AND terminal_disposition IS NULL",
+	)
+	suspend fun markOutboxTerminal(
+		stableId: String,
+		disposition: String,
+		terminalAtMs: Long,
+	): Int
 
 	@Query(
 		"UPDATE source_projection_outbox SET terminal_disposition = :disposition, " +

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 28,
-    "identityHash": "e6d7d7209b4b91f172aaa79c3f38ff8e",
+    "identityHash": "f70db10022e7ffe964bc0b2b34052fa9",
     "entities": [
       {
         "tableName": "activity",
@@ -1754,7 +1754,7 @@
       },
       {
         "tableName": "source_evidence_state",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `revision` INTEGER NOT NULL, `collected_data_epoch` INTEGER NOT NULL, `retained_from_ms` INTEGER, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `revision` INTEGER NOT NULL, `collected_data_epoch` INTEGER NOT NULL, `retained_from_ms` INTEGER, `deleted_source_event_high_water_ordinal` INTEGER NOT NULL DEFAULT 0, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -1780,6 +1780,13 @@
             "affinity": "INTEGER"
           },
           {
+            "fieldPath": "deletedSourceEventHighWaterOrdinal",
+            "columnName": "deleted_source_event_high_water_ordinal",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
             "fieldPath": "updatedAtMs",
             "columnName": "updated_at_ms",
             "affinity": "INTEGER",
@@ -1795,7 +1802,7 @@
       },
       {
         "tableName": "source_event_wal",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`admission_ordinal` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `event_id` TEXT NOT NULL, `provider_dedup_key` TEXT, `delivery_identity` TEXT, `delivery_unit_index` INTEGER, `delivery_unit_count` INTEGER, `logical_tracking_id` TEXT, `service_run_id` TEXT, `source_kind` INTEGER NOT NULL, `source_instance_id` TEXT NOT NULL, `registration_generation` INTEGER NOT NULL, `physical_configuration_fingerprint` TEXT, `authorization_revision` INTEGER, `authorization_purpose_eligibility_mask` INTEGER NOT NULL DEFAULT 0, `authorization_fingerprint` TEXT, `source_sequence` INTEGER NOT NULL, `config_revision` INTEGER, `plan_attribution` INTEGER NOT NULL, `clock_domain_id` TEXT NOT NULL, `observed_elapsed_nanos` INTEGER NOT NULL, `observed_interval_start_nanos` INTEGER, `received_elapsed_nanos` INTEGER NOT NULL, `wall_time_ms` INTEGER, `wall_time_uncertainty_ms` INTEGER, `captured_collected_data_epoch` INTEGER NOT NULL, `source_policy_revision` INTEGER, `capture_consent_epoch` INTEGER, `session_manifest_revision` INTEGER, `lifecycle_lease_generation` INTEGER, `acquired_at_ms` INTEGER NOT NULL, `quality_flags` INTEGER NOT NULL, `quality_confidence` REAL, `payload_version` INTEGER NOT NULL, `payload` BLOB NOT NULL, `payload_checksum` TEXT NOT NULL, `integrity_identity` TEXT NOT NULL DEFAULT 'LEGACY_PENDING_CHECKSUM', `created_at_ms` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`admission_ordinal` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `event_id` TEXT NOT NULL, `provider_dedup_key` TEXT, `delivery_identity` TEXT, `delivery_unit_index` INTEGER, `delivery_unit_count` INTEGER, `logical_tracking_id` TEXT, `service_run_id` TEXT, `source_kind` INTEGER NOT NULL, `source_instance_id` TEXT NOT NULL, `registration_generation` INTEGER NOT NULL, `physical_configuration_fingerprint` TEXT, `authorization_revision` INTEGER, `authorization_purpose_eligibility_mask` INTEGER NOT NULL DEFAULT 0, `authorization_fingerprint` TEXT, `source_sequence` INTEGER NOT NULL, `config_revision` INTEGER, `plan_attribution` INTEGER NOT NULL, `clock_domain_id` TEXT NOT NULL, `observed_elapsed_nanos` INTEGER NOT NULL, `observed_interval_start_nanos` INTEGER, `received_elapsed_nanos` INTEGER NOT NULL, `wall_time_ms` INTEGER, `wall_time_uncertainty_ms` INTEGER, `captured_collected_data_epoch` INTEGER NOT NULL, `activity_automation_epoch` INTEGER, `source_policy_revision` INTEGER, `capture_consent_epoch` INTEGER, `session_manifest_revision` INTEGER, `lifecycle_lease_generation` INTEGER, `acquired_at_ms` INTEGER NOT NULL, `quality_flags` INTEGER NOT NULL, `quality_confidence` REAL, `payload_version` INTEGER NOT NULL, `payload` BLOB NOT NULL, `payload_checksum` TEXT NOT NULL, `integrity_identity` TEXT NOT NULL DEFAULT 'LEGACY_PENDING_CHECKSUM', `created_at_ms` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "admissionOrdinal",
@@ -1934,6 +1941,11 @@
             "columnName": "captured_collected_data_epoch",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "activityAutomationEpoch",
+            "columnName": "activity_automation_epoch",
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "sourcePolicyRevision",
@@ -2903,7 +2915,7 @@
       },
       {
         "tableName": "source_service_run",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`service_run_id` TEXT NOT NULL, `logical_tracking_id` TEXT NOT NULL, `state` TEXT NOT NULL, `desired_plan_revision` INTEGER NOT NULL, `rollout_revision` INTEGER NOT NULL, `foreground_capability_flags` INTEGER NOT NULL, `started_at_ms` INTEGER NOT NULL, `started_elapsed_nanos` INTEGER NOT NULL, `completed_at_ms` INTEGER, `completion_reason` TEXT, `boot_id` TEXT NOT NULL DEFAULT 'LEGACY_UNKNOWN', `lease_generation` INTEGER NOT NULL DEFAULT 0, `start_origin` TEXT NOT NULL DEFAULT 'LEGACY_UNKNOWN', `desired_foreground_capability_flags` INTEGER NOT NULL DEFAULT 0, `applied_foreground_capability_flags` INTEGER, `runtime_acknowledgement` TEXT NOT NULL DEFAULT 'PENDING', `runtime_failure_code` TEXT, `run_revision` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`service_run_id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`service_run_id` TEXT NOT NULL, `logical_tracking_id` TEXT NOT NULL, `state` TEXT NOT NULL, `desired_plan_revision` INTEGER NOT NULL, `rollout_revision` INTEGER NOT NULL, `foreground_capability_flags` INTEGER NOT NULL, `started_at_ms` INTEGER NOT NULL, `started_elapsed_nanos` INTEGER NOT NULL, `completed_at_ms` INTEGER, `completion_reason` TEXT, `boot_id` TEXT NOT NULL DEFAULT 'LEGACY_UNKNOWN', `lease_generation` INTEGER NOT NULL DEFAULT 0, `start_origin` TEXT NOT NULL DEFAULT 'LEGACY_UNKNOWN', `desired_foreground_capability_flags` INTEGER NOT NULL DEFAULT 0, `applied_foreground_capability_flags` INTEGER, `runtime_acknowledgement` TEXT NOT NULL DEFAULT 'PENDING', `runtime_failure_code` TEXT, `run_revision` INTEGER NOT NULL DEFAULT 0, `start_delivery_token` TEXT, `start_command_generation` INTEGER NOT NULL DEFAULT 0, `prepared_manifest_revision` INTEGER NOT NULL DEFAULT 0, `prepared_intent_revision` INTEGER NOT NULL DEFAULT 0, `android_delivery_state` TEXT NOT NULL DEFAULT 'LEGACY_UNKNOWN', `android_delivery_updated_at_ms` INTEGER, `start_is_user_initiated` INTEGER NOT NULL DEFAULT 0, `start_is_ambient` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`service_run_id`))",
         "fields": [
           {
             "fieldPath": "serviceRunId",
@@ -3014,6 +3026,58 @@
             "affinity": "INTEGER",
             "notNull": true,
             "defaultValue": "0"
+          },
+          {
+            "fieldPath": "startDeliveryToken",
+            "columnName": "start_delivery_token",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "startCommandGeneration",
+            "columnName": "start_command_generation",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "preparedManifestRevision",
+            "columnName": "prepared_manifest_revision",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "preparedIntentRevision",
+            "columnName": "prepared_intent_revision",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "androidDeliveryState",
+            "columnName": "android_delivery_state",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'LEGACY_UNKNOWN'"
+          },
+          {
+            "fieldPath": "androidDeliveryUpdatedAtMs",
+            "columnName": "android_delivery_updated_at_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "startIsUserInitiated",
+            "columnName": "start_is_user_initiated",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "startIsAmbient",
+            "columnName": "start_is_ambient",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
           }
         ],
         "primaryKey": {
@@ -3032,6 +3096,15 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_source_service_run_tracking` ON `${TABLE_NAME}` (`logical_tracking_id`, `started_at_ms`)"
+          },
+          {
+            "name": "idx_source_service_run_delivery_token",
+            "unique": true,
+            "columnNames": [
+              "start_delivery_token"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_source_service_run_delivery_token` ON `${TABLE_NAME}` (`start_delivery_token`)"
           }
         ]
       },
@@ -3307,7 +3380,7 @@
       },
       {
         "tableName": "session_lifecycle_intent_version",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`logical_tracking_id` TEXT NOT NULL, `intent_revision` INTEGER NOT NULL, `manifest_revision` INTEGER NOT NULL, `desired_state` TEXT NOT NULL, `start_origin` TEXT NOT NULL, `request_boot_id` TEXT NOT NULL, `requested_elapsed_realtime_nanos` INTEGER NOT NULL, `requested_wall_time_ms` INTEGER NOT NULL, `automation_epoch` INTEGER, `trigger_id` TEXT, `trigger_kind` TEXT, `trigger_boot_id` TEXT, `trigger_observed_elapsed_realtime_nanos` INTEGER, `trigger_received_elapsed_realtime_nanos` INTEGER, `trigger_expires_elapsed_realtime_nanos` INTEGER, `stop_reason` TEXT, `stop_deadline_boot_id` TEXT, `stop_deadline_elapsed_realtime_nanos` INTEGER, `intent_checksum` TEXT NOT NULL, PRIMARY KEY(`logical_tracking_id`, `intent_revision`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`logical_tracking_id` TEXT NOT NULL, `intent_revision` INTEGER NOT NULL, `manifest_revision` INTEGER NOT NULL, `desired_state` TEXT NOT NULL, `start_origin` TEXT NOT NULL, `request_boot_id` TEXT NOT NULL, `requested_elapsed_realtime_nanos` INTEGER NOT NULL, `requested_wall_time_ms` INTEGER NOT NULL, `automation_epoch` INTEGER, `trigger_id` TEXT, `trigger_kind` TEXT, `trigger_boot_id` TEXT, `trigger_observed_elapsed_realtime_nanos` INTEGER, `trigger_received_elapsed_realtime_nanos` INTEGER, `trigger_expires_elapsed_realtime_nanos` INTEGER, `stop_reason` TEXT, `stop_deadline_boot_id` TEXT, `stop_deadline_elapsed_realtime_nanos` INTEGER, `intent_checksum` TEXT NOT NULL, `trigger_collected_data_epoch` INTEGER, PRIMARY KEY(`logical_tracking_id`, `intent_revision`))",
         "fields": [
           {
             "fieldPath": "logicalTrackingId",
@@ -3412,6 +3485,11 @@
             "columnName": "intent_checksum",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "triggerCollectedDataEpoch",
+            "columnName": "trigger_collected_data_epoch",
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -3603,6 +3681,266 @@
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_lifecycle_action_pending` ON `${TABLE_NAME}` (`status`, `requested_at_ms`)"
           }
         ]
+      },
+      {
+        "tableName": "activity_automatic_start_action",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`slot_id` INTEGER NOT NULL, `trigger_id` TEXT NOT NULL, `effect_stable_id` TEXT NOT NULL, `admission_ordinal` INTEGER NOT NULL, `trigger_kind` TEXT NOT NULL, `boot_id` TEXT NOT NULL, `observed_elapsed_realtime_nanos` INTEGER NOT NULL, `received_elapsed_realtime_nanos` INTEGER NOT NULL, `expires_elapsed_realtime_nanos` INTEGER NOT NULL, `automation_epoch` INTEGER NOT NULL, `source_policy_revision` INTEGER NOT NULL, `control_consent_epoch` INTEGER NOT NULL, `collected_data_epoch` INTEGER NOT NULL, `requested_capture_source_mask` INTEGER NOT NULL, `intended_capture_source_mask` INTEGER NOT NULL, `intended_fgs_type_mask` INTEGER NOT NULL, `registration_generation` INTEGER NOT NULL, `authorization_revision` INTEGER NOT NULL, `authorization_fingerprint` TEXT NOT NULL, `start_origin` TEXT NOT NULL, `status` TEXT NOT NULL, `reserved_at_ms` INTEGER NOT NULL, `start_requested_at_ms` INTEGER, `lifecycle_intent_accepted_at_ms` INTEGER, `accepted_logical_tracking_id` TEXT, `accepted_intent_revision` INTEGER, `terminal_at_ms` INTEGER, `terminal_reason` TEXT, PRIMARY KEY(`slot_id`))",
+        "fields": [
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "triggerId",
+            "columnName": "trigger_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effectStableId",
+            "columnName": "effect_stable_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "admissionOrdinal",
+            "columnName": "admission_ordinal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "triggerKind",
+            "columnName": "trigger_kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bootId",
+            "columnName": "boot_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "observedElapsedRealtimeNanos",
+            "columnName": "observed_elapsed_realtime_nanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "receivedElapsedRealtimeNanos",
+            "columnName": "received_elapsed_realtime_nanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "expiresElapsedRealtimeNanos",
+            "columnName": "expires_elapsed_realtime_nanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "automationEpoch",
+            "columnName": "automation_epoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourcePolicyRevision",
+            "columnName": "source_policy_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "controlConsentEpoch",
+            "columnName": "control_consent_epoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "collectedDataEpoch",
+            "columnName": "collected_data_epoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "requestedCaptureSourceMask",
+            "columnName": "requested_capture_source_mask",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "intendedCaptureSourceMask",
+            "columnName": "intended_capture_source_mask",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "intendedForegroundServiceTypeMask",
+            "columnName": "intended_fgs_type_mask",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "registrationGeneration",
+            "columnName": "registration_generation",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "authorizationRevision",
+            "columnName": "authorization_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "authorizationFingerprint",
+            "columnName": "authorization_fingerprint",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startOrigin",
+            "columnName": "start_origin",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reservedAtMs",
+            "columnName": "reserved_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startRequestedAtMs",
+            "columnName": "start_requested_at_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lifecycleIntentAcceptedAtMs",
+            "columnName": "lifecycle_intent_accepted_at_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "acceptedLogicalTrackingId",
+            "columnName": "accepted_logical_tracking_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "acceptedIntentRevision",
+            "columnName": "accepted_intent_revision",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "terminalAtMs",
+            "columnName": "terminal_at_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "terminalReason",
+            "columnName": "terminal_reason",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "slot_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_activity_auto_start_trigger",
+            "unique": true,
+            "columnNames": [
+              "trigger_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_activity_auto_start_trigger` ON `${TABLE_NAME}` (`trigger_id`)"
+          },
+          {
+            "name": "idx_activity_auto_start_effect",
+            "unique": true,
+            "columnNames": [
+              "effect_stable_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_activity_auto_start_effect` ON `${TABLE_NAME}` (`effect_stable_id`)"
+          }
+        ]
+      },
+      {
+        "tableName": "activity_automation_epoch",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `epoch` INTEGER NOT NULL, `automatic_control_enabled` INTEGER NOT NULL, `lock_suppressed` INTEGER NOT NULL, `power_saver_suppressed` INTEGER NOT NULL, `boot_clock_domain_id` TEXT NOT NULL, `effective_elapsed_realtime_nanos` INTEGER NOT NULL, `last_rotation_reason` TEXT NOT NULL, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "epoch",
+            "columnName": "epoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "automaticControlEnabled",
+            "columnName": "automatic_control_enabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lockSuppressed",
+            "columnName": "lock_suppressed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "powerSaverSuppressed",
+            "columnName": "power_saver_suppressed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bootClockDomainId",
+            "columnName": "boot_clock_domain_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effectiveElapsedRealtimeNanos",
+            "columnName": "effective_elapsed_realtime_nanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastRotationReason",
+            "columnName": "last_rotation_reason",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMs",
+            "columnName": "updated_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
       },
       {
         "tableName": "tracking_rollout_state",
@@ -4144,7 +4482,7 @@
       },
       {
         "tableName": "source_demand",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`demand_id` TEXT NOT NULL, `consumer_id` TEXT NOT NULL, `source_kind` INTEGER NOT NULL, `purpose` TEXT NOT NULL, `logical_tracking_id` TEXT, `service_run_id` TEXT, `manifest_revision` INTEGER, `lifecycle_lease_generation` INTEGER, `source_policy_revision` INTEGER NOT NULL, `consent_epoch` INTEGER NOT NULL, `persistence_eligible` INTEGER NOT NULL, `qos_code` INTEGER NOT NULL, `maximum_age_ms` INTEGER NOT NULL, `desired_latency_ms` INTEGER NOT NULL, `requested_boot_id` TEXT NOT NULL, `requested_elapsed_realtime_nanos` INTEGER NOT NULL, `requested_at_ms` INTEGER NOT NULL, `status` TEXT NOT NULL, `retire_boot_id` TEXT, `retire_elapsed_realtime_nanos` INTEGER, `retired_at_ms` INTEGER, PRIMARY KEY(`demand_id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`demand_id` TEXT NOT NULL, `consumer_id` TEXT NOT NULL, `source_kind` INTEGER NOT NULL, `purpose` TEXT NOT NULL, `logical_tracking_id` TEXT, `service_run_id` TEXT, `manifest_revision` INTEGER, `lifecycle_lease_generation` INTEGER, `source_policy_revision` INTEGER NOT NULL, `consent_epoch` INTEGER NOT NULL, `persistence_eligible` INTEGER NOT NULL, `qos_code` INTEGER NOT NULL, `minimum_acquisition_spec` TEXT NOT NULL, `adaptive_reduction_allowed` INTEGER NOT NULL, `maximum_age_ms` INTEGER NOT NULL, `desired_latency_ms` INTEGER NOT NULL, `requested_delivery_latency_ms` INTEGER, `requested_boot_id` TEXT NOT NULL, `requested_elapsed_realtime_nanos` INTEGER NOT NULL, `requested_at_ms` INTEGER NOT NULL, `status` TEXT NOT NULL, `retire_boot_id` TEXT, `retire_elapsed_realtime_nanos` INTEGER, `retired_at_ms` INTEGER, PRIMARY KEY(`demand_id`))",
         "fields": [
           {
             "fieldPath": "demandId",
@@ -4215,6 +4553,18 @@
             "notNull": true
           },
           {
+            "fieldPath": "minimumAcquisitionSpec",
+            "columnName": "minimum_acquisition_spec",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "adaptiveReductionAllowed",
+            "columnName": "adaptive_reduction_allowed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
             "fieldPath": "maximumAgeMs",
             "columnName": "maximum_age_ms",
             "affinity": "INTEGER",
@@ -4225,6 +4575,11 @@
             "columnName": "desired_latency_ms",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "requestedDeliveryLatencyMs",
+            "columnName": "requested_delivery_latency_ms",
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "requestedBootId",
@@ -6617,7 +6972,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e6d7d7209b4b91f172aaa79c3f38ff8e')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f70db10022e7ffe964bc0b2b34052fa9')"
     ]
   }
 }

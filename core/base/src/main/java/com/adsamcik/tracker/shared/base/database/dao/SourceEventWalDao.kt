@@ -22,7 +22,7 @@ interface SourceEventWalDao {
 		"SELECT event_id, admission_ordinal, provider_dedup_key, source_instance_id, " +
 			"registration_generation, physical_configuration_fingerprint, authorization_revision, " +
 			"authorization_purpose_eligibility_mask, authorization_fingerprint, " +
-			"source_sequence, source_policy_revision, " +
+			"source_sequence, activity_automation_epoch, source_policy_revision, " +
 			"capture_consent_epoch, session_manifest_revision, lifecycle_lease_generation, " +
 			"payload_version, payload_checksum, integrity_identity " +
 			"FROM source_event_wal WHERE source_kind = :sourceKind " +
@@ -37,7 +37,7 @@ interface SourceEventWalDao {
 		"SELECT event_id, admission_ordinal, provider_dedup_key, source_instance_id, " +
 			"registration_generation, physical_configuration_fingerprint, authorization_revision, " +
 			"authorization_purpose_eligibility_mask, authorization_fingerprint, " +
-			"source_sequence, source_policy_revision, " +
+			"source_sequence, activity_automation_epoch, source_policy_revision, " +
 			"capture_consent_epoch, session_manifest_revision, lifecycle_lease_generation, " +
 			"payload_version, payload_checksum, integrity_identity " +
 			"FROM source_event_wal WHERE source_kind = :sourceKind " +
@@ -99,6 +99,18 @@ interface SourceEventWalDao {
 			"ORDER BY admission_ordinal ASC LIMIT :limit",
 	)
 	suspend fun eventsAfterThrough(
+		afterOrdinal: Long,
+		throughOrdinal: Long,
+		limit: Int,
+	): List<SourceEventWalEntity>
+
+	@Query(
+		"SELECT * FROM source_event_wal WHERE source_kind = :sourceKind " +
+			"AND admission_ordinal > :afterOrdinal AND admission_ordinal <= :throughOrdinal " +
+			"ORDER BY admission_ordinal ASC LIMIT :limit",
+	)
+	suspend fun sourceEventsAfterThrough(
+		sourceKind: Int,
 		afterOrdinal: Long,
 		throughOrdinal: Long,
 		limit: Int,
@@ -171,6 +183,7 @@ data class SourceEventIdentityRow(
 	@ColumnInfo(name = "authorization_purpose_eligibility_mask") val authorizationPurposeEligibilityMask: Long,
 	@ColumnInfo(name = "authorization_fingerprint") val authorizationFingerprint: String?,
 	@ColumnInfo(name = "source_sequence") val sourceSequence: Long,
+	@ColumnInfo(name = "activity_automation_epoch") val activityAutomationEpoch: Long?,
 	@ColumnInfo(name = "source_policy_revision") val sourcePolicyRevision: Long?,
 	@ColumnInfo(name = "capture_consent_epoch") val captureConsentEpoch: Long?,
 	@ColumnInfo(name = "session_manifest_revision") val sessionManifestRevision: Long?,

@@ -38,6 +38,55 @@ interface SourceEvidenceStateDao {
 		retainedFromMs: Long?,
 		updatedAtMs: Long,
 	): Int
+
+	@Query(
+		"""
+		UPDATE source_evidence_state
+		SET collected_data_epoch = :epoch,
+			retained_from_ms = :retainedFromMs,
+			deleted_source_event_high_water_ordinal = :deletedSourceEventHighWaterOrdinal,
+			revision = revision + 1,
+			updated_at_ms = :updatedAtMs
+		WHERE id = 1
+		""",
+	)
+	suspend fun updateAfterFullDeletion(
+		epoch: Long,
+		retainedFromMs: Long?,
+		deletedSourceEventHighWaterOrdinal: Long,
+		updatedAtMs: Long,
+	): Int
+}
+
+/**
+ * Records the lifecycle and global WAL boundary of a full collected-data deletion.
+ *
+ * The state row survives the delete. Keeping the monotonic epoch and deleted ordinal together lets
+ * a fresh projection start after SQLite's retained AUTOINCREMENT high-water instead of assuming an
+ * empty WAL will restart at ordinal one.
+ */
+suspend fun SourceEvidenceStateDao.recordFullDeletion(
+	epoch: Long,
+	retainedFromMs: Long?,
+	deletedSourceEventHighWaterOrdinal: Long,
+	updatedAtMs: Long,
+) {
+	require(epoch >= 0L)
+	require(retainedFromMs == null || retainedFromMs >= 0L)
+	require(deletedSourceEventHighWaterOrdinal >= 0L)
+	ensure()
+	val current = requireNotNull(get()) { "Source-evidence state disappeared inside transaction" }
+	check(
+		updateAfterFullDeletion(
+			epoch = maxOf(current.collectedDataEpoch, epoch),
+			retainedFromMs = listOfNotNull(current.retainedFromMs, retainedFromMs).maxOrNull(),
+			deletedSourceEventHighWaterOrdinal = maxOf(
+				current.deletedSourceEventHighWaterOrdinal,
+				deletedSourceEventHighWaterOrdinal,
+			),
+			updatedAtMs = updatedAtMs,
+		) == 1,
+	) { "Unable to record full collected-data deletion" }
 }
 
 /**

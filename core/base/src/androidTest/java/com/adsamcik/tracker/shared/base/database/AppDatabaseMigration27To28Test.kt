@@ -173,6 +173,15 @@ class AppDatabaseMigration27To28Test {
 				assertEquals(1L, cursor.getLong(0))
 				assertEquals("NOT_REQUIRED", cursor.getString(1))
 			}
+			database.query(
+				"SELECT deleted_source_event_high_water_ordinal " +
+					"FROM source_evidence_state WHERE id = 1",
+			).use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				// v27 history is fenced by the retained legacy cutoff until a v28 full deletion
+				// atomically advances this independent deletion boundary.
+				assertEquals(0L, cursor.getLong(0))
+			}
 			assertTableCount(database, "legacy_v27_projection_target", 0)
 			database.query(
 				"SELECT status FROM source_projection_registration " +
@@ -327,13 +336,15 @@ class AppDatabaseMigration27To28Test {
 
 	private fun assertMigrationState(database: SupportSQLiteDatabase) {
 		database.query(
-			"SELECT revision, collected_data_epoch, retained_from_ms " +
+			"SELECT revision, collected_data_epoch, retained_from_ms, " +
+				"deleted_source_event_high_water_ordinal " +
 				"FROM source_evidence_state WHERE id = 1",
 		).use { cursor ->
 			assertTrue(cursor.moveToFirst())
 			assertEquals(41L, cursor.getLong(0))
 			assertEquals(7L, cursor.getLong(1))
 			assertEquals(123_456L, cursor.getLong(2))
+			assertEquals(0L, cursor.getLong(3))
 		}
 		database.query(
 			"SELECT state, lifecycle_revision, completed_at_ms, failure_code, session_mode, " +
@@ -385,10 +396,21 @@ class AppDatabaseMigration27To28Test {
 			"session_manifest_source",
 			"session_lifecycle_intent_version",
 			"lifecycle_desired_action",
+			"activity_automatic_start_action",
 			"source_demand",
 			"provider_registration_generation",
 			"source_authorization",
 		).forEach { table -> assertTableCount(database, table, 0) }
+		database.query("PRAGMA table_info(source_demand)").use { cursor ->
+			val nameColumn = cursor.getColumnIndexOrThrow("name")
+			val notNullColumn = cursor.getColumnIndexOrThrow("notnull")
+			val columns = buildMap {
+				while (cursor.moveToNext()) put(cursor.getString(nameColumn), cursor.getInt(notNullColumn))
+			}
+			assertEquals(1, columns["minimum_acquisition_spec"])
+			assertEquals(1, columns["adaptive_reduction_allowed"])
+			assertEquals(0, columns["requested_delivery_latency_ms"])
+		}
 		assertTableCount(database, "location_sample", 1)
 		assertTableCount(database, "location_observation", 1)
 		assertTableCount(database, "location_projection_observation", 1)
@@ -536,6 +558,7 @@ class AppDatabaseMigration27To28Test {
 		assertEquals(SourceEventWalEntity.LEGACY_PENDING_CHECKSUM, wal.integrityIdentity)
 		assertTrue(wal.hasPendingLegacyPayload())
 		assertNull(wal.sourcePolicyRevision)
+		assertNull(wal.activityAutomationEpoch)
 		assertNull(wal.captureConsentEpoch)
 		assertNull(wal.sessionManifestRevision)
 		assertNull(wal.lifecycleLeaseGeneration)
@@ -586,6 +609,11 @@ class AppDatabaseMigration27To28Test {
 	}
 
 	private suspend fun assertFailClosedAuthorityAndNoGhostRuntime(database: AppDatabase) {
+		val automationEpoch = requireNotNull(database.activityAutomationEpochDao().current())
+		assertEquals(1L, automationEpoch.epoch)
+		assertFalse(automationEpoch.automaticControlEnabled)
+		assertFalse(automationEpoch.lockSuppressed)
+		assertFalse(automationEpoch.powerSaverSuppressed)
 		val authority = requireNotNull(database.sourcePolicyDao().authority())
 		assertEquals("UNINITIALIZED", authority.bootstrapState)
 		assertEquals(0L, authority.currentPolicyRevision)
@@ -674,6 +702,8 @@ class AppDatabaseMigration27To28Test {
 		assertEquals(8L, evidenceState.collectedDataEpoch)
 		// Full deletion cannot weaken a previously established retention floor.
 		assertEquals(123_456L, evidenceState.retainedFromMs)
+		assertEquals(1L, evidenceState.deletedSourceEventHighWaterOrdinal)
+		assertEquals(1L, requireNotNull(database.activityAutomationEpochDao().current()).epoch)
 	}
 
 	private fun assertTableCount(database: SupportSQLiteDatabase, table: String, expected: Long) {

@@ -97,6 +97,8 @@ data class SourceEventWalEntity(
 	val wallTimeUncertaintyMs: Long?,
 	@ColumnInfo(name = "captured_collected_data_epoch")
 	val capturedCollectedDataEpoch: Long,
+	@ColumnInfo(name = "activity_automation_epoch")
+	val activityAutomationEpoch: Long? = null,
 	@ColumnInfo(name = "source_policy_revision")
 	val sourcePolicyRevision: Long? = null,
 	@ColumnInfo(name = "capture_consent_epoch")
@@ -149,6 +151,7 @@ data class SourceEventWalEntity(
 			wallTimeMs,
 			wallTimeUncertaintyMs,
 			capturedCollectedDataEpoch,
+			activityAutomationEpoch,
 			sourcePolicyRevision,
 			captureConsentEpoch,
 			sessionManifestRevision,

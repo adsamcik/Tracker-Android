@@ -9,6 +9,23 @@ data class SourceEventStoragePruneResult(
 )
 
 /**
+ * First global WAL ordinal a newly registered live projection may consume.
+ *
+ * A full deletion clears projection registrations and WAL rows but deliberately leaves SQLite's
+ * AUTOINCREMENT sequence alone. The surviving evidence-state fence therefore participates in the
+ * same activation calculation as the immutable v27 migration cutoff.
+ */
+suspend fun AppDatabase.liveSourceProjectionActivationOrdinal(): Long {
+	val legacyActivationOrdinal = legacyV27ProjectionDrainDao().liveActivationOrdinal() ?: 1L
+	val deletedHighWaterOrdinal = sourceEvidenceStateDao().get()
+		?.deletedSourceEventHighWaterOrdinal ?: 0L
+	check(deletedHighWaterOrdinal < Long.MAX_VALUE) {
+		"Source-event WAL exhausted its admission ordinal range"
+	}
+	return maxOf(legacyActivationOrdinal, deletedHighWaterOrdinal + 1L)
+}
+
+/**
  * Removes source-event rows only after every active projection and durable join has advanced past
  * them. Deletes are intentionally bounded so weekly maintenance cannot hold the SQLite writer for
  * an unbounded transaction after a long offline period.

@@ -56,6 +56,22 @@ class SourceEventWalDaoTest {
 	}
 
 	@Test
+	fun `source scoped recovery read excludes unrelated ordinals and honors upper bound`() = runTest {
+		val dao = database.sourceEventWalDao()
+		dao.insertIgnoringDuplicate(event("activity-old", 1L).copy(sourceKind = 2)) shouldBe 1L
+		dao.insertIgnoringDuplicate(event("pressure-poison", 1L).copy(sourceKind = 4)) shouldBe 2L
+		dao.insertIgnoringDuplicate(event("activity-live", 2L).copy(sourceKind = 2)) shouldBe 3L
+		dao.insertIgnoringDuplicate(event("activity-later", 3L).copy(sourceKind = 2)) shouldBe 4L
+
+		dao.sourceEventsAfterThrough(
+			sourceKind = 2,
+			afterOrdinal = 1L,
+			throughOrdinal = 3L,
+			limit = 10,
+		).map { it.eventId } shouldBe listOf("activity-live")
+	}
+
+	@Test
 	fun `required projections retain independent checkpoints`() = runTest {
 		val dao = database.sourceProjectionStateDao()
 		dao.register(SourceProjectionRegistrationEntity("raw", 1, 1, true, "ACTIVE", 0))
@@ -102,6 +118,34 @@ class SourceEventWalDaoTest {
 		dao.pendingOutbox("activity-automation-v1", 10)
 			.map { it.stableId } shouldBe listOf("live-effect")
 		dao.markOutboxDelivered("legacy-effect", 40) shouldBe 0
+	}
+
+	@Test
+	fun `single effect terminal suppression is durable and mutually exclusive with delivery`() = runTest {
+		val dao = database.sourceProjectionStateDao()
+		dao.insertOutbox(
+			SourceProjectionOutboxEntity(
+				stableId = "policy-suppressed",
+				projectionId = "activity-automation",
+				projectionVersion = 2,
+				admissionOrdinal = 1,
+				effectKind = "activity-automation-v1",
+				payloadVersion = 1,
+				payload = byteArrayOf(1),
+				createdAtMs = 10,
+				deliveredAtMs = null,
+			),
+		)
+
+		dao.markOutboxTerminal(
+			"policy-suppressed",
+			"CURRENT_POLICY_SUPPRESSED_AUTOMATION",
+			20,
+		) shouldBe 1
+		dao.markOutboxDelivered("policy-suppressed", 30) shouldBe 0
+		dao.outbox("policy-suppressed")?.terminalDisposition shouldBe
+			"CURRENT_POLICY_SUPPRESSED_AUTOMATION"
+		dao.outbox("policy-suppressed")?.terminalAtMs shouldBe 20
 	}
 
 	@Test
@@ -462,6 +506,51 @@ class SourceEventWalDaoTest {
 		database.locationProjectionDao().points("track") shouldBe emptyList()
 		database.trackingRolloutStateDao().get()?.revision shouldBe 2L
 	}
+
+	@Test
+	fun `full deletion persists wal autoincrement high water before clearing rows`() = runTest {
+		val wal = database.sourceEventWalDao()
+		(1L..3L).forEach { ordinal ->
+			wal.insertIgnoringDuplicate(event("old-$ordinal", ordinal)) shouldBe ordinal
+		}
+
+		AppDatabase.deleteAllCollectedData(
+			database = database,
+			collectedDataEpoch = 1L,
+			retainedFromMs = null,
+			updatedAtMs = 100L,
+		)
+
+		wal.countAll() shouldBe 0L
+		walSequenceHighWater() shouldBe 3L
+		requireNotNull(database.sourceEvidenceStateDao().get()).also { state ->
+			state.collectedDataEpoch shouldBe 1L
+			state.deletedSourceEventHighWaterOrdinal shouldBe 3L
+		}
+		wal.insertIgnoringDuplicate(event("new-epoch", 1L)) shouldBe 4L
+		wal.getByEventId("old-1") shouldBe null
+		wal.getByEventId("new-epoch")?.admissionOrdinal shouldBe 4L
+	}
+
+	@Test
+	fun `synchronous full deletion also persists wal autoincrement high water`() = runTest {
+		val wal = database.sourceEventWalDao()
+		wal.insertIgnoringDuplicate(event("old", 1L)) shouldBe 1L
+
+		AppDatabase.deleteAllCollectedData(database)
+
+		wal.countAll() shouldBe 0L
+		walSequenceHighWater() shouldBe 1L
+		requireNotNull(database.sourceEvidenceStateDao().get()).also { state ->
+			state.collectedDataEpoch shouldBe 1L
+			state.deletedSourceEventHighWaterOrdinal shouldBe 1L
+		}
+		wal.insertIgnoringDuplicate(event("new-epoch", 1L)) shouldBe 2L
+	}
+
+	private fun walSequenceHighWater(): Long? = database.openHelper.writableDatabase.query(
+		"SELECT seq FROM sqlite_sequence WHERE name = 'source_event_wal'",
+	).use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else null }
 
 	private fun event(eventId: String, sourceSequence: Long) = SourceEventWalEntity(
 		eventId = eventId,

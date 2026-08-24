@@ -44,6 +44,19 @@ interface SourceBrokerDao {
 	suspend fun demandHistory(consumerId: String): List<SourceDemandEntity>
 
 	@Query(
+		"UPDATE source_demand SET status = 'ACTIVE' " +
+			"WHERE consumer_id = :consumerId AND service_run_id = :serviceRunId " +
+			"AND manifest_revision = :manifestRevision " +
+			"AND lifecycle_lease_generation = :leaseGeneration AND status = 'BLOCKED'",
+	)
+	suspend fun activatePreparedSessionDemands(
+		consumerId: String,
+		serviceRunId: String,
+		manifestRevision: Long,
+		leaseGeneration: Long,
+	): Int
+
+	@Query(
 		"UPDATE source_demand SET status = 'RETIRING', retire_boot_id = :bootId, " +
 			"retire_elapsed_realtime_nanos = :elapsedRealtimeNanos, retired_at_ms = :wallTimeMs " +
 			"WHERE consumer_id = :consumerId AND status = 'ACTIVE'",
@@ -56,9 +69,22 @@ interface SourceBrokerDao {
 	): Int
 
 	@Query(
+		"UPDATE source_demand SET status = 'RETIRING', retire_boot_id = :bootId, " +
+			"retire_elapsed_realtime_nanos = :elapsedRealtimeNanos, retired_at_ms = :wallTimeMs " +
+			"WHERE source_kind = :sourceKind AND purpose IN (:purposes) AND status = 'ACTIVE'",
+	)
+	suspend fun markSourcePurposesRetiring(
+		sourceKind: Int,
+		purposes: Collection<String>,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	): Int
+
+	@Query(
 		"UPDATE source_demand SET status = 'RETIRED', retire_boot_id = :bootId, " +
 			"retire_elapsed_realtime_nanos = :elapsedRealtimeNanos, retired_at_ms = :wallTimeMs " +
-			"WHERE consumer_id = :consumerId AND status IN ('ACTIVE', 'RETIRING')",
+		"WHERE consumer_id = :consumerId AND status IN ('ACTIVE', 'RETIRING', 'BLOCKED')",
 	)
 	suspend fun retireConsumer(
 		consumerId: String,

@@ -48,8 +48,11 @@ object SourceBrokerAuthorization {
 				demand.logicalTrackingId.orEmpty(),
 				demand.manifestRevision ?: 0L,
 				demand.qosCode,
+				demand.minimumAcquisitionSpec,
+				demand.adaptiveReductionAllowed,
 				demand.maximumAgeMs,
 				demand.desiredLatencyMs,
+				demand.requestedDeliveryLatencyMs,
 				demand.requestedBootId,
 				demand.requestedElapsedRealtimeNanos,
 			).joinToString("\u001e")
@@ -171,8 +174,15 @@ data class SourceDemandEntity(
 	@ColumnInfo(name = "consent_epoch") val consentEpoch: Long,
 	@ColumnInfo(name = "persistence_eligible") val persistenceEligible: Boolean,
 	@ColumnInfo(name = "qos_code") val qosCode: Int,
+	/** Opaque engine-owned floor specification; core persists and fingerprints but never interprets it. */
+	@ColumnInfo(name = "minimum_acquisition_spec")
+	val minimumAcquisitionSpec: String = "unspecified:v1:source=$sourceKind",
+	@ColumnInfo(name = "adaptive_reduction_allowed")
+	val adaptiveReductionAllowed: Boolean = false,
 	@ColumnInfo(name = "maximum_age_ms") val maximumAgeMs: Long,
 	@ColumnInfo(name = "desired_latency_ms") val desiredLatencyMs: Long,
+	@ColumnInfo(name = "requested_delivery_latency_ms")
+	val requestedDeliveryLatencyMs: Long? = null,
 	@ColumnInfo(name = "requested_boot_id") val requestedBootId: String,
 	@ColumnInfo(name = "requested_elapsed_realtime_nanos") val requestedElapsedRealtimeNanos: Long,
 	@ColumnInfo(name = "requested_at_ms") val requestedAtMs: Long,
@@ -188,8 +198,10 @@ data class SourceDemandEntity(
 		require(SourceBrokerPurpose.mask(purpose) != 0L) { "Unknown broker purpose $purpose" }
 		require(sourcePolicyRevision > 0L)
 		require(consentEpoch >= 0L)
+		require(minimumAcquisitionSpec.isNotBlank())
 		require(maximumAgeMs >= 0L)
 		require(desiredLatencyMs >= 0L)
+		require(requestedDeliveryLatencyMs == null || requestedDeliveryLatencyMs >= 0L)
 		require(requestedBootId.isNotBlank())
 		require(requestedElapsedRealtimeNanos >= 0L)
 		require(requestedAtMs >= 0L)

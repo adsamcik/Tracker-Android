@@ -1380,6 +1380,10 @@ val MIGRATION_27_28: Migration = object : Migration(27, 28) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		with(db) {
 			execSQL(
+				"ALTER TABLE source_evidence_state ADD COLUMN " +
+					"deleted_source_event_high_water_ordinal INTEGER NOT NULL DEFAULT 0",
+			)
+			execSQL(
 				"ALTER TABLE acquisition_plan_revision " +
 					"ADD COLUMN source_policy_revision INTEGER",
 			)
@@ -1389,6 +1393,7 @@ val MIGRATION_27_28: Migration = object : Migration(27, 28) {
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN delivery_unit_count INTEGER")
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN observed_interval_start_nanos INTEGER")
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN capture_consent_epoch INTEGER")
+			execSQL("ALTER TABLE source_event_wal ADD COLUMN activity_automation_epoch INTEGER")
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN session_manifest_revision INTEGER")
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN lifecycle_lease_generation INTEGER")
 			execSQL("ALTER TABLE source_event_wal ADD COLUMN physical_configuration_fingerprint TEXT")
@@ -1605,6 +1610,36 @@ val MIGRATION_27_28: Migration = object : Migration(27, 28) {
 			)
 			execSQL("ALTER TABLE source_service_run ADD COLUMN runtime_failure_code TEXT")
 			execSQL("ALTER TABLE source_service_run ADD COLUMN run_revision INTEGER NOT NULL DEFAULT 0")
+			execSQL("ALTER TABLE source_service_run ADD COLUMN start_delivery_token TEXT")
+			execSQL(
+				"ALTER TABLE source_service_run " +
+					"ADD COLUMN start_command_generation INTEGER NOT NULL DEFAULT 0",
+			)
+			execSQL(
+				"ALTER TABLE source_service_run " +
+					"ADD COLUMN prepared_manifest_revision INTEGER NOT NULL DEFAULT 0",
+			)
+			execSQL(
+				"ALTER TABLE source_service_run " +
+					"ADD COLUMN prepared_intent_revision INTEGER NOT NULL DEFAULT 0",
+			)
+			execSQL(
+				"ALTER TABLE source_service_run " +
+					"ADD COLUMN android_delivery_state TEXT NOT NULL DEFAULT 'LEGACY_UNKNOWN'",
+			)
+			execSQL("ALTER TABLE source_service_run ADD COLUMN android_delivery_updated_at_ms INTEGER")
+			execSQL(
+				"ALTER TABLE source_service_run " +
+					"ADD COLUMN start_is_user_initiated INTEGER NOT NULL DEFAULT 0",
+			)
+			execSQL(
+				"ALTER TABLE source_service_run " +
+					"ADD COLUMN start_is_ambient INTEGER NOT NULL DEFAULT 0",
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_source_service_run_delivery_token " +
+					"ON source_service_run(start_delivery_token)",
+			)
 			execSQL(
 				"UPDATE source_service_run SET " +
 					"desired_foreground_capability_flags = foreground_capability_flags, " +
@@ -1718,8 +1753,11 @@ val MIGRATION_27_28: Migration = object : Migration(27, 28) {
 					consent_epoch INTEGER NOT NULL,
 					persistence_eligible INTEGER NOT NULL,
 					qos_code INTEGER NOT NULL,
+					minimum_acquisition_spec TEXT NOT NULL,
+					adaptive_reduction_allowed INTEGER NOT NULL,
 					maximum_age_ms INTEGER NOT NULL,
 					desired_latency_ms INTEGER NOT NULL,
+					requested_delivery_latency_ms INTEGER,
 					requested_boot_id TEXT NOT NULL,
 					requested_elapsed_realtime_nanos INTEGER NOT NULL,
 					requested_at_ms INTEGER NOT NULL,
@@ -1877,6 +1915,7 @@ val MIGRATION_27_28: Migration = object : Migration(27, 28) {
 					stop_deadline_boot_id TEXT,
 					stop_deadline_elapsed_realtime_nanos INTEGER,
 					intent_checksum TEXT NOT NULL,
+					trigger_collected_data_epoch INTEGER,
 					PRIMARY KEY(logical_tracking_id, intent_revision)
 				)
 				""".trimIndent(),
@@ -1923,6 +1962,74 @@ val MIGRATION_27_28: Migration = object : Migration(27, 28) {
 			execSQL(
 				"CREATE INDEX IF NOT EXISTS idx_lifecycle_action_pending " +
 					"ON lifecycle_desired_action(status, requested_at_ms)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS activity_automatic_start_action (
+					slot_id INTEGER NOT NULL,
+					trigger_id TEXT NOT NULL,
+					effect_stable_id TEXT NOT NULL,
+					admission_ordinal INTEGER NOT NULL,
+					trigger_kind TEXT NOT NULL,
+					boot_id TEXT NOT NULL,
+					observed_elapsed_realtime_nanos INTEGER NOT NULL,
+					received_elapsed_realtime_nanos INTEGER NOT NULL,
+					expires_elapsed_realtime_nanos INTEGER NOT NULL,
+					automation_epoch INTEGER NOT NULL,
+					source_policy_revision INTEGER NOT NULL,
+					control_consent_epoch INTEGER NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					requested_capture_source_mask INTEGER NOT NULL,
+					intended_capture_source_mask INTEGER NOT NULL,
+					intended_fgs_type_mask INTEGER NOT NULL,
+					registration_generation INTEGER NOT NULL,
+					authorization_revision INTEGER NOT NULL,
+					authorization_fingerprint TEXT NOT NULL,
+					start_origin TEXT NOT NULL,
+					status TEXT NOT NULL,
+					reserved_at_ms INTEGER NOT NULL,
+					start_requested_at_ms INTEGER,
+					lifecycle_intent_accepted_at_ms INTEGER,
+					accepted_logical_tracking_id TEXT,
+					accepted_intent_revision INTEGER,
+					terminal_at_ms INTEGER,
+					terminal_reason TEXT,
+					PRIMARY KEY(slot_id)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_auto_start_trigger " +
+					"ON activity_automatic_start_action(trigger_id)",
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_auto_start_effect " +
+					"ON activity_automatic_start_action(effect_stable_id)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS activity_automation_epoch (
+					id INTEGER NOT NULL,
+					epoch INTEGER NOT NULL,
+					automatic_control_enabled INTEGER NOT NULL,
+					lock_suppressed INTEGER NOT NULL,
+					power_saver_suppressed INTEGER NOT NULL,
+					boot_clock_domain_id TEXT NOT NULL,
+					effective_elapsed_realtime_nanos INTEGER NOT NULL,
+					last_rotation_reason TEXT NOT NULL,
+					updated_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(id)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"""
+				INSERT OR IGNORE INTO activity_automation_epoch (
+					id, epoch, automatic_control_enabled, lock_suppressed,
+					power_saver_suppressed, boot_clock_domain_id,
+					effective_elapsed_realtime_nanos, last_rotation_reason, updated_at_ms
+				) VALUES (1, 1, 0, 0, 0, 'V28_UNINITIALIZED', 0, 'V28_INITIALIZED', 0)
+				""".trimIndent(),
 			)
 			// v27 used a wall-clock-only projection lease. Lease rows are ephemeral, so discard any
 			// in-flight owner and extend that shared table for boot-aware monotonic reconciliation.

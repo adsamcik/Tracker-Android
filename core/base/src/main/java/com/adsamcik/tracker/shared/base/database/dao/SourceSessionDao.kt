@@ -30,6 +30,12 @@ interface SourceSessionDao {
 	)
 	suspend fun activeSession(): LogicalTrackingSessionEntity?
 
+	@Query(
+		"SELECT * FROM logical_tracking_session WHERE state NOT IN ('FINALIZED', 'CLOSED', 'FAILED') " +
+			"ORDER BY started_at_ms ASC",
+	)
+	suspend fun incompleteSessions(): List<LogicalTrackingSessionEntity>
+
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertManifest(entity: SessionManifestVersionEntity)
 
@@ -96,6 +102,12 @@ interface SourceSessionDao {
 		intentRevision: Long,
 	): SessionLifecycleIntentVersionEntity?
 
+	@Query(
+		"SELECT * FROM session_lifecycle_intent_version WHERE trigger_id = :triggerId " +
+			"AND desired_state = 'ACTIVE' ORDER BY requested_elapsed_realtime_nanos ASC LIMIT 1",
+	)
+	suspend fun lifecycleIntentByTriggerId(triggerId: String): SessionLifecycleIntentVersionEntity?
+
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertLifecycleActions(entities: List<LifecycleDesiredActionEntity>)
 
@@ -131,6 +143,9 @@ interface SourceSessionDao {
 
 	@Query("SELECT * FROM source_service_run WHERE service_run_id = :serviceRunId")
 	suspend fun serviceRun(serviceRunId: String): SourceServiceRunEntity?
+
+	@Query("SELECT * FROM source_service_run WHERE start_delivery_token = :deliveryToken")
+	suspend fun serviceRunByDeliveryToken(deliveryToken: String): SourceServiceRunEntity?
 
 	@Query(
 		"SELECT * FROM source_service_run WHERE logical_tracking_id = :logicalTrackingId " +

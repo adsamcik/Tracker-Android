@@ -13,6 +13,8 @@ import com.adsamcik.tracker.shared.base.database.converter.DetectedActivityTypeC
 import com.adsamcik.tracker.shared.base.database.converter.GeoFeaturePropertiesConverter
 import com.adsamcik.tracker.shared.base.database.converter.SessionlessTypeConverter
 import com.adsamcik.tracker.shared.base.database.dao.ActivityDao
+import com.adsamcik.tracker.shared.base.database.dao.ActivityAutomaticStartActionDao
+import com.adsamcik.tracker.shared.base.database.dao.ActivityAutomationEpochDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
@@ -35,6 +37,8 @@ import com.adsamcik.tracker.shared.base.database.dao.UnifiedGeoDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.base.database.dao.XpLedgerDao
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
+import com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
+import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.CellSample
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportEntryReceiptEntity
@@ -74,7 +78,7 @@ import com.adsamcik.tracker.shared.base.database.dao.SourceProjectionStateDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceRegistrationStateDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceSessionDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackingRolloutStateDao
-import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
+import com.adsamcik.tracker.shared.base.database.dao.recordFullDeletion
 import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
 import com.adsamcik.tracker.shared.base.database.data.ExplorationCellEntity
 import com.adsamcik.tracker.shared.base.database.data.ExplorationStreakEntity
@@ -172,6 +176,8 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			SessionManifestSourceEntity::class,
 			SessionLifecycleIntentVersionEntity::class,
 			LifecycleDesiredActionEntity::class,
+			ActivityAutomaticStartActionEntity::class,
+			ActivityAutomationEpochEntity::class,
 			TrackingRolloutStateEntity::class,
 			AcquisitionPlanRevisionEntity::class,
 			SourceDesiredPlanEntity::class,
@@ -289,6 +295,10 @@ abstract class AppDatabase : RoomDatabase() {
 	abstract fun sourceRegistrationStateDao(): SourceRegistrationStateDao
 
 	abstract fun sourceSessionDao(): SourceSessionDao
+
+	abstract fun activityAutomaticStartActionDao(): ActivityAutomaticStartActionDao
+
+	abstract fun activityAutomationEpochDao(): ActivityAutomationEpochDao
 
 	abstract fun trackingRolloutStateDao(): TrackingRolloutStateDao
 
@@ -491,17 +501,12 @@ abstract class AppDatabase : RoomDatabase() {
 			updatedAtMs: Long,
 		) {
 			database.withTransaction {
-				val stateDao = database.sourceEvidenceStateDao()
-				val lifecycleChanged = stateDao.synchronizeLifecycle(
+				database.sourceEvidenceStateDao().recordFullDeletion(
 					epoch = collectedDataEpoch,
 					retainedFromMs = retainedFromMs,
+					deletedSourceEventHighWaterOrdinal = sourceEventWalHighWater(database),
 					updatedAtMs = updatedAtMs,
 				)
-				if (!lifecycleChanged) {
-					check(stateDao.incrementRevision(updatedAtMs) == 1) {
-						"Unable to advance source-evidence revision for full deletion"
-					}
-				}
 				deleteCollectedRows(database)
 			}
 		}
@@ -509,10 +514,12 @@ abstract class AppDatabase : RoomDatabase() {
 		internal fun deleteAllCollectedData(database: AppDatabase) {
 			database.runInTransaction {
 				val sqlite = database.openHelper.writableDatabase
+				val deletedSourceEventHighWaterOrdinal = sourceEventWalHighWater(database)
 				sqlite.execSQL(
 					"INSERT OR IGNORE INTO source_evidence_state " +
-						"(id, revision, collected_data_epoch, retained_from_ms, updated_at_ms) " +
-						"VALUES (1, 0, 0, NULL, 0)",
+						"(id, revision, collected_data_epoch, retained_from_ms, " +
+						"deleted_source_event_high_water_ordinal, updated_at_ms) " +
+						"VALUES (1, 0, 0, NULL, 0, 0)",
 				)
 				val currentEpoch = sqlite.query(
 					"SELECT collected_data_epoch FROM source_evidence_state WHERE id = 1",
@@ -521,10 +528,25 @@ abstract class AppDatabase : RoomDatabase() {
 				val updatedAtMs = System.currentTimeMillis()
 				sqlite.execSQL(
 					"UPDATE source_evidence_state SET collected_data_epoch = ?, revision = revision + 1, " +
+						"deleted_source_event_high_water_ordinal = " +
+						"MAX(deleted_source_event_high_water_ordinal, ?), " +
 						"updated_at_ms = ? WHERE id = 1",
-					arrayOf(nextEpoch, updatedAtMs),
+					arrayOf(nextEpoch, deletedSourceEventHighWaterOrdinal, updatedAtMs),
 				)
 				deleteCollectedRows(database)
+			}
+		}
+
+		private fun sourceEventWalHighWater(database: AppDatabase): Long {
+			val sqlite = database.openHelper.writableDatabase
+			return sqlite.query(
+				"SELECT MAX(" +
+					"COALESCE((SELECT seq FROM sqlite_sequence " +
+					"WHERE name = 'source_event_wal'), 0), " +
+					"COALESCE((SELECT MAX(admission_ordinal) FROM source_event_wal), 0))",
+			).use { cursor ->
+				check(cursor.moveToFirst()) { "Unable to read source-event WAL high-water" }
+				cursor.getLong(0)
 			}
 		}
 
@@ -546,6 +568,7 @@ abstract class AppDatabase : RoomDatabase() {
 			database.sourcePlanStateDao().deleteAllAppliedStates()
 			database.sourceRuntimeStateDao().deleteAll()
 			database.sourceSessionDao().deleteAllCompleteness()
+			database.activityAutomaticStartActionDao().deleteAll()
 			database.sourceSessionDao().deleteAllLifecycleActions()
 			database.sourceSessionDao().deleteAllLifecycleIntents()
 			database.sourceSessionDao().deleteAllManifestSources()

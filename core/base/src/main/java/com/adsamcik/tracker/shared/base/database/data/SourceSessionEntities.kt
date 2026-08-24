@@ -37,7 +37,10 @@ data class LogicalTrackingSessionEntity(
 @Entity(
 	tableName = "source_service_run",
 	primaryKeys = ["service_run_id"],
-	indices = [Index(value = ["logical_tracking_id", "started_at_ms"], name = "idx_source_service_run_tracking")],
+	indices = [
+		Index(value = ["logical_tracking_id", "started_at_ms"], name = "idx_source_service_run_tracking"),
+		Index(value = ["start_delivery_token"], unique = true, name = "idx_source_service_run_delivery_token"),
+	],
 )
 data class SourceServiceRunEntity(
 	@ColumnInfo(name = "service_run_id") val serviceRunId: String,
@@ -61,6 +64,22 @@ data class SourceServiceRunEntity(
 	val runtimeAcknowledgement: String = "PENDING",
 	@ColumnInfo(name = "runtime_failure_code") val runtimeFailureCode: String? = null,
 	@ColumnInfo(name = "run_revision", defaultValue = "0") val runRevision: Long = 0L,
+	/** Opaque identity carried by Android; null only for released-v27 migration facts. */
+	@ColumnInfo(name = "start_delivery_token") val startDeliveryToken: String? = null,
+	@ColumnInfo(name = "start_command_generation", defaultValue = "0")
+	val startCommandGeneration: Long = 0L,
+	@ColumnInfo(name = "prepared_manifest_revision", defaultValue = "0")
+	val preparedManifestRevision: Long = 0L,
+	@ColumnInfo(name = "prepared_intent_revision", defaultValue = "0")
+	val preparedIntentRevision: Long = 0L,
+	@ColumnInfo(name = "android_delivery_state", defaultValue = "'LEGACY_UNKNOWN'")
+	val androidDeliveryState: String = "LEGACY_UNKNOWN",
+	@ColumnInfo(name = "android_delivery_updated_at_ms")
+	val androidDeliveryUpdatedAtMs: Long? = null,
+	@ColumnInfo(name = "start_is_user_initiated", defaultValue = "0")
+	val startIsUserInitiated: Boolean = false,
+	@ColumnInfo(name = "start_is_ambient", defaultValue = "0")
+	val startIsAmbient: Boolean = false,
 )
 
 /**
@@ -152,6 +171,9 @@ data class SessionLifecycleIntentVersionEntity(
 	@ColumnInfo(name = "stop_deadline_boot_id") val stopDeadlineBootId: String?,
 	@ColumnInfo(name = "stop_deadline_elapsed_realtime_nanos") val stopDeadlineElapsedRealtimeNanos: Long?,
 	@ColumnInfo(name = "intent_checksum") val intentChecksum: String,
+	/** Data-generation fence copied from an automatic trigger; null for manual/recovery intent. */
+	@ColumnInfo(name = "trigger_collected_data_epoch")
+	val triggerCollectedDataEpoch: Long? = null,
 )
 
 /** Durable desired external action. Intent is inserted before the runtime side effect. */

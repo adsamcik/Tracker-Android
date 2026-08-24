@@ -22,6 +22,9 @@ data class SourceEvidenceState(
 	/** Lower raw-history boundary mirrored from durable preferences; null means no raw cutoff. */
 	@ColumnInfo(name = "retained_from_ms")
 	val retainedFromMs: Long? = null,
+	/** Highest source-event ordinal made unreachable by a committed full-data deletion. */
+	@ColumnInfo(name = "deleted_source_event_high_water_ordinal", defaultValue = "0")
+	val deletedSourceEventHighWaterOrdinal: Long = 0L,
 	@ColumnInfo(name = "updated_at_ms")
 	val updatedAtMs: Long = 0L,
 ) {
