@@ -73,6 +73,13 @@ class LegacyDatabaseRepository(
 		.map { currentState() }
 		.distinctUntilChanged()
 
+	/**
+	 * Reports whether the released database's authoritative file still exists without opening it.
+	 * Startup uses this before strict inspection so a corrupt-but-present vault remains a durable
+	 * user-repair condition instead of being mistaken for a transient clean install failure.
+	 */
+	fun hasSourceDatabase(): Boolean = PROCESS_LOCK.withLock { databaseFile.isFile }
+
 	fun currentState(): LegacyDatabaseState = PROCESS_LOCK.withLock {
 		LegacyDatabaseState(
 			// State observation must remain available for recovery UI even when SQLite cannot

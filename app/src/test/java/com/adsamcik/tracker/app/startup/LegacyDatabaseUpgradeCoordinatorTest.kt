@@ -52,6 +52,7 @@ class LegacyDatabaseUpgradeCoordinatorTest {
 	@Test
 	fun `legacy start requires atomic completion marker before becoming ready`() = runTest {
 		val source = legacyInfo()
+		every { repository.hasSourceDatabase() } returns true
 		every { repository.inspect() } returns source
 		every { repository.currentState() } returns state(source, LegacyImportStatus.RUNNING)
 		val cursor = mockk<Cursor>(relaxed = true) {
@@ -69,6 +70,7 @@ class LegacyDatabaseUpgradeCoordinatorTest {
 	@Test
 	fun `legacy start rejects a target without the atomic completion marker`() = runTest {
 		val source = legacyInfo()
+		every { repository.hasSourceDatabase() } returns true
 		every { repository.inspect() } returns source
 		every { repository.currentState() } returns state(source, LegacyImportStatus.RUNNING)
 		val cursor = mockk<Cursor>(relaxed = true) {
@@ -88,12 +90,16 @@ class LegacyDatabaseUpgradeCoordinatorTest {
 	@Test
 	fun `inspection failure is reported durably instead of escaping startup`() = runTest {
 		val failure = IllegalStateException("broken vault")
+		every { repository.hasSourceDatabase() } returns true
 		every { repository.inspect() } throws failure
 		val coordinator = coordinator()
 
 		val result = coordinator.ensureReady()
 
-		result.shouldBeInstanceOf<LegacyDatabaseStartupResult.Failed>().message shouldBe "broken vault"
+		result.shouldBeInstanceOf<LegacyDatabaseStartupResult.Failed>().apply {
+			message shouldBe "broken vault"
+			requiresExplicitRetry shouldBe true
+		}
 		verify { repository.markFailed(failure) }
 		verify(exactly = 0) { openHelper.writableDatabase }
 		coordinator.isReady() shouldBe false

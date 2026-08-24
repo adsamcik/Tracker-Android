@@ -15,7 +15,10 @@ import kotlinx.coroutines.sync.withLock
 
 sealed interface LegacyDatabaseStartupResult {
 	data object Ready : LegacyDatabaseStartupResult
-	data class Failed(val message: String) : LegacyDatabaseStartupResult
+	data class Failed(
+		val message: String,
+		val requiresExplicitRetry: Boolean = false,
+	) : LegacyDatabaseStartupResult
 }
 
 /** Serializes the one-time Room open that atomically creates and seeds the v27 database. */
@@ -32,18 +35,24 @@ class LegacyDatabaseUpgradeCoordinator @Inject constructor(
 	fun isReady(): Boolean = readyForThisProcess.get()
 
 	suspend fun ensureReady(retry: Boolean = false): LegacyDatabaseStartupResult = mutex.withLock {
+		var sourceExists = false
 		return@withLock try {
 			// A durable "delete all" request wins over legacy import. Reconcile it before any
 			// caller (Application, Activity, receiver, or worker) can open the active database.
 			collectedDataDeletionService.reconcilePendingDeletion()
 			if (readyForThisProcess.get()) return@withLock LegacyDatabaseStartupResult.Ready
 			if (retry) repository.resetForRetry()
-			val sourceExists = repository.inspect() != null
+			// Establish existence without opening SQLite. If strict inspection then fails, the
+			// corrupt-but-present released vault must require explicit repair rather than an
+			// unbounded automatic retry loop.
+			sourceExists = repository.hasSourceDatabase()
+			sourceExists = repository.inspect() != null
 			if (!retry && sourceExists) {
 				val state = repository.currentState()
 				if (state.importStatus == LegacyImportStatus.FAILED) {
 					return@withLock LegacyDatabaseStartupResult.Failed(
 						state.lastError ?: "Legacy database import failed",
+						requiresExplicitRetry = true,
 					)
 				}
 			}
@@ -65,6 +74,7 @@ class LegacyDatabaseUpgradeCoordinator @Inject constructor(
 			repository.markFailed(error)
 			LegacyDatabaseStartupResult.Failed(
 				error.message ?: "Legacy database import failed",
+				requiresExplicitRetry = sourceExists,
 			)
 		}
 	}
