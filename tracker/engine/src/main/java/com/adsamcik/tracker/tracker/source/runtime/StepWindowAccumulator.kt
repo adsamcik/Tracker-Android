@@ -11,17 +11,36 @@ internal data class StepBaseline(
 	val elapsedRealtimeNanos: Long,
 	val providerSequence: Long,
 	val boundary: StepBaselineBoundary? = null,
+	val authorizationBoundary: StepAuthorizationBoundary? = null,
 )
 
 internal data class StepBaselineBoundary(
 	val registrationGeneration: Long,
-	val eligibilityFingerprint: String,
 ) {
 	init {
 		require(registrationGeneration > 0L)
-		require(eligibilityFingerprint.isNotBlank())
 	}
 }
+
+internal data class StepAuthorizationBoundary(
+	val authorizationRevision: Long,
+	val authorizationFingerprint: String,
+	val purposeEligibilityMask: Long,
+	val effectiveElapsedRealtimeNanos: Long = 0L,
+) {
+	init {
+		require(authorizationRevision > 0L)
+		require(authorizationFingerprint.isNotBlank())
+		require(purposeEligibilityMask > 0L)
+		require(effectiveElapsedRealtimeNanos >= 0L)
+	}
+}
+
+internal data class StepWindowPreview(
+	val payload: StepCounterWindowPayload,
+	internal val expectedBaseline: StepBaseline?,
+	internal val nextBaseline: StepBaseline,
+)
 
 internal class StepWindowAccumulator(
 	initialBaseline: StepBaseline?,
@@ -29,42 +48,112 @@ internal class StepWindowAccumulator(
 ) {
 	private var baseline = initialBaseline?.takeIf { it.boundary == boundary }
 
+	/** Builds a candidate window without advancing the continuing or checkpointed baseline. */
+	fun preview(
+		bootClockDomainId: String,
+		cumulativeCount: Long,
+		elapsedRealtimeNanos: Long,
+		providerSequence: Long,
+		receivedElapsedRealtimeNanos: Long = Long.MAX_VALUE,
+		authorizationBoundary: StepAuthorizationBoundary? = null,
+	): StepWindowPreview? {
+		require(cumulativeCount >= 0L)
+		val previous = baseline
+		if (authorizationBoundary?.let {
+			elapsedRealtimeNanos < it.effectiveElapsedRealtimeNanos
+		} == true) return null
+		if (!isFreshStepSampleTimestamp(
+			providerElapsedNanos = elapsedRealtimeNanos,
+			receivedElapsedNanos = receivedElapsedRealtimeNanos,
+			previousProviderElapsedNanos = previous?.elapsedRealtimeNanos,
+		) || previous?.providerSequence?.let { providerSequence <= it } == true) return null
+		val authorizedPrevious = previous?.takeIf {
+			it.authorizationBoundary == authorizationBoundary
+		}
+		val reset = authorizedPrevious == null || cumulativeCount < authorizedPrevious.cumulativeCount
+		val delta = when {
+			authorizedPrevious == null -> 0L
+			// A hardware/provider counter reset destroys the interval between the old and new
+			// cumulative domains. The new absolute value is a baseline, not steps observed by
+			// this app; allocating it would fabricate history (for example 10_000 -> 3 as +3).
+			reset -> 0L
+			else -> cumulativeCount - authorizedPrevious.cumulativeCount
+		}
+		val payloadBaseline = authorizedPrevious?.takeUnless { reset }
+		val payload = StepCounterWindowPayload(
+			bootClockDomainId = bootClockDomainId,
+			firstCumulativeCount = payloadBaseline?.cumulativeCount ?: cumulativeCount,
+			lastCumulativeCount = cumulativeCount,
+			deltaCount = delta,
+			windowStartElapsedRealtimeNanos =
+				payloadBaseline?.elapsedRealtimeNanos ?: elapsedRealtimeNanos,
+			windowEndElapsedRealtimeNanos = elapsedRealtimeNanos,
+			firstProviderSequence = payloadBaseline?.providerSequence ?: providerSequence,
+			lastProviderSequence = providerSequence,
+			baselineReset = reset,
+		)
+		return StepWindowPreview(
+			payload = payload,
+			expectedBaseline = previous,
+			nextBaseline = StepBaseline(
+				cumulativeCount,
+				elapsedRealtimeNanos,
+				providerSequence,
+				boundary,
+				authorizationBoundary,
+			),
+		)
+	}
+
+	/** Commits exactly one preview whose predecessor is still the current durable baseline. */
+	fun commit(preview: StepWindowPreview): Boolean {
+		if (baseline != preview.expectedBaseline) return false
+		baseline = preview.nextBaseline
+		return true
+	}
+
+	/** Convenience for callers whose preview is already known to be durable. */
 	fun accept(
 		bootClockDomainId: String,
 		cumulativeCount: Long,
 		elapsedRealtimeNanos: Long,
 		providerSequence: Long,
-	): StepCounterWindowPayload {
-		require(cumulativeCount >= 0L)
-		val previous = baseline
-		val reset = previous == null || cumulativeCount < previous.cumulativeCount
-		val delta = when {
-			previous == null -> 0L
-			reset -> cumulativeCount
-			else -> cumulativeCount - previous.cumulativeCount
-		}
-		val payload = StepCounterWindowPayload(
-			bootClockDomainId = bootClockDomainId,
-			firstCumulativeCount = previous?.cumulativeCount ?: cumulativeCount,
-			lastCumulativeCount = cumulativeCount,
-			deltaCount = delta,
-			windowStartElapsedRealtimeNanos = previous?.elapsedRealtimeNanos ?: elapsedRealtimeNanos,
-			windowEndElapsedRealtimeNanos = elapsedRealtimeNanos,
-			firstProviderSequence = previous?.providerSequence ?: providerSequence,
-			lastProviderSequence = providerSequence,
-			baselineReset = reset,
-		)
-		baseline = StepBaseline(cumulativeCount, elapsedRealtimeNanos, providerSequence, boundary)
-		return payload
+		receivedElapsedRealtimeNanos: Long = Long.MAX_VALUE,
+		authorizationBoundary: StepAuthorizationBoundary? = null,
+	): StepCounterWindowPayload? {
+		val preview = preview(
+			bootClockDomainId,
+			cumulativeCount,
+			elapsedRealtimeNanos,
+			providerSequence,
+			receivedElapsedRealtimeNanos,
+			authorizationBoundary,
+		) ?: return null
+		check(commit(preview))
+		return preview.payload
 	}
 
 	fun snapshot(): StepBaseline? = baseline
 }
 
+internal fun isFreshStepSampleTimestamp(
+	providerElapsedNanos: Long,
+	receivedElapsedNanos: Long,
+	previousProviderElapsedNanos: Long?,
+): Boolean = providerElapsedNanos > 0L &&
+	providerElapsedNanos <= receivedElapsedNanos &&
+	(previousProviderElapsedNanos == null || providerElapsedNanos > previousProviderElapsedNanos)
+
 internal fun StepBaseline.encode(): ByteArray = ByteArrayOutputStream().use { bytes ->
 	DataOutputStream(bytes).use { output ->
 		output.writeLong(boundary?.registrationGeneration ?: NO_REGISTRATION_GENERATION)
-		output.writeUTF(boundary?.eligibilityFingerprint.orEmpty())
+		output.writeBoolean(authorizationBoundary != null)
+		authorizationBoundary?.let { authorization ->
+			output.writeLong(authorization.authorizationRevision)
+			output.writeUTF(authorization.authorizationFingerprint)
+			output.writeLong(authorization.purposeEligibilityMask)
+			output.writeLong(authorization.effectiveElapsedRealtimeNanos)
+		}
 		output.writeLong(cumulativeCount)
 		output.writeLong(elapsedRealtimeNanos)
 		output.writeLong(providerSequence)
@@ -80,21 +169,31 @@ internal fun decodeStepBaseline(
 	if (version != STEP_BASELINE_VERSION || payload.isEmpty()) return@runCatching null
 	DataInputStream(ByteArrayInputStream(payload)).use { input ->
 		val registrationGeneration = input.readLong()
-		val eligibilityFingerprint = input.readUTF()
-		val boundary = if (registrationGeneration == NO_REGISTRATION_GENERATION && eligibilityFingerprint.isEmpty()) {
+		val boundary = if (registrationGeneration == NO_REGISTRATION_GENERATION) {
 			null
 		} else {
-			StepBaselineBoundary(registrationGeneration, eligibilityFingerprint)
+			StepBaselineBoundary(registrationGeneration)
 		}
 		if (expectedBoundary != null && boundary != expectedBoundary) return@runCatching null
+		val authorizationBoundary = if (input.readBoolean()) {
+			StepAuthorizationBoundary(
+				authorizationRevision = input.readLong(),
+				authorizationFingerprint = input.readUTF(),
+				purposeEligibilityMask = input.readLong(),
+				effectiveElapsedRealtimeNanos = input.readLong(),
+			)
+		} else {
+			null
+		}
 		StepBaseline(
 			input.readLong(),
 			input.readLong(),
 			input.readLong(),
 			boundary,
+			authorizationBoundary,
 		).also { require(input.available() == 0) }
 	}
 }.getOrNull()
 
-internal const val STEP_BASELINE_VERSION = 2
+internal const val STEP_BASELINE_VERSION = 5
 private const val NO_REGISTRATION_GENERATION = 0L
