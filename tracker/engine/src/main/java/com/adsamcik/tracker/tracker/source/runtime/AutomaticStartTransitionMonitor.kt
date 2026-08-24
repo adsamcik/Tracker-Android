@@ -26,25 +26,29 @@ class AutomaticStartTransitionMonitor @Inject constructor(
 	): ActivityRegistrationResult {
 		val elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
 		val desiredLatencyMs = continuousIntervalSeconds.coerceAtLeast(1) * 1_000L
+		// Only Activity Transition callbacks carry the live, non-replayable background-start
+		// context used by automatic cold start. Continuous recognition remains a capture mechanism;
+		// it must never be registered as a hidden fallback control.
+		val transitionControlEnabled = enabled && useTransitionApi && transitions.isNotEmpty()
 		val durableDemand = sourceBroker.replaceAutomaticControlDemand(
 			consumerId = AUTOMATIC_CONTROL_CONSUMER,
 			source = SourceKind.ACTIVITY,
-			enabled = enabled,
+			enabled = transitionControlEnabled,
 			bootId = clockDomainProvider.current(),
 			elapsedRealtimeNanos = elapsedRealtimeNanos,
 			wallTimeMs = System.currentTimeMillis(),
 			maximumAgeMs = TrackingJoinSpecs.ACTIVITY_CONTEXT_MAX_AGE_MS,
 			desiredLatencyMs = desiredLatencyMs,
 		)
-		return if (!enabled || durableDemand == null) {
+		return if (!transitionControlEnabled || durableDemand == null) {
 			arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
 		} else {
 			arbiter.setDemand(
-			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
-			ActivityRegistrationDemand(
-				continuousRecognitionIntervalSeconds = continuousIntervalSeconds.takeUnless { useTransitionApi },
-				transitions = transitions.takeIf { useTransitionApi }.orEmpty(),
-			),
+				ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+				ActivityRegistrationDemand(
+					continuousRecognitionIntervalSeconds = null,
+					transitions = transitions,
+				),
 			)
 		}
 	}
