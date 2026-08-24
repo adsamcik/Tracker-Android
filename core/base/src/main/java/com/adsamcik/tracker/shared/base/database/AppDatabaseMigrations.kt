@@ -1791,6 +1791,8 @@ val MIGRATION_27_28: Migration = object : Migration(27, 28) {
 					clock_domain_id TEXT NOT NULL,
 					physical_configuration_fingerprint TEXT NOT NULL,
 					collected_data_epoch INTEGER NOT NULL,
+					provider_residency TEXT NOT NULL,
+					provider_process_incarnation_id TEXT,
 					status TEXT NOT NULL,
 					reserved_at_ms INTEGER NOT NULL,
 					reserved_elapsed_realtime_nanos INTEGER NOT NULL,

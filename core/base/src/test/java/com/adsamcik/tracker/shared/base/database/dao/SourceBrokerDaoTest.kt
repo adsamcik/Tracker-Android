@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -36,17 +37,10 @@ class SourceBrokerDaoTest {
 		val dao = database.sourceBrokerDao()
 		val demand = captureDemand()
 		dao.insertRegistration(
-			ProviderRegistrationGenerationEntity(
+			providerRegistration(
 				sourceKind = SOURCE_KIND,
 				registrationGeneration = 1L,
-				sourceInstanceId = "provider-1",
-				ownerScope = "source-broker:$SOURCE_KIND",
-				clockDomainId = BOOT_ID,
-				physicalConfigurationFingerprint = PHYSICAL_CONFIGURATION,
-				collectedDataEpoch = 3L,
 				status = ProviderRegistrationGenerationEntity.STATUS_RETIRED,
-				reservedAtMs = 80L,
-				reservedElapsedRealtimeNanos = 80L,
 				acceptedAtMs = 90L,
 				acceptedElapsedRealtimeNanos = 90L,
 				retiredAtMs = 300L,
@@ -85,7 +79,57 @@ class SourceBrokerDaoTest {
 			PHYSICAL_CONFIGURATION,
 			300L,
 		) shouldBe null
+		val stored = requireNotNull(dao.registration(SOURCE_KIND, 1L))
+		stored.providerResidency shouldBe ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND
+		stored.providerProcessIncarnationId shouldBe "test-process"
 	}
+
+	@Test
+	fun `provider residency requires exactly one process identity for process bound providers`() {
+		val processBound = providerRegistration()
+
+		shouldThrow<IllegalArgumentException> {
+			processBound.copy(providerProcessIncarnationId = null)
+		}
+		shouldThrow<IllegalArgumentException> {
+			processBound.copy(
+				providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE,
+			)
+		}
+		processBound.copy(
+			providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE,
+			providerProcessIncarnationId = null,
+		).providerProcessIncarnationId shouldBe null
+	}
+
+	private fun providerRegistration(
+		sourceKind: Int = SOURCE_KIND,
+		registrationGeneration: Long = 1L,
+		status: String = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+		acceptedAtMs: Long? = 90L,
+		acceptedElapsedRealtimeNanos: Long? = 90L,
+		retiredAtMs: Long? = null,
+		retiredElapsedRealtimeNanos: Long? = null,
+		failureCode: String? = null,
+	) = ProviderRegistrationGenerationEntity(
+		sourceKind = sourceKind,
+		registrationGeneration = registrationGeneration,
+		sourceInstanceId = "provider-1",
+		ownerScope = "source-broker:$sourceKind",
+		providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+		providerProcessIncarnationId = "test-process",
+		clockDomainId = BOOT_ID,
+		physicalConfigurationFingerprint = PHYSICAL_CONFIGURATION,
+		collectedDataEpoch = 3L,
+		status = status,
+		reservedAtMs = 80L,
+		reservedElapsedRealtimeNanos = 80L,
+		acceptedAtMs = acceptedAtMs,
+		acceptedElapsedRealtimeNanos = acceptedElapsedRealtimeNanos,
+		retiredAtMs = retiredAtMs,
+		retiredElapsedRealtimeNanos = retiredElapsedRealtimeNanos,
+		failureCode = failureCode,
+	)
 
 	private fun captureDemand() = SourceDemandEntity(
 		demandId = "capture-1",

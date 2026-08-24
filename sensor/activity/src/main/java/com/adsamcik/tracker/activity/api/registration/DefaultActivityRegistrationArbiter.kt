@@ -490,6 +490,9 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 					clockDomainId = next.clockDomainId,
 					physicalConfigurationFingerprint = physicalConfigurationFingerprint,
 					collectedDataEpoch = next.collectedDataEpoch,
+					providerResidency =
+						ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE,
+					providerProcessIncarnationId = null,
 					status = ProviderRegistrationGenerationEntity.STATUS_RESERVED,
 					reservedAtMs = nowMs,
 					reservedElapsedRealtimeNanos = nowElapsed,

@@ -252,6 +252,9 @@ class DefaultActivityRegistrationArbiterTest {
 			database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, identity.registrationGeneration),
 		)
 		generation.status shouldBe ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+		generation.providerResidency shouldBe
+			ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE
+		generation.providerProcessIncarnationId shouldBe null
 		authorization.authorizedMembers.map { it.demandId } shouldBe listOf("capture", "control")
 		appliedIdentities.single() shouldBe identity
 		statusesObservedAtProviderCall.single() shouldBe ProviderRegistrationGenerationEntity.STATUS_RESERVED

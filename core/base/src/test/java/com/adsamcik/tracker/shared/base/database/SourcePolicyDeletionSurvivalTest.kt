@@ -103,6 +103,8 @@ class SourcePolicyDeletionSurvivalTest {
 				registrationGeneration = 1,
 				sourceInstanceId = "location-provider-1",
 				ownerScope = "source-broker:1",
+				providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+				providerProcessIncarnationId = "test-process",
 				clockDomainId = "boot-1",
 				physicalConfigurationFingerprint = "physical-config",
 				collectedDataEpoch = 1,

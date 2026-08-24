@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 28,
-    "identityHash": "f70db10022e7ffe964bc0b2b34052fa9",
+    "identityHash": "fde8198388fd6c71377b0a8069f43a0c",
     "entities": [
       {
         "tableName": "activity",
@@ -4665,7 +4665,7 @@
       },
       {
         "tableName": "provider_registration_generation",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`source_kind` INTEGER NOT NULL, `registration_generation` INTEGER NOT NULL, `source_instance_id` TEXT NOT NULL, `owner_scope` TEXT NOT NULL, `clock_domain_id` TEXT NOT NULL, `physical_configuration_fingerprint` TEXT NOT NULL, `collected_data_epoch` INTEGER NOT NULL, `status` TEXT NOT NULL, `reserved_at_ms` INTEGER NOT NULL, `reserved_elapsed_realtime_nanos` INTEGER NOT NULL, `accepted_at_ms` INTEGER, `accepted_elapsed_realtime_nanos` INTEGER, `retired_at_ms` INTEGER, `retired_elapsed_realtime_nanos` INTEGER, `failure_code` TEXT, PRIMARY KEY(`source_kind`, `registration_generation`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`source_kind` INTEGER NOT NULL, `registration_generation` INTEGER NOT NULL, `source_instance_id` TEXT NOT NULL, `owner_scope` TEXT NOT NULL, `clock_domain_id` TEXT NOT NULL, `physical_configuration_fingerprint` TEXT NOT NULL, `collected_data_epoch` INTEGER NOT NULL, `provider_residency` TEXT NOT NULL, `provider_process_incarnation_id` TEXT, `status` TEXT NOT NULL, `reserved_at_ms` INTEGER NOT NULL, `reserved_elapsed_realtime_nanos` INTEGER NOT NULL, `accepted_at_ms` INTEGER, `accepted_elapsed_realtime_nanos` INTEGER, `retired_at_ms` INTEGER, `retired_elapsed_realtime_nanos` INTEGER, `failure_code` TEXT, PRIMARY KEY(`source_kind`, `registration_generation`))",
         "fields": [
           {
             "fieldPath": "sourceKind",
@@ -4708,6 +4708,17 @@
             "columnName": "collected_data_epoch",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "providerResidency",
+            "columnName": "provider_residency",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "providerProcessIncarnationId",
+            "columnName": "provider_process_incarnation_id",
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "status",
@@ -6972,7 +6983,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f70db10022e7ffe964bc0b2b34052fa9')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'fde8198388fd6c71377b0a8069f43a0c')"
     ]
   }
 }

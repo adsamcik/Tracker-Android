@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.process.ProcessIncarnationIdProvider
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -26,17 +27,20 @@ import org.robolectric.annotation.Config
 class SourceRegistrationRepositoryTest {
 	private lateinit var database: AppDatabase
 	private lateinit var subject: SourceRegistrationRepository
+	private lateinit var processIncarnationIdProvider: ProcessIncarnationIdProvider
 
 	@Before
 	fun setUp() {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
+		processIncarnationIdProvider = ProcessIncarnationIdProvider()
 		subject = SourceRegistrationRepository(
 			database,
 			FakeCollectedDataLifecycleStore(CollectedDataLifecycleSnapshot(3L, null)),
 			object : BootClockDomainProvider {
 				override fun current(): String = "boot-7"
 			},
+			processIncarnationIdProvider,
 		)
 	}
 
@@ -47,6 +51,13 @@ class SourceRegistrationRepositoryTest {
 	fun `registration fails closed without a durable active demand`() = runTest {
 		shouldThrow<IllegalArgumentException> {
 			subject.begin(SourceKind.STEPS, 1L, PHYSICAL_CONFIG, 100L, 100L)
+		}
+	}
+
+	@Test
+	fun `system rearmable activity cannot enter the process bound repository`() = runTest {
+		shouldThrow<IllegalArgumentException> {
+			subject.begin(SourceKind.ACTIVITY, 1L, PHYSICAL_CONFIG, 100L, 100L)
 		}
 	}
 
@@ -64,6 +75,8 @@ class SourceRegistrationRepositoryTest {
 		)
 
 		reserved.status shouldBe ProviderRegistrationGenerationEntity.STATUS_RESERVED
+		reserved.providerResidency shouldBe ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND
+		reserved.providerProcessIncarnationId shouldBe processIncarnationIdProvider.current()
 		database.sourceRegistrationStateDao().get(SourceKind.STEPS.stableCode, registration.ownerScope) shouldBe null
 		reserved.ownerScope shouldBe "source-broker:${SourceKind.STEPS.stableCode}"
 		reserved.physicalConfigurationFingerprint shouldBe PHYSICAL_CONFIG

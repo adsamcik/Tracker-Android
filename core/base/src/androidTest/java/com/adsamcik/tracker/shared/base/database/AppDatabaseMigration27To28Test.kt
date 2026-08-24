@@ -411,6 +411,43 @@ class AppDatabaseMigration27To28Test {
 			assertEquals(1, columns["adaptive_reduction_allowed"])
 			assertEquals(0, columns["requested_delivery_latency_ms"])
 		}
+		database.query("PRAGMA table_info(provider_registration_generation)").use { cursor ->
+			val nameColumn = cursor.getColumnIndexOrThrow("name")
+			val typeColumn = cursor.getColumnIndexOrThrow("type")
+			val notNullColumn = cursor.getColumnIndexOrThrow("notnull")
+			val defaultValueColumn = cursor.getColumnIndexOrThrow("dflt_value")
+			var residencyType: String? = null
+			var residencyNotNull: Int? = null
+			var residencyDefault: String? = null
+			var processType: String? = null
+			var processNotNull: Int? = null
+			var processDefault: String? = null
+			while (cursor.moveToNext()) {
+				when (cursor.getString(nameColumn)) {
+					"provider_residency" -> {
+						residencyType = cursor.getString(typeColumn)
+						residencyNotNull = cursor.getInt(notNullColumn)
+						residencyDefault = if (cursor.isNull(defaultValueColumn)) {
+							null
+						} else cursor.getString(defaultValueColumn)
+					}
+
+					"provider_process_incarnation_id" -> {
+						processType = cursor.getString(typeColumn)
+						processNotNull = cursor.getInt(notNullColumn)
+						processDefault = if (cursor.isNull(defaultValueColumn)) {
+							null
+						} else cursor.getString(defaultValueColumn)
+					}
+				}
+			}
+			assertEquals("TEXT", residencyType)
+			assertEquals(1, residencyNotNull)
+			assertNull(residencyDefault)
+			assertEquals("TEXT", processType)
+			assertEquals(0, processNotNull)
+			assertNull(processDefault)
+		}
 		assertTableCount(database, "location_sample", 1)
 		assertTableCount(database, "location_observation", 1)
 		assertTableCount(database, "location_projection_observation", 1)

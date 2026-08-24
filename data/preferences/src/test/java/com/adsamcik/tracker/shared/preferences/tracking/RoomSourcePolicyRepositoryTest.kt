@@ -384,6 +384,12 @@ class RoomSourcePolicyRepositoryTest {
 				registrationGeneration = TEST_REGISTRATION_GENERATION,
 				sourceInstanceId = "instance-1",
 				ownerScope = "source-broker:${source.stableCode}",
+				providerResidency = if (source == TrackingSourceComponent.ACTIVITY) {
+					ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE
+				} else ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+				providerProcessIncarnationId = if (source == TrackingSourceComponent.ACTIVITY) {
+					null
+				} else "test-process",
 				clockDomainId = TEST_BOOT_ID,
 				physicalConfigurationFingerprint = "physical-1",
 				collectedDataEpoch = 1L,

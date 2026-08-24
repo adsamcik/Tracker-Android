@@ -3,12 +3,13 @@ package com.adsamcik.tracker.tracker.source.runtime
 import android.os.SystemClock
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
-import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
+import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
+import com.adsamcik.tracker.shared.base.process.ProcessIncarnationIdProvider
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import java.util.UUID
@@ -46,6 +47,7 @@ class SourceRegistrationRepository @Inject constructor(
 	private val database: AppDatabase,
 	private val lifecycleStore: CollectedDataLifecycleStore,
 	private val clockDomainProvider: BootClockDomainProvider,
+	private val processIncarnationIdProvider: ProcessIncarnationIdProvider,
 ) {
 	suspend fun begin(
 		source: SourceKind,
@@ -54,9 +56,13 @@ class SourceRegistrationRepository @Inject constructor(
 		updatedAtMs: Long,
 		updatedElapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos(),
 	): SourceRegistration {
+		require(source != SourceKind.ACTIVITY) {
+			"Activity registrations are system-rearmable and must use ActivityRegistrationArbiter"
+		}
 		require(physicalConfigurationFingerprint.isNotBlank())
 		val lifecycle = lifecycleStore.snapshot()
 		val clockDomainId = clockDomainProvider.current()
+		val processIncarnationId = processIncarnationIdProvider.current()
 		return database.withTransaction {
 			val brokerDao = database.sourceBrokerDao()
 			val demands = brokerDao.authorizationDemands(source.stableCode)
@@ -74,6 +80,9 @@ class SourceRegistrationRepository @Inject constructor(
 			if (current != null && currentPhysical != null &&
 				current.clockDomainId == clockDomainId &&
 				current.collectedDataEpoch == lifecycle.epoch &&
+				currentPhysical.providerResidency ==
+					ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND &&
+				currentPhysical.providerProcessIncarnationId == processIncarnationId &&
 				currentPhysical.status in setOf(
 					ProviderRegistrationGenerationEntity.STATUS_RESERVED,
 					ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
@@ -138,6 +147,8 @@ class SourceRegistrationRepository @Inject constructor(
 					clockDomainId = next.clockDomainId,
 					physicalConfigurationFingerprint = physicalConfigurationFingerprint,
 					collectedDataEpoch = lifecycle.epoch,
+					providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+					providerProcessIncarnationId = processIncarnationId,
 					status = ProviderRegistrationGenerationEntity.STATUS_RESERVED,
 					reservedAtMs = updatedAtMs,
 					reservedElapsedRealtimeNanos = updatedElapsedRealtimeNanos,
@@ -180,10 +191,14 @@ class SourceRegistrationRepository @Inject constructor(
 		updatedAtMs: Long,
 		updatedElapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos(),
 	): SourceRegistration? {
+		require(source != SourceKind.ACTIVITY) {
+			"Activity registrations are system-rearmable and must use ActivityRegistrationArbiter"
+		}
 		require(physicalConfigurationFingerprint.isNotBlank())
 		require(expectedRegistration.state.sourceKind == source.stableCode)
 		val lifecycle = lifecycleStore.snapshot()
 		val clockDomainId = clockDomainProvider.current()
+		val processIncarnationId = processIncarnationIdProvider.current()
 		return database.withTransaction {
 			val brokerDao = database.sourceBrokerDao()
 			val demands = brokerDao.authorizationDemands(source.stableCode)
@@ -203,6 +218,9 @@ class SourceRegistrationRepository @Inject constructor(
 				current.collectedDataEpoch != expectedRegistration.state.collectedDataEpoch ||
 				current.clockDomainId != clockDomainId ||
 				current.collectedDataEpoch != lifecycle.epoch ||
+				currentPhysical.providerResidency !=
+					ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND ||
+				currentPhysical.providerProcessIncarnationId != processIncarnationId ||
 				currentPhysical.status != ProviderRegistrationGenerationEntity.STATUS_ACTIVE ||
 				expectedRegistration.physicalConfigurationFingerprint !=
 					physicalConfigurationFingerprint ||

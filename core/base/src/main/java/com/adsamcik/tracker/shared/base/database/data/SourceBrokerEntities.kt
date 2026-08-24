@@ -250,6 +250,8 @@ data class ProviderRegistrationGenerationEntity(
 	@ColumnInfo(name = "clock_domain_id") val clockDomainId: String,
 	@ColumnInfo(name = "physical_configuration_fingerprint") val physicalConfigurationFingerprint: String,
 	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
+	@ColumnInfo(name = "provider_residency") val providerResidency: String,
+	@ColumnInfo(name = "provider_process_incarnation_id") val providerProcessIncarnationId: String?,
 	@ColumnInfo(name = "status") val status: String,
 	@ColumnInfo(name = "reserved_at_ms") val reservedAtMs: Long,
 	@ColumnInfo(name = "reserved_elapsed_realtime_nanos") val reservedElapsedRealtimeNanos: Long,
@@ -264,6 +266,11 @@ data class ProviderRegistrationGenerationEntity(
 		require(registrationGeneration > 0L)
 		require(sourceInstanceId.isNotBlank())
 		require(ownerScope.isNotBlank())
+		require(providerResidency == RESIDENCY_PROCESS_BOUND ||
+			providerResidency == RESIDENCY_SYSTEM_REARMABLE)
+		require((providerResidency == RESIDENCY_PROCESS_BOUND) ==
+			(providerProcessIncarnationId != null))
+		require(providerProcessIncarnationId == null || providerProcessIncarnationId.isNotBlank())
 		require(clockDomainId.isNotBlank())
 		require(physicalConfigurationFingerprint.isNotBlank())
 		require(collectedDataEpoch >= 0L)
@@ -274,6 +281,14 @@ data class ProviderRegistrationGenerationEntity(
 	}
 
 	companion object {
+		/** Provider presence is tied to one app process and ends when that process incarnation ends. */
+		const val RESIDENCY_PROCESS_BOUND = "PROCESS_BOUND"
+
+		/**
+		 * A durable external identity can reapply or remove the provider after process death.
+		 * Persisted ACTIVE state alone does not prove that the external provider is currently live.
+		 */
+		const val RESIDENCY_SYSTEM_REARMABLE = "SYSTEM_REARMABLE"
 		const val STATUS_RESERVED = "RESERVED"
 		const val STATUS_ACTIVE = "ACTIVE"
 		const val STATUS_RETIRING = "RETIRING"
