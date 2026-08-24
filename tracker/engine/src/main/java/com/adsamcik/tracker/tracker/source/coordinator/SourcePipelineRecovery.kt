@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.coordinator
 
 import android.os.SystemClock
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationOutboxDispatcher
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainResult
@@ -11,6 +12,7 @@ import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27Projection
 import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecoveryResult
 import java.util.UUID
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
@@ -27,6 +29,7 @@ class SourcePipelineRecovery private constructor(
 	private val activityProjectionLane: ActivityAutomationProjectionLane,
 	private val activityEffects: ActivityAutomationOutboxDispatcher,
 	applicationScope: CoroutineScope?,
+	private val startupGateProvider: Provider<TrackingStartupGate>?,
 	@Suppress("UNUSED_PARAMETER") constructionMarker: Unit,
 ) {
 	private val legacyMutex = Mutex()
@@ -41,12 +44,30 @@ class SourcePipelineRecovery private constructor(
 		activityProjectionLane: ActivityAutomationProjectionLane,
 		activityEffects: ActivityAutomationOutboxDispatcher,
 		@ApplicationScope applicationScope: CoroutineScope,
+		startupGateProvider: Provider<TrackingStartupGate>,
 	) : this(
 		legacyRecovery,
 		coordinator,
 		activityProjectionLane,
 		activityEffects,
 		applicationScope,
+		startupGateProvider,
+		Unit,
+	)
+
+	internal constructor(
+		legacyRecovery: LegacyV27ProjectionRecovery,
+		coordinator: TrackingCoordinator,
+		activityProjectionLane: ActivityAutomationProjectionLane,
+		activityEffects: ActivityAutomationOutboxDispatcher,
+		applicationScope: CoroutineScope,
+	) : this(
+		legacyRecovery,
+		coordinator,
+		activityProjectionLane,
+		activityEffects,
+		applicationScope,
+		null,
 		Unit,
 	)
 
@@ -60,6 +81,7 @@ class SourcePipelineRecovery private constructor(
 		coordinator,
 		activityProjectionLane,
 		activityEffects,
+		null,
 		null,
 		Unit,
 	)
@@ -105,8 +127,10 @@ class SourcePipelineRecovery private constructor(
 	}
 
 	/** Drains the live Activity automation effects after their owner has declared readiness. */
-	suspend fun drainCommittedWork(): SourceRecoveryResult = activityEffectMutex.withLock {
-		drainCommittedWorkLocked(ActivityAutomationStartPermit.None)
+	suspend fun drainCommittedWork(): SourceRecoveryResult = withReadyGenerationDrain { guard ->
+		activityEffectMutex.withLock {
+			drainCommittedWorkLocked(ActivityAutomationStartPermit.None, guard)
+		}
 	}
 
 	/**
@@ -130,7 +154,25 @@ class SourcePipelineRecovery private constructor(
 		throughAdmissionOrdinal: Long,
 		elapsedRealtimeNanos: () -> Long,
 		awaitAuthorityReady: suspend () -> Unit,
-	): SourceRecoveryResult = activityEffectMutex.withLock {
+	): SourceRecoveryResult = withReadyGenerationDrain { guard ->
+		activityEffectMutex.withLock {
+			drainCommittedActivityCallbackWorkLocked(
+				callbackAdmissionOrdinals,
+				throughAdmissionOrdinal,
+				elapsedRealtimeNanos,
+				awaitAuthorityReady,
+				guard,
+			)
+		}
+	}
+
+	private suspend fun drainCommittedActivityCallbackWorkLocked(
+		callbackAdmissionOrdinals: Set<Long>,
+		throughAdmissionOrdinal: Long,
+		elapsedRealtimeNanos: () -> Long,
+		awaitAuthorityReady: suspend () -> Unit,
+		generationGuard: ReadyGenerationGuard,
+	): SourceRecoveryResult {
 		require(callbackAdmissionOrdinals.isNotEmpty())
 		require(throughAdmissionOrdinal >= callbackAdmissionOrdinals.max())
 		val durable = SourceRecoveryResult(
@@ -139,18 +181,20 @@ class SourcePipelineRecovery private constructor(
 			trackingFramesDelivered = 0,
 			legacyRecovery = LegacyV27ProjectionRecoveryResult.NotRequired,
 		)
-		if (durable.drain !is CoordinatorDrainResult.Complete) return@withLock durable
+		if (durable.drain !is CoordinatorDrainResult.Complete) return durable
 		val permit = ActivityAutomationStartPermit.FreshTransitionCallback(
 			callbackAdmissionOrdinals,
 		)
 		var delivered = 0
 		suspend fun drainBoundedPages(): ActivityAutomationDrainResult {
 			while (true) {
+				generationGuard.requireCurrent()
 				val pass = activityEffects.drainToQuiescence(
 					startPermit = permit,
 					elapsedRealtimeNanos = elapsedRealtimeNanos,
 				)
 				delivered += pass.deliveredCount
+				generationGuard.requireCurrent()
 				if (pass !is ActivityAutomationDrainResult.MorePending) return pass
 				// The BroadcastReceiver's outer timeout is the total callback budget.
 				yield()
@@ -163,7 +207,7 @@ class SourcePipelineRecovery private constructor(
 			awaitAuthorityReady()
 			activityDrain = drainBoundedPages()
 		}
-		durable.copy(
+		return durable.copy(
 			activityEffectsDelivered = delivered,
 			activityAutomationDrain = activityDrain,
 			// Tracking-frame publication is unrelated to the live Android-start exemption. Its
@@ -174,11 +218,15 @@ class SourcePipelineRecovery private constructor(
 
 	private suspend fun drainCommittedWorkLocked(
 		startPermit: ActivityAutomationStartPermit,
+		generationGuard: ReadyGenerationGuard,
 	): SourceRecoveryResult {
 		val durable = recoverDurableState()
 		if (durable.drain !is CoordinatorDrainResult.Complete) return durable
+		generationGuard.requireCurrent()
+		val delivered = activityEffects.drain(startPermit = startPermit)
+		generationGuard.requireCurrent()
 		return durable.copy(
-			activityEffectsDelivered = activityEffects.drain(startPermit = startPermit),
+			activityEffectsDelivered = delivered,
 			// The v2 tracking-frame outbox is containment-only durable state. The legacy cycle pipeline
 			// remains authoritative until a typed exactly-once handoff replaces this boundary.
 			trackingFramesDelivered = 0,
@@ -191,11 +239,31 @@ class SourcePipelineRecovery private constructor(
 	 * legacy/current projection recovery pass into application effects.
 	 */
 	suspend fun drainActivityAutomationEffects(): ActivityAutomationDrainResult =
-		activityEffectMutex.withLock {
-			activityEffects.drainToQuiescence(
-				startPermit = ActivityAutomationStartPermit.None,
-			)
+		withReadyGenerationDrain { guard ->
+			activityEffectMutex.withLock {
+				guard.requireCurrent()
+				activityEffects.drainToQuiescence(
+					startPermit = ActivityAutomationStartPermit.None,
+				).also { guard.requireCurrent() }
+			}
 		}
+
+	/**
+	 * Enrolls every live projection/effect drain in the process startup generation. Deletion closes
+	 * that generation first, then waits for this protected operation before scrubbing Room. The
+	 * explicit effect-boundary checks keep a projection that observed closure from creating a new
+	 * automatic action while shutdown is being reconciled.
+	 */
+	private suspend fun <T> withReadyGenerationDrain(
+		operation: suspend (ReadyGenerationGuard) -> T,
+	): T {
+		val gate = startupGateProvider?.get()
+		if (gate == null) return operation(ReadyGenerationGuard(null, 0L))
+		val expectedGeneration = gate.currentGeneration
+		return gate.withReadyGenerationOperation(expectedGeneration) {
+			operation(ReadyGenerationGuard(gate, expectedGeneration))
+		} ?: throw SourcePipelineGenerationUnavailableException(expectedGeneration)
+	}
 
 	private suspend fun recoverLegacyOncePerProcess(): LegacyV27ProjectionRecoveryResult {
 		terminalLegacyResult?.let { return it }
@@ -208,6 +276,23 @@ class SourcePipelineRecovery private constructor(
 		}
 	}
 }
+
+private class ReadyGenerationGuard(
+	private val gate: TrackingStartupGate?,
+	private val expectedGeneration: Long,
+) {
+	fun requireCurrent() {
+		if (gate != null && !gate.isReadyGeneration(expectedGeneration)) {
+			throw SourcePipelineGenerationUnavailableException(expectedGeneration)
+		}
+	}
+}
+
+internal class SourcePipelineGenerationUnavailableException(
+	val expectedGeneration: Long,
+) : IllegalStateException(
+	"Source pipeline startup generation $expectedGeneration is no longer ready",
+)
 
 data class SourceRecoveryResult(
 	val drain: CoordinatorDrainResult,

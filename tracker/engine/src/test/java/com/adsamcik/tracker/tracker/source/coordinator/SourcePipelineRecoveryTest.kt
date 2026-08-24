@@ -4,6 +4,8 @@ import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.SourceProjectionStateDao
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.tracker.api.ActivityAutomationDeliveryResult
 import com.adsamcik.tracker.tracker.api.ActivityAutomationStartContext
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationOutboxDispatcher
@@ -26,6 +28,7 @@ import io.mockk.mockk
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -34,6 +37,8 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -87,6 +92,51 @@ class SourcePipelineRecoveryTest {
 		coVerify(exactly = 1) { legacy.recover() }
 		coVerify(exactly = 2) { coordinator.drainAvailable(any()) }
 		coVerify(exactly = 2) { activityEffects.drain() }
+	}
+
+	@Test
+	fun `app scope drain joins startup generation and cannot publish effects across deletion`() = runTest {
+		val gate = TestTrackingStartupGate(initialGeneration = 7L)
+		val projectionEntered = CompletableDeferred<Unit>()
+		val releaseProjection = CompletableDeferred<Unit>()
+		coEvery { legacy.recover() } returns LegacyV27ProjectionRecoveryResult.NotRequired
+		coEvery { coordinator.drainAvailable(any()) } coAnswers {
+			projectionEntered.complete(Unit)
+			releaseProjection.await()
+			CoordinatorDrainResult.Complete(9L, 1)
+		}
+		val scheduled = SourcePipelineRecovery(
+			legacy,
+			coordinator,
+			activityLane,
+			activityEffects,
+			backgroundScope,
+			javax.inject.Provider { gate },
+		)
+
+		scheduled.requestCommittedWorkDrain()
+		runCurrent()
+		projectionEntered.await()
+
+		gate.closeAdmission()
+		val deletionQuiescence = async { gate.awaitQuiescence() }
+		runCurrent()
+		deletionQuiescence.isCompleted shouldBe false
+
+		releaseProjection.complete(Unit)
+		runCurrent()
+		deletionQuiescence.await()
+
+		// Closing the generation while projection was in flight withholds every external effect.
+		// The projection completed before deletion quiescence, so its rows can be scrubbed once and
+		// cannot be recreated by the old app-scope job after deletion returns.
+		coVerify(exactly = 1) { coordinator.drainAvailable(any()) }
+		coVerify(exactly = 0) { activityEffects.drain(any(), any(), any()) }
+
+		// A signal already queued against the closed generation is also fail-closed.
+		scheduled.requestCommittedWorkDrain()
+		runCurrent()
+		coVerify(exactly = 1) { coordinator.drainAvailable(any()) }
 	}
 
 	@Test
@@ -417,4 +467,40 @@ class SourcePipelineRecoveryTest {
 		createdAtMs = ordinal,
 		deliveredAtMs = null,
 	)
+
+	private class TestTrackingStartupGate(
+		initialGeneration: Long,
+	) : TrackingStartupGate {
+		private val operationMutex = Mutex()
+		@Volatile private var ready = true
+		@Volatile private var generation = initialGeneration
+
+		override val isReady: Boolean
+			get() = ready
+
+		override val currentGeneration: Long
+			get() = generation
+
+		override suspend fun <T> withReadyGenerationOperation(
+			expectedGeneration: Long,
+			operation: suspend () -> T,
+		): T? = operationMutex.withLock {
+			if (isReadyGeneration(expectedGeneration)) operation() else null
+		}
+
+		override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult =
+			TrackingStartupResult.Ready(
+				legacyRecoveryPartial = false,
+				liveCompletedThroughOrdinal = 0L,
+			)
+
+		fun closeAdmission() {
+			ready = false
+			generation += 1L
+		}
+
+		suspend fun awaitQuiescence() {
+			operationMutex.withLock { Unit }
+		}
+	}
 }
