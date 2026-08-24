@@ -2,6 +2,8 @@ package com.adsamcik.tracker.shared.preferences.tracking
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.fenceSourcePurposesInTransaction
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
@@ -38,7 +40,6 @@ class RoomSourcePolicyRepository(
 		if (!settings.legacySettingsMigrationCompleted) {
 			throw LegacySourceSettingsUnavailableException()
 		}
-		val effectiveTime = effectiveTimeProvider.now()
 		return database.withTransaction {
 			ensureAuthority()
 			val authority = requireNotNull(dao.authority())
@@ -51,6 +52,7 @@ class RoomSourcePolicyRepository(
 			check(authority.currentPolicyRevision == 0L) {
 				"Uninitialized source-policy authority has a nonzero revision"
 			}
+			val effectiveTime = effectiveTimeProvider.now()
 
 			val revision = 1L
 			val desired = desiredCapturePolicies(settings)
@@ -139,9 +141,9 @@ class RoomSourcePolicyRepository(
 		reason: String,
 	): SourcePolicySnapshot {
 		require(reason.isNotBlank()) { "Policy change reason must not be blank" }
-		val effectiveTime = effectiveTimeProvider.now()
 		return database.withTransaction {
 			val current = activeSnapshotAtExpectedRevision(expectedPolicyRevision)
+			val authority = requireNotNull(dao.authority())
 			val desired = desiredCapturePolicies(settings)
 			val automaticControlEligible = settings.automaticControlEligible()
 			val previousAutomaticControlEligible =
@@ -157,7 +159,36 @@ class RoomSourcePolicyRepository(
 			}
 			val automaticControlChanged =
 				previousAutomaticControlEligible != automaticControlEligible
-			if (!captureChanged && !automaticControlChanged) return@withTransaction current
+			val settingsFingerprint = settingsFingerprint(settings)
+			val automaticControlConfigurationChanged =
+				authority.legacySettingsFingerprint != settingsFingerprint
+			if (!captureChanged && !automaticControlChanged && !automaticControlConfigurationChanged) {
+				return@withTransaction current
+			}
+			val effectiveTime = effectiveTimeProvider.now()
+			TrackingSourceComponent.entries
+				.filter { source -> current[source].enabled && !desired.getValue(source).enabled }
+				.forEach { source ->
+					database.fenceSourcePurposesInTransaction(
+						sourceKind = source.stableCode,
+						purposes = listOf(SourceBrokerPurpose.SESSION_CAPTURE),
+						bootId = effectiveTime.bootId,
+						elapsedRealtimeNanos = effectiveTime.elapsedRealtimeNanos,
+						wallTimeMs = effectiveTime.wallTimeMs,
+					)
+				}
+			if (previousAutomaticControlEligible && !automaticControlEligible) {
+				database.fenceSourcePurposesInTransaction(
+					sourceKind = TrackingSourceComponent.ACTIVITY.stableCode,
+					purposes = listOf(
+						SourceBrokerPurpose.CONTROL_AUTOSTART,
+						SourceBrokerPurpose.CONTROL_CONTINUATION,
+					),
+					bootId = effectiveTime.bootId,
+					elapsedRealtimeNanos = effectiveTime.elapsedRealtimeNanos,
+					wallTimeMs = effectiveTime.wallTimeMs,
+				)
+			}
 
 			val nextRevision = checkedNextRevision(current.revision)
 			val consentChanges = mutableMapOf<TrackingSourceComponent, Long?>()
@@ -235,7 +266,7 @@ class RoomSourcePolicyRepository(
 				current = current,
 				newRevision = nextRevision,
 				policies = entities,
-				settingsFingerprint = settingsFingerprint(settings),
+				settingsFingerprint = settingsFingerprint,
 				effectiveTime = effectiveTime,
 			)
 		}
@@ -256,7 +287,6 @@ class RoomSourcePolicyRepository(
 			"Persistence cannot be eligible when purpose consent is denied"
 		}
 		require(reason.isNotBlank()) { "Consent change reason must not be blank" }
-		val effectiveTime = effectiveTimeProvider.now()
 		return database.withTransaction {
 			val current = activeSnapshotAtExpectedRevision(expectedPolicyRevision)
 			val old = current[source]
@@ -265,6 +295,24 @@ class RoomSourcePolicyRepository(
 			val currentlyEligible = oldEpoch != null
 			if (currentlyEligible == eligible && oldPersistence == persistenceEligible) {
 				return@withTransaction current
+			}
+			val effectiveTime = effectiveTimeProvider.now()
+			if (currentlyEligible && (!eligible || oldPersistence && !persistenceEligible)) {
+				val brokerPurposes = when (purpose) {
+					SourcePurpose.CONTROL -> listOf(
+						SourceBrokerPurpose.CONTROL_AUTOSTART,
+						SourceBrokerPurpose.CONTROL_CONTINUATION,
+					)
+					SourcePurpose.AMBIENT_PRODUCT -> listOf(SourceBrokerPurpose.AMBIENT_PRODUCT)
+					SourcePurpose.SESSION_CAPTURE -> error("Capture consent uses capture settings")
+				}
+				database.fenceSourcePurposesInTransaction(
+					sourceKind = source.stableCode,
+					purposes = brokerPurposes,
+					bootId = effectiveTime.bootId,
+					elapsedRealtimeNanos = effectiveTime.elapsedRealtimeNanos,
+					wallTimeMs = effectiveTime.wallTimeMs,
+				)
 			}
 
 			val nextRevision = checkedNextRevision(current.revision)
@@ -544,7 +592,8 @@ class RoomSourcePolicyRepository(
 		}
 		val canonical = "$sourceFingerprint|location:${settings.minTimeSeconds}:" +
 			"${settings.minDistanceMeters}:${settings.requiredAccuracyMeters}|" +
-			"automatic-control:${settings.automaticControlEligible()}"
+			"automatic-control:${settings.automaticControlEligible()}:" +
+			"mode:${settings.autoTrackingMode}:transitions:${settings.transitionDetectionEnabled}"
 		return MessageDigest.getInstance("SHA-256")
 			.digest(canonical.toByteArray(Charsets.UTF_8))
 			.joinToString("") { byte -> "%02x".format(byte) }
