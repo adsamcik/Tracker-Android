@@ -74,8 +74,10 @@ class SemanticAcquisitionPlanFactory @Inject constructor() {
 
 	private fun activityPlan(frequency: SourceCollectionFrequency, revision: Long): ActivityPlan = when (frequency) {
 		SourceCollectionFrequency.OFF -> ActivityPlan(revision, ActivityMode.OFF, 60_000, 70, emptySet())
-		SourceCollectionFrequency.BATTERY_SAVER -> ActivityPlan(revision, ActivityMode.TRANSITIONS_ONLY, 60_000, 75, setOf(0, 1))
-		SourceCollectionFrequency.BALANCED -> ActivityPlan(revision, ActivityMode.TRANSITIONS_ONLY, 30_000, 65, setOf(0, 1))
+		// Transitions are a low-power control signal, not enough evidence for captured Activity
+		// history. Lower QoS therefore keeps classification capture but relaxes its delivery latency.
+		SourceCollectionFrequency.BATTERY_SAVER -> ActivityPlan(revision, ActivityMode.CONTINUOUS_RECOGNITION, 60_000, 75, setOf(0, 1))
+		SourceCollectionFrequency.BALANCED -> ActivityPlan(revision, ActivityMode.CONTINUOUS_RECOGNITION, 30_000, 65, setOf(0, 1))
 		SourceCollectionFrequency.RESPONSIVE -> ActivityPlan(revision, ActivityMode.CONTINUOUS_RECOGNITION, 5_000, 55, setOf(0, 1))
 	}
 
@@ -97,7 +99,9 @@ class SemanticAcquisitionPlanFactory @Inject constructor() {
 		val backoff = RetryBackoff(30_000, 30 * 60_000L)
 		return when (frequency) {
 			SourceCollectionFrequency.OFF -> WifiPlan(revision, WifiMode.OFF, 0, 0, 0, backoff)
-			SourceCollectionFrequency.BATTERY_SAVER -> WifiPlan(revision, WifiMode.CACHED_ONLY, 15 * 60_000, 10 * 60_000, 30 * 60_000, backoff)
+			// Android has no distinct cached-only registration here. The lowest-cost live mechanism is
+			// the same passive scan-result receiver, with no active scan attempts.
+			SourceCollectionFrequency.BATTERY_SAVER -> WifiPlan(revision, WifiMode.BROADCAST_DRIVEN, 15 * 60_000, 10 * 60_000, 30 * 60_000, backoff)
 			SourceCollectionFrequency.BALANCED -> WifiPlan(revision, WifiMode.BROADCAST_DRIVEN, 5 * 60_000, 5 * 60_000, 10 * 60_000, backoff)
 			SourceCollectionFrequency.RESPONSIVE -> WifiPlan(revision, WifiMode.ACTIVE_ATTEMPTS, 60_000, 60_000, 2 * 60_000, backoff)
 		}

@@ -6,6 +6,8 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.source.battery.ImpactDriver
 import com.adsamcik.tracker.tracker.source.battery.ImpactLevel
 import com.adsamcik.tracker.tracker.source.battery.QualitativeBatteryImpactEstimator
+import com.adsamcik.tracker.tracker.source.model.ActivityMode
+import com.adsamcik.tracker.tracker.source.model.ActivityPlan
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
@@ -37,9 +39,35 @@ class SemanticAcquisitionPlanFactoryTest {
 
 		plan.sourcePolicyRevision shouldBe 42
 		(plan.plans[SourceKind.LOCATION] as LocationPlan).mode shouldBe LocationMode.HIGH_ACCURACY
-		(plan.plans[SourceKind.WIFI] as WifiPlan).mode shouldBe WifiMode.CACHED_ONLY
+		(plan.plans[SourceKind.WIFI] as WifiPlan).mode shouldBe WifiMode.BROADCAST_DRIVEN
 		plan.plans.filterKeys { it !in setOf(SourceKind.LOCATION, SourceKind.WIFI) }
 			.values.all { !it.enabled } shouldBe true
+	}
+
+	@Test
+	fun `low qos Activity still captures classifications and low qos Wi-Fi stays passive`() {
+		listOf(
+			SourceCollectionFrequency.BATTERY_SAVER to 60_000L,
+			SourceCollectionFrequency.BALANCED to 30_000L,
+		).forEach { (frequency, expectedLatencyMs) ->
+			val plan = subject.create(
+				TrackingParamsState(
+					sourceCollectionSettings = SourceCollectionSettings(
+						activity = frequency,
+						wifi = SourceCollectionFrequency.BATTERY_SAVER,
+					),
+				),
+				revision = 7L,
+				createdAtMs = 100L,
+				environment = environment,
+			)
+			(plan.plans.getValue(SourceKind.ACTIVITY) as ActivityPlan).also {
+				it.mode shouldBe ActivityMode.CONTINUOUS_RECOGNITION
+				it.desiredDetectionLatencyMs shouldBe expectedLatencyMs
+			}
+			(plan.plans.getValue(SourceKind.WIFI) as WifiPlan).mode shouldBe
+				WifiMode.BROADCAST_DRIVEN
+		}
 	}
 
 	@Test

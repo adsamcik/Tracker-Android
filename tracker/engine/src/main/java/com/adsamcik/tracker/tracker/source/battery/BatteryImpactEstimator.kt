@@ -60,8 +60,9 @@ class QualitativeBatteryImpactEstimator @Inject constructor() : BatteryImpactEst
 				ImpactDriver.WIFI,
 				when (wifi.mode) {
 					WifiMode.OFF -> 0
-					WifiMode.CACHED_ONLY -> 1
-					WifiMode.BROADCAST_DRIVEN -> 2
+					WifiMode.CACHED_ONLY,
+					WifiMode.BROADCAST_DRIVEN,
+					-> 1
 					WifiMode.ACTIVE_ATTEMPTS -> 5
 				},
 			)
@@ -103,4 +104,3 @@ class QualitativeBatteryImpactEstimator @Inject constructor() : BatteryImpactEst
 		const val FIXED_TRACKING_SCORE = 2
 	}
 }
-
