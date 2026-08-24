@@ -337,7 +337,7 @@ Android implementation notes:
 
 - Use event callbacks first and active requests second.
 - Use provider/hardware batching whenever supported; larger report latency reduces application-processor wakeups.
-- GMS Activity **Transitions**, not Sampling callbacks, are the allowed cold automatic-start origin. The supported transition request uses `IN_VEHICLE`, `ON_BICYCLE`, `RUNNING`, `WALKING`, and `STILL`; do not request unsupported `ON_FOOT`.
+- GMS Activity **Transitions**, not Sampling callbacks, are the allowed cold automatic-start origin. The current Google API reference includes `ON_FOOT`, but an older Android guide omits it. Keep `ON_FOOT` only when the pinned client/provider request succeeds on the release device matrix; otherwise omit it while retaining `WALKING` and `RUNNING`. Request acceptance is a rollout gate, not an assumption derived from either document.
 - Active Wi-Fi scans and Cell refreshes are attempts, not observations. Only a fresh provider callback qualifies as `RECORDING`.
 - A direct manual Wi-Fi/Cell capture may perform at most one policy-ceiling-respecting start probe when no fresh qualified observation exists and no spontaneous callback arrives. This cost is authorized by that source's direct demand, never by enrichment. Failure/throttling yields `OS_LIMITED` or `NO_OBSERVATION` with the exact reason.
 - A passive result must retain provider time so freshness is evaluated honestly. Re-reading identical cached provider times is not another result.

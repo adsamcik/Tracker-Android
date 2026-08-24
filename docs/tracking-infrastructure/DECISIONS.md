@@ -1,6 +1,6 @@
 # Tracking Infrastructure Decisions
 
-Last updated: 2026-08-22
+Last updated: 2026-08-24
 
 Each entry records repository evidence and does not duplicate the final architecture document.
 
@@ -558,8 +558,8 @@ Each entry records repository evidence and does not duplicate the final architec
 - Status: `ACCEPTED_AFTER_PLATFORM_REVIEW`
 - Owner/date: lead orchestrator, 2026-08-22
 - Alternatives: allow any Activity Sampling callback to start the foreground service; start the service and then persist intent; admit only documented trigger origins and persist the complete action envelope first
-- Evidence: Android foreground-service guidance lists Activity Recognition Transition events as a background-start exemption; a Sampling callback is not the same exemption. The current transition request also includes unsupported `ON_FOOT`. While-in-use restrictions remain separate: a background-created Location foreground service still needs background-location eligibility. Android 14+ additionally requires declared service type and permission compatibility.
-- Decision: a cold automatic start may originate from a fresh Google Play services Activity **Transition** `PendingIntent` delivery or another separately documented legal origin. The supported transition set is `IN_VEHICLE`, `ON_BICYCLE`, `RUNNING`, `WALKING`, and `STILL`; never request `ON_FOOT`. Before `startForegroundService()`, persist and CAS the trigger identity, observed/received clocks, expiry, boot/automation/policy/consent epochs, intended capture manifest, real origin, and exact intended foreground-service type mask. Sampling is capture evidence only after a legal runtime already exists.
+- Evidence: Android foreground-service guidance lists Activity Recognition Transition events as a background-start exemption; a Sampling callback is not the same exemption. The current [`ActivityRecognitionClient`](https://developers.google.com/android/reference/com/google/android/gms/location/ActivityRecognitionClient) reference lists `ON_FOOT` among supported Transition activities, while the older [Activity Transition guide](https://developer.android.com/develop/sensors-and-location/location/transitions) still enumerates only `IN_VEHICLE`, `ON_BICYCLE`, `RUNNING`, `WALKING`, and `STILL`. This repository pins `play-services-location` 21.4.0 and currently requests `ON_FOOT`, `WALKING`, and `RUNNING`; therefore documentation alone does not prove the deployed provider accepts the full request. While-in-use restrictions remain separate: a background-created Location foreground service still needs background-location eligibility. Android 14+ additionally requires declared service type and permission compatibility.
+- Decision: a cold automatic start may originate from a fresh Google Play services Activity **Transition** `PendingIntent` delivery or another separately documented legal origin. Request only activities accepted by the pinned client/provider path. `ON_FOOT` may remain in the candidate set because the current API reference supports it, but it is not rollout-qualified until a real request-success assertion passes on the pinned dependency and representative provider/device matrix; if that gate fails, omit `ON_FOOT` while retaining `WALKING` and `RUNNING` coverage. Before `startForegroundService()`, persist and CAS the trigger identity, observed/received clocks, expiry, boot/automation/policy/consent epochs, intended capture manifest, real origin, and exact intended foreground-service type mask. Sampling is capture evidence only after a legal runtime already exists.
 - Consequences: automatic mode fails closed when its explicit control or start legality is unavailable; manual mode remains usable. The foreground-service type union is derived from accepted direct demands: Location uses `location`; Activity Sampling and direct live Step sensing use `health`; Wi-Fi, Cell, and Pressure use the narrowly documented `specialUse` subtype; mixed sessions use the union. This mapping requires manifest/start-path tests across supported API levels and Play-policy review before release.
 
 ## TI-D063 — Ambient acquisition uses provider continuity and one inexact maintenance chain, never a fake scheduler
@@ -789,7 +789,8 @@ Each entry records repository evidence and does not duplicate the final architec
 
 ## TI-D088 — Released-v27 recovery is a startup fence plus frozen compatibility drain
 
-- Status: `ACCEPTED_FOR_CONTAINMENT`; frozen runtime drain implemented, process-wide startup fence remains `BLOCKED`
+- Status: `ACCEPTED_FOR_CONTAINMENT`; frozen runtime drain and host startup fence implemented;
+  connected migrate-to-runtime proof remains `BLOCKED`
 - Owner/date: lead orchestrator after three independent v27 recovery adversaries, 2026-08-22
 - Alternatives: let the ordinary live coordinator reinterpret pending v27 WAL; gate only the normal
   `Application` initialization path; build a generic migration/receipt/restore platform; record one
@@ -825,4 +826,48 @@ Each entry records repository evidence and does not duplicate the final architec
 - Alternatives: run current v2 projectors over v27 rows; suppress every legacy effect; copy all four v1 projectors into a permanent compatibility framework; recover only the two existing typed facts through one startup-only adapter
 - Evidence: released v27 Activity effects can restart automation from stale motion; joined-frame effects had no production consumer; Location v1 wrote noncanonical shadow state and cannot be replayed without creating a second writer. Event-frame v1 alone carried durable Steps/Pressure facts with stable `source-event:<eventId>` destination identity. Released pruning could remove raw WAL after outbox creation but before typed commit, and released SignalAdapter audit stamps legitimately differ from WAL-enriched stamps. SQLite AUTOINCREMENT/ignored inserts make ordinal holes normal rather than proof of loss. A fresh implementation adversary also demonstrated that an outbox-only ordinal may exceed a missing/reset WAL sequence, that an outbox may lie below its writer activation, and that identity-matched WAL/outbox payloads may still disagree semantically.
 - Decision: the one-time drain suppresses Activity v1 as `SUPPRESSED_STALE_CONTROL`, suppresses joined frames as `SUPPRESSED_UNWIRED_OUTPUT`, preserves Location shadow byte-for-byte as `LOCATION_SHADOW_RETAINED` or truthfully `LOCATION_SHADOW_PARTIAL`, and bridges event-frame v1 only into existing `StepInterval`/`PressureSample` destinations. The immutable cutoff is the maximum of the WAL sequence, retained WAL, and retained outbox ordinals. Raw-WAL bridge transactions atomically verify/classify payload, insert-or-semantically-verify the typed fact, record terminal poison/collision evidence, and advance the fenced cursor. Pending event-frame outboxes without raw WAL use one frozen effect fallback and become `BRIDGED_TYPED_FACTS_PARTIAL` with `LEGACY_UNKNOWN` clock provenance; no current-boot metadata is invented. Nonpositive or pre-activation outboxes are terminally quarantined, and an outbox paired to raw WAL must equal the exact frozen v1 semantic cycle before it can be acknowledged as already bridged. Sparse ordinals advance without a false partial result, unknown target/outbox generations block startup, and target terminalization requires its immutable cutoff.
-- Consequences: this adds no live materializer, generic receipt platform, Activity callback, joined-frame consumer, or Location canonical writer. Exact semantic duplicates are accepted despite known released audit-stamp variants; changed metric/window fields never overwrite and become auditable collisions. Event-frame poison evidence is retained until normal retention/full deletion. Focused DAO, bridge, projection, and recovery tests must stay green, followed by the connected v27 migration proof. Live v2 work still cannot run until the separate process-wide startup fence makes this drain terminal first.
+- Consequences: this adds no live materializer, generic receipt platform, Activity callback,
+  joined-frame consumer, or Location canonical writer. Exact semantic duplicates are accepted
+  despite known released audit-stamp variants; changed metric/window fields never overwrite and
+  become auditable collisions. Event-frame poison evidence is retained until normal retention/full
+  deletion. The process-wide host fence is implemented by TI-D091; connected
+  migrate→startup→drain proof and every source/product gate remain required.
+
+## TI-D090 — Fresh R1 remains blocked after the boot/epoch corrections
+
+- Status: `ACCEPTED_AFTER_FRESH_R1_ADVERSARIAL_REVIEW`; pre-materializer gate `BLOCKED`
+- Owner/date: lead orchestrator after fresh data/migration, Android/power/privacy, and product/scope reviews, 2026-08-24
+- Alternatives: begin materializers or production UI after the two authority fixes; build a new generic orchestration platform; keep rollout defaults off and close the remaining source-local reachability, quality, durability, lifecycle, export, and civil-day boundaries first
+- Evidence: three independent reviewers returned `BLOCK`. R1-DM01 found incompatible boot-domain identities between policy and registration authority; R1-DM02 showed a delayed Activity observation could be stamped with a post-suppression automation epoch. The shared canonical `BootClockDomainProvider` and the Activity epoch's boot/elapsed effective boundary mitigate those two findings, and the focused 2026-08-24 policy/registration/Activity ingress/outbox/action/finalizer shard is `BUILD SUCCESSFUL`. The same round still found default event acquisition without a reachable product writer, sole-source Activity/Wi-Fi QoS plans below their declared capture floors, non-crash-auditable or unbounded pre-WAL lanes, provider-retirement orphan risk, conflated `ACTIVE`/`RECORDING`, missing immutable ambient civil-day identity, process/generation-local Cell replay identity, incomplete/minimization-unsafe portable export, and an automatic Transition re-arm release gap.
+- Decision: keep all candidate materializers, ambient exposure, and production history/UI wiring off. A source acquisition path may become rollout-eligible only with a reachable typed product lane; expensive work remains optional and source-local; provider handoff must preserve or durably declare gaps; source-qualified evidence alone advances `RECORDING`; ambient facts require immutable civil-day allocation before admission to product history. R1-DM05 remains an explicit disagreement: migration-time terminalization of a v27 active runtime may conflict with later retained facts, so neither the current containment nor the review objection is treated as final proof until a populated recovery timeline resolves it. Generic purpose-blind Location enrichment remains out of scope; optional context is query-time, purpose-compatible, fresh, and creates no demand.
+- Consequences: R1-DM01 and R1-DM02 are `MITIGATED_LOCALLY`, not a phase pass. The next bounded slices are the Activity/Wi-Fi sole-source QoS correction, crash-auditable Location/Wi-Fi/Cell ingress and provider retirement, automatic re-arm recovery, portable export minimization, immutable ambient day identity, and truthful lifecycle evidence. Ambient rollout remains default-off and begins only with a complete source vertical, currently planned as Steps. A fresh R1 rerun is required before materializers or product UI wiring.
+
+## TI-D091 — Unreleased-v28 startup and source rollout fail closed at a reachable-lane boundary
+
+- Status: `ACCEPTED_FOR_PRE_R1_CONTAINMENT`; fresh post-commit R1 `PENDING`
+- Owner/date: lead orchestrator, 2026-08-24
+- Alternatives: keep the old global event-acquisition default; relabel every source as legacy-owned
+  even though the removed legacy provider entry points are not reachable; add an explicit contained
+  owner and require a named reachable lane before source acquisition
+- Evidence: before `f14a4a2b1`, `TrackingRolloutState.eventIngress()` selected `EVENT` for all six
+  sources while production DI exposed no typed source product lane and the prior legacy provider
+  producers had already been removed. That made the rollout state claim acquisition reachability
+  which the repository did not have. The same integration review found Android service/FGS launch
+  could race ahead of durable lifecycle intent and the frozen-v27 startup drain. The isolated-index
+  app/API/engine checkpoint for the correction is `BUILD SUCCESSFUL` in `5m 39s` (`613` tasks).
+- Decision: rollout schema v3 adds `SourceOwner.CONTAINED`. Missing state, v27 state, and the old
+  global-v2 event marker migrate to a contained revision: no provider acquisition is authorized,
+  retained legacy facts remain readable, and no writer is cut over. `EVENT` is valid only for an
+  explicitly named source whose stage is `EVENT_SHADOW` or `EVENT_CANONICAL`; there is no
+  all-source convenience default. A process-single-flight `TrackingStartupGate` makes deletion and
+  the frozen-v27 terminal drain precede provider, service, policy, import/export, retention, and
+  derived-data consumers. Manual/automatic starts persist prepared intent and accepted source/FGS
+  candidates before external runtime; failed, stale, stopped, permission-revoked, and previous-exit
+  paths converge without reviving terminal sessions.
+- Consequences: this deliberately contains tracking in an unreleased development build until each
+  source has a real typed lane. It is not a product rollout or a `QUERYABLE` claim. Retained v27
+  facts remain available through their established readers, and no schema downgrade is introduced.
+  The current v28 schema has 65 entities (51 released-v27 plus 14 narrowly owned additions). Three
+  fresh R1 adversaries must attack the committed boundary before Steps materialization or any
+  production history/UI wiring. Connected process/reboot/FGS and migrate-to-runtime evidence remain
+  mandatory.

@@ -1,6 +1,6 @@
 # Tracking Infrastructure Execution Plan
 
-Last updated: 2026-08-22
+Last updated: 2026-08-24
 
 This is the durable execution ledger for the architecture in
 `docs/TRACKING_INFRASTRUCTURE_FINAL_PLAN_AND_DESIGN.md` and the accepted refinements in
@@ -61,22 +61,19 @@ is unverified.
 
 | Slice | Owner | Files/modules | Edit permission | Exit evidence |
 | --- | --- | --- | --- | --- |
-| EP-01 execution ledger | Lead orchestrator | `docs/tracking-infrastructure/*.md` | write | Stable backlog, active gate, evidence, and blockers agree |
-| AD-01 radio admission containment | Lead orchestrator | radio backends/runtimes, payload model/codec, cancellation wrappers, permission UI/manifest, focused tests | write | Mixed-age children filtered; timestamp-unknown payloads rejected; confirmed empty is zero coverage; identifiers withheld; exact live replay has zero effect; direct paid work has a finite first-evidence budget; cancellation propagates |
-| ST-01 sole-source Dashboard start | `sole_source_start_gate` then lead review | Dashboard decision/route and focused tests | write, complete | All six only-X decisions tested; non-Location ready source is never blocked by Location permission; history UI untouched |
-| SC-01 observed-time authority | `v28_observed_authority_slice` then lead review | v28 broker/WAL schema, DAOs, migration and minimum registration/admission adaptation | write, local slice in review | Physical generation survives authority-only changes; immutable interval lookup selects by observed boot/elapsed time; v27 facts remain preserved |
-| DB-01 v28 storage audit | `schema_storage_audit` | `:core:base` schema/entities/DAOs/migration and migration tests | read-only | Concrete keep/change/add map and minimum migration fixture |
-| WF-01 Wi-Fi audit | `wifi_admission_audit` | Wi-Fi backend/runtime/model/tests | read-only | Smallest safe cache/freshness identity and tests |
-| R1-01 Android/power/privacy adversary | `radio_containment_adversary` | actual radio containment diff and official platform contracts | read-only, complete | Findings dispositioned; unresolved active-budget and durable-identity highs remain gates |
-| R1-02 data/migration adversary | `r1_data_migration_adversary` | actual v28/authority/broker/WAL/admission diff | read-only, complete | `BLOCK / RESCOPE NARROWLY`; observed-time authorization, legacy-WAL preservation, restart identity, deletion/import and owner fencing block materializers |
-| R1-03 product/scope adversary | `r1_product_scope_adversary` | sole-source/ambient/product/battery scope and actual query paths | read-only, complete | `BLOCK_RESCOPE`; dependency cycle and global source chain removed; sole-source start, completeness and ambient-day identity are explicit gates |
+| FND-01 startup/lifecycle/rollout containment | Lead orchestrator | app startup/deletion/receivers; tracker API/service/coordinator/recovery/rollout/broker; focused tests | committed as `f14a4a2b1` | isolated-index cross-module checkpoint passes; every default source is contained; durable intent precedes external start; no product writer activated |
+| EP-02 execution evidence | Lead orchestrator | `docs/tracking-infrastructure/*.md` | write | checkpoint, schema count, verification, blockers, and rollback state agree with `f14a4a2b1` |
+| R1F-01 data/migration adversary | fresh `gpt-5.6-sol` reviewer | committed authority/startup/rollout/ledger diff and v27→v28 boundary | read-only, pending | falsification timelines for ordering, replay, migration, deletion, and writer ownership; every finding dispositioned |
+| R1F-02 Android/power/privacy adversary | fresh `gpt-5.6-sol` reviewer | committed service/lifecycle/broker/provider/action diff | read-only, pending | falsification timelines for FGS legality, process death, boot, permissions, consent, provider ownership, and battery scope |
+| R1F-03 product/scope adversary | fresh `gpt-5.6-sol` reviewer | committed diff plus Steps-first plan and existing product queries | read-only, pending | rejects overbuilding and any unproven only-X, ambient, completeness, or query claim |
+| ST-02 first Steps vertical | unassigned until R1 disposition | Steps runtime, source-local cursor/facts/correction/deletion/export/query, existing product adapter | blocked | one manual/automatic/allowed-ambient Steps path reaches a real production query with no hidden source and no generic platform |
 
 No two current owners may edit the same file. Read-only findings become lead-owned only after
 disposition. The worktree is already dirty; unrelated and pre-existing changes are preserved.
 
 ## Unreleased-v28 table boundary
 
-The schema audit counted 51 released v27 tables and exactly ten v28-only additions. This constrains
+The current schema contains 51 released-v27 tables and exactly 14 narrowly owned v28 additions. This constrains
 TI-180 as follows:
 
 | Treatment | Tables / records | Rule |
@@ -87,11 +84,12 @@ TI-180 as follows:
 | Extend additively | `source_event_wal` and released runtime/plan state | Preserve legacy rows as `LEGACY_UNQUALIFIED`; add delivery identity/range, authorization, all applicable epochs, use/retention class, counts, and origin. Runtime baselines rotate only with real physical/data-epoch changes. |
 | Add only when its transaction contract is ready | source cursor/gap, scoped deletion fence, destination owner, fact membership, day/source completeness, Wi-Fi/Cell headers | Keep records narrow and source-driven. Do not create generic contribution/accounting tables. |
 
-The current 63-table `28.json` is therefore not frozen. Two of those additions are the narrowly
-scoped released-v27 recovery obligation/target tables; they do not recreate the removed generic
-Phase 3 platform. Populated Android migration/open/reopen execution is necessary but not sufficient
-to close TI-184: the process-wide startup fence, frozen drain, backup recovery, export/import, and
-production-query assertions must also pass.
+The current 65-table `28.json` is therefore not frozen. Two additions are the narrowly scoped
+released-v27 recovery obligation/target tables and two are the Activity automatic-action/epoch
+records; they do not recreate the removed generic Phase 3 platform. Populated Android
+migration/open/reopen execution and the host-tested process-wide startup fence are necessary but
+not sufficient to close TI-184: connected migrate-to-runtime ordering, backup recovery,
+export/import, and production-query assertions must also pass.
 
 ## Work items
 
@@ -105,9 +103,9 @@ and a production-query assertion exists where the item produces user-visible fac
 | TI-181 | Final plan §4.3–4.4; TI-D057; immutable intent, purpose separation | A/B | broker entities/DAO, `SourceRegistrationRepository`, supervisor boundary | TI-180 | Unchanged normalized provider configuration survives session/manifest/consent changes without stop/start; authorization revision rotates at the exact boot/elapsed boundary; delayed callbacks resolve authorization by observed time | broker/registration property tests; provider fake crash/retry test | `broker_v2:<source>` required; rollback retires new demand and retains facts | `IN_PROGRESS` |
 | TI-182 | Final plan §8.3; TI-D055/TI-D071; replay safety | D | WAL envelope/DAO/ingress/payload codecs | TI-180, TI-181 | Stable logical delivery identity is independent of local retries; authorization-homogeneous units are stored; exact cache replay is zero-effect across process death; retained-floor metadata cannot wait for pruned ordinals | Atomic delivery admission, sparse authorization filtering, delayed-generation acceptance, exact replay/collision and rollback tests pass; Activity now uses the seam and exact duplicates produce no repeated motion/backend effect; the other five adapters, cursor/gap processing, deletion fences and retained-floor/no-resurrection proof remain | `writer_v2:<source>` off; rollback stops consumption, never deletes WAL/facts | `IN_PROGRESS` |
 | TI-183 | Final plan §8–9; one writer, no resurrection | D | source cursors/gaps, deletion fences, destination owner fence | TI-180 | One cursor/gap lane per source; scoped source/purpose/time deletion fences replay and import; one persisted destination owner generation fences both legacy and target writes | cursor/gap, delete→replay/import, latched cutover/rollback tests | Per-source owner flag; rollback changes owner only after drain/catch-up | `BLOCKED` |
-| TI-184 | TI-D068/TI-D085/TI-D088; migration safety | A/C/D/G | v27 recovery tables/DAO, frozen decoder/projectors, process startup fence, `AppDatabaseMigration27To28Test`, backup, production query/export/delete/import paths | TI-180–TI-183 | Populated v27 opens, migrates, closes, reopens, queries, exports, deletes, and recovers without fabricated authority or lost facts; a transaction-captured admission high-watermark isolates exact released v1 targets from live v2 projections; pending legacy effects retain their WAL until bridged or terminally suppressed; checksum-valid v27 WAL drains once through only its frozen released contract before any provider/service/policy path opens; interrupted automatic state and old Activity effects cannot restart | Four populated migration cases pass on `Medium_Phone`, including unknown target fail-closed, fully pruned WAL high-watermark, and outbox-without-WAL recovery obligation. Host retention/outbox and v1/v2 isolation tests pass. Process-wide startup fence, frozen destination drain/crash matrix, production backup-wrapper proof, cold empty-target restore, partial-database merge containment, portable export and production history queries remain | No rollout flag; startup fails closed. Migration backup remains recoverable; live v2 writers start at cutoff + 1 and Location stays legacy-owned | `IN_PROGRESS` |
+| TI-184 | TI-D068/TI-D085/TI-D088/TI-D091; migration safety | A/C/D/G | v27 recovery tables/DAO, frozen decoder/projectors, process startup fence, `AppDatabaseMigration27To28Test`, backup, production query/export/delete/import paths | TI-180–TI-183 | Populated v27 opens, migrates, closes, reopens, queries, exports, deletes, and recovers without fabricated authority or lost facts; a transaction-captured admission high-watermark isolates exact released v1 targets from live v2 projections; pending legacy effects retain their WAL until bridged or terminally suppressed; checksum-valid v27 WAL drains once through only its frozen released contract before any provider/service/policy path opens; interrupted automatic state and old Activity effects cannot restart | Seven populated migration cases previously pass on `Medium_Phone`; host startup-gate, deletion precedence, frozen-drain, writer-consumer, redelivery and finalizer shards pass in the isolated `f14a4a2b1` checkpoint. Connected migrate→startup ordering, production backup-wrapper proof, cold empty-target restore, partial-database merge containment, portable export and production history queries remain | No rollout flag; startup fails closed. Migration backup remains recoverable; live v2 writers start at cutoff + 1 and Location stays legacy-owned | `IN_PROGRESS` |
 | TI-210 | Final plan §4.4; TI-D057/TI-D059; one physical owner | B | app-scoped `SourceSupervisor`, six adapters, demand reconciler | TI-181 | Exactly one physical owner/source; only direct capture/control/ambient demands affect lifetime; compatible demands merge; removal/reconcile is idempotent; optional context cannot acquire a provider | six manual/automatic registration-set integration tests; process-death reconciliation tests | `supervisor_v2:<source>`; rollback hands ownership back only after callback barrier | `BLOCKED` |
-| TI-211 | Final plan §4.5/§9; no ghosts, Android legality | C | coordinator, service gateway, desired-action outbox/reconciler | TI-180, TI-210 | Durable intent precedes external start; accepted runtime follows; real start origin and exact FGS type union are used; boot/automation epoch fences stale starts; `STOPPING`/`FINALIZED` never restart | transaction-boundary crash tests; reboot/process-kill instrumentation; Android-version legality tests | `lifecycle_v2`; rollback finalizes or safely resumes durable intent | `BLOCKED` |
+| TI-211 | Final plan §4.5/§9; no ghosts, Android legality | C | coordinator, service gateway, desired-action outbox/reconciler | TI-180, TI-210 | Durable intent precedes external start; accepted runtime follows; real start origin and exact FGS type union are used; boot/automation epoch fences stale starts; `STOPPING`/`FINALIZED` never restart | host transaction-boundary, redelivery, stop-ordering, previous-exit/force/explicit finalizer and permission-revocation tests pass; reboot/process-kill instrumentation and Android-version/device legality remain | `lifecycle_v2`; rollback finalizes or safely resumes durable intent | `IN_REVIEW` |
 | TI-212 | TI-D078/TI-D083; battery honesty | B/G | plan optimizer, source adapters, diagnostics | TI-210 | User-visible modes correspond to measured physical mechanisms; identical rungs collapse; passive/callback/FIFO modes are preferred; active probes are finite, direct-demand-only, stop after qualified evidence, and cannot be started by enrichment | fake plan properties plus Android Studio Power Profiler/system trace/Macrobenchmark and source-relevant device runs per rung | Per-source QoS ceiling; rollback selects cheaper proven rung | `BLOCKED` |
 | TI-213 | TI-D054; sole-source start truth | C/F | Dashboard start action, requested-source prerequisite evaluator, permission launcher tests | authoritative effective source selection | Manual only-X requests exactly X's current platform prerequisites; Pressure/Steps/Activity start with Location denied; Wi-Fi/Cell may request fine Location only for their own platform operation and never enable Location capture | 17 parameterized source-aware decision assertions and focused Dashboard compile/tests pass; device permission-result flow and other entry-surface audit remain | No rollout flag; fail closed only for the selected source's unmet prerequisite | `IN_REVIEW` |
 | TI-310 | TI-D078–TI-D083; freshness, minimization, no fabricated history | B/D | connectivity runtime support, radio backends/runtimes, payload codec, permission surfaces and tests | current runtime foundation | Freshness is evaluated per child; missing/non-positive/future/stale provider time cannot become payload; confirmed fresh empty differs from absent/failed/stale; Wi-Fi v2 retains item time with v1 decode compatibility; new payloads expose no radio/subscription identifier; scan permission matches used APIs; exact live replay is zero-effect only after durable/duplicate handoff; paid scans/refreshes are finite and direct-capture-only while passive callbacks remain registered | focused admission/prerequisite/codec/cancellation/budget tests pass; app compiles; durable restart identity, runtime-fake tests, calibrated budgets and device proof remain | No flag; fail-closed containment on existing path | `IN_REVIEW` |
@@ -129,9 +127,10 @@ and a production-query assertion exists where the item produces user-visible fac
 
 ## Immediate gate
 
-1. Keep the fresh three-perspective R1 gate `BLOCKED / RESCOPE NARROWLY` until its accepted
-   blockers are implemented. The reviews are complete; no materializer or production history/UI
-   wiring is authorized by the containment work.
+1. Run three fresh read-only R1 adversaries against committed checkpoint `f14a4a2b1`: data/migration,
+   Android/power/privacy, and product/scope. No materializer or production history/UI wiring is
+   authorized until all `BLOCKER`/`HIGH` findings are dispositioned and corrected or explicitly
+   accepted by the user.
 2. Continue TI-180 from its accepted first slice: v28 now preserves all 51 released-v27 tables,
    replaces the unshipped eligibility table with `source_authorization`, and separates physical
    provider generation from authority. Use/retention class, structural-zone identity, source
@@ -141,14 +140,15 @@ and a production-query assertion exists where the item produces user-visible fac
    fail-closed, exact v1 projection targets are durably isolated, and production deletion/reopen
    proves no Location-child resurrection. The four-case suite also covers an unknown target,
    pruned-WAL admission high-watermark, and an outbox-only recovery obligation.
-4. Continue adopting the now-tested atomic delivery-admission seam source by source. Activity is the
+4. Treat the process-single-flight startup fence, deletion precedence, prepared service start,
+   recovery finalizers, and contained rollout state as implemented host-tested foundation. The
+   fresh R1 must try to falsify their cross-process and migration ordering; connected/device proof
+   remains required. Continue adopting the atomic delivery-admission seam source by source. Activity is the
    first integrated adapter: one PendingIntent callback becomes one canonical delivery, sparse Room
    admission maps back to exact original members, exact duplicates are transiently zero-effect, and
    publication is withheld unless recovery reaches the admitted ordinal. The remaining five
    splitters, source cursors/gaps, scoped deletion and retained-floor no-resurrection remain separate
-   gates. Before any of them, implement the process-single-flight startup fence and frozen v27 drain:
-   deletion wins, no provider/policy/service work starts early, v1 Activity/control effects are
-   suppressed, and every target reaches an auditable terminal disposition under crash/retry.
+   gates.
 5. Carry the locally passing TI-213 Dashboard decision into device permission-result evidence and
    audit every other manual start entry point; do not broaden this into history UI work.
 6. Make physical reconfiguration provider-specific. Preserve the prior registration through
@@ -164,10 +164,11 @@ and a production-query assertion exists where the item produces user-visible fac
 
 ## Recorded blockers and explicit decisions
 
-- A local `Medium_Phone` AVD is available and the four-case populated v27→v28 migration suite passes.
+- A local `Medium_Phone` AVD was available and the seven-case populated v27→v28 migration suite passes.
   This proves schema/open/reopen/fact/deletion containment, not the runtime legacy drain. Process
-  startup races, production backup-wrapper recovery, provider behavior, reboot, Doze, permission,
-  FIFO, radio, and representative OEM/device evidence remain unverified.
+  startup ordering is host-tested at `f14a4a2b1`; connected migrate-to-runtime races, production
+  backup-wrapper recovery, provider behavior, reboot, Doze, permission, FIFO, radio, and
+  representative OEM/device evidence remain unverified.
 - Final retention durations and privacy copy remain product/privacy decisions. Implement policy
   fields and deletion mechanics without choosing final values.
 - Whether step corroboration remains automatic control still requires explicit resolution before

@@ -1,30 +1,81 @@
 # Tracking Infrastructure Implementation Status
 
-Last updated: 2026-08-22
+Last updated: 2026-08-24
 
 Execution-grade work items, ownership, dependency gates, verification commands, and rollback
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and
 evidence index.
 
-Repository baseline: `068ebe052` on `dev/v10` (`origin/dev/v10` is 90 commits ahead; no pull was performed). The execution artifacts were committed independently as `c53b303b1` (`docs(tracking): codify adaptive collection execution gates`). The original `.docx` source and verbatim orchestrator prompt in `docs/` remain untracked and untouched; branch and remote remain untouched. On 2026-08-22 the user authorized clear scoped local commits after each verified chunk; push, publish, deployment, and external rollout remain unauthorized.
+Current integration checkpoint: `f14a4a2b1` on `dev/v10`
+(`refactor(tracking): fence startup and contain source rollout`). The initial audited baseline was
+`068ebe052`; no pull, rebase, push, publish, deployment, remote configuration, or external rollout
+was performed. The original `.docx` source, verbatim orchestrator prompt, and protected Dashboard
+test remain untracked and untouched. On 2026-08-22 the user authorized clear scoped local commits
+after each verified chunk.
 
 ## Current gate
 
-- Current phase: Phase 0 remains `IN_REVIEW`; the fresh pre-materializer R1 is complete and returns `BLOCK / RESCOPE NARROWLY`. The lean v28 policy/lifecycle/broker safety spine and radio containment are implemented locally, but every phase exit gate remains `BLOCKED`.
-- Gate status: `IN_PROGRESS`; authoritative capture policy, consent fencing, append-only manifests/intents, durable source-runtime actions, purpose demands, physical-only provider generations, independently revisioned observed-time authorizations, callback generation fencing, byte-authenticated WAL admission, raw poison quarantine, the first process-stable Activity delivery adapter, the v27/v28 projection-generation boundary, and its narrow frozen-v27 runtime drain exist. A process-wide startup/provider fence, two-phase Android service/FGS start, asynchronous source-local recovery, the other five authorization-boundary splitters/delivery identities, source-qualified lifecycle evidence, source-specific idempotent facts/recomputation, scoped deletion, truthful day product wiring, and product-query proof remain blocking.
+- Current phase: the verified startup/lifecycle/rollout-containment foundation is committed; a fresh
+  three-perspective post-commit R1 review is the active gate. Every source materializer,
+  production-history query, source rollout, ambient exposure, and production UI wiring remains
+  `BLOCKED` until that review is dispositioned.
+- Gate status: `IN_PROGRESS`. The process-wide startup fence now orders the frozen-v27 drain,
+  deletion, policy/provider/service entry, and data consumers. Manual and automatic starts use a
+  durable prepared intent before external service/FGS acceptance, real start origin and accepted
+  type evidence; stop, previous-exit, force-stop, permission-revocation, and deletion paths are
+  fenced and recoverable in host tests. Rollout schema v3 defaults every source to `CONTAINED` and
+  permits `EVENT` acquisition only for explicitly named sources with a reachable shadow or
+  canonical lane. The other five authorization-boundary splitters/delivery identities,
+  source-qualified lifecycle evidence, source-specific idempotent facts/recomputation, scoped
+  deletion, truthful history wiring, and product-query proof remain blocking.
 - Integration owner: lead orchestrator
-- Structural implementation: Workstream A policy authority plus the retained v28 manifest/lifecycle/broker schema, Room-first source-runtime coordinator demands, physical provider configuration identity, immutable observed-time authorization revisions, callback identities, and byte-authenticated observation identities are implemented in scoped local commits. The 12 unused generic Phase 3 tables/repositories were removed from unreleased v28 under TI-D051; no source materializer is production-wired. Activity now also converts one parsed GMS callback into one atomic delivery and publishes only newly admitted, exact writer-reloaded members after recovery reaches their ordinal; duplicate replay is durable but transiently zero-effect. The other five adapters remain independently gated.
-- Blocking decisions: whether Step corroboration is removed or retained as an explicit broker-owned `CONTROL_AUTOSTART` option; ambient continuity promise and per-source retention/minimization/export/deletion behavior; local-only rollout evidence channel; final product decisions listed in `DECISIONS.md`. Existing enabled automatic mode currently migrates to nonpersistent Activity `CONTROL` consent and settings mode transitions reconcile that grant/revoke without granting Activity capture. TI-D055/TI-D056 supersede that admission behavior: current-generation control delivery batches must become durable bounded operational evidence, not product history. Populated v27→v28 migrate/reopen/query/delete/reopen and the focused frozen legacy drain now pass independently; their process-wide startup ordering, production backup recovery, portable export/import, and partial-database containment remain TI-184 gates.
-- Current-worktree verification: focused core, import, policy, ingress, projection, coordinator, Activity, Steps, Pressure, radio-admission, and Dashboard sole-source decision suites pass; the full debug APK assembles. After the frozen-v27 runtime drain and final adversarial corrections, the complete `:core:base` plus `:tracker:engine` unit suites pass (`4m 55s`, 242 tasks), the seven-case connected migration suite passes on `Medium_Phone` (`40s`, 104 tasks), and core/tracker lint plus full debug assembly and schema-drift guard pass together (`3m 6s`, 861 tasks). Core lint still reports the recorded 13 missing-translation findings and tracker-engine retains two recorded warnings; no changed-file finding is present. The repository-wide JVM suite is not green: `:app:testDebugUnitTest` still has the recorded 205/579 host failures from inability to load native `sqliteX`; no broad pass is claimed.
+- Structural implementation: Workstream A policy authority plus the retained v28
+  manifest/lifecycle/broker schema, Room-first source-runtime coordinator demands, physical
+  provider configuration identity, immutable observed-time authorization revisions, callback
+  identities, and byte-authenticated observation identities are implemented. The 12 unused generic
+  Phase 3 tables/repositories remain removed. Activity has the first durable automatic-action and
+  atomic callback lane; Steps has one app-scoped shared physical controller. These are foundation
+  seams, not production materializers or source gates.
+- Blocking decisions: whether Steps corroboration remains an explicit broker-owned
+  `CONTROL_AUTOSTART` option; ambient continuity promise and per-source
+  retention/minimization/export/deletion behavior; local-only rollout evidence channel; and the
+  final product decisions listed in `DECISIONS.md`. Existing enabled automatic mode grants bounded
+  Activity `CONTROL`, never captured Activity. Process-wide startup ordering is now locally
+  implemented and verified; production backup recovery, portable export/import, partial-database
+  containment, and connected startup/reboot proof remain TI-184 gates.
+- Current-worktree verification: commit `f14a4a2b1` was exported directly from the Git index into an
+  isolated temporary worktree. The cross-module app/API/engine checkpoint passed in `5m 39s`
+  (`613` actionable tasks: `364` executed, `249` from cache), covering startup recovery/deletion,
+  service launch and redelivery, coordinator lifecycle, rollout containment, Activity automation,
+  runtime permission reconciliation, shared Steps acquisition, and source floors. This is a scoped
+  host checkpoint, not device, OEM, connected migration, production-query, or full-repository proof.
+  Earlier complete core/engine, connected v27→v28 migration, lint, assembly, and schema-drift
+  results remain recorded in `VERIFICATION_MATRIX.md`.
 - Focused source reviews: all six complete — Location (`DEGRADED`), Wi-Fi (`FAILED`), Cell (`FAILED`), Activity (`FAILED`), Steps (`DEGRADED`), Pressure (`FAILED`)
-- Fresh adversarial review: prior R0/R1/R1b/R2 and adaptive-collections R3/R4 are complete. Three independent v27 recovery adversaries attacked migration/projection isolation, startup ordering, destination semantics, power/privacy scope, and restore/import behavior. Their narrow four-target recommendation is integrated. Fresh implementation attacks then drove fixes for early target completion, retention-floor resurrection, activation-boundary crossing, false sparse-gap loss, legacy audit-stamp collisions, outbox-only fact loss, an outbox high-watermark omitted from the cutoff, pre-activation/nonpositive outboxes, and identity-matched but semantically conflicting WAL/outbox effects. A new `gpt-5.6-sol` correction verifier found those mitigated and reported no new commit-local `BLOCKER`/`HIGH`. The process-wide startup fence, stale descriptor reconciliation, production backup-wrapper proof, and partial-Tracker-database merge containment remain open. Materializers/history UI are prohibited until those and the existing source-cursor/deletion/owner gates pass; no phase/source gate is passed.
+- Fresh adversarial review: prior R0/R1/R1b/R2 and adaptive-collections R3/R4 are complete. The
+  prior 2026-08-24 R1 returned `BLOCK`. Commit `f14a4a2b1` addresses its global acquisition
+  reachability defect by adding `CONTAINED`, plus startup, lifecycle, permission, automatic-action,
+  and acquisition-floor corrections. None is accepted as a gate pass until three fresh reviewers
+  attack the actual commit. Crash-auditable radio handoff, failed-unregister ownership, Cell replay
+  identity, portable export/minimization, immutable ambient day identity, and `ACTIVE` versus
+  qualified `RECORDING` remain open. Materializers, ambient exposure, and history UI are prohibited.
 - Initial scope proportionality review: `BLOCKED / RESCOPE`. Three fresh read-only adversaries concluded that the safety spine is justified but the then-current unshipped 23-table v28 expansion, generic Phase 3 platform, mandatory day-journal redesign, all-at-once ambient breadth, fleet telemetry, and exhaustive governance were disproportionate to the app's current offline personal-product workflows and runnable release infrastructure. The user subsequently confirmed ambient persistence as a product requirement; it proceeds only as independently gated, default-off source verticals. The follow-up disposition is the updated R2 gate below.
-- Updated R2 proportionality gate: `IN_PROGRESS / RESCOPED`. The user confirmed on 2026-08-22 that v28 was never released, so it was trimmed and regenerated in place rather than preserved or repaired in v29. The 12 ownerless generic Phase 3 tables are removed and the duplicate lifecycle lease is unified with the upgraded boot-aware coordinator lease. The two concrete released-v27 recovery records bring the schema to 63 tables without restoring a generic platform. The populated Android migration/reopen/deletion slice passes without fabricated authority or ghost runtime; the frozen startup drain, source gaps/cursors, import/deletion fencing and portable recovery remain the next structural gates.
+- Updated R2 proportionality gate: `IN_PROGRESS / RESCOPED`. v28 never shipped, so it was trimmed
+  and regenerated in place rather than preserved or repaired in v29. The 12 ownerless generic Phase
+  3 tables are removed and the duplicate lifecycle lease is unified. The current schema has `65`
+  entities: all `51` released-v27 entities plus `14` narrowly owned v28 additions, including the two
+  released-v27 recovery records and Activity automation action/epoch state. This does not restore a
+  generic platform.
 - Adaptive collections target: TI-D054–TI-D087 and `ADAPTIVE_COLLECTIONS_GREENFIELD_DESIGN.md` define sole-source capture, explicit ambient/control authority, authorization-homogeneous source-native durable units, source-specific platform-mechanism ladders and handoffs, measured rather than assumed energy separation, item-level freshness/relevance admission, zero-effect exact replay, quality floors/targets, one supervisor/runtime owner per source, one thin data-plane mutation owner with source lanes created on demand, distinct delivery and logical correction identities, narrow deletion/owner fences, platform-legal automatic starts, one selected Ambient Steps continuity provider, explicit radio aggregate/identity tiers, optional query-time Location context, and one minimum production history facade. The current v28 runtime implements the shared authority/admission substrate and Activity's first atomic callback adapter; source-local facts and every product claim remain blocked.
 
 ## Observed repository state
 
-- Current acquisition is source-native and event-canonical. `RoomTrackingRolloutStateStore.load()` force-promotes all sources to event ownership; there is no usable per-source materializer kill switch or rollback gate.
+- Acquisition and product-writer rollout remain separate per-source state. `TrackingRolloutState`
+  schema v3 defaults all six source owners to `CONTAINED` with retained legacy product stages. An
+  absent row, a v27 row, or the old global-v2 event marker migrates to contained state and cannot
+  register a provider. Only an explicit `eventShadow(setOf(source))`-style activation may enable
+  named source acquisition, and validation rejects `EVENT` ownership without a reachable
+  `EVENT_SHADOW` or `EVENT_CANONICAL` lane. No candidate canonical writer is active.
 - Shared registration acceptance no longer advances the durable pointer or retires the accepted generation until a replacement is externally accepted. Activity uses generation-addressable PendingIntents for a real make-before-break swap, durable `RETIRING` cleanup, cancellation-transparent convergence and idempotent retry; failed replacement retains the accepted provider. Location, Wi-Fi, Cell, Steps and Pressure still use shutdown-before-start runtimes and require provider-specific fenced handoff/gap/rollback tests rather than inheriting an unsupported zero-gap claim.
 - Legacy `TrackingParamsState` still exposes Boolean enablement and semantic frequency, but the production repository now normalizes both into one Room policy mutation and projects only the effective six-source snapshot. Corrupt/unknown legacy source semantics fail closed and cannot bootstrap consent.
 - New durable source demands carry consumer identity, purpose, persistence eligibility, consent/policy epochs, logical tracking identity, effective boot/elapsed time, and QoS. Physical registration rows contain only provider configuration/identity, boot/data epoch and lifecycle state. Demand changes append an independent authorization revision without restarting a compatible provider.
@@ -32,10 +83,23 @@ Repository baseline: `068ebe052` on `dev/v10` (`origin/dev/v10` is 90 commits ah
 - TI-D055/TI-D056 establish the acquisition/persistence boundary: enrichment has no demand authority, while every valid source-qualified provider delivery gets a quality-preserving durable representation before purpose-specific use. Activity now implements the first complete callback splitter/admission adapter. Purpose-specific bounded retention, source-native freshness calibration, the other five splitters/identities, and removal of synchronous global drain work remain open.
 - TI-D078–TI-D083 refine that boundary. The containment slice evaluates Wi-Fi/Cell children independently, rejects missing/non-positive/future/over-age provider timestamps, omits startup cache and failed-scan reads, keeps request outcomes out of the observation WAL, preserves each Wi-Fi child's provider time in payload v2 while retaining v1 decoding, records only provider-confirmed fresh empty results as zero coverage, withholds radio/subscription identifiers, advances live replay state only after durable/duplicate handoff, and grants one first-evidence active request only to direct capture while passive callbacks remain. Exact replay is still registration/process-local: source-native durable delivery identity, observed-time authorization, compact unchanged-content references, any measured repeated-attempt mode, keyed identity where product value later requires it, and device/runtime-fake evidence remain blocking before either radio materializer or product query is wired.
 - The current semantic-frequency labels do not all represent physical power differences: Wi-Fi `CACHED_ONLY`/`BROADCAST_DRIVEN`, Cell Battery Saver/Balanced, and Activity Battery Saver/Balanced share their respective provider mechanism. Pressure changes requested rate/report latency, but the benefit depends on actual FIFO capacity and is undermined by per-sample runtime-state writes. `QualitativeBatteryImpactEstimator` explicitly has zero samples and low confidence. TI-D078 requires collapsing identical rungs and measuring the rest before user-visible battery claims.
-- WAL rows recompute the payload hash from stored bytes before decoding and bind that verified checksum into the length-prefixed immutable envelope identity. Corrupt rows are durably quarantined before projector invocation, the contiguous cursor advances, and healthy later rows continue. Checksum-valid pending legacy rows are classified separately from mismatches; the frozen one-time drain exists and passes focused recovery proof, but no process-wide startup caller prevents live work from preceding it yet. New admission is observation-first and sessionless; product attribution/materialization remains unwired.
+- WAL rows recompute the payload hash from stored bytes before decoding and bind that verified
+  checksum into the length-prefixed immutable envelope identity. Corrupt rows are durably
+  quarantined before projector invocation, the contiguous cursor advances, and healthy later rows
+  continue. The process-wide startup gate now makes the frozen one-time v27 drain terminal before
+  providers/services/data consumers proceed, with deletion taking precedence. Connected
+  migrate-to-runtime ordering and production backup recovery remain unverified. New admission is
+  observation-first and sessionless; product attribution/materialization remains unwired.
 - The unused generic attribution, writer-activation, contribution-receipt, counting-head, tombstone, partition-cursor, failure, and ledger-state platform has been removed from unreleased v28. Under TI-D066/TI-D071, stable delivery identity is the idempotence receipt while source-specific logical range identity handles correction; the first production vertical must prove both plus deletion/history invalidation before any generic mechanism is reconsidered.
-- `AuthoritativeSessionCoordinator` commits plan, logical session, manifest v1/effective revisions, lifecycle intent, and source-runtime desired actions before source-provider effects. Android service launch and FGS promotion still occur earlier in `TrackerServiceApi`/`TrackerService`, so the system-wide two-phase-start invariant is not yet met.
-- The manifest already declares `location|health|specialUse` on `TrackerService`, but the current service can promote before loading the durable accepted type union and a separate `ActivityWatcherService` remains. Current official Activity Recognition documentation lists `ON_FOOT`, WALKING, and RUNNING as Transition-supported, superseding the earlier unsupported-`ON_FOOT` review premise; the pinned dependency/provider/device path still needs request-acceptance evidence. TI-D062 requires one service owner and a persisted exact mask before launch.
+- `TrackerServiceApi`, `DefaultTrackingStartRequestCoordinator`, `TrackerService`, and
+  `AuthoritativeSessionCoordinator` implement the local two-phase start: durable prepared intent and
+  source-runtime desired state precede the external service request; accepted runtime/FGS evidence
+  follows, and rejected/failed starts are terminalized. Host crash-boundary and redelivery tests
+  pass; connected Android legality and OEM recovery remain required.
+- `TrackerService` is the sole tracking service owner; the separate `ActivityWatcherService` and
+  restart receiver are removed. The service reconciles its foreground-service type candidates from
+  the real start origin and accepted source plan. Pinned provider/device acceptance evidence remains
+  a source gate.
 - Reconfiguration appends immutable manifest and lifecycle-intent revisions. Effective time cannot regress within a boot domain, failed starts append terminal intent, and disabling the last accepted source cannot leave the logical session `ACTIVE`.
 - Coordinator leases use boot identity, elapsed-realtime expiry, and monotonic generations. Release/expiry reacquisition increments the generation and stale tokens are fenced; SQL state-transition CAS and a durable lease/action reconciler remain absent.
 - Runtime acceptance moves the session to `ACTIVE`; source-qualified `RECORDING`, `MATERIALIZED`, and `QUERYABLE` lifecycle evidence remain distinct but are not yet represented.
@@ -46,10 +110,17 @@ Repository baseline: `068ebe052` on `dev/v10` (`origin/dev/v10` is 90 commits ah
 - Wi-Fi capability, onboarding, settings, and manifest now agree on the scan APIs actually used: precise location plus Wi-Fi state/change permissions and enabled Location Services; an unrelated Nearby Devices grant is not required. Startup cache persistence is removed and generic ingress resolves post-start observed-time authorization; durable cross-process radio delivery identity remains unimplemented.
 - New Wi-Fi/Cell runtime payloads withhold radio and subscription identifiers until the rotatable purpose/epoch HMAC lifecycle is implemented. Released legacy storage/export/UI still expose raw radio identifiers and require a scoped migration/product decision rather than silent rewriting.
 - Cell callbacks are item-age filtered and a genuinely empty callback can now prove zero coverage; generic ingress resolves authorization at each admitted callback/item timestamp. Process-stable replay identity, multi-SIM partial-failure semantics and a destination writer remain missing.
-- Automatic process death/reboot can leave a Room logical session `RUNNING`: automatic descriptors are not restart-eligible, boot only rearms detection, and the next start can see `AlreadyActive`.
+- Previous-exit, explicit-stop, force-stop, boot, and inactive-descriptor finalizers now converge
+  stale automatic/runtime state without restarting `STOPPING` or terminal sessions in host tests.
+  Connected process-kill/reboot proof is still required before an automatic source gate.
 - Activity has a shared physical-registration arbiter whose PendingIntent carries only physical identity/configuration. Purpose/policy/manifest/consent changes rotate observed-time authorization without restarting unchanged GMS configuration; one parsed callback is now admitted in one Room transaction and sparse eligible members map back to the exact original recognition/transition indexes. Exact duplicate delivery reloads/recovery-drains but cannot repeat motion, backend flows or the receiver cache. Provider replacement is accepted before the old generation's half-open retirement boundary; full process-wide durable-demand/provider recovery remains blocked.
 - Activity automation still drops parts of the durable trigger envelope before external start, source-native staleness thresholds are not calibrated, the synchronous global drain remains, and no typed movement-band materializer or production query exists. The adapter is admission evidence, not an Activity source gate.
-- Steps still has two possible physical counter owners (`StepSourceRuntime` and `StepActivityCorroborator`), pending the explicit corroboration decision. Runtime callbacks and baselines now carry immutable generation/eligibility identity, and an effective-boundary change makes the next callback baseline-only instead of attributing the disabled interval.
+- `SharedStepSourceController` now owns one app-scoped physical counter registration shared by
+  capture and any explicitly declared corroboration demand. The product decision whether Steps
+  corroboration remains `CONTROL_AUTOSTART` is still unresolved; the implementation cannot make it
+  a hidden capture dependency. Runtime callbacks and baselines carry immutable
+  generation/eligibility identity, and an effective-boundary change makes the next callback
+  baseline-only instead of attributing a disabled interval.
 - Steps legacy session totals are additively mutated before the enclosing event-frame outbox acknowledgement. A crash at that boundary can apply the same effective contribution twice even though `StepInterval.sourceSignalId` is unique.
 - Pressure callback tokens and accumulator checkpoints now prevent restored partial windows from mixing registration generations. Provider-active, first durable sample, and stable trend readiness are still not distinct lifecycle/product states.
 - Pressure-only sessions can be retained, yet `DailySummary` has no Pressure metric and the production UI can show a zero-distance/zero-step shell. Stored standard-atmosphere `altitude_m` is not calibrated elevation and cannot be promoted as vertical history.
@@ -500,7 +571,11 @@ No repository command was found for a separate Detekt task in CI. Device/OEM, do
 - All three returned `BLOCK / RESCOPE`. They independently preserved policy authority, explicit Activity control/capture separation, immutable session intent, boot/generation callback fencing, source-qualified post-start evidence, the sole Location writer, Steps replay safety, ghost-session cleanup, exact migration execution, and truthful scheduling/privacy presentation.
 - All three independently rejected or deferred the current-release requirement for a generic unused Phase 3 platform, full DayOverview/M3 journal, ambient breadth, production cohorts/SLOs, exhaustive OEM/soak evidence, and repeated review governance without a production vertical slice.
 - At review time, lead verification confirmed that v27's 51 owned tables had become 74 under local v28, `AuthoritativeSessionCoordinator` exceeded 2,200 lines, generic Phase 3 repositories had no production callers, CI had no device farm, and the app advertised no remote telemetry.
-- Follow-up integration removed the 12 unused generic tables, isolated merge import, preserved explicit automatic Activity-control intent, authenticated/quarantined raw WAL payloads, and unified the two lease mechanisms. Current v28 has 63 entities after the two narrowly owned v27 recovery records; these are local mitigations, not phase completion.
+- Follow-up integration removed the 12 unused generic tables, isolated merge import, preserved
+  explicit automatic Activity-control intent, authenticated/quarantined raw WAL payloads, and
+  unified the two lease mechanisms. Current v28 has 65 entities after the two narrowly owned v27
+  recovery records and Activity automation action/epoch state; these are local mitigations, not
+  phase completion.
 - No external system or rollout state was changed by the scope review or follow-up integration.
 - Product follow-up resolved one scope point: ambient persistence is required. TI-D007/TI-D047 and the ambient matrix now treat it as phased, per-source product work with default-off rollout gates, not as removed scope. This does not authorize continuous ambient Pressure or active background Wi-Fi scans.
 - Product follow-up also made sole-source capture a hard invariant under TI-D054: manual only-X has no hidden control; automatic only-X persists only X while separately declared controls remain non-product inputs. No source may depend on Location or another captured source to become queryable.
@@ -578,6 +653,32 @@ Three fresh read-only reviewers attacked the actual containment diff and executa
 | R1-P09 device matrix was universal yet lacked per-source numeric budgets | `MEDIUM` | `MITIGATED` | TI-212 uses source-relevant devices and current Power Profiler/system trace/Macrobenchmark; each source still needs a baseline, quality floor and active/write/wakeup budget |
 
 The accepted blockers are data-loss, privacy, sole-source, or truthful-product boundaries—not invitations to rebuild the removed generic platform. The next structural implementation remains TI-180/TI-181/TI-184, with TI-213 proceeding independently and no source inheriting another source's rollout blocker.
+
+## Fresh R1 authority/source-rollout dispositions (2026-08-24)
+
+Three new read-only reviewers attacked the current repository and next implementation wave from data/migration, Android/power/privacy, and product/scope perspectives. The aggregate gate is `BLOCK`. R1-DM01 and R1-DM02 are locally mitigated and focused verification passes; every other row below remains a gate, accepted follow-up, or explicitly preserved disagreement. This round does not authorize a materializer, ambient rollout, or production UI consumer.
+
+| Finding | Severity | Disposition | Integrated correction / remaining evidence |
+| --- | --- | --- | --- |
+| R1-DM01 policy and registration used incompatible boot-domain identities | `BLOCKER` | `MITIGATED_LOCALLY` | one process-canonical `BootClockDomainProvider` now supplies the readable BOOT_COUNT identity and a shared process-stable fallback; focused policy-provider and registration-revocation tests pass |
+| R1-DM02 delayed Activity evidence could cross a suppression automation epoch | `BLOCKER` | `MITIGATED_LOCALLY` | the epoch persists boot domain plus effective elapsed boundary; delivery, outbox, action, and finalizer paths reject or strip automation eligibility from pre-boundary/different-boot observations; focused tests pass |
+| R1-DM03 Cell replay identity includes generation/process-local state | `HIGH` | `ACCEPTED` | construct a privacy-safe source-native identity before sequence allocation and prove replay across process and physical-generation changes; Cell materialization remains blocked |
+| R1-DM04 portable export omits Activity/Steps/Pressure and exposes raw radio identity | `HIGH` | `ACCEPTED` | complete the six-source purpose-aware export/minimization contract and prove control-only/raw SSID/BSSID/tower/subscription identity is absent before any source rollout |
+| R1-DM05 migration-time terminalization may contradict later retained v27 facts | `MEDIUM` | `UNRESOLVED_DISAGREEMENT` | containment treats unprovable runtime as interrupted; the reviewer argues later retained facts can make that timeline contradictory. Preserve both positions until a populated migrate→drain→query recovery timeline proves the truthful result |
+| R1-DM06 populated migration fixture seeds only 26 of 51 released tables | `LOW` | `ACCEPTED` | expand only tables that can affect tracking recovery/retention/import semantics; do not turn this into an indiscriminate fixture framework |
+| R1-AP01 default rollout enables EVENT acquisition without reachable product writers | `BLOCKER` | `MITIGATED_LOCALLY_PENDING_FRESH_R1` | rollout schema v3 defaults every source to `CONTAINED`; missing/v27/old-global rows authorize no provider; explicit named-source event ownership requires a shadow/canonical stage. No actual source is activated. |
+| R1-AP02 Activity and Wi-Fi low-power plans violate sole-source capture floors | `BLOCKER` | `MITIGATED_LOCALLY_PENDING_FRESH_R1` | `SourceAcquisitionFloor` makes direct capture floors source/purpose-specific and focused source-floor/resolver/session tests pass. Fresh review and provider/device evidence must still prove Activity classification and fresh Wi-Fi evidence cannot be silently downgraded. |
+| R1-AP03 failed unregister forgets the provider handle and permits an orphan alongside G2 | `HIGH` | `ACCEPTED` | retain durable retirement ownership until provider removal succeeds or is truthfully quarantined; prove failed unregister/restart/reconcile cannot create two effective registrations |
+| R1-AP04 Cell handoff/replay is unbounded and generation-local | `HIGH` | `ACCEPTED` | introduce a bounded crash-auditable pre-WAL lane with source-native replay identity and explicit gap evidence; no implicit loss or duplicate product effect |
+| R1-AP05 boot/update can leave automatic Activity Transitions unrearmed | `HIGH (release gap)` | `MITIGATED_LOCALLY_PENDING_DEVICE` | Activity automatic actions are durable and boot/epoch/expiry fenced; startup, boot/update, previous-exit, force/explicit-stop and inactive-descriptor paths reconcile in host tests without reviving terminal entries. Connected boot/update/force-stop proof remains. |
+| R1-AP06 ambient collection lacks a production host/source vertical | `CONDITIONAL BLOCKER` | `ACCEPTED` | safe only while ambient rollout remains off; blocker for any ambient exposure. Begin with one complete source vertical, planned as Steps, including consent, retention, export/delete, civil day, query, and explanation |
+| R1-PV01 Activity/Wi-Fi acquisition rungs contradict declared only-source quality | `BLOCKER` | `MITIGATED_LOCALLY_PENDING_FRESH_R1` | same source-floor correction as R1-AP02; no battery tier may silently remove the direct source evidence needed for only-X. Provider/device quality and energy proof remains. |
+| R1-PV02 bounded Location/Wi-Fi queues can lose an overflow gap on crash; Cell is unbounded | `BLOCKER` | `ACCEPTED` | make handoff durability source-local, bounded, and gap-auditable before receipt; storage stalls and process death must preserve fact or explicit completeness loss |
+| R1-PV03 provider/service `ACTIVE` is conflated with source `RECORDING` | `HIGH` | `ACCEPTED` | persist distinct accepted-runtime and source-qualified-evidence transitions and expose truthful no-observation/degraded states |
+| R1-PV04 ambient WAL lacks immutable civil-zone/day allocation | `BLOCKER` | `ACCEPTED` | blocks v28 schema freeze and ambient product exposure until structural zone/day identity survives delayed admission/import, travel, DST, and clock uncertainty |
+| R1-PV05 generic purpose-blind Location enrichment is dead or unsafe scope | `MEDIUM` | `MITIGATED_BY_SCOPE` | keep it out; optional Location context is query-time only, purpose/session/epoch/freshness compatible, and never creates provider demand |
+
+Focused verification on 2026-08-24 is `BUILD SUCCESSFUL` for the canonical boot clock, policy effective-time provider, registration revocation boundary, Activity delivery epoch, durable ingress, automation epoch authority, outbox dispatcher, automatic-start action, authoritative coordinator, and force/explicit/previous-exit finalizers. This is evidence only for R1-DM01/R1-DM02 and nearby regressions; it does not close the aggregate R1 gate.
 
 ## Latest database-backup import containment evidence
 
