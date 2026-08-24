@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import io.kotest.matchers.shouldBe
@@ -44,6 +45,7 @@ class DefaultActivityRegistrationArbiterTest {
 	private val appliedIdentities = CopyOnWriteArrayList<ActivityRegistrationIdentity>()
 	private val removedIdentities = CopyOnWriteArrayList<ActivityRegistrationIdentity>()
 	private val statusesObservedAtProviderCall = CopyOnWriteArrayList<String>()
+	private var clockDomainId = "android-boot-count:7"
 
 	@Before
 	fun setUp() {
@@ -65,6 +67,7 @@ class DefaultActivityRegistrationArbiterTest {
 		appScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
 		subject = DefaultActivityRegistrationArbiter(
 			application,
+			BootClockDomainProvider { clockDomainId },
 			database,
 			FakeLifecycleStore(CollectedDataLifecycleSnapshot(7L, null)),
 			backend,
@@ -175,6 +178,22 @@ class DefaultActivityRegistrationArbiterTest {
 		)
 		requireNotNull(unrelatedRevision.snapshot.identity) shouldBe firstIdentity
 		coVerify(exactly = 1) { backend.applyRegistration(any(), any()) }
+	}
+
+	@Test
+	fun `registration copies opaque canonical clock domain without reformatting`() = runTest {
+		clockDomainId = "process:canonical-test"
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
+		)
+
+		val result = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+
+		result.status shouldBe ActivityRegistrationStatus.APPLIED
+		requireNotNull(result.snapshot.identity).clockDomainId shouldBe "process:canonical-test"
 	}
 
 	@Test

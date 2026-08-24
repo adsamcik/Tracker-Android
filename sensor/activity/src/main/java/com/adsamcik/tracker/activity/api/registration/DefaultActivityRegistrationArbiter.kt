@@ -2,7 +2,6 @@ package com.adsamcik.tracker.activity.api.registration
 
 import android.content.Context
 import android.os.SystemClock
-import android.provider.Settings
 import androidx.room.withTransaction
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
 import com.adsamcik.tracker.activity.api.backend.RecognitionConfig
@@ -13,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEnt
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
@@ -34,6 +34,7 @@ import kotlinx.coroutines.withContext
 @Singleton
 class DefaultActivityRegistrationArbiter @Inject constructor(
 	@ApplicationContext private val context: Context,
+	private val bootClockDomainProvider: BootClockDomainProvider,
 	private val database: AppDatabase,
 	private val lifecycleStore: CollectedDataLifecycleStore,
 	private val backend: GmsActivityRecognitionBackend,
@@ -43,7 +44,6 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 	private val demands = mutableMapOf<ActivityRegistrationOwner, ActivityRegistrationDemand>()
 	@Volatile private var current = EMPTY_SNAPSHOT
 	private var deletionPaused = false
-	private val conservativeProcessBootId = "process-${UUID.randomUUID()}"
 
 	init {
 		// Session manifests may add/remove Activity as CONTROL without starting ActivitySourceRuntime.
@@ -286,7 +286,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		physicalConfigurationFingerprint: String,
 	): ReservedActivityRegistration {
 		val lifecycle = lifecycleStore.snapshot()
-		val clockDomainId = currentClockDomain()
+		val clockDomainId = bootClockDomainProvider.current()
 		val nowMs = System.currentTimeMillis()
 		val nowElapsed = SystemClock.elapsedRealtimeNanos()
 		return database.withTransaction {
@@ -540,12 +540,6 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			transitions = active.values.flatMap { it.transitions }.toSet(),
 			appliedRevision = active.values.mapNotNull { it.planRevision }.maxOrNull(),
 		)
-	}
-
-	private fun currentClockDomain(): String {
-		val bootCount = Settings.Global.getInt(context.contentResolver, Settings.Global.BOOT_COUNT, -1)
-		if (bootCount >= 0) return "android-boot-count:$bootCount"
-		return conservativeProcessBootId
 	}
 
 	private fun ActivityRegistrationSnapshot.matches(
