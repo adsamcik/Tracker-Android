@@ -104,6 +104,40 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
+	fun `active authorization refresh never reserves an incompatible replacement`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true)),
+		)
+		val first = subject.begin(SourceKind.STEPS, 1L, PHYSICAL_CONFIG, 100L, 100L)
+		subject.markAccepted(first, 110L, 110L)
+
+		val refreshed = subject.refreshActiveAuthorization(
+			SourceKind.STEPS,
+			first,
+			2L,
+			PHYSICAL_CONFIG,
+			120L,
+			120L,
+		)
+		val incompatible = subject.refreshActiveAuthorization(
+			SourceKind.STEPS,
+			first,
+			3L,
+			"physical-config-v2",
+			130L,
+			130L,
+		)
+
+		refreshed?.state?.registrationGeneration shouldBe 1L
+		refreshed?.requiresProviderAcceptance shouldBe false
+		incompatible shouldBe null
+		database.sourceBrokerDao().maximumRegistrationGeneration(SourceKind.STEPS.stableCode) shouldBe 1L
+		database.sourceBrokerDao().registration(SourceKind.STEPS.stableCode, 2L) shouldBe null
+		database.sourceRegistrationStateDao().get(SourceKind.STEPS.stableCode, first.ownerScope)
+			?.appliedRevision shouldBe 2L
+	}
+
+	@Test
 	fun `physical configuration change alone rotates generation`() = runTest {
 		database.sourceBrokerDao().insertDemands(
 			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true)),

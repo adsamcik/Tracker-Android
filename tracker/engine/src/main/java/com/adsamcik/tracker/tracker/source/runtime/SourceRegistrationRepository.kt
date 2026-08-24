@@ -167,6 +167,72 @@ class SourceRegistrationRepository @Inject constructor(
 		}
 	}
 
+	/**
+	 * Refreshes authorization metadata only when the caller's already-running provider still owns
+	 * the active physical generation. An incompatible boot, deletion epoch, configuration, or
+	 * provider state returns null without reserving a replacement generation.
+	 */
+	suspend fun refreshActiveAuthorization(
+		source: SourceKind,
+		expectedRegistration: SourceRegistration,
+		appliedRevision: Long,
+		physicalConfigurationFingerprint: String,
+		updatedAtMs: Long,
+		updatedElapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos(),
+	): SourceRegistration? {
+		require(physicalConfigurationFingerprint.isNotBlank())
+		require(expectedRegistration.state.sourceKind == source.stableCode)
+		val lifecycle = lifecycleStore.snapshot()
+		val clockDomainId = clockDomainProvider.current()
+		return database.withTransaction {
+			val brokerDao = database.sourceBrokerDao()
+			val demands = brokerDao.authorizationDemands(source.stableCode)
+			if (demands.isEmpty()) return@withTransaction null
+			val purposeEligibilityMask = SourceBrokerAuthorization.purposeMask(demands)
+			if (purposeEligibilityMask <= 0L) return@withTransaction null
+			val ownerScope = expectedRegistration.ownerScope
+			val dao = database.sourceRegistrationStateDao()
+			val current = dao.get(source.stableCode, ownerScope) ?: return@withTransaction null
+			val currentPhysical = brokerDao.registration(
+				current.sourceKind,
+				current.registrationGeneration,
+			) ?: return@withTransaction null
+			if (current.sourceInstanceId != expectedRegistration.state.sourceInstanceId ||
+				current.registrationGeneration != expectedRegistration.state.registrationGeneration ||
+				current.clockDomainId != expectedRegistration.state.clockDomainId ||
+				current.collectedDataEpoch != expectedRegistration.state.collectedDataEpoch ||
+				current.clockDomainId != clockDomainId ||
+				current.collectedDataEpoch != lifecycle.epoch ||
+				currentPhysical.status != ProviderRegistrationGenerationEntity.STATUS_ACTIVE ||
+				expectedRegistration.physicalConfigurationFingerprint !=
+					physicalConfigurationFingerprint ||
+				currentPhysical.physicalConfigurationFingerprint != physicalConfigurationFingerprint
+			) return@withTransaction null
+
+			val refreshed = current.copy(
+				appliedRevision = appliedRevision,
+				updatedAtMs = updatedAtMs,
+			)
+			dao.replace(refreshed)
+			val authorization = appendAuthorizationIfChanged(
+				source = source,
+				registrationGeneration = current.registrationGeneration,
+				demands = demands,
+				bootId = clockDomainId,
+				elapsedRealtimeNanos = updatedElapsedRealtimeNanos,
+				wallTimeMs = updatedAtMs,
+			)
+			SourceRegistration(
+				ownerScope = ownerScope,
+				state = refreshed,
+				physicalConfigurationFingerprint = physicalConfigurationFingerprint,
+				authorization = authorization,
+				requiresProviderAcceptance = false,
+				predecessorState = current,
+			)
+		}
+	}
+
 	suspend fun markAccepted(
 		registration: SourceRegistration,
 		acceptedAtMs: Long,

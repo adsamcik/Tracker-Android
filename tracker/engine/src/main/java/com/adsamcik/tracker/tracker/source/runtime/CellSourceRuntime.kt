@@ -18,10 +18,12 @@ import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
 import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -45,14 +47,17 @@ class CellSourceRuntime @Inject internal constructor(
 	private val lifecycleMutex = Mutex()
 	private val callbackLock = Any()
 	private var registration: SourceRegistration? = null
+	private var callbackToken: CellCallbackToken? = null
 	private var currentPlan: CellPlan? = null
 	private var currentSink: SourceEventSink? = null
-	private var queue: Channel<CellRuntimeInput>? = null
+	private var queue: CellCallbackLane<CellRuntimeInput>? = null
 	private var actor: Job? = null
 	private var accepting = false
 	private var callbackSequence = 0L
 	private var cutoffElapsedNanos: Long? = null
 	private var metrics = RuntimeAdmissionMetrics()
+	private val processedCallbackSequence = MutableStateFlow(0L)
+	private val prerequisiteGate = CellPrerequisiteGate(deviceStateProvider::cell)
 
 	override suspend fun start(plan: CellPlan, sink: SourceEventSink): SourceStartResult = lifecycleMutex.withLock {
 		require(currentPlan == null) { "Cell source is already started" }
@@ -60,7 +65,19 @@ class CellSourceRuntime @Inject internal constructor(
 	}
 
 	override suspend fun reconfigure(plan: CellPlan, sink: SourceEventSink): SourceApplyResult = lifecycleMutex.withLock {
-		if (currentPlan != null) shutdownLocked(null)
+		refreshCompatibleLocked(plan, sink)?.let { refreshed ->
+			return@withLock refreshed
+		}
+		if (currentPlan != null) {
+			val previous = shutdownLocked(null)
+			if (!previous.appDrainComplete) {
+				return@withLock SourceApplyResult.Failed(
+					appliedState(source, plan.revision, null, SourceApplyStatus.FAILED,
+						SystemClock.elapsedRealtimeNanos()),
+					retryable = true,
+				)
+			}
+		}
 		if (!plan.enabled) return@withLock SourceApplyResult.Applied(
 			appliedState(source, plan.revision, null, SourceApplyStatus.APPLIED, SystemClock.elapsedRealtimeNanos()),
 		)
@@ -79,7 +96,60 @@ class CellSourceRuntime @Inject internal constructor(
 	override suspend fun close() = lifecycleMutex.withLock {
 		if (currentPlan != null) shutdownLocked(null)
 		registration = null
+		callbackToken = null
 		currentSink = null
+	}
+
+	/**
+	 * Refreshes policy and immutable authorization attribution without replacing the compatible
+	 * Telephony registration. Inputs already in the lane retain the context captured at callback
+	 * entry; only later callbacks observe this revision.
+	 */
+	private suspend fun refreshCompatibleLocked(
+		plan: CellPlan,
+		sink: SourceEventSink,
+	): SourceApplyResult? {
+		val activePlan = currentPlan ?: return null
+		val activeRegistration = registration ?: return null
+		if (!cellPlansSharePhysicalRegistration(activePlan, plan)) return null
+		val application = CellPrerequisiteEvaluator.evaluate(plan, deviceStateProvider.cell())
+		_capabilities.value = capabilitiesNow()
+		if (application.status == SourceApplyStatus.BLOCKED) return null
+		val refreshed = runCatchingNonCancellation {
+			registrations.refreshActiveAuthorization(
+				source,
+				activeRegistration,
+				plan.revision,
+				plan.physicalConfigurationFingerprint(),
+				System.currentTimeMillis(),
+			)
+		}.getOrElse {
+			return SourceApplyResult.Failed(
+				appliedState(source, plan.revision, activeRegistration, SourceApplyStatus.FAILED,
+					SystemClock.elapsedRealtimeNanos()),
+				retryable = true,
+			)
+		} ?: return null
+		if (refreshed.state.sourceInstanceId != activeRegistration.state.sourceInstanceId ||
+			refreshed.state.registrationGeneration != activeRegistration.state.registrationGeneration ||
+			refreshed.physicalConfigurationFingerprint != activeRegistration.physicalConfigurationFingerprint ||
+			refreshed.requiresProviderAcceptance
+		) return null
+		val retained = synchronized(callbackLock) {
+			if (!accepting || callbackToken == null) false else {
+				registration = refreshed
+				currentPlan = plan
+				currentSink = sink
+				queue?.offer(CellRuntimeInput.PlanChanged) == true
+			}
+		}
+		if (!retained) return null
+		val state = appliedState(
+			source, plan.revision, refreshed, application.status, SystemClock.elapsedRealtimeNanos(),
+		).copy(degradedReasons = application.reasons)
+		return if (application.status == SourceApplyStatus.DEGRADED) {
+			SourceApplyResult.Degraded(state)
+		} else SourceApplyResult.Applied(state)
 	}
 
 	private suspend fun startLocked(plan: CellPlan, sink: SourceEventSink): SourceStartResult {
@@ -99,18 +169,28 @@ class CellSourceRuntime @Inject internal constructor(
 				appliedState(source, plan.revision, null, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()), true,
 			)
 		}
-		val nextQueue = Channel<CellRuntimeInput>(CALLBACK_BUFFER_CAPACITY)
-		registration = nextRegistration
-		currentPlan = plan
-		currentSink = sink
-		queue = nextQueue
+		val nextQueue = CellCallbackLane<CellRuntimeInput>()
+		val nextCallbackToken = CellCallbackToken()
+		synchronized(callbackLock) {
+			registration = nextRegistration
+			callbackToken = nextCallbackToken
+			currentPlan = plan
+			currentSink = sink
+			queue = nextQueue
+			accepting = true
+		}
 		callbackSequence = 0L
+		processedCallbackSequence.value = 0L
 		cutoffElapsedNanos = null
 		metrics = RuntimeAdmissionMetrics()
-		accepting = true
-		if (!backend.start(plan.subscriptionIds) { snapshot -> onBackendSnapshot(nextRegistration, snapshot) }) {
+		if (!backend.start(plan.subscriptionIds) { snapshot ->
+				onBackendSnapshot(nextCallbackToken, snapshot, CellRefreshOutcome.CALLBACK)
+			}) {
 			registrations.markFailed(nextRegistration, "PROVIDER_REGISTRATION_FAILED", System.currentTimeMillis())
-			synchronized(callbackLock) { accepting = false; nextQueue.close() }
+			synchronized(callbackLock) {
+				accepting = false
+				nextQueue.close()
+			}
 			clearActiveState()
 			return SourceStartResult.Failed(
 				appliedState(source, plan.revision, nextRegistration, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()), true,
@@ -128,8 +208,8 @@ class CellSourceRuntime @Inject internal constructor(
 				appliedState(source, plan.revision, nextRegistration, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()), true,
 			)
 		}
-		actor = applicationScope.launch { consume(nextQueue, nextRegistration, sink) }
-		nextCallbackSequence()?.let { enqueue(CellRuntimeInput.Started(it)) }
+		actor = applicationScope.launch { consume(nextQueue, nextCallbackToken) }
+		enqueueControl(CellRuntimeInput.Started)
 		val state = appliedState(
 			source, plan.revision, nextRegistration, application.status, SystemClock.elapsedRealtimeNanos(),
 		).copy(degradedReasons = application.reasons)
@@ -140,11 +220,14 @@ class CellSourceRuntime @Inject internal constructor(
 
 	private suspend fun shutdownLocked(cutoff: SessionCutoff?): SourceStopAck {
 		val activeRegistration = registration ?: return unavailableAck(cutoff)
-		cutoffElapsedNanos = cutoff?.elapsedRealtimeNanos
+		synchronized(callbackLock) { cutoffElapsedNanos = cutoff?.elapsedRealtimeNanos }
 		wakeups.cancel(REFRESH_WAKEUP_ID)
 		wakeups.cancel(TIMEOUT_WAKEUP_ID)
 		val barrier: Long
-		synchronized(callbackLock) { accepting = false; barrier = callbackSequence }
+		synchronized(callbackLock) {
+			accepting = false
+			barrier = callbackSequence
+		}
 		val removed = if (backend.stop()) RegistrationRemovalOutcome.REMOVED else RegistrationRemovalOutcome.FAILED
 		synchronized(callbackLock) { queue?.close() }
 		val activeActor = actor
@@ -154,6 +237,15 @@ class CellSourceRuntime @Inject internal constructor(
 		} ?: DEFAULT_DRAIN_TIMEOUT_MS
 		val drained = activeActor == null || withTimeoutOrNull(remainingMs) { activeActor.join(); true } == true
 		if (!drained) activeActor.cancelAndJoin()
+		if (!drained) {
+			unprocessedCellCallbackRange(processedCallbackSequence.value, barrier)?.let { unresolved ->
+				metrics.recordFailure(
+					unresolved.first,
+					unresolved.last,
+					RuntimeGapClassification.DRAIN_TIMED_OUT,
+				)
+			}
+		}
 		val admission = metrics.snapshot()
 		val ack = SourceStopAck(
 			source, SourceInstanceId(activeRegistration.state.sourceInstanceId),
@@ -177,42 +269,80 @@ class CellSourceRuntime @Inject internal constructor(
 		return ack
 	}
 
-	private fun onBackendSnapshot(callbackRegistration: SourceRegistration, snapshot: CellBackendSnapshot) {
-		val sequence = nextCallbackSequence(callbackRegistration) ?: return
-		enqueue(CellRuntimeInput.Snapshot(snapshot, CellRefreshOutcome.CALLBACK, sequence))
-	}
-
-	private fun nextCallbackSequence(callbackRegistration: SourceRegistration? = registration): Long? =
+	private fun onBackendSnapshot(
+		token: CellCallbackToken,
+		snapshot: CellBackendSnapshot,
+		outcome: CellRefreshOutcome,
+	) {
 		synchronized(callbackLock) {
-		if (!accepting || registration !== callbackRegistration) null else ++callbackSequence
+			if (!accepting || callbackToken !== token) return
+			val context = currentCallbackContextLocked() ?: return
+			// This lock is also the compatible-authorization boundary. The live prerequisite read and
+			// immutable context capture therefore precede the FIFO offer as one callback-entry step.
+			if (!prerequisiteGate.allows(context.plan)) return
+			val receivedElapsedNanos = SystemClock.elapsedRealtimeNanos()
+			val receivedWallTimeMs = System.currentTimeMillis()
+			val sequence = ++callbackSequence
+			val accepted = queue?.offer(
+				CellRuntimeInput.Snapshot(
+					snapshot = snapshot,
+					outcome = outcome,
+					callbackSequence = sequence,
+					receivedElapsedNanos = receivedElapsedNanos,
+					receivedWallTimeMs = receivedWallTimeMs,
+					context = context,
+				),
+			) == true
+			if (!accepted) {
+				metrics.recordFailure(
+					sequence,
+					classification = RuntimeGapClassification.CALLBACK_BUFFER_OVERFLOW,
+				)
+			}
+		}
 	}
 
-	private fun enqueue(input: CellRuntimeInput) {
-		val accepted = synchronized(callbackLock) {
-			accepting && queue?.trySend(input)?.isSuccess == true
+	private fun enqueueControl(input: CellRuntimeInput) {
+		synchronized(callbackLock) {
+			if (accepting) queue?.offer(input)
 		}
-		if (!accepted) metrics.recordFailure(input.callbackSequence)
+	}
+
+	private fun currentCallbackContext(token: CellCallbackToken): CellCallbackContext? =
+		synchronized(callbackLock) {
+			if (!accepting || callbackToken !== token) null else currentCallbackContextLocked()
+		}
+
+	private fun currentCallbackContextLocked(): CellCallbackContext? {
+		val activeRegistration = registration ?: return null
+		val activePlan = currentPlan ?: return null
+		val activeSink = currentSink ?: return null
+		return CellCallbackContext(activeRegistration, activePlan, activeSink)
 	}
 
 	private suspend fun consume(
-		inputs: Channel<CellRuntimeInput>,
-		activeRegistration: SourceRegistration,
-		sink: SourceEventSink,
+		inputs: CellCallbackLane<CellRuntimeInput>,
+		activeToken: CellCallbackToken,
 	) {
 		var lastRefreshAtMs = Long.MIN_VALUE
 		var backoff = RuntimeBackoffState()
 		var awaitingRefresh = false
 		val replayGateBySubscription = mutableMapOf<Int?, BoundedReplayIdentityGate>()
-		val acquisitionBudget = DirectAcquisitionBudget(
-			maximumAttempts = MAX_REFRESH_ATTEMPTS_PER_REGISTRATION,
-			directCaptureRequested = activeRegistration.purposeEligibilityMask and
-				SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L,
-		)
+		var refreshAttempts = 0
+		var qualifiedEvidenceReceived = false
+
+		fun canRequestRefresh(context: CellCallbackContext): Boolean =
+			refreshAttempts < MAX_REFRESH_ATTEMPTS_PER_REGISTRATION &&
+				!qualifiedEvidenceReceived &&
+				context.registration.purposeEligibilityMask and
+					SourceBrokerPurpose.MASK_SESSION_CAPTURE != 0L
 
 		suspend fun scheduleRefresh() {
-			val plan = currentPlan ?: return
-			if (!shouldScheduleCellRefresh(plan.mode, deviceStateProvider.cell().refreshApiAvailable) ||
-				!acquisitionBudget.canRequest
+			val context = currentCallbackContext(activeToken) ?: return
+			val state = deviceStateProvider.cell()
+			if (!prerequisiteGate.allows(context.plan) ||
+				!shouldScheduleCellRefresh(context.plan.mode, state.refreshApiAvailable) ||
+				!canRequestRefresh(context)
 			) {
 				wakeups.cancel(REFRESH_WAKEUP_ID)
 				return
@@ -221,74 +351,69 @@ class CellSourceRuntime @Inject internal constructor(
 			val earliest = nextAttemptDeadlineMs(
 				now,
 				lastRefreshAtMs.takeUnless { it == Long.MIN_VALUE },
-				plan.minimumRefreshAttemptIntervalMs,
-				backoff.delayMs(plan.backoff),
+				context.plan.minimumRefreshAttemptIntervalMs,
+				backoff.delayMs(context.plan.backoff),
 			)
 			wakeups.schedule(
 				sourceWakeupRequest(
 					REFRESH_WAKEUP_ID, source, earliest,
-					(plan.minimumRefreshAttemptIntervalMs / 4L).coerceIn(0L, MAX_COALESCE_WINDOW_MS),
+					(context.plan.minimumRefreshAttemptIntervalMs / 4L)
+						.coerceIn(0L, MAX_COALESCE_WINDOW_MS),
 				),
 			) {
-				nextCallbackSequence()?.let { enqueue(CellRuntimeInput.Refresh(it)) }
+				enqueueControl(CellRuntimeInput.Refresh)
 			}
 		}
 
-		suspend fun recordSnapshot(snapshot: CellBackendSnapshot, outcome: CellRefreshOutcome): Boolean {
-			val plan = currentPlan ?: return false
-			val nowNanos = SystemClock.elapsedRealtimeNanos()
-			val eligibleObservations = freshProviderObservations(
-				snapshot.observations,
-				nowNanos,
-				plan.maximumAcceptableCachedAgeMs,
-				CellBackendObservation::providerTimestampNanos,
-			)
-			val emptyCoverage = shouldAdmitCoverageOnly(
-				providerItemCount = snapshot.providerItemCount,
-				eligibleItemCount = eligibleObservations.size,
-				providerDeliveryConfirmedFresh = true,
-			)
-			if (eligibleObservations.isEmpty() && !emptyCoverage) return false
-			val providerTime = eligibleObservations
-				.mapNotNull(CellBackendObservation::providerTimestampNanos)
-				.maxOrNull() ?: nowNanos
-			val observations = eligibleObservations.map(CellBackendObservation::toMinimizedEvidence).sortedWith(
-				compareBy(
-					CellObservationEvidence::radioType,
-					CellObservationEvidence::identifierToken,
-					CellObservationEvidence::registered,
-					CellObservationEvidence::signalLevelDbm,
-					CellObservationEvidence::providerTimestampNanos,
-				),
-			)
-			val snapshotIdentity = if (emptyCoverage) {
-				"coverage-empty:$nowNanos"
-			} else observations.joinToString("|") {
-				"${it.radioType}:${it.registered}:${it.signalLevelDbm}:${it.providerTimestampNanos}"
-			}
-			val replayGate = replayGateBySubscription.getOrPut(snapshot.subscriptionId) {
+		suspend fun recordSnapshot(input: CellRuntimeInput.Snapshot): Boolean {
+			val qualified = qualifyCellSnapshot(
+				input.snapshot,
+				input.outcome,
+				input.receivedElapsedNanos,
+				input.context.plan.maximumAcceptableCachedAgeMs,
+			) ?: return false
+			val replayGate = replayGateBySubscription.getOrPut(input.snapshot.subscriptionId) {
 				BoundedReplayIdentityGate()
 			}
-			if (!replayGate.shouldAdmit(snapshotIdentity)) return false
+			if (!replayGate.shouldAdmit(qualified.snapshotIdentity)) return false
 			return if (admitSnapshot(
-					activeRegistration, sink, observations,
-					outcome, providerTime, nowNanos, PlanAttribution.CAPTURED_REGISTRATION,
+					input.context,
+					qualified.observations,
+					input.outcome,
+					qualified.providerTimeNanos,
+					input.receivedElapsedNanos,
+					input.receivedWallTimeMs,
+					PlanAttribution.CAPTURED_REGISTRATION,
+					input.callbackSequence,
 				)
 			) {
-				replayGate.record(snapshotIdentity)
+				replayGate.record(qualified.snapshotIdentity)
 				true
 			} else false
 		}
 
-		for (input in inputs) {
+		inputs.consume inputLoop@{ input ->
 			when (input) {
-				is CellRuntimeInput.Started -> {
+				CellRuntimeInput.Started,
+				CellRuntimeInput.PlanChanged -> {
 					scheduleRefresh()
 				}
 				is CellRuntimeInput.Snapshot -> {
-					if (recordSnapshot(input.snapshot, input.outcome)) {
-						acquisitionBudget.markQualifiedEvidence()
-						wakeups.cancel(REFRESH_WAKEUP_ID)
+					try {
+						if (recordSnapshot(input)) {
+							qualifiedEvidenceReceived = true
+							wakeups.cancel(REFRESH_WAKEUP_ID)
+						}
+					} catch (cancelled: CancellationException) {
+						metrics.recordFailure(input.callbackSequence)
+						throw cancelled
+					} catch (_: Throwable) {
+						metrics.recordFailure(input.callbackSequence)
+					} finally {
+						processedCallbackSequence.value = maxOf(
+							processedCallbackSequence.value,
+							input.callbackSequence,
+						)
 					}
 					if (awaitingRefresh) {
 						awaitingRefresh = false
@@ -297,16 +422,23 @@ class CellSourceRuntime @Inject internal constructor(
 					}
 					scheduleRefresh()
 				}
-				is CellRuntimeInput.Refresh -> {
-					if (!acquisitionBudget.consumeRequest()) continue
+				CellRuntimeInput.Refresh -> {
+					val context = currentCallbackContext(activeToken) ?: return@inputLoop
+					if (!canRequestRefresh(context) || !prerequisiteGate.allows(context.plan)) {
+						scheduleRefresh()
+						return@inputLoop
+					}
+					refreshAttempts++
 					lastRefreshAtMs = SystemClock.elapsedRealtime()
-					when (backend.requestRefresh { snapshot -> onBackendSnapshot(activeRegistration, snapshot) }) {
+					when (backend.requestRefresh { snapshot ->
+						onBackendSnapshot(activeToken, snapshot, CellRefreshOutcome.CALLBACK)
+					}) {
 						CellRefreshRequestOutcome.REQUESTED -> {
 							awaitingRefresh = true
 							val timeoutAt = SystemClock.elapsedRealtime() + REFRESH_TIMEOUT_MS
 							wakeups.schedule(
 								sourceWakeupRequest(TIMEOUT_WAKEUP_ID, source, timeoutAt, 0L),
-							) { nextCallbackSequence()?.let { enqueue(CellRuntimeInput.Timeout(it)) } }
+							) { enqueueControl(CellRuntimeInput.Timeout) }
 						}
 						CellRefreshRequestOutcome.NOT_SUPPORTED -> {
 							backoff = backoff.succeeded()
@@ -320,7 +452,7 @@ class CellSourceRuntime @Inject internal constructor(
 					}
 					scheduleRefresh()
 				}
-				is CellRuntimeInput.Timeout -> if (awaitingRefresh) {
+				CellRuntimeInput.Timeout -> if (awaitingRefresh) {
 					awaitingRefresh = false
 					backoff = backoff.failed()
 					scheduleRefresh()
@@ -330,21 +462,33 @@ class CellSourceRuntime @Inject internal constructor(
 	}
 
 	private suspend fun admitSnapshot(
-		registration: SourceRegistration,
-		sink: SourceEventSink,
+		context: CellCallbackContext,
 		observations: List<CellObservationEvidence>,
 		outcome: CellRefreshOutcome,
 		providerTimeNanos: Long?,
 		receivedNanos: Long,
+		receivedWallTimeMs: Long,
 		attribution: PlanAttribution,
+		callbackSequence: Long,
 	): Boolean {
+		val registration = context.registration
 		val observed = providerTimeNanos ?: receivedNanos
 		if (cutoffElapsedNanos?.let { observed > it } == true) return false
+		if (!prerequisiteGate.allows(context.plan)) {
+			metrics.recordFailure(callbackSequence)
+			return false
+		}
 		val sourceSequence = runCatchingNonCancellation {
-			registrations.allocateSequence(registration, System.currentTimeMillis())
-		}.getOrElse { metrics.recordFailure(callbackSequence); return false }
+			registrations.allocateSequence(registration, receivedWallTimeMs)
+		}.getOrElse {
+			metrics.recordFailure(
+				callbackSequence,
+				classification = RuntimeGapClassification.SEQUENCE_ALLOCATION_FAILED,
+			)
+			return false
+		}
 		val delayMs = (receivedNanos - observed).coerceAtLeast(0L) / NANOS_PER_MILLISECOND
-		val wallTime = (System.currentTimeMillis() - delayMs).coerceAtLeast(0L)
+		val wallTime = (receivedWallTimeMs - delayMs).coerceAtLeast(0L)
 		val flags = buildSet {
 			if (outcome == CellRefreshOutcome.CACHED) add(SourceQualityFlag.CACHED)
 			if (outcome == CellRefreshOutcome.THROTTLED) add(SourceQualityFlag.THROTTLED)
@@ -380,41 +524,41 @@ class CellSourceRuntime @Inject internal constructor(
 			acquiredAtMs = wallTime, quality = SourceQuality(flags = flags), payloadVersion = 1,
 			payload = minimizedCellSnapshotPayload(observations, outcome),
 		)
-		when (val handoff = sink.admitWithBoundedRetry(candidate)) {
+		when (val handoff = retryCellAdmissionWithinBudget(
+			prerequisiteAllows = { prerequisiteGate.allows(context.plan) },
+			admit = { context.sink.admit(candidate) },
+		)) {
 			is SourceAdmissionHandoff.Durable -> {
-				metrics.recordDurable(sourceSequence, handoff.admissionOrdinal)
+				metrics.recordDurable(callbackSequence, handoff.admissionOrdinal)
 				return true
 			}
 			is SourceAdmissionHandoff.Duplicate -> {
-				metrics.recordDurable(sourceSequence, handoff.existingAdmissionOrdinal)
+				metrics.recordDurable(callbackSequence, handoff.existingAdmissionOrdinal)
 				return true
 			}
+			is SourceAdmissionHandoff.TerminalFailure,
 			is SourceAdmissionHandoff.RetryableFailure,
-			is SourceAdmissionHandoff.TerminalFailure -> {
-				metrics.recordFailure(sourceSequence)
+			-> {
+				metrics.recordFailure(callbackSequence)
+				return false
+			}
+			null -> {
+				metrics.recordFailure(callbackSequence)
 				return false
 			}
 		}
 	}
 
-	private fun capabilitiesNow(): SourceCapabilities {
-		val state = deviceStateProvider.cell()
-		val available = state.radioFeatureAvailable && state.fineLocationPermission && state.readPhoneStatePermission
-		val reasons = buildSet {
-			if (!state.radioFeatureAvailable) add(SourceDegradedReason.HARDWARE_UNAVAILABLE)
-			if (!state.fineLocationPermission || !state.readPhoneStatePermission) {
-				add(SourceDegradedReason.PERMISSION_MISSING)
-			}
-		}
-		return SourceCapabilities(
-			available, false, false, null,
-			if (state.refreshApiAvailable) MINIMUM_SPARSE_REFRESH_MS else null,
-			reasons,
-		)
-	}
+	private fun capabilitiesNow(): SourceCapabilities = cellCapabilities(deviceStateProvider.cell())
 
 	private fun clearActiveState() {
-		synchronized(callbackLock) { accepting = false; queue = null }
+		synchronized(callbackLock) {
+			accepting = false
+			registration = null
+			callbackToken = null
+			currentSink = null
+			queue = null
+		}
 		actor = null
 		cutoffElapsedNanos = null
 		currentPlan = null
@@ -429,29 +573,170 @@ class CellSourceRuntime @Inject internal constructor(
 	)
 
 	private sealed interface CellRuntimeInput {
-		val callbackSequence: Long
-		data class Started(override val callbackSequence: Long) : CellRuntimeInput
-		data class Refresh(override val callbackSequence: Long) : CellRuntimeInput
-		data class Timeout(override val callbackSequence: Long) : CellRuntimeInput
+		data object Started : CellRuntimeInput
+		data object PlanChanged : CellRuntimeInput
+		data object Refresh : CellRuntimeInput
+		data object Timeout : CellRuntimeInput
 		data class Snapshot(
 			val snapshot: CellBackendSnapshot,
 			val outcome: CellRefreshOutcome,
-			override val callbackSequence: Long,
+			val callbackSequence: Long,
+			val receivedElapsedNanos: Long,
+			val receivedWallTimeMs: Long,
+			val context: CellCallbackContext,
 		) : CellRuntimeInput
 	}
 
 	private companion object {
 		const val REFRESH_WAKEUP_ID = "cell-sparse-refresh"
 		const val TIMEOUT_WAKEUP_ID = "cell-refresh-timeout"
-		const val CALLBACK_BUFFER_CAPACITY = 64
 		const val DEFAULT_DRAIN_TIMEOUT_MS = 3_000L
 		const val NANOS_PER_MILLISECOND = 1_000_000L
 		const val MAX_COALESCE_WINDOW_MS = 5_000L
 		const val REFRESH_TIMEOUT_MS = 20_000L
-		const val MINIMUM_SPARSE_REFRESH_MS = 60_000L
 		const val MAX_REFRESH_ATTEMPTS_PER_REGISTRATION = 1
 	}
 }
+
+private class CellCallbackToken
+
+private data class CellCallbackContext(
+	val registration: SourceRegistration,
+	val plan: CellPlan,
+	val sink: SourceEventSink,
+)
+
+/**
+ * Fixed-memory Cell FIFO. A rejected provider callback is represented in process-local admission
+ * metrics and, when shutdown is orderly, in [SourceStopAck]. Crash-durable handoff is separate.
+ */
+internal class CellCallbackLane<T>(capacity: Int = CELL_CALLBACK_BUFFER_CAPACITY) {
+	private val channel: Channel<T>
+
+	init {
+		require(capacity > 0)
+		channel = Channel(capacity)
+	}
+
+	fun offer(input: T): Boolean = channel.trySend(input).isSuccess
+
+	fun close() = channel.close()
+
+	suspend fun consume(action: suspend (T) -> Unit) {
+		for (input in channel) action(input)
+	}
+}
+
+/** Reads live Android state on every invocation; no reconciler or capability-flow cache is used. */
+internal class CellPrerequisiteGate(
+	private val stateProvider: () -> CellDeviceState,
+) {
+	fun allows(plan: CellPlan): Boolean = runCatching {
+		plan.enabled && CellPrerequisiteEvaluator.evaluate(plan, stateProvider()).status !=
+			SourceApplyStatus.BLOCKED
+	}.getOrDefault(false)
+}
+
+internal data class QualifiedCellSnapshot(
+	val observations: List<CellObservationEvidence>,
+	val providerTimeNanos: Long,
+	val snapshotIdentity: String,
+)
+
+internal fun qualifyCellSnapshot(
+	snapshot: CellBackendSnapshot,
+	outcome: CellRefreshOutcome,
+	receivedElapsedNanos: Long,
+	maximumAcceptableAgeMs: Long,
+): QualifiedCellSnapshot? {
+	val eligible = freshProviderObservations(
+		snapshot.observations,
+		receivedElapsedNanos,
+		maximumAcceptableAgeMs,
+		CellBackendObservation::providerTimestampNanos,
+	)
+	val emptyCoverage = shouldAdmitCoverageOnly(
+		providerItemCount = snapshot.providerItemCount,
+		eligibleItemCount = eligible.size,
+		// An empty cache read has no observation or coverage value. Only a provider delivery can
+		// establish a fresh empty boundary.
+		providerDeliveryConfirmedFresh = outcome != CellRefreshOutcome.CACHED,
+	)
+	if (eligible.isEmpty() && !emptyCoverage) return null
+	val providerTime = eligible.mapNotNull(CellBackendObservation::providerTimestampNanos)
+		.maxOrNull() ?: receivedElapsedNanos
+	val ordered = eligible.sortedWith(
+		compareBy(
+			CellBackendObservation::radioType,
+			CellBackendObservation::identity,
+			CellBackendObservation::registered,
+			CellBackendObservation::signalLevelDbm,
+			CellBackendObservation::providerTimestampNanos,
+		),
+	)
+	val observations = ordered.map(CellBackendObservation::toMinimizedEvidence)
+	val identity = if (emptyCoverage) {
+		"coverage-empty:$receivedElapsedNanos"
+	} else ordered.joinToString("|") {
+		"${it.identity}:${it.radioType}:${it.registered}:${it.signalLevelDbm}:${it.providerTimestampNanos}"
+	}
+	return QualifiedCellSnapshot(observations, providerTime, identity)
+}
+
+/**
+ * Retries the FIFO head inside a finite in-process budget. A retryable result after the final
+ * delay is returned to the caller so the callback can be marked unresolved and the lane can keep
+ * draining. A null means the live prerequisite disappeared before an admission attempt.
+ */
+internal suspend fun retryCellAdmissionWithinBudget(
+	prerequisiteAllows: () -> Boolean,
+	admit: suspend () -> SourceAdmissionHandoff,
+	retryDelaysMs: LongArray = CELL_ADMISSION_RETRY_DELAYS_MS,
+	waitBeforeRetry: suspend (Long) -> Unit = { delay(it) },
+): SourceAdmissionHandoff? {
+	var retryIndex = 0
+	while (true) {
+		if (!prerequisiteAllows()) return null
+		val result = admit()
+		if (result !is SourceAdmissionHandoff.RetryableFailure) return result
+		val retryDelayMs = retryDelaysMs.getOrNull(retryIndex++) ?: return result
+		waitBeforeRetry(retryDelayMs)
+	}
+}
+
+internal fun unprocessedCellCallbackRange(processedSequence: Long, barrierSequence: Long): LongRange? {
+	require(processedSequence >= 0L)
+	require(barrierSequence >= 0L)
+	val first = processedSequence + 1L
+	return if (first <= barrierSequence) first..barrierSequence else null
+}
+
+internal fun cellPlansSharePhysicalRegistration(active: CellPlan, updated: CellPlan): Boolean =
+	updated.enabled &&
+		active.physicalConfigurationFingerprint() == updated.physicalConfigurationFingerprint()
+
+internal fun cellCapabilities(state: CellDeviceState): SourceCapabilities {
+	val available = state.radioFeatureAvailable && state.fineLocationPermission &&
+		state.readPhoneStatePermission
+	val reasons = buildSet {
+		if (!state.radioFeatureAvailable) add(SourceDegradedReason.HARDWARE_UNAVAILABLE)
+		if (!state.fineLocationPermission || !state.readPhoneStatePermission) {
+			add(SourceDegradedReason.PERMISSION_MISSING)
+		}
+	}
+	return SourceCapabilities(
+		available = available,
+		batchingSupported = false,
+		flushSupported = false,
+		maximumBatchSize = null,
+		// requestCellInfoUpdate is a finite opportunistic probe, not a wake-reliable cadence.
+		minimumDelayMs = null,
+		degradedReasons = reasons,
+	)
+}
+
+internal const val CELL_CALLBACK_BUFFER_CAPACITY = 64
+private val CELL_ADMISSION_RETRY_DELAYS_MS = longArrayOf(10L, 50L, 250L)
 
 internal fun CellBackendObservation.toMinimizedEvidence() = CellObservationEvidence(
 	identifierToken = WITHHELD_RADIO_IDENTIFIER_TOKEN,
