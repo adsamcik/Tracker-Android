@@ -1,5 +1,8 @@
 package com.adsamcik.tracker.shared.preferences.tracking
 
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import android.app.Application
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
@@ -7,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
+import io.kotest.assertions.throwables.shouldThrow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -34,6 +38,11 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class AuthoritativeTrackingParamsRepositoryTest {
+	private val startupGate = object : TrackingStartupGate {
+		override val isReady: Boolean = true
+		override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult =
+			TrackingStartupResult.Ready(false, 0L)
+	}
 	private lateinit var database: AppDatabase
 	private lateinit var legacy: FakeTrackingParamsRepository
 	private lateinit var policy: RoomSourcePolicyRepository
@@ -52,7 +61,7 @@ class AuthoritativeTrackingParamsRepositoryTest {
 		policy = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime("test-boot", 10L, 20L)
 		}
-		repository = AuthoritativeTrackingParamsRepository(legacy, policy, applicationScope)
+		repository = AuthoritativeTrackingParamsRepository(legacy, policy, applicationScope, startupGate)
 	}
 
 	@After
@@ -94,6 +103,31 @@ class AuthoritativeTrackingParamsRepositoryTest {
 	}
 
 	@Test
+	fun `closed startup gate rejects policy mutation without changing durable authority`() = runTest {
+		repository.data.first { it.sourcePolicyRevision == 1L }
+		val closedGate = object : TrackingStartupGate {
+			override val isReady: Boolean = false
+			override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult =
+				TrackingStartupResult.RetryableFailure(
+					TrackingStartupStage.LEGACY_V27,
+					"TEST_GATE_CLOSED",
+				)
+		}
+		val isolated = AuthoritativeTrackingParamsRepository(
+			legacy,
+			policy,
+			backgroundScope,
+			closedGate,
+		)
+		val before = (policy.currentState() as SourcePolicyAuthorityState.Active).snapshot
+
+		shouldThrow<IllegalStateException> { isolated.setStepsEnabled(false) }
+
+		(policy.currentState() as SourcePolicyAuthorityState.Active).snapshot shouldBe before
+		legacy.current.stepsEnabled.shouldBeTrue()
+	}
+
+	@Test
 	fun `bulk boolean-only update can re-enable a source without a conflicting frequency`() = runTest {
 		repository.data.first()
 		repository.setWifiEnabled(false)
@@ -110,7 +144,12 @@ class AuthoritativeTrackingParamsRepositoryTest {
 	@Test
 	fun `long lived collector bootstraps when legacy settings become verified`() = runTest {
 		val delayedLegacy = FakeTrackingParamsRepository(TrackingParamsState())
-		val delayedRepository = AuthoritativeTrackingParamsRepository(delayedLegacy, policy, applicationScope)
+		val delayedRepository = AuthoritativeTrackingParamsRepository(
+			delayedLegacy,
+			policy,
+			applicationScope,
+			startupGate,
+		)
 		val activeProjection = async {
 			delayedRepository.data.first { it.sourcePolicyRevision != null }
 		}
@@ -136,6 +175,7 @@ class AuthoritativeTrackingParamsRepositoryTest {
 				FakeTrackingParamsRepository(TrackingParamsState(legacySettingsMigrationCompleted = true)),
 				flakyPolicy,
 				backgroundScope,
+				startupGate,
 			)
 
 			val unavailable = failClosedRepository.data.first()
@@ -155,7 +195,12 @@ class AuthoritativeTrackingParamsRepositoryTest {
 	fun `authoritative revision is published before a blocked compatibility mirror`() = runTest {
 		repository.data.first { it.sourcePolicyRevision == 1L }
 		val blockingLegacy = BlockingUpdateTrackingParamsRepository(legacy)
-		val isolated = AuthoritativeTrackingParamsRepository(blockingLegacy, policy, backgroundScope)
+		val isolated = AuthoritativeTrackingParamsRepository(
+			blockingLegacy,
+			policy,
+			backgroundScope,
+			startupGate,
+		)
 		isolated.data.first { it.sourcePolicyRevision == 1L }
 
 		val mutation = async {
@@ -180,7 +225,12 @@ class AuthoritativeTrackingParamsRepositoryTest {
 	fun `upstream failure replaces an enabled replay with fail closed state`() = runTest {
 		repository.data.first { it.sourcePolicyRevision == 1L }
 		val failingLegacy = OneShotFailingTrackingParamsRepository(legacy)
-		val isolated = AuthoritativeTrackingParamsRepository(failingLegacy, policy, backgroundScope)
+		val isolated = AuthoritativeTrackingParamsRepository(
+			failingLegacy,
+			policy,
+			backgroundScope,
+			startupGate,
+		)
 		isolated.data.first { it.sourcePolicyRevision == 1L }.locationEnabled.shouldBeTrue()
 
 		failingLegacy.fail.complete(Unit)

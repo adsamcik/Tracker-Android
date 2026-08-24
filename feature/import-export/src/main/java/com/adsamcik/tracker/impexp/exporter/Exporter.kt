@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.impexp.exporter
 
 import android.content.Context
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.model.LocationSample
 import java.io.OutputStream
 
@@ -54,5 +55,7 @@ internal interface CursorAwareExporter : Exporter {
 		dateRange: LongRange?,
 		afterTimeMs: Long?,
 		afterId: Long?,
+		database: AppDatabase? = null,
+		verifyCollectedDataAccess: () -> Unit = {},
 	): ExportResult
 }

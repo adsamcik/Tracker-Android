@@ -141,6 +141,76 @@ enum class SourceDegradedReason {
 	THERMAL,
 	DOZE,
 	PLATFORM_THROTTLED,
+	DEMAND_FLOOR_UNSATISFIED,
+}
+
+/** Maximum provider-item age admitted by the plan, independent of acquisition cadence. */
+internal fun SourcePlan.providerItemMaximumAgeMs(): Long = when (this) {
+	is LocationPlan -> maxOf(requestedIntervalMs, maximumBatchDelayMs)
+	is ActivityPlan -> desiredDetectionLatencyMs
+	is StepsPlan -> maximumReportLatencyMs
+	is PressurePlan -> maxOf(maximumReportLatencyMicros.toLong().microsToMillisCeiling(), aggregationWindowMs)
+	is WifiPlan -> maximumAcceptableResultAgeMs
+	is CellPlan -> maximumAcceptableCachedAgeMs
+}
+
+/** Provider delivery latency when Android offers a bounded request; callbacks are opportunistic. */
+internal fun SourcePlan.providerDeliveryLatencyMsOrNull(): Long? = when (this) {
+	is LocationPlan -> maxOf(requestedIntervalMs, maximumBatchDelayMs)
+	is ActivityPlan -> if (mode == ActivityMode.CONTINUOUS_RECOGNITION) desiredDetectionLatencyMs else null
+	is StepsPlan -> maximumReportLatencyMs
+	is PressurePlan -> maximumReportLatencyMicros.toLong().microsToMillisCeiling()
+	is WifiPlan -> null
+	is CellPlan -> null
+}
+
+internal fun SourcePlan.satisfies(demand: SourceDemand): Boolean {
+	val floor = demand.acquisitionFloor ?: return true
+	if (!enabled || source != demand.source || floor.source != source) return false
+	if (!satisfiesAcquisitionFloor(floor)) return false
+	if (providerItemMaximumAgeMs() > demand.maximumAgeMs) return false
+	val requestedLatency = demand.requestedDeliveryLatencyMs ?: return true
+	return providerDeliveryLatencyMsOrNull()?.let { it <= requestedLatency } == true
+}
+
+private fun Long.microsToMillisCeiling(): Long = (this + 999L) / 1_000L
+
+private fun SourcePlan.satisfiesAcquisitionFloor(floor: SourceAcquisitionFloor): Boolean = when {
+	this is LocationPlan && floor is LocationAcquisitionFloor ->
+		locationFloorModeOrNull()?.level?.let { it >= floor.minimumMode.level } == true
+	this is ActivityPlan && floor is ActivityAcquisitionFloor ->
+		providedActivityCapabilities().containsAll(floor.requiredCapabilities)
+	this is StepsPlan && floor is StepsAcquisitionFloor ->
+		enabled &&
+			floor.mechanism == StepsAcquisitionMechanism.DIRECT_COUNTER &&
+			!floor.continuousCoverageRequired &&
+			maximumReportLatencyMs <= floor.maximumReportLatencyMs
+	this is PressurePlan && floor is PressureAcquisitionFloor ->
+		enabled &&
+			hardwareSamplePeriodMicros <= floor.maximumSamplePeriodMicros &&
+			maximumReportLatencyMicros <= floor.maximumReportLatencyMicros &&
+			aggregationWindowMs <= floor.maximumAggregationWindowMs
+	this is WifiPlan && floor === WifiBroadcastAcquisitionFloor ->
+		mode == WifiMode.BROADCAST_DRIVEN || mode == WifiMode.ACTIVE_ATTEMPTS
+	this is CellPlan && floor === CellCallbackAcquisitionFloor ->
+		mode == CellMode.OBSERVE_CHANGES || mode == CellMode.OBSERVE_AND_SPARSE_REFRESH
+	else -> false
+}
+
+internal fun ActivityPlan.providedActivityCapabilities(): Set<ActivityAcquisitionCapability> = when (mode) {
+	ActivityMode.OFF -> emptySet()
+	ActivityMode.TRANSITIONS_ONLY -> setOf(ActivityAcquisitionCapability.TRANSITIONS)
+	ActivityMode.CONTINUOUS_RECOGNITION -> setOf(ActivityAcquisitionCapability.CLASSIFICATIONS)
+}
+
+private fun LocationPlan.locationFloorModeOrNull(): LocationFloorMode? = when (mode) {
+	LocationMode.DISABLED,
+	LocationMode.PROBE,
+	-> null
+	LocationMode.PASSIVE -> LocationFloorMode.PASSIVE
+	LocationMode.LOW_POWER -> LocationFloorMode.LOW_POWER
+	LocationMode.BALANCED -> LocationFloorMode.BALANCED
+	LocationMode.HIGH_ACCURACY -> LocationFloorMode.HIGH_ACCURACY
 }
 
 /** Stable identity of the Android/provider work, deliberately excluding the global plan revision. */
@@ -156,15 +226,28 @@ fun SourcePlan.physicalConfigurationFingerprint(): String {
 		)
 		is StepsPlan -> listOf(source, enabled, maximumReportLatencyMs)
 		is PressurePlan -> listOf(source, enabled, hardwareSamplePeriodMicros, maximumReportLatencyMicros)
-		is WifiPlan -> listOf(
-			source, mode, minimumAttemptIntervalMs, backoff.initialDelayMs,
-			backoff.maximumDelayMs, backoff.multiplier,
-		)
-		is CellPlan -> listOf(
-			source, mode, minimumRefreshAttemptIntervalMs,
-			subscriptionIds.sorted().joinToString(","), backoff.initialDelayMs,
-			backoff.maximumDelayMs, backoff.multiplier,
-		)
+		is WifiPlan -> when (mode) {
+			WifiMode.OFF -> listOf(source, mode)
+			WifiMode.CACHED_ONLY,
+			WifiMode.BROADCAST_DRIVEN,
+			-> listOf(source, "CALLBACK_REGISTRATION")
+			WifiMode.ACTIVE_ATTEMPTS -> listOf(
+				source, "CALLBACK_REGISTRATION", "ACTIVE_PROBE",
+				minimumAttemptIntervalMs, backoff.initialDelayMs,
+				backoff.maximumDelayMs, backoff.multiplier,
+			)
+		}
+		is CellPlan -> when (mode) {
+			CellMode.OFF -> listOf(source, mode)
+			CellMode.OBSERVE_CHANGES -> listOf(
+				source, "CHANGE_CALLBACK", subscriptionIds.sorted().joinToString(","),
+			)
+			CellMode.OBSERVE_AND_SPARSE_REFRESH -> listOf(
+				source, "CHANGE_CALLBACK", "EXPLICIT_REFRESH",
+				subscriptionIds.sorted().joinToString(","), minimumRefreshAttemptIntervalMs,
+				backoff.initialDelayMs, backoff.maximumDelayMs, backoff.multiplier,
+			)
+		}
 	}.joinToString("\u001f")
 	return MessageDigest.getInstance("SHA-256")
 		.digest(canonical.toByteArray(Charsets.UTF_8))

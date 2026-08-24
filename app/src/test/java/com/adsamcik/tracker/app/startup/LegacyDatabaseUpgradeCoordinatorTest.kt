@@ -3,7 +3,6 @@ package com.adsamcik.tracker.app.startup
 import android.database.Cursor
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
-import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseInfo
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseRepository
@@ -12,11 +11,7 @@ import com.adsamcik.tracker.shared.base.database.legacy.LegacyImportStatus
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.shouldBe
 import io.mockk.every
-import io.mockk.coEvery
-import io.mockk.coVerify
-import io.mockk.just
 import io.mockk.mockk
-import io.mockk.Runs
 import io.mockk.verify
 import java.io.File
 import javax.inject.Provider
@@ -33,9 +28,6 @@ class LegacyDatabaseUpgradeCoordinatorTest {
 	}
 	private val databaseProvider = Provider { database }
 	private val repository = mockk<LegacyDatabaseRepository>(relaxed = true)
-	private val collectedDataDeletionService = mockk<CollectedDataDeletionService> {
-		coEvery { reconcilePendingDeletion() } just Runs
-	}
 
 	@Test
 	fun `clean start still opens and validates the active target`() = runTest {
@@ -116,25 +108,9 @@ class LegacyDatabaseUpgradeCoordinatorTest {
 		verify { openHelper.writableDatabase }
 	}
 
-	@Test
-	fun `pending full deletion failure blocks inspection and active database open`() = runTest {
-		val failure = IllegalStateException("deletion remains pending")
-		coEvery { collectedDataDeletionService.reconcilePendingDeletion() } throws failure
-		val coordinator = coordinator()
-
-		val result = coordinator.ensureReady()
-
-		result.shouldBeInstanceOf<LegacyDatabaseStartupResult.Failed>().message shouldBe
-			"deletion remains pending"
-		coVerify(exactly = 1) { collectedDataDeletionService.reconcilePendingDeletion() }
-		verify(exactly = 0) { repository.inspect() }
-		verify(exactly = 0) { openHelper.writableDatabase }
-	}
-
 	private fun coordinator() = LegacyDatabaseUpgradeCoordinator(
 		databaseProvider,
 		repository,
-		collectedDataDeletionService,
 	)
 
 	private fun legacyInfo() = LegacyDatabaseInfo(File("legacy.db"), 26, 100L)

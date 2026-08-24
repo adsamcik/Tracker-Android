@@ -1,141 +1,149 @@
 package com.adsamcik.tracker.app.receiver
 
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import com.adsamcik.tracker.app.startup.LegacyDatabaseStartupResult
-import com.adsamcik.tracker.app.startup.LegacyDatabaseUpgradeCoordinator
-import com.adsamcik.tracker.tracker.controller.LockManager
-import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import dagger.hilt.android.EntryPointAccessors
-import io.mockk.Runs
-import io.mockk.coEvery
-import io.mockk.coVerify
+import io.kotest.matchers.shouldBe
 import io.mockk.every
-import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkStatic
-import io.mockk.spyk
 import io.mockk.unmockkAll
 import io.mockk.verify
-import kotlinx.coroutines.CoroutineExceptionHandler
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class BootReceiverTest {
-
 	@AfterEach
-	fun tearDown() {
-		unmockkAll()
-	}
+	fun tearDown() = unmockkAll()
 
-	@Nested
-	inner class NonBootIntent {
-
-		@Test
-		fun `ignores intents that are not boot completed`() {
-			val receiver = spyk(BootReceiver())
-			val context = mockk<Context>(relaxed = true)
-			val intent = mockk<Intent> {
-				every { action } returns "android.intent.action.POWER_CONNECTED"
-			}
-
-			receiver.onReceive(context, intent)
-
-			verify(exactly = 0) { receiver.goAsync() }
+	@Test
+	fun `non boot broadcasts do not schedule recovery`() {
+		val scheduler = mockk<BootTrackingRecoveryScheduler>(relaxed = true)
+		val context = configuredContext(scheduler)
+		val intent = mockk<Intent> {
+			every { action } returns Intent.ACTION_POWER_CONNECTED
 		}
+
+		BootReceiver().onReceive(context, intent)
+
+		verify(exactly = 0) { scheduler.enqueue() }
 	}
 
-	@Nested
-	inner class BootCompleted {
+	@Test
+	fun `boot receiver only enqueues unique durable recovery`() {
+		val scheduler = mockk<BootTrackingRecoveryScheduler>(relaxed = true)
+		val context = configuredContext(scheduler)
+		val intent = mockk<Intent> {
+			every { action } returns Intent.ACTION_BOOT_COMPLETED
+		}
 
-		private val lockManager = mockk<LockManager>(relaxed = true)
-		private val startupGuard = mockk<TrackingStartupGuard>()
-		private val legacyDatabaseUpgradeCoordinator = mockk<LegacyDatabaseUpgradeCoordinator>()
-		private val testScope = CoroutineScope(
-			UnconfinedTestDispatcher() + CoroutineExceptionHandler { _, _ -> }
-		)
-		private val entryPoint = mockk<BootReceiver.BootReceiverEntryPoint>()
-		private val context = mockk<Context>(relaxed = true)
-		private val pendingResult = mockk<BroadcastReceiver.PendingResult>(relaxed = true)
-		private val receiver = spyk(BootReceiver())
+		BootReceiver().onReceive(context, intent)
 
-		@BeforeEach
-		fun setUp() {
-			coEvery { lockManager.initializeFromPersistence(any()) } just Runs
-			coEvery { legacyDatabaseUpgradeCoordinator.ensureReady() } returns
-				LegacyDatabaseStartupResult.Ready
-			every { entryPoint.lockManager() } returns lockManager
-			every { entryPoint.trackingStartupGuard() } returns startupGuard
-			every { entryPoint.legacyDatabaseUpgradeCoordinator() } returns
-				legacyDatabaseUpgradeCoordinator
-			every { startupGuard.isAutoRecoverySuppressed(any()) } returns false
-			every { entryPoint.appScope() } returns testScope
-			every { context.applicationContext } returns context
-			mockkStatic(EntryPointAccessors::class)
-			every {
-				EntryPointAccessors.fromApplication(
-					any(),
-					BootReceiver.BootReceiverEntryPoint::class.java
+		verify(exactly = 1) { scheduler.enqueue() }
+	}
+
+	@Test
+	fun `boot recovery does not touch locks or Activity before full Ready`() = runTest {
+		var lockCount = 0
+		var rearmCount = 0
+
+		runBootTrackingRecovery(
+			startupGeneration = 3L,
+			currentGeneration = { 3L },
+			isReady = { false },
+			isSuppressed = { false },
+			reconcileStartup = {
+				TrackingStartupResult.RetryableFailure(
+					TrackingStartupStage.LEGACY_V27,
+					"NOT_TERMINAL",
 				)
-			} returns entryPoint
-			every { receiver.goAsync() } returns pendingResult
-		}
+			},
+			initializeLocks = { lockCount++ },
+			rearmAutomaticControl = { rearmCount++; true },
+		) shouldBe BootTrackingRecoveryOutcome.RETRY
 
-		private fun bootIntent(): Intent = mockk {
-			every { action } returns "android.intent.action.BOOT_COMPLETED"
-		}
+		lockCount shouldBe 0
+		rearmCount shouldBe 0
+	}
 
-		@Test
-		fun `initializes lock manager from persistence`() {
-			receiver.onReceive(context, bootIntent())
+	@Test
+	fun `permanently Blocked boot recovery completes without touching locks or Activity`() = runTest {
+		var lockCount = 0
+		var rearmCount = 0
 
-			coVerify { lockManager.initializeFromPersistence(context) }
-		}
+		runBootTrackingRecovery(
+			startupGeneration = 3L,
+			currentGeneration = { 3L },
+			isReady = { false },
+			isSuppressed = { false },
+			reconcileStartup = {
+				TrackingStartupResult.Blocked(
+					TrackingStartupStage.LEGACY_V27,
+					"PERMANENT_FAILURE",
+				)
+			},
+			initializeLocks = { lockCount++ },
+			rearmAutomaticControl = { rearmCount++; true },
+		) shouldBe BootTrackingRecoveryOutcome.COMPLETE
 
-		@Test
-		fun `force stopped startup does not rearm locks or background tracking`() {
-			every { startupGuard.isAutoRecoverySuppressed(any()) } returns true
+		lockCount shouldBe 0
+		rearmCount shouldBe 0
+	}
 
-			receiver.onReceive(context, bootIntent())
+	@Test
+	fun `Ready boot recovery requires accepted or terminal Activity rearm`() = runTest {
+		var lockCount = 0
+		var rearmCount = 0
 
-			coVerify(exactly = 0) { lockManager.initializeFromPersistence(any()) }
-			verify(exactly = 0) { receiver.goAsync() }
-		}
+		runBootTrackingRecovery(
+			startupGeneration = 3L,
+			currentGeneration = { 3L },
+			isReady = { true },
+			isSuppressed = { false },
+			reconcileStartup = { TrackingStartupResult.Ready(false, 0L) },
+			initializeLocks = { lockCount++ },
+			rearmAutomaticControl = { rearmCount++; false },
+		) shouldBe BootTrackingRecoveryOutcome.RETRY
 
-		@Test
-		fun `finishes pending result after processing`() {
-			receiver.onReceive(context, bootIntent())
+		lockCount shouldBe 1
+		rearmCount shouldBe 1
+	}
 
-			verify { pendingResult.finish() }
-		}
+	@Test
+	fun `superseded recovery is a no-op`() = runTest {
+		var reconcileCount = 0
 
-		@Test
-		fun `finishes pending result even when initialization fails`() {
-			coEvery {
-				lockManager.initializeFromPersistence(any())
-			} throws RuntimeException("init failed")
+		runBootTrackingRecovery(
+			startupGeneration = 3L,
+			currentGeneration = { 4L },
+			isReady = { true },
+			isSuppressed = { false },
+			reconcileStartup = {
+				reconcileCount++
+				TrackingStartupResult.Ready(false, 0L)
+			},
+			initializeLocks = { error("stale work must not initialize locks") },
+			rearmAutomaticControl = { error("stale work must not rearm Activity") },
+		) shouldBe BootTrackingRecoveryOutcome.COMPLETE
 
-			receiver.onReceive(context, bootIntent())
+		reconcileCount shouldBe 0
+	}
 
-			verify { pendingResult.finish() }
-		}
-
-		@Test
-		fun `failed legacy startup does not rearm tracking`() {
-			coEvery { legacyDatabaseUpgradeCoordinator.ensureReady() } returns
-				LegacyDatabaseStartupResult.Failed("legacy import failed")
-
-			receiver.onReceive(context, bootIntent())
-
-			coVerify(exactly = 0) { lockManager.initializeFromPersistence(any()) }
-			verify { pendingResult.finish() }
-		}
+	private fun configuredContext(scheduler: BootTrackingRecoveryScheduler): Context {
+		val context = mockk<Context>()
+		val entryPoint = mockk<BootReceiver.BootReceiverEntryPoint>()
+		every { context.applicationContext } returns context
+		every { entryPoint.bootTrackingRecoveryScheduler() } returns scheduler
+		mockkStatic(EntryPointAccessors::class)
+		every {
+			EntryPointAccessors.fromApplication(
+				context,
+				BootReceiver.BootReceiverEntryPoint::class.java,
+			)
+		} returns entryPoint
+		return context
 	}
 }

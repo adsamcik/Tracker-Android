@@ -194,6 +194,22 @@ class PersistenceProcessorTest {
 		transactor = transactor,
 	)
 
+	private fun processorWithTransactor(
+		customTransactor: TrackingPersistenceTransactor,
+	): PersistenceProcessor = PersistenceProcessor(
+		locationSampleDao = locationDao,
+		locationObservationDao = locationObservationDao,
+		cellSampleDao = cellDao,
+		wifiObservationDao = wifiDao,
+		pressureSampleDao = pressureDao,
+		stepIntervalDao = stepDao,
+		activitySnapshotDao = activityDao,
+		pendingSignalDao = pendingSignalDao,
+		pendingSignalClaimDao = pendingSignalClaimDao,
+		durableBuffer = durableBuffer,
+		transactor = customTransactor,
+	)
+
 	private fun claimedBatch(
 		signals: List<DurableSignalBuffer.PeekedSignal>,
 		claimToken: String = "test-claim",
@@ -652,6 +668,46 @@ class PersistenceProcessorTest {
 	@Nested
 	@DisplayName("startup recovery")
 	inner class StartupRecovery {
+
+		@Test
+		fun `drain generation fence aborts the destination publish transaction`() = runTest {
+			coEvery { durableBuffer.claimBatch(any()) } returnsMany listOf(
+				claimedBatch(
+					listOf(
+						DurableSignalBuffer.PeekedSignal(
+							1L,
+							signalWithLocation(timestampMs = 1_000_000L),
+						),
+					),
+				),
+				null,
+			)
+			var generation = 4L
+			coEvery { locationDao.insert(any<Collection<LocationSample>>()) } coAnswers {
+				generation = 5L
+				emptyList()
+			}
+			var completedTransactions = 0
+			val fencedProcessor = processorWithTransactor(
+				object : TrackingPersistenceTransactor {
+					override suspend fun <R> inTransaction(block: suspend () -> R): R {
+						val result = block()
+						completedTransactions++
+						return result
+					}
+				},
+			)
+
+			shouldThrow<IllegalStateException> {
+				fencedProcessor.drainOrphanedSignals {
+					check(generation == 4L) { "startup generation changed" }
+				}
+			}
+
+			// The stale-discard read transaction completed. The destination publish did not.
+			completedTransactions shouldBe 1
+			coVerify(exactly = 0) { durableBuffer.releaseClaim(any()) }
+		}
 
 		@Test
 		fun `recovery claims pending entries and persists then acknowledges them`() = runTest {

@@ -115,8 +115,10 @@ class TrackingSettingsStatusProviderTest {
 			revision = 3L,
 			schemaVersion = 1,
 			coordinatorMode = CoordinatorMode.EVENT,
-			projectionMode = ProjectionMode.SHADOW_READ_ONLY,
 			sourceOwners = SourceKind.entries.associateWith { SourceOwner.EVENT },
+			productProjectionStages = SourceKind.entries.associateWith {
+				ProductProjectionStage.EVENT_SHADOW
+			},
 			semanticSettingsEnabled = true,
 			batteryEstimateMode = BatteryEstimateMode.SOURCE_PLAN_QUALITATIVE,
 		)

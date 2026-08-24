@@ -6,6 +6,7 @@ import android.content.Intent
 import com.adsamcik.tracker.shared.base.extension.appVersion
 import com.adsamcik.tracker.shared.preferences.MutablePreferences
 import com.adsamcik.tracker.shared.preferences.Preferences
+import dagger.hilt.android.EntryPointAccessors
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.every
@@ -65,11 +66,22 @@ class OnAppUpdateReceiverTest {
 		private val pendingResult = mockk<BroadcastReceiver.PendingResult>(relaxed = true)
 		private val context = mockk<Context>(relaxed = true)
 		private val receiver = spyk(OnAppUpdateReceiver())
+		private val recoveryScheduler = mockk<BootTrackingRecoveryScheduler>(relaxed = true)
+		private val entryPoint = mockk<OnAppUpdateReceiver.AppUpdateEntryPoint>()
 
 		@BeforeEach
 		fun setUp() {
 			every { receiver.goAsync() } returns pendingResult
 			every { context.getString(any<Int>()) } returns "key_last_app_version"
+			every { context.applicationContext } returns context
+			every { entryPoint.bootTrackingRecoveryScheduler() } returns recoveryScheduler
+			mockkStatic(EntryPointAccessors::class)
+			every {
+				EntryPointAccessors.fromApplication(
+					context,
+					OnAppUpdateReceiver.AppUpdateEntryPoint::class.java,
+				)
+			} returns entryPoint
 
 			mockkConstructor(Preferences::class)
 			every { anyConstructed<Preferences>().edit(any()) } answers {
@@ -126,6 +138,15 @@ class OnAppUpdateReceiverTest {
 			receiver.onReceive(context, updateIntent())
 
 			verify(timeout = 2000) { pendingResult.finish() }
+		}
+
+		@Test
+		fun `enqueues the shared durable recovery owner after update maintenance`() {
+			coEvery { anyConstructed<Preferences>().fetchLong(any(), any()) } returns 400L
+
+			receiver.onReceive(context, updateIntent())
+
+			verify(timeout = 2000, exactly = 1) { recoveryScheduler.enqueue() }
 		}
 	}
 }

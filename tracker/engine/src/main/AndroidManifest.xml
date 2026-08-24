@@ -39,14 +39,7 @@
             tools:targetApi="q">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="SignalTracking" />
-        </service>
-
-        <service
-            android:name="com.adsamcik.tracker.tracker.service.ActivityWatcherService"
-            android:foregroundServiceType="specialUse"
-            android:exported="false">
-            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="ActivityMonitoring"/>
+                android:value="User-visible tracking session collection of pressure, Wi-Fi scan, and cell-radio context when no dedicated foreground-service type applies" />
         </service>
 
         <activity
@@ -63,10 +56,6 @@
         <receiver
             android:name="com.adsamcik.tracker.tracker.receiver.TrackerTimeUnlockReceiver"
             android:exported="false"/>
-
-        <receiver
-            android:name="com.adsamcik.tracker.tracker.receiver.TrackerRestartReceiver"
-            android:exported="false" />
 
     </application>
 </manifest>

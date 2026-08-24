@@ -9,9 +9,13 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.testing.SynchronousExecutor
 import androidx.work.testing.WorkManagerTestInitHelper
+import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import io.kotest.matchers.shouldBe
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.unmockkAll
 import kotlinx.coroutines.runBlocking
@@ -23,6 +27,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.util.concurrent.Executor
+import javax.inject.Provider
+import kotlin.coroutines.EmptyCoroutineContext
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
@@ -31,6 +38,15 @@ class DatabaseMaintenanceWorkerTest {
 	private lateinit var context: Context
 	private val workerParams = mockk<WorkerParameters>(relaxed = true)
 	private val sessionSegmentDao = mockk<SessionSegmentDao>(relaxed = true)
+	private val database = mockk<AppDatabase> {
+		every { sessionSegmentDao() } returns this@DatabaseMaintenanceWorkerTest.sessionSegmentDao
+		every { transactionExecutor } returns DIRECT_EXECUTOR
+		every { suspendingTransactionContext } returns
+			ThreadLocal.withInitial { EmptyCoroutineContext }
+		every { beginTransaction() } returns Unit
+		every { setTransactionSuccessful() } returns Unit
+		every { endTransaction() } returns Unit
+	}
 
 	@Before
 	fun setUp() {
@@ -83,7 +99,12 @@ class DatabaseMaintenanceWorkerTest {
 	}
 
 	private fun executeDoWork(): ListenableWorker.Result = runBlocking {
-		DatabaseMaintenanceWorker(context, workerParams, sessionSegmentDao).doWork()
+		DatabaseMaintenanceWorker(
+			context,
+			workerParams,
+			Provider { database },
+			READY_STARTUP_GATE,
+		).doWork()
 	}
 
 	private fun activeMaintenanceWork(): List<WorkInfo> {
@@ -93,5 +114,14 @@ class DatabaseMaintenanceWorkerTest {
 		val active = work.filterNot { it.state.isFinished }
 		assertTrue("expected maintenance work, found ${work.map { it.state }}", active.isNotEmpty())
 		return active
+	}
+
+	private companion object {
+		val DIRECT_EXECUTOR = Executor(Runnable::run)
+		val READY_STARTUP_GATE = object : TrackingStartupGate {
+			override val isReady: Boolean = true
+			override suspend fun reconcile(retryFailedStorage: Boolean) =
+				TrackingStartupResult.Ready(legacyRecoveryPartial = false, liveCompletedThroughOrdinal = 0L)
+		}
 	}
 }

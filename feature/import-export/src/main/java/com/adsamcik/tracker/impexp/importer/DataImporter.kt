@@ -60,30 +60,36 @@ object DataImporter {
 
 internal class ImportJobRunner(
 	private val receiptStore: ImportReceiptStore,
+	private val verifyCollectedDataAccess: () -> Unit = {},
 	private val nowMs: () -> Long = System::currentTimeMillis,
 ) {
 	suspend fun start(
 		jobId: String,
 		sourceName: String,
 		sourceSizeBytes: Long,
-	): Boolean = receiptStore.transaction {
-		if (receiptStore.getJob(jobId)?.status == ImportJobReceiptEntity.STATUS_COMPLETE) {
-			return@transaction false
-		}
+	): Boolean {
+		verifyCollectedDataAccess()
+		return receiptStore.transaction {
+			verifyCollectedDataAccess()
+			if (receiptStore.getJob(jobId)?.status == ImportJobReceiptEntity.STATUS_COMPLETE) {
+				return@transaction false
+			}
 
-		val now = nowMs()
-		receiptStore.insertJob(
-			ImportJobReceiptEntity(
-				jobId = jobId,
-				sourceName = sourceName,
-				sourceSizeBytes = sourceSizeBytes,
-				status = ImportJobReceiptEntity.STATUS_IN_PROGRESS,
-				startedAt = now,
-				updatedAt = now,
+			val now = nowMs()
+			receiptStore.insertJob(
+				ImportJobReceiptEntity(
+					jobId = jobId,
+					sourceName = sourceName,
+					sourceSizeBytes = sourceSizeBytes,
+					status = ImportJobReceiptEntity.STATUS_IN_PROGRESS,
+					startedAt = now,
+					updatedAt = now,
+				)
 			)
-		)
-		receiptStore.markJobInProgress(jobId, sourceName, sourceSizeBytes, now)
-		true
+			receiptStore.markJobInProgress(jobId, sourceName, sourceSizeBytes, now)
+			verifyCollectedDataAccess()
+			true
+		}
 	}
 
 	suspend fun importArchive(
@@ -126,13 +132,17 @@ internal class ImportJobRunner(
 
 	suspend fun completeIfSuccessful(jobId: String, result: ImportResult) {
 		if (result.failedCount == 0) {
+			verifyCollectedDataAccess()
 			receiptStore.transaction {
+				verifyCollectedDataAccess()
 				receiptStore.markJobComplete(jobId, nowMs())
+				verifyCollectedDataAccess()
 			}
 		}
 	}
 
 	private suspend fun successfulEntryResult(jobId: String, entryKey: String): ImportResult? {
+		verifyCollectedDataAccess()
 		val receipt = receiptStore.getEntry(jobId, entryKey)
 			?.takeIf { it.status == ImportEntryReceiptEntity.STATUS_SUCCESS }
 			?: return null
@@ -148,9 +158,12 @@ internal class ImportJobRunner(
 		successfulEntryResult(jobId, entryKey)?.let { return it }
 
 		return try {
+			verifyCollectedDataAccess()
 			receiptStore.transaction {
+				verifyCollectedDataAccess()
 				successfulEntryResult(jobId, entryKey)?.let { return@transaction it }
 				val result = importEntry()
+				verifyCollectedDataAccess()
 				if (result.failedCount > 0) throw ImportEntryRollback(result)
 				receiptStore.putEntry(
 					result.toReceipt(
@@ -161,6 +174,7 @@ internal class ImportJobRunner(
 						updatedAt = nowMs(),
 					)
 				)
+				verifyCollectedDataAccess()
 				result
 			}
 		} catch (rollback: ImportEntryRollback) {
@@ -169,6 +183,9 @@ internal class ImportJobRunner(
 		} catch (cancellation: CancellationException) {
 			throw cancellation
 		} catch (failure: Exception) {
+			// If the owning worker's startup generation changed, leave the transaction rolled
+			// back and let that fence escape instead of recording a stale failure receipt.
+			verifyCollectedDataAccess()
 			val result = ImportResult(
 				failedCount = 1,
 				errors = listOfNotNull(failure.message),
@@ -188,7 +205,9 @@ internal class ImportJobRunner(
 		entryName: String,
 		result: ImportResult,
 	) {
+		verifyCollectedDataAccess()
 		receiptStore.transaction {
+			verifyCollectedDataAccess()
 			receiptStore.putEntry(
 				result.toReceipt(
 					jobId = jobId,
@@ -198,6 +217,7 @@ internal class ImportJobRunner(
 					updatedAt = nowMs(),
 				)
 			)
+			verifyCollectedDataAccess()
 		}
 	}
 

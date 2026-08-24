@@ -232,14 +232,23 @@ class PersistenceProcessor @Inject constructor(
 		}
 	}
 
-	internal suspend fun drainOrphanedSignals(): Boolean = recoveryMutex.withLock {
-		if (pipelineActive) return@withLock true
+	internal suspend fun drainOrphanedSignals(
+		verifyCollectedDataAccess: () -> Unit = {},
+	): Boolean = recoveryMutex.withLock {
+		verifyCollectedDataAccess()
+		if (pipelineActive) {
+			verifyCollectedDataAccess()
+			return@withLock true
+		}
 		clearBuffers()
 		pendingIds.clear()
 		pendingAdmissions.clear()
 		pendingClaimToken = null
-		recoverPendingSignals()
-		!recoveryIncomplete && !durableBuffer.hasPendingEntries()
+		recoverPendingSignals(verifyCollectedDataAccess)
+		verifyCollectedDataAccess()
+		val hasPendingEntries = durableBuffer.hasPendingEntries()
+		verifyCollectedDataAccess()
+		!recoveryIncomplete && !hasPendingEntries
 	}
 
 	override suspend fun checkpointStagedSignals(): Boolean =
@@ -641,7 +650,10 @@ class PersistenceProcessor @Inject constructor(
 	 * in-memory snapshots and acknowledged IDs are cleared; on failure they are
 	 * retained for retry and the error is reported (cancellation propagates).
 	 */
-	private suspend fun persistBufferedAndAcknowledge(): Boolean {
+	private suspend fun persistBufferedAndAcknowledge(
+		verifyCollectedDataAccess: () -> Unit = {},
+	): Boolean {
+		verifyCollectedDataAccess()
 		if (isAllBuffersEmpty() && pendingIds.isEmpty()) return true
 
 		val ackIds = pendingIds.toList()
@@ -651,16 +663,23 @@ class PersistenceProcessor @Inject constructor(
 		try {
 			withTimeout(PERSISTENCE_TRANSACTION_TIMEOUT_MILLIS) {
 				withDatabaseRetry {
+					verifyCollectedDataAccess()
 					// Refresh for every retry attempt. A lifecycle transition can occur after a
 					// transient SQLite failure and before the next publish transaction.
 					val authoritativeLifecycle = captureAuthoritativeLifecycle()
 					transactor.inTransaction {
-						val staleSources = staleSourceSignalIds(ackIds, authoritativeLifecycle)
-						insertBufferedDestinations(staleSources)
-						deleteAcknowledgedRows(ackIds, claimToken)
+						verifyCollectedDataAccess()
+						try {
+							val staleSources = staleSourceSignalIds(ackIds, authoritativeLifecycle)
+							insertBufferedDestinations(staleSources)
+							deleteAcknowledgedRows(ackIds, claimToken)
+						} finally {
+							verifyCollectedDataAccess()
+						}
 					}
 				}
 			}
+			verifyCollectedDataAccess()
 			withContext(NonCancellable) {
 				clearBuffers()
 				pendingIds.removeAll(ackIds.toSet())
@@ -668,12 +687,14 @@ class PersistenceProcessor @Inject constructor(
 				if (pendingClaimToken == claimToken) pendingClaimToken = null
 			}
 		} catch (e: TimeoutCancellationException) {
+			verifyCollectedDataAccess()
 			lastPersistenceFailure = e
 			commitStatusUnknown = true
 			if (reconcileUnknownCommit() == CommitResolution.COMMITTED) return true
 			Tracebox.log.error(e, "Tracking persistence write failed")
 			return false
 		} catch (e: CancellationException) {
+			verifyCollectedDataAccess()
 			lastPersistenceFailure = e
 			commitStatusUnknown = true
 			withContext(NonCancellable) {
@@ -681,6 +702,7 @@ class PersistenceProcessor @Inject constructor(
 			}
 			throw e
 		} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+			verifyCollectedDataAccess()
 			lastPersistenceFailure = e
 			commitStatusUnknown = true
 			if (reconcileUnknownCommit() == CommitResolution.COMMITTED) return true
@@ -958,14 +980,25 @@ class PersistenceProcessor @Inject constructor(
 	 * destination failures are isolated by recursively splitting the batch so
 	 * one poison row cannot block later sessions.
 	 */
-	private suspend fun recoverPendingSignals() {
+	private suspend fun recoverPendingSignals(
+		verifyCollectedDataAccess: () -> Unit = {},
+	) {
 		recoveryIncomplete = false
 		while (true) {
-			val claimed = durableBuffer.claimBatch(DurableSignalBuffer.RECOVERY_BATCH_SIZE) ?: break
+			verifyCollectedDataAccess()
+			val claimed = durableBuffer.claimBatch(DurableSignalBuffer.RECOVERY_BATCH_SIZE)
+			verifyCollectedDataAccess()
+			if (claimed == null) break
 			val claimToken = claimed.claimToken
-			val currentSignals = discardStaleClaimedSignals(claimed.signals, claimToken)
+			val currentSignals = discardStaleClaimedSignals(
+				entries = claimed.signals,
+				claimToken = claimToken,
+				verifyCollectedDataAccess = verifyCollectedDataAccess,
+			)
 			if (currentSignals == null) {
+				verifyCollectedDataAccess()
 				durableBuffer.releaseClaim(claimToken)
+				verifyCollectedDataAccess()
 				recoveryIncomplete = true
 				break
 			}
@@ -977,17 +1010,22 @@ class PersistenceProcessor @Inject constructor(
 					claimToken = claimToken,
 					failureReason = entry.decodeFailureCode(),
 					failureDetail = null,
+					verifyCollectedDataAccess = verifyCollectedDataAccess,
 				)
 			}
 			if (!quarantined) {
+				verifyCollectedDataAccess()
 				durableBuffer.releaseClaim(claimToken)
+				verifyCollectedDataAccess()
 				recoveryIncomplete = true
 				break
 			}
 
 			val valid = currentSignals.filter { it.payload is PendingSignalDecodeResult.Valid }
-			if (!recoverClaimedValidSignals(valid, claimToken)) {
+			if (!recoverClaimedValidSignals(valid, claimToken, verifyCollectedDataAccess)) {
+				verifyCollectedDataAccess()
 				durableBuffer.releaseClaim(claimToken)
+				verifyCollectedDataAccess()
 				recoveryIncomplete = true
 				break
 			}
@@ -1002,32 +1040,42 @@ class PersistenceProcessor @Inject constructor(
 	private suspend fun discardStaleClaimedSignals(
 		entries: List<DurableSignalBuffer.PeekedSignal>,
 		claimToken: String,
+		verifyCollectedDataAccess: () -> Unit = {},
 	): List<DurableSignalBuffer.PeekedSignal>? = try {
 		withDatabaseRetry {
+			verifyCollectedDataAccess()
 			val authoritativeLifecycle = captureAuthoritativeLifecycle()
 			transactor.inTransaction {
-				val guard = currentLifecycleGuardOrNull(authoritativeLifecycle)
-				if (guard == null) return@inTransaction entries
-				val staleIds = entries.filterNot { entry ->
-					guard.accepts(
-						capturedEpoch = entry.capturedEpoch,
-						acquiredAtMs = entry.acquiredAtMs,
-					)
-				}.map(DurableSignalBuffer.PeekedSignal::id)
-				deleteAcknowledgedRows(staleIds, claimToken)
-				entries.filterNot { entry -> entry.id in staleIds }
+				verifyCollectedDataAccess()
+				try {
+					val guard = currentLifecycleGuardOrNull(authoritativeLifecycle)
+					if (guard == null) return@inTransaction entries
+					val staleIds = entries.filterNot { entry ->
+						guard.accepts(
+							capturedEpoch = entry.capturedEpoch,
+							acquiredAtMs = entry.acquiredAtMs,
+						)
+					}.map(DurableSignalBuffer.PeekedSignal::id)
+					deleteAcknowledgedRows(staleIds, claimToken)
+					entries.filterNot { entry -> entry.id in staleIds }
+				} finally {
+					verifyCollectedDataAccess()
+				}
 			}
 		}
 	} catch (e: CancellationException) {
 		throw e
 	} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+		verifyCollectedDataAccess()
 		null
 	}
 
 	private suspend fun recoverClaimedValidSignals(
 		entries: List<DurableSignalBuffer.PeekedSignal>,
 		claimToken: String,
+		verifyCollectedDataAccess: () -> Unit = {},
 	): Boolean {
+		verifyCollectedDataAccess()
 		if (entries.isEmpty()) return true
 
 		clearBuffers()
@@ -1045,7 +1093,7 @@ class PersistenceProcessor @Inject constructor(
 			)
 		}
 
-		if (persistBufferedAndAcknowledge()) return true
+		if (persistBufferedAndAcknowledge(verifyCollectedDataAccess)) return true
 
 		val failure = lastPersistenceFailure
 		clearBuffers()
@@ -1061,12 +1109,20 @@ class PersistenceProcessor @Inject constructor(
 				claimToken = claimToken,
 				failureReason = PERMANENT_DESTINATION_FAILURE,
 				failureDetail = failure.safeFailureDetail(),
+				verifyCollectedDataAccess = verifyCollectedDataAccess,
 			)
 		}
 
 		val midpoint = entries.size / 2
-		return recoverClaimedValidSignals(entries.take(midpoint), claimToken) &&
-			recoverClaimedValidSignals(entries.drop(midpoint), claimToken)
+		return recoverClaimedValidSignals(
+			entries.take(midpoint),
+			claimToken,
+			verifyCollectedDataAccess,
+		) && recoverClaimedValidSignals(
+			entries.drop(midpoint),
+			claimToken,
+			verifyCollectedDataAccess,
+		)
 	}
 
 	/** Move one terminal row into quarantine and delete only our lease-owned source row. */
@@ -1075,43 +1131,51 @@ class PersistenceProcessor @Inject constructor(
 		claimToken: String,
 		failureReason: String,
 		failureDetail: String?,
+		verifyCollectedDataAccess: () -> Unit = {},
 	): Boolean = try {
 		withDatabaseRetry {
+			verifyCollectedDataAccess()
 			val authoritativeLifecycle = captureAuthoritativeLifecycle()
 			transactor.inTransaction {
-				val guard = currentLifecycleGuardOrNull(authoritativeLifecycle)
-				if (
-					guard != null && !guard.accepts(
-						capturedEpoch = entry.capturedEpoch,
-						acquiredAtMs = entry.acquiredAtMs,
+				verifyCollectedDataAccess()
+				try {
+					val guard = currentLifecycleGuardOrNull(authoritativeLifecycle)
+					if (
+						guard != null && !guard.accepts(
+							capturedEpoch = entry.capturedEpoch,
+							acquiredAtMs = entry.acquiredAtMs,
+						)
+					) {
+						deleteAcknowledgedRows(listOf(entry.id), claimToken)
+						return@inTransaction true
+					}
+					requireNotNull(pendingSignalClaimDao) {
+						"PendingSignalClaimDao is required to quarantine a claimed recovery batch"
+					}.quarantineClaimed(
+						signal = QuarantinedSignalEntity(
+							sourcePendingId = entry.id,
+							signalId = entry.signalId,
+							sessionId = entry.sessionId,
+							envelopeVersion = entry.envelopeVersion,
+							payloadChecksum = entry.payloadChecksum,
+							signalJson = entry.signalJson,
+							createdAt = entry.createdAt,
+							deliveryAttemptCount = entry.deliveryAttemptCount,
+							failureReason = failureReason,
+							failureDetail = failureDetail,
+							quarantinedAt = Time.nowMillis,
+						),
+						claimToken = claimToken,
 					)
-				) {
-					deleteAcknowledgedRows(listOf(entry.id), claimToken)
-					return@inTransaction true
+				} finally {
+					verifyCollectedDataAccess()
 				}
-				requireNotNull(pendingSignalClaimDao) {
-					"PendingSignalClaimDao is required to quarantine a claimed recovery batch"
-				}.quarantineClaimed(
-					signal = QuarantinedSignalEntity(
-						sourcePendingId = entry.id,
-						signalId = entry.signalId,
-						sessionId = entry.sessionId,
-						envelopeVersion = entry.envelopeVersion,
-						payloadChecksum = entry.payloadChecksum,
-						signalJson = entry.signalJson,
-						createdAt = entry.createdAt,
-						deliveryAttemptCount = entry.deliveryAttemptCount,
-						failureReason = failureReason,
-						failureDetail = failureDetail,
-						quarantinedAt = Time.nowMillis,
-					),
-					claimToken = claimToken,
-				)
 			}
 		}
 	} catch (e: CancellationException) {
 		throw e
 	} catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+		verifyCollectedDataAccess()
 		false
 	}
 

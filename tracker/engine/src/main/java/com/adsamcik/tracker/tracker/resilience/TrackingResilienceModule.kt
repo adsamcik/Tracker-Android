@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.resilience
 
+import com.adsamcik.tracker.tracker.api.TrackingStartRequestCoordinator
+import com.adsamcik.tracker.tracker.service.DefaultTrackingStartRequestCoordinator
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -11,6 +13,12 @@ import javax.inject.Singleton
 abstract class TrackingResilienceModule {
 	@Binds
 	@Singleton
+	internal abstract fun bindTrackingStartRequestCoordinator(
+		implementation: DefaultTrackingStartRequestCoordinator,
+	): TrackingStartRequestCoordinator
+
+	@Binds
+	@Singleton
 	abstract fun bindActiveTrackingSessionStore(
 		implementation: DefaultActiveTrackingSessionStore,
 	): ActiveTrackingSessionStore
@@ -20,6 +28,12 @@ abstract class TrackingResilienceModule {
 	abstract fun bindTrackingLifecycleCommandAuthority(
 		implementation: SharedPreferencesTrackingLifecycleCommandAuthority,
 	): TrackingLifecycleCommandAuthority
+
+	@Binds
+	@Singleton
+	abstract fun bindInactiveTrackingSessionStopHandler(
+		implementation: DefaultInactiveTrackingSessionStopHandler,
+	): InactiveTrackingSessionStopHandler
 
 	@Binds
 	@Singleton

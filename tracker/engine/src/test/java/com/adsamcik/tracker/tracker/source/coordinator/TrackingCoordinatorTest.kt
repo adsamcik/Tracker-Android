@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LegacyV27ProjectionDrainEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.tracker.source.ingress.AdmissionResult
 import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
@@ -103,6 +104,39 @@ class TrackingCoordinatorTest {
 			?.contiguousAdmissionOrdinal shouldBe 6L
 	}
 
+	@Test
+	fun `deletion high water rebases strict projection and each source is applied once`() = runTest {
+		database.sourceEvidenceStateDao().ensure(
+			SourceEvidenceState(
+				collectedDataEpoch = 2L,
+				deletedSourceEventHighWaterOrdinal = 9L,
+			),
+		)
+		val events = SourceKind.values().mapIndexed { index, source ->
+			sourceEvent(ordinal = 10L + index, source = source)
+		}
+		val projection = RecordingProjection()
+		val ingress = OrderedIngress(events)
+		val coordinator = TrackingCoordinator(
+			database = database,
+			ingress = ingress,
+			projections = ProjectionDispatcher(database, setOf(projection)),
+		)
+
+		coordinator.drainAvailable("post-delete-owner") shouldBe
+			CoordinatorDrainResult.Complete(lastCompletedOrdinal = 15L, eventsDispatched = 6)
+		coordinator.drainAvailable("post-delete-owner") shouldBe
+			CoordinatorDrainResult.Complete(lastCompletedOrdinal = 15L, eventsDispatched = 0)
+
+		ingress.requestedAfterOrdinals.first() shouldBe 9L
+		projection.appliedOrdinals shouldBe (10L..15L).toList()
+		projection.appliedSources shouldBe SourceKind.values().toList()
+		database.sourceProjectionStateDao().registration("recording", 1)
+			?.activationOrdinal shouldBe 10L
+		database.sourceProjectionStateDao().checkpoint("recording", 1)
+			?.contiguousAdmissionOrdinal shouldBe 15L
+	}
+
 	private fun healthyEvent(ordinal: Long) = AdmittedSourceEvent(
 		eventId = SourceEventId("event-$ordinal"),
 		admissionOrdinal = ordinal,
@@ -128,7 +162,35 @@ class TrackingCoordinatorTest {
 			payload = ActivityTransitionPayload(3, 1, ordinal),
 		),
 	)
+
+	private fun sourceEvent(ordinal: Long, source: SourceKind) = AdmittedSourceEvent(
+		eventId = SourceEventId("${source.name.lowercase()}-$ordinal"),
+		admissionOrdinal = ordinal,
+		evidence = SourceEvidenceCandidate(
+			providerDedupKey = null,
+			logicalTrackingId = null,
+			serviceRunId = null,
+			source = source,
+			sourceInstanceId = SourceInstanceId(source.name.lowercase()),
+			registrationGeneration = 1L,
+			sourceSequence = ordinal,
+			configRevision = 1L,
+			planAttribution = PlanAttribution.CAPTURED_REGISTRATION,
+			clockDomainId = "boot",
+			observedElapsedRealtimeNanos = ordinal,
+			receivedElapsedRealtimeNanos = ordinal,
+			wallTimeMs = ordinal,
+			wallTimeUncertaintyMs = 0L,
+			capturedCollectedDataEpoch = 2L,
+			acquiredAtMs = ordinal,
+			quality = SourceQuality(),
+			payloadVersion = 1,
+			payload = TestSourcePayload(source),
+		),
+	)
 }
+
+private data class TestSourcePayload(override val source: SourceKind) : SourcePayload
 
 private class PoisonThenHealthyIngress(
 	private val healthy: AdmittedSourceEvent<out SourcePayload>,
@@ -150,6 +212,15 @@ private class PoisonThenHealthyIngress(
 		else -> emptyList()
 	}
 
+	override suspend fun committedSourceBatch(
+		source: SourceKind,
+		afterOrdinal: Long,
+		throughOrdinal: Long,
+		limit: Int,
+	): List<AdmittedSourceEvent<out SourcePayload>> = error(
+		"Source-scoped reads are not used by this test",
+	)
+
 	override suspend fun checkpoint(consumer: String, ordinal: Long) = Unit
 }
 
@@ -169,6 +240,15 @@ private class OrderedIngress(
 		return events.filter { it.admissionOrdinal > afterOrdinal }.take(limit)
 	}
 
+	override suspend fun committedSourceBatch(
+		source: SourceKind,
+		afterOrdinal: Long,
+		throughOrdinal: Long,
+		limit: Int,
+	): List<AdmittedSourceEvent<out SourcePayload>> = error(
+		"Source-scoped reads are not used by this test",
+	)
+
 	override suspend fun checkpoint(consumer: String, ordinal: Long) = Unit
 }
 
@@ -176,11 +256,13 @@ private class RecordingProjection : Projection {
 	override val id = "recording"
 	override val version = 1
 	val appliedOrdinals = mutableListOf<Long>()
+	val appliedSources = mutableListOf<SourceKind>()
 
 	override suspend fun apply(
 		event: AdmittedSourceEvent<out SourcePayload>,
 		context: ProjectionContext,
 	) {
 		appliedOrdinals += event.admissionOrdinal
+		appliedSources += event.evidence.source
 	}
 }

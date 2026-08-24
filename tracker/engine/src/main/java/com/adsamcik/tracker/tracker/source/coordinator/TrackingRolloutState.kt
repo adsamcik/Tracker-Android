@@ -6,54 +6,96 @@ data class TrackingRolloutState(
 	val revision: Long,
 	val schemaVersion: Int,
 	val coordinatorMode: CoordinatorMode,
-	val projectionMode: ProjectionMode,
 	val sourceOwners: Map<SourceKind, SourceOwner>,
+	val productProjectionStages: Map<SourceKind, ProductProjectionStage>,
 	val semanticSettingsEnabled: Boolean,
 	val batteryEstimateMode: BatteryEstimateMode,
 ) {
 	init {
 		require(revision >= 0L)
 		require(schemaVersion > 0)
-		require(sourceOwners.keys.containsAll(SourceKind.entries)) {
+		require(sourceOwners.keys == SourceKind.entries.toSet()) {
 			"Rollout state must explicitly assign every physical source"
+		}
+		require(productProjectionStages.keys == SourceKind.entries.toSet()) {
+			"Rollout state must explicitly gate every source product projection"
 		}
 		require(coordinatorMode == CoordinatorMode.EVENT || sourceOwners.values.none { it == SourceOwner.EVENT }) {
 			"Event-owned sources require the event coordinator"
 		}
-		require(projectionMode != ProjectionMode.EVENT_CANONICAL || coordinatorMode == CoordinatorMode.EVENT) {
-			"Canonical event projections require the event coordinator"
+		require(productProjectionStages.none { (source, stage) ->
+			stage != ProductProjectionStage.LEGACY_CANONICAL &&
+				(coordinatorMode != CoordinatorMode.EVENT || sourceOwners[source] != SourceOwner.EVENT)
+		}) {
+			"An event projection requires event acquisition ownership for that source"
 		}
-		require(projectionMode != ProjectionMode.EVENT_CANONICAL || sourceOwners.values.all { it == SourceOwner.EVENT }) {
-			"Canonical event projections require event ownership for every physical source"
+		require(sourceOwners.none { (source, owner) ->
+			owner == SourceOwner.EVENT &&
+				productProjectionStages[source] == ProductProjectionStage.LEGACY_CANONICAL
+		}) {
+			"Event acquisition requires a reachable source-local shadow or canonical product lane"
 		}
 	}
 
 	companion object {
-		/** Phase 10 production state: source-native acquisition and event projections are canonical. */
-		fun eventCanonical(revision: Long = 1L): TrackingRolloutState = TrackingRolloutState(
+		/**
+		 * Safe unreleased-v28 bootstrap. Existing product facts remain readable through their legacy
+		 * destinations, but no source-native provider is eligible to start until that source has an
+		 * explicitly reachable shadow lane.
+		 */
+		fun contained(revision: Long = 1L): TrackingRolloutState = TrackingRolloutState(
 			revision = revision,
-			schemaVersion = 2,
+			schemaVersion = CURRENT_SCHEMA_VERSION,
 			coordinatorMode = CoordinatorMode.EVENT,
-			projectionMode = ProjectionMode.EVENT_CANONICAL,
-			sourceOwners = SourceKind.entries.associateWith { SourceOwner.EVENT },
+			sourceOwners = SourceKind.entries.associateWith { SourceOwner.CONTAINED },
+			productProjectionStages = SourceKind.entries.associateWith {
+				ProductProjectionStage.LEGACY_CANONICAL
+			},
 			semanticSettingsEnabled = true,
 			batteryEstimateMode = BatteryEstimateMode.SOURCE_PLAN_QUALITATIVE,
 		)
+
+		/**
+		 * Enables source-native acquisition only for sources with a real source-local shadow lane.
+		 * Callers must name the sources deliberately; there is no all-source default promotion.
+		 */
+		fun eventShadow(
+			sources: Set<SourceKind>,
+			revision: Long = 1L,
+		): TrackingRolloutState {
+			require(sources.isNotEmpty()) { "At least one shadow-reachable source is required" }
+			return contained(revision).copy(
+				sourceOwners = SourceKind.entries.associateWith { source ->
+					if (source in sources) SourceOwner.EVENT else SourceOwner.CONTAINED
+				},
+				productProjectionStages = SourceKind.entries.associateWith { source ->
+					if (source in sources) {
+						ProductProjectionStage.EVENT_SHADOW
+					} else {
+						ProductProjectionStage.LEGACY_CANONICAL
+					}
+				},
+			)
+		}
 
 		/** Decode/rollback fixture retained for the supported release-window migration. */
 		fun legacy(revision: Long = 0L): TrackingRolloutState = TrackingRolloutState(
 			revision = revision,
 			schemaVersion = 1,
 			coordinatorMode = CoordinatorMode.LEGACY,
-			projectionMode = ProjectionMode.LEGACY_ONLY,
 			sourceOwners = SourceKind.entries.associateWith { SourceOwner.LEGACY },
+			productProjectionStages = SourceKind.entries.associateWith {
+				ProductProjectionStage.LEGACY_CANONICAL
+			},
 			semanticSettingsEnabled = false,
 			batteryEstimateMode = BatteryEstimateMode.LEGACY_QUALITATIVE,
 		)
+
+		const val CURRENT_SCHEMA_VERSION: Int = 3
 	}
 }
 
 enum class CoordinatorMode { LEGACY, EVENT }
-enum class SourceOwner { LEGACY, EVENT }
-enum class ProjectionMode { LEGACY_ONLY, SHADOW_READ_ONLY, EVENT_CANONICAL }
+enum class SourceOwner { LEGACY, EVENT, CONTAINED }
+enum class ProductProjectionStage { LEGACY_CANONICAL, EVENT_SHADOW, EVENT_CANONICAL }
 enum class BatteryEstimateMode { LEGACY_QUALITATIVE, SOURCE_PLAN_QUALITATIVE, CALIBRATED }

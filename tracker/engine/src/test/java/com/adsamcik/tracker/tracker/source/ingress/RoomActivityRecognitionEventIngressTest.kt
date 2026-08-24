@@ -1,10 +1,16 @@
 package com.adsamcik.tracker.tracker.source.ingress
 
+import android.content.Context
+import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidence
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
 import com.adsamcik.tracker.activity.api.ingress.ActivityTransitionEvidence
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
+import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
+import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
@@ -14,6 +20,7 @@ import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEpochAuthority
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
@@ -26,12 +33,16 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
+import javax.inject.Provider
 
 class RoomActivityRecognitionEventIngressTest {
 	private lateinit var deliveryIngress: DurableSourceDeliveryIngress
 	private lateinit var committedIngress: DurableSourceIngress
 	private lateinit var recovery: SourcePipelineRecovery
 	private lateinit var motionController: CollectionMotionController
+	private lateinit var context: Context
+	private lateinit var startupGate: TrackingStartupGate
+	private lateinit var automationEpochAuthority: ActivityAutomationEpochAuthority
 	private lateinit var subject: RoomActivityRecognitionEventIngress
 	private val capturedDelivery = slot<SourceDeliveryCandidate>()
 
@@ -40,15 +51,44 @@ class RoomActivityRecognitionEventIngressTest {
 		deliveryIngress = mockk()
 		committedIngress = mockk()
 		recovery = mockk(relaxed = true)
+		coEvery { recovery.drainCommittedActivityCallbackWork(any(), any(), any()) } returns
+			completedRecovery()
 		coEvery { recovery.drainCommittedWork() } returns completedRecovery()
 		motionController = mockk(relaxed = true)
+		context = mockk(relaxed = true)
+		startupGate = mockk()
+		coEvery { startupGate.reconcileAdmission(any()) } returns
+			TrackingAdmissionStartupResult.Ready
+		automationEpochAuthority = mockk()
+		coEvery { automationEpochAuthority.epochForCallbackAdmission() } returns
+			activityAutomationAuthority()
 		subject = RoomActivityRecognitionEventIngress(
 			ActivitySourceDeliveryFactory(),
+			Provider { startupGate },
+			automationEpochAuthority,
 			deliveryIngress,
 			committedIngress,
 			recovery,
 			motionController,
+			context,
 		)
+	}
+
+	@Test
+	fun `cold callback reaches startup recovery before automation Room authority`() = runTest {
+		coEvery { startupGate.reconcileAdmission(any()) } returns
+			TrackingAdmissionStartupResult.RetryableFailure(
+				TrackingStartupStage.PREVIOUS_EXIT,
+				"RECOVERY_PENDING",
+			)
+
+		val result = subject.admit(batch(recognitions = listOf(recognition(30L))))
+
+		result.isDurable shouldBe false
+		result.failureCode shouldBe "STARTUP_RECOVERY_NOT_READY"
+		coVerify(exactly = 1) { startupGate.reconcileAdmission(any()) }
+		coVerify(exactly = 0) { automationEpochAuthority.epochForCallbackAdmission() }
+		coVerify(exactly = 0) { deliveryIngress.admit(any()) }
 	}
 
 	@Test
@@ -84,7 +124,50 @@ class RoomActivityRecognitionEventIngressTest {
 		coVerify(exactly = 1) { deliveryIngress.admit(any()) }
 		coVerify { committedIngress.committedBatch(9L, 1) }
 		coVerify { committedIngress.committedBatch(11L, 1) }
+		coVerify(exactly = 0) {
+			recovery.drainCommittedActivityCallbackWork(any(), any(), any())
+		}
 		coVerify(exactly = 1) { recovery.drainCommittedWork() }
+		verify(exactly = 2) { motionController.onDurableEvidence(any()) }
+	}
+
+	@Test
+	fun `all callback transitions remain durable while only newest configured ordinal gets start permit`() = runTest {
+		val units = listOf(
+			DeliveryAdmissionResult.AdmittedUnit(0, SourceEventId("event-0"), 10L),
+			DeliveryAdmissionResult.AdmittedUnit(1, SourceEventId("event-1"), 11L),
+		)
+		coEvery { deliveryIngress.admit(capture(capturedDelivery)) } returns
+			DeliveryAdmissionResult.Admitted(units)
+		coEvery { committedIngress.committedBatch(any(), 1) } answers {
+			val ordinal = firstArg<Long>() + 1L
+			val unitIndex = (ordinal - 10L).toInt()
+			listOf(
+				AdmittedSourceEvent(
+					SourceEventId("event-$unitIndex"),
+					ordinal,
+					capturedDelivery.captured.units[unitIndex].evidence,
+				),
+			)
+		}
+
+		val result = subject.admit(
+			batch(
+				transitions = listOf(
+					transition(10L, DetectedActivityType.WALKING),
+					transition(20L, DetectedActivityType.STILL),
+				),
+			),
+		)
+
+		result.isDurable shouldBe true
+		result.admittedCount shouldBe 2
+		result.durableSelection.transitionIndexes shouldBe setOf(0, 1)
+		capturedDelivery.captured.units.map { it.evidence.activityAutomationEpoch } shouldBe
+			listOf(null, 17L)
+		coVerify(exactly = 1) {
+			recovery.drainCommittedActivityCallbackWork(setOf(11L), 11L, any())
+		}
 		verify(exactly = 2) { motionController.onDurableEvidence(any()) }
 	}
 
@@ -125,13 +208,15 @@ class RoomActivityRecognitionEventIngressTest {
 			listOf(AdmittedSourceEvent(unit.eventId, 8L, capturedDelivery.captured.units.single().evidence))
 		}
 
-		val result = subject.admit(batch(recognitions = listOf(recognition(30L))))
+		val result = subject.admit(batch(transitions = listOf(transition(30L))))
 
 		result.admittedCount shouldBe 0
 		result.duplicateCount shouldBe 1
 		result.durableSelection.isEmpty shouldBe true
 		coVerify(exactly = 1) { deliveryIngress.admit(any()) }
-		coVerify(exactly = 1) { recovery.drainCommittedWork() }
+		coVerify(exactly = 1) {
+			recovery.drainCommittedActivityCallbackWork(setOf(8L), 8L, any())
+		}
 		verify(exactly = 0) { motionController.onDurableEvidence(any()) }
 	}
 
@@ -152,7 +237,8 @@ class RoomActivityRecognitionEventIngressTest {
 		)
 
 		failures.forEach { (drain, expectedCode) ->
-			coEvery { recovery.drainCommittedWork() } returns SourceRecoveryResult(drain, 0, 0)
+			coEvery { recovery.drainCommittedWork() } returns
+				SourceRecoveryResult(drain, 0, 0)
 
 			val result = subject.admit(batch(recognitions = listOf(recognition(30L))))
 
@@ -161,7 +247,9 @@ class RoomActivityRecognitionEventIngressTest {
 			result.durableSelection.isEmpty shouldBe true
 		}
 
-		coVerify(exactly = failures.size) { recovery.drainCommittedWork() }
+		coVerify(exactly = failures.size) {
+			recovery.drainCommittedWork()
+		}
 		verify(exactly = 0) { motionController.onDurableEvidence(any()) }
 	}
 
@@ -193,7 +281,18 @@ class RoomActivityRecognitionEventIngressTest {
 		val mismatch = subject.admit(batch(recognitions = listOf(recognition(30L))))
 		mismatch.isDurable shouldBe false
 		mismatch.durableSelection.isEmpty shouldBe true
-		coVerify(exactly = 0) { recovery.drainCommittedWork() }
+		coVerify(exactly = 0) { recovery.drainCommittedActivityCallbackWork(any(), any(), any()) }
+		verify(exactly = 0) { motionController.onDurableEvidence(any()) }
+	}
+
+	@Test
+	fun `provider timestamp after callback receipt is rejected without escaping ingress`() = runTest {
+		val result = subject.admit(batch(recognitions = listOf(recognition(101L))))
+
+		result.isDurable shouldBe false
+		result.failureCode shouldBe "INVALID_ACTIVITY_PROVIDER_BATCH"
+		result.durableSelection.isEmpty shouldBe true
+		coVerify(exactly = 0) { deliveryIngress.admit(any()) }
 		verify(exactly = 0) { motionController.onDurableEvidence(any()) }
 	}
 
@@ -212,10 +311,16 @@ class RoomActivityRecognitionEventIngressTest {
 	private fun batch(
 		recognitions: List<ActivityRecognitionEvidence> = emptyList(),
 		transitions: List<ActivityTransitionEvidence> = emptyList(),
+		automaticRecognitionEligible: Boolean = true,
+		automaticTransitions: Set<ActivityTransitionData>? = null,
 	) = ActivityRecognitionEvidenceBatch(
 		receivedElapsedRealtimeNanos = 100L,
 		receivedWallTimeMs = 1_000L,
 		registrationIdentity = identity(),
+		automaticRecognitionEligible = automaticRecognitionEligible,
+		automaticTransitions = automaticTransitions ?: transitions.map { evidence ->
+			ActivityTransitionData(evidence.activityType, evidence.transitionType)
+		}.toSet(),
 		recognitions = recognitions,
 		transitions = transitions,
 	)
@@ -226,8 +331,11 @@ class RoomActivityRecognitionEventIngressTest {
 		at,
 	)
 
-	private fun transition(at: Long) = ActivityTransitionEvidence(
-		DetectedActivityType.WALKING,
+	private fun transition(
+		at: Long,
+		type: DetectedActivityType = DetectedActivityType.WALKING,
+	) = ActivityTransitionEvidence(
+		type,
 		ActivityTransitionType.ENTER,
 		at,
 	)
@@ -238,6 +346,13 @@ class RoomActivityRecognitionEventIngressTest {
 		collectedDataEpoch = 1L,
 		clockDomainId = "boot-1",
 		physicalConfigurationFingerprint = "physical-config",
+	)
+
+	private fun activityAutomationAuthority() = ActivityAutomationEpochEntity(
+		epoch = 17L,
+		automaticControlEnabled = true,
+		bootClockDomainId = "boot-1",
+		effectiveElapsedRealtimeNanos = 0L,
 	)
 
 	private fun completedRecovery() = SourceRecoveryResult(

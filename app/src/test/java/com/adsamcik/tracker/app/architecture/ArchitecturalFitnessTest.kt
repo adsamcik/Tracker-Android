@@ -716,6 +716,110 @@ class ArchitecturalFitnessTest {
 	}
 
 	@Nested
+	inner class `Collected data worker startup fence` {
+		@Test
+		fun `every collected data worker owns a full startup and generation fence`() {
+			val productionWorkers = projectRoot.walkTopDown()
+				.onEnter { directory -> !directory.isInExcludedDirectory(STANDARD_EXCLUDES) }
+				.filter { file ->
+					file.isFile &&
+						file.extension == "kt" &&
+						"/src/main/" in file.invariantSeparatorsPath &&
+						"CoroutineWorker" in file.readText()
+				}
+				.associate { file -> file.relativeTo(projectRoot).invariantSeparatorsPath to file.readText() }
+
+			val collectedWorkers = productionWorkers
+				.filterValues(COLLECTED_DATA_WORKER_PERSISTENCE_PATTERN::containsMatchIn)
+			val violations = buildList {
+				val unreviewed = collectedWorkers.keys - COLLECTED_DATA_WORKER_PATHS
+				unreviewed.sorted().mapTo(this) { path ->
+					"$path -> collected persistence worker is not in the reviewed fence set"
+				}
+				val missing = COLLECTED_DATA_WORKER_PATHS - collectedWorkers.keys
+				missing.sorted().mapTo(this) { path ->
+					"$path -> reviewed collected persistence worker is missing or no longer discoverable"
+				}
+
+				collectedWorkers.forEach { (path, source) ->
+					listOf(
+						"TrackingStartupGate",
+						"TrackingStartupResult.Ready",
+						"TrackingStartupResult.RetryableFailure",
+						"TrackingStartupResult.Blocked",
+						"currentGeneration",
+						"isReady",
+					).filterNot(source::contains)
+						.mapTo(this) { marker -> "$path -> missing startup fence marker `$marker`" }
+					if ("Provider<" !in source && "Lazy<" !in source) {
+						add("$path -> collected persistence must be injected through Provider/Lazy")
+					}
+					EAGER_COLLECTED_DATA_PROPERTY_PATTERN.findAll(source).forEach { match ->
+						add(
+							"$path -> collected persistence `${match.groupValues[1]}` is injected eagerly",
+						)
+					}
+					if (APP_DATABASE_SINGLETON_OPEN_PATTERN.containsMatchIn(source)) {
+						add("$path -> worker must use its gated AppDatabase Provider, not a singleton open")
+					}
+
+					val reconcileIndex = source.indexOf("trackingStartupGate.reconcile()")
+					val readinessGuardIndex = listOf(
+						"trackingStartupGate.isReady",
+						"isReadyGeneration(",
+						"requireReadyGeneration(",
+					).map(source::indexOf).filter { it >= 0 }.minOrNull() ?: -1
+					val generationIndex = source.indexOf("trackingStartupGate.currentGeneration")
+					PROVIDER_PROPERTY_PATTERN.findAll(source).forEach { declaration ->
+						val providerName = declaration.groupValues[1]
+						val resolutionPattern = Regex("""\b${Regex.escape(providerName)}\.get\(\)""")
+						resolutionPattern.findAll(source).forEach { resolution ->
+							val resolutionIndex = resolution.range.first
+							if (
+								reconcileIndex !in 0 until resolutionIndex ||
+								readinessGuardIndex !in 0 until resolutionIndex ||
+								generationIndex !in 0 until reconcileIndex
+							) {
+								add(
+									"$path -> `$providerName.get()` resolves before Ready + generation fencing",
+								)
+							}
+						}
+					}
+					if (!RETRYABLE_STARTUP_OUTCOME_PATTERN.containsMatchIn(source)) {
+						add("$path -> retryable startup failure must map to the worker retry outcome")
+					}
+					if (!BLOCKED_STARTUP_OUTCOME_PATTERN.containsMatchIn(source)) {
+						add("$path -> blocked startup must map to a terminal worker outcome")
+					}
+				}
+			}
+
+			if (violations.isNotEmpty()) {
+				error(
+					"Workers that can read or write collected persistence must resolve it lazily, " +
+						"observe full TrackingStartupGate.Ready, and fence the process generation. " +
+						"Only retryable startup failures may request WorkManager backoff.\n" +
+						violations.joinToString("\n"),
+				)
+			}
+		}
+
+		@Test
+		fun `provider-only cleanup workers stay outside the collected data gate`() {
+			PROVIDER_ONLY_CLEANUP_EXEMPTIONS.forEach { (path, evidence) ->
+				val source = projectRoot.resolve(path).readText()
+				check("TrackingStartupGate" !in source) {
+					"$path unexpectedly joined the collected-data gate; review its cleanup ownership"
+				}
+				check(evidence in source) {
+					"$path must document why it is safe before Tracker Room startup"
+				}
+			}
+		}
+	}
+
+	@Nested
 	inner class `Compose safety` {
 		@Test
 		fun `no compositionLocalOf with Any type`() {
@@ -731,6 +835,54 @@ class ArchitecturalFitnessTest {
 	}
 
 	// ─── Helpers ──────────────────────────────────────────────────────
+
+	@Nested
+	inner class `Power claim safety` {
+		@Test
+		fun `battery optimization is not presented as a background reliability guarantee in any locale`() {
+			val resourceDirectory = projectRoot.resolve("app/src/main/res")
+			val defaultResources = resourceDirectory.resolve("values/strings.xml").readText()
+			fun String.definesStringResource(key: String): Boolean =
+				Regex("""<string\b[^>]*\bname\s*=\s*"${Regex.escape(key)}"[^>]*>""")
+					.containsMatchIn(this)
+
+			listOf(
+				"auto-tracking stays reliable",
+				"Reliable background tracking",
+				"can run reliably",
+				"keep it running",
+			).forEach { unsupportedClaim ->
+				check(unsupportedClaim !in defaultResources) {
+					"Battery exemption cannot guarantee provider, Android, or OEM reliability: " +
+						unsupportedClaim
+				}
+			}
+
+			val guardedKeys = setOf(
+				"setup_background_access_subtitle",
+				"background_reliability_title",
+				"background_reliability_exempt_desc",
+				"background_reliability_optimized_desc",
+			)
+			check(guardedKeys.all { key -> defaultResources.definesStringResource(key) }) {
+				"The truthful default background-reliability copy must define every guarded key"
+			}
+			val staleLocaleOverrides = resourceDirectory.listFiles().orEmpty()
+				.asSequence()
+				.filter { directory -> directory.isDirectory && directory.name.startsWith("values-") }
+				.map { directory -> directory.resolve("strings.xml") }
+				.filter(File::isFile)
+				.flatMap { stringsFile ->
+					val localizedResources = stringsFile.readText()
+					guardedKeys.asSequence()
+						.filter { key -> localizedResources.definesStringResource(key) }
+						.map { key -> "${stringsFile.parentFile.name}/strings.xml -> $key" }
+				}
+				.toList()
+
+			staleLocaleOverrides.shouldBeEmpty()
+		}
+	}
 
 	private fun findImportsMatching(
 		sourceDir: File,
@@ -821,6 +973,51 @@ class ArchitecturalFitnessTest {
 		// current branch's compilation unit but otherwise look like real sources
 		// and trip every fitness check.
 		private val STANDARD_EXCLUDES = listOf("build", ".gradle", ".idea", ".git", ".worktrees")
+
+		private val COLLECTED_DATA_WORKER_PATHS = setOf(
+			"app/src/main/java/com/adsamcik/tracker/app/maintenance/RetentionPipelineWorker.kt",
+			"app/src/main/java/com/adsamcik/tracker/maintenance/DataRetentionWorker.kt",
+			"app/src/main/java/com/adsamcik/tracker/maintenance/DatabaseMaintenanceWorker.kt",
+			"domain/points/src/main/java/com/adsamcik/tracker/points/work/PointsWorker.kt",
+			"feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/automation/ExportPlanWorker.kt",
+			"feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorker.kt",
+			"sensor/activity/src/main/java/com/adsamcik/tracker/activity/ActivityRecognitionWorker.kt",
+			"stats/data/src/main/java/com/adsamcik/tracker/stats/data/worker/AchievementWorker.kt",
+			"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/worker/DailySummaryMaterializationWorker.kt",
+			"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/worker/HistoricalTrajectoryReconstructionWorker.kt",
+			"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/worker/PendingSignalDrainWorker.kt",
+		)
+
+		private val COLLECTED_DATA_WORKER_PERSISTENCE_PATTERN = Regex(
+			"""\b(?:AppDatabase|PointsDatabase|[A-Za-z0-9_]+Dao|PersistenceProcessor)\b""",
+		)
+
+		private val PROVIDER_PROPERTY_PATTERN = Regex(
+			"""private val\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*Provider<""",
+		)
+
+		private val EAGER_COLLECTED_DATA_PROPERTY_PATTERN = Regex(
+			"""private val\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(?:AppDatabase|PointsDatabase|[A-Za-z0-9_]+Dao|PersistenceProcessor)\b""",
+		)
+
+		private val APP_DATABASE_SINGLETON_OPEN_PATTERN = Regex(
+			"""\bAppDatabase\.database\s*\(""",
+		)
+
+		private val RETRYABLE_STARTUP_OUTCOME_PATTERN = Regex(
+			"""TrackingStartupResult\.RetryableFailure\s*->[^\n]*(?:Result\.retry\(\)|WorkOutcome\.RETRY)""",
+		)
+
+		private val BLOCKED_STARTUP_OUTCOME_PATTERN = Regex(
+			"""TrackingStartupResult\.Blocked\s*->(?:\s*\{)?(?:(?!Result\.retry\(\)|WorkOutcome\.RETRY)[\s\S]){0,240}(?:Result\.(?:success|failure)\(.*?\)|WorkOutcome\.(?:COMPLETE|FAILED))""",
+		)
+
+		private val PROVIDER_ONLY_CLEANUP_EXEMPTIONS = mapOf(
+			"core/base/src/main/java/com/adsamcik/tracker/shared/base/database/migration/DatabaseMigrationBackupCleanupWorker.kt" to
+				"deletes only migration-backup files and never opens Tracker Room",
+			"sensor/activity/src/main/java/com/adsamcik/tracker/activity/api/registration/ActivityRegistrationCleanupWorker.kt" to
+				"owns only the no-backup cleanup",
+		)
 
 		// `(?<![A-Za-z0-9_.])` ensures we don't match `setOkHttpClient(`,
 		// `MyOkHttpClient(`, etc. — only `OkHttpClient(` and `OkHttpClient.Builder(`

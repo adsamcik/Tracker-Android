@@ -4,12 +4,18 @@ import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
 import com.adsamcik.tracker.tracker.source.control.CollectionMotionController
 import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
+import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
+import com.adsamcik.tracker.tracker.source.model.SourceDeliveryUnit
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
+import com.adsamcik.tracker.tracker.source.model.sourceDeliveryIdentity
 import com.adsamcik.tracker.tracker.source.runtime.SourceAdmissionHandoff
+import com.adsamcik.tracker.tracker.source.runtime.SourceDeliveryAdmissionHandoff
+import com.adsamcik.tracker.tracker.source.runtime.RuntimeCheckpointLifecycle
+import com.adsamcik.tracker.tracker.source.runtime.SensorAdmissionCheckpoint
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -19,6 +25,95 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
 class DurableSourceEventSinkTest {
+	@Test
+	fun `atomic checkpoint admission is forwarded and drains only after the transaction handoff`() = runTest {
+		val ingress = mockk<DurableSourceIngress>()
+		val recovery = mockk<SourcePipelineRecovery>(relaxed = true)
+		val motionController = mockk<CollectionMotionController>(relaxed = true)
+		val checkpoint = atomicCheckpoint()
+		coEvery { ingress.admit(any(), checkpoint) } returns
+			AdmissionResult.Admitted(SourceEventId("event"), 7L)
+		val subject = DurableSourceEventSinkFactory(ingress, recovery, motionController)
+
+		subject.unbound.admit(candidate(), checkpoint)
+			.shouldBeInstanceOf<SourceAdmissionHandoff.Durable>()
+
+		coVerify(exactly = 1) { ingress.admit(any(), checkpoint) }
+		verify(exactly = 1) { motionController.onDurableEvidence(any()) }
+		verify(exactly = 1) { recovery.requestCommittedWorkDrain() }
+	}
+
+	@Test
+	fun `atomic delivery admission requests exactly one projection drain`() = runTest {
+		val ingress = mockk<DurableSourceIngress>()
+		val deliveryIngress = mockk<DurableSourceDeliveryIngress>()
+		val recovery = mockk<SourcePipelineRecovery>(relaxed = true)
+		coEvery { deliveryIngress.admit(any()) } returns DeliveryAdmissionResult.Admitted(
+			listOf(
+				DeliveryAdmissionResult.AdmittedUnit(0, SourceEventId("event-0"), 7L),
+				DeliveryAdmissionResult.AdmittedUnit(1, SourceEventId("event-1"), 8L),
+			),
+		)
+		val subject = DurableSourceEventSinkFactory(ingress, deliveryIngress, recovery)
+
+		val handoff = subject.unbound.admit(delivery())
+
+		handoff.shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
+		coVerify(exactly = 1) { deliveryIngress.admit(any()) }
+		verify(exactly = 1) { recovery.requestCommittedWorkDrain() }
+	}
+
+	@Test
+	fun `atomic delivery runs motion only for sparsely admitted unit indexes`() = runTest {
+		val ingress = mockk<DurableSourceIngress>()
+		val deliveryIngress = mockk<DurableSourceDeliveryIngress>()
+		val recovery = mockk<SourcePipelineRecovery>(relaxed = true)
+		val motionController = mockk<CollectionMotionController>(relaxed = true)
+		val delivery = delivery()
+		coEvery { deliveryIngress.admit(any()) } returns DeliveryAdmissionResult.Admitted(
+			listOf(DeliveryAdmissionResult.AdmittedUnit(1, SourceEventId("event-1"), 8L)),
+		)
+		val subject = DurableSourceEventSinkFactory(
+			ingress,
+			deliveryIngress,
+			recovery,
+			motionController,
+		)
+
+		subject.unbound.admit(delivery).shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Durable>()
+
+		verify(exactly = 0) { motionController.onDurableEvidence(delivery.units[0].evidence) }
+		verify(exactly = 1) { motionController.onDurableEvidence(delivery.units[1].evidence) }
+		verify(exactly = 1) { recovery.requestCommittedWorkDrain() }
+	}
+
+	@Test
+	fun `duplicate delivery replay still requests one projection drain`() = runTest {
+		val ingress = mockk<DurableSourceIngress>()
+		val deliveryIngress = mockk<DurableSourceDeliveryIngress>()
+		val recovery = mockk<SourcePipelineRecovery>(relaxed = true)
+		val motionController = mockk<CollectionMotionController>(relaxed = true)
+		coEvery { deliveryIngress.admit(any()) } returns DeliveryAdmissionResult.Duplicate(
+			listOf(
+				DeliveryAdmissionResult.AdmittedUnit(0, SourceEventId("event-0"), 7L),
+				DeliveryAdmissionResult.AdmittedUnit(1, SourceEventId("event-1"), 8L),
+			),
+		)
+		val subject = DurableSourceEventSinkFactory(
+			ingress,
+			deliveryIngress,
+			recovery,
+			motionController,
+		)
+
+		val handoff = subject.unbound.admit(delivery())
+
+		handoff.shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Duplicate>()
+		coVerify(exactly = 1) { deliveryIngress.admit(any()) }
+		verify(exactly = 0) { motionController.onDurableEvidence(any()) }
+		verify(exactly = 1) { recovery.requestCommittedWorkDrain() }
+	}
+
 	@Test
 	fun `durable live admission requests projection drain before returning handoff`() = runTest {
 		val ingress = mockk<DurableSourceIngress>()
@@ -30,7 +125,7 @@ class DurableSourceEventSinkTest {
 		subject.unbound.admit(candidate()).shouldBeInstanceOf<SourceAdmissionHandoff.Durable>()
 
 		verify(exactly = 1) { motionController.onDurableEvidence(any()) }
-		coVerify(exactly = 1) { recovery.drainCommittedWork() }
+		verify(exactly = 1) { recovery.requestCommittedWorkDrain() }
 	}
 
 	@Test
@@ -44,7 +139,51 @@ class DurableSourceEventSinkTest {
 
 		subject.unbound.admit(candidate()).shouldBeInstanceOf<SourceAdmissionHandoff.RetryableFailure>()
 
-		coVerify(exactly = 0) { recovery.drainCommittedWork() }
+		verify(exactly = 0) { recovery.requestCommittedWorkDrain() }
+	}
+
+	@Test
+	fun `older single admission replay cannot regress live motion evidence`() = runTest {
+		val ingress = mockk<DurableSourceIngress>()
+		val recovery = mockk<SourcePipelineRecovery>(relaxed = true)
+		val motionController = mockk<CollectionMotionController>(relaxed = true)
+		coEvery { ingress.admit(any()) } returnsMany listOf(
+			AdmissionResult.Admitted(SourceEventId("newer"), 8L),
+			AdmissionResult.Duplicate(SourceEventId("older"), 7L),
+		)
+		val subject = DurableSourceEventSinkFactory(ingress, recovery, motionController)
+		val newer = candidate().copy(
+			observedElapsedRealtimeNanos = 200L,
+			receivedElapsedRealtimeNanos = 201L,
+		)
+		val older = candidate().copy(
+			observedElapsedRealtimeNanos = 100L,
+			receivedElapsedRealtimeNanos = 101L,
+		)
+
+		subject.unbound.admit(newer)
+		subject.unbound.admit(older)
+
+		verify(exactly = 1) { motionController.onDurableEvidence(newer) }
+		verify(exactly = 0) { motionController.onDurableEvidence(older) }
+	}
+
+	@Test
+	fun `first duplicate after a lost handoff still restores live motion evidence`() = runTest {
+		val ingress = mockk<DurableSourceIngress>()
+		val recovery = mockk<SourcePipelineRecovery>(relaxed = true)
+		val motionController = mockk<CollectionMotionController>(relaxed = true)
+		coEvery { ingress.admit(any()) } returns AdmissionResult.Duplicate(
+			SourceEventId("existing"),
+			7L,
+		)
+		val subject = DurableSourceEventSinkFactory(ingress, recovery, motionController)
+		val evidence = candidate()
+
+		subject.unbound.admit(evidence)
+		subject.unbound.admit(evidence)
+
+		verify(exactly = 1) { motionController.onDurableEvidence(evidence) }
 	}
 
 	private fun candidate() = SourceEvidenceCandidate(
@@ -67,5 +206,36 @@ class DurableSourceEventSinkTest {
 		quality = SourceQuality(),
 		payloadVersion = 1,
 		payload = ActivityTransitionPayload(1, 1, 1),
+	)
+
+	private fun delivery(): SourceDeliveryCandidate = SourceDeliveryCandidate(
+		identity = sourceDeliveryIdentity("delivery".encodeToByteArray()),
+		units = listOf(
+			SourceDeliveryUnit(0, candidate().copy(sourceSequence = 0L)),
+			SourceDeliveryUnit(
+				1,
+				candidate().copy(
+					sourceSequence = 0L,
+					payload = ActivityTransitionPayload(2, 2, 2),
+				),
+			),
+		),
+	)
+
+	private fun atomicCheckpoint() = SensorAdmissionCheckpoint(
+		source = SourceKind.STEPS,
+		ownerScope = "source-broker:${SourceKind.STEPS.stableCode}",
+		sourceInstanceId = "step-instance",
+		clockDomainId = "boot",
+		registrationGeneration = 1L,
+		providerSequenceThrough = 1L,
+		lifecycle = RuntimeCheckpointLifecycle.ACTIVE,
+		failedAdmissionCount = 0L,
+		unresolvedSequenceStart = null,
+		unresolvedSequenceEndInclusive = null,
+		gapClassifications = emptySet(),
+		componentStateVersion = 1,
+		componentPayload = byteArrayOf(1),
+		updatedAtMs = 1L,
 	)
 }

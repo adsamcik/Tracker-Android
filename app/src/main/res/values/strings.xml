@@ -65,6 +65,9 @@
     <string name="legacy_database_delete_confirm_message" tools:ignore="MissingTranslation">This permanently removes %1$s from this device. Your v27 data is not affected. Keep the exported copy if you may need the original database later.</string>
     <string name="legacy_database_delete_success" tools:ignore="MissingTranslation">Legacy database deleted</string>
     <string name="legacy_database_delete_failure" tools:ignore="MissingTranslation">Could not delete the legacy database</string>
+    <string name="tracking_startup_recovery_title" tools:ignore="MissingTranslation">Tracking recovery needs attention</string>
+    <string name="tracking_startup_recovery_message" tools:ignore="MissingTranslation">Collection remains off while Tracker safely reconciles its tracking data. Retry without deleting history.</string>
+    <string name="tracking_startup_retry" tools:ignore="MissingTranslation">Retry tracking recovery</string>
     <string name="settings_delete_data_success">All collected data was deleted</string>
     <string name="settings_delete_data_failure">Could not delete all collected data</string>
     <string name="settings_game_goals_title">Goals</string>

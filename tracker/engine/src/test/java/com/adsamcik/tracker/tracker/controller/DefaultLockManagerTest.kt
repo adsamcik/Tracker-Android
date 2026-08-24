@@ -24,7 +24,6 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import javax.inject.Provider
 import kotlin.test.assertTrue
 
 class DefaultLockManagerTest {
@@ -33,8 +32,6 @@ class DefaultLockManagerTest {
 	private val resources: Resources = mockk(relaxed = true)
 	private val alarmManager: AlarmManager = mockk(relaxed = true)
 	private val trackerStateReader: TrackerStateReader = mockk(relaxed = true)
-	private val watcherLockManager: LockManager = mockk(relaxed = true)
-
 	private lateinit var activityWatcherController: ActivityWatcherServiceController
 	private lateinit var lockManager: DefaultLockManager
 
@@ -49,14 +46,8 @@ class DefaultLockManagerTest {
 		every { PendingIntent.getBroadcast(any(), any(), any(), any()) } returns mockk(relaxed = true)
 		every { trackerStateReader.sessionInfoFlow } returns MutableStateFlow(null)
 		every { trackerStateReader.isServiceRunning } returns true
-		every { watcherLockManager.isLocked } returns false
-
 		activityWatcherController = spyk(
-			ActivityWatcherServiceController(
-				context = context,
-				trackerStateReader = trackerStateReader,
-				lockManagerProvider = FixedProvider(watcherLockManager),
-			)
+			ActivityWatcherServiceController(context = context)
 		)
 
 		mockkConstructor(Preferences::class)
@@ -167,7 +158,4 @@ class DefaultLockManagerTest {
 		}
 	}
 
-	private class FixedProvider<T>(private val value: T) : Provider<T> {
-		override fun get(): T = value
-	}
 }

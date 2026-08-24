@@ -34,6 +34,14 @@ data class TrackingStartRequest(
 sealed interface TrackingStartPreparationResult {
 	data class Prepared(
 		val token: PreparedTrackingStartToken,
+		val startupGeneration: Long = 0L,
+		/**
+		 * Non-authoritative foreground-deadline hint copied into the private Android Intent.
+		 * TrackerService may use it only to choose an immediate foreground type; Room claim remains
+		 * the authority for sources, lifecycle, and provider admission.
+		 */
+		val preparedSourceMaskHint: Long = 0L,
+		val preparedStartIsUserInitiatedHint: Boolean = false,
 	) : TrackingStartPreparationResult
 
 	/** An equal or newer durable lifecycle already owns the requested work. */
@@ -51,6 +59,12 @@ sealed interface TrackingStartPreparationResult {
  */
 interface TrackingStartRequestCoordinator {
 	suspend fun prepare(request: TrackingStartRequest): TrackingStartPreparationResult
+
+	/** Linearizes the platform enqueue with the startup/deletion generation captured at prepare. */
+	fun <T> withStartupEnqueuePermit(
+		startupGeneration: Long,
+		operation: () -> T,
+	): T?
 
 	/** Records a successful platform enqueue without regressing a faster service-delivery claim. */
 	suspend fun markAndroidStartEnqueued(

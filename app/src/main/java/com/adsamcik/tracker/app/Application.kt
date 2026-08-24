@@ -2,7 +2,6 @@ package com.adsamcik.tracker.app
 
 import dev.tracebox.Tracebox
 import android.annotation.SuppressLint
-import android.app.ActivityManager
 import android.content.Context
 import android.os.Build
 import androidx.annotation.MainThread
@@ -14,8 +13,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.Configuration
 import com.adsamcik.tracker.app.event.PrecisionUpgradeDomainEventConsumer
 import com.adsamcik.tracker.app.startup.ModuleInitializerCoordinator
-import com.adsamcik.tracker.app.startup.LegacyDatabaseStartupResult
-import com.adsamcik.tracker.app.startup.LegacyDatabaseUpgradeCoordinator
+import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
 import com.adsamcik.tracker.app.tracebox.TrackerTraceboxRuntime
 import com.adsamcik.tracker.app.tracebox.currentTrackerProcessName
 import com.adsamcik.tracker.app.tracebox.isTraceboxHandlerProcessName
@@ -36,17 +34,25 @@ import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
 import android.app.Application as AndroidApplication
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import com.adsamcik.tracker.shared.preferences.store.PreferenceFlushLifecycleObserver
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
-import com.adsamcik.tracker.tracker.resilience.PreviousExitRecoveryAction
-import com.adsamcik.tracker.tracker.resilience.PreviousExitRecoveryCoordinator
+import com.adsamcik.tracker.tracker.permission.RuntimePermissionChange
+import com.adsamcik.tracker.tracker.permission.RuntimePermissionReconciler
+import com.adsamcik.tracker.tracker.permission.RuntimePermissionSnapshot
 import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Provider
@@ -85,9 +91,6 @@ class Application : AndroidApplication(), Configuration.Provider {
 	lateinit var moduleInitializerCoordinator: ModuleInitializerCoordinator
 
 	@Inject
-	lateinit var legacyDatabaseUpgradeCoordinator: LegacyDatabaseUpgradeCoordinator
-
-	@Inject
 	lateinit var networkGateway: NetworkGateway
 
 	/**
@@ -112,15 +115,21 @@ class Application : AndroidApplication(), Configuration.Provider {
 	lateinit var precisionUpgradeConsumerProvider: Provider<PrecisionUpgradeDomainEventConsumer>
 
 	@Inject
-	lateinit var previousExitRecoveryCoordinator: PreviousExitRecoveryCoordinator
+	lateinit var trackingStartupGuard: TrackingStartupGuard
 
 	@Inject
-	lateinit var trackingStartupGuard: TrackingStartupGuard
+	lateinit var trackingStartupGate: TrackingStartupGate
+
+	@Inject
+	lateinit var trackingStartupDeletionBarrier: TrackingStartupDeletionBarrier
+
+	@Inject
+	lateinit var runtimePermissionReconciler: RuntimePermissionReconciler
 
 	@Volatile
 	var isStartupReady: Boolean = false
 	private set
-	private val startupReconciliationCompletion = CompletableDeferred<Unit>()
+	private val startupReconciliationCompletion = CompletableDeferred<TrackingStartupResult>()
 
 	private val deferredStartupStarted = AtomicBoolean(false)
 	private val maintenanceStartupStarted = AtomicBoolean(false)
@@ -157,14 +166,32 @@ class Application : AndroidApplication(), Configuration.Provider {
 	private fun initializeImportantSingletons() {
 		ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
 			override fun onStart(owner: LifecycleOwner) {
-				if (!startupReconciliationCompletion.isCompleted) return
-				if (!legacyDatabaseUpgradeCoordinator.isReady()) return
-				if (trackingStartupGuard.isAutoRecoverySuppressed(this@Application)) return
-				activityWatcherController.poke()
-				// Reconcile automatic detection with the current ACTIVITY_RECOGNITION permission:
-				// disables detection if the permission was revoked while backgrounded, and re-arms it
-				// if the user re-granted it (e.g. returning from system settings).
-				BackgroundTrackingApi.revalidatePermissions(this@Application)
+				appScope.launch(dispatchers.io) {
+					try {
+						// Target Room must stay unopened until deletion, migration, prior-exit,
+						// and provider-registration recovery have reached the startup gate.
+						awaitStartupReconciliation()
+						if (!trackingStartupGate.isReady) return@launch
+						reconcileRuntimePermissionSnapshot(
+							snapshot = RuntimePermissionSnapshot.capture(this@Application),
+							reconcile = runtimePermissionReconciler::reconcile,
+						) {
+							withContext(dispatchers.main) {
+								if (!trackingStartupGate.isReady) return@withContext
+								if (trackingStartupGuard.isAutoRecoverySuppressed(this@Application)) {
+									return@withContext
+								}
+								activityWatcherController.poke()
+								// The durable permission fence now precedes any control re-registration.
+								BackgroundTrackingApi.revalidatePermissions(this@Application)
+							}
+						}
+					} catch (cancelled: CancellationException) {
+						throw cancelled
+					} catch (error: Throwable) {
+						Tracebox.log.error(error, "Runtime permission reconciliation failed")
+					}
+				}
 			}
 		})
 	}
@@ -220,75 +247,50 @@ class Application : AndroidApplication(), Configuration.Provider {
 
 	private fun startBackgroundStartup() {
 		appScope.launch(dispatchers.io) {
-			try {
-				val recoveryAction = determineStartupRecoveryAction()
-				if (recoveryAction is ApplicationStartupRecoveryAction.ConfirmedForceStop) {
-					// Set the process guard before any legacy inspection or target Room open.
-					trackingStartupGuard.suppressAutoRecoveryForCurrentProcess()
-				}
-				when (val legacy = legacyDatabaseUpgradeCoordinator.ensureReady()) {
-					LegacyDatabaseStartupResult.Ready -> Unit
-					is LegacyDatabaseStartupResult.Failed -> {
-						Tracebox.log.error("Legacy database import failed: ${legacy.message}")
-						return@launch
+			trackingStartupDeletionBarrier.openGenerations.collect {
+				var terminalResult: TrackingStartupResult? = null
+				try {
+					terminalResult = driveTrackingStartup(
+						reconcile = { reconcileTrackingStartup() },
+						onRetryableVisible = ::publishStartupResolution,
+					)
+					when (val startup = terminalResult) {
+						is TrackingStartupResult.Ready -> Unit
+						is TrackingStartupResult.Blocked -> Tracebox.log.error(
+							"Tracking startup blocked at ${startup.stage}: ${startup.failureCode}",
+						)
+						is TrackingStartupResult.RetryableFailure -> Tracebox.log.error(
+							"Tracking startup unavailable at ${startup.stage}: ${startup.failureCode}",
+						)
 					}
+				} catch (cancelled: CancellationException) {
+					throw cancelled
+				} catch (error: Throwable) {
+					Tracebox.log.error(error, "Application initialization failed")
+					terminalResult = TrackingStartupResult.RetryableFailure(
+						TrackingStartupStage.LIVE_V2,
+						"APPLICATION_STARTUP_FAILED:${error.javaClass.simpleName}",
+					)
+				} finally {
+					terminalResult?.let(::publishStartupResolution)
 				}
-				applyStartupRecovery(recoveryAction)
-				startupReconciliationCompletion.complete(Unit)
-				if (!isRobolectricUnitTest()) {
-					initializeModules()
-				}
-			} catch (error: Throwable) {
-				Tracebox.log.error(error, "Application initialization failed")
-			} finally {
-				isStartupReady = true
-				startupReconciliationCompletion.complete(Unit)
 			}
 		}
+	}
+
+	private fun publishStartupResolution(result: TrackingStartupResult) {
+		isStartupReady = true
+		startupReconciliationCompletion.complete(result)
 	}
 
 	private fun isRobolectricUnitTest(): Boolean = Build.FINGERPRINT == "robolectric"
 
 	@WorkerThread
-	private fun determineStartupRecoveryAction(): ApplicationStartupRecoveryAction {
-		val mainProcessExit = previousMainProcessExit()
-		return applicationStartupRecoveryAction(
-			confirmedForceStop = trackingStartupGuard.wasForceStopped(this),
-			mainProcessExit = mainProcessExit,
-			fallbackTimestampMs = System.currentTimeMillis(),
-		)
-	}
-
-	@WorkerThread
-	private suspend fun applyStartupRecovery(
-		action: ApplicationStartupRecoveryAction,
-	): PreviousExitRecoveryAction = when (action) {
-			is ApplicationStartupRecoveryAction.ConfirmedForceStop -> {
-				previousExitRecoveryCoordinator.suppressAfterForceStop(action.completedAtMs)
-				PreviousExitRecoveryAction.NONE
-			}
-			is ApplicationStartupRecoveryAction.PreviousExit ->
-				previousExitRecoveryCoordinator.handle(action.reason)
-			ApplicationStartupRecoveryAction.None -> PreviousExitRecoveryAction.NONE
-	}
-
-	@WorkerThread
-	private fun previousMainProcessExit(): HistoricalProcessExit? {
-		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
-		return try {
-			val activityManager = getSystemService(ActivityManager::class.java) ?: return null
-			val records = activityManager
-				.getHistoricalProcessExitReasons(packageName, 0, HISTORICAL_EXIT_RECORD_LIMIT)
-				.map { exitInfo ->
-					HistoricalProcessExit(
-						processName = exitInfo.processName,
-						reason = exitInfo.reason,
-						timestampMs = exitInfo.timestamp,
-					)
-				}
-			mostRecentMainProcessExit(records, packageName)
-		} catch (_: RuntimeException) {
-			null
+	internal suspend fun reconcileTrackingStartup(
+		retryFailedStorage: Boolean = false,
+	): TrackingStartupResult = trackingStartupGate.reconcile(retryFailedStorage).also { result ->
+		if (result is TrackingStartupResult.Ready && !isRobolectricUnitTest()) {
+			initializeModules()
 		}
 	}
 
@@ -297,6 +299,10 @@ class Application : AndroidApplication(), Configuration.Provider {
 
 		appScope.launch(dispatchers.io) {
 			awaitStartupReconciliation()
+			if (!trackingStartupGate.isReady) {
+				deferredStartupStarted.set(false)
+				return@launch
+			}
 			try {
 				coroutineScope {
 					launch { warmUp() }
@@ -314,6 +320,10 @@ class Application : AndroidApplication(), Configuration.Provider {
 
 		appScope.launch(dispatchers.io) {
 			awaitStartupReconciliation()
+			if (!trackingStartupGate.isReady) {
+				maintenanceStartupStarted.set(false)
+				return@launch
+			}
 			try {
 				initializeDatabaseMaintenance()
 			} catch (error: Throwable) {
@@ -322,14 +332,13 @@ class Application : AndroidApplication(), Configuration.Provider {
 		}
 	}
 
-	internal suspend fun awaitStartupReconciliation() {
+	internal suspend fun awaitStartupReconciliation(): TrackingStartupResult =
 		startupReconciliationCompletion.await()
-	}
 
 	@WorkerThread
 	private suspend fun initializeFeatures() {
 		// Activities
-		if (!trackingStartupGuard.isAutoRecoverySuppressed(this)) {
+		if (trackingStartupGate.isReady && !trackingStartupGuard.isAutoRecoverySuppressed(this)) {
 			activityWatcherController.poke()
 		}
 		
@@ -378,10 +387,51 @@ class Application : AndroidApplication(), Configuration.Provider {
 		startBackgroundStartup()
 	}
 
-	private companion object {
-		const val HISTORICAL_EXIT_RECORD_LIMIT = 16
+}
+
+/** Runs foreground repair only after any required durable permission fence returns. */
+internal suspend fun reconcileRuntimePermissionSnapshot(
+	snapshot: RuntimePermissionSnapshot,
+	reconcile: suspend (RuntimePermissionSnapshot) -> RuntimePermissionChange?,
+	afterDurableReconciliation: suspend () -> Unit,
+): RuntimePermissionChange? {
+	val change = reconcile(snapshot)
+	afterDurableReconciliation()
+	return change
+}
+
+/** The one process owner retries transient startup failures; permanent blocks reach recovery UI. */
+internal suspend fun driveTrackingStartup(
+	reconcile: suspend () -> TrackingStartupResult,
+	waitBeforeRetry: suspend (Long) -> Unit = { delay(it) },
+	onRetryableVisible: (TrackingStartupResult.RetryableFailure) -> Unit = {},
+): TrackingStartupResult {
+	var retryDelayMillis = STARTUP_RETRY_INITIAL_DELAY_MS
+	var retryableFailures = 0
+	var visibleFailurePublished = false
+	while (true) {
+		when (val result = reconcile()) {
+			is TrackingStartupResult.Ready,
+			is TrackingStartupResult.Blocked,
+			-> return result
+			is TrackingStartupResult.RetryableFailure -> {
+				retryableFailures += 1
+				if (!visibleFailurePublished &&
+					retryableFailures >= STARTUP_RETRY_FAILURES_BEFORE_UI
+				) {
+					visibleFailurePublished = true
+					onRetryableVisible(result)
+				}
+				waitBeforeRetry(retryDelayMillis)
+				retryDelayMillis = (retryDelayMillis * 2L).coerceAtMost(STARTUP_RETRY_MAX_DELAY_MS)
+			}
+		}
 	}
 }
+
+private const val STARTUP_RETRY_INITIAL_DELAY_MS = 500L
+private const val STARTUP_RETRY_MAX_DELAY_MS = 30_000L
+private const val STARTUP_RETRY_FAILURES_BEFORE_UI = 4
 
 internal data class HistoricalProcessExit(
 	val processName: String?,
@@ -398,11 +448,21 @@ internal fun mostRecentMainProcessExit(
 	.maxByOrNull { it.timestampMs }
 
 internal sealed interface ApplicationStartupRecoveryAction {
+	/** Positive ApplicationStartInfo.wasForceStopped evidence; available only on API 35+. */
 	data class ConfirmedForceStop(val completedAtMs: Long) : ApplicationStartupRecoveryAction
-	data class PreviousExit(val reason: Int) : ApplicationStartupRecoveryAction
+
+	/**
+	 * Historical process-exit evidence, including ambiguous user-requested exits on API 30-34.
+	 * This action performs ordinary stale-session cleanup and never claims a force-stop.
+	 */
+	data class PreviousExit(
+		val reason: Int,
+		val completedAtMs: Long,
+	) : ApplicationStartupRecoveryAction
 	data object None : ApplicationStartupRecoveryAction
 }
 
+/** [confirmedForceStop] must be positive platform evidence, never an inferred exit reason. */
 internal fun applicationStartupRecoveryAction(
 	confirmedForceStop: Boolean,
 	mainProcessExit: HistoricalProcessExit?,
@@ -411,6 +471,9 @@ internal fun applicationStartupRecoveryAction(
 	confirmedForceStop -> ApplicationStartupRecoveryAction.ConfirmedForceStop(
 		completedAtMs = mainProcessExit?.timestampMs ?: fallbackTimestampMs,
 	)
-	mainProcessExit != null -> ApplicationStartupRecoveryAction.PreviousExit(mainProcessExit.reason)
+	mainProcessExit != null -> ApplicationStartupRecoveryAction.PreviousExit(
+		reason = mainProcessExit.reason,
+		completedAtMs = mainProcessExit.timestampMs,
+	)
 	else -> ApplicationStartupRecoveryAction.None
 }

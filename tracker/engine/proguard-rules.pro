@@ -25,7 +25,6 @@
 # --- Hilt entry points ---
 # Hilt generates these and accesses them reflectively via EntryPoints.get()
 -keep class com.adsamcik.tracker.tracker.api.BackgroundTrackingApi$BackgroundTrackingApiEntryPoint { *; }
--keep class com.adsamcik.tracker.tracker.service.ActivityWatcherService$ActivityWatcherEntryPoint { *; }
 -keep class com.adsamcik.tracker.tracker.module.TrackerModuleInitializer$TrackerModuleInitializerEntryPoint { *; }
 -keep class com.adsamcik.tracker.tracker.api.TrackerServiceApi$TrackerServiceApiEntryPoint { *; }
 -keep class com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent$NotificationComponentEntryPoint { *; }

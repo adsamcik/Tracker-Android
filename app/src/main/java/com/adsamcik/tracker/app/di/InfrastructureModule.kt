@@ -9,6 +9,8 @@ import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
 import com.adsamcik.tracker.app.settings.CollectedDataWriterQuiescer
 import com.adsamcik.tracker.app.settings.DefaultCollectedDataDeletionService
 import com.adsamcik.tracker.app.settings.DefaultCollectedDataWriterQuiescer
+import com.adsamcik.tracker.app.settings.PostDeletionAutomaticControlRestorer
+import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbiter
 import com.adsamcik.tracker.impexp.exporter.automation.ExportAutomationController
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
@@ -71,6 +73,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import javax.inject.Singleton
+import javax.inject.Provider
 import dev.tracebox.api.DeleteReport
 import dev.tracebox.api.DeleteRequest
 import kotlinx.coroutines.withContext
@@ -188,7 +191,9 @@ object InfrastructureModule {
         exportPlanStore: ExportPlanStore,
         writerQuiescer: CollectedDataWriterQuiescer,
 		collectedDataLifecycleStore: CollectedDataLifecycleStore,
-		activityRegistrationArbiter: ActivityRegistrationArbiter,
+		startupDeletionBarrier: TrackingStartupDeletionBarrier,
+		activityRegistrationArbiter: Provider<ActivityRegistrationArbiter>,
+		automaticControlRestorer: PostDeletionAutomaticControlRestorer,
         dispatchersProvider: DispatchersProvider,
         traceboxHandleProvider: TrackerTraceboxHandleProvider,
     ): CollectedDataDeletionService = DefaultCollectedDataDeletionService(
@@ -196,8 +201,10 @@ object InfrastructureModule {
         pointsAwardedDao = pointsDatabase.pointsAwardedDao(),
         exportPlanStore = exportPlanStore,
         writerQuiescer = writerQuiescer,
-        collectedDataLifecycleStore = collectedDataLifecycleStore,
-		activityRegistrationArbiter = activityRegistrationArbiter,
+		collectedDataLifecycleStore = collectedDataLifecycleStore,
+		startupDeletionBarrier = startupDeletionBarrier,
+		activityRegistrationArbiterProvider = activityRegistrationArbiter,
+		automaticControlRestorer = automaticControlRestorer,
         traceboxDataDeletion = {
             withContext(dispatchersProvider.io) {
                 traceboxHandleProvider.handle.delete(DeleteRequest.ALL_TRACEBOX_DATA) ==

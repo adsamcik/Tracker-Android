@@ -36,6 +36,16 @@ class StepCorroborationTest {
 		fun `qualifies for non-foot activities at full confidence`() {
 			evaluate(GroupedActivity.IN_VEHICLE, confidence = 90, hasRecentSteps = false) shouldBe true
 		}
+
+		@Test
+		fun `never consults optional Steps at full confidence`() {
+			shouldConsultStepCorroboration(
+				GroupedActivity.ON_FOOT,
+				confidence = 75,
+				requiredConfidence = required,
+				corroboratedConfidence = corroborated,
+			) shouldBe false
+		}
 	}
 
 	@Nested

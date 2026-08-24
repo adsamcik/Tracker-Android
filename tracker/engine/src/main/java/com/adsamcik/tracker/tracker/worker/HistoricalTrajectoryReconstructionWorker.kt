@@ -8,11 +8,13 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
-import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
-import com.adsamcik.tracker.shared.base.database.dao.TrackerStateEventDao
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.tracker.reconstruction.HistoricalTrajectoryReconstructionRunner
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import javax.inject.Provider
 
 /**
  * Runs after a tracker run has closed and the persistence WAL has drained.
@@ -24,26 +26,54 @@ import dagger.assisted.AssistedInject
 class HistoricalTrajectoryReconstructionWorker @AssistedInject constructor(
 	@Assisted context: Context,
 	@Assisted params: WorkerParameters,
-	private val pendingSignalDao: PendingSignalDao,
-	private val trackerStateEventDao: TrackerStateEventDao,
-	private val runner: HistoricalTrajectoryReconstructionRunner,
+	private val appDatabaseProvider: Provider<AppDatabase>,
+	private val runnerProvider: Provider<HistoricalTrajectoryReconstructionRunner>,
+	private val trackingStartupGate: TrackingStartupGate,
 ) : CoroutineWorker(context, params) {
 	override suspend fun doWork(): Result {
-		if (pendingSignalDao.hasAny()) return Result.retry()
+		val startupGeneration = trackingStartupGate.currentGeneration
+		when (trackingStartupGate.reconcile()) {
+			is TrackingStartupResult.Ready -> Unit
+			is TrackingStartupResult.RetryableFailure -> return Result.retry()
+			is TrackingStartupResult.Blocked -> return Result.success()
+		}
 		return try {
+			requireReadyGeneration(startupGeneration)
+			val database = appDatabaseProvider.get()
+			requireReadyGeneration(startupGeneration)
+			val pendingSignalDao = database.pendingSignalDao()
+			requireReadyGeneration(startupGeneration)
+			val trackerStateEventDao = database.trackerStateEventDao()
+			requireReadyGeneration(startupGeneration)
+			val runner = runnerProvider.get()
+			requireReadyGeneration(startupGeneration)
+			if (pendingSignalDao.hasAny()) return Result.retry()
+			requireReadyGeneration(startupGeneration)
 			val sessions = trackerStateEventDao.getCompletedSessionsAwaitingReconstruction(
 				algorithmVersion = runner.algorithmVersion,
 				configurationVersion = runner.configurationVersion,
 			)
 			for (session in sessions) {
+				requireReadyGeneration(startupGeneration)
 				if (pendingSignalDao.hasAny()) return Result.retry()
-				runner.reconstruct(session)
+				requireReadyGeneration(startupGeneration)
+				runner.reconstruct(session) { requireReadyGeneration(startupGeneration) }
 			}
+			Result.success()
+		} catch (_: StartupGenerationChangedException) {
 			Result.success()
 		} catch (exception: IllegalStateException) {
 			Result.retry()
 		} catch (exception: Exception) {
 			Result.retry()
+		}
+	}
+
+	private fun requireReadyGeneration(startupGeneration: Long) {
+		if (!trackingStartupGate.isReady ||
+			trackingStartupGate.currentGeneration != startupGeneration
+		) {
+			throw StartupGenerationChangedException
 		}
 	}
 
@@ -68,4 +98,6 @@ class HistoricalTrajectoryReconstructionWorker @AssistedInject constructor(
 			)
 		}
 	}
+
+	private object StartupGenerationChangedException : RuntimeException()
 }

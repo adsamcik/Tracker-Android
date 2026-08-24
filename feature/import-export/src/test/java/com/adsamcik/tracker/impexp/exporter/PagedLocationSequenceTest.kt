@@ -47,6 +47,29 @@ class PagedLocationSequenceTest {
 				dao.getChunkBetweenOrdered(0L, 1000L, null, null, 10)
 			}
 		}
+
+		@Test
+		fun `generation verifier runs after the final empty page`() {
+			var generation = 4L
+			coEvery {
+				dao.getChunkBetweenOrdered(0L, 1000L, null, null, 10)
+			} coAnswers {
+				generation = 5L
+				emptyList()
+			}
+
+			assertThrows<IllegalStateException> {
+				pagedLocationSequence(
+					locationSampleDao = dao,
+					fromMs = 0L,
+					toMs = 1000L,
+					pageSize = 10,
+					verifyCollectedDataAccess = {
+						check(generation == 4L) { "startup generation changed" }
+					},
+				).toList()
+			}
+		}
 	}
 
 	@Nested

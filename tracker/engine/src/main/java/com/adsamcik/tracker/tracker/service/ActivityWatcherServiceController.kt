@@ -1,20 +1,13 @@
 package com.adsamcik.tracker.tracker.service
 
 import android.content.Context
-import android.os.Build
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.ProcessLifecycleOwner
-import com.adsamcik.tracker.shared.base.extension.startForegroundServiceSafely
 import com.adsamcik.tracker.shared.preferences.Preferences
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
-import com.adsamcik.tracker.tracker.controller.LockManager
-import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Inject
-import javax.inject.Provider
 import javax.inject.Singleton
 
 /**
@@ -28,59 +21,21 @@ interface ActivityWatcherControllerEntryPoint {
 }
 
 /**
- * Hilt singleton that owns the mutable [ActivityWatcherService] instance reference
- * and the [poke] decision logic.
+ * Compatibility bridge for the removed Activity watcher foreground service.
  *
- * The service registers/unregisters itself via [attachService]/[detachService].
- * Hilt-injected callers (Application, TrackerService, DefaultLockManager) use this
- * class directly; non-Hilt callers go through the static bridge in
- * [ActivityWatcherService.Companion].
+ * Activity Recognition continuity is owned by the provider PendingIntent and its registration
+ * arbiter. Keeping a second indefinite foreground service alive for the same provider adds no
+ * durable authority, so legacy callers may still poke this bridge but can no longer start work.
  */
 @Singleton
 class ActivityWatcherServiceController @Inject constructor(
 	@ApplicationContext private val context: Context,
-	private val trackerStateReader: TrackerStateReader,
-	private val lockManagerProvider: Provider<LockManager>,
 ) : ActivityWatcherController {
-	@Volatile
-	internal var serviceInstance: ActivityWatcherService? = null
-
-	@Volatile
-	private var dataDeletionPaused = false
-
-	/** Called by [ActivityWatcherService.onCreate]. */
-	fun attachService(service: ActivityWatcherService) {
-		serviceInstance = service
-	}
-
-	/** Called by [ActivityWatcherService.onDestroy]. */
-	fun detachService() {
-		serviceInstance = null
-	}
+	override fun poke() = Unit
 
 	/**
-	 * Evaluates whether the watcher service should be running and starts or
-	 * stops it accordingly. All parameters have sensible cached or injected defaults
-	 * so callers only need to override the value they are reacting to.
-	 */
-	override fun poke() {
-		if (dataDeletionPaused) {
-			serviceInstance?.stopSelf()
-			return
-		}
-		poke(
-			watcherPreference = BackgroundTrackingApi.activityWatcherEnabled,
-			updateInterval = BackgroundTrackingApi.activityFreqSeconds,
-			autoTracking = BackgroundTrackingApi.cachedParams.autoTrackingMode,
-			trackerLocked = currentTrackerLocked(),
-			trackerRunning = trackerStateReader.isServiceRunning,
-		)
-	}
-
-	/**
-	 * Applies the user-facing mode to the legacy watcher-service bridge immediately.
-	 * Activity-recognition registration itself is reconciled by [BackgroundTrackingApi]'s
-	 * TrackingParams observer; this keeps the optional foreground watcher in the same state.
+	 * Preserves the released preference contract. Activity-recognition registration itself is
+	 * reconciled by [BackgroundTrackingApi]'s TrackingParams observer.
 	 */
 	override fun applyAutoTrackingMode(mode: Int) {
 		require(mode >= 0) { "Automatic tracking mode must not be negative" }
@@ -91,50 +46,18 @@ class ActivityWatcherServiceController @Inject constructor(
 				enabled,
 			)
 		}
-		poke(watcherPreference = enabled, autoTracking = mode)
 	}
 
-	override fun pauseForDataDeletion() {
-		dataDeletionPaused = true
-		serviceInstance?.stopSelf()
-	}
+	override fun pauseForDataDeletion() = Unit
 
-	override fun resumeAfterDataDeletion() {
-		dataDeletionPaused = false
-		poke()
-	}
+	override fun resumeAfterDataDeletion() = Unit
 
-	@Synchronized
+	@Suppress("UNUSED_PARAMETER")
 	fun poke(
 		watcherPreference: Boolean = BackgroundTrackingApi.activityWatcherEnabled,
 		updateInterval: Int = BackgroundTrackingApi.activityFreqSeconds,
 		autoTracking: Int = BackgroundTrackingApi.cachedParams.autoTrackingMode,
-		trackerLocked: Boolean = currentTrackerLocked(),
-		trackerRunning: Boolean = trackerStateReader.isServiceRunning,
-	) {
-		if (dataDeletionPaused) {
-			serviceInstance?.stopSelf()
-			return
-		}
-		if (updateInterval > 0 && autoTracking > 0) {
-			if (watcherPreference && !trackerLocked && !trackerRunning) {
-				if (serviceInstance == null) {
-					if (!canStartForegroundService()) {
-						return
-					}
-					context.startForegroundServiceSafely<ActivityWatcherService>()
-				}
-				return
-			}
-		}
-		serviceInstance?.stopSelf()
-	}
-
-	private fun currentTrackerLocked(): Boolean = lockManagerProvider.get().isLocked
-
-	private fun canStartForegroundService(): Boolean {
-		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
-		return ProcessLifecycleOwner.get().lifecycle.currentState
-			.isAtLeast(Lifecycle.State.STARTED)
-	}
+		trackerLocked: Boolean = false,
+		trackerRunning: Boolean = false,
+	) = Unit
 }

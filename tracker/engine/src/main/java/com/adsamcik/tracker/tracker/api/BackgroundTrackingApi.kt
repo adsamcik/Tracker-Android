@@ -2,6 +2,8 @@ package com.adsamcik.tracker.tracker.api
 
 import dev.tracebox.Tracebox
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.annotation.MainThread
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionType
@@ -18,13 +20,16 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
+import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
+import com.adsamcik.tracker.shared.base.extension.hasBackgroundLocationPermission
 import com.adsamcik.tracker.shared.base.extension.hasCellScanPermission
 import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
 import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
 import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
 import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
 import com.adsamcik.tracker.shared.base.extension.powerManager
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
@@ -33,9 +38,17 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.resilience.TrackingStopCandidateReason
+import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
+import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
 import com.adsamcik.tracker.tracker.source.runtime.AutomaticStartTransitionMonitor
+import com.adsamcik.tracker.tracker.source.runtime.SharedStepSourceController
+import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.service.ForegroundSourceCapabilities
+import com.adsamcik.tracker.tracker.service.acceptedForegroundSources
+import com.adsamcik.tracker.tracker.service.foregroundServiceTypeCandidates
+import com.adsamcik.tracker.tracker.source.coordinator.SessionStartOrigin
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -46,10 +59,15 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.retryWhen
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Hilt EntryPoint for accessing dependencies from BackgroundTrackingApi singleton
@@ -58,11 +76,13 @@ import kotlinx.coroutines.launch
 @InstallIn(SingletonComponent::class)
 interface BackgroundTrackingApiEntryPoint {
 	fun automaticStartTransitionMonitor(): AutomaticStartTransitionMonitor
+	fun sharedStepSourceController(): SharedStepSourceController
 	fun lockManager(): LockManager
 	fun trackerStateReader(): TrackerStateReader
 	fun trackingParamsRepository(): TrackingParamsRepository
 	fun sourcePolicyRepository(): SourcePolicyRepository
 	fun activityWatcherController(): ActivityWatcherController
+	fun trackingStartupGate(): TrackingStartupGate
 }
 
 /**
@@ -122,18 +142,28 @@ object BackgroundTrackingApi {
 	var activityWatcherEnabled = false
 		private set
 
-	/** Whether the first TrackingParams emission has been processed. */
+	/** Whether an authoritative TrackingParams emission has been processed. */
+	@Volatile
 	private var paramsInitialized = false
+	/** Active SourcePolicy revision. Null is deliberately fail-closed. */
+	@Volatile
+	private var activeSourcePolicyRevision: Long? = null
 	@Volatile
 	private var activityControlEligible = false
 	@Volatile
+	private var activityControlConsentEpoch: Long? = null
+	@Volatile
 	private var stepControlEligible = false
+	@Volatile
+	private var activityAutomationAuthority = ActivityAutomationAuthoritySnapshot()
+	private val _activityAutomationAuthorityReady = MutableStateFlow(false)
 
 	/**
-	 * Corroborates lower-confidence ON_FOOT detections with the hardware step counter. Active only
-	 * while the confidence-based change-detection API is registered.
+	 * True only while SourcePolicy and TrackingParams describe the same effective revision. The
+	 * app-owned outbox driver observes this fence; durable effects remain pending while it is false.
 	 */
-	private val stepCorroborator = StepActivityCorroborator()
+	internal val activityAutomationAuthorityReady: StateFlow<Boolean> =
+		_activityAutomationAuthorityReady.asStateFlow()
 
 	private fun getEntryPoint(context: Context): BackgroundTrackingApiEntryPoint {
 		val cachedEntryPoint = entryPoint
@@ -155,19 +185,26 @@ object BackgroundTrackingApi {
 			previousParams
 		}
 
-	private fun handleActivityUpdate(context: Context, activity: RecognizedActivity) {
+	private suspend fun handleActivityUpdate(
+		context: Context,
+		activity: RecognizedActivity,
+		startContext: ActivityAutomationStartContext,
+		automaticTrigger: AutomaticTrackingStartTrigger?,
+		requestAutomaticStart: suspend (AutomaticTrackingStartTrigger) -> ActivityAutomationDeliveryResult,
+	): ActivityAutomationDeliveryResult {
 		if (!context.hasActivityPermission) {
 			cancelAutomaticStopGrace()
 			// ACTIVITY_RECOGNITION was revoked while detection was armed. Tear the request down
 			// instead of acting on a now-defunct subscription; it re-arms when re-granted.
 			revalidatePermissions(context)
+			return ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED
 		} else if (TrackerServiceApi.isActive(context)) {
 			// Stop evaluation is unchanged: only reconsider continuation at the full confidence
 			// threshold so a borderline reading never tears down an active session.
 			if (activity.confidence >= REQUIRED_CONFIDENCE) {
 				val sessionInfo = TrackerServiceApi.sessionInfoFlow(context).value ?: run {
 					cancelAutomaticStopGrace()
-					return
+					return ActivityAutomationDeliveryResult.ACCEPTED
 				}
 				when (
 					resolveAutomaticTrackingContinuationAction(
@@ -180,32 +217,54 @@ object BackgroundTrackingApi {
 						scheduleAutomaticStopGrace(context)
 				}
 			}
+			return ActivityAutomationDeliveryResult.ACCEPTED
 		} else {
 			cancelAutomaticStopGrace()
+			// The full-confidence path is deliberately independent of optional Steps. Consult the
+			// shared, durably admitted Steps snapshot only when it can widen a lower-confidence
+			// ON_FOOT decision.
+			val hasRecentSteps = shouldConsultStepCorroboration(
+				activity.type.groupedActivity,
+				activity.confidence,
+				REQUIRED_CONFIDENCE,
+				STEP_CORROBORATED_CONFIDENCE,
+			) &&
+				getEntryPoint(context).sharedStepSourceController().hasRecentControlSteps()
 			if (
 				isOnFootAutoStartCorroborated(
 					groupedActivity = activity.type.groupedActivity,
 					confidence = activity.confidence,
 					requiredConfidence = REQUIRED_CONFIDENCE,
 					corroboratedConfidence = STEP_CORROBORATED_CONFIDENCE,
-					hasRecentSteps = stepCorroborator.hasRecentSteps(),
+					hasRecentSteps = hasRecentSteps,
 				) &&
 				canBackgroundTrack(context, activity.type.groupedActivity) &&
 				canTrackerServiceBeStarted(context)
 			) {
-				TrackerServiceApi.startService(context, isUserInitiated = false)
+				durableActivityStartContextDisposition(startContext)?.let { return it }
+				val trigger = automaticTrigger
+					?: return ActivityAutomationDeliveryResult.START_CONTEXT_EXPIRED
+				return requestAutomaticStart(trigger)
 			}
+			return ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED
 		}
 	}
 
-	private fun handleTransitionUpdate(context: Context, activity: ActivityTransitionData) {
+	private suspend fun handleTransitionUpdate(
+		context: Context,
+		activity: ActivityTransitionData,
+		startContext: ActivityAutomationStartContext,
+		automaticTrigger: AutomaticTrackingStartTrigger?,
+		requestAutomaticStart: suspend (AutomaticTrackingStartTrigger) -> ActivityAutomationDeliveryResult,
+	): ActivityAutomationDeliveryResult {
 		if (!context.hasActivityPermission) {
 			cancelAutomaticStopGrace()
 			revalidatePermissions(context)
+			return ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED
 		} else if (TrackerServiceApi.isActive(context)) {
 			val sessionInfo = TrackerServiceApi.sessionInfoFlow(context).value ?: run {
 				cancelAutomaticStopGrace()
-				return
+				return ActivityAutomationDeliveryResult.ACCEPTED
 			}
 			when (
 				resolveAutomaticTrackingContinuationAction(
@@ -217,29 +276,67 @@ object BackgroundTrackingApi {
 				AutomaticTrackingContinuationAction.SCHEDULE_STOP_GRACE ->
 					scheduleAutomaticStopGrace(context)
 			}
+			return ActivityAutomationDeliveryResult.ACCEPTED
 		} else {
 			cancelAutomaticStopGrace()
 			if (canBackgroundTrack(context, activity.activity.groupedActivity) &&
 				canTrackerServiceBeStarted(context)
 			) {
-				TrackerServiceApi.startService(context, isUserInitiated = false)
+				durableActivityStartContextDisposition(startContext)?.let { return it }
+				val trigger = automaticTrigger
+					?: return ActivityAutomationDeliveryResult.START_CONTEXT_EXPIRED
+				return requestAutomaticStart(trigger)
 			}
+			return ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED
 		}
 	}
 
 	/** Replays a post-admission activity effect; safe to invoke more than once after a crash. */
-	internal fun handleDurableActivityEvidence(
+	internal suspend fun handleDurableActivityEvidence(
 		context: Context,
-		activity: DetectedActivityType,
-		confidence: Int,
-		transitionType: ActivityTransitionType?,
-	) {
-		if (transitionType == null) {
-			handleActivityUpdate(context.applicationContext, RecognizedActivity(activity, confidence))
+		evidence: ActivityAutomationDeliveryEnvelope,
+		controlConsentEpoch: Long,
+		currentAutomationEpoch: Long,
+		startContext: ActivityAutomationStartContext,
+		requestAutomaticStart: suspend (AutomaticTrackingStartTrigger) -> ActivityAutomationDeliveryResult,
+	): ActivityAutomationDeliveryResult {
+		val authority = activityAutomationAuthority
+		durableActivityAuthorityDisposition(
+			paramsInitialized = authority.paramsInitialized,
+			activePolicyRevision = authority.activePolicyRevision,
+			paramsPolicyRevision = authority.paramsPolicyRevision,
+			activityControlEligible = authority.activityControlEligible,
+			currentControlConsentEpoch = authority.activityControlConsentEpoch,
+			effectControlConsentEpoch = controlConsentEpoch,
+			currentAutomationEpoch = currentAutomationEpoch,
+			effectAutomationEpoch = evidence.automationEpoch,
+		)?.let { return it }
+		val startPlan = activityAutomaticStartPlan(context.applicationContext, cachedParamsSnapshot())
+		if (startPlan.captureSourceMask == 0L) {
+			return ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED
+		}
+		val automaticTrigger = evidence.toAutomaticTrackingStartTrigger(
+			startContext = startContext,
+			sourcePolicyRevision = requireNotNull(authority.activePolicyRevision),
+			intendedCaptureSourceMask = startPlan.captureSourceMask,
+			requestedCaptureSourceMask = startPlan.requestedCaptureSourceMask,
+			intendedForegroundServiceTypeMask = startPlan.foregroundServiceTypeMask,
+		)
+		return if (evidence.transitionType == null) {
+			handleActivityUpdate(
+				context.applicationContext,
+				RecognizedActivity(evidence.activityType, evidence.confidence),
+				startContext,
+				automaticTrigger,
+				requestAutomaticStart,
+			)
 		} else {
 			handleTransitionUpdate(
 				context.applicationContext,
-				ActivityTransitionData(activity, transitionType),
+				ActivityTransitionData(evidence.activityType, evidence.transitionType),
+				startContext,
+				automaticTrigger,
+				requestAutomaticStart,
 			)
 		}
 	}
@@ -377,13 +474,12 @@ object BackgroundTrackingApi {
 					return@enqueueRequestMutation
 				}
 
-				// Activity callbacks are consumed from durable projection outbox. Keep the optional
-				// step corroborator only for confidence-based recognition requests.
-				if (!shouldUseStepCorroboration(useTransitionApi, stepControlEligible)) {
-					stepCorroborator.stop(context)
-				} else {
-					stepCorroborator.start(context)
-				}
+				// Steps is an optional broker consumer. The shared controller joins CONTROL_AUTOSTART
+				// only when its explicit policy epoch is eligible.
+				reconcileStepAutomaticControl(
+					context,
+					shouldUseStepCorroboration(useTransitionApi, stepControlEligible),
+				)
 				recognitionUpdatesJob?.cancel()
 				recognitionUpdatesJob = null
 				watcherController.poke()
@@ -395,7 +491,7 @@ object BackgroundTrackingApi {
 					val cleanupGeneration = ++requestMutationGeneration
 					recognitionUpdatesJob?.cancel()
 					recognitionUpdatesJob = null
-					stepCorroborator.stop(context)
+					reconcileStepAutomaticControl(context, enabled = false)
 					var cleanupFailureAttached = false
 					val removed = reconcileActivityRequestRemoval(
 						shouldContinue = {
@@ -428,6 +524,18 @@ object BackgroundTrackingApi {
 	private fun getWatcherController(context: Context): ActivityWatcherController =
 		getEntryPoint(context).activityWatcherController()
 
+	private suspend fun reconcileStepAutomaticControl(context: Context, enabled: Boolean) {
+		try {
+			getEntryPoint(context).sharedStepSourceController().reconcileAutomaticControl(enabled)
+		} catch (exception: CancellationException) {
+			throw exception
+		} catch (exception: Exception) {
+			// Corroboration only widens lower-confidence ON_FOOT starts. A missing/unavailable Steps
+			// provider must not disable Activity recognition or its high-confidence path.
+			Tracebox.log.error(exception, "Optional Steps automatic-control reconciliation failed")
+		}
+	}
+
 	private fun enable(context: Context) {
 		isActive = true
 		reinitializeRequest(context, cachedParamsSnapshot().transitionDetectionEnabled)
@@ -446,7 +554,7 @@ object BackgroundTrackingApi {
 			}
 			recognitionUpdatesJob?.cancel()
 			recognitionUpdatesJob = null
-			stepCorroborator.stop(context)
+			reconcileStepAutomaticControl(context, enabled = false)
 			val removed = reconcileActivityRequestRemoval(
 				shouldContinue = { generation == requestMutationGeneration && !isActive },
 			) {
@@ -499,6 +607,9 @@ object BackgroundTrackingApi {
 		sourcePolicyJob = entryPoint.sourcePolicyRepository().states
 			.onEach { authority ->
 				val snapshot = (authority as? SourcePolicyAuthorityState.Active)?.snapshot
+				activeSourcePolicyRevision = null
+				activityControlConsentEpoch = null
+				publishActivityAutomationAuthority()
 				reconcileControlEligibility(
 					activityEligible = snapshot
 						?.get(TrackingSourceComponent.ACTIVITY)
@@ -507,9 +618,17 @@ object BackgroundTrackingApi {
 						?.get(TrackingSourceComponent.STEPS)
 						?.controlConsentEpoch != null,
 				)
+				activityControlConsentEpoch = snapshot
+					?.get(TrackingSourceComponent.ACTIVITY)
+					?.controlConsentEpoch
+				activeSourcePolicyRevision = snapshot?.revision
+				publishActivityAutomationAuthority()
 			}
 			.retryWhen { error, _ ->
+				activeSourcePolicyRevision = null
+				activityControlConsentEpoch = null
 				reconcileControlEligibility(activityEligible = false, stepEligible = false)
+				publishActivityAutomationAuthority()
 				Tracebox.log.error(error, "SourcePolicy observation failed")
 				delay(SOURCE_POLICY_RETRY_DELAY_MILLIS)
 				true
@@ -529,9 +648,12 @@ object BackgroundTrackingApi {
 				) {
 					handleTransitionPreferenceChange(params.transitionDetectionEnabled)
 				}
-				paramsInitialized = true
+				paramsInitialized = params.sourcePolicyRevision != null
+				publishActivityAutomationAuthority()
 			}
 			.catch { error ->
+				paramsInitialized = false
+				publishActivityAutomationAuthority()
 				Tracebox.log.error(error, "Application initialization failed")
 			}
 			.launchIn(scope)
@@ -565,6 +687,44 @@ object BackgroundTrackingApi {
 				Tracebox.log.error(error, "Application initialization failed")
 			}
 			.launchIn(scope)
+	}
+
+	/**
+	 * Opens automation authority from the still-live Activity callback. The process startup gate and
+	 * persisted lock are resolved before policy collectors are allowed to authorize a service start.
+	 * The receiver's outer timeout is the lifetime bound; cancellation leaves the durable effect
+	 * pending and does not transfer this callback's Android start context to application replay.
+	 */
+	internal suspend fun initializeAndAwaitActivityAutomationAuthority(context: Context) {
+		val ctx = context.applicationContext
+		val dependencies = getEntryPoint(ctx)
+		dependencies.trackingStartupGate().awaitReady()
+		dependencies.lockManager().initializeFromPersistence(ctx)
+		val mainImmediate = (dispatchers.main as? MainCoroutineDispatcher)?.immediate ?: dispatchers.main
+		withContext(mainImmediate) { initialize(ctx) }
+		activityAutomationAuthorityReady.first { it }
+	}
+
+	/**
+	 * Recreates the app-scoped automatic-control demand after a destructive data generation change.
+	 * Initialization is intentionally idempotent, while this reconciliation is intentionally not a
+	 * no-op when [isActive] survived the database clear. Call only after the reopened startup
+	 * generation is Ready. Returns false when an enabled demand could not be restored.
+	 */
+	suspend fun reconcileAutomaticControlDemandAfterStartup(context: Context): Boolean {
+		initializeAndAwaitActivityAutomationAuthority(context)
+		val ctx = context.applicationContext
+		val mainImmediate = (dispatchers.main as? MainCoroutineDispatcher)?.immediate ?: dispatchers.main
+		val shouldBeActive = withContext(mainImmediate) {
+			val enabled = effectiveAutomaticControlMode(
+				cachedParamsSnapshot().autoTrackingMode,
+				activityControlEligible,
+			) != GroupedActivity.STILL.ordinal && ctx.hasActivityPermission
+			handleTrackingActivityPreferenceChange(cachedParamsSnapshot().autoTrackingMode)
+			enabled
+		}
+		requestMutationJob?.join()
+		return !shouldBeActive || isActive
 	}
 
 	private fun handleTrackingActivityPreferenceChange(value: Int) {
@@ -690,10 +850,220 @@ object BackgroundTrackingApi {
 		activityFreqSeconds = DEFAULT_ACTIVITY_FREQ_SECONDS
 		activityWatcherEnabled = false
 		paramsInitialized = false
+		activeSourcePolicyRevision = null
 		activityControlEligible = false
+		activityControlConsentEpoch = null
 		stepControlEligible = false
+		publishActivityAutomationAuthority()
+	}
+
+	private fun publishActivityAutomationAuthority() {
+		val paramsPolicyRevision = cachedParamsSnapshot().sourcePolicyRevision
+		val snapshot = ActivityAutomationAuthoritySnapshot(
+			paramsInitialized = paramsInitialized,
+			activePolicyRevision = activeSourcePolicyRevision,
+			paramsPolicyRevision = paramsPolicyRevision,
+			activityControlEligible = activityControlEligible,
+			activityControlConsentEpoch = activityControlConsentEpoch,
+		)
+		activityAutomationAuthority = snapshot
+		_activityAutomationAuthorityReady.value = snapshot.isCoherent
 	}
 }
+
+private data class ActivityAutomationAuthoritySnapshot(
+	val paramsInitialized: Boolean = false,
+	val activePolicyRevision: Long? = null,
+	val paramsPolicyRevision: Long? = null,
+	val activityControlEligible: Boolean = false,
+	val activityControlConsentEpoch: Long? = null,
+) {
+	val isCoherent: Boolean
+		get() = isActivityAutomationAuthorityCoherent(
+			paramsInitialized = paramsInitialized,
+			activePolicyRevision = activePolicyRevision,
+			paramsPolicyRevision = paramsPolicyRevision,
+		)
+}
+
+internal enum class ActivityAutomationDeliveryResult {
+	ACCEPTED,
+	/** A matching immutable lifecycle intent, not merely an Android enqueue, is durable. */
+	LIFECYCLE_INTENT_ACCEPTED,
+	/** Android start was attempted once; keep the source outbox pending for lifecycle acceptance. */
+	START_REQUESTED,
+	RETRY,
+	TERMINALLY_SUPPRESSED,
+	START_CONTEXT_EXPIRED,
+}
+
+internal enum class ActivityAutomationStartContext {
+	/** The exact admitted transition is still executing inside its provider callback. */
+	FRESH_TRANSITION_CALLBACK,
+	/** Durable replay has no Android background foreground-service start exemption. */
+	DURABLE_REPLAY,
+}
+
+/** Full admitted envelope retained through validation and consumer delivery for auditability. */
+internal data class ActivityAutomationDeliveryEnvelope(
+	val admissionOrdinal: Long,
+	val activityType: DetectedActivityType,
+	val confidence: Int,
+	val transitionType: ActivityTransitionType?,
+	val clockDomainId: String,
+	val observedElapsedRealtimeNanos: Long,
+	val receivedElapsedRealtimeNanos: Long,
+	val registrationGeneration: Long,
+	val authorizationRevision: Long,
+	val authorizationFingerprint: String,
+	val collectedDataEpoch: Long,
+	val automationEpoch: Long,
+) {
+	init {
+		require(admissionOrdinal > 0L)
+		require(automationEpoch > 0L)
+	}
+}
+
+internal fun ActivityAutomationDeliveryEnvelope.toAutomaticTrackingStartTrigger(
+	startContext: ActivityAutomationStartContext,
+	sourcePolicyRevision: Long,
+	intendedCaptureSourceMask: Long,
+	requestedCaptureSourceMask: Long,
+	intendedForegroundServiceTypeMask: Long,
+): AutomaticTrackingStartTrigger? {
+	val transition = transitionType
+	if (startContext != ActivityAutomationStartContext.FRESH_TRANSITION_CALLBACK || transition == null) {
+		return null
+	}
+	return AutomaticTrackingStartTrigger(
+		triggerId = "activity-transition:$clockDomainId:$admissionOrdinal",
+		kind = "ACTIVITY_TRANSITION:${activityType.name}:${transition.name}",
+		bootId = clockDomainId,
+		observedElapsedRealtimeNanos = observedElapsedRealtimeNanos,
+		receivedElapsedRealtimeNanos = receivedElapsedRealtimeNanos,
+		expiresElapsedRealtimeNanos = minOf(
+			observedElapsedRealtimeNanos.saturatedAdd(MAX_AUTOMATION_EVIDENCE_AGE_NANOS),
+			receivedElapsedRealtimeNanos.saturatedAdd(AUTOMATIC_TRIGGER_VALIDITY_NANOS),
+		),
+		automationEpoch = automationEpoch,
+		startContext = AutomaticTrackingStartContext.ACTIVITY_TRANSITION_CALLBACK,
+		sourcePolicyRevision = sourcePolicyRevision,
+		intendedCaptureSourceMask = intendedCaptureSourceMask,
+		requestedCaptureSourceMask = requestedCaptureSourceMask,
+		intendedForegroundServiceTypeMask = intendedForegroundServiceTypeMask,
+		collectedDataEpoch = collectedDataEpoch,
+	)
+}
+
+private fun Long.saturatedAdd(increment: Long): Long =
+	if (this > Long.MAX_VALUE - increment) Long.MAX_VALUE else this + increment
+
+private const val AUTOMATIC_TRIGGER_VALIDITY_NANOS = 60L * 1_000_000_000L
+private const val MAX_AUTOMATION_EVIDENCE_AGE_NANOS = 60L * 1_000_000_000L
+
+internal fun durableActivityStartOutcome(startAccepted: Boolean): ActivityAutomationDeliveryResult =
+	if (startAccepted) {
+		ActivityAutomationDeliveryResult.START_REQUESTED
+	} else {
+		ActivityAutomationDeliveryResult.START_CONTEXT_EXPIRED
+	}
+
+internal data class ActivityAutomaticStartPlan(
+	val requestedCaptureSourceMask: Long,
+	val captureSourceMask: Long,
+	val foregroundServiceTypeMask: Long,
+)
+
+/** Compact policy-derived envelope persisted before an automatic Android service request. */
+internal fun activityAutomaticStartPlan(
+	context: Context,
+	params: TrackingParamsState,
+): ActivityAutomaticStartPlan {
+	val requested = buildSet {
+		if (params.locationEnabled) add(SourceKind.LOCATION)
+		if (params.activityEnabled) add(SourceKind.ACTIVITY)
+		if (params.stepsEnabled) add(SourceKind.STEPS)
+		if (params.barometerEnabled) add(SourceKind.PRESSURE)
+		if (params.wifiEnabled) add(SourceKind.WIFI)
+		if (params.cellEnabled) add(SourceKind.CELL)
+	}
+	val accepted = acceptedForegroundSources(
+		requestedSources = requested,
+		capabilities = ForegroundSourceCapabilities(
+			sdkInt = Build.VERSION.SDK_INT,
+			startOrigin = SessionStartOrigin.AUTOMATIC_BACKGROUND_START,
+			hasForegroundLocationPermission = context.hasLocationPermission,
+			hasBackgroundLocationPermission = context.hasBackgroundLocationPermission,
+			locationHardwareAvailable =
+				context.packageManager.hasSystemFeature(PackageManager.FEATURE_LOCATION),
+			activity = context.hasActivityPermission && Assist.isPlayServicesAvailable(context),
+			steps = context.hasActivityPermission && context.hasStepCounterSensor,
+			pressure = context.hasPressureSensor,
+			wifi = context.packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI) &&
+				context.hasWifiScanPermission,
+			cell = (
+				context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) ||
+					(Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+						context.packageManager.hasSystemFeature(
+							PackageManager.FEATURE_TELEPHONY_RADIO_ACCESS,
+						))
+				) && context.hasCellScanPermission,
+		),
+	)
+	val captureMask = accepted.fold(0L) { mask, source ->
+		mask or (1L shl (source.stableCode - 1))
+	}
+	val requestedMask = requested.fold(0L) { mask, source ->
+		mask or (1L shl (source.stableCode - 1))
+	}
+	val serviceTypeMask = foregroundServiceTypeCandidates(Build.VERSION.SDK_INT, accepted)
+		.singleOrNull()
+		?.toLong()
+		?: 0L
+	return ActivityAutomaticStartPlan(requestedMask, captureMask, serviceTypeMask)
+}
+
+internal fun durableActivityStartContextDisposition(
+	startContext: ActivityAutomationStartContext,
+): ActivityAutomationDeliveryResult? = if (
+	startContext == ActivityAutomationStartContext.FRESH_TRANSITION_CALLBACK
+) {
+	null
+} else {
+	ActivityAutomationDeliveryResult.START_CONTEXT_EXPIRED
+}
+
+internal fun durableActivityAuthorityDisposition(
+	paramsInitialized: Boolean,
+	activePolicyRevision: Long?,
+	paramsPolicyRevision: Long?,
+	activityControlEligible: Boolean,
+	currentControlConsentEpoch: Long? = null,
+	effectControlConsentEpoch: Long? = currentControlConsentEpoch,
+	currentAutomationEpoch: Long?,
+	effectAutomationEpoch: Long?,
+): ActivityAutomationDeliveryResult? = when {
+	!isActivityAutomationAuthorityCoherent(
+		paramsInitialized,
+		activePolicyRevision,
+		paramsPolicyRevision,
+	) ->
+		ActivityAutomationDeliveryResult.RETRY
+	!activityControlEligible || currentControlConsentEpoch == null ||
+		currentControlConsentEpoch != effectControlConsentEpoch ||
+		currentAutomationEpoch != effectAutomationEpoch ->
+		ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED
+	else -> null
+}
+
+internal fun isActivityAutomationAuthorityCoherent(
+	paramsInitialized: Boolean,
+	activePolicyRevision: Long?,
+	paramsPolicyRevision: Long?,
+): Boolean = paramsInitialized &&
+	activePolicyRevision != null &&
+	paramsPolicyRevision == activePolicyRevision
 
 internal suspend fun reconcileActivityRequestRemoval(
 	initialRetryDelayMillis: Long = 500L,

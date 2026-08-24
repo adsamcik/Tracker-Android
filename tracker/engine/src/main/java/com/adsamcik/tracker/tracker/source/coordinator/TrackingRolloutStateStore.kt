@@ -19,13 +19,15 @@ class RoomTrackingRolloutStateStore @Inject constructor(
 	override suspend fun load(): TrackingRolloutState = database.withTransaction {
 		val dao = database.trackingRolloutStateDao()
 		val current = dao.get()?.toModel()
-		if (current?.isEventCanonical() == true) return@withTransaction current
+		if (current?.schemaVersion == TrackingRolloutState.CURRENT_SCHEMA_VERSION) {
+			return@withTransaction current
+		}
 
-		// Phase 10 retires in-binary legacy acquisition. Advancing the persisted revision keeps old
-		// release data decodable while ensuring a service run can never re-acquire physical sources
-		// through both the trigger/poller and source-native runtimes.
-		TrackingRolloutState.eventCanonical(revision = (current?.revision ?: 0L) + 1L).also { retired ->
-			dao.save(retired.toEntity(System.currentTimeMillis()))
+		// v28 never shipped. Any v27/global-v2 rollout row predates source-local product reachability
+		// and therefore cannot authorize a provider in this binary. Preserve its revision history, but
+		// contain every acquisition owner until an explicit source-local shadow gate is persisted.
+		TrackingRolloutState.contained(revision = (current?.revision ?: 0L) + 1L).also { migrated ->
+			dao.save(migrated.toEntity(System.currentTimeMillis()))
 		}
 	}
 
@@ -41,16 +43,12 @@ class RoomTrackingRolloutStateStore @Inject constructor(
 	}
 }
 
-private fun TrackingRolloutState.isEventCanonical(): Boolean =
-	coordinatorMode == CoordinatorMode.EVENT &&
-		projectionMode == ProjectionMode.EVENT_CANONICAL &&
-		sourceOwners.values.all { it == SourceOwner.EVENT }
-
 private fun TrackingRolloutState.toEntity(updatedAtMs: Long) = TrackingRolloutStateEntity(
 	revision = revision,
 	schemaVersion = schemaVersion,
 	coordinatorMode = coordinatorMode.name,
-	projectionMode = projectionMode.name,
+	projectionMode = productProjectionStages.entries.sortedBy { it.key.stableCode }
+		.joinToString(",") { (source, stage) -> "${source.stableCode}:${stage.name}" },
 	sourceOwners = sourceOwners.entries.sortedBy { it.key.stableCode }
 		.joinToString(",") { (source, owner) -> "${source.stableCode}:${owner.name}" },
 	semanticSettingsEnabled = semanticSettingsEnabled,
@@ -70,9 +68,28 @@ private fun TrackingRolloutStateEntity.toModel(): TrackingRolloutState {
 		revision = revision,
 		schemaVersion = schemaVersion,
 		coordinatorMode = CoordinatorMode.valueOf(coordinatorMode),
-		projectionMode = ProjectionMode.valueOf(projectionMode),
 		sourceOwners = owners,
+		productProjectionStages = decodeProductProjectionStages(projectionMode),
 		semanticSettingsEnabled = semanticSettingsEnabled,
 		batteryEstimateMode = BatteryEstimateMode.valueOf(batteryEstimateMode),
 	)
+}
+
+/** Decode unreleased v28 global fixtures without allowing them to drive future all-source cutover. */
+private fun decodeProductProjectionStages(encoded: String): Map<SourceKind, ProductProjectionStage> {
+	if (':' !in encoded) {
+		val stage = when (encoded) {
+			"LEGACY_ONLY" -> ProductProjectionStage.LEGACY_CANONICAL
+			"SHADOW_READ_ONLY", "EVENT_CANONICAL" -> ProductProjectionStage.EVENT_SHADOW
+			else -> error("Unknown product projection rollout encoding")
+		}
+		return SourceKind.entries.associateWith { stage }
+	}
+	return encoded.split(',')
+		.filter(String::isNotBlank)
+		.associate { value ->
+			val (sourceCode, stageName) = value.split(':', limit = 2)
+			SourceKind.entries.single { it.stableCode == sourceCode.toInt() } to
+				ProductProjectionStage.valueOf(stageName)
+		}
 }

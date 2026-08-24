@@ -7,6 +7,7 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import androidx.work.await
 import androidx.work.workDataOf
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.time.Clock
@@ -109,7 +110,7 @@ class ExportAutomationController(
     }
 
     suspend fun pauseForDataDeletion(): Unit = withContext(dispatchers.io) {
-        workManager.cancelAllWorkByTag(WORK_TAG_PLAN).result.get()
+        workManager.cancelAllWorkByTag(WORK_TAG_PLAN).await()
     }
 
     fun resumeAfterDataDeletion() {

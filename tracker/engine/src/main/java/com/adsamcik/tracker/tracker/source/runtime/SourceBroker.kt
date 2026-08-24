@@ -2,16 +2,20 @@ package com.adsamcik.tracker.tracker.source.runtime
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.reconcileActivityAutomationEpochInTransaction
+import com.adsamcik.tracker.shared.base.database.rotateCurrentSourceAuthorizationInTransaction
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
-import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.tracker.source.coordinator.SessionManifestPurpose
+import com.adsamcik.tracker.tracker.source.model.DirectSourceDemandPurpose
+import com.adsamcik.tracker.tracker.source.model.SourceDemandContract
+import com.adsamcik.tracker.tracker.source.model.SourceDemandContractFactory
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import java.security.MessageDigest
 import javax.inject.Inject
@@ -29,6 +33,10 @@ class SourceBroker @Inject constructor(
 	private val database: AppDatabase,
 ) {
 	fun sessionConsumerId(logicalTrackingId: String): String = "session:$logicalTrackingId"
+
+	/** Current durable authority vector used to reconcile the one physical source owner. */
+	internal suspend fun authorizationDemands(source: SourceKind): List<SourceDemandEntity> =
+		database.sourceBrokerDao().authorizationDemands(source.stableCode)
 
 	fun buildSessionDemands(
 		logicalTrackingId: String,
@@ -51,6 +59,12 @@ class SourceBroker @Inject constructor(
 				SessionManifestPurpose.CONTROL.name -> SourceBrokerPurpose.CONTROL_CONTINUATION
 				else -> error("Unsupported session-manifest purpose ${binding.purpose}")
 			}
+			val source = SourceKind.entries.single { source -> source.stableCode == binding.sourceKind }
+			val contract = SourceDemandContractFactory.forQos(
+				source,
+				binding.qosCode,
+				purpose.toDirectDemandPurpose(),
+			)
 			SourceDemandEntity(
 				demandId = demandId(
 					consumerId,
@@ -73,8 +87,11 @@ class SourceBroker @Inject constructor(
 				consentEpoch = binding.consentEpoch,
 				persistenceEligible = binding.persistenceEligible,
 				qosCode = binding.qosCode,
-				maximumAgeMs = qosMaximumAgeMs(binding.qosCode),
-				desiredLatencyMs = qosDesiredLatencyMs(binding.qosCode),
+				minimumAcquisitionSpec = contract.encodeFloor(),
+				adaptiveReductionAllowed = contract.adaptiveReductionAllowed,
+				maximumAgeMs = contract.maximumProviderItemAgeMs,
+				desiredLatencyMs = contract.targetPlanningLatencyMs,
+				requestedDeliveryLatencyMs = contract.requestedDeliveryLatencyMs,
 				requestedBootId = bootId,
 				requestedElapsedRealtimeNanos = elapsedRealtimeNanos,
 				requestedAtMs = wallTimeMs,
@@ -110,6 +127,81 @@ class SourceBroker @Inject constructor(
 		}
 	}
 
+	/**
+	 * Persists one exact session demand vector without making it registration or callback authority.
+	 * Existing authority is retired immediately, but the new vector remains [SourceDemandEntity.STATUS_BLOCKED]
+	 * until the owning Android service has successfully entered the foreground.
+	 */
+	suspend fun stageSessionDemandsInTransaction(
+		logicalTrackingId: String,
+		demands: List<SourceDemandEntity>,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	) {
+		val consumerId = sessionConsumerId(logicalTrackingId)
+		val dao = database.sourceBrokerDao()
+		val previouslyActiveSources = dao.currentDemands(consumerId)
+			.map(SourceDemandEntity::sourceKind)
+			.toSet()
+		dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
+		if (demands.isNotEmpty()) {
+			dao.insertDemands(demands.map { demand ->
+				demand.copy(status = SourceDemandEntity.STATUS_BLOCKED)
+			})
+		}
+		previouslyActiveSources.forEach { sourceKind ->
+			rotateCurrentAuthorizationInTransaction(
+				sourceKind,
+				bootId,
+				elapsedRealtimeNanos,
+				wallTimeMs,
+			)
+		}
+	}
+
+	/** Opens only the exact foreground-accepted prepared demand vector. */
+	suspend fun activatePreparedSessionDemandsInTransaction(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		manifestRevision: Long,
+		leaseGeneration: Long,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	): Boolean {
+		val consumerId = sessionConsumerId(logicalTrackingId)
+		val dao = database.sourceBrokerDao()
+		val exact = dao.demandHistory(consumerId).filter { demand ->
+			demand.serviceRunId == serviceRunId &&
+				demand.manifestRevision == manifestRevision &&
+				demand.lifecycleLeaseGeneration == leaseGeneration
+		}
+		if (exact.isEmpty() || exact.any { demand ->
+				demand.status !in setOf(
+					SourceDemandEntity.STATUS_BLOCKED,
+					SourceDemandEntity.STATUS_ACTIVE,
+				)
+		}) return false
+		val blocked = exact.filter { it.status == SourceDemandEntity.STATUS_BLOCKED }
+		if (blocked.isEmpty()) return true
+		if (dao.activatePreparedSessionDemands(
+			consumerId,
+			serviceRunId,
+			manifestRevision,
+			leaseGeneration,
+		) != blocked.size) return false
+		blocked.map(SourceDemandEntity::sourceKind).toSet().forEach { sourceKind ->
+			rotateCurrentAuthorizationInTransaction(
+				sourceKind,
+				bootId,
+				elapsedRealtimeNanos,
+				wallTimeMs,
+			)
+		}
+		return true
+	}
+
 	suspend fun markSessionDemandsRetiring(
 		logicalTrackingId: String,
 		bootId: String,
@@ -132,6 +224,21 @@ class SourceBroker @Inject constructor(
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
 	) = database.withTransaction {
+		retireSessionDemandsInTransaction(
+			logicalTrackingId,
+			bootId,
+			elapsedRealtimeNanos,
+			wallTimeMs,
+		)
+	}
+
+	/** Retires session authority atomically with a caller-owned lifecycle transaction. */
+	suspend fun retireSessionDemandsInTransaction(
+		logicalTrackingId: String,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	): Int {
 		val dao = database.sourceBrokerDao()
 		val consumerId = sessionConsumerId(logicalTrackingId)
 		val affectedSources = dao.currentDemands(consumerId).map(SourceDemandEntity::sourceKind).toSet()
@@ -139,7 +246,7 @@ class SourceBroker @Inject constructor(
 		affectedSources.forEach { sourceKind ->
 			rotateCurrentAuthorizationInTransaction(sourceKind, bootId, elapsedRealtimeNanos, wallTimeMs)
 		}
-		updated
+		return updated
 	}
 
 	/**
@@ -168,6 +275,14 @@ class SourceBroker @Inject constructor(
 				elapsedRealtimeNanos,
 				wallTimeMs,
 			)
+			reconcileAutomaticControlEpochInTransaction(
+				source,
+				false,
+				"AUTOMATIC_CONTROL_DISABLED",
+				bootId,
+				elapsedRealtimeNanos,
+				wallTimeMs,
+			)
 			return@withTransaction null
 		}
 		val policyDao = database.sourcePolicyDao()
@@ -175,6 +290,14 @@ class SourceBroker @Inject constructor(
 		if (authority?.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE) {
 			rotateCurrentAuthorizationsInTransaction(
 				affectedSourceKinds,
+				bootId,
+				elapsedRealtimeNanos,
+				wallTimeMs,
+			)
+			reconcileAutomaticControlEpochInTransaction(
+				source,
+				false,
+				"AUTOMATIC_CONTROL_AUTHORITY_INACTIVE",
 				bootId,
 				elapsedRealtimeNanos,
 				wallTimeMs,
@@ -189,6 +312,14 @@ class SourceBroker @Inject constructor(
 				elapsedRealtimeNanos,
 				wallTimeMs,
 			)
+			reconcileAutomaticControlEpochInTransaction(
+				source,
+				false,
+				"AUTOMATIC_CONTROL_POLICY_MISSING",
+				bootId,
+				elapsedRealtimeNanos,
+				wallTimeMs,
+			)
 			return@withTransaction null
 		}
 		val consentEpoch = policy.controlConsentEpoch
@@ -199,8 +330,24 @@ class SourceBroker @Inject constructor(
 				elapsedRealtimeNanos,
 				wallTimeMs,
 			)
+			reconcileAutomaticControlEpochInTransaction(
+				source,
+				false,
+				"AUTOMATIC_CONTROL_REVOKED",
+				bootId,
+				elapsedRealtimeNanos,
+				wallTimeMs,
+			)
 			return@withTransaction null
 		}
+		val contract = SourceDemandContractFactory.forQos(
+			source,
+			policy.qosCode,
+			DirectSourceDemandPurpose.CONTROL_AUTOSTART,
+		).copy(
+			maximumProviderItemAgeMs = maximumAgeMs,
+			targetPlanningLatencyMs = desiredLatencyMs,
+		)
 		val demand = SourceDemandEntity(
 			demandId = demandId(
 				consumerId,
@@ -223,8 +370,11 @@ class SourceBroker @Inject constructor(
 			consentEpoch = consentEpoch,
 			persistenceEligible = policy.controlPersistenceEligible,
 			qosCode = policy.qosCode,
-			maximumAgeMs = maximumAgeMs,
-			desiredLatencyMs = desiredLatencyMs,
+			minimumAcquisitionSpec = contract.encodeFloor(),
+			adaptiveReductionAllowed = contract.adaptiveReductionAllowed,
+			maximumAgeMs = contract.maximumProviderItemAgeMs,
+			desiredLatencyMs = contract.targetPlanningLatencyMs,
+			requestedDeliveryLatencyMs = contract.requestedDeliveryLatencyMs,
 			requestedBootId = bootId,
 			requestedElapsedRealtimeNanos = elapsedRealtimeNanos,
 			requestedAtMs = wallTimeMs,
@@ -240,7 +390,33 @@ class SourceBroker @Inject constructor(
 			elapsedRealtimeNanos,
 			wallTimeMs,
 		)
+		reconcileAutomaticControlEpochInTransaction(
+			source,
+			true,
+			"AUTOMATIC_CONTROL_ENABLED",
+			bootId,
+			elapsedRealtimeNanos,
+			wallTimeMs,
+		)
 		demand
+	}
+
+	private suspend fun reconcileAutomaticControlEpochInTransaction(
+		source: SourceKind,
+		enabled: Boolean,
+		reason: String,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	) {
+		if (source != SourceKind.ACTIVITY) return
+		database.reconcileActivityAutomationEpochInTransaction(
+			automaticControlEnabled = enabled,
+			bootClockDomainId = bootId,
+			effectiveElapsedRealtimeNanos = elapsedRealtimeNanos,
+			reason = reason,
+			updatedAtMs = wallTimeMs,
+		)
 	}
 
 	suspend fun registrationAuthorization(
@@ -296,28 +472,12 @@ class SourceBroker @Inject constructor(
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
 	) {
-		val dao = database.sourceBrokerDao()
-		val demands = dao.authorizationDemands(sourceKind)
-		val fingerprint = SourceBrokerAuthorization.fingerprint(demands)
-		dao.currentPhysicalRegistrations(sourceKind)
-			.filter { registration -> registration.clockDomainId == bootId }
-			.forEach { registration ->
-				val current = dao.latestAuthorization(sourceKind, registration.registrationGeneration)
-					.toAuthorizationSnapshotOrNull()
-				if (current?.authorizationFingerprint == fingerprint) return@forEach
-				val revision = dao.maximumAuthorizationRevision(sourceKind) + 1L
-				dao.insertAuthorizations(
-					SourceBrokerAuthorization.rows(
-						sourceKind,
-						registration.registrationGeneration,
-						revision,
-						demands,
-						bootId,
-						elapsedRealtimeNanos,
-						wallTimeMs,
-					),
-				)
-			}
+		database.rotateCurrentSourceAuthorizationInTransaction(
+			sourceKind = sourceKind,
+			bootId = bootId,
+			elapsedRealtimeNanos = elapsedRealtimeNanos,
+			wallTimeMs = wallTimeMs,
+		)
 	}
 
 	private fun demandId(
@@ -345,19 +505,24 @@ class SourceBroker @Inject constructor(
 			.joinToString("") { byte -> "%02x".format(byte) }
 	}
 
-	private fun qosMaximumAgeMs(qosCode: Int): Long = when (qosCode) {
-		0 -> Long.MAX_VALUE
-		1 -> 120_000L
-		2 -> 30_000L
-		else -> 5_000L
-	}
+}
 
-	private fun qosDesiredLatencyMs(qosCode: Int): Long = when (qosCode) {
-		0 -> Long.MAX_VALUE
-		1 -> 60_000L
-		2 -> 15_000L
-		else -> 1_000L
-	}
+internal fun SourceDemandEntity.toSourceDemandContract(): SourceDemandContract =
+	SourceDemandContract.decode(
+		source = SourceKind.entries.single { source -> source.stableCode == sourceKind },
+		floorSpec = minimumAcquisitionSpec,
+		maximumProviderItemAgeMs = maximumAgeMs,
+		targetPlanningLatencyMs = desiredLatencyMs,
+		requestedDeliveryLatencyMs = requestedDeliveryLatencyMs,
+		adaptiveReductionAllowed = adaptiveReductionAllowed,
+	)
+
+private fun String.toDirectDemandPurpose(): DirectSourceDemandPurpose = when (this) {
+	SourceBrokerPurpose.SESSION_CAPTURE -> DirectSourceDemandPurpose.SESSION_CAPTURE
+	SourceBrokerPurpose.CONTROL_CONTINUATION -> DirectSourceDemandPurpose.CONTROL_CONTINUATION
+	SourceBrokerPurpose.CONTROL_AUTOSTART -> DirectSourceDemandPurpose.CONTROL_AUTOSTART
+	SourceBrokerPurpose.AMBIENT_PRODUCT -> DirectSourceDemandPurpose.AMBIENT_PRODUCT
+	else -> error("Unsupported direct demand purpose $this")
 }
 
 data class ProviderRegistrationAuthorization(

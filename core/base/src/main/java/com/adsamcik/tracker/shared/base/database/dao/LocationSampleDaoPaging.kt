@@ -8,12 +8,14 @@ suspend fun LocationSampleDao.getAllBetweenChunked(
 	fromMs: Long,
 	toMs: Long,
 	chunkSize: Int = DEFAULT_LOCATION_SAMPLE_CHUNK_SIZE,
+	verifyCollectedDataAccess: () -> Unit = {},
 ): List<LocationSample> {
 	val samples = mutableListOf<LocationSample>()
 	var afterTimeMs: Long? = null
 	var afterId: Long? = null
 
 	while (true) {
+		verifyCollectedDataAccess()
 		val chunk = getChunkBetweenOrdered(
 			fromMs = fromMs,
 			toMs = toMs,
@@ -21,6 +23,7 @@ suspend fun LocationSampleDao.getAllBetweenChunked(
 			afterId = afterId,
 			limit = chunkSize,
 		)
+		verifyCollectedDataAccess()
 		if (chunk.isEmpty()) break
 
 		samples.addAll(chunk)

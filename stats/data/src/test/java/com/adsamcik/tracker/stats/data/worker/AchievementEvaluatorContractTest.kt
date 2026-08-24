@@ -6,6 +6,8 @@ import androidx.work.ListenableWorker
 import androidx.work.testing.TestListenableWorkerBuilder
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
@@ -28,6 +30,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import javax.inject.Provider
 
 /**
  * Contract test (R1 round-6 P2 + round-7 P5 regression seam):
@@ -435,17 +438,28 @@ class AchievementEvaluatorContractTest {
 					): ListenableWorker = AchievementWorker(
 						appContext,
 						workerParameters,
-						registry,
-						metricsProvider,
-						dao,
+						Provider { registry },
+						Provider { metricsProvider },
+						Provider { dao },
 						dirtyTracker,
-						object : AchievementEvaluationTransactionRunner {
-							override suspend fun run(block: suspend () -> Unit) = block()
+						Provider {
+							object : AchievementEvaluationTransactionRunner {
+								override suspend fun run(block: suspend () -> Unit) = block()
+							}
 						},
+						READY_STARTUP_GATE,
 					)
 				},
 			)
 			.build()
+	}
+
+	private companion object {
+		val READY_STARTUP_GATE = object : TrackingStartupGate {
+			override val isReady: Boolean = true
+			override suspend fun reconcile(retryFailedStorage: Boolean) =
+				TrackingStartupResult.Ready(legacyRecoveryPartial = false, liveCompletedThroughOrdinal = 0L)
+		}
 	}
 
 	private suspend fun MetricDirtyTracker.acknowledgeConsumer(consumer: MetricDirtyTracker.Consumer) {

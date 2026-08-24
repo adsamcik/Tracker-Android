@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.coordinator
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.TrackingRolloutStateEntity
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
@@ -35,13 +36,37 @@ class TrackingRolloutStateStoreTest {
 	fun tearDown() = database.close()
 
 	@Test
-	fun `missing row initializes event-canonical ownership`() = runTest {
-		store.load() shouldBe TrackingRolloutState.eventCanonical()
+	fun `missing row initializes contained without authorizing acquisition`() = runTest {
+		store.load() shouldBe TrackingRolloutState.contained()
 	}
 
 	@Test
-	fun `round trips event-canonical ownership`() = runTest {
-		val expected = TrackingRolloutState.eventCanonical(revision = 3)
+	fun `unreleased global canonical marker is contained as per-source shadow`() = runTest {
+		database.trackingRolloutStateDao().save(
+			TrackingRolloutStateEntity(
+				revision = 7L,
+				schemaVersion = 2,
+				coordinatorMode = CoordinatorMode.EVENT.name,
+				projectionMode = "EVENT_CANONICAL",
+				sourceOwners = SourceKind.entries.joinToString(",") { source ->
+					"${source.stableCode}:${SourceOwner.EVENT.name}"
+				},
+				semanticSettingsEnabled = true,
+				batteryEstimateMode = BatteryEstimateMode.SOURCE_PLAN_QUALITATIVE.name,
+				updatedAtMs = 1_000L,
+			),
+		)
+
+		val contained = store.load()
+		contained.revision shouldBe 8L
+		contained.sourceOwners.values.toSet() shouldBe setOf(SourceOwner.CONTAINED)
+		contained.productProjectionStages.values.toSet() shouldBe
+			setOf(ProductProjectionStage.LEGACY_CANONICAL)
+	}
+
+	@Test
+	fun `round trips one source shadow stage without promoting unrelated writers`() = runTest {
+		val expected = TrackingRolloutState.eventShadow(setOf(SourceKind.STEPS), revision = 3)
 
 		store.save(expected, 1_000L)
 
@@ -49,10 +74,31 @@ class TrackingRolloutStateStoreTest {
 	}
 
 	@Test
+	fun `loading one-source rollout does not promote unrelated sources`() = runTest {
+		val expected = TrackingRolloutState.eventShadow(setOf(SourceKind.STEPS), revision = 3)
+
+		store.save(expected, 1_000L)
+
+		store.load() shouldBe expected
+		store.load().sourceOwners.getValue(SourceKind.LOCATION) shouldBe SourceOwner.CONTAINED
+	}
+
+	@Test
+	fun `loading one shadow projection does not force canonical writers`() = runTest {
+		val expected = TrackingRolloutState.eventShadow(setOf(SourceKind.STEPS), revision = 3)
+
+		store.save(expected, 1_000L)
+
+		store.load() shouldBe expected
+		store.load().productProjectionStages.getValue(SourceKind.LOCATION) shouldBe
+			ProductProjectionStage.LEGACY_CANONICAL
+	}
+
+	@Test
 	fun `persisted compatibility rollout upgrades on load`() = runTest {
 		store.save(TrackingRolloutState.legacy(revision = 3), 1_000L)
 
-		store.load() shouldBe TrackingRolloutState.eventCanonical(revision = 4)
+		store.load() shouldBe TrackingRolloutState.contained(revision = 4)
 	}
 
 	@Test
@@ -76,6 +122,12 @@ class TrackingRolloutStateStoreTest {
 			com.adsamcik.tracker.tracker.source.runtime.SourceRuntimeRegistry(emptySet()),
 			com.adsamcik.tracker.tracker.source.ingress.DurableSourceEventSinkFactory(ingress),
 			TrackingCoordinator(database, ingress, com.adsamcik.tracker.tracker.source.projection.ProjectionDispatcher(database, emptySet())),
+			com.adsamcik.tracker.tracker.source.projection.ActivityAutomaticStartActionRepository(
+				database,
+				ReadyTrackingStartupGate,
+			),
+			NoOpActivityAutomationDrainSignal,
+			io.mockk.mockk(relaxed = true),
 			store,
 		)
 		val plan = com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision(

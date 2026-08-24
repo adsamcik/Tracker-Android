@@ -28,6 +28,8 @@ class DefaultActiveTrackingSessionStoreTest {
 			isUserInitiated = true,
 			isAmbient = false,
 			policyTier = PolicyTier.PRECISION,
+			restartBootId = "boot:test",
+			restartToken = "restart-token",
 		)
 
 		store.save(descriptor) shouldBe ActiveTrackingSessionStoreResult.Success(descriptor)
@@ -69,5 +71,30 @@ class DefaultActiveTrackingSessionStoreTest {
 		store.save(replacement) shouldBe ActiveTrackingSessionStoreResult.Success(replacement)
 		store.clearIfCurrent(firstRun) shouldBe ActiveTrackingSessionStoreResult.Success(replacement)
 		store.read() shouldBe ActiveTrackingSessionStoreResult.Success(replacement)
+	}
+
+	@Test
+	fun `exact clear removes stale active descriptor but preserves any changed revision`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val dispatcher = StandardTestDispatcher(testScheduler)
+		val store = DefaultActiveTrackingSessionStore(
+			context,
+			TestDispatchersProvider(dispatcher),
+		)
+		store.clear() shouldBe ActiveTrackingSessionStoreResult.Success(null)
+		val staleAutomatic = ActiveTrackingSessionDescriptor(
+			isUserInitiated = false,
+			isAmbient = false,
+			policyTier = PolicyTier.AMBIENT,
+			logicalTrackingId = "stale-automatic",
+			serviceRunId = "stale-run",
+		)
+		val changed = staleAutomatic.copy(lifecycleRevision = 1L)
+
+		store.save(changed) shouldBe ActiveTrackingSessionStoreResult.Success(changed)
+		store.clearExact(staleAutomatic) shouldBe ActiveTrackingSessionStoreResult.Success(changed)
+		store.save(staleAutomatic) shouldBe ActiveTrackingSessionStoreResult.Success(staleAutomatic)
+		store.clearExact(staleAutomatic) shouldBe ActiveTrackingSessionStoreResult.Success(null)
+		store.read() shouldBe ActiveTrackingSessionStoreResult.Success(null)
 	}
 }

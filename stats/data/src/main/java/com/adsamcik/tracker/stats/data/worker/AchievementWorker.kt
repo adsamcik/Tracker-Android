@@ -6,6 +6,8 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.stats.api.AchievementDefinition
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricKey
@@ -17,6 +19,7 @@ import com.adsamcik.tracker.stats.api.rule.RuleEvaluator
 import com.adsamcik.tracker.stats.api.rule.RuleRegistry
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import javax.inject.Provider
 
 /**
  * Background WorkManager worker that recomputes persisted achievement progress.
@@ -54,14 +57,17 @@ import dagger.assisted.AssistedInject
 class AchievementWorker @AssistedInject constructor(
 	@Assisted context: Context,
 	@Assisted params: WorkerParameters,
-	@AchievementRules private val ruleRegistry: RuleRegistry,
-	private val metricsProvider: AchievementMetricsProvider,
-	private val achievementDao: AchievementProgressDao,
+	@AchievementRules private val ruleRegistryProvider: Provider<RuleRegistry>,
+	private val metricsProviderProvider: Provider<AchievementMetricsProvider>,
+	private val achievementDaoProvider: Provider<AchievementProgressDao>,
 	private val dirtyTracker: MetricDirtyTracker,
-	private val transactionRunner: AchievementEvaluationTransactionRunner,
+	private val transactionRunnerProvider: Provider<AchievementEvaluationTransactionRunner>,
+	private val trackingStartupGate: TrackingStartupGate,
 ) : CoroutineWorker(context, params) {
 
 	override suspend fun doWork(): Result {
+		var dependencies: EvaluationDependencies? = null
+		var startupGeneration = -1L
 		while (true) {
 			val snapshot = dirtyTracker.snapshotDirty(MetricDirtyTracker.Consumer.PERSISTENCE)
 			if (snapshot.isEmpty) {
@@ -71,26 +77,62 @@ class AchievementWorker @AssistedInject constructor(
 				continue
 			}
 
-			if (!evaluate(snapshot.tables)) return Result.retry()
+			if (dependencies == null) {
+				startupGeneration = trackingStartupGate.currentGeneration
+				when (trackingStartupGate.reconcile()) {
+					is TrackingStartupResult.Ready -> Unit
+					is TrackingStartupResult.RetryableFailure -> return Result.retry()
+					is TrackingStartupResult.Blocked -> return Result.success()
+				}
+				if (!isReadyGeneration(startupGeneration)) return Result.success()
+				val ruleRegistry = ruleRegistryProvider.get()
+				if (!isReadyGeneration(startupGeneration)) return Result.success()
+				val metricsProvider = metricsProviderProvider.get()
+				if (!isReadyGeneration(startupGeneration)) return Result.success()
+				val achievementDao = achievementDaoProvider.get()
+				if (!isReadyGeneration(startupGeneration)) return Result.success()
+				val transactionRunner = transactionRunnerProvider.get()
+				dependencies = EvaluationDependencies(
+					ruleRegistry = ruleRegistry,
+					metricsProvider = metricsProvider,
+					achievementDao = achievementDao,
+					transactionRunner = transactionRunner,
+				)
+			}
 
+			val completed = try {
+				evaluate(snapshot.tables, requireNotNull(dependencies), startupGeneration)
+			} catch (_: StartupGenerationChangedException) {
+				return Result.success()
+			}
+			if (!completed) return Result.retry()
+
+			if (!isReadyGeneration(startupGeneration)) return Result.success()
 			dirtyTracker.acknowledgeDirty(MetricDirtyTracker.Consumer.PERSISTENCE, snapshot)
 		}
 	}
 
-	private suspend fun evaluate(dirtyTables: Set<String>): Boolean {
+	private suspend fun evaluate(
+		dirtyTables: Set<String>,
+		dependencies: EvaluationDependencies,
+		startupGeneration: Long,
+	): Boolean {
 		var completed = false
 		var wroteUpdates = false
-		transactionRunner.run {
-			val instances = ruleRegistry.instancesAffectedByTables(dirtyTables)
-			if (instances.isEmpty()) {
-				completed = true
-				return@run
-			}
+		dependencies.transactionRunner.run {
+			requireReadyGeneration(startupGeneration)
+			try {
+				val instances = dependencies.ruleRegistry.instancesAffectedByTables(dirtyTables)
+				if (instances.isEmpty()) {
+					completed = true
+					return@run
+				}
 
-			val snapshot = metricsProvider.collect()
-			if (snapshot.asMap().isEmpty()) {
-				return@run
-			}
+				requireReadyGeneration(startupGeneration)
+				val snapshot = dependencies.metricsProvider.collect()
+				if (snapshot.asMap().isEmpty()) {
+					return@run
+				}
 
 			// Read existing progress so we can seed the per-metric accumulator with the
 			// last persisted lastTierIndex / lastValue. The registry already loaded the
@@ -99,13 +141,14 @@ class AchievementWorker @AssistedInject constructor(
 			// `lastValue: Double` we must preserve when only some instances of a metric
 			// change. The extra query is dwarfed by `metricsProvider.collect()` and only
 			// runs on non-idle passes.
-			val rows = achievementDao.getAll()
-			val progressByMetric = rows.mapNotNull { row ->
-				MetricKey.fromStorageKey(row.metricKey)?.let { it to row }
-			}.toMap()
+				requireReadyGeneration(startupGeneration)
+				val rows = dependencies.achievementDao.getAll()
+				val progressByMetric = rows.mapNotNull { row ->
+					MetricKey.fromStorageKey(row.metricKey)?.let { it to row }
+				}.toMap()
 
-			val accumulators = HashMap<MetricKey, ProgressAccumulator>()
-			for (instance in instances) {
+				val accumulators = HashMap<MetricKey, ProgressAccumulator>()
+				for (instance in instances) {
 				val metric = instance.rule.metric
 				val currentValue = snapshot.valueOf(metric)
 				val accum = accumulators.getOrPut(metric) {
@@ -138,10 +181,10 @@ class AchievementWorker @AssistedInject constructor(
 					}
 					is RuleEvaluationResult.ProgressUpdated -> Unit
 				}
-			}
+				}
 
-			val now = System.currentTimeMillis()
-			val updates = accumulators
+				val now = System.currentTimeMillis()
+				val updates = accumulators
 				.asSequence()
 				.filter { it.value.changed }
 				.map { (metric, a) ->
@@ -153,11 +196,17 @@ class AchievementWorker @AssistedInject constructor(
 					)
 				}
 				.toList()
-			if (updates.isNotEmpty()) {
-				achievementDao.upsertAll(updates)
-				wroteUpdates = true
+				if (updates.isNotEmpty()) {
+					requireReadyGeneration(startupGeneration)
+					dependencies.achievementDao.upsertAll(updates)
+					wroteUpdates = true
+				}
+				completed = true
+			} finally {
+				// The Room transaction runner must see the fence failure so it rolls back
+				// an evaluation that crossed into a newer startup generation.
+				requireReadyGeneration(startupGeneration)
 			}
-			completed = true
 		}
 		if (wroteUpdates) {
 			// Mark only after the transaction commits. The loop will evaluate this
@@ -166,6 +215,20 @@ class AchievementWorker @AssistedInject constructor(
 		}
 		return completed
 	}
+
+	private fun isReadyGeneration(startupGeneration: Long): Boolean =
+		trackingStartupGate.isReady && trackingStartupGate.currentGeneration == startupGeneration
+
+	private fun requireReadyGeneration(startupGeneration: Long) {
+		if (!isReadyGeneration(startupGeneration)) throw StartupGenerationChangedException
+	}
+
+	private data class EvaluationDependencies(
+		val ruleRegistry: RuleRegistry,
+		val metricsProvider: AchievementMetricsProvider,
+		val achievementDao: AchievementProgressDao,
+		val transactionRunner: AchievementEvaluationTransactionRunner,
+	)
 
 	private class ProgressAccumulator(
 		var lastTierIndex: Int,
@@ -177,4 +240,6 @@ class AchievementWorker @AssistedInject constructor(
 		const val UNIQUE_WORK_NAME = "AchievementEvaluation"
 		const val WORK_TAG = "Achievement"
 	}
+
+	private object StartupGenerationChangedException : RuntimeException()
 }

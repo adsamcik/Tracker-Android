@@ -19,6 +19,8 @@ enum class LifecycleDesiredState { ACTIVE, FINALIZED }
 enum class LifecycleActionFamily { SOURCE_RUNTIME }
 
 enum class LifecycleActionStatus {
+	/** Durable provider intent whose owning Android service has not yet entered foreground. */
+	AWAITING_FOREGROUND,
 	PENDING,
 	APPLYING,
 	START_ACCEPTED,
@@ -39,27 +41,6 @@ data class LifecycleLeaseToken(
 		require(ownerToken.isNotBlank())
 		require(bootId.isNotBlank())
 		require(generation > 0L)
-	}
-}
-
-/** Fresh automatic-control evidence required before an automatic logical entry can be created. */
-data class AutomaticTriggerEvidence(
-	val triggerId: String,
-	val kind: String,
-	val bootId: String,
-	val observedElapsedRealtimeNanos: Long,
-	val receivedElapsedRealtimeNanos: Long,
-	val expiresElapsedRealtimeNanos: Long,
-	val automationEpoch: Long,
-) {
-	init {
-		require(triggerId.isNotBlank())
-		require(kind.isNotBlank())
-		require(bootId.isNotBlank())
-		require(observedElapsedRealtimeNanos >= 0L)
-		require(receivedElapsedRealtimeNanos >= observedElapsedRealtimeNanos)
-		require(expiresElapsedRealtimeNanos >= receivedElapsedRealtimeNanos)
-		require(automationEpoch > 0L)
 	}
 }
 

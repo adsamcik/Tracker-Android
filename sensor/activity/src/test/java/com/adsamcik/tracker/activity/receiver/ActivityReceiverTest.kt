@@ -19,9 +19,13 @@ import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.C
 import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
 import com.adsamcik.tracker.activity.api.ingress.ActivityDurableSelection
 import com.adsamcik.tracker.activity.api.ingress.ActivityIngressResult
+import com.adsamcik.tracker.activity.api.ingress.ActivityIngressStatus
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.google.android.gms.location.ActivityRecognitionResult
 import com.google.android.gms.location.ActivityTransitionEvent
@@ -64,6 +68,7 @@ class ActivityReceiverTest {
 
 	private lateinit var mockBackend: GmsActivityRecognitionBackend
 	private lateinit var mockIngress: ActivityRecognitionEventIngress
+	private lateinit var mockStartupGate: TrackingStartupGate
 
 	@Before
 	fun setUp() {
@@ -77,6 +82,9 @@ class ActivityReceiverTest {
 		// Mock the Hilt EntryPoint so the receiver can obtain the backend.
 		mockBackend = mockk(relaxed = true)
 		mockIngress = mockk()
+		mockStartupGate = mockk()
+		coEvery { mockStartupGate.reconcileAdmission(any()) } returns
+			TrackingAdmissionStartupResult.Ready
 		coEvery { mockIngress.admit(any()) } returns ActivityIngressResult.durable(
 			1,
 			0,
@@ -85,6 +93,7 @@ class ActivityReceiverTest {
 		val mockEntryPoint = mockk<ActivityReceiverEntryPoint> {
 			every { backend() } returns mockBackend
 			every { eventIngress() } returns mockIngress
+			every { trackingStartupGate() } returns mockStartupGate
 			every { applicationScope() } returns CoroutineScope(Dispatchers.Unconfined)
 		}
 		mockkStatic(EntryPointAccessors::class)
@@ -205,6 +214,28 @@ class ActivityReceiverTest {
 		attempts shouldBe 2
 		permissionChecks shouldBe 2
 		published shouldBe durable
+	}
+
+	@Test
+	fun `cold callback does not resolve Room ingress before startup recovery`() = runTest {
+		var ingressResolved = false
+
+		val result = admitActivityCallbackAfterStartup(
+			reconcileStartup = {
+				TrackingAdmissionStartupResult.RetryableFailure(
+					TrackingStartupStage.PREVIOUS_EXIT,
+					"RECOVERY_PENDING",
+				)
+			},
+			admit = {
+				ingressResolved = true
+				ActivityIngressResult.durable(1, 0)
+			},
+		)
+
+		result.status shouldBe ActivityIngressStatus.RETRYABLE
+		result.failureCode shouldBe "STARTUP_RECOVERY_NOT_READY"
+		ingressResolved shouldBe false
 	}
 
 	@Test

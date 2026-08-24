@@ -9,6 +9,7 @@ import com.adsamcik.tracker.activity.api.backend.TransitionUpdate
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.stats.api.DetectedActivityType
+import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.DisplayName
@@ -20,6 +21,171 @@ class BackgroundTrackingApiLogicTest {
 	@Nested
 	@DisplayName("control policy")
 	inner class ControlPolicy {
+		@Test
+		fun `durable automation retries until policy and params share an authoritative revision`() {
+			durableActivityAuthorityDisposition(
+				paramsInitialized = false,
+				activePolicyRevision = null,
+				paramsPolicyRevision = null,
+				activityControlEligible = false,
+				currentAutomationEpoch = 17,
+				effectAutomationEpoch = 17,
+			) shouldBe ActivityAutomationDeliveryResult.RETRY
+
+			durableActivityAuthorityDisposition(
+				paramsInitialized = true,
+				activePolicyRevision = 4,
+				paramsPolicyRevision = 3,
+				activityControlEligible = true,
+				currentAutomationEpoch = 17,
+				effectAutomationEpoch = 17,
+			) shouldBe ActivityAutomationDeliveryResult.RETRY
+		}
+
+		@Test
+		fun `current authoritative policy denial terminally suppresses old automation`() {
+			durableActivityAuthorityDisposition(
+				paramsInitialized = true,
+				activePolicyRevision = 4,
+				paramsPolicyRevision = 4,
+				activityControlEligible = false,
+				currentAutomationEpoch = 17,
+				effectAutomationEpoch = 17,
+			) shouldBe ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED
+		}
+
+		@Test
+		fun `reconsented control terminally suppresses evidence from the retired epoch`() {
+			durableActivityAuthorityDisposition(
+				paramsInitialized = true,
+				activePolicyRevision = 4,
+				paramsPolicyRevision = 4,
+				activityControlEligible = true,
+				currentControlConsentEpoch = 9,
+				effectControlConsentEpoch = 8,
+				currentAutomationEpoch = 17,
+				effectAutomationEpoch = 17,
+			) shouldBe ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED
+			durableActivityAuthorityDisposition(
+				paramsInitialized = true,
+				activePolicyRevision = 4,
+				paramsPolicyRevision = 4,
+				activityControlEligible = true,
+				currentControlConsentEpoch = 9,
+				effectControlConsentEpoch = 9,
+				currentAutomationEpoch = 17,
+				effectAutomationEpoch = 17,
+			) shouldBe null
+
+			durableActivityAuthorityDisposition(
+				paramsInitialized = true,
+				activePolicyRevision = 5,
+				paramsPolicyRevision = 5,
+				activityControlEligible = true,
+				currentControlConsentEpoch = 9,
+				effectControlConsentEpoch = 9,
+				currentAutomationEpoch = 5,
+				effectAutomationEpoch = 4,
+			) shouldBe ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED
+		}
+
+		@Test
+		fun `platform enqueue result never fabricates lifecycle acceptance`() {
+			durableActivityStartOutcome(startAccepted = false) shouldBe
+				ActivityAutomationDeliveryResult.START_CONTEXT_EXPIRED
+			durableActivityStartOutcome(startAccepted = true) shouldBe
+				ActivityAutomationDeliveryResult.START_REQUESTED
+		}
+
+		@Test
+		fun `durable replay cannot manufacture a transition callback start exemption`() {
+			durableActivityStartContextDisposition(
+				ActivityAutomationStartContext.DURABLE_REPLAY,
+			) shouldBe ActivityAutomationDeliveryResult.START_CONTEXT_EXPIRED
+			durableActivityStartContextDisposition(
+				ActivityAutomationStartContext.FRESH_TRANSITION_CALLBACK,
+			) shouldBe null
+		}
+
+		@Test
+		fun `fresh transition carries its qualified envelope and policy epoch into service start`() {
+			val evidence = ActivityAutomationDeliveryEnvelope(
+				admissionOrdinal = 42,
+				activityType = DetectedActivityType.WALKING,
+				confidence = 100,
+				transitionType = ActivityTransitionType.ENTER,
+				clockDomainId = "boot-7",
+				observedElapsedRealtimeNanos = 1_000,
+				receivedElapsedRealtimeNanos = 1_100,
+				registrationGeneration = 5,
+				authorizationRevision = 8,
+				authorizationFingerprint = "authorization",
+				collectedDataEpoch = 4,
+				automationEpoch = 17,
+			)
+
+			val trigger = requireNotNull(
+				evidence.toAutomaticTrackingStartTrigger(
+					ActivityAutomationStartContext.FRESH_TRANSITION_CALLBACK,
+					sourcePolicyRevision = 23,
+					intendedCaptureSourceMask = 2,
+					requestedCaptureSourceMask = 2,
+					intendedForegroundServiceTypeMask = 256,
+				),
+			)
+
+			trigger.triggerId shouldBe "activity-transition:boot-7:42"
+			trigger.kind shouldBe "ACTIVITY_TRANSITION:WALKING:ENTER"
+			trigger.bootId shouldBe "boot-7"
+			trigger.observedElapsedRealtimeNanos shouldBe 1_000
+			trigger.receivedElapsedRealtimeNanos shouldBe 1_100
+			trigger.expiresElapsedRealtimeNanos shouldBe 60_000_001_000L
+			trigger.automationEpoch shouldBe 17
+			trigger.sourcePolicyRevision shouldBe 23
+			trigger.intendedCaptureSourceMask shouldBe 2
+			trigger.requestedCaptureSourceMask shouldBe 2
+			trigger.intendedForegroundServiceTypeMask shouldBe 256
+			trigger.collectedDataEpoch shouldBe 4
+			trigger.startContext shouldBe AutomaticTrackingStartContext.ACTIVITY_TRANSITION_CALLBACK
+			evidence.toAutomaticTrackingStartTrigger(
+				ActivityAutomationStartContext.DURABLE_REPLAY,
+				sourcePolicyRevision = 23,
+				intendedCaptureSourceMask = 2,
+				requestedCaptureSourceMask = 2,
+				intendedForegroundServiceTypeMask = 256,
+			) shouldBe null
+		}
+
+		@Test
+		fun `delayed callback cannot extend stale motion authority from receipt time`() {
+			val evidence = ActivityAutomationDeliveryEnvelope(
+				admissionOrdinal = 43,
+				activityType = DetectedActivityType.WALKING,
+				confidence = 100,
+				transitionType = ActivityTransitionType.ENTER,
+				clockDomainId = "boot-7",
+				observedElapsedRealtimeNanos = 1_000,
+				receivedElapsedRealtimeNanos = 59_000_001_000,
+				registrationGeneration = 5,
+				authorizationRevision = 8,
+				authorizationFingerprint = "authorization",
+				collectedDataEpoch = 4,
+				automationEpoch = 17,
+			)
+
+			val trigger = requireNotNull(
+				evidence.toAutomaticTrackingStartTrigger(
+					ActivityAutomationStartContext.FRESH_TRANSITION_CALLBACK,
+					sourcePolicyRevision = 23,
+					intendedCaptureSourceMask = 2,
+					requestedCaptureSourceMask = 2,
+					intendedForegroundServiceTypeMask = 256,
+				),
+			)
+
+			trigger.expiresElapsedRealtimeNanos shouldBe 60_000_001_000L
+		}
+
 		@Test
 		fun `denied activity control forces automatic tracking off`() {
 			effectiveAutomaticControlMode(GroupedActivity.ON_FOOT.ordinal, controlEligible = false) shouldBe

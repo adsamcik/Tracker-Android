@@ -44,8 +44,7 @@ import com.adsamcik.tracker.tracker.pipeline.stages.SignalDispatchStage
 import com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
 import com.adsamcik.tracker.tracker.policy.RoomTrackerStateEvidenceWriter
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
-import com.adsamcik.tracker.tracker.source.coordinator.ProjectionMode
-import com.adsamcik.tracker.tracker.source.coordinator.SourceOwner
+import com.adsamcik.tracker.tracker.source.coordinator.TrackingSessionOwnership
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.model.SourceDemand
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStore
@@ -185,9 +184,9 @@ internal class TrackingOrchestrator(
 
 		val effectiveRolloutState = rolloutState ?: trackingRolloutStateStore.load()
 		val initialTrackingParams = trackingParamsRepository.data.first()
-		check(effectiveRolloutState.projectionMode == ProjectionMode.EVENT_CANONICAL &&
-			effectiveRolloutState.sourceOwners.values.all { it == SourceOwner.EVENT }
-		) { "Phase 10 runtime requires event-canonical source ownership" }
+		// This runtime needs physical acquisition ownership only. Canonical product writers are
+		// activated independently per source after their own query, deletion, and cutover proof.
+		TrackingSessionOwnership.resolve(effectiveRolloutState, initialTrackingParams)
 
 		// Initialize the new 4-tier escalation engine
 		val escalationEngine = DefaultPolicyEscalationEngine()
@@ -368,6 +367,13 @@ internal class TrackingOrchestrator(
 		preShutdown: (suspend () -> Unit)? = null,
 	): ShutdownResult = componentMutex.withLock {
 		preShutdown?.invoke()
+		// TrackerService can exist briefly as an honest providerless foreground shell while the
+		// process-wide recovery gate is closed. That shell has no tracking session to finalize and
+		// must not open Room merely because Android destroys the Service.
+		if (!hasSessionState()) return@withLock ShutdownResult(
+			dailySummaryMaterialized = false,
+			fallbackEnqueued = false,
+		)
 		try {
 			destroyComponents(context)
 		} finally {

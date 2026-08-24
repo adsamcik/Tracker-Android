@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.app.activity
 
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingCompletionState
 import com.adsamcik.tracker.shared.preferences.onboarding.OnboardingRepository
 import io.kotest.matchers.shouldBe
@@ -43,6 +45,19 @@ class MainActivityStartupTest {
         gatedDeepNavigationRequest(StartupDestination.OnboardingReadFailed, request) shouldBe null
         gatedDeepNavigationRequest(StartupDestination.Main, request) shouldBe request
     }
+
+	@Test
+	fun `only a failed legacy import exposes destructive legacy recovery`() {
+		startupFailureDestination(
+			TrackingStartupResult.Blocked(TrackingStartupStage.LEGACY_IMPORT, "IMPORT_FAILED"),
+		) shouldBe StartupDestination.LegacyRecovery
+		startupFailureDestination(
+			TrackingStartupResult.Blocked(TrackingStartupStage.LEGACY_V27, "UNKNOWN_WRITER"),
+		) shouldBe StartupDestination.Recovery
+		startupFailureDestination(
+			TrackingStartupResult.RetryableFailure(TrackingStartupStage.LIVE_V2, "LEASE"),
+		) shouldBe StartupDestination.Recovery
+	}
 
     private class FakeOnboardingRepository(
         completed: Boolean = false,

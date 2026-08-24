@@ -41,6 +41,7 @@ import java.time.ZoneId
 class DailySummaryAggregator(
 	private val dailySummaryDao: DailySummaryDao,
 	private val sessionSegmentDao: SessionSegmentDao,
+	private val verifyCollectedDataAccess: () -> Unit = {},
 	private val onDailySummaryWritten: () -> Unit = {},
 ) {
 	/**
@@ -74,6 +75,7 @@ class DailySummaryAggregator(
 		val startOfDayMs = startOfLocalDayMs(epochDay)
 		val endOfDayMs = startOfLocalDayMs(epochDay + 1)
 
+		verifyCollectedDataAccess()
 		val segments = sessionSegmentDao.getOverlapping(startOfDayMs, endOfDayMs)
 		var totalDistanceM = 0f
 		var totalSteps = 0
@@ -95,8 +97,10 @@ class DailySummaryAggregator(
 		}
 
 		val now = Time.nowMillis
+		verifyCollectedDataAccess()
 		val existing = dailySummaryDao.getByDay(epochDay)
 		if (segments.isNotEmpty() || existing != null) {
+			verifyCollectedDataAccess()
 			dailySummaryDao.upsert(
 				dateEpochDay = epochDay,
 				totalDistanceM = totalDistanceM,

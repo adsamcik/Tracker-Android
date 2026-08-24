@@ -20,6 +20,8 @@ data class SourceEvidenceCandidate<T : SourcePayload>(
 	val wallTimeMs: Long?,
 	val wallTimeUncertaintyMs: Long?,
 	val capturedCollectedDataEpoch: Long,
+	/** Activity-only callback admission generation; null for every other source. */
+	val activityAutomationEpoch: Long? = null,
 	val sourcePolicyRevision: Long? = null,
 	val captureConsentEpoch: Long? = null,
 	val sessionManifestRevision: Long? = null,
@@ -48,6 +50,9 @@ data class SourceEvidenceCandidate<T : SourcePayload>(
 			"Wall-time uncertainty must not be negative"
 		}
 		require(capturedCollectedDataEpoch >= 0L) { "Collected-data epoch must not be negative" }
+		require(activityAutomationEpoch == null ||
+			(source == SourceKind.ACTIVITY && activityAutomationEpoch > 0L)
+		) { "Activity automation epoch must be positive and Activity-specific" }
 		require(sourcePolicyRevision == null || sourcePolicyRevision > 0L) {
 			"Source-policy revision must be positive when present"
 		}

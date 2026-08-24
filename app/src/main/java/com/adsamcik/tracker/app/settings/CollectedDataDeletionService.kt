@@ -6,10 +6,13 @@ import android.system.OsConstants
 import androidx.work.Operation
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import androidx.work.await
 import com.adsamcik.tracker.activity.api.ActivityRecognitionApi
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbiter
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationFailureCode
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
+import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
 import com.adsamcik.tracker.impexp.importer.DataImporter
 import com.adsamcik.tracker.impexp.exporter.automation.ExportAutomationController
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
@@ -22,6 +25,7 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleS
 import com.adsamcik.tracker.stats.data.worker.AchievementWorker
 import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
+import com.adsamcik.tracker.tracker.api.TrackingStopQuiescenceResult
 import com.adsamcik.tracker.tracker.resilience.PendingSignalDrainWork
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
@@ -29,13 +33,13 @@ import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
 import com.adsamcik.tracker.tracker.worker.HistoricalTrajectoryReconstructionWorker
 import java.io.File
 import java.io.FileOutputStream
-import java.util.concurrent.ExecutionException
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
+import javax.inject.Provider
 
 interface CollectedDataDeletionService {
 	suspend fun deleteAll()
@@ -54,66 +58,78 @@ class DefaultCollectedDataWriterQuiescer(
 	private val trackerStateReader: TrackerStateReader,
 	private val activityWatcherController: ActivityWatcherController,
 	private val exportAutomationController: ExportAutomationController,
+	private val workManager: WorkManager = WorkManager.getInstance(context),
+	private val quiescenceTimeoutMs: Long = WRITER_QUIESCENCE_TIMEOUT_MS,
+	private val awaitTrackerQuiescence: suspend (Context) -> TrackingStopQuiescenceResult =
+		{ stopContext -> TrackerServiceApi.stopServiceAndAwaitQuiescence(stopContext) },
 ) : CollectedDataWriterQuiescer {
-	private val workManager = WorkManager.getInstance(context)
 	private var restoreRetentionSchedule = false
 	private var restoreDatabaseMaintenance = false
 
 	override suspend fun quiesce() {
-		restoreRetentionSchedule = hasActiveUniqueWork(RetentionPipelineWorker.WORK_NAME) ||
-			hasActiveUniqueWork(RetentionPipelineWorker.LEGACY_WORK_NAME)
-		restoreDatabaseMaintenance = hasActiveUniqueWork(DatabaseMaintenanceWorker.MAINTENANCE_UNIQUE_ID)
-		activityWatcherController.pauseForDataDeletion()
-		TrackerServiceApi.stopService(context)
 		try {
-			withTimeout(TRACKER_STOP_TIMEOUT_MS) {
+			withTimeout(quiescenceTimeoutMs) {
+				restoreRetentionSchedule = restoreRetentionSchedule ||
+					hasActiveUniqueWork(RetentionPipelineWorker.WORK_NAME) ||
+					hasActiveUniqueWork(RetentionPipelineWorker.LEGACY_WORK_NAME)
+				restoreDatabaseMaintenance = restoreDatabaseMaintenance ||
+					hasActiveUniqueWork(DatabaseMaintenanceWorker.MAINTENANCE_UNIQUE_ID)
+				activityWatcherController.pauseForDataDeletion()
+				val trackerStop = awaitTrackerQuiescence(context)
+				if (trackerStop != TrackingStopQuiescenceResult.HANDLED) {
+					throw DatabaseMigrationBackupException(
+						"Could not establish tracker writer quiescence: $trackerStop",
+					)
+				}
+				// Presentation state is not the writer boundary. Once the durable STOP is handled it
+				// may still lag briefly, so retain this wait only as UI-state cleanup.
 				if (trackerStateReader.isServiceRunning) {
 					trackerStateReader.isServiceRunningFlow.first { isRunning -> !isRunning }
 				}
+				awaitCancellation(
+					ActivityRecognitionApi.cancelPendingWork(context),
+					"activity recognition",
+				)
+				awaitCancellation(
+					workManager.cancelAllWorkByTag(PointsDomainEventConsumer.POINTS_WORK_TAG),
+					"points",
+				)
+				awaitCancellation(
+					workManager.cancelAllWorkByTag(AchievementWorker.WORK_TAG),
+					"achievement",
+				)
+				awaitCancellation(
+					workManager.cancelUniqueWork(DailySummaryMaterializationWorker.UNIQUE_WORK_ID),
+					"daily summary",
+				)
+				awaitCancellation(
+					workManager.cancelUniqueWork(
+						HistoricalTrajectoryReconstructionWorker.UNIQUE_WORK_NAME,
+					),
+					"historical reconstruction",
+				)
+				awaitCancellation(
+					DataImporter.cancel(context),
+					"data import",
+				)
+				awaitCancellation(
+					PendingSignalDrainWork.cancel(context),
+					"pending-signal recovery",
+				)
+				awaitCancellation(
+					workManager.cancelUniqueWork(RetentionPipelineWorker.WORK_NAME),
+					"data retention",
+				)
+				awaitCancellation(
+					workManager.cancelUniqueWork(RetentionPipelineWorker.LEGACY_WORK_NAME),
+					"legacy data retention",
+				)
+				awaitCancellation(
+					DatabaseMaintenanceWorker.cancel(context),
+					"database maintenance",
+				)
+				exportAutomationController.pauseForDataDeletion()
 			}
-			awaitCancellation(
-				ActivityRecognitionApi.cancelPendingWork(context),
-				"activity recognition",
-			)
-			awaitCancellation(
-				workManager.cancelAllWorkByTag(PointsDomainEventConsumer.POINTS_WORK_TAG),
-				"points",
-			)
-			awaitCancellation(
-				workManager.cancelAllWorkByTag(AchievementWorker.WORK_TAG),
-				"achievement",
-			)
-			awaitCancellation(
-				workManager.cancelUniqueWork(DailySummaryMaterializationWorker.UNIQUE_WORK_ID),
-				"daily summary",
-			)
-			awaitCancellation(
-				workManager.cancelUniqueWork(
-					HistoricalTrajectoryReconstructionWorker.UNIQUE_WORK_NAME,
-				),
-				"historical reconstruction",
-			)
-			awaitCancellation(
-				DataImporter.cancel(context),
-				"data import",
-			)
-			awaitCancellation(
-				PendingSignalDrainWork.cancel(context),
-				"pending-signal recovery",
-			)
-			awaitCancellation(
-				workManager.cancelUniqueWork(RetentionPipelineWorker.WORK_NAME),
-				"data retention",
-			)
-			awaitCancellation(
-				workManager.cancelUniqueWork(RetentionPipelineWorker.LEGACY_WORK_NAME),
-				"legacy data retention",
-			)
-			awaitCancellation(
-				DatabaseMaintenanceWorker.cancel(context),
-				"database maintenance",
-			)
-			exportAutomationController.pauseForDataDeletion()
 		} catch (error: TimeoutCancellationException) {
 			throw DatabaseMigrationBackupException(
 				"Timed out while stopping collected-data writers",
@@ -136,42 +152,34 @@ class DefaultCollectedDataWriterQuiescer(
 		activityWatcherController.resumeAfterDataDeletion()
 	}
 
-	private fun awaitCancellation(operation: Operation, writerName: String) {
+	private suspend fun awaitCancellation(operation: Operation, writerName: String) {
 		try {
-			operation.result.get()
-		} catch (error: InterruptedException) {
-			Thread.currentThread().interrupt()
-			throw DatabaseMigrationBackupException(
-				"Interrupted while stopping $writerName work",
-				error,
-			)
-		} catch (error: ExecutionException) {
+			operation.await()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (error: Exception) {
 			throw DatabaseMigrationBackupException(
 				"Could not stop $writerName work",
-				error.cause ?: error,
+				error,
 			)
 		}
 	}
 
-	private fun hasActiveUniqueWork(uniqueWorkName: String): Boolean = try {
-		workManager.getWorkInfosForUniqueWork(uniqueWorkName).get().any { workInfo ->
+	private suspend fun hasActiveUniqueWork(uniqueWorkName: String): Boolean = try {
+		workManager.getWorkInfosForUniqueWorkFlow(uniqueWorkName).first().any { workInfo ->
 			workInfo.state in ACTIVE_WORK_STATES
 		}
-	} catch (error: InterruptedException) {
-		Thread.currentThread().interrupt()
-		throw DatabaseMigrationBackupException(
-			"Interrupted while checking $uniqueWorkName work",
-			error,
-		)
-	} catch (error: ExecutionException) {
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (error: Exception) {
 		throw DatabaseMigrationBackupException(
 			"Could not check $uniqueWorkName work",
-			error.cause ?: error,
+			error,
 		)
 	}
 
 	private companion object {
-		const val TRACKER_STOP_TIMEOUT_MS = 30_000L
+		const val WRITER_QUIESCENCE_TIMEOUT_MS = 30_000L
 		val ACTIVE_WORK_STATES = setOf(
 			WorkInfo.State.ENQUEUED,
 			WorkInfo.State.RUNNING,
@@ -186,7 +194,10 @@ class DefaultCollectedDataDeletionService(
 	private val exportPlanStore: ExportPlanStore,
 	private val writerQuiescer: CollectedDataWriterQuiescer,
 	private val collectedDataLifecycleStore: CollectedDataLifecycleStore,
-	private val activityRegistrationArbiter: ActivityRegistrationArbiter? = null,
+	private val startupDeletionBarrier: TrackingStartupDeletionBarrier =
+		TrackingStartupDeletionBarrier(),
+	private val activityRegistrationArbiterProvider: Provider<ActivityRegistrationArbiter>? = null,
+	private val automaticControlRestorer: PostDeletionAutomaticControlRestorer,
 	private val traceboxDataDeletion: suspend () -> Boolean,
 	private val appDatabaseDeletion: suspend (Context, Long, Long?, Long) -> Unit =
 		{ context, epoch, retainedFromMs, updatedAtMs ->
@@ -219,34 +230,56 @@ class DefaultCollectedDataDeletionService(
 	}
 
 	private suspend fun runDeletion(writeMarker: Boolean) {
+		var activityRegistrationArbiter: ActivityRegistrationArbiter? = null
+		var deletionCompleted = false
+		// The on-disk marker is the crash authority. Persist it before closing the in-process gate so
+		// a process death at this boundary cannot forget a user-confirmed deletion request.
+		if (writeMarker) writeDeletionMarker()
+		startupDeletionBarrier.closeAdmission()
 		try {
-			if (writeMarker) writeDeletionMarker()
 			// This transition is deliberately outside collected Room rows and happens
 			// before writers are stopped or the database is cleared.  Any work that
 			// captured the old epoch can no longer publish after this point.
 			val lifecycleUpdatedAtMs = System.currentTimeMillis()
 			val lifecycle = collectedDataLifecycleStore.beginFullDeletion(lifecycleUpdatedAtMs)
+			if (!writeMarker) {
+				// A cold-process reconciliation has no in-process writer to quiesce yet. Remove the
+				// retired vaults before resolving the Activity arbiter, whose Room observer would
+				// otherwise be able to open/create the v28 target before deletion wins.
+				deleteRetiredDatabases()
+			}
+			activityRegistrationArbiter = activityRegistrationArbiterProvider?.get()
 			activityRegistrationArbiter?.closeForCollectedDataDeletion()?.let { result ->
-				if (result.status == ActivityRegistrationStatus.FAILED) {
+				val cleanupIsDurablyDeferred =
+					result.status == ActivityRegistrationStatus.DEGRADED &&
+						result.failureCode == ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED &&
+						result.retryable
+				if (result.status != ActivityRegistrationStatus.APPLIED && !cleanupIsDurablyDeferred) {
 					throw DatabaseMigrationBackupException(
 						"Could not fence activity-recognition callbacks: ${result.failureCode}",
 					)
 				}
 			}
 			writerQuiescer.quiesce()
+			// Admission is already closed and writers/providers have now received cancellation. Only
+			// after the admitted startup operation unwinds may destructive Room deletion begin.
+			startupDeletionBarrier.awaitQuiescence()
 			performDeletion(
 				epoch = lifecycle.epoch,
 				retainedFromMs = lifecycle.retainedFromMs,
 				updatedAtMs = lifecycleUpdatedAtMs,
+				removeRetiredDatabases = writeMarker,
 			)
 			exportPlanStore.resetAllWatermarks()
 			deleteDiagnostics()
+			// Enqueue the durable recovery owner while the deletion marker and process barrier still
+			// fence Room/providers. It will make one attempt only after this generation is Ready.
+			automaticControlRestorer.schedule(lifecycle.epoch)
 			clearDeletionMarker()
+			deletionCompleted = true
 		} finally {
-			try {
-				writerQuiescer.resume()
-			} finally {
-				activityRegistrationArbiter?.resumeAfterCollectedDataDeletion()
+			if (deletionCompleted) {
+				startupDeletionBarrier.reopen()
 			}
 		}
 	}
@@ -274,12 +307,17 @@ class DefaultCollectedDataDeletionService(
 		epoch: Long,
 		retainedFromMs: Long?,
 		updatedAtMs: Long,
+		removeRetiredDatabases: Boolean,
 	) {
 		pointsAwardedDao.deleteAll()
 		// A durable full-delete request must remove the v26 vault before any operation can
 		// create/open v27 and trigger its one-shot import callback.
-		RETIRED_DATABASE_NAMES.forEach(::deleteRetiredDatabase)
+		if (removeRetiredDatabases) deleteRetiredDatabases()
 		appDatabaseDeletion(context, epoch, retainedFromMs, updatedAtMs)
+	}
+
+	private fun deleteRetiredDatabases() {
+		RETIRED_DATABASE_NAMES.forEach(::deleteRetiredDatabase)
 	}
 
 	private fun deleteRetiredDatabase(databaseName: String) {
@@ -319,7 +357,14 @@ class DefaultCollectedDataDeletionService(
 					"Could not persist collected-data deletion marker",
 				)
 			}
-			directorySync(parent)
+			try {
+				directorySync(parent)
+			} catch (error: Exception) {
+				throw DatabaseMigrationBackupException(
+					"Could not durably persist collected-data deletion marker",
+					error,
+				)
+			}
 		} finally {
 			temporary.delete()
 		}

@@ -34,6 +34,8 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
@@ -43,6 +45,7 @@ class ActivityReceiverThreadSafetyTest {
 
 	private lateinit var mockBackend: GmsActivityRecognitionBackend
 	private lateinit var mockIngress: ActivityRecognitionEventIngress
+	private lateinit var mockStartupGate: TrackingStartupGate
 
 	@Before
 	fun setUp() {
@@ -53,6 +56,9 @@ class ActivityReceiverThreadSafetyTest {
 		// Mock the Hilt EntryPoint
 		mockBackend = mockk(relaxed = true)
 		mockIngress = mockk()
+		mockStartupGate = mockk()
+		coEvery { mockStartupGate.reconcileAdmission(any()) } returns
+			TrackingAdmissionStartupResult.Ready
 		coEvery { mockIngress.admit(any()) } returns ActivityIngressResult.durable(
 			1,
 			0,
@@ -63,6 +69,7 @@ class ActivityReceiverThreadSafetyTest {
 		val mockEntryPoint = mockk<ActivityReceiverEntryPoint> {
 			every { backend() } returns mockBackend
 			every { eventIngress() } returns mockIngress
+			every { trackingStartupGate() } returns mockStartupGate
 			every { applicationScope() } returns CoroutineScope(Dispatchers.Unconfined)
 		}
 		mockkStatic(EntryPointAccessors::class)

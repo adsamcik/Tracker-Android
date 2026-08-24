@@ -45,6 +45,8 @@ class JsonExporter @JvmOverloads @Inject constructor(
 		dateRange = dateRange,
 		afterTimeMs = null,
 		afterId = null,
+		database = null,
+		verifyCollectedDataAccess = {},
 	)
 
 	override suspend fun exportAfter(
@@ -54,15 +56,25 @@ class JsonExporter @JvmOverloads @Inject constructor(
 		dateRange: LongRange?,
 		afterTimeMs: Long?,
 		afterId: Long?,
+		database: AppDatabase?,
+		verifyCollectedDataAccess: () -> Unit,
 	): ExportResult {
 		// Session-scoped queries preserve the requested grouping. The caller-provided
 		// sequence cannot be rewound per session.
 		@Suppress("UNUSED_VARIABLE")
 		val ignoredLocationData = locationData
-		val database = AppDatabase.database(context)
+		verifyCollectedDataAccess()
+		val resolvedDatabase = database ?: AppDatabase.database(context)
 		return try {
 			val progress = withContext(dispatchers.io) {
-				writeSessions(outputStream, database, dateRange, afterTimeMs, afterId)
+				writeSessions(
+					outputStream = outputStream,
+					database = resolvedDatabase,
+					dateRange = dateRange,
+					afterTimeMs = afterTimeMs,
+					afterId = afterId,
+					verifyCollectedDataAccess = verifyCollectedDataAccess,
+				)
 			}
 			progress.toResult()
 		} catch (e: CancellationException) {
@@ -108,6 +120,7 @@ class JsonExporter @JvmOverloads @Inject constructor(
 		dateRange: LongRange?,
 		afterTimeMs: Long?,
 		afterId: Long?,
+		verifyCollectedDataAccess: () -> Unit,
 	): LocationProgress {
 		val fromMs = dateRange?.first ?: 0L
 		val toMs = dateRange?.last ?: Long.MAX_VALUE
@@ -116,11 +129,17 @@ class JsonExporter @JvmOverloads @Inject constructor(
 		BufferedWriter(OutputStreamWriter(outputStream, Charsets.UTF_8)).use { writer ->
 			writer.write("[")
 			var first = true
-			forEachOverlappingTrip(database, fromMs, toMs) { trip ->
-				if (hasLocationAfterCursor(database, trip, afterTimeMs, afterId)) {
+			forEachOverlappingTrip(database, fromMs, toMs, verifyCollectedDataAccess) { trip ->
+				if (hasLocationAfterCursor(database, trip, afterTimeMs, afterId, verifyCollectedDataAccess)) {
 					if (!first) writer.write(",")
 					first = false
-					writeSessionRecord(writer, database, trip.toModel(), progress)
+					writeSessionRecord(
+						writer,
+						database,
+						trip.toModel(),
+						progress,
+						verifyCollectedDataAccess,
+					)
 					exportedSessionRanges += trip.startTimeMs..trip.endTimeMs
 				}
 			}
@@ -133,6 +152,7 @@ class JsonExporter @JvmOverloads @Inject constructor(
 				afterId = afterId,
 				exportedSessionRanges = mergeRanges(exportedSessionRanges),
 				progress = progress,
+				verifyCollectedDataAccess = verifyCollectedDataAccess,
 				beforeStart = {
 					if (!first) writer.write(",")
 					first = false
@@ -149,6 +169,7 @@ class JsonExporter @JvmOverloads @Inject constructor(
 		database: AppDatabase,
 		trip: Trip,
 		progress: LocationProgress,
+		verifyCollectedDataAccess: () -> Unit,
 	) {
 		writeSessionRecordStart(
 			writer,
@@ -165,11 +186,30 @@ class JsonExporter @JvmOverloads @Inject constructor(
 				hasDistanceAnomaly = trip.hasDistanceAnomaly,
 			),
 		)
-		writeLocations(writer, database, trip.startTimeMs, trip.endTimeMs, progress = progress)
+		writeLocations(
+			writer,
+			database,
+			trip.startTimeMs,
+			trip.endTimeMs,
+			progress = progress,
+			verifyCollectedDataAccess = verifyCollectedDataAccess,
+		)
 		writer.write("],\"wifiObservations\":[")
-		writeWifiObservations(writer, database, trip.startTimeMs, trip.endTimeMs)
+		writeWifiObservations(
+			writer,
+			database,
+			trip.startTimeMs,
+			trip.endTimeMs,
+			verifyCollectedDataAccess,
+		)
 		writer.write("],\"cellSamples\":[")
-		writeCellSamples(writer, database, trip.startTimeMs, trip.endTimeMs)
+		writeCellSamples(
+			writer,
+			database,
+			trip.startTimeMs,
+			trip.endTimeMs,
+			verifyCollectedDataAccess,
+		)
 		writer.write("]}")
 	}
 
@@ -204,14 +244,17 @@ class JsonExporter @JvmOverloads @Inject constructor(
 		fromMs: Long,
 		toMs: Long,
 		progress: LocationProgress,
+		verifyCollectedDataAccess: () -> Unit,
 	) {
 		var pageAfterTimeMs: Long? = null
 		var pageAfterId: Long? = null
 		var first = true
 		while (true) {
+			verifyCollectedDataAccess()
 			val page = database.locationSampleDao().getChunkBetweenOrdered(
 				fromMs, toMs, pageAfterTimeMs, pageAfterId, RECORD_PAGE_SIZE,
 			)
+			verifyCollectedDataAccess()
 			if (page.isEmpty()) return
 			page.forEach { sample ->
 				if (!first) writer.write(",")
@@ -230,13 +273,16 @@ class JsonExporter @JvmOverloads @Inject constructor(
 		database: AppDatabase,
 		fromMs: Long,
 		toMs: Long,
+		verifyCollectedDataAccess: () -> Unit,
 		block: suspend (com.adsamcik.tracker.shared.base.database.data.Trip) -> Unit,
 	) {
+		verifyCollectedDataAccess()
 		val source = database.tripDao().getPagedOverlapping(fromMs, toMs)
 		var nextKey: Int? = null
 		var firstLoad = true
 		try {
 			while (true) {
+				verifyCollectedDataAccess()
 				val params = if (firstLoad) {
 					PagingSource.LoadParams.Refresh(
 						key = nextKey,
@@ -250,7 +296,9 @@ class JsonExporter @JvmOverloads @Inject constructor(
 						placeholdersEnabled = false,
 					)
 				}
-				when (val result = source.load(params)) {
+				val result = source.load(params)
+				verifyCollectedDataAccess()
+				when (result) {
 					is PagingSource.LoadResult.Page -> {
 						result.data.forEach { block(it) }
 						nextKey = result.nextKey
@@ -271,15 +319,19 @@ class JsonExporter @JvmOverloads @Inject constructor(
 		trip: com.adsamcik.tracker.shared.base.database.data.Trip,
 		afterTimeMs: Long?,
 		afterId: Long?,
+		verifyCollectedDataAccess: () -> Unit,
 	): Boolean {
 		if (afterTimeMs == null) return true
-		return database.locationSampleDao().getChunkBetweenOrdered(
+		verifyCollectedDataAccess()
+		val page = database.locationSampleDao().getChunkBetweenOrdered(
 			fromMs = trip.startTimeMs,
 			toMs = trip.endTimeMs,
 			afterTimeMs = afterTimeMs,
 			afterId = afterId,
 			limit = 1,
-		).isNotEmpty()
+		)
+		verifyCollectedDataAccess()
+		return page.isNotEmpty()
 	}
 
 	private suspend fun writeOrphanedRecord(
@@ -291,12 +343,14 @@ class JsonExporter @JvmOverloads @Inject constructor(
 		afterId: Long?,
 		exportedSessionRanges: List<LongRange>,
 		progress: LocationProgress,
+		verifyCollectedDataAccess: () -> Unit,
 		beforeStart: () -> Unit,
 	) {
 		val record = OrphanRecordWriter(writer, beforeStart)
 		var locationAfterTimeMs = afterTimeMs
 		var locationAfterId = afterId
 		while (true) {
+			verifyCollectedDataAccess()
 			val page = database.locationSampleDao().getChunkBetweenOrdered(
 				fromMs,
 				toMs,
@@ -304,6 +358,7 @@ class JsonExporter @JvmOverloads @Inject constructor(
 				locationAfterId,
 				RECORD_PAGE_SIZE,
 			)
+			verifyCollectedDataAccess()
 			if (page.isEmpty()) break
 			page.forEach { sample ->
 				if (!exportedSessionRanges.containsTime(sample.timeMs)) {
@@ -320,6 +375,7 @@ class JsonExporter @JvmOverloads @Inject constructor(
 		var wifiAfterTimeMs: Long? = null
 		var wifiAfterId: Long? = null
 		while (true) {
+			verifyCollectedDataAccess()
 			val page = database.wifiObservationDao().getChunkBetweenOrdered(
 				fromMs,
 				toMs,
@@ -327,6 +383,7 @@ class JsonExporter @JvmOverloads @Inject constructor(
 				wifiAfterId,
 				RECORD_PAGE_SIZE,
 			)
+			verifyCollectedDataAccess()
 			if (page.isEmpty()) break
 			page.forEach { observation ->
 				if (!exportedSessionRanges.containsTime(observation.timeMs)) {
@@ -342,6 +399,7 @@ class JsonExporter @JvmOverloads @Inject constructor(
 		var cellAfterTimeMs: Long? = null
 		var cellAfterId: Long? = null
 		while (true) {
+			verifyCollectedDataAccess()
 			val page = database.cellSampleDao().getChunkBetweenOrdered(
 				fromMs,
 				toMs,
@@ -349,6 +407,7 @@ class JsonExporter @JvmOverloads @Inject constructor(
 				cellAfterId,
 				RECORD_PAGE_SIZE,
 			)
+			verifyCollectedDataAccess()
 			if (page.isEmpty()) break
 			page.forEach { sample ->
 				if (!exportedSessionRanges.containsTime(sample.timeMs)) {
@@ -395,14 +454,22 @@ class JsonExporter @JvmOverloads @Inject constructor(
 		return false
 	}
 
-	private suspend fun writeWifiObservations(writer: BufferedWriter, database: AppDatabase, fromMs: Long, toMs: Long) {
+	private suspend fun writeWifiObservations(
+		writer: BufferedWriter,
+		database: AppDatabase,
+		fromMs: Long,
+		toMs: Long,
+		verifyCollectedDataAccess: () -> Unit,
+	) {
 		var afterTimeMs: Long? = null
 		var afterId: Long? = null
 		var first = true
 		while (true) {
+			verifyCollectedDataAccess()
 			val page = database.wifiObservationDao().getChunkBetweenOrdered(
 				fromMs, toMs, afterTimeMs, afterId, RECORD_PAGE_SIZE,
 			)
+			verifyCollectedDataAccess()
 			if (page.isEmpty()) return
 			page.forEach { observation ->
 				if (!first) writer.write(",")
@@ -416,14 +483,22 @@ class JsonExporter @JvmOverloads @Inject constructor(
 		}
 	}
 
-	private suspend fun writeCellSamples(writer: BufferedWriter, database: AppDatabase, fromMs: Long, toMs: Long) {
+	private suspend fun writeCellSamples(
+		writer: BufferedWriter,
+		database: AppDatabase,
+		fromMs: Long,
+		toMs: Long,
+		verifyCollectedDataAccess: () -> Unit,
+	) {
 		var afterTimeMs: Long? = null
 		var afterId: Long? = null
 		var first = true
 		while (true) {
+			verifyCollectedDataAccess()
 			val page = database.cellSampleDao().getChunkBetweenOrdered(
 				fromMs, toMs, afterTimeMs, afterId, RECORD_PAGE_SIZE,
 			)
+			verifyCollectedDataAccess()
 			if (page.isEmpty()) return
 			page.forEach { sample ->
 				if (!first) writer.write(",")

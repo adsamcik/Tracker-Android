@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.app.startup
 
-import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseRepository
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyImportStatus
@@ -26,7 +25,6 @@ sealed interface LegacyDatabaseStartupResult {
 class LegacyDatabaseUpgradeCoordinator @Inject constructor(
 	private val databaseProvider: Provider<AppDatabase>,
 	private val repository: LegacyDatabaseRepository,
-	private val collectedDataDeletionService: CollectedDataDeletionService,
 ) {
 	private val mutex = Mutex()
 	private val readyForThisProcess = AtomicBoolean(false)
@@ -37,9 +35,6 @@ class LegacyDatabaseUpgradeCoordinator @Inject constructor(
 	suspend fun ensureReady(retry: Boolean = false): LegacyDatabaseStartupResult = mutex.withLock {
 		var sourceExists = false
 		return@withLock try {
-			// A durable "delete all" request wins over legacy import. Reconcile it before any
-			// caller (Application, Activity, receiver, or worker) can open the active database.
-			collectedDataDeletionService.reconcilePendingDeletion()
 			if (readyForThisProcess.get()) return@withLock LegacyDatabaseStartupResult.Ready
 			if (retry) repository.resetForRetry()
 			// Establish existence without opening SQLite. If strict inspection then fails, the

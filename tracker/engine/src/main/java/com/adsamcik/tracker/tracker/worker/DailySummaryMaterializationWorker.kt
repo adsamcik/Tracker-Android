@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.worker
 
 import android.content.Context
 import androidx.hilt.work.HiltWorker
+import androidx.room.withTransaction
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
@@ -11,11 +12,14 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import java.util.concurrent.TimeUnit
+import javax.inject.Provider
 
 /**
  * Periodic worker that materializes daily summary rows from session segment data.
@@ -35,22 +39,53 @@ import java.util.concurrent.TimeUnit
 class DailySummaryMaterializationWorker @AssistedInject constructor(
 	@Assisted context: Context,
 	@Assisted workerParams: WorkerParameters,
+	private val appDatabaseProvider: Provider<AppDatabase>,
 	private val dirtyTracker: MetricDirtyTracker,
+	private val trackingStartupGate: TrackingStartupGate,
 ) : CoroutineWorker(context, workerParams) {
 
 	override suspend fun doWork(): Result {
-		val database = AppDatabase.database(applicationContext)
-		val aggregator = DailySummaryAggregator(
-			dailySummaryDao = database.dailySummaryDao(),
-			sessionSegmentDao = database.sessionSegmentDao(),
-			onDailySummaryWritten = {
-				dirtyTracker.markDirty(MetricKeys.TABLE_DAILY_SUMMARY)
-			},
-		)
+		val startupGeneration = trackingStartupGate.currentGeneration
+		when (trackingStartupGate.reconcile()) {
+			is TrackingStartupResult.Ready -> Unit
+			is TrackingStartupResult.RetryableFailure -> return Result.retry()
+			is TrackingStartupResult.Blocked -> return Result.success()
+		}
 
-		aggregator.materializeToday()
+		return try {
+			requireReadyGeneration(startupGeneration)
+			val database = appDatabaseProvider.get()
+			val aggregator = DailySummaryAggregator(
+				dailySummaryDao = database.dailySummaryDao(),
+				sessionSegmentDao = database.sessionSegmentDao(),
+				onDailySummaryWritten = {
+					requireReadyGeneration(startupGeneration)
+					dirtyTracker.markDirty(MetricKeys.TABLE_DAILY_SUMMARY)
+				},
+				verifyCollectedDataAccess = { requireReadyGeneration(startupGeneration) },
+			)
 
-		return Result.success()
+			database.withTransaction {
+				requireReadyGeneration(startupGeneration)
+				try {
+					aggregator.materializeToday()
+				} finally {
+					requireReadyGeneration(startupGeneration)
+				}
+			}
+
+			Result.success()
+		} catch (_: StartupGenerationChangedException) {
+			Result.success()
+		}
+	}
+
+	private fun requireReadyGeneration(startupGeneration: Long) {
+		if (!trackingStartupGate.isReady ||
+			trackingStartupGate.currentGeneration != startupGeneration
+		) {
+			throw StartupGenerationChangedException
+		}
 	}
 
 	companion object {
@@ -94,4 +129,6 @@ class DailySummaryMaterializationWorker @AssistedInject constructor(
 			)
 		}
 	}
+
+	private object StartupGenerationChangedException : RuntimeException()
 }

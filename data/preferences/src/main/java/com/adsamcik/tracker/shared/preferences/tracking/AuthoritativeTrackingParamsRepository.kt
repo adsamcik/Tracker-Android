@@ -1,11 +1,15 @@
 package com.adsamcik.tracker.shared.preferences.tracking
 
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.transformLatest
@@ -27,12 +31,13 @@ class AuthoritativeTrackingParamsRepository(
 	private val legacy: TrackingParamsRepository,
 	private val sourcePolicyRepository: SourcePolicyRepository,
 	private val applicationScope: CoroutineScope,
+	private val trackingStartupGate: TrackingStartupGate,
 ) : TrackingParamsRepository {
 	private val mutationMutex = Mutex()
 	private val scheduledMirrorRepairs = ConcurrentHashMap.newKeySet<Long>()
 
 	@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-	private val authoritativeData: Flow<TrackingParamsState> = combine(
+	private val policyData: Flow<TrackingParamsState> = combine(
 		legacy.data,
 		sourcePolicyRepository.states,
 		::Pair,
@@ -74,6 +79,16 @@ class AuthoritativeTrackingParamsRepository(
 		true
 	}
 
+	private val authoritativeData: Flow<TrackingParamsState> = flow {
+		if (trackingStartupGate.reconcile() !is TrackingStartupResult.Ready) {
+			emit(TrackingParamsState().withSourcesFailClosed())
+			// The Application owns retries. This is a signalled wait, including for a permanent block,
+			// so policy observation never becomes an independent recovery poller.
+			trackingStartupGate.awaitReady()
+		}
+		emitAll(policyData)
+	}
+
 	/** Keeps bootstrap retry alive after a one-shot service consumer accepts fail-closed state. */
 	override val data: Flow<TrackingParamsState> = authoritativeData.shareIn(
 		scope = applicationScope,
@@ -82,6 +97,9 @@ class AuthoritativeTrackingParamsRepository(
 	)
 
 	override suspend fun update(block: TrackingParamsState.() -> TrackingParamsState) {
+		check(trackingStartupGate.reconcile() is TrackingStartupResult.Ready) {
+			"Source settings cannot change before tracking startup recovery is ready"
+		}
 		data.first() // Complete or await the fail-closed bootstrap before entering the mutation lane.
 		val effectiveRevision = mutationMutex.withLock {
 			val authority = sourcePolicyRepository.currentState()

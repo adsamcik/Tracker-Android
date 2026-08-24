@@ -27,6 +27,8 @@ import com.adsamcik.tracker.tracker.controller.LivePlaneState
 import com.adsamcik.tracker.tracker.controller.LiveSailingState
 import com.adsamcik.tracker.tracker.controller.LiveSkiState
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
+import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
+import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
@@ -104,6 +106,7 @@ class TrackingOrchestratorIntegrationTest {
 			isSessionUserInitiated = true,
 			initialTier = PolicyTier.PRECISION,
 			scope = backgroundScope,
+			rolloutState = allEventShadow(),
 		)
 		advanceUntilIdle()
 
@@ -170,6 +173,7 @@ class TrackingOrchestratorIntegrationTest {
 			isSessionUserInitiated = false,
 			initialTier = PolicyTier.AMBIENT,
 			scope = backgroundScope,
+			rolloutState = allEventShadow(),
 		)
 		advanceUntilIdle()
 		val activeAfterFirstInitialize = activeChildJobs()
@@ -179,6 +183,7 @@ class TrackingOrchestratorIntegrationTest {
 			isSessionUserInitiated = false,
 			initialTier = PolicyTier.AMBIENT,
 			scope = backgroundScope,
+			rolloutState = allEventShadow(),
 		)
 		advanceUntilIdle()
 
@@ -189,6 +194,31 @@ class TrackingOrchestratorIntegrationTest {
 
 		activeChildJobs() shouldBe 0
 	}
+
+	private fun allEventShadow() = TrackingRolloutState.eventShadow(SourceKind.entries.toSet())
+
+	@Test
+	fun `providerless foreground shell shutdown does not touch Room or enqueue product work`() =
+		runTest(testDispatcher) {
+			val unavailableDatabase = mockk<AppDatabase>()
+			var fallbackEnqueueCount = 0
+			val orchestrator = TrackingOrchestrator(
+				controller = DefaultTrackerServiceController(),
+				signalProcessors = emptySet(),
+				domainEventRepository = RecordingDomainEventRepository(),
+				dispatchers = testDispatcherProvider,
+				appDatabase = unavailableDatabase,
+				trackingParamsRepository = FakeTrackingParamsRepository(TrackingParamsState()),
+				dailySummaryFallbackEnqueuer = { fallbackEnqueueCount += 1 },
+				enableNotifications = false,
+			)
+
+			orchestrator.shutdown(context) shouldBe ShutdownResult(
+				dailySummaryMaterialized = false,
+				fallbackEnqueued = false,
+			)
+			fallbackEnqueueCount shouldBe 0
+		}
 
 	@Test
 	fun `reset metadata clears detector states after collector shutdown`() {

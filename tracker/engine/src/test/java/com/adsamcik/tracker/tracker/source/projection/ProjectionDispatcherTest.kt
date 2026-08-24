@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.projection
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity
 import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
@@ -49,6 +50,41 @@ class ProjectionDispatcherTest {
 	}
 
 	@Test
+	fun `outbox identity collision never advances or becomes poison quarantine`() = runTest {
+		val projection = OutboxProjection()
+		val subject = ProjectionDispatcher(database, setOf(projection))
+		subject.registerAll(1L)
+		database.sourceProjectionStateDao().insertOutbox(
+			SourceProjectionOutboxEntity(
+				stableId = "effect-event-1",
+				projectionId = "foreign-owner",
+				projectionVersion = 9,
+				admissionOrdinal = 99L,
+				effectKind = "different",
+				payloadVersion = 2,
+				payload = byteArrayOf(9),
+				createdAtMs = 1L,
+				deliveredAtMs = null,
+			),
+		)
+
+		repeat(4) {
+			val result = subject.dispatch(event(1L))
+			result.complete shouldBe false
+			result.failures.single().cause::class shouldBe
+				ProjectionOutboxIdentityCollisionException::class
+			result.quarantined shouldBe emptyList()
+		}
+
+		database.sourceProjectionStateDao().checkpoint("outbox", 1)
+			?.contiguousAdmissionOrdinal shouldBe 0L
+		database.sourceProjectionStateDao().failure("outbox", 1, 1)?.also { failure ->
+			failure.terminal shouldBe false
+			failure.attemptCount shouldBe 4
+		}
+	}
+
+	@Test
 	fun `failed projection leaves checkpoint behind the failed ordinal`() = runTest {
 		val subject = ProjectionDispatcher(database, setOf(FailingProjection()))
 		subject.registerAll(1L)
@@ -56,6 +92,21 @@ class ProjectionDispatcherTest {
 		subject.dispatch(event(1L)).complete shouldBe false
 
 		database.sourceProjectionStateDao().checkpoint("failing", 1)?.contiguousAdmissionOrdinal shouldBe 0L
+	}
+
+	@Test
+	fun `generic projection remains strict when an ordinal is missing`() = runTest {
+		val projection = OutboxProjection()
+		val subject = ProjectionDispatcher(database, setOf(projection))
+		subject.registerAll(6L)
+
+		val result = subject.dispatch(event(8L))
+
+		result.complete shouldBe false
+		result.failures.single().cause::class shouldBe IllegalStateException::class
+		projection.applyCount shouldBe 0
+		database.sourceProjectionStateDao().checkpoint("outbox", 1)
+			?.contiguousAdmissionOrdinal shouldBe 5L
 	}
 
 	@Test

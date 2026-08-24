@@ -10,6 +10,8 @@ import com.adsamcik.tracker.tracker.source.model.ActivityPlan
 import com.adsamcik.tracker.tracker.source.model.CellMode
 import com.adsamcik.tracker.tracker.source.model.CellPlan
 import com.adsamcik.tracker.tracker.source.model.LocationMode
+import com.adsamcik.tracker.tracker.source.model.LocationAcquisitionFloor
+import com.adsamcik.tracker.tracker.source.model.LocationFloorMode
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.tracker.source.model.PressurePlan
 import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
@@ -19,6 +21,7 @@ import com.adsamcik.tracker.tracker.source.model.SourcePlan
 import com.adsamcik.tracker.tracker.source.model.StepsPlan
 import com.adsamcik.tracker.tracker.source.model.WifiMode
 import com.adsamcik.tracker.tracker.source.model.WifiPlan
+import com.adsamcik.tracker.tracker.source.model.satisfies
 import javax.inject.Inject
 
 data class SourceConstraint(
@@ -59,9 +62,15 @@ class SourcePlanResolver @Inject constructor() {
 					.thenByDescending { demand -> demand.quality.ordinal },
 			)
 		}
+		val directDemands = demands
+			.filter { demand -> demand.acquisitionFloor != null }
+			.groupBy(SourceDemand::source)
 		val degradation = mutableMapOf<SourceKind, Set<SourceDegradedReason>>()
 		val constrainedPlans = desired.plans.mapValues { (source, plan) ->
 			val reasons = mutableSetOf<SourceDegradedReason>()
+			val sourceFloors = directDemands[source].orEmpty()
+			val targetSatisfiesFloors = sourceFloors.all(plan::satisfies)
+			val adaptationAllowed = sourceFloors.all(SourceDemand::adaptiveReductionAllowed)
 			val constraint = context.constraints[source] ?: SourceConstraint()
 			if (!constraint.hardwareAvailable) reasons += SourceDegradedReason.HARDWARE_UNAVAILABLE
 			if (!constraint.providerAvailable) reasons += SourceDegradedReason.PROVIDER_UNAVAILABLE
@@ -79,33 +88,68 @@ class SourcePlanResolver @Inject constructor() {
 			// The desired plan is the policy-derived QoS ceiling. A demand describes a
 			// consumer requirement; it may diagnose degradation, but must never silently
 			// upgrade physical acquisition beyond the effective SourcePolicy.
-			var applicable = if (blocked) plan.disabled() else plan
-			if (context.powerSaver) {
-				when (applicable) {
+			if (!targetSatisfiesFloors) reasons += SourceDegradedReason.DEMAND_FLOOR_UNSATISFIED
+			var applicable = if (blocked || !targetSatisfiesFloors) plan.disabled() else plan
+			if (!blocked && targetSatisfiesFloors && adaptationAllowed && context.powerSaver) {
+				val candidate = when (applicable) {
 					is LocationPlan -> if (applicable.mode == LocationMode.HIGH_ACCURACY) {
-						reasons += SourceDegradedReason.POWER_SAVER
-						applicable = applicable.copy(mode = LocationMode.BALANCED)
-					}
+						applicable.copy(mode = LocationMode.BALANCED)
+					} else applicable
 					is CellPlan -> if (applicable.mode == CellMode.OBSERVE_AND_SPARSE_REFRESH) {
-						reasons += SourceDegradedReason.POWER_SAVER
-						applicable = applicable.copy(mode = CellMode.OBSERVE_CHANGES)
-					}
-					else -> Unit
+						applicable.copy(mode = CellMode.OBSERVE_CHANGES)
+					} else applicable
+					is WifiPlan -> if (applicable.mode == WifiMode.ACTIVE_ATTEMPTS) {
+						applicable.copy(mode = WifiMode.BROADCAST_DRIVEN)
+					} else applicable
+					else -> applicable
+				}
+				val accepted = applicable.acceptReduction(candidate, sourceFloors)
+				if (accepted != applicable) {
+					reasons += SourceDegradedReason.POWER_SAVER
+					applicable = accepted
 				}
 			}
 			if (context.doze && applicable is WifiPlan && applicable.mode == WifiMode.ACTIVE_ATTEMPTS) {
 				reasons += SourceDegradedReason.DOZE
 			}
-			if (context.severeThermalPressure && applicable is PressurePlan && applicable.enabled) {
-				reasons += SourceDegradedReason.THERMAL
-				applicable = applicable.copy(enabled = false)
+			if (
+				!blocked &&
+				targetSatisfiesFloors &&
+				adaptationAllowed &&
+				context.severeThermalPressure &&
+				applicable is PressurePlan &&
+				applicable.enabled
+			) {
+				val candidate = applicable.acceptReduction(
+					applicable.minimumUsefulLowRateBatched(),
+					sourceFloors,
+				)
+				if (candidate != applicable) {
+					reasons += SourceDegradedReason.THERMAL
+					applicable = candidate
+				}
 			}
+			if (blocked && sourceFloors.isNotEmpty()) reasons += SourceDegradedReason.DEMAND_FLOOR_UNSATISFIED
 			degradation[source] = reasons
 			applicable
 		}
 		val activityWakeAvailable = (constrainedPlans[SourceKind.ACTIVITY] as? ActivityPlan)?.enabled == true
-		val plans = constrainedPlans.mapValues { (_, plan) ->
-			plan.applyMotionPolicy(context.motionProfile, activityWakeAvailable)
+		val plans = constrainedPlans.mapValues { (source, plan) ->
+			val sourceFloors = directDemands[source].orEmpty()
+			val adaptationAllowed = sourceFloors.all(SourceDemand::adaptiveReductionAllowed)
+			val hardBlocked = degradation.getValue(source).any { reason -> reason.isHardPrerequisite() }
+			val floorSatisfied = SourceDegradedReason.DEMAND_FLOOR_UNSATISFIED !in degradation.getValue(source)
+			val candidate = if (!hardBlocked && floorSatisfied && adaptationAllowed) {
+				plan.applyMotionPolicy(context.motionProfile, activityWakeAvailable)
+			} else plan
+			val applicable = plan.acceptReduction(candidate, sourceFloors)
+			if (applicable != plan) {
+				degradation[source] = degradation.getValue(source) + SourceDegradedReason.POWER_SAVER
+			}
+			applicable
+		}
+		(directDemands.keys - desired.plans.keys).forEach { source ->
+			degradation[source] = setOf(SourceDegradedReason.DEMAND_FLOOR_UNSATISFIED)
 		}
 		return ResolvedAcquisitionPlan(
 			desired = desired,
@@ -122,6 +166,61 @@ class SourcePlanResolver @Inject constructor() {
 		is PressurePlan -> copy(enabled = false)
 		is WifiPlan -> copy(mode = WifiMode.OFF)
 		is CellPlan -> copy(mode = CellMode.OFF)
+	}
+
+	private fun SourcePlan.acceptReduction(
+		candidate: SourcePlan,
+		demands: List<SourceDemand>,
+	): SourcePlan {
+		if (candidate == this) return this
+		val bounded = if (this is LocationPlan && candidate is LocationPlan) {
+			candidate.raisedToLocationFloor(this, demands)
+		} else candidate
+		return if (demands.all(bounded::satisfies)) bounded else this
+	}
+
+	private fun LocationPlan.raisedToLocationFloor(
+		policyCeiling: LocationPlan,
+		demands: List<SourceDemand>,
+	): LocationPlan {
+		val minimumMode = demands.mapNotNull { demand ->
+			(demand.acquisitionFloor as? LocationAcquisitionFloor)?.minimumMode
+		}.maxByOrNull(LocationFloorMode::level) ?: return this
+		val currentLevel = when (mode) {
+			LocationMode.DISABLED,
+			LocationMode.PROBE,
+			-> return this
+			LocationMode.PASSIVE -> LocationFloorMode.PASSIVE.level
+			LocationMode.LOW_POWER -> LocationFloorMode.LOW_POWER.level
+			LocationMode.BALANCED -> LocationFloorMode.BALANCED.level
+			LocationMode.HIGH_ACCURACY -> LocationFloorMode.HIGH_ACCURACY.level
+		}
+		val boundedMode = if (currentLevel >= minimumMode.level) mode else when (minimumMode) {
+			LocationFloorMode.PASSIVE -> LocationMode.PASSIVE
+			LocationFloorMode.LOW_POWER -> LocationMode.LOW_POWER
+			LocationFloorMode.BALANCED -> LocationMode.BALANCED
+			LocationFloorMode.HIGH_ACCURACY -> LocationMode.HIGH_ACCURACY
+		}
+		val maximumRequestedDelayMs = demands.minOfOrNull { demand ->
+			minOf(demand.maximumAgeMs, demand.requestedDeliveryLatencyMs ?: Long.MAX_VALUE)
+		} ?: Long.MAX_VALUE
+		// Motion adaptation may lengthen cadence/batching, but never beyond a direct demand and
+		// never to a more expensive cadence than the immutable policy ceiling originally allowed.
+		val boundedRequestedIntervalMs = requestedIntervalMs
+			.coerceAtMost(maximumRequestedDelayMs)
+			.coerceAtLeast(policyCeiling.requestedIntervalMs)
+		val boundedBatchDelayMs = maximumBatchDelayMs
+			.coerceAtMost(maximumRequestedDelayMs)
+			.coerceAtLeast(policyCeiling.maximumBatchDelayMs)
+		val boundedMinimumIntervalMs = minimumUpdateIntervalMs
+			.coerceAtMost(boundedRequestedIntervalMs)
+			.coerceAtLeast(policyCeiling.minimumUpdateIntervalMs)
+		return copy(
+			mode = boundedMode,
+			requestedIntervalMs = boundedRequestedIntervalMs,
+			minimumUpdateIntervalMs = boundedMinimumIntervalMs,
+			maximumBatchDelayMs = boundedBatchDelayMs,
+		)
 	}
 
 	/**
@@ -162,7 +261,7 @@ class SourcePlanResolver @Inject constructor() {
 				movementPolicyNeedsLowLatency = false,
 			) else this
 			is PressurePlan -> if (!profile.continuousPressureAllowed && activityWakeAvailable) {
-				copy(enabled = false)
+				minimumUsefulLowRateBatched()
 			} else this
 			is WifiPlan -> if (!profile.expensiveNetworkScansAllowed && mode == WifiMode.ACTIVE_ATTEMPTS) {
 				copy(mode = WifiMode.BROADCAST_DRIVEN)
@@ -181,4 +280,22 @@ class SourcePlanResolver @Inject constructor() {
 		maximumBatchDelayMs = maxOf(maximumBatchDelayMs, 60_000L),
 		probeDurationMs = null,
 	)
+
+	private fun PressurePlan.minimumUsefulLowRateBatched() = copy(
+		enabled = true,
+		hardwareSamplePeriodMicros = maxOf(hardwareSamplePeriodMicros, 1_000_000),
+		maximumReportLatencyMicros = maxOf(maximumReportLatencyMicros, 60_000_000),
+		aggregationWindowMs = maxOf(aggregationWindowMs, 60_000L),
+		movementGatedBurst = true,
+	)
+
+	private fun SourceDegradedReason.isHardPrerequisite(): Boolean = when (this) {
+		SourceDegradedReason.HARDWARE_UNAVAILABLE,
+		SourceDegradedReason.PROVIDER_UNAVAILABLE,
+		SourceDegradedReason.PERMISSION_MISSING,
+		SourceDegradedReason.FOREGROUND_CAPABILITY_MISSING,
+		SourceDegradedReason.BACKGROUND_START_ILLEGAL,
+		-> true
+		else -> false
+	}
 }

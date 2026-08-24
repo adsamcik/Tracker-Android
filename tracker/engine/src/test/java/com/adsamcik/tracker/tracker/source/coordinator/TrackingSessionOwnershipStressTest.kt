@@ -14,7 +14,10 @@ class TrackingSessionOwnershipStressTest {
 	fun `randomized source settings resolve only to event ownership`() {
 		val random = Random(8_2026)
 		repeat(1_000) { revision ->
-			val rollout = TrackingRolloutState.eventCanonical(revision.toLong())
+			val rollout = TrackingRolloutState.eventShadow(
+				sources = SourceKind.entries.toSet(),
+				revision = revision.toLong(),
+			)
 			val frequencies = SourceCollectionSettings(
 				location = random.frequency(),
 				activity = random.frequency(),
@@ -50,6 +53,47 @@ class TrackingSessionOwnershipStressTest {
 	fun `legacy ownership is rejected after retirement`() {
 		shouldThrow<IllegalArgumentException> {
 			TrackingSessionOwnership.resolve(TrackingRolloutState.legacy(), TrackingParamsState())
+		}
+	}
+
+	@Test
+	fun `disabled legacy source does not block an independently event-owned source`() {
+		val rollout = TrackingRolloutState.eventShadow(setOf(SourceKind.STEPS))
+		val settings = TrackingParamsState(
+			locationEnabled = false,
+			activityEnabled = false,
+			stepsEnabled = true,
+			barometerEnabled = false,
+			sourceCollectionSettings = SourceCollectionSettings(
+				location = SourceCollectionFrequency.OFF,
+				activity = SourceCollectionFrequency.OFF,
+				steps = SourceCollectionFrequency.BALANCED,
+				pressure = SourceCollectionFrequency.OFF,
+			),
+		)
+
+		TrackingSessionOwnership.resolve(rollout, settings).enabledEventSources shouldBe
+			setOf(SourceKind.STEPS)
+	}
+
+	@Test
+	fun `enabled source without event acquisition ownership fails closed`() {
+		val rollout = TrackingRolloutState.eventShadow(setOf(SourceKind.STEPS))
+		val settings = TrackingParamsState(
+			locationEnabled = true,
+			activityEnabled = false,
+			stepsEnabled = false,
+			barometerEnabled = false,
+			sourceCollectionSettings = SourceCollectionSettings(
+				location = SourceCollectionFrequency.BALANCED,
+				activity = SourceCollectionFrequency.OFF,
+				steps = SourceCollectionFrequency.OFF,
+				pressure = SourceCollectionFrequency.OFF,
+			),
+		)
+
+		shouldThrow<IllegalArgumentException> {
+			TrackingSessionOwnership.resolve(rollout, settings)
 		}
 	}
 }

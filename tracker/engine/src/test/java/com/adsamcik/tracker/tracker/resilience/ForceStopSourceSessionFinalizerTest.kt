@@ -4,10 +4,19 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.source.coordinator.SessionLifecycleState
+import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
+import com.adsamcik.tracker.tracker.source.runtime.SourceRegistrationRepository
 import io.kotest.matchers.shouldBe
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -33,12 +42,18 @@ class ForceStopSourceSessionFinalizerTest {
 
 	@Test
 	fun `force-stop closes orphan Room session even after descriptor was already cleared`() = runTest {
+		seedAutomationEpoch()
 		insertRunningSession()
 		val store = RecordingStore(null)
+		val registrationRepository = mockk<SourceRegistrationRepository>(
+			relaxed = true,
+		)
 		val coordinator = PreviousExitRecoveryCoordinator(
 			store,
 			NoOpDrainScheduler,
 			finalizer(),
+			noOpPreviousExitFinalizer(),
+			registrationRepository,
 		)
 
 		coordinator.suppressAfterForceStop(completedAtMs = 5_000L) shouldBe
@@ -48,6 +63,7 @@ class ForceStopSourceSessionFinalizerTest {
 		session?.state shouldBe SessionLifecycleState.FINALIZED.name
 		session?.lifecycleRevision shouldBe 4L
 		session?.completedAtMs shouldBe 5_000L
+		session?.cutoffElapsedNanos shouldBe null
 		session?.failureCode shouldBe
 			ForceStopSourceSessionFinalizer.FORCE_STOP_COMPLETION_REASON
 		val run = database.sourceSessionDao().serviceRun(RUN_ID)
@@ -57,6 +73,10 @@ class ForceStopSourceSessionFinalizerTest {
 			ForceStopSourceSessionFinalizer.FORCE_STOP_COMPLETION_REASON
 		store.descriptor shouldBe null
 		store.clearCount shouldBe 1
+		database.activityAutomationEpochDao().current()?.epoch shouldBe 18L
+		coVerify(exactly = 1) {
+			registrationRepository.reconcilePriorProcessRegistrations(any(), any())
+		}
 	}
 
 	@Test
@@ -69,6 +89,8 @@ class ForceStopSourceSessionFinalizerTest {
 			store,
 			NoOpDrainScheduler,
 			finalizer(),
+			noOpPreviousExitFinalizer(),
+			mockk(relaxed = true),
 		)
 
 		coordinator.suppressAfterForceStop(completedAtMs = 5_000L) shouldBe
@@ -122,12 +144,36 @@ class ForceStopSourceSessionFinalizerTest {
 				providerCalls++
 				database
 			},
+			FixedClock(5_000L, 5_000_000_000L),
+			TestBootClockDomainProvider,
 		)
 
 		providerCalls shouldBe 0
 		finalizer.finalize(completedAtMs = 5_000L) shouldBe
 			ForceStopSourceSessionFinalization.NO_ACTIVE_SESSION
 		providerCalls shouldBe 1
+	}
+
+	@Test
+	fun `force-stop retires session authority without inventing elapsed cutoff after reboot`() = runTest {
+		insertRunningSession()
+		database.sourceBrokerDao().insertDemands(listOf(sessionDemand()))
+		val newBootFinalizer = ForceStopSourceSessionFinalizer(
+			Provider { database },
+			FixedClock(6_000L, 6_000_000_000L),
+			object : BootClockDomainProvider {
+				override fun current(): String = "boot-2"
+			},
+		)
+
+		newBootFinalizer.finalize(completedAtMs = 5_000L) shouldBe
+			ForceStopSourceSessionFinalization.FINALIZED
+
+		val session = database.sourceSessionDao().session(LOGICAL_ID)
+		session?.cutoffAtMs shouldBe 5_000L
+		session?.cutoffElapsedNanos shouldBe null
+		database.sourceBrokerDao().demandHistory("session:$LOGICAL_ID").single().status shouldBe
+			SourceDemandEntity.STATUS_RETIRED
 	}
 
 	private suspend fun insertRunningSession() {
@@ -156,6 +202,16 @@ class ForceStopSourceSessionFinalizerTest {
 		)
 	}
 
+	private suspend fun seedAutomationEpoch() {
+		database.activityAutomationEpochDao().ensure(
+			ActivityAutomationEpochEntity(
+				epoch = 17,
+				automaticControlEnabled = true,
+				lastRotationReason = "TEST_SEED",
+			),
+		)
+	}
+
 	private suspend fun insertServiceRun(
 		serviceRunId: String,
 		state: SessionLifecycleState,
@@ -179,7 +235,40 @@ class ForceStopSourceSessionFinalizerTest {
 		)
 	}
 
-	private fun finalizer() = ForceStopSourceSessionFinalizer(Provider { database })
+	private fun finalizer() = ForceStopSourceSessionFinalizer(
+		Provider { database },
+		FixedClock(5_000L, 5_000_000_000L),
+		TestBootClockDomainProvider,
+	)
+
+	private fun sessionDemand() = SourceDemandEntity(
+		demandId = "force-stop-demand",
+		consumerId = "session:$LOGICAL_ID",
+		sourceKind = 3,
+		purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+		logicalTrackingId = LOGICAL_ID,
+		serviceRunId = RUN_ID,
+		manifestRevision = 1L,
+		lifecycleLeaseGeneration = 1L,
+		sourcePolicyRevision = 1L,
+		consentEpoch = 1L,
+		persistenceEligible = true,
+		qosCode = 1,
+		maximumAgeMs = 60_000L,
+		desiredLatencyMs = 15_000L,
+		requestedBootId = "boot-1",
+		requestedElapsedRealtimeNanos = 1_000_000L,
+		requestedAtMs = 1_000L,
+		status = SourceDemandEntity.STATUS_ACTIVE,
+		retireBootId = null,
+		retireElapsedRealtimeNanos = null,
+		retiredAtMs = null,
+	)
+
+	private fun noOpPreviousExitFinalizer() = mockk<PreviousExitSourceSessionFinalizer> {
+		coEvery { finalizeStaleSessions(any(), any()) } returns
+			PreviousExitSourceSessionFinalization(emptySet())
+	}
 
 	private fun activeDescriptor(serviceRunId: String = RUN_ID) =
 		ActiveTrackingSessionDescriptor(
@@ -213,7 +302,11 @@ class ForceStopSourceSessionFinalizerTest {
 	}
 
 	private object NoOpDrainScheduler : PendingSignalDrainScheduler {
-		override fun enqueueExpedited() = Unit
+		override fun enqueueExpedited(startupGeneration: Long) = Unit
+	}
+
+	private object TestBootClockDomainProvider : BootClockDomainProvider {
+		override fun current(): String = "boot-1"
 	}
 
 	private companion object {

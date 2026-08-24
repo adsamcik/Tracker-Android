@@ -13,7 +13,11 @@ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
+import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
+import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceEventSinkFactory
+import com.adsamcik.tracker.tracker.source.hasAuthoritativeConsentReference
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.ActivityMode
@@ -30,6 +34,10 @@ import com.adsamcik.tracker.tracker.source.model.SourcePlan
 import com.adsamcik.tracker.tracker.source.model.StepsPlan
 import com.adsamcik.tracker.tracker.source.model.WifiMode
 import com.adsamcik.tracker.tracker.source.model.WifiPlan
+import com.adsamcik.tracker.tracker.source.projection.ActivityAutomaticStartActionRepository
+import com.adsamcik.tracker.tracker.source.projection.ActivityAutomaticStartServiceValidation
+import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainSignal
+import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEpochAuthority
 import com.adsamcik.tracker.tracker.source.runtime.ProviderCoverage
 import com.adsamcik.tracker.tracker.source.runtime.ProviderFlushOutcome
 import com.adsamcik.tracker.tracker.source.runtime.RegistrationRemovalOutcome
@@ -60,9 +68,1014 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 	private val runtimes: SourceRuntimeRegistry,
 	private val sinkFactory: DurableSourceEventSinkFactory,
 	private val eventCoordinator: TrackingCoordinator,
+	private val automaticStartActions: ActivityAutomaticStartActionRepository,
+	private val activityAutomationDrainSignal: ActivityAutomationDrainSignal,
+	private val activityAutomationEpochAuthority: ActivityAutomationEpochAuthority,
 	private val rolloutStore: TrackingRolloutStateStore = RoomTrackingRolloutStateStore(database),
 	private val sourceBroker: SourceBroker = SourceBroker(database),
 ) {
+	/**
+	 * Persists the complete source/session intent while deliberately leaving provider actions gated
+	 * behind [LifecycleActionStatus.AWAITING_FOREGROUND]. The coordinator lease stays owned by the
+	 * opaque delivery token until APPLY or compensation.
+	 */
+	suspend fun prepareAndroidStart(
+		request: SessionStartRequest,
+		delivery: AndroidStartDeliveryMetadata,
+	): SessionStartPreparationResult {
+		if (request.plan.plans.values.none(SourcePlan::enabled)) {
+			return SessionStartPreparationResult.Rejected("ZERO_CAPTURE_SOURCES")
+		}
+		validateStartIntent(request)?.let { return SessionStartPreparationResult.Rejected(it) }
+		validateSourcePolicy(request.plan)?.let { return SessionStartPreparationResult.Rejected(it) }
+		validateControlDependencies(request.plan.sourcePolicyRevision, request.controlDependencies)?.let {
+			return SessionStartPreparationResult.Rejected(it)
+		}
+		val rollout = rolloutStore.load()
+		rollout.validateEventPlan(request.rolloutRevision, request.plan)?.let {
+			return SessionStartPreparationResult.Rejected(it)
+		}
+		val ownerToken = preparedStartOwner(delivery.token)
+		val lease = acquireLease(ownerToken, request.clockDomainId, request.elapsedRealtimeNanos)
+			?: return SessionStartPreparationResult.Busy
+		var keepLease = false
+		return try {
+			var active = database.sourceSessionDao().activeSession()
+			if (active != null && request.continuationAuthority != null &&
+				request.logicalTrackingId == active.logicalTrackingId
+			) {
+				val result = prepareRecoveryAndroidStart(active, request, delivery, lease)
+				keepLease = result is SessionStartPreparationResult.Prepared
+				return result
+			}
+			if (active != null && isStalePriorSession(active, request)) {
+				finalizeInterruptedSession(active, lease, request.wallTimeMs, "STALE_PRIOR_SESSION")
+				active = database.sourceSessionDao().activeSession()
+			}
+			if (active != null) return SessionStartPreparationResult.AlreadyActive
+			if (request.origin == SessionStartOrigin.RECOVERY || request.continuationAuthority != null) {
+				return SessionStartPreparationResult.Rejected("RECOVERY_SESSION_MISSING")
+			}
+			val result = prepareFreshAndroidStart(request, delivery, lease)
+			keepLease = result is SessionStartPreparationResult.Prepared
+			result
+		} finally {
+			if (!keepLease) releaseLease(lease, request.elapsedRealtimeNanos)
+		}
+	}
+
+	private suspend fun prepareFreshAndroidStart(
+		request: SessionStartRequest,
+		delivery: AndroidStartDeliveryMetadata,
+		lease: LifecycleLeaseToken,
+	): SessionStartPreparationResult {
+		val logicalTrackingId = request.logicalTrackingId ?: UUID.randomUUID().toString()
+		if (request.automaticTrigger == null &&
+			database.sourceSessionDao().session(logicalTrackingId) != null
+		) return SessionStartPreparationResult.Rejected("LOGICAL_SESSION_ID_ALREADY_EXISTS")
+		val serviceRunId = request.serviceRunId ?: UUID.randomUUID().toString()
+		var failure: String? = null
+		var alreadyAccepted = false
+		var prepared: PreparedSessionStart? = null
+		if (request.automaticTrigger != null) activityAutomationEpochAuthority.currentForValidation()
+		database.withTransaction {
+			requireLeaseInTransaction(lease)
+			failure = validateSourcePolicyInTransaction(request.plan)
+			if (failure != null || database.sourceSessionDao().activeSession() != null) return@withTransaction
+			val automaticAction = request.automaticTrigger?.let { trigger ->
+				when (val validation = automaticStartActions.validateForLifecycleIntentTransaction(trigger)) {
+					is ActivityAutomaticStartServiceValidation.Valid -> validation.action
+					is ActivityAutomaticStartServiceValidation.LifecycleIntentAlreadyAccepted -> {
+						alreadyAccepted = true
+						return@withTransaction
+					}
+					is ActivityAutomaticStartServiceValidation.Rejected -> {
+						failure = validation.reason
+						database.activityAutomaticStartActionDao().markTerminal(
+							trigger.triggerId,
+							trigger.collectedDataEpoch,
+							request.wallTimeMs,
+							validation.reason,
+						)
+						return@withTransaction
+					}
+				}
+			}
+			if (database.sourceSessionDao().session(logicalTrackingId) != null) {
+				failure = "LOGICAL_SESSION_ID_ALREADY_EXISTS"
+				return@withTransaction
+			}
+			val rawDraft = buildManifestDraft(
+				logicalTrackingId = logicalTrackingId,
+				manifestRevision = 1L,
+				intentRevision = 1L,
+				request = request,
+				sessionMode = request.origin.toSessionMode(),
+				changeReason = "SESSION_START",
+				lease = lease,
+				serviceRunId = serviceRunId,
+			)
+			val draft = rawDraft.copy(
+				actions = rawDraft.actions.map { action ->
+					action.copy(status = LifecycleActionStatus.AWAITING_FOREGROUND.name)
+				},
+			)
+			if (automaticAction != null) {
+				val captureMask = draft.bindings.captureSourceMask()
+				val controlConsentEpoch = draft.bindings.singleOrNull { binding ->
+					binding.sourceKind == SourceKind.ACTIVITY.stableCode &&
+						binding.purpose == SessionManifestPurpose.CONTROL.name
+				}?.consentEpoch
+				failure = when {
+					automaticAction.sourcePolicyRevision != request.plan.sourcePolicyRevision ->
+						"AUTOMATIC_START_SOURCE_POLICY_MISMATCH"
+					automaticAction.intendedCaptureSourceMask != captureMask ->
+						"AUTOMATIC_START_CAPTURE_MASK_MISMATCH"
+					automaticAction.intendedForegroundServiceTypeMask != request.foregroundCapabilityFlags ->
+						"AUTOMATIC_START_FGS_MASK_MISMATCH"
+					automaticAction.controlConsentEpoch != controlConsentEpoch ->
+						"AUTOMATIC_START_CONTROL_CONSENT_MISMATCH"
+					else -> null
+				}
+				if (failure != null) {
+					database.activityAutomaticStartActionDao().markTerminal(
+						automaticAction.triggerId,
+						automaticAction.collectedDataEpoch,
+						request.wallTimeMs,
+						requireNotNull(failure),
+					)
+					return@withTransaction
+				}
+			}
+			planStore.persistDesired(request.plan, DesiredPlanStatus.DESIRED)
+			val dao = database.sourceSessionDao()
+			dao.insertSession(
+				LogicalTrackingSessionEntity(
+					logicalTrackingId = logicalTrackingId,
+					state = SessionLifecycleState.STARTING.name,
+					lifecycleRevision = 1L,
+					desiredPlanRevision = request.plan.revision,
+					rolloutRevision = request.rolloutRevision,
+					startOrigin = request.origin.name,
+					clockDomainId = request.clockDomainId,
+					startedAtMs = request.wallTimeMs,
+					startedElapsedNanos = request.elapsedRealtimeNanos,
+					cutoffAtMs = null,
+					cutoffElapsedNanos = null,
+					completedAtMs = null,
+					finalAdmissionOrdinal = null,
+					failureCode = null,
+					sessionMode = draft.manifest.sessionMode,
+					currentManifestRevision = draft.manifest.manifestRevision,
+					currentIntentRevision = draft.intent.intentRevision,
+					lifecycleLeaseGeneration = lease.generation,
+					lifecycleBootId = lease.bootId,
+					automationEpoch = draft.intent.automationEpoch,
+				),
+			)
+			dao.insertManifest(draft.manifest)
+			dao.insertManifestSources(draft.bindings)
+			sourceBroker.stageSessionDemandsInTransaction(
+				logicalTrackingId,
+				draft.demands,
+				request.clockDomainId,
+				request.elapsedRealtimeNanos,
+				request.wallTimeMs,
+			)
+			dao.insertLifecycleIntent(draft.intent)
+			dao.insertLifecycleActions(draft.actions)
+			dao.insertServiceRun(
+				preparedServiceRun(
+					serviceRunId,
+					logicalTrackingId,
+					request,
+					delivery,
+					draft,
+					lease,
+				),
+			)
+			if (automaticAction != null) {
+				check(database.activityAutomaticStartActionDao().markLifecycleIntentAccepted(
+					triggerId = automaticAction.triggerId,
+					collectedDataEpoch = automaticAction.collectedDataEpoch,
+					logicalTrackingId = logicalTrackingId,
+					intentRevision = draft.intent.intentRevision,
+					acceptedAtMs = request.wallTimeMs,
+				) == 1) { "Automatic-start action changed before lifecycle-intent acceptance" }
+			}
+			prepared = PreparedSessionStart(
+				delivery.token,
+				logicalTrackingId,
+				serviceRunId,
+				draft.manifest.manifestRevision,
+				draft.intent.intentRevision,
+			)
+		}
+		failure?.let { return SessionStartPreparationResult.Rejected(it) }
+		if (alreadyAccepted) return SessionStartPreparationResult.AlreadyActive
+		val result = prepared ?: return SessionStartPreparationResult.AlreadyActive
+		if (request.automaticTrigger != null) activityAutomationDrainSignal.requestDrain()
+		return SessionStartPreparationResult.Prepared(result)
+	}
+
+	private suspend fun prepareRecoveryAndroidStart(
+		session: LogicalTrackingSessionEntity,
+		request: SessionStartRequest,
+		delivery: AndroidStartDeliveryMetadata,
+		lease: LifecycleLeaseToken,
+	): SessionStartPreparationResult {
+		if (session.sessionMode != SessionMode.MANUAL.name ||
+			session.state != SessionLifecycleState.ACTIVE.name ||
+			session.currentManifestRevision == null || session.currentIntentRevision == null
+		) {
+			finalizeInterruptedSession(session, lease, request.wallTimeMs, "UNRECOVERABLE_SESSION")
+			return SessionStartPreparationResult.Rejected("SESSION_NOT_RECOVERY_ELIGIBLE")
+		}
+		if (session.rolloutRevision != request.rolloutRevision) {
+			return SessionStartPreparationResult.Rejected("SESSION_ROLLOUT_REVISION_MISMATCH")
+		}
+		val serviceRunId = request.serviceRunId ?: UUID.randomUUID().toString()
+		var failure: String? = null
+		var prepared: PreparedSessionStart? = null
+		database.withTransaction {
+			requireLeaseInTransaction(lease)
+			failure = validateSourcePolicyInTransaction(request.plan)
+			if (failure != null) return@withTransaction
+			val dao = database.sourceSessionDao()
+			val current = requireNotNull(dao.session(session.logicalTrackingId))
+			check(current.lifecycleRevision == session.lifecycleRevision) { "Session changed during recovery" }
+			val continuation = requireNotNull(request.continuationAuthority)
+			val previousRun = dao.serviceRun(continuation.previousServiceRunId)
+			val incompleteRuns = dao.incompleteServiceRuns(session.logicalTrackingId)
+			val previousRunIsActive = previousRun?.let { run ->
+				run.state == SessionLifecycleState.ACTIVE.name && run.completedAtMs == null &&
+					incompleteRuns.map { it.serviceRunId } == listOf(run.serviceRunId)
+			} == true
+			val previousRunWasSuspended = previousRun?.let { run ->
+				run.state == SessionLifecycleState.FINALIZED.name && run.completedAtMs != null &&
+					incompleteRuns.isEmpty()
+			} == true
+			failure = when {
+				previousRun == null -> "CONTINUATION_RUN_MISSING"
+				previousRun.logicalTrackingId != session.logicalTrackingId ->
+					"CONTINUATION_LOGICAL_ID_MISMATCH"
+				!previousRunIsActive && !previousRunWasSuspended ->
+					"CONTINUATION_RUN_NOT_RECOVERABLE"
+				previousRun.bootId != request.clockDomainId -> "CONTINUATION_RUN_OLD_BOOT"
+				!previousRun.startIsUserInitiated || current.sessionMode != SessionMode.MANUAL.name ->
+					"CONTINUATION_NOT_MANUAL"
+				continuation.previousDeliveryToken != null &&
+					previousRun.startDeliveryToken != continuation.previousDeliveryToken.value ->
+					"CONTINUATION_DELIVERY_TOKEN_MISMATCH"
+				continuation.previousCommandGeneration != null &&
+					previousRun.startCommandGeneration != continuation.previousCommandGeneration ->
+					"CONTINUATION_COMMAND_MISMATCH"
+				else -> null
+			}
+			if (failure != null) return@withTransaction
+			val manifestRevision = requireNotNull(current.currentManifestRevision) + 1L
+			val intentRevision = requireNotNull(current.currentIntentRevision) + 1L
+			val rawDraft = buildManifestDraft(
+				logicalTrackingId = session.logicalTrackingId,
+				manifestRevision = manifestRevision,
+				intentRevision = intentRevision,
+				request = request,
+				sessionMode = SessionMode.MANUAL,
+				changeReason = if (request.origin == SessionStartOrigin.RECOVERY) {
+					"PROCESS_RECOVERY"
+				} else {
+					"USER_FOREGROUND_CONTINUATION"
+				},
+				lease = lease,
+				serviceRunId = serviceRunId,
+			)
+			val draft = rawDraft.copy(
+				actions = rawDraft.actions.map { action ->
+					action.copy(status = LifecycleActionStatus.AWAITING_FOREGROUND.name)
+				},
+			)
+			planStore.persistDesired(request.plan, DesiredPlanStatus.DESIRED)
+			dao.serviceRun(continuation.previousServiceRunId)
+				?.takeIf { previous -> previous.completedAtMs == null }
+				?.let { previous ->
+				dao.updateServiceRun(
+					previous.copy(
+						state = SessionLifecycleState.FINALIZED.name,
+						completedAtMs = request.wallTimeMs,
+						completionReason = if (request.origin == SessionStartOrigin.RECOVERY) {
+							"PROCESS_DEATH_RECOVERY"
+						} else {
+							"USER_FOREGROUND_CONTINUATION"
+						},
+						runtimeAcknowledgement = LifecycleActionStatus.TERMINAL_FAILURE.name,
+						runtimeFailureCode = "PROCESS_DEATH_RECOVERY",
+						androidDeliveryState = AndroidStartDeliveryState.TERMINAL_FAILURE.name,
+						androidDeliveryUpdatedAtMs = request.wallTimeMs,
+						runRevision = previous.runRevision + 1L,
+					),
+				)
+			}
+			supersedePendingActions(session.logicalTrackingId, request.wallTimeMs, request.elapsedRealtimeNanos)
+			dao.insertManifest(draft.manifest)
+			dao.insertManifestSources(draft.bindings)
+			sourceBroker.stageSessionDemandsInTransaction(
+				session.logicalTrackingId,
+				draft.demands,
+				request.clockDomainId,
+				request.elapsedRealtimeNanos,
+				request.wallTimeMs,
+			)
+			dao.insertLifecycleIntent(draft.intent)
+			dao.insertLifecycleActions(draft.actions)
+			dao.updateSession(
+				current.copy(
+					state = SessionLifecycleState.STARTING.name,
+					lifecycleRevision = current.lifecycleRevision + 1L,
+					desiredPlanRevision = request.plan.revision,
+					cutoffAtMs = null,
+					cutoffElapsedNanos = null,
+					completedAtMs = null,
+					finalAdmissionOrdinal = null,
+					failureCode = null,
+					currentManifestRevision = manifestRevision,
+					currentIntentRevision = intentRevision,
+					lifecycleLeaseGeneration = lease.generation,
+					lifecycleBootId = lease.bootId,
+				),
+			)
+			dao.insertServiceRun(
+				preparedServiceRun(
+					serviceRunId,
+					session.logicalTrackingId,
+					request,
+					delivery,
+					draft,
+					lease,
+				),
+			)
+			prepared = PreparedSessionStart(
+				delivery.token,
+				session.logicalTrackingId,
+				serviceRunId,
+				manifestRevision,
+				intentRevision,
+			)
+		}
+		failure?.let { return SessionStartPreparationResult.Rejected(it) }
+		return prepared?.let(SessionStartPreparationResult::Prepared)
+			?: SessionStartPreparationResult.Rejected("RECOVERY_PREPARE_FAILED")
+	}
+
+	private fun preparedServiceRun(
+		serviceRunId: String,
+		logicalTrackingId: String,
+		request: SessionStartRequest,
+		delivery: AndroidStartDeliveryMetadata,
+		draft: PersistedLifecycleIntent,
+		lease: LifecycleLeaseToken,
+	) = SourceServiceRunEntity(
+		serviceRunId = serviceRunId,
+		logicalTrackingId = logicalTrackingId,
+		state = SessionLifecycleState.STARTING.name,
+		desiredPlanRevision = request.plan.revision,
+		rolloutRevision = request.rolloutRevision,
+		foregroundCapabilityFlags = request.foregroundCapabilityFlags,
+		startedAtMs = request.wallTimeMs,
+		startedElapsedNanos = request.elapsedRealtimeNanos,
+		completedAtMs = null,
+		completionReason = null,
+		bootId = lease.bootId,
+		leaseGeneration = lease.generation,
+		startOrigin = request.origin.name,
+		desiredForegroundCapabilityFlags = request.foregroundCapabilityFlags,
+		appliedForegroundCapabilityFlags = null,
+		runtimeAcknowledgement = LifecycleActionStatus.AWAITING_FOREGROUND.name,
+		runtimeFailureCode = null,
+		runRevision = 1L,
+		startDeliveryToken = delivery.token.value,
+		startCommandGeneration = delivery.commandGeneration,
+		preparedManifestRevision = draft.manifest.manifestRevision,
+		preparedIntentRevision = draft.intent.intentRevision,
+		androidDeliveryState = AndroidStartDeliveryState.PREPARED.name,
+		androidDeliveryUpdatedAtMs = request.wallTimeMs,
+		startIsUserInitiated = delivery.isUserInitiated,
+		startIsAmbient = delivery.isAmbient,
+	)
+
+	/**
+	 * Terminalizes only the exact active manual run named by a failed continuation attempt. This is
+	 * used when Android legality/capability prevents a passive redelivery from preparing its
+	 * replacement; leaving the old process-owned run ACTIVE would create a ghost session.
+	 */
+	suspend fun finalizeUnrecoverableContinuation(
+		logicalTrackingId: String,
+		authority: ServiceRunContinuationAuthority,
+		currentBootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+		failureCode: String,
+	): Boolean {
+		val lease = acquireLease(
+			"continuation-failure:${UUID.randomUUID()}",
+			currentBootId,
+			elapsedRealtimeNanos,
+		) ?: return false
+		return try {
+			val eligible = database.withTransaction {
+				requireLeaseInTransaction(lease)
+				val dao = database.sourceSessionDao()
+				val session = dao.session(logicalTrackingId) ?: return@withTransaction null
+				val run = dao.serviceRun(authority.previousServiceRunId)
+					?: return@withTransaction null
+				if (session.state != SessionLifecycleState.ACTIVE.name ||
+					session.sessionMode != SessionMode.MANUAL.name ||
+					run.logicalTrackingId != logicalTrackingId ||
+					run.state != SessionLifecycleState.ACTIVE.name || run.completedAtMs != null ||
+					!run.startIsUserInitiated ||
+					authority.previousDeliveryToken?.value?.let { it != run.startDeliveryToken } == true ||
+					authority.previousCommandGeneration?.let { it != run.startCommandGeneration } == true ||
+					dao.incompleteServiceRuns(logicalTrackingId).map { it.serviceRunId } !=
+						listOf(run.serviceRunId)
+				) return@withTransaction null
+				session
+			} ?: return false
+			finalizeInterruptedSession(eligible, lease, wallTimeMs, failureCode)
+			database.sourceSessionDao().session(logicalTrackingId)?.let { terminal ->
+				terminal.state == SessionLifecycleState.FINALIZED.name &&
+					terminal.failureCode == failureCode
+			} == true
+		} finally {
+			releaseLease(lease, elapsedRealtimeNanos)
+		}
+	}
+
+	suspend fun markAndroidStartEnqueued(
+		token: PreparedTrackingStartToken,
+		commandGeneration: Long,
+		wallTimeMs: Long,
+	): Boolean = database.withTransaction {
+		val dao = database.sourceSessionDao()
+		val run = dao.serviceRunByDeliveryToken(token.value) ?: return@withTransaction false
+		if (run.startCommandGeneration != commandGeneration || run.completedAtMs != null) {
+			return@withTransaction false
+		}
+		when (run.androidDeliveryState) {
+			AndroidStartDeliveryState.PREPARED.name -> check(
+				dao.updateServiceRun(
+					run.copy(
+						androidDeliveryState = AndroidStartDeliveryState.ENQUEUED.name,
+						androidDeliveryUpdatedAtMs = wallTimeMs,
+						runRevision = run.runRevision + 1L,
+					),
+				) == 1,
+			)
+			AndroidStartDeliveryState.ENQUEUED.name,
+			AndroidStartDeliveryState.DELIVERED.name,
+			AndroidStartDeliveryState.FOREGROUND_ACCEPTED.name,
+			-> Unit
+			else -> return@withTransaction false
+		}
+		true
+	}
+
+	/** Claims only an exact current prepared start; no provider or foreground side effect occurs. */
+	suspend fun claimAndroidStart(
+		token: PreparedTrackingStartToken,
+		commandGeneration: Long,
+		currentBootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	): PreparedSessionClaimResult {
+		val initial = database.sourceSessionDao().serviceRunByDeliveryToken(token.value)
+			?: return PreparedSessionClaimResult.Rejected("PREPARED_START_NOT_FOUND")
+		if (initial.startCommandGeneration != commandGeneration) {
+			return PreparedSessionClaimResult.Rejected("PREPARED_START_COMMAND_MISMATCH")
+		}
+		if (initial.bootId != currentBootId) {
+			return PreparedSessionClaimResult.Rejected("PREPARED_START_OLD_BOOT")
+		}
+		if (initial.completedAtMs != null || initial.state in TERMINAL_STATES ||
+			initial.androidDeliveryState == AndroidStartDeliveryState.TERMINAL_FAILURE.name
+		) return PreparedSessionClaimResult.Rejected("PREPARED_START_TERMINAL")
+		val lease = acquireLease(preparedStartOwner(token), currentBootId, elapsedRealtimeNanos)
+			?: return PreparedSessionClaimResult.Rejected("PREPARED_START_LEASE_UNAVAILABLE")
+		if (lease.generation != initial.leaseGeneration) {
+			terminalizeExpiredPreparedStart(
+				token,
+				commandGeneration,
+				lease,
+				elapsedRealtimeNanos,
+				wallTimeMs,
+			)
+			releaseLease(lease, elapsedRealtimeNanos)
+			return PreparedSessionClaimResult.Rejected("PREPARED_START_LEASE_EXPIRED")
+		}
+		var rejection: String? = null
+		var claimed: ClaimedPreparedSessionStart? = null
+		database.withTransaction {
+			requireLeaseInTransaction(lease)
+			val dao = database.sourceSessionDao()
+			val run = dao.serviceRunByDeliveryToken(token.value)
+			if (run == null || run.startCommandGeneration != commandGeneration ||
+				run.leaseGeneration != lease.generation || run.bootId != currentBootId ||
+				run.completedAtMs != null || run.state in TERMINAL_STATES
+			) {
+				rejection = "PREPARED_START_STALE"
+				return@withTransaction
+			}
+			if (run.androidDeliveryState !in setOf(
+					AndroidStartDeliveryState.PREPARED.name,
+					AndroidStartDeliveryState.ENQUEUED.name,
+					AndroidStartDeliveryState.DELIVERED.name,
+					AndroidStartDeliveryState.FOREGROUND_ACCEPTED.name,
+				)
+			) {
+				rejection = "PREPARED_START_DELIVERY_TERMINAL"
+				return@withTransaction
+			}
+			val session = dao.session(run.logicalTrackingId)
+			val manifest = session?.let {
+				dao.manifest(it.logicalTrackingId, run.preparedManifestRevision)
+			}
+			val intent = session?.let {
+				dao.lifecycleIntent(it.logicalTrackingId, run.preparedIntentRevision)
+			}
+			if (session == null || manifest == null || intent == null ||
+				session.currentManifestRevision != run.preparedManifestRevision ||
+				session.currentIntentRevision != run.preparedIntentRevision ||
+				session.lifecycleLeaseGeneration != lease.generation ||
+				session.lifecycleBootId != currentBootId ||
+				session.state != SessionLifecycleState.STARTING.name ||
+				manifest.acquisitionPlanRevision != run.desiredPlanRevision ||
+				intent.manifestRevision != run.preparedManifestRevision ||
+				intent.desiredState != LifecycleDesiredState.ACTIVE.name
+			) {
+				rejection = "PREPARED_START_ROOM_ENVELOPE_STALE"
+				return@withTransaction
+			}
+			val triggerId = intent.triggerId
+			var automaticTrigger: AutomaticTrackingStartTrigger? = null
+			if (triggerId != null) {
+				val action = database.activityAutomaticStartActionDao().action(triggerId)
+				val currentEpoch = database.sourceEvidenceStateDao().get()?.collectedDataEpoch
+				if (action == null || action.status != "LIFECYCLE_INTENT_ACCEPTED" ||
+					action.acceptedLogicalTrackingId != session.logicalTrackingId ||
+					action.acceptedIntentRevision != intent.intentRevision ||
+					action.collectedDataEpoch != intent.triggerCollectedDataEpoch ||
+					currentEpoch != action.collectedDataEpoch
+				) {
+					rejection = "PREPARED_AUTOMATIC_TRIGGER_STALE"
+					return@withTransaction
+				}
+				automaticTrigger = AutomaticTrackingStartTrigger(
+					triggerId = action.triggerId,
+					kind = action.triggerKind,
+					bootId = action.bootId,
+					observedElapsedRealtimeNanos = action.observedElapsedRealtimeNanos,
+					receivedElapsedRealtimeNanos = action.receivedElapsedRealtimeNanos,
+					expiresElapsedRealtimeNanos = action.expiresElapsedRealtimeNanos,
+					automationEpoch = action.automationEpoch,
+					startContext = AutomaticTrackingStartContext.ACTIVITY_TRANSITION_CALLBACK,
+					sourcePolicyRevision = action.sourcePolicyRevision,
+					intendedCaptureSourceMask = action.intendedCaptureSourceMask,
+					requestedCaptureSourceMask = action.requestedCaptureSourceMask,
+					intendedForegroundServiceTypeMask = action.intendedForegroundServiceTypeMask,
+					collectedDataEpoch = action.collectedDataEpoch,
+				)
+			}
+			val bindings = dao.manifestSources(session.logicalTrackingId, manifest.manifestRevision)
+			val captureSources = bindings.asSequence()
+				.filter { it.purpose == SessionManifestPurpose.SESSION_CAPTURE.name }
+				.mapNotNull { binding -> SourceKind.entries.firstOrNull { it.stableCode == binding.sourceKind } }
+				.toSet()
+			if (captureSources.isEmpty()) {
+				rejection = "PREPARED_START_ZERO_CAPTURE_SOURCES"
+				return@withTransaction
+			}
+			val updated = if (run.androidDeliveryState in setOf(
+					AndroidStartDeliveryState.DELIVERED.name,
+					AndroidStartDeliveryState.FOREGROUND_ACCEPTED.name,
+				)
+			) run else run.copy(
+				androidDeliveryState = AndroidStartDeliveryState.DELIVERED.name,
+				androidDeliveryUpdatedAtMs = wallTimeMs,
+				runRevision = run.runRevision + 1L,
+			).also { check(dao.updateServiceRun(it) == 1) }
+			claimed = ClaimedPreparedSessionStart(
+				token = token,
+				logicalTrackingId = session.logicalTrackingId,
+				serviceRunId = run.serviceRunId,
+				manifestRevision = manifest.manifestRevision,
+				intentRevision = intent.intentRevision,
+				planRevision = manifest.acquisitionPlanRevision,
+				sourcePolicyRevision = manifest.sourcePolicyRevision,
+				startOrigin = SessionStartOrigin.valueOf(run.startOrigin),
+				sessionMode = SessionMode.valueOf(session.sessionMode),
+				acceptedSources = captureSources,
+				desiredForegroundCapabilityFlags = run.desiredForegroundCapabilityFlags,
+				intent = intent,
+				automaticTrigger = automaticTrigger,
+				isUserInitiated = run.startIsUserInitiated,
+				isAmbient = run.startIsAmbient,
+				alreadyForegroundAccepted = updated.androidDeliveryState ==
+					AndroidStartDeliveryState.FOREGROUND_ACCEPTED.name,
+			)
+		}
+		if (claimed == null) {
+			releaseLease(lease, elapsedRealtimeNanos)
+			return PreparedSessionClaimResult.Rejected(rejection ?: "PREPARED_START_CLAIM_FAILED")
+		}
+		return PreparedSessionClaimResult.Claimed(requireNotNull(claimed))
+	}
+
+	/** Opens provider desired actions only after Android foreground promotion succeeded. */
+	suspend fun markPreparedForegroundAccepted(
+		token: PreparedTrackingStartToken,
+		commandGeneration: Long,
+		currentBootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	): Boolean {
+		val run = database.sourceSessionDao().serviceRunByDeliveryToken(token.value) ?: return false
+		if (run.startCommandGeneration != commandGeneration || run.bootId != currentBootId) return false
+		val lease = acquireLease(preparedStartOwner(token), currentBootId, elapsedRealtimeNanos) ?: return false
+		if (lease.generation != run.leaseGeneration) {
+			terminalizeExpiredPreparedStart(
+				token,
+				commandGeneration,
+				lease,
+				elapsedRealtimeNanos,
+				wallTimeMs,
+			)
+			releaseLease(lease, elapsedRealtimeNanos)
+			return false
+		}
+		return database.withTransaction {
+			requireLeaseInTransaction(lease)
+			val dao = database.sourceSessionDao()
+			val current = dao.serviceRunByDeliveryToken(token.value) ?: return@withTransaction false
+			if (current.startCommandGeneration != commandGeneration || current.completedAtMs != null ||
+				current.state != SessionLifecycleState.STARTING.name ||
+				current.androidDeliveryState !in setOf(
+					AndroidStartDeliveryState.DELIVERED.name,
+					AndroidStartDeliveryState.FOREGROUND_ACCEPTED.name,
+				)
+			) return@withTransaction false
+			val session = dao.session(current.logicalTrackingId) ?: return@withTransaction false
+			val manifest = dao.manifest(
+				current.logicalTrackingId,
+				current.preparedManifestRevision,
+			) ?: return@withTransaction false
+			val intent = dao.lifecycleIntent(
+				current.logicalTrackingId,
+				current.preparedIntentRevision,
+			) ?: return@withTransaction false
+			if (session.state != SessionLifecycleState.STARTING.name ||
+				session.currentManifestRevision != current.preparedManifestRevision ||
+				session.currentIntentRevision != current.preparedIntentRevision ||
+				session.lifecycleLeaseGeneration != current.leaseGeneration ||
+				session.lifecycleBootId != current.bootId ||
+				manifest.acquisitionPlanRevision != current.desiredPlanRevision ||
+				intent.manifestRevision != current.preparedManifestRevision ||
+				intent.desiredState != LifecycleDesiredState.ACTIVE.name
+			) return@withTransaction false
+			if (current.androidDeliveryState != AndroidStartDeliveryState.FOREGROUND_ACCEPTED.name) {
+				if (!sourceBroker.activatePreparedSessionDemandsInTransaction(
+					logicalTrackingId = current.logicalTrackingId,
+					serviceRunId = current.serviceRunId,
+					manifestRevision = current.preparedManifestRevision,
+					leaseGeneration = current.leaseGeneration,
+					bootId = currentBootId,
+					elapsedRealtimeNanos = elapsedRealtimeNanos,
+					wallTimeMs = wallTimeMs,
+				)) return@withTransaction false
+				check(dao.updateServiceRun(
+					current.copy(
+						androidDeliveryState = AndroidStartDeliveryState.FOREGROUND_ACCEPTED.name,
+						androidDeliveryUpdatedAtMs = wallTimeMs,
+						appliedForegroundCapabilityFlags = current.desiredForegroundCapabilityFlags,
+						runtimeAcknowledgement = LifecycleActionStatus.PENDING.name,
+						runRevision = current.runRevision + 1L,
+					),
+				) == 1)
+			}
+			dao.lifecycleActions(current.logicalTrackingId).filter { action ->
+				action.serviceRunId == current.serviceRunId &&
+					action.manifestRevision == current.preparedManifestRevision &&
+					action.status == LifecycleActionStatus.AWAITING_FOREGROUND.name
+			}.forEach { action ->
+				check(dao.updateLifecycleAction(action.copy(status = LifecycleActionStatus.PENDING.name)) == 1)
+			}
+			true
+		}
+	}
+
+	/** Applies only the exact persisted plan/manifest opened by foreground acknowledgement. */
+	suspend fun applyPreparedAndroidStart(
+		token: PreparedTrackingStartToken,
+		commandGeneration: Long,
+		currentBootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	): SessionStartResult {
+		val run = database.sourceSessionDao().serviceRunByDeliveryToken(token.value)
+			?: return SessionStartResult.InvalidIntent("PREPARED_START_NOT_FOUND")
+		if (run.startCommandGeneration != commandGeneration || run.bootId != currentBootId ||
+			run.androidDeliveryState != AndroidStartDeliveryState.FOREGROUND_ACCEPTED.name
+		) return SessionStartResult.InvalidIntent("PREPARED_START_NOT_FOREGROUND_ACCEPTED")
+		val lease = acquireLease(preparedStartOwner(token), currentBootId, elapsedRealtimeNanos)
+			?: return SessionStartResult.Busy
+		if (lease.generation != run.leaseGeneration) {
+			terminalizeExpiredPreparedStart(
+				token,
+				commandGeneration,
+				lease,
+				elapsedRealtimeNanos,
+				wallTimeMs,
+			)
+			releaseLease(lease, elapsedRealtimeNanos)
+			return SessionStartResult.InvalidIntent("PREPARED_START_LEASE_EXPIRED")
+		}
+		return try {
+			val plan = planStore.load(run.desiredPlanRevision)
+				?: return SessionStartResult.InvalidIntent("PREPARED_START_PLAN_MISSING")
+			val dao = database.sourceSessionDao()
+			val manifest = dao.manifest(run.logicalTrackingId, run.preparedManifestRevision)
+				?: return SessionStartResult.InvalidIntent("PREPARED_START_MANIFEST_MISSING")
+			val intent = dao.lifecycleIntent(run.logicalTrackingId, run.preparedIntentRevision)
+				?: return SessionStartResult.InvalidIntent("PREPARED_START_INTENT_MISSING")
+			val persisted = PersistedLifecycleIntent(
+				manifest = manifest,
+				bindings = dao.manifestSources(run.logicalTrackingId, run.preparedManifestRevision),
+				intent = intent,
+				actions = dao.lifecycleActions(run.logicalTrackingId).filter { action ->
+					action.serviceRunId == run.serviceRunId &&
+						action.manifestRevision == run.preparedManifestRevision
+				},
+				demands = database.sourceBrokerDao().currentDemands("session:${run.logicalTrackingId}"),
+				foregroundCapabilityFlags = run.desiredForegroundCapabilityFlags,
+			)
+			validateSourcePolicy(plan)?.let { return SessionStartResult.InvalidPolicy(it) }
+			planStore.updateStatus(plan.revision, DesiredPlanStatus.APPLYING)
+			val sink = sinkFactory.forSession(run.logicalTrackingId, run.serviceRunId)
+			var applied = reconcileStartActions(
+				plan,
+				persisted,
+				sink,
+				lease,
+				wallTimeMs,
+				elapsedRealtimeNanos,
+			)
+			val finalPolicyFailure = validateSourcePolicy(plan)
+			if (finalPolicyFailure != null) {
+				applied = rollbackStalePolicySources(plan, applied, elapsedRealtimeNanos, wallTimeMs)
+			}
+			val effectiveStatus = applied.desiredStatus()
+			planStore.updateStatus(plan.revision, effectiveStatus)
+			val hasRunningSource = applied.any { state ->
+				plan.plans[state.source]?.enabled == true &&
+					state.status in setOf(SourceApplyStatus.APPLIED, SourceApplyStatus.DEGRADED)
+			}
+			if (!hasRunningSource) {
+				markStartFailed(run.logicalTrackingId, run.serviceRunId, wallTimeMs, "NO_SOURCE_STARTED", lease)
+				SessionStartResult.Failed(run.logicalTrackingId, run.serviceRunId, applied, "NO_SOURCE_STARTED")
+			} else {
+				val failure = markRunningIfPolicyCurrent(
+					run.logicalTrackingId,
+					run.serviceRunId,
+					plan,
+					run.preparedManifestRevision,
+					lease,
+					run.desiredForegroundCapabilityFlags,
+				)
+				if (failure == null) {
+					SessionStartResult.Started(run.logicalTrackingId, run.serviceRunId, applied, effectiveStatus)
+				} else {
+					applied = rollbackStalePolicySources(plan, applied, elapsedRealtimeNanos, wallTimeMs)
+					planStore.updateStatus(plan.revision, DesiredPlanStatus.FAILED)
+					markStartFailed(run.logicalTrackingId, run.serviceRunId, wallTimeMs, failure, lease)
+					SessionStartResult.Failed(run.logicalTrackingId, run.serviceRunId, applied, failure)
+				}
+			}
+		} finally {
+			releaseLease(lease, elapsedRealtimeNanos)
+		}
+	}
+
+	suspend fun compensatePreparedAndroidStart(
+		token: PreparedTrackingStartToken,
+		commandGeneration: Long,
+		failureCode: String,
+		currentBootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	): Boolean {
+		val initial = database.sourceSessionDao().serviceRunByDeliveryToken(token.value) ?: return true
+		if (initial.startCommandGeneration != commandGeneration) return false
+		if (initial.completedAtMs != null || initial.state in TERMINAL_STATES) return true
+		if (initial.bootId != currentBootId) return false
+		val lease = acquireLease(preparedStartOwner(token), currentBootId, elapsedRealtimeNanos) ?: return false
+		if (lease.generation != initial.leaseGeneration) {
+			val finalized = terminalizeExpiredPreparedStart(
+				token,
+				commandGeneration,
+				lease,
+				elapsedRealtimeNanos,
+				wallTimeMs,
+				failureCode,
+			)
+			releaseLease(lease, elapsedRealtimeNanos)
+			return finalized
+		}
+		return try {
+			database.withTransaction {
+				requireLeaseInTransaction(lease)
+				val dao = database.sourceSessionDao()
+				val run = dao.serviceRunByDeliveryToken(token.value) ?: return@withTransaction true
+				if (run.startCommandGeneration != commandGeneration) return@withTransaction false
+				if (run.completedAtMs != null || run.state in TERMINAL_STATES) return@withTransaction true
+				if (run.state != SessionLifecycleState.STARTING.name) return@withTransaction false
+				val session = dao.session(run.logicalTrackingId) ?: return@withTransaction false
+				if (session.state != SessionLifecycleState.STARTING.name ||
+					session.currentManifestRevision != run.preparedManifestRevision ||
+					session.currentIntentRevision != run.preparedIntentRevision ||
+					session.lifecycleLeaseGeneration != run.leaseGeneration ||
+					session.lifecycleBootId != run.bootId
+				) return@withTransaction false
+				val manifest = dao.manifest(run.logicalTrackingId, run.preparedManifestRevision)
+					?: return@withTransaction false
+				val intent = dao.lifecycleIntent(run.logicalTrackingId, run.preparedIntentRevision)
+					?: return@withTransaction false
+				if (manifest.acquisitionPlanRevision != run.desiredPlanRevision ||
+					intent.manifestRevision != run.preparedManifestRevision ||
+					intent.desiredState != LifecycleDesiredState.ACTIVE.name
+				) return@withTransaction false
+				val exactActions = dao.lifecycleActions(run.logicalTrackingId).filter { action ->
+					action.serviceRunId == run.serviceRunId &&
+						action.manifestRevision == run.preparedManifestRevision
+				}
+				sourceBroker.retireSessionDemandsInTransaction(
+					run.logicalTrackingId,
+					currentBootId,
+					elapsedRealtimeNanos,
+					wallTimeMs,
+				)
+				exactActions.filter { action ->
+					action.status in setOf(
+						LifecycleActionStatus.AWAITING_FOREGROUND.name,
+						LifecycleActionStatus.PENDING.name,
+						LifecycleActionStatus.APPLYING.name,
+					)
+				}.forEach { action ->
+					check(dao.updateLifecycleAction(
+						action.copy(
+							status = LifecycleActionStatus.SUPERSEDED.name,
+							acknowledgedAtMs = wallTimeMs,
+							acknowledgedElapsedRealtimeNanos = elapsedRealtimeNanos,
+							failureCode = failureCode,
+						),
+					) == 1)
+				}
+				check(dao.updateSession(
+					session.copy(
+						state = SessionLifecycleState.FAILED.name,
+						lifecycleRevision = session.lifecycleRevision + 1L,
+						completedAtMs = wallTimeMs,
+						failureCode = failureCode,
+					),
+				) == 1)
+				check(dao.updateServiceRun(
+					run.copy(
+						state = SessionLifecycleState.FAILED.name,
+						completedAtMs = wallTimeMs,
+						completionReason = failureCode,
+						runtimeAcknowledgement = LifecycleActionStatus.TERMINAL_FAILURE.name,
+						runtimeFailureCode = failureCode,
+						androidDeliveryState = AndroidStartDeliveryState.TERMINAL_FAILURE.name,
+						androidDeliveryUpdatedAtMs = wallTimeMs,
+						runRevision = run.runRevision + 1L,
+					),
+				) == 1)
+				val triggerId = intent.triggerId
+				val triggerCollectedDataEpoch = intent.triggerCollectedDataEpoch
+				if (triggerId != null && triggerCollectedDataEpoch != null) {
+					database.activityAutomaticStartActionDao().markAcceptedLifecycleTerminal(
+						triggerId = triggerId,
+						collectedDataEpoch = triggerCollectedDataEpoch,
+						logicalTrackingId = run.logicalTrackingId,
+						intentRevision = run.preparedIntentRevision,
+						terminalAtMs = wallTimeMs,
+						reason = failureCode,
+					)
+				}
+				true
+			}
+		} finally {
+			releaseLease(lease, elapsedRealtimeNanos)
+		}
+	}
+
+	/**
+	 * A prepared lease may expire before Android delivers the service. Reacquisition increments its
+	 * generation, so the old desired actions cannot be applied. This exact terminal CAS is the only
+	 * legal rebind: it requires every provider action to remain foreground-gated and never revives
+	 * or rewrites a newer lifecycle.
+	 */
+	private suspend fun terminalizeExpiredPreparedStart(
+		token: PreparedTrackingStartToken,
+		commandGeneration: Long,
+		lease: LifecycleLeaseToken,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+		failureCode: String = "PREPARED_START_LEASE_EXPIRED",
+	): Boolean = database.withTransaction {
+		requireLeaseInTransaction(lease)
+		val dao = database.sourceSessionDao()
+		val run = dao.serviceRunByDeliveryToken(token.value) ?: return@withTransaction true
+		if (run.startCommandGeneration != commandGeneration) return@withTransaction false
+		if (run.completedAtMs != null || run.state in TERMINAL_STATES) return@withTransaction true
+		if (run.state != SessionLifecycleState.STARTING.name ||
+			run.androidDeliveryState !in setOf(
+				AndroidStartDeliveryState.PREPARED.name,
+				AndroidStartDeliveryState.ENQUEUED.name,
+				AndroidStartDeliveryState.DELIVERED.name,
+				AndroidStartDeliveryState.FOREGROUND_ACCEPTED.name,
+			)
+		) return@withTransaction false
+		val session = dao.session(run.logicalTrackingId) ?: return@withTransaction false
+		if (session.state != SessionLifecycleState.STARTING.name ||
+			session.currentManifestRevision != run.preparedManifestRevision ||
+			session.currentIntentRevision != run.preparedIntentRevision ||
+			session.lifecycleLeaseGeneration != run.leaseGeneration
+		) return@withTransaction false
+		val exactActions = dao.lifecycleActions(run.logicalTrackingId).filter { action ->
+			action.serviceRunId == run.serviceRunId &&
+				action.manifestRevision == run.preparedManifestRevision
+		}
+		val providerStillUntouched = exactActions.all { action ->
+			action.status == LifecycleActionStatus.AWAITING_FOREGROUND.name ||
+				(action.status == LifecycleActionStatus.PENDING.name &&
+					action.attemptCount == 0 && action.sourceInstanceId == null &&
+					action.registrationGeneration == null)
+		}
+		if (!providerStillUntouched) {
+			return@withTransaction false
+		}
+		sourceBroker.retireSessionDemandsInTransaction(
+			run.logicalTrackingId,
+			lease.bootId,
+			elapsedRealtimeNanos,
+			wallTimeMs,
+		)
+		exactActions.forEach { action ->
+			check(dao.updateLifecycleAction(
+				action.copy(
+					status = LifecycleActionStatus.SUPERSEDED.name,
+					acknowledgedAtMs = wallTimeMs,
+					acknowledgedElapsedRealtimeNanos = elapsedRealtimeNanos,
+					failureCode = failureCode,
+				),
+			) == 1)
+		}
+		dao.updateSession(
+			session.copy(
+				state = SessionLifecycleState.FAILED.name,
+				lifecycleRevision = session.lifecycleRevision + 1L,
+				lifecycleLeaseGeneration = lease.generation,
+				lifecycleBootId = lease.bootId,
+				completedAtMs = wallTimeMs,
+				failureCode = failureCode,
+			),
+		)
+		dao.updateServiceRun(
+			run.copy(
+				state = SessionLifecycleState.FAILED.name,
+				leaseGeneration = lease.generation,
+				completedAtMs = wallTimeMs,
+				completionReason = failureCode,
+				runtimeAcknowledgement = LifecycleActionStatus.TERMINAL_FAILURE.name,
+				runtimeFailureCode = failureCode,
+				androidDeliveryState = AndroidStartDeliveryState.TERMINAL_FAILURE.name,
+				androidDeliveryUpdatedAtMs = wallTimeMs,
+				runRevision = run.runRevision + 1L,
+			),
+		)
+		val intent = dao.lifecycleIntent(run.logicalTrackingId, run.preparedIntentRevision)
+		val triggerId = intent?.triggerId
+		val triggerEpoch = intent?.triggerCollectedDataEpoch
+		if (triggerId != null && triggerEpoch != null) {
+			database.activityAutomaticStartActionDao().markAcceptedLifecycleTerminal(
+				triggerId,
+				triggerEpoch,
+				run.logicalTrackingId,
+				run.preparedIntentRevision,
+				wallTimeMs,
+				failureCode,
+			)
+		}
+		true
+	}
+
 	suspend fun start(request: SessionStartRequest): SessionStartResult {
 		if (request.plan.plans.values.none(SourcePlan::enabled)) {
 			return SessionStartResult.InvalidIntent("ZERO_CAPTURE_SOURCES")
@@ -86,8 +1099,8 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				) {
 					return resume(active, request, lease)
 				}
-				if (isStaleAutomaticOrLegacy(active, request)) {
-					finalizeInterruptedSession(active, lease, request.wallTimeMs, "STALE_AUTOMATIC_SESSION")
+				if (isStalePriorSession(active, request)) {
+					finalizeInterruptedSession(active, lease, request.wallTimeMs, "STALE_PRIOR_SESSION")
 					active = database.sourceSessionDao().activeSession()
 				}
 				if (active != null) return SessionStartResult.AlreadyActive
@@ -96,17 +1109,57 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			if (request.origin == SessionStartOrigin.RECOVERY) {
 				return SessionStartResult.InvalidIntent("RECOVERY_SESSION_MISSING")
 			}
-			if (database.sourceSessionDao().session(logicalTrackingId) != null) {
+			if (request.automaticTrigger == null &&
+				database.sourceSessionDao().session(logicalTrackingId) != null
+			) {
 				return SessionStartResult.InvalidIntent("LOGICAL_SESSION_ID_ALREADY_EXISTS")
 			}
 			val serviceRunId = request.serviceRunId ?: UUID.randomUUID().toString()
 			var intentPolicyFailure: String? = null
+			var automaticActionFailure: String? = null
+			var automaticActionAlreadyAccepted = false
 			var persisted: PersistedLifecycleIntent? = null
+			if (request.automaticTrigger != null) {
+				activityAutomationEpochAuthority.currentForValidation()
+			}
 			val created = database.withTransaction {
 				requireLeaseInTransaction(lease)
 				intentPolicyFailure = validateSourcePolicyInTransaction(request.plan)
 				if (intentPolicyFailure != null) return@withTransaction false
 				if (database.sourceSessionDao().activeSession() != null) return@withTransaction false
+				val automaticAction = request.automaticTrigger?.let { trigger ->
+					when (val validation =
+						automaticStartActions.validateForLifecycleIntentTransaction(trigger)
+					) {
+						is ActivityAutomaticStartServiceValidation.Valid -> validation.action
+						is ActivityAutomaticStartServiceValidation.LifecycleIntentAlreadyAccepted -> {
+							automaticActionAlreadyAccepted = true
+							return@withTransaction false
+						}
+						is ActivityAutomaticStartServiceValidation.Rejected -> {
+							automaticActionFailure = validation.reason
+							database.activityAutomaticStartActionDao().markTerminal(
+								trigger.triggerId,
+								trigger.collectedDataEpoch,
+								request.wallTimeMs,
+								validation.reason,
+							)
+							return@withTransaction false
+						}
+					}
+				}
+				if (database.sourceSessionDao().session(logicalTrackingId) != null) {
+					automaticActionFailure = "LOGICAL_SESSION_ID_ALREADY_EXISTS"
+					automaticAction?.let { action ->
+						database.activityAutomaticStartActionDao().markTerminal(
+							action.triggerId,
+							action.collectedDataEpoch,
+							request.wallTimeMs,
+							"LOGICAL_SESSION_ID_ALREADY_EXISTS",
+						)
+					}
+					return@withTransaction false
+				}
 				val draft = buildManifestDraft(
 					logicalTrackingId = logicalTrackingId,
 					manifestRevision = 1L,
@@ -117,6 +1170,34 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					lease = lease,
 					serviceRunId = serviceRunId,
 				)
+				if (automaticAction != null) {
+					val captureMask = draft.bindings.captureSourceMask()
+					val activityControlConsentEpoch = draft.bindings.singleOrNull { binding ->
+						binding.sourceKind == SourceKind.ACTIVITY.stableCode &&
+							binding.purpose == SessionManifestPurpose.CONTROL.name
+					}?.consentEpoch
+					automaticActionFailure = when {
+						automaticAction.sourcePolicyRevision != request.plan.sourcePolicyRevision ->
+							"AUTOMATIC_START_SOURCE_POLICY_MISMATCH"
+						automaticAction.intendedCaptureSourceMask != captureMask ->
+							"AUTOMATIC_START_CAPTURE_MASK_MISMATCH"
+						automaticAction.intendedForegroundServiceTypeMask !=
+							request.foregroundCapabilityFlags ->
+							"AUTOMATIC_START_FGS_MASK_MISMATCH"
+						automaticAction.controlConsentEpoch != activityControlConsentEpoch ->
+							"AUTOMATIC_START_CONTROL_CONSENT_MISMATCH"
+						else -> null
+					}
+					if (automaticActionFailure != null) {
+						database.activityAutomaticStartActionDao().markTerminal(
+							automaticAction.triggerId,
+							automaticAction.collectedDataEpoch,
+							request.wallTimeMs,
+							requireNotNull(automaticActionFailure),
+						)
+						return@withTransaction false
+					}
+				}
 				planStore.persistDesired(request.plan, DesiredPlanStatus.DESIRED)
 				database.sourceSessionDao().insertSession(
 					LogicalTrackingSessionEntity(
@@ -175,11 +1256,25 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 						runRevision = 1L,
 					),
 				)
+				if (automaticAction != null) {
+					check(
+						database.activityAutomaticStartActionDao().markLifecycleIntentAccepted(
+							triggerId = automaticAction.triggerId,
+							collectedDataEpoch = automaticAction.collectedDataEpoch,
+							logicalTrackingId = logicalTrackingId,
+							intentRevision = draft.intent.intentRevision,
+							acceptedAtMs = request.wallTimeMs,
+						) == 1,
+					) { "Automatic-start action changed before lifecycle-intent acceptance" }
+				}
 				persisted = draft
 				true
 			}
 			intentPolicyFailure?.let { return SessionStartResult.InvalidPolicy(it) }
+			automaticActionFailure?.let { return SessionStartResult.InvalidIntent(it) }
+			if (automaticActionAlreadyAccepted) return SessionStartResult.AlreadyActive
 			if (!created) return SessionStartResult.AlreadyActive
+			if (request.automaticTrigger != null) activityAutomationDrainSignal.requestDrain()
 
 			val lifecycleIntent = requireNotNull(persisted)
 			planStore.updateStatus(request.plan.revision, DesiredPlanStatus.APPLYING)
@@ -609,6 +1704,17 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			}) {
 			return "SOURCE_PLAN_EXCEEDS_POLICY"
 		}
+		for (sourcePlan in plan.plans.values.filter(SourcePlan::enabled)) {
+			val policy = requireNotNull(policyBySource[sourcePlan.source.stableCode])
+			if (!dao.hasAuthoritativeConsentReference(
+					policy = policy,
+					purpose = POLICY_PURPOSE_CAPTURE,
+					requirePersistenceEligible = true,
+				)
+			) {
+				return "CAPTURE_CONSENT_MISSING:${sourcePlan.source.name}"
+			}
+		}
 		return null
 	}
 
@@ -616,6 +1722,15 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		request.clockDomainId.isBlank() -> "BOOT_ID_MISSING"
 		request.zoneId.isBlank() -> "ZONE_ID_MISSING"
 		request.origin == SessionStartOrigin.RECOVERY && request.logicalTrackingId == null -> "RECOVERY_ID_MISSING"
+		request.continuationAuthority != null &&
+			(request.logicalTrackingId == null || request.serviceRunId == null) ->
+			"CONTINUATION_ID_MISSING"
+		request.continuationAuthority != null &&
+			request.continuationAuthority.previousServiceRunId == request.serviceRunId ->
+			"CONTINUATION_RUN_ID_REUSED"
+		request.continuationAuthority != null &&
+			request.origin == SessionStartOrigin.AUTOMATIC_BACKGROUND_START ->
+			"AUTOMATIC_CONTINUATION_FORBIDDEN"
 		request.origin == SessionStartOrigin.POLICY_RECONCILIATION -> "POLICY_RECONCILIATION_START_FORBIDDEN"
 		request.origin == SessionStartOrigin.AUTOMATIC_BACKGROUND_START &&
 			SourceKind.ACTIVITY !in request.controlDependencies -> "AUTOMATIC_ACTIVITY_CONTROL_MISSING"
@@ -629,6 +1744,9 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			request.elapsedRealtimeNanos < trigger.receivedElapsedRealtimeNanos ||
 				request.elapsedRealtimeNanos > trigger.expiresElapsedRealtimeNanos
 		} == true -> "AUTOMATIC_TRIGGER_STALE"
+		request.automaticTrigger?.let { trigger ->
+			trigger.sourcePolicyRevision != request.plan.sourcePolicyRevision
+		} == true -> "AUTOMATIC_TRIGGER_EPOCH_STALE"
 		else -> null
 	}
 
@@ -640,9 +1758,12 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		val policyDao = database.sourcePolicyDao()
 		for (source in controlDependencies) {
 			val policy = policyDao.policyAtRevision(revision, source.stableCode)
-			val epoch = policy?.controlConsentEpoch
-			val ledger = epoch?.let { policyDao.consentEpoch(source.stableCode, POLICY_PURPOSE_CONTROL, it) }
-			if (epoch == null || ledger?.eligible != true || ledger.policyRevision != revision) {
+			if (policy == null || !policyDao.hasAuthoritativeConsentReference(
+					policy = policy,
+					purpose = POLICY_PURPOSE_CONTROL,
+					requirePersistenceEligible = false,
+				)
+			) {
 				return@withTransaction "CONTROL_CONSENT_MISSING:${source.name}"
 			}
 		}
@@ -689,7 +1810,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		clockDomainId: String,
 		zoneId: String,
 		controlDependencies: Set<SourceKind>,
-		automaticTrigger: AutomaticTriggerEvidence?,
+		automaticTrigger: AutomaticTrackingStartTrigger?,
 		wallTimeMs: Long,
 		elapsedRealtimeNanos: Long,
 		foregroundCapabilityFlags: Long,
@@ -704,10 +1825,13 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		val captureBindings = plan.plans.values.filter(SourcePlan::enabled).map { sourcePlan ->
 			val policy = requireNotNull(policies[sourcePlan.source.stableCode])
 			val consentEpoch = requireNotNull(policy.captureConsentEpoch)
-			val ledger = requireNotNull(
-				policyDao.consentEpoch(sourcePlan.source.stableCode, POLICY_PURPOSE_CAPTURE, consentEpoch),
+			check(
+				policyDao.hasAuthoritativeConsentReference(
+					policy = policy,
+					purpose = POLICY_PURPOSE_CAPTURE,
+					requirePersistenceEligible = true,
+				),
 			)
-			check(ledger.eligible && ledger.persistenceEligible && ledger.policyRevision == policyRevision)
 			SessionManifestSourceEntity(
 				logicalTrackingId = logicalTrackingId,
 				manifestRevision = manifestRevision,
@@ -721,10 +1845,13 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		val controlBindings = controlDependencies.map { source ->
 			val policy = requireNotNull(policies[source.stableCode])
 			val consentEpoch = requireNotNull(policy.controlConsentEpoch)
-			val ledger = requireNotNull(
-				policyDao.consentEpoch(source.stableCode, POLICY_PURPOSE_CONTROL, consentEpoch),
+			check(
+				policyDao.hasAuthoritativeConsentReference(
+					policy = policy,
+					purpose = POLICY_PURPOSE_CONTROL,
+					requirePersistenceEligible = false,
+				),
 			)
-			check(ledger.eligible && ledger.policyRevision == policyRevision)
 			SessionManifestSourceEntity(
 				logicalTrackingId = logicalTrackingId,
 				manifestRevision = manifestRevision,
@@ -785,6 +1912,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			wallTimeMs,
 			automaticTrigger?.triggerId,
 			automaticTrigger?.automationEpoch,
+			automaticTrigger?.collectedDataEpoch,
 		)
 		val intent = SessionLifecycleIntentVersionEntity(
 			logicalTrackingId = logicalTrackingId,
@@ -806,6 +1934,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			stopDeadlineBootId = null,
 			stopDeadlineElapsedRealtimeNanos = null,
 			intentChecksum = intentChecksum,
+			triggerCollectedDataEpoch = automaticTrigger?.collectedDataEpoch,
 		)
 		var nextActionRevision = database.sourceSessionDao().maximumActionRevision(logicalTrackingId) + 1L
 		val actions = plan.plans.values.sortedBy { it.source.stableCode }.mapNotNull { sourcePlan ->
@@ -1906,13 +3035,16 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 	private fun monotonicNowAtLeast(floorNanos: Long): Long =
 		maxOf(floorNanos, SystemClock.elapsedRealtimeNanos())
 
-	private suspend fun isStaleAutomaticOrLegacy(
+	private suspend fun isStalePriorSession(
 		session: LogicalTrackingSessionEntity,
 		request: SessionStartRequest,
 	): Boolean {
 		if (session.currentManifestRevision == null || session.currentIntentRevision == null) return true
 		val automatic = session.sessionMode == SessionMode.AUTOMATIC.name ||
 			session.startOrigin == "AUTOMATIC_ACTIVITY_TRANSITION"
+		// An ordinary duplicate start is not authority to replace a live manual session. The
+		// service may receive the same shortcut/widget command more than once, and replacement
+		// requires a separate explicit user action rather than a newly generated logical ID.
 		if (!automatic) return false
 		val requestedRun = request.serviceRunId
 		return requestedRun == null ||
@@ -1988,6 +3120,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		val dao = database.sourceSessionDao()
 		dao.lifecycleActions(logicalTrackingId).filter { action ->
 			action.status in setOf(
+				LifecycleActionStatus.AWAITING_FOREGROUND.name,
 				LifecycleActionStatus.PENDING.name,
 				LifecycleActionStatus.APPLYING.name,
 				LifecycleActionStatus.TEMPORARILY_ILLEGAL.name,
@@ -2003,6 +3136,9 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			)
 		}
 	}
+
+	private fun preparedStartOwner(token: PreparedTrackingStartToken): String =
+		"prepared-start:${token.value}"
 
 	private companion object {
 		const val SESSION_LEASE = "tracking-session-coordinator"
@@ -2204,10 +3340,84 @@ data class SessionStartRequest(
 	val elapsedRealtimeNanos: Long,
 	val zoneId: String,
 	val controlDependencies: Set<SourceKind> = emptySet(),
-	val automaticTrigger: AutomaticTriggerEvidence? = null,
+	val automaticTrigger: AutomaticTrackingStartTrigger? = null,
 	val logicalTrackingId: String? = null,
 	val serviceRunId: String? = null,
+	val continuationAuthority: ServiceRunContinuationAuthority? = null,
 )
+
+/** Exact authority to replace one active manual Android-service run without changing its session. */
+data class ServiceRunContinuationAuthority(
+	val previousServiceRunId: String,
+	val previousDeliveryToken: PreparedTrackingStartToken? = null,
+	val previousCommandGeneration: Long? = null,
+) {
+	init {
+		require(previousServiceRunId.isNotBlank())
+		require((previousDeliveryToken == null) == (previousCommandGeneration == null)) {
+			"Delivery token and command generation must be supplied together"
+		}
+		require(previousCommandGeneration == null || previousCommandGeneration > 0L)
+	}
+}
+
+data class AndroidStartDeliveryMetadata(
+	val token: PreparedTrackingStartToken,
+	val commandGeneration: Long,
+	val isUserInitiated: Boolean,
+	val isAmbient: Boolean,
+) {
+	init {
+		require(commandGeneration > 0L)
+	}
+}
+
+enum class AndroidStartDeliveryState {
+	PREPARED,
+	ENQUEUED,
+	DELIVERED,
+	FOREGROUND_ACCEPTED,
+	TERMINAL_FAILURE,
+}
+
+data class PreparedSessionStart(
+	val token: PreparedTrackingStartToken,
+	val logicalTrackingId: String,
+	val serviceRunId: String,
+	val manifestRevision: Long,
+	val intentRevision: Long,
+)
+
+sealed interface SessionStartPreparationResult {
+	data class Prepared(val start: PreparedSessionStart) : SessionStartPreparationResult
+	data object AlreadyActive : SessionStartPreparationResult
+	data object Busy : SessionStartPreparationResult
+	data class Rejected(val failureCode: String) : SessionStartPreparationResult
+}
+
+data class ClaimedPreparedSessionStart(
+	val token: PreparedTrackingStartToken,
+	val logicalTrackingId: String,
+	val serviceRunId: String,
+	val manifestRevision: Long,
+	val intentRevision: Long,
+	val planRevision: Long,
+	val sourcePolicyRevision: Long,
+	val startOrigin: SessionStartOrigin,
+	val sessionMode: SessionMode,
+	val acceptedSources: Set<SourceKind>,
+	val desiredForegroundCapabilityFlags: Long,
+	val intent: SessionLifecycleIntentVersionEntity,
+	val automaticTrigger: AutomaticTrackingStartTrigger?,
+	val isUserInitiated: Boolean,
+	val isAmbient: Boolean,
+	val alreadyForegroundAccepted: Boolean,
+)
+
+sealed interface PreparedSessionClaimResult {
+	data class Claimed(val start: ClaimedPreparedSessionStart) : PreparedSessionClaimResult
+	data class Rejected(val failureCode: String) : PreparedSessionClaimResult
+}
 
 sealed interface SessionStartResult {
 	data class Started(
@@ -2312,3 +3522,12 @@ sealed interface SessionSuspendResult {
 	data object NoActiveSession : SessionSuspendResult
 	data object Busy : SessionSuspendResult
 }
+
+private fun List<SessionManifestSourceEntity>.captureSourceMask(): Long = asSequence()
+	.filter { binding -> binding.purpose == SessionManifestPurpose.SESSION_CAPTURE.name }
+	.fold(0L) { mask, binding ->
+		require(binding.sourceKind in 1..Long.SIZE_BITS) {
+			"Invalid source kind ${binding.sourceKind}"
+		}
+		mask or (1L shl (binding.sourceKind - 1))
+	}

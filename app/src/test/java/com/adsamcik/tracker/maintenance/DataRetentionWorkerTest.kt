@@ -13,11 +13,9 @@ import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.testing.SynchronousExecutor
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
-import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
-import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
-import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
-import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
@@ -33,12 +31,18 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import javax.inject.Provider
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class DataRetentionWorkerTest {
     private companion object {
         const val UNIQUE_WORK_NAME = "APP.DATA_RETENTION_PIPELINE_WEEKLY"
+		val READY_STARTUP_GATE = object : TrackingStartupGate {
+			override val isReady: Boolean = true
+			override suspend fun reconcile(retryFailedStorage: Boolean) =
+				TrackingStartupResult.Ready(legacyRecoveryPartial = false, liveCompletedThroughOrdinal = 0L)
+		}
     }
 
     private lateinit var context: Context
@@ -47,10 +51,6 @@ class DataRetentionWorkerTest {
     }
     private val testDispatcher = StandardTestDispatcher()
     private val mockDatabase: AppDatabase = mockk(relaxed = true)
-    private val locationSampleDao: LocationSampleDao = mockk(relaxed = true)
-    private val wifiObservationDao: WifiObservationDao = mockk(relaxed = true)
-    private val cellSampleDao: CellSampleDao = mockk(relaxed = true)
-    private val sessionSegmentDao: SessionSegmentDao = mockk(relaxed = true)
     private val exportPlanStore: ExportPlanStore = mockk(relaxed = true)
     private val migrationBackupRepository: DatabaseMigrationBackupRepository = mockk(relaxed = true)
 	private val collectedDataLifecycleStore: CollectedDataLifecycleStore = mockk(relaxed = true)
@@ -79,14 +79,11 @@ class DataRetentionWorkerTest {
                         appContext,
                         workerParameters,
                         retentionStore,
-                        mockDatabase,
-                        locationSampleDao,
-                        wifiObservationDao,
-                        cellSampleDao,
-                        sessionSegmentDao,
+                        Provider { mockDatabase },
                         exportPlanStore,
                         migrationBackupRepository,
 						collectedDataLifecycleStore,
+						READY_STARTUP_GATE,
                     )
                 }
             })
@@ -113,4 +110,5 @@ class DataRetentionWorkerTest {
         works = workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
         assertTrue("expected cancellation, found ${works.map { it.state }}", works.none { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING })
     }
+
 }

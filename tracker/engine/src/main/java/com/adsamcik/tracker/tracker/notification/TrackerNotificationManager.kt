@@ -33,6 +33,12 @@ class TrackerNotificationManager(
 		).addTrackerActions()
 	}
 
+	private fun createBuilder(publicTitleRes: Int): NotificationCompat.Builder = createBuilder(
+		context = context,
+		useStyle = useStyle,
+		publicTitleRes = publicTitleRes,
+	).addTrackerActions()
+
 	private fun NotificationCompat.Builder.addTrackerActions(): NotificationCompat.Builder {
 		val resources = context.resources
 		val stopIntent = Intent(context, TrackerNotificationReceiver::class.java)
@@ -139,6 +145,18 @@ class TrackerNotificationManager(
 				.build()
 		}
 
+		/** Honest providerless shell shown while the startup gate restores durable authority. */
+		fun getStartupRecoveryForegroundNotification(
+			context: Context,
+			isUserInitiatedSession: Boolean,
+		): Notification = TrackerNotificationManager(
+			context = context,
+			isUserInitiatedSession = isUserInitiatedSession,
+		).createBuilder(R.string.notification_tracking_restoring_public)
+			.setContentTitle(context.getString(R.string.notification_tracking_restoring_title))
+			.setContentText(context.getString(R.string.notification_tracking_restoring_text))
+			.build()
+
 		fun postStartFailedNotification(context: Context) {
 			TrackerNotificationChannels.ensureTrackingChannel(context)
 			val resources = context.resources
@@ -172,7 +190,11 @@ class TrackerNotificationManager(
 			context.notificationManager.notify(START_FAILED_NOTIFICATION_ID, builder.build())
 		}
 
-		private fun createBuilder(context: Context, useStyle: Boolean): NotificationCompat.Builder {
+		private fun createBuilder(
+			context: Context,
+			useStyle: Boolean,
+			publicTitleRes: Int = R.string.notification_tracker_active_ticker,
+		): NotificationCompat.Builder {
 			TrackerNotificationChannels.ensureTrackingChannel(context)
 			val resources = context.resources
 			val intent =
@@ -190,7 +212,7 @@ class TrackerNotificationManager(
 				.setSmallIcon(com.adsamcik.tracker.shared.base.R.drawable.ic_signals)
 				.setCategory(NotificationCompat.CATEGORY_SERVICE)
 				.setPriority(NotificationCompat.PRIORITY_LOW)
-				.setContentTitle(resources.getString(R.string.notification_tracker_active_ticker))
+				.setContentTitle(resources.getString(publicTitleRes))
 				.setOngoing(true)
 				.build()
 

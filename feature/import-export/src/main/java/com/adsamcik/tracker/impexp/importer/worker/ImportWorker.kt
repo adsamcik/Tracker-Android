@@ -27,6 +27,8 @@ import com.adsamcik.tracker.impexp.importer.file.DatabaseImportFailure
 import com.adsamcik.tracker.impexp.importer.file.FileImport
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.extension.extension
 import com.adsamcik.tracker.shared.base.extension.openInputStream
 import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
@@ -36,18 +38,22 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
+import javax.inject.Provider
 
 @HiltWorker
 class ImportWorker @AssistedInject constructor(
     @Assisted private val context: Context,
     @Assisted workerParams: WorkerParameters,
-    private val database: AppDatabase,
+	private val databaseProvider: Provider<AppDatabase>,
     private val dispatchers: DispatchersProvider,
+	private val trackingStartupGate: TrackingStartupGate,
 ) : CoroutineWorker(context, workerParams) {
 
     private val import = DataImport()
-    private val importJobRunner = ImportJobRunner(RoomImportReceiptStore(database))
     private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+	private lateinit var database: AppDatabase
+	private lateinit var importJobRunner: ImportJobRunner
+	private var startupGeneration: Long = -1L
 
     private var errorCount: Int = 0
 
@@ -59,6 +65,23 @@ class ImportWorker @AssistedInject constructor(
         val uriString = inputData.getString(ARG_FILE_URI) ?: return Result.failure()
         val uri = Uri.parse(uriString)
         val file = DocumentFile.fromSingleUri(context, uri) ?: return Result.failure()
+
+		startupGeneration = trackingStartupGate.currentGeneration
+		when (trackingStartupGate.reconcile()) {
+			is TrackingStartupResult.Ready -> Unit
+			is TrackingStartupResult.RetryableFailure -> return Result.retry()
+			is TrackingStartupResult.Blocked -> {
+				showErrorNotification("Import unavailable until tracking data recovery is complete.")
+				return Result.failure()
+			}
+		}
+		if (!isReadyGeneration()) return Result.success()
+		database = databaseProvider.get()
+		if (!isReadyGeneration()) return Result.success()
+		importJobRunner = ImportJobRunner(
+			receiptStore = RoomImportReceiptStore(database),
+			verifyCollectedDataAccess = ::requireReadyGeneration,
+		)
 
         showNotification(
             context.getString(R.string.import_notification_progress),
@@ -75,12 +98,14 @@ class ImportWorker @AssistedInject constructor(
                 Long.MAX_VALUE
             }
             val jobId = computeImportJobId(context, file, sourceReadLimit)
+			requireReadyGeneration()
             if (!importJobRunner.start(jobId, fileName, file.length())) {
                 val alreadyImported = ImportResult(skippedCount = 1)
                 showNotification(buildNotificationText(alreadyImported), false)
                 return Result.success()
             }
             val importResult = handleFile(file, jobId)
+			requireReadyGeneration()
             importJobRunner.completeIfSuccessful(jobId, importResult)
 
             val notificationText = buildNotificationText(importResult)
@@ -103,6 +128,8 @@ class ImportWorker @AssistedInject constructor(
             Result.success()
         } catch (e: CancellationException) {
             throw e
+		} catch (_: StartupGenerationChangedException) {
+			Result.success()
         } catch (e: IOException) {
             showErrorNotification(e.message ?: "Import failed due to an I/O error.")
             Result.retry()
@@ -217,6 +244,7 @@ class ImportWorker @AssistedInject constructor(
         )
 
         return runCatchingCancellable {
+			requireReadyGeneration()
             try {
                 import.import(context, database, stream)
             } catch (e: SQLiteCantOpenDatabaseException) {
@@ -232,6 +260,7 @@ class ImportWorker @AssistedInject constructor(
     }
 
     private suspend fun handleFile(file: DocumentFile, jobId: String): ImportResult {
+		requireReadyGeneration()
         val extension = file.extension?.lowercase(Locale.ROOT)
         val extractor = import.activeArchiveExtractorList
             .find { it.supportedExtensions.contains(extension) }
@@ -254,10 +283,19 @@ class ImportWorker @AssistedInject constructor(
         }
     }
 
+	private fun isReadyGeneration(): Boolean =
+		trackingStartupGate.isReady && trackingStartupGate.currentGeneration == startupGeneration
+
+	private fun requireReadyGeneration() {
+		if (!isReadyGeneration()) throw StartupGenerationChangedException
+	}
+
     companion object {
         const val NOTIFICATION_ID: Int = 98784
         const val NOTIFICATION_ERROR_BASE_ID: Int = 98785
         const val ARG_FILE_URI: String = "filePath"
         private const val DIRECT_ENTRY_KEY: String = "direct-source-v1"
     }
+
+	private object StartupGenerationChangedException : RuntimeException()
 }

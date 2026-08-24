@@ -33,6 +33,7 @@ suspend fun AppDatabase.liveSourceProjectionActivationOrdinal(): Long {
 suspend fun AppDatabase.pruneSourceEventStorageBefore(
 	createdBeforeMs: Long,
 	batchSize: Int = DEFAULT_SOURCE_EVENT_PRUNE_BATCH_SIZE,
+	verifyCollectedDataAccess: () -> Unit = {},
 ): SourceEventStoragePruneResult {
 	require(createdBeforeMs >= 0L)
 	require(batchSize > 0)
@@ -40,38 +41,45 @@ suspend fun AppDatabase.pruneSourceEventStorageBefore(
 	var effectsDeleted = 0
 	while (true) {
 		val batch = withTransaction {
-			val projectionDao = sourceProjectionStateDao()
-			val checkpoint = projectionDao.minimumRequiredCheckpoint()
-			val joinBoundary = projectionDao.minimumJoinRequiredOrdinal()
-			val legacyDao = legacyV27ProjectionDrainDao()
-			val safeOrdinal = listOfNotNull(
-				checkpoint,
-				joinBoundary?.minus(1L),
-				legacyDao.minimumPendingOrdinal()?.minus(1L),
-				legacyDao.minimumPendingOutboxOrdinal()?.minus(1L),
-				legacyDao.minimumBlockedWalOrdinal()?.minus(1L),
-			).minOrNull() ?: return@withTransaction SourceEventStoragePruneResult(0, 0)
-			if (safeOrdinal <= 0L) {
-				return@withTransaction SourceEventStoragePruneResult(0, 0)
-			}
-			val walDao = sourceEventWalDao()
-			val firstNonPrunable = walDao.firstNonPrunableOrdinal(safeOrdinal, createdBeforeMs)
-			val pruneThroughOrdinal = firstNonPrunable?.minus(1L) ?: safeOrdinal
-			if (pruneThroughOrdinal <= 0L) {
-				return@withTransaction SourceEventStoragePruneResult(0, 0)
-			}
-			val deleted = walDao.deleteContiguousPrefixBatch(
-				pruneThroughOrdinal = pruneThroughOrdinal,
-				limit = batchSize,
-			)
-			SourceEventStoragePruneResult(
-				walEventsDeleted = deleted,
-				deliveredEffectsDeleted = projectionDao.deleteDeliveredOutboxBatch(
-					safeOrdinal = safeOrdinal,
-					deliveredBeforeMs = createdBeforeMs,
+			verifyCollectedDataAccess()
+			try {
+				val projectionDao = sourceProjectionStateDao()
+				val checkpoint = projectionDao.minimumRequiredCheckpoint()
+				val joinBoundary = projectionDao.minimumJoinRequiredOrdinal()
+				val legacyDao = legacyV27ProjectionDrainDao()
+				val safeOrdinal = listOfNotNull(
+					checkpoint,
+					joinBoundary?.minus(1L),
+					legacyDao.minimumPendingOrdinal()?.minus(1L),
+					legacyDao.minimumPendingOutboxOrdinal()?.minus(1L),
+					legacyDao.minimumBlockedWalOrdinal()?.minus(1L),
+				).minOrNull() ?: return@withTransaction SourceEventStoragePruneResult(0, 0)
+				if (safeOrdinal <= 0L) {
+					return@withTransaction SourceEventStoragePruneResult(0, 0)
+				}
+				val walDao = sourceEventWalDao()
+				val firstNonPrunable = walDao.firstNonPrunableOrdinal(safeOrdinal, createdBeforeMs)
+				val pruneThroughOrdinal = firstNonPrunable?.minus(1L) ?: safeOrdinal
+				if (pruneThroughOrdinal <= 0L) {
+					return@withTransaction SourceEventStoragePruneResult(0, 0)
+				}
+				val deleted = walDao.deleteContiguousPrefixBatch(
+					pruneThroughOrdinal = pruneThroughOrdinal,
 					limit = batchSize,
-				),
-			)
+				)
+				SourceEventStoragePruneResult(
+					walEventsDeleted = deleted,
+					deliveredEffectsDeleted = projectionDao.deleteDeliveredOutboxBatch(
+						safeOrdinal = safeOrdinal,
+						deliveredBeforeMs = createdBeforeMs,
+						limit = batchSize,
+					),
+				)
+			} finally {
+				// Throwing here aborts the Room transaction instead of committing work
+				// that crossed a tracking-startup generation boundary.
+				verifyCollectedDataAccess()
+			}
 		}
 		walDeleted += batch.walEventsDeleted
 		effectsDeleted += batch.deliveredEffectsDeleted

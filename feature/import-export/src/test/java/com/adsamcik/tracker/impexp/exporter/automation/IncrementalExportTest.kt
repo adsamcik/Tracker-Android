@@ -10,11 +10,14 @@ import com.adsamcik.tracker.impexp.exporter.proto.ExportBackupPlanProto
 import com.adsamcik.tracker.impexp.exporter.proto.ExportFormatProto
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.base.time.Clock
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import io.mockk.every
 import io.mockk.mockk
 import java.io.OutputStream
 import java.time.LocalTime
 import kotlinx.coroutines.Dispatchers
+import javax.inject.Provider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -328,14 +331,23 @@ class IncrementalExportTest {
             appContext = appContext,
             params = mockk(relaxed = true),
             planStore = mockk(relaxed = true),
-            appDatabase = mockk(relaxed = true),
+            appDatabaseProvider = Provider { mockk(relaxed = true) },
             ioDispatcher = Dispatchers.Unconfined,
             clock = object : Clock {
                 override fun currentTimeMillis(): Long = 0L
                 override fun elapsedRealtimeNanos(): Long = 0L
             },
+			trackingStartupGate = READY_STARTUP_GATE,
         )
     }
+
+	private companion object {
+		val READY_STARTUP_GATE = object : TrackingStartupGate {
+			override val isReady: Boolean = true
+			override suspend fun reconcile(retryFailedStorage: Boolean) =
+				TrackingStartupResult.Ready(legacyRecoveryPartial = false, liveCompletedThroughOrdinal = 0L)
+		}
+	}
 
     private fun dateRangeExporter(): Exporter = object : Exporter {
         override val canSelectDateRange: Boolean = true

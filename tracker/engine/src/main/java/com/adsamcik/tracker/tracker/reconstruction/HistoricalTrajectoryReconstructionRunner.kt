@@ -44,33 +44,42 @@ class HistoricalTrajectoryReconstructionRunner @Inject constructor(
 	val configurationVersion: String
 		get() = reconstructor.configurationVersion
 
-	suspend fun reconstruct(session: CompletedTrackerSession): HistoricalReconstructionOutcome {
+	suspend fun reconstruct(
+		session: CompletedTrackerSession,
+		verifyCollectedDataAccess: () -> Unit = {},
+	): HistoricalReconstructionOutcome {
 		require(session.endElapsedRealtimeNanos >= session.startElapsedRealtimeNanos)
+		verifyCollectedDataAccess()
 		val sourceSnapshot = database.withTransaction {
-			val stateDao = database.sourceEvidenceStateDao()
-			stateDao.ensure()
-			val revision = requireNotNull(stateDao.get()).revision
-			val observations = database.locationObservationDao().getInClockDomain(
-				clockDomainId = session.clockDomainId,
-				fromElapsedRealtimeNanos = session.startElapsedRealtimeNanos,
-				toElapsedRealtimeNanos = session.endElapsedRealtimeNanos,
-			)
-			val steps = database.stepIntervalDao().getAllInClockDomain(
-				clockDomainId = session.clockDomainId,
-				fromElapsedRealtimeNanos = session.startElapsedRealtimeNanos,
-				toElapsedRealtimeNanos = session.endElapsedRealtimeNanos,
-			)
-			val activities = database.activitySnapshotDao().getAllInClockDomain(
-				clockDomainId = session.clockDomainId,
-				fromElapsedRealtimeNanos = session.startElapsedRealtimeNanos,
-				toElapsedRealtimeNanos = session.endElapsedRealtimeNanos,
-			)
-			HistoricalSourceSnapshot(
-				revision = revision,
-				observations = observations,
-				steps = steps,
-				activities = activities,
-			)
+			verifyCollectedDataAccess()
+			try {
+				val stateDao = database.sourceEvidenceStateDao()
+				stateDao.ensure()
+				val revision = requireNotNull(stateDao.get()).revision
+				val observations = database.locationObservationDao().getInClockDomain(
+					clockDomainId = session.clockDomainId,
+					fromElapsedRealtimeNanos = session.startElapsedRealtimeNanos,
+					toElapsedRealtimeNanos = session.endElapsedRealtimeNanos,
+				)
+				val steps = database.stepIntervalDao().getAllInClockDomain(
+					clockDomainId = session.clockDomainId,
+					fromElapsedRealtimeNanos = session.startElapsedRealtimeNanos,
+					toElapsedRealtimeNanos = session.endElapsedRealtimeNanos,
+				)
+				val activities = database.activitySnapshotDao().getAllInClockDomain(
+					clockDomainId = session.clockDomainId,
+					fromElapsedRealtimeNanos = session.startElapsedRealtimeNanos,
+					toElapsedRealtimeNanos = session.endElapsedRealtimeNanos,
+				)
+				HistoricalSourceSnapshot(
+					revision = revision,
+					observations = observations,
+					steps = steps,
+					activities = activities,
+				)
+			} finally {
+				verifyCollectedDataAccess()
+			}
 		}
 		val sourceRevision = sourceSnapshot.revision
 		val rawObservations = sourceSnapshot.observations
@@ -141,14 +150,17 @@ class HistoricalTrajectoryReconstructionRunner @Inject constructor(
 			.distinct()
 			.singleOrNull()
 
+		verifyCollectedDataAccess()
 		database.withTransaction {
-			val currentRevision = database.sourceEvidenceStateDao().get()?.revision
-			check(currentRevision == sourceRevision) {
-				"Source evidence changed during historical reconstruction"
-			}
-			val reconstructionDao = database.trajectoryReconstructionDao()
-			val superseded = reconstructionDao.latestCompletedForClockDomain(session.clockDomainId)
-			reconstructionDao.insertRun(
+			verifyCollectedDataAccess()
+			try {
+				val currentRevision = database.sourceEvidenceStateDao().get()?.revision
+				check(currentRevision == sourceRevision) {
+					"Source evidence changed during historical reconstruction"
+				}
+				val reconstructionDao = database.trajectoryReconstructionDao()
+				val superseded = reconstructionDao.latestCompletedForClockDomain(session.clockDomainId)
+				reconstructionDao.insertRun(
 				TrajectoryReconstructionRunEntity(
 					runId = runId,
 					sourceStartMs = fromMs,
@@ -165,18 +177,18 @@ class HistoricalTrajectoryReconstructionRunner @Inject constructor(
 					createdAtMs = now,
 					supersedesRunId = superseded?.runId,
 				),
-			)
-			val filtered = result.filtered.mapIndexed { index, state ->
+				)
+				val filtered = result.filtered.mapIndexed { index, state ->
 				state.toEntity(runId, index, approximate)
-			}
-			val smoothed = result.smoothed.mapIndexed { index, state ->
+				}
+				val smoothed = result.smoothed.mapIndexed { index, state ->
 				state.toEntity(runId, index, approximate)
-			}
-			reconstructionDao.insertStates(filtered + smoothed)
-			val stateIndexBySource = result.smoothed
+				}
+				reconstructionDao.insertStates(filtered + smoothed)
+				val stateIndexBySource = result.smoothed
 				.mapIndexed { index, state -> state.sourceId to index }
 				.toMap()
-			val links = rawObservations.map { observation ->
+				val links = rawObservations.map { observation ->
 				val sourceId = observation.sourceId()
 				val assessed = weightedBySource[sourceId]
 				val stationaryEvidence = stationaryEvidenceBySource[sourceId]
@@ -200,9 +212,9 @@ class HistoricalTrajectoryReconstructionRunner @Inject constructor(
 							.takeIf(String::isNotEmpty)
 					},
 				)
-			}
-			if (links.isNotEmpty()) reconstructionDao.insertSourceLinks(links)
-			val visits = visitDetector.detect(result.smoothed).map { visit ->
+				}
+				if (links.isNotEmpty()) reconstructionDao.insertSourceLinks(links)
+				val visits = visitDetector.detect(result.smoothed).map { visit ->
 				VisitIntervalEntity(
 					runId = runId,
 					startTimeMs = visit.startTimeMs,
@@ -235,9 +247,12 @@ class HistoricalTrajectoryReconstructionRunner @Inject constructor(
 					),
 					probability = visit.probability,
 				)
+				}
+				if (visits.isNotEmpty()) reconstructionDao.insertVisitIntervals(visits)
+				check(reconstructionDao.completeRun(runId, STATUS_COMPLETED, now) == 1)
+			} finally {
+				verifyCollectedDataAccess()
 			}
-			if (visits.isNotEmpty()) reconstructionDao.insertVisitIntervals(visits)
-			check(reconstructionDao.completeRun(runId, STATUS_COMPLETED, now) == 1)
 		}
 		return HistoricalReconstructionOutcome(
 			runId = runId,

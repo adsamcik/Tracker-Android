@@ -30,6 +30,9 @@ import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
@@ -52,11 +55,37 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.util.concurrent.Executor
+import javax.inject.Provider
 import kotlin.coroutines.EmptyCoroutineContext
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class RetentionPipelineWorkerRobolectricTest {
+	@Test
+	fun `retryable startup does not resolve the collected database`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		var resolutions = 0
+		val retryableGate = object : TrackingStartupGate {
+			override val isReady: Boolean = false
+			override val currentGeneration: Long = 7L
+			override suspend fun reconcile(retryFailedStorage: Boolean) =
+				TrackingStartupResult.RetryableFailure(TrackingStartupStage.STORAGE, "DB_BUSY")
+		}
+
+		val result = worker(
+			context = context,
+			store = retentionStore(autoPurgeConfig(rawDataRetentionDays = 1)),
+			db = mockk(relaxed = true),
+			databaseProvider = Provider {
+				resolutions += 1
+				mockk(relaxed = true)
+			},
+			trackingStartupGate = retryableGate,
+		).doWork()
+
+		assertEquals(ListenableWorker.Result.retry(), result)
+		assertEquals(0, resolutions)
+	}
 
 	@Test
 	fun `auto cleanup purges all supported retention tables`() = runTest {
@@ -120,11 +149,11 @@ class RetentionPipelineWorkerRobolectricTest {
 		every { db.sourceEvidenceStateDao() } returns sourceEvidenceStateDao
 
 		val worker = worker(
-			context,
-			store,
-			db,
-			migrationBackupRepository,
-			collectedDataLifecycleStore,
+			context = context,
+			store = store,
+			db = db,
+			migrationBackupRepository = migrationBackupRepository,
+			collectedDataLifecycleStore = collectedDataLifecycleStore,
 		)
 
 		assertEquals(ListenableWorker.Result.success(), worker.doWork())
@@ -307,8 +336,10 @@ class RetentionPipelineWorkerRobolectricTest {
 		context: Context,
 		store: RetentionConfigStore,
 		db: AppDatabase,
+		databaseProvider: Provider<AppDatabase> = Provider { db },
 		migrationBackupRepository: DatabaseMigrationBackupRepository = mockk(relaxed = true),
 		collectedDataLifecycleStore: CollectedDataLifecycleStore = lifecycleStore(),
+		trackingStartupGate: TrackingStartupGate = READY_STARTUP_GATE,
 	): RetentionPipelineWorker =
 		TestListenableWorkerBuilder<RetentionPipelineWorker>(context)
 			.setWorkerFactory(object : WorkerFactory() {
@@ -321,8 +352,9 @@ class RetentionPipelineWorkerRobolectricTest {
 					workerParameters,
 					store,
 					collectedDataLifecycleStore,
-					db,
+					databaseProvider,
 					migrationBackupRepository,
+					trackingStartupGate,
 				)
 			})
 			.build() as RetentionPipelineWorker
@@ -390,5 +422,10 @@ class RetentionPipelineWorkerRobolectricTest {
 
 	private companion object {
 		val DIRECT_EXECUTOR = Executor(Runnable::run)
+		val READY_STARTUP_GATE = object : TrackingStartupGate {
+			override val isReady: Boolean = true
+			override suspend fun reconcile(retryFailedStorage: Boolean) =
+				TrackingStartupResult.Ready(legacyRecoveryPartial = false, liveCompletedThroughOrdinal = 0L)
+		}
 	}
 }

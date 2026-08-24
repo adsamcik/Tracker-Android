@@ -17,6 +17,9 @@ import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.Trip
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -24,6 +27,9 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
+import io.mockk.verify
+import java.util.concurrent.Executor
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -45,12 +51,24 @@ class ActivityRecognitionWorkerTest {
 	private val activitySnapshotDao: ActivitySnapshotDao = mockk(relaxed = true)
 	private val pressureSampleDao: PressureSampleDao = mockk(relaxed = true)
 	private val segmentDao: SessionSegmentDao = mockk(relaxed = true)
+	private val startupGate: TrackingStartupGate = mockk()
+	private var startupGeneration = 4L
 
 	@Before
 	fun setUp() {
 		mockkObject(AppDatabase.Companion)
+		startupGeneration = 4L
 
 		every { AppDatabase.database(any()) } returns database
+		every { database.transactionExecutor } returns DIRECT_EXECUTOR
+		every { database.suspendingTransactionContext } returns
+			ThreadLocal.withInitial { EmptyCoroutineContext }
+		every { database.beginTransaction() } returns Unit
+		every { database.setTransactionSuccessful() } returns Unit
+		every { database.endTransaction() } returns Unit
+		every { startupGate.currentGeneration } answers { startupGeneration }
+		every { startupGate.isReady } returns true
+		coEvery { startupGate.reconcile() } returns TrackingStartupResult.Ready(false, 0L)
 		every { database.tripDao() } returns tripDao
 		every { database.locationSampleDao() } returns locationSampleDao
 		every { database.activitySnapshotDao() } returns activitySnapshotDao
@@ -78,8 +96,9 @@ class ActivityRecognitionWorkerTest {
 		return ActivityRecognitionWorker(
 			context,
 			params,
-			database,
+			javax.inject.Provider { database },
 			skiInfrastructureManager,
+			startupGate,
 		)
 	}
 
@@ -93,8 +112,9 @@ class ActivityRecognitionWorkerTest {
 		return ActivityRecognitionWorker(
 			context,
 			params,
-			database,
+			javax.inject.Provider { database },
 			skiInfrastructureManager,
+			startupGate,
 		)
 	}
 
@@ -190,6 +210,22 @@ class ActivityRecognitionWorkerTest {
 		} }
 
 	@Test
+	fun `doWork retries without reading collected data before full startup Ready`() = runTest {
+		coEvery { startupGate.reconcile() } returns TrackingStartupResult.RetryableFailure(
+			TrackingStartupStage.LEGACY_V27,
+			"RELEASED_HISTORY_NOT_TERMINAL",
+		)
+
+		buildWorker(42L).doWork() shouldBe ListenableWorker.Result.retry()
+
+		coVerify(exactly = 0) { tripDao.getById(any()) }
+		coVerify(exactly = 0) { segmentDao.getUnrecognizedWithin(any(), any()) }
+		coVerify(exactly = 0) {
+			locationSampleDao.getChunkBetweenOrdered(any(), any(), any(), any(), any())
+		}
+	}
+
+	@Test
 	fun `doWork returns success when no recognizer produces a result`()  { runTest {
 			val trip = createTrip()
 			coEvery { tripDao.getById(1L) } returns trip
@@ -226,6 +262,53 @@ class ActivityRecognitionWorkerTest {
 			updatedSegment?.primaryActivity shouldBe DetectedActivity.WALKING.value
 			updatedSegment?.activityConfidence shouldBe 82
 		} }
+
+	@Test
+	fun `startup generation change before classification commit makes stale work a no-op`() = runTest {
+		val trip = createTrip(id = 6L)
+		coEvery { tripDao.getById(6L) } returns trip
+		val samples = createLocationSamples(count = 20)
+		coEvery {
+			locationSampleDao.getChunkBetweenOrdered(any(), any(), any(), any(), any())
+		} returnsMany listOf(samples, emptyList())
+		coEvery { activitySnapshotDao.getAllBetween(any(), any()) } returns listOf(
+			createActivitySnapshot(DetectedActivity.WALKING, confidence = 82),
+		)
+		val segment = createSegment(startTimeMs = trip.startTimeMs, endTimeMs = trip.endTimeMs)
+		coEvery { segmentDao.getUnrecognizedWithin(any(), any()) } returns listOf(segment)
+		coEvery { pressureSampleDao.getAllBetween(any(), any()) } coAnswers {
+			startupGeneration++
+			emptyList()
+		}
+
+		buildWorker(6L).doWork() shouldBe ListenableWorker.Result.success()
+
+		coVerify(exactly = 0) { segmentDao.update(any<SessionSegment>()) }
+	}
+
+	@Test
+	fun `startup generation change during classification rolls back the transaction`() = runTest {
+		val trip = createTrip(id = 7L)
+		coEvery { tripDao.getById(7L) } returns trip
+		val samples = createLocationSamples(count = 20)
+		coEvery {
+			locationSampleDao.getChunkBetweenOrdered(any(), any(), any(), any(), any())
+		} returnsMany listOf(samples, emptyList())
+		coEvery { activitySnapshotDao.getAllBetween(any(), any()) } returns listOf(
+			createActivitySnapshot(DetectedActivity.WALKING, confidence = 82),
+		)
+		val segment = createSegment(startTimeMs = trip.startTimeMs, endTimeMs = trip.endTimeMs)
+		coEvery { segmentDao.getUnrecognizedWithin(any(), any()) } returns listOf(segment)
+		coEvery { segmentDao.update(any<SessionSegment>()) } coAnswers {
+			startupGeneration++
+		}
+
+		buildWorker(7L).doWork() shouldBe ListenableWorker.Result.success()
+
+		verify(exactly = 1) { database.beginTransaction() }
+		verify(exactly = 0) { database.setTransactionSuccessful() }
+		verify(exactly = 1) { database.endTransaction() }
+	}
 
 	@Test
 	fun `doWork returns success and updates segment for vehicle activity snapshot`()  { runTest {
@@ -295,8 +378,9 @@ class ActivityRecognitionWorkerTest {
 			val worker = ActivityRecognitionWorker(
 				context,
 				params,
-				database,
+				javax.inject.Provider { database },
 				skiInfrastructureManager,
+				startupGate,
 			)
 
 			val result = worker.doWork()
@@ -317,5 +401,9 @@ class ActivityRecognitionWorkerTest {
 	@Test
 	fun `companion constants WORK_TAG has expected value`() {
 		ActivityRecognitionWorker.WORK_TAG shouldBe "ActivityRecognition"
+	}
+
+	private companion object {
+		val DIRECT_EXECUTOR = Executor(Runnable::run)
 	}
 }

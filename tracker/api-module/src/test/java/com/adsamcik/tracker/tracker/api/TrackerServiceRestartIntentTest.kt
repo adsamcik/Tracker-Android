@@ -2,8 +2,6 @@ package com.adsamcik.tracker.tracker.api
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import com.adsamcik.tracker.stats.api.PolicyTier
-import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionDescriptor
 import io.kotest.matchers.shouldBe
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -14,30 +12,60 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class TrackerServiceRestartIntentTest {
 	@Test
-	fun `restart intent preserves durable session flags and tier`() {
+	fun `prepared delivery intent carries only exact identity and foreground deadline hints`() {
 		val context = ApplicationProvider.getApplicationContext<Context>()
-		val intent = TrackerServiceApi.createRestartIntent(
+		val token = PreparedTrackingStartToken("prepared-token-7")
+		val prepared = TrackingStartPreparationResult.Prepared(
+			token = token,
+			startupGeneration = 3L,
+			preparedSourceMaskHint = 5L,
+			preparedStartIsUserInitiatedHint = true,
+		)
+		val intent = TrackerServiceApi.createPreparedStartIntent(
 			context,
-			ActiveTrackingSessionDescriptor(
-				isUserInitiated = true,
-				isAmbient = false,
-				policyTier = PolicyTier.PRECISION,
-				logicalTrackingId = "logical-session-42",
-				serviceRunId = "service-run-ignored-on-restart",
-				lifecycleRevision = 7L,
-				lifecycleChangedAtEpochMs = 1_234L,
-			),
+			prepared,
+			commandGeneration = 42L,
 		)
 
 		intent.component?.className shouldBe TrackerServiceContract.SERVICE_CLASS_NAME
-		intent.getBooleanExtra(TrackerServiceContract.ARG_IS_USER_INITIATED, false) shouldBe true
-		intent.getBooleanExtra(TrackerServiceContract.ARG_IS_AMBIENT, true) shouldBe false
-		intent.getStringExtra(TrackerServiceContract.ARG_POLICY_TIER) shouldBe PolicyTier.PRECISION.name
-		intent.getStringExtra(TrackerServiceContract.ARG_LOGICAL_TRACKING_ID) shouldBe
-			"logical-session-42"
-		intent.getStringExtra(TrackerServiceContract.ARG_LIFECYCLE_STATE) shouldBe "ACTIVE"
-		intent.getLongExtra(TrackerServiceContract.ARG_LIFECYCLE_REVISION, -1L) shouldBe 7L
-		intent.getLongExtra(TrackerServiceContract.ARG_LIFECYCLE_CHANGED_AT_EPOCH_MS, -1L) shouldBe
-			1_234L
+		intent.extras?.keySet() shouldBe setOf(
+			TrackerServiceContract.ARG_PREPARED_START_TOKEN,
+			TrackerServiceContract.ARG_LIFECYCLE_COMMAND_GENERATION,
+			TrackerServiceContract.ARG_PREPARED_SOURCE_MASK_HINT,
+			TrackerServiceContract.ARG_PREPARED_USER_INITIATED_HINT,
+		)
+		intent.getStringExtra(TrackerServiceContract.ARG_PREPARED_START_TOKEN) shouldBe token.value
+		intent.getLongExtra(TrackerServiceContract.ARG_LIFECYCLE_COMMAND_GENERATION, -1L) shouldBe 42L
+		intent.getLongExtra(TrackerServiceContract.ARG_PREPARED_SOURCE_MASK_HINT, -1L) shouldBe 5L
+		intent.getBooleanExtra(
+			TrackerServiceContract.ARG_PREPARED_USER_INITIATED_HINT,
+			false,
+		) shouldBe true
+	}
+
+	@Test(expected = IllegalArgumentException::class)
+	fun `empty prepared source hint is rejected before Android enqueue`() {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		TrackerServiceApi.createPreparedStartIntent(
+			context,
+			TrackingStartPreparationResult.Prepared(
+				PreparedTrackingStartToken("empty-source-hint"),
+			),
+			commandGeneration = 1L,
+		)
+	}
+
+	@Test
+	fun `ambient and unspecified non-user service starts fail closed before dependency lookup`() {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+
+		@Suppress("DEPRECATION")
+		val ambient = TrackerServiceApi.startAmbientService(context)
+		ambient shouldBe false
+		TrackerServiceApi.startService(
+			context = context,
+			isUserInitiated = false,
+			automaticTrigger = null,
+		) shouldBe false
 	}
 }

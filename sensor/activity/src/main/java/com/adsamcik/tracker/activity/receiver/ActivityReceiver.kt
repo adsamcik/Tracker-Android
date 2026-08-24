@@ -27,6 +27,8 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdenti
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
+import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.stats.api.threshold.ActivityTypeMapping
 import com.google.android.gms.location.ActivityRecognitionResult
 import com.google.android.gms.location.ActivityTransitionResult
@@ -47,6 +49,7 @@ import kotlinx.coroutines.withTimeout
 interface ActivityReceiverEntryPoint {
 	fun backend(): GmsActivityRecognitionBackend
 	fun eventIngress(): ActivityRecognitionEventIngress
+	fun trackingStartupGate(): TrackingStartupGate
 
 	@ApplicationScope
 	fun applicationScope(): CoroutineScope
@@ -101,7 +104,15 @@ internal class ActivityReceiver : BroadcastReceiver() {
 				work = {
 					admitActivityCallbackWithRetry(
 						hasActivityPermission = { context.hasActivityPermission },
-						admit = { entryPoint.eventIngress().admit(delivery.batch) },
+						admit = {
+							admitActivityCallbackAfterStartup(
+								reconcileStartup = {
+									entryPoint.trackingStartupGate().reconcileAdmission()
+								},
+								// Resolve Room-backed ingress only after the pre-Room gate is Ready.
+								admit = { entryPoint.eventIngress().admit(delivery.batch) },
+							)
+						},
 						onDurable = { admission ->
 							delivery.publishTo(
 								entryPoint.backend(),
@@ -256,6 +267,16 @@ internal class ActivityReceiver : BroadcastReceiver() {
 	}
 }
 
+/** Keeps construction of the Room-backed ingress behind the cold-process startup boundary. */
+internal suspend fun admitActivityCallbackAfterStartup(
+	reconcileStartup: suspend () -> TrackingAdmissionStartupResult,
+	admit: suspend () -> ActivityIngressResult,
+): ActivityIngressResult = if (reconcileStartup() is TrackingAdmissionStartupResult.Ready) {
+	admit()
+} else {
+	ActivityIngressResult.retryable(0, 0, STARTUP_RECOVERY_NOT_READY)
+}
+
 /**
  * Leaves 500 ms inside the receiver's declared eight-second callback budget. The start path
  * may use at most another 250 ms of that reserve for cancellation compensation.
@@ -320,5 +341,6 @@ internal suspend fun runBoundedActivityCallbackWork(
 }
 
 internal const val ACTIVITY_CALLBACK_WORK_BUDGET_MS = 7_500L
+private const val STARTUP_RECOVERY_NOT_READY = "STARTUP_RECOVERY_NOT_READY"
 private const val ACTIVITY_CALLBACK_INITIAL_RETRY_DELAY_MS = 50L
 private const val ACTIVITY_CALLBACK_MAX_RETRY_DELAY_MS = 1_000L

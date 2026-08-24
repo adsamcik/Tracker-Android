@@ -22,54 +22,153 @@ class ProjectionDispatcher @Inject constructor(
 
 	suspend fun registerAll(activationOrdinal: Long) {
 		require(activationOrdinal > 0L)
-		projections.forEach { projection ->
-			database.withTransaction {
-				val dao = database.sourceProjectionStateDao()
-				if (dao.registration(projection.id, projection.version) == null) {
-					dao.register(
-						SourceProjectionRegistrationEntity(
-							projectionId = projection.id,
-							projectionVersion = projection.version,
-							activationOrdinal = activationOrdinal,
-							retentionRequired = projection.retentionRequired,
-							status = STATUS_ACTIVE,
-							createdAtMs = System.currentTimeMillis(),
-						),
-					)
-					dao.saveCheckpoint(
-						SourceProjectionCheckpointEntity(
-							projectionId = projection.id,
-							projectionVersion = projection.version,
-							contiguousAdmissionOrdinal = activationOrdinal - 1L,
-							stateVersion = 1,
-							updatedAtMs = System.currentTimeMillis(),
-						),
-					)
-				}
-			}
-		}
+		projections.forEach { projection -> registerProjection(projection, activationOrdinal) }
 	}
 
 	suspend fun dispatch(event: AdmittedSourceEvent<out SourcePayload>): ProjectionDispatchResult {
 		val failures = mutableListOf<ProjectionFailure>()
 		val quarantined = mutableListOf<ProjectionQuarantine>()
 		for (projection in projections) {
-			val failure = runCatchingNonCancellation {
-				database.withTransaction {
-					val dao = database.sourceProjectionStateDao()
-					val checkpoint = requireNotNull(dao.checkpoint(projection.id, projection.version)) {
-						"Projection ${projection.id} is not registered"
-					}
-					if (event.admissionOrdinal <= checkpoint.contiguousAdmissionOrdinal) return@withTransaction
+			val result = dispatchProjection(projection, event, requireContiguousOrdinal = true)
+			result.quarantine?.let(quarantined::add)
+			result.failure?.let {
+				failures += it
+				break
+			}
+		}
+		return ProjectionDispatchResult(event.admissionOrdinal, failures, quarantined)
+	}
+
+	internal suspend fun registerProjection(
+		projectionId: String,
+		projectionVersion: Int,
+		activationOrdinal: Long,
+	) {
+		registerProjection(projection(projectionId, projectionVersion), activationOrdinal)
+	}
+
+	internal suspend fun dispatchProjectionWithSourceOrdinalGap(
+		projectionId: String,
+		projectionVersion: Int,
+		event: AdmittedSourceEvent<out SourcePayload>,
+	): ProjectionDispatchResult {
+		val result = dispatchProjection(
+			projection(projectionId, projectionVersion),
+			event,
+			requireContiguousOrdinal = false,
+		)
+		return ProjectionDispatchResult(
+			admissionOrdinal = event.admissionOrdinal,
+			failures = listOfNotNull(result.failure),
+			quarantined = listOfNotNull(result.quarantine),
+		)
+	}
+
+	internal suspend fun advanceProjectionAcrossIrrelevantOrdinals(
+		projectionId: String,
+		projectionVersion: Int,
+		throughOrdinal: Long,
+	): Long = database.withTransaction {
+		require(throughOrdinal >= 0L)
+		val projection = projection(projectionId, projectionVersion)
+		val dao = database.sourceProjectionStateDao()
+		val checkpoint = requireNotNull(dao.checkpoint(projection.id, projection.version)) {
+			"Projection ${projection.id} is not registered"
+		}
+		if (throughOrdinal <= checkpoint.contiguousAdmissionOrdinal) {
+			return@withTransaction checkpoint.contiguousAdmissionOrdinal
+		}
+		dao.saveCheckpoint(
+			checkpoint.copy(
+				contiguousAdmissionOrdinal = throughOrdinal,
+				updatedAtMs = System.currentTimeMillis(),
+			),
+		)
+		throughOrdinal
+	}
+
+	private suspend fun registerProjection(projection: Projection, activationOrdinal: Long) {
+		require(activationOrdinal > 0L)
+		database.withTransaction {
+			val dao = database.sourceProjectionStateDao()
+			if (dao.registration(projection.id, projection.version) == null) {
+				dao.register(
+					SourceProjectionRegistrationEntity(
+						projectionId = projection.id,
+						projectionVersion = projection.version,
+						activationOrdinal = activationOrdinal,
+						retentionRequired = projection.retentionRequired,
+						status = STATUS_ACTIVE,
+						createdAtMs = System.currentTimeMillis(),
+					),
+				)
+				dao.saveCheckpoint(
+					SourceProjectionCheckpointEntity(
+						projectionId = projection.id,
+						projectionVersion = projection.version,
+						contiguousAdmissionOrdinal = activationOrdinal - 1L,
+						stateVersion = 1,
+						updatedAtMs = System.currentTimeMillis(),
+					),
+				)
+			}
+		}
+	}
+
+	private suspend fun dispatchProjection(
+		projection: Projection,
+		event: AdmittedSourceEvent<out SourcePayload>,
+		requireContiguousOrdinal: Boolean,
+	): SingleProjectionDispatchResult {
+		val failure = runCatchingNonCancellation {
+			database.withTransaction {
+				val dao = database.sourceProjectionStateDao()
+				val checkpoint = requireNotNull(dao.checkpoint(projection.id, projection.version)) {
+					"Projection ${projection.id} is not registered"
+				}
+				if (event.admissionOrdinal <= checkpoint.contiguousAdmissionOrdinal) return@withTransaction
+				if (requireContiguousOrdinal) {
 					check(event.admissionOrdinal == checkpoint.contiguousAdmissionOrdinal + 1L) {
 						"Projection ${projection.id} cannot skip admission ordinal " +
 							"${checkpoint.contiguousAdmissionOrdinal + 1L}"
 					}
-					projection.apply(
-						event,
-						RoomProjectionContext(database, projection, event.admissionOrdinal),
-					)
-					dao.deleteFailure(projection.id, projection.version, event.admissionOrdinal)
+				}
+				projection.apply(
+					event,
+					RoomProjectionContext(database, projection, event.admissionOrdinal),
+				)
+				dao.deleteFailure(projection.id, projection.version, event.admissionOrdinal)
+				dao.saveCheckpoint(
+					checkpoint.copy(
+						contiguousAdmissionOrdinal = event.admissionOrdinal,
+						updatedAtMs = System.currentTimeMillis(),
+					),
+				)
+			}
+		}.exceptionOrNull() ?: return SingleProjectionDispatchResult()
+
+		val attempts = (database.sourceProjectionStateDao()
+			.failure(projection.id, projection.version, event.admissionOrdinal)?.attemptCount ?: 0) + 1
+		// Identity collisions are authority failures, not poison input. Advancing after a retry
+		// budget would permanently accept the wrong durable effect under the requested identity.
+		val terminal = failure !is ProjectionOutboxIdentityCollisionException &&
+			(!projection.retentionRequired || attempts >= projection.maximumAttemptsPerEvent)
+		database.withTransaction {
+			val dao = database.sourceProjectionStateDao()
+			dao.saveFailure(
+				SourceProjectionFailureEntity(
+					projectionId = projection.id,
+					projectionVersion = projection.version,
+					admissionOrdinal = event.admissionOrdinal,
+					attemptCount = attempts,
+					failureCode = failure::class.java.simpleName,
+					terminal = terminal,
+					lastAttemptAtMs = System.currentTimeMillis(),
+				),
+			)
+			if (terminal) {
+				val checkpoint = requireNotNull(dao.checkpoint(projection.id, projection.version))
+				if (event.admissionOrdinal > checkpoint.contiguousAdmissionOrdinal) {
 					dao.saveCheckpoint(
 						checkpoint.copy(
 							contiguousAdmissionOrdinal = event.admissionOrdinal,
@@ -77,54 +176,34 @@ class ProjectionDispatcher @Inject constructor(
 						),
 					)
 				}
-			}.exceptionOrNull()
-			if (failure != null) {
-				val attempts = (database.sourceProjectionStateDao()
-					.failure(projection.id, projection.version, event.admissionOrdinal)?.attemptCount ?: 0) + 1
-				val terminal = !projection.retentionRequired || attempts >= projection.maximumAttemptsPerEvent
-				database.withTransaction {
-					val dao = database.sourceProjectionStateDao()
-					dao.saveFailure(SourceProjectionFailureEntity(
-						projectionId = projection.id,
-						projectionVersion = projection.version,
-						admissionOrdinal = event.admissionOrdinal,
-						attemptCount = attempts,
-						failureCode = failure::class.java.simpleName,
-						terminal = terminal,
-						lastAttemptAtMs = System.currentTimeMillis(),
-					))
-					if (terminal) {
-						val checkpoint = requireNotNull(dao.checkpoint(projection.id, projection.version))
-						dao.saveCheckpoint(
-							checkpoint.copy(
-								contiguousAdmissionOrdinal = event.admissionOrdinal,
-								updatedAtMs = System.currentTimeMillis(),
-							),
-						)
-					}
-				}
-				if (terminal) {
-					quarantined += ProjectionQuarantine(
-						projection.id,
-						projection.version,
-						event.admissionOrdinal,
-						attempts,
-						failure::class.java.simpleName,
-					)
-				} else {
-					failures += ProjectionFailure(
-						projection.id,
-						projection.version,
-						event.admissionOrdinal,
-						attempts,
-						failure,
-					)
-					break
-				}
 			}
 		}
-		return ProjectionDispatchResult(event.admissionOrdinal, failures, quarantined)
+		return if (terminal) {
+			SingleProjectionDispatchResult(
+				quarantine = ProjectionQuarantine(
+					projection.id,
+					projection.version,
+					event.admissionOrdinal,
+					attempts,
+					failure::class.java.simpleName,
+				),
+			)
+		} else {
+			SingleProjectionDispatchResult(
+				failure = ProjectionFailure(
+					projection.id,
+					projection.version,
+					event.admissionOrdinal,
+					attempts,
+					failure,
+				),
+			)
+		}
 	}
+
+	private fun projection(id: String, version: Int): Projection =
+		projections.singleOrNull { projection -> projection.id == id && projection.version == version }
+			?: error("Projection $id/$version is not in the production projection set")
 
 	/**
 	 * Permanently quarantines a raw event that failed integrity or decoding before any projection
@@ -179,6 +258,11 @@ data class ProjectionDispatchResult(
 	val complete: Boolean get() = failures.isEmpty()
 }
 
+private data class SingleProjectionDispatchResult(
+	val failure: ProjectionFailure? = null,
+	val quarantine: ProjectionQuarantine? = null,
+)
+
 data class ProjectionFailure(
 	val projectionId: String,
 	val projectionVersion: Int,
@@ -201,19 +285,23 @@ private class RoomProjectionContext(
 	private val admissionOrdinal: Long,
 ) : ProjectionContext {
 	override suspend fun recordOutbox(effect: ProjectionOutboxEffect) {
-		database.sourceProjectionStateDao().insertOutbox(
-			SourceProjectionOutboxEntity(
-				stableId = effect.stableId,
-				projectionId = projection.id,
-				projectionVersion = projection.version,
-				admissionOrdinal = admissionOrdinal,
-				effectKind = effect.kind,
-				payloadVersion = effect.payloadVersion,
-				payload = effect.payload,
-				createdAtMs = System.currentTimeMillis(),
-				deliveredAtMs = null,
-			),
+		val dao = database.sourceProjectionStateDao()
+		val candidate = SourceProjectionOutboxEntity(
+			stableId = effect.stableId,
+			projectionId = projection.id,
+			projectionVersion = projection.version,
+			admissionOrdinal = admissionOrdinal,
+			effectKind = effect.kind,
+			payloadVersion = effect.payloadVersion,
+			payload = effect.payload,
+			createdAtMs = System.currentTimeMillis(),
+			deliveredAtMs = null,
 		)
+		if (dao.insertOutbox(candidate) != INSERT_IGNORED) return
+		val existing = dao.outbox(effect.stableId)
+		if (existing == null || !existing.sameImmutableEffect(candidate)) {
+			throw ProjectionOutboxIdentityCollisionException(effect.stableId)
+		}
 	}
 
 	override suspend fun loadJoinState(key: String): ByteArray? =
@@ -251,3 +339,19 @@ private class RoomProjectionContext(
 		database.sourceProjectionStateDao().deleteJoinState(projection.id, projection.version, key)
 	}
 }
+
+class ProjectionOutboxIdentityCollisionException(
+	val stableId: String,
+) : IllegalStateException("Projection outbox identity collision: $stableId")
+
+private fun SourceProjectionOutboxEntity.sameImmutableEffect(
+	other: SourceProjectionOutboxEntity,
+): Boolean = stableId == other.stableId &&
+	projectionId == other.projectionId &&
+	projectionVersion == other.projectionVersion &&
+	admissionOrdinal == other.admissionOrdinal &&
+	effectKind == other.effectKind &&
+	payloadVersion == other.payloadVersion &&
+	payload.contentEquals(other.payload)
+
+private const val INSERT_IGNORED = -1L

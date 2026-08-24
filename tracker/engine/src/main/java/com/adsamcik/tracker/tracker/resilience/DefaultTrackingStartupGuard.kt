@@ -27,6 +27,8 @@ class DefaultTrackingStartupGuard @Inject constructor() : TrackingStartupGuard {
 		processSuppressed || wasForceStopped(context)
 
 	private fun detectForceStop(context: android.content.Context): Boolean {
+		// There is no exact force-stop signal on API 26-34. Historical exit reasons on API
+		// 30-34 remain ambiguous and are handled by ordinary previous-exit reconciliation.
 		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) return false
 		return try {
 			val activityManager = context.getSystemService(ActivityManager::class.java) ?: return false

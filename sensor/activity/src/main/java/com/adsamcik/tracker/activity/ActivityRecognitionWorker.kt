@@ -2,6 +2,7 @@ package com.adsamcik.tracker.activity
 
 import android.content.Context
 import androidx.hilt.work.HiltWorker
+import androidx.room.withTransaction
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.activity.recognizer.ActivityRecognitionResult
@@ -21,6 +22,8 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.mapper.toEntity
 import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.MotionState
@@ -28,6 +31,7 @@ import com.adsamcik.tracker.shared.model.SkiRunSegment
 import com.adsamcik.tracker.shared.model.SkiSegmentType
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import javax.inject.Provider
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 
@@ -35,49 +39,77 @@ import kotlinx.coroutines.coroutineScope
 internal class ActivityRecognitionWorker @AssistedInject constructor(
 	@Assisted context: Context,
 	@Assisted workerParams: WorkerParameters,
-	private val database: AppDatabase,
+	private val databaseProvider: Provider<AppDatabase>,
 	private val skiInfrastructureManager: SkiInfrastructureManager,
+	private val trackingStartupGate: TrackingStartupGate,
 ) :
 	CoroutineWorker(
 		context,
 		workerParams
 	) {
 
-	override suspend fun doWork(): Result = coroutineScope {
+	override suspend fun doWork(): Result {
 		val batchMode = inputData.getBoolean(ARG_BATCH_MODE, false)
-		if (batchMode) {
-			return@coroutineScope doBatchWork()
-		}
-
 		val sessionId = inputData.getLong(ARG_SESSION_ID, -1)
-		if (sessionId < 0) {
-			return@coroutineScope Result.failure()
+		if (!batchMode && sessionId < 0) return Result.failure()
+
+		val startupGeneration = trackingStartupGate.currentGeneration
+		when (trackingStartupGate.reconcile()) {
+			is TrackingStartupResult.Ready -> Unit
+			is TrackingStartupResult.RetryableFailure -> return Result.retry()
+			is TrackingStartupResult.Blocked -> return Result.success()
 		}
 
-		val trip = database.tripDao().getById(sessionId)
-			?: return@coroutineScope Result.failure()
+		return try {
+			requireReadyGeneration(startupGeneration)
+			val database = databaseProvider.get()
+			coroutineScope {
+				if (batchMode) {
+					return@coroutineScope doBatchWork(database, startupGeneration)
+				}
 
-		val segments = database.sessionSegmentDao().getUnrecognizedWithin(trip.startTimeMs, trip.endTimeMs)
+				requireReadyGeneration(startupGeneration)
+				val trip = database.tripDao().getById(sessionId)
+					?: return@coroutineScope Result.failure()
 
-		if (segments.isEmpty()) return@coroutineScope Result.success()
+				requireReadyGeneration(startupGeneration)
+				val segments = database.sessionSegmentDao()
+					.getUnrecognizedWithin(trip.startTimeMs, trip.endTimeMs)
 
-		processSegmentWindow(segments)
-		Result.success()
+				if (segments.isEmpty()) return@coroutineScope Result.success()
+
+				processSegmentWindow(database, segments, startupGeneration)
+				Result.success()
+			}
+		} catch (_: StartupGenerationChangedException) {
+			// Deletion/recovery owns the newer generation. This stale work must not be replayed.
+			Result.success()
+		}
 	}
 
 	/**
 	 * Batch mode: processes unrecognized segments in bounded time windows to avoid
 	 * reading the full location/pressure history into memory at once.
 	 */
-	private suspend fun doBatchWork(): Result = coroutineScope {
-		val bounds = getUnrecognizedSegmentBounds() ?: return@coroutineScope Result.success()
+	private suspend fun doBatchWork(
+		database: AppDatabase,
+		startupGeneration: Long,
+	): Result = coroutineScope {
+		val bounds = getUnrecognizedSegmentBounds(database, startupGeneration)
+			?: return@coroutineScope Result.success()
 		var windowStart = bounds.first
 
 		while (windowStart <= bounds.last) {
+			requireReadyGeneration(startupGeneration)
 			val windowEnd = minOf(windowStart + BATCH_WINDOW_SIZE_MS - 1, bounds.last)
-			val segments = getUnrecognizedSegmentsBetween(windowStart, windowEnd)
+			val segments = getUnrecognizedSegmentsBetween(
+				database,
+				windowStart,
+				windowEnd,
+				startupGeneration,
+			)
 			if (segments.isNotEmpty()) {
-				processSegmentWindow(segments)
+				processSegmentWindow(database, segments, startupGeneration)
 			}
 			windowStart = windowEnd + 1
 		}
@@ -85,14 +117,28 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 		return@coroutineScope Result.success()
 	}
 
-	private suspend fun processSegmentWindow(segments: List<SessionSegment>) = coroutineScope {
+	private suspend fun processSegmentWindow(
+		database: AppDatabase,
+		segments: List<SessionSegment>,
+		startupGeneration: Long,
+	) = coroutineScope {
 		if (segments.isEmpty()) return@coroutineScope
+		requireReadyGeneration(startupGeneration)
 
 		val minStart = segments.minOf { it.startTimeMs }
 		val maxEnd = segments.maxOf { it.endTimeMs }
-		val allLocationSamplesDeferred = async { loadLocationSamplesBetween(minStart, maxEnd) }
-		val allActivitySnapshotsDeferred = async { loadActivitySnapshotsBetween(minStart, maxEnd) }
-		val allPressureDeferred = async { database.pressureSampleDao().getAllBetween(minStart, maxEnd) }
+		val allLocationSamplesDeferred = async {
+			loadLocationSamplesBetween(database, minStart, maxEnd, startupGeneration)
+		}
+		val allActivitySnapshotsDeferred = async {
+			loadActivitySnapshotsBetween(database, minStart, maxEnd, startupGeneration)
+		}
+		val allPressureDeferred = async {
+			requireReadyGeneration(startupGeneration)
+			database.pressureSampleDao().getAllBetween(minStart, maxEnd).also {
+				requireReadyGeneration(startupGeneration)
+			}
+		}
 
 		val allActivitySnapshots = allActivitySnapshotsDeferred.await()
 		val allLocations = allLocationSamplesDeferred.await().mapNotNull {
@@ -101,22 +147,35 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 		val allPressure = allPressureDeferred.await()
 
 		for (segment in segments) {
+			requireReadyGeneration(startupGeneration)
 			val segmentLocations = allLocations.filter {
 				it.time in segment.startTimeMs..segment.endTimeMs
 			}
 			val segmentPressure = allPressure.filter {
 				it.timeMs in segment.startTimeMs..segment.endTimeMs
 			}
-			processSession(segment, segmentLocations, segmentPressure, database)
+			processSession(
+				segment,
+				segmentLocations,
+				segmentPressure,
+				database,
+				startupGeneration,
+			)
 		}
 	}
 
-	private suspend fun loadLocationSamplesBetween(fromMs: Long, toMs: Long): List<LocationSample> {
+	private suspend fun loadLocationSamplesBetween(
+		database: AppDatabase,
+		fromMs: Long,
+		toMs: Long,
+		startupGeneration: Long,
+	): List<LocationSample> {
 		val samples = mutableListOf<LocationSample>()
 		var afterTimeMs: Long? = null
 		var afterId: Long? = null
 
 		while (true) {
+			requireReadyGeneration(startupGeneration)
 			val chunk = database.locationSampleDao().getChunkBetweenOrdered(
 				fromMs = fromMs,
 				toMs = toMs,
@@ -124,6 +183,7 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 				afterId = afterId,
 				limit = LOCATION_CHUNK_SIZE,
 			)
+			requireReadyGeneration(startupGeneration)
 			if (chunk.isEmpty()) break
 
 			samples += chunk.map { it.toModel() }
@@ -135,22 +195,45 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 		return samples
 	}
 
-	private suspend fun loadActivitySnapshotsBetween(fromMs: Long, toMs: Long): List<ActivitySnapshot> {
+	private suspend fun loadActivitySnapshotsBetween(
+		database: AppDatabase,
+		fromMs: Long,
+		toMs: Long,
+		startupGeneration: Long,
+	): List<ActivitySnapshot> {
+		requireReadyGeneration(startupGeneration)
 		val dao = database.activitySnapshotDao()
-		return (listOfNotNull(dao.getLatestBefore(fromMs)) + dao.getAllBetween(fromMs, toMs))
+		val latest = dao.getLatestBefore(fromMs)
+		requireReadyGeneration(startupGeneration)
+		val snapshots = dao.getAllBetween(fromMs, toMs)
+		requireReadyGeneration(startupGeneration)
+		return (listOfNotNull(latest) + snapshots)
 			.distinctBy { "${it.timeMs}:${it.activityType}:${it.confidence}:${it.isTransition}" }
 			.sortedBy { it.timeMs }
 	}
 
-	private suspend fun getUnrecognizedSegmentBounds(): LongRange? {
+	private suspend fun getUnrecognizedSegmentBounds(
+		database: AppDatabase,
+		startupGeneration: Long,
+	): LongRange? {
+		requireReadyGeneration(startupGeneration)
 		val bounds = database.sessionSegmentDao().getUnrecognizedBounds()
+		requireReadyGeneration(startupGeneration)
 		val minStart = bounds.minStart ?: return null
 		val maxEnd = bounds.maxEnd ?: return null
 		return minStart..maxEnd
 	}
 
-	private suspend fun getUnrecognizedSegmentsBetween(fromMs: Long, toMs: Long): List<SessionSegment> {
-		return database.sessionSegmentDao().getUnrecognizedStartingBetween(fromMs, toMs)
+	private suspend fun getUnrecognizedSegmentsBetween(
+		database: AppDatabase,
+		fromMs: Long,
+		toMs: Long,
+		startupGeneration: Long,
+	): List<SessionSegment> {
+		requireReadyGeneration(startupGeneration)
+		return database.sessionSegmentDao().getUnrecognizedStartingBetween(fromMs, toMs).also {
+			requireReadyGeneration(startupGeneration)
+		}
 	}
 
 	/**
@@ -160,8 +243,10 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 		segment: SessionSegment,
 		locationCollection: List<ActivityLocation>,
 		pressureSamples: List<PressureSample>,
-		database: AppDatabase
+		database: AppDatabase,
+		startupGeneration: Long,
 	): Result = coroutineScope {
+		requireReadyGeneration(startupGeneration)
 		val recognizers = buildList {
 			add(OnFootActivityRecognizer())
 			add(VehicleActivityRecognizer())
@@ -213,13 +298,11 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 			primaryActivity = activityRecognitionResult.second.requireRecognizedActivity.toSegmentPrimaryActivityId(),
 			activityConfidence = activityRecognitionResult.second.confidence
 		)
-		database.sessionSegmentDao().update(updatedSegment)
-
-		// Persist ski run segments if skiing was detected
 		val skiRecognizer = activityRecognitionResult.first as? SkiActivityRecognizer
-		skiRecognizer?.skiSessionSummary?.let { summary ->
+		val skiRunSegments = skiRecognizer?.skiSessionSummary?.let { summary ->
+			requireReadyGeneration(startupGeneration)
 			val now = System.currentTimeMillis()
-			val skiRunSegments = summary.runs.map { run ->
+			summary.runs.map { run ->
 				SkiRunSegment(
 					sessionId = segment.id,
 					runIndex = run.runIndex,
@@ -233,10 +316,32 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 					createdAt = now
 				)
 			}
-			database.skiRunSegmentDao().insert(skiRunSegments.map { it.toEntity() })
+		}.orEmpty()
+
+		// Classification and any ski derivatives are one fenced commit. If startup moves
+		// to a new generation during either DAO call, the final check throws and Room
+		// rolls the complete classification transaction back.
+		database.withTransaction {
+			requireReadyGeneration(startupGeneration)
+			try {
+				database.sessionSegmentDao().update(updatedSegment)
+				if (skiRunSegments.isNotEmpty()) {
+					database.skiRunSegmentDao().insert(skiRunSegments.map { it.toEntity() })
+				}
+			} finally {
+				requireReadyGeneration(startupGeneration)
+			}
 		}
 
 		return@coroutineScope Result.success()
+	}
+
+	private fun requireReadyGeneration(startupGeneration: Long) {
+		if (!trackingStartupGate.isReady ||
+			trackingStartupGate.currentGeneration != startupGeneration
+		) {
+			throw StartupGenerationChangedException
+		}
 	}
 
 	/**
@@ -285,4 +390,6 @@ internal class ActivityRecognitionWorker @AssistedInject constructor(
 		private const val BATCH_WINDOW_SIZE_MS = 7L * 24L * 60L * 60L * 1000L
 		private const val LOCATION_CHUNK_SIZE = 2_000
 	}
+
+	private object StartupGenerationChangedException : RuntimeException()
 }

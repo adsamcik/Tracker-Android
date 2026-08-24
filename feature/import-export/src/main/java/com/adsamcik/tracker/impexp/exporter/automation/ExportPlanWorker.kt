@@ -8,8 +8,10 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.documentfile.provider.DocumentFile
 import androidx.hilt.work.HiltWorker
+import androidx.room.withTransaction
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import com.adsamcik.tracker.impexp.exporter.CursorAwareExporter
 import com.adsamcik.tracker.impexp.exporter.ExportResult
 import com.adsamcik.tracker.impexp.exporter.Exporter
@@ -17,6 +19,8 @@ import com.adsamcik.tracker.impexp.exporter.pagedLocationSequence
 import com.adsamcik.tracker.impexp.format.FormatRegistry
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ExportLogEntity
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.base.extension.openOutputStream
 import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
@@ -32,6 +36,7 @@ import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import javax.inject.Provider
 
 /**
  * Worker responsible for executing a specific export backup plan.
@@ -42,10 +47,13 @@ class ExportPlanWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted params: WorkerParameters,
     private val planStore: ExportPlanStore,
-    private val appDatabase: AppDatabase,
+	private val appDatabaseProvider: Provider<AppDatabase>,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     private val clock: Clock,
+	private val trackingStartupGate: TrackingStartupGate,
 ) : CoroutineWorker(appContext, params) {
+	private lateinit var appDatabase: AppDatabase
+	private var startupGeneration: Long = -1L
 
     override suspend fun doWork(): Result {
         val planId = inputData.getLong(KEY_PLAN_ID, -1L)
@@ -62,16 +70,33 @@ class ExportPlanWorker @AssistedInject constructor(
             return Result.success()
         }
 
+		startupGeneration = trackingStartupGate.currentGeneration
+		when (val startup = trackingStartupGate.reconcile()) {
+			is TrackingStartupResult.Ready -> Unit
+			is TrackingStartupResult.RetryableFailure -> return Result.retry()
+			is TrackingStartupResult.Blocked -> return Result.failure(
+				workDataOf(
+					KEY_FAILURE_REASON to
+						"TRACKING_STARTUP_BLOCKED:${startup.stage}:${startup.failureCode}",
+				),
+			)
+		}
+		if (!isReadyGeneration()) return Result.success()
+		appDatabase = appDatabaseProvider.get()
+
         val startedAt = clock.currentTimeMillis()
         return try {
+			requireReadyGeneration()
             val exportResult = executePlan(plan)
             val completedAt = clock.currentTimeMillis()
+			requireReadyGeneration()
             logExport(plan, exportResult, startedAt, completedAt)
 
             when (exportResult) {
                 is PlanExportResult.Success -> {
                     // Update watermark only on successful export with actual records
                     if (exportResult.shouldAdvanceWatermark && exportResult.recordCount > 0 && exportResult.maxTimeMs > 0L) {
+						requireReadyGeneration()
                         planStore.updateWatermark(
                             planId = plan.id,
                             watermarkMs = exportResult.maxTimeMs,
@@ -92,9 +117,20 @@ class ExportPlanWorker @AssistedInject constructor(
             }
         } catch (e: CancellationException) {
             throw e
+		} catch (_: StartupGenerationChangedException) {
+			Result.success()
         } catch (e: Exception) {
-            logExport(plan, PlanExportResult.Failed(e.message ?: "Unknown error"), startedAt, clock.currentTimeMillis())
-            Result.retry()
+			try {
+				logExport(
+					plan,
+					PlanExportResult.Failed(e.message ?: "Unknown error"),
+					startedAt,
+					clock.currentTimeMillis(),
+				)
+				Result.retry()
+			} catch (_: StartupGenerationChangedException) {
+				Result.success()
+			}
         }
     }
 
@@ -117,7 +153,7 @@ class ExportPlanWorker @AssistedInject constructor(
                 shouldAdvanceWatermark = false,
             )
         }
-        val dateRange = exportRange.dateRange
+		val dateRange = exportRange.dateRange
 
         val fileName = buildFileName(plan, exporter.extension, exportRange.isDelta)
         val output = when (val resolved = resolveExportOutput(plan, exporter, fileName)) {
@@ -128,6 +164,7 @@ class ExportPlanWorker @AssistedInject constructor(
         }
 
         // Build lazy paging sequence from DB (same pattern as ImportExportComposeActivity)
+		requireReadyGeneration()
         val locationSampleDao = appDatabase.locationSampleDao()
         val fromMs = dateRange?.first ?: 0L
         val toMs = dateRange?.last ?: Long.MAX_VALUE
@@ -141,6 +178,7 @@ class ExportPlanWorker @AssistedInject constructor(
             pageSize = PAGE_SIZE,
             initialAfterTimeMs = exportRange.afterTimeMs,
             initialAfterId = exportRange.afterId,
+			verifyCollectedDataAccess = ::requireReadyGeneration,
         )
             .filter { it.latE7 != null && it.lonE7 != null }
             .onEach {
@@ -157,7 +195,7 @@ class ExportPlanWorker @AssistedInject constructor(
                 output.deletePartial()
                 return@withContext PlanExportResult.Failed("Unable to open export destination")
             }
-            outputStream.use { stream ->
+			val exportResult = outputStream.use { stream ->
                 if (exporter is CursorAwareExporter) {
                     exporter.exportAfter(
                         applicationContext,
@@ -166,11 +204,15 @@ class ExportPlanWorker @AssistedInject constructor(
                         dateRange,
                         exportRange.afterTimeMs,
                         exportRange.afterId,
+						database = appDatabase,
+						verifyCollectedDataAccess = ::requireReadyGeneration,
                     )
                 } else {
                     exporter.export(applicationContext, locationSequence, stream, dateRange)
                 }
-            }
+			}
+			requireReadyGeneration()
+			exportResult
         } catch (e: CancellationException) {
             output.deletePartial()
             throw e
@@ -282,6 +324,7 @@ class ExportPlanWorker @AssistedInject constructor(
     private suspend fun resolveDateRange(scope: ExportScope): LongRange? {
         return when (scope) {
             ExportScope.LastSession -> {
+				requireReadyGeneration()
                 val trip = appDatabase.tripDao().getRecentTrips(1).firstOrNull()
                 if (trip != null) {
                     trip.startTimeMs..trip.endTimeMs
@@ -372,35 +415,51 @@ class ExportPlanWorker @AssistedInject constructor(
         startedAt: Long,
         completedAt: Long,
     ) {
-        runCatchingCancellable {
-            val entity = when (result) {
-                is PlanExportResult.Success -> ExportLogEntity(
-                    format = plan.format.name,
-                    scope = plan.scope.javaClass.simpleName,
-                    fileName = result.fileName,
-                    fileSizeBytes = result.fileSizeBytes,
-                    recordCount = result.recordCount,
-                    startedAt = startedAt,
-                    completedAt = completedAt,
-                    status = "SUCCESS",
-                    createdAt = completedAt,
-                )
-                is PlanExportResult.Failed -> ExportLogEntity(
-                    format = plan.format.name,
-                    scope = plan.scope.javaClass.simpleName,
-                    fileName = "",
-                    fileSizeBytes = 0,
-                    recordCount = 0,
-                    startedAt = startedAt,
-                    completedAt = completedAt,
-                    status = "FAILED",
-                    errorMessage = result.error,
-                    createdAt = completedAt,
-                )
-            }
-            appDatabase.exportLogDao().insert(entity)
-        }.getOrNull()
+		val failure = runCatchingCancellable {
+			requireReadyGeneration()
+			appDatabase.withTransaction {
+				requireReadyGeneration()
+				try {
+					val entity = when (result) {
+						is PlanExportResult.Success -> ExportLogEntity(
+							format = plan.format.name,
+							scope = plan.scope.javaClass.simpleName,
+							fileName = result.fileName,
+							fileSizeBytes = result.fileSizeBytes,
+							recordCount = result.recordCount,
+							startedAt = startedAt,
+							completedAt = completedAt,
+							status = "SUCCESS",
+							createdAt = completedAt,
+						)
+						is PlanExportResult.Failed -> ExportLogEntity(
+							format = plan.format.name,
+							scope = plan.scope.javaClass.simpleName,
+							fileName = "",
+							fileSizeBytes = 0,
+							recordCount = 0,
+							startedAt = startedAt,
+							completedAt = completedAt,
+							status = "FAILED",
+							errorMessage = result.error,
+							createdAt = completedAt,
+						)
+					}
+					appDatabase.exportLogDao().insert(entity)
+				} finally {
+					requireReadyGeneration()
+				}
+			}
+		}.exceptionOrNull()
+		if (failure is StartupGenerationChangedException) throw failure
     }
+
+	private fun isReadyGeneration(): Boolean =
+		trackingStartupGate.isReady && trackingStartupGate.currentGeneration == startupGeneration
+
+	private fun requireReadyGeneration() {
+		if (!isReadyGeneration()) throw StartupGenerationChangedException
+	}
 
     private fun showExportCompletedNotification(plan: ExportBackupPlan, result: PlanExportResult.Success) {
         val launchIntent = applicationContext.packageManager
@@ -436,9 +495,12 @@ class ExportPlanWorker @AssistedInject constructor(
 
     companion object {
         const val KEY_PLAN_ID = "plan_id"
+		const val KEY_FAILURE_REASON = "failure_reason"
         private const val PAGE_SIZE = 5000
         private const val EXPORT_NOTIFICATION_ID_BASE = 904_000
     }
+
+	private object StartupGenerationChangedException : RuntimeException()
 }
 
 private sealed interface PlanExportResult {

@@ -6,16 +6,22 @@ import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidence
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
@@ -41,13 +47,22 @@ import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
 import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
+import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
 import com.adsamcik.tracker.tracker.source.model.sourceDeliveryIdentity
+import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEpochAuthority
+import com.adsamcik.tracker.tracker.source.runtime.RuntimeCheckpointLifecycle
+import com.adsamcik.tracker.tracker.source.runtime.RuntimeAdmissionSnapshot
+import com.adsamcik.tracker.tracker.source.runtime.SensorAdmissionCheckpoint
+import com.adsamcik.tracker.tracker.source.runtime.SensorRuntimeCheckpoint
+import com.adsamcik.tracker.tracker.source.runtime.decodeSensorRuntimeCheckpoint
+import com.adsamcik.tracker.tracker.source.runtime.encodeSensorRuntimeCheckpoint
 import io.kotest.matchers.shouldBe
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.coEvery
 import io.mockk.mockk
 import io.mockk.verify
+import javax.inject.Provider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.CancellationException
@@ -65,6 +80,7 @@ class RoomDurableSourceIngressTest {
 	private lateinit var database: AppDatabase
 	private lateinit var lifecycle: FakeLifecycleStore
 	private lateinit var subject: RoomDurableSourceIngress
+	private val startupGate = FakeTrackingStartupGate()
 	private var testPolicyRevision = 0L
 	private var testCaptureEpoch = 0L
 	private var testAmbientEpoch = 0L
@@ -75,7 +91,12 @@ class RoomDurableSourceIngressTest {
 		database = AppDatabase.testDatabase(context)
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState())
 		lifecycle = FakeLifecycleStore(CollectedDataLifecycleSnapshot(0L, null))
-		subject = RoomDurableSourceIngress(database, lifecycle, DefaultSourcePayloadCodec())
+		subject = RoomDurableSourceIngress(
+			database,
+			lifecycle,
+			DefaultSourcePayloadCodec(),
+			Provider { startupGate },
+		)
 		val policy = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime("boot", 40L, 40L)
 		}
@@ -107,6 +128,175 @@ class RoomDurableSourceIngressTest {
 		duplicate.eventId shouldBe admitted.eventId
 		duplicate.existingAdmissionOrdinal shouldBe admitted.admissionOrdinal
 		subject.committedBatch(0L, 1).single().eventId shouldBe admitted.eventId
+	}
+
+	@Test
+	fun `exact duplicate retry heals a missing sensor checkpoint with the existing ordinal`() = runTest {
+		installStepRegistrationGeneration()
+		val evidence = stepCandidate(
+			startNanos = 100L,
+			endNanos = 100L,
+			sourceSequence = 1L,
+			providerDedupKey = "step-provider-1",
+		)
+		val admitted = subject.admit(evidence).shouldBeInstanceOf<AdmissionResult.Admitted>()
+		database.sourceRuntimeStateDao().get(
+			SourceKind.STEPS.stableCode,
+			STEP_OWNER_SCOPE,
+		) shouldBe null
+
+		val duplicate = subject.admit(evidence, stepCheckpoint(providerSequenceThrough = 2L))
+			.shouldBeInstanceOf<AdmissionResult.Duplicate>()
+		val state = requireNotNull(database.sourceRuntimeStateDao().get(
+			SourceKind.STEPS.stableCode,
+			STEP_OWNER_SCOPE,
+		))
+		val checkpoint = requireNotNull(decodeSensorRuntimeCheckpoint(state, 1))
+
+		duplicate.existingAdmissionOrdinal shouldBe admitted.admissionOrdinal
+		state.lastProviderSequence shouldBe 2L
+		state.lastAdmissionOrdinal shouldBe admitted.admissionOrdinal
+		checkpoint.metrics.lastDurablyAdmittedSequence shouldBe 2L
+		checkpoint.metrics.lastAdmissionOrdinal shouldBe admitted.admissionOrdinal
+		checkpoint.componentPayload.toList() shouldBe listOf<Byte>(2)
+		database.sourceEventWalDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `sensor checkpoint write failure rolls back a newly admitted WAL fact`() = runTest {
+		installStepRegistrationGeneration()
+		val evidence = stepCandidate(
+			startNanos = 100L,
+			endNanos = 100L,
+			sourceSequence = 1L,
+			providerDedupKey = "step-provider-rollback",
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"CREATE TRIGGER fail_sensor_checkpoint BEFORE INSERT ON source_runtime_state " +
+				"BEGIN SELECT RAISE(ABORT, 'sensor checkpoint fault'); END",
+		)
+
+		subject.admit(evidence, stepCheckpoint(providerSequenceThrough = 2L)) shouldBe
+			AdmissionResult.RetryableFailure(AdmissionFailureCode.STORAGE_UNAVAILABLE)
+
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceEvidenceStateDao().get()?.revision shouldBe 0L
+		database.sourceRuntimeStateDao().get(
+			SourceKind.STEPS.stableCode,
+			STEP_OWNER_SCOPE,
+		) shouldBe null
+
+		database.openHelper.writableDatabase.execSQL("DROP TRIGGER fail_sensor_checkpoint")
+		subject.admit(evidence, stepCheckpoint(providerSequenceThrough = 2L))
+			.shouldBeInstanceOf<AdmissionResult.Admitted>()
+		database.sourceEventWalDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `delayed duplicate checkpoint cannot regress a newer sensor high water`() = runTest {
+		installStepRegistrationGeneration()
+		val first = stepCandidate(
+			startNanos = 100L,
+			endNanos = 100L,
+			sourceSequence = 1L,
+			providerDedupKey = "step-provider-first",
+		)
+		val second = stepCandidate(
+			startNanos = 100L,
+			endNanos = 101L,
+			observedNanos = 101L,
+			sourceSequence = 2L,
+			providerDedupKey = "step-provider-second",
+			lastProviderSequence = 3L,
+		)
+		subject.admit(first, stepCheckpoint(2L, componentByte = 2))
+			.shouldBeInstanceOf<AdmissionResult.Admitted>()
+		val secondAdmission = subject.admit(second, stepCheckpoint(3L, componentByte = 3, updatedAtMs = 101L))
+			.shouldBeInstanceOf<AdmissionResult.Admitted>()
+
+		subject.admit(first, stepCheckpoint(2L, componentByte = 2))
+			.shouldBeInstanceOf<AdmissionResult.Duplicate>()
+		val state = requireNotNull(database.sourceRuntimeStateDao().get(
+			SourceKind.STEPS.stableCode,
+			STEP_OWNER_SCOPE,
+		))
+		val checkpoint = requireNotNull(decodeSensorRuntimeCheckpoint(state, 1))
+
+		state.lastProviderSequence shouldBe 3L
+		state.lastAdmissionOrdinal shouldBe secondAdmission.admissionOrdinal
+		checkpoint.componentPayload.toList() shouldBe listOf<Byte>(3)
+	}
+
+	@Test
+	fun `pre revoke duplicate heals metrics without replacing later terminal sensor state`() = runTest {
+		installStepRegistrationGeneration()
+		val evidence = stepCandidate(
+			startNanos = 100L,
+			endNanos = 100L,
+			sourceSequence = 1L,
+			providerDedupKey = "step-provider-pre-revoke",
+		)
+		val admitted = subject.admit(evidence).shouldBeInstanceOf<AdmissionResult.Admitted>()
+		val terminal = SensorRuntimeCheckpoint(
+			lifecycle = RuntimeCheckpointLifecycle.QUIESCED,
+			metrics = RuntimeAdmissionSnapshot(
+				lastDurablyAdmittedSequence = null,
+				lastAdmissionOrdinal = null,
+				failedAdmissionCount = 1L,
+				unresolvedSequenceStart = 3L,
+				unresolvedSequenceEndInclusive = 3L,
+				gapClassifications = emptySet(),
+			),
+			componentStateVersion = 1,
+			componentPayload = byteArrayOf(9),
+			causalOrderElapsedRealtimeNanos = 200L,
+		)
+		database.sourceRuntimeStateDao().save(
+			SourceRuntimeStateEntity(
+				sourceKind = SourceKind.STEPS.stableCode,
+				ownerScope = STEP_OWNER_SCOPE,
+				sourceInstanceId = "step-instance",
+				clockDomainId = "boot",
+				registrationGeneration = 1L,
+				lastProviderSequence = 2L,
+				lastAdmittedSourceSequence = null,
+				lastAdmissionOrdinal = null,
+				stateVersion = 3,
+				payload = encodeSensorRuntimeCheckpoint(terminal),
+				updatedAtMs = 100L,
+			),
+		)
+		database.sourceBrokerDao().insertAuthorizations(
+			SourceBrokerAuthorization.rows(
+				SourceKind.STEPS.stableCode,
+				1L,
+				2L,
+				emptyList(),
+				"boot",
+				101L,
+				101L,
+			),
+		)
+
+		val duplicate = subject.admit(
+			evidence,
+			stepCheckpoint(providerSequenceThrough = 2L, componentByte = 2, updatedAtMs = 10_000L),
+		).shouldBeInstanceOf<AdmissionResult.Duplicate>()
+		val state = requireNotNull(database.sourceRuntimeStateDao().get(
+			SourceKind.STEPS.stableCode,
+			STEP_OWNER_SCOPE,
+		))
+		val checkpoint = requireNotNull(decodeSensorRuntimeCheckpoint(state, 1))
+
+		duplicate.existingAdmissionOrdinal shouldBe admitted.admissionOrdinal
+		checkpoint.lifecycle shouldBe RuntimeCheckpointLifecycle.QUIESCED
+		checkpoint.componentPayload.toList() shouldBe listOf<Byte>(9)
+		state.lastAdmittedSourceSequence shouldBe 2L
+		state.lastAdmissionOrdinal shouldBe admitted.admissionOrdinal
+		checkpoint.metrics.lastDurablyAdmittedSequence shouldBe state.lastAdmittedSourceSequence
+		checkpoint.metrics.lastAdmissionOrdinal shouldBe state.lastAdmissionOrdinal
+		checkpoint.metrics.unresolvedSequenceStart shouldBe 3L
+		database.sourceEventWalDao().countAll() shouldBe 1L
 	}
 
 	@Test
@@ -204,6 +394,9 @@ class RoomDurableSourceIngressTest {
 	fun `Activity adapter persists the eligible sparse subset once through real Room admission`() = runTest {
 		val recovery = mockk<SourcePipelineRecovery>()
 		val motion = mockk<CollectionMotionController>(relaxed = true)
+		val automationEpochAuthority = mockk<ActivityAutomationEpochAuthority>()
+		coEvery { automationEpochAuthority.epochForCallbackAdmission() } returnsMany
+			listOf(activityAutomationAuthority(17L), activityAutomationAuthority(18L))
 		coEvery { recovery.drainCommittedWork() } returns SourceRecoveryResult(
 			CoordinatorDrainResult.Complete(Long.MAX_VALUE, 0),
 			0,
@@ -211,10 +404,13 @@ class RoomDurableSourceIngressTest {
 		)
 		val adapter = RoomActivityRecognitionEventIngress(
 			ActivitySourceDeliveryFactory(),
+			Provider { startupGate },
+			automationEpochAuthority,
 			subject,
 			subject,
 			recovery,
 			motion,
+			ApplicationProvider.getApplicationContext<Application>(),
 		)
 		val delivery = ActivityRecognitionEvidenceBatch(
 			receivedElapsedRealtimeNanos = 100L,
@@ -226,6 +422,7 @@ class RoomDurableSourceIngressTest {
 				clockDomainId = "boot",
 				physicalConfigurationFingerprint = TEST_PHYSICAL_CONFIG,
 			),
+			automaticRecognitionEligible = true,
 			recognitions = listOf(
 				ActivityRecognitionEvidence(DetectedActivityType.STILL, 90, 40L),
 				ActivityRecognitionEvidence(DetectedActivityType.WALKING, 90, 60L),
@@ -241,6 +438,7 @@ class RoomDurableSourceIngressTest {
 		persisted.observedElapsedNanos shouldBe 60L
 		persisted.authorizationRevision shouldBe 1L
 		persisted.logicalTrackingId shouldBe TEST_SESSION_ID
+		persisted.activityAutomationEpoch shouldBe 17L
 
 		val duplicate = adapter.admit(delivery)
 
@@ -248,6 +446,8 @@ class RoomDurableSourceIngressTest {
 		duplicate.duplicateCount shouldBe 1
 		duplicate.durableSelection.isEmpty shouldBe true
 		database.sourceEventWalDao().countAll() shouldBe 1L
+		database.sourceEventWalDao().eventsAfter(0L, 10).single()
+			.activityAutomationEpoch shouldBe 17L
 		verify(exactly = 1) { motion.onDurableEvidence(any()) }
 	}
 
@@ -262,6 +462,7 @@ class RoomDurableSourceIngressTest {
 					payloadVersion: Int,
 				): EncodedSourcePayload = throw CancellationException("test cancellation")
 			},
+			Provider { startupGate },
 		)
 
 		shouldThrow<CancellationException> {
@@ -274,6 +475,120 @@ class RoomDurableSourceIngressTest {
 			SOURCE_OWNER_SCOPE,
 		)?.nextSequence shouldBe 0L
 		database.sourceEvidenceStateDao().get()?.revision shouldBe 0L
+	}
+
+	@Test
+	fun `closed startup gate rejects single and batch admission without touching WAL`() = runTest {
+		startupGate.result = TrackingStartupResult.RetryableFailure(
+			TrackingStartupStage.LEGACY_V27,
+			"RECOVERY_PENDING",
+		)
+
+		subject.admit(candidate(sequence = 900L)) shouldBe AdmissionResult.RetryableFailure(
+			AdmissionFailureCode.STARTUP_RECOVERY_NOT_READY,
+		)
+		subject.admit(delivery(candidate(sequence = 901L))) shouldBe
+			DeliveryAdmissionResult.RetryableFailure(
+				AdmissionFailureCode.STARTUP_RECOVERY_NOT_READY,
+			)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `startup generation closing after reconciliation rejects transactional admission`() = runTest {
+		startupGate.allowReadyGeneration = false
+
+		subject.admit(candidate(sequence = 902L)) shouldBe AdmissionResult.RetryableFailure(
+			AdmissionFailureCode.STARTUP_RECOVERY_NOT_READY,
+		)
+		subject.admit(delivery(candidate(sequence = 903L))) shouldBe
+			DeliveryAdmissionResult.RetryableFailure(
+				AdmissionFailureCode.STARTUP_RECOVERY_NOT_READY,
+			)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `future observed time rejects single and whole delivery before durable mutation`() = runTest {
+		val future = candidate(
+			sequence = 900L,
+			observedElapsedNanos = 111L,
+			receivedElapsedNanos = 110L,
+		)
+
+		subject.admit(future) shouldBe AdmissionResult.PermanentFailure(
+			AdmissionFailureCode.INVALID_OBSERVED_TIME,
+		)
+		subject.admit(delivery(candidate(sequence = 901L), future)) shouldBe
+			DeliveryAdmissionResult.PermanentFailure(
+				AdmissionFailureCode.INVALID_OBSERVED_TIME,
+			)
+
+		startupGate.reconcileCalls shouldBe 0
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceEvidenceStateDao().get()?.revision shouldBe 0L
+		database.sourceRegistrationStateDao().get(
+			SourceKind.ACTIVITY.stableCode,
+			SOURCE_OWNER_SCOPE,
+		)?.nextSequence shouldBe 0L
+		database.activityAutomaticStartActionDao().current() shouldBe null
+	}
+
+	@Test
+	fun `observed time equal to receipt remains admissible`() = runTest {
+		val evidence = candidate(
+			sequence = 902L,
+			observedElapsedNanos = 110L,
+			receivedElapsedNanos = 110L,
+		)
+
+		subject.admit(evidence).shouldBeInstanceOf<AdmissionResult.Admitted>()
+
+		database.sourceEventWalDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `invalid source intervals and clock domains are rejected before durable mutation`() = runTest {
+		val invalidIntervals = listOf(
+			stepCandidate(startNanos = -1L, endNanos = 100L),
+			stepCandidate(startNanos = 101L, endNanos = 100L),
+			stepCandidate(startNanos = 100L, endNanos = 111L, receivedNanos = 110L),
+			stepCandidate(startNanos = 100L, endNanos = 100L, observedNanos = 101L),
+			stepCandidate(startNanos = 100L, endNanos = 100L, payloadClockDomainId = "other-boot"),
+		)
+
+		invalidIntervals.forEach { evidence ->
+			subject.admit(evidence) shouldBe AdmissionResult.PermanentFailure(
+				AdmissionFailureCode.INVALID_OBSERVED_TIME,
+			)
+		}
+
+		startupGate.reconcileCalls shouldBe 0
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceEvidenceStateDao().get()?.revision shouldBe 0L
+		database.activityAutomaticStartActionDao().current() shouldBe null
+	}
+
+	@Test
+	fun `delivery interval model rejects negative start and start after end`() = runTest {
+		val evidence = candidate(sequence = 903L, observedElapsedNanos = 100L)
+
+		shouldThrow<IllegalArgumentException> {
+			SourceDeliveryUnit(
+				unitIndex = 0,
+				evidence = evidence,
+				observedIntervalStartElapsedRealtimeNanos = -1L,
+			)
+		}
+		shouldThrow<IllegalArgumentException> {
+			SourceDeliveryUnit(
+				unitIndex = 0,
+				evidence = evidence,
+				observedIntervalStartElapsedRealtimeNanos = 101L,
+			)
+		}
+
+		database.sourceEventWalDao().countAll() shouldBe 0L
 	}
 
 	@Test
@@ -686,7 +1001,7 @@ class RoomDurableSourceIngressTest {
 	}
 
 	@Test
-	fun `revocation uses observed authorization boundary instead of candidate policy stamp`() = runTest {
+	fun `capture revocation atomically removes capture while retaining authorized ambient ingress`() = runTest {
 		val settings = TrackingParamsState(legacySettingsMigrationCompleted = true)
 		val policy = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime("boot", 100L, 100L)
@@ -708,24 +1023,24 @@ class RoomDurableSourceIngressTest {
 			),
 			reason = "TEST_REVOKE",
 		)
-		database.sourceBrokerDao().insertAuthorizations(
-			SourceBrokerAuthorization.rows(
-				SourceKind.ACTIVITY.stableCode,
-				1L,
-				2L,
-				emptyList(),
-				"boot",
-				100L,
-				100L,
-			),
-		)
+		val fenced = database.sourceBrokerDao().latestAuthorization(SourceKind.ACTIVITY.stableCode, 1L)
+		fenced.map { it.purpose } shouldBe listOf(SourceBrokerPurpose.AMBIENT_PRODUCT)
+		fenced.single().effectiveElapsedRealtimeNanos shouldBe 100L
+		database.sourceBrokerDao().demandHistory("session:$TEST_SESSION_ID").single().status shouldBe
+			SourceDemandEntity.STATUS_RETIRING
+		database.sourceBrokerDao().currentDemands("app:test").single().status shouldBe
+			SourceDemandEntity.STATUS_ACTIVE
 
 		subject.admit(staleCandidate).shouldBeInstanceOf<AdmissionResult.Admitted>()
-		val result = subject.admit(staleCandidate.copy(sourceSequence = 2L, observedElapsedRealtimeNanos = 100L))
-			.shouldBeInstanceOf<AdmissionResult.PermanentFailure>()
+		subject.admit(staleCandidate.copy(sourceSequence = 2L, observedElapsedRealtimeNanos = 100L))
+			.shouldBeInstanceOf<AdmissionResult.Admitted>()
 
-		result.code shouldBe AdmissionFailureCode.STALE_SOURCE_POLICY
-		database.sourceEventWalDao().countAll() shouldBe 1L
+		val events = subject.committedBatch(0L, 2).map { it.evidence }
+		events.first().sourcePolicyRevision shouldBe current.revision
+		events.first().planAttribution shouldBe PlanAttribution.CAPTURED_REGISTRATION
+		events.last().sourcePolicyRevision shouldBe null
+		events.last().captureConsentEpoch shouldBe null
+		events.last().planAttribution shouldBe PlanAttribution.RECEIVE_TIME_ONLY
 	}
 
 	private fun candidate(
@@ -735,6 +1050,7 @@ class RoomDurableSourceIngressTest {
 		acquiredAtMs: Long = 100L,
 		providerDedupKey: String? = null,
 		observedElapsedNanos: Long = 100L,
+		receivedElapsedNanos: Long = 110L,
 	) = SourceEvidenceCandidate(
 		providerDedupKey = providerDedupKey,
 		logicalTrackingId = null,
@@ -750,7 +1066,7 @@ class RoomDurableSourceIngressTest {
 		planAttribution = PlanAttribution.CAPTURED_REGISTRATION,
 		clockDomainId = "boot",
 		observedElapsedRealtimeNanos = observedElapsedNanos,
-		receivedElapsedRealtimeNanos = 110L,
+		receivedElapsedRealtimeNanos = receivedElapsedNanos,
 		wallTimeMs = acquiredAtMs,
 		wallTimeUncertaintyMs = 1L,
 		capturedCollectedDataEpoch = epoch,
@@ -758,6 +1074,71 @@ class RoomDurableSourceIngressTest {
 		quality = SourceQuality(),
 		payloadVersion = 1,
 		payload = ActivityTransitionPayload(activityType, 1, 100L),
+	)
+
+	private fun stepCandidate(
+		startNanos: Long,
+		endNanos: Long,
+		observedNanos: Long = endNanos,
+		receivedNanos: Long = 110L,
+		payloadClockDomainId: String = "boot",
+		sourceSequence: Long = 0L,
+		providerDedupKey: String? = null,
+		lastProviderSequence: Long = 2L,
+	) = SourceEvidenceCandidate(
+		providerDedupKey = providerDedupKey,
+		logicalTrackingId = null,
+		serviceRunId = null,
+		source = SourceKind.STEPS,
+		sourceInstanceId = SourceInstanceId("step-instance"),
+		registrationGeneration = 1L,
+		physicalConfigurationFingerprint = "step-physical-config",
+		registrationPurposeEligibilityMask = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+		registrationEligibilityFingerprint = STEP_ELIGIBILITY_FINGERPRINT,
+		sourceSequence = sourceSequence,
+		configRevision = 1L,
+		planAttribution = PlanAttribution.RECEIVE_TIME_ONLY,
+		clockDomainId = "boot",
+		observedElapsedRealtimeNanos = observedNanos,
+		receivedElapsedRealtimeNanos = receivedNanos,
+		wallTimeMs = 100L,
+		wallTimeUncertaintyMs = 1L,
+		capturedCollectedDataEpoch = 0L,
+		acquiredAtMs = 100L,
+		quality = SourceQuality(),
+		payloadVersion = 1,
+		payload = StepCounterWindowPayload(
+			bootClockDomainId = payloadClockDomainId,
+			firstCumulativeCount = 10L,
+			lastCumulativeCount = 11L,
+			deltaCount = 1L,
+			windowStartElapsedRealtimeNanos = startNanos,
+			windowEndElapsedRealtimeNanos = endNanos,
+			firstProviderSequence = 1L,
+			lastProviderSequence = lastProviderSequence,
+			baselineReset = false,
+		),
+	)
+
+	private fun stepCheckpoint(
+		providerSequenceThrough: Long,
+		componentByte: Byte = 2,
+		updatedAtMs: Long = 100L,
+	) = SensorAdmissionCheckpoint(
+		source = SourceKind.STEPS,
+		ownerScope = STEP_OWNER_SCOPE,
+		sourceInstanceId = "step-instance",
+		clockDomainId = "boot",
+		registrationGeneration = 1L,
+		providerSequenceThrough = providerSequenceThrough,
+		lifecycle = RuntimeCheckpointLifecycle.ACTIVE,
+		failedAdmissionCount = 0L,
+		unresolvedSequenceStart = null,
+		unresolvedSequenceEndInclusive = null,
+		gapClassifications = emptySet(),
+		componentStateVersion = 1,
+		componentPayload = byteArrayOf(componentByte),
+		updatedAtMs = updatedAtMs,
 	)
 
 	private fun sessionCandidate(
@@ -881,6 +1262,56 @@ class RoomDurableSourceIngressTest {
 	}
 
 	private suspend fun installRegistrationGeneration() {
+		database.sourceBrokerDao().insertDemands(
+			listOf(
+				SourceDemandEntity(
+					demandId = "ambient-demand",
+					consumerId = "app:test",
+					sourceKind = SourceKind.ACTIVITY.stableCode,
+					purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+					logicalTrackingId = null,
+					serviceRunId = null,
+					manifestRevision = null,
+					lifecycleLeaseGeneration = null,
+					sourcePolicyRevision = testPolicyRevision,
+					consentEpoch = testAmbientEpoch,
+					persistenceEligible = true,
+					qosCode = 2,
+					maximumAgeMs = 30_000L,
+					desiredLatencyMs = 15_000L,
+					requestedBootId = "boot",
+					requestedElapsedRealtimeNanos = 0L,
+					requestedAtMs = 0L,
+					status = SourceDemandEntity.STATUS_ACTIVE,
+					retireBootId = null,
+					retireElapsedRealtimeNanos = null,
+					retiredAtMs = null,
+				),
+				SourceDemandEntity(
+					demandId = "session-demand",
+					consumerId = "session:$TEST_SESSION_ID",
+					sourceKind = SourceKind.ACTIVITY.stableCode,
+					purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+					logicalTrackingId = TEST_SESSION_ID,
+					serviceRunId = TEST_RUN_ID,
+					manifestRevision = 1L,
+					lifecycleLeaseGeneration = 7L,
+					sourcePolicyRevision = testPolicyRevision,
+					consentEpoch = testCaptureEpoch,
+					persistenceEligible = true,
+					qosCode = 2,
+					maximumAgeMs = 30_000L,
+					desiredLatencyMs = 15_000L,
+					requestedBootId = "boot",
+					requestedElapsedRealtimeNanos = 0L,
+					requestedAtMs = 0L,
+					status = SourceDemandEntity.STATUS_ACTIVE,
+					retireBootId = null,
+					retireElapsedRealtimeNanos = null,
+					retiredAtMs = null,
+				),
+			),
+		)
 		database.sourceRegistrationStateDao().insertIfAbsent(
 			SourceRegistrationStateEntity(
 				sourceKind = SourceKind.ACTIVITY.stableCode,
@@ -1012,9 +1443,105 @@ class RoomDurableSourceIngressTest {
 		)
 	}
 
+	private suspend fun installStepRegistrationGeneration() {
+		database.sourceBrokerDao().insertDemands(
+			listOf(
+				SourceDemandEntity(
+					demandId = "step-ambient-demand",
+					consumerId = "app:step-test",
+					sourceKind = SourceKind.STEPS.stableCode,
+					purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+					logicalTrackingId = null,
+					serviceRunId = null,
+					manifestRevision = null,
+					lifecycleLeaseGeneration = null,
+					sourcePolicyRevision = testPolicyRevision,
+					consentEpoch = testAmbientEpoch,
+					persistenceEligible = true,
+					qosCode = 2,
+					maximumAgeMs = 30_000L,
+					desiredLatencyMs = 15_000L,
+					requestedBootId = "boot",
+					requestedElapsedRealtimeNanos = 0L,
+					requestedAtMs = 0L,
+					status = SourceDemandEntity.STATUS_ACTIVE,
+					retireBootId = null,
+					retireElapsedRealtimeNanos = null,
+					retiredAtMs = null,
+				),
+			),
+		)
+		database.sourceRegistrationStateDao().insertIfAbsent(
+			SourceRegistrationStateEntity(
+				sourceKind = SourceKind.STEPS.stableCode,
+				ownerScope = STEP_OWNER_SCOPE,
+				sourceInstanceId = "step-instance",
+				clockDomainId = "boot",
+				registrationGeneration = 1L,
+				nextSequence = 0L,
+				appliedRevision = 1L,
+				collectedDataEpoch = 0L,
+				updatedAtMs = 50L,
+			),
+		)
+		database.sourceBrokerDao().insertRegistration(
+			ProviderRegistrationGenerationEntity(
+				sourceKind = SourceKind.STEPS.stableCode,
+				registrationGeneration = 1L,
+				sourceInstanceId = "step-instance",
+				ownerScope = STEP_OWNER_SCOPE,
+				providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
+				providerProcessIncarnationId = "test-process",
+				clockDomainId = "boot",
+				physicalConfigurationFingerprint = "step-physical-config",
+				collectedDataEpoch = 0L,
+				status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+				reservedAtMs = 50L,
+				reservedElapsedRealtimeNanos = 40L,
+				acceptedAtMs = 50L,
+				acceptedElapsedRealtimeNanos = 50L,
+				retiredAtMs = null,
+				retiredElapsedRealtimeNanos = null,
+				failureCode = null,
+			),
+		)
+		database.sourceBrokerDao().insertAuthorizations(
+			listOf(
+				SourceAuthorizationEntity(
+					sourceKind = SourceKind.STEPS.stableCode,
+					registrationGeneration = 1L,
+					authorizationRevision = 1L,
+					memberId = "demand:step-ambient-demand",
+					authorizationFingerprint = STEP_ELIGIBILITY_FINGERPRINT,
+					purposeEligibilityMask = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+					demandId = "step-ambient-demand",
+					consumerId = "app:step-test",
+					purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+					sourcePolicyRevision = testPolicyRevision,
+					consentEpoch = testAmbientEpoch,
+					persistenceEligible = true,
+					effectiveBootId = "boot",
+					effectiveElapsedRealtimeNanos = 0L,
+					effectiveWallTimeMs = 0L,
+					logicalTrackingId = null,
+					serviceRunId = null,
+					manifestRevision = null,
+					lifecycleLeaseGeneration = null,
+				),
+			),
+		)
+	}
+
 	private data class SessionAuthorization(
 		val policyRevision: Long,
 		val captureConsentEpoch: Long,
+	)
+
+	private fun activityAutomationAuthority(epoch: Long) = ActivityAutomationEpochEntity(
+		epoch = epoch,
+		automaticControlEnabled = true,
+		bootClockDomainId = "boot",
+		effectiveElapsedRealtimeNanos = 0L,
 	)
 
 	private companion object {
@@ -1022,9 +1549,11 @@ class RoomDurableSourceIngressTest {
 		const val TEST_RUN_ID = "run"
 		const val TEST_ELIGIBILITY_FINGERPRINT = "test-ambient-and-session"
 		const val CONTROL_ONLY_FINGERPRINT = "test-control-only"
+		const val STEP_ELIGIBILITY_FINGERPRINT = "test-step-ambient"
 		const val TEST_PHYSICAL_CONFIG = "physical-config"
 		const val CONTROL_PHYSICAL_CONFIG = "control-physical-config"
 		val SOURCE_OWNER_SCOPE = "source-broker:${SourceKind.ACTIVITY.stableCode}"
+		val STEP_OWNER_SCOPE = "source-broker:${SourceKind.STEPS.stableCode}"
 		const val TEST_ELIGIBILITY_MASK = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT or
 			SourceBrokerPurpose.MASK_SESSION_CAPTURE
 	}
@@ -1045,4 +1574,26 @@ private class FakeLifecycleStore(initial: CollectedDataLifecycleSnapshot) : Coll
 		return updated
 	}
 	suspend fun update(value: CollectedDataLifecycleSnapshot) = state.emit(value)
+}
+
+private class FakeTrackingStartupGate(
+	var result: TrackingStartupResult = TrackingStartupResult.Ready(
+		legacyRecoveryPartial = false,
+		liveCompletedThroughOrdinal = 0L,
+	),
+) : TrackingStartupGate {
+	var reconcileCalls: Int = 0
+		private set
+	var allowReadyGeneration: Boolean = true
+
+	override val isReady: Boolean
+		get() = result is TrackingStartupResult.Ready
+
+	override fun isReadyGeneration(expectedGeneration: Long): Boolean =
+		allowReadyGeneration && isReady && currentGeneration == expectedGeneration
+
+	override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult {
+		reconcileCalls += 1
+		return result
+	}
 }

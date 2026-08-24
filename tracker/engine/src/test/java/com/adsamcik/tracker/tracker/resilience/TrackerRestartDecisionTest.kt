@@ -9,6 +9,8 @@ class TrackerRestartDecisionTest {
 		isUserInitiated = true,
 		isAmbient = false,
 		policyTier = PolicyTier.PRECISION,
+		restartBootId = "test-boot",
+		restartToken = "test-token",
 	)
 
 	@Test

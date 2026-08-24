@@ -12,6 +12,8 @@ class ActiveTrackingSessionDescriptorTest {
 		policyTier = PolicyTier.PRECISION,
 		logicalTrackingId = "logical-session",
 		serviceRunId = "service-run-one",
+		restartBootId = "boot-1",
+		restartToken = "token-1",
 	)
 
 	@Test
@@ -38,5 +40,12 @@ class ActiveTrackingSessionDescriptorTest {
 			TrackingStopCandidateReason.AUTOMATIC_ACTIVITY_INCOMPATIBLE
 		candidate.isRestartEligible shouldBe false
 		candidate.withdrawStopCandidate(changedAtEpochMs = 201L).isRestartEligible shouldBe true
+	}
+
+	@Test
+	fun `legacy descriptor without boot fence cannot restart`() {
+		descriptor.copy(restartBootId = null, restartToken = null).isRestartEligible shouldBe false
+		descriptor.isRestartEligibleForBoot("boot-2") shouldBe false
+		descriptor.isRestartEligibleForBoot("boot-1") shouldBe true
 	}
 }

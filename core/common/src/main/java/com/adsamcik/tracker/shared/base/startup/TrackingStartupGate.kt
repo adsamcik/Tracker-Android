@@ -25,6 +25,29 @@ interface TrackingStartupGate {
 	val currentGeneration: Long
 		get() = 0L
 
+	/** True only while [expectedGeneration] is the currently admitted runtime generation. */
+	fun isReadyGeneration(expectedGeneration: Long): Boolean =
+		isReady && currentGeneration == expectedGeneration
+
+	/**
+	 * Linearizes one short, non-suspending external handoff with deletion closure. Production gates
+	 * override this to make close wait for [operation]; the default keeps lightweight test gates
+	 * source-compatible.
+	 */
+	fun <T> withReadyGeneration(
+		expectedGeneration: Long,
+		operation: () -> T,
+	): T? = if (isReadyGeneration(expectedGeneration)) operation() else null
+
+	/**
+	 * Runs low-frequency control-plane work while deletion is excluded. High-rate observation
+	 * ingress should use transactional epoch/generation checks instead of this serialized path.
+	 */
+	suspend fun <T> withReadyGenerationOperation(
+		expectedGeneration: Long,
+		operation: suspend () -> T,
+	): T? = if (isReadyGeneration(expectedGeneration)) operation() else null
+
 	/**
 	 * Compatibility entry point for live admission. It deliberately reconciles the full gate.
 	 */

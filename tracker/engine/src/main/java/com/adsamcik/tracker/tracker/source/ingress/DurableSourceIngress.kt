@@ -13,6 +13,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapsho
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
@@ -30,13 +32,28 @@ import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
 import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
 import com.adsamcik.tracker.tracker.source.model.sourceQualityFromStableFlags
 import com.adsamcik.tracker.tracker.source.model.toStableFlags
+import com.adsamcik.tracker.tracker.source.runtime.SensorAdmissionCheckpoint
+import com.adsamcik.tracker.tracker.source.runtime.mergeSensorRuntimeStates
 import java.util.UUID
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 
 interface DurableSourceIngress {
 	suspend fun admit(candidate: SourceEvidenceCandidate<*>): AdmissionResult
+	suspend fun admit(
+		candidate: SourceEvidenceCandidate<*>,
+		checkpoint: SensorAdmissionCheckpoint,
+	): AdmissionResult = AdmissionResult.RetryableFailure(
+		AdmissionFailureCode.ATOMIC_CHECKPOINT_UNSUPPORTED,
+	)
 	suspend fun committedBatch(afterOrdinal: Long, limit: Int): List<AdmittedSourceEvent<out SourcePayload>>
+	suspend fun committedSourceBatch(
+		source: SourceKind,
+		afterOrdinal: Long,
+		throughOrdinal: Long,
+		limit: Int,
+	): List<AdmittedSourceEvent<out SourcePayload>>
 	suspend fun checkpoint(consumer: String, ordinal: Long)
 }
 
@@ -85,6 +102,7 @@ sealed interface AdmissionResult {
 enum class AdmissionFailureCode {
 	STALE_REGISTRATION_GENERATION,
 	AUTHORIZATION_BOUNDARY_SPLIT_REQUIRED,
+	INVALID_OBSERVED_TIME,
 	STALE_SOURCE_POLICY,
 	STALE_SESSION_MANIFEST,
 	STALE_COLLECTED_DATA_EPOCH,
@@ -93,6 +111,8 @@ enum class AdmissionFailureCode {
 	IDENTITY_COLLISION,
 	UNSUPPORTED_PAYLOAD,
 	STORAGE_UNAVAILABLE,
+	STARTUP_RECOVERY_NOT_READY,
+	ATOMIC_CHECKPOINT_UNSUPPORTED,
 }
 
 @Singleton
@@ -100,8 +120,33 @@ class RoomDurableSourceIngress @Inject constructor(
 	private val database: AppDatabase,
 	private val lifecycleStore: CollectedDataLifecycleStore,
 	private val payloadCodec: SourcePayloadCodec,
+	private val trackingStartupGateProvider: Provider<TrackingStartupGate>,
 ) : DurableSourceIngress, DurableSourceDeliveryIngress {
-	override suspend fun admit(candidate: SourceEvidenceCandidate<*>): AdmissionResult {
+	override suspend fun admit(candidate: SourceEvidenceCandidate<*>): AdmissionResult =
+		admitInternal(candidate, checkpoint = null)
+
+	override suspend fun admit(
+		candidate: SourceEvidenceCandidate<*>,
+		checkpoint: SensorAdmissionCheckpoint,
+	): AdmissionResult = admitInternal(candidate, checkpoint)
+
+	private suspend fun admitInternal(
+		candidate: SourceEvidenceCandidate<*>,
+		checkpoint: SensorAdmissionCheckpoint?,
+	): AdmissionResult {
+		if (!candidate.hasValidObservedTime()) {
+			return AdmissionResult.PermanentFailure(AdmissionFailureCode.INVALID_OBSERVED_TIME)
+		}
+		if (checkpoint != null && !checkpoint.matches(candidate)) {
+			return AdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_REGISTRATION_GENERATION)
+		}
+		val startupGate = trackingStartupGateProvider.get()
+		if (startupGate.reconcileAdmission() !is
+			TrackingAdmissionStartupResult.Ready
+		) {
+			return AdmissionResult.RetryableFailure(AdmissionFailureCode.STARTUP_RECOVERY_NOT_READY)
+		}
+		val startupGeneration = startupGate.currentGeneration
 		val lifecycle = lifecycleStore.snapshot()
 		if (candidate.capturedCollectedDataEpoch != lifecycle.epoch) {
 			return AdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_COLLECTED_DATA_EPOCH)
@@ -118,6 +163,11 @@ class RoomDurableSourceIngress @Inject constructor(
 
 		return runCatchingNonCancellation {
 			database.withTransaction<AdmissionResult> transaction@ {
+				if (!startupGate.isReadyGeneration(startupGeneration)) {
+					return@transaction AdmissionResult.RetryableFailure(
+						AdmissionFailureCode.STARTUP_RECOVERY_NOT_READY,
+					)
+				}
 				val stateDao = database.sourceEvidenceStateDao()
 				val state = stateDao.get()
 				if (state == null || state.collectedDataEpoch != lifecycle.epoch ||
@@ -136,6 +186,21 @@ class RoomDurableSourceIngress @Inject constructor(
 					return@transaction AdmissionResult.PermanentFailure(
 						AdmissionFailureCode.BEFORE_RETENTION_BOUNDARY,
 					)
+				}
+				if (checkpoint != null) {
+					val checkpointRegistration = database.sourceRegistrationStateDao().get(
+						checkpoint.source.stableCode,
+						checkpoint.ownerScope,
+					)
+					if (checkpointRegistration == null ||
+						checkpointRegistration.sourceInstanceId != checkpoint.sourceInstanceId ||
+						checkpointRegistration.clockDomainId != checkpoint.clockDomainId ||
+						checkpointRegistration.registrationGeneration != checkpoint.registrationGeneration
+					) {
+						return@transaction AdmissionResult.PermanentFailure(
+							AdmissionFailureCode.STALE_REGISTRATION_GENERATION,
+						)
+					}
 				}
 				val physicalFingerprint = candidate.physicalConfigurationFingerprint
 				if (physicalFingerprint == null) {
@@ -203,7 +268,20 @@ class RoomDurableSourceIngress @Inject constructor(
 					candidate.sourceSequence,
 				)
 				if (existing != null) {
-					return@transaction existing.resolveDuplicate(candidate, encoded, authorization, captureAuthorization)
+					val duplicate = existing.resolveDuplicate(
+						candidate,
+						encoded,
+						authorization,
+						captureAuthorization,
+					)
+					if (duplicate is AdmissionResult.Duplicate && checkpoint != null) {
+						persistAtomicCheckpoint(
+							checkpoint,
+							duplicate.existingAdmissionOrdinal,
+							candidate.receivedElapsedRealtimeNanos,
+						)
+					}
+					return@transaction duplicate
 				}
 
 				val eventId = SourceEventId(UUID.randomUUID().toString())
@@ -231,12 +309,23 @@ class RoomDurableSourceIngress @Inject constructor(
 					)
 				}
 				if (admitted != null) {
-					return@transaction admitted.resolveDuplicate(
+					val duplicate = admitted.resolveDuplicate(
 						candidate,
 						encoded,
 						authorization,
 						captureAuthorization,
 					)
+					if (duplicate is AdmissionResult.Duplicate && checkpoint != null) {
+						persistAtomicCheckpoint(
+							checkpoint,
+							duplicate.existingAdmissionOrdinal,
+							candidate.receivedElapsedRealtimeNanos,
+						)
+					}
+					return@transaction duplicate
+				}
+				checkpoint?.let {
+					persistAtomicCheckpoint(it, rowId, candidate.receivedElapsedRealtimeNanos)
 				}
 				check(stateDao.incrementRevision(System.currentTimeMillis()) == 1) {
 					"Unable to advance source-evidence revision after WAL admission"
@@ -248,7 +337,51 @@ class RoomDurableSourceIngress @Inject constructor(
 		}
 	}
 
+	private suspend fun persistAtomicCheckpoint(
+		checkpoint: SensorAdmissionCheckpoint,
+		admissionOrdinal: Long,
+		causalOrderElapsedRealtimeNanos: Long,
+	) {
+		val dao = database.sourceRuntimeStateDao()
+		val incoming = checkpoint.toRuntimeState(
+			admissionOrdinal,
+			causalOrderElapsedRealtimeNanos,
+		)
+		val stored = mergeSensorRuntimeStates(
+			current = dao.get(incoming.sourceKind, incoming.ownerScope),
+			incoming = incoming,
+			legacyComponentStateVersion = checkpoint.componentStateVersion,
+		)
+		dao.save(stored)
+		check(stored.sourceKind == checkpoint.source.stableCode &&
+			stored.ownerScope == checkpoint.ownerScope &&
+			stored.sourceInstanceId == checkpoint.sourceInstanceId &&
+			stored.clockDomainId == checkpoint.clockDomainId &&
+			stored.registrationGeneration == checkpoint.registrationGeneration &&
+			stored.lastProviderSequence >= checkpoint.providerSequenceThrough
+		) { "Atomic sensor checkpoint was superseded by an incompatible runtime generation" }
+		if (stored.lastProviderSequence == checkpoint.providerSequenceThrough) {
+			check((stored.lastAdmissionOrdinal ?: Long.MIN_VALUE) >= admissionOrdinal) {
+				"Atomic sensor checkpoint did not retain its admission ordinal"
+			}
+		}
+	}
+
 	override suspend fun admit(delivery: SourceDeliveryCandidate): DeliveryAdmissionResult {
+		if (!delivery.hasValidObservedTimes()) {
+			return DeliveryAdmissionResult.PermanentFailure(
+				AdmissionFailureCode.INVALID_OBSERVED_TIME,
+			)
+		}
+		val startupGate = trackingStartupGateProvider.get()
+		if (startupGate.reconcileAdmission() !is
+			TrackingAdmissionStartupResult.Ready
+		) {
+			return DeliveryAdmissionResult.RetryableFailure(
+				AdmissionFailureCode.STARTUP_RECOVERY_NOT_READY,
+			)
+		}
+		val startupGeneration = startupGate.currentGeneration
 		val lifecycle = lifecycleStore.snapshot()
 		if (delivery.capturedCollectedDataEpoch != lifecycle.epoch) {
 			return DeliveryAdmissionResult.PermanentFailure(
@@ -270,6 +403,11 @@ class RoomDurableSourceIngress @Inject constructor(
 
 		return runCatchingNonCancellation {
 			database.withTransaction<DeliveryAdmissionResult> transaction@ {
+				if (!startupGate.isReadyGeneration(startupGeneration)) {
+					return@transaction DeliveryAdmissionResult.RetryableFailure(
+						AdmissionFailureCode.STARTUP_RECOVERY_NOT_READY,
+					)
+				}
 				val stateDao = database.sourceEvidenceStateDao()
 				val evidenceState = stateDao.get()
 				if (evidenceState == null || evidenceState.collectedDataEpoch != lifecycle.epoch ||
@@ -452,9 +590,34 @@ class RoomDurableSourceIngress @Inject constructor(
 	): List<AdmittedSourceEvent<out SourcePayload>> {
 		require(afterOrdinal >= 0L)
 		require(limit > 0)
+		return decodeCommittedRows(database.sourceEventWalDao().eventsAfter(afterOrdinal, limit))
+	}
+
+	override suspend fun committedSourceBatch(
+		source: SourceKind,
+		afterOrdinal: Long,
+		throughOrdinal: Long,
+		limit: Int,
+	): List<AdmittedSourceEvent<out SourcePayload>> {
+		require(afterOrdinal >= 0L)
+		require(throughOrdinal >= afterOrdinal)
+		require(limit > 0)
+		return decodeCommittedRows(
+			database.sourceEventWalDao().sourceEventsAfterThrough(
+				sourceKind = source.stableCode,
+				afterOrdinal = afterOrdinal,
+				throughOrdinal = throughOrdinal,
+				limit = limit,
+			),
+		)
+	}
+
+	private suspend fun decodeCommittedRows(
+		rows: List<SourceEventWalEntity>,
+	): List<AdmittedSourceEvent<out SourcePayload>> {
 		val committed = mutableListOf<AdmittedSourceEvent<out SourcePayload>>()
 		val walDao = database.sourceEventWalDao()
-		for (row in walDao.eventsAfter(afterOrdinal, limit)) {
+		for (row in rows) {
 			val integrityValid = when {
 				row.hasQualifiedIntegrity() || row.hasVerifiedLegacyPayload() -> true
 				row.integrityIdentity == LEGACY_PENDING_CHECKSUM -> {
@@ -537,6 +700,7 @@ class RoomDurableSourceIngress @Inject constructor(
 				wallTimeMs = wallTimeMs,
 				wallTimeUncertaintyMs = wallTimeUncertaintyMs,
 				capturedCollectedDataEpoch = capturedCollectedDataEpoch,
+				activityAutomationEpoch = activityAutomationEpoch,
 				sourcePolicyRevision = sourcePolicyRevision,
 				captureConsentEpoch = captureConsentEpoch,
 				sessionManifestRevision = sessionManifestRevision,
@@ -594,6 +758,7 @@ private fun SourceEvidenceCandidate<*>.toEntity(
 		wallTimeMs = wallTimeMs,
 		wallTimeUncertaintyMs = wallTimeUncertaintyMs,
 		capturedCollectedDataEpoch = capturedCollectedDataEpoch,
+		activityAutomationEpoch = activityAutomationEpoch,
 		sourcePolicyRevision = captureAuthorization?.sourcePolicyRevision,
 		captureConsentEpoch = captureAuthorization?.consentEpoch,
 		sessionManifestRevision = captureAuthorization?.manifestRevision,
@@ -687,6 +852,7 @@ private fun SourceEventIdentityRow.resolveDuplicate(
 			authorizationRevision == authorization.authorizationRevision &&
 			authorizationPurposeEligibilityMask == authorization.purposeEligibilityMask &&
 			authorizationFingerprint == authorization.authorizationFingerprint &&
+			activityAutomationEpoch == candidate.activityAutomationEpoch &&
 			sourcePolicyRevision == captureAuthorization?.sourcePolicyRevision &&
 			captureConsentEpoch == captureAuthorization?.consentEpoch &&
 			sessionManifestRevision == captureAuthorization?.manifestRevision &&
@@ -698,6 +864,7 @@ private fun SourceEventIdentityRow.resolveDuplicate(
 			authorizationRevision == authorization.authorizationRevision &&
 			authorizationPurposeEligibilityMask == authorization.purposeEligibilityMask &&
 			authorizationFingerprint == authorization.authorizationFingerprint &&
+			activityAutomationEpoch == candidate.activityAutomationEpoch &&
 			sourcePolicyRevision == captureAuthorization?.sourcePolicyRevision &&
 			captureConsentEpoch == captureAuthorization?.consentEpoch &&
 			sessionManifestRevision == captureAuthorization?.manifestRevision &&
@@ -715,11 +882,63 @@ private fun SourceEventIdentityRow.resolveDuplicate(
 	}
 }
 
-private fun SourceEvidenceCandidate<*>.observedIntervalStartElapsedRealtimeNanos(): Long = when (val value = payload) {
-	is StepCounterWindowPayload -> value.windowStartElapsedRealtimeNanos
-	is PressureWindowPayload -> value.windowStartElapsedRealtimeNanos
-	else -> observedElapsedRealtimeNanos
+private data class ObservedTimeInterval(
+	val clockDomainId: String,
+	val startElapsedRealtimeNanos: Long,
+	val endElapsedRealtimeNanos: Long,
+)
+
+private fun SourceEvidenceCandidate<*>.observedTimeInterval(): ObservedTimeInterval =
+	when (val value = payload) {
+		is StepCounterWindowPayload -> ObservedTimeInterval(
+			clockDomainId = value.bootClockDomainId,
+			startElapsedRealtimeNanos = value.windowStartElapsedRealtimeNanos,
+			endElapsedRealtimeNanos = value.windowEndElapsedRealtimeNanos,
+		)
+		is PressureWindowPayload -> ObservedTimeInterval(
+			clockDomainId = clockDomainId,
+			startElapsedRealtimeNanos = value.windowStartElapsedRealtimeNanos,
+			endElapsedRealtimeNanos = value.windowEndElapsedRealtimeNanos,
+		)
+		else -> ObservedTimeInterval(
+			clockDomainId = clockDomainId,
+			startElapsedRealtimeNanos = observedElapsedRealtimeNanos,
+			endElapsedRealtimeNanos = observedElapsedRealtimeNanos,
+		)
+	}
+
+private fun SourceEvidenceCandidate<*>.hasValidObservedTime(): Boolean {
+	val interval = observedTimeInterval()
+	return interval.clockDomainId == clockDomainId &&
+		interval.endElapsedRealtimeNanos == observedElapsedRealtimeNanos &&
+		interval.startElapsedRealtimeNanos >= 0L &&
+		interval.startElapsedRealtimeNanos <= interval.endElapsedRealtimeNanos &&
+		interval.endElapsedRealtimeNanos <= receivedElapsedRealtimeNanos
 }
+
+private fun SensorAdmissionCheckpoint.matches(candidate: SourceEvidenceCandidate<*>): Boolean {
+	val payloadProviderSequence = when (val value = candidate.payload) {
+		is StepCounterWindowPayload -> value.lastProviderSequence
+		is PressureWindowPayload -> value.lastProviderSequence
+		else -> return false
+	}
+	return source == candidate.source &&
+		sourceInstanceId == candidate.sourceInstanceId.value &&
+		clockDomainId == candidate.clockDomainId &&
+		registrationGeneration == candidate.registrationGeneration &&
+		providerSequenceThrough == payloadProviderSequence
+}
+
+private fun SourceDeliveryCandidate.hasValidObservedTimes(): Boolean = units.all { unit ->
+	val evidence = unit.evidence
+	evidence.hasValidObservedTime() &&
+		unit.observedIntervalStartElapsedRealtimeNanos >= 0L &&
+		unit.observedIntervalStartElapsedRealtimeNanos <= evidence.observedElapsedRealtimeNanos &&
+		evidence.observedElapsedRealtimeNanos <= evidence.receivedElapsedRealtimeNanos
+}
+
+private fun SourceEvidenceCandidate<*>.observedIntervalStartElapsedRealtimeNanos(): Long =
+	observedTimeInterval().startElapsedRealtimeNanos
 
 private const val MANIFEST_PURPOSE_CAPTURE = "SESSION_CAPTURE"
 private const val SESSION_STATE_STOPPING = "STOPPING"

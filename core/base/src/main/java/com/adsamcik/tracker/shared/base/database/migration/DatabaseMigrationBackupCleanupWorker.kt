@@ -8,6 +8,10 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import java.util.concurrent.TimeUnit
 
+/**
+ * Provider-only cleanup exemption: deletes only migration-backup files and never opens Tracker Room,
+ * so it is deliberately safe to run while the collected-data startup gate is closed.
+ */
 class DatabaseMigrationBackupCleanupWorker(
 	appContext: Context,
 	workerParameters: WorkerParameters,

@@ -101,6 +101,23 @@ class DefaultActiveTrackingSessionStore @Inject constructor(
 		}
 	}
 
+	override suspend fun clearExact(
+		descriptor: ActiveTrackingSessionDescriptor,
+	): ActiveTrackingSessionStoreResult = withContext(dispatchers.io) {
+		runStoreOperation {
+			var remaining: ActiveTrackingSessionProto? = null
+			context.activeTrackingSessionDataStore.updateData { current ->
+				if (current.toDescriptor() == descriptor) {
+					ActiveTrackingSessionProto.getDefaultInstance().also { remaining = it }
+				} else {
+					remaining = current
+					current
+				}
+			}
+			ActiveTrackingSessionStoreResult.Success(remaining?.toDescriptor())
+		}
+	}
+
 	private suspend inline fun runStoreOperation(
 		operation: suspend () -> ActiveTrackingSessionStoreResult,
 	): ActiveTrackingSessionStoreResult = try {
@@ -125,6 +142,8 @@ private fun ActiveTrackingSessionProto.toDescriptor(): ActiveTrackingSessionDesc
 	} else {
 		null
 	}
+	val persistedRestartBootId = restartBootId.takeIf { it.isNotBlank() && restartToken.isNotBlank() }
+	val persistedRestartToken = restartToken.takeIf { persistedRestartBootId != null }
 	return ActiveTrackingSessionDescriptor(
 		isUserInitiated = userInitiated,
 		isAmbient = ambient,
@@ -135,6 +154,8 @@ private fun ActiveTrackingSessionProto.toDescriptor(): ActiveTrackingSessionDesc
 		lifecycleRevision = lifecycleRevision,
 		lifecycleChangedAtEpochMs = lifecycleChangedAtEpochMs.takeIf { it > 0L },
 		stopCandidate = stopCandidate,
+		restartBootId = persistedRestartBootId,
+		restartToken = persistedRestartToken,
 	)
 }
 
@@ -156,6 +177,8 @@ private fun ActiveTrackingSessionDescriptor.toProto(): ActiveTrackingSessionProt
 		.setLifecycleChangedAtEpochMs(lifecycleChangedAtEpochMs ?: 0L)
 		.setStopCandidateReason(stopCandidate?.reason?.name.orEmpty())
 		.setStopCandidateRequestedAtEpochMs(stopCandidate?.requestedAtEpochMs ?: 0L)
+		.setRestartBootId(restartBootId.orEmpty())
+		.setRestartToken(restartToken.orEmpty())
 		.build()
 
 /**

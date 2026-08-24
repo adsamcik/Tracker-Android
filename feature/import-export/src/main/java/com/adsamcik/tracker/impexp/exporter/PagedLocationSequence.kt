@@ -16,6 +16,7 @@ internal fun pagedLocationSequence(
 	pageSize: Int,
 	initialAfterTimeMs: Long? = null,
 	initialAfterId: Long? = null,
+	verifyCollectedDataAccess: () -> Unit = {},
 ): Sequence<LocationSample> = Sequence {
 	object : Iterator<LocationSample> {
 		private var buffer: List<LocationSample> = emptyList()
@@ -39,6 +40,7 @@ internal fun pagedLocationSequence(
 		}
 
 		private fun loadNextPage() {
+			verifyCollectedDataAccess()
 			val chunk = runBlocking {
 				locationSampleDao.getChunkBetweenOrdered(
 					fromMs = fromMs,
@@ -48,6 +50,7 @@ internal fun pagedLocationSequence(
 					limit = pageSize,
 				)
 			}
+			verifyCollectedDataAccess()
 			buffer = chunk.map { it.toModel() }
 			index = 0
 			if (buffer.isEmpty()) {

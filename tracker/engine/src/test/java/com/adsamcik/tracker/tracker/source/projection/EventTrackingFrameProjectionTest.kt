@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.tracker.altitude.BarometricAltitudeFormula
+import com.adsamcik.tracker.tracker.di.SourcePipelineModule
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
@@ -44,7 +45,7 @@ class EventTrackingFrameProjectionTest {
 	@Test
 	fun `first step counter callback remains a baseline-only event`() {
 		val accumulator = StepWindowAccumulator(null)
-		val payload = accumulator.accept("boot", 100L, 10L, 1L)
+		val payload = requireNotNull(accumulator.accept("boot", 100L, 10L, 1L))
 
 		event("baseline", 1L, payload).toEventTrackingFrame() shouldBe null
 	}
@@ -56,8 +57,8 @@ class EventTrackingFrameProjectionTest {
 		newAccumulator.accept("boot", 100L, 10L, 1L)
 
 		val projectedNormal = listOf(
-			newAccumulator.accept("boot", 105L, 20L, 2L),
-			newAccumulator.accept("boot", 110L, 30L, 3L),
+			requireNotNull(newAccumulator.accept("boot", 105L, 20L, 2L)),
+			requireNotNull(newAccumulator.accept("boot", 110L, 30L, 3L)),
 		).mapIndexedNotNull { index, payload ->
 			event("normal-$index", index + 2L, payload).toEventTrackingFrame()
 		}
@@ -73,7 +74,7 @@ class EventTrackingFrameProjectionTest {
 		val projectedReset = event(
 			"reset",
 			4L,
-			newAccumulator.accept("boot", 2L, 40L, 4L),
+			requireNotNull(newAccumulator.accept("boot", 2L, 40L, 4L)),
 		).toEventTrackingFrame()
 
 		projectedReset?.stepDelta shouldBe 2
@@ -109,43 +110,55 @@ class EventTrackingFrameProjectionTest {
 	}
 
 	@Test
-	fun `committed event frame is delivered once and retains stable identity`() = runTest {
-		val projection = EventTrackingFrameProjection()
-		val projections = ProjectionDispatcher(database, setOf(projection))
-		projections.registerAll(1L)
-		val legacyCycle = event(
-			"legacy-step",
-			1L,
-			StepCounterWindowPayload("boot", 90, 95, 5, 1, 2, 1, 2, false),
-		).toEventTrackingFrame() ?: error("missing legacy frame")
-		database.sourceProjectionStateDao().insertOutbox(
-			com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity(
-				stableId = "legacy-v1-frame",
-				projectionId = EventTrackingFrameProjection.ID,
-				projectionVersion = 1,
-				admissionOrdinal = 1,
-				effectKind = EventTrackingFrameProjection.OUTBOX_KIND,
-				payloadVersion = EventTrackingFrameEffectCodec.VERSION,
-				payload = EventTrackingFrameEffectCodec.encode("tracking", legacyCycle),
-				createdAtMs = 1,
-				deliveredAtMs = null,
-			),
+	fun `live production projections do not emit v2 frames for steps or pressure`() = runTest {
+		val productionProjections = setOf(
+			SourcePipelineModule.provideActivityAutomationProjection(ActivityAutomationProjection()),
 		)
-		val payload = StepCounterWindowPayload("boot", 100, 105, 5, 10, 20, 1, 2, false)
-		projections.dispatch(event("durable-step", 1L, payload)).complete shouldBe true
+		val projections = ProjectionDispatcher(database, productionProjections)
+		projections.registerAll(1L)
+		projections.dispatch(
+			event(
+				"live-step",
+				1L,
+				StepCounterWindowPayload("boot", 100, 105, 5, 10, 20, 1, 2, false),
+			),
+		).complete shouldBe true
+		projections.dispatch(
+			event(
+				"live-pressure",
+				2L,
+				PressureWindowPayload(
+					sampleCount = 2,
+					meanHectopascals = 1_000.0,
+					sumSquaredDeviations = 0.5,
+					minimumHectopascals = 999.5f,
+					maximumHectopascals = 1_000.5f,
+					windowStartElapsedRealtimeNanos = 20,
+					windowEndElapsedRealtimeNanos = 30,
+					firstProviderSequence = 1,
+					lastProviderSequence = 2,
+				),
+			),
+		).complete shouldBe true
 
-		val received = mutableListOf<com.adsamcik.tracker.tracker.data.collection.TrackingCycle>()
-		val outbox = EventTrackingFrameOutboxDispatcher(database)
-		outbox.attach("wrong", "another-session", EventTrackingFrameConsumer(received::add))
-		outbox.drain() shouldBe 0
-		outbox.attach("test", "tracking", EventTrackingFrameConsumer(received::add))
-		outbox.drain() shouldBe 1
-		outbox.drain() shouldBe 0
-
-		received.single().persistenceSignalId shouldBe "source-event:durable-step"
-		received.single().stepDelta shouldBe 5
-		database.sourceProjectionStateDao().pendingOutbox(10)
-			.map { it.stableId } shouldBe listOf("legacy-v1-frame")
+		val dao = database.sourceProjectionStateDao()
+		dao.registration(
+			ActivityAutomationProjection.ID,
+			ActivityAutomationProjection.VERSION,
+		)?.status shouldBe "ACTIVE"
+		dao.registration(
+			EventTrackingFrameProjection.ID,
+			EventTrackingFrameProjection.VERSION,
+		) shouldBe null
+		dao.registration(
+			LocationDomainProjection.ID,
+			LocationDomainProjection.VERSION,
+		) shouldBe null
+		dao.registration(
+			ExplicitTrackingJoinProjection.ID,
+			ExplicitTrackingJoinProjection.VERSION,
+		) shouldBe null
+		dao.pendingOutbox(10) shouldBe emptyList()
 	}
 
 	private fun event(

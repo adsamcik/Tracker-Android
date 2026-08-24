@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.coordinator
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SourceCoordinatorLeaseEntity
+import com.adsamcik.tracker.shared.base.database.liveSourceProjectionActivationOrdinal
 import com.adsamcik.tracker.shared.base.database.pruneSourceEventStorageBefore
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
 import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
@@ -36,9 +37,7 @@ class TrackingCoordinator @Inject constructor(
 		var cursor = 0L
 		var count = 0
 		return try {
-			val activationOrdinal = database.legacyV27ProjectionDrainDao()
-				.liveActivationOrdinal() ?: 1L
-			projections.registerAll(activationOrdinal)
+			projections.registerAll(database.liveSourceProjectionActivationOrdinal())
 			cursor = database.sourceProjectionStateDao().minimumActiveCheckpoint()
 				?: database.sourceEventWalDao().maximumAdmissionOrdinal()
 				?: 0L

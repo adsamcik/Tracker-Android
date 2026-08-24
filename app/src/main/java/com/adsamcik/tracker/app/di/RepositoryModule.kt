@@ -25,6 +25,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyReposito
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.time.Clock
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import dagger.Binds
@@ -116,6 +117,7 @@ abstract class RepositoryModule {
 			dispatchers: DispatchersProvider,
 			sourcePolicyRepository: SourcePolicyRepository,
 			@ApplicationScope applicationScope: CoroutineScope,
+			trackingStartupGate: TrackingStartupGate,
 		): TrackingParamsRepository = AuthoritativeTrackingParamsRepository(
 			legacy = DefaultTrackingParamsRepository(
 				context = context,
@@ -123,6 +125,7 @@ abstract class RepositoryModule {
 			),
 			sourcePolicyRepository = sourcePolicyRepository,
 			applicationScope = applicationScope,
+			trackingStartupGate = trackingStartupGate,
 		)
 
 		@Provides

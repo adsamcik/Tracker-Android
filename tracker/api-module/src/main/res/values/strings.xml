@@ -73,6 +73,9 @@
     <string name="notification_tracking_active">Tracking</string>
     <string name="notification_tracking_start_failed_title">Tracking couldn\'t start</string>
     <string name="notification_tracking_start_failed_text">Open the app to review permissions and resume tracking.</string>
+    <string name="notification_tracking_restoring_title">Preparing tracking</string>
+    <string name="notification_tracking_restoring_text">No data is collected until recovery completes.</string>
+    <string name="notification_tracking_restoring_public">Preparing tracking</string>
 
 
     <string name="settings_activity_enabled_title">Activity</string>

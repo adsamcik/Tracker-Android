@@ -134,6 +134,10 @@ data class ActiveTrackingSessionDescriptor(
 	/** Optional wall-clock audit time; never use it to bridge duration across a restart. */
 	val lifecycleChangedAtEpochMs: Long? = null,
 	val stopCandidate: TrackingStopCandidate? = null,
+	/** Boot domain in which watchdog/redelivery recovery was authorized. */
+	val restartBootId: String? = null,
+	/** Unpredictable token copied only into trusted restart intents. */
+	val restartToken: String? = null,
 ) {
 	init {
 		require(logicalTrackingId.isNotBlank()) { "logicalTrackingId must not be blank" }
@@ -142,6 +146,11 @@ data class ActiveTrackingSessionDescriptor(
 		require(lifecycleChangedAtEpochMs == null || lifecycleChangedAtEpochMs >= 0L) {
 			"lifecycleChangedAtEpochMs must not be negative"
 		}
+		require((restartBootId == null) == (restartToken == null)) {
+			"Restart boot identity and token must either both be present or both be absent"
+		}
+		require(restartBootId == null || restartBootId.isNotBlank()) { "restartBootId must not be blank" }
+		require(restartToken == null || restartToken.isNotBlank()) { "restartToken must not be blank" }
 		if (lifecycleState == LogicalTrackingLifecycleState.STOP_CANDIDATE) {
 			require(stopCandidate != null) {
 				"STOP_CANDIDATE descriptors require a stopCandidate"
@@ -155,7 +164,11 @@ data class ActiveTrackingSessionDescriptor(
 
 	/** Only active user sessions may be restarted after involuntary Android teardown. */
 	val isRestartEligible: Boolean
-		get() = isUserInitiated && lifecycleState == LogicalTrackingLifecycleState.ACTIVE
+		get() = isUserInitiated && lifecycleState == LogicalTrackingLifecycleState.ACTIVE &&
+			restartBootId != null && restartToken != null
+
+	fun isRestartEligibleForBoot(currentBootId: String): Boolean =
+		isRestartEligible && restartBootId == currentBootId
 
 	/**
 	 * Starts a new Android-service run without creating a new logical session.
@@ -278,5 +291,18 @@ interface ActiveTrackingSessionStore {
 				current
 			}
 		}
+	}
+
+	/**
+	 * Clears the complete descriptor only when every persisted identity and lifecycle field still
+	 * equals [descriptor]. Unlike [clearIfCurrent], this is not limited to STOP_CANDIDATE and is
+	 * intended for a recovery owner that has already finalized that exact stale lifecycle in Room.
+	 */
+	suspend fun clearExact(
+		descriptor: ActiveTrackingSessionDescriptor,
+	): ActiveTrackingSessionStoreResult = when (val current = read()) {
+		is ActiveTrackingSessionStoreResult.Failure -> current
+		is ActiveTrackingSessionStoreResult.Success ->
+			if (current.descriptor == descriptor) clear() else current
 	}
 }

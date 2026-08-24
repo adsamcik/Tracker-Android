@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.work.Configuration
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.Operation
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.Worker
@@ -17,12 +18,16 @@ import com.adsamcik.tracker.impexp.importer.DataImporter
 import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
 import com.adsamcik.tracker.maintenance.DatabaseMaintenanceWorker
 import com.adsamcik.tracker.points.event.PointsDomainEventConsumer
+import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupException
 import com.adsamcik.tracker.stats.data.worker.AchievementWorker
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
+import com.adsamcik.tracker.tracker.api.TrackingStopQuiescenceResult
 import com.adsamcik.tracker.tracker.resilience.PendingSignalDrainWork
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
 import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
+import com.adsamcik.tracker.tracker.worker.HistoricalTrajectoryReconstructionWorker
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -30,8 +35,10 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.verify
+import com.google.common.util.concurrent.SettableFuture
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -104,6 +111,12 @@ class DefaultCollectedDataWriterQuiescerTest {
 			ExistingWorkPolicy.REPLACE,
 			pendingSignalDrain,
 		).result.get()
+		val historicalReconstruction = delayedWork()
+		workManager.enqueueUniqueWork(
+			HistoricalTrajectoryReconstructionWorker.UNIQUE_WORK_NAME,
+			ExistingWorkPolicy.REPLACE,
+			historicalReconstruction,
+		).result.get()
 		val retention = delayedWork()
 		workManager.enqueueUniqueWork(
 			RetentionPipelineWorker.WORK_NAME,
@@ -127,11 +140,12 @@ class DefaultCollectedDataWriterQuiescerTest {
 			trackerStateReader = trackerStateReader,
 			activityWatcherController = activityWatcherController,
 			exportAutomationController = exportAutomationController,
+			awaitTrackerQuiescence = { TrackingStopQuiescenceResult.HANDLED },
 		)
 
 		quiescer.quiesce()
 
-		(requests + dailySummary + import + pendingSignalDrain + retention +
+		(requests + dailySummary + import + pendingSignalDrain + historicalReconstruction + retention +
 			legacyRetention + databaseMaintenance).forEach { request ->
 			workManager.getWorkInfoById(request.id).get()?.state shouldBe WorkInfo.State.CANCELLED
 		}
@@ -151,6 +165,57 @@ class DefaultCollectedDataWriterQuiescerTest {
 		workManager.getWorkInfosForUniqueWork(
 			DatabaseMaintenanceWorker.MAINTENANCE_UNIQUE_ID,
 		).get().any { it.state == WorkInfo.State.ENQUEUED } shouldBe true
+	}
+
+	@Test
+	fun `quiesce times out a stuck WorkManager cancellation without blocking`() = runTest {
+		val neverCompletingOperation = mockk<Operation>()
+		every { neverCompletingOperation.result } returns
+			SettableFuture.create<Operation.State.SUCCESS>()
+		val stuckWorkManager = mockk<WorkManager>()
+		every { stuckWorkManager.getWorkInfosForUniqueWorkFlow(any()) } returns flowOf(emptyList())
+		every {
+			stuckWorkManager.cancelAllWorkByTag(PointsDomainEventConsumer.POINTS_WORK_TAG)
+		} returns neverCompletingOperation
+		val quiescer = DefaultCollectedDataWriterQuiescer(
+			context = context,
+			trackerStateReader = trackerStateReader,
+			activityWatcherController = activityWatcherController,
+			exportAutomationController = exportAutomationController,
+			workManager = stuckWorkManager,
+			quiescenceTimeoutMs = 1L,
+			awaitTrackerQuiescence = { TrackingStopQuiescenceResult.HANDLED },
+		)
+
+		runCatching { quiescer.quiesce() }
+			.exceptionOrNull()
+			.shouldBeInstanceOf<DatabaseMigrationBackupException>()
+
+		verify(exactly = 1) { activityWatcherController.pauseForDataDeletion() }
+		coVerify(exactly = 0) { exportAutomationController.pauseForDataDeletion() }
+	}
+
+	@Test
+	fun `quiesce requires the durable tracker boundary even when presentation says stopped`() = runTest {
+		trackerRunning.value = false
+		var awaited = false
+		val quiescer = DefaultCollectedDataWriterQuiescer(
+			context = context,
+			trackerStateReader = trackerStateReader,
+			activityWatcherController = activityWatcherController,
+			exportAutomationController = exportAutomationController,
+			awaitTrackerQuiescence = {
+				awaited = true
+				TrackingStopQuiescenceResult.SUPERSEDED
+			},
+		)
+
+		runCatching { quiescer.quiesce() }
+			.exceptionOrNull()
+			.shouldBeInstanceOf<DatabaseMigrationBackupException>()
+
+		awaited shouldBe true
+		coVerify(exactly = 0) { exportAutomationController.pauseForDataDeletion() }
 	}
 
 	private fun delayedWork(tag: String? = null) =

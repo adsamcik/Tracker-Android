@@ -20,4 +20,6 @@ message ActiveTrackingSessionProto {
   int64 lifecycle_changed_at_epoch_ms = 9;
   string stop_candidate_reason = 10;
   int64 stop_candidate_requested_at_epoch_ms = 11;
+  string restart_boot_id = 12;
+  string restart_token = 13;
 }

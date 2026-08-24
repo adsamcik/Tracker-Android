@@ -14,17 +14,16 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.pruneSourceEventStorageBefore
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
-import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
-import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
-import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
-import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
+import javax.inject.Provider
 
 /**
  * Periodic worker that deletes data older than N years to honor auto-cleanup setting.
@@ -34,14 +33,11 @@ class DataRetentionWorker @AssistedInject constructor(
     @Assisted context: Context,
     @Assisted workerParams: WorkerParameters,
     private val retentionConfigStore: RetentionConfigStore,
-    private val appDatabase: AppDatabase,
-    private val locationSampleDao: LocationSampleDao,
-    private val wifiObservationDao: WifiObservationDao,
-    private val cellSampleDao: CellSampleDao,
-    private val sessionSegmentDao: SessionSegmentDao,
+    private val appDatabaseProvider: Provider<AppDatabase>,
     private val exportPlanStore: ExportPlanStore,
     private val migrationBackupRepository: DatabaseMigrationBackupRepository,
 	private val collectedDataLifecycleStore: CollectedDataLifecycleStore,
+	private val trackingStartupGate: TrackingStartupGate,
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -54,17 +50,31 @@ class DataRetentionWorker @AssistedInject constructor(
 		if (years == 0) {
 			return Result.success()
 		}
+		val startupGeneration = trackingStartupGate.currentGeneration
+		when (trackingStartupGate.reconcile()) {
+			is TrackingStartupResult.Ready -> Unit
+			is TrackingStartupResult.RetryableFailure -> return Result.retry()
+			is TrackingStartupResult.Blocked -> return Result.success()
+		}
 		val now = System.currentTimeMillis()
 		val cutoff = computeCutoffMillis(years, now)
         return try {
+			requireReadyGeneration(startupGeneration)
+			val appDatabase = appDatabaseProvider.get()
 			// The policy and backup cleanup precede the physical delete, so a WAL
 			// entry can defer that delete without preserving expired history in a
 			// migration snapshot.
+			requireReadyGeneration(startupGeneration)
 			val lifecycle = collectedDataLifecycleStore.advanceRetainedFrom(cutoff)
+			requireReadyGeneration(startupGeneration)
 			migrationBackupRepository.deleteAll()
-			when (pruneRawData(cutoff, lifecycle, now)) {
+			when (pruneRawData(appDatabase, cutoff, lifecycle, now, startupGeneration)) {
 				RawRetentionPruneResult.PRUNED -> {
-					appDatabase.pruneSourceEventStorageBefore(cutoff)
+					requireReadyGeneration(startupGeneration)
+					appDatabase.pruneSourceEventStorageBefore(
+						createdBeforeMs = cutoff,
+						verifyCollectedDataAccess = { requireReadyGeneration(startupGeneration) },
+					)
 					Result.success()
 				}
 				RawRetentionPruneResult.DEFERRED_FOR_PENDING_SIGNALS -> {
@@ -73,6 +83,8 @@ class DataRetentionWorker @AssistedInject constructor(
 			}
         } catch (e: CancellationException) {
             throw e
+		} catch (_: StartupGenerationChangedException) {
+			Result.success()
         } catch (error: Exception) {
             Tracebox.log.error(error, "Data retention failed")
             Result.retry()
@@ -115,44 +127,52 @@ class DataRetentionWorker @AssistedInject constructor(
 
     @WorkerThread
     private suspend fun pruneRawData(
+		appDatabase: AppDatabase,
         cutoffMillis: Long,
         lifecycle: CollectedDataLifecycleSnapshot,
         updatedAtMs: Long,
+		startupGeneration: Long,
     ): RawRetentionPruneResult {
         val pruned = appDatabase.withTransaction {
-            val sourceEvidenceStateDao = appDatabase.sourceEvidenceStateDao()
-            val lifecycleChanged = sourceEvidenceStateDao.synchronizeLifecycle(
-                epoch = lifecycle.epoch,
-                retainedFromMs = lifecycle.retainedFromMs,
-                updatedAtMs = updatedAtMs,
-            )
-            if (appDatabase.pendingSignalDao().hasAny()) return@withTransaction false
-            if (!lifecycleChanged) {
-                check(sourceEvidenceStateDao.incrementRevision(updatedAtMs) == 1) {
-                    "Unable to advance source-evidence revision for raw-data retention"
-                }
-            }
-            appDatabase.trajectoryReconstructionDao().deleteWithSourceBefore(cutoffMillis)
-            val observationDao = appDatabase.locationObservationDao()
-            observationDao.deleteOlderThan(cutoffMillis)
-			appDatabase.locationProjectionDao().deleteObservationsOlderThan(cutoffMillis)
-            appDatabase.locationObservationDecisionDao().apply {
-                deleteOlderThan(cutoffMillis)
-                deleteWithoutObservation()
-            }
-            appDatabase.trackerStateEventDao().deleteOlderThan(cutoffMillis)
-            locationSampleDao.deleteOlderThan(cutoffMillis)
-			appDatabase.stepIntervalDao().deleteOlderThan(cutoffMillis)
-			appDatabase.activitySnapshotDao().deleteOlderThan(cutoffMillis)
-			appDatabase.trackerRunDao().deleteOlderThan(cutoffMillis)
-			appDatabase.pressureSampleDao().deleteOlderThan(cutoffMillis)
-			appDatabase.skiRunSegmentDao().deleteOlderThan(cutoffMillis)
-            wifiObservationDao.deleteOlderThan(cutoffMillis)
-            cellSampleDao.deleteOlderThan(cutoffMillis)
-            sessionSegmentDao.deleteOlderThan(cutoffMillis)
-            true
+			requireReadyGeneration(startupGeneration)
+			try {
+				val sourceEvidenceStateDao = appDatabase.sourceEvidenceStateDao()
+				val lifecycleChanged = sourceEvidenceStateDao.synchronizeLifecycle(
+					epoch = lifecycle.epoch,
+					retainedFromMs = lifecycle.retainedFromMs,
+					updatedAtMs = updatedAtMs,
+				)
+				if (appDatabase.pendingSignalDao().hasAny()) return@withTransaction false
+				if (!lifecycleChanged) {
+					check(sourceEvidenceStateDao.incrementRevision(updatedAtMs) == 1) {
+						"Unable to advance source-evidence revision for raw-data retention"
+					}
+				}
+				appDatabase.trajectoryReconstructionDao().deleteWithSourceBefore(cutoffMillis)
+				val observationDao = appDatabase.locationObservationDao()
+				observationDao.deleteOlderThan(cutoffMillis)
+				appDatabase.locationProjectionDao().deleteObservationsOlderThan(cutoffMillis)
+				appDatabase.locationObservationDecisionDao().apply {
+					deleteOlderThan(cutoffMillis)
+					deleteWithoutObservation()
+				}
+				appDatabase.trackerStateEventDao().deleteOlderThan(cutoffMillis)
+				appDatabase.locationSampleDao().deleteOlderThan(cutoffMillis)
+				appDatabase.stepIntervalDao().deleteOlderThan(cutoffMillis)
+				appDatabase.activitySnapshotDao().deleteOlderThan(cutoffMillis)
+				appDatabase.trackerRunDao().deleteOlderThan(cutoffMillis)
+				appDatabase.pressureSampleDao().deleteOlderThan(cutoffMillis)
+				appDatabase.skiRunSegmentDao().deleteOlderThan(cutoffMillis)
+				appDatabase.wifiObservationDao().deleteOlderThan(cutoffMillis)
+				appDatabase.cellSampleDao().deleteOlderThan(cutoffMillis)
+				appDatabase.sessionSegmentDao().deleteOlderThan(cutoffMillis)
+				true
+			} finally {
+				requireReadyGeneration(startupGeneration)
+			}
         }
         return if (pruned) {
+			requireReadyGeneration(startupGeneration)
             exportPlanStore.resetAllWatermarks()
             RawRetentionPruneResult.PRUNED
         } else {
@@ -160,8 +180,18 @@ class DataRetentionWorker @AssistedInject constructor(
         }
     }
 
+	private fun requireReadyGeneration(startupGeneration: Long) {
+		if (!trackingStartupGate.isReady ||
+			trackingStartupGate.currentGeneration != startupGeneration
+		) {
+			throw StartupGenerationChangedException
+		}
+	}
+
     private enum class RawRetentionPruneResult {
         PRUNED,
         DEFERRED_FOR_PENDING_SIGNALS,
     }
+
+	private object StartupGenerationChangedException : RuntimeException()
 }

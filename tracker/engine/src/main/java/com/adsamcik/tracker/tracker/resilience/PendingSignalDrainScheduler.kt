@@ -7,24 +7,26 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.Operation
 import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
+import androidx.work.workDataOf
 import com.adsamcik.tracker.tracker.worker.PendingSignalDrainWorker
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
 interface PendingSignalDrainScheduler {
-	fun enqueueExpedited()
+	fun enqueueExpedited(startupGeneration: Long)
 }
 
 @Singleton
 class WorkManagerPendingSignalDrainScheduler @Inject constructor(
 	@ApplicationContext private val context: Context,
 ) : PendingSignalDrainScheduler {
-	override fun enqueueExpedited() {
+	override fun enqueueExpedited(startupGeneration: Long) {
+		require(startupGeneration >= 0L)
 		WorkManager.getInstance(context).enqueueUniqueWork(
 			PendingSignalDrainWork.UNIQUE_WORK_NAME,
-			ExistingWorkPolicy.KEEP,
-			buildPendingSignalDrainRequest(),
+			ExistingWorkPolicy.REPLACE,
+			buildPendingSignalDrainRequest(startupGeneration),
 		)
 	}
 }
@@ -37,8 +39,10 @@ object PendingSignalDrainWork {
 		WorkManager.getInstance(context).cancelUniqueWork(UNIQUE_WORK_NAME)
 }
 
-internal fun buildPendingSignalDrainRequest(): OneTimeWorkRequest =
+internal fun buildPendingSignalDrainRequest(startupGeneration: Long): OneTimeWorkRequest =
 	OneTimeWorkRequestBuilder<PendingSignalDrainWorker>()
+		.setInputData(
+			workDataOf(PendingSignalDrainWorker.STARTUP_GENERATION_KEY to startupGeneration),
+		)
 		.setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
 		.build()
-

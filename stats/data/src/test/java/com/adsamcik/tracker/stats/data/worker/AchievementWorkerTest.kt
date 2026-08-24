@@ -7,6 +7,8 @@ import androidx.work.testing.TestListenableWorkerBuilder
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.stats.api.AchievementDefinition
 import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
@@ -36,6 +38,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import javax.inject.Provider
 
 /**
  * Verifies the AchievementWorker contract on the unified rule engine:
@@ -77,17 +80,28 @@ class AchievementWorkerTest {
 					): ListenableWorker = AchievementWorker(
 						appContext,
 						workerParameters,
-						ruleRegistry,
-						metricsProvider,
-						achievementDao,
+						Provider { ruleRegistry },
+						Provider { metricsProvider },
+						Provider { achievementDao },
 						dirtyTracker,
-						object : AchievementEvaluationTransactionRunner {
-							override suspend fun run(block: suspend () -> Unit) = block()
+						Provider {
+							object : AchievementEvaluationTransactionRunner {
+								override suspend fun run(block: suspend () -> Unit) = block()
+							}
 						},
+						READY_STARTUP_GATE,
 					)
 				},
 			)
 			.build()
+	}
+
+	private companion object {
+		val READY_STARTUP_GATE = object : TrackingStartupGate {
+			override val isReady: Boolean = true
+			override suspend fun reconcile(retryFailedStorage: Boolean) =
+				TrackingStartupResult.Ready(legacyRecoveryPartial = false, liveCompletedThroughOrdinal = 0L)
+		}
 	}
 
 	private fun ruleInstanceFor(definition: AchievementDefinition): RuleInstance = RuleInstance(
