@@ -21,4 +21,11 @@ class NonCancellationResultTest {
 		assertTrue(result.isFailure)
 		assertEquals("storage", result.exceptionOrNull()?.message)
 	}
+
+	@Test
+	fun `fatal errors are never converted to operational failures`() {
+		assertFailsWith<AssertionError> {
+			runCatchingNonCancellation<Unit> { throw AssertionError("fatal") }
+		}
+	}
 }
