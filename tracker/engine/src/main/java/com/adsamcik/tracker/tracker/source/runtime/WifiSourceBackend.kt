@@ -46,15 +46,32 @@ internal data class WifiBackendSnapshot(val accessPoints: List<WifiBackendAccess
 internal enum class WifiRequestOutcome { ACCEPTED, THROTTLED, PERMISSION_BLOCKED, PROVIDER_FAILED }
 
 @Singleton
-internal class AndroidWifiSourceBackend @Inject constructor(
-	@ApplicationContext context: Context,
+internal class AndroidWifiSourceBackend internal constructor(
+	private val wifiManager: WifiManager?,
+	private val registerReceiver: (BroadcastReceiver, IntentFilter) -> Unit,
+	private val unregisterReceiver: (BroadcastReceiver) -> Unit,
 ) {
-	private val context = context.applicationContext
-	private val wifiManager = context.getSystemService(WifiManager::class.java)
+	@Inject
+	constructor(
+		@ApplicationContext context: Context,
+	) : this(
+		wifiManager = context.applicationContext.getSystemService(WifiManager::class.java),
+		registerReceiver = { receiver, filter ->
+			ContextCompat.registerReceiver(
+				context.applicationContext,
+				receiver,
+				filter,
+				ContextCompat.RECEIVER_NOT_EXPORTED,
+			)
+			Unit
+		},
+		unregisterReceiver = context.applicationContext::unregisterReceiver,
+	)
+
 	private var receiver: BroadcastReceiver? = null
 
 	fun start(callback: (WifiBackendEvent) -> Unit): Boolean {
-		if (receiver != null || wifiManager == null) return wifiManager != null
+		if (receiver != null || wifiManager == null) return false
 		val next = object : BroadcastReceiver() {
 			override fun onReceive(context: Context, intent: Intent) {
 				when (intent.action) {
@@ -74,14 +91,12 @@ internal class AndroidWifiSourceBackend @Inject constructor(
 			}
 		}
 		return runCatching {
-			ContextCompat.registerReceiver(
-				context,
+			registerReceiver(
 				next,
 				IntentFilter().apply {
 					addAction(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)
 					addAction(PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED)
 				},
-				ContextCompat.RECEIVER_NOT_EXPORTED,
 			)
 			receiver = next
 			true
@@ -90,8 +105,11 @@ internal class AndroidWifiSourceBackend @Inject constructor(
 
 	fun stop(): Boolean {
 		val active = receiver ?: return true
-		return runCatching { context.unregisterReceiver(active); receiver = null; true }
-			.getOrElse { receiver = null; false }
+		return runCatching {
+			unregisterReceiver(active)
+			receiver = null
+			true
+		}.getOrDefault(false)
 	}
 
 	@Suppress("DEPRECATION")
