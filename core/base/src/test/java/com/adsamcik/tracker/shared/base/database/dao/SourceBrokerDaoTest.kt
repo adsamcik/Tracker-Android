@@ -273,6 +273,187 @@ class SourceBrokerDaoTest {
 		registration(dao, 3L).failureCode shouldBe "ORDERLY_STOP"
 	}
 
+	@Test
+	fun `current process retirement CAS is exact fenced and keeps its first boundary`() = runTest {
+		val dao = database.sourceBrokerDao()
+		listOf(
+			providerRegistration(
+				registrationGeneration = 1L,
+				providerProcessIncarnationId = CURRENT_PROCESS_ID,
+				status = ProviderRegistrationGenerationEntity.STATUS_RESERVED,
+				acceptedAtMs = null,
+				acceptedElapsedRealtimeNanos = null,
+			),
+			providerRegistration(
+				registrationGeneration = 2L,
+				providerProcessIncarnationId = CURRENT_PROCESS_ID,
+			),
+			providerRegistration(
+				registrationGeneration = 3L,
+				providerProcessIncarnationId = CURRENT_PROCESS_ID,
+				status = ProviderRegistrationGenerationEntity.STATUS_RETIRING,
+				retiredAtMs = 150L,
+				retiredElapsedRealtimeNanos = 140L,
+				failureCode = "FIRST_STOP",
+			),
+			providerRegistration(
+				registrationGeneration = 4L,
+				status = ProviderRegistrationGenerationEntity.STATUS_RESERVED,
+				acceptedAtMs = null,
+				acceptedElapsedRealtimeNanos = null,
+			),
+			providerRegistration(
+				registrationGeneration = 5L,
+				providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE,
+				providerProcessIncarnationId = null,
+			),
+			providerRegistration(
+				registrationGeneration = 6L,
+				providerProcessIncarnationId = CURRENT_PROCESS_ID,
+				status = ProviderRegistrationGenerationEntity.STATUS_RESERVED,
+				acceptedAtMs = null,
+				acceptedElapsedRealtimeNanos = null,
+			),
+		).forEach { dao.insertRegistration(it) }
+
+		dao.failUnacceptedCurrentProcessReservation(
+			sourceKind = SOURCE_KIND,
+			registrationGeneration = 1L,
+			sourceInstanceId = "provider-1",
+			currentProcessId = CURRENT_PROCESS_ID,
+			failedAtMs = 110L,
+			failedElapsedRealtimeNanos = 100L,
+			failureCode = "NOT_ACCEPTED",
+		) shouldBe 1
+		dao.failUnacceptedCurrentProcessReservation(
+			sourceKind = SOURCE_KIND,
+			registrationGeneration = 1L,
+			sourceInstanceId = "provider-1",
+			currentProcessId = CURRENT_PROCESS_ID,
+			failedAtMs = 120L,
+			failedElapsedRealtimeNanos = 110L,
+			failureCode = "RETRY",
+		) shouldBe 0
+		dao.failUnacceptedCurrentProcessReservation(
+			sourceKind = SOURCE_KIND,
+			registrationGeneration = 2L,
+			sourceInstanceId = "provider-1",
+			currentProcessId = CURRENT_PROCESS_ID,
+			failedAtMs = 120L,
+			failedElapsedRealtimeNanos = 110L,
+			failureCode = "MUST_NOT_FAIL_ACTIVE",
+		) shouldBe 0
+		dao.failUnacceptedCurrentProcessReservation(
+			sourceKind = SOURCE_KIND,
+			registrationGeneration = 4L,
+			sourceInstanceId = "provider-1",
+			currentProcessId = CURRENT_PROCESS_ID,
+			failedAtMs = 120L,
+			failedElapsedRealtimeNanos = 110L,
+			failureCode = "MUST_NOT_FAIL_PRIOR_PROCESS",
+		) shouldBe 0
+
+		val activeRetirement = requireNotNull(
+			dao.beginCurrentProcessRegistrationRetirement(
+				sourceKind = SOURCE_KIND,
+				registrationGeneration = 2L,
+				sourceInstanceId = "provider-1",
+				currentProcessId = CURRENT_PROCESS_ID,
+				retiredAtMs = 200L,
+				retiredElapsedRealtimeNanos = 190L,
+				reason = "ORDERLY_STOP",
+			),
+		)
+		val repeatedRetirement = requireNotNull(
+			dao.beginCurrentProcessRegistrationRetirement(
+				sourceKind = SOURCE_KIND,
+				registrationGeneration = 2L,
+				sourceInstanceId = "provider-1",
+				currentProcessId = CURRENT_PROCESS_ID,
+				retiredAtMs = 300L,
+				retiredElapsedRealtimeNanos = 290L,
+				reason = "MOVED_BOUNDARY",
+			),
+		)
+		activeRetirement shouldBe repeatedRetirement
+		activeRetirement.shouldHaveState(
+			status = ProviderRegistrationGenerationEntity.STATUS_RETIRING,
+			retiredAtMs = 200L,
+			retiredElapsedRealtimeNanos = 190L,
+			failureCode = "ORDERLY_STOP",
+		)
+
+		val reservedRetirement = requireNotNull(
+			dao.beginCurrentProcessRegistrationRetirement(
+				sourceKind = SOURCE_KIND,
+				registrationGeneration = 6L,
+				sourceInstanceId = "provider-1",
+				currentProcessId = CURRENT_PROCESS_ID,
+				retiredAtMs = 210L,
+				retiredElapsedRealtimeNanos = 200L,
+				reason = "UNCONFIRMED_PROVIDER_CLEANUP",
+			),
+		)
+		reservedRetirement.status shouldBe ProviderRegistrationGenerationEntity.STATUS_RETIRING
+		dao.beginCurrentProcessRegistrationRetirement(
+			sourceKind = SOURCE_KIND,
+			registrationGeneration = 5L,
+			sourceInstanceId = "provider-1",
+			currentProcessId = CURRENT_PROCESS_ID,
+			retiredAtMs = 210L,
+			retiredElapsedRealtimeNanos = 200L,
+			reason = "MUST_NOT_TOUCH_SYSTEM_REARMABLE",
+		) shouldBe null
+
+		dao.hasPendingCurrentProcessProviderRemoval(SOURCE_KIND, CURRENT_PROCESS_ID) shouldBe true
+		dao.pendingCurrentProcessProviderRemovals(SOURCE_KIND, CURRENT_PROCESS_ID)
+			.map { it.registrationGeneration } shouldBe listOf(2L, 3L, 6L)
+
+		dao.completeCurrentProcessRegistrationRetirement(
+			sourceKind = SOURCE_KIND,
+			registrationGeneration = 2L,
+			sourceInstanceId = "provider-1",
+			currentProcessId = CURRENT_PROCESS_ID,
+			retiredAtMs = 201L,
+			retiredElapsedRealtimeNanos = 190L,
+		) shouldBe 0
+		dao.completeCurrentProcessRegistrationRetirement(
+			sourceKind = SOURCE_KIND,
+			registrationGeneration = 2L,
+			sourceInstanceId = "provider-1",
+			currentProcessId = PRIOR_PROCESS_ID,
+			retiredAtMs = 200L,
+			retiredElapsedRealtimeNanos = 190L,
+		) shouldBe 0
+		dao.completeCurrentProcessRegistrationRetirement(
+			sourceKind = SOURCE_KIND,
+			registrationGeneration = 2L,
+			sourceInstanceId = "provider-1",
+			currentProcessId = CURRENT_PROCESS_ID,
+			retiredAtMs = 200L,
+			retiredElapsedRealtimeNanos = 190L,
+		) shouldBe 1
+		dao.completeCurrentProcessRegistrationRetirement(
+			sourceKind = SOURCE_KIND,
+			registrationGeneration = 2L,
+			sourceInstanceId = "provider-1",
+			currentProcessId = CURRENT_PROCESS_ID,
+			retiredAtMs = 200L,
+			retiredElapsedRealtimeNanos = 190L,
+		) shouldBe 0
+		dao.isCurrentProcessRegistrationRetirementComplete(
+			sourceKind = SOURCE_KIND,
+			registrationGeneration = 2L,
+			sourceInstanceId = "provider-1",
+			currentProcessId = CURRENT_PROCESS_ID,
+			retiredAtMs = 200L,
+			retiredElapsedRealtimeNanos = 190L,
+		) shouldBe true
+		registration(dao, 2L).status shouldBe ProviderRegistrationGenerationEntity.STATUS_RETIRED
+		registration(dao, 4L).status shouldBe ProviderRegistrationGenerationEntity.STATUS_RESERVED
+		registration(dao, 5L).status shouldBe ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+	}
+
 	private suspend fun registration(
 		dao: SourceBrokerDao,
 		registrationGeneration: Long,

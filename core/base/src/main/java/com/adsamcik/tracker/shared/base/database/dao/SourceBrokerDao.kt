@@ -180,6 +180,27 @@ interface SourceBrokerDao {
 	suspend fun pendingProviderRemovals(sourceKind: Int): List<ProviderRegistrationGenerationEntity>
 
 	@Query(
+		"SELECT * FROM provider_registration_generation WHERE source_kind = :sourceKind " +
+			"AND provider_residency = 'PROCESS_BOUND' " +
+			"AND provider_process_incarnation_id = :currentProcessId AND status = 'RETIRING' " +
+			"ORDER BY registration_generation",
+	)
+	suspend fun pendingCurrentProcessProviderRemovals(
+		sourceKind: Int,
+		currentProcessId: String,
+	): List<ProviderRegistrationGenerationEntity>
+
+	@Query(
+		"SELECT EXISTS(SELECT 1 FROM provider_registration_generation " +
+			"WHERE source_kind = :sourceKind AND provider_residency = 'PROCESS_BOUND' " +
+			"AND provider_process_incarnation_id = :currentProcessId AND status = 'RETIRING')",
+	)
+	suspend fun hasPendingCurrentProcessProviderRemoval(
+		sourceKind: Int,
+		currentProcessId: String,
+	): Boolean
+
+	@Query(
 		"SELECT EXISTS(SELECT 1 FROM provider_registration_generation " +
 			"WHERE provider_residency = 'PROCESS_BOUND' " +
 			"AND provider_process_incarnation_id IS NOT NULL " +
@@ -322,6 +343,137 @@ interface SourceBrokerDao {
 		acceptedAtMs: Long,
 		acceptedElapsedRealtimeNanos: Long,
 	): Int
+
+	@Query(
+		"UPDATE provider_registration_generation SET status = 'FAILED', " +
+			"retired_at_ms = :failedAtMs, " +
+			"retired_elapsed_realtime_nanos = :failedElapsedRealtimeNanos, " +
+			"failure_code = :failureCode " +
+			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration " +
+			"AND source_instance_id = :sourceInstanceId " +
+			"AND provider_residency = 'PROCESS_BOUND' " +
+			"AND provider_process_incarnation_id = :currentProcessId AND status = 'RESERVED'",
+	)
+	suspend fun failUnacceptedCurrentProcessReservation(
+		sourceKind: Int,
+		registrationGeneration: Long,
+		sourceInstanceId: String,
+		currentProcessId: String,
+		failedAtMs: Long,
+		failedElapsedRealtimeNanos: Long,
+		failureCode: String,
+	): Int
+
+	@Query(
+		"UPDATE provider_registration_generation SET status = 'RETIRING', " +
+			"retired_at_ms = COALESCE(retired_at_ms, :retiredAtMs), " +
+			"retired_elapsed_realtime_nanos = " +
+			"COALESCE(retired_elapsed_realtime_nanos, :retiredElapsedRealtimeNanos), " +
+			"failure_code = COALESCE(failure_code, :reason) " +
+			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration " +
+			"AND source_instance_id = :sourceInstanceId " +
+			"AND provider_residency = 'PROCESS_BOUND' " +
+			"AND provider_process_incarnation_id = :currentProcessId " +
+			"AND status IN ('RESERVED', 'ACTIVE')",
+	)
+	suspend fun markCurrentProcessRegistrationRetiring(
+		sourceKind: Int,
+		registrationGeneration: Long,
+		sourceInstanceId: String,
+		currentProcessId: String,
+		retiredAtMs: Long,
+		retiredElapsedRealtimeNanos: Long,
+		reason: String,
+	): Int
+
+	@Query(
+		"SELECT * FROM provider_registration_generation WHERE source_kind = :sourceKind " +
+			"AND registration_generation = :registrationGeneration " +
+			"AND source_instance_id = :sourceInstanceId " +
+			"AND provider_residency = 'PROCESS_BOUND' " +
+			"AND provider_process_incarnation_id = :currentProcessId AND status = 'RETIRING' " +
+			"LIMIT 1",
+	)
+	suspend fun currentProcessRetiringRegistration(
+		sourceKind: Int,
+		registrationGeneration: Long,
+		sourceInstanceId: String,
+		currentProcessId: String,
+	): ProviderRegistrationGenerationEntity?
+
+	/**
+	 * Opens one exact provider-removal interval and returns its immutable durable boundary.
+	 * Repeating the call for an already-RETIRING identity returns the same row without moving it.
+	 */
+	@Transaction
+	suspend fun beginCurrentProcessRegistrationRetirement(
+		sourceKind: Int,
+		registrationGeneration: Long,
+		sourceInstanceId: String,
+		currentProcessId: String,
+		retiredAtMs: Long,
+		retiredElapsedRealtimeNanos: Long,
+		reason: String,
+	): ProviderRegistrationGenerationEntity? {
+		require(sourceKind >= 0)
+		require(registrationGeneration > 0L)
+		require(sourceInstanceId.isNotBlank())
+		require(currentProcessId.isNotBlank())
+		require(retiredAtMs >= 0L)
+		require(retiredElapsedRealtimeNanos >= 0L)
+		require(reason.isNotBlank())
+		markCurrentProcessRegistrationRetiring(
+			sourceKind = sourceKind,
+			registrationGeneration = registrationGeneration,
+			sourceInstanceId = sourceInstanceId,
+			currentProcessId = currentProcessId,
+			retiredAtMs = retiredAtMs,
+			retiredElapsedRealtimeNanos = retiredElapsedRealtimeNanos,
+			reason = reason,
+		)
+		return currentProcessRetiringRegistration(
+			sourceKind = sourceKind,
+			registrationGeneration = registrationGeneration,
+			sourceInstanceId = sourceInstanceId,
+			currentProcessId = currentProcessId,
+		)
+	}
+
+	@Query(
+		"UPDATE provider_registration_generation SET status = 'RETIRED' " +
+			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration " +
+			"AND source_instance_id = :sourceInstanceId " +
+			"AND provider_residency = 'PROCESS_BOUND' " +
+			"AND provider_process_incarnation_id = :currentProcessId AND status = 'RETIRING' " +
+			"AND retired_at_ms = :retiredAtMs " +
+			"AND retired_elapsed_realtime_nanos = :retiredElapsedRealtimeNanos",
+	)
+	suspend fun completeCurrentProcessRegistrationRetirement(
+		sourceKind: Int,
+		registrationGeneration: Long,
+		sourceInstanceId: String,
+		currentProcessId: String,
+		retiredAtMs: Long,
+		retiredElapsedRealtimeNanos: Long,
+	): Int
+
+	@Query(
+		"SELECT EXISTS(SELECT 1 FROM provider_registration_generation " +
+			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration " +
+			"AND source_instance_id = :sourceInstanceId " +
+			"AND provider_residency = 'PROCESS_BOUND' " +
+			"AND provider_process_incarnation_id = :currentProcessId AND status = 'RETIRED' " +
+			"AND retired_at_ms = :retiredAtMs " +
+			"AND retired_elapsed_realtime_nanos = :retiredElapsedRealtimeNanos)",
+	)
+	suspend fun isCurrentProcessRegistrationRetirementComplete(
+		sourceKind: Int,
+		registrationGeneration: Long,
+		sourceInstanceId: String,
+		currentProcessId: String,
+		retiredAtMs: Long,
+		retiredElapsedRealtimeNanos: Long,
+	): Boolean
 
 	@Query(
 		"UPDATE provider_registration_generation SET status = 'RETIRING', retired_at_ms = :retiredAtMs, " +

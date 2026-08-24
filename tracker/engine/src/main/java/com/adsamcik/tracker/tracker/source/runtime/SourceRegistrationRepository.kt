@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.process.ProcessIncarnationIdProvider
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import java.util.UUID
 import javax.inject.Inject
@@ -33,6 +34,17 @@ data class SourceRegistration(
 	val purposeEligibilityMask: Long get() = authorization.purposeEligibilityMask
 	val eligibilityFingerprint: String get() = authorization.authorizationFingerprint
 }
+
+/** Exact durable authority for one process-bound provider removal attempt. */
+internal data class SourceRegistrationRetirementToken(
+	val source: SourceKind,
+	val sourceInstanceId: SourceInstanceId,
+	val registrationGeneration: Long,
+	val processIncarnationId: String,
+	val retiredAtMs: Long,
+	val retiredElapsedRealtimeNanos: Long,
+	val reason: String?,
+)
 
 /**
  * Allocates durable source identities and monotonically increasing source sequences.
@@ -78,6 +90,12 @@ class SourceRegistrationRepository @Inject constructor(
 		val processIncarnationId = processIncarnationIdProvider.current()
 		return database.withTransaction {
 			val brokerDao = database.sourceBrokerDao()
+			check(
+				!brokerDao.hasPendingCurrentProcessProviderRemoval(
+					sourceKind = source.stableCode,
+					currentProcessId = processIncarnationId,
+				),
+			) { "Pending provider removal must complete before a replacement can be reserved" }
 			val demands = brokerDao.authorizationDemands(source.stableCode)
 			require(demands.isNotEmpty()) {
 				"A source registration requires at least one durable active broker demand"
@@ -280,6 +298,94 @@ class SourceRegistrationRepository @Inject constructor(
 		)
 	}
 
+	internal suspend fun failUnacceptedReservation(
+		registration: SourceRegistration,
+		failureCode: String,
+		failedAtMs: Long,
+		failedElapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos(),
+	): Boolean {
+		require(registration.state.sourceKind != SourceKind.ACTIVITY.stableCode) {
+			"Activity registrations are system-rearmable and must use ActivityRegistrationArbiter"
+		}
+		require(failureCode.isNotBlank())
+		require(failedAtMs >= 0L)
+		require(failedElapsedRealtimeNanos >= 0L)
+		return database.sourceBrokerDao().failUnacceptedCurrentProcessReservation(
+			sourceKind = registration.state.sourceKind,
+			registrationGeneration = registration.state.registrationGeneration,
+			sourceInstanceId = registration.state.sourceInstanceId,
+			currentProcessId = processIncarnationIdProvider.current(),
+			failedAtMs = failedAtMs,
+			failedElapsedRealtimeNanos = failedElapsedRealtimeNanos,
+			failureCode = failureCode,
+		) == 1
+	}
+
+	/**
+	 * Persists the callback-admission cutoff before provider removal. Repeating this operation for
+	 * the same registration returns the first token unchanged.
+	 */
+	internal suspend fun beginRetirement(
+		registration: SourceRegistration,
+		reason: String,
+		retiredAtMs: Long,
+		retiredElapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos(),
+	): SourceRegistrationRetirementToken {
+		require(registration.state.sourceKind != SourceKind.ACTIVITY.stableCode) {
+			"Activity registrations are system-rearmable and must use ActivityRegistrationArbiter"
+		}
+		require(reason.isNotBlank())
+		require(retiredAtMs >= 0L)
+		require(retiredElapsedRealtimeNanos >= 0L)
+		val processIncarnationId = processIncarnationIdProvider.current()
+		val retiring = checkNotNull(
+			database.sourceBrokerDao().beginCurrentProcessRegistrationRetirement(
+				sourceKind = registration.state.sourceKind,
+				registrationGeneration = registration.state.registrationGeneration,
+				sourceInstanceId = registration.state.sourceInstanceId,
+				currentProcessId = processIncarnationId,
+				retiredAtMs = retiredAtMs,
+				retiredElapsedRealtimeNanos = retiredElapsedRealtimeNanos,
+				reason = reason,
+			),
+		) { "Provider registration is not current-process retirement eligible" }
+		return retiring.toRetirementToken()
+	}
+
+	internal suspend fun completeRetirement(token: SourceRegistrationRetirementToken): Boolean {
+		val currentProcessId = processIncarnationIdProvider.current()
+		if (token.processIncarnationId != currentProcessId) return false
+		val dao = database.sourceBrokerDao()
+		val completed = dao.completeCurrentProcessRegistrationRetirement(
+			sourceKind = token.source.stableCode,
+			registrationGeneration = token.registrationGeneration,
+			sourceInstanceId = token.sourceInstanceId.value,
+			currentProcessId = currentProcessId,
+			retiredAtMs = token.retiredAtMs,
+			retiredElapsedRealtimeNanos = token.retiredElapsedRealtimeNanos,
+		) == 1
+		return completed || dao.isCurrentProcessRegistrationRetirementComplete(
+			sourceKind = token.source.stableCode,
+			registrationGeneration = token.registrationGeneration,
+			sourceInstanceId = token.sourceInstanceId.value,
+			currentProcessId = currentProcessId,
+			retiredAtMs = token.retiredAtMs,
+			retiredElapsedRealtimeNanos = token.retiredElapsedRealtimeNanos,
+		)
+	}
+
+	internal suspend fun pendingRetirements(
+		source: SourceKind,
+	): List<SourceRegistrationRetirementToken> {
+		require(source != SourceKind.ACTIVITY) {
+			"Activity registrations are system-rearmable and must use ActivityRegistrationArbiter"
+		}
+		return database.sourceBrokerDao().pendingCurrentProcessProviderRemovals(
+			sourceKind = source.stableCode,
+			currentProcessId = processIncarnationIdProvider.current(),
+		).map { it.toRetirementToken() }
+	}
+
 	suspend fun markFailed(
 		registration: SourceRegistration,
 		failureCode: String,
@@ -311,6 +417,21 @@ class SourceRegistrationRepository @Inject constructor(
 			retiredAtMs,
 			retiredElapsedRealtimeNanos,
 			reason,
+		)
+	}
+
+	private fun ProviderRegistrationGenerationEntity.toRetirementToken():
+		SourceRegistrationRetirementToken {
+		check(providerResidency == ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND)
+		check(status == ProviderRegistrationGenerationEntity.STATUS_RETIRING)
+		return SourceRegistrationRetirementToken(
+			source = SourceKind.entries.single { it.stableCode == sourceKind },
+			sourceInstanceId = SourceInstanceId(sourceInstanceId),
+			registrationGeneration = registrationGeneration,
+			processIncarnationId = requireNotNull(providerProcessIncarnationId),
+			retiredAtMs = requireNotNull(retiredAtMs),
+			retiredElapsedRealtimeNanos = requireNotNull(retiredElapsedRealtimeNanos),
+			reason = failureCode,
 		)
 	}
 

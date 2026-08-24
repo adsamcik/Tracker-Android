@@ -291,6 +291,134 @@ class SourceRegistrationRepositoryTest {
 		)?.registrationGeneration shouldBe 1L
 	}
 
+	@Test
+	fun `unaccepted failure cannot terminalize an accepted provider`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true)),
+		)
+		val reservation = subject.begin(SourceKind.STEPS, 1L, PHYSICAL_CONFIG, 100L, 100L)
+
+		subject.failUnacceptedReservation(
+			reservation,
+			failureCode = "PROVIDER_REGISTRATION_FAILED",
+			failedAtMs = 110L,
+			failedElapsedRealtimeNanos = 110L,
+		) shouldBe true
+		subject.failUnacceptedReservation(
+			reservation,
+			failureCode = "REPLAYED_FAILURE",
+			failedAtMs = 120L,
+			failedElapsedRealtimeNanos = 120L,
+		) shouldBe false
+
+		val replacement = subject.begin(SourceKind.STEPS, 2L, PHYSICAL_CONFIG, 130L, 130L)
+		subject.markAccepted(replacement, 140L, 140L)
+		subject.failUnacceptedReservation(
+			replacement,
+			failureCode = "MUST_NOT_FAIL_ACTIVE",
+			failedAtMs = 150L,
+			failedElapsedRealtimeNanos = 150L,
+		) shouldBe false
+
+		database.sourceBrokerDao().registration(
+			SourceKind.STEPS.stableCode,
+			reservation.state.registrationGeneration,
+		)?.let { failed ->
+			failed.status shouldBe ProviderRegistrationGenerationEntity.STATUS_FAILED
+			failed.failureCode shouldBe "PROVIDER_REGISTRATION_FAILED"
+			failed.retiredElapsedRealtimeNanos shouldBe 110L
+		}
+		database.sourceBrokerDao().registration(
+			SourceKind.STEPS.stableCode,
+			replacement.state.registrationGeneration,
+		)?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+	}
+
+	@Test
+	fun `retirement token is idempotent exact and blocks replacement until completion`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true)),
+		)
+		val registration = subject.begin(SourceKind.STEPS, 1L, PHYSICAL_CONFIG, 100L, 100L)
+		subject.markAccepted(registration, 110L, 110L)
+
+		val firstToken = subject.beginRetirement(
+			registration,
+			reason = "ORDERLY_STOP",
+			retiredAtMs = 200L,
+			retiredElapsedRealtimeNanos = 190L,
+		)
+		val replayedToken = subject.beginRetirement(
+			registration,
+			reason = "MUST_NOT_MOVE_BOUNDARY",
+			retiredAtMs = 300L,
+			retiredElapsedRealtimeNanos = 290L,
+		)
+
+		replayedToken shouldBe firstToken
+		firstToken.reason shouldBe "ORDERLY_STOP"
+		firstToken.retiredAtMs shouldBe 200L
+		firstToken.retiredElapsedRealtimeNanos shouldBe 190L
+		subject.pendingRetirements(SourceKind.STEPS) shouldBe listOf(firstToken)
+		shouldThrow<IllegalStateException> {
+			subject.begin(SourceKind.STEPS, 2L, "physical-config-v2", 310L, 310L)
+		}
+		database.sourceBrokerDao().registrationAtObservedTime(
+			SourceKind.STEPS.stableCode,
+			registration.state.registrationGeneration,
+			registration.state.sourceInstanceId,
+			"boot-7",
+			PHYSICAL_CONFIG,
+			189L,
+		)?.registrationGeneration shouldBe registration.state.registrationGeneration
+		database.sourceBrokerDao().registrationAtObservedTime(
+			SourceKind.STEPS.stableCode,
+			registration.state.registrationGeneration,
+			registration.state.sourceInstanceId,
+			"boot-7",
+			PHYSICAL_CONFIG,
+			190L,
+		) shouldBe null
+
+		val otherProcessRepository = SourceRegistrationRepository(
+			database,
+			FakeCollectedDataLifecycleStore(CollectedDataLifecycleSnapshot(3L, null)),
+			object : BootClockDomainProvider {
+				override fun current(): String = "boot-7"
+			},
+			ProcessIncarnationIdProvider(),
+		)
+		otherProcessRepository.completeRetirement(firstToken) shouldBe false
+		subject.completeRetirement(firstToken) shouldBe true
+		subject.completeRetirement(firstToken) shouldBe true
+		subject.pendingRetirements(SourceKind.STEPS) shouldBe emptyList()
+
+		val replacement = subject.begin(SourceKind.STEPS, 2L, "physical-config-v2", 320L, 320L)
+		replacement.state.registrationGeneration shouldBe 2L
+	}
+
+	@Test
+	fun `reserved provider can enter exact retirement when cleanup remains required`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true)),
+		)
+		val registration = subject.begin(SourceKind.STEPS, 1L, PHYSICAL_CONFIG, 100L, 100L)
+
+		val token = subject.beginRetirement(
+			registration,
+			reason = "UNCONFIRMED_PROVIDER_CLEANUP",
+			retiredAtMs = 120L,
+			retiredElapsedRealtimeNanos = 120L,
+		)
+
+		token.registrationGeneration shouldBe registration.state.registrationGeneration
+		database.sourceBrokerDao().registration(
+			SourceKind.STEPS.stableCode,
+			registration.state.registrationGeneration,
+		)?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_RETIRING
+		subject.completeRetirement(token) shouldBe true
+	}
+
 	private fun demand(
 		id: String,
 		consumerId: String,
