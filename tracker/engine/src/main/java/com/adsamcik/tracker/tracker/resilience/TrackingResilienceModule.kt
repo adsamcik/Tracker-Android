@@ -17,6 +17,12 @@ abstract class TrackingResilienceModule {
 
 	@Binds
 	@Singleton
+	abstract fun bindTrackingLifecycleCommandAuthority(
+		implementation: SharedPreferencesTrackingLifecycleCommandAuthority,
+	): TrackingLifecycleCommandAuthority
+
+	@Binds
+	@Singleton
 	abstract fun bindTrackingStartupGuard(
 		implementation: DefaultTrackingStartupGuard,
 	): TrackingStartupGuard
