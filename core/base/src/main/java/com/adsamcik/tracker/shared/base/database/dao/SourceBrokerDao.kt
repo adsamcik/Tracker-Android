@@ -12,6 +12,15 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 
+data class PriorProcessRegistrationReconciliationResult(
+	val failedReservations: Int,
+	val retiredActiveRegistrations: Int,
+	val completedRetirements: Int,
+) {
+	val affectedRegistrations: Int
+		get() = failedReservations + retiredActiveRegistrations + completedRetirements
+}
+
 @Dao
 interface SourceBrokerDao {
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
@@ -169,6 +178,109 @@ interface SourceBrokerDao {
 			"AND status = 'RETIRING' ORDER BY registration_generation",
 	)
 	suspend fun pendingProviderRemovals(sourceKind: Int): List<ProviderRegistrationGenerationEntity>
+
+	@Query(
+		"SELECT EXISTS(SELECT 1 FROM provider_registration_generation " +
+			"WHERE provider_residency = 'PROCESS_BOUND' " +
+			"AND provider_process_incarnation_id IS NOT NULL " +
+			"AND provider_process_incarnation_id != :currentProcessId " +
+			"AND status IN ('RESERVED', 'ACTIVE', 'RETIRING'))",
+	)
+	suspend fun hasNonterminalProcessBoundRegistrationsFromAnotherIncarnation(
+		currentProcessId: String,
+	): Boolean
+
+	@Query(
+		"UPDATE provider_registration_generation SET status = 'FAILED', " +
+			"retired_at_ms = CASE WHEN clock_domain_id = :currentBootId " +
+			"THEN COALESCE(retired_at_ms, :reconciledAtMs) ELSE retired_at_ms END, " +
+			"retired_elapsed_realtime_nanos = CASE WHEN clock_domain_id = :currentBootId " +
+			"THEN COALESCE(retired_elapsed_realtime_nanos, :reconciledElapsedRealtimeNanos) " +
+			"ELSE retired_elapsed_realtime_nanos END, failure_code = COALESCE(failure_code, :reason) " +
+			"WHERE provider_residency = 'PROCESS_BOUND' " +
+			"AND provider_process_incarnation_id IS NOT NULL " +
+			"AND provider_process_incarnation_id != :currentProcessId AND status = 'RESERVED'",
+	)
+	suspend fun failPriorProcessReservations(
+		currentProcessId: String,
+		currentBootId: String,
+		reconciledAtMs: Long,
+		reconciledElapsedRealtimeNanos: Long,
+		reason: String,
+	): Int
+
+	@Query(
+		"UPDATE provider_registration_generation SET status = 'RETIRED', " +
+			"retired_at_ms = CASE WHEN clock_domain_id = :currentBootId " +
+			"THEN COALESCE(retired_at_ms, :reconciledAtMs) ELSE retired_at_ms END, " +
+			"retired_elapsed_realtime_nanos = CASE WHEN clock_domain_id = :currentBootId " +
+			"THEN COALESCE(retired_elapsed_realtime_nanos, :reconciledElapsedRealtimeNanos) " +
+			"ELSE retired_elapsed_realtime_nanos END, failure_code = COALESCE(failure_code, :reason) " +
+			"WHERE provider_residency = 'PROCESS_BOUND' " +
+			"AND provider_process_incarnation_id IS NOT NULL " +
+			"AND provider_process_incarnation_id != :currentProcessId AND status = 'ACTIVE'",
+	)
+	suspend fun retirePriorProcessActiveRegistrations(
+		currentProcessId: String,
+		currentBootId: String,
+		reconciledAtMs: Long,
+		reconciledElapsedRealtimeNanos: Long,
+		reason: String,
+	): Int
+
+	@Query(
+		"UPDATE provider_registration_generation SET status = 'RETIRED', " +
+			"failure_code = COALESCE(failure_code, :reason) " +
+			"WHERE provider_residency = 'PROCESS_BOUND' " +
+			"AND provider_process_incarnation_id IS NOT NULL " +
+			"AND provider_process_incarnation_id != :currentProcessId AND status = 'RETIRING'",
+	)
+	suspend fun completePriorProcessRetirements(
+		currentProcessId: String,
+		reason: String,
+	): Int
+
+	/**
+	 * Finalizes registrations whose process-bound provider cannot still exist.
+	 *
+	 * Elapsed realtime is only a valid retirement boundary inside its originating boot. Prior-boot
+	 * rows therefore become terminal without borrowing the current boot's elapsed timestamp. A
+	 * RETIRING row already owns its authoritative boundary, which this operation never rewrites.
+	 */
+	@Transaction
+	suspend fun reconcilePriorProcessRegistrations(
+		currentProcessId: String,
+		currentBootId: String,
+		reconciledAtMs: Long,
+		reconciledElapsedRealtimeNanos: Long,
+		reason: String,
+	): PriorProcessRegistrationReconciliationResult {
+		require(currentProcessId.isNotBlank())
+		require(currentBootId.isNotBlank())
+		require(reconciledAtMs >= 0L)
+		require(reconciledElapsedRealtimeNanos >= 0L)
+		require(reason.isNotBlank())
+		return PriorProcessRegistrationReconciliationResult(
+			failedReservations = failPriorProcessReservations(
+				currentProcessId = currentProcessId,
+				currentBootId = currentBootId,
+				reconciledAtMs = reconciledAtMs,
+				reconciledElapsedRealtimeNanos = reconciledElapsedRealtimeNanos,
+				reason = reason,
+			),
+			retiredActiveRegistrations = retirePriorProcessActiveRegistrations(
+				currentProcessId = currentProcessId,
+				currentBootId = currentBootId,
+				reconciledAtMs = reconciledAtMs,
+				reconciledElapsedRealtimeNanos = reconciledElapsedRealtimeNanos,
+				reason = reason,
+			),
+			completedRetirements = completePriorProcessRetirements(
+				currentProcessId = currentProcessId,
+				reason = reason,
+			),
+		)
+	}
 
 	@Query(
 		"SELECT * FROM source_registration_state WHERE source_kind = :sourceKind AND owner_scope = :ownerScope",

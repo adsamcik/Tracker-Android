@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.runtime
 import android.os.SystemClock
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.PriorProcessRegistrationReconciliationResult
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
@@ -49,6 +50,18 @@ class SourceRegistrationRepository @Inject constructor(
 	private val clockDomainProvider: BootClockDomainProvider,
 	private val processIncarnationIdProvider: ProcessIncarnationIdProvider,
 ) {
+	suspend fun reconcilePriorProcessRegistrations(
+		reconciledAtMs: Long = System.currentTimeMillis(),
+		reconciledElapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos(),
+	): PriorProcessRegistrationReconciliationResult =
+		database.sourceBrokerDao().reconcilePriorProcessRegistrations(
+			currentProcessId = processIncarnationIdProvider.current(),
+			currentBootId = clockDomainProvider.current(),
+			reconciledAtMs = reconciledAtMs,
+			reconciledElapsedRealtimeNanos = reconciledElapsedRealtimeNanos,
+			reason = "PRIOR_PROCESS_INCARNATION_ENDED",
+		)
+
 	suspend fun begin(
 		source: SourceKind,
 		appliedRevision: Long,

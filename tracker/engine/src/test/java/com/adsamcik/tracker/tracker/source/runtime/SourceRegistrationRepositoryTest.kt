@@ -62,6 +62,51 @@ class SourceRegistrationRepositoryTest {
 	}
 
 	@Test
+	fun `new process reconciles stale reservation before replacement`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true)),
+		)
+		val priorReservation = subject.begin(SourceKind.STEPS, 1L, PHYSICAL_CONFIG, 100L, 100L)
+		val restartedRepository = SourceRegistrationRepository(
+			database,
+			FakeCollectedDataLifecycleStore(CollectedDataLifecycleSnapshot(3L, null)),
+			object : BootClockDomainProvider {
+				override fun current(): String = "boot-7"
+			},
+			ProcessIncarnationIdProvider(),
+		)
+
+		val reconciled = restartedRepository.reconcilePriorProcessRegistrations(
+			reconciledAtMs = 130L,
+			reconciledElapsedRealtimeNanos = 130L,
+		)
+		val replacement = restartedRepository.begin(
+			SourceKind.STEPS,
+			2L,
+			PHYSICAL_CONFIG,
+			140L,
+			140L,
+		)
+		restartedRepository.markAccepted(replacement, 150L, 150L)
+
+		reconciled.failedReservations shouldBe 1
+		reconciled.affectedRegistrations shouldBe 1
+		replacement.state.registrationGeneration shouldBe 2L
+		database.sourceBrokerDao().registration(
+			SourceKind.STEPS.stableCode,
+			priorReservation.state.registrationGeneration,
+		)?.let { prior ->
+			prior.status shouldBe ProviderRegistrationGenerationEntity.STATUS_FAILED
+			prior.failureCode shouldBe "PRIOR_PROCESS_INCARNATION_ENDED"
+			prior.retiredElapsedRealtimeNanos shouldBe 130L
+		}
+		database.sourceBrokerDao().registration(
+			SourceKind.STEPS.stableCode,
+			replacement.state.registrationGeneration,
+		)?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+	}
+
+	@Test
 	fun `registration snapshots the exact merged purpose vector before provider acceptance`() = runTest {
 		val demands = listOf(
 			demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 4L, true),
