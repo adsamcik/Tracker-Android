@@ -10,10 +10,12 @@ import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotSame
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CancellationException
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -22,6 +24,89 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class CellSourceBackendTest {
+	@Test
+	fun `provider start propagates cancellation and fatal errors`() {
+		val baseManager = mockk<TelephonyManager>(relaxed = true)
+		val subscriptionManager = mockk<TelephonyManager>(relaxed = true)
+		every { baseManager.createForSubscriptionId(1) } returns subscriptionManager
+		var failure: Throwable = CancellationException("cancel provider start")
+		val retainedCallbacks = mutableListOf<TelephonyCallback>()
+		val removedCallbacks = mutableListOf<TelephonyCallback>()
+		val backend = backend(baseManager) { _, manager ->
+			val callback = mockk<TelephonyCallback>(relaxed = true).also(retainedCallbacks::add)
+			CellProviderRegistration(
+				manager = manager,
+				callback = callback,
+				legacyListener = null,
+				registerAction = { throw failure },
+				unregisterAction = { removedCallbacks += callback },
+			)
+		}
+
+		assertFailsWith<CancellationException> { backend.start(setOf(1)) { } }
+		assertTrue(backend.hasRetainedRegistrations)
+		assertFalse(backend.start(setOf(1)) { })
+		assertTrue(backend.stop())
+		assertSame(retainedCallbacks.single(), removedCallbacks.single())
+
+		failure = IllegalStateException("ambiguous provider start")
+		assertFalse(backend.start(setOf(1)) { })
+		assertTrue(backend.hasRetainedRegistrations)
+		assertTrue(backend.stop())
+		assertSame(retainedCallbacks.last(), removedCallbacks.last())
+
+		failure = AssertionError("fatal provider start")
+		assertFailsWith<AssertionError> { backend.start(setOf(1)) { } }
+		assertTrue(backend.hasRetainedRegistrations)
+		assertTrue(backend.stop())
+		assertSame(retainedCallbacks.last(), removedCallbacks.last())
+	}
+
+	@Test
+	fun `provider stop propagates cancellation and fatal errors without losing handle`() {
+		val baseManager = mockk<TelephonyManager>(relaxed = true)
+		val subscriptionManager = mockk<TelephonyManager>(relaxed = true)
+		every { baseManager.createForSubscriptionId(2) } returns subscriptionManager
+		var failure: Throwable? = CancellationException("cancel provider stop")
+		val backend = backend(baseManager) { _, manager ->
+			CellProviderRegistration(manager, mockk(relaxed = true), null) {
+				failure?.let { throw it }
+			}
+		}
+		assertTrue(backend.start(setOf(2)) { })
+
+		assertFailsWith<CancellationException> { backend.stop() }
+		assertTrue(backend.hasRetainedRegistrations)
+		failure = AssertionError("fatal provider stop")
+		assertFailsWith<AssertionError> { backend.stop() }
+		assertTrue(backend.hasRetainedRegistrations)
+		failure = null
+		assertTrue(backend.stop())
+		assertFalse(backend.hasRetainedRegistrations)
+	}
+
+	@Test
+	fun `refresh request propagates cancellation and fatal errors`() {
+		val baseManager = mockk<TelephonyManager>(relaxed = true)
+		val subscriptionManager = mockk<TelephonyManager>(relaxed = true)
+		every { baseManager.createForSubscriptionId(3) } returns subscriptionManager
+		var failure: Throwable = CancellationException("cancel refresh")
+		every {
+			subscriptionManager.requestCellInfoUpdate(
+				any<Executor>(),
+				any<TelephonyManager.CellInfoCallback>(),
+			)
+		} answers { throw failure }
+		val backend = backend(baseManager) { _, manager ->
+			CellProviderRegistration(manager, mockk(relaxed = true), null) { }
+		}
+		assertTrue(backend.start(setOf(3)) { })
+
+		assertFailsWith<CancellationException> { backend.requestRefresh { } }
+		failure = AssertionError("fatal refresh")
+		assertFailsWith<AssertionError> { backend.requestRefresh { } }
+	}
+
 	@Test
 	fun `partial registration failure retains completed handle for runtime ordered cleanup`() {
 		val baseManager = mockk<TelephonyManager>(relaxed = true)

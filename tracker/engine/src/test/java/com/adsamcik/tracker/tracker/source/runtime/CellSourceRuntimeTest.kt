@@ -19,25 +19,336 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import java.time.Duration
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowSystemClock
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 @OptIn(ExperimentalCoroutinesApi::class)
 class CellSourceRuntimeTest {
+	@Test
+	fun `ambiguous retirement completion reuses exact token before replacement`() = runTest {
+		val initialPlan = cellPlan(revision = 1L)
+		val replacementPlan = cellPlan(
+			revision = 2L,
+			mode = CellMode.OBSERVE_AND_SPARSE_REFRESH,
+		)
+		val initial = registration(initialPlan, authorizationRevision = 1L, generation = 8L)
+		val replacement = registration(replacementPlan, authorizationRevision = 2L, generation = 9L)
+		val fixture = runtimeFixture(this, initialPlan, listOf(initial, replacement))
+		fixture.start(SourceEventSink { SourceAdmissionHandoff.Durable(1L) })
+		var completionAttempt = 0
+		var exactToken: SourceRegistrationRetirementToken? = null
+		coEvery { fixture.registrations.completeRetirement(any()) } answers {
+			val token = firstArg<SourceRegistrationRetirementToken>()
+			if (token.registrationGeneration == initial.state.registrationGeneration) {
+				if (exactToken == null) exactToken = token else assertEquals(exactToken, token)
+				completionAttempt++
+				if (completionAttempt == 1) {
+					throw IllegalStateException("commit succeeded but result was lost")
+				}
+			}
+			true
+		}
+
+		val firstStop = fixture.quiesce()
+		assertEquals(SourceStopStatus.PROVIDER_FAILED, firstStop.status)
+
+		val applied = fixture.runtime.reconfigure(
+			replacementPlan,
+			SourceEventSink { SourceAdmissionHandoff.Durable(2L) },
+		)
+
+		assertTrue(applied is SourceApplyResult.Applied)
+		assertEquals(2, completionAttempt)
+		coVerify(exactly = 1) {
+			fixture.registrations.beginRetirement(initial, any(), any(), any())
+		}
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `cancellation during drain settles retirement then propagates and permits replacement`() = runTest {
+		val initialPlan = cellPlan(revision = 1L)
+		val replacementPlan = cellPlan(
+			revision = 2L,
+			mode = CellMode.OBSERVE_AND_SPARSE_REFRESH,
+		)
+		val initial = registration(initialPlan, authorizationRevision = 1L, generation = 8L)
+		val replacement = registration(replacementPlan, authorizationRevision = 2L, generation = 9L)
+		val fixture = runtimeFixture(this, initialPlan, listOf(initial, replacement))
+		val admissionEntered = CompletableDeferred<Unit>()
+		val releaseAdmission = CompletableDeferred<Unit>()
+		fixture.start(SourceEventSink {
+			admissionEntered.complete(Unit)
+			releaseAdmission.await()
+			SourceAdmissionHandoff.Durable(1L)
+		})
+		fixture.emit(emptyProviderDelivery())
+		runCurrent()
+		admissionEntered.await()
+		val stopping = async { fixture.quiesce(deadlineOffsetNanos = 10_000_000_000L) }
+		runCurrent()
+
+		stopping.cancel()
+		releaseAdmission.complete(Unit)
+		runCurrent()
+		assertFailsWith<CancellationException> { stopping.await() }
+
+		val applied = fixture.runtime.reconfigure(
+			replacementPlan,
+			SourceEventSink { SourceAdmissionHandoff.Durable(2L) },
+		)
+		assertTrue(applied is SourceApplyResult.Applied)
+		coVerify(exactly = 1) { fixture.registrations.completeRetirement(any()) }
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `retirement begin timeout never removes provider and later retries immutable intent`() = runTest {
+		val initialPlan = cellPlan(revision = 1L)
+		val replacementPlan = cellPlan(
+			revision = 2L,
+			mode = CellMode.OBSERVE_AND_SPARSE_REFRESH,
+		)
+		val initial = registration(initialPlan, authorizationRevision = 1L, generation = 8L)
+		val replacement = registration(replacementPlan, authorizationRevision = 2L, generation = 9L)
+		val fixture = runtimeFixture(this, initialPlan, listOf(initial, replacement))
+		fixture.start(SourceEventSink { SourceAdmissionHandoff.Durable(1L) })
+		var firstBoundary: Pair<Long, Long>? = null
+		coEvery {
+			fixture.registrations.beginRetirement(any(), any(), any(), any())
+		} coAnswers {
+			firstBoundary = thirdArg<Long>() to arg<Long>(3)
+			awaitCancellation()
+		}
+
+		val firstStop = fixture.quiesce(deadlineOffsetNanos = 10_000_000_000L)
+
+		assertEquals(SourceStopStatus.PROVIDER_FAILED, firstStop.status)
+		verify(exactly = 0) { fixture.backend.stop() }
+		coEvery {
+			fixture.registrations.beginRetirement(any(), any(), any(), any())
+		} answers {
+			if (firstArg<SourceRegistration>().state.registrationGeneration ==
+				initial.state.registrationGeneration
+			) {
+				assertEquals(firstBoundary, thirdArg<Long>() to arg<Long>(3))
+			}
+			retirementToken(firstArg(), secondArg(), thirdArg(), arg(3))
+		}
+
+		val applied = fixture.runtime.reconfigure(
+			replacementPlan,
+			SourceEventSink { SourceAdmissionHandoff.Durable(2L) },
+		)
+		assertTrue(applied is SourceApplyResult.Applied)
+		verify(exactly = 1) { fixture.backend.stop() }
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `acceptance cancellation cleans exact provider and still propagates`() = runTest {
+		val plan = cellPlan()
+		val fixture = runtimeFixture(
+			this,
+			plan,
+			listOf(registration(plan, authorizationRevision = 1L).copy(requiresProviderAcceptance = true)),
+		)
+		coEvery { fixture.registrations.markAccepted(any(), any(), any()) } throws
+			CancellationException("cancel acceptance")
+
+		assertFailsWith<CancellationException> {
+			fixture.runtime.start(fixture.plan, SourceEventSink { error("unused") })
+		}
+
+		verify(exactly = 1) { fixture.backend.stop() }
+		coVerify(exactly = 1) { fixture.registrations.completeRetirement(any()) }
+	}
+
+	@Test
+	fun `callbacks before durable acceptance are dropped and post acceptance callbacks are admitted`() = runTest {
+		val plan = cellPlan()
+		val fixture = runtimeFixture(
+			this,
+			plan,
+			listOf(registration(plan, authorizationRevision = 1L).copy(requiresProviderAcceptance = true)),
+		)
+		var providerCallback: ((CellBackendSnapshot) -> Unit)? = null
+		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
+		every { fixture.backend.start(any(), any()) } answers {
+			providerCallback = secondArg()
+			true
+		}
+		coEvery { fixture.registrations.markAccepted(any(), any(), any()) } answers {
+			requireNotNull(providerCallback)(emptyProviderDelivery())
+			null
+		}
+		coEvery { fixture.registrations.allocateSequence(any(), any()) } returns 1L
+
+		fixture.start(SourceEventSink { candidate ->
+			admitted += candidate
+			SourceAdmissionHandoff.Durable(1L)
+		})
+		advanceUntilIdle()
+		assertTrue(admitted.isEmpty())
+
+		requireNotNull(providerCallback)(emptyProviderDelivery())
+		advanceUntilIdle()
+		assertEquals(1, admitted.size)
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `stale provider acceptance exception retires exact handle and fails closed`() = runTest {
+		val plan = cellPlan()
+		val fixture = runtimeFixture(
+			this,
+			plan,
+			listOf(registration(plan, authorizationRevision = 1L).copy(requiresProviderAcceptance = true)),
+		)
+		coEvery { fixture.registrations.markAccepted(any(), any(), any()) } throws
+			IllegalStateException("stale acceptance")
+
+		assertTrue(fixture.runtime.start(plan, SourceEventSink { error("unused") }) is SourceStartResult.Failed)
+
+		verify(exactly = 1) { fixture.backend.stop() }
+		coVerify(exactly = 1) { fixture.registrations.completeRetirement(any()) }
+	}
+
+	@Test
+	fun `fatal provider start retires possible exact handle before propagating`() = runTest {
+		val fixture = runtimeFixture(this)
+		every { fixture.backend.start(any(), any()) } throws AssertionError("fatal provider start")
+
+		assertFailsWith<AssertionError> {
+			fixture.runtime.start(fixture.plan, SourceEventSink { error("unused") })
+		}
+
+		coVerify(exactly = 1) {
+			fixture.registrations.beginRetirement(any(), any(), any(), any())
+		}
+		verify(exactly = 1) { fixture.backend.stop() }
+		coVerify(exactly = 1) { fixture.registrations.completeRetirement(any()) }
+	}
+
+	@Test
+	fun `fatal acceptance error is never converted to retryable start failure`() = runTest {
+		val plan = cellPlan()
+		val fixture = runtimeFixture(
+			this,
+			plan,
+			listOf(registration(plan, authorizationRevision = 1L).copy(requiresProviderAcceptance = true)),
+		)
+		coEvery { fixture.registrations.markAccepted(any(), any(), any()) } throws
+			AssertionError("fatal acceptance")
+
+		assertFailsWith<AssertionError> {
+			fixture.runtime.start(fixture.plan, SourceEventSink { error("unused") })
+		}
+		coVerify(exactly = 1) {
+			fixture.registrations.beginRetirement(any(), any(), any(), any())
+		}
+		verify(exactly = 1) { fixture.backend.stop() }
+		coVerify(exactly = 1) { fixture.registrations.completeRetirement(any()) }
+	}
+
+	@Test
+	fun `fatal callback reports sparse overflow and unprocessed tail exactly once`() = runTest {
+		val fatal = AssertionError("fatal cell admission")
+		val observedFailure = CompletableDeferred<Throwable>()
+		val sourceScope = CoroutineScope(
+			SupervisorJob() + StandardTestDispatcher(testScheduler) +
+				CoroutineExceptionHandler { _, failure -> observedFailure.complete(failure) },
+		)
+		val fixture = runtimeFixture(sourceScope)
+		coEvery { fixture.registrations.allocateSequence(any(), any()) } returns 1L
+		fixture.start(SourceEventSink { throw fatal })
+		val callbackCount = CELL_CALLBACK_BUFFER_CAPACITY + 1
+		repeat(callbackCount) { offset ->
+			fixture.emit(snapshot(android.os.SystemClock.elapsedRealtimeNanos() + offset))
+		}
+
+		runCurrent()
+		assertSame(fatal, observedFailure.await())
+		fixture.emit(snapshot(android.os.SystemClock.elapsedRealtimeNanos() + callbackCount))
+		val ack = fixture.quiesce()
+
+		assertFalse(ack.appDrainComplete)
+		assertEquals(callbackCount.toLong(), ack.callbackEntryBarrierSequence)
+		assertEquals(callbackCount.toLong(), ack.failedAdmissionCount)
+		assertEquals(1L, ack.unresolvedSequenceStart)
+		assertEquals(callbackCount.toLong(), ack.unresolvedSequenceEndInclusive)
+		verify(exactly = 1) { fixture.backend.stop() }
+		sourceScope.cancel()
+	}
+
+	@Test
+	fun `actor local cancellation fences callbacks and retires the provider`() = runTest {
+		val sourceScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+		val fixture = runtimeFixture(sourceScope)
+		coEvery { fixture.registrations.allocateSequence(any(), any()) } returns 1L
+		fixture.start(SourceEventSink { throw CancellationException("local admission cancellation") })
+		fixture.emit(snapshot(android.os.SystemClock.elapsedRealtimeNanos()))
+
+		runCurrent()
+		fixture.emit(snapshot(android.os.SystemClock.elapsedRealtimeNanos() + 1L))
+		val ack = fixture.quiesce()
+
+		assertTrue(ack.appDrainComplete)
+		assertEquals(1L, ack.callbackEntryBarrierSequence)
+		assertEquals(1L, ack.failedAdmissionCount)
+		assertEquals(1L, ack.unresolvedSequenceStart)
+		assertEquals(1L, ack.unresolvedSequenceEndInclusive)
+		verify(exactly = 1) { fixture.backend.stop() }
+		sourceScope.cancel()
+	}
+
+	@Test
+	fun `automatic actor cleanup never caches a failed provider retirement`() = runTest {
+		val sourceScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+		val fixture = runtimeFixture(sourceScope)
+		coEvery { fixture.registrations.allocateSequence(any(), any()) } returns 1L
+		every { fixture.backend.stop() } returnsMany listOf(false, true)
+		fixture.start(SourceEventSink { throw CancellationException("local admission cancellation") })
+		fixture.emit(snapshot(android.os.SystemClock.elapsedRealtimeNanos()))
+
+		runCurrent()
+		val ack = fixture.quiesce()
+
+		assertTrue(ack.appDrainComplete)
+		assertEquals(RegistrationRemovalOutcome.REMOVED, ack.registrationRemovalOutcome)
+		assertEquals(SourceStopStatus.COMPLETE, ack.status)
+		verify(exactly = 2) { fixture.backend.stop() }
+		coVerify(exactly = 1) { fixture.registrations.beginRetirement(any(), any(), any(), any()) }
+		coVerify(exactly = 1) { fixture.registrations.completeRetirement(any()) }
+		sourceScope.cancel()
+	}
+
 	@Test
 	fun `provider start failure persists retirement before exact handle cleanup`() = runTest {
 		val fixture = runtimeFixture(this)
@@ -122,7 +433,6 @@ class CellSourceRuntimeTest {
 			listOf(
 				"retiring:8",
 				"provider-stop:false",
-				"retiring:8",
 				"provider-stop:true",
 				"retired:8",
 				"pending:false",
@@ -224,6 +534,43 @@ class CellSourceRuntimeTest {
 		assertNull(result)
 		assertEquals(1, attempts)
 		assertEquals(2, gateReads)
+	}
+
+	@Test
+	fun `a stop cutoff installed during retry prevents a second WAL admission`() = runTest {
+		val fixture = runtimeFixture(this)
+		coEvery { fixture.registrations.allocateSequence(any(), any()) } returns 1L
+		val firstAttempt = CompletableDeferred<Unit>()
+		var attempts = 0
+		fixture.start(SourceEventSink {
+			attempts++
+			firstAttempt.complete(Unit)
+			if (attempts == 1) {
+				SourceAdmissionHandoff.RetryableFailure(SourceAdmissionFailureCode.STORAGE_UNAVAILABLE)
+			} else {
+				SourceAdmissionHandoff.Durable(2L)
+			}
+		})
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(1))
+		fixture.emit(emptyProviderDelivery())
+		runCurrent()
+		firstAttempt.await()
+
+		val now = android.os.SystemClock.elapsedRealtimeNanos()
+		val stopping = async {
+			fixture.runtime.quiesce(
+				SessionCutoff(
+					logicalTrackingId = "cell-cutoff-test",
+					elapsedRealtimeNanos = 0L,
+					wallTimeMs = 1L,
+					deadlineElapsedRealtimeNanos = now + 10_000_000_000L,
+				),
+			)
+		}
+		advanceUntilIdle()
+
+		assertEquals(1, attempts)
+		assertEquals(1L, stopping.await().failedAdmissionCount)
 	}
 
 	@Test
@@ -395,6 +742,57 @@ class CellSourceRuntimeTest {
 		verify(exactly = 1) { fixture.backend.stop() }
 	}
 
+	@Test
+	fun `compatible refresh fences callbacks until the new immutable context is installed`() = runTest {
+		val initialPlan = cellPlan(revision = 1L, maximumAgeMs = 60_000L)
+		val refreshedPlan = cellPlan(revision = 2L, maximumAgeMs = 10_000L)
+		val initial = registration(initialPlan, authorizationRevision = 1L)
+		val refreshed = registration(refreshedPlan, authorizationRevision = 2L)
+		val fixture = runtimeFixture(this, initialPlan, listOf(initial, refreshed))
+		coEvery { fixture.registrations.allocateSequence(any(), any()) } returns 1L
+		val oldAdmissions = mutableListOf<SourceEvidenceCandidate<*>>()
+		val newAdmissions = mutableListOf<SourceEvidenceCandidate<*>>()
+		fixture.start(SourceEventSink { candidate ->
+			oldAdmissions += candidate
+			SourceAdmissionHandoff.Durable(1L)
+		})
+		val refreshEntered = CompletableDeferred<Unit>()
+		val releaseRefresh = CompletableDeferred<Unit>()
+		coEvery {
+			fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
+		} coAnswers {
+			refreshEntered.complete(Unit)
+			releaseRefresh.await()
+			refreshed
+		}
+
+		val reconfiguring = async {
+			fixture.runtime.reconfigure(
+				refreshedPlan,
+				SourceEventSink { candidate ->
+					newAdmissions += candidate
+					SourceAdmissionHandoff.Durable(2L)
+				},
+			)
+		}
+		runCurrent()
+		refreshEntered.await()
+		fixture.emit(emptyProviderDelivery())
+		runCurrent()
+		assertTrue(oldAdmissions.isEmpty())
+		assertTrue(newAdmissions.isEmpty())
+
+		releaseRefresh.complete(Unit)
+		assertTrue(reconfiguring.await() is SourceApplyResult.Applied)
+		fixture.emit(emptyProviderDelivery())
+		advanceUntilIdle()
+
+		assertTrue(oldAdmissions.isEmpty())
+		assertEquals(2L, newAdmissions.single().authorizationRevision)
+		assertEquals(2L, newAdmissions.single().configRevision)
+		fixture.runtime.close()
+	}
+
 	private suspend fun RuntimeFixture.start(sink: SourceEventSink) {
 		assertTrue(runtime.start(plan, sink) is SourceStartResult.Started)
 	}
@@ -451,6 +849,7 @@ class CellSourceRuntimeTest {
 			true
 		}
 		every { backend.stop() } returns true
+		every { backend.hasRetainedRegistrations } returns false
 		val runtime = CellSourceRuntime(scope, registrations, backend, stateProvider, wakeups)
 		return RuntimeFixture(runtime, registrations, backend, runtimePlan, { requireNotNull(callback) }, state)
 			.also { fixture -> every { stateProvider.cell() } answers { fixture.state } }

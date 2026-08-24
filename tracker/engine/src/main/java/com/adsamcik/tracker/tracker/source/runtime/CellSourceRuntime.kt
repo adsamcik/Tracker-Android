@@ -19,12 +19,14 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
 import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -53,12 +55,17 @@ class CellSourceRuntime @Inject internal constructor(
 	private var currentPlan: CellPlan? = null
 	private var currentSink: SourceEventSink? = null
 	private var queue: CellCallbackLane<CellRuntimeInput>? = null
+	@Volatile
 	private var actor: Job? = null
 	private var accepting = false
 	private var callbackSequence = 0L
+	@Volatile
 	private var cutoffElapsedNanos: Long? = null
 	private var metrics = RuntimeAdmissionMetrics()
+	private var retirementIntent: CellProviderRetirementIntent? = null
+	private var automaticFailureAck: SourceStopAck? = null
 	private val processedCallbackSequence = MutableStateFlow(0L)
+	private var callbackOfferFailureCoverage = CellCallbackFailureCoverage()
 	private val prerequisiteGate = CellPrerequisiteGate(deviceStateProvider::cell)
 
 	override suspend fun start(plan: CellPlan, sink: SourceEventSink): SourceStartResult = lifecycleMutex.withLock {
@@ -94,7 +101,7 @@ class CellSourceRuntime @Inject internal constructor(
 	}
 
 	override suspend fun quiesce(cutoff: SessionCutoff): SourceStopAck = lifecycleMutex.withLock {
-		shutdownLocked(cutoff)
+		automaticFailureAck ?: shutdownLocked(cutoff)
 	}
 
 	override suspend fun close() = lifecycleMutex.withLock {
@@ -112,11 +119,20 @@ class CellSourceRuntime @Inject internal constructor(
 	): SourceApplyResult? {
 		val activePlan = currentPlan ?: return null
 		val activeRegistration = registration ?: return null
-		if (!synchronized(callbackLock) { accepting && callbackToken != null }) return null
+		val activeCallbackToken = callbackToken ?: return null
 		if (!cellPlansSharePhysicalRegistration(activePlan, plan)) return null
 		val application = CellPrerequisiteEvaluator.evaluate(plan, deviceStateProvider.cell())
 		_capabilities.value = capabilitiesNow()
 		if (application.status == SourceApplyStatus.BLOCKED) return null
+		val refreshBoundary = synchronized(callbackLock) {
+			if (!accepting || callbackToken !== activeCallbackToken || registration !== activeRegistration) {
+				return null
+			}
+			// A provider callback either captures the old immutable context before this boundary or
+			// is rejected until the refreshed durable authorization and callback context are installed.
+			accepting = false
+			SystemClock.elapsedRealtimeNanos()
+		}
 		val refreshed = runCatchingNonCancellation {
 			registrations.refreshActiveAuthorization(
 				source,
@@ -124,6 +140,7 @@ class CellSourceRuntime @Inject internal constructor(
 				plan.revision,
 				plan.physicalConfigurationFingerprint(),
 				System.currentTimeMillis(),
+				refreshBoundary,
 			)
 		}.getOrElse {
 			return SourceApplyResult.Failed(
@@ -138,11 +155,15 @@ class CellSourceRuntime @Inject internal constructor(
 			refreshed.requiresProviderAcceptance
 		) return null
 		val retained = synchronized(callbackLock) {
-			if (!accepting || callbackToken == null) false else {
+			if (accepting || callbackToken !== activeCallbackToken || registration !== activeRegistration) {
+				false
+			} else {
 				registration = refreshed
 				currentPlan = plan
 				currentSink = sink
-				queue?.offer(CellRuntimeInput.PlanChanged) == true
+				val notified = queue?.offer(CellRuntimeInput.PlanChanged) == true
+				if (notified) accepting = true
+				notified
 			}
 		}
 		if (!retained) return null
@@ -167,6 +188,7 @@ class CellSourceRuntime @Inject internal constructor(
 				retryable = true,
 			)
 		}
+		automaticFailureAck = null
 		if (!plan.enabled) return SourceStartResult.Started(
 			appliedState(source, plan.revision, null, SourceApplyStatus.APPLIED, SystemClock.elapsedRealtimeNanos()),
 		)
@@ -191,55 +213,69 @@ class CellSourceRuntime @Inject internal constructor(
 			currentPlan = plan
 			currentSink = sink
 			queue = nextQueue
-			accepting = true
+			accepting = false
 		}
 		callbackSequence = 0L
 		processedCallbackSequence.value = 0L
+		callbackOfferFailureCoverage = CellCallbackFailureCoverage()
 		cutoffElapsedNanos = null
 		metrics = RuntimeAdmissionMetrics()
-		if (!backend.start(plan.subscriptionIds) { snapshot ->
-			onBackendSnapshot(nextCallbackToken, snapshot, CellRefreshOutcome.CALLBACK)
-		}) {
-			val retirementBoundary = closeCallbackAdmission(nextQueue)
-			val retirement = retireProviderRegistration(
-				nextRegistration,
-				reason = "PROVIDER_REGISTRATION_FAILED",
-				retiredElapsedRealtimeNanos = retirementBoundary,
-			)
-			settleFailedStartState(retirement)
+		val providerStarted = try {
+			backend.start(plan.subscriptionIds) { snapshot ->
+				onBackendSnapshot(nextCallbackToken, snapshot, CellRefreshOutcome.CALLBACK)
+			}
+		} catch (cancelled: CancellationException) {
+			cleanupFailedStart(nextRegistration, nextQueue, "PROVIDER_REGISTRATION_CANCELLED")
+			throw cancelled
+		} catch (fatal: Error) {
+			cleanupFailedStart(nextRegistration, nextQueue, "PROVIDER_REGISTRATION_FATAL")
+			throw fatal
+		} catch (_: Exception) {
+			false
+		}
+		if (!providerStarted) {
+			cleanupFailedStart(nextRegistration, nextQueue, "PROVIDER_REGISTRATION_FAILED")
 			return SourceStartResult.Failed(
 				appliedState(source, plan.revision, nextRegistration, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()), true,
 			)
 		}
 		val accepted = try {
-			registrations.markAccepted(nextRegistration, System.currentTimeMillis())
+			if (nextRegistration.requiresProviderAcceptance) {
+				// A null result means there was no previously active generation to retire. Stale
+				// reservations fail by exception inside the transactional repository operation.
+				registrations.markAccepted(nextRegistration, System.currentTimeMillis())
+			}
 			true
 		} catch (cancelled: CancellationException) {
-			val retirementBoundary = closeCallbackAdmission(nextQueue)
-			val retirement = retireProviderRegistration(
-				nextRegistration,
-				reason = "REGISTRATION_ACCEPTANCE_CANCELLED",
-				retiredElapsedRealtimeNanos = retirementBoundary,
-			)
-			settleFailedStartState(retirement)
+			cleanupFailedStart(nextRegistration, nextQueue, "REGISTRATION_ACCEPTANCE_CANCELLED")
 			throw cancelled
-		} catch (_: Throwable) {
+		} catch (fatal: Error) {
+			cleanupFailedStart(nextRegistration, nextQueue, "REGISTRATION_ACCEPTANCE_FATAL")
+			throw fatal
+		} catch (_: Exception) {
 			false
 		}
 		if (!accepted) {
-			val retirementBoundary = closeCallbackAdmission(nextQueue)
-			val retirement = retireProviderRegistration(
-				nextRegistration,
-				reason = "REGISTRATION_ACCEPTANCE_STALE",
-				retiredElapsedRealtimeNanos = retirementBoundary,
-			)
-			settleFailedStartState(retirement)
+			cleanupFailedStart(nextRegistration, nextQueue, "REGISTRATION_ACCEPTANCE_STALE")
 			return SourceStartResult.Failed(
 				appliedState(source, plan.revision, nextRegistration, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()), true,
 			)
 		}
-		actor = applicationScope.launch { consume(nextQueue, nextCallbackToken) }
-		enqueueControl(CellRuntimeInput.Started)
+		val nextActor = applicationScope.launch(start = CoroutineStart.LAZY) {
+			consume(nextQueue, nextCallbackToken)
+		}
+		actor = nextActor
+		nextActor.invokeOnCompletion { failure ->
+			if (failure != null) {
+				containFailedActor(nextActor, nextQueue)
+			}
+		}
+		nextActor.start()
+		synchronized(callbackLock) {
+			check(callbackToken === nextCallbackToken && registration === nextRegistration)
+			accepting = true
+			check(nextQueue.offer(CellRuntimeInput.Started))
+		}
 		val state = appliedState(
 			source, plan.revision, nextRegistration, application.status, SystemClock.elapsedRealtimeNanos(),
 		).copy(degradedReasons = application.reasons)
@@ -248,7 +284,57 @@ class CellSourceRuntime @Inject internal constructor(
 		} else SourceStartResult.Started(state)
 	}
 
+	private fun containFailedActor(
+		failedActor: Job,
+		failedLane: CellCallbackLane<CellRuntimeInput>,
+	) {
+		val cleanupRequired = synchronized(callbackLock) {
+			if (actor !== failedActor) {
+				false
+			} else {
+				accepting = false
+				failedLane.close()
+				true
+			}
+		}
+		if (!cleanupRequired) return
+		applicationScope.launch {
+			lifecycleMutex.withLock {
+				if (actor === failedActor && currentPlan != null) {
+					val acknowledgement = shutdownLocked(null)
+					if (acknowledgement.registrationRemovalOutcome == RegistrationRemovalOutcome.REMOVED &&
+						currentPlan == null
+					) {
+						automaticFailureAck = acknowledgement
+					}
+				}
+			}
+		}
+	}
+
+	private suspend fun cleanupFailedStart(
+		failedRegistration: SourceRegistration,
+		callbackLane: CellCallbackLane<CellRuntimeInput>,
+		reason: String,
+	) = withContext(NonCancellable) {
+		val retirementBoundary = closeCallbackAdmission(callbackLane)
+		val retirement = retireProviderRegistration(
+			failedRegistration,
+			reason,
+			retirementBoundary,
+		)
+		settleFailedStartState(retirement)
+	}
+
 	private suspend fun shutdownLocked(cutoff: SessionCutoff?): SourceStopAck {
+		val acknowledgement = withContext(NonCancellable) {
+			settleShutdownLocked(cutoff)
+		}
+		currentCoroutineContext().ensureActive()
+		return acknowledgement
+	}
+
+	private suspend fun settleShutdownLocked(cutoff: SessionCutoff?): SourceStopAck {
 		val activeRegistration = registration ?: return unavailableAck(cutoff)
 		synchronized(callbackLock) { cutoffElapsedNanos = cutoff?.elapsedRealtimeNanos }
 		wakeups.cancel(REFRESH_WAKEUP_ID)
@@ -276,17 +362,25 @@ class CellSourceRuntime @Inject internal constructor(
 			((it.deadlineElapsedRealtimeNanos - SystemClock.elapsedRealtimeNanos()) / NANOS_PER_MILLISECOND)
 				.coerceAtLeast(1L)
 		} ?: DEFAULT_DRAIN_TIMEOUT_MS
-		val drained = activeActor == null || withTimeoutOrNull(remainingMs) { activeActor.join(); true } == true
-		if (!drained) activeActor.cancelAndJoin()
-		if (!drained) {
-			unprocessedCellCallbackRange(processedCallbackSequence.value, barrier)?.let { unresolved ->
+		val joinedBeforeDeadline = activeActor == null ||
+			withTimeoutOrNull(remainingMs) { activeActor.join(); true } == true
+		if (!joinedBeforeDeadline) {
+			val timedOutActor = requireNotNull(activeActor)
+			timedOutActor.cancel()
+			withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) { timedOutActor.join() }
+		}
+		val unaccountedTail = callbackOfferFailureCoverage.unaccountedRanges(
+			processedCallbackSequence.value,
+			barrier,
+		)
+		unaccountedTail.forEach { unresolved ->
 				metrics.recordFailure(
 					unresolved.first,
 					unresolved.last,
 					RuntimeGapClassification.DRAIN_TIMED_OUT,
 				)
-			}
 		}
+		val drainComplete = joinedBeforeDeadline && unaccountedTail.isEmpty()
 		val admission = metrics.snapshot()
 		val ack = SourceStopAck(
 			source, SourceInstanceId(activeRegistration.state.sourceInstanceId),
@@ -294,9 +388,9 @@ class CellSourceRuntime @Inject internal constructor(
 			admission.lastDurablyAdmittedSequence, admission.lastAdmissionOrdinal,
 			admission.failedAdmissionCount, admission.unresolvedSequenceStart,
 			admission.unresolvedSequenceEndInclusive, removed, ProviderFlushOutcome.NOT_SUPPORTED,
-			ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE, drained,
+			ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE, drainComplete,
 			when {
-				!drained -> SourceStopStatus.TIMED_OUT
+				!drainComplete -> SourceStopStatus.TIMED_OUT
 				removed == RegistrationRemovalOutcome.FAILED -> SourceStopStatus.PROVIDER_FAILED
 				else -> SourceStopStatus.COMPLETE
 			},
@@ -321,37 +415,69 @@ class CellSourceRuntime @Inject internal constructor(
 		reason: String,
 		retiredElapsedRealtimeNanos: Long,
 	): CellProviderRetirement = withContext(NonCancellable) {
-		val token = runCatchingNonCancellation {
-			registrations.beginRetirement(
-				activeRegistration,
-				reason,
-				System.currentTimeMillis(),
-				retiredElapsedRealtimeNanos,
-			)
-		}.getOrElse {
-			return@withContext CellProviderRetirement.NOT_DURABLE
+		val intent = synchronized(callbackLock) {
+			retirementIntent?.also { pending ->
+				check(pending.registration.samePhysicalRegistrationAs(activeRegistration)) {
+					"A retained Cell provider cannot be retired under a replacement registration"
+				}
+			} ?: CellProviderRetirementIntent(
+				registration = activeRegistration,
+				reason = reason,
+				retiredAtMs = System.currentTimeMillis(),
+				retiredElapsedRealtimeNanos = retiredElapsedRealtimeNanos,
+			).also { retirementIntent = it }
 		}
-		if (!runCatching { backend.stop() }.getOrDefault(false)) {
+		val token = intent.token ?: withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) {
+			runCatchingNonCancellation {
+				registrations.beginRetirement(
+					intent.registration,
+					intent.reason,
+					intent.retiredAtMs,
+					intent.retiredElapsedRealtimeNanos,
+				)
+			}.getOrNull()
+		} ?: return@withContext CellProviderRetirement.NOT_DURABLE
+		intent.token = token
+		val removed = withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) {
+			runCatchingNonCancellation { backend.stop() }.getOrDefault(false)
+		} == true
+		if (!removed) {
 			return@withContext CellProviderRetirement.PENDING
 		}
-		val completed = runCatchingNonCancellation {
-			registrations.completeRetirement(token)
-		}.getOrDefault(false)
-		if (completed) CellProviderRetirement.COMPLETE else CellProviderRetirement.PENDING
-	}
-
-	private suspend fun reconcilePendingProviderRetirements(): Boolean = withContext(NonCancellable) {
-		val pending = runCatchingNonCancellation {
-			registrations.pendingRetirements(source)
-		}.getOrElse { return@withContext false }
-		if (pending.isEmpty()) return@withContext true
-		if (pending.size != 1) return@withContext false
-		if (!runCatching { backend.stop() }.getOrDefault(false)) return@withContext false
-		pending.all { token ->
+		val completed = withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) {
 			runCatchingNonCancellation {
 				registrations.completeRetirement(token)
 			}.getOrDefault(false)
+		} == true
+		if (completed) CellProviderRetirement.COMPLETE else CellProviderRetirement.PENDING
+	}
+
+	private suspend fun reconcilePendingProviderRetirements(): Boolean {
+		val reconciled = withContext(NonCancellable) {
+			val pending = withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) {
+				runCatchingNonCancellation {
+					registrations.pendingRetirements(source)
+				}.getOrNull()
+			} ?: return@withContext false
+			if (pending.isEmpty()) return@withContext !backend.hasRetainedRegistrations
+			if (pending.size != 1) return@withContext false
+			val token = pending.single()
+			val localIntent = synchronized(callbackLock) { retirementIntent }
+			if (localIntent != null && localIntent.token?.sameRetirementAs(token) != true) {
+				return@withContext false
+			}
+			val removed = withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) {
+				runCatchingNonCancellation { backend.stop() }.getOrDefault(false)
+			} == true
+			if (!removed) return@withContext false
+			withTimeoutOrNull(PROVIDER_OPERATION_TIMEOUT_MS) {
+				runCatchingNonCancellation {
+					registrations.completeRetirement(token)
+				}.getOrDefault(false)
+			} == true
 		}
+		currentCoroutineContext().ensureActive()
+		return reconciled
 	}
 
 	private fun settleFailedStartState(retirement: CellProviderRetirement) {
@@ -397,6 +523,7 @@ class CellSourceRuntime @Inject internal constructor(
 				),
 			) == true
 			if (!accepted) {
+				callbackOfferFailureCoverage.record(sequence..sequence)
 				metrics.recordFailure(
 					sequence,
 					classification = RuntimeGapClassification.CALLBACK_BUFFER_OVERFLOW,
@@ -510,7 +637,10 @@ class CellSourceRuntime @Inject internal constructor(
 					} catch (cancelled: CancellationException) {
 						metrics.recordFailure(input.callbackSequence)
 						throw cancelled
-					} catch (_: Throwable) {
+					} catch (fatal: Error) {
+						metrics.recordFailure(input.callbackSequence)
+						throw fatal
+					} catch (_: Exception) {
 						metrics.recordFailure(input.callbackSequence)
 					} finally {
 						processedCallbackSequence.value = maxOf(
@@ -576,7 +706,7 @@ class CellSourceRuntime @Inject internal constructor(
 	): Boolean {
 		val registration = context.registration
 		val observed = providerTimeNanos ?: receivedNanos
-		if (cutoffElapsedNanos?.let { observed > it } == true) return false
+		if (!isAtOrBeforeCutoff(observed)) return false
 		if (!prerequisiteGate.allows(context.plan)) {
 			metrics.recordFailure(callbackSequence)
 			return false
@@ -628,7 +758,9 @@ class CellSourceRuntime @Inject internal constructor(
 			payload = minimizedCellSnapshotPayload(observations, outcome),
 		)
 		when (val handoff = retryCellAdmissionWithinBudget(
-			prerequisiteAllows = { prerequisiteGate.allows(context.plan) },
+			prerequisiteAllows = {
+				prerequisiteGate.allows(context.plan) && isAtOrBeforeCutoff(observed)
+			},
 			admit = { context.sink.admit(candidate) },
 		)) {
 			is SourceAdmissionHandoff.Durable -> {
@@ -652,6 +784,9 @@ class CellSourceRuntime @Inject internal constructor(
 		}
 	}
 
+	private fun isAtOrBeforeCutoff(observedElapsedRealtimeNanos: Long): Boolean =
+		cutoffElapsedNanos?.let { observedElapsedRealtimeNanos <= it } != false
+
 	private fun capabilitiesNow(): SourceCapabilities = cellCapabilities(deviceStateProvider.cell())
 
 	private fun clearActiveState() {
@@ -661,6 +796,7 @@ class CellSourceRuntime @Inject internal constructor(
 			callbackToken = null
 			currentSink = null
 			queue = null
+			retirementIntent = null
 		}
 		actor = null
 		cutoffElapsedNanos = null
@@ -698,10 +834,33 @@ class CellSourceRuntime @Inject internal constructor(
 		const val MAX_COALESCE_WINDOW_MS = 5_000L
 		const val REFRESH_TIMEOUT_MS = 20_000L
 		const val MAX_REFRESH_ATTEMPTS_PER_REGISTRATION = 1
+		const val PROVIDER_OPERATION_TIMEOUT_MS = 2_000L
 	}
 }
 
 private class CellCallbackToken
+
+private data class CellProviderRetirementIntent(
+	val registration: SourceRegistration,
+	val reason: String,
+	val retiredAtMs: Long,
+	val retiredElapsedRealtimeNanos: Long,
+	var token: SourceRegistrationRetirementToken? = null,
+)
+
+private fun SourceRegistration.samePhysicalRegistrationAs(other: SourceRegistration): Boolean =
+	state.sourceKind == other.state.sourceKind &&
+		state.sourceInstanceId == other.state.sourceInstanceId &&
+		state.registrationGeneration == other.state.registrationGeneration
+
+private fun SourceRegistrationRetirementToken.sameRetirementAs(
+	other: SourceRegistrationRetirementToken,
+): Boolean = source == other.source &&
+	sourceInstanceId == other.sourceInstanceId &&
+	registrationGeneration == other.registrationGeneration &&
+	processIncarnationId == other.processIncarnationId &&
+	retiredAtMs == other.retiredAtMs &&
+	retiredElapsedRealtimeNanos == other.retiredElapsedRealtimeNanos
 
 private enum class CellProviderRetirement { NOT_DURABLE, PENDING, COMPLETE }
 
@@ -736,10 +895,14 @@ internal class CellCallbackLane<T>(capacity: Int = CELL_CALLBACK_BUFFER_CAPACITY
 internal class CellPrerequisiteGate(
 	private val stateProvider: () -> CellDeviceState,
 ) {
-	fun allows(plan: CellPlan): Boolean = runCatching {
+	fun allows(plan: CellPlan): Boolean = try {
 		plan.enabled && CellPrerequisiteEvaluator.evaluate(plan, stateProvider()).status !=
 			SourceApplyStatus.BLOCKED
-	}.getOrDefault(false)
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (_: Exception) {
+		false
+	}
 }
 
 internal data class QualifiedCellSnapshot(
@@ -814,6 +977,46 @@ internal fun unprocessedCellCallbackRange(processedSequence: Long, barrierSequen
 	require(barrierSequence >= 0L)
 	val first = processedSequence + 1L
 	return if (first <= barrierSequence) first..barrierSequence else null
+}
+
+/** Compact exact coverage for Cell callbacks rejected before actor processing. */
+private class CellCallbackFailureCoverage {
+	private val lock = Any()
+	private val ranges = mutableListOf<LongRange>()
+
+	fun record(range: LongRange) {
+		require(range.first >= 0L && range.first <= range.last)
+		synchronized(lock) {
+			val merged = mutableListOf<LongRange>()
+			(ranges + listOf(range)).sortedBy { it.first }.forEach { candidate ->
+				val previous = merged.lastOrNull()
+				if (previous == null || candidate.first > previous.last + 1L) {
+					merged.add(candidate)
+				} else {
+					merged[merged.lastIndex] = previous.first..maxOf(previous.last, candidate.last)
+				}
+			}
+			ranges.clear()
+			ranges.addAll(merged)
+		}
+	}
+
+	fun unaccountedRanges(processedSequence: Long, barrierSequence: Long): List<LongRange> {
+		require(processedSequence >= 0L)
+		require(barrierSequence >= 0L)
+		var cursor = processedSequence + 1L
+		if (cursor > barrierSequence) return emptyList()
+		val accounted = synchronized(lock) { ranges.toList() }
+		return buildList {
+			accounted.forEach { range ->
+				if (range.last < cursor) return@forEach
+				if (range.first > barrierSequence) return@forEach
+				if (range.first > cursor) add(cursor..minOf(barrierSequence, range.first - 1L))
+				cursor = maxOf(cursor, range.last + 1L)
+			}
+			if (cursor <= barrierSequence) add(cursor..barrierSequence)
+		}
+	}
 }
 
 internal fun cellPlansSharePhysicalRegistration(active: CellPlan, updated: CellPlan): Boolean =

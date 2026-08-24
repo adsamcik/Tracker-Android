@@ -26,6 +26,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.Executor
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 
 internal data class CellBackendSnapshot(
 	val subscriptionId: Int?,
@@ -66,6 +67,8 @@ internal class AndroidCellSourceBackend internal constructor(
 	)
 
 	private val registrations = linkedMapOf<Int?, CellProviderRegistration>()
+	internal val hasRetainedRegistrations: Boolean
+		get() = synchronized(this) { registrations.isNotEmpty() }
 
 	@Synchronized
 	@SuppressLint("MissingPermission")
@@ -74,18 +77,24 @@ internal class AndroidCellSourceBackend internal constructor(
 		// Removal is an explicit runtime operation because RETIRING must be durable first. A failed
 		// unregister therefore blocks start without implicitly retrying or losing its exact handle.
 		if (registrations.isNotEmpty()) return false
-		return runCatching {
+		return try {
 			resolveSubscriptionIds(requestedSubscriptionIds).forEach { subscriptionId ->
 				val manager = managerFor(subscriptionId)
-				registrations[subscriptionId] = registrationFactory(
+				val providerRegistration = registrationFactory(
 					subscriptionId,
 					manager,
 					executor,
 					callback,
 				)
+				// Retain the exact callback/listener before asking Android to register it. Provider
+				// operations are not transactional: an apply-then-throw result is ambiguous ownership.
+				registrations[subscriptionId] = providerRegistration
+				providerRegistration.register()
 			}
 			registrations.isNotEmpty()
-		}.getOrElse {
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
 			// The runtime must persist its RETIRING cutoff before cleanup. Completed registrations
 			// stay retained here so that the exact handles can be removed in that order.
 			false
@@ -98,7 +107,15 @@ internal class AndroidCellSourceBackend internal constructor(
 		val iterator = registrations.iterator()
 		while (iterator.hasNext()) {
 			val registration = iterator.next().value
-			if (runCatching(registration::unregister).isSuccess) {
+			val removed = try {
+				registration.unregister()
+				true
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: Exception) {
+				false
+			}
+			if (removed) {
 				iterator.remove()
 			} else {
 				success = false
@@ -123,6 +140,8 @@ internal class AndroidCellSourceBackend internal constructor(
 				)
 			}
 			CellRefreshRequestOutcome.REQUESTED
+		} catch (cancelled: CancellationException) {
+			throw cancelled
 		} catch (_: SecurityException) {
 			CellRefreshRequestOutcome.PERMISSION_BLOCKED
 		} catch (_: RuntimeException) {
@@ -132,10 +151,14 @@ internal class AndroidCellSourceBackend internal constructor(
 
 	@SuppressLint("MissingPermission")
 	private fun resolveSubscriptionIds(requested: Set<Int>): Set<Int?> {
-		val active = runCatching {
+		val active = try {
 			subscriptionManager?.activeSubscriptionInfoList
 				?.mapTo(linkedSetOf()) { it.subscriptionId }
-		}.getOrNull().orEmpty()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			null
+		}.orEmpty()
 		return resolveCellSubscriptionScope(requested, active)
 	}
 
@@ -152,8 +175,11 @@ internal class CellProviderRegistration(
 	val manager: TelephonyManager,
 	val callback: TelephonyCallback?,
 	val legacyListener: PhoneStateListener?,
+	private val registerAction: () -> Unit = {},
 	private val unregisterAction: () -> Unit,
 ) {
+	fun register() = registerAction()
+
 	fun unregister() = unregisterAction()
 }
 
@@ -164,19 +190,29 @@ private fun registerAndroidCellProvider(
 	callback: (CellBackendSnapshot) -> Unit,
 ): CellProviderRegistration = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
 	val listener = Api31CellInfoCallback(subscriptionId, callback)
-	manager.registerTelephonyCallback(executor, listener)
-	CellProviderRegistration(manager, listener, null) {
-		manager.unregisterTelephonyCallback(listener)
-	}
+	CellProviderRegistration(
+		manager = manager,
+		callback = listener,
+		legacyListener = null,
+		registerAction = { manager.registerTelephonyCallback(executor, listener) },
+		unregisterAction = { manager.unregisterTelephonyCallback(listener) },
+	)
 } else {
 	@Suppress("DEPRECATION")
 	val listener = LegacyCellInfoListener(subscriptionId, callback)
-	@Suppress("DEPRECATION")
-	manager.listen(listener, PhoneStateListener.LISTEN_CELL_INFO)
-	CellProviderRegistration(manager, null, listener) {
-		@Suppress("DEPRECATION")
-		manager.listen(listener, PhoneStateListener.LISTEN_NONE)
-	}
+	CellProviderRegistration(
+		manager = manager,
+		callback = null,
+		legacyListener = listener,
+		registerAction = {
+			@Suppress("DEPRECATION")
+			manager.listen(listener, PhoneStateListener.LISTEN_CELL_INFO)
+		},
+		unregisterAction = {
+			@Suppress("DEPRECATION")
+			manager.listen(listener, PhoneStateListener.LISTEN_NONE)
+		},
+	)
 }
 
 @RequiresApi(Build.VERSION_CODES.S)
