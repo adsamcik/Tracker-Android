@@ -91,6 +91,11 @@ class SourceRegistrationRepository @Inject constructor(
 		return database.withTransaction {
 			val brokerDao = database.sourceBrokerDao()
 			check(
+				!brokerDao.hasNonterminalProcessBoundRegistrationsFromAnotherIncarnation(
+					processIncarnationId,
+				),
+			) { "Prior-process provider registrations must be reconciled before provider startup" }
+			check(
 				!brokerDao.hasPendingCurrentProcessProviderRemoval(
 					sourceKind = source.stableCode,
 					currentProcessId = processIncarnationId,
@@ -493,8 +498,17 @@ class SourceRegistrationRepository @Inject constructor(
 		payload: ByteArray,
 		updatedAtMs: Long,
 	) {
-		database.sourceRuntimeStateDao().save(
-			SourceRuntimeStateEntity(
+		database.withTransaction {
+			val currentRegistration = database.sourceRegistrationStateDao().get(
+				registration.state.sourceKind,
+				registration.ownerScope,
+			)
+			check(currentRegistration != null &&
+				currentRegistration.sourceInstanceId == registration.state.sourceInstanceId &&
+				currentRegistration.clockDomainId == registration.state.clockDomainId &&
+				currentRegistration.registrationGeneration == registration.state.registrationGeneration
+			) { "Source registration changed while its runtime checkpoint was being saved" }
+			val incoming = SourceRuntimeStateEntity(
 				sourceKind = registration.state.sourceKind,
 				ownerScope = registration.ownerScope,
 				sourceInstanceId = registration.state.sourceInstanceId,
@@ -506,7 +520,22 @@ class SourceRegistrationRepository @Inject constructor(
 				stateVersion = stateVersion,
 				payload = payload,
 				updatedAtMs = updatedAtMs,
-			),
-		)
+			)
+			val dao = database.sourceRuntimeStateDao()
+			val stored = if (stateVersion == SENSOR_RUNTIME_CHECKPOINT_VERSION) {
+				mergeSensorRuntimeStates(
+					current = dao.get(incoming.sourceKind, incoming.ownerScope),
+					incoming = incoming,
+					legacyComponentStateVersion = stateVersion,
+				)
+			} else {
+				incoming
+			}
+			check(stored.sourceInstanceId == registration.state.sourceInstanceId &&
+				stored.clockDomainId == registration.state.clockDomainId &&
+				stored.registrationGeneration == registration.state.registrationGeneration
+			) { "Runtime checkpoint was superseded by an incompatible registration" }
+			dao.save(stored)
+		}
 	}
 }

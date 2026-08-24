@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.runtime
 
 import com.adsamcik.tracker.tracker.source.model.AppliedSourcePlan
 import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
+import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -20,6 +21,28 @@ interface SourceRuntime<P : SourcePlan> {
 
 fun interface SourceEventSink {
 	suspend fun admit(candidate: SourceEvidenceCandidate<*>): SourceAdmissionHandoff
+
+	/**
+	 * Atomically admits one sensor fact with its provider checkpoint. Implementations that do not
+	 * own that transaction must fail explicitly instead of weakening this to legacy admission.
+	 */
+	suspend fun admit(
+		candidate: SourceEvidenceCandidate<*>,
+		checkpoint: SensorAdmissionCheckpoint,
+	): SourceAdmissionHandoff = SourceAdmissionHandoff.RetryableFailure(
+		SourceAdmissionFailureCode.ATOMIC_CHECKPOINT_UNSUPPORTED,
+	)
+
+	/** Atomic provider-delivery path. Sources adopt this without weakening the legacy single-unit API. */
+	suspend fun admit(delivery: SourceDeliveryCandidate): SourceDeliveryAdmissionHandoff =
+		SourceDeliveryAdmissionHandoff.TerminalFailure(SourceAdmissionFailureCode.INVALID_EVIDENCE)
+}
+
+sealed interface SourceDeliveryAdmissionHandoff {
+	data class Durable(val admissionOrdinals: List<Long>) : SourceDeliveryAdmissionHandoff
+	data class Duplicate(val existingAdmissionOrdinals: List<Long>) : SourceDeliveryAdmissionHandoff
+	data class TerminalFailure(val code: SourceAdmissionFailureCode) : SourceDeliveryAdmissionHandoff
+	data class RetryableFailure(val code: SourceAdmissionFailureCode) : SourceDeliveryAdmissionHandoff
 }
 
 sealed interface SourceAdmissionHandoff {
@@ -38,6 +61,7 @@ enum class SourceAdmissionFailureCode {
 	CODEC_UNSUPPORTED,
 	STORAGE_UNAVAILABLE,
 	STORAGE_FULL,
+	ATOMIC_CHECKPOINT_UNSUPPORTED,
 	UNKNOWN,
 }
 
@@ -93,7 +117,6 @@ enum class RegistrationRemovalOutcome { REMOVED, NOT_REGISTERED, FAILED, UNOBSER
 enum class ProviderFlushOutcome { COMPLETE, NOT_SUPPORTED, FAILED, TIMED_OUT, NOT_REQUESTED }
 
 enum class ProviderCoverage {
-	FIFO_COMPLETE_AT_FLUSH_CALL,
 	CALLBACKS_ENTERED_BEFORE_BARRIER,
 	PROVIDER_COMPLETENESS_UNOBSERVABLE,
 }

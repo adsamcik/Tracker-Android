@@ -2,10 +2,13 @@ package com.adsamcik.tracker.tracker.source.runtime
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.fenceSourcePurposesInTransaction
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.process.ProcessIncarnationIdProvider
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
@@ -75,6 +78,15 @@ class SourceRegistrationRepositoryTest {
 			},
 			ProcessIncarnationIdProvider(),
 		)
+		shouldThrow<IllegalStateException> {
+			restartedRepository.begin(
+				SourceKind.STEPS,
+				2L,
+				PHYSICAL_CONFIG,
+				120L,
+				120L,
+			)
+		}
 
 		val reconciled = restartedRepository.reconcilePriorProcessRegistrations(
 			reconciledAtMs = 130L,
@@ -418,6 +430,127 @@ class SourceRegistrationRepositoryTest {
 		)?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_RETIRING
 		subject.completeRetirement(token) shouldBe true
 	}
+
+	@Test
+	fun `sensor checkpoint merge is monotonic and rejects a superseded registration`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true)),
+		)
+		val registration = subject.begin(SourceKind.STEPS, 1L, PHYSICAL_CONFIG, 100L, 100L)
+		subject.markAccepted(registration, 110L, 110L)
+		val terminal = SensorRuntimeCheckpoint(
+			lifecycle = RuntimeCheckpointLifecycle.QUIESCED,
+			metrics = RuntimeAdmissionSnapshot(
+				lastDurablyAdmittedSequence = 2L,
+				lastAdmissionOrdinal = 20L,
+				failedAdmissionCount = 1L,
+				unresolvedSequenceStart = 4L,
+				unresolvedSequenceEndInclusive = 4L,
+				gapClassifications = setOf(RuntimeGapClassification.ADMISSION_FAILED),
+			),
+			componentStateVersion = 7,
+			componentPayload = byteArrayOf(1),
+			causalOrderElapsedRealtimeNanos = 200L,
+		)
+		val delayedActive = SensorRuntimeCheckpoint(
+			lifecycle = RuntimeCheckpointLifecycle.ACTIVE,
+			metrics = RuntimeAdmissionSnapshot(
+				lastDurablyAdmittedSequence = 3L,
+				lastAdmissionOrdinal = 30L,
+				failedAdmissionCount = 2L,
+				unresolvedSequenceStart = 5L,
+				unresolvedSequenceEndInclusive = 5L,
+				gapClassifications = setOf(RuntimeGapClassification.CALLBACK_BUFFER_OVERFLOW),
+			),
+			componentStateVersion = 7,
+			componentPayload = byteArrayOf(2),
+			causalOrderElapsedRealtimeNanos = 150L,
+		)
+
+		subject.saveSensorRuntimeCheckpoint(registration, 2L, terminal, 200L)
+		subject.saveSensorRuntimeCheckpoint(registration, 3L, delayedActive, 150L)
+
+		val merged = decodeSensorRuntimeCheckpoint(
+			subject.loadRuntimeState(registration),
+			legacyComponentStateVersion = 7,
+		)
+		requireNotNull(merged).let { checkpoint ->
+			checkpoint.lifecycle shouldBe RuntimeCheckpointLifecycle.QUIESCED
+			checkpoint.componentPayload.toList() shouldBe listOf(1.toByte())
+			checkpoint.metrics.lastDurablyAdmittedSequence shouldBe 3L
+			checkpoint.metrics.lastAdmissionOrdinal shouldBe 30L
+			checkpoint.metrics.failedAdmissionCount shouldBe 2L
+			checkpoint.metrics.unresolvedSequenceStart shouldBe 4L
+			checkpoint.metrics.unresolvedSequenceEndInclusive shouldBe 5L
+			checkpoint.metrics.gapClassifications shouldBe setOf(
+				RuntimeGapClassification.ADMISSION_FAILED,
+				RuntimeGapClassification.CALLBACK_BUFFER_OVERFLOW,
+			)
+		}
+
+		val replacement = subject.begin(SourceKind.STEPS, 2L, "physical-config-v2", 300L, 300L)
+		subject.markAccepted(replacement, 310L, 310L)
+		shouldThrow<IllegalStateException> {
+			subject.saveSensorRuntimeCheckpoint(registration, 4L, terminal, 320L)
+		}
+	}
+
+	@Test
+	fun `canonical Android boot domain fences a live generation at the revocation boundary`() =
+		runTest {
+			val context = ApplicationProvider.getApplicationContext<Application>()
+			val bootProvider = AndroidBootClockDomainProvider(context)
+			val concreteRepository = SourceRegistrationRepository(
+				database,
+				FakeCollectedDataLifecycleStore(CollectedDataLifecycleSnapshot(3L, null)),
+				bootProvider,
+				processIncarnationIdProvider,
+			)
+			val bootId = bootProvider.current()
+			database.sourceBrokerDao().insertDemands(
+				listOf(
+					demand(
+						"capture",
+						"session:s1",
+						SourceBrokerPurpose.SESSION_CAPTURE,
+						"s1",
+						1L,
+						true,
+					).copy(requestedBootId = bootId),
+				),
+			)
+			val registration = concreteRepository.begin(
+				SourceKind.STEPS,
+				1L,
+				PHYSICAL_CONFIG,
+				100L,
+				100L,
+			)
+			concreteRepository.markAccepted(registration, 110L, 110L)
+
+			database.withTransaction {
+				database.fenceSourcePurposesInTransaction(
+					sourceKind = SourceKind.STEPS.stableCode,
+					purposes = listOf(SourceBrokerPurpose.SESSION_CAPTURE),
+					bootId = bootId,
+					elapsedRealtimeNanos = 200L,
+					wallTimeMs = 200L,
+				)
+			}
+
+			database.sourceBrokerDao().authorizationAt(
+				SourceKind.STEPS.stableCode,
+				registration.state.registrationGeneration,
+				bootId,
+				199L,
+			).toAuthorizationSnapshotOrNull()?.authorizedMembers?.size shouldBe 1
+			database.sourceBrokerDao().authorizationAt(
+				SourceKind.STEPS.stableCode,
+				registration.state.registrationGeneration,
+				bootId,
+				200L,
+			).toAuthorizationSnapshotOrNull()?.isDenied shouldBe true
+		}
 
 	private fun demand(
 		id: String,
