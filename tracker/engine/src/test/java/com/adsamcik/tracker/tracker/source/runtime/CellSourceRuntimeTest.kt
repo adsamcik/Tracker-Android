@@ -11,6 +11,7 @@ import com.adsamcik.tracker.tracker.source.model.CellRefreshOutcome
 import com.adsamcik.tracker.tracker.source.model.RetryBackoff
 import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
+import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import io.mockk.coEvery
@@ -37,6 +38,126 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 @OptIn(ExperimentalCoroutinesApi::class)
 class CellSourceRuntimeTest {
+	@Test
+	fun `provider start failure persists retirement before exact handle cleanup`() = runTest {
+		val fixture = runtimeFixture(this)
+		val events = mutableListOf<String>()
+		every { fixture.backend.start(any(), any()) } answers {
+			events += "provider-start"
+			false
+		}
+		coEvery {
+			fixture.registrations.beginRetirement(any(), any(), any(), any())
+		} answers {
+			events += "retiring"
+			retirementToken(firstArg(), secondArg(), thirdArg(), arg(3))
+		}
+		every { fixture.backend.stop() } answers {
+			events += "provider-stop"
+			true
+		}
+		coEvery { fixture.registrations.completeRetirement(any()) } answers {
+			events += "retired"
+			true
+		}
+
+		assertTrue(
+			fixture.runtime.start(fixture.plan, SourceEventSink { error("unused") }) is
+				SourceStartResult.Failed,
+		)
+
+		assertEquals(listOf("provider-start", "retiring", "provider-stop", "retired"), events)
+		coVerify(exactly = 0) { fixture.registrations.markFailed(any(), any(), any(), any()) }
+		coVerify(exactly = 0) { fixture.registrations.markRetired(any(), any(), any(), any()) }
+	}
+
+	@Test
+	fun `failed removal remains pending and replacement waits for exact retirement completion`() = runTest {
+		val initialPlan = cellPlan(revision = 1L)
+		val replacementPlan = cellPlan(revision = 2L, mode = CellMode.OBSERVE_AND_SPARSE_REFRESH)
+		val initial = registration(initialPlan, authorizationRevision = 1L, generation = 8L)
+		val replacement = registration(replacementPlan, authorizationRevision = 2L, generation = 9L)
+		val fixture = runtimeFixture(this, initialPlan, listOf(initial, replacement))
+		fixture.start(SourceEventSink { SourceAdmissionHandoff.Durable(1L) })
+		val initialToken = retirementToken(initial, "ORDERLY_STOP", 200L, 190L)
+		val events = mutableListOf<String>()
+		coEvery {
+			fixture.registrations.beginRetirement(any(), any(), any(), any())
+		} answers {
+			events += "retiring:${firstArg<SourceRegistration>().state.registrationGeneration}"
+			retirementToken(firstArg(), secondArg(), thirdArg(), arg(3))
+		}
+		var stopAttempt = 0
+		every { fixture.backend.stop() } answers {
+			stopAttempt++
+			val removed = stopAttempt > 1
+			events += "provider-stop:$removed"
+			removed
+		}
+		var retirementPending = true
+		coEvery { fixture.registrations.pendingRetirements(SourceKind.CELL) } answers {
+			events += "pending:$retirementPending"
+			if (retirementPending) listOf(initialToken) else emptyList()
+		}
+		coEvery { fixture.registrations.completeRetirement(any()) } answers {
+			events += "retired:${firstArg<SourceRegistrationRetirementToken>().registrationGeneration}"
+			retirementPending = false
+			true
+		}
+		coEvery { fixture.registrations.begin(any(), any(), any(), any(), any()) } answers {
+			events += "reserve:${replacement.state.registrationGeneration}"
+			replacement
+		}
+
+		val firstStop = fixture.quiesce()
+		assertEquals(RegistrationRemovalOutcome.FAILED, firstStop.registrationRemovalOutcome)
+		assertEquals(SourceStopStatus.PROVIDER_FAILED, firstStop.status)
+		assertEquals(listOf("retiring:8", "provider-stop:false"), events)
+
+		assertTrue(fixture.runtime.reconfigure(
+			replacementPlan,
+			SourceEventSink { SourceAdmissionHandoff.Durable(2L) },
+		) is SourceApplyResult.Applied)
+		assertEquals(
+			listOf(
+				"retiring:8",
+				"provider-stop:false",
+				"retiring:8",
+				"provider-stop:true",
+				"retired:8",
+				"pending:false",
+				"reserve:9",
+			),
+			events,
+		)
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `retirement persistence failure leaves provider owned and prevents replacement`() = runTest {
+		val fixture = runtimeFixture(this)
+		fixture.start(SourceEventSink { SourceAdmissionHandoff.Durable(1L) })
+		coEvery {
+			fixture.registrations.beginRetirement(any(), any(), any(), any())
+		} throws IllegalStateException("injected database outage")
+
+		val firstStop = fixture.quiesce()
+		assertEquals(RegistrationRemovalOutcome.FAILED, firstStop.registrationRemovalOutcome)
+		assertEquals(SourceStopStatus.PROVIDER_FAILED, firstStop.status)
+		verify(exactly = 0) { fixture.backend.stop() }
+
+		val replacement = fixture.runtime.reconfigure(
+			cellPlan(revision = 2L),
+			SourceEventSink { SourceAdmissionHandoff.Durable(2L) },
+		)
+		assertTrue(replacement is SourceApplyResult.Failed)
+		coVerify(exactly = 0) {
+			fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
+		}
+		verify(exactly = 1) { fixture.backend.start(any(), any()) }
+		verify(exactly = 0) { fixture.backend.stop() }
+	}
+
 	@Test
 	fun `prerequisite gate sees revoke without waiting for reconciliation`() {
 		var state = cellState()
@@ -317,6 +438,13 @@ class CellSourceRuntimeTest {
 		coEvery {
 			registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
 		} returns registrationsToReturn.last()
+		coEvery { registrations.pendingRetirements(SourceKind.CELL) } returns emptyList()
+		coEvery {
+			registrations.beginRetirement(any(), any(), any(), any())
+		} answers {
+			retirementToken(firstArg(), secondArg(), thirdArg(), arg(3))
+		}
+		coEvery { registrations.completeRetirement(any()) } returns true
 		coEvery { registrations.markAccepted(any(), any(), any()) } returns null
 		every { backend.start(any(), any()) } answers {
 			callback = secondArg()
@@ -372,7 +500,11 @@ class CellSourceRuntimeTest {
 		refreshApiAvailable,
 	)
 
-	private fun registration(plan: CellPlan, authorizationRevision: Long): SourceRegistration {
+	private fun registration(
+		plan: CellPlan,
+		authorizationRevision: Long,
+		generation: Long = 9L,
+	): SourceRegistration {
 		val demand = SourceDemandEntity(
 			demandId = "cell-demand-$authorizationRevision",
 			consumerId = "session:cell-test",
@@ -399,7 +531,7 @@ class CellSourceRuntimeTest {
 		val authorization = requireNotNull(
 			SourceBrokerAuthorization.rows(
 				SourceKind.CELL.stableCode,
-				registrationGeneration = 9L,
+				registrationGeneration = generation,
 				authorizationRevision = authorizationRevision,
 				demands = listOf(demand),
 				effectiveBootId = "boot-1",
@@ -414,7 +546,7 @@ class CellSourceRuntimeTest {
 				ownerScope = "source-broker:${SourceKind.CELL.stableCode}",
 				sourceInstanceId = "cell-1",
 				clockDomainId = "boot-1",
-				registrationGeneration = 9L,
+				registrationGeneration = generation,
 				nextSequence = 0L,
 				appliedRevision = plan.revision,
 				collectedDataEpoch = 1L,
@@ -425,6 +557,21 @@ class CellSourceRuntimeTest {
 			requiresProviderAcceptance = false,
 		)
 	}
+
+	private fun retirementToken(
+		registration: SourceRegistration,
+		reason: String,
+		retiredAtMs: Long,
+		retiredElapsedRealtimeNanos: Long,
+	) = SourceRegistrationRetirementToken(
+		source = SourceKind.CELL,
+		sourceInstanceId = SourceInstanceId(registration.state.sourceInstanceId),
+		registrationGeneration = registration.state.registrationGeneration,
+		processIncarnationId = "cell-runtime-test-process",
+		retiredAtMs = retiredAtMs,
+		retiredElapsedRealtimeNanos = retiredElapsedRealtimeNanos,
+		reason = reason,
+	)
 
 	private companion object {
 		const val NANOS_PER_MILLISECOND = 1_000_000L

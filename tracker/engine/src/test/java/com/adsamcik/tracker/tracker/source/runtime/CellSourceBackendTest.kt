@@ -23,6 +23,28 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class CellSourceBackendTest {
 	@Test
+	fun `partial registration failure retains completed handle for runtime ordered cleanup`() {
+		val baseManager = mockk<TelephonyManager>(relaxed = true)
+		val firstManager = mockk<TelephonyManager>(relaxed = true)
+		val secondManager = mockk<TelephonyManager>(relaxed = true)
+		every { baseManager.createForSubscriptionId(1) } returns firstManager
+		every { baseManager.createForSubscriptionId(2) } returns secondManager
+		val removalAttempts = mutableListOf<TelephonyCallback>()
+		var firstCallback: TelephonyCallback? = null
+		val backend = backend(baseManager) { subscriptionId, manager ->
+			if (subscriptionId == 2) error("injected second registration failure")
+			val callback = mockk<TelephonyCallback>(relaxed = true).also { firstCallback = it }
+			CellProviderRegistration(manager, callback, null) { removalAttempts += callback }
+		}
+
+		assertFalse(backend.start(linkedSetOf(1, 2)) { })
+		assertTrue(removalAttempts.isEmpty())
+
+		assertTrue(backend.stop())
+		assertEquals(listOf(requireNotNull(firstCallback)), removalAttempts)
+	}
+
+	@Test
 	fun `partial multi sim unregister retains only failed callback and blocks replacement`() {
 		val baseManager = mockk<TelephonyManager>(relaxed = true)
 		val firstManager = mockk<TelephonyManager>(relaxed = true)
@@ -56,7 +78,7 @@ class CellSourceBackendTest {
 		assertEquals(2, registered.size)
 		assertEquals(Pair<Int?, TelephonyCallback>(2, secondCallback), removalAttempts.last())
 		assertEquals(1, removalAttempts.count { it.second === firstCallback })
-		assertEquals(2, removalAttempts.count { it.second === secondCallback })
+		assertEquals(1, removalAttempts.count { it.second === secondCallback })
 
 		rejectSecondRemoval = false
 		assertTrue(backend.stop())
@@ -90,7 +112,7 @@ class CellSourceBackendTest {
 		assertFalse(backend.stop())
 		assertFalse(backend.start(setOf(7)) { })
 		assertEquals(1, registered.size)
-		assertEquals(2, removalAttempts.size)
+		assertEquals(1, removalAttempts.size)
 		removalAttempts.forEach { assertSame(first, it) }
 
 		rejectRemoval = false

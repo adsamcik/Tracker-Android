@@ -71,9 +71,9 @@ internal class AndroidCellSourceBackend internal constructor(
 	@SuppressLint("MissingPermission")
 	fun start(requestedSubscriptionIds: Set<Int>, callback: (CellBackendSnapshot) -> Unit): Boolean {
 		if (baseManager == null) return false
-		// A failed unregister means the exact old listener can still be live in Telephony. Do not
-		// create a replacement until every retained handle has been removed successfully.
-		if (!stop()) return false
+		// Removal is an explicit runtime operation because RETIRING must be durable first. A failed
+		// unregister therefore blocks start without implicitly retrying or losing its exact handle.
+		if (registrations.isNotEmpty()) return false
 		return runCatching {
 			resolveSubscriptionIds(requestedSubscriptionIds).forEach { subscriptionId ->
 				val manager = managerFor(subscriptionId)
@@ -85,7 +85,11 @@ internal class AndroidCellSourceBackend internal constructor(
 				)
 			}
 			registrations.isNotEmpty()
-		}.getOrElse { stop(); false }
+		}.getOrElse {
+			// The runtime must persist its RETIRING cutoff before cleanup. Completed registrations
+			// stay retained here so that the exact handles can be removed in that order.
+			false
+		}
 	}
 
 	@Synchronized
