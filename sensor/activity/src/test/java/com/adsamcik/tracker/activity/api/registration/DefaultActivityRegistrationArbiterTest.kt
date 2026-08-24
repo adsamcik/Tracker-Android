@@ -4,20 +4,27 @@ import android.app.Application
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
+import com.adsamcik.tracker.activity.api.backend.RecognitionConfig
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.verify
+import java.io.File
 import java.util.concurrent.CopyOnWriteArrayList
+import javax.inject.Provider
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -42,17 +49,26 @@ class DefaultActivityRegistrationArbiterTest {
 	private lateinit var backend: GmsActivityRecognitionBackend
 	private lateinit var appScope: CoroutineScope
 	private lateinit var subject: DefaultActivityRegistrationArbiter
+	private lateinit var startupGate: FakeTrackingStartupGate
+	private lateinit var lifecycleStore: FakeLifecycleStore
+	private lateinit var application: Application
+	private lateinit var cleanupFile: File
+	private lateinit var cleanupStore: ActivityRegistrationCleanupStore
+	private lateinit var cleanupScheduler: ActivityRegistrationCleanupScheduler
+	private var clockDomainId = "android-boot-count:7"
 	private val appliedIdentities = CopyOnWriteArrayList<ActivityRegistrationIdentity>()
+	private val appliedConfigs = CopyOnWriteArrayList<RecognitionConfig>()
 	private val removedIdentities = CopyOnWriteArrayList<ActivityRegistrationIdentity>()
 	private val statusesObservedAtProviderCall = CopyOnWriteArrayList<String>()
-	private var clockDomainId = "android-boot-count:7"
 
 	@Before
 	fun setUp() {
-		val application: Application = ApplicationProvider.getApplicationContext()
+		application = ApplicationProvider.getApplicationContext()
+		clockDomainId = "android-boot-count:7"
 		database = AppDatabase.testDatabase(application)
 		backend = mockk()
 		coEvery { backend.applyRegistration(any(), any()) } coAnswers {
+			appliedConfigs += arg<RecognitionConfig>(0)
 			val identity = arg<ActivityRegistrationIdentity>(1)
 			appliedIdentities += identity
 			statusesObservedAtProviderCall += requireNotNull(
@@ -63,14 +79,32 @@ class DefaultActivityRegistrationArbiterTest {
 		coEvery { backend.removeRegistration(any()) } coAnswers {
 			removedIdentities += arg<ActivityRegistrationIdentity>(0)
 		}
+		coEvery { backend.removePendingRegistration(any()) } returns Unit
 		io.mockk.every { backend.isAvailable } returns true
+		cleanupFile = File(application.cacheDir, "activity-cleanup-arbiter-test")
+		cleanupFile.delete()
+		File("${cleanupFile.path}.bak").delete()
+		File("${cleanupFile.path}.new").delete()
+		cleanupStore = ActivityRegistrationCleanupStore(cleanupFile)
+		cleanupStore.write(
+			ActivityRegistrationCleanupState(
+				releasedV27Checked = true,
+				pending = emptySet(),
+			),
+		)
+		cleanupScheduler = mockk(relaxed = true)
 		appScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+		startupGate = FakeTrackingStartupGate()
+		lifecycleStore = FakeLifecycleStore(CollectedDataLifecycleSnapshot(7L, null))
 		subject = DefaultActivityRegistrationArbiter(
 			application,
 			BootClockDomainProvider { clockDomainId },
 			database,
-			FakeLifecycleStore(CollectedDataLifecycleSnapshot(7L, null)),
+			lifecycleStore,
 			backend,
+			Provider { startupGate },
+			cleanupStore,
+			cleanupScheduler,
 			appScope,
 		)
 	}
@@ -79,6 +113,9 @@ class DefaultActivityRegistrationArbiterTest {
 	fun tearDown() {
 		appScope.cancel()
 		database.close()
+		cleanupFile.delete()
+		File("${cleanupFile.path}.bak").delete()
+		File("${cleanupFile.path}.new").delete()
 	}
 
 	@Test
@@ -92,6 +129,99 @@ class DefaultActivityRegistrationArbiterTest {
 		result.failureCode shouldBe ActivityRegistrationFailureCode.MISSING_DURABLE_DEMAND
 		result.snapshot.active shouldBe false
 		coVerify(exactly = 0) { backend.applyRegistration(any(), any()) }
+	}
+
+	@Test
+	fun `enabled demand fails closed before startup recovery without touching storage or provider`() = runTest {
+		startupGate.ready = false
+
+		val result = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+
+		result.status shouldBe ActivityRegistrationStatus.BLOCKED
+		result.failureCode shouldBe ActivityRegistrationFailureCode.STARTUP_RECOVERY_NOT_READY
+		result.retryable shouldBe true
+		result.snapshot.active shouldBe false
+		result.snapshot.owners shouldBe setOf(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+		database.sourceBrokerDao().maximumRegistrationGeneration(ACTIVITY_SOURCE_KIND) shouldBe 0L
+		coVerify(exactly = 0) { backend.applyRegistration(any(), any()) }
+	}
+
+	@Test
+	fun `durable reconciliation stays closed until startup recovery is ready`() = runTest {
+		startupGate.ready = false
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
+		)
+		subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+
+		val blocked = subject.reconcileDurableDemands()
+
+		blocked.status shouldBe ActivityRegistrationStatus.BLOCKED
+		blocked.failureCode shouldBe ActivityRegistrationFailureCode.STARTUP_RECOVERY_NOT_READY
+		coVerify(exactly = 0) { backend.applyRegistration(any(), any()) }
+
+		startupGate.ready = true
+		val applied = subject.reconcileDurableDemands()
+
+		applied.status shouldBe ActivityRegistrationStatus.APPLIED
+		applied.snapshot.active shouldBe true
+		coVerify(exactly = 1) { backend.applyRegistration(any(), any()) }
+	}
+
+	@Test
+	fun `resume after deletion unpauses without registering while startup recovery is closed`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
+		)
+		val started = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+		val startedIdentity = requireNotNull(started.snapshot.identity)
+		startupGate.ready = false
+		subject.closeForCollectedDataDeletion()
+
+		val resumed = subject.resumeAfterCollectedDataDeletion()
+
+		resumed.status shouldBe ActivityRegistrationStatus.BLOCKED
+		resumed.failureCode shouldBe ActivityRegistrationFailureCode.STARTUP_RECOVERY_NOT_READY
+		resumed.snapshot.active shouldBe false
+		removedIdentities shouldBe listOf(startedIdentity)
+		coVerify(exactly = 1) { backend.applyRegistration(any(), any()) }
+
+		startupGate.ready = true
+		val reconciled = subject.reconcileDurableDemands()
+
+		reconciled.status shouldBe ActivityRegistrationStatus.APPLIED
+		reconciled.snapshot.active shouldBe true
+		coVerify(exactly = 2) { backend.applyRegistration(any(), any()) }
+	}
+
+	@Test
+	fun `removing the last demand remains available while startup recovery is closed`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
+		)
+		val started = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+		val startedIdentity = requireNotNull(started.snapshot.identity)
+		startupGate.ready = false
+
+		val cleared = subject.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+
+		cleared.status shouldBe ActivityRegistrationStatus.APPLIED
+		cleared.snapshot.active shouldBe false
+		removedIdentities shouldBe listOf(startedIdentity)
+		coVerify(exactly = 1) { backend.applyRegistration(any(), any()) }
+		coVerify(exactly = 1) { backend.removeRegistration(startedIdentity) }
 	}
 
 	@Test
@@ -181,6 +311,54 @@ class DefaultActivityRegistrationArbiterTest {
 	}
 
 	@Test
+	fun `automatic owner attribution rotates callback metadata when session keeps provider request`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(
+				demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 3L, true),
+				demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false),
+			),
+		)
+		val sessionOnly = subject.setDemand(
+			ActivityRegistrationOwner.ACTIVE_SESSION,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+		val withAutomaticOwner = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+		val withoutAutomaticOwner = subject.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+
+		requireNotNull(sessionOnly.snapshot.identity).registrationGeneration shouldBe 1L
+		requireNotNull(withAutomaticOwner.snapshot.identity).registrationGeneration shouldBe 2L
+		requireNotNull(withoutAutomaticOwner.snapshot.identity).registrationGeneration shouldBe 3L
+		appliedConfigs.map(RecognitionConfig::automaticRecognitionEligible) shouldBe
+			listOf(false, true, false)
+		appliedConfigs.map(RecognitionConfig::intervalSeconds) shouldBe listOf(5, 5, 5)
+	}
+
+	@Test
+	fun `clock domain change retires persisted generation and applies a fresh identity`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
+		)
+		val first = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+		val firstIdentity = requireNotNull(first.snapshot.identity)
+		clockDomainId = "android-boot-count:8"
+
+		val second = subject.reconcileDurableDemands()
+
+		val secondIdentity = requireNotNull(second.snapshot.identity)
+		second.status shouldBe ActivityRegistrationStatus.APPLIED
+		secondIdentity.registrationGeneration shouldBe firstIdentity.registrationGeneration + 1L
+		secondIdentity.clockDomainId shouldBe "android-boot-count:8"
+		removedIdentities shouldBe listOf(firstIdentity)
+		appliedIdentities shouldBe listOf(firstIdentity, secondIdentity)
+	}
+
+	@Test
 	fun `registration copies opaque canonical clock domain without reformatting`() = runTest {
 		clockDomainId = "process:canonical-test"
 		database.sourceBrokerDao().insertDemands(
@@ -194,6 +372,26 @@ class DefaultActivityRegistrationArbiterTest {
 
 		result.status shouldBe ActivityRegistrationStatus.APPLIED
 		requireNotNull(result.snapshot.identity).clockDomainId shouldBe "process:canonical-test"
+	}
+
+	@Test
+	fun `collected data epoch change cannot reuse an active registration`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
+		)
+		val first = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+		val firstIdentity = requireNotNull(first.snapshot.identity)
+		lifecycleStore.beginFullDeletion(100L)
+
+		val second = subject.reconcileDurableDemands()
+
+		val secondIdentity = requireNotNull(second.snapshot.identity)
+		secondIdentity.registrationGeneration shouldBe firstIdentity.registrationGeneration + 1L
+		secondIdentity.collectedDataEpoch shouldBe 8L
+		removedIdentities shouldBe listOf(firstIdentity)
 	}
 
 	@Test
@@ -379,6 +577,146 @@ class DefaultActivityRegistrationArbiterTest {
 	}
 
 	@Test
+	fun `collected data deletion journals failed provider removal before allowing local erase`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
+		)
+		val started = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+		val identity = requireNotNull(started.snapshot.identity)
+		coEvery { backend.removeRegistration(any()) } throws IllegalStateException("provider unavailable")
+		coEvery { backend.removePendingRegistration(any()) } throws
+			IllegalStateException("provider unavailable")
+
+		val closed = subject.closeForCollectedDataDeletion()
+
+		closed.status shouldBe ActivityRegistrationStatus.DEGRADED
+		closed.failureCode shouldBe ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED
+		closed.retryable shouldBe true
+		closed.snapshot.active shouldBe false
+		cleanupStore.read().pending shouldBe setOf(
+			ActivityRegistrationCleanupKey(
+				kind = ActivityRegistrationCleanupKind.BROKERED,
+				sourceInstanceId = identity.sourceInstanceId,
+				registrationGeneration = identity.registrationGeneration,
+			),
+		)
+		verify(atLeast = 1) { cleanupScheduler.ensureScheduled() }
+	}
+
+	@Test
+	fun `pending cleanup blocks only a new Activity registration`() = runTest {
+		cleanupStore.write(
+			ActivityRegistrationCleanupState(
+				releasedV27Checked = true,
+				pending = setOf(
+					ActivityRegistrationCleanupKey(
+						kind = ActivityRegistrationCleanupKind.BROKERED,
+						sourceInstanceId = "retired-instance",
+						registrationGeneration = 4L,
+					),
+				),
+			),
+		)
+		coEvery { backend.removePendingRegistration(any()) } throws
+			IllegalStateException("provider unavailable")
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
+		)
+
+		val result = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+
+		result.status shouldBe ActivityRegistrationStatus.BLOCKED
+		result.failureCode shouldBe ActivityRegistrationFailureCode.PROVIDER_CLEANUP_PENDING
+		result.retryable shouldBe true
+		coVerify(exactly = 0) { backend.applyRegistration(any(), any()) }
+	}
+
+	@Test
+	fun `corrupt cleanup journal fails Activity registration closed`() = runTest {
+		cleanupFile.writeBytes(byteArrayOf(1, 2, 3))
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
+		)
+
+		val result = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+
+		result.status shouldBe ActivityRegistrationStatus.BLOCKED
+		result.failureCode shouldBe ActivityRegistrationFailureCode.PROVIDER_CLEANUP_STATE_INVALID
+		result.retryable shouldBe false
+		coVerify(exactly = 0) { backend.applyRegistration(any(), any()) }
+	}
+
+	@Test
+	fun `released v27 static pending intent is checked before broker registration`() = runTest {
+		cleanupStore.write(ActivityRegistrationCleanupState.INITIAL)
+		val cleanupKeys = mutableListOf<ActivityRegistrationCleanupKey>()
+		coEvery { backend.removePendingRegistration(any()) } coAnswers {
+			cleanupKeys += arg<ActivityRegistrationCleanupKey>(0)
+		}
+
+		val result = subject.retryPendingProviderCleanup()
+
+		result shouldBe ActivityProviderCleanupResult.COMPLETE
+		cleanupKeys shouldBe listOf(ActivityRegistrationCleanupKey.RELEASED_V27)
+		cleanupStore.read().releasedV27Checked shouldBe true
+	}
+
+	@Test
+	fun `fresh automatic demand after deletion registers under the new collected-data epoch`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("auto-before-delete", "app:automatic-start:activity", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
+		)
+		val initial = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 10),
+		)
+		val initialIdentity = requireNotNull(initial.snapshot.identity)
+		initialIdentity.collectedDataEpoch shouldBe 7L
+
+		startupGate.ready = false
+		lifecycleStore.beginFullDeletion(deletedAtMs = 500L)
+		subject.closeForCollectedDataDeletion().status shouldBe ActivityRegistrationStatus.APPLIED
+		val registrationsBeforeRestoration = appliedIdentities.size
+		database.withTransaction {
+			database.sourceBrokerDao().deleteAllAuthorizations()
+			database.sourceBrokerDao().deleteAllRegistrations()
+			database.sourceBrokerDao().deleteAllDemands()
+			database.sourceRegistrationStateDao().deleteAll()
+		}
+		subject.resumeAfterCollectedDataDeletion().status shouldBe ActivityRegistrationStatus.BLOCKED
+		database.sourceBrokerDao().activeDemands(ACTIVITY_SOURCE_KIND) shouldBe emptyList()
+
+		// This is the durable row written by the authoritative automatic-control reconciler after
+		// the reopened startup generation reaches Ready. No preference mutation or process restart
+		// occurs between the two provider registrations.
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("auto-after-delete", "app:automatic-start:activity", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
+		)
+		startupGate.ready = true
+		val restored = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 10),
+		)
+
+		restored.status shouldBe ActivityRegistrationStatus.APPLIED
+		val restoredIdentity = requireNotNull(restored.snapshot.identity)
+		restoredIdentity.collectedDataEpoch shouldBe 8L
+		restoredIdentity.sourceInstanceId shouldNotBe initialIdentity.sourceInstanceId
+		appliedIdentities.drop(registrationsBeforeRestoration) shouldBe listOf(restoredIdentity)
+		database.sourceBrokerDao().activeDemands(ACTIVITY_SOURCE_KIND).single().demandId shouldBe
+			"auto-after-delete"
+	}
+
+	@Test
 	fun `post acceptance cleanup does not swallow cancellation`() = runTest {
 		database.sourceBrokerDao().insertDemands(
 			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
@@ -480,4 +818,23 @@ private class FakeLifecycleStore(initial: CollectedDataLifecycleSnapshot) : Coll
 
 	override suspend fun advanceRetainedFrom(retainedFromMs: Long): CollectedDataLifecycleSnapshot =
 		state.value.copy(retainedFromMs = retainedFromMs).also { state.emit(it) }
+}
+
+private class FakeTrackingStartupGate(
+	var ready: Boolean = true,
+) : TrackingStartupGate {
+	override val isReady: Boolean get() = ready
+
+	override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult =
+		if (ready) {
+			TrackingStartupResult.Ready(
+				legacyRecoveryPartial = false,
+				liveCompletedThroughOrdinal = 0L,
+			)
+		} else {
+			TrackingStartupResult.RetryableFailure(
+				stage = com.adsamcik.tracker.shared.base.startup.TrackingStartupStage.STORAGE,
+				failureCode = "TEST_NOT_READY",
+			)
+		}
 }

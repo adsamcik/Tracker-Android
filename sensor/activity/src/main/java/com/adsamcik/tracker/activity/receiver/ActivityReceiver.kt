@@ -3,8 +3,12 @@ package com.adsamcik.tracker.activity.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_AUTOMATIC_RECOGNITION_ELIGIBLE
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_AUTOMATIC_TRANSITION_ACTIVITY_TYPES
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_AUTOMATIC_TRANSITION_TYPES
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_CLOCK_DOMAIN_ID
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_COLLECTED_DATA_EPOCH
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_PHYSICAL_CONFIGURATION_FINGERPRINT
@@ -71,6 +75,11 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		)
 		val delivery = parseDelivery(
 			registrationIdentity = intent.registrationIdentity(),
+			automaticRecognitionEligible = intent.getBooleanExtra(
+				EXTRA_AUTOMATIC_RECOGNITION_ELIGIBLE,
+				false,
+			),
+			automaticTransitions = intent.automaticTransitions(),
 			activityResult = if (hasActivityResult) {
 				requireNotNull(ActivityRecognitionResult.extractResult(intent))
 			} else {
@@ -110,6 +119,8 @@ internal class ActivityReceiver : BroadcastReceiver() {
 
 	private fun parseDelivery(
 		registrationIdentity: ActivityRegistrationIdentity?,
+		automaticRecognitionEligible: Boolean,
+		automaticTransitions: Set<ActivityTransitionData>,
 		activityResult: ActivityRecognitionResult?,
 		transitionResult: ActivityTransitionResult?,
 		receivedElapsedRealtimeMillis: Long,
@@ -141,6 +152,8 @@ internal class ActivityReceiver : BroadcastReceiver() {
 				receivedElapsedRealtimeNanos = receivedElapsedRealtimeMillis * NANOS_PER_MILLISECOND,
 				receivedWallTimeMs = receivedWallTimeMs,
 				registrationIdentity = registrationIdentity,
+				automaticRecognitionEligible = automaticRecognitionEligible,
+				automaticTransitions = automaticTransitions,
 				recognitions = recognizedActivity?.let { activity ->
 					listOf(
 						ActivityRecognitionEvidence(
@@ -184,6 +197,23 @@ internal class ActivityReceiver : BroadcastReceiver() {
 				),
 			)
 		}.getOrNull()
+	}
+
+	private fun Intent.automaticTransitions(): Set<ActivityTransitionData> {
+		val activityTypes = getIntArrayExtra(EXTRA_AUTOMATIC_TRANSITION_ACTIVITY_TYPES)
+			?: return emptySet()
+		val transitionTypes = getIntArrayExtra(EXTRA_AUTOMATIC_TRANSITION_TYPES)
+			?: return emptySet()
+		if (activityTypes.size != transitionTypes.size) return emptySet()
+		return activityTypes.indices.mapNotNull { index ->
+			val transitionType = ActivityTransitionType.entries.firstOrNull { type ->
+				type.value == transitionTypes[index]
+			} ?: return@mapNotNull null
+			ActivityTransitionData(
+				activity = ActivityTypeMapping.fromPlayServicesCode(activityTypes[index]),
+				type = transitionType,
+			)
+		}.toSet()
 	}
 
 	private data class ParsedActivityDelivery(

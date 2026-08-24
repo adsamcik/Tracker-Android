@@ -12,12 +12,15 @@ import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEnt
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.util.UUID
 import java.security.MessageDigest
+import java.util.UUID
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -38,6 +41,9 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 	private val database: AppDatabase,
 	private val lifecycleStore: CollectedDataLifecycleStore,
 	private val backend: GmsActivityRecognitionBackend,
+	private val startupGateProvider: Provider<TrackingStartupGate>,
+	private val cleanupStore: ActivityRegistrationCleanupStore,
+	private val cleanupScheduler: ActivityRegistrationCleanupScheduler,
 	@ApplicationScope appScope: CoroutineScope,
 ) : ActivityRegistrationArbiter {
 	private val mutex = Mutex()
@@ -46,12 +52,18 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 	private var deletionPaused = false
 
 	init {
+		// This one-time unique job also discovers and removes the released-v27 static PendingIntent.
+		// The journal is outside Room, so scheduling is safe before tracking storage is ready.
+		ensureCleanupRetryScheduled()
 		// Session manifests may add/remove Activity as CONTROL without starting ActivitySourceRuntime.
 		// Observe the durable authority so an unchanged physical request is still rotated onto the
-		// exact new purpose/consent vector.
+		// exact new purpose/consent vector. Do not subscribe to Room until storage and released-v27
+		// recovery are safe: this singleton can be constructed during cold service injection.
 		appScope.launch {
+			val startupGate = startupGateProvider.get()
+			if (startupGate.reconcile() !is TrackingStartupResult.Ready) startupGate.awaitReady()
 			database.invalidationTracker
-				.createFlow("source_demand", emitInitialState = false)
+				.createFlow("source_demand", emitInitialState = true)
 				.collect { reconcileDurableDemands() }
 		}
 	}
@@ -79,7 +91,56 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		// desired owner and will be installed with a fresh identity after the deletion commits.
 		demands.remove(ActivityRegistrationOwner.ACTIVE_SESSION)
 		demands.remove(ActivityRegistrationOwner.LEGACY_REQUEST_MANAGER)
-		fenceAndRemoveLocked(clearOwners = false)
+		val stopped = fenceAndRemoveLocked(clearOwners = false)
+		if (stopped.status == ActivityRegistrationStatus.FAILED ||
+			stopped.status == ActivityRegistrationStatus.BLOCKED
+		) return@withLock stopped
+
+		val pendingRows = try {
+			database.sourceBrokerDao().pendingProviderRemovals(ACTIVITY_SOURCE_KIND)
+		} catch (error: CancellationException) {
+			throw error
+		} catch (_: Exception) {
+			return@withLock failure(
+				ActivityRegistrationStatus.FAILED,
+				ActivityRegistrationFailureCode.STORAGE_UNAVAILABLE,
+				true,
+			)
+		}
+		if (pendingRows.isNotEmpty()) {
+			try {
+				cleanupStore.addPending(pendingRows.map { it.cleanupKey() })
+			} catch (error: ActivityRegistrationCleanupStoreException) {
+				return@withLock failure(
+					ActivityRegistrationStatus.FAILED,
+					if (error.corrupt) {
+						ActivityRegistrationFailureCode.PROVIDER_CLEANUP_STATE_INVALID
+					} else {
+						ActivityRegistrationFailureCode.STORAGE_UNAVAILABLE
+					},
+					retryable = !error.corrupt,
+				)
+			}
+		}
+
+		when (val cleanup = retryPendingProviderCleanupLocked()) {
+			ActivityProviderCleanupResult.COMPLETE -> applied(current)
+			else -> if (cleanup.retryable) {
+				ActivityRegistrationResult(
+					status = ActivityRegistrationStatus.DEGRADED,
+					snapshot = current,
+					failureCode = ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED,
+					retryable = true,
+				)
+			} else {
+				failure(
+					ActivityRegistrationStatus.FAILED,
+					cleanup.failureCode
+						?: ActivityRegistrationFailureCode.PROVIDER_CLEANUP_STATE_INVALID,
+					false,
+				)
+			}
+		}
 	}
 
 	override suspend fun resumeAfterCollectedDataDeletion(): ActivityRegistrationResult = mutex.withLock {
@@ -87,12 +148,45 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		reconcileLocked()
 	}
 
+	override suspend fun retryPendingProviderCleanup(): ActivityProviderCleanupResult = mutex.withLock {
+		retryPendingProviderCleanupLocked()
+	}
+
 	override fun snapshot(): ActivityRegistrationSnapshot = current
 
 	private suspend fun reconcileLocked(): ActivityRegistrationResult {
-		hydratePersistedIdentityIfNeeded()
 		val combined = combineDemands()
 		if (deletionPaused) return applied(current)
+		if (combined.enabled && !startupGateProvider.get().isReady) {
+			// Do not perform enabled storage reconciliation or provider registration while process-wide
+			// recovery is closed. Cleanup remains legal, so fence an already active process-local
+			// registration before retaining the logical owners for a later Ready reconciliation.
+			if (current.active) {
+				val stopped = fenceAndRemoveLocked(clearOwners = false)
+				if (stopped.status != ActivityRegistrationStatus.APPLIED) return stopped
+			}
+			current = current.copy(owners = combined.owners)
+			return failure(
+				ActivityRegistrationStatus.BLOCKED,
+				ActivityRegistrationFailureCode.STARTUP_RECOVERY_NOT_READY,
+				true,
+			)
+		}
+		if (combined.enabled) {
+			val cleanup = retryPendingProviderCleanupLocked()
+			if (!cleanup.complete) {
+				return failure(
+					ActivityRegistrationStatus.BLOCKED,
+					if (cleanup.failureCode == ActivityRegistrationFailureCode.PROVIDER_CLEANUP_STATE_INVALID) {
+						ActivityRegistrationFailureCode.PROVIDER_CLEANUP_STATE_INVALID
+					} else {
+						ActivityRegistrationFailureCode.PROVIDER_CLEANUP_PENDING
+					},
+					cleanup.retryable,
+				)
+			}
+		}
+		hydratePersistedIdentityIfNeeded()
 		val cleanupComplete = cleanupRetiringRegistrationsLocked()
 		if (!combined.enabled) {
 			val stopped = fenceAndRemoveLocked(clearOwners = true)
@@ -139,7 +233,24 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			return failure(ActivityRegistrationStatus.BLOCKED, ActivityRegistrationFailureCode.PROVIDER_UNAVAILABLE, true)
 		}
 		val physicalConfigurationFingerprint = combined.physicalConfigurationFingerprint()
-		if (current.active && current.matches(combined, physicalConfigurationFingerprint)) {
+		val lifecycle = try {
+			lifecycleStore.snapshot()
+		} catch (error: CancellationException) {
+			throw error
+		} catch (_: Exception) {
+			return failure(
+				ActivityRegistrationStatus.FAILED,
+				ActivityRegistrationFailureCode.STORAGE_UNAVAILABLE,
+				true,
+			)
+		}
+		if (current.active && current.matches(
+				combined,
+				physicalConfigurationFingerprint,
+				bootClockDomainProvider.current(),
+				lifecycle.epoch,
+			)
+		) {
 			try {
 				rotateAuthorization(
 					requireNotNull(current.identity),
@@ -172,6 +283,8 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			RecognitionConfig(
 				intervalSeconds = combined.intervalSeconds ?: 0,
 				requestedTransitions = combined.transitions,
+				automaticRecognitionEligible = combined.automaticRecognitionEligible,
+				automaticTransitions = combined.automaticTransitions,
 			),
 			identity,
 		)
@@ -437,6 +550,87 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		return true
 	}
 
+	/**
+	 * Cleans identities from the no-backup journal without touching Room. This remains valid after
+	 * full collected-data deletion has removed every provider-generation row.
+	 */
+	private suspend fun retryPendingProviderCleanupLocked(): ActivityProviderCleanupResult {
+		val state = try {
+			cleanupStore.read()
+		} catch (error: ActivityRegistrationCleanupStoreException) {
+			return ActivityProviderCleanupResult(
+				complete = false,
+				pendingCount = 0,
+				retryable = !error.corrupt,
+				failureCode = if (error.corrupt) {
+					ActivityRegistrationFailureCode.PROVIDER_CLEANUP_STATE_INVALID
+				} else {
+					ActivityRegistrationFailureCode.STORAGE_UNAVAILABLE
+				},
+			)
+		}
+		val work = buildSet {
+			addAll(state.pending)
+			if (!state.releasedV27Checked) add(ActivityRegistrationCleanupKey.RELEASED_V27)
+		}
+		if (work.isEmpty()) return ActivityProviderCleanupResult.COMPLETE
+
+		val remaining = LinkedHashSet<ActivityRegistrationCleanupKey>()
+		var releasedV27Checked = state.releasedV27Checked
+		for (key in work) {
+			try {
+				backend.removePendingRegistration(key)
+				if (key.kind == ActivityRegistrationCleanupKind.RELEASED_V27_STATIC) {
+					releasedV27Checked = true
+				}
+			} catch (error: CancellationException) {
+				throw error
+			} catch (_: Exception) {
+				remaining += key
+				// The durable key, rather than the unchecked bit, owns all subsequent retries.
+				if (key.kind == ActivityRegistrationCleanupKind.RELEASED_V27_STATIC) {
+					releasedV27Checked = true
+				}
+			}
+		}
+		try {
+			cleanupStore.write(
+				ActivityRegistrationCleanupState(
+					releasedV27Checked = releasedV27Checked,
+					pending = remaining,
+				),
+			)
+		} catch (error: ActivityRegistrationCleanupStoreException) {
+			ensureCleanupRetryScheduled()
+			return ActivityProviderCleanupResult(
+				complete = false,
+				pendingCount = remaining.size,
+				retryable = !error.corrupt,
+				failureCode = if (error.corrupt) {
+					ActivityRegistrationFailureCode.PROVIDER_CLEANUP_STATE_INVALID
+				} else {
+					ActivityRegistrationFailureCode.STORAGE_UNAVAILABLE
+				},
+			)
+		}
+		if (remaining.isEmpty()) return ActivityProviderCleanupResult.COMPLETE
+		ensureCleanupRetryScheduled()
+		return ActivityProviderCleanupResult(
+			complete = false,
+			pendingCount = remaining.size,
+			retryable = true,
+			failureCode = ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED,
+		)
+	}
+
+	private fun ensureCleanupRetryScheduled() {
+		try {
+			cleanupScheduler.ensureScheduled()
+		} catch (_: IllegalStateException) {
+			// The journal remains the crash authority. A later arbiter construction retries scheduling.
+		}
+	}
+
 	private suspend fun removeAndCompleteRegistration(
 		registration: ProviderRegistrationGenerationEntity,
 		nonCancellable: Boolean,
@@ -534,10 +728,13 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 
 	private fun combineDemands(): CombinedDemand {
 		val active = demands.filterValues(ActivityRegistrationDemand::enabled)
+		val automatic = active[ActivityRegistrationOwner.AUTOMATIC_START_MONITOR]
 		return CombinedDemand(
 			owners = active.keys,
 			intervalSeconds = active.values.mapNotNull { it.continuousRecognitionIntervalSeconds }.minOrNull(),
 			transitions = active.values.flatMap { it.transitions }.toSet(),
+			automaticRecognitionEligible = automatic?.continuousRecognitionIntervalSeconds != null,
+			automaticTransitions = automatic?.transitions.orEmpty(),
 			appliedRevision = active.values.mapNotNull { it.planRevision }.maxOrNull(),
 		)
 	}
@@ -545,10 +742,14 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 	private fun ActivityRegistrationSnapshot.matches(
 		demand: CombinedDemand,
 		physicalConfigurationFingerprint: String,
+		clockDomainId: String,
+		collectedDataEpoch: Long,
 	): Boolean =
 		continuousRecognitionIntervalSeconds == demand.intervalSeconds &&
 			transitions == demand.transitions &&
-			identity?.physicalConfigurationFingerprint == physicalConfigurationFingerprint
+			identity?.physicalConfigurationFingerprint == physicalConfigurationFingerprint &&
+			identity?.clockDomainId == clockDomainId &&
+			identity?.collectedDataEpoch == collectedDataEpoch
 
 	private fun applied(snapshot: ActivityRegistrationSnapshot) =
 		ActivityRegistrationResult(ActivityRegistrationStatus.APPLIED, snapshot)
@@ -563,6 +764,8 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		val owners: Set<ActivityRegistrationOwner>,
 		val intervalSeconds: Int?,
 		val transitions: Set<com.adsamcik.tracker.activity.ActivityTransitionData>,
+		val automaticRecognitionEligible: Boolean,
+		val automaticTransitions: Set<com.adsamcik.tracker.activity.ActivityTransitionData>,
 		val appliedRevision: Long?,
 	) {
 		val enabled: Boolean get() = intervalSeconds != null || transitions.isNotEmpty()
@@ -575,6 +778,19 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 					compareBy<com.adsamcik.tracker.activity.ActivityTransitionData> { it.activity.name }
 						.thenBy { it.type.value },
 				).forEach { transition ->
+					append(transition.activity.name)
+					append(':')
+					append(transition.type.value)
+					append('\u001e')
+				}
+				append('\u001f')
+				append(if (automaticRecognitionEligible) "automatic-recognition" else "no-automatic-recognition")
+				append('\u001f')
+				automaticTransitions.sortedWith(
+					compareBy<com.adsamcik.tracker.activity.ActivityTransitionData> { it.activity.name }
+						.thenBy { it.type.value },
+				).forEach { transition ->
+					append("automatic:")
 					append(transition.activity.name)
 					append(':')
 					append(transition.type.value)
@@ -601,6 +817,12 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			clockDomainId = clockDomainId,
 			physicalConfigurationFingerprint = physicalConfigurationFingerprint,
 		)
+
+	private fun ProviderRegistrationGenerationEntity.cleanupKey() = ActivityRegistrationCleanupKey(
+		kind = ActivityRegistrationCleanupKind.BROKERED,
+		sourceInstanceId = sourceInstanceId,
+		registrationGeneration = registrationGeneration,
+	)
 
 	private companion object {
 		const val ACTIVITY_SOURCE_KIND = 2

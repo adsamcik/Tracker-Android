@@ -15,6 +15,12 @@ interface ActivityRegistrationArbiter {
 	suspend fun reconcileDurableDemands(): ActivityRegistrationResult
 	suspend fun closeForCollectedDataDeletion(): ActivityRegistrationResult
 	suspend fun resumeAfterCollectedDataDeletion(): ActivityRegistrationResult
+	/**
+	 * Retries physical provider cleanup recorded outside collected-data storage.
+	 *
+	 * This operation must not require Room: the registration rows may already have been deleted.
+	 */
+	suspend fun retryPendingProviderCleanup(): ActivityProviderCleanupResult
 	fun snapshot(): ActivityRegistrationSnapshot
 }
 
@@ -68,14 +74,37 @@ data class ActivityRegistrationResult(
 	val retryable: Boolean = false,
 )
 
+data class ActivityProviderCleanupResult(
+	val complete: Boolean,
+	val pendingCount: Int,
+	val retryable: Boolean,
+	val failureCode: ActivityRegistrationFailureCode? = null,
+) {
+	init {
+		require(pendingCount >= 0)
+		require(complete == (pendingCount == 0 && failureCode == null))
+	}
+
+	companion object {
+		val COMPLETE = ActivityProviderCleanupResult(
+			complete = true,
+			pendingCount = 0,
+			retryable = false,
+		)
+	}
+}
+
 enum class ActivityRegistrationStatus { APPLIED, DEGRADED, BLOCKED, FAILED }
 
 enum class ActivityRegistrationFailureCode {
+	STARTUP_RECOVERY_NOT_READY,
 	PERMISSION_MISSING,
 	MISSING_DURABLE_DEMAND,
 	PROVIDER_UNAVAILABLE,
 	PROVIDER_REGISTRATION_FAILED,
 	PROVIDER_REMOVAL_FAILED,
+	PROVIDER_CLEANUP_PENDING,
+	PROVIDER_CLEANUP_STATE_INVALID,
 	STORAGE_UNAVAILABLE,
 	STALE_COLLECTED_DATA_EPOCH,
 }

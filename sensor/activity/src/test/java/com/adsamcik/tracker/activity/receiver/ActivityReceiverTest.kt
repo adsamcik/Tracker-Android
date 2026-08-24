@@ -5,7 +5,12 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.activity.ActivityTransitionData
+import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_AUTOMATIC_RECOGNITION_ELIGIBLE
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_AUTOMATIC_TRANSITION_ACTIVITY_TYPES
+import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_AUTOMATIC_TRANSITION_TYPES
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_CLOCK_DOMAIN_ID
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_COLLECTED_DATA_EPOCH
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend.Companion.EXTRA_PHYSICAL_CONFIGURATION_FINGERPRINT
@@ -404,6 +409,46 @@ class ActivityReceiverTest {
 					batch.registrationIdentity?.collectedDataEpoch == 4L &&
 					batch.registrationIdentity?.clockDomainId == "boot-4" &&
 					batch.registrationIdentity?.physicalConfigurationFingerprint == "physical-config"
+			})
+		}
+	}
+
+	@Test
+	fun `passes captured automatic mechanism and ordered transitions to durable ingress`() {
+		val walking: ActivityTransitionEvent = mockk {
+			every { activityType } returns com.google.android.gms.location.DetectedActivity.WALKING
+			every { elapsedRealTimeNanos } returns 100L
+			every { transitionType } returns ActivityTransitionType.ENTER.value
+		}
+		val still: ActivityTransitionEvent = mockk {
+			every { activityType } returns com.google.android.gms.location.DetectedActivity.STILL
+			every { elapsedRealTimeNanos } returns 200L
+			every { transitionType } returns ActivityTransitionType.ENTER.value
+		}
+		val intent = intentWithTransitionResult(listOf(walking, still))
+		every { intent.getBooleanExtra(EXTRA_AUTOMATIC_RECOGNITION_ELIGIBLE, false) } returns false
+		every { intent.getIntArrayExtra(EXTRA_AUTOMATIC_TRANSITION_ACTIVITY_TYPES) } returns intArrayOf(
+			com.google.android.gms.location.DetectedActivity.WALKING,
+			com.google.android.gms.location.DetectedActivity.STILL,
+		)
+		every { intent.getIntArrayExtra(EXTRA_AUTOMATIC_TRANSITION_TYPES) } returns intArrayOf(
+			ActivityTransitionType.ENTER.value,
+			ActivityTransitionType.ENTER.value,
+		)
+
+		receiver.onReceive(context, intent)
+
+		coVerify {
+			mockIngress.admit(match { batch ->
+				!batch.automaticRecognitionEligible &&
+					batch.automaticTransitions == setOf(
+						ActivityTransitionData(DetectedActivityType.WALKING, ActivityTransitionType.ENTER),
+						ActivityTransitionData(DetectedActivityType.STILL, ActivityTransitionType.ENTER),
+					) &&
+					batch.transitions.map { it.activityType } == listOf(
+						DetectedActivityType.WALKING,
+						DetectedActivityType.STILL,
+					)
 			})
 		}
 	}

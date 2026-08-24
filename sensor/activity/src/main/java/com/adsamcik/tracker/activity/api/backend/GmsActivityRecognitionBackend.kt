@@ -7,6 +7,8 @@ import android.content.Context
 import android.content.Intent
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.receiver.ActivityReceiver
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationCleanupKey
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationCleanupKind
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.assist.Assist
@@ -100,7 +102,7 @@ class GmsActivityRecognitionBackend @Inject constructor(
 			}
 
 			val client = ActivityRecognition.getClient(context)
-			val intent = getActivityDetectionPendingIntent(identity)
+			val intent = getActivityDetectionPendingIntent(identity, config)
 
 			val recognitionTask = if (config.intervalSeconds > 0) {
 				requestActivityRecognition(client, intent, config.intervalSeconds)
@@ -141,9 +143,19 @@ class GmsActivityRecognitionBackend @Inject constructor(
 		removeRegistrationLocked(identity)
 	}
 
+	/** Removes a persisted cleanup obligation without consulting collected-data storage. */
+	internal suspend fun removePendingRegistration(key: ActivityRegistrationCleanupKey) =
+		subscriptionMutex.withLock {
+			val intent = findPendingIntentForCleanup(key) ?: return@withLock
+			removeRegistrationLocked(intent)
+		}
+
 	private suspend fun removeRegistrationLocked(identity: ActivityRegistrationIdentity) {
+		removeRegistrationLocked(getActivityDetectionPendingIntent(identity))
+	}
+
+	private suspend fun removeRegistrationLocked(intent: PendingIntent) {
 		val client = ActivityRecognition.getClient(context)
-		val intent = getActivityDetectionPendingIntent(identity)
 		try {
 			removeAllSubscriptions(client, intent)
 			intent.cancel()
@@ -265,14 +277,11 @@ class GmsActivityRecognitionBackend @Inject constructor(
 			.build()
 	}
 
-	private fun getActivityDetectionPendingIntent(identity: ActivityRegistrationIdentity): PendingIntent {
-		val intent = Intent(context, ActivityReceiver::class.java)
-			.setAction("${context.packageName}.ACTIVITY_RECOGNITION.${identity.sourceInstanceId}.${identity.registrationGeneration}")
-			.putExtra(EXTRA_SOURCE_INSTANCE_ID, identity.sourceInstanceId)
-			.putExtra(EXTRA_REGISTRATION_GENERATION, identity.registrationGeneration)
-			.putExtra(EXTRA_COLLECTED_DATA_EPOCH, identity.collectedDataEpoch)
-			.putExtra(EXTRA_CLOCK_DOMAIN_ID, identity.clockDomainId)
-			.putExtra(EXTRA_PHYSICAL_CONFIGURATION_FINGERPRINT, identity.physicalConfigurationFingerprint)
+	private fun getActivityDetectionPendingIntent(
+		identity: ActivityRegistrationIdentity,
+		config: RecognitionConfig = RecognitionConfig(intervalSeconds = 0),
+	): PendingIntent {
+		val intent = activityDetectionIntent(identity, config)
 		return PendingIntent.getBroadcast(
 			context,
 			requestCode(identity),
@@ -281,6 +290,59 @@ class GmsActivityRecognitionBackend @Inject constructor(
 		)
 	}
 
+	internal fun activityDetectionIntent(
+		identity: ActivityRegistrationIdentity,
+		config: RecognitionConfig,
+	): Intent {
+		val automaticTransitions = config.automaticTransitions.sortedWith(
+			compareBy<ActivityTransitionData> { it.activity.name }.thenBy { it.type.value },
+		)
+		return brokeredActivityIntent(identity.sourceInstanceId, identity.registrationGeneration)
+			.putExtra(EXTRA_SOURCE_INSTANCE_ID, identity.sourceInstanceId)
+			.putExtra(EXTRA_REGISTRATION_GENERATION, identity.registrationGeneration)
+			.putExtra(EXTRA_COLLECTED_DATA_EPOCH, identity.collectedDataEpoch)
+			.putExtra(EXTRA_CLOCK_DOMAIN_ID, identity.clockDomainId)
+			.putExtra(EXTRA_PHYSICAL_CONFIGURATION_FINGERPRINT, identity.physicalConfigurationFingerprint)
+			.putExtra(EXTRA_AUTOMATIC_RECOGNITION_ELIGIBLE, config.automaticRecognitionEligible)
+			.putExtra(
+				EXTRA_AUTOMATIC_TRANSITION_ACTIVITY_TYPES,
+				automaticTransitions.map { transition ->
+					ActivityTypeMapping.toPlayServicesCode(transition.activity)
+				}.toIntArray(),
+			)
+			.putExtra(
+				EXTRA_AUTOMATIC_TRANSITION_TYPES,
+				automaticTransitions.map { it.type.value }.toIntArray(),
+			)
+	}
+
+	internal fun findPendingIntentForCleanup(
+		key: ActivityRegistrationCleanupKey,
+	): PendingIntent? {
+		val (intent, requestCode) = when (key.kind) {
+			ActivityRegistrationCleanupKind.BROKERED ->
+				brokeredActivityIntent(
+					requireNotNull(key.sourceInstanceId),
+					requireNotNull(key.registrationGeneration),
+				) to requestCode(
+					requireNotNull(key.sourceInstanceId),
+					requireNotNull(key.registrationGeneration),
+				)
+			ActivityRegistrationCleanupKind.RELEASED_V27_STATIC ->
+				Intent(context, ActivityReceiver::class.java) to RELEASED_V27_REQUEST_CODE
+		}
+		return PendingIntent.getBroadcast(
+			context,
+			requestCode,
+			intent,
+			PendingIntent.FLAG_NO_CREATE.or(PendingIntent.FLAG_MUTABLE),
+		)
+	}
+
+	private fun brokeredActivityIntent(sourceInstanceId: String, registrationGeneration: Long) =
+		Intent(context, ActivityReceiver::class.java)
+			.setAction("${context.packageName}.ACTIVITY_RECOGNITION.$sourceInstanceId.$registrationGeneration")
+
 	companion object {
 		internal const val EXTRA_SOURCE_INSTANCE_ID = "activity_registration_source_instance_id"
 		internal const val EXTRA_REGISTRATION_GENERATION = "activity_registration_generation"
@@ -288,6 +350,12 @@ class GmsActivityRecognitionBackend @Inject constructor(
 		internal const val EXTRA_CLOCK_DOMAIN_ID = "activity_registration_clock_domain_id"
 		internal const val EXTRA_PHYSICAL_CONFIGURATION_FINGERPRINT =
 			"activity_registration_physical_configuration_fingerprint"
+		internal const val EXTRA_AUTOMATIC_RECOGNITION_ELIGIBLE =
+			"activity_registration_automatic_recognition_eligible"
+		internal const val EXTRA_AUTOMATIC_TRANSITION_ACTIVITY_TYPES =
+			"activity_registration_automatic_transition_activity_types"
+		internal const val EXTRA_AUTOMATIC_TRANSITION_TYPES =
+			"activity_registration_automatic_transition_types"
 		private val LEGACY_IDENTITY = ActivityRegistrationIdentity(
 			sourceInstanceId = "legacy",
 			registrationGeneration = 1L,
@@ -295,8 +363,12 @@ class GmsActivityRecognitionBackend @Inject constructor(
 			clockDomainId = "LEGACY_UNQUALIFIED",
 			physicalConfigurationFingerprint = "legacy-unbrokered",
 		)
+		internal const val RELEASED_V27_REQUEST_CODE = 4_561_201
 
 		private fun requestCode(identity: ActivityRegistrationIdentity): Int =
-			31 * identity.sourceInstanceId.hashCode() + identity.registrationGeneration.hashCode()
+			requestCode(identity.sourceInstanceId, identity.registrationGeneration)
+
+		private fun requestCode(sourceInstanceId: String, registrationGeneration: Long): Int =
+			31 * sourceInstanceId.hashCode() + registrationGeneration.hashCode()
 	}
 }

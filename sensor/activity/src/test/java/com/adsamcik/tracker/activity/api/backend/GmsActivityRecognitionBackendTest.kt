@@ -1,14 +1,26 @@
 package com.adsamcik.tracker.activity.api.backend
 
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionType
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationCleanupKey
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationCleanupKind
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
+import com.adsamcik.tracker.activity.receiver.ActivityReceiver
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.stats.api.DetectedActivityType
+import com.google.android.gms.location.ActivityRecognition
+import com.google.android.gms.location.ActivityRecognitionClient
+import com.google.android.gms.tasks.Tasks
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.collections.shouldHaveSize
 import io.mockk.every
+import io.mockk.mockk
 import io.mockk.mockkObject
+import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -87,7 +99,128 @@ class GmsActivityRecognitionBackendTest {
 
 		result shouldBe false
 	}
+
+	@Test
+	fun `brokered intent captures exact automatic owner mechanism`() {
+		val identity = ActivityRegistrationIdentity(
+			sourceInstanceId = "activity-instance",
+			registrationGeneration = 7L,
+			collectedDataEpoch = 3L,
+			clockDomainId = "boot-3",
+			physicalConfigurationFingerprint = "physical-config",
+		)
+		val transitions = setOf(
+			ActivityTransitionData(DetectedActivityType.WALKING, ActivityTransitionType.ENTER),
+			ActivityTransitionData(DetectedActivityType.STILL, ActivityTransitionType.ENTER),
+		)
+
+		val intent = backend.activityDetectionIntent(
+			identity,
+			RecognitionConfig(
+				intervalSeconds = 5,
+				automaticRecognitionEligible = true,
+				automaticTransitions = transitions,
+			),
+		)
+
+		intent.getBooleanExtra(
+			GmsActivityRecognitionBackend.EXTRA_AUTOMATIC_RECOGNITION_ELIGIBLE,
+			false,
+		) shouldBe true
+		intent.getIntArrayExtra(
+			GmsActivityRecognitionBackend.EXTRA_AUTOMATIC_TRANSITION_ACTIVITY_TYPES,
+		)?.toList() shouldBe listOf(
+			com.google.android.gms.location.DetectedActivity.STILL,
+			com.google.android.gms.location.DetectedActivity.WALKING,
+		)
+		intent.getIntArrayExtra(
+			GmsActivityRecognitionBackend.EXTRA_AUTOMATIC_TRANSITION_TYPES,
+		)?.toList() shouldBe listOf(
+			ActivityTransitionType.ENTER.value,
+			ActivityTransitionType.ENTER.value,
+		)
+	}
 	// endregion
+
+	@Test
+	fun `brokered cleanup retrieves the exact process-stable pending intent`() {
+		val sourceInstanceId = "random-instance"
+		val generation = 7L
+		val action = "${context.packageName}.ACTIVITY_RECOGNITION.$sourceInstanceId.$generation"
+		val requestCode = 31 * sourceInstanceId.hashCode() + generation.hashCode()
+		val original = PendingIntent.getBroadcast(
+			context,
+			requestCode,
+			Intent(context, ActivityReceiver::class.java).setAction(action),
+			PendingIntent.FLAG_UPDATE_CURRENT.or(PendingIntent.FLAG_MUTABLE),
+		)
+		val key = ActivityRegistrationCleanupKey(
+			kind = ActivityRegistrationCleanupKind.BROKERED,
+			sourceInstanceId = sourceInstanceId,
+			registrationGeneration = generation,
+		)
+
+		backend.findPendingIntentForCleanup(key) shouldBe original
+
+		original.cancel()
+		backend.findPendingIntentForCleanup(key) shouldBe null
+	}
+
+	@Test
+	fun `released v27 cleanup retrieves the component-only request code`() {
+		val original = PendingIntent.getBroadcast(
+			context,
+			GmsActivityRecognitionBackend.RELEASED_V27_REQUEST_CODE,
+			Intent(context, ActivityReceiver::class.java),
+			PendingIntent.FLAG_UPDATE_CURRENT.or(PendingIntent.FLAG_MUTABLE),
+		)
+
+		backend.findPendingIntentForCleanup(ActivityRegistrationCleanupKey.RELEASED_V27) shouldBe original
+
+		original.cancel()
+	}
+
+	@Test
+	fun `failed GMS removal preserves pending intent for durable retry`() = runTest {
+		val client = mockk<ActivityRecognitionClient>()
+		mockkStatic(ActivityRecognition::class)
+		every { ActivityRecognition.getClient(any<Context>()) } returns client
+		every { client.removeActivityUpdates(any()) } returns
+			Tasks.forException(IllegalStateException("provider unavailable"))
+		every { client.removeActivityTransitionUpdates(any()) } returns Tasks.forResult(null)
+		val key = ActivityRegistrationCleanupKey.RELEASED_V27
+		val original = PendingIntent.getBroadcast(
+			context,
+			GmsActivityRecognitionBackend.RELEASED_V27_REQUEST_CODE,
+			Intent(context, ActivityReceiver::class.java),
+			PendingIntent.FLAG_UPDATE_CURRENT.or(PendingIntent.FLAG_MUTABLE),
+		)
+
+		runCatching { backend.removePendingRegistration(key) }.isFailure shouldBe true
+
+		backend.findPendingIntentForCleanup(key) shouldBe original
+		original.cancel()
+	}
+
+	@Test
+	fun `successful GMS removal cancels the recovered pending intent`() = runTest {
+		val client = mockk<ActivityRecognitionClient>()
+		mockkStatic(ActivityRecognition::class)
+		every { ActivityRecognition.getClient(any<Context>()) } returns client
+		every { client.removeActivityUpdates(any()) } returns Tasks.forResult(null)
+		every { client.removeActivityTransitionUpdates(any()) } returns Tasks.forResult(null)
+		val key = ActivityRegistrationCleanupKey.RELEASED_V27
+		PendingIntent.getBroadcast(
+			context,
+			GmsActivityRecognitionBackend.RELEASED_V27_REQUEST_CODE,
+			Intent(context, ActivityReceiver::class.java),
+			PendingIntent.FLAG_UPDATE_CURRENT.or(PendingIntent.FLAG_MUTABLE),
+		)
+
+		backend.removePendingRegistration(key)
+
+		backend.findPendingIntentForCleanup(key) shouldBe null
+	}
 
 	// region onActivityResult
 	@Test
