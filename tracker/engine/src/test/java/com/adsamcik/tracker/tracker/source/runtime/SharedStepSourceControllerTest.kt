@@ -15,7 +15,6 @@ import io.mockk.mockk
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
-import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
@@ -51,42 +50,39 @@ class SharedStepSourceControllerTest {
 
 		assertFalse(subject.reconcileAutomaticControl(enabled = true))
 
+		coVerify(exactly = 1) {
+			broker.replaceAutomaticControlDemand(any(), SourceKind.STEPS, false, any(), any(), any(), any(), any())
+		}
 		coVerify(exactly = 0) { physical.reconfigure(any(), any()) }
 		coVerify(exactly = 1) { physical.close() }
 	}
 
 	@Test
-	fun `compatible control and capture join leave share one registration and unbound ingress`() = runTest {
+	fun `stale control demand is ignored before during and after session capture`() = runTest {
 		val control = demand(SourceBrokerPurpose.CONTROL_AUTOSTART, "app:automatic-start:steps")
 		val capture = demand(SourceBrokerPurpose.SESSION_CAPTURE, "session:logical-1")
-		coEvery { broker.replaceAutomaticControlDemand(any(), any(), true, any(), any(), any(), any(), any()) } returns control
+		coEvery { broker.replaceAutomaticControlDemand(any(), any(), false, any(), any(), any(), any(), any()) } returns null
 		coEvery { broker.authorizationDemands(SourceKind.STEPS) } returnsMany listOf(
 			listOf(control),
 			listOf(control, capture),
 			listOf(control),
 			listOf(control),
 		)
-		val controlPlan = StepsPlan(2L, true, 5_000L, 30_000L, false)
 		val sessionPlan = StepsPlan(9L, true, 5_000L, 15_000L, false)
-		coEvery { physical.refreshCompatible(any(), unboundSink) } returnsMany listOf(
-			null,
-			SourceApplyResult.Applied(applied(sessionPlan)),
-			SourceApplyResult.Applied(applied(controlPlan)),
-			SourceApplyResult.Applied(applied(controlPlan)),
-		)
+		coEvery { physical.refreshCompatible(any(), unboundSink) } returns null
 		val cutoff = SessionCutoff("logical-1", 900L, 10L, Long.MAX_VALUE)
-		coEvery { physical.sharedCutoff(cutoff) } returns completeAck()
+		coEvery { physical.quiesce(cutoff) } returns completeAck()
 
-		assertTrue(subject.reconcileAutomaticControl(enabled = true))
+		assertFalse(subject.reconcileAutomaticControl(enabled = true))
 		assertIs<SourceStartResult.Started>(subject.start(sessionPlan, mockk()))
 		assertIs<SourceStopAck>(subject.quiesce(cutoff))
 		subject.close()
 
 		coVerify(exactly = 1) { physical.reconfigure(any(), unboundSink) }
-		coVerify(exactly = 4) { physical.refreshCompatible(any(), unboundSink) }
-		coVerify(exactly = 1) { physical.sharedCutoff(cutoff) }
-		coVerify(exactly = 0) { physical.quiesce(any()) }
-		coVerify(exactly = 0) { physical.close() }
+		coVerify(exactly = 1) { physical.refreshCompatible(any(), unboundSink) }
+		coVerify(exactly = 0) { physical.sharedCutoff(cutoff) }
+		coVerify(exactly = 1) { physical.quiesce(cutoff) }
+		coVerify(exactly = 2) { physical.close() }
 		coVerify(exactly = 0) { physical.reconfigure(any(), match { it !== unboundSink }) }
 	}
 
@@ -99,11 +95,8 @@ class SharedStepSourceControllerTest {
 			listOf(control),
 		)
 		val sessionPlan = StepsPlan(9L, true, 5_000L, 15_000L, false)
-		val controlPlan = StepsPlan(2L, true, 5_000L, 30_000L, false)
-		coEvery { physical.refreshCompatible(any(), unboundSink) } returnsMany listOf(
-			SourceApplyResult.Applied(applied(sessionPlan)),
-			SourceApplyResult.Failed(applied(controlPlan), retryable = true),
-		)
+		coEvery { physical.refreshCompatible(any(), unboundSink) } returns
+			SourceApplyResult.Applied(applied(sessionPlan))
 		val cutoff = SessionCutoff("logical-1", 900L, 10L, Long.MAX_VALUE)
 		coEvery { physical.quiesce(cutoff) } returns providerFailedAck()
 

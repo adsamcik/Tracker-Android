@@ -10,6 +10,9 @@ import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenera
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.TrackingRolloutStateEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
@@ -34,6 +37,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -67,6 +71,7 @@ class DefaultActivityRegistrationArbiterTest {
 		application = ApplicationProvider.getApplicationContext()
 		clockDomainId = "android-boot-count:7"
 		database = AppDatabase.testDatabase(application)
+		runBlocking { seedAcquisitionAuthority() }
 		backend = mockk()
 		stubSuccessfulProviderApply()
 		coEvery { backend.removeRegistration(any()) } coAnswers {
@@ -136,6 +141,82 @@ class DefaultActivityRegistrationArbiterTest {
 		result.failureCode shouldBe ActivityRegistrationFailureCode.MISSING_DURABLE_DEMAND
 		result.snapshot.active shouldBe false
 		coVerify(exactly = 0) { backend.applyRegistration(any(), any()) }
+	}
+
+	@Test
+	fun `contained rollout rejects stale automatic demand without provider acquisition`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
+		)
+		saveContainedRollout()
+
+		val result = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+
+		result.status shouldBe ActivityRegistrationStatus.BLOCKED
+		result.snapshot.active shouldBe false
+		database.sourceBrokerDao().maximumRegistrationGeneration(ACTIVITY_SOURCE_KIND) shouldBe 0L
+		coVerify(exactly = 0) { backend.applyRegistration(any(), any()) }
+	}
+
+	@Test
+	fun `contained cold start removes stale rearmable generation without reapplying provider`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
+		)
+		val initial = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+		val identity = requireNotNull(initial.snapshot.identity)
+		appScope.cancel()
+		saveContainedRollout()
+		appScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+		subject = createSubject(appScope)
+
+		val result = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+
+		result.status shouldBe ActivityRegistrationStatus.BLOCKED
+		result.snapshot.active shouldBe false
+		coVerify(exactly = 1) { backend.applyRegistration(any(), any()) }
+		removedIdentities shouldBe listOf(identity)
+		database.sourceBrokerDao().registration(
+			ACTIVITY_SOURCE_KIND,
+			identity.registrationGeneration,
+		)?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_RETIRED
+	}
+
+	@Test
+	fun `containment between provider reserve and durable accept removes and fails reservation`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
+		)
+		coEvery { backend.applyRegistration(any(), any()) } coAnswers {
+			val identity = arg<ActivityRegistrationIdentity>(1)
+			appliedIdentities += identity
+			saveContainedRollout()
+			true
+		}
+
+		val result = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+
+		result.status shouldBe ActivityRegistrationStatus.BLOCKED
+		result.snapshot.active shouldBe false
+		val identity = appliedIdentities.single()
+		removedIdentities shouldBe listOf(identity)
+		database.sourceBrokerDao().registration(
+			ACTIVITY_SOURCE_KIND,
+			identity.registrationGeneration,
+		)?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_FAILED
+		database.sourceRegistrationStateDao().get(ACTIVITY_SOURCE_KIND, "source-broker:2") shouldBe null
 	}
 
 	@Test
@@ -862,6 +943,68 @@ class DefaultActivityRegistrationArbiterTest {
 			currentIdentity.registrationGeneration,
 		)?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_ACTIVE
 	}
+
+	private suspend fun seedAcquisitionAuthority() {
+		database.trackingRolloutStateDao().save(eventRollout())
+		database.sourcePolicyDao().ensureAuthority(
+			SourcePolicyAuthorityEntity(
+				bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+				currentPolicyRevision = 5L,
+				legacySettingsFingerprint = "test",
+				updatedAtMs = 1L,
+			),
+		)
+		database.sourcePolicyDao().insertPolicies(
+			(1..6).map { sourceKind ->
+				SourcePolicyEntity(
+					policyRevision = 5L,
+					sourceKind = sourceKind,
+					enabled = true,
+					qosCode = 2,
+					locationMinTimeSeconds = null,
+					locationMinDistanceMeters = null,
+					locationRequiredAccuracyMeters = null,
+					capturePersistenceEligible = true,
+					controlPersistenceEligible = true,
+					ambientPersistenceEligible = false,
+					captureConsentEpoch = 8L,
+					controlConsentEpoch = 8L,
+					ambientConsentEpoch = null,
+					effectiveBootId = "boot-1",
+					effectiveElapsedRealtimeNanos = 1L,
+					effectiveWallTimeMs = 1L,
+					changeReason = "TEST",
+				)
+			},
+		)
+	}
+
+	private suspend fun saveContainedRollout() {
+		database.trackingRolloutStateDao().save(
+			eventRollout(
+				owners = (1..6).associateWith { "CONTAINED" },
+				stages = (1..6).associateWith { "LEGACY_CANONICAL" },
+				revision = 2L,
+			),
+		)
+	}
+
+	private fun eventRollout(
+		owners: Map<Int, String> = (1..6).associateWith { "EVENT" },
+		stages: Map<Int, String> = (1..6).associateWith { "EVENT_SHADOW" },
+		revision: Long = 1L,
+	) = TrackingRolloutStateEntity(
+		revision = revision,
+		schemaVersion = 3,
+		coordinatorMode = "EVENT",
+		projectionMode = stages.entries.sortedBy { it.key }
+			.joinToString(",") { (source, stage) -> "$source:$stage" },
+		sourceOwners = owners.entries.sortedBy { it.key }
+			.joinToString(",") { (source, owner) -> "$source:$owner" },
+		semanticSettingsEnabled = true,
+		batteryEstimateMode = "SOURCE_PLAN_QUALITATIVE",
+		updatedAtMs = revision,
+	)
 
 	private fun demand(
 		id: String,

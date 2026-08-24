@@ -1,8 +1,8 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import android.app.Application
-import androidx.test.core.app.ApplicationProvider
 import androidx.room.withTransaction
+import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.fenceSourcePurposesInTransaction
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
@@ -12,11 +12,14 @@ import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrN
 import com.adsamcik.tracker.shared.base.process.ProcessIncarnationIdProvider
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
+import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -36,6 +39,12 @@ class SourceRegistrationRepositoryTest {
 	fun setUp() {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
+		runBlocking {
+			RoomTrackingRolloutStateStore(database).save(
+				TrackingRolloutState.eventShadow(SourceKind.entries.toSet()),
+				updatedAtMs = 1L,
+			)
+		}
 		processIncarnationIdProvider = ProcessIncarnationIdProvider()
 		subject = SourceRegistrationRepository(
 			database,
@@ -55,6 +64,43 @@ class SourceRegistrationRepositoryTest {
 		shouldThrow<IllegalArgumentException> {
 			subject.begin(SourceKind.STEPS, 1L, PHYSICAL_CONFIG, 100L, 100L)
 		}
+	}
+
+	@Test
+	fun `contained rollout rejects a stale durable demand before reservation`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
+		)
+		RoomTrackingRolloutStateStore(database).save(
+			TrackingRolloutState.contained(revision = 2L),
+			updatedAtMs = 2L,
+		)
+
+		shouldThrow<IllegalArgumentException> {
+			subject.begin(SourceKind.STEPS, 1L, PHYSICAL_CONFIG, 100L, 100L)
+		}
+		database.sourceBrokerDao().maximumRegistrationGeneration(SourceKind.STEPS.stableCode) shouldBe 0L
+	}
+
+	@Test
+	fun `rollout containment between reserve and accept leaves no active generation`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true)),
+		)
+		val reservation = subject.begin(SourceKind.STEPS, 1L, PHYSICAL_CONFIG, 100L, 100L)
+		RoomTrackingRolloutStateStore(database).save(
+			TrackingRolloutState.contained(revision = 2L),
+			updatedAtMs = 2L,
+		)
+
+		shouldThrow<IllegalArgumentException> {
+			subject.markAccepted(reservation, 120L, 120L)
+		}
+		database.sourceBrokerDao().registration(
+			SourceKind.STEPS.stableCode,
+			reservation.state.registrationGeneration,
+		)?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_RESERVED
+		database.sourceRegistrationStateDao().get(SourceKind.STEPS.stableCode, reservation.ownerScope) shouldBe null
 	}
 
 	@Test

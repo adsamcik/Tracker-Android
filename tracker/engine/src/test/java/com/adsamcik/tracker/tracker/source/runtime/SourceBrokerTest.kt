@@ -14,6 +14,8 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTim
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePurpose
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
+import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
+import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.model.ActivityAcquisitionCapability
 import com.adsamcik.tracker.tracker.source.model.ActivityAcquisitionFloor
 import com.adsamcik.tracker.tracker.source.model.DirectSourceDemandPurpose
@@ -21,6 +23,7 @@ import com.adsamcik.tracker.tracker.source.model.SourceDemandContractFactory
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeBlank
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -41,6 +44,12 @@ class SourceBrokerTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 		subject = SourceBroker(database)
+		runBlocking {
+			RoomTrackingRolloutStateStore(database).save(
+				TrackingRolloutState.eventShadow(SourceKind.entries.toSet()),
+				updatedAtMs = 1L,
+			)
+		}
 	}
 
 	@After
@@ -99,6 +108,51 @@ class SourceBrokerTest {
 		replace(true, 400L) shouldBe null
 		database.activityAutomationEpochDao().current()?.let { it.epoch to it.automaticControlEnabled } shouldBe
 			(5L to false)
+	}
+
+	@Test
+	fun `contained rollout retires stale automatic control and authorizes no replacement`() = runTest {
+		val policy = RoomSourcePolicyRepository(database) {
+			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
+		}
+		val initial = policy.bootstrapFromLegacy(
+			TrackingParamsState(legacySettingsMigrationCompleted = true),
+		)
+		policy.setNonCaptureConsent(
+			expectedPolicyRevision = initial.revision,
+			source = TrackingSourceComponent.ACTIVITY,
+			purpose = SourcePurpose.CONTROL,
+			eligible = true,
+			persistenceEligible = false,
+			reason = "TEST_ACTIVITY_CONTROL_GRANT",
+		)
+		requireNotNull(subject.replaceAutomaticControlDemand(
+			consumerId = "app:automation:activity",
+			source = SourceKind.ACTIVITY,
+			enabled = true,
+			bootId = "boot-1",
+			elapsedRealtimeNanos = 50L,
+			wallTimeMs = 50L,
+			maximumAgeMs = 30_000L,
+			desiredLatencyMs = 5_000L,
+		))
+		RoomTrackingRolloutStateStore(database).save(
+			TrackingRolloutState.contained(revision = 2L),
+			updatedAtMs = 2L,
+		)
+
+		subject.replaceAutomaticControlDemand(
+			consumerId = "app:automation:activity",
+			source = SourceKind.ACTIVITY,
+			enabled = true,
+			bootId = "boot-1",
+			elapsedRealtimeNanos = 100L,
+			wallTimeMs = 100L,
+			maximumAgeMs = 30_000L,
+			desiredLatencyMs = 5_000L,
+		) shouldBe null
+
+		database.sourceBrokerDao().currentDemands("app:automation:activity") shouldBe emptyList()
 	}
 
 	@Test

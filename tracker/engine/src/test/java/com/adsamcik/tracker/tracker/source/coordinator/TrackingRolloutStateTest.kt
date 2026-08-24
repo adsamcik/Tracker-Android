@@ -14,6 +14,9 @@ class TrackingRolloutStateTest {
 		state.sourceOwners.values.toSet() shouldBe setOf(SourceOwner.CONTAINED)
 		state.productProjectionStages.values.toSet() shouldBe
 			setOf(ProductProjectionStage.LEGACY_CANONICAL)
+		SourceKind.entries.forEach { source ->
+			state.isAcquisitionReachable(source) shouldBe false
+		}
 	}
 
 	@Test
@@ -23,10 +26,12 @@ class TrackingRolloutStateTest {
 		state.sourceOwners.getValue(SourceKind.STEPS) shouldBe SourceOwner.EVENT
 		state.productProjectionStages.getValue(SourceKind.STEPS) shouldBe
 			ProductProjectionStage.EVENT_SHADOW
+		state.isAcquisitionReachable(SourceKind.STEPS) shouldBe true
 		SourceKind.entries.filterNot { it == SourceKind.STEPS }.forEach { source ->
 			state.sourceOwners.getValue(source) shouldBe SourceOwner.CONTAINED
 			state.productProjectionStages.getValue(source) shouldBe
 				ProductProjectionStage.LEGACY_CANONICAL
+			state.isAcquisitionReachable(source) shouldBe false
 		}
 	}
 

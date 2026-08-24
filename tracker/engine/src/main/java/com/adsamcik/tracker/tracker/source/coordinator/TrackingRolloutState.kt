@@ -37,6 +37,15 @@ data class TrackingRolloutState(
 		}
 	}
 
+	/** A provider may acquire only when its source-local product lane is explicitly reachable. */
+	fun isAcquisitionReachable(source: SourceKind): Boolean =
+		coordinatorMode == CoordinatorMode.EVENT &&
+			sourceOwners[source] == SourceOwner.EVENT &&
+			productProjectionStages[source] in setOf(
+				ProductProjectionStage.EVENT_SHADOW,
+				ProductProjectionStage.EVENT_CANONICAL,
+			)
+
 	companion object {
 		/**
 		 * Safe unreleased-v28 bootstrap. Existing product facts remain readable through their legacy

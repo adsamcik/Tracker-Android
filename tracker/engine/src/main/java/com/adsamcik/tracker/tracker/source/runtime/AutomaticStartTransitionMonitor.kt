@@ -3,8 +3,10 @@ package com.adsamcik.tracker.tracker.source.runtime
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbiter
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationDemand
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationFailureCode
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationOwner
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationResult
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import android.os.SystemClock
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.projection.TrackingJoinSpecs
@@ -41,7 +43,16 @@ class AutomaticStartTransitionMonitor @Inject constructor(
 			desiredLatencyMs = desiredLatencyMs,
 		)
 		return if (!transitionControlEnabled || durableDemand == null) {
-			arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+			val cleared = arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+			if (enabled && cleared.status != ActivityRegistrationStatus.FAILED) {
+				cleared.copy(
+					status = ActivityRegistrationStatus.BLOCKED,
+					failureCode = cleared.failureCode
+						?: ActivityRegistrationFailureCode.MISSING_DURABLE_DEMAND,
+				)
+			} else {
+				cleared
+			}
 		} else {
 			arbiter.setDemand(
 				ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,

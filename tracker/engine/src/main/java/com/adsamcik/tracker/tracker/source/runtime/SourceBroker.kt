@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
+import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.SessionManifestPurpose
 import com.adsamcik.tracker.tracker.source.model.DirectSourceDemandPurpose
 import com.adsamcik.tracker.tracker.source.model.SourceDemandContract
@@ -340,6 +341,23 @@ class SourceBroker @Inject constructor(
 			)
 			return@withTransaction null
 		}
+		if (!automaticControlAcquisitionEligibleInTransaction(source)) {
+			rotateCurrentAuthorizationsInTransaction(
+				affectedSourceKinds,
+				bootId,
+				elapsedRealtimeNanos,
+				wallTimeMs,
+			)
+			reconcileAutomaticControlEpochInTransaction(
+				source,
+				false,
+				"AUTOMATIC_CONTROL_ROLLOUT_CONTAINED",
+				bootId,
+				elapsedRealtimeNanos,
+				wallTimeMs,
+			)
+			return@withTransaction null
+		}
 		val contract = SourceDemandContractFactory.forQos(
 			source,
 			policy.qosCode,
@@ -399,6 +417,28 @@ class SourceBroker @Inject constructor(
 			wallTimeMs,
 		)
 		demand
+	}
+
+	/**
+	 * App-scoped control is useful only when both it and at least one currently enabled capture
+	 * source have a reachable source-local lane.
+	 */
+	private suspend fun automaticControlAcquisitionEligibleInTransaction(source: SourceKind): Boolean {
+		val rollout = RoomTrackingRolloutStateStore(database).load()
+		if (!rollout.isAcquisitionReachable(source)) return false
+		val authority = database.sourcePolicyDao().authority()
+		if (authority?.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE) return false
+		val policies = database.sourcePolicyDao().policiesAtRevision(authority.currentPolicyRevision)
+		if (policies.map { it.sourceKind }.toSet() != SourceKind.entries.map { it.stableCode }.toSet()) {
+			return false
+		}
+		return policies.any { policy ->
+			policy.enabled &&
+				policy.captureConsentEpoch != null &&
+				policy.capturePersistenceEligible &&
+				SourceKind.entries.singleOrNull { it.stableCode == policy.sourceKind }
+					?.let(rollout::isAcquisitionReachable) == true
+		}
 	}
 
 	private suspend fun reconcileAutomaticControlEpochInTransaction(

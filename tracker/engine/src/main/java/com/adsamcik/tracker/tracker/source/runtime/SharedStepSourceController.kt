@@ -16,9 +16,9 @@ import kotlinx.coroutines.sync.withLock
 /**
  * The one broker-driven owner of the physical step-counter registration.
  *
- * SESSION_CAPTURE and CONTROL_AUTOSTART join the same durable, sessionless ingress. Session
- * lifecycle calls attach/detach one consumer; they do not own the Android sensor registration when
- * the explicit automatic-control demand remains active.
+ * Session lifecycle calls attach/detach one consumer. CONTROL_AUTOSTART is currently fenced off:
+ * without an Activity Transition callback it has no legal cold-start trigger, so keeping the step
+ * counter registered would spend power without being able to start tracking.
  */
 @Singleton
 class SharedStepSourceController @Inject constructor(
@@ -87,20 +87,21 @@ class SharedStepSourceController @Inject constructor(
 		}
 	}
 
-	/** Session owners release only their join; durable automatic control remains broker-owned. */
+	/** Session owners release their join; no orphan automatic-control listener may remain. */
 	override suspend fun close() = mutex.withLock {
 		sessionPlan = null
 		reconcileRemainingControl()
 		Unit
 	}
 
-	/** Replaces the explicit Steps CONTROL_AUTOSTART demand, then reconciles its physical join. */
+	/** Retires any legacy Steps CONTROL_AUTOSTART demand until a legal trigger contract exists. */
+	@Suppress("UNUSED_PARAMETER")
 	suspend fun reconcileAutomaticControl(enabled: Boolean): Boolean = mutex.withLock {
 		val elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
 		val demand = sourceBroker.replaceAutomaticControlDemand(
 			consumerId = AUTOMATIC_CONTROL_CONSUMER,
 			source = source,
-			enabled = enabled,
+			enabled = false,
 			bootId = clockDomainProvider.current(),
 			elapsedRealtimeNanos = elapsedRealtimeNanos,
 			wallTimeMs = System.currentTimeMillis(),
@@ -140,8 +141,7 @@ class SharedStepSourceController @Inject constructor(
 
 	private suspend fun selectedDemands(): List<SourceDemandEntity> =
 		sourceBroker.authorizationDemands(source).filter { demand ->
-			demand.purpose == SourceBrokerPurpose.CONTROL_AUTOSTART ||
-				(sessionPlan != null && demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE)
+			sessionPlan != null && demand.purpose == SourceBrokerPurpose.SESSION_CAPTURE
 		}
 
 	private fun effectivePlan(demands: List<SourceDemandEntity>): StepsPlan? {

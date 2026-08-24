@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.process.ProcessIncarnationIdProvider
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import java.util.UUID
@@ -89,6 +90,7 @@ class SourceRegistrationRepository @Inject constructor(
 		val clockDomainId = clockDomainProvider.current()
 		val processIncarnationId = processIncarnationIdProvider.current()
 		return database.withTransaction {
+			requireSourceAcquisitionReachable(source)
 			val brokerDao = database.sourceBrokerDao()
 			check(
 				!brokerDao.hasNonterminalProcessBoundRegistrationsFromAnotherIncarnation(
@@ -236,6 +238,7 @@ class SourceRegistrationRepository @Inject constructor(
 		val clockDomainId = clockDomainProvider.current()
 		val processIncarnationId = processIncarnationIdProvider.current()
 		return database.withTransaction {
+			if (!isSourceAcquisitionReachable(source)) return@withTransaction null
 			val brokerDao = database.sourceBrokerDao()
 			val demands = brokerDao.authorizationDemands(source.stableCode)
 			if (demands.isEmpty()) return@withTransaction null
@@ -293,15 +296,28 @@ class SourceRegistrationRepository @Inject constructor(
 		acceptedElapsedRealtimeNanos: Long = SystemClock.elapsedRealtimeNanos(),
 	): ProviderRegistrationGenerationEntity? {
 		if (!registration.requiresProviderAcceptance) return null
-		return database.sourceBrokerDao().acceptReservedReplacement(
-			reservedState = registration.state,
-			expectedPointerGeneration = registration.predecessorState?.registrationGeneration,
-			expectedPointerInstanceId = registration.predecessorState?.sourceInstanceId,
-			requiredAuthorizationFingerprint = registration.authorization.authorizationFingerprint,
-			acceptedAtMs = acceptedAtMs,
-			acceptedElapsedRealtimeNanos = acceptedElapsedRealtimeNanos,
-		)
+		val source = SourceKind.entries.single { it.stableCode == registration.state.sourceKind }
+		return database.withTransaction {
+			requireSourceAcquisitionReachable(source)
+			database.sourceBrokerDao().acceptReservedReplacement(
+				reservedState = registration.state,
+				expectedPointerGeneration = registration.predecessorState?.registrationGeneration,
+				expectedPointerInstanceId = registration.predecessorState?.sourceInstanceId,
+				requiredAuthorizationFingerprint = registration.authorization.authorizationFingerprint,
+				acceptedAtMs = acceptedAtMs,
+				acceptedElapsedRealtimeNanos = acceptedElapsedRealtimeNanos,
+			)
+		}
 	}
+
+	private suspend fun requireSourceAcquisitionReachable(source: SourceKind) {
+		require(isSourceAcquisitionReachable(source)) {
+			"Source ${source.name} is contained by the current rollout state"
+		}
+	}
+
+	private suspend fun isSourceAcquisitionReachable(source: SourceKind): Boolean =
+		RoomTrackingRolloutStateStore(database).load().isAcquisitionReachable(source)
 
 	internal suspend fun failUnacceptedReservation(
 		registration: SourceRegistration,

@@ -7,8 +7,10 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationOwner
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationResult
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationSnapshot
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
+import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -29,7 +31,7 @@ class AutomaticStartTransitionMonitorTest {
 		coEvery { broker.replaceAutomaticControlDemand(any(), any(), false, any(), any(), any(), any(), any()) } returns null
 		coEvery { arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR) } returns cleared()
 
-		subject.reconcile(
+		val result = subject.reconcile(
 			enabled = true,
 			useTransitionApi = false,
 			continuousIntervalSeconds = 5,
@@ -52,6 +54,7 @@ class AutomaticStartTransitionMonitorTest {
 			arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
 		}
 		coVerify(exactly = 0) { arbiter.setDemand(any(), any()) }
+		result.status shouldBe ActivityRegistrationStatus.BLOCKED
 	}
 
 	@Test
@@ -59,7 +62,7 @@ class AutomaticStartTransitionMonitorTest {
 		coEvery { broker.replaceAutomaticControlDemand(any(), any(), false, any(), any(), any(), any(), any()) } returns null
 		coEvery { arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR) } returns cleared()
 
-		subject.reconcile(
+		val result = subject.reconcile(
 			enabled = true,
 			useTransitionApi = true,
 			continuousIntervalSeconds = 30,
@@ -70,6 +73,46 @@ class AutomaticStartTransitionMonitorTest {
 			broker.replaceAutomaticControlDemand(any(), SourceKind.ACTIVITY, false, any(), any(), any(), any(), any())
 		}
 		coVerify(exactly = 0) { arbiter.setDemand(any(), any()) }
+		result.status shouldBe ActivityRegistrationStatus.BLOCKED
+	}
+
+	@Test
+	fun `rollout-contained automatic demand clears the provider owner`() = runTest {
+		coEvery { broker.replaceAutomaticControlDemand(any(), any(), true, any(), any(), any(), any(), any()) } returns null
+		coEvery { arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR) } returns cleared()
+
+		val result = subject.reconcile(
+			enabled = true,
+			useTransitionApi = true,
+			continuousIntervalSeconds = 30,
+			transitions = setOf(walkingEnter()),
+		)
+
+		coVerify(exactly = 1) { arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR) }
+		coVerify(exactly = 0) { arbiter.setDemand(any(), any()) }
+		result.status shouldBe ActivityRegistrationStatus.BLOCKED
+	}
+
+	@Test
+	fun `reachable automatic capture keeps explicit transition control`() = runTest {
+		coEvery { broker.replaceAutomaticControlDemand(any(), any(), true, any(), any(), any(), any(), any()) } returns
+			mockk<SourceDemandEntity>()
+		coEvery { arbiter.setDemand(any(), any()) } returns cleared()
+		val transition = walkingEnter()
+
+		subject.reconcile(
+			enabled = true,
+			useTransitionApi = true,
+			continuousIntervalSeconds = 30,
+			transitions = setOf(transition),
+		)
+
+		coVerify(exactly = 1) {
+			arbiter.setDemand(
+				ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+				match { it.continuousRecognitionIntervalSeconds == null && it.transitions == setOf(transition) },
+			)
+		}
 	}
 
 	private fun walkingEnter() = ActivityTransitionData(
