@@ -76,9 +76,11 @@ data class ActivityAutomaticStartActionEntity(
 		require(startOrigin == START_ORIGIN_ACTIVITY_TRANSITION_CALLBACK)
 		require(status in VALID_STATUSES)
 		require(reservedAtMs >= 0L)
-		require(startRequestedAtMs == null || startRequestedAtMs >= reservedAtMs)
-		require(lifecycleIntentAcceptedAtMs == null || lifecycleIntentAcceptedAtMs >= reservedAtMs)
-		require(terminalAtMs == null || terminalAtMs >= reservedAtMs)
+		// Wall time is display/audit metadata, not an ordering clock. The user may change it, or the
+		// platform may correct it, between otherwise valid elapsed-realtime-fenced transitions.
+		require(startRequestedAtMs == null || startRequestedAtMs >= 0L)
+		require(lifecycleIntentAcceptedAtMs == null || lifecycleIntentAcceptedAtMs >= 0L)
+		require(terminalAtMs == null || terminalAtMs >= 0L)
 	}
 
 	companion object {
