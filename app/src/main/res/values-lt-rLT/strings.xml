@@ -352,13 +352,9 @@
     <string name="setup_online_tiles_on_desc">Gaukite detalesnes vektorines plyteles iš „OpenFreeMap“ (numatyta). Teikėją vėliau galėsite pakeisti pasirinkę Nustatymai → Žemėlapis.</string>
     <string name="setup_online_tiles_privacy">Kai ši parinktis įjungta, teikėjas gali matyti jūsų IP adresą ir įkeliamas plyteles – apytiksliai, kurią žemėlapio sritį peržiūrite. „Tracker“ niekada nesiunčia paskyros, identifikatoriaus ar vietos istorijos.</string>
     <string name="setup_online_tiles_change_later">Tai bet kada galite pakeisti pasirinkę Nustatymai → Žemėlapis → Internetinės žemėlapio plytelės.</string>
-    <string name="setup_background_access_subtitle">Kad būtų įrašomos kelionės, kai ekranas išjungtas ar programa uždaryta, „Tracker“ turi toliau veikti fone. Telefono akumuliatoriaus nustatymai gali jį pristabdyti – leiskite veiklą fone, kad automatinis sekimas būtų patikimas.</string>
     <string name="setup_background_access_optional">Nebūtina, bet rekomenduojama. Tai bet kada galite pakeisti pasirinkę Nustatymai → Sekimas.</string>
-    <string name="background_reliability_title">Patikimas sekimas fone</string>
     <string name="background_reliability_status_exempt">Veikla fone leidžiama</string>
     <string name="background_reliability_status_optimized">Įjungtas akumuliatoriaus optimizavimas</string>
-    <string name="background_reliability_exempt_desc">„Tracker“ netaikomas akumuliatoriaus optimizavimas, todėl veikla fone ir automatinis sekimas gali veikti patikimai.</string>
-    <string name="background_reliability_optimized_desc">Akumuliatoriaus optimizavimas gali pristabdyti „Tracker“ fone ir sustabdyti automatinį sekimą. Leiskite veiklą fone, kad jis veiktų toliau.</string>
     <string name="background_reliability_allow_action">Leisti veiklą fone</string>
     <string name="background_reliability_samsung_hint">„Samsung“ įrenginiai programas taip pat gali perkelti į „Miegančias programas“. Atidarykite akumuliatoriaus nustatymus, pašalinkite „Tracker“ iš miegančių programų ir nustatykite, kad jis nebūtų užmigdomas.</string>
     <string name="background_reliability_samsung_action">Atidaryti įrenginio akumuliatoriaus nustatymus</string>

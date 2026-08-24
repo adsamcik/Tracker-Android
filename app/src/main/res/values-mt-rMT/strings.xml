@@ -348,13 +348,9 @@
     <string name="setup_online_tiles_on_desc">Istrimja madum vettorjali b’aktar dettall minn OpenFreeMap (awtomatiku). Tista’ tibdel il-fornitur aktar tard fl-Issettjar → Mappa.</string>
     <string name="setup_online_tiles_privacy">Meta jkun attivat, il-fornitur jista’ jara l-indirizz IP tiegħek u liema madum tgħabbi — bejn wieħed u ieħor liema żona tal-mappa qed tara. Tracker qatt ma jibgħat kont, identifikatur jew l-istorja tal-post tiegħek.</string>
     <string name="setup_online_tiles_change_later">Tista’ tibdel dan fi kwalunkwe ħin fl-Issettjar → Mappa → Madum tal-mappa online.</string>
-    <string name="setup_background_access_subtitle">Biex tirreġistra vjaġġi waqt li l-iskrin ikun mitfi jew l-applikazzjoni magħluqa, Tracker jeħtieġ jibqa’ jaħdem fl-isfond. L-issettjar tal-batterija tat-telefon jista’ jwaqqfu — ħalli attività fl-isfond sabiex it-traċċar awtomatiku jibqa’ affidabbli.</string>
     <string name="setup_background_access_optional">Fakultattiv, iżda rakkomandat. Tista’ tibdel dan fi kwalunkwe ħin fl-Issettjar → Traċċar.</string>
-    <string name="background_reliability_title">Traċċar affidabbli fl-isfond</string>
     <string name="background_reliability_status_exempt">Attività fl-isfond permessa</string>
     <string name="background_reliability_status_optimized">L-ottimizzazzjoni tal-batterija mixgħula</string>
-    <string name="background_reliability_exempt_desc">Tracker hu eskluż mill-ottimizzazzjoni tal-batterija, għalhekk it-traċċar fl-isfond u awtomatiku jista’ jaħdem b’mod affidabbli.</string>
-    <string name="background_reliability_optimized_desc">L-ottimizzazzjoni tal-batterija tista’ twaqqaf lil Tracker fl-isfond, u twaqqaf it-traċċar awtomatiku. Ħalli attività fl-isfond biex iżżommu jaħdem.</string>
     <string name="background_reliability_allow_action">Ħalli attività fl-isfond</string>
     <string name="background_reliability_samsung_hint">Apparat Samsung jista’ wkoll ipoġġi apps f’“Apps rieqda”. Iftaħ l-issettjar tal-batterija, imbagħad neħħi Tracker minn Apps rieqda u issettjah biex ma jorqodx.</string>
     <string name="background_reliability_samsung_action">Iftaħ l-issettjar tal-batterija tat-tagħmir</string>

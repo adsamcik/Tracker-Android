@@ -348,13 +348,9 @@
     <string name="setup_online_tiles_on_desc">Stream vectortegels met meer detail van OpenFreeMap (standaard). Je kunt de provider later wijzigen in Instellingen → Kaart.</string>
     <string name="setup_online_tiles_privacy">Wanneer deze optie is ingeschakeld, kan de provider je IP-adres zien en welke tegels je laadt — ruwweg welk gebied op de kaart je bekijkt. Tracker verzendt nooit een account, identificatiecode of je locatiegeschiedenis.</string>
     <string name="setup_online_tiles_change_later">Je kunt dit altijd wijzigen via Instellingen → Kaart → Online-kaarttegels.</string>
-    <string name="setup_background_access_subtitle">Om reizen vast te leggen terwijl het scherm uit is of de app gesloten is, moet Tracker op de achtergrond blijven draaien. Batterij-instellingen van de telefoon kunnen hem pauzeren — sta activiteit op de achtergrond toe zodat automatisch volgen betrouwbaar blijft.</string>
     <string name="setup_background_access_optional">Optioneel, maar aanbevolen. Je kunt dit altijd wijzigen via Instellingen → Tracking.</string>
-    <string name="background_reliability_title">Betrouwbare tracking op de achtergrond</string>
     <string name="background_reliability_status_exempt">Activiteit op de achtergrond toegestaan</string>
     <string name="background_reliability_status_optimized">Batterijoptimalisatie is ingeschakeld</string>
-    <string name="background_reliability_exempt_desc">Tracker is uitgesloten van batterijoptimalisatie, zodat tracking op de achtergrond en automatisch volgen betrouwbaar kunnen werken.</string>
-    <string name="background_reliability_optimized_desc">Batterijoptimalisatie kan Tracker op de achtergrond pauzeren, waardoor automatisch volgen stopt. Sta activiteit op de achtergrond toe om Tracker actief te houden.</string>
     <string name="background_reliability_allow_action">Activiteit op de achtergrond toestaan</string>
     <string name="background_reliability_samsung_hint">Samsung-apparaten kunnen apps ook in "Slapende apps" plaatsen. Open de batterij-instellingen, verwijder Tracker uit Slapende apps en stel in dat de app niet in slaap mag worden gezet.</string>
     <string name="background_reliability_samsung_action">Batterij-instellingen van apparaat openen</string>

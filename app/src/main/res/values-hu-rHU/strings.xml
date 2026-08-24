@@ -348,13 +348,9 @@
     <string name="setup_online_tiles_on_desc">Részletesebb vektorcsempék streamelése az OpenFreeMaptől (alapértelmezett). A szolgáltatót később módosíthatja a Beállítások → Térkép pontban.</string>
     <string name="setup_online_tiles_privacy">Bekapcsolva a szolgáltató láthatja az IP-címét és a betöltött csempéket — nagyjából azt, hogy a térkép mely területét nézi. A Tracker soha nem küld el fiókadatot, azonosítót vagy helyelőzményt.</string>
     <string name="setup_online_tiles_change_later">Ezt bármikor módosíthatja a Beállítások → Térkép → Online térképcsempék pontban.</string>
-    <string name="setup_background_access_subtitle">Ahhoz, hogy a Tracker kikapcsolt képernyő vagy bezárt alkalmazás mellett is rögzíthesse az utakat, a háttérben kell futnia. A telefon akkumulátor-beállításai szüneteltethetik — engedélyezze a háttértevékenységet, hogy az automatikus nyomkövetés megbízható maradjon.</string>
     <string name="setup_background_access_optional">Nem kötelező, de ajánlott. Ezt bármikor módosíthatja a Beállítások → Nyomkövetés pontban.</string>
-    <string name="background_reliability_title">Megbízható háttérbeli nyomkövetés</string>
     <string name="background_reliability_status_exempt">Háttértevékenység engedélyezve</string>
     <string name="background_reliability_status_optimized">Az akkumulátor-optimalizálás be van kapcsolva</string>
-    <string name="background_reliability_exempt_desc">A Tracker ki van zárva az akkumulátor-optimalizálásból, így a háttérbeli és automatikus nyomkövetés megbízhatóan működhet.</string>
-    <string name="background_reliability_optimized_desc">Az akkumulátor-optimalizálás szüneteltetheti a Trackert a háttérben, ami leállítja az automatikus nyomkövetést. Engedélyezze a háttértevékenységet a folyamatos működéshez.</string>
     <string name="background_reliability_allow_action">Háttértevékenység engedélyezése</string>
     <string name="background_reliability_samsung_hint">A Samsung készülékek az alkalmazásokat az "Alvó alkalmazások" közé is helyezhetik. Nyissa meg az akkumulátor-beállításokat, majd távolítsa el a Trackert az Alvó alkalmazások közül, és állítsa be, hogy ne kerüljön alvó állapotba.</string>
     <string name="background_reliability_samsung_action">Eszköz akkumulátor-beállításainak megnyitása</string>

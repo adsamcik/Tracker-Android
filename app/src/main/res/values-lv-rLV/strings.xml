@@ -348,13 +348,9 @@
     <string name="setup_online_tiles_on_desc">Straumējiet detalizētākas vektoru mozaīkas no OpenFreeMap (noklusējums). Vēlāk varat mainīt nodrošinātāju sadaļā Iestatījumi → Karte.</string>
     <string name="setup_online_tiles_privacy">Kad funkcija ir iespējota, nodrošinātājs var redzēt jūsu IP adresi un ielādētās mozaīkas — aptuveni kartes apgabalu, ko skatāt. Tracker nekad nesūta kontu, identifikatoru vai jūsu atrašanās vietu vēsturi.</string>
     <string name="setup_online_tiles_change_later">To jebkurā laikā varat mainīt sadaļā Iestatījumi → Karte → Tiešsaistes kartes mozaīkas.</string>
-    <string name="setup_background_access_subtitle">Lai ierakstītu braucienus, kad ekrāns ir izslēgts vai lietotne aizvērta, Tracker jāturpina darboties fonā. Tālruņa akumulatora iestatījumi to var apturēt — atļaujiet darbību fonā, lai automātiskā izsekošana būtu uzticama.</string>
     <string name="setup_background_access_optional">Neobligāti, bet ieteicams. To jebkurā laikā varat mainīt sadaļā Iestatījumi → Izsekošana.</string>
-    <string name="background_reliability_title">Uzticama izsekošana fonā</string>
     <string name="background_reliability_status_exempt">Darbība fonā atļauta</string>
     <string name="background_reliability_status_optimized">Akumulatora optimizācija ir ieslēgta</string>
-    <string name="background_reliability_exempt_desc">Tracker ir izslēgts no akumulatora optimizācijas, tāpēc fona un automātiskā izsekošana var darboties uzticami.</string>
-    <string name="background_reliability_optimized_desc">Akumulatora optimizācija var apturēt Tracker fonā un pārtraukt automātisko izsekošanu. Atļaujiet darbību fonā, lai tā turpinātos.</string>
     <string name="background_reliability_allow_action">Atļaut darbību fonā</string>
     <string name="background_reliability_samsung_hint">Samsung ierīces var ievietot lietotnes arī sadaļā "Miega lietotnes". Atveriet akumulatora iestatījumus, noņemiet Tracker no miega lietotnēm un iestatiet, lai tas netiktu iemidzināts.</string>
     <string name="background_reliability_samsung_action">Atvērt ierīces akumulatora iestatījumus</string>

@@ -348,13 +348,9 @@
     <string name="setup_online_tiles_on_desc">Diffuse des tuiles vectorielles plus détaillées depuis OpenFreeMap (par défaut). Vous pourrez changer de fournisseur plus tard dans Paramètres → Carte.</string>
     <string name="setup_online_tiles_privacy">Lorsqu’il est activé, le fournisseur peut voir votre adresse IP et les tuiles que vous chargez — donc approximativement la zone de la carte que vous consultez. Tracker n’envoie jamais de compte, d’identifiant ou de votre historique de localisation.</string>
     <string name="setup_online_tiles_change_later">Vous pouvez modifier ce choix à tout moment dans Paramètres → Carte → Tuiles de carte en ligne.</string>
-    <string name="setup_background_access_subtitle">Pour enregistrer des trajets lorsque l’écran est éteint ou que l’application est fermée, Tracker doit continuer à fonctionner en arrière-plan. Les paramètres de batterie du téléphone peuvent le mettre en pause ; autorisez l’activité en arrière-plan pour que le suivi automatique reste fiable.</string>
     <string name="setup_background_access_optional">Facultatif, mais recommandé. Vous pouvez modifier ce choix à tout moment dans Paramètres → Suivi.</string>
-    <string name="background_reliability_title">Suivi fiable en arrière-plan</string>
     <string name="background_reliability_status_exempt">Activité en arrière-plan autorisée</string>
     <string name="background_reliability_status_optimized">Optimisation de la batterie activée</string>
-    <string name="background_reliability_exempt_desc">Tracker est exclu de l’optimisation de la batterie ; le suivi en arrière-plan et automatique peut donc fonctionner de façon fiable.</string>
-    <string name="background_reliability_optimized_desc">L’optimisation de la batterie peut mettre Tracker en pause en arrière-plan et arrêter le suivi automatique. Autorisez l’activité en arrière-plan pour le maintenir actif.</string>
     <string name="background_reliability_allow_action">Autoriser l’activité en arrière-plan</string>
     <string name="background_reliability_samsung_hint">Les appareils Samsung peuvent aussi placer les applications dans « Applications en veille ». Ouvrez les paramètres de batterie, retirez Tracker des applications en veille et définissez-le pour qu’il ne soit pas mis en veille.</string>
     <string name="background_reliability_samsung_action">Ouvrir les paramètres de batterie de l’appareil</string>

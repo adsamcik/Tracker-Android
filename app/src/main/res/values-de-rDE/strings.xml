@@ -348,13 +348,9 @@
     <string name="setup_online_tiles_on_desc">Streame Vektorkacheln mit höherem Detailgrad von OpenFreeMap (Standard). Du kannst den Anbieter später unter Einstellungen → Karte ändern.</string>
     <string name="setup_online_tiles_privacy">Wenn diese Option aktiviert ist, kann der Anbieter deine IP-Adresse und die geladenen Kacheln sehen — also ungefähr den Kartenausschnitt, den du ansiehst. Tracker sendet niemals ein Konto, eine Kennung oder deinen Standortverlauf.</string>
     <string name="setup_online_tiles_change_later">Du kannst dies jederzeit unter Einstellungen → Karte → Online-Kartenkacheln ändern.</string>
-    <string name="setup_background_access_subtitle">Damit Fahrten bei ausgeschaltetem Bildschirm oder geschlossener App aufgezeichnet werden, muss Tracker im Hintergrund weiterlaufen. Akkueinstellungen des Telefons können ihn pausieren — erlaube Hintergrundaktivität, damit die automatische Aufzeichnung zuverlässig bleibt.</string>
     <string name="setup_background_access_optional">Optional, aber empfohlen. Du kannst dies jederzeit unter Einstellungen → Aufzeichnung ändern.</string>
-    <string name="background_reliability_title">Zuverlässige Aufzeichnung im Hintergrund</string>
     <string name="background_reliability_status_exempt">Hintergrundaktivität erlaubt</string>
     <string name="background_reliability_status_optimized">Akkuoptimierung ist aktiviert</string>
-    <string name="background_reliability_exempt_desc">Tracker ist von der Akkuoptimierung ausgenommen, sodass Hintergrund- und automatische Aufzeichnung zuverlässig laufen können.</string>
-    <string name="background_reliability_optimized_desc">Die Akkuoptimierung kann Tracker im Hintergrund pausieren und die automatische Aufzeichnung stoppen. Erlaube Hintergrundaktivität, damit er weiterläuft.</string>
     <string name="background_reliability_allow_action">Hintergrundaktivität erlauben</string>
     <string name="background_reliability_samsung_hint">Samsung-Geräte können Apps auch in „Schlafende Apps“ verschieben. Öffne die Akkueinstellungen, entferne Tracker aus Schlafende Apps und stelle ein, dass er nicht in den Ruhezustand versetzt wird.</string>
     <string name="background_reliability_samsung_action">Akkueinstellungen des Geräts öffnen</string>

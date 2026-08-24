@@ -348,13 +348,9 @@
     <string name="setup_online_tiles_on_desc">Strömma vektorkartbrickor med högre detaljnivå från OpenFreeMap (standard). Du kan byta leverantör senare i Inställningar → Karta.</string>
     <string name="setup_online_tiles_privacy">När detta är aktiverat kan leverantören se din IP-adress och vilka kartbrickor du läser in — ungefär vilket område på kartan du tittar på. Tracker skickar aldrig ett konto, en identifierare eller din platshistorik.</string>
     <string name="setup_online_tiles_change_later">Du kan ändra detta när som helst i Inställningar → Karta → Onlinekartbrickor.</string>
-    <string name="setup_background_access_subtitle">För att registrera resor när skärmen är avstängd eller appen är stängd behöver Tracker fortsätta köras i bakgrunden. Telefonens batteriinställningar kan pausa den — tillåt bakgrundsaktivitet så att automatisk spårning förblir tillförlitlig.</string>
     <string name="setup_background_access_optional">Valfritt, men rekommenderas. Du kan ändra detta när som helst i Inställningar → Spårning.</string>
-    <string name="background_reliability_title">Tillförlitlig spårning i bakgrunden</string>
     <string name="background_reliability_status_exempt">Bakgrundsaktivitet tillåten</string>
     <string name="background_reliability_status_optimized">Batterioptimering är på</string>
-    <string name="background_reliability_exempt_desc">Tracker undantas från batterioptimering, så bakgrunds- och automatisk spårning kan fungera tillförlitligt.</string>
-    <string name="background_reliability_optimized_desc">Batterioptimering kan pausa Tracker i bakgrunden och stoppa automatisk spårning. Tillåt bakgrundsaktivitet för att hålla den igång.</string>
     <string name="background_reliability_allow_action">Tillåt bakgrundsaktivitet</string>
     <string name="background_reliability_samsung_hint">Samsung-enheter kan också placera appar i ”Sovande appar”. Öppna batteriinställningarna, ta bort Tracker från Sovande appar och ange att den inte ska försättas i viloläge.</string>
     <string name="background_reliability_samsung_action">Öppna enhetens batteriinställningar</string>

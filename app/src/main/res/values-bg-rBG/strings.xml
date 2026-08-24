@@ -348,13 +348,9 @@
     <string name="setup_online_tiles_on_desc">Предавайте векторни плочки с повече детайли от OpenFreeMap (по подразбиране). Можете да смените доставчика по-късно в Настройки → Карта.</string>
     <string name="setup_online_tiles_privacy">Докато е включено, доставчикът може да вижда IP адреса ви и кои плочки зареждате — приблизително коя област от картата разглеждате. Tracker никога не изпраща акаунт, идентификатор или история на местоположенията ви.</string>
     <string name="setup_online_tiles_change_later">Можете да промените това по всяко време в Настройки → Карта → Онлайн плочки за карта.</string>
-    <string name="setup_background_access_subtitle">За да записва пътувания, докато екранът е изключен или приложението е затворено, Tracker трябва да продължи да работи във фонов режим. Настройките на батерията на телефона може да го поставят на пауза — разрешете активност във фонов режим, за да остане автоматичното проследяване надеждно.</string>
     <string name="setup_background_access_optional">По избор, но се препоръчва. Можете да промените това по всяко време в Настройки → Проследяване.</string>
-    <string name="background_reliability_title">Надеждно проследяване във фонов режим</string>
     <string name="background_reliability_status_exempt">Разрешена е активност във фонов режим</string>
     <string name="background_reliability_status_optimized">Оптимизацията на батерията е включена</string>
-    <string name="background_reliability_exempt_desc">Tracker е изключен от оптимизацията на батерията, затова проследяването във фонов режим и автоматичното проследяване могат да работят надеждно.</string>
-    <string name="background_reliability_optimized_desc">Оптимизацията на батерията може да постави Tracker на пауза във фонов режим и да спре автоматичното проследяване. Разрешете активност във фонов режим, за да продължи да работи.</string>
     <string name="background_reliability_allow_action">Разрешаване на активност във фонов режим</string>
     <string name="background_reliability_samsung_hint">Устройствата Samsung може също да поставят приложенията в „Спящи приложения“. Отворете настройките за батерията, премахнете Tracker от „Спящи приложения“ и го задайте да не бъде поставян в режим на заспиване.</string>
     <string name="background_reliability_samsung_action">Отваряне на настройките за батерията на устройството</string>

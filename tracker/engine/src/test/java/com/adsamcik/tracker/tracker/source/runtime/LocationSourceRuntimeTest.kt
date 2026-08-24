@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import android.content.Context
-import android.location.Location
 import android.os.SystemClock
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
@@ -16,6 +15,7 @@ import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
+import com.adsamcik.tracker.testing.fake.FakeLocationSource
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -258,7 +258,7 @@ class LocationSourceRuntimeTest {
 			val stateProvider = object : LocationDeviceStateProvider {
 				override fun snapshot(): LocationDeviceState = deviceState
 			}
-			var callback: ((List<Location>) -> Unit)? = null
+			var callback: ((List<android.location.Location>) -> Unit)? = null
 			coEvery { registrations.begin(any(), any(), any(), any(), any()) } returns initialRegistration
 			coEvery {
 				registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
@@ -353,7 +353,7 @@ class LocationSourceRuntimeTest {
 		val frameworkBackend = mockk<FrameworkLocationSourceBackend>(relaxed = true)
 		val refreshCommitted = CompletableDeferred<Unit>()
 		val releaseRefresh = CompletableDeferred<Unit>()
-		var callback: ((List<Location>) -> Unit)? = null
+		var callback: ((List<android.location.Location>) -> Unit)? = null
 		coEvery { registrations.begin(any(), any(), any(), any(), any()) } returns initialRegistration
 		coEvery {
 			registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
@@ -868,7 +868,7 @@ class LocationSourceRuntimeTest {
 		val sink: RecordingLocationSink,
 		val registrations: SourceRegistrationRepository,
 		val fusedBackend: FusedLocationSourceBackend,
-		val providerCallback: () -> ((List<Location>) -> Unit),
+		val providerCallback: () -> ((List<android.location.Location>) -> Unit),
 	)
 
 	private data class FailingStartFixture(
@@ -928,7 +928,7 @@ class LocationSourceRuntimeTest {
 		val registrations = mockk<SourceRegistrationRepository>(relaxed = true)
 		val fusedBackend = mockk<FusedLocationSourceBackend>(relaxed = true)
 		val frameworkBackend = mockk<FrameworkLocationSourceBackend>(relaxed = true)
-		var callback: ((List<Location>) -> Unit)? = null
+		var callback: ((List<android.location.Location>) -> Unit)? = null
 		coEvery { registrations.begin(any(), any(), any(), any(), any()) } returns registration(
 			plan,
 			authorizationRevision = 1L,
@@ -1031,12 +1031,15 @@ class LocationSourceRuntimeTest {
 		deadlineElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(),
 	)
 
-	private fun location(latitude: Double, observedElapsedNanos: Long) = Location("gps").apply {
+	private fun location(latitude: Double, observedElapsedNanos: Long) =
+		FakeLocationSource.createLocation(
+			lat = latitude,
+			lon = 14.0,
+			accuracy = 5f,
+			time = System.currentTimeMillis(),
+			provider = "gps",
+		).apply {
 		elapsedRealtimeNanos = observedElapsedNanos
-		time = System.currentTimeMillis()
-		this.latitude = latitude
-		longitude = 14.0
-		accuracy = 5f
 	}
 
 	private fun locationPlan(revision: Long) = LocationPlan(

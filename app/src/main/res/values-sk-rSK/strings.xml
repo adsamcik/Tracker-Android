@@ -356,13 +356,9 @@
     <string name="setup_online_tiles_on_desc">Streamovať vektorové dlaždice s vyššími podrobnosťami z OpenFreeMap (predvolené). Poskytovateľa môžete neskôr zmeniť v Nastaveniach → Mapa.</string>
     <string name="setup_online_tiles_privacy">Keď je táto možnosť zapnutá, poskytovateľ môže vidieť vašu IP adresu a načítané dlaždice — približne oblasť mapy, na ktorú sa pozeráte. Tracker nikdy neodosiela účet, identifikátor ani históriu polohy.</string>
     <string name="setup_online_tiles_change_later">Toto môžete kedykoľvek zmeniť v Nastaveniach → Mapa → Online dlaždice mapy.</string>
-    <string name="setup_background_access_subtitle">Aby Tracker zaznamenával cesty aj pri vypnutej obrazovke alebo zatvorenej aplikácii, musí bežať na pozadí. Nastavenia batérie telefónu ho môžu pozastaviť — povoľte aktivitu na pozadí, aby automatické sledovanie zostalo spoľahlivé.</string>
     <string name="setup_background_access_optional">Voliteľné, ale odporúčané. Toto môžete kedykoľvek zmeniť v Nastaveniach → Sledovanie.</string>
-    <string name="background_reliability_title">Spoľahlivé sledovanie na pozadí</string>
     <string name="background_reliability_status_exempt">Aktivita na pozadí povolená</string>
     <string name="background_reliability_status_optimized">Optimalizácia batérie je zapnutá</string>
-    <string name="background_reliability_exempt_desc">Tracker je vyňatý z optimalizácie batérie, takže sledovanie na pozadí a automatické sledovanie môžu spoľahlivo fungovať.</string>
-    <string name="background_reliability_optimized_desc">Optimalizácia batérie môže Tracker na pozadí pozastaviť, čím zastaví automatické sledovanie. Povoľte aktivitu na pozadí, aby ďalej fungoval.</string>
     <string name="background_reliability_allow_action">Povoliť aktivitu na pozadí</string>
     <string name="background_reliability_samsung_hint">Zariadenia Samsung môžu aplikácie presunúť aj do „Spiacich aplikácií“. Otvorte nastavenia batérie, odstráňte Tracker zo Spiacich aplikácií a nastavte, aby nebol uspávaný.</string>
     <string name="background_reliability_samsung_action">Otvoriť nastavenia batérie zariadenia</string>

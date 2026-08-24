@@ -348,13 +348,9 @@
     <string name="setup_online_tiles_on_desc">Käytä yksityiskohtaisempia vektorikarttalaattoja OpenFreeMapista (oletus). Voit vaihtaa tarjoajaa myöhemmin kohdassa Asetukset → Kartta.</string>
     <string name="setup_online_tiles_privacy">Kun toiminto on käytössä, tarjoaja näkee IP-osoitteesi ja lataamasi karttalaatat — suurin piirtein katsomasi kartta-alueen. Tracker ei koskaan lähetä tiliä, tunnistetta tai sijaintihistoriaasi.</string>
     <string name="setup_online_tiles_change_later">Voit muuttaa tämän milloin tahansa kohdassa Asetukset → Kartta → Verkkokarttalaatat.</string>
-    <string name="setup_background_access_subtitle">Jotta matkoja voidaan tallentaa näytön ollessa pois päältä tai sovelluksen ollessa suljettuna, Trackerin on jatkettava toimintaa taustalla. Puhelimen akkuasetukset voivat keskeyttää sen — salli taustatoiminta, jotta automaattinen seuranta pysyy luotettavana.</string>
     <string name="setup_background_access_optional">Valinnainen, mutta suositeltu. Voit muuttaa tämän milloin tahansa kohdassa Asetukset → Seuranta.</string>
-    <string name="background_reliability_title">Luotettava taustaseuranta</string>
     <string name="background_reliability_status_exempt">Taustatoiminta sallittu</string>
     <string name="background_reliability_status_optimized">Akun optimointi on käytössä</string>
-    <string name="background_reliability_exempt_desc">Tracker on jätetty akun optimoinnin ulkopuolelle, joten tausta- ja automaattinen seuranta voivat toimia luotettavasti.</string>
-    <string name="background_reliability_optimized_desc">Akun optimointi voi keskeyttää Trackerin taustalla ja pysäyttää automaattisen seurannan. Salli taustatoiminta pitääksesi sen käynnissä.</string>
     <string name="background_reliability_allow_action">Salli taustatoiminta</string>
     <string name="background_reliability_samsung_hint">Samsung-laitteet voivat myös siirtää sovelluksia Nukkuvat sovellukset -luokkaan. Avaa akkuasetukset, poista Tracker Nukkuvat sovellukset -luokasta ja määritä, ettei sitä aseteta nukkumaan.</string>
     <string name="background_reliability_samsung_action">Avaa laitteen akkuasetukset</string>

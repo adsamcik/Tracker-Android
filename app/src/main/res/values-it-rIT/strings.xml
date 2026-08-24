@@ -348,13 +348,9 @@
     <string name="setup_online_tiles_on_desc">Scarica tile vettoriali più dettagliate da OpenFreeMap (predefinito). Puoi cambiare fornitore in seguito in Impostazioni → Mappa.</string>
     <string name="setup_online_tiles_privacy">Quando è abilitato, il fornitore può vedere il tuo indirizzo IP e le tile che carichi — approssimativamente quale area della mappa stai guardando. Tracker non invia mai un account, un identificatore o la cronologia delle posizioni.</string>
     <string name="setup_online_tiles_change_later">Puoi cambiare questa opzione in qualsiasi momento in Impostazioni → Mappa → Tile mappa online.</string>
-    <string name="setup_background_access_subtitle">Per registrare gli spostamenti quando lo schermo è spento o l\'app è chiusa, Tracker deve continuare a funzionare in background. Le impostazioni della batteria del telefono possono sospenderlo — consenti l\'attività in background affinché il tracciamento automatico rimanga affidabile.</string>
     <string name="setup_background_access_optional">Facoltativo, ma consigliato. Puoi cambiare questa opzione in qualsiasi momento in Impostazioni → Tracciamento.</string>
-    <string name="background_reliability_title">Tracciamento in background affidabile</string>
     <string name="background_reliability_status_exempt">Attività in background consentita</string>
     <string name="background_reliability_status_optimized">Ottimizzazione batteria attiva</string>
-    <string name="background_reliability_exempt_desc">Tracker è escluso dall\'ottimizzazione della batteria, quindi il tracciamento in background e automatico può funzionare in modo affidabile.</string>
-    <string name="background_reliability_optimized_desc">L\'ottimizzazione della batteria può sospendere Tracker in background, interrompendo il tracciamento automatico. Consenti l\'attività in background per mantenerlo attivo.</string>
     <string name="background_reliability_allow_action">Consenti attività in background</string>
     <string name="background_reliability_samsung_hint">I dispositivi Samsung possono anche inserire le app in \"App in sospensione\". Apri le impostazioni della batteria, rimuovi Tracker dalle app in sospensione e imposta l\'app affinché non venga sospesa.</string>
     <string name="background_reliability_samsung_action">Apri impostazioni della batteria del dispositivo</string>

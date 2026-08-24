@@ -352,13 +352,9 @@
     <string name="setup_online_tiles_on_desc">Preia dale vectoriale mai detaliate de la OpenFreeMap (implicit). Poți schimba mai târziu furnizorul în Setări → Hartă.</string>
     <string name="setup_online_tiles_privacy">Cât timp este activat, furnizorul poate vedea adresa ta IP și dalele pe care le încarci — aproximativ zona hărții pe care o privești. Tracker nu trimite niciodată un cont, un identificator sau istoricul locațiilor.</string>
     <string name="setup_online_tiles_change_later">Poți schimba aceasta oricând din Setări → Hartă → Dale de hartă online.</string>
-    <string name="setup_background_access_subtitle">Pentru a înregistra călătorii când ecranul este stins sau aplicația este închisă, Tracker trebuie să continue să ruleze în fundal. Setările bateriei telefonului îl pot întrerupe — permite activitatea în fundal pentru ca urmărirea automată să rămână fiabilă.</string>
     <string name="setup_background_access_optional">Opțional, dar recomandat. Poți schimba aceasta oricând din Setări → Urmărire.</string>
-    <string name="background_reliability_title">Urmărire fiabilă în fundal</string>
     <string name="background_reliability_status_exempt">Activitatea în fundal este permisă</string>
     <string name="background_reliability_status_optimized">Optimizarea bateriei este activă</string>
-    <string name="background_reliability_exempt_desc">Tracker este exclus din optimizarea bateriei, astfel încât urmărirea în fundal și cea automată pot funcționa fiabil.</string>
-    <string name="background_reliability_optimized_desc">Optimizarea bateriei poate întrerupe Tracker în fundal, oprind urmărirea automată. Permite activitatea în fundal pentru a-l menține în funcțiune.</string>
     <string name="background_reliability_allow_action">Permite activitatea în fundal</string>
     <string name="background_reliability_samsung_hint">Dispozitivele Samsung pot pune aplicațiile și în „Aplicații inactive”. Deschide setările bateriei, elimină apoi Tracker din Aplicații inactive și setează-l să nu fie pus în repaus.</string>
     <string name="background_reliability_samsung_action">Deschide setările bateriei dispozitivului</string>

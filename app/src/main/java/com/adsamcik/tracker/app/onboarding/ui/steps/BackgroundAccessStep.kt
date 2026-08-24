@@ -27,7 +27,7 @@ import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing
 
 /**
  * Optional onboarding step that helps the user keep tracking alive in the
- * background by excluding the app from battery optimization (and, on Samsung,
+ * background interruptions by excluding the app from battery optimization (and, on Samsung,
  * the "Sleeping apps" list). Skippable — the Continue action proceeds regardless.
  */
 @Composable

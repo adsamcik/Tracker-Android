@@ -1,6 +1,6 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
-import android.location.Location
+import com.adsamcik.tracker.testing.fake.FakeLocationSource
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
@@ -49,12 +49,12 @@ class LocationSourceDeliveryTest {
 	@Test
 	fun `reordered provider replay with duplicates has stable identity and total order`() {
 		val first = location("z-provider", elapsedNanos = 700L, wallTimeMs = 7L)
-		val duplicate = Location(first)
+		val duplicate = copyLocation(first)
 		val second = location("a-provider", elapsedNanos = 700L, wallTimeMs = 7L)
 
 		val original = delivery(listOf(first, second, duplicate), receivedElapsedNanos = 1_000L)
 		val replay = delivery(
-			listOf(Location(duplicate), Location(second), Location(first)),
+			listOf(copyLocation(duplicate), copyLocation(second), copyLocation(first)),
 			receivedElapsedNanos = 1_500L,
 		)
 
@@ -155,7 +155,7 @@ class LocationSourceDeliveryTest {
 	}
 
 	private fun delivery(
-		locations: List<Location>,
+		locations: List<android.location.Location>,
 		receivedElapsedNanos: Long,
 	): SourceDeliveryCandidate {
 		val partition = partitionLocationBatch(
@@ -182,7 +182,7 @@ class LocationSourceDeliveryTest {
 	)
 
 	private fun uncheckedDelivery(
-		location: Location,
+		location: android.location.Location,
 		observedNanos: Long,
 		receivedElapsedNanos: Long,
 	) = locationDeliveryCandidate(
@@ -195,12 +195,28 @@ class LocationSourceDeliveryTest {
 	)
 
 	private fun location(provider: String, elapsedNanos: Long, wallTimeMs: Long) =
-		Location(provider).apply {
+		FakeLocationSource.createLocation(
+			lat = 50.0 + elapsedNanos / 1_000_000.0,
+			lon = 14.0,
+			accuracy = 5f,
+			time = wallTimeMs,
+			provider = provider,
+		).apply {
 			elapsedRealtimeNanos = elapsedNanos
-			time = wallTimeMs
-			latitude = 50.0 + elapsedNanos / 1_000_000.0
-			longitude = 14.0
-			accuracy = 5f
+		}
+
+	private fun copyLocation(source: android.location.Location) =
+		FakeLocationSource.createLocation(
+			lat = source.latitude,
+			lon = source.longitude,
+			accuracy = source.accuracy,
+			time = source.time,
+			altitude = source.altitude.takeIf { source.hasAltitude() },
+			speed = source.speed.takeIf { source.hasSpeed() },
+			bearing = source.bearing.takeIf { source.hasBearing() },
+			provider = source.provider ?: "test",
+		).apply {
+			elapsedRealtimeNanos = source.elapsedRealtimeNanos
 		}
 
 	private fun deviceState(

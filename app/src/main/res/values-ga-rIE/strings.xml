@@ -348,13 +348,9 @@
     <string name="setup_online_tiles_on_desc">Sruthaigh tíleanna veicteora níos mionsonraithe ó OpenFreeMap (réamhshocrú). Is féidir leat an soláthraí a athrú níos déanaí i Socruithe → Léarscáil.</string>
     <string name="setup_online_tiles_privacy">Nuair atá sé cumasaithe, is féidir leis an soláthraí do sheoladh IP agus na tíleanna a lódálann tú a fheiceáil — go garbh, cén limistéar den léarscáil atá á fheiceáil agat. Ní sheolann Tracker cuntas, aitheantas ná stair suímh riamh.</string>
     <string name="setup_online_tiles_change_later">Is féidir leat é seo a athrú am ar bith i Socruithe → Léarscáil → Tíleanna léarscáile ar líne.</string>
-    <string name="setup_background_access_subtitle">Chun turais a thaifeadadh nuair atá an scáileán as nó an aip dúnta, ní mór do Tracker leanúint sa chúlra. Is féidir le socruithe ceallra an fhóin é a chur ar sos — ceadaigh gníomhaíocht sa chúlra ionas go bhfanfaidh rianú uathoibríoch iontaofa.</string>
     <string name="setup_background_access_optional">Roghnach, ach molta. Is féidir leat é seo a athrú am ar bith i Socruithe → Rianú.</string>
-    <string name="background_reliability_title">Rianú iontaofa sa chúlra</string>
     <string name="background_reliability_status_exempt">Ceadaítear gníomhaíocht sa chúlra</string>
     <string name="background_reliability_status_optimized">Tá barrfheabhsú ceallra ar siúl</string>
-    <string name="background_reliability_exempt_desc">Tá Tracker eisiata ó bharrfheabhsú ceallra, mar sin is féidir le rianú sa chúlra agus uathoibríoch oibriú go hiontaofa.</string>
-    <string name="background_reliability_optimized_desc">Is féidir le barrfheabhsú ceallra Tracker a chur ar sos sa chúlra, rud a stopann rianú uathoibríoch. Ceadaigh gníomhaíocht sa chúlra chun é a choinneáil ar siúl.</string>
     <string name="background_reliability_allow_action">Ceadaigh gníomhaíocht sa chúlra</string>
     <string name="background_reliability_samsung_hint">D’fhéadfadh gléasanna Samsung aipeanna a chur i "Aipeanna codlata" freisin. Oscail socruithe ceallra, bain Tracker ó Aipeanna codlata agus socraigh gan é a chur a chodladh.</string>
     <string name="background_reliability_samsung_action">Oscail socruithe ceallra an ghléis</string>

@@ -356,13 +356,9 @@
     <string name="setup_online_tiles_on_desc">Pobieraj wektorowe kafelki o większej szczegółowości z OpenFreeMap (domyślnie). Dostawcę można później zmienić w Ustawienia → Mapa.</string>
     <string name="setup_online_tiles_privacy">Po włączeniu dostawca może zobaczyć Twój adres IP i ładowane kafelki — w przybliżeniu obszar oglądanej mapy. Tracker nigdy nie wysyła konta, identyfikatora ani historii lokalizacji.</string>
     <string name="setup_online_tiles_change_later">Możesz to zmienić w dowolnym momencie w Ustawienia → Mapa → Kafelki map online.</string>
-    <string name="setup_background_access_subtitle">Aby rejestrować podróże przy wyłączonym ekranie lub zamkniętej aplikacji, Tracker musi nadal działać w tle. Ustawienia baterii telefonu mogą go wstrzymać — zezwól na działanie w tle, aby automatyczne śledzenie było niezawodne.</string>
     <string name="setup_background_access_optional">Opcjonalne, lecz zalecane. Możesz to zmienić w dowolnym momencie w Ustawienia → Śledzenie.</string>
-    <string name="background_reliability_title">Niezawodne śledzenie w tle</string>
     <string name="background_reliability_status_exempt">Działanie w tle dozwolone</string>
     <string name="background_reliability_status_optimized">Optymalizacja baterii jest włączona</string>
-    <string name="background_reliability_exempt_desc">Tracker jest wyłączony z optymalizacji baterii, dlatego śledzenie w tle i automatyczne może działać niezawodnie.</string>
-    <string name="background_reliability_optimized_desc">Optymalizacja baterii może wstrzymać Trackera w tle, zatrzymując automatyczne śledzenie. Zezwól na działanie w tle, aby nadal działało.</string>
     <string name="background_reliability_allow_action">Zezwól na działanie w tle</string>
     <string name="background_reliability_samsung_hint">Urządzenia Samsung mogą także umieszczać aplikacje w „Uśpionych aplikacjach”. Otwórz ustawienia baterii, usuń stamtąd Tracker i ustaw, aby nie był usypiany.</string>
     <string name="background_reliability_samsung_action">Otwórz ustawienia baterii urządzenia</string>

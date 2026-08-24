@@ -15,7 +15,7 @@ enum class SetupStep(val index: Int) {
     /** Data source toggles with inline permission requests. */
     WhatToCollect(2),
 
-    /** Optional battery-optimization exemption for reliable background tracking. */
+    /** Optional battery-optimization exemption that reduces Doze restrictions. */
     BackgroundAccess(3),
 
     /** Online map tile provider choice (online recommended by default). */

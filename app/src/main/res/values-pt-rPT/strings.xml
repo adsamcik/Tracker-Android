@@ -348,13 +348,9 @@
     <string name="setup_online_tiles_on_desc">Receba mosaicos vetoriais com mais detalhe do OpenFreeMap (predefinido). Pode alterar o fornecedor mais tarde em Definições → Mapa.</string>
     <string name="setup_online_tiles_privacy">Quando ativado, o fornecedor pode ver o seu endereço IP e os mosaicos que carrega — aproximadamente a área do mapa que está a ver. O Tracker nunca envia uma conta, um identificador ou o histórico das suas localizações.</string>
     <string name="setup_online_tiles_change_later">Pode alterar isto a qualquer momento em Definições → Mapa → Mosaicos de mapa online.</string>
-    <string name="setup_background_access_subtitle">Para registar viagens quando o ecrã está desligado ou a aplicação fechada, o Tracker tem de continuar a executar-se em segundo plano. As definições de bateria do telemóvel podem pausá-lo — permita a atividade em segundo plano para manter a monitorização automática fiável.</string>
     <string name="setup_background_access_optional">Opcional, mas recomendado. Pode alterar isto a qualquer momento em Definições → Monitorização.</string>
-    <string name="background_reliability_title">Monitorização fiável em segundo plano</string>
     <string name="background_reliability_status_exempt">Atividade em segundo plano permitida</string>
     <string name="background_reliability_status_optimized">A otimização de bateria está ativada</string>
-    <string name="background_reliability_exempt_desc">O Tracker está excluído da otimização de bateria, pelo que a monitorização em segundo plano e automática pode funcionar de forma fiável.</string>
-    <string name="background_reliability_optimized_desc">A otimização de bateria pode pausar o Tracker em segundo plano e interromper a monitorização automática. Permita a atividade em segundo plano para mantê-la ativa.</string>
     <string name="background_reliability_allow_action">Permitir atividade em segundo plano</string>
     <string name="background_reliability_samsung_hint">Os dispositivos Samsung também podem colocar aplicações em "Aplicações em suspensão". Abra as definições de bateria, remova o Tracker de Aplicações em suspensão e defina-o para não entrar em suspensão.</string>
     <string name="background_reliability_samsung_action">Abrir definições de bateria do dispositivo</string>

@@ -348,13 +348,9 @@
     <string name="setup_online_tiles_on_desc">從 OpenFreeMap（預設）串流更高細節的向量圖磚。稍後可在「設定 → 地圖」變更提供者。</string>
     <string name="setup_online_tiles_privacy">啟用時，提供者可看見您的 IP 位址及所載入的圖磚 — 約略反映您正在查看的地圖區域。Tracker 絕不會傳送帳戶、識別碼或位置記錄。</string>
     <string name="setup_online_tiles_change_later">您可隨時在「設定 → 地圖 → 線上地圖圖磚」變更此項目。</string>
-    <string name="setup_background_access_subtitle">若要在螢幕關閉或應用程式關閉時記錄旅程，Tracker 必須持續在背景執行。手機的電池設定可能使其暫停 — 請允許背景活動，讓自動追蹤保持可靠。</string>
     <string name="setup_background_access_optional">選用但建議啟用。您可隨時在「設定 → 追蹤」變更。</string>
-    <string name="background_reliability_title">可靠的背景追蹤</string>
     <string name="background_reliability_status_exempt">已允許背景活動</string>
     <string name="background_reliability_status_optimized">已啟用電池最佳化</string>
-    <string name="background_reliability_exempt_desc">Tracker 已排除在電池最佳化之外，因此背景與自動追蹤可可靠地運作。</string>
-    <string name="background_reliability_optimized_desc">電池最佳化可能在背景中暫停 Tracker，導致自動追蹤停止。允許背景活動以維持執行。</string>
     <string name="background_reliability_allow_action">允許背景活動</string>
     <string name="background_reliability_samsung_hint">Samsung 裝置可能還會將應用程式放入「休眠應用程式」。請開啟電池設定，從休眠應用程式中移除 Tracker，並設定為不要進入休眠。</string>
     <string name="background_reliability_samsung_action">開啟裝置電池設定</string>

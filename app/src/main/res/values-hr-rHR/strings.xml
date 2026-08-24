@@ -352,13 +352,9 @@
     <string name="setup_online_tiles_on_desc">Preuzimajte vektorske pločice s više pojedinosti s OpenFreeMapa (zadano). Pružatelja možete kasnije promijeniti u Postavkama → Karta.</string>
     <string name="setup_online_tiles_privacy">Dok je uključeno, pružatelj može vidjeti vašu IP adresu i pločice koje učitavate — otprilike koje područje karte gledate. Tracker nikada ne šalje račun, identifikator ni povijest lokacija.</string>
     <string name="setup_online_tiles_change_later">Ovo možete bilo kada promijeniti u Postavkama → Karta → Mrežne pločice karte.</string>
-    <string name="setup_background_access_subtitle">Da bi bilježio putovanja dok je zaslon isključen ili je aplikacija zatvorena, Tracker mora nastaviti raditi u pozadini. Postavke baterije telefona mogu ga pauzirati — dopustite aktivnost u pozadini da bi automatsko praćenje ostalo pouzdano.</string>
     <string name="setup_background_access_optional">Neobvezno, ali preporučeno. Ovo možete bilo kada promijeniti u Postavkama → Praćenje.</string>
-    <string name="background_reliability_title">Pouzdano praćenje u pozadini</string>
     <string name="background_reliability_status_exempt">Dopuštena aktivnost u pozadini</string>
     <string name="background_reliability_status_optimized">Uključena je optimizacija baterije</string>
-    <string name="background_reliability_exempt_desc">Tracker je izuzet od optimizacije baterije, pa praćenje u pozadini i automatsko praćenje mogu raditi pouzdano.</string>
-    <string name="background_reliability_optimized_desc">Optimizacija baterije može pauzirati Tracker u pozadini i zaustaviti automatsko praćenje. Dopustite aktivnost u pozadini da bi nastavio raditi.</string>
     <string name="background_reliability_allow_action">Dopusti aktivnost u pozadini</string>
     <string name="background_reliability_samsung_hint">Samsung uređaji mogu aplikacije smjestiti i u „Aplikacije u stanju mirovanja”. Otvorite postavke baterije, zatim uklonite Tracker iz Aplikacija u stanju mirovanja i postavite da se ne uspavljuje.</string>
     <string name="background_reliability_samsung_action">Otvori postavke baterije uređaja</string>

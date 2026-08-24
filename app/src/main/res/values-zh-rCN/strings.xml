@@ -348,13 +348,9 @@
     <string name="setup_online_tiles_on_desc">从 OpenFreeMap（默认）流式加载更高细节的矢量瓦片。您可以稍后在“设置 → 地图”中更改提供商。</string>
     <string name="setup_online_tiles_privacy">启用后，提供商可看到您的 IP 地址及您加载的瓦片 — 即您正在查看的大致地图区域。Tracker 绝不会发送帐户、标识符或您的位置历史记录。</string>
     <string name="setup_online_tiles_change_later">您可随时在“设置 → 地图 → 在线地图瓦片”中更改此设置。</string>
-    <string name="setup_background_access_subtitle">要在屏幕关闭或应用关闭时记录行程，Tracker 需要持续在后台运行。手机的电池设置可能会暂停它 — 请允许后台活动以确保自动跟踪可靠运行。</string>
     <string name="setup_background_access_optional">此项可选，但建议开启。您可随时在“设置 → 跟踪”中更改。</string>
-    <string name="background_reliability_title">可靠的后台跟踪</string>
     <string name="background_reliability_status_exempt">已允许后台活动</string>
     <string name="background_reliability_status_optimized">已开启电池优化</string>
-    <string name="background_reliability_exempt_desc">Tracker 已排除在电池优化之外，因此后台跟踪和自动跟踪可以可靠运行。</string>
-    <string name="background_reliability_optimized_desc">电池优化可能会在后台暂停 Tracker，从而停止自动跟踪。请允许后台活动以保持运行。</string>
     <string name="background_reliability_allow_action">允许后台活动</string>
     <string name="background_reliability_samsung_hint">Samsung 设备还可能将应用放入“休眠应用”。请打开电池设置，将 Tracker 从休眠应用中移除，并将其设为不休眠。</string>
     <string name="background_reliability_samsung_action">打开设备电池设置</string>

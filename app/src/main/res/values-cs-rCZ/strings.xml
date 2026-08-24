@@ -356,13 +356,9 @@
     <string name="setup_online_tiles_on_desc">Streamujte vektorové dlaždice s více podrobnostmi z OpenFreeMap (výchozí). Poskytovatele můžete později změnit v Nastavení → Mapa.</string>
     <string name="setup_online_tiles_privacy">Pokud jsou dlaždice zapnuté, poskytovatel může vidět vaši IP adresu a načítané dlaždice — přibližně oblast mapy, na kterou se díváte. Tracker nikdy neodesílá účet, identifikátor ani historii polohy.</string>
     <string name="setup_online_tiles_change_later">Toto můžete kdykoli změnit v Nastavení → Mapa → Online mapové dlaždice.</string>
-    <string name="setup_background_access_subtitle">Aby mohl Tracker zaznamenávat cesty i při vypnuté obrazovce nebo zavřené aplikaci, musí běžet na pozadí. Nastavení baterie telefonu jej může pozastavit — povolte činnost na pozadí, aby automatické sledování zůstalo spolehlivé.</string>
     <string name="setup_background_access_optional">Volitelné, ale doporučené. Toto můžete kdykoli změnit v Nastavení → Sledování.</string>
-    <string name="background_reliability_title">Spolehlivé sledování na pozadí</string>
     <string name="background_reliability_status_exempt">Činnost na pozadí je povolena</string>
     <string name="background_reliability_status_optimized">Optimalizace baterie je zapnutá</string>
-    <string name="background_reliability_exempt_desc">Tracker je vyjmut z optimalizace baterie, takže sledování na pozadí a automatické sledování může spolehlivě běžet.</string>
-    <string name="background_reliability_optimized_desc">Optimalizace baterie může Tracker na pozadí pozastavit a zastavit automatické sledování. Povolte činnost na pozadí, aby dále běželo.</string>
     <string name="background_reliability_allow_action">Povolit činnost na pozadí</string>
     <string name="background_reliability_samsung_hint">Zařízení Samsung mohou aplikace zařadit také mezi \"Aplikace ve spánku\". Otevřete nastavení baterie, odeberte Tracker z Aplikací ve spánku a nastavte, aby nebyl uspáván.</string>
     <string name="background_reliability_samsung_action">Otevřít nastavení baterie zařízení</string>

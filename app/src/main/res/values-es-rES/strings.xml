@@ -348,13 +348,9 @@
     <string name="setup_online_tiles_on_desc">Transmite teselas vectoriales con más detalle desde OpenFreeMap (predeterminado). Puedes cambiar el proveedor más tarde en Ajustes → Mapa.</string>
     <string name="setup_online_tiles_privacy">Mientras está activado, el proveedor puede ver tu dirección IP y qué teselas cargas; aproximadamente qué zona del mapa estás mirando. Tracker nunca envía una cuenta, identificador ni tu historial de ubicaciones.</string>
     <string name="setup_online_tiles_change_later">Puedes cambiarlo en cualquier momento en Ajustes → Mapa → Teselas de mapa en línea.</string>
-    <string name="setup_background_access_subtitle">Para registrar trayectos mientras la pantalla está apagada o la aplicación cerrada, Tracker debe seguir ejecutándose en segundo plano. Los ajustes de batería del teléfono pueden pausarlo; permite la actividad en segundo plano para que el seguimiento automático siga siendo fiable.</string>
     <string name="setup_background_access_optional">Opcional, pero recomendado. Puedes cambiarlo en cualquier momento en Ajustes → Seguimiento.</string>
-    <string name="background_reliability_title">Seguimiento fiable en segundo plano</string>
     <string name="background_reliability_status_exempt">Actividad en segundo plano permitida</string>
     <string name="background_reliability_status_optimized">La optimización de batería está activada</string>
-    <string name="background_reliability_exempt_desc">Tracker está excluido de la optimización de batería, por lo que el seguimiento en segundo plano y automático puede funcionar de forma fiable.</string>
-    <string name="background_reliability_optimized_desc">La optimización de batería puede pausar Tracker en segundo plano e interrumpir el seguimiento automático. Permite la actividad en segundo plano para mantenerlo en funcionamiento.</string>
     <string name="background_reliability_allow_action">Permitir actividad en segundo plano</string>
     <string name="background_reliability_samsung_hint">Los dispositivos Samsung también pueden incluir aplicaciones en "Aplicaciones en suspensión". Abre los ajustes de batería, elimina Tracker de Aplicaciones en suspensión y configura que no entre en suspensión.</string>
     <string name="background_reliability_samsung_action">Abrir los ajustes de batería del dispositivo</string>

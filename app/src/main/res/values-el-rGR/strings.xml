@@ -348,13 +348,9 @@
     <string name="setup_online_tiles_on_desc">Μεταδώστε διανυσματικές ψηφίδες υψηλότερης λεπτομέρειας από το OpenFreeMap (προεπιλογή). Μπορείτε να αλλάξετε πάροχο αργότερα στις Ρυθμίσεις → Χάρτης.</string>
     <string name="setup_online_tiles_privacy">Όταν είναι ενεργό, ο πάροχος μπορεί να δει τη διεύθυνση IP σας και ποιες ψηφίδες φορτώνετε — κατά προσέγγιση ποια περιοχή του χάρτη κοιτάζετε. Το Tracker δεν στέλνει ποτέ λογαριασμό, αναγνωριστικό ή ιστορικό τοποθεσίας.</string>
     <string name="setup_online_tiles_change_later">Μπορείτε να το αλλάξετε οποιαδήποτε στιγμή στις Ρυθμίσεις → Χάρτης → Διαδικτυακές ψηφίδες χάρτη.</string>
-    <string name="setup_background_access_subtitle">Για να καταγράφει διαδρομές ενώ η οθόνη είναι σβηστή ή η εφαρμογή κλειστή, το Tracker πρέπει να συνεχίσει να εκτελείται στο παρασκήνιο. Οι ρυθμίσεις μπαταρίας του τηλεφώνου μπορεί να το διακόψουν — επιτρέψτε δραστηριότητα στο παρασκήνιο ώστε η αυτόματη καταγραφή να παραμένει αξιόπιστη.</string>
     <string name="setup_background_access_optional">Προαιρετικό, αλλά συνιστάται. Μπορείτε να το αλλάξετε οποιαδήποτε στιγμή στις Ρυθμίσεις → Καταγραφή.</string>
-    <string name="background_reliability_title">Αξιόπιστη καταγραφή στο παρασκήνιο</string>
     <string name="background_reliability_status_exempt">Επιτρέπεται η δραστηριότητα στο παρασκήνιο</string>
     <string name="background_reliability_status_optimized">Η βελτιστοποίηση μπαταρίας είναι ενεργή</string>
-    <string name="background_reliability_exempt_desc">Το Tracker εξαιρείται από τη βελτιστοποίηση μπαταρίας, ώστε η καταγραφή στο παρασκήνιο και η αυτόματη καταγραφή να λειτουργούν αξιόπιστα.</string>
-    <string name="background_reliability_optimized_desc">Η βελτιστοποίηση μπαταρίας μπορεί να διακόψει το Tracker στο παρασκήνιο, σταματώντας την αυτόματη καταγραφή. Επιτρέψτε δραστηριότητα στο παρασκήνιο για να συνεχίσει να λειτουργεί.</string>
     <string name="background_reliability_allow_action">Να επιτρέπεται η δραστηριότητα στο παρασκήνιο</string>
     <string name="background_reliability_samsung_hint">Οι συσκευές Samsung μπορεί επίσης να τοποθετούν εφαρμογές στις «Εφαρμογές σε αδράνεια». Ανοίξτε τις ρυθμίσεις μπαταρίας, αφαιρέστε το Tracker από τις εφαρμογές σε αδράνεια και ρυθμίστε το να μην τίθεται σε αναστολή.</string>
     <string name="background_reliability_samsung_action">Άνοιγμα ρυθμίσεων μπαταρίας συσκευής</string>

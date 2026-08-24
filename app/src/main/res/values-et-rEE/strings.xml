@@ -348,13 +348,9 @@
     <string name="setup_online_tiles_on_desc">Voogedasta detailsemaid vektorpaneele OpenFreeMapist (vaikimisi). Pakkujat saate hiljem muuta menüüs Seaded → Kaart.</string>
     <string name="setup_online_tiles_privacy">Kui see on lubatud, näeb pakkuja teie IP-aadressi ja laaditavaid paane — ligikaudu seda kaardiala, mida vaatate. Tracker ei saada kunagi kontot, tunnust ega teie asukohaajalugu.</string>
     <string name="setup_online_tiles_change_later">Saate seda igal ajal muuta menüüs Seaded → Kaart → Veebipõhised kaardipaanid.</string>
-    <string name="setup_background_access_subtitle">Reiside salvestamiseks, kui ekraan on väljas või rakendus on suletud, peab Tracker töötama taustal. Telefoni akuseaded võivad selle peatada — lubage taustategevus, et automaatne jälgimine püsiks töökindel.</string>
     <string name="setup_background_access_optional">Valikuline, kuid soovitatav. Saate seda igal ajal muuta menüüs Seaded → Jälgimine.</string>
-    <string name="background_reliability_title">Töökindel taustajälgimine</string>
     <string name="background_reliability_status_exempt">Taustategevus on lubatud</string>
     <string name="background_reliability_status_optimized">Aku optimeerimine on sees</string>
-    <string name="background_reliability_exempt_desc">Tracker on aku optimeerimisest välja jäetud, nii et tausta- ja automaatne jälgimine saavad töökindlalt toimida.</string>
-    <string name="background_reliability_optimized_desc">Aku optimeerimine võib Trackeri taustal peatada ja automaatse jälgimise katkestada. Lubage taustategevus, et seda käigus hoida.</string>
     <string name="background_reliability_allow_action">Luba taustategevus</string>
     <string name="background_reliability_samsung_hint">Samsungi seadmed võivad rakendusi paigutada ka jaotisse „Uinuvad rakendused”. Avage akuseaded, eemaldage Tracker uinuvatest rakendustest ja määrake, et seda ei pandaks unerežiimi.</string>
     <string name="background_reliability_samsung_action">Ava seadme akuseaded</string>

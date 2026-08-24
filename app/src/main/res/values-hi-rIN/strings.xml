@@ -348,13 +348,9 @@
     <string name="setup_online_tiles_on_desc">OpenFreeMap (डिफ़ॉल्ट) से अधिक-विस्तृत वेक्टर टाइलें स्ट्रीम करें। आप बाद में सेटिंग → मानचित्र में प्रदाता बदल सकते हैं।</string>
     <string name="setup_online_tiles_privacy">सक्षम होने पर प्रदाता आपका IP पता और लोड की गई टाइलें देख सकता है — लगभग मानचित्र का वह क्षेत्र जिसे आप देख रहे हैं। Tracker कभी खाता, पहचानकर्ता या स्थान इतिहास नहीं भेजता।</string>
     <string name="setup_online_tiles_change_later">इसे कभी भी सेटिंग → मानचित्र → ऑनलाइन मानचित्र टाइलें में बदल सकते हैं।</string>
-    <string name="setup_background_access_subtitle">स्क्रीन बंद होने या ऐप बंद होने पर यात्राएँ रिकॉर्ड करने के लिए Tracker को पृष्ठभूमि में चलता रहना चाहिए। फ़ोन की बैटरी सेटिंग इसे रोक सकती हैं — पृष्ठभूमि गतिविधि की अनुमति दें ताकि स्वचालित ट्रैकिंग भरोसेमंद रहे।</string>
     <string name="setup_background_access_optional">वैकल्पिक, पर अनुशंसित। इसे कभी भी सेटिंग → ट्रैकिंग में बदल सकते हैं।</string>
-    <string name="background_reliability_title">भरोसेमंद पृष्ठभूमि ट्रैकिंग</string>
     <string name="background_reliability_status_exempt">पृष्ठभूमि गतिविधि की अनुमति है</string>
     <string name="background_reliability_status_optimized">बैटरी अनुकूलन चालू है</string>
-    <string name="background_reliability_exempt_desc">Tracker बैटरी अनुकूलन से बाहर है, इसलिए पृष्ठभूमि और स्वचालित ट्रैकिंग भरोसेमंद ढंग से चल सकती हैं।</string>
-    <string name="background_reliability_optimized_desc">बैटरी अनुकूलन पृष्ठभूमि में Tracker को रोक सकता है, जिससे स्वचालित ट्रैकिंग बंद हो जाती है। इसे चालू रखने के लिए पृष्ठभूमि गतिविधि की अनुमति दें।</string>
     <string name="background_reliability_allow_action">पृष्ठभूमि गतिविधि की अनुमति दें</string>
     <string name="background_reliability_samsung_hint">Samsung डिवाइस ऐप को "स्लीपिंग ऐप" में भी डाल सकते हैं। बैटरी सेटिंग खोलें, फिर Tracker को स्लीपिंग ऐप से हटाएँ और इसे स्लीप में न डालने के लिए सेट करें।</string>
     <string name="background_reliability_samsung_action">डिवाइस बैटरी सेटिंग खोलें</string>

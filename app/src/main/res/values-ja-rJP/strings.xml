@@ -348,13 +348,9 @@
     <string name="setup_online_tiles_on_desc">OpenFreeMap（デフォルト）から高詳細のベクタータイルをストリーミングします。後で［設定］→［地図］からプロバイダーを変更できます。</string>
     <string name="setup_online_tiles_privacy">有効にすると、プロバイダーはあなたのIPアドレスと読み込んだタイル（おおよそ地図上で見ている地域）を確認できます。Trackerがアカウント、識別子、位置履歴を送信することはありません。</string>
     <string name="setup_online_tiles_change_later">この設定はいつでも［設定］→［地図］→［オンライン地図タイル］で変更できます。</string>
-    <string name="setup_background_access_subtitle">画面がオフのときやアプリを閉じたときも移動を記録するには、Trackerをバックグラウンドで実行し続ける必要があります。端末のバッテリー設定で一時停止される場合があるため、自動トラッキングの信頼性を保つにはバックグラウンド動作を許可してください。</string>
     <string name="setup_background_access_optional">任意ですが推奨します。この設定はいつでも［設定］→［トラッキング］で変更できます。</string>
-    <string name="background_reliability_title">信頼性の高いバックグラウンドトラッキング</string>
     <string name="background_reliability_status_exempt">バックグラウンド動作が許可されています</string>
     <string name="background_reliability_status_optimized">バッテリーの最適化がオンです</string>
-    <string name="background_reliability_exempt_desc">Trackerはバッテリーの最適化から除外されているため、バックグラウンドと自動トラッキングを安定して実行できます。</string>
-    <string name="background_reliability_optimized_desc">バッテリーの最適化によりTrackerがバックグラウンドで一時停止し、自動トラッキングが止まることがあります。動作を続けるにはバックグラウンド動作を許可してください。</string>
     <string name="background_reliability_allow_action">バックグラウンド動作を許可</string>
     <string name="background_reliability_samsung_hint">Samsung端末ではアプリが「スリープ中のアプリ」に入ることがあります。バッテリー設定を開き、Trackerをスリープ中のアプリから削除して、スリープ状態にしないよう設定してください。</string>
     <string name="background_reliability_samsung_action">端末のバッテリー設定を開く</string>
