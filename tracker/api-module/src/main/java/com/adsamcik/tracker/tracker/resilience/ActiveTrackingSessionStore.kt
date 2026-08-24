@@ -63,6 +63,54 @@ data class TrackingStopCandidate(
 	}
 }
 
+/**
+ * Durable source evidence offered for one automatic service start.
+ *
+ * This proves product intent only. [startContext] records why the immediate Android call was legal;
+ * it is never reusable after the callback/foreground context that created it has ended.
+ */
+data class AutomaticTrackingStartTrigger(
+	val triggerId: String,
+	val kind: String,
+	val bootId: String,
+	val observedElapsedRealtimeNanos: Long,
+	val receivedElapsedRealtimeNanos: Long,
+	val expiresElapsedRealtimeNanos: Long,
+	val automationEpoch: Long,
+	val startContext: AutomaticTrackingStartContext,
+	/** Distinct even when today's automation epoch happens to equal the policy revision. */
+	val sourcePolicyRevision: Long,
+	/** Stable SourceKind-bit mask of capture sources requested by the authoritative policy. */
+	val intendedCaptureSourceMask: Long,
+	/** Configured capture sources before origin/capability degradation. */
+	val requestedCaptureSourceMask: Long,
+	/** Exact Android foreground-service type union intended for this request. */
+	val intendedForegroundServiceTypeMask: Long,
+	/** Full-deletion generation. A delayed service intent must match the current Room epoch. */
+	val collectedDataEpoch: Long,
+) {
+	init {
+		require(triggerId.isNotBlank()) { "triggerId must not be blank" }
+		require(kind.isNotBlank()) { "kind must not be blank" }
+		require(bootId.isNotBlank()) { "bootId must not be blank" }
+		require(observedElapsedRealtimeNanos >= 0L)
+		require(receivedElapsedRealtimeNanos >= observedElapsedRealtimeNanos)
+		require(expiresElapsedRealtimeNanos >= receivedElapsedRealtimeNanos)
+		require(automationEpoch > 0L)
+		require(sourcePolicyRevision > 0L)
+		require(intendedCaptureSourceMask > 0L)
+		require(requestedCaptureSourceMask > 0L)
+		require(intendedCaptureSourceMask and requestedCaptureSourceMask == intendedCaptureSourceMask)
+		require(intendedForegroundServiceTypeMask >= 0L)
+		require(collectedDataEpoch >= 0L)
+	}
+}
+
+/** Actual, non-replayable platform context in which [AutomaticTrackingStartTrigger] was offered. */
+enum class AutomaticTrackingStartContext {
+	ACTIVITY_TRANSITION_CALLBACK,
+}
+
 private fun newTrackingCorrelationId(): String = UUID.randomUUID().toString()
 
 /**

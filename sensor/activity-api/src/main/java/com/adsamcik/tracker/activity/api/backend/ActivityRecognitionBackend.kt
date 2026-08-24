@@ -48,10 +48,14 @@ interface ActivityRecognitionBackend {
  *
  * @param intervalSeconds Detection interval in seconds; 0 or negative means no periodic updates
  * @param requestedTransitions Activity transitions to subscribe to
+ * @param automaticRecognitionEligible whether recognition callbacks belong to automatic control
+ * @param automaticTransitions exact transition callbacks that belong to automatic control
  */
 data class RecognitionConfig(
 	val intervalSeconds: Int,
 	val requestedTransitions: Collection<ActivityTransitionData> = emptyList(),
+	val automaticRecognitionEligible: Boolean = false,
+	val automaticTransitions: Set<ActivityTransitionData> = emptySet(),
 )
 
 /**

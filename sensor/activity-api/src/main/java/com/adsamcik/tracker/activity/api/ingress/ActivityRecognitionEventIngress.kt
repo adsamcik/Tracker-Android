@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.activity.api.ingress
 
+import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
 import com.adsamcik.tracker.stats.api.DetectedActivityType
@@ -18,6 +19,9 @@ data class ActivityRecognitionEvidenceBatch(
 	val receivedElapsedRealtimeNanos: Long,
 	val receivedWallTimeMs: Long,
 	val registrationIdentity: ActivityRegistrationIdentity? = null,
+	/** Purpose metadata captured with the immutable provider registration callback. */
+	val automaticRecognitionEligible: Boolean = false,
+	val automaticTransitions: Set<ActivityTransitionData> = emptySet(),
 	val recognitions: List<ActivityRecognitionEvidence> = emptyList(),
 	val transitions: List<ActivityTransitionEvidence> = emptyList(),
 ) {
