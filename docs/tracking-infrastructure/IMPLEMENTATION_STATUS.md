@@ -1,13 +1,14 @@
 # Tracking Infrastructure Implementation Status
 
-Last updated: 2026-08-24
+Last updated: 2026-08-25
 
 Execution-grade work items, ownership, dependency gates, verification commands, and rollback
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and
 evidence index.
 
-Current integration checkpoint: `f14a4a2b1` on `dev/v10`
-(`refactor(tracking): fence startup and contain source rollout`). The initial audited baseline was
+Current code integration checkpoint: `eb5dc1885` on `dev/v10`
+(`fix(tracking): isolate source recovery and terminal control`), following `09f32d22e`
+(`fix(tracking): bind partial source rollout to durable lanes`). The initial audited baseline was
 `068ebe052`; no pull, rebase, push, publish, deployment, remote configuration, or external rollout
 was performed. The original `.docx` source, verbatim orchestrator prompt, and protected Dashboard
 test remain untracked and untouched. On 2026-08-22 the user authorized clear scoped local commits
@@ -15,17 +16,23 @@ after each verified chunk.
 
 ## Current gate
 
-- Current phase: the verified startup/lifecycle/rollout-containment foundation is committed; a fresh
-  three-perspective post-commit R1 review is the active gate. Every source materializer,
+- Current phase: the corrected R1 shared boundary is committed and locally verified. A fresh
+  three-perspective R1 rerun against `eb5dc1885` is the active gate. Every source materializer,
   production-history query, source rollout, ambient exposure, and production UI wiring remains
   `BLOCKED` until that review is dispositioned.
-- Gate status: `IN_PROGRESS`. The process-wide startup fence now orders the frozen-v27 drain,
+- Gate status: `IN_REVIEW`. The process-wide startup fence now orders the frozen-v27 drain,
   deletion, policy/provider/service entry, and data consumers. Manual and automatic starts use a
   durable prepared intent before external service/FGS acceptance, real start origin and accepted
   type evidence; stop, previous-exit, force-stop, permission-revocation, and deletion paths are
-  fenced and recoverable in host tests. Rollout schema v3 defaults every source to `CONTAINED` and
-  permits `EVENT` acquisition only for explicitly named sources with a reachable shadow or
-  canonical lane. The other five authorization-boundary splitters/delivery identities,
+  fenced and recoverable in host tests. Live source drains are enrolled in the same deletion
+  generation and recheck it at Activity-effect boundaries. Rollout schema v3 defaults every source
+  to `CONTAINED`; persisted `EVENT` reachability now requires an atomically installed exact
+  source-local product lane, writer identity/generation, activation floor, initialized CAS cursor,
+  and retention pin. Configured contained siblings are named degradation rather than a reason to
+  reject a reachable source. `CONTROL` can operate a provider without authorizing capture or a
+  product lane. Live Activity poison is source-local, and terminal disabled/contained control no
+  longer creates endless WorkManager retries; transient provider unavailability still retries.
+  The other five authorization-boundary splitters/delivery identities,
   source-qualified lifecycle evidence, source-specific idempotent facts/recomputation, scoped
   deletion, truthful history wiring, and product-query proof remain blocking.
 - Integration owner: lead orchestrator
@@ -43,39 +50,48 @@ after each verified chunk.
   Activity `CONTROL`, never captured Activity. Process-wide startup ordering is now locally
   implemented and verified; production backup recovery, portable export/import, partial-database
   containment, and connected startup/reboot proof remain TI-184 gates.
-- Current-worktree verification: commit `f14a4a2b1` was exported directly from the Git index into an
-  isolated temporary worktree. The cross-module app/API/engine checkpoint passed in `5m 39s`
-  (`613` actionable tasks: `364` executed, `249` from cache), covering startup recovery/deletion,
-  service launch and redelivery, coordinator lifecycle, rollout containment, Activity automation,
-  runtime permission reconciliation, shared Steps acquisition, and source floors. This is a scoped
-  host checkpoint, not device, OEM, connected migration, production-query, or full-repository proof.
-  Earlier complete core/engine, connected v27→v28 migration, lint, assembly, and schema-drift
-  results remain recorded in `VERIFICATION_MATRIX.md`.
+- Current-worktree verification: the original isolated-index checkpoint for `f14a4a2b1` passed in
+  `5m 39s` (`613` tasks). At `eb5dc1885`, the complete corrected affected-module suites pass:
+  tracker-engine `1,480/1,480`, Activity `262/262`, and core database `849/849`, with zero failures,
+  errors, or skips. Focused app startup/boot/post-deletion recovery passes. All eight populated
+  v27→v28 migration cases pass on `Medium_Phone(AVD) - 16`, and the committed 66-entity Room schema
+  is drift-free. The architecture-fitness shard remains `29/29`; exact commands are indexed in
+  `VERIFICATION_MATRIX.md`. These are host plus migration-device checks, not
+  process/reboot/FGS, OEM, production-query, device-energy, or full-repository proof.
 - Focused source reviews: all six complete — Location (`DEGRADED`), Wi-Fi (`FAILED`), Cell (`FAILED`), Activity (`FAILED`), Steps (`DEGRADED`), Pressure (`FAILED`)
 - Fresh adversarial review: prior R0/R1/R1b/R2 and adaptive-collections R3/R4 are complete. The
-  prior 2026-08-24 R1 returned `BLOCK`. Commit `f14a4a2b1` addresses its global acquisition
-  reachability defect by adding `CONTAINED`, plus startup, lifecycle, permission, automatic-action,
-  and acquisition-floor corrections. None is accepted as a gate pass until three fresh reviewers
-  attack the actual commit. Crash-auditable radio handoff, failed-unregister ownership, Cell replay
-  identity, portable export/minimization, immutable ambient day identity, and `ACTIVE` versus
-  qualified `RECORDING` remain open. Materializers, ambient exposure, and history UI are prohibited.
+  prior 2026-08-24 R1 returned `BLOCK`. Commits `f14a4a2b1` through `c4d97333d` address its global
+  acquisition reachability defect, unknown v27 runtime-boundary fabrication, deletion/drain race,
+  stale Activity/Steps control reachability, startup/lifecycle authority, and the resulting fixture
+  debt. Three new independent reviewers then returned aggregate `FAIL`: data/migration found
+  metadata-only source activation and global live-projection head-of-line blocking; Android/power
+  found all-enabled-or-nothing source rollout, infinite terminal-control recovery wakeups, and Cell
+  cross-process replay identity; product/scope found capture-coupled Activity control, bundled Steps
+  modes, stale evidence artifacts, and missing truthful Steps state axes. The shared findings are
+  now committed and verified before a fresh rerun; Cell replay remains a Cell-specific gate. Crash-auditable
+  radio handoff, failed-unregister ownership, portable
+  export/minimization, immutable ambient day identity, and `ACTIVE` versus qualified `RECORDING`
+  remain open. Materializers, ambient exposure, and history UI are prohibited.
 - Initial scope proportionality review: `BLOCKED / RESCOPE`. Three fresh read-only adversaries concluded that the safety spine is justified but the then-current unshipped 23-table v28 expansion, generic Phase 3 platform, mandatory day-journal redesign, all-at-once ambient breadth, fleet telemetry, and exhaustive governance were disproportionate to the app's current offline personal-product workflows and runnable release infrastructure. The user subsequently confirmed ambient persistence as a product requirement; it proceeds only as independently gated, default-off source verticals. The follow-up disposition is the updated R2 gate below.
 - Updated R2 proportionality gate: `IN_PROGRESS / RESCOPED`. v28 never shipped, so it was trimmed
   and regenerated in place rather than preserved or repaired in v29. The 12 ownerless generic Phase
-  3 tables are removed and the duplicate lifecycle lease is unified. The current schema has `65`
-  entities: all `51` released-v27 entities plus `14` narrowly owned v28 additions, including the two
-  released-v27 recovery records and Activity automation action/epoch state. This does not restore a
-  generic platform.
+  3 tables are removed and the duplicate lifecycle lease is unified. The current schema has `66`
+  entities: all `51` released-v27 entities plus `15` narrowly owned v28 additions, including the two
+  released-v27 recovery records, Activity automation action/epoch state, and one source-local
+  product-lane activation/cursor/retention fence. This does not restore a generic platform.
 - Adaptive collections target: TI-D054–TI-D087 and `ADAPTIVE_COLLECTIONS_GREENFIELD_DESIGN.md` define sole-source capture, explicit ambient/control authority, authorization-homogeneous source-native durable units, source-specific platform-mechanism ladders and handoffs, measured rather than assumed energy separation, item-level freshness/relevance admission, zero-effect exact replay, quality floors/targets, one supervisor/runtime owner per source, one thin data-plane mutation owner with source lanes created on demand, distinct delivery and logical correction identities, narrow deletion/owner fences, platform-legal automatic starts, one selected Ambient Steps continuity provider, explicit radio aggregate/identity tiers, optional query-time Location context, and one minimum production history facade. The current v28 runtime implements the shared authority/admission substrate and Activity's first atomic callback adapter; source-local facts and every product claim remain blocked.
 
 ## Observed repository state
 
-- Acquisition and product-writer rollout remain separate per-source state. `TrackingRolloutState`
+- Acquisition and product-writer rollout are separate per-source state.
+  `TrackingRolloutState`
   schema v3 defaults all six source owners to `CONTAINED` with retained legacy product stages. An
   absent row, a v27 row, or the old global-v2 event marker migrates to contained state and cannot
-  register a provider. Only an explicit `eventShadow(setOf(source))`-style activation may enable
-  named source acquisition, and validation rejects `EVENT` ownership without a reachable
-  `EVENT_SHADOW` or `EVENT_CANONICAL` lane. No candidate canonical writer is active.
+  register a provider. `RoomTrackingRolloutStateStore` rejects or repairs an `EVENT` marker unless
+  the exact source has a matching active product lane, stage, writer generation, activation floor,
+  initialized cursor, and retention pin. Shadow-lane installation and rollout activation are one
+  Room transaction, and there is deliberately no canonical-promotion API yet. No candidate
+  canonical writer is active.
 - Shared registration acceptance no longer advances the durable pointer or retires the accepted generation until a replacement is externally accepted. Activity uses generation-addressable PendingIntents for a real make-before-break swap, durable `RETIRING` cleanup, cancellation-transparent convergence and idempotent retry; failed replacement retains the accepted provider. Location, Wi-Fi, Cell, Steps and Pressure still use shutdown-before-start runtimes and require provider-specific fenced handoff/gap/rollback tests rather than inheriting an unsupported zero-gap claim.
 - Legacy `TrackingParamsState` still exposes Boolean enablement and semantic frequency, but the production repository now normalizes both into one Room policy mutation and projects only the effective six-source snapshot. Corrupt/unknown legacy source semantics fail closed and cannot bootstrap consent.
 - New durable source demands carry consumer identity, purpose, persistence eligibility, consent/policy epochs, logical tracking identity, effective boot/elapsed time, and QoS. Physical registration rows contain only provider configuration/identity, boot/data epoch and lifecycle state. Demand changes append an independent authorization revision without restarting a compatible provider.
@@ -573,9 +589,9 @@ No repository command was found for a separate Detekt task in CI. Device/OEM, do
 - At review time, lead verification confirmed that v27's 51 owned tables had become 74 under local v28, `AuthoritativeSessionCoordinator` exceeded 2,200 lines, generic Phase 3 repositories had no production callers, CI had no device farm, and the app advertised no remote telemetry.
 - Follow-up integration removed the 12 unused generic tables, isolated merge import, preserved
   explicit automatic Activity-control intent, authenticated/quarantined raw WAL payloads, and
-  unified the two lease mechanisms. Current v28 has 65 entities after the two narrowly owned v27
-  recovery records and Activity automation action/epoch state; these are local mitigations, not
-  phase completion.
+  unified the two lease mechanisms. Current v28 has 66 entities after the two narrowly owned v27
+  recovery records, Activity automation action/epoch state, and the source-local product-lane
+  activation/cursor/retention fence; these are local mitigations, not phase completion.
 - No external system or rollout state was changed by the scope review or follow-up integration.
 - Product follow-up resolved one scope point: ambient persistence is required. TI-D007/TI-D047 and the ambient matrix now treat it as phased, per-source product work with default-off rollout gates, not as removed scope. This does not authorize continuous ambient Pressure or active background Wi-Fi scans.
 - Product follow-up also made sole-source capture a hard invariant under TI-D054: manual only-X has no hidden control; automatic only-X persists only X while separately declared controls remain non-product inputs. No source may depend on Location or another captured source to become queryable.

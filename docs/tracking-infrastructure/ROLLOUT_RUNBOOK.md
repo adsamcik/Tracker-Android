@@ -76,8 +76,9 @@ Three fresh product, architecture, and delivery adversaries concluded `BLOCK / R
 - Stop mandatory adversarial rounds while the blocking fact is missing implementation or device capacity. Start a fresh round at an actual migration, writer-cutover, or release boundary.
 
 R2 confirmed that v28 never shipped. The migration/schema has been regenerated in place with the
-12 unused generic Phase 3 tables and duplicate lifecycle lease removed; the current schema has 65
-entities (51 released-v27 plus 14 narrowly owned v28 additions). No v29 compatibility shell was
+12 unused generic Phase 3 tables and duplicate lifecycle lease removed; the current schema has 66
+entities (51 released-v27 plus 15 narrowly owned v28 additions). The single additional R1 table is
+the source-local product-lane activation/cursor/retention fence. No v29 compatibility shell was
 introduced. The first production vertical remains Steps, but neither ambient nor session Steps may
 activate until the fresh R1 disposition and its typed correction/deletion/export/query contract pass.
 

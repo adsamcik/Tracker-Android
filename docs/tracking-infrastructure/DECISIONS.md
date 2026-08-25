@@ -867,7 +867,52 @@ Each entry records repository evidence and does not duplicate the final architec
 - Consequences: this deliberately contains tracking in an unreleased development build until each
   source has a real typed lane. It is not a product rollout or a `QUERYABLE` claim. Retained v27
   facts remain available through their established readers, and no schema downgrade is introduced.
-  The current v28 schema has 65 entities (51 released-v27 plus 14 narrowly owned additions). Three
+  The current v28 schema has 66 entities (51 released-v27 plus 15 narrowly owned additions). Three
   fresh R1 adversaries must attack the committed boundary before Steps materialization or any
   production history/UI wiring. Connected process/reboot/FGS and migrate-to-runtime evidence remain
   mandatory.
+
+## TI-D092 — Source rollout is partial by capture purpose, not all-enabled-or-nothing
+
+- Status: `ACCEPTED_AFTER_FRESH_R1_ADVERSARIAL_REVIEW`; implementation `IN_REVIEW` at `09f32d22e`
+- Owner/date: lead orchestrator after corrected-boundary Android and product adversaries, 2026-08-24
+- Alternatives: reject a session when any configured source is contained; silently drop contained sources; start every configured provider; start the reachable capture subset and report every rejected member by name
+- Evidence: `TrackingSessionOwnership.resolve()` required every enabled setting to be `EVENT` owned. With Location and Steps configured but only Steps promoted, contained Location rejected the entire session, so the independently viable Steps source could not start. Automatic Activity control also required Activity capture/product reachability, making control-only use impossible without exposing an Activity capture lane.
+- Decision: partition configured capture sources into a rollout-reachable subset and named contained subset. Capability and foreground-service acceptance operate only on the reachable subset; zero accepted capture sources fail closed, while a nonempty subset continues with contained/unavailable siblings reported as degradation. Add `CONTROL` ownership for an explicitly declared provider dependency: it may satisfy control demands but can never satisfy session/ambient capture or authorize a product projection. Expensive optional context remains enhancement-only and creates no provider demand.
+- Consequences: each source can roll forward or back independently. `CONTROL` is not a shortcut to persistence, materialization, export, or UI. Parameterized only-X and mixed-configured/contained tests must prove exact provider and FGS sets before a source gate passes.
+
+## TI-D093 — A rollout row cannot activate acquisition without an installed source lane and cursor
+
+- Status: `ACCEPTED_AFTER_FRESH_R1_ADVERSARIAL_REVIEW`; implementation `IN_REVIEW` at `09f32d22e`
+- Owner/date: lead orchestrator after fresh data/migration adversary, 2026-08-24
+- Alternatives: trust `EVENT_SHADOW` metadata; pin all WAL forever; activate a generic global projector; transactionally bind the named source to one concrete lane, activation floor, initialized cursor, and retention obligation
+- Evidence: production DI has only the Activity automation projection. A persisted `eventShadow(STEPS)` could authorize the Steps provider even though no Steps consumer existed; the global Activity projection could skip that row and advance its own checkpoint, after which retention could prune the only durable Steps evidence. This violates durable-before-attribution and makes rollout metadata stronger than repository reality.
+- Decision: source capture reachability requires one durable active binding for the exact source, product stage, projection ID/version, activation ordinal, and initialized source cursor. Installing that binding and advancing the rollout revision is one Room transaction; conflicting active identities fail. Retention considers the source cursor independently of unrelated projector progress. Control-only ownership does not require or imply a product lane.
+- Consequences: current production rollout remains contained until the first concrete Steps lane is installed. Tests may construct rollout values for pure logic, but provider-facing persisted state cannot promote a source with metadata alone. This is the minimum one-writer/retention boundary, not a reusable materializer platform.
+
+## TI-D094 — Live projection failure is source-local; only frozen-v27 recovery is startup-global
+
+- Status: `ACCEPTED_AFTER_FRESH_R1_ADVERSARIAL_REVIEW`; implementation `IN_REVIEW` at `eb5dc1885`
+- Owner/date: lead orchestrator after fresh data/migration adversary, 2026-08-24
+- Alternatives: keep every live projection behind one startup drain; ignore all recovery failure; globally gate frozen released recovery but drain each live source through its concrete lane
+- Evidence: an Activity outbox identity collision stops the global `TrackingCoordinator`; `DefaultTrackingStartupGate` then reports `LIVE_V2` retry and prevents an unrelated manual Steps source from admitting facts. Poison isolation therefore existed inside a dispatcher but not at the process startup boundary.
+- Decision: deletion generation, lifecycle/epoch authority, and the exact frozen-v27 obligation remain global gates. Live Activity projection/effects use the Activity lane and failures remain pending/failed for Activity only. Future sources join startup only through their own installed lane and never through the retained global dispatcher.
+- Consequences: one broken source cannot disable a viable only-X sibling. Source-level completeness/failure must be exposed before product rollout; a globally `Ready` process is not proof that every source is `MATERIALIZED` or `QUERYABLE`.
+
+## TI-D095 — Permanent optional-control states are terminal recovery outcomes
+
+- Status: `ACCEPTED_AFTER_FRESH_R1_ADVERSARIAL_REVIEW`; implementation `IN_REVIEW` at `eb5dc1885`
+- Owner/date: lead orchestrator after fresh Android/power adversary, 2026-08-24
+- Alternatives: map every failed Boolean to WorkManager retry; silently report success; distinguish accepted, terminal disabled/contained, and plausibly retryable outcomes
+- Evidence: boot and post-deletion workers translated contained, revoked, disabled, or permanently unsupported Activity control into exponential WorkManager retries beginning after 30 seconds. No retry could change rollout, permission, consent, or hardware, so the chain spent battery without improving quality.
+- Decision: automatic-control restoration returns `ACCEPTED`, `TERMINAL_DISABLED_OR_CONTAINED`, or `RETRYABLE`. Workers finish successfully for deliberate containment, disabled/revoked policy, and missing permission after bounded stale-demand cleanup. A provider result explicitly marked retryable remains retry work; the current Play Services availability signal cannot safely distinguish permanent absence from a transient or user-resolvable outage.
+- Consequences: optional control remains optional and recovery is power-honest. A later user/policy/rollout change schedules ordinary reconciliation; WorkManager is not used as a substitute for that state change.
+
+## TI-D096 — Manual, automatic, and ambient Steps are three independent gates
+
+- Status: `ACCEPTED_AFTER_FRESH_R1_ADVERSARIAL_REVIEW`
+- Owner/date: lead orchestrator after fresh product/scope adversary, 2026-08-24
+- Alternatives: complete all Steps modes as one batch; omit ambient; prove the simplest manual vertical and independently gate automatic control and ambient product behavior
+- Evidence: the prior ST-02/TI-410 row bundled session deltas, automatic Activity control, app-scoped ambient continuity, civil-day allocation, export/deletion, and product query. A failure or unresolved privacy choice in either advanced mode could delay the first useful only-Steps session proof and encourage a generic framework before a concrete lane existed.
+- Decision: TI-410 proves manual/session Steps first. TI-410B adds automatic Steps only after legal fresh Activity control, bounded purpose-limited retention, and no history/export leakage are proven. TI-410C adds default-off ambient Steps only with explicit consent, immutable day identity, retention, export/deletion, completeness, and sessionless product visibility.
+- Consequences: shared mechanics are extracted only from demonstrated use. Ambient persistence remains wanted where useful, but it is neither silently enabled nor a prerequisite for manual Steps quality.
