@@ -113,6 +113,8 @@ interface SourceProjectionStateDao {
 			"AND projection_version = :projectionVersion " +
 			"AND binding_generation = :bindingGeneration AND status = 'ACTIVE' " +
 			"AND :throughOrdinal >= activation_ordinal - 1 " +
+			"AND (capture_admission_cutoff_ordinal IS NULL " +
+			"OR :throughOrdinal <= capture_admission_cutoff_ordinal) " +
 			"AND contiguous_admission_ordinal = :expectedCurrentOrdinal " +
 			"AND contiguous_admission_ordinal < :throughOrdinal",
 	)

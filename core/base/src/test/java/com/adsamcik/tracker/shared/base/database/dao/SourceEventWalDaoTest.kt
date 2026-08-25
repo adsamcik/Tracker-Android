@@ -164,6 +164,59 @@ class SourceEventWalDaoTest {
 	}
 
 	@Test
+	fun `fenced product lane cursor cannot cross its persisted cutoff before retirement`() = runTest {
+		val projection = database.sourceProjectionStateDao()
+		projection.installProductLane(
+			productLane(bindingGeneration = 1L, projectionId = "steps-interval"),
+		)
+		projection.fenceProductLaneCaptureAdmission(
+			sourceKind = 3,
+			bindingGeneration = 1L,
+			projectionId = "steps-interval",
+			projectionVersion = 1,
+			cutoffOrdinal = 5L,
+			updatedAtMs = 10L,
+		) shouldBe 1
+
+		projection.advanceProductLaneCursor(
+			sourceKind = 3,
+			bindingGeneration = 1L,
+			projectionId = "steps-interval",
+			projectionVersion = 1,
+			expectedCurrentOrdinal = 0L,
+			throughOrdinal = 6L,
+			updatedAtMs = 11L,
+		) shouldBe 0
+		projection.activeProductLane(3)?.contiguousAdmissionOrdinal shouldBe 0L
+
+		projection.advanceProductLaneCursor(
+			sourceKind = 3,
+			bindingGeneration = 1L,
+			projectionId = "steps-interval",
+			projectionVersion = 1,
+			expectedCurrentOrdinal = 0L,
+			throughOrdinal = 5L,
+			updatedAtMs = 12L,
+		) shouldBe 1
+		projection.retireFencedProductLane(
+			sourceKind = 3,
+			bindingGeneration = 1L,
+			projectionId = "steps-interval",
+			projectionVersion = 1,
+			expectedCurrentOrdinal = 5L,
+			expectedCutoffOrdinal = 5L,
+			disposition = SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN,
+			terminalAtMs = 13L,
+		) shouldBe 1
+		requireNotNull(projection.latestProductLane(3)).let { retired ->
+			retired.contiguousAdmissionOrdinal shouldBe 5L
+			retired.captureAdmissionCutoffOrdinal shouldBe 5L
+			retired.status shouldBe SourceProductProjectionLaneEntity.STATUS_RETIRED
+			retired.retentionRequired shouldBe false
+		}
+	}
+
+	@Test
 	fun `non-retaining control projection does not permanently pin aged wal or terminal effects`() = runTest {
 		val projection = database.sourceProjectionStateDao()
 		projection.register(
