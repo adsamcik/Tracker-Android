@@ -12,6 +12,8 @@ import com.adsamcik.tracker.activity.api.ingress.ActivityIngressStartContext
 import com.adsamcik.tracker.activity.api.ingress.ActivityIngressStatus
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
+import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
+import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import dagger.assisted.Assisted
@@ -25,7 +27,6 @@ import javax.inject.Provider
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
@@ -160,6 +161,7 @@ internal suspend fun runActivityCallbackRetryWork(
 class ActivityCallbackRetryOwner @Inject internal constructor(
 	private val store: ActivityCallbackRetryStore,
 	private val scheduler: ActivityCallbackRetryScheduler,
+	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
 ) {
 	private val monitor = Any()
 	private var deletionPaused = false
@@ -171,7 +173,7 @@ class ActivityCallbackRetryOwner @Inject internal constructor(
 			"Activity callback retry owner is fenced for collected-data deletion",
 		)
 		return try {
-			val id = withContext(Dispatchers.IO) { store.retain(batch) }
+			val id = withContext(dispatchers.io) { store.retain(batch) }
 			// The AtomicFile is already the durable owner. A scheduling failure must not turn that
 			// fact back into a process-local callback, and startup retries scheduling from inventory.
 			runCatching { scheduler.ensureScheduled() }
@@ -182,15 +184,15 @@ class ActivityCallbackRetryOwner @Inject internal constructor(
 	}
 
 	internal suspend fun resolve(id: String) {
-		withContext(Dispatchers.IO) { store.remove(id) }
+		withContext(dispatchers.io) { store.remove(id) }
 	}
 
-	internal suspend fun pendingIds(): List<String> = withContext(Dispatchers.IO) { store.pendingIds() }
+	internal suspend fun pendingIds(): List<String> = withContext(dispatchers.io) { store.pendingIds() }
 
 	internal suspend fun claim(id: String): ActivityCallbackRetryClaim? {
 		val permit = enter() ?: return null
 		return try {
-			val batch = withContext(Dispatchers.IO) { store.load(id) }
+			val batch = withContext(dispatchers.io) { store.load(id) }
 			ActivityCallbackRetryClaim(id, batch, this, permit)
 		} catch (error: Throwable) {
 			permit.complete()
@@ -204,7 +206,7 @@ class ActivityCallbackRetryOwner @Inject internal constructor(
 	): Boolean {
 		val permit = enter() ?: return false
 		return try {
-			withContext(Dispatchers.IO) {
+			withContext(dispatchers.io) {
 				// A gap receipt is best effort under the same low-storage condition that may have
 				// damaged the record. Never let its failure turn poison into an indefinite inbox item.
 				store.recordGap(id, code)
@@ -226,7 +228,7 @@ class ActivityCallbackRetryOwner @Inject internal constructor(
 	): Boolean {
 		val permit = enter() ?: return false
 		return try {
-			withContext(Dispatchers.IO) { store.recordGap(batch, code) }
+			withContext(dispatchers.io) { store.recordGap(batch, code) }
 		} catch (error: CancellationException) {
 			throw error
 		} catch (_: Exception) {
@@ -242,7 +244,7 @@ class ActivityCallbackRetryOwner @Inject internal constructor(
 			if (inFlight == 0) null else drained ?: CompletableDeferred<Unit>().also { drained = it }
 		}
 		waitForDrain?.await()
-		withContext(NonCancellable + Dispatchers.IO) { store.purge() }
+		withContext(NonCancellable + dispatchers.io) { store.purge() }
 	}
 
 	internal fun resumeAfterCollectedDataDeletion() {
