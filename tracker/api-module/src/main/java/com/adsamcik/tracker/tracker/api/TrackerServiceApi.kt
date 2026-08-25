@@ -46,6 +46,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 internal interface TrackerServiceApiEntryPoint {
 	fun trackerStateReader(): TrackerStateReader
 	fun trackerServiceController(): TrackerServiceController
+	fun manualTrackingCaptureReachabilityReader(): ManualTrackingCaptureReachabilityReader
 	fun activityWatcherController(): ActivityWatcherController
 	fun inactiveTrackingSessionStopHandler(): InactiveTrackingSessionStopHandler
 	fun trackingLifecycleCommandAuthority(): TrackingLifecycleCommandAuthority
@@ -477,6 +478,13 @@ object TrackerServiceApi {
 		isAmbient = false,
 		automaticTrigger = automaticTrigger,
 	)
+
+	/** Reads the current source-local rollout authority used by manual session preparation. */
+	suspend fun readManualTrackingCaptureReachability(
+		context: Context,
+	): ManualTrackingCaptureReachability = getEntryPoint(context.applicationContext)
+		.manualTrackingCaptureReachabilityReader()
+		.read()
 
 	/**
 	 * Legacy session-shaped ambient entry. Ambient acquisition is app-scoped broker work and this
