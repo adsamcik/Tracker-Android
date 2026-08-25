@@ -5,6 +5,7 @@ import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
 import com.adsamcik.tracker.activity.api.backend.RecognitionConfig
+import com.adsamcik.tracker.activity.receiver.ActivityCallbackRetryOwner
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
@@ -69,6 +70,7 @@ class DefaultActivityRegistrationArbiterTest {
 	private lateinit var cleanupStore: ActivityRegistrationCleanupStore
 	private lateinit var cleanupScheduler: ActivityRegistrationCleanupScheduler
 	private lateinit var callbackAdmissionBarrier: ActivityCallbackAdmissionBarrier
+	private lateinit var callbackRetryOwner: ActivityCallbackRetryOwner
 	private var clockDomainId = "android-boot-count:7"
 	private val appliedIdentities = CopyOnWriteArrayList<ActivityRegistrationIdentity>()
 	private val appliedConfigs = CopyOnWriteArrayList<RecognitionConfig>()
@@ -114,6 +116,7 @@ class DefaultActivityRegistrationArbiterTest {
 		)
 		cleanupScheduler = mockk(relaxed = true)
 		callbackAdmissionBarrier = ActivityCallbackAdmissionBarrier()
+		callbackRetryOwner = mockk(relaxed = true)
 		appScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
 		startupGate = FakeTrackingStartupGate()
 		lifecycleStore = FakeLifecycleStore(CollectedDataLifecycleSnapshot(7L, null))
@@ -140,6 +143,7 @@ class DefaultActivityRegistrationArbiterTest {
 		lifecycleStore,
 		backend,
 		callbackAdmissionBarrier,
+		callbackRetryOwner,
 		Provider { startupGate },
 		cleanupStore,
 		cleanupScheduler,
@@ -504,6 +508,10 @@ class DefaultActivityRegistrationArbiterTest {
 		resumed.snapshot.active shouldBe false
 		removedIdentities shouldBe listOf(startedIdentity)
 		coVerify(exactly = 1) { backend.applyRegistration(any(), any()) }
+		coVerify(exactly = 1) {
+			callbackRetryOwner.fenceAndPurgeForCollectedDataDeletion()
+		}
+		verify(exactly = 1) { callbackRetryOwner.resumeAfterCollectedDataDeletion() }
 
 		startupGate.ready = true
 		val reconciled = subject.reconcileDurableDemands()
@@ -511,6 +519,25 @@ class DefaultActivityRegistrationArbiterTest {
 		reconciled.status shouldBe ActivityRegistrationStatus.APPLIED
 		reconciled.snapshot.active shouldBe true
 		coVerify(exactly = 2) { backend.applyRegistration(any(), any()) }
+	}
+
+	@Test
+	fun `collected data deletion fails closed when callback retry purge is not durable`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
+		)
+		subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+		coEvery { callbackRetryOwner.fenceAndPurgeForCollectedDataDeletion() } throws
+			IllegalStateException("retry spool unavailable")
+
+		val closed = subject.closeForCollectedDataDeletion()
+
+		closed.status shouldBe ActivityRegistrationStatus.FAILED
+		closed.failureCode shouldBe ActivityRegistrationFailureCode.STORAGE_UNAVAILABLE
+		closed.retryable shouldBe true
 	}
 
 	@Test

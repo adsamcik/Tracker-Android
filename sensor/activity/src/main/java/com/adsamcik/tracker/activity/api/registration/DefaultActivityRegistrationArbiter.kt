@@ -5,6 +5,7 @@ import android.os.SystemClock
 import androidx.room.withTransaction
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
 import com.adsamcik.tracker.activity.api.backend.RecognitionConfig
+import com.adsamcik.tracker.activity.receiver.ActivityCallbackRetryOwner
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
@@ -49,6 +50,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 	private val lifecycleStore: CollectedDataLifecycleStore,
 	private val backend: GmsActivityRecognitionBackend,
 	private val callbackAdmissionBarrier: ActivityCallbackAdmissionBarrier,
+	private val callbackRetryOwner: ActivityCallbackRetryOwner,
 	private val startupGateProvider: Provider<TrackingStartupGate>,
 	private val cleanupStore: ActivityRegistrationCleanupStore,
 	private val cleanupScheduler: ActivityRegistrationCleanupScheduler,
@@ -112,6 +114,23 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		if (stopped.status == ActivityRegistrationStatus.FAILED ||
 			stopped.status == ActivityRegistrationStatus.BLOCKED
 		) return@withLock stopped
+		val callbackRetriesPurged = try {
+			withTimeoutOrNull(ACTIVITY_CALLBACK_BARRIER_TIMEOUT_MS) {
+				callbackRetryOwner.fenceAndPurgeForCollectedDataDeletion()
+				true
+			}
+		} catch (error: CancellationException) {
+			throw error
+		} catch (_: Exception) {
+			false
+		}
+		if (callbackRetriesPurged != true) {
+			return@withLock failure(
+				ActivityRegistrationStatus.FAILED,
+				ActivityRegistrationFailureCode.STORAGE_UNAVAILABLE,
+				true,
+			)
+		}
 
 		val pendingRows = try {
 			database.sourceBrokerDao().pendingProviderRemovals(ACTIVITY_SOURCE_KIND)
@@ -161,6 +180,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 	}
 
 	override suspend fun resumeAfterCollectedDataDeletion(): ActivityRegistrationResult = mutex.withLock {
+		callbackRetryOwner.resumeAfterCollectedDataDeletion()
 		deletionPaused = false
 		reconcileLocked()
 	}

@@ -75,6 +75,7 @@ class ActivityReceiverTest {
 	private lateinit var mockIngress: ActivityRecognitionEventIngress
 	private lateinit var mockStartupGate: TrackingStartupGate
 	private lateinit var callbackAdmissionBarrier: ActivityCallbackAdmissionBarrier
+	private lateinit var callbackRetryOwner: ActivityCallbackRetryOwner
 	private lateinit var applicationScope: CoroutineScope
 
 	@Before
@@ -91,6 +92,8 @@ class ActivityReceiverTest {
 		mockIngress = mockk()
 		mockStartupGate = mockk()
 		callbackAdmissionBarrier = ActivityCallbackAdmissionBarrier()
+		callbackRetryOwner = mockk(relaxed = true)
+		coEvery { callbackRetryOwner.retain(any()) } returns "retained-callback"
 		applicationScope = CoroutineScope(Dispatchers.Unconfined)
 		coEvery { mockStartupGate.reconcileAdmission(any()) } returns
 			TrackingAdmissionStartupResult.Ready
@@ -104,6 +107,7 @@ class ActivityReceiverTest {
 			every { eventIngress() } returns mockIngress
 			every { trackingStartupGate() } returns mockStartupGate
 			every { callbackAdmissionBarrier() } returns callbackAdmissionBarrier
+			every { callbackRetryOwner() } returns callbackRetryOwner
 			every { applicationScope() } answers { applicationScope }
 		}
 		mockkStatic(EntryPointAccessors::class)
@@ -238,6 +242,7 @@ class ActivityReceiverTest {
 				permissionChecks += 1
 				true
 			},
+			eventCount = 1,
 			admit = {
 				attempts += 1
 				admissions.removeFirst()
@@ -284,6 +289,7 @@ class ActivityReceiverTest {
 				permissionChecks += 1
 				hasPermission
 			},
+			eventCount = 1,
 			admit = {
 				attempts += 1
 				hasPermission = false
@@ -431,6 +437,7 @@ class ActivityReceiverTest {
 				work = {
 					admitActivityCallbackWithRetry(
 						hasActivityPermission = { true },
+						eventCount = 1,
 						admit = {
 							attempts += 1
 							ActivityIngressResult.retryable(0, 0, "storage_unavailable")
@@ -449,6 +456,25 @@ class ActivityReceiverTest {
 		published shouldBe false
 		completedAtMs shouldBe ACTIVITY_CALLBACK_WORK_BUDGET_MS
 		scheduler.currentTime shouldBe ACTIVITY_CALLBACK_WORK_BUDGET_MS
+	}
+
+	@Test
+	fun `already exhausted receiver budget durably hands off before completion`() = runTest {
+		var workCalls = 0
+		var fallbackCalls = 0
+		var finishCalls = 0
+
+		runBoundedActivityCallbackWork(
+			receivedElapsedRealtimeMillis = 1_000L,
+			currentElapsedRealtimeMillis = { 20_000L },
+			work = { workCalls += 1 },
+			onWorkBudgetExhausted = { fallbackCalls += 1 },
+			finish = { finishCalls += 1 },
+		)
+
+		workCalls shouldBe 0
+		fallbackCalls shouldBe 1
+		finishCalls shouldBe 1
 	}
 
 	@Test
@@ -545,8 +571,41 @@ class ActivityReceiverTest {
 
 		fence.isCompleted shouldBe true
 		coVerify(atLeast = 2) { mockIngress.admit(any()) }
+		coVerify(exactly = 1) { callbackRetryOwner.retain(any()) }
 		verify(exactly = 0) { mockBackend.onActivityResult(any(), any()) }
 		ActivityReceiver.lastActivity shouldBe RecognizedActivity.UNKNOWN
+	}
+
+	@OptIn(ExperimentalCoroutinesApi::class)
+	@Test
+	fun `failed durable fallback keeps callback authority fence unresolved`() {
+		val scheduler = TestCoroutineScheduler()
+		val scope = TestScope(StandardTestDispatcher(scheduler))
+		applicationScope = scope
+		val identity = registrationIdentity(generation = 31L)
+		val intent = intentWithActivityResult(
+			com.google.android.gms.location.DetectedActivity.WALKING,
+			85,
+		).withRegistrationIdentity(identity)
+		coEvery { mockIngress.admit(any()) } returns ActivityIngressResult.retryable(
+			0,
+			0,
+			"storage_unavailable",
+		)
+		coEvery { callbackRetryOwner.retain(any()) } throws
+			ActivityCallbackRetryStoreException("disk unavailable", corrupt = false)
+
+		receiver.onReceive(context, intent)
+		scheduler.runCurrent()
+		val fence = scope.async(start = CoroutineStart.UNDISPATCHED) {
+			callbackAdmissionBarrier.fenceAndAwait(identity)
+		}
+		scheduler.advanceTimeBy(ACTIVITY_CALLBACK_WORK_BUDGET_MS)
+		scheduler.runCurrent()
+
+		fence.isCompleted shouldBe false
+		coVerify(atLeast = 1) { callbackRetryOwner.retain(any()) }
+		verify(exactly = 0) { mockBackend.onActivityResult(any(), any()) }
 	}
 
 	@Test

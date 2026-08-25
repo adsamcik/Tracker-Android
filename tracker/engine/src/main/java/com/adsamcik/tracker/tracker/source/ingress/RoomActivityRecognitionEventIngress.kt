@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.ingress
 import android.content.Context
 import com.adsamcik.tracker.activity.api.ingress.ActivityDurableSelection
 import com.adsamcik.tracker.activity.api.ingress.ActivityIngressResult
+import com.adsamcik.tracker.activity.api.ingress.ActivityIngressStartContext
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
 import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
@@ -70,12 +71,14 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 			is DeliveryAdmissionResult.Admitted -> completeDurableAdmission(
 				delivery,
 				admission.units,
+				batch.startContext,
 				admittedCount = admission.units.size,
 				duplicateCount = 0,
 			)
 			is DeliveryAdmissionResult.Duplicate -> completeDurableAdmission(
 				delivery,
 				admission.units,
+				batch.startContext,
 				admittedCount = 0,
 				duplicateCount = admission.units.size,
 				publishNewEffects = false,
@@ -96,6 +99,7 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 	private suspend fun completeDurableAdmission(
 		delivery: ActivitySourceDelivery,
 		units: List<DeliveryAdmissionResult.AdmittedUnit>,
+		startContext: ActivityIngressStartContext,
 		admittedCount: Int,
 		duplicateCount: Int,
 		publishNewEffects: Boolean = true,
@@ -118,7 +122,10 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 						event.evidence.activityAutomationEpoch != null
 				}
 				.mapTo(mutableSetOf()) { event -> event.admissionOrdinal }
-			val recovery = if (callbackTransitionOrdinals.isEmpty()) {
+			val recovery = if (
+				callbackTransitionOrdinals.isEmpty() ||
+				startContext != ActivityIngressStartContext.LIVE_PROVIDER_CALLBACK
+			) {
 				sourcePipelineRecovery.drainCommittedWork()
 			} else {
 				sourcePipelineRecovery.drainCommittedActivityCallbackWork(

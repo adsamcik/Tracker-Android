@@ -19,6 +19,13 @@ data class ActivityRecognitionEvidenceBatch(
 	val receivedElapsedRealtimeNanos: Long,
 	val receivedWallTimeMs: Long,
 	val registrationIdentity: ActivityRegistrationIdentity? = null,
+	/**
+	 * Android start context carried by this delivery attempt.
+	 *
+	 * A durable retry preserves the observation but must never inherit the short-lived foreground
+	 * service exemption of the original platform callback.
+	 */
+	val startContext: ActivityIngressStartContext = ActivityIngressStartContext.LIVE_PROVIDER_CALLBACK,
 	/** Purpose metadata captured with the immutable provider registration callback. */
 	val automaticRecognitionEligible: Boolean = false,
 	val automaticTransitions: Set<ActivityTransitionData> = emptySet(),
@@ -32,6 +39,11 @@ data class ActivityRecognitionEvidenceBatch(
 
 	val eventCount: Int
 		get() = recognitions.size + transitions.size
+}
+
+enum class ActivityIngressStartContext {
+	LIVE_PROVIDER_CALLBACK,
+	DURABLE_REPLAY,
 }
 
 data class ActivityRecognitionEvidence(

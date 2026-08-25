@@ -2,6 +2,7 @@ package com.adsamcik.tracker.activity
 
 import android.content.Context
 import com.adsamcik.tracker.activity.event.ActivityDomainEventConsumer
+import com.adsamcik.tracker.activity.receiver.ActivityCallbackRetryOwner
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.SessionActivity
 import com.adsamcik.tracker.shared.base.database.dao.ActivityDao
@@ -33,6 +34,7 @@ class ActivityModuleInitializerTest {
 	private val activityDao: ActivityDao = mockk(relaxed = true)
 	private val consumer: ActivityDomainEventConsumer = mockk(relaxed = true)
 	private val domainEventRepository: DomainEventRepository = mockk(relaxed = true)
+	private val callbackRetryOwner: ActivityCallbackRetryOwner = mockk(relaxed = true)
 
 	@Nested
 	inner class Priority {
@@ -85,6 +87,7 @@ class ActivityModuleInitializerTest {
 			activityDao = activityDao,
 			consumer = consumer,
 			domainEventRepository = domainEventRepository,
+			callbackRetryOwner = callbackRetryOwner,
 		)
 	}
 

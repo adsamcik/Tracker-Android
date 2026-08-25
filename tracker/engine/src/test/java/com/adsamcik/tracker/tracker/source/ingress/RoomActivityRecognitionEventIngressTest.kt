@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.ingress
 import android.content.Context
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionType
+import com.adsamcik.tracker.activity.api.ingress.ActivityIngressStartContext
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidence
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
 import com.adsamcik.tracker.activity.api.ingress.ActivityTransitionEvidence
@@ -172,6 +173,35 @@ class RoomActivityRecognitionEventIngressTest {
 	}
 
 	@Test
+	fun `durable replay persists transition without borrowing live callback start permit`() = runTest {
+		val unit = DeliveryAdmissionResult.AdmittedUnit(0, SourceEventId("event-0"), 10L)
+		coEvery { deliveryIngress.admit(capture(capturedDelivery)) } returns
+			DeliveryAdmissionResult.Admitted(listOf(unit))
+		coEvery { committedIngress.committedBatch(9L, 1) } answers {
+			listOf(
+				AdmittedSourceEvent(
+					unit.eventId,
+					unit.admissionOrdinal,
+					capturedDelivery.captured.units.single().evidence,
+				),
+			)
+		}
+
+		val result = subject.admit(
+			batch(
+				transitions = listOf(transition(10L)),
+				startContext = ActivityIngressStartContext.DURABLE_REPLAY,
+			),
+		)
+
+		result.isDurable shouldBe true
+		coVerify(exactly = 1) { recovery.drainCommittedWork() }
+		coVerify(exactly = 0) {
+			recovery.drainCommittedActivityCallbackWork(any(), any(), any())
+		}
+	}
+
+	@Test
 	fun `writer reloaded evidence rather than adapter candidate drives motion`() = runTest {
 		val unit = DeliveryAdmissionResult.AdmittedUnit(0, SourceEventId("writer-event"), 4L)
 		coEvery { deliveryIngress.admit(capture(capturedDelivery)) } returns
@@ -243,6 +273,8 @@ class RoomActivityRecognitionEventIngressTest {
 			val result = subject.admit(batch(recognitions = listOf(recognition(30L))))
 
 			result.isDurable shouldBe false
+			result.admittedCount shouldBe 1
+			result.duplicateCount shouldBe 0
 			result.failureCode shouldBe expectedCode
 			result.durableSelection.isEmpty shouldBe true
 		}
@@ -313,10 +345,12 @@ class RoomActivityRecognitionEventIngressTest {
 		transitions: List<ActivityTransitionEvidence> = emptyList(),
 		automaticRecognitionEligible: Boolean = true,
 		automaticTransitions: Set<ActivityTransitionData>? = null,
+		startContext: ActivityIngressStartContext = ActivityIngressStartContext.LIVE_PROVIDER_CALLBACK,
 	) = ActivityRecognitionEvidenceBatch(
 		receivedElapsedRealtimeNanos = 100L,
 		receivedWallTimeMs = 1_000L,
 		registrationIdentity = identity(),
+		startContext = startContext,
 		automaticRecognitionEligible = automaticRecognitionEligible,
 		automaticTransitions = automaticTransitions ?: transitions.map { evidence ->
 			ActivityTransitionData(evidence.activityType, evidence.transitionType)

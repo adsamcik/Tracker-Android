@@ -40,8 +40,14 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
 /** Dependencies needed by the manifest BroadcastReceiver in a cold process. */
@@ -52,6 +58,7 @@ internal interface ActivityReceiverEntryPoint {
 	fun eventIngress(): ActivityRecognitionEventIngress
 	fun trackingStartupGate(): TrackingStartupGate
 	fun callbackAdmissionBarrier(): ActivityCallbackAdmissionBarrier
+	fun callbackRetryOwner(): ActivityCallbackRetryOwner
 
 	@ApplicationScope
 	fun applicationScope(): CoroutineScope
@@ -110,12 +117,17 @@ internal class ActivityReceiver : BroadcastReceiver() {
 			return
 		}
 		val pendingResult = goAsync()
+		val retryOwnership = ActivityCallbackRetryOwnership(
+			batch = delivery.batch,
+			owner = entryPoint.callbackRetryOwner(),
+		)
+		var terminallyOwnedOrRejected = false
 		entryPoint.applicationScope().launch {
 			runBoundedActivityCallbackWork(
 				receivedElapsedRealtimeMillis = receivedElapsedRealtimeMillis,
 				currentElapsedRealtimeMillis = { Time.elapsedRealtimeMillis },
 				work = {
-					admitActivityCallbackWithRetry(
+					terminallyOwnedOrRejected = processActivityCallbackWithDurableFallback(
 						hasActivityPermission = { context.hasActivityPermission },
 						admit = {
 							admitActivityCallbackAfterStartup(
@@ -132,14 +144,20 @@ internal class ActivityReceiver : BroadcastReceiver() {
 								admission.durableSelection,
 							)
 						},
+						retryOwnership = retryOwnership,
 					)
+				},
+				onWorkBudgetExhausted = {
+					runCatching { retryOwnership.retain() }
 				},
 				// Android supplies a PendingResult for a dispatched broadcast. Robolectric's direct
 				// receiver invocation may return null, so keep cleanup safe in that environment.
 				finish = {
-					// This permit tracks only process-local callback work. Durable admission retains its
-					// own result and is not implied by releasing the permit after bounded work unwinds.
-					callbackPermit?.complete()
+					// The authority barrier may advance only after Room owns every member, ingress
+					// permanently rejected it, or the source-local AtomicFile owns the exact retry.
+					if (terminallyOwnedOrRejected || retryOwnership.isDurablyRetained) {
+						callbackPermit?.complete()
+					}
 					pendingResult?.finish()
 				},
 			)
@@ -313,20 +331,28 @@ internal fun remainingActivityCallbackWorkBudgetMillis(
 /** Retries only this callback's exact delivery; its stable identity makes re-admission safe. */
 internal suspend fun admitActivityCallbackWithRetry(
 	hasActivityPermission: () -> Boolean,
+	eventCount: Int,
 	admit: suspend () -> ActivityIngressResult,
 	onDurable: (ActivityIngressResult) -> Unit,
-) {
+	onRetryableWithoutDurableOwnership: suspend () -> Unit = {},
+): ActivityCallbackTerminalDisposition {
 	var retryDelayMs = ACTIVITY_CALLBACK_INITIAL_RETRY_DELAY_MS
 	while (hasActivityPermission()) {
 		val admission = admit()
 		when (admission.status) {
 			ActivityIngressStatus.DURABLE -> {
 				onDurable(admission)
-				return
+				return ActivityCallbackTerminalDisposition.DURABLE
 			}
 
-			ActivityIngressStatus.REJECTED -> return
+			ActivityIngressStatus.REJECTED ->
+				return ActivityCallbackTerminalDisposition.PERMANENTLY_REJECTED
 			ActivityIngressStatus.RETRYABLE -> {
+				if (admission.admittedCount + admission.duplicateCount == eventCount) {
+					// WAL/receipts own every member even though downstream recovery still needs work.
+					return ActivityCallbackTerminalDisposition.DURABLY_RETRY_OWNED
+				}
+				onRetryableWithoutDurableOwnership()
 				delay(retryDelayMs)
 				retryDelayMs = (retryDelayMs * 2L)
 					.coerceAtMost(ACTIVITY_CALLBACK_MAX_RETRY_DELAY_MS)
@@ -334,12 +360,88 @@ internal suspend fun admitActivityCallbackWithRetry(
 		}
 	}
 	// Permission revocation is an authoritative permanent rejection at the callback boundary.
+	return ActivityCallbackTerminalDisposition.PERMANENTLY_REJECTED
+}
+
+internal enum class ActivityCallbackTerminalDisposition {
+	DURABLE,
+	DURABLY_RETRY_OWNED,
+	PERMANENTLY_REJECTED,
+}
+
+/**
+ * Races normal Room admission only against a delayed source-local durability fallback.
+ *
+ * Fast callbacks do no extra filesystem work. A retryable or hung Room path is read-verifiably
+ * retained before the process-local callback permit can drain. Retained callbacks are removed when
+ * this same receiver later reaches a terminal result; a crash between Room commit and removal is a
+ * harmless duplicate because ingress identity is stable.
+ */
+internal suspend fun processActivityCallbackWithDurableFallback(
+	hasActivityPermission: () -> Boolean,
+	admit: suspend () -> ActivityIngressResult,
+	onDurable: (ActivityIngressResult) -> Unit,
+	retryOwnership: ActivityCallbackRetryOwnership,
+): Boolean = coroutineScope {
+	val watchdog = launch {
+		delay(ACTIVITY_CALLBACK_RETRY_WATCHDOG_MS)
+		retryOwnership.retain()
+	}
+	var terminal = false
+	try {
+		admitActivityCallbackWithRetry(
+			hasActivityPermission = hasActivityPermission,
+			eventCount = retryOwnership.eventCount,
+			admit = admit,
+			onDurable = onDurable,
+			onRetryableWithoutDurableOwnership = { retryOwnership.retain() },
+		)
+		terminal = true
+		true
+	} finally {
+		withContext(NonCancellable) {
+			watchdog.cancelAndJoin()
+			if (terminal) {
+				retryOwnership.discardIfRetained()
+			} else {
+				// Timeout, throw, or application-scope cancellation cannot release the callback
+				// authority permit unless this exact envelope has become durable retry work.
+				runCatching { retryOwnership.retain() }
+			}
+		}
+	}
+}
+
+internal class ActivityCallbackRetryOwnership(
+	private val batch: ActivityRecognitionEvidenceBatch,
+	private val owner: ActivityCallbackRetryOwner,
+) {
+	private val mutex = Mutex()
+	@Volatile private var retainedId: String? = null
+
+	val eventCount: Int get() = batch.eventCount
+	val isDurablyRetained: Boolean get() = retainedId != null
+
+	suspend fun retain() {
+		mutex.withLock {
+			if (retainedId == null) retainedId = owner.retain(batch)
+		}
+	}
+
+	suspend fun discardIfRetained() {
+		mutex.withLock {
+			val id = retainedId ?: return
+			runCatching { owner.resolve(id) }
+			retainedId = null
+		}
+	}
 }
 
 internal suspend fun runBoundedActivityCallbackWork(
 	receivedElapsedRealtimeMillis: Long,
 	currentElapsedRealtimeMillis: () -> Long,
 	work: suspend () -> Unit,
+	onWorkBudgetExhausted: suspend () -> Unit = {},
 	finish: () -> Unit,
 ) {
 	try {
@@ -347,7 +449,11 @@ internal suspend fun runBoundedActivityCallbackWork(
 			receivedElapsedRealtimeMillis,
 			currentElapsedRealtimeMillis(),
 		)
-		if (remainingWorkMs > 0L) withTimeout(remainingWorkMs) { work() }
+		if (remainingWorkMs > 0L) {
+			withTimeout(remainingWorkMs) { work() }
+		} else {
+			withContext(NonCancellable) { onWorkBudgetExhausted() }
+		}
 	} catch (_: TimeoutCancellationException) {
 		// A failed handoff must not leak a non-durable in-process effect.
 	} catch (cancellation: CancellationException) {
@@ -363,3 +469,4 @@ internal const val ACTIVITY_CALLBACK_WORK_BUDGET_MS = 7_500L
 private const val STARTUP_RECOVERY_NOT_READY = "STARTUP_RECOVERY_NOT_READY"
 private const val ACTIVITY_CALLBACK_INITIAL_RETRY_DELAY_MS = 50L
 private const val ACTIVITY_CALLBACK_MAX_RETRY_DELAY_MS = 1_000L
+private const val ACTIVITY_CALLBACK_RETRY_WATCHDOG_MS = 3_000L

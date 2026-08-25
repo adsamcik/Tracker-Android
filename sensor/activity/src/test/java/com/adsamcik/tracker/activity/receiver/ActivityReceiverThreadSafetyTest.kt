@@ -60,6 +60,8 @@ class ActivityReceiverThreadSafetyTest {
 		mockIngress = mockk()
 		mockStartupGate = mockk()
 		callbackAdmissionBarrier = ActivityCallbackAdmissionBarrier()
+		val callbackRetryOwner = mockk<ActivityCallbackRetryOwner>(relaxed = true)
+		coEvery { callbackRetryOwner.retain(any()) } returns "retained-callback"
 		coEvery { mockStartupGate.reconcileAdmission(any()) } returns
 			TrackingAdmissionStartupResult.Ready
 		coEvery { mockIngress.admit(any()) } returns ActivityIngressResult.durable(
@@ -74,6 +76,7 @@ class ActivityReceiverThreadSafetyTest {
 			every { eventIngress() } returns mockIngress
 			every { trackingStartupGate() } returns mockStartupGate
 			every { callbackAdmissionBarrier() } returns callbackAdmissionBarrier
+			every { callbackRetryOwner() } returns callbackRetryOwner
 			every { applicationScope() } returns CoroutineScope(Dispatchers.Unconfined)
 		}
 		mockkStatic(EntryPointAccessors::class)
