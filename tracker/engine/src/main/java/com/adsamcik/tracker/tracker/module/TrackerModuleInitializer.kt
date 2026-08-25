@@ -11,6 +11,7 @@ import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryScheduler
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.adsamcik.tracker.tracker.controller.LockManager
+import com.adsamcik.tracker.tracker.resilience.TrackingAutoRecoveryAuthorization
 import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainResult
@@ -24,6 +25,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 
 /**
@@ -40,17 +42,29 @@ class TrackerModuleInitializer @Inject constructor(
 	private val automaticControlRecoveryScheduler: AutomaticControlRecoveryScheduler,
 ) : ModuleInitializer {
 	override val priority: Int = 20
+	private val initializationGate = TrackerModuleInitializationGate()
 
 	override fun initialize() {
 		if (!Process.isMainProcess(context)) return
-		if (trackingStartupGuard.isAutoRecoverySuppressed(context)) return
+		if (!initializationGate.tryStart()) return
 
 		applicationScope.launch {
-			if (trackingStartupGate.reconcile() !is TrackingStartupResult.Ready) return@launch
-			if (trackingStartupGuard.isAutoRecoverySuppressed(context)) return@launch
+			val authorization = awaitTrackerAutoRecoveryAuthorization(
+				reconcileStartup = { trackingStartupGate.reconcile() },
+				awaitAuthorizationAfterReady = {
+					trackingStartupGuard.awaitAutoRecoveryAuthorizationAfterStartupReady(context)
+				},
+				awaitFreshReadyAfterExplicitForeground = trackingStartupGate::awaitReady,
+				releaseAfterFreshReady = {
+					trackingStartupGuard.releaseAutoRecoveryAfterFreshStartupReady(context)
+				},
+			) ?: return@launch
 			lockManager.initializeFromPersistence(context)
 			activityAutomationEpochAuthority.startRuntimeBoundaryMonitoring(applicationScope)
-			BackgroundTrackingApi.initialize(context)
+			initializeTrackerAutomaticControlAfterAuthorization(
+				authorization = authorization,
+				initialize = { BackgroundTrackingApi.initialize(context) },
+			)
 			driveActivityAutomationEffectDrain(
 				authorityReady = BackgroundTrackingApi.activityAutomationAuthorityReady,
 				drainRequired = sourcePipelineRecovery.activityAutomationDrainRequired,
@@ -62,6 +76,47 @@ class TrackerModuleInitializer @Inject constructor(
 			)
 		}
 	}
+}
+
+/**
+ * Opens no provider while a confirmed force-stop has only a background process origin. Foreground
+ * intent is consumed only after the first Ready result, then a fresh Ready signal fences any stop or
+ * deletion that raced the wait.
+ */
+internal suspend fun awaitTrackerAutoRecoveryAuthorization(
+	reconcileStartup: suspend () -> TrackingStartupResult,
+	awaitAuthorizationAfterReady: suspend () -> TrackingAutoRecoveryAuthorization,
+	awaitFreshReadyAfterExplicitForeground: suspend () -> TrackingStartupResult.Ready,
+	releaseAfterFreshReady: () -> Boolean,
+): TrackingAutoRecoveryAuthorization? {
+	if (reconcileStartup() !is TrackingStartupResult.Ready) return null
+	return awaitAuthorizationAfterReady().also { authorization ->
+		if (authorization == TrackingAutoRecoveryAuthorization.EXPLICIT_FOREGROUND_AFTER_FORCE_STOP) {
+			awaitFreshReadyAfterExplicitForeground()
+			check(releaseAfterFreshReady()) {
+				"Explicit foreground recovery was not authorized for release"
+			}
+		}
+	}
+}
+
+/** A force-stop creates a fresh singleton; policy observation performs eligible reconciliation. */
+internal fun initializeTrackerAutomaticControlAfterAuthorization(
+	authorization: TrackingAutoRecoveryAuthorization,
+	initialize: () -> Unit,
+) {
+	when (authorization) {
+		TrackingAutoRecoveryAuthorization.ORDINARY_START,
+		TrackingAutoRecoveryAuthorization.EXPLICIT_FOREGROUND_AFTER_FORCE_STOP,
+		-> initialize()
+	}
+}
+
+/** Defense in depth around the app coordinator's own process-wide one-shot initialization. */
+internal class TrackerModuleInitializationGate {
+	private val started = AtomicBoolean(false)
+
+	fun tryStart(): Boolean = started.compareAndSet(false, true)
 }
 
 /**

@@ -168,6 +168,10 @@ class Application : AndroidApplication(), Configuration.Provider {
 			override fun onStart(owner: LifecycleOwner) {
 				appScope.launch(dispatchers.io) {
 					try {
+						// Process foreground is the only app-owned proof of an explicit launch. Record
+						// intent now, but keep force-stop suppression closed until the tracker initializer
+						// has observed durable startup Ready and consumed it.
+						trackingStartupGuard.recordExplicitForegroundLaunch(this@Application)
 						// Target Room must stay unopened until deletion, migration, prior-exit,
 						// and provider-registration recovery have reached the startup gate.
 						awaitStartupReconciliation()
