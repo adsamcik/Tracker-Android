@@ -28,8 +28,9 @@ import kotlin.coroutines.cancellation.CancellationException
 /**
  * Durable retry owner for reopening collected-data writers and automatic Activity control.
  *
- * Scheduling is safe while the process deletion barrier is still closed. Each worker invocation
- * makes one bounded attempt, and WorkManager owns exponential retry across process death.
+ * Scheduling is safe while the process deletion barrier is still closed. WorkManager retains the
+ * essential writer-reopening obligation across process death, while optional automatic control has
+ * a bounded retry budget for each collected-data epoch.
  */
 @Singleton
 class PostDeletionAutomaticControlRestorer @Inject constructor(
@@ -98,14 +99,12 @@ class PostDeletionRecoveryWorker @AssistedInject constructor(
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: Exception) {
-			PostDeletionRecoveryOutcome.RETRY
+			PostDeletionRecoveryOutcome.DURABLE_RETRY
 		}
-		return when (outcome) {
-			PostDeletionRecoveryOutcome.COMPLETE -> Result.success()
-			// This unique epoch-fenced work is the only durable owner that can reopen process-local
-			// writers after deletion. WorkManager backoff is intentionally retained until the epoch
-			// changes or recovery reaches a terminal result.
-			PostDeletionRecoveryOutcome.RETRY -> Result.retry()
+		return if (outcome.shouldRetry(runAttemptCount)) {
+			Result.retry()
+		} else {
+			Result.success()
 		}
 	}
 
@@ -115,7 +114,23 @@ class PostDeletionRecoveryWorker @AssistedInject constructor(
 	}
 }
 
-internal enum class PostDeletionRecoveryOutcome { COMPLETE, RETRY }
+internal enum class PostDeletionRecoveryOutcome {
+	COMPLETE,
+	/** Storage, startup, and writer reopening retain retry ownership until terminal. */
+	DURABLE_RETRY,
+	/** Automatic control is an optional enhancement with a battery-bounded retry budget. */
+	OPTIONAL_CONTROL_RETRY,
+}
+
+internal fun PostDeletionRecoveryOutcome.shouldRetry(runAttemptCount: Int): Boolean = when (this) {
+	PostDeletionRecoveryOutcome.COMPLETE -> false
+	PostDeletionRecoveryOutcome.DURABLE_RETRY -> true
+	// Exhausting this deletion-epoch flight does not suppress future authority changes.
+	// BackgroundTrackingApi's policy/preference observers and foreground permission revalidation
+	// remain live and schedule their own fresh bounded automatic-control recovery when needed.
+	PostDeletionRecoveryOutcome.OPTIONAL_CONTROL_RETRY ->
+		runAttemptCount + 1 < OPTIONAL_CONTROL_MAX_ATTEMPTS
+}
 
 internal suspend fun runPostDeletionRecovery(
 	expectedEpoch: Long,
@@ -135,22 +150,27 @@ internal suspend fun runPostDeletionRecovery(
 	reconcileAutomaticControl: suspend () -> AutomaticControlRecoveryResult,
 ): PostDeletionRecoveryOutcome {
 	if (currentEpoch() != expectedEpoch) return PostDeletionRecoveryOutcome.COMPLETE
-	if (isDeletionClosed()) return PostDeletionRecoveryOutcome.RETRY
+	if (isDeletionClosed()) return PostDeletionRecoveryOutcome.DURABLE_RETRY
 	when (reconcileStartup()) {
 		is TrackingStartupResult.Ready -> Unit
-		is TrackingStartupResult.RetryableFailure -> return PostDeletionRecoveryOutcome.RETRY
+		is TrackingStartupResult.RetryableFailure ->
+			return PostDeletionRecoveryOutcome.DURABLE_RETRY
 		is TrackingStartupResult.Blocked -> return PostDeletionRecoveryOutcome.COMPLETE
 	}
 	if (!isStartupReady() || isDeletionClosed() ||
 		currentStartupGeneration() != startupGeneration
 	) {
-		return PostDeletionRecoveryOutcome.RETRY
+		return PostDeletionRecoveryOutcome.DURABLE_RETRY
 	}
 	if (currentEpoch() != expectedEpoch) return PostDeletionRecoveryOutcome.COMPLETE
 
 	// These operations may open collected Room or schedule Room workers. Serialize their final
 	// epoch/generation check and resume with deletion closure so a new deletion cannot win between
-	// the check and either side effect.
+	// the check and either side effect. An optional retry deliberately repeats this idempotent
+	// handoff: WorkManager may die between either resume and control reconciliation, and there is no
+	// durable receipt proving which process-local callback completed. The writer owner uses unique
+	// work/update scheduling and consumes its restore flags on the first resume; the Activity arbiter
+	// mutex reconciles the same durable desired state without replacing an identical registration.
 	val controlRecovery = withReadyGenerationOperation(startupGeneration) {
 		if (currentEpoch() != expectedEpoch || isDeletionClosed() ||
 			!isStartupReady() || currentStartupGeneration() != startupGeneration
@@ -159,9 +179,15 @@ internal suspend fun runPostDeletionRecovery(
 		} else {
 			resumeWriters()
 			resumeActivityArbiter()
-			reconcileAutomaticControl()
+			try {
+				reconcileAutomaticControl()
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: Exception) {
+				AutomaticControlRecoveryResult.RETRYABLE
+			}
 		}
-	} ?: return PostDeletionRecoveryOutcome.RETRY
+	} ?: return PostDeletionRecoveryOutcome.DURABLE_RETRY
 
 	// Deletion closure waits for the protected handoff above; if it wins after the handoff it owns
 	// the matching quiesce/removal. Optional control containment is terminal while explicitly
@@ -169,12 +195,15 @@ internal suspend fun runPostDeletionRecovery(
 	if (currentEpoch() != expectedEpoch || isDeletionClosed() ||
 		!isStartupReady() || currentStartupGeneration() != startupGeneration
 	) {
-		return PostDeletionRecoveryOutcome.RETRY
+		return PostDeletionRecoveryOutcome.DURABLE_RETRY
 	}
 	return when (controlRecovery) {
 		AutomaticControlRecoveryResult.ACCEPTED,
 		AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED ->
 			PostDeletionRecoveryOutcome.COMPLETE
-		AutomaticControlRecoveryResult.RETRYABLE -> PostDeletionRecoveryOutcome.RETRY
+		AutomaticControlRecoveryResult.RETRYABLE ->
+			PostDeletionRecoveryOutcome.OPTIONAL_CONTROL_RETRY
 	}
 }
+
+private const val OPTIONAL_CONTROL_MAX_ATTEMPTS = 3

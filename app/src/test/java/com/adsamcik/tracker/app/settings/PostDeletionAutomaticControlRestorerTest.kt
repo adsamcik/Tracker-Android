@@ -9,12 +9,16 @@ import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryResult
+import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
@@ -45,7 +49,7 @@ class PostDeletionAutomaticControlRestorerTest {
 				operations += "control"
 				AutomaticControlRecoveryResult.ACCEPTED
 			},
-		) shouldBe PostDeletionRecoveryOutcome.RETRY
+		) shouldBe PostDeletionRecoveryOutcome.DURABLE_RETRY
 
 		operations shouldBe emptyList()
 	}
@@ -146,7 +150,7 @@ class PostDeletionAutomaticControlRestorerTest {
 				operations += "control"
 				AutomaticControlRecoveryResult.ACCEPTED
 			},
-		) shouldBe PostDeletionRecoveryOutcome.RETRY
+		) shouldBe PostDeletionRecoveryOutcome.DURABLE_RETRY
 
 		operations shouldBe emptyList()
 	}
@@ -179,12 +183,12 @@ class PostDeletionAutomaticControlRestorerTest {
 		currentEpoch = 9L
 		protectedOperation.allowEntry.complete(Unit)
 
-		recovery.await() shouldBe PostDeletionRecoveryOutcome.RETRY
+		recovery.await() shouldBe PostDeletionRecoveryOutcome.DURABLE_RETRY
 		operations shouldBe emptyList()
 	}
 
 	@Test
-	fun `transient automatic demand failure remains durable retry work`() = runTest {
+	fun `transient automatic demand failure uses optional retry work`() = runTest {
 		runPostDeletionRecovery(
 			expectedEpoch = 8L,
 			currentEpoch = { 8L },
@@ -196,7 +200,58 @@ class PostDeletionAutomaticControlRestorerTest {
 			resumeWriters = {},
 			resumeActivityArbiter = {},
 			reconcileAutomaticControl = { AutomaticControlRecoveryResult.RETRYABLE },
-		) shouldBe PostDeletionRecoveryOutcome.RETRY
+		) shouldBe PostDeletionRecoveryOutcome.OPTIONAL_CONTROL_RETRY
+	}
+
+	@Test
+	fun `automatic control exception is optional after essential reopening completes`() = runTest {
+		val operations = mutableListOf<String>()
+
+		runPostDeletionRecovery(
+			expectedEpoch = 8L,
+			currentEpoch = { 8L },
+			startupGeneration = 2L,
+			currentStartupGeneration = { 2L },
+			isDeletionClosed = { false },
+			isStartupReady = { true },
+			reconcileStartup = { TrackingStartupResult.Ready(false, 0L) },
+			resumeWriters = { operations += "writers" },
+			resumeActivityArbiter = { operations += "arbiter" },
+			reconcileAutomaticControl = {
+				operations += "control"
+				error("transient optional-control failure")
+			},
+		) shouldBe PostDeletionRecoveryOutcome.OPTIONAL_CONTROL_RETRY
+
+		operations shouldBe listOf("writers", "arbiter", "control")
+	}
+
+	@Test
+	fun `optional retry repeats the idempotent essential handoff before control`() = runTest {
+		val operations = mutableListOf<String>()
+
+		repeat(2) {
+			runPostDeletionRecovery(
+				expectedEpoch = 8L,
+				currentEpoch = { 8L },
+				startupGeneration = 2L,
+				currentStartupGeneration = { 2L },
+				isDeletionClosed = { false },
+				isStartupReady = { true },
+				reconcileStartup = { TrackingStartupResult.Ready(false, 0L) },
+				resumeWriters = { operations += "writers" },
+				resumeActivityArbiter = { operations += "arbiter" },
+				reconcileAutomaticControl = {
+					operations += "control"
+					AutomaticControlRecoveryResult.RETRYABLE
+				},
+			) shouldBe PostDeletionRecoveryOutcome.OPTIONAL_CONTROL_RETRY
+		}
+
+		operations shouldBe listOf(
+			"writers", "arbiter", "control",
+			"writers", "arbiter", "control",
+		)
 	}
 
 	@Test
@@ -218,7 +273,16 @@ class PostDeletionAutomaticControlRestorerTest {
 	}
 
 	@Test
-	fun `worker retains its unique epoch fenced retry owner after repeated transient failure`() = runTest {
+	fun `optional control retry is bounded while essential reopening is not`() {
+		PostDeletionRecoveryOutcome.OPTIONAL_CONTROL_RETRY.shouldRetry(0) shouldBe true
+		PostDeletionRecoveryOutcome.OPTIONAL_CONTROL_RETRY.shouldRetry(1) shouldBe true
+		PostDeletionRecoveryOutcome.OPTIONAL_CONTROL_RETRY.shouldRetry(2) shouldBe false
+		PostDeletionRecoveryOutcome.OPTIONAL_CONTROL_RETRY.shouldRetry(30) shouldBe false
+		PostDeletionRecoveryOutcome.DURABLE_RETRY.shouldRetry(30) shouldBe true
+	}
+
+	@Test
+	fun `worker retains its unique epoch fenced essential retry owner after repeated failure`() = runTest {
 		val context = mockk<Context>(relaxed = true)
 		val lifecycleStore = mockk<CollectedDataLifecycleStore>()
 		coEvery { lifecycleStore.snapshot() } throws
@@ -245,6 +309,52 @@ class PostDeletionAutomaticControlRestorerTest {
 			ListenableWorker.Result.retry()
 		worker(30).doWork() shouldBe
 			ListenableWorker.Result.retry()
+	}
+
+	@Test
+	fun `worker completes degraded after the deletion epoch optional retry budget`() = runTest {
+		mockkObject(BackgroundTrackingApi)
+		try {
+			coEvery {
+				BackgroundTrackingApi.reconcileAutomaticControlDemandAfterStartup(any())
+			} returns AutomaticControlRecoveryResult.RETRYABLE
+			val context = mockk<Context>(relaxed = true)
+			val lifecycleStore = mockk<CollectedDataLifecycleStore>()
+			coEvery { lifecycleStore.snapshot() } returns
+				CollectedDataLifecycleSnapshot(epoch = 8L, retainedFromMs = null)
+			val startupGate = mockk<TrackingStartupGate>()
+			every { startupGate.currentGeneration } returns 2L
+			every { startupGate.isReady } returns true
+			coEvery { startupGate.reconcile() } returns TrackingStartupResult.Ready(false, 0L)
+			coEvery {
+				startupGate.withReadyGenerationOperation<AutomaticControlRecoveryResult?>(
+					2L,
+					any(),
+				)
+			} coAnswers { secondArg<suspend () -> AutomaticControlRecoveryResult?>().invoke() }
+			val arbiter = mockk<ActivityRegistrationArbiter>(relaxed = true)
+
+			val worker = PostDeletionRecoveryWorker(
+				appContext = context,
+				params = mockk<WorkerParameters>(relaxed = true) {
+					every { inputData } returns workDataOf(
+						PostDeletionRecoveryWorker.COLLECTED_DATA_EPOCH_KEY to 8L,
+					)
+					every { runAttemptCount } returns 2
+				},
+				startupGate = startupGate,
+				deletionBarrier = mockk<TrackingStartupDeletionBarrier> {
+					every { isClosed } returns false
+				},
+				lifecycleStore = lifecycleStore,
+				writerQuiescer = mockk<CollectedDataWriterQuiescer>(relaxed = true),
+				activityRegistrationArbiterProvider = Provider { arbiter },
+			)
+
+			worker.doWork() shouldBe ListenableWorker.Result.success()
+		} finally {
+			unmockkObject(BackgroundTrackingApi)
+		}
 	}
 }
 
