@@ -103,6 +103,20 @@ class SharedPreferencesTrackingLifecycleCommandAuthority @Inject constructor(
 		}
 	}
 
+	override suspend fun runWithHandledStopGeneration(
+		expectedStopGeneration: Long,
+		action: suspend () -> Unit,
+	): Boolean = commandGate.withLock {
+		if (commandState.latestStopGeneration != expectedStopGeneration ||
+			commandState.latestUnhandledStop() != null
+		) {
+			false
+		} else {
+			action()
+			true
+		}
+	}
+
 	override fun isStopCurrent(command: TrackingStopCommand): Boolean =
 		commandState.isCurrent(command)
 

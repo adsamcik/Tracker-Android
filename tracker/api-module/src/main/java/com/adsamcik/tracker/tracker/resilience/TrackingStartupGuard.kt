@@ -18,8 +18,9 @@ interface TrackingStartupGuard {
 	 * Records that this process reached the foreground through an app launch.
 	 *
 	 * This is deliberately only intent: force-stop suppression remains closed through
-	 * [awaitAutoRecoveryAuthorizationAfterStartupReady] and opens only after a fresh Ready fence.
-	 * Background receivers and workers must never call this method.
+	 * [awaitAutoRecoveryAuthorizationAfterStartupReady] and opens only inside the exact Ready
+	 * generation that accepts the automatic-control handoff. Background receivers and workers must
+	 * never call this method.
 	 */
 	fun recordExplicitForegroundLaunch(context: Context): Boolean
 
@@ -33,11 +34,12 @@ interface TrackingStartupGuard {
 	): TrackingAutoRecoveryAuthorization
 
 	/**
-	 * Idempotently releases the consumed foreground authorization after a fresh startup `Ready` fence.
-	 * Until this succeeds, [isAutoRecoverySuppressed] remains true and foreground permission repair
-	 * cannot touch provider state.
+	 * Idempotently releases the consumed foreground authorization inside the exact startup `Ready`
+	 * generation being handed to automatic-control initialization. Until this succeeds,
+	 * [isAutoRecoverySuppressed] remains true and foreground permission repair cannot touch provider
+	 * state.
 	 */
-	fun releaseAutoRecoveryAfterFreshStartupReady(context: Context): Boolean
+	fun releaseAutoRecoveryForReadyGeneration(context: Context): Boolean
 
 	fun isAutoRecoverySuppressed(context: Context): Boolean
 }

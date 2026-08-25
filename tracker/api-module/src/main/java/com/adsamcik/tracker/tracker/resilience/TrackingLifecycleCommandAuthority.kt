@@ -251,6 +251,26 @@ interface TrackingLifecycleCommandAuthority {
 		action: suspend () -> T,
 	): LockedTrackingStartResult<T> = withCurrentStart(command, action)
 
+	/**
+	 * Runs one short control-plane handoff only while [expectedStopGeneration] is still the latest
+	 * handled STOP generation. Durable implementations must hold the same ordering gate used by
+	 * [reserveStop] for the full [action], so a STOP is ordered wholly before or wholly after the
+	 * handoff rather than being reserved midway through its side effects.
+	 *
+	 * The default preserves lightweight test authorities; production durable authorities must
+	 * override it with real reservation linearization.
+	 */
+	suspend fun runWithHandledStopGeneration(
+		expectedStopGeneration: Long,
+		action: suspend () -> Unit,
+	): Boolean {
+		if (latestStopGeneration() != expectedStopGeneration || latestUnhandledStop() != null) {
+			return false
+		}
+		action()
+		return true
+	}
+
 	fun isStopCurrent(command: TrackingStopCommand): Boolean
 
 	fun isStopActionable(command: TrackingStopCommand): Boolean

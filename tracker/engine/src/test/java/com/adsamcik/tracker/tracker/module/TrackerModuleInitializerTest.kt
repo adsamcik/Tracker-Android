@@ -18,25 +18,28 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class TrackerModuleInitializerTest {
 	@Test
-	fun `background force-stop start cannot initialize control before foreground release`() = runTest {
+	fun `background force-stop start cannot initialize control before foreground authorization`() = runTest {
 		val foreground = CompletableDeferred<Unit>()
 		var controlInitializations = 0
 		val startup = async {
-			val authorization = awaitTrackerAutoRecoveryAuthorization(
+			handoffTrackerInitializationAfterAuthorization(
 				reconcileStartup = { TrackingStartupResult.Ready(false, 0L) },
+				currentReadyGeneration = { 4L },
 				awaitAuthorizationAfterReady = {
 					foreground.await()
 					TrackingAutoRecoveryAuthorization.EXPLICIT_FOREGROUND_AFTER_FORCE_STOP
 				},
-				awaitFreshReadyAfterExplicitForeground = {
-					TrackingStartupResult.Ready(false, 0L)
+				awaitNextReady = { error("No generation race expected") },
+				withReadyGenerationOperation = { generation, operation ->
+					generation shouldBe 4L
+					operation()
 				},
-				releaseAfterFreshReady = { true },
-			)
-			initializeTrackerAutomaticControlAfterAuthorization(
-				authorization = requireNotNull(authorization),
-				initialize = {
-					controlInitializations += 1
+				releaseForReadyGeneration = { true },
+				handoff = { authorization ->
+					initializeTrackerAutomaticControlAfterAuthorization(
+						authorization = authorization,
+						initialize = { controlInitializations += 1 },
+					)
 				},
 			)
 		}
@@ -50,98 +53,201 @@ class TrackerModuleInitializerTest {
 	}
 
 	@Test
-	fun `foreground force-stop rearm follows terminal recovery and fresh Ready exactly once`() = runTest {
+	fun `foreground force-stop rearm follows terminal recovery in one Ready generation`() = runTest {
 		val timeline = mutableListOf<String>()
 		var staleSessionTerminal = false
-		val authorization = awaitTrackerAutoRecoveryAuthorization(
+		handoffTrackerInitializationAfterAuthorization(
 			reconcileStartup = {
 				staleSessionTerminal = true
 				timeline += "force-stop-session-terminal"
 				TrackingStartupResult.Ready(false, 0L)
 			},
+			currentReadyGeneration = {
+				staleSessionTerminal shouldBe true
+				timeline += "ready-generation-captured"
+				7L
+			},
 			awaitAuthorizationAfterReady = {
 				timeline += "foreground-consumed"
 				TrackingAutoRecoveryAuthorization.EXPLICIT_FOREGROUND_AFTER_FORCE_STOP
 			},
-			awaitFreshReadyAfterExplicitForeground = {
-				staleSessionTerminal shouldBe true
-				timeline += "fresh-ready"
-				TrackingStartupResult.Ready(false, 0L)
+			awaitNextReady = { error("No generation race expected") },
+			withReadyGenerationOperation = { generation, operation ->
+				generation shouldBe 7L
+				timeline += "ready-generation-handoff"
+				operation()
 			},
-			releaseAfterFreshReady = {
+			releaseForReadyGeneration = {
 				timeline += "suppression-released"
 				true
 			},
-		)
-
-		initializeTrackerAutomaticControlAfterAuthorization(
-			authorization = requireNotNull(authorization),
-			initialize = {
+			handoff = { authorization ->
 				staleSessionTerminal shouldBe true
-				timeline += "control-reconciled"
+				initializeTrackerAutomaticControlAfterAuthorization(
+					authorization = authorization,
+					initialize = { timeline += "control-reconciled" },
+				)
 			},
 		)
 
 		timeline shouldBe listOf(
 			"force-stop-session-terminal",
+			"ready-generation-captured",
 			"foreground-consumed",
-			"fresh-ready",
-			"suppression-released",
+			"ready-generation-handoff",
 			"control-reconciled",
+			"suppression-released",
 		)
 	}
 
 	@Test
 	fun `foreground recorded before initializer still performs one reconciliation`() = runTest {
 		var reconciliations = 0
-		val authorization = awaitTrackerAutoRecoveryAuthorization(
+		var releases = 0
+		handoffTrackerInitializationAfterAuthorization(
 			reconcileStartup = { TrackingStartupResult.Ready(false, 0L) },
+			currentReadyGeneration = { 3L },
 			awaitAuthorizationAfterReady = {
 				TrackingAutoRecoveryAuthorization.EXPLICIT_FOREGROUND_AFTER_FORCE_STOP
 			},
-			awaitFreshReadyAfterExplicitForeground = {
-				TrackingStartupResult.Ready(false, 0L)
+			awaitNextReady = { error("No generation race expected") },
+			withReadyGenerationOperation = { generation, operation ->
+				generation shouldBe 3L
+				operation()
 			},
-			releaseAfterFreshReady = { true },
-		)
-
-		initializeTrackerAutomaticControlAfterAuthorization(
-			authorization = requireNotNull(authorization),
-			initialize = {
-				reconciliations += 1
+			releaseForReadyGeneration = {
+				releases += 1
+				true
+			},
+			handoff = { authorization ->
+				initializeTrackerAutomaticControlAfterAuthorization(
+					authorization = authorization,
+					initialize = { reconciliations += 1 },
+				)
 			},
 		)
 
 		reconciliations shouldBe 1
+		releases shouldBe 1
 	}
 
 	@Test
-	fun `foreground authorization stays suppressed while fresh Ready is pending`() = runTest {
+	fun `foreground authorization stays suppressed until a replacement Ready accepts handoff`() = runTest {
 		val processGate = com.adsamcik.tracker.tracker.resilience.TrackingAutoRecoveryProcessGate()
-		val freshReady = CompletableDeferred<TrackingStartupResult.Ready>()
+		val replacementReady = CompletableDeferred<TrackingStartupResult.Ready>()
+		var readyGeneration = 1L
+		var handoffAttempts = 0
+		var controlInitializations = 0
 		processGate.suppressAfterConfirmedForceStop()
 		processGate.recordExplicitForegroundLaunch(confirmedForceStop = true) shouldBe true
 
 		val authorization = async {
-			awaitTrackerAutoRecoveryAuthorization(
+			handoffTrackerInitializationAfterAuthorization(
 				reconcileStartup = { TrackingStartupResult.Ready(false, 0L) },
+				currentReadyGeneration = { readyGeneration },
 				awaitAuthorizationAfterReady = {
 					processGate.awaitAuthorizationAfterStartupReady(confirmedForceStop = true)
 				},
-				awaitFreshReadyAfterExplicitForeground = { freshReady.await() },
-				releaseAfterFreshReady = {
-					processGate.releaseAfterFreshStartupReady(confirmedForceStop = true)
+				awaitNextReady = { replacementReady.await() },
+				withReadyGenerationOperation = { generation, operation ->
+					handoffAttempts += 1
+					if (handoffAttempts == 1) {
+						generation shouldBe 1L
+						null
+					} else {
+						generation shouldBe 2L
+						operation()
+					}
 				},
+				releaseForReadyGeneration = {
+					processGate.releaseForReadyGeneration(confirmedForceStop = true)
+				},
+				handoff = { controlInitializations += 1 },
 			)
 		}
 		runCurrent()
 
 		authorization.isCompleted shouldBe false
 		processGate.isSuppressed(confirmedForceStop = true) shouldBe true
-		freshReady.complete(TrackingStartupResult.Ready(false, 0L))
+		controlInitializations shouldBe 0
+		readyGeneration = 2L
+		replacementReady.complete(TrackingStartupResult.Ready(false, 0L))
 		authorization.await() shouldBe
 			TrackingAutoRecoveryAuthorization.EXPLICIT_FOREGROUND_AFTER_FORCE_STOP
 		processGate.isSuppressed(confirmedForceStop = true) shouldBe false
+		controlInitializations shouldBe 1
+		handoffAttempts shouldBe 2
+	}
+
+	@Test
+	fun `startup race keeps one-shot initializer alive until Ready is republished`() = runTest {
+		val ready = CompletableDeferred<TrackingStartupResult.Ready>()
+		var generation = 1L
+		var controlInitializations = 0
+		val initialization = async {
+			handoffTrackerInitializationAfterAuthorization(
+				reconcileStartup = {
+					TrackingStartupResult.RetryableFailure(
+						com.adsamcik.tracker.shared.base.startup.TrackingStartupStage.PREVIOUS_EXIT,
+						"STOP_RACED_INITIALIZER",
+					)
+				},
+				currentReadyGeneration = { generation },
+				awaitAuthorizationAfterReady = {
+					TrackingAutoRecoveryAuthorization.ORDINARY_START
+				},
+				awaitNextReady = { ready.await() },
+				withReadyGenerationOperation = { expectedGeneration, operation ->
+					expectedGeneration shouldBe 2L
+					operation()
+				},
+				releaseForReadyGeneration = { error("Ordinary startup has no suppression release") },
+				handoff = { controlInitializations += 1 },
+			)
+		}
+		runCurrent()
+
+		initialization.isCompleted shouldBe false
+		controlInitializations shouldBe 0
+		generation = 2L
+		ready.complete(TrackingStartupResult.Ready(false, 0L))
+		initialization.await() shouldBe TrackingAutoRecoveryAuthorization.ORDINARY_START
+		controlInitializations shouldBe 1
+	}
+
+	@Test
+	fun `failed control handoff leaves force-stop suppression closed`() = runTest {
+		val processGate = com.adsamcik.tracker.tracker.resilience.TrackingAutoRecoveryProcessGate()
+		var releaseAttempts = 0
+		var failureObserved = false
+		processGate.suppressAfterConfirmedForceStop()
+		processGate.recordExplicitForegroundLaunch(confirmedForceStop = true) shouldBe true
+
+		try {
+			handoffTrackerInitializationAfterAuthorization(
+				reconcileStartup = { TrackingStartupResult.Ready(false, 0L) },
+				currentReadyGeneration = { 5L },
+				awaitAuthorizationAfterReady = {
+					processGate.awaitAuthorizationAfterStartupReady(confirmedForceStop = true)
+				},
+				awaitNextReady = { error("A failed operation must not be treated as a stale gate") },
+				withReadyGenerationOperation = { generation, operation ->
+					generation shouldBe 5L
+					operation()
+				},
+				releaseForReadyGeneration = {
+					releaseAttempts += 1
+					processGate.releaseForReadyGeneration(confirmedForceStop = true)
+				},
+				handoff = { error("singleton installation failed") },
+			)
+		} catch (_: IllegalStateException) {
+			failureObserved = true
+		}
+
+		failureObserved shouldBe true
+		releaseAttempts shouldBe 0
+		processGate.isSuppressed(confirmedForceStop = true) shouldBe true
 	}
 
 	@Test

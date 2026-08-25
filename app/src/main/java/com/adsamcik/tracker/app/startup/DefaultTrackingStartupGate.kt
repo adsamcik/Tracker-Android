@@ -242,9 +242,21 @@ class DefaultTrackingStartupGate @Inject constructor(
 		expectedGeneration: Long,
 		operation: suspend () -> T,
 	): T? = deletionBarrier.withStartupRecovery(onClosed = { null }) {
-		if (ready != null && readyGeneration == expectedGeneration &&
-			readyStopGeneration == currentHandledStopGenerationOrNull()
-		) operation() else null
+		if (expectedGeneration != deletionBarrier.currentGeneration ||
+			ready == null || readyGeneration != expectedGeneration ||
+			readyStopGeneration != currentHandledStopGenerationOrNull()
+		) {
+			return@withStartupRecovery null
+		}
+		var completed = false
+		var value: T? = null
+		val stopFenceAccepted = lifecycleCommandAuthority.runWithHandledStopGeneration(
+			readyStopGeneration,
+		) {
+			value = operation()
+			completed = true
+		}
+		if (stopFenceAccepted && completed) value else null
 	}
 
 	override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult {

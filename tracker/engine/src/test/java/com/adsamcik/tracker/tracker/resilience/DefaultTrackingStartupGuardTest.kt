@@ -25,9 +25,9 @@ class DefaultTrackingStartupGuardTest {
 		authorization.await() shouldBe
 			TrackingAutoRecoveryAuthorization.EXPLICIT_FOREGROUND_AFTER_FORCE_STOP
 		gate.isSuppressed(confirmedForceStop = true) shouldBe true
-		gate.releaseAfterFreshStartupReady(confirmedForceStop = true) shouldBe true
+		gate.releaseForReadyGeneration(confirmedForceStop = true) shouldBe true
 		gate.isSuppressed(confirmedForceStop = true) shouldBe false
-		gate.releaseAfterFreshStartupReady(confirmedForceStop = true) shouldBe true
+		gate.releaseForReadyGeneration(confirmedForceStop = true) shouldBe true
 		gate.recordExplicitForegroundLaunch(confirmedForceStop = true) shouldBe false
 	}
 
@@ -42,7 +42,7 @@ class DefaultTrackingStartupGuardTest {
 		gate.awaitAuthorizationAfterStartupReady(confirmedForceStop = true) shouldBe
 			TrackingAutoRecoveryAuthorization.EXPLICIT_FOREGROUND_AFTER_FORCE_STOP
 		gate.isSuppressed(confirmedForceStop = true) shouldBe true
-		gate.releaseAfterFreshStartupReady(confirmedForceStop = true) shouldBe true
+		gate.releaseForReadyGeneration(confirmedForceStop = true) shouldBe true
 		gate.isSuppressed(confirmedForceStop = true) shouldBe false
 	}
 
@@ -53,7 +53,7 @@ class DefaultTrackingStartupGuardTest {
 		gate.recordExplicitForegroundLaunch(confirmedForceStop = false) shouldBe false
 		gate.awaitAuthorizationAfterStartupReady(confirmedForceStop = false) shouldBe
 			TrackingAutoRecoveryAuthorization.ORDINARY_START
-		gate.releaseAfterFreshStartupReady(confirmedForceStop = false) shouldBe false
+		gate.releaseForReadyGeneration(confirmedForceStop = false) shouldBe false
 		gate.isSuppressed(confirmedForceStop = false) shouldBe false
 	}
 }

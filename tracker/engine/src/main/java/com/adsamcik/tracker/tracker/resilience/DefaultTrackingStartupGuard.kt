@@ -33,8 +33,8 @@ class DefaultTrackingStartupGuard @Inject constructor() : TrackingStartupGuard {
 	): TrackingAutoRecoveryAuthorization =
 		processGate.awaitAuthorizationAfterStartupReady(wasForceStopped(context))
 
-	override fun releaseAutoRecoveryAfterFreshStartupReady(context: Context): Boolean =
-		processGate.releaseAfterFreshStartupReady(wasForceStopped(context))
+	override fun releaseAutoRecoveryForReadyGeneration(context: Context): Boolean =
+		processGate.releaseForReadyGeneration(wasForceStopped(context))
 
 	override fun isAutoRecoverySuppressed(context: Context): Boolean =
 		processGate.isSuppressed(wasForceStopped(context))
@@ -54,7 +54,7 @@ class DefaultTrackingStartupGuard @Inject constructor() : TrackingStartupGuard {
 	}
 }
 
-/** Process-local gate: foreground intent and authorization precede release after fresh startup Ready. */
+/** Foreground intent and authorization precede release inside a verified startup Ready generation. */
 internal class TrackingAutoRecoveryProcessGate {
 	private val state = MutableStateFlow(ProcessAutoRecoveryState.UNRESOLVED)
 	private val monitor = Any()
@@ -128,7 +128,7 @@ internal class TrackingAutoRecoveryProcessGate {
 		}
 	}
 
-	fun releaseAfterFreshStartupReady(confirmedForceStop: Boolean): Boolean {
+	fun releaseForReadyGeneration(confirmedForceStop: Boolean): Boolean {
 		if (!confirmedForceStop) return false
 		return synchronized(monitor) {
 			when (state.value) {

@@ -32,6 +32,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Test
 
 class ApplicationStartupRecoveryResolverTest {
@@ -66,6 +69,10 @@ class DefaultTrackingStartupGateTest {
 	private val lifecycleAuthority = mockk<TrackingLifecycleCommandAuthority> {
 		every { latestUnhandledStop() } returns null
 		every { latestStopGeneration() } returns 0L
+		coEvery { runWithHandledStopGeneration(any(), any()) } coAnswers {
+			secondArg<suspend () -> Unit>().invoke()
+			true
+		}
 	}
 	private val inactiveStopHandler = mockk<InactiveTrackingSessionStopHandler>()
 	private val sourceRecovery = mockk<SourcePipelineRecovery>()
@@ -468,6 +475,154 @@ class DefaultTrackingStartupGateTest {
 		deletionBarrier.reopen()
 		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
 		coVerify(exactly = 2) { sourceRecovery.recoverStartupAuthority() }
+	}
+
+	@Test
+	fun `deletion after foreground authorization rejects handoff until replacement Ready`() = runTest {
+		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
+		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
+		coEvery { resolver.apply(any(), any()) } just Runs
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
+		var controlInitializations = 0
+		var suppressionReleased = false
+
+		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
+		val foregroundAuthorizedGeneration = gate.currentGeneration
+		deletionBarrier.close()
+		deletionBarrier.reopen()
+
+		gate.withReadyGenerationOperation(foregroundAuthorizedGeneration) {
+			controlInitializations += 1
+			suppressionReleased = true
+			true
+		} shouldBe null
+		controlInitializations shouldBe 0
+		suppressionReleased shouldBe false
+		gate.isReady shouldBe false
+
+		val replacementReady = async { gate.awaitReady() }
+		runCurrent()
+		replacementReady.isCompleted shouldBe false
+		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
+		replacementReady.await() shouldBe TrackingStartupResult.Ready(false, 0L)
+		val replacementGeneration = gate.currentGeneration
+		replacementGeneration shouldBe foregroundAuthorizedGeneration + 1L
+
+		gate.withReadyGenerationOperation(replacementGeneration) {
+			controlInitializations += 1
+			suppressionReleased = true
+			true
+		} shouldBe true
+		controlInitializations shouldBe 1
+		suppressionReleased shouldBe true
+	}
+
+	@Test
+	fun `unhandled STOP after foreground authorization rejects handoff until terminal recovery`() =
+		runTest {
+			val stop = pendingStop()
+			var pending: TrackingStopCommand? = null
+			var stopGeneration = 0L
+			every { lifecycleAuthority.latestUnhandledStop() } answers { pending }
+			every { lifecycleAuthority.latestStopGeneration() } answers { stopGeneration }
+			every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
+			coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
+			coEvery { resolver.apply(any(), any()) } just Runs
+			coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
+			coEvery { inactiveStopHandler.finalizeStoredSession(stop) } coAnswers {
+				pending = null
+				InactiveTrackingSessionStopOutcome.FINALIZED
+			}
+			var controlInitializations = 0
+			var suppressionReleased = false
+
+			gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
+			val foregroundAuthorizedGeneration = gate.currentGeneration
+			stopGeneration = stop.generation
+			pending = stop
+
+			gate.withReadyGenerationOperation(foregroundAuthorizedGeneration) {
+				controlInitializations += 1
+				suppressionReleased = true
+				true
+			} shouldBe null
+			controlInitializations shouldBe 0
+			suppressionReleased shouldBe false
+			gate.isReady shouldBe false
+
+			val replacementReady = async { gate.awaitReady() }
+			runCurrent()
+			replacementReady.isCompleted shouldBe false
+			gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
+			replacementReady.await() shouldBe TrackingStartupResult.Ready(false, 0L)
+
+			gate.withReadyGenerationOperation(foregroundAuthorizedGeneration) {
+				controlInitializations += 1
+				suppressionReleased = true
+				true
+			} shouldBe true
+			controlInitializations shouldBe 1
+			suppressionReleased shouldBe true
+			coVerify(exactly = 1) { inactiveStopHandler.finalizeStoredSession(stop) }
+		}
+
+	@Test
+	fun `STOP reservation is ordered after an admitted foreground handoff`() = runTest {
+		val commandGate = Mutex()
+		val stop = pendingStop()
+		var stopGeneration = 0L
+		var pending: TrackingStopCommand? = null
+		val events = mutableListOf<String>()
+		val handoffEntered = CompletableDeferred<Unit>()
+		val allowHandoff = CompletableDeferred<Unit>()
+		every { lifecycleAuthority.latestStopGeneration() } answers { stopGeneration }
+		every { lifecycleAuthority.latestUnhandledStop() } answers { pending }
+		coEvery { lifecycleAuthority.runWithHandledStopGeneration(any(), any()) } coAnswers {
+			val expectedGeneration = firstArg<Long>()
+			val operation = secondArg<suspend () -> Unit>()
+			commandGate.withLock {
+				if (stopGeneration != expectedGeneration || pending != null) {
+					false
+				} else {
+					operation()
+					true
+				}
+			}
+		}
+		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
+		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
+		coEvery { resolver.apply(any(), any()) } just Runs
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
+
+		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
+		val generation = gate.currentGeneration
+		val handoff = async(Dispatchers.Default) {
+			gate.withReadyGenerationOperation(generation) {
+				events += "HANDOFF_ENTERED"
+				handoffEntered.complete(Unit)
+				allowHandoff.await()
+				events += "CONTROL_INITIALIZED_AND_RELEASED"
+				true
+			}
+		}
+		handoffEntered.await()
+		val stopReservation = async(Dispatchers.Default) {
+			commandGate.withLock {
+				stopGeneration = stop.generation
+				pending = stop
+				events += "STOP_RESERVED"
+			}
+		}
+		withTimeoutOrNull(100L) { stopReservation.await() } shouldBe null
+
+		allowHandoff.complete(Unit)
+		handoff.await() shouldBe true
+		stopReservation.await()
+		events shouldBe listOf(
+			"HANDOFF_ENTERED",
+			"CONTROL_INITIALIZED_AND_RELEASED",
+			"STOP_RESERVED",
+		)
 	}
 
 	@Test

@@ -299,6 +299,36 @@ class SharedPreferencesTrackingLifecycleCommandAuthorityTest {
 		}
 
 	@Test
+	fun `STOP reservation waits until handled-generation handoff is complete`(): Unit = runBlocking {
+		val authority = SharedPreferencesTrackingLifecycleCommandAuthority(context, Dispatchers.IO)
+		val events = mutableListOf<String>()
+		val handoffEntered = CompletableDeferred<Unit>()
+		val releaseHandoff = CompletableDeferred<Unit>()
+		val handoff = async(Dispatchers.Default) {
+			authority.runWithHandledStopGeneration(expectedStopGeneration = 0L) {
+				events += "HANDOFF_ENTERED"
+				handoffEntered.complete(Unit)
+				releaseHandoff.await()
+				events += "HANDOFF_COMPLETE"
+			}
+		}
+		handoffEntered.await()
+
+		val stopReservation = async(Dispatchers.Default) {
+			authority.reserveStop(
+				TrackingStopCandidateReason.EXPLICIT_REQUEST,
+				2_000L,
+			).also { events += "STOP_RESERVED" }
+		}
+		withTimeoutOrNull(100L) { stopReservation.await() } shouldBe null
+
+		releaseHandoff.complete(Unit)
+		handoff.await() shouldBe true
+		requireNotNull(stopReservation.await())
+		events shouldBe listOf("HANDOFF_ENTERED", "HANDOFF_COMPLETE", "STOP_RESERVED")
+	}
+
+	@Test
 	fun `timed out guarded start waiter never executes after the owner releases`(): Unit = runBlocking {
 		val dispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
 		try {

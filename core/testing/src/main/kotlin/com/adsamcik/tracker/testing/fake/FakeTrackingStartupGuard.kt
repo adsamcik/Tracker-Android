@@ -36,7 +36,7 @@ class FakeTrackingStartupGuard(
 		return TrackingAutoRecoveryAuthorization.EXPLICIT_FOREGROUND_AFTER_FORCE_STOP
 	}
 
-	override fun releaseAutoRecoveryAfterFreshStartupReady(context: Context): Boolean {
+	override fun releaseAutoRecoveryForReadyGeneration(context: Context): Boolean {
 		if (explicitForegroundReleased) return true
 		if (!forceStopped || !explicitForegroundAuthorized) return false
 		explicitForegroundReleased = true
