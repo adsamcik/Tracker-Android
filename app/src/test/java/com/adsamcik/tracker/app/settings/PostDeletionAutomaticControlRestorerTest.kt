@@ -19,6 +19,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkObject
+import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
@@ -227,6 +228,32 @@ class PostDeletionAutomaticControlRestorerTest {
 	}
 
 	@Test
+	fun `Activity latch reopening failure retains durable retry ownership`() = runTest {
+		val operations = mutableListOf<String>()
+
+		runPostDeletionRecovery(
+			expectedEpoch = 8L,
+			currentEpoch = { 8L },
+			startupGeneration = 2L,
+			currentStartupGeneration = { 2L },
+			isDeletionClosed = { false },
+			isStartupReady = { true },
+			reconcileStartup = { TrackingStartupResult.Ready(false, 0L) },
+			resumeWriters = { operations += "writers" },
+			resumeActivityArbiter = {
+				operations += "arbiter"
+				error("transient Activity provider failure")
+			},
+			reconcileAutomaticControl = {
+				operations += "control"
+				AutomaticControlRecoveryResult.ACCEPTED
+			},
+		) shouldBe PostDeletionRecoveryOutcome.DURABLE_RETRY
+
+		operations shouldBe listOf("writers", "arbiter")
+	}
+
+	@Test
 	fun `optional retry repeats the idempotent essential handoff before control`() = runTest {
 		val operations = mutableListOf<String>()
 
@@ -355,6 +382,47 @@ class PostDeletionAutomaticControlRestorerTest {
 		} finally {
 			unmockkObject(BackgroundTrackingApi)
 		}
+	}
+
+	@Test
+	fun `worker keeps retrying when Activity deletion latches cannot reopen`() = runTest {
+		val context = mockk<Context>(relaxed = true)
+		val lifecycleStore = mockk<CollectedDataLifecycleStore>()
+		coEvery { lifecycleStore.snapshot() } returns
+			CollectedDataLifecycleSnapshot(epoch = 8L, retainedFromMs = null)
+		val startupGate = mockk<TrackingStartupGate>()
+		every { startupGate.currentGeneration } returns 2L
+		every { startupGate.isReady } returns true
+		coEvery { startupGate.reconcile() } returns TrackingStartupResult.Ready(false, 0L)
+		coEvery {
+			startupGate.withReadyGenerationOperation<AutomaticControlRecoveryResult?>(
+				2L,
+				any(),
+			)
+		} coAnswers { secondArg<suspend () -> AutomaticControlRecoveryResult?>().invoke() }
+		val writerQuiescer = mockk<CollectedDataWriterQuiescer>(relaxed = true)
+		val arbiter = mockk<ActivityRegistrationArbiter>()
+		coEvery { arbiter.resumeAfterCollectedDataDeletion() } throws
+			IllegalStateException("transient Activity provider failure")
+		val worker = PostDeletionRecoveryWorker(
+			appContext = context,
+			params = mockk<WorkerParameters>(relaxed = true) {
+				every { inputData } returns workDataOf(
+					PostDeletionRecoveryWorker.COLLECTED_DATA_EPOCH_KEY to 8L,
+				)
+				every { runAttemptCount } returns 2
+			},
+			startupGate = startupGate,
+			deletionBarrier = mockk<TrackingStartupDeletionBarrier> {
+				every { isClosed } returns false
+			},
+			lifecycleStore = lifecycleStore,
+			writerQuiescer = writerQuiescer,
+			activityRegistrationArbiterProvider = Provider { arbiter },
+		)
+
+		worker.doWork() shouldBe ListenableWorker.Result.retry()
+		verify(exactly = 1) { writerQuiescer.resume() }
 	}
 }
 

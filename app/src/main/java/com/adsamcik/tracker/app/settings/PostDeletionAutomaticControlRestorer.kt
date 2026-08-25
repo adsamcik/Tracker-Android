@@ -29,8 +29,8 @@ import kotlin.coroutines.cancellation.CancellationException
  * Durable retry owner for reopening collected-data writers and automatic Activity control.
  *
  * Scheduling is safe while the process deletion barrier is still closed. WorkManager retains the
- * essential writer-reopening obligation across process death, while optional automatic control has
- * a bounded retry budget for each collected-data epoch.
+ * essential writer and Activity-capture-latch reopening obligations across process death, while
+ * optional automatic control has a bounded retry budget for each collected-data epoch.
  */
 @Singleton
 class PostDeletionAutomaticControlRestorer @Inject constructor(
@@ -116,9 +116,9 @@ class PostDeletionRecoveryWorker @AssistedInject constructor(
 
 internal enum class PostDeletionRecoveryOutcome {
 	COMPLETE,
-	/** Storage, startup, and writer reopening retain retry ownership until terminal. */
+	/** Storage, startup, writer, and Activity-capture-latch reopening retain retry ownership. */
 	DURABLE_RETRY,
-	/** Automatic control is an optional enhancement with a battery-bounded retry budget. */
+	/** Activity provider/control reconciliation is optional and has a battery-bounded retry budget. */
 	OPTIONAL_CONTROL_RETRY,
 }
 
@@ -171,22 +171,30 @@ internal suspend fun runPostDeletionRecovery(
 	// durable receipt proving which process-local callback completed. The writer owner uses unique
 	// work/update scheduling and consumes its restore flags on the first resume; the Activity arbiter
 	// mutex reconciles the same durable desired state without replacing an identical registration.
-	val controlRecovery = withReadyGenerationOperation(startupGeneration) {
-		if (currentEpoch() != expectedEpoch || isDeletionClosed() ||
-			!isStartupReady() || currentStartupGeneration() != startupGeneration
-		) {
-			null
-		} else {
-			resumeWriters()
-			resumeActivityArbiter()
-			try {
-				reconcileAutomaticControl()
-			} catch (cancelled: CancellationException) {
-				throw cancelled
-			} catch (_: Exception) {
-				AutomaticControlRecoveryResult.RETRYABLE
+	val controlRecovery = try {
+		withReadyGenerationOperation(startupGeneration) {
+			if (currentEpoch() != expectedEpoch || isDeletionClosed() ||
+				!isStartupReady() || currentStartupGeneration() != startupGeneration
+			) {
+				null
+			} else {
+				resumeWriters()
+				// This reopens process-local deletion latches used by captured Activity as well as
+				// optional automatic control. Failure therefore retains durable retry ownership.
+				resumeActivityArbiter()
+				try {
+					reconcileAutomaticControl()
+				} catch (cancelled: CancellationException) {
+					throw cancelled
+				} catch (_: Exception) {
+					AutomaticControlRecoveryResult.RETRYABLE
+				}
 			}
 		}
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (_: Exception) {
+		return PostDeletionRecoveryOutcome.DURABLE_RETRY
 	} ?: return PostDeletionRecoveryOutcome.DURABLE_RETRY
 
 	// Deletion closure waits for the protected handoff above; if it wins after the handoff it owns
