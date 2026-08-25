@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.TrackingRolloutStateEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
@@ -159,6 +160,135 @@ class DefaultActivityRegistrationArbiterTest {
 		result.snapshot.active shouldBe false
 		database.sourceBrokerDao().maximumRegistrationGeneration(ACTIVITY_SOURCE_KIND) shouldBe 0L
 		coVerify(exactly = 0) { backend.applyRegistration(any(), any()) }
+	}
+
+	@Test
+	fun `Steps capture rollout admits control-only Activity provider registration`() = runTest {
+		saveStepsCaptureActivityControlRollout()
+		val control = demand(
+			"control",
+			"app:auto",
+			SourceBrokerPurpose.CONTROL_AUTOSTART,
+			null,
+			null,
+			false,
+		)
+		database.sourceBrokerDao().insertDemands(listOf(control))
+
+		val result = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+
+		result.status shouldBe ActivityRegistrationStatus.APPLIED
+		result.snapshot.active shouldBe true
+		val identity = requireNotNull(result.snapshot.identity)
+		val authorization = requireNotNull(
+			database.sourceBrokerDao().latestAuthorization(
+				ACTIVITY_SOURCE_KIND,
+				identity.registrationGeneration,
+			).toAuthorizationSnapshotOrNull(),
+		)
+		authorization.purposeEligibilityMask shouldBe SourceBrokerPurpose.MASK_CONTROL_AUTOSTART
+		authorization.authorizedMembers.map { it.demandId } shouldBe listOf(control.demandId)
+		coVerify(exactly = 1) { backend.applyRegistration(any(), any()) }
+	}
+
+	@Test
+	fun `control-only Activity rollout rejects Activity capture demand`() = runTest {
+		saveStepsCaptureActivityControlRollout()
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 3L, true)),
+		)
+
+		val result = subject.setDemand(
+			ActivityRegistrationOwner.ACTIVE_SESSION,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5, planRevision = 11L),
+		)
+
+		result.status shouldBe ActivityRegistrationStatus.BLOCKED
+		result.snapshot.active shouldBe false
+		database.sourceBrokerDao().maximumRegistrationGeneration(ACTIVITY_SOURCE_KIND) shouldBe 0L
+		coVerify(exactly = 0) { backend.applyRegistration(any(), any()) }
+	}
+
+	@Test
+	fun `malformed control owner with an event product stage fails closed`() = runTest {
+		database.trackingRolloutStateDao().save(
+			eventRollout(
+				owners = (1..6).associateWith { sourceKind ->
+					when (sourceKind) {
+						ACTIVITY_SOURCE_KIND -> "CONTROL"
+						STEPS_SOURCE_KIND -> "EVENT"
+						else -> "CONTAINED"
+					}
+				},
+				stages = (1..6).associateWith { sourceKind ->
+					if (sourceKind == ACTIVITY_SOURCE_KIND || sourceKind == STEPS_SOURCE_KIND) {
+						"EVENT_SHADOW"
+					} else {
+						"LEGACY_CANONICAL"
+					}
+				},
+				revision = 2L,
+			),
+		)
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
+		)
+
+		val result = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+
+		result.status shouldBe ActivityRegistrationStatus.BLOCKED
+		result.snapshot.active shouldBe false
+		database.sourceBrokerDao().maximumRegistrationGeneration(ACTIVITY_SOURCE_KIND) shouldBe 0L
+		coVerify(exactly = 0) { backend.applyRegistration(any(), any()) }
+	}
+
+	@Test
+	fun `unbacked event rollout cannot authorize Activity control or capture`() = runTest {
+		database.sourceProjectionStateDao().deleteAllProductLanes()
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
+		)
+
+		val result = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+
+		result.status shouldBe ActivityRegistrationStatus.BLOCKED
+		result.snapshot.active shouldBe false
+		database.sourceBrokerDao().maximumRegistrationGeneration(ACTIVITY_SOURCE_KIND) shouldBe 0L
+		coVerify(exactly = 0) { backend.applyRegistration(any(), any()) }
+	}
+
+	@Test
+	fun `removing the product lane retires an already active Activity provider`() = runTest {
+		val control = demand(
+			"control",
+			"app:auto",
+			SourceBrokerPurpose.CONTROL_AUTOSTART,
+			null,
+			null,
+			false,
+		)
+		database.sourceBrokerDao().insertDemands(listOf(control))
+		val applied = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+		val identity = requireNotNull(applied.snapshot.identity)
+
+		database.sourceProjectionStateDao().deleteAllProductLanes()
+		val reconciled = subject.reconcileDurableDemands()
+
+		reconciled.status shouldBe ActivityRegistrationStatus.BLOCKED
+		reconciled.snapshot.active shouldBe false
+		removedIdentities shouldBe listOf(identity)
 	}
 
 	@Test
@@ -946,6 +1076,23 @@ class DefaultActivityRegistrationArbiterTest {
 
 	private suspend fun seedAcquisitionAuthority() {
 		database.trackingRolloutStateDao().save(eventRollout())
+		(1..6).forEach { sourceKind ->
+			database.sourceProjectionStateDao().installProductLane(
+				SourceProductProjectionLaneEntity(
+					sourceKind = sourceKind,
+					projectionId = "activity-arbiter-test-product-$sourceKind",
+					projectionVersion = 1,
+					productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+					activatedRolloutRevision = 1L,
+					activationOrdinal = 1L,
+					contiguousAdmissionOrdinal = 0L,
+					retentionRequired = true,
+					status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+					installedAtMs = 1L,
+					updatedAtMs = 1L,
+				),
+			)
+		}
 		database.sourcePolicyDao().ensureAuthority(
 			SourcePolicyAuthorityEntity(
 				bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
@@ -984,6 +1131,28 @@ class DefaultActivityRegistrationArbiterTest {
 			eventRollout(
 				owners = (1..6).associateWith { "CONTAINED" },
 				stages = (1..6).associateWith { "LEGACY_CANONICAL" },
+				revision = 2L,
+			),
+		)
+	}
+
+	private suspend fun saveStepsCaptureActivityControlRollout() {
+		database.trackingRolloutStateDao().save(
+			eventRollout(
+				owners = (1..6).associateWith { sourceKind ->
+					when (sourceKind) {
+						ACTIVITY_SOURCE_KIND -> "CONTROL"
+						STEPS_SOURCE_KIND -> "EVENT"
+						else -> "CONTAINED"
+					}
+				},
+				stages = (1..6).associateWith { sourceKind ->
+					if (sourceKind == STEPS_SOURCE_KIND) {
+						"EVENT_SHADOW"
+					} else {
+						"LEGACY_CANONICAL"
+					}
+				},
 				revision = 2L,
 			),
 		)
@@ -1039,6 +1208,7 @@ class DefaultActivityRegistrationArbiterTest {
 
 	private companion object {
 		const val ACTIVITY_SOURCE_KIND = 2
+		const val STEPS_SOURCE_KIND = 3
 		const val OWNER_SCOPE = "source-broker:2"
 	}
 }

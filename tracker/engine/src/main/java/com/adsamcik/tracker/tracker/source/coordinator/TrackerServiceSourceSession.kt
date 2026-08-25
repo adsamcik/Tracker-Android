@@ -24,22 +24,29 @@ import kotlinx.coroutines.sync.withLock
 /** Immutable source ownership selected once for an Android service run. */
 data class TrackingSessionOwnership(
 	val rollout: TrackingRolloutState,
+	val configuredSources: Set<SourceKind>,
 	val enabledEventSources: Set<SourceKind>,
+	val containedSources: Set<SourceKind>,
 ) {
 	val eventCoordinatorRequired: Boolean get() = enabledEventSources.isNotEmpty()
+	val isPartiallyAccepted: Boolean get() =
+		enabledEventSources.isNotEmpty() && containedSources.isNotEmpty()
 
 	companion object {
 		fun resolve(rollout: TrackingRolloutState, settings: TrackingParamsState): TrackingSessionOwnership {
-			val enabled = settings.enabledSemanticSources()
-			require(rollout.coordinatorMode == CoordinatorMode.EVENT) {
-				"Source-native acquisition requires the event coordinator"
+			require(rollout.sourceOwners.values.none { it == SourceOwner.LEGACY }) {
+				"Legacy source ownership is retired"
 			}
-			require(enabled.all { source -> rollout.sourceOwners[source] == SourceOwner.EVENT }) {
-				"Every enabled source must have source-native acquisition ownership"
+			val configured = settings.enabledSemanticSources()
+			val reachable = configured.filterTo(linkedSetOf(), rollout::isAcquisitionReachable)
+			require(reachable.isEmpty() || rollout.coordinatorMode == CoordinatorMode.EVENT) {
+				"Source-native acquisition requires the event coordinator"
 			}
 			return TrackingSessionOwnership(
 				rollout = rollout,
-				enabledEventSources = enabled,
+				configuredSources = configured,
+				enabledEventSources = reachable,
+				containedSources = configured - reachable,
 			)
 		}
 	}
@@ -231,12 +238,12 @@ class TrackerServiceSourceSession @Inject constructor(
 		)
 		active = session
 		if (!ownership.eventCoordinatorRequired) {
-			settingsStatusProvider.publishActivePreview(
-				planInputs.settings,
-				request.rollout,
-				planInputs,
+			settingsStatusProvider.publishFailure(ZERO_REACHABLE_CAPTURE_SOURCES)
+			active = null
+			settingsStatusProvider.publishInactive()
+			return@withLock SourceSessionStartOutcome.Rejected(
+				SessionStartResult.InvalidIntent(ZERO_REACHABLE_CAPTURE_SOURCES),
 			)
-			return@withLock SourceSessionStartOutcome.NotRequired
 		}
 		check(request.rollout.coordinatorMode == CoordinatorMode.EVENT) {
 			"Event-owned sources require event coordinator mode"
@@ -441,9 +448,7 @@ class TrackerServiceSourceSession @Inject constructor(
 		val revision = (database.sourcePlanStateDao().latestRevision()?.revision ?: 0L) + 1L
 		val desired = planFactory.create(inputs.settings, revision, Time.nowMillis, inputs.environment)
 		val captureDemands = desired.plans
-			.filter { (source, plan) ->
-				plan.enabled && rollout.sourceOwners.getValue(source) == SourceOwner.EVENT
-			}
+			.filter { (source, plan) -> plan.enabled && rollout.isAcquisitionReachable(source) }
 			.map { (source, plan) ->
 				plan.directCaptureDemand(inputs.settings.captureQosCode(source))
 			}
@@ -454,9 +459,7 @@ class TrackerServiceSourceSession @Inject constructor(
 		)
 		settingsStatusProvider.publishResolved(inputs.settings, rollout, resolved)
 		telemetry.recordPlanRevision()
-		val eventPlans = resolved.applicablePlans.filterKeys { source ->
-			rollout.sourceOwners.getValue(source) == SourceOwner.EVENT
-		}
+		val eventPlans = resolved.applicablePlans.filterKeys(rollout::isAcquisitionReachable)
 		if (requireEnabled) {
 			check(eventPlans.values.any { plan -> plan.enabled }) {
 				"Event session requires an enabled event-owned source"
@@ -485,6 +488,7 @@ class TrackerServiceSourceSession @Inject constructor(
 }
 
 private const val STARTUP_RECOVERY_NOT_READY = "STARTUP_RECOVERY_NOT_READY"
+private const val ZERO_REACHABLE_CAPTURE_SOURCES = "ZERO_REACHABLE_CAPTURE_SOURCES"
 
 private fun controlDependencies(
 	origin: SessionStartOrigin,

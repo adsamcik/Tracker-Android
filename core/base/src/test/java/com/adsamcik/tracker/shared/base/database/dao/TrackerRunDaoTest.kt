@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.TrackerRun
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -79,6 +80,42 @@ class TrackerRunDaoTest {
 		val retained = dao.getOverlapping(fromMs = 0L, toMs = 2_000L).single()
 		retained.endTimeMs shouldBe null
 		retained.legacyRuntimeFenced shouldBe true
+		dao.getOverlapping(fromMs = 101L, toMs = 2_000L) shouldBe emptyList()
+		dao.getAllBetween(fromMs = 0L, toMs = 100L) shouldBe emptyList()
+		dao.getAllBetweenFlow(fromMs = 0L, toMs = 100L).first() shouldBe emptyList()
+		dao.getAllBetween(fromMs = 0L, toMs = 101L).single().legacyRuntimeFenced shouldBe true
+		dao.getAllBetweenFlow(fromMs = 0L, toMs = 101L).first()
+			.single().legacyRuntimeFenced shouldBe true
+
+		val throughId = dao.maxId()
+		dao.getOverlappingChunk(
+			fromMs = 0L,
+			toMsExclusive = 2_000L,
+			afterId = 0L,
+			throughId = throughId,
+			limit = 10,
+		).single().legacyRuntimeFenced shouldBe true
+		dao.getOverlappingChunk(
+			fromMs = 101L,
+			toMsExclusive = 2_000L,
+			afterId = 0L,
+			throughId = throughId,
+			limit = 10,
+		) shouldBe emptyList()
+	}
+
+	@Test
+	fun `live null end remains open for a window after its known start`() = runTest {
+		dao.insert(run(startTimeMs = 100L, endTimeMs = null))
+
+		dao.getOverlapping(fromMs = 101L, toMs = 2_000L).single().legacyRuntimeFenced shouldBe false
+		dao.getOverlappingChunk(
+			fromMs = 101L,
+			toMsExclusive = 2_000L,
+			afterId = 0L,
+			throughId = dao.maxId(),
+			limit = 10,
+		).single().legacyRuntimeFenced shouldBe false
 	}
 
 	private fun run(

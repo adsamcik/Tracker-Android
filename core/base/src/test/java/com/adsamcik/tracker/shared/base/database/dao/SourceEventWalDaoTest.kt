@@ -5,6 +5,7 @@ import android.database.sqlite.SQLiteConstraintException
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.liveSourceProjectionActivationOrdinal
 import com.adsamcik.tracker.shared.base.database.pruneSourceEventStorageBefore
 import com.adsamcik.tracker.shared.base.database.data.LocationProjectionObservationEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationProjectionPointEntity
@@ -15,6 +16,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProjectionCheckpoint
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionJoinStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionRegistrationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.database.data.TrackingRolloutStateEntity
 import io.kotest.matchers.shouldBe
@@ -80,6 +82,88 @@ class SourceEventWalDaoTest {
 		dao.saveCheckpoint(SourceProjectionCheckpointEntity("session", 1, 7, 1, 100))
 
 		dao.minimumRequiredCheckpoint() shouldBe 7L
+	}
+
+	@Test
+	fun `new source lane activates after pruned wal autoincrement high water`() = runTest {
+		val projection = database.sourceProjectionStateDao()
+		projection.register(SourceProjectionRegistrationEntity("existing", 2, 1, true, "ACTIVE", 0))
+		projection.saveCheckpoint(SourceProjectionCheckpointEntity("existing", 2, 3, 1, 100))
+		val wal = database.sourceEventWalDao()
+		(1L..3L).forEach { ordinal ->
+			wal.insertIgnoringDuplicate(event("old-$ordinal", ordinal).copy(createdAtMs = 10)) shouldBe ordinal
+		}
+		database.pruneSourceEventStorageBefore(createdBeforeMs = 100).walEventsDeleted shouldBe 3
+		wal.countAll() shouldBe 0L
+
+		database.liveSourceProjectionActivationOrdinal() shouldBe 4L
+	}
+
+	@Test
+	fun `global activity progress cannot release steps wal while source lane cursor lags`() = runTest {
+		val projection = database.sourceProjectionStateDao()
+		projection.register(
+			SourceProjectionRegistrationEntity(
+				projectionId = "activity-global",
+				projectionVersion = 2,
+				activationOrdinal = 1,
+				retentionRequired = true,
+				status = "ACTIVE",
+				createdAtMs = 0,
+			),
+		)
+		projection.saveCheckpoint(
+			SourceProjectionCheckpointEntity(
+				projectionId = "activity-global",
+				projectionVersion = 2,
+				contiguousAdmissionOrdinal = 3,
+				stateVersion = 1,
+				updatedAtMs = 100,
+			),
+		)
+		projection.installProductLane(
+			SourceProductProjectionLaneEntity(
+				sourceKind = 3,
+				projectionId = "steps-interval",
+				projectionVersion = 1,
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+				activatedRolloutRevision = 3,
+				activationOrdinal = 1,
+				contiguousAdmissionOrdinal = 0,
+				retentionRequired = true,
+				status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+				installedAtMs = 0,
+				updatedAtMs = 0,
+			),
+		)
+		val wal = database.sourceEventWalDao()
+		wal.insertIgnoringDuplicate(event("steps-1", 1).copy(sourceKind = 3, createdAtMs = 10)) shouldBe 1L
+		wal.insertIgnoringDuplicate(event("activity-2", 2).copy(sourceKind = 2, createdAtMs = 10)) shouldBe 2L
+		wal.insertIgnoringDuplicate(event("activity-3", 3).copy(sourceKind = 2, createdAtMs = 10)) shouldBe 3L
+
+		database.pruneSourceEventStorageBefore(createdBeforeMs = 100).walEventsDeleted shouldBe 0
+		wal.getByEventId("steps-1")?.eventId shouldBe "steps-1"
+		projection.advanceProductLaneCursor(
+			sourceKind = 3,
+			projectionId = "steps-interval",
+			projectionVersion = 1,
+			expectedCurrentOrdinal = 1,
+			throughOrdinal = 3,
+			updatedAtMs = 150,
+		) shouldBe 0
+		database.pruneSourceEventStorageBefore(createdBeforeMs = 100).walEventsDeleted shouldBe 0
+
+		projection.advanceProductLaneCursor(
+			sourceKind = 3,
+			projectionId = "steps-interval",
+			projectionVersion = 1,
+			expectedCurrentOrdinal = 0,
+			throughOrdinal = 1,
+			updatedAtMs = 200,
+		) shouldBe 1
+		database.pruneSourceEventStorageBefore(createdBeforeMs = 100).walEventsDeleted shouldBe 1
+		wal.getByEventId("steps-1") shouldBe null
+		wal.getByEventId("activity-2")?.eventId shouldBe "activity-2"
 	}
 
 	@Test
@@ -323,6 +407,10 @@ class SourceEventWalDaoTest {
 				"AND delivered_at_ms IS NULL ORDER BY admission_ordinal LIMIT 100",
 		) shouldContain "idx_source_projection_outbox_kind_pending"
 		queryPlan(
+			"SELECT MIN(contiguous_admission_ordinal) FROM source_product_projection_lane " +
+				"WHERE retention_required = 1 AND status = 'ACTIVE'",
+		) shouldContain "idx_source_product_projection_lane_retention"
+		queryPlan(
 			"SELECT * FROM location_projection_observation WHERE logical_tracking_id = 'track' " +
 				"ORDER BY elapsed_realtime_nanos, wall_time_ms, event_id",
 		) shouldContain "idx_location_projection_observation_order"
@@ -452,6 +540,21 @@ class SourceEventWalDaoTest {
 	@Test
 	fun `collected data deletion clears source evidence but preserves rollout configuration`() = runTest {
 		database.sourceEventWalDao().insertIgnoringDuplicate(event("event-a", 1L))
+		database.sourceProjectionStateDao().installProductLane(
+			SourceProductProjectionLaneEntity(
+				sourceKind = 3,
+				projectionId = "steps-interval",
+				projectionVersion = 1,
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+				activatedRolloutRevision = 2,
+				activationOrdinal = 1,
+				contiguousAdmissionOrdinal = 0,
+				retentionRequired = true,
+				status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+				installedAtMs = 100,
+				updatedAtMs = 100,
+			),
+		)
 		database.locationProjectionDao().upsertObservation(
 			LocationProjectionObservationEntity(
 				eventId = "event-a",
@@ -504,6 +607,8 @@ class SourceEventWalDaoTest {
 		database.sourceEventWalDao().countAll() shouldBe 0L
 		database.locationProjectionDao().observations("track") shouldBe emptyList()
 		database.locationProjectionDao().points("track") shouldBe emptyList()
+		database.sourceProjectionStateDao().activeProductLanes() shouldBe emptyList()
+		database.sourceProjectionStateDao().productLaneByProjection("steps-interval", 1) shouldBe null
 		database.trackingRolloutStateDao().get()?.revision shouldBe 2L
 	}
 

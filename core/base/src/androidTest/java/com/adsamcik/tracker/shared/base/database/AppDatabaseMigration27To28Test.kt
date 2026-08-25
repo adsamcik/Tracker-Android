@@ -46,6 +46,7 @@ class AppDatabaseMigration27To28Test {
 		context.deleteDatabase(OUTBOX_BOUNDARY_TEST_DATABASE)
 		context.deleteDatabase(EVENT_FRAME_CHECKPOINT_TEST_DATABASE)
 		context.deleteDatabase(EVENT_FRAME_ACTIVATION_TEST_DATABASE)
+		context.deleteDatabase(PRESERVED_FAILURE_TEST_DATABASE)
 	}
 
 	@After
@@ -57,6 +58,7 @@ class AppDatabaseMigration27To28Test {
 		context.deleteDatabase(OUTBOX_BOUNDARY_TEST_DATABASE)
 		context.deleteDatabase(EVENT_FRAME_CHECKPOINT_TEST_DATABASE)
 		context.deleteDatabase(EVENT_FRAME_ACTIVATION_TEST_DATABASE)
+		context.deleteDatabase(PRESERVED_FAILURE_TEST_DATABASE)
 	}
 
 	@Test
@@ -99,6 +101,46 @@ class AppDatabaseMigration27To28Test {
 				}
 			} finally {
 				database.close()
+			}
+		}
+	}
+
+	@Test
+	fun nonterminalV27FailureEvidenceIsPreservedWhileRuntimeIsFenced() {
+		helper.createDatabase(PRESERVED_FAILURE_TEST_DATABASE, 27).use { database ->
+			PopulatedV27Fixture.seed(database)
+			database.execSQL(
+				"UPDATE logical_tracking_session SET failure_code = '$EXISTING_SESSION_FAILURE' " +
+					"WHERE logical_tracking_id = '${PopulatedV27Fixture.LOGICAL_TRACKING_ID}'",
+			)
+			database.execSQL(
+				"UPDATE source_service_run SET completion_reason = '$EXISTING_COMPLETION_REASON' " +
+					"WHERE service_run_id = '${PopulatedV27Fixture.SERVICE_RUN_ID}'",
+			)
+		}
+
+		helper.runMigrationsAndValidate(
+			PRESERVED_FAILURE_TEST_DATABASE,
+			28,
+			true,
+			MIGRATION_27_28,
+		).use { database ->
+			database.query(
+				"SELECT state, failure_code FROM logical_tracking_session " +
+					"WHERE logical_tracking_id = '${PopulatedV27Fixture.LOGICAL_TRACKING_ID}'",
+			).use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals("FINALIZED", cursor.getString(0))
+				assertEquals(EXISTING_SESSION_FAILURE, cursor.getString(1))
+			}
+			database.query(
+				"SELECT state, completion_reason, runtime_failure_code FROM source_service_run " +
+					"WHERE service_run_id = '${PopulatedV27Fixture.SERVICE_RUN_ID}'",
+			).use { cursor ->
+				assertTrue(cursor.moveToFirst())
+				assertEquals("FINALIZED", cursor.getString(0))
+				assertEquals(EXISTING_COMPLETION_REASON, cursor.getString(1))
+				assertEquals(V28_MIGRATION_INTERRUPTION_REASON, cursor.getString(2))
 			}
 		}
 	}
@@ -465,6 +507,7 @@ class AppDatabaseMigration27To28Test {
 		assertTableCount(database, "source_registration_state", 1)
 		assertTableCount(database, "source_runtime_state", 1)
 		assertTableCount(database, "source_event_wal", 1)
+		assertTableCount(database, "source_product_projection_lane", 0)
 		assertTableCount(database, "source_projection_registration", 1)
 		assertTableCount(database, "source_projection_checkpoint", 1)
 		assertTableCount(database, "source_projection_outbox", 1)
@@ -733,6 +776,7 @@ class AppDatabaseMigration27To28Test {
 		)
 		assertNull(database.dailySummaryDao().getByDay(PopulatedV27Fixture.DAY_EPOCH))
 		assertEquals(0L, database.sourceEventWalDao().countAll())
+		assertTrue(database.sourceProjectionStateDao().activeProductLanes().isEmpty())
 		assertNull(database.legacyV27ProjectionDrainDao().get())
 		assertTrue(database.legacyV27ProjectionDrainDao().targets().isEmpty())
 		assertEquals(0, database.pendingSignalDao().countAll())
@@ -777,5 +821,8 @@ class AppDatabaseMigration27To28Test {
 		const val OUTBOX_BOUNDARY_TEST_DATABASE = "migration-27-28-outbox-boundary"
 		const val EVENT_FRAME_CHECKPOINT_TEST_DATABASE = "migration-27-28-event-frame-checkpoint"
 		const val EVENT_FRAME_ACTIVATION_TEST_DATABASE = "migration-27-28-event-frame-activation"
+		const val PRESERVED_FAILURE_TEST_DATABASE = "migration-27-28-preserved-failure"
+		const val EXISTING_SESSION_FAILURE = "V27_PROVIDER_REJECTED"
+		const val EXISTING_COMPLETION_REASON = "V27_RUNTIME_STOP_REQUESTED"
 	}
 }

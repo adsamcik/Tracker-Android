@@ -10,6 +10,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
+import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
+import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionSettings
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePurpose
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
@@ -45,10 +47,7 @@ class SourceBrokerTest {
 		database = AppDatabase.testDatabase(context)
 		subject = SourceBroker(database)
 		runBlocking {
-			RoomTrackingRolloutStateStore(database).save(
-				TrackingRolloutState.eventShadow(SourceKind.entries.toSet()),
-				updatedAtMs = 1L,
-			)
+			activateAllBrokerTestProductLanes(database)
 		}
 	}
 
@@ -111,6 +110,62 @@ class SourceBrokerTest {
 	}
 
 	@Test
+	fun `Steps capture rollout admits Activity control without admitting Activity capture`() = runTest {
+		val rollout = TrackingRolloutState.eventShadow(
+			sources = setOf(SourceKind.STEPS),
+			revision = 7L,
+			controlSources = setOf(SourceKind.ACTIVITY),
+		)
+		RoomTrackingRolloutStateStore(database).save(rollout, updatedAtMs = 7L)
+		val policy = RoomSourcePolicyRepository(database) {
+			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
+		}
+		val initial = policy.bootstrapFromLegacy(
+			TrackingParamsState(
+				locationEnabled = false,
+				activityEnabled = false,
+				stepsEnabled = true,
+				barometerEnabled = false,
+				sourceCollectionSettings = SourceCollectionSettings(
+					location = SourceCollectionFrequency.OFF,
+					activity = SourceCollectionFrequency.OFF,
+					steps = SourceCollectionFrequency.BALANCED,
+					pressure = SourceCollectionFrequency.OFF,
+					wifi = SourceCollectionFrequency.OFF,
+					cell = SourceCollectionFrequency.OFF,
+				),
+				legacySettingsMigrationCompleted = true,
+			),
+		)
+		policy.setNonCaptureConsent(
+			expectedPolicyRevision = initial.revision,
+			source = TrackingSourceComponent.ACTIVITY,
+			purpose = SourcePurpose.CONTROL,
+			eligible = true,
+			persistenceEligible = false,
+			reason = "TEST_STEPS_ACTIVITY_CONTROL_GRANT",
+		)
+
+		val demand = requireNotNull(subject.replaceAutomaticControlDemand(
+			consumerId = "app:automation:activity",
+			source = SourceKind.ACTIVITY,
+			enabled = true,
+			bootId = "boot-1",
+			elapsedRealtimeNanos = 100L,
+			wallTimeMs = 100L,
+			maximumAgeMs = 30_000L,
+			desiredLatencyMs = 5_000L,
+		))
+
+		rollout.isAcquisitionReachable(SourceKind.STEPS) shouldBe true
+		rollout.isControlAcquisitionReachable(SourceKind.ACTIVITY) shouldBe true
+		rollout.isAcquisitionReachable(SourceKind.ACTIVITY) shouldBe false
+		demand.purpose shouldBe SourceBrokerPurpose.CONTROL_AUTOSTART
+		demand.persistenceEligible shouldBe false
+		database.sourceBrokerDao().currentDemands("app:automation:activity") shouldBe listOf(demand)
+	}
+
+	@Test
 	fun `contained rollout retires stale automatic control and authorizes no replacement`() = runTest {
 		val policy = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
@@ -137,8 +192,8 @@ class SourceBrokerTest {
 			desiredLatencyMs = 5_000L,
 		))
 		RoomTrackingRolloutStateStore(database).save(
-			TrackingRolloutState.contained(revision = 2L),
-			updatedAtMs = 2L,
+			TrackingRolloutState.contained(revision = 7L),
+			updatedAtMs = 7L,
 		)
 
 		subject.replaceAutomaticControlDemand(
@@ -531,4 +586,18 @@ class SourceBrokerTest {
 		persistenceEligible = persistenceEligible,
 		qosCode = 2,
 	)
+}
+
+private suspend fun activateAllBrokerTestProductLanes(database: AppDatabase) {
+	val store = RoomTrackingRolloutStateStore(database)
+	SourceKind.entries.forEachIndexed { index, source ->
+		val revision = index + 1L
+		store.installAndActivateShadowLane(
+			source = source,
+			projectionId = "broker-test-${source.name.lowercase()}-product",
+			projectionVersion = 1,
+			rolloutRevision = revision,
+			updatedAtMs = revision,
+		)
+	}
 }

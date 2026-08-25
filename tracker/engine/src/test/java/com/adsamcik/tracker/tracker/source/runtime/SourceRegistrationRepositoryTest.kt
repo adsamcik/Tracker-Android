@@ -40,10 +40,7 @@ class SourceRegistrationRepositoryTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 		runBlocking {
-			RoomTrackingRolloutStateStore(database).save(
-				TrackingRolloutState.eventShadow(SourceKind.entries.toSet()),
-				updatedAtMs = 1L,
-			)
+			activateAllSourceProductLanes(database)
 		}
 		processIncarnationIdProvider = ProcessIncarnationIdProvider()
 		subject = SourceRegistrationRepository(
@@ -72,8 +69,8 @@ class SourceRegistrationRepositoryTest {
 			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
 		)
 		RoomTrackingRolloutStateStore(database).save(
-			TrackingRolloutState.contained(revision = 2L),
-			updatedAtMs = 2L,
+			TrackingRolloutState.contained(revision = 7L),
+			updatedAtMs = 7L,
 		)
 
 		shouldThrow<IllegalArgumentException> {
@@ -89,8 +86,8 @@ class SourceRegistrationRepositoryTest {
 		)
 		val reservation = subject.begin(SourceKind.STEPS, 1L, PHYSICAL_CONFIG, 100L, 100L)
 		RoomTrackingRolloutStateStore(database).save(
-			TrackingRolloutState.contained(revision = 2L),
-			updatedAtMs = 2L,
+			TrackingRolloutState.contained(revision = 7L),
+			updatedAtMs = 7L,
 		)
 
 		shouldThrow<IllegalArgumentException> {
@@ -631,6 +628,20 @@ class SourceRegistrationRepositoryTest {
 
 	private companion object {
 		const val PHYSICAL_CONFIG = "physical-config-v1"
+	}
+}
+
+private suspend fun activateAllSourceProductLanes(database: AppDatabase) {
+	val store = RoomTrackingRolloutStateStore(database)
+	SourceKind.entries.forEachIndexed { index, source ->
+		val revision = index + 1L
+		store.installAndActivateShadowLane(
+			source = source,
+			projectionId = "test-${source.name.lowercase()}-product",
+			projectionVersion = 1,
+			rolloutRevision = revision,
+			updatedAtMs = revision,
+		)
 	}
 }
 

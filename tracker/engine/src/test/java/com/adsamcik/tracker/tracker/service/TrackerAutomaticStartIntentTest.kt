@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.service
 
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
+import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.matchers.shouldBe
 import org.junit.Test
@@ -12,6 +13,19 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class TrackerAutomaticStartIntentTest {
+	@Test
+	fun `contained configured source is absent from capture and foreground envelopes`() {
+		val configured = setOf(SourceKind.LOCATION, SourceKind.STEPS)
+		val accepted = rolloutReachableCaptureSources(
+			configured,
+			TrackingRolloutState.eventShadow(setOf(SourceKind.STEPS)),
+		)
+
+		accepted shouldBe setOf(SourceKind.STEPS)
+		foregroundServiceTypeMask(34, accepted) shouldBe
+			android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH.toLong()
+	}
+
 	@Test
 	fun `authenticated capture and foreground masks must match the current accepted set exactly`() {
 		val requested = setOf(SourceKind.LOCATION, SourceKind.STEPS)

@@ -73,6 +73,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 					"source_policy",
 					"source_policy_authority",
 					"tracking_rollout_state",
+					"source_product_projection_lane",
 					emitInitialState = true,
 				)
 				.collect { reconcileDurableDemands() }
@@ -869,8 +870,23 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		durableDemands: List<SourceDemandEntity>,
 	): ActivityAcquisitionEligibility {
 		val rollout = database.trackingRolloutStateDao().get()
-		val reachableSources = rollout?.reachableEventSources().orEmpty()
-		if (ACTIVITY_SOURCE_KIND !in reachableSources) return ActivityAcquisitionEligibility.DENIED
+		val declaredReachability = rollout?.eventReachability()
+			?: return ActivityAcquisitionEligibility.DENIED
+		val verifiedCaptureSources = mutableSetOf<Int>()
+		for ((sourceKind, productStage) in declaredReachability.captureStages) {
+			if (database.sourceProjectionStateDao().isProductLaneReachable(
+					sourceKind = sourceKind,
+					productStage = productStage,
+					rolloutRevision = rollout.revision,
+				)
+			) {
+				verifiedCaptureSources += sourceKind
+			}
+		}
+		val reachability = RolloutReachability(
+			captureSources = verifiedCaptureSources,
+			controlSources = declaredReachability.explicitControlSources + verifiedCaptureSources,
+		)
 		val authority = database.sourcePolicyDao().authority()
 		if (authority?.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE) {
 			return ActivityAcquisitionEligibility.DENIED
@@ -884,14 +900,17 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			val policy = policyBySource[demand.sourceKind] ?: return@any true
 			when (demand.purpose) {
 				SourceBrokerPurpose.SESSION_CAPTURE ->
-					!policy.enabled || policy.captureConsentEpoch != demand.consentEpoch ||
+					ACTIVITY_SOURCE_KIND !in reachability.captureSources ||
+						!policy.enabled || policy.captureConsentEpoch != demand.consentEpoch ||
 						(demand.persistenceEligible && !policy.capturePersistenceEligible)
 				SourceBrokerPurpose.CONTROL_AUTOSTART,
 				SourceBrokerPurpose.CONTROL_CONTINUATION,
-				-> policy.controlConsentEpoch != demand.consentEpoch ||
+				-> ACTIVITY_SOURCE_KIND !in reachability.controlSources ||
+					policy.controlConsentEpoch != demand.consentEpoch ||
 					(demand.persistenceEligible && !policy.controlPersistenceEligible)
 				SourceBrokerPurpose.AMBIENT_PRODUCT ->
-					policy.ambientConsentEpoch != demand.consentEpoch ||
+					ACTIVITY_SOURCE_KIND !in reachability.captureSources ||
+						policy.ambientConsentEpoch != demand.consentEpoch ||
 						(demand.persistenceEligible && !policy.ambientPersistenceEligible)
 				else -> true
 			}
@@ -901,7 +920,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			it.purpose == SourceBrokerPurpose.CONTROL_AUTOSTART
 		}
 		val automaticCaptureReachable = policies.any { policy ->
-			policy.sourceKind in reachableSources &&
+			policy.sourceKind in reachability.captureSources &&
 				policy.enabled &&
 				policy.captureConsentEpoch != null &&
 				policy.capturePersistenceEligible
@@ -912,15 +931,25 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		)
 	}
 
-	private fun TrackingRolloutStateEntity.reachableEventSources(): Set<Int> {
-		if (schemaVersion != CURRENT_ROLLOUT_SCHEMA || coordinatorMode != "EVENT") return emptySet()
-		val owners = decodeSourceMap(sourceOwners) ?: return emptySet()
-		val stages = decodeSourceMap(projectionMode) ?: return emptySet()
-		if (owners.keys != SOURCE_KINDS || stages.keys != SOURCE_KINDS) return emptySet()
-		return SOURCE_KINDS.filterTo(mutableSetOf()) { sourceKind ->
-			owners[sourceKind] == "EVENT" &&
-				stages[sourceKind] in setOf("EVENT_SHADOW", "EVENT_CANONICAL")
-		}
+	private fun TrackingRolloutStateEntity.eventReachability(): DeclaredRolloutReachability? {
+		if (schemaVersion != CURRENT_ROLLOUT_SCHEMA || coordinatorMode != "EVENT") return null
+		val owners = decodeSourceMap(sourceOwners) ?: return null
+		val stages = decodeSourceMap(projectionMode) ?: return null
+		if (owners.keys != SOURCE_KINDS || stages.keys != SOURCE_KINDS) return null
+		if (owners.values.any { it !in SOURCE_OWNER_MODES }) return null
+		if (stages.values.any { it !in PROJECTION_STAGES }) return null
+		if (SOURCE_KINDS.any { sourceKind ->
+			(owners[sourceKind] == "EVENT") != (stages[sourceKind] in EVENT_PROJECTION_STAGES)
+		}) return null
+
+		return DeclaredRolloutReachability(
+			captureStages = SOURCE_KINDS
+				.filter { sourceKind -> owners[sourceKind] == "EVENT" }
+				.associateWith { sourceKind -> stages.getValue(sourceKind) },
+			explicitControlSources = SOURCE_KINDS.filterTo(mutableSetOf()) { sourceKind ->
+				owners[sourceKind] == "CONTROL"
+			},
+		)
 	}
 
 	private fun decodeSourceMap(encoded: String): Map<Int, String>? = runCatching {
@@ -1036,6 +1065,16 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		}
 	}
 
+	private data class RolloutReachability(
+		val captureSources: Set<Int>,
+		val controlSources: Set<Int>,
+	)
+
+	private data class DeclaredRolloutReachability(
+		val captureStages: Map<Int, String>,
+		val explicitControlSources: Set<Int>,
+	)
+
 	private fun ProviderRegistrationGenerationEntity.toActivityRegistrationIdentity() =
 		ActivityRegistrationIdentity(
 			sourceInstanceId = sourceInstanceId,
@@ -1056,6 +1095,9 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		const val CURRENT_ROLLOUT_SCHEMA = 3
 		const val OWNER_SCOPE = "source-broker:2"
 		val SOURCE_KINDS = (1..6).toSet()
+		val SOURCE_OWNER_MODES = setOf("LEGACY", "EVENT", "CONTROL", "CONTAINED")
+		val PROJECTION_STAGES = setOf("LEGACY_CANONICAL", "EVENT_SHADOW", "EVENT_CANONICAL")
+		val EVENT_PROJECTION_STAGES = setOf("EVENT_SHADOW", "EVENT_CANONICAL")
 		val EMPTY_SNAPSHOT = ActivityRegistrationSnapshot(false, null, emptySet(), null, emptySet())
 	}
 }

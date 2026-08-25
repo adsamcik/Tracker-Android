@@ -10,9 +10,79 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEnt
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionJoinStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionRegistrationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 
 @Dao
 interface SourceProjectionStateDao {
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	suspend fun installProductLane(entity: SourceProductProjectionLaneEntity)
+
+	@Query(
+		"SELECT * FROM source_product_projection_lane " +
+			"WHERE source_kind = :sourceKind AND status = 'ACTIVE'",
+	)
+	suspend fun activeProductLane(sourceKind: Int): SourceProductProjectionLaneEntity?
+
+	@Query(
+		"SELECT lane.* FROM source_product_projection_lane lane WHERE lane.status = 'ACTIVE' " +
+			"AND NOT EXISTS (SELECT 1 FROM source_projection_registration registration " +
+			"WHERE registration.projection_id = lane.projection_id " +
+			"AND registration.projection_version = lane.projection_version)",
+	)
+	suspend fun activeProductLanes(): List<SourceProductProjectionLaneEntity>
+
+	/** Fail-closed provider check for callers that cannot depend on the tracker rollout model. */
+	@Query(
+		"SELECT EXISTS(SELECT 1 FROM source_product_projection_lane " +
+			"WHERE source_kind = :sourceKind AND projection_id != '' " +
+			"AND projection_version > 0 AND product_stage = :productStage " +
+			"AND activated_rollout_revision > 0 " +
+			"AND activated_rollout_revision <= :rolloutRevision " +
+			"AND activation_ordinal > 0 " +
+			"AND contiguous_admission_ordinal >= activation_ordinal - 1 " +
+			"AND retention_required = 1 AND status = 'ACTIVE' " +
+			"AND NOT EXISTS (SELECT 1 FROM source_projection_registration registration " +
+			"WHERE registration.projection_id = source_product_projection_lane.projection_id " +
+			"AND registration.projection_version = " +
+			"source_product_projection_lane.projection_version))",
+	)
+	suspend fun isProductLaneReachable(
+		sourceKind: Int,
+		productStage: String,
+		rolloutRevision: Long,
+	): Boolean
+
+	@Query(
+		"SELECT * FROM source_product_projection_lane " +
+			"WHERE projection_id = :projectionId AND projection_version = :projectionVersion",
+	)
+	suspend fun productLaneByProjection(
+		projectionId: String,
+		projectionVersion: Int,
+	): SourceProductProjectionLaneEntity?
+
+	/**
+	 * Moves exactly one source-local cursor monotonically under its installed writer identity.
+	 * A future source materializer must call this in the same transaction as its destination write.
+	 */
+	@Query(
+		"UPDATE source_product_projection_lane SET " +
+			"contiguous_admission_ordinal = :throughOrdinal, updated_at_ms = :updatedAtMs " +
+			"WHERE source_kind = :sourceKind AND projection_id = :projectionId " +
+			"AND projection_version = :projectionVersion AND status = 'ACTIVE' " +
+			"AND :throughOrdinal >= activation_ordinal - 1 " +
+			"AND contiguous_admission_ordinal = :expectedCurrentOrdinal " +
+			"AND contiguous_admission_ordinal < :throughOrdinal",
+	)
+	suspend fun advanceProductLaneCursor(
+		sourceKind: Int,
+		projectionId: String,
+		projectionVersion: Int,
+		expectedCurrentOrdinal: Long,
+		throughOrdinal: Long,
+		updatedAtMs: Long,
+	): Int
+
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun register(entity: SourceProjectionRegistrationEntity)
 
@@ -88,6 +158,12 @@ interface SourceProjectionStateDao {
 			"WHERE registration.retention_required = 1 AND registration.status = 'ACTIVE'",
 	)
 	suspend fun minimumRequiredCheckpoint(): Long?
+
+	@Query(
+		"SELECT MIN(contiguous_admission_ordinal) FROM source_product_projection_lane " +
+			"WHERE retention_required = 1 AND status = 'ACTIVE'",
+	)
+	suspend fun minimumRequiredProductLaneCheckpoint(): Long?
 
 	@Query(
 		"SELECT MIN(checkpoint.contiguous_admission_ordinal) " +
@@ -233,6 +309,9 @@ interface SourceProjectionStateDao {
 
 	@Query("DELETE FROM source_projection_registration")
 	fun deleteAllRegistrations()
+
+	@Query("DELETE FROM source_product_projection_lane")
+	fun deleteAllProductLanes()
 
 	@Query("DELETE FROM source_coordinator_lease")
 	fun deleteAllLeases()

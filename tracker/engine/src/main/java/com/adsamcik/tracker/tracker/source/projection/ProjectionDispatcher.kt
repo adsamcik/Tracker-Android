@@ -91,6 +91,9 @@ class ProjectionDispatcher @Inject constructor(
 		require(activationOrdinal > 0L)
 		database.withTransaction {
 			val dao = database.sourceProjectionStateDao()
+			check(dao.productLaneByProjection(projection.id, projection.version) == null) {
+				"Projection ${projection.id}:${projection.version} is reserved by a source-local product lane"
+			}
 			if (dao.registration(projection.id, projection.version) == null) {
 				dao.register(
 					SourceProjectionRegistrationEntity(

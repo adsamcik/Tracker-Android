@@ -164,7 +164,15 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 		if (automaticExpected && requestedSources != configuredSources) {
 			return TrackingStartPreparationResult.Rejected("AUTOMATIC_START_REQUESTED_MASK_STALE")
 		}
-		val acceptedSources = resolveAcceptedSources(requestedSources, resolved.origin)
+		val rollout = try {
+			trackingRolloutStateStore.load()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			return TrackingStartPreparationResult.Rejected("TRACKING_ROLLOUT_UNAVAILABLE")
+		}
+		val reachableRequestedSources = rolloutReachableCaptureSources(requestedSources, rollout)
+		val acceptedSources = resolveAcceptedSources(reachableRequestedSources, resolved.origin)
 		if (acceptedSources.isEmpty()) {
 			return TrackingStartPreparationResult.Rejected("TRACKING_CAPTURE_UNAVAILABLE")
 		}
@@ -182,7 +190,6 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 		val token = PreparedTrackingStartToken(UUID.randomUUID().toString())
 		var roomPrepared = false
 		try {
-			val rollout = trackingRolloutStateStore.load()
 			val ownership = TrackingSessionOwnership.resolve(rollout, settings)
 			val planInputs = sourcePlanInputs(settings, acceptedSources, resolved.origin, bootId)
 			val preparation = sourceSession.prepareAndroidStartUnderReadyGeneration(
@@ -498,7 +505,25 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 		} else {
 			configuredForegroundSources(settings)
 		}
-		val acceptedSources = requestedSources?.let { resolveAcceptedSources(it, claim.startOrigin) }
+		val rollout = try {
+			trackingRolloutStateStore.load()
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			compensatePrepared(token, commandGeneration, "PREPARED_START_ROLLOUT_UNAVAILABLE")
+			return TrackingServicePreparedStartClaim.Rejected(
+				"PREPARED_START_ROLLOUT_UNAVAILABLE",
+			)
+		}
+		val preparedRolloutRevision = database.sourceSessionDao()
+			.serviceRun(claim.serviceRunId)
+			?.rolloutRevision
+		val acceptedSources = requestedSources?.let { requested ->
+			resolveAcceptedSources(
+				rolloutReachableCaptureSources(requested, rollout),
+				claim.startOrigin,
+			)
+		}
 		val expectedMask = acceptedSources?.let {
 			foregroundServiceTypeMask(Build.VERSION.SDK_INT, it)
 		}
@@ -506,6 +531,8 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 			!trackingStartupGate.isReady || trackingStartupGate.currentGeneration != startupGeneration ->
 				"TRACKING_STARTUP_GENERATION_CLOSED"
 			bootClockDomainProvider.current() != bootId -> "PREPARED_START_BOOT_CHANGED"
+			preparedRolloutRevision == null || rollout.revision != preparedRolloutRevision ->
+				"PREPARED_START_ROLLOUT_STALE"
 			requestedSources == null -> "PREPARED_START_REQUESTED_MASK_INVALID"
 			acceptedSources != claim.acceptedSources -> "PREPARED_START_CAPABILITIES_CHANGED"
 			expectedMask != claim.desiredForegroundCapabilityFlags -> "PREPARED_START_FGS_MASK_CHANGED"

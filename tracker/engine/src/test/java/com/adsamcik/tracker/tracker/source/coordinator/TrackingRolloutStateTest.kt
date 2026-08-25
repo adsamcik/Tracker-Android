@@ -16,6 +16,7 @@ class TrackingRolloutStateTest {
 			setOf(ProductProjectionStage.LEGACY_CANONICAL)
 		SourceKind.entries.forEach { source ->
 			state.isAcquisitionReachable(source) shouldBe false
+			state.isControlAcquisitionReachable(source) shouldBe false
 		}
 	}
 
@@ -27,11 +28,38 @@ class TrackingRolloutStateTest {
 		state.productProjectionStages.getValue(SourceKind.STEPS) shouldBe
 			ProductProjectionStage.EVENT_SHADOW
 		state.isAcquisitionReachable(SourceKind.STEPS) shouldBe true
+		state.isControlAcquisitionReachable(SourceKind.STEPS) shouldBe true
 		SourceKind.entries.filterNot { it == SourceKind.STEPS }.forEach { source ->
 			state.sourceOwners.getValue(source) shouldBe SourceOwner.CONTAINED
 			state.productProjectionStages.getValue(source) shouldBe
 				ProductProjectionStage.LEGACY_CANONICAL
 			state.isAcquisitionReachable(source) shouldBe false
+			state.isControlAcquisitionReachable(source) shouldBe false
+		}
+	}
+
+	@Test
+	fun `control-only Activity is operational without becoming a captured product source`() {
+		val state = TrackingRolloutState.eventShadow(
+			sources = setOf(SourceKind.STEPS),
+			controlSources = setOf(SourceKind.ACTIVITY),
+		)
+
+		state.sourceOwners.getValue(SourceKind.ACTIVITY) shouldBe SourceOwner.CONTROL
+		state.productProjectionStages.getValue(SourceKind.ACTIVITY) shouldBe
+			ProductProjectionStage.LEGACY_CANONICAL
+		state.isControlAcquisitionReachable(SourceKind.ACTIVITY) shouldBe true
+		state.isAcquisitionReachable(SourceKind.ACTIVITY) shouldBe false
+		state.isAcquisitionReachable(SourceKind.STEPS) shouldBe true
+	}
+
+	@Test
+	fun `a source cannot be capture-owned and control-only in one rollout`() {
+		shouldThrow<IllegalArgumentException> {
+			TrackingRolloutState.eventShadow(
+				sources = setOf(SourceKind.STEPS),
+				controlSources = setOf(SourceKind.STEPS),
+			)
 		}
 	}
 

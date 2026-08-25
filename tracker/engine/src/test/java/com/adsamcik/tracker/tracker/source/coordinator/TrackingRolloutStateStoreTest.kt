@@ -3,6 +3,8 @@ package com.adsamcik.tracker.tracker.source.coordinator
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionRegistrationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.TrackingRolloutStateEntity
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
@@ -68,16 +70,129 @@ class TrackingRolloutStateStoreTest {
 	fun `round trips one source shadow stage without promoting unrelated writers`() = runTest {
 		val expected = TrackingRolloutState.eventShadow(setOf(SourceKind.STEPS), revision = 3)
 
-		store.save(expected, 1_000L)
+		val activation = installSteps()
 
+		activation.rollout shouldBe expected
+		activation.lane.sourceKind shouldBe SourceKind.STEPS.stableCode
+		activation.lane.projectionId shouldBe STEPS_OUTPUT_CONTRACT
+		activation.lane.projectionVersion shouldBe 1
+		activation.lane.activatedRolloutRevision shouldBe 3L
+		activation.lane.activationOrdinal shouldBe 1L
+		activation.lane.contiguousAdmissionOrdinal shouldBe 0L
+		activation.lane.retentionRequired shouldBe true
+		database.sourceProjectionStateDao().isProductLaneReachable(
+			SourceKind.STEPS.stableCode,
+			ProductProjectionStage.EVENT_SHADOW.name,
+			3L,
+		) shouldBe true
+		database.sourceProjectionStateDao().isProductLaneReachable(
+			SourceKind.STEPS.stableCode,
+			ProductProjectionStage.EVENT_CANONICAL.name,
+			3L,
+		) shouldBe false
+		database.sourceProjectionStateDao().isProductLaneReachable(
+			SourceKind.STEPS.stableCode,
+			ProductProjectionStage.EVENT_SHADOW.name,
+			2L,
+		) shouldBe false
 		store.load() shouldBe expected
+	}
+
+	@Test
+	fun `capture rollout cannot be saved before its exact source lane is installed`() = runTest {
+		shouldThrow<IllegalArgumentException> {
+			store.save(
+				TrackingRolloutState.eventShadow(setOf(SourceKind.STEPS), revision = 3),
+				1_000L,
+			)
+		}
+
+		database.trackingRolloutStateDao().get() shouldBe null
+	}
+
+	@Test
+	fun `persisted capture marker without a durable lane is repaired before provider use`() = runTest {
+		database.trackingRolloutStateDao().save(eventShadowEntity(revision = 7L))
+
+		store.load() shouldBe TrackingRolloutState.contained(revision = 8L)
+		database.trackingRolloutStateDao().get()?.revision shouldBe 8L
+	}
+
+	@Test
+	fun `lane with an uninitialized source cursor cannot authorize acquisition`() = runTest {
+		database.sourceProjectionStateDao().installProductLane(
+			SourceProductProjectionLaneEntity(
+				sourceKind = SourceKind.STEPS.stableCode,
+				projectionId = STEPS_OUTPUT_CONTRACT,
+				projectionVersion = 1,
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+				activatedRolloutRevision = 7L,
+				activationOrdinal = 5L,
+				contiguousAdmissionOrdinal = 3L,
+				retentionRequired = true,
+				status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+				installedAtMs = 1_000L,
+				updatedAtMs = 1_000L,
+			),
+		)
+		database.trackingRolloutStateDao().save(eventShadowEntity(revision = 7L))
+
+		store.load() shouldBe TrackingRolloutState.contained(revision = 8L)
+	}
+
+	@Test
+	fun `one source and one output contract cannot acquire competing writer generations`() = runTest {
+		installSteps()
+
+		shouldThrow<IllegalArgumentException> {
+			store.installAndActivateShadowLane(
+				source = SourceKind.STEPS,
+				projectionId = STEPS_OUTPUT_CONTRACT,
+				projectionVersion = 2,
+				rolloutRevision = 4,
+				updatedAtMs = 2_000L,
+			)
+		}
+		shouldThrow<IllegalArgumentException> {
+			store.installAndActivateShadowLane(
+				source = SourceKind.PRESSURE,
+				projectionId = STEPS_OUTPUT_CONTRACT,
+				projectionVersion = 1,
+				rolloutRevision = 4,
+				updatedAtMs = 2_000L,
+			)
+		}
+
+		store.load() shouldBe TrackingRolloutState.eventShadow(
+			setOf(SourceKind.STEPS),
+			revision = 3,
+		)
+		database.sourceProjectionStateDao().activeProductLanes().size shouldBe 1
+	}
+
+	@Test
+	fun `global projection identity cannot be reused as a source writer generation`() = runTest {
+		database.sourceProjectionStateDao().register(
+			SourceProjectionRegistrationEntity(
+				projectionId = STEPS_OUTPUT_CONTRACT,
+				projectionVersion = 1,
+				activationOrdinal = 1,
+				retentionRequired = true,
+				status = "ACTIVE",
+				createdAtMs = 500L,
+			),
+		)
+
+		shouldThrow<IllegalArgumentException> { installSteps() }
+		database.sourceProjectionStateDao().activeProductLanes() shouldBe emptyList()
+		database.trackingRolloutStateDao().get() shouldBe null
 	}
 
 	@Test
 	fun `loading one-source rollout does not promote unrelated sources`() = runTest {
 		val expected = TrackingRolloutState.eventShadow(setOf(SourceKind.STEPS), revision = 3)
 
-		store.save(expected, 1_000L)
+		installSteps()
 
 		store.load() shouldBe expected
 		store.load().sourceOwners.getValue(SourceKind.LOCATION) shouldBe SourceOwner.CONTAINED
@@ -87,7 +202,7 @@ class TrackingRolloutStateStoreTest {
 	fun `loading one shadow projection does not force canonical writers`() = runTest {
 		val expected = TrackingRolloutState.eventShadow(setOf(SourceKind.STEPS), revision = 3)
 
-		store.save(expected, 1_000L)
+		installSteps()
 
 		store.load() shouldBe expected
 		store.load().productProjectionStages.getValue(SourceKind.LOCATION) shouldBe
@@ -153,5 +268,39 @@ class TrackingRolloutStateStoreTest {
 				zoneId = "Europe/Prague",
 			),
 		).shouldBeInstanceOf<SessionStartResult.InvalidRollout>()
+	}
+
+	private suspend fun installSteps(): SourceProductLaneActivation =
+		store.installAndActivateShadowLane(
+			source = SourceKind.STEPS,
+			projectionId = STEPS_OUTPUT_CONTRACT,
+			projectionVersion = 1,
+			rolloutRevision = 3,
+			updatedAtMs = 1_000L,
+		)
+
+	private fun eventShadowEntity(revision: Long) = TrackingRolloutStateEntity(
+		revision = revision,
+		schemaVersion = TrackingRolloutState.CURRENT_SCHEMA_VERSION,
+		coordinatorMode = CoordinatorMode.EVENT.name,
+		projectionMode = SourceKind.entries.joinToString(",") { source ->
+			val stage = if (source == SourceKind.STEPS) {
+				ProductProjectionStage.EVENT_SHADOW
+			} else {
+				ProductProjectionStage.LEGACY_CANONICAL
+			}
+			"${source.stableCode}:${stage.name}"
+		},
+		sourceOwners = SourceKind.entries.joinToString(",") { source ->
+			val owner = if (source == SourceKind.STEPS) SourceOwner.EVENT else SourceOwner.CONTAINED
+			"${source.stableCode}:${owner.name}"
+		},
+		semanticSettingsEnabled = true,
+		batteryEstimateMode = BatteryEstimateMode.SOURCE_PLAN_QUALITATIVE.name,
+		updatedAtMs = 1_000L,
+	)
+
+	private companion object {
+		const val STEPS_OUTPUT_CONTRACT = "steps-interval"
 	}
 }

@@ -19,14 +19,30 @@ interface TrackerRunDao : BaseDao<TrackerRun> {
 	/**
 	 * Get all tracker runs within time range, ordered by start time.
 	 */
-	@Query("SELECT * FROM tracker_run WHERE start_time_ms >= :fromMs AND IFNULL(end_time_ms, :toMs) <= :toMs ORDER BY start_time_ms")
+	@Query(
+		"SELECT * FROM tracker_run WHERE start_time_ms >= :fromMs AND start_time_ms < :toMs " +
+			"AND (end_time_ms IS NULL OR end_time_ms <= :toMs) ORDER BY start_time_ms",
+	)
 	suspend fun getAllBetween(fromMs: Long, toMs: Long): List<TrackerRun>
 
-	/** Runs that overlap the half-open window, including a currently active run. */
+	/**
+	 * Runs that overlap the half-open window, including a currently active run.
+	 *
+	 * A fenced legacy row with no factual end is unknown-boundary evidence, not inferred continuous
+	 * activity. It therefore matches only the window containing its known start; an unfenced null end
+	 * still represents the live runtime and remains open through the query window.
+	 */
 	@Query(
 		"""
 		SELECT * FROM tracker_run
-		WHERE start_time_ms < :toMs AND IFNULL(end_time_ms, :toMs) > :fromMs
+		WHERE start_time_ms < :toMs
+		  AND (
+		    end_time_ms > :fromMs
+		    OR (
+		      end_time_ms IS NULL
+		      AND (legacy_runtime_fenced = 0 OR start_time_ms >= :fromMs)
+		    )
+		  )
 		ORDER BY start_time_ms ASC, id ASC
 		""",
 	)
@@ -38,7 +54,13 @@ interface TrackerRunDao : BaseDao<TrackerRun> {
 		SELECT * FROM tracker_run
 		WHERE id > :afterId AND id <= :throughId
 		  AND start_time_ms < :toMsExclusive
-		  AND IFNULL(end_time_ms, :toMsExclusive) > :fromMs
+		  AND (
+		    end_time_ms > :fromMs
+		    OR (
+		      end_time_ms IS NULL
+		      AND (legacy_runtime_fenced = 0 OR start_time_ms >= :fromMs)
+		    )
+		  )
 		ORDER BY id ASC
 		LIMIT :limit
 		""",
@@ -54,7 +76,10 @@ interface TrackerRunDao : BaseDao<TrackerRun> {
 	/**
 	 * Get tracker runs within time range as Flow.
 	 */
-	@Query("SELECT * FROM tracker_run WHERE start_time_ms >= :fromMs AND IFNULL(end_time_ms, :toMs) <= :toMs ORDER BY start_time_ms")
+	@Query(
+		"SELECT * FROM tracker_run WHERE start_time_ms >= :fromMs AND start_time_ms < :toMs " +
+			"AND (end_time_ms IS NULL OR end_time_ms <= :toMs) ORDER BY start_time_ms",
+	)
 	fun getAllBetweenFlow(fromMs: Long, toMs: Long): Flow<List<TrackerRun>>
 
 	/**

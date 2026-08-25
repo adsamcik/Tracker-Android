@@ -20,8 +20,10 @@ data class TrackingRolloutState(
 		require(productProjectionStages.keys == SourceKind.entries.toSet()) {
 			"Rollout state must explicitly gate every source product projection"
 		}
-		require(coordinatorMode == CoordinatorMode.EVENT || sourceOwners.values.none { it == SourceOwner.EVENT }) {
-			"Event-owned sources require the event coordinator"
+		require(coordinatorMode == CoordinatorMode.EVENT || sourceOwners.values.none {
+			it == SourceOwner.EVENT || it == SourceOwner.CONTROL
+		}) {
+			"Event and control-operational sources require the event coordinator"
 		}
 		require(productProjectionStages.none { (source, stage) ->
 			stage != ProductProjectionStage.LEGACY_CANONICAL &&
@@ -35,6 +37,12 @@ data class TrackingRolloutState(
 		}) {
 			"Event acquisition requires a reachable source-local shadow or canonical product lane"
 		}
+		require(sourceOwners.none { (source, owner) ->
+			owner == SourceOwner.CONTROL &&
+				productProjectionStages[source] != ProductProjectionStage.LEGACY_CANONICAL
+		}) {
+			"Control-only acquisition cannot authorize a capture product lane"
+		}
 	}
 
 	/** A provider may acquire only when its source-local product lane is explicitly reachable. */
@@ -45,6 +53,11 @@ data class TrackingRolloutState(
 				ProductProjectionStage.EVENT_SHADOW,
 				ProductProjectionStage.EVENT_CANONICAL,
 			)
+
+	/** A provider may satisfy declared control demands without becoming a captured product source. */
+	fun isControlAcquisitionReachable(source: SourceKind): Boolean =
+		coordinatorMode == CoordinatorMode.EVENT &&
+			(sourceOwners[source] == SourceOwner.EVENT || sourceOwners[source] == SourceOwner.CONTROL)
 
 	companion object {
 		/**
@@ -67,15 +80,24 @@ data class TrackingRolloutState(
 		/**
 		 * Enables source-native acquisition only for sources with a real source-local shadow lane.
 		 * Callers must name the sources deliberately; there is no all-source default promotion.
+		 * Control sources may serve declared dependencies, but retain no event product lane.
 		 */
 		fun eventShadow(
 			sources: Set<SourceKind>,
 			revision: Long = 1L,
+			controlSources: Set<SourceKind> = emptySet(),
 		): TrackingRolloutState {
 			require(sources.isNotEmpty()) { "At least one shadow-reachable source is required" }
+			require(sources.intersect(controlSources).isEmpty()) {
+				"A source cannot be both capture-owned and control-only"
+			}
 			return contained(revision).copy(
 				sourceOwners = SourceKind.entries.associateWith { source ->
-					if (source in sources) SourceOwner.EVENT else SourceOwner.CONTAINED
+					when (source) {
+						in sources -> SourceOwner.EVENT
+						in controlSources -> SourceOwner.CONTROL
+						else -> SourceOwner.CONTAINED
+					}
 				},
 				productProjectionStages = SourceKind.entries.associateWith { source ->
 					if (source in sources) {
@@ -105,6 +127,6 @@ data class TrackingRolloutState(
 }
 
 enum class CoordinatorMode { LEGACY, EVENT }
-enum class SourceOwner { LEGACY, EVENT, CONTAINED }
+enum class SourceOwner { LEGACY, EVENT, CONTROL, CONTAINED }
 enum class ProductProjectionStage { LEGACY_CANONICAL, EVENT_SHADOW, EVENT_CANONICAL }
 enum class BatteryEstimateMode { LEGACY_QUALITATIVE, SOURCE_PLAN_QUALITATIVE, CALIBRATED }

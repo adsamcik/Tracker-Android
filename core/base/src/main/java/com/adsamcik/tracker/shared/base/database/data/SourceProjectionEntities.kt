@@ -4,6 +4,51 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 
+/**
+ * The one product projection that may make a physical source capture-reachable.
+ *
+ * This is deliberately source-local. The older projection registration/checkpoint tables also
+ * contain global and released-v27 compatibility consumers, so their progress cannot prove that a
+ * particular source has a product destination. Keeping the activation boundary and cursor in this
+ * row makes rollout authorization and WAL retention depend on the same durable identity.
+ * [projectionId] is the output contract ID and [projectionVersion] is its writer generation; the
+ * generation first became provider-reachable at [activatedRolloutRevision].
+ */
+@Entity(
+	tableName = "source_product_projection_lane",
+	indices = [
+		Index(
+			value = ["projection_id", "projection_version"],
+			unique = true,
+			name = "idx_source_product_projection_lane_identity",
+		),
+		Index(
+			value = ["status", "retention_required", "contiguous_admission_ordinal"],
+			name = "idx_source_product_projection_lane_retention",
+		),
+	],
+)
+data class SourceProductProjectionLaneEntity(
+	@androidx.room.PrimaryKey
+	@ColumnInfo(name = "source_kind") val sourceKind: Int,
+	@ColumnInfo(name = "projection_id") val projectionId: String,
+	@ColumnInfo(name = "projection_version") val projectionVersion: Int,
+	@ColumnInfo(name = "product_stage") val productStage: String,
+	@ColumnInfo(name = "activated_rollout_revision") val activatedRolloutRevision: Long,
+	@ColumnInfo(name = "activation_ordinal") val activationOrdinal: Long,
+	@ColumnInfo(name = "contiguous_admission_ordinal") val contiguousAdmissionOrdinal: Long,
+	@ColumnInfo(name = "retention_required") val retentionRequired: Boolean,
+	@ColumnInfo(name = "status") val status: String,
+	@ColumnInfo(name = "installed_at_ms") val installedAtMs: Long,
+	@ColumnInfo(name = "updated_at_ms") val updatedAtMs: Long,
+) {
+	companion object {
+		const val STATUS_ACTIVE = "ACTIVE"
+		const val STAGE_EVENT_SHADOW = "EVENT_SHADOW"
+		const val STAGE_EVENT_CANONICAL = "EVENT_CANONICAL"
+	}
+}
+
 @Entity(
 	tableName = "source_projection_registration",
 	primaryKeys = ["projection_id", "projection_version"],

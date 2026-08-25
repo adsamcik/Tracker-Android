@@ -420,12 +420,13 @@ class SourceBroker @Inject constructor(
 	}
 
 	/**
-	 * App-scoped control is useful only when both it and at least one currently enabled capture
-	 * source have a reachable source-local lane.
+	 * App-scoped control is useful only when its control-operational lane and at least one currently
+	 * enabled capture source's product lane are both reachable. Control reachability deliberately
+	 * does not make the control source captured or materializable.
 	 */
 	private suspend fun automaticControlAcquisitionEligibleInTransaction(source: SourceKind): Boolean {
 		val rollout = RoomTrackingRolloutStateStore(database).load()
-		if (!rollout.isAcquisitionReachable(source)) return false
+		if (!rollout.isControlAcquisitionReachable(source)) return false
 		val authority = database.sourcePolicyDao().authority()
 		if (authority?.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE) return false
 		val policies = database.sourcePolicyDao().policiesAtRevision(authority.currentPolicyRevision)

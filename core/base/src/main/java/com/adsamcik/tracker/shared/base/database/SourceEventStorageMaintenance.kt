@@ -19,10 +19,19 @@ suspend fun AppDatabase.liveSourceProjectionActivationOrdinal(): Long {
 	val legacyActivationOrdinal = legacyV27ProjectionDrainDao().liveActivationOrdinal() ?: 1L
 	val deletedHighWaterOrdinal = sourceEvidenceStateDao().get()
 		?.deletedSourceEventHighWaterOrdinal ?: 0L
-	check(deletedHighWaterOrdinal < Long.MAX_VALUE) {
+	val admittedHighWaterOrdinal = openHelper.writableDatabase.query(
+		"SELECT MAX(" +
+			"COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'source_event_wal'), 0), " +
+			"COALESCE((SELECT MAX(admission_ordinal) FROM source_event_wal), 0))",
+	).use { cursor ->
+		check(cursor.moveToFirst()) { "Unable to read source-event WAL high-water" }
+		cursor.getLong(0)
+	}
+	val durableHighWaterOrdinal = maxOf(deletedHighWaterOrdinal, admittedHighWaterOrdinal)
+	check(durableHighWaterOrdinal < Long.MAX_VALUE) {
 		"Source-event WAL exhausted its admission ordinal range"
 	}
-	return maxOf(legacyActivationOrdinal, deletedHighWaterOrdinal + 1L)
+	return maxOf(legacyActivationOrdinal, durableHighWaterOrdinal + 1L)
 }
 
 /**
@@ -45,10 +54,12 @@ suspend fun AppDatabase.pruneSourceEventStorageBefore(
 			try {
 				val projectionDao = sourceProjectionStateDao()
 				val checkpoint = projectionDao.minimumRequiredCheckpoint()
+				val productLaneCheckpoint = projectionDao.minimumRequiredProductLaneCheckpoint()
 				val joinBoundary = projectionDao.minimumJoinRequiredOrdinal()
 				val legacyDao = legacyV27ProjectionDrainDao()
 				val safeOrdinal = listOfNotNull(
 					checkpoint,
+					productLaneCheckpoint,
 					joinBoundary?.minus(1L),
 					legacyDao.minimumPendingOrdinal()?.minus(1L),
 					legacyDao.minimumPendingOutboxOrdinal()?.minus(1L),

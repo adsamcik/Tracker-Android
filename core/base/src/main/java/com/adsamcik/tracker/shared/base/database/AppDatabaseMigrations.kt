@@ -21,8 +21,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * ┌────────────┬─────────────┬──────────────────────────────────────────┐
  * │ DB Version │ App Version │ Status & Notes                           │
  * ├────────────┼─────────────┼──────────────────────────────────────────┤
- * │ 27         │ 400         │ 🚧 UNRELEASED - all schema work since   │
- * │            │             │    versionCode 385 is folded here       │
+ * │ 28         │ 400         │ 🚧 UNRELEASED - current development    │
+ * │            │             │    schema; migration may be refined     │
+ * │ 27         │ 400         │ ✅ RELEASED - frozen stable active-file │
+ * │            │             │    compatibility boundary               │
  * │ 26         │ 385         │ ✅ RELEASED - 2024.3.0 alpha 2          │
  * │ 12         │ 384         │ ✅ RELEASED - Last session-based schema  │
  * │ 11         │ 380-383     │ ✅ RELEASED                              │
@@ -46,7 +48,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * Release-boundary workflow:
  * - Versions through 26 are frozen public migrations used only on a disposable legacy copy.
  * - V27 starts in a new stable active database file and imports the normalized v26 data.
- * - After v27 ships, add ordinary in-place migrations from v27 onward.
+ * - V27 is released and frozen; v28 is the current unreleased in-place migration target.
  *
  * ============================================================================
  */
@@ -1376,7 +1378,10 @@ val MIGRATION_25_26: Migration = object : Migration(25, 26) {
  */
 internal const val V28_MIGRATION_INTERRUPTION_REASON = "V28_MIGRATION_INTERRUPTED"
 
-val MIGRATION_27_28: Migration = object : Migration(27, 28) {
+val MIGRATION_27_28: Migration = object : Migration(
+	LAST_RELEASED_ACTIVE_DATABASE_VERSION,
+	CURRENT_DATABASE_VERSION,
+) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		with(db) {
 			execSQL(
@@ -1421,6 +1426,33 @@ val MIGRATION_27_28: Migration = object : Migration(27, 28) {
 				"CREATE UNIQUE INDEX IF NOT EXISTS idx_source_event_wal_delivery_unit " +
 					"ON source_event_wal(source_kind, captured_collected_data_epoch, " +
 					"clock_domain_id, delivery_identity, delivery_unit_index)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS source_product_projection_lane (
+					source_kind INTEGER NOT NULL,
+					projection_id TEXT NOT NULL,
+					projection_version INTEGER NOT NULL,
+					product_stage TEXT NOT NULL,
+					activated_rollout_revision INTEGER NOT NULL,
+					activation_ordinal INTEGER NOT NULL,
+					contiguous_admission_ordinal INTEGER NOT NULL,
+					retention_required INTEGER NOT NULL,
+					status TEXT NOT NULL,
+					installed_at_ms INTEGER NOT NULL,
+					updated_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(source_kind)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_source_product_projection_lane_identity " +
+					"ON source_product_projection_lane(projection_id, projection_version)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_source_product_projection_lane_retention " +
+					"ON source_product_projection_lane(" +
+					"status, retention_required, contiguous_admission_ordinal)",
 			)
 			execSQL(
 				"""
@@ -1661,17 +1693,19 @@ val MIGRATION_27_28: Migration = object : Migration(27, 28) {
 			// manifest, consent, boot lease, and provider acknowledgement are unprovable in v28, so
 			// retaining a nonterminal state would expose a ghost session before recovery can run.
 			// State and factual completion are separate: terminalize ownership without inventing a
-			// completion instant from the start or another unrelated retained observation.
+			// completion instant from the start or another unrelated retained observation. An existing
+			// failure/completion reason is retained evidence; the migration reason fills only a null.
 			execSQL(
 				"UPDATE logical_tracking_session SET " +
 					"state = 'FINALIZED', lifecycle_revision = lifecycle_revision + 1, " +
-					"failure_code = '$V28_MIGRATION_INTERRUPTION_REASON' " +
+					"failure_code = COALESCE(failure_code, '$V28_MIGRATION_INTERRUPTION_REASON') " +
 					"WHERE state NOT IN ('FINALIZED', 'CLOSED', 'FAILED')",
 			)
 			execSQL(
 				"UPDATE source_service_run SET " +
 					"state = 'FINALIZED', " +
-					"completion_reason = '$V28_MIGRATION_INTERRUPTION_REASON', " +
+					"completion_reason = COALESCE(completion_reason, " +
+					"'$V28_MIGRATION_INTERRUPTION_REASON'), " +
 					"runtime_acknowledgement = 'TERMINAL_FAILURE', " +
 					"runtime_failure_code = '$V28_MIGRATION_INTERRUPTION_REASON', " +
 					"run_revision = run_revision + 1 " +

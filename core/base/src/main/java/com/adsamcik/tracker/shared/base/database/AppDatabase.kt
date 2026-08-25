@@ -100,6 +100,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEnt
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionJoinStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionRegistrationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
@@ -129,6 +130,10 @@ import com.adsamcik.tracker.shared.base.database.legacy.LegacyImportRoomCallback
 import com.adsamcik.tracker.shared.base.database.legacy.LEGACY_IMPORT_JOB_ID
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 
+/** Last schema shipped on the stable active database file. Its contract is immutable. */
+internal const val LAST_RELEASED_ACTIVE_DATABASE_VERSION = 27
+
+/** Current development schema. Version 28 has not shipped and may still be refined in place. */
 internal const val CURRENT_DATABASE_VERSION = 28
 
 /**
@@ -160,6 +165,7 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			TrackerStateEvent::class,
 			SourceEvidenceState::class,
 			SourceEventWalEntity::class,
+			SourceProductProjectionLaneEntity::class,
 			SourceProjectionRegistrationEntity::class,
 			SourceProjectionCheckpointEntity::class,
 			SourceProjectionFailureEntity::class,
@@ -556,6 +562,7 @@ abstract class AppDatabase : RoomDatabase() {
 			database.sourceBrokerDao().deleteAllAuthorizations()
 			database.sourceBrokerDao().deleteAllRegistrations()
 			database.sourceBrokerDao().deleteAllDemands()
+			database.sourceProjectionStateDao().deleteAllProductLanes()
 			database.sourceProjectionStateDao().deleteAllJoinState()
 			database.sourceProjectionStateDao().deleteAllOutbox()
 			database.sourceProjectionStateDao().deleteAllFailures()

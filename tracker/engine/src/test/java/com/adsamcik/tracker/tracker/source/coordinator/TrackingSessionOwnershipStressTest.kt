@@ -46,6 +46,8 @@ class TrackingSessionOwnershipStressTest {
 			}
 
 			result.enabledEventSources shouldBe expectedEnabled
+			result.configuredSources shouldBe expectedEnabled
+			result.containedSources shouldBe emptySet()
 		}
 	}
 
@@ -77,24 +79,54 @@ class TrackingSessionOwnershipStressTest {
 	}
 
 	@Test
-	fun `enabled source without event acquisition ownership fails closed`() {
+	fun `contained sibling degrades without blocking a reachable source`() {
 		val rollout = TrackingRolloutState.eventShadow(setOf(SourceKind.STEPS))
 		val settings = TrackingParamsState(
 			locationEnabled = true,
 			activityEnabled = false,
-			stepsEnabled = false,
+			stepsEnabled = true,
 			barometerEnabled = false,
 			sourceCollectionSettings = SourceCollectionSettings(
 				location = SourceCollectionFrequency.BALANCED,
 				activity = SourceCollectionFrequency.OFF,
-				steps = SourceCollectionFrequency.OFF,
+				steps = SourceCollectionFrequency.BALANCED,
 				pressure = SourceCollectionFrequency.OFF,
 			),
 		)
 
-		shouldThrow<IllegalArgumentException> {
-			TrackingSessionOwnership.resolve(rollout, settings)
-		}
+		val ownership = TrackingSessionOwnership.resolve(rollout, settings)
+
+		ownership.configuredSources shouldBe setOf(SourceKind.LOCATION, SourceKind.STEPS)
+		ownership.enabledEventSources shouldBe setOf(SourceKind.STEPS)
+		ownership.containedSources shouldBe setOf(SourceKind.LOCATION)
+		ownership.isPartiallyAccepted shouldBe true
+	}
+
+	@Test
+	fun `zero reachable sources remain explicit for the start boundary to reject`() {
+		val ownership = TrackingSessionOwnership.resolve(
+			TrackingRolloutState.contained(),
+			TrackingParamsState(
+				locationEnabled = true,
+				activityEnabled = false,
+				stepsEnabled = false,
+				barometerEnabled = false,
+				wifiEnabled = false,
+				cellEnabled = false,
+				sourceCollectionSettings = SourceCollectionSettings(
+					location = SourceCollectionFrequency.BALANCED,
+					activity = SourceCollectionFrequency.OFF,
+					steps = SourceCollectionFrequency.OFF,
+					pressure = SourceCollectionFrequency.OFF,
+					wifi = SourceCollectionFrequency.OFF,
+					cell = SourceCollectionFrequency.OFF,
+				),
+			),
+		)
+
+		ownership.enabledEventSources shouldBe emptySet()
+		ownership.containedSources shouldBe setOf(SourceKind.LOCATION)
+		ownership.eventCoordinatorRequired shouldBe false
 	}
 }
 

@@ -2167,6 +2167,12 @@ internal fun sourceMask(sources: Set<SourceKind>): Long = sources.fold(0L) { mas
 	mask or (1L shl (source.stableCode - 1))
 }
 
+/** Rollout containment degrades only the named sources; it never blocks a reachable sibling. */
+internal fun rolloutReachableCaptureSources(
+	requestedSources: Set<SourceKind>,
+	rollout: TrackingRolloutState,
+): Set<SourceKind> = requestedSources.filterTo(linkedSetOf(), rollout::isAcquisitionReachable)
+
 /** Null means there is no accepted demand and therefore no legal foreground promotion. */
 internal fun foregroundServiceTypeMask(
 	sdkInt: Int,

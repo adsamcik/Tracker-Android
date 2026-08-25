@@ -146,6 +146,45 @@ class TrackingSettingsStatusProviderTest {
 	}
 
 	@Test
+	fun `contained source is named blocked while reachable sibling continues applying`() {
+		val settings = TrackingParamsState(
+			locationEnabled = true,
+			stepsEnabled = true,
+			sourceCollectionSettings = SourceCollectionSettings(
+				location = SourceCollectionFrequency.BALANCED,
+				steps = SourceCollectionFrequency.BALANCED,
+			),
+		)
+		val desired = SemanticAcquisitionPlanFactory().create(
+			settings,
+			revision = 9L,
+			createdAtMs = 100L,
+			environment = SourcePlanEnvironment(LocationBackend.FUSED, true, emptySet()),
+		)
+		val resolved = SourcePlanResolver().resolve(
+			desired,
+			emptyList(),
+			PlanResolutionContext(
+				constraints = SourceKind.entries.associateWith { SourceConstraint() },
+				powerSaver = false,
+				doze = false,
+				severeThermalPressure = false,
+			),
+		)
+
+		subject.publishResolved(
+			settings,
+			TrackingRolloutState.eventShadow(setOf(SourceKind.STEPS)),
+			resolved,
+		)
+
+		val statuses = subject.runtimeStatus.value.sources
+		statuses.getValue(SourceKind.STEPS).state shouldBe EffectiveSourceState.APPLYING
+		statuses.getValue(SourceKind.LOCATION).state shouldBe EffectiveSourceState.BLOCKED
+		statuses.getValue(SourceKind.LOCATION).reasonCodes shouldContain "ROLLOUT_CONTAINED"
+	}
+
+	@Test
 	fun `coordinator telemetry is observable without payloads`() {
 		telemetry.recordProjectionDrain(events = 4, durationNanos = 2_000L)
 		telemetry.recordPlanRevision()

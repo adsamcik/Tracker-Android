@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
@@ -12,6 +13,7 @@ import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -47,6 +49,30 @@ class ProjectionDispatcherTest {
 		database.sourceProjectionStateDao().checkpoint("outbox", 1)?.contiguousAdmissionOrdinal shouldBe 1L
 		database.sourceProjectionStateDao().pendingOutbox(10).size shouldBe 1
 		projection.applyCount shouldBe 1
+	}
+
+	@Test
+	fun `global dispatcher cannot claim a source local output contract generation`() = runTest {
+		database.sourceProjectionStateDao().installProductLane(
+			SourceProductProjectionLaneEntity(
+				sourceKind = SourceKind.STEPS.stableCode,
+				projectionId = "outbox",
+				projectionVersion = 1,
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+				activatedRolloutRevision = 3,
+				activationOrdinal = 1,
+				contiguousAdmissionOrdinal = 0,
+				retentionRequired = true,
+				status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+				installedAtMs = 1,
+				updatedAtMs = 1,
+			),
+		)
+
+		shouldThrow<IllegalStateException> {
+			ProjectionDispatcher(database, setOf(OutboxProjection())).registerAll(1L)
+		}
+		database.sourceProjectionStateDao().registration("outbox", 1) shouldBe null
 	}
 
 	@Test

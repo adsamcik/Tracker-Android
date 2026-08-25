@@ -287,6 +287,8 @@ class DefaultTrackingSettingsStatusProvider @Inject constructor(
 			reason.name in BLOCKING_REASONS
 		}
 		val owner = rollout?.sourceOwners?.get(source)
+		val rolloutContained = desired.enabled && rollout != null &&
+			!rollout.isAcquisitionReachable(source)
 		EffectiveSourceStatus(
 			source = source,
 			owner = owner,
@@ -295,13 +297,16 @@ class DefaultTrackingSettingsStatusProvider @Inject constructor(
 			effectiveMode = effective.presentationCode(),
 			state = when {
 				!desired.enabled -> EffectiveSourceState.DISABLED
+				rolloutContained -> EffectiveSourceState.BLOCKED
 				blocked -> EffectiveSourceState.BLOCKED
 				reasons.isNotEmpty() -> EffectiveSourceState.DEGRADED
 				!active -> EffectiveSourceState.READY
-				owner == SourceOwner.EVENT -> EffectiveSourceState.APPLYING
+				rollout?.isAcquisitionReachable(source) == true -> EffectiveSourceState.APPLYING
 				else -> EffectiveSourceState.FAILED
 			},
-			reasonCodes = reasons.mapTo(linkedSetOf()) { it.name },
+			reasonCodes = reasons.mapTo(linkedSetOf()) { it.name }.apply {
+				if (rolloutContained) add(ROLLOUT_CONTAINED_REASON)
+			},
 			desiredRevision = resolved.desired.revision.takeIf { it > 0L },
 			appliedRevision = null,
 		)
@@ -336,6 +341,7 @@ class DefaultTrackingSettingsStatusProvider @Inject constructor(
 	}
 
 	private companion object {
+		const val ROLLOUT_CONTAINED_REASON = "ROLLOUT_CONTAINED"
 		val BLOCKING_REASONS = setOf(
 			"PERMISSION_MISSING",
 			"PROVIDER_UNAVAILABLE",

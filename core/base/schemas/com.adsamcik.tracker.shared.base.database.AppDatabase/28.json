@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 28,
-    "identityHash": "f23c84216abfd1757b863e4df7d3e7cb",
+    "identityHash": "4f6c855e72120b5d65bac78348c1d9e0",
     "entities": [
       {
         "tableName": "activity",
@@ -2102,6 +2102,107 @@
             ],
             "orders": [],
             "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_source_event_wal_delivery_unit` ON `${TABLE_NAME}` (`source_kind`, `captured_collected_data_epoch`, `clock_domain_id`, `delivery_identity`, `delivery_unit_index`)"
+          }
+        ]
+      },
+      {
+        "tableName": "source_product_projection_lane",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`source_kind` INTEGER NOT NULL, `projection_id` TEXT NOT NULL, `projection_version` INTEGER NOT NULL, `product_stage` TEXT NOT NULL, `activated_rollout_revision` INTEGER NOT NULL, `activation_ordinal` INTEGER NOT NULL, `contiguous_admission_ordinal` INTEGER NOT NULL, `retention_required` INTEGER NOT NULL, `status` TEXT NOT NULL, `installed_at_ms` INTEGER NOT NULL, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`source_kind`))",
+        "fields": [
+          {
+            "fieldPath": "sourceKind",
+            "columnName": "source_kind",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "projectionId",
+            "columnName": "projection_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "projectionVersion",
+            "columnName": "projection_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "productStage",
+            "columnName": "product_stage",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activatedRolloutRevision",
+            "columnName": "activated_rollout_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activationOrdinal",
+            "columnName": "activation_ordinal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "contiguousAdmissionOrdinal",
+            "columnName": "contiguous_admission_ordinal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "retentionRequired",
+            "columnName": "retention_required",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "installedAtMs",
+            "columnName": "installed_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMs",
+            "columnName": "updated_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "source_kind"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_source_product_projection_lane_identity",
+            "unique": true,
+            "columnNames": [
+              "projection_id",
+              "projection_version"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_source_product_projection_lane_identity` ON `${TABLE_NAME}` (`projection_id`, `projection_version`)"
+          },
+          {
+            "name": "idx_source_product_projection_lane_retention",
+            "unique": false,
+            "columnNames": [
+              "status",
+              "retention_required",
+              "contiguous_admission_ordinal"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_source_product_projection_lane_retention` ON `${TABLE_NAME}` (`status`, `retention_required`, `contiguous_admission_ordinal`)"
           }
         ]
       },
@@ -6990,7 +7091,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f23c84216abfd1757b863e4df7d3e7cb')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '4f6c855e72120b5d65bac78348c1d9e0')"
     ]
   }
 }

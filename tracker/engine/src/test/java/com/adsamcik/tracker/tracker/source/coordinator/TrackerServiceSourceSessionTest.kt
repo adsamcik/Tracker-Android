@@ -71,11 +71,11 @@ class TrackerServiceSourceSessionTest {
 	fun tearDown() = database.close()
 
 	@Test
-	fun `event source enabled after service start activates coordinator without a global trigger`() = runTest {
+	fun `zero reachable capture sources fail closed instead of creating an empty service session`() = runTest {
 		val rollout = allEventShadow(revision = 5)
 		val initialSettings = settings(steps = SourceCollectionFrequency.OFF)
 		val initialOwnership = TrackingSessionOwnership.resolve(rollout, initialSettings)
-		subject.start(
+		val outcome = subject.start(
 			SourceSessionStartRequest(
 				rollout = rollout,
 				ownership = initialOwnership,
@@ -86,18 +86,11 @@ class TrackerServiceSourceSessionTest {
 				planInputs = inputs(initialSettings),
 				ownerToken = "owner",
 			),
-		) shouldBe SourceSessionStartOutcome.NotRequired
+		).shouldBeInstanceOf<SourceSessionStartOutcome.Rejected>()
 
-		val capturedStart = slot<SessionStartRequest>()
-		coEvery { lifecycle.start(capture(capturedStart)) } answers {
-			val request = capturedStart.captured
-			request.plan.plans.filterValues { it.enabled }.keys shouldBe setOf(SourceKind.STEPS)
-			SessionStartResult.Started("logical", "run", emptyList(), DesiredPlanStatus.EFFECTIVE)
-		}
-
-		subject.reconfigure(
-			inputs(settings(steps = SourceCollectionFrequency.BALANCED)),
-		).shouldBeInstanceOf<SourceSessionReconfigureOutcome.Started>()
+		outcome.result shouldBe SessionStartResult.InvalidIntent("ZERO_REACHABLE_CAPTURE_SOURCES")
+		subject.reconfigure(inputs(settings(SourceCollectionFrequency.BALANCED))) shouldBe
+			SourceSessionReconfigureOutcome.NotActive
 	}
 
 	@Test
@@ -144,8 +137,13 @@ class TrackerServiceSourceSessionTest {
 
 	@Test
 	fun `cancelled prepared apply retains ownership until partial runtime cleanup completes`() = runTest {
-		val rollout = allEventShadow(revision = 5L)
-		RoomTrackingRolloutStateStore(database).save(rollout, updatedAtMs = 1L)
+		val rollout = RoomTrackingRolloutStateStore(database).installAndActivateShadowLane(
+			source = SourceKind.STEPS,
+			projectionId = "test-steps-session-product",
+			projectionVersion = 1,
+			rolloutRevision = 5L,
+			updatedAtMs = 1L,
+		).rollout
 		database.sourceSessionDao().insertServiceRun(
 			SourceServiceRunEntity(
 				serviceRunId = "run",
@@ -297,7 +295,9 @@ class TrackerServiceSourceSessionTest {
 			),
 		)
 
-		result shouldBe SourceSessionStartOutcome.NotRequired
+		result shouldBe SourceSessionStartOutcome.Rejected(
+			SessionStartResult.InvalidIntent("ZERO_REACHABLE_CAPTURE_SOURCES"),
+		)
 	}
 
 	@Test
@@ -321,7 +321,9 @@ class TrackerServiceSourceSessionTest {
 			),
 		)
 
-		result shouldBe SourceSessionStartOutcome.NotRequired
+		result shouldBe SourceSessionStartOutcome.Rejected(
+			SessionStartResult.InvalidIntent("ZERO_REACHABLE_CAPTURE_SOURCES"),
+		)
 	}
 
 	@Test
