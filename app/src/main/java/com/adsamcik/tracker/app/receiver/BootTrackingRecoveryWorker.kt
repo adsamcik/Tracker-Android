@@ -10,6 +10,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryResult
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
@@ -53,9 +54,7 @@ class BootTrackingRecoveryWorker @AssistedInject constructor(
 		}
 		return when (outcome) {
 			BootTrackingRecoveryOutcome.COMPLETE -> Result.success()
-			// The unique WorkManager record is the durable retry owner. A Boolean false means the
-			// enabled Activity demand is not yet accepted; ending the work would silently kill
-			// automatic continuity without a persisted terminal/degraded product state.
+			// The unique WorkManager record is the durable owner only for explicitly transient work.
 			BootTrackingRecoveryOutcome.RETRY -> Result.retry()
 		}
 	}
@@ -70,7 +69,7 @@ internal suspend fun runBootTrackingRecovery(
 	isSuppressed: () -> Boolean,
 	reconcileStartup: suspend () -> TrackingStartupResult,
 	initializeLocks: suspend () -> Unit,
-	rearmAutomaticControl: suspend () -> Boolean,
+	rearmAutomaticControl: suspend () -> AutomaticControlRecoveryResult,
 ): BootTrackingRecoveryOutcome {
 	if (isSuppressed()) return BootTrackingRecoveryOutcome.COMPLETE
 	if (currentGeneration() != startupGeneration) return BootTrackingRecoveryOutcome.COMPLETE
@@ -86,10 +85,11 @@ internal suspend fun runBootTrackingRecovery(
 	if (!isReady() || currentGeneration() != startupGeneration || isSuppressed()) {
 		return BootTrackingRecoveryOutcome.COMPLETE
 	}
-	return if (rearmAutomaticControl()) {
-		BootTrackingRecoveryOutcome.COMPLETE
-	} else {
-		BootTrackingRecoveryOutcome.RETRY
+	return when (rearmAutomaticControl()) {
+		AutomaticControlRecoveryResult.ACCEPTED,
+		AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED ->
+			BootTrackingRecoveryOutcome.COMPLETE
+		AutomaticControlRecoveryResult.RETRYABLE -> BootTrackingRecoveryOutcome.RETRY
 	}
 }
 

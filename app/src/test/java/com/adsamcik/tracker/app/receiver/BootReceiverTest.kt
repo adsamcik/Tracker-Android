@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
+import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryResult
 import dagger.hilt.android.EntryPointAccessors
 import io.kotest.matchers.shouldBe
 import io.mockk.every
@@ -62,7 +63,10 @@ class BootReceiverTest {
 				)
 			},
 			initializeLocks = { lockCount++ },
-			rearmAutomaticControl = { rearmCount++; true },
+			rearmAutomaticControl = {
+				rearmCount++
+				AutomaticControlRecoveryResult.ACCEPTED
+			},
 		) shouldBe BootTrackingRecoveryOutcome.RETRY
 
 		lockCount shouldBe 0
@@ -86,7 +90,10 @@ class BootReceiverTest {
 				)
 			},
 			initializeLocks = { lockCount++ },
-			rearmAutomaticControl = { rearmCount++; true },
+			rearmAutomaticControl = {
+				rearmCount++
+				AutomaticControlRecoveryResult.ACCEPTED
+			},
 		) shouldBe BootTrackingRecoveryOutcome.COMPLETE
 
 		lockCount shouldBe 0
@@ -94,7 +101,7 @@ class BootReceiverTest {
 	}
 
 	@Test
-	fun `Ready boot recovery requires accepted or terminal Activity rearm`() = runTest {
+	fun `Ready boot recovery retries an explicitly transient Activity rearm`() = runTest {
 		var lockCount = 0
 		var rearmCount = 0
 
@@ -105,8 +112,33 @@ class BootReceiverTest {
 			isSuppressed = { false },
 			reconcileStartup = { TrackingStartupResult.Ready(false, 0L) },
 			initializeLocks = { lockCount++ },
-			rearmAutomaticControl = { rearmCount++; false },
+			rearmAutomaticControl = {
+				rearmCount++
+				AutomaticControlRecoveryResult.RETRYABLE
+			},
 		) shouldBe BootTrackingRecoveryOutcome.RETRY
+
+		lockCount shouldBe 1
+		rearmCount shouldBe 1
+	}
+
+	@Test
+	fun `Ready boot recovery completes for disabled or rollout-contained optional control`() = runTest {
+		var lockCount = 0
+		var rearmCount = 0
+
+		runBootTrackingRecovery(
+			startupGeneration = 3L,
+			currentGeneration = { 3L },
+			isReady = { true },
+			isSuppressed = { false },
+			reconcileStartup = { TrackingStartupResult.Ready(false, 0L) },
+			initializeLocks = { lockCount++ },
+			rearmAutomaticControl = {
+				rearmCount++
+				AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED
+			},
+		) shouldBe BootTrackingRecoveryOutcome.COMPLETE
 
 		lockCount shouldBe 1
 		rearmCount shouldBe 1

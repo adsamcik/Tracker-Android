@@ -6,6 +6,10 @@ import com.adsamcik.tracker.activity.api.backend.ActivityUpdate
 import com.adsamcik.tracker.activity.api.backend.ActivityUpdateSource
 import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
 import com.adsamcik.tracker.activity.api.backend.TransitionUpdate
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationFailureCode
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationResult
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationSnapshot
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.stats.api.DetectedActivityType
@@ -18,6 +22,75 @@ import org.junit.jupiter.api.Test
 
 @DisplayName("BackgroundTrackingApi Logic")
 class BackgroundTrackingApiLogicTest {
+	@Test
+	fun `automatic control recovery accepts applied and still-active degraded registration`() {
+		automaticControlRecoveryResult(
+			activityRegistrationResult(ActivityRegistrationStatus.APPLIED),
+		) shouldBe AutomaticControlRecoveryResult.ACCEPTED
+		automaticControlRecoveryResult(
+			activityRegistrationResult(
+				status = ActivityRegistrationStatus.DEGRADED,
+				failureCode = ActivityRegistrationFailureCode.PROVIDER_REGISTRATION_FAILED,
+				retryable = true,
+			),
+		) shouldBe AutomaticControlRecoveryResult.ACCEPTED
+	}
+
+	@Test
+	fun `automatic control recovery treats disabled and contained control as terminal`() {
+		listOf(
+			ActivityRegistrationFailureCode.PERMISSION_MISSING,
+			ActivityRegistrationFailureCode.MISSING_DURABLE_DEMAND,
+		).forEach { failureCode ->
+			automaticControlRecoveryResult(
+				activityRegistrationResult(
+					status = ActivityRegistrationStatus.BLOCKED,
+					failureCode = failureCode,
+					retryable = false,
+				),
+			) shouldBe AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED
+		}
+	}
+
+	@Test
+	fun `automatic control recovery retains only transient failures as retry work`() {
+		automaticControlRecoveryResult(
+			activityRegistrationResult(
+				status = ActivityRegistrationStatus.BLOCKED,
+				failureCode = ActivityRegistrationFailureCode.PROVIDER_UNAVAILABLE,
+				retryable = true,
+			),
+		) shouldBe AutomaticControlRecoveryResult.RETRYABLE
+		automaticControlRecoveryResult(
+			activityRegistrationResult(
+				status = ActivityRegistrationStatus.BLOCKED,
+				failureCode = ActivityRegistrationFailureCode.STARTUP_RECOVERY_NOT_READY,
+				retryable = true,
+			),
+		) shouldBe AutomaticControlRecoveryResult.RETRYABLE
+		automaticControlRecoveryResult(
+			activityRegistrationResult(
+				status = ActivityRegistrationStatus.FAILED,
+				failureCode = ActivityRegistrationFailureCode.STORAGE_UNAVAILABLE,
+				retryable = true,
+			),
+		) shouldBe AutomaticControlRecoveryResult.RETRYABLE
+	}
+
+	@Test
+	fun `disabled automatic control retries only unfinished cleanup`() {
+		automaticControlDisabledRecoveryResult(
+			activityRegistrationResult(ActivityRegistrationStatus.APPLIED),
+		) shouldBe AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED
+		automaticControlDisabledRecoveryResult(
+			activityRegistrationResult(
+				status = ActivityRegistrationStatus.DEGRADED,
+				failureCode = ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED,
+				retryable = true,
+			),
+		) shouldBe AutomaticControlRecoveryResult.RETRYABLE
+	}
+
 	@Nested
 	@DisplayName("control policy")
 	inner class ControlPolicy {
@@ -696,4 +769,21 @@ class BackgroundTrackingApiLogicTest {
 			attempts shouldBe 3
 		}
 	}
+
+	private fun activityRegistrationResult(
+		status: ActivityRegistrationStatus,
+		failureCode: ActivityRegistrationFailureCode? = null,
+		retryable: Boolean = false,
+	) = ActivityRegistrationResult(
+		status = status,
+		snapshot = ActivityRegistrationSnapshot(
+			active = status == ActivityRegistrationStatus.DEGRADED,
+			identity = null,
+			owners = emptySet(),
+			continuousRecognitionIntervalSeconds = null,
+			transitions = emptySet(),
+		),
+		failureCode = failureCode,
+		retryable = retryable,
+	)
 }

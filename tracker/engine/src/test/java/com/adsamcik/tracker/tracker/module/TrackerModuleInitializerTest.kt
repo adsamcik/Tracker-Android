@@ -104,4 +104,38 @@ class TrackerModuleInitializerTest {
 		attempts shouldBe 3
 		currentTime shouldBe 0
 	}
+
+	@Test
+	fun `projection failure waits for a later bounded signal instead of retry spinning`() = runTest {
+		val authorityReady = MutableStateFlow(true)
+		val drainRequired = MutableStateFlow(true)
+		var attempts = 0
+		backgroundScope.launch {
+			driveActivityAutomationEffectDrain(
+				authorityReady = authorityReady,
+				drainRequired = drainRequired,
+				initialRetryDelayMillis = 10,
+				maxRetryDelayMillis = 20,
+			) {
+				attempts += 1
+				if (attempts == 1) {
+					ActivityAutomationDrainResult.ProjectionDeferred()
+				} else {
+					ActivityAutomationDrainResult.Complete(0, 0)
+				}
+			}
+		}
+
+		runCurrent()
+		attempts shouldBe 1
+		advanceTimeBy(1_000)
+		runCurrent()
+		attempts shouldBe 1
+
+		drainRequired.value = false
+		runCurrent()
+		drainRequired.value = true
+		runCurrent()
+		attempts shouldBe 2
+	}
 }

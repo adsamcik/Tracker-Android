@@ -14,6 +14,7 @@ import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryResult
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -84,7 +85,6 @@ class PostDeletionRecoveryWorker @AssistedInject constructor(
 				resumeActivityArbiter = {
 					activityRegistrationArbiterProvider.get()
 						.resumeAfterCollectedDataDeletion()
-						.let { Unit }
 				},
 				reconcileAutomaticControl = {
 					BackgroundTrackingApi.reconcileAutomaticControlDemandAfterStartup(
@@ -121,7 +121,7 @@ internal suspend fun runPostDeletionRecovery(
 	reconcileStartup: suspend () -> TrackingStartupResult,
 	resumeWriters: () -> Unit,
 	resumeActivityArbiter: suspend () -> Unit,
-	reconcileAutomaticControl: suspend () -> Boolean,
+	reconcileAutomaticControl: suspend () -> AutomaticControlRecoveryResult,
 ): PostDeletionRecoveryOutcome {
 	if (currentEpoch() != expectedEpoch) return PostDeletionRecoveryOutcome.COMPLETE
 	if (isDeletionClosed()) return PostDeletionRecoveryOutcome.RETRY
@@ -139,7 +139,7 @@ internal suspend fun runPostDeletionRecovery(
 
 	// These operations may open collected Room or schedule Room workers, so they occur only after
 	// the exact startup generation is Ready. The arbiter is unpaused before automatic demand repair;
-	// the repair's Boolean is true only for an accepted enabled demand or a terminally disabled one.
+	// optional control containment is terminal while explicitly transient failures retain retry work.
 	resumeWriters()
 	resumeActivityArbiter()
 	if (currentEpoch() != expectedEpoch || isDeletionClosed() ||
@@ -147,9 +147,10 @@ internal suspend fun runPostDeletionRecovery(
 	) {
 		return PostDeletionRecoveryOutcome.RETRY
 	}
-	return if (reconcileAutomaticControl()) {
-		PostDeletionRecoveryOutcome.COMPLETE
-	} else {
-		PostDeletionRecoveryOutcome.RETRY
+	return when (reconcileAutomaticControl()) {
+		AutomaticControlRecoveryResult.ACCEPTED,
+		AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED ->
+			PostDeletionRecoveryOutcome.COMPLETE
+		AutomaticControlRecoveryResult.RETRYABLE -> PostDeletionRecoveryOutcome.RETRY
 	}
 }

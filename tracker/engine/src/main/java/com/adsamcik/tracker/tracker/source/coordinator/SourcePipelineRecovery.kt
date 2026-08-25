@@ -110,12 +110,7 @@ class SourcePipelineRecovery private constructor(
 
 	/** Recovers durable projections only; it deliberately cannot invoke application consumers. */
 	suspend fun recoverDurableState(): SourceRecoveryResult {
-		val legacyResult = recoverLegacyOncePerProcess()
-		if (legacyResult !is LegacyV27ProjectionRecoveryResult.NotRequired &&
-			legacyResult !is LegacyV27ProjectionRecoveryResult.Complete
-		) {
-			throw LegacyV27ProjectionRecoveryNotReadyException(legacyResult)
-		}
+		val legacyResult = recoverStartupAuthority()
 		val owner = "source-recovery:${UUID.randomUUID()}"
 		val drain = coordinator.drainAvailable(owner)
 		return SourceRecoveryResult(
@@ -124,6 +119,21 @@ class SourcePipelineRecovery private constructor(
 			trackingFramesDelivered = 0,
 			legacyRecovery = legacyResult,
 		)
+	}
+
+	/**
+	 * Recovers only the released-v27 boundary that every source must observe before admission opens.
+	 * Live v28 projections are source-local work: their leases and poison rows must not hold the
+	 * process-wide startup gate closed for an independently viable source.
+	 */
+	suspend fun recoverStartupAuthority(): LegacyV27ProjectionRecoveryResult {
+		val legacyResult = recoverLegacyOncePerProcess()
+		if (legacyResult !is LegacyV27ProjectionRecoveryResult.NotRequired &&
+			legacyResult !is LegacyV27ProjectionRecoveryResult.Complete
+		) {
+			throw LegacyV27ProjectionRecoveryNotReadyException(legacyResult)
+		}
+		return legacyResult
 	}
 
 	/** Drains the live Activity automation effects after their owner has declared readiness. */
@@ -220,9 +230,21 @@ class SourcePipelineRecovery private constructor(
 		startPermit: ActivityAutomationStartPermit,
 		generationGuard: ReadyGenerationGuard,
 	): SourceRecoveryResult {
-		val durable = recoverDurableState()
-		if (durable.drain !is CoordinatorDrainResult.Complete) return durable
+		// This path is driven by Activity ingress and Activity's committed-work signal. It must never
+		// inherit the result of an unrelated global/source projection: doing so would make a poisoned
+		// sibling suppress already-durable Activity publication and reintroduce cross-source blocking.
+		val durable = SourceRecoveryResult(
+			drain = activityProjectionLane.drainAvailable(),
+			activityEffectsDelivered = 0,
+			trackingFramesDelivered = 0,
+			legacyRecovery = LegacyV27ProjectionRecoveryResult.NotRequired,
+		)
 		generationGuard.requireCurrent()
+		if (durable.drain !is CoordinatorDrainResult.Complete) {
+			return durable.copy(
+				activityAutomationDrain = ActivityAutomationDrainResult.ProjectionDeferred(),
+			)
+		}
 		val delivered = activityEffects.drain(startPermit = startPermit)
 		generationGuard.requireCurrent()
 		return durable.copy(
@@ -242,6 +264,11 @@ class SourcePipelineRecovery private constructor(
 		withReadyGenerationDrain { guard ->
 			activityEffectMutex.withLock {
 				guard.requireCurrent()
+				val projectionDrain = activityProjectionLane.drainAvailable()
+				guard.requireCurrent()
+				if (projectionDrain !is CoordinatorDrainResult.Complete) {
+					return@withLock ActivityAutomationDrainResult.ProjectionDeferred()
+				}
 				activityEffects.drainToQuiescence(
 					startPermit = ActivityAutomationStartPermit.None,
 				).also { guard.requireCurrent() }

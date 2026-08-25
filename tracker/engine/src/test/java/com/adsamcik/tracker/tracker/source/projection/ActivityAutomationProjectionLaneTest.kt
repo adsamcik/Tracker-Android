@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity
 import com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
 import com.adsamcik.tracker.tracker.source.model.ActivityRecognitionPayload
@@ -113,6 +114,50 @@ class ActivityAutomationProjectionLaneTest {
 			ingress.committedSourceBatch(SourceKind.ACTIVITY, 5L, 8L, 64)
 		}
 		coVerify(exactly = 0) { ingress.committedBatch(any(), any()) }
+	}
+
+	@Test
+	fun `Activity outbox identity poison remains nonterminal in the Activity lane`() = runTest {
+		val ingress = mockk<DurableSourceIngress>()
+		coEvery {
+			ingress.committedSourceBatch(SourceKind.ACTIVITY, 0L, 1L, 64)
+		} returns listOf(activityEvent(1L))
+		database.sourceProjectionStateDao().insertOutbox(
+			SourceProjectionOutboxEntity(
+				stableId = "${ActivityAutomationProjection.ID}:activity-1",
+				projectionId = "foreign-owner",
+				projectionVersion = 9,
+				admissionOrdinal = 99L,
+				effectKind = "different",
+				payloadVersion = 2,
+				payload = byteArrayOf(9),
+				createdAtMs = 1L,
+				deliveredAtMs = null,
+			),
+		)
+		val lane = ActivityAutomationProjectionLane(
+			database = database,
+			ingress = ingress,
+			projections = ProjectionDispatcher(database, setOf(ActivityAutomationProjection())),
+		)
+
+		lane.drainThrough(1L) shouldBe CoordinatorDrainResult.ProjectionFailed(
+			lastCompletedOrdinal = 0L,
+			eventsDispatched = 0,
+			projectionId = ActivityAutomationProjection.ID,
+			failedOrdinal = 1L,
+		)
+
+		database.sourceProjectionStateDao().checkpoint(
+			ActivityAutomationProjection.ID,
+			ActivityAutomationProjection.VERSION,
+		)?.contiguousAdmissionOrdinal shouldBe 0L
+		database.sourceProjectionStateDao().failure(
+			ActivityAutomationProjection.ID,
+			ActivityAutomationProjection.VERSION,
+			1L,
+		)?.terminal shouldBe false
+		database.sourceProjectionStateDao().pendingOutbox(10).single().deliveredAtMs shouldBe null
 	}
 
 	private fun activityEvent(ordinal: Long, collectedDataEpoch: Long = 1L) = AdmittedSourceEvent(

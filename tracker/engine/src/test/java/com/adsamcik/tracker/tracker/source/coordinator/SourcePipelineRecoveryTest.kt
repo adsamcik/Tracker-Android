@@ -58,12 +58,11 @@ class SourcePipelineRecoveryTest {
 	fun `committed work hints return immediately and conflate behind one drain`() = runTest {
 		val firstDrainEntered = CompletableDeferred<Unit>()
 		val releaseFirstDrain = CompletableDeferred<Unit>()
-		coEvery { legacy.recover() } coAnswers {
+		coEvery { activityLane.drainAvailable() } coAnswers {
 			firstDrainEntered.complete(Unit)
 			releaseFirstDrain.await()
-			LegacyV27ProjectionRecoveryResult.NotRequired
+			CoordinatorDrainResult.Complete(7L, 0)
 		}
-		coEvery { coordinator.drainAvailable(any()) } returns CoordinatorDrainResult.Complete(7L, 1)
 		coEvery { activityEffects.drain() } returns 0
 		val scheduled = SourcePipelineRecovery(
 			legacy,
@@ -80,7 +79,7 @@ class SourcePipelineRecoveryTest {
 
 		repeat(100) { scheduled.requestCommittedWorkDrain() }
 		runCurrent()
-		// The first drain is deliberately blocked in legacy recovery. New hints must conflate
+		// The first Activity-local drain is deliberately blocked. New hints must conflate
 		// without entering a concurrent projection drain or blocking the caller.
 		coVerify(exactly = 0) { coordinator.drainAvailable(any()) }
 
@@ -89,8 +88,9 @@ class SourcePipelineRecoveryTest {
 		// remains. Run the queued continuation explicitly through the second conflated drain.
 		runCurrent()
 
-		coVerify(exactly = 1) { legacy.recover() }
-		coVerify(exactly = 2) { coordinator.drainAvailable(any()) }
+		coVerify(exactly = 0) { legacy.recover() }
+		coVerify(exactly = 0) { coordinator.drainAvailable(any()) }
+		coVerify(exactly = 2) { activityLane.drainAvailable() }
 		coVerify(exactly = 2) { activityEffects.drain() }
 	}
 
@@ -99,8 +99,7 @@ class SourcePipelineRecoveryTest {
 		val gate = TestTrackingStartupGate(initialGeneration = 7L)
 		val projectionEntered = CompletableDeferred<Unit>()
 		val releaseProjection = CompletableDeferred<Unit>()
-		coEvery { legacy.recover() } returns LegacyV27ProjectionRecoveryResult.NotRequired
-		coEvery { coordinator.drainAvailable(any()) } coAnswers {
+		coEvery { activityLane.drainAvailable() } coAnswers {
 			projectionEntered.complete(Unit)
 			releaseProjection.await()
 			CoordinatorDrainResult.Complete(9L, 1)
@@ -130,38 +129,35 @@ class SourcePipelineRecoveryTest {
 		// Closing the generation while projection was in flight withholds every external effect.
 		// The projection completed before deletion quiescence, so its rows can be scrubbed once and
 		// cannot be recreated by the old app-scope job after deletion returns.
-		coVerify(exactly = 1) { coordinator.drainAvailable(any()) }
+		coVerify(exactly = 1) { activityLane.drainAvailable() }
+		coVerify(exactly = 0) { coordinator.drainAvailable(any()) }
 		coVerify(exactly = 0) { activityEffects.drain(any(), any(), any()) }
 
 		// A signal already queued against the closed generation is also fail-closed.
 		scheduled.requestCommittedWorkDrain()
 		runCurrent()
-		coVerify(exactly = 1) { coordinator.drainAvailable(any()) }
+		coVerify(exactly = 1) { activityLane.drainAvailable() }
 	}
 
 	@Test
-	fun `terminal legacy recovery precedes projection and only activity effects drain`() = runTest {
-		val legacyResult = LegacyV27ProjectionRecoveryResult.Complete(
-			partial = true,
-			suppressedOutboxCount = 2L,
-		)
-		coEvery { legacy.recover() } returns legacyResult
-		coEvery { coordinator.drainAvailable(any()) } returns CoordinatorDrainResult.Complete(7L, 3)
+	fun `committed work drains only the Activity projection and effects`() = runTest {
+		coEvery { activityLane.drainAvailable() } returns CoordinatorDrainResult.Complete(7L, 0)
 		coEvery { activityEffects.drain() } returns 1
 
 		val result = subject.drainCommittedWork()
 
 		result shouldBe SourceRecoveryResult(
-			drain = CoordinatorDrainResult.Complete(7L, 3),
+			drain = CoordinatorDrainResult.Complete(7L, 0),
 			activityEffectsDelivered = 1,
 			trackingFramesDelivered = 0,
-			legacyRecovery = legacyResult,
+			legacyRecovery = LegacyV27ProjectionRecoveryResult.NotRequired,
 		)
 		coVerifySequence {
-			legacy.recover()
-			coordinator.drainAvailable(any())
+			activityLane.drainAvailable()
 			activityEffects.drain()
 		}
+		coVerify(exactly = 0) { legacy.recover() }
+		coVerify(exactly = 0) { coordinator.drainAvailable(any()) }
 	}
 
 	@Test
@@ -181,18 +177,51 @@ class SourcePipelineRecoveryTest {
 	}
 
 	@Test
+	fun `startup authority recovers released v27 without acquiring a live projection lease`() = runTest {
+		val legacyResult = LegacyV27ProjectionRecoveryResult.Complete(
+			partial = false,
+			suppressedOutboxCount = 0L,
+		)
+		coEvery { legacy.recover() } returns legacyResult
+
+		subject.recoverStartupAuthority() shouldBe legacyResult
+
+		coVerify(exactly = 1) { legacy.recover() }
+		coVerify(exactly = 0) { coordinator.drainAvailable(any()) }
+		coVerify(exactly = 0) { activityLane.drainAvailable() }
+		coVerify(exactly = 0) { activityEffects.drain(any(), any(), any()) }
+	}
+
+	@Test
 	fun `post-authority activity drain does not rerun durable recovery`() = runTest {
 		val expected = ActivityAutomationDrainResult.Complete(
 			deliveredCount = 3,
 			terminalCount = 2,
 		)
 		coEvery { activityEffects.drainToQuiescence() } returns expected
+		coEvery { activityLane.drainAvailable() } returns CoordinatorDrainResult.Complete(9L, 2)
 
 		subject.drainActivityAutomationEffects() shouldBe expected
 
 		coVerify(exactly = 1) { activityEffects.drainToQuiescence() }
+		coVerify(exactly = 1) { activityLane.drainAvailable() }
 		coVerify(exactly = 0) { legacy.recover() }
 		coVerify(exactly = 0) { coordinator.drainAvailable(any()) }
+	}
+
+	@Test
+	fun `Activity projection poison keeps its effects pending and retryable`() = runTest {
+		coEvery { activityLane.drainAvailable() } returns CoordinatorDrainResult.ProjectionFailed(
+			lastCompletedOrdinal = 8L,
+			eventsDispatched = 0,
+			projectionId = ActivityAutomationProjection.ID,
+			failedOrdinal = 9L,
+		)
+		subject.drainActivityAutomationEffects() shouldBe
+			ActivityAutomationDrainResult.ProjectionDeferred()
+
+		coVerify(exactly = 1) { activityLane.drainAvailable() }
+		coVerify(exactly = 0) { activityEffects.drainToQuiescence(any(), any(), any(), any()) }
 	}
 
 	@Test
@@ -395,8 +424,7 @@ class SourcePipelineRecoveryTest {
 
 	@Test
 	fun `not-required legacy recovery permits an empty live drain`() = runTest {
-		coEvery { legacy.recover() } returns LegacyV27ProjectionRecoveryResult.NotRequired
-		coEvery { coordinator.drainAvailable(any()) } returns CoordinatorDrainResult.Complete(0L, 0)
+		coEvery { activityLane.drainAvailable() } returns CoordinatorDrainResult.Complete(0L, 0)
 		coEvery { activityEffects.drain() } returns 0
 
 		subject.drainCommittedWork().legacyRecovery shouldBe
@@ -404,7 +432,7 @@ class SourcePipelineRecoveryTest {
 	}
 
 	@Test
-	fun `nonterminal legacy outcomes never reach live v2`() = runTest {
+	fun `nonterminal legacy outcomes never open startup authority`() = runTest {
 		val outcomes = listOf(
 			LegacyV27ProjectionRecoveryResult.LeaseUnavailable,
 			LegacyV27ProjectionRecoveryResult.LifecycleSuperseded,
@@ -415,7 +443,7 @@ class SourcePipelineRecoveryTest {
 		outcomes.forEach { outcome ->
 			coEvery { legacy.recover() } returns outcome
 			shouldThrow<LegacyV27ProjectionRecoveryNotReadyException> {
-				subject.drainCommittedWork()
+				subject.recoverStartupAuthority()
 			}.result shouldBe outcome
 		}
 
@@ -424,20 +452,19 @@ class SourcePipelineRecoveryTest {
 	}
 
 	@Test
-	fun `incomplete live projection never dispatches transient outboxes`() = runTest {
-		coEvery { legacy.recover() } returns LegacyV27ProjectionRecoveryResult.NotRequired
+	fun `global projection failure is not consulted by the independent Activity lane`() = runTest {
 		coEvery { coordinator.drainAvailable(any()) } returns
 			CoordinatorDrainResult.ProjectionFailed(4L, 4, "location-domain", 5L)
+		coEvery { activityLane.drainAvailable() } returns CoordinatorDrainResult.Complete(5L, 1)
+		coEvery { activityEffects.drain() } returns 1
 
 		val result = subject.drainCommittedWork()
 
-		result.drain shouldBe CoordinatorDrainResult.ProjectionFailed(
-			4L,
-			4,
-			"location-domain",
-			5L,
-		)
-		coVerify(exactly = 0) { activityEffects.drain() }
+		result.drain shouldBe CoordinatorDrainResult.Complete(5L, 1)
+		result.activityEffectsDelivered shouldBe 1
+		coVerify(exactly = 0) { coordinator.drainAvailable(any()) }
+		coVerify(exactly = 1) { activityLane.drainAvailable() }
+		coVerify(exactly = 1) { activityEffects.drain() }
 	}
 
 	private fun transitionEffect(ordinal: Long) = SourceProjectionOutboxEntity(

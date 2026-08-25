@@ -17,7 +17,6 @@ import com.adsamcik.tracker.tracker.resilience.PreviousExitRecoveryCoordinator
 import com.adsamcik.tracker.tracker.resilience.TrackingLifecycleCommandAuthority
 import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
 import com.adsamcik.tracker.tracker.resilience.TrackingStopCommand
-import com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult
 import com.adsamcik.tracker.tracker.source.coordinator.LegacyV27ProjectionRecoveryNotReadyException
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
 import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecoveryResult
@@ -193,7 +192,8 @@ class TrackingStartupDeletionBarrier internal constructor(
 }
 
 /**
- * The one process-local authority that serializes storage readiness and projection recovery.
+ * The one process-local authority that serializes storage, released-v27 recovery, lifecycle, and
+ * deletion readiness. Live v28 projectors are source-local and never process-wide prerequisites.
  * Durable migration/drain rows remain the crash authority; only successful milestones are cached.
  */
 @Singleton
@@ -326,15 +326,15 @@ class DefaultTrackingStartupGate @Inject constructor(
 			val recoveryStopGeneration = currentHandledStopGenerationOrNull()
 				?: return@withStartupRecovery pendingStopChangedFailure()
 
-			val sourceRecovery = try {
-				sourcePipelineRecoveryProvider.get().recoverDurableState()
+			val legacyRecovery = try {
+				sourcePipelineRecoveryProvider.get().recoverStartupAuthority()
 			} catch (cancelled: CancellationException) {
 				throw cancelled
 			} catch (legacy: LegacyV27ProjectionRecoveryNotReadyException) {
 				return@withStartupRecovery legacy.result.toStartupFailure()
 			} catch (failure: Exception) {
 				return@withStartupRecovery TrackingStartupResult.RetryableFailure(
-					TrackingStartupStage.LIVE_V2,
+					TrackingStartupStage.LEGACY_V27,
 					failure.failureCode(),
 				)
 			}
@@ -350,35 +350,21 @@ class DefaultTrackingStartupGate @Inject constructor(
 				)
 			}
 
-			when (val drain = sourceRecovery.drain) {
-				is CoordinatorDrainResult.Complete -> TrackingStartupResult.Ready(
-					legacyRecoveryPartial =
-						(sourceRecovery.legacyRecovery as? LegacyV27ProjectionRecoveryResult.Complete)
-							?.partial == true,
-					liveCompletedThroughOrdinal = drain.lastCompletedOrdinal,
-				).also { result ->
-					ready = result
-					readyGeneration = recoveryGeneration
-					readyStopGeneration = recoveryStopGeneration
-					readySignalVersion += 1L
-					readySignals.value = RuntimeReadySignal(
-						version = readySignalVersion,
-						generation = recoveryGeneration,
-						stopGeneration = recoveryStopGeneration,
-						result = result,
-					)
-				}
-				CoordinatorDrainResult.LeaseUnavailable -> TrackingStartupResult.RetryableFailure(
-					TrackingStartupStage.LIVE_V2,
-					LIVE_LEASE_UNAVAILABLE,
-				)
-				is CoordinatorDrainResult.LeaseLost -> TrackingStartupResult.RetryableFailure(
-					TrackingStartupStage.LIVE_V2,
-					LIVE_LEASE_LOST,
-				)
-				is CoordinatorDrainResult.ProjectionFailed -> TrackingStartupResult.RetryableFailure(
-					TrackingStartupStage.LIVE_V2,
-					"$LIVE_PROJECTION_FAILED:${drain.projectionId}:${drain.failedOrdinal}",
+			TrackingStartupResult.Ready(
+				legacyRecoveryPartial =
+					(legacyRecovery as? LegacyV27ProjectionRecoveryResult.Complete)?.partial == true,
+				// Live projection progress is intentionally not a process-wide admission boundary.
+				liveCompletedThroughOrdinal = 0L,
+			).also { result ->
+				ready = result
+				readyGeneration = recoveryGeneration
+				readyStopGeneration = recoveryStopGeneration
+				readySignalVersion += 1L
+				readySignals.value = RuntimeReadySignal(
+					version = readySignalVersion,
+					generation = recoveryGeneration,
+					stopGeneration = recoveryStopGeneration,
+					result = result,
 				)
 			}
 		}
@@ -609,9 +595,6 @@ class DefaultTrackingStartupGate @Inject constructor(
 		const val PENDING_STOP_SESSION_MISMATCH = "PENDING_STOP_SESSION_MISMATCH"
 		const val LEGACY_LEASE_UNAVAILABLE = "LEGACY_V27_LEASE_UNAVAILABLE"
 		const val LEGACY_LIFECYCLE_SUPERSEDED = "LEGACY_V27_LIFECYCLE_SUPERSEDED"
-		const val LIVE_LEASE_UNAVAILABLE = "LIVE_V2_LEASE_UNAVAILABLE"
-		const val LIVE_LEASE_LOST = "LIVE_V2_LEASE_LOST"
-		const val LIVE_PROJECTION_FAILED = "LIVE_V2_PROJECTION_FAILED"
 		const val UNKNOWN_FAILURE = "UNKNOWN_STARTUP_FAILURE"
 	}
 

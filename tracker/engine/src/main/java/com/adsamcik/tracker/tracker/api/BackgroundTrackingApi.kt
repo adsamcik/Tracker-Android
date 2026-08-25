@@ -47,10 +47,17 @@ import com.adsamcik.tracker.tracker.source.runtime.SharedStepSourceController
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.service.ForegroundSourceCapabilities
 import com.adsamcik.tracker.tracker.service.acceptedForegroundSources
+import com.adsamcik.tracker.tracker.service.configuredForegroundSources
 import com.adsamcik.tracker.tracker.service.foregroundServiceTypeCandidates
+import com.adsamcik.tracker.tracker.service.rolloutReachableCaptureSources
+import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.SessionStartOrigin
+import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationFailureCode
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationResult
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainCoroutineDispatcher
@@ -83,6 +90,16 @@ interface BackgroundTrackingApiEntryPoint {
 	fun sourcePolicyRepository(): SourcePolicyRepository
 	fun activityWatcherController(): ActivityWatcherController
 	fun trackingStartupGate(): TrackingStartupGate
+	fun trackingRolloutStateStore(): RoomTrackingRolloutStateStore
+}
+
+/** WorkManager disposition for restoring the optional automatic Activity control registration. */
+enum class AutomaticControlRecoveryResult {
+	ACCEPTED,
+	/** Control is disabled, revoked, permission-ineligible, or deliberately rollout-contained. */
+	TERMINAL_DISABLED_OR_CONTAINED,
+	/** Storage, startup, provider registration, or cleanup may succeed on a later bounded attempt. */
+	RETRYABLE,
 }
 
 /**
@@ -311,7 +328,12 @@ object BackgroundTrackingApi {
 			currentAutomationEpoch = currentAutomationEpoch,
 			effectAutomationEpoch = evidence.automationEpoch,
 		)?.let { return it }
-		val startPlan = activityAutomaticStartPlan(context.applicationContext, cachedParamsSnapshot())
+		val rollout = getEntryPoint(context).trackingRolloutStateStore().load()
+		val startPlan = activityAutomaticStartPlan(
+			context.applicationContext,
+			cachedParamsSnapshot(),
+			rollout,
+		)
 		if (startPlan.captureSourceMask == 0L) {
 			return ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED
 		}
@@ -455,11 +477,16 @@ object BackgroundTrackingApi {
 		return transitions
 	}
 
-	private fun reinitializeRequest(context: Context, useTransitionApi: Boolean) {
+	private fun reinitializeRequest(
+		context: Context,
+		useTransitionApi: Boolean,
+		recoveryCompletion: CompletableDeferred<AutomaticControlRecoveryResult>? = null,
+	) {
 		val generation = ++requestMutationGeneration
 		val monitor = getEntryPoint(context).automaticStartTransitionMonitor()
 		val watcherController = getWatcherController(context)
 		enqueueRequestMutation {
+			var recoveryResult = AutomaticControlRecoveryResult.RETRYABLE
 			try {
 				val result = monitor.reconcile(
 					enabled = true,
@@ -467,10 +494,16 @@ object BackgroundTrackingApi {
 					continuousIntervalSeconds = activityFreqSeconds,
 					transitions = buildTransitions().toSet(),
 				)
+				recoveryResult = automaticControlRecoveryResult(result)
 				check(result.status == ActivityRegistrationStatus.APPLIED ||
 					result.status == ActivityRegistrationStatus.DEGRADED
 				) { "Unable to apply background activity recognition request: ${result.failureCode}" }
 				if (generation != requestMutationGeneration || !isActive) {
+					recoveryResult = if (isActive) {
+						AutomaticControlRecoveryResult.RETRYABLE
+					} else {
+						AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED
+					}
 					return@enqueueRequestMutation
 				}
 
@@ -484,8 +517,12 @@ object BackgroundTrackingApi {
 				recognitionUpdatesJob = null
 				watcherController.poke()
 			} catch (exception: CancellationException) {
+				recoveryCompletion?.cancel(exception)
 				throw exception
 			} catch (exception: Exception) {
+				if (recoveryResult == AutomaticControlRecoveryResult.ACCEPTED) {
+					recoveryResult = AutomaticControlRecoveryResult.RETRYABLE
+				}
 				if (generation == requestMutationGeneration && isActive) {
 					isActive = false
 					val cleanupGeneration = ++requestMutationGeneration
@@ -510,13 +547,26 @@ object BackgroundTrackingApi {
 							continuousIntervalSeconds = activityFreqSeconds,
 							transitions = emptySet(),
 						)
-						check(cleanup.status != ActivityRegistrationStatus.FAILED) {
+						val cleanupRecoveryResult = automaticControlDisabledRecoveryResult(cleanup)
+						if (cleanupRecoveryResult == AutomaticControlRecoveryResult.RETRYABLE) {
+							recoveryResult = cleanupRecoveryResult
+						}
+						check(cleanupRecoveryResult != AutomaticControlRecoveryResult.RETRYABLE) {
 							"Unable to clear automatic activity demand: ${cleanup.failureCode}"
 						}
 					}
-					if (removed) watcherController.poke()
+					if (removed) {
+						watcherController.poke()
+					} else {
+						recoveryResult = AutomaticControlRecoveryResult.RETRYABLE
+					}
+				}
+				if (recoveryResult == AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED) {
+					return@enqueueRequestMutation
 				}
 				throw exception
+			} finally {
+				recoveryCompletion?.complete(recoveryResult)
 			}
 		}
 	}
@@ -536,12 +586,22 @@ object BackgroundTrackingApi {
 		}
 	}
 
-	private fun enable(context: Context) {
+	private fun enable(
+		context: Context,
+		recoveryCompletion: CompletableDeferred<AutomaticControlRecoveryResult>? = null,
+	) {
 		isActive = true
-		reinitializeRequest(context, cachedParamsSnapshot().transitionDetectionEnabled)
+		reinitializeRequest(
+			context,
+			cachedParamsSnapshot().transitionDetectionEnabled,
+			recoveryCompletion,
+		)
 	}
 
-	private fun disable(context: Context) {
+	private fun disable(
+		context: Context,
+		recoveryCompletion: CompletableDeferred<AutomaticControlRecoveryResult>? = null,
+	) {
 		isActive = false
 		cancelAutomaticStopGrace()
 		val generation = ++requestMutationGeneration
@@ -549,26 +609,43 @@ object BackgroundTrackingApi {
 		val monitor = getEntryPoint(context).automaticStartTransitionMonitor()
 		val watcherController = getWatcherController(context)
 		enqueueRequestMutation {
-			if (generation != requestMutationGeneration || isActive) {
-				return@enqueueRequestMutation
-			}
-			recognitionUpdatesJob?.cancel()
-			recognitionUpdatesJob = null
-			reconcileStepAutomaticControl(context, enabled = false)
-			val removed = reconcileActivityRequestRemoval(
-				shouldContinue = { generation == requestMutationGeneration && !isActive },
-			) {
-				val result = monitor.reconcile(
-					enabled = false,
-					useTransitionApi = false,
-					continuousIntervalSeconds = activityFreqSeconds,
-					transitions = emptySet(),
-				)
-				check(result.status != ActivityRegistrationStatus.FAILED) {
-					"Unable to clear automatic activity demand: ${result.failureCode}"
+			var recoveryResult = AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED
+			try {
+				if (generation != requestMutationGeneration || isActive) {
+					return@enqueueRequestMutation
 				}
+				recognitionUpdatesJob?.cancel()
+				recognitionUpdatesJob = null
+				reconcileStepAutomaticControl(context, enabled = false)
+				val removed = reconcileActivityRequestRemoval(
+					shouldContinue = { generation == requestMutationGeneration && !isActive },
+				) {
+					val result = monitor.reconcile(
+						enabled = false,
+						useTransitionApi = false,
+						continuousIntervalSeconds = activityFreqSeconds,
+						transitions = emptySet(),
+					)
+					recoveryResult = automaticControlDisabledRecoveryResult(result)
+					check(recoveryResult != AutomaticControlRecoveryResult.RETRYABLE) {
+						"Unable to clear automatic activity demand: ${result.failureCode}"
+					}
+				}
+				recoveryResult = if (removed || generation != requestMutationGeneration || isActive) {
+					AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED
+				} else {
+					AutomaticControlRecoveryResult.RETRYABLE
+				}
+				if (removed) watcherController.poke()
+			} catch (exception: CancellationException) {
+				recoveryCompletion?.cancel(exception)
+				throw exception
+			} catch (exception: Exception) {
+				recoveryResult = AutomaticControlRecoveryResult.RETRYABLE
+				throw exception
+			} finally {
+				recoveryCompletion?.complete(recoveryResult)
 			}
-			if (removed) watcherController.poke()
 		}
 	}
 
@@ -709,36 +786,53 @@ object BackgroundTrackingApi {
 	 * Recreates the app-scoped automatic-control demand after a destructive data generation change.
 	 * Initialization is intentionally idempotent, while this reconciliation is intentionally not a
 	 * no-op when [isActive] survived the database clear. Call only after the reopened startup
-	 * generation is Ready. Returns false when an enabled demand could not be restored.
+	 * generation is Ready. Deliberate containment and permission-ineligible optional control are
+	 * terminal; transient storage/startup/provider failures remain WorkManager retry work.
 	 */
-	suspend fun reconcileAutomaticControlDemandAfterStartup(context: Context): Boolean {
+	suspend fun reconcileAutomaticControlDemandAfterStartup(
+		context: Context,
+	): AutomaticControlRecoveryResult {
 		initializeAndAwaitActivityAutomationAuthority(context)
 		val ctx = context.applicationContext
 		val mainImmediate = (dispatchers.main as? MainCoroutineDispatcher)?.immediate ?: dispatchers.main
-		val shouldBeActive = withContext(mainImmediate) {
-			val enabled = effectiveAutomaticControlMode(
+		val recoveryCompletion = CompletableDeferred<AutomaticControlRecoveryResult>()
+		withContext(mainImmediate) {
+			handleTrackingActivityPreferenceChange(
 				cachedParamsSnapshot().autoTrackingMode,
-				activityControlEligible,
-			) != GroupedActivity.STILL.ordinal && ctx.hasActivityPermission
-			handleTrackingActivityPreferenceChange(cachedParamsSnapshot().autoTrackingMode)
-			enabled
+				recoveryCompletion,
+			)
 		}
-		requestMutationJob?.join()
-		return !shouldBeActive || isActive
+		return recoveryCompletion.await()
 	}
 
-	private fun handleTrackingActivityPreferenceChange(value: Int) {
+	private fun handleTrackingActivityPreferenceChange(
+		value: Int,
+		recoveryCompletion: CompletableDeferred<AutomaticControlRecoveryResult>? = null,
+	) {
 		val context = appContext ?: return
 		// A preference change changes the continuation predicate, so an old incompatible reading
 		// must never finish a grace timer under a different policy.
 		cancelAutomaticStopGrace()
 		val effectiveValue = effectiveAutomaticControlMode(value, activityControlEligible)
-		when (resolveAutoTrackingPreferenceAction(effectiveValue, isActive, context.hasActivityPermission)) {
-			AutoTrackingPreferenceAction.DISABLE -> disable(context)
-			AutoTrackingPreferenceAction.ENABLE -> enable(context)
-			AutoTrackingPreferenceAction.REINITIALIZE ->
-				reinitializeRequest(context, cachedParamsSnapshot().transitionDetectionEnabled)
-			AutoTrackingPreferenceAction.NONE -> Unit
+		if (recoveryCompletion != null) {
+			when {
+				effectiveValue == GroupedActivity.STILL.ordinal || !context.hasActivityPermission ->
+					disable(context, recoveryCompletion)
+				!isActive -> enable(context, recoveryCompletion)
+				else -> reinitializeRequest(
+					context,
+					cachedParamsSnapshot().transitionDetectionEnabled,
+					recoveryCompletion,
+				)
+			}
+		} else {
+			when (resolveAutoTrackingPreferenceAction(effectiveValue, isActive, context.hasActivityPermission)) {
+				AutoTrackingPreferenceAction.DISABLE -> disable(context)
+				AutoTrackingPreferenceAction.ENABLE -> enable(context)
+				AutoTrackingPreferenceAction.REINITIALIZE ->
+					reinitializeRequest(context, cachedParamsSnapshot().transitionDetectionEnabled)
+				AutoTrackingPreferenceAction.NONE -> Unit
+			}
 		}
 		if (effectiveValue == GroupedActivity.STILL.ordinal && TrackerServiceApi.isActive(context)) {
 			val sessionInfo = TrackerServiceApi.sessionInfoFlow(context).value
@@ -979,17 +1073,11 @@ internal data class ActivityAutomaticStartPlan(
 internal fun activityAutomaticStartPlan(
 	context: Context,
 	params: TrackingParamsState,
+	rollout: TrackingRolloutState,
 ): ActivityAutomaticStartPlan {
-	val requested = buildSet {
-		if (params.locationEnabled) add(SourceKind.LOCATION)
-		if (params.activityEnabled) add(SourceKind.ACTIVITY)
-		if (params.stepsEnabled) add(SourceKind.STEPS)
-		if (params.barometerEnabled) add(SourceKind.PRESSURE)
-		if (params.wifiEnabled) add(SourceKind.WIFI)
-		if (params.cellEnabled) add(SourceKind.CELL)
-	}
+	val requested = configuredForegroundSources(params)
 	val accepted = acceptedForegroundSources(
-		requestedSources = requested,
+		requestedSources = rolloutReachableCaptureSources(requested, rollout),
 		capabilities = ForegroundSourceCapabilities(
 			sdkInt = Build.VERSION.SDK_INT,
 			startOrigin = SessionStartOrigin.AUTOMATIC_BACKGROUND_START,
@@ -1157,6 +1245,31 @@ internal fun shouldUseStepCorroboration(
 	useTransitionApi: Boolean,
 	stepControlEligible: Boolean,
 ): Boolean = !useTransitionApi && stepControlEligible
+
+internal fun automaticControlRecoveryResult(
+	result: ActivityRegistrationResult,
+): AutomaticControlRecoveryResult = when {
+	result.status == ActivityRegistrationStatus.APPLIED ||
+		result.status == ActivityRegistrationStatus.DEGRADED ->
+		AutomaticControlRecoveryResult.ACCEPTED
+	result.failureCode in TERMINAL_OPTIONAL_CONTROL_FAILURES ->
+		AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED
+	result.retryable -> AutomaticControlRecoveryResult.RETRYABLE
+	else -> AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED
+}
+
+internal fun automaticControlDisabledRecoveryResult(
+	result: ActivityRegistrationResult,
+): AutomaticControlRecoveryResult = if (result.retryable) {
+	AutomaticControlRecoveryResult.RETRYABLE
+} else {
+	AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED
+}
+
+private val TERMINAL_OPTIONAL_CONTROL_FAILURES = setOf(
+	ActivityRegistrationFailureCode.PERMISSION_MISSING,
+	ActivityRegistrationFailureCode.MISSING_DURABLE_DEMAND,
+)
 
 /** The automatic-tracking controller never tears down a user session from activity recognition. */
 internal enum class AutomaticTrackingContinuationAction { KEEP, SCHEDULE_STOP_GRACE }

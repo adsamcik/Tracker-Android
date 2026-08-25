@@ -147,6 +147,7 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 		}
 		when (completion.second.activityAutomationDrain) {
 			is ActivityAutomationDrainResult.Retryable,
+			is ActivityAutomationDrainResult.ProjectionDeferred,
 			is ActivityAutomationDrainResult.MorePending,
 			-> return ActivityIngressResult.retryable(
 				admittedCount,

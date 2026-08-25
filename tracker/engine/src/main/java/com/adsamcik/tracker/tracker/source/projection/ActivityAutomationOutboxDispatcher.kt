@@ -278,6 +278,15 @@ sealed interface ActivityAutomationDrainResult {
 		override val terminalCount: Int,
 	) : ActivityAutomationDrainResult
 
+	/**
+	 * The Activity projector could not advance. Durable WAL remains the retry authority; the
+	 * in-process effect driver must wait for a later admission/startup signal instead of spinning.
+	 */
+	data class ProjectionDeferred(
+		override val deliveredCount: Int = 0,
+		override val terminalCount: Int = 0,
+	) : ActivityAutomationDrainResult
+
 	data class MorePending(
 		override val deliveredCount: Int,
 		override val terminalCount: Int,

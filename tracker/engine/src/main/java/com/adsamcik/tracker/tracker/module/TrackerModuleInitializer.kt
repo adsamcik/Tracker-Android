@@ -89,6 +89,9 @@ internal suspend fun driveActivityAutomationEffectDrain(
 				}
 				when (result) {
 					is ActivityAutomationDrainResult.Complete -> return@collectLatest
+					is ActivityAutomationDrainResult.ProjectionDeferred ->
+						// The WAL owns retry. A later admission or cold start will probe again.
+						return@collectLatest
 					is ActivityAutomationDrainResult.MorePending -> {
 						retryDelayMillis = initialRetryDelayMillis
 						yield()

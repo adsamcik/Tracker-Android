@@ -13,10 +13,9 @@ import com.adsamcik.tracker.tracker.resilience.TrackingLifecycleCommandAuthority
 import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
 import com.adsamcik.tracker.tracker.resilience.TrackingStopCandidateReason
 import com.adsamcik.tracker.tracker.resilience.TrackingStopCommand
-import com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult
 import com.adsamcik.tracker.tracker.source.coordinator.LegacyV27ProjectionRecoveryNotReadyException
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
-import com.adsamcik.tracker.tracker.source.coordinator.SourceRecoveryResult
+import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainResult
 import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecoveryResult
 import io.kotest.matchers.shouldBe
 import io.mockk.Runs
@@ -109,7 +108,7 @@ class DefaultTrackingStartupGateTest {
 	}
 
 	@Test
-	fun `concurrent callers share storage exit legacy and live recovery then cache only ready`() = runTest {
+	fun `concurrent callers share storage exit and legacy recovery then cache only ready`() = runTest {
 		val allowStorage = CompletableDeferred<Unit>()
 		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
 		coEvery { storage.ensureReady(false) } coAnswers {
@@ -117,23 +116,21 @@ class DefaultTrackingStartupGateTest {
 			LegacyDatabaseStartupResult.Ready
 		}
 		coEvery { resolver.apply(ApplicationStartupRecoveryAction.None, 0L) } just Runs
-		coEvery { sourceRecovery.recoverDurableState() } returns completed(
-			legacy = LegacyV27ProjectionRecoveryResult.Complete(true, 2L),
-			throughOrdinal = 19L,
-		)
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns
+			LegacyV27ProjectionRecoveryResult.Complete(true, 2L)
 
 		val first = async { gate.reconcile() }
 		val second = async { gate.reconcile() }
 		allowStorage.complete(Unit)
 
-		val expected = TrackingStartupResult.Ready(true, 19L)
+		val expected = TrackingStartupResult.Ready(true, 0L)
 		first.await() shouldBe expected
 		second.await() shouldBe expected
 		gate.reconcile() shouldBe expected
 		gate.isReady shouldBe true
 		coVerify(exactly = 1) { storage.ensureReady(false) }
 		coVerify(exactly = 1) { resolver.apply(ApplicationStartupRecoveryAction.None, 0L) }
-		coVerify(exactly = 1) { sourceRecovery.recoverDurableState() }
+		coVerify(exactly = 1) { sourceRecovery.recoverStartupAuthority() }
 	}
 
 	@Test
@@ -147,7 +144,7 @@ class DefaultTrackingStartupGateTest {
 		)
 		gate.isReady shouldBe false
 		coVerify(exactly = 0) { resolver.apply(any(), any()) }
-		coVerify(exactly = 0) { sourceRecovery.recoverDurableState() }
+		coVerify(exactly = 0) { sourceRecovery.recoverStartupAuthority() }
 	}
 
 	@Test
@@ -162,7 +159,7 @@ class DefaultTrackingStartupGateTest {
 		)
 		coVerify(exactly = 1) { collectedDataDeletionService.reconcilePendingDeletion() }
 		coVerify(exactly = 0) { storage.ensureReady(any()) }
-		coVerify(exactly = 0) { sourceRecovery.recoverDurableState() }
+		coVerify(exactly = 0) { sourceRecovery.recoverStartupAuthority() }
 	}
 
 	@Test
@@ -171,7 +168,7 @@ class DefaultTrackingStartupGateTest {
 		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Failed("failed")
 		coEvery { storage.ensureReady(true) } returns LegacyDatabaseStartupResult.Ready
 		coEvery { resolver.apply(any(), any()) } just Runs
-		coEvery { sourceRecovery.recoverDurableState() } returns completed()
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
 
 		gate.reconcile() shouldBe TrackingStartupResult.RetryableFailure(
 			TrackingStartupStage.STORAGE,
@@ -182,7 +179,7 @@ class DefaultTrackingStartupGateTest {
 
 		coVerify(exactly = 1) { storage.ensureReady(false) }
 		coVerify(exactly = 1) { storage.ensureReady(true) }
-		coVerify(exactly = 1) { sourceRecovery.recoverDurableState() }
+		coVerify(exactly = 1) { sourceRecovery.recoverStartupAuthority() }
 	}
 
 	@Test
@@ -190,7 +187,7 @@ class DefaultTrackingStartupGateTest {
 		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
 		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
 		coEvery { resolver.apply(any(), any()) } just Runs
-		coEvery { sourceRecovery.recoverDurableState() } throws
+		coEvery { sourceRecovery.recoverStartupAuthority() } throws
 			LegacyV27ProjectionRecoveryNotReadyException(
 				LegacyV27ProjectionRecoveryResult.Blocked("UNKNOWN_V27_OUTBOX_GENERATION"),
 			)
@@ -208,7 +205,7 @@ class DefaultTrackingStartupGateTest {
 		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
 		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
 		coEvery { resolver.apply(any(), any()) } just Runs
-		coEvery { sourceRecovery.recoverDurableState() } coAnswers {
+		coEvery { sourceRecovery.recoverStartupAuthority() } coAnswers {
 			if (recoveryAttempts++ == 0) {
 				throw LegacyV27ProjectionRecoveryNotReadyException(
 					LegacyV27ProjectionRecoveryResult.LifecycleSuperseded,
@@ -224,7 +221,7 @@ class DefaultTrackingStartupGateTest {
 		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
 		coVerify(exactly = 1) { storage.ensureReady(false) }
 		coVerify(exactly = 1) { resolver.apply(any(), any()) }
-		coVerify(exactly = 2) { sourceRecovery.recoverDurableState() }
+		coVerify(exactly = 2) { sourceRecovery.recoverStartupAuthority() }
 	}
 
 	@Test
@@ -236,7 +233,7 @@ class DefaultTrackingStartupGateTest {
 		every { resolver.resolveAndPrepare() } returns action
 		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
 		coEvery { resolver.apply(action, 0L) } just Runs
-		coEvery { sourceRecovery.recoverDurableState() } returns completed()
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
 
 		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
 
@@ -244,7 +241,7 @@ class DefaultTrackingStartupGateTest {
 			resolver.resolveAndPrepare()
 			storage.ensureReady(false)
 			resolver.apply(action, 0L)
-			sourceRecovery.recoverDurableState()
+			sourceRecovery.recoverStartupAuthority()
 		}
 	}
 
@@ -260,7 +257,7 @@ class DefaultTrackingStartupGateTest {
 			InactiveTrackingSessionStopOutcome.FINALIZED
 		}
 		coEvery { resolver.apply(ApplicationStartupRecoveryAction.None, 0L) } just Runs
-		coEvery { sourceRecovery.recoverDurableState() } returns completed()
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
 
 		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
 
@@ -269,7 +266,7 @@ class DefaultTrackingStartupGateTest {
 			storage.ensureReady(false)
 			inactiveStopHandler.finalizeStoredSession(stop)
 			resolver.apply(ApplicationStartupRecoveryAction.None, 0L)
-			sourceRecovery.recoverDurableState()
+			sourceRecovery.recoverStartupAuthority()
 		}
 	}
 
@@ -289,7 +286,7 @@ class DefaultTrackingStartupGateTest {
 			InactiveTrackingSessionStopOutcome.ALREADY_FINALIZED
 		}
 		coEvery { resolver.apply(ApplicationStartupRecoveryAction.None, 0L) } just Runs
-		coEvery { sourceRecovery.recoverDurableState() } returns completed()
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
 
 		gate.reconcile() shouldBe TrackingStartupResult.RetryableFailure(
 			TrackingStartupStage.PREVIOUS_EXIT,
@@ -299,7 +296,7 @@ class DefaultTrackingStartupGateTest {
 
 		coVerify(exactly = 2) { inactiveStopHandler.finalizeStoredSession(stop) }
 		coVerify(exactly = 1) { resolver.apply(any(), any()) }
-		coVerify(exactly = 1) { sourceRecovery.recoverDurableState() }
+		coVerify(exactly = 1) { sourceRecovery.recoverStartupAuthority() }
 	}
 
 	@Test
@@ -319,7 +316,7 @@ class DefaultTrackingStartupGateTest {
 
 		coVerify(exactly = 2) { inactiveStopHandler.finalizeStoredSession(stop) }
 		coVerify(exactly = 1) { resolver.apply(any(), any()) }
-		coVerify(exactly = 0) { sourceRecovery.recoverDurableState() }
+		coVerify(exactly = 0) { sourceRecovery.recoverStartupAuthority() }
 	}
 
 	@Test
@@ -334,7 +331,7 @@ class DefaultTrackingStartupGateTest {
 			InactiveTrackingSessionStopOutcome.NO_ROOM_SESSION
 		}
 		coEvery { resolver.apply(ApplicationStartupRecoveryAction.None, 1L) } just Runs
-		coEvery { sourceRecovery.recoverDurableState() } returns completed()
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
 		deletionBarrier.close()
 		deletionBarrier.reopen()
 
@@ -343,7 +340,7 @@ class DefaultTrackingStartupGateTest {
 		coVerifyOrder {
 			inactiveStopHandler.finalizeStoredSession(stop)
 			resolver.apply(ApplicationStartupRecoveryAction.None, 1L)
-			sourceRecovery.recoverDurableState()
+			sourceRecovery.recoverStartupAuthority()
 		}
 	}
 
@@ -355,7 +352,7 @@ class DefaultTrackingStartupGateTest {
 		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
 		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
 		coEvery { resolver.apply(ApplicationStartupRecoveryAction.None, 0L) } just Runs
-		coEvery { sourceRecovery.recoverDurableState() } returns completed()
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
 		coEvery { inactiveStopHandler.finalizeStoredSession(stop) } coAnswers {
 			pending = null
 			InactiveTrackingSessionStopOutcome.FINALIZED
@@ -371,7 +368,7 @@ class DefaultTrackingStartupGateTest {
 
 		gate.reconcile() shouldBe expected
 		waiter.await() shouldBe expected
-		coVerify(exactly = 2) { sourceRecovery.recoverDurableState() }
+		coVerify(exactly = 2) { sourceRecovery.recoverStartupAuthority() }
 	}
 
 	@Test
@@ -381,7 +378,7 @@ class DefaultTrackingStartupGateTest {
 		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
 		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
 		coEvery { resolver.apply(ApplicationStartupRecoveryAction.None, 0L) } just Runs
-		coEvery { sourceRecovery.recoverDurableState() } returns completed()
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
 
 		val expected = TrackingStartupResult.Ready(false, 0L)
 		gate.reconcile() shouldBe expected
@@ -393,7 +390,7 @@ class DefaultTrackingStartupGateTest {
 
 		gate.reconcile() shouldBe expected
 		waiter.await() shouldBe expected
-		coVerify(exactly = 2) { sourceRecovery.recoverDurableState() }
+		coVerify(exactly = 2) { sourceRecovery.recoverStartupAuthority() }
 	}
 
 	@Test
@@ -404,7 +401,7 @@ class DefaultTrackingStartupGateTest {
 		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
 		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
 		coEvery { resolver.apply(ApplicationStartupRecoveryAction.None, 0L) } just Runs
-		coEvery { sourceRecovery.recoverDurableState() } coAnswers {
+		coEvery { sourceRecovery.recoverStartupAuthority() } coAnswers {
 			recoveryCount += 1
 			if (recoveryCount == 2) stopGeneration = 2L
 			completed()
@@ -420,30 +417,26 @@ class DefaultTrackingStartupGateTest {
 		)
 		gate.isReady shouldBe false
 		gate.reconcile() shouldBe expected
-		coVerify(exactly = 3) { sourceRecovery.recoverDurableState() }
+		coVerify(exactly = 3) { sourceRecovery.recoverStartupAuthority() }
 	}
 
 	@Test
-	fun `incomplete live drain stays retryable and is not cached`() = runTest {
+	fun `live Activity poison stays source local while sibling admission remains open`() = runTest {
 		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
 		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
 		coEvery { resolver.apply(any(), any()) } just Runs
-		coEvery { sourceRecovery.recoverDurableState() } returns SourceRecoveryResult(
-			CoordinatorDrainResult.LeaseUnavailable,
-			0,
-			0,
-		)
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
+		coEvery { sourceRecovery.drainActivityAutomationEffects() } returns
+			ActivityAutomationDrainResult.ProjectionDeferred()
 
-		gate.reconcile() shouldBe TrackingStartupResult.RetryableFailure(
-			TrackingStartupStage.LIVE_V2,
-			"LIVE_V2_LEASE_UNAVAILABLE",
-		)
-		gate.reconcile() shouldBe TrackingStartupResult.RetryableFailure(
-			TrackingStartupStage.LIVE_V2,
-			"LIVE_V2_LEASE_UNAVAILABLE",
-		)
-		gate.isReady shouldBe false
-		coVerify(exactly = 2) { sourceRecovery.recoverDurableState() }
+		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
+		gate.withReadyGeneration(gate.currentGeneration) { "steps-admission-open" } shouldBe
+			"steps-admission-open"
+		sourceRecovery.drainActivityAutomationEffects() shouldBe
+			ActivityAutomationDrainResult.ProjectionDeferred()
+		gate.isReady shouldBe true
+		coVerify(exactly = 1) { sourceRecovery.recoverStartupAuthority() }
+		coVerify(exactly = 0) { sourceRecovery.recoverDurableState() }
 	}
 
 	@Test
@@ -451,13 +444,13 @@ class DefaultTrackingStartupGateTest {
 		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
 		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
 		coEvery { resolver.apply(any(), any()) } just Runs
-		coEvery { sourceRecovery.recoverDurableState() } returns completed(throughOrdinal = 3L)
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
 
 		gate.reconcileAdmission() shouldBe
 			com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult.Ready
 		gate.isAdmissionReady shouldBe true
 		gate.isReady shouldBe true
-		coVerify(exactly = 1) { sourceRecovery.recoverDurableState() }
+		coVerify(exactly = 1) { sourceRecovery.recoverStartupAuthority() }
 	}
 
 	@Test
@@ -465,7 +458,7 @@ class DefaultTrackingStartupGateTest {
 		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
 		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
 		coEvery { resolver.apply(any(), any()) } just Runs
-		coEvery { sourceRecovery.recoverDurableState() } returns completed()
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
 
 		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
 		deletionBarrier.close()
@@ -474,7 +467,7 @@ class DefaultTrackingStartupGateTest {
 
 		deletionBarrier.reopen()
 		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
-		coVerify(exactly = 2) { sourceRecovery.recoverDurableState() }
+		coVerify(exactly = 2) { sourceRecovery.recoverStartupAuthority() }
 	}
 
 	@Test
@@ -484,7 +477,7 @@ class DefaultTrackingStartupGateTest {
 		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
 		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
 		coEvery { resolver.apply(any(), any()) } just Runs
-		coEvery { sourceRecovery.recoverDurableState() } coAnswers {
+		coEvery { sourceRecovery.recoverStartupAuthority() } coAnswers {
 			recoveryStarted.complete(Unit)
 			allowRecovery.await()
 			completed()
@@ -540,7 +533,7 @@ class DefaultTrackingStartupGateTest {
 		every { resolver.resolveAndPrepare() } returns ApplicationStartupRecoveryAction.None
 		coEvery { storage.ensureReady(false) } returns LegacyDatabaseStartupResult.Ready
 		coEvery { resolver.apply(any(), any()) } just Runs
-		coEvery { sourceRecovery.recoverDurableState() } returns completed()
+		coEvery { sourceRecovery.recoverStartupAuthority() } returns completed()
 
 		gate.reconcile() shouldBe TrackingStartupResult.Ready(false, 0L)
 		val generation = gate.currentGeneration
@@ -576,15 +569,8 @@ class DefaultTrackingStartupGateTest {
 		deletionBarrier.openGenerations.value shouldBe 1L
 	}
 
-	private fun completed(
-		legacy: LegacyV27ProjectionRecoveryResult = LegacyV27ProjectionRecoveryResult.NotRequired,
-		throughOrdinal: Long = 0L,
-	) = SourceRecoveryResult(
-		drain = CoordinatorDrainResult.Complete(throughOrdinal, 0),
-		activityEffectsDelivered = 0,
-		trackingFramesDelivered = 0,
-		legacyRecovery = legacy,
-	)
+	private fun completed(): LegacyV27ProjectionRecoveryResult =
+		LegacyV27ProjectionRecoveryResult.NotRequired
 
 	private fun pendingStop() = TrackingStopCommand(
 		generation = 7L,

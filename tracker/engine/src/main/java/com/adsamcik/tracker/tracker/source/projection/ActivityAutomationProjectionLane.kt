@@ -25,6 +25,13 @@ class ActivityAutomationProjectionLane @Inject constructor(
 ) {
 	private val mutex = Mutex()
 
+	/** Drains the Activity-local lane through the current durable WAL high-water mark. */
+	suspend fun drainAvailable(): CoordinatorDrainResult {
+		val targetAdmissionOrdinal = database.sourceEventWalDao().maximumAdmissionOrdinal()
+			?: return CoordinatorDrainResult.Complete(0L, 0)
+		return drainThrough(targetAdmissionOrdinal)
+	}
+
 	suspend fun drainThrough(targetAdmissionOrdinal: Long): CoordinatorDrainResult = mutex.withLock {
 		require(targetAdmissionOrdinal > 0L)
 		projections.registerProjection(
