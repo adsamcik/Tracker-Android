@@ -25,20 +25,34 @@ class ActivityAutomationProjectionLane @Inject constructor(
 ) {
 	private val mutex = Mutex()
 
+	/**
+	 * Installs the optional control projection at the current live tail before its provider can
+	 * produce a callback. Registration is durable and idempotent, so a crash after this boundary
+	 * can safely retry without moving the activation ordinal past newly admitted evidence.
+	 */
+	suspend fun ensureRegisteredAtLiveTail() = mutex.withLock {
+		registerAtLiveTail()
+	}
+
 	/** Drains the Activity-local lane through the current durable WAL high-water mark. */
 	suspend fun drainAvailable(): CoordinatorDrainResult {
 		val targetAdmissionOrdinal = database.sourceEventWalDao().maximumAdmissionOrdinal()
-			?: return CoordinatorDrainResult.Complete(0L, 0)
+		if (targetAdmissionOrdinal == null) {
+			ensureRegisteredAtLiveTail()
+			val checkpoint = requireNotNull(
+				database.sourceProjectionStateDao().checkpoint(
+					ActivityAutomationProjection.ID,
+					ActivityAutomationProjection.VERSION,
+				),
+			).contiguousAdmissionOrdinal
+			return CoordinatorDrainResult.Complete(checkpoint, 0)
+		}
 		return drainThrough(targetAdmissionOrdinal)
 	}
 
 	suspend fun drainThrough(targetAdmissionOrdinal: Long): CoordinatorDrainResult = mutex.withLock {
 		require(targetAdmissionOrdinal > 0L)
-		projections.registerProjection(
-			projectionId = ActivityAutomationProjection.ID,
-			projectionVersion = ActivityAutomationProjection.VERSION,
-			activationOrdinal = database.liveSourceProjectionActivationOrdinal(),
-		)
+		registerAtLiveTail()
 		var checkpoint = requireNotNull(
 			database.sourceProjectionStateDao().checkpoint(
 				ActivityAutomationProjection.ID,
@@ -90,6 +104,14 @@ class ActivityAutomationProjectionLane @Inject constructor(
 			}
 		}
 		CoordinatorDrainResult.Complete(checkpoint, dispatched)
+	}
+
+	private suspend fun registerAtLiveTail() {
+		projections.registerProjection(
+			projectionId = ActivityAutomationProjection.ID,
+			projectionVersion = ActivityAutomationProjection.VERSION,
+			activationOrdinal = database.liveSourceProjectionActivationOrdinal(),
+		)
 	}
 
 	private companion object {

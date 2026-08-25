@@ -256,7 +256,8 @@ class LegacyV27ProjectionRecovery @Inject constructor(
 		target: LegacyV27ProjectionTargetEntity,
 		lease: OwnedLease,
 	) {
-		if (target.initialRegistrationStatus != REGISTRATION_ACTIVE) {
+		val evidence = inspectLocationShadow(target, lease)
+		if (target.initialRegistrationStatus != REGISTRATION_ACTIVE && !evidence.exists) {
 			suppressTarget(
 				target,
 				LegacyV27ProjectionTargetEntity.DISPOSITION_SUPPRESSED_UNREGISTERED_OUTPUT,
@@ -265,7 +266,12 @@ class LegacyV27ProjectionRecovery @Inject constructor(
 			)
 			return
 		}
-		val completeShadow = target.initialCheckpointOrdinal >= target.requiredThroughOrdinal
+		// A released checkpoint at the immutable cutoff proves completeness for an active writer.
+		// When its registration was already absent/retired at migration, retained shadow rows are the
+		// required corroboration. A stranded outbox still preserves Location bytes, but without the
+		// shadow rows it proves only partial output and must never be replayed into canonical Location.
+		val completeShadow = target.initialCheckpointOrdinal >= target.requiredThroughOrdinal &&
+			(target.initialRegistrationStatus == REGISTRATION_ACTIVE || evidence.hasShadowRows)
 		val disposition = if (completeShadow) {
 			LegacyV27ProjectionTargetEntity.DISPOSITION_LOCATION_SHADOW_RETAINED
 		} else {
@@ -275,6 +281,25 @@ class LegacyV27ProjectionRecovery @Inject constructor(
 			markTargetPartial(target, FAILURE_LOCATION_SHADOW_PARTIAL, lease)
 		}
 		suppressTarget(target, disposition, lease, deleteFailures = true)
+	}
+
+	private suspend fun inspectLocationShadow(
+		target: LegacyV27ProjectionTargetEntity,
+		lease: OwnedLease,
+	): RetainedLocationShadowEvidence = withOwnedTransaction(lease) {
+		val current = requireTarget(target)
+		val hasShadowRows = database.openHelper.writableDatabase.query(
+			"SELECT EXISTS(SELECT 1 FROM location_projection_observation LIMIT 1) OR " +
+				"EXISTS(SELECT 1 FROM location_projection_point LIMIT 1)",
+		).use { cursor ->
+			check(cursor.moveToFirst()) { "Unable to inspect released-v27 Location shadow" }
+			cursor.getInt(0) != 0
+		}
+		val hasPendingOutbox = database.legacyV27ProjectionDrainDao().pendingOutboxCount(
+			current.projectionId,
+			current.projectionVersion,
+		) > 0L
+		RetainedLocationShadowEvidence(hasShadowRows, hasPendingOutbox)
 	}
 
 	private suspend fun bridgeEventFrames(
@@ -1108,6 +1133,13 @@ class LegacyV27ProjectionRecovery @Inject constructor(
 	) : IllegalStateException(failureCode)
 
 	private object LifecycleSupersededException : IllegalStateException()
+
+	private data class RetainedLocationShadowEvidence(
+		val hasShadowRows: Boolean,
+		val hasPendingOutbox: Boolean,
+	) {
+		val exists: Boolean get() = hasShadowRows || hasPendingOutbox
+	}
 
 	private companion object {
 		const val RELEASED_PROJECTION_VERSION = 1

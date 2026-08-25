@@ -40,6 +40,7 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -139,6 +140,43 @@ class GmsActivityRecognitionBackendTest {
 			ActivityTransitionType.ENTER.value,
 			ActivityTransitionType.ENTER.value,
 		)
+	}
+
+	@Test
+	fun `metadata refresh updates existing pending intent without provider request`() = runTest {
+		val identity = ActivityRegistrationIdentity(
+			sourceInstanceId = "activity-instance",
+			registrationGeneration = 7L,
+			collectedDataEpoch = 3L,
+			clockDomainId = "boot-3",
+			physicalConfigurationFingerprint = "physical-config",
+		)
+		val key = ActivityRegistrationCleanupKey(
+			kind = ActivityRegistrationCleanupKind.BROKERED,
+			sourceInstanceId = identity.sourceInstanceId,
+			registrationGeneration = identity.registrationGeneration,
+		)
+		backend.refreshRegistrationMetadata(
+			RecognitionConfig(intervalSeconds = 5),
+			identity,
+		) shouldBe true
+		val original = requireNotNull(backend.findPendingIntentForCleanup(key))
+
+		backend.refreshRegistrationMetadata(
+			RecognitionConfig(
+				intervalSeconds = 5,
+				automaticRecognitionEligible = true,
+			),
+			identity,
+		) shouldBe true
+
+		val refreshed = requireNotNull(backend.findPendingIntentForCleanup(key))
+		refreshed shouldBe original
+		shadowOf(refreshed).savedIntent.getBooleanExtra(
+			GmsActivityRecognitionBackend.EXTRA_AUTOMATIC_RECOGNITION_ELIGIBLE,
+			false,
+		) shouldBe true
+		refreshed.cancel()
 	}
 	// endregion
 

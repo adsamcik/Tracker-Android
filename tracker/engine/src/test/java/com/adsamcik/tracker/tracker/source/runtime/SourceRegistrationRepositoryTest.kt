@@ -13,6 +13,9 @@ import com.adsamcik.tracker.shared.base.process.ProcessIncarnationIdProvider
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
+import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.assertions.throwables.shouldThrow
@@ -34,12 +37,13 @@ class SourceRegistrationRepositoryTest {
 	private lateinit var database: AppDatabase
 	private lateinit var subject: SourceRegistrationRepository
 	private lateinit var processIncarnationIdProvider: ProcessIncarnationIdProvider
+	private lateinit var rolloutStore: RoomTrackingRolloutStateStore
 
 	@Before
 	fun setUp() {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
-		runBlocking {
+		rolloutStore = runBlocking {
 			activateAllSourceProductLanes(database)
 		}
 		processIncarnationIdProvider = ProcessIncarnationIdProvider()
@@ -50,6 +54,7 @@ class SourceRegistrationRepositoryTest {
 				override fun current(): String = "boot-7"
 			},
 			processIncarnationIdProvider,
+			rolloutStore,
 		)
 	}
 
@@ -68,7 +73,7 @@ class SourceRegistrationRepositoryTest {
 		database.sourceBrokerDao().insertDemands(
 			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
 		)
-		RoomTrackingRolloutStateStore(database).save(
+		rolloutStore.save(
 			TrackingRolloutState.contained(revision = 7L),
 			updatedAtMs = 7L,
 		)
@@ -85,7 +90,7 @@ class SourceRegistrationRepositoryTest {
 			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true)),
 		)
 		val reservation = subject.begin(SourceKind.STEPS, 1L, PHYSICAL_CONFIG, 100L, 100L)
-		RoomTrackingRolloutStateStore(database).save(
+		rolloutStore.save(
 			TrackingRolloutState.contained(revision = 7L),
 			updatedAtMs = 7L,
 		)
@@ -120,6 +125,7 @@ class SourceRegistrationRepositoryTest {
 				override fun current(): String = "boot-7"
 			},
 			ProcessIncarnationIdProvider(),
+			rolloutStore,
 		)
 		shouldThrow<IllegalStateException> {
 			restartedRepository.begin(
@@ -442,6 +448,7 @@ class SourceRegistrationRepositoryTest {
 				override fun current(): String = "boot-7"
 			},
 			ProcessIncarnationIdProvider(),
+			rolloutStore,
 		)
 		otherProcessRepository.completeRetirement(firstToken) shouldBe false
 		subject.completeRetirement(firstToken) shouldBe true
@@ -548,6 +555,7 @@ class SourceRegistrationRepositoryTest {
 				FakeCollectedDataLifecycleStore(CollectedDataLifecycleSnapshot(3L, null)),
 				bootProvider,
 				processIncarnationIdProvider,
+				rolloutStore,
 			)
 			val bootId = bootProvider.current()
 			database.sourceBrokerDao().insertDemands(
@@ -631,18 +639,29 @@ class SourceRegistrationRepositoryTest {
 	}
 }
 
-private suspend fun activateAllSourceProductLanes(database: AppDatabase) {
-	val store = RoomTrackingRolloutStateStore(database)
-	SourceKind.entries.forEachIndexed { index, source ->
-		val revision = index + 1L
-		store.installAndActivateShadowLane(
+private suspend fun activateAllSourceProductLanes(database: AppDatabase): RoomTrackingRolloutStateStore {
+	val bindings = SourceKind.entries.map { source ->
+		ExecutableSourceLaneBinding(
 			source = source,
+			bindingGeneration = 1L,
 			projectionId = "test-${source.name.lowercase()}-product",
 			projectionVersion = 1,
+			captureModes = setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
+		)
+	}
+	val store = RoomTrackingRolloutStateStore(
+		database,
+		ExecutableSourceLaneCatalog.explicit(*bindings.toTypedArray()),
+	)
+	bindings.forEachIndexed { index, binding ->
+		val revision = index + 1L
+		store.installAndActivateShadowLane(
+			binding = binding,
 			rolloutRevision = revision,
 			updatedAtMs = revision,
 		)
 	}
+	return store
 }
 
 private class FakeCollectedDataLifecycleStore(initial: CollectedDataLifecycleSnapshot) :

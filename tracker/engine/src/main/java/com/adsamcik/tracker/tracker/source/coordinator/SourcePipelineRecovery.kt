@@ -100,6 +100,11 @@ class SourcePipelineRecovery private constructor(
 	val activityAutomationDrainRequired: StateFlow<Boolean>
 		get() = activityEffects.drainRequired
 
+	/** Stops the current in-process retry budget without altering durable pending effects. */
+	fun suspendActivityAutomationRetryGeneration() {
+		activityEffects.suspendRetryGeneration()
+	}
+
 	/**
 	 * Conflated process-local hint. Provider actors return immediately after the Room commit instead
 	 * of awaiting unrelated projection/effect work; the committed WAL remains authoritative.

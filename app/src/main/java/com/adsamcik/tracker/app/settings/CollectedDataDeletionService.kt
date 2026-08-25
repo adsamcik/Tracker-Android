@@ -249,21 +249,13 @@ class DefaultCollectedDataDeletionService(
 				deleteRetiredDatabases()
 			}
 			activityRegistrationArbiter = activityRegistrationArbiterProvider?.get()
-			activityRegistrationArbiter?.closeForCollectedDataDeletion()?.let { result ->
-				val cleanupIsDurablyDeferred =
-					result.status == ActivityRegistrationStatus.DEGRADED &&
-						result.failureCode == ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED &&
-						result.retryable
-				if (result.status != ActivityRegistrationStatus.APPLIED && !cleanupIsDurablyDeferred) {
-					throw DatabaseMigrationBackupException(
-						"Could not fence activity-recognition callbacks: ${result.failureCode}",
-					)
-				}
-			}
-			writerQuiescer.quiesce()
+			fenceCollectedDataWriters(activityRegistrationArbiter)
 			// Admission is already closed and writers/providers have now received cancellation. Only
-			// after the admitted startup operation unwinds may destructive Room deletion begin.
+			// after the admitted startup operation unwinds may destructive Room deletion begin. An
+			// operation admitted before closeAdmission may have resumed providers while unwinding, so
+			// deletion takes the final fence after the barrier reaches quiescence.
 			startupDeletionBarrier.awaitQuiescence()
+			fenceCollectedDataWriters(activityRegistrationArbiter)
 			performDeletion(
 				epoch = lifecycle.epoch,
 				retainedFromMs = lifecycle.retainedFromMs,
@@ -282,6 +274,23 @@ class DefaultCollectedDataDeletionService(
 				startupDeletionBarrier.reopen()
 			}
 		}
+	}
+
+	private suspend fun fenceCollectedDataWriters(
+		activityRegistrationArbiter: ActivityRegistrationArbiter?,
+	) {
+		activityRegistrationArbiter?.closeForCollectedDataDeletion()?.let { result ->
+			val cleanupIsDurablyDeferred =
+				result.status == ActivityRegistrationStatus.DEGRADED &&
+					result.failureCode == ActivityRegistrationFailureCode.PROVIDER_REMOVAL_FAILED &&
+					result.retryable
+			if (result.status != ActivityRegistrationStatus.APPLIED && !cleanupIsDurablyDeferred) {
+				throw DatabaseMigrationBackupException(
+					"Could not fence activity-recognition callbacks: ${result.failureCode}",
+				)
+			}
+		}
+		writerQuiescer.quiesce()
 	}
 
 	/** Completes Tracebox deletion inside the same durable, retryable deletion transaction. */

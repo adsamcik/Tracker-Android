@@ -24,6 +24,12 @@ interface SourceProjectionStateDao {
 	suspend fun activeProductLane(sourceKind: Int): SourceProductProjectionLaneEntity?
 
 	@Query(
+		"SELECT * FROM source_product_projection_lane WHERE source_kind = :sourceKind " +
+			"ORDER BY binding_generation DESC LIMIT 1",
+	)
+	suspend fun latestProductLane(sourceKind: Int): SourceProductProjectionLaneEntity?
+
+	@Query(
 		"SELECT lane.* FROM source_product_projection_lane lane WHERE lane.status = 'ACTIVE' " +
 			"AND NOT EXISTS (SELECT 1 FROM source_projection_registration registration " +
 			"WHERE registration.projection_id = lane.projection_id " +
@@ -31,20 +37,32 @@ interface SourceProjectionStateDao {
 	)
 	suspend fun activeProductLanes(): List<SourceProductProjectionLaneEntity>
 
+	/** Includes malformed/conflicting active rows so containment can retire their retention pins. */
+	@Query("SELECT * FROM source_product_projection_lane WHERE status = 'ACTIVE'")
+	suspend fun allActiveProductLanes(): List<SourceProductProjectionLaneEntity>
+
 	/** Fail-closed provider check for callers that cannot depend on the tracker rollout model. */
 	@Query(
 		"SELECT EXISTS(SELECT 1 FROM source_product_projection_lane " +
 			"WHERE source_kind = :sourceKind AND projection_id != '' " +
-			"AND projection_version > 0 AND product_stage = :productStage " +
+			"AND binding_generation > 0 AND projection_version > 0 " +
+			"AND capture_mode_mask > 0 " +
+			"AND product_stage IN ('EVENT_SHADOW', 'EVENT_CANONICAL') " +
+			"AND product_stage = :productStage " +
 			"AND activated_rollout_revision > 0 " +
 			"AND activated_rollout_revision <= :rolloutRevision " +
 			"AND activation_ordinal > 0 " +
 			"AND contiguous_admission_ordinal >= activation_ordinal - 1 " +
+			"AND capture_admission_cutoff_ordinal IS NULL " +
 			"AND retention_required = 1 AND status = 'ACTIVE' " +
+			"AND terminal_disposition IS NULL AND terminal_at_ms IS NULL " +
 			"AND NOT EXISTS (SELECT 1 FROM source_projection_registration registration " +
 			"WHERE registration.projection_id = source_product_projection_lane.projection_id " +
 			"AND registration.projection_version = " +
-			"source_product_projection_lane.projection_version))",
+			"source_product_projection_lane.projection_version) " +
+			"AND (SELECT COUNT(*) FROM source_product_projection_lane active_lane " +
+			"WHERE active_lane.source_kind = :sourceKind " +
+			"AND active_lane.status = 'ACTIVE') = 1)",
 	)
 	suspend fun isProductLaneReachable(
 		sourceKind: Int,
@@ -52,14 +70,37 @@ interface SourceProjectionStateDao {
 		rolloutRevision: Long,
 	): Boolean
 
+	/** Admission-time fence paired transactionally with source-local lane containment. */
+	@Query(
+		"SELECT EXISTS(SELECT 1 FROM source_product_projection_lane " +
+			"WHERE source_kind = :sourceKind AND projection_id != '' " +
+			"AND binding_generation > 0 AND projection_version > 0 " +
+			"AND capture_mode_mask > 0 " +
+			"AND product_stage IN ('EVENT_SHADOW', 'EVENT_CANONICAL') " +
+			"AND activated_rollout_revision > 0 AND activation_ordinal > 0 " +
+			"AND contiguous_admission_ordinal >= activation_ordinal - 1 " +
+			"AND capture_admission_cutoff_ordinal IS NULL " +
+			"AND retention_required = 1 AND status = 'ACTIVE' " +
+			"AND terminal_disposition IS NULL AND terminal_at_ms IS NULL " +
+			"AND NOT EXISTS (SELECT 1 FROM source_projection_registration registration " +
+			"WHERE registration.projection_id = source_product_projection_lane.projection_id " +
+			"AND registration.projection_version = " +
+			"source_product_projection_lane.projection_version) " +
+			"AND (SELECT COUNT(*) FROM source_product_projection_lane active_lane " +
+			"WHERE active_lane.source_kind = :sourceKind " +
+			"AND active_lane.status = 'ACTIVE') = 1)",
+	)
+	suspend fun isCaptureAdmissionOpen(sourceKind: Int): Boolean
+
 	@Query(
 		"SELECT * FROM source_product_projection_lane " +
-			"WHERE projection_id = :projectionId AND projection_version = :projectionVersion",
+			"WHERE projection_id = :projectionId AND projection_version = :projectionVersion " +
+			"ORDER BY source_kind, binding_generation",
 	)
-	suspend fun productLaneByProjection(
+	suspend fun productLanesByProjection(
 		projectionId: String,
 		projectionVersion: Int,
-	): SourceProductProjectionLaneEntity?
+	): List<SourceProductProjectionLaneEntity>
 
 	/**
 	 * Moves exactly one source-local cursor monotonically under its installed writer identity.
@@ -69,18 +110,75 @@ interface SourceProjectionStateDao {
 		"UPDATE source_product_projection_lane SET " +
 			"contiguous_admission_ordinal = :throughOrdinal, updated_at_ms = :updatedAtMs " +
 			"WHERE source_kind = :sourceKind AND projection_id = :projectionId " +
-			"AND projection_version = :projectionVersion AND status = 'ACTIVE' " +
+			"AND projection_version = :projectionVersion " +
+			"AND binding_generation = :bindingGeneration AND status = 'ACTIVE' " +
 			"AND :throughOrdinal >= activation_ordinal - 1 " +
 			"AND contiguous_admission_ordinal = :expectedCurrentOrdinal " +
 			"AND contiguous_admission_ordinal < :throughOrdinal",
 	)
 	suspend fun advanceProductLaneCursor(
 		sourceKind: Int,
+		bindingGeneration: Long,
 		projectionId: String,
 		projectionVersion: Int,
 		expectedCurrentOrdinal: Long,
 		throughOrdinal: Long,
 		updatedAtMs: Long,
+	): Int
+
+	@Query(
+		"UPDATE source_product_projection_lane SET status = 'RETIRED', " +
+			"retention_required = 0, updated_at_ms = :updatedAtMs " +
+		"WHERE source_kind = :sourceKind AND binding_generation = :bindingGeneration " +
+			"AND projection_id = :projectionId AND projection_version = :projectionVersion " +
+			"AND contiguous_admission_ordinal = :expectedCurrentOrdinal " +
+			"AND status = 'ACTIVE'",
+	)
+	suspend fun retireProductLane(
+		sourceKind: Int,
+		bindingGeneration: Long,
+		projectionId: String,
+		projectionVersion: Int,
+		expectedCurrentOrdinal: Long,
+		updatedAtMs: Long,
+	): Int
+
+	@Query(
+		"UPDATE source_product_projection_lane SET " +
+			"capture_admission_cutoff_ordinal = :cutoffOrdinal, updated_at_ms = :updatedAtMs " +
+			"WHERE source_kind = :sourceKind AND binding_generation = :bindingGeneration " +
+			"AND projection_id = :projectionId AND projection_version = :projectionVersion " +
+			"AND status = 'ACTIVE' AND retention_required = 1 " +
+			"AND capture_admission_cutoff_ordinal IS NULL",
+	)
+	suspend fun fenceProductLaneCaptureAdmission(
+		sourceKind: Int,
+		bindingGeneration: Long,
+		projectionId: String,
+		projectionVersion: Int,
+		cutoffOrdinal: Long,
+		updatedAtMs: Long,
+	): Int
+
+	@Query(
+		"UPDATE source_product_projection_lane SET status = 'RETIRED', " +
+			"retention_required = 0, terminal_disposition = :disposition, " +
+			"terminal_at_ms = :terminalAtMs, updated_at_ms = :terminalAtMs " +
+			"WHERE source_kind = :sourceKind AND binding_generation = :bindingGeneration " +
+			"AND projection_id = :projectionId AND projection_version = :projectionVersion " +
+			"AND contiguous_admission_ordinal = :expectedCurrentOrdinal " +
+			"AND capture_admission_cutoff_ordinal = :expectedCutoffOrdinal " +
+			"AND status = 'ACTIVE'",
+	)
+	suspend fun retireFencedProductLane(
+		sourceKind: Int,
+		bindingGeneration: Long,
+		projectionId: String,
+		projectionVersion: Int,
+		expectedCurrentOrdinal: Long,
+		expectedCutoffOrdinal: Long,
+		disposition: String,
+		terminalAtMs: Long,
 	): Int
 
 	@Insert(onConflict = OnConflictStrategy.ABORT)
@@ -150,9 +248,10 @@ interface SourceProjectionStateDao {
 	suspend fun deleteJoinState(projectionId: String, projectionVersion: Int, stateKey: String)
 
 	@Query(
-		"SELECT MIN(checkpoint.contiguous_admission_ordinal) " +
+		"SELECT MIN(COALESCE(checkpoint.contiguous_admission_ordinal, " +
+			"registration.activation_ordinal - 1)) " +
 			"FROM source_projection_registration registration " +
-			"JOIN source_projection_checkpoint checkpoint " +
+			"LEFT JOIN source_projection_checkpoint checkpoint " +
 			"ON registration.projection_id = checkpoint.projection_id " +
 			"AND registration.projection_version = checkpoint.projection_version " +
 			"WHERE registration.retention_required = 1 AND registration.status = 'ACTIVE'",
@@ -161,14 +260,15 @@ interface SourceProjectionStateDao {
 
 	@Query(
 		"SELECT MIN(contiguous_admission_ordinal) FROM source_product_projection_lane " +
-			"WHERE retention_required = 1 AND status = 'ACTIVE'",
+			"WHERE source_kind = :sourceKind AND retention_required = 1",
 	)
-	suspend fun minimumRequiredProductLaneCheckpoint(): Long?
+	suspend fun minimumRequiredProductLaneCheckpoint(sourceKind: Int): Long?
 
 	@Query(
-		"SELECT MIN(checkpoint.contiguous_admission_ordinal) " +
+		"SELECT MIN(COALESCE(checkpoint.contiguous_admission_ordinal, " +
+			"registration.activation_ordinal - 1)) " +
 			"FROM source_projection_registration registration " +
-			"JOIN source_projection_checkpoint checkpoint " +
+			"LEFT JOIN source_projection_checkpoint checkpoint " +
 			"ON registration.projection_id = checkpoint.projection_id " +
 			"AND registration.projection_version = checkpoint.projection_version " +
 			"WHERE registration.status = 'ACTIVE'",
@@ -281,15 +381,57 @@ interface SourceProjectionStateDao {
 		terminalAtMs: Long,
 	): Int
 
+	/**
+	 * Deletes aged receipts only through the retaining product checkpoint for their source.
+	 *
+	 * The released schema does not stamp source_kind on the outbox, so the still-retained WAL row
+	 * is the authoritative source association. Maintenance calls this before deleting that WAL row.
+	 */
 	@Query(
 		"DELETE FROM source_projection_outbox WHERE stable_id IN (" +
-			"SELECT stable_id FROM source_projection_outbox " +
-			"WHERE ((delivered_at_ms IS NOT NULL AND delivered_at_ms < :deliveredBeforeMs) " +
-			"OR (terminal_at_ms IS NOT NULL AND terminal_at_ms < :deliveredBeforeMs)) " +
-			"AND admission_ordinal <= :safeOrdinal " +
-			"ORDER BY COALESCE(delivered_at_ms, terminal_at_ms), admission_ordinal LIMIT :limit)",
+			"SELECT outbox.stable_id FROM source_projection_outbox AS outbox " +
+			"JOIN source_event_wal AS wal " +
+			"ON wal.admission_ordinal = outbox.admission_ordinal " +
+			"WHERE wal.source_kind = :sourceKind " +
+			"AND ((outbox.delivered_at_ms IS NOT NULL " +
+			"AND outbox.delivered_at_ms < :deliveredBeforeMs) " +
+			"OR (outbox.terminal_at_ms IS NOT NULL " +
+			"AND outbox.terminal_at_ms < :deliveredBeforeMs)) " +
+			"AND outbox.admission_ordinal <= :safeOrdinal " +
+			"ORDER BY COALESCE(outbox.delivered_at_ms, outbox.terminal_at_ms), " +
+			"outbox.admission_ordinal LIMIT :limit)",
 	)
-	suspend fun deleteDeliveredOutboxBatch(
+	suspend fun deleteDeliveredOutboxForSourceBatch(
+		sourceKind: Int,
+		safeOrdinal: Long,
+		deliveredBeforeMs: Long,
+		limit: Int,
+	): Int
+
+	/**
+	 * Cleans outbox-only rows after applying any product floor recoverable from writer identity.
+	 * Shared writer identities use their most conservative source checkpoint.
+	 */
+	@Query(
+		"DELETE FROM source_projection_outbox WHERE stable_id IN (" +
+			"SELECT outbox.stable_id FROM source_projection_outbox AS outbox " +
+			"WHERE ((outbox.delivered_at_ms IS NOT NULL " +
+			"AND outbox.delivered_at_ms < :deliveredBeforeMs) " +
+			"OR (outbox.terminal_at_ms IS NOT NULL " +
+			"AND outbox.terminal_at_ms < :deliveredBeforeMs)) " +
+			"AND outbox.admission_ordinal <= :safeOrdinal " +
+			"AND NOT EXISTS (SELECT 1 FROM source_event_wal AS wal " +
+			"WHERE wal.admission_ordinal = outbox.admission_ordinal) " +
+			"AND outbox.admission_ordinal <= COALESCE((" +
+			"SELECT MIN(lane.contiguous_admission_ordinal) " +
+			"FROM source_product_projection_lane AS lane " +
+			"WHERE lane.projection_id = outbox.projection_id " +
+			"AND lane.projection_version = outbox.projection_version " +
+			"AND lane.retention_required = 1), :safeOrdinal) " +
+			"ORDER BY COALESCE(outbox.delivered_at_ms, outbox.terminal_at_ms), " +
+			"outbox.admission_ordinal LIMIT :limit)",
+	)
+	suspend fun deleteOrphanedDeliveredOutboxBatch(
 		safeOrdinal: Long,
 		deliveredBeforeMs: Long,
 		limit: Int,

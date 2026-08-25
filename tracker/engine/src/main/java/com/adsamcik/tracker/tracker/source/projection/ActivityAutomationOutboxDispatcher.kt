@@ -6,6 +6,8 @@ import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.api.ActivityAutomationDeliveryEnvelope
@@ -48,6 +50,11 @@ class ActivityAutomationOutboxDispatcher @Inject internal constructor(
 
 	override fun requestDrain() {
 		_drainRequired.value = true
+	}
+
+	/** Ends only the current process-local retry generation; durable outbox work is untouched. */
+	internal fun suspendRetryGeneration() {
+		_drainRequired.value = false
 	}
 
 	/**
@@ -122,75 +129,141 @@ class ActivityAutomationOutboxDispatcher @Inject internal constructor(
 				limit,
 			)
 		for (effect in effects) {
-			val decoded = try {
-				decode(effect.payload, effect.admissionOrdinal)
-			} catch (_: Exception) {
-				terminal += dao.markOutboxTerminal(
-					effect.stableId,
-					TERMINAL_INVALID_PAYLOAD,
-					System.currentTimeMillis(),
+			val result = try {
+				processEffect(effect, startPermit, elapsedRealtimeNanos)
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (failure: Exception) {
+				recordRetryableProcessingFailure(effect, failure)
+				return ActivityAutomationDrainBatch(
+					selectedCount = effects.size,
+					deliveredCount = delivered,
+					terminalCount = terminal,
+					retryBlocked = true,
 				)
-				continue
 			}
-			when (val validation = validator.validate(decoded)) {
-				ActivityAutomationEffectValidation.LifecycleIntentAccepted -> {
-					if (dao.markOutboxDelivered(effect.stableId, System.currentTimeMillis()) == 1) {
-						delivered++
-					}
-					continue
-				}
-				is ActivityAutomationEffectValidation.Terminal -> {
-					terminal += dao.markOutboxTerminal(
-						effect.stableId,
-						validation.disposition,
-						System.currentTimeMillis(),
-					)
-					continue
-				}
-				is ActivityAutomationEffectValidation.Eligible -> {
-					when (consumer.deliver(
-						effectStableId = effect.stableId,
-						evidence = decoded,
-						controlConsentEpoch = validation.controlConsentEpoch,
-						automationEpoch = validation.automationEpoch,
-						startContext = startPermit.contextFor(decoded, elapsedRealtimeNanos),
-					)) {
-						ActivityAutomationDeliveryResult.ACCEPTED,
-						ActivityAutomationDeliveryResult.LIFECYCLE_INTENT_ACCEPTED,
-						-> {
-							if (dao.markOutboxDelivered(effect.stableId, System.currentTimeMillis()) == 1) {
-								delivered++
-							}
-						}
-						ActivityAutomationDeliveryResult.RETRY,
-						ActivityAutomationDeliveryResult.START_REQUESTED,
-						-> return ActivityAutomationDrainBatch(
-							selectedCount = effects.size,
-							deliveredCount = delivered,
-							terminalCount = terminal,
-							retryBlocked = true,
-						)
-						ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED ->
-							terminal += dao.markOutboxTerminal(
-								effect.stableId,
-								TERMINAL_POLICY_SUPPRESSED,
-								System.currentTimeMillis(),
-							)
-						ActivityAutomationDeliveryResult.START_CONTEXT_EXPIRED ->
-							terminal += dao.markOutboxTerminal(
-								effect.stableId,
-								TERMINAL_START_CONTEXT_EXPIRED,
-								System.currentTimeMillis(),
-							)
-					}
-				}
-				}
+			delivered += result.deliveredCount
+			terminal += result.terminalCount
+			if (result.retryBlocked) {
+				return ActivityAutomationDrainBatch(
+					selectedCount = effects.size,
+					deliveredCount = delivered,
+					terminalCount = terminal,
+					retryBlocked = true,
+				)
+			}
 		}
 		return ActivityAutomationDrainBatch(
 			selectedCount = effects.size,
 			deliveredCount = delivered,
 			terminalCount = terminal,
 			retryBlocked = false,
+		)
+	}
+
+	private suspend fun processEffect(
+		effect: SourceProjectionOutboxEntity,
+		startPermit: ActivityAutomationStartPermit,
+		elapsedRealtimeNanos: () -> Long,
+	): ActivityAutomationEffectProcessingResult {
+		val decoded = try {
+			decode(effect.payload, effect.admissionOrdinal)
+		} catch (cancelled: CancellationException) {
+			throw cancelled
+		} catch (_: Exception) {
+			return terminalizeEffect(effect, TERMINAL_INVALID_PAYLOAD)
+		}
+		val result = when (val validation = validator.validate(decoded)) {
+			ActivityAutomationEffectValidation.LifecycleIntentAccepted ->
+				deliverEffect(effect)
+			is ActivityAutomationEffectValidation.Terminal ->
+				terminalizeEffect(effect, validation.disposition)
+			is ActivityAutomationEffectValidation.Eligible -> when (consumer.deliver(
+				effectStableId = effect.stableId,
+				evidence = decoded,
+				controlConsentEpoch = validation.controlConsentEpoch,
+				automationEpoch = validation.automationEpoch,
+				startContext = startPermit.contextFor(decoded, elapsedRealtimeNanos),
+			)) {
+				ActivityAutomationDeliveryResult.ACCEPTED,
+				ActivityAutomationDeliveryResult.LIFECYCLE_INTENT_ACCEPTED,
+				-> deliverEffect(effect)
+				ActivityAutomationDeliveryResult.RETRY,
+				ActivityAutomationDeliveryResult.START_REQUESTED,
+				-> {
+					clearProcessingFailure(effect)
+					ActivityAutomationEffectProcessingResult(retryBlocked = true)
+				}
+				ActivityAutomationDeliveryResult.TERMINALLY_SUPPRESSED ->
+					terminalizeEffect(effect, TERMINAL_POLICY_SUPPRESSED)
+				ActivityAutomationDeliveryResult.START_CONTEXT_EXPIRED ->
+					terminalizeEffect(effect, TERMINAL_START_CONTEXT_EXPIRED)
+			}
+		}
+		return result
+	}
+
+	private suspend fun deliverEffect(
+		effect: SourceProjectionOutboxEntity,
+	): ActivityAutomationEffectProcessingResult {
+		val delivered = database.sourceProjectionStateDao().markOutboxDelivered(
+			effect.stableId,
+			System.currentTimeMillis(),
+		)
+		clearProcessingFailure(effect)
+		return ActivityAutomationEffectProcessingResult(deliveredCount = delivered)
+	}
+
+	private suspend fun terminalizeEffect(
+		effect: SourceProjectionOutboxEntity,
+		disposition: String,
+	): ActivityAutomationEffectProcessingResult {
+		val terminal = database.sourceProjectionStateDao().markOutboxTerminal(
+			effect.stableId,
+			disposition,
+			System.currentTimeMillis(),
+		)
+		clearProcessingFailure(effect)
+		return ActivityAutomationEffectProcessingResult(terminalCount = terminal)
+	}
+
+	/** A normal outcome breaks the consecutive exception streak for this admission. */
+	private suspend fun clearProcessingFailure(effect: SourceProjectionOutboxEntity) {
+		database.sourceProjectionStateDao().deleteFailure(
+			ActivityAutomationProjection.ID,
+			ActivityAutomationProjection.VERSION,
+			effect.admissionOrdinal,
+		)
+	}
+
+	/**
+	 * Records an operational failure without guessing that it is deterministic poison.
+	 *
+	 * Payload decoding and explicit policy/epoch validation above are the only terminal classifiers.
+	 * Validator, consumer and Room failures can all be transient, so an arbitrary attempt count must
+	 * never discard a valid automatic-start effect. The durable recovery owner retries this
+	 * source-local lane; other source lanes remain independent.
+	 */
+	private suspend fun recordRetryableProcessingFailure(
+		effect: SourceProjectionOutboxEntity,
+		failure: Exception,
+	) {
+		val dao = database.sourceProjectionStateDao()
+		val attempts = (dao.failure(
+			ActivityAutomationProjection.ID,
+			ActivityAutomationProjection.VERSION,
+			effect.admissionOrdinal,
+		)?.attemptCount ?: 0) + 1
+		dao.saveFailure(
+			SourceProjectionFailureEntity(
+				projectionId = ActivityAutomationProjection.ID,
+				projectionVersion = ActivityAutomationProjection.VERSION,
+				admissionOrdinal = effect.admissionOrdinal,
+				attemptCount = attempts,
+				failureCode = "$FAILURE_PROCESSING_EXCEPTION_PREFIX${failure::class.java.simpleName}",
+				terminal = false,
+				lastAttemptAtMs = System.currentTimeMillis(),
+			),
 		)
 	}
 
@@ -253,6 +326,7 @@ class ActivityAutomationOutboxDispatcher @Inject internal constructor(
 	private companion object {
 		const val DEFAULT_BATCH_SIZE = 100
 		const val DEFAULT_MAX_BATCHES = 10
+		const val FAILURE_PROCESSING_EXCEPTION_PREFIX = "ACTIVITY_AUTOMATION_OUTBOX_"
 		const val TERMINAL_POLICY_SUPPRESSED = "CURRENT_POLICY_SUPPRESSED_AUTOMATION"
 		const val TERMINAL_START_CONTEXT_EXPIRED = "START_CONTEXT_EXPIRED"
 		const val TERMINAL_INVALID_PAYLOAD = "INVALID_AUTOMATION_EFFECT_PAYLOAD"
@@ -298,6 +372,12 @@ private data class ActivityAutomationDrainBatch(
 	val deliveredCount: Int,
 	val terminalCount: Int,
 	val retryBlocked: Boolean,
+)
+
+private data class ActivityAutomationEffectProcessingResult(
+	val deliveredCount: Int = 0,
+	val terminalCount: Int = 0,
+	val retryBlocked: Boolean = false,
 )
 
 sealed interface ActivityAutomationStartPermit {

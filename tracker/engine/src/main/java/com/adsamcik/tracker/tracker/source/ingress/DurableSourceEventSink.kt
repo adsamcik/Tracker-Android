@@ -5,6 +5,7 @@ import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryUnit
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
+import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
 import com.adsamcik.tracker.tracker.source.control.CollectionMotionController
@@ -80,7 +81,7 @@ class DurableSourceEventSinkFactory private constructor(
 		val result = ingress.admit(candidate)
 		if (result.isDurable) {
 			onDurableMotionEvidence(candidate, result is AdmissionResult.Duplicate)
-			recovery?.requestCommittedWorkDrain()
+			requestActivityDrain(candidate.source)
 		}
 		return result.toHandoff()
 	}
@@ -92,7 +93,7 @@ class DurableSourceEventSinkFactory private constructor(
 		val result = ingress.admit(candidate, checkpoint)
 		if (result.isDurable) {
 			onDurableMotionEvidence(candidate, result is AdmissionResult.Duplicate)
-			recovery?.requestCommittedWorkDrain()
+			requestActivityDrain(candidate.source)
 		}
 		return result.toHandoff()
 	}
@@ -130,9 +131,17 @@ class DurableSourceEventSinkFactory private constructor(
 			}
 		}
 		if (result.isDurable) {
-			recovery?.requestCommittedWorkDrain()
+			if (delivery.units.any { it.evidence.source == SourceKind.ACTIVITY }) {
+				recovery?.requestCommittedWorkDrain()
+			}
 		}
 		return result.toHandoff()
+	}
+
+	private fun requestActivityDrain(source: SourceKind) {
+		if (source == SourceKind.ACTIVITY) {
+			recovery?.requestCommittedWorkDrain()
+		}
 	}
 }
 
@@ -195,7 +204,9 @@ private fun AdmissionFailureCode.toRuntimeCode(): SourceAdmissionFailureCode = w
 	AdmissionFailureCode.AUTHORIZATION_BOUNDARY_SPLIT_REQUIRED ->
 		SourceAdmissionFailureCode.INVALID_EVIDENCE
 	AdmissionFailureCode.INVALID_OBSERVED_TIME -> SourceAdmissionFailureCode.INVALID_EVIDENCE
+	AdmissionFailureCode.STALE_OBSERVATION -> SourceAdmissionFailureCode.INVALID_EVIDENCE
 	AdmissionFailureCode.STALE_SOURCE_POLICY -> SourceAdmissionFailureCode.SOURCE_POLICY_STALE
+	AdmissionFailureCode.CAPTURE_ADMISSION_CLOSED -> SourceAdmissionFailureCode.SOURCE_POLICY_STALE
 	AdmissionFailureCode.STALE_SESSION_MANIFEST -> SourceAdmissionFailureCode.SOURCE_POLICY_STALE
 	AdmissionFailureCode.STALE_COLLECTED_DATA_EPOCH -> SourceAdmissionFailureCode.STALE_COLLECTED_DATA_EPOCH
 	AdmissionFailureCode.BEFORE_RETENTION_BOUNDARY -> SourceAdmissionFailureCode.BEFORE_RETENTION_BOUNDARY

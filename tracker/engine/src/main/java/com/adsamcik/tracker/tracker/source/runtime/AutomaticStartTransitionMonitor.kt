@@ -9,6 +9,7 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationResult
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import android.os.SystemClock
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.TrackingJoinSpecs
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -19,6 +20,7 @@ class AutomaticStartTransitionMonitor @Inject constructor(
 	private val arbiter: ActivityRegistrationArbiter,
 	private val sourceBroker: SourceBroker,
 	private val clockDomainProvider: BootClockDomainProvider,
+	private val activityProjectionLane: ActivityAutomationProjectionLane,
 ) {
 	suspend fun reconcile(
 		enabled: Boolean,
@@ -32,6 +34,13 @@ class AutomaticStartTransitionMonitor @Inject constructor(
 		// context used by automatic cold start. Continuous recognition remains a capture mechanism;
 		// it must never be registered as a hidden fallback control.
 		val transitionControlEnabled = enabled && useTransitionApi && transitions.isNotEmpty()
+		if (transitionControlEnabled) {
+			// An Activity capture registration may already be physically active. Persist the control
+			// consumer before appending the authorization revision so a callback cannot become control
+			// eligible in the gap between broker mutation and projection registration. Contained policy
+			// may leave this non-retaining cursor idle, but still creates no provider demand or wakeup.
+			activityProjectionLane.ensureRegisteredAtLiveTail()
+		}
 		val durableDemand = sourceBroker.replaceAutomaticControlDemand(
 			consumerId = AUTOMATIC_CONTROL_CONSUMER,
 			source = SourceKind.ACTIVITY,

@@ -91,10 +91,11 @@ class ProjectionDispatcher @Inject constructor(
 		require(activationOrdinal > 0L)
 		database.withTransaction {
 			val dao = database.sourceProjectionStateDao()
-			check(dao.productLaneByProjection(projection.id, projection.version) == null) {
+			check(dao.productLanesByProjection(projection.id, projection.version).isEmpty()) {
 				"Projection ${projection.id}:${projection.version} is reserved by a source-local product lane"
 			}
-			if (dao.registration(projection.id, projection.version) == null) {
+			val registration = dao.registration(projection.id, projection.version)
+			if (registration == null) {
 				dao.register(
 					SourceProjectionRegistrationEntity(
 						projectionId = projection.id,
@@ -114,6 +115,21 @@ class ProjectionDispatcher @Inject constructor(
 						updatedAtMs = System.currentTimeMillis(),
 					),
 				)
+			} else if (registration.retentionRequired && !projection.retentionRequired) {
+				// A non-retention implementation may demote an existing registration in place. This
+				// keeps the Activity control projection from remaining a WAL pin after upgrade while
+				// preserving its original activation/checkpoint boundary.
+				database.openHelper.writableDatabase.execSQL(
+					"UPDATE source_projection_registration SET retention_required = 0 " +
+						"WHERE projection_id = ? AND projection_version = ?",
+					arrayOf<Any>(
+						projection.id,
+						projection.version,
+					),
+				)
+				check(
+					dao.registration(projection.id, projection.version)?.retentionRequired == false,
+				) { "Unable to demote projection ${projection.id}:${projection.version} retention" }
 			}
 		}
 	}
@@ -152,10 +168,24 @@ class ProjectionDispatcher @Inject constructor(
 
 		val attempts = (database.sourceProjectionStateDao()
 			.failure(projection.id, projection.version, event.admissionOrdinal)?.attemptCount ?: 0) + 1
-		// Identity collisions are authority failures, not poison input. Advancing after a retry
-		// budget would permanently accept the wrong durable effect under the requested identity.
-		val terminal = failure !is ProjectionOutboxIdentityCollisionException &&
-			(!projection.retentionRequired || attempts >= projection.maximumAttemptsPerEvent)
+		// Identity collisions are authority failures, not poison input. Retained canonical
+		// projections may never advance past one because doing so would accept the foreign owner.
+		// A non-retention control projection instead suppresses the attempted local effect and
+		// terminally quarantines the input so optional automation cannot pin the global WAL.
+		//
+		// Every other exception is retryable unless projection code explicitly marks the input as
+		// deterministic poison. Retention controls WAL pruning; it is not evidence that an arbitrary
+		// storage or infrastructure failure can be skipped safely.
+		val terminal = when (failure) {
+			is ProjectionOutboxIdentityCollisionException -> !projection.retentionRequired
+			is ProjectionPoisonException ->
+				!projection.retentionRequired || attempts >= projection.maximumAttemptsPerEvent
+			else -> false
+		}
+		val failureCode = when (failure) {
+			is ProjectionPoisonException -> failure.failureCode
+			else -> failure::class.java.simpleName
+		}
 		database.withTransaction {
 			val dao = database.sourceProjectionStateDao()
 			dao.saveFailure(
@@ -164,7 +194,7 @@ class ProjectionDispatcher @Inject constructor(
 					projectionVersion = projection.version,
 					admissionOrdinal = event.admissionOrdinal,
 					attemptCount = attempts,
-					failureCode = failure::class.java.simpleName,
+					failureCode = failureCode,
 					terminal = terminal,
 					lastAttemptAtMs = System.currentTimeMillis(),
 				),
@@ -188,7 +218,7 @@ class ProjectionDispatcher @Inject constructor(
 					projection.version,
 					event.admissionOrdinal,
 					attempts,
-					failure::class.java.simpleName,
+					failureCode,
 				),
 			)
 		} else {
@@ -346,6 +376,16 @@ private class RoomProjectionContext(
 class ProjectionOutboxIdentityCollisionException(
 	val stableId: String,
 ) : IllegalStateException("Projection outbox identity collision: $stableId")
+
+/** Explicit signal that projection input is deterministically invalid rather than transiently failed. */
+class ProjectionPoisonException(
+	val failureCode: String,
+	cause: Throwable? = null,
+) : IllegalArgumentException(failureCode, cause) {
+	init {
+		require(failureCode.isNotBlank())
+	}
+}
 
 private fun SourceProjectionOutboxEntity.sameImmutableEffect(
 	other: SourceProjectionOutboxEntity,

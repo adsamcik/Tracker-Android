@@ -467,6 +467,9 @@ class AppDatabaseMigration27To28Test {
 			var processType: String? = null
 			var processNotNull: Int? = null
 			var processDefault: String? = null
+			var captureBarrierType: String? = null
+			var captureBarrierNotNull: Int? = null
+			var captureBarrierDefault: String? = null
 			while (cursor.moveToNext()) {
 				when (cursor.getString(nameColumn)) {
 					"provider_residency" -> {
@@ -484,6 +487,14 @@ class AppDatabaseMigration27To28Test {
 							null
 						} else cursor.getString(defaultValueColumn)
 					}
+
+					"capture_callback_barrier_authorization_revision" -> {
+						captureBarrierType = cursor.getString(typeColumn)
+						captureBarrierNotNull = cursor.getInt(notNullColumn)
+						captureBarrierDefault = if (cursor.isNull(defaultValueColumn)) {
+							null
+						} else cursor.getString(defaultValueColumn)
+					}
 				}
 			}
 			assertEquals("TEXT", residencyType)
@@ -492,6 +503,9 @@ class AppDatabaseMigration27To28Test {
 			assertEquals("TEXT", processType)
 			assertEquals(0, processNotNull)
 			assertNull(processDefault)
+			assertEquals("INTEGER", captureBarrierType)
+			assertEquals(1, captureBarrierNotNull)
+			assertEquals("0", captureBarrierDefault)
 		}
 		assertTableCount(database, "location_sample", 1)
 		assertTableCount(database, "location_observation", 1)
@@ -507,7 +521,36 @@ class AppDatabaseMigration27To28Test {
 		assertTableCount(database, "source_registration_state", 1)
 		assertTableCount(database, "source_runtime_state", 1)
 		assertTableCount(database, "source_event_wal", 1)
+		database.query("PRAGMA index_list(source_event_wal)").use { cursor ->
+			var sourceRetentionUnique: Int? = null
+			while (cursor.moveToNext()) {
+				if (cursor.getString(1) == "idx_source_event_wal_source_retention") {
+					sourceRetentionUnique = cursor.getInt(2)
+				}
+			}
+			assertEquals(0, sourceRetentionUnique)
+		}
 		assertTableCount(database, "source_product_projection_lane", 0)
+		database.query("PRAGMA table_info(source_product_projection_lane)").use { cursor ->
+			val columns = buildMap {
+				while (cursor.moveToNext()) put(cursor.getString(1), cursor.getInt(5))
+			}
+			assertEquals(1, columns["source_kind"])
+			assertEquals(2, columns["binding_generation"])
+			assertTrue("capture_mode_mask" in columns)
+			assertTrue("capture_admission_cutoff_ordinal" in columns)
+			assertTrue("terminal_disposition" in columns)
+			assertTrue("terminal_at_ms" in columns)
+		}
+		database.query("PRAGMA index_list(source_product_projection_lane)").use { cursor ->
+			var writerIdentityUnique: Int? = null
+			while (cursor.moveToNext()) {
+				if (cursor.getString(1) == "idx_source_product_projection_lane_identity") {
+					writerIdentityUnique = cursor.getInt(2)
+				}
+			}
+			assertEquals(0, writerIdentityUnique)
+		}
 		assertTableCount(database, "source_projection_registration", 1)
 		assertTableCount(database, "source_projection_checkpoint", 1)
 		assertTableCount(database, "source_projection_outbox", 1)

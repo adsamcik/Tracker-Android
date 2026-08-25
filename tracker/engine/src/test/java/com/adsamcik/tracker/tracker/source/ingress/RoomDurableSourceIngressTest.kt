@@ -18,6 +18,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
@@ -32,7 +33,10 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.source.control.CollectionMotionController
+import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
 import com.adsamcik.tracker.tracker.source.coordinator.SourceRecoveryResult
 import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
@@ -95,6 +99,7 @@ class RoomDurableSourceIngressTest {
 			database,
 			lifecycle,
 			DefaultSourcePayloadCodec(),
+			TEST_EXECUTABLE_LANE_CATALOG,
 			Provider { startupGate },
 		)
 		val policy = RoomSourcePolicyRepository(database) {
@@ -112,6 +117,8 @@ class RoomDurableSourceIngressTest {
 		testPolicyRevision = ambient.revision
 		testCaptureEpoch = requireNotNull(ambient[TrackingSourceComponent.ACTIVITY].captureConsentEpoch)
 		testAmbientEpoch = requireNotNull(ambient[TrackingSourceComponent.ACTIVITY].ambientConsentEpoch)
+		installCaptureLane(SourceKind.ACTIVITY)
+		installCaptureLane(SourceKind.STEPS)
 		installRegistrationGeneration()
 	}
 
@@ -128,6 +135,92 @@ class RoomDurableSourceIngressTest {
 		duplicate.eventId shouldBe admitted.eventId
 		duplicate.existingAdmissionOrdinal shouldBe admitted.admissionOrdinal
 		subject.committedBatch(0L, 1).single().eventId shouldBe admitted.eventId
+	}
+
+	@Test
+	fun `delayed pre cutoff capture is rejected after the durable lane admission fence`() = runTest {
+		val candidate = candidate(
+			sequence = 1L,
+			observedElapsedNanos = 100L,
+			receivedElapsedNanos = 200L,
+		)
+		database.sourceProjectionStateDao().fenceProductLaneCaptureAdmission(
+			sourceKind = SourceKind.ACTIVITY.stableCode,
+			bindingGeneration = 1L,
+			projectionId = "ingress-test-activity",
+			projectionVersion = 1,
+			cutoffOrdinal = 0L,
+			updatedAtMs = 150L,
+		) shouldBe 1
+
+		subject.admit(candidate) shouldBe AdmissionResult.PermanentFailure(
+			AdmissionFailureCode.CAPTURE_ADMISSION_CLOSED,
+		)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `capture fence preserves idempotent replay of a fact admitted before containment`() = runTest {
+		val candidate = candidate(sequence = 1L)
+		val first = subject.admit(candidate).shouldBeInstanceOf<AdmissionResult.Admitted>()
+		database.sourceProjectionStateDao().fenceProductLaneCaptureAdmission(
+			sourceKind = SourceKind.ACTIVITY.stableCode,
+			bindingGeneration = 1L,
+			projectionId = "ingress-test-activity",
+			projectionVersion = 1,
+			cutoffOrdinal = first.admissionOrdinal,
+			updatedAtMs = 150L,
+		) shouldBe 1
+
+		val replay = subject.admit(candidate).shouldBeInstanceOf<AdmissionResult.Duplicate>()
+
+		replay.existingAdmissionOrdinal shouldBe first.admissionOrdinal
+		database.sourceEventWalDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `conflicting active product lane closes capture admission`() = runTest {
+		installCaptureLane(
+			source = SourceKind.ACTIVITY,
+			bindingGeneration = 2L,
+			projectionId = "conflicting-activity-writer",
+		)
+
+		subject.admit(candidate(sequence = 1L)) shouldBe AdmissionResult.PermanentFailure(
+			AdmissionFailureCode.CAPTURE_ADMISSION_CLOSED,
+		)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `unknown active product stage closes capture admission`() = runTest {
+		database.sourceProjectionStateDao().deleteAllProductLanes()
+		installCaptureLane(
+			source = SourceKind.ACTIVITY,
+			productStage = "UNKNOWN_STAGE",
+		)
+
+		subject.admit(candidate(sequence = 1L)) shouldBe AdmissionResult.PermanentFailure(
+			AdmissionFailureCode.CAPTURE_ADMISSION_CLOSED,
+		)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `recognized active lane with unknown writer binding closes capture admission`() = runTest {
+		database.sourceProjectionStateDao().deleteAllProductLanes()
+		installCaptureLane(
+			source = SourceKind.ACTIVITY,
+			bindingGeneration = 9L,
+			projectionId = "unknown-activity-writer",
+		)
+		database.sourceProjectionStateDao()
+			.isCaptureAdmissionOpen(SourceKind.ACTIVITY.stableCode) shouldBe true
+
+		subject.admit(candidate(sequence = 1L)) shouldBe AdmissionResult.PermanentFailure(
+			AdmissionFailureCode.CAPTURE_ADMISSION_CLOSED,
+		)
+		database.sourceEventWalDao().countAll() shouldBe 0L
 	}
 
 	@Test
@@ -462,6 +555,7 @@ class RoomDurableSourceIngressTest {
 					payloadVersion: Int,
 				): EncodedSourcePayload = throw CancellationException("test cancellation")
 			},
+			TEST_EXECUTABLE_LANE_CATALOG,
 			Provider { startupGate },
 		)
 
@@ -934,6 +1028,80 @@ class RoomDurableSourceIngressTest {
 	}
 
 	@Test
+	fun `observation older than every authorized demand maximum age is not persisted`() = runTest {
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_demand SET maximum_age_ms = 0 " +
+				"WHERE demand_id IN ('ambient-demand', 'session-demand')",
+		)
+
+		val result = subject.admit(
+			candidate(sequence = 1L, observedElapsedNanos = 100L, receivedElapsedNanos = 101L),
+		).shouldBeInstanceOf<AdmissionResult.PermanentFailure>()
+
+		result.code shouldBe AdmissionFailureCode.STALE_OBSERVATION
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		// Reconciliation or replay cannot resurrect a fact that was never fresh enough to admit.
+		subject.admit(
+			candidate(sequence = 1L, observedElapsedNanos = 100L, receivedElapsedNanos = 101L),
+		) shouldBe AdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_OBSERVATION)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `stale session member cannot borrow fresher ambient eligibility`() = runTest {
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_demand SET maximum_age_ms = 0 WHERE demand_id = 'session-demand'",
+		)
+
+		subject.admit(
+			candidate(sequence = 1L, observedElapsedNanos = 100L, receivedElapsedNanos = 101L),
+		).shouldBeInstanceOf<AdmissionResult.Admitted>()
+
+		val event = subject.committedBatch(0L, 1).single().evidence
+		event.logicalTrackingId shouldBe null
+		event.serviceRunId shouldBe null
+		event.sourcePolicyRevision shouldBe null
+		event.captureConsentEpoch shouldBe null
+		event.registrationPurposeEligibilityMask shouldBe SourceBrokerPurpose.MASK_AMBIENT_PRODUCT
+		event.planAttribution shouldBe PlanAttribution.RECEIVE_TIME_ONLY
+	}
+
+	@Test
+	fun `delivery persists fresh units while omitting stale units`() = runTest {
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_demand SET maximum_age_ms = 0 " +
+				"WHERE demand_id IN ('ambient-demand', 'session-demand')",
+		)
+		val delivery = delivery(
+			candidate(sequence = 1L, observedElapsedNanos = 100L, receivedElapsedNanos = 101L),
+			candidate(sequence = 2L, observedElapsedNanos = 101L, receivedElapsedNanos = 101L),
+		)
+
+		val admitted = subject.admit(delivery).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+
+		admitted.units.map { unit -> unit.unitIndex } shouldBe listOf(1)
+		val stored = subject.committedBatch(0L, 10).single().evidence
+		stored.observedElapsedRealtimeNanos shouldBe 101L
+	}
+
+	@Test
+	fun `delivery with no freshness qualified unit is not persisted`() = runTest {
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_demand SET maximum_age_ms = 0 " +
+				"WHERE demand_id IN ('ambient-demand', 'session-demand')",
+		)
+		val delivery = delivery(
+			candidate(sequence = 1L, observedElapsedNanos = 100L, receivedElapsedNanos = 101L),
+			candidate(sequence = 2L, observedElapsedNanos = 101L, receivedElapsedNanos = 102L),
+		)
+
+		subject.admit(delivery) shouldBe DeliveryAdmissionResult.PermanentFailure(
+			AdmissionFailureCode.STALE_OBSERVATION,
+		)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+	}
+
+	@Test
 	fun `control only registration persists observation without session capture attribution`() = runTest {
 		val authorization = installSession()
 		installControlOnlyGeneration()
@@ -1394,7 +1562,59 @@ class RoomDurableSourceIngressTest {
 		)
 	}
 
+	private suspend fun installCaptureLane(
+		source: SourceKind,
+		bindingGeneration: Long = 1L,
+		projectionId: String = "ingress-test-${source.name.lowercase()}",
+		productStage: String = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+	) {
+		database.sourceProjectionStateDao().installProductLane(
+			SourceProductProjectionLaneEntity(
+				sourceKind = source.stableCode,
+				bindingGeneration = bindingGeneration,
+				projectionId = projectionId,
+				projectionVersion = 1,
+				captureModeMask = 7L,
+				productStage = productStage,
+				activatedRolloutRevision = 1L,
+				activationOrdinal = 1L,
+				contiguousAdmissionOrdinal = 0L,
+				retentionRequired = true,
+				status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+				installedAtMs = 1L,
+				updatedAtMs = 1L,
+			),
+		)
+	}
+
 	private suspend fun installControlOnlyGeneration() {
+		database.sourceBrokerDao().insertDemands(
+			listOf(
+				SourceDemandEntity(
+					demandId = "control-demand",
+					consumerId = "app:automation",
+					sourceKind = SourceKind.ACTIVITY.stableCode,
+					purpose = SourceBrokerPurpose.CONTROL_AUTOSTART,
+					logicalTrackingId = null,
+					serviceRunId = null,
+					manifestRevision = null,
+					lifecycleLeaseGeneration = null,
+					sourcePolicyRevision = 1L,
+					consentEpoch = 1L,
+					persistenceEligible = false,
+					qosCode = 2,
+					maximumAgeMs = 30_000L,
+					desiredLatencyMs = 15_000L,
+					requestedBootId = "boot",
+					requestedElapsedRealtimeNanos = 0L,
+					requestedAtMs = 0L,
+					status = SourceDemandEntity.STATUS_ACTIVE,
+					retireBootId = null,
+					retireElapsedRealtimeNanos = null,
+					retiredAtMs = null,
+				),
+			),
+		)
 		database.sourceBrokerDao().insertRegistration(
 			ProviderRegistrationGenerationEntity(
 				sourceKind = SourceKind.ACTIVITY.stableCode,
@@ -1556,6 +1776,22 @@ class RoomDurableSourceIngressTest {
 		val STEP_OWNER_SCOPE = "source-broker:${SourceKind.STEPS.stableCode}"
 		const val TEST_ELIGIBILITY_MASK = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT or
 			SourceBrokerPurpose.MASK_SESSION_CAPTURE
+		val TEST_EXECUTABLE_LANE_CATALOG = ExecutableSourceLaneCatalog.explicit(
+			ExecutableSourceLaneBinding(
+				source = SourceKind.ACTIVITY,
+				bindingGeneration = 1L,
+				projectionId = "ingress-test-activity",
+				projectionVersion = 1,
+				captureModes = CaptureReachabilityMode.entries.toSet(),
+			),
+			ExecutableSourceLaneBinding(
+				source = SourceKind.STEPS,
+				bindingGeneration = 1L,
+				projectionId = "ingress-test-steps",
+				projectionVersion = 1,
+				captureModes = CaptureReachabilityMode.entries.toSet(),
+			),
+		)
 	}
 }
 

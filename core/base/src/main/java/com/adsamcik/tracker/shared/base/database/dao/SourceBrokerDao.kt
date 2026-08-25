@@ -52,6 +52,10 @@ interface SourceBrokerDao {
 	)
 	suspend fun demandHistory(consumerId: String): List<SourceDemandEntity>
 
+	/** Immutable demand terms referenced by an observed-time authorization revision. */
+	@Query("SELECT * FROM source_demand WHERE demand_id IN (:demandIds) ORDER BY demand_id")
+	suspend fun demandsByIds(demandIds: Collection<String>): List<SourceDemandEntity>
+
 	@Query(
 		"UPDATE source_demand SET status = 'ACTIVE' " +
 			"WHERE consumer_id = :consumerId AND service_run_id = :serviceRunId " +
@@ -131,6 +135,53 @@ interface SourceBrokerDao {
 		sourceKind: Int,
 		registrationGeneration: Long,
 	): List<SourceAuthorizationEntity>
+
+	@Query(
+		"SELECT EXISTS(SELECT 1 FROM source_authorization " +
+			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration " +
+			"AND purpose IN ('SESSION_CAPTURE', 'AMBIENT_PRODUCT') " +
+			"AND persistence_eligible = 1)",
+	)
+	suspend fun registrationHasCaptureAuthorizationHistory(
+		sourceKind: Int,
+		registrationGeneration: Long,
+	): Boolean
+
+	@Query(
+		"SELECT COALESCE(MAX(authorization_revision), 0) FROM source_authorization " +
+			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration " +
+			"AND purpose IN ('SESSION_CAPTURE', 'AMBIENT_PRODUCT') " +
+			"AND persistence_eligible = 1",
+	)
+	suspend fun maximumCaptureAuthorizationRevision(
+		sourceKind: Int,
+		registrationGeneration: Long,
+	): Long
+
+	/**
+	 * A provider owner may publish this acknowledgement only after it has fenced new callback
+	 * entries and every earlier entry reached durable admission or a permanent rejection.
+	 */
+	@Query(
+		"UPDATE provider_registration_generation SET " +
+			"capture_callback_barrier_authorization_revision = CASE " +
+			"WHEN capture_callback_barrier_authorization_revision < :throughAuthorizationRevision " +
+			"THEN :throughAuthorizationRevision " +
+			"ELSE capture_callback_barrier_authorization_revision END " +
+			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration " +
+			"AND source_instance_id = :sourceInstanceId AND status IN ('ACTIVE', 'RETIRING') " +
+			"AND :throughAuthorizationRevision = (SELECT COALESCE(MAX(authorization_revision), 0) " +
+			"FROM source_authorization WHERE source_kind = :sourceKind " +
+			"AND registration_generation = :registrationGeneration " +
+			"AND purpose IN ('SESSION_CAPTURE', 'AMBIENT_PRODUCT') " +
+			"AND persistence_eligible = 1)",
+	)
+	suspend fun acknowledgeCaptureCallbackBarrier(
+		sourceKind: Int,
+		registrationGeneration: Long,
+		sourceInstanceId: String,
+		throughAuthorizationRevision: Long,
+	): Int
 
 	@Query(
 		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +

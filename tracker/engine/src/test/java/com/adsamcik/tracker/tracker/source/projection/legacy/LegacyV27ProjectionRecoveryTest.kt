@@ -102,6 +102,114 @@ class LegacyV27ProjectionRecoveryTest {
 	}
 
 	@Test
+	fun `absent Location registration with complete checkpoint preserves retained shadow`() = runTest {
+		seedDrain(cutoff = 2, locationCheckpoint = 2)
+		markLocationNotRegistered(checkpoint = 2)
+		val observation = locationObservation()
+		val point = locationPoint()
+		database.locationProjectionDao().upsertObservation(observation)
+		database.locationProjectionDao().upsertPoints(listOf(point))
+
+		recovery.recover() shouldBe LegacyV27ProjectionRecoveryResult.Complete(
+			partial = false,
+			suppressedOutboxCount = 0,
+		)
+
+		database.legacyV27ProjectionDrainDao().target(LOCATION, 1)?.also { target ->
+			target.disposition shouldBe
+				LegacyV27ProjectionTargetEntity.DISPOSITION_LOCATION_SHADOW_RETAINED
+			target.failureCode shouldBe null
+		}
+		database.locationProjectionDao().observations(TRACKING_ID) shouldBe listOf(observation)
+		database.locationProjectionDao().points(TRACKING_ID) shouldBe listOf(point)
+		database.locationSampleDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `retired Location writer with a behind checkpoint preserves shadow as partial`() = runTest {
+		seedDrain(cutoff = 3, locationCheckpoint = 1)
+		markLocationNotRegistered(checkpoint = 1)
+		val observation = locationObservation()
+		database.locationProjectionDao().upsertObservation(observation)
+
+		recovery.recover() shouldBe LegacyV27ProjectionRecoveryResult.Complete(
+			partial = true,
+			suppressedOutboxCount = 0,
+		)
+
+		database.legacyV27ProjectionDrainDao().target(LOCATION, 1)?.also { target ->
+			target.disposition shouldBe
+				LegacyV27ProjectionTargetEntity.DISPOSITION_LOCATION_SHADOW_PARTIAL
+			target.failureCode shouldBe "LOCATION_SHADOW_PARTIAL"
+		}
+		database.locationProjectionDao().observations(TRACKING_ID) shouldBe listOf(observation)
+		database.locationSampleDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `missing Location checkpoint with pending outbox preserves bytes as partial shadow`() = runTest {
+		seedDrain(cutoff = 1, locationCheckpoint = 0)
+		markLocationNotRegistered(checkpoint = 0)
+		val payload = byteArrayOf(7, 3, 1)
+		database.sourceProjectionStateDao().insertOutbox(
+			outbox("released-location-effect", LOCATION, version = 1).copy(
+				effectKind = "LOCATION",
+				payload = payload,
+			),
+		) shouldBe 1L
+
+		recovery.recover() shouldBe LegacyV27ProjectionRecoveryResult.Complete(
+			partial = true,
+			suppressedOutboxCount = 1,
+		)
+
+		database.legacyV27ProjectionDrainDao().target(LOCATION, 1)?.also { target ->
+			target.disposition shouldBe
+				LegacyV27ProjectionTargetEntity.DISPOSITION_LOCATION_SHADOW_PARTIAL
+			target.failureCode shouldBe "LOCATION_SHADOW_PARTIAL"
+		}
+		database.sourceProjectionStateDao().outbox("released-location-effect")?.also { retained ->
+			retained.payload.toList() shouldBe payload.toList()
+			retained.terminalDisposition shouldBe
+				LegacyV27ProjectionTargetEntity.DISPOSITION_LOCATION_SHADOW_PARTIAL
+			retained.deliveredAtMs shouldBe null
+		}
+		database.locationSampleDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `retired Location writer with complete checkpoint and only pending outbox remains partial`() = runTest {
+		seedDrain(cutoff = 1, locationCheckpoint = 1)
+		markLocationNotRegistered(checkpoint = 1)
+		val payload = byteArrayOf(9, 4, 2)
+		database.sourceProjectionStateDao().insertOutbox(
+			outbox("released-location-effect-at-cutoff", LOCATION, version = 1).copy(
+				effectKind = "LOCATION",
+				payload = payload,
+			),
+		) shouldBe 1L
+
+		recovery.recover() shouldBe LegacyV27ProjectionRecoveryResult.Complete(
+			partial = true,
+			suppressedOutboxCount = 1,
+		)
+
+		database.legacyV27ProjectionDrainDao().target(LOCATION, 1)?.also { target ->
+			target.disposition shouldBe
+				LegacyV27ProjectionTargetEntity.DISPOSITION_LOCATION_SHADOW_PARTIAL
+			target.failureCode shouldBe "LOCATION_SHADOW_PARTIAL"
+		}
+		database.sourceProjectionStateDao().outbox("released-location-effect-at-cutoff")
+			?.also { retained ->
+				retained.payload.toList() shouldBe payload.toList()
+				retained.terminalDisposition shouldBe
+					LegacyV27ProjectionTargetEntity.DISPOSITION_LOCATION_SHADOW_PARTIAL
+				retained.deliveredAtMs shouldBe null
+			}
+		database.locationSampleDao().countAll() shouldBe 0L
+	}
+
+	@Test
 	fun `retention expired wal is terminally skipped and recovery is partial`() = runTest {
 		seedDrain(cutoff = 1, locationCheckpoint = 1, retainedFromMs = 2_000)
 		lifecycle.update(CollectedDataLifecycleSnapshot(epoch = 0, retainedFromMs = 2_000))
@@ -573,6 +681,20 @@ class LegacyV27ProjectionRecoveryTest {
 				cutoff,
 				"NOT_REGISTERED_AT_MIGRATION",
 				EVENT_FRAME,
+			),
+		)
+	}
+
+	private suspend fun markLocationNotRegistered(checkpoint: Long) {
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE legacy_v27_projection_target SET initial_checkpoint_ordinal = ?, " +
+				"last_completed_ordinal = ?, initial_registration_status = ? " +
+				"WHERE projection_id = ? AND projection_version = 1",
+			arrayOf<Any>(
+				checkpoint,
+				checkpoint,
+				"NOT_REGISTERED_AT_MIGRATION",
+				LOCATION,
 			),
 		)
 	}

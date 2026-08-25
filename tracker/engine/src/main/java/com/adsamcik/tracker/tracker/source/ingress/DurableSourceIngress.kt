@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.ingress
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.SourceBrokerDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceEventIdentityRow
 import com.adsamcik.tracker.shared.base.database.dao.SourceDeliveryUnitIdentityRow
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
@@ -15,6 +16,7 @@ import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrN
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
@@ -103,7 +105,9 @@ enum class AdmissionFailureCode {
 	STALE_REGISTRATION_GENERATION,
 	AUTHORIZATION_BOUNDARY_SPLIT_REQUIRED,
 	INVALID_OBSERVED_TIME,
+	STALE_OBSERVATION,
 	STALE_SOURCE_POLICY,
+	CAPTURE_ADMISSION_CLOSED,
 	STALE_SESSION_MANIFEST,
 	STALE_COLLECTED_DATA_EPOCH,
 	BEFORE_RETENTION_BOUNDARY,
@@ -120,6 +124,7 @@ class RoomDurableSourceIngress @Inject constructor(
 	private val database: AppDatabase,
 	private val lifecycleStore: CollectedDataLifecycleStore,
 	private val payloadCodec: SourcePayloadCodec,
+	private val executableLaneCatalog: ExecutableSourceLaneCatalog,
 	private val trackingStartupGateProvider: Provider<TrackingStartupGate>,
 ) : DurableSourceIngress, DurableSourceDeliveryIngress {
 	override suspend fun admit(candidate: SourceEvidenceCandidate<*>): AdmissionResult =
@@ -224,13 +229,13 @@ class RoomDurableSourceIngress @Inject constructor(
 						AdmissionFailureCode.STALE_COLLECTED_DATA_EPOCH,
 					)
 				}
-				val authorization = brokerDao.authorizationAt(
+				val observedTimeAuthorization = brokerDao.authorizationAt(
 					candidate.source.stableCode,
 					candidate.registrationGeneration,
 					candidate.clockDomainId,
 					candidate.observedElapsedRealtimeNanos,
 				).toAuthorizationSnapshotOrNull()
-				if (authorization == null || authorization.isDenied) {
+				if (observedTimeAuthorization == null || observedTimeAuthorization.isDenied) {
 					return@transaction AdmissionResult.PermanentFailure(
 						AdmissionFailureCode.STALE_SOURCE_POLICY,
 					)
@@ -243,12 +248,21 @@ class RoomDurableSourceIngress @Inject constructor(
 						candidate.clockDomainId,
 						intervalStart,
 					).toAuthorizationSnapshotOrNull()
-					if (startAuthorization?.authorizationRevision != authorization.authorizationRevision) {
+					if (startAuthorization?.authorizationRevision !=
+						observedTimeAuthorization.authorizationRevision
+					) {
 						return@transaction AdmissionResult.PermanentFailure(
 							AdmissionFailureCode.AUTHORIZATION_BOUNDARY_SPLIT_REQUIRED,
 						)
 					}
 				}
+				val authorization = observedTimeAuthorization.qualifiedForFreshness(
+					brokerDao = brokerDao,
+					observedElapsedRealtimeNanos = candidate.observedElapsedRealtimeNanos,
+					receivedElapsedRealtimeNanos = candidate.receivedElapsedRealtimeNanos,
+				) ?: return@transaction AdmissionResult.PermanentFailure(
+					AdmissionFailureCode.STALE_OBSERVATION,
+				)
 				val captureMembers = authorization.authorizedMembers.filter { member ->
 					member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
 				}
@@ -282,6 +296,13 @@ class RoomDurableSourceIngress @Inject constructor(
 						)
 					}
 					return@transaction duplicate
+				}
+				if (authorization.hasCapturePurpose() &&
+					!isCaptureAdmissionExecutable(candidate.source.stableCode)
+				) {
+					return@transaction AdmissionResult.PermanentFailure(
+						AdmissionFailureCode.CAPTURE_ADMISSION_CLOSED,
+					)
 				}
 
 				val eventId = SourceEventId(UUID.randomUUID().toString())
@@ -335,6 +356,13 @@ class RoomDurableSourceIngress @Inject constructor(
 		}.getOrElse {
 			AdmissionResult.RetryableFailure(AdmissionFailureCode.STORAGE_UNAVAILABLE)
 		}
+	}
+
+	/** Called only from an open Room transaction so the structural gate and identity stay atomic. */
+	private suspend fun isCaptureAdmissionExecutable(sourceKind: Int): Boolean {
+		val dao = database.sourceProjectionStateDao()
+		if (!dao.isCaptureAdmissionOpen(sourceKind)) return false
+		return dao.activeProductLane(sourceKind)?.let(executableLaneCatalog::owns) == true
 	}
 
 	private suspend fun persistAtomicCheckpoint(
@@ -482,7 +510,7 @@ class RoomDurableSourceIngress @Inject constructor(
 							AdmissionFailureCode.STALE_COLLECTED_DATA_EPOCH,
 						)
 					}
-					val authorization = brokerDao.authorizationAt(
+					val observedTimeAuthorization = brokerDao.authorizationAt(
 						evidence.source.stableCode,
 						evidence.registrationGeneration,
 						evidence.clockDomainId,
@@ -495,15 +523,33 @@ class RoomDurableSourceIngress @Inject constructor(
 							evidence.clockDomainId,
 							intervalStart,
 						).toAuthorizationSnapshotOrNull()
-						if (startAuthorization?.authorizationRevision != authorization?.authorizationRevision) {
+						if (startAuthorization?.authorizationRevision !=
+							observedTimeAuthorization?.authorizationRevision
+						) {
 							return@transaction DeliveryAdmissionResult.PermanentFailure(
 								AdmissionFailureCode.AUTHORIZATION_BOUNDARY_SPLIT_REQUIRED,
 							)
 						}
 					}
-					if (authorization == null || authorization.isDenied) {
+					if (observedTimeAuthorization == null || observedTimeAuthorization.isDenied) {
 						emptyDeliveryFailure = AdmissionFailureCode.STALE_SOURCE_POLICY
 						continue
+					}
+					val authorization = observedTimeAuthorization.qualifiedForFreshness(
+						brokerDao = brokerDao,
+						observedElapsedRealtimeNanos = evidence.observedElapsedRealtimeNanos,
+						receivedElapsedRealtimeNanos = evidence.receivedElapsedRealtimeNanos,
+					)
+					if (authorization == null) {
+						emptyDeliveryFailure = AdmissionFailureCode.STALE_OBSERVATION
+						continue
+					}
+					if (authorization.hasCapturePurpose() &&
+						!isCaptureAdmissionExecutable(evidence.source.stableCode)
+					) {
+						return@transaction DeliveryAdmissionResult.PermanentFailure(
+							AdmissionFailureCode.CAPTURE_ADMISSION_CLOSED,
+						)
 					}
 					val captureMembers = authorization.authorizedMembers.filter { member ->
 						member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
@@ -785,6 +831,69 @@ private data class AuthorizedDeliveryUnit(
 	val captureAuthorization: SourceAuthorizationEntity?,
 )
 
+private fun SourceAuthorizationSnapshot.hasCapturePurpose(): Boolean =
+	authorizedMembers.any { member ->
+		member.purpose in setOf(
+			SourceBrokerPurpose.SESSION_CAPTURE,
+			SourceBrokerPurpose.AMBIENT_PRODUCT,
+		)
+	}
+
+/**
+ * Narrows an observed-time authorization to demands for which this callback is still fresh.
+ *
+ * Authorization history answers whether the provider was allowed to emit the observation at its
+ * observed time. Freshness is an immutable per-demand product constraint, so it is evaluated from
+ * the referenced demand row without consulting that demand's current reconciliation status. This
+ * lets a delayed callback remain auditable while preventing a stale capture member from borrowing
+ * a more permissive control member's maximum age.
+ */
+private suspend fun SourceAuthorizationSnapshot.qualifiedForFreshness(
+	brokerDao: SourceBrokerDao,
+	observedElapsedRealtimeNanos: Long,
+	receivedElapsedRealtimeNanos: Long,
+): SourceAuthorizationSnapshot? {
+	val ageNanos = receivedElapsedRealtimeNanos - observedElapsedRealtimeNanos
+	if (ageNanos < 0L) return null
+	val memberDemandIds = authorizedMembers.mapNotNull(SourceAuthorizationEntity::demandId)
+	if (memberDemandIds.isEmpty()) return null
+	val demandsById = brokerDao.demandsByIds(memberDemandIds).associateBy { demand -> demand.demandId }
+	val qualifiedMembers = authorizedMembers.mapNotNull { member ->
+		val demandId = member.demandId ?: return@mapNotNull null
+		val demand = demandsById[demandId] ?: return@mapNotNull null
+		val immutableAuthorityMatches = demand.sourceKind == member.sourceKind &&
+			demand.consumerId == member.consumerId &&
+			demand.purpose == member.purpose &&
+			demand.sourcePolicyRevision == member.sourcePolicyRevision &&
+			demand.consentEpoch == member.consentEpoch &&
+			demand.persistenceEligible == member.persistenceEligible &&
+			demand.logicalTrackingId == member.logicalTrackingId &&
+			demand.serviceRunId == member.serviceRunId &&
+			demand.manifestRevision == member.manifestRevision &&
+			demand.lifecycleLeaseGeneration == member.lifecycleLeaseGeneration
+		if (!immutableAuthorityMatches) return@mapNotNull null
+		val maximumAgeNanos = demand.maximumAgeMs.saturatedMillisecondsToNanos()
+		member.takeIf { ageNanos <= maximumAgeNanos }
+	}
+	if (qualifiedMembers.isEmpty()) return null
+	val qualifiedPurposeMask = qualifiedMembers.fold(0L) { mask, member ->
+		mask or SourceBrokerPurpose.mask(requireNotNull(member.purpose))
+	}
+	return copy(
+		purposeEligibilityMask = qualifiedPurposeMask,
+		members = qualifiedMembers.map { member ->
+			member.copy(purposeEligibilityMask = qualifiedPurposeMask)
+		},
+	)
+}
+
+private fun Long.saturatedMillisecondsToNanos(): Long =
+	if (this > Long.MAX_VALUE / NANOS_PER_MILLISECOND) {
+		Long.MAX_VALUE
+	} else {
+		this * NANOS_PER_MILLISECOND
+	}
+
 private fun resolveDeliveryReplay(
 	delivery: SourceDeliveryCandidate,
 	encoded: List<EncodedDeliveryUnit>,
@@ -946,6 +1055,7 @@ private val ADMISSION_SESSION_STATES = setOf("STARTING", "ACTIVE", "RECONFIGURIN
 private val ADMISSION_RUN_STATES = setOf("STARTING", "ACTIVE")
 private const val RAW_PAYLOAD_INTEGRITY_FAILURE = "RAW_PAYLOAD_INTEGRITY"
 private const val RAW_PAYLOAD_DECODE_FAILURE = "RAW_PAYLOAD_DECODE"
+private const val NANOS_PER_MILLISECOND = 1_000_000L
 
 class CorruptSourceEventException(
 	val admissionOrdinal: Long,

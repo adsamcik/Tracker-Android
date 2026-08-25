@@ -95,10 +95,11 @@ class CollectedDataDeletionServiceTest {
 
 		verify(exactly = 1) { pointsAwardedDao.deleteAll() }
 		coVerify(exactly = 1) { exportPlanStore.resetAllWatermarks() }
-		coVerify(exactly = 1) { writerQuiescer.quiesce() }
+		coVerify(exactly = 2) { writerQuiescer.quiesce() }
 		coVerify(exactly = 1) { collectedDataLifecycleStore.beginFullDeletion(any()) }
 		coVerifyOrder {
 			collectedDataLifecycleStore.beginFullDeletion(any())
+			writerQuiescer.quiesce()
 			writerQuiescer.quiesce()
 		}
 		verify(exactly = 0) { writerQuiescer.resume() }
@@ -133,7 +134,7 @@ class CollectedDataDeletionServiceTest {
 		resumed.reconcilePendingDeletion()
 
 		verify(exactly = 2) { pointsAwardedDao.deleteAll() }
-		coVerify(exactly = 2) { writerQuiescer.quiesce() }
+		coVerify(exactly = 4) { writerQuiescer.quiesce() }
 		coVerify(exactly = 2) { collectedDataLifecycleStore.beginFullDeletion(any()) }
 		verify(exactly = 0) { writerQuiescer.resume() }
 		verify(exactly = 1) { automaticControlRestorer.schedule(1L) }
@@ -200,6 +201,60 @@ class CollectedDataDeletionServiceTest {
 	}
 
 	@Test
+	fun `deletion fences writers again after an admitted recovery finishes`() = runTest {
+		val operations = mutableListOf<String>()
+		val arbiter = mockk<ActivityRegistrationArbiter>()
+		coEvery { arbiter.closeForCollectedDataDeletion() } coAnswers {
+			operations += "activity-close"
+			appliedRegistrationResult()
+		}
+		coEvery { arbiter.resumeAfterCollectedDataDeletion() } coAnswers {
+			operations += "activity-resume"
+			appliedRegistrationResult()
+		}
+		coEvery { writerQuiescer.quiesce() } coAnswers {
+			operations += "writer-quiesce"
+		}
+		every { writerQuiescer.resume() } answers {
+			operations += "writer-resume"
+		}
+		val operationStarted = CompletableDeferred<Unit>()
+		val allowOperationToFinish = CompletableDeferred<Unit>()
+		val admittedRecovery = async {
+			startupDeletionBarrier.withStartupRecovery(onClosed = { error("already admitted") }) {
+				operationStarted.complete(Unit)
+				allowOperationToFinish.await()
+				arbiter.resumeAfterCollectedDataDeletion()
+				writerQuiescer.resume()
+			}
+		}
+		operationStarted.await()
+		val service = createService(
+			activityRegistrationArbiterProvider = Provider { arbiter },
+		) { _, _, _, _ -> operations += "delete" }
+
+		val deletion = async { service.deleteAll() }
+		runCurrent()
+		operations shouldBe listOf("activity-close", "writer-quiesce")
+
+		allowOperationToFinish.complete(Unit)
+		admittedRecovery.await()
+		deletion.await()
+
+		operations shouldBe listOf(
+			"activity-close",
+			"writer-quiesce",
+			"activity-resume",
+			"writer-resume",
+			"activity-close",
+			"writer-quiesce",
+			"delete",
+		)
+		coVerify(exactly = 2) { arbiter.closeForCollectedDataDeletion() }
+		coVerify(exactly = 2) { writerQuiescer.quiesce() }
+	}
+
+	@Test
 	fun `cold pending deletion removes retired vaults before resolving Room-backed arbiter`() = runTest {
 		markerFile.writeText("pending")
 		val arbiter = mockk<ActivityRegistrationArbiter>()
@@ -220,7 +275,7 @@ class CollectedDataDeletionServiceTest {
 		service.reconcilePendingDeletion()
 
 		providerResolutions shouldBe 1
-		coVerify(exactly = 1) { arbiter.closeForCollectedDataDeletion() }
+		coVerify(exactly = 2) { arbiter.closeForCollectedDataDeletion() }
 		coVerify(exactly = 0) { arbiter.resumeAfterCollectedDataDeletion() }
 		markerFile.exists() shouldBe false
 	}
@@ -245,7 +300,8 @@ class CollectedDataDeletionServiceTest {
 		appDeletionCount shouldBe 1
 		markerFile.exists() shouldBe false
 		startupDeletionBarrier.isClosed shouldBe false
-		coVerify(exactly = 1) { writerQuiescer.quiesce() }
+		coVerify(exactly = 2) { writerQuiescer.quiesce() }
+		coVerify(exactly = 2) { arbiter.closeForCollectedDataDeletion() }
 		verify(exactly = 0) { writerQuiescer.resume() }
 		coVerify(exactly = 0) { arbiter.resumeAfterCollectedDataDeletion() }
 		verify(exactly = 1) { automaticControlRestorer.schedule(1L) }

@@ -11,15 +11,19 @@ import androidx.room.Index
  * contain global and released-v27 compatibility consumers, so their progress cannot prove that a
  * particular source has a product destination. Keeping the activation boundary and cursor in this
  * row makes rollout authorization and WAL retention depend on the same durable identity.
- * [projectionId] is the output contract ID and [projectionVersion] is its writer generation; the
- * generation first became provider-reachable at [activatedRolloutRevision].
+ * [projectionId] is the output contract ID and [projectionVersion] is its writer generation.
+ * [bindingGeneration] is instead a source-local capability epoch: it may add an independently
+ * approved manual, automatic, or ambient mode without pretending the writer semantics changed.
+ * Only one binding generation is active for a source, and historical generations may refer to the
+ * same writer identity. The active generation became provider-reachable at
+ * [activatedRolloutRevision].
  */
 @Entity(
 	tableName = "source_product_projection_lane",
+	primaryKeys = ["source_kind", "binding_generation"],
 	indices = [
 		Index(
 			value = ["projection_id", "projection_version"],
-			unique = true,
 			name = "idx_source_product_projection_lane_identity",
 		),
 		Index(
@@ -29,24 +33,39 @@ import androidx.room.Index
 	],
 )
 data class SourceProductProjectionLaneEntity(
-	@androidx.room.PrimaryKey
 	@ColumnInfo(name = "source_kind") val sourceKind: Int,
+	@ColumnInfo(name = "binding_generation") val bindingGeneration: Long,
 	@ColumnInfo(name = "projection_id") val projectionId: String,
 	@ColumnInfo(name = "projection_version") val projectionVersion: Int,
+	@ColumnInfo(name = "capture_mode_mask") val captureModeMask: Long,
 	@ColumnInfo(name = "product_stage") val productStage: String,
 	@ColumnInfo(name = "activated_rollout_revision") val activatedRolloutRevision: Long,
 	@ColumnInfo(name = "activation_ordinal") val activationOrdinal: Long,
 	@ColumnInfo(name = "contiguous_admission_ordinal") val contiguousAdmissionOrdinal: Long,
+	/**
+	 * Inclusive WAL high-water captured when new capture admission was durably fenced. A non-null
+	 * value means the lane may drain only this closed interval before releasing its retention pin.
+	 */
+	@ColumnInfo(name = "capture_admission_cutoff_ordinal") val captureAdmissionCutoffOrdinal: Long? = null,
 	@ColumnInfo(name = "retention_required") val retentionRequired: Boolean,
 	@ColumnInfo(name = "status") val status: String,
+	@ColumnInfo(name = "terminal_disposition") val terminalDisposition: String? = null,
+	@ColumnInfo(name = "terminal_at_ms") val terminalAtMs: Long? = null,
 	@ColumnInfo(name = "installed_at_ms") val installedAtMs: Long,
 	@ColumnInfo(name = "updated_at_ms") val updatedAtMs: Long,
 ) {
 	companion object {
 		const val STATUS_ACTIVE = "ACTIVE"
+		const val STATUS_RETIRED = "RETIRED"
 		const val STAGE_EVENT_SHADOW = "EVENT_SHADOW"
 		const val STAGE_EVENT_CANONICAL = "EVENT_CANONICAL"
+		const val DISPOSITION_CONTAINED_AFTER_DRAIN = "CONTAINED_AFTER_DRAIN"
 	}
+}
+
+/** Compile-time app authority for the source-product lanes this binary can execute. */
+fun interface SourceProductLaneExecutionAuthority {
+	fun owns(lane: SourceProductProjectionLaneEntity): Boolean
 }
 
 @Entity(

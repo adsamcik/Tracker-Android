@@ -22,6 +22,8 @@ import com.adsamcik.tracker.activity.api.ingress.ActivityIngressResult
 import com.adsamcik.tracker.activity.api.ingress.ActivityIngressStatus
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
+import com.adsamcik.tracker.activity.api.registration.ActivityCallbackAdmissionBarrier
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
@@ -41,10 +43,13 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
@@ -69,6 +74,8 @@ class ActivityReceiverTest {
 	private lateinit var mockBackend: GmsActivityRecognitionBackend
 	private lateinit var mockIngress: ActivityRecognitionEventIngress
 	private lateinit var mockStartupGate: TrackingStartupGate
+	private lateinit var callbackAdmissionBarrier: ActivityCallbackAdmissionBarrier
+	private lateinit var applicationScope: CoroutineScope
 
 	@Before
 	fun setUp() {
@@ -83,6 +90,8 @@ class ActivityReceiverTest {
 		mockBackend = mockk(relaxed = true)
 		mockIngress = mockk()
 		mockStartupGate = mockk()
+		callbackAdmissionBarrier = ActivityCallbackAdmissionBarrier()
+		applicationScope = CoroutineScope(Dispatchers.Unconfined)
 		coEvery { mockStartupGate.reconcileAdmission(any()) } returns
 			TrackingAdmissionStartupResult.Ready
 		coEvery { mockIngress.admit(any()) } returns ActivityIngressResult.durable(
@@ -94,7 +103,8 @@ class ActivityReceiverTest {
 			every { backend() } returns mockBackend
 			every { eventIngress() } returns mockIngress
 			every { trackingStartupGate() } returns mockStartupGate
-			every { applicationScope() } returns CoroutineScope(Dispatchers.Unconfined)
+			every { callbackAdmissionBarrier() } returns callbackAdmissionBarrier
+			every { applicationScope() } answers { applicationScope }
 		}
 		mockkStatic(EntryPointAccessors::class)
 		every {
@@ -147,6 +157,30 @@ class ActivityReceiverTest {
 
 		return intent
 	}
+
+	private fun Intent.withRegistrationIdentity(
+		identity: ActivityRegistrationIdentity,
+	): Intent = apply {
+		every { getStringExtra(EXTRA_SOURCE_INSTANCE_ID) } returns identity.sourceInstanceId
+		every { hasExtra(EXTRA_REGISTRATION_GENERATION) } returns true
+		every { hasExtra(EXTRA_COLLECTED_DATA_EPOCH) } returns true
+		every { getLongExtra(EXTRA_REGISTRATION_GENERATION, any()) } returns
+			identity.registrationGeneration
+		every { getLongExtra(EXTRA_COLLECTED_DATA_EPOCH, any()) } returns identity.collectedDataEpoch
+		every { getStringExtra(EXTRA_CLOCK_DOMAIN_ID) } returns identity.clockDomainId
+		every { getStringExtra(EXTRA_PHYSICAL_CONFIGURATION_FINGERPRINT) } returns
+			identity.physicalConfigurationFingerprint
+	}
+
+	private fun registrationIdentity(
+		generation: Long = 12L,
+	): ActivityRegistrationIdentity = ActivityRegistrationIdentity(
+		sourceInstanceId = "activity-instance-$generation",
+		registrationGeneration = generation,
+		collectedDataEpoch = 4L,
+		clockDomainId = "boot-4",
+		physicalConfigurationFingerprint = "physical-config",
+	)
 
 	// region onReceive with activity result
 	@Test
@@ -442,6 +476,101 @@ class ActivityReceiverTest {
 					batch.registrationIdentity?.physicalConfigurationFingerprint == "physical-config"
 			})
 		}
+	}
+
+	@Test
+	fun `entered receiver callback holds generation barrier until durable admission commits`() = runTest {
+		val identity = registrationIdentity()
+		val intent = intentWithActivityResult(
+			com.google.android.gms.location.DetectedActivity.WALKING,
+			85,
+		).withRegistrationIdentity(identity)
+		val admissionEntered = CompletableDeferred<Unit>()
+		val releaseAdmission = CompletableDeferred<ActivityIngressResult>()
+		coEvery { mockIngress.admit(any()) } coAnswers {
+			admissionEntered.complete(Unit)
+			releaseAdmission.await()
+		}
+
+		receiver.onReceive(context, intent)
+		admissionEntered.await()
+		val fence = async(start = CoroutineStart.UNDISPATCHED) {
+			callbackAdmissionBarrier.fenceAndAwait(identity)
+		}
+
+		fence.isCompleted shouldBe false
+		callbackAdmissionBarrier.tryEnter(identity) shouldBe null
+		releaseAdmission.complete(
+			ActivityIngressResult.durable(
+				1,
+				0,
+				ActivityDurableSelection(recognitionIndexes = setOf(0)),
+			),
+		)
+		fence.await()
+		callbackAdmissionBarrier.reopen(identity) shouldBe true
+		checkNotNull(callbackAdmissionBarrier.tryEnter(identity)).complete()
+	}
+
+	@OptIn(ExperimentalCoroutinesApi::class)
+	@Test
+	fun `retryable receiver callback releases generation fence only after timeout unwinds`() {
+		val scheduler = TestCoroutineScheduler()
+		val scope = TestScope(StandardTestDispatcher(scheduler))
+		applicationScope = scope
+		val identity = registrationIdentity()
+		val intent = intentWithActivityResult(
+			com.google.android.gms.location.DetectedActivity.WALKING,
+			85,
+		).withRegistrationIdentity(identity)
+		coEvery { mockIngress.admit(any()) } returns ActivityIngressResult.retryable(
+			0,
+			0,
+			"storage_unavailable",
+		)
+
+		receiver.onReceive(context, intent)
+		scheduler.runCurrent()
+		val fence = scope.async(start = CoroutineStart.UNDISPATCHED) {
+			callbackAdmissionBarrier.fenceAndAwait(identity)
+		}
+
+		fence.isCompleted shouldBe false
+		scheduler.advanceTimeBy(ACTIVITY_CALLBACK_WORK_BUDGET_MS - 1L)
+		scheduler.runCurrent()
+		fence.isCompleted shouldBe false
+
+		scheduler.advanceTimeBy(1L)
+		scheduler.runCurrent()
+
+		fence.isCompleted shouldBe true
+		coVerify(atLeast = 2) { mockIngress.admit(any()) }
+		verify(exactly = 0) { mockBackend.onActivityResult(any(), any()) }
+		ActivityReceiver.lastActivity shouldBe RecognizedActivity.UNKNOWN
+	}
+
+	@Test
+	fun `thrown and cancelled receiver work both release their generation fences`() = runTest {
+		listOf(
+			IllegalStateException("ingress failed"),
+			CancellationException("application scope cancelled"),
+		).forEachIndexed { index, failure ->
+			val identity = registrationIdentity(generation = 20L + index)
+			val intent = intentWithActivityResult(
+				com.google.android.gms.location.DetectedActivity.WALKING,
+				85,
+			).withRegistrationIdentity(identity)
+			coEvery { mockIngress.admit(any()) } throws failure
+
+			receiver.onReceive(context, intent)
+			callbackAdmissionBarrier.fenceAndAwait(identity)
+
+			callbackAdmissionBarrier.reopen(identity) shouldBe true
+			checkNotNull(callbackAdmissionBarrier.tryEnter(identity)).complete()
+		}
+
+		verify(exactly = 0) { mockBackend.onActivityResult(any(), any()) }
+		ActivityReceiver.lastActivity shouldBe RecognizedActivity.UNKNOWN
 	}
 
 	@Test

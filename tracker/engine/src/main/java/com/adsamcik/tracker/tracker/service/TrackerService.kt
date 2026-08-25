@@ -74,6 +74,7 @@ import com.adsamcik.tracker.tracker.source.coordinator.TrackerServiceSourceSessi
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingCoordinatorTelemetry
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingSessionOwnership
+import com.adsamcik.tracker.tracker.source.coordinator.captureModeFor
 import com.adsamcik.tracker.tracker.source.control.CollectionMotionController
 import com.adsamcik.tracker.tracker.source.control.LocationCollectionStrategy
 import com.adsamcik.tracker.tracker.source.control.acquisitionProfile
@@ -254,6 +255,7 @@ internal class TrackerService : CoreService() {
 			dispatchers = dispatchers,
 			appDatabase = appDatabase,
 			trackingParamsRepository = trackingParamsRepository,
+			trackingRolloutStateStore = trackingRolloutStateStore,
 			runtimeTierAdjuster = { requestedTier ->
 				val preserveRequestedFidelity = sessionInfo?.isInitiatedByUser == true ||
 					com.adsamcik.tracker.tracker.api.BackgroundTrackingApi.cachedParams.preset ==
@@ -1122,7 +1124,8 @@ internal class TrackerService : CoreService() {
 
 	private fun refreshForegroundForRuntimePermissions(settings: TrackingParamsState): Set<SourceKind>? {
 		val rollout = sessionRolloutState ?: return null
-		val ownership = TrackingSessionOwnership.resolve(rollout, settings)
+		val descriptor = activeSessionDescriptor ?: return emptySet()
+		val ownership = resolveActiveSessionOwnership(rollout, settings, descriptor)
 		val accepted = resolveAcceptedForegroundSources(
 			requestedSources = ownership.enabledEventSources,
 			startOrigin = sessionStartOrigin ?: SessionStartOrigin.POLICY_RECONCILIATION,
@@ -1787,7 +1790,8 @@ internal class TrackerService : CoreService() {
 		settings: TrackingParamsState,
 		rollout: TrackingRolloutState,
 	): Boolean {
-		val ownership = TrackingSessionOwnership.resolve(rollout, settings)
+		val descriptor = activeSessionDescriptor ?: return false
+		val ownership = resolveActiveSessionOwnership(rollout, settings, descriptor)
 		val accepted = resolveAcceptedForegroundSources(
 			requestedSources = ownership.enabledEventSources,
 			startOrigin = sessionStartOrigin ?: SessionStartOrigin.POLICY_RECONCILIATION,
@@ -1850,6 +1854,19 @@ internal fun shouldStopAfterRuntimePermissionReconfigure(
 	outcome: SourceSessionReconfigureOutcome?,
 	acceptedCaptureSourceCount: Int? = null,
 ): Boolean = acceptedCaptureSourceCount == 0 || outcome is SourceSessionReconfigureOutcome.Rejected
+
+internal fun resolveActiveSessionOwnership(
+	rollout: TrackingRolloutState,
+	settings: TrackingParamsState,
+	descriptor: ActiveTrackingSessionDescriptor,
+): TrackingSessionOwnership = TrackingSessionOwnership.resolve(
+	rollout = rollout,
+	settings = settings,
+	captureMode = captureModeFor(
+		isUserInitiated = descriptor.isUserInitiated,
+		isAmbient = descriptor.isAmbient,
+	),
+)
 
 internal fun validateAutomaticStartAtRuntime(
 	automaticStartExpected: Boolean,

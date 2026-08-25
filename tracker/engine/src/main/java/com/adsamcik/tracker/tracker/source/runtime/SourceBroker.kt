@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
+import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.SessionManifestPurpose
 import com.adsamcik.tracker.tracker.source.model.DirectSourceDemandPurpose
@@ -32,7 +33,9 @@ import javax.inject.Singleton
 @Singleton
 class SourceBroker @Inject constructor(
 	private val database: AppDatabase,
+	private val trackingRolloutStateStore: RoomTrackingRolloutStateStore,
 ) {
+	constructor(database: AppDatabase) : this(database, RoomTrackingRolloutStateStore(database))
 	fun sessionConsumerId(logicalTrackingId: String): String = "session:$logicalTrackingId"
 
 	/** Current durable authority vector used to reconcile the one physical source owner. */
@@ -425,7 +428,7 @@ class SourceBroker @Inject constructor(
 	 * does not make the control source captured or materializable.
 	 */
 	private suspend fun automaticControlAcquisitionEligibleInTransaction(source: SourceKind): Boolean {
-		val rollout = RoomTrackingRolloutStateStore(database).load()
+		val rollout = trackingRolloutStateStore.load()
 		if (!rollout.isControlAcquisitionReachable(source)) return false
 		val authority = database.sourcePolicyDao().authority()
 		if (authority?.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE) return false
@@ -438,7 +441,12 @@ class SourceBroker @Inject constructor(
 				policy.captureConsentEpoch != null &&
 				policy.capturePersistenceEligible &&
 				SourceKind.entries.singleOrNull { it.stableCode == policy.sourceKind }
-					?.let(rollout::isAcquisitionReachable) == true
+					?.let { captureSource ->
+						rollout.isCaptureReachable(
+							captureSource,
+							CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE,
+						)
+					} == true
 		}
 	}
 

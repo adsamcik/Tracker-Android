@@ -11,9 +11,12 @@ import androidx.work.WorkerParameters
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryResult
+import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryScheduler
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
+import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
+import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainResult
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -29,6 +32,7 @@ class BootTrackingRecoveryWorker @AssistedInject constructor(
 	private val trackingStartupGate: TrackingStartupGate,
 	private val trackingStartupGuard: TrackingStartupGuard,
 	private val lockManager: LockManager,
+	private val sourcePipelineRecovery: SourcePipelineRecovery,
 ) : CoroutineWorker(appContext, params) {
 	override suspend fun doWork(): Result {
 		val outcome = try {
@@ -46,21 +50,39 @@ class BootTrackingRecoveryWorker @AssistedInject constructor(
 						applicationContext,
 					)
 				},
+				withReadyGenerationOperation = { generation, operation ->
+					trackingStartupGate.withReadyGenerationOperation(generation, operation)
+				},
+				drainActivityAutomationEffects =
+					sourcePipelineRecovery::drainActivityAutomationEffects,
 			)
 		} catch (cancelled: CancellationException) {
 			throw cancelled
 		} catch (_: Exception) {
-			BootTrackingRecoveryOutcome.RETRY
+			BootTrackingRecoveryOutcome.DURABLE_RETRY
 		}
-		return when (outcome) {
-			BootTrackingRecoveryOutcome.COMPLETE -> Result.success()
-			// The unique WorkManager record is the durable owner only for explicitly transient work.
-			BootTrackingRecoveryOutcome.RETRY -> Result.retry()
+		return if (outcome.shouldRetry(runAttemptCount)) {
+			Result.retry()
+		} else {
+			Result.success()
 		}
 	}
 }
 
-internal enum class BootTrackingRecoveryOutcome { COMPLETE, RETRY }
+internal enum class BootTrackingRecoveryOutcome {
+	COMPLETE,
+	/** Startup and frozen-v27 recovery obligations retain retry ownership until terminal. */
+	DURABLE_RETRY,
+	/** Automatic control, including its durable outbox, receives a battery-bounded wake budget. */
+	OPTIONAL_CONTROL_RETRY,
+}
+
+internal fun BootTrackingRecoveryOutcome.shouldRetry(runAttemptCount: Int): Boolean = when (this) {
+	BootTrackingRecoveryOutcome.COMPLETE -> false
+	BootTrackingRecoveryOutcome.DURABLE_RETRY -> true
+	BootTrackingRecoveryOutcome.OPTIONAL_CONTROL_RETRY ->
+		runAttemptCount + 1 < OPTIONAL_CONTROL_MAX_ATTEMPTS
+}
 
 internal suspend fun runBootTrackingRecovery(
 	startupGeneration: Long,
@@ -70,34 +92,86 @@ internal suspend fun runBootTrackingRecovery(
 	reconcileStartup: suspend () -> TrackingStartupResult,
 	initializeLocks: suspend () -> Unit,
 	rearmAutomaticControl: suspend () -> AutomaticControlRecoveryResult,
+	withReadyGenerationOperation: suspend (
+		expectedGeneration: Long,
+		operation: suspend () -> AutomaticControlRecoveryResult?,
+	) -> AutomaticControlRecoveryResult? = { _, operation -> operation() },
+	drainActivityAutomationEffects: suspend () -> ActivityAutomationDrainResult = {
+		ActivityAutomationDrainResult.Complete(0, 0)
+	},
 ): BootTrackingRecoveryOutcome {
 	if (isSuppressed()) return BootTrackingRecoveryOutcome.COMPLETE
 	if (currentGeneration() != startupGeneration) return BootTrackingRecoveryOutcome.COMPLETE
-	when (reconcileStartup()) {
+	val startup = try {
+		reconcileStartup()
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (_: Exception) {
+		return BootTrackingRecoveryOutcome.DURABLE_RETRY
+	}
+	when (startup) {
 		is TrackingStartupResult.Ready -> Unit
-		is TrackingStartupResult.RetryableFailure -> return BootTrackingRecoveryOutcome.RETRY
+		is TrackingStartupResult.RetryableFailure ->
+			return BootTrackingRecoveryOutcome.DURABLE_RETRY
 		is TrackingStartupResult.Blocked -> return BootTrackingRecoveryOutcome.COMPLETE
 	}
 	if (!isReady() || currentGeneration() != startupGeneration || isSuppressed()) {
 		return BootTrackingRecoveryOutcome.COMPLETE
 	}
-	initializeLocks()
+	try {
+		initializeLocks()
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (_: Exception) {
+		return BootTrackingRecoveryOutcome.DURABLE_RETRY
+	}
 	if (!isReady() || currentGeneration() != startupGeneration || isSuppressed()) {
 		return BootTrackingRecoveryOutcome.COMPLETE
 	}
-	return when (rearmAutomaticControl()) {
-		AutomaticControlRecoveryResult.ACCEPTED,
-		AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED ->
-			BootTrackingRecoveryOutcome.COMPLETE
-		AutomaticControlRecoveryResult.RETRYABLE -> BootTrackingRecoveryOutcome.RETRY
+	val control = try {
+		withReadyGenerationOperation(startupGeneration) {
+			if (!isReady() || currentGeneration() != startupGeneration || isSuppressed()) {
+				return@withReadyGenerationOperation null
+			}
+			try {
+				rearmAutomaticControl()
+			} catch (cancelled: CancellationException) {
+				throw cancelled
+			} catch (_: Exception) {
+				AutomaticControlRecoveryResult.RETRYABLE
+			}
+		}
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (_: Exception) {
+		return BootTrackingRecoveryOutcome.DURABLE_RETRY
+	} ?: return BootTrackingRecoveryOutcome.COMPLETE
+	if (!isReady() || currentGeneration() != startupGeneration || isSuppressed()) {
+		return BootTrackingRecoveryOutcome.COMPLETE
+	}
+	val drain = try {
+		drainActivityAutomationEffects()
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (_: Exception) {
+		return BootTrackingRecoveryOutcome.OPTIONAL_CONTROL_RETRY
+	}
+	return when {
+		drain !is ActivityAutomationDrainResult.Complete ->
+			BootTrackingRecoveryOutcome.OPTIONAL_CONTROL_RETRY
+		control == AutomaticControlRecoveryResult.RETRYABLE ->
+			BootTrackingRecoveryOutcome.OPTIONAL_CONTROL_RETRY
+		else -> BootTrackingRecoveryOutcome.COMPLETE
 	}
 }
+
+private const val OPTIONAL_CONTROL_MAX_ATTEMPTS = 3
 
 @Singleton
 class BootTrackingRecoveryScheduler @Inject constructor(
 	@ApplicationContext private val context: Context,
-) {
-	fun enqueue() {
+) : AutomaticControlRecoveryScheduler {
+	override fun enqueue() {
 		val request = OneTimeWorkRequestBuilder<BootTrackingRecoveryWorker>()
 			.setBackoffCriteria(
 				BackoffPolicy.EXPONENTIAL,
@@ -107,7 +181,7 @@ class BootTrackingRecoveryScheduler @Inject constructor(
 			.build()
 		WorkManager.getInstance(context).enqueueUniqueWork(
 			UNIQUE_WORK_NAME,
-			ExistingWorkPolicy.REPLACE,
+			ExistingWorkPolicy.KEEP,
 			request,
 		)
 	}

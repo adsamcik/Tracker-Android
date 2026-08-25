@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.database.data.TrackingRolloutStateEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
@@ -36,6 +37,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** Serializes and fences every physical GMS activity-recognition registration. */
 @Singleton
@@ -43,8 +45,10 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 	@ApplicationContext private val context: Context,
 	private val bootClockDomainProvider: BootClockDomainProvider,
 	private val database: AppDatabase,
+	private val laneExecutionAuthority: SourceProductLaneExecutionAuthority,
 	private val lifecycleStore: CollectedDataLifecycleStore,
 	private val backend: GmsActivityRecognitionBackend,
+	private val callbackAdmissionBarrier: ActivityCallbackAdmissionBarrier,
 	private val startupGateProvider: Provider<TrackingStartupGate>,
 	private val cleanupStore: ActivityRegistrationCleanupStore,
 	private val cleanupScheduler: ActivityRegistrationCleanupScheduler,
@@ -53,6 +57,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 	private val mutex = Mutex()
 	private val demands = mutableMapOf<ActivityRegistrationOwner, ActivityRegistrationDemand>()
 	@Volatile private var current = EMPTY_SNAPSHOT
+	private var currentCallbackMetadata: ActivityCallbackMetadata? = null
 	private var systemRegistrationRequiresRearm = false
 	private var deletionPaused = false
 
@@ -61,9 +66,9 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		// The journal is outside Room, so scheduling is safe before tracking storage is ready.
 		ensureCleanupRetryScheduled()
 		// Session manifests may add/remove Activity as CONTROL without starting ActivitySourceRuntime.
-		// Observe the durable authority so an unchanged physical request is still rotated onto the
-		// exact new purpose/consent vector. Do not subscribe to Room until storage and released-v27
-		// recovery are safe: this singleton can be constructed during cold service injection.
+		// Observe the durable authority so an unchanged physical request still receives the exact new
+		// callback metadata and purpose/consent vector. Do not subscribe to Room until storage and
+		// released-v27 recovery are safe: this singleton can be constructed during cold service injection.
 		appScope.launch {
 			val startupGate = startupGateProvider.get()
 			if (startupGate.reconcile() !is TrackingStartupResult.Ready) startupGate.awaitReady()
@@ -247,6 +252,38 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 				false,
 			)
 		}
+		if (acquisitionEligibility.automaticControlRefreshPending) {
+			// SourcePolicy is already authoritative, but the application-scoped control demand has
+			// not yet been replaced with its new policy/consent generation. Close callback authority
+			// immediately while retaining an otherwise identical physical registration. The policy
+			// observer then replaces the demand and this same generation rotates back to eligible.
+			val identity = current.identity
+			if (identity != null) {
+				try {
+					rotateAuthorization(
+						identity,
+						requestedCombined,
+					)
+				} catch (error: CancellationException) {
+					throw error
+				} catch (failure: Exception) {
+					return failure(
+						ActivityRegistrationStatus.FAILED,
+						registrationMutationFailureCode(failure),
+						true,
+					)
+				}
+			}
+			return failure(
+				if (current.active || systemRegistrationRequiresRearm) {
+					ActivityRegistrationStatus.DEGRADED
+				} else {
+					ActivityRegistrationStatus.BLOCKED
+				},
+				ActivityRegistrationFailureCode.AUTHORIZATION_REFRESH_PENDING,
+				true,
+			)
+		}
 		val combined = if (
 			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR in requestedCombined.owners &&
 			!acquisitionEligibility.automaticControlEligible
@@ -292,18 +329,19 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			)
 		) {
 			try {
-				rotateAuthorization(
+				val rotation = rotateAuthorization(
 					currentIdentity,
-					durableEligibility,
-					System.currentTimeMillis(),
-					SystemClock.elapsedRealtimeNanos(),
+					combined,
 				)
+				if (!rotation.continuationEligible) {
+					return authorizationNoLongerEligibleLocked()
+				}
 			} catch (error: CancellationException) {
 				throw error
-			} catch (_: Exception) {
+			} catch (failure: Exception) {
 				return failure(
 					ActivityRegistrationStatus.FAILED,
-					ActivityRegistrationFailureCode.STORAGE_UNAVAILABLE,
+					registrationMutationFailureCode(failure),
 					true,
 				)
 			}
@@ -328,6 +366,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 				)
 			}
 			systemRegistrationRequiresRearm = false
+			currentCallbackMetadata = combined.callbackMetadata
 			current = current.copy(
 				active = true,
 				owners = combined.owners,
@@ -343,19 +382,37 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 				lifecycle.epoch,
 			)
 		) {
-			try {
-				rotateAuthorization(
-					requireNotNull(current.identity),
-					durableEligibility,
-					System.currentTimeMillis(),
-					SystemClock.elapsedRealtimeNanos(),
+			val identity = requireNotNull(current.identity)
+			if (currentCallbackMetadata != combined.callbackMetadata) {
+				val metadataUpdated = backend.refreshRegistrationMetadata(
+					combined.toRecognitionConfig(),
+					identity,
 				)
+				if (!metadataUpdated) {
+					return failure(
+						ActivityRegistrationStatus.DEGRADED,
+						ActivityRegistrationFailureCode.CALLBACK_METADATA_UPDATE_FAILED,
+						true,
+					)
+				}
+				// The PendingIntent now carries this metadata even if durable authorization rotation
+				// subsequently fails. Remember it so a retry does not perform another binder update.
+				currentCallbackMetadata = combined.callbackMetadata
+			}
+			try {
+				val rotation = rotateAuthorization(
+					identity,
+					combined,
+				)
+				if (!rotation.continuationEligible) {
+					return authorizationNoLongerEligibleLocked()
+				}
 			} catch (error: CancellationException) {
 				throw error
-			} catch (_: Exception) {
+			} catch (failure: Exception) {
 				return failure(
 					ActivityRegistrationStatus.FAILED,
-					ActivityRegistrationFailureCode.STORAGE_UNAVAILABLE,
+					registrationMutationFailureCode(failure),
 					true,
 				)
 			}
@@ -446,6 +503,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			continuousRecognitionIntervalSeconds = combined.intervalSeconds,
 			transitions = combined.transitions,
 		)
+		currentCallbackMetadata = combined.callbackMetadata
 		systemRegistrationRequiresRearm = false
 		val removalFailed = previous != null &&
 			!removeAndCompleteRegistration(previous, nonCancellable = true)
@@ -473,8 +531,8 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 				retireRegistration(oldIdentity, "DEMAND_REMOVED")
 			} catch (error: CancellationException) {
 				throw error
-			} catch (_: Exception) {
-				return failure(ActivityRegistrationStatus.FAILED, ActivityRegistrationFailureCode.STORAGE_UNAVAILABLE, true)
+			} catch (failure: Exception) {
+				return failure(ActivityRegistrationStatus.FAILED, registrationMutationFailureCode(failure), true)
 			}
 		}
 		current = ActivityRegistrationSnapshot(
@@ -484,6 +542,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			continuousRecognitionIntervalSeconds = null,
 			transitions = emptySet(),
 		)
+		currentCallbackMetadata = null
 		systemRegistrationRequiresRearm = false
 		if (oldIdentity == null) return applied(current)
 		val retiring = requireNotNull(
@@ -640,10 +699,12 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 	}
 
 	private suspend fun retireRegistration(identity: ActivityRegistrationIdentity, reason: String) {
+		awaitCallbackBarrier(identity, terminal = true)
 		val nowMs = System.currentTimeMillis()
 		val nowElapsed = SystemClock.elapsedRealtimeNanos()
 		database.withTransaction {
-			rotateAuthorization(identity, emptyList(), nowMs, nowElapsed)
+			appendAuthorizationIfChanged(identity, emptyList(), nowMs, nowElapsed)
+			acknowledgeCaptureCallbackBarrier(identity)
 			check(database.sourceBrokerDao().markRegistrationRetiring(
 				ACTIVITY_SOURCE_KIND,
 				identity.registrationGeneration,
@@ -748,14 +809,19 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		registration: ProviderRegistrationGenerationEntity,
 		nonCancellable: Boolean,
 	): Boolean = runProviderCleanup(nonCancellable) {
-		backend.removeRegistration(registration.toActivityRegistrationIdentity())
-		check(
-			database.sourceBrokerDao().completeRegistrationRetirement(
-				registration.sourceKind,
-				registration.registrationGeneration,
-				registration.sourceInstanceId,
-			) == 1,
-		)
+		val identity = registration.toActivityRegistrationIdentity()
+		awaitCallbackBarrier(identity, terminal = true)
+		backend.removeRegistration(identity)
+		database.withTransaction {
+			acknowledgeCaptureCallbackBarrier(identity)
+			check(
+				database.sourceBrokerDao().completeRegistrationRetirement(
+					registration.sourceKind,
+					registration.registrationGeneration,
+					registration.sourceInstanceId,
+				) == 1,
+			)
+		}
 	}
 
 	private suspend fun removeProviderOnly(
@@ -797,7 +863,133 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 
 	private suspend fun rotateAuthorization(
 		identity: ActivityRegistrationIdentity,
-		demands: List<com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity>,
+		combined: CombinedDemand,
+	): AuthorizationRotationResult {
+		val prepared = prepareAuthorizationRotation(identity, combined)
+		if (!prepared.requiresCaptureDrain) return prepared
+
+		val rotation = try {
+			awaitCallbackBarrier(identity, terminal = false)
+			completeCaptureClosingRotation(identity, combined)
+		} catch (error: CancellationException) {
+			// A non-terminal fence must not strand an otherwise valid physical generation merely
+			// because its caller was cancelled. Finish the bounded drain and revalidate from Room;
+			// the cancellation is still propagated after this compensation completes.
+			withContext(NonCancellable) {
+				val drained = runCatching {
+					awaitCallbackBarrier(identity, terminal = false)
+				}.isSuccess
+				if (drained) {
+					runCatching {
+						completeCaptureClosingRotation(identity, combined)
+					}.getOrNull()?.let { compensated ->
+						if (compensated.continuationEligible) {
+							check(callbackAdmissionBarrier.reopen(identity)) {
+								"Drained Activity callback generation could not reopen after cancellation"
+							}
+						}
+					}
+				}
+			}
+			throw error
+		}
+		if (rotation.continuationEligible) {
+			check(callbackAdmissionBarrier.reopen(identity)) {
+				"Drained Activity callback generation could not reopen for control-only continuation"
+			}
+		}
+		return rotation
+	}
+
+	/**
+	 * Re-derives every authorization mutation from authority read in the mutation transaction.
+	 * Capture-closing changes are detected but deliberately not appended until the callback drain.
+	 */
+	private suspend fun prepareAuthorizationRotation(
+		identity: ActivityRegistrationIdentity,
+		combined: CombinedDemand,
+	): AuthorizationRotationResult = database.withTransaction {
+		val fresh = freshAuthorizationInTransaction(combined)
+		val currentRows = database.sourceBrokerDao().latestAuthorization(
+			ACTIVITY_SOURCE_KIND,
+			identity.registrationGeneration,
+		)
+		val currentFingerprint = currentRows.toAuthorizationSnapshotOrNull()?.authorizationFingerprint
+		val freshFingerprint = SourceBrokerAuthorization.fingerprint(fresh.authorizedDemands)
+		if (currentFingerprint == freshFingerprint) return@withTransaction fresh.result
+		val closesCapture = currentRows.any { authorization ->
+			authorization.persistenceEligible && authorization.purpose in CAPTURE_PURPOSES
+		} && fresh.authorizedDemands.none { demand ->
+			demand.persistenceEligible && demand.purpose in CAPTURE_PURPOSES
+		}
+		if (closesCapture) {
+			return@withTransaction fresh.result.copy(requiresCaptureDrain = true)
+		}
+		appendAuthorizationIfChanged(
+			identity,
+			fresh.authorizedDemands,
+			System.currentTimeMillis(),
+			SystemClock.elapsedRealtimeNanos(),
+		)
+		fresh.result
+	}
+
+	/**
+	 * Commits the capture-closing authorization only from authority read in this transaction.
+	 * The pre-drain demand list is deliberately not accepted here: consent, rollout, lane ownership,
+	 * and durable demand may all have changed while an already-admitted callback was draining.
+	 */
+	private suspend fun completeCaptureClosingRotation(
+		identity: ActivityRegistrationIdentity,
+		combined: CombinedDemand,
+	): AuthorizationRotationResult = database.withTransaction {
+		val fresh = freshAuthorizationInTransaction(combined)
+		appendAuthorizationIfChanged(
+			identity,
+			fresh.authorizedDemands,
+			System.currentTimeMillis(),
+			SystemClock.elapsedRealtimeNanos(),
+		)
+		acknowledgeCaptureCallbackBarrier(identity)
+		fresh.result
+	}
+
+	private suspend fun freshAuthorizationInTransaction(
+		combined: CombinedDemand,
+	): FreshActivityAuthorization {
+		val freshDemands = database.sourceBrokerDao().authorizationDemands(ACTIVITY_SOURCE_KIND)
+		val eligibility = activityAcquisitionEligibilityInTransaction(freshDemands)
+		val authorizedDemands = when {
+			!eligibility.sourceEligible -> emptyList()
+			eligibility.automaticControlRefreshPending ->
+				eligibility.authorizedDemandsWhileRefreshPending
+			else -> freshDemands
+		}
+		return FreshActivityAuthorization(
+			authorizedDemands = authorizedDemands,
+			result = AuthorizationRotationResult(
+				continuationEligible = eligibility.allows(combined) &&
+					!eligibility.automaticControlRefreshPending,
+			),
+		)
+	}
+
+	private suspend fun authorizationNoLongerEligibleLocked(): ActivityRegistrationResult {
+		val stopped = fenceAndRemoveLocked(clearOwners = false)
+		return if (stopped.status == ActivityRegistrationStatus.APPLIED) {
+			failure(
+				ActivityRegistrationStatus.BLOCKED,
+				ActivityRegistrationFailureCode.MISSING_DURABLE_DEMAND,
+				false,
+			)
+		} else {
+			stopped
+		}
+	}
+
+	private suspend fun appendAuthorizationIfChanged(
+		identity: ActivityRegistrationIdentity,
+		demands: List<SourceDemandEntity>,
 		wallTimeMs: Long,
 		elapsedRealtimeNanos: Long,
 	) {
@@ -820,6 +1012,35 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		)
 	}
 
+	private suspend fun acknowledgeCaptureCallbackBarrier(identity: ActivityRegistrationIdentity) {
+		val dao = database.sourceBrokerDao()
+		val throughRevision = dao.maximumCaptureAuthorizationRevision(
+			ACTIVITY_SOURCE_KIND,
+			identity.registrationGeneration,
+		)
+		check(dao.acknowledgeCaptureCallbackBarrier(
+			ACTIVITY_SOURCE_KIND,
+			identity.registrationGeneration,
+			identity.sourceInstanceId,
+			throughRevision,
+		) == 1) { "Activity registration changed before its callback barrier acknowledgement" }
+	}
+
+	private suspend fun awaitCallbackBarrier(
+		identity: ActivityRegistrationIdentity,
+		terminal: Boolean,
+	) {
+		val drained = withTimeoutOrNull(ACTIVITY_CALLBACK_BARRIER_TIMEOUT_MS) {
+			if (terminal) {
+				callbackAdmissionBarrier.tombstoneAndAwait(identity)
+			} else {
+				callbackAdmissionBarrier.fenceAndAwait(identity)
+			}
+			true
+		}
+		if (drained != true) throw ActivityCallbackBarrierNotDrainedException(identity)
+	}
+
 	private suspend fun hydratePersistedIdentityIfNeeded() {
 		if (current.identity != null) return
 		val persisted = database.sourceRegistrationStateDao().get(ACTIVITY_SOURCE_KIND, OWNER_SCOPE) ?: return
@@ -832,6 +1053,7 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 				generation.providerResidency ==
 				ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE
 		systemRegistrationRequiresRearm = isSystemRegistrationAwaitingRearm
+		currentCallbackMetadata = null
 		current = current.copy(
 			active = generation.status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE &&
 				!isSystemRegistrationAwaitingRearm,
@@ -872,20 +1094,23 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		val rollout = database.trackingRolloutStateDao().get()
 		val declaredReachability = rollout?.eventReachability()
 			?: return ActivityAcquisitionEligibility.DENIED
-		val verifiedCaptureSources = mutableSetOf<Int>()
-		for ((sourceKind, productStage) in declaredReachability.captureStages) {
-			if (database.sourceProjectionStateDao().isProductLaneReachable(
+		val verifiedCaptureModes = mutableMapOf<Int, Long>()
+		for ((sourceKind, declaredLane) in declaredReachability.captureLanes) {
+			val lane = database.sourceProjectionStateDao().activeProductLane(sourceKind)
+			if (lane != null && lane.captureModeMask == declaredLane.captureModeMask &&
+				laneExecutionAuthority.owns(lane) &&
+				database.sourceProjectionStateDao().isProductLaneReachable(
 					sourceKind = sourceKind,
-					productStage = productStage,
+					productStage = declaredLane.productStage,
 					rolloutRevision = rollout.revision,
 				)
 			) {
-				verifiedCaptureSources += sourceKind
+				verifiedCaptureModes[sourceKind] = declaredLane.captureModeMask
 			}
 		}
 		val reachability = RolloutReachability(
-			captureSources = verifiedCaptureSources,
-			controlSources = declaredReachability.explicitControlSources + verifiedCaptureSources,
+			captureModeMasks = verifiedCaptureModes,
+			controlSources = declaredReachability.explicitControlSources + verifiedCaptureModes.keys,
 		)
 		val authority = database.sourcePolicyDao().authority()
 		if (authority?.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE) {
@@ -896,31 +1121,58 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			return ActivityAcquisitionEligibility.DENIED
 		}
 		val policyBySource = policies.associateBy { it.sourceKind }
-		if (durableDemands.isEmpty() || durableDemands.any { demand ->
-			val policy = policyBySource[demand.sourceKind] ?: return@any true
-			when (demand.purpose) {
-				SourceBrokerPurpose.SESSION_CAPTURE ->
-					ACTIVITY_SOURCE_KIND !in reachability.captureSources ||
+		if (durableDemands.isEmpty()) return ActivityAcquisitionEligibility.DENIED
+		var automaticControlRefreshPending = false
+		val authorizedDemands = mutableListOf<SourceDemandEntity>()
+		for (demand in durableDemands) {
+			val policy = policyBySource[demand.sourceKind]
+				?: return ActivityAcquisitionEligibility.DENIED
+			val invalid = when (demand.purpose) {
+				SourceBrokerPurpose.SESSION_CAPTURE -> {
+					val requiredCaptureMode = demand.sessionCaptureModeMaskInTransaction()
+					requiredCaptureMode == null ||
+						!reachability.hasCaptureMode(ACTIVITY_SOURCE_KIND, requiredCaptureMode) ||
 						!policy.enabled || policy.captureConsentEpoch != demand.consentEpoch ||
 						(demand.persistenceEligible && !policy.capturePersistenceEligible)
+				}
 				SourceBrokerPurpose.CONTROL_AUTOSTART,
 				SourceBrokerPurpose.CONTROL_CONTINUATION,
 				-> ACTIVITY_SOURCE_KIND !in reachability.controlSources ||
 					policy.controlConsentEpoch != demand.consentEpoch ||
-					(demand.persistenceEligible && !policy.controlPersistenceEligible)
+						(demand.persistenceEligible && !policy.controlPersistenceEligible)
 				SourceBrokerPurpose.AMBIENT_PRODUCT ->
-					ACTIVITY_SOURCE_KIND !in reachability.captureSources ||
+					!reachability.hasCaptureMode(ACTIVITY_SOURCE_KIND, AMBIENT_CAPTURE_MASK) ||
 						policy.ambientConsentEpoch != demand.consentEpoch ||
 						(demand.persistenceEligible && !policy.ambientPersistenceEligible)
 				else -> true
 			}
-		}) return ActivityAcquisitionEligibility.DENIED
+			if (!invalid) {
+				if (demand.purpose == SourceBrokerPurpose.CONTROL_AUTOSTART &&
+					demand.sourcePolicyRevision != authority.currentPolicyRevision
+				) {
+					automaticControlRefreshPending = true
+				} else {
+					authorizedDemands += demand
+				}
+				continue
+			}
+			val refreshableAutomaticControl =
+				demand.purpose == SourceBrokerPurpose.CONTROL_AUTOSTART &&
+					ACTIVITY_SOURCE_KIND in reachability.controlSources &&
+					policy.controlConsentEpoch != null &&
+					(!demand.persistenceEligible || policy.controlPersistenceEligible)
+			if (refreshableAutomaticControl) {
+				automaticControlRefreshPending = true
+			} else {
+				return ActivityAcquisitionEligibility.DENIED
+			}
+		}
 
 		val hasAutomaticDemand = durableDemands.any {
 			it.purpose == SourceBrokerPurpose.CONTROL_AUTOSTART
 		}
 		val automaticCaptureReachable = policies.any { policy ->
-			policy.sourceKind in reachability.captureSources &&
+			reachability.hasCaptureMode(policy.sourceKind, AUTOMATIC_CAPTURE_MASK) &&
 				policy.enabled &&
 				policy.captureConsentEpoch != null &&
 				policy.capturePersistenceEligible
@@ -928,24 +1180,42 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		return ActivityAcquisitionEligibility(
 			sourceEligible = true,
 			automaticControlEligible = hasAutomaticDemand && automaticCaptureReachable,
+			automaticControlRefreshPending = automaticControlRefreshPending,
+			authorizedDemandsWhileRefreshPending = authorizedDemands,
 		)
+	}
+
+	/** Resolves the immutable service-run mode named by a session demand. Unknown intent fails closed. */
+	private suspend fun SourceDemandEntity.sessionCaptureModeMaskInTransaction(): Long? {
+		val runId = serviceRunId ?: return null
+		val trackingId = logicalTrackingId ?: return null
+		val run = database.sourceSessionDao().serviceRun(runId) ?: return null
+		if (run.logicalTrackingId != trackingId) return null
+		return when {
+			run.startIsAmbient -> AMBIENT_CAPTURE_MASK
+			run.startIsUserInitiated -> MANUAL_CAPTURE_MASK
+			run.startOrigin in AUTOMATIC_RUN_ORIGINS -> AUTOMATIC_CAPTURE_MASK
+			else -> null
+		}
 	}
 
 	private fun TrackingRolloutStateEntity.eventReachability(): DeclaredRolloutReachability? {
 		if (schemaVersion != CURRENT_ROLLOUT_SCHEMA || coordinatorMode != "EVENT") return null
 		val owners = decodeSourceMap(sourceOwners) ?: return null
-		val stages = decodeSourceMap(projectionMode) ?: return null
-		if (owners.keys != SOURCE_KINDS || stages.keys != SOURCE_KINDS) return null
+		val projections = decodeProjectionMap(projectionMode) ?: return null
+		if (owners.keys != SOURCE_KINDS || projections.keys != SOURCE_KINDS) return null
 		if (owners.values.any { it !in SOURCE_OWNER_MODES }) return null
-		if (stages.values.any { it !in PROJECTION_STAGES }) return null
 		if (SOURCE_KINDS.any { sourceKind ->
-			(owners[sourceKind] == "EVENT") != (stages[sourceKind] in EVENT_PROJECTION_STAGES)
+			val projection = projections.getValue(sourceKind)
+			val eventOwned = owners[sourceKind] == "EVENT"
+			eventOwned != (projection.productStage in EVENT_PROJECTION_STAGES) ||
+				eventOwned != (projection.captureModeMask != 0L)
 		}) return null
 
 		return DeclaredRolloutReachability(
-			captureStages = SOURCE_KINDS
+			captureLanes = SOURCE_KINDS
 				.filter { sourceKind -> owners[sourceKind] == "EVENT" }
-				.associateWith { sourceKind -> stages.getValue(sourceKind) },
+				.associateWith(projections::getValue),
 			explicitControlSources = SOURCE_KINDS.filterTo(mutableSetOf()) { sourceKind ->
 				owners[sourceKind] == "CONTROL"
 			},
@@ -958,6 +1228,20 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 			.associate { value ->
 				val (sourceKind, state) = value.split(':', limit = 2)
 				sourceKind.toInt() to state
+		}
+	}.getOrNull()
+
+	private fun decodeProjectionMap(encoded: String): Map<Int, DeclaredCaptureLane>? = runCatching {
+		encoded.split(',')
+			.filter(String::isNotBlank)
+			.associate { value ->
+				val parts = value.split(':')
+				require(parts.size == 3)
+				val productStage = parts[1]
+				val captureModeMask = parts[2].toLong()
+				require(productStage in PROJECTION_STAGES)
+				require(captureModeMask >= 0L && captureModeMask and ALL_CAPTURE_MASK.inv() == 0L)
+				parts[0].toInt() to DeclaredCaptureLane(productStage, captureModeMask)
 			}
 	}.getOrNull()
 
@@ -991,6 +1275,13 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		retryable: Boolean,
 	) = ActivityRegistrationResult(status, current, code, retryable)
 
+	private fun registrationMutationFailureCode(failure: Exception): ActivityRegistrationFailureCode =
+		if (failure is ActivityCallbackBarrierNotDrainedException) {
+			ActivityRegistrationFailureCode.CALLBACK_DRAIN_PENDING
+		} else {
+			ActivityRegistrationFailureCode.STORAGE_UNAVAILABLE
+		}
+
 	private data class CombinedDemand(
 		val owners: Set<ActivityRegistrationOwner>,
 		val intervalSeconds: Int?,
@@ -1000,6 +1291,10 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		val appliedRevision: Long?,
 	) {
 		val enabled: Boolean get() = intervalSeconds != null || transitions.isNotEmpty()
+		val callbackMetadata = ActivityCallbackMetadata(
+			automaticRecognitionEligible,
+			automaticTransitions,
+		)
 
 		fun toRecognitionConfig() = RecognitionConfig(
 			intervalSeconds = intervalSeconds ?: 0,
@@ -1021,25 +1316,17 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 					append(transition.type.value)
 					append('\u001e')
 				}
-				append('\u001f')
-				append(if (automaticRecognitionEligible) "automatic-recognition" else "no-automatic-recognition")
-				append('\u001f')
-				automaticTransitions.sortedWith(
-					compareBy<com.adsamcik.tracker.activity.ActivityTransitionData> { it.activity.name }
-						.thenBy { it.type.value },
-				).forEach { transition ->
-					append("automatic:")
-					append(transition.activity.name)
-					append(':')
-					append(transition.type.value)
-					append('\u001e')
-				}
 			}
 			return MessageDigest.getInstance("SHA-256")
 				.digest(canonical.toByteArray(Charsets.UTF_8))
 				.joinToString("") { byte -> "%02x".format(byte) }
 		}
 	}
+
+	private data class ActivityCallbackMetadata(
+		val automaticRecognitionEligible: Boolean,
+		val automaticTransitions: Set<com.adsamcik.tracker.activity.ActivityTransitionData>,
+	)
 
 	private data class ReservedActivityRegistration(
 		val identity: ActivityRegistrationIdentity,
@@ -1051,9 +1338,21 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		val previous: ProviderRegistrationGenerationEntity?,
 	)
 
+	private data class AuthorizationRotationResult(
+		val continuationEligible: Boolean,
+		val requiresCaptureDrain: Boolean = false,
+	)
+
+	private data class FreshActivityAuthorization(
+		val authorizedDemands: List<SourceDemandEntity>,
+		val result: AuthorizationRotationResult,
+	)
+
 	private data class ActivityAcquisitionEligibility(
 		val sourceEligible: Boolean,
 		val automaticControlEligible: Boolean,
+		val automaticControlRefreshPending: Boolean,
+		val authorizedDemandsWhileRefreshPending: List<SourceDemandEntity>,
 	) {
 		fun allows(combined: CombinedDemand): Boolean =
 			sourceEligible &&
@@ -1061,18 +1360,28 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 					automaticControlEligible)
 
 		companion object {
-			val DENIED = ActivityAcquisitionEligibility(false, false)
+			val DENIED = ActivityAcquisitionEligibility(false, false, false, emptyList())
 		}
 	}
 
 	private data class RolloutReachability(
-		val captureSources: Set<Int>,
+		val captureModeMasks: Map<Int, Long>,
 		val controlSources: Set<Int>,
-	)
+	) {
+		fun hasAnyCapture(sourceKind: Int): Boolean = captureModeMasks[sourceKind]?.let { it != 0L } == true
+
+		fun hasCaptureMode(sourceKind: Int, modeMask: Long): Boolean =
+			captureModeMasks[sourceKind]?.let { it and modeMask != 0L } == true
+	}
 
 	private data class DeclaredRolloutReachability(
-		val captureStages: Map<Int, String>,
+		val captureLanes: Map<Int, DeclaredCaptureLane>,
 		val explicitControlSources: Set<Int>,
+	)
+
+	private data class DeclaredCaptureLane(
+		val productStage: String,
+		val captureModeMask: Long,
 	)
 
 	private fun ProviderRegistrationGenerationEntity.toActivityRegistrationIdentity() =
@@ -1092,8 +1401,22 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 
 	private companion object {
 		const val ACTIVITY_SOURCE_KIND = 2
-		const val CURRENT_ROLLOUT_SCHEMA = 3
+		const val CURRENT_ROLLOUT_SCHEMA = 4
+		const val MANUAL_CAPTURE_MASK = 1L shl 0
+		const val AUTOMATIC_CAPTURE_MASK = 1L shl 1
+		const val AMBIENT_CAPTURE_MASK = 1L shl 2
+		const val ALL_CAPTURE_MASK = (1L shl 3) - 1L
 		const val OWNER_SCOPE = "source-broker:2"
+		const val ACTIVITY_CALLBACK_BARRIER_TIMEOUT_MS = 10_000L
+		val CAPTURE_PURPOSES = setOf(
+			SourceBrokerPurpose.SESSION_CAPTURE,
+			SourceBrokerPurpose.AMBIENT_PRODUCT,
+		)
+		val AUTOMATIC_RUN_ORIGINS = setOf(
+			"AUTOMATIC_BACKGROUND_START",
+			"RECOVERY",
+			"POLICY_RECONCILIATION",
+		)
 		val SOURCE_KINDS = (1..6).toSet()
 		val SOURCE_OWNER_MODES = setOf("LEGACY", "EVENT", "CONTROL", "CONTAINED")
 		val PROJECTION_STAGES = setOf("LEGACY_CANONICAL", "EVENT_SHADOW", "EVENT_CANONICAL")
@@ -1101,3 +1424,9 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		val EMPTY_SNAPSHOT = ActivityRegistrationSnapshot(false, null, emptySet(), null, emptySet())
 	}
 }
+
+private class ActivityCallbackBarrierNotDrainedException(
+	identity: ActivityRegistrationIdentity,
+) : IllegalStateException(
+	"Activity callback generation ${identity.registrationGeneration} did not reach a terminal drain",
+)

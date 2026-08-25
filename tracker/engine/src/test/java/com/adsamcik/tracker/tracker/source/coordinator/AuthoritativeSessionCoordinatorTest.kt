@@ -1577,6 +1577,9 @@ class AuthoritativeSessionCoordinatorTest {
 			productProjectionStages = SourceKind.entries.associateWith {
 				ProductProjectionStage.EVENT_SHADOW
 			},
+			captureModeMasks = SourceKind.entries.associateWith {
+				CaptureReachabilityMode.MANUAL_SESSION_CAPTURE.mask
+			},
 			semanticSettingsEnabled = false,
 			batteryEstimateMode = BatteryEstimateMode.SOURCE_PLAN_QUALITATIVE,
 		)

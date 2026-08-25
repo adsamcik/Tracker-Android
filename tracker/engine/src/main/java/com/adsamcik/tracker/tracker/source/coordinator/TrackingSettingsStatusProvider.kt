@@ -86,12 +86,15 @@ interface TrackingSettingsStatusProvider {
 		settings: TrackingParamsState,
 		rollout: TrackingRolloutState,
 		inputs: SourceSessionPlanInputs,
+		captureMode: CaptureReachabilityMode,
 	)
 
 	fun publishResolved(
 		settings: TrackingParamsState,
 		rollout: TrackingRolloutState,
 		resolved: ResolvedAcquisitionPlan,
+		captureMode: CaptureReachabilityMode,
+		acceptedPlans: Map<SourceKind, SourcePlan>,
 	)
 
 	fun publishApplied(applied: List<AppliedSourcePlan>)
@@ -165,12 +168,18 @@ class DefaultTrackingSettingsStatusProvider @Inject constructor(
 		settings: TrackingParamsState,
 		rollout: TrackingRolloutState,
 		inputs: SourceSessionPlanInputs,
+		captureMode: CaptureReachabilityMode,
 	) {
 		val desired = planFactory.create(settings, 0L, 0L, inputs.environment)
+		val resolved = planResolver.resolve(desired, inputs.demands, inputs.resolutionContext)
 		publishResolved(
 			settings,
 			rollout,
-			planResolver.resolve(desired, inputs.demands, inputs.resolutionContext),
+			resolved,
+			captureMode,
+			resolved.applicablePlans.filterKeys { source ->
+				rollout.isCaptureReachable(source, captureMode)
+			},
 		)
 	}
 
@@ -178,12 +187,14 @@ class DefaultTrackingSettingsStatusProvider @Inject constructor(
 		settings: TrackingParamsState,
 		rollout: TrackingRolloutState,
 		resolved: ResolvedAcquisitionPlan,
+		captureMode: CaptureReachabilityMode,
+		acceptedPlans: Map<SourceKind, SourcePlan>,
 	) {
 		val effectivePlan = AcquisitionPlanRevision(
 			revision = resolved.desired.revision,
 			planId = "${resolved.desired.planId}-effective",
 			createdAtMs = resolved.desired.createdAtMs,
-			plans = resolved.applicablePlans,
+			plans = acceptedPlans,
 			sourcePolicyRevision = resolved.desired.sourcePolicyRevision,
 		)
 		mutableRuntimeStatus.value = TrackingRuntimeStatus(
@@ -197,7 +208,14 @@ class DefaultTrackingSettingsStatusProvider @Inject constructor(
 				effectivePlan,
 				comparisonBaselineId = "requested:${resolved.desired.planId}",
 			),
-			sources = statuses(settings, rollout, resolved, active = true),
+			sources = statuses(
+				settings = settings,
+				rollout = rollout,
+				resolved = resolved,
+				active = true,
+				captureMode = captureMode,
+				acceptedPlans = acceptedPlans,
+			),
 			requestedPlans = resolved.desired.plans,
 		)
 	}
@@ -278,9 +296,13 @@ class DefaultTrackingSettingsStatusProvider @Inject constructor(
 		rollout: TrackingRolloutState?,
 		resolved: ResolvedAcquisitionPlan,
 		active: Boolean,
+		captureMode: CaptureReachabilityMode? = null,
+		acceptedPlans: Map<SourceKind, SourcePlan>? = null,
 	): Map<SourceKind, EffectiveSourceStatus> = SourceKind.entries.associateWith { source ->
 		val desired = checkNotNull(resolved.desired.plans[source])
-		val effective = checkNotNull(resolved.applicablePlans[source])
+		val resolvedEffective = checkNotNull(resolved.applicablePlans[source])
+		val accepted = acceptedPlans == null || source in acceptedPlans
+		val effective = acceptedPlans?.get(source) ?: resolvedEffective
 		val reasons = resolved.degradedReasons[source].orEmpty()
 		val frequency = settings.frequency(source)
 		val blocked = reasons.any { reason ->
@@ -289,23 +311,31 @@ class DefaultTrackingSettingsStatusProvider @Inject constructor(
 		val owner = rollout?.sourceOwners?.get(source)
 		val rolloutContained = desired.enabled && rollout != null &&
 			!rollout.isAcquisitionReachable(source)
+		val captureModeUnreachable = desired.enabled && captureMode != null &&
+			rollout?.isCaptureReachable(source, captureMode) != true
+		val planNotAccepted = desired.enabled && acceptedPlans != null && !accepted
 		EffectiveSourceStatus(
 			source = source,
 			owner = owner,
 			requestedFrequency = frequency,
 			requestedMode = desired.presentationCode(),
-			effectiveMode = effective.presentationCode(),
+			effectiveMode = if (planNotAccepted) NOT_ACCEPTED_MODE else effective.presentationCode(),
 			state = when {
 				!desired.enabled -> EffectiveSourceState.DISABLED
+				captureModeUnreachable || planNotAccepted -> EffectiveSourceState.BLOCKED
 				rolloutContained -> EffectiveSourceState.BLOCKED
 				blocked -> EffectiveSourceState.BLOCKED
 				reasons.isNotEmpty() -> EffectiveSourceState.DEGRADED
 				!active -> EffectiveSourceState.READY
-				rollout?.isAcquisitionReachable(source) == true -> EffectiveSourceState.APPLYING
+				accepted -> EffectiveSourceState.APPLYING
 				else -> EffectiveSourceState.FAILED
 			},
 			reasonCodes = reasons.mapTo(linkedSetOf()) { it.name }.apply {
 				if (rolloutContained) add(ROLLOUT_CONTAINED_REASON)
+				if (captureModeUnreachable) {
+					add("${checkNotNull(captureMode).name}_NOT_REACHABLE")
+				}
+				if (planNotAccepted && !captureModeUnreachable) add(SOURCE_PLAN_NOT_ACCEPTED_REASON)
 			},
 			desiredRevision = resolved.desired.revision.takeIf { it > 0L },
 			appliedRevision = null,
@@ -341,7 +371,9 @@ class DefaultTrackingSettingsStatusProvider @Inject constructor(
 	}
 
 	private companion object {
+		const val NOT_ACCEPTED_MODE = "NOT_ACCEPTED"
 		const val ROLLOUT_CONTAINED_REASON = "ROLLOUT_CONTAINED"
+		const val SOURCE_PLAN_NOT_ACCEPTED_REASON = "SOURCE_PLAN_NOT_ACCEPTED"
 		val BLOCKING_REASONS = setOf(
 			"PERMISSION_MISSING",
 			"PROVIDER_UNAVAILABLE",

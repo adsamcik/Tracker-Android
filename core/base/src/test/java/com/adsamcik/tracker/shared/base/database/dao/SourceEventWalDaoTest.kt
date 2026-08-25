@@ -85,6 +85,143 @@ class SourceEventWalDaoTest {
 	}
 
 	@Test
+	fun `retaining registration without checkpoint fails closed at activation boundary`() = runTest {
+		val projection = database.sourceProjectionStateDao()
+		projection.register(
+			SourceProjectionRegistrationEntity("missing", 1, 1, true, "ACTIVE", 0),
+		)
+		val wal = database.sourceEventWalDao()
+		wal.insertIgnoringDuplicate(event("event-1", 1).copy(createdAtMs = 10)) shouldBe 1L
+		wal.insertIgnoringDuplicate(event("event-2", 2).copy(createdAtMs = 10)) shouldBe 2L
+
+		projection.minimumRequiredCheckpoint() shouldBe 0L
+		projection.minimumActiveCheckpoint() shouldBe 0L
+		database.pruneSourceEventStorageBefore(createdBeforeMs = 100).walEventsDeleted shouldBe 0
+		wal.countAll() shouldBe 2L
+	}
+
+	@Test
+	fun `missing checkpoint remains the global floor beside an advanced projection`() = runTest {
+		val projection = database.sourceProjectionStateDao()
+		projection.register(
+			SourceProjectionRegistrationEntity("missing", 1, 2, true, "ACTIVE", 0),
+		)
+		projection.register(
+			SourceProjectionRegistrationEntity("advanced", 1, 1, true, "ACTIVE", 0),
+		)
+		projection.saveCheckpoint(SourceProjectionCheckpointEntity("advanced", 1, 3, 1, 100))
+		val wal = database.sourceEventWalDao()
+		(1L..3L).forEach { ordinal ->
+			wal.insertIgnoringDuplicate(event("event-$ordinal", ordinal).copy(createdAtMs = 10)) shouldBe ordinal
+		}
+
+		projection.minimumRequiredCheckpoint() shouldBe 1L
+		database.pruneSourceEventStorageBefore(createdBeforeMs = 100).walEventsDeleted shouldBe 1
+		wal.getByEventId("event-1") shouldBe null
+		wal.getByEventId("event-2")?.eventId shouldBe "event-2"
+		wal.getByEventId("event-3")?.eventId shouldBe "event-3"
+	}
+
+	@Test
+	fun `direct lane gates reject duplicate active writer identities`() = runTest {
+		val projection = database.sourceProjectionStateDao()
+		projection.installProductLane(productLane(bindingGeneration = 1L, projectionId = "steps-a"))
+
+		projection.isCaptureAdmissionOpen(sourceKind = 3) shouldBe true
+		projection.isProductLaneReachable(
+			sourceKind = 3,
+			productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+			rolloutRevision = 1L,
+		) shouldBe true
+
+		projection.installProductLane(productLane(bindingGeneration = 2L, projectionId = "steps-b"))
+
+		projection.isCaptureAdmissionOpen(sourceKind = 3) shouldBe false
+		projection.isProductLaneReachable(
+			sourceKind = 3,
+			productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+			rolloutRevision = 1L,
+		) shouldBe false
+	}
+
+	@Test
+	fun `direct lane gates reject an unknown active product stage`() = runTest {
+		val projection = database.sourceProjectionStateDao()
+		projection.installProductLane(
+			productLane(
+				bindingGeneration = 1L,
+				projectionId = "steps-unknown",
+				productStage = "UNKNOWN_STAGE",
+			),
+		)
+
+		projection.isCaptureAdmissionOpen(sourceKind = 3) shouldBe false
+		projection.isProductLaneReachable(
+			sourceKind = 3,
+			productStage = "UNKNOWN_STAGE",
+			rolloutRevision = 1L,
+		) shouldBe false
+	}
+
+	@Test
+	fun `non-retaining control projection does not permanently pin aged wal or terminal effects`() = runTest {
+		val projection = database.sourceProjectionStateDao()
+		projection.register(
+			SourceProjectionRegistrationEntity(
+				projectionId = "activity-control",
+				projectionVersion = 1,
+				activationOrdinal = 1,
+				retentionRequired = false,
+				status = "ACTIVE",
+				createdAtMs = 0,
+			),
+		)
+		projection.saveCheckpoint(
+			SourceProjectionCheckpointEntity("activity-control", 1, 0, 1, 0),
+		)
+		val wal = database.sourceEventWalDao()
+		wal.insertIgnoringDuplicate(event("activity-1", 1).copy(sourceKind = 2, createdAtMs = 10)) shouldBe 1L
+		wal.insertIgnoringDuplicate(event("activity-2", 2).copy(sourceKind = 2, createdAtMs = 10)) shouldBe 2L
+		projection.insertOutbox(
+			SourceProjectionOutboxEntity(
+				stableId = "activity-control:activity-1",
+				projectionId = "activity-control",
+				projectionVersion = 1,
+				admissionOrdinal = 1,
+				effectKind = "activity-control",
+				payloadVersion = 1,
+				payload = byteArrayOf(1),
+				createdAtMs = 10,
+				deliveredAtMs = null,
+				terminalDisposition = "CONTROL_SUPPRESSED",
+				terminalAtMs = 20,
+			),
+		)
+		projection.insertOutbox(
+			SourceProjectionOutboxEntity(
+				stableId = "activity-control:activity-2",
+				projectionId = "activity-control",
+				projectionVersion = 1,
+				admissionOrdinal = 2,
+				effectKind = "activity-control",
+				payloadVersion = 1,
+				payload = byteArrayOf(2),
+				createdAtMs = 10,
+				deliveredAtMs = null,
+			),
+		)
+
+		val result = database.pruneSourceEventStorageBefore(createdBeforeMs = 100)
+
+		result.walEventsDeleted shouldBe 2
+		result.deliveredEffectsDeleted shouldBe 1
+		wal.countAll() shouldBe 0L
+		projection.outbox("activity-control:activity-1") shouldBe null
+		projection.outbox("activity-control:activity-2")?.stableId shouldBe
+			"activity-control:activity-2"
+	}
+
+	@Test
 	fun `new source lane activates after pruned wal autoincrement high water`() = runTest {
 		val projection = database.sourceProjectionStateDao()
 		projection.register(SourceProjectionRegistrationEntity("existing", 2, 1, true, "ACTIVE", 0))
@@ -100,11 +237,11 @@ class SourceEventWalDaoTest {
 	}
 
 	@Test
-	fun `global activity progress cannot release steps wal while source lane cursor lags`() = runTest {
+	fun `stalled steps lane retains only steps wal and receipts across interleaved sources`() = runTest {
 		val projection = database.sourceProjectionStateDao()
 		projection.register(
 			SourceProjectionRegistrationEntity(
-				projectionId = "activity-global",
+				projectionId = "global-observation-ledger",
 				projectionVersion = 2,
 				activationOrdinal = 1,
 				retentionRequired = true,
@@ -114,56 +251,92 @@ class SourceEventWalDaoTest {
 		)
 		projection.saveCheckpoint(
 			SourceProjectionCheckpointEntity(
-				projectionId = "activity-global",
+				projectionId = "global-observation-ledger",
 				projectionVersion = 2,
-				contiguousAdmissionOrdinal = 3,
+				contiguousAdmissionOrdinal = 6,
 				stateVersion = 1,
 				updatedAtMs = 100,
 			),
 		)
-		projection.installProductLane(
-			SourceProductProjectionLaneEntity(
-				sourceKind = 3,
-				projectionId = "steps-interval",
-				projectionVersion = 1,
-				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
-				activatedRolloutRevision = 3,
-				activationOrdinal = 1,
-				contiguousAdmissionOrdinal = 0,
-				retentionRequired = true,
-				status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
-				installedAtMs = 0,
-				updatedAtMs = 0,
-			),
-		)
+		listOf(
+			Triple(1, "location-points", 6L),
+			Triple(3, "steps-interval", 0L),
+			Triple(5, "wifi-observation", 6L),
+		).forEach { (sourceKind, projectionId, checkpoint) ->
+			projection.installProductLane(
+				SourceProductProjectionLaneEntity(
+					sourceKind = sourceKind,
+					bindingGeneration = 1,
+					projectionId = projectionId,
+					projectionVersion = 1,
+					captureModeMask = 1,
+					productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+					activatedRolloutRevision = 3,
+					activationOrdinal = 1,
+					contiguousAdmissionOrdinal = checkpoint,
+					retentionRequired = true,
+					status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+					installedAtMs = 0,
+					updatedAtMs = 0,
+				),
+			)
+		}
 		val wal = database.sourceEventWalDao()
-		wal.insertIgnoringDuplicate(event("steps-1", 1).copy(sourceKind = 3, createdAtMs = 10)) shouldBe 1L
-		wal.insertIgnoringDuplicate(event("activity-2", 2).copy(sourceKind = 2, createdAtMs = 10)) shouldBe 2L
-		wal.insertIgnoringDuplicate(event("activity-3", 3).copy(sourceKind = 2, createdAtMs = 10)) shouldBe 3L
+		listOf(
+			Triple("steps-1", 3, "steps-interval"),
+			Triple("location-2", 1, "location-points"),
+			Triple("wifi-3", 5, "wifi-observation"),
+			Triple("steps-4", 3, "steps-interval"),
+			Triple("location-5", 1, "location-points"),
+			Triple("wifi-6", 5, "wifi-observation"),
+		).forEachIndexed { index, (eventId, sourceKind, projectionId) ->
+			val ordinal = index + 1L
+			wal.insertIgnoringDuplicate(
+				event(eventId, ordinal).copy(sourceKind = sourceKind, createdAtMs = 10),
+			) shouldBe ordinal
+			projection.insertOutbox(
+				SourceProjectionOutboxEntity(
+					stableId = "$projectionId:$eventId",
+					projectionId = projectionId,
+					projectionVersion = 1,
+					admissionOrdinal = ordinal,
+					effectKind = projectionId,
+					payloadVersion = 1,
+					payload = byteArrayOf(1),
+					createdAtMs = 10,
+					deliveredAtMs = 20,
+				),
+			)
+		}
 
-		database.pruneSourceEventStorageBefore(createdBeforeMs = 100).walEventsDeleted shouldBe 0
+		val firstPrune = database.pruneSourceEventStorageBefore(createdBeforeMs = 100)
+
+		firstPrune.walEventsDeleted shouldBe 4
+		firstPrune.deliveredEffectsDeleted shouldBe 4
 		wal.getByEventId("steps-1")?.eventId shouldBe "steps-1"
-		projection.advanceProductLaneCursor(
-			sourceKind = 3,
-			projectionId = "steps-interval",
-			projectionVersion = 1,
-			expectedCurrentOrdinal = 1,
-			throughOrdinal = 3,
-			updatedAtMs = 150,
-		) shouldBe 0
-		database.pruneSourceEventStorageBefore(createdBeforeMs = 100).walEventsDeleted shouldBe 0
+		wal.getByEventId("steps-4")?.eventId shouldBe "steps-4"
+		wal.getByEventId("location-2") shouldBe null
+		wal.getByEventId("wifi-3") shouldBe null
+		projection.outbox("steps-interval:steps-1")?.stableId shouldBe
+			"steps-interval:steps-1"
+		projection.outbox("location-points:location-2") shouldBe null
 
 		projection.advanceProductLaneCursor(
 			sourceKind = 3,
+			bindingGeneration = 1,
 			projectionId = "steps-interval",
 			projectionVersion = 1,
 			expectedCurrentOrdinal = 0,
-			throughOrdinal = 1,
+			throughOrdinal = 6,
 			updatedAtMs = 200,
 		) shouldBe 1
-		database.pruneSourceEventStorageBefore(createdBeforeMs = 100).walEventsDeleted shouldBe 1
+		val secondPrune = database.pruneSourceEventStorageBefore(createdBeforeMs = 100)
+
+		secondPrune.walEventsDeleted shouldBe 2
+		secondPrune.deliveredEffectsDeleted shouldBe 2
 		wal.getByEventId("steps-1") shouldBe null
-		wal.getByEventId("activity-2")?.eventId shouldBe "activity-2"
+		wal.getByEventId("steps-4") shouldBe null
+		projection.outbox("steps-interval:steps-1") shouldBe null
 	}
 
 	@Test
@@ -370,11 +543,11 @@ class SourceEventWalDaoTest {
 		wal.getByEventId("event-b") shouldBe null
 		wal.getByEventId("event-c")?.eventId shouldBe "event-c"
 		projection.pendingOutbox(10).map { it.stableId } shouldBe emptyList()
-		projection.deleteDeliveredOutboxBatch(10, 100, 10) shouldBe 1
+		projection.deleteDeliveredOutboxForSourceBatch(1, 10, 100, 10) shouldBe 1
 	}
 
 	@Test
-	fun `source maintenance never advances retained floor across a non-expired ordinal`() = runTest {
+	fun `source maintenance permits ordinal gaps while retaining non-expired facts`() = runTest {
 		val wal = database.sourceEventWalDao()
 		val projection = database.sourceProjectionStateDao()
 		projection.register(SourceProjectionRegistrationEntity("raw", 1, 1, true, "ACTIVE", 0))
@@ -385,10 +558,45 @@ class SourceEventWalDaoTest {
 
 		val result = database.pruneSourceEventStorageBefore(createdBeforeMs = 100, batchSize = 10)
 
-		result.walEventsDeleted shouldBe 1
+		result.walEventsDeleted shouldBe 2
 		wal.getByEventId("old-prefix") shouldBe null
 		wal.getByEventId("retained-middle")?.eventId shouldBe "retained-middle"
-		wal.getByEventId("old-tail")?.eventId shouldBe "old-tail"
+		wal.getByEventId("old-tail") shouldBe null
+	}
+
+	@Test
+	fun `generation verification failure rolls back wal and receipt pruning together`() = runTest {
+		val wal = database.sourceEventWalDao()
+		val projection = database.sourceProjectionStateDao()
+		wal.insertIgnoringDuplicate(event("event-1", 1L).copy(createdAtMs = 10)) shouldBe 1L
+		projection.insertOutbox(
+			SourceProjectionOutboxEntity(
+				stableId = "effect-1",
+				projectionId = "test-writer",
+				projectionVersion = 1,
+				admissionOrdinal = 1L,
+				effectKind = "test",
+				payloadVersion = 1,
+				payload = byteArrayOf(1),
+				createdAtMs = 10,
+				deliveredAtMs = 20,
+			),
+		) shouldBe 1L
+		var verificationCalls = 0
+
+		shouldThrow<IllegalStateException> {
+			database.pruneSourceEventStorageBefore(
+				createdBeforeMs = 100,
+				verifyCollectedDataAccess = {
+					verificationCalls++
+					check(verificationCalls < 2) { "collected-data generation changed" }
+				},
+			)
+		}
+
+		verificationCalls shouldBe 2
+		wal.getByEventId("event-1")?.eventId shouldBe "event-1"
+		projection.outbox("effect-1")?.stableId shouldBe "effect-1"
 	}
 
 	@Test
@@ -399,17 +607,17 @@ class SourceEventWalDaoTest {
 		) shouldContain "idx_source_event_wal_provider_dedup"
 		queryPlan(
 			"SELECT admission_ordinal FROM source_event_wal " +
-				"WHERE admission_ordinal <= 100 AND created_at_ms < 1000 " +
+				"WHERE source_kind = 1 AND admission_ordinal <= 100 AND created_at_ms < 1000 " +
 				"ORDER BY created_at_ms, admission_ordinal LIMIT 1000",
-		) shouldContain "idx_source_event_wal_retention"
+		) shouldContain "idx_source_event_wal_source_retention"
 		queryPlan(
 			"SELECT * FROM source_projection_outbox WHERE effect_kind = 'test' " +
 				"AND delivered_at_ms IS NULL ORDER BY admission_ordinal LIMIT 100",
 		) shouldContain "idx_source_projection_outbox_kind_pending"
 		queryPlan(
 			"SELECT MIN(contiguous_admission_ordinal) FROM source_product_projection_lane " +
-				"WHERE retention_required = 1 AND status = 'ACTIVE'",
-		) shouldContain "idx_source_product_projection_lane_retention"
+				"WHERE source_kind = 3 AND retention_required = 1",
+		) shouldContain "sqlite_autoindex_source_product_projection_lane_1"
 		queryPlan(
 			"SELECT * FROM location_projection_observation WHERE logical_tracking_id = 'track' " +
 				"ORDER BY elapsed_realtime_nanos, wall_time_ms, event_id",
@@ -543,8 +751,10 @@ class SourceEventWalDaoTest {
 		database.sourceProjectionStateDao().installProductLane(
 			SourceProductProjectionLaneEntity(
 				sourceKind = 3,
+				bindingGeneration = 1,
 				projectionId = "steps-interval",
 				projectionVersion = 1,
+				captureModeMask = 1,
 				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
 				activatedRolloutRevision = 2,
 				activationOrdinal = 1,
@@ -608,7 +818,7 @@ class SourceEventWalDaoTest {
 		database.locationProjectionDao().observations("track") shouldBe emptyList()
 		database.locationProjectionDao().points("track") shouldBe emptyList()
 		database.sourceProjectionStateDao().activeProductLanes() shouldBe emptyList()
-		database.sourceProjectionStateDao().productLaneByProjection("steps-interval", 1) shouldBe null
+		database.sourceProjectionStateDao().productLanesByProjection("steps-interval", 1) shouldBe emptyList()
 		database.trackingRolloutStateDao().get()?.revision shouldBe 2L
 	}
 
@@ -656,6 +866,26 @@ class SourceEventWalDaoTest {
 	private fun walSequenceHighWater(): Long? = database.openHelper.writableDatabase.query(
 		"SELECT seq FROM sqlite_sequence WHERE name = 'source_event_wal'",
 	).use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else null }
+
+	private fun productLane(
+		bindingGeneration: Long,
+		projectionId: String,
+		productStage: String = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+	) = SourceProductProjectionLaneEntity(
+		sourceKind = 3,
+		bindingGeneration = bindingGeneration,
+		projectionId = projectionId,
+		projectionVersion = 1,
+		captureModeMask = 1,
+		productStage = productStage,
+		activatedRolloutRevision = 1,
+		activationOrdinal = 1,
+		contiguousAdmissionOrdinal = 0,
+		retentionRequired = true,
+		status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+		installedAtMs = 1,
+		updatedAtMs = 1,
+	)
 
 	private fun event(eventId: String, sourceSequence: Long) = SourceEventWalEntity(
 		eventId = eventId,

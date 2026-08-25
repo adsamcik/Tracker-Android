@@ -135,12 +135,6 @@ interface SourceEventWalDao {
 	)
 	suspend fun classifyPendingLegacyPayload(admissionOrdinal: Long, classification: String): Int
 
-	@Query(
-		"SELECT MIN(admission_ordinal) FROM source_event_wal " +
-			"WHERE admission_ordinal <= :safeOrdinal AND created_at_ms >= :createdBeforeMs",
-	)
-	suspend fun firstNonPrunableOrdinal(safeOrdinal: Long, createdBeforeMs: Long): Long?
-
 	@Query("SELECT COUNT(*) FROM source_event_wal")
 	suspend fun countAll(): Long
 
@@ -148,24 +142,31 @@ interface SourceEventWalDao {
 	suspend fun payloadBytes(): Long
 
 	@Query(
-		"DELETE FROM source_event_wal WHERE admission_ordinal IN (" +
-			"SELECT admission_ordinal FROM source_event_wal " +
-			"WHERE created_at_ms < :createdBeforeMs AND admission_ordinal <= :safeOrdinal " +
-			"ORDER BY created_at_ms, admission_ordinal LIMIT :limit)",
+		"SELECT DISTINCT source_kind FROM source_event_wal " +
+			"WHERE admission_ordinal <= :safeOrdinal ORDER BY source_kind",
 	)
-	suspend fun deleteProjectedBatch(
+	suspend fun sourceKindsThrough(safeOrdinal: Long): List<Int>
+
+	/**
+	 * Deletes TTL-eligible facts for one source through its own safe checkpoint.
+	 *
+	 * Outbox delivery is independent once its payload is durable, so a pending non-retaining control
+	 * effect cannot pin raw WAL. Receipt cleanup runs first while the source association is present;
+	 * any bounded remainder is handled conservatively by writer identity as an outbox-only row.
+	 */
+	@Query(
+		"DELETE FROM source_event_wal WHERE admission_ordinal IN (" +
+			"SELECT wal.admission_ordinal FROM source_event_wal AS wal " +
+			"WHERE wal.source_kind = :sourceKind AND wal.created_at_ms < :createdBeforeMs " +
+			"AND wal.admission_ordinal <= :safeOrdinal " +
+			"ORDER BY wal.created_at_ms, wal.admission_ordinal LIMIT :limit)",
+	)
+	suspend fun deleteProjectedSourceBatch(
+		sourceKind: Int,
 		safeOrdinal: Long,
 		createdBeforeMs: Long,
 		limit: Int,
 	): Int
-
-	@Query(
-		"DELETE FROM source_event_wal WHERE admission_ordinal IN (" +
-			"SELECT admission_ordinal FROM source_event_wal " +
-			"WHERE admission_ordinal <= :pruneThroughOrdinal " +
-			"ORDER BY admission_ordinal LIMIT :limit)",
-	)
-	suspend fun deleteContiguousPrefixBatch(pruneThroughOrdinal: Long, limit: Int): Int
 
 	@Query("DELETE FROM source_event_wal")
 	fun deleteAll()

@@ -15,9 +15,12 @@ import com.adsamcik.tracker.tracker.source.battery.QualitativeBatteryImpactEstim
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
 import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
+import com.adsamcik.tracker.tracker.source.model.AppliedSourcePlan
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.PressurePlan
+import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.coEvery
@@ -44,6 +47,8 @@ class TrackerServiceSourceSessionTest {
 	private lateinit var lifecycle: AuthoritativeSessionCoordinator
 	private lateinit var subject: TrackerServiceSourceSession
 	private lateinit var startupGate: FakeTrackingStartupGate
+	private lateinit var rolloutStore: RoomTrackingRolloutStateStore
+	private lateinit var statusProvider: DefaultTrackingSettingsStatusProvider
 
 	@Before
 	fun setUp() {
@@ -51,19 +56,25 @@ class TrackerServiceSourceSessionTest {
 		database = AppDatabase.testDatabase(application)
 		lifecycle = mockk()
 		startupGate = FakeTrackingStartupGate()
+		rolloutStore = RoomTrackingRolloutStateStore(
+			database,
+			ExecutableSourceLaneCatalog.explicit(TEST_STEPS_BINDING),
+		)
+		statusProvider = DefaultTrackingSettingsStatusProvider(
+			SemanticAcquisitionPlanFactory(),
+			SourcePlanResolver(),
+			QualitativeBatteryImpactEstimator(),
+			TrackingCoordinatorTelemetry(),
+		)
 		subject = TrackerServiceSourceSession(
 			database,
 			lifecycle,
 			SemanticAcquisitionPlanFactory(),
 			SourcePlanResolver(),
 			TrackingCoordinatorTelemetry(),
-			DefaultTrackingSettingsStatusProvider(
-				SemanticAcquisitionPlanFactory(),
-				SourcePlanResolver(),
-				QualitativeBatteryImpactEstimator(),
-				TrackingCoordinatorTelemetry(),
-			),
+			statusProvider,
 			Provider { startupGate },
+			rolloutStore,
 		)
 	}
 
@@ -95,7 +106,7 @@ class TrackerServiceSourceSessionTest {
 
 	@Test
 	fun `automatic start preserves exact trigger evidence through the service session boundary`() = runTest {
-		val rollout = allEventShadow(revision = 5)
+		val rollout = allEventShadow(revision = 5, automaticCapture = true)
 		val enabled = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 7)
 		val trigger = AutomaticTrackingStartTrigger(
 			triggerId = "activity-transition:boot-1:42",
@@ -136,11 +147,98 @@ class TrackerServiceSourceSessionTest {
 	}
 
 	@Test
+	fun `manual-only lane rejects the same settings for automatic session capture`() = runTest {
+		val rollout = allEventShadow(revision = 5)
+		val enabled = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 7)
+
+		val outcome = subject.start(
+			SourceSessionStartRequest(
+				rollout = rollout,
+				ownership = TrackingSessionOwnership.resolve(rollout, enabled),
+				logicalTrackingId = "logical-auto-rejected",
+				serviceRunId = "run-auto-rejected",
+				origin = SessionStartOrigin.AUTOMATIC_BACKGROUND_START,
+				automaticTrigger = automaticTrigger(SourceKind.STEPS),
+				foregroundCapabilityFlags = 1,
+				planInputs = inputs(enabled),
+				ownerToken = "owner-auto-rejected",
+			),
+		).shouldBeInstanceOf<SourceSessionStartOutcome.Rejected>()
+
+		outcome.result shouldBe SessionStartResult.InvalidIntent("ZERO_REACHABLE_CAPTURE_SOURCES")
+		coVerify(exactly = 0) { lifecycle.start(any()) }
+	}
+
+	@Test
+	fun `automatic status blocks a configured manual-only sibling`() = runTest {
+		val rollout = TrackingRolloutState.eventShadow(
+			sources = setOf(SourceKind.LOCATION, SourceKind.STEPS),
+			revision = 5L,
+			captureModes = mapOf(
+				SourceKind.LOCATION to setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
+				SourceKind.STEPS to setOf(CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE),
+			),
+		)
+		val enabled = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 7).copy(
+			locationEnabled = true,
+			sourceCollectionSettings = SourceCollectionSettings(
+				location = SourceCollectionFrequency.BALANCED,
+				activity = SourceCollectionFrequency.OFF,
+				steps = SourceCollectionFrequency.BALANCED,
+				pressure = SourceCollectionFrequency.OFF,
+				wifi = SourceCollectionFrequency.OFF,
+				cell = SourceCollectionFrequency.OFF,
+			),
+		)
+		val captured = slot<SessionStartRequest>()
+		coEvery { lifecycle.start(capture(captured)) } returns SessionStartResult.Started(
+			logicalTrackingId = "logical-mode-status",
+			serviceRunId = "run-mode-status",
+			applied = listOf(
+				AppliedSourcePlan(
+					desiredRevision = 1L,
+					appliedRevision = 1L,
+					source = SourceKind.STEPS,
+					sourceInstanceId = null,
+					registrationGeneration = null,
+					appliedAtElapsedRealtimeNanos = 1L,
+					status = SourceApplyStatus.APPLIED,
+				),
+			),
+			planStatus = DesiredPlanStatus.EFFECTIVE,
+		)
+
+		subject.start(
+			SourceSessionStartRequest(
+				rollout = rollout,
+				ownership = TrackingSessionOwnership.resolve(
+					rollout,
+					enabled,
+					CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE,
+				),
+				logicalTrackingId = "logical-mode-status",
+				serviceRunId = "run-mode-status",
+				origin = SessionStartOrigin.AUTOMATIC_BACKGROUND_START,
+				automaticTrigger = automaticTrigger(SourceKind.STEPS),
+				foregroundCapabilityFlags = 1L,
+				planInputs = inputs(enabled),
+				ownerToken = "owner-mode-status",
+			),
+		).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
+
+		captured.captured.plan.plans.filterValues { plan -> plan.enabled }.keys shouldBe
+			setOf(SourceKind.STEPS)
+		val statuses = statusProvider.runtimeStatus.value.sources
+		statuses.getValue(SourceKind.STEPS).state shouldBe EffectiveSourceState.ACTIVE
+		statuses.getValue(SourceKind.LOCATION).state shouldBe EffectiveSourceState.BLOCKED
+		statuses.getValue(SourceKind.LOCATION).reasonCodes shouldContain
+			"AUTOMATIC_SESSION_CAPTURE_NOT_REACHABLE"
+	}
+
+	@Test
 	fun `cancelled prepared apply retains ownership until partial runtime cleanup completes`() = runTest {
-		val rollout = RoomTrackingRolloutStateStore(database).installAndActivateShadowLane(
-			source = SourceKind.STEPS,
-			projectionId = "test-steps-session-product",
-			projectionVersion = 1,
+		val rollout = rolloutStore.installAndActivateShadowLane(
+			binding = TEST_STEPS_BINDING,
 			rolloutRevision = 5L,
 			updatedAtMs = 1L,
 		).rollout
@@ -199,7 +297,7 @@ class TrackerServiceSourceSessionTest {
 
 	@Test
 	fun `transition sampling pressure-only automatic start never requires Steps control`() = runTest {
-		val rollout = allEventShadow(revision = 5)
+		val rollout = allEventShadow(revision = 5, automaticCapture = true)
 		val enabled = settings(SourceCollectionFrequency.OFF, sourcePolicyRevision = 7).copy(
 			barometerEnabled = true,
 			transitionDetectionEnabled = false,
@@ -540,9 +638,18 @@ class TrackerServiceSourceSessionTest {
 		clockDomainId = "boot-1",
 	)
 
-	private fun allEventShadow(revision: Long) = TrackingRolloutState.eventShadow(
+	private fun allEventShadow(
+		revision: Long,
+		automaticCapture: Boolean = false,
+	) = TrackingRolloutState.eventShadow(
 		sources = SourceKind.entries.toSet(),
 		revision = revision,
+		captureModes = SourceKind.entries.associateWith {
+			buildSet {
+				add(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE)
+				if (automaticCapture) add(CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE)
+			}
+		},
 	)
 
 	private fun settings(
@@ -581,6 +688,16 @@ class TrackerServiceSourceSessionTest {
 		intendedForegroundServiceTypeMask = 1L,
 		collectedDataEpoch = 3L,
 	)
+
+	private companion object {
+		val TEST_STEPS_BINDING = ExecutableSourceLaneBinding(
+			SourceKind.STEPS,
+			1L,
+			"test-steps-session-product",
+			1,
+			setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
+		)
+	}
 
 }
 

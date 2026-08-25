@@ -6,12 +6,14 @@ import com.adsamcik.tracker.shared.base.database.dao.SourceProjectionStateDao
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.api.ActivityAutomationDeliveryEnvelope
 import com.adsamcik.tracker.tracker.api.ActivityAutomationDeliveryResult
 import com.adsamcik.tracker.tracker.api.ActivityAutomationStartContext
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -21,6 +23,7 @@ import io.mockk.slot
 import io.mockk.verify
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
@@ -30,10 +33,21 @@ class ActivityAutomationOutboxDispatcherTest {
 	private val validator = mockk<ActivityAutomationEffectValidator>()
 	private val consumer = mockk<ActivityAutomationEffectConsumer>()
 	private val subject = ActivityAutomationOutboxDispatcher(database, validator, consumer)
+	private val failures = mutableMapOf<Long, SourceProjectionFailureEntity>()
 
 	init {
 		every { database.sourceProjectionStateDao() } returns dao
 		coEvery { validator.validate(any()) } returns ActivityAutomationEffectValidation.Eligible(8, 3)
+		coEvery { dao.failure(any(), any(), any()) } answers {
+			failures[arg<Long>(2)]
+		}
+		coEvery { dao.saveFailure(any()) } answers {
+			val failure = arg<SourceProjectionFailureEntity>(0)
+			failures[failure.admissionOrdinal] = failure
+		}
+		coEvery { dao.deleteFailure(any(), any(), any()) } answers {
+			if (failures.remove(arg<Long>(2)) == null) 0 else 1
+		}
 	}
 
 	@Test
@@ -127,6 +141,54 @@ class ActivityAutomationOutboxDispatcherTest {
 		subject.drain() shouldBe 0
 
 		coVerify(exactly = 1) { consumer.deliver(any(), any(), any(), any(), any()) }
+	}
+
+	@Test
+	fun `validator exception remains retryable and succeeds after repeated transient failures`() = runTest {
+		assertProcessingExceptionRemainsRetryable(PoisonStage.VALIDATOR)
+	}
+
+	@Test
+	fun `consumer exception remains retryable and succeeds after repeated transient failures`() = runTest {
+		assertProcessingExceptionRemainsRetryable(PoisonStage.CONSUMER)
+	}
+
+	@Test
+	fun `delivery storage exception remains retryable and succeeds after repeated transient failures`() = runTest {
+		assertProcessingExceptionRemainsRetryable(PoisonStage.DELIVERY_STORAGE)
+	}
+
+	@Test
+	fun `transient consumer exception then success clears durable failure state`() = runTest {
+		coEvery { dao.pendingOutbox(any(), any(), any(), any()) } returns listOf(effect())
+		var attempts = 0
+		coEvery { consumer.deliver(any(), any(), any(), any(), any()) } answers {
+			if (attempts++ == 0) throw IllegalStateException("transient consumer")
+			ActivityAutomationDeliveryResult.ACCEPTED
+		}
+		coEvery { dao.markOutboxDelivered(any(), any()) } returns 1
+
+		subject.drain() shouldBe 0
+		failures[1L]?.also { failure ->
+			failure.attemptCount shouldBe 1
+			failure.terminal shouldBe false
+		}
+
+		subject.drain() shouldBe 1
+		failures[1L] shouldBe null
+		coVerify(exactly = 0) { dao.markOutboxTerminal(any(), any(), any()) }
+	}
+
+	@Test
+	fun `cancellation is propagated without recording a poison attempt`() = runTest {
+		coEvery { dao.pendingOutbox(any(), any(), any(), any()) } returns listOf(effect())
+		coEvery { validator.validate(any()) } throws CancellationException("cancelled")
+
+		shouldThrow<CancellationException> { subject.drain() }
+
+		failures shouldBe emptyMap()
+		coVerify(exactly = 0) { dao.saveFailure(any()) }
+		coVerify(exactly = 0) { dao.markOutboxTerminal(any(), any(), any()) }
 	}
 
 	@Test
@@ -346,6 +408,58 @@ class ActivityAutomationOutboxDispatcherTest {
 		)
 	}
 
+	private suspend fun assertProcessingExceptionRemainsRetryable(stage: PoisonStage) {
+		coEvery { dao.pendingOutbox(any(), any(), any(), any()) } returns listOf(
+			effect("poison", 1),
+			effect("later", 2),
+		)
+		var validatorFailures = 0
+		coEvery { validator.validate(any()) } answers {
+			val evidence = arg<ActivityAutomationDeliveryEnvelope>(0)
+			if (stage == PoisonStage.VALIDATOR && evidence.admissionOrdinal == 1L &&
+				validatorFailures++ < 3
+			) {
+				throw IllegalStateException("transient validator")
+			}
+			ActivityAutomationEffectValidation.Eligible(8, 3)
+		}
+		var consumerFailures = 0
+		coEvery { consumer.deliver(any(), any(), any(), any(), any()) } answers {
+			if (stage == PoisonStage.CONSUMER && arg<String>(0) == "poison" &&
+				consumerFailures++ < 3
+			) {
+				throw IllegalStateException("transient consumer")
+			}
+			ActivityAutomationDeliveryResult.ACCEPTED
+		}
+		var storageFailures = 0
+		coEvery { dao.markOutboxDelivered(any(), any()) } answers {
+			if (stage == PoisonStage.DELIVERY_STORAGE && arg<String>(0) == "poison" &&
+				storageFailures++ < 3
+			) {
+				throw IllegalStateException("transient storage")
+			}
+			1
+		}
+
+		repeat(3) { attempt ->
+			subject.drain(limit = 10) shouldBe 0
+			failures[1L]?.also { failure ->
+				failure.attemptCount shouldBe attempt + 1
+				failure.terminal shouldBe false
+			}
+			coVerify(exactly = 0) { consumer.deliver("later", any(), any(), any(), any()) }
+		}
+
+		subject.drain(limit = 10) shouldBe 2
+		failures[1L] shouldBe null
+		coVerify(exactly = 0) { dao.markOutboxTerminal("poison", any(), any()) }
+		coVerify(exactly = if (stage == PoisonStage.DELIVERY_STORAGE) 4 else 1) {
+			dao.markOutboxDelivered("poison", any())
+		}
+		coVerify(exactly = 1) { dao.markOutboxDelivered("later", any()) }
+	}
+
 	private fun effect(
 		stableId: String = "effect",
 		ordinal: Long = 1,
@@ -429,5 +543,11 @@ class ActivityAutomationOutboxDispatcherTest {
 			effectiveElapsedRealtimeNanos = 500,
 			members = listOf(member),
 		)
+	}
+
+	private enum class PoisonStage {
+		VALIDATOR,
+		CONSUMER,
+		DELIVERY_STORAGE,
 	}
 }

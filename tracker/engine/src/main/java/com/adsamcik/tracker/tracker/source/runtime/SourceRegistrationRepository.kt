@@ -62,6 +62,7 @@ class SourceRegistrationRepository @Inject constructor(
 	private val lifecycleStore: CollectedDataLifecycleStore,
 	private val clockDomainProvider: BootClockDomainProvider,
 	private val processIncarnationIdProvider: ProcessIncarnationIdProvider,
+	private val trackingRolloutStateStore: RoomTrackingRolloutStateStore,
 ) {
 	suspend fun reconcilePriorProcessRegistrations(
 		reconciledAtMs: Long = System.currentTimeMillis(),
@@ -317,7 +318,7 @@ class SourceRegistrationRepository @Inject constructor(
 	}
 
 	private suspend fun isSourceAcquisitionReachable(source: SourceKind): Boolean =
-		RoomTrackingRolloutStateStore(database).load().isAcquisitionReachable(source)
+		trackingRolloutStateStore.load().isAcquisitionReachable(source)
 
 	internal suspend fun failUnacceptedReservation(
 		registration: SourceRegistration,

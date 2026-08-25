@@ -8,6 +8,7 @@ data class TrackingRolloutState(
 	val coordinatorMode: CoordinatorMode,
 	val sourceOwners: Map<SourceKind, SourceOwner>,
 	val productProjectionStages: Map<SourceKind, ProductProjectionStage>,
+	val captureModeMasks: Map<SourceKind, Long>,
 	val semanticSettingsEnabled: Boolean,
 	val batteryEstimateMode: BatteryEstimateMode,
 ) {
@@ -20,6 +21,12 @@ data class TrackingRolloutState(
 		require(productProjectionStages.keys == SourceKind.entries.toSet()) {
 			"Rollout state must explicitly gate every source product projection"
 		}
+		require(captureModeMasks.keys == SourceKind.entries.toSet()) {
+			"Rollout state must explicitly gate every source capture mode"
+		}
+		require(captureModeMasks.values.all { mask ->
+			mask >= 0L && mask and CaptureReachabilityMode.ALL_MASK.inv() == 0L
+		}) { "Capture mode masks must contain only known modes" }
 		require(coordinatorMode == CoordinatorMode.EVENT || sourceOwners.values.none {
 			it == SourceOwner.EVENT || it == SourceOwner.CONTROL
 		}) {
@@ -43,16 +50,23 @@ data class TrackingRolloutState(
 		}) {
 			"Control-only acquisition cannot authorize a capture product lane"
 		}
+		require(sourceOwners.none { (source, owner) ->
+			(owner == SourceOwner.EVENT) != (captureModeMasks.getValue(source) != 0L)
+		}) { "Only event-owned sources may authorize session capture modes" }
 	}
 
 	/** A provider may acquire only when its source-local product lane is explicitly reachable. */
 	fun isAcquisitionReachable(source: SourceKind): Boolean =
 		coordinatorMode == CoordinatorMode.EVENT &&
 			sourceOwners[source] == SourceOwner.EVENT &&
+			captureModeMasks.getValue(source) != 0L &&
 			productProjectionStages[source] in setOf(
 				ProductProjectionStage.EVENT_SHADOW,
 				ProductProjectionStage.EVENT_CANONICAL,
 			)
+
+	fun isCaptureReachable(source: SourceKind, mode: CaptureReachabilityMode): Boolean =
+		isAcquisitionReachable(source) && captureModeMasks.getValue(source) and mode.mask != 0L
 
 	/** A provider may satisfy declared control demands without becoming a captured product source. */
 	fun isControlAcquisitionReachable(source: SourceKind): Boolean =
@@ -73,6 +87,7 @@ data class TrackingRolloutState(
 			productProjectionStages = SourceKind.entries.associateWith {
 				ProductProjectionStage.LEGACY_CANONICAL
 			},
+			captureModeMasks = SourceKind.entries.associateWith { 0L },
 			semanticSettingsEnabled = true,
 			batteryEstimateMode = BatteryEstimateMode.SOURCE_PLAN_QUALITATIVE,
 		)
@@ -86,10 +101,15 @@ data class TrackingRolloutState(
 			sources: Set<SourceKind>,
 			revision: Long = 1L,
 			controlSources: Set<SourceKind> = emptySet(),
+			captureModes: Map<SourceKind, Set<CaptureReachabilityMode>> =
+				sources.associateWith { setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE) },
 		): TrackingRolloutState {
 			require(sources.isNotEmpty()) { "At least one shadow-reachable source is required" }
 			require(sources.intersect(controlSources).isEmpty()) {
 				"A source cannot be both capture-owned and control-only"
+			}
+			require(captureModes.keys == sources && captureModes.values.all(Set<CaptureReachabilityMode>::isNotEmpty)) {
+				"Every capture source requires one or more explicit session capture modes"
 			}
 			return contained(revision).copy(
 				sourceOwners = SourceKind.entries.associateWith { source ->
@@ -106,6 +126,9 @@ data class TrackingRolloutState(
 						ProductProjectionStage.LEGACY_CANONICAL
 					}
 				},
+				captureModeMasks = SourceKind.entries.associateWith { source ->
+					captureModes[source]?.fold(0L) { mask, mode -> mask or mode.mask } ?: 0L
+				},
 			)
 		}
 
@@ -118,11 +141,23 @@ data class TrackingRolloutState(
 			productProjectionStages = SourceKind.entries.associateWith {
 				ProductProjectionStage.LEGACY_CANONICAL
 			},
+			captureModeMasks = SourceKind.entries.associateWith { 0L },
 			semanticSettingsEnabled = false,
 			batteryEstimateMode = BatteryEstimateMode.LEGACY_QUALITATIVE,
 		)
 
-		const val CURRENT_SCHEMA_VERSION: Int = 3
+		const val CURRENT_SCHEMA_VERSION: Int = 4
+	}
+}
+
+enum class CaptureReachabilityMode(val mask: Long) {
+	MANUAL_SESSION_CAPTURE(1L shl 0),
+	AUTOMATIC_SESSION_CAPTURE(1L shl 1),
+	AMBIENT(1L shl 2),
+	;
+
+	companion object {
+		val ALL_MASK: Long = entries.fold(0L) { mask, mode -> mask or mode.mask }
 	}
 }
 

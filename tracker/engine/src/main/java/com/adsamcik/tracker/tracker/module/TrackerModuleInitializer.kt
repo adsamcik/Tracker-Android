@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.startup.ModuleInitializer
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.tracker.api.BackgroundTrackingApi
+import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryScheduler
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
@@ -36,6 +37,7 @@ class TrackerModuleInitializer @Inject constructor(
 	private val trackingStartupGate: TrackingStartupGate,
 	private val sourcePipelineRecovery: SourcePipelineRecovery,
 	private val activityAutomationEpochAuthority: ActivityAutomationEpochAuthority,
+	private val automaticControlRecoveryScheduler: AutomaticControlRecoveryScheduler,
 ) : ModuleInitializer {
 	override val priority: Int = 20
 
@@ -52,6 +54,10 @@ class TrackerModuleInitializer @Inject constructor(
 			driveActivityAutomationEffectDrain(
 				authorityReady = BackgroundTrackingApi.activityAutomationAuthorityReady,
 				drainRequired = sourcePipelineRecovery.activityAutomationDrainRequired,
+				onRetryGenerationExhausted = {
+					automaticControlRecoveryScheduler.enqueue()
+					sourcePipelineRecovery.suspendActivityAutomationRetryGeneration()
+				},
 				drain = sourcePipelineRecovery::drainActivityAutomationEffects,
 			)
 		}
@@ -69,16 +75,28 @@ internal suspend fun driveActivityAutomationEffectDrain(
 	drainRequired: Flow<Boolean>,
 	initialRetryDelayMillis: Long = 500L,
 	maxRetryDelayMillis: Long = 30_000L,
+	maxDrainAttempts: Int = 8,
+	maxDrainElapsedMillis: Long = 2 * 60_000L,
+	elapsedRealtimeMillis: () -> Long = { System.nanoTime() / 1_000_000L },
+	onRetryGenerationExhausted: () -> Unit,
 	drain: suspend () -> ActivityAutomationDrainResult,
 ) {
 	require(initialRetryDelayMillis > 0L)
 	require(maxRetryDelayMillis >= initialRetryDelayMillis)
+	require(maxDrainAttempts > 0)
+	require(maxDrainElapsedMillis > 0L)
 	combine(authorityReady, drainRequired) { authority, pending -> authority && pending }
 		.distinctUntilChanged()
 		.collectLatest { shouldDrain ->
 			if (!shouldDrain) return@collectLatest
+			val startedAtMillis = elapsedRealtimeMillis()
+			var attemptCount = 0
 			var retryDelayMillis = initialRetryDelayMillis
-			while (true) {
+			while (
+				attemptCount < maxDrainAttempts &&
+				elapsedRealtimeMillis().elapsedSince(startedAtMillis) < maxDrainElapsedMillis
+			) {
+				attemptCount += 1
 				val result = try {
 					drain()
 				} catch (cancellation: CancellationException) {
@@ -89,9 +107,12 @@ internal suspend fun driveActivityAutomationEffectDrain(
 				}
 				when (result) {
 					is ActivityAutomationDrainResult.Complete -> return@collectLatest
-					is ActivityAutomationDrainResult.ProjectionDeferred ->
-						// The WAL owns retry. A later admission or cold start will probe again.
+					is ActivityAutomationDrainResult.ProjectionDeferred -> {
+						// WAL remains truth; unique WorkManager work gets one battery-bounded retry
+						// generation before this process waits for a later relevant state change.
+						onRetryGenerationExhausted()
 						return@collectLatest
+					}
 					is ActivityAutomationDrainResult.MorePending -> {
 						retryDelayMillis = initialRetryDelayMillis
 						yield()
@@ -99,11 +120,19 @@ internal suspend fun driveActivityAutomationEffectDrain(
 					is ActivityAutomationDrainResult.Retryable,
 					null,
 					-> {
-						delay(retryDelayMillis)
+						if (attemptCount >= maxDrainAttempts) break
+						val remainingMillis = maxDrainElapsedMillis -
+							elapsedRealtimeMillis().elapsedSince(startedAtMillis)
+						if (remainingMillis <= 0L) break
+						delay(retryDelayMillis.coerceAtMost(remainingMillis))
 						retryDelayMillis = (retryDelayMillis * 2)
 							.coerceAtMost(maxRetryDelayMillis)
 					}
 				}
 			}
+			onRetryGenerationExhausted()
 		}
 }
+
+private fun Long.elapsedSince(startedAtMillis: Long): Long =
+	(this - startedAtMillis).coerceAtLeast(0L)

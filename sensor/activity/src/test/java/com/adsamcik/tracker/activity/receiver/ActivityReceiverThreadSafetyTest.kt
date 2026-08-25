@@ -7,7 +7,10 @@ import com.adsamcik.tracker.activity.api.backend.RecognizedActivity
 import com.adsamcik.tracker.activity.api.ingress.ActivityDurableSelection
 import com.adsamcik.tracker.activity.api.ingress.ActivityIngressResult
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
+import com.adsamcik.tracker.activity.api.registration.ActivityCallbackAdmissionBarrier
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.google.android.gms.location.ActivityRecognitionResult
 import com.google.android.gms.location.ActivityTransitionResult
@@ -34,8 +37,6 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
-import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
@@ -46,6 +47,7 @@ class ActivityReceiverThreadSafetyTest {
 	private lateinit var mockBackend: GmsActivityRecognitionBackend
 	private lateinit var mockIngress: ActivityRecognitionEventIngress
 	private lateinit var mockStartupGate: TrackingStartupGate
+	private lateinit var callbackAdmissionBarrier: ActivityCallbackAdmissionBarrier
 
 	@Before
 	fun setUp() {
@@ -57,6 +59,7 @@ class ActivityReceiverThreadSafetyTest {
 		mockBackend = mockk(relaxed = true)
 		mockIngress = mockk()
 		mockStartupGate = mockk()
+		callbackAdmissionBarrier = ActivityCallbackAdmissionBarrier()
 		coEvery { mockStartupGate.reconcileAdmission(any()) } returns
 			TrackingAdmissionStartupResult.Ready
 		coEvery { mockIngress.admit(any()) } returns ActivityIngressResult.durable(
@@ -70,6 +73,7 @@ class ActivityReceiverThreadSafetyTest {
 			every { backend() } returns mockBackend
 			every { eventIngress() } returns mockIngress
 			every { trackingStartupGate() } returns mockStartupGate
+			every { callbackAdmissionBarrier() } returns callbackAdmissionBarrier
 			every { applicationScope() } returns CoroutineScope(Dispatchers.Unconfined)
 		}
 		mockkStatic(EntryPointAccessors::class)

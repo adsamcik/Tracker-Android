@@ -81,6 +81,9 @@ class PostDeletionRecoveryWorker @AssistedInject constructor(
 				isDeletionClosed = { deletionBarrier.isClosed },
 				isStartupReady = { startupGate.isReady },
 				reconcileStartup = { startupGate.reconcile() },
+				withReadyGenerationOperation = { generation, operation ->
+					startupGate.withReadyGenerationOperation(generation, operation)
+				},
 				resumeWriters = writerQuiescer::resume,
 				resumeActivityArbiter = {
 					activityRegistrationArbiterProvider.get()
@@ -99,6 +102,9 @@ class PostDeletionRecoveryWorker @AssistedInject constructor(
 		}
 		return when (outcome) {
 			PostDeletionRecoveryOutcome.COMPLETE -> Result.success()
+			// This unique epoch-fenced work is the only durable owner that can reopen process-local
+			// writers after deletion. WorkManager backoff is intentionally retained until the epoch
+			// changes or recovery reaches a terminal result.
 			PostDeletionRecoveryOutcome.RETRY -> Result.retry()
 		}
 	}
@@ -119,6 +125,11 @@ internal suspend fun runPostDeletionRecovery(
 	isDeletionClosed: () -> Boolean,
 	isStartupReady: () -> Boolean,
 	reconcileStartup: suspend () -> TrackingStartupResult,
+	withReadyGenerationOperation: suspend (
+		Long,
+		suspend () -> AutomaticControlRecoveryResult?,
+	) -> AutomaticControlRecoveryResult? =
+		{ _, operation -> operation() },
 	resumeWriters: () -> Unit,
 	resumeActivityArbiter: suspend () -> Unit,
 	reconcileAutomaticControl: suspend () -> AutomaticControlRecoveryResult,
@@ -137,17 +148,30 @@ internal suspend fun runPostDeletionRecovery(
 	}
 	if (currentEpoch() != expectedEpoch) return PostDeletionRecoveryOutcome.COMPLETE
 
-	// These operations may open collected Room or schedule Room workers, so they occur only after
-	// the exact startup generation is Ready. The arbiter is unpaused before automatic demand repair;
-	// optional control containment is terminal while explicitly transient failures retain retry work.
-	resumeWriters()
-	resumeActivityArbiter()
+	// These operations may open collected Room or schedule Room workers. Serialize their final
+	// epoch/generation check and resume with deletion closure so a new deletion cannot win between
+	// the check and either side effect.
+	val controlRecovery = withReadyGenerationOperation(startupGeneration) {
+		if (currentEpoch() != expectedEpoch || isDeletionClosed() ||
+			!isStartupReady() || currentStartupGeneration() != startupGeneration
+		) {
+			null
+		} else {
+			resumeWriters()
+			resumeActivityArbiter()
+			reconcileAutomaticControl()
+		}
+	} ?: return PostDeletionRecoveryOutcome.RETRY
+
+	// Deletion closure waits for the protected handoff above; if it wins after the handoff it owns
+	// the matching quiesce/removal. Optional control containment is terminal while explicitly
+	// transient failures retain retry work.
 	if (currentEpoch() != expectedEpoch || isDeletionClosed() ||
 		!isStartupReady() || currentStartupGeneration() != startupGeneration
 	) {
 		return PostDeletionRecoveryOutcome.RETRY
 	}
-	return when (reconcileAutomaticControl()) {
+	return when (controlRecovery) {
 		AutomaticControlRecoveryResult.ACCEPTED,
 		AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED ->
 			PostDeletionRecoveryOutcome.COMPLETE

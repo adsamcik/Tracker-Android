@@ -10,7 +10,9 @@ import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
+import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
 import com.adsamcik.tracker.tracker.source.model.sourceDeliveryIdentity
 import com.adsamcik.tracker.tracker.source.runtime.SourceAdmissionHandoff
 import com.adsamcik.tracker.tracker.source.runtime.SourceDeliveryAdmissionHandoff
@@ -41,6 +43,22 @@ class DurableSourceEventSinkTest {
 		coVerify(exactly = 1) { ingress.admit(any(), checkpoint) }
 		verify(exactly = 1) { motionController.onDurableEvidence(any()) }
 		verify(exactly = 1) { recovery.requestCommittedWorkDrain() }
+	}
+
+	@Test
+	fun `durable manual Steps admission does not register or schedule Activity automation work`() = runTest {
+		val ingress = mockk<DurableSourceIngress>()
+		val recovery = mockk<SourcePipelineRecovery>(relaxed = true)
+		val checkpoint = atomicCheckpoint()
+		coEvery { ingress.admit(any(), checkpoint) } returns
+			AdmissionResult.Admitted(SourceEventId("steps-event"), 7L)
+		val subject = DurableSourceEventSinkFactory(ingress, recovery)
+
+		subject.unbound.admit(stepsCandidate(), checkpoint)
+			.shouldBeInstanceOf<SourceAdmissionHandoff.Durable>()
+
+		coVerify(exactly = 1) { ingress.admit(any(), checkpoint) }
+		verify(exactly = 0) { recovery.requestCommittedWorkDrain() }
 	}
 
 	@Test
@@ -186,7 +204,7 @@ class DurableSourceEventSinkTest {
 		verify(exactly = 1) { motionController.onDurableEvidence(evidence) }
 	}
 
-	private fun candidate() = SourceEvidenceCandidate(
+	private fun candidate(): SourceEvidenceCandidate<SourcePayload> = SourceEvidenceCandidate(
 		providerDedupKey = null,
 		logicalTrackingId = null,
 		serviceRunId = null,
@@ -206,6 +224,22 @@ class DurableSourceEventSinkTest {
 		quality = SourceQuality(),
 		payloadVersion = 1,
 		payload = ActivityTransitionPayload(1, 1, 1),
+	)
+
+	private fun stepsCandidate() = candidate().copy(
+		source = SourceKind.STEPS,
+		sourceInstanceId = SourceInstanceId("steps"),
+		payload = StepCounterWindowPayload(
+			bootClockDomainId = "boot",
+			firstCumulativeCount = 10L,
+			lastCumulativeCount = 12L,
+			deltaCount = 2L,
+			windowStartElapsedRealtimeNanos = 1L,
+			windowEndElapsedRealtimeNanos = 2L,
+			firstProviderSequence = 1L,
+			lastProviderSequence = 2L,
+			baselineReset = false,
+		),
 	)
 
 	private fun delivery(): SourceDeliveryCandidate = SourceDeliveryCandidate(

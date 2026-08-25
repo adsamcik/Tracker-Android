@@ -12,6 +12,7 @@ import javax.inject.Inject
 class ActivityAutomationProjection @Inject constructor() : Projection {
 	override val id: String = ID
 	override val version: Int = VERSION
+	override val retentionRequired: Boolean = false
 
 	override suspend fun apply(
 		event: AdmittedSourceEvent<out SourcePayload>,

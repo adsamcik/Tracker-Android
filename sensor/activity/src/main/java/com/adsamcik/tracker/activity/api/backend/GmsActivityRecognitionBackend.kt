@@ -135,6 +135,26 @@ class GmsActivityRecognitionBackend @Inject constructor(
 			}
 		}
 
+	/**
+	 * Updates the callback-purpose extras carried by an existing PendingIntent without replacing
+	 * either GMS subscription. Physical acquisition is unchanged; the broker authorization remains
+	 * the durable authority that ultimately admits or rejects the refreshed callback purpose.
+	 */
+	internal suspend fun refreshRegistrationMetadata(
+		config: RecognitionConfig,
+		identity: ActivityRegistrationIdentity,
+	): Boolean = subscriptionMutex.withLock {
+		try {
+			getActivityDetectionPendingIntent(identity, config)
+			true
+		} catch (error: CancellationException) {
+			throw error
+		} catch (error: Exception) {
+			Tracebox.log.error(error, "Activity callback metadata update failed")
+			false
+		}
+	}
+
 	override suspend fun stopUpdates() = subscriptionMutex.withLock {
 		removeRegistrationLocked(LEGACY_IDENTITY)
 	}

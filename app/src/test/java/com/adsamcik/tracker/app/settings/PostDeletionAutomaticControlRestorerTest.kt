@@ -1,11 +1,25 @@
 package com.adsamcik.tracker.app.settings
 
+import android.content.Context
+import androidx.work.ListenableWorker
+import androidx.work.WorkerParameters
+import androidx.work.workDataOf
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbiter
+import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryResult
 import io.kotest.matchers.shouldBe
+import io.mockk.coEvery
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
+import javax.inject.Provider
 
 class PostDeletionAutomaticControlRestorerTest {
 	@Test
@@ -138,6 +152,38 @@ class PostDeletionAutomaticControlRestorerTest {
 	}
 
 	@Test
+	fun `epoch rotation before protected resume returns retry without reopening writers`() = runTest {
+		val operations = mutableListOf<String>()
+		var currentEpoch = 8L
+		val protectedOperation = LatchingReadyGenerationOperation()
+		val recovery = async {
+			runPostDeletionRecovery(
+				expectedEpoch = 8L,
+				currentEpoch = { currentEpoch },
+				startupGeneration = 2L,
+				currentStartupGeneration = { 2L },
+				isDeletionClosed = { false },
+				isStartupReady = { true },
+				reconcileStartup = { TrackingStartupResult.Ready(false, 0L) },
+				withReadyGenerationOperation = protectedOperation::run,
+				resumeWriters = { operations += "writers" },
+				resumeActivityArbiter = { operations += "arbiter" },
+				reconcileAutomaticControl = {
+					operations += "control"
+					AutomaticControlRecoveryResult.ACCEPTED
+				},
+			)
+		}
+
+		protectedOperation.requested.await()
+		currentEpoch = 9L
+		protectedOperation.allowEntry.complete(Unit)
+
+		recovery.await() shouldBe PostDeletionRecoveryOutcome.RETRY
+		operations shouldBe emptyList()
+	}
+
+	@Test
 	fun `transient automatic demand failure remains durable retry work`() = runTest {
 		runPostDeletionRecovery(
 			expectedEpoch = 8L,
@@ -169,5 +215,49 @@ class PostDeletionAutomaticControlRestorerTest {
 				AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED
 			},
 		) shouldBe PostDeletionRecoveryOutcome.COMPLETE
+	}
+
+	@Test
+	fun `worker retains its unique epoch fenced retry owner after repeated transient failure`() = runTest {
+		val context = mockk<Context>(relaxed = true)
+		val lifecycleStore = mockk<CollectedDataLifecycleStore>()
+		coEvery { lifecycleStore.snapshot() } throws
+			IllegalStateException("transient lifecycle storage failure")
+
+		fun worker(attemptIndex: Int) = PostDeletionRecoveryWorker(
+			appContext = context,
+			params = mockk<WorkerParameters>(relaxed = true) {
+				every { inputData } returns workDataOf(
+					PostDeletionRecoveryWorker.COLLECTED_DATA_EPOCH_KEY to 8L,
+				)
+				every { runAttemptCount } returns attemptIndex
+			},
+			startupGate = mockk<TrackingStartupGate>(relaxed = true),
+			deletionBarrier = mockk<TrackingStartupDeletionBarrier>(relaxed = true),
+			lifecycleStore = lifecycleStore,
+			writerQuiescer = mockk<CollectedDataWriterQuiescer>(relaxed = true),
+			activityRegistrationArbiterProvider = Provider {
+				mockk<ActivityRegistrationArbiter>(relaxed = true)
+			},
+		)
+
+		worker(2).doWork() shouldBe
+			ListenableWorker.Result.retry()
+		worker(30).doWork() shouldBe
+			ListenableWorker.Result.retry()
+	}
+}
+
+private class LatchingReadyGenerationOperation {
+	val requested = CompletableDeferred<Unit>()
+	val allowEntry = CompletableDeferred<Unit>()
+
+	suspend fun run(
+		@Suppress("UNUSED_PARAMETER") expectedGeneration: Long,
+		operation: suspend () -> AutomaticControlRecoveryResult?,
+	): AutomaticControlRecoveryResult? {
+		requested.complete(Unit)
+		allowEntry.await()
+		return operation()
 	}
 }

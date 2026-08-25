@@ -20,7 +20,9 @@ import com.adsamcik.tracker.tracker.source.coordinator.TrackingSettingsStatusPro
 import com.adsamcik.tracker.tracker.source.battery.BatteryImpactEstimator
 import com.adsamcik.tracker.tracker.source.battery.QualitativeBatteryImpactEstimator
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStore
+import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.tracker.source.runtime.AndroidLocationDeviceStateProvider
 import com.adsamcik.tracker.tracker.source.runtime.LocationDeviceStateProvider
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
@@ -82,6 +84,11 @@ abstract class TrackerEngineBindings {
 	abstract fun bindTrackingRolloutStateStore(
 		impl: RoomTrackingRolloutStateStore,
 	): TrackingRolloutStateStore
+
+	@Binds
+	abstract fun bindSourceProductLaneExecutionAuthority(
+		impl: ExecutableSourceLaneCatalog,
+	): SourceProductLaneExecutionAuthority
 
 	@Binds
 	abstract fun bindLocationDeviceStateProvider(

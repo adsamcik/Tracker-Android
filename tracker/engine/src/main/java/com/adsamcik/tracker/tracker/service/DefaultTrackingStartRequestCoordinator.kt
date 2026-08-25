@@ -55,6 +55,7 @@ import com.adsamcik.tracker.tracker.source.coordinator.SourceSessionPlanInputs
 import com.adsamcik.tracker.tracker.source.coordinator.SourceSessionStartRequest
 import com.adsamcik.tracker.tracker.source.coordinator.TrackerServiceSourceSession
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingSessionOwnership
+import com.adsamcik.tracker.tracker.source.coordinator.captureModeFor
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEpochAuthority
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
@@ -171,7 +172,13 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 		} catch (_: Exception) {
 			return TrackingStartPreparationResult.Rejected("TRACKING_ROLLOUT_UNAVAILABLE")
 		}
-		val reachableRequestedSources = rolloutReachableCaptureSources(requestedSources, rollout)
+		val captureMode = captureModeFor(
+			resolved.descriptor.isUserInitiated,
+			resolved.descriptor.isAmbient,
+		)
+		val reachableRequestedSources = requestedSources.filterTo(linkedSetOf()) { source ->
+			rollout.isCaptureReachable(source, captureMode)
+		}
 		val acceptedSources = resolveAcceptedSources(reachableRequestedSources, resolved.origin)
 		if (acceptedSources.isEmpty()) {
 			return TrackingStartPreparationResult.Rejected("TRACKING_CAPTURE_UNAVAILABLE")
@@ -190,7 +197,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 		val token = PreparedTrackingStartToken(UUID.randomUUID().toString())
 		var roomPrepared = false
 		try {
-			val ownership = TrackingSessionOwnership.resolve(rollout, settings)
+			val ownership = TrackingSessionOwnership.resolve(rollout, settings, captureMode)
 			val planInputs = sourcePlanInputs(settings, acceptedSources, resolved.origin, bootId)
 			val preparation = sourceSession.prepareAndroidStartUnderReadyGeneration(
 				SourceSessionStartRequest(
@@ -199,6 +206,7 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 					logicalTrackingId = resolved.descriptor.logicalTrackingId,
 					serviceRunId = resolved.descriptor.serviceRunId,
 					origin = resolved.origin,
+					captureMode = captureMode,
 					continuationAuthority = continuationAuthority,
 					automaticTrigger = request.automaticTrigger,
 					foregroundCapabilityFlags = foregroundMask,
@@ -518,9 +526,12 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 		val preparedRolloutRevision = database.sourceSessionDao()
 			.serviceRun(claim.serviceRunId)
 			?.rolloutRevision
+		val captureMode = captureModeFor(claim.isUserInitiated, claim.isAmbient)
 		val acceptedSources = requestedSources?.let { requested ->
 			resolveAcceptedSources(
-				rolloutReachableCaptureSources(requested, rollout),
+				requested.filterTo(linkedSetOf()) { source ->
+					rollout.isCaptureReachable(source, captureMode)
+				},
 				claim.startOrigin,
 			)
 		}

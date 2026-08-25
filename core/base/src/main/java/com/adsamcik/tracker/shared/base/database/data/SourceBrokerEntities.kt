@@ -260,6 +260,8 @@ data class ProviderRegistrationGenerationEntity(
 	@ColumnInfo(name = "retired_at_ms") val retiredAtMs: Long?,
 	@ColumnInfo(name = "retired_elapsed_realtime_nanos") val retiredElapsedRealtimeNanos: Long?,
 	@ColumnInfo(name = "failure_code") val failureCode: String?,
+	@ColumnInfo(name = "capture_callback_barrier_authorization_revision", defaultValue = "0")
+	val captureCallbackBarrierAuthorizationRevision: Long = 0L,
 ) {
 	init {
 		require(sourceKind >= 0)
@@ -278,6 +280,7 @@ data class ProviderRegistrationGenerationEntity(
 		require(reservedElapsedRealtimeNanos >= 0L)
 		require((acceptedAtMs == null) == (acceptedElapsedRealtimeNanos == null))
 		require((retiredAtMs == null) == (retiredElapsedRealtimeNanos == null))
+		require(captureCallbackBarrierAuthorizationRevision >= 0L)
 	}
 
 	companion object {

@@ -22,6 +22,7 @@ class TrackerModuleInitializerTest {
 			driveActivityAutomationEffectDrain(
 				authorityReady = authorityReady,
 				drainRequired = drainRequired,
+				onRetryGenerationExhausted = { drainRequired.value = false },
 				initialRetryDelayMillis = 10,
 				maxRetryDelayMillis = 20,
 			) {
@@ -56,6 +57,7 @@ class TrackerModuleInitializerTest {
 			driveActivityAutomationEffectDrain(
 				authorityReady = authorityReady,
 				drainRequired = drainRequired,
+				onRetryGenerationExhausted = { drainRequired.value = false },
 				initialRetryDelayMillis = 10,
 				maxRetryDelayMillis = 20,
 			) {
@@ -86,6 +88,7 @@ class TrackerModuleInitializerTest {
 			driveActivityAutomationEffectDrain(
 				authorityReady = authorityReady,
 				drainRequired = drainRequired,
+				onRetryGenerationExhausted = { drainRequired.value = false },
 				initialRetryDelayMillis = 10,
 				maxRetryDelayMillis = 20,
 			) {
@@ -114,6 +117,7 @@ class TrackerModuleInitializerTest {
 			driveActivityAutomationEffectDrain(
 				authorityReady = authorityReady,
 				drainRequired = drainRequired,
+				onRetryGenerationExhausted = { drainRequired.value = false },
 				initialRetryDelayMillis = 10,
 				maxRetryDelayMillis = 20,
 			) {
@@ -132,10 +136,76 @@ class TrackerModuleInitializerTest {
 		runCurrent()
 		attempts shouldBe 1
 
-		drainRequired.value = false
-		runCurrent()
 		drainRequired.value = true
 		runCurrent()
 		attempts shouldBe 2
+	}
+
+	@Test
+	fun `attempt budget makes no N plus one call until a new signal`() = runTest {
+		val authorityReady = MutableStateFlow(true)
+		val drainRequired = MutableStateFlow(true)
+		var attempts = 0
+		backgroundScope.launch {
+			driveActivityAutomationEffectDrain(
+				authorityReady = authorityReady,
+				drainRequired = drainRequired,
+				onRetryGenerationExhausted = { drainRequired.value = false },
+				initialRetryDelayMillis = 10,
+				maxRetryDelayMillis = 20,
+				maxDrainAttempts = 3,
+				maxDrainElapsedMillis = 1_000,
+				elapsedRealtimeMillis = { currentTime },
+			) {
+				attempts += 1
+				ActivityAutomationDrainResult.MorePending(attempts, 0)
+			}
+		}
+
+		runCurrent()
+		attempts shouldBe 3
+		advanceTimeBy(10_000)
+		runCurrent()
+		attempts shouldBe 3
+
+		drainRequired.value = true
+		runCurrent()
+		attempts shouldBe 6
+	}
+
+	@Test
+	fun `elapsed budget stops retry wakeups with pending evidence intact`() = runTest {
+		val authorityReady = MutableStateFlow(true)
+		val drainRequired = MutableStateFlow(true)
+		var attempts = 0
+		backgroundScope.launch {
+			driveActivityAutomationEffectDrain(
+				authorityReady = authorityReady,
+				drainRequired = drainRequired,
+				onRetryGenerationExhausted = { drainRequired.value = false },
+				initialRetryDelayMillis = 10,
+				maxRetryDelayMillis = 20,
+				maxDrainAttempts = 10,
+				maxDrainElapsedMillis = 25,
+				elapsedRealtimeMillis = { currentTime },
+			) {
+				attempts += 1
+				ActivityAutomationDrainResult.Retryable(0, 0)
+			}
+		}
+
+		runCurrent()
+		advanceTimeBy(25)
+		runCurrent()
+		attempts shouldBe 2
+		drainRequired.value shouldBe false
+
+		advanceTimeBy(10_000)
+		runCurrent()
+		attempts shouldBe 2
+
+		drainRequired.value = true
+		runCurrent()
+		attempts shouldBe 3
 	}
 }

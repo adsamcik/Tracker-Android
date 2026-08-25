@@ -28,6 +28,15 @@ class TrackingRolloutStateTest {
 		state.productProjectionStages.getValue(SourceKind.STEPS) shouldBe
 			ProductProjectionStage.EVENT_SHADOW
 		state.isAcquisitionReachable(SourceKind.STEPS) shouldBe true
+		state.isCaptureReachable(
+			SourceKind.STEPS,
+			CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+		) shouldBe true
+		state.isCaptureReachable(
+			SourceKind.STEPS,
+			CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE,
+		) shouldBe false
+		state.isCaptureReachable(SourceKind.STEPS, CaptureReachabilityMode.AMBIENT) shouldBe false
 		state.isControlAcquisitionReachable(SourceKind.STEPS) shouldBe true
 		SourceKind.entries.filterNot { it == SourceKind.STEPS }.forEach { source ->
 			state.sourceOwners.getValue(source) shouldBe SourceOwner.CONTAINED
@@ -36,6 +45,24 @@ class TrackingRolloutStateTest {
 			state.isAcquisitionReachable(source) shouldBe false
 			state.isControlAcquisitionReachable(source) shouldBe false
 		}
+	}
+
+	@Test
+	fun `automatic capture requires its own explicit mode bit`() {
+		val state = TrackingRolloutState.eventShadow(
+			sources = setOf(SourceKind.STEPS),
+			captureModes = mapOf(
+				SourceKind.STEPS to setOf(
+					CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+					CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE,
+				),
+			),
+		)
+
+		state.isCaptureReachable(
+			SourceKind.STEPS,
+			CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE,
+		) shouldBe true
 	}
 
 	@Test

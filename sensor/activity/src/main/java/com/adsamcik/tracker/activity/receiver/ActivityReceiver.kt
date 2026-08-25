@@ -23,6 +23,7 @@ import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidence
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
 import com.adsamcik.tracker.activity.api.ingress.ActivityTransitionEvidence
+import com.adsamcik.tracker.activity.api.registration.ActivityCallbackAdmissionBarrier
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
@@ -46,10 +47,11 @@ import kotlinx.coroutines.withTimeout
 /** Dependencies needed by the manifest BroadcastReceiver in a cold process. */
 @EntryPoint
 @InstallIn(SingletonComponent::class)
-interface ActivityReceiverEntryPoint {
+internal interface ActivityReceiverEntryPoint {
 	fun backend(): GmsActivityRecognitionBackend
 	fun eventIngress(): ActivityRecognitionEventIngress
 	fun trackingStartupGate(): TrackingStartupGate
+	fun callbackAdmissionBarrier(): ActivityCallbackAdmissionBarrier
 
 	@ApplicationScope
 	fun applicationScope(): CoroutineScope
@@ -76,26 +78,37 @@ internal class ActivityReceiver : BroadcastReceiver() {
 			context.applicationContext,
 			ActivityReceiverEntryPoint::class.java,
 		)
-		val delivery = parseDelivery(
-			registrationIdentity = intent.registrationIdentity(),
-			automaticRecognitionEligible = intent.getBooleanExtra(
-				EXTRA_AUTOMATIC_RECOGNITION_ELIGIBLE,
-				false,
-			),
-			automaticTransitions = intent.automaticTransitions(),
-			activityResult = if (hasActivityResult) {
-				requireNotNull(ActivityRecognitionResult.extractResult(intent))
-			} else {
-				null
-			},
-			transitionResult = if (hasTransitionResult) {
-				requireNotNull(ActivityTransitionResult.extractResult(intent))
-			} else {
-				null
-			},
-			receivedElapsedRealtimeMillis = receivedElapsedRealtimeMillis,
-			receivedWallTimeMs = System.currentTimeMillis(),
-		)
+		val registrationIdentity = intent.registrationIdentity()
+		val callbackPermit = registrationIdentity?.let {
+			entryPoint.callbackAdmissionBarrier().tryEnter(it)
+		}
+		if (registrationIdentity != null && callbackPermit == null) return
+		val delivery = runCatching {
+			parseDelivery(
+				registrationIdentity = registrationIdentity,
+				automaticRecognitionEligible = intent.getBooleanExtra(
+					EXTRA_AUTOMATIC_RECOGNITION_ELIGIBLE,
+					false,
+				),
+				automaticTransitions = intent.automaticTransitions(),
+				activityResult = if (hasActivityResult) {
+					requireNotNull(ActivityRecognitionResult.extractResult(intent))
+				} else {
+					null
+				},
+				transitionResult = if (hasTransitionResult) {
+					requireNotNull(ActivityTransitionResult.extractResult(intent))
+				} else {
+					null
+				},
+				receivedElapsedRealtimeMillis = receivedElapsedRealtimeMillis,
+				receivedWallTimeMs = System.currentTimeMillis(),
+			)
+		}.getOrElse {
+			// An invalid provider payload is a permanent callback-boundary rejection.
+			callbackPermit?.complete()
+			return
+		}
 		val pendingResult = goAsync()
 		entryPoint.applicationScope().launch {
 			runBoundedActivityCallbackWork(
@@ -123,7 +136,12 @@ internal class ActivityReceiver : BroadcastReceiver() {
 				},
 				// Android supplies a PendingResult for a dispatched broadcast. Robolectric's direct
 				// receiver invocation may return null, so keep cleanup safe in that environment.
-				finish = { pendingResult?.finish() },
+				finish = {
+					// This permit tracks only process-local callback work. Durable admission retains its
+					// own result and is not implied by releasing the permit after bounded work unwinds.
+					callbackPermit?.complete()
+					pendingResult?.finish()
+				},
 			)
 		}
 	}
@@ -315,6 +333,7 @@ internal suspend fun admitActivityCallbackWithRetry(
 			}
 		}
 	}
+	// Permission revocation is an authoritative permanent rejection at the callback boundary.
 }
 
 internal suspend fun runBoundedActivityCallbackWork(

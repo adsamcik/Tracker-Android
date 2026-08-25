@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
@@ -56,8 +57,10 @@ class ProjectionDispatcherTest {
 		database.sourceProjectionStateDao().installProductLane(
 			SourceProductProjectionLaneEntity(
 				sourceKind = SourceKind.STEPS.stableCode,
+				bindingGeneration = 1L,
 				projectionId = "outbox",
 				projectionVersion = 1,
+				captureModeMask = CaptureReachabilityMode.MANUAL_SESSION_CAPTURE.mask,
 				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
 				activatedRolloutRevision = 3,
 				activationOrdinal = 1,
@@ -121,6 +124,36 @@ class ProjectionDispatcherTest {
 	}
 
 	@Test
+	fun `transient Activity projection failure retries despite non-retention and attempt limit`() = runTest {
+		val projection = TransientActivityProjection()
+		val subject = ProjectionDispatcher(database, setOf(projection))
+		subject.registerAll(1L)
+
+		val failed = subject.dispatch(event(1L))
+
+		failed.complete shouldBe false
+		failed.quarantined shouldBe emptyList()
+		failed.failures.single().cause::class shouldBe IllegalStateException::class
+		database.sourceProjectionStateDao().checkpoint(projection.id, projection.version)
+			?.contiguousAdmissionOrdinal shouldBe 0L
+		database.sourceProjectionStateDao().failure(projection.id, projection.version, 1L)?.also { failure ->
+			failure.attemptCount shouldBe 1
+			failure.terminal shouldBe false
+		}
+		database.sourceProjectionStateDao().pendingOutbox(10) shouldBe emptyList()
+
+		subject.dispatch(event(1L)).complete shouldBe true
+		subject.dispatch(event(1L)).complete shouldBe true
+
+		projection.applyCount shouldBe 2
+		database.sourceProjectionStateDao().checkpoint(projection.id, projection.version)
+			?.contiguousAdmissionOrdinal shouldBe 1L
+		database.sourceProjectionStateDao().failure(projection.id, projection.version, 1L) shouldBe null
+		database.sourceProjectionStateDao().pendingOutbox(10).map { it.stableId } shouldBe
+			listOf("transient-effect-event-1")
+	}
+
+	@Test
 	fun `generic projection remains strict when an ordinal is missing`() = runTest {
 		val projection = OutboxProjection()
 		val subject = ProjectionDispatcher(database, setOf(projection))
@@ -146,8 +179,12 @@ class ProjectionDispatcherTest {
 
 		terminal.complete shouldBe true
 		terminal.quarantined.single().attemptCount shouldBe 3
+		terminal.quarantined.single().failureCode shouldBe "TEST_DETERMINISTIC_POISON"
 		database.sourceProjectionStateDao().checkpoint("failing", 1)?.contiguousAdmissionOrdinal shouldBe 1L
-		database.sourceProjectionStateDao().failure("failing", 1, 1)?.terminal shouldBe true
+		database.sourceProjectionStateDao().failure("failing", 1, 1)?.also { failure ->
+			failure.terminal shouldBe true
+			failure.failureCode shouldBe "TEST_DETERMINISTIC_POISON"
+		}
 	}
 
 	@Test
@@ -227,7 +264,31 @@ private class FailingProjection : Projection {
 	override suspend fun apply(
 		event: AdmittedSourceEvent<out com.adsamcik.tracker.tracker.source.model.SourcePayload>,
 		context: ProjectionContext,
-	): Unit = error("expected")
+	): Unit = throw ProjectionPoisonException("TEST_DETERMINISTIC_POISON")
+}
+
+private class TransientActivityProjection : Projection {
+	override val id = "activity-transient"
+	override val version = 1
+	override val retentionRequired = false
+	override val maximumAttemptsPerEvent = 1
+	var applyCount = 0
+
+	override suspend fun apply(
+		event: AdmittedSourceEvent<out com.adsamcik.tracker.tracker.source.model.SourcePayload>,
+		context: ProjectionContext,
+	) {
+		applyCount++
+		if (applyCount == 1) error("transient")
+		context.recordOutbox(
+			ProjectionOutboxEffect(
+				stableId = "transient-effect-${event.eventId.value}",
+				kind = "test",
+				payloadVersion = 1,
+				payload = byteArrayOf(1),
+			),
+		)
+	}
 }
 
 private class RetentionProjection : Projection {

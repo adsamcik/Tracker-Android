@@ -10,9 +10,12 @@ import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjectionLane
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -20,10 +23,12 @@ import org.junit.Test
 class AutomaticStartTransitionMonitorTest {
 	private val arbiter = mockk<ActivityRegistrationArbiter>()
 	private val broker = mockk<SourceBroker>()
+	private val activityProjectionLane = mockk<ActivityAutomationProjectionLane>()
 	private val subject = AutomaticStartTransitionMonitor(
 		arbiter = arbiter,
 		sourceBroker = broker,
 		clockDomainProvider = BootClockDomainProvider { "boot:test" },
+		activityProjectionLane = activityProjectionLane,
 	)
 
 	@Test
@@ -54,6 +59,7 @@ class AutomaticStartTransitionMonitorTest {
 			arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
 		}
 		coVerify(exactly = 0) { arbiter.setDemand(any(), any()) }
+		coVerify(exactly = 0) { activityProjectionLane.ensureRegisteredAtLiveTail() }
 		result.status shouldBe ActivityRegistrationStatus.BLOCKED
 	}
 
@@ -73,11 +79,13 @@ class AutomaticStartTransitionMonitorTest {
 			broker.replaceAutomaticControlDemand(any(), SourceKind.ACTIVITY, false, any(), any(), any(), any(), any())
 		}
 		coVerify(exactly = 0) { arbiter.setDemand(any(), any()) }
+		coVerify(exactly = 0) { activityProjectionLane.ensureRegisteredAtLiveTail() }
 		result.status shouldBe ActivityRegistrationStatus.BLOCKED
 	}
 
 	@Test
 	fun `rollout-contained automatic demand clears the provider owner`() = runTest {
+		coEvery { activityProjectionLane.ensureRegisteredAtLiveTail() } returns Unit
 		coEvery { broker.replaceAutomaticControlDemand(any(), any(), true, any(), any(), any(), any(), any()) } returns null
 		coEvery { arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR) } returns cleared()
 
@@ -90,6 +98,7 @@ class AutomaticStartTransitionMonitorTest {
 
 		coVerify(exactly = 1) { arbiter.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR) }
 		coVerify(exactly = 0) { arbiter.setDemand(any(), any()) }
+		coVerify(exactly = 1) { activityProjectionLane.ensureRegisteredAtLiveTail() }
 		result.status shouldBe ActivityRegistrationStatus.BLOCKED
 	}
 
@@ -97,6 +106,7 @@ class AutomaticStartTransitionMonitorTest {
 	fun `reachable automatic capture keeps explicit transition control`() = runTest {
 		coEvery { broker.replaceAutomaticControlDemand(any(), any(), true, any(), any(), any(), any(), any()) } returns
 			mockk<SourceDemandEntity>()
+		coEvery { activityProjectionLane.ensureRegisteredAtLiveTail() } returns Unit
 		coEvery { arbiter.setDemand(any(), any()) } returns cleared()
 		val transition = walkingEnter()
 
@@ -107,12 +117,46 @@ class AutomaticStartTransitionMonitorTest {
 			transitions = setOf(transition),
 		)
 
-		coVerify(exactly = 1) {
+		coVerifyOrder {
+			activityProjectionLane.ensureRegisteredAtLiveTail()
+			broker.replaceAutomaticControlDemand(
+				any(),
+				SourceKind.ACTIVITY,
+				true,
+				any(),
+				any(),
+				any(),
+				any(),
+				any(),
+			)
 			arbiter.setDemand(
 				ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
 				match { it.continuousRecognitionIntervalSeconds == null && it.transitions == setOf(transition) },
 			)
 		}
+	}
+
+	@Test
+	fun `projection registration failure keeps provider unreachable for retry`() = runTest {
+		coEvery { broker.replaceAutomaticControlDemand(any(), any(), true, any(), any(), any(), any(), any()) } returns
+			mockk<SourceDemandEntity>()
+		coEvery { activityProjectionLane.ensureRegisteredAtLiveTail() } throws
+			IllegalStateException("projection storage unavailable")
+
+		shouldThrow<IllegalStateException> {
+			subject.reconcile(
+				enabled = true,
+				useTransitionApi = true,
+				continuousIntervalSeconds = 30,
+				transitions = setOf(walkingEnter()),
+			)
+		}
+
+		coVerify(exactly = 1) { activityProjectionLane.ensureRegisteredAtLiveTail() }
+		coVerify(exactly = 0) {
+			broker.replaceAutomaticControlDemand(any(), any(), any(), any(), any(), any(), any(), any())
+		}
+		coVerify(exactly = 0) { arbiter.setDemand(any(), any()) }
 	}
 
 	private fun walkingEnter() = ActivityTransitionData(

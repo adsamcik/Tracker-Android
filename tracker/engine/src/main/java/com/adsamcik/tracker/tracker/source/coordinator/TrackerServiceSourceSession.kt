@@ -33,12 +33,18 @@ data class TrackingSessionOwnership(
 		enabledEventSources.isNotEmpty() && containedSources.isNotEmpty()
 
 	companion object {
-		fun resolve(rollout: TrackingRolloutState, settings: TrackingParamsState): TrackingSessionOwnership {
+		fun resolve(
+			rollout: TrackingRolloutState,
+			settings: TrackingParamsState,
+			captureMode: CaptureReachabilityMode = CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+		): TrackingSessionOwnership {
 			require(rollout.sourceOwners.values.none { it == SourceOwner.LEGACY }) {
 				"Legacy source ownership is retired"
 			}
 			val configured = settings.enabledSemanticSources()
-			val reachable = configured.filterTo(linkedSetOf(), rollout::isAcquisitionReachable)
+			val reachable = configured.filterTo(linkedSetOf()) { source ->
+				rollout.isCaptureReachable(source, captureMode)
+			}
 			require(reachable.isEmpty() || rollout.coordinatorMode == CoordinatorMode.EVENT) {
 				"Source-native acquisition requires the event coordinator"
 			}
@@ -67,6 +73,7 @@ data class SourceSessionStartRequest(
 	val logicalTrackingId: String,
 	val serviceRunId: String,
 	val origin: SessionStartOrigin,
+	val captureMode: CaptureReachabilityMode = origin.defaultCaptureMode(),
 	val continuationAuthority: ServiceRunContinuationAuthority? = null,
 	val automaticTrigger: AutomaticTrackingStartTrigger? = null,
 	val foregroundCapabilityFlags: Long,
@@ -114,6 +121,7 @@ class TrackerServiceSourceSession @Inject constructor(
 	private val telemetry: TrackingCoordinatorTelemetry,
 	private val settingsStatusProvider: TrackingSettingsStatusProvider,
 	private val trackingStartupGateProvider: Provider<TrackingStartupGate>,
+	private val trackingRolloutStateStore: RoomTrackingRolloutStateStore,
 ) {
 	private val mutex = Mutex()
 	private var active: ActiveSession? = null
@@ -133,13 +141,17 @@ class TrackerServiceSourceSession @Inject constructor(
 		val planInputs = pendingInputs
 			?.takeIf { pending -> pending.isAtLeastAsCurrentAs(request.planInputs) }
 			?: request.planInputs
-		val ownership = TrackingSessionOwnership.resolve(request.rollout, planInputs.settings)
+		val ownership = TrackingSessionOwnership.resolve(
+			request.rollout,
+			planInputs.settings,
+			request.captureMode,
+		)
 		if (ownership.eventCoordinatorRequired &&
 			!trackingStartupGateProvider.get().isReadyGeneration(startupGeneration)
 		) {
 			return@withLock SessionStartPreparationResult.Rejected(STARTUP_RECOVERY_NOT_READY)
 		}
-		val plan = buildPlan(request.rollout, planInputs, requireEnabled = true)
+		val plan = buildPlan(request.rollout, request.captureMode, planInputs, requireEnabled = true)
 		coordinator.prepareAndroidStart(
 			SessionStartRequest(
 				ownerToken = request.ownerToken,
@@ -167,7 +179,7 @@ class TrackerServiceSourceSession @Inject constructor(
 		commandGeneration: Long,
 		planInputs: SourceSessionPlanInputs,
 	): SessionStartResult = mutex.withLock {
-		val rollout = RoomTrackingRolloutStateStore(database).load()
+		val rollout = trackingRolloutStateStore.load()
 		if (rollout.revision != database.sourceSessionDao().serviceRun(claim.serviceRunId)?.rolloutRevision) {
 			return@withLock SessionStartResult.InvalidRollout("PREPARED_START_ROLLOUT_STALE")
 		}
@@ -177,6 +189,7 @@ class TrackerServiceSourceSession @Inject constructor(
 			logicalTrackingId = claim.logicalTrackingId,
 			serviceRunId = claim.serviceRunId,
 			origin = claim.startOrigin,
+			captureMode = captureModeFor(claim.isUserInitiated, claim.isAmbient),
 			automaticTrigger = null,
 			foregroundCapabilityFlags = claim.desiredForegroundCapabilityFlags,
 			lastInputs = planInputs,
@@ -223,7 +236,11 @@ class TrackerServiceSourceSession @Inject constructor(
 		val planInputs = pendingInputs
 			?.takeIf { pending -> pending.isAtLeastAsCurrentAs(request.planInputs) }
 			?: request.planInputs
-		val ownership = TrackingSessionOwnership.resolve(request.rollout, planInputs.settings)
+		val ownership = TrackingSessionOwnership.resolve(
+			request.rollout,
+			planInputs.settings,
+			request.captureMode,
+		)
 		pendingInputs = null
 		val session = ActiveSession(
 			rollout = request.rollout,
@@ -231,6 +248,7 @@ class TrackerServiceSourceSession @Inject constructor(
 			logicalTrackingId = request.logicalTrackingId,
 			serviceRunId = request.serviceRunId,
 			origin = request.origin,
+			captureMode = request.captureMode,
 			automaticTrigger = request.automaticTrigger,
 			foregroundCapabilityFlags = request.foregroundCapabilityFlags,
 			lastInputs = planInputs,
@@ -302,10 +320,19 @@ class TrackerServiceSourceSession @Inject constructor(
 		}
 		if (session.lastInputs == inputs) return@withLock SourceSessionReconfigureOutcome.Unchanged
 		if (!session.coordinatorStarted) {
-			val ownership = TrackingSessionOwnership.resolve(session.rollout, inputs.settings)
+			val ownership = TrackingSessionOwnership.resolve(
+				session.rollout,
+				inputs.settings,
+				session.captureMode,
+			)
 			if (!ownership.eventCoordinatorRequired) {
 				session.lastInputs = inputs
-				settingsStatusProvider.publishActivePreview(inputs.settings, session.rollout, inputs)
+				settingsStatusProvider.publishActivePreview(
+					inputs.settings,
+					session.rollout,
+					inputs,
+					session.captureMode,
+				)
 				return@withLock SourceSessionReconfigureOutcome.Unchanged
 			}
 			session.lastInputs = inputs
@@ -321,7 +348,7 @@ class TrackerServiceSourceSession @Inject constructor(
 				)
 			}
 		}
-		val plan = buildPlan(session.rollout, inputs, requireEnabled = false)
+		val plan = buildPlan(session.rollout, session.captureMode, inputs, requireEnabled = false)
 		val result = coordinator.reconfigure(
 			SessionReconfigureRequest(
 				ownerToken = session.ownerToken,
@@ -420,7 +447,7 @@ class TrackerServiceSourceSession @Inject constructor(
 		session: ActiveSession,
 		inputs: SourceSessionPlanInputs,
 	): SessionStartResult {
-		val plan = buildPlan(session.rollout, inputs, requireEnabled = true)
+		val plan = buildPlan(session.rollout, session.captureMode, inputs, requireEnabled = true)
 		return coordinator.start(
 			SessionStartRequest(
 				ownerToken = session.ownerToken,
@@ -442,13 +469,14 @@ class TrackerServiceSourceSession @Inject constructor(
 
 	private suspend fun buildPlan(
 		rollout: TrackingRolloutState,
+		captureMode: CaptureReachabilityMode,
 		inputs: SourceSessionPlanInputs,
 		requireEnabled: Boolean,
 	): AcquisitionPlanRevision {
 		val revision = (database.sourcePlanStateDao().latestRevision()?.revision ?: 0L) + 1L
 		val desired = planFactory.create(inputs.settings, revision, Time.nowMillis, inputs.environment)
 		val captureDemands = desired.plans
-			.filter { (source, plan) -> plan.enabled && rollout.isAcquisitionReachable(source) }
+			.filter { (source, plan) -> plan.enabled && rollout.isCaptureReachable(source, captureMode) }
 			.map { (source, plan) ->
 				plan.directCaptureDemand(inputs.settings.captureQosCode(source))
 			}
@@ -457,9 +485,17 @@ class TrackerServiceSourceSession @Inject constructor(
 			inputs.demands + captureDemands,
 			inputs.resolutionContext,
 		)
-		settingsStatusProvider.publishResolved(inputs.settings, rollout, resolved)
+		val eventPlans = resolved.applicablePlans.filterKeys { source ->
+			rollout.isCaptureReachable(source, captureMode)
+		}
+		settingsStatusProvider.publishResolved(
+			inputs.settings,
+			rollout,
+			resolved,
+			captureMode,
+			eventPlans,
+		)
 		telemetry.recordPlanRevision()
-		val eventPlans = resolved.applicablePlans.filterKeys(rollout::isAcquisitionReachable)
 		if (requireEnabled) {
 			check(eventPlans.values.any { plan -> plan.enabled }) {
 				"Event session requires an enabled event-owned source"
@@ -480,11 +516,29 @@ class TrackerServiceSourceSession @Inject constructor(
 		val logicalTrackingId: String,
 		val serviceRunId: String,
 		val origin: SessionStartOrigin,
+		val captureMode: CaptureReachabilityMode,
 		val automaticTrigger: AutomaticTrackingStartTrigger?,
 		val foregroundCapabilityFlags: Long,
 		var lastInputs: SourceSessionPlanInputs,
 		var coordinatorStarted: Boolean,
 	)
+}
+
+internal fun captureModeFor(
+	isUserInitiated: Boolean,
+	isAmbient: Boolean,
+): CaptureReachabilityMode = when {
+	isAmbient -> CaptureReachabilityMode.AMBIENT
+	isUserInitiated -> CaptureReachabilityMode.MANUAL_SESSION_CAPTURE
+	else -> CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE
+}
+
+private fun SessionStartOrigin.defaultCaptureMode(): CaptureReachabilityMode = when (this) {
+	SessionStartOrigin.AUTOMATIC_BACKGROUND_START -> CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE
+	SessionStartOrigin.MANUAL_FOREGROUND_START,
+	SessionStartOrigin.RECOVERY,
+	SessionStartOrigin.POLICY_RECONCILIATION,
+	-> CaptureReachabilityMode.MANUAL_SESSION_CAPTURE
 }
 
 private const val STARTUP_RECOVERY_NOT_READY = "STARTUP_RECOVERY_NOT_READY"

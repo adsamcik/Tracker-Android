@@ -287,6 +287,7 @@ class SourcePipelineRecoveryTest {
 			listOf(effect),
 			listOf(effect),
 		)
+		coEvery { dao.deleteFailure(any(), any(), any()) } returns 0
 		coEvery { dao.markOutboxDelivered(any(), any()) } returns 1
 		coEvery { activityLane.drainThrough(9L) } returns CoordinatorDrainResult.Complete(9L, 1)
 		var authorityReady = false
@@ -328,6 +329,7 @@ class SourcePipelineRecoveryTest {
 		every { database.sourceProjectionStateDao() } returns dao
 		coEvery { validator.validate(any()) } returns ActivityAutomationEffectValidation.Eligible(8, 3)
 		coEvery { dao.pendingOutbox(any(), any(), any(), any()) } returns listOf(effect)
+		coEvery { dao.deleteFailure(any(), any(), any()) } returns 0
 		coEvery { dao.markOutboxTerminal(any(), any(), any()) } returns 1
 		coEvery { activityLane.drainThrough(9L) } returns CoordinatorDrainResult.Complete(9L, 1)
 		val contexts = mutableListOf<ActivityAutomationStartContext>()
@@ -374,6 +376,7 @@ class SourcePipelineRecoveryTest {
 		every { database.sourceProjectionStateDao() } returns dao
 		coEvery { validator.validate(any()) } returns ActivityAutomationEffectValidation.Eligible(8, 3)
 		coEvery { dao.pendingOutbox(any(), any(), any(), any()) } returns listOf(effect)
+		coEvery { dao.deleteFailure(any(), any(), any()) } returns 0
 		coEvery { activityLane.drainThrough(9L) } returns CoordinatorDrainResult.Complete(9L, 1)
 		coEvery { consumer.deliver(any(), any(), any(), any(), any()) } returns
 			ActivityAutomationDeliveryResult.RETRY

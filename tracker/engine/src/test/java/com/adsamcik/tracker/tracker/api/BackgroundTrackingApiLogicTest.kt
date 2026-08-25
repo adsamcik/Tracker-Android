@@ -23,7 +23,14 @@ import org.junit.jupiter.api.Test
 @DisplayName("BackgroundTrackingApi Logic")
 class BackgroundTrackingApiLogicTest {
 	@Test
-	fun `automatic control recovery accepts applied and still-active degraded registration`() {
+	fun `live control authority refreshes on policy revision or consent epoch rotation`() {
+		automaticControlAuthorityChanged(5L, 8L, 6L, 8L) shouldBe true
+		automaticControlAuthorityChanged(5L, 8L, 6L, 9L) shouldBe true
+		automaticControlAuthorityChanged(5L, 8L, 5L, 8L) shouldBe false
+	}
+
+	@Test
+	fun `automatic control recovery accepts applied and only terminally degraded registration`() {
 		automaticControlRecoveryResult(
 			activityRegistrationResult(ActivityRegistrationStatus.APPLIED),
 		) shouldBe AutomaticControlRecoveryResult.ACCEPTED
@@ -31,9 +38,44 @@ class BackgroundTrackingApiLogicTest {
 			activityRegistrationResult(
 				status = ActivityRegistrationStatus.DEGRADED,
 				failureCode = ActivityRegistrationFailureCode.PROVIDER_REGISTRATION_FAILED,
-				retryable = true,
+				retryable = false,
 			),
 		) shouldBe AutomaticControlRecoveryResult.ACCEPTED
+	}
+
+	@Test
+	fun `automatic control recovery does not accept retryable callback metadata degradation`() {
+		automaticControlRecoveryResult(
+			activityRegistrationResult(
+				status = ActivityRegistrationStatus.DEGRADED,
+				failureCode = ActivityRegistrationFailureCode.CALLBACK_METADATA_UPDATE_FAILED,
+				retryable = true,
+			),
+		) shouldBe AutomaticControlRecoveryResult.RETRYABLE
+	}
+
+	@Test
+	fun `retryable reinitialize retains an existing registration but not a failed initial enable`() {
+		val refreshPending = automaticControlRecoveryResult(
+			activityRegistrationResult(
+				status = ActivityRegistrationStatus.DEGRADED,
+				failureCode = ActivityRegistrationFailureCode.AUTHORIZATION_REFRESH_PENDING,
+				retryable = true,
+			),
+		)
+
+		shouldRetainAutomaticControlAfterReinitializeFailure(
+			hadActiveRegistration = true,
+			recoveryResult = refreshPending,
+		) shouldBe true
+		shouldRetainAutomaticControlAfterReinitializeFailure(
+			hadActiveRegistration = false,
+			recoveryResult = refreshPending,
+		) shouldBe false
+		shouldRetainAutomaticControlAfterReinitializeFailure(
+			hadActiveRegistration = true,
+			recoveryResult = AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED,
+		) shouldBe false
 	}
 
 	@Test

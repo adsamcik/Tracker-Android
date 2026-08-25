@@ -17,6 +17,9 @@ import com.adsamcik.tracker.shared.preferences.tracking.SourcePurpose
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
+import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.model.ActivityAcquisitionCapability
 import com.adsamcik.tracker.tracker.source.model.ActivityAcquisitionFloor
@@ -39,16 +42,12 @@ import org.robolectric.annotation.Config
 class SourceBrokerTest {
 	private lateinit var database: AppDatabase
 	private lateinit var subject: SourceBroker
+	private lateinit var rolloutStore: RoomTrackingRolloutStateStore
 	private var elapsed = 10L
 
 	@Before
 	fun setUp() {
-		val context: Application = ApplicationProvider.getApplicationContext()
-		database = AppDatabase.testDatabase(context)
-		subject = SourceBroker(database)
-		runBlocking {
-			activateAllBrokerTestProductLanes(database)
-		}
+		resetBroker(setOf(CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE))
 	}
 
 	@After
@@ -110,13 +109,16 @@ class SourceBrokerTest {
 	}
 
 	@Test
-	fun `Steps capture rollout admits Activity control without admitting Activity capture`() = runTest {
+	fun `automatic Steps capture rollout admits Activity control without admitting Activity capture`() = runTest {
 		val rollout = TrackingRolloutState.eventShadow(
 			sources = setOf(SourceKind.STEPS),
 			revision = 7L,
 			controlSources = setOf(SourceKind.ACTIVITY),
+			captureModes = mapOf(
+				SourceKind.STEPS to setOf(CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE),
+			),
 		)
-		RoomTrackingRolloutStateStore(database).save(rollout, updatedAtMs = 7L)
+		rolloutStore.save(rollout, updatedAtMs = 7L)
 		val policy = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
 		}
@@ -166,6 +168,41 @@ class SourceBrokerTest {
 	}
 
 	@Test
+	fun `manual-only Steps rollout cannot admit Activity automatic control`() = runTest {
+		resetBroker(setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE))
+		val policy = RoomSourcePolicyRepository(database) {
+			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
+		}
+		val initial = policy.bootstrapFromLegacy(
+			TrackingParamsState(
+				stepsEnabled = true,
+				legacySettingsMigrationCompleted = true,
+			),
+		)
+		policy.setNonCaptureConsent(
+			expectedPolicyRevision = initial.revision,
+			source = TrackingSourceComponent.ACTIVITY,
+			purpose = SourcePurpose.CONTROL,
+			eligible = true,
+			persistenceEligible = false,
+			reason = "TEST_MANUAL_ONLY_ACTIVITY_CONTROL",
+		)
+
+		subject.replaceAutomaticControlDemand(
+			consumerId = "app:automation:activity",
+			source = SourceKind.ACTIVITY,
+			enabled = true,
+			bootId = "boot-1",
+			elapsedRealtimeNanos = 100L,
+			wallTimeMs = 100L,
+			maximumAgeMs = 30_000L,
+			desiredLatencyMs = 5_000L,
+		) shouldBe null
+		database.sourceBrokerDao().currentDemands("app:automation:activity") shouldBe emptyList()
+		database.activityAutomationEpochDao().current()?.automaticControlEnabled shouldBe false
+	}
+
+	@Test
 	fun `contained rollout retires stale automatic control and authorizes no replacement`() = runTest {
 		val policy = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime("boot-1", elapsed++, elapsed)
@@ -191,7 +228,7 @@ class SourceBrokerTest {
 			maximumAgeMs = 30_000L,
 			desiredLatencyMs = 5_000L,
 		))
-		RoomTrackingRolloutStateStore(database).save(
+		rolloutStore.save(
 			TrackingRolloutState.contained(revision = 7L),
 			updatedAtMs = 7L,
 		)
@@ -586,18 +623,42 @@ class SourceBrokerTest {
 		persistenceEligible = persistenceEligible,
 		qosCode = 2,
 	)
+
+	private fun resetBroker(captureModes: Set<CaptureReachabilityMode>) {
+		if (::database.isInitialized) database.close()
+		val context: Application = ApplicationProvider.getApplicationContext()
+		database = AppDatabase.testDatabase(context)
+		rolloutStore = runBlocking {
+			activateAllBrokerTestProductLanes(database, captureModes)
+		}
+		subject = SourceBroker(database, rolloutStore)
+	}
 }
 
-private suspend fun activateAllBrokerTestProductLanes(database: AppDatabase) {
-	val store = RoomTrackingRolloutStateStore(database)
-	SourceKind.entries.forEachIndexed { index, source ->
-		val revision = index + 1L
-		store.installAndActivateShadowLane(
+private suspend fun activateAllBrokerTestProductLanes(
+	database: AppDatabase,
+	captureModes: Set<CaptureReachabilityMode>,
+): RoomTrackingRolloutStateStore {
+	val bindings = SourceKind.entries.map { source ->
+		ExecutableSourceLaneBinding(
 			source = source,
+			bindingGeneration = 1L,
 			projectionId = "broker-test-${source.name.lowercase()}-product",
 			projectionVersion = 1,
+			captureModes = captureModes,
+		)
+	}
+	val store = RoomTrackingRolloutStateStore(
+		database,
+		ExecutableSourceLaneCatalog.explicit(*bindings.toTypedArray()),
+	)
+	bindings.forEachIndexed { index, binding ->
+		val revision = index + 1L
+		store.installAndActivateShadowLane(
+			binding = binding,
 			rolloutRevision = revision,
 			updatedAtMs = revision,
 		)
 	}
+	return store
 }

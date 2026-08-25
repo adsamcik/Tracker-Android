@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 28,
-    "identityHash": "4f6c855e72120b5d65bac78348c1d9e0",
+    "identityHash": "5d5bd94fbcebb6d95e6c1b9f2665f05d",
     "entities": [
       {
         "tableName": "activity",
@@ -2091,6 +2091,17 @@
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_source_event_wal_retention` ON `${TABLE_NAME}` (`created_at_ms`, `admission_ordinal`)"
           },
           {
+            "name": "idx_source_event_wal_source_retention",
+            "unique": false,
+            "columnNames": [
+              "source_kind",
+              "created_at_ms",
+              "admission_ordinal"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_source_event_wal_source_retention` ON `${TABLE_NAME}` (`source_kind`, `created_at_ms`, `admission_ordinal`)"
+          },
+          {
             "name": "idx_source_event_wal_delivery_unit",
             "unique": true,
             "columnNames": [
@@ -2107,11 +2118,17 @@
       },
       {
         "tableName": "source_product_projection_lane",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`source_kind` INTEGER NOT NULL, `projection_id` TEXT NOT NULL, `projection_version` INTEGER NOT NULL, `product_stage` TEXT NOT NULL, `activated_rollout_revision` INTEGER NOT NULL, `activation_ordinal` INTEGER NOT NULL, `contiguous_admission_ordinal` INTEGER NOT NULL, `retention_required` INTEGER NOT NULL, `status` TEXT NOT NULL, `installed_at_ms` INTEGER NOT NULL, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`source_kind`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`source_kind` INTEGER NOT NULL, `binding_generation` INTEGER NOT NULL, `projection_id` TEXT NOT NULL, `projection_version` INTEGER NOT NULL, `capture_mode_mask` INTEGER NOT NULL, `product_stage` TEXT NOT NULL, `activated_rollout_revision` INTEGER NOT NULL, `activation_ordinal` INTEGER NOT NULL, `contiguous_admission_ordinal` INTEGER NOT NULL, `capture_admission_cutoff_ordinal` INTEGER, `retention_required` INTEGER NOT NULL, `status` TEXT NOT NULL, `terminal_disposition` TEXT, `terminal_at_ms` INTEGER, `installed_at_ms` INTEGER NOT NULL, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`source_kind`, `binding_generation`))",
         "fields": [
           {
             "fieldPath": "sourceKind",
             "columnName": "source_kind",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bindingGeneration",
+            "columnName": "binding_generation",
             "affinity": "INTEGER",
             "notNull": true
           },
@@ -2124,6 +2141,12 @@
           {
             "fieldPath": "projectionVersion",
             "columnName": "projection_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "captureModeMask",
+            "columnName": "capture_mode_mask",
             "affinity": "INTEGER",
             "notNull": true
           },
@@ -2152,6 +2175,11 @@
             "notNull": true
           },
           {
+            "fieldPath": "captureAdmissionCutoffOrdinal",
+            "columnName": "capture_admission_cutoff_ordinal",
+            "affinity": "INTEGER"
+          },
+          {
             "fieldPath": "retentionRequired",
             "columnName": "retention_required",
             "affinity": "INTEGER",
@@ -2162,6 +2190,16 @@
             "columnName": "status",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "terminalDisposition",
+            "columnName": "terminal_disposition",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "terminalAtMs",
+            "columnName": "terminal_at_ms",
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "installedAtMs",
@@ -2179,19 +2217,20 @@
         "primaryKey": {
           "autoGenerate": false,
           "columnNames": [
-            "source_kind"
+            "source_kind",
+            "binding_generation"
           ]
         },
         "indices": [
           {
             "name": "idx_source_product_projection_lane_identity",
-            "unique": true,
+            "unique": false,
             "columnNames": [
               "projection_id",
               "projection_version"
             ],
             "orders": [],
-            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_source_product_projection_lane_identity` ON `${TABLE_NAME}` (`projection_id`, `projection_version`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_source_product_projection_lane_identity` ON `${TABLE_NAME}` (`projection_id`, `projection_version`)"
           },
           {
             "name": "idx_source_product_projection_lane_retention",
@@ -4773,7 +4812,7 @@
       },
       {
         "tableName": "provider_registration_generation",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`source_kind` INTEGER NOT NULL, `registration_generation` INTEGER NOT NULL, `source_instance_id` TEXT NOT NULL, `owner_scope` TEXT NOT NULL, `clock_domain_id` TEXT NOT NULL, `physical_configuration_fingerprint` TEXT NOT NULL, `collected_data_epoch` INTEGER NOT NULL, `provider_residency` TEXT NOT NULL, `provider_process_incarnation_id` TEXT, `status` TEXT NOT NULL, `reserved_at_ms` INTEGER NOT NULL, `reserved_elapsed_realtime_nanos` INTEGER NOT NULL, `accepted_at_ms` INTEGER, `accepted_elapsed_realtime_nanos` INTEGER, `retired_at_ms` INTEGER, `retired_elapsed_realtime_nanos` INTEGER, `failure_code` TEXT, PRIMARY KEY(`source_kind`, `registration_generation`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`source_kind` INTEGER NOT NULL, `registration_generation` INTEGER NOT NULL, `source_instance_id` TEXT NOT NULL, `owner_scope` TEXT NOT NULL, `clock_domain_id` TEXT NOT NULL, `physical_configuration_fingerprint` TEXT NOT NULL, `collected_data_epoch` INTEGER NOT NULL, `provider_residency` TEXT NOT NULL, `provider_process_incarnation_id` TEXT, `status` TEXT NOT NULL, `reserved_at_ms` INTEGER NOT NULL, `reserved_elapsed_realtime_nanos` INTEGER NOT NULL, `accepted_at_ms` INTEGER, `accepted_elapsed_realtime_nanos` INTEGER, `retired_at_ms` INTEGER, `retired_elapsed_realtime_nanos` INTEGER, `failure_code` TEXT, `capture_callback_barrier_authorization_revision` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`source_kind`, `registration_generation`))",
         "fields": [
           {
             "fieldPath": "sourceKind",
@@ -4870,6 +4909,13 @@
             "fieldPath": "failureCode",
             "columnName": "failure_code",
             "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "captureCallbackBarrierAuthorizationRevision",
+            "columnName": "capture_callback_barrier_authorization_revision",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
           }
         ],
         "primaryKey": {
@@ -7091,7 +7137,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '4f6c855e72120b5d65bac78348c1d9e0')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '5d5bd94fbcebb6d95e6c1b9f2665f05d')"
     ]
   }
 }

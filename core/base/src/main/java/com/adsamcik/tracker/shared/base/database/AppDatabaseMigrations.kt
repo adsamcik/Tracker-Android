@@ -1428,25 +1428,34 @@ val MIGRATION_27_28: Migration = object : Migration(
 					"clock_domain_id, delivery_identity, delivery_unit_index)",
 			)
 			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_source_event_wal_source_retention " +
+					"ON source_event_wal(source_kind, created_at_ms, admission_ordinal)",
+			)
+			execSQL(
 				"""
 				CREATE TABLE IF NOT EXISTS source_product_projection_lane (
 					source_kind INTEGER NOT NULL,
+					binding_generation INTEGER NOT NULL,
 					projection_id TEXT NOT NULL,
 					projection_version INTEGER NOT NULL,
+					capture_mode_mask INTEGER NOT NULL,
 					product_stage TEXT NOT NULL,
 					activated_rollout_revision INTEGER NOT NULL,
 					activation_ordinal INTEGER NOT NULL,
 					contiguous_admission_ordinal INTEGER NOT NULL,
+					capture_admission_cutoff_ordinal INTEGER,
 					retention_required INTEGER NOT NULL,
 					status TEXT NOT NULL,
+					terminal_disposition TEXT,
+					terminal_at_ms INTEGER,
 					installed_at_ms INTEGER NOT NULL,
 					updated_at_ms INTEGER NOT NULL,
-					PRIMARY KEY(source_kind)
+					PRIMARY KEY(source_kind, binding_generation)
 				)
 				""".trimIndent(),
 			)
 			execSQL(
-				"CREATE UNIQUE INDEX IF NOT EXISTS idx_source_product_projection_lane_identity " +
+				"CREATE INDEX IF NOT EXISTS idx_source_product_projection_lane_identity " +
 					"ON source_product_projection_lane(projection_id, projection_version)",
 			)
 			execSQL(
@@ -1841,6 +1850,7 @@ val MIGRATION_27_28: Migration = object : Migration(
 					retired_at_ms INTEGER,
 					retired_elapsed_realtime_nanos INTEGER,
 					failure_code TEXT,
+					capture_callback_barrier_authorization_revision INTEGER NOT NULL DEFAULT 0,
 					PRIMARY KEY(source_kind, registration_generation)
 				)
 				""".trimIndent(),

@@ -10,6 +10,7 @@ import com.adsamcik.tracker.app.settings.CollectedDataWriterQuiescer
 import com.adsamcik.tracker.app.settings.DefaultCollectedDataDeletionService
 import com.adsamcik.tracker.app.settings.DefaultCollectedDataWriterQuiescer
 import com.adsamcik.tracker.app.settings.PostDeletionAutomaticControlRestorer
+import com.adsamcik.tracker.app.receiver.BootTrackingRecoveryScheduler
 import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbiter
 import com.adsamcik.tracker.impexp.exporter.automation.ExportAutomationController
@@ -59,6 +60,7 @@ import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.shared.base.time.Clock
 import com.adsamcik.tracker.shared.base.time.SystemClock
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
+import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryScheduler
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
 import com.adsamcik.tracker.shared.base.location.DefaultUiLocationProvider
 import com.adsamcik.tracker.shared.base.location.UiLocationProvider
@@ -106,6 +108,12 @@ object InfrastructureModule {
     @Provides
     @Singleton
     fun provideDispatchersProvider(): DispatchersProvider = DefaultDispatchersProvider
+
+    @Provides
+    @Singleton
+    fun provideAutomaticControlRecoveryScheduler(
+        scheduler: BootTrackingRecoveryScheduler,
+    ): AutomaticControlRecoveryScheduler = scheduler
 
     /**
      * Provides the IO dispatcher for database/file operations.

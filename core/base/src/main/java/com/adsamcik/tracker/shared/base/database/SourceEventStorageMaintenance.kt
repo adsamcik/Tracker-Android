@@ -35,9 +35,11 @@ suspend fun AppDatabase.liveSourceProjectionActivationOrdinal(): Long {
 }
 
 /**
- * Removes source-event rows only after every active projection and durable join has advanced past
- * them. Deletes are intentionally bounded so weekly maintenance cannot hold the SQLite writer for
- * an unbounded transaction after a long offline period.
+ * Removes source-event rows only after every global projection, durable join, legacy recovery
+ * consumer, and retaining product lane for that row's source has advanced past them. Product-lane
+ * retention is source-local: a stalled Steps lane must not pin Location, Wi-Fi, or another source.
+ * Deletes are intentionally bounded so weekly maintenance cannot hold the SQLite writer for an
+ * unbounded transaction after a long offline period.
  */
 suspend fun AppDatabase.pruneSourceEventStorageBefore(
 	createdBeforeMs: Long,
@@ -54,37 +56,67 @@ suspend fun AppDatabase.pruneSourceEventStorageBefore(
 			try {
 				val projectionDao = sourceProjectionStateDao()
 				val checkpoint = projectionDao.minimumRequiredCheckpoint()
-				val productLaneCheckpoint = projectionDao.minimumRequiredProductLaneCheckpoint()
 				val joinBoundary = projectionDao.minimumJoinRequiredOrdinal()
 				val legacyDao = legacyV27ProjectionDrainDao()
-				val safeOrdinal = listOfNotNull(
+				val globalRetentionBoundary = listOfNotNull(
 					checkpoint,
-					productLaneCheckpoint,
 					joinBoundary?.minus(1L),
 					legacyDao.minimumPendingOrdinal()?.minus(1L),
 					legacyDao.minimumPendingOutboxOrdinal()?.minus(1L),
 					legacyDao.minimumBlockedWalOrdinal()?.minus(1L),
-				).minOrNull() ?: return@withTransaction SourceEventStoragePruneResult(0, 0)
-				if (safeOrdinal <= 0L) {
+				).minOrNull()
+				// No retaining consumer means every admitted ordinal is eligible for the ordinary
+				// age fence. Use the durable high-water instead of returning early so optional,
+				// non-retaining control projections cannot turn the raw WAL into permanent storage.
+				val globalSafeOrdinal = globalRetentionBoundary
+					?: (liveSourceProjectionActivationOrdinal() - 1L)
+				if (globalSafeOrdinal <= 0L) {
 					return@withTransaction SourceEventStoragePruneResult(0, 0)
 				}
 				val walDao = sourceEventWalDao()
-				val firstNonPrunable = walDao.firstNonPrunableOrdinal(safeOrdinal, createdBeforeMs)
-				val pruneThroughOrdinal = firstNonPrunable?.minus(1L) ?: safeOrdinal
-				if (pruneThroughOrdinal <= 0L) {
-					return@withTransaction SourceEventStoragePruneResult(0, 0)
+				var remainingWalLimit = batchSize
+				var remainingEffectLimit = batchSize
+				var deletedWal = 0
+				var deletedEffects = 0
+				walDao.sourceKindsThrough(globalSafeOrdinal).forEach { sourceKind ->
+					val productLaneCheckpoint =
+						projectionDao.minimumRequiredProductLaneCheckpoint(sourceKind)
+					val sourceSafeOrdinal = minOf(
+						globalSafeOrdinal,
+						productLaneCheckpoint ?: globalSafeOrdinal,
+					)
+					if (sourceSafeOrdinal <= 0L) return@forEach
+					if (remainingEffectLimit > 0) {
+						val sourceEffects = projectionDao.deleteDeliveredOutboxForSourceBatch(
+							sourceKind = sourceKind,
+							safeOrdinal = sourceSafeOrdinal,
+							deliveredBeforeMs = createdBeforeMs,
+							limit = remainingEffectLimit,
+						)
+						deletedEffects += sourceEffects
+						remainingEffectLimit -= sourceEffects
+					}
+					if (remainingWalLimit > 0) {
+						val sourceWal = walDao.deleteProjectedSourceBatch(
+							sourceKind = sourceKind,
+							safeOrdinal = sourceSafeOrdinal,
+							createdBeforeMs = createdBeforeMs,
+							limit = remainingWalLimit,
+						)
+						deletedWal += sourceWal
+						remainingWalLimit -= sourceWal
+					}
 				}
-				val deleted = walDao.deleteContiguousPrefixBatch(
-					pruneThroughOrdinal = pruneThroughOrdinal,
-					limit = batchSize,
-				)
-				SourceEventStoragePruneResult(
-					walEventsDeleted = deleted,
-					deliveredEffectsDeleted = projectionDao.deleteDeliveredOutboxBatch(
-						safeOrdinal = safeOrdinal,
+				if (remainingEffectLimit > 0) {
+					deletedEffects += projectionDao.deleteOrphanedDeliveredOutboxBatch(
+						safeOrdinal = globalSafeOrdinal,
 						deliveredBeforeMs = createdBeforeMs,
-						limit = batchSize,
-					),
+						limit = remainingEffectLimit,
+					)
+				}
+				SourceEventStoragePruneResult(
+					walEventsDeleted = deletedWal,
+					deliveredEffectsDeleted = deletedEffects,
 				)
 			} finally {
 				// Throwing here aborts the Room transaction instead of committing work

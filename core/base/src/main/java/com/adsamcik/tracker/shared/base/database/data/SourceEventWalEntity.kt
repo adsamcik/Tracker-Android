@@ -33,6 +33,10 @@ import java.security.MessageDigest
 			name = "idx_source_event_wal_retention",
 		),
 		Index(
+			value = ["source_kind", "created_at_ms", "admission_ordinal"],
+			name = "idx_source_event_wal_source_retention",
+		),
+		Index(
 			value = [
 				"source_kind",
 				"captured_collected_data_epoch",

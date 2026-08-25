@@ -49,7 +49,7 @@ import com.adsamcik.tracker.tracker.service.ForegroundSourceCapabilities
 import com.adsamcik.tracker.tracker.service.acceptedForegroundSources
 import com.adsamcik.tracker.tracker.service.configuredForegroundSources
 import com.adsamcik.tracker.tracker.service.foregroundServiceTypeCandidates
-import com.adsamcik.tracker.tracker.service.rolloutReachableCaptureSources
+import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.SessionStartOrigin
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
@@ -89,6 +89,7 @@ interface BackgroundTrackingApiEntryPoint {
 	fun trackingParamsRepository(): TrackingParamsRepository
 	fun sourcePolicyRepository(): SourcePolicyRepository
 	fun activityWatcherController(): ActivityWatcherController
+	fun automaticControlRecoveryScheduler(): AutomaticControlRecoveryScheduler
 	fun trackingStartupGate(): TrackingStartupGate
 	fun trackingRolloutStateStore(): RoomTrackingRolloutStateStore
 }
@@ -100,6 +101,11 @@ enum class AutomaticControlRecoveryResult {
 	TERMINAL_DISABLED_OR_CONTAINED,
 	/** Storage, startup, provider registration, or cleanup may succeed on a later bounded attempt. */
 	RETRYABLE,
+}
+
+/** Durable, unique retry owner for transient automatic-control and projection recovery. */
+fun interface AutomaticControlRecoveryScheduler {
+	fun enqueue()
 }
 
 /**
@@ -481,6 +487,7 @@ object BackgroundTrackingApi {
 		context: Context,
 		useTransitionApi: Boolean,
 		recoveryCompletion: CompletableDeferred<AutomaticControlRecoveryResult>? = null,
+		hadActiveRegistration: Boolean = isActive,
 	) {
 		val generation = ++requestMutationGeneration
 		val monitor = getEntryPoint(context).automaticStartTransitionMonitor()
@@ -495,9 +502,9 @@ object BackgroundTrackingApi {
 					transitions = buildTransitions().toSet(),
 				)
 				recoveryResult = automaticControlRecoveryResult(result)
-				check(result.status == ActivityRegistrationStatus.APPLIED ||
-					result.status == ActivityRegistrationStatus.DEGRADED
-				) { "Unable to apply background activity recognition request: ${result.failureCode}" }
+				check(recoveryResult == AutomaticControlRecoveryResult.ACCEPTED) {
+					"Unable to arm background activity recognition request: ${result.failureCode}"
+				}
 				if (generation != requestMutationGeneration || !isActive) {
 					recoveryResult = if (isActive) {
 						AutomaticControlRecoveryResult.RETRYABLE
@@ -523,7 +530,12 @@ object BackgroundTrackingApi {
 				if (recoveryResult == AutomaticControlRecoveryResult.ACCEPTED) {
 					recoveryResult = AutomaticControlRecoveryResult.RETRYABLE
 				}
-				if (generation == requestMutationGeneration && isActive) {
+				val retainExistingRegistration =
+					shouldRetainAutomaticControlAfterReinitializeFailure(
+						hadActiveRegistration = hadActiveRegistration,
+						recoveryResult = recoveryResult,
+					)
+				if (generation == requestMutationGeneration && isActive && !retainExistingRegistration) {
 					isActive = false
 					val cleanupGeneration = ++requestMutationGeneration
 					recognitionUpdatesJob?.cancel()
@@ -564,6 +576,11 @@ object BackgroundTrackingApi {
 				if (recoveryResult == AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED) {
 					return@enqueueRequestMutation
 				}
+				if (recoveryCompletion == null) {
+					// Desired state remains durable. The unique WorkManager owner gives optional
+					// automatic control a small retry budget without disturbing an existing provider.
+					getEntryPoint(context).automaticControlRecoveryScheduler().enqueue()
+				}
 				throw exception
 			} finally {
 				recoveryCompletion?.complete(recoveryResult)
@@ -590,11 +607,13 @@ object BackgroundTrackingApi {
 		context: Context,
 		recoveryCompletion: CompletableDeferred<AutomaticControlRecoveryResult>? = null,
 	) {
+		val hadActiveRegistration = isActive
 		isActive = true
 		reinitializeRequest(
 			context,
 			cachedParamsSnapshot().transitionDetectionEnabled,
 			recoveryCompletion,
+			hadActiveRegistration,
 		)
 	}
 
@@ -642,6 +661,9 @@ object BackgroundTrackingApi {
 				throw exception
 			} catch (exception: Exception) {
 				recoveryResult = AutomaticControlRecoveryResult.RETRYABLE
+				if (recoveryCompletion == null) {
+					getEntryPoint(context).automaticControlRecoveryScheduler().enqueue()
+				}
 				throw exception
 			} finally {
 				recoveryCompletion?.complete(recoveryResult)
@@ -684,21 +706,25 @@ object BackgroundTrackingApi {
 		sourcePolicyJob = entryPoint.sourcePolicyRepository().states
 			.onEach { authority ->
 				val snapshot = (authority as? SourcePolicyAuthorityState.Active)?.snapshot
-				activeSourcePolicyRevision = null
-				activityControlConsentEpoch = null
-				publishActivityAutomationAuthority()
+				val nextPolicyRevision = snapshot?.revision
+				val nextActivityConsentEpoch = snapshot
+					?.get(TrackingSourceComponent.ACTIVITY)
+					?.controlConsentEpoch
+				val authorityChanged = automaticControlAuthorityChanged(
+					previousPolicyRevision = activeSourcePolicyRevision,
+					previousConsentEpoch = activityControlConsentEpoch,
+					nextPolicyRevision = nextPolicyRevision,
+					nextConsentEpoch = nextActivityConsentEpoch,
+				)
+				activeSourcePolicyRevision = nextPolicyRevision
+				activityControlConsentEpoch = nextActivityConsentEpoch
 				reconcileControlEligibility(
-					activityEligible = snapshot
-						?.get(TrackingSourceComponent.ACTIVITY)
-						?.controlConsentEpoch != null,
+					activityEligible = nextActivityConsentEpoch != null,
 					stepEligible = snapshot
 						?.get(TrackingSourceComponent.STEPS)
 						?.controlConsentEpoch != null,
+					activityAuthorityChanged = authorityChanged,
 				)
-				activityControlConsentEpoch = snapshot
-					?.get(TrackingSourceComponent.ACTIVITY)
-					?.controlConsentEpoch
-				activeSourcePolicyRevision = snapshot?.revision
 				publishActivityAutomationAuthority()
 			}
 			.retryWhen { error, _ ->
@@ -842,7 +868,11 @@ object BackgroundTrackingApi {
 		}
 	}
 
-	private fun reconcileControlEligibility(activityEligible: Boolean, stepEligible: Boolean) {
+	private fun reconcileControlEligibility(
+		activityEligible: Boolean,
+		stepEligible: Boolean,
+		activityAuthorityChanged: Boolean = false,
+	) {
 		val previousActivityEligibility = activityControlEligible
 		val previousStepEligibility = stepControlEligible
 		activityControlEligible = activityEligible
@@ -852,6 +882,9 @@ object BackgroundTrackingApi {
 			!activityEligible && isActive ->
 				handleTrackingActivityPreferenceChange(cachedParamsSnapshot().autoTrackingMode)
 			activityEligible && !previousActivityEligibility && paramsInitialized ->
+				handleTrackingActivityPreferenceChange(cachedParamsSnapshot().autoTrackingMode)
+			activityEligible && previousActivityEligibility && activityAuthorityChanged &&
+				paramsInitialized ->
 				handleTrackingActivityPreferenceChange(cachedParamsSnapshot().autoTrackingMode)
 			isActive && previousStepEligibility != stepEligible &&
 				!cachedParamsSnapshot().transitionDetectionEnabled ->
@@ -1077,7 +1110,9 @@ internal fun activityAutomaticStartPlan(
 ): ActivityAutomaticStartPlan {
 	val requested = configuredForegroundSources(params)
 	val accepted = acceptedForegroundSources(
-		requestedSources = rolloutReachableCaptureSources(requested, rollout),
+		requestedSources = requested.filterTo(linkedSetOf()) { source ->
+			rollout.isCaptureReachable(source, CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE)
+		},
 		capabilities = ForegroundSourceCapabilities(
 			sdkInt = Build.VERSION.SDK_INT,
 			startOrigin = SessionStartOrigin.AUTOMATIC_BACKGROUND_START,
@@ -1241,6 +1276,13 @@ internal enum class AutoTrackingPreferenceAction { NONE, ENABLE, DISABLE, REINIT
 internal fun effectiveAutomaticControlMode(configuredMode: Int, controlEligible: Boolean): Int =
 	configuredMode.takeIf { controlEligible } ?: GroupedActivity.STILL.ordinal
 
+internal fun automaticControlAuthorityChanged(
+	previousPolicyRevision: Long?,
+	previousConsentEpoch: Long?,
+	nextPolicyRevision: Long?,
+	nextConsentEpoch: Long?,
+): Boolean = previousPolicyRevision != nextPolicyRevision || previousConsentEpoch != nextConsentEpoch
+
 internal fun shouldUseStepCorroboration(
 	useTransitionApi: Boolean,
 	stepControlEligible: Boolean,
@@ -1249,14 +1291,19 @@ internal fun shouldUseStepCorroboration(
 internal fun automaticControlRecoveryResult(
 	result: ActivityRegistrationResult,
 ): AutomaticControlRecoveryResult = when {
+	result.retryable -> AutomaticControlRecoveryResult.RETRYABLE
 	result.status == ActivityRegistrationStatus.APPLIED ||
 		result.status == ActivityRegistrationStatus.DEGRADED ->
 		AutomaticControlRecoveryResult.ACCEPTED
 	result.failureCode in TERMINAL_OPTIONAL_CONTROL_FAILURES ->
 		AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED
-	result.retryable -> AutomaticControlRecoveryResult.RETRYABLE
 	else -> AutomaticControlRecoveryResult.TERMINAL_DISABLED_OR_CONTAINED
 }
+
+internal fun shouldRetainAutomaticControlAfterReinitializeFailure(
+	hadActiveRegistration: Boolean,
+	recoveryResult: AutomaticControlRecoveryResult,
+): Boolean = hadActiveRegistration && recoveryResult == AutomaticControlRecoveryResult.RETRYABLE
 
 internal fun automaticControlDisabledRecoveryResult(
 	result: ActivityRegistrationResult,
