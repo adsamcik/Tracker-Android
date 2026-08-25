@@ -6,9 +6,9 @@ Execution-grade work items, ownership, dependency gates, verification commands, 
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and
 evidence index.
 
-Current code integration checkpoint: `eb5dc1885` on `dev/v10`
-(`fix(tracking): isolate source recovery and terminal control`), following `09f32d22e`
-(`fix(tracking): bind partial source rollout to durable lanes`). The initial audited baseline was
+Current code integration checkpoint: `2b9265ce8` on `dev/v10`
+(`fix(tracking): close corrected R1 authority boundary`), following `09f32d22e`, `eb5dc1885`, and
+`da2760462`. The initial audited baseline was
 `068ebe052`; no pull, rebase, push, publish, deployment, remote configuration, or external rollout
 was performed. The original `.docx` source, verbatim orchestrator prompt, and protected Dashboard
 test remain untracked and untouched. On 2026-08-22 the user authorized clear scoped local commits
@@ -17,7 +17,7 @@ after each verified chunk.
 ## Current gate
 
 - Current phase: the corrected R1 shared boundary is committed and locally verified. A fresh
-  three-perspective R1 rerun against `eb5dc1885` is the active gate. Every source materializer,
+  three-perspective R1 rerun against `2b9265ce8` is the active gate. Every source materializer,
   production-history query, source rollout, ambient exposure, and production UI wiring remains
   `BLOCKED` until that review is dispositioned.
 - Gate status: `IN_REVIEW`. The process-wide startup fence now orders the frozen-v27 drain,
@@ -27,12 +27,18 @@ after each verified chunk.
   fenced and recoverable in host tests. Live source drains are enrolled in the same deletion
   generation and recheck it at Activity-effect boundaries. Rollout schema v3 defaults every source
   to `CONTAINED`; persisted `EVENT` reachability now requires an atomically installed exact
-  source-local product lane, writer identity/generation, activation floor, initialized CAS cursor,
-  and retention pin. Configured contained siblings are named degradation rather than a reason to
+  source-local product lane owned by the current executable catalog, writer identity/generation,
+  activation floor, initialized CAS cursor, and retention pin. Duplicate, malformed, unknown, or
+  non-executable active bindings fail closed before WAL admission. Configured contained siblings are
+  named degradation rather than a reason to
   reject a reachable source. `CONTROL` can operate a provider without authorizing capture or a
   product lane. Live Activity poison is source-local, and terminal disabled/contained control no
   longer creates endless WorkManager retries; transient provider unavailability still retries.
-  The other five authorization-boundary splitters/delivery identities,
+  Activity authorization changes now re-read demands, policy/consent, rollout, and lane authority in
+  the same Room transaction as mutation; capture-closing changes first fence and drain process-local
+  callbacks, then publish an exact durable authorization-revision acknowledgement. Callback permits
+  always release after bounded work unwinds, while only durable admission publishes effects. The
+  other five authorization-boundary splitters/delivery identities,
   source-qualified lifecycle evidence, source-specific idempotent facts/recomputation, scoped
   deletion, truthful history wiring, and product-query proof remain blocking.
 - Integration owner: lead orchestrator
@@ -50,13 +56,14 @@ after each verified chunk.
   Activity `CONTROL`, never captured Activity. Process-wide startup ordering is now locally
   implemented and verified; production backup recovery, portable export/import, partial-database
   containment, and connected startup/reboot proof remain TI-184 gates.
-- Current-worktree verification: the original isolated-index checkpoint for `f14a4a2b1` passed in
-  `5m 39s` (`613` tasks). At `eb5dc1885`, the complete corrected affected-module suites pass:
-  tracker-engine `1,480/1,480`, Activity `262/262`, and core database `849/849`, with zero failures,
-  errors, or skips. Focused app startup/boot/post-deletion recovery passes. All eight populated
-  v27→v28 migration cases pass on `Medium_Phone(AVD) - 16`, and the committed 66-entity Room schema
-  is drift-free. The architecture-fitness shard remains `29/29`; exact commands are indexed in
-  `VERIFICATION_MATRIX.md`. These are host plus migration-device checks, not
+- Current-worktree verification: at `2b9265ce8`, full serial host suites pass for tracker-engine
+  (`BUILD SUCCESSFUL` in `10m 29s`), Activity (`280/280`), core database (`855/855`), and app
+  (`638/638`), with zero reported failures/errors/skips. The final Location-only v27 recovery class
+  passes `22/22`, and the committed 66-entity Room schema is drift-free. The migration test compiles;
+  the exact connected rerun assembled but could not execute because no device was connected. The
+  prior eight populated v27→v28 cases remain green on `Medium_Phone(AVD) - 16`, but do not replace an
+  exact-boundary device rerun before schema freeze. Exact commands are indexed in
+  `VERIFICATION_MATRIX.md`. These are host plus prior migration-device checks, not
   process/reboot/FGS, OEM, production-query, device-energy, or full-repository proof.
 - Focused source reviews: all six complete — Location (`DEGRADED`), Wi-Fi (`FAILED`), Cell (`FAILED`), Activity (`FAILED`), Steps (`DEGRADED`), Pressure (`FAILED`)
 - Fresh adversarial review: prior R0/R1/R1b/R2 and adaptive-collections R3/R4 are complete. The
@@ -68,7 +75,8 @@ after each verified chunk.
   found all-enabled-or-nothing source rollout, infinite terminal-control recovery wakeups, and Cell
   cross-process replay identity; product/scope found capture-coupled Activity control, bundled Steps
   modes, stale evidence artifacts, and missing truthful Steps state axes. The shared findings are
-  now committed and verified before a fresh rerun; Cell replay remains a Cell-specific gate. Crash-auditable
+  now committed and verified through `2b9265ce8` before a fresh rerun; Cell replay remains a
+  Cell-specific gate. Crash-auditable
   radio handoff, failed-unregister ownership, portable
   export/minimization, immutable ambient day identity, and `ACTIVE` versus qualified `RECORDING`
   remain open. Materializers, ambient exposure, and history UI are prohibited.

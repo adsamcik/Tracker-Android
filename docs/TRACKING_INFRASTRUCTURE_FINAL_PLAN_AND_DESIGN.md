@@ -29,7 +29,7 @@ They supersede the following older execution details where they conflict:
 - physical provider configuration lifetime is distinct from purpose authorization/session-attribution revisions, so unrelated manifest or policy changes do not restart unchanged hardware;
 - adaptive power reduction is bounded by each direct demand's minimum useful quality and may not disable or silently degrade the sole requested capture source.
 - the optimizer is quality-seeking inside the user's acquisition ceiling: retain a hard quality floor, reject dominated plans, and prefer measurable improvements in freshness, coverage, accuracy, continuity, completeness, or useful context per unit of battery. A source cutover cannot ship when it is both lower quality and no more efficient than the protected current path.
-- one app-scoped `SourceSupervisor` owns the six physical runtimes and a single `TrackingWriter` owns tracking Room mutations; six source-local projector/cursor lanes prevent one source from blocking another;
+- one app-scoped `SourceSupervisor` owns the six physical runtimes and a single `TrackingWriter` owns tracking Room mutations; up to six source-local projector/cursor lanes prevent one source from blocking another, but each lane is instantiated only with its real typed source vertical;
 - stable typed delivery identity is the idempotence receipt, while destination-specific logical fact/range identity and explicit mutations handle correction. Generic activation/contribution/correction infrastructure remains absent unless a real non-recomputable destination demonstrates the need;
 - one production `TrackingHistoryRepository` composes source facts for the existing Today, Timeline, Calendar, selected-day/detail, map, export, and deletion consumers; it is not synonymous with a persisted universal `DayOverview` cache;
 - automatic cold start requires a documented legal trigger—normally an Activity Transition `PendingIntent`—whose complete epoch/origin/foreground-service envelope is durably accepted before the service call;
@@ -40,6 +40,11 @@ They supersede the following older execution details where they conflict:
 - an identical cached content/provider-time vector is discarded with zero durable or product effect. Only a genuinely new provider observation may extend coverage; unchanged fresh content reuses prior qualified children rather than storing them again.
 
 The corrected thin path is: policy/consent authority → direct demands → one `SourceSupervisor`/physical runtime per source → source-native delivery → one `TrackingWriter`/WAL → source-local typed projection lanes → one production history facade → existing product surfaces → independently gated source rollout. The larger day-first experience remains a later product evolution after the source facts are trustworthy and queryable.
+
+For avoidance of doubt, sections 7.2–7.7 are a deferred product concept, `pagedDays` is not part of
+the minimum history contract, and Phase 3 creates one source lane with each completed vertical. They
+must not be interpreted as prerequisites for manual/session Steps, automatic Steps, ambient Steps,
+or any other first source rollout.
 
 # Document map
 
@@ -414,9 +419,11 @@ The repository has useful fragments but no coherent ambient-history product:
 | Wi-Fi / Cell | Separate repositories and report screens | All-time/browse views are detached from day/session context. |
 | Dashboard Today | Progress summary | Null/empty reads as ‘no activity,’ conflating disabled, unavailable, and not yet materialized. |
 
-## 7.2 Information architecture
+## 7.2 Deferred information architecture concept
 
-Make Days the default History surface. A day is the primary container; sessions and between-session information are children of that day.
+If a later separately approved product gate adopts the Days-first experience, a day becomes the
+primary History container and sessions plus between-session information become its children. The
+following interaction model is not part of the current source-vertical dependency graph.
 
 - Dashboard Today deep-links to today’s DayDetail.
 - History opens a pageable Days journal. Trips remains available as a filter/legacy lens, not the data model.
@@ -544,11 +551,15 @@ One unique WorkManager maintenance chain can reconcile ambient subscriptions, im
 
 ```kotlin
 interface TrackingHistoryRepository {
-  fun pagedDays(filter: HistoryFilter): Flow<PagingData<HistoryDay>>
   fun observeDay(dayKey: DayKey): Flow<HistoryDay?>
   fun observeToday(zoneId: ZoneId): Flow<HistoryDay?>
   fun observeSession(logicalTrackingId: UUID): Flow<HistorySession?>
   suspend fun explainFact(factId: FactId): RecordingExplanation
+}
+
+// Optional later product extension, only after a separate Days-first gate.
+interface PagedDayHistoryRepository {
+  fun pagedDays(filter: HistoryFilter): Flow<PagingData<HistoryDay>>
 }
 ```
 
@@ -620,7 +631,7 @@ Every start request records origin: MANUAL_FOREGROUND_START, AUTOMATIC_BACKGROUN
 | 0. Baseline and kill switches | Persist source/mode/version dimensions; lock current fixtures; add per-source capture/materializer switches. | Existing behavior measurable; unexpected-source writes detectable. |
 | 1. Policy and state authority | Introduce SourcePolicy, immutable manifests, Room CAS state machine, monotonic leases, explicit start origin. | Zero-source start fails closed; stale automatic sessions finalize interrupted. |
 | 2. SourceBroker | Replace session-owned listeners with purpose-aware demands and registration generations. | All provider callbacks identify purpose eligibility and consent epoch. |
-| 3. Writer, WAL and typed projectors | Introduce the sole TrackingWriter, source-native bulk admission, six source cursors/projectors, typed identities, membership, gaps and deletion fences. | Crash/replay gives identical typed state; one poison source cannot block another. |
+| 3. Writer, WAL and typed projectors | Introduce the sole TrackingWriter and source-native bulk admission, then instantiate one source cursor/projector with each real typed vertical plus its identities, membership, gaps and deletion fences. No six-unused-lane prerequisite exists. | Crash/replay gives identical typed state; one poison source cannot block another. |
 | 4. History product | Add one TrackingHistoryRepository facade and source completeness to existing Today/Timeline/Calendar/detail/map/export/delete consumers. | Production consumers return sole-source and between-session facts truthfully. |
 | 5. Product UX | Repair existing source/ambient/empty/error states; optionally begin Days-first UI after a separate product gate. | Usability/accessibility checks pass; retained facts remain discoverable. |
 | 6. Source rollout | Shadow/canary source materializers in a controlled order; retire legacy paths. | Each source passes manual, automatic, transitions, crash, deletion, and device gates. |
@@ -628,7 +639,7 @@ Every start request records origin: MANUAL_FOREGROUND_START, AUTOMATIC_BACKGROUN
 
 ## 10.2 Recommended source sequence
 
-1. Steps — exercise shared ambient observer, baselines, day partitioning, and session/outside split with low product ambiguity.
+1. Steps — prove manual/session baselines, deltas, correction, deletion/export, and a production query first; automatic and ambient/day partitioning remain separate gates.
 2. Pressure — validate source-qualified evidence and a session-first materializer with limited ambient scope.
 3. Location — preserve the existing writer, add attribution/day output, and prove a safe shadow/cutover path.
 4. Activity — split CONTROL from CAPTURE while reusing one physical registration.

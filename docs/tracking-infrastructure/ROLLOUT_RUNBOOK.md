@@ -29,7 +29,9 @@ External rollout, publishing, deployment, and remote configuration remain unauth
   source has source-qualified `RECORDING`, a typed materializer, or a production query.
 - Durable broker demands, physical-only registration generations, immutable observed-time
   authorization revisions, callback admission fences, per-source acquisition floors, and one
-  shared Steps controller exist locally. Rollout containment still keeps every
+  shared Steps controller exist locally. At `2b9265ce8`, capture admission also requires one exact
+  executable source lane; Activity capture closure drains earlier callbacks and durably acknowledges
+  the closing authorization revision before containment/deletion may proceed. Rollout containment still keeps every
   `broker_v2:<source>` effectively off until its reachable typed lane and source gate pass.
 - Activity automatic projection refuses capture-only generations; app/control observations before
   their boot-aware effective boundary are rejected, and the durable action path rechecks current
@@ -41,7 +43,8 @@ External rollout, publishing, deployment, and remote configuration remain unauth
 - Migrated `LEGACY_UNKNOWN` WAL rows remain capture-ineligible and must produce partial/unavailable historical completeness rather than fabricated facts.
 - Prior pre-wiring R1b is complete. WAL byte authentication/raw poison quarantine, force/explicit/
   previous-exit finalizers, process startup ordering, and rollout reachability containment are
-  locally implemented. A fresh post-commit R1 is mandatory before materializers or product wiring;
+  locally implemented. The corrected shared boundary is committed at `2b9265ce8`; a fresh
+  post-commit R1 is mandatory before materializers or product wiring;
   typed correction/day repair, scoped deletion, civil-day identity, and actual destination fences
   remain open.
 - Existing tracking-settings authority/error presentation is the only allowed Phase 1 production UI safety exception; it exposes fail-closed policy state and is not evidence of source history, materialization, or queryability.
@@ -62,6 +65,7 @@ Three fresh product, architecture, and delivery adversaries concluded `BLOCK / R
 
 - Freeze new generic all-source materializer/day-history expansion. Ambient persistence is source-specific product behavior: implement it only where the source provides useful, privacy-appropriate history under an honest acquisition promise, as independent verticals using existing retained foundations until each production contract proves additional schema is necessary.
 - v28 never shipped. The 12 unused generic Phase 3 tables have therefore been removed and `MIGRATION_27_28`/`28.json` regenerated in place; exact populated migration execution is still mandatory.
+- v27 `source_coordinator_lease` contents are transient owner/expiry state, not user or source history. v28 clears only those in-flight rows and reacquires a boot-aware monotonic generation; every factual, session, run, WAL, checkpoint, outbox, and recovery-obligation table remains governed by the populated migration/no-resurrection gate.
 - Automatic upgrade intent semantics are implemented locally: the existing enabled automatic preference grants Activity `CONTROL` only. The observation-first admission seam persists its authorized callbacks without session capture attribution and the populated schema migration passes on `Medium_Phone`; bounded operational retention, automatic-trigger/device behavior, export exclusion, and end-to-end no-control-product evidence remain release gates.
 - Database merge import uses an explicit 24-table user-fact allowlist. It never merges policy/consent, demands/registrations, nonterminal lifecycle state, leases/actions, rollout state, cursors/failures, or deletion fences from another install. Validated whole-database replacement is a separate empty-target restore protocol.
 - Keep every eligible `AMBIENT_PRODUCT` rollout default off until its source-specific setting/consent, acquisition limits, minimization, retention, export, deletion/key rotation, between-session query, and explanation pass. Ambient Location is passive/opportunistic; Wi-Fi consumes successful passive scan-result broadcasts without default active scans; Cell consumes timestamp-qualified change callbacks without forced refresh/wake promises; cache reads are bootstrap/payload retrieval rather than acquisition; Activity capture is independent from bounded control evidence; Steps selects one system continuity adapter and uses the direct counter only for live direct demand. Continuous ambient Pressure remains off pending explicit approval.

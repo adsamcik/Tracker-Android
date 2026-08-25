@@ -61,12 +61,12 @@ is unverified.
 
 | Slice | Owner | Files/modules | Edit permission | Exit evidence |
 | --- | --- | --- | --- | --- |
-| FND-01 startup/lifecycle/rollout containment | Lead orchestrator | app startup/deletion/receivers; tracker API/service/coordinator/recovery/rollout/broker; focused tests | committed through `eb5dc1885` | complete tracker-engine, Activity, and core host suites pass; every default source is contained; durable intent precedes external start; no product writer activated |
+| FND-01 startup/lifecycle/rollout containment | Lead orchestrator | app startup/deletion/receivers; tracker API/service/coordinator/recovery/rollout/broker; focused tests | committed through `2b9265ce8` | complete tracker-engine, Activity, core, and app host suites pass; every default source is contained; admission requires one executable durable lane; Activity capture closure drains callbacks and durably acknowledges the exact revision; no product writer activated |
 | EP-02 execution evidence | Lead orchestrator | `docs/tracking-infrastructure/*.md` | write | checkpoint, schema count, verification, blockers, and rollback state agree with the latest verified local commit |
 | R1F-01 data/migration adversary | fresh `gpt-5.6-sol` reviewer | committed authority/startup/rollout/ledger diff and v27→v28 boundary | read-only, complete | `FAIL`: acquisition was not atomically coupled to a source lane/cursor; live projection poison was global; retained v27 diagnostics and unknown-end range semantics needed correction |
 | R1F-02 Android/power/privacy adversary | fresh `gpt-5.6-sol` reviewer | committed service/lifecycle/broker/provider/action diff | read-only, complete | `FAIL`: partial source rollout was all-or-nothing; terminal optional control retried forever; Cell replay identity remains source-gated |
 | R1F-03 product/scope adversary | fresh `gpt-5.6-sol` reviewer | committed diff plus Steps-first plan and existing product queries | read-only, complete | `FAIL`: control reachability was coupled to Activity capture rollout; Steps modes were bundled; status evidence and execution artifacts required correction |
-| R1C-01 corrected R1 boundary | Lead orchestrator | source activation/cursor retention, reachable subset, control-only rollout, source-local recovery, terminal recovery classification, v27 truth | committed in `09f32d22e` + `eb5dc1885`; fresh review in progress | all accepted `BLOCKER`/shared `HIGH` findings have tests and a fresh corrected-boundary R1 rerun; Cell identity remains an explicit Cell gate |
+| R1C-01 corrected R1 boundary | Lead orchestrator | source activation/cursor retention, reachable subset, executable admission, callback closure, control-only rollout, source-local recovery, terminal recovery classification, v27 truth | committed in `09f32d22e`, `eb5dc1885`, and `2b9265ce8`; fresh review pending | all accepted shared authority/reachability findings have tests and a fresh corrected-boundary R1 rerun; Cell identity and each non-Activity pre-WAL handoff remain explicit source gates |
 | ST-02a manual/session Steps | unassigned until R1C-01 passes | Steps runtime, source-local cursor/facts/correction/deletion/export/query, existing product adapter | blocked | manual only-Steps reaches `RECORDING`, `MATERIALIZED`, and a production query with no Activity/Location demand and no generic platform |
 | ST-02b automatic Steps | unassigned until ST-02a proof | Steps vertical plus declared Activity control and automation evidence | blocked | automatic only-Steps uses explicit control-only Activity, bounded no-export control retention, and a legal fresh trigger; control facts never enter Steps or Activity history |
 | ST-02c default-off ambient Steps | unassigned until ST-02a proof | app-scoped counter continuity, ambient consent/retention/export/delete/day allocation/query | blocked | opted-in ambient Steps is sessionless, minimized, deletion/export complete, day-stable, and product-visible; default remains off |
@@ -133,11 +133,13 @@ and a production-query assertion exists where the item produces user-visible fac
 
 ## Immediate gate
 
-1. Run three fresh corrected-boundary R1 adversaries against `eb5dc1885`. Commits `09f32d22e` and
-   `eb5dc1885` atomically bind source rollout to its installed lane/cursor/retention pin, make partial
-   source rollout use the reachable subset, separate control-only Activity reachability, isolate
-   live projection failure by source, classify terminal optional-control recovery without retry,
-   and preserve v27 diagnostic/range truth. No materializer or production history/UI
+1. Run three fresh corrected-boundary R1 adversaries against `2b9265ce8`. Commits `09f32d22e`,
+   `eb5dc1885`, and `2b9265ce8` atomically bind source rollout and WAL admission to one structurally
+   valid executable lane/cursor/retention pin, make partial source rollout use the reachable subset,
+   separate control-only Activity reachability, transactionally revalidate every Activity
+   authorization mutation, drain callbacks before capture authority closes, isolate live projection
+   failure by source, bound optional-control recovery wakeups, and preserve v27 diagnostic/range and
+   Location outbox truth. No materializer or production history/UI
    wiring is authorized until the accepted shared `BLOCKER`/`HIGH` findings are corrected and the
    rerun passes. Cell process-stable replay identity remains a Cell-specific activation gate.
 2. Continue TI-180 from its accepted first slice: v28 now preserves all 51 released-v27 tables,
