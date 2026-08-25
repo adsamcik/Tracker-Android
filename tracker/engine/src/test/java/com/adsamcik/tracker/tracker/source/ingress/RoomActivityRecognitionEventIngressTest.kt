@@ -8,7 +8,10 @@ import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidence
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
 import com.adsamcik.tracker.activity.api.ingress.ActivityTransitionEvidence
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationIdentity
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.SourceBrokerDao
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
@@ -43,6 +46,8 @@ class RoomActivityRecognitionEventIngressTest {
 	private lateinit var motionController: CollectionMotionController
 	private lateinit var context: Context
 	private lateinit var startupGate: TrackingStartupGate
+	private lateinit var database: AppDatabase
+	private lateinit var sourceBrokerDao: SourceBrokerDao
 	private lateinit var automationEpochAuthority: ActivityAutomationEpochAuthority
 	private lateinit var subject: RoomActivityRecognitionEventIngress
 	private val capturedDelivery = slot<SourceDeliveryCandidate>()
@@ -60,12 +65,18 @@ class RoomActivityRecognitionEventIngressTest {
 		startupGate = mockk()
 		coEvery { startupGate.reconcileAdmission(any()) } returns
 			TrackingAdmissionStartupResult.Ready
+		database = mockk()
+		sourceBrokerDao = mockk()
+		every { database.sourceBrokerDao() } returns sourceBrokerDao
+		coEvery { sourceBrokerDao.registration(SourceKind.ACTIVITY.stableCode, 1L) } returns
+			registration()
 		automationEpochAuthority = mockk()
 		coEvery { automationEpochAuthority.epochForCallbackAdmission() } returns
 			activityAutomationAuthority()
 		subject = RoomActivityRecognitionEventIngress(
 			ActivitySourceDeliveryFactory(),
 			Provider { startupGate },
+			database,
 			automationEpochAuthority,
 			deliveryIngress,
 			committedIngress,
@@ -73,6 +84,32 @@ class RoomActivityRecognitionEventIngressTest {
 			motionController,
 			context,
 		)
+	}
+
+	@Test
+	fun `exact callback reserved during synchronous provider apply remains retryable`() = runTest {
+		coEvery { sourceBrokerDao.registration(SourceKind.ACTIVITY.stableCode, 1L) } returns
+			registration(ProviderRegistrationGenerationEntity.STATUS_RESERVED)
+
+		val result = subject.admit(batch(recognitions = listOf(recognition(30L))))
+
+		result.isDurable shouldBe false
+		result.failureCode shouldBe "ACTIVITY_REGISTRATION_ACTIVATION_PENDING"
+		coVerify(exactly = 0) { automationEpochAuthority.epochForCallbackAdmission() }
+		coVerify(exactly = 0) { deliveryIngress.admit(any()) }
+	}
+
+	@Test
+	fun `callback for failed provider registration is permanently rejected`() = runTest {
+		coEvery { sourceBrokerDao.registration(SourceKind.ACTIVITY.stableCode, 1L) } returns
+			registration(ProviderRegistrationGenerationEntity.STATUS_FAILED)
+
+		val result = subject.admit(batch(recognitions = listOf(recognition(30L))))
+
+		result.isDurable shouldBe false
+		result.failureCode shouldBe "ACTIVITY_REGISTRATION_NOT_ACTIVE"
+		coVerify(exactly = 0) { automationEpochAuthority.epochForCallbackAdmission() }
+		coVerify(exactly = 0) { deliveryIngress.admit(any()) }
 	}
 
 	@Test
@@ -380,6 +417,29 @@ class RoomActivityRecognitionEventIngressTest {
 		collectedDataEpoch = 1L,
 		clockDomainId = "boot-1",
 		physicalConfigurationFingerprint = "physical-config",
+	)
+
+	private fun registration(
+		status: String = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+	) = ProviderRegistrationGenerationEntity(
+		sourceKind = SourceKind.ACTIVITY.stableCode,
+		registrationGeneration = 1L,
+		sourceInstanceId = "activity-instance",
+		ownerScope = "activity-provider",
+		clockDomainId = "boot-1",
+		physicalConfigurationFingerprint = "physical-config",
+		collectedDataEpoch = 1L,
+		providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE,
+		providerProcessIncarnationId = null,
+		status = status,
+		reservedAtMs = 900L,
+		reservedElapsedRealtimeNanos = 10L,
+		acceptedAtMs = if (status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE) 900L else null,
+		acceptedElapsedRealtimeNanos =
+			if (status == ProviderRegistrationGenerationEntity.STATUS_ACTIVE) 10L else null,
+		retiredAtMs = null,
+		retiredElapsedRealtimeNanos = null,
+		failureCode = if (status == ProviderRegistrationGenerationEntity.STATUS_FAILED) "FAILED" else null,
 	)
 
 	private fun activityAutomationAuthority() = ActivityAutomationEpochEntity(

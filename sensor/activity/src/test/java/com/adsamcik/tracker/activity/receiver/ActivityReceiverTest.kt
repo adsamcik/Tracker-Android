@@ -94,6 +94,7 @@ class ActivityReceiverTest {
 		callbackAdmissionBarrier = ActivityCallbackAdmissionBarrier()
 		callbackRetryOwner = mockk(relaxed = true)
 		coEvery { callbackRetryOwner.retain(any()) } returns "retained-callback"
+		coEvery { callbackRetryOwner.recordGap(any(), any()) } returns true
 		applicationScope = CoroutineScope(Dispatchers.Unconfined)
 		coEvery { mockStartupGate.reconcileAdmission(any()) } returns
 			TrackingAdmissionStartupResult.Ready
@@ -578,7 +579,7 @@ class ActivityReceiverTest {
 
 	@OptIn(ExperimentalCoroutinesApi::class)
 	@Test
-	fun `failed durable fallback keeps callback authority fence unresolved`() {
+	fun `failed durable fallback records terminal gap and releases callback authority fence`() {
 		val scheduler = TestCoroutineScheduler()
 		val scope = TestScope(StandardTestDispatcher(scheduler))
 		applicationScope = scope
@@ -593,7 +594,10 @@ class ActivityReceiverTest {
 			"storage_unavailable",
 		)
 		coEvery { callbackRetryOwner.retain(any()) } throws
-			ActivityCallbackRetryStoreException("disk unavailable", corrupt = false)
+			ActivityCallbackRetryStoreException(
+				"disk unavailable",
+				code = ActivityCallbackGapCode.RETRY_STORAGE_UNAVAILABLE,
+			)
 
 		receiver.onReceive(context, intent)
 		scheduler.runCurrent()
@@ -603,9 +607,31 @@ class ActivityReceiverTest {
 		scheduler.advanceTimeBy(ACTIVITY_CALLBACK_WORK_BUDGET_MS)
 		scheduler.runCurrent()
 
-		fence.isCompleted shouldBe false
+		fence.isCompleted shouldBe true
 		coVerify(atLeast = 1) { callbackRetryOwner.retain(any()) }
+		coVerify(exactly = 1) {
+			callbackRetryOwner.recordGap(
+				any(),
+				ActivityCallbackGapCode.RETRY_STORAGE_UNAVAILABLE,
+			)
+		}
 		verify(exactly = 0) { mockBackend.onActivityResult(any(), any()) }
+	}
+
+	@Test
+	fun `gap receipt failure still terminally releases privacy teardown permit`() = runTest {
+		var completeCount = 0
+
+		val disposition = finalizeActivityCallbackAuthority(
+			terminallyOwnedOrRejected = false,
+			durablyRetryOwned = false,
+			gapCode = ActivityCallbackGapCode.RETRY_BYTE_BUDGET_EXHAUSTED,
+			recordGap = { false },
+			completePermit = { completeCount += 1 },
+		)
+
+		disposition shouldBe ActivityCallbackFinalizationDisposition.TERMINAL_TELEMETRY_ONLY
+		completeCount shouldBe 1
 	}
 
 	@Test

@@ -37,6 +37,7 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import dev.tracebox.Tracebox
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.TimeoutCancellationException
@@ -153,12 +154,17 @@ internal class ActivityReceiver : BroadcastReceiver() {
 				// Android supplies a PendingResult for a dispatched broadcast. Robolectric's direct
 				// receiver invocation may return null, so keep cleanup safe in that environment.
 				finish = {
-					// The authority barrier may advance only after Room owns every member, ingress
-					// permanently rejected it, or the source-local AtomicFile owns the exact retry.
-					if (terminallyOwnedOrRejected || retryOwnership.isDurablyRetained) {
-						callbackPermit?.complete()
+					try {
+						finalizeActivityCallbackAuthority(
+							terminallyOwnedOrRejected = terminallyOwnedOrRejected,
+							durablyRetryOwned = retryOwnership.isDurablyRetained,
+							gapCode = retryOwnership.lastFailureCode,
+							recordGap = retryOwnership::recordGap,
+							completePermit = { callbackPermit?.complete() },
+						)
+					} finally {
+						pendingResult?.finish()
 					}
-					pendingResult?.finish()
 				},
 			)
 		}
@@ -418,15 +424,29 @@ internal class ActivityCallbackRetryOwnership(
 ) {
 	private val mutex = Mutex()
 	@Volatile private var retainedId: String? = null
+	@Volatile private var retainFailureCode: ActivityCallbackGapCode? = null
 
 	val eventCount: Int get() = batch.eventCount
 	val isDurablyRetained: Boolean get() = retainedId != null
+	val lastFailureCode: ActivityCallbackGapCode
+		get() = retainFailureCode ?: ActivityCallbackGapCode.HANDOFF_BUDGET_EXHAUSTED
 
 	suspend fun retain() {
 		mutex.withLock {
-			if (retainedId == null) retainedId = owner.retain(batch)
+			if (retainedId != null) return
+			try {
+				retainedId = owner.retain(batch)
+			} catch (error: ActivityCallbackRetryStoreException) {
+				retainFailureCode = error.code
+				throw error
+			} catch (error: Throwable) {
+				retainFailureCode = ActivityCallbackGapCode.RETRY_STORAGE_UNAVAILABLE
+				throw error
+			}
 		}
 	}
+
+	suspend fun recordGap(): Boolean = owner.recordGap(batch, lastFailureCode)
 
 	suspend fun discardIfRetained() {
 		mutex.withLock {
@@ -437,12 +457,50 @@ internal class ActivityCallbackRetryOwnership(
 	}
 }
 
+internal enum class ActivityCallbackFinalizationDisposition {
+	ROOM_TERMINAL,
+	DURABLE_RETRY,
+	TERMINAL_GAP_RECORDED,
+	TERMINAL_TELEMETRY_ONLY,
+}
+
+/**
+ * Ends process-local callback authority even when both Room and the bounded retry spool fail.
+ *
+ * A small gap receipt is best effort because ENOSPC may also prevent it. The stable telemetry code
+ * is always emitted, and privacy closure/provider retirement are never wedged by unreachable
+ * process-local authority.
+ */
+internal suspend fun finalizeActivityCallbackAuthority(
+	terminallyOwnedOrRejected: Boolean,
+	durablyRetryOwned: Boolean,
+	gapCode: ActivityCallbackGapCode,
+	recordGap: suspend () -> Boolean,
+	completePermit: () -> Unit,
+): ActivityCallbackFinalizationDisposition = try {
+	when {
+		terminallyOwnedOrRejected -> ActivityCallbackFinalizationDisposition.ROOM_TERMINAL
+		durablyRetryOwned -> ActivityCallbackFinalizationDisposition.DURABLE_RETRY
+		else -> {
+			val gapRecorded = runCatching { recordGap() }.getOrDefault(false)
+			Tracebox.log.warn(gapCode.telemetryCode)
+			if (gapRecorded) {
+				ActivityCallbackFinalizationDisposition.TERMINAL_GAP_RECORDED
+			} else {
+				ActivityCallbackFinalizationDisposition.TERMINAL_TELEMETRY_ONLY
+			}
+		}
+	}
+} finally {
+	completePermit()
+}
+
 internal suspend fun runBoundedActivityCallbackWork(
 	receivedElapsedRealtimeMillis: Long,
 	currentElapsedRealtimeMillis: () -> Long,
 	work: suspend () -> Unit,
 	onWorkBudgetExhausted: suspend () -> Unit = {},
-	finish: () -> Unit,
+	finish: suspend () -> Unit,
 ) {
 	try {
 		val remainingWorkMs = remainingActivityCallbackWorkBudgetMillis(
@@ -461,7 +519,7 @@ internal suspend fun runBoundedActivityCallbackWork(
 	} catch (_: Throwable) {
 		// A failed handoff must not leak a non-durable in-process effect.
 	} finally {
-		finish()
+		withContext(NonCancellable) { finish() }
 	}
 }
 

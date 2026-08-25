@@ -17,6 +17,7 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.tracebox.Tracebox
 import java.io.FileNotFoundException
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -39,17 +40,18 @@ internal class ActivityCallbackRetryWorker @AssistedInject constructor(
 	private val startupGate: TrackingStartupGate,
 	private val ingressProvider: Provider<ActivityRecognitionEventIngress>,
 ) : CoroutineWorker(appContext, params) {
-	override suspend fun doWork(): Result = when (
-		runActivityCallbackRetryAfterStartup(
-			retryOwner = retryOwner,
-			reconcileStartup = { startupGate.reconcileAdmission() },
-			resolveIngress = ingressProvider::get,
-		)
-	) {
-		ActivityCallbackRetryWorkOutcome.COMPLETE -> Result.success()
-		ActivityCallbackRetryWorkOutcome.RETRY -> Result.retry()
-		ActivityCallbackRetryWorkOutcome.FAILED -> Result.failure()
-	}
+	override suspend fun doWork(): Result =
+		when (
+			runActivityCallbackRetryAfterStartup(
+				retryOwner = retryOwner,
+				reconcileStartup = { startupGate.reconcileAdmission() },
+				resolveIngress = ingressProvider::get,
+			)
+		) {
+			ActivityCallbackRetryWorkOutcome.COMPLETE -> Result.success()
+			ActivityCallbackRetryWorkOutcome.RETRY -> Result.retry()
+			ActivityCallbackRetryWorkOutcome.FAILED -> Result.failure()
+		}
 }
 
 internal enum class ActivityCallbackRetryWorkOutcome { COMPLETE, RETRY, FAILED }
@@ -69,6 +71,7 @@ internal suspend fun runActivityCallbackRetryAfterStartup(
 internal suspend fun runActivityCallbackRetryWork(
 	retryOwner: ActivityCallbackRetryOwner,
 	ingress: ActivityRecognitionEventIngress,
+	afterFinalInventory: suspend (morePending: Boolean) -> Unit = {},
 ): ActivityCallbackRetryWorkOutcome {
 	val ids = try {
 		retryOwner.pendingIds().take(MAX_CALLBACKS_PER_RUN)
@@ -86,10 +89,12 @@ internal suspend fun runActivityCallbackRetryWork(
 		} catch (_: FileNotFoundException) {
 			continue
 		} catch (error: ActivityCallbackRetryStoreException) {
-			if (error.corrupt) {
-				// The record was read-verified before its receiver permit was released. Later
-				// corruption is a permanent, source-local rejection and cannot pin good callbacks.
-				runCatching { retryOwner.discardCorrupt(id) }
+			if (error.terminalRetryRecord) {
+				// A read-verified callback that later corrupts or expires emits an explicit stable
+				// gap code and best-effort bounded receipt before its poison file is removed.
+				val recordedAndDiscarded = retryOwner.recordGapAndDiscard(id, error.code)
+				Tracebox.log.warn(error.code.telemetryCode)
+				if (!recordedAndDiscarded) retryRequired = true
 				continue
 			}
 			retryRequired = true
@@ -136,6 +141,7 @@ internal suspend fun runActivityCallbackRetryWork(
 	} catch (_: ActivityCallbackRetryStoreException) {
 		true
 	}
+	afterFinalInventory(morePending)
 	return if (retryRequired || morePending) {
 		ActivityCallbackRetryWorkOutcome.RETRY
 	} else {
@@ -163,7 +169,6 @@ class ActivityCallbackRetryOwner @Inject internal constructor(
 	internal suspend fun retain(batch: ActivityRecognitionEvidenceBatch): String {
 		val permit = enter() ?: throw ActivityCallbackRetryStoreException(
 			"Activity callback retry owner is fenced for collected-data deletion",
-			corrupt = false,
 		)
 		return try {
 			val id = withContext(Dispatchers.IO) { store.retain(batch) }
@@ -193,8 +198,42 @@ class ActivityCallbackRetryOwner @Inject internal constructor(
 		}
 	}
 
-	internal suspend fun discardCorrupt(id: String) {
-		withContext(Dispatchers.IO) { store.remove(id) }
+	internal suspend fun recordGapAndDiscard(
+		id: String,
+		code: ActivityCallbackGapCode,
+	): Boolean {
+		val permit = enter() ?: return false
+		return try {
+			withContext(Dispatchers.IO) {
+				// A gap receipt is best effort under the same low-storage condition that may have
+				// damaged the record. Never let its failure turn poison into an indefinite inbox item.
+				store.recordGap(id, code)
+				store.remove(id)
+				true
+			}
+		} catch (error: CancellationException) {
+			throw error
+		} catch (_: Exception) {
+			false
+		} finally {
+			permit.complete()
+		}
+	}
+
+	internal suspend fun recordGap(
+		batch: ActivityRecognitionEvidenceBatch,
+		code: ActivityCallbackGapCode,
+	): Boolean {
+		val permit = enter() ?: return false
+		return try {
+			withContext(Dispatchers.IO) { store.recordGap(batch, code) }
+		} catch (error: CancellationException) {
+			throw error
+		} catch (_: Exception) {
+			false
+		} finally {
+			permit.complete()
+		}
 	}
 
 	internal suspend fun fenceAndPurgeForCollectedDataDeletion() {
@@ -270,30 +309,47 @@ internal class ActivityCallbackRetryPermit(
 }
 
 @Singleton
-internal class ActivityCallbackRetryScheduler @Inject constructor(
-	@ApplicationContext private val context: Context,
+internal class ActivityCallbackRetryScheduler internal constructor(
+	private val enqueueWork: (ExistingWorkPolicy) -> Unit,
 ) {
+	@Inject
+	constructor(
+		@ApplicationContext context: Context,
+	) : this(
+		enqueueWork = { policy -> enqueueWorkManagerRequest(context, policy) },
+	)
+
 	fun ensureScheduled() {
 		// WorkManager remains stopped after a user force-stop until Android allows this app to run
 		// again. This job owns an already observed fact only: startup is gated, it opens no provider,
 		// and replay is explicitly denied the original callback's foreground-start context.
-		val request = OneTimeWorkRequestBuilder<ActivityCallbackRetryWorker>()
-			.setBackoffCriteria(
-				BackoffPolicy.EXPONENTIAL,
-				MINIMUM_BACKOFF_SECONDS,
-				TimeUnit.SECONDS,
-			)
-			.build()
-		WorkManager.getInstance(context).enqueueUniqueWork(
-			UNIQUE_WORK_NAME,
-			ExistingWorkPolicy.KEEP,
-			request,
-		)
+		// KEEP drops a request while same-name work is unfinished. REPLACE cancels that bounded
+		// replay and guarantees a successor for a retain racing its final empty inventory. The file
+		// remains authoritative across cancellation and immutable WAL identity makes replay safe.
+		enqueueWork(ExistingWorkPolicy.REPLACE)
 	}
 
 	companion object {
 		internal const val UNIQUE_WORK_NAME = "ACTIVITY.CALLBACK_RETRY"
 		private const val MINIMUM_BACKOFF_SECONDS = 30L
+
+		private fun enqueueWorkManagerRequest(
+			context: Context,
+			policy: ExistingWorkPolicy,
+		) {
+			val request = OneTimeWorkRequestBuilder<ActivityCallbackRetryWorker>()
+				.setBackoffCriteria(
+					BackoffPolicy.EXPONENTIAL,
+					MINIMUM_BACKOFF_SECONDS,
+					TimeUnit.SECONDS,
+				)
+				.build()
+			WorkManager.getInstance(context).enqueueUniqueWork(
+				UNIQUE_WORK_NAME,
+				policy,
+				request,
+			)
+		}
 	}
 }
 

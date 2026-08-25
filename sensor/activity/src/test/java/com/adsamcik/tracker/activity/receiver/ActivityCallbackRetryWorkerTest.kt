@@ -2,6 +2,7 @@ package com.adsamcik.tracker.activity.receiver
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import androidx.work.ExistingWorkPolicy
 import com.adsamcik.tracker.activity.ActivityTransitionData
 import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.activity.api.ingress.ActivityDurableSelection
@@ -44,7 +45,11 @@ class ActivityCallbackRetryWorkerTest {
 		val application = ApplicationProvider.getApplicationContext<Application>()
 		directory = File(application.cacheDir, "activity-callback-retry-worker-test")
 		directory.deleteRecursively()
-		store = ActivityCallbackRetryStore(directory)
+		store = ActivityCallbackRetryStore(
+			directory = directory,
+			currentClockDomainId = { "boot-7" },
+			nowElapsedRealtimeNanos = { 1_000L },
+		)
 		scheduler = mockk(relaxed = true)
 		owner = ActivityCallbackRetryOwner(store, scheduler)
 		ingress = mockk()
@@ -123,6 +128,8 @@ class ActivityCallbackRetryWorkerTest {
 			syncDirectory = {
 				if (failDirectorySync) error("directory sync unavailable")
 			},
+			currentClockDomainId = { "boot-7" },
+			nowElapsedRealtimeNanos = { 1_000L },
 		)
 		val failingOwner = ActivityCallbackRetryOwner(failingStore, scheduler)
 		failingOwner.retain(callbackBatch())
@@ -177,6 +184,41 @@ class ActivityCallbackRetryWorkerTest {
 	}
 
 	@Test
+	fun `retain in final empty inventory window replaces worker and drains successor`() = runTest {
+		val policies = mutableListOf<ExistingWorkPolicy>()
+		val replacingScheduler = ActivityCallbackRetryScheduler { policy -> policies += policy }
+		val replacingOwner = ActivityCallbackRetryOwner(store, replacingScheduler)
+		val first = callbackBatch(receivedWallTimeMs = 1_000L)
+		val second = callbackBatch(receivedWallTimeMs = 2_000L)
+		replacingOwner.retain(first)
+		coEvery { ingress.admit(any()) } returns ActivityIngressResult.durable(
+			1,
+			0,
+			ActivityDurableSelection(transitionIndexes = setOf(0)),
+		)
+
+		val firstOutcome = runActivityCallbackRetryWork(
+			replacingOwner,
+			ingress,
+			afterFinalInventory = { morePending ->
+				morePending shouldBe false
+				replacingOwner.retain(second)
+			},
+		)
+
+		firstOutcome shouldBe ActivityCallbackRetryWorkOutcome.COMPLETE
+		policies shouldBe listOf(ExistingWorkPolicy.REPLACE, ExistingWorkPolicy.REPLACE)
+		replacingOwner.pendingIds().size shouldBe 1
+
+		runActivityCallbackRetryWork(replacingOwner, ingress) shouldBe
+			ActivityCallbackRetryWorkOutcome.COMPLETE
+		replacingOwner.pendingIds() shouldBe emptyList()
+		// No polling and no per-file chain: only each durable retain requested one unique replacement.
+		policies.size shouldBe 2
+		coVerify(exactly = 2) { ingress.admit(any()) }
+	}
+
+	@Test
 	fun `corrupt callback is partitioned while good callback still reaches ingress`() = runTest {
 		val corruptId = owner.retain(callbackBatch(receivedWallTimeMs = 1_000L))
 		owner.retain(callbackBatch(receivedWallTimeMs = 2_000L))
@@ -192,6 +234,8 @@ class ActivityCallbackRetryWorkerTest {
 			ActivityCallbackRetryWorkOutcome.COMPLETE
 
 		owner.pendingIds() shouldBe emptyList()
+		store.gapReceipts().map { it.code } shouldBe
+			listOf(ActivityCallbackGapCode.RETRY_RECORD_CORRUPT)
 		coVerify(exactly = 1) { ingress.admit(any()) }
 	}
 

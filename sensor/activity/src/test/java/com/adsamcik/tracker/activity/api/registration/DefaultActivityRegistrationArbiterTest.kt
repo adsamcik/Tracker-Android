@@ -5,7 +5,10 @@ import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.activity.api.backend.GmsActivityRecognitionBackend
 import com.adsamcik.tracker.activity.api.backend.RecognitionConfig
+import com.adsamcik.tracker.activity.receiver.ActivityCallbackFinalizationDisposition
+import com.adsamcik.tracker.activity.receiver.ActivityCallbackGapCode
 import com.adsamcik.tracker.activity.receiver.ActivityCallbackRetryOwner
+import com.adsamcik.tracker.activity.receiver.finalizeActivityCallbackAuthority
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
@@ -562,6 +565,69 @@ class DefaultActivityRegistrationArbiterTest {
 	}
 
 	@Test
+	fun `terminal low-storage drop unblocks concurrent disable and provider retirement`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
+		)
+		val started = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+		val identity = requireNotNull(started.snapshot.identity)
+		val callback = checkNotNull(callbackAdmissionBarrier.tryEnter(identity))
+		val clearing = async(Dispatchers.Default) {
+			subject.clearDemand(ActivityRegistrationOwner.AUTOMATIC_START_MONITOR)
+		}
+		awaitBarrierFence(identity)
+
+		clearing.isCompleted shouldBe false
+		finalizeActivityCallbackAuthority(
+			terminallyOwnedOrRejected = false,
+			durablyRetryOwned = false,
+			gapCode = ActivityCallbackGapCode.RETRY_STORAGE_UNAVAILABLE,
+			recordGap = { false },
+			completePermit = callback::complete,
+		) shouldBe ActivityCallbackFinalizationDisposition.TERMINAL_TELEMETRY_ONLY
+
+		val cleared = clearing.await()
+		cleared.status shouldBe ActivityRegistrationStatus.APPLIED
+		cleared.snapshot.active shouldBe false
+		removedIdentities shouldBe listOf(identity)
+	}
+
+	@Test
+	fun `terminal low-storage drop unblocks concurrent collected-data deletion`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("control", "app:auto", SourceBrokerPurpose.CONTROL_AUTOSTART, null, null, false)),
+		)
+		val started = subject.setDemand(
+			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
+			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
+		)
+		val identity = requireNotNull(started.snapshot.identity)
+		val callback = checkNotNull(callbackAdmissionBarrier.tryEnter(identity))
+		val deleting = async(Dispatchers.Default) {
+			subject.closeForCollectedDataDeletion()
+		}
+		awaitBarrierFence(identity)
+
+		deleting.isCompleted shouldBe false
+		finalizeActivityCallbackAuthority(
+			terminallyOwnedOrRejected = false,
+			durablyRetryOwned = false,
+			gapCode = ActivityCallbackGapCode.RETRY_BYTE_BUDGET_EXHAUSTED,
+			recordGap = { false },
+			completePermit = callback::complete,
+		)
+
+		val deleted = deleting.await()
+		deleted.status shouldBe ActivityRegistrationStatus.APPLIED
+		deleted.snapshot.active shouldBe false
+		coVerify(exactly = 1) { callbackRetryOwner.fenceAndPurgeForCollectedDataDeletion() }
+		removedIdentities shouldBe listOf(identity)
+	}
+
+	@Test
 	fun `reservation snapshots exact authorization before provider is active`() = runTest {
 		val demands = listOf(
 			demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 3L, true),
@@ -589,6 +655,8 @@ class DefaultActivityRegistrationArbiterTest {
 			database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, identity.registrationGeneration),
 		)
 		generation.status shouldBe ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+		generation.acceptedAtMs shouldBe generation.reservedAtMs
+		generation.acceptedElapsedRealtimeNanos shouldBe generation.reservedElapsedRealtimeNanos
 		generation.providerResidency shouldBe
 			ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE
 		generation.providerProcessIncarnationId shouldBe null
@@ -688,6 +756,12 @@ class DefaultActivityRegistrationArbiterTest {
 
 	@Test
 	fun `eligible control consent rotation closes old authorization then refreshes without provider churn`() = runTest {
+		// Drive the two reconciliation boundaries explicitly. The production invalidation collector
+		// may otherwise win the first boundary between these assertions, making this test verify a
+		// duplicate reconciliation rather than the intended consent-rotation sequence.
+		appScope.cancel()
+		appScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+		subject = createSubject(appScope)
 		val oldDemand = demand(
 			"control-v1",
 			"app:auto",
@@ -1150,7 +1224,17 @@ class DefaultActivityRegistrationArbiterTest {
 			ActivityRegistrationDemand(continuousRecognitionIntervalSeconds = 5),
 		)
 		val firstIdentity = requireNotNull(first.snapshot.identity)
-		coEvery { backend.applyRegistration(any(), any()) } returns false
+		val statusDuringFailedApply = mutableListOf<String>()
+		coEvery { backend.applyRegistration(any(), any()) } coAnswers {
+			val pending = arg<ActivityRegistrationIdentity>(1)
+			statusDuringFailedApply += requireNotNull(
+				database.sourceBrokerDao().registration(
+					ACTIVITY_SOURCE_KIND,
+					pending.registrationGeneration,
+				),
+			).status
+			false
+		}
 
 		val replacement = subject.setDemand(
 			ActivityRegistrationOwner.AUTOMATIC_START_MONITOR,
@@ -1165,6 +1249,7 @@ class DefaultActivityRegistrationArbiterTest {
 			ProviderRegistrationGenerationEntity.STATUS_ACTIVE
 		database.sourceBrokerDao().registration(ACTIVITY_SOURCE_KIND, 2L)?.status shouldBe
 			ProviderRegistrationGenerationEntity.STATUS_FAILED
+		statusDuringFailedApply shouldBe listOf(ProviderRegistrationGenerationEntity.STATUS_RESERVED)
 		database.sourceRegistrationStateDao().get(ACTIVITY_SOURCE_KIND, OWNER_SCOPE)
 			?.registrationGeneration shouldBe 1L
 	}
@@ -1516,6 +1601,18 @@ class DefaultActivityRegistrationArbiterTest {
 			ACTIVITY_SOURCE_KIND,
 			currentIdentity.registrationGeneration,
 		)?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+	}
+
+	private suspend fun awaitBarrierFence(identity: ActivityRegistrationIdentity) {
+		withContext(Dispatchers.Default) {
+			withTimeout(5_000L) {
+				while (true) {
+					val probe = callbackAdmissionBarrier.tryEnter(identity) ?: break
+					probe.complete()
+					delay(1L)
+				}
+			}
+		}
 	}
 
 	private suspend fun seedAcquisitionAuthority() {

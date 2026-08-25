@@ -476,8 +476,12 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 							expectedPointerGeneration = reservation.predecessorState?.registrationGeneration,
 							expectedPointerInstanceId = reservation.predecessorState?.sourceInstanceId,
 							requiredAuthorizationFingerprint = null,
-							acceptedAtMs = System.currentTimeMillis(),
-							acceptedElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(),
+							// The reservation is the conservative provider-request boundary. A backend
+							// may synchronously emit its first callback before applyRegistration returns;
+							// using a later post-return boundary would permanently reject that callback.
+							acceptedAtMs = reservation.providerRequestAtMs,
+							acceptedElapsedRealtimeNanos =
+								reservation.providerRequestElapsedRealtimeNanos,
 						),
 					)
 				}
@@ -640,6 +644,9 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 					identity = reusable.toActivityRegistrationIdentity(),
 					state = state,
 					predecessorState = existing,
+					providerRequestAtMs = reusable.reservedAtMs,
+					providerRequestElapsedRealtimeNanos =
+						reusable.reservedElapsedRealtimeNanos,
 				)
 			}
 			val registrationGeneration = brokerDao.maximumRegistrationGeneration(ACTIVITY_SOURCE_KIND) + 1L
@@ -714,6 +721,8 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 				),
 				state = next,
 				predecessorState = existing,
+				providerRequestAtMs = nowMs,
+				providerRequestElapsedRealtimeNanos = nowElapsed,
 			)
 		}
 	}
@@ -1352,6 +1361,8 @@ class DefaultActivityRegistrationArbiter @Inject constructor(
 		val identity: ActivityRegistrationIdentity,
 		val state: SourceRegistrationStateEntity,
 		val predecessorState: SourceRegistrationStateEntity?,
+		val providerRequestAtMs: Long,
+		val providerRequestElapsedRealtimeNanos: Long,
 	)
 
 	private data class ActivityRegistrationActivation(

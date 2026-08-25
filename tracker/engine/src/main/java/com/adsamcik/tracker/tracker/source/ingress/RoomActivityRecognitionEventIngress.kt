@@ -6,6 +6,8 @@ import com.adsamcik.tracker.activity.api.ingress.ActivityIngressResult
 import com.adsamcik.tracker.activity.api.ingress.ActivityIngressStartContext
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult
@@ -29,6 +31,7 @@ import javax.inject.Singleton
 class RoomActivityRecognitionEventIngress @Inject constructor(
 	private val deliveryFactory: ActivitySourceDeliveryFactory,
 	private val trackingStartupGateProvider: Provider<TrackingStartupGate>,
+	private val database: AppDatabase,
 	private val automationEpochAuthority: ActivityAutomationEpochAuthority,
 	private val deliveryIngress: DurableSourceDeliveryIngress,
 	private val committedIngress: DurableSourceIngress,
@@ -47,6 +50,34 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 		}
 		if (startup !is TrackingAdmissionStartupResult.Ready) {
 			return ActivityIngressResult.retryable(0, 0, STARTUP_RECOVERY_NOT_READY)
+		}
+		val registration = runCatchingNonCancellation {
+			database.sourceBrokerDao().registration(
+				SourceKind.ACTIVITY.stableCode,
+				capturedIdentity.registrationGeneration,
+			)
+		}.getOrElse { failure ->
+			return ActivityIngressResult.retryable(0, 0, failure.failureCode())
+		}
+		if (registration == null ||
+			registration.sourceInstanceId != capturedIdentity.sourceInstanceId ||
+			registration.clockDomainId != capturedIdentity.clockDomainId ||
+			registration.physicalConfigurationFingerprint !=
+				capturedIdentity.physicalConfigurationFingerprint ||
+			registration.collectedDataEpoch != capturedIdentity.collectedDataEpoch
+		) {
+			return ActivityIngressResult.rejected(0, 0, ACTIVITY_REGISTRATION_NOT_ACTIVE)
+		}
+		when (registration.status) {
+			ProviderRegistrationGenerationEntity.STATUS_RESERVED ->
+				return ActivityIngressResult.retryable(0, 0, ACTIVITY_REGISTRATION_ACTIVATION_PENDING)
+			ProviderRegistrationGenerationEntity.STATUS_FAILED ->
+				return ActivityIngressResult.rejected(0, 0, ACTIVITY_REGISTRATION_NOT_ACTIVE)
+			ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+			ProviderRegistrationGenerationEntity.STATUS_RETIRING,
+			ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+			-> Unit
+			else -> return ActivityIngressResult.rejected(0, 0, ACTIVITY_REGISTRATION_NOT_ACTIVE)
 		}
 		val automationAuthority = runCatchingNonCancellation {
 			automationEpochAuthority.epochForCallbackAdmission()
@@ -218,5 +249,8 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 		const val INVALID_DURABLE_SELECTION = "INVALID_DURABLE_SELECTION"
 		const val COMMITTED_EVENT_RELOAD_FAILED = "COMMITTED_EVENT_RELOAD_FAILED"
 		const val ACTIVITY_AUTOMATION_EFFECT_PENDING = "ACTIVITY_AUTOMATION_EFFECT_PENDING"
+		const val ACTIVITY_REGISTRATION_ACTIVATION_PENDING =
+			"ACTIVITY_REGISTRATION_ACTIVATION_PENDING"
+		const val ACTIVITY_REGISTRATION_NOT_ACTIVE = "ACTIVITY_REGISTRATION_NOT_ACTIVE"
 	}
 }

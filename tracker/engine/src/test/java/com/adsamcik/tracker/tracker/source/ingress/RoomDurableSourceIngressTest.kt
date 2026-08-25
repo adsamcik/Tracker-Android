@@ -498,6 +498,7 @@ class RoomDurableSourceIngressTest {
 		val adapter = RoomActivityRecognitionEventIngress(
 			ActivitySourceDeliveryFactory(),
 			Provider { startupGate },
+			database,
 			automationEpochAuthority,
 			subject,
 			subject,
