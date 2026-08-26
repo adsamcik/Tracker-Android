@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
+import com.adsamcik.tracker.tracker.source.model.StepBoundaryKind
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
@@ -70,16 +71,22 @@ internal class StepWindowAccumulator(
 		val authorizedPrevious = previous?.takeIf {
 			it.authorizationBoundary == authorizationBoundary
 		}
-		val reset = authorizedPrevious == null || cumulativeCount < authorizedPrevious.cumulativeCount
-		val delta = when {
-			authorizedPrevious == null -> 0L
-			// A hardware/provider counter reset destroys the interval between the old and new
-			// cumulative domains. The new absolute value is a baseline, not steps observed by
-			// this app; allocating it would fabricate history (for example 10_000 -> 3 as +3).
-			reset -> 0L
-			else -> cumulativeCount - authorizedPrevious.cumulativeCount
+		val boundaryKind = when {
+			authorizedPrevious == null -> StepBoundaryKind.BASELINE
+			cumulativeCount < authorizedPrevious.cumulativeCount -> StepBoundaryKind.COUNTER_RESET
+			else -> StepBoundaryKind.COVERED
 		}
-		val payloadBaseline = authorizedPrevious?.takeUnless { reset }
+		val delta = if (boundaryKind == StepBoundaryKind.COVERED) {
+			cumulativeCount - requireNotNull(authorizedPrevious).cumulativeCount
+		} else {
+			// A baseline contributes nothing. A hardware/provider counter reset destroys the
+			// interval between cumulative domains, so the new absolute value is also not steps
+			// observed by this app (for example 10_000 -> 3 must not become +3).
+			0L
+		}
+		val payloadBaseline = authorizedPrevious?.takeIf {
+			boundaryKind == StepBoundaryKind.COVERED
+		}
 		val payload = StepCounterWindowPayload(
 			bootClockDomainId = bootClockDomainId,
 			firstCumulativeCount = payloadBaseline?.cumulativeCount ?: cumulativeCount,
@@ -90,7 +97,7 @@ internal class StepWindowAccumulator(
 			windowEndElapsedRealtimeNanos = elapsedRealtimeNanos,
 			firstProviderSequence = payloadBaseline?.providerSequence ?: providerSequence,
 			lastProviderSequence = providerSequence,
-			baselineReset = reset,
+			boundaryKind = boundaryKind,
 		)
 		return StepWindowPreview(
 			payload = payload,

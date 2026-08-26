@@ -9,6 +9,7 @@ import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
+import com.adsamcik.tracker.tracker.source.model.StepBoundaryKind
 import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
 import com.adsamcik.tracker.tracker.source.model.WifiAccessPointEvidence
 import com.adsamcik.tracker.tracker.source.model.WifiResultSnapshotPayload
@@ -94,7 +95,14 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 				writeLong(payload.windowEndElapsedRealtimeNanos)
 				writeLong(payload.firstProviderSequence)
 				writeLong(payload.lastProviderSequence)
-				writeBoolean(payload.baselineReset)
+				if (payloadVersion >= STEP_BOUNDARY_KIND_PAYLOAD_VERSION) {
+					require(payload.boundaryKind != StepBoundaryKind.LEGACY_AMBIGUOUS) {
+						"Legacy-ambiguous Steps boundaries are decode-only"
+					}
+					writeInt(payload.boundaryKind.stableWireCode())
+				} else {
+					writeBoolean(payload.baselineReset)
+				}
 			}
 			is PressureWindowPayload -> {
 				writeInt(TYPE_PRESSURE_WINDOW)
@@ -159,17 +167,7 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 		)
 		TYPE_ACTIVITY_TRANSITION -> ActivityTransitionPayload(readInt(), readInt(), readLong())
 		TYPE_ACTIVITY_RECOGNITION -> ActivityRecognitionPayload(readInt(), readInt(), readNullableLong())
-		TYPE_STEP_WINDOW -> StepCounterWindowPayload(
-			bootClockDomainId = readUTF(),
-			firstCumulativeCount = readLong(),
-			lastCumulativeCount = readLong(),
-			deltaCount = readLong(),
-			windowStartElapsedRealtimeNanos = readLong(),
-			windowEndElapsedRealtimeNanos = readLong(),
-			firstProviderSequence = readLong(),
-			lastProviderSequence = readLong(),
-			baselineReset = readBoolean(),
-		)
+		TYPE_STEP_WINDOW -> readStepCounterWindowPayload(payloadVersion)
 		TYPE_PRESSURE_WINDOW -> PressureWindowPayload(
 			sampleCount = readInt(),
 			meanHectopascals = readDouble(),
@@ -221,6 +219,35 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 		require(count in 0..MAX_COLLECTION_SIZE) { "Invalid source payload collection size $count" }
 	}
 
+	private fun DataInputStream.readStepCounterWindowPayload(
+		payloadVersion: Int,
+	): StepCounterWindowPayload {
+		val bootClockDomainId = readUTF()
+		val firstCumulativeCount = readLong()
+		val lastCumulativeCount = readLong()
+		val deltaCount = readLong()
+		val windowStartElapsedRealtimeNanos = readLong()
+		val windowEndElapsedRealtimeNanos = readLong()
+		val firstProviderSequence = readLong()
+		val lastProviderSequence = readLong()
+		val boundaryKind = if (payloadVersion >= STEP_BOUNDARY_KIND_PAYLOAD_VERSION) {
+			stepBoundaryKindFromStableWireCode(readInt())
+		} else {
+			StepBoundaryKind.fromLegacyResetFlag(readBoolean())
+		}
+		return StepCounterWindowPayload(
+			bootClockDomainId = bootClockDomainId,
+			firstCumulativeCount = firstCumulativeCount,
+			lastCumulativeCount = lastCumulativeCount,
+			deltaCount = deltaCount,
+			windowStartElapsedRealtimeNanos = windowStartElapsedRealtimeNanos,
+			windowEndElapsedRealtimeNanos = windowEndElapsedRealtimeNanos,
+			firstProviderSequence = firstProviderSequence,
+			lastProviderSequence = lastProviderSequence,
+			boundaryKind = boundaryKind,
+		)
+	}
+
 	private fun DataOutputStream.writeNullableLong(value: Long?) {
 		writeBoolean(value != null)
 		if (value != null) writeLong(value)
@@ -255,7 +282,7 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 
 	private companion object {
 		const val MINIMUM_VERSION = 1
-		const val CURRENT_VERSION = 2
+		const val CURRENT_VERSION = STEP_BOUNDARY_KIND_PAYLOAD_VERSION
 		const val LEGACY_V27_VERSION = 1
 		const val WIFI_ITEM_TIME_VERSION = 2
 		const val MAX_COLLECTION_SIZE = 100_000
@@ -268,4 +295,22 @@ class DefaultSourcePayloadCodec @Inject constructor() : SourcePayloadCodec {
 		const val TYPE_WIFI_RESULTS = 7
 		const val TYPE_CELL_SNAPSHOT = 8
 	}
+}
+
+internal const val STEP_BOUNDARY_KIND_PAYLOAD_VERSION = 3
+
+private fun StepBoundaryKind.stableWireCode(): Int = when (this) {
+	StepBoundaryKind.BASELINE -> 1
+	StepBoundaryKind.COVERED -> 2
+	StepBoundaryKind.COUNTER_RESET -> 3
+	StepBoundaryKind.LEGACY_AMBIGUOUS -> throw IllegalArgumentException(
+		"Legacy-ambiguous Steps boundaries have no stable wire code",
+	)
+}
+
+private fun stepBoundaryKindFromStableWireCode(code: Int): StepBoundaryKind = when (code) {
+	1 -> StepBoundaryKind.BASELINE
+	2 -> StepBoundaryKind.COVERED
+	3 -> StepBoundaryKind.COUNTER_RESET
+	else -> error("Unsupported Steps boundary kind $code")
 }

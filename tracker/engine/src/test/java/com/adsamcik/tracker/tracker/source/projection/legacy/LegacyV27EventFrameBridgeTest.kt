@@ -14,6 +14,7 @@ import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
+import com.adsamcik.tracker.tracker.source.model.StepBoundaryKind
 import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
 import com.adsamcik.tracker.tracker.source.projection.EventTrackingFrameEffectCodec
 import com.adsamcik.tracker.tracker.source.projection.EventTrackingFrameProjection
@@ -66,7 +67,7 @@ class LegacyV27EventFrameBridgeTest {
 		val unchanged = baseline.copy(
 			windowEndElapsedRealtimeNanos = 20_000_000,
 			lastProviderSequence = 2,
-			baselineReset = false,
+			boundaryKind = StepBoundaryKind.COVERED,
 		)
 		bridge.bridge(wal("unchanged", unchanged), unchanged) shouldBe
 			LegacyV27EventFrameBridgeResult.NoFact
@@ -129,7 +130,7 @@ class LegacyV27EventFrameBridgeTest {
 			windowEndElapsedRealtimeNanos = 55_000_000,
 			firstProviderSequence = 5,
 			lastProviderSequence = 8,
-			baselineReset = false,
+			boundaryKind = StepBoundaryKind.COVERED,
 		)
 		bridge.bridge(
 			wal(

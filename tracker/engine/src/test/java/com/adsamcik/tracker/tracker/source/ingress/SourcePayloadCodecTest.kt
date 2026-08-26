@@ -8,11 +8,13 @@ import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
+import com.adsamcik.tracker.tracker.source.model.StepBoundaryKind
 import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
 import com.adsamcik.tracker.tracker.source.model.WifiAccessPointEvidence
 import com.adsamcik.tracker.tracker.source.model.WifiResultSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.WifiScanAttemptOutcome
 import com.adsamcik.tracker.tracker.source.model.WifiScanAttemptPayload
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.junit.Test
 
@@ -96,6 +98,76 @@ class SourcePayloadCodecTest {
 		val encoded = codec.encode(payload, 2)
 
 		codec.decode(payload.source, 2, encoded.bytes) shouldBe payload
+	}
+
+	@Test
+	fun `version three preserves explicit Steps boundaries and Long counts`() {
+		listOf(
+			StepBoundaryKind.BASELINE,
+			StepBoundaryKind.COVERED,
+			StepBoundaryKind.COUNTER_RESET,
+		).forEach { boundaryKind ->
+			val covered = boundaryKind == StepBoundaryKind.COVERED
+			val payload = StepCounterWindowPayload(
+				bootClockDomainId = "boot-v3",
+				firstCumulativeCount = if (covered) 0L else Long.MAX_VALUE,
+				lastCumulativeCount = Long.MAX_VALUE,
+				deltaCount = if (covered) Long.MAX_VALUE else 0L,
+				windowStartElapsedRealtimeNanos = 10L,
+				windowEndElapsedRealtimeNanos = 20L,
+				firstProviderSequence = 1L,
+				lastProviderSequence = 2L,
+				boundaryKind = boundaryKind,
+			)
+
+			codec.decode(payload.source, STEP_BOUNDARY_KIND_PAYLOAD_VERSION,
+				codec.encode(payload, STEP_BOUNDARY_KIND_PAYLOAD_VERSION).bytes) shouldBe payload
+		}
+	}
+
+	@Test
+	fun `version three cannot manufacture a legacy-ambiguous Steps boundary`() {
+		val ambiguous = StepCounterWindowPayload(
+			bootClockDomainId = "boot-v3",
+			firstCumulativeCount = 100L,
+			lastCumulativeCount = 100L,
+			deltaCount = 0L,
+			windowStartElapsedRealtimeNanos = 10L,
+			windowEndElapsedRealtimeNanos = 10L,
+			firstProviderSequence = 1L,
+			lastProviderSequence = 1L,
+			boundaryKind = StepBoundaryKind.LEGACY_AMBIGUOUS,
+		)
+
+		shouldThrow<IllegalArgumentException> {
+			codec.encode(ambiguous, STEP_BOUNDARY_KIND_PAYLOAD_VERSION)
+		}
+	}
+
+	@Test
+	fun `legacy reset-shaped Steps bytes remain explicitly ambiguous`() {
+		val explicitBaseline = StepCounterWindowPayload(
+			bootClockDomainId = "boot-legacy",
+			firstCumulativeCount = 100L,
+			lastCumulativeCount = 100L,
+			deltaCount = 0L,
+			windowStartElapsedRealtimeNanos = 10L,
+			windowEndElapsedRealtimeNanos = 10L,
+			firstProviderSequence = 1L,
+			lastProviderSequence = 1L,
+			boundaryKind = StepBoundaryKind.BASELINE,
+		)
+
+		listOf(1, 2).forEach { legacyVersion ->
+			val decoded = codec.decode(
+				explicitBaseline.source,
+				legacyVersion,
+				codec.encode(explicitBaseline, legacyVersion).bytes,
+			) as StepCounterWindowPayload
+
+			decoded.boundaryKind shouldBe StepBoundaryKind.LEGACY_AMBIGUOUS
+			decoded.deltaCount shouldBe 0L
+		}
 	}
 }
 

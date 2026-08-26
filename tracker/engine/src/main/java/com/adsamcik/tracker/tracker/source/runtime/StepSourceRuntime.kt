@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
+import com.adsamcik.tracker.tracker.source.ingress.STEP_BOUNDARY_KIND_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
@@ -1181,7 +1182,7 @@ class StepSourceRuntime @Inject constructor(
 								emptySet()
 							},
 						),
-						payloadVersion = 1,
+						payloadVersion = STEP_BOUNDARY_KIND_PAYLOAD_VERSION,
 						payload = payload,
 					)
 					PreparedStepAdmission(

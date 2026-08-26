@@ -54,9 +54,61 @@ data class StepCounterWindowPayload(
 	val windowEndElapsedRealtimeNanos: Long,
 	val firstProviderSequence: Long,
 	val lastProviderSequence: Long,
-	val baselineReset: Boolean,
+	val boundaryKind: StepBoundaryKind,
 ) : SourcePayload {
 	override val source: SourceKind = SourceKind.STEPS
+
+	/** Compatibility constructor for version 1/2 call sites and the frozen v27 decoder. */
+	constructor(
+		bootClockDomainId: String,
+		firstCumulativeCount: Long,
+		lastCumulativeCount: Long,
+		deltaCount: Long,
+		windowStartElapsedRealtimeNanos: Long,
+		windowEndElapsedRealtimeNanos: Long,
+		firstProviderSequence: Long,
+		lastProviderSequence: Long,
+		baselineReset: Boolean,
+	) : this(
+		bootClockDomainId = bootClockDomainId,
+		firstCumulativeCount = firstCumulativeCount,
+		lastCumulativeCount = lastCumulativeCount,
+		deltaCount = deltaCount,
+		windowStartElapsedRealtimeNanos = windowStartElapsedRealtimeNanos,
+		windowEndElapsedRealtimeNanos = windowEndElapsedRealtimeNanos,
+		firstProviderSequence = firstProviderSequence,
+		lastProviderSequence = lastProviderSequence,
+		boundaryKind = StepBoundaryKind.fromLegacyResetFlag(baselineReset),
+	)
+
+	/** Legacy projection compatibility. [boundaryKind] is the only stored source of truth. */
+	val baselineReset: Boolean
+		get() = boundaryKind != StepBoundaryKind.COVERED
+}
+
+/** Stable Steps boundary semantics persisted from source-payload version 3 onward. */
+enum class StepBoundaryKind {
+	/** First fresh sample in a physical or authorization domain; it contributes no steps. */
+	BASELINE,
+
+	/** A complete fresh interval, including both zero and positive [StepCounterWindowPayload.deltaCount]. */
+	COVERED,
+
+	/** The cumulative provider counter decreased; the lost interval is an explicit reset gap. */
+	COUNTER_RESET,
+
+	/**
+	 * A version 1 or 2 reset-shaped payload. Those bytes did not say whether the event was a
+	 * baseline or a counter reset, so consumers must retain it as partial instead of guessing.
+	 * This decode-only value has no version 3 wire code.
+	 */
+	LEGACY_AMBIGUOUS,
+	;
+
+	companion object {
+		fun fromLegacyResetFlag(baselineReset: Boolean): StepBoundaryKind =
+			if (baselineReset) LEGACY_AMBIGUOUS else COVERED
+	}
 }
 
 data class PressureWindowPayload(

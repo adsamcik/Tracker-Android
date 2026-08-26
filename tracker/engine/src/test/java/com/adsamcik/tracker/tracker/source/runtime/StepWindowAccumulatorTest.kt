@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.tracker.source.model.StepBoundaryKind
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
@@ -16,6 +17,7 @@ class StepWindowAccumulatorTest {
 		assertEquals(1_234L, payload.firstCumulativeCount)
 		assertEquals(1_234L, payload.lastCumulativeCount)
 		assertTrue(payload.baselineReset)
+		assertEquals(StepBoundaryKind.BASELINE, payload.boundaryKind)
 	}
 
 	@Test
@@ -36,8 +38,10 @@ class StepWindowAccumulatorTest {
 
 		assertEquals(8L, normal.deltaCount)
 		assertFalse(normal.baselineReset)
+		assertEquals(StepBoundaryKind.COVERED, normal.boundaryKind)
 		assertEquals(0L, reset.deltaCount)
 		assertTrue(reset.baselineReset)
+		assertEquals(StepBoundaryKind.COUNTER_RESET, reset.boundaryKind)
 		assertEquals(3L, reset.firstCumulativeCount)
 		assertEquals(3L, reset.lastCumulativeCount)
 		assertEquals(3_000L, reset.windowStartElapsedRealtimeNanos)
@@ -46,6 +50,7 @@ class StepWindowAccumulatorTest {
 		assertEquals(7L, reset.lastProviderSequence)
 		assertEquals(2L, afterReset.deltaCount)
 		assertFalse(afterReset.baselineReset)
+		assertEquals(StepBoundaryKind.COVERED, afterReset.boundaryKind)
 		assertEquals(3L, afterReset.firstCumulativeCount)
 		assertEquals(5L, afterReset.lastCumulativeCount)
 	}
@@ -116,6 +121,7 @@ class StepWindowAccumulatorTest {
 		assertEquals(110L, boundary.lastCumulativeCount)
 		assertEquals(3L, boundary.firstProviderSequence)
 		assertTrue(boundary.baselineReset)
+		assertEquals(StepBoundaryKind.BASELINE, boundary.boundaryKind)
 		assertEquals(4L, captured.deltaCount)
 		assertEquals(110L, captured.firstCumulativeCount)
 		assertFalse(captured.baselineReset)
@@ -140,7 +146,22 @@ class StepWindowAccumulatorTest {
 		assertEquals(209L, boundary.firstCumulativeCount)
 		assertEquals(209L, boundary.lastCumulativeCount)
 		assertTrue(boundary.baselineReset)
+		assertEquals(StepBoundaryKind.BASELINE, boundary.boundaryKind)
 		assertEquals(nextPolicy, accumulator.snapshot()?.authorizationBoundary)
+	}
+
+	@Test
+	fun `fresh unchanged counter is covered zero rather than another baseline`() {
+		val accumulator = StepWindowAccumulator(null, StepBaselineBoundary(9L))
+		requireNotNull(accumulator.accept("boot:1", 200L, 1_000L, 1L))
+
+		val coveredZero = requireNotNull(accumulator.accept("boot:1", 200L, 2_000L, 2L))
+
+		assertEquals(0L, coveredZero.deltaCount)
+		assertFalse(coveredZero.baselineReset)
+		assertEquals(StepBoundaryKind.COVERED, coveredZero.boundaryKind)
+		assertEquals(1_000L, coveredZero.windowStartElapsedRealtimeNanos)
+		assertEquals(2_000L, coveredZero.windowEndElapsedRealtimeNanos)
 	}
 
 	@Test
