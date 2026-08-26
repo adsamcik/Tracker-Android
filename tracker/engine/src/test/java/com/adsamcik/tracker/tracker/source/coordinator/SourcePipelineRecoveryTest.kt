@@ -16,6 +16,7 @@ import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEffectVa
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjection
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationStartPermit
+import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecovery
 import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecoveryResult
 import io.kotest.assertions.throwables.shouldThrow
@@ -25,6 +26,7 @@ import io.mockk.coVerify
 import io.mockk.coVerifySequence
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import kotlinx.coroutines.CompletableDeferred
@@ -190,6 +192,28 @@ class SourcePipelineRecoveryTest {
 		coVerify(exactly = 0) { coordinator.drainAvailable(any()) }
 		coVerify(exactly = 0) { activityLane.drainAvailable() }
 		coVerify(exactly = 0) { activityEffects.drain(any(), any(), any()) }
+	}
+
+	@Test
+	fun `startup and committed Steps hints only kick the source local lane`() = runTest {
+		val stepsLane = mockk<StepsSessionFactProjectionLane>(relaxed = true)
+		val scheduled = SourcePipelineRecovery(
+			legacy,
+			coordinator,
+			activityLane,
+			activityEffects,
+			stepsLane,
+			backgroundScope,
+		)
+		coEvery { legacy.recover() } returns LegacyV27ProjectionRecoveryResult.NotRequired
+
+		scheduled.recoverStartupAuthority()
+		scheduled.requestStepsSessionFactDrain()
+
+		verify(exactly = 2) { stepsLane.requestDrain() }
+		coVerify(exactly = 0) { stepsLane.drainAvailable() }
+		coVerify(exactly = 0) { activityLane.drainAvailable() }
+		coVerify(exactly = 0) { coordinator.drainAvailable(any()) }
 	}
 
 	@Test

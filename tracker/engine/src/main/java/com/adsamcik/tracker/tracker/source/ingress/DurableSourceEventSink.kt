@@ -81,7 +81,7 @@ class DurableSourceEventSinkFactory private constructor(
 		val result = ingress.admit(candidate)
 		if (result.isDurable) {
 			onDurableMotionEvidence(candidate, result is AdmissionResult.Duplicate)
-			requestActivityDrain(candidate.source)
+			requestSourceDrain(candidate.source)
 		}
 		return result.toHandoff()
 	}
@@ -93,7 +93,7 @@ class DurableSourceEventSinkFactory private constructor(
 		val result = ingress.admit(candidate, checkpoint)
 		if (result.isDurable) {
 			onDurableMotionEvidence(candidate, result is AdmissionResult.Duplicate)
-			requestActivityDrain(candidate.source)
+			requestSourceDrain(candidate.source)
 		}
 		return result.toHandoff()
 	}
@@ -131,16 +131,17 @@ class DurableSourceEventSinkFactory private constructor(
 			}
 		}
 		if (result.isDurable) {
-			if (delivery.units.any { it.evidence.source == SourceKind.ACTIVITY }) {
-				recovery?.requestCommittedWorkDrain()
-			}
+			delivery.units.asSequence().map { it.evidence.source }.distinct()
+				.forEach(::requestSourceDrain)
 		}
 		return result.toHandoff()
 	}
 
-	private fun requestActivityDrain(source: SourceKind) {
-		if (source == SourceKind.ACTIVITY) {
-			recovery?.requestCommittedWorkDrain()
+	private fun requestSourceDrain(source: SourceKind) {
+		when (source) {
+			SourceKind.ACTIVITY -> recovery?.requestCommittedWorkDrain()
+			SourceKind.STEPS -> recovery?.requestStepsSessionFactDrain()
+			else -> Unit
 		}
 	}
 }

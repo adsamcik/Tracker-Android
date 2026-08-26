@@ -59,6 +59,24 @@ class DurableSourceEventSinkTest {
 
 		coVerify(exactly = 1) { ingress.admit(any(), checkpoint) }
 		verify(exactly = 0) { recovery.requestCommittedWorkDrain() }
+		verify(exactly = 1) { recovery.requestStepsSessionFactDrain() }
+	}
+
+	@Test
+	fun `duplicate Steps admission re-kicks its durable source lane`() = runTest {
+		val ingress = mockk<DurableSourceIngress>()
+		val recovery = mockk<SourcePipelineRecovery>(relaxed = true)
+		coEvery { ingress.admit(any()) } returns AdmissionResult.Duplicate(
+			SourceEventId("steps-event"),
+			7L,
+		)
+		val subject = DurableSourceEventSinkFactory(ingress, recovery)
+
+		subject.unbound.admit(stepsCandidate())
+			.shouldBeInstanceOf<SourceAdmissionHandoff.Duplicate>()
+
+		verify(exactly = 1) { recovery.requestStepsSessionFactDrain() }
+		verify(exactly = 0) { recovery.requestCommittedWorkDrain() }
 	}
 
 	@Test
@@ -158,6 +176,7 @@ class DurableSourceEventSinkTest {
 		subject.unbound.admit(candidate()).shouldBeInstanceOf<SourceAdmissionHandoff.RetryableFailure>()
 
 		verify(exactly = 0) { recovery.requestCommittedWorkDrain() }
+		verify(exactly = 0) { recovery.requestStepsSessionFactDrain() }
 	}
 
 	@Test

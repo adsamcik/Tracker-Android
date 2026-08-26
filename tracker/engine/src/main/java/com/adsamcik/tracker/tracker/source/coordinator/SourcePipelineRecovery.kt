@@ -8,6 +8,7 @@ import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationOutboxDi
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainResult
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationStartPermit
+import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecovery
 import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecoveryResult
 import java.util.UUID
@@ -28,6 +29,7 @@ class SourcePipelineRecovery private constructor(
 	private val coordinator: TrackingCoordinator,
 	private val activityProjectionLane: ActivityAutomationProjectionLane,
 	private val activityEffects: ActivityAutomationOutboxDispatcher,
+	private val stepsProjectionLane: StepsSessionFactProjectionLane?,
 	applicationScope: CoroutineScope?,
 	private val startupGateProvider: Provider<TrackingStartupGate>?,
 	@Suppress("UNUSED_PARAMETER") constructionMarker: Unit,
@@ -43,6 +45,7 @@ class SourcePipelineRecovery private constructor(
 		coordinator: TrackingCoordinator,
 		activityProjectionLane: ActivityAutomationProjectionLane,
 		activityEffects: ActivityAutomationOutboxDispatcher,
+		stepsProjectionLane: StepsSessionFactProjectionLane,
 		@ApplicationScope applicationScope: CoroutineScope,
 		startupGateProvider: Provider<TrackingStartupGate>,
 	) : this(
@@ -50,6 +53,7 @@ class SourcePipelineRecovery private constructor(
 		coordinator,
 		activityProjectionLane,
 		activityEffects,
+		stepsProjectionLane,
 		applicationScope,
 		startupGateProvider,
 		Unit,
@@ -66,6 +70,7 @@ class SourcePipelineRecovery private constructor(
 		coordinator,
 		activityProjectionLane,
 		activityEffects,
+		null,
 		applicationScope,
 		null,
 		Unit,
@@ -82,6 +87,43 @@ class SourcePipelineRecovery private constructor(
 		activityProjectionLane,
 		activityEffects,
 		null,
+		null,
+		null,
+		Unit,
+	)
+
+	internal constructor(
+		legacyRecovery: LegacyV27ProjectionRecovery,
+		coordinator: TrackingCoordinator,
+		activityProjectionLane: ActivityAutomationProjectionLane,
+		activityEffects: ActivityAutomationOutboxDispatcher,
+		applicationScope: CoroutineScope,
+		startupGateProvider: Provider<TrackingStartupGate>,
+	) : this(
+		legacyRecovery,
+		coordinator,
+		activityProjectionLane,
+		activityEffects,
+		null,
+		applicationScope,
+		startupGateProvider,
+		Unit,
+	)
+
+	internal constructor(
+		legacyRecovery: LegacyV27ProjectionRecovery,
+		coordinator: TrackingCoordinator,
+		activityProjectionLane: ActivityAutomationProjectionLane,
+		activityEffects: ActivityAutomationOutboxDispatcher,
+		stepsProjectionLane: StepsSessionFactProjectionLane,
+		applicationScope: CoroutineScope,
+	) : this(
+		legacyRecovery,
+		coordinator,
+		activityProjectionLane,
+		activityEffects,
+		stepsProjectionLane,
+		applicationScope,
 		null,
 		Unit,
 	)
@@ -113,6 +155,11 @@ class SourcePipelineRecovery private constructor(
 		committedWorkSignals.trySend(Unit)
 	}
 
+	/** Source-local Steps hint; the lane owns conflation and never joins the Activity effect drain. */
+	fun requestStepsSessionFactDrain() {
+		stepsProjectionLane?.requestDrain()
+	}
+
 	/** Recovers durable projections only; it deliberately cannot invoke application consumers. */
 	suspend fun recoverDurableState(): SourceRecoveryResult {
 		val legacyResult = recoverStartupAuthority()
@@ -138,6 +185,9 @@ class SourcePipelineRecovery private constructor(
 		) {
 			throw LegacyV27ProjectionRecoveryNotReadyException(legacyResult)
 		}
+		// Startup only kicks the source-local lane. It is not awaited by the global gate, so a
+		// poisoned Steps fact cannot block an independently viable source or cause polling.
+		stepsProjectionLane?.requestDrain()
 		return legacyResult
 	}
 

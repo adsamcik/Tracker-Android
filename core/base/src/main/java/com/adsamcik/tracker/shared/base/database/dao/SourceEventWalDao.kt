@@ -19,6 +19,15 @@ interface SourceEventWalDao {
 	suspend fun getByEventId(eventId: String): SourceEventWalEntity?
 
 	@Query(
+		"SELECT admission_ordinal, source_kind, captured_collected_data_epoch, " +
+			"acquired_at_ms, wall_time_ms FROM source_event_wal " +
+			"WHERE admission_ordinal = :admissionOrdinal LIMIT 1",
+	)
+	suspend fun projectionEligibilityByAdmissionOrdinal(
+		admissionOrdinal: Long,
+	): SourceEventProjectionEligibilityRow?
+
+	@Query(
 		"SELECT event_id, admission_ordinal, provider_dedup_key, source_instance_id, " +
 			"registration_generation, physical_configuration_fingerprint, authorization_revision, " +
 			"authorization_purpose_eligibility_mask, authorization_fingerprint, " +
@@ -192,6 +201,15 @@ data class SourceEventIdentityRow(
 	@ColumnInfo(name = "payload_version") val payloadVersion: Int,
 	@ColumnInfo(name = "payload_checksum") val payloadChecksum: String,
 	@ColumnInfo(name = "integrity_identity") val integrityIdentity: String,
+)
+
+/** Payload-free lifecycle identity used to reconcile a terminal source-writer failure. */
+data class SourceEventProjectionEligibilityRow(
+	@ColumnInfo(name = "admission_ordinal") val admissionOrdinal: Long,
+	@ColumnInfo(name = "source_kind") val sourceKind: Int,
+	@ColumnInfo(name = "captured_collected_data_epoch") val capturedCollectedDataEpoch: Long,
+	@ColumnInfo(name = "acquired_at_ms") val acquiredAtMs: Long,
+	@ColumnInfo(name = "wall_time_ms") val wallTimeMs: Long?,
 )
 
 /** Payload-free projection used to recognize an exact replay of a process-stable delivery. */
