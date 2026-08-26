@@ -56,7 +56,7 @@ class PostDeletionAutomaticControlRestorerTest {
 	}
 
 	@Test
-	fun `permanently Blocked startup completes without reopening writers`() = runTest {
+	fun `permanently Blocked startup waits for explicit Ready without reopening writers`() = runTest {
 		val operations = mutableListOf<String>()
 
 		runPostDeletionRecovery(
@@ -78,7 +78,7 @@ class PostDeletionAutomaticControlRestorerTest {
 				operations += "control"
 				AutomaticControlRecoveryResult.ACCEPTED
 			},
-		) shouldBe PostDeletionRecoveryOutcome.COMPLETE
+		) shouldBe PostDeletionRecoveryOutcome.WAITING_FOR_STARTUP_READY
 
 		operations shouldBe emptyList()
 	}
@@ -306,6 +306,113 @@ class PostDeletionAutomaticControlRestorerTest {
 		PostDeletionRecoveryOutcome.OPTIONAL_CONTROL_RETRY.shouldRetry(2) shouldBe false
 		PostDeletionRecoveryOutcome.OPTIONAL_CONTROL_RETRY.shouldRetry(30) shouldBe false
 		PostDeletionRecoveryOutcome.DURABLE_RETRY.shouldRetry(30) shouldBe true
+		PostDeletionRecoveryOutcome.WAITING_FOR_STARTUP_READY.shouldRetry(30) shouldBe false
+	}
+
+	@Test
+	fun `Blocked then same process Ready rearms the recovery exactly once`() {
+		val rearm = PostDeletionReadyRearm()
+		val enqueuedEpochs = mutableListOf<Long>()
+
+		rearm.schedule(8L) { enqueuedEpochs += it }
+		rearm.preserveBlockedRecovery(
+			collectedDataEpoch = 8L,
+			startupGeneration = 2L,
+		) shouldBe BlockedPostDeletionRecoveryDisposition.PENDING_READY
+
+		rearm.onStartupReady(2L) { enqueuedEpochs += it } shouldBe true
+		rearm.onStartupReady(2L) { enqueuedEpochs += it } shouldBe false
+		enqueuedEpochs shouldBe listOf(8L, 8L)
+	}
+
+	@Test
+	fun `new deletion epoch invalidates an older pending Ready obligation`() {
+		val rearm = PostDeletionReadyRearm()
+		val enqueuedEpochs = mutableListOf<Long>()
+
+		rearm.schedule(8L) { enqueuedEpochs += it }
+		rearm.preserveBlockedRecovery(8L, 2L) shouldBe
+			BlockedPostDeletionRecoveryDisposition.PENDING_READY
+		rearm.schedule(9L) { enqueuedEpochs += it }
+		rearm.preserveBlockedRecovery(8L, 2L) shouldBe
+			BlockedPostDeletionRecoveryDisposition.STALE_EPOCH
+
+		rearm.onStartupReady(2L) { enqueuedEpochs += it } shouldBe false
+		enqueuedEpochs shouldBe listOf(8L, 9L)
+	}
+
+	@Test
+	fun `Ready winning before Blocked preservation grants only one bounded race retry`() {
+		val rearm = PostDeletionReadyRearm()
+
+		rearm.schedule(8L) {}
+		rearm.onStartupReady(2L) {} shouldBe false
+		rearm.preserveBlockedRecovery(8L, 2L) shouldBe
+			BlockedPostDeletionRecoveryDisposition.RETRY_CURRENT_WORK_ONCE
+		rearm.preserveBlockedRecovery(8L, 2L) shouldBe
+			BlockedPostDeletionRecoveryDisposition.PENDING_READY
+	}
+
+	@Test
+	fun `failed Ready enqueue retains the same epoch obligation for an explicit retry`() {
+		val rearm = PostDeletionReadyRearm()
+		val enqueuedEpochs = mutableListOf<Long>()
+
+		rearm.schedule(8L) { enqueuedEpochs += it }
+		rearm.preserveBlockedRecovery(8L, 2L)
+		runCatching {
+			rearm.onStartupReady(2L) { error("WorkManager unavailable") }
+		}.isFailure shouldBe true
+
+		rearm.onStartupReady(2L) { enqueuedEpochs += it } shouldBe true
+		enqueuedEpochs shouldBe listOf(8L, 8L)
+	}
+
+	@Test
+	fun `Blocked worker records one in process obligation and completes without polling`() = runTest {
+		val context = mockk<Context>(relaxed = true)
+		val lifecycleStore = mockk<CollectedDataLifecycleStore>()
+		coEvery { lifecycleStore.snapshot() } returns
+			CollectedDataLifecycleSnapshot(epoch = 8L, retainedFromMs = null)
+		val startupGate = mockk<TrackingStartupGate>()
+		every { startupGate.currentGeneration } returns 2L
+		every { startupGate.isReady } returns false
+		coEvery { startupGate.reconcile() } returns TrackingStartupResult.Blocked(
+			TrackingStartupStage.LEGACY_V27,
+			"PERMANENT_FAILURE",
+		)
+		val restorer = mockk<PostDeletionAutomaticControlRestorer>(relaxed = true)
+		every {
+			restorer.preserveUntilStartupReady(
+				collectedDataEpoch = 8L,
+				startupGeneration = 2L,
+			)
+		} returns BlockedPostDeletionRecoveryDisposition.PENDING_READY
+		val worker = PostDeletionRecoveryWorker(
+			appContext = context,
+			params = mockk<WorkerParameters>(relaxed = true) {
+				every { inputData } returns workDataOf(
+					PostDeletionRecoveryWorker.COLLECTED_DATA_EPOCH_KEY to 8L,
+				)
+			},
+			startupGate = startupGate,
+			deletionBarrier = mockk<TrackingStartupDeletionBarrier> {
+				every { isClosed } returns false
+			},
+			lifecycleStore = lifecycleStore,
+			writerQuiescer = mockk(relaxed = true),
+			activityRegistrationArbiterProvider = Provider { mockk(relaxed = true) },
+			automaticControlRestorer = restorer,
+		)
+
+		worker.doWork() shouldBe ListenableWorker.Result.success()
+		verify(exactly = 1) {
+			restorer.preserveUntilStartupReady(
+				collectedDataEpoch = 8L,
+				startupGeneration = 2L,
+			)
+		}
+		verify(exactly = 0) { restorer.schedule(any()) }
 	}
 
 	@Test
@@ -330,6 +437,7 @@ class PostDeletionAutomaticControlRestorerTest {
 			activityRegistrationArbiterProvider = Provider {
 				mockk<ActivityRegistrationArbiter>(relaxed = true)
 			},
+			automaticControlRestorer = mockk(relaxed = true),
 		)
 
 		worker(2).doWork() shouldBe
@@ -376,6 +484,7 @@ class PostDeletionAutomaticControlRestorerTest {
 				lifecycleStore = lifecycleStore,
 				writerQuiescer = mockk<CollectedDataWriterQuiescer>(relaxed = true),
 				activityRegistrationArbiterProvider = Provider { arbiter },
+				automaticControlRestorer = mockk(relaxed = true),
 			)
 
 			worker.doWork() shouldBe ListenableWorker.Result.success()
@@ -419,6 +528,7 @@ class PostDeletionAutomaticControlRestorerTest {
 			lifecycleStore = lifecycleStore,
 			writerQuiescer = writerQuiescer,
 			activityRegistrationArbiterProvider = Provider { arbiter },
+			automaticControlRestorer = mockk(relaxed = true),
 		)
 
 		worker.doWork() shouldBe ListenableWorker.Result.retry()

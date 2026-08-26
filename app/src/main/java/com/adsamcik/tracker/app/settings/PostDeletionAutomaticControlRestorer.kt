@@ -36,8 +36,37 @@ import kotlin.coroutines.cancellation.CancellationException
 class PostDeletionAutomaticControlRestorer @Inject constructor(
 	@ApplicationContext private val context: Context,
 ) {
+	private val readyRearm = PostDeletionReadyRearm()
+
 	fun schedule(collectedDataEpoch: Long) {
 		require(collectedDataEpoch >= 0L)
+		readyRearm.schedule(collectedDataEpoch, ::enqueueRecovery)
+	}
+
+	internal fun preserveUntilStartupReady(
+		collectedDataEpoch: Long,
+		startupGeneration: Long,
+	): BlockedPostDeletionRecoveryDisposition = readyRearm.preserveBlockedRecovery(
+		collectedDataEpoch = collectedDataEpoch,
+		startupGeneration = startupGeneration,
+	)
+
+	/**
+	 * Re-enqueues a worker that stopped at a permanent startup block without polling that block.
+	 * Returns false when this Ready generation has no matching process-local obligation, or when
+	 * WorkManager rejected the enqueue and the obligation was retained for a later Ready signal.
+	 */
+	internal fun onAuthoritativeStartupReady(startupGeneration: Long): Boolean = try {
+		readyRearm.onStartupReady(startupGeneration, ::enqueueRecovery)
+	} catch (_: Exception) {
+		false
+	}
+
+	internal fun onRecoveryHandoffCompleted(collectedDataEpoch: Long) {
+		readyRearm.onRecoveryHandoffCompleted(collectedDataEpoch)
+	}
+
+	private fun enqueueRecovery(collectedDataEpoch: Long) {
 		val request = OneTimeWorkRequestBuilder<PostDeletionRecoveryWorker>()
 			.setInputData(workDataOf(PostDeletionRecoveryWorker.COLLECTED_DATA_EPOCH_KEY to collectedDataEpoch))
 			.setBackoffCriteria(
@@ -68,6 +97,7 @@ class PostDeletionRecoveryWorker @AssistedInject constructor(
 	private val lifecycleStore: CollectedDataLifecycleStore,
 	private val writerQuiescer: CollectedDataWriterQuiescer,
 	private val activityRegistrationArbiterProvider: Provider<ActivityRegistrationArbiter>,
+	private val automaticControlRestorer: PostDeletionAutomaticControlRestorer,
 ) : CoroutineWorker(appContext, params) {
 	override suspend fun doWork(): Result {
 		val expectedEpoch = inputData.getLong(COLLECTED_DATA_EPOCH_KEY, MISSING_EPOCH)
@@ -101,10 +131,25 @@ class PostDeletionRecoveryWorker @AssistedInject constructor(
 		} catch (_: Exception) {
 			PostDeletionRecoveryOutcome.DURABLE_RETRY
 		}
-		return if (outcome.shouldRetry(runAttemptCount)) {
-			Result.retry()
-		} else {
-			Result.success()
+		return when (outcome) {
+			PostDeletionRecoveryOutcome.WAITING_FOR_STARTUP_READY -> when (
+				automaticControlRestorer.preserveUntilStartupReady(
+					collectedDataEpoch = expectedEpoch,
+					startupGeneration = startupGeneration,
+				)
+			) {
+				BlockedPostDeletionRecoveryDisposition.RETRY_CURRENT_WORK_ONCE -> Result.retry()
+				BlockedPostDeletionRecoveryDisposition.PENDING_READY,
+				BlockedPostDeletionRecoveryDisposition.STALE_EPOCH,
+				-> Result.success()
+			}
+			PostDeletionRecoveryOutcome.COMPLETE,
+			PostDeletionRecoveryOutcome.OPTIONAL_CONTROL_RETRY,
+			-> {
+				automaticControlRestorer.onRecoveryHandoffCompleted(expectedEpoch)
+				if (outcome.shouldRetry(runAttemptCount)) Result.retry() else Result.success()
+			}
+			PostDeletionRecoveryOutcome.DURABLE_RETRY -> Result.retry()
 		}
 	}
 
@@ -116,6 +161,8 @@ class PostDeletionRecoveryWorker @AssistedInject constructor(
 
 internal enum class PostDeletionRecoveryOutcome {
 	COMPLETE,
+	/** A permanent startup block waits for an explicit same-process Ready signal without polling. */
+	WAITING_FOR_STARTUP_READY,
 	/** Storage, startup, writer, and Activity-capture-latch reopening retain retry ownership. */
 	DURABLE_RETRY,
 	/** Activity provider/control reconciliation is optional and has a battery-bounded retry budget. */
@@ -123,7 +170,9 @@ internal enum class PostDeletionRecoveryOutcome {
 }
 
 internal fun PostDeletionRecoveryOutcome.shouldRetry(runAttemptCount: Int): Boolean = when (this) {
-	PostDeletionRecoveryOutcome.COMPLETE -> false
+	PostDeletionRecoveryOutcome.COMPLETE,
+	PostDeletionRecoveryOutcome.WAITING_FOR_STARTUP_READY,
+	-> false
 	PostDeletionRecoveryOutcome.DURABLE_RETRY -> true
 	// Exhausting this deletion-epoch flight does not suppress future authority changes.
 	// BackgroundTrackingApi's policy/preference observers and foreground permission revalidation
@@ -155,7 +204,8 @@ internal suspend fun runPostDeletionRecovery(
 		is TrackingStartupResult.Ready -> Unit
 		is TrackingStartupResult.RetryableFailure ->
 			return PostDeletionRecoveryOutcome.DURABLE_RETRY
-		is TrackingStartupResult.Blocked -> return PostDeletionRecoveryOutcome.COMPLETE
+		is TrackingStartupResult.Blocked ->
+			return PostDeletionRecoveryOutcome.WAITING_FOR_STARTUP_READY
 	}
 	if (!isStartupReady() || isDeletionClosed() ||
 		currentStartupGeneration() != startupGeneration
@@ -215,3 +265,89 @@ internal suspend fun runPostDeletionRecovery(
 }
 
 private const val OPTIONAL_CONTROL_MAX_ATTEMPTS = 3
+
+internal enum class BlockedPostDeletionRecoveryDisposition {
+	PENDING_READY,
+	RETRY_CURRENT_WORK_ONCE,
+	STALE_EPOCH,
+}
+
+/**
+ * Process-local bridge between a Blocked recovery worker and an explicit startup repair.
+ *
+ * Process death intentionally clears this state: the writer and Activity latches it represents
+ * are also process-local and reconstruct open. WorkManager remains the durable owner for failures
+ * that occur after startup becomes Ready.
+ */
+internal class PostDeletionReadyRearm {
+	private val monitor = Any()
+	private var latestScheduledEpoch = NO_EPOCH
+	private var pendingRecovery: PendingRecovery? = null
+	private var latestReadyGeneration = NO_GENERATION
+	private var readyRaceRetryConsumedGeneration = NO_GENERATION
+
+	fun schedule(
+		collectedDataEpoch: Long,
+		enqueue: (Long) -> Unit,
+	): Boolean = synchronized(monitor) {
+		if (collectedDataEpoch < latestScheduledEpoch) return@synchronized false
+		latestScheduledEpoch = collectedDataEpoch
+		pendingRecovery = null
+		enqueue(collectedDataEpoch)
+		true
+	}
+
+	fun preserveBlockedRecovery(
+		collectedDataEpoch: Long,
+		startupGeneration: Long,
+	): BlockedPostDeletionRecoveryDisposition = synchronized(monitor) {
+		if (collectedDataEpoch != latestScheduledEpoch) {
+			return@synchronized BlockedPostDeletionRecoveryDisposition.STALE_EPOCH
+		}
+		if (startupGeneration == latestReadyGeneration &&
+			readyRaceRetryConsumedGeneration != startupGeneration
+		) {
+			readyRaceRetryConsumedGeneration = startupGeneration
+			return@synchronized BlockedPostDeletionRecoveryDisposition.RETRY_CURRENT_WORK_ONCE
+		}
+		pendingRecovery = PendingRecovery(collectedDataEpoch, startupGeneration)
+		BlockedPostDeletionRecoveryDisposition.PENDING_READY
+	}
+
+	fun onStartupReady(
+		startupGeneration: Long,
+		enqueue: (Long) -> Unit,
+	): Boolean = synchronized(monitor) {
+		latestReadyGeneration = startupGeneration
+		readyRaceRetryConsumedGeneration = NO_GENERATION
+		val pending = pendingRecovery ?: return@synchronized false
+		if (pending.collectedDataEpoch != latestScheduledEpoch ||
+			pending.startupGeneration != startupGeneration
+		) {
+			if (pending.collectedDataEpoch != latestScheduledEpoch) pendingRecovery = null
+			return@synchronized false
+		}
+		pendingRecovery = null
+		try {
+			enqueue(pending.collectedDataEpoch)
+		} catch (error: Exception) {
+			pendingRecovery = pending
+			throw error
+		}
+		true
+	}
+
+	fun onRecoveryHandoffCompleted(collectedDataEpoch: Long) = synchronized(monitor) {
+		if (pendingRecovery?.collectedDataEpoch == collectedDataEpoch) pendingRecovery = null
+	}
+
+	private data class PendingRecovery(
+		val collectedDataEpoch: Long,
+		val startupGeneration: Long,
+	)
+
+	private companion object {
+		const val NO_EPOCH = -1L
+		const val NO_GENERATION = -1L
+	}
+}

@@ -14,6 +14,7 @@ import androidx.work.Configuration
 import com.adsamcik.tracker.app.event.PrecisionUpgradeDomainEventConsumer
 import com.adsamcik.tracker.app.startup.ModuleInitializerCoordinator
 import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
+import com.adsamcik.tracker.app.settings.PostDeletionAutomaticControlRestorer
 import com.adsamcik.tracker.app.tracebox.TrackerTraceboxRuntime
 import com.adsamcik.tracker.app.tracebox.currentTrackerProcessName
 import com.adsamcik.tracker.app.tracebox.isTraceboxHandlerProcessName
@@ -125,6 +126,9 @@ class Application : AndroidApplication(), Configuration.Provider {
 
 	@Inject
 	lateinit var runtimePermissionReconciler: RuntimePermissionReconciler
+
+	@Inject
+	lateinit var postDeletionAutomaticControlRestorer: PostDeletionAutomaticControlRestorer
 
 	@Volatile
 	var isStartupReady: Boolean = false
@@ -293,8 +297,13 @@ class Application : AndroidApplication(), Configuration.Provider {
 	internal suspend fun reconcileTrackingStartup(
 		retryFailedStorage: Boolean = false,
 	): TrackingStartupResult = trackingStartupGate.reconcile(retryFailedStorage).also { result ->
-		if (result is TrackingStartupResult.Ready && !isRobolectricUnitTest()) {
-			initializeModules()
+		if (result is TrackingStartupResult.Ready) {
+			// A permanently Blocked post-deletion worker deliberately does not poll. The explicit
+			// repair path that makes startup Ready is its one same-process rearm signal.
+			postDeletionAutomaticControlRestorer.onAuthoritativeStartupReady(
+				trackingStartupGate.currentGeneration,
+			)
+			if (!isRobolectricUnitTest()) initializeModules()
 		}
 	}
 
