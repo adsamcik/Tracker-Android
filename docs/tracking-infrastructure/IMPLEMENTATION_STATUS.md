@@ -843,3 +843,66 @@ is explicitly not a cutover coordinator and has no production caller.
   writer selection, per-run completeness, partial-retention truth, trip deletion/replay fencing,
   post-candidate full-deletion reconstruction, observable materialization refresh, localization,
   production query, UI, activation, and rollout.
+
+## Exact service-run provider ownership R1 correction (2026-08-26)
+
+### Outcome
+
+Commits `ca5b1ffad` and `47fb0d842` close the next shared lifecycle prerequisite without widening
+the Steps product gate. Every provider-side attempt is now bound to an exact logical session,
+service run, manifest, lifecycle action, lease generation, and attempt. Run retirement reconstructs
+only those exact claims, newest first, and never quiesces another run merely because it uses the
+same source family. Service destruction retains stop-delivery ownership and retries cleanup with a
+capped backoff until retirement succeeds or the process exits.
+
+This is lifecycle containment, not source rollout. It activates no candidate writer, adds no
+materializer or production history reader, starts no provider, changes no sampling cadence, and
+authorizes neither ambient collection nor UI wiring. The direct v27→v28 migration remains the
+appropriate boundary because v28 has never shipped.
+
+### Evidence
+
+- Two additional fresh correction reviewers independently returned `NO_GO` after finding that a
+  cancelled `APPLYING` action could publish provider work and then disappear from retirement. The
+  data reviewer subsequently found the adjacent accepted-automatic replay timeline. The third
+  fresh correction thread was unavailable under the four-thread ceiling; this extra check is not
+  mislabeled as a new three-review round. The required earlier three-perspective corrected R1 is
+  retained at TI-B125.
+- The correction keeps attempted `APPLYING`, `START_ACCEPTED`, and `CLEANUP_REQUIRED` outcomes live
+  until exact retirement; a latest exact `STOP_ACCEPTED` suppresses its historical predecessor.
+  Successful whole-run retirement terminalizes older unresolved ownership rows. Both correction
+  reviewers returned `GO` for their respective data and Android/service scopes after inspection;
+  these were same-reviewer correction verifications, not fresh certifications.
+- Focused coordinator/service-session verification: `BUILD SUCCESSFUL in 1m 21s`; `71/71`, zero
+  failures, errors, or skips. It covers cancellation after provider publication, incomplete
+  removal and retry, newest reconfigure claim selection, `APPLYING` and `START_ACCEPTED` automatic
+  replay, and full-stop routing after service coroutine cancellation.
+- Source runtime/broker/registration shard: `BUILD SUCCESSFUL in 1m 1s`. Finalizer and shutdown
+  shard: `BUILD SUCCESSFUL in 37s`. One earlier oversized combined shard ended with a Gradle
+  test-results `EOFException` and no assertion report; both split shards and the later complete
+  suite passed, so it is recorded as a tooling failure rather than hidden or called a regression.
+- Complete tracker-engine suite: `BUILD SUCCESSFUL in 6m 52s`; `1,640/1,640`, zero failures,
+  errors, or skips. Complete core database and tracker API suites: `870/870` and `65/65`, zero
+  failures, errors, or skips.
+- Exact populated v27→v28 migration: `8/8` on `Medium_Phone(AVD) - 16`, `BUILD SUCCESSFUL in 34s`.
+  Debug APK assembly: `BUILD SUCCESSFUL in 1m 9s`. Post-commit `checkRoomSchemaDrift`:
+  `BUILD SUCCESSFUL in 19s`.
+
+### Gate status
+
+- Current phase: TI-410 manual/session Steps, `IN_PROGRESS`.
+- Passed: immutable service-run manifest integrity; exact provider claim/ack membership across all
+  six runtimes; strict provider-removal/flush/app-drain retirement evidence; cancellation-safe
+  start/reconfigure ownership; stale automatic replay fencing; run-scoped recovery/finalizers;
+  persistent teardown delivery; unreleased-v28 migration and schema agreement.
+- Still blocked: Steps writer cutover/rollback, segment-effective provenance, per-run materialized
+  completeness, typed query state, portable typed export/import, deletion replay proof, existing
+  product consumer truth, device/provider validation, automatic Steps, ambient Steps, every other
+  source vertical, broad `DayOverview`, UI activation, and rollout.
+
+### Next wave
+
+Return directly to TI-410. Implement segment-effective Steps writer provenance and service-run
+materialization completeness, then the narrow legacy/candidate cutover and rollback protocol.
+Only after deletion/no-resurrection and a truthful production Steps query pass should existing UI
+consumers be wired. Do not add another shared lifecycle layer or generic materializer platform.

@@ -998,3 +998,36 @@ Each entry records repository evidence and does not duplicate the final architec
   stays dormant. The durable ID bridge and exact write fence remain because they add no acquisition,
   polling, or battery cost and are required to solve the identified timelines. Query-only DAO
   helpers and the premature Trip Detail integration were removed rather than hidden behind a flag.
+
+## TI-D104 — Every attempted provider action remains exact retirement authority
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` at `ca5b1ffad` and `47fb0d842`; materializer and rollout
+  authority unchanged
+- Owner/date: lead orchestrator after fresh R1 correction adversaries, 2026-08-26
+- Alternatives: stop every process-local runtime for a source; retire only acknowledged start
+  actions; treat a newer automatic request as proof the predecessor is stale; retain exact attempted
+  and accepted run claims until strict release evidence exists
+- Evidence: the coordinator persists an action as `APPLYING` and increments its attempt before the
+  runtime call. A runtime can bind that claim and publish provider work before cancellation leaves
+  the action unsettled. Retirement previously reconstructed only `START_ACCEPTED` and
+  `CLEANUP_REQUIRED`, so it could synthesize completion while that provider remained live. A
+  duplicate automatic request could likewise directly finalize a fully `START_ACCEPTED` provider.
+  Service destruction could choose restart suspension after cancellation and receive
+  `NoActiveSession` for a durable `STARTING` or `RECONFIGURING` run. Two fresh reviewers independently
+  falsified those timelines; composed tests and the complete 1,640-test engine suite now pass.
+- Decision: every exact source action with `attemptCount > 0` and latest ownership status
+  `APPLYING`, `START_ACCEPTED`, or `CLEANUP_REQUIRED` remains retirement authority for its logical
+  session and service run. Claims are tried newest first. A latest exact `STOP_ACCEPTED`, which
+  requires complete provider removal, flush, app drain, and matching run membership, suppresses
+  older claims for that source. Successful whole-run retirement terminalizes historical unresolved
+  attempts. Cancellation after service-session ownership attaches forces full stop; restart
+  suspension is reserved for a durably clean active run. The runtime-stop dispatcher holds commands
+  during teardown and releases inactive fallback only after cleanup succeeds. It never performs a
+  global source-family shutdown.
+- Consequences: unrelated control, ambient, or successor registrations remain untouched; a newer
+  automatic request cannot erase a potentially live predecessor; failed removal remains durable
+  `CLEANUP_REQUIRED`; and a destroyed service retries with capped exponential delay instead of
+  falsely completing or spinning. The added work occurs only during failed teardown and prevents a
+  live provider from wasting more battery. Because v28 is unreleased, the exact run/action fields
+  are added directly to v28. This decision changes no acquisition cadence, persistence eligibility,
+  canonical writer, ambient consent, product query, or UI gate.
