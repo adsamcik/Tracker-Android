@@ -9,6 +9,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.LegacyV27ProjectionDrainEntity
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.sqlite.runtime.SQLiteXSupportSQLiteOpenHelperFactory
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -75,6 +76,8 @@ class AppDatabaseMigration27To28Test {
 					assertProductionQueriesPreserveV27Facts(database)
 					assertFailClosedAuthorityAndNoGhostRuntime(database)
 					assertForeignKeysEnabled(database)
+					seedMigratedStepFactRevision(database)
+					assertEquals(1L, database.stepFactRevisionDao().countAll())
 
 					AppDatabase.deleteAllCollectedData(
 						database = database,
@@ -512,6 +515,8 @@ class AppDatabaseMigration27To28Test {
 		assertTableCount(database, "location_projection_observation", 1)
 		assertTableCount(database, "location_projection_point", 1)
 		assertTableCount(database, "step_interval", 2)
+		// v27 observations remain byte-for-byte facts; migration must not invent semantics.
+		assertTableCount(database, "step_fact_revision", 0)
 		assertTableCount(database, "activity_snapshot", 1)
 		assertTableCount(database, "wifi_observation", 1)
 		assertTableCount(database, "cell_sample", 1)
@@ -794,6 +799,7 @@ class AppDatabaseMigration27To28Test {
 			.points(PopulatedV27Fixture.LOGICAL_TRACKING_ID).isEmpty())
 		assertTrue(database.stepIntervalDao()
 			.getAllBetween(PopulatedV27Fixture.START_MS, PopulatedV27Fixture.END_MS).isEmpty())
+		assertEquals(0L, database.stepFactRevisionDao().countAll())
 		assertTrue(database.activitySnapshotDao()
 			.getAllBetween(PopulatedV27Fixture.START_MS, PopulatedV27Fixture.END_MS).isEmpty())
 		assertTrue(database.wifiObservationDao().getChunkBetweenOrdered(
@@ -837,6 +843,39 @@ class AppDatabaseMigration27To28Test {
 		assertEquals(123_456L, evidenceState.retainedFromMs)
 		assertEquals(1L, evidenceState.deletedSourceEventHighWaterOrdinal)
 		assertEquals(1L, requireNotNull(database.activityAutomationEpochDao().current()).epoch)
+	}
+
+	private suspend fun seedMigratedStepFactRevision(database: AppDatabase) {
+		val interval = database.stepIntervalDao()
+			.getAllBetween(PopulatedV27Fixture.START_MS, PopulatedV27Fixture.END_MS)
+			.first()
+		val inserted = database.stepFactRevisionDao().insert(
+			StepFactRevisionEntity(
+				logicalFactId = "migration-step-fact",
+				semanticRevision = 1L,
+				mutationId = "migration-step-mutation",
+				stepIntervalId = interval.id,
+				sourceEventId = "migration-step-event",
+				sourceAdmissionOrdinal = 1L,
+				originKind = StepFactRevisionEntity.ORIGIN_LIVE_WAL,
+				originIdentity = "migration-step-event",
+				writerProjectionId = "steps-session-facts",
+				writerProjectionVersion = 1,
+				writerBindingGeneration = 1L,
+				operation = StepFactRevisionEntity.OPERATION_UPSERT,
+				coverageKind = StepFactRevisionEntity.COVERAGE_COVERED,
+				effectiveStepCount = interval.stepCount.toLong(),
+				logicalTrackingId = PopulatedV27Fixture.LOGICAL_TRACKING_ID,
+				purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+				manifestRevision = 1L,
+				sourcePolicyRevision = 1L,
+				captureConsentEpoch = 1L,
+				collectedDataEpoch = 7L,
+				effectChecksum = "migration-step-effect",
+				appliedAtMs = PopulatedV27Fixture.END_MS,
+			),
+		)
+		assertTrue(inserted != -1L)
 	}
 
 	private fun assertTableCount(database: SupportSQLiteDatabase, table: String, expected: Long) {

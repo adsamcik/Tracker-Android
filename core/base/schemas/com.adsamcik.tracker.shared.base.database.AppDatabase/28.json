@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 28,
-    "identityHash": "5d5bd94fbcebb6d95e6c1b9f2665f05d",
+    "identityHash": "72144eaad8691dde771289ed622820b7",
     "entities": [
       {
         "tableName": "activity",
@@ -1060,6 +1060,213 @@
             ],
             "orders": [],
             "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_step_interval_source_signal` ON `${TABLE_NAME}` (`source_signal_id`)"
+          }
+        ]
+      },
+      {
+        "tableName": "step_fact_revision",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`logical_fact_id` TEXT NOT NULL, `semantic_revision` INTEGER NOT NULL, `mutation_id` TEXT NOT NULL, `step_interval_id` INTEGER NOT NULL, `source_event_id` TEXT, `source_admission_ordinal` INTEGER, `origin_kind` TEXT NOT NULL, `origin_identity` TEXT NOT NULL, `writer_projection_id` TEXT NOT NULL, `writer_projection_version` INTEGER NOT NULL, `writer_binding_generation` INTEGER NOT NULL, `operation` TEXT NOT NULL, `coverage_kind` TEXT NOT NULL, `effective_step_count` INTEGER NOT NULL, `logical_tracking_id` TEXT, `purpose` TEXT NOT NULL, `manifest_revision` INTEGER, `source_policy_revision` INTEGER NOT NULL, `capture_consent_epoch` INTEGER NOT NULL, `collected_data_epoch` INTEGER NOT NULL, `effect_checksum` TEXT NOT NULL, `applied_at_ms` INTEGER NOT NULL, PRIMARY KEY(`logical_fact_id`, `semantic_revision`), FOREIGN KEY(`step_interval_id`) REFERENCES `step_interval`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "logicalFactId",
+            "columnName": "logical_fact_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "semanticRevision",
+            "columnName": "semantic_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mutationId",
+            "columnName": "mutation_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stepIntervalId",
+            "columnName": "step_interval_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceEventId",
+            "columnName": "source_event_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceAdmissionOrdinal",
+            "columnName": "source_admission_ordinal",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "originKind",
+            "columnName": "origin_kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originIdentity",
+            "columnName": "origin_identity",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "writerProjectionId",
+            "columnName": "writer_projection_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "writerProjectionVersion",
+            "columnName": "writer_projection_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "writerBindingGeneration",
+            "columnName": "writer_binding_generation",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "operation",
+            "columnName": "operation",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "coverageKind",
+            "columnName": "coverage_kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effectiveStepCount",
+            "columnName": "effective_step_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "logicalTrackingId",
+            "columnName": "logical_tracking_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "purpose",
+            "columnName": "purpose",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "manifestRevision",
+            "columnName": "manifest_revision",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "sourcePolicyRevision",
+            "columnName": "source_policy_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "captureConsentEpoch",
+            "columnName": "capture_consent_epoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "collectedDataEpoch",
+            "columnName": "collected_data_epoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effectChecksum",
+            "columnName": "effect_checksum",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "appliedAtMs",
+            "columnName": "applied_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "logical_fact_id",
+            "semantic_revision"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_step_fact_revision_mutation",
+            "unique": true,
+            "columnNames": [
+              "mutation_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_step_fact_revision_mutation` ON `${TABLE_NAME}` (`mutation_id`)"
+          },
+          {
+            "name": "idx_step_fact_revision_interval",
+            "unique": false,
+            "columnNames": [
+              "step_interval_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_step_fact_revision_interval` ON `${TABLE_NAME}` (`step_interval_id`)"
+          },
+          {
+            "name": "idx_step_fact_revision_writer_admission",
+            "unique": true,
+            "columnNames": [
+              "writer_projection_id",
+              "writer_projection_version",
+              "source_admission_ordinal"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_step_fact_revision_writer_admission` ON `${TABLE_NAME}` (`writer_projection_id`, `writer_projection_version`, `source_admission_ordinal`)"
+          },
+          {
+            "name": "idx_step_fact_revision_origin",
+            "unique": false,
+            "columnNames": [
+              "origin_kind",
+              "origin_identity"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_step_fact_revision_origin` ON `${TABLE_NAME}` (`origin_kind`, `origin_identity`)"
+          },
+          {
+            "name": "idx_step_fact_revision_session_latest",
+            "unique": false,
+            "columnNames": [
+              "logical_tracking_id",
+              "purpose",
+              "logical_fact_id",
+              "semantic_revision"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_step_fact_revision_session_latest` ON `${TABLE_NAME}` (`logical_tracking_id`, `purpose`, `logical_fact_id`, `semantic_revision`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "step_interval",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "step_interval_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
           }
         ]
       },
@@ -7137,7 +7344,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '5d5bd94fbcebb6d95e6c1b9f2665f05d')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '72144eaad8691dde771289ed622820b7')"
     ]
   }
 }

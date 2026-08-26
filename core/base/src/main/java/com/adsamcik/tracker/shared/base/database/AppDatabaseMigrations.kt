@@ -1465,6 +1465,59 @@ val MIGRATION_27_28: Migration = object : Migration(
 			)
 			execSQL(
 				"""
+				CREATE TABLE IF NOT EXISTS step_fact_revision (
+					logical_fact_id TEXT NOT NULL,
+					semantic_revision INTEGER NOT NULL,
+					mutation_id TEXT NOT NULL,
+					step_interval_id INTEGER NOT NULL,
+					source_event_id TEXT,
+					source_admission_ordinal INTEGER,
+					origin_kind TEXT NOT NULL,
+					origin_identity TEXT NOT NULL,
+					writer_projection_id TEXT NOT NULL,
+					writer_projection_version INTEGER NOT NULL,
+					writer_binding_generation INTEGER NOT NULL,
+					operation TEXT NOT NULL,
+					coverage_kind TEXT NOT NULL,
+					effective_step_count INTEGER NOT NULL,
+					logical_tracking_id TEXT,
+					purpose TEXT NOT NULL,
+					manifest_revision INTEGER,
+					source_policy_revision INTEGER NOT NULL,
+					capture_consent_epoch INTEGER NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					effect_checksum TEXT NOT NULL,
+					applied_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(logical_fact_id, semantic_revision),
+					FOREIGN KEY(step_interval_id) REFERENCES step_interval(id)
+						ON UPDATE NO ACTION ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_step_fact_revision_mutation " +
+					"ON step_fact_revision(mutation_id)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_step_fact_revision_interval " +
+					"ON step_fact_revision(step_interval_id)",
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_step_fact_revision_writer_admission " +
+					"ON step_fact_revision(writer_projection_id, writer_projection_version, " +
+					"source_admission_ordinal)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_step_fact_revision_origin " +
+					"ON step_fact_revision(origin_kind, origin_identity)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_step_fact_revision_session_latest " +
+					"ON step_fact_revision(logical_tracking_id, purpose, logical_fact_id, " +
+					"semantic_revision)",
+			)
+			execSQL(
+				"""
 				CREATE TABLE IF NOT EXISTS legacy_v27_projection_drain (
 					id INTEGER NOT NULL,
 					source_schema_version INTEGER NOT NULL,

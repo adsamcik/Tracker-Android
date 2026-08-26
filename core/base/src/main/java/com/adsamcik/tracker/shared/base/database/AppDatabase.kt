@@ -28,6 +28,7 @@ import com.adsamcik.tracker.shared.base.database.dao.LocationProjectionDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDecisionDao
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
+import com.adsamcik.tracker.shared.base.database.dao.StepFactRevisionDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerStateEventDao
@@ -54,6 +55,7 @@ import com.adsamcik.tracker.shared.base.database.data.LocationObservationDecisio
 import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
 import com.adsamcik.tracker.shared.base.database.data.PlayerProfileEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.base.database.data.TrackerRun
 import com.adsamcik.tracker.shared.base.database.data.TrackerStateEvent
@@ -158,6 +160,7 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			LocationProjectionPointEntity::class,
 			LocationObservationDecision::class,
 			StepInterval::class,
+			StepFactRevisionEntity::class,
 			ActivitySnapshot::class,
 			CellSample::class,
 			WifiObservation::class,
@@ -267,6 +270,9 @@ abstract class AppDatabase : RoomDatabase() {
 	 * Provides access to step interval data (sessionless tracking).
 	 */
 	abstract fun stepIntervalDao(): StepIntervalDao
+
+	/** Provides append-only semantic revisions and contribution receipts for Steps. */
+	abstract fun stepFactRevisionDao(): StepFactRevisionDao
 
 	/**
 	 * Provides access to activity snapshots (sessionless tracking).
@@ -588,6 +594,7 @@ abstract class AppDatabase : RoomDatabase() {
 			database.locationSampleDao().deleteAll()
 			database.locationObservationDao().deleteAll()
 			database.locationObservationDecisionDao().deleteAll()
+			database.stepFactRevisionDao().deleteAll()
 			database.stepIntervalDao().deleteAll()
 			database.activitySnapshotDao().deleteAll()
 			database.cellSampleDao().deleteAll()
