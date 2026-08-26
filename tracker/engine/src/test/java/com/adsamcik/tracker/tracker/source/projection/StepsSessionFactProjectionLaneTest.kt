@@ -9,6 +9,9 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
@@ -127,6 +130,26 @@ class StepsSessionFactProjectionLaneTest {
 		database.stepFactRevisionDao().countAll() shouldBe 0L
 		database.sourceEvidenceStateDao().get()?.revision shouldBe 0L
 		activeLane()?.contiguousAdmissionOrdinal shouldBe 2L
+	}
+
+	@Test
+	fun `canonical lane rejects an event bound to the legacy manifest writer`() = runTest {
+		installLane(
+			stage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			manifestOwner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+		)
+		val ingress = sourceIngress(0L, 1L, listOf(stepEvent(1L)))
+
+		StepsSessionFactProjectionLane(database, ingress).drainThrough(1L) shouldBe
+			StepsSessionFactDrainResult.Failed(
+				lastCompletedOrdinal = 0L,
+				failedOrdinal = 1L,
+				failureCode = "STEPS_MANIFEST_WRITER_NOT_ACTIVE",
+				terminal = true,
+			)
+
+		database.stepFactRevisionDao().countAll() shouldBe 0L
+		activeLane()?.contiguousAdmissionOrdinal shouldBe 0L
 	}
 
 	@Test
@@ -435,6 +458,11 @@ class StepsSessionFactProjectionLaneTest {
 	private suspend fun installLane(
 		stage: String,
 		cutoffOrdinal: Long? = null,
+		manifestOwner: String = if (stage == SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL) {
+			SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
+		} else {
+			SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL
+		},
 	) {
 		if (stage == SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL) {
 			val owner = requireNotNull(database.sourceDestinationOwnerDao().get(
@@ -453,9 +481,60 @@ class StepsSessionFactProjectionLaneTest {
 				) == 1)
 			}
 		}
+		installManifestBinding(manifestOwner)
 		database.sourceProjectionStateDao().installProductLane(
 			productLane(stage = stage, cutoffOrdinal = cutoffOrdinal),
 		)
+	}
+
+	private suspend fun installManifestBinding(writerOwner: String) {
+		if (database.sourceSessionDao().manifest(LOGICAL_TRACKING_ID, MANIFEST_REVISION) != null) return
+		val owner = requireNotNull(database.sourceDestinationOwnerDao().get(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+		))
+		val isCandidate = writerOwner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
+		val source = SessionManifestSourceEntity(
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			manifestRevision = MANIFEST_REVISION,
+			sourceKind = SourceKind.STEPS.stableCode,
+			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			consentEpoch = 4L,
+			persistenceEligible = true,
+			qosCode = 0,
+			outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+			writerOwner = writerOwner,
+			writerOwnerGeneration = if (isCandidate) {
+				owner.ownerGeneration
+			} else {
+				SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
+			},
+			writerProjectionId = StepsSessionFactProjectionLane.WRITER_ID.takeIf { isCandidate },
+			writerProjectionVersion = StepsSessionFactProjectionLane.WRITER_VERSION.takeIf { isCandidate },
+			writerBindingGeneration = StepsSessionFactProjectionLane.BINDING_GENERATION.takeIf { isCandidate },
+		)
+		val unsigned = SessionManifestVersionEntity(
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			manifestRevision = MANIFEST_REVISION,
+			serviceRunId = SERVICE_RUN_ID,
+			sessionMode = "MANUAL",
+			sourcePolicyRevision = 3L,
+			acquisitionPlanRevision = 1L,
+			rolloutRevision = 2L,
+			startOrigin = "MANUAL_UI",
+			effectiveBootId = "boot-1",
+			effectiveElapsedRealtimeNanos = 0L,
+			effectiveWallTimeMs = 10_000L,
+			zoneId = "UTC",
+			automationEpoch = null,
+			changeReason = "TEST",
+			manifestChecksum = "",
+		)
+		val manifest = unsigned.copy(
+			manifestChecksum = SessionManifestIntegrity.compute(unsigned, listOf(source)),
+		)
+		database.sourceSessionDao().insertManifest(manifest)
+		database.sourceSessionDao().insertManifestSources(listOf(source))
 	}
 
 	private fun legacyStepsOwner() = SourceDestinationOwnerEntity(
@@ -616,5 +695,7 @@ class StepsSessionFactProjectionLaneTest {
 	private companion object {
 		const val COLLECTED_DATA_EPOCH = 2L
 		const val LOGICAL_TRACKING_ID = "session-1"
+		const val SERVICE_RUN_ID = "run-1"
+		const val MANIFEST_REVISION = 5L
 	}
 }

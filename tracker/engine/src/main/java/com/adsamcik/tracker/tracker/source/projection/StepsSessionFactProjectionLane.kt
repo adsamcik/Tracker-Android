@@ -9,6 +9,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLan
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
@@ -140,6 +142,7 @@ class StepsSessionFactProjectionLane private constructor(
 				database.withTransaction {
 					val lane = requireExactLane(initialLane, expectedCursor = cursor)
 					val evidenceState = evidenceState()
+					val manifestBindings = mutableMapOf<StepsManifestKey, SessionManifestSourceEntity>()
 					val storedTerminal = database.sourceProjectionStateDao()
 						.firstTerminalFailureAfterThrough(
 							projectionId = WRITER_ID,
@@ -193,7 +196,11 @@ class StepsSessionFactProjectionLane private constructor(
 						}
 						previousOrdinal = event.admissionOrdinal
 						val terminalFailure = try {
-							val candidate = event.toFactOrNull(evidenceState, lane)
+							val candidate = event.toFactOrNull(
+								evidenceState = evidenceState,
+								lane = lane,
+								manifestBindings = manifestBindings,
+							)
 							if (lane.productStage == SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL &&
 								candidate != null
 							) {
@@ -432,15 +439,14 @@ class StepsSessionFactProjectionLane private constructor(
 		if (database.sourceProjectionStateDao().registration(WRITER_ID, WRITER_VERSION) != null) {
 			throw StepsLaneAuthorityChangedException("STEPS_WRITER_HAS_GLOBAL_REGISTRATION")
 		}
-		if (current.productStage == SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL &&
-			!database.sourceDestinationOwnerDao().isExactOwner(
-				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
-				owner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
-				ownerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+		if (current.productStage == SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL) {
+			val owner = database.sourceDestinationOwnerDao().get(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
 			)
-		) {
-			throw StepsLaneAuthorityChangedException("STEPS_DESTINATION_OWNER_CHANGED")
+			if (owner?.owner != SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS) {
+				throw StepsLaneAuthorityChangedException("STEPS_DESTINATION_OWNER_CHANGED")
+			}
 		}
 		return current
 	}
@@ -523,9 +529,10 @@ class StepsSessionFactProjectionLane private constructor(
 		)
 	}
 
-	private fun AdmittedSourceEvent<out SourcePayload>.toFactOrNull(
+	private suspend fun AdmittedSourceEvent<out SourcePayload>.toFactOrNull(
 		evidenceState: SourceEvidenceState,
 		lane: SourceProductProjectionLaneEntity,
+		manifestBindings: MutableMap<StepsManifestKey, SessionManifestSourceEntity>,
 	): StepFactRevisionEntity? {
 		val evidence = evidence
 		if (evidence.capturedCollectedDataEpoch != evidenceState.collectedDataEpoch ||
@@ -591,6 +598,27 @@ class StepsSessionFactProjectionLane private constructor(
 			?: poison("STEPS_CAPTURE_CONSENT_EPOCH_MISSING")
 		if (evidence.lifecycleLeaseGeneration == null) {
 			poison("STEPS_LIFECYCLE_LEASE_MISSING")
+		}
+		val manifestKey = StepsManifestKey(logicalTrackingId, serviceRunId, manifestRevision)
+		val manifestBinding = manifestBindings[manifestKey] ?: resolveManifestBinding(
+			key = manifestKey,
+			admissionOrdinal = admissionOrdinal,
+			policyRevision = policyRevision,
+			consentEpoch = consentEpoch,
+		).also { resolved -> manifestBindings[manifestKey] = resolved }
+		if (lane.productStage == SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL) {
+			val owner = database.sourceDestinationOwnerDao().get(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+			) ?: poison("STEPS_DESTINATION_OWNER_MISSING")
+			if (manifestBinding.outputDestination != owner.destination ||
+				manifestBinding.writerOwner != owner.owner ||
+				manifestBinding.writerOwnerGeneration != owner.ownerGeneration
+			) poison("STEPS_MANIFEST_WRITER_NOT_ACTIVE")
+			if (manifestBinding.writerProjectionId != lane.projectionId ||
+				manifestBinding.writerProjectionVersion != lane.projectionVersion ||
+				manifestBinding.writerBindingGeneration != lane.bindingGeneration
+			) poison("STEPS_MANIFEST_PROJECTION_MISMATCH")
 		}
 		val endTimeMs = evidence.wallTimeMs ?: poison("STEPS_WALL_TIME_MISSING")
 		if (endTimeMs < 0L) poison("STEPS_WALL_TIME_NEGATIVE")
@@ -666,6 +694,38 @@ class StepsSessionFactProjectionLane private constructor(
 		)
 	}
 
+	private suspend fun resolveManifestBinding(
+		key: StepsManifestKey,
+		admissionOrdinal: Long,
+		policyRevision: Long,
+		consentEpoch: Long,
+	): SessionManifestSourceEntity {
+		fun poison(code: String): Nothing = throw StepsSessionFactPoisonException(
+			admissionOrdinal,
+			code,
+		)
+		val sessionDao = database.sourceSessionDao()
+		val manifest = sessionDao.manifestByServiceRunRevision(
+			key.serviceRunId,
+			key.manifestRevision,
+		) ?: poison("STEPS_MANIFEST_MISSING")
+		if (manifest.logicalTrackingId != key.logicalTrackingId ||
+			manifest.sourcePolicyRevision != policyRevision
+		) poison("STEPS_MANIFEST_MEMBERSHIP_MISMATCH")
+		val sources = sessionDao.manifestSources(key.logicalTrackingId, key.manifestRevision)
+		if (!SessionManifestIntegrity.verify(manifest, sources)) {
+			poison("STEPS_MANIFEST_INTEGRITY_MISMATCH")
+		}
+		val binding = sources.singleOrNull { source ->
+			source.sourceKind == SourceKind.STEPS.stableCode &&
+				source.purpose == StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE
+		} ?: poison("STEPS_MANIFEST_BINDING_MISSING")
+		if (!binding.persistenceEligible || binding.consentEpoch != consentEpoch) {
+			poison("STEPS_MANIFEST_ELIGIBILITY_MISMATCH")
+		}
+		return binding
+	}
+
 	private fun effectChecksum(vararg values: Any?): String {
 		val canonical = values.joinToString(separator = "") { value ->
 			val text = value?.toString()
@@ -694,6 +754,12 @@ class StepsSessionFactProjectionLane private constructor(
 		)
 	}
 }
+
+private data class StepsManifestKey(
+	val logicalTrackingId: String,
+	val serviceRunId: String,
+	val manifestRevision: Long,
+)
 
 private fun SourceProductProjectionLaneEntity.hasSameExecutionBinding(
 	other: SourceProductProjectionLaneEntity,
