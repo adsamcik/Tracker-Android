@@ -754,3 +754,52 @@ Activity 310/310, app 652/652, Dashboard 200/200, focused architecture/recovery 
 `checkRoomSchemaDrift`. The current local checkpoint is `648f894a4`; all candidate source ownership
 still defaults to `CONTAINED`, so no source/materializer/product rollout claim follows from these
 passes.
+
+## Manual Steps source-local writer checkpoint (2026-08-26)
+
+### Outcome
+
+The program remains on the corrected R1 critical path. The first concrete source-local candidate
+writer now exists for manual/session Steps, with exact cursor fencing, durable contribution
+identity, source-local poison isolation, retained-floor handling, and retention-worker
+reconciliation. It is intentionally dormant: production has no executable Steps catalog binding,
+canonical activation, legacy-writer cutover, fact reader, or UI wiring. Therefore this checkpoint
+is implementation progress, not a `MATERIALIZED`, `QUERYABLE`, or rollout claim.
+
+| Commit | Scope | Result |
+| --- | --- | --- |
+| `540d4a037` | make `EVENT_SHADOW` product-inert and require exact canonical admission | committed; shadow cannot acquire or persist product capture |
+| `8bb6d606f` | source-local `steps-session-facts` lane, exact cursor CAS, durable fact receipt, recovery/admission hints, poison isolation | committed; no polling or wake scheduler, no production activation |
+| `af846143c` | drain the Steps lane before WAL pruning and remove expired self-contained UPSERT payloads at the authoritative monotonic retention floor | committed; redacted deletion tombstones survive and stale facts cannot remain queryable |
+
+### Evidence
+
+- Core/engine writer, DAO, recovery, and sink shard: `BUILD SUCCESSFUL in 3m 25s`.
+- Strengthened negative product-time/retention test: `BUILD SUCCESSFUL in 3m 4s`.
+- App retention workers with lazy lane provider and startup-generation operation lease:
+  `BUILD SUCCESSFUL in 1m 47s`.
+- Steps-fact DAO plus both real retention-worker paths: `BUILD SUCCESSFUL in 4m 2s`; the final
+  monotonic-floor worker rerun is `BUILD SUCCESSFUL in 1m 39s`.
+- Fresh adversaries found and drove corrections for destination-time resurrection, stale terminal
+  pinning, negative-time poison, valid-prefix loss, retention liveness, startup-generation fencing,
+  and retained self-contained fact payloads. A different final reviewer reported no remaining
+  `BLOCKER`, `HIGH`, or `MEDIUM` finding in the corrected slice.
+
+### Gate status
+
+- Current phase: TI-410 manual/session Steps, `IN_PROGRESS`.
+- Passed assertions: source-local replay is exactly-once in effect; shadow is product-inert; poison
+  blocks only Steps; valid prefixes commit atomically; stale retained events/failures converge;
+  retention cannot prune needed WAL first or retain expired Steps UPSERT payloads.
+- Failed or unverified assertions: no executable writer activation; no legacy/candidate destination
+  owner fence; no logical-session bridge; no truthful `StepCountState`; no production Today/session
+  query; no typed portable round trip; no existing-product consumer proof; no device/process/reset
+  evidence. Automatic and ambient Steps remain separate blocked gates.
+
+### Next wave
+
+Implement the minimum Steps logical-session bridge and typed `StepCountState` (`Unavailable`,
+`Materializing`, `Baseline`, `Partial`, `Ready`), then add the persisted legacy/candidate owner fence
+and one production session/Today query. Only after those tests agree may the dormant lane be made
+executable. Automatic Steps, ambient Steps, other sources, and broad `DayOverview`/new navigation
+remain outside this wave.
