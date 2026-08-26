@@ -906,3 +906,63 @@ Return directly to TI-410. Implement segment-effective Steps writer provenance a
 materialization completeness, then the narrow legacy/candidate cutover and rollback protocol.
 Only after deletion/no-resurrection and a truthful production Steps query pass should existing UI
 consumers be wired. Do not add another shared lifecycle layer or generic materializer platform.
+
+## Queued Steps writer-provenance checkpoint (2026-08-26)
+
+### Outcome
+
+Commit `30051416d` closes the queued-command half of the Steps one-writer fence without activating
+the candidate writer. A Steps-bearing pending command now freezes the exact owner and ABA
+generation from its source event's immutable manifest revision before the command becomes durable.
+The legacy `StepInterval` writer reloads the permanent destination owner in the same Room
+transaction as its write. Missing authority is retryable and retains the WAL row; stale legacy or
+candidate ownership suppresses only the Steps destination; an unstamped Steps command moves to a
+source-local durable quarantine while sibling Location or other destinations still commit.
+
+The same correction preserves the original session ID and resume state when a policy-tier change
+starts a previously inactive processor. Quarantine retains the provider acquisition clock and is
+pruned by raw-evidence age, not by a newer WAL/quarantine write time. The direct v27→v28 migration
+stamps released pending commands as legacy generation 1 and treats legacy quarantine acquisition
+time as unknown/expired. No provider, timer, poller, wakeup, generic writer platform, product query,
+or UI surface was added.
+
+### Evidence
+
+- Focused writer-fence/recovery gate: `48/48`, zero failures/errors/skips.
+- Complete serialized suites and app build: tracker-engine `1,649/1,649`, core database
+  `872/872`, app `654/654`, all zero failures/errors/skips; `:app:assembleDebug`
+  `BUILD SUCCESSFUL` in the same `9m 17s` run.
+- Exact populated v27→v28 migration: `8/8` on `Medium_Phone(AVD) - 16`.
+- Post-commit `checkRoomSchemaDrift`: `BUILD SUCCESSFUL in 20s`; 46 tasks.
+- Three independent focused reviews covered exact-manifest selection, quarantine privacy/retention,
+  and the complete writer-fence diff. They found and drove corrections for policy-tier session ID
+  loss, missing-owner silent acknowledgement, overclaimed malformed-row recovery, acquisition-time
+  retention, and valid migrated Steps replay. The final diff review found no remaining
+  `BLOCKER`/`HIGH` in this scoped checkpoint.
+
+### Gate status
+
+- Current phase: TI-410 manual/session Steps, `IN_PROGRESS`.
+- Passed: event-exact immutable writer provenance; ambiguous retry preserves the already-durable
+  generation; control-only and consent-mismatched events cannot acquire writer provenance; missing
+  writer authority cannot consume a valid pending command; valid migrated legacy Steps replay once;
+  stale/candidate commands cannot invoke the legacy writer; mixed-source persistence is
+  source-local; quarantine follows raw retention and full deletion; processor tier transitions
+  retain session identity.
+- Still blocked: atomic activation/cutover/rollback and its process-death latch matrix; historical
+  segment-effective product selection; run-scoped materialization completeness; deletion re-arm;
+  typed portable export/import; truthful production query and existing-product consumers;
+  device/provider validation; automatic Steps; ambient Steps; every other source vertical;
+  `DayOverview`, broader UI, and rollout.
+
+### Risks and next wave
+
+Logical deletion is covered, but a raw SQLite backup may still contain deleted bytes in free pages;
+byte-level backup erasure (`secure_delete`/compaction behavior in the bundled runtime) remains a
+separate privacy verification item. It does not justify expanding this Steps writer commit.
+
+Next, add service-run materialization completeness and the segment-effective Steps history selector,
+then implement the narrow cutover coordinator. The coordinator must latch an in-flight legacy write,
+switch the owner generation transactionally, survive process death/rollback, reconstruct a coherent
+post-deletion generation, and prove continuous query/export/deletion visibility. Production query
+and UI wiring remain prohibited until those assertions pass.

@@ -1031,3 +1031,36 @@ Each entry records repository evidence and does not duplicate the final architec
   live provider from wasting more battery. Because v28 is unreleased, the exact run/action fields
   are added directly to v28. This decision changes no acquisition cadence, persistence eligibility,
   canonical writer, ambient consent, product query, or UI gate.
+
+## TI-D105 — A queued Steps command freezes its effective writer generation before acknowledgement
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` at `30051416d`; candidate activation/cutover `BLOCKED`
+- Owner/date: lead orchestrator after three focused writer/provenance/privacy reviews, 2026-08-26
+- Alternatives: resolve every retained command from the latest global owner; add a second
+  service-run binding table; silently acknowledge a mismatched command; fail the entire mixed-source
+  batch; stamp the existing pending command from its exact immutable manifest and disposition only
+  its Steps destination
+- Evidence: resolving writer ownership at flush time could reinterpret an older command after a
+  manifest revision or ABA owner transition. Treating a missing permanent owner row as an ordinary
+  mismatch could acknowledge valid Steps without any writer. Rolling back the mixed batch on an
+  unverified Steps stamp prevented unrelated Location facts from progressing. Policy-tier
+  reactivation also rebuilt `ProcessorContext` with session ID zero, so valid manifest/session
+  provenance could be rejected after an otherwise legal transition. Quarantine copies the complete
+  serialized signal and therefore must expire from provider acquisition time rather than its newer
+  quarantine time.
+- Decision: source-event-backed Steps admission reads the event's exact manifest revision and stamps
+  its writer owner/generation into `pending_signal`. The already-durable row wins an ambiguous retry.
+  The legacy writer reloads `source_destination_owner` inside the same Room transaction and writes
+  only an exact owner/generation match; missing authority throws a retryable invariant failure.
+  Candidate and stale legacy stamps suppress only `StepInterval`; a null/null unverified stamp is
+  moved atomically to source-local quarantine. Kotlin entity validation excludes half-pairs,
+  nonpositive generations, and unknown owners before recovery. Quarantine stores `acquired_at_ms`
+  and both raw-retention workers prune by that clock. Released-v27 pending rows are stamped legacy
+  generation 1; v27 quarantine has no trustworthy acquisition clock and migrates to fail-closed
+  zero. Processor tier activation copies the original session/resume context.
+- Consequences: no new provider registration, wakeup, polling loop, per-run binding table, generic
+  materializer, or product surface is introduced. Legacy generation 1 remains canonical and the
+  candidate remains dormant. TI-VS28 still requires an atomic coordinator, historical effective
+  selection, rollback/deletion reconstruction, process-death tests, and production visibility.
+  Logical deletion is proven; forensic byte erasure from raw SQLite backups remains an explicit
+  separate privacy verification boundary.
