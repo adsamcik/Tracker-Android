@@ -87,12 +87,75 @@ class ActivityCallbackRetryStoreTest {
 	@Test
 	fun `interrupted AtomicFile new sidecar never claims callback retry ownership`() {
 		directory.mkdirs()
-		File(
+		val orphan = File(
 			directory,
 			"activity-callback-${"0".repeat(64)}.bin.new",
-		).writeBytes(byteArrayOf(1, 2, 3))
+		).also { it.writeBytes(byteArrayOf(1, 2, 3)) }
 
 		store.pendingIds() shouldBe emptyList()
+		orphan.exists() shouldBe false
+	}
+
+	@Test
+	fun `many interrupted writes are removed before callback capacity is consumed`() {
+		directory.mkdirs()
+		repeat(12) { index ->
+			File(
+				directory,
+				"activity-callback-${index.toString(16).padStart(64, '0')}.bin.new",
+			).writeBytes(ByteArray(512) { index.toByte() })
+		}
+		val boundedStore = newStore(maxPendingCallbacks = 2, maxPendingBytes = 1_024L)
+
+		val firstId = boundedStore.retain(callbackBatch(receivedWallTimeMs = 1_000L))
+		val secondId = boundedStore.retain(callbackBatch(receivedWallTimeMs = 2_000L))
+		val error = shouldThrow<ActivityCallbackRetryStoreException> {
+			boundedStore.retain(callbackBatch(receivedWallTimeMs = 3_000L))
+		}
+
+		error.code shouldBe ActivityCallbackGapCode.RETRY_COUNT_BUDGET_EXHAUSTED
+		boundedStore.pendingIds() shouldBe listOf(firstId, secondId).sorted()
+		val files = directory.listFiles().orEmpty().toList()
+		files.count { it.name.endsWith(".bin") } shouldBe 2
+		files.count { it.name.endsWith(".new") } shouldBe 0
+		(files.sumOf { it.length() } <= 1_024L) shouldBe true
+	}
+
+	@Test
+	fun `undeletable interrupted write fails closed before another file is opened`() {
+		directory.mkdirs()
+		val orphan = File(
+			directory,
+			"activity-callback-${"0".repeat(64)}.bin.new",
+		).also { it.writeBytes(ByteArray(512)) }
+		val boundedStore = newStore(deleteOrphanFile = { false })
+		val initialFiles = directory.listFiles().orEmpty().map { it.name }.sorted()
+
+		repeat(2) { attempt ->
+			val error = shouldThrow<ActivityCallbackRetryStoreException> {
+				boundedStore.retain(callbackBatch(receivedWallTimeMs = 2_000L + attempt))
+			}
+			error.code shouldBe ActivityCallbackGapCode.RETRY_STORAGE_UNAVAILABLE
+		}
+
+		orphan.exists() shouldBe true
+		directory.listFiles().orEmpty().map { it.name }.sorted() shouldBe initialFiles
+	}
+
+	@Test
+	fun `orphan cleanup preserves AtomicFile backup recovery`() {
+		val batch = callbackBatch()
+		val id = store.retain(batch)
+		val base = File(directory, "activity-callback-$id.bin")
+		val backup = File(directory, "activity-callback-$id.bin.bak")
+		base.renameTo(backup) shouldBe true
+		File(directory, "activity-callback-$id.bin.new").writeBytes(byteArrayOf(1, 2, 3))
+
+		store.pendingIds() shouldBe listOf(id)
+		store.load(id) shouldBe batch
+		base.exists() shouldBe true
+		backup.exists() shouldBe false
+		directory.listFiles().orEmpty().none { it.name.endsWith(".new") } shouldBe true
 	}
 
 	@Test
@@ -216,6 +279,7 @@ class ActivityCallbackRetryStoreTest {
 		maxPendingBytes: Long = 512L * 1_024L,
 		maxRetryAgeMs: Long = 6L * 60L * 60L * 1_000L,
 		maxGapReceipts: Int = 64,
+		deleteOrphanFile: (File) -> Boolean = File::delete,
 	) = ActivityCallbackRetryStore(
 		directory = directory,
 		nowWallTimeMs = { nowWallTimeMs },
@@ -225,6 +289,7 @@ class ActivityCallbackRetryStoreTest {
 		maxPendingBytes = maxPendingBytes,
 		maxRetryAgeMs = maxRetryAgeMs,
 		maxGapReceipts = maxGapReceipts,
+		deleteOrphanFile = deleteOrphanFile,
 	)
 
 	private fun callbackBatch(

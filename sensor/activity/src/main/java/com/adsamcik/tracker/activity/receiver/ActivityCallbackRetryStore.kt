@@ -102,6 +102,7 @@ internal class ActivityCallbackRetryStore internal constructor(
 	private val maxRetryAgeMs: Long = MAX_RETRY_AGE_MS,
 	private val maxGapReceipts: Int = MAX_GAP_RECEIPTS,
 	private val maxGapAgeMs: Long = MAX_GAP_AGE_MS,
+	private val deleteOrphanFile: (File) -> Boolean = File::delete,
 ) {
 	init {
 		require(maxPendingCallbacks > 0 && maxPendingBytes > 0L && maxCallbackBytes > 0)
@@ -138,6 +139,7 @@ internal class ActivityCallbackRetryStore internal constructor(
 		}
 		val id = callbackId(encoded)
 		ensureDirectory()
+		val pendingFiles = pendingCallbackFiles()
 		val target = callbackFile(id)
 		if (target.exists() || backupFile(target).exists()) {
 			val existing = load(id)
@@ -149,7 +151,6 @@ internal class ActivityCallbackRetryStore internal constructor(
 			}
 			return id
 		}
-		val pendingFiles = pendingCallbackFiles()
 		if (pendingFiles.map { it.id }.distinct().size >= maxPendingCallbacks) {
 			throw ActivityCallbackRetryStoreException(
 				"Activity callback retry spool reached its callback-count budget",
@@ -317,11 +318,36 @@ internal class ActivityCallbackRetryStore internal constructor(
 
 	private fun pendingCallbackFiles(): List<CallbackFile> {
 		if (!directory.isDirectory) return emptyList()
-		return directory.listFiles().orEmpty().mapNotNull { file ->
+		val files = listCallbackDirectory()
+		val orphanFiles = files.filter { CALLBACK_ORPHAN_FILE_PATTERN.matches(it.name) }
+		if (orphanFiles.isNotEmpty()) {
+			orphanFiles.forEach { orphan ->
+				try {
+					deleteOrphanFile(orphan)
+				} catch (error: Exception) {
+					throw ActivityCallbackRetryStoreException(
+						"Unable to remove interrupted Activity callback retry write",
+						error,
+					)
+				}
+				if (orphan.exists()) {
+					throw ActivityCallbackRetryStoreException(
+						"Unable to remove interrupted Activity callback retry write",
+					)
+				}
+			}
+			syncAfterMutation("Unable to sync interrupted Activity callback retry cleanup")
+		}
+		return listCallbackDirectory().mapNotNull { file ->
 			val match = CALLBACK_FILE_PATTERN.matchEntire(file.name) ?: return@mapNotNull null
 			CallbackFile(match.groupValues[1], file)
 		}
 	}
+
+	private fun listCallbackDirectory(): Array<File> = directory.listFiles()
+		?: throw ActivityCallbackRetryStoreException(
+			"Unable to inventory Activity callback retry storage",
+		)
 
 	private fun gapFiles(): List<GapFile> {
 		if (!directory.isDirectory) return emptyList()
@@ -701,9 +727,11 @@ internal class ActivityCallbackRetryStore internal constructor(
 		const val NULL_LONG = -1L
 		const val NANOS_PER_MILLISECOND = 1_000_000L
 		val CALLBACK_ID_PATTERN = Regex("[0-9a-f]{64}")
-		// AtomicFile `.new` is an interrupted, never-read-verified write. It did not earn callback
-		// ownership and must not keep WorkManager retrying forever after a process crash.
 		val CALLBACK_FILE_PATTERN = Regex("activity-callback-([0-9a-f]{64})\\.bin(?:\\.bak)?")
+		// AtomicFile `.new` is an interrupted, never-read-verified write. It did not earn callback
+		// ownership and must be removed before another callback can consume bounded spool capacity.
+		val CALLBACK_ORPHAN_FILE_PATTERN =
+			Regex("activity-callback-[0-9a-f]{64}\\.bin\\.new")
 		val GAP_FILE_PATTERN = Regex("activity-gap-[0-9a-f]{64}-[0-9]+\\.bin(?:\\.bak)?")
 
 		fun fsyncDirectory(directory: File) {
