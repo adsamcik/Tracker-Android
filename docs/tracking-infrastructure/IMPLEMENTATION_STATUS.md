@@ -1,14 +1,14 @@
 # Tracking Infrastructure Implementation Status
 
-Last updated: 2026-08-25
+Last updated: 2026-08-26
 
 Execution-grade work items, ownership, dependency gates, verification commands, and rollback
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and
 evidence index.
 
-Current code integration checkpoint: `2b9265ce8` on `dev/v10`
-(`fix(tracking): close corrected R1 authority boundary`), following `09f32d22e`, `eb5dc1885`, and
-`da2760462`. The initial audited baseline was
+Current code integration checkpoint: `ef1da62d2` on `dev/v10`
+(`feat(steps): fence durable service-run ownership`), following the dormant Steps writer and
+retention checkpoints `8bb6d606f` and `af846143c`. The initial audited baseline was
 `068ebe052`; no pull, rebase, push, publish, deployment, remote configuration, or external rollout
 was performed. The original `.docx` source, verbatim orchestrator prompt, and protected Dashboard
 test remain untracked and untouched. On 2026-08-22 the user authorized clear scoped local commits
@@ -16,11 +16,15 @@ after each verified chunk.
 
 ## Current gate
 
-- Current phase: the corrected R1 shared boundary is committed and locally verified. A fresh
-  three-perspective R1 rerun against `2b9265ce8` is the active gate. Every source materializer,
-  production-history query, source rollout, ambient exposure, and production UI wiring remains
-  `BLOCKED` until that review is dispositioned.
-- Gate status: `IN_REVIEW`. The process-wide startup fence now orders the frozen-v27 drain,
+- Current phase: TI-410 manual/session Steps is `IN_PROGRESS`. Durable logical-session and
+  service-run identity now reaches the released session row and dormant Steps facts; a permanent
+  exact destination-owner generation fences both legacy and candidate writes. Legacy generation 1
+  remains the only active owner and there is no production owner-transition caller.
+- Gate status: `CUTOVER_BLOCKED / PRODUCT_WIRING_BLOCKED`. Three independent R1 adversaries found
+  that a global current-owner query would reinterpret older trips, logical-session completeness
+  would leak across service runs, rollback/deletion recovery is not yet executable, and a one-shot
+  `Materializing` UI would not converge. The attempted Trip Detail/query wiring and its query-only
+  helpers were removed before `ef1da62d2`. The process-wide startup fence now orders the frozen-v27 drain,
   deletion, policy/provider/service entry, and data consumers. Manual and automatic starts use a
   durable prepared intent before external service/FGS acceptance, real start origin and accepted
   type evidence; stop, previous-exit, force-stop, permission-revocation, and deletion paths are
@@ -798,8 +802,44 @@ is implementation progress, not a `MATERIALIZED`, `QUERYABLE`, or rollout claim.
 
 ### Next wave
 
-Implement the minimum Steps logical-session bridge and typed `StepCountState` (`Unavailable`,
-`Materializing`, `Baseline`, `Partial`, `Ready`), then add the persisted legacy/candidate owner fence
-and one production session/Today query. Only after those tests agree may the dormant lane be made
-executable. Automatic Steps, ambient Steps, other sources, and broad `DayOverview`/new navigation
-remain outside this wave.
+Implement segment-effective writer provenance and service-run-scoped completeness first. Then add
+a cutover coordinator that drains/fences legacy commands without rolling back unrelated batch
+destinations, binds replacement writers to the new generation, and reconstructs a coherent empty
+writer generation after full deletion. Retention-boundary and trip-deletion/no-resurrection tests
+must pass before a truthful observable `StepCountState` production query or UI is reintroduced.
+Automatic Steps, ambient Steps, other sources, and broad `DayOverview`/new navigation remain outside
+this wave.
+
+## Steps durable ownership R1 disposition (2026-08-26)
+
+### Outcome
+
+Commit `ef1da62d2` closes the minimum durable identity and dormant one-writer-fence slice without
+shipping the premature product reader. New v28 sessions persist paired logical/session-run IDs;
+candidate facts carry the physical run ID; zero-delta covered intervals keep an otherwise empty
+Steps-only segment; and both released legacy Steps destinations and the dormant candidate fact lane
+must match an exact owner generation inside their Room write transaction. The low-level owner CAS
+is explicitly not a cutover coordinator and has no production caller.
+
+### Evidence
+
+- v27→v28 Room migration: `8/8` instrumentation tests pass on `Medium_Phone(AVD) - 16`, including
+  production reopen/query/delete/reopen and preservation of the legacy owner fence.
+- Focused core owner/fact DAO tests: `BUILD SUCCESSFUL in 50s`.
+- Seven focused tracker-engine bridge/fence/recovery classes: `BUILD SUCCESSFUL in 1m 19s`.
+- App retention/deletion graph and workers: `BUILD SUCCESSFUL in 2m 26s`.
+- Post-commit `checkRoomSchemaDrift`: `BUILD SUCCESSFUL in 33s`.
+- Three independent R1 perspectives returned `NO_GO` for candidate cutover or Trip Detail wiring,
+  while accepting the dormant identity/fence foundation as proportionate and battery-neutral. Two
+  reviewers were fresh; the product/scope perspective used the available independent reviewer when
+  the four-thread ceiling prevented another fresh thread.
+
+### Gate status
+
+- Passed: durable run attribution, exact current-owner checks, additive unreleased-v28 migration,
+  deletion survival of the legacy fence, no new provider registration/timer/wakeup, and clean
+  focused host/device/schema gates.
+- Blocked: owner-generation-aware rollback, mixed-batch cutover, historical segment-effective
+  writer selection, per-run completeness, partial-retention truth, trip deletion/replay fencing,
+  post-candidate full-deletion reconstruction, observable materialization refresh, localization,
+  production query, UI, activation, and rollout.

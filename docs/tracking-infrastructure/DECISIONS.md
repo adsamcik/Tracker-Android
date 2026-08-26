@@ -969,3 +969,32 @@ Each entry records repository evidence and does not duplicate the final architec
 - Evidence: the candidate UPSERT deliberately outlives its legacy `StepInterval` and WAL, so the existing retention workers could otherwise leave interval, count, session, consent, and timing payloads queryable indefinitely. The retained-from boundary is monotonic; a later wider retention preference cannot weaken a previously established privacy floor. Room serializes a concurrent lane write with retention: a pre-boundary commit is deleted, while a post-boundary drain observes the synchronized floor and skips the stale event.
 - Decision: both raw-retention transactions delete Steps UPSERT revisions whose complete interval ends strictly before the authoritative `CollectedDataLifecycleSnapshot.retainedFromMs`. Existing redacted local-delete RETRACT rows survive so replay/import cannot undo deletion. The lane is then drained under the exact startup-generation operation lease, after which WAL pruning recomputes the actual source-local retaining cursor.
 - Consequences: interval-end equality remains retained, overlapping facts remain intact, expired product payload is not left behind, and retention cannot race startup/deletion or prune the poison row before stale-failure reconciliation. This is Steps-specific evidence, not a generic retention abstraction or approval of final retention durations.
+
+## TI-D103 — Destination ownership is an admission fence, not a historical selector or cutover coordinator
+
+- Status: `ACCEPTED_AFTER_STEPS_R1_ADVERSARIAL_REVIEW`; implemented foundation at `ef1da62d2`,
+  cutover and product query `BLOCKED`
+- Owner/date: lead orchestrator after data/migration, Android/power/privacy, and product/scope
+  adversaries, 2026-08-26
+- Alternatives: select every historical result from the current global owner; activate the
+  candidate after a metadata CAS; keep product wiring and label inconsistent states unavailable;
+  treat the owner row as a narrow admission fence and add effective provenance plus a real cutover
+  protocol before readers or activation
+- Evidence: the attempted Steps reader selected the current global owner for every retained
+  `SessionSegment`, while candidate facts were service-run-scoped and completeness was
+  logical-session-scoped. A legacy→candidate transition could therefore hide old legacy history;
+  a second run could change the first run's state; rollback generation 3 was rejected by writers
+  hard-coded to generation 1; full deletion removed the candidate lane but retained candidate
+  ownership; and the legacy write check could roll back unrelated destinations in a mixed batch.
+- Decision: `source_destination_owner` is a permanent exact writer-admission fence only. Every
+  product slice must resolve immutable/effective writer provenance for that segment or pass a
+  verified retained-history backfill boundary. Completeness, lag, facts, and deletion receipts must
+  use the same service-run/product scope. Owner transition requires a coordinator that fences queued
+  generations, drains or suppresses the retired destination without failing unrelated writes,
+  binds the replacement writer/read contract to the new generation, and establishes a coherent
+  post-deletion generation. The low-level CAS has no production caller. Production Steps query/UI
+  wiring remains absent until these assertions and observable materialization refresh pass.
+- Consequences: legacy generation 1 remains the sole active Steps destination; the candidate lane
+  stays dormant. The durable ID bridge and exact write fence remain because they add no acquisition,
+  polling, or battery cost and are required to solve the identified timelines. Query-only DAO
+  helpers and the premature Trip Detail integration were removed rather than hidden behind a flag.
