@@ -743,6 +743,74 @@ class CellSourceRuntimeTest {
 	}
 
 	@Test
+	fun `claim transfer fences stale shutdown across compatible refresh and replacement`() = runTest {
+		val initialPlan = cellPlan(revision = 1L, maximumAgeMs = 60_000L)
+		val refreshedPlan = cellPlan(revision = 2L, maximumAgeMs = 10_000L)
+		val replacementPlan = cellPlan(
+			revision = 3L,
+			maximumAgeMs = 10_000L,
+			mode = CellMode.OBSERVE_AND_SPARSE_REFRESH,
+		)
+		val initial = registration(initialPlan, authorizationRevision = 1L, generation = 9L)
+		val refreshed = registration(refreshedPlan, authorizationRevision = 2L, generation = 9L)
+		val replacement = registration(replacementPlan, authorizationRevision = 3L, generation = 10L)
+		val fixture = runtimeFixture(this, initialPlan, listOf(initial, replacement))
+		coEvery {
+			fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
+		} returns refreshed
+		val firstClaim = runtimeClaim(SourceKind.CELL, "cell-start")
+		val refreshClaim = runtimeClaim(SourceKind.CELL, "cell-refresh")
+		val replacementClaim = runtimeClaim(SourceKind.CELL, "cell-replacement")
+		val sink = SourceEventSink { SourceAdmissionHandoff.Durable(1L) }
+
+		assertTrue(fixture.runtime.start(firstClaim, initialPlan, sink) is SourceStartResult.Started)
+		assertTrue(fixture.runtime.reconfigure(refreshClaim, refreshedPlan, sink) is SourceApplyResult.Applied)
+		assertEquals(
+			OwnedSourceShutdown.NotOwned,
+			fixture.runtime.shutdownIfOwned(firstClaim, cellCutoff()),
+		)
+		verify(exactly = 0) { fixture.backend.stop() }
+
+		val replacementResult = fixture.runtime.reconfigure(replacementClaim, replacementPlan, sink)
+		assertTrue(replacementResult is SourceApplyResult.Applied)
+		assertEquals(9L, (replacementResult as SourceApplyResult.Applied).stopAck?.registrationGeneration)
+		verify(exactly = 1) { fixture.backend.stop() }
+		assertEquals(
+			OwnedSourceShutdown.NotOwned,
+			fixture.runtime.shutdownIfOwned(refreshClaim, cellCutoff()),
+		)
+		verify(exactly = 1) { fixture.backend.stop() }
+
+		val released = fixture.runtime.shutdownIfOwned(replacementClaim, cellCutoff()) as
+			OwnedSourceShutdown.Released
+		assertEquals(10L, released.provider?.registrationGeneration)
+		verify(exactly = 2) { fixture.backend.stop() }
+	}
+
+	@Test
+	fun `failed provider publication retains only its exact claim for cleanup`() = runTest {
+		val fixture = runtimeFixture(this)
+		every { fixture.backend.start(any(), any()) } throws IllegalStateException("published then failed")
+		every { fixture.backend.stop() } returnsMany listOf(false, true)
+		val owningClaim = runtimeClaim(SourceKind.CELL, "cell-failed-publication")
+		val staleClaim = runtimeClaim(SourceKind.CELL, "cell-stale-cleanup")
+		val sink = SourceEventSink { SourceAdmissionHandoff.Durable(1L) }
+
+		assertTrue(fixture.runtime.start(owningClaim, fixture.plan, sink) is SourceStartResult.Failed)
+		verify(exactly = 1) { fixture.backend.stop() }
+		assertEquals(
+			OwnedSourceShutdown.NotOwned,
+			fixture.runtime.shutdownIfOwned(staleClaim, cellCutoff()),
+		)
+		verify(exactly = 1) { fixture.backend.stop() }
+
+		val released = fixture.runtime.shutdownIfOwned(owningClaim, cellCutoff()) as
+			OwnedSourceShutdown.Released
+		assertEquals(9L, released.provider?.registrationGeneration)
+		verify(exactly = 2) { fixture.backend.stop() }
+	}
+
+	@Test
 	fun `compatible refresh fences callbacks until the new immutable context is installed`() = runTest {
 		val initialPlan = cellPlan(revision = 1L, maximumAgeMs = 60_000L)
 		val refreshedPlan = cellPlan(revision = 2L, maximumAgeMs = 10_000L)
@@ -885,6 +953,22 @@ class CellSourceRuntimeTest {
 		maximumAcceptableCachedAgeMs = maximumAgeMs,
 		subscriptionIds = emptySet(),
 		backoff = RetryBackoff(30_000L, 1_800_000L),
+	)
+
+	private fun runtimeClaim(source: SourceKind, actionId: String) = SourceRuntimeClaim(
+		source = source,
+		actionId = actionId,
+		attemptCount = 1,
+		leaseGeneration = 1L,
+		logicalTrackingId = "cell-test",
+		serviceRunId = "run-1",
+	)
+
+	private fun cellCutoff() = SessionCutoff(
+		logicalTrackingId = "cell-test",
+		elapsedRealtimeNanos = Long.MAX_VALUE,
+		wallTimeMs = 1L,
+		deadlineElapsedRealtimeNanos = android.os.SystemClock.elapsedRealtimeNanos() + 1_000_000_000L,
 	)
 
 	private fun cellState(

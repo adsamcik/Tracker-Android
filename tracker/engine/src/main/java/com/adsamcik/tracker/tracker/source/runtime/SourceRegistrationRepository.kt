@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapsho
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.process.ProcessIncarnationIdProvider
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
@@ -514,6 +515,7 @@ class SourceRegistrationRepository @Inject constructor(
 		stateVersion: Int,
 		payload: ByteArray,
 		updatedAtMs: Long,
+		terminalCompleteness: SourceSessionCompletenessEntity? = null,
 	) {
 		database.withTransaction {
 			val currentRegistration = database.sourceRegistrationStateDao().get(
@@ -553,6 +555,12 @@ class SourceRegistrationRepository @Inject constructor(
 				stored.registrationGeneration == registration.state.registrationGeneration
 			) { "Runtime checkpoint was superseded by an incompatible registration" }
 			dao.save(stored)
+			terminalCompleteness?.let { completeness ->
+				check(completeness.sourceKind == registration.state.sourceKind)
+				check(completeness.sourceInstanceId == registration.state.sourceInstanceId)
+				check(completeness.registrationGeneration == registration.state.registrationGeneration)
+				database.sourceSessionDao().saveCompleteness(completeness)
+			}
 		}
 	}
 }

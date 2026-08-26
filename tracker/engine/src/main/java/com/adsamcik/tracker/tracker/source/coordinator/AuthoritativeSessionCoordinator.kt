@@ -4,11 +4,15 @@ import android.os.SystemClock
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
+import com.adsamcik.tracker.shared.base.database.data.LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceCoordinatorLeaseEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntentVersionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
@@ -30,6 +34,7 @@ import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.tracker.source.model.PressurePlan
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourcePlan
 import com.adsamcik.tracker.tracker.source.model.StepsPlan
 import com.adsamcik.tracker.tracker.source.model.WifiMode
@@ -38,6 +43,7 @@ import com.adsamcik.tracker.tracker.source.projection.ActivityAutomaticStartActi
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomaticStartServiceValidation
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainSignal
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEpochAuthority
+import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.runtime.ProviderCoverage
 import com.adsamcik.tracker.tracker.source.runtime.ProviderFlushOutcome
 import com.adsamcik.tracker.tracker.source.runtime.RegistrationRemovalOutcome
@@ -46,11 +52,15 @@ import com.adsamcik.tracker.tracker.source.runtime.SourceApplyResult
 import com.adsamcik.tracker.tracker.source.runtime.SourceAdmissionFailureCode
 import com.adsamcik.tracker.tracker.source.runtime.SourceAdmissionHandoff
 import com.adsamcik.tracker.tracker.source.runtime.SourceEventSink
+import com.adsamcik.tracker.tracker.source.runtime.OwnedSourceShutdown
+import com.adsamcik.tracker.tracker.source.runtime.SourceRuntimeClaim
 import com.adsamcik.tracker.tracker.source.runtime.SourceRuntimeRegistry
 import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
 import com.adsamcik.tracker.tracker.source.runtime.SourceStartResult
 import com.adsamcik.tracker.tracker.source.runtime.SourceStopAck
 import com.adsamcik.tracker.tracker.source.runtime.SourceStopStatus
+import com.adsamcik.tracker.tracker.source.runtime.hasIncompleteTerminalRetirement
+import com.adsamcik.tracker.tracker.source.runtime.providerKeyOrNull
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -59,6 +69,13 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
+
+internal const val SOURCE_RUNTIME_CLEANUP_PENDING = "SOURCE_RUNTIME_CLEANUP_PENDING"
+internal const val RUNTIME_CLEANUP_RETRY = "RUNTIME_CLEANUP_RETRY"
+private val LIVE_RUNTIME_ACTION_STATUSES = setOf(
+	LifecycleActionStatus.START_ACCEPTED,
+	LifecycleActionStatus.STOP_ACCEPTED,
+)
 
 /** Room-first lifecycle actor for logical tracking sessions and their service runs. */
 @Singleton
@@ -74,6 +91,30 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 	private val rolloutStore: TrackingRolloutStateStore = RoomTrackingRolloutStateStore(database),
 	private val sourceBroker: SourceBroker = SourceBroker(database),
 ) {
+	private data class BoundServiceRunTransition(
+		val session: LogicalTrackingSessionEntity,
+		val serviceRunId: String,
+		val expectedRunRevision: Long,
+	)
+	private data class FailedMaterializationShutdown(
+		val closed: Boolean,
+		val cleanupRequired: Boolean,
+		val stopAck: SourceStopAck?,
+	)
+	private data class RuntimeRollbackOutcome(
+		val applied: List<AppliedSourcePlan>,
+		val cleanupRequired: Boolean,
+	)
+	private data class RunRetirementTarget(
+		val source: SourceKind,
+		val serviceRunId: String,
+		val claims: List<SourceRuntimeClaim>,
+	)
+	private data class VerifiedSessionManifest(
+		val manifest: SessionManifestVersionEntity,
+		val bindings: List<SessionManifestSourceEntity>,
+	)
+
 	/**
 	 * Persists the complete source/session intent while deliberately leaving provider actions gated
 	 * behind [LifecycleActionStatus.AWAITING_FOREGROUND]. The coordinator lease stays owned by the
@@ -133,7 +174,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		if (request.automaticTrigger == null &&
 			database.sourceSessionDao().session(logicalTrackingId) != null
 		) return SessionStartPreparationResult.Rejected("LOGICAL_SESSION_ID_ALREADY_EXISTS")
-		val serviceRunId = request.serviceRunId ?: UUID.randomUUID().toString()
+		val serviceRunId = serviceRunIdFor(request)
 		var failure: String? = null
 		var alreadyAccepted = false
 		var prepared: PreparedSessionStart? = null
@@ -228,6 +269,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					sessionMode = draft.manifest.sessionMode,
 					currentManifestRevision = draft.manifest.manifestRevision,
 					currentIntentRevision = draft.intent.intentRevision,
+					currentServiceRunId = serviceRunId,
 					lifecycleLeaseGeneration = lease.generation,
 					lifecycleBootId = lease.bootId,
 					automationEpoch = draft.intent.automationEpoch,
@@ -294,7 +336,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		if (session.rolloutRevision != request.rolloutRevision) {
 			return SessionStartPreparationResult.Rejected("SESSION_ROLLOUT_REVISION_MISMATCH")
 		}
-		val serviceRunId = request.serviceRunId ?: UUID.randomUUID().toString()
+		val serviceRunId = serviceRunIdFor(request)
 		var failure: String? = null
 		var prepared: PreparedSessionStart? = null
 		database.withTransaction {
@@ -309,10 +351,12 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			val incompleteRuns = dao.incompleteServiceRuns(session.logicalTrackingId)
 			val previousRunIsActive = previousRun?.let { run ->
 				run.state == SessionLifecycleState.ACTIVE.name && run.completedAtMs == null &&
+					current.currentServiceRunId == run.serviceRunId &&
 					incompleteRuns.map { it.serviceRunId } == listOf(run.serviceRunId)
 			} == true
 			val previousRunWasSuspended = previousRun?.let { run ->
 				run.state == SessionLifecycleState.FINALIZED.name && run.completedAtMs != null &&
+					current.currentServiceRunId == null &&
 					incompleteRuns.isEmpty()
 			} == true
 			failure = when {
@@ -399,6 +443,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					failureCode = null,
 					currentManifestRevision = manifestRevision,
 					currentIntentRevision = intentRevision,
+					currentServiceRunId = serviceRunId,
 					lifecycleLeaseGeneration = lease.generation,
 					lifecycleBootId = lease.bootId,
 				),
@@ -489,6 +534,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					?: return@withTransaction null
 				if (session.state != SessionLifecycleState.ACTIVE.name ||
 					session.sessionMode != SessionMode.MANUAL.name ||
+					session.currentServiceRunId != run.serviceRunId ||
 					run.logicalTrackingId != logicalTrackingId ||
 					run.state != SessionLifecycleState.ACTIVE.name || run.completedAtMs != null ||
 					!run.startIsUserInitiated ||
@@ -517,6 +563,16 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		val dao = database.sourceSessionDao()
 		val run = dao.serviceRunByDeliveryToken(token.value) ?: return@withTransaction false
 		if (run.startCommandGeneration != commandGeneration || run.completedAtMs != null) {
+			return@withTransaction false
+		}
+		val session = dao.session(run.logicalTrackingId) ?: return@withTransaction false
+		val manifestEnvelope = verifiedManifest(
+			run.logicalTrackingId,
+			run.preparedManifestRevision,
+			run.serviceRunId,
+		) ?: return@withTransaction false
+		val manifest = manifestEnvelope.manifest
+		if (session.currentServiceRunId != run.serviceRunId || manifest.serviceRunId != run.serviceRunId) {
 			return@withTransaction false
 		}
 		when (run.androidDeliveryState) {
@@ -594,19 +650,22 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				return@withTransaction
 			}
 			val session = dao.session(run.logicalTrackingId)
-			val manifest = session?.let {
-				dao.manifest(it.logicalTrackingId, run.preparedManifestRevision)
+			val manifestEnvelope = session?.let {
+				verifiedManifest(it.logicalTrackingId, run.preparedManifestRevision, run.serviceRunId)
 			}
+			val manifest = manifestEnvelope?.manifest
 			val intent = session?.let {
 				dao.lifecycleIntent(it.logicalTrackingId, run.preparedIntentRevision)
 			}
 			if (session == null || manifest == null || intent == null ||
+				session.currentServiceRunId != run.serviceRunId ||
 				session.currentManifestRevision != run.preparedManifestRevision ||
 				session.currentIntentRevision != run.preparedIntentRevision ||
 				session.lifecycleLeaseGeneration != lease.generation ||
 				session.lifecycleBootId != currentBootId ||
 				session.state != SessionLifecycleState.STARTING.name ||
 				manifest.acquisitionPlanRevision != run.desiredPlanRevision ||
+				manifest.serviceRunId != run.serviceRunId ||
 				intent.manifestRevision != run.preparedManifestRevision ||
 				intent.desiredState != LifecycleDesiredState.ACTIVE.name
 			) {
@@ -643,7 +702,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					collectedDataEpoch = action.collectedDataEpoch,
 				)
 			}
-			val bindings = dao.manifestSources(session.logicalTrackingId, manifest.manifestRevision)
+			val bindings = requireNotNull(manifestEnvelope).bindings
 			val captureSources = bindings.asSequence()
 				.filter { it.purpose == SessionManifestPurpose.SESSION_CAPTURE.name }
 				.mapNotNull { binding -> SourceKind.entries.firstOrNull { it.stableCode == binding.sourceKind } }
@@ -722,20 +781,24 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				)
 			) return@withTransaction false
 			val session = dao.session(current.logicalTrackingId) ?: return@withTransaction false
-			val manifest = dao.manifest(
+			val manifestEnvelope = verifiedManifest(
 				current.logicalTrackingId,
 				current.preparedManifestRevision,
+				current.serviceRunId,
 			) ?: return@withTransaction false
+			val manifest = manifestEnvelope.manifest
 			val intent = dao.lifecycleIntent(
 				current.logicalTrackingId,
 				current.preparedIntentRevision,
 			) ?: return@withTransaction false
 			if (session.state != SessionLifecycleState.STARTING.name ||
+				session.currentServiceRunId != current.serviceRunId ||
 				session.currentManifestRevision != current.preparedManifestRevision ||
 				session.currentIntentRevision != current.preparedIntentRevision ||
 				session.lifecycleLeaseGeneration != current.leaseGeneration ||
 				session.lifecycleBootId != current.bootId ||
 				manifest.acquisitionPlanRevision != current.desiredPlanRevision ||
+				manifest.serviceRunId != current.serviceRunId ||
 				intent.manifestRevision != current.preparedManifestRevision ||
 				intent.desiredState != LifecycleDesiredState.ACTIVE.name
 			) return@withTransaction false
@@ -799,26 +862,36 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		return try {
 			val plan = planStore.load(run.desiredPlanRevision)
 				?: return SessionStartResult.InvalidIntent("PREPARED_START_PLAN_MISSING")
-			val dao = database.sourceSessionDao()
-			val manifest = dao.manifest(run.logicalTrackingId, run.preparedManifestRevision)
-				?: return SessionStartResult.InvalidIntent("PREPARED_START_MANIFEST_MISSING")
-			val intent = dao.lifecycleIntent(run.logicalTrackingId, run.preparedIntentRevision)
-				?: return SessionStartResult.InvalidIntent("PREPARED_START_INTENT_MISSING")
-			val persisted = PersistedLifecycleIntent(
-				manifest = manifest,
-				bindings = dao.manifestSources(run.logicalTrackingId, run.preparedManifestRevision),
-				intent = intent,
-				actions = dao.lifecycleActions(run.logicalTrackingId).filter { action ->
-					action.serviceRunId == run.serviceRunId &&
-						action.manifestRevision == run.preparedManifestRevision
-				},
-				demands = database.sourceBrokerDao().currentDemands("session:${run.logicalTrackingId}"),
-				foregroundCapabilityFlags = run.desiredForegroundCapabilityFlags,
-			)
+			val persisted = database.withTransaction {
+				val dao = database.sourceSessionDao()
+				val manifestEnvelope = verifiedManifest(
+					run.logicalTrackingId,
+					run.preparedManifestRevision,
+					run.serviceRunId,
+				) ?: return@withTransaction null
+				val intent = dao.lifecycleIntent(run.logicalTrackingId, run.preparedIntentRevision)
+					?: return@withTransaction null
+				val session = dao.session(run.logicalTrackingId) ?: return@withTransaction null
+				if (session.currentServiceRunId != run.serviceRunId ||
+					session.currentManifestRevision != run.preparedManifestRevision ||
+					session.currentIntentRevision != run.preparedIntentRevision
+				) return@withTransaction null
+				PersistedLifecycleIntent(
+					manifest = manifestEnvelope.manifest,
+					bindings = manifestEnvelope.bindings,
+					intent = intent,
+					actions = dao.lifecycleActions(run.logicalTrackingId).filter { action ->
+						action.serviceRunId == run.serviceRunId &&
+							action.manifestRevision == run.preparedManifestRevision
+					},
+					demands = database.sourceBrokerDao().currentDemands("session:${run.logicalTrackingId}"),
+					foregroundCapabilityFlags = run.desiredForegroundCapabilityFlags,
+				)
+			} ?: return SessionStartResult.InvalidIntent("PREPARED_START_MANIFEST_INTEGRITY_FAILED")
 			validateSourcePolicy(plan)?.let { return SessionStartResult.InvalidPolicy(it) }
 			planStore.updateStatus(plan.revision, DesiredPlanStatus.APPLYING)
 			val sink = sinkFactory.forSession(run.logicalTrackingId, run.serviceRunId)
-			var applied = reconcileStartActions(
+			val executions = reconcileStartActions(
 				plan,
 				persisted,
 				sink,
@@ -826,9 +899,29 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				wallTimeMs,
 				elapsedRealtimeNanos,
 			)
+			var applied = executions.map(SourceActionExecution::applied)
+			if (executions.any { execution -> execution.status == LifecycleActionStatus.CLEANUP_REQUIRED }) {
+				planStore.updateStatus(plan.revision, DesiredPlanStatus.APPLYING)
+				return SessionStartResult.Failed(
+					run.logicalTrackingId,
+					run.serviceRunId,
+					applied,
+					SOURCE_RUNTIME_CLEANUP_PENDING,
+				)
+			}
 			val finalPolicyFailure = validateSourcePolicy(plan)
 			if (finalPolicyFailure != null) {
-				applied = rollbackStalePolicySources(plan, applied, elapsedRealtimeNanos, wallTimeMs)
+				val rollback = rollbackStalePolicySources(plan, executions, elapsedRealtimeNanos, wallTimeMs)
+				applied = rollback.applied
+				if (rollback.cleanupRequired) {
+					planStore.updateStatus(plan.revision, DesiredPlanStatus.APPLYING)
+					return SessionStartResult.Failed(
+						run.logicalTrackingId,
+						run.serviceRunId,
+						applied,
+						SOURCE_RUNTIME_CLEANUP_PENDING,
+					)
+				}
 			}
 			val effectiveStatus = applied.desiredStatus()
 			planStore.updateStatus(plan.revision, effectiveStatus)
@@ -851,7 +944,17 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				if (failure == null) {
 					SessionStartResult.Started(run.logicalTrackingId, run.serviceRunId, applied, effectiveStatus)
 				} else {
-					applied = rollbackStalePolicySources(plan, applied, elapsedRealtimeNanos, wallTimeMs)
+					val rollback = rollbackStalePolicySources(plan, executions, elapsedRealtimeNanos, wallTimeMs)
+					applied = rollback.applied
+					if (rollback.cleanupRequired) {
+						planStore.updateStatus(plan.revision, DesiredPlanStatus.APPLYING)
+						return SessionStartResult.Failed(
+							run.logicalTrackingId,
+							run.serviceRunId,
+							applied,
+							SOURCE_RUNTIME_CLEANUP_PENDING,
+						)
+					}
 					planStore.updateStatus(plan.revision, DesiredPlanStatus.FAILED)
 					markStartFailed(run.logicalTrackingId, run.serviceRunId, wallTimeMs, failure, lease)
 					SessionStartResult.Failed(run.logicalTrackingId, run.serviceRunId, applied, failure)
@@ -897,16 +1000,21 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				if (run.state != SessionLifecycleState.STARTING.name) return@withTransaction false
 				val session = dao.session(run.logicalTrackingId) ?: return@withTransaction false
 				if (session.state != SessionLifecycleState.STARTING.name ||
+					session.currentServiceRunId != run.serviceRunId ||
 					session.currentManifestRevision != run.preparedManifestRevision ||
 					session.currentIntentRevision != run.preparedIntentRevision ||
 					session.lifecycleLeaseGeneration != run.leaseGeneration ||
 					session.lifecycleBootId != run.bootId
 				) return@withTransaction false
-				val manifest = dao.manifest(run.logicalTrackingId, run.preparedManifestRevision)
-					?: return@withTransaction false
+				val manifest = verifiedManifest(
+					run.logicalTrackingId,
+					run.preparedManifestRevision,
+					run.serviceRunId,
+				)?.manifest ?: return@withTransaction false
 				val intent = dao.lifecycleIntent(run.logicalTrackingId, run.preparedIntentRevision)
 					?: return@withTransaction false
 				if (manifest.acquisitionPlanRevision != run.desiredPlanRevision ||
+					manifest.serviceRunId != run.serviceRunId ||
 					intent.manifestRevision != run.preparedManifestRevision ||
 					intent.desiredState != LifecycleDesiredState.ACTIVE.name
 				) return@withTransaction false
@@ -914,6 +1022,9 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					action.serviceRunId == run.serviceRunId &&
 						action.manifestRevision == run.preparedManifestRevision
 				}
+				if (exactActions.any { action ->
+						action.status == LifecycleActionStatus.CLEANUP_REQUIRED.name
+				}) return@withTransaction false
 				sourceBroker.retireSessionDemandsInTransaction(
 					run.logicalTrackingId,
 					currentBootId,
@@ -942,6 +1053,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 						lifecycleRevision = session.lifecycleRevision + 1L,
 						completedAtMs = wallTimeMs,
 						failureCode = failureCode,
+						currentServiceRunId = null,
 					),
 				) == 1)
 				check(dao.updateServiceRun(
@@ -1004,10 +1116,16 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		) return@withTransaction false
 		val session = dao.session(run.logicalTrackingId) ?: return@withTransaction false
 		if (session.state != SessionLifecycleState.STARTING.name ||
+			session.currentServiceRunId != run.serviceRunId ||
 			session.currentManifestRevision != run.preparedManifestRevision ||
 			session.currentIntentRevision != run.preparedIntentRevision ||
 			session.lifecycleLeaseGeneration != run.leaseGeneration
 		) return@withTransaction false
+		val manifest = verifiedManifest(
+			run.logicalTrackingId,
+			run.preparedManifestRevision,
+			run.serviceRunId,
+		)?.manifest ?: return@withTransaction false
 		val exactActions = dao.lifecycleActions(run.logicalTrackingId).filter { action ->
 			action.serviceRunId == run.serviceRunId &&
 				action.manifestRevision == run.preparedManifestRevision
@@ -1045,6 +1163,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				lifecycleBootId = lease.bootId,
 				completedAtMs = wallTimeMs,
 				failureCode = failureCode,
+				currentServiceRunId = null,
 			),
 		)
 		dao.updateServiceRun(
@@ -1114,7 +1233,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			) {
 				return SessionStartResult.InvalidIntent("LOGICAL_SESSION_ID_ALREADY_EXISTS")
 			}
-			val serviceRunId = request.serviceRunId ?: UUID.randomUUID().toString()
+			val serviceRunId = serviceRunIdFor(request)
 			var intentPolicyFailure: String? = null
 			var automaticActionFailure: String? = null
 			var automaticActionAlreadyAccepted = false
@@ -1216,9 +1335,10 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 						finalAdmissionOrdinal = null,
 						failureCode = null,
 						sessionMode = draft.manifest.sessionMode,
-						currentManifestRevision = draft.manifest.manifestRevision,
-						currentIntentRevision = draft.intent.intentRevision,
-						lifecycleLeaseGeneration = lease.generation,
+					currentManifestRevision = draft.manifest.manifestRevision,
+					currentIntentRevision = draft.intent.intentRevision,
+					currentServiceRunId = serviceRunId,
+					lifecycleLeaseGeneration = lease.generation,
 						lifecycleBootId = lease.bootId,
 						automationEpoch = draft.intent.automationEpoch,
 					),
@@ -1279,7 +1399,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			val lifecycleIntent = requireNotNull(persisted)
 			planStore.updateStatus(request.plan.revision, DesiredPlanStatus.APPLYING)
 			val sink = sinkFactory.forSession(logicalTrackingId, serviceRunId)
-			var applied = reconcileStartActions(
+			val executions = reconcileStartActions(
 				plan = request.plan,
 				intent = lifecycleIntent,
 				sink = sink,
@@ -1287,9 +1407,34 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				wallTimeMs = request.wallTimeMs,
 				elapsedRealtimeNanos = request.elapsedRealtimeNanos,
 			)
+			var applied = executions.map(SourceActionExecution::applied)
+			if (executions.any { execution -> execution.status == LifecycleActionStatus.CLEANUP_REQUIRED }) {
+				planStore.updateStatus(request.plan.revision, DesiredPlanStatus.APPLYING)
+				return SessionStartResult.Failed(
+					logicalTrackingId,
+					serviceRunId,
+					applied,
+					SOURCE_RUNTIME_CLEANUP_PENDING,
+				)
+			}
 			val finalPolicyFailure = validateSourcePolicy(request.plan)
 			if (finalPolicyFailure != null) {
-				applied = rollbackStalePolicySources(request.plan, applied, request.elapsedRealtimeNanos, request.wallTimeMs)
+				val rollback = rollbackStalePolicySources(
+					request.plan,
+					executions,
+					request.elapsedRealtimeNanos,
+					request.wallTimeMs,
+				)
+				applied = rollback.applied
+				if (rollback.cleanupRequired) {
+					planStore.updateStatus(request.plan.revision, DesiredPlanStatus.APPLYING)
+					return SessionStartResult.Failed(
+						logicalTrackingId,
+						serviceRunId,
+						applied,
+						SOURCE_RUNTIME_CLEANUP_PENDING,
+					)
+				}
 			}
 			val effectiveStatus = applied.desiredStatus()
 			planStore.updateStatus(request.plan.revision, effectiveStatus)
@@ -1312,12 +1457,22 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				if (runningPolicyFailure == null) {
 					SessionStartResult.Started(logicalTrackingId, serviceRunId, applied, effectiveStatus)
 				} else {
-					applied = rollbackStalePolicySources(
+					val rollback = rollbackStalePolicySources(
 						request.plan,
-						applied,
+						executions,
 						request.elapsedRealtimeNanos,
 						request.wallTimeMs,
 					)
+					applied = rollback.applied
+					if (rollback.cleanupRequired) {
+						planStore.updateStatus(request.plan.revision, DesiredPlanStatus.APPLYING)
+						return SessionStartResult.Failed(
+							logicalTrackingId,
+							serviceRunId,
+							applied,
+							SOURCE_RUNTIME_CLEANUP_PENDING,
+						)
+					}
 					planStore.updateStatus(request.plan.revision, DesiredPlanStatus.FAILED)
 					markStartFailed(logicalTrackingId, serviceRunId, request.wallTimeMs, runningPolicyFailure, lease)
 					SessionStartResult.Failed(logicalTrackingId, serviceRunId, applied, runningPolicyFailure)
@@ -1344,7 +1499,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		if (session.rolloutRevision != request.rolloutRevision) {
 			return SessionStartResult.InvalidRollout("SESSION_ROLLOUT_REVISION_MISMATCH")
 		}
-		val serviceRunId = request.serviceRunId ?: UUID.randomUUID().toString()
+		val serviceRunId = serviceRunIdFor(request)
 		var policyFailure: String? = null
 		var persisted: PersistedLifecycleIntent? = null
 		database.withTransaction {
@@ -1366,18 +1521,34 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				serviceRunId = serviceRunId,
 			)
 			planStore.persistDesired(request.plan, DesiredPlanStatus.APPLYING)
-			val latestRun = database.sourceSessionDao().latestServiceRun(session.logicalTrackingId)
-			if (latestRun != null && latestRun.completedAtMs == null) {
+			val continuation = requireNotNull(request.continuationAuthority)
+			val previousRun = requireNotNull(
+				database.sourceSessionDao().serviceRun(continuation.previousServiceRunId),
+			) { "Continuation service run is missing" }
+			check(previousRun.logicalTrackingId == current.logicalTrackingId) {
+				"Continuation service run belongs to another logical session"
+			}
+			val incompleteRunIds = database.sourceSessionDao().incompleteServiceRuns(current.logicalTrackingId)
+				.map(SourceServiceRunEntity::serviceRunId)
+			if (previousRun.completedAtMs == null) {
+				check(current.currentServiceRunId == previousRun.serviceRunId &&
+					incompleteRunIds == listOf(previousRun.serviceRunId)) {
+					"Continuation service run is not the current run"
+				}
 				database.sourceSessionDao().updateServiceRun(
-					latestRun.copy(
+					previousRun.copy(
 						state = SessionLifecycleState.FINALIZED.name,
 						completedAtMs = request.wallTimeMs,
 						completionReason = "PROCESS_DEATH_RECOVERY",
 						runtimeAcknowledgement = LifecycleActionStatus.TERMINAL_FAILURE.name,
 						runtimeFailureCode = "PROCESS_DEATH_RECOVERY",
-						runRevision = latestRun.runRevision + 1L,
+						runRevision = previousRun.runRevision + 1L,
 					),
 				)
+			} else {
+				check(current.currentServiceRunId == null && incompleteRunIds.isEmpty()) {
+					"Finalized continuation cannot replace a current run"
+				}
 			}
 			supersedePendingActions(session.logicalTrackingId, request.wallTimeMs, request.elapsedRealtimeNanos)
 			database.sourceSessionDao().insertManifest(draft.manifest)
@@ -1403,6 +1574,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					failureCode = null,
 					currentManifestRevision = manifestRevision,
 					currentIntentRevision = intentRevision,
+					currentServiceRunId = serviceRunId,
 					lifecycleLeaseGeneration = lease.generation,
 					lifecycleBootId = lease.bootId,
 				),
@@ -1434,7 +1606,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		policyFailure?.let { return SessionStartResult.InvalidPolicy(it) }
 		val lifecycleIntent = requireNotNull(persisted)
 		val sink = sinkFactory.forSession(session.logicalTrackingId, serviceRunId)
-		var applied = reconcileStartActions(
+		val executions = reconcileStartActions(
 			request.plan,
 			lifecycleIntent,
 			sink,
@@ -1442,8 +1614,33 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			request.wallTimeMs,
 			request.elapsedRealtimeNanos,
 		)
+		var applied = executions.map(SourceActionExecution::applied)
+		if (executions.any { execution -> execution.status == LifecycleActionStatus.CLEANUP_REQUIRED }) {
+			planStore.updateStatus(request.plan.revision, DesiredPlanStatus.APPLYING)
+			return SessionStartResult.Failed(
+				session.logicalTrackingId,
+				serviceRunId,
+				applied,
+				SOURCE_RUNTIME_CLEANUP_PENDING,
+			)
+		}
 		if (validateSourcePolicy(request.plan) != null) {
-			applied = rollbackStalePolicySources(request.plan, applied, request.elapsedRealtimeNanos, request.wallTimeMs)
+			val rollback = rollbackStalePolicySources(
+				request.plan,
+				executions,
+				request.elapsedRealtimeNanos,
+				request.wallTimeMs,
+			)
+			applied = rollback.applied
+			if (rollback.cleanupRequired) {
+				planStore.updateStatus(request.plan.revision, DesiredPlanStatus.APPLYING)
+				return SessionStartResult.Failed(
+					session.logicalTrackingId,
+					serviceRunId,
+					applied,
+					SOURCE_RUNTIME_CLEANUP_PENDING,
+				)
+			}
 		}
 		val effectiveStatus = applied.desiredStatus()
 		planStore.updateStatus(request.plan.revision, effectiveStatus)
@@ -1463,12 +1660,22 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			if (runningPolicyFailure == null) {
 				SessionStartResult.Started(session.logicalTrackingId, serviceRunId, applied, effectiveStatus)
 			} else {
-				applied = rollbackStalePolicySources(
+				val rollback = rollbackStalePolicySources(
 					request.plan,
-					applied,
+					executions,
 					request.elapsedRealtimeNanos,
 					request.wallTimeMs,
 				)
+				applied = rollback.applied
+				if (rollback.cleanupRequired) {
+					planStore.updateStatus(request.plan.revision, DesiredPlanStatus.APPLYING)
+					return SessionStartResult.Failed(
+						session.logicalTrackingId,
+						serviceRunId,
+						applied,
+						SOURCE_RUNTIME_CLEANUP_PENDING,
+					)
+				}
 				planStore.updateStatus(request.plan.revision, DesiredPlanStatus.FAILED)
 				markStartFailed(
 					session.logicalTrackingId,
@@ -1523,6 +1730,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			var intentPolicyFailure: String? = null
 			var intentValidationFailure: String? = null
 			var persisted: PersistedLifecycleIntent? = null
+			var boundTransition: BoundServiceRunTransition? = null
 			database.withTransaction {
 				requireLeaseInTransaction(lease)
 				intentPolicyFailure = validateSourcePolicyInTransaction(request.plan)
@@ -1531,13 +1739,17 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				check(current.lifecycleRevision == session.lifecycleRevision &&
 					current.state == SessionLifecycleState.ACTIVE.name
 				) { "Session changed during reconfiguration" }
-				val currentManifest = current.currentManifestRevision?.let { revision ->
-					database.sourceSessionDao().manifest(current.logicalTrackingId, revision)
+				val currentServiceRunId = current.currentServiceRunId
+				val currentManifestEnvelope = current.currentManifestRevision?.let { revision ->
+					currentServiceRunId?.let { serviceRunId ->
+						verifiedManifest(current.logicalTrackingId, revision, serviceRunId)
+					}
 				}
-				if (currentManifest == null) {
-					intentValidationFailure = "CURRENT_MANIFEST_MISSING"
+				if (currentManifestEnvelope == null) {
+					intentValidationFailure = "CURRENT_MANIFEST_INTEGRITY_FAILED"
 					return@withTransaction
 				}
+				val currentManifest = currentManifestEnvelope.manifest
 				if (current.lifecycleBootId != request.clockDomainId ||
 					currentManifest.effectiveBootId != request.clockDomainId
 				) {
@@ -1550,7 +1762,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				}
 				val manifestRevision = requireNotNull(current.currentManifestRevision) + 1L
 				val intentRevision = requireNotNull(current.currentIntentRevision) + 1L
-				val serviceRun = requireNotNull(database.sourceSessionDao().latestServiceRun(session.logicalTrackingId))
+				val serviceRun = requireCurrentServiceRun(current)
 				val draft = buildManifestDraft(
 					logicalTrackingId = session.logicalTrackingId,
 					manifestRevision = manifestRevision,
@@ -1570,6 +1782,38 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					lease = lease,
 					serviceRunId = serviceRun.serviceRunId,
 				)
+				val priorManifestEnvelopes = database.sourceSessionDao()
+					.manifestsForServiceRun(serviceRun.serviceRunId)
+					.map { prior ->
+						verifiedManifest(
+							prior.logicalTrackingId,
+							prior.manifestRevision,
+							serviceRun.serviceRunId,
+						)
+					}
+				if (priorManifestEnvelopes.any { it == null }) {
+					intentValidationFailure = "PRIOR_MANIFEST_INTEGRITY_FAILED"
+					return@withTransaction
+				}
+				val establishedWriters = priorManifestEnvelopes
+					.filterNotNull()
+					.flatMap(VerifiedSessionManifest::bindings)
+					.filter(SessionManifestSourceEntity::isStepsSessionCaptureWriter)
+					.distinctBy(SessionManifestSourceEntity::writerProvenanceIdentity)
+				if (establishedWriters.size > 1) {
+					intentValidationFailure = "WRITER_PROVENANCE_INCONSISTENT_WITHIN_SERVICE_RUN"
+					return@withTransaction
+				}
+				val establishedWriter = establishedWriters.singleOrNull()
+				val proposedWriter = draft.bindings.singleOrNull(
+					SessionManifestSourceEntity::isStepsSessionCaptureWriter,
+				)
+				if (establishedWriter != null && proposedWriter != null &&
+					!establishedWriter.hasSameWriterProvenance(proposedWriter)
+				) {
+					intentValidationFailure = "WRITER_PROVENANCE_CHANGED_WITHIN_SERVICE_RUN"
+					return@withTransaction
+				}
 				planStore.persistDesired(request.plan, DesiredPlanStatus.APPLYING)
 				database.sourceSessionDao().insertManifest(draft.manifest)
 				database.sourceSessionDao().insertManifestSources(draft.bindings)
@@ -1603,13 +1847,26 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					),
 				)
 				persisted = draft
+				boundTransition = BoundServiceRunTransition(
+					session = current.copy(
+						state = SessionLifecycleState.RECONFIGURING.name,
+						lifecycleRevision = current.lifecycleRevision + 1,
+						desiredPlanRevision = request.plan.revision,
+						currentManifestRevision = manifestRevision,
+						currentIntentRevision = intentRevision,
+						lifecycleLeaseGeneration = lease.generation,
+						lifecycleBootId = lease.bootId,
+					),
+					serviceRunId = serviceRun.serviceRunId,
+					expectedRunRevision = serviceRun.runRevision + 1L,
+				)
 			}
 			intentPolicyFailure?.let { return SessionReconfigureResult.InvalidPolicy(it) }
 			intentValidationFailure?.let { return SessionReconfigureResult.InvalidIntent(it) }
+			val bound = requireNotNull(boundTransition)
 			val existing = database.sourcePlanStateDao().appliedStates().associateBy { it.sourceKind }
-			val serviceRun = requireNotNull(database.sourceSessionDao().latestServiceRun(session.logicalTrackingId))
-			val sink = sinkFactory.forSession(session.logicalTrackingId, serviceRun.serviceRunId)
-			var applied = reconcileReconfigureActions(
+			val sink = sinkFactory.forSession(session.logicalTrackingId, bound.serviceRunId)
+			val executions = reconcileReconfigureActions(
 				plan = request.plan,
 				intent = requireNotNull(persisted),
 				existing = existing,
@@ -1618,13 +1875,36 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				wallTimeMs = request.wallTimeMs,
 				elapsedRealtimeNanos = request.elapsedRealtimeNanos,
 			)
+			var applied = executions.map(SourceActionExecution::applied)
+			if (executions.any { execution -> execution.status == LifecycleActionStatus.CLEANUP_REQUIRED }) {
+				planStore.updateStatus(request.plan.revision, DesiredPlanStatus.APPLYING)
+				return SessionReconfigureResult.Failed(
+					request.plan.revision,
+					applied,
+					SOURCE_RUNTIME_CLEANUP_PENDING,
+				)
+			}
 			val finalPolicyFailure = validateSourcePolicy(request.plan)
 			if (finalPolicyFailure != null) {
-				applied = rollbackStalePolicySources(request.plan, applied, request.elapsedRealtimeNanos, request.wallTimeMs)
+				val rollback = rollbackStalePolicySources(
+					request.plan,
+					executions,
+					request.elapsedRealtimeNanos,
+					request.wallTimeMs,
+				)
+				applied = rollback.applied
+				if (rollback.cleanupRequired) {
+					planStore.updateStatus(request.plan.revision, DesiredPlanStatus.APPLYING)
+					return SessionReconfigureResult.Failed(
+						request.plan.revision,
+						applied,
+						SOURCE_RUNTIME_CLEANUP_PENDING,
+					)
+				}
 				planStore.updateStatus(request.plan.revision, DesiredPlanStatus.FAILED)
 				markStartFailed(
 					session.logicalTrackingId,
-					serviceRun.serviceRunId,
+					bound.serviceRunId,
 					request.wallTimeMs,
 					"SOURCE_POLICY_RECONFIGURE_STALE",
 					lease,
@@ -1641,7 +1921,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				planStore.updateStatus(request.plan.revision, DesiredPlanStatus.FAILED)
 				markStartFailed(
 					session.logicalTrackingId,
-					serviceRun.serviceRunId,
+					bound.serviceRunId,
 					request.wallTimeMs,
 					"NO_SOURCE_ACTIVE_AFTER_RECONFIGURE",
 					lease,
@@ -1652,25 +1932,38 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					"NO_SOURCE_ACTIVE_AFTER_RECONFIGURE",
 				)
 			}
-			database.withTransaction {
-				requireLeaseInTransaction(lease)
-				val updated = requireNotNull(database.sourceSessionDao().session(session.logicalTrackingId))
-				check(updated.state == SessionLifecycleState.RECONFIGURING.name)
-				database.sourceSessionDao().updateSession(
-					updated.copy(
-						state = SessionLifecycleState.ACTIVE.name,
-						lifecycleRevision = updated.lifecycleRevision + 1,
-					),
+			val acceptanceFailure = markReconfiguredIfPolicyCurrent(
+				bound = bound,
+				plan = request.plan,
+				manifestRevision = requireNotNull(persisted).manifest.manifestRevision,
+				lease = lease,
+				foregroundCapabilityFlags = request.foregroundCapabilityFlags,
+			)
+			if (acceptanceFailure != null) {
+				val rollback = rollbackStalePolicySources(
+					request.plan,
+					executions,
+					request.elapsedRealtimeNanos,
+					request.wallTimeMs,
 				)
-				val run = requireNotNull(database.sourceSessionDao().latestServiceRun(session.logicalTrackingId))
-				database.sourceSessionDao().updateServiceRun(
-					run.copy(
-						state = SessionLifecycleState.ACTIVE.name,
-						appliedForegroundCapabilityFlags = request.foregroundCapabilityFlags,
-						runtimeAcknowledgement = LifecycleActionStatus.START_ACCEPTED.name,
-						runRevision = run.runRevision + 1L,
-					),
+				applied = rollback.applied
+				if (rollback.cleanupRequired) {
+					planStore.updateStatus(request.plan.revision, DesiredPlanStatus.APPLYING)
+					return SessionReconfigureResult.Failed(
+						request.plan.revision,
+						applied,
+						SOURCE_RUNTIME_CLEANUP_PENDING,
+					)
+				}
+				planStore.updateStatus(request.plan.revision, DesiredPlanStatus.FAILED)
+				markStartFailed(
+					session.logicalTrackingId,
+					bound.serviceRunId,
+					request.wallTimeMs,
+					acceptanceFailure,
+					lease,
 				)
+				return SessionReconfigureResult.Failed(request.plan.revision, applied, acceptanceFailure)
 			}
 			SessionReconfigureResult.Applied(request.plan.revision, applied, status)
 		} finally {
@@ -1721,6 +2014,8 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 	private fun validateStartIntent(request: SessionStartRequest): String? = when {
 		request.clockDomainId.isBlank() -> "BOOT_ID_MISSING"
 		request.zoneId.isBlank() -> "ZONE_ID_MISSING"
+		request.serviceRunId?.isBlank() == true -> "SERVICE_RUN_ID_INVALID"
+		request.serviceRunId == LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID -> "SERVICE_RUN_ID_RESERVED"
 		request.origin == SessionStartOrigin.RECOVERY && request.logicalTrackingId == null -> "RECOVERY_ID_MISSING"
 		request.continuationAuthority != null &&
 			(request.logicalTrackingId == null || request.serviceRunId == null) ->
@@ -1822,6 +2117,16 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		val policyRevision = requireNotNull(plan.sourcePolicyRevision)
 		val policyDao = database.sourcePolicyDao()
 		val policies = policyDao.policiesAtRevision(policyRevision).associateBy(SourcePolicyEntity::sourceKind)
+		val stepsOwner = plan.plans[SourceKind.STEPS]
+			?.takeIf(SourcePlan::enabled)
+			?.let {
+				requireNotNull(
+					database.sourceDestinationOwnerDao().get(
+						SourceDestinationOwnerEntity.SOURCE_STEPS,
+						SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+					),
+				) { "Steps destination owner is missing" }
+			}
 		val captureBindings = plan.plans.values.filter(SourcePlan::enabled).map { sourcePlan ->
 			val policy = requireNotNull(policies[sourcePlan.source.stableCode])
 			val consentEpoch = requireNotNull(policy.captureConsentEpoch)
@@ -1832,6 +2137,13 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					requirePersistenceEligible = true,
 				),
 			)
+			val writerOwner = stepsOwner.takeIf { sourcePlan.source == SourceKind.STEPS }
+			val candidateWriter = writerOwner?.owner ==
+				SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
+			check(writerOwner == null || candidateWriter ||
+				writerOwner.owner == SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL) {
+				"Unsupported Steps destination owner ${writerOwner?.owner}"
+			}
 			SessionManifestSourceEntity(
 				logicalTrackingId = logicalTrackingId,
 				manifestRevision = manifestRevision,
@@ -1840,6 +2152,12 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				consentEpoch = consentEpoch,
 				persistenceEligible = true,
 				qosCode = policy.qosCode,
+				outputDestination = writerOwner?.destination,
+				writerOwner = writerOwner?.owner,
+				writerOwnerGeneration = writerOwner?.ownerGeneration,
+				writerProjectionId = StepsSessionFactProjectionLane.WRITER_ID.takeIf { candidateWriter },
+				writerProjectionVersion = StepsSessionFactProjectionLane.WRITER_VERSION.takeIf { candidateWriter },
+				writerBindingGeneration = StepsSessionFactProjectionLane.BINDING_GENERATION.takeIf { candidateWriter },
 			)
 		}
 		val controlBindings = controlDependencies.map { source ->
@@ -1865,29 +2183,10 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		val bindings = (captureBindings + controlBindings).sortedWith(
 			compareBy(SessionManifestSourceEntity::purpose, SessionManifestSourceEntity::sourceKind),
 		)
-		val bindingIdentity = bindings.map { binding ->
-			"${binding.purpose}:${binding.sourceKind}:${binding.consentEpoch}:" +
-				"${binding.persistenceEligible}:${binding.qosCode}"
-		}
-		val manifestChecksum = stableLifecycleChecksum(
-			logicalTrackingId,
-			manifestRevision,
-			sessionMode,
-			policyRevision,
-			plan.revision,
-			rolloutRevision,
-			origin,
-			clockDomainId,
-			elapsedRealtimeNanos,
-			wallTimeMs,
-			zoneId,
-			automaticTrigger?.automationEpoch,
-			changeReason,
-			bindingIdentity,
-		)
-		val manifest = SessionManifestVersionEntity(
+		val unsignedManifest = SessionManifestVersionEntity(
 			logicalTrackingId = logicalTrackingId,
 			manifestRevision = manifestRevision,
+			serviceRunId = serviceRunId,
 			sessionMode = sessionMode.name,
 			sourcePolicyRevision = policyRevision,
 			acquisitionPlanRevision = plan.revision,
@@ -1899,7 +2198,10 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			zoneId = zoneId,
 			automationEpoch = automaticTrigger?.automationEpoch,
 			changeReason = changeReason,
-			manifestChecksum = manifestChecksum,
+			manifestChecksum = "",
+		)
+		val manifest = unsignedManifest.copy(
+			manifestChecksum = SessionManifestIntegrity.compute(unsignedManifest, bindings),
 		)
 		val intentChecksum = stableLifecycleChecksum(
 			logicalTrackingId,
@@ -1997,12 +2299,15 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		val sessionDao = database.sourceSessionDao()
 		val session = sessionDao.session(authorization.logicalTrackingId)
 		val run = sessionDao.serviceRun(authorization.serviceRunId)
-		val binding = sessionDao.manifestSource(
+		val manifestEnvelope = verifiedManifest(
 			authorization.logicalTrackingId,
 			authorization.manifestRevision,
-			source.stableCode,
-			SessionManifestPurpose.SESSION_CAPTURE.name,
+			authorization.serviceRunId,
 		)
+		val binding = manifestEnvelope?.bindings?.singleOrNull { candidate ->
+			candidate.sourceKind == source.stableCode &&
+				candidate.purpose == SessionManifestPurpose.SESSION_CAPTURE.name
+		}
 		val beforeOrAtCutoff = observedElapsedRealtimeNanos?.let { observed ->
 			session?.cutoffElapsedNanos?.let { cutoff -> observed <= cutoff }
 		} == true
@@ -2019,9 +2324,13 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			policy.capturePersistenceEligible &&
 			policy.captureConsentEpoch == authorization.captureConsentEpoch &&
 			lifecycleEligible &&
-			session?.currentManifestRevision == authorization.manifestRevision &&
+			session?.currentServiceRunId == authorization.serviceRunId &&
+			session.currentManifestRevision == authorization.manifestRevision &&
 			session.lifecycleLeaseGeneration == authorization.leaseGeneration &&
-			run?.leaseGeneration == authorization.leaseGeneration &&
+			run?.logicalTrackingId == authorization.logicalTrackingId &&
+			run.desiredPlanRevision == manifestEnvelope?.manifest?.acquisitionPlanRevision &&
+			run.leaseGeneration == authorization.leaseGeneration &&
+			manifestEnvelope.manifest.sourcePolicyRevision == authorization.policyRevision &&
 			binding?.consentEpoch == authorization.captureConsentEpoch &&
 			binding.persistenceEligible
 	}
@@ -2033,16 +2342,16 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		lease: LifecycleLeaseToken,
 		wallTimeMs: Long,
 		elapsedRealtimeNanos: Long,
-	): List<AppliedSourcePlan> {
+	): List<SourceActionExecution> {
 		val actionBySource = intent.actions.associateBy { it.sourceKind }
 		val bindingBySource = intent.bindings
 			.filter { it.purpose == SessionManifestPurpose.SESSION_CAPTURE.name }
 			.associateBy { it.sourceKind }
 		return plan.plans.values.sortedBy { it.source.stableCode }.map { sourcePlan ->
 			if (!sourcePlan.enabled) {
-				return@map disabledApplied(sourcePlan, elapsedRealtimeNanos).also { state ->
-					planStore.saveApplied(state, wallTimeMs)
-				}
+				val state = disabledApplied(sourcePlan, elapsedRealtimeNanos)
+				planStore.saveApplied(state, wallTimeMs)
+				return@map SourceActionExecution(state, LifecycleActionStatus.STOP_ACCEPTED)
 			}
 			val action = requireNotNull(actionBySource[sourcePlan.source.stableCode])
 			val binding = requireNotNull(bindingBySource[sourcePlan.source.stableCode])
@@ -2050,8 +2359,13 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			renewLease(lease, nowElapsed)
 			val claimed = claimLifecycleAction(action.actionId, lease, nowElapsed)
 			if (claimed == null) {
-				return@map failedApplied(sourcePlan, nowElapsed, SourceApplyStatus.FAILED)
+				return@map SourceActionExecution(
+					failedApplied(sourcePlan, nowElapsed, SourceApplyStatus.FAILED),
+					LifecycleActionStatus.TERMINAL_FAILURE,
+					"SOURCE_ACTION_CLAIM_FAILED",
+				)
 			}
+			val runtimeClaim = claimed.toRuntimeClaim(sourcePlan.source)
 			val authorization = CaptureAuthorization(
 				logicalTrackingId = intent.manifest.logicalTrackingId,
 				serviceRunId = action.serviceRunId,
@@ -2060,7 +2374,14 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				manifestRevision = intent.manifest.manifestRevision,
 				leaseGeneration = lease.generation,
 			)
-			val execution = startSource(sourcePlan, sink, authorization, nowElapsed)
+			val execution = startSource(
+				sourcePlan,
+				sink,
+				authorization,
+				runtimeClaim,
+				nowElapsed,
+				wallTimeMs,
+			)
 			planStore.saveApplied(execution.applied, wallTimeMs)
 			val acknowledged = acknowledgeLifecycleAction(
 				claimed,
@@ -2070,10 +2391,24 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				monotonicNowAtLeast(nowElapsed),
 			)
 			if (!acknowledged) {
-				closeAndFence(sourcePlan.source, authorization.policyRevision)
-				failedApplied(sourcePlan, nowElapsed, SourceApplyStatus.FAILED)
+				val staleExecution = settleRejectedRuntimeExecution(
+					sourcePlan,
+					authorization,
+					runtimeClaim,
+					nowElapsed,
+					wallTimeMs,
+					SourceActionExecution(
+						failedApplied(sourcePlan, nowElapsed, SourceApplyStatus.FAILED),
+						LifecycleActionStatus.TERMINAL_FAILURE,
+						"SOURCE_ACTION_ACK_STALE",
+						runtimeClaim = runtimeClaim,
+						captureAuthorization = authorization,
+					),
+				)
+				preserveCleanupRequiredAction(claimed, staleExecution, wallTimeMs, nowElapsed)
+				staleExecution
 			} else {
-				execution.applied
+				execution
 			}
 		}
 	}
@@ -2086,7 +2421,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		lease: LifecycleLeaseToken,
 		wallTimeMs: Long,
 		elapsedRealtimeNanos: Long,
-	): List<AppliedSourcePlan> {
+	): List<SourceActionExecution> {
 		val actionBySource = intent.actions.associateBy { it.sourceKind }
 		val bindingBySource = intent.bindings
 			.filter { it.purpose == SessionManifestPurpose.SESSION_CAPTURE.name }
@@ -2097,8 +2432,13 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			renewLease(lease, nowElapsed)
 			val claimed = claimLifecycleAction(action.actionId, lease, nowElapsed)
 			if (claimed == null) {
-				return@map failedApplied(sourcePlan, nowElapsed, SourceApplyStatus.FAILED)
+				return@map SourceActionExecution(
+					failedApplied(sourcePlan, nowElapsed, SourceApplyStatus.FAILED),
+					LifecycleActionStatus.TERMINAL_FAILURE,
+					"SOURCE_ACTION_CLAIM_FAILED",
+				)
 			}
+			val runtimeClaim = claimed.toRuntimeClaim(sourcePlan.source)
 			val binding = bindingBySource[sourcePlan.source.stableCode]
 			val authorization = CaptureAuthorization(
 				logicalTrackingId = intent.manifest.logicalTrackingId,
@@ -2109,9 +2449,9 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				leaseGeneration = lease.generation,
 			)
 			val execution = if (existing[sourcePlan.source.stableCode]?.sourceInstanceId == null) {
-				startSource(sourcePlan, sink, authorization, nowElapsed)
+				startSource(sourcePlan, sink, authorization, runtimeClaim, nowElapsed, wallTimeMs)
 			} else {
-				reconfigureSource(sourcePlan, sink, authorization, nowElapsed)
+				reconfigureSource(sourcePlan, sink, authorization, runtimeClaim, nowElapsed, wallTimeMs)
 			}
 			planStore.saveApplied(execution.applied, wallTimeMs)
 			val acknowledged = acknowledgeLifecycleAction(
@@ -2122,10 +2462,24 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				monotonicNowAtLeast(nowElapsed),
 			)
 			if (!acknowledged) {
-				closeAndFence(sourcePlan.source, authorization.policyRevision)
-				failedApplied(sourcePlan, nowElapsed, SourceApplyStatus.FAILED)
+				val staleExecution = settleRejectedRuntimeExecution(
+					sourcePlan,
+					authorization,
+					runtimeClaim,
+					nowElapsed,
+					wallTimeMs,
+					SourceActionExecution(
+						failedApplied(sourcePlan, nowElapsed, SourceApplyStatus.FAILED),
+						LifecycleActionStatus.TERMINAL_FAILURE,
+						"SOURCE_ACTION_ACK_STALE",
+						runtimeClaim = runtimeClaim,
+						captureAuthorization = authorization,
+					),
+				)
+				preserveCleanupRequiredAction(claimed, staleExecution, wallTimeMs, nowElapsed)
+				staleExecution
 			} else {
-				execution.applied
+				execution
 			}
 		}
 	}
@@ -2146,6 +2500,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			action.leaseGeneration != lease.generation ||
 			action.bootId != lease.bootId ||
 			session.currentManifestRevision != action.manifestRevision ||
+			session.currentServiceRunId != action.serviceRunId ||
 			session.lifecycleLeaseGeneration != lease.generation ||
 			session.state in TERMINAL_OR_STOPPING_STATES
 		) return@withTransaction null
@@ -2158,6 +2513,18 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		)
 		check(dao.updateLifecycleAction(claimed) == 1)
 		claimed
+	}
+
+	private fun LifecycleDesiredActionEntity.toRuntimeClaim(source: SourceKind): SourceRuntimeClaim {
+		check(sourceKind == source.stableCode) { "Lifecycle action belongs to another source" }
+		return SourceRuntimeClaim(
+			source = source,
+			actionId = actionId,
+			attemptCount = attemptCount,
+			leaseGeneration = leaseGeneration,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+		)
 	}
 
 	private suspend fun acknowledgeLifecycleAction(
@@ -2175,31 +2542,81 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			current.attemptCount != action.attemptCount ||
 			current.leaseGeneration != lease.generation ||
 			session.currentManifestRevision != action.manifestRevision ||
+			session.currentServiceRunId != action.serviceRunId ||
 			session.lifecycleLeaseGeneration != lease.generation
 		) return@withTransaction false
-		dao.updateLifecycleAction(
+		val stopAcknowledgementMatches = execution.stopAck?.hasMembership(
+			action.logicalTrackingId,
+			action.serviceRunId,
+		) != false
+		val acknowledgedExecution = if (stopAcknowledgementMatches) execution else execution.copy(
+			status = LifecycleActionStatus.CLEANUP_REQUIRED,
+			failureCode = "STOP_ACK_MEMBERSHIP_MISMATCH",
+			retryTrigger = RUNTIME_CLEANUP_RETRY,
+		)
+		val acknowledged = dao.updateLifecycleAction(
 			current.copy(
-				status = execution.status.name,
+				status = acknowledgedExecution.status.name,
 				acknowledgedAtMs = wallTimeMs,
 				acknowledgedElapsedRealtimeNanos = elapsedRealtimeNanos,
-				failureCode = execution.failureCode,
-				retryTrigger = execution.retryTrigger,
-				sourceInstanceId = execution.applied.sourceInstanceId?.value,
-				registrationGeneration = execution.applied.registrationGeneration,
+				failureCode = acknowledgedExecution.failureCode,
+				retryTrigger = acknowledgedExecution.retryTrigger,
+				sourceInstanceId = acknowledgedExecution.applied.sourceInstanceId?.value,
+				registrationGeneration = acknowledgedExecution.applied.registrationGeneration,
 			),
 		) == 1
+		if (acknowledged) {
+			acknowledgedExecution.stopAck?.takeIf { stopAcknowledgementMatches }?.let { ack ->
+				saveCompleteness(action.logicalTrackingId, action.serviceRunId, ack, wallTimeMs)
+			}
+		}
+		acknowledged
+	}
+
+	/** Retains attempt N as a cleanup obligation even when its normal acknowledgement CAS is stale. */
+	private suspend fun preserveCleanupRequiredAction(
+		action: LifecycleDesiredActionEntity,
+		execution: SourceActionExecution,
+		wallTimeMs: Long,
+		elapsedRealtimeNanos: Long,
+	) {
+		if (execution.status != LifecycleActionStatus.CLEANUP_REQUIRED) return
+		database.withTransaction {
+			val dao = database.sourceSessionDao()
+			val current = dao.lifecycleAction(action.actionId) ?: return@withTransaction
+			if (current.attemptCount != action.attemptCount ||
+				current.leaseGeneration != action.leaseGeneration ||
+				current.status !in setOf(
+					LifecycleActionStatus.APPLYING.name,
+					LifecycleActionStatus.CLEANUP_REQUIRED.name,
+				)
+			) return@withTransaction
+			check(dao.updateLifecycleAction(
+				current.copy(
+					status = LifecycleActionStatus.CLEANUP_REQUIRED.name,
+					acknowledgedAtMs = wallTimeMs,
+					acknowledgedElapsedRealtimeNanos = elapsedRealtimeNanos,
+					failureCode = SOURCE_RUNTIME_CLEANUP_PENDING,
+					retryTrigger = RUNTIME_CLEANUP_RETRY,
+					sourceInstanceId = execution.applied.sourceInstanceId?.value,
+					registrationGeneration = execution.applied.registrationGeneration,
+				),
+			) == 1)
+		}
 	}
 
 	private suspend fun persistStopIntent(
 		session: LogicalTrackingSessionEntity,
 		request: SessionStopRequest,
 		lease: LifecycleLeaseToken,
-	): LogicalTrackingSessionEntity {
+	): BoundServiceRunTransition {
 		val dao = database.sourceSessionDao()
 		val manifestRevision = requireNotNull(session.currentManifestRevision)
 		val intentRevision = requireNotNull(session.currentIntentRevision) + 1L
-		val manifest = requireNotNull(dao.manifest(session.logicalTrackingId, manifestRevision))
-		val run = requireNotNull(dao.latestServiceRun(session.logicalTrackingId))
+		val run = requireCurrentServiceRun(session)
+		val manifestEnvelope = requireNotNull(
+			verifiedManifest(session.logicalTrackingId, manifestRevision, run.serviceRunId),
+		) { "Stop manifest integrity failed" }
 		val deadline = request.elapsedRealtimeNanos + request.gracePeriodMs * NANOS_PER_MILLISECOND
 		val intent = stopIntent(
 			session,
@@ -2221,7 +2638,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		dao.insertLifecycleActions(
 			stopActions(
 				session,
-				manifest,
+				manifestEnvelope,
 				intentRevision,
 				run.serviceRunId,
 				lease,
@@ -2239,30 +2656,95 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			cutoffElapsedNanos = request.elapsedRealtimeNanos,
 		)
 		check(dao.updateSession(updated) == 1)
+		val updatedRun = run.copy(
+			state = SessionLifecycleState.STOPPING.name,
+			leaseGeneration = lease.generation,
+			bootId = lease.bootId,
+			runtimeAcknowledgement = LifecycleActionStatus.PENDING.name,
+			runRevision = run.runRevision + 1L,
+		)
 		check(
 			dao.updateServiceRun(
-				run.copy(
-					state = SessionLifecycleState.STOPPING.name,
-					leaseGeneration = lease.generation,
-					bootId = lease.bootId,
-					runtimeAcknowledgement = LifecycleActionStatus.PENDING.name,
-					runRevision = run.runRevision + 1L,
-				),
+				updatedRun,
 			) == 1,
 		)
-		return updated
+		return BoundServiceRunTransition(updated, run.serviceRunId, updatedRun.runRevision)
+	}
+
+	/**
+	 * Starts a distinct durable stop attempt after a prior STOPPING attempt returned without a
+	 * terminal drain. The original cutoff remains immutable; only retry authority and action
+	 * generation move forward.
+	 */
+	private suspend fun persistStopRetryIntent(
+		session: LogicalTrackingSessionEntity,
+		request: SessionStopRequest,
+		lease: LifecycleLeaseToken,
+	): BoundServiceRunTransition {
+		check(session.state == SessionLifecycleState.STOPPING.name)
+		val dao = database.sourceSessionDao()
+		val manifestRevision = requireNotNull(session.currentManifestRevision)
+		val run = requireCurrentServiceRun(session)
+		val manifestEnvelope = requireNotNull(
+			verifiedManifest(session.logicalTrackingId, manifestRevision, run.serviceRunId),
+		) { "STOPPING session manifest integrity failed" }
+		val intentRevision = requireNotNull(session.currentIntentRevision) + 1L
+		val cutoffAtMs = requireNotNull(session.cutoffAtMs)
+		val cutoffElapsedNanos = requireNotNull(session.cutoffElapsedNanos)
+		val deadline = request.elapsedRealtimeNanos + request.gracePeriodMs * NANOS_PER_MILLISECOND
+		dao.insertLifecycleIntent(
+			stopIntent(
+				session,
+				manifestRevision,
+				intentRevision,
+				request.reason,
+				request.clockDomainId,
+				cutoffElapsedNanos,
+				cutoffAtMs,
+				deadline,
+			),
+		)
+		dao.insertLifecycleActions(
+			stopActions(
+				session,
+				manifestEnvelope,
+				intentRevision,
+				run.serviceRunId,
+				lease,
+				request.wallTimeMs,
+				request.elapsedRealtimeNanos,
+			),
+		)
+		val updated = session.copy(
+			lifecycleRevision = session.lifecycleRevision + 1L,
+			currentIntentRevision = intentRevision,
+			lifecycleLeaseGeneration = lease.generation,
+			lifecycleBootId = lease.bootId,
+		)
+		check(dao.updateSession(updated) == 1)
+		val updatedRun = run.copy(
+			leaseGeneration = lease.generation,
+			bootId = lease.bootId,
+			runtimeAcknowledgement = LifecycleActionStatus.PENDING.name,
+			runtimeFailureCode = null,
+			runRevision = run.runRevision + 1L,
+		)
+		check(dao.updateServiceRun(updatedRun) == 1)
+		return BoundServiceRunTransition(updated, run.serviceRunId, updatedRun.runRevision)
 	}
 
 	private suspend fun persistServiceRunSuspendIntent(
 		session: LogicalTrackingSessionEntity,
 		request: SessionSuspendRequest,
 		lease: LifecycleLeaseToken,
-	): LogicalTrackingSessionEntity {
+	): BoundServiceRunTransition {
 		val dao = database.sourceSessionDao()
 		val manifestRevision = requireNotNull(session.currentManifestRevision)
 		val intentRevision = requireNotNull(session.currentIntentRevision) + 1L
-		val manifest = requireNotNull(dao.manifest(session.logicalTrackingId, manifestRevision))
-		val run = requireNotNull(dao.latestServiceRun(session.logicalTrackingId))
+		val run = requireCurrentServiceRun(session)
+		val manifestEnvelope = requireNotNull(
+			verifiedManifest(session.logicalTrackingId, manifestRevision, run.serviceRunId),
+		) { "Suspend manifest integrity failed" }
 		val intent = SessionLifecycleIntentVersionEntity(
 			logicalTrackingId = session.logicalTrackingId,
 			intentRevision = intentRevision,
@@ -2296,7 +2778,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		dao.insertLifecycleActions(
 			stopActions(
 				session,
-				manifest,
+				manifestEnvelope,
 				intentRevision,
 				run.serviceRunId,
 				lease,
@@ -2305,24 +2787,24 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			),
 		)
 		val updated = session.copy(
-			lifecycleRevision = session.lifecycleRevision + 1L,
 			currentIntentRevision = intentRevision,
 			lifecycleLeaseGeneration = lease.generation,
 			lifecycleBootId = lease.bootId,
 		)
 		check(dao.updateSession(updated) == 1)
+		val updatedRun = run.copy(
+			state = SessionLifecycleState.STOPPING.name,
+			leaseGeneration = lease.generation,
+			bootId = lease.bootId,
+			runtimeAcknowledgement = LifecycleActionStatus.PENDING.name,
+			runRevision = run.runRevision + 1L,
+		)
 		check(
 			dao.updateServiceRun(
-				run.copy(
-					state = SessionLifecycleState.STOPPING.name,
-					leaseGeneration = lease.generation,
-					bootId = lease.bootId,
-					runtimeAcknowledgement = LifecycleActionStatus.PENDING.name,
-					runRevision = run.runRevision + 1L,
-				),
+				updatedRun,
 			) == 1,
 		)
-		return updated
+		return BoundServiceRunTransition(updated, run.serviceRunId, updatedRun.runRevision)
 	}
 
 	private fun stopIntent(
@@ -2367,17 +2849,17 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 
 	private suspend fun stopActions(
 		session: LogicalTrackingSessionEntity,
-		manifest: SessionManifestVersionEntity,
+		manifestEnvelope: VerifiedSessionManifest,
 		intentRevision: Long,
 		serviceRunId: String,
 		lease: LifecycleLeaseToken,
 		wallTimeMs: Long,
 		elapsedRealtimeNanos: Long,
 	): List<LifecycleDesiredActionEntity> {
-		val bindings = database.sourceSessionDao().manifestSources(
-			session.logicalTrackingId,
-			manifest.manifestRevision,
-		).filter { it.purpose == SessionManifestPurpose.SESSION_CAPTURE.name }
+		val manifest = manifestEnvelope.manifest
+		val bindings = manifestEnvelope.bindings.filter {
+			it.purpose == SessionManifestPurpose.SESSION_CAPTURE.name
+		}
 		var actionRevision = database.sourceSessionDao().maximumActionRevision(session.logicalTrackingId) + 1L
 		return bindings.map { binding ->
 			LifecycleDesiredActionEntity(
@@ -2416,11 +2898,13 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 
 	private suspend fun markStopActionsApplying(
 		logicalTrackingId: String,
+		serviceRunId: String,
 		lease: LifecycleLeaseToken,
 	) {
 		val dao = database.sourceSessionDao()
 		dao.lifecycleActions(logicalTrackingId)
 			.filter { action ->
+				action.serviceRunId == serviceRunId &&
 				action.desiredState == ACTION_DESIRED_STOPPED &&
 					action.status == LifecycleActionStatus.PENDING.name &&
 					action.leaseGeneration == lease.generation
@@ -2439,11 +2923,13 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 
 	private suspend fun acknowledgeStopAction(
 		logicalTrackingId: String,
+		serviceRunId: String,
 		ack: SourceStopAck,
 		lease: LifecycleLeaseToken,
 		request: SessionStopRequest,
 	) = acknowledgeStopAction(
 		logicalTrackingId,
+		serviceRunId,
 		ack,
 		lease,
 		request.wallTimeMs,
@@ -2452,11 +2938,13 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 
 	private suspend fun acknowledgeSuspendAction(
 		logicalTrackingId: String,
+		serviceRunId: String,
 		ack: SourceStopAck,
 		lease: LifecycleLeaseToken,
 		request: SessionSuspendRequest,
 	) = acknowledgeStopAction(
 		logicalTrackingId,
+		serviceRunId,
 		ack,
 		lease,
 		request.wallTimeMs,
@@ -2465,6 +2953,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 
 	private suspend fun acknowledgeStopAction(
 		logicalTrackingId: String,
+		serviceRunId: String,
 		ack: SourceStopAck,
 		lease: LifecycleLeaseToken,
 		wallTimeMs: Long,
@@ -2472,24 +2961,30 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 	) {
 		val dao = database.sourceSessionDao()
 		val action = dao.lifecycleActions(logicalTrackingId).lastOrNull { candidate ->
-			candidate.sourceKind == ack.source.stableCode &&
+			candidate.serviceRunId == serviceRunId &&
+				candidate.sourceKind == ack.source.stableCode &&
 				candidate.desiredState == ACTION_DESIRED_STOPPED &&
 				candidate.leaseGeneration == lease.generation &&
 				candidate.status == LifecycleActionStatus.APPLYING.name
 		} ?: return
-		val accepted = ack.status == SourceStopStatus.COMPLETE &&
-			ack.registrationRemovalOutcome != RegistrationRemovalOutcome.FAILED
+		val membershipMatches = ack.hasMembership(logicalTrackingId, serviceRunId)
+		val accepted = membershipMatches && !ack.hasIncompleteTerminalRetirement()
 		check(
 			dao.updateLifecycleAction(
 				action.copy(
 					status = if (accepted) {
 						LifecycleActionStatus.STOP_ACCEPTED.name
 					} else {
-						LifecycleActionStatus.TERMINAL_FAILURE.name
+						LifecycleActionStatus.CLEANUP_REQUIRED.name
 					},
 					acknowledgedAtMs = wallTimeMs,
 					acknowledgedElapsedRealtimeNanos = elapsedRealtimeNanos,
-					failureCode = if (accepted) null else "STOP_${ack.status.name}",
+					failureCode = when {
+						accepted -> null
+						!membershipMatches -> "STOP_ACK_MEMBERSHIP_MISMATCH"
+						else -> "STOP_${ack.status.name}"
+					},
+					retryTrigger = if (accepted) null else RUNTIME_CLEANUP_RETRY,
 					sourceInstanceId = ack.sourceInstanceId.value,
 					registrationGeneration = ack.registrationGeneration,
 				),
@@ -2502,32 +2997,38 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			?: return SessionStopResult.Busy
 		return try {
 			val session = database.sourceSessionDao().activeSession() ?: return SessionStopResult.NoActiveSession
-			val cutoffSession = database.withTransaction {
+			val bound = database.withTransaction {
 				requireLeaseInTransaction(lease)
 				val current = requireNotNull(database.sourceSessionDao().session(session.logicalTrackingId))
-				if (current.state == SessionLifecycleState.STOPPING.name) current else {
+				if (current.state == SessionLifecycleState.STOPPING.name) {
+					persistStopRetryIntent(current, request, lease)
+				} else {
 					check(current.state in setOf(SessionLifecycleState.STARTING.name, SessionLifecycleState.ACTIVE.name,
 						SessionLifecycleState.RECONFIGURING.name)) { "Terminal session cannot stop again" }
 					persistStopIntent(current, request, lease)
 				}
 			}
+			val cutoffSession = bound.session
 			database.withTransaction {
 				requireLeaseInTransaction(lease)
-				markStopActionsApplying(cutoffSession.logicalTrackingId, lease)
+				requireBoundServiceRun(bound, SessionLifecycleState.STOPPING)
+				markStopActionsApplying(cutoffSession.logicalTrackingId, bound.serviceRunId, lease)
 			}
-			val plan = requireNotNull(planStore.load(cutoffSession.desiredPlanRevision))
 			val cutoff = SessionCutoff(
 				logicalTrackingId = cutoffSession.logicalTrackingId,
 				elapsedRealtimeNanos = requireNotNull(cutoffSession.cutoffElapsedNanos),
 				wallTimeMs = requireNotNull(cutoffSession.cutoffAtMs),
 				deadlineElapsedRealtimeNanos = request.elapsedRealtimeNanos + request.gracePeriodMs * NANOS_PER_MILLISECOND,
 			)
-			val acks = quiesceSources(plan, cutoff, request.perSourceTimeoutMs)
+			val retirementTargets = runRetirementTargets(cutoffSession, bound.serviceRunId)
+			val acks = retireRunSources(retirementTargets, cutoff, request.perSourceTimeoutMs)
 			database.withTransaction {
 				requireLeaseInTransaction(lease)
 				acks.forEach { ack ->
-					saveCompleteness(cutoffSession.logicalTrackingId, ack, request.wallTimeMs)
-					acknowledgeStopAction(cutoffSession.logicalTrackingId, ack, lease, request)
+					if (ack.hasMembership(cutoffSession.logicalTrackingId, bound.serviceRunId)) {
+						saveCompleteness(cutoffSession.logicalTrackingId, bound.serviceRunId, ack, request.wallTimeMs)
+					}
+					acknowledgeStopAction(cutoffSession.logicalTrackingId, bound.serviceRunId, ack, lease, request)
 				}
 			}
 			val finalOrdinal = database.sourceEventWalDao().maximumAdmissionOrdinal() ?: 0L
@@ -2539,18 +3040,11 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				}
 				else -> return SessionStopResult.DrainPending(cutoffSession.logicalTrackingId, finalOrdinal)
 			}
-			var closeFailed = false
-			plan.plans.values.filter(SourcePlan::enabled).forEach { planItem ->
-				if (planItem.source in runtimes.registeredSources()) {
-					closeFailed = runCatchingNonCancellation {
-						runtimes.close(planItem.source)
-					}.isFailure || closeFailed
-				}
-			}
-			val incomplete = closeFailed || acks.any { ack ->
-				ack.status != SourceStopStatus.COMPLETE ||
-					ack.registrationRemovalOutcome == RegistrationRemovalOutcome.FAILED
-			}
+			val incomplete = terminalRetirementIncomplete(
+				acks,
+				cutoffSession.logicalTrackingId,
+				bound.serviceRunId,
+			)
 			database.withTransaction {
 				requireLeaseInTransaction(lease)
 				sourceBroker.retireSessionDemands(
@@ -2559,34 +3053,54 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					request.elapsedRealtimeNanos,
 					request.wallTimeMs,
 				)
+				val serviceRun = requireBoundServiceRun(bound, SessionLifecycleState.STOPPING)
 				val finalizing = requireNotNull(database.sourceSessionDao().session(cutoffSession.logicalTrackingId))
 				check(finalizing.state == SessionLifecycleState.STOPPING.name)
+				if (incomplete) {
+					check(database.sourceSessionDao().updateSession(
+						finalizing.copy(
+							lifecycleRevision = finalizing.lifecycleRevision + 1L,
+							failureCode = "STOP_INCOMPLETE",
+						),
+					) == 1)
+					check(database.sourceSessionDao().updateServiceRun(
+						serviceRun.copy(
+							runtimeAcknowledgement = LifecycleActionStatus.CLEANUP_REQUIRED.name,
+							runtimeFailureCode = "STOP_INCOMPLETE",
+							runRevision = serviceRun.runRevision + 1L,
+						),
+					) == 1)
+					return@withTransaction
+				}
+				resolveCleanupRequiredActions(
+					cutoffSession.logicalTrackingId,
+					bound.serviceRunId,
+					request.wallTimeMs,
+					request.elapsedRealtimeNanos,
+				)
 				database.sourceSessionDao().updateSession(
 					finalizing.copy(
 						state = SessionLifecycleState.FINALIZED.name,
 						lifecycleRevision = finalizing.lifecycleRevision + 1,
 						finalAdmissionOrdinal = finalOrdinal,
 						completedAtMs = request.wallTimeMs,
-						failureCode = if (incomplete) "STOP_INCOMPLETE" else null,
+						failureCode = null,
+						currentServiceRunId = null,
 					),
 				)
-				val serviceRun = database.sourceSessionDao().latestServiceRun(cutoffSession.logicalTrackingId)
-				if (serviceRun != null) {
-					database.sourceSessionDao().updateServiceRun(
+				database.sourceSessionDao().updateServiceRun(
 						serviceRun.copy(
 							state = SessionLifecycleState.FINALIZED.name,
 							completedAtMs = request.wallTimeMs,
-							completionReason = if (incomplete) "${request.reason}:INCOMPLETE" else request.reason,
-							runtimeAcknowledgement = if (incomplete) {
-								LifecycleActionStatus.TERMINAL_FAILURE.name
-							} else {
-								LifecycleActionStatus.STOP_ACCEPTED.name
-							},
-							runtimeFailureCode = if (incomplete) "STOP_INCOMPLETE" else null,
+							completionReason = request.reason,
+							runtimeAcknowledgement = LifecycleActionStatus.STOP_ACCEPTED.name,
+							runtimeFailureCode = null,
 							runRevision = serviceRun.runRevision + 1L,
 						),
 					)
-				}
+			}
+			if (incomplete) {
+				return SessionStopResult.CleanupPending(cutoffSession.logicalTrackingId, finalOrdinal, acks)
 			}
 			SessionStopResult.Stopped(cutoffSession.logicalTrackingId, finalOrdinal, acks)
 		} finally {
@@ -2607,15 +3121,16 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			if (session.state != SessionLifecycleState.ACTIVE.name) {
 				return SessionSuspendResult.NoActiveSession
 			}
-			val durableSession = database.withTransaction {
+			val bound = database.withTransaction {
 				requireLeaseInTransaction(lease)
 				persistServiceRunSuspendIntent(session, request, lease)
 			}
+			val durableSession = bound.session
 			database.withTransaction {
 				requireLeaseInTransaction(lease)
-				markStopActionsApplying(durableSession.logicalTrackingId, lease)
+				requireBoundServiceRun(bound, SessionLifecycleState.STOPPING)
+				markStopActionsApplying(durableSession.logicalTrackingId, bound.serviceRunId, lease)
 			}
-			val plan = requireNotNull(planStore.load(durableSession.desiredPlanRevision))
 			val cutoff = SessionCutoff(
 				logicalTrackingId = durableSession.logicalTrackingId,
 				elapsedRealtimeNanos = request.elapsedRealtimeNanos,
@@ -2623,12 +3138,15 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				deadlineElapsedRealtimeNanos = request.elapsedRealtimeNanos +
 					request.gracePeriodMs * NANOS_PER_MILLISECOND,
 			)
-			val acks = quiesceSources(plan, cutoff, request.perSourceTimeoutMs)
+			val retirementTargets = runRetirementTargets(durableSession, bound.serviceRunId)
+			val acks = retireRunSources(retirementTargets, cutoff, request.perSourceTimeoutMs)
 			database.withTransaction {
 				requireLeaseInTransaction(lease)
 				acks.forEach { ack ->
-					saveCompleteness(durableSession.logicalTrackingId, ack, request.wallTimeMs)
-					acknowledgeSuspendAction(durableSession.logicalTrackingId, ack, lease, request)
+					if (ack.hasMembership(durableSession.logicalTrackingId, bound.serviceRunId)) {
+						saveCompleteness(durableSession.logicalTrackingId, bound.serviceRunId, ack, request.wallTimeMs)
+					}
+					acknowledgeSuspendAction(durableSession.logicalTrackingId, bound.serviceRunId, ack, lease, request)
 				}
 			}
 			val finalOrdinal = database.sourceEventWalDao().maximumAdmissionOrdinal() ?: 0L
@@ -2638,37 +3156,60 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				}
 				else -> return SessionSuspendResult.DrainPending(durableSession.logicalTrackingId, finalOrdinal)
 			}
-			var closeFailed = false
-			plan.plans.values.forEach { planItem ->
-				if (planItem.source in runtimes.registeredSources()) {
-					closeFailed = runCatchingNonCancellation {
-						runtimes.close(planItem.source)
-					}.isFailure || closeFailed
-				}
-			}
+			val incomplete = terminalRetirementIncomplete(
+				acks,
+				durableSession.logicalTrackingId,
+				bound.serviceRunId,
+			)
 			database.withTransaction {
 				requireLeaseInTransaction(lease)
+				val serviceRun = requireBoundServiceRun(bound, SessionLifecycleState.STOPPING)
 				val latest = requireNotNull(database.sourceSessionDao().session(durableSession.logicalTrackingId))
 				check(latest.state == SessionLifecycleState.ACTIVE.name)
-				val serviceRun = database.sourceSessionDao().latestServiceRun(durableSession.logicalTrackingId)
-				if (serviceRun != null && serviceRun.completedAtMs == null) {
-					database.sourceSessionDao().updateServiceRun(
+				if (incomplete) {
+					check(database.sourceSessionDao().updateSession(
+						latest.copy(
+							lifecycleRevision = latest.lifecycleRevision + 1L,
+							failureCode = "STOP_INCOMPLETE",
+						),
+					) == 1)
+					check(database.sourceSessionDao().updateServiceRun(
+						serviceRun.copy(
+							runtimeAcknowledgement = LifecycleActionStatus.CLEANUP_REQUIRED.name,
+							runtimeFailureCode = "STOP_INCOMPLETE",
+							runRevision = serviceRun.runRevision + 1L,
+						),
+					) == 1)
+					return@withTransaction
+				}
+				resolveCleanupRequiredActions(
+					durableSession.logicalTrackingId,
+					bound.serviceRunId,
+					request.wallTimeMs,
+					request.elapsedRealtimeNanos,
+				)
+				database.sourceSessionDao().updateSession(
+					latest.copy(
+						currentServiceRunId = null,
+						lifecycleRevision = latest.lifecycleRevision + 1L,
+						failureCode = null,
+					),
+				)
+				database.sourceSessionDao().updateServiceRun(
 						serviceRun.copy(
 							state = SessionLifecycleState.FINALIZED.name,
 							completedAtMs = request.wallTimeMs,
-							completionReason = if (closeFailed) "${request.reason}:INCOMPLETE" else request.reason,
-							runtimeAcknowledgement = if (closeFailed) {
-								LifecycleActionStatus.TERMINAL_FAILURE.name
-							} else {
-								LifecycleActionStatus.STOP_ACCEPTED.name
-							},
-							runtimeFailureCode = if (closeFailed) "STOP_INCOMPLETE" else null,
+							completionReason = request.reason,
+							runtimeAcknowledgement = LifecycleActionStatus.STOP_ACCEPTED.name,
+							runtimeFailureCode = null,
 							runRevision = serviceRun.runRevision + 1L,
 						),
 					)
-				}
 			}
-			SessionSuspendResult.Suspended(durableSession.logicalTrackingId, finalOrdinal, acks)
+			if (incomplete) {
+				return SessionSuspendResult.CleanupPending(durableSession.logicalTrackingId, finalOrdinal, acks)
+			}
+			SessionSuspendResult.Suspended(durableSession.logicalTrackingId, finalOrdinal, acks, false)
 		} finally {
 			releaseLease(lease, request.elapsedRealtimeNanos)
 		}
@@ -2678,7 +3219,9 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		plan: SourcePlan,
 		sink: SourceEventSink,
 		authorization: CaptureAuthorization,
+		runtimeClaim: SourceRuntimeClaim,
 		elapsedNanos: Long,
+		wallTimeMs: Long,
 	): SourceActionExecution {
 		if (!plan.enabled) {
 			return SourceActionExecution(
@@ -2694,27 +3237,55 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			)
 		}
 		val execution = try {
-			runtimes.start(plan, registrationFencedSink(sink, plan.source)).toExecution()
+			runtimes.start(runtimeClaim, plan, registrationFencedSink(sink, plan.source))
+				.toExecution()
+				.copy(runtimeClaim = runtimeClaim, captureAuthorization = authorization)
 		} catch (error: CancellationException) {
 			throw error
 		} catch (error: Exception) {
-			closeAndFence(plan.source, authorization.policyRevision)
-			return SourceActionExecution(
-				failedApplied(plan, elapsedNanos, SourceApplyStatus.FAILED),
-				LifecycleActionStatus.TERMINAL_FAILURE,
-				"SOURCE_START_EXCEPTION",
+			return settleRejectedRuntimeExecution(
+				plan,
+				authorization,
+				runtimeClaim,
+				elapsedNanos,
+				wallTimeMs,
+				SourceActionExecution(
+					failedApplied(plan, elapsedNanos, SourceApplyStatus.FAILED),
+					LifecycleActionStatus.TERMINAL_FAILURE,
+					"SOURCE_START_EXCEPTION",
+					runtimeClaim = runtimeClaim,
+					captureAuthorization = authorization,
+				),
+			)
+		}
+		if (execution.status !in LIVE_RUNTIME_ACTION_STATUSES) {
+			return settleRejectedRuntimeExecution(
+				plan,
+				authorization,
+				runtimeClaim,
+				elapsedNanos,
+				wallTimeMs,
+				execution,
 			)
 		}
 		return if (captureAuthorizationCurrent(authorization, plan.source)) execution else {
-			val closed = closeAndFence(plan.source, authorization.policyRevision)
-			SourceActionExecution(
+			settleRejectedRuntimeExecution(
+				plan,
+				authorization,
+				runtimeClaim,
+				elapsedNanos,
+				wallTimeMs,
+				SourceActionExecution(
 				failedApplied(
 					plan,
 					elapsedNanos,
-					if (closed) SourceApplyStatus.ROLLED_BACK else SourceApplyStatus.FAILED,
+					SourceApplyStatus.FAILED,
 				),
 				LifecycleActionStatus.TERMINAL_FAILURE,
 				"SOURCE_AUTHORIZATION_STALE",
+				runtimeClaim = runtimeClaim,
+				captureAuthorization = authorization,
+				),
 			)
 		}
 	}
@@ -2723,7 +3294,9 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		plan: SourcePlan,
 		sink: SourceEventSink,
 		authorization: CaptureAuthorization,
+		runtimeClaim: SourceRuntimeClaim,
 		elapsedNanos: Long,
+		wallTimeMs: Long,
 	): SourceActionExecution {
 		if (!plan.enabled && plan.source !in runtimes.registeredSources()) {
 			return SourceActionExecution(
@@ -2740,31 +3313,162 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		}
 		val execution = try {
 			runtimes.reconfigure(
+				runtimeClaim,
 				plan,
 				registrationFencedSink(sink, plan.source),
 			).toExecution(plan.enabled)
+				.copy(runtimeClaim = runtimeClaim, captureAuthorization = authorization)
 		} catch (error: CancellationException) {
 			throw error
 		} catch (error: Exception) {
-			closeAndFence(plan.source, authorization.policyRevision)
-			return SourceActionExecution(
-				failedApplied(plan, elapsedNanos, SourceApplyStatus.FAILED),
-				LifecycleActionStatus.TERMINAL_FAILURE,
-				"SOURCE_RECONFIGURE_EXCEPTION",
+			return settleRejectedRuntimeExecution(
+				plan,
+				authorization,
+				runtimeClaim,
+				elapsedNanos,
+				wallTimeMs,
+				SourceActionExecution(
+					failedApplied(plan, elapsedNanos, SourceApplyStatus.FAILED),
+					LifecycleActionStatus.TERMINAL_FAILURE,
+					"SOURCE_RECONFIGURE_EXCEPTION",
+					runtimeClaim = runtimeClaim,
+					captureAuthorization = authorization,
+				),
+			)
+		}
+		if (execution.status !in LIVE_RUNTIME_ACTION_STATUSES) {
+			return settleRejectedRuntimeExecution(
+				plan,
+				authorization,
+				runtimeClaim,
+				elapsedNanos,
+				wallTimeMs,
+				execution,
 			)
 		}
 		return if (!plan.enabled || captureAuthorizationCurrent(authorization, plan.source)) execution else {
-			val closed = closeAndFence(plan.source, authorization.policyRevision)
-			SourceActionExecution(
+			settleRejectedRuntimeExecution(
+				plan,
+				authorization,
+				runtimeClaim,
+				elapsedNanos,
+				wallTimeMs,
+				SourceActionExecution(
 				failedApplied(
 					plan,
 					elapsedNanos,
-					if (closed) SourceApplyStatus.ROLLED_BACK else SourceApplyStatus.FAILED,
+					SourceApplyStatus.FAILED,
 				),
 				LifecycleActionStatus.TERMINAL_FAILURE,
 				"SOURCE_AUTHORIZATION_STALE",
+				runtimeClaim = runtimeClaim,
+				captureAuthorization = authorization,
+				),
 			)
 		}
+	}
+
+	/**
+	 * Settles every runtime result that did not establish an accepted live state. Attempt N may
+	 * publish Android work before returning a failure, so N is not retryable or terminal until its
+	 * exact claim is either released or durably marked for cleanup.
+	 */
+	private suspend fun settleRejectedRuntimeExecution(
+		plan: SourcePlan,
+		authorization: CaptureAuthorization,
+		runtimeClaim: SourceRuntimeClaim,
+		elapsedNanos: Long,
+		wallTimeMs: Long,
+		execution: SourceActionExecution,
+	): SourceActionExecution {
+		check(execution.status !in LIVE_RUNTIME_ACTION_STATUSES)
+		val shutdown = shutdownFailedMaterialization(
+			plan,
+			authorization,
+			runtimeClaim,
+			elapsedNanos,
+			wallTimeMs,
+		)
+		val predecessorCleanupRequired =
+			execution.stopAck?.hasIncompleteTerminalRetirement() == true
+		val cleanupRequired = shutdown.cleanupRequired || predecessorCleanupRequired
+		return execution.copy(
+			applied = if (shutdown.closed && !predecessorCleanupRequired) {
+				execution.applied.copy(status = SourceApplyStatus.ROLLED_BACK)
+			} else {
+				execution.applied
+			},
+			status = if (cleanupRequired) {
+				LifecycleActionStatus.CLEANUP_REQUIRED
+			} else {
+				execution.status
+			},
+			failureCode = if (cleanupRequired) {
+				SOURCE_RUNTIME_CLEANUP_PENDING
+			} else {
+				execution.failureCode
+			},
+			retryTrigger = if (cleanupRequired) {
+				RUNTIME_CLEANUP_RETRY
+			} else {
+				execution.retryTrigger
+			},
+			stopAck = shutdown.stopAck ?: execution.stopAck,
+			runtimeClaim = runtimeClaim,
+			captureAuthorization = authorization,
+		)
+	}
+
+	private suspend fun shutdownFailedMaterialization(
+		plan: SourcePlan,
+		authorization: CaptureAuthorization,
+		runtimeClaim: SourceRuntimeClaim,
+		elapsedNanos: Long,
+		wallTimeMs: Long,
+	): FailedMaterializationShutdown {
+		val cutoff = SessionCutoff(
+			logicalTrackingId = authorization.logicalTrackingId,
+			elapsedRealtimeNanos = elapsedNanos,
+			wallTimeMs = wallTimeMs,
+			deadlineElapsedRealtimeNanos = elapsedNanos +
+				ROLLBACK_QUIESCE_TIMEOUT_MS * NANOS_PER_MILLISECOND,
+		)
+		val shutdown = withTimeoutOrNull(ROLLBACK_QUIESCE_TIMEOUT_MS) {
+			runCatchingNonCancellation { runtimes.shutdownIfOwned(runtimeClaim, cutoff) }
+				.getOrElse { OwnedSourceShutdown.Incomplete(provider = null, stopAck = null) }
+		} ?: OwnedSourceShutdown.Incomplete(provider = null, stopAck = null)
+		val provider = when (shutdown) {
+			is OwnedSourceShutdown.Released -> shutdown.provider
+			is OwnedSourceShutdown.Incomplete -> shutdown.provider
+			OwnedSourceShutdown.NotOwned -> null
+		}
+		val acknowledgement = when (shutdown) {
+			is OwnedSourceShutdown.Released -> shutdown.stopAck
+			is OwnedSourceShutdown.Incomplete -> shutdown.stopAck
+			OwnedSourceShutdown.NotOwned -> null
+		}
+		val providerMatchesAcknowledgement = provider == null || acknowledgement?.providerKeyOrNull() == null ||
+			provider == acknowledgement.providerKeyOrNull()
+		val acknowledgementMembershipMatches = acknowledgement == null || acknowledgement.hasMembership(
+			authorization.logicalTrackingId,
+			authorization.serviceRunId,
+		)
+		val trustedAcknowledgement = acknowledgement?.takeIf { ack ->
+			ack.source == plan.source && providerMatchesAcknowledgement &&
+				acknowledgementMembershipMatches
+		}
+		if (trustedAcknowledgement != null) {
+			saveOwnedShutdownCompleteness(authorization, trustedAcknowledgement, wallTimeMs)
+		}
+		return FailedMaterializationShutdown(
+			closed = shutdown is OwnedSourceShutdown.Released && providerMatchesAcknowledgement &&
+				acknowledgementMembershipMatches &&
+				(acknowledgement == null || acknowledgement.source == plan.source),
+			cleanupRequired = shutdown is OwnedSourceShutdown.Incomplete || !providerMatchesAcknowledgement ||
+				!acknowledgementMembershipMatches ||
+				(acknowledgement != null && acknowledgement.source != plan.source),
+			stopAck = trustedAcknowledgement,
+		)
 	}
 
 	private fun registrationFencedSink(
@@ -2780,59 +3484,198 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		}
 	}
 
-	private suspend fun closeAndFence(source: SourceKind, expectedRevision: Long): Boolean {
-		@Suppress("UNUSED_VARIABLE")
-		val policyRevisionFence = expectedRevision
-		return runCatchingNonCancellation {
-			runtimes.close(source)
-			true
-		}.getOrDefault(false)
-	}
-
 	private suspend fun rollbackStalePolicySources(
 		plan: AcquisitionPlanRevision,
-		applied: List<AppliedSourcePlan>,
+		executions: List<SourceActionExecution>,
 		elapsedNanos: Long,
 		wallTimeMs: Long,
-	): List<AppliedSourcePlan> {
-		val policyRevision = requireNotNull(plan.sourcePolicyRevision)
-		val rolledBack = applied.map { state ->
+	): RuntimeRollbackOutcome {
+		requireNotNull(plan.sourcePolicyRevision)
+		var cleanupRequired = false
+		val rolledBack = executions.map { execution ->
+			val state = execution.applied
 			val sourcePlan = requireNotNull(plan.plans[state.source])
 			if (!sourcePlan.enabled) state else {
-				val closed = closeAndFence(state.source, policyRevision)
+				val claim = execution.runtimeClaim
+				val authorization = execution.captureAuthorization
+				val shutdown = if (claim != null && authorization != null &&
+					state.source in runtimes.registeredSources()
+				) {
+					shutdownFailedMaterialization(
+						sourcePlan,
+						authorization,
+						claim,
+						elapsedNanos,
+						wallTimeMs,
+					)
+				} else {
+					FailedMaterializationShutdown(closed = false, cleanupRequired = false, stopAck = null)
+				}
+				if (shutdown.cleanupRequired && claim != null) {
+					cleanupRequired = true
+					database.sourceSessionDao().lifecycleAction(claim.actionId)?.let { action ->
+						preserveCleanupRequiredAction(
+							action,
+							execution.copy(
+								status = LifecycleActionStatus.CLEANUP_REQUIRED,
+								failureCode = SOURCE_RUNTIME_CLEANUP_PENDING,
+								retryTrigger = RUNTIME_CLEANUP_RETRY,
+								stopAck = shutdown.stopAck ?: execution.stopAck,
+							),
+							wallTimeMs,
+							elapsedNanos,
+						)
+					}
+				}
 				failedApplied(
 					sourcePlan,
 					elapsedNanos,
-					if (closed) SourceApplyStatus.ROLLED_BACK else SourceApplyStatus.FAILED,
+					if (shutdown.closed) SourceApplyStatus.ROLLED_BACK else SourceApplyStatus.FAILED,
 				)
 			}
 		}
 		rolledBack.forEach { state -> planStore.saveApplied(state, wallTimeMs) }
-		return rolledBack
+		return RuntimeRollbackOutcome(rolledBack, cleanupRequired)
 	}
 
-	private suspend fun quiesceSources(
-		plan: AcquisitionPlanRevision,
+	/**
+	 * Resolves only provider joins that can be proven to belong to this exact service run.
+	 * Historical accepted or attempted claims cover a source omitted by a later plan; a later
+	 * accepted stop suppresses that predecessor. Unrelated process-local runtimes are deliberately
+	 * excluded. APPLYING is ownership-bearing because the runtime may cross a provider side-effect
+	 * boundary before cancellation leaves the durable action unsettled.
+	 */
+	private suspend fun runRetirementTargets(
+		session: LogicalTrackingSessionEntity,
+		serviceRunId: String,
+	): List<RunRetirementTarget> {
+		val dao = database.sourceSessionDao()
+		val manifests = dao.manifestsForServiceRun(serviceRunId)
+		check(manifests.isNotEmpty()) { "Service run has no immutable manifest history" }
+		val envelopes = manifests.map { manifest ->
+			check(manifest.logicalTrackingId == session.logicalTrackingId) {
+				"Service-run manifest belongs to another logical session"
+			}
+			requireNotNull(
+				verifiedManifest(session.logicalTrackingId, manifest.manifestRevision, serviceRunId),
+			) { "Service-run manifest integrity failed during provider retirement" }
+		}
+		val verifiedRevisions = envelopes.mapTo(mutableSetOf()) { it.manifest.manifestRevision }
+		val currentRevision = requireNotNull(session.currentManifestRevision)
+		val current = requireNotNull(envelopes.singleOrNull { it.manifest.manifestRevision == currentRevision }) {
+			"Current service-run manifest is missing"
+		}
+		val actions = dao.lifecycleActions(session.logicalTrackingId).filter { action ->
+			action.serviceRunId == serviceRunId && action.manifestRevision in verifiedRevisions
+		}
+		val currentCaptureSources = current.bindings.asSequence()
+			.filter { binding -> binding.purpose == SessionManifestPurpose.SESSION_CAPTURE.name }
+			.map(SessionManifestSourceEntity::sourceKind)
+			.toMutableSet()
+		val terminalOwnershipStatuses = setOf(
+			LifecycleActionStatus.APPLYING.name,
+			LifecycleActionStatus.START_ACCEPTED.name,
+			LifecycleActionStatus.CLEANUP_REQUIRED.name,
+			LifecycleActionStatus.STOP_ACCEPTED.name,
+		)
+		val latestOwnershipOutcomeBySource = actions.asSequence()
+			.filter { action ->
+				action.sourceKind != null && action.attemptCount > 0 &&
+					action.desiredState in setOf(ACTION_DESIRED_STARTED, ACTION_DESIRED_STOPPED) &&
+					action.status in terminalOwnershipStatuses
+			}
+			.groupBy { action -> requireNotNull(action.sourceKind) }
+			.mapValues { (_, sourceActions) -> sourceActions.maxBy(LifecycleDesiredActionEntity::actionRevision) }
+		latestOwnershipOutcomeBySource.forEach { (sourceKind, latest) ->
+			if (latest.status != LifecycleActionStatus.STOP_ACCEPTED.name) currentCaptureSources += sourceKind
+		}
+		return currentCaptureSources.sorted().map { sourceCode ->
+			val source = SourceKind.entries.single { candidate -> candidate.stableCode == sourceCode }
+			val claims = actions.asSequence()
+				.filter { action ->
+					action.sourceKind == sourceCode && action.attemptCount > 0 &&
+						action.desiredState in setOf(ACTION_DESIRED_STARTED, ACTION_DESIRED_STOPPED) &&
+						action.status in setOf(
+							LifecycleActionStatus.APPLYING.name,
+							LifecycleActionStatus.START_ACCEPTED.name,
+							LifecycleActionStatus.CLEANUP_REQUIRED.name,
+						)
+				}
+				.sortedByDescending(LifecycleDesiredActionEntity::actionRevision)
+				.map { action -> action.toRuntimeClaim(source) }
+				.toList()
+			RunRetirementTarget(source, serviceRunId, claims)
+		}
+	}
+
+	private suspend fun retireRunSources(
+		targets: List<RunRetirementTarget>,
 		cutoff: SessionCutoff,
 		perSourceTimeoutMs: Long,
 	): List<SourceStopAck> = coroutineScope {
-		val applied = database.sourcePlanStateDao().appliedStates().associateBy { it.sourceKind }
-		plan.plans.values.filter(SourcePlan::enabled).sortedBy { it.source.stableCode }.map { sourcePlan ->
+		targets.map { target ->
 			async {
-				if (sourcePlan.source !in runtimes.registeredSources()) {
-					timeoutAck(sourcePlan.source, applied[sourcePlan.source.stableCode], SourceStopStatus.PROVIDER_FAILED)
-				} else {
-					withTimeoutOrNull(perSourceTimeoutMs) { runtimes.quiesce(sourcePlan.source, cutoff) }
-						?: timeoutAck(sourcePlan.source, applied[sourcePlan.source.stableCode], SourceStopStatus.TIMED_OUT)
-				}
+				withTimeoutOrNull(perSourceTimeoutMs) { retireRunSource(target, cutoff) }
+					?: runRetirementAck(
+						target.source,
+						cutoff.logicalTrackingId,
+						target.serviceRunId,
+						SourceStopStatus.TIMED_OUT,
+					)
 			}
 		}.awaitAll()
 	}
 
-	private suspend fun saveCompleteness(logicalTrackingId: String, ack: SourceStopAck, nowMs: Long) {
+	private suspend fun retireRunSource(
+		target: RunRetirementTarget,
+		cutoff: SessionCutoff,
+	): SourceStopAck {
+		if (target.source !in runtimes.registeredSources()) {
+			return runRetirementAck(
+				target.source,
+				cutoff.logicalTrackingId,
+				target.serviceRunId,
+				SourceStopStatus.PROVIDER_FAILED,
+			)
+		}
+		for (claim in target.claims) {
+			when (val shutdown = runtimes.shutdownIfOwned(claim, cutoff)) {
+				OwnedSourceShutdown.NotOwned -> Unit
+				is OwnedSourceShutdown.Released -> return shutdown.stopAck ?: runRetirementAck(
+					target.source,
+					cutoff.logicalTrackingId,
+					claim.serviceRunId,
+					SourceStopStatus.COMPLETE,
+				)
+				is OwnedSourceShutdown.Incomplete -> return shutdown.stopAck ?: runRetirementAck(
+					target.source,
+					cutoff.logicalTrackingId,
+					claim.serviceRunId,
+					SourceStopStatus.PROVIDER_FAILED,
+				)
+			}
+		}
+		return runRetirementAck(
+			target.source,
+			cutoff.logicalTrackingId,
+			target.serviceRunId,
+			SourceStopStatus.COMPLETE,
+		)
+	}
+
+	private suspend fun saveCompleteness(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		ack: SourceStopAck,
+		nowMs: Long,
+	) {
+		check(ack.hasMembership(logicalTrackingId, serviceRunId)) {
+			"Completeness acknowledgement lacks exact service-run membership"
+		}
 		database.sourceSessionDao().saveCompleteness(
 			SourceSessionCompletenessEntity(
 				logicalTrackingId = logicalTrackingId,
+				serviceRunId = serviceRunId,
 				sourceKind = ack.source.stableCode,
 				sourceInstanceId = ack.sourceInstanceId.value,
 				registrationGeneration = ack.registrationGeneration,
@@ -2846,6 +3689,101 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				updatedAtMs = nowMs,
 			),
 		)
+	}
+
+	private suspend fun saveOwnedShutdownCompleteness(
+		authorization: CaptureAuthorization,
+		ack: SourceStopAck,
+		nowMs: Long,
+	) = database.withTransaction {
+		check(ack.hasMembership(authorization.logicalTrackingId, authorization.serviceRunId)) {
+			"Owned runtime shutdown acknowledgement lacks exact service-run membership"
+		}
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(authorization.serviceRunId)) {
+			"Owned runtime shutdown refers to a missing service run"
+		}
+		check(run.logicalTrackingId == authorization.logicalTrackingId) {
+			"Owned runtime shutdown refers to another logical session"
+		}
+		saveCompleteness(
+			authorization.logicalTrackingId,
+			authorization.serviceRunId,
+			ack,
+			nowMs,
+		)
+	}
+
+	private suspend fun markReconfiguredIfPolicyCurrent(
+		bound: BoundServiceRunTransition,
+		plan: AcquisitionPlanRevision,
+		manifestRevision: Long,
+		lease: LifecycleLeaseToken,
+		foregroundCapabilityFlags: Long,
+	): String? {
+		var failure: String? = null
+		database.withTransaction {
+			requireLeaseInTransaction(lease)
+			failure = validateSourcePolicyInTransaction(plan)
+			if (failure != null) return@withTransaction
+			val dao = database.sourceSessionDao()
+			val session = dao.session(bound.session.logicalTrackingId)
+			val run = dao.serviceRun(bound.serviceRunId)
+			val manifestEnvelope = verifiedManifest(
+				bound.session.logicalTrackingId,
+				manifestRevision,
+				bound.serviceRunId,
+			)
+			if (session == null || run == null || manifestEnvelope == null ||
+				session.currentServiceRunId != bound.serviceRunId ||
+				session.currentManifestRevision != manifestRevision ||
+				session.lifecycleLeaseGeneration != lease.generation ||
+				session.state != SessionLifecycleState.RECONFIGURING.name ||
+				run.logicalTrackingId != session.logicalTrackingId ||
+				run.completedAtMs != null ||
+				run.state !in setOf(SessionLifecycleState.ACTIVE.name, SessionLifecycleState.RECONFIGURING.name) ||
+				run.runRevision != bound.expectedRunRevision ||
+				run.leaseGeneration != lease.generation ||
+				run.desiredPlanRevision != plan.revision ||
+				manifestEnvelope.manifest.acquisitionPlanRevision != plan.revision ||
+				manifestEnvelope.manifest.sourcePolicyRevision != plan.sourcePolicyRevision
+			) {
+				failure = "LIFECYCLE_RECONFIGURE_INTENT_STALE"
+				return@withTransaction
+			}
+			val exactActions = dao.lifecycleActions(session.logicalTrackingId).filter { action ->
+				action.serviceRunId == bound.serviceRunId && action.manifestRevision == manifestRevision
+			}
+			if (exactActions.any { action -> action.status == LifecycleActionStatus.CLEANUP_REQUIRED.name }) {
+				failure = SOURCE_RUNTIME_CLEANUP_PENDING
+				return@withTransaction
+			}
+			val acceptedSources = exactActions.filter { action ->
+				action.status == LifecycleActionStatus.START_ACCEPTED.name
+			}.mapNotNull(LifecycleDesiredActionEntity::sourceKind).toSet()
+			val enabledSources = manifestEnvelope.bindings.filter { binding ->
+				binding.purpose == SessionManifestPurpose.SESSION_CAPTURE.name && binding.persistenceEligible
+			}.map(SessionManifestSourceEntity::sourceKind).toSet()
+			if (enabledSources.isNotEmpty() && acceptedSources.intersect(enabledSources).isEmpty()) {
+				failure = "NO_SOURCE_START_ACCEPTED"
+				return@withTransaction
+			}
+			check(dao.updateSession(
+				session.copy(
+					state = SessionLifecycleState.ACTIVE.name,
+					lifecycleRevision = session.lifecycleRevision + 1L,
+				),
+			) == 1)
+			check(dao.updateServiceRun(
+				run.copy(
+					state = SessionLifecycleState.ACTIVE.name,
+					appliedForegroundCapabilityFlags = foregroundCapabilityFlags,
+					runtimeAcknowledgement = LifecycleActionStatus.START_ACCEPTED.name,
+					runtimeFailureCode = null,
+					runRevision = run.runRevision + 1L,
+				),
+			) == 1)
+		}
+		return failure
 	}
 
 	private suspend fun markRunningIfPolicyCurrent(
@@ -2862,8 +3800,15 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			policyFailure = validateSourcePolicyInTransaction(plan)
 			if (policyFailure != null) return@withTransaction
 			val session = requireNotNull(database.sourceSessionDao().session(logicalTrackingId))
-			if (session.currentManifestRevision != manifestRevision ||
+			val manifest = verifiedManifest(logicalTrackingId, manifestRevision, serviceRunId)?.manifest
+			val run = database.sourceSessionDao().serviceRun(serviceRunId)
+			if (session.currentServiceRunId != serviceRunId ||
+				session.currentManifestRevision != manifestRevision ||
 				session.lifecycleLeaseGeneration != lease.generation ||
+				manifest?.serviceRunId != serviceRunId ||
+				run == null || run.logicalTrackingId != logicalTrackingId ||
+				run.completedAtMs != null || run.state != SessionLifecycleState.STARTING.name ||
+				run.desiredPlanRevision != plan.revision ||
 				session.state !in setOf(
 					SessionLifecycleState.STARTING.name,
 					SessionLifecycleState.RECONFIGURING.name,
@@ -2872,10 +3817,15 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				policyFailure = "LIFECYCLE_INTENT_STALE"
 				return@withTransaction
 			}
-			val accepted = database.sourceSessionDao().lifecycleActions(logicalTrackingId).any { action ->
-				action.manifestRevision == manifestRevision &&
-					action.status == LifecycleActionStatus.START_ACCEPTED.name
+			val exactActions = database.sourceSessionDao().lifecycleActions(logicalTrackingId).filter { action ->
+				action.serviceRunId == serviceRunId &&
+					action.manifestRevision == manifestRevision
 			}
+			if (exactActions.any { action -> action.status == LifecycleActionStatus.CLEANUP_REQUIRED.name }) {
+				policyFailure = SOURCE_RUNTIME_CLEANUP_PENDING
+				return@withTransaction
+			}
+			val accepted = exactActions.any { action -> action.status == LifecycleActionStatus.START_ACCEPTED.name }
 			if (!accepted) {
 				policyFailure = "NO_SOURCE_START_ACCEPTED"
 				return@withTransaction
@@ -2883,9 +3833,8 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			database.sourceSessionDao().updateSession(
 				session.copy(state = SessionLifecycleState.ACTIVE.name, lifecycleRevision = session.lifecycleRevision + 1),
 			)
-			val run = requireNotNull(database.sourceSessionDao().serviceRun(serviceRunId))
 			database.sourceSessionDao().updateServiceRun(
-				run.copy(
+				requireNotNull(run).copy(
 					state = SessionLifecycleState.ACTIVE.name,
 					appliedForegroundCapabilityFlags = foregroundCapabilityFlags,
 					runtimeAcknowledgement = LifecycleActionStatus.START_ACCEPTED.name,
@@ -2909,6 +3858,11 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			val session = requireNotNull(database.sourceSessionDao().session(logicalTrackingId))
 			val terminalElapsedNanos = monotonicNowAtLeast(0L)
 			val manifestRevision = requireNotNull(session.currentManifestRevision)
+			check(database.sourceSessionDao().lifecycleActions(logicalTrackingId).none { action ->
+				action.serviceRunId == serviceRunId &&
+					action.manifestRevision == manifestRevision &&
+					action.status == LifecycleActionStatus.CLEANUP_REQUIRED.name
+			}) { "Runtime cleanup must finish before a service run becomes terminal" }
 			val terminalIntentRevision = requireNotNull(session.currentIntentRevision) + 1L
 			sourceBroker.retireSessionDemands(
 				logicalTrackingId,
@@ -2938,9 +3892,13 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					lifecycleBootId = lease.bootId,
 					completedAtMs = completedAtMs,
 					failureCode = failureCode,
+					currentServiceRunId = null,
 				),
 			)
 			val run = requireNotNull(database.sourceSessionDao().serviceRun(serviceRunId))
+			check(run.logicalTrackingId == logicalTrackingId && session.currentServiceRunId == serviceRunId) {
+				"Failed start does not own the current service run"
+			}
 			database.sourceSessionDao().updateServiceRun(
 				run.copy(
 					state = SessionLifecycleState.FAILED.name,
@@ -3035,10 +3993,91 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 	private fun monotonicNowAtLeast(floorNanos: Long): Long =
 		maxOf(floorNanos, SystemClock.elapsedRealtimeNanos())
 
+	/** Loads one exact immutable manifest envelope and rejects any persisted provenance drift. */
+	private suspend fun verifiedManifest(
+		logicalTrackingId: String,
+		manifestRevision: Long,
+		expectedServiceRunId: String,
+	): VerifiedSessionManifest? {
+		val dao = database.sourceSessionDao()
+		val manifest = dao.manifest(logicalTrackingId, manifestRevision) ?: return null
+		if (manifest.serviceRunId != expectedServiceRunId) return null
+		val bindings = dao.manifestSources(logicalTrackingId, manifestRevision)
+		if (!SessionManifestIntegrity.verify(manifest, bindings)) return null
+		return VerifiedSessionManifest(manifest, bindings)
+	}
+
+	private suspend fun requireCurrentServiceRun(session: LogicalTrackingSessionEntity): SourceServiceRunEntity {
+		val dao = database.sourceSessionDao()
+		val serviceRunId = requireNotNull(session.currentServiceRunId) {
+			"Active session has no exact current service run"
+		}
+		val run = requireNotNull(dao.serviceRun(serviceRunId)) { "Current service run is missing" }
+		check(run.logicalTrackingId == session.logicalTrackingId) {
+			"Current service run belongs to another logical session"
+		}
+		check(run.completedAtMs == null && run.state !in TERMINAL_STATES) {
+			"Current service run is terminal"
+		}
+		return run
+	}
+
+	private suspend fun bindCurrentServiceRun(session: LogicalTrackingSessionEntity): BoundServiceRunTransition {
+		val run = requireCurrentServiceRun(session)
+		return BoundServiceRunTransition(session, run.serviceRunId, run.runRevision)
+	}
+
+	private suspend fun requireBoundServiceRun(
+		bound: BoundServiceRunTransition,
+		vararg allowedStates: SessionLifecycleState,
+	): SourceServiceRunEntity {
+		val dao = database.sourceSessionDao()
+		val currentSession = requireNotNull(dao.session(bound.session.logicalTrackingId)) {
+			"Bound logical session is missing"
+		}
+		val run = requireNotNull(dao.serviceRun(bound.serviceRunId)) { "Bound service run is missing" }
+		check(run.logicalTrackingId == currentSession.logicalTrackingId) {
+			"Bound service run belongs to another logical session"
+		}
+		check(currentSession.currentServiceRunId == run.serviceRunId) {
+			"Bound service run is no longer current"
+		}
+		check(run.runRevision == bound.expectedRunRevision) { "Bound service run changed" }
+		check(run.completedAtMs == null) { "Bound service run is already complete" }
+		check(run.state in allowedStates.map(SessionLifecycleState::name)) {
+			"Bound service run is in unexpected state ${run.state}"
+		}
+		return run
+	}
+
 	private suspend fun isStalePriorSession(
 		session: LogicalTrackingSessionEntity,
 		request: SessionStartRequest,
 	): Boolean {
+		val currentRun = session.currentServiceRunId
+		val currentRunHasUnretiredProviderClaim = currentRun != null && database.sourceSessionDao()
+			.lifecycleActions(session.logicalTrackingId)
+			.asSequence()
+			.filter { action ->
+				action.serviceRunId == currentRun && action.sourceKind != null && action.attemptCount > 0 &&
+					action.desiredState in setOf(ACTION_DESIRED_STARTED, ACTION_DESIRED_STOPPED) &&
+					action.status in setOf(
+						LifecycleActionStatus.APPLYING.name,
+						LifecycleActionStatus.START_ACCEPTED.name,
+						LifecycleActionStatus.CLEANUP_REQUIRED.name,
+						LifecycleActionStatus.STOP_ACCEPTED.name,
+					)
+			}
+			.groupBy { action -> requireNotNull(action.sourceKind) }
+			.values
+			.map { sourceActions -> sourceActions.maxBy(LifecycleDesiredActionEntity::actionRevision) }
+			.any { latest -> latest.status != LifecycleActionStatus.STOP_ACCEPTED.name }
+		if (currentRunHasUnretiredProviderClaim) {
+			// A newer automatic request is not proof that the old provider registration is gone.
+			// Recovery/finalization must first retire the latest exact ownership claim for every
+			// source in this run. Historical claims followed by an accepted stop do not block.
+			return false
+		}
 		if (session.currentManifestRevision == null || session.currentIntentRevision == null) return true
 		val automatic = session.sessionMode == SessionMode.AUTOMATIC.name ||
 			session.startOrigin == "AUTOMATIC_ACTIVITY_TRANSITION"
@@ -3047,8 +4086,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		// requires a separate explicit user action rather than a newly generated logical ID.
 		if (!automatic) return false
 		val requestedRun = request.serviceRunId
-		return requestedRun == null ||
-			database.sourceSessionDao().latestServiceRun(session.logicalTrackingId)?.serviceRunId != requestedRun
+		return requestedRun == null || currentRun != requestedRun
 	}
 
 	private suspend fun finalizeInterruptedSession(
@@ -3069,7 +4107,16 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				wallTimeMs,
 			)
 			supersedePendingActions(current.logicalTrackingId, wallTimeMs, monotonicNowAtLeast(0L))
-			dao.incompleteServiceRuns(current.logicalTrackingId).forEach { run ->
+			val incompleteRuns = dao.incompleteServiceRuns(current.logicalTrackingId)
+			val currentRun = current.currentServiceRunId?.let { runId ->
+				requireNotNull(dao.serviceRun(runId)) { "Current service run is missing" }
+			}
+			check((currentRun == null && incompleteRuns.isEmpty()) ||
+				(currentRun != null && incompleteRuns.map(SourceServiceRunEntity::serviceRunId) ==
+					listOf(currentRun.serviceRunId))) {
+				"Interrupted session has more than one incomplete service run"
+			}
+			currentRun?.let { run ->
 				dao.updateServiceRun(
 					run.copy(
 						state = SessionLifecycleState.FINALIZED.name,
@@ -3107,6 +4154,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					lifecycleBootId = lease.bootId,
 					completedAtMs = wallTimeMs,
 					failureCode = reason,
+					currentServiceRunId = null,
 				),
 			)
 		}
@@ -3137,13 +4185,49 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		}
 	}
 
+	/** A successful whole-run retirement proves every older exact-attempt ownership obligation closed. */
+	private suspend fun resolveCleanupRequiredActions(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		wallTimeMs: Long,
+		elapsedRealtimeNanos: Long,
+	) {
+		val dao = database.sourceSessionDao()
+		dao.lifecycleActions(logicalTrackingId).filter { action ->
+			action.serviceRunId == serviceRunId &&
+				(
+					action.status == LifecycleActionStatus.CLEANUP_REQUIRED.name ||
+						(action.status == LifecycleActionStatus.APPLYING.name && action.attemptCount > 0)
+				)
+		}.forEach { action ->
+			check(dao.updateLifecycleAction(
+				action.copy(
+					status = LifecycleActionStatus.SUPERSEDED.name,
+					acknowledgedAtMs = wallTimeMs,
+					acknowledgedElapsedRealtimeNanos = elapsedRealtimeNanos,
+					failureCode = "RUNTIME_CLEANUP_CONFIRMED_BY_STOP",
+					retryTrigger = null,
+				),
+			) == 1)
+		}
+	}
+
 	private fun preparedStartOwner(token: PreparedTrackingStartToken): String =
 		"prepared-start:${token.value}"
+
+	private fun serviceRunIdFor(request: SessionStartRequest): String =
+		(request.serviceRunId ?: UUID.randomUUID().toString()).also { serviceRunId ->
+			check(serviceRunId.isNotBlank()) { "Blank service-run identity cannot be admitted" }
+			check(serviceRunId != LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID) {
+				"Reserved legacy service-run identity cannot be admitted"
+			}
+		}
 
 	private companion object {
 		const val SESSION_LEASE = "tracking-session-coordinator"
 		const val LEASE_DURATION_NANOS = 30_000L * 1_000_000L
 		const val NANOS_PER_MILLISECOND = 1_000_000L
+		const val ROLLBACK_QUIESCE_TIMEOUT_MS = 5_000L
 		const val POLICY_PURPOSE_CAPTURE = "SESSION_CAPTURE"
 		const val POLICY_PURPOSE_CONTROL = "CONTROL"
 		const val ACTION_DESIRED_STARTED = "STARTED"
@@ -3152,6 +4236,41 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		val TERMINAL_OR_STOPPING_STATES = TERMINAL_STATES + SessionLifecycleState.STOPPING.name
 	}
 }
+
+private fun SessionManifestSourceEntity.isStepsSessionCaptureWriter(): Boolean =
+	sourceKind == SourceKind.STEPS.stableCode &&
+		purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
+		persistenceEligible && outputDestination != null && writerOwner != null &&
+		writerOwnerGeneration != null
+
+private fun SessionManifestSourceEntity.writerProvenanceIdentity(): List<Any?> = listOf(
+	outputDestination,
+	writerOwner,
+	writerOwnerGeneration,
+	writerProjectionId,
+	writerProjectionVersion,
+	writerBindingGeneration,
+)
+
+private fun SessionManifestSourceEntity.hasSameWriterProvenance(other: SessionManifestSourceEntity): Boolean =
+	outputDestination == other.outputDestination &&
+		writerOwner == other.writerOwner &&
+		writerOwnerGeneration == other.writerOwnerGeneration &&
+		writerProjectionId == other.writerProjectionId &&
+		writerProjectionVersion == other.writerProjectionVersion &&
+		writerBindingGeneration == other.writerBindingGeneration
+
+private fun terminalRetirementIncomplete(
+	acknowledgements: Collection<SourceStopAck>,
+	logicalTrackingId: String,
+	serviceRunId: String,
+): Boolean = acknowledgements.any { acknowledgement ->
+	!acknowledgement.hasMembership(logicalTrackingId, serviceRunId) ||
+		acknowledgement.hasIncompleteTerminalRetirement()
+}
+
+private fun SourceStopAck.hasMembership(logicalTrackingId: String, serviceRunId: String): Boolean =
+	this.logicalTrackingId == logicalTrackingId && this.serviceRunId == serviceRunId
 
 /** Allows capability/power degradation while rejecting any plan stronger than policy QoS. */
 private fun SourcePolicyEntity.allows(plan: SourcePlan): Boolean {
@@ -3288,28 +4407,43 @@ private fun List<AppliedSourcePlan>.desiredStatus(): DesiredPlanStatus = when {
 	else -> DesiredPlanStatus.DEGRADED
 }
 
-private fun timeoutAck(
+private fun runRetirementAck(
 	source: SourceKind,
-	applied: com.adsamcik.tracker.shared.base.database.data.SourceAppliedPlanStateEntity?,
+	logicalTrackingId: String,
+	serviceRunId: String,
 	status: SourceStopStatus,
 ) = SourceStopAck(
 	source = source,
-	sourceInstanceId = com.adsamcik.tracker.tracker.source.model.SourceInstanceId(
-		applied?.sourceInstanceId ?: "unavailable-${source.name.lowercase()}",
+	sourceInstanceId = SourceInstanceId(
+		if (status == SourceStopStatus.COMPLETE) {
+			"not-owned-${source.name.lowercase()}"
+		} else {
+			"unresolved-${source.name.lowercase()}"
+		},
 	),
-	registrationGeneration = applied?.registrationGeneration ?: 0L,
-	appliedRevision = applied?.appliedRevision,
+	registrationGeneration = 0L,
+	appliedRevision = null,
 	callbackEntryBarrierSequence = 0L,
 	lastDurablyAdmittedSequence = null,
 	lastAdmissionOrdinal = null,
-	failedAdmissionCount = 0,
+	failedAdmissionCount = if (status == SourceStopStatus.COMPLETE) 0L else 1L,
 	unresolvedSequenceStart = null,
 	unresolvedSequenceEndInclusive = null,
-	registrationRemovalOutcome = RegistrationRemovalOutcome.UNOBSERVABLE,
-	providerFlushOutcome = ProviderFlushOutcome.TIMED_OUT,
+	registrationRemovalOutcome = if (status == SourceStopStatus.COMPLETE) {
+		RegistrationRemovalOutcome.NOT_REGISTERED
+	} else {
+		RegistrationRemovalOutcome.UNOBSERVABLE
+	},
+	providerFlushOutcome = if (status == SourceStopStatus.TIMED_OUT) {
+		ProviderFlushOutcome.TIMED_OUT
+	} else {
+		ProviderFlushOutcome.NOT_REQUESTED
+	},
 	providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
-	appDrainComplete = false,
+	appDrainComplete = status == SourceStopStatus.COMPLETE,
 	status = status,
+	logicalTrackingId = logicalTrackingId,
+	serviceRunId = serviceRunId,
 )
 
 enum class SessionLifecycleState {
@@ -3497,6 +4631,11 @@ sealed interface SessionStopResult {
 		val finalAdmissionOrdinal: Long,
 		val acknowledgements: List<SourceStopAck>,
 	) : SessionStopResult
+	data class CleanupPending(
+		val logicalTrackingId: String,
+		val requiredOrdinal: Long,
+		val acknowledgements: List<SourceStopAck>,
+	) : SessionStopResult
 	data class DrainPending(val logicalTrackingId: String, val requiredOrdinal: Long) : SessionStopResult
 	data object NoActiveSession : SessionStopResult
 	data object Busy : SessionStopResult
@@ -3516,6 +4655,12 @@ sealed interface SessionSuspendResult {
 	data class Suspended(
 		val logicalTrackingId: String,
 		val finalAdmissionOrdinal: Long,
+		val acknowledgements: List<SourceStopAck>,
+		val incomplete: Boolean,
+	) : SessionSuspendResult
+	data class CleanupPending(
+		val logicalTrackingId: String,
+		val requiredOrdinal: Long,
 		val acknowledgements: List<SourceStopAck>,
 	) : SessionSuspendResult
 	data class DrainPending(val logicalTrackingId: String, val requiredOrdinal: Long) : SessionSuspendResult

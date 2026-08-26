@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
@@ -614,7 +615,10 @@ class SourceBrokerTest {
 		purpose: String,
 		consentEpoch: Long,
 		persistenceEligible: Boolean,
-	) = SessionManifestSourceEntity(
+	): SessionManifestSourceEntity {
+		val stepsCapture = source == SourceKind.STEPS &&
+			purpose == SourceBrokerPurpose.SESSION_CAPTURE && persistenceEligible
+		return SessionManifestSourceEntity(
 		logicalTrackingId = "session-1",
 		manifestRevision = 4L,
 		sourceKind = source.stableCode,
@@ -622,7 +626,13 @@ class SourceBrokerTest {
 		consentEpoch = consentEpoch,
 		persistenceEligible = persistenceEligible,
 		qosCode = 2,
-	)
+		outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS.takeIf { stepsCapture },
+		writerOwner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL.takeIf { stepsCapture },
+		writerOwnerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION.takeIf {
+			stepsCapture
+		},
+		)
+	}
 
 	private fun resetBroker(captureModes: Set<CaptureReachabilityMode>) {
 		if (::database.isInitialized) database.close()

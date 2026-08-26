@@ -26,53 +26,134 @@ class SharedStepSourceController @Inject constructor(
 	private val sourceBroker: SourceBroker,
 	sinkFactory: DurableSourceEventSinkFactory,
 	private val clockDomainProvider: BootClockDomainProvider,
-) : SourceRuntime<StepsPlan> {
+) : ClaimedSourceRuntime<StepsPlan> {
 	override val source: SourceKind = SourceKind.STEPS
 	override val capabilities: StateFlow<SourceCapabilities> = physicalRuntime.capabilities
 
 	private val mutex = Mutex()
 	private val unboundSink = sinkFactory.unbound
 	private var sessionPlan: StepsPlan? = null
+	private var sessionClaim: SourceRuntimeClaim? = null
 
 	override suspend fun start(plan: StepsPlan, sink: SourceEventSink): SourceStartResult = mutex.withLock {
+		startForClaimLocked(claim = null, plan, sink)
+	}
+
+	override suspend fun start(
+		claim: SourceRuntimeClaim,
+		plan: StepsPlan,
+		sink: SourceEventSink,
+	): SourceStartResult = mutex.withLock {
+		require(claim.source == source)
+		startForClaimLocked(claim, plan, sink)
+	}
+
+	private suspend fun startForClaimLocked(
+		claim: SourceRuntimeClaim?,
+		plan: StepsPlan,
+		sink: SourceEventSink,
+	): SourceStartResult {
 		@Suppress("UNUSED_VARIABLE") val sessionBoundSinkMustNotRelabelSharedEvidence = sink
-		if (!plan.enabled) return@withLock SourceStartResult.Started(disabledState(plan))
+		if (!plan.enabled) {
+			sessionClaim = null
+			return SourceStartResult.Started(disabledState(plan))
+		}
+		val predecessorPlan = sessionPlan
+		val predecessorClaim = sessionClaim
 		sessionPlan = plan
 		val demands = selectedDemands()
 		if (demands.none { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }) {
 			sessionPlan = null
+			sessionClaim = null
 			reconcileRemainingControl()
-			return@withLock SourceStartResult.Blocked(blockedState(plan))
+			return SourceStartResult.Blocked(blockedState(plan))
 		}
-		applyEffective(requireNotNull(effectivePlan(demands))).toStartResult()
+		return try {
+			applyEffective(requireNotNull(effectivePlan(demands)), claim).also { result ->
+				if (result is SourceApplyResult.Applied || result is SourceApplyResult.Degraded) {
+					sessionClaim = claim
+				} else {
+					sessionPlan = predecessorPlan
+					sessionClaim = predecessorClaim
+				}
+			}.toStartResult()
+		} catch (failure: Throwable) {
+			sessionPlan = predecessorPlan
+			sessionClaim = predecessorClaim
+			throw failure
+		}
 	}
 
 	override suspend fun reconfigure(plan: StepsPlan, sink: SourceEventSink): SourceApplyResult = mutex.withLock {
+		reconfigureForClaimLocked(claim = null, plan, sink)
+	}
+
+	override suspend fun reconfigure(
+		claim: SourceRuntimeClaim,
+		plan: StepsPlan,
+		sink: SourceEventSink,
+	): SourceApplyResult = mutex.withLock {
+		require(claim.source == source)
+		reconfigureForClaimLocked(claim, plan, sink)
+	}
+
+	private suspend fun reconfigureForClaimLocked(
+		claim: SourceRuntimeClaim?,
+		plan: StepsPlan,
+		sink: SourceEventSink,
+	): SourceApplyResult {
 		@Suppress("UNUSED_VARIABLE") val sessionBoundSinkMustNotRelabelSharedEvidence = sink
+		val predecessorPlan = sessionPlan
+		val predecessorClaim = sessionClaim
 		sessionPlan = plan.takeIf(StepsPlan::enabled)
 		val demands = selectedDemands()
 		if (plan.enabled && demands.none { it.purpose == SourceBrokerPurpose.SESSION_CAPTURE }) {
 			sessionPlan = null
+			sessionClaim = null
 			reconcileRemainingControl()
-			return@withLock SourceApplyResult.Failed(blockedState(plan), retryable = false)
+			return SourceApplyResult.Failed(blockedState(plan), retryable = false)
 		}
 		val effective = effectivePlan(demands)
-		if (effective == null) {
-			physicalRuntime.close()
-			SourceApplyResult.Applied(disabledState(plan))
-		} else {
-			applyEffective(effective)
+		return try {
+			val result = if (effective == null) {
+				applyEffective(plan.copy(enabled = false), claim)
+			} else {
+				applyEffective(effective, claim)
+			}
+			if (result is SourceApplyResult.Applied || result is SourceApplyResult.Degraded) {
+				sessionClaim = claim.takeIf { plan.enabled }
+			} else {
+				sessionPlan = predecessorPlan
+				sessionClaim = predecessorClaim
+			}
+			result
+		} catch (failure: Throwable) {
+			sessionPlan = predecessorPlan
+			sessionClaim = predecessorClaim
+			throw failure
 		}
 	}
 
 	override suspend fun quiesce(cutoff: SessionCutoff): SourceStopAck = mutex.withLock {
+		quiesceLocked(cutoff).also(::clearClaimIfReleased)
+	}
+
+	private suspend fun quiesceLocked(cutoff: SessionCutoff): SourceStopAck {
+		val predecessorPlan = sessionPlan
+		val retiringClaim = sessionClaim
 		sessionPlan = null
 		val controlPlan = effectivePlan(selectedDemands())
-		if (controlPlan == null) return@withLock physicalRuntime.quiesce(cutoff)
+		if (controlPlan == null) {
+			return physicalRuntime.quiesce(cutoff).withSessionMembership(retiringClaim).also { acknowledgement ->
+				if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Incomplete) {
+					sessionPlan = predecessorPlan
+				}
+			}
+		}
 
 		// Authorization-only leave: callbacks already in the queue retain the old immutable
 		// authorization, while callbacks entering after refresh carry the control-only vector.
-		when (physicalRuntime.refreshCompatible(controlPlan, unboundSink)) {
+		val acknowledgement = when (physicalRuntime.reconfigure(controlPlan, unboundSink)) {
 			is SourceApplyResult.Applied,
 			is SourceApplyResult.Degraded -> physicalRuntime.sharedCutoff(cutoff)
 			else -> {
@@ -85,6 +166,26 @@ class SharedStepSourceController @Inject constructor(
 				acknowledgement
 			}
 		}
+		val attributedAcknowledgement = acknowledgement.withSessionMembership(retiringClaim)
+		if (attributedAcknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Incomplete) {
+			sessionPlan = predecessorPlan
+		}
+		return attributedAcknowledgement
+	}
+
+	override suspend fun shutdownIfOwned(
+		claim: SourceRuntimeClaim,
+		cutoff: SessionCutoff,
+	): OwnedSourceShutdown = mutex.withLock {
+		require(claim.source == source)
+		if (sessionClaim != claim) {
+			// A failed successor may have published a physical provider without replacing the logical
+			// session join. Its exact claim remains cleanable without touching the predecessor join.
+			return@withLock physicalRuntime.shutdownIfOwned(claim, cutoff)
+		}
+		quiesceLocked(cutoff).toOwnedShutdown().also { shutdown ->
+			if (shutdown is OwnedSourceShutdown.Released) sessionClaim = null
+		}
 	}
 
 	/** Session owners release their join; no orphan automatic-control listener may remain. */
@@ -92,6 +193,10 @@ class SharedStepSourceController @Inject constructor(
 		sessionPlan = null
 		reconcileRemainingControl()
 		Unit
+	}
+
+	private fun clearClaimIfReleased(acknowledgement: SourceStopAck) {
+		if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) sessionClaim = null
 	}
 
 	/** Retires any legacy Steps CONTROL_AUTOSTART demand until a legal trigger contract exists. */
@@ -125,9 +230,15 @@ class SharedStepSourceController @Inject constructor(
 		}
 	}
 
-	private suspend fun applyEffective(plan: StepsPlan): SourceApplyResult =
+	private suspend fun applyEffective(
+		plan: StepsPlan,
+		claim: SourceRuntimeClaim? = null,
+	): SourceApplyResult = if (claim == null) {
 		physicalRuntime.refreshCompatible(plan, unboundSink)
 			?: physicalRuntime.reconfigure(plan, unboundSink)
+	} else {
+		physicalRuntime.reconfigure(claim, plan, unboundSink)
+	}
 
 	private suspend fun reconcileRemainingControl(): SourceApplyResult? {
 		val previous = sessionPlan

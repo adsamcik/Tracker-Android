@@ -484,6 +484,7 @@ internal suspend fun SourceRegistrationRepository.saveSensorRuntimeCheckpoint(
 	lastProviderSequence: Long,
 	checkpoint: SensorRuntimeCheckpoint,
 	updatedAtMs: Long,
+	terminalCompleteness: com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity? = null,
 ) = saveRuntimeState(
 	registration = registration,
 	lastProviderSequence = lastProviderSequence,
@@ -494,6 +495,7 @@ internal suspend fun SourceRegistrationRepository.saveSensorRuntimeCheckpoint(
 		checkpoint.withFallbackCausalOrder(SystemClock.elapsedRealtimeNanos()),
 	),
 	updatedAtMs = updatedAtMs,
+	terminalCompleteness = terminalCompleteness,
 )
 
 internal fun sensorProviderCoverage(

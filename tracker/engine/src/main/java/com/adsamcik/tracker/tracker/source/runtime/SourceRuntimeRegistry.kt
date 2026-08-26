@@ -7,7 +7,7 @@ import javax.inject.Singleton
 
 @Singleton
 class SourceRuntimeRegistry @Inject constructor(
-	runtimes: Set<@JvmSuppressWildcards SourceRuntime<out SourcePlan>>,
+	runtimes: Set<@JvmSuppressWildcards ClaimedSourceRuntime<out SourcePlan>>,
 ) {
 	private val runtimesBySource = runtimes.associateBy(SourceRuntime<*>::source)
 
@@ -15,24 +15,34 @@ class SourceRuntimeRegistry @Inject constructor(
 		require(runtimesBySource.size == runtimes.size) { "Only one physical runtime may own each source" }
 	}
 
-	fun runtime(source: SourceKind): SourceRuntime<out SourcePlan>? = runtimesBySource[source]
+	fun runtime(source: SourceKind): ClaimedSourceRuntime<out SourcePlan>? = runtimesBySource[source]
 
 	fun registeredSources(): Set<SourceKind> = runtimesBySource.keys
 
 	@Suppress("UNCHECKED_CAST")
-	suspend fun start(plan: SourcePlan, sink: SourceEventSink): SourceStartResult {
+	suspend fun start(
+		claim: SourceRuntimeClaim,
+		plan: SourcePlan,
+		sink: SourceEventSink,
+	): SourceStartResult {
+		require(claim.source == plan.source)
 		val runtime = requireNotNull(runtimesBySource[plan.source]) {
 			"No source runtime is registered for ${plan.source}"
-		} as SourceRuntime<SourcePlan>
-		return runtime.start(plan, sink)
+		} as ClaimedSourceRuntime<SourcePlan>
+		return runtime.start(claim, plan, sink)
 	}
 
 	@Suppress("UNCHECKED_CAST")
-	suspend fun reconfigure(plan: SourcePlan, sink: SourceEventSink): SourceApplyResult {
+	suspend fun reconfigure(
+		claim: SourceRuntimeClaim,
+		plan: SourcePlan,
+		sink: SourceEventSink,
+	): SourceApplyResult {
+		require(claim.source == plan.source)
 		val runtime = requireNotNull(runtimesBySource[plan.source]) {
 			"No source runtime is registered for ${plan.source}"
-		} as SourceRuntime<SourcePlan>
-		return runtime.reconfigure(plan, sink)
+		} as ClaimedSourceRuntime<SourcePlan>
+		return runtime.reconfigure(claim, plan, sink)
 	}
 
 	suspend fun quiesce(source: SourceKind, cutoff: SessionCutoff): SourceStopAck =
@@ -42,4 +52,11 @@ class SourceRuntimeRegistry @Inject constructor(
 	suspend fun close(source: SourceKind) {
 		requireNotNull(runtimesBySource[source]) { "No source runtime is registered for $source" }.close()
 	}
+
+	suspend fun shutdownIfOwned(
+		claim: SourceRuntimeClaim,
+		cutoff: SessionCutoff,
+	): OwnedSourceShutdown = requireNotNull(runtimesBySource[claim.source]) {
+		"No source runtime is registered for ${claim.source}"
+	}.shutdownIfOwned(claim, cutoff)
 }

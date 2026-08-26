@@ -1729,6 +1729,7 @@ val MIGRATION_27_28: Migration = object : Migration(
 			)
 			execSQL("ALTER TABLE logical_tracking_session ADD COLUMN current_manifest_revision INTEGER")
 			execSQL("ALTER TABLE logical_tracking_session ADD COLUMN current_intent_revision INTEGER")
+			execSQL("ALTER TABLE logical_tracking_session ADD COLUMN current_service_run_id TEXT")
 			execSQL(
 				"ALTER TABLE logical_tracking_session " +
 					"ADD COLUMN lifecycle_lease_generation INTEGER NOT NULL DEFAULT 0",
@@ -1785,6 +1786,70 @@ val MIGRATION_27_28: Migration = object : Migration(
 				"CREATE UNIQUE INDEX IF NOT EXISTS idx_source_service_run_delivery_token " +
 					"ON source_service_run(start_delivery_token)",
 			)
+			// Released v27 completeness rows identified only a logical session and source instance.
+			// Preserve every recorded fact while making their missing physical-run attribution explicit.
+			execSQL("ALTER TABLE source_session_completeness RENAME TO source_session_completeness_v27")
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS source_session_completeness (
+					logical_tracking_id TEXT NOT NULL,
+					service_run_id TEXT NOT NULL,
+					source_kind INTEGER NOT NULL,
+					source_instance_id TEXT NOT NULL,
+					registration_generation INTEGER NOT NULL,
+					last_admission_ordinal INTEGER,
+					last_source_sequence INTEGER,
+					app_drain_complete INTEGER NOT NULL,
+					provider_coverage TEXT NOT NULL,
+					stop_status TEXT NOT NULL,
+					unresolved_sequence_start INTEGER,
+					unresolved_sequence_end INTEGER,
+					updated_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(
+						logical_tracking_id,
+						service_run_id,
+						source_kind,
+						source_instance_id,
+						registration_generation
+					)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"""
+				INSERT INTO source_session_completeness (
+					logical_tracking_id,
+					service_run_id,
+					source_kind,
+					source_instance_id,
+					registration_generation,
+					last_admission_ordinal,
+					last_source_sequence,
+					app_drain_complete,
+					provider_coverage,
+					stop_status,
+					unresolved_sequence_start,
+					unresolved_sequence_end,
+					updated_at_ms
+				)
+				SELECT
+					logical_tracking_id,
+					'__LEGACY_V27_UNATTRIBUTED__',
+					source_kind,
+					source_instance_id,
+					registration_generation,
+					last_admission_ordinal,
+					last_source_sequence,
+					app_drain_complete,
+					provider_coverage,
+					stop_status,
+					unresolved_sequence_start,
+					unresolved_sequence_end,
+					updated_at_ms
+				FROM source_session_completeness_v27
+				""".trimIndent(),
+			)
+			execSQL("DROP TABLE source_session_completeness_v27")
 			execSQL(
 				"UPDATE source_service_run SET " +
 					"desired_foreground_capability_flags = foreground_capability_flags, " +
@@ -2003,6 +2068,7 @@ val MIGRATION_27_28: Migration = object : Migration(
 				CREATE TABLE IF NOT EXISTS session_manifest_version (
 					logical_tracking_id TEXT NOT NULL,
 					manifest_revision INTEGER NOT NULL,
+					service_run_id TEXT NOT NULL,
 					session_mode TEXT NOT NULL,
 					source_policy_revision INTEGER NOT NULL,
 					acquisition_plan_revision INTEGER NOT NULL,
@@ -2028,6 +2094,10 @@ val MIGRATION_27_28: Migration = object : Migration(
 					"ON session_manifest_version(source_policy_revision)",
 			)
 			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_session_manifest_service_run " +
+					"ON session_manifest_version(service_run_id, manifest_revision)",
+			)
+			execSQL(
 				"""
 				CREATE TABLE IF NOT EXISTS session_manifest_source (
 					logical_tracking_id TEXT NOT NULL,
@@ -2037,6 +2107,12 @@ val MIGRATION_27_28: Migration = object : Migration(
 					consent_epoch INTEGER NOT NULL,
 					persistence_eligible INTEGER NOT NULL,
 					qos_code INTEGER NOT NULL,
+					output_destination TEXT,
+					writer_owner TEXT,
+					writer_owner_generation INTEGER,
+					writer_projection_id TEXT,
+					writer_projection_version INTEGER,
+					writer_binding_generation INTEGER,
 					PRIMARY KEY(logical_tracking_id, manifest_revision, source_kind, purpose)
 				)
 				""".trimIndent(),

@@ -45,7 +45,7 @@ class WifiSourceRuntime @Inject internal constructor(
 	private val backend: AndroidWifiSourceBackend,
 	private val deviceStateProvider: AndroidConnectivityDeviceStateProvider,
 	private val wakeups: CoalescingSourceWakeupScheduler,
-) : SourceRuntime<WifiPlan> {
+) : ClaimedSourceRuntime<WifiPlan> {
 	override val source = SourceKind.WIFI
 	private val _capabilities = MutableStateFlow(capabilitiesNow())
 	override val capabilities: StateFlow<SourceCapabilities> = _capabilities
@@ -62,19 +62,54 @@ class WifiSourceRuntime @Inject internal constructor(
 	private var cutoffElapsedNanos: Long? = null
 	private var metrics = RuntimeAdmissionMetrics()
 	private var retirementIntent: WifiProviderRetirementIntent? = null
+	private var ownerClaim: SourceRuntimeClaim? = null
 	private val prerequisiteGate = WifiCallbackPrerequisiteGate(deviceStateProvider::wifi)
 
-	override suspend fun start(plan: WifiPlan, sink: SourceEventSink): SourceStartResult = lifecycleMutex.withLock {
-		require(currentPlan == null) { "Wi-Fi source is already started" }
-		startLocked(plan, sink)
+	override suspend fun start(plan: WifiPlan, sink: SourceEventSink): SourceStartResult =
+		startWithClaim(null, plan, sink)
+
+	override suspend fun start(
+		claim: SourceRuntimeClaim,
+		plan: WifiPlan,
+		sink: SourceEventSink,
+	): SourceStartResult {
+		require(claim.source == source)
+		return startWithClaim(claim, plan, sink)
 	}
 
-	override suspend fun reconfigure(plan: WifiPlan, sink: SourceEventSink): SourceApplyResult = lifecycleMutex.withLock {
-		refreshCompatibleLocked(plan, sink)?.let { refreshed ->
+	private suspend fun startWithClaim(
+		claim: SourceRuntimeClaim?,
+		plan: WifiPlan,
+		sink: SourceEventSink,
+	): SourceStartResult = lifecycleMutex.withLock {
+		require(currentPlan == null) { "Wi-Fi source is already started" }
+		startLocked(claim, plan, sink)
+	}
+
+	override suspend fun reconfigure(plan: WifiPlan, sink: SourceEventSink): SourceApplyResult =
+		reconfigureWithClaim(null, plan, sink)
+
+	override suspend fun reconfigure(
+		claim: SourceRuntimeClaim,
+		plan: WifiPlan,
+		sink: SourceEventSink,
+	): SourceApplyResult {
+		require(claim.source == source)
+		return reconfigureWithClaim(claim, plan, sink)
+	}
+
+	private suspend fun reconfigureWithClaim(
+		claim: SourceRuntimeClaim?,
+		plan: WifiPlan,
+		sink: SourceEventSink,
+	): SourceApplyResult = lifecycleMutex.withLock {
+		refreshCompatibleLocked(claim, plan, sink)?.let { refreshed ->
 			return@withLock refreshed
 		}
+		var predecessorStopAck: SourceStopAck? = null
 		if (currentPlan != null) {
 			val previous = shutdownLocked(null)
+			predecessorStopAck = previous
 			if (!previous.appDrainComplete ||
 				previous.registrationRemovalOutcome != RegistrationRemovalOutcome.REMOVED
 			) {
@@ -82,17 +117,27 @@ class WifiSourceRuntime @Inject internal constructor(
 					appliedState(source, plan.revision, null, SourceApplyStatus.FAILED,
 						SystemClock.elapsedRealtimeNanos()),
 					retryable = true,
+					stopAck = previous,
 				)
 			}
 		}
 		if (!plan.enabled) return@withLock SourceApplyResult.Applied(
 			appliedState(source, plan.revision, null, SourceApplyStatus.APPLIED, SystemClock.elapsedRealtimeNanos()),
+			stopAck = predecessorStopAck,
 		)
-		when (val result = startLocked(plan, sink)) {
-			is SourceStartResult.Started -> SourceApplyResult.Applied(result.applied)
-			is SourceStartResult.Degraded -> SourceApplyResult.Degraded(result.applied)
-			is SourceStartResult.Blocked -> SourceApplyResult.Failed(result.applied, false)
-			is SourceStartResult.Failed -> SourceApplyResult.Failed(result.applied, result.retryable)
+		when (val result = startLocked(claim, plan, sink)) {
+			is SourceStartResult.Started -> SourceApplyResult.Applied(result.applied, predecessorStopAck)
+			is SourceStartResult.Degraded -> SourceApplyResult.Degraded(result.applied, predecessorStopAck)
+			is SourceStartResult.Blocked -> SourceApplyResult.Failed(
+				result.applied,
+				retryable = false,
+				stopAck = predecessorStopAck,
+			)
+			is SourceStartResult.Failed -> SourceApplyResult.Failed(
+				result.applied,
+				result.retryable,
+				predecessorStopAck,
+			)
 		}
 	}
 
@@ -110,7 +155,19 @@ class WifiSourceRuntime @Inject internal constructor(
 		}
 	}
 
+	override suspend fun shutdownIfOwned(
+		claim: SourceRuntimeClaim,
+		cutoff: SessionCutoff,
+	): OwnedSourceShutdown {
+		require(claim.source == source)
+		return lifecycleMutex.withLock {
+			if (ownerClaim != claim) return@withLock OwnedSourceShutdown.NotOwned
+			shutdownLocked(cutoff).toOwnedShutdown()
+		}
+	}
+
 	private suspend fun refreshCompatibleLocked(
+		claim: SourceRuntimeClaim?,
 		plan: WifiPlan,
 		sink: SourceEventSink,
 	): SourceApplyResult? {
@@ -168,6 +225,9 @@ class WifiSourceRuntime @Inject internal constructor(
 			}
 		}
 		if (!refreshedInPlace) return null
+		// Lifecycle ownership follows the durable authorization attempt even though the provider key
+		// remains unchanged. A legacy refresh intentionally invalidates any older claimed attempt.
+		ownerClaim = claim
 		val state = appliedState(
 			source, plan.revision, refreshed, application.status, SystemClock.elapsedRealtimeNanos(),
 		).copy(degradedReasons = application.reasons)
@@ -178,7 +238,11 @@ class WifiSourceRuntime @Inject internal constructor(
 		}
 	}
 
-	private suspend fun startLocked(plan: WifiPlan, sink: SourceEventSink): SourceStartResult {
+	private suspend fun startLocked(
+		claim: SourceRuntimeClaim?,
+		plan: WifiPlan,
+		sink: SourceEventSink,
+	): SourceStartResult {
 		if (!reconcilePendingProviderRetirements()) {
 			return SourceStartResult.Failed(
 				appliedState(
@@ -217,6 +281,9 @@ class WifiSourceRuntime @Inject internal constructor(
 		cutoffElapsedNanos = null
 		metrics = RuntimeAdmissionMetrics()
 		accepting = true
+		// Publish shutdown authority before provider start: a throwing backend may have installed a
+		// receiver before reporting failure, and exact cleanup must remain claim-addressable.
+		ownerClaim = claim
 		val started = try {
 			backend.start { event -> onBackendEvent(nextRegistration, event) }
 		} catch (cancelled: CancellationException) {
@@ -328,7 +395,7 @@ class WifiSourceRuntime @Inject internal constructor(
 				removed == RegistrationRemovalOutcome.FAILED -> SourceStopStatus.PROVIDER_FAILED
 				else -> SourceStopStatus.COMPLETE
 			},
-		)
+		).withSessionMembership(ownerClaim)
 		if (retirement == WifiProviderRetirement.COMPLETE) {
 			clearActiveState()
 		} else {
@@ -733,6 +800,7 @@ class WifiSourceRuntime @Inject internal constructor(
 		cutoffElapsedNanos = null
 		currentPlan = null
 		currentSink = null
+		ownerClaim = null
 	}
 
 	private fun unavailableAck(cutoff: SessionCutoff?) = SourceStopAck(
@@ -741,7 +809,7 @@ class WifiSourceRuntime @Inject internal constructor(
 		RegistrationRemovalOutcome.NOT_REGISTERED, ProviderFlushOutcome.NOT_REQUESTED,
 		ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE, true,
 		if (cutoff == null) SourceStopStatus.COMPLETE else SourceStopStatus.PROVIDER_FAILED,
-	)
+	).withSessionMembership(ownerClaim)
 
 	private fun attemptWindow(intervalMs: Long) = (intervalMs / 4L).coerceIn(0L, MAX_COALESCE_WINDOW_MS)
 

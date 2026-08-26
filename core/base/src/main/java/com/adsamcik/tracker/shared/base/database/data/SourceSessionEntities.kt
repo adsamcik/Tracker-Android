@@ -4,6 +4,9 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 
+/** Released-v27 completeness rows had no physical service-run attribution. */
+const val LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID = "__LEGACY_V27_UNATTRIBUTED__"
+
 @Entity(
 	tableName = "logical_tracking_session",
 	primaryKeys = ["logical_tracking_id"],
@@ -28,6 +31,7 @@ data class LogicalTrackingSessionEntity(
 	val sessionMode: String = "LEGACY_UNKNOWN",
 	@ColumnInfo(name = "current_manifest_revision") val currentManifestRevision: Long? = null,
 	@ColumnInfo(name = "current_intent_revision") val currentIntentRevision: Long? = null,
+	@ColumnInfo(name = "current_service_run_id") val currentServiceRunId: String? = null,
 	@ColumnInfo(name = "lifecycle_lease_generation", defaultValue = "0")
 	val lifecycleLeaseGeneration: Long = 0L,
 	@ColumnInfo(name = "lifecycle_boot_id") val lifecycleBootId: String? = null,
@@ -80,7 +84,14 @@ data class SourceServiceRunEntity(
 	val startIsUserInitiated: Boolean = false,
 	@ColumnInfo(name = "start_is_ambient", defaultValue = "0")
 	val startIsAmbient: Boolean = false,
-)
+) {
+	init {
+		require(serviceRunId.isNotBlank()) { "Service run id must not be blank" }
+		require(serviceRunId != LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID) {
+			"The legacy completeness sentinel cannot identify a physical service run"
+		}
+	}
+}
 
 /**
  * Immutable intent for one effective portion of a logical tracking session.
@@ -97,11 +108,17 @@ data class SourceServiceRunEntity(
 			name = "idx_session_manifest_effective",
 		),
 		Index(value = ["source_policy_revision"], name = "idx_session_manifest_policy"),
+		Index(
+			value = ["service_run_id", "manifest_revision"],
+			name = "idx_session_manifest_service_run",
+			unique = true,
+		),
 	],
 )
 data class SessionManifestVersionEntity(
 	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String,
 	@ColumnInfo(name = "manifest_revision") val manifestRevision: Long,
+	@ColumnInfo(name = "service_run_id") val serviceRunId: String,
 	@ColumnInfo(name = "session_mode") val sessionMode: String,
 	@ColumnInfo(name = "source_policy_revision") val sourcePolicyRevision: Long,
 	@ColumnInfo(name = "acquisition_plan_revision") val acquisitionPlanRevision: Long,
@@ -114,7 +131,14 @@ data class SessionManifestVersionEntity(
 	@ColumnInfo(name = "automation_epoch") val automationEpoch: Long?,
 	@ColumnInfo(name = "change_reason") val changeReason: String,
 	@ColumnInfo(name = "manifest_checksum") val manifestChecksum: String,
-)
+) {
+	init {
+		require(serviceRunId.isNotBlank()) { "Manifest service run id must not be blank" }
+		require(serviceRunId != LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID) {
+			"The legacy completeness sentinel cannot own a manifest"
+		}
+	}
+}
 
 /** Source/purpose membership of an immutable manifest version. */
 @Entity(
@@ -135,7 +159,66 @@ data class SessionManifestSourceEntity(
 	@ColumnInfo(name = "consent_epoch") val consentEpoch: Long,
 	@ColumnInfo(name = "persistence_eligible") val persistenceEligible: Boolean,
 	@ColumnInfo(name = "qos_code") val qosCode: Int,
-)
+	@ColumnInfo(name = "output_destination") val outputDestination: String? = null,
+	@ColumnInfo(name = "writer_owner") val writerOwner: String? = null,
+	@ColumnInfo(name = "writer_owner_generation") val writerOwnerGeneration: Long? = null,
+	@ColumnInfo(name = "writer_projection_id") val writerProjectionId: String? = null,
+	@ColumnInfo(name = "writer_projection_version") val writerProjectionVersion: Int? = null,
+	@ColumnInfo(name = "writer_binding_generation") val writerBindingGeneration: Long? = null,
+) {
+	init {
+		val writerProvenance = listOf(outputDestination, writerOwner, writerOwnerGeneration)
+		require(writerProvenance.all { it == null } || writerProvenance.all { it != null }) {
+			"Writer destination, owner, and generation must be supplied together"
+		}
+		require(outputDestination == null || outputDestination.isNotBlank())
+		require(writerOwner == null || writerOwner.isNotBlank())
+		require(writerOwnerGeneration == null || writerOwnerGeneration > 0L)
+
+		val projectionProvenance = listOf(
+			writerProjectionId,
+			writerProjectionVersion,
+			writerBindingGeneration,
+		)
+		require(projectionProvenance.all { it == null } || projectionProvenance.all { it != null }) {
+			"Writer projection id, version, and binding generation must be supplied together"
+		}
+		require(writerProjectionId == null || writerProjectionId.isNotBlank())
+		require(writerProjectionVersion == null || writerProjectionVersion > 0)
+		require(writerBindingGeneration == null || writerBindingGeneration > 0L)
+		require(writerProjectionId == null || outputDestination != null) {
+			"Projection provenance requires destination-owner provenance"
+		}
+		val isPersistenceEligibleStepsCapture =
+			sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
+			purpose == SourceBrokerPurpose.SESSION_CAPTURE && persistenceEligible
+		if (isPersistenceEligibleStepsCapture) {
+			require(outputDestination != null) {
+				"Persistence-eligible Steps capture requires immutable writer provenance"
+			}
+			require(outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS) {
+				"Steps capture must target the permanent session Steps destination"
+			}
+			require(
+				writerOwner == SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL ||
+					writerOwner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
+			) { "Steps capture must name a permanent destination owner" }
+			if (writerOwner == SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL) {
+				require(writerProjectionId == null) {
+					"Legacy Steps ownership must not claim candidate projection provenance"
+				}
+			} else {
+				require(writerProjectionId != null) {
+					"Candidate Steps ownership requires complete projection provenance"
+				}
+			}
+		} else {
+			require(outputDestination == null && writerProjectionId == null) {
+				"Only persistence-eligible Steps capture may carry writer provenance"
+			}
+		}
+	}
+}
 
 /** Append-only logical lifecycle intent; execution progress lives in desired-action rows. */
 @Entity(
@@ -218,10 +301,17 @@ data class LifecycleDesiredActionEntity(
 
 @Entity(
 	tableName = "source_session_completeness",
-	primaryKeys = ["logical_tracking_id", "source_kind", "source_instance_id"],
+	primaryKeys = [
+		"logical_tracking_id",
+		"service_run_id",
+		"source_kind",
+		"source_instance_id",
+		"registration_generation",
+	],
 )
 data class SourceSessionCompletenessEntity(
 	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String,
+	@ColumnInfo(name = "service_run_id") val serviceRunId: String,
 	@ColumnInfo(name = "source_kind") val sourceKind: Int,
 	@ColumnInfo(name = "source_instance_id") val sourceInstanceId: String,
 	@ColumnInfo(name = "registration_generation") val registrationGeneration: Long,
@@ -233,7 +323,11 @@ data class SourceSessionCompletenessEntity(
 	@ColumnInfo(name = "unresolved_sequence_start") val unresolvedSequenceStart: Long?,
 	@ColumnInfo(name = "unresolved_sequence_end") val unresolvedSequenceEnd: Long?,
 	@ColumnInfo(name = "updated_at_ms") val updatedAtMs: Long,
-)
+) {
+	init {
+		require(serviceRunId.isNotBlank()) { "Completeness service run id must not be blank" }
+	}
+}
 
 @Entity(tableName = "tracking_rollout_state")
 data class TrackingRolloutStateEntity(

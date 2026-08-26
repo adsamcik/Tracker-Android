@@ -3,7 +3,9 @@ package com.adsamcik.tracker.tracker.resilience
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.rotateActivityAutomationEpochInTransaction
+import com.adsamcik.tracker.shared.base.database.dao.SourceSessionDao
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.time.Clock
 import com.adsamcik.tracker.tracker.source.coordinator.LifecycleActionStatus
 import com.adsamcik.tracker.tracker.source.coordinator.SessionLifecycleState
@@ -46,10 +48,17 @@ class PreviousExitSourceSessionFinalizer @Inject constructor(
 			}
 		return database.withTransaction {
 			val dao = database.sourceSessionDao()
+			val incompleteSessions = dao.incompleteSessions()
+			val authorities = buildMap {
+				for (session in incompleteSessions) {
+					put(session.logicalTrackingId, dao.serviceRunAuthorityForFinalization(session))
+				}
+			}
 			val recoveryRun = recoveryCandidate?.let { descriptor ->
 				dao.serviceRun(descriptor.serviceRunId)
 			}
-			val stale = dao.incompleteSessions().filter { session ->
+			val stale = incompleteSessions.filter { session ->
+				val currentRun = authorities.getValue(session.logicalTrackingId).currentRun
 				val isRecoverableManual = recoveryCandidate != null &&
 					session.sessionMode == SessionMode.MANUAL.name &&
 					session.state == SessionLifecycleState.ACTIVE.name &&
@@ -60,6 +69,7 @@ class PreviousExitSourceSessionFinalizer @Inject constructor(
 					recoveryRun != null &&
 					recoveryRun.logicalTrackingId == session.logicalTrackingId &&
 					recoveryRun.serviceRunId == recoveryCandidate.serviceRunId &&
+					currentRun?.serviceRunId == recoveryRun.serviceRunId &&
 					recoveryRun.state == SessionLifecycleState.ACTIVE.name &&
 					recoveryRun.completedAtMs == null &&
 					recoveryRun.bootId == bootId
@@ -76,7 +86,20 @@ class PreviousExitSourceSessionFinalizer @Inject constructor(
 				)
 			}
 			val broker = SourceBroker(database)
+			incompleteSessions
+				.filterNot { session -> session in stale }
+				.forEach { session ->
+					terminalizeRuns(
+						dao = dao,
+						logicalTrackingId = session.logicalTrackingId,
+						runs = authorities.getValue(session.logicalTrackingId).orphanRuns,
+						completedAtMs = maxOf(recoveryAtMs, session.startedAtMs),
+						acknowledgedElapsedRealtimeNanos = elapsedRealtimeNanos,
+						bootId = bootId,
+					)
+				}
 			stale.forEach { session ->
+				val incompleteRuns = authorities.getValue(session.logicalTrackingId).incompleteRuns
 				val factualCutoffAtMs = factualCompletedAtMs?.let { factualAtMs ->
 					clampCompletionWallTime(
 						requestedAtMs = factualAtMs,
@@ -99,37 +122,14 @@ class PreviousExitSourceSessionFinalizer @Inject constructor(
 					elapsedRealtimeNanos,
 					recoveryAtMs.coerceAtLeast(0L),
 				)
-				dao.lifecycleActions(session.logicalTrackingId)
-					.filter { action -> action.status in NONTERMINAL_ACTION_STATES }
-					.forEach { action ->
-						check(
-							dao.updateLifecycleAction(
-								action.copy(
-									status = LifecycleActionStatus.TERMINAL_FAILURE.name,
-									acknowledgedAtMs = completedAtMs,
-									acknowledgedElapsedRealtimeNanos =
-										if (action.bootId == bootId) elapsedRealtimeNanos
-										else action.acknowledgedElapsedRealtimeNanos,
-									failureCode = COMPLETION_REASON,
-									retryTrigger = null,
-								),
-							) == 1,
-						) { "Previous-exit lifecycle action changed during finalization" }
-					}
-				dao.incompleteServiceRuns(session.logicalTrackingId).forEach { run ->
-					check(
-						dao.updateServiceRun(
-							run.copy(
-								state = SessionLifecycleState.FINALIZED.name,
-								completedAtMs = completedAtMs.coerceAtLeast(run.startedAtMs),
-								completionReason = COMPLETION_REASON,
-								runtimeAcknowledgement = LifecycleActionStatus.TERMINAL_FAILURE.name,
-								runtimeFailureCode = COMPLETION_REASON,
-								runRevision = run.runRevision + 1L,
-							),
-						) == 1,
-					) { "Previous-exit source service run changed during finalization" }
-				}
+				terminalizeRuns(
+					dao = dao,
+					logicalTrackingId = session.logicalTrackingId,
+					runs = incompleteRuns,
+					completedAtMs = completedAtMs,
+					acknowledgedElapsedRealtimeNanos = elapsedRealtimeNanos,
+					bootId = bootId,
+				)
 				check(
 					dao.updateSession(
 						session.copy(
@@ -139,6 +139,7 @@ class PreviousExitSourceSessionFinalizer @Inject constructor(
 							cutoffElapsedNanos = cutoffElapsedNanos,
 							completedAtMs = completedAtMs,
 							failureCode = COMPLETION_REASON,
+							currentServiceRunId = null,
 						),
 					) == 1,
 				) { "Previous-exit logical session changed during finalization" }
@@ -150,6 +151,50 @@ class PreviousExitSourceSessionFinalizer @Inject constructor(
 					dao.session(logicalTrackingId) != null
 				},
 			)
+		}
+	}
+
+	private suspend fun terminalizeRuns(
+		dao: SourceSessionDao,
+		logicalTrackingId: String,
+		runs: List<SourceServiceRunEntity>,
+		completedAtMs: Long,
+		acknowledgedElapsedRealtimeNanos: Long,
+		bootId: String,
+	) {
+		val runIds = runs.mapTo(linkedSetOf()) { it.serviceRunId }
+		dao.lifecycleActions(logicalTrackingId)
+			.filter { action ->
+				action.serviceRunId in runIds && action.status in NONTERMINAL_ACTION_STATES
+			}
+			.forEach { action ->
+				check(
+					dao.updateLifecycleAction(
+						action.copy(
+							status = LifecycleActionStatus.TERMINAL_FAILURE.name,
+							acknowledgedAtMs = completedAtMs,
+							acknowledgedElapsedRealtimeNanos =
+								if (action.bootId == bootId) acknowledgedElapsedRealtimeNanos
+								else action.acknowledgedElapsedRealtimeNanos,
+							failureCode = COMPLETION_REASON,
+							retryTrigger = null,
+						),
+					) == 1,
+				) { "Previous-exit lifecycle action changed during finalization" }
+			}
+		runs.forEach { run ->
+			check(
+				dao.updateServiceRun(
+					run.copy(
+						state = SessionLifecycleState.FINALIZED.name,
+						completedAtMs = completedAtMs.coerceAtLeast(run.startedAtMs),
+						completionReason = COMPLETION_REASON,
+						runtimeAcknowledgement = LifecycleActionStatus.TERMINAL_FAILURE.name,
+						runtimeFailureCode = COMPLETION_REASON,
+						runRevision = run.runRevision + 1L,
+					),
+				) == 1,
+			) { "Previous-exit source service run changed during finalization" }
 		}
 	}
 
@@ -167,7 +212,9 @@ class PreviousExitSourceSessionFinalizer @Inject constructor(
 		private val NONTERMINAL_ACTION_STATES = setOf(
 			LifecycleActionStatus.PENDING.name,
 			LifecycleActionStatus.APPLYING.name,
+			LifecycleActionStatus.CLEANUP_REQUIRED.name,
 			LifecycleActionStatus.TEMPORARILY_ILLEGAL.name,
+			LifecycleActionStatus.AWAITING_FOREGROUND.name,
 		)
 		private val PENDING_AUTOMATIC_ACTION_STATES = setOf(
 			ActivityAutomaticStartActionEntity.STATUS_RESERVED,

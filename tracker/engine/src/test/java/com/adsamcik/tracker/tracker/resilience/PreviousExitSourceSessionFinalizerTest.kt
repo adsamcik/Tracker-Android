@@ -142,6 +142,83 @@ class PreviousExitSourceSessionFinalizerTest {
 	}
 
 	@Test
+	fun `recoverable current run is preserved while an older incomplete run is terminalized`() =
+		runTest {
+			insertSession(MANUAL_ID, SessionMode.MANUAL, CURRENT_BOOT_ID)
+			insertRun(
+				logicalTrackingId = MANUAL_ID,
+				bootId = CURRENT_BOOT_ID,
+				serviceRunId = STALE_RUN_ID,
+			)
+			insertRun(MANUAL_ID, CURRENT_BOOT_ID)
+			insertAction(
+				logicalTrackingId = MANUAL_ID,
+				bootId = CURRENT_BOOT_ID,
+				serviceRunId = STALE_RUN_ID,
+				actionId = STALE_ACTION_ID,
+				actionRevision = 2L,
+				status = LifecycleActionStatus.AWAITING_FOREGROUND,
+			)
+			insertPendingAction(MANUAL_ID, CURRENT_BOOT_ID)
+			database.sourceBrokerDao().insertDemands(
+				listOf(demand(MANUAL_ID, "manual-demand", CURRENT_BOOT_ID)),
+			)
+
+			val result = finalizer().finalizeStaleSessions(
+				recoveryDescriptor = manualDescriptor(CURRENT_BOOT_ID),
+			)
+
+			result.finalizedLogicalTrackingIds shouldBe emptySet()
+			val session = database.sourceSessionDao().session(MANUAL_ID)
+			session?.state shouldBe SessionLifecycleState.ACTIVE.name
+			session?.currentServiceRunId shouldBe runId(MANUAL_ID)
+			database.sourceSessionDao().serviceRun(runId(MANUAL_ID))?.state shouldBe
+				SessionLifecycleState.ACTIVE.name
+			database.sourceSessionDao().lifecycleAction(actionId(MANUAL_ID))?.status shouldBe
+				LifecycleActionStatus.PENDING.name
+			database.sourceSessionDao().serviceRun(STALE_RUN_ID)?.state shouldBe
+				SessionLifecycleState.FINALIZED.name
+			database.sourceSessionDao().serviceRun(STALE_RUN_ID)?.completionReason shouldBe
+				PreviousExitSourceSessionFinalizer.COMPLETION_REASON
+			database.sourceSessionDao().lifecycleAction(STALE_ACTION_ID)?.status shouldBe
+				LifecycleActionStatus.TERMINAL_FAILURE.name
+			database.sourceBrokerDao().demandHistory(sessionConsumerId(MANUAL_ID)).single().status shouldBe
+				SourceDemandEntity.STATUS_ACTIVE
+		}
+
+	@Test
+	fun `stale session terminalizes every incomplete run and prepared action`() = runTest {
+		insertSession(AUTOMATIC_ID, SessionMode.AUTOMATIC, OLD_BOOT_ID)
+		insertRun(
+			logicalTrackingId = AUTOMATIC_ID,
+			bootId = OLD_BOOT_ID,
+			serviceRunId = STALE_RUN_ID,
+		)
+		insertRun(AUTOMATIC_ID, OLD_BOOT_ID)
+		insertAction(
+			logicalTrackingId = AUTOMATIC_ID,
+			bootId = OLD_BOOT_ID,
+			serviceRunId = STALE_RUN_ID,
+			actionId = STALE_ACTION_ID,
+			actionRevision = 2L,
+			status = LifecycleActionStatus.AWAITING_FOREGROUND,
+		)
+		insertPendingAction(AUTOMATIC_ID, OLD_BOOT_ID)
+
+		finalizer().finalizeStaleSessions(factualCompletedAtMs = EXIT_AT_MS)
+
+		database.sourceSessionDao().incompleteServiceRuns(AUTOMATIC_ID) shouldBe emptyList()
+		listOf(runId(AUTOMATIC_ID), STALE_RUN_ID).forEach { serviceRunId ->
+			database.sourceSessionDao().serviceRun(serviceRunId)?.state shouldBe
+				SessionLifecycleState.FINALIZED.name
+		}
+		listOf(actionId(AUTOMATIC_ID), STALE_ACTION_ID).forEach { lifecycleActionId ->
+			database.sourceSessionDao().lifecycleAction(lifecycleActionId)?.status shouldBe
+				LifecycleActionStatus.TERMINAL_FAILURE.name
+		}
+	}
+
+	@Test
 	fun `same boot stopping manual authority is finalized despite active descriptor`() = runTest {
 		insertSession(
 			MANUAL_ID,
@@ -282,17 +359,37 @@ class PreviousExitSourceSessionFinalizerTest {
 				leaseGeneration = 1L,
 			),
 		)
+		if (completedAtMs == null) {
+			val session = requireNotNull(database.sourceSessionDao().session(logicalTrackingId))
+			database.sourceSessionDao().updateSession(session.copy(currentServiceRunId = serviceRunId)) shouldBe 1
+		}
 	}
 
-	private suspend fun insertPendingAction(logicalTrackingId: String, bootId: String) {
+	private suspend fun insertPendingAction(logicalTrackingId: String, bootId: String) =
+		insertAction(
+			logicalTrackingId = logicalTrackingId,
+			bootId = bootId,
+			serviceRunId = runId(logicalTrackingId),
+			actionId = actionId(logicalTrackingId),
+			status = LifecycleActionStatus.PENDING,
+		)
+
+	private suspend fun insertAction(
+		logicalTrackingId: String,
+		bootId: String,
+		serviceRunId: String,
+		actionId: String,
+		actionRevision: Long = 1L,
+		status: LifecycleActionStatus,
+	) {
 		database.sourceSessionDao().insertLifecycleActions(
 			listOf(
 				LifecycleDesiredActionEntity(
-					actionId = actionId(logicalTrackingId),
+					actionId = actionId,
 					logicalTrackingId = logicalTrackingId,
-					serviceRunId = runId(logicalTrackingId),
+					serviceRunId = serviceRunId,
 					manifestRevision = 1L,
-					actionRevision = 1L,
+					actionRevision = actionRevision,
 					actionFamily = "SERVICE",
 					sourceKind = null,
 					desiredState = SessionLifecycleState.ACTIVE.name,
@@ -304,7 +401,7 @@ class PreviousExitSourceSessionFinalizerTest {
 					leaseGeneration = 1L,
 					requestedAtMs = STARTED_AT_MS,
 					requestedElapsedRealtimeNanos = 1_000L,
-					status = LifecycleActionStatus.PENDING.name,
+					status = status.name,
 					attemptCount = 0,
 					acknowledgedAtMs = null,
 					acknowledgedElapsedRealtimeNanos = null,
@@ -427,6 +524,7 @@ class PreviousExitSourceSessionFinalizerTest {
 		const val AUTOMATIC_ID = "automatic-session"
 		const val MANUAL_ID = "manual-session"
 		const val STALE_RUN_ID = "stale-manual-run"
+		const val STALE_ACTION_ID = "stale-manual-action"
 		const val OLD_BOOT_ID = "boot-before-restart"
 		const val CURRENT_BOOT_ID = "current-boot"
 		val SOURCE_KIND = SourceKind.ACTIVITY.stableCode

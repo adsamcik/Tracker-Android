@@ -677,6 +677,71 @@ class WifiSourceRuntimeTest {
 	}
 
 	@Test
+	fun `claim transfer fences stale shutdown across compatible refresh and replacement`() = runTest {
+		val initialPlan = plan(1L, maximumAgeMs = 5_000L)
+		val refreshedPlan = plan(2L, maximumAgeMs = 10_000L)
+		val replacementPlan = plan(3L, maximumAgeMs = 20_000L)
+		val initial = registration(initialPlan, authorizationRevision = 1L, registrationGeneration = 9L)
+		val refreshed = registration(refreshedPlan, authorizationRevision = 2L, registrationGeneration = 9L)
+		val replacement = registration(replacementPlan, authorizationRevision = 3L, registrationGeneration = 10L)
+		val fixture = runtimeFixture(this, initialPlan, listOf(initial, replacement))
+		var refreshCall = 0
+		coEvery {
+			fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
+		} answers { if (refreshCall++ == 0) refreshed else null }
+		val firstClaim = runtimeClaim(SourceKind.WIFI, "wifi-start")
+		val refreshClaim = runtimeClaim(SourceKind.WIFI, "wifi-refresh")
+		val replacementClaim = runtimeClaim(SourceKind.WIFI, "wifi-replacement")
+		val sink = wifiCandidateSink { SourceAdmissionHandoff.Durable(1L) }
+
+		assertTrue(fixture.runtime.start(firstClaim, initialPlan, sink) is SourceStartResult.Started)
+		assertTrue(fixture.runtime.reconfigure(refreshClaim, refreshedPlan, sink) is SourceApplyResult.Applied)
+		assertEquals(
+			OwnedSourceShutdown.NotOwned,
+			fixture.runtime.shutdownIfOwned(firstClaim, wifiCutoff()),
+		)
+		verify(exactly = 0) { fixture.backend.stop() }
+
+		val replacementResult = fixture.runtime.reconfigure(replacementClaim, replacementPlan, sink)
+		assertTrue(replacementResult is SourceApplyResult.Applied)
+		assertEquals(9L, (replacementResult as SourceApplyResult.Applied).stopAck?.registrationGeneration)
+		verify(exactly = 1) { fixture.backend.stop() }
+
+		assertEquals(
+			OwnedSourceShutdown.NotOwned,
+			fixture.runtime.shutdownIfOwned(refreshClaim, wifiCutoff()),
+		)
+		verify(exactly = 1) { fixture.backend.stop() }
+		val released = fixture.runtime.shutdownIfOwned(replacementClaim, wifiCutoff()) as
+			OwnedSourceShutdown.Released
+		assertEquals(10L, released.provider?.registrationGeneration)
+		verify(exactly = 2) { fixture.backend.stop() }
+	}
+
+	@Test
+	fun `failed provider publication retains only its exact claim for cleanup`() = runTest {
+		val fixture = runtimeFixture(this)
+		every { fixture.backend.start(any()) } throws IllegalStateException("published then failed")
+		every { fixture.backend.stop() } returnsMany listOf(false, true)
+		val owningClaim = runtimeClaim(SourceKind.WIFI, "wifi-failed-publication")
+		val staleClaim = runtimeClaim(SourceKind.WIFI, "wifi-stale-cleanup")
+		val sink = wifiCandidateSink { SourceAdmissionHandoff.Durable(1L) }
+
+		assertTrue(fixture.runtime.start(owningClaim, fixture.plan, sink) is SourceStartResult.Failed)
+		verify(exactly = 1) { fixture.backend.stop() }
+		assertEquals(
+			OwnedSourceShutdown.NotOwned,
+			fixture.runtime.shutdownIfOwned(staleClaim, wifiCutoff()),
+		)
+		verify(exactly = 1) { fixture.backend.stop() }
+
+		val released = fixture.runtime.shutdownIfOwned(owningClaim, wifiCutoff()) as
+			OwnedSourceShutdown.Released
+		assertEquals(9L, released.provider?.registrationGeneration)
+		verify(exactly = 2) { fixture.backend.stop() }
+	}
+
+	@Test
 	fun `incompatible authorization check reserves only one wifi replacement`() = runTest {
 		val initialPlan = plan(1L, maximumAgeMs = 5_000L)
 		val replacementPlan = plan(2L, maximumAgeMs = 10_000L)
@@ -803,6 +868,22 @@ class WifiSourceRuntimeTest {
 	}
 
 	private companion object {
+		fun runtimeClaim(source: SourceKind, actionId: String) = SourceRuntimeClaim(
+			source = source,
+			actionId = actionId,
+			attemptCount = 1,
+			leaseGeneration = 1L,
+			logicalTrackingId = "wifi-test",
+			serviceRunId = "run-1",
+		)
+
+		fun wifiCutoff() = SessionCutoff(
+			logicalTrackingId = "wifi-test",
+			elapsedRealtimeNanos = Long.MAX_VALUE,
+			wallTimeMs = 1L,
+			deadlineElapsedRealtimeNanos = android.os.SystemClock.elapsedRealtimeNanos() + 1_000_000_000L,
+		)
+
 		fun readyState() = WifiDeviceState(
 			wifiFeatureAvailable = true,
 			fineLocationPermission = true,

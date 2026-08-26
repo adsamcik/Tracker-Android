@@ -49,6 +49,9 @@ class ForceStopSourceSessionFinalizer @Inject constructor(
 			}
 			val broker = SourceBroker(database)
 			sessions.forEach { session ->
+				val authority = dao.serviceRunAuthorityForFinalization(session)
+				val incompleteRuns = authority.incompleteRuns
+				val incompleteRunIds = incompleteRuns.mapTo(linkedSetOf()) { it.serviceRunId }
 				val effectiveCompletedAtMs = completedAtMs.coerceAtLeast(session.startedAtMs)
 				broker.retireSessionDemandsInTransaction(
 					session.logicalTrackingId,
@@ -57,7 +60,10 @@ class ForceStopSourceSessionFinalizer @Inject constructor(
 					effectiveCompletedAtMs,
 				)
 				dao.lifecycleActions(session.logicalTrackingId)
-					.filter { action -> action.status in NONTERMINAL_ACTION_STATES }
+					.filter { action ->
+						action.serviceRunId in incompleteRunIds &&
+							action.status in NONTERMINAL_ACTION_STATES
+					}
 					.forEach { action ->
 						check(
 							dao.updateLifecycleAction(
@@ -74,7 +80,7 @@ class ForceStopSourceSessionFinalizer @Inject constructor(
 						) { "Force-stop lifecycle action changed during finalization" }
 					}
 
-				dao.incompleteServiceRuns(session.logicalTrackingId).forEach { run ->
+				incompleteRuns.forEach { run ->
 					check(
 						dao.updateServiceRun(
 							run.copy(
@@ -100,6 +106,7 @@ class ForceStopSourceSessionFinalizer @Inject constructor(
 							cutoffElapsedNanos = session.cutoffElapsedNanos,
 							completedAtMs = effectiveCompletedAtMs,
 							failureCode = FORCE_STOP_COMPLETION_REASON,
+							currentServiceRunId = null,
 						),
 					) == 1,
 				) { "Force-stop logical tracking session changed during finalization" }
@@ -113,7 +120,9 @@ class ForceStopSourceSessionFinalizer @Inject constructor(
 		private val NONTERMINAL_ACTION_STATES = setOf(
 			LifecycleActionStatus.PENDING.name,
 			LifecycleActionStatus.APPLYING.name,
+			LifecycleActionStatus.CLEANUP_REQUIRED.name,
 			LifecycleActionStatus.TEMPORARILY_ILLEGAL.name,
+			LifecycleActionStatus.AWAITING_FOREGROUND.name,
 		)
 		private val PENDING_AUTOMATIC_ACTION_STATES = setOf(
 			ActivityAutomaticStartActionEntity.STATUS_RESERVED,

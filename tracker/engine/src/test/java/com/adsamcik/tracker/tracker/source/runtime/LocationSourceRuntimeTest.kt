@@ -343,6 +343,98 @@ class LocationSourceRuntimeTest {
 		}
 
 	@Test
+	fun `claim transfer fences stale shutdown across compatible refresh and replacement`() = runTest {
+		val initialPlan = locationPlan(revision = 1L)
+		val refreshedPlan = initialPlan.copy(revision = 2L)
+		val replacementPlan = refreshedPlan.copy(revision = 3L, backend = LocationBackend.FRAMEWORK)
+		val initial = registration(initialPlan, authorizationRevision = 1L, generation = 9L)
+		val refreshed = registration(refreshedPlan, authorizationRevision = 2L, generation = 9L)
+		val replacement = registration(replacementPlan, authorizationRevision = 3L, generation = 10L)
+		val registrations = mockk<SourceRegistrationRepository>(relaxed = true)
+		val fusedBackend = mockk<FusedLocationSourceBackend>(relaxed = true)
+		val frameworkBackend = mockk<FrameworkLocationSourceBackend>(relaxed = true)
+		coEvery { registrations.begin(any(), any(), any(), any(), any()) } returnsMany
+			listOf(initial, replacement)
+		coEvery {
+			registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
+		} returns refreshed
+		coEvery { registrations.markAccepted(any(), any(), any()) } returns null
+		coEvery { fusedBackend.start(any(), any()) } returns LocationBackendStartOutcome.STARTED
+		coEvery { frameworkBackend.start(any(), any()) } returns LocationBackendStartOutcome.STARTED
+		coEvery { fusedBackend.flush() } returns ProviderFlushOutcome.NOT_REQUESTED
+		coEvery { frameworkBackend.flush() } returns ProviderFlushOutcome.NOT_REQUESTED
+		coEvery { fusedBackend.stop() } returns RegistrationRemovalOutcome.REMOVED
+		coEvery { frameworkBackend.stop() } returns RegistrationRemovalOutcome.REMOVED
+		stubRetirementRepository(registrations)
+		val runtime = locationRuntime(backgroundScope, registrations, fusedBackend, frameworkBackend)
+		val firstClaim = runtimeClaim(SourceKind.LOCATION, "location-start")
+		val refreshClaim = runtimeClaim(SourceKind.LOCATION, "location-refresh")
+		val replacementClaim = runtimeClaim(SourceKind.LOCATION, "location-replacement")
+		val sink = RecordingLocationSink()
+
+		assertTrue(runtime.start(firstClaim, initialPlan, sink) is SourceStartResult.Started)
+		assertTrue(runtime.reconfigure(refreshClaim, refreshedPlan, sink) is SourceApplyResult.Applied)
+		assertEquals(
+			OwnedSourceShutdown.NotOwned,
+			runtime.shutdownIfOwned(firstClaim, sessionCutoff(Long.MAX_VALUE)),
+		)
+		coVerify(exactly = 0) { fusedBackend.flush() }
+		coVerify(exactly = 0) { fusedBackend.stop() }
+
+		val replacementResult = runtime.reconfigure(replacementClaim, replacementPlan, sink)
+		assertTrue(replacementResult is SourceApplyResult.Applied)
+		assertEquals(9L, (replacementResult as SourceApplyResult.Applied).stopAck?.registrationGeneration)
+		coVerify(exactly = 1) { fusedBackend.flush() }
+		coVerify(exactly = 1) { fusedBackend.stop() }
+		coVerify(exactly = 0) { frameworkBackend.flush() }
+		coVerify(exactly = 0) { frameworkBackend.stop() }
+		assertEquals(
+			OwnedSourceShutdown.NotOwned,
+			runtime.shutdownIfOwned(refreshClaim, sessionCutoff(Long.MAX_VALUE)),
+		)
+		coVerify(exactly = 1) { fusedBackend.stop() }
+		coVerify(exactly = 0) { frameworkBackend.flush() }
+		coVerify(exactly = 0) { frameworkBackend.stop() }
+
+		val released = runtime.shutdownIfOwned(
+			replacementClaim,
+			sessionCutoff(Long.MAX_VALUE),
+		) as OwnedSourceShutdown.Released
+		assertEquals(10L, released.provider?.registrationGeneration)
+		coVerify(exactly = 1) { frameworkBackend.flush() }
+		coVerify(exactly = 1) { frameworkBackend.stop() }
+	}
+
+	@Test
+	fun `failed provider publication retains only its exact claim for cleanup`() = runTest {
+		val fixture = failingStartFixture(
+			backgroundScope,
+			startFailure = IllegalStateException("published then failed"),
+		)
+		coEvery { fixture.fusedBackend.stop() } returnsMany listOf(
+			RegistrationRemovalOutcome.FAILED,
+			RegistrationRemovalOutcome.REMOVED,
+		)
+		val owningClaim = runtimeClaim(SourceKind.LOCATION, "location-failed-publication")
+		val staleClaim = runtimeClaim(SourceKind.LOCATION, "location-stale-cleanup")
+
+		assertTrue(fixture.runtime.start(owningClaim, fixture.plan, fixture.sink) is SourceStartResult.Failed)
+		coVerify(exactly = 1) { fixture.fusedBackend.stop() }
+		assertEquals(
+			OwnedSourceShutdown.NotOwned,
+			fixture.runtime.shutdownIfOwned(staleClaim, sessionCutoff(Long.MAX_VALUE)),
+		)
+		coVerify(exactly = 1) { fixture.fusedBackend.stop() }
+
+		val released = fixture.runtime.shutdownIfOwned(
+			owningClaim,
+			sessionCutoff(Long.MAX_VALUE),
+		) as OwnedSourceShutdown.Released
+		assertEquals(9L, released.provider?.registrationGeneration)
+		coVerify(exactly = 2) { fixture.fusedBackend.stop() }
+	}
+
+	@Test
 	fun `compatible refresh fences callbacks until durable context swap`() = runTest {
 		val initialPlan = locationPlan(revision = 1L)
 		val refreshedPlan = initialPlan.copy(revision = 2L)
@@ -1022,6 +1114,15 @@ class LocationSourceRuntimeTest {
 		elapsedRealtimeNanos = elapsedRealtimeNanos,
 		wallTimeMs = System.currentTimeMillis(),
 		deadlineElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos() + 1_000_000_000L,
+	)
+
+	private fun runtimeClaim(source: SourceKind, actionId: String) = SourceRuntimeClaim(
+		source = source,
+		actionId = actionId,
+		attemptCount = 1,
+		leaseGeneration = 1L,
+		logicalTrackingId = "location-test",
+		serviceRunId = "run-1",
 	)
 
 	private fun immediateSessionCutoff(): SessionCutoff = SessionCutoff(

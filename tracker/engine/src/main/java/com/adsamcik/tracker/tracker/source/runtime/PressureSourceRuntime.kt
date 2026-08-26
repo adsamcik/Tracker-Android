@@ -47,7 +47,7 @@ class PressureSourceRuntime @Inject constructor(
 	@ApplicationContext context: Context,
 	@ApplicationScope private val applicationScope: CoroutineScope,
 	private val registrations: SourceRegistrationRepository,
-) : SourceRuntime<PressurePlan> {
+) : ClaimedSourceRuntime<PressurePlan> {
 	override val source: SourceKind = SourceKind.PRESSURE
 	private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
 	private val sensor: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE)
@@ -93,45 +93,105 @@ class PressureSourceRuntime @Inject constructor(
 	private var exceptionalActorFailurePending = false
 	private var terminalSettlementInProgress = false
 	private var terminalStopAck: SourceStopAck? = null
+	private var runtimeClaim: SourceRuntimeClaim? = null
 
 	override suspend fun start(plan: PressurePlan, sink: SourceEventSink): SourceStartResult = lifecycleMutex.withLock {
-		if (!settleOwnedRetirementLocked()) return@withLock failedStart(plan, registration)
+		startForClaimLocked(claim = null, plan, sink)
+	}
+
+	override suspend fun start(
+		claim: SourceRuntimeClaim,
+		plan: PressurePlan,
+		sink: SourceEventSink,
+	): SourceStartResult = lifecycleMutex.withLock {
+		require(claim.source == source)
+		startForClaimLocked(claim, plan, sink)
+	}
+
+	private suspend fun startForClaimLocked(
+		claim: SourceRuntimeClaim?,
+		plan: PressurePlan,
+		sink: SourceEventSink,
+	): SourceStartResult {
+		if (!settleOwnedRetirementLocked()) return failedStart(plan, registration)
 		require(currentPlan == null) { "Pressure source is already started" }
-		startLocked(plan, sink)
+		runtimeClaim = claim.takeIf { plan.enabled }
+		return try {
+			startLocked(plan, sink).also {
+				if (registration == null && retirementIntent == null) runtimeClaim = null
+			}
+		} catch (error: Throwable) {
+			if (registration == null && retirementIntent == null) runtimeClaim = null
+			throw error
+		}
 	}
 
 	override suspend fun reconfigure(plan: PressurePlan, sink: SourceEventSink): SourceApplyResult {
 		fenceCapacityResume()
-		return lifecycleMutex.withLock {
-			if (!settleOwnedRetirementLocked()) return@withLock failedApply(plan, registration)
-			refreshCompatibleLocked(plan, sink)?.let { refreshed ->
-				restoreCapacityResumeForActiveLifecycle()
-				return@withLock refreshed
-			}
-			if (currentPlan != null) {
-				val previous = shutdownLocked(null)
-				if (!previous.appDrainComplete ||
-					previous.registrationRemovalOutcome != RegistrationRemovalOutcome.REMOVED
-				) {
-					return@withLock SourceApplyResult.Failed(
-						appliedState(source, plan.revision, null, SourceApplyStatus.FAILED,
-							SystemClock.elapsedRealtimeNanos()),
-						retryable = true,
-					)
-				}
-			}
-			if (!plan.enabled) {
-				currentSink = sink
-				return@withLock SourceApplyResult.Applied(
-					appliedState(source, plan.revision, null, SourceApplyStatus.APPLIED,
+		return lifecycleMutex.withLock { reconfigureForClaimLocked(claim = null, plan, sink) }
+	}
+
+	override suspend fun reconfigure(
+		claim: SourceRuntimeClaim,
+		plan: PressurePlan,
+		sink: SourceEventSink,
+	): SourceApplyResult {
+		require(claim.source == source)
+		fenceCapacityResume()
+		return lifecycleMutex.withLock { reconfigureForClaimLocked(claim, plan, sink) }
+	}
+
+	private suspend fun reconfigureForClaimLocked(
+		claim: SourceRuntimeClaim?,
+		plan: PressurePlan,
+		sink: SourceEventSink,
+	): SourceApplyResult {
+		if (!settleOwnedRetirementLocked()) return failedApply(plan, registration)
+		refreshCompatibleLocked(plan, sink) { runtimeClaim = claim }?.let { refreshed ->
+			restoreCapacityResumeForActiveLifecycle()
+			return refreshed
+		}
+		var predecessorStopAck: SourceStopAck? = terminalStopAck
+		if (currentPlan != null) {
+			val previous = shutdownLocked(null)
+			predecessorStopAck = previous
+			if (!previous.appDrainComplete ||
+				previous.registrationRemovalOutcome != RegistrationRemovalOutcome.REMOVED
+			) {
+				return SourceApplyResult.Failed(
+					appliedState(source, plan.revision, null, SourceApplyStatus.FAILED,
 						SystemClock.elapsedRealtimeNanos()),
+					retryable = true,
+					stopAck = previous,
 				)
 			}
-			when (val result = startLocked(plan, sink)) {
-				is SourceStartResult.Started -> SourceApplyResult.Applied(result.applied)
-				is SourceStartResult.Degraded -> SourceApplyResult.Degraded(result.applied)
-				is SourceStartResult.Blocked -> SourceApplyResult.Failed(result.applied, retryable = false)
-				is SourceStartResult.Failed -> SourceApplyResult.Failed(result.applied, result.retryable)
+		}
+		if (!plan.enabled) {
+			currentSink = sink
+			runtimeClaim = null
+			return SourceApplyResult.Applied(
+				appliedState(source, plan.revision, null, SourceApplyStatus.APPLIED,
+					SystemClock.elapsedRealtimeNanos()),
+				stopAck = predecessorStopAck,
+			)
+		}
+		runtimeClaim = claim
+		return when (val result = startLocked(plan, sink)) {
+			is SourceStartResult.Started -> SourceApplyResult.Applied(result.applied, predecessorStopAck)
+			is SourceStartResult.Degraded -> SourceApplyResult.Degraded(result.applied, predecessorStopAck)
+			is SourceStartResult.Blocked -> SourceApplyResult.Failed(
+				result.applied,
+				retryable = false,
+				stopAck = predecessorStopAck,
+			).also {
+				if (registration == null && retirementIntent == null) runtimeClaim = null
+			}
+			is SourceStartResult.Failed -> SourceApplyResult.Failed(
+				result.applied,
+				result.retryable,
+				predecessorStopAck,
+			).also {
+				if (registration == null && retirementIntent == null) runtimeClaim = null
 			}
 		}
 	}
@@ -146,14 +206,46 @@ class PressureSourceRuntime @Inject constructor(
 
 	override suspend fun quiesce(cutoff: SessionCutoff): SourceStopAck {
 		fenceCapacityResume()
-		return lifecycleMutex.withLock { terminalStopAck ?: shutdownLocked(cutoff) }
+		return lifecycleMutex.withLock {
+			(requireNotNull(terminalStopAck ?: shutdownLocked(cutoff))).also(::clearClaimIfReleased)
+		}
+	}
+
+	override suspend fun shutdownIfOwned(
+		claim: SourceRuntimeClaim,
+		cutoff: SessionCutoff,
+	): OwnedSourceShutdown = lifecycleMutex.withLock {
+		require(claim.source == source)
+		if (runtimeClaim != claim) return@withLock OwnedSourceShutdown.NotOwned
+		fenceCapacityResume()
+		val acknowledgement = when {
+			currentPlan != null || retirementIntent != null -> shutdownLocked(cutoff)
+			terminalStopAck != null -> requireNotNull(terminalStopAck)
+			else -> null
+		}
+		if (acknowledgement == null) {
+			runtimeClaim = null
+			OwnedSourceShutdown.Released(provider = null, stopAck = null)
+		} else {
+			acknowledgement.toOwnedShutdown().also { shutdown ->
+				if (shutdown is OwnedSourceShutdown.Released) runtimeClaim = null
+			}
+		}
 	}
 
 	override suspend fun close() {
 		fenceCapacityResume()
 		lifecycleMutex.withLock {
-			if (currentPlan != null || retirementIntent != null) shutdownLocked(null)
+			if (currentPlan != null || retirementIntent != null) {
+				clearClaimIfReleased(shutdownLocked(null))
+			} else {
+				runtimeClaim = null
+			}
 		}
+	}
+
+	private fun clearClaimIfReleased(acknowledgement: SourceStopAck) {
+		if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) runtimeClaim = null
 	}
 
 	private fun failedStart(plan: PressurePlan, active: SourceRegistration?) = SourceStartResult.Failed(
@@ -359,6 +451,7 @@ class PressureSourceRuntime @Inject constructor(
 	private suspend fun refreshCompatibleLocked(
 		plan: PressurePlan,
 		sink: SourceEventSink,
+		onAuthorizationCommitted: () -> Unit = {},
 	): SourceApplyResult? {
 		val activePlan = currentPlan ?: return null
 		val activeRegistration = registration ?: return null
@@ -448,6 +541,7 @@ class PressureSourceRuntime @Inject constructor(
 			drainCapacityPause()
 			return null
 		}
+		onAuthorizationCommitted()
 		val swapped = synchronized(callbackLock) {
 			resolvePendingAuthorizationRefreshLocked(
 				refreshLatch,
@@ -721,7 +815,7 @@ class PressureSourceRuntime @Inject constructor(
 				removal == RegistrationRemovalOutcome.FAILED -> SourceStopStatus.PROVIDER_FAILED
 				else -> SourceStopStatus.COMPLETE
 			},
-		)
+		).withSessionMembership(runtimeClaim)
 		if (retirement == PressureProviderRetirement.COMPLETE && actorSettled) {
 			clearActiveState()
 			terminalStopAck = ack
@@ -1578,7 +1672,7 @@ class PressureSourceRuntime @Inject constructor(
 		providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
 		appDrainComplete = true,
 		status = if (cutoff == null) SourceStopStatus.COMPLETE else SourceStopStatus.PROVIDER_FAILED,
-		)
+		).withSessionMembership(runtimeClaim)
 	}
 
 	private fun Sensor?.toCapabilities() = SourceCapabilities(

@@ -1395,6 +1395,7 @@ class RoomDurableSourceIngressTest {
 				sessionMode = "MANUAL",
 				currentManifestRevision = 1L,
 				currentIntentRevision = 1L,
+				currentServiceRunId = TEST_RUN_ID,
 				lifecycleLeaseGeneration = 7L,
 				lifecycleBootId = "boot",
 				automationEpoch = null,
@@ -1404,6 +1405,7 @@ class RoomDurableSourceIngressTest {
 			SessionManifestVersionEntity(
 				logicalTrackingId = TEST_SESSION_ID,
 				manifestRevision = 1L,
+				serviceRunId = TEST_RUN_ID,
 				sessionMode = "MANUAL",
 				sourcePolicyRevision = authority.currentPolicyRevision,
 				acquisitionPlanRevision = 1L,

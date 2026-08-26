@@ -5,11 +5,13 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.tracker.source.coordinator.LifecycleActionStatus
 import com.adsamcik.tracker.tracker.source.coordinator.SessionLifecycleState
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.SourceRegistrationRepository
@@ -137,6 +139,19 @@ class ForceStopSourceSessionFinalizerTest {
 	}
 
 	@Test
+	fun `force-stop terminalizes a lifecycle action awaiting foreground`() = runTest {
+		insertRunningSession()
+		insertAwaitingForegroundAction()
+
+		finalizer().finalize(completedAtMs = 5_000L) shouldBe
+			ForceStopSourceSessionFinalization.FINALIZED
+
+		val action = database.sourceSessionDao().lifecycleAction(ACTION_ID)
+		action?.status shouldBe LifecycleActionStatus.TERMINAL_FAILURE.name
+		action?.failureCode shouldBe ForceStopSourceSessionFinalizer.FORCE_STOP_COMPLETION_REASON
+	}
+
+	@Test
 	fun `database remains lazy until force-stop finalization is requested`() = runTest {
 		var providerCalls = 0
 		val finalizer = ForceStopSourceSessionFinalizer(
@@ -193,6 +208,7 @@ class ForceStopSourceSessionFinalizerTest {
 				completedAtMs = null,
 				finalAdmissionOrdinal = null,
 				failureCode = null,
+				currentServiceRunId = RUN_ID,
 			),
 		)
 		insertServiceRun(
@@ -208,6 +224,39 @@ class ForceStopSourceSessionFinalizerTest {
 				epoch = 17,
 				automaticControlEnabled = true,
 				lastRotationReason = "TEST_SEED",
+			),
+		)
+	}
+
+	private suspend fun insertAwaitingForegroundAction() {
+		database.sourceSessionDao().insertLifecycleActions(
+			listOf(
+				LifecycleDesiredActionEntity(
+					actionId = ACTION_ID,
+					logicalTrackingId = LOGICAL_ID,
+					serviceRunId = RUN_ID,
+					manifestRevision = 1L,
+					actionRevision = 1L,
+					actionFamily = "SERVICE",
+					sourceKind = null,
+					desiredState = SessionLifecycleState.ACTIVE.name,
+					desiredPlanRevision = 7L,
+					sourcePolicyRevision = 1L,
+					consentEpoch = null,
+					startOrigin = "MANUAL_FOREGROUND",
+					bootId = "boot-1",
+					leaseGeneration = 1L,
+					requestedAtMs = 1_000L,
+					requestedElapsedRealtimeNanos = 1_000_000L,
+					status = LifecycleActionStatus.AWAITING_FOREGROUND.name,
+					attemptCount = 0,
+					acknowledgedAtMs = null,
+					acknowledgedElapsedRealtimeNanos = null,
+					failureCode = null,
+					retryTrigger = null,
+					sourceInstanceId = null,
+					registrationGeneration = null,
+				),
 			),
 		)
 	}
@@ -314,5 +363,6 @@ class ForceStopSourceSessionFinalizerTest {
 		const val RUN_ID = "force-stopped-service-run"
 		const val OLDER_RUN_ID = "older-force-stopped-service-run"
 		const val CLOSED_RUN_ID = "already-closed-service-run"
+		const val ACTION_ID = "awaiting-foreground-action"
 	}
 }

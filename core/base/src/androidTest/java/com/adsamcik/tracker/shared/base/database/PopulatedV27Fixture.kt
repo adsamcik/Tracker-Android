@@ -12,6 +12,11 @@ internal object PopulatedV27Fixture {
 	const val LOCATION_EVENT_ID = "v27-location-event"
 	const val LOCATION_SIGNAL_ID = "v27-location-signal"
 	const val WAL_EVENT_ID = "v27-wal-location-event"
+	const val COMPLETENESS_SOURCE_INSTANCE_ID = "v27-location-instance"
+	const val COMPLETENESS_REGISTRATION_GENERATION = 4L
+	const val COMPLETENESS_LAST_ADMISSION_ORDINAL = 1L
+	const val COMPLETENESS_LAST_SOURCE_SEQUENCE = 41L
+	const val COMPLETENESS_UNRESOLVED_SEQUENCE = 42L
 	const val IMPORT_JOB_ID = "v27-import-job"
 	const val DAY_EPOCH = 19_675L
 	const val START_MS = 1_700_000_000_000L
@@ -259,8 +264,11 @@ internal object PopulatedV27Fixture {
 				"(logical_tracking_id, source_kind, source_instance_id, registration_generation, " +
 				"last_admission_ordinal, last_source_sequence, app_drain_complete, provider_coverage, " +
 				"stop_status, unresolved_sequence_start, unresolved_sequence_end, updated_at_ms) " +
-				"VALUES ('$LOGICAL_TRACKING_ID', 1, 'v27-location-instance', 4, 1, 41, 0, " +
-				"'UNKNOWN', 'INCOMPLETE', 42, 42, $END_MS)",
+				"VALUES ('$LOGICAL_TRACKING_ID', 1, '$COMPLETENESS_SOURCE_INSTANCE_ID', " +
+				"$COMPLETENESS_REGISTRATION_GENERATION, $COMPLETENESS_LAST_ADMISSION_ORDINAL, " +
+				"$COMPLETENESS_LAST_SOURCE_SEQUENCE, 0, " +
+				"'UNKNOWN', 'INCOMPLETE', $COMPLETENESS_UNRESOLVED_SEQUENCE, " +
+				"$COMPLETENESS_UNRESOLVED_SEQUENCE, $END_MS)",
 		)
 		val pendingJson = "{\"type\":\"v27-fixture\"}"
 		execSQL(

@@ -25,6 +25,7 @@ import io.mockk.slot
 import io.mockk.verify
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -762,6 +763,36 @@ class PressureSourceRuntimeTest {
 	}
 
 	@Test
+	fun `compatible successor claim fences stale shutdown and exact owner releases`() = runTest {
+		val initialPlan = plan(revision = 1L, aggregationWindowMs = 5_000L)
+		val refreshedPlan = plan(revision = 2L, aggregationWindowMs = 1_000L)
+		val fixture = fixture(
+			scope = this,
+			registrationsToReturn = listOf(
+				registration(initialPlan, authorizationRevision = 1L, requiresAcceptance = true),
+				registration(refreshedPlan, authorizationRevision = 2L),
+			),
+		)
+		val predecessor = runtimeClaim("pressure-predecessor")
+		val successor = runtimeClaim("pressure-successor")
+		val sink = SourceEventSink { SourceAdmissionHandoff.Durable(1L) }
+
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(predecessor, initialPlan, sink))
+		assertIs<SourceApplyResult.Applied>(fixture.runtime.reconfigure(successor, refreshedPlan, sink))
+		assertEquals(
+			OwnedSourceShutdown.NotOwned,
+			fixture.runtime.shutdownIfOwned(predecessor, pressureCutoff()),
+		)
+		verify(exactly = 0) { fixture.sensorManager.unregisterListener(any<SensorEventListener>()) }
+
+		val released = assertIs<OwnedSourceShutdown.Released>(
+			fixture.runtime.shutdownIfOwned(successor, pressureCutoff()),
+		)
+		assertEquals(9L, released.provider?.registrationGeneration)
+		verify(exactly = 1) { fixture.sensorManager.unregisterListener(any<SensorEventListener>()) }
+	}
+
+	@Test
 	fun `physical provider change performs normal stop and replacement start`() = runTest {
 		val initialPlan = plan(revision = 1L, hardwareSamplePeriodMicros = 50_000)
 		val replacementPlan = plan(revision = 2L, hardwareSamplePeriodMicros = 200_000)
@@ -789,6 +820,39 @@ class PressureSourceRuntimeTest {
 
 		fixture.runtime.close()
 		verify(exactly = 2) { fixture.sensorManager.unregisterListener(any<SensorEventListener>()) }
+	}
+
+	@Test
+	fun `physical replacement returns the predecessor stop acknowledgement`() = runTest {
+		val initialPlan = plan(revision = 1L, hardwareSamplePeriodMicros = 50_000)
+		val replacementPlan = plan(revision = 2L, hardwareSamplePeriodMicros = 200_000)
+		val fixture = fixture(
+			scope = this,
+			registrationsToReturn = listOf(
+				registration(initialPlan, authorizationRevision = 1L, requiresAcceptance = true),
+				registration(
+					replacementPlan,
+					authorizationRevision = 2L,
+					requiresAcceptance = true,
+					generation = 10L,
+				),
+			),
+		)
+		val sink = SourceEventSink { SourceAdmissionHandoff.Durable(1L) }
+		val predecessor = runtimeClaim("pressure-predecessor")
+		val successor = runtimeClaim("pressure-successor")
+
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(predecessor, initialPlan, sink))
+		val replaced = assertIs<SourceApplyResult.Applied>(
+			fixture.runtime.reconfigure(successor, replacementPlan, sink),
+		)
+
+		assertEquals(9L, replaced.stopAck?.registrationGeneration)
+		assertEquals(SourceStopStatus.COMPLETE, replaced.stopAck?.status)
+		val released = assertIs<OwnedSourceShutdown.Released>(
+			fixture.runtime.shutdownIfOwned(successor, pressureCutoff()),
+		)
+		assertEquals(10L, released.provider?.registrationGeneration)
 	}
 
 	@Test
@@ -914,7 +978,7 @@ class PressureSourceRuntimeTest {
 		}
 		if (failRuntimeCheckpoint) {
 			coEvery {
-				registrations.saveRuntimeState(any(), any(), any(), any(), any(), any(), any())
+				registrations.saveRuntimeState(any(), any(), any(), any(), any(), any(), any(), any())
 			} throws IllegalStateException("checkpoint unavailable")
 		}
 		return Fixture(
@@ -938,6 +1002,22 @@ class PressureSourceRuntimeTest {
 		maximumReportLatencyMicros = 1_000_000,
 		aggregationWindowMs = aggregationWindowMs,
 		movementGatedBurst = false,
+	)
+
+	private fun runtimeClaim(actionId: String) = SourceRuntimeClaim(
+		source = SourceKind.PRESSURE,
+		actionId = actionId,
+		attemptCount = 1,
+		leaseGeneration = 1L,
+		logicalTrackingId = "pressure-test",
+		serviceRunId = "run-1",
+	)
+
+	private fun pressureCutoff() = SessionCutoff(
+		logicalTrackingId = "pressure-test",
+		elapsedRealtimeNanos = Long.MAX_VALUE,
+		wallTimeMs = 1L,
+		deadlineElapsedRealtimeNanos = android.os.SystemClock.elapsedRealtimeNanos() + 1_000_000_000L,
 	)
 
 	private fun registration(

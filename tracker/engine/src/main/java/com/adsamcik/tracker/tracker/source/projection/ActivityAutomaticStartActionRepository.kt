@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.projection
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
@@ -361,12 +362,18 @@ class ActivityAutomaticStartActionRepository @Inject constructor(
 			intent.logicalTrackingId,
 			intent.manifestRevision,
 		)
-		val serviceRun = database.sourceSessionDao().latestServiceRun(intent.logicalTrackingId)
+		val session = database.sourceSessionDao().session(intent.logicalTrackingId)
+		val serviceRun = manifest?.serviceRunId?.let { serviceRunId ->
+			database.sourceSessionDao().serviceRun(serviceRunId)
+		}
 		val activityControlBinding = bindings.singleOrNull { binding ->
 			binding.sourceKind == SourceKind.ACTIVITY.stableCode &&
 				binding.purpose == MANIFEST_PURPOSE_CONTROL
 		}
 		if (!action.matches(intent) ||
+			manifest == null || !SessionManifestIntegrity.verify(manifest, bindings) ||
+			session?.currentServiceRunId != manifest?.serviceRunId ||
+			serviceRun?.logicalTrackingId != intent.logicalTrackingId ||
 			manifest?.sourcePolicyRevision != action.sourcePolicyRevision ||
 			bindings.captureSourceMask() != action.intendedCaptureSourceMask ||
 			activityControlBinding?.consentEpoch != action.controlConsentEpoch ||

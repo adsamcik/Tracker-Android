@@ -53,7 +53,7 @@ class LocationSourceRuntime @Inject internal constructor(
 	private val frameworkBackend: FrameworkLocationSourceBackend,
 	private val prerequisiteEvaluator: LocationPrerequisiteEvaluator,
 	private val deviceStateProvider: LocationDeviceStateProvider,
-) : SourceRuntime<LocationPlan> {
+) : ClaimedSourceRuntime<LocationPlan> {
 	override val source = SourceKind.LOCATION
 	private val _capabilities = MutableStateFlow(currentCapabilities())
 	override val capabilities: StateFlow<SourceCapabilities> = _capabilities
@@ -79,9 +79,26 @@ class LocationSourceRuntime @Inject internal constructor(
 	private var retainedRetirementAck: SourceStopAck? = null
 	private var retainedRetirementActor: Job? = null
 	private var providerRetirementCompletedWhileActorRetained = false
+	private var ownerClaim: SourceRuntimeClaim? = null
 	private val permissionGate = LocationPermissionGate(deviceStateProvider)
 
-	override suspend fun start(plan: LocationPlan, sink: SourceEventSink): SourceStartResult = lifecycleMutex.withLock {
+	override suspend fun start(plan: LocationPlan, sink: SourceEventSink): SourceStartResult =
+		startWithClaim(null, plan, sink)
+
+	override suspend fun start(
+		claim: SourceRuntimeClaim,
+		plan: LocationPlan,
+		sink: SourceEventSink,
+	): SourceStartResult {
+		require(claim.source == source)
+		return startWithClaim(claim, plan, sink)
+	}
+
+	private suspend fun startWithClaim(
+		claim: SourceRuntimeClaim?,
+		plan: LocationPlan,
+		sink: SourceEventSink,
+	): SourceStartResult = lifecycleMutex.withLock {
 		if (currentPlan != null) {
 			require(!isAcceptingCallbacks()) { "Location source is already started" }
 			if (!retryOwnedRetirementLocked()) {
@@ -109,27 +126,46 @@ class LocationSourceRuntime @Inject internal constructor(
 				retryable = true,
 			)
 		}
-		startLocked(plan, sink)
+		startLocked(claim, plan, sink)
 	}
 
-	override suspend fun reconfigure(plan: LocationPlan, sink: SourceEventSink): SourceApplyResult = lifecycleMutex.withLock {
+	override suspend fun reconfigure(plan: LocationPlan, sink: SourceEventSink): SourceApplyResult =
+		reconfigureWithClaim(null, plan, sink)
+
+	override suspend fun reconfigure(
+		claim: SourceRuntimeClaim,
+		plan: LocationPlan,
+		sink: SourceEventSink,
+	): SourceApplyResult {
+		require(claim.source == source)
+		return reconfigureWithClaim(claim, plan, sink)
+	}
+
+	private suspend fun reconfigureWithClaim(
+		claim: SourceRuntimeClaim?,
+		plan: LocationPlan,
+		sink: SourceEventSink,
+	): SourceApplyResult = lifecycleMutex.withLock {
 		if (isAcceptingCallbacks()) {
-			refreshCompatibleLocked(plan, sink)?.let { refreshed ->
+			refreshCompatibleLocked(claim, plan, sink)?.let { refreshed ->
 				return@withLock refreshed
 			}
 		}
+		var predecessorStopAck: SourceStopAck? = null
 		if (currentPlan != null) {
-			val stopped = if (isAcceptingCallbacks()) {
+			val stopped = if (isAcceptingCallbacks() || hasUnretiredCallbackLane()) {
 				shutdownLocked(null, RETIRE_REASON_RECONFIGURE)
 			} else {
 				null
 			}
+			predecessorStopAck = stopped ?: terminalStopAck
 			val cleanupComplete = stopped?.status == SourceStopStatus.COMPLETE ||
 				(stopped == null && retryOwnedRetirementLocked())
 			if (!cleanupComplete) {
 				return@withLock SourceApplyResult.Failed(
 					appliedState(source, plan.revision, null, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()),
 					retryable = true,
+					stopAck = predecessorStopAck,
 				)
 			}
 		}
@@ -142,13 +178,22 @@ class LocationSourceRuntime @Inject internal constructor(
 		if (!plan.enabled) {
 			return@withLock SourceApplyResult.Applied(
 				appliedState(source, plan.revision, null, SourceApplyStatus.APPLIED, SystemClock.elapsedRealtimeNanos()),
+				stopAck = predecessorStopAck,
 			)
 		}
-		when (val result = startLocked(plan, sink)) {
-			is SourceStartResult.Started -> SourceApplyResult.Applied(result.applied)
-			is SourceStartResult.Degraded -> SourceApplyResult.Degraded(result.applied)
-			is SourceStartResult.Blocked -> SourceApplyResult.Failed(result.applied, retryable = false)
-			is SourceStartResult.Failed -> SourceApplyResult.Failed(result.applied, result.retryable)
+		when (val result = startLocked(claim, plan, sink)) {
+			is SourceStartResult.Started -> SourceApplyResult.Applied(result.applied, predecessorStopAck)
+			is SourceStartResult.Degraded -> SourceApplyResult.Degraded(result.applied, predecessorStopAck)
+			is SourceStartResult.Blocked -> SourceApplyResult.Failed(
+				result.applied,
+				retryable = false,
+				stopAck = predecessorStopAck,
+			)
+			is SourceStartResult.Failed -> SourceApplyResult.Failed(
+				result.applied,
+				result.retryable,
+				predecessorStopAck,
+			)
 		}
 	}
 
@@ -170,12 +215,35 @@ class LocationSourceRuntime @Inject internal constructor(
 		}
 	}
 
+	override suspend fun shutdownIfOwned(
+		claim: SourceRuntimeClaim,
+		cutoff: SessionCutoff,
+	): OwnedSourceShutdown {
+		require(claim.source == source)
+		return lifecycleMutex.withLock {
+			if (ownerClaim != claim) return@withLock OwnedSourceShutdown.NotOwned
+			val provider = registration?.providerKey()
+			if (isAcceptingCallbacks() || hasUnretiredCallbackLane()) {
+				return@withLock shutdownLocked(cutoff, RETIRE_REASON_SESSION_STOP).toOwnedShutdown()
+			}
+			val retirementComplete = retryOwnedRetirementLocked()
+			val acknowledgement = terminalStopAck ?: retainedRetirementAck
+			if (!retirementComplete) {
+				OwnedSourceShutdown.Incomplete(provider, acknowledgement)
+			} else {
+				acknowledgement?.toOwnedShutdown()
+					?: OwnedSourceShutdown.Released(provider, stopAck = null)
+			}
+		}
+	}
+
 	/**
 	 * Refreshes callback attribution without replacing unchanged Android provider work. The callback
 	 * context swap shares [callbackLock] with callback entry, so already queued batches retain their
 	 * old immutable authorization/config/sink while later callbacks capture the refreshed vector.
 	 */
 	private suspend fun refreshCompatibleLocked(
+		claim: SourceRuntimeClaim?,
 		plan: LocationPlan,
 		sink: SourceEventSink,
 	): SourceApplyResult? {
@@ -230,6 +298,9 @@ class LocationSourceRuntime @Inject internal constructor(
 			}
 		}
 		if (!switched) return null
+		// Same-pair authorization refresh is still a new lifecycle attempt. Transfer shutdown
+		// authority only after the refreshed immutable callback context has committed.
+		ownerClaim = claim
 		val applyStatus = if (application.status == LocationPlanApplicationStatus.DEGRADED) {
 			SourceApplyStatus.DEGRADED
 		} else {
@@ -249,7 +320,11 @@ class LocationSourceRuntime @Inject internal constructor(
 		}
 	}
 
-	private suspend fun startLocked(plan: LocationPlan, sink: SourceEventSink): SourceStartResult {
+	private suspend fun startLocked(
+		claim: SourceRuntimeClaim?,
+		plan: LocationPlan,
+		sink: SourceEventSink,
+	): SourceStartResult {
 		terminalStopAck = null
 		if (!plan.enabled) return SourceStartResult.Started(
 			appliedState(source, plan.revision, null, SourceApplyStatus.APPLIED, SystemClock.elapsedRealtimeNanos()),
@@ -299,6 +374,9 @@ class LocationSourceRuntime @Inject internal constructor(
 		cutoffElapsedNanos = null
 		metrics = RuntimeAdmissionMetrics()
 		callbackOfferFailureCoverage = LocationCallbackFailureCoverage()
+		// Provider start is apply-then-report: bind the explicit attempt before the call so a
+		// throwing or partially failed publication remains exactly claim-addressable.
+		ownerClaim = claim
 		val startOutcome = try {
 			backend.start(effectivePlan) { locations -> onLocationBatch(nextCallbackToken, locations) }
 		} catch (cancelled: CancellationException) {
@@ -527,7 +605,7 @@ class LocationSourceRuntime @Inject internal constructor(
 					SourceStopStatus.PROVIDER_FAILED
 				else -> SourceStopStatus.COMPLETE
 			},
-		)
+		).withSessionMembership(ownerClaim)
 		if (retirement.durability == LocationRetirementDurability.COMPLETE) {
 			if (actorSettledAfterCancellation) {
 				clearActiveState()
@@ -566,6 +644,9 @@ class LocationSourceRuntime @Inject internal constructor(
 	}
 
 	private fun isAcceptingCallbacks(): Boolean = synchronized(callbackLock) { acceptingCallbacks }
+
+	/** A compatible-refresh failure may fence entry before the still-live actor has been retired. */
+	private fun hasUnretiredCallbackLane(): Boolean = actor != null && retainedRetirementActor == null
 
 	/**
 	 * Retries retirement for the exact registration/backend pair retained by this runtime. Provider
@@ -931,6 +1012,7 @@ class LocationSourceRuntime @Inject internal constructor(
 		cutoffElapsedNanos = null
 		currentPlan = null
 		currentSink = null
+		ownerClaim = null
 	}
 
 	private fun unavailableAck(cutoff: SessionCutoff?): SourceStopAck {
@@ -951,7 +1033,7 @@ class LocationSourceRuntime @Inject internal constructor(
 			ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
 			true,
 			if (cutoff == null) SourceStopStatus.COMPLETE else SourceStopStatus.PROVIDER_FAILED,
-		)
+		).withSessionMembership(ownerClaim)
 	}
 
 	private companion object {

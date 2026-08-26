@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 28,
-    "identityHash": "edfd68f29c155964329ce819a01aa56f",
+    "identityHash": "5893b85a959edb7c388a42c68de086b8",
     "entities": [
       {
         "tableName": "activity",
@@ -3233,7 +3233,7 @@
       },
       {
         "tableName": "logical_tracking_session",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`logical_tracking_id` TEXT NOT NULL, `state` TEXT NOT NULL, `lifecycle_revision` INTEGER NOT NULL, `desired_plan_revision` INTEGER NOT NULL, `rollout_revision` INTEGER NOT NULL, `start_origin` TEXT NOT NULL, `clock_domain_id` TEXT NOT NULL, `started_at_ms` INTEGER NOT NULL, `started_elapsed_nanos` INTEGER NOT NULL, `cutoff_at_ms` INTEGER, `cutoff_elapsed_nanos` INTEGER, `completed_at_ms` INTEGER, `final_admission_ordinal` INTEGER, `failure_code` TEXT, `session_mode` TEXT NOT NULL DEFAULT 'LEGACY_UNKNOWN', `current_manifest_revision` INTEGER, `current_intent_revision` INTEGER, `lifecycle_lease_generation` INTEGER NOT NULL DEFAULT 0, `lifecycle_boot_id` TEXT, `automation_epoch` INTEGER, PRIMARY KEY(`logical_tracking_id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`logical_tracking_id` TEXT NOT NULL, `state` TEXT NOT NULL, `lifecycle_revision` INTEGER NOT NULL, `desired_plan_revision` INTEGER NOT NULL, `rollout_revision` INTEGER NOT NULL, `start_origin` TEXT NOT NULL, `clock_domain_id` TEXT NOT NULL, `started_at_ms` INTEGER NOT NULL, `started_elapsed_nanos` INTEGER NOT NULL, `cutoff_at_ms` INTEGER, `cutoff_elapsed_nanos` INTEGER, `completed_at_ms` INTEGER, `final_admission_ordinal` INTEGER, `failure_code` TEXT, `session_mode` TEXT NOT NULL DEFAULT 'LEGACY_UNKNOWN', `current_manifest_revision` INTEGER, `current_intent_revision` INTEGER, `current_service_run_id` TEXT, `lifecycle_lease_generation` INTEGER NOT NULL DEFAULT 0, `lifecycle_boot_id` TEXT, `automation_epoch` INTEGER, PRIMARY KEY(`logical_tracking_id`))",
         "fields": [
           {
             "fieldPath": "logicalTrackingId",
@@ -3330,6 +3330,11 @@
             "fieldPath": "currentIntentRevision",
             "columnName": "current_intent_revision",
             "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "currentServiceRunId",
+            "columnName": "current_service_run_id",
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "lifecycleLeaseGeneration",
@@ -3565,11 +3570,17 @@
       },
       {
         "tableName": "source_session_completeness",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`logical_tracking_id` TEXT NOT NULL, `source_kind` INTEGER NOT NULL, `source_instance_id` TEXT NOT NULL, `registration_generation` INTEGER NOT NULL, `last_admission_ordinal` INTEGER, `last_source_sequence` INTEGER, `app_drain_complete` INTEGER NOT NULL, `provider_coverage` TEXT NOT NULL, `stop_status` TEXT NOT NULL, `unresolved_sequence_start` INTEGER, `unresolved_sequence_end` INTEGER, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`logical_tracking_id`, `source_kind`, `source_instance_id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`logical_tracking_id` TEXT NOT NULL, `service_run_id` TEXT NOT NULL, `source_kind` INTEGER NOT NULL, `source_instance_id` TEXT NOT NULL, `registration_generation` INTEGER NOT NULL, `last_admission_ordinal` INTEGER, `last_source_sequence` INTEGER, `app_drain_complete` INTEGER NOT NULL, `provider_coverage` TEXT NOT NULL, `stop_status` TEXT NOT NULL, `unresolved_sequence_start` INTEGER, `unresolved_sequence_end` INTEGER, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`logical_tracking_id`, `service_run_id`, `source_kind`, `source_instance_id`, `registration_generation`))",
         "fields": [
           {
             "fieldPath": "logicalTrackingId",
             "columnName": "logical_tracking_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "serviceRunId",
+            "columnName": "service_run_id",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -3640,14 +3651,16 @@
           "autoGenerate": false,
           "columnNames": [
             "logical_tracking_id",
+            "service_run_id",
             "source_kind",
-            "source_instance_id"
+            "source_instance_id",
+            "registration_generation"
           ]
         }
       },
       {
         "tableName": "session_manifest_version",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`logical_tracking_id` TEXT NOT NULL, `manifest_revision` INTEGER NOT NULL, `session_mode` TEXT NOT NULL, `source_policy_revision` INTEGER NOT NULL, `acquisition_plan_revision` INTEGER NOT NULL, `rollout_revision` INTEGER NOT NULL, `start_origin` TEXT NOT NULL, `effective_boot_id` TEXT NOT NULL, `effective_elapsed_realtime_nanos` INTEGER NOT NULL, `effective_wall_time_ms` INTEGER NOT NULL, `zone_id` TEXT NOT NULL, `automation_epoch` INTEGER, `change_reason` TEXT NOT NULL, `manifest_checksum` TEXT NOT NULL, PRIMARY KEY(`logical_tracking_id`, `manifest_revision`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`logical_tracking_id` TEXT NOT NULL, `manifest_revision` INTEGER NOT NULL, `service_run_id` TEXT NOT NULL, `session_mode` TEXT NOT NULL, `source_policy_revision` INTEGER NOT NULL, `acquisition_plan_revision` INTEGER NOT NULL, `rollout_revision` INTEGER NOT NULL, `start_origin` TEXT NOT NULL, `effective_boot_id` TEXT NOT NULL, `effective_elapsed_realtime_nanos` INTEGER NOT NULL, `effective_wall_time_ms` INTEGER NOT NULL, `zone_id` TEXT NOT NULL, `automation_epoch` INTEGER, `change_reason` TEXT NOT NULL, `manifest_checksum` TEXT NOT NULL, PRIMARY KEY(`logical_tracking_id`, `manifest_revision`))",
         "fields": [
           {
             "fieldPath": "logicalTrackingId",
@@ -3659,6 +3672,12 @@
             "fieldPath": "manifestRevision",
             "columnName": "manifest_revision",
             "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "serviceRunId",
+            "columnName": "service_run_id",
+            "affinity": "TEXT",
             "notNull": true
           },
           {
@@ -3759,12 +3778,22 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_session_manifest_policy` ON `${TABLE_NAME}` (`source_policy_revision`)"
+          },
+          {
+            "name": "idx_session_manifest_service_run",
+            "unique": true,
+            "columnNames": [
+              "service_run_id",
+              "manifest_revision"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_session_manifest_service_run` ON `${TABLE_NAME}` (`service_run_id`, `manifest_revision`)"
           }
         ]
       },
       {
         "tableName": "session_manifest_source",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`logical_tracking_id` TEXT NOT NULL, `manifest_revision` INTEGER NOT NULL, `source_kind` INTEGER NOT NULL, `purpose` TEXT NOT NULL, `consent_epoch` INTEGER NOT NULL, `persistence_eligible` INTEGER NOT NULL, `qos_code` INTEGER NOT NULL, PRIMARY KEY(`logical_tracking_id`, `manifest_revision`, `source_kind`, `purpose`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`logical_tracking_id` TEXT NOT NULL, `manifest_revision` INTEGER NOT NULL, `source_kind` INTEGER NOT NULL, `purpose` TEXT NOT NULL, `consent_epoch` INTEGER NOT NULL, `persistence_eligible` INTEGER NOT NULL, `qos_code` INTEGER NOT NULL, `output_destination` TEXT, `writer_owner` TEXT, `writer_owner_generation` INTEGER, `writer_projection_id` TEXT, `writer_projection_version` INTEGER, `writer_binding_generation` INTEGER, PRIMARY KEY(`logical_tracking_id`, `manifest_revision`, `source_kind`, `purpose`))",
         "fields": [
           {
             "fieldPath": "logicalTrackingId",
@@ -3807,6 +3836,36 @@
             "columnName": "qos_code",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "outputDestination",
+            "columnName": "output_destination",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "writerOwner",
+            "columnName": "writer_owner",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "writerOwnerGeneration",
+            "columnName": "writer_owner_generation",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "writerProjectionId",
+            "columnName": "writer_projection_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "writerProjectionVersion",
+            "columnName": "writer_projection_version",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "writerBindingGeneration",
+            "columnName": "writer_binding_generation",
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -7473,7 +7532,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'edfd68f29c155964329ce819a01aa56f')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '5893b85a959edb7c388a42c68de086b8')"
     ]
   }
 }

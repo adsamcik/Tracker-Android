@@ -182,6 +182,137 @@ class StepSourceRuntimeRetirementTest {
 	}
 
 	@Test
+	fun `disabled reconfigure atomically receipts and replays the retired session generation`() = runTest {
+		val fixture = fixture(scope = this)
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(fixture.plan, fixture.sink))
+		val disabled = fixture.plan.copy(revision = 2L, enabled = false)
+
+		val first = assertIs<SourceApplyResult.Applied>(fixture.runtime.reconfigure(disabled, fixture.sink))
+		val retry = assertIs<SourceApplyResult.Applied>(fixture.runtime.reconfigure(disabled, fixture.sink))
+
+		assertEquals("steps", first.stopAck?.logicalTrackingId)
+		assertEquals("run-1", first.stopAck?.serviceRunId)
+		assertEquals(first.stopAck, retry.stopAck)
+		coVerify(exactly = 1) {
+			fixture.repository.saveRuntimeState(
+				any(), any(), any(), any(), any(), any(), any(),
+				match { completeness -> completeness?.serviceRunId == "run-1" },
+			)
+		}
+	}
+
+	@Test
+	fun `replacement generation quiesce cannot replay the retired acknowledgement`() = runTest {
+		val replacement = plan(2L).copy(maximumReportLatencyMs = 1_000L)
+		val fixture = fixture(
+			scope = this,
+			registrations = listOf(
+				registration(plan(1L), authorizationRevision = 1L, generation = 1L),
+				registration(replacement, authorizationRevision = 2L, generation = 2L),
+			),
+		)
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(fixture.plan, fixture.sink))
+
+		val replaced = assertIs<SourceApplyResult.Applied>(
+			fixture.runtime.reconfigure(replacement, fixture.sink),
+		)
+		val stopped = fixture.runtime.quiesce(sessionCutoff(SystemClock.elapsedRealtimeNanos()))
+
+		assertEquals(1L, replaced.stopAck?.registrationGeneration)
+		assertEquals(2L, stopped.registrationGeneration)
+		assertEquals(SourceStopStatus.COMPLETE, stopped.status)
+		assertEquals(2, fixture.removedListeners.size)
+		assertSame(fixture.listeners[0], fixture.removedListeners[0])
+		assertSame(fixture.listeners[1], fixture.removedListeners[1])
+		coVerify(exactly = 1) {
+			fixture.repository.saveRuntimeState(
+				match { it.state.registrationGeneration == 1L },
+				any(), any(), any(), any(), any(), any(),
+				match { completeness -> completeness?.registrationGeneration == 1L },
+			)
+		}
+		coVerify(exactly = 1) {
+			fixture.repository.saveRuntimeState(
+				match { it.state.registrationGeneration == 2L },
+				any(), any(), any(), any(), any(), any(),
+				match { completeness -> completeness?.registrationGeneration == 2L },
+			)
+		}
+	}
+
+	@Test
+	fun `compatible successor claim fences stale shutdown without replacing the listener`() = runTest {
+		val initialPlan = plan(1L)
+		val refreshedPlan = plan(2L)
+		val initial = registration(initialPlan, authorizationRevision = 1L, generation = 9L)
+		val refreshed = registration(
+			refreshedPlan,
+			authorizationRevision = 2L,
+			generation = 9L,
+		).copy(requiresProviderAcceptance = false)
+		val fixture = fixture(this, registrations = listOf(initial))
+		coEvery {
+			fixture.repository.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
+		} returns refreshed
+		val predecessor = runtimeClaim("steps-predecessor")
+		val successor = runtimeClaim("steps-successor")
+
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(predecessor, initialPlan, fixture.sink))
+		assertIs<SourceApplyResult.Applied>(fixture.runtime.reconfigure(successor, refreshedPlan, fixture.sink))
+		assertEquals(
+			OwnedSourceShutdown.NotOwned,
+			fixture.runtime.shutdownIfOwned(predecessor, sessionCutoff(Long.MAX_VALUE)),
+		)
+		verify(exactly = 0) { fixture.sensorManager.unregisterListener(any<SensorEventListener>()) }
+
+		val released = assertIs<OwnedSourceShutdown.Released>(
+			fixture.runtime.shutdownIfOwned(successor, sessionCutoff(Long.MAX_VALUE)),
+		)
+		assertEquals(9L, released.provider?.registrationGeneration)
+		verify(exactly = 1) { fixture.sensorManager.unregisterListener(any<SensorEventListener>()) }
+	}
+
+	@Test
+	fun `failed successor publication cannot replay predecessor terminal acknowledgement`() = runTest {
+		val initialPlan = plan(1L)
+		val replacementPlan = plan(2L).copy(maximumReportLatencyMs = 1_000L)
+		val checkpointFailure = IllegalStateException("successor checkpoint unavailable")
+		val unregisterOutcomes = ArrayDeque<Any>(
+			listOf(Unit, IllegalStateException("successor removal unavailable"), Unit),
+		)
+		val fixture = fixture(
+			scope = this,
+			registrations = listOf(
+				registration(initialPlan, authorizationRevision = 1L, generation = 1L),
+				registration(replacementPlan, authorizationRevision = 2L, generation = 2L),
+			),
+			unregisterOutcomes = unregisterOutcomes,
+			checkpointOutcomes = ArrayDeque(listOf(Unit, Unit, checkpointFailure)),
+		)
+		val predecessor = runtimeClaim("steps-predecessor")
+		val successor = runtimeClaim("steps-successor")
+
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(predecessor, initialPlan, fixture.sink))
+		val replacement = assertIs<SourceApplyResult.Failed>(
+			fixture.runtime.reconfigure(successor, replacementPlan, fixture.sink),
+		)
+		assertEquals(1L, replacement.stopAck?.registrationGeneration)
+		assertEquals(
+			OwnedSourceShutdown.NotOwned,
+			fixture.runtime.shutdownIfOwned(predecessor, sessionCutoff(Long.MAX_VALUE)),
+		)
+
+		val released = assertIs<OwnedSourceShutdown.Released>(
+			fixture.runtime.shutdownIfOwned(successor, sessionCutoff(Long.MAX_VALUE)),
+		)
+		assertEquals(2L, released.provider?.registrationGeneration)
+		assertEquals(3, fixture.removedListeners.size)
+		assertSame(fixture.listeners[0], fixture.removedListeners[0])
+		assertSame(fixture.listeners[1], fixture.removedListeners[1])
+		assertSame(fixture.listeners[1], fixture.removedListeners[2])
+	}
+
+	@Test
 	fun `terminal checkpoint failure retries the original terminal intent and ack`() = runTest {
 		val failure = IllegalStateException("terminal checkpoint unavailable")
 		val fixture = fixture(
@@ -497,6 +628,7 @@ class StepSourceRuntimeRetirementTest {
 		scope: kotlinx.coroutines.CoroutineScope,
 		registrations: List<SourceRegistration> = listOf(registration(plan(1L), 1L)),
 		unregisterFailures: ArrayDeque<Throwable> = ArrayDeque(),
+		unregisterOutcomes: ArrayDeque<Any> = ArrayDeque(),
 		beginOutcomes: ArrayDeque<Any> = ArrayDeque(),
 		completionOutcomes: ArrayDeque<Any> = ArrayDeque(),
 		registerFailure: Throwable? = null,
@@ -534,14 +666,17 @@ class StepSourceRuntimeRetirementTest {
 		every { sensorManager.unregisterListener(any<SensorEventListener>()) } answers {
 			removedListeners += firstArg<SensorEventListener>()
 			events += "provider-stop"
-			unregisterFailures.removeFirstOrNull()?.let { throw it }
+			when (val outcome = unregisterOutcomes.removeFirstOrNull()) {
+				is Throwable -> throw outcome
+				null -> unregisterFailures.removeFirstOrNull()?.let { throw it }
+			}
 		}
 		var beginIndex = 0
 		coEvery { repository.begin(any(), any(), any(), any(), any()) } answers {
 			registrations[beginIndex++.coerceAtMost(registrations.lastIndex)]
 		}
 		coEvery { repository.loadRuntimeState(any()) } returns null
-		coEvery { repository.saveRuntimeState(any(), any(), any(), any(), any(), any(), any()) } answers {
+		coEvery { repository.saveRuntimeState(any(), any(), any(), any(), any(), any(), any(), any()) } answers {
 			when (val outcome = checkpointOutcomes.removeFirstOrNull()) {
 				is Throwable -> throw outcome
 				else -> Unit
@@ -686,5 +821,14 @@ class StepSourceRuntimeRetirementTest {
 		elapsedRealtimeNanos = elapsedRealtimeNanos,
 		wallTimeMs = System.currentTimeMillis(),
 		deadlineElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos() + 1_000_000_000L,
+	)
+
+	private fun runtimeClaim(actionId: String) = SourceRuntimeClaim(
+		source = SourceKind.STEPS,
+		actionId = actionId,
+		attemptCount = 1,
+		leaseGeneration = 1L,
+		logicalTrackingId = "steps",
+		serviceRunId = "run-1",
 	)
 }

@@ -206,6 +206,59 @@ class ExplicitStopSourceSessionFinalizerTest {
 			SessionLifecycleState.ACTIVE.name
 	}
 
+	@Test
+	fun `exact stop fails closed when an older incomplete run is still orphaned`() = runTest {
+		insertActiveSession(LOGICAL_ID, clockDomainId = "boot-1")
+		insertRun(LOGICAL_ID, serviceRunId = "run:older", startedAtMs = 1_000L)
+		insertRun(LOGICAL_ID, serviceRunId = "run:current", startedAtMs = 2_000L)
+
+		finalizer().finalize(
+			logicalTrackingId = LOGICAL_ID,
+			expectedServiceRunId = "run:current",
+			requestedAtMs = 5_000L,
+			requestedBootId = "boot-1",
+			requestedElapsedRealtimeNanos = 5_000_000L,
+			reconciliationAtMs = 6_000L,
+			reconciliationElapsedRealtimeNanos = 6_000_000L,
+			reconciliationBootId = "boot-1",
+			reason = "EXPLICIT_REQUEST",
+		) shouldBe ExplicitStopSourceSessionFinalization.SESSION_MISMATCH
+
+		val session = database.sourceSessionDao().session(LOGICAL_ID)
+		session?.state shouldBe SessionLifecycleState.ACTIVE.name
+		session?.currentServiceRunId shouldBe "run:current"
+		database.sourceSessionDao().serviceRun("run:older")?.state shouldBe
+			SessionLifecycleState.ACTIVE.name
+		database.sourceSessionDao().serviceRun("run:current")?.state shouldBe
+			SessionLifecycleState.ACTIVE.name
+	}
+
+	@Test
+	fun `exact stop supersedes an action awaiting foreground`() = runTest {
+		insertActiveSession(LOGICAL_ID, clockDomainId = "boot-1")
+		insertRun(LOGICAL_ID)
+		insertAction(
+			logicalTrackingId = LOGICAL_ID,
+			bootId = "boot-1",
+			status = LifecycleActionStatus.AWAITING_FOREGROUND,
+		)
+
+		finalizer().finalize(
+			logicalTrackingId = LOGICAL_ID,
+			expectedServiceRunId = runId(LOGICAL_ID),
+			requestedAtMs = 5_000L,
+			requestedBootId = "boot-1",
+			requestedElapsedRealtimeNanos = 5_000_000L,
+			reconciliationAtMs = 6_000L,
+			reconciliationElapsedRealtimeNanos = 6_000_000L,
+			reconciliationBootId = "boot-1",
+			reason = "EXPLICIT_REQUEST",
+		) shouldBe ExplicitStopSourceSessionFinalization.FINALIZED
+
+		database.sourceSessionDao().lifecycleAction(actionId(LOGICAL_ID))?.status shouldBe
+			LifecycleActionStatus.SUPERSEDED.name
+	}
+
 	private fun finalizer() = ExplicitStopSourceSessionFinalizer(Provider { database })
 
 	private suspend fun seedAutomationEpoch() {
@@ -264,9 +317,18 @@ class ExplicitStopSourceSessionFinalizerTest {
 				bootId = "old-boot",
 			),
 		)
+		val session = requireNotNull(database.sourceSessionDao().session(logicalTrackingId))
+		database.sourceSessionDao().updateSession(session.copy(currentServiceRunId = serviceRunId)) shouldBe 1
 	}
 
-	private suspend fun insertPendingAction(logicalTrackingId: String, bootId: String) {
+	private suspend fun insertPendingAction(logicalTrackingId: String, bootId: String) =
+		insertAction(logicalTrackingId, bootId, LifecycleActionStatus.PENDING)
+
+	private suspend fun insertAction(
+		logicalTrackingId: String,
+		bootId: String,
+		status: LifecycleActionStatus,
+	) {
 		database.sourceSessionDao().insertLifecycleActions(
 			listOf(
 				LifecycleDesiredActionEntity(
@@ -286,7 +348,7 @@ class ExplicitStopSourceSessionFinalizerTest {
 					leaseGeneration = 1L,
 					requestedAtMs = 1_000L,
 					requestedElapsedRealtimeNanos = 1_000L,
-					status = LifecycleActionStatus.PENDING.name,
+					status = status.name,
 					attemptCount = 0,
 					acknowledgedAtMs = null,
 					acknowledgedElapsedRealtimeNanos = null,

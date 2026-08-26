@@ -56,8 +56,9 @@ class ExplicitStopSourceSessionFinalizer @Inject constructor(
 					ExplicitStopSourceSessionFinalization.SESSION_MISMATCH
 				}
 			}
-			val currentRun = dao.incompleteServiceRuns(logicalTrackingId).lastOrNull()
-			if (currentRun?.serviceRunId != expectedServiceRunId) {
+			val currentRun = dao.serviceRunAuthorityForFinalization(requested).exactSoleCurrentRun
+				?: return@withTransaction ExplicitStopSourceSessionFinalization.SESSION_MISMATCH
+			if (currentRun.serviceRunId != expectedServiceRunId) {
 				return@withTransaction ExplicitStopSourceSessionFinalization.SESSION_MISMATCH
 			}
 			database.rotateActivityAutomationEpochInTransaction(
@@ -84,7 +85,9 @@ class ExplicitStopSourceSessionFinalizer @Inject constructor(
 				wallTimeMs = reconciliationAtMs,
 			)
 			dao.lifecycleActions(logicalTrackingId)
-				.filter { action -> action.status in NONTERMINAL_ACTION_STATES }
+				.filter { action ->
+					action.serviceRunId == currentRun.serviceRunId && action.status in NONTERMINAL_ACTION_STATES
+				}
 				.forEach { action ->
 					check(
 						dao.updateLifecycleAction(
@@ -102,20 +105,18 @@ class ExplicitStopSourceSessionFinalizer @Inject constructor(
 						) == 1,
 					) { "Explicit-stop lifecycle action changed during finalization" }
 				}
-			dao.incompleteServiceRuns(logicalTrackingId).forEach { run ->
-				check(
-					dao.updateServiceRun(
-						run.copy(
+			check(
+				dao.updateServiceRun(
+					currentRun.copy(
 							state = SessionLifecycleState.FINALIZED.name,
-							completedAtMs = factualCompletedAtMs.coerceAtLeast(run.startedAtMs),
+							completedAtMs = factualCompletedAtMs.coerceAtLeast(currentRun.startedAtMs),
 							completionReason = reason,
 							runtimeAcknowledgement = LifecycleActionStatus.TERMINAL_FAILURE.name,
 							runtimeFailureCode = reason,
-							runRevision = run.runRevision + 1L,
+							runRevision = currentRun.runRevision + 1L,
 						),
-					) == 1,
-				) { "Explicit-stop service run changed during finalization" }
-			}
+				) == 1,
+			) { "Explicit-stop service run changed during finalization" }
 			check(
 				dao.updateSession(
 					active.copy(
@@ -125,6 +126,7 @@ class ExplicitStopSourceSessionFinalizer @Inject constructor(
 						cutoffElapsedNanos =
 							active.cutoffElapsedNanos ?: factualCutoffElapsedNanos,
 						completedAtMs = factualCompletedAtMs,
+						currentServiceRunId = null,
 					),
 				) == 1,
 			) { "Explicit-stop logical session changed during finalization" }
@@ -136,7 +138,9 @@ class ExplicitStopSourceSessionFinalizer @Inject constructor(
 		val NONTERMINAL_ACTION_STATES = setOf(
 			LifecycleActionStatus.PENDING.name,
 			LifecycleActionStatus.APPLYING.name,
+			LifecycleActionStatus.CLEANUP_REQUIRED.name,
 			LifecycleActionStatus.TEMPORARILY_ILLEGAL.name,
+			LifecycleActionStatus.AWAITING_FOREGROUND.name,
 		)
 		val TERMINAL_SESSION_STATES = setOf(
 			SessionLifecycleState.FINALIZED.name,

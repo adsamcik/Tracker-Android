@@ -13,6 +13,9 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
+import com.adsamcik.tracker.shared.base.database.data.LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID
 import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
@@ -51,6 +54,7 @@ import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationOutboxDi
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjection
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.source.runtime.ProviderCoverage
+import com.adsamcik.tracker.tracker.source.runtime.OwnedSourceShutdown
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.ProviderFlushOutcome
 import com.adsamcik.tracker.tracker.source.runtime.RegistrationRemovalOutcome
@@ -59,7 +63,8 @@ import com.adsamcik.tracker.tracker.source.runtime.SourceApplyResult
 import com.adsamcik.tracker.tracker.source.runtime.SourceAdmissionHandoff
 import com.adsamcik.tracker.tracker.source.runtime.SourceCapabilities
 import com.adsamcik.tracker.tracker.source.runtime.SourceEventSink
-import com.adsamcik.tracker.tracker.source.runtime.SourceRuntime
+import com.adsamcik.tracker.tracker.source.runtime.ClaimedSourceRuntime
+import com.adsamcik.tracker.tracker.source.runtime.SourceRuntimeClaim
 import com.adsamcik.tracker.tracker.source.runtime.SourceRuntimeRegistry
 import com.adsamcik.tracker.tracker.source.runtime.SourceStartResult
 import com.adsamcik.tracker.tracker.source.runtime.SourceStopAck
@@ -91,6 +96,7 @@ import javax.inject.Provider
 class AuthoritativeSessionCoordinatorTest {
 	private lateinit var database: AppDatabase
 	private lateinit var runtime: FakeStepsRuntime
+	private lateinit var locationRuntime: FakeLocationRuntime
 	private lateinit var subject: AuthoritativeSessionCoordinator
 	private lateinit var policy: RoomSourcePolicyRepository
 	private lateinit var activityAutomationDrainSignal: RecordingActivityAutomationDrainSignal
@@ -107,8 +113,18 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 		runBlocking {
 			policy.bootstrapFromLegacy(TrackingParamsState(legacySettingsMigrationCompleted = true))
+			database.sourceDestinationOwnerDao().insertIfAbsent(
+				SourceDestinationOwnerEntity(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+					destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+					owner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+					ownerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+					updatedAtMs = 0L,
+				),
+			)
 		}
 		runtime = FakeStepsRuntime(database)
+		locationRuntime = FakeLocationRuntime()
 		val ingress = mockk<DurableSourceIngress>()
 		coEvery { ingress.admit(any()) } returns
 			AdmissionResult.Admitted(SourceEventId("test-admitted-event"), 1L)
@@ -128,7 +144,7 @@ class AuthoritativeSessionCoordinatorTest {
 		subject = AuthoritativeSessionCoordinator(
 			database,
 			RoomSourcePlanStore(database, SourcePlanCodec()),
-			SourceRuntimeRegistry(setOf(runtime)),
+			SourceRuntimeRegistry(setOf(runtime, locationRuntime)),
 			DurableSourceEventSinkFactory(ingress),
 			TrackingCoordinator(database, ingress, dispatcher),
 			ActivityAutomaticStartActionRepository(database, ReadyTrackingStartupGate),
@@ -150,6 +166,14 @@ class AuthoritativeSessionCoordinatorTest {
 		runtime.intentDesiredStateObservedAtStart shouldBe LifecycleDesiredState.ACTIVE.name
 		runtime.actionStatusObservedAtStart shouldBe LifecycleActionStatus.APPLYING.name
 		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe SessionLifecycleState.ACTIVE.name
+		database.sourceSessionDao().session(started.logicalTrackingId)?.currentServiceRunId shouldBe started.serviceRunId
+		val manifest = requireNotNull(database.sourceSessionDao().manifest(started.logicalTrackingId, 1L))
+		manifest.serviceRunId shouldBe started.serviceRunId
+		val stepsBinding = database.sourceSessionDao().manifestSources(started.logicalTrackingId, 1L).single()
+		stepsBinding.outputDestination shouldBe SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS
+		stepsBinding.writerOwner shouldBe SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL
+		stepsBinding.writerOwnerGeneration shouldBe SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
+		stepsBinding.writerProjectionId shouldBe null
 		database.sourcePlanStateDao().latestRevision()?.status shouldBe DesiredPlanStatus.EFFECTIVE.name
 		val activeDemand = database.sourceBrokerDao()
 			.currentDemands("session:${started.logicalTrackingId}")
@@ -165,13 +189,381 @@ class AuthoritativeSessionCoordinatorTest {
 
 		stopped.finalAdmissionOrdinal shouldBe 0L
 		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe SessionLifecycleState.FINALIZED.name
+		database.sourceSessionDao().session(started.logicalTrackingId)?.currentServiceRunId shouldBe null
 		database.sourceSessionDao().lifecycleIntents(started.logicalTrackingId).last().desiredState shouldBe
 			LifecycleDesiredState.FINALIZED.name
-		database.sourceSessionDao().completeness(started.logicalTrackingId).single().appDrainComplete shouldBe true
+		database.sourceSessionDao().completenessForServiceRun(started.logicalTrackingId, started.serviceRunId)
+			.single { completeness -> completeness.sourceKind == SourceKind.STEPS.stableCode }
+			.appDrainComplete shouldBe true
 		database.sourceBrokerDao().currentDemands("session:${started.logicalTrackingId}") shouldBe emptyList()
 		database.sourceBrokerDao().demandHistory("session:${started.logicalTrackingId}")
 			.single().status shouldBe SourceDemandEntity.STATUS_RETIRED
 		runtime.closed shouldBe true
+	}
+
+	@Test
+	fun `failed automatic provider attempt remains nonterminal until its exact cleanup obligation is retired`() = runTest {
+		runtime.startReturnsRetryableFailure = true
+		runtime.stopStatus = SourceStopStatus.PROVIDER_FAILED
+		runtime.registrationRemovalOutcome = RegistrationRemovalOutcome.FAILED
+		runtime.stopProviderFlushOutcome = ProviderFlushOutcome.FAILED
+		runtime.retainProviderOnIncompleteShutdown = true
+		runtime.closeFailure = IllegalStateException("provider still resident")
+		val trigger = automaticTrigger()
+		seedAutomaticStartAction(trigger)
+		val request = startRequest().copy(
+			logicalTrackingId = "cleanup-required-logical",
+			serviceRunId = "cleanup-required-run",
+			origin = SessionStartOrigin.AUTOMATIC_BACKGROUND_START,
+			controlDependencies = setOf(SourceKind.ACTIVITY),
+			automaticTrigger = trigger,
+		)
+
+		val failed = subject.start(request).shouldBeInstanceOf<SessionStartResult.Failed>()
+
+		failed.code shouldBe SOURCE_RUNTIME_CLEANUP_PENDING
+		val startAction = database.sourceSessionDao().lifecycleActions(failed.logicalTrackingId)
+			.single { action -> action.desiredState == "STARTED" }
+		startAction.status shouldBe LifecycleActionStatus.CLEANUP_REQUIRED.name
+		startAction.attemptCount shouldBe 1
+		startAction.retryTrigger shouldBe "RUNTIME_CLEANUP_RETRY"
+		database.sourceSessionDao().session(failed.logicalTrackingId)?.state shouldBe
+			SessionLifecycleState.STARTING.name
+		database.sourceSessionDao().serviceRun(failed.serviceRunId)?.state shouldBe
+			SessionLifecycleState.STARTING.name
+		runtime.isActive shouldBe true
+		runtime.shutdownClaims.single().attemptCount shouldBe 1
+
+		subject.start(
+			request.copy(serviceRunId = "replacement-run"),
+		).shouldBeInstanceOf<SessionStartResult.AlreadyActive>()
+		runtime.startCount shouldBe 1
+		database.sourceSessionDao().lifecycleAction(startAction.actionId)?.attemptCount shouldBe 1
+		database.sourceSessionDao().session(failed.logicalTrackingId)?.let { session ->
+			session.state shouldBe SessionLifecycleState.STARTING.name
+			session.currentServiceRunId shouldBe failed.serviceRunId
+		}
+		database.sourceSessionDao().serviceRun(failed.serviceRunId)?.completedAtMs shouldBe null
+		database.sourceSessionDao().serviceRun("replacement-run") shouldBe null
+
+		runtime.stopStatus = SourceStopStatus.COMPLETE
+		runtime.registrationRemovalOutcome = RegistrationRemovalOutcome.REMOVED
+		runtime.stopProviderFlushOutcome = ProviderFlushOutcome.COMPLETE
+		runtime.closeFailure = null
+		subject.stop(
+			SessionStopRequest(
+				ownerToken = "cleanup-stop-owner",
+				reason = "failed-start-cleanup",
+				wallTimeMs = 2_000L,
+				elapsedRealtimeNanos = 2_000_000L,
+				clockDomainId = "boot-1",
+				perSourceTimeoutMs = 100L,
+			),
+		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+
+		runtime.isActive shouldBe false
+		database.sourceSessionDao().session(failed.logicalTrackingId)?.state shouldBe
+			SessionLifecycleState.FINALIZED.name
+		database.sourceSessionDao().lifecycleAction(startAction.actionId)?.status shouldBe
+			LifecycleActionStatus.SUPERSEDED.name
+	}
+
+	@Test
+	fun `failed provider cleanup rejects acknowledgement from another service run`() = runTest {
+		runtime.startReturnsRetryableFailure = true
+		runtime.acknowledgementLogicalTrackingId = "other-logical"
+		runtime.acknowledgementServiceRunId = "other-run"
+		val request = startRequest().copy(
+			logicalTrackingId = "membership-logical",
+			serviceRunId = "membership-run",
+		)
+
+		val failed = subject.start(request).shouldBeInstanceOf<SessionStartResult.Failed>()
+
+		failed.code shouldBe SOURCE_RUNTIME_CLEANUP_PENDING
+		database.sourceSessionDao().completenessForServiceRun(
+			failed.logicalTrackingId,
+			failed.serviceRunId,
+		) shouldBe emptyList()
+		database.sourceSessionDao().lifecycleActions(failed.logicalTrackingId)
+			.single { action -> action.desiredState == "STARTED" }
+			.status shouldBe LifecycleActionStatus.CLEANUP_REQUIRED.name
+	}
+
+	@Test
+	fun `stop without acknowledgement membership remains cleanup pending and cannot write completeness`() = runTest {
+		val started = subject.start(
+			startRequest().copy(logicalTrackingId = "missing-ack-membership", serviceRunId = "missing-ack-run"),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		runtime.omitAcknowledgementMembership = true
+
+		subject.stop(
+			SessionStopRequest(
+				"missing-ack-owner",
+				"manual",
+				2_000L,
+				2_000_000L,
+				"boot-1",
+				perSourceTimeoutMs = 100L,
+			),
+		).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+
+		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
+			SessionLifecycleState.STOPPING.name
+		database.sourceSessionDao().completenessForServiceRun(
+			started.logicalTrackingId,
+			started.serviceRunId,
+		) shouldBe emptyList()
+		database.sourceSessionDao().lifecycleActions(started.logicalTrackingId)
+			.last { action -> action.desiredState == "STOPPED" }
+			.status shouldBe LifecycleActionStatus.CLEANUP_REQUIRED.name
+	}
+
+	@Test
+	fun `suspend rejects provider acknowledgement from another service run`() = runTest {
+		val started = subject.start(
+			startRequest().copy(logicalTrackingId = "suspend-membership", serviceRunId = "suspend-run"),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		runtime.acknowledgementLogicalTrackingId = "other-logical"
+		runtime.acknowledgementServiceRunId = "other-run"
+
+		subject.suspendForRestart(
+			SessionSuspendRequest(
+				"suspend-membership-owner",
+				"ANDROID_RESTART",
+				2_000L,
+				2_000_000L,
+				"boot-1",
+				perSourceTimeoutMs = 100L,
+			),
+		).shouldBeInstanceOf<SessionSuspendResult.CleanupPending>()
+
+		database.sourceSessionDao().session(started.logicalTrackingId)?.currentServiceRunId shouldBe
+			started.serviceRunId
+		database.sourceSessionDao().completenessForServiceRun(
+			started.logicalTrackingId,
+			started.serviceRunId,
+		) shouldBe emptyList()
+		database.sourceSessionDao().lifecycleActions(started.logicalTrackingId)
+			.last { action -> action.desiredState == "STOPPED" }
+			.status shouldBe LifecycleActionStatus.CLEANUP_REQUIRED.name
+	}
+
+	@Test
+	fun `unobservable provider removal cannot finalize a stopping run`() = runTest {
+		val started = subject.start(
+			startRequest().copy(logicalTrackingId = "unobservable-stop", serviceRunId = "unobservable-run"),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		runtime.registrationRemovalOutcome = RegistrationRemovalOutcome.UNOBSERVABLE
+		runtime.retainProviderOnIncompleteShutdown = true
+
+		subject.stop(
+			SessionStopRequest(
+				"unobservable-owner",
+				"manual",
+				2_000L,
+				2_000_000L,
+				"boot-1",
+				perSourceTimeoutMs = 100L,
+			),
+		).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+
+		runtime.isActive shouldBe true
+		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
+			SessionLifecycleState.STOPPING.name
+		database.sourceSessionDao().lifecycleActions(started.logicalTrackingId)
+			.last { action -> action.desiredState == "STOPPED" }
+			.status shouldBe LifecycleActionStatus.CLEANUP_REQUIRED.name
+	}
+
+	@Test
+	fun `stopping a steps run leaves an unrelated location provider untouched`() = runTest {
+		locationRuntime.start(
+			SourceRuntimeClaim(
+				source = SourceKind.LOCATION,
+				actionId = "unrelated-location-action",
+				attemptCount = 1,
+				leaseGeneration = 1L,
+				logicalTrackingId = "unrelated-location-logical",
+				serviceRunId = "unrelated-location-run",
+			),
+			LocationPlan(
+				revision = 1L,
+				backend = LocationBackend.FUSED,
+				mode = LocationMode.BALANCED,
+				requestedIntervalMs = 2_000L,
+				minimumUpdateIntervalMs = 2_000L,
+				minimumDisplacementMeters = 10f,
+				maximumBatchDelayMs = 10_000L,
+				preciseLocationAvailable = true,
+			),
+			mockk(relaxed = true),
+		)
+		locationRuntime.failRetirement = true
+		subject.start(
+			startRequest().copy(logicalTrackingId = "steps-only-logical", serviceRunId = "steps-only-run"),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+
+		subject.stop(
+			SessionStopRequest(
+				"steps-only-owner",
+				"manual",
+				2_000L,
+				2_000_000L,
+				"boot-1",
+				perSourceTimeoutMs = 100L,
+			),
+		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+
+		locationRuntime.quiesceCount shouldBe 0
+		locationRuntime.closeCount shouldBe 0
+		locationRuntime.isActive shouldBe true
+	}
+
+	@Test
+	fun `stopping retry persists a new action generation before accepting improved completeness`() = runTest {
+		val eventCoordinator = mockk<TrackingCoordinator>()
+		coEvery { eventCoordinator.drainAvailable(any(), any()) } returnsMany listOf(
+			CoordinatorDrainResult.LeaseUnavailable,
+			CoordinatorDrainResult.Complete(0L, 0),
+		)
+		val ingress = mockk<DurableSourceIngress>(relaxed = true)
+		subject = AuthoritativeSessionCoordinator(
+			database,
+			RoomSourcePlanStore(database, SourcePlanCodec()),
+			SourceRuntimeRegistry(setOf(runtime, locationRuntime)),
+			DurableSourceEventSinkFactory(ingress),
+			eventCoordinator,
+			ActivityAutomaticStartActionRepository(database, ReadyTrackingStartupGate),
+			activityAutomationDrainSignal,
+			activityAutomationEpochAuthority,
+			rolloutStore = fixedEventRolloutStore(),
+		)
+		val started = subject.start(
+			startRequest().copy(logicalTrackingId = "retry-stop-logical", serviceRunId = "retry-stop-run"),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		runtime.stopStatus = SourceStopStatus.TIMED_OUT
+		runtime.registrationRemovalOutcome = RegistrationRemovalOutcome.FAILED
+
+		subject.stop(
+			SessionStopRequest("retry-stop-owner", "manual", 2_000L, 2_000_000L, "boot-1", perSourceTimeoutMs = 100L),
+		).shouldBeInstanceOf<SessionStopResult.DrainPending>()
+		runtime.stopStatus = SourceStopStatus.COMPLETE
+		runtime.registrationRemovalOutcome = RegistrationRemovalOutcome.REMOVED
+		subject.stop(
+			SessionStopRequest("retry-stop-owner", "manual", 2_500L, 2_500_000L, "boot-1", perSourceTimeoutMs = 100L),
+		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+
+		val stopActions = database.sourceSessionDao().lifecycleActions(started.logicalTrackingId)
+			.filter { action -> action.desiredState == "STOPPED" }
+		stopActions.size shouldBe 2
+		stopActions.map { action -> action.leaseGeneration }.distinct().size shouldBe 2
+		stopActions.first().status shouldBe LifecycleActionStatus.SUPERSEDED.name
+		stopActions.last().status shouldBe LifecycleActionStatus.STOP_ACCEPTED.name
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(started.serviceRunId))
+		run.runtimeAcknowledgement shouldBe LifecycleActionStatus.STOP_ACCEPTED.name
+		run.runtimeFailureCode shouldBe null
+		database.sourceSessionDao().completenessForServiceRun(started.logicalTrackingId, started.serviceRunId)
+			.single { completeness -> completeness.sourceKind == SourceKind.STEPS.stableCode }
+			.stopStatus shouldBe SourceStopStatus.COMPLETE.name
+	}
+
+	@Test
+	fun `shared manifest integrity detects run and writer provenance tampering`() = runTest {
+		val started = subject.start(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+		val manifest = database.sourceSessionDao().manifests(started.logicalTrackingId).single()
+		val sources = database.sourceSessionDao()
+			.manifestSources(started.logicalTrackingId, manifest.manifestRevision)
+
+		SessionManifestIntegrity.verify(manifest, sources) shouldBe true
+		SessionManifestIntegrity.verify(manifest.copy(serviceRunId = "tampered-run"), sources) shouldBe false
+		SessionManifestIntegrity.verify(
+			manifest,
+			sources.map { source -> source.copy(writerOwnerGeneration = source.writerOwnerGeneration?.plus(1L)) },
+		) shouldBe false
+		SessionManifestIntegrity.verify(manifest, emptyList()) shouldBe false
+		SessionManifestIntegrity.verify(manifest, sources + sources.single()) shouldBe false
+		SessionManifestIntegrity.verify(
+			manifest,
+			sources.map { source -> source.copy(logicalTrackingId = "foreign-logical") },
+		) shouldBe false
+		SessionManifestIntegrity.compute(manifest, sources.reversed()) shouldBe manifest.manifestChecksum
+	}
+
+	@Test
+	fun `prepared claim rejects raw binding tampering before delivery acceptance`() = runTest {
+		val prepared = prepareAndroidStart(
+			tokenValue = "tampered-claim-token",
+			commandGeneration = 16L,
+			logicalTrackingId = "tampered-claim-logical",
+			serviceRunId = "tampered-claim-run",
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_manifest_source SET qos_code = qos_code + 1 " +
+				"WHERE logical_tracking_id = ? AND manifest_revision = ?",
+			arrayOf<Any>(prepared.logicalTrackingId, prepared.manifestRevision),
+		)
+
+		subject.claimAndroidStart(
+			prepared.token,
+			16L,
+			"boot-1",
+			1_100_000L,
+			1_100L,
+		) shouldBe PreparedSessionClaimResult.Rejected("PREPARED_START_ROOM_ENVELOPE_STALE")
+		runtime.startCount shouldBe 0
+	}
+
+	@Test
+	fun `prepared apply rejects persisted writer provenance tampering before provider start`() = runTest {
+		val prepared = prepareAndroidStart(
+			tokenValue = "tampered-apply-token",
+			commandGeneration = 17L,
+			logicalTrackingId = "tampered-apply-logical",
+			serviceRunId = "tampered-apply-run",
+		)
+		subject.claimAndroidStart(
+			prepared.token,
+			17L,
+			"boot-1",
+			1_100_000L,
+			1_100L,
+		).shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>()
+		subject.markPreparedForegroundAccepted(
+			prepared.token,
+			17L,
+			"boot-1",
+			1_200_000L,
+			1_200L,
+		) shouldBe true
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_manifest_source SET writer_owner_generation = writer_owner_generation + 1 " +
+				"WHERE logical_tracking_id = ? AND manifest_revision = ?",
+			arrayOf<Any>(prepared.logicalTrackingId, prepared.manifestRevision),
+		)
+
+		subject.applyPreparedAndroidStart(
+			prepared.token,
+			17L,
+			"boot-1",
+			1_300_000L,
+			1_300L,
+		) shouldBe SessionStartResult.InvalidIntent("PREPARED_START_MANIFEST_INTEGRITY_FAILED")
+		runtime.startCount shouldBe 0
+	}
+
+	@Test
+	fun `reserved legacy completeness run id cannot be admitted as a live run`() = runTest {
+		subject.start(startRequest().copy(serviceRunId = LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID)) shouldBe
+			SessionStartResult.InvalidIntent("SERVICE_RUN_ID_RESERVED")
+	}
+
+	@Test
+	fun `blank service run id is rejected with a typed result before any durable row`() = runTest {
+		subject.start(startRequest().copy(serviceRunId = "   ")) shouldBe
+			SessionStartResult.InvalidIntent("SERVICE_RUN_ID_INVALID")
+		database.sourceSessionDao().incompleteSessions() shouldBe emptyList()
+		runtime.startCount shouldBe 0
 	}
 
 	@Test
@@ -241,6 +633,194 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	fun `cancelled start after provider publication retires applying claim before finalization`() = runTest {
+		runtime.startFailureAfterSideEffect = CancellationException("cancel after provider publication")
+		runtime.stopStatus = SourceStopStatus.PROVIDER_FAILED
+		runtime.registrationRemovalOutcome = RegistrationRemovalOutcome.FAILED
+		runtime.stopProviderFlushOutcome = ProviderFlushOutcome.FAILED
+		runtime.retainProviderOnIncompleteShutdown = true
+		val request = startRequest().copy(
+			logicalTrackingId = "cancelled-active-start",
+			serviceRunId = "cancelled-active-run",
+		)
+
+		var propagated = false
+		try {
+			subject.start(request)
+		} catch (_: CancellationException) {
+			propagated = true
+		}
+
+		propagated shouldBe true
+		runtime.isActive shouldBe true
+		val applyingStart = database.sourceSessionDao()
+			.lifecycleActions("cancelled-active-start")
+			.single { action -> action.desiredState == "STARTED" }
+		applyingStart.status shouldBe LifecycleActionStatus.APPLYING.name
+		applyingStart.attemptCount shouldBe 1
+
+		val pending = subject.stop(
+			SessionStopRequest(
+				ownerToken = "cancelled-active-stop",
+				reason = "SERVICE_DESTROYED",
+				wallTimeMs = 2_000L,
+				elapsedRealtimeNanos = 2_000_000L,
+				clockDomainId = "boot-1",
+				perSourceTimeoutMs = 100L,
+			),
+		).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+
+		pending.logicalTrackingId shouldBe "cancelled-active-start"
+		runtime.isActive shouldBe true
+		runtime.shutdownClaims.single().let { claim ->
+			claim.actionId shouldBe applyingStart.actionId
+			claim.attemptCount shouldBe applyingStart.attemptCount
+			claim.leaseGeneration shouldBe applyingStart.leaseGeneration
+			claim.logicalTrackingId shouldBe applyingStart.logicalTrackingId
+			claim.serviceRunId shouldBe applyingStart.serviceRunId
+		}
+		database.sourceSessionDao().session("cancelled-active-start")?.let { session ->
+			session.state shouldBe SessionLifecycleState.STOPPING.name
+			session.currentServiceRunId shouldBe "cancelled-active-run"
+		}
+		database.sourceSessionDao().lifecycleAction(applyingStart.actionId)?.status shouldBe
+			LifecycleActionStatus.APPLYING.name
+		database.sourceSessionDao().lifecycleActions("cancelled-active-start")
+			.last { action -> action.desiredState == "STOPPED" }
+			.status shouldBe LifecycleActionStatus.CLEANUP_REQUIRED.name
+
+		runtime.startFailureAfterSideEffect = null
+		runtime.stopStatus = SourceStopStatus.COMPLETE
+		runtime.registrationRemovalOutcome = RegistrationRemovalOutcome.REMOVED
+		runtime.stopProviderFlushOutcome = ProviderFlushOutcome.COMPLETE
+
+		subject.stop(
+			SessionStopRequest(
+				ownerToken = "cancelled-active-stop-retry",
+				reason = "SERVICE_DESTROYED_RETRY",
+				wallTimeMs = 2_500L,
+				elapsedRealtimeNanos = 2_500_000L,
+				clockDomainId = "boot-1",
+				perSourceTimeoutMs = 100L,
+			),
+		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+
+		runtime.isActive shouldBe false
+		runtime.shutdownClaims.map(SourceRuntimeClaim::actionId) shouldBe
+			listOf(applyingStart.actionId, applyingStart.actionId)
+		database.sourceSessionDao().session("cancelled-active-start")?.let { session ->
+			session.state shouldBe SessionLifecycleState.FINALIZED.name
+			session.currentServiceRunId shouldBe null
+		}
+		database.sourceSessionDao().lifecycleAction(applyingStart.actionId)?.let { action ->
+			action.status shouldBe LifecycleActionStatus.SUPERSEDED.name
+			action.failureCode shouldBe "RUNTIME_CLEANUP_CONFIRMED_BY_STOP"
+		}
+	}
+
+	@Test
+	fun `stale automatic replacement cannot finalize an applying provider attempt`() = runTest {
+		runtime.startFailureAfterSideEffect = CancellationException("cancel automatic start after publication")
+		val trigger = automaticTrigger()
+		seedAutomaticStartAction(trigger)
+		val original = startRequest().copy(
+			origin = SessionStartOrigin.AUTOMATIC_BACKGROUND_START,
+			controlDependencies = setOf(SourceKind.ACTIVITY),
+			automaticTrigger = trigger,
+			logicalTrackingId = "automatic-applying-logical",
+			serviceRunId = "automatic-applying-run",
+		)
+
+		var propagated = false
+		try {
+			subject.start(original)
+		} catch (_: CancellationException) {
+			propagated = true
+		}
+
+		propagated shouldBe true
+		runtime.isActive shouldBe true
+		val applying = database.sourceSessionDao()
+			.lifecycleActions("automatic-applying-logical")
+			.single { action -> action.desiredState == "STARTED" }
+		applying.status shouldBe LifecycleActionStatus.APPLYING.name
+		applying.attemptCount shouldBe 1
+		database.activityAutomaticStartActionDao().action(trigger.triggerId)?.status shouldBe
+			ActivityAutomaticStartActionEntity.STATUS_LIFECYCLE_INTENT_ACCEPTED
+
+		subject.start(
+			original.copy(
+				ownerToken = "automatic-replacement-owner",
+				serviceRunId = "automatic-replacement-run",
+				wallTimeMs = 1_100L,
+				elapsedRealtimeNanos = 1_100_000L,
+			),
+		) shouldBe SessionStartResult.AlreadyActive
+
+		runtime.startCount shouldBe 1
+		runtime.isActive shouldBe true
+		runtime.shutdownClaims shouldBe emptyList()
+		database.sourceSessionDao().session("automatic-applying-logical")?.let { session ->
+			session.state shouldBe SessionLifecycleState.STARTING.name
+			session.currentServiceRunId shouldBe "automatic-applying-run"
+			session.completedAtMs shouldBe null
+		}
+		database.sourceSessionDao().serviceRun("automatic-applying-run")?.let { run ->
+			run.completedAtMs shouldBe null
+			run.completionReason shouldBe null
+		}
+		database.sourceSessionDao().serviceRun("automatic-replacement-run") shouldBe null
+		database.sourceSessionDao().lifecycleAction(applying.actionId)?.status shouldBe
+			LifecycleActionStatus.APPLYING.name
+		database.activityAutomaticStartActionDao().action(trigger.triggerId)?.let { action ->
+			action.status shouldBe ActivityAutomaticStartActionEntity.STATUS_LIFECYCLE_INTENT_ACCEPTED
+			action.acceptedLogicalTrackingId shouldBe "automatic-applying-logical"
+		}
+	}
+
+	@Test
+	fun `stale automatic replacement cannot finalize a start accepted provider`() = runTest {
+		val trigger = automaticTrigger()
+		seedAutomaticStartAction(trigger)
+		val original = startRequest().copy(
+			origin = SessionStartOrigin.AUTOMATIC_BACKGROUND_START,
+			controlDependencies = setOf(SourceKind.ACTIVITY),
+			automaticTrigger = trigger,
+			logicalTrackingId = "automatic-accepted-logical",
+			serviceRunId = "automatic-accepted-run",
+		)
+
+		val started = subject.start(original).shouldBeInstanceOf<SessionStartResult.Started>()
+		runtime.isActive shouldBe true
+		val acceptedStart = database.sourceSessionDao()
+			.lifecycleActions(started.logicalTrackingId)
+			.single { action -> action.desiredState == "STARTED" }
+		acceptedStart.status shouldBe LifecycleActionStatus.START_ACCEPTED.name
+
+		subject.start(
+			original.copy(
+				ownerToken = "automatic-accepted-replay",
+				serviceRunId = "automatic-accepted-replacement-run",
+				wallTimeMs = 1_100L,
+				elapsedRealtimeNanos = 1_100_000L,
+			),
+		) shouldBe SessionStartResult.AlreadyActive
+
+		runtime.startCount shouldBe 1
+		runtime.isActive shouldBe true
+		runtime.shutdownClaims shouldBe emptyList()
+		database.sourceSessionDao().session("automatic-accepted-logical")?.let { session ->
+			session.state shouldBe SessionLifecycleState.ACTIVE.name
+			session.currentServiceRunId shouldBe "automatic-accepted-run"
+			session.completedAtMs shouldBe null
+		}
+		database.sourceSessionDao().serviceRun("automatic-accepted-run")?.completedAtMs shouldBe null
+		database.sourceSessionDao().serviceRun("automatic-accepted-replacement-run") shouldBe null
+		database.sourceSessionDao().lifecycleAction(acceptedStart.actionId)?.status shouldBe
+			LifecycleActionStatus.START_ACCEPTED.name
+	}
+
+	@Test
 	fun `reconfiguration appends an immutable manifest and leaves the prior revision intact`() = runTest {
 		val started = subject.start(
 			startRequest().copy(logicalTrackingId = "logical-manifest", serviceRunId = "run-manifest"),
@@ -284,8 +864,51 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `source reconfiguration cancellation propagates without closing provider`() = runTest {
-		val started = subject.start(startRequest()).shouldBeInstanceOf<SessionStartResult.Started>()
+	fun `reconfiguration rejects persisted manifest tampering before runtime action`() = runTest {
+		val started = subject.start(
+			startRequest().copy(logicalTrackingId = "tampered-reconfigure-logical", serviceRunId = "tampered-reconfigure-run"),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_manifest_source SET writer_owner_generation = writer_owner_generation + 1 " +
+				"WHERE logical_tracking_id = ? AND manifest_revision = 1",
+			arrayOf(started.logicalTrackingId),
+		)
+		val reconfigureCountBefore = runtime.reconfigureCount
+
+		val result = subject.reconfigure(
+			SessionReconfigureRequest(
+				ownerToken = "tampered-reconfigure-owner",
+				plan = startRequest().plan.copy(
+					revision = 2L,
+					planId = "tampered-reconfigure-plan",
+					createdAtMs = 2_000L,
+					plans = mapOf(SourceKind.STEPS to StepsPlan(2L, true, 60_000L, 15_000L, false)),
+				),
+				wallTimeMs = 2_000L,
+				elapsedRealtimeNanos = 2_000_000L,
+				clockDomainId = "boot-1",
+				zoneId = "Europe/Prague",
+				foregroundCapabilityFlags = 0L,
+			),
+		)
+
+		result shouldBe SessionReconfigureResult.InvalidIntent("CURRENT_MANIFEST_INTEGRITY_FAILED")
+		runtime.reconfigureCount shouldBe reconfigureCountBefore
+		database.sourceSessionDao().manifests(started.logicalTrackingId).size shouldBe 1
+	}
+
+	@Test
+	fun `cancelled reconfiguration retires newest applying claim instead of predecessor`() = runTest {
+		val started = subject.start(
+			startRequest().copy(
+				logicalTrackingId = "cancelled-reconfigure-logical",
+				serviceRunId = "cancelled-reconfigure-run",
+			),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		val acceptedStart = database.sourceSessionDao()
+			.lifecycleActions(started.logicalTrackingId)
+			.single { action -> action.desiredState == "STARTED" }
+		acceptedStart.status shouldBe LifecycleActionStatus.START_ACCEPTED.name
 		runtime.reconfigureFailure = CancellationException("test cancellation")
 		var propagated = false
 
@@ -311,11 +934,46 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 		propagated shouldBe true
-		runtime.closed shouldBe false
+		runtime.isActive shouldBe true
 		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
 			SessionLifecycleState.RECONFIGURING.name
-		database.sourceSessionDao().lifecycleActions(started.logicalTrackingId).last().status shouldBe
-			LifecycleActionStatus.APPLYING.name
+		val applyingReconfigure = database.sourceSessionDao()
+			.lifecycleActions(started.logicalTrackingId)
+			.last()
+		applyingReconfigure.status shouldBe LifecycleActionStatus.APPLYING.name
+		applyingReconfigure.actionRevision shouldBe 2L
+
+		runtime.reconfigureFailure = null
+		subject.stop(
+			SessionStopRequest(
+				ownerToken = "cancelled-reconfigure-stop",
+				reason = "SERVICE_DESTROYED",
+				wallTimeMs = 3_000L,
+				elapsedRealtimeNanos = 3_000_000L,
+				clockDomainId = "boot-1",
+				perSourceTimeoutMs = 100L,
+			),
+		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+
+		runtime.shutdownClaims.single().let { claim ->
+			claim.actionId shouldBe applyingReconfigure.actionId
+			claim.attemptCount shouldBe applyingReconfigure.attemptCount
+			claim.leaseGeneration shouldBe applyingReconfigure.leaseGeneration
+			claim.logicalTrackingId shouldBe started.logicalTrackingId
+			claim.serviceRunId shouldBe started.serviceRunId
+			(claim.actionId == acceptedStart.actionId) shouldBe false
+		}
+		runtime.isActive shouldBe false
+		database.sourceSessionDao().lifecycleAction(acceptedStart.actionId)?.status shouldBe
+			LifecycleActionStatus.START_ACCEPTED.name
+		database.sourceSessionDao().lifecycleAction(applyingReconfigure.actionId)?.let { action ->
+			action.status shouldBe LifecycleActionStatus.SUPERSEDED.name
+			action.failureCode shouldBe "RUNTIME_CLEANUP_CONFIRMED_BY_STOP"
+		}
+		database.sourceSessionDao().session(started.logicalTrackingId)?.let { session ->
+			session.state shouldBe SessionLifecycleState.FINALIZED.name
+			session.currentServiceRunId shouldBe null
+		}
 	}
 
 	@Test
@@ -367,6 +1025,142 @@ class AuthoritativeSessionCoordinatorTest {
 			SessionLifecycleState.FAILED.name
 		database.sourceSessionDao().lifecycleIntents(started.logicalTrackingId).last().desiredState shouldBe
 			LifecycleDesiredState.FINALIZED.name
+		database.sourceSessionDao().completenessForServiceRun(started.logicalTrackingId, started.serviceRunId)
+			.single().registrationGeneration shouldBe 1L
+	}
+
+	@Test
+	fun `Steps disable and reenable receipts each physical generation under the same run`() = runTest {
+		fun plan(revision: Long, stepsEnabled: Boolean) = AcquisitionPlanRevision(
+			revision = revision,
+			planId = "steps-cycle-$revision",
+			createdAtMs = revision * 1_000L,
+			plans = mapOf(
+				SourceKind.STEPS to StepsPlan(revision, stepsEnabled, 60_000L, 15_000L, false),
+				SourceKind.LOCATION to LocationPlan(
+					revision = revision,
+					backend = LocationBackend.FUSED,
+					mode = LocationMode.BALANCED,
+					requestedIntervalMs = 2_000L,
+					minimumUpdateIntervalMs = 2_000L,
+					minimumDisplacementMeters = 10f,
+					maximumBatchDelayMs = 10_000L,
+					probeDurationMs = null,
+					preciseLocationAvailable = true,
+				),
+			),
+			sourcePolicyRevision = 1L,
+		)
+		val started = subject.start(startRequest().copy(plan = plan(1L, true)))
+			.shouldBeInstanceOf<SessionStartResult.Started>()
+		fun request(revision: Long, enabled: Boolean) = SessionReconfigureRequest(
+			ownerToken = "test-owner",
+			plan = plan(revision, enabled),
+			wallTimeMs = revision * 1_000L,
+			elapsedRealtimeNanos = revision * 1_000_000L,
+			clockDomainId = "boot-1",
+			zoneId = "Europe/Prague",
+			foregroundCapabilityFlags = 0L,
+		)
+
+		subject.reconfigure(request(2L, false)).shouldBeInstanceOf<SessionReconfigureResult.Applied>()
+		database.sourceSessionDao().session(started.logicalTrackingId)?.currentServiceRunId shouldBe
+			started.serviceRunId
+		database.sourceSessionDao().completenessForServiceRun(started.logicalTrackingId, started.serviceRunId)
+			.map { it.registrationGeneration } shouldBe listOf(1L)
+		subject.reconfigure(request(3L, true)).shouldBeInstanceOf<SessionReconfigureResult.Applied>()
+		subject.reconfigure(request(4L, false)).shouldBeInstanceOf<SessionReconfigureResult.Applied>()
+		database.sourceSessionDao().completenessForServiceRun(started.logicalTrackingId, started.serviceRunId)
+			.map { it.registrationGeneration }.sorted() shouldBe listOf(1L, 2L)
+	}
+
+	@Test
+	fun `failed source disable blocks active and final states until predecessor provider retires`() = runTest {
+		fun plan(revision: Long, locationEnabled: Boolean) = AcquisitionPlanRevision(
+			revision = revision,
+			planId = "location-retirement-$revision",
+			createdAtMs = revision * 1_000L,
+			plans = mapOf(
+				SourceKind.STEPS to StepsPlan(revision, true, 60_000L, 15_000L, false),
+				SourceKind.LOCATION to (LocationPlan(
+					revision = revision,
+					backend = LocationBackend.FUSED,
+					mode = LocationMode.BALANCED,
+					requestedIntervalMs = 2_000L,
+					minimumUpdateIntervalMs = 2_000L,
+					minimumDisplacementMeters = 10f,
+					maximumBatchDelayMs = 10_000L,
+					probeDurationMs = null,
+					preciseLocationAvailable = true,
+				).takeIf { locationEnabled } ?: LocationPlan(
+					revision = revision,
+					backend = LocationBackend.FUSED,
+					mode = LocationMode.DISABLED,
+					requestedIntervalMs = 60_000L,
+					minimumUpdateIntervalMs = 60_000L,
+					minimumDisplacementMeters = 0f,
+					maximumBatchDelayMs = 0L,
+					probeDurationMs = null,
+					preciseLocationAvailable = false,
+				)),
+			),
+			sourcePolicyRevision = 1L,
+		)
+		val started = subject.start(startRequest().copy(plan = plan(1L, locationEnabled = true)))
+			.shouldBeInstanceOf<SessionStartResult.Started>()
+		locationRuntime.failRetirement = true
+
+		val reconfigured = subject.reconfigure(
+			SessionReconfigureRequest(
+				ownerToken = "location-disable-owner",
+				plan = plan(2L, locationEnabled = false),
+				wallTimeMs = 2_000L,
+				elapsedRealtimeNanos = 2_000_000L,
+				clockDomainId = "boot-1",
+				zoneId = "Europe/Prague",
+				foregroundCapabilityFlags = 0L,
+			),
+		).shouldBeInstanceOf<SessionReconfigureResult.Failed>()
+
+		reconfigured.failureCode shouldBe SOURCE_RUNTIME_CLEANUP_PENDING
+		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
+			SessionLifecycleState.RECONFIGURING.name
+		database.sourceSessionDao().lifecycleActions(started.logicalTrackingId)
+			.last { action -> action.sourceKind == SourceKind.LOCATION.stableCode }
+			.status shouldBe LifecycleActionStatus.CLEANUP_REQUIRED.name
+		locationRuntime.isActive shouldBe true
+
+		subject.stop(
+			SessionStopRequest(
+				"location-cleanup-owner",
+				"provider-retirement",
+				3_000L,
+				3_000_000L,
+				"boot-1",
+				perSourceTimeoutMs = 100L,
+			),
+		).shouldBeInstanceOf<SessionStopResult.CleanupPending>()
+		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
+			SessionLifecycleState.STOPPING.name
+		locationRuntime.quiesceCount shouldBe 1
+		locationRuntime.isActive shouldBe true
+
+		locationRuntime.failRetirement = false
+		subject.stop(
+			SessionStopRequest(
+				"location-cleanup-owner",
+				"provider-retirement-retry",
+				4_000L,
+				4_000_000L,
+				"boot-1",
+				perSourceTimeoutMs = 100L,
+			),
+		).shouldBeInstanceOf<SessionStopResult.Stopped>()
+
+		locationRuntime.quiesceCount shouldBe 2
+		locationRuntime.isActive shouldBe false
+		database.sourceSessionDao().session(started.logicalTrackingId)?.state shouldBe
+			SessionLifecycleState.FINALIZED.name
 	}
 
 	@Test
@@ -922,6 +1716,9 @@ class AuthoritativeSessionCoordinatorTest {
 		).shouldBeInstanceOf<SessionStartResult.Started>()
 		first.logicalTrackingId shouldBe "logical-1"
 		first.serviceRunId shouldBe "run-1"
+		val lifecycleRevisionBeforeSuspend = requireNotNull(
+			database.sourceSessionDao().session("logical-1"),
+		).lifecycleRevision
 
 		subject.suspendForRestart(
 			SessionSuspendRequest(
@@ -935,6 +1732,9 @@ class AuthoritativeSessionCoordinatorTest {
 		).shouldBeInstanceOf<SessionSuspendResult.Suspended>()
 
 		database.sourceSessionDao().session("logical-1")?.state shouldBe SessionLifecycleState.ACTIVE.name
+		database.sourceSessionDao().session("logical-1")?.currentServiceRunId shouldBe null
+		database.sourceSessionDao().session("logical-1")?.lifecycleRevision shouldBe
+			lifecycleRevisionBeforeSuspend + 1L
 		database.sourceSessionDao().serviceRun("run-1")?.state shouldBe SessionLifecycleState.FINALIZED.name
 
 		val restored = subject.start(
@@ -957,8 +1757,58 @@ class AuthoritativeSessionCoordinatorTest {
 
 		restored.logicalTrackingId shouldBe "logical-1"
 		restored.serviceRunId shouldBe "run-2"
-		database.sourceSessionDao().latestServiceRun("logical-1")?.serviceRunId shouldBe "run-2"
+		database.sourceSessionDao().serviceRun("run-2")?.logicalTrackingId shouldBe "logical-1"
+		database.sourceSessionDao().session("logical-1")?.currentServiceRunId shouldBe "run-2"
 		database.sourceSessionDao().session("logical-1")?.desiredPlanRevision shouldBe 2L
+	}
+
+	@Test
+	fun `service run suspension stays nonterminal until provider flush retry succeeds`() = runTest {
+		val started = subject.start(
+			startRequest().copy(logicalTrackingId = "suspend-incomplete-logical", serviceRunId = "suspend-incomplete-run"),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		runtime.stopProviderFlushOutcome = ProviderFlushOutcome.FAILED
+
+		val pending = subject.suspendForRestart(
+			SessionSuspendRequest(
+				"suspend-incomplete-owner",
+				"ANDROID_RESTART",
+				2_000L,
+				2_000_000L,
+				"boot-1",
+				perSourceTimeoutMs = 100L,
+			),
+		).shouldBeInstanceOf<SessionSuspendResult.CleanupPending>()
+
+		pending.requiredOrdinal shouldBe 0L
+		val pendingRun = requireNotNull(database.sourceSessionDao().serviceRun(started.serviceRunId))
+		pendingRun.state shouldBe SessionLifecycleState.STOPPING.name
+		pendingRun.runtimeAcknowledgement shouldBe LifecycleActionStatus.CLEANUP_REQUIRED.name
+		pendingRun.runtimeFailureCode shouldBe "STOP_INCOMPLETE"
+		pendingRun.completionReason shouldBe null
+		database.sourceSessionDao().session(started.logicalTrackingId)?.currentServiceRunId shouldBe started.serviceRunId
+		database.sourceSessionDao().completenessForServiceRun(started.logicalTrackingId, started.serviceRunId)
+			.single { completeness -> completeness.sourceKind == SourceKind.STEPS.stableCode }
+			.stopStatus shouldBe SourceStopStatus.COMPLETE.name
+		database.sourceSessionDao().lifecycleActions(started.logicalTrackingId).last().status shouldBe
+			LifecycleActionStatus.CLEANUP_REQUIRED.name
+
+		runtime.stopProviderFlushOutcome = ProviderFlushOutcome.COMPLETE
+		subject.suspendForRestart(
+			SessionSuspendRequest(
+				"suspend-incomplete-owner",
+				"ANDROID_RESTART",
+				2_500L,
+				2_500_000L,
+				"boot-1",
+				perSourceTimeoutMs = 100L,
+			),
+		).shouldBeInstanceOf<SessionSuspendResult.Suspended>()
+		val completedRun = requireNotNull(database.sourceSessionDao().serviceRun(started.serviceRunId))
+		completedRun.state shouldBe SessionLifecycleState.FINALIZED.name
+		completedRun.runtimeAcknowledgement shouldBe LifecycleActionStatus.STOP_ACCEPTED.name
+		completedRun.runtimeFailureCode shouldBe null
+		database.sourceSessionDao().session(started.logicalTrackingId)?.currentServiceRunId shouldBe null
 	}
 
 	@Test
@@ -1135,8 +1985,82 @@ class AuthoritativeSessionCoordinatorTest {
 		runtime.closed shouldBe true
 		database.sourceEventWalDao().maximumAdmissionOrdinal() shouldBe null
 		val failed = requireNotNull(database.sourceSessionDao().session("logical-session"))
+		failed.currentServiceRunId shouldBe null
+		database.sourceSessionDao().completenessForServiceRun("logical-session", "service-run")
+			.single().registrationGeneration shouldBe 1L
 		database.sourceSessionDao().lifecycleIntents(failed.logicalTrackingId).last().desiredState shouldBe
 			LifecycleDesiredState.FINALIZED.name
+	}
+
+	@Test
+	fun `manifest tampering committed during provider start rolls exact runtime claim back`() = runTest {
+		runtime.blockStart = true
+		val start = async {
+			subject.start(
+				startRequest().copy(
+					logicalTrackingId = "manifest-race-logical",
+					serviceRunId = "manifest-race-run",
+				),
+			)
+		}
+		runtime.startEntered.await()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_manifest_source SET qos_code = qos_code + 1 " +
+				"WHERE logical_tracking_id = ? AND manifest_revision = 1",
+			arrayOf("manifest-race-logical"),
+		)
+		runtime.releaseStart.complete(Unit)
+
+		start.await().shouldBeInstanceOf<SessionStartResult.Failed>()
+		runtime.closed shouldBe true
+		database.sourceSessionDao().session("manifest-race-logical")?.state shouldBe
+			SessionLifecycleState.FAILED.name
+		database.sourceSessionDao().session("manifest-race-logical")?.currentServiceRunId shouldBe null
+		database.sourceSessionDao().serviceRun("manifest-race-run")?.runtimeAcknowledgement shouldBe
+			LifecycleActionStatus.TERMINAL_FAILURE.name
+	}
+
+	@Test
+	fun `stale start compensation cannot close a successor runtime claim`() = runTest {
+		runtime.blockStart = true
+		val start = async {
+			subject.start(
+				startRequest().copy(
+					logicalTrackingId = "stale-cleanup-logical",
+					serviceRunId = "stale-cleanup-run",
+				),
+			)
+		}
+		runtime.startEntered.await()
+		val currentSettings = TrackingParamsState(legacySettingsMigrationCompleted = true)
+		policy.replaceCaptureSettings(
+			expectedPolicyRevision = 1,
+			settings = currentSettings.copy(
+				stepsEnabled = false,
+				sourceCollectionSettings = currentSettings.sourceCollectionSettings.copy(
+					steps = SourceCollectionFrequency.OFF,
+				),
+			),
+			reason = "TEST_SUCCESSOR_RUNTIME_CLAIM",
+		)
+		runtime.supersedeRuntimeClaim(
+			SourceRuntimeClaim(
+				source = SourceKind.STEPS,
+				actionId = "successor-action",
+				attemptCount = 1,
+				leaseGeneration = 2L,
+				logicalTrackingId = "foreign-logical",
+				serviceRunId = "foreign-run",
+			),
+		)
+		runtime.releaseStart.complete(Unit)
+
+		start.await().shouldBeInstanceOf<SessionStartResult.Failed>()
+		runtime.closed shouldBe false
+		database.sourceSessionDao().completenessForServiceRun(
+			"stale-cleanup-logical",
+			"stale-cleanup-run",
+		) shouldBe emptyList()
 	}
 
 	private fun stepsCandidate() = SourceEvidenceCandidate(
@@ -1298,6 +2222,7 @@ class AuthoritativeSessionCoordinatorTest {
 		sessionDao.insertManifest(
 			oldManifest.copy(
 				manifestRevision = newManifestRevision,
+				serviceRunId = newServiceRunId,
 				effectiveElapsedRealtimeNanos = oldManifest.effectiveElapsedRealtimeNanos + 1L,
 				effectiveWallTimeMs = oldManifest.effectiveWallTimeMs + 1L,
 				changeReason = "TEST_ENVELOPE_ADVANCED",
@@ -1359,6 +2284,7 @@ class AuthoritativeSessionCoordinatorTest {
 				lifecycleRevision = oldSession.lifecycleRevision + 1L,
 				currentManifestRevision = newManifestRevision,
 				currentIntentRevision = newIntentRevision,
+				currentServiceRunId = newServiceRunId,
 			),
 		) shouldBe 1
 	}
@@ -1575,7 +2501,7 @@ class AuthoritativeSessionCoordinatorTest {
 			coordinatorMode = CoordinatorMode.EVENT,
 			sourceOwners = SourceKind.entries.associateWith { SourceOwner.EVENT },
 			productProjectionStages = SourceKind.entries.associateWith {
-				ProductProjectionStage.EVENT_SHADOW
+				ProductProjectionStage.EVENT_CANONICAL
 			},
 			captureModeMasks = SourceKind.entries.associateWith {
 				CaptureReachabilityMode.MANUAL_SESSION_CAPTURE.mask
@@ -1603,7 +2529,7 @@ private class RecordingActivityAutomationDrainSignal : ActivityAutomationDrainSi
 	}
 }
 
-private class FakeStepsRuntime(private val database: AppDatabase) : SourceRuntime<StepsPlan> {
+private class FakeStepsRuntime(private val database: AppDatabase) : ClaimedSourceRuntime<StepsPlan> {
 	override val source = SourceKind.STEPS
 	override val capabilities = MutableStateFlow(SourceCapabilities(true, true, true, 100, 1))
 	var stateObservedAtStart: String? = null
@@ -1613,12 +2539,39 @@ private class FakeStepsRuntime(private val database: AppDatabase) : SourceRuntim
 	var closed = false
 	var blockStart = false
 	var startFailure: Throwable? = null
+	var startFailureAfterSideEffect: Throwable? = null
+	var startReturnsRetryableFailure = false
 	var reconfigureFailure: Throwable? = null
 	var sinkAtStart: SourceEventSink? = null
+	var startCount = 0
+	var reconfigureCount = 0
+	var stopStatus = SourceStopStatus.COMPLETE
+	var registrationRemovalOutcome = RegistrationRemovalOutcome.REMOVED
+	var stopProviderFlushOutcome = ProviderFlushOutcome.COMPLETE
+	var retainProviderOnIncompleteShutdown = false
+	var closeFailure: Throwable? = null
+	var acknowledgementLogicalTrackingId: String? = null
+	var acknowledgementServiceRunId: String? = null
+	var omitAcknowledgementMembership = false
+	val shutdownClaims = mutableListOf<SourceRuntimeClaim>()
 	val startEntered = CompletableDeferred<Unit>()
 	val releaseStart = CompletableDeferred<Unit>()
+	private var active = false
+	val isActive: Boolean get() = active
+	private var registrationGeneration = 0L
+	private var ownedClaim: SourceRuntimeClaim? = null
+
+	override suspend fun start(
+		claim: SourceRuntimeClaim,
+		plan: StepsPlan,
+		sink: SourceEventSink,
+	): SourceStartResult {
+		ownedClaim = claim
+		return start(plan, sink)
+	}
 
 	override suspend fun start(plan: StepsPlan, sink: SourceEventSink): SourceStartResult {
+		startCount += 1
 		startFailure?.let { throw it }
 		val session = database.sourceSessionDao().activeSession()
 		stateObservedAtStart = session?.state
@@ -1634,18 +2587,84 @@ private class FakeStepsRuntime(private val database: AppDatabase) : SourceRuntim
 			startEntered.complete(Unit)
 			releaseStart.await()
 		}
-		return SourceStartResult.Started(applied(plan))
+		if (plan.enabled && !active) registrationGeneration += 1L
+		active = plan.enabled
+		startFailureAfterSideEffect?.let { throw it }
+		val applied = applied(plan)
+		return if (startReturnsRetryableFailure) {
+			SourceStartResult.Failed(applied, retryable = true)
+		} else {
+			SourceStartResult.Started(applied)
+		}
 	}
 
 	override suspend fun reconfigure(plan: StepsPlan, sink: SourceEventSink): SourceApplyResult {
+		reconfigureCount += 1
 		reconfigureFailure?.let { throw it }
-		return SourceApplyResult.Applied(applied(plan))
+		val stopAck = if (active && !plan.enabled) stopAck() else null
+		if (plan.enabled && !active) registrationGeneration += 1L
+		active = plan.enabled
+		return SourceApplyResult.Applied(applied(plan), stopAck)
 	}
 
-	override suspend fun quiesce(cutoff: SessionCutoff) = SourceStopAck(
+	override suspend fun reconfigure(
+		claim: SourceRuntimeClaim,
+		plan: StepsPlan,
+		sink: SourceEventSink,
+	): SourceApplyResult {
+		ownedClaim = claim
+		return reconfigure(plan, sink).also {
+			if (!plan.enabled) ownedClaim = null
+		}
+	}
+
+	override suspend fun quiesce(cutoff: SessionCutoff): SourceStopAck {
+		val acknowledgement = stopAck()
+		if (isComplete(acknowledgement) || !retainProviderOnIncompleteShutdown) active = false
+		return acknowledgement
+	}
+
+	override suspend fun shutdownIfOwned(
+		claim: SourceRuntimeClaim,
+		cutoff: SessionCutoff,
+	): OwnedSourceShutdown {
+		if (ownedClaim != claim) return OwnedSourceShutdown.NotOwned
+		shutdownClaims += claim
+		val acknowledgement = stopAck()
+		val complete = isComplete(acknowledgement)
+		return if (complete) {
+			active = false
+			closed = true
+			ownedClaim = null
+			OwnedSourceShutdown.Released(
+				provider = null,
+				stopAck = acknowledgement,
+			)
+		} else {
+			if (!retainProviderOnIncompleteShutdown) active = false
+			OwnedSourceShutdown.Incomplete(
+				provider = null,
+				stopAck = acknowledgement,
+			)
+		}
+	}
+
+	fun supersedeRuntimeClaim(claim: SourceRuntimeClaim) {
+		ownedClaim = claim
+	}
+
+	private fun isComplete(acknowledgement: SourceStopAck): Boolean =
+		acknowledgement.status == SourceStopStatus.COMPLETE &&
+			acknowledgement.registrationRemovalOutcome == RegistrationRemovalOutcome.REMOVED &&
+			acknowledgement.providerFlushOutcome !in setOf(
+				ProviderFlushOutcome.FAILED,
+				ProviderFlushOutcome.TIMED_OUT,
+			) && acknowledgement.appDrainComplete
+
+	private fun stopAck() = SourceStopAck(
 		source = source,
 		sourceInstanceId = SourceInstanceId("steps-instance"),
-		registrationGeneration = 1,
+		registrationGeneration = registrationGeneration,
 		appliedRevision = 1,
 		callbackEntryBarrierSequence = 4,
 		lastDurablyAdmittedSequence = 4,
@@ -1653,24 +2672,152 @@ private class FakeStepsRuntime(private val database: AppDatabase) : SourceRuntim
 		failedAdmissionCount = 0,
 		unresolvedSequenceStart = null,
 		unresolvedSequenceEndInclusive = null,
-		registrationRemovalOutcome = RegistrationRemovalOutcome.REMOVED,
-		providerFlushOutcome = ProviderFlushOutcome.COMPLETE,
+		registrationRemovalOutcome = registrationRemovalOutcome,
+		providerFlushOutcome = stopProviderFlushOutcome,
 		providerCoverage = ProviderCoverage.CALLBACKS_ENTERED_BEFORE_BARRIER,
 		appDrainComplete = true,
-		status = SourceStopStatus.COMPLETE,
+		status = stopStatus,
+		logicalTrackingId = if (omitAcknowledgementMembership) {
+			null
+		} else {
+			acknowledgementLogicalTrackingId ?: ownedClaim?.logicalTrackingId
+		},
+		serviceRunId = if (omitAcknowledgementMembership) {
+			null
+		} else {
+			acknowledgementServiceRunId ?: ownedClaim?.serviceRunId
+		},
 	)
 
 	override suspend fun close() {
+		closeFailure?.let { throw it }
 		closed = true
+		active = false
+		ownedClaim = null
 	}
 
 	private fun applied(plan: SourcePlan) = AppliedSourcePlan(
 		desiredRevision = plan.revision,
 		appliedRevision = plan.revision,
 		source = source,
-		sourceInstanceId = SourceInstanceId("steps-instance"),
-		registrationGeneration = 1,
+		sourceInstanceId = SourceInstanceId("steps-instance").takeIf { plan.enabled },
+		registrationGeneration = registrationGeneration.takeIf { plan.enabled },
 		appliedAtElapsedRealtimeNanos = 1_000_000,
 		status = SourceApplyStatus.APPLIED,
 	)
 }
+
+private class FakeLocationRuntime : ClaimedSourceRuntime<LocationPlan> {
+	override val source = SourceKind.LOCATION
+	override val capabilities = MutableStateFlow(SourceCapabilities(true, true, true, 100, 1))
+	var failRetirement = false
+	var quiesceCount = 0
+	var closeCount = 0
+	private var active = false
+	private var ownedClaim: SourceRuntimeClaim? = null
+	val isActive: Boolean get() = active
+
+	override suspend fun start(
+		claim: SourceRuntimeClaim,
+		plan: LocationPlan,
+		sink: SourceEventSink,
+	): SourceStartResult {
+		ownedClaim = claim
+		return start(plan, sink)
+	}
+
+	override suspend fun start(plan: LocationPlan, sink: SourceEventSink): SourceStartResult {
+		active = plan.enabled
+		return SourceStartResult.Started(applied(plan))
+	}
+
+	override suspend fun reconfigure(plan: LocationPlan, sink: SourceEventSink): SourceApplyResult {
+		if (!plan.enabled && failRetirement) {
+			return SourceApplyResult.Failed(
+				state = applied(plan).copy(status = SourceApplyStatus.FAILED),
+				retryable = true,
+				stopAck = stopAck(),
+			)
+		}
+		active = plan.enabled
+		return SourceApplyResult.Applied(applied(plan))
+	}
+
+	override suspend fun reconfigure(
+		claim: SourceRuntimeClaim,
+		plan: LocationPlan,
+		sink: SourceEventSink,
+	): SourceApplyResult {
+		if (plan.enabled || !failRetirement) ownedClaim = claim
+		return reconfigure(plan, sink).also {
+			if (!plan.enabled && !failRetirement) ownedClaim = null
+		}
+	}
+
+	override suspend fun quiesce(cutoff: SessionCutoff): SourceStopAck {
+		quiesceCount += 1
+		val acknowledgement = stopAck()
+		if (!acknowledgement.hasIncompleteTerminalRetirementForTest()) {
+			active = false
+			ownedClaim = null
+		}
+		return acknowledgement
+	}
+
+	override suspend fun shutdownIfOwned(
+		claim: SourceRuntimeClaim,
+		cutoff: SessionCutoff,
+	): OwnedSourceShutdown {
+		if (ownedClaim != claim) return OwnedSourceShutdown.NotOwned
+		val acknowledgement = quiesce(cutoff)
+		return if (acknowledgement.hasIncompleteTerminalRetirementForTest()) {
+			OwnedSourceShutdown.Incomplete(provider = null, stopAck = acknowledgement)
+		} else {
+			OwnedSourceShutdown.Released(provider = null, stopAck = acknowledgement)
+		}
+	}
+
+	private fun stopAck() = SourceStopAck(
+			source = source,
+			sourceInstanceId = SourceInstanceId("location-instance"),
+			registrationGeneration = 1L,
+			appliedRevision = 1L,
+			callbackEntryBarrierSequence = 0L, lastDurablyAdmittedSequence = null,
+			lastAdmissionOrdinal = null, failedAdmissionCount = 0L,
+			unresolvedSequenceStart = null, unresolvedSequenceEndInclusive = null,
+			registrationRemovalOutcome = if (failRetirement) {
+				RegistrationRemovalOutcome.FAILED
+			} else {
+				RegistrationRemovalOutcome.REMOVED
+			},
+			providerFlushOutcome = if (failRetirement) {
+				ProviderFlushOutcome.FAILED
+			} else {
+				ProviderFlushOutcome.COMPLETE
+			},
+			providerCoverage = ProviderCoverage.CALLBACKS_ENTERED_BEFORE_BARRIER,
+			appDrainComplete = !failRetirement,
+			status = if (failRetirement) SourceStopStatus.PROVIDER_FAILED else SourceStopStatus.COMPLETE,
+			logicalTrackingId = ownedClaim?.logicalTrackingId,
+			serviceRunId = ownedClaim?.serviceRunId,
+		)
+
+	override suspend fun close() {
+		closeCount += 1
+		if (failRetirement) error("location provider still resident")
+		active = false
+		ownedClaim = null
+	}
+
+	private fun applied(plan: LocationPlan) = AppliedSourcePlan(
+		plan.revision, plan.revision, source,
+		SourceInstanceId("location-instance").takeIf { active }, 1L.takeIf { active },
+		1_000_000L, SourceApplyStatus.APPLIED,
+	)
+}
+
+private fun SourceStopAck.hasIncompleteTerminalRetirementForTest(): Boolean =
+	status != SourceStopStatus.COMPLETE ||
+		registrationRemovalOutcome == RegistrationRemovalOutcome.FAILED ||
+		providerFlushOutcome in setOf(ProviderFlushOutcome.FAILED, ProviderFlushOutcome.TIMED_OUT) ||
+		!appDrainComplete

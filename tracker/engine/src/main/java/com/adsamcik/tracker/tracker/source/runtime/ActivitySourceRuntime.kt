@@ -30,7 +30,7 @@ import kotlinx.coroutines.sync.withLock
 class ActivitySourceRuntime @Inject constructor(
 	private val arbiter: ActivityRegistrationArbiter,
 	private val database: AppDatabase,
-) : SourceRuntime<ActivityPlan> {
+) : ClaimedSourceRuntime<ActivityPlan> {
 	override val source: SourceKind = SourceKind.ACTIVITY
 	private val mutex = Mutex()
 	private val _capabilities = MutableStateFlow(
@@ -39,22 +39,109 @@ class ActivitySourceRuntime @Inject constructor(
 	override val capabilities: StateFlow<SourceCapabilities> = _capabilities
 	private var currentPlan: ActivityPlan? = null
 	private var sessionIdentity: ActivityRegistrationIdentity? = null
+	private var runtimeClaim: SourceRuntimeClaim? = null
 
 	override suspend fun start(plan: ActivityPlan, sink: SourceEventSink): SourceStartResult = mutex.withLock {
-		require(currentPlan == null) { "Activity source is already started" }
-		val result = applyPlan(plan)
-		currentPlan = plan.takeIf(ActivityPlan::enabled)
-		result.toStart(plan)
+		startLocked(claim = null, plan = plan)
+	}
+
+	override suspend fun start(
+		claim: SourceRuntimeClaim,
+		plan: ActivityPlan,
+		sink: SourceEventSink,
+	): SourceStartResult {
+		require(claim.source == source)
+		return mutex.withLock { startLocked(claim, plan) }
 	}
 
 	override suspend fun reconfigure(plan: ActivityPlan, sink: SourceEventSink): SourceApplyResult = mutex.withLock {
-		val result = applyPlan(plan)
-		currentPlan = plan.takeIf(ActivityPlan::enabled)
-		result.toApply(plan)
+		reconfigureLocked(claim = null, plan = plan)
+	}
+
+	override suspend fun reconfigure(
+		claim: SourceRuntimeClaim,
+		plan: ActivityPlan,
+		sink: SourceEventSink,
+	): SourceApplyResult {
+		require(claim.source == source)
+		return mutex.withLock { reconfigureLocked(claim, plan) }
 	}
 
 	override suspend fun quiesce(cutoff: SessionCutoff): SourceStopAck = mutex.withLock {
-		val identity = sessionIdentity ?: arbiter.snapshot().identity
+		val acknowledgement = clearSessionDemandLocked()
+		if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) clearLocalJoinLocked()
+		acknowledgement
+	}
+
+	override suspend fun shutdownIfOwned(
+		claim: SourceRuntimeClaim,
+		cutoff: SessionCutoff,
+	): OwnedSourceShutdown {
+		require(claim.source == source)
+		return mutex.withLock {
+			if (runtimeClaim != claim) return@withLock OwnedSourceShutdown.NotOwned
+			val shutdown = clearSessionDemandLocked().toOwnedShutdown()
+			if (shutdown is OwnedSourceShutdown.Released) clearLocalJoinLocked()
+			shutdown
+		}
+	}
+
+	override suspend fun close() = mutex.withLock {
+		val result = arbiter.clearDemand(ActivityRegistrationOwner.ACTIVE_SESSION)
+		if (result.activeSessionJoinReleased) clearLocalJoinLocked()
+	}
+
+	private suspend fun startLocked(
+		claim: SourceRuntimeClaim?,
+		plan: ActivityPlan,
+	): SourceStartResult {
+		require(currentPlan == null && runtimeClaim == null) {
+			"Activity source is already started or awaiting owned cleanup"
+		}
+		preparePlanMutationLocked(claim, plan)
+		val result = applyPlan(plan)
+		settlePlanMutationLocked(plan, result)
+		return result.toStart(plan)
+	}
+
+	private suspend fun reconfigureLocked(
+		claim: SourceRuntimeClaim?,
+		plan: ActivityPlan,
+	): SourceApplyResult {
+		// The successor owns every possible outcome before the arbiter can mutate its demand map.
+		// This is also an atomic claim transfer when reconciliation reuses the same provider identity.
+		preparePlanMutationLocked(claim, plan)
+		val result = applyPlan(plan)
+		settlePlanMutationLocked(plan, result)
+		return result.toApply(plan)
+	}
+
+	private fun preparePlanMutationLocked(claim: SourceRuntimeClaim?, plan: ActivityPlan) {
+		runtimeClaim = claim
+		if (plan.enabled) currentPlan = plan
+	}
+
+	private fun settlePlanMutationLocked(plan: ActivityPlan, result: ActivityRegistrationResult) {
+		if (plan.enabled) {
+			currentPlan = plan
+			sessionIdentity = result.snapshot.identity ?: sessionIdentity
+		} else if (result.activeSessionJoinReleased) {
+			clearLocalJoinLocked()
+		}
+	}
+
+	private fun clearLocalJoinLocked() {
+		currentPlan = null
+		sessionIdentity = null
+		runtimeClaim = null
+	}
+
+	private suspend fun clearSessionDemandLocked(): SourceStopAck {
+		val beforeClear = arbiter.snapshot()
+		val identity = beforeClear.identity
+			.takeIf { ActivityRegistrationOwner.ACTIVE_SESSION in beforeClear.owners }
+			?: sessionIdentity
+			?: beforeClear.identity
 		val appliedRevision = currentPlan?.revision
 		val barrier = identity?.let { registration ->
 			database.sourceRegistrationStateDao()
@@ -65,9 +152,7 @@ class ActivitySourceRuntime @Inject constructor(
 				?.coerceAtLeast(0L)
 		} ?: 0L
 		val result = arbiter.clearDemand(ActivityRegistrationOwner.ACTIVE_SESSION)
-		currentPlan = null
-		sessionIdentity = null
-		SourceStopAck(
+		return SourceStopAck(
 			source = source,
 			sourceInstanceId = SourceInstanceId(identity?.sourceInstanceId ?: "activity-unregistered"),
 			registrationGeneration = identity?.registrationGeneration ?: 0L,
@@ -78,26 +163,20 @@ class ActivitySourceRuntime @Inject constructor(
 			failedAdmissionCount = 0L,
 			unresolvedSequenceStart = null,
 			unresolvedSequenceEndInclusive = null,
-			registrationRemovalOutcome = if (result.status == ActivityRegistrationStatus.FAILED) {
-				RegistrationRemovalOutcome.FAILED
-			} else {
-				RegistrationRemovalOutcome.REMOVED
+			registrationRemovalOutcome = when {
+				!result.activeSessionJoinReleased -> RegistrationRemovalOutcome.FAILED
+				result.snapshot.active || identity == null -> RegistrationRemovalOutcome.NOT_REGISTERED
+				else -> RegistrationRemovalOutcome.REMOVED
 			},
 			providerFlushOutcome = ProviderFlushOutcome.NOT_SUPPORTED,
 			providerCoverage = ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE,
 			appDrainComplete = true,
-			status = if (result.status == ActivityRegistrationStatus.FAILED) {
-				SourceStopStatus.PROVIDER_FAILED
-			} else {
+			status = if (result.activeSessionJoinReleased) {
 				SourceStopStatus.COMPLETE
+			} else {
+				SourceStopStatus.PROVIDER_FAILED
 			},
-		)
-	}
-
-	override suspend fun close() = mutex.withLock {
-		arbiter.clearDemand(ActivityRegistrationOwner.ACTIVE_SESSION)
-		currentPlan = null
-		sessionIdentity = null
+		).withSessionMembership(runtimeClaim)
 	}
 
 	private suspend fun applyPlan(plan: ActivityPlan): ActivityRegistrationResult {
@@ -121,11 +200,12 @@ class ActivitySourceRuntime @Inject constructor(
 				planRevision = plan.revision,
 			),
 		)
-		if (result.status == ActivityRegistrationStatus.APPLIED || result.status == ActivityRegistrationStatus.DEGRADED) {
-			sessionIdentity = result.snapshot.identity
-		}
 		return result
 	}
+
+	private val ActivityRegistrationResult.activeSessionJoinReleased: Boolean
+		get() = status == ActivityRegistrationStatus.APPLIED &&
+			ActivityRegistrationOwner.ACTIVE_SESSION !in snapshot.owners
 
 	private fun ActivityRegistrationResult.toStart(plan: ActivityPlan): SourceStartResult {
 		val state = toApplied(plan)

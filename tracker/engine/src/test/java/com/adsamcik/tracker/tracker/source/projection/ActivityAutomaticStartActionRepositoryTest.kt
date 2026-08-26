@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.rotateActivityAutomationEpochIn
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntentVersionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
@@ -171,6 +172,29 @@ class ActivityAutomaticStartActionRepositoryTest {
 			3_300,
 		)
 		(finalizedAcceptance is ActivityAutomaticStartAcceptance.Accepted) shouldBe true
+	}
+
+	@Test
+	fun `automatic lifecycle acceptance fails closed when manifest bindings were tampered`() = runTest {
+		seedAuthority()
+		val request = reservation()
+		subject.reserve(request)
+		subject.authorizeExternalStart(request.trigger, requestedAtMs = 2_000)
+		insertAcceptedLifecycle(request.trigger)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_manifest_source SET qos_code = qos_code + 1 " +
+				"WHERE logical_tracking_id = ? AND manifest_revision = 1 AND purpose = 'CONTROL'",
+			arrayOf(LOGICAL_ID),
+		)
+
+		subject.reconcileLifecycleIntentAcceptance(
+			request.trigger.triggerId,
+			currentElapsedRealtimeNanos = 3_000,
+			wallTimeMs = 3_100,
+		) shouldBe ActivityAutomaticStartAcceptance.Terminal(
+			"AUTOMATIC_START_LIFECYCLE_IDENTITY_COLLISION",
+		)
+		database.activityAutomaticStartActionDao().current()?.status shouldBe "TERMINAL"
 	}
 
 	@Test
@@ -462,51 +486,55 @@ class ActivityAutomaticStartActionRepositoryTest {
 				sessionMode = "AUTOMATIC",
 				currentManifestRevision = 1,
 				currentIntentRevision = 1,
+				currentServiceRunId = "run-1",
 				lifecycleLeaseGeneration = 1,
 				lifecycleBootId = BOOT_ID,
 				automationEpoch = AUTOMATION_EPOCH,
 			),
 		)
-		dao.insertManifest(
-			SessionManifestVersionEntity(
+		val bindings = listOf(
+			SessionManifestSourceEntity(
 				logicalTrackingId = LOGICAL_ID,
 				manifestRevision = 1,
-				sessionMode = "AUTOMATIC",
-				sourcePolicyRevision = POLICY_REVISION,
-				acquisitionPlanRevision = 1,
-				rolloutRevision = 1,
-				startOrigin = "AUTOMATIC_BACKGROUND_START",
-				effectiveBootId = BOOT_ID,
-				effectiveElapsedRealtimeNanos = 2_000,
-				effectiveWallTimeMs = 2_000,
-				zoneId = "UTC",
-				automationEpoch = AUTOMATION_EPOCH,
-				changeReason = "TEST",
-				manifestChecksum = "manifest-checksum",
+				sourceKind = SourceKind.ACTIVITY.stableCode,
+				purpose = "SESSION_CAPTURE",
+				consentEpoch = 20,
+				persistenceEligible = true,
+				qosCode = 1,
+			),
+			SessionManifestSourceEntity(
+				logicalTrackingId = LOGICAL_ID,
+				manifestRevision = 1,
+				sourceKind = SourceKind.ACTIVITY.stableCode,
+				purpose = "CONTROL",
+				consentEpoch = CONTROL_CONSENT_EPOCH,
+				persistenceEligible = false,
+				qosCode = 1,
 			),
 		)
-		dao.insertManifestSources(
-			listOf(
-				SessionManifestSourceEntity(
-					logicalTrackingId = LOGICAL_ID,
-					manifestRevision = 1,
-					sourceKind = SourceKind.ACTIVITY.stableCode,
-					purpose = "SESSION_CAPTURE",
-					consentEpoch = 20,
-					persistenceEligible = true,
-					qosCode = 1,
-				),
-				SessionManifestSourceEntity(
-					logicalTrackingId = LOGICAL_ID,
-					manifestRevision = 1,
-					sourceKind = SourceKind.ACTIVITY.stableCode,
-					purpose = "CONTROL",
-					consentEpoch = CONTROL_CONSENT_EPOCH,
-					persistenceEligible = false,
-					qosCode = 1,
-				),
+		val unsignedManifest = SessionManifestVersionEntity(
+			logicalTrackingId = LOGICAL_ID,
+			manifestRevision = 1,
+			serviceRunId = "run-1",
+			sessionMode = "AUTOMATIC",
+			sourcePolicyRevision = POLICY_REVISION,
+			acquisitionPlanRevision = 1,
+			rolloutRevision = 1,
+			startOrigin = "AUTOMATIC_BACKGROUND_START",
+			effectiveBootId = BOOT_ID,
+			effectiveElapsedRealtimeNanos = 2_000,
+			effectiveWallTimeMs = 2_000,
+			zoneId = "UTC",
+			automationEpoch = AUTOMATION_EPOCH,
+			changeReason = "TEST",
+			manifestChecksum = "",
+		)
+		dao.insertManifest(
+			unsignedManifest.copy(
+				manifestChecksum = SessionManifestIntegrity.compute(unsignedManifest, bindings),
 			),
 		)
+		dao.insertManifestSources(bindings)
 		dao.insertLifecycleIntent(
 			SessionLifecycleIntentVersionEntity(
 				logicalTrackingId = LOGICAL_ID,

@@ -117,7 +117,7 @@ class TrackingSettingsStatusProviderTest {
 			coordinatorMode = CoordinatorMode.EVENT,
 			sourceOwners = SourceKind.entries.associateWith { SourceOwner.EVENT },
 			productProjectionStages = SourceKind.entries.associateWith {
-				ProductProjectionStage.EVENT_SHADOW
+				ProductProjectionStage.EVENT_CANONICAL
 			},
 			captureModeMasks = SourceKind.entries.associateWith {
 				CaptureReachabilityMode.MANUAL_SESSION_CAPTURE.mask

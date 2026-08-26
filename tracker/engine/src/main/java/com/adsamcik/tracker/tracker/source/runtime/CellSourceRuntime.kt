@@ -44,7 +44,7 @@ class CellSourceRuntime @Inject internal constructor(
 	private val backend: AndroidCellSourceBackend,
 	private val deviceStateProvider: AndroidConnectivityDeviceStateProvider,
 	private val wakeups: CoalescingSourceWakeupScheduler,
-) : SourceRuntime<CellPlan> {
+) : ClaimedSourceRuntime<CellPlan> {
 	override val source = SourceKind.CELL
 	private val _capabilities = MutableStateFlow(capabilitiesNow())
 	override val capabilities: StateFlow<SourceCapabilities> = _capabilities
@@ -64,21 +64,56 @@ class CellSourceRuntime @Inject internal constructor(
 	private var metrics = RuntimeAdmissionMetrics()
 	private var retirementIntent: CellProviderRetirementIntent? = null
 	private var automaticFailureAck: SourceStopAck? = null
+	private var ownerClaim: SourceRuntimeClaim? = null
 	private val processedCallbackSequence = MutableStateFlow(0L)
 	private var callbackOfferFailureCoverage = CellCallbackFailureCoverage()
 	private val prerequisiteGate = CellPrerequisiteGate(deviceStateProvider::cell)
 
-	override suspend fun start(plan: CellPlan, sink: SourceEventSink): SourceStartResult = lifecycleMutex.withLock {
-		require(currentPlan == null) { "Cell source is already started" }
-		startLocked(plan, sink)
+	override suspend fun start(plan: CellPlan, sink: SourceEventSink): SourceStartResult =
+		startWithClaim(null, plan, sink)
+
+	override suspend fun start(
+		claim: SourceRuntimeClaim,
+		plan: CellPlan,
+		sink: SourceEventSink,
+	): SourceStartResult {
+		require(claim.source == source)
+		return startWithClaim(claim, plan, sink)
 	}
 
-	override suspend fun reconfigure(plan: CellPlan, sink: SourceEventSink): SourceApplyResult = lifecycleMutex.withLock {
-		refreshCompatibleLocked(plan, sink)?.let { refreshed ->
+	private suspend fun startWithClaim(
+		claim: SourceRuntimeClaim?,
+		plan: CellPlan,
+		sink: SourceEventSink,
+	): SourceStartResult = lifecycleMutex.withLock {
+		require(currentPlan == null) { "Cell source is already started" }
+		startLocked(claim, plan, sink)
+	}
+
+	override suspend fun reconfigure(plan: CellPlan, sink: SourceEventSink): SourceApplyResult =
+		reconfigureWithClaim(null, plan, sink)
+
+	override suspend fun reconfigure(
+		claim: SourceRuntimeClaim,
+		plan: CellPlan,
+		sink: SourceEventSink,
+	): SourceApplyResult {
+		require(claim.source == source)
+		return reconfigureWithClaim(claim, plan, sink)
+	}
+
+	private suspend fun reconfigureWithClaim(
+		claim: SourceRuntimeClaim?,
+		plan: CellPlan,
+		sink: SourceEventSink,
+	): SourceApplyResult = lifecycleMutex.withLock {
+		refreshCompatibleLocked(claim, plan, sink)?.let { refreshed ->
 			return@withLock refreshed
 		}
+		var predecessorStopAck: SourceStopAck? = null
 		if (currentPlan != null) {
 			val previous = shutdownLocked(null)
+			predecessorStopAck = previous
 			if (!previous.appDrainComplete ||
 				previous.registrationRemovalOutcome != RegistrationRemovalOutcome.REMOVED
 			) {
@@ -86,17 +121,27 @@ class CellSourceRuntime @Inject internal constructor(
 					appliedState(source, plan.revision, null, SourceApplyStatus.FAILED,
 						SystemClock.elapsedRealtimeNanos()),
 					retryable = true,
+					stopAck = previous,
 				)
 			}
 		}
 		if (!plan.enabled) return@withLock SourceApplyResult.Applied(
 			appliedState(source, plan.revision, null, SourceApplyStatus.APPLIED, SystemClock.elapsedRealtimeNanos()),
+			stopAck = predecessorStopAck,
 		)
-		when (val result = startLocked(plan, sink)) {
-			is SourceStartResult.Started -> SourceApplyResult.Applied(result.applied)
-			is SourceStartResult.Degraded -> SourceApplyResult.Degraded(result.applied)
-			is SourceStartResult.Blocked -> SourceApplyResult.Failed(result.applied, false)
-			is SourceStartResult.Failed -> SourceApplyResult.Failed(result.applied, result.retryable)
+		when (val result = startLocked(claim, plan, sink)) {
+			is SourceStartResult.Started -> SourceApplyResult.Applied(result.applied, predecessorStopAck)
+			is SourceStartResult.Degraded -> SourceApplyResult.Degraded(result.applied, predecessorStopAck)
+			is SourceStartResult.Blocked -> SourceApplyResult.Failed(
+				result.applied,
+				retryable = false,
+				stopAck = predecessorStopAck,
+			)
+			is SourceStartResult.Failed -> SourceApplyResult.Failed(
+				result.applied,
+				result.retryable,
+				predecessorStopAck,
+			)
 		}
 	}
 
@@ -108,12 +153,24 @@ class CellSourceRuntime @Inject internal constructor(
 		if (currentPlan != null) shutdownLocked(null)
 	}
 
+	override suspend fun shutdownIfOwned(
+		claim: SourceRuntimeClaim,
+		cutoff: SessionCutoff,
+	): OwnedSourceShutdown {
+		require(claim.source == source)
+		return lifecycleMutex.withLock {
+			if (ownerClaim != claim) return@withLock OwnedSourceShutdown.NotOwned
+			(automaticFailureAck ?: shutdownLocked(cutoff)).toOwnedShutdown()
+		}
+	}
+
 	/**
 	 * Refreshes policy and immutable authorization attribution without replacing the compatible
 	 * Telephony registration. Inputs already in the lane retain the context captured at callback
 	 * entry; only later callbacks observe this revision.
 	 */
 	private suspend fun refreshCompatibleLocked(
+		claim: SourceRuntimeClaim?,
 		plan: CellPlan,
 		sink: SourceEventSink,
 	): SourceApplyResult? {
@@ -167,6 +224,9 @@ class CellSourceRuntime @Inject internal constructor(
 			}
 		}
 		if (!retained) return null
+		// The compatible refresh is a new durable lifecycle attempt even though it retains the same
+		// Telephony handle. Transfer authority only after its callback context commits.
+		ownerClaim = claim
 		val state = appliedState(
 			source, plan.revision, refreshed, application.status, SystemClock.elapsedRealtimeNanos(),
 		).copy(degradedReasons = application.reasons)
@@ -175,7 +235,11 @@ class CellSourceRuntime @Inject internal constructor(
 		} else SourceApplyResult.Applied(state)
 	}
 
-	private suspend fun startLocked(plan: CellPlan, sink: SourceEventSink): SourceStartResult {
+	private suspend fun startLocked(
+		claim: SourceRuntimeClaim?,
+		plan: CellPlan,
+		sink: SourceEventSink,
+	): SourceStartResult {
 		if (!reconcilePendingProviderRetirements()) {
 			return SourceStartResult.Failed(
 				appliedState(
@@ -220,6 +284,9 @@ class CellSourceRuntime @Inject internal constructor(
 		callbackOfferFailureCoverage = CellCallbackFailureCoverage()
 		cutoffElapsedNanos = null
 		metrics = RuntimeAdmissionMetrics()
+		// A provider may throw after installing its callback. Bind the explicit action claim before
+		// publication so a partially failed start remains exactly compensatable.
+		ownerClaim = claim
 		val providerStarted = try {
 			backend.start(plan.subscriptionIds) { snapshot ->
 				onBackendSnapshot(nextCallbackToken, snapshot, CellRefreshOutcome.CALLBACK)
@@ -394,7 +461,7 @@ class CellSourceRuntime @Inject internal constructor(
 				removed == RegistrationRemovalOutcome.FAILED -> SourceStopStatus.PROVIDER_FAILED
 				else -> SourceStopStatus.COMPLETE
 			},
-		)
+		).withSessionMembership(ownerClaim)
 		if (retirement == CellProviderRetirement.COMPLETE) {
 			clearActiveState()
 		} else {
@@ -801,6 +868,7 @@ class CellSourceRuntime @Inject internal constructor(
 		actor = null
 		cutoffElapsedNanos = null
 		currentPlan = null
+		ownerClaim = null
 	}
 
 	private fun unavailableAck(cutoff: SessionCutoff?) = SourceStopAck(
@@ -809,7 +877,7 @@ class CellSourceRuntime @Inject internal constructor(
 		RegistrationRemovalOutcome.NOT_REGISTERED, ProviderFlushOutcome.NOT_REQUESTED,
 		ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE, true,
 		if (cutoff == null) SourceStopStatus.COMPLETE else SourceStopStatus.PROVIDER_FAILED,
-	)
+	).withSessionMembership(ownerClaim)
 
 	private sealed interface CellRuntimeInput {
 		data object Started : CellRuntimeInput

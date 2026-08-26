@@ -49,6 +49,21 @@ interface SourceSessionDao {
 	suspend fun manifests(logicalTrackingId: String): List<SessionManifestVersionEntity>
 
 	@Query(
+		"SELECT * FROM session_manifest_version WHERE service_run_id = :serviceRunId " +
+			"ORDER BY manifest_revision ASC",
+	)
+	suspend fun manifestsForServiceRun(serviceRunId: String): List<SessionManifestVersionEntity>
+
+	@Query(
+		"SELECT * FROM session_manifest_version WHERE service_run_id = :serviceRunId " +
+			"AND manifest_revision = :manifestRevision",
+	)
+	suspend fun manifestByServiceRunRevision(
+		serviceRunId: String,
+		manifestRevision: Long,
+	): SessionManifestVersionEntity?
+
+	@Query(
 		"SELECT * FROM session_manifest_version WHERE logical_tracking_id = :logicalTrackingId " +
 			"AND manifest_revision = :manifestRevision",
 	)
@@ -125,7 +140,8 @@ interface SourceSessionDao {
 
 	@Query(
 		"SELECT * FROM lifecycle_desired_action WHERE status IN " +
-			"('PENDING', 'APPLYING', 'TEMPORARILY_ILLEGAL') ORDER BY requested_at_ms, action_revision",
+			"('PENDING', 'APPLYING', 'CLEANUP_REQUIRED', 'TEMPORARILY_ILLEGAL') " +
+			"ORDER BY requested_at_ms, action_revision",
 	)
 	suspend fun pendingLifecycleActions(): List<LifecycleDesiredActionEntity>
 
@@ -149,12 +165,6 @@ interface SourceSessionDao {
 
 	@Query(
 		"SELECT * FROM source_service_run WHERE logical_tracking_id = :logicalTrackingId " +
-			"ORDER BY started_at_ms DESC LIMIT 1",
-	)
-	suspend fun latestServiceRun(logicalTrackingId: String): SourceServiceRunEntity?
-
-	@Query(
-		"SELECT * FROM source_service_run WHERE logical_tracking_id = :logicalTrackingId " +
 			"AND completed_at_ms IS NULL AND state NOT IN ('FINALIZED', 'CLOSED', 'FAILED') " +
 			"ORDER BY started_at_ms ASC",
 	)
@@ -163,8 +173,30 @@ interface SourceSessionDao {
 	@Insert(onConflict = OnConflictStrategy.REPLACE)
 	suspend fun saveCompleteness(entity: SourceSessionCompletenessEntity)
 
-	@Query("SELECT * FROM source_session_completeness WHERE logical_tracking_id = :logicalTrackingId")
+	@Query(
+		"SELECT * FROM source_session_completeness WHERE logical_tracking_id = :logicalTrackingId " +
+			"ORDER BY service_run_id, source_kind, source_instance_id, registration_generation",
+	)
 	suspend fun completeness(logicalTrackingId: String): List<SourceSessionCompletenessEntity>
+
+	@Query(
+		"SELECT * FROM source_session_completeness WHERE logical_tracking_id = :logicalTrackingId " +
+			"AND service_run_id = :serviceRunId " +
+			"ORDER BY source_kind, source_instance_id, registration_generation",
+	)
+	suspend fun completenessForServiceRun(
+		logicalTrackingId: String,
+		serviceRunId: String,
+	): List<SourceSessionCompletenessEntity>
+
+	@Query(
+		"SELECT * FROM source_session_completeness WHERE logical_tracking_id = :logicalTrackingId " +
+			"AND service_run_id = '__LEGACY_V27_UNATTRIBUTED__' " +
+			"ORDER BY source_kind, source_instance_id, registration_generation",
+	)
+	suspend fun legacyUnattributedCompleteness(
+		logicalTrackingId: String,
+	): List<SourceSessionCompletenessEntity>
 
 	@Query("DELETE FROM source_session_completeness")
 	fun deleteAllCompleteness()

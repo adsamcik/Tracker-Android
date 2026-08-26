@@ -315,6 +315,10 @@ class DefaultInactiveTrackingSessionStopHandlerTest {
 				bootId = BOOT_ID,
 			),
 		)
+		val session = requireNotNull(database.sourceSessionDao().session(logicalTrackingId))
+		database.sourceSessionDao().updateSession(
+			session.copy(currentServiceRunId = serviceRunId),
+		) shouldBe 1
 	}
 
 	private fun descriptor(

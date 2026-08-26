@@ -18,6 +18,7 @@ import com.adsamcik.tracker.tracker.source.model.SourcePlan
 import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Provider
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -199,16 +200,24 @@ class TrackerServiceSourceSession @Inject constructor(
 		// stopped and cancels this coroutine mid-apply, stop() must still fence a partially-started
 		// runtime and terminalize the durable STARTING run.
 		active = applyingSession
-		val result = coordinator.applyPreparedAndroidStart(
-			token = claim.token,
-			commandGeneration = commandGeneration,
-			currentBootId = planInputs.clockDomainId,
-			elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
-			wallTimeMs = Time.nowMillis,
-		)
+		val result = try {
+			coordinator.applyPreparedAndroidStart(
+				token = claim.token,
+				commandGeneration = commandGeneration,
+				currentBootId = planInputs.clockDomainId,
+				elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
+				wallTimeMs = Time.nowMillis,
+			)
+		} catch (error: CancellationException) {
+			applyingSession.runtimeCleanupRequired = true
+			throw error
+		}
 		if (result is SessionStartResult.Started) {
 			pendingInputs = null
 			settingsStatusProvider.publishApplied(result.applied)
+		} else if (result.requiresRuntimeCleanup) {
+			applyingSession.runtimeCleanupRequired = true
+			settingsStatusProvider.publishFailure(SOURCE_RUNTIME_CLEANUP_PENDING)
 		} else {
 			active = null
 			settingsStatusProvider.publishFailure("SESSION_START_REJECTED")
@@ -266,11 +275,22 @@ class TrackerServiceSourceSession @Inject constructor(
 		check(request.rollout.coordinatorMode == CoordinatorMode.EVENT) {
 			"Event-owned sources require event coordinator mode"
 		}
-		val result = startCoordinator(session, planInputs)
+		// Attach cleanup ownership before the coordinator can perform its first provider side effect.
+		// Cancellation or an exception must route later service teardown through durable retirement.
+		session.coordinatorStarted = true
+		val result = try {
+			startCoordinator(session, planInputs)
+		} catch (error: CancellationException) {
+			session.runtimeCleanupRequired = true
+			throw error
+		}
 		if (result is SessionStartResult.Started) {
-			session.coordinatorStarted = true
 			settingsStatusProvider.publishApplied(result.applied)
 			SourceSessionStartOutcome.Started(result)
+		} else if (result.requiresRuntimeCleanup) {
+			session.runtimeCleanupRequired = true
+			settingsStatusProvider.publishFailure(SOURCE_RUNTIME_CLEANUP_PENDING)
+			SourceSessionStartOutcome.Rejected(result)
 		} else {
 			settingsStatusProvider.publishFailure("SESSION_START_REJECTED")
 			active = null
@@ -349,23 +369,31 @@ class TrackerServiceSourceSession @Inject constructor(
 			}
 		}
 		val plan = buildPlan(session.rollout, session.captureMode, inputs, requireEnabled = false)
-		val result = coordinator.reconfigure(
-			SessionReconfigureRequest(
-				ownerToken = session.ownerToken,
-				plan = plan,
-				wallTimeMs = Time.nowMillis,
-				elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
-				clockDomainId = inputs.clockDomainId,
-				zoneId = inputs.zoneId,
-				foregroundCapabilityFlags = session.foregroundCapabilityFlags,
-				controlDependencies = controlDependencies(session.origin),
-			),
-		)
+		val result = try {
+			coordinator.reconfigure(
+				SessionReconfigureRequest(
+					ownerToken = session.ownerToken,
+					plan = plan,
+					wallTimeMs = Time.nowMillis,
+					elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
+					clockDomainId = inputs.clockDomainId,
+					zoneId = inputs.zoneId,
+					foregroundCapabilityFlags = session.foregroundCapabilityFlags,
+					controlDependencies = controlDependencies(session.origin),
+				),
+			)
+		} catch (error: CancellationException) {
+			session.runtimeCleanupRequired = true
+			throw error
+		}
 		if (result is SessionReconfigureResult.Applied) {
 			session.lastInputs = inputs
 			settingsStatusProvider.publishApplied(result.applied)
 			SourceSessionReconfigureOutcome.Applied(result)
 		} else {
+			if (result.requiresRuntimeCleanup) {
+				session.runtimeCleanupRequired = true
+			}
 			settingsStatusProvider.publishFailure("PLAN_RECONFIGURE_REJECTED")
 			SourceSessionReconfigureOutcome.Rejected(result)
 		}
@@ -393,7 +421,7 @@ class TrackerServiceSourceSession @Inject constructor(
 			settingsStatusProvider.publishInactive()
 			return@withLock
 		}
-		if (preserveLogicalSession) {
+		if (preserveLogicalSession && !session.runtimeCleanupRequired) {
 			val currentCutoff = currentStopCutoff(session.lastInputs.clockDomainId)
 			when (val result = coordinator.suspendForRestart(
 				SessionSuspendRequest(
@@ -409,6 +437,9 @@ class TrackerServiceSourceSession @Inject constructor(
 				-> active = null
 				is SessionSuspendResult.DrainPending -> error(
 					"Event-source suspension drain pending through ${result.requiredOrdinal}",
+				)
+				is SessionSuspendResult.CleanupPending -> error(
+					"Event-source suspension cleanup pending through ${result.requiredOrdinal}",
 				)
 				SessionSuspendResult.Busy -> error("Event-source session coordinator is busy")
 			}
@@ -430,6 +461,9 @@ class TrackerServiceSourceSession @Inject constructor(
 				-> active = null
 				is SessionStopResult.DrainPending -> error(
 					"Event-source shutdown drain pending through ${result.requiredOrdinal}",
+				)
+				is SessionStopResult.CleanupPending -> error(
+					"Event-source shutdown cleanup pending through ${result.requiredOrdinal}",
 				)
 				SessionStopResult.Busy -> error("Event-source session coordinator is busy")
 			}
@@ -521,8 +555,16 @@ class TrackerServiceSourceSession @Inject constructor(
 		val foregroundCapabilityFlags: Long,
 		var lastInputs: SourceSessionPlanInputs,
 		var coordinatorStarted: Boolean,
+		var runtimeCleanupRequired: Boolean = false,
 	)
 }
+
+private val SessionStartResult.requiresRuntimeCleanup: Boolean
+	get() = this is SessionStartResult.Failed && code == SOURCE_RUNTIME_CLEANUP_PENDING
+
+private val SessionReconfigureResult.requiresRuntimeCleanup: Boolean
+	get() = this is SessionReconfigureResult.Failed &&
+		failureCode == SOURCE_RUNTIME_CLEANUP_PENDING
 
 internal fun captureModeFor(
 	isUserInitiated: Boolean,

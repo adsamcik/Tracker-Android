@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.database.fenceSourcePurposesInTransactio
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.process.ProcessIncarnationIdProvider
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
@@ -20,6 +21,7 @@ import com.adsamcik.tracker.tracker.source.coordinator.installCanonicalProductLa
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.nulls.shouldNotBeNull
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
@@ -479,6 +481,59 @@ class SourceRegistrationRepositoryTest {
 			registration.state.registrationGeneration,
 		)?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_RETIRING
 		subject.completeRetirement(token) shouldBe true
+	}
+
+	@Test
+	fun `terminal checkpoint and exact run completeness commit or roll back together`() = runTest {
+		database.sourceBrokerDao().insertDemands(
+			listOf(demand("capture", "session:s1", SourceBrokerPurpose.SESSION_CAPTURE, "s1", 1L, true)),
+		)
+		val registration = subject.begin(SourceKind.STEPS, 1L, PHYSICAL_CONFIG, 100L, 100L)
+		subject.markAccepted(registration, 110L, 110L)
+		val terminal = SensorRuntimeCheckpoint(
+			lifecycle = RuntimeCheckpointLifecycle.QUIESCED,
+			metrics = RuntimeAdmissionSnapshot(2L, 20L, 0L, null, null, emptySet()),
+			componentStateVersion = 7,
+			componentPayload = byteArrayOf(1),
+			causalOrderElapsedRealtimeNanos = 200L,
+		)
+		val completeness = SourceSessionCompletenessEntity(
+			logicalTrackingId = "s1",
+			serviceRunId = "run-s1",
+			sourceKind = SourceKind.STEPS.stableCode,
+			sourceInstanceId = registration.state.sourceInstanceId,
+			registrationGeneration = registration.state.registrationGeneration,
+			lastAdmissionOrdinal = 20L,
+			lastSourceSequence = 2L,
+			appDrainComplete = true,
+			providerCoverage = ProviderCoverage.CALLBACKS_ENTERED_BEFORE_BARRIER.name,
+			stopStatus = SourceStopStatus.COMPLETE.name,
+			unresolvedSequenceStart = null,
+			unresolvedSequenceEnd = null,
+			updatedAtMs = 200L,
+		)
+
+		shouldThrow<IllegalStateException> {
+			subject.saveSensorRuntimeCheckpoint(
+				registration,
+				2L,
+				terminal,
+				200L,
+				terminalCompleteness = completeness.copy(sourceKind = SourceKind.LOCATION.stableCode),
+			)
+		}
+		subject.loadRuntimeState(registration) shouldBe null
+		database.sourceSessionDao().completenessForServiceRun("s1", "run-s1") shouldBe emptyList()
+
+		subject.saveSensorRuntimeCheckpoint(
+			registration,
+			2L,
+			terminal,
+			200L,
+			terminalCompleteness = completeness,
+		)
+		subject.loadRuntimeState(registration).shouldNotBeNull()
+		database.sourceSessionDao().completenessForServiceRun("s1", "run-s1") shouldBe listOf(completeness)
 	}
 
 	@Test

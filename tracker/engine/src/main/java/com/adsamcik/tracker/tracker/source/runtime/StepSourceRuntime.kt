@@ -10,6 +10,7 @@ import android.os.SystemClock
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 import com.adsamcik.tracker.tracker.source.ingress.STEP_BOUNDARY_KIND_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
@@ -50,7 +51,7 @@ class StepSourceRuntime @Inject constructor(
 	@ApplicationContext private val context: Context,
 	@ApplicationScope private val applicationScope: CoroutineScope,
 	private val registrations: SourceRegistrationRepository,
-) : SourceRuntime<StepsPlan> {
+) : ClaimedSourceRuntime<StepsPlan> {
 	override val source: SourceKind = SourceKind.STEPS
 	private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
 	private val sensor: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
@@ -68,6 +69,7 @@ class StepSourceRuntime @Inject constructor(
 	private var providerRetirement: StepProviderRetirementIntent? = null
 	private var terminalSettlement: StepTerminalSettlementIntent? = null
 	private var terminalStopAck: SourceStopAck? = null
+	private var runtimeClaim: SourceRuntimeClaim? = null
 	private var currentPlan: StepsPlan? = null
 	private var currentSink: SourceEventSink? = null
 	private var queue: StepCallbackLane? = null
@@ -87,10 +89,27 @@ class StepSourceRuntime @Inject constructor(
 	private val recentEvidence = RecentStepEvidenceTracker(SystemClock::elapsedRealtimeNanos)
 
 	override suspend fun start(plan: StepsPlan, sink: SourceEventSink): SourceStartResult = lifecycleMutex.withLock {
+		startForClaimLocked(claim = null, plan, sink)
+	}
+
+	override suspend fun start(
+		claim: SourceRuntimeClaim,
+		plan: StepsPlan,
+		sink: SourceEventSink,
+	): SourceStartResult = lifecycleMutex.withLock {
+		require(claim.source == source)
+		startForClaimLocked(claim, plan, sink)
+	}
+
+	private suspend fun startForClaimLocked(
+		claim: SourceRuntimeClaim?,
+		plan: StepsPlan,
+		sink: SourceEventSink,
+	): SourceStartResult {
 		if (providerRetirement != null) {
 			retryPendingRetirementLocked()
 			if (providerRetirement != null) {
-				return@withLock SourceStartResult.Failed(
+				return SourceStartResult.Failed(
 					appliedState(source, plan.revision, null, SourceApplyStatus.FAILED,
 						SystemClock.elapsedRealtimeNanos()),
 					retryable = true,
@@ -98,41 +117,106 @@ class StepSourceRuntime @Inject constructor(
 			}
 		}
 		require(currentPlan == null) { "Step source is already started" }
-		startLocked(plan, sink)
+		// A completed predecessor acknowledgement is useful only to its reconfigure caller. Once a
+		// successor can publish provider state it must never short-circuit that successor's cleanup.
+		if (plan.enabled) terminalStopAck = null
+		runtimeClaim = claim.takeIf { plan.enabled }
+		return try {
+			startLocked(plan, sink).also {
+				if (registration == null && providerRetirement == null) {
+					runtimeClaim = null
+				}
+			}
+		} catch (error: Throwable) {
+			if (registration == null && providerRetirement == null) runtimeClaim = null
+			throw error
+		}
 	}
 
 	override suspend fun reconfigure(plan: StepsPlan, sink: SourceEventSink): SourceApplyResult = lifecycleMutex.withLock {
-		refreshCompatibleLocked(plan, sink)?.let { refreshed ->
-			return@withLock refreshed
+		reconfigureForClaimLocked(claim = null, plan, sink)
+	}
+
+	override suspend fun reconfigure(
+		claim: SourceRuntimeClaim,
+		plan: StepsPlan,
+		sink: SourceEventSink,
+	): SourceApplyResult = lifecycleMutex.withLock {
+		require(claim.source == source)
+		reconfigureForClaimLocked(claim, plan, sink)
+	}
+
+	private suspend fun reconfigureForClaimLocked(
+		claim: SourceRuntimeClaim?,
+		plan: StepsPlan,
+		sink: SourceEventSink,
+	): SourceApplyResult {
+		val replayableStopAck = terminalStopAck
+		refreshCompatibleLocked(plan, sink) { runtimeClaim = claim }?.let { refreshed ->
+			return refreshed.withStopAckIfAbsent(replayableStopAck)
 		}
+		var stopAck: SourceStopAck? = replayableStopAck
 		if (currentPlan != null) {
 			val previous = shutdownLocked(null)
+			stopAck = previous
 			if (!previous.appDrainComplete ||
 				previous.registrationRemovalOutcome != RegistrationRemovalOutcome.REMOVED
 			) {
-				return@withLock SourceApplyResult.Failed(
+				return SourceApplyResult.Failed(
 					appliedState(source, plan.revision, null, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()),
 					retryable = true,
+					stopAck = previous,
 				)
 			}
 		}
 		if (!plan.enabled) {
 			currentPlan = null
 			currentSink = sink
-			return@withLock SourceApplyResult.Applied(
+			runtimeClaim = null
+			return SourceApplyResult.Applied(
 				appliedState(source, plan.revision, null, SourceApplyStatus.APPLIED, SystemClock.elapsedRealtimeNanos()),
+				stopAck = stopAck,
 			)
 		}
-		when (val result = startLocked(plan, sink)) {
-			is SourceStartResult.Started -> SourceApplyResult.Applied(result.applied)
-			is SourceStartResult.Degraded -> SourceApplyResult.Degraded(result.applied)
-			is SourceStartResult.Blocked -> SourceApplyResult.Failed(result.applied, retryable = false)
-			is SourceStartResult.Failed -> SourceApplyResult.Failed(result.applied, result.retryable)
+		// Preserve the predecessor acknowledgement in the returned result, but make it impossible
+		// for exact successor compensation to mistake that receipt for the successor's terminal state.
+		terminalStopAck = null
+		runtimeClaim = claim
+		return when (val result = startLocked(plan, sink)) {
+			is SourceStartResult.Started -> SourceApplyResult.Applied(result.applied, stopAck)
+			is SourceStartResult.Degraded -> SourceApplyResult.Degraded(result.applied, stopAck)
+			is SourceStartResult.Blocked -> SourceApplyResult.Failed(result.applied, false, stopAck).also {
+				if (registration == null && providerRetirement == null) runtimeClaim = null
+			}
+			is SourceStartResult.Failed -> SourceApplyResult.Failed(result.applied, result.retryable, stopAck).also {
+				if (registration == null && providerRetirement == null) runtimeClaim = null
+			}
 		}
 	}
 
 	override suspend fun quiesce(cutoff: SessionCutoff): SourceStopAck = lifecycleMutex.withLock {
-		terminalStopAck ?: shutdownLocked(cutoff)
+		(terminalStopAck ?: shutdownLocked(cutoff)).also(::clearClaimIfReleased)
+	}
+
+	override suspend fun shutdownIfOwned(
+		claim: SourceRuntimeClaim,
+		cutoff: SessionCutoff,
+	): OwnedSourceShutdown = lifecycleMutex.withLock {
+		require(claim.source == source)
+		if (runtimeClaim != claim) return@withLock OwnedSourceShutdown.NotOwned
+		val acknowledgement = when {
+			currentPlan != null || providerRetirement != null -> shutdownLocked(cutoff)
+			terminalStopAck != null -> terminalStopAck
+			else -> null
+		}
+		if (acknowledgement == null) {
+			runtimeClaim = null
+			OwnedSourceShutdown.Released(provider = null, stopAck = null)
+		} else {
+			acknowledgement.toOwnedShutdown().also { shutdown ->
+				if (shutdown is OwnedSourceShutdown.Released) runtimeClaim = null
+			}
+		}
 	}
 
 	/**
@@ -157,12 +241,21 @@ class StepSourceRuntime @Inject constructor(
 	}
 
 	override suspend fun close() = lifecycleMutex.withLock {
-		if (currentPlan != null || providerRetirement != null) shutdownLocked(null)
+		if (currentPlan != null || providerRetirement != null) {
+			clearClaimIfReleased(shutdownLocked(null))
+		} else {
+			runtimeClaim = null
+		}
+	}
+
+	private fun clearClaimIfReleased(acknowledgement: SourceStopAck) {
+		if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) runtimeClaim = null
 	}
 
 	private suspend fun refreshCompatibleLocked(
 		plan: StepsPlan,
 		sink: SourceEventSink,
+		onAuthorizationCommitted: () -> Unit = {},
 	): SourceApplyResult? {
 		val activePlan = currentPlan ?: return null
 		val activeRegistration = registration ?: return null
@@ -199,6 +292,7 @@ class StepSourceRuntime @Inject constructor(
 				refreshed.state.registrationGeneration == activeRegistration.state.registrationGeneration &&
 				refreshed.physicalConfigurationFingerprint == activeRegistration.physicalConfigurationFingerprint &&
 				!refreshed.requiresProviderAcceptance
+			if (compatible) onAuthorizationCommitted()
 			val stillAccepting = synchronized(callbackLock) {
 				if (compatible) {
 					// The latch closes the authorization-refresh/timeline race at this boundary.
@@ -287,7 +381,6 @@ class StepSourceRuntime @Inject constructor(
 				retryable = true,
 			)
 		}
-		terminalStopAck = null
 		val baselineBoundary = StepBaselineBoundary(nextRegistration.state.registrationGeneration)
 		val saved = registrations.loadRuntimeState(nextRegistration)
 		val recovery = recoverStepRuntimeState(
@@ -449,6 +542,10 @@ class StepSourceRuntime @Inject constructor(
 		}
 		synchronized(callbackLock) { overflowPauseRemovalComplete = true }
 		launchStepActor(nextQueue, accumulator)
+		// A terminal acknowledgement is replayable only while no replacement is active. The
+		// reconfigure caller already retains the retired generation's acknowledgement locally;
+		// keeping it here would let a later quiesce bypass this registration's barrier and removal.
+		terminalStopAck = null
 		batchingEnabled = maximumLatencyUs > 0 && stepSensor.fifoMaxEventCount > 0
 		return SourceStartResult.Started(
 			appliedState(source, plan.revision, nextRegistration, SourceApplyStatus.APPLIED, SystemClock.elapsedRealtimeNanos()),
@@ -610,7 +707,7 @@ class StepSourceRuntime @Inject constructor(
 				removal == RegistrationRemovalOutcome.FAILED -> SourceStopStatus.PROVIDER_FAILED
 				else -> SourceStopStatus.COMPLETE
 			},
-		)
+		).withSessionMembership(activeRegistration).withSessionMembership(runtimeClaim)
 		providerRetirement?.stopAck = ack
 		val terminal = StepTerminalSettlementIntent(
 			registration = activeRegistration,
@@ -1345,6 +1442,7 @@ class StepSourceRuntime @Inject constructor(
 		lifecycle: RuntimeCheckpointLifecycle,
 		causalOrderElapsedRealtimeNanos: Long,
 		admission: RuntimeAdmissionSnapshot,
+		ack: SourceStopAck,
 	) {
 		val saved = registrations.loadRuntimeState(activeRegistration)
 		val boundary = StepBaselineBoundary(
@@ -1368,6 +1466,9 @@ class StepSourceRuntime @Inject constructor(
 				causalOrderElapsedRealtimeNanos,
 			),
 			stepCheckpointOrderMillis(causalOrderElapsedRealtimeNanos),
+			terminalCompleteness = ack.toTerminalCompleteness(
+				updatedAtMs = System.currentTimeMillis(),
+			),
 		)
 	}
 
@@ -1379,6 +1480,7 @@ class StepSourceRuntime @Inject constructor(
 			lifecycle = intent.lifecycle,
 			causalOrderElapsedRealtimeNanos = intent.causalOrderElapsedRealtimeNanos,
 			admission = intent.admission,
+			ack = intent.ack,
 		)
 		intent.checkpointConfirmed = true
 	}
@@ -1983,6 +2085,61 @@ internal class StepCallbackGenerationGate {
 		active = null
 		return true
 	}
+}
+
+private data class StepSessionCaptureMembership(
+	val logicalTrackingId: String,
+	val serviceRunId: String,
+)
+
+private fun SourceRegistration.singlePersistenceEligibleSessionCapture(): StepSessionCaptureMembership? {
+	val captureMembers = authorization.authorizedMembers.filter { member ->
+		member.purpose == SourceBrokerPurpose.SESSION_CAPTURE && member.persistenceEligible
+	}
+	check(captureMembers.size <= 1) {
+		"A Steps generation cannot retire with multiple persistence-eligible session owners"
+	}
+	return captureMembers.singleOrNull()?.let { member ->
+		StepSessionCaptureMembership(
+			logicalTrackingId = requireNotNull(member.logicalTrackingId),
+			serviceRunId = requireNotNull(member.serviceRunId),
+		)
+	}
+}
+
+private fun SourceStopAck.withSessionMembership(registration: SourceRegistration): SourceStopAck {
+	val membership = registration.singlePersistenceEligibleSessionCapture() ?: return this
+	return copy(
+		logicalTrackingId = membership.logicalTrackingId,
+		serviceRunId = membership.serviceRunId,
+	)
+}
+
+private fun SourceStopAck.toTerminalCompleteness(updatedAtMs: Long): SourceSessionCompletenessEntity? {
+	check((logicalTrackingId == null) == (serviceRunId == null))
+	val logicalId = logicalTrackingId ?: return null
+	return SourceSessionCompletenessEntity(
+		logicalTrackingId = logicalId,
+		serviceRunId = requireNotNull(serviceRunId),
+		sourceKind = source.stableCode,
+		sourceInstanceId = sourceInstanceId.value,
+		registrationGeneration = registrationGeneration,
+		lastAdmissionOrdinal = lastAdmissionOrdinal,
+		lastSourceSequence = lastDurablyAdmittedSequence,
+		appDrainComplete = appDrainComplete,
+		providerCoverage = providerCoverage.name,
+		stopStatus = status.name,
+		unresolvedSequenceStart = unresolvedSequenceStart,
+		unresolvedSequenceEnd = unresolvedSequenceEndInclusive,
+		updatedAtMs = updatedAtMs,
+	)
+}
+
+private fun SourceApplyResult.withStopAckIfAbsent(replay: SourceStopAck?): SourceApplyResult = when (this) {
+	is SourceApplyResult.Applied -> copy(stopAck = stopAck ?: replay)
+	is SourceApplyResult.Degraded -> copy(stopAck = stopAck ?: replay)
+	is SourceApplyResult.RolledBack -> copy(stopAck = stopAck ?: replay)
+	is SourceApplyResult.Failed -> copy(stopAck = stopAck ?: replay)
 }
 
 private const val RECENT_CONTROL_STEP_WINDOW_NANOS = 30_000L * 1_000_000L

@@ -7,8 +7,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID
 import com.adsamcik.tracker.shared.base.database.data.LegacyV27ProjectionDrainEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.sqlite.runtime.SQLiteXSupportSQLiteOpenHelperFactory
 import kotlinx.coroutines.runBlocking
@@ -393,7 +394,8 @@ class AppDatabaseMigration27To28Test {
 		}
 		database.query(
 			"SELECT state, lifecycle_revision, completed_at_ms, failure_code, session_mode, " +
-				"current_manifest_revision, current_intent_revision, lifecycle_lease_generation, " +
+				"current_manifest_revision, current_intent_revision, current_service_run_id, " +
+				"lifecycle_lease_generation, " +
 				"lifecycle_boot_id, automation_epoch FROM logical_tracking_session " +
 				"WHERE logical_tracking_id = '${PopulatedV27Fixture.LOGICAL_TRACKING_ID}'",
 		).use { cursor ->
@@ -405,9 +407,10 @@ class AppDatabaseMigration27To28Test {
 			assertEquals("LEGACY_UNKNOWN", cursor.getString(4))
 			assertTrue(cursor.isNull(5))
 			assertTrue(cursor.isNull(6))
-			assertEquals(0L, cursor.getLong(7))
-			assertTrue(cursor.isNull(8))
+			assertTrue(cursor.isNull(7))
+			assertEquals(0L, cursor.getLong(8))
 			assertTrue(cursor.isNull(9))
+			assertTrue(cursor.isNull(10))
 		}
 		database.query(
 			"SELECT state, completed_at_ms, completion_reason, boot_id, lease_generation, " +
@@ -600,6 +603,38 @@ class AppDatabaseMigration27To28Test {
 		assertTableCount(database, "legacy_v27_projection_drain", 1)
 		assertTableCount(database, "legacy_v27_projection_target", 4)
 		assertTableCount(database, "source_session_completeness", 1)
+		database.query(
+			"SELECT service_run_id, source_kind, source_instance_id, registration_generation, " +
+				"last_admission_ordinal, last_source_sequence, app_drain_complete, provider_coverage, " +
+				"stop_status, unresolved_sequence_start, unresolved_sequence_end, updated_at_ms " +
+				"FROM source_session_completeness WHERE logical_tracking_id = " +
+				"'${PopulatedV27Fixture.LOGICAL_TRACKING_ID}'",
+		).use { cursor ->
+			assertTrue(cursor.moveToFirst())
+			assertEquals(LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID, cursor.getString(0))
+			assertEquals(1L, cursor.getLong(1))
+			assertEquals(PopulatedV27Fixture.COMPLETENESS_SOURCE_INSTANCE_ID, cursor.getString(2))
+			assertEquals(PopulatedV27Fixture.COMPLETENESS_REGISTRATION_GENERATION, cursor.getLong(3))
+			assertEquals(PopulatedV27Fixture.COMPLETENESS_LAST_ADMISSION_ORDINAL, cursor.getLong(4))
+			assertEquals(PopulatedV27Fixture.COMPLETENESS_LAST_SOURCE_SEQUENCE, cursor.getLong(5))
+			assertEquals(0L, cursor.getLong(6))
+			assertEquals("UNKNOWN", cursor.getString(7))
+			assertEquals("INCOMPLETE", cursor.getString(8))
+			assertEquals(PopulatedV27Fixture.COMPLETENESS_UNRESOLVED_SEQUENCE, cursor.getLong(9))
+			assertEquals(PopulatedV27Fixture.COMPLETENESS_UNRESOLVED_SEQUENCE, cursor.getLong(10))
+			assertEquals(PopulatedV27Fixture.END_MS, cursor.getLong(11))
+			assertFalse(cursor.moveToNext())
+		}
+		database.query("PRAGMA table_info(source_session_completeness)").use { cursor ->
+			val primaryKeyPositions = buildMap {
+				while (cursor.moveToNext()) put(cursor.getString(1), cursor.getInt(5))
+			}
+			assertEquals(1, primaryKeyPositions["logical_tracking_id"])
+			assertEquals(2, primaryKeyPositions["service_run_id"])
+			assertEquals(3, primaryKeyPositions["source_kind"])
+			assertEquals(4, primaryKeyPositions["source_instance_id"])
+			assertEquals(5, primaryKeyPositions["registration_generation"])
+		}
 		assertTableCount(database, "pending_signal", 1)
 		assertTableCount(database, "import_job_receipt", 1)
 		assertTableCount(database, "import_entry_receipt", 1)
@@ -797,8 +832,19 @@ class AppDatabaseMigration27To28Test {
 		assertEquals("FINALIZED", session.state)
 		assertEquals(V28_MIGRATION_INTERRUPTION_REASON, session.failureCode)
 		assertNull(session.completedAtMs)
+		assertNull(session.currentServiceRunId)
 		assertTrue(database.sourceSessionDao().manifests(session.logicalTrackingId).isEmpty())
+		assertTrue(database.sourceSessionDao().manifestsForServiceRun(PopulatedV27Fixture.SERVICE_RUN_ID).isEmpty())
 		assertTrue(database.sourceSessionDao().lifecycleIntents(session.logicalTrackingId).isEmpty())
+		val legacyCompleteness = database.sourceSessionDao()
+			.legacyUnattributedCompleteness(session.logicalTrackingId)
+			.single()
+		assertEquals(LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID, legacyCompleteness.serviceRunId)
+		assertTrue(
+			database.sourceSessionDao()
+				.completenessForServiceRun(session.logicalTrackingId, PopulatedV27Fixture.SERVICE_RUN_ID)
+				.isEmpty(),
+		)
 
 		val service = requireNotNull(database.sourceSessionDao().serviceRun(PopulatedV27Fixture.SERVICE_RUN_ID))
 		assertEquals("FINALIZED", service.state)

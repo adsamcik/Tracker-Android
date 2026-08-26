@@ -264,6 +264,7 @@ class TrackerServiceSourceSessionTest {
 			awaitCancellation()
 		}
 		coEvery { lifecycle.stop(any()) } returns SessionStopResult.NoActiveSession
+		coEvery { lifecycle.suspendForRestart(any()) } returns SessionSuspendResult.NoActiveSession
 		val enabled = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L)
 		val applying = async {
 			subject.applyPreparedAndroidStart(
@@ -292,9 +293,148 @@ class TrackerServiceSourceSessionTest {
 		applyStarted.await()
 
 		applying.cancelAndJoin()
-		subject.stop(reason = "EXPLICIT_REQUEST", preserveLogicalSession = false)
+		subject.stop(reason = "PROCESS_RESTART", preserveLogicalSession = true)
 
 		coVerify(exactly = 1) { lifecycle.stop(any()) }
+		coVerify(exactly = 0) { lifecycle.suspendForRestart(any()) }
+	}
+
+	@Test
+	fun `cancelled direct start retains coordinator cleanup ownership`() = runTest {
+		val rollout = allEventCanonical(revision = 5)
+		val enabled = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L)
+		val startEntered = CompletableDeferred<Unit>()
+		coEvery { lifecycle.start(any()) } coAnswers {
+			startEntered.complete(Unit)
+			awaitCancellation()
+		}
+		coEvery { lifecycle.stop(any()) } returns SessionStopResult.NoActiveSession
+		coEvery { lifecycle.suspendForRestart(any()) } returns SessionSuspendResult.NoActiveSession
+		val starting = async {
+			subject.start(
+				SourceSessionStartRequest(
+					rollout = rollout,
+					ownership = TrackingSessionOwnership.resolve(rollout, enabled),
+					logicalTrackingId = "logical",
+					serviceRunId = "run",
+					origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+					foregroundCapabilityFlags = 1L,
+					planInputs = inputs(enabled),
+					ownerToken = "owner",
+				),
+			)
+		}
+		startEntered.await()
+
+		starting.cancelAndJoin()
+		subject.stop(reason = "PROCESS_RESTART", preserveLogicalSession = true)
+
+		coVerify(exactly = 1) { lifecycle.stop(any()) }
+		coVerify(exactly = 0) { lifecycle.suspendForRestart(any()) }
+	}
+
+	@Test
+	fun `cancelled reconfigure forces full retirement across process restart`() = runTest {
+		val rollout = allEventCanonical(revision = 5)
+		val initial = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L)
+		val reconfigureEntered = CompletableDeferred<Unit>()
+		coEvery { lifecycle.start(any()) } returns
+			SessionStartResult.Started("logical", "run", emptyList(), DesiredPlanStatus.EFFECTIVE)
+		coEvery { lifecycle.reconfigure(any()) } coAnswers {
+			reconfigureEntered.complete(Unit)
+			awaitCancellation()
+		}
+		coEvery { lifecycle.stop(any()) } returns SessionStopResult.NoActiveSession
+		coEvery { lifecycle.suspendForRestart(any()) } returns SessionSuspendResult.NoActiveSession
+
+		subject.start(
+			SourceSessionStartRequest(
+				rollout = rollout,
+				ownership = TrackingSessionOwnership.resolve(rollout, initial),
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+				foregroundCapabilityFlags = 1L,
+				planInputs = inputs(initial),
+				ownerToken = "owner",
+			),
+		).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
+
+		val reconfiguring = async {
+			subject.reconfigure(
+				inputs(settings(SourceCollectionFrequency.BATTERY_SAVER, sourcePolicyRevision = 2L)),
+			)
+		}
+		reconfigureEntered.await()
+		reconfiguring.cancelAndJoin()
+
+		subject.stop(reason = "PROCESS_RESTART", preserveLogicalSession = true)
+
+		coVerify(exactly = 1) { lifecycle.stop(any()) }
+		coVerify(exactly = 0) { lifecycle.suspendForRestart(any()) }
+	}
+
+	@Test
+	fun `cleanup-pending prepared apply forces full retirement across process restart`() = runTest {
+		installCanonicalProductLanesForTest(
+			database = database,
+			bindings = listOf(TEST_STEPS_BINDING),
+			rolloutRevision = 5L,
+			updatedAtMs = 1L,
+		)
+		val rollout = rolloutStore.load()
+		database.sourceSessionDao().insertServiceRun(
+			SourceServiceRunEntity(
+				serviceRunId = "run",
+				logicalTrackingId = "logical",
+				state = SessionLifecycleState.STARTING.name,
+				desiredPlanRevision = 1L,
+				rolloutRevision = rollout.revision,
+				foregroundCapabilityFlags = 1L,
+				startedAtMs = 1L,
+				startedElapsedNanos = 1L,
+				completedAtMs = null,
+				completionReason = null,
+			),
+		)
+		coEvery { lifecycle.applyPreparedAndroidStart(any(), any(), any(), any(), any()) } returns
+			SessionStartResult.Failed(
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				applied = emptyList(),
+				code = SOURCE_RUNTIME_CLEANUP_PENDING,
+			)
+		coEvery { lifecycle.stop(any()) } returns SessionStopResult.NoActiveSession
+		coEvery { lifecycle.suspendForRestart(any()) } returns SessionSuspendResult.NoActiveSession
+		val enabled = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L)
+
+		subject.applyPreparedAndroidStart(
+			claim = ClaimedPreparedSessionStart(
+				token = PreparedTrackingStartToken("prepared-run"),
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				manifestRevision = 1L,
+				intentRevision = 1L,
+				planRevision = 1L,
+				sourcePolicyRevision = 1L,
+				startOrigin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+				sessionMode = SessionMode.MANUAL,
+				acceptedSources = setOf(SourceKind.STEPS),
+				desiredForegroundCapabilityFlags = 1L,
+				intent = mockk(),
+				automaticTrigger = null,
+				isUserInitiated = true,
+				isAmbient = false,
+				alreadyForegroundAccepted = true,
+			),
+			commandGeneration = 1L,
+			planInputs = inputs(enabled),
+		).shouldBeInstanceOf<SessionStartResult.Failed>()
+
+		subject.stop(reason = "PROCESS_RESTART", preserveLogicalSession = true)
+
+		coVerify(exactly = 1) { lifecycle.stop(any()) }
+		coVerify(exactly = 0) { lifecycle.suspendForRestart(any()) }
 	}
 
 	@Test
@@ -553,6 +693,41 @@ class TrackerServiceSourceSessionTest {
 
 		coVerify(exactly = 1) { lifecycle.suspendForRestart(any()) }
 		startupGate.reconcileCalls shouldBe 1
+	}
+
+	@Test
+	fun `cleanup-pending reconfigure forces full retirement across process restart`() = runTest {
+		val rollout = allEventCanonical(revision = 5)
+		val initial = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L)
+		coEvery { lifecycle.start(any()) } returns
+			SessionStartResult.Started("logical", "run", emptyList(), DesiredPlanStatus.EFFECTIVE)
+		coEvery { lifecycle.reconfigure(any()) } returns SessionReconfigureResult.Failed(
+			revision = 2L,
+			applied = emptyList(),
+			failureCode = SOURCE_RUNTIME_CLEANUP_PENDING,
+		)
+		coEvery { lifecycle.stop(any()) } returns SessionStopResult.NoActiveSession
+		coEvery { lifecycle.suspendForRestart(any()) } returns SessionSuspendResult.NoActiveSession
+		subject.start(
+			SourceSessionStartRequest(
+				rollout = rollout,
+				ownership = TrackingSessionOwnership.resolve(rollout, initial),
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+				foregroundCapabilityFlags = 1L,
+				planInputs = inputs(initial),
+				ownerToken = "owner",
+			),
+		).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
+
+		subject.reconfigure(
+			inputs(settings(SourceCollectionFrequency.BATTERY_SAVER, sourcePolicyRevision = 2L)),
+		).shouldBeInstanceOf<SourceSessionReconfigureOutcome.Rejected>()
+		subject.stop(reason = "PROCESS_RESTART", preserveLogicalSession = true)
+
+		coVerify(exactly = 1) { lifecycle.stop(any()) }
+		coVerify(exactly = 0) { lifecycle.suspendForRestart(any()) }
 	}
 
 	@Test
