@@ -17,6 +17,8 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleS
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
+import com.adsamcik.tracker.tracker.source.coordinator.decodeCurrentModelOrNull
+import com.adsamcik.tracker.tracker.source.coordinator.isCanonicalCaptureAuthorizedBy
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
@@ -362,7 +364,11 @@ class RoomDurableSourceIngress @Inject constructor(
 	private suspend fun isCaptureAdmissionExecutable(sourceKind: Int): Boolean {
 		val dao = database.sourceProjectionStateDao()
 		if (!dao.isCaptureAdmissionOpen(sourceKind)) return false
-		return dao.activeProductLane(sourceKind)?.let(executableLaneCatalog::owns) == true
+		val source = SourceKind.entries.singleOrNull { it.stableCode == sourceKind } ?: return false
+		val rollout = database.trackingRolloutStateDao().get()?.decodeCurrentModelOrNull()
+			?: return false
+		val lane = dao.activeProductLane(sourceKind) ?: return false
+		return lane.isCanonicalCaptureAuthorizedBy(rollout, executableLaneCatalog)
 	}
 
 	private suspend fun persistAtomicCheckpoint(

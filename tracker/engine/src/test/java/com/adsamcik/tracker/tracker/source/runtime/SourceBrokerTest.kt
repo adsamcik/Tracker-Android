@@ -19,8 +19,8 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
-import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
+import com.adsamcik.tracker.tracker.source.coordinator.installCanonicalProductLanesForTest
 import com.adsamcik.tracker.tracker.source.model.ActivityAcquisitionCapability
 import com.adsamcik.tracker.tracker.source.model.ActivityAcquisitionFloor
 import com.adsamcik.tracker.tracker.source.model.DirectSourceDemandPurpose
@@ -110,7 +110,7 @@ class SourceBrokerTest {
 
 	@Test
 	fun `automatic Steps capture rollout admits Activity control without admitting Activity capture`() = runTest {
-		val rollout = TrackingRolloutState.eventShadow(
+		val rollout = TrackingRolloutState.eventCanonical(
 			sources = setOf(SourceKind.STEPS),
 			revision = 7L,
 			controlSources = setOf(SourceKind.ACTIVITY),
@@ -648,17 +648,9 @@ private suspend fun activateAllBrokerTestProductLanes(
 			captureModes = captureModes,
 		)
 	}
-	val store = RoomTrackingRolloutStateStore(
-		database,
-		ExecutableSourceLaneCatalog.explicit(*bindings.toTypedArray()),
+	return installCanonicalProductLanesForTest(
+		database = database,
+		bindings = bindings,
+		rolloutRevision = bindings.size.toLong(),
 	)
-	bindings.forEachIndexed { index, binding ->
-		val revision = index + 1L
-		store.installAndActivateShadowLane(
-			binding = binding,
-			rolloutRevision = revision,
-			updatedAtMs = revision,
-		)
-	}
-	return store
 }

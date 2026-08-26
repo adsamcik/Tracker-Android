@@ -183,7 +183,7 @@ class TrackingSettingsStatusProviderTest {
 
 		subject.publishResolved(
 			settings,
-			TrackingRolloutState.eventShadow(setOf(SourceKind.STEPS)),
+			TrackingRolloutState.eventCanonical(setOf(SourceKind.STEPS)),
 			resolved,
 			CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
 			resolved.applicablePlans.filterKeys { source -> source == SourceKind.STEPS },
@@ -221,7 +221,7 @@ class TrackingSettingsStatusProviderTest {
 				severeThermalPressure = false,
 			),
 		)
-		val rollout = TrackingRolloutState.eventShadow(
+		val rollout = TrackingRolloutState.eventCanonical(
 			sources = setOf(SourceKind.LOCATION, SourceKind.STEPS),
 			captureModes = mapOf(
 				SourceKind.LOCATION to setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),

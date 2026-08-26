@@ -37,8 +37,10 @@ import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.CoordinatorDrainResult
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
+import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
 import com.adsamcik.tracker.tracker.source.coordinator.SourceRecoveryResult
+import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
@@ -119,6 +121,15 @@ class RoomDurableSourceIngressTest {
 		testAmbientEpoch = requireNotNull(ambient[TrackingSourceComponent.ACTIVITY].ambientConsentEpoch)
 		installCaptureLane(SourceKind.ACTIVITY)
 		installCaptureLane(SourceKind.STEPS)
+		RoomTrackingRolloutStateStore(database, TEST_EXECUTABLE_LANE_CATALOG).save(
+			TrackingRolloutState.eventCanonical(
+				sources = setOf(SourceKind.ACTIVITY, SourceKind.STEPS),
+				captureModes = setOf(SourceKind.ACTIVITY, SourceKind.STEPS).associateWith {
+					CaptureReachabilityMode.entries.toSet()
+				},
+			),
+			updatedAtMs = 1L,
+		)
 		installRegistrationGeneration()
 	}
 
@@ -154,6 +165,24 @@ class RoomDurableSourceIngressTest {
 		) shouldBe 1
 
 		subject.admit(candidate) shouldBe AdmissionResult.PermanentFailure(
+			AdmissionFailureCode.CAPTURE_ADMISSION_CLOSED,
+		)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `executable inert shadow cannot admit under retained provider authorization`() = runTest {
+		database.sourceProjectionStateDao().deleteAllProductLanes()
+		installCaptureLane(
+			source = SourceKind.ACTIVITY,
+			productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+		)
+		RoomTrackingRolloutStateStore(database, TEST_EXECUTABLE_LANE_CATALOG).save(
+			TrackingRolloutState.contained(revision = 2L),
+			updatedAtMs = 2L,
+		)
+
+		subject.admit(candidate(sequence = 1L)) shouldBe AdmissionResult.PermanentFailure(
 			AdmissionFailureCode.CAPTURE_ADMISSION_CLOSED,
 		)
 		database.sourceEventWalDao().countAll() shouldBe 0L
@@ -1567,7 +1596,7 @@ class RoomDurableSourceIngressTest {
 		source: SourceKind,
 		bindingGeneration: Long = 1L,
 		projectionId: String = "ingress-test-${source.name.lowercase()}",
-		productStage: String = SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
+		productStage: String = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
 	) {
 		database.sourceProjectionStateDao().installProductLane(
 			SourceProductProjectionLaneEntity(

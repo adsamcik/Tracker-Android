@@ -106,7 +106,7 @@ class TrackingOrchestratorIntegrationTest {
 			isSessionUserInitiated = true,
 			initialTier = PolicyTier.PRECISION,
 			scope = backgroundScope,
-			rolloutState = allEventShadow(),
+			rolloutState = allEventCanonical(),
 		)
 		advanceUntilIdle()
 
@@ -173,7 +173,7 @@ class TrackingOrchestratorIntegrationTest {
 			isSessionUserInitiated = false,
 			initialTier = PolicyTier.AMBIENT,
 			scope = backgroundScope,
-			rolloutState = allEventShadow(),
+			rolloutState = allEventCanonical(),
 		)
 		advanceUntilIdle()
 		val activeAfterFirstInitialize = activeChildJobs()
@@ -183,7 +183,7 @@ class TrackingOrchestratorIntegrationTest {
 			isSessionUserInitiated = false,
 			initialTier = PolicyTier.AMBIENT,
 			scope = backgroundScope,
-			rolloutState = allEventShadow(),
+			rolloutState = allEventCanonical(),
 		)
 		advanceUntilIdle()
 
@@ -195,7 +195,7 @@ class TrackingOrchestratorIntegrationTest {
 		activeChildJobs() shouldBe 0
 	}
 
-	private fun allEventShadow() = TrackingRolloutState.eventShadow(SourceKind.entries.toSet())
+	private fun allEventCanonical() = TrackingRolloutState.eventCanonical(SourceKind.entries.toSet())
 
 	@Test
 	fun `providerless foreground shell shutdown does not touch Room or enqueue product work`() =

@@ -23,10 +23,10 @@ class DefaultManualTrackingCaptureReachabilityReaderTest {
 	}
 
 	@Test
-	fun `reader maps all source families without promoting a contained source`() = runTest {
+	fun `reader maps only canonical source families without promoting a contained source`() = runTest {
 		val sources = SourceKind.entries.toSet() - SourceKind.CELL
 		val subject = reader(
-			TrackingRolloutState.eventShadow(
+			TrackingRolloutState.eventCanonical(
 				sources = sources,
 				revision = 9L,
 			),
@@ -47,7 +47,7 @@ class DefaultManualTrackingCaptureReachabilityReaderTest {
 	@Test
 	fun `automatic-only capture and control ownership cannot authorize a manual start`() = runTest {
 		val subject = reader(
-			TrackingRolloutState.eventShadow(
+			TrackingRolloutState.eventCanonical(
 				sources = setOf(SourceKind.STEPS),
 				controlSources = setOf(SourceKind.ACTIVITY),
 				captureModes = mapOf(

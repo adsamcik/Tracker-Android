@@ -83,7 +83,7 @@ class TrackerServiceSourceSessionTest {
 
 	@Test
 	fun `zero reachable capture sources fail closed instead of creating an empty service session`() = runTest {
-		val rollout = allEventShadow(revision = 5)
+		val rollout = allEventCanonical(revision = 5)
 		val initialSettings = settings(steps = SourceCollectionFrequency.OFF)
 		val initialOwnership = TrackingSessionOwnership.resolve(rollout, initialSettings)
 		val outcome = subject.start(
@@ -106,7 +106,7 @@ class TrackerServiceSourceSessionTest {
 
 	@Test
 	fun `automatic start preserves exact trigger evidence through the service session boundary`() = runTest {
-		val rollout = allEventShadow(revision = 5, automaticCapture = true)
+		val rollout = allEventCanonical(revision = 5, automaticCapture = true)
 		val enabled = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 7)
 		val trigger = AutomaticTrackingStartTrigger(
 			triggerId = "activity-transition:boot-1:42",
@@ -148,7 +148,7 @@ class TrackerServiceSourceSessionTest {
 
 	@Test
 	fun `manual-only lane rejects the same settings for automatic session capture`() = runTest {
-		val rollout = allEventShadow(revision = 5)
+		val rollout = allEventCanonical(revision = 5)
 		val enabled = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 7)
 
 		val outcome = subject.start(
@@ -171,7 +171,7 @@ class TrackerServiceSourceSessionTest {
 
 	@Test
 	fun `automatic status blocks a configured manual-only sibling`() = runTest {
-		val rollout = TrackingRolloutState.eventShadow(
+		val rollout = TrackingRolloutState.eventCanonical(
 			sources = setOf(SourceKind.LOCATION, SourceKind.STEPS),
 			revision = 5L,
 			captureModes = mapOf(
@@ -237,11 +237,13 @@ class TrackerServiceSourceSessionTest {
 
 	@Test
 	fun `cancelled prepared apply retains ownership until partial runtime cleanup completes`() = runTest {
-		val rollout = rolloutStore.installAndActivateShadowLane(
-			binding = TEST_STEPS_BINDING,
+		installCanonicalProductLanesForTest(
+			database = database,
+			bindings = listOf(TEST_STEPS_BINDING),
 			rolloutRevision = 5L,
 			updatedAtMs = 1L,
-		).rollout
+		)
+		val rollout = rolloutStore.load()
 		database.sourceSessionDao().insertServiceRun(
 			SourceServiceRunEntity(
 				serviceRunId = "run",
@@ -297,7 +299,7 @@ class TrackerServiceSourceSessionTest {
 
 	@Test
 	fun `transition sampling pressure-only automatic start never requires Steps control`() = runTest {
-		val rollout = allEventShadow(revision = 5, automaticCapture = true)
+		val rollout = allEventCanonical(revision = 5, automaticCapture = true)
 		val enabled = settings(SourceCollectionFrequency.OFF, sourcePolicyRevision = 7).copy(
 			barometerEnabled = true,
 			transitionDetectionEnabled = false,
@@ -334,7 +336,7 @@ class TrackerServiceSourceSessionTest {
 
 	@Test
 	fun `production pressure-only demand stays enabled at its useful floor under thermal pressure`() = runTest {
-		val rollout = allEventShadow(revision = 5)
+		val rollout = allEventCanonical(revision = 5)
 		val enabled = settings(SourceCollectionFrequency.OFF, sourcePolicyRevision = 7).copy(
 			barometerEnabled = true,
 			sourceCollectionSettings = SourceCollectionSettings(
@@ -374,7 +376,7 @@ class TrackerServiceSourceSessionTest {
 
 	@Test
 	fun `newer policy input received before start supersedes the captured request`() = runTest {
-		val rollout = allEventShadow(revision = 5)
+		val rollout = allEventCanonical(revision = 5)
 		val captured = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)
 		val revoked = settings(SourceCollectionFrequency.OFF, sourcePolicyRevision = 2)
 		subject.reconfigure(inputs(revoked)) shouldBe SourceSessionReconfigureOutcome.NotActive
@@ -400,7 +402,7 @@ class TrackerServiceSourceSessionTest {
 
 	@Test
 	fun `latest environment wins when pending inputs share a policy revision`() = runTest {
-		val rollout = allEventShadow(revision = 5)
+		val rollout = allEventCanonical(revision = 5)
 		val captured = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 2)
 		val revoked = settings(SourceCollectionFrequency.OFF, sourcePolicyRevision = 2)
 		subject.reconfigure(inputs(captured)) shouldBe SourceSessionReconfigureOutcome.NotActive
@@ -430,7 +432,7 @@ class TrackerServiceSourceSessionTest {
 			TrackingStartupStage.LEGACY_V27,
 			"LEGACY_RECOVERY_PENDING",
 		)
-		val rollout = allEventShadow(revision = 5)
+		val rollout = allEventCanonical(revision = 5)
 		val enabled = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 2)
 
 		val result = subject.start(
@@ -456,7 +458,7 @@ class TrackerServiceSourceSessionTest {
 
 	@Test
 	fun `closed startup gate rejects active reconfiguration before coordinator work`() = runTest {
-		val rollout = allEventShadow(revision = 5)
+		val rollout = allEventCanonical(revision = 5)
 		val initial = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)
 		coEvery { lifecycle.start(any()) } returns
 			SessionStartResult.Started("logical", "run", emptyList(), DesiredPlanStatus.EFFECTIVE)
@@ -489,7 +491,7 @@ class TrackerServiceSourceSessionTest {
 
 	@Test
 	fun `closed startup gate rejects all reconfiguration while stop remains the cleanup authority`() = runTest {
-		val rollout = allEventShadow(revision = 5)
+		val rollout = allEventCanonical(revision = 5)
 		val initial = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)
 		coEvery { lifecycle.start(any()) } returns
 			SessionStartResult.Started("logical", "run", emptyList(), DesiredPlanStatus.EFFECTIVE)
@@ -525,7 +527,7 @@ class TrackerServiceSourceSessionTest {
 
 	@Test
 	fun `stop and restart suspension remain available while startup gate is closed`() = runTest {
-		val rollout = allEventShadow(revision = 5)
+		val rollout = allEventCanonical(revision = 5)
 		val enabled = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)
 		coEvery { lifecycle.start(any()) } returns
 			SessionStartResult.Started("logical", "run", emptyList(), DesiredPlanStatus.EFFECTIVE)
@@ -555,7 +557,7 @@ class TrackerServiceSourceSessionTest {
 
 	@Test
 	fun `live external stop forwards the same factual cutoff used by inactive finalization`() = runTest {
-		val rollout = allEventShadow(revision = 5)
+		val rollout = allEventCanonical(revision = 5)
 		val enabled = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)
 		val capturedStop = slot<SessionStopRequest>()
 		coEvery { lifecycle.start(any()) } returns
@@ -591,7 +593,7 @@ class TrackerServiceSourceSessionTest {
 
 	@Test
 	fun `internal stop samples current clocks`() = runTest {
-		val rollout = allEventShadow(revision = 5)
+		val rollout = allEventCanonical(revision = 5)
 		val enabled = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)
 		val capturedStop = slot<SessionStopRequest>()
 		coEvery { lifecycle.start(any()) } returns
@@ -638,10 +640,10 @@ class TrackerServiceSourceSessionTest {
 		clockDomainId = "boot-1",
 	)
 
-	private fun allEventShadow(
+	private fun allEventCanonical(
 		revision: Long,
 		automaticCapture: Boolean = false,
-	) = TrackingRolloutState.eventShadow(
+	) = TrackingRolloutState.eventCanonical(
 		sources = SourceKind.entries.toSet(),
 		revision = revision,
 		captureModes = SourceKind.entries.associateWith {

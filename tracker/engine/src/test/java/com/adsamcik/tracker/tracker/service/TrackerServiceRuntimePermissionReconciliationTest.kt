@@ -73,7 +73,7 @@ class TrackerServiceRuntimePermissionReconciliationTest {
 
 	@Test
 	fun `automatic session excludes manual-only Location and Steps from foreground types`() {
-		val rollout = TrackingRolloutState.eventShadow(
+		val rollout = TrackingRolloutState.eventCanonical(
 			sources = setOf(SourceKind.LOCATION, SourceKind.STEPS, SourceKind.PRESSURE),
 			captureModes = mapOf(
 				SourceKind.LOCATION to setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
@@ -103,7 +103,7 @@ class TrackerServiceRuntimePermissionReconciliationTest {
 
 	@Test
 	fun `revoking last automatic-reachable source stops despite configured manual-only source`() {
-		val rollout = TrackingRolloutState.eventShadow(
+		val rollout = TrackingRolloutState.eventCanonical(
 			sources = setOf(SourceKind.LOCATION, SourceKind.ACTIVITY),
 			captureModes = mapOf(
 				SourceKind.LOCATION to setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),

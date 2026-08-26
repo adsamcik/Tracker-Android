@@ -144,7 +144,7 @@ class SessionCrashRecoveryTest {
 			isSessionUserInitiated = true,
 			initialTier = PolicyTier.PRECISION,
 			scope = backgroundScope,
-			rolloutState = allEventShadow(),
+			rolloutState = allEventCanonical(),
 		)
 		testDispatcher.scheduler.advanceUntilIdle()
 
@@ -258,7 +258,7 @@ class SessionCrashRecoveryTest {
 			isSessionUserInitiated = true,
 			initialTier = PolicyTier.PRECISION,
 			scope = scope,
-			rolloutState = allEventShadow(),
+			rolloutState = allEventCanonical(),
 		)
 		testDispatcher.scheduler.advanceUntilIdle()
 		orchestrator.shutdown(context)
@@ -274,7 +274,7 @@ class SessionCrashRecoveryTest {
 		),
 	)
 
-	private fun allEventShadow() = TrackingRolloutState.eventShadow(SourceKind.entries.toSet())
+	private fun allEventCanonical() = TrackingRolloutState.eventCanonical(SourceKind.entries.toSet())
 
 	private fun todayStartMs(): Long = startOfLocalDayMs(LocalDate.now().toEpochDay())
 

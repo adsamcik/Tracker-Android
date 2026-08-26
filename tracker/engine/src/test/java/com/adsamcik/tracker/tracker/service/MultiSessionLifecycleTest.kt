@@ -170,7 +170,7 @@ class MultiSessionLifecycleTest {
 			isSessionUserInitiated = true,
 			initialTier = PolicyTier.PRECISION,
 			scope = backgroundScope,
-			rolloutState = allEventShadow(),
+			rolloutState = allEventCanonical(),
 		)
 		advanceUntilIdle()
 
@@ -218,7 +218,7 @@ class MultiSessionLifecycleTest {
 			isSessionUserInitiated = true,
 			initialTier = PolicyTier.PRECISION,
 			scope = scope,
-			rolloutState = allEventShadow(),
+			rolloutState = allEventCanonical(),
 		)
 		testDispatcher.scheduler.advanceUntilIdle()
 
@@ -255,7 +255,7 @@ class MultiSessionLifecycleTest {
 		),
 	)
 
-	private fun allEventShadow() = TrackingRolloutState.eventShadow(SourceKind.entries.toSet())
+	private fun allEventCanonical() = TrackingRolloutState.eventCanonical(SourceKind.entries.toSet())
 
 	private fun location(timeMs: Long, latitude: Double, longitude: Double): Location {
 		return Location("gps").apply {

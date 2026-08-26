@@ -15,8 +15,8 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleS
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
-import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
+import com.adsamcik.tracker.tracker.source.coordinator.installCanonicalProductLanesForTest
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -649,19 +649,11 @@ private suspend fun activateAllSourceProductLanes(database: AppDatabase): RoomTr
 			captureModes = setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
 		)
 	}
-	val store = RoomTrackingRolloutStateStore(
-		database,
-		ExecutableSourceLaneCatalog.explicit(*bindings.toTypedArray()),
+	return installCanonicalProductLanesForTest(
+		database = database,
+		bindings = bindings,
+		rolloutRevision = bindings.size.toLong(),
 	)
-	bindings.forEachIndexed { index, binding ->
-		val revision = index + 1L
-		store.installAndActivateShadowLane(
-			binding = binding,
-			rolloutRevision = revision,
-			updatedAtMs = revision,
-		)
-	}
-	return store
 }
 
 private class FakeCollectedDataLifecycleStore(initial: CollectedDataLifecycleSnapshot) :

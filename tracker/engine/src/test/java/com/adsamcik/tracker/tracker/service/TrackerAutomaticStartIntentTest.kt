@@ -18,7 +18,7 @@ class TrackerAutomaticStartIntentTest {
 		val configured = setOf(SourceKind.LOCATION, SourceKind.STEPS)
 		val accepted = rolloutReachableCaptureSources(
 			configured,
-			TrackingRolloutState.eventShadow(setOf(SourceKind.STEPS)),
+			TrackingRolloutState.eventCanonical(setOf(SourceKind.STEPS)),
 		)
 
 		accepted shouldBe setOf(SourceKind.STEPS)

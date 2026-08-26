@@ -40,9 +40,9 @@ data class TrackingRolloutState(
 		}
 		require(sourceOwners.none { (source, owner) ->
 			owner == SourceOwner.EVENT &&
-				productProjectionStages[source] == ProductProjectionStage.LEGACY_CANONICAL
+				productProjectionStages[source] != ProductProjectionStage.EVENT_CANONICAL
 		}) {
-			"Event acquisition requires a reachable source-local shadow or canonical product lane"
+			"Event acquisition requires a source-local canonical product lane"
 		}
 		require(sourceOwners.none { (source, owner) ->
 			owner == SourceOwner.CONTROL &&
@@ -55,15 +55,12 @@ data class TrackingRolloutState(
 		}) { "Only event-owned sources may authorize session capture modes" }
 	}
 
-	/** A provider may acquire only when its source-local product lane is explicitly reachable. */
+	/** Public capture may acquire only after the source-local canonical writer owns the product. */
 	fun isAcquisitionReachable(source: SourceKind): Boolean =
 		coordinatorMode == CoordinatorMode.EVENT &&
 			sourceOwners[source] == SourceOwner.EVENT &&
 			captureModeMasks.getValue(source) != 0L &&
-			productProjectionStages[source] in setOf(
-				ProductProjectionStage.EVENT_SHADOW,
-				ProductProjectionStage.EVENT_CANONICAL,
-			)
+			productProjectionStages[source] == ProductProjectionStage.EVENT_CANONICAL
 
 	fun isCaptureReachable(source: SourceKind, mode: CaptureReachabilityMode): Boolean =
 		isAcquisitionReachable(source) && captureModeMasks.getValue(source) and mode.mask != 0L
@@ -77,7 +74,7 @@ data class TrackingRolloutState(
 		/**
 		 * Safe unreleased-v28 bootstrap. Existing product facts remain readable through their legacy
 		 * destinations, but no source-native provider is eligible to start until that source has an
-		 * explicitly reachable shadow lane.
+		 * explicitly activated canonical lane.
 		 */
 		fun contained(revision: Long = 1L): TrackingRolloutState = TrackingRolloutState(
 			revision = revision,
@@ -93,18 +90,18 @@ data class TrackingRolloutState(
 		)
 
 		/**
-		 * Enables source-native acquisition only for sources with a real source-local shadow lane.
+		 * Enables source-native acquisition only for sources with a real source-local canonical lane.
 		 * Callers must name the sources deliberately; there is no all-source default promotion.
 		 * Control sources may serve declared dependencies, but retain no event product lane.
 		 */
-		fun eventShadow(
+		fun eventCanonical(
 			sources: Set<SourceKind>,
 			revision: Long = 1L,
 			controlSources: Set<SourceKind> = emptySet(),
 			captureModes: Map<SourceKind, Set<CaptureReachabilityMode>> =
 				sources.associateWith { setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE) },
 		): TrackingRolloutState {
-			require(sources.isNotEmpty()) { "At least one shadow-reachable source is required" }
+			require(sources.isNotEmpty()) { "At least one canonical source is required" }
 			require(sources.intersect(controlSources).isEmpty()) {
 				"A source cannot be both capture-owned and control-only"
 			}
@@ -121,7 +118,7 @@ data class TrackingRolloutState(
 				},
 				productProjectionStages = SourceKind.entries.associateWith { source ->
 					if (source in sources) {
-						ProductProjectionStage.EVENT_SHADOW
+						ProductProjectionStage.EVENT_CANONICAL
 					} else {
 						ProductProjectionStage.LEGACY_CANONICAL
 					}

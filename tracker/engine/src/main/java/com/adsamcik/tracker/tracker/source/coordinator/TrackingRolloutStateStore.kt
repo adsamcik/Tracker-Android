@@ -105,7 +105,7 @@ class RoomTrackingRolloutStateStore @Inject constructor(
 
 		// v28 never shipped. Any v27/global-v2 rollout row predates source-local product reachability
 		// and therefore cannot authorize a provider in this binary. Preserve its revision history, but
-		// contain every acquisition owner until an explicit source-local shadow gate is persisted.
+		// contain every acquisition owner until an explicit source-local canonical cutover is persisted.
 		val currentRevision = currentEntity?.revision ?: 0L
 		check(currentRevision < Long.MAX_VALUE) { "Tracking rollout revision exhausted" }
 		TrackingRolloutState.contained(revision = currentRevision + 1L).also { migrated ->
@@ -139,36 +139,37 @@ class RoomTrackingRolloutStateStore @Inject constructor(
 	}
 
 	/**
-	 * Atomically installs the first concrete shadow product [binding] and makes only that source
-	 * capture-reachable. The activation starts after the durable WAL high-water and its
-	 * initialized cursor is a mandatory retention pin. Canonical cutover intentionally has no API
-	 * here; it needs source-specific shadow evidence and legacy-writer fencing first. The binding's
+	 * Atomically installs the first concrete, product-inert shadow [binding]. The lane starts after
+	 * the durable WAL high-water and its initialized cursor is a mandatory retention pin, but the
+	 * rollout remains contained: legacy product ownership, no provider ownership, and no capture
+	 * modes. Canonical cutover intentionally has no API here; it needs source-specific shadow
+	 * evidence, production-reader readiness, and legacy-writer fencing first. The binding's
 	 * projection ID/version names the writer semantics; its source-local binding generation names
-	 * the independently gated set of capture modes that this binary can execute.
+	 * the capture modes a later canonical cutover may authorize.
 	 */
-	suspend fun installAndActivateShadowLane(
+	suspend fun installInertShadowLane(
 		binding: ExecutableSourceLaneBinding,
 		rolloutRevision: Long,
 		updatedAtMs: Long,
-	): SourceProductLaneActivation = activateShadowLane(
+	): SourceProductLaneActivation = installShadowLane(
 		binding = binding,
 		rolloutRevision = rolloutRevision,
 		updatedAtMs = updatedAtMs,
 		rearm = false,
 	)
 
-	suspend fun rearmAndActivateShadowLane(
+	suspend fun rearmInertShadowLane(
 		binding: ExecutableSourceLaneBinding,
 		rolloutRevision: Long,
 		updatedAtMs: Long,
-	): SourceProductLaneActivation = activateShadowLane(
+	): SourceProductLaneActivation = installShadowLane(
 		binding = binding,
 		rolloutRevision = rolloutRevision,
 		updatedAtMs = updatedAtMs,
 		rearm = true,
 	)
 
-	private suspend fun activateShadowLane(
+	private suspend fun installShadowLane(
 		binding: ExecutableSourceLaneBinding,
 		rolloutRevision: Long,
 		updatedAtMs: Long,
@@ -237,19 +238,18 @@ class RoomTrackingRolloutStateStore @Inject constructor(
 			projectionDao.installProductLane(lane)
 			val rollout = current.copy(
 				revision = rolloutRevision,
-				sourceOwners = current.sourceOwners + (binding.source to SourceOwner.EVENT),
+				sourceOwners = current.sourceOwners + (binding.source to SourceOwner.CONTAINED),
 				productProjectionStages = current.productProjectionStages +
-					(binding.source to ProductProjectionStage.EVENT_SHADOW),
-				captureModeMasks = current.captureModeMasks +
-					(binding.source to binding.captureModeMask),
+					(binding.source to ProductProjectionStage.LEGACY_CANONICAL),
+				captureModeMasks = current.captureModeMasks + (binding.source to 0L),
 			)
 			check(
-				rollout.withoutUnbackedProductLanes(
-					database,
-					projectionDao.allActiveProductLanes(),
-					executableLaneCatalog,
-				) == rollout,
-			) { "Installed source lane did not authorize its exact rollout stage" }
+				lane.isAuthorizedBy(
+					rollout = rollout,
+					activeLanes = projectionDao.allActiveProductLanes(),
+					executableLaneCatalog = executableLaneCatalog,
+				),
+			) { "Installed shadow lane is not an exact product-inert executable binding" }
 			rolloutDao.save(rollout.toEntity(updatedAtMs))
 			SourceProductLaneActivation(rollout, lane)
 		}
@@ -451,7 +451,7 @@ data class SourceProductLaneRetirementFence(
 	val cutoffOrdinal: Long = requireNotNull(lane.captureAdmissionCutoffOrdinal)
 }
 
-private fun TrackingRolloutStateEntity.decodeCurrentModelOrNull(): TrackingRolloutState? =
+internal fun TrackingRolloutStateEntity.decodeCurrentModelOrNull(): TrackingRolloutState? =
 	if (schemaVersion != TrackingRolloutState.CURRENT_SCHEMA_VERSION) {
 		null
 	} else {
@@ -504,10 +504,37 @@ private fun SourceProductProjectionLaneEntity.isAuthorizedBy(
 ): Boolean {
 	val source = SourceKind.entries.singleOrNull { it.stableCode == sourceKind } ?: return false
 	if (activeLanes.count { it.sourceKind == sourceKind } != 1) return false
-	if (!rollout.isAcquisitionReachable(source)) return false
 	val binding = executableLaneCatalog.bindingFor(this) ?: return false
-	return captureModeMask == rollout.captureModeMasks.getValue(source) &&
-		matches(binding, rollout.productProjectionStages.getValue(source), rollout.revision)
+	return when (productStage) {
+		SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW ->
+			rollout.sourceOwners.getValue(source) == SourceOwner.CONTAINED &&
+				rollout.productProjectionStages.getValue(source) ==
+				ProductProjectionStage.LEGACY_CANONICAL &&
+				rollout.captureModeMasks.getValue(source) == 0L &&
+				captureAdmissionCutoffOrdinal == null &&
+				matches(binding, ProductProjectionStage.EVENT_SHADOW, rollout.revision)
+
+		SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL ->
+			isCanonicalCaptureAuthorizedBy(rollout, executableLaneCatalog)
+
+		else -> false
+	}
+}
+
+/**
+ * Transaction-local defense for durable capture admission. An executable lane alone is not
+ * authority: an inert or repaired shadow remains a retention/validation lane and must never admit
+ * new captured observations, even when an old provider authorization is still queryable.
+ */
+internal fun SourceProductProjectionLaneEntity.isCanonicalCaptureAuthorizedBy(
+	rollout: TrackingRolloutState,
+	executableLaneCatalog: ExecutableSourceLaneCatalog,
+): Boolean {
+	val source = SourceKind.entries.singleOrNull { it.stableCode == sourceKind } ?: return false
+	val binding = executableLaneCatalog.bindingFor(this) ?: return false
+	return rollout.isAcquisitionReachable(source) &&
+		captureModeMask == rollout.captureModeMasks.getValue(source) &&
+		matches(binding, ProductProjectionStage.EVENT_CANONICAL, rollout.revision)
 }
 
 private fun SourceProductProjectionLaneEntity.matches(

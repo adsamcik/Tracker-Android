@@ -14,7 +14,7 @@ class TrackingSessionOwnershipStressTest {
 	fun `randomized source settings resolve only to event ownership`() {
 		val random = Random(8_2026)
 		repeat(1_000) { revision ->
-			val rollout = TrackingRolloutState.eventShadow(
+			val rollout = TrackingRolloutState.eventCanonical(
 				sources = SourceKind.entries.toSet(),
 				revision = revision.toLong(),
 			)
@@ -60,7 +60,7 @@ class TrackingSessionOwnershipStressTest {
 
 	@Test
 	fun `disabled legacy source does not block an independently event-owned source`() {
-		val rollout = TrackingRolloutState.eventShadow(setOf(SourceKind.STEPS))
+		val rollout = TrackingRolloutState.eventCanonical(setOf(SourceKind.STEPS))
 		val settings = TrackingParamsState(
 			locationEnabled = false,
 			activityEnabled = false,
@@ -80,7 +80,7 @@ class TrackingSessionOwnershipStressTest {
 
 	@Test
 	fun `contained sibling degrades without blocking a reachable source`() {
-		val rollout = TrackingRolloutState.eventShadow(setOf(SourceKind.STEPS))
+		val rollout = TrackingRolloutState.eventCanonical(setOf(SourceKind.STEPS))
 		val settings = TrackingParamsState(
 			locationEnabled = true,
 			activityEnabled = false,

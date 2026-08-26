@@ -48,7 +48,7 @@ class TrackingRolloutStateStoreTest {
 	}
 
 	@Test
-	fun `unreleased global canonical marker is contained as per-source shadow`() = runTest {
+	fun `unreleased global canonical marker is contained without source promotion`() = runTest {
 		database.trackingRolloutStateDao().save(
 			TrackingRolloutStateEntity(
 				revision = 7L,
@@ -72,8 +72,8 @@ class TrackingRolloutStateStoreTest {
 	}
 
 	@Test
-	fun `round trips one source shadow stage without promoting unrelated writers`() = runTest {
-		val expected = TrackingRolloutState.eventShadow(setOf(SourceKind.STEPS), revision = 3)
+	fun `installed shadow lane stays product inert across repeated repair loads`() = runTest {
+		val expected = TrackingRolloutState.contained(revision = 3)
 
 		val activation = installSteps()
 
@@ -85,6 +85,14 @@ class TrackingRolloutStateStoreTest {
 		activation.lane.activationOrdinal shouldBe 1L
 		activation.lane.contiguousAdmissionOrdinal shouldBe 0L
 		activation.lane.retentionRequired shouldBe true
+		activation.rollout.sourceOwners.getValue(SourceKind.STEPS) shouldBe SourceOwner.CONTAINED
+		activation.rollout.productProjectionStages.getValue(SourceKind.STEPS) shouldBe
+			ProductProjectionStage.LEGACY_CANONICAL
+		activation.rollout.captureModeMasks.getValue(SourceKind.STEPS) shouldBe 0L
+		activation.rollout.isCaptureReachable(
+			SourceKind.STEPS,
+			CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+		) shouldBe false
 		database.sourceProjectionStateDao().isProductLaneReachable(
 			SourceKind.STEPS.stableCode,
 			ProductProjectionStage.EVENT_SHADOW.name,
@@ -101,13 +109,16 @@ class TrackingRolloutStateStoreTest {
 			2L,
 		) shouldBe false
 		store.load() shouldBe expected
+		store.load() shouldBe expected
+		database.sourceProjectionStateDao().activeProductLane(SourceKind.STEPS.stableCode)
+			?.status shouldBe SourceProductProjectionLaneEntity.STATUS_ACTIVE
 	}
 
 	@Test
 	fun `capture rollout cannot be saved before its exact source lane is installed`() = runTest {
 		shouldThrow<IllegalArgumentException> {
 			store.save(
-				TrackingRolloutState.eventShadow(setOf(SourceKind.STEPS), revision = 3),
+				TrackingRolloutState.eventCanonical(setOf(SourceKind.STEPS), revision = 3),
 				1_000L,
 			)
 		}
@@ -116,11 +127,33 @@ class TrackingRolloutStateStoreTest {
 	}
 
 	@Test
+	fun `exact canonical lane is the only product stage that authorizes public capture`() = runTest {
+		val projectionDao = database.sourceProjectionStateDao()
+		projectionDao.installProductLane(
+			productLane(STEPS_V1, rolloutRevision = 3L).copy(
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			),
+		)
+		val canonical = TrackingRolloutState.eventCanonical(
+			sources = setOf(SourceKind.STEPS),
+			revision = 3L,
+		)
+
+		store.save(canonical, updatedAtMs = 1_000L)
+
+		store.load() shouldBe canonical
+		store.load().isCaptureReachable(
+			SourceKind.STEPS,
+			CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+		) shouldBe true
+	}
+
+	@Test
 	fun `arbitrary or typo projection identity cannot promote acquisition`() = runTest {
 		val typo = STEPS_V1.copy(projectionId = "$STEPS_OUTPUT_CONTRACT-typo")
 
 		shouldThrow<IllegalArgumentException> {
-			store.installAndActivateShadowLane(typo, 3L, 1_000L)
+			store.installInertShadowLane(typo, 3L, 1_000L)
 		}
 
 		database.sourceProjectionStateDao().activeProductLanes() shouldBe emptyList()
@@ -134,6 +167,25 @@ class TrackingRolloutStateStoreTest {
 		store.load() shouldBe TrackingRolloutState.contained(revision = 8L)
 		database.trackingRolloutStateDao().get()?.revision shouldBe 8L
 	}
+
+	@Test
+	fun `persisted shadow capture marker repairs once without retiring its executable inert lane`() =
+		runTest {
+			val projectionDao = database.sourceProjectionStateDao()
+			projectionDao.installProductLane(productLane(STEPS_V1, rolloutRevision = 7L))
+			database.trackingRolloutStateDao().save(eventShadowEntity(revision = 7L))
+
+			val repaired = TrackingRolloutState.contained(revision = 8L)
+			store.load() shouldBe repaired
+			store.load() shouldBe repaired
+			projectionDao.activeProductLane(SourceKind.STEPS.stableCode)?.let { inert ->
+				inert.productStage shouldBe SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW
+				inert.status shouldBe SourceProductProjectionLaneEntity.STATUS_ACTIVE
+				inert.retentionRequired shouldBe true
+				inert.captureAdmissionCutoffOrdinal shouldBe null
+			}
+			database.trackingRolloutStateDao().get()?.revision shouldBe 8L
+		}
 
 	@Test
 	fun `lane with an uninitialized source cursor cannot authorize acquisition`() = runTest {
@@ -318,14 +370,14 @@ class TrackingRolloutStateStoreTest {
 		installSteps()
 
 		shouldThrow<IllegalArgumentException> {
-			store.installAndActivateShadowLane(
+			store.installInertShadowLane(
 				binding = STEPS_V2,
 				rolloutRevision = 4,
 				updatedAtMs = 2_000L,
 			)
 		}
 		shouldThrow<IllegalArgumentException> {
-			store.installAndActivateShadowLane(
+			store.installInertShadowLane(
 				binding = ExecutableSourceLaneBinding(
 					SourceKind.PRESSURE,
 					1L,
@@ -338,10 +390,7 @@ class TrackingRolloutStateStoreTest {
 			)
 		}
 
-		store.load() shouldBe TrackingRolloutState.eventShadow(
-			setOf(SourceKind.STEPS),
-			revision = 3,
-		)
+		store.load() shouldBe TrackingRolloutState.contained(revision = 3)
 		database.sourceProjectionStateDao().activeProductLanes().size shouldBe 1
 	}
 
@@ -380,8 +429,8 @@ class TrackingRolloutStateStoreTest {
 	}
 
 	@Test
-	fun `loading one-source rollout does not promote unrelated sources`() = runTest {
-		val expected = TrackingRolloutState.eventShadow(setOf(SourceKind.STEPS), revision = 3)
+	fun `loading one inert source lane does not promote unrelated sources`() = runTest {
+		val expected = TrackingRolloutState.contained(revision = 3)
 
 		installSteps()
 
@@ -390,8 +439,8 @@ class TrackingRolloutStateStoreTest {
 	}
 
 	@Test
-	fun `loading one shadow projection does not force canonical writers`() = runTest {
-		val expected = TrackingRolloutState.eventShadow(setOf(SourceKind.STEPS), revision = 3)
+	fun `loading one inert shadow projection does not force canonical writers`() = runTest {
+		val expected = TrackingRolloutState.contained(revision = 3)
 
 		installSteps()
 
@@ -403,7 +452,7 @@ class TrackingRolloutStateStoreTest {
 	@Test
 	fun `contain retire and rearm use a new binding generation while sibling continues`() = runTest {
 		installSteps()
-		store.installAndActivateShadowLane(PRESSURE_V1, 4L, 1_100L)
+		store.installInertShadowLane(PRESSURE_V1, 4L, 1_100L)
 		appendWalEvents(4)
 		val projectionDao = database.sourceProjectionStateDao()
 		projectionDao.advanceProductLaneCursor(
@@ -420,7 +469,7 @@ class TrackingRolloutStateStoreTest {
 		fence.cutoffOrdinal shouldBe 4L
 		val contained = store.finishLaneRetirement(STEPS_V1, 4L, 1_301L)
 		contained.isAcquisitionReachable(SourceKind.STEPS) shouldBe false
-		contained.isAcquisitionReachable(SourceKind.PRESSURE) shouldBe true
+		contained.isAcquisitionReachable(SourceKind.PRESSURE) shouldBe false
 		projectionDao.latestProductLane(SourceKind.STEPS.stableCode)?.let { retired ->
 			retired.status shouldBe SourceProductProjectionLaneEntity.STATUS_RETIRED
 			retired.retentionRequired shouldBe false
@@ -435,15 +484,15 @@ class TrackingRolloutStateStoreTest {
 			updatedAtMs = 1_400L,
 		) shouldBe 0
 
-		val rearmed = store.rearmAndActivateShadowLane(STEPS_V2, 6L, 1_500L)
+		val rearmed = store.rearmInertShadowLane(STEPS_V2, 6L, 1_500L)
 		rearmed.lane.bindingGeneration shouldBe 2L
 		rearmed.lane.projectionVersion shouldBe STEPS_V1.projectionVersion
 		rearmed.lane.contiguousAdmissionOrdinal shouldBe rearmed.lane.activationOrdinal - 1L
 		rearmed.rollout.isCaptureReachable(
 			SourceKind.STEPS,
 			CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
-		) shouldBe true
-		rearmed.rollout.isAcquisitionReachable(SourceKind.PRESSURE) shouldBe true
+		) shouldBe false
+		rearmed.rollout.isAcquisitionReachable(SourceKind.PRESSURE) shouldBe false
 		projectionDao.activeProductLane(SourceKind.STEPS.stableCode)?.bindingGeneration shouldBe 2L
 	}
 
@@ -456,7 +505,7 @@ class TrackingRolloutStateStoreTest {
 			store.beginLaneContainment(STEPS_V1, 4L, 1_100L)
 		}
 
-		store.load() shouldBe TrackingRolloutState.eventShadow(setOf(SourceKind.STEPS), revision = 3L)
+		store.load() shouldBe TrackingRolloutState.contained(revision = 3L)
 		database.sourceProjectionStateDao().activeProductLane(SourceKind.STEPS.stableCode)
 			?.retentionRequired shouldBe true
 	}
@@ -589,7 +638,7 @@ class TrackingRolloutStateStoreTest {
 	}
 
 	private suspend fun installSteps(): SourceProductLaneActivation =
-		store.installAndActivateShadowLane(
+		store.installInertShadowLane(
 			binding = STEPS_V1,
 			rolloutRevision = 3,
 			updatedAtMs = 1_000L,

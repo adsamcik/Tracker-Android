@@ -21,12 +21,12 @@ class TrackingRolloutStateTest {
 	}
 
 	@Test
-	fun `event shadow enables only its explicitly reachable source`() {
-		val state = TrackingRolloutState.eventShadow(setOf(SourceKind.STEPS))
+	fun `event canonical enables only its explicitly reachable source`() {
+		val state = TrackingRolloutState.eventCanonical(setOf(SourceKind.STEPS))
 
 		state.sourceOwners.getValue(SourceKind.STEPS) shouldBe SourceOwner.EVENT
 		state.productProjectionStages.getValue(SourceKind.STEPS) shouldBe
-			ProductProjectionStage.EVENT_SHADOW
+			ProductProjectionStage.EVENT_CANONICAL
 		state.isAcquisitionReachable(SourceKind.STEPS) shouldBe true
 		state.isCaptureReachable(
 			SourceKind.STEPS,
@@ -49,7 +49,7 @@ class TrackingRolloutStateTest {
 
 	@Test
 	fun `automatic capture requires its own explicit mode bit`() {
-		val state = TrackingRolloutState.eventShadow(
+		val state = TrackingRolloutState.eventCanonical(
 			sources = setOf(SourceKind.STEPS),
 			captureModes = mapOf(
 				SourceKind.STEPS to setOf(
@@ -67,7 +67,7 @@ class TrackingRolloutStateTest {
 
 	@Test
 	fun `control-only Activity is operational without becoming a captured product source`() {
-		val state = TrackingRolloutState.eventShadow(
+		val state = TrackingRolloutState.eventCanonical(
 			sources = setOf(SourceKind.STEPS),
 			controlSources = setOf(SourceKind.ACTIVITY),
 		)
@@ -83,7 +83,7 @@ class TrackingRolloutStateTest {
 	@Test
 	fun `a source cannot be capture-owned and control-only in one rollout`() {
 		shouldThrow<IllegalArgumentException> {
-			TrackingRolloutState.eventShadow(
+			TrackingRolloutState.eventCanonical(
 				sources = setOf(SourceKind.STEPS),
 				controlSources = setOf(SourceKind.STEPS),
 			)
@@ -117,11 +117,36 @@ class TrackingRolloutStateTest {
 	}
 
 	@Test
-	fun `event acquisition without a reachable source lane is rejected`() {
+	fun `event acquisition without a canonical source lane is rejected`() {
 		shouldThrow<IllegalArgumentException> {
 			TrackingRolloutState.contained().copy(
 				sourceOwners = SourceKind.entries.associateWith { source ->
 					if (source == SourceKind.STEPS) SourceOwner.EVENT else SourceOwner.CONTAINED
+				},
+			)
+		}
+	}
+
+	@Test
+	fun `shadow projection can never become public rollout authority`() {
+		shouldThrow<IllegalArgumentException> {
+			TrackingRolloutState.contained().copy(
+				sourceOwners = SourceKind.entries.associateWith { source ->
+					if (source == SourceKind.STEPS) SourceOwner.EVENT else SourceOwner.CONTAINED
+				},
+				productProjectionStages = SourceKind.entries.associateWith { source ->
+					if (source == SourceKind.STEPS) {
+						ProductProjectionStage.EVENT_SHADOW
+					} else {
+						ProductProjectionStage.LEGACY_CANONICAL
+					}
+				},
+				captureModeMasks = SourceKind.entries.associateWith { source ->
+					if (source == SourceKind.STEPS) {
+						CaptureReachabilityMode.MANUAL_SESSION_CAPTURE.mask
+					} else {
+						0L
+					}
 				},
 			)
 		}
@@ -137,12 +162,12 @@ class TrackingRolloutStateTest {
 			}
 		}
 
-		TrackingRolloutState.eventShadow(setOf(SourceKind.STEPS)).copy(
+		TrackingRolloutState.eventCanonical(setOf(SourceKind.STEPS)).copy(
 			productProjectionStages = stages,
 		)
 
 		shouldThrow<IllegalArgumentException> {
-			TrackingRolloutState.eventShadow(setOf(SourceKind.STEPS)).copy(
+			TrackingRolloutState.eventCanonical(setOf(SourceKind.STEPS)).copy(
 				sourceOwners = SourceKind.entries.associateWith { SourceOwner.CONTAINED },
 				productProjectionStages = stages,
 			)
