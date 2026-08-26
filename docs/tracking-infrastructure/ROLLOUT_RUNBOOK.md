@@ -1,12 +1,12 @@
 # Tracking Infrastructure Rollout Runbook
 
-Last updated: 2026-08-24
+Last updated: 2026-08-26
 
 External rollout, publishing, deployment, and remote configuration remain unauthorized. This runbook defines local evidence and the future authorization boundary.
 
 ## Current containment
 
-- Current local integration checkpoint: `f14a4a2b1`; initial audited baseline: `068ebe052`.
+- Current local integration checkpoint: `648f894a4`; initial audited baseline: `068ebe052`.
 - The local schema is now v28. Its policy authority row is inert until verified legacy settings activate a complete six-source revision; no external rollout is authorized.
 - A v27 APK/database downgrade is not a rollback path. Any rollback build must understand v28 and continue enforcing Room policy/consent safety state.
 - Acquisition ownership and product-writer rollout are separate per-source state. Rollout schema v3
@@ -36,17 +36,18 @@ External rollout, publishing, deployment, and remote configuration remain unauth
 - Activity automatic projection refuses capture-only generations; app/control observations before
   their boot-aware effective boundary are rejected, and the durable action path rechecks current
   boot, epoch, expiry, lifecycle, and idempotent disposition before external start. It remains
-  contained pending fresh R1 and end-to-end automatic source/product evidence.
+  contained pending its end-to-end automatic source/product evidence.
 - `RETIRING` demands may retain the physical provider only through the callback drain barrier, but they are excluded from new product authorization at the exact retirement boundary; final physical retirement is half-open and rejects exact/post-boundary callbacks.
 - The unused generic Phase 3 ledger/attribution/activation/receipt APIs and 12 tables were removed from unreleased v28. New materialization must begin with typed source provenance, stable fact identity, idempotent write/recompute, correction/deletion, and production-query evidence.
 - Fresh R4 and the current R1 data/migration review blocked schema freeze on physical/authorization coupling, authorization-homogeneous batches, logical correction ranges, scoped deletion/import fences and destination ownership. The first coupling slice is now locally mitigated; the remaining batch, correction, deletion/import, owner-fence and realistic device-migration gates still prohibit schema freeze or source activation.
 - Migrated `LEGACY_UNKNOWN` WAL rows remain capture-ineligible and must produce partial/unavailable historical completeness rather than fabricated facts.
-- Prior pre-wiring R1b is complete. WAL byte authentication/raw poison quarantine, force/explicit/
-  previous-exit finalizers, process startup ordering, and rollout reachability containment are
-  locally implemented. The corrected shared boundary is committed at `2b9265ce8`; a fresh
-  post-commit R1 is mandatory before materializers or product wiring;
-  typed correction/day repair, scoped deletion, civil-day identity, and actual destination fences
-  remain open.
+- Prior pre-wiring R1b and the fresh corrected R1 are complete. WAL byte authentication/raw poison
+  quarantine, force/explicit/previous-exit finalizers, process startup ordering, rollout
+  reachability containment, bounded Activity callback handoff, and state-change-driven
+  post-deletion repair are locally implemented through `648f894a4`. Corrected R1 authorizes only
+  TI-410's smallest manual/session Steps writer/query and truthful existing-surface adaptations;
+  typed Steps correction/deletion/import/export and destination fencing are completion gates.
+  Automatic/ambient Steps, other materializers, broad product wiring, and rollout remain off.
 - Existing tracking-settings authority/error presentation is the only allowed Phase 1 production UI safety exception; it exposes fail-closed policy state and is not evidence of source history, materialization, or queryability.
 - Fresh adaptive-collections R3 was `BLOCK_RESCOPE`; TI-D056–TI-D069 defined its correction. Fresh R4 is now complete and TI-D070–TI-D076 integrate every new blocker/high. No source activation is authorized until the accepted implementation and device gates pass.
 - The app targets Android 17 / API 37. Before any Play release, complete the
@@ -83,8 +84,14 @@ R2 confirmed that v28 never shipped. The migration/schema has been regenerated i
 12 unused generic Phase 3 tables and duplicate lifecycle lease removed; the current schema has 66
 entities (51 released-v27 plus 15 narrowly owned v28 additions). The single additional R1 table is
 the source-local product-lane activation/cursor/retention fence. No v29 compatibility shell was
-introduced. The first production vertical remains Steps, but neither ambient nor session Steps may
-activate until the fresh R1 disposition and its typed correction/deletion/export/query contract pass.
+introduced. Corrected R1 now permits implementation of the manual/session Steps candidate, but it
+must remain contained until its typed correction/deletion/import/export/query contract passes.
+
+The candidate must install its executable binding, source-local cursor/drain, stable logical fact
+and delivery receipt, deletion/import fence, truthful query state, portable round trip, and existing
+source-aware UI as one coherent path. Shadow facts are not production-visible. Canonical promotion
+requires one atomic owner decision and proof that legacy Steps totals are precedence fallbacks rather
+than additive inputs. No feature flag or compiled binding may silently promote the source.
 
 Ambient Steps uses one selected system continuity provider: prefer Health Connect on-device Steps on API 34 plus SDK Extension 20 when permission and current-device-origin checks pass; otherwise evaluate the accountless Recording API. The direct hardware counter remains live-session evidence. Overlapping intervals are canonicalized, never added. Coverage gaps, delayed imports, provider switches and resets produce explicit `PARTIAL`/`UNAVAILABLE`, never zero or assumed completeness. Its minimum product surface is the existing Today, Timeline, Calendar and selected-day flow with an outside-session Steps summary; the full Days-first redesign remains backlog.
 
@@ -95,7 +102,7 @@ Ambient Steps uses one selected system continuity provider: prefer Health Connec
 | `policy_authority_v28` | policy snapshot/consent safety state | always-on after v28 opens; bootstrap is fail-closed | Room revision/consent epochs remain authoritative; a schema-capable adapter may change execution behavior but cannot lower or bypass safety state | implemented locally; populated connected migration passes; production backup and rollback rehearsal pending |
 | `legacy_automatic_control_gate` | pre-broker Activity and optional Steps automatic control registrations | fail closed unless independently granted by effective `CONTROL` epochs | revocation/unavailability removes legacy automatic control use; manual session state is not implicitly stopped | implemented locally; full broker/reconciliation and device evidence pending |
 | `policy_manifest_v2` | immutable session/effective manifest creation | off until TI-110 | stop creating new manifests only after active sessions are safely reconciled; retain existing immutable records | local schema/coordinator path implemented; executable flag and full requested-source contract missing |
-| `lifecycle_v2` | desired actions/reconciler/state evidence | contained; no source rollout | stop applying new starts; finalize or reconcile safe stops without reviving terminal intent | durable prepared start, real origins/type candidates, acknowledgements, leases, automatic action handoff and recovery finalizers implemented; fresh R1 plus connected process/reboot/FGS proof pending |
+| `lifecycle_v2` | desired actions/reconciler/state evidence | contained; no source rollout | stop applying new starts; finalize or reconcile safe stops without reviving terminal intent | durable prepared start, real origins/type candidates, acknowledgements, leases, automatic action handoff and recovery finalizers implemented; corrected R1 passed the host boundary; connected process/reboot/FGS proof pending |
 | `broker_v2:<source>` | purpose demand/provider ownership | contained per source | remove v2 demands; restore one proven owner only | authorization/generation foundation, acquisition floors, Activity arbitration and shared Steps ownership are local; explicit source shadow/canonical reachability, provider-specific handoff, durable flag and device matrix still gate each source |
 | `source_shadow:<source>` | optional diff-only typed source projector/query | off | stop the shadow cursor; no canonical mutation | add only where a legacy destination exists and parity must be measured |
 | `source_owner:<source>` | source-specific canonical destination owner | legacy owner until the source gate passes | stop the candidate, preserve facts/WAL, and restore only the last proven sole owner | no generic activation/receipt platform; each destination proves uniqueness, stable identity and idempotent typed writes |

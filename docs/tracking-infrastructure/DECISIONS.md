@@ -844,7 +844,7 @@ Each entry records repository evidence and does not duplicate the final architec
 
 ## TI-D091 — Unreleased-v28 startup and source rollout fail closed at a reachable-lane boundary
 
-- Status: `ACCEPTED_FOR_PRE_R1_CONTAINMENT`; fresh post-commit R1 `PENDING`
+- Status: `ACCEPTED_FOR_PRE_R1_CONTAINMENT`; fresh post-commit R1 `PASSED_FOR_TI_410_ONLY` by TI-D099
 - Owner/date: lead orchestrator, 2026-08-24
 - Alternatives: keep the old global event-acquisition default; relabel every source as legacy-owned
   even though the removed legacy provider entry points are not reachable; add an explicit contained
@@ -868,9 +868,8 @@ Each entry records repository evidence and does not duplicate the final architec
   source has a real typed lane. It is not a product rollout or a `QUERYABLE` claim. Retained v27
   facts remain available through their established readers, and no schema downgrade is introduced.
   The current v28 schema has 66 entities (51 released-v27 plus 15 narrowly owned additions). Three
-  fresh R1 adversaries must attack the committed boundary before Steps materialization or any
-  production history/UI wiring. Connected process/reboot/FGS and migrate-to-runtime evidence remain
-  mandatory.
+  fresh R1 adversaries passed the shared boundary for TI-410 only under TI-D099. Connected
+  process/reboot/FGS and migrate-to-runtime evidence remain mandatory before source rollout.
 
 ## TI-D092 — Source rollout is partial by capture purpose, not all-enabled-or-nothing
 
@@ -928,9 +927,27 @@ Each entry records repository evidence and does not duplicate the final architec
 
 ## TI-D098 — Capture closure requires executable admission and a drained callback revision
 
-- Status: `ACCEPTED_FOR_FRESH_R1`; materializer/source rollout still `BLOCKED`
+- Status: `ACCEPTED_FOR_FRESH_R1`; TI-410 implementation authorized by TI-D099, source rollout still `BLOCKED`
 - Owner/date: lead orchestrator after three corrected-boundary pre-audits, 2026-08-25
 - Alternatives: trust rollout metadata alone; append authorization from a pre-transaction snapshot; retire capture immediately and hope in-flight callbacks finish; keep permits forever when callback work times out
 - Evidence: a structurally plausible but non-executable lane could admit capture WAL; duplicate/malformed active lane rows could reopen admission; Activity capture-to-control/retire changes could publish stale durable demands after a concurrent containment change; timed-out/cancelled callback work could leak a process permit forever. These timelines violated one authority, immutable observed-time eligibility, durable-before-attribution, and deletion/retirement convergence.
 - Decision: capture admission requires exactly one structurally valid active lane and exact ownership by the current binary's `ExecutableSourceLaneCatalog`, checked in the WAL transaction. Every Activity authorization mutation re-reads durable demands and recomputes policy, consent, rollout, and lane eligibility in the same Room transaction as append. A capture-closing mutation fences new process-local callback entries, waits for earlier entries to unwind, repeats that transactional derivation, appends the revision, and durably acknowledges the exact maximum capture authorization revision. Permits always release when bounded callback work unwinds; only a durable admission publishes downstream work.
 - Consequences: no callback can borrow a stale capture revision and deletion need not wait forever on a timed-out receiver. A storage outage may still produce an explicit source completeness gap; crash-auditable pre-WAL handoff remains a source activation gate for the five non-Activity adapters and is not replaced by a leaked permit. This adds no materializer, ambient default, generic contribution platform, or production UI authorization.
+
+## TI-D099 — Corrected R1 authorizes one concrete manual Steps vertical, not another platform
+
+- Status: `ACCEPTED_AFTER_FRESH_R1_ADVERSARIAL_REVIEW`; TI-410 implementation `IN_PROGRESS`
+- Owner/date: lead orchestrator after three fresh data/migration, Android/power/privacy, and product/scope reviews, 2026-08-26
+- Alternatives: continue broad shared-spine work; start all source materializers and history UI; prove one complete source using existing source-local foundations and generalize only after a second concrete need
+- Evidence: the committed policy/lifecycle/broker/ledger boundary at `d51723280` passes complete tracker-engine, app, Dashboard, and schema host verification. All three fresh reviewers found no remaining shared `BLOCKER` or `HIGH` that requires another horizontal framework before manual Steps. They did find source-completion gates: one executable Steps binding and lane activation; one atomic logical-fact/receipt/cursor/deletion transaction; truthful baseline/zero/positive/partial/query states; source-aware existing tracking UI; typed manual-start results at every existing entry point; and portable typed Steps export/import. They also found two bounded shared issues, fixed in `bfa0c9da1` and `648f894a4` with 310/310 Activity and 652/652 app tests.
+- Decision: begin only TI-410 manual/session Steps. Reuse `StepSourceRuntime`, the shared hardware counter, released `StepInterval` only as frozen legacy query evidence, `SourceProductProjectionLaneEntity`, collected-data deletion epoch, and existing Today/session/tracking/export surfaces. Add only the Steps-specific identity, receipt/correction, cursor transaction, query truth, and adapters required to make that path exactly-once in effect and product-visible. Keep all rollout ownership `CONTAINED` until the complete path is installed and verified together. Do not introduce a universal mutation language, six unused writer schemas, a generic dirty-day engine, or a new Days destination.
+- Consequences: automatic Steps (TI-410B), ambient Steps (TI-410C), Health Connect/Recording continuity, other source materializers, and broad DayOverview/UI work remain blocked. The first positive post-baseline delta may advance Steps `RECORDING`; baseline-only, covered zero, partial, materializing, and unavailable remain distinct. TI-410 is not `DONE` until crash/replay/correction/deletion/import/export/no-resurrection, production query, existing UI, and source-only registration assertions pass. Device/provider proof is still required before rollout.
+
+## TI-D100 — Permanent startup blocks wait for state change, not recurring work
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` at `648f894a4`
+- Owner/date: lead orchestrator after corrected-R1 Android/power/privacy review, 2026-08-26
+- Alternatives: keep retrying a permanent startup block; return success and require process death; retain one process-local epoch-fenced obligation and consume an authoritative Ready transition
+- Evidence: a post-deletion worker that observed `TrackingStartupResult.Blocked` previously completed while writer and Activity latches could remain paused if the user repaired storage in the same process. Polling the permanent condition with WorkManager would spend battery without new evidence. Focused recovery/startup and architecture tests plus the full 652-test app suite pass.
+- Decision: a blocked worker records one process-local obligation for the exact collected-data epoch and startup generation, then completes. `Application.reconcileTrackingStartup()` rearms the existing unique worker only when authoritative reconciliation becomes `Ready`. A newer deletion epoch invalidates the obligation; a Ready-before-marker race receives at most one bounded retry; a failed enqueue retains the obligation for another explicit Ready signal. Process death clears it because the protected latches are also process-local and reconstruct on cold start.
+- Consequences: no infinite retry/poll loop is introduced. This reopens no provider and grants no policy, consent, capture, or product authority; the rearmed worker rechecks all durable fences normally.

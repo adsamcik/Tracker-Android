@@ -718,3 +718,39 @@ Focused verification on 2026-08-24 is `BUILD SUCCESSFUL` for the canonical boot 
 - The complete `:feature:import-export:testDebugUnitTest` suite passes 317/317 together with
   `:feature:import-export:lintDebug`; the lint report contains only the module's recorded translated
   plural baseline and no changed-file finding.
+
+## Corrected R1 gate and bounded follow-ups (2026-08-26)
+
+Three fresh `gpt-5.6-sol` high-reasoning reviewers independently attacked the committed boundary at
+`d51723280` from data/migration, Android/power/privacy, and product/scope perspectives. The corrected
+R1 outcome is **PASS only to begin TI-410's smallest manual/session Steps vertical**. It is not a
+source rollout, ambient authorization, general materializer approval, or approval for a new history
+destination. Automatic Steps, ambient Steps, the other five source writers, and broad production UI
+wiring remain independently gated.
+
+| Finding | Severity | Disposition | Integrated correction / Steps completion gate |
+| --- | --- | --- | --- |
+| R1C-D01 metadata or a projector alone could make Steps look executable | `HIGH` | `ACCEPTED_AS_TI_410_GATE` | install exactly one compile-time Steps binding, source-local cursor/drain, and atomic rollout/lane activation; metadata-only activation remains contained |
+| R1C-D02 replay/correction/deletion could diverge without one source-local commit boundary | `HIGH` | `ACCEPTED_AS_TI_410_GATE` | one Room transaction must combine stable logical fact/correction identity, typed mutation/receipt, deletion epoch/cutoff, and source cursor; crash/replay/correction/delete/no-resurrection tests block completion |
+| R1C-D03 Steps status could collapse baseline, covered zero, positive evidence, partial, materialized, and queryable | `MEDIUM` | `ACCEPTED_AS_TI_410_GATE` | add a Steps-local truth type and preserve all axes through production consumers; no row is never fabricated zero |
+| R1C-D04 interrupted Activity callback `.bin.new` files escaped the advertised spool bound | `MEDIUM` | `MITIGATED` | `bfa0c9da1` removes exact orphans before capacity checks, syncs cleanup, and fails closed if inventory/deletion/durability cannot be proven; full Activity suite passes 310/310 |
+| R1C-A01 a permanently blocked post-deletion worker could leave process-local writers/control paused after an in-process repair | `MEDIUM` | `MITIGATED` | `648f894a4` retains one deletion-epoch/startup-generation-fenced obligation and rearms only on an explicit authoritative `Ready`; no permanent-state polling; full app suite passes 652/652 |
+| R1C-A02 process-local partial startup initialization remains fail-closed until process restart | `LOW` | `ACCEPTED_FOR_TI_410` | acceptable for manual Steps; device startup/process evidence remains required before rollout |
+| R1C-P01 numeric Steps consumers erase missing/partial truth | `HIGH` | `ACCEPTED_AS_TI_410_GATE` | update the existing session/Today/Dashboard and completion-producing consumers so only a complete/ready value can drive goals, widgets, notifications, achievements, or streaks |
+| R1C-P02 the live tracking surface is Location-shaped and misleading for only-Steps | `HIGH` | `ACCEPTED_AS_TI_410_GATE` | make the existing surface source/evidence-aware; do not add a destination or the deferred Days-first journal |
+| R1C-P03 manual-start truth is not shared by widget, shortcut, and stale-service restart paths | `HIGH` | `ACCEPTED_AS_TI_410_GATE` | centralize a typed start result around current reachability plus durable enqueue acknowledgement and reuse it at every existing manual entry surface |
+| R1C-P04 portable export contains only legacy numeric Steps and cannot round-trip the authoritative typed fact | `HIGH` | `ACCEPTED_AS_TI_410_GATE` | add typed Steps portable export/import through the authoritative source writer and deletion fence; replay/import must be idempotent and cannot resurrect deleted facts |
+| R1C-P05 a cached prerequisite snapshot may prompt once after authority changes | `LOW` | `ACCEPTED_FOR_TI_410` | current start still fails closed; refresh/device permission-flow evidence remains before rollout |
+
+The reviewers explicitly rejected another horizontal framework wave. TI-410 must reuse the shared
+counter runtime, released `StepInterval` as frozen legacy evidence rather than a new-write target,
+the source-product lane, deletion epoch, and existing product surfaces. A universal writer command
+language, six-source receipt schema, full
+`DayOverview`, automatic control expansion, Health Connect/Recording ambient continuity, and new
+navigation remain outside this gate. Device proof remains unverified on the current boundary.
+
+Lead verification after the two bounded corrections is green: full tracker-engine 1,544/1,544,
+Activity 310/310, app 652/652, Dashboard 200/200, focused architecture/recovery tests, and
+`checkRoomSchemaDrift`. The current local checkpoint is `648f894a4`; all candidate source ownership
+still defaults to `CONTAINED`, so no source/materializer/product rollout claim follows from these
+passes.
