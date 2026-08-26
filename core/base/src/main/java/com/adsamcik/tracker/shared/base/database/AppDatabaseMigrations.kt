@@ -1469,7 +1469,7 @@ val MIGRATION_27_28: Migration = object : Migration(
 					logical_fact_id TEXT NOT NULL,
 					semantic_revision INTEGER NOT NULL,
 					mutation_id TEXT NOT NULL,
-					step_interval_id INTEGER NOT NULL,
+					step_interval_id INTEGER,
 					source_event_id TEXT,
 					source_admission_ordinal INTEGER,
 					origin_kind TEXT NOT NULL,
@@ -1478,25 +1478,39 @@ val MIGRATION_27_28: Migration = object : Migration(
 					writer_projection_version INTEGER NOT NULL,
 					writer_binding_generation INTEGER NOT NULL,
 					operation TEXT NOT NULL,
-					coverage_kind TEXT NOT NULL,
-					effective_step_count INTEGER NOT NULL,
+					interval_start_time_ms INTEGER,
+					interval_end_time_ms INTEGER,
+					interval_start_elapsed_realtime_nanos INTEGER,
+					interval_end_elapsed_realtime_nanos INTEGER,
+					clock_domain_id TEXT,
+					boot_clock_domain_id TEXT,
+					cumulative_step_count_start INTEGER,
+					cumulative_step_count_end INTEGER,
+					wall_time_uncertainty_ms INTEGER,
+					coverage_kind TEXT,
+					effective_step_count INTEGER,
 					logical_tracking_id TEXT,
 					purpose TEXT NOT NULL,
 					manifest_revision INTEGER,
-					source_policy_revision INTEGER NOT NULL,
-					capture_consent_epoch INTEGER NOT NULL,
+					source_policy_revision INTEGER,
+					capture_consent_epoch INTEGER,
 					collected_data_epoch INTEGER NOT NULL,
+					scope_deletion_generation INTEGER NOT NULL,
 					effect_checksum TEXT NOT NULL,
 					applied_at_ms INTEGER NOT NULL,
-					PRIMARY KEY(logical_fact_id, semantic_revision),
-					FOREIGN KEY(step_interval_id) REFERENCES step_interval(id)
-						ON UPDATE NO ACTION ON DELETE CASCADE
+					PRIMARY KEY(
+						writer_projection_id,
+						writer_projection_version,
+						logical_fact_id,
+						semantic_revision
+					)
 				)
 				""".trimIndent(),
 			)
 			execSQL(
 				"CREATE UNIQUE INDEX IF NOT EXISTS idx_step_fact_revision_mutation " +
-					"ON step_fact_revision(mutation_id)",
+					"ON step_fact_revision(writer_projection_id, writer_projection_version, " +
+					"mutation_id)",
 			)
 			execSQL(
 				"CREATE INDEX IF NOT EXISTS idx_step_fact_revision_interval " +
@@ -1513,8 +1527,8 @@ val MIGRATION_27_28: Migration = object : Migration(
 			)
 			execSQL(
 				"CREATE INDEX IF NOT EXISTS idx_step_fact_revision_session_latest " +
-					"ON step_fact_revision(logical_tracking_id, purpose, logical_fact_id, " +
-					"semantic_revision)",
+					"ON step_fact_revision(writer_projection_id, writer_projection_version, " +
+					"logical_tracking_id, purpose, logical_fact_id, semantic_revision)",
 			)
 			execSQL(
 				"""

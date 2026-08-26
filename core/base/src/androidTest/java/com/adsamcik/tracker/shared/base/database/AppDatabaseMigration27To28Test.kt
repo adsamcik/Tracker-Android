@@ -517,6 +517,28 @@ class AppDatabaseMigration27To28Test {
 		assertTableCount(database, "step_interval", 2)
 		// v27 observations remain byte-for-byte facts; migration must not invent semantics.
 		assertTableCount(database, "step_fact_revision", 0)
+		database.query("PRAGMA table_info(step_fact_revision)").use { cursor ->
+			val columns = buildMap {
+				while (cursor.moveToNext()) {
+					put(
+						cursor.getString(cursor.getColumnIndexOrThrow("name")),
+						cursor.getInt(cursor.getColumnIndexOrThrow("notnull")) to
+							cursor.getInt(cursor.getColumnIndexOrThrow("pk")),
+					)
+				}
+			}
+			assertEquals(0 to 0, columns["step_interval_id"])
+			assertEquals(0 to 0, columns["interval_start_time_ms"])
+			assertEquals(0 to 0, columns["effective_step_count"])
+			assertEquals(1 to 0, columns["scope_deletion_generation"])
+			assertEquals(1 to 1, columns["writer_projection_id"])
+			assertEquals(1 to 2, columns["writer_projection_version"])
+			assertEquals(1 to 3, columns["logical_fact_id"])
+			assertEquals(1 to 4, columns["semantic_revision"])
+		}
+		database.query("PRAGMA foreign_key_list(step_fact_revision)").use { cursor ->
+			assertFalse(cursor.moveToFirst())
+		}
 		assertTableCount(database, "activity_snapshot", 1)
 		assertTableCount(database, "wifi_observation", 1)
 		assertTableCount(database, "cell_sample", 1)
@@ -863,6 +885,15 @@ class AppDatabaseMigration27To28Test {
 				writerProjectionVersion = 1,
 				writerBindingGeneration = 1L,
 				operation = StepFactRevisionEntity.OPERATION_UPSERT,
+				intervalStartTimeMs = interval.startTimeMs,
+				intervalEndTimeMs = interval.endTimeMs,
+				intervalStartElapsedRealtimeNanos = 1_000_000_000L,
+				intervalEndElapsedRealtimeNanos = 2_000_000_000L,
+				clockDomainId = "boot-v27",
+				bootClockDomainId = "boot-v27",
+				cumulativeStepCountStart = interval.sensorValueStart.toLong(),
+				cumulativeStepCountEnd = interval.sensorValueEnd.toLong(),
+				wallTimeUncertaintyMs = 0L,
 				coverageKind = StepFactRevisionEntity.COVERAGE_COVERED,
 				effectiveStepCount = interval.stepCount.toLong(),
 				logicalTrackingId = PopulatedV27Fixture.LOGICAL_TRACKING_ID,
@@ -871,6 +902,7 @@ class AppDatabaseMigration27To28Test {
 				sourcePolicyRevision = 1L,
 				captureConsentEpoch = 1L,
 				collectedDataEpoch = 7L,
+				scopeDeletionGeneration = 0L,
 				effectChecksum = "migration-step-effect",
 				appliedAtMs = PopulatedV27Fixture.END_MS,
 			),

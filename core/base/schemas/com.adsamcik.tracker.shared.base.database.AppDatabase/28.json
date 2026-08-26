@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 28,
-    "identityHash": "72144eaad8691dde771289ed622820b7",
+    "identityHash": "a9c10cb02c01b8033d62c825b8ae78f9",
     "entities": [
       {
         "tableName": "activity",
@@ -1065,7 +1065,7 @@
       },
       {
         "tableName": "step_fact_revision",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`logical_fact_id` TEXT NOT NULL, `semantic_revision` INTEGER NOT NULL, `mutation_id` TEXT NOT NULL, `step_interval_id` INTEGER NOT NULL, `source_event_id` TEXT, `source_admission_ordinal` INTEGER, `origin_kind` TEXT NOT NULL, `origin_identity` TEXT NOT NULL, `writer_projection_id` TEXT NOT NULL, `writer_projection_version` INTEGER NOT NULL, `writer_binding_generation` INTEGER NOT NULL, `operation` TEXT NOT NULL, `coverage_kind` TEXT NOT NULL, `effective_step_count` INTEGER NOT NULL, `logical_tracking_id` TEXT, `purpose` TEXT NOT NULL, `manifest_revision` INTEGER, `source_policy_revision` INTEGER NOT NULL, `capture_consent_epoch` INTEGER NOT NULL, `collected_data_epoch` INTEGER NOT NULL, `effect_checksum` TEXT NOT NULL, `applied_at_ms` INTEGER NOT NULL, PRIMARY KEY(`logical_fact_id`, `semantic_revision`), FOREIGN KEY(`step_interval_id`) REFERENCES `step_interval`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`logical_fact_id` TEXT NOT NULL, `semantic_revision` INTEGER NOT NULL, `mutation_id` TEXT NOT NULL, `step_interval_id` INTEGER, `source_event_id` TEXT, `source_admission_ordinal` INTEGER, `origin_kind` TEXT NOT NULL, `origin_identity` TEXT NOT NULL, `writer_projection_id` TEXT NOT NULL, `writer_projection_version` INTEGER NOT NULL, `writer_binding_generation` INTEGER NOT NULL, `operation` TEXT NOT NULL, `interval_start_time_ms` INTEGER, `interval_end_time_ms` INTEGER, `interval_start_elapsed_realtime_nanos` INTEGER, `interval_end_elapsed_realtime_nanos` INTEGER, `clock_domain_id` TEXT, `boot_clock_domain_id` TEXT, `cumulative_step_count_start` INTEGER, `cumulative_step_count_end` INTEGER, `wall_time_uncertainty_ms` INTEGER, `coverage_kind` TEXT, `effective_step_count` INTEGER, `logical_tracking_id` TEXT, `purpose` TEXT NOT NULL, `manifest_revision` INTEGER, `source_policy_revision` INTEGER, `capture_consent_epoch` INTEGER, `collected_data_epoch` INTEGER NOT NULL, `scope_deletion_generation` INTEGER NOT NULL, `effect_checksum` TEXT NOT NULL, `applied_at_ms` INTEGER NOT NULL, PRIMARY KEY(`writer_projection_id`, `writer_projection_version`, `logical_fact_id`, `semantic_revision`))",
         "fields": [
           {
             "fieldPath": "logicalFactId",
@@ -1088,8 +1088,7 @@
           {
             "fieldPath": "stepIntervalId",
             "columnName": "step_interval_id",
-            "affinity": "INTEGER",
-            "notNull": true
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "sourceEventId",
@@ -1138,16 +1137,59 @@
             "notNull": true
           },
           {
+            "fieldPath": "intervalStartTimeMs",
+            "columnName": "interval_start_time_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "intervalEndTimeMs",
+            "columnName": "interval_end_time_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "intervalStartElapsedRealtimeNanos",
+            "columnName": "interval_start_elapsed_realtime_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "intervalEndElapsedRealtimeNanos",
+            "columnName": "interval_end_elapsed_realtime_nanos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "clockDomainId",
+            "columnName": "clock_domain_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "bootClockDomainId",
+            "columnName": "boot_clock_domain_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "cumulativeStepCountStart",
+            "columnName": "cumulative_step_count_start",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "cumulativeStepCountEnd",
+            "columnName": "cumulative_step_count_end",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "wallTimeUncertaintyMs",
+            "columnName": "wall_time_uncertainty_ms",
+            "affinity": "INTEGER"
+          },
+          {
             "fieldPath": "coverageKind",
             "columnName": "coverage_kind",
-            "affinity": "TEXT",
-            "notNull": true
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "effectiveStepCount",
             "columnName": "effective_step_count",
-            "affinity": "INTEGER",
-            "notNull": true
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "logicalTrackingId",
@@ -1168,18 +1210,22 @@
           {
             "fieldPath": "sourcePolicyRevision",
             "columnName": "source_policy_revision",
-            "affinity": "INTEGER",
-            "notNull": true
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "captureConsentEpoch",
             "columnName": "capture_consent_epoch",
-            "affinity": "INTEGER",
-            "notNull": true
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "collectedDataEpoch",
             "columnName": "collected_data_epoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scopeDeletionGeneration",
+            "columnName": "scope_deletion_generation",
             "affinity": "INTEGER",
             "notNull": true
           },
@@ -1199,6 +1245,8 @@
         "primaryKey": {
           "autoGenerate": false,
           "columnNames": [
+            "writer_projection_id",
+            "writer_projection_version",
             "logical_fact_id",
             "semantic_revision"
           ]
@@ -1208,10 +1256,12 @@
             "name": "idx_step_fact_revision_mutation",
             "unique": true,
             "columnNames": [
+              "writer_projection_id",
+              "writer_projection_version",
               "mutation_id"
             ],
             "orders": [],
-            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_step_fact_revision_mutation` ON `${TABLE_NAME}` (`mutation_id`)"
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_step_fact_revision_mutation` ON `${TABLE_NAME}` (`writer_projection_id`, `writer_projection_version`, `mutation_id`)"
           },
           {
             "name": "idx_step_fact_revision_interval",
@@ -1247,28 +1297,18 @@
             "name": "idx_step_fact_revision_session_latest",
             "unique": false,
             "columnNames": [
+              "writer_projection_id",
+              "writer_projection_version",
               "logical_tracking_id",
               "purpose",
               "logical_fact_id",
               "semantic_revision"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `idx_step_fact_revision_session_latest` ON `${TABLE_NAME}` (`logical_tracking_id`, `purpose`, `logical_fact_id`, `semantic_revision`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_step_fact_revision_session_latest` ON `${TABLE_NAME}` (`writer_projection_id`, `writer_projection_version`, `logical_tracking_id`, `purpose`, `logical_fact_id`, `semantic_revision`)"
           }
         ],
-        "foreignKeys": [
-          {
-            "table": "step_interval",
-            "onDelete": "CASCADE",
-            "onUpdate": "NO ACTION",
-            "columns": [
-              "step_interval_id"
-            ],
-            "referencedColumns": [
-              "id"
-            ]
-          }
-        ]
+        "foreignKeys": []
       },
       {
         "tableName": "activity_snapshot",
@@ -7344,7 +7384,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '72144eaad8691dde771289ed622820b7')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'a9c10cb02c01b8033d62c825b8ae78f9')"
     ]
   }
 }

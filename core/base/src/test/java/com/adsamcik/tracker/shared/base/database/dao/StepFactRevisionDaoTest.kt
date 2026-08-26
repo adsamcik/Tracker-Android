@@ -5,7 +5,8 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
-import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
@@ -36,92 +37,147 @@ class StepFactRevisionDaoTest {
 	}
 
 	@Test
-	fun revisionsAreIdentityAddressableAndLatestEffectSupersedesCorrectionsAndRetraction() = runTest {
+	fun exactWriterAdmissionLookupDistinguishesReplayConflictAndIndependentShadowReceipt() = runTest {
 		val intervalId = insertInterval(startMs = 1_000L, endMs = 2_000L)
-		dao.insert(revision(intervalId, semanticRevision = 1L, admissionOrdinal = 1L)) shouldBe 1L
-		dao.insert(
-			revision(
-				intervalId = intervalId,
-				semanticRevision = 2L,
-				admissionOrdinal = 2L,
-				effectiveStepCount = 12L,
-			),
-		) shouldBe 2L
+		val live = revision(intervalId = intervalId, admissionOrdinal = 10L)
+		dao.insert(live) shouldBe 1L
 
-		dao.revision(LOGICAL_FACT_ID, 1L).shouldNotBeNull()
-		dao.mutation("mutation-2")?.semanticRevision shouldBe 2L
-		dao.revisions(LOGICAL_FACT_ID).map { it.semanticRevision } shouldBe listOf(1L, 2L)
-		dao.latest(LOGICAL_FACT_ID)?.effectiveStepCount shouldBe 12L
-		dao.effectiveStepCount(LOGICAL_TRACKING_ID) shouldBe 12L
+		val exact = dao.writerAdmission(WRITER_ID, WRITER_VERSION, 10L).shouldNotBeNull()
+		exact.mutationId shouldBe live.mutationId
+		exact.effectChecksum shouldBe live.effectChecksum
+		dao.insert(live) shouldBe -1L
+		dao.insert(
+			live.copy(
+				logicalFactId = "conflicting-fact",
+				mutationId = "conflicting-mutation",
+				sourceEventId = "conflicting-event",
+				effectChecksum = "conflicting-checksum",
+			),
+		) shouldBe -1L
+
+		val shadow = live.copy(writerProjectionId = SHADOW_WRITER_ID)
+		dao.insert(shadow) shouldBe 2L
+		dao.writerAdmission(SHADOW_WRITER_ID, WRITER_VERSION, 10L) shouldBe shadow
+		dao.mutation(WRITER_ID, WRITER_VERSION, live.mutationId) shouldBe live
+		dao.mutation(SHADOW_WRITER_ID, WRITER_VERSION, live.mutationId) shouldBe shadow
+	}
+
+	@Test
+	fun latestAndProductQueriesAreQualifiedByActiveWriterIdentity() = runTest {
+		val intervalId = insertInterval(startMs = 1_000L, endMs = 2_000L)
+		val canonical = revision(
+			intervalId = intervalId,
+			admissionOrdinal = 1L,
+			effectiveStepCount = 12L,
+		)
+		val shadow = canonical.copy(
+			writerProjectionId = SHADOW_WRITER_ID,
+			effectiveStepCount = 7L,
+			effectChecksum = "shadow-checksum",
+		)
+		dao.insert(canonical) shouldBe 1L
+		dao.insert(shadow) shouldBe 2L
+
+		dao.revision(WRITER_ID, WRITER_VERSION, LOGICAL_FACT_ID, 1L) shouldBe canonical
+		dao.latest(WRITER_ID, WRITER_VERSION, LOGICAL_FACT_ID) shouldBe canonical
+		dao.latest(SHADOW_WRITER_ID, WRITER_VERSION, LOGICAL_FACT_ID) shouldBe shadow
+		dao.revisions(WRITER_ID, WRITER_VERSION, LOGICAL_FACT_ID) shouldBe listOf(canonical)
 		dao.latestEffectiveBetween(
+			writerProjectionId = WRITER_ID,
+			writerProjectionVersion = WRITER_VERSION,
 			logicalTrackingId = LOGICAL_TRACKING_ID,
 			fromMs = 0L,
 			toMs = 3_000L,
-		).single().semanticRevision shouldBe 2L
-
-		dao.insert(
-			revision(
-				intervalId = intervalId,
-				semanticRevision = 3L,
-				admissionOrdinal = 3L,
-				effectiveStepCount = 7L,
-			),
-		) shouldBe 3L
-		dao.latest(LOGICAL_FACT_ID)?.effectiveStepCount shouldBe 7L
-
-		dao.insert(
-			revision(
-				intervalId = intervalId,
-				semanticRevision = 4L,
-				admissionOrdinal = 4L,
-				operation = StepFactRevisionEntity.OPERATION_RETRACT,
-				effectiveStepCount = 0L,
-			),
-		) shouldBe 4L
-		dao.latest(LOGICAL_FACT_ID)?.operation shouldBe StepFactRevisionEntity.OPERATION_RETRACT
-		dao.effectiveStepCount(LOGICAL_TRACKING_ID) shouldBe 0L
+		).single() shouldBe canonical
+		dao.effectiveStepCount(WRITER_ID, WRITER_VERSION, LOGICAL_TRACKING_ID) shouldBe 12L
+		dao.effectiveStepCount(
+			SHADOW_WRITER_ID,
+			WRITER_VERSION,
+			LOGICAL_TRACKING_ID,
+		) shouldBe 7L
 	}
 
 	@Test
-	fun mutationAndLiveWriterOrdinalAreIdempotentWhileImportNullOrdinalsRemainDistinct() = runTest {
-		val firstIntervalId = insertInterval(startMs = 1_000L, endMs = 2_000L)
-		val secondIntervalId = insertInterval(startMs = 3_000L, endMs = 4_000L)
-		val live = revision(firstIntervalId, semanticRevision = 1L, admissionOrdinal = 10L)
-		dao.insert(live) shouldBe 1L
-
-		dao.insert(
-			live.copy(
-				logicalFactId = "other-fact",
-				semanticRevision = 2L,
-				stepIntervalId = secondIntervalId,
-				sourceEventId = "event-other",
-				mutationId = live.mutationId,
-			),
-		) shouldBe -1L
-		dao.insert(
-			live.copy(
-				logicalFactId = "ordinal-collision",
-				semanticRevision = 1L,
-				stepIntervalId = secondIntervalId,
-				sourceEventId = "event-ordinal-collision",
-				mutationId = "mutation-ordinal-collision",
-			),
-		) shouldBe -1L
-
-		dao.insert(portableRevision(firstIntervalId, "portable-a", "mutation-portable-a")) shouldBe 2L
-		dao.insert(portableRevision(secondIntervalId, "portable-b", "mutation-portable-b")) shouldBe 3L
-		dao.countAll() shouldBe 3L
-	}
-
-	@Test
-	fun deletingImmutableIntervalCascadesItsFactRevisions() = runTest {
+	fun redactedLocalDeleteSurvivesLegacyIntervalDeletionAndSuppressesOlderRevision() = runTest {
 		val intervalId = insertInterval(startMs = 1_000L, endMs = 2_000L)
-		dao.insert(revision(intervalId, semanticRevision = 1L, admissionOrdinal = 1L))
-		dao.countAll() shouldBe 1L
+		val upsert = revision(
+			intervalId = intervalId,
+			admissionOrdinal = 1L,
+			effectiveStepCount = 12L,
+		)
+		val tombstone = redactedRetraction(semanticRevision = 2L)
+		dao.insert(upsert) shouldBe 1L
+		dao.insert(tombstone) shouldBe 2L
 
 		database.stepIntervalDao().deleteAll()
 
-		dao.countAll() shouldBe 0L
+		dao.countAll() shouldBe 2L
+		dao.latest(WRITER_ID, WRITER_VERSION, LOGICAL_FACT_ID) shouldBe tombstone
+		dao.latestEffectiveBetween(
+			writerProjectionId = WRITER_ID,
+			writerProjectionVersion = WRITER_VERSION,
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			fromMs = 0L,
+			toMs = 3_000L,
+		).shouldBeEmpty()
+		dao.effectiveStepCount(
+			WRITER_ID,
+			WRITER_VERSION,
+			LOGICAL_TRACKING_ID,
+		) shouldBe null
+	}
+
+	@Test
+	fun aggregateKeepsNoDataDistinctFromVerifiedZeroAndRowsExposeCoverage() = runTest {
+		dao.effectiveStepCount(
+			WRITER_ID,
+			WRITER_VERSION,
+			LOGICAL_TRACKING_ID,
+		) shouldBe null
+
+		val intervalId = insertInterval(startMs = 1_000L, endMs = 1_000L)
+		val baseline = revision(
+			intervalId = intervalId,
+			admissionOrdinal = 1L,
+			coverageKind = StepFactRevisionEntity.COVERAGE_BASELINE,
+			effectiveStepCount = 0L,
+			cumulativeStepCountStart = 100L,
+			cumulativeStepCountEnd = 100L,
+		)
+		dao.insert(baseline) shouldBe 1L
+
+		dao.effectiveStepCount(
+			WRITER_ID,
+			WRITER_VERSION,
+			LOGICAL_TRACKING_ID,
+		) shouldBe 0L
+		val row = dao.latestEffectiveBetween(
+			writerProjectionId = WRITER_ID,
+			writerProjectionVersion = WRITER_VERSION,
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			fromMs = 0L,
+			toMs = 2_000L,
+		).single()
+		row.effectiveStepCount shouldBe 0L
+		row.coverageKind shouldBe StepFactRevisionEntity.COVERAGE_BASELINE
+	}
+
+	@Test
+	fun entityRejectsIncompleteUpsertAndNonRedactedRetraction() {
+		shouldThrow<IllegalArgumentException> {
+			revision(intervalId = 1L, admissionOrdinal = 1L).copy(intervalStartTimeMs = null)
+		}
+		shouldThrow<IllegalArgumentException> {
+			redactedRetraction(semanticRevision = 2L).copy(logicalTrackingId = LOGICAL_TRACKING_ID)
+		}
+		shouldThrow<IllegalArgumentException> {
+			redactedRetraction(semanticRevision = 2L).copy(
+				originKind = StepFactRevisionEntity.ORIGIN_LIVE_WAL,
+			)
+		}
+		shouldThrow<IllegalArgumentException> {
+			redactedRetraction(semanticRevision = 2L).copy(scopeDeletionGeneration = 0L)
+		}
 	}
 
 	private suspend fun insertInterval(startMs: Long, endMs: Long): Long =
@@ -139,11 +195,13 @@ class StepFactRevisionDaoTest {
 		)
 
 	private fun revision(
-		intervalId: Long,
-		semanticRevision: Long,
+		intervalId: Long?,
+		semanticRevision: Long = 1L,
 		admissionOrdinal: Long,
-		operation: String = StepFactRevisionEntity.OPERATION_UPSERT,
+		coverageKind: String = StepFactRevisionEntity.COVERAGE_COVERED,
 		effectiveStepCount: Long = 0L,
+		cumulativeStepCountStart: Long = 100L,
+		cumulativeStepCountEnd: Long = 112L,
 	): StepFactRevisionEntity = StepFactRevisionEntity(
 		logicalFactId = LOGICAL_FACT_ID,
 		semanticRevision = semanticRevision,
@@ -154,10 +212,19 @@ class StepFactRevisionDaoTest {
 		originKind = StepFactRevisionEntity.ORIGIN_LIVE_WAL,
 		originIdentity = "event-$admissionOrdinal",
 		writerProjectionId = WRITER_ID,
-		writerProjectionVersion = 1,
+		writerProjectionVersion = WRITER_VERSION,
 		writerBindingGeneration = 1L,
-		operation = operation,
-		coverageKind = StepFactRevisionEntity.COVERAGE_COVERED,
+		operation = StepFactRevisionEntity.OPERATION_UPSERT,
+		intervalStartTimeMs = 1_000L,
+		intervalEndTimeMs = 2_000L,
+		intervalStartElapsedRealtimeNanos = 10_000L,
+		intervalEndElapsedRealtimeNanos = 20_000L,
+		clockDomainId = "elapsed-domain-1",
+		bootClockDomainId = "boot-1",
+		cumulativeStepCountStart = cumulativeStepCountStart,
+		cumulativeStepCountEnd = cumulativeStepCountEnd,
+		wallTimeUncertaintyMs = 25L,
+		coverageKind = coverageKind,
 		effectiveStepCount = effectiveStepCount,
 		logicalTrackingId = LOGICAL_TRACKING_ID,
 		purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
@@ -165,31 +232,52 @@ class StepFactRevisionDaoTest {
 		sourcePolicyRevision = 1L,
 		captureConsentEpoch = 1L,
 		collectedDataEpoch = 1L,
+		scopeDeletionGeneration = 0L,
 		effectChecksum = "checksum-$semanticRevision",
 		appliedAtMs = 2_000L + semanticRevision,
 	)
 
-	private fun portableRevision(
-		intervalId: Long,
-		logicalFactId: String,
-		mutationId: String,
-	): StepFactRevisionEntity = revision(
-		intervalId = intervalId,
-		semanticRevision = 1L,
-		admissionOrdinal = 1L,
-	).copy(
-		logicalFactId = logicalFactId,
-		mutationId = mutationId,
-		sourceEventId = null,
-		sourceAdmissionOrdinal = null,
-		originKind = StepFactRevisionEntity.ORIGIN_PORTABLE_IMPORT,
-		originIdentity = logicalFactId,
-		effectChecksum = "checksum-$logicalFactId",
-	)
+	private fun redactedRetraction(semanticRevision: Long): StepFactRevisionEntity =
+		StepFactRevisionEntity(
+			logicalFactId = LOGICAL_FACT_ID,
+			semanticRevision = semanticRevision,
+			mutationId = "delete-mutation-$semanticRevision",
+			stepIntervalId = null,
+			sourceEventId = null,
+			sourceAdmissionOrdinal = null,
+			originKind = StepFactRevisionEntity.ORIGIN_LOCAL_DELETE,
+			originIdentity = "delete-request-opaque",
+			writerProjectionId = WRITER_ID,
+			writerProjectionVersion = WRITER_VERSION,
+			writerBindingGeneration = 2L,
+			operation = StepFactRevisionEntity.OPERATION_RETRACT,
+			intervalStartTimeMs = null,
+			intervalEndTimeMs = null,
+			intervalStartElapsedRealtimeNanos = null,
+			intervalEndElapsedRealtimeNanos = null,
+			clockDomainId = null,
+			bootClockDomainId = null,
+			cumulativeStepCountStart = null,
+			cumulativeStepCountEnd = null,
+			wallTimeUncertaintyMs = null,
+			coverageKind = null,
+			effectiveStepCount = null,
+			logicalTrackingId = null,
+			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			manifestRevision = null,
+			sourcePolicyRevision = null,
+			captureConsentEpoch = null,
+			collectedDataEpoch = 2L,
+			scopeDeletionGeneration = 1L,
+			effectChecksum = "redacted-delete-checksum",
+			appliedAtMs = 3_000L,
+		)
 
 	private companion object {
 		const val LOGICAL_FACT_ID = "steps-fact-1"
 		const val LOGICAL_TRACKING_ID = "session-1"
 		const val WRITER_ID = "steps-session-facts"
+		const val SHADOW_WRITER_ID = "steps-session-facts-shadow"
+		const val WRITER_VERSION = 1
 	}
 }
