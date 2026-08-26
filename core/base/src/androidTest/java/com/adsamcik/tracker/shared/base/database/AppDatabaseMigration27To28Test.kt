@@ -517,6 +517,15 @@ class AppDatabaseMigration27To28Test {
 		assertTableCount(database, "step_interval", 2)
 		// v27 observations remain byte-for-byte facts; migration must not invent semantics.
 		assertTableCount(database, "step_fact_revision", 0)
+		assertTableCount(database, "source_destination_owner", 1)
+		database.query(
+			"SELECT owner, owner_generation FROM source_destination_owner " +
+				"WHERE source_kind = 3 AND destination = 'SESSION_STEPS'",
+		).use { cursor ->
+			assertTrue(cursor.moveToFirst())
+			assertEquals("LEGACY_STEP_INTERVAL", cursor.getString(0))
+			assertEquals(1L, cursor.getLong(1))
+		}
 		database.query("PRAGMA table_info(step_fact_revision)").use { cursor ->
 			val columns = buildMap {
 				while (cursor.moveToNext()) {
@@ -544,6 +553,13 @@ class AppDatabaseMigration27To28Test {
 		assertTableCount(database, "cell_sample", 1)
 		assertTableCount(database, "pressure_sample", 1)
 		assertTableCount(database, "session_segment", 1)
+		database.query("PRAGMA index_list(session_segment)").use { cursor ->
+			val indices = buildMap {
+				while (cursor.moveToNext()) put(cursor.getString(1), cursor.getInt(2))
+			}
+			assertEquals(0, indices["idx_session_segment_logical_tracking"])
+			assertEquals(1, indices["idx_session_segment_service_run"])
+		}
 		assertTableCount(database, "daily_summary", 1)
 		assertTableCount(database, "source_registration_state", 1)
 		assertTableCount(database, "source_runtime_state", 1)
@@ -865,6 +881,9 @@ class AppDatabaseMigration27To28Test {
 		assertEquals(123_456L, evidenceState.retainedFromMs)
 		assertEquals(1L, evidenceState.deletedSourceEventHighWaterOrdinal)
 		assertEquals(1L, requireNotNull(database.activityAutomationEpochDao().current()).epoch)
+		val owner = requireNotNull(database.sourceDestinationOwnerDao().get(3, "SESSION_STEPS"))
+		assertEquals("LEGACY_STEP_INTERVAL", owner.owner)
+		assertEquals(1L, owner.ownerGeneration)
 	}
 
 	private suspend fun seedMigratedStepFactRevision(database: AppDatabase) {
@@ -897,6 +916,7 @@ class AppDatabaseMigration27To28Test {
 				coverageKind = StepFactRevisionEntity.COVERAGE_COVERED,
 				effectiveStepCount = interval.stepCount.toLong(),
 				logicalTrackingId = PopulatedV27Fixture.LOGICAL_TRACKING_ID,
+				serviceRunId = PopulatedV27Fixture.SERVICE_RUN_ID,
 				purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
 				manifestRevision = 1L,
 				sourcePolicyRevision = 1L,

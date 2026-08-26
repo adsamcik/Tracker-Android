@@ -22,5 +22,10 @@ class LegacyImportRoomCallback(
 
 	override fun onCreate(db: SupportSQLiteDatabase) {
 		importer.importIfPresent(db)
+		db.execSQL(
+			"INSERT OR IGNORE INTO source_destination_owner " +
+				"(source_kind, destination, owner, owner_generation, updated_at_ms) " +
+				"VALUES (3, 'SESSION_STEPS', 'LEGACY_STEP_INTERVAL', 1, 0)",
+		)
 	}
 }

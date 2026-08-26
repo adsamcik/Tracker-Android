@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
@@ -46,6 +47,7 @@ class StepsSessionFactProjectionLaneTest {
 		database.sourceEvidenceStateDao().ensure(
 			SourceEvidenceState(collectedDataEpoch = COLLECTED_DATA_EPOCH),
 		)
+		database.sourceDestinationOwnerDao().insertIfAbsent(legacyStepsOwner())
 	}
 
 	@After
@@ -434,10 +436,35 @@ class StepsSessionFactProjectionLaneTest {
 		stage: String,
 		cutoffOrdinal: Long? = null,
 	) {
+		if (stage == SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL) {
+			val owner = requireNotNull(database.sourceDestinationOwnerDao().get(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+			))
+			if (owner.owner == SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL) {
+				check(database.sourceDestinationOwnerDao().compareAndSetOwner(
+					sourceKind = owner.sourceKind,
+					destination = owner.destination,
+					expectedOwner = owner.owner,
+					expectedOwnerGeneration = owner.ownerGeneration,
+					newOwner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
+					newOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+					updatedAtMs = 1_000L,
+				) == 1)
+			}
+		}
 		database.sourceProjectionStateDao().installProductLane(
 			productLane(stage = stage, cutoffOrdinal = cutoffOrdinal),
 		)
 	}
+
+	private fun legacyStepsOwner() = SourceDestinationOwnerEntity(
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+		destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+		owner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+		ownerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+		updatedAtMs = 0L,
+	)
 
 	private fun productLane(
 		stage: String,

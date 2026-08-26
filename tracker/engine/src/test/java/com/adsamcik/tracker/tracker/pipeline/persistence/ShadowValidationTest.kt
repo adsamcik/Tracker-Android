@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDao
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
+import com.adsamcik.tracker.shared.base.database.dao.SourceDestinationOwnerDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
 import com.adsamcik.tracker.shared.base.database.data.CellSample
@@ -76,6 +77,7 @@ class ShadowValidationTest {
 	private lateinit var stepDao: StepIntervalDao
 	private lateinit var activityDao: ActivitySnapshotDao
 	private lateinit var pendingSignalDao: PendingSignalDao
+	private lateinit var sourceDestinationOwnerDao: SourceDestinationOwnerDao
 	private lateinit var durableBuffer: DurableSignalBuffer
 	private lateinit var processor: PersistenceProcessor
 	private val stagedSignals = mutableListOf<TrackingSignal>()
@@ -97,6 +99,8 @@ class ShadowValidationTest {
 		stepDao = mockk(relaxed = true)
 		activityDao = mockk(relaxed = true)
 		pendingSignalDao = mockk(relaxed = true)
+		sourceDestinationOwnerDao = mockk(relaxed = true)
+		coEvery { sourceDestinationOwnerDao.isExactOwner(any(), any(), any(), any()) } returns true
 		durableBuffer = mockk(relaxed = true)
 
 		coEvery { locationDao.insert(any<Collection<LocationSample>>()) } returns emptyList()
@@ -143,6 +147,7 @@ class ShadowValidationTest {
 			pendingSignalDao = pendingSignalDao,
 			durableBuffer = durableBuffer,
 			transactor = transactor,
+			sourceDestinationOwnerDao = sourceDestinationOwnerDao,
 		)
 	}
 

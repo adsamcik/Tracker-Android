@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalClaimDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
+import com.adsamcik.tracker.shared.base.database.dao.SourceDestinationOwnerDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceEvidenceStateDao
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
@@ -24,6 +25,7 @@ import com.adsamcik.tracker.shared.base.database.data.LocationObservationDecisio
 import com.adsamcik.tracker.shared.base.database.data.ObservationStampColumns
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.shared.base.mapper.toEntity
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
@@ -119,6 +121,7 @@ class PersistenceProcessor @Inject constructor(
 	private val pendingSignalClaimDao: PendingSignalClaimDao? = null,
 	private val durableBuffer: DurableSignalBuffer,
 	private val transactor: TrackingPersistenceTransactor,
+	private val sourceDestinationOwnerDao: SourceDestinationOwnerDao,
 ) : DurableSignalProcessor {
 
 	override val descriptor = ProcessorDescriptor(
@@ -902,6 +905,12 @@ class PersistenceProcessor @Inject constructor(
 			pressureSampleDao.insert(chunk)
 		}
 		steps.chunked(STEP_BATCH_SIZE).forEach { chunk ->
+			check(sourceDestinationOwnerDao.isExactOwner(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+				owner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+				ownerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+			)) { "Legacy Steps destination ownership changed before StepInterval commit" }
 			stepIntervalDao.insert(chunk)
 		}
 		activities.chunked(ACTIVITY_BATCH_SIZE).forEach { chunk ->

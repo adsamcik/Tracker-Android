@@ -20,7 +20,13 @@ import com.adsamcik.tracker.shared.model.SegmentSource
 		// the leading start_time_ms column and scans everything before toMs.
 		Index(value = ["end_time_ms"], name = "idx_session_segment_end_time_ms"),
 		Index(value = ["source"], name = "idx_session_segment_source"),
-		Index(value = ["primary_activity"], name = "idx_session_segment_primary_activity")
+		Index(value = ["primary_activity"], name = "idx_session_segment_primary_activity"),
+		Index(value = ["logical_tracking_id"], name = "idx_session_segment_logical_tracking"),
+		Index(
+			value = ["service_run_id"],
+			unique = true,
+			name = "idx_session_segment_service_run",
+		),
 	]
 )
 data class SessionSegment(
@@ -92,4 +98,15 @@ data class SessionSegment(
 	 */
 	@ColumnInfo(name = "has_distance_anomaly", defaultValue = "0")
 	val hasDistanceAnomaly: Boolean = false,
+
+	/** Durable v28 logical-session identity. Null only for released legacy/imported rows. */
+	@ColumnInfo(name = "logical_tracking_id")
+	val logicalTrackingId: String? = null,
+
+	/**
+	 * Physical service-run identity for this segment. A logical session may span multiple runs,
+	 * while each run owns at most one legacy session segment.
+	 */
+	@ColumnInfo(name = "service_run_id")
+	val serviceRunId: String? = null,
 )

@@ -41,8 +41,18 @@ internal class SessionTrackerComponent(
 	private val isUserInitiated: Boolean,
 	private val sessionSegmentDao: SessionSegmentDao,
 	private val trackingParamsRepository: TrackingParamsRepository? = null,
+	private val logicalTrackingId: String? = null,
+	private val serviceRunId: String? = null,
 ) : DataTrackerComponent,
 	CoroutineScope {
+	init {
+		require(logicalTrackingId?.isNotBlank() != false)
+		require(serviceRunId?.isNotBlank() != false)
+		require((logicalTrackingId == null) == (serviceRunId == null)) {
+			"Logical tracking and service-run identities must be supplied together"
+		}
+	}
+
 	override val requiredData: Collection<TrackerComponentRequirement> = mutableListOf()
 
 	private val job = SupervisorJob()
@@ -68,6 +78,7 @@ internal class SessionTrackerComponent(
 	private var collectedLocationCount = 0
 	private var collectedActivityCount = 0
 	private var collectedPressureCount = 0
+	private var collectedStepIntervalCount = 0
 	private val preferenceJobs = mutableListOf<Job>()
 	private val activityEvidence = mutableMapOf<Int, ActivityEvidence>()
 	private data class ActivityEvidence(var confidenceScore: Long = 0L, var confidenceTotal: Long = 0L, var observations: Int = 0)
@@ -112,6 +123,7 @@ internal class SessionTrackerComponent(
 				end = Time.nowMillis
 
 				cycle.stepDelta?.let { newSteps ->
+					collectedStepIntervalCount++
 					if (newSteps < 0) {
 						Tracebox.log.warn("Step counter regressed")
 					}
@@ -159,6 +171,7 @@ internal class SessionTrackerComponent(
 					collectedLocationCount == 0 &&
 					collectedActivityCount == 0 &&
 					collectedPressureCount == 0 &&
+					collectedStepIntervalCount == 0 &&
 					mutableSession.steps == 0
 				) {
 					// Remove the pre-inserted row only when the session produced no persistable
@@ -202,6 +215,8 @@ internal class SessionTrackerComponent(
 			inferenceVersion = "tracker_v2",
 			createdAt = Time.nowMillis,
 			hasDistanceAnomaly = hasAnomaly,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
 		)
 
 		if (session.id > 0L) {
@@ -307,6 +322,8 @@ internal class SessionTrackerComponent(
 			inferenceVersion = "tracker_v2",
 			createdAt = now,
 			hasDistanceAnomaly = false,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
 		)
 		session.id = sessionSegmentDao.insert(segment)
 		mutableSession = session

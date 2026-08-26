@@ -69,6 +69,8 @@ internal class TrackerComponentFactory(
 		notificationComponent: NotificationComponent,
 		controller: TrackerServiceController,
 		scope: CoroutineScope,
+		logicalTrackingId: String? = null,
+		serviceRunId: String? = null,
 	): ComponentSet {
 		var sessionComponent: SessionTrackerComponent? = null
 		var dataComponents: List<DataTrackerComponent> = emptyList()
@@ -84,6 +86,8 @@ internal class TrackerComponentFactory(
 				isSessionUserInitiated,
 				appDatabase.sessionSegmentDao(),
 				trackingParamsRepository,
+				logicalTrackingId,
+				serviceRunId,
 			).apply {
 				onEnable(context)
 			}

@@ -159,9 +159,14 @@ internal class TrackingOrchestrator(
 		scope: CoroutineScope,
 		/** Durable logical identity supplied by the service; legacy callers fall back to segment id. */
 		logicalTrackingId: String? = null,
+		/** Physical service-run identity paired with [logicalTrackingId] for product attribution. */
+		serviceRunId: String? = null,
 		/** Immutable physical-source ownership snapshot for this service run. */
 		rolloutState: TrackingRolloutState? = null,
 	) = componentMutex.withLock {
+		require((logicalTrackingId == null) == (serviceRunId == null)) {
+			"Logical tracking and service-run identities must be supplied together"
+		}
 		val previousSessionJob = sessionJob
 		try {
 			if (hasSessionState()) {
@@ -297,6 +302,8 @@ internal class TrackingOrchestrator(
 			notificationComponent = notificationComponent,
 			controller = controller,
 			scope = sessionScope,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
 		)
 
 		sessionComponent = componentSet.sessionComponent

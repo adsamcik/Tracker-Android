@@ -253,6 +253,7 @@ class StepFactRevisionDaoTest {
 		coverageKind = coverageKind,
 		effectiveStepCount = effectiveStepCount,
 		logicalTrackingId = LOGICAL_TRACKING_ID,
+		serviceRunId = SERVICE_RUN_ID,
 		purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
 		manifestRevision = 1L,
 		sourcePolicyRevision = 1L,
@@ -289,6 +290,7 @@ class StepFactRevisionDaoTest {
 			coverageKind = null,
 			effectiveStepCount = null,
 			logicalTrackingId = null,
+			serviceRunId = null,
 			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
 			manifestRevision = null,
 			sourcePolicyRevision = null,
@@ -302,6 +304,7 @@ class StepFactRevisionDaoTest {
 	private companion object {
 		const val LOGICAL_FACT_ID = "steps-fact-1"
 		const val LOGICAL_TRACKING_ID = "session-1"
+		const val SERVICE_RUN_ID = "run-1"
 		const val WRITER_ID = "steps-session-facts"
 		const val SHADOW_WRITER_ID = "steps-session-facts-shadow"
 		const val WRITER_VERSION = 1

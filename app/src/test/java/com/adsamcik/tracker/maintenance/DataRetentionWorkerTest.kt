@@ -188,6 +188,7 @@ class DataRetentionWorkerTest {
 		coverageKind = StepFactRevisionEntity.COVERAGE_COVERED,
 		effectiveStepCount = 1L,
 		logicalTrackingId = "expired-session",
+		serviceRunId = "expired-run",
 		purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
 		manifestRevision = 1L,
 		sourcePolicyRevision = 1L,

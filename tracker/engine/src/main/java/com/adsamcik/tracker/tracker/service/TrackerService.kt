@@ -979,6 +979,7 @@ internal class TrackerService : CoreService() {
 							initialTier = initialTier,
 							scope = this@TrackerService,
 							logicalTrackingId = descriptor.logicalTrackingId,
+							serviceRunId = descriptor.serviceRunId,
 							rolloutState = rolloutState,
 						)
 					}

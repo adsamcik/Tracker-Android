@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
@@ -431,6 +432,16 @@ class StepsSessionFactProjectionLane private constructor(
 		if (database.sourceProjectionStateDao().registration(WRITER_ID, WRITER_VERSION) != null) {
 			throw StepsLaneAuthorityChangedException("STEPS_WRITER_HAS_GLOBAL_REGISTRATION")
 		}
+		if (current.productStage == SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL &&
+			!database.sourceDestinationOwnerDao().isExactOwner(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+				owner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
+				ownerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+			)
+		) {
+			throw StepsLaneAuthorityChangedException("STEPS_DESTINATION_OWNER_CHANGED")
+		}
 		return current
 	}
 
@@ -522,7 +533,8 @@ class StepsSessionFactProjectionLane private constructor(
 			evidenceState.retainedFromMs?.let { evidence.acquiredAtMs < it } == true ||
 			evidence.registrationPurposeEligibilityMask and
 			SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
-			evidence.logicalTrackingId == null
+			evidence.logicalTrackingId == null ||
+			evidence.serviceRunId == null
 		) return null
 
 		fun poison(code: String): Nothing = throw StepsSessionFactPoisonException(
@@ -570,6 +582,7 @@ class StepsSessionFactProjectionLane private constructor(
 		}
 
 		val logicalTrackingId = evidence.logicalTrackingId.value
+		val serviceRunId = evidence.serviceRunId.value
 		val manifestRevision = evidence.sessionManifestRevision
 			?: poison("STEPS_MANIFEST_REVISION_MISSING")
 		val policyRevision = evidence.sourcePolicyRevision
@@ -608,6 +621,7 @@ class StepsSessionFactProjectionLane private constructor(
 			coverage.first,
 			coverage.second,
 			logicalTrackingId,
+			serviceRunId,
 			manifestRevision,
 			policyRevision,
 			consentEpoch,
@@ -639,6 +653,7 @@ class StepsSessionFactProjectionLane private constructor(
 			coverageKind = coverage.first,
 			effectiveStepCount = coverage.second,
 			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
 			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
 			manifestRevision = manifestRevision,
 			sourcePolicyRevision = policyRevision,
@@ -664,9 +679,9 @@ class StepsSessionFactProjectionLane private constructor(
 	private fun nowMs(): Long = System.currentTimeMillis().coerceAtLeast(0L)
 
 	companion object {
-		const val WRITER_ID = "steps-session-facts"
-		const val WRITER_VERSION = 1
-		const val BINDING_GENERATION = 1L
+		const val WRITER_ID = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID
+		const val WRITER_VERSION = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION
+		const val BINDING_GENERATION = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION
 		const val MANUAL_CAPTURE_MODE_MASK = 1L
 
 		private const val SEMANTIC_REVISION = 1L

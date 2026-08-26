@@ -52,6 +52,17 @@ import androidx.room.Index
 			],
 			name = "idx_step_fact_revision_session_latest",
 		),
+		Index(
+			value = [
+				"writer_projection_id",
+				"writer_projection_version",
+				"service_run_id",
+				"purpose",
+				"logical_fact_id",
+				"semantic_revision",
+			],
+			name = "idx_step_fact_revision_service_run_latest",
+		),
 	],
 )
 data class StepFactRevisionEntity(
@@ -85,6 +96,7 @@ data class StepFactRevisionEntity(
 	/** Effective value after this revision. Null means a redacted tombstone, not verified zero. */
 	@ColumnInfo(name = "effective_step_count") val effectiveStepCount: Long?,
 	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String?,
+	@ColumnInfo(name = "service_run_id") val serviceRunId: String?,
 	@ColumnInfo(name = "purpose") val purpose: String,
 	@ColumnInfo(name = "manifest_revision") val manifestRevision: Long?,
 	@ColumnInfo(name = "source_policy_revision") val sourcePolicyRevision: Long?,
@@ -146,6 +158,7 @@ data class StepFactRevisionEntity(
 			require(effectiveStepCount == 0L)
 		}
 		require(!logicalTrackingId.isNullOrBlank())
+		require(!serviceRunId.isNullOrBlank())
 		require(manifestRevision != null && manifestRevision > 0L)
 		require(sourcePolicyRevision != null && sourcePolicyRevision > 0L)
 		require(captureConsentEpoch != null && captureConsentEpoch >= 0L)
@@ -169,6 +182,7 @@ data class StepFactRevisionEntity(
 		require(coverageKind == null)
 		require(effectiveStepCount == null)
 		require(logicalTrackingId == null)
+		require(serviceRunId == null)
 		require(manifestRevision == null)
 		require(sourcePolicyRevision == null)
 		require(captureConsentEpoch == null)

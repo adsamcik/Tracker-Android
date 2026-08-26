@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.base.database.data.LocationProjectionObservat
 import com.adsamcik.tracker.shared.base.database.data.LocationProjectionPointEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity
 import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
@@ -41,9 +42,16 @@ class LegacyV27ProjectionRecoveryTest {
 	private lateinit var recovery: LegacyV27ProjectionRecovery
 
 	@Before
-	fun setUp() {
+	fun setUp() = runTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
+		database.sourceDestinationOwnerDao().insertIfAbsent(SourceDestinationOwnerEntity(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+			owner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+			ownerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+			updatedAtMs = 0L,
+		))
 		lifecycle = FakeLifecycleStore(CollectedDataLifecycleSnapshot(epoch = 0, retainedFromMs = null))
 		clock = FixedClock(fixedTimeMillis = 10_000, fixedRealtimeNanos = 1_000_000_000)
 		codec = DefaultSourcePayloadCodec()
@@ -58,6 +66,7 @@ class LegacyV27ProjectionRecoveryTest {
 			eventFrameBridge = LegacyV27EventFrameBridge(
 				stepIntervalDao = database.stepIntervalDao(),
 				pressureSampleDao = database.pressureSampleDao(),
+				sourceDestinationOwnerDao = database.sourceDestinationOwnerDao(),
 			),
 		)
 	}

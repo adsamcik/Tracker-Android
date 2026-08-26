@@ -31,6 +31,7 @@ import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
@@ -286,6 +287,28 @@ class RetentionPipelineWorkerRobolectricTest {
 		val lane = StepsSessionFactProjectionLane(db, ingress, backgroundScope)
 		try {
 			db.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 2L))
+			db.sourceDestinationOwnerDao().insertIfAbsent(
+				SourceDestinationOwnerEntity(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+					destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+					owner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+					ownerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+					updatedAtMs = 0L,
+				),
+			)
+			assertEquals(
+				1,
+				db.sourceDestinationOwnerDao().compareAndSetOwner(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+					destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+					expectedOwner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+					expectedOwnerGeneration =
+						SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+					newOwner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
+					newOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+					updatedAtMs = 1L,
+				),
+			)
 			db.stepFactRevisionDao().insert(expiredStepFactRevision(collectedDataEpoch = 2L))
 			db.sourceEventWalDao().insertIgnoringDuplicate(staleRawStepsEvent())
 			db.sourceProjectionStateDao().installProductLane(
@@ -583,6 +606,7 @@ class RetentionPipelineWorkerRobolectricTest {
 		coverageKind = StepFactRevisionEntity.COVERAGE_COVERED,
 		effectiveStepCount = 1L,
 		logicalTrackingId = "expired-session",
+		serviceRunId = "expired-run",
 		purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
 		manifestRevision = 1L,
 		sourcePolicyRevision = 1L,

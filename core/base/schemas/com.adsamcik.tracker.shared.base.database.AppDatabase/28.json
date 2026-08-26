@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 28,
-    "identityHash": "a9c10cb02c01b8033d62c825b8ae78f9",
+    "identityHash": "edfd68f29c155964329ce819a01aa56f",
     "entities": [
       {
         "tableName": "activity",
@@ -1065,7 +1065,7 @@
       },
       {
         "tableName": "step_fact_revision",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`logical_fact_id` TEXT NOT NULL, `semantic_revision` INTEGER NOT NULL, `mutation_id` TEXT NOT NULL, `step_interval_id` INTEGER, `source_event_id` TEXT, `source_admission_ordinal` INTEGER, `origin_kind` TEXT NOT NULL, `origin_identity` TEXT NOT NULL, `writer_projection_id` TEXT NOT NULL, `writer_projection_version` INTEGER NOT NULL, `writer_binding_generation` INTEGER NOT NULL, `operation` TEXT NOT NULL, `interval_start_time_ms` INTEGER, `interval_end_time_ms` INTEGER, `interval_start_elapsed_realtime_nanos` INTEGER, `interval_end_elapsed_realtime_nanos` INTEGER, `clock_domain_id` TEXT, `boot_clock_domain_id` TEXT, `cumulative_step_count_start` INTEGER, `cumulative_step_count_end` INTEGER, `wall_time_uncertainty_ms` INTEGER, `coverage_kind` TEXT, `effective_step_count` INTEGER, `logical_tracking_id` TEXT, `purpose` TEXT NOT NULL, `manifest_revision` INTEGER, `source_policy_revision` INTEGER, `capture_consent_epoch` INTEGER, `collected_data_epoch` INTEGER NOT NULL, `scope_deletion_generation` INTEGER NOT NULL, `effect_checksum` TEXT NOT NULL, `applied_at_ms` INTEGER NOT NULL, PRIMARY KEY(`writer_projection_id`, `writer_projection_version`, `logical_fact_id`, `semantic_revision`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`logical_fact_id` TEXT NOT NULL, `semantic_revision` INTEGER NOT NULL, `mutation_id` TEXT NOT NULL, `step_interval_id` INTEGER, `source_event_id` TEXT, `source_admission_ordinal` INTEGER, `origin_kind` TEXT NOT NULL, `origin_identity` TEXT NOT NULL, `writer_projection_id` TEXT NOT NULL, `writer_projection_version` INTEGER NOT NULL, `writer_binding_generation` INTEGER NOT NULL, `operation` TEXT NOT NULL, `interval_start_time_ms` INTEGER, `interval_end_time_ms` INTEGER, `interval_start_elapsed_realtime_nanos` INTEGER, `interval_end_elapsed_realtime_nanos` INTEGER, `clock_domain_id` TEXT, `boot_clock_domain_id` TEXT, `cumulative_step_count_start` INTEGER, `cumulative_step_count_end` INTEGER, `wall_time_uncertainty_ms` INTEGER, `coverage_kind` TEXT, `effective_step_count` INTEGER, `logical_tracking_id` TEXT, `service_run_id` TEXT, `purpose` TEXT NOT NULL, `manifest_revision` INTEGER, `source_policy_revision` INTEGER, `capture_consent_epoch` INTEGER, `collected_data_epoch` INTEGER NOT NULL, `scope_deletion_generation` INTEGER NOT NULL, `effect_checksum` TEXT NOT NULL, `applied_at_ms` INTEGER NOT NULL, PRIMARY KEY(`writer_projection_id`, `writer_projection_version`, `logical_fact_id`, `semantic_revision`))",
         "fields": [
           {
             "fieldPath": "logicalFactId",
@@ -1197,6 +1197,11 @@
             "affinity": "TEXT"
           },
           {
+            "fieldPath": "serviceRunId",
+            "columnName": "service_run_id",
+            "affinity": "TEXT"
+          },
+          {
             "fieldPath": "purpose",
             "columnName": "purpose",
             "affinity": "TEXT",
@@ -1306,9 +1311,65 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_step_fact_revision_session_latest` ON `${TABLE_NAME}` (`writer_projection_id`, `writer_projection_version`, `logical_tracking_id`, `purpose`, `logical_fact_id`, `semantic_revision`)"
+          },
+          {
+            "name": "idx_step_fact_revision_service_run_latest",
+            "unique": false,
+            "columnNames": [
+              "writer_projection_id",
+              "writer_projection_version",
+              "service_run_id",
+              "purpose",
+              "logical_fact_id",
+              "semantic_revision"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_step_fact_revision_service_run_latest` ON `${TABLE_NAME}` (`writer_projection_id`, `writer_projection_version`, `service_run_id`, `purpose`, `logical_fact_id`, `semantic_revision`)"
+          }
+        ]
+      },
+      {
+        "tableName": "source_destination_owner",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`source_kind` INTEGER NOT NULL, `destination` TEXT NOT NULL, `owner` TEXT NOT NULL, `owner_generation` INTEGER NOT NULL, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`source_kind`, `destination`))",
+        "fields": [
+          {
+            "fieldPath": "sourceKind",
+            "columnName": "source_kind",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "destination",
+            "columnName": "destination",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "owner",
+            "columnName": "owner",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ownerGeneration",
+            "columnName": "owner_generation",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMs",
+            "columnName": "updated_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
           }
         ],
-        "foreignKeys": []
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "source_kind",
+            "destination"
+          ]
+        }
       },
       {
         "tableName": "activity_snapshot",
@@ -5342,7 +5403,7 @@
       },
       {
         "tableName": "session_segment",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER NOT NULL, `distance_m` REAL NOT NULL, `steps` INTEGER, `primary_activity` INTEGER, `activity_confidence` INTEGER, `sample_count` INTEGER NOT NULL, `source` TEXT NOT NULL, `inference_version` TEXT, `created_at` INTEGER NOT NULL, `has_distance_anomaly` INTEGER NOT NULL DEFAULT 0)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER NOT NULL, `distance_m` REAL NOT NULL, `steps` INTEGER, `primary_activity` INTEGER, `activity_confidence` INTEGER, `sample_count` INTEGER NOT NULL, `source` TEXT NOT NULL, `inference_version` TEXT, `created_at` INTEGER NOT NULL, `has_distance_anomaly` INTEGER NOT NULL DEFAULT 0, `logical_tracking_id` TEXT, `service_run_id` TEXT)",
         "fields": [
           {
             "fieldPath": "id",
@@ -5412,6 +5473,16 @@
             "affinity": "INTEGER",
             "notNull": true,
             "defaultValue": "0"
+          },
+          {
+            "fieldPath": "logicalTrackingId",
+            "columnName": "logical_tracking_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "serviceRunId",
+            "columnName": "service_run_id",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -5457,6 +5528,24 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_session_segment_primary_activity` ON `${TABLE_NAME}` (`primary_activity`)"
+          },
+          {
+            "name": "idx_session_segment_logical_tracking",
+            "unique": false,
+            "columnNames": [
+              "logical_tracking_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_session_segment_logical_tracking` ON `${TABLE_NAME}` (`logical_tracking_id`)"
+          },
+          {
+            "name": "idx_session_segment_service_run",
+            "unique": true,
+            "columnNames": [
+              "service_run_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_session_segment_service_run` ON `${TABLE_NAME}` (`service_run_id`)"
           }
         ]
       },
@@ -7384,7 +7473,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'a9c10cb02c01b8033d62c825b8ae78f9')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'edfd68f29c155964329ce819a01aa56f')"
     ]
   }
 }

@@ -2,11 +2,13 @@ package com.adsamcik.tracker.tracker.source.projection.legacy
 
 import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
+import com.adsamcik.tracker.shared.base.database.dao.SourceDestinationOwnerDao
 import com.adsamcik.tracker.shared.base.database.data.ObservationStampColumns
 import com.adsamcik.tracker.shared.base.database.data.PressureSample
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
@@ -27,6 +29,7 @@ import javax.inject.Inject
 class LegacyV27EventFrameBridge @Inject constructor(
 	private val stepIntervalDao: StepIntervalDao,
 	private val pressureSampleDao: PressureSampleDao,
+	private val sourceDestinationOwnerDao: SourceDestinationOwnerDao,
 ) {
 	suspend fun bridge(
 		wal: SourceEventWalEntity,
@@ -288,6 +291,14 @@ class LegacyV27EventFrameBridge @Inject constructor(
 		auditProvenance: LegacyV27BridgeAuditProvenance,
 		exactlyMatches: (T) -> Boolean,
 	): LegacyV27EventFrameBridgeResult {
+		if (destination == LegacyV27EventFrameDestination.STEP_INTERVAL) {
+			check(sourceDestinationOwnerDao.isExactOwner(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+				owner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+				ownerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+			)) { "Legacy Steps destination ownership changed before v27 bridge commit" }
+		}
 		val rowId = insert(candidate)
 		val existing = load(sourceSignalId)
 		if (existing != null && exactlyMatches(existing)) {

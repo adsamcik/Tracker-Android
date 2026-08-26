@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ObservationStampColumns
 import com.adsamcik.tracker.shared.base.database.data.PressureSample
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.tracker.altitude.BarometricAltitudeFormula
@@ -36,14 +37,24 @@ class LegacyV27EventFrameBridgeTest {
 	private lateinit var bridge: LegacyV27EventFrameBridge
 
 	@Before
-	fun setUp() {
+	fun setUp() = runTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
+		database.sourceDestinationOwnerDao().insertIfAbsent(legacyStepsOwner())
 		bridge = LegacyV27EventFrameBridge(
 			stepIntervalDao = database.stepIntervalDao(),
 			pressureSampleDao = database.pressureSampleDao(),
+			sourceDestinationOwnerDao = database.sourceDestinationOwnerDao(),
 		)
 	}
+
+	private fun legacyStepsOwner() = SourceDestinationOwnerEntity(
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+		destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+		owner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+		ownerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+		updatedAtMs = 0L,
+	)
 
 	@After
 	fun tearDown() = database.close()

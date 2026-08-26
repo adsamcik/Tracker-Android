@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalClaimDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
+import com.adsamcik.tracker.shared.base.database.dao.SourceDestinationOwnerDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
 import com.adsamcik.tracker.shared.base.database.data.CellSample
@@ -242,6 +243,7 @@ class PersistenceRecoveryCrossSessionTest {
 				pendingSignalClaimDao = claimDao,
 				durableBuffer = durableBuffer,
 				transactor = passthroughTransactor,
+				sourceDestinationOwnerDao = mockk<SourceDestinationOwnerDao>(relaxed = true),
 			)
 
 			// --- New process: PersistenceProcessor starts under a *different*

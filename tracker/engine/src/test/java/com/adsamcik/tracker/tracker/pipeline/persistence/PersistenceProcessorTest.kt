@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalClaimDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceEvidenceStateDao
+import com.adsamcik.tracker.shared.base.database.dao.SourceDestinationOwnerDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
@@ -77,6 +78,7 @@ class PersistenceProcessorTest {
 	private lateinit var activityDao: ActivitySnapshotDao
 	private lateinit var pendingSignalDao: PendingSignalDao
 	private lateinit var pendingSignalClaimDao: PendingSignalClaimDao
+	private lateinit var sourceDestinationOwnerDao: SourceDestinationOwnerDao
 	private lateinit var durableBuffer: DurableSignalBuffer
 	private lateinit var processor: PersistenceProcessor
 	private val stagedSignals = mutableListOf<TrackingSignal>()
@@ -106,6 +108,7 @@ class PersistenceProcessorTest {
 		activityDao = mockk(relaxed = true)
 		pendingSignalDao = mockk(relaxed = true)
 		pendingSignalClaimDao = mockk(relaxed = true)
+		sourceDestinationOwnerDao = mockk(relaxed = true)
 		durableBuffer = mockk(relaxed = true)
 
 		coEvery { locationDao.insert(any<Collection<LocationSample>>()) } returns emptyList()
@@ -116,6 +119,7 @@ class PersistenceProcessorTest {
 		coEvery { wifiDao.insert(any<Collection<WifiObservation>>()) } returns emptyList()
 		coEvery { pressureDao.insert(any<Collection<PressureSample>>()) } returns emptyList()
 		coEvery { stepDao.insert(any<Collection<StepInterval>>()) } returns emptyList()
+		coEvery { sourceDestinationOwnerDao.isExactOwner(any(), any(), any(), any()) } returns true
 		coEvery { activityDao.insert(any<Collection<ActivitySnapshot>>()) } returns emptyList()
 		coEvery { durableBuffer.hasPendingEntries() } returns false
 		coEvery { durableBuffer.claimBatch(any()) } returns null
@@ -149,6 +153,7 @@ class PersistenceProcessorTest {
 			pendingSignalClaimDao = pendingSignalClaimDao,
 			durableBuffer = durableBuffer,
 			transactor = transactor,
+			sourceDestinationOwnerDao = sourceDestinationOwnerDao,
 		)
 	}
 
@@ -192,6 +197,7 @@ class PersistenceProcessorTest {
 		pendingSignalClaimDao = pendingSignalClaimDao,
 		durableBuffer = durableBuffer,
 		transactor = transactor,
+		sourceDestinationOwnerDao = sourceDestinationOwnerDao,
 	)
 
 	private fun processorWithTransactor(
@@ -208,6 +214,7 @@ class PersistenceProcessorTest {
 		pendingSignalClaimDao = pendingSignalClaimDao,
 		durableBuffer = durableBuffer,
 		transactor = customTransactor,
+		sourceDestinationOwnerDao = sourceDestinationOwnerDao,
 	)
 
 	private fun claimedBatch(
@@ -428,6 +435,7 @@ class PersistenceProcessorTest {
 				pendingSignalDao = pendingSignalDao,
 				durableBuffer = durableBuffer,
 				transactor = cancelAfterCommitTransactor,
+				sourceDestinationOwnerDao = sourceDestinationOwnerDao,
 			)
 			cancelSafeProcessor.onStart(
 				ProcessorContext(startTimestamp = EpochMs(0L), sessionId = 1L),
@@ -468,6 +476,7 @@ class PersistenceProcessorTest {
 				pendingSignalDao = pendingSignalDao,
 				durableBuffer = durableBuffer,
 				transactor = commitThenStallTransactor,
+				sourceDestinationOwnerDao = sourceDestinationOwnerDao,
 			)
 			timeoutSafeProcessor.onStart(
 				ProcessorContext(startTimestamp = EpochMs(0L), sessionId = 1L),

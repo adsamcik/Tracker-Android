@@ -15,8 +15,10 @@ import com.adsamcik.tracker.tracker.data.collection.PressureReading
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
 import io.kotest.matchers.floats.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
+import io.kotest.assertions.throwables.shouldThrow
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.slot
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -143,6 +145,40 @@ class SessionTrackerComponentTest {
 		component.onDisable(context)
 	}
 
+	@Test
+	fun persistsDurableLogicalAndServiceRunBridgeOnInsert() = runTest {
+		val inserted = slot<SessionSegment>()
+		coEvery { mockSegmentDao.insert(capture(inserted)) } returns 71L
+		val repository: TrackingParamsRepository = mockk {
+			every { data } returns MutableStateFlow(TrackingParamsState())
+		}
+		val component = SessionTrackerComponent(
+			isUserInitiated = true,
+			sessionSegmentDao = mockSegmentDao,
+			trackingParamsRepository = repository,
+			logicalTrackingId = "logical-7",
+			serviceRunId = "run-11",
+		)
+
+		component.onEnable(context)
+
+		inserted.captured.logicalTrackingId shouldBe "logical-7"
+		inserted.captured.serviceRunId shouldBe "run-11"
+		component.session.id shouldBe 71L
+		component.onDisable(context)
+	}
+
+	@Test
+	fun rejectsHalfOfDurableSessionBridge() {
+		shouldThrow<IllegalArgumentException> {
+			SessionTrackerComponent(
+				isUserInitiated = true,
+				sessionSegmentDao = mockSegmentDao,
+				logicalTrackingId = "logical-only",
+			)
+		}
+	}
+
 
 	@Test
 	fun deletesEmptySession() = runTest {
@@ -196,6 +232,28 @@ class SessionTrackerComponentTest {
 
 		coVerify(exactly = 1) { mockSegmentDao.deleteById(any()) }
 		coVerify(exactly = 0) { mockSegmentDao.insert(any<SessionSegment>()) }
+	}
+
+	@Test
+	fun coveredZeroStepIntervalPreservesStepsOnlySession() = runTest {
+		val component = createComponent()
+		setSession(component, emptySession())
+		setIsNewSession(component, true)
+
+		component.onDataUpdated(
+			cycle = TrackingCycle(
+				timestampMs = 1_000L,
+				elapsedRealtimeNanos = 1_000L,
+				stepDelta = 0,
+			),
+			collectionData = MutableCollectionData(1_000L),
+		)
+		component.onDisable(context)
+
+		coVerify(exactly = 0) { mockSegmentDao.deleteById(any()) }
+		coVerify(exactly = 2) {
+			mockSegmentDao.update(match<SessionSegment> { it.steps == 0 })
+		}
 	}
 
 

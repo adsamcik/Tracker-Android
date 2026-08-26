@@ -46,6 +46,7 @@ import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.SkiRunSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
+import com.adsamcik.tracker.shared.base.database.dao.SourceDestinationOwnerDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceEvidenceStateDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerStateEventDao
@@ -250,6 +251,11 @@ object InfrastructureModule {
 
     @Provides
     fun provideStepIntervalDao(database: AppDatabase): StepIntervalDao = database.stepIntervalDao()
+
+	@Provides
+	@Singleton
+	fun provideSourceDestinationOwnerDao(database: AppDatabase): SourceDestinationOwnerDao =
+		database.sourceDestinationOwnerDao()
 
     @Provides
     fun provideActivitySnapshotDao(database: AppDatabase): ActivitySnapshotDao = database.activitySnapshotDao()

@@ -30,6 +30,7 @@ import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.StepFactRevisionDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
+import com.adsamcik.tracker.shared.base.database.dao.SourceDestinationOwnerDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerStateEventDao
 import com.adsamcik.tracker.shared.base.database.dao.TripDao
@@ -57,6 +58,7 @@ import com.adsamcik.tracker.shared.base.database.data.PlayerProfileEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.TrackerRun
 import com.adsamcik.tracker.shared.base.database.data.TrackerStateEvent
 import com.adsamcik.tracker.shared.base.database.data.TrajectoryReconstructionRunEntity
@@ -161,6 +163,7 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			LocationObservationDecision::class,
 			StepInterval::class,
 			StepFactRevisionEntity::class,
+			SourceDestinationOwnerEntity::class,
 			ActivitySnapshot::class,
 			CellSample::class,
 			WifiObservation::class,
@@ -273,6 +276,8 @@ abstract class AppDatabase : RoomDatabase() {
 
 	/** Provides append-only semantic revisions and contribution receipts for Steps. */
 	abstract fun stepFactRevisionDao(): StepFactRevisionDao
+
+	abstract fun sourceDestinationOwnerDao(): SourceDestinationOwnerDao
 
 	/**
 	 * Provides access to activity snapshots (sessionless tracking).

@@ -1384,6 +1384,33 @@ val MIGRATION_27_28: Migration = object : Migration(
 ) {
 	override fun migrate(db: SupportSQLiteDatabase) {
 		with(db) {
+			execSQL("ALTER TABLE session_segment ADD COLUMN logical_tracking_id TEXT")
+			execSQL("ALTER TABLE session_segment ADD COLUMN service_run_id TEXT")
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_session_segment_logical_tracking " +
+					"ON session_segment(logical_tracking_id)",
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_session_segment_service_run " +
+					"ON session_segment(service_run_id)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS source_destination_owner (
+					source_kind INTEGER NOT NULL,
+					destination TEXT NOT NULL,
+					owner TEXT NOT NULL,
+					owner_generation INTEGER NOT NULL,
+					updated_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(source_kind, destination)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"INSERT OR IGNORE INTO source_destination_owner " +
+					"(source_kind, destination, owner, owner_generation, updated_at_ms) " +
+					"VALUES (3, 'SESSION_STEPS', 'LEGACY_STEP_INTERVAL', 1, 0)",
+			)
 			execSQL(
 				"ALTER TABLE tracker_run ADD COLUMN " +
 					"legacy_runtime_fenced INTEGER NOT NULL DEFAULT 0",
@@ -1490,6 +1517,7 @@ val MIGRATION_27_28: Migration = object : Migration(
 					coverage_kind TEXT,
 					effective_step_count INTEGER,
 					logical_tracking_id TEXT,
+					service_run_id TEXT,
 					purpose TEXT NOT NULL,
 					manifest_revision INTEGER,
 					source_policy_revision INTEGER,
@@ -1529,6 +1557,11 @@ val MIGRATION_27_28: Migration = object : Migration(
 				"CREATE INDEX IF NOT EXISTS idx_step_fact_revision_session_latest " +
 					"ON step_fact_revision(writer_projection_id, writer_projection_version, " +
 					"logical_tracking_id, purpose, logical_fact_id, semantic_revision)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_step_fact_revision_service_run_latest " +
+					"ON step_fact_revision(writer_projection_id, writer_projection_version, " +
+					"service_run_id, purpose, logical_fact_id, semantic_revision)",
 			)
 			execSQL(
 				"""
