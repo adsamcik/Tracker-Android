@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.dashboard.ui.compose
 
 import android.Manifest
+import android.app.Activity
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.SnackbarHostState
@@ -38,6 +39,8 @@ import com.adsamcik.tracker.shared.utils.compose.permission.PermissionDeniedSnac
 import com.adsamcik.tracker.shared.utils.compose.permission.PermissionType
 import com.adsamcik.tracker.shared.utils.compose.StopTrackingOptionsDialog
 import com.adsamcik.tracker.tracker.api.ManualTrackingStartReadiness
+import com.adsamcik.tracker.tracker.api.ManualTrackingStartPrerequisite
+import com.adsamcik.tracker.tracker.api.ManualTrackingStartRepairNavigation
 import com.adsamcik.tracker.tracker.api.ManualTrackingStartResult
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
@@ -76,8 +79,6 @@ fun DashboardRoute(
 
 	// Permission state from ViewModel
 	val hasLocationPermission by viewModel.hasLocationPermission.collectAsState()
-	val showLocationPermissionRequest by viewModel.showLocationPermissionRequest.collectAsState()
-	val permissionDenied by viewModel.permissionDenied.collectAsState()
 	val snackbarHostState = remember { SnackbarHostState() }
 	val coroutineScope = rememberCoroutineScope()
 	var userRequestedStop by remember { mutableStateOf(false) }
@@ -86,6 +87,11 @@ fun DashboardRoute(
 	var manualStartReadiness by remember {
 		mutableStateOf<ManualTrackingStartReadiness?>(null)
 	}
+	var manualStartPermissionRequest by remember {
+		mutableStateOf<ManualTrackingStartPrerequisite?>(null)
+	}
+	var manualStartPermissionDenied by remember { mutableStateOf(false) }
+	var pendingLocationServicesRepair by remember { mutableStateOf(false) }
 
 	DashboardPermissionResumeEffect(viewModel, context)
 
@@ -129,10 +135,32 @@ fun DashboardRoute(
 
 	fun requestManualStart() {
 		coroutineScope.launch {
-			when (TrackerServiceApi.requestManualTrackingStart(context)) {
+			when (val result = TrackerServiceApi.requestManualTrackingStart(context)) {
 				ManualTrackingStartResult.ENQUEUED -> Unit
-				ManualTrackingStartResult.PRECISE_LOCATION_PERMISSION_REQUIRED ->
-					viewModel.requestPermission()
+				is ManualTrackingStartResult.RepairRequired -> when (result.prerequisite) {
+					ManualTrackingStartPrerequisite.LOCATION_SERVICES -> {
+						val action = snackbarHostState.showSnackbar(
+							message = context.getString(
+								com.adsamcik.tracker.tracker.R.string
+									.manual_tracking_location_services_required,
+							),
+							actionLabel = context.getString(
+								com.adsamcik.tracker.shared.utils.R.string
+									.permission_denied_settings_action,
+							),
+						)
+						if (action == SnackbarResult.ActionPerformed) {
+							pendingLocationServicesRepair = true
+							if (!ManualTrackingStartRepairNavigation
+									.openLocationServicesSettings(context)
+							) {
+								pendingLocationServicesRepair = false
+								showTrackingUnavailable()
+							}
+						}
+					}
+					else -> manualStartPermissionRequest = result.prerequisite
+				}
 				ManualTrackingStartResult.TRACKING_UNAVAILABLE ->
 					showTrackingUnavailable()
 				ManualTrackingStartResult.NO_AVAILABLE_CAPTURE_SOURCE ->
@@ -143,7 +171,26 @@ fun DashboardRoute(
 	}
 
 	val manualStartPermissionSatisfied =
-		manualStartReadiness != ManualTrackingStartReadiness.PreciseLocationPermissionRequired
+		(manualStartReadiness as? ManualTrackingStartReadiness.RepairRequired)?.prerequisite !=
+			ManualTrackingStartPrerequisite.PRECISE_LOCATION_PERMISSION
+
+	DashboardManualStartResumeEffect(
+		context = context,
+		pendingLocationServicesRepair = pendingLocationServicesRepair,
+		onReadiness = { manualStartReadiness = it },
+		onLocationServicesRepairCompleted = {
+			pendingLocationServicesRepair = false
+			requestManualStart()
+		},
+		onLocationServicesRepairUnchanged = { pendingLocationServicesRepair = false },
+	)
+
+	LaunchedEffect(context) {
+		val intent = (context as? Activity)?.intent
+		if (ManualTrackingStartRepairNavigation.consumeDashboardReevaluationRequest(intent)) {
+			requestManualStart()
+		}
+	}
 
 	// Observe daily/gamification state
 	val defaultGoalProgress = remember {
@@ -282,27 +329,35 @@ fun DashboardRoute(
 		sessionInsights = sessionInsights,
 	)
 
-	// Contextual permission request dialog
-	if (showLocationPermissionRequest) {
+	// Contextual permission request dialog. Only an explicit start attempt reaches this state.
+	val permissionRequest = manualStartPermissionRequest?.toDashboardPermissionRequest()
+	if (permissionRequest != null) {
 		ContextualPermissionRequest(
-			permissionType = PermissionType.LOCATION_FOREGROUND,
-			permission = Manifest.permission.ACCESS_FINE_LOCATION,
-			onPermissionResult = { granted ->
-				viewModel.onPermissionResult(granted)
-				if (granted) {
-					requestManualStart()
+			permissionType = permissionRequest.type,
+			permission = permissionRequest.permission,
+			onPermissionResult = {
+				val repairedPrerequisite = permissionRequest.prerequisite
+				manualStartPermissionRequest = null
+				coroutineScope.launch {
+					val updated = TrackerServiceApi.readManualTrackingStartReadiness(context)
+					manualStartReadiness = updated
+					val sameRepair = (updated as? ManualTrackingStartReadiness.RepairRequired)
+						?.prerequisite == repairedPrerequisite
+					if (sameRepair) {
+						manualStartPermissionDenied = true
+					} else {
+						requestManualStart()
+					}
 				}
 			},
-			onDismiss = {
-				viewModel.dismissPermissionRequest()
-			},
+			onDismiss = { manualStartPermissionRequest = null },
 		)
 	}
 
 	// Permission denied snackbar
-	if (permissionDenied) {
+	if (manualStartPermissionDenied) {
 		val message = context.getString(
-			com.adsamcik.tracker.shared.utils.R.string.permission_denied_tracking_disabled,
+			com.adsamcik.tracker.shared.utils.R.string.permission_denied_tracking_prerequisite,
 		)
 		PermissionDeniedSnackbar(
 			snackbarHostState = snackbarHostState,
@@ -310,7 +365,7 @@ fun DashboardRoute(
 		)
 		LaunchedEffect(Unit) {
 			delay(5_000)
-			viewModel.clearPermissionDenied()
+			manualStartPermissionDenied = false
 		}
 	}
 
@@ -420,6 +475,76 @@ internal fun DashboardPermissionResumeEffect(
 		onDispose {
 			lifecycleOwner.lifecycle.removeObserver(observer)
 		}
+	}
+}
+
+internal data class DashboardManualStartPermissionRequest(
+	val prerequisite: ManualTrackingStartPrerequisite,
+	val type: PermissionType,
+	val permission: String,
+)
+
+internal fun ManualTrackingStartPrerequisite.toDashboardPermissionRequest():
+	DashboardManualStartPermissionRequest? = when (this) {
+	ManualTrackingStartPrerequisite.PRECISE_LOCATION_PERMISSION ->
+		DashboardManualStartPermissionRequest(
+			prerequisite = this,
+			type = PermissionType.LOCATION_FOREGROUND,
+			permission = Manifest.permission.ACCESS_FINE_LOCATION,
+		)
+	ManualTrackingStartPrerequisite.ACTIVITY_RECOGNITION_PERMISSION ->
+		DashboardManualStartPermissionRequest(
+			prerequisite = this,
+			type = PermissionType.ACTIVITY_RECOGNITION,
+			permission = Manifest.permission.ACTIVITY_RECOGNITION,
+		)
+	ManualTrackingStartPrerequisite.READ_PHONE_STATE_PERMISSION ->
+		DashboardManualStartPermissionRequest(
+			prerequisite = this,
+			type = PermissionType.PHONE_STATE,
+			permission = Manifest.permission.READ_PHONE_STATE,
+		)
+	ManualTrackingStartPrerequisite.LOCATION_SERVICES -> null
+}
+
+/** Re-reads readiness on resume without opening a system prompt from a lifecycle event alone. */
+@Composable
+internal fun DashboardManualStartResumeEffect(
+	context: android.content.Context,
+	pendingLocationServicesRepair: Boolean,
+	onReadiness: (ManualTrackingStartReadiness) -> Unit,
+	onLocationServicesRepairCompleted: () -> Unit,
+	onLocationServicesRepairUnchanged: () -> Unit,
+) {
+	val lifecycleOwner = LocalLifecycleOwner.current
+	val coroutineScope = rememberCoroutineScope()
+	val currentContext by rememberUpdatedState(context)
+	val currentPendingRepair by rememberUpdatedState(pendingLocationServicesRepair)
+	val currentOnReadiness by rememberUpdatedState(onReadiness)
+	val currentOnRepairCompleted by rememberUpdatedState(onLocationServicesRepairCompleted)
+	val currentOnRepairUnchanged by rememberUpdatedState(onLocationServicesRepairUnchanged)
+
+	DisposableEffect(lifecycleOwner) {
+		val observer = LifecycleEventObserver { _, event ->
+			if (event == Lifecycle.Event.ON_RESUME) {
+				coroutineScope.launch {
+					val readiness = TrackerServiceApi.readManualTrackingStartReadiness(currentContext)
+					currentOnReadiness(readiness)
+					if (currentPendingRepair) {
+						val stillBlocked = readiness == ManualTrackingStartReadiness.RepairRequired(
+							ManualTrackingStartPrerequisite.LOCATION_SERVICES,
+						)
+						if (stillBlocked) {
+							currentOnRepairUnchanged()
+						} else {
+							currentOnRepairCompleted()
+						}
+					}
+				}
+			}
+		}
+		lifecycleOwner.lifecycle.addObserver(observer)
+		onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
 	}
 }
 

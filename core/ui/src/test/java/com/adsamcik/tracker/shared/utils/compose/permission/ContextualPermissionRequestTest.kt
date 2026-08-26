@@ -2,6 +2,7 @@ package com.adsamcik.tracker.shared.utils.compose.permission
 
 import android.app.Application
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -100,6 +101,33 @@ class ContextualPermissionRequestTest {
 		composeRule.waitForIdle()
 		assertTrue(dismissCalled)
 		assertTrue(permissionResult == false)
+	}
+
+	@Test
+	fun `changing the requested permission restores its rationale`() {
+		val permissionType = mutableStateOf(PermissionType.LOCATION_FOREGROUND)
+		val permission = mutableStateOf(android.Manifest.permission.ACCESS_FINE_LOCATION)
+		composeRule.setContent {
+			MaterialTheme {
+				ContextualPermissionRequest(
+					permissionType = permissionType.value,
+					permission = permission.value,
+					onPermissionResult = {},
+					onDismiss = {},
+				)
+			}
+		}
+
+		composeRule.onNodeWithText(
+			context.getString(com.adsamcik.tracker.shared.utils.R.string.permission_deny),
+		).performClick()
+		composeRule.runOnIdle {
+			permissionType.value = PermissionType.PHONE_STATE
+			permission.value = android.Manifest.permission.READ_PHONE_STATE
+		}
+
+		composeRule.onNodeWithText(context.getString(PermissionType.PHONE_STATE.rationaleTitle))
+			.assertIsDisplayed()
 	}
 
 	@Test

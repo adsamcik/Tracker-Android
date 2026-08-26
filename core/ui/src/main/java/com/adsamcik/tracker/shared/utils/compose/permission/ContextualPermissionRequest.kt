@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -43,6 +44,11 @@ enum class PermissionType(
         R.string.permission_activity_rationale_title,
         R.string.permission_activity_rationale_message
     ),
+    PHONE_STATE(
+        Icons.Filled.Phone,
+        R.string.permission_phone_state_rationale_title,
+        R.string.permission_phone_state_rationale_message
+    ),
     LOCATION_BACKGROUND(
         Icons.Filled.LocationOn,
         R.string.permission_background_location_rationale_title,
@@ -70,7 +76,9 @@ fun ContextualPermissionRequest(
         onResult = onPermissionResult
     )
     
-    var showRationale by remember { mutableStateOf(true) }
+    // A sequential repair (for example Cell: precise Location, then phone state) reuses this
+    // composition slot. Reset the rationale when the requested permission changes.
+    var showRationale by remember(permissionType, permission) { mutableStateOf(true) }
     
     if (showRationale) {
         PermissionRationaleDialog(

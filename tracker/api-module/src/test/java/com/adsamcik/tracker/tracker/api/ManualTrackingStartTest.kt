@@ -1,21 +1,39 @@
 package com.adsamcik.tracker.tracker.api
 
 import io.kotest.matchers.shouldBe
+import java.util.stream.Stream
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.Arguments
+import org.junit.jupiter.params.provider.EnumSource
+import org.junit.jupiter.params.provider.MethodSource
 
 class ManualTrackingStartTest {
-	@Test
-	fun `each source can independently make a manual start ready`() {
-		TrackingCaptureSource.entries.forEach { source ->
-			resolveManualTrackingStartReadiness(
-				rolloutRevision = 2L,
-				enabledSources = setOf(source),
-				reachableSources = setOf(source),
-				availableSources = setOf(source),
-				preciseLocationPermissionWouldEnable = emptySet(),
-			) shouldBe ManualTrackingStartReadiness.Ready(2L)
-		}
+	@ParameterizedTest(name = "ready {0}-only starts")
+	@EnumSource(TrackingCaptureSource::class)
+	fun `each source can independently make a manual start ready`(source: TrackingCaptureSource) {
+		resolve(source = source, availableSources = setOf(source)) shouldBe
+			ManualTrackingStartReadiness.Ready(2L)
+	}
+
+	@ParameterizedTest(name = "{0}-only requests {1}")
+	@MethodSource("onlySourceRepairCases")
+	fun `only-source repair exposes its exact prerequisite`(
+		source: TrackingCaptureSource,
+		prerequisite: ManualTrackingStartPrerequisite,
+		missingPreciseLocation: Set<TrackingCaptureSource>,
+		missingActivityRecognition: Set<TrackingCaptureSource>,
+		missingReadPhoneState: Set<TrackingCaptureSource>,
+		blockedByLocationServices: Set<TrackingCaptureSource>,
+	) {
+		resolve(
+			source = source,
+			sourcesMissingPreciseLocationPermission = missingPreciseLocation,
+			sourcesMissingActivityRecognitionPermission = missingActivityRecognition,
+			sourcesMissingReadPhoneStatePermission = missingReadPhoneState,
+			sourcesBlockedByLocationServices = blockedByLocationServices,
+		) shouldBe ManualTrackingStartReadiness.RepairRequired(prerequisite)
 	}
 
 	@Test
@@ -23,45 +41,58 @@ class ManualTrackingStartTest {
 		resolveManualTrackingStartReadiness(
 			rolloutRevision = 8L,
 			enabledSources = setOf(TrackingCaptureSource.LOCATION, TrackingCaptureSource.STEPS),
-			reachableSources = setOf(TrackingCaptureSource.STEPS),
+			reachableSources = setOf(TrackingCaptureSource.LOCATION, TrackingCaptureSource.STEPS),
+			supportedSources = setOf(TrackingCaptureSource.LOCATION, TrackingCaptureSource.STEPS),
 			availableSources = setOf(TrackingCaptureSource.STEPS),
-			preciseLocationPermissionWouldEnable = setOf(TrackingCaptureSource.LOCATION),
+			sourcesMissingPreciseLocationPermission = setOf(TrackingCaptureSource.LOCATION),
+			sourcesMissingActivityRecognitionPermission = emptySet(),
+			sourcesMissingReadPhoneStatePermission = emptySet(),
+			sourcesBlockedByLocationServices = emptySet(),
 		) shouldBe ManualTrackingStartReadiness.Ready(8L)
 	}
 
 	@Test
-	fun `missing Location permission does not block another available source`() {
-		setOf(
-			TrackingCaptureSource.ACTIVITY,
-			TrackingCaptureSource.STEPS,
-			TrackingCaptureSource.PRESSURE,
-		).forEach { independentSource ->
-			resolveManualTrackingStartReadiness(
-				rolloutRevision = 8L,
-				enabledSources = setOf(TrackingCaptureSource.LOCATION, independentSource),
-				reachableSources = setOf(TrackingCaptureSource.LOCATION, independentSource),
-				availableSources = setOf(independentSource),
-				preciseLocationPermissionWouldEnable = setOf(TrackingCaptureSource.LOCATION),
-			) shouldBe ManualTrackingStartReadiness.Ready(8L)
-		}
+	fun `repair chooses the source with the fewest missing prerequisites`() {
+		resolveManualTrackingStartReadiness(
+			rolloutRevision = 8L,
+			enabledSources = setOf(TrackingCaptureSource.CELL, TrackingCaptureSource.ACTIVITY),
+			reachableSources = setOf(TrackingCaptureSource.CELL, TrackingCaptureSource.ACTIVITY),
+			supportedSources = setOf(TrackingCaptureSource.CELL, TrackingCaptureSource.ACTIVITY),
+			availableSources = emptySet(),
+			sourcesMissingPreciseLocationPermission = setOf(TrackingCaptureSource.CELL),
+			sourcesMissingActivityRecognitionPermission = setOf(TrackingCaptureSource.ACTIVITY),
+			sourcesMissingReadPhoneStatePermission = setOf(TrackingCaptureSource.CELL),
+			sourcesBlockedByLocationServices = emptySet(),
+		) shouldBe ManualTrackingStartReadiness.RepairRequired(
+			ManualTrackingStartPrerequisite.ACTIVITY_RECOGNITION_PERMISSION,
+		)
 	}
 
 	@Test
-	fun `precise Location is requested only when it unlocks an enabled reachable source`() {
-		resolveManualTrackingStartReadiness(
-			rolloutRevision = 3L,
-			enabledSources = setOf(TrackingCaptureSource.WIFI),
-			reachableSources = setOf(TrackingCaptureSource.WIFI),
-			availableSources = emptySet(),
-			preciseLocationPermissionWouldEnable = setOf(TrackingCaptureSource.WIFI),
-		) shouldBe ManualTrackingStartReadiness.PreciseLocationPermissionRequired
+	fun `Cell repair sequence is precise Location then phone state then Location Services`() {
+		resolve(
+			source = TrackingCaptureSource.CELL,
+			sourcesMissingPreciseLocationPermission = setOf(TrackingCaptureSource.CELL),
+			sourcesMissingReadPhoneStatePermission = setOf(TrackingCaptureSource.CELL),
+			sourcesBlockedByLocationServices = setOf(TrackingCaptureSource.CELL),
+		) shouldBe repair(ManualTrackingStartPrerequisite.PRECISE_LOCATION_PERMISSION)
+		resolve(
+			source = TrackingCaptureSource.CELL,
+			sourcesMissingReadPhoneStatePermission = setOf(TrackingCaptureSource.CELL),
+			sourcesBlockedByLocationServices = setOf(TrackingCaptureSource.CELL),
+		) shouldBe repair(ManualTrackingStartPrerequisite.READ_PHONE_STATE_PERMISSION)
+		resolve(
+			source = TrackingCaptureSource.CELL,
+			sourcesBlockedByLocationServices = setOf(TrackingCaptureSource.CELL),
+		) shouldBe repair(ManualTrackingStartPrerequisite.LOCATION_SERVICES)
+	}
 
-		resolveManualTrackingStartReadiness(
-			rolloutRevision = 3L,
-			enabledSources = setOf(TrackingCaptureSource.STEPS),
-			reachableSources = setOf(TrackingCaptureSource.STEPS),
-			availableSources = emptySet(),
-			preciseLocationPermissionWouldEnable = setOf(TrackingCaptureSource.WIFI),
+	@Test
+	fun `unsupported hardware or provider is not presented as a permission repair`() {
+		resolve(
+			source = TrackingCaptureSource.STEPS,
+			supportedSources = emptySet(),
+			sourcesMissingActivityRecognitionPermission = setOf(TrackingCaptureSource.STEPS),
 		) shouldBe ManualTrackingStartReadiness.NoAvailableCaptureSource
 	}
 
@@ -71,8 +102,12 @@ class ManualTrackingStartTest {
 			rolloutRevision = 11L,
 			enabledSources = setOf(TrackingCaptureSource.STEPS),
 			reachableSources = emptySet(),
+			supportedSources = setOf(TrackingCaptureSource.STEPS),
 			availableSources = setOf(TrackingCaptureSource.STEPS),
-			preciseLocationPermissionWouldEnable = emptySet(),
+			sourcesMissingPreciseLocationPermission = emptySet(),
+			sourcesMissingActivityRecognitionPermission = emptySet(),
+			sourcesMissingReadPhoneStatePermission = emptySet(),
+			sourcesBlockedByLocationServices = emptySet(),
 		) shouldBe ManualTrackingStartReadiness.TrackingUnavailable
 	}
 
@@ -90,17 +125,89 @@ class ManualTrackingStartTest {
 	}
 
 	@Test
-	fun `repair outcomes never attempt Android enqueue`() = runTest {
+	fun `repair preserves the prerequisite and never attempts Android enqueue`() = runTest {
 		var enqueueCalls = 0
+		val prerequisite = ManualTrackingStartPrerequisite.READ_PHONE_STATE_PERMISSION
 		val result = executeManualTrackingStart(
-			readReadiness = { ManualTrackingStartReadiness.PreciseLocationPermissionRequired },
+			readReadiness = { ManualTrackingStartReadiness.RepairRequired(prerequisite) },
 			enqueuePreparedStart = {
 				enqueueCalls += 1
 				true
 			},
 		)
 
-		result shouldBe ManualTrackingStartResult.PRECISE_LOCATION_PERMISSION_REQUIRED
+		result shouldBe ManualTrackingStartResult.RepairRequired(prerequisite)
 		enqueueCalls shouldBe 0
+	}
+
+	private fun resolve(
+		source: TrackingCaptureSource,
+		supportedSources: Set<TrackingCaptureSource> = setOf(source),
+		availableSources: Set<TrackingCaptureSource> = emptySet(),
+		sourcesMissingPreciseLocationPermission: Set<TrackingCaptureSource> = emptySet(),
+		sourcesMissingActivityRecognitionPermission: Set<TrackingCaptureSource> = emptySet(),
+		sourcesMissingReadPhoneStatePermission: Set<TrackingCaptureSource> = emptySet(),
+		sourcesBlockedByLocationServices: Set<TrackingCaptureSource> = emptySet(),
+	) = resolveManualTrackingStartReadiness(
+		rolloutRevision = 2L,
+		enabledSources = setOf(source),
+		reachableSources = setOf(source),
+		supportedSources = supportedSources,
+		availableSources = availableSources,
+		sourcesMissingPreciseLocationPermission = sourcesMissingPreciseLocationPermission,
+		sourcesMissingActivityRecognitionPermission = sourcesMissingActivityRecognitionPermission,
+		sourcesMissingReadPhoneStatePermission = sourcesMissingReadPhoneStatePermission,
+		sourcesBlockedByLocationServices = sourcesBlockedByLocationServices,
+	)
+
+	private companion object {
+		fun repair(prerequisite: ManualTrackingStartPrerequisite) =
+			ManualTrackingStartReadiness.RepairRequired(prerequisite)
+
+		@JvmStatic
+		fun onlySourceRepairCases(): Stream<Arguments> = Stream.of(
+			repairCase(
+				TrackingCaptureSource.LOCATION,
+				ManualTrackingStartPrerequisite.PRECISE_LOCATION_PERMISSION,
+				missingPrecise = true,
+			),
+			repairCase(
+				TrackingCaptureSource.ACTIVITY,
+				ManualTrackingStartPrerequisite.ACTIVITY_RECOGNITION_PERMISSION,
+				missingActivity = true,
+			),
+			repairCase(
+				TrackingCaptureSource.STEPS,
+				ManualTrackingStartPrerequisite.ACTIVITY_RECOGNITION_PERMISSION,
+				missingActivity = true,
+			),
+			repairCase(
+				TrackingCaptureSource.WIFI,
+				ManualTrackingStartPrerequisite.LOCATION_SERVICES,
+				blockedByLocationServices = true,
+			),
+			repairCase(
+				TrackingCaptureSource.CELL,
+				ManualTrackingStartPrerequisite.READ_PHONE_STATE_PERMISSION,
+				missingPhone = true,
+			),
+		)
+
+		private fun repairCase(
+			source: TrackingCaptureSource,
+			prerequisite: ManualTrackingStartPrerequisite,
+			missingPrecise: Boolean = false,
+			missingActivity: Boolean = false,
+			missingPhone: Boolean = false,
+			blockedByLocationServices: Boolean = false,
+		): Arguments = Arguments.of(
+			source,
+			prerequisite,
+			setOf(source).takeIf { missingPrecise } ?: emptySet<TrackingCaptureSource>(),
+			setOf(source).takeIf { missingActivity } ?: emptySet<TrackingCaptureSource>(),
+			setOf(source).takeIf { missingPhone } ?: emptySet<TrackingCaptureSource>(),
+			setOf(source).takeIf { blockedByLocationServices }
+				?: emptySet<TrackingCaptureSource>(),
+		)
 	}
 }

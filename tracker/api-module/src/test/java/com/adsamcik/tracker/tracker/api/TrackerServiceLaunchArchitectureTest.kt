@@ -87,13 +87,27 @@ class TrackerServiceLaunchArchitectureTest {
 			source shouldNotContain "TrackerServiceApi.startServiceAndAwaitEnqueue("
 		}
 		entryPoints.take(2).forEach { relativePath ->
-			projectRoot.resolve(relativePath).readText() shouldContain
-				"onRequestPermission = { requestManualStart() }"
+			val source = projectRoot.resolve(relativePath).readText()
+			source shouldContain "onRequestPermission = { requestManualStart() }"
+			source shouldContain "ManualTrackingStartPrerequisite.ACTIVITY_RECOGNITION_PERMISSION"
+			source shouldContain "ManualTrackingStartPrerequisite.READ_PHONE_STATE_PERMISSION"
+			source shouldContain "ManualTrackingStartPrerequisite.LOCATION_SERVICES"
+			source shouldContain "ManualTrackingStartRepairNavigation"
+			source shouldContain ".openLocationServicesSettings(context)"
 		}
 		entryPoints.takeLast(2).forEach { relativePath ->
 			projectRoot.resolve(relativePath).readText() shouldContain
 				"ManualTrackingStartRepairNavigation.createDashboardIntent("
 		}
+		projectRoot.resolve(entryPoints.first()).readText() shouldContain
+			"ManualTrackingStartRepairNavigation.consumeDashboardReevaluationRequest(intent)"
+		val navigation = projectRoot.resolve(
+			"tracker/api-module/src/main/java/com/adsamcik/tracker/tracker/api/ManualTrackingStart.kt",
+		).readText()
+		navigation shouldContain "putExtra(EXTRA_REEVALUATE_MANUAL_START, true)"
+		navigation shouldNotContain "putExtra(EXTRA_REEVALUATE_MANUAL_START, prerequisite.ordinal)"
+		navigation shouldContain "Settings.ACTION_LOCATION_SOURCE_SETTINGS"
+		navigation shouldContain "catch (_: ActivityNotFoundException)"
 	}
 
 	@Test

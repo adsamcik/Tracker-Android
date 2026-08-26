@@ -5,11 +5,8 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
-import com.adsamcik.tracker.tracker.service.acceptedForegroundSources
-import com.adsamcik.tracker.tracker.service.foregroundSourceCapabilities
-import com.adsamcik.tracker.tracker.service.sourcesUnlockedByPreciseLocationPermission
+import com.adsamcik.tracker.tracker.service.manualTrackingSourceCapabilities
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
-import com.adsamcik.tracker.tracker.source.coordinator.SessionStartOrigin
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -43,17 +40,25 @@ class DefaultManualTrackingStartReadinessReader @Inject constructor(
 					CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
 				)
 			}
-			val availableSources = acceptedForegroundSources(
-				SourceKind.entries.toSet(),
-				context.foregroundSourceCapabilities(SessionStartOrigin.MANUAL_FOREGROUND_START),
-			)
+			val capabilities = context.manualTrackingSourceCapabilities()
 			resolveManualTrackingStartReadiness(
 				rolloutRevision = rollout.revision,
 				enabledSources = enabledSources.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
 				reachableSources = reachableSources.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
-				availableSources = availableSources.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
-				preciseLocationPermissionWouldEnable = context
-					.sourcesUnlockedByPreciseLocationPermission()
+				supportedSources = capabilities.supportedSources
+					.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
+				availableSources = capabilities.availableSources
+					.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
+				sourcesMissingPreciseLocationPermission =
+					capabilities.sourcesMissingPreciseLocationPermission
+						.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
+				sourcesMissingActivityRecognitionPermission =
+					capabilities.sourcesMissingActivityRecognitionPermission
+						.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
+				sourcesMissingReadPhoneStatePermission =
+					capabilities.sourcesMissingReadPhoneStatePermission
+						.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
+				sourcesBlockedByLocationServices = capabilities.sourcesBlockedByLocationServices
 					.mapTo(linkedSetOf(), SourceKind::toApiCaptureSource),
 			)
 		} ?: ManualTrackingStartReadiness.TrackingUnavailable
