@@ -20,6 +20,8 @@ data class SessionSegmentBounds(
  */
 @Dao
 interface SessionSegmentDao : BaseDao<SessionSegment> {
+	@Query("SELECT * FROM session_segment WHERE id = :id")
+	suspend fun getById(id: Long): SessionSegment?
 
 	@Query(
 		"""

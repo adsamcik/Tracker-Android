@@ -92,6 +92,10 @@ interface PendingSignalClaimDao {
 	@Query("DELETE FROM pending_signal WHERE id IN (:ids) AND claim_token = :claimToken")
 	suspend fun deleteClaimedByIds(ids: List<Long>, claimToken: String): Int
 
+	/** Compare-and-delete a live pending row that has not been leased for recovery. */
+	@Query("DELETE FROM pending_signal WHERE id = :id AND claim_token IS NULL")
+	suspend fun deleteUnclaimedById(id: Long): Int
+
 	/** Give up all still-owned rows immediately after a transient failure. */
 	@Query(
 		"""
@@ -134,6 +138,22 @@ interface PendingSignalClaimDao {
 
 		// Returning false here would commit the delete without a durable terminal
 		// record. Throwing rolls the whole Room transaction back instead.
+		throw IllegalStateException(
+			"Unable to record quarantine for pending signal ${signal.sourcePendingId}",
+		)
+	}
+
+	/**
+	 * Atomically records a permanent failure for a live, unclaimed row and removes the source WAL
+	 * entry. This is the non-recovery counterpart of [quarantineClaimed].
+	 */
+	@Transaction
+	suspend fun quarantineUnclaimed(signal: QuarantinedSignalEntity): Boolean {
+		if (deleteUnclaimedById(signal.sourcePendingId) != 1) return false
+
+		val inserted = insertQuarantine(signal)
+		if (inserted != -1L || hasQuarantineForSource(signal.sourcePendingId)) return true
+
 		throw IllegalStateException(
 			"Unable to record quarantine for pending signal ${signal.sourcePendingId}",
 		)

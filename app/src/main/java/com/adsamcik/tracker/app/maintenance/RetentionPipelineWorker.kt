@@ -150,6 +150,7 @@ class RetentionPipelineWorker @AssistedInject constructor(
 				db.trackerRunDao().deleteOlderThan(cutoff)
 				db.pressureSampleDao().deleteOlderThan(cutoff)
 				db.skiRunSegmentDao().deleteOlderThan(cutoff)
+				db.quarantinedSignalDao().deleteAcquiredBefore(cutoff)
 				RawRetentionResult.PURGED
 			} finally {
 				requireReadyGeneration(startupGeneration)

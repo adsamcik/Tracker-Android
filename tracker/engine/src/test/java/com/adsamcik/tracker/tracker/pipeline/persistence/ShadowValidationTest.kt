@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.PressureSample
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.stats.api.DetectedActivityType
@@ -100,7 +101,13 @@ class ShadowValidationTest {
 		activityDao = mockk(relaxed = true)
 		pendingSignalDao = mockk(relaxed = true)
 		sourceDestinationOwnerDao = mockk(relaxed = true)
-		coEvery { sourceDestinationOwnerDao.isExactOwner(any(), any(), any(), any()) } returns true
+		coEvery { sourceDestinationOwnerDao.get(any(), any()) } returns SourceDestinationOwnerEntity(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+			owner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+			ownerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+			updatedAtMs = 0L,
+		)
 		durableBuffer = mockk(relaxed = true)
 
 		coEvery { locationDao.insert(any<Collection<LocationSample>>()) } returns emptyList()
@@ -126,6 +133,11 @@ class ShadowValidationTest {
 					signal = signal,
 					capturedEpoch = 0L,
 					acquiredAtMs = signal.timestampMs.raw,
+					stepsWriterOwner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL
+						.takeIf { signal.steps != null },
+					stepsWriterOwnerGeneration =
+						SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
+							.takeIf { signal.steps != null },
 				)
 			}
 			stagedSignals.clear()

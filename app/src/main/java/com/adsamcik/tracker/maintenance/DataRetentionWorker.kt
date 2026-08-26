@@ -177,6 +177,7 @@ class DataRetentionWorker @AssistedInject constructor(
 				appDatabase.wifiObservationDao().deleteOlderThan(cutoffMillis)
 				appDatabase.cellSampleDao().deleteOlderThan(cutoffMillis)
 				appDatabase.sessionSegmentDao().deleteOlderThan(cutoffMillis)
+				appDatabase.quarantinedSignalDao().deleteAcquiredBefore(cutoffMillis)
 				true
 			} finally {
 				requireReadyGeneration(startupGeneration)

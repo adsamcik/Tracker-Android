@@ -25,6 +25,13 @@ interface QuarantinedSignalDao {
 	@Query("SELECT COUNT(*) FROM quarantined_signal")
 	suspend fun countAll(): Int
 
+	/**
+	 * Quarantine retains the original serialized signal, so its raw payload follows the same
+	 * collection-time retention boundary as the pending WAL it replaced.
+	 */
+	@Query("DELETE FROM quarantined_signal WHERE acquired_at_ms < :cutoffMs")
+	fun deleteAcquiredBefore(cutoffMs: Long): Int
+
 	@Query("DELETE FROM quarantined_signal")
 	fun deleteAll()
 }

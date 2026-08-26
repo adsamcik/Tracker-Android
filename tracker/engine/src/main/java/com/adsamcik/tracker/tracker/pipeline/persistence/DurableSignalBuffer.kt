@@ -8,10 +8,14 @@ import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceEvidenceStateDao
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import com.adsamcik.tracker.tracker.pipeline.DurableAdmissionStatus
+import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import androidx.room.withTransaction
 import java.util.UUID
 import javax.inject.Inject
@@ -174,6 +178,8 @@ class DurableSignalBuffer @Inject constructor(
 						// it with the retry's newer observation.
 						capturedEpoch = row.capturedEpoch,
 						acquiredAtMs = row.acquiredAtMs,
+						stepsWriterOwner = row.stepsWriterOwner,
+						stepsWriterOwnerGeneration = row.stepsWriterOwnerGeneration,
 					)
 				},
 			)
@@ -245,13 +251,83 @@ class DurableSignalBuffer @Inject constructor(
 			val admitted = candidates.filter { candidate ->
 				guard.accepts(candidate.capturedEpoch, candidate.acquiredAtMs)
 			}
+			val existing = admitted.map { it.stagedSignal.signalId }
+				.chunked(PENDING_IDENTITY_LOOKUP_CHUNK)
+				.flatMap { ids -> pendingSignalDao.getBySignalIds(ids) }
+				.associateBy(PendingSignalEntity::signalId)
+			val entities = admitted.map { candidate ->
+				existing[candidate.stagedSignal.signalId]?.let { durable ->
+					candidate.entity.copy(
+						stepsWriterOwner = durable.stepsWriterOwner,
+						stepsWriterOwnerGeneration = durable.stepsWriterOwnerGeneration,
+					)
+				} ?: candidate.entity.withResolvedStepsWriter(candidate.stagedSignal)
+			}
 			AdmittedCandidates(
-				rows = if (admitted.isEmpty()) emptyList() else pendingSignalDao.insertOrResolveEntities(
-					admitted.map(CandidateAdmission::entity),
-				),
+				rows = if (entities.isEmpty()) emptyList() else
+					pendingSignalDao.insertOrResolveEntities(entities),
 				candidates = admitted,
 			)
 		}
+	}
+
+	private suspend fun PendingSignalEntity.withResolvedStepsWriter(
+		staged: StagedSignal,
+	): PendingSignalEntity {
+		fun withoutStepsWriter() = copy(
+			stepsWriterOwner = null,
+			stepsWriterOwnerGeneration = null,
+		)
+		if (staged.signal.steps == null) return withoutStepsWriter()
+		val database = requireNotNull(appDatabase)
+		val sourceEventId = staged.signalId.takeIf { id ->
+			id.startsWith(SOURCE_EVENT_SIGNAL_PREFIX) && id.length > SOURCE_EVENT_SIGNAL_PREFIX.length
+		}?.removePrefix(SOURCE_EVENT_SIGNAL_PREFIX) ?: return withoutStepsWriter()
+		val event = database.sourceEventWalDao().getByEventId(sourceEventId)
+			?: return withoutStepsWriter()
+		if (event.sourceKind != SourceDestinationOwnerEntity.SOURCE_STEPS ||
+			!event.hasQualifiedIntegrity() ||
+			event.planAttribution != PlanAttribution.CAPTURED_REGISTRATION.ordinal ||
+			event.authorizationPurposeEligibilityMask and
+				SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
+			event.capturedCollectedDataEpoch != capturedEpoch
+		) return withoutStepsWriter()
+		val logicalTrackingId = event.logicalTrackingId ?: return withoutStepsWriter()
+		val serviceRunId = event.serviceRunId ?: return withoutStepsWriter()
+		val manifestRevision = event.sessionManifestRevision ?: return withoutStepsWriter()
+		val policyRevision = event.sourcePolicyRevision ?: return withoutStepsWriter()
+		val consentEpoch = event.captureConsentEpoch ?: return withoutStepsWriter()
+		if (event.lifecycleLeaseGeneration == null) return withoutStepsWriter()
+		val segment = database.sessionSegmentDao().getById(sessionId) ?: return withoutStepsWriter()
+		if (segment.logicalTrackingId != logicalTrackingId || segment.serviceRunId != serviceRunId) {
+			return withoutStepsWriter()
+		}
+		val sessionDao = database.sourceSessionDao()
+		val run = sessionDao.serviceRun(serviceRunId) ?: return withoutStepsWriter()
+		if (run.logicalTrackingId != logicalTrackingId) return withoutStepsWriter()
+		val manifest = sessionDao.manifestByServiceRunRevision(serviceRunId, manifestRevision)
+			?: return withoutStepsWriter()
+		if (manifest.logicalTrackingId != logicalTrackingId ||
+			manifest.sourcePolicyRevision != policyRevision
+		) return withoutStepsWriter()
+		val sources = sessionDao.manifestSources(logicalTrackingId, manifestRevision)
+		if (!SessionManifestIntegrity.verify(manifest, sources)) return withoutStepsWriter()
+		val binding = sources.singleOrNull { source ->
+			source.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
+				source.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+		} ?: return withoutStepsWriter()
+		if (!binding.persistenceEligible || binding.consentEpoch != consentEpoch) {
+			return withoutStepsWriter()
+		}
+		if (binding.outputDestination != SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS) {
+			return withoutStepsWriter()
+		}
+		val writerOwner = binding.writerOwner ?: return withoutStepsWriter()
+		val writerOwnerGeneration = binding.writerOwnerGeneration ?: return withoutStepsWriter()
+		return copy(
+			stepsWriterOwner = writerOwner,
+			stepsWriterOwnerGeneration = writerOwnerGeneration,
+		)
 	}
 
 	private suspend fun reconcileLifecycleGuard(
@@ -371,6 +447,8 @@ class DurableSignalBuffer @Inject constructor(
 		val signal: TrackingSignal,
 		val capturedEpoch: Long = 0L,
 		val acquiredAtMs: Long = 0L,
+		val stepsWriterOwner: String? = null,
+		val stepsWriterOwnerGeneration: Long? = null,
 	)
 
 	/** Result of one staging admission attempt. */
@@ -429,6 +507,8 @@ class DurableSignalBuffer @Inject constructor(
 		val capturedEpoch: Long,
 		val acquiredAtMs: Long,
 		val deliveryAttemptCount: Int,
+		val stepsWriterOwner: String?,
+		val stepsWriterOwnerGeneration: Long?,
 		val payload: PendingSignalDecodeResult,
 	) {
 		/** Compatibility view for callers that only need a successfully decoded signal. */
@@ -458,6 +538,8 @@ class DurableSignalBuffer @Inject constructor(
 			capturedEpoch = 0L,
 			acquiredAtMs = signal?.timestampMs?.raw ?: 0L,
 			deliveryAttemptCount = 0,
+			stepsWriterOwner = null,
+			stepsWriterOwnerGeneration = null,
 			payload = signal?.let(PendingSignalDecodeResult::Valid)
 				?: PendingSignalDecodeResult.Malformed(
 					PendingSignalDecodeFailure.MALFORMED_PAYLOAD,
@@ -486,6 +568,8 @@ class DurableSignalBuffer @Inject constructor(
 			capturedEpoch = capturedEpoch,
 			acquiredAtMs = acquiredAtMs,
 			deliveryAttemptCount = deliveryAttemptCount,
+			stepsWriterOwner = stepsWriterOwner,
+			stepsWriterOwnerGeneration = stepsWriterOwnerGeneration,
 			payload = decodedPayload,
 		)
 	}
@@ -493,5 +577,7 @@ class DurableSignalBuffer @Inject constructor(
 	companion object {
 		internal const val RECOVERY_BATCH_SIZE = 100
 		private const val CLAIM_LEASE_DURATION_MS = 60_000L
+		private const val PENDING_IDENTITY_LOOKUP_CHUNK = 900
+		private const val SOURCE_EVENT_SIGNAL_PREFIX = "source-event:"
 	}
 }

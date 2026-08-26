@@ -9,11 +9,21 @@ import com.adsamcik.tracker.shared.base.database.dao.PendingSignalClaimDao
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.QuarantinedSignalEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.stats.api.signal.ActivitySignal
 import com.adsamcik.tracker.stats.api.signal.LocationSignal
+import com.adsamcik.tracker.stats.api.signal.StepSignal
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import com.adsamcik.tracker.stats.api.value.ActivityConfidence
 import com.adsamcik.tracker.stats.api.value.CoordinateE7
@@ -21,6 +31,8 @@ import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.stats.api.value.LatE7
 import com.adsamcik.tracker.stats.api.value.LonE7
 import com.adsamcik.tracker.stats.api.value.SpeedMps
+import com.adsamcik.tracker.stats.api.value.StepCount
+import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -117,6 +129,9 @@ class DurableSignalBufferTest {
 		override suspend fun getBySignalIds(signalIds: List<String>): List<PendingSignalEntity> =
 			store.filter { it.signalId in signalIds }
 
+		override suspend fun getByIds(ids: List<Long>): List<PendingSignalEntity> =
+			store.filter { it.id in ids }
+
 		override suspend fun getOldest(sessionId: Long, limit: Int): List<PendingSignalEntity> {
 			return store
 				.filter { it.sessionId == sessionId }
@@ -208,6 +223,12 @@ class DurableSignalBufferTest {
 			return matching
 		}
 
+		override suspend fun deleteUnclaimedById(id: Long): Int {
+			val matching = pendingDao.store.count { it.id == id && it.claimToken == null }
+			pendingDao.store.removeAll { it.id == id && it.claimToken == null }
+			return matching
+		}
+
 		override suspend fun releaseClaim(claimToken: String): Int {
 			var released = 0
 			pendingDao.store.indices.forEach { index ->
@@ -283,6 +304,184 @@ class DurableSignalBufferTest {
 		return (0 until count).map { i ->
 			createSignal(timestamp = 1_700_000_000_000L + i * 1000L)
 		}
+	}
+
+	private fun createStepsSignal(eventId: String): TrackingSignal = TrackingSignal(
+		timestampMs = EpochMs(1_700_000_000_000L),
+		elapsedRealtimeNanos = 2_000_000_000L,
+		steps = StepSignal(
+			stepDelta = StepCount(5),
+			totalStepsSinceBoot = 105L,
+			sensorValueStart = 100,
+			sensorValueEnd = 105,
+		),
+		persistenceSignalId = "source-event:$eventId",
+	)
+
+	private data class InstalledStepsWriterFixture(
+		val manifest: SessionManifestVersionEntity,
+		val source: SessionManifestSourceEntity,
+	)
+
+	private suspend fun installStepsWriterFixture(
+		database: AppDatabase,
+		eventId: String,
+		writerOwner: String,
+		writerGeneration: Long,
+		eventTransform: (SourceEventWalEntity) -> SourceEventWalEntity = { it },
+	): InstalledStepsWriterFixture {
+		val logicalTrackingId = "steps-logical"
+		val serviceRunId = "steps-run"
+		val manifestRevision = 1L
+		val policyRevision = 7L
+		val consentEpoch = 3L
+		database.sessionSegmentDao().insert(
+			SessionSegment(
+				id = sessionId,
+				startTimeMs = 1_700_000_000_000L,
+				endTimeMs = 1_700_000_001_000L,
+				distanceM = 0f,
+				steps = null,
+				primaryActivity = null,
+				activityConfidence = null,
+				sampleCount = 0,
+				source = SegmentSource.USER_CREATED,
+				inferenceVersion = null,
+				createdAt = 1_700_000_000_000L,
+				logicalTrackingId = logicalTrackingId,
+				serviceRunId = serviceRunId,
+			),
+		)
+		database.sourceSessionDao().insertServiceRun(
+			SourceServiceRunEntity(
+				serviceRunId = serviceRunId,
+				logicalTrackingId = logicalTrackingId,
+				state = "ACTIVE",
+				desiredPlanRevision = 1L,
+				rolloutRevision = 1L,
+				foregroundCapabilityFlags = 0L,
+				startedAtMs = 1_700_000_000_000L,
+				startedElapsedNanos = 1_000_000_000L,
+				completedAtMs = null,
+				completionReason = null,
+				bootId = "boot-1",
+				leaseGeneration = 1L,
+				startOrigin = "MANUAL_UI",
+				desiredForegroundCapabilityFlags = 0L,
+				appliedForegroundCapabilityFlags = 0L,
+				runtimeAcknowledgement = "ACCEPTED",
+				runtimeFailureCode = null,
+				runRevision = 1L,
+			),
+		)
+		val candidateOwner = writerOwner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
+		val source = SessionManifestSourceEntity(
+			logicalTrackingId = logicalTrackingId,
+			manifestRevision = manifestRevision,
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+			consentEpoch = consentEpoch,
+			persistenceEligible = true,
+			qosCode = 0,
+			outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+			writerOwner = writerOwner,
+			writerOwnerGeneration = writerGeneration,
+			writerProjectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID
+				.takeIf { candidateOwner },
+			writerProjectionVersion = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION
+				.takeIf { candidateOwner },
+			writerBindingGeneration = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION
+				.takeIf { candidateOwner },
+		)
+		val unsignedManifest = SessionManifestVersionEntity(
+			logicalTrackingId = logicalTrackingId,
+			manifestRevision = manifestRevision,
+			serviceRunId = serviceRunId,
+			sessionMode = "MANUAL",
+			sourcePolicyRevision = policyRevision,
+			acquisitionPlanRevision = 1L,
+			rolloutRevision = 1L,
+			startOrigin = "MANUAL_UI",
+			effectiveBootId = "boot-1",
+			effectiveElapsedRealtimeNanos = 1_000_000_000L,
+			effectiveWallTimeMs = 1_700_000_000_000L,
+			zoneId = "UTC",
+			automationEpoch = null,
+			changeReason = "TEST",
+			manifestChecksum = "",
+		)
+		val manifest = unsignedManifest.copy(
+			manifestChecksum = SessionManifestIntegrity.compute(unsignedManifest, listOf(source)),
+		)
+		database.sourceSessionDao().insertManifest(manifest)
+		database.sourceSessionDao().insertManifestSources(listOf(source))
+		val unsignedEvent = eventTransform(SourceEventWalEntity(
+			eventId = eventId,
+			providerDedupKey = "steps-dedup-$eventId",
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			sourceInstanceId = "steps-counter",
+			registrationGeneration = 2L,
+			physicalConfigurationFingerprint = "steps-fingerprint",
+			authorizationRevision = 2L,
+			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			authorizationFingerprint = "steps-authorization",
+			sourceSequence = 1L,
+			configRevision = 1L,
+			planAttribution = PlanAttribution.CAPTURED_REGISTRATION.ordinal,
+			clockDomainId = "steps-clock",
+			observedElapsedNanos = 2_000_000_000L,
+			receivedElapsedNanos = 2_100_000_000L,
+			wallTimeMs = 1_700_000_000_000L,
+			wallTimeUncertaintyMs = 100L,
+			capturedCollectedDataEpoch = 0L,
+			sourcePolicyRevision = policyRevision,
+			captureConsentEpoch = consentEpoch,
+			sessionManifestRevision = manifestRevision,
+			lifecycleLeaseGeneration = 1L,
+			acquiredAtMs = 1_700_000_000_000L,
+			qualityFlags = 0L,
+			qualityConfidence = null,
+			payloadVersion = 1,
+			payload = byteArrayOf(1, 2, 3),
+			payloadChecksum = "",
+			integrityIdentity = "",
+			createdAtMs = 1_700_000_000_000L,
+		))
+		val checksummed = unsignedEvent.copy(
+			payloadChecksum = unsignedEvent.calculatedPayloadChecksum(),
+		)
+		database.sourceEventWalDao().insertIgnoringDuplicate(
+			checksummed.copy(integrityIdentity = checksummed.calculatedIntegrityIdentity()),
+		)
+		return InstalledStepsWriterFixture(manifest, source)
+	}
+
+	private suspend fun insertLaterStepsManifest(
+		database: AppDatabase,
+		fixture: InstalledStepsWriterFixture,
+	) {
+		val source = fixture.source.copy(
+			manifestRevision = 2L,
+			writerOwner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
+			writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+			writerProjectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+			writerProjectionVersion = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+			writerBindingGeneration = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
+		)
+		val unsigned = fixture.manifest.copy(
+			manifestRevision = 2L,
+			sourcePolicyRevision = 8L,
+			effectiveElapsedRealtimeNanos = 3_000_000_000L,
+			effectiveWallTimeMs = 1_700_000_001_000L,
+			changeReason = "TEST_POLICY_CHANGE",
+			manifestChecksum = "",
+		)
+		database.sourceSessionDao().insertManifest(
+			unsigned.copy(manifestChecksum = SessionManifestIntegrity.compute(unsigned, listOf(source))),
+		)
+		database.sourceSessionDao().insertManifestSources(listOf(source))
 	}
 
 	private fun currentPendingEntity(
@@ -379,6 +578,142 @@ class DurableSignalBufferTest {
 		committed.single().id shouldBe fakeDao.store.single().id
 		committed.single().signalId shouldBe staged.signalId
 		committed.single().signal shouldBe staged.signal
+	}
+
+	@Test
+	fun `checkpoint stamps the exact source event manifest writer through recovery views`() = runTest {
+		val context: Application = ApplicationProvider.getApplicationContext()
+		val database = AppDatabase.testDatabase(context)
+		try {
+			val eventId = "steps-event-writer-3"
+			val fixture = installStepsWriterFixture(
+				database = database,
+				eventId = eventId,
+				writerOwner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+				writerGeneration = 3L,
+			)
+			insertLaterStepsManifest(database, fixture)
+			database.sourceSessionDao().manifestsForServiceRun("steps-run")
+				.map { it.manifestRevision } shouldBe listOf(1L, 2L)
+			val databaseBuffer = DurableSignalBuffer(
+				pendingSignalDao = database.pendingSignalDao(),
+				dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler)),
+				pendingSignalClaimDao = database.pendingSignalClaimDao(),
+				appDatabase = database,
+			).also { it.setSessionId(sessionId) }
+			val signal = createStepsSignal(eventId)
+			var committed = emptyList<DurableSignalBuffer.CheckpointedSignal>()
+
+			databaseBuffer.stage(signal)
+			databaseBuffer.checkpoint { committed = it }
+
+			val durable = database.pendingSignalDao().getBySignalIds(
+				listOf("source-event:$eventId"),
+			).single()
+			durable.stepsWriterOwner shouldBe SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL
+			durable.stepsWriterOwnerGeneration shouldBe 3L
+			committed.single().stepsWriterOwner shouldBe durable.stepsWriterOwner
+			committed.single().stepsWriterOwnerGeneration shouldBe durable.stepsWriterOwnerGeneration
+			val peeked = databaseBuffer.peekBatch().single()
+			peeked.stepsWriterOwner shouldBe durable.stepsWriterOwner
+			peeked.stepsWriterOwnerGeneration shouldBe durable.stepsWriterOwnerGeneration
+			val claimed = databaseBuffer.claimBatch().shouldNotBeNull().signals.single()
+			claimed.stepsWriterOwner shouldBe durable.stepsWriterOwner
+			claimed.stepsWriterOwnerGeneration shouldBe durable.stepsWriterOwnerGeneration
+		} finally {
+			database.close()
+		}
+	}
+
+	@Test
+	fun `control-only and consent-mismatched events cannot inherit a capture writer`() = runTest {
+		val cases = listOf<Pair<String, (SourceEventWalEntity) -> SourceEventWalEntity>>(
+			"control-only" to { event ->
+				event.copy(
+					logicalTrackingId = null,
+					serviceRunId = null,
+					authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
+					configRevision = null,
+					planAttribution = PlanAttribution.RECEIVE_TIME_ONLY.ordinal,
+					sourcePolicyRevision = null,
+					captureConsentEpoch = null,
+					sessionManifestRevision = null,
+					lifecycleLeaseGeneration = null,
+				)
+			},
+			"consent-mismatch" to { event -> event.copy(captureConsentEpoch = 4L) },
+		)
+		cases.forEach { (caseName, transform) ->
+			val context: Application = ApplicationProvider.getApplicationContext()
+			val database = AppDatabase.testDatabase(context)
+			try {
+				val eventId = "steps-$caseName"
+				installStepsWriterFixture(
+					database = database,
+					eventId = eventId,
+					writerOwner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+					writerGeneration = 3L,
+					eventTransform = transform,
+				)
+				val databaseBuffer = DurableSignalBuffer(
+					pendingSignalDao = database.pendingSignalDao(),
+					dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler)),
+					pendingSignalClaimDao = database.pendingSignalClaimDao(),
+					appDatabase = database,
+				).also { it.setSessionId(sessionId) }
+
+				databaseBuffer.stage(createStepsSignal(eventId))
+				databaseBuffer.checkpoint()
+
+				val durable = database.pendingSignalDao()
+					.getBySignalIds(listOf("source-event:$eventId"))
+					.single()
+				durable.stepsWriterOwner.shouldBeNull()
+				durable.stepsWriterOwnerGeneration.shouldBeNull()
+			} finally {
+				database.close()
+			}
+		}
+	}
+
+	@Test
+	fun `ambiguous retry keeps the original durable Steps writer stamp`() = runTest {
+		val context: Application = ApplicationProvider.getApplicationContext()
+		val database = AppDatabase.testDatabase(context)
+		try {
+			val signal = createStepsSignal("already-pruned-event")
+			val durable = currentPendingEntity(
+				signal = signal,
+				createdAt = 1_700_000_000_000L,
+				signalId = requireNotNull(signal.persistenceSignalId),
+			).copy(
+				stepsWriterOwner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
+				stepsWriterOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+			)
+			database.pendingSignalDao().insertAll(listOf(durable))
+			val databaseBuffer = DurableSignalBuffer(
+				pendingSignalDao = database.pendingSignalDao(),
+				dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler)),
+				pendingSignalClaimDao = database.pendingSignalClaimDao(),
+				appDatabase = database,
+			).also { it.setSessionId(sessionId) }
+			var committed = emptyList<DurableSignalBuffer.CheckpointedSignal>()
+
+			databaseBuffer.stage(signal)
+			databaseBuffer.checkpoint { committed = it }
+
+			database.pendingSignalDao().countAll() shouldBe 1
+			val resolved = database.pendingSignalDao().getBySignalIds(
+				listOf(requireNotNull(signal.persistenceSignalId)),
+			).single()
+			resolved.stepsWriterOwner shouldBe SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
+			resolved.stepsWriterOwnerGeneration shouldBe
+				SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+			committed.single().stepsWriterOwner shouldBe resolved.stepsWriterOwner
+			committed.single().stepsWriterOwnerGeneration shouldBe resolved.stepsWriterOwnerGeneration
+		} finally {
+			database.close()
+		}
 	}
 
 	@Test

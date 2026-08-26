@@ -1387,6 +1387,25 @@ val MIGRATION_27_28: Migration = object : Migration(
 			execSQL("ALTER TABLE session_segment ADD COLUMN logical_tracking_id TEXT")
 			execSQL("ALTER TABLE session_segment ADD COLUMN service_run_id TEXT")
 			execSQL(
+				"ALTER TABLE quarantined_signal ADD COLUMN " +
+					"acquired_at_ms INTEGER NOT NULL DEFAULT 0",
+			)
+			// Released-v27 quarantine rows have no trustworthy acquisition clock. Leave the
+			// fail-closed zero sentinel so the next enabled raw-retention pass removes their payload.
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_quarantined_signal_acquired_time " +
+					"ON quarantined_signal(acquired_at_ms, id)",
+			)
+			execSQL("ALTER TABLE pending_signal ADD COLUMN steps_writer_owner TEXT")
+			execSQL("ALTER TABLE pending_signal ADD COLUMN steps_writer_owner_generation INTEGER")
+			// Every released-v27 pending command predates source-local writer cutover and therefore
+			// belongs to the released legacy Steps destination if its payload happens to carry Steps.
+			// Stamping all rows avoids parsing serialized payloads in SQL; non-Steps rows ignore it.
+			execSQL(
+				"UPDATE pending_signal SET steps_writer_owner = 'LEGACY_STEP_INTERVAL', " +
+					"steps_writer_owner_generation = 1",
+			)
+			execSQL(
 				"CREATE INDEX IF NOT EXISTS idx_session_segment_logical_tracking " +
 					"ON session_segment(logical_tracking_id)",
 			)

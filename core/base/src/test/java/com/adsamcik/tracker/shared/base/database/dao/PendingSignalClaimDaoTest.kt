@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.QuarantinedSignalEntity
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -125,6 +126,7 @@ class PendingSignalClaimDaoTest {
 				payloadChecksum = reclaimed.payloadChecksum,
 				signalJson = reclaimed.signalJson,
 				createdAt = reclaimed.createdAt,
+				acquiredAtMs = reclaimed.acquiredAtMs,
 				deliveryAttemptCount = reclaimed.deliveryAttemptCount,
 				failureReason = "malformed_payload",
 				quarantinedAt = 2_001L,
@@ -134,6 +136,46 @@ class PendingSignalClaimDaoTest {
 
 		pendingDao.countAll() shouldBe 0
 		quarantineDao.countAll() shouldBe 1
+	}
+
+	@Test
+	fun `live unclaimed permanent failure moves atomically to quarantine`() = runTest {
+		pendingDao.insertAll(listOf(pending("live-invalid-steps", 1_000L)))
+		val row = pendingDao.getBySignalIds(listOf("live-invalid-steps")).single()
+
+		claimDao.quarantineUnclaimed(
+			QuarantinedSignalEntity(
+				sourcePendingId = row.id,
+				signalId = row.signalId,
+				sessionId = row.sessionId,
+				envelopeVersion = row.envelopeVersion,
+				payloadChecksum = row.payloadChecksum,
+				signalJson = row.signalJson,
+				createdAt = row.createdAt,
+				acquiredAtMs = row.acquiredAtMs,
+				deliveryAttemptCount = row.deliveryAttemptCount,
+				failureReason = "STEPS_WRITER_PROVENANCE_INVALID",
+				quarantinedAt = 1_001L,
+			),
+		) shouldBe true
+
+		pendingDao.countAll() shouldBe 0
+		quarantineDao.countAll() shouldBe 1
+	}
+
+	@Test
+	fun `raw retention removes quarantine by source acquisition time`() = runTest {
+		quarantineDao.insert(
+			quarantined("expired", createdAt = 5_000L, acquiredAtMs = 999L, quarantinedAt = 5_001L),
+		)
+		quarantineDao.insert(
+			quarantined("retained", createdAt = 500L, acquiredAtMs = 1_000L, quarantinedAt = 5_002L),
+		)
+
+		quarantineDao.deleteAcquiredBefore(1_000L) shouldBe 1
+
+		quarantineDao.observeRecent().first().map { it.signalId } shouldContainExactly
+			listOf("retained")
 	}
 
 	@Test
@@ -162,6 +204,7 @@ class PendingSignalClaimDaoTest {
 				payloadChecksum = staleOwner.payloadChecksum,
 				signalJson = staleOwner.signalJson,
 				createdAt = staleOwner.createdAt,
+				acquiredAtMs = staleOwner.acquiredAtMs,
 				deliveryAttemptCount = staleOwner.deliveryAttemptCount,
 				failureReason = "malformed_payload",
 				quarantinedAt = 2_001L,
@@ -180,5 +223,24 @@ class PendingSignalClaimDaoTest {
 		payloadChecksum = "checksum-$signalId",
 		signalJson = "{\"signal\":\"$signalId\"}",
 		createdAt = createdAt,
+	)
+
+	private fun quarantined(
+		signalId: String,
+		createdAt: Long,
+		acquiredAtMs: Long,
+		quarantinedAt: Long,
+	) = QuarantinedSignalEntity(
+		sourcePendingId = createdAt,
+		signalId = signalId,
+		sessionId = 1L,
+		envelopeVersion = 1,
+		payloadChecksum = null,
+		signalJson = "{}",
+		createdAt = createdAt,
+		acquiredAtMs = acquiredAtMs,
+		deliveryAttemptCount = 1,
+		failureReason = "test",
+		quarantinedAt = quarantinedAt,
 	)
 }

@@ -20,6 +20,8 @@ import com.adsamcik.tracker.shared.base.database.data.MotionState
 import com.adsamcik.tracker.shared.base.database.data.PressureSample
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.shared.model.AltitudeConversionStatus
@@ -119,7 +121,15 @@ class PersistenceProcessorTest {
 		coEvery { wifiDao.insert(any<Collection<WifiObservation>>()) } returns emptyList()
 		coEvery { pressureDao.insert(any<Collection<PressureSample>>()) } returns emptyList()
 		coEvery { stepDao.insert(any<Collection<StepInterval>>()) } returns emptyList()
-		coEvery { sourceDestinationOwnerDao.isExactOwner(any(), any(), any(), any()) } returns true
+		coEvery {
+			sourceDestinationOwnerDao.get(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+			)
+		} returns stepsOwner(
+			SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+			SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+		)
 		coEvery { activityDao.insert(any<Collection<ActivitySnapshot>>()) } returns emptyList()
 		coEvery { durableBuffer.hasPendingEntries() } returns false
 		coEvery { durableBuffer.claimBatch(any()) } returns null
@@ -128,6 +138,7 @@ class PersistenceProcessorTest {
 			firstArg<List<Long>>().size
 		}
 		coEvery { pendingSignalClaimDao.quarantineClaimed(any(), any()) } returns true
+		coEvery { pendingSignalClaimDao.quarantineUnclaimed(any()) } returns true
 		every { durableBuffer.stage(any<TrackingSignal>()) } answers {
 			val signal = firstArg<TrackingSignal>()
 			stagedSignals += signal
@@ -161,6 +172,7 @@ class PersistenceProcessorTest {
 		ids: List<Long>,
 		callback: (List<DurableSignalBuffer.CheckpointedSignal>) -> Unit,
 		signals: List<TrackingSignal> = stagedSignals.toList(),
+		stepsWriter: Pair<String, Long>? = null,
 	): DurableSignalBuffer.CheckpointAdmission {
 		callback(
 			ids.mapIndexed { index, id ->
@@ -170,6 +182,8 @@ class PersistenceProcessorTest {
 					signal = signals.getOrElse(index) { emptySignal },
 					capturedEpoch = 0L,
 					acquiredAtMs = signals.getOrElse(index) { emptySignal }.timestampMs.raw,
+					stepsWriterOwner = stepsWriter?.first,
+					stepsWriterOwnerGeneration = stepsWriter?.second,
 				)
 			},
 		)
@@ -317,6 +331,46 @@ class PersistenceProcessorTest {
 		timestampMs = EpochMs(timestampMs),
 		pressure = PressureSignal(pressureHpa = 1013.25f, altitudeM = 120f),
 	)
+
+	private fun signalWithLocationAndSteps(
+		timestampMs: Long = 1_000_000L,
+	): TrackingSignal = signalWithLocation(timestampMs).copy(
+		steps = StepSignal(
+			stepDelta = StepCount(15),
+			totalStepsSinceBoot = 5_000L,
+			sensorValueStart = 4_985,
+			sensorValueEnd = 5_000,
+		),
+	)
+
+	private fun stepsOwner(owner: String, generation: Long) = SourceDestinationOwnerEntity(
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+		destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+		owner = owner,
+		ownerGeneration = generation,
+		updatedAtMs = 1_000L,
+	)
+
+	private fun pendingRow(
+		id: Long,
+		signalId: String,
+		signal: TrackingSignal,
+		claimToken: String? = "test-claim",
+	): PendingSignalEntity {
+		val encoded = SignalSerializer.encode(signal)
+		return PendingSignalEntity(
+			id = id,
+			signalId = signalId,
+			sessionId = 42L,
+			envelopeVersion = encoded.envelopeVersion,
+			payloadChecksum = encoded.payloadChecksum,
+			signalJson = encoded.payloadJson,
+			createdAt = signal.timestampMs.raw,
+			acquiredAtMs = signal.timestampMs.raw,
+			claimToken = claimToken,
+			claimExpiresAt = Long.MAX_VALUE.takeIf { claimToken != null },
+		)
+	}
 
 	private val emptySignal = TrackingSignal(timestampMs = EpochMs(1_000_000L))
 
@@ -677,6 +731,124 @@ class PersistenceProcessorTest {
 	@Nested
 	@DisplayName("startup recovery")
 	inner class StartupRecovery {
+
+		@Test
+		fun `candidate Steps suppress legacy writes while invalid provenance is quarantined source locally`() =
+			runTest {
+				val candidate = signalWithLocationAndSteps(timestampMs = 1_000_000L)
+				val invalid = signalWithLocationAndSteps(timestampMs = 1_000_500L)
+				val candidateEntry = DurableSignalBuffer.PeekedSignal(1L, candidate).copy(
+					signalId = "candidate-steps",
+					stepsWriterOwner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
+					stepsWriterOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+				)
+				val invalidEntry = DurableSignalBuffer.PeekedSignal(2L, invalid).copy(
+					signalId = "invalid-steps",
+					stepsWriterOwner = null,
+					stepsWriterOwnerGeneration = null,
+				)
+				coEvery { durableBuffer.claimBatch(any()) } returnsMany listOf(
+					claimedBatch(listOf(candidateEntry, invalidEntry)),
+					null,
+				)
+				coEvery { pendingSignalDao.getByIds(listOf(2L)) } returns listOf(
+					pendingRow(2L, "invalid-steps", invalid),
+				)
+
+				processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L), sessionId = 42L))
+
+				val locations = slot<Collection<LocationSample>>()
+				coVerify(exactly = 1) { locationDao.insert(capture(locations)) }
+				locations.captured shouldHaveSize 2
+				coVerify(exactly = 0) { stepDao.insert(any<Collection<StepInterval>>()) }
+				coVerify(exactly = 0) { sourceDestinationOwnerDao.get(any(), any()) }
+				val quarantine = slot<com.adsamcik.tracker.shared.base.database.data.QuarantinedSignalEntity>()
+				coVerify(exactly = 1) {
+					pendingSignalClaimDao.quarantineClaimed(capture(quarantine), "test-claim")
+				}
+				quarantine.captured.signalId shouldBe "invalid-steps"
+				quarantine.captured.acquiredAtMs shouldBe invalid.timestampMs.raw
+				quarantine.captured.failureReason shouldBe
+					PersistenceProcessor.STEPS_WRITER_PROVENANCE_INVALID
+				coVerify(exactly = 1) {
+					pendingSignalClaimDao.deleteClaimedByIds(listOf(1L), "test-claim")
+				}
+		}
+
+		@Test
+		fun `missing Steps writer authority retains the WAL row for retry`() = runTest {
+			val signal = signalWithLocationAndSteps()
+			val current = DurableSignalBuffer.PeekedSignal(1L, signal).copy(
+				signalId = "legacy-steps-without-authority",
+				stepsWriterOwner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+				stepsWriterOwnerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+			)
+			coEvery { durableBuffer.claimBatch(any()) } returns claimedBatch(listOf(current))
+			coEvery { sourceDestinationOwnerDao.get(any(), any()) } returns null
+
+			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
+
+			coVerify(exactly = 1) { sourceDestinationOwnerDao.get(any(), any()) }
+			coVerify(exactly = 0) { stepDao.insert(any<Collection<StepInterval>>()) }
+			coVerify(exactly = 0) { pendingSignalClaimDao.deleteClaimedByIds(any(), any()) }
+			coVerify(exactly = 0) { pendingSignalClaimDao.quarantineClaimed(any(), any()) }
+			coVerify(exactly = 1) { durableBuffer.releaseClaim("test-claim") }
+		}
+
+		@Test
+		fun `stale legacy Steps generation is ABA fenced without blocking location`() = runTest {
+			val signal = signalWithLocationAndSteps()
+			val stale = DurableSignalBuffer.PeekedSignal(1L, signal).copy(
+				signalId = "stale-legacy-steps",
+				stepsWriterOwner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+				stepsWriterOwnerGeneration = 1L,
+			)
+			coEvery { durableBuffer.claimBatch(any()) } returnsMany listOf(
+				claimedBatch(listOf(stale)),
+				null,
+			)
+			coEvery { sourceDestinationOwnerDao.get(any(), any()) } returns stepsOwner(
+				SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+				3L,
+			)
+
+			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
+
+			coVerify(exactly = 1) { locationDao.insert(any<Collection<LocationSample>>()) }
+			coVerify(exactly = 0) { stepDao.insert(any<Collection<StepInterval>>()) }
+			coVerify(exactly = 1) { sourceDestinationOwnerDao.get(any(), any()) }
+			coVerify(exactly = 1) {
+				pendingSignalClaimDao.deleteClaimedByIds(listOf(1L), "test-claim")
+			}
+		}
+
+		@Test
+		fun `current noninitial legacy Steps generation is accepted with one authority read`() = runTest {
+			val signal = signalWithLocationAndSteps()
+			val current = DurableSignalBuffer.PeekedSignal(1L, signal).copy(
+				signalId = "current-legacy-steps",
+				stepsWriterOwner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+				stepsWriterOwnerGeneration = 3L,
+			)
+			coEvery { durableBuffer.claimBatch(any()) } returnsMany listOf(
+				claimedBatch(listOf(current)),
+				null,
+			)
+			coEvery { sourceDestinationOwnerDao.get(any(), any()) } returns stepsOwner(
+				SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+				3L,
+			)
+
+			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
+
+			val captured = slot<Collection<StepInterval>>()
+			coVerify(exactly = 1) { stepDao.insert(capture(captured)) }
+			captured.captured.single().stepCount shouldBe 15
+			coVerify(exactly = 1) { sourceDestinationOwnerDao.get(any(), any()) }
+			coVerify(exactly = 1) {
+				pendingSignalClaimDao.deleteClaimedByIds(listOf(1L), "test-claim")
+			}
+		}
 
 		@Test
 		fun `drain generation fence aborts the destination publish transaction`() = runTest {
@@ -1168,6 +1340,15 @@ class PersistenceProcessorTest {
 
 		@Test
 		fun `steps are buffered and flushed`() = runTest {
+			coEvery { durableBuffer.checkpointWithAdmission(any()) } coAnswers {
+				val ids = stagedSignals.map { nextCheckpointId++ }
+				completeCheckpoint(
+					ids = ids,
+					callback = firstArg(),
+					stepsWriter = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL to
+						SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+				)
+			}
 			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
 
 			val signal = TrackingSignal(

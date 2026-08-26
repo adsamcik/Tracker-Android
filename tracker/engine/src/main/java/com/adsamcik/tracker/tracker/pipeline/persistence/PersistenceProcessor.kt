@@ -23,6 +23,7 @@ import com.adsamcik.tracker.shared.base.database.data.QuarantinedSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationObservation
 import com.adsamcik.tracker.shared.base.database.data.LocationObservationDecision
 import com.adsamcik.tracker.shared.base.database.data.ObservationStampColumns
+import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
@@ -176,6 +177,8 @@ class PersistenceProcessor @Inject constructor(
 		val sourceSignalId: String,
 		val capturedEpoch: Long,
 		val acquiredAtMs: Long,
+		val stepsWriterOwner: String?,
+		val stepsWriterOwnerGeneration: Long?,
 	)
 
 	private enum class CommitResolution {
@@ -277,6 +280,8 @@ class PersistenceProcessor @Inject constructor(
 							sourceSignalId = checkpointed.signalId,
 							capturedEpoch = checkpointed.capturedEpoch,
 							acquiredAtMs = checkpointed.acquiredAtMs,
+							stepsWriterOwner = checkpointed.stepsWriterOwner,
+							stepsWriterOwnerGeneration = checkpointed.stepsWriterOwnerGeneration,
 						)
 					}
 				}
@@ -674,8 +679,10 @@ class PersistenceProcessor @Inject constructor(
 						verifyCollectedDataAccess()
 						try {
 							val staleSources = staleSourceSignalIds(ackIds, authoritativeLifecycle)
+							val invalidStepsIds = invalidStepsPendingIds(staleSources)
 							insertBufferedDestinations(staleSources)
-							deleteAcknowledgedRows(ackIds, claimToken)
+							quarantineInvalidSteps(invalidStepsIds, claimToken)
+							deleteAcknowledgedRows(ackIds.filterNot(invalidStepsIds::contains), claimToken)
 						} finally {
 							verifyCollectedDataAccess()
 						}
@@ -904,17 +911,94 @@ class PersistenceProcessor @Inject constructor(
 		pressure.chunked(PRESSURE_BATCH_SIZE).forEach { chunk ->
 			pressureSampleDao.insert(chunk)
 		}
-		steps.chunked(STEP_BATCH_SIZE).forEach { chunk ->
-			check(sourceDestinationOwnerDao.isExactOwner(
-				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
-				owner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
-				ownerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
-			)) { "Legacy Steps destination ownership changed before StepInterval commit" }
+		val admissionsBySignal = pendingAdmissions.values.associateBy(PendingAdmission::sourceSignalId)
+		val hasLegacyStepsAdmission = steps.any { interval ->
+			admissionsBySignal[interval.sourceSignalId]?.stepsWriterOwner ==
+				SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL
+		}
+		val currentStepsOwner = if (hasLegacyStepsAdmission) {
+			checkNotNull(sourceDestinationOwnerDao.get(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+			)) {
+				"Steps destination ownership is missing before legacy StepInterval commit"
+			}
+		} else {
+			null
+		}
+		val legacySteps = steps.filter { interval ->
+			val admission = interval.sourceSignalId?.let(admissionsBySignal::get)
+			admission?.stepsWriterOwner == SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL &&
+				currentStepsOwner?.let { current ->
+					admission.stepsWriterOwner == current.owner &&
+						admission.stepsWriterOwnerGeneration == current.ownerGeneration
+				} == true
+		}
+		legacySteps.chunked(STEP_BATCH_SIZE).forEach { chunk ->
 			stepIntervalDao.insert(chunk)
 		}
 		activities.chunked(ACTIVITY_BATCH_SIZE).forEach { chunk ->
 			activitySnapshotDao.insert(chunk)
+		}
+	}
+
+	/**
+	 * Finds Steps-bearing pending commands whose immutable destination provenance could not be
+	 * verified. Candidate-owned and stale-but-well-formed legacy commands are deliberate
+	 * suppressions; an unstamped command is an auditable terminal failure. Invalid pair, owner, and
+	 * generation values cannot reach this point because [PendingSignalEntity] validates every row
+	 * Room constructs.
+	 */
+	private fun invalidStepsPendingIds(staleSourceSignalIds: Set<String>): Set<Long> {
+		val currentStepSignals = stepBuffer.asSequence()
+			.mapNotNull(StepInterval::sourceSignalId)
+			.filterNot(staleSourceSignalIds::contains)
+			.toSet()
+		return pendingAdmissions.asSequence()
+			.filter { (_, admission) -> admission.sourceSignalId in currentStepSignals }
+			.filter { (_, admission) -> admission.stepsWriterOwner == null }
+			.map(Map.Entry<Long, PendingAdmission>::key)
+			.toSet()
+	}
+
+	/** Move source-locally invalid Steps commands into the durable failure ledger. */
+	private suspend fun quarantineInvalidSteps(
+		pendingIds: Set<Long>,
+		claimToken: String?,
+	) {
+		if (pendingIds.isEmpty()) return
+		val rows = pendingIds.toList().chunked(ACK_DELETE_BATCH_SIZE).flatMap { chunk ->
+			pendingSignalDao.getByIds(chunk)
+		}.associateBy(PendingSignalEntity::id)
+		check(rows.keys == pendingIds) {
+			"Unable to resolve every invalid Steps pending command for quarantine"
+		}
+		val claimDao = requireNotNull(pendingSignalClaimDao) {
+			"PendingSignalClaimDao is required to quarantine invalid Steps provenance"
+		}
+		val quarantinedAt = Time.nowMillis
+		pendingIds.sorted().forEach { pendingId ->
+			val row = requireNotNull(rows[pendingId])
+			val terminal = QuarantinedSignalEntity(
+				sourcePendingId = row.id,
+				signalId = row.signalId,
+				sessionId = row.sessionId,
+				envelopeVersion = row.envelopeVersion,
+				payloadChecksum = row.payloadChecksum,
+				signalJson = row.signalJson,
+				createdAt = row.createdAt,
+				acquiredAtMs = row.acquiredAtMs,
+				deliveryAttemptCount = row.deliveryAttemptCount,
+				failureReason = STEPS_WRITER_PROVENANCE_INVALID,
+				failureDetail = null,
+				quarantinedAt = quarantinedAt,
+			)
+			val moved = if (claimToken == null) {
+				claimDao.quarantineUnclaimed(terminal)
+			} else {
+				claimDao.quarantineClaimed(terminal, claimToken)
+			}
+			check(moved) { "Lost pending-signal ownership while quarantining invalid Steps provenance" }
 		}
 	}
 
@@ -1099,6 +1183,8 @@ class PersistenceProcessor @Inject constructor(
 				sourceSignalId = entry.signalId,
 				capturedEpoch = entry.capturedEpoch,
 				acquiredAtMs = entry.acquiredAtMs,
+				stepsWriterOwner = entry.stepsWriterOwner,
+				stepsWriterOwnerGeneration = entry.stepsWriterOwnerGeneration,
 			)
 		}
 
@@ -1169,6 +1255,7 @@ class PersistenceProcessor @Inject constructor(
 							payloadChecksum = entry.payloadChecksum,
 							signalJson = entry.signalJson,
 							createdAt = entry.createdAt,
+							acquiredAtMs = entry.acquiredAtMs,
 							deliveryAttemptCount = entry.deliveryAttemptCount,
 							failureReason = failureReason,
 							failureDetail = failureDetail,
@@ -1245,6 +1332,7 @@ class PersistenceProcessor @Inject constructor(
 		private const val PERSISTENCE_TRANSACTION_TIMEOUT_MILLIS = 3_000L
 		private const val PERSISTENCE_RECONCILIATION_TIMEOUT_MILLIS = 2_000L
 		private const val PERMANENT_DESTINATION_FAILURE = "permanent_destination_failure"
+		internal const val STEPS_WRITER_PROVENANCE_INVALID = "STEPS_WRITER_PROVENANCE_INVALID"
 		private const val MAX_FAILURE_DETAIL_LENGTH = 512
 
 		internal const val LOCATION_BATCH_SIZE = 10

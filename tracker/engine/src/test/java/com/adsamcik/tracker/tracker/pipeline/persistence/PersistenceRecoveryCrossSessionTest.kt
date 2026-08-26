@@ -17,19 +17,24 @@ import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureSample
 import com.adsamcik.tracker.shared.base.database.data.QuarantinedSignalEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.base.database.data.WifiObservation
 import com.adsamcik.tracker.stats.api.processor.ProcessorContext
 import com.adsamcik.tracker.stats.api.signal.LocationSignal
 import com.adsamcik.tracker.stats.api.signal.PressureSignal
+import com.adsamcik.tracker.stats.api.signal.StepSignal
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import com.adsamcik.tracker.stats.api.value.CoordinateE7
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.stats.api.value.LatE7
 import com.adsamcik.tracker.stats.api.value.LonE7
 import com.adsamcik.tracker.stats.api.value.SpeedMps
+import com.adsamcik.tracker.stats.api.value.StepCount
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.shouldBe
+import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.slot
@@ -77,6 +82,9 @@ class PersistenceRecoveryCrossSessionTest {
 
 		override suspend fun getBySignalIds(signalIds: List<String>): List<PendingSignalEntity> =
 			store.filter { it.signalId in signalIds }
+
+		override suspend fun getByIds(ids: List<Long>): List<PendingSignalEntity> =
+			store.filter { it.id in ids }
 
 		override suspend fun getOldest(sessionId: Long, limit: Int): List<PendingSignalEntity> =
 			store.filter { it.sessionId == sessionId }
@@ -163,6 +171,12 @@ class PersistenceRecoveryCrossSessionTest {
 			return matches
 		}
 
+		override suspend fun deleteUnclaimedById(id: Long): Int {
+			val matches = pending.store.count { it.id == id && it.claimToken == null }
+			pending.store.removeAll { it.id == id && it.claimToken == null }
+			return matches
+		}
+
 		override suspend fun releaseClaim(claimToken: String): Int {
 			var released = 0
 			pending.store.replaceAll { row ->
@@ -203,6 +217,16 @@ class PersistenceRecoveryCrossSessionTest {
 	private fun pressureSignal(timestampMs: Long) = TrackingSignal(
 		timestampMs = EpochMs(timestampMs),
 		pressure = PressureSignal(pressureHpa = 1013.25f, altitudeM = 120f),
+	)
+
+	private fun stepsSignal(timestampMs: Long) = TrackingSignal(
+		timestampMs = EpochMs(timestampMs),
+		steps = StepSignal(
+			stepDelta = StepCount(20),
+			totalStepsSinceBoot = 8_020L,
+			sensorValueStart = 8_000,
+			sensorValueEnd = 8_020,
+		),
 	)
 
 	@Test
@@ -263,4 +287,63 @@ class PersistenceRecoveryCrossSessionTest {
 			// The exact WAL rows (session A's) were acknowledged — none orphaned.
 			fakeDao.store.shouldBeEmpty()
 		}
+
+	@Test
+	fun `valid v27 pending Steps row replays exactly once with migration writer stamp`() = runTest {
+		val dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler))
+		val fakeDao = FakePendingSignalDao()
+		val claimDao = FakePendingSignalClaimDao(fakeDao)
+		val durableBuffer = DurableSignalBuffer(fakeDao, dispatchers, claimDao)
+		val signal = stepsSignal(2_000_000L)
+		val encoded = SignalSerializer.encode(signal)
+		fakeDao.store += PendingSignalEntity(
+			id = 27L,
+			signalId = "v27-migrated-valid-steps",
+			sessionId = 100L,
+			envelopeVersion = encoded.envelopeVersion,
+			payloadChecksum = encoded.payloadChecksum,
+			signalJson = encoded.payloadJson,
+			createdAt = 2_000_100L,
+			acquiredAtMs = signal.timestampMs.raw,
+			stepsWriterOwner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+			stepsWriterOwnerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+		)
+
+		val stepDao = mockk<StepIntervalDao>(relaxed = true)
+		val ownerDao = mockk<SourceDestinationOwnerDao>(relaxed = true)
+		coEvery {
+			ownerDao.get(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+			)
+		} returns SourceDestinationOwnerEntity(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+			owner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+			ownerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+			updatedAtMs = 1L,
+		)
+		val processor = PersistenceProcessor(
+			locationSampleDao = mockk(relaxed = true),
+			locationObservationDao = mockk(relaxed = true),
+			cellSampleDao = mockk(relaxed = true),
+			wifiObservationDao = mockk(relaxed = true),
+			pressureSampleDao = mockk(relaxed = true),
+			stepIntervalDao = stepDao,
+			activitySnapshotDao = mockk(relaxed = true),
+			pendingSignalDao = fakeDao,
+			pendingSignalClaimDao = claimDao,
+			durableBuffer = durableBuffer,
+			transactor = passthroughTransactor,
+			sourceDestinationOwnerDao = ownerDao,
+		)
+
+		processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L), sessionId = 101L))
+		processor.onStart(ProcessorContext(startTimestamp = EpochMs(1L), sessionId = 102L))
+
+		val inserted = slot<Collection<StepInterval>>()
+		coVerify(exactly = 1) { stepDao.insert(capture(inserted)) }
+		inserted.captured.single().stepCount shouldBe 20
+		fakeDao.store.shouldBeEmpty()
+	}
 }

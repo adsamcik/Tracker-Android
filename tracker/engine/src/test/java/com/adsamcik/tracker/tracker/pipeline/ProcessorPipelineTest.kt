@@ -772,12 +772,19 @@ class ProcessorPipelineTest {
 		val active = activeProcessor()
 		val pipeline = createPipeline(setOf(ambient, active))
 
-		pipeline.start(PolicyTier.AMBIENT, EpochMs(1000L))
+		pipeline.start(
+			tier = PolicyTier.AMBIENT,
+			startTimestamp = EpochMs(1000L),
+			isResuming = true,
+			sessionId = 42L,
+		)
 		ambient.startCalls shouldHaveSize 1
 		active.startCalls shouldHaveSize 0
 
 		pipeline.escalate(PolicyTier.ACTIVE, EpochMs(2000L))
 		active.startCalls shouldHaveSize 1
+		active.startCalls.single().sessionId shouldBe 42L
+		active.startCalls.single().isResuming shouldBe true
 		ambient.startCalls shouldHaveSize 1 // not re-started
 	}
 

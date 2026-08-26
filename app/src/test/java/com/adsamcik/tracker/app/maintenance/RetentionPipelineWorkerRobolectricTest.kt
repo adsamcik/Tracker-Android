@@ -19,6 +19,7 @@ import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDecision
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
+import com.adsamcik.tracker.shared.base.database.dao.QuarantinedSignalDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.SkiRunSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceEvidenceStateDao
@@ -130,6 +131,7 @@ class RetentionPipelineWorkerRobolectricTest {
 		val dailySummaryDao: DailySummaryDao = mockk(relaxed = true)
 		val domainEventDao: DomainEventDao = mockk(relaxed = true)
 		val exportLogDao: ExportLogDao = mockk(relaxed = true)
+		val quarantinedSignalDao: QuarantinedSignalDao = mockk(relaxed = true)
 		val pendingSignalDao: PendingSignalDao = mockk(relaxed = true)
 		val locationObservationDecisionDao: LocationObservationDecisionDao = mockk(relaxed = true)
 		val trackerStateEventDao: TrackerStateEventDao = mockk(relaxed = true)
@@ -158,6 +160,7 @@ class RetentionPipelineWorkerRobolectricTest {
 		every { db.achievementProgressDao() } returns mockk(relaxed = true)
 		every { db.domainEventDao() } returns domainEventDao
 		every { db.exportLogDao() } returns exportLogDao
+		every { db.quarantinedSignalDao() } returns quarantinedSignalDao
 		every { db.pendingSignalDao() } returns pendingSignalDao
 		every { db.locationObservationDecisionDao() } returns locationObservationDecisionDao
 		every { db.trackerStateEventDao() } returns trackerStateEventDao
@@ -199,6 +202,7 @@ class RetentionPipelineWorkerRobolectricTest {
 		coVerify(exactly = 1) { dailySummaryDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { domainEventDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { exportLogDao.deleteOlderThan(any()) }
+		verify(exactly = 1) { quarantinedSignalDao.deleteAcquiredBefore(any()) }
 		verify(exactly = 1) { migrationBackupRepository.deleteAll() }
 	}
 

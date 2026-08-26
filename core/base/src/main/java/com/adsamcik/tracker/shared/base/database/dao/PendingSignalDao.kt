@@ -37,6 +37,10 @@ interface PendingSignalDao {
 	@Query("SELECT * FROM pending_signal WHERE signal_id IN (:signalIds)")
 	suspend fun getBySignalIds(signalIds: List<String>): List<PendingSignalEntity>
 
+	/** Fetch exact pending rows for transactional disposition or quarantine. */
+	@Query("SELECT * FROM pending_signal WHERE id IN (:ids)")
+	suspend fun getByIds(ids: List<Long>): List<PendingSignalEntity>
+
 	/**
 	 * Admit each distinct logical signal exactly once, returning the authoritative durable row for
 	 * every input in input order. The insert and identity resolution share one Room transaction, so

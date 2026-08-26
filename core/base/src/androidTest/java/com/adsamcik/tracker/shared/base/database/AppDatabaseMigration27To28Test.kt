@@ -10,6 +10,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.adsamcik.tracker.shared.base.database.data.LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID
 import com.adsamcik.tracker.shared.base.database.data.LegacyV27ProjectionDrainEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.sqlite.runtime.SQLiteXSupportSQLiteOpenHelperFactory
 import kotlinx.coroutines.runBlocking
@@ -65,7 +66,17 @@ class AppDatabaseMigration27To28Test {
 
 	@Test
 	fun populatedV27MigrationIsInertQueryableAndDeletionSafeAcrossReopen() {
-		helper.createDatabase(TEST_DATABASE, 27).use(PopulatedV27Fixture::seed)
+		helper.createDatabase(TEST_DATABASE, 27).use { database ->
+			PopulatedV27Fixture.seed(database)
+			database.execSQL(
+				"INSERT INTO quarantined_signal " +
+					"(source_pending_id, signal_id, session_id, envelope_version, " +
+					"payload_checksum, signal_json, created_at, delivery_attempt_count, " +
+					"failure_reason, failure_detail, quarantined_at) VALUES " +
+					"(7001, 'v27-quarantine', 1, 1, NULL, '{}', 1234, 1, " +
+					"'test', NULL, 5678)",
+			)
+		}
 
 		helper.runMigrationsAndValidate(TEST_DATABASE, 28, true, MIGRATION_27_28).use { database ->
 			assertMigrationState(database)
@@ -636,6 +647,25 @@ class AppDatabaseMigration27To28Test {
 			assertEquals(5, primaryKeyPositions["registration_generation"])
 		}
 		assertTableCount(database, "pending_signal", 1)
+		database.query(
+			"SELECT steps_writer_owner, steps_writer_owner_generation FROM pending_signal " +
+				"WHERE signal_id = 'v27-pending-signal'",
+		).use { cursor ->
+			assertTrue(cursor.moveToFirst())
+			assertEquals(SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL, cursor.getString(0))
+			assertEquals(SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION, cursor.getLong(1))
+			assertFalse(cursor.moveToNext())
+		}
+		assertTableCount(database, "quarantined_signal", 1)
+		database.query(
+			"SELECT created_at, acquired_at_ms FROM quarantined_signal " +
+				"WHERE signal_id = 'v27-quarantine'",
+		).use { cursor ->
+			assertTrue(cursor.moveToFirst())
+			assertEquals(1_234L, cursor.getLong(0))
+			assertEquals(0L, cursor.getLong(1))
+			assertFalse(cursor.moveToNext())
+		}
 		assertTableCount(database, "import_job_receipt", 1)
 		assertTableCount(database, "import_entry_receipt", 1)
 		database.query(
@@ -647,6 +677,12 @@ class AppDatabaseMigration27To28Test {
 	}
 
 	private suspend fun assertProductionQueriesPreserveV27Facts(database: AppDatabase) {
+		val pending = database.pendingSignalDao().getBySignalIds(listOf("v27-pending-signal")).single()
+		assertEquals(SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL, pending.stepsWriterOwner)
+		assertEquals(
+			SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+			pending.stepsWriterOwnerGeneration,
+		)
 		val location = database.locationSampleDao().getChunkBetweenOrdered(
 			fromMs = PopulatedV27Fixture.START_MS,
 			toMs = PopulatedV27Fixture.END_MS,
@@ -913,6 +949,7 @@ class AppDatabaseMigration27To28Test {
 		assertNull(database.legacyV27ProjectionDrainDao().get())
 		assertTrue(database.legacyV27ProjectionDrainDao().targets().isEmpty())
 		assertEquals(0, database.pendingSignalDao().countAll())
+		assertEquals(0, database.quarantinedSignalDao().countAll())
 		assertNull(database.importReceiptDao().getJob(PopulatedV27Fixture.IMPORT_JOB_ID))
 		assertNull(database.sourceSessionDao().session(PopulatedV27Fixture.LOGICAL_TRACKING_ID))
 		assertNull(database.sourceSessionDao().serviceRun(PopulatedV27Fixture.SERVICE_RUN_ID))

@@ -82,4 +82,24 @@ data class PendingSignalEntity(
 	/** Number of recovery leases acquired for this row. */
 	@ColumnInfo(name = "delivery_attempt_count", defaultValue = "0")
 	val deliveryAttemptCount: Int = 0,
-)
+
+	/** Immutable Steps destination owner captured when this command became durable. */
+	@ColumnInfo(name = "steps_writer_owner")
+	val stepsWriterOwner: String? = null,
+
+	/** Monotonic ABA fence paired with [stepsWriterOwner]. */
+	@ColumnInfo(name = "steps_writer_owner_generation")
+	val stepsWriterOwnerGeneration: Long? = null,
+) {
+	init {
+		require((stepsWriterOwner == null) == (stepsWriterOwnerGeneration == null)) {
+			"Pending Steps writer owner and generation must be supplied together"
+		}
+		require(stepsWriterOwnerGeneration == null || stepsWriterOwnerGeneration > 0L)
+		require(
+			stepsWriterOwner == null ||
+				stepsWriterOwner == SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL ||
+				stepsWriterOwner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
+		) { "Unknown pending Steps writer owner $stepsWriterOwner" }
+	}
+}

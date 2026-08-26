@@ -12,6 +12,7 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.testing.SynchronousExecutor
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.QuarantinedSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
@@ -118,6 +119,21 @@ class DataRetentionWorkerTest {
 		coEvery { lane.drainAvailable() } returns StepsSessionFactDrainResult.Inactive
 		try {
 			database.stepFactRevisionDao().insert(expiredStepFactRevision())
+			database.quarantinedSignalDao().insert(
+				QuarantinedSignalEntity(
+					sourcePendingId = 1L,
+					signalId = "expired-quarantine",
+					sessionId = 1L,
+					envelopeVersion = 1,
+					payloadChecksum = null,
+					signalJson = "{}",
+					createdAt = System.currentTimeMillis(),
+					acquiredAtMs = 1L,
+					deliveryAttemptCount = 1,
+					failureReason = "test",
+					quarantinedAt = System.currentTimeMillis(),
+				),
+			)
 			val worker = TestListenableWorkerBuilder<DataRetentionWorker>(context)
 				.setWorkerFactory(object : WorkerFactory() {
 					override fun createWorker(
@@ -140,6 +156,7 @@ class DataRetentionWorkerTest {
 
 			assertEquals(ListenableWorker.Result.success(), worker.doWork())
 			assertEquals(0L, database.stepFactRevisionDao().countAll())
+			assertEquals(0, database.quarantinedSignalDao().countAll())
 			coVerify(exactly = 1) { lane.drainAvailable() }
 		} finally {
 			database.close()

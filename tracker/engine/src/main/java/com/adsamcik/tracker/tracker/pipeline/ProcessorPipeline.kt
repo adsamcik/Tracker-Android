@@ -87,6 +87,8 @@ class ProcessorPipeline(
 	private val durableAdmissionSerializer = Mutex()
 	private val sortedProcessors = processors.sortedBy { it.descriptor.priority }
 	private var currentTier: PolicyTier = PolicyTier.OFF
+	/** Session identity reused when a tier transition starts a previously inactive processor. */
+	private var activeContext: ProcessorContext? = null
 
 	@Volatile
 	private var isRunning = false
@@ -178,6 +180,7 @@ class ProcessorPipeline(
 				isResuming = isResuming,
 				sessionId = sessionId,
 			)
+			activeContext = context
 
 			for (processor in cachedActiveProcessors.toList()) {
 				val id = processor.descriptor.id
@@ -393,7 +396,9 @@ class ProcessorPipeline(
 						it !in quarantinedProcessors
 				}.toSet()
 				val active = cachedActiveProcessors.toMutableSet()
-				val context = ProcessorContext(startTimestamp = timestamp)
+				val context = requireNotNull(activeContext) {
+					"Running processor pipeline has no active session context"
+				}.copy(startTimestamp = timestamp)
 
 				for (processor in desiredActive - active) {
 					val id = processor.descriptor.id
@@ -500,6 +505,7 @@ class ProcessorPipeline(
 				}
 			}
 			persistPendingEvents(pendingStopEvents, "final")
+			mutex.withLock { activeContext = null }
 		}
 	}
 

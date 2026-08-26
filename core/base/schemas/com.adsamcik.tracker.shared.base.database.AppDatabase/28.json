@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 28,
-    "identityHash": "5893b85a959edb7c388a42c68de086b8",
+    "identityHash": "dafd087ed9b85027297804f9cca180a8",
     "entities": [
       {
         "tableName": "activity",
@@ -7144,7 +7144,7 @@
       },
       {
         "tableName": "pending_signal",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `signal_id` TEXT NOT NULL DEFAULT '', `session_id` INTEGER NOT NULL, `envelope_version` INTEGER NOT NULL DEFAULT 1, `payload_checksum` TEXT, `signal_json` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `captured_epoch` INTEGER NOT NULL DEFAULT 0, `acquired_at_ms` INTEGER NOT NULL DEFAULT 0, `claim_token` TEXT, `claim_expires_at` INTEGER, `delivery_attempt_count` INTEGER NOT NULL DEFAULT 0)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `signal_id` TEXT NOT NULL DEFAULT '', `session_id` INTEGER NOT NULL, `envelope_version` INTEGER NOT NULL DEFAULT 1, `payload_checksum` TEXT, `signal_json` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `captured_epoch` INTEGER NOT NULL DEFAULT 0, `acquired_at_ms` INTEGER NOT NULL DEFAULT 0, `claim_token` TEXT, `claim_expires_at` INTEGER, `delivery_attempt_count` INTEGER NOT NULL DEFAULT 0, `steps_writer_owner` TEXT, `steps_writer_owner_generation` INTEGER)",
         "fields": [
           {
             "fieldPath": "id",
@@ -7219,6 +7219,16 @@
             "affinity": "INTEGER",
             "notNull": true,
             "defaultValue": "0"
+          },
+          {
+            "fieldPath": "stepsWriterOwner",
+            "columnName": "steps_writer_owner",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "stepsWriterOwnerGeneration",
+            "columnName": "steps_writer_owner_generation",
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -7262,7 +7272,7 @@
       },
       {
         "tableName": "quarantined_signal",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `source_pending_id` INTEGER NOT NULL, `signal_id` TEXT NOT NULL, `session_id` INTEGER NOT NULL, `envelope_version` INTEGER NOT NULL, `payload_checksum` TEXT, `signal_json` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `delivery_attempt_count` INTEGER NOT NULL, `failure_reason` TEXT NOT NULL, `failure_detail` TEXT, `quarantined_at` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `source_pending_id` INTEGER NOT NULL, `signal_id` TEXT NOT NULL, `session_id` INTEGER NOT NULL, `envelope_version` INTEGER NOT NULL, `payload_checksum` TEXT, `signal_json` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `acquired_at_ms` INTEGER NOT NULL DEFAULT 0, `delivery_attempt_count` INTEGER NOT NULL, `failure_reason` TEXT NOT NULL, `failure_detail` TEXT, `quarantined_at` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -7310,6 +7320,13 @@
             "columnName": "created_at",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "acquiredAtMs",
+            "columnName": "acquired_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
           },
           {
             "fieldPath": "deliveryAttemptCount",
@@ -7369,6 +7386,16 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_quarantined_signal_time` ON `${TABLE_NAME}` (`quarantined_at`, `id`)"
+          },
+          {
+            "name": "idx_quarantined_signal_acquired_time",
+            "unique": false,
+            "columnNames": [
+              "acquired_at_ms",
+              "id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_quarantined_signal_acquired_time` ON `${TABLE_NAME}` (`acquired_at_ms`, `id`)"
           },
           {
             "name": "idx_quarantined_signal_reason",
@@ -7532,7 +7559,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '5893b85a959edb7c388a42c68de086b8')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'dafd087ed9b85027297804f9cca180a8')"
     ]
   }
 }

@@ -19,6 +19,7 @@ import androidx.room.PrimaryKey
 		Index(value = ["source_pending_id"], unique = true, name = "idx_quarantined_signal_source_pending"),
 		Index(value = ["signal_id"], unique = true, name = "idx_quarantined_signal_signal_id"),
 		Index(value = ["quarantined_at", "id"], name = "idx_quarantined_signal_time"),
+		Index(value = ["acquired_at_ms", "id"], name = "idx_quarantined_signal_acquired_time"),
 		Index(value = ["failure_reason"], name = "idx_quarantined_signal_reason"),
 	],
 )
@@ -49,6 +50,10 @@ data class QuarantinedSignalEntity(
 
 	@ColumnInfo(name = "created_at")
 	val createdAt: Long,
+
+	/** Provider acquisition time retained so raw-data expiry uses evidence age, not WAL age. */
+	@ColumnInfo(name = "acquired_at_ms", defaultValue = "0")
+	val acquiredAtMs: Long,
 
 	@ColumnInfo(name = "delivery_attempt_count")
 	val deliveryAttemptCount: Int,
