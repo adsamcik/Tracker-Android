@@ -128,6 +128,32 @@ class StepFactRevisionDaoTest {
 	}
 
 	@Test
+	fun rawRetentionRemovesExpiredUpsertPayloadAndPreservesRedactedRetraction() = runTest {
+		val intervalId = insertInterval(startMs = 1_000L, endMs = 2_000L)
+		val upsert = revision(
+			intervalId = intervalId,
+			admissionOrdinal = 1L,
+			effectiveStepCount = 12L,
+		)
+		val tombstone = redactedRetraction(semanticRevision = 2L)
+		dao.insert(upsert) shouldBe 1L
+		dao.insert(tombstone) shouldBe 2L
+
+		dao.deleteUpsertsEndingBefore(2_000L) shouldBe 0
+		dao.deleteUpsertsEndingBefore(2_001L) shouldBe 1
+
+		dao.countAll() shouldBe 1L
+		dao.latest(WRITER_ID, WRITER_VERSION, LOGICAL_FACT_ID) shouldBe tombstone
+		dao.latestEffectiveBetween(
+			writerProjectionId = WRITER_ID,
+			writerProjectionVersion = WRITER_VERSION,
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			fromMs = 0L,
+			toMs = 3_000L,
+		).shouldBeEmpty()
+	}
+
+	@Test
 	fun aggregateKeepsNoDataDistinctFromVerifiedZeroAndRowsExposeCoverage() = runTest {
 		dao.effectiveStepCount(
 			WRITER_ID,

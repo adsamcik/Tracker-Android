@@ -12,6 +12,7 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.testing.SynchronousExecutor
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
@@ -19,6 +20,11 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
+import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactDrainResult
+import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.flowOf
@@ -54,6 +60,7 @@ class DataRetentionWorkerTest {
     private val exportPlanStore: ExportPlanStore = mockk(relaxed = true)
     private val migrationBackupRepository: DatabaseMigrationBackupRepository = mockk(relaxed = true)
 	private val collectedDataLifecycleStore: CollectedDataLifecycleStore = mockk(relaxed = true)
+	private val stepsProjectionLane: StepsSessionFactProjectionLane = mockk(relaxed = true)
 
     @Before
     fun setUp() {
@@ -84,7 +91,8 @@ class DataRetentionWorkerTest {
                         migrationBackupRepository,
 						collectedDataLifecycleStore,
 						READY_STARTUP_GATE,
-                    )
+						Provider { stepsProjectionLane },
+					)
                 }
             })
             .build() as DataRetentionWorker
@@ -92,7 +100,51 @@ class DataRetentionWorkerTest {
         // Call doWork() directly to avoid blocking thread with startWork().get()
         val result = worker.doWork()
         assertEquals(ListenableWorker.Result.success(), result)
+		coVerify(exactly = 0) { stepsProjectionLane.drainAvailable() }
     }
+
+	@Test
+	fun `enabled retention reconciles the Steps lane before source WAL pruning`() = runTest {
+		val database = AppDatabase.testDatabase(context)
+		val enabledStore: RetentionConfigStore = mockk {
+			every { config } returns flowOf(
+				RetentionConfigState(autoCleanupEnabled = true, dataRetentionYears = 1),
+			)
+		}
+		val lifecycleStore: CollectedDataLifecycleStore = mockk()
+		coEvery { lifecycleStore.advanceRetainedFrom(any()) } returns
+			CollectedDataLifecycleSnapshot(epoch = 1L, retainedFromMs = 3L)
+		val lane: StepsSessionFactProjectionLane = mockk()
+		coEvery { lane.drainAvailable() } returns StepsSessionFactDrainResult.Inactive
+		try {
+			database.stepFactRevisionDao().insert(expiredStepFactRevision())
+			val worker = TestListenableWorkerBuilder<DataRetentionWorker>(context)
+				.setWorkerFactory(object : WorkerFactory() {
+					override fun createWorker(
+						appContext: Context,
+						workerClassName: String,
+						workerParameters: WorkerParameters,
+					): ListenableWorker = DataRetentionWorker(
+						appContext,
+						workerParameters,
+						enabledStore,
+						Provider { database },
+						exportPlanStore,
+						migrationBackupRepository,
+						lifecycleStore,
+						READY_STARTUP_GATE,
+						Provider { lane },
+					)
+				})
+				.build() as DataRetentionWorker
+
+			assertEquals(ListenableWorker.Result.success(), worker.doWork())
+			assertEquals(0L, database.stepFactRevisionDao().countAll())
+			coVerify(exactly = 1) { lane.drainAvailable() }
+		} finally {
+			database.close()
+		}
+	}
 
     @Test
     fun `ensureScheduled enqueues work and cancel removes active work`() {
@@ -110,5 +162,40 @@ class DataRetentionWorkerTest {
         works = workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME).get()
         assertTrue("expected cancellation, found ${works.map { it.state }}", works.none { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING })
     }
+
+	private fun expiredStepFactRevision() = StepFactRevisionEntity(
+		logicalFactId = "expired-steps-fact",
+		semanticRevision = 1L,
+		mutationId = "expired-steps-mutation",
+		stepIntervalId = null,
+		sourceEventId = null,
+		sourceAdmissionOrdinal = null,
+		originKind = StepFactRevisionEntity.ORIGIN_PORTABLE_IMPORT,
+		originIdentity = "expired-portable-import",
+		writerProjectionId = StepsSessionFactProjectionLane.WRITER_ID,
+		writerProjectionVersion = StepsSessionFactProjectionLane.WRITER_VERSION,
+		writerBindingGeneration = StepsSessionFactProjectionLane.BINDING_GENERATION,
+		operation = StepFactRevisionEntity.OPERATION_UPSERT,
+		intervalStartTimeMs = 1L,
+		intervalEndTimeMs = 2L,
+		intervalStartElapsedRealtimeNanos = 1L,
+		intervalEndElapsedRealtimeNanos = 2L,
+		clockDomainId = "elapsed-domain-1",
+		bootClockDomainId = "boot-1",
+		cumulativeStepCountStart = 100L,
+		cumulativeStepCountEnd = 101L,
+		wallTimeUncertaintyMs = 1L,
+		coverageKind = StepFactRevisionEntity.COVERAGE_COVERED,
+		effectiveStepCount = 1L,
+		logicalTrackingId = "expired-session",
+		purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+		manifestRevision = 1L,
+		sourcePolicyRevision = 1L,
+		captureConsentEpoch = 1L,
+		collectedDataEpoch = 1L,
+		scopeDeletionGeneration = 0L,
+		effectChecksum = "expired-steps-checksum",
+		appliedAtMs = 2L,
+	)
 
 }

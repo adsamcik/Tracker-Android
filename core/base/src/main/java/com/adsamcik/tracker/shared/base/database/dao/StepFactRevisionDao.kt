@@ -127,6 +127,17 @@ interface StepFactRevisionDao {
 	@Query("SELECT COUNT(*) FROM step_fact_revision")
 	suspend fun countAll(): Long
 
+	/**
+	 * Removes retained product payloads whose complete interval is below the raw-data floor.
+	 * Redacted retractions deliberately survive so a local deletion cannot be undone by import,
+	 * replay, or a future writer version.
+	 */
+	@Query(
+		"DELETE FROM step_fact_revision WHERE operation = 'UPSERT' " +
+			"AND interval_end_time_ms < :beforeMs",
+	)
+	suspend fun deleteUpsertsEndingBefore(beforeMs: Long): Int
+
 	@Query("DELETE FROM step_fact_revision")
 	fun deleteAll()
 }

@@ -22,6 +22,7 @@ import com.adsamcik.tracker.shared.base.database.dao.PressureSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.SkiRunSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceEvidenceStateDao
+import com.adsamcik.tracker.shared.base.database.dao.StepFactRevisionDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerStateEventDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
@@ -30,6 +31,10 @@ import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
@@ -37,6 +42,11 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleS
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
+import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
+import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactDrainResult
+import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -107,6 +117,7 @@ class RetentionPipelineWorkerRobolectricTest {
 		every { db.endTransaction() } returns Unit
 		val locationDao: LocationSampleDao = mockk(relaxed = true)
 		val locationObservationDao: LocationObservationDao = mockk(relaxed = true)
+		val stepFactRevisionDao: StepFactRevisionDao = mockk(relaxed = true)
 		val stepDao: StepIntervalDao = mockk(relaxed = true)
 		val activityDao: ActivitySnapshotDao = mockk(relaxed = true)
 		val runDao: TrackerRunDao = mockk(relaxed = true)
@@ -124,11 +135,14 @@ class RetentionPipelineWorkerRobolectricTest {
 		val sourceEvidenceStateDao = sourceEvidenceStateDao()
 		val migrationBackupRepository: DatabaseMigrationBackupRepository = mockk(relaxed = true)
 		val collectedDataLifecycleStore = lifecycleStore()
+		val stepsProjectionLane = mockk<StepsSessionFactProjectionLane>()
+		coEvery { stepsProjectionLane.drainAvailable() } returns StepsSessionFactDrainResult.Inactive
 		coEvery { runDao.minStartTimeMs() } returns null
 		coEvery { locationObservationDao.minFixTimeMs() } returns null
 
 		every { db.locationSampleDao() } returns locationDao
 		every { db.locationObservationDao() } returns locationObservationDao
+		every { db.stepFactRevisionDao() } returns stepFactRevisionDao
 		every { db.stepIntervalDao() } returns stepDao
 		every { db.activitySnapshotDao() } returns activityDao
 		every { db.trackerRunDao() } returns runDao
@@ -154,12 +168,14 @@ class RetentionPipelineWorkerRobolectricTest {
 			db = db,
 			migrationBackupRepository = migrationBackupRepository,
 			collectedDataLifecycleStore = collectedDataLifecycleStore,
+			stepsProjectionLaneProvider = Provider { stepsProjectionLane },
 		)
 
 		assertEquals(ListenableWorker.Result.success(), worker.doWork())
 
 		coVerify(exactly = 1) { locationDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { collectedDataLifecycleStore.advanceRetainedFrom(any()) }
+		coVerify(exactly = 1) { stepsProjectionLane.drainAvailable() }
 		coVerifyOrder {
 			collectedDataLifecycleStore.advanceRetainedFrom(any())
 			locationDao.deleteOlderThan(any())
@@ -170,6 +186,7 @@ class RetentionPipelineWorkerRobolectricTest {
 		coVerify(exactly = 1) { locationObservationDecisionDao.deleteWithoutObservation() }
 		coVerify(exactly = 1) { trackerStateEventDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { sourceEvidenceStateDao.updateLifecycle(any(), any(), any()) }
+		coVerify(exactly = 1) { stepFactRevisionDao.deleteUpsertsEndingBefore(any()) }
 		coVerify(exactly = 1) { stepDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { activityDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { runDao.deleteOlderThan(any()) }
@@ -246,6 +263,87 @@ class RetentionPipelineWorkerRobolectricTest {
 			assertEquals(1_234L, db.sourceEvidenceStateDao().get()?.retainedFromMs)
 			coVerify(exactly = 1) { collectedDataLifecycleStore.advanceRetainedFrom(any()) }
 			verify(exactly = 1) { migrationBackupRepository.deleteAll() }
+		} finally {
+			db.close()
+		}
+	}
+
+	@Test
+	fun `raw retention reconciles a stale Steps terminal before pruning its WAL`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val db = AppDatabase.testDatabase(context)
+		val lifecycle = lifecycleStore(
+			CollectedDataLifecycleSnapshot(epoch = 2L, retainedFromMs = 1_234L),
+		)
+		val ingress = mockk<DurableSourceIngress>()
+		coEvery {
+			ingress.committedSourceBatch(SourceKind.STEPS, 0L, 1L, 64)
+		} throws CorruptSourceEventException(
+			admissionOrdinal = 1L,
+			sourceKind = SourceKind.STEPS.stableCode,
+			failureCode = "RAW_PAYLOAD_INTEGRITY",
+		)
+		val lane = StepsSessionFactProjectionLane(db, ingress, backgroundScope)
+		try {
+			db.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 2L))
+			db.stepFactRevisionDao().insert(expiredStepFactRevision(collectedDataEpoch = 2L))
+			db.sourceEventWalDao().insertIgnoringDuplicate(staleRawStepsEvent())
+			db.sourceProjectionStateDao().installProductLane(
+				SourceProductProjectionLaneEntity(
+					sourceKind = SourceKind.STEPS.stableCode,
+					bindingGeneration = StepsSessionFactProjectionLane.BINDING_GENERATION,
+					projectionId = StepsSessionFactProjectionLane.WRITER_ID,
+					projectionVersion = StepsSessionFactProjectionLane.WRITER_VERSION,
+					captureModeMask = StepsSessionFactProjectionLane.MANUAL_CAPTURE_MODE_MASK,
+					productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+					activatedRolloutRevision = 2L,
+					activationOrdinal = 1L,
+					contiguousAdmissionOrdinal = 0L,
+					captureAdmissionCutoffOrdinal = null,
+					retentionRequired = true,
+					status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+					installedAtMs = 1L,
+					updatedAtMs = 1L,
+				),
+			)
+			db.sourceProjectionStateDao().saveFailure(
+				SourceProjectionFailureEntity(
+					projectionId = StepsSessionFactProjectionLane.WRITER_ID,
+					projectionVersion = StepsSessionFactProjectionLane.WRITER_VERSION,
+					admissionOrdinal = 1L,
+					attemptCount = 1,
+					failureCode = "RAW_PAYLOAD_INTEGRITY",
+					terminal = true,
+					lastAttemptAtMs = 1L,
+				),
+			)
+
+			assertEquals(
+				ListenableWorker.Result.success(),
+				worker(
+					context,
+					retentionStore(autoPurgeConfig(rawDataRetentionDays = 1)),
+					db,
+					collectedDataLifecycleStore = lifecycle,
+					stepsProjectionLaneProvider = Provider { lane },
+				).doWork(),
+			)
+
+			assertEquals(0L, db.stepFactRevisionDao().countAll())
+			assertEquals(0L, db.sourceEventWalDao().countAll())
+			assertEquals(
+				1L,
+				db.sourceProjectionStateDao()
+					.activeProductLane(SourceKind.STEPS.stableCode)?.contiguousAdmissionOrdinal,
+			)
+			assertEquals(
+				null,
+				db.sourceProjectionStateDao().failure(
+					StepsSessionFactProjectionLane.WRITER_ID,
+					StepsSessionFactProjectionLane.WRITER_VERSION,
+					1L,
+				),
+			)
 		} finally {
 			db.close()
 		}
@@ -340,6 +438,8 @@ class RetentionPipelineWorkerRobolectricTest {
 		migrationBackupRepository: DatabaseMigrationBackupRepository = mockk(relaxed = true),
 		collectedDataLifecycleStore: CollectedDataLifecycleStore = lifecycleStore(),
 		trackingStartupGate: TrackingStartupGate = READY_STARTUP_GATE,
+		stepsProjectionLaneProvider: Provider<StepsSessionFactProjectionLane> =
+			Provider { mockk(relaxed = true) },
 	): RetentionPipelineWorker =
 		TestListenableWorkerBuilder<RetentionPipelineWorker>(context)
 			.setWorkerFactory(object : WorkerFactory() {
@@ -355,6 +455,7 @@ class RetentionPipelineWorkerRobolectricTest {
 					databaseProvider,
 					migrationBackupRepository,
 					trackingStartupGate,
+					stepsProjectionLaneProvider,
 				)
 			})
 			.build() as RetentionPipelineWorker
@@ -392,6 +493,7 @@ class RetentionPipelineWorkerRobolectricTest {
 		coEvery { locationObservationDao.minFixTimeMs() } returns null
 		every { db.locationSampleDao() } returns mockk(relaxed = true)
 		every { db.locationObservationDao() } returns locationObservationDao
+		every { db.stepFactRevisionDao() } returns mockk(relaxed = true)
 		every { db.stepIntervalDao() } returns mockk(relaxed = true)
 		every { db.activitySnapshotDao() } returns mockk(relaxed = true)
 		every { db.trackerRunDao() } returns trackerRunDao
@@ -419,6 +521,77 @@ class RetentionPipelineWorkerRobolectricTest {
 		coEvery { updateLifecycle(any(), any(), any()) } returns 1
 		coEvery { incrementRevision(any()) } returns 1
 	}
+
+	private fun staleRawStepsEvent() = SourceEventWalEntity(
+		admissionOrdinal = 1L,
+		eventId = "stale-steps-event",
+		providerDedupKey = "stale-steps-dedup",
+		logicalTrackingId = "session-1",
+		serviceRunId = "run-1",
+		sourceKind = SourceKind.STEPS.stableCode,
+		sourceInstanceId = "steps-provider",
+		registrationGeneration = 1L,
+		physicalConfigurationFingerprint = "steps-config",
+		authorizationRevision = 1L,
+		authorizationPurposeEligibilityMask = 1L,
+		authorizationFingerprint = "steps-capture",
+		sourceSequence = 1L,
+		configRevision = 1L,
+		planAttribution = 0,
+		clockDomainId = "boot-1",
+		observedElapsedNanos = 2_000_000L,
+		receivedElapsedNanos = 2_001_000L,
+		wallTimeMs = 1L,
+		wallTimeUncertaintyMs = 1L,
+		capturedCollectedDataEpoch = 2L,
+		sourcePolicyRevision = 3L,
+		captureConsentEpoch = 4L,
+		sessionManifestRevision = 5L,
+		lifecycleLeaseGeneration = 6L,
+		acquiredAtMs = 1L,
+		qualityFlags = 0L,
+		qualityConfidence = null,
+		payloadVersion = 3,
+		payload = byteArrayOf(1),
+		payloadChecksum = "corrupt",
+		integrityIdentity = "corrupt",
+		createdAtMs = 1L,
+	)
+
+	private fun expiredStepFactRevision(collectedDataEpoch: Long) = StepFactRevisionEntity(
+		logicalFactId = "expired-steps-fact",
+		semanticRevision = 1L,
+		mutationId = "expired-steps-mutation",
+		stepIntervalId = null,
+		sourceEventId = null,
+		sourceAdmissionOrdinal = null,
+		originKind = StepFactRevisionEntity.ORIGIN_PORTABLE_IMPORT,
+		originIdentity = "expired-portable-import",
+		writerProjectionId = StepsSessionFactProjectionLane.WRITER_ID,
+		writerProjectionVersion = StepsSessionFactProjectionLane.WRITER_VERSION,
+		writerBindingGeneration = StepsSessionFactProjectionLane.BINDING_GENERATION,
+		operation = StepFactRevisionEntity.OPERATION_UPSERT,
+		intervalStartTimeMs = 1L,
+		intervalEndTimeMs = 2L,
+		intervalStartElapsedRealtimeNanos = 1L,
+		intervalEndElapsedRealtimeNanos = 2L,
+		clockDomainId = "elapsed-domain-1",
+		bootClockDomainId = "boot-1",
+		cumulativeStepCountStart = 100L,
+		cumulativeStepCountEnd = 101L,
+		wallTimeUncertaintyMs = 1L,
+		coverageKind = StepFactRevisionEntity.COVERAGE_COVERED,
+		effectiveStepCount = 1L,
+		logicalTrackingId = "expired-session",
+		purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+		manifestRevision = 1L,
+		sourcePolicyRevision = 1L,
+		captureConsentEpoch = 1L,
+		collectedDataEpoch = collectedDataEpoch,
+		scopeDeletionGeneration = 0L,
+		effectChecksum = "expired-steps-checksum",
+		appliedAtMs = 2L,
+	)
 
 	private companion object {
 		val DIRECT_EXECUTOR = Executor(Runnable::run)

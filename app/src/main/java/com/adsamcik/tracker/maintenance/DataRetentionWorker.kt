@@ -19,6 +19,7 @@ import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleS
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
@@ -38,6 +39,7 @@ class DataRetentionWorker @AssistedInject constructor(
     private val migrationBackupRepository: DatabaseMigrationBackupRepository,
 	private val collectedDataLifecycleStore: CollectedDataLifecycleStore,
 	private val trackingStartupGate: TrackingStartupGate,
+	private val stepsSessionFactProjectionLaneProvider: Provider<StepsSessionFactProjectionLane>,
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -70,6 +72,10 @@ class DataRetentionWorker @AssistedInject constructor(
 			migrationBackupRepository.deleteAll()
 			when (pruneRawData(appDatabase, cutoff, lifecycle, now, startupGeneration)) {
 				RawRetentionPruneResult.PRUNED -> {
+					requireReadyGeneration(startupGeneration)
+					trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
+						stepsSessionFactProjectionLaneProvider.get().drainAvailable()
+					} ?: throw StartupGenerationChangedException
 					requireReadyGeneration(startupGeneration)
 					appDatabase.pruneSourceEventStorageBefore(
 						createdBeforeMs = cutoff,
@@ -158,6 +164,11 @@ class DataRetentionWorker @AssistedInject constructor(
 				}
 				appDatabase.trackerStateEventDao().deleteOlderThan(cutoffMillis)
 				appDatabase.locationSampleDao().deleteOlderThan(cutoffMillis)
+				appDatabase.stepFactRevisionDao().deleteUpsertsEndingBefore(
+					requireNotNull(lifecycle.retainedFromMs) {
+						"Raw retention must establish a durable retained-from floor"
+					},
+				)
 				appDatabase.stepIntervalDao().deleteOlderThan(cutoffMillis)
 				appDatabase.activitySnapshotDao().deleteOlderThan(cutoffMillis)
 				appDatabase.trackerRunDao().deleteOlderThan(cutoffMillis)

@@ -20,6 +20,7 @@ import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigState
 import com.adsamcik.tracker.shared.preferences.retention.RetentionConfigStore
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
@@ -35,6 +36,7 @@ class RetentionPipelineWorker @AssistedInject constructor(
     private val appDatabaseProvider: Provider<AppDatabase>,
     private val migrationBackupRepository: DatabaseMigrationBackupRepository,
 	private val trackingStartupGate: TrackingStartupGate,
+	private val stepsSessionFactProjectionLaneProvider: Provider<StepsSessionFactProjectionLane>,
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
@@ -72,6 +74,10 @@ class RetentionPipelineWorker @AssistedInject constructor(
 					now,
 					startupGeneration,
 				)
+				requireReadyGeneration(startupGeneration)
+				trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
+					stepsSessionFactProjectionLaneProvider.get().drainAvailable()
+				} ?: throw StartupGenerationChangedException
 				requireReadyGeneration(startupGeneration)
 				appDatabase.pruneSourceEventStorageBefore(
 					createdBeforeMs = cutoff,
@@ -134,6 +140,11 @@ class RetentionPipelineWorker @AssistedInject constructor(
 				}
 				db.trackerStateEventDao().deleteOlderThan(cutoff)
 				db.locationSampleDao().deleteOlderThan(cutoff)
+				db.stepFactRevisionDao().deleteUpsertsEndingBefore(
+					requireNotNull(lifecycle.retainedFromMs) {
+						"Raw retention must establish a durable retained-from floor"
+					},
+				)
 				db.stepIntervalDao().deleteOlderThan(cutoff)
 				db.activitySnapshotDao().deleteOlderThan(cutoff)
 				db.trackerRunDao().deleteOlderThan(cutoff)
