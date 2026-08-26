@@ -7,7 +7,9 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -140,6 +142,79 @@ class TrackingShutdownSequenceTest {
 		}
 
 		attempts shouldBe 3
+	}
+
+	@Test
+	fun `persistent teardown holds ownership past bounded failures until cleanup succeeds`() = runTest {
+		var attempts = 0
+		var providerOwned = true
+		var deferredStopFallbacks = 0
+		val teardown = launch {
+			retryTrackingShutdownUntilSuccess(
+				retryDelayMillis = 1L,
+				maxRetryDelayMillis = 8L,
+			) {
+				attempts++
+				if (attempts <= 4) error("provider still owned")
+				providerOwned = false
+			}
+			deferredStopFallbacks++
+		}
+
+		runCurrent()
+		advanceTimeBy(1L)
+		runCurrent()
+		advanceTimeBy(2L)
+		runCurrent()
+		advanceTimeBy(4L)
+		runCurrent()
+
+		attempts shouldBe 4
+		providerOwned shouldBe true
+		deferredStopFallbacks shouldBe 0
+
+		advanceTimeBy(8L)
+		runCurrent()
+
+		teardown.isCompleted shouldBe true
+		attempts shouldBe 5
+		providerOwned shouldBe false
+		deferredStopFallbacks shouldBe 1
+	}
+
+	@Test
+	fun `cancelled persistent teardown never releases provider ownership or deferred stop`() = runTest {
+		var attempts = 0
+		var providerOwned = true
+		var deferredStopFallbacks = 0
+		val teardown = launch {
+			retryTrackingShutdownUntilSuccess(
+				retryDelayMillis = 1L,
+				maxRetryDelayMillis = 4L,
+			) {
+				attempts++
+				error("permanent failure")
+			}
+			providerOwned = false
+			deferredStopFallbacks++
+		}
+
+		runCurrent()
+		advanceTimeBy(1L)
+		runCurrent()
+		advanceTimeBy(2L)
+		runCurrent()
+		advanceTimeBy(4L)
+		runCurrent()
+
+		attempts shouldBe 4
+		providerOwned shouldBe true
+		deferredStopFallbacks shouldBe 0
+
+		teardown.cancelAndJoin()
+
+		providerOwned shouldBe true
+		deferredStopFallbacks shouldBe 0
 	}
 
 	@Test

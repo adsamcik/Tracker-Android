@@ -79,3 +79,58 @@ internal suspend fun <T> retryTrackingShutdown(
 
 	throw IllegalStateException("Tracking shutdown failed after $maxAttempts attempts", lastFailure)
 }
+
+/**
+ * Keeps teardown ownership until cleanup succeeds or the hosting coroutine is cancelled.
+ *
+ * A destroyed service cannot safely give up after a fixed number of attempts: provider actors and
+ * callbacks are process-scoped and may otherwise remain live until process death. The capped
+ * backoff bounds retry wakeups while preserving the durable STOPPING/cleanup-required state.
+ */
+internal suspend fun <T> retryTrackingShutdownUntilSuccess(
+	retryDelayMillis: Long = 1_000L,
+	maxRetryDelayMillis: Long = 60_000L,
+	attemptTimeoutMillis: Long? = null,
+	onFailure: (attempt: Long, failure: Exception) -> Unit = { _, _ -> },
+	shutdown: suspend () -> T,
+): T {
+	require(retryDelayMillis > 0L) { "Shutdown retry delay must be positive" }
+	require(maxRetryDelayMillis >= retryDelayMillis) {
+		"Maximum shutdown retry delay must not be shorter than the initial delay"
+	}
+	require(attemptTimeoutMillis == null || attemptTimeoutMillis > 0L) {
+		"Shutdown attempt timeout must be positive"
+	}
+
+	var attempt = 0L
+	var nextDelayMillis = retryDelayMillis
+	while (true) {
+		attempt = (attempt + 1L).coerceAtMost(Long.MAX_VALUE)
+		try {
+			return if (attemptTimeoutMillis == null) {
+				shutdown()
+			} else {
+				withTimeout(attemptTimeoutMillis) { shutdown() }
+			}
+		} catch (exception: TimeoutCancellationException) {
+			onFailure(
+				attempt,
+				IllegalStateException(
+					"Tracking shutdown attempt timed out after ${attemptTimeoutMillis}ms",
+					exception,
+				),
+			)
+		} catch (exception: CancellationException) {
+			throw exception
+		} catch (exception: Exception) {
+			onFailure(attempt, exception)
+		}
+
+		delay(nextDelayMillis)
+		nextDelayMillis = when {
+			nextDelayMillis >= maxRetryDelayMillis -> maxRetryDelayMillis
+			nextDelayMillis > Long.MAX_VALUE / 2L -> maxRetryDelayMillis
+			else -> (nextDelayMillis * 2L).coerceAtMost(maxRetryDelayMillis)
+		}
+	}
+}

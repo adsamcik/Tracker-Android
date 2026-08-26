@@ -1507,7 +1507,9 @@ internal class TrackerService : CoreService() {
 	}
 
 	override fun onDestroy() {
-		TrackerRuntimeStopDispatcher.unregister(this)
+		// Keep STOP delivery owned while provider teardown is in flight. Inactive finalization is
+		// released only after the existing teardown gate proves source-session retirement.
+		TrackerRuntimeStopDispatcher.beginTeardown(this)
 		// Capture references before super.onDestroy() cancels the coroutine scope
 		val initializationRef = initializationJob
 		val precedingTeardown = synchronized(SERVICE_GENERATION_LOCK) {
@@ -1547,9 +1549,10 @@ internal class TrackerService : CoreService() {
 		val cleanupScope = kotlinx.coroutines.CoroutineScope(
 			dispatchers.default + kotlinx.coroutines.SupervisorJob()
 		)
-		val cleanupGate = TrackingTeardownGate {
-			performTeardown(context)
-		}
+		val cleanupGate = TrackingTeardownGate(
+			recovery = { performTeardown(context) },
+			runtimeStopOwner = this,
+		)
 		lateinit var cleanupJob: Deferred<Unit>
 		cleanupJob = cleanupScope.async(start = CoroutineStart.LAZY) {
 			var shutdownCompleted = false
@@ -1557,9 +1560,10 @@ internal class TrackerService : CoreService() {
 				precedingTeardown?.job?.join()
 				TRACKING_LIFECYCLE_BARRIER.runAfter(initializationRef) {
 					recoverIncompleteTeardown(precedingTeardown)
-					cleanupGate.recovery()
+					awaitTeardownRecovery(cleanupGate)
 					clearCompletedStopCandidate()
 					cleanupGate.cleanupComplete.set(true)
+					TrackerRuntimeStopDispatcher.completeTeardown(this@TrackerService)
 					shutdownCompleted = true
 				}
 			} finally {
@@ -1603,11 +1607,29 @@ internal class TrackerService : CoreService() {
 		}
 	}
 
+	private suspend fun awaitTeardownRecovery(gate: TrackingTeardownGate) {
+		retryTrackingShutdownUntilSuccess(
+			retryDelayMillis = PERSISTENT_TEARDOWN_INITIAL_RETRY_DELAY_MILLIS,
+			maxRetryDelayMillis = PERSISTENT_TEARDOWN_MAX_RETRY_DELAY_MILLIS,
+			onFailure = { attempt, failure ->
+				if (attempt == 1L || attempt % PERSISTENT_TEARDOWN_LOG_EVERY_ATTEMPTS == 0L) {
+					Tracebox.log.error(
+						failure,
+						"Tracking provider teardown remains incomplete after $attempt attempts",
+					)
+				}
+			},
+		) {
+			gate.recovery()
+		}
+	}
+
 	private suspend fun recoverIncompleteTeardown(gate: TrackingTeardownGate?) {
 		if (gate == null || gate.cleanupComplete.get()) return
 
-		gate.recovery()
+		awaitTeardownRecovery(gate)
 		gate.cleanupComplete.set(true)
+		TrackerRuntimeStopDispatcher.completeTeardown(gate.runtimeStopOwner)
 		synchronized(SERVICE_GENERATION_LOCK) {
 			if (lastTeardownGate === gate) {
 				lastTeardownGate = null
@@ -1848,6 +1870,9 @@ internal class TrackerService : CoreService() {
 		private const val FINAL_TEARDOWN_INITIAL_RETRY_DELAY_MILLIS = 500L
 		private const val FINAL_TEARDOWN_MAX_RETRY_DELAY_MILLIS = 2_000L
 		private const val FINAL_TEARDOWN_ATTEMPT_TIMEOUT_MILLIS = 5_000L
+		private const val PERSISTENT_TEARDOWN_INITIAL_RETRY_DELAY_MILLIS = 1_000L
+		private const val PERSISTENT_TEARDOWN_MAX_RETRY_DELAY_MILLIS = 60_000L
+		private const val PERSISTENT_TEARDOWN_LOG_EVERY_ATTEMPTS = 10L
 	}
 }
 
@@ -1952,6 +1977,7 @@ private data class ActiveExternalStop(
 
 private class TrackingTeardownGate(
 	val recovery: suspend () -> Unit,
+	val runtimeStopOwner: Any,
 ) {
 	lateinit var job: Deferred<Unit>
 	val cleanupComplete = AtomicBoolean(false)

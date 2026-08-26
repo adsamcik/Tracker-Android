@@ -11,6 +11,8 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.LooperMode
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
 
 @RunWith(RobolectricTestRunner::class)
@@ -68,6 +70,48 @@ class TrackerRuntimeStopDispatcherTest {
 		accepted.get() shouldBe true
 		handled.get() shouldBe false
 		fellBack.get() shouldBe true
+	}
+
+	@Test
+	fun `background stop crossing teardown waits for provider gate before inactive fallback`() {
+		val owner = Any()
+		val handled = AtomicBoolean(false)
+		val accepted = AtomicBoolean(false)
+		val fallbackCount = AtomicInteger(0)
+		val posted = AtomicReference<Runnable>()
+		val command = stopCommand()
+		TrackerRuntimeStopDispatcher.register(owner) {
+			handled.set(true)
+			true
+		}
+
+		thread {
+			accepted.set(
+				TrackerRuntimeStopDispatcher.dispatch(
+					command = command,
+					onUndelivered = { undelivered ->
+						(undelivered == command) shouldBe true
+						fallbackCount.incrementAndGet()
+					},
+					postToMain = { runnable ->
+						posted.set(runnable)
+						true
+					},
+				),
+			)
+		}.join()
+
+		TrackerRuntimeStopDispatcher.beginTeardown(owner) shouldBe true
+		posted.get().run()
+
+		accepted.get() shouldBe true
+		handled.get() shouldBe false
+		fallbackCount.get() shouldBe 0
+
+		TrackerRuntimeStopDispatcher.completeTeardown(owner) shouldBe true
+		fallbackCount.get() shouldBe 1
+		TrackerRuntimeStopDispatcher.dispatch(command) { fallbackCount.incrementAndGet() } shouldBe false
+		fallbackCount.get() shouldBe 1
 	}
 
 	@Test
