@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -34,8 +35,9 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.utils.compose.StopTrackingOptionsDialog
-import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.tracker.R
+import com.adsamcik.tracker.tracker.api.ManualTrackingStartReadiness
+import com.adsamcik.tracker.tracker.api.ManualTrackingStartResult
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -110,6 +112,7 @@ fun TrackerRoute(
     var showLocationPermissionRequest by remember { mutableStateOf(false) }
     var permissionDenied by remember { mutableStateOf(false) }
     var showStopOptions by remember { mutableStateOf(false) }
+    var manualStartReadiness by remember { mutableStateOf<ManualTrackingStartReadiness?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     
     // Observe tracking state via injected controller (replaces TrackerService static access)
@@ -130,7 +133,37 @@ fun TrackerRoute(
     val pathPoints by controller.pathPointsFlow.collectAsStateWithLifecycle()
     val recentTrips by viewModel.recentTrips.collectAsStateWithLifecycle()
     val trackingParams by trackingParamsRepository.data.collectAsStateWithLifecycle(initialValue = TrackingParamsState())
-    val locationPermissionSatisfied = !trackingParams.locationEnabled || hasLocationPermission
+
+    LaunchedEffect(trackingParams.sourcePolicyRevision, hasLocationPermission) {
+        manualStartReadiness = TrackerServiceApi.readManualTrackingStartReadiness(context)
+    }
+
+    fun requestManualStart() {
+        scope.launch {
+            when (TrackerServiceApi.requestManualTrackingStart(context)) {
+                ManualTrackingStartResult.ENQUEUED -> Unit
+                ManualTrackingStartResult.PRECISE_LOCATION_PERMISSION_REQUIRED ->
+                    showLocationPermissionRequest = true
+                ManualTrackingStartResult.NO_AVAILABLE_CAPTURE_SOURCE -> {
+                    val result = snackbarHostState.showSnackbar(
+                        message = context.getString(R.string.error_nothing_to_track),
+                        actionLabel = context.getString(
+                            com.adsamcik.tracker.shared.utils.R.string.permission_denied_settings_action,
+                        ),
+                    )
+                    if (result == SnackbarResult.ActionPerformed) onOpenSettings()
+                }
+                ManualTrackingStartResult.TRACKING_UNAVAILABLE ->
+                    snackbarHostState.showSnackbar(
+                        context.getString(R.string.notification_tracking_start_failed_title),
+                    )
+            }
+            manualStartReadiness = TrackerServiceApi.readManualTrackingStartReadiness(context)
+        }
+    }
+
+    val locationPermissionSatisfied =
+        manualStartReadiness != ManualTrackingStartReadiness.PreciseLocationPermissionRequired
     
     val lastSessionData by controller.lastSessionFlow.collectAsStateWithLifecycle()
     val lastPathPoints by controller.lastPathPointsFlow.collectAsStateWithLifecycle()
@@ -161,8 +194,7 @@ fun TrackerRoute(
                 permissionDenied = resultState.permissionDenied
                 showLocationPermissionRequest = resultState.showLocationPermissionRequest
                 if (granted) {
-                    // Permission granted - start tracking
-                    TrackerServiceApi.startService(context, isUserInitiated = true)
+                    requestManualStart()
                 }
             },
             onDismiss = { 
@@ -202,15 +234,10 @@ fun TrackerRoute(
         goalProgressProvider = viewModel.goalProgressProvider,
         onSettingsClick = onOpenSettings,
         onMapClick = onOpenMap,
-        onRequestPermission = { showLocationPermissionRequest = true },
+        onRequestPermission = { requestManualStart() },
         onToggleTracking = { shouldStart ->
             if (shouldStart) {
-                if (locationPermissionSatisfied) {
-                    TrackerServiceApi.startService(context, isUserInitiated = true)
-                } else {
-                    // Request permission contextually
-                    showLocationPermissionRequest = true
-                }
+                requestManualStart()
             } else if (trackingParams.autoTrackingMode != GroupedActivity.STILL.ordinal) {
                 // Auto-tracking is enabled and would likely restart the session moments after a
                 // plain stop (see BackgroundTrackingApi's activity callbacks). Let the user pick

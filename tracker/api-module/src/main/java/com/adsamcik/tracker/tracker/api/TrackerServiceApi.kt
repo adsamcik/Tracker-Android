@@ -47,6 +47,7 @@ internal interface TrackerServiceApiEntryPoint {
 	fun trackerStateReader(): TrackerStateReader
 	fun trackerServiceController(): TrackerServiceController
 	fun manualTrackingCaptureReachabilityReader(): ManualTrackingCaptureReachabilityReader
+	fun manualTrackingStartReadinessReader(): ManualTrackingStartReadinessReader
 	fun activityWatcherController(): ActivityWatcherController
 	fun inactiveTrackingSessionStopHandler(): InactiveTrackingSessionStopHandler
 	fun trackingLifecycleCommandAuthority(): TrackingLifecycleCommandAuthority
@@ -485,6 +486,40 @@ object TrackerServiceApi {
 	): ManualTrackingCaptureReachability = getEntryPoint(context.applicationContext)
 		.manualTrackingCaptureReachabilityReader()
 		.read()
+
+	/** Reads the same current prerequisites used by every user-initiated start surface. */
+	suspend fun readManualTrackingStartReadiness(
+		context: Context,
+	): ManualTrackingStartReadiness = try {
+		getEntryPoint(context.applicationContext)
+			.manualTrackingStartReadinessReader()
+			.read()
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (_: RuntimeException) {
+		ManualTrackingStartReadiness.TrackingUnavailable
+	}
+
+	/**
+	 * Runs the complete manual-start boundary: current source readiness, durable PREPARE, and the
+	 * immediate Android enqueue acknowledgement. Callers must not infer success from a queued
+	 * coroutine or a platform service call alone.
+	 */
+	suspend fun requestManualTrackingStart(context: Context): ManualTrackingStartResult = try {
+		executeManualTrackingStart(
+			readReadiness = { readManualTrackingStartReadiness(context) },
+			enqueuePreparedStart = {
+				startServiceAndAwaitEnqueue(
+					context = context,
+					isUserInitiated = true,
+				)
+			},
+		)
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (_: RuntimeException) {
+		ManualTrackingStartResult.TRACKING_UNAVAILABLE
+	}
 
 	/**
 	 * Legacy session-shaped ambient entry. Ambient acquisition is app-scoped broker work and this

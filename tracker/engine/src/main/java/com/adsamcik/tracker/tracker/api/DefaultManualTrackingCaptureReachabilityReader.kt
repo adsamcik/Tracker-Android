@@ -34,7 +34,7 @@ class DefaultManualTrackingCaptureReachabilityReader @Inject constructor(
 	}
 }
 
-private fun SourceKind.toApiCaptureSource(): TrackingCaptureSource = when (this) {
+internal fun SourceKind.toApiCaptureSource(): TrackingCaptureSource = when (this) {
 	SourceKind.LOCATION -> TrackingCaptureSource.LOCATION
 	SourceKind.WIFI -> TrackingCaptureSource.WIFI
 	SourceKind.CELL -> TrackingCaptureSource.CELL

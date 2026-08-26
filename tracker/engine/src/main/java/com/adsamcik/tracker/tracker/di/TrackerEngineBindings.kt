@@ -3,7 +3,9 @@ package com.adsamcik.tracker.tracker.di
 import com.adsamcik.tracker.tracker.insights.DefaultSessionInsightsGenerator
 import com.adsamcik.tracker.tracker.insights.SessionInsightsGenerator
 import com.adsamcik.tracker.tracker.api.DefaultManualTrackingCaptureReachabilityReader
+import com.adsamcik.tracker.tracker.api.DefaultManualTrackingStartReadinessReader
 import com.adsamcik.tracker.tracker.api.ManualTrackingCaptureReachabilityReader
+import com.adsamcik.tracker.tracker.api.ManualTrackingStartReadinessReader
 import com.adsamcik.tracker.tracker.notification.DefaultTrackerNotificationSettingsRepository
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationSettingsRepository
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
@@ -91,6 +93,11 @@ abstract class TrackerEngineBindings {
 	abstract fun bindManualTrackingCaptureReachabilityReader(
 		impl: DefaultManualTrackingCaptureReachabilityReader,
 	): ManualTrackingCaptureReachabilityReader
+
+	@Binds
+	abstract fun bindManualTrackingStartReadinessReader(
+		impl: DefaultManualTrackingStartReadinessReader,
+	): ManualTrackingStartReadinessReader
 
 	@Binds
 	abstract fun bindSourceProductLaneExecutionAuthority(

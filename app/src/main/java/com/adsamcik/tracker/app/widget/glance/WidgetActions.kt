@@ -5,7 +5,10 @@ import android.content.Intent
 import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
+import com.adsamcik.tracker.tracker.api.ManualTrackingStartRepairNavigation
+import com.adsamcik.tracker.tracker.api.ManualTrackingStartResult
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
 /**
@@ -23,14 +26,21 @@ class ToggleTrackingAction : ActionCallback {
             if (isRunning) {
                 TrackerServiceApi.stopService(context)
             } else {
-                TrackerServiceApi.startService(context, isUserInitiated = true)
+                val result = TrackerServiceApi.requestManualTrackingStart(context)
+                if (result != ManualTrackingStartResult.ENQUEUED) {
+                    ManualTrackingStartRepairNavigation.createDashboardIntent(context)
+                        ?.let { context.startActivity(it) }
+                }
             }
             // Allow state to propagate before refreshing widgets.
             delay(STATE_PROPAGATION_DELAY_MS)
             WidgetUpdateScheduler.updateAllWidgets(context)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
-            // Service not available (e.g. Hilt not initialized after OOM kill).
-            // Fail silently - user can retry.
+            // Bring the user to the foreground repair surface when background prerequisites fail.
+            ManualTrackingStartRepairNavigation.createDashboardIntent(context)
+                ?.let { context.startActivity(it) }
         }
     }
 

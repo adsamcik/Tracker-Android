@@ -1,8 +1,6 @@
 package com.adsamcik.tracker.dashboard.ui.compose
 
 import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.SnackbarHostState
@@ -32,22 +30,15 @@ import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardMode
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
 import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.GoalProgress
-import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
-import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
-import com.adsamcik.tracker.shared.base.extension.hasPreciseLocationPermission
-import com.adsamcik.tracker.shared.base.extension.hasReadPhonePermission
-import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
-import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import com.adsamcik.tracker.shared.utils.compose.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.utils.compose.permission.PermissionDeniedSnackbar
 import com.adsamcik.tracker.shared.utils.compose.permission.PermissionType
-import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.utils.compose.StopTrackingOptionsDialog
-import com.adsamcik.tracker.tracker.api.ManualTrackingCaptureReachability
+import com.adsamcik.tracker.tracker.api.ManualTrackingStartReadiness
+import com.adsamcik.tracker.tracker.api.ManualTrackingStartResult
 import com.adsamcik.tracker.tracker.api.TrackerServiceApi
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import kotlinx.coroutines.delay
@@ -92,17 +83,11 @@ fun DashboardRoute(
 	var userRequestedStop by remember { mutableStateOf(false) }
 	var showStopOptions by remember { mutableStateOf(false) }
 	var deferredDashboardDataEnabled by remember { mutableStateOf(false) }
-	var manualCaptureReachability by remember {
-		mutableStateOf<ManualTrackingCaptureReachability?>(null)
+	var manualStartReadiness by remember {
+		mutableStateOf<ManualTrackingStartReadiness?>(null)
 	}
 
 	DashboardPermissionResumeEffect(viewModel, context)
-
-	LaunchedEffect(Unit) {
-		manualCaptureReachability = runCatchingCancellable {
-			TrackerServiceApi.readManualTrackingCaptureReachability(context)
-		}.getOrNull()
-	}
 
 	LaunchedEffect(Unit) {
 		withFrameNanos { }
@@ -122,18 +107,9 @@ fun DashboardRoute(
 	val lastPathPoints by trackerState.lastPathPointsFlow.collectAsState()
 	val trackingParams by viewModel.trackingParams.collectAsState()
 
-	fun resolveManualStartDecision(
-		preciseLocationPermissionOverride: Boolean? = null,
-		reachability: ManualTrackingCaptureReachability.Available,
-	): DashboardManualStartDecision = resolveDashboardManualStartDecision(
-		params = trackingParams,
-		capabilities = dashboardCaptureCapabilities(
-			context = context,
-			anyLocationPermissionGranted = hasLocationPermission,
-			preciseLocationPermissionOverride = preciseLocationPermissionOverride,
-		),
-		reachableSources = reachability.reachableSources,
-	)
+	LaunchedEffect(trackingParams.sourcePolicyRevision, hasLocationPermission) {
+		manualStartReadiness = TrackerServiceApi.readManualTrackingStartReadiness(context)
+	}
 
 	suspend fun showNoAvailableCaptureSource() {
 		val result = snackbarHostState.showSnackbar(
@@ -151,50 +127,23 @@ fun DashboardRoute(
 		)
 	}
 
-	fun requestManualStart(preciseLocationPermissionOverride: Boolean? = null) {
+	fun requestManualStart() {
 		coroutineScope.launch {
-			val reachability = runCatchingCancellable {
-				TrackerServiceApi.readManualTrackingCaptureReachability(context)
-			}.getOrNull()
-			manualCaptureReachability = reachability
-			val decision = when (reachability) {
-				is ManualTrackingCaptureReachability.Available ->
-					resolveManualStartDecision(preciseLocationPermissionOverride, reachability)
-				ManualTrackingCaptureReachability.Unavailable,
-				null,
-				-> DashboardManualStartDecision.TRACKING_UNAVAILABLE
-			}
-			when (decision) {
-				DashboardManualStartDecision.START -> when (
-					resolveDashboardManualStartEnqueueDecision(
-						TrackerServiceApi.startServiceAndAwaitEnqueue(
-							context = context,
-							isUserInitiated = true,
-						),
-					)
-				) {
-					DashboardManualStartEnqueueDecision.ENQUEUED -> Unit
-					DashboardManualStartEnqueueDecision.TRACKING_UNAVAILABLE ->
-						showTrackingUnavailable()
-				}
-				DashboardManualStartDecision.REQUEST_PRECISE_LOCATION_PERMISSION ->
+			when (TrackerServiceApi.requestManualTrackingStart(context)) {
+				ManualTrackingStartResult.ENQUEUED -> Unit
+				ManualTrackingStartResult.PRECISE_LOCATION_PERMISSION_REQUIRED ->
 					viewModel.requestPermission()
-				DashboardManualStartDecision.TRACKING_UNAVAILABLE ->
+				ManualTrackingStartResult.TRACKING_UNAVAILABLE ->
 					showTrackingUnavailable()
-				DashboardManualStartDecision.NO_AVAILABLE_CAPTURE_SOURCE ->
+				ManualTrackingStartResult.NO_AVAILABLE_CAPTURE_SOURCE ->
 					showNoAvailableCaptureSource()
 			}
+			manualStartReadiness = TrackerServiceApi.readManualTrackingStartReadiness(context)
 		}
 	}
 
-	val manualStartPermissionSatisfied = when (val reachability = manualCaptureReachability) {
-		is ManualTrackingCaptureReachability.Available ->
-			resolveManualStartDecision(reachability = reachability) !=
-				DashboardManualStartDecision.REQUEST_PRECISE_LOCATION_PERMISSION
-		ManualTrackingCaptureReachability.Unavailable,
-		null,
-		-> true
-	}
+	val manualStartPermissionSatisfied =
+		manualStartReadiness != ManualTrackingStartReadiness.PreciseLocationPermissionRequired
 
 	// Observe daily/gamification state
 	val defaultGoalProgress = remember {
@@ -256,7 +205,7 @@ fun DashboardRoute(
 						actionLabel = context.getString(R.string.dashboard_action_restart_tracking),
 					)
 					if (result == SnackbarResult.ActionPerformed) {
-						TrackerServiceApi.startService(context, isUserInitiated = true)
+						requestManualStart()
 					}
 				}
 
@@ -341,7 +290,7 @@ fun DashboardRoute(
 			onPermissionResult = { granted ->
 				viewModel.onPermissionResult(granted)
 				if (granted) {
-					requestManualStart(preciseLocationPermissionOverride = true)
+					requestManualStart()
 				}
 			},
 			onDismiss = {
@@ -394,7 +343,7 @@ fun DashboardRoute(
 				TrackerServiceApi.stopService(context)
 			}
 		},
-		onRequestPermission = { viewModel.requestPermission() },
+		onRequestPermission = { requestManualStart() },
 		onGameClick = onOpenGame,
 		onSessionDetailClick = onSessionDetailClick,
 		onCustomizeClick = { showCustomizeSheet = true },
@@ -497,30 +446,4 @@ private fun DailySummary?.withUnifiedSteps(goalStepsToday: Int): DailySummary? {
 		totalSteps == goalStepsToday -> this
 		else -> copy(totalSteps = goalStepsToday)
 	}
-}
-
-private fun dashboardCaptureCapabilities(
-	context: android.content.Context,
-	anyLocationPermissionGranted: Boolean,
-	preciseLocationPermissionOverride: Boolean? = null,
-): DashboardCaptureCapabilities {
-	val packageManager = context.packageManager
-	val preciseLocationPermissionGranted = preciseLocationPermissionOverride
-		?: context.hasPreciseLocationPermission
-	val cellHardwareAvailable = packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) ||
-		(Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-			packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_RADIO_ACCESS))
-
-	return DashboardCaptureCapabilities(
-		locationHardwareAvailable = packageManager.hasSystemFeature(PackageManager.FEATURE_LOCATION),
-		anyLocationPermissionGranted = anyLocationPermissionGranted || preciseLocationPermissionGranted,
-		preciseLocationPermissionGranted = preciseLocationPermissionGranted,
-		activityPermissionGranted = context.hasActivityPermission,
-		stepCounterAvailable = context.hasStepCounterSensor,
-		wifiHardwareAvailable = packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI),
-		cellHardwareAvailable = cellHardwareAvailable,
-		readPhoneStatePermissionGranted = context.hasReadPhonePermission,
-		pressureSensorAvailable = context.hasPressureSensor,
-		playServicesAvailable = Assist.isPlayServicesAvailable(context),
-	)
 }

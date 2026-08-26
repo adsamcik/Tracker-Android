@@ -73,6 +73,30 @@ class TrackerServiceLaunchArchitectureTest {
 	}
 
 	@Test
+	fun `manual user entry points use the typed acknowledged start boundary`() {
+		val entryPoints = listOf(
+			"feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardRoute.kt",
+			"feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRoute.kt",
+			"tracker/engine/src/main/java/com/adsamcik/tracker/tracker/shortcut/ShortcutActivity.kt",
+			"app/src/main/java/com/adsamcik/tracker/app/widget/glance/WidgetActions.kt",
+		)
+		entryPoints.forEach { relativePath ->
+			val source = projectRoot.resolve(relativePath).readText()
+			source shouldContain "TrackerServiceApi.requestManualTrackingStart("
+			source shouldNotContain "TrackerServiceApi.startService("
+			source shouldNotContain "TrackerServiceApi.startServiceAndAwaitEnqueue("
+		}
+		entryPoints.take(2).forEach { relativePath ->
+			projectRoot.resolve(relativePath).readText() shouldContain
+				"onRequestPermission = { requestManualStart() }"
+		}
+		entryPoints.takeLast(2).forEach { relativePath ->
+			projectRoot.resolve(relativePath).readText() shouldContain
+				"ManualTrackingStartRepairNavigation.createDashboardIntent("
+		}
+	}
+
+	@Test
 	fun `specialUse subtype states the bounded user-visible signal purpose`() {
 		val manifest = projectRoot.resolve("tracker/engine/src/main/AndroidManifest.xml").readText()
 

@@ -651,29 +651,10 @@ internal class DefaultTrackingStartRequestCoordinator @Inject constructor(
 	private fun resolveAcceptedSources(
 		requestedSources: Set<SourceKind>,
 		origin: SessionStartOrigin,
-	): Set<SourceKind> {
-		val packageManager = context.packageManager
-		val locationFeature = packageManager.hasSystemFeature(PackageManager.FEATURE_LOCATION)
-		val wifiFeature = packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI)
-		val cellFeature = packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) ||
-			(Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-				packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_RADIO_ACCESS))
-		return acceptedForegroundSources(
-			requestedSources,
-			ForegroundSourceCapabilities(
-				sdkInt = Build.VERSION.SDK_INT,
-				startOrigin = origin,
-				hasForegroundLocationPermission = context.hasLocationPermission,
-				hasBackgroundLocationPermission = context.hasBackgroundLocationPermission,
-				locationHardwareAvailable = locationFeature,
-				activity = context.hasActivityPermission && Assist.isPlayServicesAvailable(context),
-				steps = context.hasActivityPermission && context.hasStepCounterSensor,
-				pressure = context.hasPressureSensor,
-				wifi = wifiFeature && context.hasWifiScanPermission,
-				cell = cellFeature && context.hasCellScanPermission,
-			),
-		)
-	}
+	): Set<SourceKind> = acceptedForegroundSources(
+		requestedSources,
+		context.foregroundSourceCapabilities(origin),
+	)
 
 	private suspend fun sourcePlanInputs(
 		settings: TrackingParamsState,
