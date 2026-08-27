@@ -128,6 +128,124 @@ class StepFactRevisionDaoTest {
 	}
 
 	@Test
+	fun serviceRunQueryKeepsHistoricalBindingExactAndHonorsRedactedRetraction() = runTest {
+		val runOne = revision(
+			intervalId = null,
+			admissionOrdinal = 11L,
+			effectiveStepCount = 4L,
+		)
+		val runTwo = runOne.copy(
+			logicalFactId = "steps-fact-run-2",
+			mutationId = "mutation-run-2",
+			sourceEventId = "event-run-2",
+			sourceAdmissionOrdinal = 22L,
+			originIdentity = "event-run-2",
+			writerBindingGeneration = 2L,
+			serviceRunId = "run-2",
+			manifestRevision = 2L,
+			effectiveStepCount = 9L,
+			effectChecksum = "checksum-run-2",
+		)
+		dao.insert(runOne) shouldBe 1L
+		dao.insert(runTwo) shouldBe 2L
+
+		dao.latestStatesForServiceRun(
+			writerProjectionId = WRITER_ID,
+			writerProjectionVersion = WRITER_VERSION,
+			writerBindingGeneration = 1L,
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			serviceRunId = SERVICE_RUN_ID,
+			manifestRevisions = listOf(1L),
+		) shouldBe listOf(runOne)
+		dao.latestStatesForServiceRun(
+			writerProjectionId = WRITER_ID,
+			writerProjectionVersion = WRITER_VERSION,
+			writerBindingGeneration = 2L,
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			serviceRunId = "run-2",
+			manifestRevisions = listOf(2L),
+		) shouldBe listOf(runTwo)
+
+		val deletedRunOne = redactedRetraction(semanticRevision = 2L)
+		dao.insert(deletedRunOne) shouldBe 3L
+		dao.latestStatesForServiceRun(
+			writerProjectionId = WRITER_ID,
+			writerProjectionVersion = WRITER_VERSION,
+			writerBindingGeneration = 1L,
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			serviceRunId = SERVICE_RUN_ID,
+			manifestRevisions = listOf(1L),
+		) shouldBe listOf(deletedRunOne)
+		dao.latestStatesForServiceRun(
+			writerProjectionId = WRITER_ID,
+			writerProjectionVersion = WRITER_VERSION,
+			writerBindingGeneration = 2L,
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			serviceRunId = "run-2",
+			manifestRevisions = listOf(2L),
+		) shouldBe listOf(runTwo)
+	}
+
+	@Test
+	fun serviceRunQueryAssignsCorrectionAndRetractionOnlyToTheLatestUpsertScope() = runTest {
+		val runOne = revision(
+			intervalId = null,
+			admissionOrdinal = 11L,
+			effectiveStepCount = 4L,
+		)
+		val movedToRunTwo = runOne.copy(
+			semanticRevision = 2L,
+			mutationId = "mutation-moved-to-run-2",
+			sourceEventId = "event-run-2",
+			sourceAdmissionOrdinal = 22L,
+			originIdentity = "event-run-2",
+			writerBindingGeneration = 2L,
+			serviceRunId = "run-2",
+			manifestRevision = 2L,
+			effectiveStepCount = 9L,
+			effectChecksum = "checksum-moved-to-run-2",
+		)
+		dao.insert(runOne) shouldBe 1L
+		dao.insert(movedToRunTwo) shouldBe 2L
+
+		dao.latestStatesForServiceRun(
+			writerProjectionId = WRITER_ID,
+			writerProjectionVersion = WRITER_VERSION,
+			writerBindingGeneration = 1L,
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			serviceRunId = SERVICE_RUN_ID,
+			manifestRevisions = listOf(1L),
+		).shouldBeEmpty()
+		dao.latestStatesForServiceRun(
+			writerProjectionId = WRITER_ID,
+			writerProjectionVersion = WRITER_VERSION,
+			writerBindingGeneration = 2L,
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			serviceRunId = "run-2",
+			manifestRevisions = listOf(2L),
+		) shouldBe listOf(movedToRunTwo)
+
+		val deletedAfterMove = redactedRetraction(semanticRevision = 3L)
+		dao.insert(deletedAfterMove) shouldBe 3L
+		dao.latestStatesForServiceRun(
+			writerProjectionId = WRITER_ID,
+			writerProjectionVersion = WRITER_VERSION,
+			writerBindingGeneration = 1L,
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			serviceRunId = SERVICE_RUN_ID,
+			manifestRevisions = listOf(1L),
+		).shouldBeEmpty()
+		dao.latestStatesForServiceRun(
+			writerProjectionId = WRITER_ID,
+			writerProjectionVersion = WRITER_VERSION,
+			writerBindingGeneration = 2L,
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			serviceRunId = "run-2",
+			manifestRevisions = listOf(2L),
+		) shouldBe listOf(deletedAfterMove)
+	}
+
+	@Test
 	fun rawRetentionRemovesExpiredUpsertPayloadAndPreservesRedactedRetraction() = runTest {
 		val intervalId = insertInterval(startMs = 1_000L, endMs = 2_000L)
 		val upsert = revision(
@@ -150,6 +268,72 @@ class StepFactRevisionDaoTest {
 			logicalTrackingId = LOGICAL_TRACKING_ID,
 			fromMs = 0L,
 			toMs = 3_000L,
+		).shouldBeEmpty()
+	}
+
+	@Test
+	fun retentionCannotRevealAnOlderScopeWhenTheLatestCorrectionExpires() = runTest {
+		val retainedOldScope = revision(
+			intervalId = null,
+			admissionOrdinal = 11L,
+			effectiveStepCount = 0L,
+		).copy(
+			coverageKind = StepFactRevisionEntity.COVERAGE_COVERED,
+			intervalStartTimeMs = 2_000L,
+			intervalEndTimeMs = 3_000L,
+		)
+		val expiredCurrentScope = retainedOldScope.copy(
+			semanticRevision = 2L,
+			mutationId = "mutation-expired-run-2",
+			sourceEventId = "event-expired-run-2",
+			sourceAdmissionOrdinal = 22L,
+			originIdentity = "event-expired-run-2",
+			writerBindingGeneration = 2L,
+			intervalStartTimeMs = 500L,
+			intervalEndTimeMs = 1_000L,
+			serviceRunId = "run-2",
+			manifestRevision = 2L,
+			effectChecksum = "checksum-expired-run-2",
+		)
+		dao.insert(retainedOldScope) shouldBe 1L
+		dao.insert(expiredCurrentScope) shouldBe 2L
+
+		dao.deleteUpsertsEndingBefore(1_500L) shouldBe 2
+		dao.latestStatesForServiceRun(
+			writerProjectionId = WRITER_ID,
+			writerProjectionVersion = WRITER_VERSION,
+			writerBindingGeneration = 1L,
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			serviceRunId = SERVICE_RUN_ID,
+			manifestRevisions = listOf(1L),
+		).shouldBeEmpty()
+		dao.latestStatesForServiceRun(
+			writerProjectionId = WRITER_ID,
+			writerProjectionVersion = WRITER_VERSION,
+			writerBindingGeneration = 2L,
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			serviceRunId = "run-2",
+			manifestRevisions = listOf(2L),
+		).shouldBeEmpty()
+
+		val redactedDeletion = redactedRetraction(semanticRevision = 3L)
+		(dao.insert(redactedDeletion) != -1L) shouldBe true
+		dao.countAll() shouldBe 1L
+		dao.latestStatesForServiceRun(
+			writerProjectionId = WRITER_ID,
+			writerProjectionVersion = WRITER_VERSION,
+			writerBindingGeneration = 1L,
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			serviceRunId = SERVICE_RUN_ID,
+			manifestRevisions = listOf(1L),
+		).shouldBeEmpty()
+		dao.latestStatesForServiceRun(
+			writerProjectionId = WRITER_ID,
+			writerProjectionVersion = WRITER_VERSION,
+			writerBindingGeneration = 2L,
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			serviceRunId = "run-2",
+			manifestRevisions = listOf(2L),
 		).shouldBeEmpty()
 	}
 

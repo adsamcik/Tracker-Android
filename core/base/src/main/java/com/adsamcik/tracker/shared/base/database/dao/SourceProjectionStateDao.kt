@@ -29,6 +29,19 @@ interface SourceProjectionStateDao {
 	)
 	suspend fun latestProductLane(sourceKind: Int): SourceProductProjectionLaneEntity?
 
+	/** Exact historical lane lookup; retired generations remain valid materialization evidence. */
+	@Query(
+		"SELECT * FROM source_product_projection_lane WHERE source_kind = :sourceKind " +
+			"AND binding_generation = :bindingGeneration " +
+			"AND projection_id = :projectionId AND projection_version = :projectionVersion",
+	)
+	suspend fun productLane(
+		sourceKind: Int,
+		bindingGeneration: Long,
+		projectionId: String,
+		projectionVersion: Int,
+	): SourceProductProjectionLaneEntity?
+
 	@Query(
 		"SELECT lane.* FROM source_product_projection_lane lane WHERE lane.status = 'ACTIVE' " +
 			"AND NOT EXISTS (SELECT 1 FROM source_projection_registration registration " +

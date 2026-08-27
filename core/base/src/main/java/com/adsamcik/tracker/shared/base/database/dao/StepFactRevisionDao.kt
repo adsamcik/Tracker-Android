@@ -100,6 +100,63 @@ interface StepFactRevisionDao {
 		toMs: Long,
 	): List<StepFactRevisionEntity>
 
+	/**
+	 * Latest states for facts whose latest UPSERT belongs to one immutable service-run binding.
+	 *
+	 * Membership follows the fact's latest UPSERT so a correction that changes attribution cannot be
+	 * counted in both its old and new service runs. The outer query then resolves the fact-global
+	 * latest state, allowing a later redacted RETRACT to inherit only that latest UPSERT's scope even
+	 * though deletion deliberately clears its session and interval columns.
+	 */
+	@Query(
+		"""
+		WITH latest_upsert AS (
+			SELECT upsert.* FROM step_fact_revision AS upsert
+			WHERE upsert.writer_projection_id = :writerProjectionId
+			  AND upsert.writer_projection_version = :writerProjectionVersion
+			  AND upsert.operation = 'UPSERT'
+			  AND NOT EXISTS (
+				SELECT 1 FROM step_fact_revision AS newer_upsert
+				WHERE newer_upsert.writer_projection_id = :writerProjectionId
+				  AND newer_upsert.writer_projection_version = :writerProjectionVersion
+				  AND newer_upsert.logical_fact_id = upsert.logical_fact_id
+				  AND newer_upsert.operation = 'UPSERT'
+				  AND newer_upsert.semantic_revision > upsert.semantic_revision
+			  )
+		), scoped_fact AS (
+			SELECT latest_upsert.logical_fact_id,
+			       latest_upsert.interval_start_time_ms AS first_interval_start_time_ms
+			FROM latest_upsert
+			WHERE latest_upsert.writer_binding_generation = :writerBindingGeneration
+			  AND latest_upsert.logical_tracking_id = :logicalTrackingId
+			  AND latest_upsert.service_run_id = :serviceRunId
+			  AND latest_upsert.manifest_revision IN (:manifestRevisions)
+			  AND latest_upsert.purpose = 'SESSION_CAPTURE'
+		)
+		SELECT state.* FROM scoped_fact
+		JOIN step_fact_revision AS state
+		  ON state.writer_projection_id = :writerProjectionId
+		 AND state.writer_projection_version = :writerProjectionVersion
+		 AND state.logical_fact_id = scoped_fact.logical_fact_id
+		WHERE state.semantic_revision = (
+			SELECT MAX(newer.semantic_revision)
+			FROM step_fact_revision AS newer
+			WHERE newer.writer_projection_id = :writerProjectionId
+			  AND newer.writer_projection_version = :writerProjectionVersion
+			  AND newer.logical_fact_id = scoped_fact.logical_fact_id
+		)
+		ORDER BY scoped_fact.first_interval_start_time_ms ASC, state.logical_fact_id ASC
+		""",
+	)
+	suspend fun latestStatesForServiceRun(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		writerBindingGeneration: Long,
+		logicalTrackingId: String,
+		serviceRunId: String,
+		manifestRevisions: List<Long>,
+	): List<StepFactRevisionEntity>
+
 	@Query(
 		"""
 		SELECT SUM(revision.effective_step_count)
@@ -128,13 +185,41 @@ interface StepFactRevisionDao {
 	suspend fun countAll(): Long
 
 	/**
-	 * Removes retained product payloads whose complete interval is below the raw-data floor.
+	 * Removes retained product payloads whose effective interval is below the raw-data floor.
+	 *
+	 * When the latest UPSERT for a fact expires, every older UPSERT revision for that fact is also
+	 * removed. Otherwise retention could expose an older attribution as the new latest state and
+	 * resurrect a corrected service-run value. Independently expired historical revisions are still
+	 * minimized even while a newer effective correction remains retained.
+	 *
 	 * Redacted retractions deliberately survive so a local deletion cannot be undone by import,
 	 * replay, or a future writer version.
 	 */
 	@Query(
-		"DELETE FROM step_fact_revision WHERE operation = 'UPSERT' " +
-			"AND interval_end_time_ms < :beforeMs",
+		"""
+		DELETE FROM step_fact_revision
+		WHERE operation = 'UPSERT' AND (
+			interval_end_time_ms < :beforeMs OR
+			(writer_projection_id, writer_projection_version, logical_fact_id) IN (
+				SELECT latest_upsert.writer_projection_id,
+				       latest_upsert.writer_projection_version,
+				       latest_upsert.logical_fact_id
+				FROM step_fact_revision AS latest_upsert
+				WHERE latest_upsert.operation = 'UPSERT'
+				  AND latest_upsert.interval_end_time_ms < :beforeMs
+				  AND NOT EXISTS (
+					SELECT 1 FROM step_fact_revision AS newer_upsert
+					WHERE newer_upsert.writer_projection_id =
+						latest_upsert.writer_projection_id
+					  AND newer_upsert.writer_projection_version =
+						latest_upsert.writer_projection_version
+					  AND newer_upsert.logical_fact_id = latest_upsert.logical_fact_id
+					  AND newer_upsert.operation = 'UPSERT'
+					  AND newer_upsert.semantic_revision > latest_upsert.semantic_revision
+				  )
+			)
+		)
+		""",
 	)
 	suspend fun deleteUpsertsEndingBefore(beforeMs: Long): Int
 

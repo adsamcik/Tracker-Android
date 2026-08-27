@@ -70,6 +70,28 @@ class SourceProjectionStateExactCursorTest {
 			?.admissionOrdinal shouldBe 8L
 	}
 
+	@Test
+	fun exactHistoricalLookupRetainsRetiredWriterEvidence() = runTest {
+		val lane = lane()
+		dao.installProductLane(lane)
+		dao.retireProductLane(
+			sourceKind = lane.sourceKind,
+			bindingGeneration = lane.bindingGeneration,
+			projectionId = lane.projectionId,
+			projectionVersion = lane.projectionVersion,
+			expectedCurrentOrdinal = lane.contiguousAdmissionOrdinal,
+			updatedAtMs = 2L,
+		) shouldBe 1
+
+		dao.activeProductLane(STEPS_SOURCE_KIND) shouldBe null
+		dao.productLane(
+			sourceKind = STEPS_SOURCE_KIND,
+			bindingGeneration = lane.bindingGeneration,
+			projectionId = WRITER_ID,
+			projectionVersion = WRITER_VERSION,
+		)?.status shouldBe SourceProductProjectionLaneEntity.STATUS_RETIRED
+	}
+
 	private suspend fun advance(
 		lane: SourceProductProjectionLaneEntity,
 		captureModeMask: Long = lane.captureModeMask,
