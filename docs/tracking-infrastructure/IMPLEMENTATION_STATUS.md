@@ -1,13 +1,14 @@
 # Tracking Infrastructure Implementation Status
 
-Last updated: 2026-08-26
+Last updated: 2026-08-27
 
 Execution-grade work items, ownership, dependency gates, verification commands, and rollback
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and
 evidence index.
 
-Current code integration checkpoint: `ef1da62d2` on `dev/v10`
-(`feat(steps): fence durable service-run ownership`), following the dormant Steps writer and
+Current code integration checkpoint: `b20e1efaa` on `dev/v10`
+(`feat(steps): select history by service run`), following queued writer provenance at
+`30051416d`, durable service-run ownership at `ef1da62d2`, and the dormant Steps writer and
 retention checkpoints `8bb6d606f` and `af846143c`. The initial audited baseline was
 `068ebe052`; no pull, rebase, push, publish, deployment, remote configuration, or external rollout
 was performed. The original `.docx` source, verbatim orchestrator prompt, and protected Dashboard
@@ -18,13 +19,19 @@ after each verified chunk.
 
 - Current phase: TI-410 manual/session Steps is `IN_PROGRESS`. Durable logical-session and
   service-run identity now reaches the released session row and dormant Steps facts; a permanent
-  exact destination-owner generation fences both legacy and candidate writes. Legacy generation 1
-  remains the only active owner and there is no production owner-transition caller.
+  exact destination-owner generation fences both legacy and candidate writes. Historical Steps
+  selection now resolves each segment from its immutable service-run manifests, exact product lane,
+  acquisition completeness, retention floor, and current deletion epoch rather than the current
+  global owner. Legacy generation 1 remains the only active owner and there is no production
+  owner-transition caller or production consumer of the new selector.
 - Gate status: `CUTOVER_BLOCKED / PRODUCT_WIRING_BLOCKED`. Three independent R1 adversaries found
   that a global current-owner query would reinterpret older trips, logical-session completeness
   would leak across service runs, rollback/deletion recovery is not yet executable, and a one-shot
-  `Materializing` UI would not converge. The attempted Trip Detail/query wiring and its query-only
-  helpers were removed before `ef1da62d2`. The process-wide startup fence now orders the frozen-v27 drain,
+  `Materializing` UI would not converge. Commit `b20e1efaa` closes the first two historical-read
+  defects without adding a table, generic history platform, rollout binding, or UI. Atomic
+  run-boundary cutover/rollback/deletion reconstruction and an observable production query remain
+  blocking. The attempted Trip Detail/query wiring and its query-only helpers were removed before
+  `ef1da62d2`. The process-wide startup fence now orders the frozen-v27 drain,
   deletion, policy/provider/service entry, and data consumers. Manual and automatic starts use a
   durable prepared intent before external service/FGS acceptance, real start origin and accepted
   type evidence; stop, previous-exit, force-stop, permission-revocation, and deletion paths are
@@ -60,14 +67,14 @@ after each verified chunk.
   Activity `CONTROL`, never captured Activity. Process-wide startup ordering is now locally
   implemented and verified; production backup recovery, portable export/import, partial-database
   containment, and connected startup/reboot proof remain TI-184 gates.
-- Current-worktree verification: at `2b9265ce8`, full serial host suites pass for tracker-engine
-  (`BUILD SUCCESSFUL` in `10m 29s`), Activity (`280/280`), core database (`855/855`), and app
-  (`638/638`), with zero reported failures/errors/skips. The final Location-only v27 recovery class
-  passes `22/22`, and the committed 66-entity Room schema is drift-free. The migration test compiles;
-  the exact connected rerun assembled but could not execute because no device was connected. The
-  prior eight populated v27→v28 cases remain green on `Medium_Phone(AVD) - 16`, but do not replace an
-  exact-boundary device rerun before schema freeze. Exact commands are indexed in
-  `VERIFICATION_MATRIX.md`. These are host plus prior migration-device checks, not
+- Current-worktree verification: at `b20e1efaa`, the complete affected serial host run passes core
+  database `876/876`, stats data `139/139`, and tracker engine `1,649/1,649`, with zero
+  failures/errors/skips, plus `:app:assembleDebug`; `BUILD SUCCESSFUL in 8m 46s`, 720 tasks. The
+  final focused selector/DAO gate passes `33/33`, and post-commit `checkRoomSchemaDrift` passes in
+  30s with 46 tasks. The exact populated v27→v28 suite most recently remains `8/8` on
+  `Medium_Phone(AVD) - 16` at the immediately preceding queued-provenance boundary; this selector
+  slice changes no entity or migration and the committed `28.json` has no diff. Exact commands are
+  indexed in `VERIFICATION_MATRIX.md`. These are host plus prior migration-device checks, not
   process/reboot/FGS, OEM, production-query, device-energy, or full-repository proof.
 - Focused source reviews: all six complete — Location (`DEGRADED`), Wi-Fi (`FAILED`), Cell (`FAILED`), Activity (`FAILED`), Steps (`DEGRADED`), Pressure (`FAILED`)
 - Fresh adversarial review: prior R0/R1/R1b/R2 and adaptive-collections R3/R4 are complete. The
@@ -966,3 +973,58 @@ then implement the narrow cutover coordinator. The coordinator must latch an in-
 switch the owner generation transactionally, survive process death/rollback, reconstruct a coherent
 post-deletion generation, and prove continuous query/export/deletion visibility. Production query
 and UI wiring remain prohibited until those assertions pass.
+
+## Segment-effective Steps history checkpoint (2026-08-27)
+
+### Outcome
+
+Commit `b20e1efaa` implements the dormant historical-read half of the manual/session Steps vertical.
+One internal selector resolves a `SessionSegment` from its exact logical session, service run,
+checksum-valid manifest revisions, immutable writer binding, exact active or retired product lane,
+run-scoped acquisition completeness, materializer cursor, retained-data floor, and collected-data
+epoch. It never reads the current destination owner to reinterpret old history. No schema, provider,
+timer, poller, rollout binding, export adapter, production repository, or UI surface was added.
+
+The result keeps availability, evidence, materialization, and coverage orthogonal. Disabled capture,
+baseline-only evidence, covered zero, positive lower bounds, partial coverage, deletion, retention
+loss, materializing, degraded legacy evidence, and failed invariants cannot collapse into an
+invented zero. A legacy positive value remains visible but explicitly replay-unverified; legacy zero
+and unavailable historical input are never promoted to verified data.
+
+### Evidence
+
+- Three independent focused read-only audits covered historical writer selection, the smallest
+  run-boundary cutover design, and downstream consumer truth. They converged on immutable manifests
+  plus `SessionSegment.serviceRunId`, no new table or generic `DayOverview` platform, no mid-run
+  writer switch, and no production consumer until all numeric consumers can preserve completeness.
+- Data adversaries found and drove corrections for retention-floor filtering, reattribution across
+  service runs, redacted retractions, stale deletion epochs, overflow, and retired-lane liveness. A
+  fresh final adversary then found older-scope resurrection after retention and malformed lane
+  lifecycle acceptance; both were corrected before integration. No scoped `BLOCKER` or `HIGH`
+  remains in the selector checkpoint.
+- Focused Room/selector verification: `33/33` — `StepFactRevisionDaoTest` `9/9`,
+  `SourceProjectionStateExactCursorTest` `3/3`, and `StepsSegmentHistorySelectorTest` `21/21`.
+- Complete affected regression plus debug graph: core database `876/876`, stats data `139/139`,
+  tracker engine `1,649/1,649`, all zero failures/errors/skips, and `:app:assembleDebug`;
+  `BUILD SUCCESSFUL in 8m 46s`, 720 tasks.
+- Post-commit `checkRoomSchemaDrift`: `BUILD SUCCESSFUL in 30s`, 46 tasks; `28.json` unchanged.
+
+### Gate status
+
+- Current phase: TI-410 manual/session Steps, `IN_PROGRESS`.
+- Passed: immutable historical writer selection; run-scoped completeness and exact lane progress;
+  current-owner independence; correction/reattribution isolation; retained-floor partial truth;
+  redacted deletion and collected-data-epoch fencing; retired-lane evidence; overflow and malformed
+  lifecycle fail-closed behavior; no new acquisition or battery work.
+- Still blocked: atomic run-boundary activation/cutover/rollback; process-death interleaves;
+  post-deletion generation reconstruction; typed portable export/import; an observable production
+  query and every numeric consumer; device/provider proof; automatic and ambient Steps; all other
+  source verticals; broader day product/UI; rollout.
+
+### Next wave
+
+Implement the narrow Steps cutover coordinator. It must refuse an active service run, fence and
+drain the exact legacy generation, install the candidate lane and replacement owner atomically,
+contain rollback without activating two writers, and re-arm a coherent empty generation after full
+deletion. Only after its crash/interleave matrix passes may the typed selector become observable
+through the existing production Trip Detail/query boundary.

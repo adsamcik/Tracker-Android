@@ -1,6 +1,6 @@
 # Tracking Infrastructure Decisions
 
-Last updated: 2026-08-24
+Last updated: 2026-08-27
 
 Each entry records repository evidence and does not duplicate the final architecture document.
 
@@ -1064,3 +1064,32 @@ Each entry records repository evidence and does not duplicate the final architec
   selection, rollback/deletion reconstruction, process-death tests, and production visibility.
   Logical deletion is proven; forensic byte erasure from raw SQLite backups remains an explicit
   separate privacy verification boundary.
+
+## TI-D106 — Historical Steps selection follows immutable service-run writer intent
+
+- Status: `ACCEPTED_AND_IMPLEMENTED_DORMANT` at `b20e1efaa`; cutover and production query `BLOCKED`
+- Owner/date: lead orchestrator after three focused design audits and fresh data adversaries,
+  2026-08-27
+- Alternatives: select all history from the current global owner; add another writer-binding table;
+  backfill every legacy segment before any read; use immutable service-run manifests and exact lane
+  evidence with typed incompleteness while keeping the selector internal
+- Evidence: a global-owner selector would hide legacy history immediately after candidate cutover,
+  while logical-session completeness could mix separate physical runs. Retention could expose an
+  older corrected attribution, a redacted tombstone could inherit stale epoch authority, and a
+  retired or malformed lane could remain `MATERIALIZING` forever. `SessionSegment` already carries
+  the exact logical/session-run bridge, every effective manifest carries writer provenance, and the
+  source-local lane and completeness tables already carry the exact evidence needed; another schema
+  or generic history platform would not resolve these timelines.
+- Decision: one Steps-specific selector verifies service-run membership and manifest checksums,
+  rejects mixed writers within a run, resolves the exact active or retired writer lane, and selects
+  fact state by the latest UPSERT's effective run scope plus the fact-global latest revision.
+  Availability, evidence, materialization, and coverage remain independent. Retention removes all
+  older UPSERT revisions when the latest effective UPSERT expires, preserving redacted tombstones so
+  an older scope cannot resurrect. Candidate values require exact acquisition completeness, lane
+  progress, retention, and collected-data-epoch evidence; legacy positive values remain explicitly
+  degraded and legacy zero never becomes verified zero.
+- Consequences: historical reads no longer depend on present write authority and incur no provider,
+  wakeup, polling, or schema cost. The selector stays internal and production-inert until a
+  run-boundary cutover coordinator, rollback/deletion reconstruction, typed export/import, observable
+  query, and completeness-safe consumers pass. This decision does not authorize automatic or
+  ambient Steps, another source materializer, `DayOverview`, UI wiring, or rollout.
