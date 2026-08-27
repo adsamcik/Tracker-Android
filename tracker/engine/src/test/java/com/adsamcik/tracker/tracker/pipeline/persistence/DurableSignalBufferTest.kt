@@ -164,6 +164,9 @@ class DurableSignalBufferTest {
 
 		override suspend fun hasAny(): Boolean = store.isNotEmpty()
 
+		override suspend fun hasStepsWriterCommand(): Boolean =
+			store.any { it.stepsWriterOwner != null }
+
 		override fun deleteAll() {
 			store.clear()
 		}

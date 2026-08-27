@@ -505,6 +505,29 @@ class ArchitecturalFitnessTest {
 	}
 
 	@Nested
+	inner class `Collected data deletion authority` {
+		@Test
+		fun `production callers use the orchestrated deletion service`() {
+			val allowedCaller =
+				"app/src/main/java/com/adsamcik/tracker/app/settings/CollectedDataDeletionService.kt:"
+			val violations = findPatternMatching(
+				sourceDir = projectRoot,
+				pattern = Regex("""\bAppDatabase\.deleteAllCollectedData\s*\("""),
+				excludeDirs = STANDARD_EXCLUDES + listOf(
+					"src/test",
+					"src/androidTest",
+					"src/testFixtures",
+				),
+				skipComments = true,
+			).filterNot { violation ->
+				violation.replace('\\', '/').startsWith(allowedCaller)
+			}
+
+			violations.shouldBeEmpty()
+		}
+	}
+
+	@Nested
 	inner class `Direct Dispatchers ban` {
 		@Test
 		fun `no module imports Dispatchers IO directly`() {

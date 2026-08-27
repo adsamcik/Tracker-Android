@@ -64,6 +64,10 @@ interface StepIntervalDao : BaseDao<StepInterval> {
 	@Query("SELECT * FROM step_interval ORDER BY end_time_ms DESC LIMIT 1")
 	suspend fun getLatest(): StepInterval?
 
+	/** True when the legacy Steps destination still contains any collected row. */
+	@Query("SELECT EXISTS(SELECT 1 FROM step_interval LIMIT 1)")
+	suspend fun hasAny(): Boolean
+
 	/**
 	 * Delete all step intervals.
 	 */

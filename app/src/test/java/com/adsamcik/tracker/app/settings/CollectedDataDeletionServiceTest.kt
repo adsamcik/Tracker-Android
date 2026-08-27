@@ -363,6 +363,7 @@ class CollectedDataDeletionServiceTest {
 			ExportPlansProto.getDefaultInstance()
 		}
 		val service = createService(
+			postDatabaseDeletion = { operations += "writer-rearm" },
 			traceboxDataDeletion = {
 				operations += "tracebox"
 				true
@@ -373,8 +374,41 @@ class CollectedDataDeletionServiceTest {
 
 		service.deleteAll()
 
-		operations shouldBe listOf("tracker", "watermarks", "tracebox")
+		operations shouldBe listOf("tracker", "writer-rearm", "watermarks", "tracebox")
 		markerFile.exists() shouldBe false
+	}
+
+	@Test
+	fun `writer rearm failure retains marker and closed gate until full retry succeeds`() = runTest {
+		val operations = mutableListOf<String>()
+		var rearmComplete = false
+		val service = createService(
+			postDatabaseDeletion = {
+				operations += "writer-rearm"
+				if (!rearmComplete) error("writer authority unavailable")
+			},
+		) { _, _, _, _ -> operations += "tracker" }
+
+		runCatching { service.deleteAll() }.exceptionOrNull()
+			.shouldBeInstanceOf<IllegalStateException>()
+
+		operations shouldBe listOf("tracker", "writer-rearm")
+		markerFile.exists() shouldBe true
+		startupDeletionBarrier.isClosed shouldBe true
+		verify(exactly = 0) { automaticControlRestorer.schedule(any()) }
+
+		rearmComplete = true
+		service.reconcilePendingDeletion()
+
+		operations shouldBe listOf(
+			"tracker",
+			"writer-rearm",
+			"tracker",
+			"writer-rearm",
+		)
+		markerFile.exists() shouldBe false
+		startupDeletionBarrier.isClosed shouldBe false
+		verify(exactly = 1) { automaticControlRestorer.schedule(1L) }
 	}
 
 	@Test
@@ -410,6 +444,49 @@ class CollectedDataDeletionServiceTest {
 		}
 
 	@Test
+	fun `failure after writer rearm repeats deletion and advances writer authority again`() = runTest {
+		val operations = mutableListOf<String>()
+		var rearmGeneration = 0
+		var traceboxComplete = false
+		coEvery { exportPlanStore.resetAllWatermarks() } coAnswers {
+			operations += "watermarks"
+			ExportPlansProto.getDefaultInstance()
+		}
+		val service = createService(
+			postDatabaseDeletion = {
+				rearmGeneration += 1
+				operations += "writer-rearm-$rearmGeneration"
+			},
+			traceboxDataDeletion = {
+				operations += "tracebox"
+				traceboxComplete
+			},
+		) { _, _, _, _ -> operations += "tracker" }
+
+		runCatching { service.deleteAll() }.exceptionOrNull()
+			.shouldBeInstanceOf<DatabaseMigrationBackupException>()
+		markerFile.exists() shouldBe true
+		startupDeletionBarrier.isClosed shouldBe true
+
+		traceboxComplete = true
+		service.reconcilePendingDeletion()
+
+		operations shouldBe listOf(
+			"tracker",
+			"writer-rearm-1",
+			"watermarks",
+			"tracebox",
+			"tracker",
+			"writer-rearm-2",
+			"watermarks",
+			"tracebox",
+		)
+		rearmGeneration shouldBe 2
+		markerFile.exists() shouldBe false
+		startupDeletionBarrier.isClosed shouldBe false
+	}
+
+	@Test
 	fun `Tracebox exception retains marker and is retried`() = runTest {
 		var deletionAttempts = 0
 		var shouldFail = true
@@ -437,6 +514,7 @@ class CollectedDataDeletionServiceTest {
 
 	private fun createService(
 		traceboxDataDeletion: suspend () -> Boolean = { true },
+		postDatabaseDeletion: suspend (Long) -> Unit = { },
 		activityRegistrationArbiterProvider: Provider<ActivityRegistrationArbiter>? = null,
 		automaticControlRestorer: PostDeletionAutomaticControlRestorer =
 			this.automaticControlRestorer,
@@ -453,6 +531,7 @@ class CollectedDataDeletionServiceTest {
 		automaticControlRestorer = automaticControlRestorer,
 		traceboxDataDeletion = traceboxDataDeletion,
 		appDatabaseDeletion = appDatabaseDeletion,
+		postDatabaseDeletion = postDatabaseDeletion,
 		markerFile = markerFile,
 		directorySync = directorySync,
 	)

@@ -63,6 +63,7 @@ import com.adsamcik.tracker.shared.base.time.SystemClock
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import com.adsamcik.tracker.tracker.api.AutomaticControlRecoveryScheduler
 import com.adsamcik.tracker.tracker.service.ActivityWatcherController
+import com.adsamcik.tracker.tracker.source.coordinator.StepsSessionFactWriterTransitionCoordinator
 import com.adsamcik.tracker.shared.base.location.DefaultUiLocationProvider
 import com.adsamcik.tracker.shared.base.location.UiLocationProvider
 import com.google.android.gms.location.LocationServices
@@ -207,6 +208,7 @@ object InfrastructureModule {
 		startupDeletionBarrier: TrackingStartupDeletionBarrier,
 		activityRegistrationArbiter: Provider<ActivityRegistrationArbiter>,
 		automaticControlRestorer: PostDeletionAutomaticControlRestorer,
+		stepsWriterTransitionCoordinator: Provider<StepsSessionFactWriterTransitionCoordinator>,
         dispatchersProvider: DispatchersProvider,
         traceboxHandleProvider: TrackerTraceboxHandleProvider,
     ): CollectedDataDeletionService = DefaultCollectedDataDeletionService(
@@ -218,6 +220,9 @@ object InfrastructureModule {
 		startupDeletionBarrier = startupDeletionBarrier,
 		activityRegistrationArbiterProvider = activityRegistrationArbiter,
 		automaticControlRestorer = automaticControlRestorer,
+		postDatabaseDeletion = { updatedAtMs ->
+			stepsWriterTransitionCoordinator.get().rearmAfterFullDeletion(updatedAtMs)
+		},
         traceboxDataDeletion = {
             withContext(dispatchersProvider.io) {
                 traceboxHandleProvider.handle.delete(DeleteRequest.ALL_TRACEBOX_DATA) ==

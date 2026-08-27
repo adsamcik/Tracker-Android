@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.tracker.source.coordinator
 
-import android.os.SystemClock
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
@@ -17,6 +16,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
+import com.adsamcik.tracker.shared.base.time.Clock
 import com.adsamcik.tracker.tracker.api.PreparedTrackingStartToken
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
@@ -88,6 +89,8 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 	private val automaticStartActions: ActivityAutomaticStartActionRepository,
 	private val activityAutomationDrainSignal: ActivityAutomationDrainSignal,
 	private val activityAutomationEpochAuthority: ActivityAutomationEpochAuthority,
+	private val bootClockDomainProvider: BootClockDomainProvider,
+	private val clock: Clock,
 	private val rolloutStore: TrackingRolloutStateStore = RoomTrackingRolloutStateStore(database),
 	private val sourceBroker: SourceBroker = SourceBroker(database),
 ) {
@@ -137,7 +140,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			return SessionStartPreparationResult.Rejected(it)
 		}
 		val ownerToken = preparedStartOwner(delivery.token)
-		val lease = acquireLease(ownerToken, request.clockDomainId, request.elapsedRealtimeNanos)
+		val lease = acquireLease(ownerToken)
 			?: return SessionStartPreparationResult.Busy
 		var keepLease = false
 		return try {
@@ -161,7 +164,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			keepLease = result is SessionStartPreparationResult.Prepared
 			result
 		} finally {
-			if (!keepLease) releaseLease(lease, request.elapsedRealtimeNanos)
+			if (!keepLease) releaseLease(lease)
 		}
 	}
 
@@ -182,6 +185,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		database.withTransaction {
 			requireLeaseInTransaction(lease)
 			failure = validateSourcePolicyInTransaction(request.plan)
+				?: validateRolloutInTransaction(request.rolloutRevision, request.plan)
 			if (failure != null || database.sourceSessionDao().activeSession() != null) return@withTransaction
 			val automaticAction = request.automaticTrigger?.let { trigger ->
 				when (val validation = automaticStartActions.validateForLifecycleIntentTransaction(trigger)) {
@@ -342,6 +346,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		database.withTransaction {
 			requireLeaseInTransaction(lease)
 			failure = validateSourcePolicyInTransaction(request.plan)
+				?: validateRolloutInTransaction(request.rolloutRevision, request.plan)
 			if (failure != null) return@withTransaction
 			val dao = database.sourceSessionDao()
 			val current = requireNotNull(dao.session(session.logicalTrackingId))
@@ -520,11 +525,9 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		wallTimeMs: Long,
 		failureCode: String,
 	): Boolean {
-		val lease = acquireLease(
-			"continuation-failure:${UUID.randomUUID()}",
-			currentBootId,
-			elapsedRealtimeNanos,
-		) ?: return false
+		require(currentBootId.isNotBlank())
+		require(elapsedRealtimeNanos >= 0L)
+		val lease = acquireLease("continuation-failure:${UUID.randomUUID()}") ?: return false
 		return try {
 			val eligible = database.withTransaction {
 				requireLeaseInTransaction(lease)
@@ -551,7 +554,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					terminal.failureCode == failureCode
 			} == true
 		} finally {
-			releaseLease(lease, elapsedRealtimeNanos)
+			releaseLease(lease)
 		}
 	}
 
@@ -602,6 +605,9 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
 	): PreparedSessionClaimResult {
+		if (validateCanonicalBootId(currentBootId) != null) {
+			return PreparedSessionClaimResult.Rejected("PREPARED_START_OLD_BOOT")
+		}
 		val initial = database.sourceSessionDao().serviceRunByDeliveryToken(token.value)
 			?: return PreparedSessionClaimResult.Rejected("PREPARED_START_NOT_FOUND")
 		if (initial.startCommandGeneration != commandGeneration) {
@@ -613,7 +619,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		if (initial.completedAtMs != null || initial.state in TERMINAL_STATES ||
 			initial.androidDeliveryState == AndroidStartDeliveryState.TERMINAL_FAILURE.name
 		) return PreparedSessionClaimResult.Rejected("PREPARED_START_TERMINAL")
-		val lease = acquireLease(preparedStartOwner(token), currentBootId, elapsedRealtimeNanos)
+		val lease = acquireLease(preparedStartOwner(token))
 			?: return PreparedSessionClaimResult.Rejected("PREPARED_START_LEASE_UNAVAILABLE")
 		if (lease.generation != initial.leaseGeneration) {
 			terminalizeExpiredPreparedStart(
@@ -623,7 +629,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				elapsedRealtimeNanos,
 				wallTimeMs,
 			)
-			releaseLease(lease, elapsedRealtimeNanos)
+			releaseLease(lease)
 			return PreparedSessionClaimResult.Rejected("PREPARED_START_LEASE_EXPIRED")
 		}
 		var rejection: String? = null
@@ -741,7 +747,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			)
 		}
 		if (claimed == null) {
-			releaseLease(lease, elapsedRealtimeNanos)
+			releaseLease(lease)
 			return PreparedSessionClaimResult.Rejected(rejection ?: "PREPARED_START_CLAIM_FAILED")
 		}
 		return PreparedSessionClaimResult.Claimed(requireNotNull(claimed))
@@ -755,9 +761,10 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
 	): Boolean {
+		if (validateCanonicalBootId(currentBootId) != null) return false
 		val run = database.sourceSessionDao().serviceRunByDeliveryToken(token.value) ?: return false
 		if (run.startCommandGeneration != commandGeneration || run.bootId != currentBootId) return false
-		val lease = acquireLease(preparedStartOwner(token), currentBootId, elapsedRealtimeNanos) ?: return false
+		val lease = acquireLease(preparedStartOwner(token)) ?: return false
 		if (lease.generation != run.leaseGeneration) {
 			terminalizeExpiredPreparedStart(
 				token,
@@ -766,7 +773,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				elapsedRealtimeNanos,
 				wallTimeMs,
 			)
-			releaseLease(lease, elapsedRealtimeNanos)
+			releaseLease(lease)
 			return false
 		}
 		return database.withTransaction {
@@ -841,12 +848,15 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
 	): SessionStartResult {
+		if (validateCanonicalBootId(currentBootId) != null) {
+			return SessionStartResult.InvalidIntent("PREPARED_START_OLD_BOOT")
+		}
 		val run = database.sourceSessionDao().serviceRunByDeliveryToken(token.value)
 			?: return SessionStartResult.InvalidIntent("PREPARED_START_NOT_FOUND")
 		if (run.startCommandGeneration != commandGeneration || run.bootId != currentBootId ||
 			run.androidDeliveryState != AndroidStartDeliveryState.FOREGROUND_ACCEPTED.name
 		) return SessionStartResult.InvalidIntent("PREPARED_START_NOT_FOREGROUND_ACCEPTED")
-		val lease = acquireLease(preparedStartOwner(token), currentBootId, elapsedRealtimeNanos)
+		val lease = acquireLease(preparedStartOwner(token))
 			?: return SessionStartResult.Busy
 		if (lease.generation != run.leaseGeneration) {
 			terminalizeExpiredPreparedStart(
@@ -856,7 +866,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				elapsedRealtimeNanos,
 				wallTimeMs,
 			)
-			releaseLease(lease, elapsedRealtimeNanos)
+			releaseLease(lease)
 			return SessionStartResult.InvalidIntent("PREPARED_START_LEASE_EXPIRED")
 		}
 		return try {
@@ -961,7 +971,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				}
 			}
 		} finally {
-			releaseLease(lease, elapsedRealtimeNanos)
+			releaseLease(lease)
 		}
 	}
 
@@ -977,7 +987,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		if (initial.startCommandGeneration != commandGeneration) return false
 		if (initial.completedAtMs != null || initial.state in TERMINAL_STATES) return true
 		if (initial.bootId != currentBootId) return false
-		val lease = acquireLease(preparedStartOwner(token), currentBootId, elapsedRealtimeNanos) ?: return false
+		val lease = acquireLease(preparedStartOwner(token)) ?: return false
 		if (lease.generation != initial.leaseGeneration) {
 			val finalized = terminalizeExpiredPreparedStart(
 				token,
@@ -987,7 +997,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				wallTimeMs,
 				failureCode,
 			)
-			releaseLease(lease, elapsedRealtimeNanos)
+			releaseLease(lease)
 			return finalized
 		}
 		return try {
@@ -1083,7 +1093,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				true
 			}
 		} finally {
-			releaseLease(lease, elapsedRealtimeNanos)
+			releaseLease(lease)
 		}
 	}
 
@@ -1207,7 +1217,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		val rollout = rolloutStore.load()
 		val rolloutFailure = rollout.validateEventPlan(request.rolloutRevision, request.plan)
 		if (rolloutFailure != null) return SessionStartResult.InvalidRollout(rolloutFailure)
-		val lease = acquireLease(request.ownerToken, request.clockDomainId, request.elapsedRealtimeNanos)
+		val lease = acquireLease(request.ownerToken)
 			?: return SessionStartResult.Busy
 		return try {
 			validateSourcePolicy(request.plan)?.let { return SessionStartResult.InvalidPolicy(it) }
@@ -1235,6 +1245,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			}
 			val serviceRunId = serviceRunIdFor(request)
 			var intentPolicyFailure: String? = null
+			var intentRolloutFailure: String? = null
 			var automaticActionFailure: String? = null
 			var automaticActionAlreadyAccepted = false
 			var persisted: PersistedLifecycleIntent? = null
@@ -1245,6 +1256,11 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				requireLeaseInTransaction(lease)
 				intentPolicyFailure = validateSourcePolicyInTransaction(request.plan)
 				if (intentPolicyFailure != null) return@withTransaction false
+				intentRolloutFailure = validateRolloutInTransaction(
+					request.rolloutRevision,
+					request.plan,
+				)
+				if (intentRolloutFailure != null) return@withTransaction false
 				if (database.sourceSessionDao().activeSession() != null) return@withTransaction false
 				val automaticAction = request.automaticTrigger?.let { trigger ->
 					when (val validation =
@@ -1391,6 +1407,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				true
 			}
 			intentPolicyFailure?.let { return SessionStartResult.InvalidPolicy(it) }
+			intentRolloutFailure?.let { return SessionStartResult.InvalidRollout(it) }
 			automaticActionFailure?.let { return SessionStartResult.InvalidIntent(it) }
 			if (automaticActionAlreadyAccepted) return SessionStartResult.AlreadyActive
 			if (!created) return SessionStartResult.AlreadyActive
@@ -1479,7 +1496,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				}
 			}
 		} finally {
-			releaseLease(lease, request.elapsedRealtimeNanos)
+			releaseLease(lease)
 		}
 	}
 
@@ -1501,11 +1518,14 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		}
 		val serviceRunId = serviceRunIdFor(request)
 		var policyFailure: String? = null
+		var rolloutFailure: String? = null
 		var persisted: PersistedLifecycleIntent? = null
 		database.withTransaction {
 			requireLeaseInTransaction(lease)
 			policyFailure = validateSourcePolicyInTransaction(request.plan)
 			if (policyFailure != null) return@withTransaction
+			rolloutFailure = validateRolloutInTransaction(request.rolloutRevision, request.plan)
+			if (rolloutFailure != null) return@withTransaction
 			val current = requireNotNull(database.sourceSessionDao().session(session.logicalTrackingId))
 			check(current.lifecycleRevision == session.lifecycleRevision) { "Session changed during recovery" }
 			val manifestRevision = requireNotNull(current.currentManifestRevision) + 1L
@@ -1604,6 +1624,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			persisted = draft
 		}
 		policyFailure?.let { return SessionStartResult.InvalidPolicy(it) }
+		rolloutFailure?.let { return SessionStartResult.InvalidRollout(it) }
 		val lifecycleIntent = requireNotNull(persisted)
 		val sink = sinkFactory.forSession(session.logicalTrackingId, serviceRunId)
 		val executions = reconcileStartActions(
@@ -1709,6 +1730,9 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 	}
 
 	suspend fun reconfigure(request: SessionReconfigureRequest): SessionReconfigureResult {
+		validateCanonicalBootId(request.clockDomainId)?.let {
+			return SessionReconfigureResult.InvalidIntent(it)
+		}
 		validateSourcePolicy(request.plan)?.let { return SessionReconfigureResult.InvalidPolicy(it) }
 		validateControlDependencies(request.plan.sourcePolicyRevision, request.controlDependencies)?.let {
 			return SessionReconfigureResult.InvalidPolicy(it)
@@ -1718,7 +1742,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			?: return SessionReconfigureResult.NoActiveSession
 		val rolloutFailure = rollout.validateEventPlan(sessionForRollout.rolloutRevision, request.plan)
 		if (rolloutFailure != null) return SessionReconfigureResult.InvalidRollout(rolloutFailure)
-		val lease = acquireLease(request.ownerToken, request.clockDomainId, request.elapsedRealtimeNanos)
+		val lease = acquireLease(request.ownerToken)
 			?: return SessionReconfigureResult.Busy
 		return try {
 			validateSourcePolicy(request.plan)?.let { return SessionReconfigureResult.InvalidPolicy(it) }
@@ -1967,7 +1991,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			}
 			SessionReconfigureResult.Applied(request.plan.revision, applied, status)
 		} finally {
-			releaseLease(lease, request.elapsedRealtimeNanos)
+			releaseLease(lease)
 		}
 	}
 
@@ -2011,37 +2035,63 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		return null
 	}
 
-	private fun validateStartIntent(request: SessionStartRequest): String? = when {
-		request.clockDomainId.isBlank() -> "BOOT_ID_MISSING"
-		request.zoneId.isBlank() -> "ZONE_ID_MISSING"
-		request.serviceRunId?.isBlank() == true -> "SERVICE_RUN_ID_INVALID"
-		request.serviceRunId == LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID -> "SERVICE_RUN_ID_RESERVED"
-		request.origin == SessionStartOrigin.RECOVERY && request.logicalTrackingId == null -> "RECOVERY_ID_MISSING"
-		request.continuationAuthority != null &&
-			(request.logicalTrackingId == null || request.serviceRunId == null) ->
-			"CONTINUATION_ID_MISSING"
-		request.continuationAuthority != null &&
-			request.continuationAuthority.previousServiceRunId == request.serviceRunId ->
-			"CONTINUATION_RUN_ID_REUSED"
-		request.continuationAuthority != null &&
-			request.origin == SessionStartOrigin.AUTOMATIC_BACKGROUND_START ->
-			"AUTOMATIC_CONTINUATION_FORBIDDEN"
-		request.origin == SessionStartOrigin.POLICY_RECONCILIATION -> "POLICY_RECONCILIATION_START_FORBIDDEN"
-		request.origin == SessionStartOrigin.AUTOMATIC_BACKGROUND_START &&
-			SourceKind.ACTIVITY !in request.controlDependencies -> "AUTOMATIC_ACTIVITY_CONTROL_MISSING"
-		request.origin == SessionStartOrigin.AUTOMATIC_BACKGROUND_START &&
-			request.automaticTrigger == null -> "AUTOMATIC_TRIGGER_MISSING"
-		request.origin != SessionStartOrigin.AUTOMATIC_BACKGROUND_START &&
-			request.automaticTrigger != null -> "AUTOMATIC_TRIGGER_UNEXPECTED"
-		request.automaticTrigger?.bootId?.let { it != request.clockDomainId } == true ->
-			"AUTOMATIC_TRIGGER_BOOT_STALE"
-		request.automaticTrigger?.let { trigger ->
-			request.elapsedRealtimeNanos < trigger.receivedElapsedRealtimeNanos ||
-				request.elapsedRealtimeNanos > trigger.expiresElapsedRealtimeNanos
-		} == true -> "AUTOMATIC_TRIGGER_STALE"
-		request.automaticTrigger?.let { trigger ->
-			trigger.sourcePolicyRevision != request.plan.sourcePolicyRevision
-		} == true -> "AUTOMATIC_TRIGGER_EPOCH_STALE"
+	/**
+	 * Closes the stale-preparation race with a source-writer cutover. The caller already owns the
+	 * session coordinator lease; re-reading the durable rollout in the same transaction that creates
+	 * the run guarantees a start either precedes the cutover or uses its new writer generation.
+	 */
+	private suspend fun validateRolloutInTransaction(
+		expectedRevision: Long,
+		plan: AcquisitionPlanRevision,
+	): String? {
+		val rollout = database.trackingRolloutStateDao().get()
+			?.decodeCurrentModelOrNull()
+			?: return "ROLLOUT_STATE_MISSING_OR_UNREADABLE"
+		return rollout.validateEventPlan(expectedRevision, plan)
+	}
+
+	private fun validateStartIntent(request: SessionStartRequest): String? {
+		validateCanonicalBootId(request.clockDomainId)?.let { return it }
+		return when {
+			request.zoneId.isBlank() -> "ZONE_ID_MISSING"
+			request.serviceRunId?.isBlank() == true -> "SERVICE_RUN_ID_INVALID"
+			request.serviceRunId == LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID -> "SERVICE_RUN_ID_RESERVED"
+			request.origin == SessionStartOrigin.RECOVERY && request.logicalTrackingId == null ->
+				"RECOVERY_ID_MISSING"
+			request.continuationAuthority != null &&
+				(request.logicalTrackingId == null || request.serviceRunId == null) ->
+				"CONTINUATION_ID_MISSING"
+			request.continuationAuthority != null &&
+				request.continuationAuthority.previousServiceRunId == request.serviceRunId ->
+				"CONTINUATION_RUN_ID_REUSED"
+			request.continuationAuthority != null &&
+				request.origin == SessionStartOrigin.AUTOMATIC_BACKGROUND_START ->
+				"AUTOMATIC_CONTINUATION_FORBIDDEN"
+			request.origin == SessionStartOrigin.POLICY_RECONCILIATION ->
+				"POLICY_RECONCILIATION_START_FORBIDDEN"
+			request.origin == SessionStartOrigin.AUTOMATIC_BACKGROUND_START &&
+				SourceKind.ACTIVITY !in request.controlDependencies ->
+				"AUTOMATIC_ACTIVITY_CONTROL_MISSING"
+			request.origin == SessionStartOrigin.AUTOMATIC_BACKGROUND_START &&
+				request.automaticTrigger == null -> "AUTOMATIC_TRIGGER_MISSING"
+			request.origin != SessionStartOrigin.AUTOMATIC_BACKGROUND_START &&
+				request.automaticTrigger != null -> "AUTOMATIC_TRIGGER_UNEXPECTED"
+			request.automaticTrigger?.bootId?.let { it != request.clockDomainId } == true ->
+				"AUTOMATIC_TRIGGER_BOOT_STALE"
+			request.automaticTrigger?.let { trigger ->
+				request.elapsedRealtimeNanos < trigger.receivedElapsedRealtimeNanos ||
+					request.elapsedRealtimeNanos > trigger.expiresElapsedRealtimeNanos
+			} == true -> "AUTOMATIC_TRIGGER_STALE"
+			request.automaticTrigger?.let { trigger ->
+				trigger.sourcePolicyRevision != request.plan.sourcePolicyRevision
+			} == true -> "AUTOMATIC_TRIGGER_EPOCH_STALE"
+			else -> null
+		}
+	}
+
+	private fun validateCanonicalBootId(requestBootId: String): String? = when {
+		requestBootId.isBlank() -> "BOOT_ID_MISSING"
+		requestBootId != bootClockDomainProvider.current() -> "BOOT_ID_STALE"
 		else -> null
 	}
 
@@ -2356,7 +2406,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			val action = requireNotNull(actionBySource[sourcePlan.source.stableCode])
 			val binding = requireNotNull(bindingBySource[sourcePlan.source.stableCode])
 			val nowElapsed = monotonicNowAtLeast(elapsedRealtimeNanos)
-			renewLease(lease, nowElapsed)
+			renewLease(lease)
 			val claimed = claimLifecycleAction(action.actionId, lease, nowElapsed)
 			if (claimed == null) {
 				return@map SourceActionExecution(
@@ -2429,7 +2479,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		return plan.plans.values.sortedBy { it.source.stableCode }.map { sourcePlan ->
 			val action = requireNotNull(actionBySource[sourcePlan.source.stableCode])
 			val nowElapsed = monotonicNowAtLeast(elapsedRealtimeNanos)
-			renewLease(lease, nowElapsed)
+			renewLease(lease)
 			val claimed = claimLifecycleAction(action.actionId, lease, nowElapsed)
 			if (claimed == null) {
 				return@map SourceActionExecution(
@@ -2993,7 +3043,10 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 	}
 
 	suspend fun stop(request: SessionStopRequest): SessionStopResult {
-		val lease = acquireLease(request.ownerToken, request.clockDomainId, request.elapsedRealtimeNanos)
+		validateCanonicalBootId(request.clockDomainId)?.let {
+			return SessionStopResult.InvalidIntent(it)
+		}
+		val lease = acquireLease(request.ownerToken)
 			?: return SessionStopResult.Busy
 		return try {
 			val session = database.sourceSessionDao().activeSession() ?: return SessionStopResult.NoActiveSession
@@ -3104,7 +3157,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			}
 			SessionStopResult.Stopped(cutoffSession.logicalTrackingId, finalOrdinal, acks)
 		} finally {
-			releaseLease(lease, request.elapsedRealtimeNanos)
+			releaseLease(lease)
 		}
 	}
 
@@ -3113,7 +3166,10 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 	 * recovery. Sources are fenced and projections drained before the run is marked closed.
 	 */
 	suspend fun suspendForRestart(request: SessionSuspendRequest): SessionSuspendResult {
-		val lease = acquireLease(request.ownerToken, request.clockDomainId, request.elapsedRealtimeNanos)
+		validateCanonicalBootId(request.clockDomainId)?.let {
+			return SessionSuspendResult.InvalidIntent(it)
+		}
+		val lease = acquireLease(request.ownerToken)
 			?: return SessionSuspendResult.Busy
 		return try {
 			val session = database.sourceSessionDao().activeSession()
@@ -3211,7 +3267,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			}
 			SessionSuspendResult.Suspended(durableSession.logicalTrackingId, finalOrdinal, acks, false)
 		} finally {
-			releaseLease(lease, request.elapsedRealtimeNanos)
+			releaseLease(lease)
 		}
 	}
 
@@ -3914,19 +3970,25 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 
 	private suspend fun acquireLease(
 		ownerToken: String,
-		bootId: String,
-		nowElapsedNanos: Long,
 	): LifecycleLeaseToken? = database.withTransaction {
+		val bootId = bootClockDomainProvider.current()
+		val leaseNowElapsedNanos = clock.elapsedRealtimeNanos()
+		val nowMs = clock.currentTimeMillis()
+		val invalidClockSample = bootId.isBlank() || leaseNowElapsedNanos < 0L || nowMs < 0L
+		val leaseWouldOverflow = leaseNowElapsedNanos > Long.MAX_VALUE - LEASE_DURATION_NANOS ||
+			nowMs > Long.MAX_VALUE - LEASE_DURATION_MILLIS
+		if (invalidClockSample || leaseWouldOverflow) {
+			return@withTransaction null
+		}
 		val dao = database.sourceProjectionStateDao()
-		val leaseNowElapsedNanos = monotonicNowAtLeast(nowElapsedNanos)
 		val expires = leaseNowElapsedNanos + LEASE_DURATION_NANOS
-		val nowMs = System.currentTimeMillis()
+		val expiresAtMs = nowMs + LEASE_DURATION_MILLIS
 		val inserted = dao.insertLeaseIfAbsent(
 			SourceCoordinatorLeaseEntity(
 				leaseName = SESSION_LEASE,
 				ownerToken = ownerToken,
 				acquiredAtMs = nowMs,
-				expiresAtMs = nowMs + LEASE_DURATION_NANOS / NANOS_PER_MILLISECOND,
+				expiresAtMs = expiresAtMs,
 				bootId = bootId,
 				generation = 1L,
 				acquiredElapsedRealtimeNanos = leaseNowElapsedNanos,
@@ -3938,7 +4000,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				ownerToken,
 				bootId,
 				nowMs,
-				nowMs + LEASE_DURATION_NANOS / NANOS_PER_MILLISECOND,
+				expiresAtMs,
 				leaseNowElapsedNanos,
 				expires,
 			) != 1
@@ -3948,16 +4010,21 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		LifecycleLeaseToken(SESSION_LEASE, ownerToken, bootId, current.generation)
 	}
 
-	private suspend fun renewLease(lease: LifecycleLeaseToken, nowElapsedNanos: Long) {
-		val leaseNowElapsedNanos = monotonicNowAtLeast(nowElapsedNanos)
-		val nowMs = System.currentTimeMillis()
+	private suspend fun renewLease(lease: LifecycleLeaseToken) {
+		val bootId = bootClockDomainProvider.current()
+		val leaseNowElapsedNanos = clock.elapsedRealtimeNanos()
+		val nowMs = clock.currentTimeMillis()
+		check(bootId.isNotBlank() && bootId == lease.bootId && leaseNowElapsedNanos >= 0L && nowMs >= 0L &&
+			leaseNowElapsedNanos <= Long.MAX_VALUE - LEASE_DURATION_NANOS &&
+			nowMs <= Long.MAX_VALUE - LEASE_DURATION_MILLIS
+		) { "Session coordinator lease clock unavailable" }
 		check(
 			database.sourceProjectionStateDao().acquireOrRenewLease(
 				lease.leaseName,
 				lease.ownerToken,
 				lease.bootId,
 				nowMs,
-				nowMs + LEASE_DURATION_NANOS / NANOS_PER_MILLISECOND,
+				nowMs + LEASE_DURATION_MILLIS,
 				leaseNowElapsedNanos,
 				leaseNowElapsedNanos + LEASE_DURATION_NANOS,
 			) == 1,
@@ -3967,14 +4034,14 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		}
 	}
 
-	private suspend fun releaseLease(lease: LifecycleLeaseToken, nowElapsedNanos: Long) {
+	private suspend fun releaseLease(lease: LifecycleLeaseToken) {
 		database.sourceProjectionStateDao().releaseLease(
 			lease.leaseName,
 			lease.ownerToken,
 			lease.bootId,
 			lease.generation,
-			System.currentTimeMillis(),
-			monotonicNowAtLeast(nowElapsedNanos),
+			clock.currentTimeMillis().coerceAtLeast(0L),
+			clock.elapsedRealtimeNanos().coerceAtLeast(0L),
 		)
 	}
 
@@ -3984,14 +4051,17 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 
 	private suspend fun leaseIsCurrentInTransaction(lease: LifecycleLeaseToken): Boolean {
 		val current = database.sourceProjectionStateDao().lease(lease.leaseName) ?: return false
-		return current.ownerToken == lease.ownerToken &&
+		val bootId = bootClockDomainProvider.current()
+		val nowElapsedNanos = clock.elapsedRealtimeNanos()
+		return bootId.isNotBlank() && bootId == lease.bootId && nowElapsedNanos >= 0L &&
+			current.ownerToken == lease.ownerToken &&
 			current.bootId == lease.bootId &&
 			current.generation == lease.generation &&
-			current.expiresElapsedRealtimeNanos > SystemClock.elapsedRealtimeNanos()
+			current.expiresElapsedRealtimeNanos > nowElapsedNanos
 	}
 
 	private fun monotonicNowAtLeast(floorNanos: Long): Long =
-		maxOf(floorNanos, SystemClock.elapsedRealtimeNanos())
+		maxOf(floorNanos, clock.elapsedRealtimeNanos())
 
 	/** Loads one exact immutable manifest envelope and rejects any persisted provenance drift. */
 	private suspend fun verifiedManifest(
@@ -4226,6 +4296,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 	private companion object {
 		const val SESSION_LEASE = "tracking-session-coordinator"
 		const val LEASE_DURATION_NANOS = 30_000L * 1_000_000L
+		const val LEASE_DURATION_MILLIS = 30_000L
 		const val NANOS_PER_MILLISECOND = 1_000_000L
 		const val ROLLBACK_QUIESCE_TIMEOUT_MS = 5_000L
 		const val POLICY_PURPOSE_CAPTURE = "SESSION_CAPTURE"
@@ -4637,6 +4708,8 @@ sealed interface SessionStopResult {
 		val acknowledgements: List<SourceStopAck>,
 	) : SessionStopResult
 	data class DrainPending(val logicalTrackingId: String, val requiredOrdinal: Long) : SessionStopResult
+	/** The requested stop could not be durably represented without violating lifecycle intent. */
+	data class InvalidIntent(val code: String) : SessionStopResult
 	data object NoActiveSession : SessionStopResult
 	data object Busy : SessionStopResult
 }
@@ -4664,6 +4737,8 @@ sealed interface SessionSuspendResult {
 		val acknowledgements: List<SourceStopAck>,
 	) : SessionSuspendResult
 	data class DrainPending(val logicalTrackingId: String, val requiredOrdinal: Long) : SessionSuspendResult
+	/** The requested suspension could not be durably represented without violating lifecycle intent. */
+	data class InvalidIntent(val code: String) : SessionSuspendResult
 	data object NoActiveSession : SessionSuspendResult
 	data object Busy : SessionSuspendResult
 }

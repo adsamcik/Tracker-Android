@@ -140,6 +140,18 @@ interface PendingSignalDao {
 	@Query("SELECT EXISTS(SELECT 1 FROM pending_signal LIMIT 1)")
 	suspend fun hasAny(): Boolean
 
+	/**
+	 * Valid Steps destination commands carry immutable writer provenance. Claimed rows remain in
+	 * this table, so this predicate covers both queued and in-flight legacy publication. Either
+	 * provenance half also blocks the transition so a corrupt row cannot bypass the writer fence.
+	 */
+	@Query(
+		"SELECT EXISTS(SELECT 1 FROM pending_signal " +
+			"WHERE steps_writer_owner IS NOT NULL " +
+			"OR steps_writer_owner_generation IS NOT NULL LIMIT 1)",
+	)
+	suspend fun hasStepsWriterCommand(): Boolean
+
 	@Query("DELETE FROM pending_signal")
 	fun deleteAll()
 

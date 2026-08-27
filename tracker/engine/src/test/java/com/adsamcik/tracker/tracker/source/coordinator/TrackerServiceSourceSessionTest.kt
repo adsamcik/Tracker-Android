@@ -786,6 +786,27 @@ class TrackerServiceSourceSessionTest {
 	}
 
 	@Test
+	fun `invalid stop intents propagate without losing active ownership`() = runTest {
+		startActiveSession()
+		coEvery { lifecycle.stop(any()) } returns SessionStopResult.InvalidIntent("BOOT_ID_STALE")
+		coEvery { lifecycle.suspendForRestart(any()) } returns
+			SessionSuspendResult.InvalidIntent("AUTOMATION_EPOCH_STALE")
+
+		shouldThrow<IllegalStateException> {
+			subject.stop("EXPLICIT_REQUEST", preserveLogicalSession = false)
+		}.message shouldBe "Event-source shutdown intent rejected: BOOT_ID_STALE"
+		shouldThrow<IllegalStateException> {
+			subject.stop("PROCESS_RESTART", preserveLogicalSession = true)
+		}.message shouldBe "Event-source suspension intent rejected: AUTOMATION_EPOCH_STALE"
+
+		coEvery { lifecycle.stop(any()) } returns SessionStopResult.NoActiveSession
+		subject.stop("EXPLICIT_REQUEST", preserveLogicalSession = false) shouldBe
+			SourceSessionStopOutcome.Stopped
+		coVerify(exactly = 2) { lifecycle.stop(any()) }
+		coVerify(exactly = 1) { lifecycle.suspendForRestart(any()) }
+	}
+
+	@Test
 	fun `stop retries storage failures but propagates programmer failures`() = runTest {
 		startActiveSession()
 		coEvery { lifecycle.stop(any()) } throws SQLiteException("disk unavailable")

@@ -381,7 +381,7 @@ class RoomDurableSourceIngress @Inject constructor(
 		val rollout = database.trackingRolloutStateDao().get()?.decodeCurrentModelOrNull()
 			?: return false
 		val lane = dao.activeProductLane(sourceKind) ?: return false
-		return lane.isCanonicalCaptureAuthorizedBy(rollout, executableLaneCatalog)
+		return lane.isCanonicalCaptureAuthorizedBy(database, rollout, executableLaneCatalog)
 	}
 
 	private suspend fun persistAtomicCheckpoint(

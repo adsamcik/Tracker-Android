@@ -36,6 +36,24 @@ interface SourceSessionDao {
 	)
 	suspend fun incompleteSessions(): List<LogicalTrackingSessionEntity>
 
+	/**
+	 * Global cutover boundary. A writer-generation transition advances the rollout revision for the
+	 * whole coordinator, so even a non-Steps live session must finish before that transition.
+	 * Terminal migrated rows may use the released-v27 `CLOSED` state.
+	 */
+	@Query(
+		"SELECT EXISTS(SELECT 1 FROM logical_tracking_session session WHERE " +
+			"session.state NOT IN ('FINALIZED', 'CLOSED', 'FAILED') " +
+			"OR session.current_service_run_id IS NOT NULL " +
+			"OR (session.state IN ('FINALIZED', 'CLOSED') " +
+			"AND session.current_intent_revision IS NOT NULL AND NOT EXISTS (" +
+			"SELECT 1 FROM session_lifecycle_intent_version intent " +
+			"WHERE intent.logical_tracking_id = session.logical_tracking_id " +
+			"AND intent.intent_revision = session.current_intent_revision " +
+			"AND intent.desired_state = 'FINALIZED')))"
+	)
+	suspend fun hasLifecycleBoundaryBlocker(): Boolean
+
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertManifest(entity: SessionManifestVersionEntity)
 
@@ -145,6 +163,22 @@ interface SourceSessionDao {
 	)
 	suspend fun pendingLifecycleActions(): List<LifecycleDesiredActionEntity>
 
+	/**
+	 * Includes prepared and accepted starts that the legacy pending-action query does not expose,
+	 * while ignoring a historical start after a later action for the same run/source settled it.
+	 */
+	@Query(
+		"SELECT EXISTS(SELECT 1 FROM lifecycle_desired_action candidate WHERE " +
+			"candidate.status NOT IN ('TERMINAL_FAILURE', 'STOP_ACCEPTED', 'SUPERSEDED') " +
+			"AND NOT EXISTS(SELECT 1 FROM lifecycle_desired_action newer WHERE " +
+			"newer.logical_tracking_id = candidate.logical_tracking_id " +
+			"AND newer.service_run_id = candidate.service_run_id " +
+			"AND newer.action_family = candidate.action_family " +
+			"AND newer.source_kind IS candidate.source_kind " +
+			"AND newer.action_revision > candidate.action_revision))",
+	)
+	suspend fun hasNonterminalLatestLifecycleAction(): Boolean
+
 	@Query(
 		"SELECT COALESCE(MAX(action_revision), 0) FROM lifecycle_desired_action " +
 			"WHERE logical_tracking_id = :logicalTrackingId",
@@ -169,6 +203,13 @@ interface SourceSessionDao {
 			"ORDER BY started_at_ms ASC",
 	)
 	suspend fun incompleteServiceRuns(logicalTrackingId: String): List<SourceServiceRunEntity>
+
+	/** Detects orphan/inconsistent runs as well as ordinary live service runs. */
+	@Query(
+		"SELECT EXISTS(SELECT 1 FROM source_service_run WHERE completed_at_ms IS NULL " +
+			"OR state NOT IN ('FINALIZED', 'CLOSED', 'FAILED'))",
+	)
+	suspend fun hasIncompleteServiceRun(): Boolean
 
 	@Insert(onConflict = OnConflictStrategy.REPLACE)
 	suspend fun saveCompleteness(entity: SourceSessionCompletenessEntity)

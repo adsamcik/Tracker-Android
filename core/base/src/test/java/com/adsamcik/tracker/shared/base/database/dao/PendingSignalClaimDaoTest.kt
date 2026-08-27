@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.QuarantinedSignalEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.flow.first
@@ -69,6 +70,49 @@ class PendingSignalClaimDaoTest {
 		pendingDao.countAll() shouldBe 3
 		claimDao.deleteClaimedByIds(firstOwner.map(PendingSignalEntity::id), "owner-a") shouldBe 2
 		pendingDao.countAll() shouldBe 1
+	}
+
+	@Test
+	fun `steps writer command predicate includes claimed rows and ignores unstamped signals`() = runTest {
+		pendingDao.hasStepsWriterCommand() shouldBe false
+		pendingDao.insertAll(listOf(pending("unstamped", 1_000L)))
+		pendingDao.hasStepsWriterCommand() shouldBe false
+
+		pendingDao.insertAll(
+			listOf(
+				pending("claimed-steps", 2_000L).copy(
+					claimToken = "writer",
+					claimExpiresAt = 3_000L,
+					stepsWriterOwner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+					stepsWriterOwnerGeneration = 1L,
+				),
+			),
+		)
+
+		pendingDao.hasStepsWriterCommand() shouldBe true
+	}
+
+	@Test
+	fun `steps writer command predicate fails closed for either malformed provenance half`() = runTest {
+		fun stamped(signalId: String) = pending(signalId, 1_000L).copy(
+			stepsWriterOwner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+			stepsWriterOwnerGeneration = 1L,
+		)
+
+		pendingDao.insertAll(listOf(stamped("generation-only")))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE pending_signal SET steps_writer_owner = NULL " +
+				"WHERE signal_id = 'generation-only'",
+		)
+		pendingDao.hasStepsWriterCommand() shouldBe true
+
+		pendingDao.deleteAll()
+		pendingDao.insertAll(listOf(stamped("owner-only")))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE pending_signal SET steps_writer_owner_generation = NULL " +
+				"WHERE signal_id = 'owner-only'",
+		)
+		pendingDao.hasStepsWriterCommand() shouldBe true
 	}
 
 	@Test

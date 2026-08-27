@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.shared.base.database
 
 import android.content.Context
-import androidx.annotation.WorkerThread
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
@@ -478,19 +477,6 @@ abstract class AppDatabase : RoomDatabase() {
 			databaseName = databaseName,
 			targetVersion = CURRENT_DATABASE_VERSION,
 		)
-
-		/**
-		 * Deletes all collected data from the database.
-		 * Does not delete database itself.
-		 */
-		@WorkerThread
-		fun deleteAllCollectedData(context: Context) {
-			val database = database(context)
-			val backupStore = DatabaseMigrationBackupStore(context)
-			backupStore.markDeletionPending()
-			deleteAllCollectedData(database)
-			backupStore.deleteAll()
-		}
 
 		/**
 		 * Deletes collected rows while atomically recording the durable lifecycle

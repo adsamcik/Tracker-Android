@@ -619,6 +619,9 @@ private fun SessionSuspendResult.toSourceSessionStopOutcome(): SourceSessionStop
 	is SessionSuspendResult.CleanupPending -> SourceSessionStopOutcome.Retryable(
 		SourceSessionStopRetryCode.CLEANUP_PENDING,
 	)
+	is SessionSuspendResult.InvalidIntent -> error(
+		"Event-source suspension intent rejected: ${code}",
+	)
 	SessionSuspendResult.Busy -> SourceSessionStopOutcome.Retryable(
 		SourceSessionStopRetryCode.COORDINATOR_BUSY,
 	)
@@ -633,6 +636,9 @@ private fun SessionStopResult.toSourceSessionStopOutcome(): SourceSessionStopOut
 	)
 	is SessionStopResult.CleanupPending -> SourceSessionStopOutcome.Retryable(
 		SourceSessionStopRetryCode.CLEANUP_PENDING,
+	)
+	is SessionStopResult.InvalidIntent -> error(
+		"Event-source shutdown intent rejected: ${code}",
 	)
 	SessionStopResult.Busy -> SourceSessionStopOutcome.Retryable(
 		SourceSessionStopRetryCode.COORDINATOR_BUSY,

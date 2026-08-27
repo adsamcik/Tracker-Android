@@ -7,10 +7,13 @@ import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenera
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionRegistrationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.TrackingRolloutStateEntity
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
+import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
@@ -128,9 +131,35 @@ class TrackingRolloutStateStoreTest {
 
 	@Test
 	fun `exact canonical lane is the only product stage that authorizes public capture`() = runTest {
+		val productionStore = RoomTrackingRolloutStateStore(database, ExecutableSourceLaneCatalog())
+		val binding = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS
 		val projectionDao = database.sourceProjectionStateDao()
 		projectionDao.installProductLane(
-			productLane(STEPS_V1, rolloutRevision = 3L).copy(
+			productLane(binding, rolloutRevision = 3L).copy(
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			),
+		)
+		installStepsDestinationOwner(SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS, 2L)
+		val canonical = TrackingRolloutState.eventCanonical(
+			sources = setOf(SourceKind.STEPS),
+			revision = 3L,
+		)
+
+		productionStore.save(canonical, updatedAtMs = 1_000L)
+
+		productionStore.load() shouldBe canonical
+		productionStore.load().isCaptureReachable(
+			SourceKind.STEPS,
+			CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+		) shouldBe true
+	}
+
+	@Test
+	fun `canonical Steps save rejects missing or legacy destination ownership`() = runTest {
+		val productionStore = RoomTrackingRolloutStateStore(database, ExecutableSourceLaneCatalog())
+		val binding = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS
+		database.sourceProjectionStateDao().installProductLane(
+			productLane(binding, rolloutRevision = 3L).copy(
 				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
 			),
 		)
@@ -139,13 +168,27 @@ class TrackingRolloutStateStoreTest {
 			revision = 3L,
 		)
 
-		store.save(canonical, updatedAtMs = 1_000L)
+		shouldThrow<IllegalArgumentException> {
+			productionStore.save(canonical, updatedAtMs = 1_000L)
+		}
+		installStepsDestinationOwner(SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL, 1L)
+		shouldThrow<IllegalArgumentException> {
+			productionStore.save(canonical, updatedAtMs = 1_001L)
+		}
 
-		store.load() shouldBe canonical
-		store.load().isCaptureReachable(
-			SourceKind.STEPS,
-			CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
-		) shouldBe true
+		database.trackingRolloutStateDao().get() shouldBe null
+	}
+
+	@Test
+	fun `loading canonical Steps without destination ownership contains and fences the lane`() = runTest {
+		assertCanonicalStepsOwnerMismatchIsRepaired(owner = null)
+	}
+
+	@Test
+	fun `loading canonical Steps with legacy destination ownership contains and fences the lane`() = runTest {
+		assertCanonicalStepsOwnerMismatchIsRepaired(
+			owner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL to 1L,
+		)
 	}
 
 	@Test
@@ -497,6 +540,55 @@ class TrackingRolloutStateStoreTest {
 	}
 
 	@Test
+	fun `generic retirement cannot strand a candidate owned canonical Steps lane`() = runTest {
+		installSteps()
+		val projectionDao = database.sourceProjectionStateDao()
+		projectionDao.promoteExactProductLaneToCanonical(
+			sourceKind = SourceKind.STEPS.stableCode,
+			bindingGeneration = STEPS_V1.bindingGeneration,
+			projectionId = STEPS_V1.projectionId,
+			projectionVersion = STEPS_V1.projectionVersion,
+			captureModeMask = STEPS_V1.captureModeMask,
+			expectedShadowRolloutRevision = 3L,
+			activationOrdinal = 1L,
+			expectedCurrentOrdinal = 0L,
+			canonicalRolloutRevision = 4L,
+			updatedAtMs = 1_100L,
+		) shouldBe 1
+		database.trackingRolloutStateDao().save(
+			TrackingRolloutState.contained(revision = 5L).toEntity(1_200L),
+		)
+		projectionDao.fenceProductLaneCaptureAdmission(
+			sourceKind = SourceKind.STEPS.stableCode,
+			bindingGeneration = STEPS_V1.bindingGeneration,
+			projectionId = STEPS_V1.projectionId,
+			projectionVersion = STEPS_V1.projectionVersion,
+			cutoffOrdinal = 0L,
+			updatedAtMs = 1_200L,
+		) shouldBe 1
+		database.sourceDestinationOwnerDao().insertIfAbsent(
+			SourceDestinationOwnerEntity(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+				owner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
+				ownerGeneration = 2L,
+				updatedAtMs = 1_200L,
+			),
+		)
+
+		shouldThrow<IllegalArgumentException> {
+			store.finishLaneRetirement(STEPS_V1, expectedCurrentOrdinal = 0L, updatedAtMs = 1_300L)
+		}
+
+		projectionDao.activeProductLane(SourceKind.STEPS.stableCode)
+			?.status shouldBe SourceProductProjectionLaneEntity.STATUS_ACTIVE
+		database.sourceDestinationOwnerDao().get(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+		)?.owner shouldBe SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
+	}
+
+	@Test
 	fun `containment refuses an active session capture demand`() = runTest {
 		installSteps()
 		database.sourceBrokerDao().insertDemands(listOf(stepsSessionDemand()))
@@ -610,7 +702,9 @@ class TrackingRolloutStateStoreTest {
 			),
 			NoOpActivityAutomationDrainSignal,
 			io.mockk.mockk(relaxed = true),
-			store,
+			BootClockDomainProvider { "boot-1" },
+			FixedClock(fixedTimeMillis = 1L, fixedRealtimeNanos = 1L),
+			rolloutStore = store,
 		)
 		val plan = com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision(
 			revision = 1,
@@ -643,6 +737,52 @@ class TrackingRolloutStateStoreTest {
 			rolloutRevision = 3,
 			updatedAtMs = 1_000L,
 		)
+
+	private suspend fun assertCanonicalStepsOwnerMismatchIsRepaired(
+		owner: Pair<String, Long>?,
+	) {
+		val productionStore = RoomTrackingRolloutStateStore(database, ExecutableSourceLaneCatalog())
+		val binding = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS
+		val projectionDao = database.sourceProjectionStateDao()
+		projectionDao.installProductLane(
+			productLane(binding, rolloutRevision = 7L).copy(
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			),
+		)
+		owner?.let { (name, generation) -> installStepsDestinationOwner(name, generation) }
+		database.trackingRolloutStateDao().save(
+			eventShadowEntity(
+				revision = 7L,
+				stepsStage = ProductProjectionStage.EVENT_CANONICAL,
+			),
+		)
+
+		productionStore.load() shouldBe TrackingRolloutState.contained(revision = 8L)
+		productionStore.load() shouldBe TrackingRolloutState.contained(revision = 8L)
+		projectionDao.activeProductLane(SourceKind.STEPS.stableCode) shouldBe null
+		val retired = requireNotNull(projectionDao.productLane(
+			SourceKind.STEPS.stableCode,
+			binding.bindingGeneration,
+			binding.projectionId,
+			binding.projectionVersion,
+		))
+		retired.captureAdmissionCutoffOrdinal shouldBe 0L
+		retired.status shouldBe SourceProductProjectionLaneEntity.STATUS_RETIRED
+		retired.terminalDisposition shouldBe
+			SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN
+	}
+
+	private suspend fun installStepsDestinationOwner(owner: String, generation: Long) {
+		database.sourceDestinationOwnerDao().insertIfAbsent(
+			SourceDestinationOwnerEntity(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+				owner = owner,
+				ownerGeneration = generation,
+				updatedAtMs = 1_000L,
+			),
+		)
+	}
 
 	private fun productLane(
 		binding: ExecutableSourceLaneBinding,

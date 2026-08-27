@@ -4,8 +4,11 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID
+import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
+import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntentVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
@@ -141,6 +144,91 @@ class SourceSessionDaoTest {
 		).writerBindingGeneration shouldBe 3L
 	}
 
+	@Test
+	fun `writer transition boundary rejects every nonterminal durable lifecycle shape`() = runTest {
+		dao.hasLifecycleBoundaryBlocker() shouldBe false
+		dao.hasIncompleteServiceRun() shouldBe false
+		dao.hasNonterminalLatestLifecycleAction() shouldBe false
+
+		dao.insertSession(terminalSession(currentIntentRevision = 1L))
+		dao.hasLifecycleBoundaryBlocker() shouldBe true
+		dao.insertLifecycleIntent(finalizedIntent())
+		dao.hasLifecycleBoundaryBlocker() shouldBe false
+		val terminalFailure = terminalSession(currentIntentRevision = 1L).copy(
+			state = "FAILED",
+			failureCode = "START_EXPIRED",
+		)
+		dao.updateSession(terminalFailure) shouldBe 1
+		dao.hasLifecycleBoundaryBlocker() shouldBe false
+		dao.updateSession(terminalFailure.copy(currentServiceRunId = "orphan-run")) shouldBe 1
+		dao.hasLifecycleBoundaryBlocker() shouldBe true
+		dao.updateSession(terminalFailure) shouldBe 1
+
+		val completedRun = serviceRun("run-a").copy(
+			state = "FINALIZED",
+			completedAtMs = 2_000L,
+			completionReason = "DONE",
+		)
+		dao.insertServiceRun(completedRun)
+		dao.hasIncompleteServiceRun() shouldBe false
+		dao.updateServiceRun(completedRun.copy(completedAtMs = null)) shouldBe 1
+		dao.hasIncompleteServiceRun() shouldBe true
+		dao.updateServiceRun(completedRun.copy(state = "ACTIVE")) shouldBe 1
+		dao.hasIncompleteServiceRun() shouldBe true
+		dao.updateServiceRun(completedRun) shouldBe 1
+		dao.hasIncompleteServiceRun() shouldBe false
+
+		val acceptedStart = lifecycleAction(
+			actionId = "start-action",
+			actionRevision = 1L,
+			status = "START_ACCEPTED",
+		)
+		val acceptedStop = lifecycleAction(
+			actionId = "stop-action",
+			actionRevision = 2L,
+			status = "STOP_ACCEPTED",
+		)
+		dao.insertLifecycleActions(listOf(acceptedStart, acceptedStop))
+		dao.hasNonterminalLatestLifecycleAction() shouldBe false
+		dao.insertLifecycleActions(
+			listOf(
+				lifecycleAction(
+					actionId = "new-start-action",
+					actionRevision = 3L,
+					status = "START_ACCEPTED",
+				),
+			),
+		)
+		dao.hasNonterminalLatestLifecycleAction() shouldBe true
+	}
+
+	@Test
+	fun `another logical session cannot hide a nonterminal action with a reused run id`() = runTest {
+		dao.insertLifecycleActions(
+			listOf(
+				lifecycleAction(
+					actionId = "session-a-start",
+					actionRevision = 1L,
+					status = "START_ACCEPTED",
+				).copy(
+					logicalTrackingId = "session-a",
+					serviceRunId = "shared-malformed-run",
+					desiredState = "ACTIVE",
+				),
+				lifecycleAction(
+					actionId = "session-b-stop",
+					actionRevision = 2L,
+					status = "STOP_ACCEPTED",
+				).copy(
+					logicalTrackingId = "session-b",
+					serviceRunId = "shared-malformed-run",
+				),
+			),
+		)
+
+		dao.hasNonterminalLatestLifecycleAction() shouldBe true
+	}
+
 	private fun manifest(revision: Long, serviceRunId: String) = SessionManifestVersionEntity(
 		logicalTrackingId = LOGICAL_ID,
 		manifestRevision = revision,
@@ -189,6 +277,77 @@ class SourceSessionDaoTest {
 		startedElapsedNanos = 1_000L,
 		completedAtMs = null,
 		completionReason = null,
+	)
+
+	private fun terminalSession(currentIntentRevision: Long?) = LogicalTrackingSessionEntity(
+		logicalTrackingId = LOGICAL_ID,
+		state = "FINALIZED",
+		lifecycleRevision = 1L,
+		desiredPlanRevision = 1L,
+		rolloutRevision = 1L,
+		startOrigin = "MANUAL_FOREGROUND_START",
+		clockDomainId = "boot",
+		startedAtMs = 1_000L,
+		startedElapsedNanos = 1_000L,
+		cutoffAtMs = 2_000L,
+		cutoffElapsedNanos = 2_000L,
+		completedAtMs = 2_000L,
+		finalAdmissionOrdinal = 0L,
+		failureCode = null,
+		currentIntentRevision = currentIntentRevision,
+	)
+
+	private fun finalizedIntent() = SessionLifecycleIntentVersionEntity(
+		logicalTrackingId = LOGICAL_ID,
+		intentRevision = 1L,
+		manifestRevision = 1L,
+		desiredState = "FINALIZED",
+		startOrigin = "MANUAL_FOREGROUND_START",
+		requestBootId = "boot",
+		requestedElapsedRealtimeNanos = 2_000L,
+		requestedWallTimeMs = 2_000L,
+		automationEpoch = null,
+		triggerId = null,
+		triggerKind = null,
+		triggerBootId = null,
+		triggerObservedElapsedRealtimeNanos = null,
+		triggerReceivedElapsedRealtimeNanos = null,
+		triggerExpiresElapsedRealtimeNanos = null,
+		stopReason = "DONE",
+		stopDeadlineBootId = null,
+		stopDeadlineElapsedRealtimeNanos = null,
+		intentChecksum = "intent-checksum",
+	)
+
+	private fun lifecycleAction(
+		actionId: String,
+		actionRevision: Long,
+		status: String,
+	) = LifecycleDesiredActionEntity(
+		actionId = actionId,
+		logicalTrackingId = LOGICAL_ID,
+		serviceRunId = "run-a",
+		manifestRevision = 1L,
+		actionRevision = actionRevision,
+		actionFamily = "SOURCE_RUNTIME",
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+		desiredState = "FINALIZED",
+		desiredPlanRevision = 1L,
+		sourcePolicyRevision = 1L,
+		consentEpoch = 1L,
+		startOrigin = "MANUAL_FOREGROUND_START",
+		bootId = "boot",
+		leaseGeneration = 1L,
+		requestedAtMs = 2_000L,
+		requestedElapsedRealtimeNanos = 2_000L,
+		status = status,
+		attemptCount = 1,
+		acknowledgedAtMs = 2_000L,
+		acknowledgedElapsedRealtimeNanos = 2_000L,
+		failureCode = null,
+		retryTrigger = null,
+		sourceInstanceId = "steps-instance",
+		registrationGeneration = 1L,
 	)
 
 	private fun stepsManifestSource(

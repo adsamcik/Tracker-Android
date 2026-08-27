@@ -14,6 +14,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
@@ -273,6 +274,64 @@ class RoomDurableSourceIngressTest {
 			AdmissionFailureCode.CAPTURE_ADMISSION_CLOSED,
 		)
 		database.sourceEventWalDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `Steps ownership drift after rollout load closes capture admission`() = runTest {
+		val catalog = ExecutableSourceLaneCatalog()
+		val binding = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS
+		val rolloutStore = RoomTrackingRolloutStateStore(database, catalog)
+		val rollout = TrackingRolloutState.eventCanonical(
+			sources = setOf(SourceKind.STEPS),
+			revision = 2L,
+			captureModes = mapOf(
+				SourceKind.STEPS to setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
+			),
+		)
+		database.sourceProjectionStateDao().deleteAllProductLanes()
+		installCaptureLane(
+			source = SourceKind.STEPS,
+			bindingGeneration = binding.bindingGeneration,
+			projectionId = binding.projectionId,
+			captureModeMask = binding.captureModeMask,
+		)
+		database.sourceDestinationOwnerDao().insertIfAbsent(
+			SourceDestinationOwnerEntity(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+				owner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
+				ownerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+				updatedAtMs = 1L,
+			),
+		)
+		rolloutStore.save(rollout, updatedAtMs = 2L)
+		rolloutStore.load() shouldBe rollout
+		installStepRegistrationGeneration()
+		val productionSubject = RoomDurableSourceIngress(
+			database,
+			lifecycle,
+			DefaultSourcePayloadCodec(),
+			catalog,
+			Provider { startupGate },
+		)
+		productionSubject.admit(
+			stepCandidate(startNanos = 100L, endNanos = 100L, sourceSequence = 1L),
+		).shouldBeInstanceOf<AdmissionResult.Admitted>()
+
+		database.sourceDestinationOwnerDao().compareAndSetOwner(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+			expectedOwner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
+			expectedOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+			newOwner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+			newOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION + 1L,
+			updatedAtMs = 3L,
+		) shouldBe 1
+
+		productionSubject.admit(
+			stepCandidate(startNanos = 101L, endNanos = 101L, sourceSequence = 2L),
+		) shouldBe AdmissionResult.PermanentFailure(AdmissionFailureCode.CAPTURE_ADMISSION_CLOSED)
+		database.sourceEventWalDao().countAll() shouldBe 1L
 	}
 
 	@Test
@@ -1622,6 +1681,7 @@ class RoomDurableSourceIngressTest {
 		source: SourceKind,
 		bindingGeneration: Long = 1L,
 		projectionId: String = "ingress-test-${source.name.lowercase()}",
+		captureModeMask: Long = 7L,
 		productStage: String = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
 	) {
 		database.sourceProjectionStateDao().installProductLane(
@@ -1630,7 +1690,7 @@ class RoomDurableSourceIngressTest {
 				bindingGeneration = bindingGeneration,
 				projectionId = projectionId,
 				projectionVersion = 1,
-				captureModeMask = 7L,
+				captureModeMask = captureModeMask,
 				productStage = productStage,
 				activatedRolloutRevision = 1L,
 				activationOrdinal = 1L,
