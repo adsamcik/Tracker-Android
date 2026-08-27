@@ -6,52 +6,29 @@ Execution-grade work items, ownership, dependency gates, verification commands, 
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and
 evidence index.
 
-Current code integration checkpoint: `b20e1efaa` on `dev/v10`
-(`feat(steps): select history by service run`), following queued writer provenance at
-`30051416d`, durable service-run ownership at `ef1da62d2`, and the dormant Steps writer and
-retention checkpoints `8bb6d606f` and `af846143c`. The initial audited baseline was
-`068ebe052`; no pull, rebase, push, publish, deployment, remote configuration, or external rollout
-was performed. The original `.docx` source, verbatim orchestrator prompt, and protected Dashboard
-test remain untracked and untouched. On 2026-08-22 the user authorized clear scoped local commits
-after each verified chunk.
+Current code integration checkpoint: reconciliation merge
+`9b8ab4b43e0d5ca2e729f511b48936b0dbdfbb6a` on `codex/reconcile-dev-v10`, with parents
+`1a112bbd5` (remote/local integration) and `9a65148a1` (atomic Steps writer transition). The
+complete topology, preserved-root boundary, and next-session commands are recorded in
+`CONTINUATION_HANDOVER.md`. The initial audited baseline was `068ebe052`; no publish, deployment,
+remote configuration, feature activation, or external rollout was performed. The seven protected
+root paths remain byte-for-byte preserved and intentionally uncommitted.
 
 ## Current gate
 
-- Current phase: TI-410 manual/session Steps is `IN_PROGRESS`. Durable logical-session and
-  service-run identity now reaches the released session row and dormant Steps facts; a permanent
-  exact destination-owner generation fences both legacy and candidate writes. Historical Steps
-  selection now resolves each segment from its immutable service-run manifests, exact product lane,
-  acquisition completeness, retention floor, and current deletion epoch rather than the current
-  global owner. Legacy generation 1 remains the only active owner and there is no production
-  owner-transition caller or production consumer of the new selector.
-- Gate status: `CUTOVER_BLOCKED / PRODUCT_WIRING_BLOCKED`. Three independent R1 adversaries found
-  that a global current-owner query would reinterpret older trips, logical-session completeness
-  would leak across service runs, rollback/deletion recovery is not yet executable, and a one-shot
-  `Materializing` UI would not converge. Commit `b20e1efaa` closes the first two historical-read
-  defects without adding a table, generic history platform, rollout binding, or UI. Atomic
-  run-boundary cutover/rollback/deletion reconstruction and an observable production query remain
-  blocking. The attempted Trip Detail/query wiring and its query-only helpers were removed before
-  `ef1da62d2`. The process-wide startup fence now orders the frozen-v27 drain,
-  deletion, policy/provider/service entry, and data consumers. Manual and automatic starts use a
-  durable prepared intent before external service/FGS acceptance, real start origin and accepted
-  type evidence; stop, previous-exit, force-stop, permission-revocation, and deletion paths are
-  fenced and recoverable in host tests. Live source drains are enrolled in the same deletion
-  generation and recheck it at Activity-effect boundaries. Rollout schema v3 defaults every source
-  to `CONTAINED`; persisted `EVENT` reachability now requires an atomically installed exact
-  source-local product lane owned by the current executable catalog, writer identity/generation,
-  activation floor, initialized CAS cursor, and retention pin. Duplicate, malformed, unknown, or
-  non-executable active bindings fail closed before WAL admission. Configured contained siblings are
-  named degradation rather than a reason to
-  reject a reachable source. `CONTROL` can operate a provider without authorizing capture or a
-  product lane. Live Activity poison is source-local, and terminal disabled/contained control no
-  longer creates endless WorkManager retries; transient provider unavailability still retries.
-  Activity authorization changes now re-read demands, policy/consent, rollout, and lane authority in
-  the same Room transaction as mutation; capture-closing changes first fence and drain process-local
-  callbacks, then publish an exact durable authorization-revision acknowledgement. Callback permits
-  always release after bounded work unwinds, while only durable admission publishes effects. The
-  other five authorization-boundary splitters/delivery identities,
-  source-qualified lifecycle evidence, source-specific idempotent facts/recomputation, scoped
-  deletion, truthful history wiring, and product-query proof remain blocking.
+- Current phase: TI-410 manual/session Steps is `IN_PROGRESS`; its atomic writer-transition
+  foundation is `IN_REVIEW`. Durable service-run provenance, dormant facts/receipts/cursor,
+  historical selection, exact destination-owner fencing, and explicit candidate activation,
+  rollback, and post-deletion generation reconstruction now exist. Legacy generation 1 remains the
+  only active production owner; first activation and rollback have no ordinary production caller.
+- Gate status: `TRANSITION_FOUNDATION_IN_REVIEW / PRODUCT_WIRING_BLOCKED`. Three independent fresh
+  reviews found no remaining database `BLOCKER`/`HIGH`/`MEDIUM`; mitigated a `HIGH` owner-drift gap
+  by rechecking candidate ownership in rollout authorization and durable admission; and mitigated a
+  `MEDIUM` residual-`step_interval` deletion risk with a DAO guard and focused re-arm test. One
+  `MEDIUM` test-hardening gap remains: no single production integration test spans
+  `DefaultCollectedDataDeletionService`, `AppDatabase`, the closed deletion/startup barriers, and
+  the resulting Steps re-arm generation. Product query/UI, typed export/import, manual only-Steps
+  device evidence, and every other source/mode remain blocked.
 - Integration owner: lead orchestrator
 - Structural implementation: Workstream A policy authority plus the retained v28
   manifest/lifecycle/broker schema, Room-first source-runtime coordinator demands, physical
@@ -67,15 +44,14 @@ after each verified chunk.
   Activity `CONTROL`, never captured Activity. Process-wide startup ordering is now locally
   implemented and verified; production backup recovery, portable export/import, partial-database
   containment, and connected startup/reboot proof remain TI-184 gates.
-- Current-worktree verification: at `b20e1efaa`, the complete affected serial host run passes core
-  database `876/876`, stats data `139/139`, and tracker engine `1,649/1,649`, with zero
-  failures/errors/skips, plus `:app:assembleDebug`; `BUILD SUCCESSFUL in 8m 46s`, 720 tasks. The
-  final focused selector/DAO gate passes `33/33`, and post-commit `checkRoomSchemaDrift` passes in
-  30s with 46 tasks. The exact populated v27→v28 suite most recently remains `8/8` on
-  `Medium_Phone(AVD) - 16` at the immediately preceding queued-provenance boundary; this selector
-  slice changes no entity or migration and the committed `28.json` has no diff. Exact commands are
-  indexed in `VERIFICATION_MATRIX.md`. These are host plus prior migration-device checks, not
-  process/reboot/FGS, OEM, production-query, device-energy, or full-repository proof.
+- Current-worktree verification: exact commit `9b8ab4b43e0d5ca2e729f511b48936b0dbdfbb6a`
+  passes the authoritative serialized `ciCheck --continue`: `BUILD SUCCESSFUL in 21m 46s`; 1,991
+  actionable tasks, 224 executed and 1,767 up-to-date. This includes Room drift, architecture,
+  release lint, unit tests, Detekt, SQLite runtime/linkage, 27 release-evidence tests, and 16 reviewed
+  dependency-metadata components. The exact populated v27→v28 suite most recently remains `8/8` on
+  `Medium_Phone(AVD) - 16` at the pre-reconciliation schema boundary. These are host plus prior
+  migration-device checks, not provider/process/reboot/FGS, OEM, production-query, device-energy,
+  source-scenario, or rollout proof.
 - Focused source reviews: all six complete — Location (`DEGRADED`), Wi-Fi (`FAILED`), Cell (`FAILED`), Activity (`FAILED`), Steps (`DEGRADED`), Pressure (`FAILED`)
 - Fresh adversarial review: prior R0/R1/R1b/R2 and adaptive-collections R3/R4 are complete. The
   prior 2026-08-24 R1 returned `BLOCK`. Commits `f14a4a2b1` through `c4d97333d` address its global
@@ -108,9 +84,9 @@ after each verified chunk.
   absent row, a v27 row, or the old global-v2 event marker migrates to contained state and cannot
   register a provider. `RoomTrackingRolloutStateStore` rejects or repairs an `EVENT` marker unless
   the exact source has a matching active product lane, stage, writer generation, activation floor,
-  initialized cursor, and retention pin. Shadow-lane installation and rollout activation are one
-  Room transaction, and there is deliberately no canonical-promotion API yet. No candidate
-  canonical writer is active.
+  initialized cursor, retention pin, and exact candidate destination owner. Shadow-lane installation
+  and rollout activation are one Room transaction. The source-specific transition API has no
+  ordinary first-activation caller, and no candidate canonical writer is active.
 - Shared registration acceptance no longer advances the durable pointer or retires the accepted generation until a replacement is externally accepted. Activity uses generation-addressable PendingIntents for a real make-before-break swap, durable `RETIRING` cleanup, cancellation-transparent convergence and idempotent retry; failed replacement retains the accepted provider. Location, Wi-Fi, Cell, Steps and Pressure still use shutdown-before-start runtimes and require provider-specific fenced handoff/gap/rollback tests rather than inheriting an unsupported zero-gap claim.
 - Legacy `TrackingParamsState` still exposes Boolean enablement and semantic frequency, but the production repository now normalizes both into one Room policy mutation and projects only the effective six-source snapshot. Corrupt/unknown legacy source semantics fail closed and cannot bootstrap consent.
 - New durable source demands carry consumer identity, purpose, persistence eligibility, consent/policy epochs, logical tracking identity, effective boot/elapsed time, and QoS. Physical registration rows contain only provider configuration/identity, boot/data epoch and lifecycle state. Demand changes append an independent authorization revision without restarting a compatible provider.
@@ -1028,3 +1004,34 @@ drain the exact legacy generation, install the candidate lane and replacement ow
 contain rollback without activating two writers, and re-arm a coherent empty generation after full
 deletion. Only after its crash/interleave matrix passes may the typed selector become observable
 through the existing production Trip Detail/query boundary.
+
+## Reconciled atomic Steps transition checkpoint (2026-08-27)
+
+### Outcome
+
+Merge `9b8ab4b43e0d5ca2e729f511b48936b0dbdfbb6a` joins the reconciled remote/local tree with the
+source-specific Steps activation, rollback, and full-deletion re-arm foundation. Candidate owner
+authority is checked by rollout state and durable admission. The transition remains contained and
+`IN_REVIEW`: legacy generation 1 is still the active production owner, and no production history/UI
+consumer or first-activation caller was added. See `CONTINUATION_HANDOVER.md` for the graph and
+continuation commands.
+
+### Evidence and review
+
+- Database/DAO review found no remaining `BLOCKER`, `HIGH`, or `MEDIUM` and verified atomic
+  activation, rollback, deletion re-arm, run boundaries, and receipt/cursor behavior. Its `LOW`
+  pending-signal half-pair finding was mitigated with a raw malformed-row test.
+- Lifecycle review's `HIGH` owner-drift timeline was mitigated with transaction-local destination
+  owner checks in rollout authorization and WAL admission.
+- App review's `MEDIUM` residual legacy Steps row was mitigated with a deletion guard and focused
+  re-arm test. One `MEDIUM` end-to-end deletion-service/re-arm integration test remains.
+- The exact merge passes the authoritative serialized `ciCheck --continue`: `BUILD SUCCESSFUL in
+  21m 46s`; 1,991 actionable tasks, 224 executed and 1,767 up-to-date.
+
+### Gate status and next wave
+
+- Passed locally: contained transition transactions, destination-owner admission authority,
+  rollback/deletion generation fencing, complete repository host quality gate.
+- Still blocked: production Steps query and all completeness-sensitive consumers, typed portable
+  export/import, full deletion-service seam, provider/device/process/reboot/energy evidence,
+  automatic/ambient Steps, other source verticals, UI activation, and rollout.

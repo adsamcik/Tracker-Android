@@ -1093,3 +1093,34 @@ Each entry records repository evidence and does not duplicate the final architec
   run-boundary cutover coordinator, rollback/deletion reconstruction, typed export/import, observable
   query, and completeness-safe consumers pass. This decision does not authorize automatic or
   ambient Steps, another source materializer, `DayOverview`, UI wiring, or rollout.
+
+## TI-D107 — Steps writer transitions are source-specific, atomic, and contained
+
+- Status: `ACCEPTED_CONTAINED`; implementation `IN_REVIEW` at
+  `9b8ab4b43e0d5ca2e729f511b48936b0dbdfbb6a`; production activation/query `BLOCKED`
+- Owner/date: lead orchestrator after three independent reconciliation adversaries, 2026-08-27
+- Alternatives: promote Steps by changing rollout metadata; create a generic all-source cutover
+  framework; expose a source-specific transition that atomically moves exact lane, owner, rollout,
+  cursor, and lifecycle authority while keeping first activation an explicit release action
+- Evidence: database review verified one-transaction candidate promotion and owner CAS, rollback
+  containment/cutoff/drain/retirement/legacy restore, ABA-safe deletion re-arm, run-boundary gates,
+  and candidate receipt/cursor atomicity with no remaining `BLOCKER`, `HIGH`, or `MEDIUM`.
+  Lifecycle review found a `HIGH` timeline where canonical rollout/admission survived destination
+  owner drift; rollout save/load/repair/authorization and transaction-local WAL admission now require
+  the exact candidate owner. App review found a `MEDIUM` residual `step_interval` deletion timeline;
+  re-arm now refuses residual rows and a focused test covers it. The exact merge passes serialized
+  `ciCheck --continue` in 21m 46s with 1,991 actionable tasks, 224 executed and 1,767 up-to-date.
+- Decision: `StepsSessionFactWriterTransitionCoordinator` is the only Steps destination transition
+  boundary. It may promote a verified caught-up shadow lane only while lifecycle/run/action/command/
+  callback and legacy-writer boundaries are quiescent; rollback first contains capture and latches a
+  cutoff, then retires the drained candidate and restores legacy ownership. Full deletion may re-arm
+  an empty monotonic generation only for a writer that was already canonical; it cannot perform the
+  first cutover. Rollout authorization and durable capture admission recheck exact destination-owner
+  authority. There is no ordinary production first-activation or rollback caller.
+- Consequences: legacy generation 1 remains the sole active production Steps owner. The transition
+  adds no provider registration, acquisition cadence, polling, ambient default, product query, or UI.
+  One `MEDIUM` integration test still must span
+  `DefaultCollectedDataDeletionService -> AppDatabase -> transition re-arm` while deletion/startup
+  barriers remain closed. Production query/consumer truth, typed export/import, deletion/replay,
+  device/provider/process/energy evidence, automatic/ambient Steps, and rollout remain blocked.
+  Reconciliation topology and next commands are in `CONTINUATION_HANDOVER.md`.
