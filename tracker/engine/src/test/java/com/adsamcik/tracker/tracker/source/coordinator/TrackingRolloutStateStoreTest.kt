@@ -7,10 +7,13 @@ import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenera
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionRegistrationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.TrackingRolloutStateEntity
+import com.adsamcik.tracker.shared.base.time.BootClockDomainProvider
+import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
@@ -497,6 +500,55 @@ class TrackingRolloutStateStoreTest {
 	}
 
 	@Test
+	fun `generic retirement cannot strand a candidate owned canonical Steps lane`() = runTest {
+		installSteps()
+		val projectionDao = database.sourceProjectionStateDao()
+		projectionDao.promoteExactProductLaneToCanonical(
+			sourceKind = SourceKind.STEPS.stableCode,
+			bindingGeneration = STEPS_V1.bindingGeneration,
+			projectionId = STEPS_V1.projectionId,
+			projectionVersion = STEPS_V1.projectionVersion,
+			captureModeMask = STEPS_V1.captureModeMask,
+			expectedShadowRolloutRevision = 3L,
+			activationOrdinal = 1L,
+			expectedCurrentOrdinal = 0L,
+			canonicalRolloutRevision = 4L,
+			updatedAtMs = 1_100L,
+		) shouldBe 1
+		database.trackingRolloutStateDao().save(
+			TrackingRolloutState.contained(revision = 5L).toEntity(1_200L),
+		)
+		projectionDao.fenceProductLaneCaptureAdmission(
+			sourceKind = SourceKind.STEPS.stableCode,
+			bindingGeneration = STEPS_V1.bindingGeneration,
+			projectionId = STEPS_V1.projectionId,
+			projectionVersion = STEPS_V1.projectionVersion,
+			cutoffOrdinal = 0L,
+			updatedAtMs = 1_200L,
+		) shouldBe 1
+		database.sourceDestinationOwnerDao().insertIfAbsent(
+			SourceDestinationOwnerEntity(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+				owner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
+				ownerGeneration = 2L,
+				updatedAtMs = 1_200L,
+			),
+		)
+
+		shouldThrow<IllegalArgumentException> {
+			store.finishLaneRetirement(STEPS_V1, expectedCurrentOrdinal = 0L, updatedAtMs = 1_300L)
+		}
+
+		projectionDao.activeProductLane(SourceKind.STEPS.stableCode)
+			?.status shouldBe SourceProductProjectionLaneEntity.STATUS_ACTIVE
+		database.sourceDestinationOwnerDao().get(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+		)?.owner shouldBe SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
+	}
+
+	@Test
 	fun `containment refuses an active session capture demand`() = runTest {
 		installSteps()
 		database.sourceBrokerDao().insertDemands(listOf(stepsSessionDemand()))
@@ -610,7 +662,9 @@ class TrackingRolloutStateStoreTest {
 			),
 			NoOpActivityAutomationDrainSignal,
 			io.mockk.mockk(relaxed = true),
-			store,
+			BootClockDomainProvider { "boot-1" },
+			FixedClock(fixedTimeMillis = 1L, fixedRealtimeNanos = 1L),
+			rolloutStore = store,
 		)
 		val plan = com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision(
 			revision = 1,

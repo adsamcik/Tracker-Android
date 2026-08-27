@@ -441,6 +441,9 @@ class TrackerServiceSourceSession @Inject constructor(
 				is SessionSuspendResult.CleanupPending -> error(
 					"Event-source suspension cleanup pending through ${result.requiredOrdinal}",
 				)
+				is SessionSuspendResult.InvalidIntent -> error(
+					"Event-source suspension intent rejected: ${result.code}",
+				)
 				SessionSuspendResult.Busy -> error("Event-source session coordinator is busy")
 			}
 		} else {
@@ -464,6 +467,9 @@ class TrackerServiceSourceSession @Inject constructor(
 				)
 				is SessionStopResult.CleanupPending -> error(
 					"Event-source shutdown cleanup pending through ${result.requiredOrdinal}",
+				)
+				is SessionStopResult.InvalidIntent -> error(
+					"Event-source shutdown intent rejected: ${result.code}",
 				)
 				SessionStopResult.Busy -> error("Event-source session coordinator is busy")
 			}

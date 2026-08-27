@@ -208,6 +208,7 @@ class DefaultCollectedDataDeletionService(
 				updatedAtMs = updatedAtMs,
 			)
 		},
+	private val postDatabaseDeletion: suspend (Long) -> Unit = { },
 	private val markerFile: File = File(
 		context.noBackupFilesDir,
 		"collected-data-deletion-pending",
@@ -323,6 +324,10 @@ class DefaultCollectedDataDeletionService(
 		// create/open v27 and trigger its one-shot import callback.
 		if (removeRetiredDatabases) deleteRetiredDatabases()
 		appDatabaseDeletion(context, epoch, retainedFromMs, updatedAtMs)
+		// Keep the durable deletion marker and process gate closed until permanent writer ownership
+		// has a matching empty lane/rollout generation. A crash before this returns repeats both the
+		// deletion and reconciliation rather than reopening a stranded or ABA-vulnerable writer.
+		postDatabaseDeletion(updatedAtMs)
 	}
 
 	private fun deleteRetiredDatabases() {

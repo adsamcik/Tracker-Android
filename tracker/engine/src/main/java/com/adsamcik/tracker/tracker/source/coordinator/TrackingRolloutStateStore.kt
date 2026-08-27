@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.coordinator
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.TrackingRolloutStateEntity
@@ -33,7 +34,7 @@ data class ExecutableSourceLaneBinding(
 class ExecutableSourceLaneCatalog internal constructor(
 	bindings: Set<ExecutableSourceLaneBinding>,
 ) : SourceProductLaneExecutionAuthority {
-	@Inject constructor() : this(emptySet())
+	@Inject constructor() : this(setOf(STEPS_SESSION_FACTS))
 
 	private val bindingsByGeneration = bindings.associateBy { binding ->
 		binding.source to binding.bindingGeneration
@@ -63,6 +64,18 @@ class ExecutableSourceLaneCatalog internal constructor(
 	override fun owns(lane: SourceProductProjectionLaneEntity): Boolean = bindingFor(lane) != null
 
 	companion object {
+		/**
+		 * The binary can execute this lane, but that fact alone authorizes neither acquisition nor
+		 * canonical publication. The durable lane, rollout, and destination owner must still agree.
+		 */
+		val STEPS_SESSION_FACTS = ExecutableSourceLaneBinding(
+			source = SourceKind.STEPS,
+			bindingGeneration = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
+			projectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+			projectionVersion = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+			captureModes = setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
+		)
+
 		fun explicit(vararg bindings: ExecutableSourceLaneBinding) =
 			ExecutableSourceLaneCatalog(bindings.toSet())
 	}
@@ -213,7 +226,7 @@ class RoomTrackingRolloutStateStore @Inject constructor(
 			require(projectionDao.registration(binding.projectionId, binding.projectionVersion) == null) {
 				"Projection identity ${binding.projectionId}:${binding.projectionVersion} is already registered globally"
 			}
-			requireCaptureAdmissionFenced(binding.source.stableCode)
+			database.requireSourceCaptureAdmissionFenced(binding.source.stableCode)
 
 			val activeLanes = projectionDao.allActiveProductLanes()
 			val current = currentEntity?.decodeCurrentModelOrNull()
@@ -275,7 +288,7 @@ class RoomTrackingRolloutStateStore @Inject constructor(
 			val projectionDao = database.sourceProjectionStateDao()
 			val lane = requireNotNull(projectionDao.activeProductLane(binding.source.stableCode))
 			require(lane.matches(binding, ProductProjectionStage.EVENT_SHADOW, current.revision))
-			requireCaptureAdmissionFenced(binding.source.stableCode)
+			database.requireSourceCaptureAdmissionFenced(binding.source.stableCode)
 			check(lane.captureAdmissionCutoffOrdinal == null) {
 				"Source product lane capture admission is already fenced"
 			}
@@ -330,6 +343,14 @@ class RoomTrackingRolloutStateStore @Inject constructor(
 			val cutoffOrdinal = requireNotNull(lane.captureAdmissionCutoffOrdinal) {
 				"Source capture admission must be fenced before retirement"
 			}
+			require(!lane.isRetainedCanonicalStepsRollbackLane(
+					database,
+					rollout,
+					executableLaneCatalog,
+				)
+			) {
+				"Candidate-owned canonical Steps retirement must use its dedicated owner transition"
+			}
 			require(lane.contiguousAdmissionOrdinal == expectedCurrentOrdinal)
 			require(expectedCurrentOrdinal == cutoffOrdinal) {
 				"Source product lane must drain through its durable capture cutoff before retirement"
@@ -357,6 +378,17 @@ class RoomTrackingRolloutStateStore @Inject constructor(
 			!lane.isAuthorizedBy(repaired, activeLanes, executableLaneCatalog)
 		}.forEach { lane ->
 			val projectionDao = database.sourceProjectionStateDao()
+			if (lane.isRetainedCanonicalStepsRollbackLane(
+					database,
+					repaired,
+					executableLaneCatalog,
+				)
+			) {
+				// A contained canonical Steps lane may be between rollback phases. Keep its WAL pin
+				// until the dedicated coordinator atomically retires it and advances the permanent
+				// destination owner. Generic repair must never perform half of that transition.
+				return@forEach
+			}
 			if (!lane.retentionRequired) {
 				check(projectionDao.retireProductLane(
 					sourceKind = lane.sourceKind,
@@ -368,7 +400,7 @@ class RoomTrackingRolloutStateStore @Inject constructor(
 				) == 1) { "Non-retaining conflicting lane changed during containment repair" }
 				return@forEach
 			}
-			if (!isCaptureAdmissionFenced(lane.sourceKind)) return@forEach
+			if (!database.isSourceCaptureAdmissionFenced(lane.sourceKind)) return@forEach
 			val cutoffOrdinal = lane.captureAdmissionCutoffOrdinal
 				?: (database.liveSourceProjectionActivationOrdinal() - 1L).also { cutoff ->
 					check(projectionDao.fenceProductLaneCaptureAdmission(
@@ -404,39 +436,61 @@ class RoomTrackingRolloutStateStore @Inject constructor(
 		}
 	}
 
-	private suspend fun requireCaptureAdmissionFenced(sourceKind: Int) {
-		require(isCaptureAdmissionFenced(sourceKind)) {
-			"Source capture must cross its demand and callback-authorization retirement barrier first"
-		}
-	}
+}
 
-	private suspend fun isCaptureAdmissionFenced(sourceKind: Int): Boolean {
-		val brokerDao = database.sourceBrokerDao()
-		val capturePurposes = setOf(
-			SourceBrokerPurpose.SESSION_CAPTURE,
-			SourceBrokerPurpose.AMBIENT_PRODUCT,
+internal suspend fun AppDatabase.requireSourceCaptureAdmissionFenced(sourceKind: Int) {
+	require(isSourceCaptureAdmissionFenced(sourceKind)) {
+		"Source capture must cross its demand and callback-authorization retirement barrier first"
+	}
+}
+
+internal suspend fun AppDatabase.isSourceCaptureAdmissionFenced(sourceKind: Int): Boolean {
+	val brokerDao = sourceBrokerDao()
+	val capturePurposes = setOf(
+		SourceBrokerPurpose.SESSION_CAPTURE,
+		SourceBrokerPurpose.AMBIENT_PRODUCT,
+	)
+	if (brokerDao.activeDemands(sourceKind).any { it.purpose in capturePurposes }) return false
+
+	val nonterminalRegistrations = (
+		brokerDao.currentPhysicalRegistrations(sourceKind) +
+			brokerDao.pendingProviderRemovals(sourceKind)
+	).distinctBy { it.registrationGeneration }
+	return nonterminalRegistrations.all { registration ->
+		val latestAuthorization = brokerDao.latestAuthorization(
+			sourceKind,
+			registration.registrationGeneration,
 		)
-		if (brokerDao.activeDemands(sourceKind).any { it.purpose in capturePurposes }) return false
-
-		val nonterminalRegistrations = (
-			brokerDao.currentPhysicalRegistrations(sourceKind) +
-				brokerDao.pendingProviderRemovals(sourceKind)
-		).distinctBy { it.registrationGeneration }
-		return nonterminalRegistrations.all { registration ->
-			val latestAuthorization = brokerDao.latestAuthorization(
-				sourceKind,
-				registration.registrationGeneration,
-			)
-			if (latestAuthorization.isEmpty() || latestAuthorization.any { authorization ->
-				authorization.persistenceEligible && authorization.purpose in capturePurposes
-			}) return@all false
-			val captureRevision = brokerDao.maximumCaptureAuthorizationRevision(
-				sourceKind,
-				registration.registrationGeneration,
-			)
-			registration.captureCallbackBarrierAuthorizationRevision >= captureRevision
-		}
+		if (latestAuthorization.isEmpty() || latestAuthorization.any { authorization ->
+			authorization.persistenceEligible && authorization.purpose in capturePurposes
+		}) return@all false
+		val captureRevision = brokerDao.maximumCaptureAuthorizationRevision(
+			sourceKind,
+			registration.registrationGeneration,
+		)
+		registration.captureCallbackBarrierAuthorizationRevision >= captureRevision
 	}
+}
+
+private suspend fun SourceProductProjectionLaneEntity.isRetainedCanonicalStepsRollbackLane(
+	database: AppDatabase,
+	rollout: TrackingRolloutState,
+	executableLaneCatalog: ExecutableSourceLaneCatalog,
+): Boolean {
+	if (sourceKind != SourceKind.STEPS.stableCode ||
+		productStage != SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL ||
+		captureAdmissionCutoffOrdinal == null ||
+		rollout.sourceOwners.getValue(SourceKind.STEPS) != SourceOwner.CONTAINED ||
+		rollout.productProjectionStages.getValue(SourceKind.STEPS) !=
+		ProductProjectionStage.LEGACY_CANONICAL ||
+		rollout.captureModeMasks.getValue(SourceKind.STEPS) != 0L
+	) return false
+	val binding = executableLaneCatalog.bindingFor(this) ?: return false
+	return matches(binding, ProductProjectionStage.EVENT_CANONICAL, rollout.revision) &&
+		database.sourceDestinationOwnerDao().get(
+		SourceDestinationOwnerEntity.SOURCE_STEPS,
+		SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+	)?.owner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
 }
 
 data class SourceProductLaneActivation(
@@ -537,7 +591,7 @@ internal fun SourceProductProjectionLaneEntity.isCanonicalCaptureAuthorizedBy(
 		matches(binding, ProductProjectionStage.EVENT_CANONICAL, rollout.revision)
 }
 
-private fun SourceProductProjectionLaneEntity.matches(
+internal fun SourceProductProjectionLaneEntity.matches(
 	binding: ExecutableSourceLaneBinding,
 	stage: ProductProjectionStage,
 	rolloutRevision: Long,
@@ -555,7 +609,7 @@ private fun SourceProductProjectionLaneEntity.matches(
 	retentionRequired &&
 	status == SourceProductProjectionLaneEntity.STATUS_ACTIVE
 
-private fun TrackingRolloutState.toEntity(updatedAtMs: Long) = TrackingRolloutStateEntity(
+internal fun TrackingRolloutState.toEntity(updatedAtMs: Long) = TrackingRolloutStateEntity(
 	revision = revision,
 	schemaVersion = schemaVersion,
 	coordinatorMode = coordinatorMode.name,

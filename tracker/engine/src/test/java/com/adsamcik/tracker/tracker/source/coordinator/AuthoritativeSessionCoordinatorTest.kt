@@ -101,18 +101,23 @@ class AuthoritativeSessionCoordinatorTest {
 	private lateinit var policy: RoomSourcePolicyRepository
 	private lateinit var activityAutomationDrainSignal: RecordingActivityAutomationDrainSignal
 	private lateinit var activityAutomationEpochAuthority: ActivityAutomationEpochAuthority
+	private lateinit var leaseClock: FixedClock
+	private var currentBootId = "boot-1"
 	private var activityLocked = false
 
 	@Before
 	fun setUp() {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		activityLocked = false
+		currentBootId = "boot-1"
+		leaseClock = FixedClock(fixedTimeMillis = 1_000L, fixedRealtimeNanos = 1_000_000L)
 		database = AppDatabase.testDatabase(context)
 		policy = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime("boot-1", 1_000_000, 1_000)
 		}
 		runBlocking {
 			policy.bootstrapFromLegacy(TrackingParamsState(legacySettingsMigrationCompleted = true))
+			database.trackingRolloutStateDao().save(fixedEventRollout().toEntity(updatedAtMs = 0L))
 			database.sourceDestinationOwnerDao().insertIfAbsent(
 				SourceDestinationOwnerEntity(
 					sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
@@ -138,8 +143,8 @@ class AuthoritativeSessionCoordinatorTest {
 			database,
 			context,
 			lockManager,
-			FixedClock(fixedTimeMillis = 1_000L, fixedRealtimeNanos = 1_000_000L),
-			BootClockDomainProvider { "boot-1" },
+			leaseClock,
+			BootClockDomainProvider { currentBootId },
 		)
 		subject = AuthoritativeSessionCoordinator(
 			database,
@@ -150,6 +155,8 @@ class AuthoritativeSessionCoordinatorTest {
 			ActivityAutomaticStartActionRepository(database, ReadyTrackingStartupGate),
 			activityAutomationDrainSignal,
 			activityAutomationEpochAuthority,
+			BootClockDomainProvider { currentBootId },
+			leaseClock,
 			rolloutStore = fixedEventRolloutStore(),
 		)
 	}
@@ -199,6 +206,122 @@ class AuthoritativeSessionCoordinatorTest {
 		database.sourceBrokerDao().demandHistory("session:${started.logicalTrackingId}")
 			.single().status shouldBe SourceDemandEntity.STATUS_RETIRED
 		runtime.closed shouldBe true
+	}
+
+	@Test
+	fun `stale rollout loaded before lease cannot create a new service run`() = runTest {
+		database.trackingRolloutStateDao().save(
+			fixedEventRollout().copy(revision = 2L).toEntity(updatedAtMs = 2L),
+		)
+
+		val rejected = subject.start(startRequest())
+			.shouldBeInstanceOf<SessionStartResult.InvalidRollout>()
+
+		rejected.code shouldBe "ROLLOUT_REVISION_MISMATCH"
+		database.sourceSessionDao().incompleteSessions() shouldBe emptyList()
+		database.sourceSessionDao().hasIncompleteServiceRun() shouldBe false
+		runtime.startCount shouldBe 0
+	}
+
+	@Test
+	fun `fresh Android preparation revalidates rollout before creating its service run`() = runTest {
+		persistRolloutRevision(2L)
+
+		val rejected = subject.prepareAndroidStart(
+			startRequest(),
+			AndroidStartDeliveryMetadata(
+				PreparedTrackingStartToken("stale-fresh-preparation"),
+				1L,
+				true,
+				false,
+			),
+		).shouldBeInstanceOf<SessionStartPreparationResult.Rejected>()
+
+		rejected.failureCode shouldBe "ROLLOUT_REVISION_MISMATCH"
+		database.sourceSessionDao().incompleteSessions() shouldBe emptyList()
+		database.sourceSessionDao().hasIncompleteServiceRun() shouldBe false
+		runtime.startCount shouldBe 0
+	}
+
+	@Test
+	fun `direct recovery revalidates rollout before creating its replacement run`() = runTest {
+		subject.start(
+			startRequest().copy(logicalTrackingId = "stale-direct-logical", serviceRunId = "stale-direct-run-1"),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		subject.suspendForRestart(
+			SessionSuspendRequest(
+				"stale-direct-owner",
+				"ANDROID_RESTART",
+				2_000L,
+				2_000_000L,
+				"boot-1",
+				perSourceTimeoutMs = 100L,
+			),
+		).shouldBeInstanceOf<SessionSuspendResult.Suspended>()
+		persistRolloutRevision(2L)
+		val recoveryPlan = startRequest().plan.copy(
+			revision = 2L,
+			planId = "stale-direct-recovery-plan",
+			createdAtMs = 3_000L,
+			plans = mapOf(SourceKind.STEPS to StepsPlan(2L, true, 60_000L, 15_000L, false)),
+		)
+
+		val rejected = subject.start(
+			startRequest().copy(
+				origin = SessionStartOrigin.RECOVERY,
+				plan = recoveryPlan,
+				logicalTrackingId = "stale-direct-logical",
+				serviceRunId = "stale-direct-run-2",
+				continuationAuthority = ServiceRunContinuationAuthority("stale-direct-run-1"),
+				wallTimeMs = 3_000L,
+				elapsedRealtimeNanos = 3_000_000L,
+			),
+		).shouldBeInstanceOf<SessionStartResult.InvalidRollout>()
+
+		rejected.code shouldBe "ROLLOUT_REVISION_MISMATCH"
+		database.sourceSessionDao().serviceRun("stale-direct-run-2") shouldBe null
+	}
+
+	@Test
+	fun `Android recovery preparation revalidates rollout before creating its replacement run`() = runTest {
+		val old = activatePreparedAndroidRun(
+			tokenValue = "stale-prepared-old-token",
+			commandGeneration = 41L,
+			logicalTrackingId = "stale-prepared-logical",
+			serviceRunId = "stale-prepared-run-1",
+		)
+		persistRolloutRevision(2L)
+		val recoveryPlan = startRequest().plan.copy(
+			revision = 2L,
+			planId = "stale-prepared-recovery-plan",
+			createdAtMs = 3_000L,
+			plans = mapOf(SourceKind.STEPS to StepsPlan(2L, true, 60_000L, 15_000L, false)),
+		)
+
+		val rejected = subject.prepareAndroidStart(
+			startRequest().copy(
+				origin = SessionStartOrigin.RECOVERY,
+				plan = recoveryPlan,
+				logicalTrackingId = old.logicalTrackingId,
+				serviceRunId = "stale-prepared-run-2",
+				continuationAuthority = ServiceRunContinuationAuthority(
+					old.serviceRunId,
+					old.token,
+					41L,
+				),
+				wallTimeMs = 3_000L,
+				elapsedRealtimeNanos = expiredPreparedLeaseElapsedNanos(),
+			),
+			AndroidStartDeliveryMetadata(
+				PreparedTrackingStartToken("stale-prepared-recovery-token"),
+				42L,
+				true,
+				false,
+			),
+		).shouldBeInstanceOf<SessionStartPreparationResult.Rejected>()
+
+		rejected.failureCode shouldBe "ROLLOUT_REVISION_MISMATCH"
+		database.sourceSessionDao().serviceRun("stale-prepared-run-2") shouldBe null
 	}
 
 	@Test
@@ -437,6 +560,8 @@ class AuthoritativeSessionCoordinatorTest {
 			ActivityAutomaticStartActionRepository(database, ReadyTrackingStartupGate),
 			activityAutomationDrainSignal,
 			activityAutomationEpochAuthority,
+			BootClockDomainProvider { currentBootId },
+			leaseClock,
 			rolloutStore = fixedEventRolloutStore(),
 		)
 		val started = subject.start(
@@ -581,6 +706,7 @@ class AuthoritativeSessionCoordinatorTest {
 				override fun current(): String = "boot-2"
 			},
 		).finalizeStaleSessions()
+		currentBootId = "boot-2"
 
 		val freshRequest = startRequest().copy(
 			ownerToken = "fresh-owner",
@@ -1187,6 +1313,133 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	fun `stale boot direct start is rejected before any durable row or lease`() = runTest {
+		val request = startRequest().copy(
+			ownerToken = "stale-boot-owner",
+			logicalTrackingId = "stale-boot-logical",
+			serviceRunId = "stale-boot-run",
+			clockDomainId = "boot-2",
+		)
+
+		subject.start(request) shouldBe SessionStartResult.InvalidIntent("BOOT_ID_STALE")
+
+		val dao = database.sourceSessionDao()
+		dao.session("stale-boot-logical") shouldBe null
+		dao.serviceRun("stale-boot-run") shouldBe null
+		dao.manifests("stale-boot-logical") shouldBe emptyList()
+		dao.lifecycleIntents("stale-boot-logical") shouldBe emptyList()
+		dao.lifecycleActions("stale-boot-logical") shouldBe emptyList()
+		database.sourceProjectionStateDao().lease("tracking-session-coordinator") shouldBe null
+		runtime.startCount shouldBe 0
+	}
+
+	@Test
+	fun `stale boot prepared start is rejected before any durable row or lease`() = runTest {
+		val token = PreparedTrackingStartToken("stale-boot-prepared-token")
+		val request = startRequest().copy(
+			ownerToken = "stale-boot-prepared-owner",
+			logicalTrackingId = "stale-boot-prepared-logical",
+			serviceRunId = "stale-boot-prepared-run",
+			clockDomainId = "boot-2",
+		)
+
+		subject.prepareAndroidStart(
+			request,
+			AndroidStartDeliveryMetadata(
+				token = token,
+				commandGeneration = 1L,
+				isUserInitiated = true,
+				isAmbient = false,
+			),
+		) shouldBe SessionStartPreparationResult.Rejected("BOOT_ID_STALE")
+
+		val dao = database.sourceSessionDao()
+		dao.session("stale-boot-prepared-logical") shouldBe null
+		dao.serviceRun("stale-boot-prepared-run") shouldBe null
+		dao.manifests("stale-boot-prepared-logical") shouldBe emptyList()
+		dao.lifecycleActions("stale-boot-prepared-logical") shouldBe emptyList()
+		database.sourceProjectionStateDao().lease("tracking-session-coordinator") shouldBe null
+	}
+
+	@Test
+	fun `stale boot cannot mutate an active session through reconfigure stop or suspend`() = runTest {
+		val started = subject.start(
+			startRequest().copy(
+				logicalTrackingId = "stale-mutation-logical",
+				serviceRunId = "stale-mutation-run",
+			),
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		val dao = database.sourceSessionDao()
+		val sessionBefore = requireNotNull(dao.session(started.logicalTrackingId))
+		val runBefore = requireNotNull(dao.serviceRun(started.serviceRunId))
+		val manifestsBefore = dao.manifests(started.logicalTrackingId)
+		val intentsBefore = dao.lifecycleIntents(started.logicalTrackingId)
+		val actionsBefore = dao.lifecycleActions(started.logicalTrackingId)
+		val leaseBefore = database.sourceProjectionStateDao().lease("tracking-session-coordinator")
+		val reconfigureCountBefore = runtime.reconfigureCount
+		val shutdownCountBefore = runtime.shutdownClaims.size
+
+		val reconfigure = SessionReconfigureRequest(
+			ownerToken = "stale-reconfigure-owner",
+			plan = startRequest().plan.copy(
+				revision = 2L,
+				planId = "stale-boot-reconfigure",
+				createdAtMs = 2_000L,
+				plans = mapOf(SourceKind.STEPS to StepsPlan(2L, true, 60_000L, 15_000L, false)),
+			),
+			wallTimeMs = 2_000L,
+			elapsedRealtimeNanos = 2_000_000L,
+			clockDomainId = "boot-2",
+			zoneId = "Europe/Prague",
+			foregroundCapabilityFlags = 0L,
+		)
+		subject.reconfigure(reconfigure) shouldBe
+			SessionReconfigureResult.InvalidIntent("BOOT_ID_STALE")
+		subject.stop(
+			SessionStopRequest(
+				ownerToken = "stale-stop-owner",
+				reason = "STALE_BOOT_TEST",
+				wallTimeMs = 2_000L,
+				elapsedRealtimeNanos = 2_000_000L,
+				clockDomainId = "boot-2",
+			),
+		) shouldBe SessionStopResult.InvalidIntent("BOOT_ID_STALE")
+		subject.suspendForRestart(
+			SessionSuspendRequest(
+				ownerToken = "stale-suspend-owner",
+				reason = "STALE_BOOT_TEST",
+				wallTimeMs = 2_000L,
+				elapsedRealtimeNanos = 2_000_000L,
+				clockDomainId = "boot-2",
+			),
+		) shouldBe SessionSuspendResult.InvalidIntent("BOOT_ID_STALE")
+
+		dao.session(started.logicalTrackingId) shouldBe sessionBefore
+		dao.serviceRun(started.serviceRunId) shouldBe runBefore
+		dao.manifests(started.logicalTrackingId) shouldBe manifestsBefore
+		dao.lifecycleIntents(started.logicalTrackingId) shouldBe intentsBefore
+		dao.lifecycleActions(started.logicalTrackingId) shouldBe actionsBefore
+		database.sourceProjectionStateDao().lease("tracking-session-coordinator") shouldBe leaseBefore
+		runtime.reconfigureCount shouldBe reconfigureCountBefore
+		runtime.shutdownClaims.size shouldBe shutdownCountBefore
+	}
+
+	@Test
+	fun `extreme request elapsed metadata cannot poison the canonical session lease`() = runTest {
+		val incumbent = incumbentSessionLease()
+		database.sourceProjectionStateDao().insertLeaseIfAbsent(incumbent) shouldBe 1L
+
+		subject.start(
+			startRequest().copy(
+				ownerToken = "challenger",
+				elapsedRealtimeNanos = Long.MAX_VALUE,
+			),
+		) shouldBe SessionStartResult.Busy
+
+		database.sourceProjectionStateDao().lease(incumbent.leaseName) shouldBe incumbent
+	}
+
+	@Test
 	fun `prepared demand is not callback authority until foreground acceptance`() = runTest {
 		seedActiveStepsRegistration()
 		val prepared = prepareAndroidStart(
@@ -1336,6 +1589,9 @@ class AuthoritativeSessionCoordinatorTest {
 
 		result.failureCode shouldBe "PREPARED_START_LEASE_EXPIRED"
 		assertPreparedStartTerminalized(prepared, "PREPARED_START_LEASE_EXPIRED")
+		database.sourceSessionDao().hasLifecycleBoundaryBlocker() shouldBe false
+		database.sourceSessionDao().hasIncompleteServiceRun() shouldBe false
+		database.sourceSessionDao().hasNonterminalLatestLifecycleAction() shouldBe false
 	}
 
 	@Test
@@ -2144,10 +2400,25 @@ class AuthoritativeSessionCoordinatorTest {
 		return prepared
 	}
 
-	private suspend fun expiredPreparedLeaseElapsedNanos(): Long =
-		requireNotNull(
+	private suspend fun expiredPreparedLeaseElapsedNanos(): Long {
+		val lease = requireNotNull(
 			database.sourceProjectionStateDao().lease("tracking-session-coordinator"),
-		).expiresElapsedRealtimeNanos + 1L
+		)
+		val expiredElapsedNanos = lease.expiresElapsedRealtimeNanos + 1L
+		leaseClock.setTime(lease.expiresAtMs + 1L, expiredElapsedNanos)
+		return expiredElapsedNanos
+	}
+
+	private fun incumbentSessionLease() = SourceCoordinatorLeaseEntity(
+		leaseName = "tracking-session-coordinator",
+		ownerToken = "incumbent",
+		acquiredAtMs = 900L,
+		expiresAtMs = 2_000L,
+		bootId = "boot-1",
+		generation = 7L,
+		acquiredElapsedRealtimeNanos = 900_000L,
+		expiresElapsedRealtimeNanos = 2_000_000L,
+	)
 
 	private suspend fun assertPreparedStartTerminalized(
 		prepared: PreparedSessionStart,
@@ -2495,9 +2766,20 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 
 	private fun fixedEventRolloutStore() = object : TrackingRolloutStateStore {
-		override suspend fun load() = TrackingRolloutState(
+		override suspend fun load() = fixedEventRollout()
+
+		override suspend fun save(state: TrackingRolloutState, updatedAtMs: Long) = Unit
+	}
+
+	private suspend fun persistRolloutRevision(revision: Long) {
+		database.trackingRolloutStateDao().save(
+			fixedEventRollout().copy(revision = revision).toEntity(updatedAtMs = revision),
+		)
+	}
+
+	private fun fixedEventRollout() = TrackingRolloutState(
 			revision = 1,
-			schemaVersion = 1,
+			schemaVersion = TrackingRolloutState.CURRENT_SCHEMA_VERSION,
 			coordinatorMode = CoordinatorMode.EVENT,
 			sourceOwners = SourceKind.entries.associateWith { SourceOwner.EVENT },
 			productProjectionStages = SourceKind.entries.associateWith {
@@ -2509,9 +2791,6 @@ class AuthoritativeSessionCoordinatorTest {
 			semanticSettingsEnabled = false,
 			batteryEstimateMode = BatteryEstimateMode.SOURCE_PLAN_QUALITATIVE,
 		)
-
-		override suspend fun save(state: TrackingRolloutState, updatedAtMs: Long) = Unit
-	}
 }
 
 private data class UnchangedConsentEpochs(

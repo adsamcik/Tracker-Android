@@ -180,6 +180,37 @@ interface SourceProjectionStateDao {
 		updatedAtMs: Long,
 	): Int
 
+	/**
+	 * Exact shadow-to-canonical promotion. The destination owner and rollout row must be changed in
+	 * the same outer Room transaction; this DAO method alone never activates a writer.
+	 */
+	@Query(
+		"UPDATE source_product_projection_lane SET product_stage = 'EVENT_CANONICAL', " +
+			"activated_rollout_revision = :canonicalRolloutRevision, updated_at_ms = :updatedAtMs " +
+			"WHERE source_kind = :sourceKind AND binding_generation = :bindingGeneration " +
+			"AND projection_id = :projectionId AND projection_version = :projectionVersion " +
+			"AND capture_mode_mask = :captureModeMask AND product_stage = 'EVENT_SHADOW' " +
+			"AND activated_rollout_revision = :expectedShadowRolloutRevision " +
+			"AND activation_ordinal = :activationOrdinal " +
+			"AND contiguous_admission_ordinal = :expectedCurrentOrdinal " +
+			"AND capture_admission_cutoff_ordinal IS NULL " +
+			"AND retention_required = 1 AND status = 'ACTIVE' " +
+			"AND terminal_disposition IS NULL AND terminal_at_ms IS NULL " +
+			"AND :canonicalRolloutRevision > activated_rollout_revision",
+	)
+	suspend fun promoteExactProductLaneToCanonical(
+		sourceKind: Int,
+		bindingGeneration: Long,
+		projectionId: String,
+		projectionVersion: Int,
+		captureModeMask: Long,
+		expectedShadowRolloutRevision: Long,
+		activationOrdinal: Long,
+		expectedCurrentOrdinal: Long,
+		canonicalRolloutRevision: Long,
+		updatedAtMs: Long,
+	): Int
+
 	@Query(
 		"UPDATE source_product_projection_lane SET status = 'RETIRED', " +
 			"retention_required = 0, updated_at_ms = :updatedAtMs " +

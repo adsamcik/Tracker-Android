@@ -34,7 +34,8 @@ interface SourceDestinationOwnerDao {
 	 *
 	 * This CAS is not a cutover coordinator: queued-command fencing, segment-effective provenance,
 	 * rollback writer binding, and post-deletion lane reconstruction must be established around it.
-	 * There is intentionally no production caller until those gates are implemented and verified.
+	 * Production callers must therefore own those gates and perform the complete authority change in
+	 * the same Room transaction.
 	 */
 	@Query(
 		"UPDATE source_destination_owner SET owner = :newOwner, " +

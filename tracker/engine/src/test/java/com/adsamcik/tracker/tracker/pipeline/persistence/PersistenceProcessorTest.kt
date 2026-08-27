@@ -59,10 +59,13 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -377,6 +380,54 @@ class PersistenceProcessorTest {
 	@Nested
 	@DisplayName("durable staging")
 	inner class DurableStaging {
+		@Test
+		fun `legacy Steps authority remains blocked until producer stop flushes staged work`() = runTest {
+			coEvery { durableBuffer.checkpointWithAdmission(any()) } coAnswers {
+				val ids = stagedSignals.map { nextCheckpointId++ }
+				completeCheckpoint(
+					ids = ids,
+					callback = firstArg(),
+					stepsWriter = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL to
+						SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+				)
+			}
+			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
+			processor.onSignal(signalWithLocationAndSteps())
+
+			processor.withLegacyStepsWriterQuiesced { "cutover" } shouldBe null
+			stagedSignals shouldHaveSize 1
+
+			processor.onStop()
+
+			processor.withLegacyStepsWriterQuiesced { "cutover" } shouldBe "cutover"
+			stagedSignals.shouldBeEmpty()
+		}
+
+		@Test
+		fun `legacy Steps authority check never waits behind another persistence operation`() = runTest {
+			val entered = CompletableDeferred<Unit>()
+			val release = CompletableDeferred<Unit>()
+			val holder = async {
+				processor.withLegacyStepsWriterQuiesced {
+					entered.complete(Unit)
+					release.await()
+					"holder"
+				}
+			}
+			entered.await()
+			var secondOperationRan = false
+
+			withTimeout(100L) {
+				processor.withLegacyStepsWriterQuiesced {
+					secondOperationRan = true
+					"second"
+				}
+			} shouldBe null
+			secondOperationRan shouldBe false
+
+			release.complete(Unit)
+			holder.await() shouldBe "holder"
+		}
 
 		@Test
 		fun `rejected raw provider evidence persists without invented coordinates`() = runTest {

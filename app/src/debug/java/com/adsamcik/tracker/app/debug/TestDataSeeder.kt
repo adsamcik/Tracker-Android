@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.preference.PreferenceManager
 import androidx.room.withTransaction
 import com.adsamcik.tracker.BuildConfig
+import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -49,6 +50,7 @@ class TestDataSeeder @Inject constructor(
     private val trackingParamsRepository: TrackingParamsRepository,
     private val retentionConfigStore: RetentionConfigStore,
     private val dispatchers: DispatchersProvider,
+    private val collectedDataDeletionService: CollectedDataDeletionService,
 ) {
 
     suspend fun seedSessions(
@@ -196,7 +198,7 @@ class TestDataSeeder @Inject constructor(
 
     private suspend fun resetCollectedTrackingData() {
         withContext(dispatchers.io) {
-            AppDatabase.deleteAllCollectedData(context)
+            collectedDataDeletionService.deleteAll()
         }
     }
 

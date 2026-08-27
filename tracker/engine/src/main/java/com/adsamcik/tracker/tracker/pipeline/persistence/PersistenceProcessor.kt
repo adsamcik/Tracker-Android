@@ -165,6 +165,22 @@ class PersistenceProcessor @Inject constructor(
 	private val recoveryMutex = Mutex()
 	private var pipelineActive = false
 
+	/**
+	 * Runs the Steps writer authority change only after the legacy producer has fully stopped.
+	 * [recoveryMutex] is also owned by start, stop, and orphan recovery, so the stopped state and
+	 * empty in-memory buffers remain stable until [operation] commits its durable authority change.
+	 */
+	internal suspend fun <T : Any> withLegacyStepsWriterQuiesced(
+		operation: suspend () -> T,
+	): T? {
+		if (!recoveryMutex.tryLock()) return null
+		return try {
+			if (pipelineActive || hasRetainedInMemoryState()) null else operation()
+		} finally {
+			recoveryMutex.unlock()
+		}
+	}
+
 	private data class BufferedLocationDecision(
 		val signal: LocationDecisionSignal,
 		val sourceSignalId: String,
