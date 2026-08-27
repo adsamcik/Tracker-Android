@@ -25,8 +25,12 @@ now share one ancestry. The final reconciliation and delivery facts are:
 - final local-tracking merge: `9b8ab4b43e0d5ca2e729f511b48936b0dbdfbb6a`;
 - authoritative full-repository result at that exact code commit: `BUILD SUCCESSFUL in 21m 46s`;
   1,991 actionable tasks, 224 executed and 1,767 up-to-date;
-- remote delivery result: not yet executed at this handover-preparation checkpoint; a follow-up
-  evidence commit is required after ordinary-push verification.
+- remote delivery result: an ordinary push advanced `origin/dev/v10` from `4ab17fc9c` to handover
+  preparation commit `cd9cecb7405ec672afe735a76f946af5fdc48d90`; post-push fetch showed local
+  and remote divergence of `0 0`, and both former tips plus `9b8ab4b43` are ancestors. This
+  evidence-only follow-up deliberately does not self-attest its future remote SHA; after fetching,
+  resolve the delivered tip with `git rev-parse origin/dev/v10`. No force push or history rewrite
+  was used for the verified delivery.
 
 The implementation is still intentionally contained. This reconciliation does **not** mean the
 tracking-infrastructure program, manual Steps, automatic Steps, ambient Steps, another source,
@@ -282,10 +286,13 @@ intentionally remain uncommitted here. A clean checkout on another device must n
 | `docs/TRACKING_INFRASTRUCTURE_IMPLEMENTATION_ORCHESTRATOR_PROMPT.md` | `3F77380D36234BCAAD3A193CC2553E8D50F2C0F0D02928232B4CC99BFC7DA332` |
 | `feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardManualStartDecisionTest.kt` | `E0912B613CD330949D12DAF69268E1A7B9DDE0F9181D0D235839E0CD8F8B7BF6` |
 
-The first four are tracked modifications; the final three are untracked. The final integration must
-recompute all seven hashes before and after any stash/fast-forward/restore operation. The expected
-root status after delivery contains these seven paths and no reconciliation residue; do not stage,
-commit, or push them as part of this task.
+All seven hashes above were recomputed after the exact-path stash, fast-forward, and restore, and all
+seven remained identical. The first three import/export paths remain tracked modifications and the
+final three paths remain untracked. The statistics `strings.xml` bytes also remain identical, but
+the reconciled tracked file now has those same bytes, so Git correctly no longer reports it dirty.
+The final root status therefore contains exactly the other six protected paths and no reconciliation
+residue. Do not manufacture a statistics diff or stage, commit, or push the six remaining local
+changes as part of this task.
 
 ## Decisions and blockers still open
 
@@ -406,14 +413,15 @@ performing any external rollout action.
 - [x] `9b8ab4b43e0d5ca2e729f511b48936b0dbdfbb6a` is the committed second merge with
   parents `1a112bbd5` and `9a65148a1`.
 - [x] The authoritative command, result, task counts, and exact tested commit are recorded above.
-- [ ] All seven protected root paths on this integration device remain byte-for-byte identical and
-  intentionally uncommitted.
-- [ ] This integration device's root `git status --short` contains exactly those protected paths and
-  no reconciliation residue.
-- [ ] `origin/dev/v10` contains both former tips and the handover commits; the delivery result above
-  is exact.
-- [ ] No force push, release, tag, deployment, feature activation, or destructive migration occurred.
-- [ ] Implementation artifacts accurately preserve open medium/low review findings and source gates.
+- [x] All seven protected root paths on this integration device remain byte-for-byte identical; six
+  remain intentionally uncommitted and the statistics XML now exactly matches reconciled `HEAD`.
+- [x] This integration device's root `git status --short` contains exactly the other six protected
+  paths and no reconciliation residue.
+- [x] At the verified `cd9cecb74` delivery checkpoint, `origin/dev/v10` contains both former tips
+  and the handover preparation; the ordinary-push result above is exact. The containing evidence
+  commit intentionally resolves through `git rev-parse origin/dev/v10` rather than self-attestation.
+- [x] No force push, release, tag, deployment, feature activation, or destructive migration occurred.
+- [x] Implementation artifacts accurately preserve open medium/low review findings and source gates.
 
 Next-session instruction: begin with TI-410 manual/session Steps and do not claim another source,
 ambient mode, product query, UI, device, or rollout gate without reproducible evidence.

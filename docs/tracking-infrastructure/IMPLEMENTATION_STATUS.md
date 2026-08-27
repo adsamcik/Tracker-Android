@@ -7,12 +7,16 @@ behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoin
 evidence index.
 
 Current code integration checkpoint: reconciliation merge
-`9b8ab4b43e0d5ca2e729f511b48936b0dbdfbb6a` on `codex/reconcile-dev-v10`, with parents
-`1a112bbd5` (remote/local integration) and `9a65148a1` (atomic Steps writer transition). The
-complete topology, preserved-root boundary, and next-session commands are recorded in
-`CONTINUATION_HANDOVER.md`. The initial audited baseline was `068ebe052`; no publish, deployment,
-remote configuration, feature activation, or external rollout was performed. The seven protected
-root paths remain byte-for-byte preserved and intentionally uncommitted.
+`9b8ab4b43e0d5ca2e729f511b48936b0dbdfbb6a`, with parents `1a112bbd5` (remote/local integration)
+and `9a65148a1` (atomic Steps writer transition), delivered on local and remote `dev/v10`. Handover
+preparation commit `cd9cecb7405ec672afe735a76f946af5fdc48d90` was delivered by ordinary push;
+this evidence-only follow-up deliberately does not self-attest its future remote SHA. Resolve the
+delivered tip after fetch with `git rev-parse origin/dev/v10`. The complete topology, protected-root
+boundary, and next-session commands are recorded in `CONTINUATION_HANDOVER.md`. The initial audited
+baseline was `068ebe052`; no release or artifact publication, deployment, remote configuration,
+feature activation, or external rollout was performed. All seven protected root files retained
+their exact bytes; six remain visible as intentionally uncommitted local work while the statistics
+XML now exactly matches reconciled `HEAD`.
 
 ## Current gate
 
