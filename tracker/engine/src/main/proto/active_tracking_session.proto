@@ -22,4 +22,6 @@ message ActiveTrackingSessionProto {
   int64 stop_candidate_requested_at_epoch_ms = 11;
   string restart_boot_id = 12;
   string restart_token = 13;
+  // Exact derived aggregate row used only for safe process-death continuity. Zero means unknown.
+  int64 session_segment_id = 14;
 }

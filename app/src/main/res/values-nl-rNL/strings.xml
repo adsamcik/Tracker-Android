@@ -194,12 +194,8 @@
     <string name="tracking_preset_power_save_description">Minder batterijgebruik met minder frequente updates en minder sensoren</string>
     <string name="tracking_preset_custom_name">Aangepast</string>
     <string name="tracking_preset_custom_description">Pas elke trackingparameter handmatig aan</string>
-    <string name="tracking_preset_selector_title">Trackingvoorinstelling</string>
     <string name="tracking_preset_selector_subtitle">Kies een profiel om mee te beginnen en verfijn daarna elke instelling hieronder.</string>
-    <string name="tracking_preset_custom_hint">Door een instelling hieronder aan te passen, wordt een aangepast profiel opgebouwd vanuit de huidige voorinstelling.</string>
     <string name="tracking_preset_customized_summary">Je hebt tracking verfijnd. Kies hierboven een voorinstelling om te resetten.</string>
-    <string name="settings_tracking_section_detection">Detectie en automatisering</string>
-    <string name="settings_tracking_section_sources">Gegevensbronnen</string>
     <string name="settings_tracking_section_detail">Locatieverzameling</string>
     <string name="settings_tracking_section_notifications">Meldingen</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
@@ -332,11 +328,9 @@
     <string name="permission_disabled_due_to_denial">%1$s uitgeschakeld omdat de machtiging is geweigerd. Verleen deze in Instellingen om in te schakelen.</string>
     <string name="settings_wifi_permission_required">Vereist wifi-/locatiemachtiging. Schakel in om te verlenen — tot die tijd worden geen wifi-gegevens vastgelegd en vastgelegde gegevens blijven op dit apparaat.</string>
     <string name="settings_cell_permission_required">Vereist machtiging voor telefoonstatus en nauwkeurige locatie. Schakel in om te verlenen — tot die tijd worden geen celgegevens vastgelegd en vastgelegde gegevens blijven op dit apparaat.</string>
-    <string name="settings_wifi_privacy_summary">Legt wifi-netwerken in de buurt vast om de locatienauwkeurigheid te verbeteren. Gegevens blijven op dit apparaat.</string>
     <string name="settings_barometer_unavailable">Druksensor is niet beschikbaar op dit apparaat.</string>
     <string name="settings_activity_permission_required">Vereist machtiging voor activiteitsherkenning. Schakel in om te verlenen.</string>
     <string name="settings_steps_unavailable">Sensor voor stappenteller is niet beschikbaar op dit apparaat.</string>
-    <string name="settings_cell_privacy_summary">Legt ID’s van zendmasten vast om de locatienauwkeurigheid te verbeteren. Gegevens blijven op dit apparaat.</string>
     <string name="setup_start_exploring">Begin met verkennen</string>
     <string name="setup_continue">Doorgaan</string>
     <string name="setup_step_indicator">Stap %1$d van %2$d</string>
@@ -356,4 +350,9 @@
     <string name="background_reliability_samsung_action">Batterij-instellingen van apparaat openen</string>
     <string name="settings_tracebox_title">Crashdiagnostiek</string>
     <string name="settings_tracebox_root_summary">Lokale crash-, ANR- en structurele diagnostiek</string>
+    <string name="setup_background_location_title">Locatie op de achtergrond toestaan voor automatisch bijhouden</string>
+    <string name="setup_background_location_disclosure">Automatisch bijhouden start wanneer Tracker op de achtergrond actief is en registreert je route ook wanneer het appscherm niet geopend is. Locatiegegevens blijven op dit apparaat. Kies in de locatie-instellingen van de app ‘%1$s’.</string>
+    <string name="setup_background_location_open_settings">Locatie-instellingen openen</string>
+    <string name="setup_background_location_decline">Niet nu</string>
+    <string name="setup_background_location_manual_only">Handmatig bijhouden op de voorgrond blijft beschikbaar. Automatisch bijhouden van de locatie blijft uit totdat locatie op de achtergrond is toegestaan.</string>
 </resources>

@@ -99,6 +99,38 @@ class PreviousExitRecoveryCoordinatorTest {
 	}
 
 	@Test
+	fun `suppressed WAL recovery still reconciles stale sessions and prior process registrations`() = runTest {
+		val store = RecordingStore()
+		val scheduler = RecordingScheduler()
+		val finalizer = mockk<ForceStopSourceSessionFinalizer>(relaxed = true)
+		val previousExitFinalizer = mockk<PreviousExitSourceSessionFinalizer>()
+		coEvery { previousExitFinalizer.finalizeStaleSessions(any(), any()) } returns
+			PreviousExitSourceSessionFinalization(emptySet())
+		val registrationRepository = registrationRepository()
+		val coordinator = PreviousExitRecoveryCoordinator(
+			store,
+			scheduler,
+			finalizer,
+			previousExitFinalizer,
+			registrationRepository,
+		)
+
+		coordinator.handle(
+			reason = ApplicationExitInfo.REASON_USER_REQUESTED,
+			completedAtMs = 2_456L,
+			startupGeneration = 11L,
+		) shouldBe
+			PreviousExitRecoveryAction.NONE
+		scheduler.enqueueCount shouldBe 0
+		coVerify(exactly = 1) {
+			previousExitFinalizer.finalizeStaleSessions(2_456L, any())
+		}
+		coVerify(exactly = 1) {
+			registrationRepository.reconcilePriorProcessRegistrations(any(), any())
+		}
+	}
+
+	@Test
 	fun `WAL drain request is expedited with safe quota fallback`() {
 		val request = buildPendingSignalDrainRequest(startupGeneration = 9L)
 		request.workSpec.expedited shouldBe true

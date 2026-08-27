@@ -222,7 +222,7 @@ class LegacyDatabaseRepository(
 	fun markFailed(error: Throwable) = PROCESS_LOCK.withLock {
 		preferences.edit {
 			putString(KEY_STATUS, LegacyImportStatus.FAILED.name)
-			putString(KEY_LAST_ERROR, error.message ?: error::class.java.simpleName)
+			putString(KEY_LAST_ERROR, error::class.java.simpleName)
 		}
 		notifyChanged()
 	}

@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.service
 
+import com.adsamcik.tracker.tracker.failure.isTrackingOperationalFailure
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
@@ -69,6 +70,9 @@ internal suspend fun <T> retryTrackingShutdown(
 		} catch (exception: CancellationException) {
 			throw exception
 		} catch (exception: Exception) {
+			if (!exception.isTrackingOperationalFailure() && exception !is TrackingShutdownRetryException) {
+				throw exception
+			}
 			lastFailure = exception
 		}
 		if (attempt < maxAttempts - 1) {
@@ -79,6 +83,9 @@ internal suspend fun <T> retryTrackingShutdown(
 
 	throw IllegalStateException("Tracking shutdown failed after $maxAttempts attempts", lastFailure)
 }
+
+/** Marks an expected coordinator contention result as safe to retry at the service boundary. */
+internal class TrackingShutdownRetryException(code: String) : Exception(code)
 
 /**
  * Keeps teardown ownership until cleanup succeeds or the hosting coroutine is cancelled.

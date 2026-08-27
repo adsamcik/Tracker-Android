@@ -74,11 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Nobrauciens lejup</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Pacēlājs</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Pastaiga vai pauze</string>
-    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Iešana</string>
-    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Braukšana ar velosipēdu</string>
-    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Auto vadīšana</string>
-    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Sabiedriskais transports</string>
-    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Cits</string>
     <string name="map_layer_fog_title">Pētnieka migla</string>
     <string name="map_layer_fog_chip">Migla</string>
     <string name="map_layer_fog_description">Pasaule, kas iznirst no miglas: atklājas katrs apgabals, kuru esat skāris, un tas mirdz jo spilgtāk, jo rūpīgāk to iepazināt. Vietas, kurām tikai izgājāt cauri, paliek vieglā dūmakā; dziļi izpētītās vietas deg tīrā zeltā. Neizpētīta zeme paliek tumša.</string>

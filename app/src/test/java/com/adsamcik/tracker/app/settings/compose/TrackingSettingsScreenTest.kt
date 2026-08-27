@@ -387,9 +387,11 @@ class TrackingSettingsScreenTest {
                         trackingActive = true,
                         desiredPlanRevision = 8L,
                         appliedPlanRevision = 8L,
-                        runtimeTelemetry = TrackingCoordinatorMetrics.ZERO.copy(
-                            projectedEventCount = 9L,
-                            planRevisionCount = 2L,
+							runtimeTelemetry = TrackingCoordinatorMetrics.ZERO.copy(
+								projectedEventCount = 9L,
+								planRevisionCount = 2L,
+								sourceTimerWakeupCount = 3L,
+								sourceTimerRequestCount = 5L,
                         ),
                     ),
                 )
@@ -399,9 +401,11 @@ class TrackingSettingsScreenTest {
         scrollTo("Technical status")
         composeTestRule.onNodeWithTag("technicalStatusToggle").performClick()
         scrollTo("Local runtime telemetry")
-        composeTestRule.onNodeWithText("Projected events: 9", substring = true)
-            .performScrollTo()
-            .assertIsDisplayed()
+		composeTestRule.onNodeWithText("Projected events: 9", substring = true)
+			.performScrollTo()
+			.assertIsDisplayed()
+		composeTestRule.onNodeWithText("source timer wakeups: 3", substring = true)
+			.assertIsDisplayed()
     }
 
     @Test

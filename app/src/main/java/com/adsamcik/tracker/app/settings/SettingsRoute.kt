@@ -127,7 +127,7 @@ fun SettingsRoute(
                             handle = checkNotNull(Tracebox.current()) {
                                 "Tracebox must be installed before opening diagnostics settings"
                             },
-                            configuration = TrackerTraceboxUi.configuration,
+                            configuration = TrackerTraceboxUi.configuration(),
                         )
                         SettingsScreen.Statistics -> {
                             // Statistics sub-screen removed — navigate back to root as defensive fallback.

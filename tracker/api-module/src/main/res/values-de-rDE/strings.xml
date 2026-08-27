@@ -45,7 +45,6 @@
         <item quantity="one">Die automatische Aufzeichnung wurde für %1$d Minute gesperrt.</item>
         <item quantity="other">Die automatische Aufzeichnung wurde für %1$d Minuten gesperrt.</item>
     </plurals>
-    <string name="notification_looking_for_gps">GPS wird gesucht — Standort wird verwendet</string>
     <string name="notification_starting">Tracker startet — Standort wird verwendet</string>
     <string name="notification_starting_without_location">Tracker startet</string>
     <string name="notification_stop">Beenden</string>
@@ -59,8 +58,6 @@
     <string name="notification_tracking_start_failed_title">Aufzeichnung konnte nicht starten</string>
     <string name="notification_tracking_start_failed_text">Öffne die App, um Berechtigungen zu prüfen und die Aufzeichnung fortzusetzen.</string>
     <string name="settings_activity_enabled_title">Aktivität</string>
-    <string name="settings_auto_tracking_transition_summary">Akkusparender Modus (etwas langsamere Aktivitätserkennung)</string>
-    <string name="settings_auto_tracking_transition_title">Aktivitätsübergänge verwenden</string>
     <string name="settings_cell_enabled_title">Funkzelle</string>
     <string name="settings_disabled_recharge_summary">Die automatische Aufzeichnung ist deaktiviert, bis dein Telefon mit einem Ladegerät verbunden ist</string>
     <string name="settings_disabled_recharge_title">Bis zum Aufladen deaktiviert</string>
@@ -74,10 +71,6 @@
     <string name="ski_notification_lift">%1$s Fahrt</string>
     <string name="settings_barometer_enabled_title">Barometer</string>
     <string name="settings_steps_enabled_title">Schrittzahl</string>
-    <string name="settings_tracker_timer_ambient">Umgebungstimer</string>
-    <string name="settings_tracker_timer_clock">Intervallbasiert</string>
-    <string name="settings_tracker_timer_fused">Google-Play-Standort</string>
-    <string name="settings_tracker_timer_location">Android-Standort</string>
     <string name="settings_tracking_min_distance_title">Mindestabstand zwischen Aktualisierungen</string>
     <string name="settings_tracking_min_time_title">Mindestverzögerung zwischen Aktualisierungen</string>
     <string name="settings_tracking_notice_summary">Änderungen werden nach dem Neustart der Aufzeichnung wirksam</string>

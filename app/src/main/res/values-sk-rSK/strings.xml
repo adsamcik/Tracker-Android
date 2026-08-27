@@ -198,12 +198,8 @@
     <string name="tracking_preset_power_save_description">Nižšia spotreba batérie s menej častými aktualizáciami a obmedzenými senzormi</string>
     <string name="tracking_preset_custom_name">Vlastné</string>
     <string name="tracking_preset_custom_description">Ručne upraviť každý parameter sledovania</string>
-    <string name="tracking_preset_selector_title">Predvoľba sledovania</string>
     <string name="tracking_preset_selector_subtitle">Vyberte profil, z ktorého chcete vychádzať, potom dolaďte ktorékoľvek nastavenie nižšie.</string>
-    <string name="tracking_preset_custom_hint">Úprava ľubovoľného nastavenia nižšie vytvorí vlastný profil z aktuálnej predvoľby.</string>
     <string name="tracking_preset_customized_summary">Sledovanie ste doladili. Obnovenie vykonáte výberom predvoľby vyššie.</string>
-    <string name="settings_tracking_section_detection">Rozpoznávanie a automatizácia</string>
-    <string name="settings_tracking_section_sources">Zdroje údajov</string>
     <string name="settings_tracking_section_detail">Zber polohy</string>
     <string name="settings_tracking_section_notifications">Oznámenia</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
@@ -340,11 +336,9 @@
     <string name="permission_disabled_due_to_denial">%1$s je vypnuté, pretože povolenie bolo zamietnuté. Povoľte ho v Nastaveniach.</string>
     <string name="settings_wifi_permission_required">Vyžaduje povolenie Wi-Fi/polohy. Zapnutím ho udelíte — dovtedy sa nezaznamenávajú žiadne údaje Wi-Fi a zaznamenané údaje zostávajú v tomto zariadení.</string>
     <string name="settings_cell_permission_required">Vyžaduje povolenie stavu telefónu a presnej polohy. Zapnutím ho udelíte — dovtedy sa nezaznamenávajú žiadne bunkové údaje a zaznamenané údaje zostávajú v tomto zariadení.</string>
-    <string name="settings_wifi_privacy_summary">Zaznamenáva blízke siete Wi-Fi na zlepšenie presnosti polohy. Údaje zostávajú v tomto zariadení.</string>
     <string name="settings_barometer_unavailable">Snímač tlaku nie je v tomto zariadení k dispozícii.</string>
     <string name="settings_activity_permission_required">Vyžaduje povolenie rozpoznávania aktivity. Zapnutím ho udelíte.</string>
     <string name="settings_steps_unavailable">Snímač počítadla krokov nie je v tomto zariadení k dispozícii.</string>
-    <string name="settings_cell_privacy_summary">Zaznamenáva identifikátory bunkových veží na zlepšenie presnosti polohy. Údaje zostávajú v tomto zariadení.</string>
     <string name="setup_start_exploring">Začať objavovať</string>
     <string name="setup_continue">Pokračovať</string>
     <string name="setup_step_indicator">Krok %1$d z %2$d</string>
@@ -364,4 +358,9 @@
     <string name="background_reliability_samsung_action">Otvoriť nastavenia batérie zariadenia</string>
     <string name="settings_tracebox_title">Diagnostika zlyhaní</string>
     <string name="settings_tracebox_root_summary">Lokálna diagnostika zlyhaní, ANR a štruktúry</string>
+    <string name="setup_background_location_title">Povoliť polohu na pozadí pre automatické sledovanie</string>
+    <string name="setup_background_location_disclosure">Automatické sledovanie sa spustí, keď Tracker beží na pozadí, a zaznamenáva vašu trasu, aj keď obrazovka aplikácie nie je otvorená. Údaje o polohe zostávajú v tomto zariadení. V nastaveniach polohy aplikácie vyberte „%1$s“.</string>
+    <string name="setup_background_location_open_settings">Otvoriť nastavenia polohy</string>
+    <string name="setup_background_location_decline">Teraz nie</string>
+    <string name="setup_background_location_manual_only">Ručné sledovanie v popredí zostáva dostupné. Automatické sledovanie polohy zostane vypnuté, kým nebude povolená poloha na pozadí.</string>
 </resources>

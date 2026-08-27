@@ -25,8 +25,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <!--
         Runtime types follow active sources: LOCATION only while GPS collection is active,
-        HEALTH while activity/step collection is active, and SPECIAL_USE for signal-only startup
-        or fallback. Permission possession alone never causes the service to declare a type.
+        HEALTH while activity/step collection is active, and SPECIAL_USE only for a genuinely
+        uncovered signal-only session. Permission possession alone never adds a type.
     -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />

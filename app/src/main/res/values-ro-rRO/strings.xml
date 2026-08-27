@@ -196,12 +196,8 @@
     <string name="tracking_preset_power_save_description">Consum mai mic de baterie, cu actualizări mai rare și mai puțini senzori</string>
     <string name="tracking_preset_custom_name">Personalizat</string>
     <string name="tracking_preset_custom_description">Reglează manual fiecare parametru de urmărire</string>
-    <string name="tracking_preset_selector_title">Profil de urmărire</string>
     <string name="tracking_preset_selector_subtitle">Alege un profil de pornire, apoi reglează fin orice setare de mai jos.</string>
-    <string name="tracking_preset_custom_hint">Modificarea oricărei setări de mai jos creează un profil personalizat din profilul curent.</string>
     <string name="tracking_preset_customized_summary">Ai reglat fin urmărirea. Alege un profil de mai sus pentru a reseta.</string>
-    <string name="settings_tracking_section_detection">Detectare și automatizare</string>
-    <string name="settings_tracking_section_sources">Surse de date</string>
     <string name="settings_tracking_section_detail">Colectarea locației</string>
     <string name="settings_tracking_section_notifications">Notificări</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
@@ -336,11 +332,9 @@
     <string name="permission_disabled_due_to_denial">%1$s este dezactivată deoarece permisiunea a fost refuzată. Acordă permisiunea din Setări pentru activare.</string>
     <string name="settings_wifi_permission_required">Necesită permisiunea Wi-Fi/de localizare. Activează comutatorul pentru a o acorda — nu se înregistrează date Wi-Fi până atunci, iar datele înregistrate rămân pe acest dispozitiv.</string>
     <string name="settings_cell_permission_required">Necesită permisiunea pentru starea telefonului și locația precisă. Activează comutatorul pentru a o acorda — nu se înregistrează date celulare până atunci, iar datele înregistrate rămân pe acest dispozitiv.</string>
-    <string name="settings_wifi_privacy_summary">Înregistrează rețelele Wi-Fi din apropiere pentru a îmbunătăți precizia locației. Datele rămân pe acest dispozitiv.</string>
     <string name="settings_barometer_unavailable">Senzorul de presiune nu este disponibil pe acest dispozitiv.</string>
     <string name="settings_activity_permission_required">Necesită permisiunea de recunoaștere a activității. Activează comutatorul pentru a o acorda.</string>
     <string name="settings_steps_unavailable">Senzorul contorului de pași nu este disponibil pe acest dispozitiv.</string>
-    <string name="settings_cell_privacy_summary">Înregistrează identificatorii turnurilor celulare pentru a îmbunătăți precizia locației. Datele rămân pe acest dispozitiv.</string>
     <string name="setup_start_exploring">Începe explorarea</string>
     <string name="setup_continue">Continuă</string>
     <string name="setup_step_indicator">Pasul %1$d din %2$d</string>
@@ -360,4 +354,9 @@
     <string name="background_reliability_samsung_action">Deschide setările bateriei dispozitivului</string>
     <string name="settings_tracebox_title">Diagnosticare a blocărilor</string>
     <string name="settings_tracebox_root_summary">Diagnosticare locală pentru blocări, ANR și structură</string>
+    <string name="setup_background_location_title">Permiteți locația în fundal pentru urmărirea automată</string>
+    <string name="setup_background_location_disclosure">Urmărirea automată pornește când Tracker rulează în fundal și vă înregistrează traseul chiar și atunci când ecranul aplicației nu este deschis. Datele de locație rămân pe acest dispozitiv. În setările de locație ale aplicației, alegeți „%1$s”.</string>
+    <string name="setup_background_location_open_settings">Deschideți setările de locație</string>
+    <string name="setup_background_location_decline">Nu acum</string>
+    <string name="setup_background_location_manual_only">Urmărirea manuală în prim-plan rămâne disponibilă. Urmărirea automată a locației va rămâne oprită până când locația în fundal este permisă.</string>
 </resources>

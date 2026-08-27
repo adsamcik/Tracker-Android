@@ -45,7 +45,6 @@
         <item quantity="one">自动跟踪已锁定 %1$d 分钟。</item>
         <item quantity="other">自动跟踪已锁定 %1$d 分钟。</item>
     </plurals>
-    <string name="notification_looking_for_gps">正在寻找 GPS — 正在使用位置</string>
     <string name="notification_starting">Tracker 正在启动 — 正在使用位置</string>
     <string name="notification_starting_without_location">Tracker 正在启动</string>
     <string name="notification_stop">停止</string>
@@ -59,8 +58,6 @@
     <string name="notification_tracking_start_failed_title">无法开始跟踪</string>
     <string name="notification_tracking_start_failed_text">打开应用以查看权限并恢复跟踪。</string>
     <string name="settings_activity_enabled_title">活动</string>
-    <string name="settings_auto_tracking_transition_summary">省电模式（活动检测稍慢）</string>
-    <string name="settings_auto_tracking_transition_title">使用活动转换</string>
     <string name="settings_cell_enabled_title">蜂窝网络</string>
     <string name="settings_disabled_recharge_summary">在手机连接充电器之前，自动跟踪将保持关闭</string>
     <string name="settings_disabled_recharge_title">充电前保持关闭</string>
@@ -74,10 +71,6 @@
     <string name="ski_notification_lift">%1$s 次乘坐</string>
     <string name="settings_barometer_enabled_title">气压计</string>
     <string name="settings_steps_enabled_title">步数</string>
-    <string name="settings_tracker_timer_ambient">环境计时器</string>
-    <string name="settings_tracker_timer_clock">基于间隔</string>
-    <string name="settings_tracker_timer_fused">Google Play 位置服务</string>
-    <string name="settings_tracker_timer_location">Android 位置服务</string>
     <string name="settings_tracking_min_distance_title">更新之间的最小距离</string>
     <string name="settings_tracking_min_time_title">更新之间的最短延迟</string>
     <string name="settings_tracking_notice_summary">重新开始跟踪后更改才会生效</string>

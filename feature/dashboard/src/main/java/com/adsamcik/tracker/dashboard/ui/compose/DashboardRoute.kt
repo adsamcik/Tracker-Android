@@ -112,6 +112,18 @@ fun DashboardRoute(
 	val lastSessionData by trackerState.lastSessionFlow.collectAsState()
 	val lastPathPoints by trackerState.lastPathPointsFlow.collectAsState()
 	val trackingParams by viewModel.trackingParams.collectAsState()
+	val trackingUnavailableMessage = stringResource(
+		com.adsamcik.tracker.tracker.R.string.notification_tracking_start_failed_title,
+	)
+	val currentTrackingStoppedUnexpectedlyMessage by rememberUpdatedState(
+		stringResource(R.string.dashboard_tracking_stopped_unexpectedly),
+	)
+	val currentRestartTrackingActionLabel by rememberUpdatedState(
+		stringResource(R.string.dashboard_action_restart_tracking),
+	)
+	val stoppedUntilRechargeMessage = stringResource(
+		com.adsamcik.tracker.tracker.R.string.settings_disabled_recharge_summary,
+	)
 
 	LaunchedEffect(trackingParams.sourcePolicyRevision, hasLocationPermission) {
 		manualStartReadiness = TrackerServiceApi.readManualTrackingStartReadiness(context)
@@ -129,7 +141,7 @@ fun DashboardRoute(
 
 	suspend fun showTrackingUnavailable() {
 		snackbarHostState.showSnackbar(
-			message = context.getString(R.string.dashboard_tracking_temporarily_unavailable),
+			message = trackingUnavailableMessage,
 		)
 	}
 
@@ -248,8 +260,8 @@ fun DashboardRoute(
 
 				if (!userRequestedStop) {
 					val result = snackbarHostState.showSnackbar(
-						message = context.getString(R.string.dashboard_tracking_stopped_unexpectedly),
-						actionLabel = context.getString(R.string.dashboard_action_restart_tracking),
+						message = currentTrackingStoppedUnexpectedlyMessage,
+						actionLabel = currentRestartTrackingActionLabel,
 					)
 					if (result == SnackbarResult.ActionPerformed) {
 						requestManualStart()
@@ -356,7 +368,7 @@ fun DashboardRoute(
 
 	// Permission denied snackbar
 	if (manualStartPermissionDenied) {
-		val message = context.getString(
+		val message = stringResource(
 			com.adsamcik.tracker.shared.utils.R.string.permission_denied_tracking_prerequisite,
 		)
 		PermissionDeniedSnackbar(
@@ -443,7 +455,7 @@ fun DashboardRoute(
 			showStopOptions = false
 			coroutineScope.launch {
 				snackbarHostState.showSnackbar(
-					context.getString(com.adsamcik.tracker.tracker.R.string.settings_disabled_recharge_summary),
+					stoppedUntilRechargeMessage,
 				)
 			}
 		},

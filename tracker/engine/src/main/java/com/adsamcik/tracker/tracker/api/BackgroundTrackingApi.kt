@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.api
 
+import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import dev.tracebox.Tracebox
 import android.content.Context
 import android.content.pm.PackageManager
@@ -29,6 +30,7 @@ import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
 import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
 import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
 import com.adsamcik.tracker.shared.base.extension.powerManager
+import com.adsamcik.tracker.shared.base.extension.trackingPermissionCapabilities
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.preferences.flow.PreferenceFlows
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
@@ -402,14 +404,16 @@ object BackgroundTrackingApi {
 
 	private fun canTrackerServiceBeStarted(context: Context): Boolean {
 		val entryPoint = getEntryPoint(context)
+		val capabilities = context.trackingPermissionCapabilities()
 		return !entryPoint.lockManager().isLocked &&
 			!context.powerManager.isPowerSaveMode &&
-			hasAnythingToTrack(
+			isAutomaticStartEligible(
 				params = cachedParamsSnapshot(),
-				locationAvailable = context.hasLocationPermission,
+				locationAvailable = capabilities.hasForegroundLocation,
+				backgroundLocationAvailable = capabilities.hasBackgroundLocation,
 				activityAvailable = context.hasActivityPermission,
 				stepsAvailable = context.hasActivityPermission && context.hasStepCounterSensor,
-				wifiAvailable = context.hasWifiScanPermission,
+				wifiAvailable = capabilities.hasWifiScan,
 				cellAvailable = context.hasCellScanPermission,
 				barometerAvailable = context.hasPressureSensor,
 			)
@@ -599,7 +603,10 @@ object BackgroundTrackingApi {
 		} catch (exception: Exception) {
 			// Corroboration only widens lower-confidence ON_FOOT starts. A missing/unavailable Steps
 			// provider must not disable Activity recognition or its high-confidence path.
-			Tracebox.log.error(exception, "Optional Steps automatic-control reconciliation failed")
+			Tracebox.log.error(
+				exception,
+				TrackerTraceboxTemplates.OPTIONAL_STEP_CONTROL_RECONCILIATION_FAILED,
+			)
 		}
 	}
 
@@ -681,7 +688,7 @@ object BackgroundTrackingApi {
 			} catch (e: CancellationException) {
 				throw e
 			} catch (error: Exception) {
-				Tracebox.log.error(error, "Activity recognition failed")
+				Tracebox.log.error(error, TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_FAILED)
 			}
 		}
 	}
@@ -732,7 +739,7 @@ object BackgroundTrackingApi {
 				activityControlConsentEpoch = null
 				reconcileControlEligibility(activityEligible = false, stepEligible = false)
 				publishActivityAutomationAuthority()
-				Tracebox.log.error(error, "SourcePolicy observation failed")
+				Tracebox.log.error(error, TrackerTraceboxTemplates.SOURCE_POLICY_OBSERVATION_FAILED)
 				delay(SOURCE_POLICY_RETRY_DELAY_MILLIS)
 				true
 			}
@@ -757,7 +764,7 @@ object BackgroundTrackingApi {
 			.catch { error ->
 				paramsInitialized = false
 				publishActivityAutomationAuthority()
-				Tracebox.log.error(error, "Application initialization failed")
+				Tracebox.log.error(error, TrackerTraceboxTemplates.APPLICATION_INITIALIZATION_FAILED)
 			}
 			.launchIn(scope)
 
@@ -767,7 +774,7 @@ object BackgroundTrackingApi {
 			R.string.settings_disabled_recharge_default
 		).onEach { disabledUntilRecharge = it }
 			.catch { error ->
-				Tracebox.log.error(error, "Application initialization failed")
+				Tracebox.log.error(error, TrackerTraceboxTemplates.APPLICATION_INITIALIZATION_FAILED)
 			}
 			.launchIn(scope)
 
@@ -775,9 +782,17 @@ object BackgroundTrackingApi {
 			ctx,
 			com.adsamcik.tracker.activity.R.string.settings_activity_freq_key,
 			com.adsamcik.tracker.activity.R.string.settings_activity_freq_default
-		).onEach { activityFreqSeconds = it }
+		).onEach { frequencySeconds ->
+			val changed = frequencySeconds != activityFreqSeconds
+			activityFreqSeconds = frequencySeconds
+			if (changed && isActive) {
+				reinitializeRequest(ctx, cachedParamsSnapshot().transitionDetectionEnabled)
+			} else {
+				getWatcherController(ctx).poke()
+			}
+		}
 			.catch { error ->
-				Tracebox.log.error(error, "Application initialization failed")
+				Tracebox.log.error(error, TrackerTraceboxTemplates.APPLICATION_INITIALIZATION_FAILED)
 			}
 			.launchIn(scope)
 
@@ -787,7 +802,7 @@ object BackgroundTrackingApi {
 			com.adsamcik.tracker.activity.R.string.settings_activity_watcher_default
 		).onEach { activityWatcherEnabled = it }
 			.catch { error ->
-				Tracebox.log.error(error, "Application initialization failed")
+				Tracebox.log.error(error, TrackerTraceboxTemplates.APPLICATION_INITIALIZATION_FAILED)
 			}
 			.launchIn(scope)
 	}
@@ -1269,6 +1284,33 @@ internal fun hasAnythingToTrack(
 	cellAvailable = cellAvailable,
 	barometerAvailable = barometerAvailable,
 )
+
+/**
+ * An automatic callback is a background start. If its configured plan includes location, Android
+ * 10+ background access must be effective before dispatching the service; foreground/coarse access
+ * alone remains valid for a later user-initiated manual session.
+ */
+internal fun isAutomaticStartEligible(
+	params: TrackingParamsState,
+	locationAvailable: Boolean,
+	backgroundLocationAvailable: Boolean,
+	activityAvailable: Boolean = true,
+	stepsAvailable: Boolean = true,
+	wifiAvailable: Boolean = true,
+	cellAvailable: Boolean = true,
+	barometerAvailable: Boolean = true,
+): Boolean {
+	if (params.locationEnabled && (!locationAvailable || !backgroundLocationAvailable)) return false
+	return hasAnythingToTrack(
+		params = params,
+		locationAvailable = locationAvailable,
+		activityAvailable = activityAvailable,
+		stepsAvailable = stepsAvailable,
+		wifiAvailable = wifiAvailable,
+		cellAvailable = cellAvailable,
+		barometerAvailable = barometerAvailable,
+	)
+}
 
 /** Action to take when the auto-tracking activity requirement preference changes. */
 internal enum class AutoTrackingPreferenceAction { NONE, ENABLE, DISABLE, REINITIALIZE }

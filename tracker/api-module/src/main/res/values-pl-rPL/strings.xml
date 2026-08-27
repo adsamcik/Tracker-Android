@@ -47,7 +47,6 @@
         <item quantity="many">Automatyczne śledzenie zablokowano na %1$d minut.</item>
         <item quantity="other">Automatyczne śledzenie zablokowano na %1$d minuty.</item>
     </plurals>
-    <string name="notification_looking_for_gps">Szukanie GPS — lokalizacja używana</string>
     <string name="notification_starting">Uruchamianie Trackera — lokalizacja używana</string>
     <string name="notification_starting_without_location">Uruchamianie Trackera</string>
     <string name="notification_stop">Zatrzymaj</string>
@@ -61,8 +60,6 @@
     <string name="notification_tracking_start_failed_title">Nie udało się rozpocząć śledzenia</string>
     <string name="notification_tracking_start_failed_text">Otwórz aplikację, aby sprawdzić uprawnienia i wznowić śledzenie.</string>
     <string name="settings_activity_enabled_title">Aktywność</string>
-    <string name="settings_auto_tracking_transition_summary">Tryb oszczędzający baterię (nieco wolniejsze wykrywanie aktywności)</string>
-    <string name="settings_auto_tracking_transition_title">Używaj przejść aktywności</string>
     <string name="settings_cell_enabled_title">Sieć komórkowa</string>
     <string name="settings_disabled_recharge_summary">Automatyczne śledzenie jest wyłączone, dopóki telefon nie zostanie podłączony do ładowarki</string>
     <string name="settings_disabled_recharge_title">Wyłączone do naładowania</string>
@@ -76,10 +73,6 @@
     <string name="ski_notification_lift">Przejazd %1$s</string>
     <string name="settings_barometer_enabled_title">Barometr</string>
     <string name="settings_steps_enabled_title">Liczba kroków</string>
-    <string name="settings_tracker_timer_ambient">Timer otoczenia</string>
-    <string name="settings_tracker_timer_clock">Oparty na interwałach</string>
-    <string name="settings_tracker_timer_fused">Lokalizacja Google Play</string>
-    <string name="settings_tracker_timer_location">Lokalizacja Androida</string>
     <string name="settings_tracking_min_distance_title">Minimalna odległość między aktualizacjami</string>
     <string name="settings_tracking_min_time_title">Minimalne opóźnienie między aktualizacjami</string>
     <string name="settings_tracking_notice_summary">Zmiany zaczną obowiązywać po ponownym uruchomieniu śledzenia</string>

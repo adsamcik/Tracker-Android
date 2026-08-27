@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.app.tracebox
 
+import com.adsamcik.tracker.R
 import dev.tracebox.ui.compose.TraceboxAdvancedControls
 import dev.tracebox.ui.compose.TraceboxDiagnosticsUiConfiguration
 import dev.tracebox.ui.compose.TraceboxDiagnosticsUiStrings
@@ -8,16 +9,17 @@ import dev.tracebox.ui.compose.TraceboxPrimaryAction
 
 /** Tracker's product choices for Tracebox's reusable casual/advanced diagnostics screen. */
 internal object TrackerTraceboxUi {
-    val configuration = TraceboxDiagnosticsUiConfiguration(
+    fun configuration(): TraceboxDiagnosticsUiConfiguration = configuration(
         strings = TraceboxDiagnosticsUiStrings(
-            title = "Help improve Tracker",
-            description =
-                "If Tracker behaved unexpectedly, share local diagnostics with the developer.",
-            supportTitle = "Share diagnostics with the developer",
-            supportDescription =
-                "Recent crashes, errors, and performance context can help identify what went wrong.",
-            reviewAndShare = "Review and share with developer",
+            title = R.string.settings_tracebox_title,
+            description = R.string.settings_tracebox_root_summary,
         ),
+    )
+
+    internal fun configuration(
+        strings: TraceboxDiagnosticsUiStrings,
+    ) = TraceboxDiagnosticsUiConfiguration(
+        strings = strings,
         // Tracker already owns the settings app bar, so the reusable screen should not repeat it.
         showHeading = false,
         primaryAction = TraceboxPrimaryAction.SHARE,

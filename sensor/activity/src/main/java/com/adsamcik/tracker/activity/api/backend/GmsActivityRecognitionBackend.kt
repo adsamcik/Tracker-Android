@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.activity.api.backend
 
+import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import dev.tracebox.Tracebox
 import android.annotation.SuppressLint
 import android.app.PendingIntent
@@ -25,6 +26,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -67,8 +69,14 @@ class GmsActivityRecognitionBackend @Inject constructor(
 
 	private val subscriptionMutex = Mutex()
 
-	private val activityUpdateQueue = Channel<ActivityUpdate>(Channel.UNLIMITED)
-	private val transitionUpdateQueue = Channel<List<TransitionUpdate>>(Channel.UNLIMITED)
+	private val activityUpdateQueue = Channel<ActivityUpdate>(
+		capacity = LIVE_UPDATE_BUFFER_CAPACITY,
+		onBufferOverflow = BufferOverflow.DROP_OLDEST,
+	)
+	private val transitionUpdateQueue = Channel<List<TransitionUpdate>>(
+		capacity = LIVE_UPDATE_BUFFER_CAPACITY,
+		onBufferOverflow = BufferOverflow.DROP_OLDEST,
+	)
 	private val _activityUpdates = MutableSharedFlow<ActivityUpdate>()
 	override val activityUpdates: Flow<ActivityUpdate> = _activityUpdates.asSharedFlow()
 
@@ -97,7 +105,7 @@ class GmsActivityRecognitionBackend @Inject constructor(
 	): Boolean =
 		subscriptionMutex.withLock {
 			if (!isAvailable) {
-				Tracebox.log.warn("Activity recognition is unavailable")
+				Tracebox.log.warn(TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_UNAVAILABLE)
 				return@withLock false
 			}
 
@@ -127,7 +135,7 @@ class GmsActivityRecognitionBackend @Inject constructor(
 				}
 				throw e
 			} catch (e: Exception) {
-				Tracebox.log.error(e, "Activity recognition failed")
+				Tracebox.log.error(e, TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_FAILED)
 				withContext(NonCancellable) {
 					rollbackSubscriptions(client, intent, e)
 				}
@@ -150,7 +158,10 @@ class GmsActivityRecognitionBackend @Inject constructor(
 		} catch (error: CancellationException) {
 			throw error
 		} catch (error: Exception) {
-			Tracebox.log.error(error, "Activity callback metadata update failed")
+			Tracebox.log.error(
+				error,
+				TrackerTraceboxTemplates.ACTIVITY_CALLBACK_METADATA_UPDATE_FAILED,
+			)
 			false
 		}
 	}
@@ -182,7 +193,7 @@ class GmsActivityRecognitionBackend @Inject constructor(
 		} catch (e: CancellationException) {
 			throw e
 		} catch (e: Exception) {
-			Tracebox.log.error(e, "Activity recognition failed")
+			Tracebox.log.error(e, TrackerTraceboxTemplates.ACTIVITY_RECOGNITION_FAILED)
 			throw e
 		}
 	}
@@ -364,6 +375,7 @@ class GmsActivityRecognitionBackend @Inject constructor(
 			.setAction("${context.packageName}.ACTIVITY_RECOGNITION.$sourceInstanceId.$registrationGeneration")
 
 	companion object {
+		internal const val LIVE_UPDATE_BUFFER_CAPACITY = 64
 		internal const val EXTRA_SOURCE_INSTANCE_ID = "activity_registration_source_instance_id"
 		internal const val EXTRA_REGISTRATION_GENERATION = "activity_registration_generation"
 		internal const val EXTRA_COLLECTED_DATA_EPOCH = "activity_registration_collected_data_epoch"

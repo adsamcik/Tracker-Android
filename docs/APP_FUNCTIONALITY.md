@@ -685,9 +685,25 @@ installs it during `Application.attachBaseContext()`, before content providers
 and `Application.onCreate()`, while Tracebox's private handler process skips the
 Tracker application graph to avoid recursive installation.
 
-Application code emits only fixed, payload-free breadcrumbs and handled-error
-codes through `:core:diagnostics`. Tracker has no parallel diagnostic Room storage,
-file-fallback migration, or legacy crash/log viewer.
+Tracker enables optional native capture and keeps managed capture operational when native setup is
+unavailable. The readiness/health UI reports that condition as degraded. Production release
+evidence requires `libtracebox_crashpad.so` for Tracker's supported phone ABI (`arm64-v8a`) and
+binds native symbols to the exact build identity. Debug-only emulator ABIs are not shipped.
+
+Application code emits only static templates with bounded structural values such
+as counts, durations, and enums. Precise coordinates, tracked identifiers,
+exception messages, and arbitrary object rendering are excluded. The
+`:core:diagnostics` module re-exports the Tracebox API as a dependency boundary;
+it does not own a parallel facade or data store. Tracker has no diagnostic Room
+storage, file-fallback migration, or legacy crash/log viewer.
+
+The standard diagnostics policy keeps performance observations disabled. If the user enables the
+separate performance category, Tracker records bounded process-start elapsed/CPU time; battery,
+charging, power-mode, process-memory, and memory-pressure snapshots at app foreground/background
+boundaries; and tracking-session frame wake-lock duration. Structural diagnostics and the local
+technical-status UI also expose counts for coalesced in-process source timers. Memory work runs off
+the main thread, unsupported battery counters are marked unavailable, and no periodic polling or
+system-wide wakeup claim is made.
 
 ### 10.2 Diagnostics Controls
 
@@ -695,13 +711,24 @@ The Tracebox settings screen exposes the supported diagnostic workflow:
 
 - inspect readiness and health;
 - enable or disable the diagnostics profile;
+- persist the requested policy across restarts and restore Tracker's standard defaults;
 - delete all Tracebox-owned data;
 - prepare a standard diagnostic package;
 - review and explicitly approve its disclosure; and
 - save or share the approved package through Android system UI.
 
 Tracker does not render raw crash records or free-form application logs in its
-own UI.
+own UI. The app-wide collected-data deletion transaction also deletes all
+Tracebox-owned data. A partial handler-process deletion keeps a durable marker
+and is retried during startup before the transaction is considered complete.
+
+All Tracebox status, capture, duration, review/approval, failure, save/share, and deletion text is
+resource-backed. Tracker packages every declared app locale and supplies localized diagnostics
+title/summary resources; untranslated Tracebox library strings use the library's default resource.
+Android backup and device-to-device transfer are disabled for all Tracker and Tracebox storage.
+
+Approved package bytes are bounded capabilities. Tracebox retires them after save/share, package
+replacement, policy change, explicit deletion, or diagnostics-screen disposal.
 
 ---
 
@@ -744,6 +771,7 @@ Following Apple-style UX philosophy:
 
 | Action | Path |
 |--------|------|
+| **Review local diagnostics** | Settings → Debug → Crash diagnostics |
 | **Start tracking** | Dashboard → FAB button |
 | **View map** | Bottom navigation → Map |
 | **View statistics** | Bottom navigation → Stats |
@@ -770,7 +798,8 @@ Following Apple-style UX philosophy:
 - **Location**: `/data/data/com.adsamcik.tracker/databases/`
 - **Size**: Varies (100 MB for several months of daily tracking)
 - **Privacy**: 100% local; zero cloud sync
+- **Platform backup/transfer**: Disabled for every app-storage domain
 
 ---
 
-*This documentation reflects the state of the application as of December 2025.*
+*This documentation reflects the diagnostics integration as of August 2026.*

@@ -79,10 +79,6 @@ android {
         versionName = "10.0.0"
     }
 
-    androidResources {
-        localeFilters += "en"
-    }
-
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
     }
@@ -113,6 +109,10 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             buildConfigField("boolean", "COMPOSE_MAIN", "true")
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+                abiFilters += listOf("arm64-v8a")
+            }
             releaseSigningConfig?.let {
                 signingConfig = it
             }
@@ -273,5 +273,6 @@ dependencies {
     testImplementation(project(":stats:engine"))
     testImplementation(libs.turbine)
     androidTestImplementation(project(":core:testing"))
+    androidTestImplementation(project(":core:sqlite-runtime"))
     testImplementation(project(":core:testing"))
 }

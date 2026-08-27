@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.tracker.failure.isTrackingOperationalFailure
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
 import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.DemandReason
@@ -94,6 +95,20 @@ sealed interface SourceSessionReconfigureOutcome {
 	data object NotActive : SourceSessionReconfigureOutcome
 	data object Unchanged : SourceSessionReconfigureOutcome
 	data class Rejected(val result: SessionReconfigureResult) : SourceSessionReconfigureOutcome
+}
+
+/** Service-facing result that separates expected teardown contention from contract failures. */
+internal sealed interface SourceSessionStopOutcome {
+	data object Stopped : SourceSessionStopOutcome
+	data object NotActive : SourceSessionStopOutcome
+	data class Retryable(val code: SourceSessionStopRetryCode) : SourceSessionStopOutcome
+}
+
+internal enum class SourceSessionStopRetryCode {
+	COORDINATOR_BUSY,
+	DRAIN_PENDING,
+	CLEANUP_PENDING,
+	STORAGE_UNAVAILABLE,
 }
 
 /** Factual end of session attribution, which may precede physical source cleanup. */
@@ -410,72 +425,94 @@ class TrackerServiceSourceSession @Inject constructor(
 		reason: String,
 		preserveLogicalSession: Boolean,
 		factualCutoff: SourceSessionStopCutoff? = null,
-	) = mutex.withLock {
-		val session = active ?: run {
-			pendingInputs = null
+	): SourceSessionStopOutcome = mutex.withLock {
+		val session = active ?: return@withLock finishInactiveStop()
+		if (!session.coordinatorStarted) return@withLock finishUnstartedStop()
+
+		val outcome = stopStartedSession(
+			session = session,
+			reason = reason,
+			preserveLogicalSession = preserveLogicalSession,
+			factualCutoff = factualCutoff,
+		)
+		if (outcome == SourceSessionStopOutcome.Stopped) {
 			settingsStatusProvider.publishInactive()
-			return@withLock
 		}
-		if (!session.coordinatorStarted) {
-			active = null
-			settingsStatusProvider.publishInactive()
-			return@withLock
-		}
-		if (preserveLogicalSession && !session.runtimeCleanupRequired) {
-			val currentCutoff = currentStopCutoff(session.lastInputs.clockDomainId)
-			when (val result = coordinator.suspendForRestart(
-				SessionSuspendRequest(
-					ownerToken = session.ownerToken,
-					reason = reason,
-					wallTimeMs = currentCutoff.wallTimeMs,
-					elapsedRealtimeNanos = currentCutoff.elapsedRealtimeNanos,
-					clockDomainId = currentCutoff.clockDomainId,
-				),
-			)) {
-				is SessionSuspendResult.Suspended,
-				SessionSuspendResult.NoActiveSession,
-				-> active = null
-				is SessionSuspendResult.DrainPending -> error(
-					"Event-source suspension drain pending through ${result.requiredOrdinal}",
-				)
-				is SessionSuspendResult.CleanupPending -> error(
-					"Event-source suspension cleanup pending through ${result.requiredOrdinal}",
-				)
-				SessionSuspendResult.Busy -> error("Event-source session coordinator is busy")
-			}
-		} else {
-			val cutoff = factualCutoff
-				?.takeIf { it.clockDomainId == session.lastInputs.clockDomainId }
-				?: currentStopCutoff(session.lastInputs.clockDomainId)
-			when (val result = coordinator.stop(
-				SessionStopRequest(
-					ownerToken = session.ownerToken,
-					reason = reason,
-					wallTimeMs = cutoff.wallTimeMs,
-					elapsedRealtimeNanos = cutoff.elapsedRealtimeNanos,
-					clockDomainId = cutoff.clockDomainId,
-				),
-			)) {
-				is SessionStopResult.Stopped,
-				SessionStopResult.NoActiveSession,
-				-> active = null
-				is SessionStopResult.DrainPending -> error(
-					"Event-source shutdown drain pending through ${result.requiredOrdinal}",
-				)
-				is SessionStopResult.CleanupPending -> error(
-					"Event-source shutdown cleanup pending through ${result.requiredOrdinal}",
-				)
-				SessionStopResult.Busy -> error("Event-source session coordinator is busy")
-			}
-		}
-		settingsStatusProvider.publishInactive()
+		outcome
 	}
 
-	private fun currentStopCutoff(clockDomainId: String) = SourceSessionStopCutoff(
-		wallTimeMs = Time.nowMillis,
-		elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
-		clockDomainId = clockDomainId,
-	)
+	private fun finishInactiveStop(): SourceSessionStopOutcome {
+		pendingInputs = null
+		settingsStatusProvider.publishInactive()
+		return SourceSessionStopOutcome.NotActive
+	}
+
+	private fun finishUnstartedStop(): SourceSessionStopOutcome {
+		active = null
+		settingsStatusProvider.publishInactive()
+		return SourceSessionStopOutcome.Stopped
+	}
+
+	private suspend fun stopStartedSession(
+		session: ActiveSession,
+		reason: String,
+		preserveLogicalSession: Boolean,
+		factualCutoff: SourceSessionStopCutoff?,
+	): SourceSessionStopOutcome = try {
+		if (preserveLogicalSession && !session.runtimeCleanupRequired) {
+			suspendForRestart(session, reason)
+		} else {
+			stopCompletely(session, reason, factualCutoff)
+		}
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (failure: Exception) {
+		if (!failure.isTrackingOperationalFailure()) {
+			throw failure
+		}
+		SourceSessionStopOutcome.Retryable(SourceSessionStopRetryCode.STORAGE_UNAVAILABLE)
+	}
+
+	private suspend fun suspendForRestart(
+		session: ActiveSession,
+		reason: String,
+	): SourceSessionStopOutcome {
+		val cutoff = currentStopCutoff(session.lastInputs.clockDomainId)
+		val outcome = coordinator.suspendForRestart(
+			SessionSuspendRequest(
+				ownerToken = session.ownerToken,
+				reason = reason,
+				wallTimeMs = cutoff.wallTimeMs,
+				elapsedRealtimeNanos = cutoff.elapsedRealtimeNanos,
+				clockDomainId = cutoff.clockDomainId,
+			),
+		).toSourceSessionStopOutcome()
+		if (outcome == SourceSessionStopOutcome.Stopped) {
+			active = null
+		}
+		return outcome
+	}
+
+	private suspend fun stopCompletely(
+		session: ActiveSession,
+		reason: String,
+		factualCutoff: SourceSessionStopCutoff?,
+	): SourceSessionStopOutcome {
+		val cutoff = selectStopCutoff(session.lastInputs.clockDomainId, factualCutoff)
+		val outcome = coordinator.stop(
+			SessionStopRequest(
+				ownerToken = session.ownerToken,
+				reason = reason,
+				wallTimeMs = cutoff.wallTimeMs,
+				elapsedRealtimeNanos = cutoff.elapsedRealtimeNanos,
+				clockDomainId = cutoff.clockDomainId,
+			),
+		).toSourceSessionStopOutcome()
+		if (outcome == SourceSessionStopOutcome.Stopped) {
+			active = null
+		}
+		return outcome
+	}
 
 	private suspend fun startCoordinator(
 		session: ActiveSession,
@@ -556,6 +593,49 @@ class TrackerServiceSourceSession @Inject constructor(
 		var lastInputs: SourceSessionPlanInputs,
 		var coordinatorStarted: Boolean,
 		var runtimeCleanupRequired: Boolean = false,
+	)
+}
+
+private fun currentStopCutoff(clockDomainId: String) = SourceSessionStopCutoff(
+	wallTimeMs = Time.nowMillis,
+	elapsedRealtimeNanos = Time.elapsedRealtimeNanos,
+	clockDomainId = clockDomainId,
+)
+
+private fun selectStopCutoff(
+	clockDomainId: String,
+	factualCutoff: SourceSessionStopCutoff?,
+): SourceSessionStopCutoff = factualCutoff
+	?.takeIf { it.clockDomainId == clockDomainId }
+	?: currentStopCutoff(clockDomainId)
+
+private fun SessionSuspendResult.toSourceSessionStopOutcome(): SourceSessionStopOutcome = when (this) {
+	is SessionSuspendResult.Suspended,
+	SessionSuspendResult.NoActiveSession,
+	-> SourceSessionStopOutcome.Stopped
+	is SessionSuspendResult.DrainPending -> SourceSessionStopOutcome.Retryable(
+		SourceSessionStopRetryCode.DRAIN_PENDING,
+	)
+	is SessionSuspendResult.CleanupPending -> SourceSessionStopOutcome.Retryable(
+		SourceSessionStopRetryCode.CLEANUP_PENDING,
+	)
+	SessionSuspendResult.Busy -> SourceSessionStopOutcome.Retryable(
+		SourceSessionStopRetryCode.COORDINATOR_BUSY,
+	)
+}
+
+private fun SessionStopResult.toSourceSessionStopOutcome(): SourceSessionStopOutcome = when (this) {
+	is SessionStopResult.Stopped,
+	SessionStopResult.NoActiveSession,
+	-> SourceSessionStopOutcome.Stopped
+	is SessionStopResult.DrainPending -> SourceSessionStopOutcome.Retryable(
+		SourceSessionStopRetryCode.DRAIN_PENDING,
+	)
+	is SessionStopResult.CleanupPending -> SourceSessionStopOutcome.Retryable(
+		SourceSessionStopRetryCode.CLEANUP_PENDING,
+	)
+	SessionStopResult.Busy -> SourceSessionStopOutcome.Retryable(
+		SourceSessionStopRetryCode.COORDINATOR_BUSY,
 	)
 }
 

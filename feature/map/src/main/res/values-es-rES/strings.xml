@@ -74,11 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Descenso</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Remonte</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Caminar o pausa</string>
-    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Caminando</string>
-    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">En bicicleta</string>
-    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Conduciendo</string>
-    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Transporte público</string>
-    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Otro</string>
     <string name="map_layer_fog_title">Niebla del explorador</string>
     <string name="map_layer_fog_chip">Niebla</string>
     <string name="map_layer_fog_description">El mundo emerge de la niebla: cada zona que has tocado se revela y brilla más cuanto mejor la conoces. Los lugares por los que solo pasaste quedan como una neblina tenue; donde exploraste a fondo arde en oro sólido. El terreno inexplorado permanece oscuro.</string>

@@ -161,6 +161,18 @@ class LocationSampleDaoTest {
 	} }
 
 	@Test
+	fun `recent coordinate query is newest first bounded and skips coordinate-free rows`() { runTest {
+		dao.insert(createSample(timeMs = 1_000L, latE7 = 500_000_001, lonE7 = 140_000_001))
+		dao.insert(createSample(timeMs = 2_000L, latE7 = null, lonE7 = null))
+		dao.insert(createSample(timeMs = 3_000L, latE7 = 500_000_003, lonE7 = 140_000_003))
+		dao.insert(createSample(timeMs = 4_000L, latE7 = 500_000_004, lonE7 = 140_000_004))
+
+		val results = dao.getRecentWithCoordinatesBetween(0L, 5_000L, limit = 2)
+
+		results.map { it.timeMs } shouldBe listOf(4_000L, 3_000L)
+	} }
+
+	@Test
 	fun `getNearestWithCoordinates finds closest sample`()  { runTest {
 		dao.insert(createSample(timeMs = 1000L, latE7 = 500_000_000, lonE7 = 140_000_000))
 		dao.insert(createSample(timeMs = 3000L, latE7 = 510_000_000, lonE7 = 141_000_000))

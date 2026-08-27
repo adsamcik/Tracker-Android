@@ -27,6 +27,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -36,6 +37,9 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.app.onboarding.data.SetupStep
 import com.adsamcik.tracker.app.onboarding.ui.steps.HowToTrackStep
@@ -59,6 +63,15 @@ fun SetupRoute(
     viewModel: SetupViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    DisposableEffect(lifecycleOwner, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refreshPermissionCapabilities()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // Hardware back button
     BackHandler(enabled = state.currentStep != SetupStep.Welcome) {
@@ -160,7 +173,6 @@ fun SetupRoute(
                         onWifiEnabledChange = viewModel::setWifiEnabled,
                         onCellEnabledChange = viewModel::setCellEnabled,
                         onLocationPermissionResult = viewModel::onLocationPermissionResult,
-                        onBackgroundLocationResult = viewModel::onBackgroundLocationResult,
                         onActivityPermissionResult = viewModel::onActivityPermissionResult,
                         onNotificationPermissionResult = viewModel::onNotificationPermissionResult,
                         onWifiPermissionResult = viewModel::onWifiPermissionResult,
@@ -169,6 +181,9 @@ fun SetupRoute(
                     )
 
                     SetupStep.BackgroundAccess -> BackgroundAccessStep(
+						state = state,
+						onBackgroundLocationResult = viewModel::onBackgroundLocationResult,
+						onDeclineBackgroundLocation = viewModel::declineBackgroundLocation,
                         onContinue = { viewModel.goToNextStep() },
                     )
 

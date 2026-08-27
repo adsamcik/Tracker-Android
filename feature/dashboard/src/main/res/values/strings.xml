@@ -4,7 +4,6 @@
     <string name="dashboard_tracking_title">Tracking</string>
     <string name="dashboard_recording">Recording</string>
     <string name="dashboard_tracking_stopped_unexpectedly">Tracking stopped unexpectedly</string>
-    <string name="dashboard_tracking_temporarily_unavailable">Tracking is temporarily unavailable in this version of the app.</string>
     <string name="dashboard_permission_banner_title">Location permission unavailable</string>
     <string name="dashboard_permission_banner_subtitle">Tracker can\'t record routes until you grant location access. Tap to grant.</string>
     <string name="dashboard_permission_banner_cd">Location permission unavailable banner, tap to grant location access</string>

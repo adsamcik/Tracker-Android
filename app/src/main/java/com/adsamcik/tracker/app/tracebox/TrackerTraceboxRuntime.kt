@@ -30,13 +30,16 @@ internal object TrackerTraceboxRuntime {
     fun install(context: Context): TraceboxHandle = synchronized(lock) {
         installed ?: Tracebox.install(
             context,
-            TraceboxConfiguration.Builder()
-                .setInitialPolicy(defaultPolicy)
-                .setNativeCaptureEnabled(true)
-                .setPersistRequestedProfile(true)
-                .build(),
+            configuration(),
         ).also { installed = it }
     }
+
+    /** Immutable host choices shared by attachment-time installation and product tests. */
+    internal fun configuration(): TraceboxConfiguration = TraceboxConfiguration.Builder()
+        .setInitialPolicy(defaultPolicy)
+        .setNativeCaptureEnabled(true)
+        .setPersistRequestedProfile(true)
+        .build()
 }
 
 @Singleton

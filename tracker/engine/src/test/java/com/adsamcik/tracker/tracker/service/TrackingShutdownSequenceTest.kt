@@ -6,6 +6,7 @@ import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
@@ -14,6 +15,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
+import java.io.IOException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TrackingShutdownSequenceTest {
@@ -42,7 +44,7 @@ class TrackingShutdownSequenceTest {
 
 	@Test
 	fun `drain failure cancels queued cycles and still runs teardown`() = runTest {
-		val failure = IllegalStateException("drain failed")
+		val failure = IOException("drain failed")
 		val calls = mutableListOf<String>()
 
 		val result = drainCyclesThenShutdown(
@@ -64,7 +66,7 @@ class TrackingShutdownSequenceTest {
 
 	@Test
 	fun `shutdown failure is reported without pretending teardown completed`() = runTest {
-		val failure = IllegalStateException("shutdown failed")
+		val failure = IOException("shutdown failed")
 
 		val result = drainCyclesThenShutdown(
 			drain = {},
@@ -119,7 +121,7 @@ class TrackingShutdownSequenceTest {
 			retryDelayMillis = 0L,
 		) {
 			attempts++
-			if (attempts < 4) error("still busy")
+			if (attempts < 4) throw TrackingShutdownRetryException("COORDINATOR_BUSY")
 			"complete"
 		}
 
@@ -128,7 +130,7 @@ class TrackingShutdownSequenceTest {
 	}
 
 	@Test
-	fun `bounded shutdown retry surfaces permanent cleanup failure`() = runTest {
+	fun `bounded shutdown retry does not retry programmer failures`() = runTest {
 		var attempts = 0
 
 		shouldThrow<IllegalStateException> {
@@ -137,11 +139,11 @@ class TrackingShutdownSequenceTest {
 				retryDelayMillis = 0L,
 			) {
 				attempts++
-				error("permanent failure")
+					error("permanent failure")
 			}
 		}
 
-		attempts shouldBe 3
+		attempts shouldBe 1
 	}
 
 	@Test
@@ -305,11 +307,54 @@ class TrackingShutdownSequenceTest {
 			retryDelayMillis = 0L,
 		) {
 			attempts++
-			if (attempts < 3) error("temporary failure")
+			if (attempts < 3) throw TrackingShutdownRetryException("DRAIN_PENDING")
 			"complete"
 		}
 
 		result shouldBe "complete"
 		attempts shouldBe 3
+	}
+
+	@Test
+	fun `cancellation propagates from every shutdown boundary`() = runTest {
+		shouldThrow<CancellationException> {
+			drainCyclesThenShutdown(
+				drain = { throw CancellationException("cancel drain") },
+				cancelPendingCycles = {},
+				shutdown = { "unreachable" },
+			)
+		}
+		shouldThrow<CancellationException> {
+			drainCyclesThenShutdown(
+				drain = {},
+				cancelPendingCycles = { throw CancellationException("cancel pending") },
+				shutdown = { "unreachable" },
+			)
+		}
+		shouldThrow<CancellationException> {
+			drainCyclesThenShutdown(
+				drain = {},
+				cancelPendingCycles = {},
+				shutdown = { throw CancellationException("cancel shutdown") },
+			)
+		}
+		shouldThrow<CancellationException> {
+			retryTrackingShutdown(retryDelayMillis = 0L) {
+				throw CancellationException("cancel retry")
+			}
+		}
+	}
+
+	@Test
+	fun `programmer errors propagate instead of becoming degraded shutdown`() = runTest {
+		val invariant = IllegalStateException("broken invariant")
+
+		shouldThrow<IllegalStateException> {
+			drainCyclesThenShutdown(
+				drain = { throw invariant },
+				cancelPendingCycles = {},
+				shutdown = { "unreachable" },
+			)
+		}
 	}
 }

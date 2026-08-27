@@ -32,17 +32,20 @@ class ForceStopSourceSessionFinalizer @Inject constructor(
 		val elapsedRealtimeNanos = clock.elapsedRealtimeNanos()
 		val bootId = bootClockDomainProvider.current()
 		return database.withTransaction {
+			// The user-visible run is a separate projection from the source-session lifecycle. It
+			// can remain open when shutdown cleared the recovery descriptor just before process death.
+			database.trackerRunDao().closeOpenRuns(completedAtMs)
 			val dao = database.sourceSessionDao()
 			val sessions = dao.incompleteSessions()
 			val pendingAutomaticAction = database.activityAutomaticStartActionDao().current()
 				?.status in PENDING_AUTOMATIC_ACTION_STATES
 			if (sessions.isNotEmpty() || pendingAutomaticAction) {
-					database.rotateActivityAutomationEpochInTransaction(
-						reason = FORCE_STOP_COMPLETION_REASON,
-						updatedAtMs = completedAtMs,
-						bootClockDomainId = bootId,
-						effectiveElapsedRealtimeNanos = elapsedRealtimeNanos,
-					)
+				database.rotateActivityAutomationEpochInTransaction(
+					reason = FORCE_STOP_COMPLETION_REASON,
+					updatedAtMs = completedAtMs,
+					bootClockDomainId = bootId,
+					effectiveElapsedRealtimeNanos = elapsedRealtimeNanos,
+				)
 			}
 			if (sessions.isEmpty()) {
 				return@withTransaction ForceStopSourceSessionFinalization.NO_ACTIVE_SESSION

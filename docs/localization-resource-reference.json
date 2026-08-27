@@ -191,6 +191,7 @@
         "app/src/main/java/com/adsamcik/tracker/app/settings/root/RootSettingsScreen.kt",
         "app/src/main/java/com/adsamcik/tracker/app/ui/MainRoot.kt",
         "app/src/main/java/com/adsamcik/tracker/module/Module.kt",
+        "feature/game/lint-baseline.xml",
         "feature/game/src/main/AndroidManifest.xml"
       ],
       "existing_locale_qualifiers": [
@@ -239,6 +240,7 @@
         "app/src/main/java/com/adsamcik/tracker/app/settings/root/RootSettingsScreen.kt",
         "app/src/main/java/com/adsamcik/tracker/app/ui/MainRoot.kt",
         "app/src/main/java/com/adsamcik/tracker/module/Module.kt",
+        "feature/map/lint-baseline.xml",
         "feature/map/src/main/AndroidManifest.xml"
       ],
       "existing_locale_qualifiers": [
@@ -286,6 +288,7 @@
         "app/src/main/java/com/adsamcik/tracker/app/settings/SettingsRoute.kt",
         "app/src/main/java/com/adsamcik/tracker/app/ui/MainRoot.kt",
         "app/src/main/java/com/adsamcik/tracker/module/Module.kt",
+        "feature/statistics/lint-baseline.xml",
         "feature/statistics/src/main/AndroidManifest.xml"
       ],
       "existing_locale_qualifiers": [
@@ -1781,6 +1784,60 @@
       "usage_files": [
         "app/src/main/java/com/adsamcik/tracker/app/activity/MainActivityCompose.kt",
         "app/src/main/java/com/adsamcik/tracker/app/settings/data/DataSettingsScreen.kt"
+      ],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "tracking_startup_recovery_title",
+      "kind": "string",
+      "translatable": true,
+      "formatted": true,
+      "attributes": {
+        "tools:ignore": "MissingTranslation"
+      },
+      "value": "Tracking recovery needs attention",
+      "format_tokens": [],
+      "usage_files": [
+        "app/src/main/java/com/adsamcik/tracker/app/activity/MainActivityCompose.kt"
+      ],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "tracking_startup_recovery_message",
+      "kind": "string",
+      "translatable": true,
+      "formatted": true,
+      "attributes": {
+        "tools:ignore": "MissingTranslation"
+      },
+      "value": "Collection remains off while Tracker safely reconciles its tracking data. Retry without deleting history.",
+      "format_tokens": [],
+      "usage_files": [
+        "app/src/main/java/com/adsamcik/tracker/app/activity/MainActivityCompose.kt"
+      ],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "tracking_startup_retry",
+      "kind": "string",
+      "translatable": true,
+      "formatted": true,
+      "attributes": {
+        "tools:ignore": "MissingTranslation"
+      },
+      "value": "Retry tracking recovery",
+      "format_tokens": [],
+      "usage_files": [
+        "app/src/main/java/com/adsamcik/tracker/app/activity/MainActivityCompose.kt"
       ],
       "existing_locale_qualifiers": []
     },
@@ -3548,7 +3605,8 @@
         "%2$d"
       ],
       "usage_files": [
-        "app/src/main/java/com/adsamcik/tracker/app/settings/root/RootSettingsScreen.kt"
+        "app/src/main/java/com/adsamcik/tracker/app/settings/root/RootSettingsScreen.kt",
+        "detekt-baseline.xml"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
@@ -3682,7 +3740,8 @@
       "value": "Adapts length system to detected activities",
       "format_tokens": [],
       "usage_files": [
-        "app/src/main/java/com/adsamcik/tracker/app/settings/root/RootSettingsScreen.kt"
+        "app/src/main/java/com/adsamcik/tracker/app/settings/root/RootSettingsScreen.kt",
+        "detekt-baseline.xml"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
@@ -3726,7 +3785,8 @@
       "value": "Applies the selected length system everywhere",
       "format_tokens": [],
       "usage_files": [
-        "app/src/main/java/com/adsamcik/tracker/app/settings/root/RootSettingsScreen.kt"
+        "app/src/main/java/com/adsamcik/tracker/app/settings/root/RootSettingsScreen.kt",
+        "detekt-baseline.xml"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
@@ -7724,12 +7784,14 @@
       "attributes": {
         "translatable": "false"
       },
-      "value": "Projected events: %1$d • plan revisions: %2$d • tracking frames: %3$d • frame wake lock: %4$d ms",
+      "value": "Projected events: %1$d • plan revisions: %2$d • tracking frames: %3$d • frame wake lock: %4$d ms • source timer wakeups: %5$d • source requests served: %6$d",
       "format_tokens": [
         "%1$d",
         "%2$d",
         "%3$d",
-        "%4$d"
+        "%4$d",
+        "%5$d",
+        "%6$d"
       ],
       "usage_files": [
         "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingStatusComponents.kt"
@@ -7768,46 +7830,9 @@
       "value": "Set individual update frequency and location filters.",
       "format_tokens": [],
       "usage_files": [
-        "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt"
+        "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt",
+        "detekt-baseline.xml"
       ],
-      "existing_locale_qualifiers": []
-    },
-    {
-      "module": "app",
-      "default_path": "app/src/main/res/values/strings.xml",
-      "resource_file": "strings.xml",
-      "name": "settings_source_frequency_summary",
-      "kind": "string",
-      "translatable": false,
-      "formatted": true,
-      "attributes": {
-        "translatable": "false"
-      },
-      "value": "%1$s\\n%2$s",
-      "format_tokens": [
-        "%1$s",
-        "%2$s"
-      ],
-      "usage_files": [],
-      "existing_locale_qualifiers": []
-    },
-    {
-      "module": "app",
-      "default_path": "app/src/main/res/values/strings.xml",
-      "resource_file": "strings.xml",
-      "name": "settings_source_frequency_line",
-      "kind": "string",
-      "translatable": false,
-      "formatted": true,
-      "attributes": {
-        "translatable": "false"
-      },
-      "value": "%1$s · %2$s",
-      "format_tokens": [
-        "%1$s",
-        "%2$s"
-      ],
-      "usage_files": [],
       "existing_locale_qualifiers": []
     },
     {
@@ -8328,42 +8353,6 @@
       "usage_files": [
         "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingStatusComponents.kt"
       ],
-      "existing_locale_qualifiers": []
-    },
-    {
-      "module": "app",
-      "default_path": "app/src/main/res/values/strings.xml",
-      "resource_file": "strings.xml",
-      "name": "settings_source_requested",
-      "kind": "string",
-      "translatable": false,
-      "formatted": true,
-      "attributes": {
-        "translatable": "false"
-      },
-      "value": "Requested: %1$s",
-      "format_tokens": [
-        "%1$s"
-      ],
-      "usage_files": [],
-      "existing_locale_qualifiers": []
-    },
-    {
-      "module": "app",
-      "default_path": "app/src/main/res/values/strings.xml",
-      "resource_file": "strings.xml",
-      "name": "settings_source_effective",
-      "kind": "string",
-      "translatable": false,
-      "formatted": true,
-      "attributes": {
-        "translatable": "false"
-      },
-      "value": "Effective: %1$s",
-      "format_tokens": [
-        "%1$s"
-      ],
-      "usage_files": [],
       "existing_locale_qualifiers": []
     },
     {
@@ -10055,48 +10044,6 @@
       "module": "app",
       "default_path": "app/src/main/res/values/strings.xml",
       "resource_file": "strings.xml",
-      "name": "tracking_preset_selector_title",
-      "kind": "string",
-      "translatable": true,
-      "formatted": true,
-      "attributes": {},
-      "value": "Tracking Preset",
-      "format_tokens": [],
-      "usage_files": [],
-      "existing_locale_qualifiers": [
-        "values-bg-rBG",
-        "values-cs-rCZ",
-        "values-da-rDK",
-        "values-de-rDE",
-        "values-el-rGR",
-        "values-es-rES",
-        "values-et-rEE",
-        "values-fi-rFI",
-        "values-fr-rFR",
-        "values-ga-rIE",
-        "values-hi-rIN",
-        "values-hr-rHR",
-        "values-hu-rHU",
-        "values-it-rIT",
-        "values-ja-rJP",
-        "values-lt-rLT",
-        "values-lv-rLV",
-        "values-mt-rMT",
-        "values-nl-rNL",
-        "values-pl-rPL",
-        "values-pt-rPT",
-        "values-ro-rRO",
-        "values-sk-rSK",
-        "values-sl-rSI",
-        "values-sv-rSE",
-        "values-zh-rCN",
-        "values-zh-rTW"
-      ]
-    },
-    {
-      "module": "app",
-      "default_path": "app/src/main/res/values/strings.xml",
-      "resource_file": "strings.xml",
       "name": "tracking_preset_selector_subtitle",
       "kind": "string",
       "translatable": true,
@@ -10168,48 +10115,6 @@
         "app/src/main/java/com/adsamcik/tracker/app/settings/ui/TrackingPresetSelector.kt"
       ],
       "existing_locale_qualifiers": []
-    },
-    {
-      "module": "app",
-      "default_path": "app/src/main/res/values/strings.xml",
-      "resource_file": "strings.xml",
-      "name": "tracking_preset_custom_hint",
-      "kind": "string",
-      "translatable": true,
-      "formatted": true,
-      "attributes": {},
-      "value": "Adjusting any setting below builds a Custom profile from the current preset.",
-      "format_tokens": [],
-      "usage_files": [],
-      "existing_locale_qualifiers": [
-        "values-bg-rBG",
-        "values-cs-rCZ",
-        "values-da-rDK",
-        "values-de-rDE",
-        "values-el-rGR",
-        "values-es-rES",
-        "values-et-rEE",
-        "values-fi-rFI",
-        "values-fr-rFR",
-        "values-ga-rIE",
-        "values-hi-rIN",
-        "values-hr-rHR",
-        "values-hu-rHU",
-        "values-it-rIT",
-        "values-ja-rJP",
-        "values-lt-rLT",
-        "values-lv-rLV",
-        "values-mt-rMT",
-        "values-nl-rNL",
-        "values-pl-rPL",
-        "values-pt-rPT",
-        "values-ro-rRO",
-        "values-sk-rSK",
-        "values-sl-rSI",
-        "values-sv-rSE",
-        "values-zh-rCN",
-        "values-zh-rTW"
-      ]
     },
     {
       "module": "app",
@@ -10307,90 +10212,6 @@
       "module": "app",
       "default_path": "app/src/main/res/values/strings.xml",
       "resource_file": "strings.xml",
-      "name": "settings_tracking_section_detection",
-      "kind": "string",
-      "translatable": true,
-      "formatted": true,
-      "attributes": {},
-      "value": "Detection & automation",
-      "format_tokens": [],
-      "usage_files": [],
-      "existing_locale_qualifiers": [
-        "values-bg-rBG",
-        "values-cs-rCZ",
-        "values-da-rDK",
-        "values-de-rDE",
-        "values-el-rGR",
-        "values-es-rES",
-        "values-et-rEE",
-        "values-fi-rFI",
-        "values-fr-rFR",
-        "values-ga-rIE",
-        "values-hi-rIN",
-        "values-hr-rHR",
-        "values-hu-rHU",
-        "values-it-rIT",
-        "values-ja-rJP",
-        "values-lt-rLT",
-        "values-lv-rLV",
-        "values-mt-rMT",
-        "values-nl-rNL",
-        "values-pl-rPL",
-        "values-pt-rPT",
-        "values-ro-rRO",
-        "values-sk-rSK",
-        "values-sl-rSI",
-        "values-sv-rSE",
-        "values-zh-rCN",
-        "values-zh-rTW"
-      ]
-    },
-    {
-      "module": "app",
-      "default_path": "app/src/main/res/values/strings.xml",
-      "resource_file": "strings.xml",
-      "name": "settings_tracking_section_sources",
-      "kind": "string",
-      "translatable": true,
-      "formatted": true,
-      "attributes": {},
-      "value": "Data sources",
-      "format_tokens": [],
-      "usage_files": [],
-      "existing_locale_qualifiers": [
-        "values-bg-rBG",
-        "values-cs-rCZ",
-        "values-da-rDK",
-        "values-de-rDE",
-        "values-el-rGR",
-        "values-es-rES",
-        "values-et-rEE",
-        "values-fi-rFI",
-        "values-fr-rFR",
-        "values-ga-rIE",
-        "values-hi-rIN",
-        "values-hr-rHR",
-        "values-hu-rHU",
-        "values-it-rIT",
-        "values-ja-rJP",
-        "values-lt-rLT",
-        "values-lv-rLV",
-        "values-mt-rMT",
-        "values-nl-rNL",
-        "values-pl-rPL",
-        "values-pt-rPT",
-        "values-ro-rRO",
-        "values-sk-rSK",
-        "values-sl-rSI",
-        "values-sv-rSE",
-        "values-zh-rCN",
-        "values-zh-rTW"
-      ]
-    },
-    {
-      "module": "app",
-      "default_path": "app/src/main/res/values/strings.xml",
-      "resource_file": "strings.xml",
       "name": "settings_tracking_section_detail",
       "kind": "string",
       "translatable": true,
@@ -10479,6 +10300,42 @@
       "module": "app",
       "default_path": "app/src/main/res/values/strings.xml",
       "resource_file": "strings.xml",
+      "name": "settings_source_policy_unavailable_title",
+      "kind": "string",
+      "translatable": true,
+      "formatted": true,
+      "attributes": {
+        "tools:ignore": "MissingTranslation"
+      },
+      "value": "Tracking settings unavailable",
+      "format_tokens": [],
+      "usage_files": [
+        "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt"
+      ],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "settings_source_policy_unavailable_summary",
+      "kind": "string",
+      "translatable": true,
+      "formatted": true,
+      "attributes": {
+        "tools:ignore": "MissingTranslation"
+      },
+      "value": "Your saved source choices have not been changed. Tracker is retrying the secure settings store automatically; collection remains off until it recovers.",
+      "format_tokens": [],
+      "usage_files": [
+        "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt"
+      ],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
       "name": "settings_transition_detection_friendly_title",
       "kind": "string",
       "translatable": true,
@@ -10503,7 +10360,8 @@
       "value": "Uses Android activity changes to avoid frequent background checks. Automatic starts may react a little more slowly.",
       "format_tokens": [],
       "usage_files": [
-        "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt"
+        "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt",
+        "detekt-baseline.xml"
       ],
       "existing_locale_qualifiers": []
     },
@@ -10780,20 +10638,6 @@
       "usage_files": [
         "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt"
       ],
-      "existing_locale_qualifiers": []
-    },
-    {
-      "module": "app",
-      "default_path": "app/src/main/res/values/strings.xml",
-      "resource_file": "strings.xml",
-      "name": "settings_simple_source_controls_summary",
-      "kind": "string",
-      "translatable": true,
-      "formatted": true,
-      "attributes": {},
-      "value": "Show straightforward on/off switches for each data source.",
-      "format_tokens": [],
-      "usage_files": [],
       "existing_locale_qualifiers": []
     },
     {
@@ -11116,7 +10960,8 @@
       "value": "@string/precision_mode_approximate_title",
       "format_tokens": [],
       "usage_files": [
-        "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/components/LocationPrecisionSelector.kt"
+        "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/components/LocationPrecisionSelector.kt",
+        "detekt-baseline.xml"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
@@ -11160,7 +11005,8 @@
       "value": "@string/precision_mode_approximate_description",
       "format_tokens": [],
       "usage_files": [
-        "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/components/LocationPrecisionSelector.kt"
+        "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/components/LocationPrecisionSelector.kt",
+        "detekt-baseline.xml"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
@@ -11204,7 +11050,8 @@
       "value": "@string/precision_mode_precise_title",
       "format_tokens": [],
       "usage_files": [
-        "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/components/LocationPrecisionSelector.kt"
+        "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/components/LocationPrecisionSelector.kt",
+        "detekt-baseline.xml"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
@@ -11248,7 +11095,8 @@
       "value": "@string/precision_mode_precise_description",
       "format_tokens": [],
       "usage_files": [
-        "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/components/LocationPrecisionSelector.kt"
+        "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/components/LocationPrecisionSelector.kt",
+        "detekt-baseline.xml"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
@@ -12532,6 +12380,7 @@
         "app/src/main/java/com/adsamcik/tracker/app/settings/SettingsRoute.kt",
         "app/src/main/java/com/adsamcik/tracker/app/settings/about/AboutScreen.kt",
         "core/ui/src/main/java/com/adsamcik/tracker/shared/utils/activity/ComposeDetailActivity.kt",
+        "detekt-baseline.xml",
         "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/CellSignalReportRoute.kt",
         "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/HistoryRoute.kt",
         "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/SummaryRoute.kt",
@@ -15594,7 +15443,7 @@
       "value": "To keep recording your route when you switch apps or the screen turns off, Tracker needs to access your location in the background. The recorded location stays on this device — nothing is sent to a server. On the next system prompt please pick \"Allow all the time\" to enable auto-tracking; \"While using the app\" keeps Tracker working when its screen is open only.",
       "format_tokens": [],
       "usage_files": [
-        "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/steps/WhatToCollectStep.kt"
+        "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/steps/BackgroundAccessStep.kt"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
@@ -15814,6 +15663,7 @@
       "value": "Grant",
       "format_tokens": [],
       "usage_files": [
+        "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/steps/BackgroundAccessStep.kt",
         "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/steps/WhatToCollectStep.kt"
       ],
       "existing_locale_qualifiers": [
@@ -15858,7 +15708,8 @@
       "value": "Grant location permission",
       "format_tokens": [],
       "usage_files": [
-        "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/steps/WhatToCollectStep.kt"
+        "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/steps/WhatToCollectStep.kt",
+        "detekt-baseline.xml"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
@@ -15902,7 +15753,7 @@
       "value": "Grant background location permission",
       "format_tokens": [],
       "usage_files": [
-        "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/steps/WhatToCollectStep.kt"
+        "app/lint-baseline.xml"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
@@ -15946,7 +15797,8 @@
       "value": "Grant activity recognition permission",
       "format_tokens": [],
       "usage_files": [
-        "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/steps/WhatToCollectStep.kt"
+        "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/steps/WhatToCollectStep.kt",
+        "detekt-baseline.xml"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
@@ -16122,6 +15974,7 @@
       "value": "Granted ✓",
       "format_tokens": [],
       "usage_files": [
+        "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/steps/BackgroundAccessStep.kt",
         "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/steps/WhatToCollectStep.kt"
       ],
       "existing_locale_qualifiers": [
@@ -16336,48 +16189,6 @@
       "module": "app",
       "default_path": "app/src/main/res/values/strings.xml",
       "resource_file": "strings.xml",
-      "name": "settings_wifi_privacy_summary",
-      "kind": "string",
-      "translatable": true,
-      "formatted": true,
-      "attributes": {},
-      "value": "Records nearby Wi-Fi networks to improve location accuracy. Data stays on this device.",
-      "format_tokens": [],
-      "usage_files": [],
-      "existing_locale_qualifiers": [
-        "values-bg-rBG",
-        "values-cs-rCZ",
-        "values-da-rDK",
-        "values-de-rDE",
-        "values-el-rGR",
-        "values-es-rES",
-        "values-et-rEE",
-        "values-fi-rFI",
-        "values-fr-rFR",
-        "values-ga-rIE",
-        "values-hi-rIN",
-        "values-hr-rHR",
-        "values-hu-rHU",
-        "values-it-rIT",
-        "values-ja-rJP",
-        "values-lt-rLT",
-        "values-lv-rLV",
-        "values-mt-rMT",
-        "values-nl-rNL",
-        "values-pl-rPL",
-        "values-pt-rPT",
-        "values-ro-rRO",
-        "values-sk-rSK",
-        "values-sl-rSI",
-        "values-sv-rSE",
-        "values-zh-rCN",
-        "values-zh-rTW"
-      ]
-    },
-    {
-      "module": "app",
-      "default_path": "app/src/main/res/values/strings.xml",
-      "resource_file": "strings.xml",
       "name": "settings_barometer_unavailable",
       "kind": "string",
       "translatable": true,
@@ -16477,48 +16288,6 @@
         "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/steps/WhatToCollectStep.kt",
         "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt"
       ],
-      "existing_locale_qualifiers": [
-        "values-bg-rBG",
-        "values-cs-rCZ",
-        "values-da-rDK",
-        "values-de-rDE",
-        "values-el-rGR",
-        "values-es-rES",
-        "values-et-rEE",
-        "values-fi-rFI",
-        "values-fr-rFR",
-        "values-ga-rIE",
-        "values-hi-rIN",
-        "values-hr-rHR",
-        "values-hu-rHU",
-        "values-it-rIT",
-        "values-ja-rJP",
-        "values-lt-rLT",
-        "values-lv-rLV",
-        "values-mt-rMT",
-        "values-nl-rNL",
-        "values-pl-rPL",
-        "values-pt-rPT",
-        "values-ro-rRO",
-        "values-sk-rSK",
-        "values-sl-rSI",
-        "values-sv-rSE",
-        "values-zh-rCN",
-        "values-zh-rTW"
-      ]
-    },
-    {
-      "module": "app",
-      "default_path": "app/src/main/res/values/strings.xml",
-      "resource_file": "strings.xml",
-      "name": "settings_cell_privacy_summary",
-      "kind": "string",
-      "translatable": true,
-      "formatted": true,
-      "attributes": {},
-      "value": "Records cell tower IDs to improve location accuracy. Data stays on this device.",
-      "format_tokens": [],
-      "usage_files": [],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
         "values-cs-rCZ",
@@ -17046,40 +16815,12 @@
       "translatable": true,
       "formatted": true,
       "attributes": {},
-      "value": "To record trips while the screen is off or the app is closed, Tracker needs to keep running in the background. Phone battery settings can pause it — allow background activity so auto-tracking stays reliable.",
+      "value": "To record trips while the screen is off or the app is closed, Tracker needs background access. Allowing background activity can reduce Doze interruptions, but Android, device, and provider limits still apply.",
       "format_tokens": [],
       "usage_files": [
         "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/steps/BackgroundAccessStep.kt"
       ],
-      "existing_locale_qualifiers": [
-        "values-bg-rBG",
-        "values-cs-rCZ",
-        "values-da-rDK",
-        "values-de-rDE",
-        "values-el-rGR",
-        "values-es-rES",
-        "values-et-rEE",
-        "values-fi-rFI",
-        "values-fr-rFR",
-        "values-ga-rIE",
-        "values-hi-rIN",
-        "values-hr-rHR",
-        "values-hu-rHU",
-        "values-it-rIT",
-        "values-ja-rJP",
-        "values-lt-rLT",
-        "values-lv-rLV",
-        "values-mt-rMT",
-        "values-nl-rNL",
-        "values-pl-rPL",
-        "values-pt-rPT",
-        "values-ro-rRO",
-        "values-sk-rSK",
-        "values-sl-rSI",
-        "values-sv-rSE",
-        "values-zh-rCN",
-        "values-zh-rTW"
-      ]
+      "existing_locale_qualifiers": []
     },
     {
       "module": "app",
@@ -17129,15 +16870,14 @@
       "module": "app",
       "default_path": "app/src/main/res/values/strings.xml",
       "resource_file": "strings.xml",
-      "name": "background_reliability_title",
+      "name": "setup_background_location_title",
       "kind": "string",
       "translatable": true,
       "formatted": true,
       "attributes": {},
-      "value": "Reliable background tracking",
+      "value": "Allow background location for automatic tracking",
       "format_tokens": [],
       "usage_files": [
-        "app/src/main/java/com/adsamcik/tracker/app/background/BackgroundReliabilityCard.kt",
         "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/steps/BackgroundAccessStep.kt"
       ],
       "existing_locale_qualifiers": [
@@ -17169,6 +16909,202 @@
         "values-zh-rCN",
         "values-zh-rTW"
       ]
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "setup_background_location_disclosure",
+      "kind": "string",
+      "translatable": true,
+      "formatted": true,
+      "attributes": {},
+      "value": "Automatic tracking starts while Tracker is in the background and records your route even when its screen is not open. Location stays on this device. In the app location settings, choose “%1$s”.",
+      "format_tokens": [
+        "%1$s"
+      ],
+      "usage_files": [
+        "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/steps/BackgroundAccessStep.kt"
+      ],
+      "existing_locale_qualifiers": [
+        "values-bg-rBG",
+        "values-cs-rCZ",
+        "values-da-rDK",
+        "values-de-rDE",
+        "values-el-rGR",
+        "values-es-rES",
+        "values-et-rEE",
+        "values-fi-rFI",
+        "values-fr-rFR",
+        "values-ga-rIE",
+        "values-hi-rIN",
+        "values-hr-rHR",
+        "values-hu-rHU",
+        "values-it-rIT",
+        "values-ja-rJP",
+        "values-lt-rLT",
+        "values-lv-rLV",
+        "values-mt-rMT",
+        "values-nl-rNL",
+        "values-pl-rPL",
+        "values-pt-rPT",
+        "values-ro-rRO",
+        "values-sk-rSK",
+        "values-sl-rSI",
+        "values-sv-rSE",
+        "values-zh-rCN",
+        "values-zh-rTW"
+      ]
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "setup_background_location_open_settings",
+      "kind": "string",
+      "translatable": true,
+      "formatted": true,
+      "attributes": {},
+      "value": "Open location settings",
+      "format_tokens": [],
+      "usage_files": [
+        "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/steps/BackgroundAccessStep.kt"
+      ],
+      "existing_locale_qualifiers": [
+        "values-bg-rBG",
+        "values-cs-rCZ",
+        "values-da-rDK",
+        "values-de-rDE",
+        "values-el-rGR",
+        "values-es-rES",
+        "values-et-rEE",
+        "values-fi-rFI",
+        "values-fr-rFR",
+        "values-ga-rIE",
+        "values-hi-rIN",
+        "values-hr-rHR",
+        "values-hu-rHU",
+        "values-it-rIT",
+        "values-ja-rJP",
+        "values-lt-rLT",
+        "values-lv-rLV",
+        "values-mt-rMT",
+        "values-nl-rNL",
+        "values-pl-rPL",
+        "values-pt-rPT",
+        "values-ro-rRO",
+        "values-sk-rSK",
+        "values-sl-rSI",
+        "values-sv-rSE",
+        "values-zh-rCN",
+        "values-zh-rTW"
+      ]
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "setup_background_location_decline",
+      "kind": "string",
+      "translatable": true,
+      "formatted": true,
+      "attributes": {},
+      "value": "Not now",
+      "format_tokens": [],
+      "usage_files": [
+        "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/steps/BackgroundAccessStep.kt"
+      ],
+      "existing_locale_qualifiers": [
+        "values-bg-rBG",
+        "values-cs-rCZ",
+        "values-da-rDK",
+        "values-de-rDE",
+        "values-el-rGR",
+        "values-es-rES",
+        "values-et-rEE",
+        "values-fi-rFI",
+        "values-fr-rFR",
+        "values-ga-rIE",
+        "values-hi-rIN",
+        "values-hr-rHR",
+        "values-hu-rHU",
+        "values-it-rIT",
+        "values-ja-rJP",
+        "values-lt-rLT",
+        "values-lv-rLV",
+        "values-mt-rMT",
+        "values-nl-rNL",
+        "values-pl-rPL",
+        "values-pt-rPT",
+        "values-ro-rRO",
+        "values-sk-rSK",
+        "values-sl-rSI",
+        "values-sv-rSE",
+        "values-zh-rCN",
+        "values-zh-rTW"
+      ]
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "setup_background_location_manual_only",
+      "kind": "string",
+      "translatable": true,
+      "formatted": true,
+      "attributes": {},
+      "value": "Manual foreground tracking remains available. Automatic location tracking will stay off until background location is allowed.",
+      "format_tokens": [],
+      "usage_files": [
+        "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/steps/BackgroundAccessStep.kt",
+        "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt"
+      ],
+      "existing_locale_qualifiers": [
+        "values-bg-rBG",
+        "values-cs-rCZ",
+        "values-da-rDK",
+        "values-de-rDE",
+        "values-el-rGR",
+        "values-es-rES",
+        "values-et-rEE",
+        "values-fi-rFI",
+        "values-fr-rFR",
+        "values-ga-rIE",
+        "values-hi-rIN",
+        "values-hr-rHR",
+        "values-hu-rHU",
+        "values-it-rIT",
+        "values-ja-rJP",
+        "values-lt-rLT",
+        "values-lv-rLV",
+        "values-mt-rMT",
+        "values-nl-rNL",
+        "values-pl-rPL",
+        "values-pt-rPT",
+        "values-ro-rRO",
+        "values-sk-rSK",
+        "values-sl-rSI",
+        "values-sv-rSE",
+        "values-zh-rCN",
+        "values-zh-rTW"
+      ]
+    },
+    {
+      "module": "app",
+      "default_path": "app/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "background_reliability_title",
+      "kind": "string",
+      "translatable": true,
+      "formatted": true,
+      "attributes": {},
+      "value": "Background tracking settings",
+      "format_tokens": [],
+      "usage_files": [
+        "app/src/main/java/com/adsamcik/tracker/app/background/BackgroundReliabilityCard.kt",
+        "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/steps/BackgroundAccessStep.kt"
+      ],
+      "existing_locale_qualifiers": []
     },
     {
       "module": "app",
@@ -17267,40 +17203,12 @@
       "translatable": true,
       "formatted": true,
       "attributes": {},
-      "value": "Tracker is excluded from battery optimization, so background and auto-tracking can run reliably.",
+      "value": "Tracker is excluded from battery optimization, which reduces Doze restrictions. Android, device, and provider limits can still delay or pause collection.",
       "format_tokens": [],
       "usage_files": [
         "app/src/main/java/com/adsamcik/tracker/app/background/BackgroundReliabilityCard.kt"
       ],
-      "existing_locale_qualifiers": [
-        "values-bg-rBG",
-        "values-cs-rCZ",
-        "values-da-rDK",
-        "values-de-rDE",
-        "values-el-rGR",
-        "values-es-rES",
-        "values-et-rEE",
-        "values-fi-rFI",
-        "values-fr-rFR",
-        "values-ga-rIE",
-        "values-hi-rIN",
-        "values-hr-rHR",
-        "values-hu-rHU",
-        "values-it-rIT",
-        "values-ja-rJP",
-        "values-lt-rLT",
-        "values-lv-rLV",
-        "values-mt-rMT",
-        "values-nl-rNL",
-        "values-pl-rPL",
-        "values-pt-rPT",
-        "values-ro-rRO",
-        "values-sk-rSK",
-        "values-sl-rSI",
-        "values-sv-rSE",
-        "values-zh-rCN",
-        "values-zh-rTW"
-      ]
+      "existing_locale_qualifiers": []
     },
     {
       "module": "app",
@@ -17311,40 +17219,12 @@
       "translatable": true,
       "formatted": true,
       "attributes": {},
-      "value": "Battery optimization can pause Tracker in the background, stopping auto-tracking. Allow background activity to keep it running.",
+      "value": "Battery optimization can pause Tracker in the background. Allowing background activity can reduce interruptions, but it cannot guarantee continuous collection.",
       "format_tokens": [],
       "usage_files": [
         "app/src/main/java/com/adsamcik/tracker/app/background/BackgroundReliabilityCard.kt"
       ],
-      "existing_locale_qualifiers": [
-        "values-bg-rBG",
-        "values-cs-rCZ",
-        "values-da-rDK",
-        "values-de-rDE",
-        "values-el-rGR",
-        "values-es-rES",
-        "values-et-rEE",
-        "values-fi-rFI",
-        "values-fr-rFR",
-        "values-ga-rIE",
-        "values-hi-rIN",
-        "values-hr-rHR",
-        "values-hu-rHU",
-        "values-it-rIT",
-        "values-ja-rJP",
-        "values-lt-rLT",
-        "values-lv-rLV",
-        "values-mt-rMT",
-        "values-nl-rNL",
-        "values-pl-rPL",
-        "values-pt-rPT",
-        "values-ro-rRO",
-        "values-sk-rSK",
-        "values-sl-rSI",
-        "values-sv-rSE",
-        "values-zh-rCN",
-        "values-zh-rTW"
-      ]
+      "existing_locale_qualifiers": []
     },
     {
       "module": "app",
@@ -17491,7 +17371,9 @@
       "format_tokens": [],
       "usage_files": [
         "app/src/main/java/com/adsamcik/tracker/app/settings/SettingsRoute.kt",
-        "app/src/main/java/com/adsamcik/tracker/app/settings/root/RootSettingsScreen.kt"
+        "app/src/main/java/com/adsamcik/tracker/app/settings/root/RootSettingsScreen.kt",
+        "app/src/main/java/com/adsamcik/tracker/app/tracebox/TrackerTraceboxUi.kt",
+        "app/src/test/java/com/adsamcik/tracker/app/tracebox/TrackerTraceboxUiTest.kt"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
@@ -17535,7 +17417,9 @@
       "value": "Local crash, ANR, and structural diagnostics",
       "format_tokens": [],
       "usage_files": [
-        "app/src/main/java/com/adsamcik/tracker/app/settings/root/RootSettingsScreen.kt"
+        "app/src/main/java/com/adsamcik/tracker/app/settings/root/RootSettingsScreen.kt",
+        "app/src/main/java/com/adsamcik/tracker/app/tracebox/TrackerTraceboxUi.kt",
+        "app/src/test/java/com/adsamcik/tracker/app/tracebox/TrackerTraceboxUiTest.kt"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
@@ -18881,7 +18765,6 @@
       "usage_files": [
         "app/src/main/java/com/adsamcik/tracker/notification/NotificationChannels.kt",
         "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/TrackerNotificationChannels.kt",
-        "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/ActivityWatcherService.kt",
         "tracker/engine/src/test/java/com/adsamcik/tracker/tracker/notification/TrackerNotificationChannelsTest.kt"
       ],
       "existing_locale_qualifiers": []
@@ -19015,6 +18898,7 @@
       "format_tokens": [],
       "usage_files": [
         "app/src/main/java/com/adsamcik/tracker/notification/NotificationChannels.kt",
+        "detekt-baseline.xml",
         "feature/game/src/main/java/com/adsamcik/tracker/game/event/GameDomainEventConsumer.kt"
       ],
       "existing_locale_qualifiers": []
@@ -19522,6 +19406,7 @@
       "value": "Add",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/activity/src/main/java/com/adsamcik/tracker/activity/ui/SessionActivityActivityCompose.kt"
       ],
       "existing_locale_qualifiers": [
@@ -19566,6 +19451,7 @@
       "value": "Back",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/activity/src/main/java/com/adsamcik/tracker/activity/ui/SessionActivityActivityCompose.kt"
       ],
       "existing_locale_qualifiers": [
@@ -19877,9 +19763,9 @@
       "value": "undo",
       "format_tokens": [],
       "usage_files": [
+        "feature/activity/lint-baseline.xml",
         "feature/activity/src/main/java/com/adsamcik/tracker/activity/ui/SessionActivityActivityCompose.kt",
-        "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/HistoryRoute.kt",
-        "sensor/activity/lint-baseline.xml"
+        "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/HistoryRoute.kt"
       ],
       "existing_locale_qualifiers": [
         "values-af-rZA",
@@ -20161,6 +20047,7 @@
         "app/src/main/java/com/adsamcik/tracker/app/settings/SettingsRoute.kt",
         "app/src/main/java/com/adsamcik/tracker/app/settings/about/AboutScreen.kt",
         "core/ui/src/main/java/com/adsamcik/tracker/shared/utils/activity/ComposeDetailActivity.kt",
+        "detekt-baseline.xml",
         "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/CellSignalReportRoute.kt",
         "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/HistoryRoute.kt",
         "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/SummaryRoute.kt",
@@ -20350,7 +20237,7 @@
       "attributes": {
         "tools:ignore": "MissingTranslation"
       },
-      "value": "Tracker uses activity recognition to detect what you\\'re doing (walking, cycling, driving, still) so auto-tracking can pause when you\\'re not moving and save battery. Activity data stays on this device — nothing is sent to a server.",
+      "value": "Tracker uses Activity Recognition to read movement or step data when you enable those tracking sources. It can also support automatic tracking when you enable that feature. The data stays on this device — nothing is sent to a server.",
       "format_tokens": [],
       "usage_files": [
         "core/ui/src/main/java/com/adsamcik/tracker/shared/utils/compose/permission/ContextualPermissionRequest.kt"
@@ -20384,6 +20271,42 @@
         "values-zh-rCN",
         "values-zh-rTW"
       ]
+    },
+    {
+      "module": "core/ui",
+      "default_path": "core/ui/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "permission_phone_state_rationale_title",
+      "kind": "string",
+      "translatable": true,
+      "formatted": true,
+      "attributes": {
+        "tools:ignore": "MissingTranslation"
+      },
+      "value": "Cell network access",
+      "format_tokens": [],
+      "usage_files": [
+        "core/ui/src/main/java/com/adsamcik/tracker/shared/utils/compose/permission/ContextualPermissionRequest.kt"
+      ],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "core/ui",
+      "default_path": "core/ui/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "permission_phone_state_rationale_message",
+      "kind": "string",
+      "translatable": true,
+      "formatted": true,
+      "attributes": {
+        "tools:ignore": "MissingTranslation"
+      },
+      "value": "Tracker needs phone state access to record nearby cell network context during tracking. It does not make calls or read their contents, and the collected data stays on this device.",
+      "format_tokens": [],
+      "usage_files": [
+        "core/ui/src/main/java/com/adsamcik/tracker/shared/utils/compose/permission/ContextualPermissionRequest.kt"
+      ],
+      "existing_locale_qualifiers": []
     },
     {
       "module": "core/ui",
@@ -20585,9 +20508,7 @@
       "value": "Location permission required to start tracking",
       "format_tokens": [],
       "usage_files": [
-        "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardRoute.kt",
-        "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRoute.kt",
-        "tracker/engine/lint-baseline.xml"
+        "feature/tracker/lint-baseline.xml"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
@@ -20623,6 +20544,25 @@
       "module": "core/ui",
       "default_path": "core/ui/src/main/res/values/strings.xml",
       "resource_file": "strings.xml",
+      "name": "permission_denied_tracking_prerequisite",
+      "kind": "string",
+      "translatable": true,
+      "formatted": true,
+      "attributes": {
+        "tools:ignore": "MissingTranslation"
+      },
+      "value": "Required permission was denied. Tracking was not started.",
+      "format_tokens": [],
+      "usage_files": [
+        "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardRoute.kt",
+        "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRoute.kt"
+      ],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "core/ui",
+      "default_path": "core/ui/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
       "name": "permission_denied_settings_action",
       "kind": "string",
       "translatable": true,
@@ -20633,7 +20573,8 @@
       "value": "Open Settings",
       "format_tokens": [],
       "usage_files": [
-        "core/ui/src/main/java/com/adsamcik/tracker/shared/utils/compose/permission/ContextualPermissionRequest.kt"
+        "core/ui/src/main/java/com/adsamcik/tracker/shared/utils/compose/permission/ContextualPermissionRequest.kt",
+        "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRoute.kt"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
@@ -21468,7 +21409,8 @@
       "value": "Auto-switch unit system",
       "format_tokens": [],
       "usage_files": [
-        "app/src/main/java/com/adsamcik/tracker/app/settings/statistics/StatisticsSettingsScreen.kt"
+        "app/src/main/java/com/adsamcik/tracker/app/settings/statistics/StatisticsSettingsScreen.kt",
+        "detekt-baseline.xml"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
@@ -21512,7 +21454,8 @@
       "value": "Automatically switch to sailing/flying units when viewing sessions with those activities",
       "format_tokens": [],
       "usage_files": [
-        "app/src/main/java/com/adsamcik/tracker/app/settings/statistics/StatisticsSettingsScreen.kt"
+        "app/src/main/java/com/adsamcik/tracker/app/settings/statistics/StatisticsSettingsScreen.kt",
+        "detekt-baseline.xml"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
@@ -21558,6 +21501,7 @@
       "value": "locationPrecisionMode",
       "format_tokens": [],
       "usage_files": [
+        "app/src/main/java/com/adsamcik/tracker/app/Application.kt",
         "app/src/main/java/com/adsamcik/tracker/app/event/PrecisionUpgradeDomainEventConsumer.kt",
         "app/src/main/java/com/adsamcik/tracker/app/onboarding/ui/SetupViewModel.kt",
         "app/src/main/java/com/adsamcik/tracker/app/ui/MainRoot.kt",
@@ -21791,6 +21735,7 @@
       "value": "Tracking stopped unexpectedly",
       "format_tokens": [],
       "usage_files": [
+        "feature/dashboard/lint-baseline.xml",
         "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardRoute.kt"
       ],
       "existing_locale_qualifiers": [
@@ -21822,6 +21767,22 @@
         "values-zh-rCN",
         "values-zh-rTW"
       ]
+    },
+    {
+      "module": "feature/dashboard",
+      "default_path": "feature/dashboard/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "dashboard_tracking_temporarily_unavailable",
+      "kind": "string",
+      "translatable": true,
+      "formatted": true,
+      "attributes": {},
+      "value": "Tracking is temporarily unavailable in this version of the app.",
+      "format_tokens": [],
+      "usage_files": [
+        "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardRoute.kt"
+      ],
+      "existing_locale_qualifiers": []
     },
     {
       "module": "feature/dashboard",
@@ -22190,6 +22151,7 @@
       "value": "Open settings",
       "format_tokens": [],
       "usage_files": [
+        "app/src/androidTest/java/com/adsamcik/tracker/app/StandardFlowsTest.kt",
         "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/components/DashboardTopBar.kt"
       ],
       "existing_locale_qualifiers": [
@@ -22234,6 +22196,7 @@
       "value": "Start tracking",
       "format_tokens": [],
       "usage_files": [
+        "app/src/androidTest/java/com/adsamcik/tracker/app/StandardFlowsTest.kt",
         "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/components/TrackingActionRing.kt",
         "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/components/TrackingFAB.kt"
       ],
@@ -22645,6 +22608,7 @@
       "value": "Settings",
       "format_tokens": [],
       "usage_files": [
+        "feature/dashboard/lint-baseline.xml",
         "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardRoute.kt"
       ],
       "existing_locale_qualifiers": [
@@ -22689,6 +22653,7 @@
       "value": "Restart",
       "format_tokens": [],
       "usage_files": [
+        "feature/dashboard/lint-baseline.xml",
         "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardRoute.kt"
       ],
       "existing_locale_qualifiers": [
@@ -27424,6 +27389,7 @@
       "value": "Start",
       "format_tokens": [],
       "usage_files": [
+        "app/src/androidTest/java/com/adsamcik/tracker/app/StandardFlowsTest.kt",
         "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/components/TrackingPill.kt"
       ],
       "existing_locale_qualifiers": [
@@ -27468,6 +27434,7 @@
       "value": "Stop",
       "format_tokens": [],
       "usage_files": [
+        "app/src/androidTest/java/com/adsamcik/tracker/app/StandardFlowsTest.kt",
         "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/components/TrackingPill.kt"
       ],
       "existing_locale_qualifiers": [
@@ -27782,6 +27749,7 @@
         "app/src/main/java/com/adsamcik/tracker/app/settings/root/RootSettingsScreen.kt",
         "app/src/main/java/com/adsamcik/tracker/app/ui/MainRoot.kt",
         "app/src/main/java/com/adsamcik/tracker/module/Module.kt",
+        "feature/game/lint-baseline.xml",
         "feature/game/src/main/AndroidManifest.xml"
       ],
       "existing_locale_qualifiers": [
@@ -28274,9 +28242,7 @@
       "format_tokens": [
         "%1$d"
       ],
-      "usage_files": [
-        "feature/game/lint-baseline.xml"
-      ],
+      "usage_files": [],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
         "values-cs-rCZ",
@@ -35335,6 +35301,7 @@
       "value": "Steps goals",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/game/src/main/java/com/adsamcik/tracker/game/ui/compose/GameScreen.kt"
       ],
       "existing_locale_qualifiers": [
@@ -35379,6 +35346,7 @@
       "value": "Step sensor unavailable",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/game/src/main/java/com/adsamcik/tracker/game/ui/compose/GameScreen.kt"
       ],
       "existing_locale_qualifiers": [
@@ -35423,6 +35391,7 @@
       "value": "This device does not have a step counter sensor. Step goals cannot be tracked.",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/game/src/main/java/com/adsamcik/tracker/game/ui/compose/GameScreen.kt"
       ],
       "existing_locale_qualifiers": [
@@ -35555,6 +35524,7 @@
       "value": "Loading…",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/game/src/main/java/com/adsamcik/tracker/game/ui/compose/GameScreen.kt",
         "feature/game/src/main/java/com/adsamcik/tracker/game/ui/compose/MiniGameScoresRoute.kt"
       ],
@@ -35606,6 +35576,7 @@
         "app/src/main/java/com/adsamcik/tracker/app/settings/SettingsRoute.kt",
         "app/src/main/java/com/adsamcik/tracker/app/settings/about/AboutScreen.kt",
         "core/ui/src/main/java/com/adsamcik/tracker/shared/utils/activity/ComposeDetailActivity.kt",
+        "detekt-baseline.xml",
         "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/CellSignalReportRoute.kt",
         "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/HistoryRoute.kt",
         "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/SummaryRoute.kt",
@@ -36063,6 +36034,7 @@
       "value": "Achievements",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/game/src/main/java/com/adsamcik/tracker/game/ui/compose/AchievementCard.kt",
         "feature/game/src/main/java/com/adsamcik/tracker/game/ui/compose/AchievementDetailRoute.kt"
       ],
@@ -36288,6 +36260,7 @@
       "value": "No achievements unlocked yet. Start exploring!",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/game/src/main/java/com/adsamcik/tracker/game/ui/compose/AchievementCard.kt"
       ],
       "existing_locale_qualifiers": [
@@ -36517,6 +36490,7 @@
       "value": "points earned today",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/game/src/main/java/com/adsamcik/tracker/game/ui/compose/GameScreen.kt"
       ],
       "existing_locale_qualifiers": [
@@ -37865,6 +37839,7 @@
       "value": "View all",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/game/src/main/java/com/adsamcik/tracker/game/ui/compose/AchievementCard.kt"
       ],
       "existing_locale_qualifiers": [
@@ -37909,6 +37884,7 @@
       "value": "Recent unlocks",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/game/src/main/java/com/adsamcik/tracker/game/ui/compose/AchievementCard.kt"
       ],
       "existing_locale_qualifiers": [
@@ -37953,6 +37929,7 @@
       "value": "Next up",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/game/src/main/java/com/adsamcik/tracker/game/ui/compose/AchievementCard.kt"
       ],
       "existing_locale_qualifiers": [
@@ -39616,6 +39593,7 @@
       "value": "Share",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/import-export/src/androidTest/java/com/adsamcik/tracker/impexp/ImportExportScreenTest.kt",
         "feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/activity/ImportExportComposeActivity.kt"
       ],
@@ -40620,6 +40598,7 @@
         "app/src/main/java/com/adsamcik/tracker/app/settings/root/RootSettingsScreen.kt",
         "app/src/main/java/com/adsamcik/tracker/app/ui/MainRoot.kt",
         "app/src/main/java/com/adsamcik/tracker/module/Module.kt",
+        "feature/map/lint-baseline.xml",
         "feature/map/src/main/AndroidManifest.xml"
       ],
       "existing_locale_qualifiers": [
@@ -40834,6 +40813,7 @@
       "value": "High density",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/map/src/main/java/com/adsamcik/tracker/map/layers/registry/DefaultLayerRegistry.kt",
         "feature/map/src/test/java/com/adsamcik/tracker/map/layers/registry/DefaultLayerRegistryTest.kt"
       ],
@@ -40891,6 +40871,7 @@
       "value": "Low density",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/map/src/main/java/com/adsamcik/tracker/map/layers/registry/DefaultLayerRegistry.kt",
         "feature/map/src/test/java/com/adsamcik/tracker/map/layers/registry/DefaultLayerRegistryTest.kt"
       ],
@@ -40948,6 +40929,7 @@
       "value": "Low-medium density",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/map/src/main/java/com/adsamcik/tracker/map/layers/registry/DefaultLayerRegistry.kt",
         "feature/map/src/test/java/com/adsamcik/tracker/map/layers/registry/DefaultLayerRegistryTest.kt"
       ],
@@ -40993,6 +40975,7 @@
       "value": "Medium density",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/map/src/main/java/com/adsamcik/tracker/map/layers/registry/DefaultLayerRegistry.kt",
         "feature/map/src/test/java/com/adsamcik/tracker/map/layers/registry/DefaultLayerRegistryTest.kt"
       ],
@@ -41050,6 +41033,7 @@
       "value": "Peak density",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/map/src/main/java/com/adsamcik/tracker/map/layers/registry/DefaultLayerRegistry.kt",
         "feature/map/src/test/java/com/adsamcik/tracker/map/layers/registry/DefaultLayerRegistryTest.kt"
       ],
@@ -41279,6 +41263,7 @@
       "value": "3G / WCDMA",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/map/src/main/java/com/adsamcik/tracker/map/layers/registry/DefaultLayerRegistry.kt",
         "feature/map/src/test/java/com/adsamcik/tracker/map/layers/registry/DefaultLayerRegistryTest.kt"
       ],
@@ -41909,6 +41894,7 @@
       "value": "Strong signal",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/map/src/main/java/com/adsamcik/tracker/map/layers/registry/DefaultLayerRegistry.kt"
       ],
       "existing_locale_qualifiers": [
@@ -41997,6 +41983,7 @@
       "value": "Very Slow",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/map/src/main/java/com/adsamcik/tracker/map/layers/registry/DefaultLayerRegistry.kt"
       ],
       "existing_locale_qualifiers": [
@@ -42129,6 +42116,7 @@
       "value": "Moderate Speed",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/map/src/main/java/com/adsamcik/tracker/map/layers/registry/DefaultLayerRegistry.kt"
       ],
       "existing_locale_qualifiers": [
@@ -42217,6 +42205,7 @@
       "value": "Very Fast",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/map/src/main/java/com/adsamcik/tracker/map/layers/registry/DefaultLayerRegistry.kt"
       ],
       "existing_locale_qualifiers": [
@@ -43281,6 +43270,7 @@
       "value": "Lowlands",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/map/src/main/java/com/adsamcik/tracker/map/layers/registry/DefaultLayerRegistry.kt"
       ],
       "existing_locale_qualifiers": [
@@ -43373,6 +43363,7 @@
       "value": "High mountains",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/map/src/main/java/com/adsamcik/tracker/map/layers/registry/DefaultLayerRegistry.kt"
       ],
       "existing_locale_qualifiers": [
@@ -43557,6 +43548,7 @@
       "value": "Unknown",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/map/src/main/java/com/adsamcik/tracker/map/layers/registry/DefaultLayerRegistry.kt"
       ],
       "existing_locale_qualifiers": [
@@ -43649,6 +43641,7 @@
       "value": "Moving",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/map/src/main/java/com/adsamcik/tracker/map/layers/registry/DefaultLayerRegistry.kt"
       ],
       "existing_locale_qualifiers": [
@@ -43927,226 +43920,6 @@
       "usage_files": [
         "feature/map/src/main/java/com/adsamcik/tracker/map/layers/registry/DefaultLayerRegistry.kt"
       ],
-      "existing_locale_qualifiers": [
-        "values-bg-rBG",
-        "values-cs-rCZ",
-        "values-da-rDK",
-        "values-de-rDE",
-        "values-el-rGR",
-        "values-es-rES",
-        "values-et-rEE",
-        "values-fi-rFI",
-        "values-fr-rFR",
-        "values-ga-rIE",
-        "values-hi-rIN",
-        "values-hr-rHR",
-        "values-hu-rHU",
-        "values-it-rIT",
-        "values-ja-rJP",
-        "values-lt-rLT",
-        "values-lv-rLV",
-        "values-mt-rMT",
-        "values-nl-rNL",
-        "values-pl-rPL",
-        "values-pt-rPT",
-        "values-ro-rRO",
-        "values-sk-rSK",
-        "values-sl-rSI",
-        "values-sv-rSE",
-        "values-zh-rCN",
-        "values-zh-rTW"
-      ]
-    },
-    {
-      "module": "feature/map",
-      "default_path": "feature/map/src/main/res/values/strings.xml",
-      "resource_file": "strings.xml",
-      "name": "map_layer_trip_walk",
-      "kind": "string",
-      "translatable": true,
-      "formatted": true,
-      "attributes": {
-        "tools:ignore": "MissingTranslation"
-      },
-      "value": "Walking",
-      "format_tokens": [],
-      "usage_files": [],
-      "existing_locale_qualifiers": [
-        "values-bg-rBG",
-        "values-cs-rCZ",
-        "values-da-rDK",
-        "values-de-rDE",
-        "values-el-rGR",
-        "values-es-rES",
-        "values-et-rEE",
-        "values-fi-rFI",
-        "values-fr-rFR",
-        "values-ga-rIE",
-        "values-hi-rIN",
-        "values-hr-rHR",
-        "values-hu-rHU",
-        "values-it-rIT",
-        "values-ja-rJP",
-        "values-lt-rLT",
-        "values-lv-rLV",
-        "values-mt-rMT",
-        "values-nl-rNL",
-        "values-pl-rPL",
-        "values-pt-rPT",
-        "values-ro-rRO",
-        "values-sk-rSK",
-        "values-sl-rSI",
-        "values-sv-rSE",
-        "values-zh-rCN",
-        "values-zh-rTW"
-      ]
-    },
-    {
-      "module": "feature/map",
-      "default_path": "feature/map/src/main/res/values/strings.xml",
-      "resource_file": "strings.xml",
-      "name": "map_layer_trip_bike",
-      "kind": "string",
-      "translatable": true,
-      "formatted": true,
-      "attributes": {
-        "tools:ignore": "MissingTranslation"
-      },
-      "value": "Cycling",
-      "format_tokens": [],
-      "usage_files": [],
-      "existing_locale_qualifiers": [
-        "values-bg-rBG",
-        "values-cs-rCZ",
-        "values-da-rDK",
-        "values-de-rDE",
-        "values-el-rGR",
-        "values-es-rES",
-        "values-et-rEE",
-        "values-fi-rFI",
-        "values-fr-rFR",
-        "values-ga-rIE",
-        "values-hi-rIN",
-        "values-hr-rHR",
-        "values-hu-rHU",
-        "values-it-rIT",
-        "values-ja-rJP",
-        "values-lt-rLT",
-        "values-lv-rLV",
-        "values-mt-rMT",
-        "values-nl-rNL",
-        "values-pl-rPL",
-        "values-pt-rPT",
-        "values-ro-rRO",
-        "values-sk-rSK",
-        "values-sl-rSI",
-        "values-sv-rSE",
-        "values-zh-rCN",
-        "values-zh-rTW"
-      ]
-    },
-    {
-      "module": "feature/map",
-      "default_path": "feature/map/src/main/res/values/strings.xml",
-      "resource_file": "strings.xml",
-      "name": "map_layer_trip_car",
-      "kind": "string",
-      "translatable": true,
-      "formatted": true,
-      "attributes": {
-        "tools:ignore": "MissingTranslation"
-      },
-      "value": "Driving",
-      "format_tokens": [],
-      "usage_files": [],
-      "existing_locale_qualifiers": [
-        "values-bg-rBG",
-        "values-cs-rCZ",
-        "values-da-rDK",
-        "values-de-rDE",
-        "values-el-rGR",
-        "values-es-rES",
-        "values-et-rEE",
-        "values-fi-rFI",
-        "values-fr-rFR",
-        "values-ga-rIE",
-        "values-hi-rIN",
-        "values-hr-rHR",
-        "values-hu-rHU",
-        "values-it-rIT",
-        "values-ja-rJP",
-        "values-lt-rLT",
-        "values-lv-rLV",
-        "values-mt-rMT",
-        "values-nl-rNL",
-        "values-pl-rPL",
-        "values-pt-rPT",
-        "values-ro-rRO",
-        "values-sk-rSK",
-        "values-sl-rSI",
-        "values-sv-rSE",
-        "values-zh-rCN",
-        "values-zh-rTW"
-      ]
-    },
-    {
-      "module": "feature/map",
-      "default_path": "feature/map/src/main/res/values/strings.xml",
-      "resource_file": "strings.xml",
-      "name": "map_layer_trip_transit",
-      "kind": "string",
-      "translatable": true,
-      "formatted": true,
-      "attributes": {
-        "tools:ignore": "MissingTranslation"
-      },
-      "value": "Transit",
-      "format_tokens": [],
-      "usage_files": [],
-      "existing_locale_qualifiers": [
-        "values-bg-rBG",
-        "values-cs-rCZ",
-        "values-da-rDK",
-        "values-de-rDE",
-        "values-el-rGR",
-        "values-es-rES",
-        "values-et-rEE",
-        "values-fi-rFI",
-        "values-fr-rFR",
-        "values-ga-rIE",
-        "values-hi-rIN",
-        "values-hr-rHR",
-        "values-hu-rHU",
-        "values-it-rIT",
-        "values-ja-rJP",
-        "values-lt-rLT",
-        "values-lv-rLV",
-        "values-mt-rMT",
-        "values-nl-rNL",
-        "values-pl-rPL",
-        "values-pt-rPT",
-        "values-ro-rRO",
-        "values-sk-rSK",
-        "values-sl-rSI",
-        "values-sv-rSE",
-        "values-zh-rCN",
-        "values-zh-rTW"
-      ]
-    },
-    {
-      "module": "feature/map",
-      "default_path": "feature/map/src/main/res/values/strings.xml",
-      "resource_file": "strings.xml",
-      "name": "map_layer_trip_other",
-      "kind": "string",
-      "translatable": true,
-      "formatted": true,
-      "attributes": {
-        "tools:ignore": "MissingTranslation"
-      },
-      "value": "Other",
-      "format_tokens": [],
-      "usage_files": [],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
         "values-cs-rCZ",
@@ -44541,6 +44314,7 @@
       "value": "Long ago",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/map/src/main/java/com/adsamcik/tracker/map/layers/registry/DefaultLayerRegistry.kt"
       ],
       "existing_locale_qualifiers": [
@@ -44585,6 +44359,7 @@
       "value": "Just discovered",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/map/src/main/java/com/adsamcik/tracker/map/layers/registry/DefaultLayerRegistry.kt"
       ],
       "existing_locale_qualifiers": [
@@ -44805,6 +44580,7 @@
       "value": "No overlay",
       "format_tokens": [],
       "usage_files": [
+        "feature/map/lint-baseline.xml",
         "feature/map/src/main/java/com/adsamcik/tracker/map/layers/registry/DefaultLayerRegistry.kt",
         "feature/map/src/main/java/com/adsamcik/tracker/map/ui/controls/MapChromeHost.kt"
       ],
@@ -44938,6 +44714,7 @@
       "value": "Custom…",
       "format_tokens": [],
       "usage_files": [
+        "feature/map/lint-baseline.xml",
         "feature/map/src/main/java/com/adsamcik/tracker/map/ui/controls/DateRangePopover.kt",
         "feature/map/src/main/java/com/adsamcik/tracker/map/ui/controls/MapChromeHost.kt"
       ],
@@ -46668,9 +46445,7 @@
       "attributes": {},
       "value": "Tapping or pulling up this bar will open more options for the map including layer selection and legend.",
       "format_tokens": [],
-      "usage_files": [
-        "feature/map/lint-baseline.xml"
-      ],
+      "usage_files": [],
       "existing_locale_qualifiers": [
         "values-af-rZA",
         "values-ar-rSA",
@@ -47475,6 +47250,7 @@
       "value": "Selected trip",
       "format_tokens": [],
       "usage_files": [
+        "feature/map/lint-baseline.xml",
         "feature/map/src/main/java/com/adsamcik/tracker/map/ui/controls/MapChromeHost.kt"
       ],
       "existing_locale_qualifiers": [
@@ -48358,6 +48134,7 @@
       "value": "Map basemap could not be prepared. Close and reopen the map to try again.",
       "format_tokens": [],
       "usage_files": [
+        "feature/map/lint-baseline.xml",
         "feature/map/src/main/java/com/adsamcik/tracker/map/ui/MapScreen.kt"
       ],
       "existing_locale_qualifiers": [
@@ -49064,6 +48841,7 @@
       "value": "Location access required. Opening Settings…",
       "format_tokens": [],
       "usage_files": [
+        "feature/map/lint-baseline.xml",
         "feature/map/src/main/java/com/adsamcik/tracker/map/ui/controls/LocationPermissionFlow.kt"
       ],
       "existing_locale_qualifiers": [
@@ -49553,6 +49331,7 @@
         "app/src/main/java/com/adsamcik/tracker/app/settings/SettingsRoute.kt",
         "app/src/main/java/com/adsamcik/tracker/app/ui/MainRoot.kt",
         "app/src/main/java/com/adsamcik/tracker/module/Module.kt",
+        "feature/statistics/lint-baseline.xml",
         "feature/statistics/src/main/AndroidManifest.xml"
       ],
       "existing_locale_qualifiers": [
@@ -49597,6 +49376,7 @@
       "value": "Cell count",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/SessionStatsUiFormatter.kt",
         "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/SessionStatsUiFormatterTest.kt"
       ],
@@ -49939,6 +49719,7 @@
       "value": "Location count",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/SessionStatsUiFormatter.kt",
         "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/SessionStatsUiFormatterTest.kt"
       ],
@@ -50085,6 +49866,7 @@
       "value": "Session count",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/SessionStatsUiFormatter.kt",
         "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/SessionStatsUiFormatterTest.kt",
         "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/ui/SummaryRouteComposeTest.kt"
@@ -50418,6 +50200,7 @@
       "value": "Wi-Fi count",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/presenter/SessionStatsUiFormatter.kt",
         "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/presenter/SessionStatsUiFormatterTest.kt"
       ],
@@ -51595,6 +51378,7 @@
         "%1$s"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/fragment/StatsScreen.kt",
         "feature/statistics/src/test/java/com/adsamcik/tracker/statistics/fragment/TripRowAccessibilityLabelTest.kt"
       ],
@@ -56500,6 +56284,7 @@
         "app/src/main/java/com/adsamcik/tracker/app/settings/SettingsRoute.kt",
         "app/src/main/java/com/adsamcik/tracker/app/settings/about/AboutScreen.kt",
         "core/ui/src/main/java/com/adsamcik/tracker/shared/utils/activity/ComposeDetailActivity.kt",
+        "detekt-baseline.xml",
         "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/CellSignalReportRoute.kt",
         "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/HistoryRoute.kt",
         "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/SummaryRoute.kt",
@@ -56687,9 +56472,7 @@
         "%1$s",
         "%2$d"
       ],
-      "usage_files": [
-        "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/ActivityWatcherService.kt"
-      ],
+      "usage_files": [],
       "existing_locale_qualifiers": [
         "values-af-rZA",
         "values-ar-rSA",
@@ -56743,9 +56526,7 @@
       "attributes": {},
       "value": "Activity Watcher service active",
       "format_tokens": [],
-      "usage_files": [
-        "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/ActivityWatcherService.kt"
-      ],
+      "usage_files": [],
       "existing_locale_qualifiers": [
         "values-af-rZA",
         "values-ar-rSA",
@@ -56838,8 +56619,8 @@
         "%s"
       ],
       "usage_files": [
-        "feature/activity/src/main/java/com/adsamcik/tracker/activity/ui/SessionActivityActivityCompose.kt",
-        "sensor/activity/lint-baseline.xml"
+        "feature/activity/lint-baseline.xml",
+        "feature/activity/src/main/java/com/adsamcik/tracker/activity/ui/SessionActivityActivityCompose.kt"
       ],
       "existing_locale_qualifiers": [
         "values-af-rZA",
@@ -56989,9 +56770,7 @@
       "attributes": {},
       "value": "Activity watcher",
       "format_tokens": [],
-      "usage_files": [
-        "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/service/ActivityWatcherService.kt"
-      ],
+      "usage_files": [],
       "existing_locale_qualifiers": [
         "values-af-rZA",
         "values-ar-rSA",
@@ -57225,7 +57004,8 @@
       "value": "Ski lift data © OpenStreetMap contributors (ODbL)",
       "format_tokens": [],
       "usage_files": [
-        "app/src/main/java/com/adsamcik/tracker/app/settings/map/MapSettingsScreen.kt"
+        "app/src/main/java/com/adsamcik/tracker/app/settings/map/MapSettingsScreen.kt",
+        "detekt-baseline.xml"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
@@ -57502,6 +57282,7 @@
         "%1$s"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "stats/data/src/main/java/com/adsamcik/tracker/stats/data/achievement/AchievementFormatting.kt"
       ],
       "existing_locale_qualifiers": [
@@ -57594,6 +57375,7 @@
         "%1$s"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "stats/data/src/main/java/com/adsamcik/tracker/stats/data/achievement/AchievementFormatting.kt"
       ],
       "existing_locale_qualifiers": [
@@ -57640,6 +57422,7 @@
         "%1$s"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "stats/data/src/main/java/com/adsamcik/tracker/stats/data/achievement/AchievementFormatting.kt"
       ],
       "existing_locale_qualifiers": [
@@ -58054,6 +57837,7 @@
         "%1$s"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "stats/data/src/main/java/com/adsamcik/tracker/stats/data/achievement/AchievementFormatting.kt"
       ],
       "existing_locale_qualifiers": [
@@ -58100,6 +57884,7 @@
         "%1$s"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "stats/data/src/main/java/com/adsamcik/tracker/stats/data/achievement/AchievementFormatting.kt"
       ],
       "existing_locale_qualifiers": [
@@ -58155,6 +57940,7 @@
         "%1$s"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "stats/data/src/main/java/com/adsamcik/tracker/stats/data/achievement/AchievementFormatting.kt"
       ],
       "existing_locale_qualifiers": [
@@ -58256,6 +58042,7 @@
         "%1$s"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "stats/data/src/main/java/com/adsamcik/tracker/stats/data/achievement/AchievementFormatting.kt"
       ],
       "existing_locale_qualifiers": [
@@ -58302,6 +58089,7 @@
         "%1$s"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "stats/data/src/main/java/com/adsamcik/tracker/stats/data/achievement/AchievementFormatting.kt"
       ],
       "existing_locale_qualifiers": [
@@ -58963,6 +58751,7 @@
         "%1$s"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "stats/data/src/main/java/com/adsamcik/tracker/stats/data/achievement/AchievementFormatting.kt"
       ],
       "existing_locale_qualifiers": [
@@ -59723,6 +59512,7 @@
         "%1$s"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "stats/data/src/main/java/com/adsamcik/tracker/stats/data/achievement/AchievementFormatting.kt"
       ],
       "existing_locale_qualifiers": [
@@ -59769,6 +59559,7 @@
         "%1$s"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "stats/data/src/main/java/com/adsamcik/tracker/stats/data/achievement/AchievementFormatting.kt"
       ],
       "existing_locale_qualifiers": [
@@ -59907,6 +59698,7 @@
         "%1$s"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "stats/data/src/main/java/com/adsamcik/tracker/stats/data/achievement/AchievementFormatting.kt"
       ],
       "existing_locale_qualifiers": [
@@ -59953,6 +59745,7 @@
         "%1$s"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "stats/data/src/main/java/com/adsamcik/tracker/stats/data/achievement/AchievementFormatting.kt"
       ],
       "existing_locale_qualifiers": [
@@ -60562,6 +60355,7 @@
         "%1$s"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "stats/data/src/main/java/com/adsamcik/tracker/stats/data/achievement/AchievementFormatting.kt"
       ],
       "existing_locale_qualifiers": [
@@ -60663,6 +60457,7 @@
         "%1$s"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "stats/data/src/main/java/com/adsamcik/tracker/stats/data/achievement/AchievementFormatting.kt"
       ],
       "existing_locale_qualifiers": [
@@ -60764,6 +60559,7 @@
         "%1$s"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "stats/data/src/main/java/com/adsamcik/tracker/stats/data/achievement/AchievementFormatting.kt"
       ],
       "existing_locale_qualifiers": [
@@ -60856,6 +60652,7 @@
         "%1$s"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "stats/data/src/main/java/com/adsamcik/tracker/stats/data/achievement/AchievementFormatting.kt"
       ],
       "existing_locale_qualifiers": [
@@ -61251,6 +61048,7 @@
         "%1$s"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "stats/data/src/main/java/com/adsamcik/tracker/stats/data/achievement/AchievementFormatting.kt"
       ],
       "existing_locale_qualifiers": [
@@ -61582,6 +61380,7 @@
         "%1$d"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "stats/data/src/main/java/com/adsamcik/tracker/stats/data/achievement/AchievementFormatting.kt"
       ],
       "existing_locale_qualifiers": [
@@ -62023,6 +61822,7 @@
         "%1$s"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "stats/data/src/main/java/com/adsamcik/tracker/stats/data/achievement/AchievementFormatting.kt"
       ],
       "existing_locale_qualifiers": [
@@ -62721,6 +62521,7 @@
         "%d"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "stats/data/src/main/java/com/adsamcik/tracker/stats/data/achievement/AchievementFormatting.kt"
       ],
       "existing_locale_qualifiers": [
@@ -62776,6 +62577,7 @@
         "%d"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "stats/data/src/main/java/com/adsamcik/tracker/stats/data/achievement/AchievementFormatting.kt"
       ],
       "existing_locale_qualifiers": [
@@ -62831,6 +62633,7 @@
         "%d"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "stats/data/src/main/java/com/adsamcik/tracker/stats/data/achievement/AchievementFormatting.kt"
       ],
       "existing_locale_qualifiers": [
@@ -62886,6 +62689,7 @@
         "%d"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "stats/data/src/main/java/com/adsamcik/tracker/stats/data/achievement/AchievementFormatting.kt"
       ],
       "existing_locale_qualifiers": [
@@ -63511,8 +63315,8 @@
         "%d"
       ],
       "usage_files": [
+        "feature/tracker/lint-baseline.xml",
         "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardSessionCards.kt",
-        "tracker/engine/lint-baseline.xml",
         "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/component/CollectionCountNotificationComponent.kt"
       ],
       "existing_locale_qualifiers": [
@@ -63613,7 +63417,6 @@
       "value": "Settings button",
       "format_tokens": [],
       "usage_files": [
-        "app/src/androidTest/java/com/adsamcik/tracker/app/StandardFlowsTest.kt",
         "app/src/androidTest/java/com/adsamcik/tracker/app/TrackerRouteUiTest.kt",
         "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboard.kt",
         "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardTrackingComponents.kt"
@@ -63672,7 +63475,6 @@
       "value": "Start tracking button",
       "format_tokens": [],
       "usage_files": [
-        "app/src/androidTest/java/com/adsamcik/tracker/app/StandardFlowsTest.kt",
         "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardControls.kt"
       ],
       "existing_locale_qualifiers": [
@@ -63729,7 +63531,6 @@
       "value": "Stop tracking button",
       "format_tokens": [],
       "usage_files": [
-        "app/src/androidTest/java/com/adsamcik/tracker/app/StandardFlowsTest.kt",
         "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardControls.kt"
       ],
       "existing_locale_qualifiers": [
@@ -63965,8 +63766,8 @@
       "value": "Recharge settings: tap to configure",
       "format_tokens": [],
       "usage_files": [
-        "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardControls.kt",
-        "tracker/engine/lint-baseline.xml"
+        "feature/tracker/lint-baseline.xml",
+        "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardControls.kt"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
@@ -64470,7 +64271,9 @@
       "format_tokens": [],
       "usage_files": [
         "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt",
-        "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardRoute.kt"
+        "feature/dashboard/lint-baseline.xml",
+        "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardRoute.kt",
+        "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRoute.kt"
       ],
       "existing_locale_qualifiers": [
         "values-af-rZA",
@@ -64513,6 +64316,24 @@
         "values-zh-rCN",
         "values-zh-rTW"
       ]
+    },
+    {
+      "module": "tracker/api-module",
+      "default_path": "tracker/api-module/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "manual_tracking_location_services_required",
+      "kind": "string",
+      "translatable": true,
+      "formatted": true,
+      "attributes": {
+        "tools:ignore": "MissingTranslation"
+      },
+      "value": "Turn on Location Services to use the enabled tracking source.",
+      "format_tokens": [],
+      "usage_files": [
+        "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRoute.kt"
+      ],
+      "existing_locale_qualifiers": []
     },
     {
       "module": "tracker/api-module",
@@ -65272,60 +65093,6 @@
       "module": "tracker/api-module",
       "default_path": "tracker/api-module/src/main/res/values/strings.xml",
       "resource_file": "strings.xml",
-      "name": "notification_looking_for_gps",
-      "kind": "string",
-      "translatable": true,
-      "formatted": true,
-      "attributes": {},
-      "value": "Looking for GPS — location in use",
-      "format_tokens": [],
-      "usage_files": [],
-      "existing_locale_qualifiers": [
-        "values-af-rZA",
-        "values-ar-rSA",
-        "values-bg-rBG",
-        "values-ca-rES",
-        "values-cs-rCZ",
-        "values-da-rDK",
-        "values-de-rDE",
-        "values-el-rGR",
-        "values-es-rES",
-        "values-et-rEE",
-        "values-fi-rFI",
-        "values-fr-rFR",
-        "values-ga-rIE",
-        "values-hi-rIN",
-        "values-hr-rHR",
-        "values-hu-rHU",
-        "values-it-rIT",
-        "values-iw-rIL",
-        "values-ja-rJP",
-        "values-ko-rKR",
-        "values-lt-rLT",
-        "values-lv-rLV",
-        "values-mt-rMT",
-        "values-nl-rNL",
-        "values-no-rNO",
-        "values-pl-rPL",
-        "values-pt-rBR",
-        "values-pt-rPT",
-        "values-ro-rRO",
-        "values-ru-rRU",
-        "values-sk-rSK",
-        "values-sl-rSI",
-        "values-sr-rSP",
-        "values-sv-rSE",
-        "values-tr-rTR",
-        "values-uk-rUA",
-        "values-vi-rVN",
-        "values-zh-rCN",
-        "values-zh-rTW"
-      ]
-    },
-    {
-      "module": "tracker/api-module",
-      "default_path": "tracker/api-module/src/main/res/values/strings.xml",
-      "resource_file": "strings.xml",
       "name": "notification_starting",
       "kind": "string",
       "translatable": true,
@@ -65802,6 +65569,7 @@
       "value": "Tracking",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/tracking/TrackingContent.kt",
         "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboard.kt",
         "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardSessionCards.kt",
@@ -65862,6 +65630,7 @@
       "value": "Tracking couldn\\'t start",
       "format_tokens": [],
       "usage_files": [
+        "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRoute.kt",
         "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/TrackerNotificationManager.kt"
       ],
       "existing_locale_qualifiers": [
@@ -65942,6 +65711,54 @@
       "module": "tracker/api-module",
       "default_path": "tracker/api-module/src/main/res/values/strings.xml",
       "resource_file": "strings.xml",
+      "name": "notification_tracking_restoring_title",
+      "kind": "string",
+      "translatable": true,
+      "formatted": true,
+      "attributes": {},
+      "value": "Preparing tracking",
+      "format_tokens": [],
+      "usage_files": [
+        "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/TrackerNotificationManager.kt"
+      ],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "tracker/api-module",
+      "default_path": "tracker/api-module/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "notification_tracking_restoring_text",
+      "kind": "string",
+      "translatable": true,
+      "formatted": true,
+      "attributes": {},
+      "value": "No data is collected until recovery completes.",
+      "format_tokens": [],
+      "usage_files": [
+        "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/TrackerNotificationManager.kt"
+      ],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "tracker/api-module",
+      "default_path": "tracker/api-module/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
+      "name": "notification_tracking_restoring_public",
+      "kind": "string",
+      "translatable": true,
+      "formatted": true,
+      "attributes": {},
+      "value": "Preparing tracking",
+      "format_tokens": [],
+      "usage_files": [
+        "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/notification/TrackerNotificationManager.kt"
+      ],
+      "existing_locale_qualifiers": []
+    },
+    {
+      "module": "tracker/api-module",
+      "default_path": "tracker/api-module/src/main/res/values/strings.xml",
+      "resource_file": "strings.xml",
       "name": "settings_activity_enabled_title",
       "kind": "string",
       "translatable": true,
@@ -65952,114 +65769,6 @@
       "usage_files": [
         "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt"
       ],
-      "existing_locale_qualifiers": [
-        "values-af-rZA",
-        "values-ar-rSA",
-        "values-bg-rBG",
-        "values-ca-rES",
-        "values-cs-rCZ",
-        "values-da-rDK",
-        "values-de-rDE",
-        "values-el-rGR",
-        "values-es-rES",
-        "values-et-rEE",
-        "values-fi-rFI",
-        "values-fr-rFR",
-        "values-ga-rIE",
-        "values-hi-rIN",
-        "values-hr-rHR",
-        "values-hu-rHU",
-        "values-it-rIT",
-        "values-iw-rIL",
-        "values-ja-rJP",
-        "values-ko-rKR",
-        "values-lt-rLT",
-        "values-lv-rLV",
-        "values-mt-rMT",
-        "values-nl-rNL",
-        "values-no-rNO",
-        "values-pl-rPL",
-        "values-pt-rBR",
-        "values-pt-rPT",
-        "values-ro-rRO",
-        "values-ru-rRU",
-        "values-sk-rSK",
-        "values-sl-rSI",
-        "values-sr-rSP",
-        "values-sv-rSE",
-        "values-tr-rTR",
-        "values-uk-rUA",
-        "values-vi-rVN",
-        "values-zh-rCN",
-        "values-zh-rTW"
-      ]
-    },
-    {
-      "module": "tracker/api-module",
-      "default_path": "tracker/api-module/src/main/res/values/strings.xml",
-      "resource_file": "strings.xml",
-      "name": "settings_auto_tracking_transition_summary",
-      "kind": "string",
-      "translatable": true,
-      "formatted": true,
-      "attributes": {},
-      "value": "Battery-efficient mode (slightly slower activity detection)",
-      "format_tokens": [],
-      "usage_files": [],
-      "existing_locale_qualifiers": [
-        "values-af-rZA",
-        "values-ar-rSA",
-        "values-bg-rBG",
-        "values-ca-rES",
-        "values-cs-rCZ",
-        "values-da-rDK",
-        "values-de-rDE",
-        "values-el-rGR",
-        "values-es-rES",
-        "values-et-rEE",
-        "values-fi-rFI",
-        "values-fr-rFR",
-        "values-ga-rIE",
-        "values-hi-rIN",
-        "values-hr-rHR",
-        "values-hu-rHU",
-        "values-it-rIT",
-        "values-iw-rIL",
-        "values-ja-rJP",
-        "values-ko-rKR",
-        "values-lt-rLT",
-        "values-lv-rLV",
-        "values-mt-rMT",
-        "values-nl-rNL",
-        "values-no-rNO",
-        "values-pl-rPL",
-        "values-pt-rBR",
-        "values-pt-rPT",
-        "values-ro-rRO",
-        "values-ru-rRU",
-        "values-sk-rSK",
-        "values-sl-rSI",
-        "values-sr-rSP",
-        "values-sv-rSE",
-        "values-tr-rTR",
-        "values-uk-rUA",
-        "values-vi-rVN",
-        "values-zh-rCN",
-        "values-zh-rTW"
-      ]
-    },
-    {
-      "module": "tracker/api-module",
-      "default_path": "tracker/api-module/src/main/res/values/strings.xml",
-      "resource_file": "strings.xml",
-      "name": "settings_auto_tracking_transition_title",
-      "kind": "string",
-      "translatable": true,
-      "formatted": true,
-      "attributes": {},
-      "value": "Use activity transitions",
-      "format_tokens": [],
-      "usage_files": [],
       "existing_locale_qualifiers": [
         "values-af-rZA",
         "values-ar-rSA",
@@ -66211,7 +65920,9 @@
       "value": "Automatic tracking is disabled until your phone is connected to a charger",
       "format_tokens": [],
       "usage_files": [
+        "feature/dashboard/lint-baseline.xml",
         "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardRoute.kt",
+        "feature/tracker/lint-baseline.xml",
         "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerRoute.kt"
       ],
       "existing_locale_qualifiers": [
@@ -66268,6 +65979,7 @@
       "value": "Disabled until recharge",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardControls.kt"
       ],
       "existing_locale_qualifiers": [
@@ -66420,6 +66132,7 @@
       "format_tokens": [],
       "usage_files": [
         "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt",
+        "detekt-baseline.xml",
         "feature/tracker/src/main/java/com/adsamcik/tracker/feature/tracker/notification/NotificationManagementScreen.kt"
       ],
       "existing_locale_qualifiers": [
@@ -66533,7 +66246,8 @@
       "value": "Use your app style color for notifications.",
       "format_tokens": [],
       "usage_files": [
-        "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt"
+        "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt",
+        "detekt-baseline.xml"
       ],
       "existing_locale_qualifiers": [
         "values-af-rZA",
@@ -66863,210 +66577,6 @@
       "module": "tracker/api-module",
       "default_path": "tracker/api-module/src/main/res/values/strings.xml",
       "resource_file": "strings.xml",
-      "name": "settings_tracker_timer_ambient",
-      "kind": "string",
-      "translatable": true,
-      "formatted": true,
-      "attributes": {},
-      "value": "Ambient timer",
-      "format_tokens": [],
-      "usage_files": [],
-      "existing_locale_qualifiers": [
-        "values-bg-rBG",
-        "values-cs-rCZ",
-        "values-da-rDK",
-        "values-de-rDE",
-        "values-el-rGR",
-        "values-es-rES",
-        "values-et-rEE",
-        "values-fi-rFI",
-        "values-fr-rFR",
-        "values-ga-rIE",
-        "values-hi-rIN",
-        "values-hr-rHR",
-        "values-hu-rHU",
-        "values-it-rIT",
-        "values-ja-rJP",
-        "values-lt-rLT",
-        "values-lv-rLV",
-        "values-mt-rMT",
-        "values-nl-rNL",
-        "values-pl-rPL",
-        "values-pt-rPT",
-        "values-ro-rRO",
-        "values-sk-rSK",
-        "values-sl-rSI",
-        "values-sv-rSE",
-        "values-zh-rCN",
-        "values-zh-rTW"
-      ]
-    },
-    {
-      "module": "tracker/api-module",
-      "default_path": "tracker/api-module/src/main/res/values/strings.xml",
-      "resource_file": "strings.xml",
-      "name": "settings_tracker_timer_clock",
-      "kind": "string",
-      "translatable": true,
-      "formatted": true,
-      "attributes": {},
-      "value": "Interval-based",
-      "format_tokens": [],
-      "usage_files": [],
-      "existing_locale_qualifiers": [
-        "values-af-rZA",
-        "values-ar-rSA",
-        "values-bg-rBG",
-        "values-ca-rES",
-        "values-cs-rCZ",
-        "values-da-rDK",
-        "values-de-rDE",
-        "values-el-rGR",
-        "values-es-rES",
-        "values-et-rEE",
-        "values-fi-rFI",
-        "values-fr-rFR",
-        "values-ga-rIE",
-        "values-hi-rIN",
-        "values-hr-rHR",
-        "values-hu-rHU",
-        "values-it-rIT",
-        "values-iw-rIL",
-        "values-ja-rJP",
-        "values-ko-rKR",
-        "values-lt-rLT",
-        "values-lv-rLV",
-        "values-mt-rMT",
-        "values-nl-rNL",
-        "values-no-rNO",
-        "values-pl-rPL",
-        "values-pt-rBR",
-        "values-pt-rPT",
-        "values-ro-rRO",
-        "values-ru-rRU",
-        "values-sk-rSK",
-        "values-sl-rSI",
-        "values-sr-rSP",
-        "values-sv-rSE",
-        "values-tr-rTR",
-        "values-uk-rUA",
-        "values-vi-rVN",
-        "values-zh-rCN",
-        "values-zh-rTW"
-      ]
-    },
-    {
-      "module": "tracker/api-module",
-      "default_path": "tracker/api-module/src/main/res/values/strings.xml",
-      "resource_file": "strings.xml",
-      "name": "settings_tracker_timer_fused",
-      "kind": "string",
-      "translatable": true,
-      "formatted": true,
-      "attributes": {},
-      "value": "Google Play location",
-      "format_tokens": [],
-      "usage_files": [],
-      "existing_locale_qualifiers": [
-        "values-af-rZA",
-        "values-ar-rSA",
-        "values-bg-rBG",
-        "values-ca-rES",
-        "values-cs-rCZ",
-        "values-da-rDK",
-        "values-de-rDE",
-        "values-el-rGR",
-        "values-es-rES",
-        "values-et-rEE",
-        "values-fi-rFI",
-        "values-fr-rFR",
-        "values-ga-rIE",
-        "values-hi-rIN",
-        "values-hr-rHR",
-        "values-hu-rHU",
-        "values-it-rIT",
-        "values-iw-rIL",
-        "values-ja-rJP",
-        "values-ko-rKR",
-        "values-lt-rLT",
-        "values-lv-rLV",
-        "values-mt-rMT",
-        "values-nl-rNL",
-        "values-no-rNO",
-        "values-pl-rPL",
-        "values-pt-rBR",
-        "values-pt-rPT",
-        "values-ro-rRO",
-        "values-ru-rRU",
-        "values-sk-rSK",
-        "values-sl-rSI",
-        "values-sr-rSP",
-        "values-sv-rSE",
-        "values-tr-rTR",
-        "values-uk-rUA",
-        "values-vi-rVN",
-        "values-zh-rCN",
-        "values-zh-rTW"
-      ]
-    },
-    {
-      "module": "tracker/api-module",
-      "default_path": "tracker/api-module/src/main/res/values/strings.xml",
-      "resource_file": "strings.xml",
-      "name": "settings_tracker_timer_location",
-      "kind": "string",
-      "translatable": true,
-      "formatted": true,
-      "attributes": {},
-      "value": "Android location",
-      "format_tokens": [],
-      "usage_files": [],
-      "existing_locale_qualifiers": [
-        "values-af-rZA",
-        "values-ar-rSA",
-        "values-bg-rBG",
-        "values-ca-rES",
-        "values-cs-rCZ",
-        "values-da-rDK",
-        "values-de-rDE",
-        "values-el-rGR",
-        "values-es-rES",
-        "values-et-rEE",
-        "values-fi-rFI",
-        "values-fr-rFR",
-        "values-ga-rIE",
-        "values-hi-rIN",
-        "values-hr-rHR",
-        "values-hu-rHU",
-        "values-it-rIT",
-        "values-iw-rIL",
-        "values-ja-rJP",
-        "values-ko-rKR",
-        "values-lt-rLT",
-        "values-lv-rLV",
-        "values-mt-rMT",
-        "values-nl-rNL",
-        "values-no-rNO",
-        "values-pl-rPL",
-        "values-pt-rBR",
-        "values-pt-rPT",
-        "values-ro-rRO",
-        "values-ru-rRU",
-        "values-sk-rSK",
-        "values-sl-rSI",
-        "values-sr-rSP",
-        "values-sv-rSE",
-        "values-tr-rTR",
-        "values-uk-rUA",
-        "values-vi-rVN",
-        "values-zh-rCN",
-        "values-zh-rTW"
-      ]
-    },
-    {
-      "module": "tracker/api-module",
-      "default_path": "tracker/api-module/src/main/res/values/strings.xml",
-      "resource_file": "strings.xml",
       "name": "settings_tracking_min_distance_title",
       "kind": "string",
       "translatable": true,
@@ -67075,7 +66585,8 @@
       "value": "Minimum distance between updates",
       "format_tokens": [],
       "usage_files": [
-        "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt"
+        "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt",
+        "detekt-baseline.xml"
       ],
       "existing_locale_qualifiers": [
         "values-af-rZA",
@@ -67243,7 +66754,8 @@
       "value": "Required location accuracy",
       "format_tokens": [],
       "usage_files": [
-        "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt"
+        "app/src/main/java/com/adsamcik/tracker/app/settings/tracking/TrackingSettingsScreen.kt",
+        "detekt-baseline.xml"
       ],
       "existing_locale_qualifiers": [
         "values-af-rZA",
@@ -67301,6 +66813,7 @@
       "usage_files": [
         "app/src/main/java/com/adsamcik/tracker/app/settings/SettingsRoute.kt",
         "app/src/main/java/com/adsamcik/tracker/app/settings/root/RootSettingsScreen.kt",
+        "detekt-baseline.xml",
         "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboard.kt"
       ],
       "existing_locale_qualifiers": [
@@ -68639,6 +68152,7 @@
         "%1$d"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/insights/DefaultSessionInsightsGenerator.kt"
       ],
       "existing_locale_qualifiers": [
@@ -68738,6 +68252,7 @@
         "%1$d"
       ],
       "usage_files": [
+        "detekt-baseline.xml",
         "tracker/engine/src/main/java/com/adsamcik/tracker/tracker/insights/DefaultSessionInsightsGenerator.kt"
       ],
       "existing_locale_qualifiers": [
@@ -70004,6 +69519,7 @@
       "value": "Ambient",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/components/DashboardTopBar.kt",
         "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardControls.kt"
       ],
@@ -70094,6 +69610,7 @@
       "value": "Precision",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/dashboard/src/main/java/com/adsamcik/tracker/dashboard/ui/compose/components/DashboardTopBar.kt",
         "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardControls.kt"
       ],
@@ -70183,6 +69700,7 @@
       "value": "Hide details",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboard.kt"
       ],
       "existing_locale_qualifiers": [
@@ -70227,6 +69745,7 @@
       "value": "Show sensor details",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboard.kt"
       ],
       "existing_locale_qualifiers": [
@@ -70449,6 +69968,7 @@
       "value": "Lock status",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardControls.kt"
       ],
       "existing_locale_qualifiers": [
@@ -70493,6 +70013,7 @@
       "value": "Component settings",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardControls.kt"
       ],
       "existing_locale_qualifiers": [
@@ -70801,6 +70322,7 @@
       "value": "Collapse",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboard.kt"
       ],
       "existing_locale_qualifiers": [
@@ -70845,6 +70367,7 @@
       "value": "Expand",
       "format_tokens": [],
       "usage_files": [
+        "detekt-baseline.xml",
         "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboard.kt"
       ],
       "existing_locale_qualifiers": [
@@ -70933,8 +70456,8 @@
       "value": "Session summary copied",
       "format_tokens": [],
       "usage_files": [
-        "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardSessionCards.kt",
-        "tracker/engine/lint-baseline.xml"
+        "feature/tracker/lint-baseline.xml",
+        "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardSessionCards.kt"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
@@ -71066,8 +70589,8 @@
       "value": "Copy session summary",
       "format_tokens": [],
       "usage_files": [
-        "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardSessionCards.kt",
-        "tracker/engine/lint-baseline.xml"
+        "feature/tracker/lint-baseline.xml",
+        "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardSessionCards.kt"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
@@ -71331,8 +70854,9 @@
       "value": "GPS policy:",
       "format_tokens": [],
       "usage_files": [
-        "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardControls.kt",
-        "tracker/engine/lint-baseline.xml"
+        "detekt-baseline.xml",
+        "feature/tracker/lint-baseline.xml",
+        "feature/tracker/src/main/java/com/adsamcik/tracker/tracker/ui/compose/TrackerDashboardControls.kt"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
@@ -71428,6 +70952,7 @@
         "app/src/main/java/com/adsamcik/tracker/app/settings/SettingsRoute.kt",
         "app/src/main/java/com/adsamcik/tracker/app/settings/about/AboutScreen.kt",
         "core/ui/src/main/java/com/adsamcik/tracker/shared/utils/activity/ComposeDetailActivity.kt",
+        "detekt-baseline.xml",
         "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/CellSignalReportRoute.kt",
         "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/HistoryRoute.kt",
         "feature/statistics/src/main/java/com/adsamcik/tracker/statistics/ui/SummaryRoute.kt",

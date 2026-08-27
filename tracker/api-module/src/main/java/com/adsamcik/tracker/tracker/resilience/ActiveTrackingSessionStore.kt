@@ -138,6 +138,8 @@ data class ActiveTrackingSessionDescriptor(
 	val restartBootId: String? = null,
 	/** Unpredictable token copied only into trusted restart intents. */
 	val restartToken: String? = null,
+	/** Exact derived segment currently receiving this logical session's online aggregates. */
+	val sessionSegmentId: Long? = null,
 ) {
 	init {
 		require(logicalTrackingId.isNotBlank()) { "logicalTrackingId must not be blank" }
@@ -151,6 +153,9 @@ data class ActiveTrackingSessionDescriptor(
 		}
 		require(restartBootId == null || restartBootId.isNotBlank()) { "restartBootId must not be blank" }
 		require(restartToken == null || restartToken.isNotBlank()) { "restartToken must not be blank" }
+		require(sessionSegmentId == null || sessionSegmentId > 0L) {
+			"sessionSegmentId must be positive when present"
+		}
 		if (lifecycleState == LogicalTrackingLifecycleState.STOP_CANDIDATE) {
 			require(stopCandidate != null) {
 				"STOP_CANDIDATE descriptors require a stopCandidate"

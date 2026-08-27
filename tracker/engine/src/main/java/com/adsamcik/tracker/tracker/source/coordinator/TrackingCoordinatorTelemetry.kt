@@ -16,6 +16,8 @@ class TrackingCoordinatorTelemetry @Inject constructor() {
 	private val planRevisionCount = AtomicLong()
 	private val trackingFrameCount = AtomicLong()
 	private val trackingFrameWakeLockNanos = AtomicLong()
+	private val sourceTimerWakeupCount = AtomicLong()
+	private val sourceTimerRequestCount = AtomicLong()
 	private val motionPolicyChangeCount = AtomicLong()
 	private val stationaryOptimizationCount = AtomicLong()
 	private val fullFidelityRestoreCount = AtomicLong()
@@ -43,6 +45,15 @@ class TrackingCoordinatorTelemetry @Inject constructor() {
 		publish()
 	}
 
+	/** Records one fired in-process source timer and the requests coalesced into that firing. */
+	@Synchronized
+	fun recordSourceTimerWakeup(requests: Int) {
+		require(requests > 0)
+		sourceTimerWakeupCount.incrementAndGet()
+		sourceTimerRequestCount.addAndGet(requests.toLong())
+		publish()
+	}
+
 	@Synchronized
 	fun recordMotionPolicyChange(stationaryOptimized: Boolean, fullFidelity: Boolean) {
 		motionPolicyChangeCount.incrementAndGet()
@@ -58,6 +69,8 @@ class TrackingCoordinatorTelemetry @Inject constructor() {
 		planRevisionCount = planRevisionCount.get(),
 		trackingFrameCount = trackingFrameCount.get(),
 		trackingFrameWakeLockNanos = trackingFrameWakeLockNanos.get(),
+		sourceTimerWakeupCount = sourceTimerWakeupCount.get(),
+		sourceTimerRequestCount = sourceTimerRequestCount.get(),
 		motionPolicyChangeCount = motionPolicyChangeCount.get(),
 		stationaryOptimizationCount = stationaryOptimizationCount.get(),
 		fullFidelityRestoreCount = fullFidelityRestoreCount.get(),
@@ -75,6 +88,8 @@ data class TrackingCoordinatorMetrics(
 	val planRevisionCount: Long,
 	val trackingFrameCount: Long,
 	val trackingFrameWakeLockNanos: Long,
+	val sourceTimerWakeupCount: Long = 0L,
+	val sourceTimerRequestCount: Long = 0L,
 	val motionPolicyChangeCount: Long = 0L,
 	val stationaryOptimizationCount: Long = 0L,
 	val fullFidelityRestoreCount: Long = 0L,
@@ -86,12 +101,21 @@ data class TrackingCoordinatorMetrics(
 		planRevisionCount = planRevisionCount - baseline.planRevisionCount,
 		trackingFrameCount = trackingFrameCount - baseline.trackingFrameCount,
 		trackingFrameWakeLockNanos = trackingFrameWakeLockNanos - baseline.trackingFrameWakeLockNanos,
+		sourceTimerWakeupCount = sourceTimerWakeupCount - baseline.sourceTimerWakeupCount,
+		sourceTimerRequestCount = sourceTimerRequestCount - baseline.sourceTimerRequestCount,
 		motionPolicyChangeCount = motionPolicyChangeCount - baseline.motionPolicyChangeCount,
 		stationaryOptimizationCount = stationaryOptimizationCount - baseline.stationaryOptimizationCount,
 		fullFidelityRestoreCount = fullFidelityRestoreCount - baseline.fullFidelityRestoreCount,
 	)
 
 	companion object {
-		val ZERO = TrackingCoordinatorMetrics(0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L)
+		val ZERO = TrackingCoordinatorMetrics(
+			projectionDrainCount = 0L,
+			projectedEventCount = 0L,
+			projectionDrainNanos = 0L,
+			planRevisionCount = 0L,
+			trackingFrameCount = 0L,
+			trackingFrameWakeLockNanos = 0L,
+		)
 	}
 }

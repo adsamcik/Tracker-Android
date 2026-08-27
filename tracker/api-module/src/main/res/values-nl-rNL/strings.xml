@@ -45,7 +45,6 @@
         <item quantity="one">Automatisch volgen is %1$d minuut vergrendeld.</item>
         <item quantity="other">Automatisch volgen is %1$d minuten vergrendeld.</item>
     </plurals>
-    <string name="notification_looking_for_gps">Zoeken naar GPS</string>
     <string name="notification_starting">Tracker-service starten</string>
     <string name="notification_starting_without_location">Tracker starten</string>
     <string name="notification_stop">Stoppen</string>
@@ -59,8 +58,6 @@
     <string name="notification_tracking_start_failed_title">Tracking kon niet starten</string>
     <string name="notification_tracking_start_failed_text">Open de app om machtigingen te controleren en tracking te hervatten.</string>
     <string name="settings_activity_enabled_title">Activiteit</string>
-    <string name="settings_auto_tracking_transition_summary">Overgangen kunnen batterijgebruik bij automatisch volgen verminderen, maar activiteitswijzigingen reageren mogelijk minder snel.</string>
-    <string name="settings_auto_tracking_transition_title">Activiteitsovergangen gebruiken</string>
     <string name="settings_cell_enabled_title">Cel</string>
     <string name="settings_disabled_recharge_summary">Automatisch volgen is uitgeschakeld totdat je telefoon met een oplader is verbonden</string>
     <string name="settings_disabled_recharge_title">Uitgeschakeld tot opladen</string>
@@ -74,10 +71,6 @@
     <string name="ski_notification_lift">Rit van %1$s</string>
     <string name="settings_barometer_enabled_title">Barometer</string>
     <string name="settings_steps_enabled_title">Aantal stappen</string>
-    <string name="settings_tracker_timer_ambient">Omgevingstimer</string>
-    <string name="settings_tracker_timer_clock">Timer</string>
-    <string name="settings_tracker_timer_fused">Google Play-locatie</string>
-    <string name="settings_tracker_timer_location">Android-locatie</string>
     <string name="settings_tracking_min_distance_title">Minimale afstand tussen verzamelingen</string>
     <string name="settings_tracking_min_time_title">Minimale vertraging tussen verzamelingen</string>
     <string name="settings_tracking_notice_summary">Om technische redenen vereisen de meeste wijzigingen aan trackinginstellingen een herstart van tracking. (Als tracking actief is, stop je deze en start je opnieuw. De app sluiten en openen helpt mogelijk niet)</string>

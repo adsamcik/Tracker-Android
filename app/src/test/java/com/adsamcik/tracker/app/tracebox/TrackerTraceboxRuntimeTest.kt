@@ -10,6 +10,16 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class TrackerTraceboxRuntimeTest {
     @Test
+    fun `runtime persists the requested policy and enables optional native capture`() {
+        val configuration = TrackerTraceboxRuntime.configuration()
+
+        configuration.initialPolicy shouldBe TrackerTraceboxRuntime.defaultPolicy
+        configuration.nativeCaptureEnabled shouldBe true
+        configuration.persistRequestedProfile shouldBe true
+        configuration.directBootC0Enabled shouldBe false
+    }
+
+    @Test
     fun `only exact package process is the Tracker client process`() {
         isTrackerMainProcessName("com.example.tracker", "com.example.tracker") shouldBe true
         isTrackerMainProcessName(
@@ -31,5 +41,4 @@ class TrackerTraceboxRuntimeTest {
         ) shouldBe false
         isTraceboxHandlerProcessName(null, "com.example.tracker") shouldBe false
     }
-
 }

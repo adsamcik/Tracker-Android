@@ -196,12 +196,8 @@
     <string name="tracking_preset_power_save_description">Mažesnės akumuliatoriaus sąnaudos, retesni atnaujinimai ir mažiau jutiklių</string>
     <string name="tracking_preset_custom_name">Pasirinktinis</string>
     <string name="tracking_preset_custom_description">Rankiniu būdu koreguokite kiekvieną sekimo parametrą</string>
-    <string name="tracking_preset_selector_title">Sekimo išankstinis nustatymas</string>
     <string name="tracking_preset_selector_subtitle">Pasirinkite pradinį profilį, tada tiksliai pakoreguokite bet kurį nustatymą žemiau.</string>
-    <string name="tracking_preset_custom_hint">Pakoregavus bet kurį nustatymą žemiau, pagal esamą išankstinį nustatymą sukuriamas pasirinktinį profilis.</string>
     <string name="tracking_preset_customized_summary">Tiksliai sureguliavote sekimą. Norėdami atstatyti, pasirinkite aukščiau esantį išankstinį nustatymą.</string>
-    <string name="settings_tracking_section_detection">Aptikimas ir automatizavimas</string>
-    <string name="settings_tracking_section_sources">Duomenų šaltiniai</string>
     <string name="settings_tracking_section_detail">Vietos rinkimas</string>
     <string name="settings_tracking_section_notifications">Pranešimai</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
@@ -336,11 +332,9 @@
     <string name="permission_disabled_due_to_denial">%1$s išjungta, nes leidimas nebuvo suteiktas. Suteikite jį nustatymuose, kad įjungtumėte.</string>
     <string name="settings_wifi_permission_required">Reikalingas Wi‑Fi / vietos leidimas. Įjunkite jungiklį, kad suteiktumėte – iki tol Wi‑Fi duomenys nerenkami, o surinkti duomenys lieka šiame įrenginyje.</string>
     <string name="settings_cell_permission_required">Reikalingas telefono būsenos ir tikslios vietos leidimas. Įjunkite jungiklį, kad suteiktumėte – iki tol ląstelių duomenys nerenkami, o surinkti duomenys lieka šiame įrenginyje.</string>
-    <string name="settings_wifi_privacy_summary">Registruoja netoliese esančius Wi‑Fi tinklus vietos tikslumui pagerinti. Duomenys lieka šiame įrenginyje.</string>
     <string name="settings_barometer_unavailable">Šiame įrenginyje slėgio jutiklis nepasiekiamas.</string>
     <string name="settings_activity_permission_required">Reikalingas veiklos atpažinimo leidimas. Įjunkite jungiklį, kad suteiktumėte.</string>
     <string name="settings_steps_unavailable">Šiame įrenginyje žingsnių skaitiklio jutiklis nepasiekiamas.</string>
-    <string name="settings_cell_privacy_summary">Registruoja ryšio bokštų ID vietos tikslumui pagerinti. Duomenys lieka šiame įrenginyje.</string>
     <string name="setup_start_exploring">Pradėti tyrinėti</string>
     <string name="setup_continue">Tęsti</string>
     <string name="setup_step_indicator">%1$d veiksmas iš %2$d</string>
@@ -360,4 +354,9 @@
     <string name="background_reliability_samsung_action">Atidaryti įrenginio akumuliatoriaus nustatymus</string>
     <string name="settings_tracebox_title">Strigčių diagnostika</string>
     <string name="settings_tracebox_root_summary">Vietinė strigčių, ANR ir struktūrinė diagnostika</string>
+    <string name="setup_background_location_title">Leisti vietovę fone automatiniam sekimui</string>
+    <string name="setup_background_location_disclosure">Automatinis sekimas pradedamas, kai Tracker veikia fone, ir įrašo jūsų maršrutą net tada, kai programos ekranas neatidarytas. Vietovės duomenys lieka šiame įrenginyje. Programos vietovės nustatymuose pasirinkite „%1$s“.</string>
+    <string name="setup_background_location_open_settings">Atidaryti vietovės nustatymus</string>
+    <string name="setup_background_location_decline">Ne dabar</string>
+    <string name="setup_background_location_manual_only">Rankinis sekimas priekiniame plane lieka pasiekiamas. Automatinis vietovės sekimas liks išjungtas, kol nebus leista vietovė fone.</string>
 </resources>

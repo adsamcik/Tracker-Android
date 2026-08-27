@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.pipeline.persistence
 
+import android.database.sqlite.SQLiteFullException
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
@@ -627,6 +628,29 @@ class PersistenceProcessorTest {
 			processor.onFlush()
 
 			coVerify(exactly = 1) { pendingSignalDao.deleteByIds(listOf(10L, 11L)) }
+		}
+
+		@Test
+		fun `disk full retains WAL and destination buffers until storage recovers`() = runTest {
+			var checkpointCall = 0
+			coEvery { durableBuffer.checkpointWithAdmission(any()) } coAnswers {
+				val ids = if (checkpointCall++ == 0) listOf(10L) else emptyList()
+				completeCheckpoint(ids, firstArg())
+			}
+			coEvery {
+				locationDao.insert(any<Collection<LocationSample>>())
+			} throws SQLiteFullException("database or disk is full")
+
+			processor.onStart(ProcessorContext(startTimestamp = EpochMs(0L)))
+			processor.onSignal(signalWithLocation())
+			processor.onFlush()
+
+			coVerify(exactly = 0) { pendingSignalDao.deleteByIds(any()) }
+
+			coEvery { locationDao.insert(any<Collection<LocationSample>>()) } returns emptyList()
+			processor.onFlush()
+
+			coVerify(exactly = 1) { pendingSignalDao.deleteByIds(listOf(10L)) }
 		}
 
 		@Test

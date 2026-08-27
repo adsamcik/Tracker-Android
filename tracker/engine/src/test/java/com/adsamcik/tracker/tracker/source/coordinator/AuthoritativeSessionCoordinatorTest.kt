@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.coordinator
 
 import android.app.Application
+import android.database.sqlite.SQLiteException
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.activity.ActivityTransitionType
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -71,6 +72,7 @@ import com.adsamcik.tracker.tracker.source.runtime.SourceStopAck
 import com.adsamcik.tracker.tracker.source.runtime.SourceStopStatus
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.kotest.assertions.throwables.shouldThrow
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every

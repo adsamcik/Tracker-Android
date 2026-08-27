@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.resilience
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.PendingSignalDao
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
@@ -357,6 +358,9 @@ class ForceStopSourceSessionFinalizerTest {
 	private object TestBootClockDomainProvider : BootClockDomainProvider {
 		override fun current(): String = "boot-1"
 	}
+
+	private fun noPendingSignalProvider(): Provider<PendingSignalDao> =
+		Provider { database.pendingSignalDao() }
 
 	private companion object {
 		const val LOGICAL_ID = "force-stopped-logical-session"

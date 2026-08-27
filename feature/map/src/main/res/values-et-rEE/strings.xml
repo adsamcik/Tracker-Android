@@ -74,11 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Laskumine</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Tõstuk</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Kõnd või paus</string>
-    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Kõndimine</string>
-    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Jalgrattasõit</string>
-    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Autosõit</string>
-    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Ühistransport</string>
-    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Muu</string>
     <string name="map_layer_fog_title">Avastaja udu</string>
     <string name="map_layer_fog_chip">Udu</string>
     <string name="map_layer_fog_description">Maailm kerkib udust: iga ala, mida olete puudutanud, paljastub ning helendab seda eredamalt, mida põhjalikumalt seda tundma õppisite. Kohad, millest vaid möödusite, jäävad õrnaks uduks; sügavalt avastatud paik põleb kindla kullana. Avastamata maa jääb tumedaks.</string>

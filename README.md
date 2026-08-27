@@ -1,5 +1,4 @@
 ![Build Status](https://github.com/adsamcik/Tracker-Android/workflows/Android%20CI/badge.svg)
-[![Codacy Badge](https://api.codacy.com/project/badge/Grade/43cf544eff334ca0a3a15c7791a64e27)](https://www.codacy.com/app/adsamcik/Tracker-Android?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=adsamcik/Tracker-Android&amp;utm_campaign=Badge_Grade)
 [![Crowdin](https://badges.crowdin.net/advention/localized.svg)](https://crowdin.com/project/advention)
 
 <a href='https://play.google.com/store/apps/details?id=com.adsamcik.tracker&utm_campaign=Github&pcampaignid=pcampaignidMKT-Other-global-all-co-prtnr-py-PartBadge-Mar2515-1'><img alt='Get it on Google Play' src='https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png' height="50px"/></a>
@@ -24,7 +23,9 @@ Tracker is a free, open-source, offline location and activity tracker. All track
 - Record local crash, ANR, and fixed-code diagnostics with Tracebox; nothing is uploaded automatically
 - Supported languages: English, Czech
 - Supported length systems: metric, imperial (USC), ancient roman, sailing, flying
-- Does not upload your tracked data anywhere. Android system backup is controlled by the operating system and can be disabled separately.
+- Does not upload your tracked data anywhere. Android cloud backup and device-to-device transfer
+  are disabled for all Tracker app storage; data leaves only through an export, save, or share
+  action you choose.
 
 ## Development
 
@@ -33,15 +34,16 @@ Tracker is a free, open-source, offline location and activity tracker. All track
 - Android Studio (latest stable)
 - JDK 21 for Gradle (application bytecode targets Java 17)
 - Android SDK 37 (compile and target)
-- Tracebox `0.1.0-personal.2c968863` published to Maven Local:
-
-```bash
-cd ../Tracebox
-./gradlew.bat publishToMavenLocal -PtraceboxVersion=0.1.0-personal.2c968863
-```
+- Tracebox artifacts at the version declared by `tracebox` in
+  [`gradle/libs.versions.toml`](gradle/libs.versions.toml). CI resolves only that immutable package
+  from GitHub Packages. For unpublished Tracebox work, use the explicit disposable-repository
+  workflow in [`docs/TRACEBOX_INTEGRATION.md`](docs/TRACEBOX_INTEGRATION.md); do not publish a
+  candidate to the user's global Maven Local cache. The local validation seams fail closed in CI.
 
 Tracebox is built into every Tracker variant and is the sole crash and diagnostics recorder; there
 is no migration flavor or legacy logger fallback.
+The complete integration and release activation contract is documented in
+[`docs/TRACEBOX_INTEGRATION.md`](docs/TRACEBOX_INTEGRATION.md).
 
 ### Build & Test
 
@@ -49,8 +51,11 @@ is no migration flavor or legacy logger fallback.
 # Build debug APK
 ./gradlew.bat :app:assembleDebug
 
-# Run all unit tests
-./gradlew.bat testDebugUnitTest
+# Run every repository-owned JVM/host unit-test suite
+./gradlew.bat ciUnitTest
+
+# Run the complete repository quality-gate contract
+./gradlew.bat ciCheck --continue
 
 # Run specific module tests
 ./gradlew.bat :tracker:engine:testDebugUnitTest
@@ -59,6 +64,9 @@ is no migration flavor or legacy logger fallback.
 # Run connected tests (requires device/emulator)
 ./gradlew.bat :app:connectedDebugAndroidTest
 ```
+
+The exact task, workflow, artifact, baseline, and branch-protection contract is documented in
+[QUALITY_GATES.md](QUALITY_GATES.md).
 
 ### Tech Stack
 
@@ -76,6 +84,13 @@ Contributions to Tracker are welcome. If you want any new feature (even if it's 
 ### Translations
 
 Tracker uses Crowdin to crowdsource translations. You can help with translating the application today at [https://crowdin.com/project/advention](https://crowdin.com/project/advention).
+
+## Support and diagnostics
+
+For issue-reporting steps, diagnostic privacy guidance, deletion behavior, and degraded native
+capture guidance, see [`docs/SUPPORT.md`](docs/SUPPORT.md). Tracker never sends a diagnostic package
+automatically: you review its disclosure and choose an Android save/share destination. Do not post
+tracking databases, routes, coordinates, network names, or other personal exports in a public issue.
 
 ## Versioning
 
@@ -107,3 +122,6 @@ Most stable releases meant for general public
 ## Legal
 
 Google Play and the Google Play logo are trademarks of Google LLC.
+
+Tracker is licensed under GPL-3.0. Tracebox is licensed under Apache-2.0; its pinned Crashpad and
+native-component notices are bundled in the app under **Settings → Open source licenses**.

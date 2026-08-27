@@ -45,7 +45,6 @@
         <item quantity="one">Az automatikus nyomkövetés %1$d percre zárolva.</item>
         <item quantity="other">Az automatikus nyomkövetés %1$d percre zárolva.</item>
     </plurals>
-    <string name="notification_looking_for_gps">GPS keresése</string>
     <string name="notification_starting">Tracker szolgáltatás indítása</string>
     <string name="notification_starting_without_location">Tracker indítása</string>
     <string name="notification_stop">Leállítás</string>
@@ -59,8 +58,6 @@
     <string name="notification_tracking_start_failed_title">A nyomkövetés nem indítható</string>
     <string name="notification_tracking_start_failed_text">Nyissa meg az alkalmazást az engedélyek áttekintéséhez és a nyomkövetés folytatásához.</string>
     <string name="settings_activity_enabled_title">Tevékenység</string>
-    <string name="settings_auto_tracking_transition_summary">Az átmenetek csökkenthetik az akkumulátorhasználatot automatikus nyomkövetéskor, de a tevékenységváltozásokra kevésbé gyorsan reagálhatnak.</string>
-    <string name="settings_auto_tracking_transition_title">Tevékenységátmenetek használata</string>
     <string name="settings_cell_enabled_title">Cella</string>
     <string name="settings_disabled_recharge_summary">Az automatikus nyomkövetés addig le van tiltva, amíg a telefon töltőhöz nem csatlakozik</string>
     <string name="settings_disabled_recharge_title">Letiltva töltésig</string>
@@ -74,10 +71,6 @@
     <string name="ski_notification_lift">%1$s felvonóút</string>
     <string name="settings_barometer_enabled_title">Barométer</string>
     <string name="settings_steps_enabled_title">Lépésszám</string>
-    <string name="settings_tracker_timer_ambient">Környezeti időzítő</string>
-    <string name="settings_tracker_timer_clock">Időzítő</string>
-    <string name="settings_tracker_timer_fused">Google Play-helyadat</string>
-    <string name="settings_tracker_timer_location">Android-helyadat</string>
     <string name="settings_tracking_min_distance_title">Gyűjtések közötti minimális távolság</string>
     <string name="settings_tracking_min_time_title">Gyűjtések közötti minimális késleltetés</string>
     <string name="settings_tracking_notice_summary">Technikai okokból a nyomkövető beállításainak legtöbb módosítása a nyomkövetés újraindítását igényli. (Ha a nyomkövetés aktív, állítsa le, majd indítsa újra. Az alkalmazás bezárása és megnyitása nem feltétlenül segít.)</string>

@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.app.ui
 
+import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import dev.tracebox.Tracebox
 import androidx.lifecycle.ViewModel
 import com.adsamcik.tracker.feature.dashboard.api.navigation.Dashboard
@@ -29,7 +30,7 @@ class MainViewModel @Inject constructor() : ViewModel() {
     }
 
     fun recordUnrecognizedDestination() {
-        Tracebox.log.warn("Navigation destination was rejected")
+        Tracebox.log.warn(TrackerTraceboxTemplates.NAVIGATION_DESTINATION_REJECTED)
     }
     
     /**

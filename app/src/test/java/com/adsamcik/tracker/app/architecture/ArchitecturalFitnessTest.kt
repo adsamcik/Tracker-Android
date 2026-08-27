@@ -42,6 +42,34 @@ class ArchitecturalFitnessTest {
 	@Nested
 	inner class `Tracebox production integration` {
 		@Test
+		fun `release packages only the ARM64 phone ABI`() {
+			val appBuild = projectRoot.resolve("app/build.gradle.kts").readText()
+			val releaseInputs = projectRoot.resolve("release/release-inputs.json").readText()
+			val declaredNativeAbiLists = Regex(
+				""""abis"\s*:\s*\[([^]]*)]""",
+			).findAll(releaseInputs).map { it.groupValues[1] }.toList()
+
+			buildList {
+				if ("abiFilters += listOf(\"arm64-v8a\")" !in appBuild) {
+					add("app/build.gradle.kts -> release ABI filter is not ARM64-only")
+				}
+				if (!Regex(
+					""""expectedAbis"\s*:\s*\[\s*"arm64-v8a"\s*]""",
+					RegexOption.DOT_MATCHES_ALL,
+				).containsMatchIn(releaseInputs)) {
+					add("release/release-inputs.json -> expected ABI inventory is not ARM64-only")
+				}
+				if (declaredNativeAbiLists.isEmpty() || declaredNativeAbiLists.any { abiList ->
+					Regex(""""([^"\\]+)"""").findAll(abiList)
+						.map { it.groupValues[1] }
+						.toList() != listOf("arm64-v8a")
+				}) {
+					add("release/release-inputs.json -> every packaged native library must be ARM64-only")
+				}
+			}.shouldBeEmpty()
+		}
+
+		@Test
 		fun `app has one unconditional Tracebox dependency path`() {
 			val buildText = projectRoot.resolve("app/build.gradle.kts").readText()
 			buildList {
@@ -68,32 +96,56 @@ class ArchitecturalFitnessTest {
 		@Test
 		fun `CI consumes immutable Tracebox packages with a scoped workflow token`() {
 			val settings = projectRoot.resolve("settings.gradle.kts").readText()
+			val rootBuild = projectRoot.resolve("build.gradle.kts").readText()
 			val androidWorkflow = projectRoot.resolve(".github/workflows/android.yml").readText()
 			val codeqlWorkflow = projectRoot.resolve(".github/workflows/codeql.yml").readText()
 			val workflowToken = "GITHUB_TOKEN: $" + "{{ github.token }}"
 
-			buildList {
-				if ("if (!providers.environmentVariable(\"CI\").isPresent)" !in settings) {
-					add("settings.gradle.kts -> CI must not resolve Tracebox from Maven Local")
-				}
-				if ("https://maven.pkg.github.com/adsamcik/tracebox" !in settings) {
-					add("settings.gradle.kts -> Tracebox GitHub Packages repository is missing")
-				}
-				if (Regex("(?m)^\\s+packages: read\\s*$").findAll(androidWorkflow).count() < 2) {
-					add("android.yml -> both Gradle jobs need packages: read")
-				}
-				if (androidWorkflow.windowed(workflowToken.length).count { it == workflowToken } < 2) {
-					add("android.yml -> both Gradle jobs must expose github.token to Gradle")
-				}
-				if ("Verify Tracebox package access" !in androidWorkflow ||
-					"--refresh-dependencies" !in androidWorkflow
-				) {
-					add("android.yml -> forced Tracebox package resolution check is missing")
-				}
-				if ("packages: read" !in codeqlWorkflow || workflowToken !in codeqlWorkflow) {
-					add("codeql.yml -> manual Gradle build needs read-only package authentication")
-				}
-			}.shouldBeEmpty()
+			(
+				traceboxRepositoryViolations(settings, rootBuild) +
+					traceboxWorkflowViolations(androidWorkflow, codeqlWorkflow, workflowToken)
+			).shouldBeEmpty()
+		}
+
+		private fun traceboxRepositoryViolations(
+			settings: String,
+			rootBuild: String,
+		): List<String> = buildList {
+			if ("traceboxLocalRepository == null && " +
+				"!providers.environmentVariable(\"CI\").isPresent" !in settings
+			) {
+				add("settings.gradle.kts -> CI must not resolve Tracebox from Maven Local")
+			}
+			if ("traceboxLocalRepository is a local validation seam and must not be used in CI" !in settings) {
+				add("settings.gradle.kts -> isolated Tracebox repository must be forbidden in CI")
+			}
+			if ("traceboxVersionOverride is a local validation seam and must not be used in CI" !in rootBuild) {
+				add("build.gradle.kts -> Tracebox version override must be forbidden in CI")
+			}
+			if ("https://maven.pkg.github.com/adsamcik/tracebox" !in settings) {
+				add("settings.gradle.kts -> Tracebox GitHub Packages repository is missing")
+			}
+		}
+
+		private fun traceboxWorkflowViolations(
+			androidWorkflow: String,
+			codeqlWorkflow: String,
+			workflowToken: String,
+		): List<String> = buildList {
+			if (Regex("(?m)^\\s+packages: read\\s*$").findAll(androidWorkflow).count() < 2) {
+				add("android.yml -> both Gradle jobs need packages: read")
+			}
+			if (androidWorkflow.windowed(workflowToken.length).count { it == workflowToken } < 2) {
+				add("android.yml -> both Gradle jobs must expose github.token to Gradle")
+			}
+			if ("Verify Tracebox package access" !in androidWorkflow ||
+				"--refresh-dependencies" !in androidWorkflow
+			) {
+				add("android.yml -> forced Tracebox package resolution check is missing")
+			}
+			if ("packages: read" !in codeqlWorkflow || workflowToken !in codeqlWorkflow) {
+				add("codeql.yml -> manual Gradle build needs read-only package authentication")
+			}
 		}
 
 		@Test
@@ -101,21 +153,32 @@ class ArchitecturalFitnessTest {
 			val source = projectRoot.resolve(
 				"app/src/main/java/com/adsamcik/tracker/app/Application.kt",
 			).readText()
-			val attach = source.indexOf("override fun attachBaseContext(base: Context)")
-			val attachSuper = source.indexOf("super.attachBaseContext(base)", attach)
-			val handlerGuard = source.indexOf("isTraceboxHandlerProcessName(processName, packageName)")
-			val install = source.indexOf("TrackerTraceboxRuntime.install(this)")
-			val onCreate = source.indexOf("override fun onCreate()")
 			buildList {
-				if (attach < 0 || attachSuper < attach || onCreate < 0 || attachSuper > onCreate) {
-					add("Tracebox bootstrap must run from Application.attachBaseContext")
-				}
-				if (handlerGuard < attachSuper || handlerGuard > install) {
-					add("Tracebox handler guard must precede attachment-time installation")
-				}
-				if (install < 0 || install > onCreate) {
-					add("Tracebox must install before providers and Application.onCreate")
-				}
+				addAll(
+					orderedMarkerViolations(
+						source = source,
+						contract = "Tracebox attachment bootstrap",
+						markers = listOf(
+							"override fun attachBaseContext(base: Context)",
+							"super.attachBaseContext(base)",
+							"isTraceboxHandlerProcessName(processName, packageName)",
+							"TrackerTraceboxRuntime.install(this)",
+							"override fun onCreate()",
+						),
+					),
+				)
+				addAll(
+					orderedMarkerViolations(
+						source = source,
+						contract = "Tracebox generated Hilt startup",
+						markers = listOf(
+							"override fun onCreate()",
+							"isTraceboxHandlerProcessName(processName, packageName)",
+							"TrackerTraceboxRuntime.install(this)",
+							"super.onCreate()",
+						),
+					),
+				)
 				listOf(
 					"Reporter.initialize(",
 					"Logger.initialize(",
@@ -123,6 +186,114 @@ class ArchitecturalFitnessTest {
 					"TraceboxTrial",
 					"TRACEBOX_TRIAL_AVAILABLE",
 				).filterTo(this) { marker -> marker in source }
+			}.shouldBeEmpty()
+		}
+
+		@Test
+		fun `Android backup and device transfer exclude all Tracker and Tracebox storage`() {
+			val manifest = projectRoot.resolve("app/src/main/AndroidManifest.xml").readText()
+			val rules = projectRoot.resolve(
+				"app/src/main/res/xml/data_extraction_rules.xml",
+			).readText()
+			val excludedDomains = listOf(
+				"root",
+				"file",
+				"database",
+				"sharedpref",
+				"external",
+				"device_root",
+				"device_file",
+				"device_database",
+				"device_sharedpref",
+			)
+
+			buildList {
+				if ("android:allowBackup=\"false\"" !in manifest) {
+					add("Android backup must be disabled")
+				}
+				if ("android:fullBackupContent=\"false\"" !in manifest) {
+					add("legacy Android full backup must be disabled")
+				}
+				if ("android:dataExtractionRules=\"@xml/data_extraction_rules\"" !in manifest) {
+					add("Android data extraction rules must be attached")
+				}
+				listOf("cloud-backup", "device-transfer").forEach { section ->
+					val body = rules.substringAfter("<$section>", missingDelimiterValue = "")
+						.substringBefore("</$section>", missingDelimiterValue = "")
+					if (body.isEmpty()) {
+						add("$section exclusion section is missing")
+					}
+					excludedDomains.forEach { domain ->
+						if ("<exclude domain=\"$domain\" path=\".\" />" !in body) {
+							add("$section must exclude the complete $domain domain")
+						}
+					}
+				}
+			}.shouldBeEmpty()
+		}
+
+		private fun orderedMarkerViolations(
+			source: String,
+			contract: String,
+			markers: List<String>,
+		): List<String> {
+			var nextIndex = 0
+			markers.forEach { marker ->
+				val markerIndex = source.indexOf(marker, startIndex = nextIndex)
+				if (markerIndex < 0) {
+					return listOf("$contract -> missing or out-of-order marker: $marker")
+				}
+				nextIndex = markerIndex + marker.length
+			}
+			return emptyList()
+		}
+
+		@Test
+		fun `repository and in-app privacy policies preserve the Tracebox product contract`() {
+			val repositoryPolicy = projectRoot.resolve("privacypolicy.md").readText()
+			val inAppPolicy = projectRoot.resolve(
+				"app/src/main/res/raw/privacy_policy.txt",
+			).readText()
+			val requiredStatements = listOf(
+				"Tracebox has no automatic upload client",
+				"Performance measurements are disabled by default",
+				"review its disclosure, approve it",
+				"policy change, deletion, or diagnostics-screen disposal",
+				"Android cloud backup and device-to-device transfer are disabled",
+				"keeps a local deletion marker and retries at startup",
+			)
+
+			buildList {
+				if (repositoryPolicy != inAppPolicy) {
+					add("repository and bundled privacy policies must remain identical")
+				}
+				requiredStatements.filterNot(repositoryPolicy::contains)
+					.mapTo(this) { "privacy policy is missing: $it" }
+			}.shouldBeEmpty()
+		}
+
+		@Test
+		fun `release retains useful local stacks and records deterministic build identity`() {
+			val appBuild = projectRoot.resolve("app/build.gradle.kts").readText()
+			val proguard = projectRoot.resolve("app/proguard-rules.pro").readText()
+			val releaseManifest = projectRoot.resolve("tools/release_manifest.py").readText()
+			val workflow = projectRoot.resolve(".github/workflows/android.yml").readText()
+
+			buildList {
+				if ("isMinifyEnabled = true" !in appBuild || "isShrinkResources = true" !in appBuild) {
+					add("release must exercise R8 minification and resource shrinking")
+				}
+				if ("-keepattributes SourceFile,LineNumberTable" !in proguard) {
+					add("release must retain source and line metadata for local Tracebox stacks")
+				}
+				if ("\"r8-mapping\"" !in releaseManifest || "source['commit'][:12]" !in releaseManifest) {
+					add("release evidence must bind R8 mapping to the source-qualified release ID")
+				}
+				if ("app/build/outputs/mapping/release/**" !in workflow ||
+					"app/build/outputs/native-debug-symbols/release/**" !in workflow
+				) {
+					add("CI must retain R8 mapping and native symbol evidence")
+				}
 			}.shouldBeEmpty()
 		}
 
@@ -185,6 +356,38 @@ class ArchitecturalFitnessTest {
 		}
 
 		@Test
+		fun `declared Tracker locales package localized diagnostics entry resources`() {
+			val appBuild = projectRoot.resolve("app/build.gradle.kts").readText()
+			val localeConfig = projectRoot.resolve(
+				"app/src/main/res/xml/locales_config.xml",
+			).readText()
+			val localizedStringFiles = projectRoot.resolve("app/src/main/res")
+				.listFiles()
+				.orEmpty()
+				.filter { directory -> directory.isDirectory && directory.name.startsWith("values-") }
+				.map { directory -> directory.resolve("strings.xml") }
+
+			buildList {
+				if ("localeFilters" in appBuild) {
+					add("app/build.gradle.kts must not strip declared non-English locales")
+				}
+				localizedStringFiles.forEach { strings ->
+					val source = strings.readText()
+					listOf("settings_tracebox_title", "settings_tracebox_root_summary").forEach { name ->
+						if ("name=\"$name\"" !in source) {
+							add("${strings.relativeTo(projectRoot)} is missing $name")
+						}
+					}
+				}
+				if (localizedStringFiles.size !=
+					Regex("""<locale\s+android:name="""").findAll(localeConfig).count() - 1
+				) {
+					add("locale config and localized resource directory counts differ")
+				}
+			}.shouldBeEmpty()
+		}
+
+		@Test
 		fun `Android production sources contain no alternate diagnostics writer`() {
 			findPatternMatching(
 				sourceDir = projectRoot,
@@ -203,6 +406,58 @@ class ArchitecturalFitnessTest {
 				),
 				skipComments = true,
 			).shouldBeEmpty()
+		}
+
+		@Test
+		fun `Tracebox calls use static templates and explicitly classified safe arguments`() {
+			val violations = projectRoot.walkTopDown()
+				.onEnter { directory ->
+					!directory.isInExcludedDirectory(
+						STANDARD_EXCLUDES + listOf("src/test", "src/androidTest", "src/testFixtures"),
+					)
+				}
+				.filter { file -> file.isFile && file.extension == "kt" }
+				.filterNot { file ->
+					file.isInExcludedDirectory(
+						STANDARD_EXCLUDES + listOf("src/test", "src/androidTest", "src/testFixtures"),
+					)
+				}
+				.flatMap { file ->
+					extractTraceboxCalls(file.readText()).flatMap { call ->
+						traceboxCallViolations(call).map { reason ->
+							"${file.relativeTo(projectRoot)}: $reason: ${call.replace('\n', ' ')}"
+						}
+					}
+				}
+				.toList()
+
+			violations.shouldBeEmpty()
+		}
+
+		@Test
+		fun `Tracker Tracebox template catalog contains only single static literals`() {
+			val templateFile = projectRoot.resolve(
+				"core/diagnostics/src/main/java/com/adsamcik/tracker/diagnostics/" +
+					"TrackerTraceboxTemplates.kt",
+			)
+			check(templateFile.isFile) { "Missing Tracker Tracebox template catalog" }
+			val source = templateFile.readText()
+			val declarationCount = Regex("""\bval\s+[A-Z][A-Z0-9_]*\s*=""").findAll(source).count()
+			val literalDeclarations = TRACEBOX_STATIC_TEMPLATE_DECLARATION.findAll(source).toList()
+			buildList {
+				if (literalDeclarations.size != declarationCount) {
+					add("Every template must be a val initialized by LogTemplate.of with one string literal")
+				}
+				literalDeclarations.forEach { declaration ->
+					val template = declaration.groupValues[2]
+					if ('$' in template) {
+						add("${declaration.groupValues[1]} contains interpolation")
+					}
+				}
+				if ('+' in source) {
+					add("Template catalog contains string concatenation")
+				}
+			}.shouldBeEmpty()
 		}
 
 		@Test
@@ -946,9 +1201,12 @@ class ArchitecturalFitnessTest {
 	}
 
 	private fun File.isInExcludedDirectory(excludeDirs: List<String>): Boolean {
-		val normalizedPath = absolutePath.replace('\\', '/')
+		val normalizedPath = relativeToOrNull(projectRoot)?.invariantSeparatorsPath
+			?: absolutePath.replace('\\', '/')
 		return excludeDirs.any { excluded ->
-			normalizedPath.endsWith("/$excluded") || "/$excluded/" in normalizedPath
+			normalizedPath == excluded ||
+				normalizedPath.endsWith("/$excluded") ||
+				"/$excluded/" in normalizedPath
 		}
 	}
 
@@ -965,6 +1223,105 @@ class ArchitecturalFitnessTest {
 		return trimmed.startsWith("//") ||
 			trimmed.startsWith("*") ||
 			trimmed.startsWith("/*")
+	}
+
+	private fun extractTraceboxCalls(source: String): Sequence<String> = sequence {
+		TRACEBOX_LOG_CALL_START_PATTERN.findAll(source).forEach { match ->
+			var cursor = match.range.last + 1
+			while (cursor < source.length && source[cursor].isWhitespace()) cursor++
+			if (cursor >= source.length || source[cursor] != '(') return@forEach
+			val end = matchingParenthesis(source, cursor) ?: return@forEach
+			yield(source.substring(match.range.first, end + 1))
+		}
+	}
+
+	@Suppress("CyclomaticComplexMethod")
+	private fun matchingParenthesis(source: String, openingIndex: Int): Int? {
+		var depth = 0
+		var inString = false
+		var escaped = false
+		for (index in openingIndex until source.length) {
+			val character = source[index]
+			if (inString) {
+				when {
+					escaped -> escaped = false
+					character == '\\' -> escaped = true
+					character == '"' -> inString = false
+				}
+				continue
+			}
+			when (character) {
+				'"' -> inString = true
+				'(' -> depth++
+				')' -> {
+					depth--
+					if (depth == 0) return index
+				}
+			}
+		}
+		return null
+	}
+
+	private fun traceboxCallViolations(call: String): List<String> {
+		val method = call.substringBefore('(').substringAfterLast('.')
+		val arguments = splitTopLevelArguments(call.substringAfter('(').dropLast(1))
+		val templateIndex = if (
+			method == "error" &&
+			arguments.firstOrNull()?.trim()?.startsWith("TrackerTraceboxTemplates.") == false
+		) {
+			1
+		} else {
+			0
+		}
+		return buildList {
+			val template = arguments.getOrNull(templateIndex)
+			if (template == null || !TRACEBOX_TEMPLATE_REFERENCE.matches(template.trim())) {
+				add("template is not a TrackerTraceboxTemplates constant")
+			}
+			if (TRACEBOX_EXCEPTION_MESSAGE_PATTERN.containsMatchIn(call)) {
+				add("exception message or rendered stack was supplied")
+			}
+			arguments.drop(templateIndex + 1).forEach { argument ->
+				val trimmed = argument.trim()
+				if (!TRACEBOX_CLASSIFIED_ARGUMENT.matches(trimmed)) {
+					add("runtime argument is not explicitly privacy-classified")
+				}
+				if (TRACEBOX_PROHIBITED_ARGUMENT_NAME.containsMatchIn(trimmed)) {
+					add("runtime argument references prohibited tracked or identifying data")
+				}
+			}
+		}
+	}
+
+	@Suppress("CyclomaticComplexMethod")
+	private fun splitTopLevelArguments(arguments: String): List<String> {
+		if (arguments.isBlank()) return emptyList()
+		val result = mutableListOf<String>()
+		var start = 0
+		var depth = 0
+		var inString = false
+		var escaped = false
+		arguments.forEachIndexed { index, character ->
+			if (inString) {
+				when {
+					escaped -> escaped = false
+					character == '\\' -> escaped = true
+					character == '"' -> inString = false
+				}
+				return@forEachIndexed
+			}
+			when (character) {
+				'"' -> inString = true
+				'(', '[', '{' -> depth++
+				')', ']', '}' -> depth--
+				',' -> if (depth == 0) {
+					result += arguments.substring(start, index)
+					start = index + 1
+				}
+			}
+		}
+		result += arguments.substring(start)
+		return result.filterNot(String::isBlank)
 	}
 
 	companion object {
@@ -1032,6 +1389,33 @@ class ArchitecturalFitnessTest {
 		// `Dispatchers.IOSomething` false positives.
 		private val DISPATCHERS_USAGE_PATTERN = Regex(
 			"""(?<![A-Za-z0-9_])Dispatchers\.(IO|Main|Default)\b"""
+		)
+
+		private val TRACEBOX_LOG_CALL_START_PATTERN = Regex(
+			"""(?:Tracebox\.log|logger)\.(?:verbose|debug|info|warn|error|performance|performanceEvent|performanceStart|performanceSuspend)""",
+		)
+
+		private val TRACEBOX_TEMPLATE_REFERENCE = Regex(
+			"""TrackerTraceboxTemplates\.[A-Z][A-Z0-9_]*""",
+		)
+
+		private val TRACEBOX_CLASSIFIED_ARGUMENT = Regex(
+			"""(?:public|sensitive|pii|secret|argument)\s*\([\s\S]*\)""",
+		)
+
+		private val TRACEBOX_EXCEPTION_MESSAGE_PATTERN = Regex(
+			"""\.(?:message|localizedMessage|stackTraceToString)\b""",
+		)
+
+		private val TRACEBOX_PROHIBITED_ARGUMENT_NAME = Regex(
+			"""\b(?:latitude|longitude|latE7|lonE7|coordinate|ssid|bssid|uri|url|host|filename|""" +
+				"""fileName|path|userText|database|contents|logicalTrackingId|serviceRunId|eventId|""" +
+				"""providerDedupKey|sourceSignalId|deviceId|userId|androidId|advertisingId|networkId)\b""",
+			RegexOption.IGNORE_CASE,
+		)
+
+		private val TRACEBOX_STATIC_TEMPLATE_DECLARATION = Regex(
+			"""val\s+([A-Z][A-Z0-9_]*)\s*=\s*(?:\r?\n\s*)?LogTemplate\.of\(\s*"([^"\r\n]*)"\s*,?\s*\)""",
 		)
 
 		private val PROJECT_DEPENDENCY_PATTERN = Regex(

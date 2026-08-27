@@ -169,7 +169,7 @@ class Finding:
     dk: str = ""
     ev: Evidence = field(default_factory=Evidence)
     status: FindingStatus = FindingStatus.CANDIDATE
-    source: str = ""  # "gpt", "opus", "both", "tool"
+    source: str = ""  # evaluator identifier(s), or "tool"
     screen_id: str = ""
     phase: Phase = Phase.SCREEN_QC
     model_agreement: dict = field(default_factory=dict)
@@ -251,7 +251,7 @@ class NavEdge:
 @dataclass
 class EvalResult:
     """Output from a single model evaluation (screen, transition, checkpoint, etc.)."""
-    model: str  # "gpt" or "opus"
+    model: str  # caller-supplied evaluator identifier
     prompt_type: str  # "screen", "transition", "checkpoint", "synthesis", "next_action"
     status: str = "uncertain"  # pass|fail|uncertain
     summary: str = ""
@@ -336,9 +336,11 @@ class IssueCluster:
 @dataclass
 class Disagreement:
     screen_id: str
-    gpt_finding: dict
-    opus_finding: dict
-    resolution: str  # "gpt_kept", "opus_upgrade", "both_kept", "dismissed"
+    evaluator_a: str
+    evaluator_a_finding: dict
+    evaluator_b: str
+    evaluator_b_finding: dict
+    resolution: str
     reasoning: str = ""
 
     def to_dict(self) -> dict:

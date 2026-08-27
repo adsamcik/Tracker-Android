@@ -12,6 +12,7 @@ import com.adsamcik.tracker.activity.api.ingress.ActivityIngressStartContext
 import com.adsamcik.tracker.activity.api.ingress.ActivityIngressStatus
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEventIngress
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
+import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
@@ -20,6 +21,7 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.tracebox.Tracebox
+import dev.tracebox.api.public
 import java.io.FileNotFoundException
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -94,7 +96,10 @@ internal suspend fun runActivityCallbackRetryWork(
 				// A read-verified callback that later corrupts or expires emits an explicit stable
 				// gap code and best-effort bounded receipt before its poison file is removed.
 				val recordedAndDiscarded = retryOwner.recordGapAndDiscard(id, error.code)
-				Tracebox.log.warn(error.code.telemetryCode)
+				Tracebox.log.warn(
+					TrackerTraceboxTemplates.ACTIVITY_CALLBACK_TERMINAL_GAP,
+					public(error.code.telemetryCode),
+				)
 				if (!recordedAndDiscarded) retryRequired = true
 				continue
 			}

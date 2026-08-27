@@ -1,9 +1,4 @@
-"""
-android_qc — Reconciliation engine.
-
-Takes two EvalResults (GPT + Opus) and produces merged findings,
-resolved severity, and next-action decisions.
-"""
+"""Evidence-based reconciliation for one or two QC evaluator results."""
 from __future__ import annotations
 
 from .models import (
@@ -15,34 +10,39 @@ from .models import (
 # ── Finding Reconciliation ───────────────────────────────────────────────────
 
 def reconcile_findings(
-    gpt_eval: EvalResult,
-    opus_eval: EvalResult,
+    primary_eval: EvalResult,
+    secondary_eval: EvalResult | None = None,
     screen_id: str = "",
     phase: Phase = Phase.SCREEN_QC,
 ) -> tuple[list[Finding], list[Disagreement]]:
-    """
-    Reconcile findings from GPT and Opus evaluations.
-
-    Returns (merged_findings, disagreements).
-    """
-    gpt_issues = gpt_eval.issues or []
-    opus_issues = opus_eval.issues or []
+    """Reconcile evaluator hypotheses without treating evaluator identity as evidence."""
+    primary_issues = primary_eval.issues or []
+    secondary_issues = (secondary_eval.issues or []) if secondary_eval else []
+    primary_source = _source_id(primary_eval, "evaluator-a")
+    secondary_source = _source_id(secondary_eval, "evaluator-b") if secondary_eval else ""
 
     findings: list[Finding] = []
     disagreements: list[Disagreement] = []
 
     # Index by dk for matching
-    gpt_by_dk = {i.get("dk", ""): i for i in gpt_issues if i.get("dk")}
-    opus_by_dk = {i.get("dk", ""): i for i in opus_issues if i.get("dk")}
+    primary_by_dk = {i.get("dk", ""): i for i in primary_issues if i.get("dk")}
+    secondary_by_dk = {i.get("dk", ""): i for i in secondary_issues if i.get("dk")}
 
-    matched_opus_dks: set[str] = set()
+    matched_secondary_dks: set[str] = set()
 
-    for gpt_dk, gpt_issue in gpt_by_dk.items():
+    for primary_dk, primary_issue in primary_by_dk.items():
         # Try exact match
-        if gpt_dk in opus_by_dk:
-            opus_issue = opus_by_dk[gpt_dk]
-            matched_opus_dks.add(gpt_dk)
-            finding, disagreement = _merge_matched(gpt_issue, opus_issue, screen_id, phase)
+        if primary_dk in secondary_by_dk:
+            secondary_issue = secondary_by_dk[primary_dk]
+            matched_secondary_dks.add(primary_dk)
+            finding, disagreement = _merge_matched(
+                primary_issue,
+                secondary_issue,
+                primary_source,
+                secondary_source,
+                screen_id,
+                phase,
+            )
             findings.append(finding)
             if disagreement:
                 disagreements.append(disagreement)
@@ -51,96 +51,128 @@ def reconcile_findings(
         # Try fuzzy match
         best_match_dk = None
         best_sim = 0.0
-        for opus_dk in opus_by_dk:
-            if opus_dk in matched_opus_dks:
+        for secondary_dk in secondary_by_dk:
+            if secondary_dk in matched_secondary_dks:
                 continue
-            sim = dk_similarity(gpt_dk, opus_dk)
+            sim = dk_similarity(primary_dk, secondary_dk)
             if sim >= 0.75 and sim > best_sim:
                 best_sim = sim
-                best_match_dk = opus_dk
+                best_match_dk = secondary_dk
 
         if best_match_dk:
-            opus_issue = opus_by_dk[best_match_dk]
-            matched_opus_dks.add(best_match_dk)
-            finding, disagreement = _merge_matched(gpt_issue, opus_issue, screen_id, phase)
+            secondary_issue = secondary_by_dk[best_match_dk]
+            matched_secondary_dks.add(best_match_dk)
+            finding, disagreement = _merge_matched(
+                primary_issue,
+                secondary_issue,
+                primary_source,
+                secondary_source,
+                screen_id,
+                phase,
+            )
             findings.append(finding)
             if disagreement:
                 disagreements.append(disagreement)
         else:
-            # GPT-only finding → suspected
-            finding = _issue_to_finding(gpt_issue, source="gpt", status=FindingStatus.SUSPECTED,
-                                        screen_id=screen_id, phase=phase)
+            finding = _issue_to_finding(
+                primary_issue,
+                source=primary_source,
+                status=FindingStatus.SUSPECTED,
+                screen_id=screen_id,
+                phase=phase,
+            )
             findings.append(finding)
 
-    # Opus-only findings → confirmed (Opus caught something GPT missed)
-    for opus_dk, opus_issue in opus_by_dk.items():
-        if opus_dk not in matched_opus_dks:
-            finding = _issue_to_finding(opus_issue, source="opus", status=FindingStatus.CONFIRMED,
-                                        screen_id=screen_id, phase=phase)
+    # A finding reported by only one evaluator remains a hypothesis, regardless of identity.
+    for secondary_dk, secondary_issue in secondary_by_dk.items():
+        if secondary_dk not in matched_secondary_dks:
+            finding = _issue_to_finding(
+                secondary_issue,
+                source=secondary_source,
+                status=FindingStatus.SUSPECTED,
+                screen_id=screen_id,
+                phase=phase,
+            )
             findings.append(finding)
 
-    # Add tool-fact findings (crashes detected by MCP tools)
-    # These are auto-confirmed regardless of model output
     return findings, disagreements
 
 
 def _merge_matched(
-    gpt_issue: dict, opus_issue: dict, screen_id: str, phase: Phase
+    primary_issue: dict,
+    secondary_issue: dict,
+    primary_source: str,
+    secondary_source: str,
+    screen_id: str,
+    phase: Phase,
 ) -> tuple[Finding, Disagreement | None]:
-    """Merge two matched issues from GPT and Opus."""
-    gpt_sev = _parse_severity(gpt_issue.get("sev", "minor"))
-    opus_sev = _parse_severity(opus_issue.get("sev", "minor"))
-    gpt_conf = float(gpt_issue.get("conf", 0.5))
-    opus_conf = float(opus_issue.get("conf", 0.5))
+    """Merge matched hypotheses and confirm only when they cite inspectable evidence."""
+    primary_sev = _parse_severity(primary_issue.get("sev", "minor"))
+    secondary_sev = _parse_severity(secondary_issue.get("sev", "minor"))
+    primary_conf = float(primary_issue.get("conf", 0.5))
+    secondary_conf = float(secondary_issue.get("conf", 0.5))
 
     # Use higher severity
-    final_sev = Severity.higher(gpt_sev, opus_sev)
-    final_conf = max(gpt_conf, opus_conf)
+    final_sev = Severity.higher(primary_sev, secondary_sev)
+    final_conf = max(primary_conf, secondary_conf)
 
-    # Prefer Opus title/hyp (deeper reasoning), GPT evidence refs
-    title = opus_issue.get("title", "") or gpt_issue.get("title", "")
-    hyp = opus_issue.get("hyp", "") or gpt_issue.get("hyp", "")
+    title = primary_issue.get("title", "") or secondary_issue.get("title", "")
+    hyp = primary_issue.get("hyp", "") or secondary_issue.get("hyp", "")
 
     # Merge evidence
-    gpt_ev = gpt_issue.get("ev", {})
-    opus_ev = opus_issue.get("ev", {})
+    primary_ev = primary_issue.get("ev", {})
+    secondary_ev = secondary_issue.get("ev", {})
     merged_ev = Evidence(
-        img=_unique_list(gpt_ev.get("img", []) + opus_ev.get("img", [])),
-        el=_unique_list(gpt_ev.get("el", []) + opus_ev.get("el", [])),
-        txt=_unique_list(gpt_ev.get("txt", []) + opus_ev.get("txt", [])),
-        act=_unique_list(gpt_ev.get("act", []) + opus_ev.get("act", [])),
+        img=_unique_list(primary_ev.get("img", []) + secondary_ev.get("img", [])),
+        el=_unique_list(primary_ev.get("el", []) + secondary_ev.get("el", [])),
+        txt=_unique_list(primary_ev.get("txt", []) + secondary_ev.get("txt", [])),
+        act=_unique_list(primary_ev.get("act", []) + secondary_ev.get("act", [])),
     )
+    status = FindingStatus.CONFIRMED if _has_grounded_evidence(merged_ev) else FindingStatus.SUSPECTED
 
     finding = Finding(
-        id=gpt_issue.get("id", opus_issue.get("id", "")),
+        id=primary_issue.get("id", secondary_issue.get("id", "")),
         sev=final_sev,
-        type=_parse_issue_type(gpt_issue.get("type", opus_issue.get("type", "logic"))),
+        type=_parse_issue_type(primary_issue.get("type", secondary_issue.get("type", "logic"))),
         title=title,
-        exp=opus_issue.get("exp", gpt_issue.get("exp", "")),
-        act=opus_issue.get("act", gpt_issue.get("act", "")),
-        why=opus_issue.get("why", gpt_issue.get("why", "")),
+        exp=primary_issue.get("exp", secondary_issue.get("exp", "")),
+        act=primary_issue.get("act", secondary_issue.get("act", "")),
+        why=primary_issue.get("why", secondary_issue.get("why", "")),
         hyp=hyp,
         conf=final_conf,
-        dk=gpt_issue.get("dk", opus_issue.get("dk", "")),
+        dk=primary_issue.get("dk", secondary_issue.get("dk", "")),
         ev=merged_ev,
-        status=FindingStatus.CONFIRMED,
-        source="both",
+        status=status,
+        source=f"{primary_source}+{secondary_source}",
         screen_id=screen_id,
         phase=phase,
         model_agreement={
-            "gpt": {"sev": gpt_sev.value, "conf": gpt_conf},
-            "opus": {"sev": opus_sev.value, "conf": opus_conf},
-            "agreement": "full" if gpt_sev == opus_sev else "severity_differs",
+            "evaluators": [
+                {"source": primary_source, "sev": primary_sev.value, "conf": primary_conf},
+                {"source": secondary_source, "sev": secondary_sev.value, "conf": secondary_conf},
+            ],
+            "agreement": "full" if primary_sev == secondary_sev else "severity_differs",
+            "grounded": _has_grounded_evidence(merged_ev),
         },
     )
 
     disagreement = None
-    if gpt_sev != opus_sev:
+    if primary_sev != secondary_sev:
         disagreement = Disagreement(
             screen_id=screen_id,
-            gpt_finding={"title": gpt_issue.get("title", ""), "sev": gpt_sev.value, "conf": gpt_conf},
-            opus_finding={"title": opus_issue.get("title", ""), "sev": opus_sev.value, "conf": opus_conf},
-            resolution="opus_upgrade" if opus_sev.rank < gpt_sev.rank else "gpt_upgrade",
+            evaluator_a=primary_source,
+            evaluator_a_finding={
+                "title": primary_issue.get("title", ""),
+                "sev": primary_sev.value,
+                "conf": primary_conf,
+            },
+            evaluator_b=secondary_source,
+            evaluator_b_finding={
+                "title": secondary_issue.get("title", ""),
+                "sev": secondary_sev.value,
+                "conf": secondary_conf,
+            },
+            resolution="higher_severity_retained",
             reasoning=f"Severity resolved to {final_sev.value} (higher of the two)",
         )
 
@@ -201,40 +233,44 @@ def add_tool_finding(
 # ── Next-Action Merging ─────────────────────────────────────────────────────
 
 def merge_next_actions(
-    gpt_eval: EvalResult,
-    opus_eval: EvalResult,
+    primary_eval: EvalResult,
+    secondary_eval: EvalResult | None = None,
     open_findings: list[Finding] | None = None,
 ) -> list[dict]:
     """
     Merge next-action candidates from both models using utility scoring.
     Returns sorted list of action candidates (best first).
     """
-    gpt_candidates = gpt_eval.candidates or []
-    opus_candidates = opus_eval.candidates or []
+    primary_candidates = primary_eval.candidates or []
+    secondary_candidates = (secondary_eval.candidates or []) if secondary_eval else []
 
     # Index by fingerprint
-    gpt_by_fp: dict[str, dict] = {}
-    for c in gpt_candidates:
+    primary_by_fp: dict[str, dict] = {}
+    for c in primary_candidates:
         fp = c.get("fp", _make_fp(c))
-        gpt_by_fp[fp] = c
+        primary_by_fp[fp] = c
 
-    opus_by_fp: dict[str, dict] = {}
-    for c in opus_candidates:
+    secondary_by_fp: dict[str, dict] = {}
+    for c in secondary_candidates:
         fp = c.get("fp", _make_fp(c))
-        opus_by_fp[fp] = c
+        secondary_by_fp[fp] = c
 
-    all_fps = set(gpt_by_fp.keys()) | set(opus_by_fp.keys())
+    all_fps = set(primary_by_fp.keys()) | set(secondary_by_fp.keys())
     scored: list[tuple[float, dict]] = []
 
     for fp in all_fps:
-        gpt_c = gpt_by_fp.get(fp)
-        opus_c = opus_by_fp.get(fp)
+        primary_candidate = primary_by_fp.get(fp)
+        secondary_candidate = secondary_by_fp.get(fp)
 
         # Agreement bonus
-        agreement = 0.30 if (gpt_c and opus_c) else 0.0
+        agreement = 0.30 if (primary_candidate and secondary_candidate) else 0.0
 
-        # Use the candidate from whichever model provided it (or merge)
-        candidate = _merge_candidate(gpt_c, opus_c) if (gpt_c and opus_c) else (gpt_c or opus_c)
+        # Use the candidate from whichever evaluator provided it (or merge)
+        candidate = (
+            _merge_candidate(primary_candidate, secondary_candidate)
+            if primary_candidate and secondary_candidate
+            else (primary_candidate or secondary_candidate)
+        )
 
         # Coverage gain (heuristic from coverage field)
         coverage_weight = {
@@ -271,13 +307,12 @@ def _make_fp(candidate: dict) -> str:
     return f"{kind}|{text}|{direction}"
 
 
-def _merge_candidate(gpt_c: dict, opus_c: dict) -> dict:
+def _merge_candidate(primary: dict, secondary: dict) -> dict:
     """Merge two matching next-action candidates."""
-    merged = dict(gpt_c)  # start with GPT
-    merged["conf"] = max(float(gpt_c.get("conf", 0.5)), float(opus_c.get("conf", 0.5)))
-    # Prefer Opus reasoning (deeper)
-    if opus_c.get("reason"):
-        merged["reason"] = opus_c["reason"]
+    merged = dict(primary)
+    merged["conf"] = max(float(primary.get("conf", 0.5)), float(secondary.get("conf", 0.5)))
+    if not merged.get("reason") and secondary.get("reason"):
+        merged["reason"] = secondary["reason"]
     return merged
 
 
@@ -295,6 +330,16 @@ def _parse_issue_type(s: str) -> IssueType:
         return IssueType(s.lower())
     except ValueError:
         return IssueType.LOGIC
+
+
+def _source_id(evaluation: EvalResult | None, fallback: str) -> str:
+    if evaluation and evaluation.model.strip():
+        return evaluation.model.strip()
+    return fallback
+
+
+def _has_grounded_evidence(evidence: Evidence) -> bool:
+    return any((evidence.img, evidence.el, evidence.txt, evidence.act))
 
 
 def _unique_list(items: list) -> list:

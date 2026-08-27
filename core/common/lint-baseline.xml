@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<issues format="6" by="lint 9.3.1" type="baseline" client="gradle" dependencies="false" name="AGP (9.3.1)" variant="all" version="9.3.1">
+
+    <issue
+        id="MissingPermission"
+        message="Call requires permission which may be rejected by user: code should explicitly check to see if permission is available (with `checkPermission`) or explicitly handle a potential `SecurityException`"
+        errorLine1="                manager.requestLocationUpdates("
+        errorLine2="                ^">
+        <location
+            file="src/main/java/com/adsamcik/tracker/shared/base/location/DefaultUiLocationProvider.kt"
+            line="75"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="MissingPermission"
+        message="Missing permissions required by LocationManager.requestLocationUpdates: android.permission.ACCESS_COARSE_LOCATION or android.permission.ACCESS_FINE_LOCATION"
+        errorLine1="                manager.requestLocationUpdates("
+        errorLine2="                ^">
+        <location
+            file="src/main/java/com/adsamcik/tracker/shared/base/location/DefaultUiLocationProvider.kt"
+            line="75"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="MissingPermission"
+        message="Call requires permission which may be rejected by user: code should explicitly check to see if permission is available (with `checkPermission`) or explicitly handle a potential `SecurityException`"
+        errorLine1="                    client.requestLocationUpdates(locationRequest, callback, Looper.getMainLooper()).await()"
+        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/adsamcik/tracker/shared/base/location/DefaultUiLocationProvider.kt"
+            line="115"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="MissingPermission"
+        message="Missing permissions required by FusedLocationProviderClient.requestLocationUpdates: android.permission.ACCESS_COARSE_LOCATION or android.permission.ACCESS_FINE_LOCATION"
+        errorLine1="                    client.requestLocationUpdates(locationRequest, callback, Looper.getMainLooper()).await()"
+        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/adsamcik/tracker/shared/base/location/DefaultUiLocationProvider.kt"
+            line="115"
+            column="21"/>
+    </issue>
+
+</issues>

@@ -74,11 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Abfahrt</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Lift</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Gehen oder Pause</string>
-    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Gehen</string>
-    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Radfahren</string>
-    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Autofahren</string>
-    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Öffentlicher Verkehr</string>
-    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Sonstiges</string>
     <string name="map_layer_fog_title">Nebel des Entdeckers</string>
     <string name="map_layer_fog_chip">Nebel</string>
     <string name="map_layer_fog_description">Die Welt taucht aus dem Nebel auf: Jeder von dir berührte Bereich wird sichtbar und leuchtet umso heller, je gründlicher du ihn kennengelernt hast. Orte, die du nur passiert hast, bleiben ein schwacher Dunst; tief erkundete Orte leuchten golden. Unerforschtes Gelände bleibt dunkel.</string>

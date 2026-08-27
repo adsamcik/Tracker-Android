@@ -3,6 +3,9 @@ package com.adsamcik.tracker.tracker.source.projection
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.LocationProjectionDao
+import com.adsamcik.tracker.shared.base.database.data.LocationProjectionObservationEntity
+import com.adsamcik.tracker.shared.base.database.data.LocationProjectionPointEntity
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
@@ -12,6 +15,10 @@ import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.mockk
 import kotlin.math.abs
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -112,6 +119,101 @@ class LocationDomainProjectionTest {
 		assertTrue(database.sourceProjectionStateDao().joinStates(LocationDomainProjection.ID, 1).isEmpty())
 		assertEquals(12, effects.size)
 	}
+
+	@Test
+	fun `ordered append advances from latest rows without loading full session history`() = runTest {
+		val projectionDao = mockk<LocationProjectionDao>()
+		val mockedDatabase = mockk<AppDatabase>()
+		val priorObservation = observationEntity("earlier", 1)
+		val priorPoint = pointEntity("earlier", 1)
+		every { mockedDatabase.locationProjectionDao() } returns projectionDao
+		coEvery { projectionDao.latestObservation(TRACKING_ID) } returns priorObservation
+		coEvery { projectionDao.point("later") } returns null
+		coEvery { projectionDao.point("earlier") } returns priorPoint
+		coEvery { projectionDao.latestAcceptedObservation(TRACKING_ID) } returns priorObservation
+		coEvery { projectionDao.latestUnconfirmedTeleportObservation(TRACKING_ID) } returns null
+		coEvery { projectionDao.upsertObservation(any()) } returns Unit
+		coEvery { projectionDao.upsertPoints(any()) } returns Unit
+		val effects = mutableListOf<ProjectionOutboxEffect>()
+		val context = recordingContext(effects)
+
+		LocationDomainProjection(mockedDatabase).apply(
+			event("later", admissionOrdinal = 2, observedSecond = 2),
+			context,
+		)
+
+		coVerify(exactly = 0) { projectionDao.observations(any()) }
+		coVerify(exactly = 0) { projectionDao.points(any()) }
+		coVerify(exactly = 1) {
+			projectionDao.upsertPoints(match { points ->
+				points.single().eventId == "later" && points.single().cumulativeDistanceMeters > 90.0
+			})
+		}
+		assertEquals(4, effects.size)
+	}
+
+	@Test
+	fun `incremental accumulator remains identical to deterministic full replay`() {
+		val observations = listOf(
+			observation("a", 1, 50.0, 14.0).copy(
+				payload = observation("a", 1, 50.0, 14.0).payload.copy(speedMetersPerSecond = 3f),
+			),
+			observation("b", 2, 50.0009, 14.0),
+			observation("poor", 3, 50.0018, 14.0).copy(
+				payload = observation("poor", 3, 50.0018, 14.0).payload.copy(horizontalAccuracyMeters = 60f),
+			),
+			observation("c", 4, 50.0027, 14.0),
+		)
+		var state = LocationAccumulatorState()
+		val incremental = observations.map { current ->
+			advanceLocationTrack(state, current).also { state = it.state }.point
+		}
+
+		assertEquals(deriveLocationTrack(observations), incremental)
+	}
+
+	private fun recordingContext(effects: MutableList<ProjectionOutboxEffect>) = object : ProjectionContext {
+		override suspend fun recordOutbox(effect: ProjectionOutboxEffect) { effects += effect }
+		override suspend fun loadJoinState(key: String): ByteArray? = null
+		override suspend fun saveJoinState(
+			key: String,
+			payload: ByteArray,
+			minimumRequiredOrdinal: Long?,
+			logicalTrackingId: String?,
+			payloadVersion: Int,
+		) = error("Normalized location projection must not persist join-state BLOBs")
+		override suspend fun removeJoinState(key: String) = Unit
+	}
+
+	private fun observationEntity(id: String, second: Long) = LocationProjectionObservationEntity(
+		eventId = id,
+		logicalTrackingId = TRACKING_ID,
+		admissionOrdinal = second,
+		elapsedRealtimeNanos = second * 1_000_000_000L,
+		wallTimeMs = second * 1_000L,
+		latitudeDegrees = 50.0 + second * 0.0009,
+		longitudeDegrees = 14.0,
+		horizontalAccuracyMeters = 5f,
+		altitudeMeters = 250.0,
+		verticalAccuracyMeters = 4f,
+		speedMetersPerSecond = null,
+	)
+
+	private fun pointEntity(id: String, second: Long) = LocationProjectionPointEntity(
+		eventId = id,
+		logicalTrackingId = TRACKING_ID,
+		revision = 1,
+		accepted = true,
+		rejection = null,
+		latitudeDegrees = 50.0 + second * 0.0009,
+		longitudeDegrees = 14.0,
+		segmentDistanceMeters = 0.0,
+		cumulativeDistanceMeters = 0.0,
+		estimatedSpeedMetersPerSecond = null,
+		rawWgs84AltitudeMeters = 250.0,
+		verticalAccuracyMeters = 4f,
+		elapsedRealtimeNanos = second * 1_000_000_000L,
+	)
 
 	private fun observation(id: String, second: Long, latitude: Double, longitude: Double) = LocationObservation(
 		eventId = id,

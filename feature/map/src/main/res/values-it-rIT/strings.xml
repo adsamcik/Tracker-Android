@@ -74,11 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Discesa</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Impianto</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Camminata o pausa</string>
-    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Camminata</string>
-    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Bicicletta</string>
-    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Guida</string>
-    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Trasporto pubblico</string>
-    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Altro</string>
     <string name="map_layer_fog_title">Nebbia dell\'esploratore</string>
     <string name="map_layer_fog_chip">Nebbia</string>
     <string name="map_layer_fog_description">Il mondo emerge dalla nebbia: ogni area che hai toccato viene rivelata e brilla di più quanto più l\'hai conosciuta. I luoghi attraversati soltanto restano una foschia tenue; un posto esplorato a fondo arde d\'oro. Il terreno inesplorato resta scuro.</string>

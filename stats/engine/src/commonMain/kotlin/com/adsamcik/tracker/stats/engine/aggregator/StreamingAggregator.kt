@@ -37,6 +37,9 @@ class StreamingAggregator(
 	private var sessionSteps = 0
 	private var sessionDurationMs = 0L
 	private var sampleCount = 0
+	private var daySessionDistanceM = 0f
+	private var daySessionSteps = 0
+	private var daySessionDurationMs = 0L
 
 	// Speed tracking
 	private var currentSpeedMps: Float? = null
@@ -82,6 +85,41 @@ class StreamingAggregator(
 		tripCount = trips
 	}
 
+	/** Restore an exact persisted session without replaying its historic signal stream. */
+	fun restoreSessionTotals(
+		distanceM: Float,
+		steps: Int,
+		durationMs: Long,
+		sampleCount: Int,
+		lastUpdateMs: Long,
+		dayDistanceM: Float = distanceM,
+		daySteps: Int = steps,
+		dayDurationMs: Long = durationMs,
+	) = synchronized(lock) {
+		check(active) { "Cannot restore session: aggregator not active" }
+		require(distanceM >= 0f && steps >= 0 && durationMs >= 0L && sampleCount >= 0)
+		require(dayDistanceM >= 0f && daySteps >= 0 && dayDurationMs >= 0L)
+		sessionDistanceM = distanceM
+		sessionSteps = steps
+		sessionDurationMs = durationMs
+		this.sampleCount = sampleCount
+		daySessionDistanceM = dayDistanceM
+		daySessionSteps = daySteps
+		daySessionDurationMs = dayDurationMs
+		lastSignalMs = lastUpdateMs.coerceAtLeast(sessionStartMs)
+	}
+
+	/** Begin a new local calendar day while preserving full-session accumulators. */
+	fun rolloverDay() = synchronized(lock) {
+		priorDayDistanceM = 0f
+		priorDaySteps = 0
+		priorDayDurationMs = 0L
+		tripCount = 0
+		daySessionDistanceM = 0f
+		daySessionSteps = 0
+		daySessionDurationMs = 0L
+	}
+
 	/**
 	 * Process a per-cycle sensor signal.
 	 * Accumulates distance, steps, speed, activity, and duration.
@@ -91,15 +129,21 @@ class StreamingAggregator(
 
 		// Duration: time since last signal (or since session start for first signal)
 		if (lastSignalMs > 0 && signal.timestampMs > lastSignalMs) {
-			sessionDurationMs += (signal.timestampMs - lastSignalMs)
+			val elapsedMs = signal.timestampMs - lastSignalMs
+			sessionDurationMs += elapsedMs
+			daySessionDurationMs += elapsedMs
 		}
 		lastSignalMs = signal.timestampMs
 
 		// Distance
-		signal.distanceDeltaM?.let { sessionDistanceM += it }
+		signal.distanceDeltaM?.let {
+			sessionDistanceM += it
+			daySessionDistanceM += it
+		}
 
 		// Steps
 		sessionSteps += signal.stepDelta
+		daySessionSteps += signal.stepDelta
 
 		// Speed
 		signal.speedMps?.let { speed ->
@@ -132,9 +176,9 @@ class StreamingAggregator(
 			sessionDistanceM = sessionDistanceM,
 			sessionSteps = sessionSteps,
 			sessionDurationMs = sessionDurationMs,
-			dayTotalDistanceM = priorDayDistanceM + sessionDistanceM,
-			dayTotalSteps = priorDaySteps + sessionSteps,
-			dayTotalDurationMs = priorDayDurationMs + sessionDurationMs,
+			dayTotalDistanceM = priorDayDistanceM + daySessionDistanceM,
+			dayTotalSteps = priorDaySteps + daySessionSteps,
+			dayTotalDurationMs = priorDayDurationMs + daySessionDurationMs,
 			currentSpeedMps = currentSpeedMps,
 			avgSpeedMps = avgSpeed,
 			maxSpeedMps = maxSpeedMps,
@@ -183,6 +227,9 @@ class StreamingAggregator(
 		sessionSteps = 0
 		sessionDurationMs = 0L
 		sampleCount = 0
+		daySessionDistanceM = 0f
+		daySessionSteps = 0
+		daySessionDurationMs = 0L
 		currentSpeedMps = null
 		maxSpeedMps = 0f
 		activityVotes.clear()
@@ -197,9 +244,9 @@ class StreamingAggregator(
 			sessionDistanceM = sessionDistanceM,
 			sessionSteps = sessionSteps,
 			sessionDurationMs = sessionDurationMs,
-			dayTotalDistanceM = priorDayDistanceM + sessionDistanceM,
-			dayTotalSteps = priorDaySteps + sessionSteps,
-			dayTotalDurationMs = priorDayDurationMs + sessionDurationMs,
+			dayTotalDistanceM = priorDayDistanceM + daySessionDistanceM,
+			dayTotalSteps = priorDaySteps + daySessionSteps,
+			dayTotalDurationMs = priorDayDurationMs + daySessionDurationMs,
 			currentSpeedMps = currentSpeedMps,
 			avgSpeedMps = avgSpeed,
 			maxSpeedMps = maxSpeedMps,

@@ -74,11 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">Coborâre</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">Instalație</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">Mers pe jos sau pauză</string>
-    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">Mers pe jos</string>
-    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">Ciclism</string>
-    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">Condus</string>
-    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">Transport public</string>
-    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">Altele</string>
     <string name="map_layer_fog_title">Ceața exploratorului</string>
     <string name="map_layer_fog_chip">Ceață</string>
     <string name="map_layer_fog_description">Lumea iese din ceață: fiecare zonă atinsă de tine este dezvăluită și strălucește mai intens cu cât ai cunoscut-o mai bine. Locurile prin care doar ai trecut rămân o pâclă slabă; un loc explorat în profunzime strălucește auriu. Terenul neexplorat rămâne întunecat.</string>

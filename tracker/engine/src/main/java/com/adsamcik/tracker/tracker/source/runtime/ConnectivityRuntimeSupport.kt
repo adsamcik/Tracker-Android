@@ -4,11 +4,10 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
-import android.location.LocationManager
 import android.os.Build
 import android.os.PowerManager
-import android.provider.Settings
 import androidx.core.content.ContextCompat
+import com.adsamcik.tracker.shared.base.extension.trackingPermissionCapabilities
 import com.adsamcik.tracker.tracker.source.model.CellMode
 import com.adsamcik.tracker.tracker.source.model.CellPlan
 import com.adsamcik.tracker.tracker.source.model.RetryBackoff
@@ -95,12 +94,15 @@ internal interface ConnectivityDeviceStateProvider {
 internal class AndroidConnectivityDeviceStateProvider @Inject constructor(
 	@ApplicationContext private val context: Context,
 ) : ConnectivityDeviceStateProvider {
-	override fun wifi(): WifiDeviceState = WifiDeviceState(
-		wifiFeatureAvailable = context.packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI),
-		fineLocationPermission = context.hasPermission(Manifest.permission.ACCESS_FINE_LOCATION),
-		locationServicesEnabled = context.locationServicesEnabled(),
-		deviceIdle = context.getSystemService(PowerManager::class.java)?.isDeviceIdleMode == true,
-	)
+	override fun wifi(): WifiDeviceState {
+		val capabilities = context.trackingPermissionCapabilities()
+		return WifiDeviceState(
+			wifiFeatureAvailable = capabilities.wifiFeatureAvailable,
+			fineLocationPermission = capabilities.preciseLocationGranted,
+			locationServicesEnabled = capabilities.locationServicesEnabled,
+			deviceIdle = context.getSystemService(PowerManager::class.java)?.isDeviceIdleMode == true,
+		)
+	}
 
 	override fun cell(): CellDeviceState = CellDeviceState(
 		radioFeatureAvailable = context.packageManager.hasSystemFeature(
@@ -113,18 +115,6 @@ internal class AndroidConnectivityDeviceStateProvider @Inject constructor(
 
 	private fun Context.hasPermission(permission: String) =
 		ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
-
-	@Suppress("DEPRECATION")
-	private fun Context.locationServicesEnabled(): Boolean =
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-			getSystemService(LocationManager::class.java)?.isLocationEnabled == true
-		} else {
-			Settings.Secure.getInt(
-				contentResolver,
-				Settings.Secure.LOCATION_MODE,
-				Settings.Secure.LOCATION_MODE_OFF,
-			) != Settings.Secure.LOCATION_MODE_OFF
-		}
 }
 
 @SuppressLint("InlinedApi")

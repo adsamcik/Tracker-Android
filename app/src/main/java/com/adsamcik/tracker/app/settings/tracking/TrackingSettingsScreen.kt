@@ -307,6 +307,29 @@ internal fun TrackingSettingsContent(
                 onModeSelected = onAutoTrackingModeChanged,
             )
         }
+        if (uiState.autoTrackingEnabled && uiState.locationEnabled &&
+            uiState.permissionCapabilities.isManualLocationOnly
+        ) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .testTag("automaticTrackingManualOnly"),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    ),
+                ) {
+                    Text(
+                        text = stringResource(
+                            com.adsamcik.tracker.R.string.setup_background_location_manual_only,
+                        ),
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+        }
         if (uiState.autoTrackingEnabled) {
             item {
                 SwitchSettingsItemWithHelp(

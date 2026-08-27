@@ -194,12 +194,8 @@
     <string name="tracking_preset_power_save_description">По-ниско използване на батерията с по-редки обновявания и по-малко сензори</string>
     <string name="tracking_preset_custom_name">Персонализирано</string>
     <string name="tracking_preset_custom_description">Настройте ръчно всеки параметър за проследяване</string>
-    <string name="tracking_preset_selector_title">Предварителна настройка за проследяване</string>
     <string name="tracking_preset_selector_subtitle">Изберете профил, от който да започнете, след което прецизирайте всяка настройка по-долу.</string>
-    <string name="tracking_preset_custom_hint">Промяната на която и да е настройка по-долу създава персонализиран профил от текущата предварителна настройка.</string>
     <string name="tracking_preset_customized_summary">Настроили сте проследяването. Изберете предварителна настройка по-горе, за да го нулирате.</string>
-    <string name="settings_tracking_section_detection">Откриване и автоматизация</string>
-    <string name="settings_tracking_section_sources">Източници на данни</string>
     <string name="settings_tracking_section_detail">Събиране на местоположение</string>
     <string name="settings_tracking_section_notifications">Известия</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
@@ -332,11 +328,9 @@
     <string name="permission_disabled_due_to_denial">%1$s е изключено, защото разрешението е отказано. Разрешете го в настройките, за да го включите.</string>
     <string name="settings_wifi_permission_required">Изисква разрешение за Wi-Fi/местоположение. Включете превключвателя, за да го предоставите — дотогава не се записват Wi-Fi данни, а записаните данни остават на това устройство.</string>
     <string name="settings_cell_permission_required">Изисква разрешение за състоянието на телефона и точно местоположение. Включете превключвателя, за да го предоставите — дотогава не се записват клетъчни данни, а записаните данни остават на това устройство.</string>
-    <string name="settings_wifi_privacy_summary">Записва близките Wi-Fi мрежи, за да подобри точността на местоположението. Данните остават на това устройство.</string>
     <string name="settings_barometer_unavailable">Сензорът за налягане не е наличен на това устройство.</string>
     <string name="settings_activity_permission_required">Изисква разрешение за разпознаване на активност. Включете превключвателя, за да го предоставите.</string>
     <string name="settings_steps_unavailable">Сензорът за броене на крачки не е наличен на това устройство.</string>
-    <string name="settings_cell_privacy_summary">Записва идентификаторите на клетъчните кули, за да подобри точността на местоположението. Данните остават на това устройство.</string>
     <string name="setup_start_exploring">Започнете да разглеждате</string>
     <string name="setup_continue">Продължаване</string>
     <string name="setup_step_indicator">Стъпка %1$d от %2$d</string>
@@ -356,4 +350,9 @@
     <string name="background_reliability_samsung_action">Отваряне на настройките за батерията на устройството</string>
     <string name="settings_tracebox_title">Диагностика при сривове</string>
     <string name="settings_tracebox_root_summary">Локална диагностика на сривове, ANR и структура</string>
+    <string name="setup_background_location_title">Разрешете местоположението във фонов режим за автоматично проследяване</string>
+    <string name="setup_background_location_disclosure">Автоматичното проследяване започва, докато Tracker е във фонов режим, и записва маршрута ви дори когато екранът му не е отворен. Местоположението остава на това устройство. В настройките за местоположение на приложението изберете „%1$s“.</string>
+    <string name="setup_background_location_open_settings">Отваряне на настройките за местоположение</string>
+    <string name="setup_background_location_decline">Не сега</string>
+    <string name="setup_background_location_manual_only">Ръчното проследяване на преден план остава достъпно. Автоматичното проследяване на местоположението ще остане изключено, докато местоположението във фонов режим не бъде разрешено.</string>
 </resources>

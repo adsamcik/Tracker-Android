@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<issues format="6" by="lint 9.3.1" type="baseline" client="gradle" dependencies="false" name="AGP (9.3.1)" variant="all" version="9.3.1">
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;settings_ski_infrastructure_title&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;settings_ski_infrastructure_title&quot;>Ski lift data&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="15"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;settings_ski_infrastructure_subtitle_loaded&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;settings_ski_infrastructure_subtitle_loaded&quot;>Loaded (tap to remove)&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="16"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;settings_ski_infrastructure_subtitle_none&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;settings_ski_infrastructure_subtitle_none&quot;>Not loaded. Tap to import a ski_infrastructure.db SQLite file.&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="17"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;settings_ski_infrastructure_subtitle_info&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;settings_ski_infrastructure_subtitle_info&quot;>%1$d lifts · Generated %2$s&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="18"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;settings_ski_infrastructure_attribution&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;settings_ski_infrastructure_attribution&quot;>Ski lift data © OpenStreetMap contributors (ODbL)&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="19"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="PluralsCandidate"
+        message="Formatting %d followed by words (&quot;lifts&quot;): This should probably be a plural rather than a string"
+        errorLine1="    &lt;string name=&quot;settings_ski_infrastructure_subtitle_info&quot;>%1$d lifts · Generated %2$s&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="18"
+            column="5"/>
+    </issue>
+
+</issues>

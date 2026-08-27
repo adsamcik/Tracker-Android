@@ -3,12 +3,14 @@
 kotlin = "2.4.10"
 ksp = "2.3.10"
 agp = "9.3.1"
-tracebox = "0.1.0-alpha.3"
+tracebox = "0.1.0-alpha.7"
 
 # Tools
 benmanes = "0.57.0"
+detekt = "2.0.0-alpha.6"
 ossLicenses = "0.13.0"
 desugarJdkLibs = "2.1.5"
+bundletool = "1.18.3"
 
 # AndroidX / Google
 coreKtx = "1.19.0"
@@ -46,9 +48,8 @@ playLocation = "21.4.0"
 
 # MapLibre
 maplibreCompose = "0.13.1"
-# MapLibre Android native SDK version bundled by maplibreCompose above. Used only to pull the
-# OpenGL build of the native SDK (android-sdk-opengl) in place of the default Vulkan build. This
-# MUST stay in sync with the android-sdk version that the maplibreCompose release depends on.
+# Reviewed native SDK version forced for both release Vulkan and emulator OpenGL builds. This
+# stays explicit because maplibreCompose may otherwise resolve an older, 4 KiB-aligned SDK.
 maplibreAndroid = "13.4.1"
 
 # KotlinX
@@ -99,6 +100,7 @@ kotest = "6.2.3"
 [libraries]
 # Gradle plugin artifacts for convention plugins
 android-gradlePlugin = { group = "com.android.tools.build", name = "gradle", version.ref = "agp" }
+android-bundletool = { group = "com.android.tools.build", name = "bundletool", version.ref = "bundletool" }
 kotlin-gradlePlugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlin" }
 ksp-gradlePlugin = { group = "com.google.devtools.ksp", name = "com.google.devtools.ksp.gradle.plugin", version.ref = "ksp" }
 hilt-gradlePlugin = { group = "com.google.dagger", name = "hilt-android-gradle-plugin", version.ref = "hilt" }
@@ -272,3 +274,4 @@ ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 oss-licenses = { id = "com.google.android.gms.oss-licenses-plugin", version.ref = "ossLicenses" }
 benmanes-versions = { id = "io.github.ben-manes.versions", version.ref = "benmanes" }
+detekt = { id = "dev.detekt", version.ref = "detekt" }

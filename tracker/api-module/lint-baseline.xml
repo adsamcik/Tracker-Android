@@ -1,0 +1,1533 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<issues format="6" by="lint 9.3.1" type="baseline" client="gradle" dependencies="false" name="AGP (9.3.1)" variant="all" version="9.3.1">
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;ca&quot; (Catalan) the following quantity should also be defined: `many`"
+        errorLine1="    &lt;plurals name=&quot;notification_auto_tracking_lock&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-ca-rES/strings.xml"
+            line="38"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;pt&quot; (Portuguese) the following quantity should also be defined: `many`"
+        errorLine1="    &lt;plurals name=&quot;notification_auto_tracking_lock&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-pt-rBR/strings.xml"
+            line="38"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;es&quot; (Spanish) the following quantity should also be defined: `many`"
+        errorLine1="    &lt;plurals name=&quot;notification_auto_tracking_lock&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-es-rES/strings.xml"
+            line="44"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;fr&quot; (French) the following quantity should also be defined: `many` (e.g. &quot;1000000 de jours&quot;)"
+        errorLine1="    &lt;plurals name=&quot;notification_auto_tracking_lock&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-fr-rFR/strings.xml"
+            line="44"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;ga&quot; (Irish) the following quantities should also be defined: `few` (e.g. &quot;3 cinn, 3 huaire, 3 chat, 3 éan, 3 bhróg&quot;), `many` (e.g. &quot;7 gcinn, 7 n-uaire, 7 gcat, 7 n-éan, 7 mbróg&quot;), `two` (e.g. &quot;2 cheann, 2 uair, 2 chat, 2 éan, 2 bhróig&quot;)"
+        errorLine1="    &lt;plurals name=&quot;notification_auto_tracking_lock&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-ga-rIE/strings.xml"
+            line="44"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;it&quot; (Italian) the following quantity should also be defined: `many`"
+        errorLine1="    &lt;plurals name=&quot;notification_auto_tracking_lock&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-it-rIT/strings.xml"
+            line="44"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;lt&quot; (Lithuanian) the following quantity should also be defined: `many` (e.g. &quot;1.1 obuolio&quot;)"
+        errorLine1="    &lt;plurals name=&quot;notification_auto_tracking_lock&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-lt-rLT/strings.xml"
+            line="44"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;lv&quot; (Latvian) the following quantity should also be defined: `zero` (e.g. &quot;0 diennakšu&quot;)"
+        errorLine1="    &lt;plurals name=&quot;notification_auto_tracking_lock&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-lv-rLV/strings.xml"
+            line="44"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;mt&quot; (Maltese) the following quantities should also be defined: `few` (e.g. &quot;2&quot;), `many` (e.g. &quot;11&quot;), `two`"
+        errorLine1="    &lt;plurals name=&quot;notification_auto_tracking_lock&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-mt-rMT/strings.xml"
+            line="44"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;pt&quot; (Portuguese) the following quantity should also be defined: `many`"
+        errorLine1="    &lt;plurals name=&quot;notification_auto_tracking_lock&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-pt-rPT/strings.xml"
+            line="44"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;es&quot; (Spanish) the following quantity should also be defined: `many`"
+        errorLine1="    &lt;plurals name=&quot;tracker_wifi_networks_value&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-es-rES/strings.xml"
+            line="98"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;fr&quot; (French) the following quantity should also be defined: `many` (e.g. &quot;1000000 de jours&quot;)"
+        errorLine1="    &lt;plurals name=&quot;tracker_wifi_networks_value&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-fr-rFR/strings.xml"
+            line="98"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;ga&quot; (Irish) the following quantities should also be defined: `few` (e.g. &quot;3 cinn, 3 huaire, 3 chat, 3 éan, 3 bhróg&quot;), `many` (e.g. &quot;7 gcinn, 7 n-uaire, 7 gcat, 7 n-éan, 7 mbróg&quot;), `two` (e.g. &quot;2 cheann, 2 uair, 2 chat, 2 éan, 2 bhróig&quot;)"
+        errorLine1="    &lt;plurals name=&quot;tracker_wifi_networks_value&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-ga-rIE/strings.xml"
+            line="98"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;it&quot; (Italian) the following quantity should also be defined: `many`"
+        errorLine1="    &lt;plurals name=&quot;tracker_wifi_networks_value&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-it-rIT/strings.xml"
+            line="98"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;lv&quot; (Latvian) the following quantity should also be defined: `zero` (e.g. &quot;0 diennakšu&quot;)"
+        errorLine1="    &lt;plurals name=&quot;tracker_wifi_networks_value&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-lv-rLV/strings.xml"
+            line="98"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;mt&quot; (Maltese) the following quantities should also be defined: `few` (e.g. &quot;2&quot;), `many` (e.g. &quot;11&quot;), `two`"
+        errorLine1="    &lt;plurals name=&quot;tracker_wifi_networks_value&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-mt-rMT/strings.xml"
+            line="98"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;pt&quot; (Portuguese) the following quantity should also be defined: `many`"
+        errorLine1="    &lt;plurals name=&quot;tracker_wifi_networks_value&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-pt-rPT/strings.xml"
+            line="98"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;lt&quot; (Lithuanian) the following quantity should also be defined: `many` (e.g. &quot;1.1 obuolio&quot;)"
+        errorLine1="    &lt;plurals name=&quot;tracker_wifi_networks_value&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-lt-rLT/strings.xml"
+            line="99"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;es&quot; (Spanish) the following quantity should also be defined: `many`"
+        errorLine1="    &lt;plurals name=&quot;insight_duration_desc&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-es-rES/strings.xml"
+            line="106"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;fr&quot; (French) the following quantity should also be defined: `many` (e.g. &quot;1000000 de jours&quot;)"
+        errorLine1="    &lt;plurals name=&quot;insight_duration_desc&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-fr-rFR/strings.xml"
+            line="106"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;ga&quot; (Irish) the following quantities should also be defined: `few` (e.g. &quot;3 cinn, 3 huaire, 3 chat, 3 éan, 3 bhróg&quot;), `many` (e.g. &quot;7 gcinn, 7 n-uaire, 7 gcat, 7 n-éan, 7 mbróg&quot;), `two` (e.g. &quot;2 cheann, 2 uair, 2 chat, 2 éan, 2 bhróig&quot;)"
+        errorLine1="    &lt;plurals name=&quot;insight_duration_desc&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-ga-rIE/strings.xml"
+            line="106"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;it&quot; (Italian) the following quantity should also be defined: `many`"
+        errorLine1="    &lt;plurals name=&quot;insight_duration_desc&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-it-rIT/strings.xml"
+            line="106"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;lv&quot; (Latvian) the following quantity should also be defined: `zero` (e.g. &quot;0 diennakšu&quot;)"
+        errorLine1="    &lt;plurals name=&quot;insight_duration_desc&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-lv-rLV/strings.xml"
+            line="106"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;mt&quot; (Maltese) the following quantities should also be defined: `few` (e.g. &quot;2&quot;), `many` (e.g. &quot;11&quot;), `two`"
+        errorLine1="    &lt;plurals name=&quot;insight_duration_desc&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-mt-rMT/strings.xml"
+            line="106"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;pt&quot; (Portuguese) the following quantity should also be defined: `many`"
+        errorLine1="    &lt;plurals name=&quot;insight_duration_desc&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-pt-rPT/strings.xml"
+            line="106"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;lt&quot; (Lithuanian) the following quantity should also be defined: `many` (e.g. &quot;1.1 obuolio&quot;)"
+        errorLine1="    &lt;plurals name=&quot;insight_duration_desc&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-lt-rLT/strings.xml"
+            line="108"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;es&quot; (Spanish) the following quantity should also be defined: `many`"
+        errorLine1="    &lt;plurals name=&quot;insight_exploration_desc&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-es-rES/strings.xml"
+            line="111"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;fr&quot; (French) the following quantity should also be defined: `many` (e.g. &quot;1000000 de jours&quot;)"
+        errorLine1="    &lt;plurals name=&quot;insight_exploration_desc&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-fr-rFR/strings.xml"
+            line="111"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;ga&quot; (Irish) the following quantities should also be defined: `few` (e.g. &quot;3 cinn, 3 huaire, 3 chat, 3 éan, 3 bhróg&quot;), `many` (e.g. &quot;7 gcinn, 7 n-uaire, 7 gcat, 7 n-éan, 7 mbróg&quot;), `two` (e.g. &quot;2 cheann, 2 uair, 2 chat, 2 éan, 2 bhróig&quot;)"
+        errorLine1="    &lt;plurals name=&quot;insight_exploration_desc&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-ga-rIE/strings.xml"
+            line="111"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;it&quot; (Italian) the following quantity should also be defined: `many`"
+        errorLine1="    &lt;plurals name=&quot;insight_exploration_desc&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-it-rIT/strings.xml"
+            line="111"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;lv&quot; (Latvian) the following quantity should also be defined: `zero` (e.g. &quot;0 diennakšu&quot;)"
+        errorLine1="    &lt;plurals name=&quot;insight_exploration_desc&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-lv-rLV/strings.xml"
+            line="111"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;mt&quot; (Maltese) the following quantities should also be defined: `few` (e.g. &quot;2&quot;), `many` (e.g. &quot;11&quot;), `two`"
+        errorLine1="    &lt;plurals name=&quot;insight_exploration_desc&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-mt-rMT/strings.xml"
+            line="111"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;pt&quot; (Portuguese) the following quantity should also be defined: `many`"
+        errorLine1="    &lt;plurals name=&quot;insight_exploration_desc&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-pt-rPT/strings.xml"
+            line="111"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingQuantity"
+        message="For locale &quot;lt&quot; (Lithuanian) the following quantity should also be defined: `many` (e.g. &quot;1.1 obuolio&quot;)"
+        errorLine1="    &lt;plurals name=&quot;insight_exploration_desc&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-lt-rLT/strings.xml"
+            line="114"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;coordinates_title&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;coordinates_title&quot;>Coordinates&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="18"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;description_tracking_start_no_permission&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;description_tracking_start_no_permission&quot;>Start tracking — permission required&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="23"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;description_points_today&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;description_points_today&quot;>Points earned today: %s&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="24"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;description_copy&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;description_copy&quot;>Copy value&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="25"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;description_copied&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;description_copied&quot;>Value copied&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="26"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;description_recharge_settings&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;description_recharge_settings&quot;>Recharge settings: tap to configure&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="27"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;notification_starting_without_location&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;notification_starting_without_location&quot;>Tracker starting&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="64"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;stop_tracking_dialog_title&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;stop_tracking_dialog_title&quot;>Stop tracking?&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="68"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;stop_tracking_dialog_message&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;stop_tracking_dialog_message&quot;>Auto-tracking is on and may start a new session again shortly if you just stop.&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="69"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;notification_tracker_active_without_location&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;notification_tracker_active_without_location&quot;>Tracking without location&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="71"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;notification_tracking_start_failed_title&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;notification_tracking_start_failed_title&quot;>Tracking couldn\&apos;t start&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="73"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;notification_tracking_start_failed_text&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;notification_tracking_start_failed_text&quot;>Open the app to review permissions and resume tracking.&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="74"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;ski_notification_title&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;ski_notification_title&quot;>Ski stats&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="90"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;ski_notification_text&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;ski_notification_text&quot;>🎿 Run #%1$d | ↓%2$s | ⚡%3$s&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="91"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;ski_notification_lift&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;ski_notification_lift&quot;>%1$s ride&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="92"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;settings_barometer_enabled_title&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;settings_barometer_enabled_title&quot;>Barometer&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="93"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;settings_steps_enabled_title&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;settings_steps_enabled_title&quot;>Step count&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="94"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;battery_title&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;battery_title&quot;>Battery&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="110"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;battery_low_warning&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;battery_low_warning&quot;>⚡ Low battery: %d%%&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="111"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_steps_title&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_steps_title&quot;>Steps&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="120"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_component_waiting_data&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_component_waiting_data&quot;>Waiting for live data&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="123"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_wifi_networks_value&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;plurals name=&quot;tracker_wifi_networks_value&quot;>"
+        errorLine2="             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="124"
+            column="14"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_signal_strength_title&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_signal_strength_title&quot;>Signal&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="128"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_signal_strength_value&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_signal_strength_value&quot;>%1$d dBm peak&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="129"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;insight_distance_value_km&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;insight_distance_value_km&quot;>%1$.1f km&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="131"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;insight_duration_title&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;insight_duration_title&quot;>Time well spent&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="132"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;insight_duration_desc&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;plurals name=&quot;insight_duration_desc&quot;>"
+        errorLine2="             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="133"
+            column="14"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;insight_exploration_title&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;insight_exploration_title&quot;>Explorer!&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="137"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;insight_exploration_desc&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;plurals name=&quot;insight_exploration_desc&quot;>"
+        errorLine2="             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="138"
+            column="14"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;insight_comparison_title&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;insight_comparison_title&quot;>Above average&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="142"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;insight_comparison_desc&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;insight_comparison_desc&quot;>This session was %1$d%% longer than your recent average&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="143"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;wifi_permission_hint_title&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;wifi_permission_hint_title&quot;>Allow Wi‑Fi for better indoor accuracy&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="150"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;wifi_permission_hint_text&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;wifi_permission_hint_text&quot;>Grant Wi‑Fi permission in app settings to improve signal-based location indoors. No Wi‑Fi radio data is collected until you allow it.&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="151"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;dashboard_today_title&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;dashboard_today_title&quot;>Today&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="156"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;dashboard_today_empty_title&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;dashboard_today_empty_title&quot;>No sessions today&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="157"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;dashboard_today_distance&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;dashboard_today_distance&quot;>Distance&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="158"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;dashboard_today_steps&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;dashboard_today_steps&quot;>Steps&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="159"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;dashboard_today_duration&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;dashboard_today_duration&quot;>Duration&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="160"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracking_preset_title&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracking_preset_title&quot;>Tracking Mode&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="163"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracking_preset_battery_saver_title&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracking_preset_battery_saver_title&quot;>Battery Saver&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="164"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracking_preset_battery_saver_desc&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracking_preset_battery_saver_desc&quot;>Optimized for all-day tracking&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="165"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracking_preset_balanced_title&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracking_preset_balanced_title&quot;>Balanced&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="166"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracking_preset_balanced_desc&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracking_preset_balanced_desc&quot;>All sensors enabled with moderate detail&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="167"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracking_preset_high_precision_title&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracking_preset_high_precision_title&quot;>High Precision&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="168"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracking_preset_high_precision_desc&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracking_preset_high_precision_desc&quot;>Maximum detail and accuracy&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="169"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracking_preset_custom_badge&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracking_preset_custom_badge&quot;>Custom settings applied&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="170"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;battery_impact_low&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;battery_impact_low&quot;>Low battery impact&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="173"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;battery_impact_moderate&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;battery_impact_moderate&quot;>Moderate battery impact&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="174"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;battery_impact_high&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;battery_impact_high&quot;>Higher battery usage&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="175"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;battery_impact_high_warning&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;battery_impact_high_warning&quot;>This configuration may significantly reduce battery life. Consider Balanced mode for all-day tracking.&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="176"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;help_min_distance&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;help_min_distance&quot;>Tracker waits until you\&amp;#039;ve moved this far before recording your next location. Smaller values = more detailed routes but higher battery usage.&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="181"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;help_min_time&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;help_min_time&quot;>How often Tracker checks your location. Smaller values = more frequent updates but higher battery usage.&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="182"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;help_required_accuracy&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;help_required_accuracy&quot;>GPS accuracy threshold. Tracker ignores location updates with accuracy worse than this value. Lower = more precise but may skip updates in poor GPS conditions.&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="183"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;help_transition_detection&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;help_transition_detection&quot;>Tracker starts/stops automatically based on your movement. Uses less battery than constant GPS but may delay detection of activity changes.&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="184"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;policy_tier_ambient&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;policy_tier_ambient&quot;>Ambient&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="187"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;policy_tier_active&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;policy_tier_active&quot;>Active&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="188"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;policy_tier_precision&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;policy_tier_precision&quot;>Precision&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="189"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;dashboard_recent_trips&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;dashboard_recent_trips&quot;>Recent trips&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="192"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_hide_details&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_hide_details&quot;>Hide details&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="195"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_show_sensor_details&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_show_sensor_details&quot;>Show sensor details&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="196"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_view_map&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_view_map&quot;>View Map&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="197"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_average_label&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_average_label&quot;>Avg&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="198"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_accuracy_label&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_accuracy_label&quot;>Accuracy&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="199"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_disabled&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_disabled&quot;>Disabled&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="200"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_lock_icon_desc&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_lock_icon_desc&quot;>Lock status&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="203"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_settings_icon_desc&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_settings_icon_desc&quot;>Component settings&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="204"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_points_icon_desc&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_points_icon_desc&quot;>Points progress&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="205"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_start_button&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_start_button&quot;>START&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="208"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_duration_label&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_duration_label&quot;>Duration&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="209"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_distance_label&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_distance_label&quot;>Distance&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="210"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_wifi_label&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_wifi_label&quot;>WiFi&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="211"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_cell_label&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_cell_label&quot;>Cell&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="212"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_collapse&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_collapse&quot;>Collapse&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="213"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_expand&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_expand&quot;>Expand&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="214"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_go_to_map&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_go_to_map&quot;>Go to map&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="215"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_session_summary_copied&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_session_summary_copied&quot;>Session summary copied&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="216"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_share_session_summary&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_share_session_summary&quot;>Share session summary&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="217"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_long_press_to_copy&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_long_press_to_copy&quot;>Long-press to copy&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="218"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_copy_session_summary&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_copy_session_summary&quot;>Copy session summary&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="219"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_live_tab&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_live_tab&quot;>Live&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="220"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_route_tab&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_route_tab&quot;>Route&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="221"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_activity_tab&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_activity_tab&quot;>Activity&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="222"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_precision_mode_enabled&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_precision_mode_enabled&quot;>High precision tracking enabled&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="223"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_battery_mode_enabled&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_battery_mode_enabled&quot;>Battery saver tracking enabled&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="224"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;policy_tier_status_prefix&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;policy_tier_status_prefix&quot;>GPS policy:&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="225"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;tracker_precision_chip_hint&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;tracker_precision_chip_hint&quot;>Tap to switch to %1$s&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="226"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;action_navigate_back&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;action_navigate_back&quot;>Navigate back&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="227"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;insight_distance_title&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;insight_distance_title&quot;>Distance covered&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="230"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;insight_distance_desc&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;insight_distance_desc&quot;>You covered %1$s this session.&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="231"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;insight_steps_title&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;insight_steps_title&quot;>Steps recorded&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="232"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="MissingTranslation"
+        message="&quot;insight_steps_desc&quot; is not translated in &quot;no&quot; (Norwegian), &quot;ru&quot; (Russian), &quot;uk&quot; (Ukrainian), &quot;ca&quot; (Catalan), &quot;sr&quot; (Serbian), &quot;ko&quot; (Korean), &quot;af&quot; (Afrikaans), &quot;iw&quot; (Hebrew), &quot;ar&quot; (Arabic), &quot;vi&quot; (Vietnamese), &quot;tr&quot; (Turkish)"
+        errorLine1="    &lt;string name=&quot;insight_steps_desc&quot;>%1$s steps this session — keep it up!&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="233"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="PluralsCandidate"
+        message="Formatting %d followed by words (&quot;updates&quot;): This should probably be a plural rather than a string"
+        errorLine1="    &lt;string name=&quot;collection_count_value&quot;>%d updates&lt;/string>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/strings.xml"
+            line="16"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="UnusedQuantity"
+        message="For language &quot;iw&quot; (Hebrew) the following quantities are not relevant: `many`"
+        errorLine1="    &lt;plurals name=&quot;notification_auto_tracking_lock&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-iw-rIL/strings.xml"
+            line="38"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="UnusedQuantity"
+        message="For language &quot;ja&quot; (Japanese) the following quantities are not relevant: `one`"
+        errorLine1="    &lt;plurals name=&quot;notification_auto_tracking_lock&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-ja-rJP/strings.xml"
+            line="44"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="UnusedQuantity"
+        message="For language &quot;zh&quot; (Chinese) the following quantities are not relevant: `one`"
+        errorLine1="    &lt;plurals name=&quot;notification_auto_tracking_lock&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-zh-rCN/strings.xml"
+            line="44"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="UnusedQuantity"
+        message="For language &quot;zh&quot; (Chinese) the following quantities are not relevant: `one`"
+        errorLine1="    &lt;plurals name=&quot;notification_auto_tracking_lock&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-zh-rTW/strings.xml"
+            line="44"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="UnusedQuantity"
+        message="For language &quot;ja&quot; (Japanese) the following quantities are not relevant: `one`"
+        errorLine1="    &lt;plurals name=&quot;tracker_wifi_networks_value&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-ja-rJP/strings.xml"
+            line="98"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="UnusedQuantity"
+        message="For language &quot;zh&quot; (Chinese) the following quantities are not relevant: `one`"
+        errorLine1="    &lt;plurals name=&quot;tracker_wifi_networks_value&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-zh-rCN/strings.xml"
+            line="98"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="UnusedQuantity"
+        message="For language &quot;zh&quot; (Chinese) the following quantities are not relevant: `one`"
+        errorLine1="    &lt;plurals name=&quot;tracker_wifi_networks_value&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-zh-rTW/strings.xml"
+            line="98"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="UnusedQuantity"
+        message="For language &quot;ja&quot; (Japanese) the following quantities are not relevant: `one`"
+        errorLine1="    &lt;plurals name=&quot;insight_duration_desc&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-ja-rJP/strings.xml"
+            line="106"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="UnusedQuantity"
+        message="For language &quot;zh&quot; (Chinese) the following quantities are not relevant: `one`"
+        errorLine1="    &lt;plurals name=&quot;insight_duration_desc&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-zh-rCN/strings.xml"
+            line="106"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="UnusedQuantity"
+        message="For language &quot;zh&quot; (Chinese) the following quantities are not relevant: `one`"
+        errorLine1="    &lt;plurals name=&quot;insight_duration_desc&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-zh-rTW/strings.xml"
+            line="106"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="UnusedQuantity"
+        message="For language &quot;ja&quot; (Japanese) the following quantities are not relevant: `one`"
+        errorLine1="    &lt;plurals name=&quot;insight_exploration_desc&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-ja-rJP/strings.xml"
+            line="111"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="UnusedQuantity"
+        message="For language &quot;zh&quot; (Chinese) the following quantities are not relevant: `one`"
+        errorLine1="    &lt;plurals name=&quot;insight_exploration_desc&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-zh-rCN/strings.xml"
+            line="111"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="UnusedQuantity"
+        message="For language &quot;zh&quot; (Chinese) the following quantities are not relevant: `one`"
+        errorLine1="    &lt;plurals name=&quot;insight_exploration_desc&quot;>"
+        errorLine2="    ^">
+        <location
+            file="src/main/res/values-zh-rTW/strings.xml"
+            line="111"
+            column="5"/>
+    </issue>
+
+</issues>

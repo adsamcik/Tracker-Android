@@ -30,6 +30,7 @@ class DefaultActiveTrackingSessionStoreTest {
 			policyTier = PolicyTier.PRECISION,
 			restartBootId = "boot:test",
 			restartToken = "restart-token",
+			sessionSegmentId = 42L,
 		)
 
 		store.save(descriptor) shouldBe ActiveTrackingSessionStoreResult.Success(descriptor)

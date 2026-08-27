@@ -47,7 +47,6 @@
         <item quantity="many">Automatické sledovanie je uzamknuté na %1$d minút.</item>
         <item quantity="other">Automatické sledovanie je uzamknuté na %1$d minút.</item>
     </plurals>
-    <string name="notification_looking_for_gps">Vyhľadáva sa GPS — poloha sa používa</string>
     <string name="notification_starting">Tracker sa spúšťa — poloha sa používa</string>
     <string name="notification_starting_without_location">Tracker sa spúšťa</string>
     <string name="notification_stop">Zastaviť</string>
@@ -61,8 +60,6 @@
     <string name="notification_tracking_start_failed_title">Sledovanie sa nepodarilo spustiť</string>
     <string name="notification_tracking_start_failed_text">Otvorte aplikáciu, skontrolujte povolenia a obnovte sledovanie.</string>
     <string name="settings_activity_enabled_title">Aktivita</string>
-    <string name="settings_auto_tracking_transition_summary">Režim šetriaci batériu (mierne pomalšie rozpoznávanie aktivity)</string>
-    <string name="settings_auto_tracking_transition_title">Používať prechody aktivity</string>
     <string name="settings_cell_enabled_title">Bunka</string>
     <string name="settings_disabled_recharge_summary">Automatické sledovanie je vypnuté, kým telefón nepripojíte k nabíjačke</string>
     <string name="settings_disabled_recharge_title">Vypnuté do nabitia</string>
@@ -76,10 +73,6 @@
     <string name="ski_notification_lift">Jazda %1$s</string>
     <string name="settings_barometer_enabled_title">Barometer</string>
     <string name="settings_steps_enabled_title">Počet krokov</string>
-    <string name="settings_tracker_timer_ambient">Ambientný časovač</string>
-    <string name="settings_tracker_timer_clock">Podľa intervalu</string>
-    <string name="settings_tracker_timer_fused">Poloha Google Play</string>
-    <string name="settings_tracker_timer_location">Poloha Androidu</string>
     <string name="settings_tracking_min_distance_title">Minimálna vzdialenosť medzi aktualizáciami</string>
     <string name="settings_tracking_min_time_title">Minimálne oneskorenie medzi aktualizáciami</string>
     <string name="settings_tracking_notice_summary">Zmeny sa prejavia po reštartovaní sledovania</string>

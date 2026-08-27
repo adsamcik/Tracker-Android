@@ -2,9 +2,9 @@ name: CodeQL Advanced
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "dev/v10" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "dev/v10" ]
   schedule:
     - cron: '16 14 * * 2'
 
@@ -32,12 +32,12 @@ jobs:
             build-mode: manual
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       # JDK is required for CodeQL Java/Kotlin analysis and Gradle
       - name: Set up JDK 21
         if: matrix.language == 'java-kotlin'
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           java-version: '21'
           distribution: 'temurin'
@@ -45,12 +45,12 @@ jobs:
       # Optional but helps with Gradle performance and wrapper verification
       - name: Setup Gradle
         if: matrix.language == 'java-kotlin'
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
 
       # Android SDK for Gradle builds (compileSdk 37; build tools selected by AGP)
       - name: Setup Android SDK
         if: matrix.language == 'java-kotlin'
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
         with:
           cmdline-tools-version: 14742923
           packages: ''
@@ -66,7 +66,7 @@ jobs:
 
       # Initializes the CodeQL tools for scanning.
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
@@ -75,7 +75,7 @@ jobs:
       # For compiled languages, try to build automatically
       - name: Autobuild
         if: matrix.build-mode == 'autobuild'
-        uses: github/codeql-action/autobuild@v3
+        uses: github/codeql-action/autobuild@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
 
       # If manual build mode is selected, replace the following with your build commands
       - name: Build with Gradle (manual for Android)
@@ -87,6 +87,6 @@ jobs:
           ./gradlew :app:assembleDebug -x test -x lint --no-daemon --stacktrace --console=plain
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
         with:
           category: "/language:${{ matrix.language }}"

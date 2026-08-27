@@ -34,11 +34,24 @@ class LocationPrerequisiteEvaluatorTest {
 	}
 
 	@Test
-	fun `fused backend is blocked when Google Play Services is unavailable`() {
+	fun `fused backend degrades to framework when Google Play Services is unavailable`() {
 		val result = evaluator.evaluate(plan(), device(fused = false), LocationStartContext.SESSION_ALREADY_FOREGROUND)
 
-		assertEquals(LocationPlanApplicationStatus.BLOCKED, result.status)
+		assertEquals(LocationPlanApplicationStatus.DEGRADED, result.status)
+		assertEquals(LocationBackend.FRAMEWORK, result.plan.backend)
 		assertTrue(SourceDegradedReason.PROVIDER_UNAVAILABLE in result.reasons)
+	}
+
+	@Test
+	fun `framework fallback does not bypass another blocking prerequisite`() {
+		val result = evaluator.evaluate(
+			plan(),
+			device(fused = false, coarse = false, fine = false),
+			LocationStartContext.SESSION_ALREADY_FOREGROUND,
+		)
+
+		assertEquals(LocationPlanApplicationStatus.BLOCKED, result.status)
+		assertTrue(SourceDegradedReason.PERMISSION_MISSING in result.reasons)
 	}
 
 	@Test
@@ -75,6 +88,7 @@ class LocationPrerequisiteEvaluatorTest {
 	private fun device(
 		api: Int = 34,
 		services: Boolean = true,
+		coarse: Boolean = true,
 		fine: Boolean = true,
 		background: Boolean = true,
 		fused: Boolean = true,
@@ -83,7 +97,7 @@ class LocationPrerequisiteEvaluatorTest {
 		apiLevel = api,
 		locationFeatureAvailable = true,
 		locationServicesEnabled = services,
-		coarsePermission = true,
+		coarsePermission = coarse,
 		finePermission = fine,
 		backgroundLocationPermission = background,
 		fusedProviderAvailable = fused,

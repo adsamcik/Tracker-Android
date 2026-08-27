@@ -45,7 +45,6 @@
         <item quantity="one">自動トラッキングは%1$d分間ロックされています。</item>
         <item quantity="other">自動トラッキングは%1$d分間ロックされています。</item>
     </plurals>
-    <string name="notification_looking_for_gps">GPSを検索中 — 位置情報を使用中</string>
     <string name="notification_starting">Trackerを開始中 — 位置情報を使用中</string>
     <string name="notification_starting_without_location">Trackerを開始中</string>
     <string name="notification_stop">停止</string>
@@ -59,8 +58,6 @@
     <string name="notification_tracking_start_failed_title">トラッキングを開始できませんでした</string>
     <string name="notification_tracking_start_failed_text">アプリを開いて権限を確認し、トラッキングを再開してください。</string>
     <string name="settings_activity_enabled_title">アクティビティ</string>
-    <string name="settings_auto_tracking_transition_summary">バッテリー効率モード（アクティビティの検出は少し遅くなります）</string>
-    <string name="settings_auto_tracking_transition_title">アクティビティ遷移を使用</string>
     <string name="settings_cell_enabled_title">セル</string>
     <string name="settings_disabled_recharge_summary">端末を充電器に接続するまで自動トラッキングを無効にします</string>
     <string name="settings_disabled_recharge_title">充電するまで無効</string>
@@ -74,10 +71,6 @@
     <string name="ski_notification_lift">%1$s回の乗車</string>
     <string name="settings_barometer_enabled_title">気圧計</string>
     <string name="settings_steps_enabled_title">歩数</string>
-    <string name="settings_tracker_timer_ambient">アンビエントタイマー</string>
-    <string name="settings_tracker_timer_clock">間隔ベース</string>
-    <string name="settings_tracker_timer_fused">Google Playの位置情報</string>
-    <string name="settings_tracker_timer_location">Androidの位置情報</string>
     <string name="settings_tracking_min_distance_title">更新間の最小距離</string>
     <string name="settings_tracking_min_time_title">更新間の最小間隔</string>
     <string name="settings_tracking_notice_summary">変更はトラッキングを再開すると反映されます</string>

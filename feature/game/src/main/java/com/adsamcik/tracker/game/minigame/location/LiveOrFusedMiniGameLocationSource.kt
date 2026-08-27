@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.map
 
 /**
  * Router that prefers the tracker's existing live location stream when the
- * tracker service is running, and falls back to a dedicated Fused Location
+ * tracker service is running, and falls back to a dedicated fused/framework
  * subscription otherwise.
  *
  * Rationale:

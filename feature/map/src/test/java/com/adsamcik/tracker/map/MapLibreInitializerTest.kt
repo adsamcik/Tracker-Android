@@ -58,12 +58,14 @@ class MapLibreInitializerTest {
     inner class Initialize {
 
         @Test
-        fun `transitions isReady from false to true`() = runTest {
-            MapLibreInitializer.isReady.value shouldBe false
+        fun `transitions SDK readiness from false to true while online remains closed`() = runTest {
+            MapLibreInitializer.isSdkReady.value shouldBe false
+            MapLibreInitializer.isOnlineReady.value shouldBe false
 
             MapLibreInitializer.initialize(context)
 
-            MapLibreInitializer.isReady.value shouldBe true
+            MapLibreInitializer.isSdkReady.value shouldBe true
+            MapLibreInitializer.isOnlineReady.value shouldBe false
         }
 
         @Test
@@ -79,7 +81,7 @@ class MapLibreInitializerTest {
             MapLibreInitializer.initialize(context)
 
             verify(exactly = 1) { MapLibre.getInstance(any<Context>()) }
-            MapLibreInitializer.isReady.value shouldBe true
+            MapLibreInitializer.isSdkReady.value shouldBe true
         }
 
         @Test
@@ -108,7 +110,7 @@ class MapLibreInitializerTest {
 
             MapLibreInitializer.initialize(context) shouldBe false
 
-            MapLibreInitializer.isReady.value shouldBe false
+            MapLibreInitializer.isSdkReady.value shouldBe false
         }
 
         @Test
@@ -117,7 +119,7 @@ class MapLibreInitializerTest {
 
             MapLibreInitializer.initialize(context) shouldBe false
 
-            MapLibreInitializer.isReady.value shouldBe false
+            MapLibreInitializer.isSdkReady.value shouldBe false
         }
 
         @Test
@@ -128,7 +130,7 @@ class MapLibreInitializerTest {
             MapLibreInitializer.initialize(context)
 
             verify(exactly = 2) { MapLibre.getInstance(any<Context>()) }
-            MapLibreInitializer.isReady.value shouldBe false
+            MapLibreInitializer.isSdkReady.value shouldBe false
         }
     }
 
@@ -139,13 +141,14 @@ class MapLibreInitializerTest {
         @Test
         fun `reset allows re-initialization`() = runTest {
             MapLibreInitializer.initialize(context)
-            MapLibreInitializer.isReady.value shouldBe true
+            MapLibreInitializer.isSdkReady.value shouldBe true
 
             MapLibreInitializer.reset()
-            MapLibreInitializer.isReady.value shouldBe false
+            MapLibreInitializer.isSdkReady.value shouldBe false
+            MapLibreInitializer.isOnlineReady.value shouldBe false
 
             MapLibreInitializer.initialize(context)
-            MapLibreInitializer.isReady.value shouldBe true
+            MapLibreInitializer.isSdkReady.value shouldBe true
 
             verify(exactly = 2) { MapLibre.getInstance(any<Context>()) }
         }
@@ -165,43 +168,70 @@ class MapLibreInitializerTest {
         }
 
         @Test
-        fun `forwards the factory to MapLibre's HttpRequestUtil`() {
+        fun `successful installation returns Installed and opens online readiness`() {
             val factory: okhttp3.Call.Factory = mockk()
-            MapLibreInitializer.setHttpCallFactory(factory)
+            MapLibreInitializer.setHttpCallFactory(factory) shouldBe
+                MapLibreHttpFactoryInstallResult.Installed
+
             verify(exactly = 1) { HttpRequestUtil.setOkHttpClient(factory) }
+            MapLibreInitializer.isOnlineReady.value shouldBe true
+            MapLibreInitializer.lastHttpCallFactoryFailure.value shouldBe null
         }
 
         @Test
-        fun `null factory is a silent no-op (does not unregister)`() {
-            MapLibreInitializer.setHttpCallFactory(null)
+        fun `absent factory returns explicit failure and remains offline-only`() {
+            MapLibreInitializer.setHttpCallFactory(null) shouldBe
+                MapLibreHttpFactoryInstallResult.Failure(
+                    MapLibreHttpFactoryFailureReason.FACTORY_ABSENT,
+                )
+
             verify(exactly = 0) { HttpRequestUtil.setOkHttpClient(any()) }
+            MapLibreInitializer.isSdkReady.value shouldBe true
+            MapLibreInitializer.isOnlineReady.value shouldBe false
+            MapLibreInitializer.lastHttpCallFactoryFailure.value shouldBe
+                MapLibreHttpFactoryFailureReason.FACTORY_ABSENT
         }
 
         @Test
-        fun `same factory passed twice only registers once`() {
+        fun `same installed factory returns AlreadyInstalled without reinstalling`() {
             val factory: okhttp3.Call.Factory = mockk()
-            MapLibreInitializer.setHttpCallFactory(factory)
-            MapLibreInitializer.setHttpCallFactory(factory)
+            MapLibreInitializer.setHttpCallFactory(factory) shouldBe
+                MapLibreHttpFactoryInstallResult.Installed
+            MapLibreInitializer.setHttpCallFactory(factory) shouldBe
+                MapLibreHttpFactoryInstallResult.AlreadyInstalled
+
             verify(exactly = 1) { HttpRequestUtil.setOkHttpClient(factory) }
+            MapLibreInitializer.isOnlineReady.value shouldBe true
         }
 
         @Test
         fun `different factories each register`() {
             val first: okhttp3.Call.Factory = mockk()
             val second: okhttp3.Call.Factory = mockk()
-            MapLibreInitializer.setHttpCallFactory(first)
-            MapLibreInitializer.setHttpCallFactory(second)
+            MapLibreInitializer.setHttpCallFactory(first) shouldBe
+                MapLibreHttpFactoryInstallResult.Installed
+            MapLibreInitializer.setHttpCallFactory(second) shouldBe
+                MapLibreHttpFactoryInstallResult.Installed
+
             verify(exactly = 1) { HttpRequestUtil.setOkHttpClient(first) }
             verify(exactly = 1) { HttpRequestUtil.setOkHttpClient(second) }
+            MapLibreInitializer.isOnlineReady.value shouldBe true
         }
 
         @Test
-        fun `survives UnsatisfiedLinkError in unit test environment`() {
+        fun `LinkageError returns explicit failure and never opens online readiness`() {
             every { HttpRequestUtil.setOkHttpClient(any()) } throws UnsatisfiedLinkError("no native lib")
             val factory: okhttp3.Call.Factory = mockk()
-            // Should not throw.
-            MapLibreInitializer.setHttpCallFactory(factory)
+
+            MapLibreInitializer.setHttpCallFactory(factory) shouldBe
+                MapLibreHttpFactoryInstallResult.Failure(
+                    MapLibreHttpFactoryFailureReason.LINKAGE_ERROR,
+                )
+
             verify(exactly = 1) { HttpRequestUtil.setOkHttpClient(factory) }
+            MapLibreInitializer.isOnlineReady.value shouldBe false
+            MapLibreInitializer.lastHttpCallFactoryFailure.value shouldBe
+                MapLibreHttpFactoryFailureReason.LINKAGE_ERROR
         }
 
         @Test
@@ -213,8 +243,29 @@ class MapLibreInitializerTest {
             every { HttpRequestUtil.setOkHttpClient(any()) } throws
                 NoClassDefFoundError("Could not initialize class HttpRequestImpl")
             val factory: okhttp3.Call.Factory = mockk()
-            MapLibreInitializer.setHttpCallFactory(factory)
+            MapLibreInitializer.setHttpCallFactory(factory) shouldBe
+                MapLibreHttpFactoryInstallResult.Failure(
+                    MapLibreHttpFactoryFailureReason.LINKAGE_ERROR,
+                )
+
             verify(exactly = 1) { HttpRequestUtil.setOkHttpClient(factory) }
+            MapLibreInitializer.isOnlineReady.value shouldBe false
+        }
+
+        @Test
+        fun `ordinary installation exception returns explicit failure and stays offline-only`() {
+            every { HttpRequestUtil.setOkHttpClient(any()) } throws IllegalStateException("secret details")
+            val factory: okhttp3.Call.Factory = mockk()
+
+            MapLibreInitializer.setHttpCallFactory(factory) shouldBe
+                MapLibreHttpFactoryInstallResult.Failure(
+                    MapLibreHttpFactoryFailureReason.INSTALLATION_EXCEPTION,
+                )
+
+            MapLibreInitializer.isSdkReady.value shouldBe true
+            MapLibreInitializer.isOnlineReady.value shouldBe false
+            MapLibreInitializer.lastHttpCallFactoryFailure.value shouldBe
+                MapLibreHttpFactoryFailureReason.INSTALLATION_EXCEPTION
         }
 
         @Test
@@ -230,7 +281,7 @@ class MapLibreInitializerTest {
         }
 
         @Test
-        fun `after swallowed LinkageError, second call with same factory retries (R3 round 7)`() {
+        fun `explicit retry installs the same factory after LinkageError`() {
             // Before the record-order fix, registeredCallFactory was set BEFORE
             // HttpRequestUtil.setOkHttpClient succeeded. If the native call
             // threw (Robolectric / missing native lib), the field was already
@@ -245,12 +296,16 @@ class MapLibreInitializerTest {
                 .andThen(Unit)
             val factory: okhttp3.Call.Factory = mockk()
 
-            MapLibreInitializer.setHttpCallFactory(factory)
-            MapLibreInitializer.setHttpCallFactory(factory)
+            MapLibreInitializer.setHttpCallFactory(factory) shouldBe
+                MapLibreHttpFactoryInstallResult.Failure(
+                    MapLibreHttpFactoryFailureReason.LINKAGE_ERROR,
+                )
+            MapLibreInitializer.retryHttpCallFactoryInstallation() shouldBe
+                MapLibreHttpFactoryInstallResult.Installed
 
-            // Both attempts must reach the static setter; the second is what
-            // actually completes the registration.
             verify(exactly = 2) { HttpRequestUtil.setOkHttpClient(factory) }
+            MapLibreInitializer.isOnlineReady.value shouldBe true
+            MapLibreInitializer.lastHttpCallFactoryFailure.value shouldBe null
         }
     }
 
@@ -273,14 +328,17 @@ class MapLibreInitializerTest {
         // The fix stashes the factory and applies it from initialize().
 
         @Test
-        fun `setHttpCallFactory before initialize does NOT call setOkHttpClient yet`() {
+        fun `factory requested before initialize returns Pending and stays offline-only`() {
             val factory: okhttp3.Call.Factory = mockk()
 
-            MapLibreInitializer.setHttpCallFactory(factory)
+            MapLibreInitializer.setHttpCallFactory(factory) shouldBe
+                MapLibreHttpFactoryInstallResult.PendingSdkInitialization
 
             // No eager call: would have thrown MapLibreConfigurationException
-            // in production. Stash silently instead.
+            // in production. Keep it pending instead.
             verify(exactly = 0) { HttpRequestUtil.setOkHttpClient(any()) }
+            MapLibreInitializer.isSdkReady.value shouldBe false
+            MapLibreInitializer.isOnlineReady.value shouldBe false
         }
 
         @Test
@@ -293,6 +351,8 @@ class MapLibreInitializerTest {
 
             verify(exactly = 1) { MapLibre.getInstance(applicationContext) }
             verify(exactly = 1) { HttpRequestUtil.setOkHttpClient(factory) }
+            MapLibreInitializer.isSdkReady.value shouldBe true
+            MapLibreInitializer.isOnlineReady.value shouldBe true
         }
 
         @Test
@@ -304,6 +364,34 @@ class MapLibreInitializerTest {
             MapLibreInitializer.initialize(context)
 
             verify(exactly = 1) { HttpRequestUtil.setOkHttpClient(factory) }
+        }
+
+        @Test
+        fun `pending factory LinkageError leaves SDK ready but never online-ready`() = runTest {
+            val factory: okhttp3.Call.Factory = mockk()
+            MapLibreInitializer.setHttpCallFactory(factory)
+            every { HttpRequestUtil.setOkHttpClient(factory) } throws LinkageError("link failure")
+
+            MapLibreInitializer.initialize(context) shouldBe true
+
+            MapLibreInitializer.isSdkReady.value shouldBe true
+            MapLibreInitializer.isOnlineReady.value shouldBe false
+            MapLibreInitializer.lastHttpCallFactoryFailure.value shouldBe
+                MapLibreHttpFactoryFailureReason.LINKAGE_ERROR
+        }
+
+        @Test
+        fun `pending factory ordinary failure leaves SDK ready but never online-ready`() = runTest {
+            val factory: okhttp3.Call.Factory = mockk()
+            MapLibreInitializer.setHttpCallFactory(factory)
+            every { HttpRequestUtil.setOkHttpClient(factory) } throws IllegalArgumentException("private")
+
+            MapLibreInitializer.initialize(context) shouldBe true
+
+            MapLibreInitializer.isSdkReady.value shouldBe true
+            MapLibreInitializer.isOnlineReady.value shouldBe false
+            MapLibreInitializer.lastHttpCallFactoryFailure.value shouldBe
+                MapLibreHttpFactoryFailureReason.INSTALLATION_EXCEPTION
         }
 
         @Test
@@ -338,14 +426,19 @@ class MapLibreInitializerTest {
         }
 
         @Test
-        fun `pre-stashed null is a no-op and does not block later real factories`() = runTest {
-            MapLibreInitializer.setHttpCallFactory(null)
+        fun `absent factory failure does not block a later real factory`() = runTest {
+            MapLibreInitializer.setHttpCallFactory(null) shouldBe
+                MapLibreHttpFactoryInstallResult.Failure(
+                    MapLibreHttpFactoryFailureReason.FACTORY_ABSENT,
+                )
             val factory: okhttp3.Call.Factory = mockk()
-            MapLibreInitializer.setHttpCallFactory(factory)
+            MapLibreInitializer.setHttpCallFactory(factory) shouldBe
+                MapLibreHttpFactoryInstallResult.PendingSdkInitialization
 
             MapLibreInitializer.initialize(context)
 
             verify(exactly = 1) { HttpRequestUtil.setOkHttpClient(factory) }
+            MapLibreInitializer.isOnlineReady.value shouldBe true
         }
 
         @Test

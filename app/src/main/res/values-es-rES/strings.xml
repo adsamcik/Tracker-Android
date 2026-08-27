@@ -194,12 +194,8 @@
     <string name="tracking_preset_power_save_description">Menor consumo de batería con actualizaciones menos frecuentes y menos sensores</string>
     <string name="tracking_preset_custom_name">Personalizado</string>
     <string name="tracking_preset_custom_description">Ajusta manualmente cada parámetro de seguimiento</string>
-    <string name="tracking_preset_selector_title">Preajuste de seguimiento</string>
     <string name="tracking_preset_selector_subtitle">Elige un perfil inicial y ajusta con precisión los ajustes de abajo.</string>
-    <string name="tracking_preset_custom_hint">Ajustar cualquier configuración de abajo crea un perfil personalizado a partir del preajuste actual.</string>
     <string name="tracking_preset_customized_summary">Has ajustado el seguimiento con precisión. Elige un preajuste de arriba para restablecerlo.</string>
-    <string name="settings_tracking_section_detection">Detección y automatización</string>
-    <string name="settings_tracking_section_sources">Fuentes de datos</string>
     <string name="settings_tracking_section_detail">Recopilación de ubicaciones</string>
     <string name="settings_tracking_section_notifications">Notificaciones</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
@@ -332,11 +328,9 @@
     <string name="permission_disabled_due_to_denial">%1$s se ha desactivado porque se denegó el permiso. Concédelo en Ajustes para activarlo.</string>
     <string name="settings_wifi_permission_required">Requiere permiso de Wi-Fi/ubicación. Activa el interruptor para concederlo; hasta entonces no se registran datos de Wi-Fi y los datos registrados permanecen en este dispositivo.</string>
     <string name="settings_cell_permission_required">Requiere permiso de estado del teléfono y ubicación precisa. Activa el interruptor para concederlo; hasta entonces no se registran datos móviles y los datos registrados permanecen en este dispositivo.</string>
-    <string name="settings_wifi_privacy_summary">Registra redes Wi-Fi cercanas para mejorar la precisión de la ubicación. Los datos permanecen en este dispositivo.</string>
     <string name="settings_barometer_unavailable">El sensor de presión no está disponible en este dispositivo.</string>
     <string name="settings_activity_permission_required">Requiere permiso de reconocimiento de actividad. Activa el interruptor para concederlo.</string>
     <string name="settings_steps_unavailable">El sensor de recuento de pasos no está disponible en este dispositivo.</string>
-    <string name="settings_cell_privacy_summary">Registra identificadores de torres de telefonía móvil para mejorar la precisión de la ubicación. Los datos permanecen en este dispositivo.</string>
     <string name="setup_start_exploring">Empezar a explorar</string>
     <string name="setup_continue">Continuar</string>
     <string name="setup_step_indicator">Paso %1$d de %2$d</string>
@@ -356,4 +350,9 @@
     <string name="background_reliability_samsung_action">Abrir los ajustes de batería del dispositivo</string>
     <string name="settings_tracebox_title">Diagnóstico de fallos</string>
     <string name="settings_tracebox_root_summary">Diagnósticos locales de fallos, ANR y estructura</string>
+    <string name="setup_background_location_title">Permitir ubicación en segundo plano para el seguimiento automático</string>
+    <string name="setup_background_location_disclosure">El seguimiento automático se inicia mientras Tracker está en segundo plano y registra tu ruta incluso cuando su pantalla no está abierta. La ubicación permanece en este dispositivo. En los ajustes de ubicación de la aplicación, elige «%1$s».</string>
+    <string name="setup_background_location_open_settings">Abrir ajustes de ubicación</string>
+    <string name="setup_background_location_decline">Ahora no</string>
+    <string name="setup_background_location_manual_only">El seguimiento manual en primer plano sigue disponible. El seguimiento automático de ubicación permanecerá desactivado hasta que se permita la ubicación en segundo plano.</string>
 </resources>

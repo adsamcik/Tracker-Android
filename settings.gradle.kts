@@ -10,9 +10,22 @@ pluginManagement {
 dependencyResolutionManagement {
 	repositoriesMode = RepositoriesMode.FAIL_ON_PROJECT_REPOS
 	repositories {
+		val traceboxLocalRepository = providers.gradleProperty("traceboxLocalRepository").orNull
+		check(traceboxLocalRepository == null || !providers.environmentVariable("CI").isPresent) {
+			"traceboxLocalRepository is a local validation seam and must not be used in CI"
+		}
+		traceboxLocalRepository?.let { repositoryPath ->
+			maven {
+				name = "TraceboxLocalCandidate"
+				url = uri(repositoryPath)
+				content {
+					includeGroup("io.github.tracebox")
+				}
+			}
+		}
 		// Local development may override Tracebox with an exact Maven Local publication. CI must
 		// always prove that the immutable GitHub package can be consumed from a clean checkout.
-		if (!providers.environmentVariable("CI").isPresent) {
+		if (traceboxLocalRepository == null && !providers.environmentVariable("CI").isPresent) {
 			mavenLocal {
 				content {
 					includeGroup("io.github.tracebox")

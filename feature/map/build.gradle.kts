@@ -10,6 +10,10 @@ plugins {
 android {
     namespace = "com.adsamcik.tracker.map"
 
+    compileOptions {
+        isCoreLibraryDesugaringEnabled = true
+    }
+
     lint {
         baseline = file("lint-baseline.xml")
     }
@@ -26,6 +30,8 @@ kotlin {
 }
 
 dependencies {
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
+
     // Removed :app dependency as part of converting to a library module
     implementation(project(":feature:map:api"))
     implementation(project(":core:base"))
@@ -37,6 +43,7 @@ dependencies {
     implementation(project(":stats:api"))
     implementation(project(":domain:geocoder"))
     implementation(project(":core:network"))
+    implementation(project(":core:diagnostics"))
 
     // Core
     implementation(libs.kotlinx.coroutines.android)
@@ -76,8 +83,6 @@ dependencies {
     testImplementation(kotlin("reflect"))
     testImplementation(libs.turbine)
     testImplementation(project(":core:testing"))
-    androidTestImplementation(libs.mockito.android)
-    androidTestImplementation(libs.mockito.kotlin)
     androidTestImplementation(project(":core:testing"))
 }
 

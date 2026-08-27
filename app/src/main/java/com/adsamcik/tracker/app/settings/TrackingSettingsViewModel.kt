@@ -9,11 +9,11 @@ import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.app.common.ui.BatteryImpact
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 import com.adsamcik.tracker.shared.base.extension.hasCellScanPermission
-import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
-import com.adsamcik.tracker.shared.base.extension.hasPreciseLocationPermission
 import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
 import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
-import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
+import com.adsamcik.tracker.shared.base.extension.PermissionGrantHistory
+import com.adsamcik.tracker.shared.base.extension.TrackingPermissionCapabilities
+import com.adsamcik.tracker.shared.base.extension.trackingPermissionCapabilities
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
@@ -62,6 +62,7 @@ data class TrackingSettingsUiState(
     val stepCounterAvailable: Boolean = true,
     val wifiPermissionGranted: Boolean = false,
     val cellPermissionGranted: Boolean = false,
+    val permissionCapabilities: TrackingPermissionCapabilities = TrackingPermissionCapabilities.denied(),
     val autoTrackingMode: Int = 0,
     val autoTrackingEnabled: Boolean = false,
     val transitionDetectionEnabled: Boolean = true,
@@ -96,6 +97,7 @@ class TrackingSettingsViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(TrackingSettingsUiState())
     val uiState: StateFlow<TrackingSettingsUiState> = _uiState.asStateFlow()
     private var latestParams: TrackingParamsState? = null
+    private var permissionHistory = PermissionGrantHistory()
 
     init {
         viewModelScope.launch {
@@ -318,12 +320,14 @@ class TrackingSettingsViewModel @Inject constructor(
         runtimeStatus: TrackingRuntimeStatus,
         telemetry: TrackingCoordinatorMetrics,
     ) {
-        val wifiPermissionGranted = context.hasWifiScanPermission
+        val capabilities = context.trackingPermissionCapabilities(permissionHistory)
+        permissionHistory = capabilities.recordGrants(permissionHistory)
+        val wifiPermissionGranted = capabilities.hasWifiScanPermissions
         val cellPermissionGranted = context.hasCellScanPermission
         val barometerAvailable = context.hasPressureSensor
         val activityPermissionGranted = context.hasActivityPermission
         val stepCounterAvailable = context.hasStepCounterSensor
-        val preview = trackingStatusProvider.preview(params, previewEnvironment())
+        val preview = trackingStatusProvider.preview(params, previewEnvironment(capabilities))
         val estimate = preview.batteryEstimate
 
         _uiState.update {
@@ -343,6 +347,7 @@ class TrackingSettingsViewModel @Inject constructor(
                 stepCounterAvailable = stepCounterAvailable,
                 wifiPermissionGranted = wifiPermissionGranted,
                 cellPermissionGranted = cellPermissionGranted,
+                permissionCapabilities = capabilities,
                 autoTrackingMode = params.autoTrackingMode,
                 autoTrackingEnabled = params.autoTrackingMode > 0,
                 transitionDetectionEnabled = params.transitionDetectionEnabled,
@@ -351,6 +356,7 @@ class TrackingSettingsViewModel @Inject constructor(
                 minTime = params.minTimeSeconds,
                 requiredAccuracy = params.requiredAccuracyMeters,
                 hasValidSources = params.hasAnyCaptureSource(
+                    locationAvailable = capabilities.hasForegroundLocation,
                     activityAvailable = activityPermissionGranted,
                     stepsAvailable = activityPermissionGranted && stepCounterAvailable,
                     wifiAvailable = wifiPermissionGranted,
@@ -380,7 +386,9 @@ class TrackingSettingsViewModel @Inject constructor(
         }
     }
 
-    private fun previewEnvironment(): TrackingSettingsPreviewEnvironment {
+    private fun previewEnvironment(
+        capabilities: TrackingPermissionCapabilities,
+    ): TrackingSettingsPreviewEnvironment {
         val packageManager = context.packageManager
         val powerManager = context.getSystemService(PowerManager::class.java)
         val cellFeature = packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) ||
@@ -389,14 +397,14 @@ class TrackingSettingsViewModel @Inject constructor(
         return TrackingSettingsPreviewEnvironment(
             planEnvironment = SourcePlanEnvironment(
                 locationBackend = LocationBackend.FUSED,
-                preciseLocationAvailable = context.hasPreciseLocationPermission,
+                preciseLocationAvailable = capabilities.hasPreciseLocation,
                 subscriptionIds = emptySet(),
             ),
             resolutionContext = PlanResolutionContext(
                 constraints = mapOf(
                     SourceKind.LOCATION to SourceConstraint(
                         hardwareAvailable = packageManager.hasSystemFeature(PackageManager.FEATURE_LOCATION),
-                        permissionGranted = context.hasLocationPermission,
+                        permissionGranted = capabilities.hasForegroundLocation,
                     ),
                     SourceKind.ACTIVITY to SourceConstraint(permissionGranted = context.hasActivityPermission),
                     SourceKind.STEPS to SourceConstraint(
@@ -406,7 +414,7 @@ class TrackingSettingsViewModel @Inject constructor(
                     SourceKind.PRESSURE to SourceConstraint(hardwareAvailable = context.hasPressureSensor),
                     SourceKind.WIFI to SourceConstraint(
                         hardwareAvailable = packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI),
-                        permissionGranted = context.hasWifiScanPermission,
+                        permissionGranted = capabilities.hasWifiScan,
                     ),
                     SourceKind.CELL to SourceConstraint(
                         hardwareAvailable = cellFeature,

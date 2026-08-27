@@ -251,7 +251,7 @@ class LocationSourceRuntime @Inject internal constructor(
 		val activeRegistration = registration ?: return null
 		val activeToken = callbackToken ?: return null
 		if (!plan.enabled) return null
-		_capabilities.value = currentCapabilities()
+		_capabilities.value = currentCapabilities(activeBackend)
 		val application = prerequisiteEvaluator.evaluate(
 			plan,
 			deviceStateProvider.snapshot(),
@@ -457,6 +457,7 @@ class LocationSourceRuntime @Inject internal constructor(
 			acceptingCallbacks = true
 		}
 		nextActor.start()
+		_capabilities.value = currentCapabilities(backend)
 		val approximate = application.status == LocationPlanApplicationStatus.DEGRADED
 		val state = appliedState(
 			source,
@@ -982,16 +983,16 @@ class LocationSourceRuntime @Inject internal constructor(
 
 	private fun hasCurrentLocationPermission(): Boolean = permissionGate.allowsCurrentCallback()
 
-	private fun currentCapabilities(): SourceCapabilities {
+	private fun currentCapabilities(backend: LocationSourceBackendController? = null): SourceCapabilities {
 		val device = deviceStateProvider.snapshot()
 		val permission = device.coarsePermission || device.finePermission
 		return SourceCapabilities(
-		available = device.locationFeatureAvailable && permission,
-		batchingSupported = true,
-		flushSupported = true,
-		maximumBatchSize = null,
-		minimumDelayMs = null,
-		degradedReasons = if (permission) emptySet() else setOf(SourceDegradedReason.PERMISSION_MISSING),
+			available = device.locationFeatureAvailable && permission,
+			batchingSupported = backend?.batchingSupported ?: device.fusedProviderAvailable,
+			flushSupported = backend?.flushSupported ?: device.fusedProviderAvailable,
+			maximumBatchSize = null,
+			minimumDelayMs = null,
+			degradedReasons = if (permission) emptySet() else setOf(SourceDegradedReason.PERMISSION_MISSING),
 		)
 	}
 

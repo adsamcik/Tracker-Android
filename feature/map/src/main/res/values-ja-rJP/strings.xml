@@ -74,11 +74,6 @@
     <string name="map_layer_ski_downhill" tools:ignore="MissingTranslation">ダウンヒル</string>
     <string name="map_layer_ski_lift" tools:ignore="MissingTranslation">リフト</string>
     <string name="map_layer_ski_walk" tools:ignore="MissingTranslation">歩行または休止</string>
-    <string name="map_layer_trip_walk" tools:ignore="MissingTranslation">歩行</string>
-    <string name="map_layer_trip_bike" tools:ignore="MissingTranslation">サイクリング</string>
-    <string name="map_layer_trip_car" tools:ignore="MissingTranslation">運転</string>
-    <string name="map_layer_trip_transit" tools:ignore="MissingTranslation">公共交通機関</string>
-    <string name="map_layer_trip_other" tools:ignore="MissingTranslation">その他</string>
     <string name="map_layer_fog_title">探検家の霧</string>
     <string name="map_layer_fog_chip">霧</string>
     <string name="map_layer_fog_description">霧から現れる世界です。足を踏み入れたすべてのエリアが明らかになり、よく知るほど明るく光ります。通り過ぎただけの場所は淡いもやのままですが、深く探索した場所は濃い金色に輝きます。未探索の地面は暗いままです。</string>

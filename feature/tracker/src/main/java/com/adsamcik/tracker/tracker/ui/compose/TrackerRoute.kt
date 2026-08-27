@@ -139,6 +139,17 @@ fun TrackerRoute(
     val recentTrips by viewModel.recentTrips.collectAsStateWithLifecycle()
     val trackingParams by trackingParamsRepository.data.collectAsStateWithLifecycle(initialValue = TrackingParamsState())
 
+    val noAvailableCaptureSourceMessage = stringResource(R.string.error_nothing_to_track)
+    val openSettingsActionLabel = stringResource(
+        com.adsamcik.tracker.shared.utils.R.string.permission_denied_settings_action,
+    )
+    val trackingUnavailableMessage = stringResource(
+        R.string.notification_tracking_start_failed_title,
+    )
+    val highAccuracyEnabledMessage = stringResource(R.string.tracker_precision_mode_enabled)
+    val batteryModeEnabledMessage = stringResource(R.string.tracker_battery_mode_enabled)
+    val stoppedUntilRechargeMessage = stringResource(R.string.settings_disabled_recharge_summary)
+
     LaunchedEffect(trackingParams.sourcePolicyRevision, hasLocationPermission) {
         manualStartReadiness = TrackerServiceApi.readManualTrackingStartReadiness(context)
     }
@@ -176,16 +187,14 @@ fun TrackerRoute(
                 }
                 ManualTrackingStartResult.NO_AVAILABLE_CAPTURE_SOURCE -> {
                     val result = snackbarHostState.showSnackbar(
-                        message = context.getString(R.string.error_nothing_to_track),
-                        actionLabel = context.getString(
-                            com.adsamcik.tracker.shared.utils.R.string.permission_denied_settings_action,
-                        ),
+                        message = noAvailableCaptureSourceMessage,
+                        actionLabel = openSettingsActionLabel,
                     )
                     if (result == SnackbarResult.ActionPerformed) onOpenSettings()
                 }
                 ManualTrackingStartResult.TRACKING_UNAVAILABLE ->
                     snackbarHostState.showSnackbar(
-                        context.getString(R.string.notification_tracking_start_failed_title),
+                        trackingUnavailableMessage,
                     )
             }
             manualStartReadiness = TrackerServiceApi.readManualTrackingStartReadiness(context)
@@ -252,7 +261,7 @@ fun TrackerRoute(
     
     // Show snackbar if permission denied (non-blocking, allows retry)
     if (permissionDenied) {
-        val message = context.getString(
+        val message = stringResource(
             com.adsamcik.tracker.shared.utils.R.string.permission_denied_tracking_prerequisite,
         )
         PermissionDeniedSnackbar(
@@ -307,13 +316,11 @@ fun TrackerRoute(
                 }
                 trackingParamsRepository.applyDashboardPreset(nextPreset)
                 snackbarHostState.showSnackbar(
-                    message = context.getString(
-                        if (nextPreset == TrackingPreset.HIGH_ACCURACY) {
-                            R.string.tracker_precision_mode_enabled
-                        } else {
-                            R.string.tracker_battery_mode_enabled
-                        }
-                    )
+                    message = if (nextPreset == TrackingPreset.HIGH_ACCURACY) {
+                        highAccuracyEnabledMessage
+                    } else {
+                        batteryModeEnabledMessage
+                    },
                 )
             }
         },
@@ -350,7 +357,7 @@ fun TrackerRoute(
             showStopOptions = false
             scope.launch {
                 snackbarHostState.showSnackbar(
-                    context.getString(R.string.settings_disabled_recharge_summary)
+                    stoppedUntilRechargeMessage,
                 )
             }
         },

@@ -6,23 +6,20 @@ import android.location.Location as PlatformLocation
 import androidx.test.core.app.ApplicationProvider
 import app.cash.turbine.test
 import com.adsamcik.tracker.shared.base.Time
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationCallback
+import com.adsamcik.tracker.shared.base.location.UiLocationProvider
+import com.adsamcik.tracker.shared.base.location.UiLocationRequest
+import com.adsamcik.tracker.testing.fake.FakeUiLocationProvider
 import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationResult
-import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import io.mockk.CapturingSlot
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
-import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkAll
-import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -37,10 +34,8 @@ import org.robolectric.annotation.Config
  *
  * Robolectric provides a real Android [Application] so we can drive the
  * permission gate via `shadowOf(application).grantPermissions(...)`. The
- * Google Play Services [LocationServices.getFusedLocationProviderClient]
- * static call is mocked so we never touch real GMS, and the captured
- * [LocationCallback] lets us deliver synthetic [LocationResult]s to exercise
- * the mapping logic and lifecycle behaviour.
+ * shared location provider is fake, so synthetic platform locations exercise
+ * mapping, request translation, and lifecycle behavior without real GMS.
  *
  * Coverage:
  *  - permission missing -> flow terminates with SecurityException
@@ -48,8 +43,7 @@ import org.robolectric.annotation.Config
  *    (lat/lon/speed/accuracy/time)
  *  - missing optional fields (no speed, no accuracy, time == 0) fall back to
  *    safe defaults and Time.nowMillis
- *  - flow cancellation removes the registered callback so the framework
- *    subscription is released
+ *  - flow cancellation removes the shared provider request
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -57,7 +51,7 @@ import org.robolectric.annotation.Config
 class FusedMiniGameLocationSourceTest {
 
 	private lateinit var application: Application
-	private lateinit var client: FusedLocationProviderClient
+	private lateinit var locationProvider: FakeUiLocationProvider
 	private lateinit var source: FusedMiniGameLocationSource
 
 	private val request: LocationRequest =
@@ -70,12 +64,10 @@ class FusedMiniGameLocationSourceTest {
 			Manifest.permission.ACCESS_FINE_LOCATION,
 			Manifest.permission.ACCESS_COARSE_LOCATION,
 		)
-		client = mockk(relaxed = true)
-		mockkStatic(LocationServices::class)
-		every { LocationServices.getFusedLocationProviderClient(any<android.content.Context>()) } returns client
+		locationProvider = FakeUiLocationProvider()
 		mockkObject(Time)
 		every { Time.nowMillis } returns 1_700_000_000_000L
-		source = FusedMiniGameLocationSource(application)
+		source = FusedMiniGameLocationSource(application, locationProvider)
 	}
 
 	@After
@@ -95,20 +87,15 @@ class FusedMiniGameLocationSourceTest {
 	@Test
 	fun `valid fix maps lat lon speed accuracy and time`() = runTest {
 		grantFineLocation()
-		val callbackSlot = captureCallback()
 
 		source.samples(request).test {
-			callbackSlot.captured.onLocationResult(
-				LocationResult.create(
-					listOf(
-						platformLocation(
-							latitude = 50.0876,
-							longitude = 14.4213,
-							speed = 2.5f,
-							accuracy = 7.5f,
-							time = 1_700_000_000_500L,
-						),
-					),
+			locationProvider.emit(
+				platformLocation(
+					latitude = 50.0876,
+					longitude = 14.4213,
+					speed = 2.5f,
+					accuracy = 7.5f,
+					time = 1_700_000_000_500L,
 				),
 			)
 			val sample = awaitItem()
@@ -124,7 +111,6 @@ class FusedMiniGameLocationSourceTest {
 	@Test
 	fun `missing speed and accuracy fall back to safe defaults`() = runTest {
 		grantFineLocation()
-		val callbackSlot = captureCallback()
 
 		val location = PlatformLocation("test").apply {
 			latitude = 1.0
@@ -134,7 +120,7 @@ class FusedMiniGameLocationSourceTest {
 		}
 
 		source.samples(request).test {
-			callbackSlot.captured.onLocationResult(LocationResult.create(listOf(location)))
+			locationProvider.emit(location)
 			val sample = awaitItem()
 			sample.speedMps shouldBe 0f
 			sample.accuracyM shouldBe Float.MAX_VALUE
@@ -145,20 +131,15 @@ class FusedMiniGameLocationSourceTest {
 	@Test
 	fun `non-positive timestamp falls back to current time`() = runTest {
 		grantFineLocation()
-		val callbackSlot = captureCallback()
 
 		source.samples(request).test {
-			callbackSlot.captured.onLocationResult(
-				LocationResult.create(
-					listOf(
-						platformLocation(
-							latitude = 0.0,
-							longitude = 0.0,
-							speed = 0f,
-							accuracy = 1f,
-							time = 0L,
-						),
-					),
+			locationProvider.emit(
+				platformLocation(
+					latitude = 0.0,
+					longitude = 0.0,
+					speed = 0f,
+					accuracy = 1f,
+					time = 0L,
 				),
 			)
 			awaitItem().timestampMs shouldBe 1_700_000_000_000L
@@ -167,31 +148,49 @@ class FusedMiniGameLocationSourceTest {
 	}
 
 	@Test
-	fun `cancellation removes location updates`() = runTest {
+	fun `cancellation removes shared location request`() = runTest {
 		grantFineLocation()
-		val callbackSlot = captureCallback()
 
 		source.samples(request).test {
+			locationProvider.activeRequests.value.size shouldBe 1
 			cancelAndIgnoreRemainingEvents()
 		}
 
-		verify { client.removeLocationUpdates(callbackSlot.captured) }
+		locationProvider.activeRequests.value.size shouldBe 0
+	}
+
+	@Test
+	fun `preserves game cadence accuracy and displacement in shared request`() = runTest {
+		grantFineLocation()
+		val provider = mockk<UiLocationProvider>()
+		val requestSlot = slot<UiLocationRequest>()
+		every { provider.locationUpdates(capture(requestSlot)) } returns flowOf(
+			platformLocation(
+				latitude = 1.0,
+				longitude = 2.0,
+				speed = 0f,
+				accuracy = 5f,
+				time = 1L,
+			),
+		)
+		val gameRequest = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 5_000L)
+			.setMinUpdateIntervalMillis(3_000L)
+			.setMinUpdateDistanceMeters(10f)
+			.build()
+
+		FusedMiniGameLocationSource(application, provider).samples(gameRequest).test {
+			awaitItem()
+			awaitComplete()
+		}
+
+		requestSlot.captured.intervalMillis shouldBe 5_000L
+		requestSlot.captured.minUpdateIntervalMillis shouldBe 3_000L
+		requestSlot.captured.minimumDisplacementMeters shouldBe 10f
+		requestSlot.captured.highAccuracy shouldBe false
 	}
 
 	private fun grantFineLocation() {
 		shadowOf(application).grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
-	}
-
-	private fun captureCallback(): CapturingSlot<LocationCallback> {
-		val callbackSlot = slot<LocationCallback>()
-		every {
-			client.requestLocationUpdates(
-				any<LocationRequest>(),
-				capture(callbackSlot),
-				any(),
-			)
-		} returns mockk(relaxed = true)
-		return callbackSlot
 	}
 
 	private fun platformLocation(

@@ -45,7 +45,6 @@
         <item quantity="one">It-traċċar awtomatiku ġie msakkar għal %1$d minuta.</item>
         <item quantity="other">It-traċċar awtomatiku ġie msakkar għal %1$d minuti.</item>
     </plurals>
-    <string name="notification_looking_for_gps">Qed ifittex GPS — il-post qed jintuża</string>
     <string name="notification_starting">Tracker qed jibda — il-post qed jintuża</string>
     <string name="notification_starting_without_location">Tracker qed jibda</string>
     <string name="notification_stop">Waqqaf</string>
@@ -59,8 +58,6 @@
     <string name="notification_tracking_start_failed_title">It-traċċar ma setax jibda</string>
     <string name="notification_tracking_start_failed_text">Iftaħ l-applikazzjoni biex tirrevedi l-permessi u tkompli t-traċċar.</string>
     <string name="settings_activity_enabled_title">Attività</string>
-    <string name="settings_auto_tracking_transition_summary">Modalità effiċjenti għall-batterija (sejbien tal-attività kemxejn aktar bil-mod)</string>
-    <string name="settings_auto_tracking_transition_title">Uża tranżizzjonijiet tal-attività</string>
     <string name="settings_cell_enabled_title">Ċellola</string>
     <string name="settings_disabled_recharge_summary">It-traċċar awtomatiku hu diżattivat sakemm it-telefon tiegħek ikun konness ma’ ċarġer</string>
     <string name="settings_disabled_recharge_title">Diżattivat sal-iċċarġjar</string>
@@ -74,10 +71,6 @@
     <string name="ski_notification_lift">Vjaġġ ta’ %1$s</string>
     <string name="settings_barometer_enabled_title">Barometru</string>
     <string name="settings_steps_enabled_title">Għadd tal-passi</string>
-    <string name="settings_tracker_timer_ambient">Timer ambjentali</string>
-    <string name="settings_tracker_timer_clock">Ibbażat fuq intervalli</string>
-    <string name="settings_tracker_timer_fused">Post Google Play</string>
-    <string name="settings_tracker_timer_location">Post Android</string>
     <string name="settings_tracking_min_distance_title">Distanza minima bejn aġġornamenti</string>
     <string name="settings_tracking_min_time_title">Dewmien minimu bejn aġġornamenti</string>
     <string name="settings_tracking_notice_summary">Il-bidliet jidħlu fis-seħħ meta terġa’ tibda t-traċċar</string>

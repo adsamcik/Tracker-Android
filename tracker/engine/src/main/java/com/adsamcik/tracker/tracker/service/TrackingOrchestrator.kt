@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.service
 
+import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import dev.tracebox.Tracebox
 import android.content.Context
 import com.adsamcik.tracker.shared.base.Time
@@ -8,6 +9,7 @@ import com.adsamcik.tracker.shared.base.data.MutableCollectionData
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator
+import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.stats.api.PolicyTier
@@ -15,6 +17,7 @@ import com.adsamcik.tracker.stats.api.processor.SignalProcessor
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.stats.engine.policy.DefaultPolicyEscalationEngine
+import com.adsamcik.tracker.stats.engine.processor.AggregatorProcessor
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.SessionTrackerComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.NotificationComponent
@@ -63,6 +66,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /**
  * Orchestrates core tracking logic: component initialization, per-cycle data
@@ -161,6 +165,8 @@ internal class TrackingOrchestrator(
 		logicalTrackingId: String? = null,
 		/** Physical service-run identity paired with [logicalTrackingId] for product attribution. */
 		serviceRunId: String? = null,
+		/** Exact online aggregate to resume after process death; null always creates a new segment. */
+		resumeSessionSegmentId: Long? = null,
 		/** Immutable physical-source ownership snapshot for this service run. */
 		rolloutState: TrackingRolloutState? = null,
 	) = componentMutex.withLock {
@@ -299,6 +305,7 @@ internal class TrackingOrchestrator(
 		val componentSet = componentFactory.create(
 			context = context,
 			isSessionUserInitiated = isSessionUserInitiated,
+			resumeSessionSegmentId = resumeSessionSegmentId,
 			notificationComponent = notificationComponent,
 			controller = controller,
 			scope = sessionScope,
@@ -312,6 +319,32 @@ internal class TrackingOrchestrator(
 		skiSegmentWriter = componentSet.skiSegmentWriter
 		sailingTrackingComponent = componentSet.sailingTrackingComponent
 		planeTrackingComponent = componentSet.planeTrackingComponent
+		if (!componentSet.sessionComponent.isNewSession && resumeSessionSegmentId == session.id) {
+			val recoveredPath = withContext(dispatchers.io) {
+				appDatabase.locationSampleDao()
+					.getRecentWithCoordinatesBetween(
+						fromMs = session.start,
+						toMs = Time.nowMillis,
+						limit = MAX_RECOVERED_PATH_POINTS,
+					)
+					.asReversed()
+					.mapNotNull { sample ->
+						val latitude = sample.latE7 ?: return@mapNotNull null
+						val longitude = sample.lonE7 ?: return@mapNotNull null
+						Location(
+							time = sample.timeMs,
+							latitude = latitude / 10_000_000.0,
+							longitude = longitude / 10_000_000.0,
+							altitude = sample.altitudeM?.toDouble(),
+							horizontalAccuracy = sample.hAccM,
+							verticalAccuracy = sample.vAccM,
+							speed = sample.speedMps,
+							speedAccuracy = sample.speedAccuracyMps,
+						)
+					}
+			}
+			controller.restorePathPoints(session.id, recoveredPath)
+		}
 		controlLocationEnabled = initialTrackingParams.locationEnabled
 		trackingControlShadow.begin(
 			logicalTrackingId = logicalTrackingId ?: "segment:${session.id}",
@@ -332,11 +365,39 @@ internal class TrackingOrchestrator(
 			requireDurableAdmission = true,
 		)
 		processorPipeline = pipeline
+		val aggregatorProcessor = signalProcessors.filterIsInstance<AggregatorProcessor>().singleOrNull()
+		val isResuming = !componentSet.sessionComponent.isNewSession
+		val liveStatsSeed = aggregatorProcessor?.let {
+			withContext(dispatchers.io) {
+				appDatabase.liveStatsRecoverySeed(session, isResuming)
+			}
+		}
 		pipeline.start(
 			tier = initialTier,
-			startTimestamp = EpochMs(Time.nowMillis),
+			startTimestamp = EpochMs(session.start),
+			isResuming = isResuming,
 			sessionId = session.id,
 		)
+		if (aggregatorProcessor != null && liveStatsSeed != null) {
+			aggregatorProcessor.seedDayTotals(
+				distanceM = liveStatsSeed.priorDayDistanceM,
+				steps = liveStatsSeed.priorDaySteps,
+				durationMs = liveStatsSeed.priorDayDurationMs,
+				trips = liveStatsSeed.priorDayTrips,
+			)
+			if (isResuming) {
+				aggregatorProcessor.restoreSessionTotals(
+					distanceM = session.distanceInM,
+					steps = session.steps,
+					durationMs = (session.end - session.start).coerceAtLeast(0L),
+					sampleCount = session.collections,
+					lastUpdateMs = session.end,
+					dayDistanceM = liveStatsSeed.restoredDayDistanceM,
+					daySteps = liveStatsSeed.restoredDaySteps,
+					dayDurationMs = liveStatsSeed.restoredDayDurationMs,
+				)
+			}
+		}
 		trackingPipeline = createTrackingPipeline(sessionScope)
 
 		// Wire mutable references into tier escalation handler
@@ -457,7 +518,7 @@ internal class TrackingOrchestrator(
 			// Rejected-only callbacks never enter ProcessorPipeline, so they would otherwise remain
 			// only in volatile staging. Checkpoint every provider delivery before any rejection path.
 			if (processorPipeline?.checkpointDurableSignals(observationSignals) != true) {
-				Tracebox.log.error("Tracking signal checkpoint failed")
+				Tracebox.log.error(TrackerTraceboxTemplates.TRACKING_SIGNAL_CHECKPOINT_FAILED)
 				// Do not admit an accepted location when its reconstructable raw source has not reached
 				// the WAL. The durability processor retains staged evidence for a later checkpoint; this
 				// curated cycle intentionally remains unresolved rather than becoming source-less.
@@ -667,8 +728,11 @@ internal class TrackingOrchestrator(
 
 	fun currentSourceDemands(): List<SourceDemand> = trackingPolicyManager?.sourceDemands?.value.orEmpty()
 
+	fun currentSessionSegmentId(): Long = session.id
+
 	private companion object {
 		const val POLICY_LIFECYCLE_TICK_MILLIS = 30_000L
+		const val MAX_RECOVERED_PATH_POINTS = 512
 	}
 }
 

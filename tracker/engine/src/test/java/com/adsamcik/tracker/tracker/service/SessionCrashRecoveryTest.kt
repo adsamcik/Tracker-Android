@@ -12,13 +12,17 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.event.DomainEvent
+import com.adsamcik.tracker.stats.api.metric.MetricKey
 import com.adsamcik.tracker.stats.api.processor.ProcessorContext
 import com.adsamcik.tracker.stats.api.processor.ProcessorDescriptor
 import com.adsamcik.tracker.stats.api.processor.SignalProcessor
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
+import com.adsamcik.tracker.stats.api.repository.LiveStats
+import com.adsamcik.tracker.stats.api.repository.LiveStatsRepository
 import com.adsamcik.tracker.stats.api.repository.UnconsumedEvent
 import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import com.adsamcik.tracker.stats.api.value.EpochMs
+import com.adsamcik.tracker.stats.engine.processor.AggregatorProcessor
 import com.adsamcik.tracker.tracker.controller.DefaultTrackerServiceController
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -36,6 +40,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.update
+
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -52,19 +57,15 @@ import java.time.ZoneId
 /**
  * Session crash recovery contract test.
  *
- * Simulates the "process killed mid-session" scenario by writing an orphan
+ * Simulates the "process killed mid-session" scenario by writing an active
  * [SessionSegment] row directly to the database (as the
  * [com.adsamcik.tracker.tracker.component.consumer.SessionTrackerComponent]
  * would have written before the crash), then exercising the next
  * [TrackingOrchestrator] lifecycle to pin the recovery contract:
  *
- *  1. **Orphan preservation:** `initialize()` does NOT scan for, mutate,
- *     or delete unfinished session_segment rows. The row from a crashed
- *     session is preserved byte-identical. A new zero-distance placeholder
- *     segment IS added for the freshly started session, but the crashed
- *     session's data is never touched. This documents an intentional
- *     design choice — the tracker treats existing rows as ground truth
- *     and never destructively "cleans up" stale data on startup.
+ *  1. **Exact recovery:** when the durable active-session descriptor supplies
+ *     the exact recent segment ID, `initialize()` resumes that row and restores
+ *     its metrics without scanning for or guessing among recent rows.
  *
  *  2. **Daily-summary catch-up:** The orchestrator's shutdown path calls
  *     `DailySummaryAggregator.materializeToday()`, which re-reads ALL
@@ -102,11 +103,11 @@ class SessionCrashRecoveryTest {
 	}
 
 	@Test
-	fun `initialize preserves orphan session_segment row written by a crashed session`() = runTest(testDispatcher) {
+	fun `initialize resumes exact recent segment without creating a placeholder`() = runTest(testDispatcher) {
 		// Simulate a crash mid-session: the SessionTrackerComponent had time to
 		// persist a segment row, but the process died before shutdown() ran.
-		val orphanStartMs = todayStartMs() + ONE_HOUR_MS * 6L
-		val orphanEndMs = orphanStartMs + ONE_HOUR_MS
+		val orphanEndMs = System.currentTimeMillis() - 1_000L
+		val orphanStartMs = orphanEndMs - ONE_HOUR_MS
 		val orphanId = database.sessionSegmentDao().insert(
 			SessionSegment(
 				startTimeMs = orphanStartMs,
@@ -127,9 +128,10 @@ class SessionCrashRecoveryTest {
 		// service would do after the OS killed the prior process.
 		val controller = DefaultTrackerServiceController()
 		val domainEvents = RecordingDomainEventRepository()
+		val statsProcessor = AggregatorProcessor(RecordingLiveStatsRepository())
 		val orchestrator = TrackingOrchestrator(
 			controller = controller,
-			signalProcessors = setOf(NoOpProcessor()),
+			signalProcessors = setOf(NoOpProcessor(), statsProcessor),
 			domainEventRepository = domainEvents,
 			dispatchers = dispatchersProvider,
 			appDatabase = database,
@@ -144,17 +146,15 @@ class SessionCrashRecoveryTest {
 			isSessionUserInitiated = true,
 			initialTier = PolicyTier.PRECISION,
 			scope = backgroundScope,
+			resumeSessionSegmentId = orphanId,
 			rolloutState = allEventCanonical(),
 		)
 		testDispatcher.scheduler.advanceUntilIdle()
 
-		// CONTRACT: initialize() is non-destructive with respect to existing
-		// session_segment rows. The orphan row is preserved byte-identical.
-		// A new zero-distance placeholder segment is added for the freshly
-		// started session, but the crashed session's data is never mutated
-		// or deleted.
+		// CONTRACT: exact recovery restores the same live aggregate and does not
+		// create a second placeholder segment. Initialization itself is non-destructive.
 		val afterInit = database.sessionSegmentDao().getAllBetween(0L, Long.MAX_VALUE)
-		afterInit shouldHaveAtLeastSize 1
+		afterInit.size shouldBe 1
 		val preserved = afterInit.single { it.id == orphanId }
 		preserved.id shouldBe orphanId
 		preserved.startTimeMs shouldBe orphanStartMs
@@ -163,6 +163,18 @@ class SessionCrashRecoveryTest {
 		preserved.steps shouldBe 4_000
 		preserved.source shouldBe SegmentSource.USER_CREATED
 		preserved.inferenceVersion shouldBe "crashed-v1"
+		orchestrator.currentSessionSegmentId() shouldBe orphanId
+		controller.sessionFlow.value.shouldNotBeNull().apply {
+			id shouldBe orphanId
+			start shouldBe orphanStartMs
+			distanceInM shouldBe 2_500f.plusOrMinus(0.001f)
+			steps shouldBe 4_000
+			collections shouldBe 12
+		}
+		statsProcessor.snapshotMetrics().apply {
+			valueOf(MetricKey.MAX_SESSION_DISTANCE_M) shouldBe 2_500.0
+			valueOf(MetricKey.MAX_SESSION_DURATION_MS) shouldBeGreaterThanOrEqualTo ONE_HOUR_MS.toDouble()
+		}
 
 		// Clean shutdown so other tests are not affected by lingering state.
 		orchestrator.shutdown(context)
@@ -315,6 +327,13 @@ class SessionCrashRecoveryTest {
 			upToTimestamp: EpochMs,
 			upToEventId: Long,
 		) = Unit
+	}
+
+	private class RecordingLiveStatsRepository : LiveStatsRepository {
+		private val state = MutableStateFlow(LiveStats())
+		override fun observeLiveStats(): Flow<LiveStats> = state.asStateFlow()
+		override suspend fun updateLiveStats(stats: LiveStats) { state.value = stats }
+		override suspend fun clear() { state.value = LiveStats() }
 	}
 
 	private class FakeTrackingParamsRepository(

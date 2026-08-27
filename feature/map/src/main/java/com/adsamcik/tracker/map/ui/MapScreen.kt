@@ -267,6 +267,17 @@ fun MapScreen(
         }
     }
 
+    // MapLibre SDK readiness gates all rendering. Online readiness is stricter: it remains false
+    // until the SDK has accepted NetworkGateway's Call.Factory. Keeping these separate preserves
+    // offline PMTiles when network installation fails without exposing MapLibre's default client.
+    val mapLibreSdkReady by MapLibreInitializer.isSdkReady.collectAsState()
+    val mapLibreOnlineReady by MapLibreInitializer.isOnlineReady.collectAsState()
+    LaunchedEffect(mapLibreSdkReady) {
+        if (!mapLibreSdkReady) {
+            MapLibreInitializer.initialize(appContext, store.dispatchersProvider)
+        }
+    }
+
     // Resolve the basemap style off the main thread. MapStyleProvider.defaultStyleJson /
     // customStyleJson read the PMTiles header from disk (readPmtilesZoomRange); doing that inside a
     // composition `remember {}` block ran on the main thread and produced StrictMode
@@ -280,6 +291,7 @@ fun MapScreen(
         isDark,
         defaultBasemapPath,
         onlineTilesEnabled,
+        mapLibreOnlineReady,
         onlineProviderId,
         onlineCustomUrl,
     ) {
@@ -289,21 +301,13 @@ fun MapScreen(
                 isDark = isDark,
                 defaultBasemapPath = defaultBasemapPath,
                 onlineTilesEnabled = onlineTilesEnabled,
+                onlineNetworkReady = mapLibreOnlineReady,
                 onlineProviderId = onlineProviderId,
                 onlineCustomUrl = onlineCustomUrl,
             )
         }
     }
     var isMapLoading by remember(baseStyle) { mutableStateOf(baseStyle != null) }
-
-    // MapLibre requires UI-thread initialization on current SDKs.
-    // Do it lazily when the user actually opens the map so app startup stays responsive.
-    val mapLibreReady by MapLibreInitializer.isReady.collectAsState()
-    LaunchedEffect(mapLibreReady) {
-        if (!mapLibreReady) {
-            MapLibreInitializer.initialize(appContext, store.dispatchersProvider)
-        }
-    }
 
     val density = LocalDensity.current
     val bottomPaddingDp = with(density) { bottomPaddingPx.toDp() }
@@ -500,7 +504,7 @@ fun MapScreen(
 
     // "Share map as image" capture. Rendering happens fully off-screen via MapSnapshotRenderer
     // (MapLibre's classic MapSnapshotter) — independent of whatever is on screen right now — so
-    // this does not touch mapLibreReady/isMapVisible/baseStyle gating above; it only reuses their
+    // this does not touch mapLibreSdkReady/isMapVisible/baseStyle gating above; it only reuses their
     // already-resolved values as inputs.
     LaunchedEffect(shareCaptureRequest) {
         val resolution = shareCaptureRequest ?: return@LaunchedEffect
@@ -540,7 +544,7 @@ fun MapScreen(
             .onGloballyPositioned { coordinates -> mapViewportSizePx = coordinates.size },
     ) {
         val resolvedBaseStyle = baseStyle
-        if (resolvedBaseStyle != null && mapLibreReady && isMapVisible) {
+        if (resolvedBaseStyle != null && mapLibreSdkReady && isMapVisible) {
             // MapLibre inflates its underlying AndroidView via
             // MapLibreMapOptions.createFromAttributes, which calls context.getFilesDir() on the
             // main thread — a one-time (~60 ms) disk read inside the library that cannot be moved
@@ -1044,15 +1048,16 @@ private val GRADIENT_GEOJSON_OPTIONS = GeoJsonOptions(synchronousUpdate = true, 
  * (MapStyleProvider reads the PMTiles header), so this MUST be called off the main thread — see the
  * produceState that drives it in [MapScreen].
  */
-private fun resolveBaseStyle(
+internal fun resolveBaseStyle(
     customPath: String,
     isDark: Boolean,
     defaultBasemapPath: String?,
     onlineTilesEnabled: Boolean,
+    onlineNetworkReady: Boolean,
     onlineProviderId: String,
     onlineCustomUrl: String,
 ): BaseStyle? {
-    val onlineUri = if (onlineTilesEnabled) {
+    val onlineUri = if (onlineTilesEnabled && onlineNetworkReady) {
         val provider = TileProvider.resolve(onlineProviderId, onlineCustomUrl)
         MapStyleProvider.onlineStyleUri(provider, isDark)
     } else {

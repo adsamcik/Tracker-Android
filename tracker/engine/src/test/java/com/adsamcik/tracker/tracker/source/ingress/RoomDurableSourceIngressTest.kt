@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.ingress
 
 import android.app.Application
+import android.database.sqlite.SQLiteConstraintException
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidence
 import com.adsamcik.tracker.activity.api.ingress.ActivityRecognitionEvidenceBatch
@@ -146,6 +147,28 @@ class RoomDurableSourceIngressTest {
 		duplicate.eventId shouldBe admitted.eventId
 		duplicate.existingAdmissionOrdinal shouldBe admitted.admissionOrdinal
 		subject.committedBatch(0L, 1).single().eventId shouldBe admitted.eventId
+	}
+
+	@Test
+	fun `first single event admission restores a missing empty lifecycle guard`() = runTest {
+		database.openHelper.writableDatabase.execSQL("DELETE FROM source_evidence_state")
+
+		val admitted = subject.admit(candidate(sequence = 1L))
+			.shouldBeInstanceOf<AdmissionResult.Admitted>()
+
+		admitted.admissionOrdinal shouldBe 1L
+		database.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe 0L
+	}
+
+	@Test
+	fun `first provider delivery restores a missing empty lifecycle guard`() = runTest {
+		database.openHelper.writableDatabase.execSQL("DELETE FROM source_evidence_state")
+
+		val admitted = subject.admit(delivery(candidate(sequence = 1L)))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+
+		admitted.units.single().admissionOrdinal shouldBe 1L
+		database.sourceEvidenceStateDao().get()?.collectedDataEpoch shouldBe 0L
 	}
 
 	@Test
@@ -298,8 +321,9 @@ class RoomDurableSourceIngressTest {
 				"BEGIN SELECT RAISE(ABORT, 'sensor checkpoint fault'); END",
 		)
 
-		subject.admit(evidence, stepCheckpoint(providerSequenceThrough = 2L)) shouldBe
-			AdmissionResult.RetryableFailure(AdmissionFailureCode.STORAGE_UNAVAILABLE)
+		shouldThrow<SQLiteConstraintException> {
+			subject.admit(evidence, stepCheckpoint(providerSequenceThrough = 2L))
+		}
 
 		database.sourceEventWalDao().countAll() shouldBe 0L
 		database.sourceEvidenceStateDao().get()?.revision shouldBe 0L

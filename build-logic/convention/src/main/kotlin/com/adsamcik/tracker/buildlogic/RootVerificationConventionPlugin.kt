@@ -11,10 +11,12 @@ import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
+import org.gradle.api.tasks.Classpath
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.Internal
+import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
@@ -35,6 +37,106 @@ private const val BUNDLED_SQLITE_RUNTIME_SHA3 =
     "d7a6e906a0d06472b56ef7bb4824a6be7b5eb5f162b24be0a0bad2e0c917ed93"
 private val BUNDLED_SQLITE_RUNTIME_ABIS =
     listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+
+internal object QualityGateContract {
+    const val buildLogicTestTask = ":build-logic:convention:test"
+
+    private val androidProjects = listOf(
+        ":app",
+        ":core:base",
+        ":core:common",
+        ":core:diagnostics",
+        ":core:network",
+        ":core:sqlite-runtime",
+        ":core:testing",
+        ":core:ui",
+        ":data:preferences",
+        ":domain:geocoder",
+        ":domain:points",
+        ":feature:activity",
+        ":feature:dashboard",
+        ":feature:dashboard:api",
+        ":feature:game",
+        ":feature:game:api",
+        ":feature:import-export",
+        ":feature:map",
+        ":feature:map:api",
+        ":feature:statistics",
+        ":feature:statistics:api",
+        ":feature:tracker",
+        ":sensor:activity",
+        ":sensor:activity-api",
+        ":stats:data",
+        ":tracker:api",
+        ":tracker:engine",
+    )
+
+    private val kmpProjects = listOf(
+        ":core:model",
+        ":stats:api",
+        ":stats:engine",
+        ":tracker:control",
+    )
+
+    private val architectureProjects = listOf(
+        ":app",
+        ":core:common",
+        ":core:ui",
+        ":feature:activity",
+        ":feature:dashboard",
+        ":feature:game",
+        ":feature:statistics",
+        ":feature:tracker",
+        ":sensor:activity",
+        ":tracker:api",
+    )
+
+    val rootCiUnitTestDependencies: List<String> =
+        androidProjects.map { "$it:testDebugUnitTest" } +
+            kmpProjects.flatMap { project ->
+                listOf(
+                    "$project:jvmTest",
+                    "$project:testAndroidHostTest",
+                )
+            }
+
+    val ciUnitTestDependencies: List<String> =
+        listOf(buildLogicTestTask) + rootCiUnitTestDependencies
+
+    val ciLintDependencies: List<String> =
+        androidProjects.map { "$it:lintRelease" }
+
+    val ciArchitectureCheckDependencies: List<String> =
+        architectureProjects.map { "$it:testDebugUnitTest" }
+
+    val ciCheckDependencies: List<String> = listOf(
+        ":ciUnitTest",
+        ":ciLint",
+        ":detekt",
+        ":checkRoomSchemaDrift",
+        ":ciArchitectureCheck",
+        ":verifyReleaseSqliteRuntime",
+    )
+
+    private val aggregateDependencies: Map<String, List<String>> = mapOf(
+        ":ciUnitTest" to ciUnitTestDependencies,
+        ":ciLint" to ciLintDependencies,
+        ":ciArchitectureCheck" to ciArchitectureCheckDependencies,
+        ":ciCheck" to ciCheckDependencies,
+    )
+
+    fun isReachableFromCiCheck(taskPath: String): Boolean {
+        val visited = mutableSetOf<String>()
+
+        fun visit(candidate: String): Boolean {
+            if (!visited.add(candidate)) return false
+            if (candidate == taskPath) return true
+            return aggregateDependencies[candidate].orEmpty().any(::visit)
+        }
+
+        return visit(":ciCheck")
+    }
+}
 
 private fun parseNumericVersion(raw: String): List<Int> = raw
     .substringBefore('-')
@@ -233,11 +335,81 @@ abstract class CheckRoomSchemaDriftTask @Inject constructor(
     }
 }
 
+/** Generates non-deploying release evidence bound to the current source, artifacts, and CI state. */
+@DisableCachingByDefault(because = "Release evidence binds Git and CI process state")
+abstract class CollectReleaseEvidenceTask @Inject constructor(
+    private val execOperations: ExecOperations,
+) : DefaultTask() {
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val validationScript: RegularFileProperty
+
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val releaseInputs: RegularFileProperty
+
+    @get:Classpath
+    abstract val bundletoolClasspath: ConfigurableFileCollection
+
+    @get:Input
+    abstract val pythonExecutable: Property<String>
+
+    @get:Internal
+    abstract val repositoryDirectory: DirectoryProperty
+
+    @get:OutputDirectory
+    abstract val evidenceDirectory: DirectoryProperty
+
+    /** Executes the repository validator with every input needed for reproducible evidence. */
+    @TaskAction
+    fun collect() {
+        execOperations.exec {
+            workingDir(repositoryDirectory.get().asFile)
+            commandLine(
+                pythonExecutable.get(),
+                validationScript.get().asFile.absolutePath,
+                "--repo-root",
+                repositoryDirectory.get().asFile.absolutePath,
+                "--output",
+                evidenceDirectory.get().asFile.absolutePath,
+                "--bundletool-classpath",
+                bundletoolClasspath.asPath,
+            )
+        }
+    }
+}
+
 class RootVerificationConventionPlugin : Plugin<Project> {
     override fun apply(target: Project) {
         with(target) {
             require(this == rootProject) {
                 "tracker.root.verification must only be applied to the root project"
+            }
+
+            tasks.register("ciUnitTest") {
+                group = "verification"
+                description =
+                    "Runs every repository-owned Android JVM, KMP JVM, and KMP Android-host test suite."
+                dependsOn(QualityGateContract.rootCiUnitTestDependencies)
+                dependsOn(gradle.includedBuild("build-logic").task(":convention:test"))
+            }
+
+            tasks.register("ciLint") {
+                group = "verification"
+                description = "Runs blocking release lint for every Android application and library."
+                dependsOn(QualityGateContract.ciLintDependencies)
+            }
+
+            tasks.register("ciArchitectureCheck") {
+                group = "verification"
+                description = "Runs every repository architecture and module-boundary test suite."
+                dependsOn(QualityGateContract.ciArchitectureCheckDependencies)
+            }
+
+            tasks.register("ciCheck") {
+                group = "verification"
+                description = "Runs the complete repository-owned CI quality-gate contract."
+                dependsOn(QualityGateContract.ciCheckDependencies)
             }
 
             val verifyVendoredRuntime =

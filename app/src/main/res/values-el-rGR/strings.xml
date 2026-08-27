@@ -194,12 +194,8 @@
     <string name="tracking_preset_power_save_description">Χαμηλότερη χρήση μπαταρίας με λιγότερο συχνές ενημερώσεις και μειωμένους αισθητήρες</string>
     <string name="tracking_preset_custom_name">Προσαρμοσμένη</string>
     <string name="tracking_preset_custom_description">Ρυθμίστε χειροκίνητα κάθε παράμετρο καταγραφής</string>
-    <string name="tracking_preset_selector_title">Προεπιλογή καταγραφής</string>
     <string name="tracking_preset_selector_subtitle">Επιλέξτε ένα προφίλ ως αφετηρία και έπειτα ρυθμίστε λεπτομερώς οποιαδήποτε ρύθμιση παρακάτω.</string>
-    <string name="tracking_preset_custom_hint">Η προσαρμογή οποιασδήποτε ρύθμισης παρακάτω δημιουργεί ένα προσαρμοσμένο προφίλ από την τρέχουσα προεπιλογή.</string>
     <string name="tracking_preset_customized_summary">Έχετε ρυθμίσει λεπτομερώς την καταγραφή. Επιλέξτε μια προεπιλογή παραπάνω για επαναφορά.</string>
-    <string name="settings_tracking_section_detection">Ανίχνευση &amp; αυτοματοποίηση</string>
-    <string name="settings_tracking_section_sources">Πηγές δεδομένων</string>
     <string name="settings_tracking_section_detail">Συλλογή τοποθεσίας</string>
     <string name="settings_tracking_section_notifications">Ειδοποιήσεις</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
@@ -332,11 +328,9 @@
     <string name="permission_disabled_due_to_denial">Το %1$s απενεργοποιήθηκε επειδή απορρίφθηκε η άδεια. Παραχωρήστε την στις Ρυθμίσεις για ενεργοποίηση.</string>
     <string name="settings_wifi_permission_required">Απαιτείται άδεια Wi‑Fi/τοποθεσίας. Ενεργοποιήστε το για παραχώρηση — δεν καταγράφονται δεδομένα Wi‑Fi έως τότε και τα καταγεγραμμένα δεδομένα παραμένουν σε αυτή τη συσκευή.</string>
     <string name="settings_cell_permission_required">Απαιτείται άδεια κατάστασης τηλεφώνου και ακριβούς τοποθεσίας. Ενεργοποιήστε το για παραχώρηση — δεν καταγράφονται δεδομένα κινητής έως τότε και τα καταγεγραμμένα δεδομένα παραμένουν σε αυτή τη συσκευή.</string>
-    <string name="settings_wifi_privacy_summary">Καταγράφει κοντινά δίκτυα Wi‑Fi για βελτίωση της ακρίβειας τοποθεσίας. Τα δεδομένα παραμένουν σε αυτή τη συσκευή.</string>
     <string name="settings_barometer_unavailable">Ο αισθητήρας πίεσης δεν είναι διαθέσιμος σε αυτή τη συσκευή.</string>
     <string name="settings_activity_permission_required">Απαιτείται άδεια αναγνώρισης δραστηριότητας. Ενεργοποιήστε το για παραχώρηση.</string>
     <string name="settings_steps_unavailable">Ο αισθητήρας μετρητή βημάτων δεν είναι διαθέσιμος σε αυτή τη συσκευή.</string>
-    <string name="settings_cell_privacy_summary">Καταγράφει αναγνωριστικά πύργων κινητής για βελτίωση της ακρίβειας τοποθεσίας. Τα δεδομένα παραμένουν σε αυτή τη συσκευή.</string>
     <string name="setup_start_exploring">Έναρξη εξερεύνησης</string>
     <string name="setup_continue">Συνέχεια</string>
     <string name="setup_step_indicator">Βήμα %1$d από %2$d</string>
@@ -356,4 +350,9 @@
     <string name="background_reliability_samsung_action">Άνοιγμα ρυθμίσεων μπαταρίας συσκευής</string>
     <string name="settings_tracebox_title">Διαγνωστικά σφαλμάτων</string>
     <string name="settings_tracebox_root_summary">Τοπικά διαγνωστικά σφαλμάτων, ANR και δομής</string>
+    <string name="setup_background_location_title">Να επιτρέπεται η τοποθεσία στο παρασκήνιο για αυτόματη καταγραφή</string>
+    <string name="setup_background_location_disclosure">Η αυτόματη καταγραφή ξεκινά ενώ το Tracker βρίσκεται στο παρασκήνιο και καταγράφει τη διαδρομή σας ακόμη και όταν η οθόνη του δεν είναι ανοιχτή. Η τοποθεσία παραμένει σε αυτήν τη συσκευή. Στις ρυθμίσεις τοποθεσίας της εφαρμογής, επιλέξτε «%1$s».</string>
+    <string name="setup_background_location_open_settings">Άνοιγμα ρυθμίσεων τοποθεσίας</string>
+    <string name="setup_background_location_decline">Όχι τώρα</string>
+    <string name="setup_background_location_manual_only">Η μη αυτόματη καταγραφή στο προσκήνιο παραμένει διαθέσιμη. Η αυτόματη καταγραφή τοποθεσίας θα παραμείνει απενεργοποιημένη μέχρι να επιτραπεί η τοποθεσία στο παρασκήνιο.</string>
 </resources>

@@ -20,6 +20,7 @@ data class UiLocationRequest(
     val tag: String,
     val intervalMillis: Long,
     val minUpdateIntervalMillis: Long = intervalMillis / 2,
+    val minimumDisplacementMeters: Float = 0f,
     val highAccuracy: Boolean = true,
 )
 

@@ -1,11 +1,13 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
-import android.annotation.SuppressLint
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Looper
+import androidx.core.content.ContextCompat
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LocationMode
@@ -60,7 +62,6 @@ internal class FusedLocationSourceBackend internal constructor(
 	private var callback: LocationCallback? = null
 	override val hasRetainedRegistration: Boolean get() = callback != null
 
-	@SuppressLint("MissingPermission")
 	override suspend fun start(
 		plan: LocationPlan,
 		onLocations: (List<Location>) -> Unit,
@@ -114,6 +115,18 @@ private fun fusedLocationBackendOperations(context: Context): FusedLocationBacke
 	val client = LocationServices.getFusedLocationProviderClient(context)
 	return FusedLocationBackendOperations(
 		requestUpdates = { request, callback ->
+			if (
+				ContextCompat.checkSelfPermission(
+					context,
+					Manifest.permission.ACCESS_FINE_LOCATION,
+				) != PackageManager.PERMISSION_GRANTED &&
+				ContextCompat.checkSelfPermission(
+					context,
+					Manifest.permission.ACCESS_COARSE_LOCATION,
+				) != PackageManager.PERMISSION_GRANTED
+			) {
+				throw SecurityException("Foreground location permission is not granted")
+			}
 			client.requestLocationUpdates(request, callback, Looper.getMainLooper()).await()
 		},
 		flushLocations = { client.flushLocations().await() },
@@ -142,7 +155,6 @@ internal class FrameworkLocationSourceBackend internal constructor(
 	private var listener: LocationListener? = null
 	override val hasRetainedRegistration: Boolean get() = listener != null
 
-	@SuppressLint("MissingPermission")
 	override suspend fun start(
 		plan: LocationPlan,
 		onLocations: (List<Location>) -> Unit,
@@ -188,6 +200,18 @@ private fun frameworkLocationBackendOperations(context: Context): FrameworkLocat
 	return FrameworkLocationBackendOperations(
 		isProviderEnabled = manager::isProviderEnabled,
 		requestUpdates = { provider, intervalMs, displacementMeters, listener ->
+			if (
+				ContextCompat.checkSelfPermission(
+					context,
+					Manifest.permission.ACCESS_FINE_LOCATION,
+				) != PackageManager.PERMISSION_GRANTED &&
+				ContextCompat.checkSelfPermission(
+					context,
+					Manifest.permission.ACCESS_COARSE_LOCATION,
+				) != PackageManager.PERMISSION_GRANTED
+			) {
+				throw SecurityException("Foreground location permission is not granted")
+			}
 			manager.requestLocationUpdates(
 				provider,
 				intervalMs,
@@ -211,13 +235,22 @@ private fun LocationMode.toFusedPriority(precise: Boolean): Int = when (this) {
 	}
 }
 
-private fun LocationMode.toFrameworkProvider(isProviderEnabled: (String) -> Boolean): String = when (this) {
+internal fun LocationMode.toFrameworkProvider(isProviderEnabled: (String) -> Boolean): String = when (this) {
 	LocationMode.DISABLED, LocationMode.PASSIVE -> LocationManager.PASSIVE_PROVIDER
 	LocationMode.LOW_POWER, LocationMode.BALANCED ->
 		if (isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
 			LocationManager.NETWORK_PROVIDER
+		} else if (isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+			LocationManager.GPS_PROVIDER
 		} else {
 			LocationManager.PASSIVE_PROVIDER
 		}
-	LocationMode.HIGH_ACCURACY, LocationMode.PROBE -> LocationManager.GPS_PROVIDER
+	LocationMode.HIGH_ACCURACY, LocationMode.PROBE ->
+		if (isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+			LocationManager.GPS_PROVIDER
+		} else if (isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+			LocationManager.NETWORK_PROVIDER
+		} else {
+			LocationManager.PASSIVE_PROVIDER
+		}
 }

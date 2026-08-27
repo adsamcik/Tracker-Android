@@ -194,12 +194,8 @@
     <string name="tracking_preset_power_save_description">Pienempi akunkulutus harvemmilla päivityksillä ja vähennetyillä antureilla</string>
     <string name="tracking_preset_custom_name">Mukautettu</string>
     <string name="tracking_preset_custom_description">Säädä jokaista seuranta-arvoa manuaalisesti</string>
-    <string name="tracking_preset_selector_title">Seurannan esiasetus</string>
     <string name="tracking_preset_selector_subtitle">Valitse aloitusprofiili ja hienosäädä sitten mitä tahansa alla olevaa asetusta.</string>
-    <string name="tracking_preset_custom_hint">Minkä tahansa alla olevan asetuksen muuttaminen luo Mukautettu-profiilin nykyisestä esiasetuksesta.</string>
     <string name="tracking_preset_customized_summary">Olet hienosäätänyt seurantaa. Palauta esiasetus valitsemalla yläpuolelta.</string>
-    <string name="settings_tracking_section_detection">Tunnistus ja automaatio</string>
-    <string name="settings_tracking_section_sources">Tietolähteet</string>
     <string name="settings_tracking_section_detail">Sijainnin keräys</string>
     <string name="settings_tracking_section_notifications">Ilmoitukset</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
@@ -332,11 +328,9 @@
     <string name="permission_disabled_due_to_denial">%1$s poistettiin käytöstä, koska käyttöoikeus evättiin. Myönnä se asetuksissa ottaaksesi toiminnon käyttöön.</string>
     <string name="settings_wifi_permission_required">Vaatii Wi-Fi- tai sijaintiluvan. Ota käyttöön myöntääksesi luvan — Wi-Fi-tietoja ei tallenneta ennen sitä, ja tallennetut tiedot pysyvät tällä laitteella.</string>
     <string name="settings_cell_permission_required">Vaatii puhelimen tilan ja tarkan sijainnin luvan. Ota käyttöön myöntääksesi luvan — solutietoja ei tallenneta ennen sitä, ja tallennetut tiedot pysyvät tällä laitteella.</string>
-    <string name="settings_wifi_privacy_summary">Tallentaa lähellä olevat Wi-Fi-verkot parantaakseen sijainnin tarkkuutta. Tiedot pysyvät tällä laitteella.</string>
     <string name="settings_barometer_unavailable">Ilmanpaineanturi ei ole käytettävissä tällä laitteella.</string>
     <string name="settings_activity_permission_required">Vaatii aktiivisuuden tunnistusluvan. Ota käyttöön myöntääksesi luvan.</string>
     <string name="settings_steps_unavailable">Askelanturi ei ole käytettävissä tällä laitteella.</string>
-    <string name="settings_cell_privacy_summary">Tallentaa tukiasematunnukset parantaakseen sijainnin tarkkuutta. Tiedot pysyvät tällä laitteella.</string>
     <string name="setup_start_exploring">Aloita tutkiminen</string>
     <string name="setup_continue">Jatka</string>
     <string name="setup_step_indicator">Vaihe %1$d / %2$d</string>
@@ -356,4 +350,9 @@
     <string name="background_reliability_samsung_action">Avaa laitteen akkuasetukset</string>
     <string name="settings_tracebox_title">Kaatumisdiagnostiikka</string>
     <string name="settings_tracebox_root_summary">Paikallinen kaatumis-, ANR- ja rakenteellinen diagnostiikka</string>
+    <string name="setup_background_location_title">Salli taustasijainti automaattista seurantaa varten</string>
+    <string name="setup_background_location_disclosure">Automaattinen seuranta käynnistyy Trackerin ollessa taustalla ja tallentaa reittisi, vaikka sovelluksen näyttö ei olisi avoinna. Sijaintitiedot pysyvät tässä laitteessa. Valitse sovelluksen sijaintiasetuksissa ”%1$s”.</string>
+    <string name="setup_background_location_open_settings">Avaa sijaintiasetukset</string>
+    <string name="setup_background_location_decline">Ei nyt</string>
+    <string name="setup_background_location_manual_only">Manuaalinen seuranta etualalla on yhä käytettävissä. Automaattinen sijainnin seuranta pysyy poissa käytöstä, kunnes taustasijainti sallitaan.</string>
 </resources>

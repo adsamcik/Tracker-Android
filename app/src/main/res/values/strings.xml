@@ -288,11 +288,9 @@
     <string name="settings_effective_status_running" translatable="false">Tracking is active. Requested plan r%1$s; applied plan r%2$s.</string>
     <string name="settings_effective_status_idle" translatable="false">Tracking is not active. Saved requests are shown below; permissions and device constraints are evaluated without pretending a provider is running.</string>
     <string name="settings_runtime_telemetry_title" translatable="false">Local runtime telemetry (since app start)</string>
-    <string name="settings_runtime_telemetry_summary" translatable="false">Projected events: %1$d • plan revisions: %2$d • tracking frames: %3$d • frame wake lock: %4$d ms</string>
+    <string name="settings_runtime_telemetry_summary" translatable="false">Projected events: %1$d • plan revisions: %2$d • tracking frames: %3$d • frame wake lock: %4$d ms • source timer wakeups: %5$d • source requests served: %6$d</string>
     <string name="settings_advanced_source_controls_title" translatable="false">Advanced controls</string>
     <string name="settings_advanced_source_controls_summary" translatable="false">Set individual update frequency and location filters.</string>
-    <string name="settings_source_frequency_summary" translatable="false">%1$s\n%2$s</string>
-    <string name="settings_source_frequency_line" translatable="false">%1$s · %2$s</string>
     <string name="settings_source_cadence_disabled" translatable="false">Not collected</string>
     <string name="settings_source_cadence_location" translatable="false">Every %1$s while active; minimum %2$s movement</string>
     <string name="settings_source_cadence_location_available" translatable="false">As location updates are available while active</string>
@@ -320,8 +318,6 @@
     <string name="settings_source_badge_attempt_limit" translatable="false">≤ %1$s attempts</string>
     <string name="settings_source_badge_network_changes" translatable="false">Network changes</string>
     <string name="settings_source_badge_refresh_limit" translatable="false">≤ %1$s refresh</string>
-    <string name="settings_source_requested" translatable="false">Requested: %1$s</string>
-    <string name="settings_source_effective" translatable="false">Effective: %1$s</string>
     <string name="settings_source_frequency_dialog" translatable="false">%1$s collection frequency</string>
 
     <!-- Location Precision Mode Strings -->
@@ -356,17 +352,13 @@
     <string name="tracking_preset_power_save_description">Lower battery use with less frequent updates and reduced sensors</string>
     <string name="tracking_preset_custom_name">Custom</string>
     <string name="tracking_preset_custom_description">Manually tune each tracking parameter</string>
-    <string name="tracking_preset_selector_title">Tracking Preset</string>
     <string name="tracking_preset_selector_subtitle">Choose the balance between route detail and battery life.</string>
     <string name="tracking_preset_change">Compare options</string>
     <string name="tracking_preset_done">Show selected only</string>
-    <string name="tracking_preset_custom_hint">Adjusting any setting below builds a Custom profile from the current preset.</string>
     <string name="tracking_preset_customized_summary">You\'ve fine-tuned tracking. Pick a preset above to reset.</string>
     <string name="settings_tracking_section_start_stop">Automatic tracking</string>
     <string name="settings_tracking_section_battery_detail">Tracking quality</string>
     <string name="settings_tracking_section_data_collected">Data collected</string>
-    <string name="settings_tracking_section_detection">Detection &amp; automation</string>
-    <string name="settings_tracking_section_sources">Data sources</string>
     <string name="settings_tracking_section_detail">Location filters</string>
     <string name="settings_tracking_section_notifications">Notifications</string>
     <string name="settings_source_policy_unavailable_title" tools:ignore="MissingTranslation">Tracking settings unavailable</string>
@@ -390,7 +382,6 @@
     <string name="settings_technical_status_summary">Battery estimate, permissions, and collection status.</string>
     <string name="settings_technical_status_attention">Some collection sources need attention. Open for details.</string>
     <string name="settings_simple_source_controls_title">Use simple controls</string>
-    <string name="settings_simple_source_controls_summary">Show straightforward on/off switches for each data source.</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
@@ -541,11 +532,9 @@
 
     <string name="settings_wifi_permission_required">Requires Wi-Fi/location permission. Toggle on to grant — no Wi-Fi data is recorded until then, and recorded data stays on this device.</string>
     <string name="settings_cell_permission_required">Requires phone state and precise location permission. Toggle on to grant — no cell data is recorded until then, and recorded data stays on this device.</string>
-    <string name="settings_wifi_privacy_summary">Records nearby Wi-Fi networks to improve location accuracy. Data stays on this device.</string>
     <string name="settings_barometer_unavailable">Pressure sensor is not available on this device.</string>
     <string name="settings_activity_permission_required">Requires activity recognition permission. Toggle on to grant.</string>
     <string name="settings_steps_unavailable">Step counter sensor is not available on this device.</string>
-    <string name="settings_cell_privacy_summary">Records cell tower IDs to improve location accuracy. Data stays on this device.</string>
     <string name="setup_start_exploring">Start Exploring</string>
     <string name="setup_continue">Continue</string>
     <string name="setup_step_indicator">Step %1$d of %2$d</string>
@@ -561,15 +550,20 @@
     <string name="setup_online_tiles_change_later">You can change this any time in Settings → Map → Online map tiles.</string>
 
     <!-- Onboarding step: background access / battery optimization -->
-    <string name="setup_background_access_subtitle">To record trips while the screen is off or the app is closed, Tracker needs background access. Allowing background activity can reduce Doze interruptions, but Android, device, and provider limits still apply.</string>
+    <string name="setup_background_access_subtitle" tools:ignore="MissingTranslation">To record trips while the screen is off or the app is closed, Tracker needs background access. Allowing background activity can reduce Doze interruptions, but Android, device, and provider limits still apply.</string>
     <string name="setup_background_access_optional">Optional, but recommended. You can change this any time in Settings → Tracking.</string>
+    <string name="setup_background_location_title">Allow background location for automatic tracking</string>
+    <string name="setup_background_location_disclosure">Automatic tracking starts while Tracker is in the background and records your route even when its screen is not open. Location stays on this device. In the app location settings, choose “%1$s”.</string>
+    <string name="setup_background_location_open_settings">Open location settings</string>
+    <string name="setup_background_location_decline">Not now</string>
+    <string name="setup_background_location_manual_only">Manual foreground tracking remains available. Automatic location tracking will stay off until background location is allowed.</string>
 
     <!-- Background reliability (shared: onboarding + settings) -->
-    <string name="background_reliability_title">Background tracking settings</string>
+    <string name="background_reliability_title" tools:ignore="MissingTranslation">Background tracking settings</string>
     <string name="background_reliability_status_exempt">Background activity allowed</string>
     <string name="background_reliability_status_optimized">Battery optimization is on</string>
-    <string name="background_reliability_exempt_desc">Tracker is excluded from battery optimization, which reduces Doze restrictions. Android, device, and provider limits can still delay or pause collection.</string>
-    <string name="background_reliability_optimized_desc">Battery optimization can pause Tracker in the background. Allowing background activity can reduce interruptions, but it cannot guarantee continuous collection.</string>
+    <string name="background_reliability_exempt_desc" tools:ignore="MissingTranslation">Tracker is excluded from battery optimization, which reduces Doze restrictions. Android, device, and provider limits can still delay or pause collection.</string>
+    <string name="background_reliability_optimized_desc" tools:ignore="MissingTranslation">Battery optimization can pause Tracker in the background. Allowing background activity can reduce interruptions, but it cannot guarantee continuous collection.</string>
     <string name="background_reliability_allow_action">Allow background activity</string>
     <string name="background_reliability_samsung_hint">Samsung devices may also place apps into \"Sleeping apps\". Open battery settings, then remove Tracker from Sleeping apps and set it to not be put to sleep.</string>
     <string name="background_reliability_samsung_action">Open device battery settings</string>

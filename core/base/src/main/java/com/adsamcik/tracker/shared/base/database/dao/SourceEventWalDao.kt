@@ -97,6 +97,27 @@ interface SourceEventWalDao {
 	suspend fun eventsAfter(afterOrdinal: Long, limit: Int): List<SourceEventWalEntity>
 
 	/**
+	 * Authoritative location evidence that does not yet have its canonical raw-observation row.
+	 *
+	 * The WAL remains the recovery authority. Paging by its durable admission ordinal prevents a
+	 * missing destination row from being hidden by projection state, while the destination's unique
+	 * `source_event_id` keeps repair exactly once in effect.
+	 */
+	@Query(
+		"SELECT wal.* FROM source_event_wal AS wal " +
+			"LEFT JOIN location_observation AS observation " +
+			"ON observation.source_event_id = wal.event_id " +
+			"WHERE wal.source_kind = :sourceKind AND wal.admission_ordinal > :afterOrdinal " +
+			"AND observation.id IS NULL " +
+			"ORDER BY wal.admission_ordinal ASC LIMIT :limit",
+	)
+	suspend fun locationEventsMissingCanonicalObservation(
+		sourceKind: Int,
+		afterOrdinal: Long,
+		limit: Int,
+	): List<SourceEventWalEntity>
+
+	/**
 	 * Reads only the immutable released-v27 recovery interval.
 	 *
 	 * Admission ordinals are high-water marks, not a promise of a dense sequence. Callers may move

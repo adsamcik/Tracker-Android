@@ -58,7 +58,7 @@ internal fun LibraryExtension.configureTrackerLibrary() {
 
     lint {
         checkReleaseBuilds = true
-        abortOnError = false
+        abortOnError = true
     }
 
     testOptions {
@@ -84,7 +84,7 @@ internal fun ApplicationExtension.configureTrackerApplication() {
 
     lint {
         checkReleaseBuilds = true
-        abortOnError = false
+        abortOnError = true
     }
 
     testOptions {
@@ -98,6 +98,7 @@ class AndroidLibraryConventionPlugin : Plugin<Project> {
 
         extensions.configure<LibraryExtension> {
             configureTrackerLibrary()
+            lint.baseline = layout.projectDirectory.file("lint-baseline.xml").asFile
         }
         configureKotlinAndroid()
         configureJUnitPlatform()
@@ -110,6 +111,7 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
 
         extensions.configure<ApplicationExtension> {
             configureTrackerApplication()
+            lint.baseline = layout.projectDirectory.file("lint-baseline.xml").asFile
         }
         configureKotlinAndroid()
         configureJUnitPlatform()

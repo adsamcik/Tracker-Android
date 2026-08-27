@@ -66,6 +66,21 @@ class DatabaseRetryTest {
 			result shouldBe "ok"
 			attempts shouldBe 2
 		}
+
+		@Test
+		fun `retries a wrapped SQLiteX style lock exception`() = runTest {
+			var attempts = 0
+			val result = withDatabaseRetry(maxAttempts = 2, initialDelayMs = 0L) {
+				attempts++
+				if (attempts == 1) {
+					throw RuntimeException("Room wrapper", VendorSQLiteDatabaseLockedException())
+				}
+				"ok"
+			}
+
+			result shouldBe "ok"
+			attempts shouldBe 2
+		}
 	}
 
 	@Nested
@@ -88,6 +103,18 @@ class DatabaseRetryTest {
 				withDatabaseRetry(maxAttempts = 3) {
 					attempts++
 					throw IllegalStateException("not a db error")
+				}
+			}
+			attempts shouldBe 1
+		}
+
+		@Test
+		fun `ordinary exception text cannot impersonate a database lock`() = runTest {
+			var attempts = 0
+			shouldThrow<RuntimeException> {
+				withDatabaseRetry(maxAttempts = 3) {
+					attempts++
+					throw RuntimeException("database is locked")
 				}
 			}
 			attempts shouldBe 1
@@ -138,4 +165,6 @@ class DatabaseRetryTest {
 			}
 		}
 	}
+
+	private class VendorSQLiteDatabaseLockedException : RuntimeException("database is locked (SQLITE_BUSY)")
 }

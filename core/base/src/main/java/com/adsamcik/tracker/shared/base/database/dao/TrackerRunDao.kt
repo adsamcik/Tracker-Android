@@ -94,6 +94,10 @@ interface TrackerRunDao : BaseDao<TrackerRun> {
 	)
 	suspend fun getActiveRun(): TrackerRun?
 
+	/** Number of runs that still claim to be active. Healthy state permits at most one. */
+	@Query("SELECT COUNT(*) FROM tracker_run WHERE end_time_ms IS NULL")
+	suspend fun countOpenRuns(): Int
+
 	@Query(
 		"""
 		SELECT * FROM tracker_run

@@ -114,6 +114,9 @@ interface TrackerStateReader {
  * intentionally need to repair or mutate tracker lifecycle state.
  */
 interface TrackerServiceController : TrackerStateReader {
+	/** Rehydrates a bounded live route after exact-session process recovery. */
+	fun restorePathPoints(sessionId: Long, points: List<Location>) = Unit
+
     /**
      * Internal: Update service running state.
      * Called by TrackerService lifecycle methods.

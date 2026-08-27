@@ -345,6 +345,40 @@ class DefaultTrackerServiceControllerTest {
 		}
 
 		@Test
+		fun `live path remains bounded during a long session`() {
+			setupDistanceMock(100f)
+			controller.updateSession(createSession(id = 10L))
+
+			repeat(700) { index ->
+				controller.updateCollectionData(
+					createCollectionDataWithLocation(
+						createLocation(50.0 + index * 0.001, 14.0 + index * 0.001)
+					)
+				)
+			}
+
+			val path = controller.pathPointsFlow.value.shouldNotBeNull().second
+			(path.size <= DefaultTrackerServiceController.MAX_LIVE_PATH_POINTS) shouldBe true
+			path.first().latitude shouldBe 50.0
+			path.last().latitude shouldBe 50.0 + 699 * 0.001
+		}
+
+		@Test
+		fun `recovered path retains only the newest bounded window`() {
+			val points = (0..600).map { index ->
+				createLocation(50.0 + index * 0.001, 14.0)
+			}
+
+			controller.restorePathPoints(sessionId = 42L, points = points)
+
+			val restored = controller.pathPointsFlow.value.shouldNotBeNull()
+			restored.first shouldBe 42L
+			restored.second.size shouldBe DefaultTrackerServiceController.MAX_LIVE_PATH_POINTS
+			restored.second.first() shouldBe points[points.size - DefaultTrackerServiceController.MAX_LIVE_PATH_POINTS]
+			restored.second.last() shouldBe points.last()
+		}
+
+		@Test
 		fun `no path points without active session`() {
 			val data = createCollectionDataWithLocation(
 				latitude = 50.0, longitude = 14.0

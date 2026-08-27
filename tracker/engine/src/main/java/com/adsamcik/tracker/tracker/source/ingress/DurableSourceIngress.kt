@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity.Compa
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
@@ -19,6 +20,7 @@ import com.adsamcik.tracker.shared.base.startup.TrackingAdmissionStartupResult
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.decodeCurrentModelOrNull
 import com.adsamcik.tracker.tracker.source.coordinator.isCanonicalCaptureAuthorizedBy
+import com.adsamcik.tracker.tracker.failure.isTrackingOperationalFailure
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
@@ -176,7 +178,18 @@ class RoomDurableSourceIngress @Inject constructor(
 					)
 				}
 				val stateDao = database.sourceEvidenceStateDao()
-				val state = stateDao.get()
+				val walDao = database.sourceEventWalDao()
+				var state = stateDao.get()
+				if (state == null && walDao.countAll() == 0L) {
+					stateDao.ensure(
+						SourceEvidenceState(
+							collectedDataEpoch = lifecycle.epoch,
+							retainedFromMs = lifecycle.retainedFromMs,
+							updatedAtMs = System.currentTimeMillis(),
+						),
+					)
+					state = stateDao.get()
+				}
 				if (state == null || state.collectedDataEpoch != lifecycle.epoch ||
 					state.retainedFromMs != lifecycle.retainedFromMs
 				) {
@@ -275,7 +288,6 @@ class RoomDurableSourceIngress @Inject constructor(
 				}
 				val captureAuthorization = captureMembers.singleOrNull()
 
-				val walDao = database.sourceEventWalDao()
 				val existing = candidate.providerDedupKey?.let { key ->
 					walDao.identityByProviderDedupKey(candidate.source.stableCode, key)
 				} ?: walDao.identityBySourceSequence(
@@ -355,7 +367,8 @@ class RoomDurableSourceIngress @Inject constructor(
 				}
 				AdmissionResult.Admitted(eventId, rowId)
 			}
-		}.getOrElse {
+		}.getOrElse { failure ->
+			if (!failure.isTrackingOperationalFailure()) throw failure
 			AdmissionResult.RetryableFailure(AdmissionFailureCode.STORAGE_UNAVAILABLE)
 		}
 	}
@@ -443,7 +456,18 @@ class RoomDurableSourceIngress @Inject constructor(
 					)
 				}
 				val stateDao = database.sourceEvidenceStateDao()
-				val evidenceState = stateDao.get()
+				val walDao = database.sourceEventWalDao()
+				var evidenceState = stateDao.get()
+				if (evidenceState == null && walDao.countAll() == 0L) {
+					stateDao.ensure(
+						SourceEvidenceState(
+							collectedDataEpoch = lifecycle.epoch,
+							retainedFromMs = lifecycle.retainedFromMs,
+							updatedAtMs = System.currentTimeMillis(),
+						),
+					)
+					evidenceState = stateDao.get()
+				}
 				if (evidenceState == null || evidenceState.collectedDataEpoch != lifecycle.epoch ||
 					evidenceState.retainedFromMs != lifecycle.retainedFromMs
 				) {
@@ -452,7 +476,6 @@ class RoomDurableSourceIngress @Inject constructor(
 					)
 				}
 
-				val walDao = database.sourceEventWalDao()
 				val existing = walDao.deliveryUnits(
 					delivery.source.stableCode,
 					delivery.capturedCollectedDataEpoch,
@@ -631,7 +654,8 @@ class RoomDurableSourceIngress @Inject constructor(
 					},
 				)
 			}
-		}.getOrElse {
+		}.getOrElse { failure ->
+			if (!failure.isTrackingOperationalFailure()) throw failure
 			DeliveryAdmissionResult.RetryableFailure(AdmissionFailureCode.STORAGE_UNAVAILABLE)
 		}
 	}

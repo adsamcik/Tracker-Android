@@ -61,7 +61,6 @@
         <item quantity="one">Auto tracking has been locked for %1$d minute.</item>
         <item quantity="other">Auto tracking has been locked for %1$d minutes.</item>
     </plurals>
-    <string name="notification_looking_for_gps">Looking for GPS — location in use</string>
     <string name="notification_starting">Tracker starting — location in use</string>
     <string name="notification_starting_without_location">Tracker starting</string>
     <string name="notification_stop">Stop</string>
@@ -74,14 +73,12 @@
     <string name="notification_tracking_active">Tracking</string>
     <string name="notification_tracking_start_failed_title">Tracking couldn\'t start</string>
     <string name="notification_tracking_start_failed_text">Open the app to review permissions and resume tracking.</string>
-    <string name="notification_tracking_restoring_title">Preparing tracking</string>
-    <string name="notification_tracking_restoring_text">No data is collected until recovery completes.</string>
-    <string name="notification_tracking_restoring_public">Preparing tracking</string>
+    <string name="notification_tracking_restoring_title" tools:ignore="MissingTranslation">Preparing tracking</string>
+    <string name="notification_tracking_restoring_text" tools:ignore="MissingTranslation">No data is collected until recovery completes.</string>
+    <string name="notification_tracking_restoring_public" tools:ignore="MissingTranslation">Preparing tracking</string>
 
 
     <string name="settings_activity_enabled_title">Activity</string>
-    <string name="settings_auto_tracking_transition_summary">Battery-efficient mode (slightly slower activity detection)</string>
-    <string name="settings_auto_tracking_transition_title">Use activity transitions</string>
     <string name="settings_cell_enabled_title">Cell</string>
     <string name="settings_disabled_recharge_default" translatable="false">false</string>
     <string name="settings_disabled_recharge_key" translatable="false">stoppedUntilRecharge</string>
@@ -99,10 +96,6 @@
     <string name="ski_notification_lift">%1$s ride</string>
     <string name="settings_barometer_enabled_title">Barometer</string>
     <string name="settings_steps_enabled_title">Step count</string>
-    <string name="settings_tracker_timer_ambient">Ambient timer</string>
-    <string name="settings_tracker_timer_clock">Interval-based</string>
-    <string name="settings_tracker_timer_fused">Google Play location</string>
-    <string name="settings_tracker_timer_location">Android location</string>
     <string name="settings_tracking_min_distance_title">Minimum distance between updates</string>
     <string name="settings_tracking_min_time_title">Minimum delay between updates</string>
     <string name="settings_tracking_notice_summary">Changes take effect when you restart tracking</string>

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.module
 
 import android.content.Context
+import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import dev.tracebox.Tracebox
 import com.adsamcik.tracker.shared.base.Process
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
@@ -188,7 +189,10 @@ internal suspend fun driveActivityAutomationEffectDrain(
 				} catch (cancellation: CancellationException) {
 					throw cancellation
 				} catch (failure: Exception) {
-					Tracebox.log.error(failure, "Activity automation outbox drain failed")
+					Tracebox.log.error(
+						failure,
+						TrackerTraceboxTemplates.ACTIVITY_SOURCE_RECOVERY_FAILED,
+					)
 					null
 				}
 				when (result) {

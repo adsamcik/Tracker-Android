@@ -9,18 +9,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Unit tests
+  source_hygiene:
+    name: Source hygiene
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read
-    env:
-      GITHUB_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Check unused string resources
         run: python3 tools/check_unused_string_resources.py
+
+  locale_hygiene:
+    name: Locale hygiene
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Validate completed locale resources
         run: |
           for qualifier in \
@@ -54,47 +59,9 @@ jobs:
           do
             python3 tools/validate_locale_resources.py "$qualifier"
           done
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          cmdline-tools-version: 14742923
-          packages: ''
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          cache-read-only: ${{ github.event_name == 'pull_request' }}
-      - name: Prepare for build
-        run: |
-          chmod +x gradlew
-          echo "MAPS_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" > local.properties
-      - name: Verify Tracebox package access
-        run: >-
-          ./gradlew :app:dependencyInsight
-          --configuration debugRuntimeClasspath
-          --dependency io.github.tracebox:tracebox
-          --refresh-dependencies
-          --no-daemon --stacktrace --console=plain
-      - name: Run unit tests (all modules)
-        run: |
-          ./gradlew --no-daemon --stacktrace testDebugUnitTest
-      - name: Upload test reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-reports
-          path: |
-            **/build/reports/tests/**
-            **/build/test-results/**/*.xml
-          retention-days: 7
 
-  build:
-    name: Assemble release
-    needs: test
+  quality_gates:
+    name: Repository quality gates
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -102,48 +69,153 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           java-version: '21'
           distribution: 'temurin'
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
         with:
           cmdline-tools-version: 14742923
           packages: ''
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
         with:
           cache-read-only: ${{ github.event_name == 'pull_request' }}
       - name: Prepare for build
         run: |
           chmod +x gradlew
           echo "MAPS_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" > local.properties
-      - name: Run debug lint
-        run: ./gradlew lintDebug --no-daemon --stacktrace --console=plain
-      - name: Run release lint
-        run: ./gradlew :app:lintRelease --no-daemon --stacktrace --console=plain
-      - name: Build minified release
-        run: ./gradlew :app:assembleRelease --no-daemon --stacktrace --console=plain
-      - name: Build diagnostic release (nominify)
-        run: ./gradlew :app:assembleRelease_nominify --no-daemon --stacktrace --console=plain
-      - name: Check Room schema drift
-        run: ./gradlew checkRoomSchemaDrift --no-daemon --stacktrace --console=plain
-      - name: Upload build reports
-        if: always()
-        uses: actions/upload-artifact@v4
+      - name: Verify Tracebox package access
+        run: |
+          set -o pipefail
+          report="$(mktemp)"
+          ./gradlew :app:dependencyInsight \
+            --configuration debugRuntimeClasspath \
+            --dependency io.github.tracebox:tracebox \
+            --refresh-dependencies \
+            --no-daemon --stacktrace --console=plain 2>&1 | tee "$report"
+          if grep -Eq '^io\.github\.tracebox:[^ ]+:[^ ]+ FAILED$' "$report"; then
+            echo "Tracebox artifacts did not resolve from GitHub Packages." >&2
+            exit 1
+          fi
+          if ! grep -Eq '^io\.github\.tracebox:tracebox:[^ ]+' "$report"; then
+            echo "Tracebox dependency evidence was absent from dependencyInsight." >&2
+            exit 1
+          fi
+      - name: Run repository quality gates
+        id: quality_gates
+        run: ./gradlew ciCheck --continue --no-daemon --stacktrace --console=plain
+      - name: Verify unit-test report classes
+        if: ${{ !cancelled() && steps.quality_gates.outcome == 'success' }}
+        run: |
+          build_logic_report="$(find build-logic/convention/build/test-results/test -type f -name '*.xml' -size +0c -print -quit)"
+          if [ -z "$build_logic_report" ]; then
+            echo "Build-logic tests completed without producing a non-empty XML test report." >&2
+            exit 1
+          fi
+          echo "Found build-logic test evidence at $build_logic_report"
+          for suite in testDebugUnitTest jvmTest testAndroidHostTest
+          do
+            report="$(find . -type f -path "*/build/test-results/$suite/*.xml" -size +0c -print -quit)"
+            if [ -z "$report" ]; then
+              echo "$suite completed without producing a non-empty XML test report." >&2
+              exit 1
+            fi
+            echo "Found $suite evidence at $report"
+          done
+      - name: Upload quality-gate reports
+        if: ${{ always() && steps.quality_gates.outcome != 'skipped' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: build-reports
-          path: build/reports/
-          retention-days: 7
-      - name: Upload APKs
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-outputs
+          name: quality-gate-reports
           path: |
-            app/build/outputs/**
-            */build/outputs/**
+            **/build/reports/tests/**
+            **/build/test-results/**/*.xml
+            **/build/reports/lint-results-*/**
+            **/build/reports/lint-results-*.*
+            build/reports/detekt/**
+          if-no-files-found: error
           retention-days: 7
+
+  build_validation:
+    name: Validate release bundle evidence
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up JDK 21
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+        with:
+          cmdline-tools-version: 14742923
+          packages: ''
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+      - name: Prepare for build
+        run: |
+          chmod +x gradlew
+          echo "MAPS_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" > local.properties
+      - name: Run non-deploying release validation
+        id: release_validation
+        if: ${{ !cancelled() }}
+        run: ./gradlew releaseValidation --no-configuration-cache --no-daemon --stacktrace --console=plain
+      - name: Upload release evidence
+        if: ${{ always() && steps.release_validation.outcome != 'skipped' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-evidence-${{ github.sha }}
+          path: |
+            build/release-evidence/**
+            app/build/outputs/bundle/release/*.aab
+            app/build/outputs/mapping/release/**
+            app/build/outputs/native-debug-symbols/release/**
+          if-no-files-found: error
+          retention-days: 7
+
+  ci:
+    name: CI
+    if: ${{ always() }}
+    needs:
+      - source_hygiene
+      - locale_hygiene
+      - quality_gates
+      - build_validation
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Require all CI evidence
+        env:
+          SOURCE_HYGIENE_RESULT: ${{ needs.source_hygiene.result }}
+          LOCALE_HYGIENE_RESULT: ${{ needs.locale_hygiene.result }}
+          QUALITY_GATES_RESULT: ${{ needs.quality_gates.result }}
+          BUILD_VALIDATION_RESULT: ${{ needs.build_validation.result }}
+        run: |
+          failed=0
+          for check in \
+            "source_hygiene=$SOURCE_HYGIENE_RESULT" \
+            "locale_hygiene=$LOCALE_HYGIENE_RESULT" \
+            "quality_gates=$QUALITY_GATES_RESULT" \
+            "build_validation=$BUILD_VALIDATION_RESULT"
+          do
+            name="${check%%=*}"
+            result="${check#*=}"
+            echo "$name: $result"
+            if [ "$result" != "success" ]; then
+              failed=1
+            fi
+          done
+          exit "$failed"

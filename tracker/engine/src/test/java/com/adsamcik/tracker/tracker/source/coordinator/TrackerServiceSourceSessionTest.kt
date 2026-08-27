@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.coordinator
 
 import android.app.Application
+import android.database.sqlite.SQLiteException
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -23,6 +24,7 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.kotest.assertions.throwables.shouldThrow
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -33,6 +35,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.CancellationException
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -731,6 +734,72 @@ class TrackerServiceSourceSessionTest {
 	}
 
 	@Test
+	fun `final stop exposes busy drain and cleanup contention without losing ownership`() = runTest {
+		startActiveSession()
+		var stopResult: SessionStopResult = SessionStopResult.Busy
+		coEvery { lifecycle.stop(any()) } coAnswers { stopResult }
+
+		subject.stop("EXPLICIT_REQUEST", preserveLogicalSession = false) shouldBe
+			SourceSessionStopOutcome.Retryable(SourceSessionStopRetryCode.COORDINATOR_BUSY)
+		stopResult = SessionStopResult.DrainPending("logical", requiredOrdinal = 7L)
+		subject.stop("EXPLICIT_REQUEST", preserveLogicalSession = false) shouldBe
+			SourceSessionStopOutcome.Retryable(SourceSessionStopRetryCode.DRAIN_PENDING)
+		stopResult = SessionStopResult.CleanupPending(
+			"logical",
+			requiredOrdinal = 8L,
+			acknowledgements = emptyList(),
+		)
+		subject.stop("EXPLICIT_REQUEST", preserveLogicalSession = false) shouldBe
+			SourceSessionStopOutcome.Retryable(SourceSessionStopRetryCode.CLEANUP_PENDING)
+		stopResult = SessionStopResult.NoActiveSession
+		subject.stop("EXPLICIT_REQUEST", preserveLogicalSession = false) shouldBe
+			SourceSessionStopOutcome.Stopped
+		subject.stop("EXPLICIT_REQUEST", preserveLogicalSession = false) shouldBe
+			SourceSessionStopOutcome.NotActive
+
+		coVerify(exactly = 4) { lifecycle.stop(any()) }
+	}
+
+	@Test
+	fun `restart suspension exposes busy drain and cleanup contention without losing ownership`() = runTest {
+		startActiveSession()
+		var suspendResult: SessionSuspendResult = SessionSuspendResult.Busy
+		coEvery { lifecycle.suspendForRestart(any()) } coAnswers { suspendResult }
+
+		subject.stop("PROCESS_RESTART", preserveLogicalSession = true) shouldBe
+			SourceSessionStopOutcome.Retryable(SourceSessionStopRetryCode.COORDINATOR_BUSY)
+		suspendResult = SessionSuspendResult.DrainPending("logical", requiredOrdinal = 7L)
+		subject.stop("PROCESS_RESTART", preserveLogicalSession = true) shouldBe
+			SourceSessionStopOutcome.Retryable(SourceSessionStopRetryCode.DRAIN_PENDING)
+		suspendResult = SessionSuspendResult.CleanupPending(
+			"logical",
+			requiredOrdinal = 8L,
+			acknowledgements = emptyList(),
+		)
+		subject.stop("PROCESS_RESTART", preserveLogicalSession = true) shouldBe
+			SourceSessionStopOutcome.Retryable(SourceSessionStopRetryCode.CLEANUP_PENDING)
+		suspendResult = SessionSuspendResult.NoActiveSession
+		subject.stop("PROCESS_RESTART", preserveLogicalSession = true) shouldBe
+			SourceSessionStopOutcome.Stopped
+
+		coVerify(exactly = 4) { lifecycle.suspendForRestart(any()) }
+	}
+
+	@Test
+	fun `stop retries storage failures but propagates programmer failures`() = runTest {
+		startActiveSession()
+		coEvery { lifecycle.stop(any()) } throws SQLiteException("disk unavailable")
+
+		subject.stop("EXPLICIT_REQUEST", preserveLogicalSession = false) shouldBe
+			SourceSessionStopOutcome.Retryable(SourceSessionStopRetryCode.STORAGE_UNAVAILABLE)
+
+		coEvery { lifecycle.stop(any()) } throws IllegalStateException("broken contract")
+		shouldThrow<IllegalStateException> {
+			subject.stop("EXPLICIT_REQUEST", preserveLogicalSession = false)
+		}
+	}
+
+	@Test
 	fun `live external stop forwards the same factual cutoff used by inactive finalization`() = runTest {
 		val rollout = allEventCanonical(revision = 5)
 		val enabled = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1)
@@ -797,6 +866,25 @@ class TrackerServiceSourceSessionTest {
 		(capturedStop.captured.elapsedRealtimeNanos in
 			beforeElapsedRealtimeNanos..afterElapsedRealtimeNanos) shouldBe true
 		capturedStop.captured.clockDomainId shouldBe "boot-1"
+	}
+
+	private suspend fun startActiveSession() {
+		val rollout = allEventCanonical(revision = 5)
+		val enabled = settings(SourceCollectionFrequency.BALANCED, sourcePolicyRevision = 1L)
+		coEvery { lifecycle.start(any()) } returns
+			SessionStartResult.Started("logical", "run", emptyList(), DesiredPlanStatus.EFFECTIVE)
+		subject.start(
+			SourceSessionStartRequest(
+				rollout = rollout,
+				ownership = TrackingSessionOwnership.resolve(rollout, enabled),
+				logicalTrackingId = "logical",
+				serviceRunId = "run",
+				origin = SessionStartOrigin.MANUAL_FOREGROUND_START,
+				foregroundCapabilityFlags = 1L,
+				planInputs = inputs(enabled),
+				ownerToken = "owner",
+			),
+		).shouldBeInstanceOf<SourceSessionStartOutcome.Started>()
 	}
 
 	private fun inputs(

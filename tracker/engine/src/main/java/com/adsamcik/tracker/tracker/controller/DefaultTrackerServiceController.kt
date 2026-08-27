@@ -107,13 +107,26 @@ class DefaultTrackerServiceController : TrackerServiceController {
                 )
                 if (results[0] > 10) {
                     val persistentPoints = points as? PersistentList<Location> ?: points.toPersistentList()
-                    currentSession.id to persistentPoints.adding(location)
+                    currentSession.id to persistentPoints.addingBounded(location)
                 } else {
                     current
                 }
             }
         }
     }
+
+	/** Keep live UI memory bounded while retaining the first point and an increasingly sparse history. */
+	private fun PersistentList<Location>.addingBounded(location: Location): PersistentList<Location> {
+		if (size < MAX_LIVE_PATH_POINTS) return adding(location)
+		return filterIndexed { index, _ -> index == 0 || index % 2 == 0 }
+			.toPersistentList()
+			.adding(location)
+	}
+
+	override fun restorePathPoints(sessionId: Long, points: List<Location>) {
+		val bounded = points.takeLast(MAX_LIVE_PATH_POINTS).toPersistentList()
+		_pathPointsFlow.value = if (bounded.isEmpty()) null else sessionId to bounded
+	}
     
     override fun updatePolicyTier(tier: PolicyTier) {
         _policyTierFlow.value = tier
@@ -134,4 +147,8 @@ class DefaultTrackerServiceController : TrackerServiceController {
     override fun updatePlaneState(state: LivePlaneState?) {
         _planeStateFlow.value = state
     }
+
+	internal companion object {
+		const val MAX_LIVE_PATH_POINTS = 512
+	}
 }

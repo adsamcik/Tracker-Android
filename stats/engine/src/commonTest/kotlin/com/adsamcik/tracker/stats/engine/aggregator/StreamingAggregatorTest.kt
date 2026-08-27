@@ -503,6 +503,48 @@ class StreamingAggregatorTest {
 		}
 
 		@Test
+		fun `restored session continues from recovery time without double counting duration`() {
+			val aggregator = createAggregator()
+			aggregator.start(currentTimeMs - 60_000L)
+			aggregator.restoreSessionTotals(
+				distanceM = 250f,
+				steps = 400,
+				durationMs = 60_000L,
+				sampleCount = 12,
+				lastUpdateMs = currentTimeMs,
+			)
+
+			aggregator.onSignal(
+				movingSignal(currentTimeMs + 1_000L, distanceDeltaM = 10f, stepDelta = 2),
+			)
+
+			val snapshot = aggregator.snapshot()
+			snapshot.sessionDistanceM shouldBe 260f
+			snapshot.sessionSteps shouldBe 402
+			snapshot.sessionDurationMs shouldBe 61_000L
+			snapshot.sampleCount shouldBe 13
+		}
+
+		@Test
+		fun `day rollover resets day contribution but preserves full session`() {
+			val aggregator = createAggregator()
+			aggregator.start(currentTimeMs)
+			aggregator.seedDayTotals(100f, 20, 5_000L, 1)
+			aggregator.onSignal(movingSignal(currentTimeMs + 1_000L, distanceDeltaM = 10f, stepDelta = 2))
+
+			aggregator.rolloverDay()
+			aggregator.onSignal(movingSignal(currentTimeMs + 2_000L, distanceDeltaM = 5f, stepDelta = 1))
+
+			val snapshot = aggregator.snapshot()
+			snapshot.sessionDistanceM shouldBe 15f
+			snapshot.sessionSteps shouldBe 3
+			snapshot.sessionDurationMs shouldBe 2_000L
+			snapshot.dayTotalDistanceM shouldBe 5f
+			snapshot.dayTotalSteps shouldBe 1
+			snapshot.dayTotalDurationMs shouldBe 1_000L
+		}
+
+		@Test
 		fun `signal without start throws IllegalStateException`() {
 			val aggregator = createAggregator()
 			assertThrows<IllegalStateException> {

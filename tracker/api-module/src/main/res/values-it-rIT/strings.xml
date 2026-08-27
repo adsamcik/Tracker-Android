@@ -45,7 +45,6 @@
         <item quantity="one">Il tracciamento automatico è stato bloccato per %1$d minuto.</item>
         <item quantity="other">Il tracciamento automatico è stato bloccato per %1$d minuti.</item>
     </plurals>
-    <string name="notification_looking_for_gps">Ricerca GPS</string>
     <string name="notification_starting">Avvio del servizio Tracker</string>
     <string name="notification_starting_without_location">Avvio di Tracker</string>
     <string name="notification_stop">Interrompi</string>
@@ -59,8 +58,6 @@
     <string name="notification_tracking_start_failed_title">Impossibile avviare il tracciamento</string>
     <string name="notification_tracking_start_failed_text">Apri l\'app per rivedere le autorizzazioni e riprendere il tracciamento.</string>
     <string name="settings_activity_enabled_title">Attività</string>
-    <string name="settings_auto_tracking_transition_summary">Le transizioni possono ridurre l\'uso della batteria nel tracciamento automatico, ma i cambiamenti di attività potrebbero essere rilevati meno rapidamente.</string>
-    <string name="settings_auto_tracking_transition_title">Usa transizioni di attività</string>
     <string name="settings_cell_enabled_title">Cella</string>
     <string name="settings_disabled_recharge_summary">Il tracciamento automatico è disabilitato finché il telefono non è collegato a un caricatore</string>
     <string name="settings_disabled_recharge_title">Disabilitato fino alla ricarica</string>
@@ -74,10 +71,6 @@
     <string name="ski_notification_lift">Salita di %1$s</string>
     <string name="settings_barometer_enabled_title">Barometro</string>
     <string name="settings_steps_enabled_title">Conteggio passi</string>
-    <string name="settings_tracker_timer_ambient">Timer ambiente</string>
-    <string name="settings_tracker_timer_clock">Timer</string>
-    <string name="settings_tracker_timer_fused">Posizione Google Play</string>
-    <string name="settings_tracker_timer_location">Posizione Android</string>
     <string name="settings_tracking_min_distance_title">Distanza minima tra le raccolte</string>
     <string name="settings_tracking_min_time_title">Ritardo minimo tra le raccolte</string>
     <string name="settings_tracking_notice_summary">Per motivi tecnici, la maggior parte delle modifiche alle impostazioni di Tracker richiede il riavvio del tracciamento. Se il tracciamento è attivo, interrompilo e riavvialo. Chiudere e riaprire l\'app potrebbe non essere sufficiente.</string>

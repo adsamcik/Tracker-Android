@@ -6,6 +6,8 @@ import androidx.datastore.core.Serializer
 import androidx.datastore.dataStore
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.tracker.failure.isTrackingOperationalFailure
+import java.io.IOException
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.InputStream
 import java.io.OutputStream
@@ -20,7 +22,7 @@ private object ActiveTrackingSessionSerializer : Serializer<ActiveTrackingSessio
 
 	override suspend fun readFrom(input: InputStream): ActiveTrackingSessionProto = try {
 		ActiveTrackingSessionProto.parseFrom(input)
-	} catch (exception: Exception) {
+	} catch (exception: IOException) {
 		defaultValue
 	}
 
@@ -125,6 +127,7 @@ class DefaultActiveTrackingSessionStore @Inject constructor(
 	} catch (exception: CancellationException) {
 		throw exception
 	} catch (exception: Exception) {
+		if (!exception.isTrackingOperationalFailure()) throw exception
 		ActiveTrackingSessionStoreResult.Failure(exception)
 	}
 }
@@ -156,6 +159,7 @@ private fun ActiveTrackingSessionProto.toDescriptor(): ActiveTrackingSessionDesc
 		stopCandidate = stopCandidate,
 		restartBootId = persistedRestartBootId,
 		restartToken = persistedRestartToken,
+		sessionSegmentId = sessionSegmentId.takeIf { it > 0L },
 	)
 }
 
@@ -179,6 +183,7 @@ private fun ActiveTrackingSessionDescriptor.toProto(): ActiveTrackingSessionProt
 		.setStopCandidateRequestedAtEpochMs(stopCandidate?.requestedAtEpochMs ?: 0L)
 		.setRestartBootId(restartBootId.orEmpty())
 		.setRestartToken(restartToken.orEmpty())
+		.setSessionSegmentId(sessionSegmentId ?: 0L)
 		.build()
 
 /**

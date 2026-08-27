@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.app.activity
 
+import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import dev.tracebox.Tracebox
 import android.content.Intent
 import android.os.Bundle
@@ -555,7 +556,7 @@ class MainActivityViewModel @Inject constructor(
             try {
                 StartupDestination.valueOf(name)
             } catch (_: IllegalArgumentException) {
-                Tracebox.log.warn("Navigation destination was rejected")
+                Tracebox.log.warn(TrackerTraceboxTemplates.NAVIGATION_DESTINATION_REJECTED)
                 StartupDestination.Pending
             }
         } ?: StartupDestination.Pending

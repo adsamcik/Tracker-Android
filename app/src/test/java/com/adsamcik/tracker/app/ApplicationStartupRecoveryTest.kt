@@ -20,6 +20,29 @@ class ApplicationStartupRecoveryTest {
 	}
 
 	@Test
+	fun `recent repeated low-memory exits count only the main process and bounded window`() {
+		val mainProcess = "com.example.tracker"
+		val nowMs = 100_000L
+		val lowMemoryReason = 3
+		val records = listOf(
+			HistoricalProcessExit(mainProcess, lowMemoryReason, 99_000L),
+			HistoricalProcessExit(mainProcess, lowMemoryReason, 90_000L),
+			HistoricalProcessExit("$mainProcess:tracebox_handler", lowMemoryReason, 99_500L),
+			HistoricalProcessExit(mainProcess, reason = 6, timestampMs = 99_700L),
+			HistoricalProcessExit(mainProcess, lowMemoryReason, 70_000L),
+			HistoricalProcessExit(mainProcess, lowMemoryReason, 101_000L),
+		)
+
+		recentMainProcessExitCount(
+			records = records,
+			mainProcessName = mainProcess,
+			reason = lowMemoryReason,
+			nowMs = nowMs,
+			windowMs = 20_000L,
+		) shouldBe 2
+	}
+
+	@Test
 	fun `positive force-stop evidence is exclusive and uses the main exit timestamp`() {
 		val exit = HistoricalProcessExit(
 			processName = "com.example.tracker",

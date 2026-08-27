@@ -1,13 +1,16 @@
 package com.adsamcik.tracker.app.startup
 
 import android.app.ActivityManager
+import android.app.ApplicationExitInfo
 import android.content.Context
 import android.os.Build
 import com.adsamcik.tracker.app.ApplicationStartupRecoveryAction
 import com.adsamcik.tracker.app.HistoricalProcessExit
 import com.adsamcik.tracker.app.applicationStartupRecoveryAction
 import com.adsamcik.tracker.app.mostRecentMainProcessExit
+import com.adsamcik.tracker.app.recentMainProcessExitCount
 import com.adsamcik.tracker.app.settings.CollectedDataDeletionService
+import com.adsamcik.tracker.diagnostics.TrackerTraceboxTemplates
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
@@ -21,6 +24,8 @@ import com.adsamcik.tracker.tracker.source.coordinator.LegacyV27ProjectionRecove
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
 import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecoveryResult
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.tracebox.Tracebox
+import dev.tracebox.api.public
 import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
@@ -95,6 +100,20 @@ class ApplicationStartupRecoveryResolver @Inject constructor(
 						timestampMs = exitInfo.timestamp,
 					)
 				}
+			val repeatedLowMemoryExitCount = recentMainProcessExitCount(
+				records = records,
+				mainProcessName = context.packageName,
+				reason = ApplicationExitInfo.REASON_LOW_MEMORY,
+				nowMs = System.currentTimeMillis(),
+				windowMs = REPEATED_LOW_MEMORY_WINDOW_MS,
+			)
+			if (repeatedLowMemoryExitCount >= REPEATED_LOW_MEMORY_EXIT_THRESHOLD) {
+				Tracebox.log.warn(
+					TrackerTraceboxTemplates.APPLICATION_REPEATED_LOW_MEMORY_EXITS,
+					public(repeatedLowMemoryExitCount),
+					public(REPEATED_LOW_MEMORY_WINDOW_HOURS),
+				)
+			}
 			mostRecentMainProcessExit(records, context.packageName)
 		} catch (_: RuntimeException) {
 			null
@@ -103,6 +122,10 @@ class ApplicationStartupRecoveryResolver @Inject constructor(
 
 	private companion object {
 		const val HISTORICAL_PROCESS_LIMIT = 16
+		const val REPEATED_LOW_MEMORY_EXIT_THRESHOLD = 2
+		const val REPEATED_LOW_MEMORY_WINDOW_HOURS = 24
+		const val REPEATED_LOW_MEMORY_WINDOW_MS =
+			REPEATED_LOW_MEMORY_WINDOW_HOURS * 60L * 60L * 1_000L
 	}
 }
 
