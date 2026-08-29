@@ -1,18 +1,19 @@
 # Tracking Infrastructure Implementation Status
 
-Last updated: 2026-08-27
+Last updated: 2026-08-29
 
 Execution-grade work items, ownership, dependency gates, verification commands, and rollback
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and
 evidence index.
 
-Current code integration checkpoint: reconciliation merge
-`9b8ab4b43e0d5ca2e729f511b48936b0dbdfbb6a`, with parents `1a112bbd5` (remote/local integration)
-and `9a65148a1` (atomic Steps writer transition), delivered on local and remote `dev/v10`. Handover
-preparation commit `cd9cecb7405ec672afe735a76f946af5fdc48d90` was delivered by ordinary push;
-this evidence-only follow-up deliberately does not self-attest its future remote SHA. Resolve the
-delivered tip after fetch with `git rev-parse origin/dev/v10`. The complete topology, protected-root
-boundary, and next-session commands are recorded in `CONTINUATION_HANDOVER.md`. The initial audited
+Current scoped checkpoint: local commit
+`3b23655472316d953b7d9e5fae20e17cb1841c5c` on `codex/ti410-deletion-rearm`, directly atop local and
+remote `dev/v10` at `ffd5d372fafafceb7d9d595b95e47b89b949de83`. It closes the production
+deletion-service/database/barrier/Steps-rearm integration-test gap; it is not yet integrated into
+local `dev/v10` or pushed. The delivered reconciliation remains merge
+`9b8ab4b43e0d5ca2e729f511b48936b0dbdfbb6a`, with parents `1a112bbd5` and `9a65148a1`, plus the
+delivered handover commits through `ffd5d372f`. The complete topology, protected-root boundary, and
+next-session commands are recorded in `CONTINUATION_HANDOVER.md`. The initial audited
 baseline was `068ebe052`; no release or artifact publication, deployment, remote configuration,
 feature activation, or external rollout was performed. All seven protected root files retained
 their exact bytes; six remain visible as intentionally uncommitted local work while the statistics
@@ -25,13 +26,15 @@ XML now exactly matches reconciled `HEAD`.
   historical selection, exact destination-owner fencing, and explicit candidate activation,
   rollback, and post-deletion generation reconstruction now exist. Legacy generation 1 remains the
   only active production owner; first activation and rollback have no ordinary production caller.
-- Gate status: `TRANSITION_FOUNDATION_IN_REVIEW / PRODUCT_WIRING_BLOCKED`. Three independent fresh
-  reviews found no remaining database `BLOCKER`/`HIGH`/`MEDIUM`; mitigated a `HIGH` owner-drift gap
-  by rechecking candidate ownership in rollout authorization and durable admission; and mitigated a
-  `MEDIUM` residual-`step_interval` deletion risk with a DAO guard and focused re-arm test. One
-  `MEDIUM` test-hardening gap remains: no single production integration test spans
-  `DefaultCollectedDataDeletionService`, `AppDatabase`, the closed deletion/startup barriers, and
-  the resulting Steps re-arm generation. Product query/UI, typed export/import, manual only-Steps
+- Gate status: `TRANSITION_FOUNDATION_IN_REVIEW / PRODUCT_WIRING_BLOCKED`. TI-B160 now connects the
+  production deletion provider, default `AppDatabase` deletion, singleton lifecycle/coordinator,
+  durable pending marker, and closed startup/deletion barrier through a forced post-rearm diagnostics
+  failure and successful retry. The final test passes twice consecutively on the same retained
+  `Medium_Phone(AVD) - 16` installation and once more after the required no-op rebase. Three fresh R1
+  adversaries found two `HIGH` test-determinism issues; both were mitigated before those runs.
+  Complementary focused engine suites prove stale
+  epoch/owner work rejection, WAL recovery, projection non-resurrection, and high-water rebasing.
+  Product query/UI, typed export/import, cold process/reboot/provider evidence, manual only-Steps
   device evidence, and every other source/mode remain blocked.
 - Integration owner: lead orchestrator
 - Structural implementation: Workstream A policy authority plus the retained v28
@@ -1039,3 +1042,55 @@ continuation commands.
 - Still blocked: production Steps query and all completeness-sensitive consumers, typed portable
   export/import, full deletion-service seam, provider/device/process/reboot/energy evidence,
   automatic/ambient Steps, other source verticals, UI activation, and rollout.
+
+## Connected deletion/re-arm integration checkpoint (2026-08-29)
+
+### Outcome
+
+Local commit `3b23655472316d953b7d9e5fae20e17cb1841c5c` adds a narrow production Hilt entry point and a
+targeted Android integration test for the same-process collected-data deletion retry. The test uses
+the real default `AppDatabase`, lifecycle store, startup/deletion barrier and gate, and
+`StepsSessionFactWriterTransitionCoordinator`. It drives the production deletion provider with
+controlled peripheral collaborators, forces post-rearm diagnostics to fail, proves the durable
+marker and barrier stay closed, then proves retry repeats deletion, advances fresh privacy/owner/
+rollout generations, reconstructs an empty manual-capture-authorized Steps lane at the retained WAL
+high-water, publishes the matching startup generation, and returns startup to Ready.
+
+### Evidence and R1 disposition
+
+- The final source tree passes the exact targeted `:app:connectedDebugAndroidTest` class twice
+  consecutively without clearing the installed app on `Medium_Phone(AVD) - 16` / API 36. Both runs
+  execute `1/1` test successfully; the latest XML reports zero failures/errors/skips and a `2.535s`
+  instrumented body.
+- Seven complementary `:tracker:engine` suites covering deletion re-arm, writer transitions, stale
+  ingress, stale WAL recovery, projection fencing, high-water rebasing, and pipeline recovery pass:
+  `BUILD SUCCESSFUL in 3m 11s`; 234 actionable tasks.
+- `CollectedDataDeletionServiceTest` passes: `BUILD SUCCESSFUL in 52s`; 575 actionable tasks. Root
+  Detekt passes after decomposing the scenario and fixture helpers without a suppression:
+  `BUILD SUCCESSFUL in 33s`; 5 actionable tasks.
+- The branch was already up to date when rebased onto local `dev/v10`. On that exact post-rebase tree,
+  the targeted connected test passes again in `48s` (`1/1`; 714 actionable tasks) and root Detekt
+  passes in `18s` (5 up-to-date tasks).
+- Three fresh `gpt-5.6-sol` high-reasoning reviewers inspected the diff. Two Android `HIGH` findings
+  were mitigated: setup no longer erases a real pending-deletion marker/reopens the barrier, and an
+  already-canonical retained writer is now a valid rerun baseline. The data review's stale-work
+  resurrection challenge is covered by the seven focused engine suites rather than duplicated in
+  the app seam. Cold-process restart remains an explicit unverified boundary.
+- A test-local Hilt entry point was tried before the production contract and failed with
+  `ClassCastException` in both host and device execution. The retained production entry point is
+  therefore limited to the two singleton authorities instrumentation must reach. The test mutates
+  the installed debug database and is evidence only as the exact targeted class on a disposable AVD;
+  it is not a full connected-suite ordering result.
+
+### Gate status and next wave
+
+- Passed locally: the production deletion-service -> database -> closed barrier -> empty Steps
+  re-arm seam under a same-process diagnostics failure/retry, plus complementary stale-work and
+  high-water host contracts.
+- Still blocked: cold process/reboot/provider interleaves, actual post-rearm provider capture,
+  production Steps history/query and all completeness-sensitive consumers, typed portable export/
+  import and continuous deletion/no-resurrection visibility, ordinary activation/release action,
+  automatic/ambient Steps, other sources, UI activation, device power/OEM evidence, and rollout.
+- Next implementation slice: expose the existing immutable Steps selector through the minimum
+  production history/query contract without changing writer ownership or adding a generic day
+  platform.

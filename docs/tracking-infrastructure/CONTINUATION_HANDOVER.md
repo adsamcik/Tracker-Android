@@ -1,6 +1,6 @@
 # Tracking Infrastructure Continuation Handover
 
-Last updated: 2026-08-27
+Last updated: 2026-08-29
 
 This handover is for the next device or Codex session continuing the tracking-infrastructure
 program after the local and remote `dev/v10` histories were reconciled. It is an execution
@@ -37,6 +37,14 @@ tracking-infrastructure program, manual Steps, automatic Steps, ambient Steps, a
 product history, UI, device rollout, or general availability is complete. It preserves the critical
 path and adds a tested, explicit Steps writer-transition mechanism; it does not invoke the first
 candidate activation in production.
+
+The current local continuation is commit `3b23655472316d953b7d9e5fae20e17cb1841c5c` on
+`codex/ti410-deletion-rearm`, directly atop local and remote `dev/v10` at
+`ffd5d372fafafceb7d9d595b95e47b89b949de83`. It adds the targeted same-process production
+deletion-service/database/barrier/Steps-rearm proof described in TI-B160. The final test passes twice
+consecutively on the retained `Medium_Phone(AVD) - 16` installation and once more after the required
+no-op rebase onto local `dev/v10`. This continuation is committed locally but is not yet integrated
+into local `dev/v10` or pushed; no new remote delivery is claimed.
 
 ## Reconciliation topology
 
@@ -141,10 +149,10 @@ synonymous with `DONE`, `QUERYABLE`, or rollout-ready.
 | A. Policy and v28 | Room is the effective policy authority; consent epochs and immutable manifests exist; v28 is still the direct target because it never shipped; populated v27 migration previously passed 8/8 on `Medium_Phone(AVD) - 16`. | Production backup-wrapper proof, portable import/export containment, connected migrate-to-runtime ordering, retention decisions, and schema-freeze evidence. |
 | B. Broker/acquisition | Direct capture/control/ambient demands, physical registration generations, observed-time authorization intervals, Activity's durable callback seam, source-specific runtime ownership, and contained source rollout exist. | The final app-scoped supervisor contract and all six source registration-set tests; five remaining source-native handoffs/identities; provider-specific reconfiguration and device power/quality evidence. |
 | C. Lifecycle | Durable prepared intent precedes external service work; real origin/type candidates, exact run/action claims, cleanup retry, boot/epoch fencing, and recovery/finalizers are host-tested. | Connected process-death/reboot/FGS legality, permission and provider behavior across supported Android versions, plus device/OEM evidence. |
-| D. Data/writers | Checksummed WAL, source-local containment, frozen-v27 drain, dormant Steps facts/receipts/cursor, retention, event-exact queued provenance, service-run selector, exact owner fence, and explicit activation/rollback/deletion-rearm transactions exist. | Production-visible Steps state, typed correction/export/import, complete deletion-to-rearm integration proof, source-qualified lifecycle evidence, and a real source vertical before generalizing any mechanism. |
+| D. Data/writers | Checksummed WAL, source-local containment, frozen-v27 drain, dormant Steps facts/receipts/cursor, retention, event-exact queued provenance, service-run selector, exact owner fence, explicit activation/rollback/deletion-rearm transactions, and the same-process production deletion-service/barrier/rearm proof exist. | Production-visible Steps state, typed correction/export/import, cold process/reboot/provider interleaves, source-qualified lifecycle evidence, and a real source vertical before generalizing any mechanism. |
 | E. History product | An internal Steps selector preserves availability, evidence, materialization, and coverage without reading current global ownership. Existing legacy readers remain available. | One production `TrackingHistoryRepository`/compatible facade and observable Steps query used consistently by Today, Timeline, Calendar, selected-day/session detail, export, and deletion. No persisted universal `DayOverview` is required. |
 | F. UI | Manual source selection/prerequisite logic is source-aware and no longer assumes Location for every source. Policy-error/status presentation exists. | Truthful Steps-only product states and completeness in existing consumers; no source history UI or broad day-first journal is authorized yet. |
-| G. Quality | Focused host, Room migration, architecture, lint, Detekt, release-evidence, and full repository gates have substantial evidence. Exact final code merge `9b8ab4b43` passed `ciCheck` in 21m 46s. | Current migration/device rerun where relevant, manual only-Steps end-to-end proof, device/provider/power tests, and later source-specific dynamic/failure gates. |
+| G. Quality | Focused host, Room migration, architecture, lint, Detekt, release-evidence, and full repository gates have substantial evidence. Exact final code merge `9b8ab4b43` passed `ciCheck` in 21m 46s; TI-B160 adds two retained-state targeted Android passes plus a post-rebase replay, and TI-B161 records the fresh review disposition. | Current migration/device rerun where relevant, cold process/reboot proof, manual only-Steps end-to-end proof, device/provider/power tests, and later source-specific dynamic/failure gates. |
 
 The intended architecture is still the thin path:
 
@@ -231,12 +239,30 @@ Three independent perspectives reviewed the second merge before final integratio
 | Android lifecycle and owner authority | A `HIGH` showed canonical Steps rollout/admission could survive destination-owner drift. It was mitigated by requiring candidate owner authority during rollout save/load/repair/authorization and rechecking it transactionally during durable capture admission, with missing/legacy-owner and post-drift tests. |
 | App integration, deletion, and maintainability | No `BLOCKER` or `HIGH` remained. A `MEDIUM` residual `step_interval` row could survive full deletion and was mitigated with a DAO guard plus focused re-arm test. The oversized coordinator/test were decomposed into narrowly named transition, boundary, state, activation, rollback, deletion-rearm, contract, and test files without changing behavior or adding suppressions. |
 
-One `MEDIUM` test-hardening item remains: the complete production
+At the 2026-08-27 review, one `MEDIUM` test-hardening item remained: the complete production
 `DefaultCollectedDataDeletionService -> AppDatabase -> StepsSessionFactWriterTransitionCoordinator`
-seam does not yet have one end-to-end test that proves deletion barriers remain closed through the
-re-arm callback and resulting generation. Lower-priority follow-ups are the debug `TestDataSeeder`
-recovery/preferences race and the line-oriented architecture scan. These gaps prohibit a claim that
-full deletion/re-arm is production-proven, even if the final full host gate passes.
+seam had no end-to-end test proving deletion barriers remained closed through the re-arm callback
+and resulting generation. TI-B160 closes that narrow same-process seam at local commit `3b2365547`,
+after two reviewer-found `HIGH` fixture/determinism defects were corrected and the final target test
+passed twice on retained app state. This does not prove cold-process restart, provider capture,
+production query/export/UI, full connected-suite isolation, activation, or rollout. Lower-priority
+follow-ups remain the debug `TestDataSeeder` recovery/preferences race and the line-oriented
+architecture scan.
+
+### Fresh deletion/rearm integration review (2026-08-29)
+
+Three fresh `gpt-5.6-sol` high-reasoning reviewers attacked the new diff independently:
+
+| Perspective | Disposition |
+| --- | --- |
+| Android lifecycle/privacy | Two `HIGH` findings were `MITIGATED`: setup no longer raw-deletes a real pending marker/reopens the singleton barrier, and setup now accepts the retained canonical writer left by a prior successful run. A transient post-retry readiness assertion was also replaced with explicit old-generation rejection and new-generation reconciliation. |
+| Data/replay/deletion | The proposed stale-work resurrection timeline is `MITIGATED_BY_COMPOSED_EVIDENCE`: the app test proves the production deletion/rearm seam, while seven existing engine suites directly exercise stale collected-data epochs, owner-generation drift, stale in-memory WAL, recovery discard, projection fencing and deletion high-water rebasing. Cold process restart and real post-rearm provider capture remain open and are not attributed to this test. |
+| Product/validation/maintainability | No `BLOCKER`/`HIGH`. The long scenario was decomposed until Detekt passed without suppression. The test deliberately remains an exact targeted destructive-database check on a disposable AVD, not arbitrary connected-suite ordering or product `QUERYABLE` evidence. |
+
+Two reviewers suggested an `androidTest`-local Hilt entry point based on an older test pattern. That
+approach was tried and failed with `ClassCastException` in both host and on-device execution for the
+current application graph. The retained production entry point exposes only the lifecycle store and
+Steps transition coordinator required to reach the actual singleton authorities.
 
 ## Verification evidence
 
@@ -257,8 +283,50 @@ Evidence already established before the second merge:
 | Final second-merge `ciCheck --continue` | `BUILD SUCCESSFUL in 21m 46s`; 1,991 actionable tasks: 224 executed, 1,767 up-to-date | Exact code commit `9b8ab4b43e0d5ca2e729f511b48936b0dbdfbb6a`; includes Room drift, architecture, release lint, unit tests, Detekt, SQLite runtime/linkage, 27 release-evidence tests, and 16 reviewed dependency-metadata components. |
 | Exact populated v27-to-v28 migration at the latest pre-reconciliation schema boundary | `8/8` on `Medium_Phone(AVD) - 16` | Migration/open/reopen/query/delete/no-resurrection evidence; not a current final-tree rerun unless separately recorded. |
 | Pre-reconciliation Steps selector boundary | core `876/876`, stats data `139/139`, tracker engine `1,649/1,649`, `:app:assembleDebug`; `BUILD SUCCESSFUL in 8m 46s` | Dormant selector and source-local evidence only; no production consumer/device/provider proof. |
+| TI-B160 targeted `CollectedDataDeletionStepsRearmIntegrationTest`, twice consecutively on retained `Medium_Phone(AVD) - 16` / API 36 plus one post-rebase replay | pre-handover source-tree runs `BUILD SUCCESSFUL in 1m 6s` and `47s`; post-rebase run `BUILD SUCCESSFUL in 48s`; each `1/1` and 714 tasks; latest XML zero failures/errors/skips | Exact source tree committed as `3b2365547`; proves only same-process production deletion provider/default database/closed barrier/Steps rearm through diagnostics failure and retry. Not full suite, cold process, provider capture, product query/export/UI, activation, or rollout. |
+| TI-B161 focused engine/app/static complement | tracker engine `BUILD SUCCESSFUL in 3m 11s`, 234 tasks; app deletion suite `BUILD SUCCESSFUL in 52s`, 575 tasks; Detekt `BUILD SUCCESSFUL in 33s`, then post-rebase in `18s`, 5 tasks | Seven engine suites cover stale epoch/owner work, WAL recovery, projection non-resurrection and high-water rebasing; app service contracts and final Kotlin structure remain green. |
 
-The exact final command was:
+One pre-execution connected attempt compiled successfully but ended with `No connected devices` after
+the earlier AVD had stopped. It is excluded from pass counts. The same `Medium_Phone` AVD was started
+again, recorded as Android 16 / API 36, and used for the two final consecutive runs above.
+After the branch was confirmed up to date with local `dev/v10`, the same exact target passed once more
+in `48s` (`1/1`; 714 actionable tasks), and root Detekt passed in `18s` (5 up-to-date tasks).
+
+The exact TI-B160 connected command, run twice without clearing installed state, was:
+
+```powershell
+.\gradlew.bat :app:connectedDebugAndroidTest `
+  "-Pandroid.testInstrumentationRunnerArguments.class=com.adsamcik.tracker.app.settings.CollectedDataDeletionStepsRearmIntegrationTest" `
+  --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' `
+  --console=plain --no-configuration-cache
+```
+
+The exact TI-B161 engine complement was:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest `
+  --tests "*StepsSessionFactWriterDeletionRearmTest" `
+  --tests "*StepsSessionFactWriterTransitionCoordinatorTest" `
+  --tests "*RoomDurableSourceIngressTest" `
+  --tests "*PersistenceProcessorTest" `
+  --tests "*StepsSessionFactProjectionLaneTest" `
+  --tests "*TrackingCoordinatorTest" `
+  --tests "*SourcePipelineRecoveryTest" `
+  --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' `
+  --console=plain --no-configuration-cache
+```
+
+The app contract and static complements used the same serial flags:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests "*CollectedDataDeletionServiceTest" `
+  --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' `
+  --console=plain --no-configuration-cache
+.\gradlew.bat detekt --no-daemon --no-parallel --max-workers=1 `
+  '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The exact final second-merge `ciCheck` command was:
 
 ```powershell
 .\gradlew.bat ciCheck --continue --no-daemon --no-parallel --max-workers=1 `
@@ -311,7 +379,6 @@ The next session must not infer answers to these behavior-changing decisions:
 
 Implementation blockers that do not require a product choice should continue without asking:
 
-- close the collected-data deletion-to-Steps-rearm end-to-end test gap;
 - add the observable, completeness-preserving production Steps query without activating another
   writer by default;
 - add typed portable Steps export/import and deletion/replay/no-resurrection proof;
@@ -344,6 +411,17 @@ Expected results:
 - the checkout is clean;
 - the remote result agrees with the exact delivery evidence recorded in this handover's Outcome.
 
+On the current integration device, also inspect the unpushed continuation before integration:
+
+```powershell
+git show --stat --oneline 3b2365547
+git log --oneline dev/v10..codex/ti410-deletion-rearm
+git diff --check dev/v10...codex/ti410-deletion-rearm
+```
+
+On another device, those commands cannot succeed until the local continuation is deliberately pushed;
+remote `dev/v10` still ends at `ffd5d372f` at this checkpoint.
+
 Then read the documents listed at the beginning and verify the current evidence boundary:
 
 ```powershell
@@ -359,12 +437,18 @@ The status, decision, and verification-matrix artifacts already record the final
 merge and host-test checkpoint. Confirm their delivery section agrees with the remote push result;
 do not reinterpret the recorded host evidence as device, provider, product-query, or rollout proof.
 
-For implementation, create a dedicated worktree and scoped branch from clean local `dev/v10`, per
-`AGENTS.md`. The next code wave is TI-410 manual/session Steps, not another shared framework:
+On this integration device, first finish reviewing and integrating the existing
+`codex/ti410-deletion-rearm` worktree; do not create a redundant branch from `dev/v10` that omits its
+local commits. On another device, the continuation cannot be resumed until it is deliberately pushed.
+After that delivery is visible on the target device, create a dedicated worktree and scoped branch
+from updated clean local `dev/v10`, per `AGENTS.md`. The next code wave is TI-410 manual/session Steps,
+not another shared framework:
 
-1. Add the full production deletion-service-to-rearm integration test and any correction it proves.
-2. Keep the existing TI-D107 decision, status checkpoint, and TI-B158/TI-B159 verification evidence
-   synchronized with any correction or newly reproduced result.
+1. On this device, integrate or continue from the local branch containing code commit `3b2365547`
+   and this handover only after confirming the exact branch/source-tree status. This continuation is
+   not on the remote at this checkpoint.
+2. Keep TI-D107, the current status checkpoint, and TI-B158–TI-B161 synchronized with any correction
+   or newly reproduced result.
 3. Expose the existing internal Steps selector through the minimum production history/query seam,
    carrying independent availability, evidence, materialization, and coverage axes.
 4. Wire all applicable existing consumers—Today, Timeline, Calendar, selected day/session, goals,
@@ -390,6 +474,12 @@ The lead declared the seven protected root paths above outside that scope. The a
 not permit a force push, history rewrite, release, tag, APK publication, Play submission, feature
 activation, remote flag change, canary, deployment, or destructive migration/deletion.
 
+That earlier authorization and push were completed through remote `ffd5d372f`. The new
+`3b2365547` deletion/rearm continuation and this updated handover are local-only at this checkpoint;
+the latest instruction was applied as commit-and-prepare work, and no additional push was performed.
+Do not tell another device that this continuation is remotely available until a later ordinary push is
+explicitly executed and verified.
+
 Delivery rules:
 
 - keep reconciliation, review corrections, and handover/evidence in coherent commits rather than one
@@ -412,7 +502,8 @@ performing any external rollout action.
 
 - [x] `9b8ab4b43e0d5ca2e729f511b48936b0dbdfbb6a` is the committed second merge with
   parents `1a112bbd5` and `9a65148a1`.
-- [x] The authoritative command, result, task counts, and exact tested commit are recorded above.
+- [x] The authoritative historical reconciliation command and the exact TI-B160/TI-B161 commands,
+  results, task counts, and tested code commit are recorded above.
 - [x] All seven protected root paths on this integration device remain byte-for-byte identical; six
   remain intentionally uncommitted and the statistics XML now exactly matches reconciled `HEAD`.
 - [x] This integration device's root `git status --short` contains exactly the other six protected
@@ -421,7 +512,9 @@ performing any external rollout action.
   and the handover preparation; the ordinary-push result above is exact. The containing evidence
   commit intentionally resolves through `git rev-parse origin/dev/v10` rather than self-attestation.
 - [x] No force push, release, tag, deployment, feature activation, or destructive migration occurred.
-- [x] Implementation artifacts accurately preserve open medium/low review findings and source gates.
+- [x] Implementation artifacts close only the same-process deletion/rearm seam and accurately
+  preserve cold-process, product-query/export/UI, provider/device, source, and rollout gates.
 
-Next-session instruction: begin with TI-410 manual/session Steps and do not claim another source,
-ambient mode, product query, UI, device, or rollout gate without reproducible evidence.
+Next-session instruction: continue TI-410 with the minimum observable Steps production-history query
+and completeness-safe consumers. Do not claim `QUERYABLE`, another source, ambient mode, UI, device,
+or rollout gates without reproducible evidence.
