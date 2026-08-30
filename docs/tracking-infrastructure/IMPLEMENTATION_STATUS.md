@@ -1,19 +1,22 @@
 # Tracking Infrastructure Implementation Status
 
-Last updated: 2026-08-30
+Last updated: 2026-08-31
 
 Execution-grade work items, ownership, dependency gates, verification commands, and rollback
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and
 evidence index.
 
-Current scoped code checkpoint: local commit `f9b1c3c45` on
-`codex/ti410-deletion-rearm`, after the deletion/re-arm proof, observable one-selected-session Steps
-facade, dormant source-deletion fence, unsafe empty-session cleanup containment, and remaining
-zero-sample product-read correction. Trip Detail is now the facade's first production read-only
-consumer, but direct Trip Detail deletion is withheld and ordinary list/day/live discoverability is
-unchanged. No production path creates a source-deletion fence, and lifecycle-owned crash-orphan
-reclamation remains absent. The continuation is not integrated into local `dev/v10`, pushed, or
-evidence of `QUERYABLE` or permanent deletion. The delivered reconciliation remains merge
+Current scoped checkpoint: production code commit `9aeb8853a` plus test-contract correction
+`d067704a9` on `codex/ti410-deletion-rearm`, after the deletion/re-arm proof, observable one-selected-session Steps
+facade, dormant source-deletion fence, unsafe empty-session cleanup containment, remaining
+zero-sample product-read correction, contained Trip Detail consumer, and exact physical-service-run
+presentation settlement. Room now binds one presentation segment to each physical service run and
+records post-writer quiescence; DataStore is only an exact-CAS recovery mirror. This adds no physical
+cleanup, source materializer, writer activation, or product grouping. Direct Trip Detail deletion is
+withheld and ordinary list/day/live discoverability is unchanged. No production path creates a
+source-deletion fence, and lifecycle-owned crash-orphan reclamation remains absent. The continuation
+is not integrated into local `dev/v10`, pushed, or evidence of `QUERYABLE` or permanent deletion.
+The delivered reconciliation remains merge
 `9b8ab4b43e0d5ca2e729f511b48936b0dbdfbb6a`, with parents `1a112bbd5` and `9a65148a1`, plus the
 delivered handover commits through `ffd5d372f`. The complete topology, protected-root boundary, and
 next-session commands are recorded in `CONTINUATION_HANDOVER.md`. The initial audited
@@ -47,8 +50,9 @@ continuation branch as part of its reviewed product slice.
   withdrawing unsafe production wiring. TI-D110/TI-B166–TI-B167 retire the racy periodic database
   mutation and exclude every zero-sample row from the named product and ActivityRecognition reads,
   while leaving other DAO paths unchanged and claiming no durable reclamation.
-  TI-D111 narrows the next wave after scope review. List/day/live composition, exact capture-set and
-  Location-evidence presentation, completeness-safe numeric consumers, typed
+  TI-D111 narrows the next wave after scope review. TI-D113/TI-B169 bind each physical service run
+  to one presentation segment and persist writer quiescence without reclaiming any row. List/day/
+  live composition, exact capture-set and Location-evidence presentation, completeness-safe numeric consumers, typed
   export/import, cold process/reboot/provider evidence, manual only-Steps device evidence, and every
   other source/mode remain blocked.
 - Integration owner: lead orchestrator
@@ -66,7 +70,14 @@ continuation branch as part of its reviewed product slice.
   Activity `CONTROL`, never captured Activity. Process-wide startup ordering is now locally
   implemented and verified; production backup recovery, portable export/import, partial-database
   containment, and connected startup/reboot proof remain TI-184 gates.
-- Current-worktree verification: `f9b1c3c45` passes 33 focused selected-detail tests with zero
+- Current-worktree verification: `9aeb8853a` passes the exact presentation lifecycle/component/
+  store/orchestrator/crash suite (`BUILD SUCCESSFUL in 4m 20s`; 230 tasks), focused Room DAO and
+  tracker-API descriptor tests, root Detekt (`13s`), affected-module lint (`2m 19s`; 383 tasks; no
+  new issue), and committed-tree `checkRoomSchemaDrift` (`8s`; 46 tasks). The v27→v28 migration
+  instrumentation source compiles, but no device is attached, so this revision has no connected
+  migration execution. After `ciUnitTest` exposed one stale zero-cycle deletion assertion,
+  `d067704a9` corrected that test to the all-source retention invariant; its focused class passes in
+  `2m 7s`, and the full rerun passes in `7m 2s` with 990 tasks. Earlier, `f9b1c3c45` passes 33 focused selected-detail tests with zero
   failures/errors/skips (history mapping `10/10`, presenter `9/9`, ViewModel `6/6`, Compose `8/8`),
   root Detekt in `18s`, and `:feature:statistics:lintDebug` in `32s` with no new issue. It has not run
   full `ciUnitTest`, `ciCheck`, emulator/device, screenshot, accessibility, provider, or energy
@@ -1362,10 +1373,63 @@ Other History/Stats delete paths still delegate to presentation-row deletion and
 - Failed or unverified: ordinary discovery of source-only sessions, exact capture-set and qualifying-
   Location evidence, source-adaptive Location/map/export hiding, live Dashboard consumption,
   list/day batching, every other numeric consumer, safe app-wide selected deletion, localization,
-  `ciUnitTest`, `ciCheck`, emulator/device/visual/accessibility/provider/energy evidence, and
+  `ciCheck`, emulator/device/visual/accessibility/provider/energy evidence, and
   `QUERYABLE`.
-- Next: persist exact segment ownership and post-presentation acknowledgement, then add the narrow
-  Steps fence/retraction services and typed selected deletion. Introduce an exact historical capture-
-  set/Location-evidence contract before adapting Trip Detail or live UI; never use `sampleCount` for
-  that decision. Prove the exact `{Steps}` manual path through ordinary production navigation before
-  changing activation state.
+- Next: exact segment ownership and post-presentation acknowledgement are now in `9aeb8853a` and the
+  current `ciUnitTest` passes. Require the new-v28 Steps reverse binding, logical-entry grouping, and
+  an exact historical capture-set/Location-evidence contract before adapting Trip Detail or live UI;
+  never use `sampleCount` for that decision. Then prove the exact `{Steps}` manual path through
+  ordinary production navigation before changing activation state.
+
+## Exact service-run presentation settlement checkpoint (2026-08-31)
+
+### Outcome
+
+Commit `9aeb8853a` closes the exact run-to-presentation ownership and post-writer acknowledgement
+slice without restoring cleanup. `source_service_run` now owns a nullable unique
+`session_segment_id` plus `PENDING`, `QUIESCED`, or `LEGACY_UNVERIFIABLE` settlement evidence.
+Opening a session creates and binds the segment in one Room transaction; a same-run retry resumes
+only that binding, while a replacement service run creates another physical segment under the same
+logical tracking ID. The recovery descriptor mirrors the binding through an exact atomic CAS and
+cannot overwrite a concurrent stop candidate.
+
+The orchestrator retains an exact shutdown receipt across retry and emits it only after the final
+session row, processing pipeline, Ski writer, ancillary components, and summary attempt have
+stopped. `TrackerService` acknowledges only an exact completed `FINALIZED` or `FAILED` run before
+clearing its descriptor. Missing/mismatched ownership remains `PENDING` and is logged without
+tracked payload; nonterminal or transient database failure retries. No physical row is deleted.
+
+### Evidence and adversarial disposition
+
+- The schema reviewer accepted one segment per physical run, the nullable unique reverse index,
+  migrated `LEGACY_UNVERIFIABLE`, and both terminal run states. Its request to drop an unused
+  elapsed acknowledgement timestamp was accepted.
+- The lifecycle reviewer found and the implementation mitigated descriptor overwrite ordering,
+  stale tier writes, shutdown-receipt loss, one-shot Ski failure semantics, and infinite retry on
+  permanent ownership corruption. Its proposed extra `NEEDS_SOURCE_EVIDENCE` column was deferred:
+  no evaluator or consumer exists, and `QUIESCED` is explicitly forbidden from implying retention,
+  materialization, emptiness, or deletion.
+- The product/ownership review preserved the `HIGH` product limitation: replacement runs now create
+  multiple physical Trip rows for one logical entry. Day/history grouping and exact Steps selector
+  reverse-binding remain required before a logical-entry or `QUERYABLE` claim.
+- Focused engine verification passes in `4m 20s` with 230 tasks. Focused core DAO and tracker API
+  tests pass; migration Android-test Kotlin compiles. Root Detekt passes in `13s`. Affected-module
+  lint passes in `2m 19s` with 383 tasks and no new finding. Post-commit Room drift passes in `8s`
+  with 46 tasks. The first full host aggregate correctly found one obsolete assertion that expected
+  zero-cycle rows to be deleted; `d067704a9` makes the conservative retention contract explicit.
+  Its focused class passes in `2m 7s` (234 tasks), and `ciUnitTest --no-parallel` then passes in
+  `7m 2s` (990 tasks). Connected migration execution is unavailable because no device is attached.
+
+### Gate status and next wave
+
+- Passed: exact Room binding; same-run idempotence; replacement-run separation; descriptor CAS;
+  terminal/idempotent acknowledgement; receipt retry; final-row retention; no direct empty-row
+  deletion; Wi-Fi/Cell-compatible conservative preservation; v28 schema parity.
+- Failed or unverified: an all-six-source qualified-evidence evaluator, graceful or previous-exit
+  reclamation, new-v28 Steps selector reverse binding, logical-entry product grouping, ordinary
+  source-only discovery, selected deletion, materialization, `QUERYABLE`, connected migration,
+  process/reboot/provider/device/energy behavior, and rollout.
+- Next: require exact reverse binding in the new-v28 Steps history selector, add source-aware
+  ordinary discovery and logical-entry composition without per-row observers, then implement the
+  source-local Steps attribution/fence and typed deletion boundary. Do not turn `QUIESCED` into a
+  deletion predicate or add a generic tombstone platform.

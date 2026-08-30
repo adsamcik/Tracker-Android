@@ -1,6 +1,6 @@
 # Tracking Infrastructure Decisions
 
-Last updated: 2026-08-30
+Last updated: 2026-08-31
 
 Each entry records repository evidence and does not duplicate the final architecture document.
 
@@ -1299,3 +1299,37 @@ Each entry records repository evidence and does not duplicate the final architec
   contract before source-adaptive layout or live Dashboard wiring; add shared/batched composition
   before list/day use. New copy currently falls back to English in localized builds. Activation,
   automatic/Ambient Steps, device proof, and other sources remain outside this decision.
+
+## TI-D113 — Presentation settlement belongs to the exact physical service run
+
+- Status: `ACCEPTED_AND_IMPLEMENTED_AS_SETTLEMENT_AUTHORITY` at `9aeb8853a`; physical cleanup,
+  source materialization, logical-entry product grouping, and `QUERYABLE` remain `BLOCKED`
+- Owner/date: lead orchestrator after independent schema/lifecycle/segment-ownership adversaries,
+  2026-08-30
+- Alternatives: resume one presentation row across replacement service runs; treat the DataStore
+  descriptor as ownership authority; infer writer quiescence from terminal lifecycle SQL; add a
+  generic tombstone/evidence-disposition platform; bind one presentation segment to each physical
+  run in Room and acknowledge only completed writer shutdown
+- Evidence: final plan §4.3 permits one logical entry to own multiple service runs and segments.
+  Source lifecycle becomes terminal before `SessionTrackerComponent`, the processing pipeline,
+  Ski writer, and summary attempt complete. Wi-Fi- or Cell-only evidence is not represented by the
+  source-neutral component's counters, so an empty segment cannot be classified from that writer
+  alone. v28 has never shipped, allowing the direct 27→28 migration and schema to gain this exact
+  ownership without a v29 shell.
+- Decision: `source_service_run` is the authority for a nullable, uniquely reverse-indexed
+  `session_segment_id`. A new physical run clears the recovery mirror and creates its own segment
+  under the existing logical ID; same-run recovery resumes only the exact Room binding. New runs
+  start `PENDING`; migrated v27 rows are `LEGACY_UNVERIFIABLE`; completed `FINALIZED` or `FAILED`
+  runs may become `QUIESCED` only after the orchestrator returns an exact receipt after all
+  presentation writers have stopped. DataStore mirrors this tuple through an atomic exact CAS but
+  never authorizes it. `NOT_TERMINAL` and operational database failures retry; missing or mismatched
+  ownership is logged without payload, remains unacknowledged, and does not permanently wedge
+  already-stopped Android/provider resources.
+- Consequences: `QUIESCED` means only that the existing session/Ski presentation writers cannot
+  mutate the row again. It does not mean empty, retained, materialized, complete, queryable, or
+  deletable. This slice deliberately adds no `NEEDS_SOURCE_EVIDENCE` state because no all-source
+  evaluator or deletion consumer exists; the enum, comments, tests, and absence of cleanup enforce
+  the fail-closed boundary. A future typed evaluator must inspect qualified facts for all six source
+  families before reclamation. Recovery may now expose multiple physical Trip rows for one logical
+  entry until the production history facade groups them. The Steps selector must next require the
+  exact reverse binding for new-v28 rows; legacy-unverifiable rows remain typed and blocked.

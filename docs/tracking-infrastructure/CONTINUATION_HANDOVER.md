@@ -1,6 +1,6 @@
 # Tracking Infrastructure Continuation Handover
 
-Last updated: 2026-08-30
+Last updated: 2026-08-31
 
 This handover is for the next device or Codex session continuing the tracking-infrastructure
 program after the local and remote `dev/v10` histories were reconciled. It is an execution
@@ -38,19 +38,116 @@ product history, UI, device rollout, or general availability is complete. It pre
 path and adds a tested, explicit Steps writer-transition mechanism; it does not invoke the first
 candidate activation in production.
 
-The current local continuation code tip is `f9b1c3c45` on `codex/ti410-deletion-rearm`. Its local
+The current local continuation production code tip is `9aeb8853a`, followed by test-contract
+correction `d067704a9`, on `codex/ti410-deletion-rearm`. Its local
 sequence is deletion/re-arm proof `3b2365547`, evidence handover `411bfe144`, the observable Steps
 history facade `c5118e186`, its handover `d6e887d41`, the dormant source-deletion fence `03bbda2f1`,
 its handover `bfe2e1f36`, unsafe empty-session cleanup containment `88309387d`, remaining zero-sample
-product-read exclusion `24b9aeffb`, its handover `412882194`, and the contained read-only
-Trip Detail Steps consumer `f9b1c3c45`, directly atop local and remote `dev/v10` at
+product-read exclusion `24b9aeffb`, its handover `412882194`, the contained read-only Trip Detail
+Steps consumer `f9b1c3c45`, its handover `dba200183`, exact service-run presentation settlement
+`9aeb8853a`, and its full-suite test correction `d067704a9`, directly atop local and remote `dev/v10` at
 `ffd5d372fafafceb7d9d595b95e47b89b949de83`. TI-B160 records the retained-AVD deletion proof;
 TI-D108/TI-B162 record the one-selected-session read contract; TI-D109/TI-B163–TI-B165 record the
 fresh R1 deletion review, scope withdrawal, dormant authority, and focused gates; TI-D110/TI-B166–
 TI-B167 record the cleanup race, containment, and corrected product-read evidence; TI-D111 records
 the source-local, product-first next-wave correction; TI-D112/TI-B168 record the contained Trip
-Detail consumer and its adversarial boundary. These commits and this handover update are local-only:
+Detail consumer and its adversarial boundary; TI-D113/TI-B169–TI-B170 record exact per-run segment
+ownership, post-writer quiescence, the stale-test correction, and the passing full host aggregate.
+These commits and this handover update are local-only:
 they are not integrated into local `dev/v10` or pushed, and no new remote delivery is claimed.
+
+## Exact presentation-settlement checkpoint
+
+### Outcome
+
+`9aeb8853a` binds each physical `source_service_run` to exactly one presentation segment and records
+when the existing session/Ski presentation pipeline can no longer mutate it. One logical tracking
+entry may therefore own multiple physical segments across replacement runs. Same-run recovery
+resumes only the exact Room binding; a new run clears the descriptor mirror and creates a new
+segment. Room is authoritative and the DataStore descriptor is an atomic exact-CAS recovery mirror.
+
+Shutdown now carries an exact binding receipt across retries and acknowledges `QUIESCED` only after
+the session final row, processing pipeline, Ski writer, ancillary components, and summary attempt
+have stopped, and only after the bound run is terminal (`FINALIZED` or `FAILED`). Migrated v27 rows
+are `LEGACY_UNVERIFIABLE`. Missing/mismatched ownership stays unacknowledged and is diagnosed without
+tracked payload; it does not permanently keep already-stopped providers alive. No row is reclaimed.
+
+`QUIESCED` is deliberately narrow: it means no future write from the existing presentation pipeline.
+It does not mean the row is empty, retained, materialized, complete, queryable, or deletable.
+Wi-Fi/Cell-only evidence is outside `SessionTrackerComponent`, so no cleanup predicate may infer
+absence from that component's counters. The extra generic `NEEDS_SOURCE_EVIDENCE` state proposed by
+one reviewer was deferred because no all-source evaluator or consumer exists; code comments, tests,
+and the absence of deletion preserve the same fail-closed result without unused platform state.
+
+### Evidence
+
+- Code commit: `9aeb8853a feat(tracking): bind presentation lifecycle to service runs`.
+- Focused lifecycle/component/store/orchestrator/crash suite: `BUILD SUCCESSFUL in 4m 20s`; 230
+  actionable tasks.
+- Focused core DAO and tracker API descriptor suites pass; Android migration-test Kotlin compiles.
+- Root Detekt: `BUILD SUCCESSFUL in 13s`.
+- `:tracker:engine:lintDebug :core:base:lintDebug :tracker:api:lintDebug --no-parallel`:
+  `BUILD SUCCESSFUL in 2m 19s`; 383 tasks; no new issue.
+- Post-commit `checkRoomSchemaDrift --no-parallel`: `BUILD SUCCESSFUL in 8s`; 46 tasks.
+- The first repository-wide host aggregate exposed one obsolete test that still expected a
+  zero-cycle row to be deleted. `d067704a9` corrects the assertion to retain the row until an
+  all-source evaluator exists; focused `MultiSessionLifecycleTest` passes in `2m 7s` (234 tasks).
+- Corrected `ciUnitTest --no-parallel`: `BUILD SUCCESSFUL in 7m 2s`; 990 tasks, 6 executed and 984
+  up-to-date. Full `ciCheck` was not rerun at this checkpoint.
+- No device is attached, so this revision's v27→v28 migration instrumentation test is compiled but
+  not executed. This is not device, provider, process-death, reboot, or energy evidence.
+- Three adversarial perspectives accepted the narrow Room authority and no-delete boundary. Their
+  surviving product finding is that history still exposes physical rows until logical-entry
+  grouping exists; the Steps selector also needs the new-v28 reverse-binding check.
+
+### Required next boundary
+
+First make new-v28 Steps history require `serviceRun.sessionSegmentId == segment.id`, while retaining
+a typed blocked result for migrated unverifiable rows. Then add an exact capture-set/qualified-source
+index that makes sole-source sessions discoverable without treating `sample_count` as source proof,
+and group replacement-run segments by logical entry in the shared product composition. Only after
+those read contracts are stable should the Steps-local attribution/fence and typed selected-deletion
+command proceed. Never use `QUIESCED` as a deletion predicate, and do not add a universal tombstone,
+generic materializer platform, or physical orphan cleanup to this critical path.
+
+## Minimum remaining work for the actual product vision
+
+The remaining program is six thin source-to-product verticals, not another horizontal framework
+wave. The minimum honest completion path is:
+
+1. Finish manual/session Steps end to end: require the exact new-v28 run/segment binding in history,
+   make source-only sessions ordinarily discoverable, activate one canonical writer through the
+   existing contained transition, expose truthful live/session/day state, and complete selected
+   deletion, no-resurrection, retention, and portable export/import. Prove the exact `{Steps}`
+   registration and product path before generalizing anything.
+2. Deliver Pressure, protected Location, Activity, Wi-Fi, and Cell as separate thin verticals. Each
+   needs fresh provider evidence, durable fact, exact purpose/epoch attribution, one canonical
+   writer, and a production query/UI result while every other capture source is disabled. Location's
+   existing canonical writer remains protected until its shadow/cutover decision.
+3. Add only useful ambient products: default-off opted-in Steps; passive/opportunistic Location;
+   callback/broadcast-driven Wi-Fi and Cell; no default continuous Pressure. When an authorized
+   provider runs, fresh new-in-effect output persists. Stale cache replay and duplicate state have
+   zero product value. Active radio attempts remain finite and direct-demand-only.
+4. Add optional cross-source enrichment as a freshness- and consent-checked attribution/query join.
+   For example, Wi-Fi may reference compatible Location already being collected, but enrichment
+   never starts or retains an expensive provider and Wi-Fi must remain useful without Location.
+5. Compose one production history contract that groups replacement physical segments into a logical
+   entry and exposes day, session, and between-session facts with explicit disabled, unavailable,
+   no-observation, materializing, partial, degraded, and failed states. Reuse existing Dashboard,
+   History, Calendar, and detail surfaces first; build only UI those surfaces cannot express.
+6. Finish the privacy/data lifecycle per source: consent epoch, approved retention, minimized export,
+   selected and collected-data deletion, key rotation where identity is retained, correction/replay,
+   and no resurrection. Final retention durations and user-facing privacy copy remain explicit
+   product/privacy decisions.
+7. Run proportional Android proof: all 12 manual/automatic only-source scenarios, dynamic policy and
+   permission changes, process death/reboot, replay/correction/deletion/upgrade, and a small
+   representative API/OEM/device battery-quality matrix. Acquisition tiers require measured quality
+   per unit of battery; they do not require an enterprise-scale lab before internal proof.
+
+Do not add a universal materializer language, generic tombstone platform, six speculative source
+schemas at once, wake-reliable Wi-Fi/Cell promises without measurements, or a new UI platform before
+two concrete source verticals demonstrate the shared need. Automatic and ambient modes remain
+independent source gates rather than blockers for the first useful manual vertical.
 
 ## Dormant deletion-fence checkpoint
 
@@ -656,8 +753,9 @@ Implementation blockers that do not require a product choice should continue wit
   live Steps state without treating missing Steps as zero;
 - fix ordinary source-only discovery: current positive-`sample_count` History/Stats list queries can
   hide a valid source-only session and remain an accepted `QUERYABLE` blocker;
-- persist the generated segment ID into durable session state, validate exact logical/run/segment
-  membership on resume, and add durable post-presentation acknowledgement before graceful cleanup;
+- preserve the implemented exact run/segment binding and post-presentation acknowledgement; add
+  the new-v28 Steps reverse-binding check, logical-entry grouping, and an all-source qualified-fact
+  evaluator before considering any graceful cleanup;
 - resolve newly admitted v28 Steps attribution and monotonic fence enforcement in legacy, candidate,
   and portable-import Steps writes only; migrated unverifiable rows remain a typed blocked state;
 - define one typed data-plane `DeleteSelectedSession` command with `Deleted`, accepted `NotFound`,
@@ -707,7 +805,7 @@ Expected results:
 On the current integration device, also inspect the unpushed continuation before integration:
 
 ```powershell
-git show --stat --oneline f9b1c3c45
+git show --stat --oneline d067704a9
 git log --oneline dev/v10..codex/ti410-deletion-rearm
 git diff --check dev/v10...codex/ti410-deletion-rearm
 ```
@@ -737,10 +835,11 @@ After that delivery is visible on the target device, create a dedicated worktree
 from updated clean local `dev/v10`, per `AGENTS.md`. The next code wave is TI-410 manual/session Steps,
 not another shared framework:
 
-1. On this device, integrate or continue from the local branch through code commit `f9b1c3c45` and
-   this handover only after confirming the exact branch/source-tree status. This continuation is not
+1. On this device, integrate or continue from the local branch through test-contract commit
+   `d067704a9` (production code `9aeb8853a`) and this handover only after confirming the exact
+   branch/source-tree status. This continuation is not
    on the remote at this checkpoint.
-2. Keep TI-D107–TI-D112, the current status checkpoints, and TI-B158–TI-B168 synchronized with any
+2. Keep TI-D107–TI-D113, the current status checkpoints, and TI-B158–TI-B170 synchronized with any
    correction or newly reproduced result. Do not reinterpret the dormant fence or cleanup
    containment as product deletion or process-death reclamation.
 3. Preserve the contained read-only Trip Detail Steps states. Define an exact historical capture-set
@@ -748,9 +847,11 @@ not another shared framework:
    export; never infer Location from `sampleCount`. Add the contained live Steps surface and fix
    ordinary source-only list discovery. Define typed delete UX now, but keep mutation and activation
    off.
-4. Persist the generated segment ID and exact logical/run/segment membership, add durable
-   post-presentation acknowledgement, and relocate graceful empty-row cleanup behind it. Keep
-   previous-exit crash-orphan reclamation as a later bounded slice.
+4. Preserve the exact Room run/segment binding and post-presentation acknowledgement in
+   `9aeb8853a`. Require the Steps selector to validate that reverse binding for new-v28 rows, then
+   add logical-entry product grouping and a typed all-source evidence evaluator. Do not relocate or
+   restore graceful empty-row cleanup until that evaluator exists. Keep previous-exit crash-orphan
+   reclamation as a later bounded slice.
 5. Extend newly admitted v28 `SESSION_CAPTURE` Steps with exact manifest/run/purpose/epoch
    attribution and monotonic fences in legacy, candidate, and portable-import Steps writes only.
    Migrated unverifiable rows remain `LegacyUnverifiable`/`UnsupportedScope`; never infer ownership
@@ -792,7 +893,8 @@ activation, remote flag change, canary, deployment, or destructive migration/del
 
 That earlier authorization and push were completed through remote `ffd5d372f`. The local sequence
 through `3b2365547`, `411bfe144`, `c5118e186`, `d6e887d41`, `03bbda2f1`, `bfe2e1f36`,
-`88309387d`, `24b9aeffb`, `412882194`, and `f9b1c3c45`, plus this updated handover, is local-only at
+`88309387d`, `24b9aeffb`, `412882194`, `f9b1c3c45`, `dba200183`, `9aeb8853a`, and
+`d067704a9`, plus this updated handover, is local-only at
 this checkpoint. The latest instruction was applied as commit-and-prepare work; no additional push
 was performed. Do not tell another device that this continuation is remotely available until a
 later ordinary push is explicitly executed and verified.
@@ -819,7 +921,7 @@ performing any external rollout action.
 
 - [x] `9b8ab4b43e0d5ca2e729f511b48936b0dbdfbb6a` is the committed second merge with
   parents `1a112bbd5` and `9a65148a1`.
-- [x] The authoritative historical reconciliation command and the exact TI-B160–TI-B168 commands,
+- [x] The authoritative historical reconciliation command and the exact TI-B160–TI-B170 commands,
   results, task counts, review dispositions, and tested code commits are recorded above.
 - [x] All six protected root paths on this integration device remain byte-for-byte identical and
   intentionally uncommitted.
@@ -832,19 +934,21 @@ performing any external rollout action.
 - [x] Implementation artifacts close the same-process collected-data deletion/rearm seam, add one
   selected-session Steps facade plus one contained read-only Trip Detail consumer, add one dormant
   exact-run deletion fence, and retire the unsafe periodic empty-session mutation while excluding
-  every zero-sample row from the named product and ActivityRecognition reads. Other DAO reads remain
-  unchanged. Direct Trip Detail delete is removed. The artifacts accurately preserve ordinary
+  every zero-sample row from the named product and ActivityRecognition reads. Exact Room ownership
+  now binds one presentation segment per physical service run and records post-writer quiescence
+  without deleting the row. Other DAO reads remain unchanged. Direct Trip Detail delete is removed.
+  The artifacts accurately preserve ordinary
   source-only discovery, safe app-wide deletion, durable orphan reclamation, legacy-writer, day
   repair, retention/import/export, cold-process, broader product-query/UI, provider/device, source,
   activation, and rollout gates.
 
-Next-session instruction: preserve the contained Trip Detail read, then persist exact segment
-ownership and post-presentation acknowledgement. Resolve new-v28 Steps attribution, source-local
-fences, typed deletion/unsupported UX, documented-zone day repair, and the existing post-commit drain
-before any activation. Define exact historical capture-set/qualifying-Location evidence before
-source-adaptive detail layout; never use `sampleCount` as Location evidence. Add the contained live
-surface and ordinary source-only discovery, then run the exact `{Steps}` smoke. Keep periodic cleanup
-retired, previous-exit orphan cleanup off the critical path, and retention/import/export as distinct
-services. Do not create a generic mutation platform, permanent observer, per-row fan-out, or claim
-orphan reclamation, product deletion, `QUERYABLE`, another source, ambient mode, device, activation,
-or rollout gates without reproducible evidence.
+Next-session instruction: preserve the contained Trip Detail read and exact presentation settlement.
+First enforce the new-v28 Steps reverse binding, logical-entry grouping, and ordinary source-only
+discovery with exact capture/qualified-source evidence. Then resolve new-v28 Steps attribution,
+source-local fences, typed deletion/unsupported UX, documented-zone day repair, and the existing
+post-commit drain before activation. Never use `sampleCount` as Location evidence or `QUIESCED` as a
+deletion predicate. Add the contained live surface, then run the exact `{Steps}` smoke. Keep periodic
+cleanup retired, previous-exit orphan cleanup off the critical path, and retention/import/export as
+distinct services. Do not create a generic mutation platform, permanent observer, per-row fan-out,
+or claim orphan reclamation, product deletion, `QUERYABLE`, another source, ambient mode, device,
+activation, or rollout gates without reproducible evidence.
