@@ -6,6 +6,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
@@ -55,6 +56,17 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 		if (serviceRun.logicalTrackingId != logicalTrackingId) {
 			return unavailable(StepsHistoryReason.SERVICE_RUN_MEMBERSHIP_MISMATCH)
 		}
+		if (database.sourceDeletionFenceDao().contains(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			scopeIdentityDigest = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+				logicalTrackingId = logicalTrackingId,
+				serviceRunId = serviceRunId,
+			),
+		)) return deleted()
 
 		val manifests = sessionDao.manifestsForServiceRun(serviceRunId)
 		if (manifests.isEmpty()) {
@@ -387,6 +399,15 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 		materialization = StepsHistoryMaterialization.FAILED,
 		coverage = StepsHistoryCoverage.UNKNOWN,
 		reasons = setOf(reason),
+	)
+
+	private fun deleted() = StepsSegmentHistoryResult(
+		count = null,
+		availability = StepsHistoryAvailability.DELETED,
+		evidence = StepsHistoryEvidence.NO_OBSERVATION,
+		materialization = StepsHistoryMaterialization.READY,
+		coverage = StepsHistoryCoverage.NONE,
+		reasons = setOf(StepsHistoryReason.DELETED_FACTS),
 	)
 
 	private data class HistoricalStepsWriterBinding(

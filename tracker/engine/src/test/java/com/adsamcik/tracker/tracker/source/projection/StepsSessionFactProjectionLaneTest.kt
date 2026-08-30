@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
@@ -40,6 +41,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@Suppress("LargeClass") // One shared Room fixture keeps writer/cursor transaction cases comparable.
 class StepsSessionFactProjectionLaneTest {
 	private lateinit var database: AppDatabase
 
@@ -179,6 +181,22 @@ class StepsSessionFactProjectionLaneTest {
 	}
 
 	@Test
+	fun `deleted session scope advances as a validated no effect before first projection`() = runTest {
+		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		insertSessionDeletionFence()
+
+		StepsSessionFactProjectionLane(
+			database,
+			sourceIngress(0L, 1L, listOf(stepEvent(1L))),
+		).drainThrough(1L) shouldBe
+			StepsSessionFactDrainResult.Complete(1L, factsInserted = 0, eventsValidated = 1)
+
+		database.stepFactRevisionDao().countAll() shouldBe 0L
+		database.sourceEvidenceStateDao().get()?.revision shouldBe 0L
+		activeLane()?.contiguousAdmissionOrdinal shouldBe 1L
+	}
+
+	@Test
 	fun `retention rejects a fact whose product time is below the retained floor`() = runTest {
 		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
 		database.sourceEvidenceStateDao().updateLifecycle(
@@ -251,6 +269,45 @@ class StepsSessionFactProjectionLaneTest {
 		coVerify(exactly = 2) {
 			ingress.committedSourceBatch(SourceKind.STEPS, 0L, 1L, 64)
 		}
+	}
+
+	@Test
+	fun `session deletion clears an existing terminal failure and releases its cursor`() = runTest {
+		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		insertRawStepsRow(
+			ordinal = 1L,
+			wallTimeMs = 10_001L,
+			acquiredAtMs = 10_001L,
+			corruptIntegrity = true,
+		)
+		val ingress = mockk<DurableSourceIngress>()
+		coEvery {
+			ingress.committedSourceBatch(SourceKind.STEPS, 0L, 1L, 64)
+		} throws CorruptSourceEventException(
+			admissionOrdinal = 1L,
+			sourceKind = SourceKind.STEPS.stableCode,
+			failureCode = "RAW_PAYLOAD_INTEGRITY",
+		)
+		val subject = StepsSessionFactProjectionLane(database, ingress)
+
+		subject.drainThrough(1L) shouldBe StepsSessionFactDrainResult.Failed(
+			lastCompletedOrdinal = 0L,
+			failedOrdinal = 1L,
+			failureCode = "RAW_PAYLOAD_INTEGRITY",
+			terminal = true,
+		)
+		insertSessionDeletionFence()
+
+		subject.drainThrough(1L) shouldBe
+			StepsSessionFactDrainResult.Complete(1L, factsInserted = 0, eventsValidated = 0)
+
+		database.sourceProjectionStateDao().failure(
+			StepsSessionFactProjectionLane.WRITER_ID,
+			StepsSessionFactProjectionLane.WRITER_VERSION,
+			1L,
+		) shouldBe null
+		activeLane()?.contiguousAdmissionOrdinal shouldBe 1L
+		database.stepFactRevisionDao().countAll() shouldBe 0L
 	}
 
 	@Test
@@ -633,6 +690,20 @@ class StepsSessionFactProjectionLaneTest {
 			)
 		}
 		database.sourceEventWalDao().insertIgnoringDuplicate(stored)
+	}
+
+	private suspend fun insertSessionDeletionFence() {
+		database.sourceDeletionFenceDao().upsert(
+			SourceDeletionFenceEntity.createLogicalServiceRun(
+				sourceKind = SourceKind.STEPS.stableCode,
+				purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				serviceRunId = SERVICE_RUN_ID,
+				fenceGeneration = 1L,
+				collectedDataEpoch = COLLECTED_DATA_EPOCH,
+				deletedAtMs = 20_000L,
+			),
+		)
 	}
 
 	private fun stepEvent(

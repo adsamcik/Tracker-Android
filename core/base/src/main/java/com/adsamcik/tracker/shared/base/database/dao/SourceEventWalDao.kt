@@ -18,9 +18,12 @@ interface SourceEventWalDao {
 	@Query("SELECT * FROM source_event_wal WHERE event_id = :eventId LIMIT 1")
 	suspend fun getByEventId(eventId: String): SourceEventWalEntity?
 
+	/** Loads the payload-free authority needed to reconcile one projection failure. */
 	@Query(
 		"SELECT admission_ordinal, source_kind, captured_collected_data_epoch, " +
-			"acquired_at_ms, wall_time_ms FROM source_event_wal " +
+			"acquired_at_ms, wall_time_ms, authorization_purpose_eligibility_mask, " +
+			"logical_tracking_id, service_run_id " +
+			"FROM source_event_wal " +
 			"WHERE admission_ordinal = :admissionOrdinal LIMIT 1",
 	)
 	suspend fun projectionEligibilityByAdmissionOrdinal(
@@ -231,6 +234,10 @@ data class SourceEventProjectionEligibilityRow(
 	@ColumnInfo(name = "captured_collected_data_epoch") val capturedCollectedDataEpoch: Long,
 	@ColumnInfo(name = "acquired_at_ms") val acquiredAtMs: Long,
 	@ColumnInfo(name = "wall_time_ms") val wallTimeMs: Long?,
+	@ColumnInfo(name = "authorization_purpose_eligibility_mask")
+	val authorizationPurposeEligibilityMask: Long,
+	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String?,
+	@ColumnInfo(name = "service_run_id") val serviceRunId: String?,
 )
 
 /** Payload-free projection used to recognize an exact replay of a process-stable delivery. */

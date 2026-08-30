@@ -192,8 +192,9 @@ interface StepFactRevisionDao {
 	 * resurrect a corrected service-run value. Independently expired historical revisions are still
 	 * minimized even while a newer effective correction remains retained.
 	 *
-	 * Redacted retractions deliberately survive so a local deletion cannot be undone by import,
-	 * replay, or a future writer version.
+	 * Redacted retractions deliberately survive so an already-known fact cannot reappear within its
+	 * writer contract. A source deletion fence is separately required for replay, import, or another
+	 * writer version and every such mutation path must consult it transactionally.
 	 */
 	@Query(
 		"""

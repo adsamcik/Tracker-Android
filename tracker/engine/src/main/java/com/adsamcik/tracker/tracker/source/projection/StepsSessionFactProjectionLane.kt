@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.SourceEventProjectionEligibilityRow
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
@@ -407,16 +408,24 @@ class StepsSessionFactProjectionLane private constructor(
 		val raw = database.sourceEventWalDao()
 			.projectionEligibilityByAdmissionOrdinal(admissionOrdinal) ?: return true
 		if (raw.sourceKind != SourceKind.STEPS.stableCode) return true
-		return raw.isLifecycleRejected(evidenceState)
+		return raw.isLifecycleRejected(evidenceState) || raw.isDeletedScope()
 	}
 
 	private fun SourceEventProjectionEligibilityRow.isLifecycleRejected(
 		evidenceState: SourceEvidenceState,
-	): Boolean = capturedCollectedDataEpoch != evidenceState.collectedDataEpoch ||
+	): Boolean = authorizationPurposeEligibilityMask and
+		SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
+		capturedCollectedDataEpoch != evidenceState.collectedDataEpoch ||
 		evidenceState.retainedFromMs?.let { retainedFrom ->
 			acquiredAtMs < retainedFrom ||
 				wallTimeMs?.takeIf { it >= 0L }?.let { it < retainedFrom } == true
 		} == true
+
+	private suspend fun SourceEventProjectionEligibilityRow.isDeletedScope(): Boolean {
+		val logicalTrackingId = logicalTrackingId ?: return false
+		val serviceRunId = serviceRunId ?: return false
+		return sessionScopeIsDeleted(logicalTrackingId, serviceRunId)
+	}
 
 	private suspend fun executableLaneOrNull(): SourceProductProjectionLaneEntity? {
 		val active = database.sourceProjectionStateDao().allActiveProductLanes()
@@ -543,6 +552,12 @@ class StepsSessionFactProjectionLane private constructor(
 			evidence.logicalTrackingId == null ||
 			evidence.serviceRunId == null
 		) return null
+		val logicalTrackingId = evidence.logicalTrackingId.value
+		val serviceRunId = evidence.serviceRunId.value
+		if (sessionScopeIsDeleted(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+		)) return null
 
 		fun poison(code: String): Nothing = throw StepsSessionFactPoisonException(
 			admissionOrdinal,
@@ -588,8 +603,6 @@ class StepsSessionFactProjectionLane private constructor(
 			}
 		}
 
-		val logicalTrackingId = evidence.logicalTrackingId.value
-		val serviceRunId = evidence.serviceRunId.value
 		val manifestRevision = evidence.sessionManifestRevision
 			?: poison("STEPS_MANIFEST_REVISION_MISSING")
 		val policyRevision = evidence.sourcePolicyRevision
@@ -725,6 +738,21 @@ class StepsSessionFactProjectionLane private constructor(
 		}
 		return binding
 	}
+
+	private suspend fun sessionScopeIsDeleted(
+		logicalTrackingId: String,
+		serviceRunId: String,
+	): Boolean = database.sourceDeletionFenceDao().contains(
+		sourceKind = SourceKind.STEPS.stableCode,
+		purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+		scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+		scopeIdentityDigest = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+			sourceKind = SourceKind.STEPS.stableCode,
+			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+		),
+	)
 
 	private fun effectChecksum(vararg values: Any?): String {
 		val canonical = values.joinToString(separator = "") { value ->

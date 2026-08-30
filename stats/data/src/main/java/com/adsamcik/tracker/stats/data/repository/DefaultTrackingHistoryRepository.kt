@@ -36,6 +36,7 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 			PRODUCT_LANE_TABLE,
 			PROJECTION_FAILURE_TABLE,
 			SOURCE_EVIDENCE_TABLE,
+			SOURCE_DELETION_FENCE_TABLE,
 			STEP_FACT_TABLE,
 			SESSION_COMPLETENESS_TABLE,
 			emitInitialState = true,
@@ -60,6 +61,7 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 		const val PRODUCT_LANE_TABLE = "source_product_projection_lane"
 		const val PROJECTION_FAILURE_TABLE = "source_projection_failure"
 		const val SOURCE_EVIDENCE_TABLE = "source_evidence_state"
+		const val SOURCE_DELETION_FENCE_TABLE = "source_deletion_fence"
 		const val STEP_FACT_TABLE = "step_fact_revision"
 		const val SESSION_COMPLETENESS_TABLE = "source_session_completeness"
 	}

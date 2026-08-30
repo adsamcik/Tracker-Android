@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
@@ -205,6 +206,56 @@ class StepsSegmentHistorySelectorTest {
 			com.adsamcik.tracker.stats.api.repository.HistoryProductState.READY
 		ready.history.steps.coverage shouldBe
 			com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage.COMPLETE
+		Unit
+	}
+
+	@Test
+	fun observableLookupReactsToRunFenceAsDeletedWithoutRemovingTheSegment() = runBlocking {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)),
+			targetOrdinal = 1L,
+			laneCursor = 1L,
+		)
+		val persisted = segment(RUN_ONE, steps = 5)
+		val segmentId = database.sessionSegmentDao().insert(persisted)
+		val repository = DefaultTrackingHistoryRepository(database, selector, Dispatchers.IO)
+		val initialEmission = CompletableDeferred<Unit>()
+		val collection = async {
+			repository.observeSession(segmentId)
+				.onEach { initialEmission.complete(Unit) }
+				.take(2)
+				.toList()
+		}
+
+		withTimeout(5_000L) { initialEmission.await() }
+		database.sourceDeletionFenceDao().upsert(
+			SourceDeletionFenceEntity.createLogicalServiceRun(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+				logicalTrackingId = LOGICAL_ID,
+				serviceRunId = RUN_ONE,
+				fenceGeneration = 1L,
+				collectedDataEpoch = 0L,
+				deletedAtMs = 3_000L,
+			),
+		)
+
+		val emissions = withTimeout(5_000L) { collection.await() }
+		val ready = emissions.first() as
+			com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery.Found
+		ready.history.steps.count shouldBe 5L
+		val deleted = emissions.last() as
+			com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery.Found
+		deleted.history.steps.availability shouldBe
+			com.adsamcik.tracker.stats.api.repository.HistoryAvailability.AVAILABLE
+		deleted.history.steps.productState shouldBe
+			com.adsamcik.tracker.stats.api.repository.HistoryProductState.PARTIAL
+		deleted.history.steps.causes shouldBe setOf(
+			com.adsamcik.tracker.stats.api.repository.StepsHistoryCause.DELETED,
+		)
+		deleted.history.steps.count shouldBe null
+		database.sessionSegmentDao().getById(segmentId) shouldBe persisted.copy(id = segmentId)
 		Unit
 	}
 

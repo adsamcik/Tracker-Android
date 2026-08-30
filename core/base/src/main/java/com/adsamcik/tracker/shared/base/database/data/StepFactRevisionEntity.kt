@@ -130,6 +130,7 @@ data class StepFactRevisionEntity(
 	}
 
 	private fun requireUpsertShape() {
+		require(scopeDeletionGeneration == 0L)
 		require(originKind == ORIGIN_LIVE_WAL || originKind == ORIGIN_PORTABLE_IMPORT)
 		when (originKind) {
 			ORIGIN_LIVE_WAL -> require(

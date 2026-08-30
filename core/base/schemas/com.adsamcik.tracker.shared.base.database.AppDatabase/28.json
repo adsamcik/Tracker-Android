@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 28,
-    "identityHash": "dafd087ed9b85027297804f9cca180a8",
+    "identityHash": "751083bb4f4058c532394ac3bbf79128",
     "entities": [
       {
         "tableName": "activity",
@@ -1327,6 +1327,69 @@
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_step_fact_revision_service_run_latest` ON `${TABLE_NAME}` (`writer_projection_id`, `writer_projection_version`, `service_run_id`, `purpose`, `logical_fact_id`, `semantic_revision`)"
           }
         ]
+      },
+      {
+        "tableName": "source_deletion_fence",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`source_kind` INTEGER NOT NULL, `purpose` TEXT NOT NULL, `scope_kind` TEXT NOT NULL, `scope_identity_digest` TEXT NOT NULL, `fence_generation` INTEGER NOT NULL, `collected_data_epoch` INTEGER NOT NULL, `deleted_at_ms` INTEGER NOT NULL, `effect_checksum` TEXT NOT NULL, PRIMARY KEY(`source_kind`, `purpose`, `scope_kind`, `scope_identity_digest`))",
+        "fields": [
+          {
+            "fieldPath": "sourceKind",
+            "columnName": "source_kind",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "purpose",
+            "columnName": "purpose",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scopeKind",
+            "columnName": "scope_kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scopeIdentityDigest",
+            "columnName": "scope_identity_digest",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fenceGeneration",
+            "columnName": "fence_generation",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "collectedDataEpoch",
+            "columnName": "collected_data_epoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deletedAtMs",
+            "columnName": "deleted_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effectChecksum",
+            "columnName": "effect_checksum",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "source_kind",
+            "purpose",
+            "scope_kind",
+            "scope_identity_digest"
+          ]
+        }
       },
       {
         "tableName": "source_destination_owner",
@@ -7559,7 +7622,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'dafd087ed9b85027297804f9cca180a8')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '751083bb4f4058c532394ac3bbf79128')"
     ]
   }
 }

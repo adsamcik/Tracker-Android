@@ -1511,6 +1511,21 @@ val MIGRATION_27_28: Migration = object : Migration(
 			)
 			execSQL(
 				"""
+				CREATE TABLE IF NOT EXISTS source_deletion_fence (
+					source_kind INTEGER NOT NULL,
+					purpose TEXT NOT NULL,
+					scope_kind TEXT NOT NULL,
+					scope_identity_digest TEXT NOT NULL,
+					fence_generation INTEGER NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					deleted_at_ms INTEGER NOT NULL,
+					effect_checksum TEXT NOT NULL,
+					PRIMARY KEY(source_kind, purpose, scope_kind, scope_identity_digest)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"""
 				CREATE TABLE IF NOT EXISTS step_fact_revision (
 					logical_fact_id TEXT NOT NULL,
 					semantic_revision INTEGER NOT NULL,

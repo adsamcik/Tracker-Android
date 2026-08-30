@@ -10,6 +10,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.adsamcik.tracker.shared.base.database.data.LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID
 import com.adsamcik.tracker.shared.base.database.data.LegacyV27ProjectionDrainEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.sqlite.runtime.SQLiteXSupportSQLiteOpenHelperFactory
@@ -89,7 +90,9 @@ class AppDatabaseMigration27To28Test {
 					assertFailClosedAuthorityAndNoGhostRuntime(database)
 					assertForeignKeysEnabled(database)
 					seedMigratedStepFactRevision(database)
+					seedMigratedDeletionFence(database)
 					assertEquals(1L, database.stepFactRevisionDao().countAll())
+					assertEquals(1L, database.sourceDeletionFenceDao().countAll())
 
 					AppDatabase.deleteAllCollectedData(
 						database = database,
@@ -531,6 +534,7 @@ class AppDatabaseMigration27To28Test {
 		assertTableCount(database, "step_interval", 2)
 		// v27 observations remain byte-for-byte facts; migration must not invent semantics.
 		assertTableCount(database, "step_fact_revision", 0)
+		assertTableCount(database, "source_deletion_fence", 0)
 		assertTableCount(database, "source_destination_owner", 1)
 		database.query(
 			"SELECT owner, owner_generation FROM source_destination_owner " +
@@ -920,6 +924,7 @@ class AppDatabaseMigration27To28Test {
 		assertTrue(database.stepIntervalDao()
 			.getAllBetween(PopulatedV27Fixture.START_MS, PopulatedV27Fixture.END_MS).isEmpty())
 		assertEquals(0L, database.stepFactRevisionDao().countAll())
+		assertEquals(0L, database.sourceDeletionFenceDao().countAll())
 		assertTrue(database.activitySnapshotDao()
 			.getAllBetween(PopulatedV27Fixture.START_MS, PopulatedV27Fixture.END_MS).isEmpty())
 		assertTrue(database.wifiObservationDao().getChunkBetweenOrdered(
@@ -1011,6 +1016,20 @@ class AppDatabaseMigration27To28Test {
 			),
 		)
 		assertTrue(inserted != -1L)
+	}
+
+	private suspend fun seedMigratedDeletionFence(database: AppDatabase) {
+		database.sourceDeletionFenceDao().upsert(
+			SourceDeletionFenceEntity.createLogicalServiceRun(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+				logicalTrackingId = PopulatedV27Fixture.LOGICAL_TRACKING_ID,
+				serviceRunId = PopulatedV27Fixture.SERVICE_RUN_ID,
+				fenceGeneration = 1L,
+				collectedDataEpoch = 7L,
+				deletedAtMs = PopulatedV27Fixture.END_MS,
+			),
+		)
 	}
 
 	private fun assertTableCount(database: SupportSQLiteDatabase, table: String, expected: Long) {
