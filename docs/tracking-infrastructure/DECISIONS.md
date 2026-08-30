@@ -1,6 +1,6 @@
 # Tracking Infrastructure Decisions
 
-Last updated: 2026-08-27
+Last updated: 2026-08-30
 
 Each entry records repository evidence and does not duplicate the final architecture document.
 
@@ -1089,15 +1089,16 @@ Each entry records repository evidence and does not duplicate the final architec
   progress, retention, and collected-data-epoch evidence; legacy positive values remain explicitly
   degraded and legacy zero never becomes verified zero.
 - Consequences: historical reads no longer depend on present write authority and incur no provider,
-  wakeup, polling, or schema cost. The selector stays internal and production-inert until a
-  run-boundary cutover coordinator, rollback/deletion reconstruction, typed export/import, observable
-  query, and completeness-safe consumers pass. This decision does not authorize automatic or
+  wakeup, polling, or schema cost. The selector stayed internal through transition and deletion-rearm
+  proof; TI-D108 now exposes it through a read-only facade, but it remains product-inert until typed
+  export/import and completeness-safe consumers pass. This decision does not authorize automatic or
   ambient Steps, another source materializer, `DayOverview`, UI wiring, or rollout.
 
 ## TI-D107 — Steps writer transitions are source-specific, atomic, and contained
 
-- Status: `ACCEPTED_CONTAINED`; implementation `IN_REVIEW` at
-  `9b8ab4b43e0d5ca2e729f511b48936b0dbdfbb6a`; production activation/query `BLOCKED`
+- Status: `ACCEPTED_CONTAINED`; transition implementation `IN_REVIEW` at
+  `9b8ab4b43e0d5ca2e729f511b48936b0dbdfbb6a`, deletion seam verified at `3b2365547`;
+  production activation/consumer `BLOCKED`
 - Owner/date: lead orchestrator after three independent reconciliation adversaries, 2026-08-27
 - Alternatives: promote Steps by changing rollout metadata; create a generic all-source cutover
   framework; expose a source-specific transition that atomically moves exact lane, owner, rollout,
@@ -1119,8 +1120,39 @@ Each entry records repository evidence and does not duplicate the final architec
   authority. There is no ordinary production first-activation or rollback caller.
 - Consequences: legacy generation 1 remains the sole active production Steps owner. The transition
   adds no provider registration, acquisition cadence, polling, ambient default, product query, or UI.
-  One `MEDIUM` integration test still must span
-  `DefaultCollectedDataDeletionService -> AppDatabase -> transition re-arm` while deletion/startup
-  barriers remain closed. Production query/consumer truth, typed export/import, deletion/replay,
-  device/provider/process/energy evidence, automatic/ambient Steps, and rollout remain blocked.
-  Reconciliation topology and next commands are in `CONTINUATION_HANDOVER.md`.
+  TI-B160 closes the prior `MEDIUM` same-process
+  `DefaultCollectedDataDeletionService -> AppDatabase -> transition re-arm` gap while deletion/
+  startup barriers remain closed. Production consumer truth, typed export/import, continuous
+  deletion/replay visibility, device/provider/process/energy evidence, automatic/ambient Steps, and
+  rollout remain blocked. Reconciliation topology and next commands are in
+  `CONTINUATION_HANDOVER.md`.
+
+## TI-D108 — Historical Steps availability requires affirmative retained evidence
+
+- Status: `ACCEPTED_AND_IMPLEMENTED_AS_READ_ONLY_FACADE` at `c5118e186`; production consumer and
+  `QUERYABLE` gate `BLOCKED`
+- Owner/date: lead orchestrator after three focused history-contract adversaries, 2026-08-30
+- Alternatives: infer `DISABLED` whenever an immutable manifest lacks a Steps capture binding;
+  collapse every unresolved condition into one product failure; add another historical capability
+  snapshot schema before exposing any read; expose one narrow selected-session query that reports
+  only states justified by retained policy, manifest, writer, fact, and completeness evidence
+- Evidence: a manifest can lack Steps because policy explicitly disabled it, because enabled policy
+  and capture intent disagree, or because required historical policy/capability evidence is missing.
+  The retained v28 records do not yet prove historical `UNSUPPORTED`, `PERMISSION_REQUIRED`, or
+  `OS_LIMITED` states. Fresh review also showed that legacy unknown coverage is not a lower bound,
+  candidate output behind its lane is partial, baseline-only evidence is not `ACTIVE`, and a covered
+  zero cannot claim the positive-delta `RECORDING` transition.
+- Decision: `TrackingHistoryRepository.observeSession(segmentId)` is a read-only facade for one
+  selected local segment. `DISABLED` is emitted only when every immutable policy revision referenced
+  by the run contains an explicit Steps policy with `enabled = false`; a valid captured binding proves
+  `AVAILABLE`; unresolved or inconsistent retained evidence becomes `UNAVAILABLE`. The public
+  contract keeps availability, acquisition evidence, product state, and coverage independent.
+  Positive values require `RECORDED`; a covered zero requires `ACTIVE`; missing or baseline-only
+  evidence remains null; every non-ready product state has a stable cause. The facade observes the
+  exact Room tables read by the selector, performs the selected snapshot in one transaction, and
+  neither starts a provider nor mutates a writer or projection.
+- Consequences: the API is Hilt-bound but has no production consumer, so this is not a `QUERYABLE`,
+  UI, export, activation, or rollout claim. The current observer invalidates on ten relevant tables
+  and is proportionate for one selected session; profile and introduce a shared/batched composition
+  only before list/day fan-out. Do not create one observer per history row or infer unsupported,
+  permission, or OS-limited history until durable evidence exists.

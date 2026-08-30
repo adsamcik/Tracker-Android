@@ -1,16 +1,17 @@
 # Tracking Infrastructure Implementation Status
 
-Last updated: 2026-08-29
+Last updated: 2026-08-30
 
 Execution-grade work items, ownership, dependency gates, verification commands, and rollback
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and
 evidence index.
 
-Current scoped checkpoint: local commit
-`3b23655472316d953b7d9e5fae20e17cb1841c5c` on `codex/ti410-deletion-rearm`, directly atop local and
-remote `dev/v10` at `ffd5d372fafafceb7d9d595b95e47b89b949de83`. It closes the production
-deletion-service/database/barrier/Steps-rearm integration-test gap; it is not yet integrated into
-local `dev/v10` or pushed. The delivered reconciliation remains merge
+Current scoped code checkpoint: local commit
+`c5118e186` on `codex/ti410-deletion-rearm`, after deletion/re-arm commit `3b2365547` and its
+handover, atop local and remote `dev/v10` at `ffd5d372fafafceb7d9d595b95e47b89b949de83`. It exposes
+the immutable Steps selector as a Hilt-bound, read-only, one-selected-session history facade. No
+production consumer uses it, so it is not yet integrated into local `dev/v10`, pushed, or evidence
+of `QUERYABLE`. The delivered reconciliation remains merge
 `9b8ab4b43e0d5ca2e729f511b48936b0dbdfbb6a`, with parents `1a112bbd5` and `9a65148a1`, plus the
 delivered handover commits through `ffd5d372f`. The complete topology, protected-root boundary, and
 next-session commands are recorded in `CONTINUATION_HANDOVER.md`. The initial audited
@@ -26,7 +27,8 @@ XML now exactly matches reconciled `HEAD`.
   historical selection, exact destination-owner fencing, and explicit candidate activation,
   rollback, and post-deletion generation reconstruction now exist. Legacy generation 1 remains the
   only active production owner; first activation and rollback have no ordinary production caller.
-- Gate status: `TRANSITION_FOUNDATION_IN_REVIEW / PRODUCT_WIRING_BLOCKED`. TI-B160 now connects the
+- Gate status: `TRANSITION_FOUNDATION_IN_REVIEW / OBSERVABLE_FACADE_PRESENT /
+  PRODUCT_WIRING_BLOCKED`. TI-B160 connects the
   production deletion provider, default `AppDatabase` deletion, singleton lifecycle/coordinator,
   durable pending marker, and closed startup/deletion barrier through a forced post-rearm diagnostics
   failure and successful retry. The final test passes twice consecutively on the same retained
@@ -34,8 +36,10 @@ XML now exactly matches reconciled `HEAD`.
   adversaries found two `HIGH` test-determinism issues; both were mitigated before those runs.
   Complementary focused engine suites prove stale
   epoch/owner work rejection, WAL recovery, projection non-resurrection, and high-water rebasing.
-  Product query/UI, typed export/import, cold process/reboot/provider evidence, manual only-Steps
-  device evidence, and every other source/mode remain blocked.
+  TI-D108/TI-B162 now add one observable selected-session contract whose independent availability,
+  evidence, product, coverage, and cause axes fail closed. It has no production consumer and changes
+  no writer or provider. Completeness-safe product wiring, typed export/import, cold process/reboot/
+  provider evidence, manual only-Steps device evidence, and every other source/mode remain blocked.
 - Integration owner: lead orchestrator
 - Structural implementation: Workstream A policy authority plus the retained v28
   manifest/lifecycle/broker schema, Room-first source-runtime coordinator demands, physical
@@ -51,11 +55,12 @@ XML now exactly matches reconciled `HEAD`.
   Activity `CONTROL`, never captured Activity. Process-wide startup ordering is now locally
   implemented and verified; production backup recovery, portable export/import, partial-database
   containment, and connected startup/reboot proof remain TI-184 gates.
-- Current-worktree verification: exact commit `9b8ab4b43e0d5ca2e729f511b48936b0dbdfbb6a`
-  passes the authoritative serialized `ciCheck --continue`: `BUILD SUCCESSFUL in 21m 46s`; 1,991
-  actionable tasks, 224 executed and 1,767 up-to-date. This includes Room drift, architecture,
-  release lint, unit tests, Detekt, SQLite runtime/linkage, 27 release-evidence tests, and 16 reviewed
-  dependency-metadata components. The exact populated v27→v28 suite most recently remains `8/8` on
+- Current-worktree verification: code commit `c5118e186` passes the authoritative `ciCheck
+  --continue --no-parallel`: `BUILD SUCCESSFUL in 8m 32s`; 1,991 actionable tasks, 662 executed,
+  297 from cache, and 1,032 up-to-date. It also passes `:stats:api:allTests` plus
+  `:stats:data:testDebugUnitTest` in `49s` (219 actionable tasks); `ciUnitTest` in `12m 18s` (990
+  actionable tasks); `:stats:data:lintDebug :app:hiltJavaCompileDebug` in `40s`; and Detekt in `30s`.
+  The exact populated v27→v28 suite most recently remains `8/8` on
   `Medium_Phone(AVD) - 16` at the pre-reconciliation schema boundary. These are host plus prior
   migration-device checks, not provider/process/reboot/FGS, OEM, production-query, device-energy,
   source-scenario, or rollout proof.
@@ -122,7 +127,11 @@ XML now exactly matches reconciled `HEAD`.
 - Coordinator leases use boot identity, elapsed-realtime expiry, and monotonic generations. Release/expiry reacquisition increments the generation and stale tokens are fenced; SQL state-transition CAS and a durable lease/action reconciler remain absent.
 - Runtime acceptance moves the session to `ACTIVE`; source-qualified `RECORDING`, `MATERIALIZED`, and `QUERYABLE` lifecycle evidence remain distinct but are not yet represented.
 - Legacy automatic-mode upgrade semantics are now explicit: an enabled existing automatic preference grants nonpersistent Activity `CONTROL` only, and later mode transitions append control consent epochs without changing Activity capture consent. Automatic requests still lack the complete durable trigger envelope and fail closed after Android service request, so this is upgrade preservation rather than automatic-mode completion.
-- `DailySummaryAggregator` rebuilds from `SessionSegment`, and History/Calendar fabricate zero-looking summaries from missing data. There is no single production `TrackingHistoryRepository`; a persisted universal `DayOverview` is intentionally not a prerequisite.
+- `DailySummaryAggregator` still rebuilds from `SessionSegment`, and History/Calendar still fabricate
+  zero-looking summaries from missing data. A Hilt-bound `TrackingHistoryRepository` now observes one
+  selected local session and preserves Steps availability, evidence, product state, coverage, and
+  named causes, but no production consumer uses it. A persisted universal `DayOverview` remains
+  intentionally outside this source-local gate.
 - Location production legality is bypassed: `LocationSourceRuntime` evaluates `SESSION_ALREADY_FOREGROUND` instead of the real origin, while the production capability provider hardcodes FGS/start legality. Batched pre-start fixes can also be admitted because recording freshness is not checked against the capture boundary.
 - Location writer ownership is contradictory: the established `LocationTrackerComponent`/`PersistenceProcessor` path remains product-visible, while rollout metadata calls `LocationDomainProjection` canonical even though its output effects have no production consumer. The established writer remains protected pending shadow evidence and an explicit cutover decision.
 - Wi-Fi capability, onboarding, settings, and manifest now agree on the scan APIs actually used: precise location plus Wi-Fi state/change permissions and enabled Location Services; an unrelated Nearby Devices grant is not required. Startup cache persistence is removed and generic ingress resolves post-start observed-time authorization; durable cross-process radio delivery identity remains unimplemented.
@@ -1088,9 +1097,65 @@ high-water, publishes the matching startup generation, and returns startup to Re
   re-arm seam under a same-process diagnostics failure/retry, plus complementary stale-work and
   high-water host contracts.
 - Still blocked: cold process/reboot/provider interleaves, actual post-rearm provider capture,
-  production Steps history/query and all completeness-sensitive consumers, typed portable export/
-  import and continuous deletion/no-resurrection visibility, ordinary activation/release action,
+  production Steps consumer/`QUERYABLE` proof and all completeness-sensitive consumers, typed
+  portable export/import and continuous deletion/no-resurrection visibility, ordinary activation/release action,
   automatic/ambient Steps, other sources, UI activation, device power/OEM evidence, and rollout.
-- Next implementation slice: expose the existing immutable Steps selector through the minimum
-  production history/query contract without changing writer ownership or adding a generic day
-  platform.
+- The previously named next slice—exposing the immutable selector without changing writer ownership
+  or adding a generic day platform—is completed by the checkpoint below.
+
+## Observable Steps session-history checkpoint (2026-08-30)
+
+### Outcome
+
+Commit `c5118e186` completes the next bounded TI-410 slice. `:stats:api` now owns a read-only
+`TrackingHistoryRepository` contract for one selected local `SessionSegment`; `:stats:data` maps the
+existing immutable selector into that contract and binds it through Hilt. The Room observer watches
+the exact ten tables used by selection and resolves the segment plus its dependent evidence in one
+transaction. Observation cannot start a provider, change a writer, repair a projection, or write a
+summary.
+
+Availability, acquisition evidence, product readiness, coverage, and stable causes remain separate.
+Only explicit disabled policy across every referenced revision proves `DISABLED`; inconsistent or
+missing retained evidence is `UNAVAILABLE`. Baseline-only remains null/`NONE`, a covered zero is
+`ACTIVE`, a positive delta is `RECORDED`, a lane-behind value is a partial lower bound, and unknown
+legacy coverage is neither complete nor a lower bound. No existing Today, Timeline, Calendar,
+session detail, goal, streak, achievement, widget, notification, export, or deletion consumer has
+been rewired, so the program still makes no `QUERYABLE` or product-visible claim.
+
+### Evidence and review
+
+- Three independent focused reviews attacked API/product truth, Room snapshot/performance behavior,
+  and app-scope proportionality. Their blocking/high findings were mitigated: missing capture intent
+  no longer implies disabled, legacy unknown coverage is not a lower bound, completeness no longer
+  depends on later availability, baseline is not active evidence, and candidate lag cannot claim
+  complete coverage. The final reviewer additionally required explicit disabled policy and rejected
+  zero plus `RECORDED`; both corrections have direct tests.
+- The Room/performance review found no `BLOCKER` or `HIGH`. Its remaining `MEDIUM` fan-out risk is
+  accepted only for this documented one-selected-session API; add batching/shared composition before
+  any list/day surface. A final read-only diff audit found no `BLOCKER`, `HIGH`, or `MEDIUM`; its one
+  indentation cleanup was applied before the final focused gate.
+- Exact committed-tree focused verification passes: `:stats:api:allTests
+  :stats:data:testDebugUnitTest --no-parallel`, `BUILD SUCCESSFUL in 49s`; 219 actionable tasks,
+  5 executed, 1 from cache, 213 up-to-date.
+- The behavior-complete tree passed `ciUnitTest --no-parallel` in `12m 18s`; 990 actionable tasks,
+  6 executed and 984 up-to-date. The only later code change was indentation normalization.
+- `:stats:data:lintDebug :app:hiltJavaCompileDebug --no-parallel` passed in `40s`; 569 actionable
+  tasks, with no new lint issue and only baseline-filtered findings. Root Detekt passed in `30s`.
+- The exact committed code checkpoint passes `ciCheck --continue --no-parallel`: `BUILD SUCCESSFUL
+  in 8m 32s`; 1,991 actionable tasks, 662 executed, 297 from cache, and 1,032 up-to-date.
+
+### Gate status and next wave
+
+- Passed: typed selected-session observation; one-transaction historical snapshot; policy and lane
+  invalidation; segment deletion to `NotFound`; explicit disabled/unavailable distinction; truthful
+  zero/baseline/positive/partial/legacy mapping; Hilt graph compilation; no acquisition, writer,
+  schema, cadence, network, or rollout expansion.
+- Still blocked: any product consumer and therefore `QUERYABLE`; selected-session deletion of all
+  scoped candidate facts; day/list composition without per-row observers; every numeric consumer;
+  typed portable export/import and continuous deletion/replay/no-resurrection visibility; manual
+  only-Steps provider/device proof; ordinary activation; automatic/ambient Steps; other sources;
+  UI, device power/OEM evidence, and rollout.
+- Next: close the scoped deletion/consumer boundary before wiring selected session detail, then
+  propagate the contract through completeness-sensitive consumers. Do not instantiate one observer
+  per history row or add a generic day platform. Typed export/import may proceed as a separate
+  non-overlapping source-local slice.
