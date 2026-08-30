@@ -194,6 +194,38 @@ interface SourceSessionDao {
 	@Query("SELECT * FROM source_service_run WHERE service_run_id = :serviceRunId")
 	suspend fun serviceRun(serviceRunId: String): SourceServiceRunEntity?
 
+	/**
+	 * Binds the source-neutral presentation segment without changing the source-lifecycle revision.
+	 * The surrounding Room transaction validates that this is still the logical session's current
+	 * active run. A nullable unique index provides the reverse one-run-per-segment fence.
+	 */
+	@Query(
+		"UPDATE source_service_run SET session_segment_id = :sessionSegmentId " +
+			"WHERE service_run_id = :serviceRunId AND logical_tracking_id = :logicalTrackingId " +
+			"AND state = 'ACTIVE' AND completed_at_ms IS NULL AND session_segment_id IS NULL " +
+			"AND presentation_acknowledgement = 'PENDING'",
+	)
+	suspend fun bindSessionSegmentExact(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		sessionSegmentId: Long,
+	): Int
+
+	/** Advances only the exact terminal run/segment pair after every presentation writer stopped. */
+	@Query(
+		"UPDATE source_service_run SET presentation_acknowledgement = 'QUIESCED', " +
+			"presentation_acknowledged_at_ms = :acknowledgedAtMs " +
+			"WHERE service_run_id = :serviceRunId AND logical_tracking_id = :logicalTrackingId " +
+			"AND session_segment_id = :sessionSegmentId AND state IN ('FINALIZED', 'FAILED') " +
+			"AND completed_at_ms IS NOT NULL AND presentation_acknowledgement = 'PENDING'",
+	)
+	suspend fun acknowledgePresentationQuiescedExact(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		sessionSegmentId: Long,
+		acknowledgedAtMs: Long,
+	): Int
+
 	@Query("SELECT * FROM source_service_run WHERE start_delivery_token = :deliveryToken")
 	suspend fun serviceRunByDeliveryToken(deliveryToken: String): SourceServiceRunEntity?
 

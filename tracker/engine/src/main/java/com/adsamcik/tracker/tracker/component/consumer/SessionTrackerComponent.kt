@@ -26,6 +26,8 @@ import com.adsamcik.tracker.stats.api.TripPlausibility
 import com.adsamcik.tracker.tracker.component.DataTrackerComponent
 import com.adsamcik.tracker.tracker.component.TrackerComponentRequirement
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
+import com.adsamcik.tracker.tracker.presentation.SessionPresentationBinding
+import com.adsamcik.tracker.tracker.presentation.SessionPresentationLifecycle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -45,6 +47,7 @@ internal class SessionTrackerComponent(
 	private val logicalTrackingId: String? = null,
 	private val serviceRunId: String? = null,
 	private val resumeSessionSegmentId: Long? = null,
+	private val presentationLifecycle: SessionPresentationLifecycle? = null,
 ) : DataTrackerComponent,
 	CoroutineScope {
 	init {
@@ -52,6 +55,9 @@ internal class SessionTrackerComponent(
 		require(serviceRunId?.isNotBlank() != false)
 		require((logicalTrackingId == null) == (serviceRunId == null)) {
 			"Logical tracking and service-run identities must be supplied together"
+		}
+		require(logicalTrackingId == null || presentationLifecycle != null) {
+			"Durable session identities require the Room presentation lifecycle"
 		}
 	}
 
@@ -75,12 +81,11 @@ internal class SessionTrackerComponent(
 	var isNewSession: Boolean = false
 		private set
 
+	var presentationBinding: SessionPresentationBinding? = null
+		private set
+
 	private var minUpdateDelayInSeconds = -1
 	private var minDistanceInMeters = -1
-	private var collectedLocationCount = 0
-	private var collectedActivityCount = 0
-	private var collectedPressureCount = 0
-	private var collectedStepIntervalCount = 0
 	private val preferenceJobs = mutableListOf<Job>()
 	private val activityEvidence = mutableMapOf<Int, ActivityEvidence>()
 	private var restoredDominantActivity: Pair<Int, Int>? = null
@@ -95,15 +100,8 @@ internal class SessionTrackerComponent(
 			mutableSession.run {
 				if (cycle.activityFresh) {
 					cycle.activity?.let { activity ->
-						collectedActivityCount++
 						recordActivityEvidence(activity)
 					}
-				}
-				if (collectionData.location != null) {
-					collectedLocationCount++
-				}
-				if (cycle.pressure != null) {
-					collectedPressureCount++
 				}
 				// Accumulate the distance produced by LocationTrackerComponent
 				// (collectionData.distanceFromPreviousM), which is measured from the last
@@ -127,7 +125,6 @@ internal class SessionTrackerComponent(
 				end = Time.nowMillis
 
 				cycle.stepDelta?.let { newSteps ->
-					collectedStepIntervalCount++
 					if (newSteps < 0) {
 						Tracebox.log.warn(TrackerTraceboxTemplates.STEP_COUNTER_REGRESSED)
 					}
@@ -170,27 +167,11 @@ internal class SessionTrackerComponent(
 				end = Time.nowMillis
 			}
 
-			withContext(coroutineContext) {
-				if (isNewSession &&
-					collectedLocationCount == 0 &&
-					collectedActivityCount == 0 &&
-					collectedPressureCount == 0 &&
-					collectedStepIntervalCount == 0 &&
-					mutableSession.steps == 0
-				) {
-					// Remove the pre-inserted row only when the session produced no persistable
-					// data of its own — no accepted location fixes, fresh activity snapshots,
-					// pressure readings, or steps. This still cleans up rapid start/stop (and
-					// location sessions that never got a usable fix) while preserving intentional
-					// activity-only, pressure-only, and steps-only sessions. Wi-Fi and cell
-					// observations are persisted in their own tables.
-					if (mutableSession.id > 0L) {
-						sessionSegmentDao.deleteById(mutableSession.id)
-					}
-				} else {
-					upsertSessionSegment(mutableSession)
-				}
-			}
+			// Persist the final presentation row before downstream SessionEnded consumers run. Physical
+			// reclamation cannot be decided from this component's counters: Wi-Fi and Cell facts live in
+			// their own ledgers, and a rejected cycle is not qualified evidence. The exact run is marked
+			// quiescent only after every presentation writer has stopped.
+			withContext(coroutineContext) { upsertSessionSegment(mutableSession) }
 		}
 		job.cancel()
 	}
@@ -315,6 +296,8 @@ internal class SessionTrackerComponent(
 		} else {
 			SegmentSource.INFERRED_HIGH_CONFIDENCE
 		}
+		if (tryOpenDurableSession(now, expectedSource)) return
+
 		val resumable = resumeSessionSegmentId
 			?.let { segmentId -> sessionSegmentDao.getById(segmentId) }
 			?.takeIf { segment ->
@@ -324,48 +307,87 @@ internal class SessionTrackerComponent(
 					now - segment.endTimeMs <= SESSION_RESUME_TIMEOUT
 			}
 		if (resumable != null) {
-			mutableSession = MutableTrackerSession(
-				id = resumable.id,
-				start = resumable.startTimeMs,
-				end = now,
-				isUserInitiated = isUserInitiated,
-				collections = resumable.sampleCount,
-				distanceInM = resumable.distanceM,
-				distanceOnFootInM = 0f,
-				distanceInVehicleInM = 0f,
-				steps = resumable.steps ?: 0,
-			)
-			restoredDominantActivity = resumable.primaryActivity?.let { activity ->
-				activity to (resumable.activityConfidence ?: 0)
-			}
-			sessionCreatedAt = resumable.createdAt
+			restoreSession(resumable, now)
 			isNewSession = false
 			return
 		}
 
 		val session = MutableTrackerSession(now, isUserInitiated)
-		val segment = SessionSegment(
-			id = 0,
-			startTimeMs = now,
-			endTimeMs = now,
-			distanceM = 0f,
-			steps = 0,
-			primaryActivity = null,
-			activityConfidence = null,
-			sampleCount = 0,
-			source = expectedSource,
-			inferenceVersion = "tracker_v2",
-			createdAt = now,
-			hasDistanceAnomaly = false,
-			logicalTrackingId = logicalTrackingId,
-			serviceRunId = serviceRunId,
-		)
+		val segment = newSessionSegment(now, expectedSource)
 		session.id = sessionSegmentDao.insert(segment)
 		mutableSession = session
 		sessionCreatedAt = now
 		restoredDominantActivity = null
 		isNewSession = true
 	}
+
+	private suspend fun tryOpenDurableSession(
+		now: Long,
+		expectedSource: SegmentSource,
+	): Boolean {
+		val durableLogicalId = logicalTrackingId ?: return false
+		val durableRunId = requireNotNull(serviceRunId)
+		val opened = requireNotNull(presentationLifecycle).openOrResumeExact(
+			logicalTrackingId = durableLogicalId,
+			serviceRunId = durableRunId,
+			requestedSessionSegmentId = resumeSessionSegmentId,
+			newSegment = newSessionSegment(now, expectedSource),
+		)
+		check(opened.segment.source == expectedSource) {
+			"Exact presentation segment has an incompatible session source"
+		}
+		presentationBinding = opened.binding
+		if (opened.created) {
+			mutableSession = MutableTrackerSession(now, isUserInitiated).apply {
+				id = opened.binding.sessionSegmentId
+			}
+			sessionCreatedAt = now
+			restoredDominantActivity = null
+			isNewSession = true
+		} else {
+			restoreSession(opened.segment, now)
+			isNewSession = false
+		}
+		return true
+	}
+
+	private fun restoreSession(segment: SessionSegment, now: Long) {
+		mutableSession = MutableTrackerSession(
+			id = segment.id,
+			start = segment.startTimeMs,
+			end = now,
+			isUserInitiated = isUserInitiated,
+			collections = segment.sampleCount,
+			distanceInM = segment.distanceM,
+			distanceOnFootInM = 0f,
+			distanceInVehicleInM = 0f,
+			steps = segment.steps ?: 0,
+		)
+		restoredDominantActivity = segment.primaryActivity?.let { activity ->
+			activity to (segment.activityConfidence ?: 0)
+		}
+		sessionCreatedAt = segment.createdAt
+	}
+
+	private fun newSessionSegment(
+		now: Long,
+		expectedSource: SegmentSource,
+	): SessionSegment = SessionSegment(
+		id = 0,
+		startTimeMs = now,
+		endTimeMs = now,
+		distanceM = 0f,
+		steps = 0,
+		primaryActivity = null,
+		activityConfidence = null,
+		sampleCount = 0,
+		source = expectedSource,
+		inferenceVersion = "tracker_v2",
+		createdAt = now,
+		hasDistanceAnomaly = false,
+		logicalTrackingId = logicalTrackingId,
+		serviceRunId = serviceRunId,
+	)
 
 	companion object {
 		const val SESSION_RESUME_TIMEOUT = 15 * Time.MINUTE_IN_MILLISECONDS

@@ -181,6 +181,7 @@ data class ActiveTrackingSessionDescriptor(
 	fun forNewServiceRun(changedAtEpochMs: Long? = null): ActiveTrackingSessionDescriptor =
 		transition(
 			serviceRunId = newTrackingCorrelationId(),
+			sessionSegmentId = null,
 			changedAtEpochMs = changedAtEpochMs,
 		)
 
@@ -246,12 +247,14 @@ data class ActiveTrackingSessionDescriptor(
 		lifecycleState: LogicalTrackingLifecycleState = this.lifecycleState,
 		changedAtEpochMs: Long?,
 		stopCandidate: TrackingStopCandidate? = this.stopCandidate,
+		sessionSegmentId: Long? = this.sessionSegmentId,
 	): ActiveTrackingSessionDescriptor = copy(
 		serviceRunId = serviceRunId,
 		lifecycleState = lifecycleState,
 		lifecycleRevision = lifecycleRevision + 1L,
 		lifecycleChangedAtEpochMs = changedAtEpochMs,
 		stopCandidate = stopCandidate,
+		sessionSegmentId = sessionSegmentId,
 	)
 }
 
@@ -269,6 +272,43 @@ interface ActiveTrackingSessionStore {
 	suspend fun read(): ActiveTrackingSessionStoreResult
 
 	suspend fun save(descriptor: ActiveTrackingSessionDescriptor): ActiveTrackingSessionStoreResult
+
+	/**
+	 * Replaces [expected] only while the complete persisted descriptor is still identical.
+	 *
+	 * The default is a compatibility fallback for single-threaded test stores. Production stores
+	 * must override this as one atomic compare-and-set operation.
+	 */
+	suspend fun replaceExact(
+		expected: ActiveTrackingSessionDescriptor,
+		replacement: ActiveTrackingSessionDescriptor,
+	): ActiveTrackingSessionStoreResult = when (val current = read()) {
+		is ActiveTrackingSessionStoreResult.Failure -> current
+		is ActiveTrackingSessionStoreResult.Success ->
+			if (current.descriptor == expected) save(replacement) else current
+	}
+
+	/**
+	 * Mirrors Room's exact service-run-to-segment binding without letting an older ACTIVE save
+	 * overwrite a concurrent STOP_CANDIDATE. Room remains the binding authority. The default is a
+	 * compatibility fallback for single-threaded test stores; production stores must override it
+	 * as one atomic compare-and-set operation.
+	 */
+	suspend fun bindSessionSegmentIfCurrent(
+		expected: ActiveTrackingSessionDescriptor,
+		sessionSegmentId: Long,
+	): ActiveTrackingSessionStoreResult {
+		require(sessionSegmentId > 0L)
+		val bound = expected.copy(sessionSegmentId = sessionSegmentId)
+		return when (val current = read()) {
+			is ActiveTrackingSessionStoreResult.Failure -> current
+			is ActiveTrackingSessionStoreResult.Success -> when (current.descriptor) {
+				expected -> save(bound)
+				bound -> current
+				else -> current
+			}
+		}
+	}
 
 	suspend fun clear(): ActiveTrackingSessionStoreResult
 

@@ -50,6 +50,9 @@ import com.adsamcik.tracker.tracker.notification.TrackerNotificationChannels
 import com.adsamcik.tracker.tracker.notification.TrackerNotificationManager
 import com.adsamcik.tracker.tracker.permission.RuntimePermissionReconciler
 import com.adsamcik.tracker.tracker.permission.RuntimePermissionSnapshot
+import com.adsamcik.tracker.tracker.presentation.PresentationQuiescenceResult
+import com.adsamcik.tracker.tracker.presentation.SessionPresentationBinding
+import com.adsamcik.tracker.tracker.presentation.SessionPresentationLifecycle
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionDescriptor
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStore
 import com.adsamcik.tracker.tracker.resilience.ActiveTrackingSessionStoreResult
@@ -189,6 +192,7 @@ internal class TrackerService : CoreService() {
 	lateinit var runtimePermissionReconciler: RuntimePermissionReconciler
 
 	private lateinit var orchestrator: TrackingOrchestrator
+	private lateinit var sessionPresentationLifecycle: SessionPresentationLifecycle
 
 	private var lockObservationJob: Job? = null
 	private var initializationJob: Job? = null
@@ -250,6 +254,7 @@ internal class TrackerService : CoreService() {
 			"signals:TrackerWakeLock"
 		)
 
+		sessionPresentationLifecycle = SessionPresentationLifecycle(appDatabase)
 		orchestrator = TrackingOrchestrator(
 			controller = controller,
 			signalProcessors = signalProcessors,
@@ -983,13 +988,12 @@ internal class TrackerService : CoreService() {
 						}
 					}
 					controller.updatePolicyTier(initialTier)
-					observeDescriptorTierChanges(descriptor)
 					if (!quiesceCycleDispatcherForReplacement()) {
 						requestGracefulStop(reason = TrackingStopCandidateReason.INTERNAL_FAILURE)
 						return@runAfter
 					}
 					createCycleDispatcher()
-					withContext(dispatchers.default) {
+					val presentationBinding = withContext(dispatchers.default) {
 						orchestrator.initialize(
 							context = this@TrackerService,
 							isSessionUserInitiated = isUserInitiated,
@@ -1001,6 +1005,8 @@ internal class TrackerService : CoreService() {
 							rolloutState = rolloutState,
 						)
 					}
+					descriptor = mirrorPresentationBinding(descriptor, presentationBinding)
+					observeDescriptorTierChanges(descriptor)
 					collectionMotionController.startSession(
 						descriptor.logicalTrackingId,
 						descriptor.serviceRunId,
@@ -1055,10 +1061,66 @@ internal class TrackerService : CoreService() {
 			controller.policyTierFlow
 				.collect { tier ->
 					if (tier == PolicyTier.OFF) return@collect
-					val updated = (activeSessionDescriptor ?: initialDescriptor).copy(policyTier = tier)
-					activeSessionDescriptor = updated
-					saveActiveSession(updated)
+					val expected = activeSessionDescriptor
+						?.takeIf {
+							it.logicalTrackingId == initialDescriptor.logicalTrackingId &&
+								it.serviceRunId == initialDescriptor.serviceRunId &&
+								it.lifecycleState == LogicalTrackingLifecycleState.ACTIVE
+						}
+						?: return@collect
+					val updated = expected.copy(policyTier = tier)
+					if (updated == expected) return@collect
+					when (val result = activeTrackingSessionStore.replaceExact(expected, updated)) {
+						is ActiveTrackingSessionStoreResult.Failure -> Tracebox.log.error(
+							result.cause,
+							TrackerTraceboxTemplates.TRACKING_SESSION_STORE_FAILED,
+						)
+						is ActiveTrackingSessionStoreResult.Success -> {
+							if (result.descriptor == updated && activeSessionDescriptor == expected) {
+								activeSessionDescriptor = updated
+							}
+						}
+					}
 				}
+		}
+	}
+
+	private suspend fun mirrorPresentationBinding(
+		descriptor: ActiveTrackingSessionDescriptor,
+		binding: SessionPresentationBinding?,
+	): ActiveTrackingSessionDescriptor {
+		val exactBinding = requireNotNull(binding) {
+			"Durable tracking session did not return a presentation binding"
+		}
+		check(
+			exactBinding.logicalTrackingId == descriptor.logicalTrackingId &&
+				exactBinding.serviceRunId == descriptor.serviceRunId,
+		) { "Presentation binding belongs to another tracking run" }
+		val boundDescriptor = descriptor.copy(sessionSegmentId = exactBinding.sessionSegmentId)
+		return when (
+			val result = activeTrackingSessionStore.bindSessionSegmentIfCurrent(
+				expected = descriptor,
+				sessionSegmentId = exactBinding.sessionSegmentId,
+			)
+		) {
+			is ActiveTrackingSessionStoreResult.Failure -> {
+				// Room already owns the exact tuple. A failed DataStore mirror reduces recovery
+				// convenience but must not discard an otherwise accepted source session.
+				Tracebox.log.error(
+					result.cause,
+					TrackerTraceboxTemplates.TRACKING_SESSION_STORE_FAILED,
+				)
+				descriptor
+			}
+			is ActiveTrackingSessionStoreResult.Success -> {
+				check(result.descriptor == boundDescriptor) {
+					"Tracking descriptor changed before presentation binding could be mirrored"
+				}
+				check(activeSessionDescriptor == descriptor) {
+					"In-memory tracking descriptor changed during presentation binding"
+				}
+				boundDescriptor.also { activeSessionDescriptor = it }
+			}
 		}
 	}
 
@@ -1733,6 +1795,7 @@ internal class TrackerService : CoreService() {
 			cycleDispatcherScope?.cancel()
 			cycleDispatcherScope = null
 		}
+		var finalShutdownResult = shutdownSequence.shutdownResult
 		var finalCycleCancellationFailure = shutdownSequence.cycleCancellationFailure
 		if (finalCycleCancellationFailure != null && ::cycleDispatcher.isInitialized) {
 			try {
@@ -1759,7 +1822,7 @@ internal class TrackerService : CoreService() {
 		) {
 			Tracebox.log.warn(TrackerTraceboxTemplates.TRACKING_SHUTDOWN_DEGRADED)
 			orchestrator.enqueueDailySummaryFallback(context)
-			retryTrackingShutdown(
+			finalShutdownResult = retryTrackingShutdown(
 				maxAttempts = FINAL_TEARDOWN_MAX_ATTEMPTS,
 				retryDelayMillis = FINAL_TEARDOWN_INITIAL_RETRY_DELAY_MILLIS,
 				maxRetryDelayMillis = FINAL_TEARDOWN_MAX_RETRY_DELAY_MILLIS,
@@ -1774,12 +1837,35 @@ internal class TrackerService : CoreService() {
 				failure,
 			)
 		}
+		acknowledgePresentationQuiescence(requireNotNull(finalShutdownResult))
 		coordinatorMetricBaseline?.let { baseline ->
 			Tracebox.log.recordCoordinatorSessionMetrics(coordinatorTelemetry.snapshot() - baseline)
 		}
 		coordinatorMetricBaseline = null
 		if (preparedRuntime.applied) {
 			HistoricalTrajectoryReconstructionWorker.schedule(context)
+		}
+	}
+
+	private suspend fun acknowledgePresentationQuiescence(shutdownResult: ShutdownResult) {
+		val receipt = shutdownResult.presentationReceipt ?: return
+		when (
+			sessionPresentationLifecycle.acknowledgeQuiescedExact(
+				binding = receipt.binding,
+				acknowledgedAtMs = System.currentTimeMillis(),
+			)
+		) {
+			PresentationQuiescenceResult.ACKNOWLEDGED,
+			PresentationQuiescenceResult.ALREADY_ACKNOWLEDGED,
+			-> Unit
+			PresentationQuiescenceResult.NOT_TERMINAL,
+			-> throw TrackingShutdownRetryException("PRESENTATION_QUIESCENCE_NOT_ACCEPTED")
+			PresentationQuiescenceResult.MISSING,
+			PresentationQuiescenceResult.OWNERSHIP_MISMATCH,
+			-> Tracebox.log.error(
+				IllegalStateException("Presentation quiescence ownership could not be proven"),
+				TrackerTraceboxTemplates.TRACKING_PERSISTENCE_WRITE_FAILED,
+			)
 		}
 	}
 

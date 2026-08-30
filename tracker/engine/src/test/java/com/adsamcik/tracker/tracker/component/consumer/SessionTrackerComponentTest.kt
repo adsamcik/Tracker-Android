@@ -14,6 +14,9 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.tracker.data.collection.PressureReading
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
+import com.adsamcik.tracker.tracker.presentation.OpenSessionPresentation
+import com.adsamcik.tracker.tracker.presentation.SessionPresentationBinding
+import com.adsamcik.tracker.tracker.presentation.SessionPresentationLifecycle
 import io.kotest.matchers.floats.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.assertions.throwables.shouldThrow
@@ -31,14 +34,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/**
- * Regression tests for [SessionTrackerComponent] empty-session guard.
- *
- * Verifies that rapid start/stop cycles do NOT persist empty sessions
- * (0 collections, 0 distance) to the Room database.
- *
- * See bug: "Empty Sessions Saved During Rapid Start/Stop".
- */
+/** Regression tests for source-neutral presentation persistence and session aggregation. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class SessionTrackerComponentTest {
@@ -74,12 +70,6 @@ class SessionTrackerComponentTest {
 
 	private fun setIsNewSession(component: SessionTrackerComponent, value: Boolean) {
 		val field = SessionTrackerComponent::class.java.getDeclaredField("isNewSession")
-		field.isAccessible = true
-		field.set(component, value)
-	}
-
-	private fun setCollectedLocationCount(component: SessionTrackerComponent, value: Int) {
-		val field = SessionTrackerComponent::class.java.getDeclaredField("collectedLocationCount")
 		field.isAccessible = true
 		field.set(component, value)
 	}
@@ -218,8 +208,17 @@ class SessionTrackerComponentTest {
 
 	@Test
 	fun persistsDurableLogicalAndServiceRunBridgeOnInsert() = runTest {
-		val inserted = slot<SessionSegment>()
-		coEvery { mockSegmentDao.insert(capture(inserted)) } returns 71L
+		val proposed = slot<SessionSegment>()
+		val lifecycle = mockk<SessionPresentationLifecycle>()
+		coEvery {
+			lifecycle.openOrResumeExact("logical-7", "run-11", null, capture(proposed))
+		} answers {
+			OpenSessionPresentation(
+				binding = SessionPresentationBinding("logical-7", "run-11", 71L),
+				segment = proposed.captured.copy(id = 71L),
+				created = true,
+			)
+		}
 		val repository: TrackingParamsRepository = mockk {
 			every { data } returns MutableStateFlow(TrackingParamsState())
 		}
@@ -229,13 +228,15 @@ class SessionTrackerComponentTest {
 			trackingParamsRepository = repository,
 			logicalTrackingId = "logical-7",
 			serviceRunId = "run-11",
+			presentationLifecycle = lifecycle,
 		)
 
 		component.onEnable(context)
 
-		inserted.captured.logicalTrackingId shouldBe "logical-7"
-		inserted.captured.serviceRunId shouldBe "run-11"
+		proposed.captured.logicalTrackingId shouldBe "logical-7"
+		proposed.captured.serviceRunId shouldBe "run-11"
 		component.session.id shouldBe 71L
+		component.presentationBinding shouldBe SessionPresentationBinding("logical-7", "run-11", 71L)
 		component.onDisable(context)
 	}
 
@@ -252,19 +253,19 @@ class SessionTrackerComponentTest {
 
 
 	@Test
-	fun deletesEmptySession() = runTest {
+	fun retainsEmptyPresentationUntilSourceEvidenceIsEvaluated() = runTest {
 		val component = createComponent()
 		setSession(component, emptySession())
 		setIsNewSession(component, true)
 
 		component.onDisable(context)
 
-		coVerify(exactly = 1) { mockSegmentDao.deleteById(any()) }
-		coVerify(exactly = 0) { mockSegmentDao.update(any<SessionSegment>()) }
+		coVerify(exactly = 0) { mockSegmentDao.deleteById(any()) }
+		coVerify(exactly = 1) { mockSegmentDao.update(any<SessionSegment>()) }
 	}
 
 	@Test
-	fun noSegmentForEmptySession() = runTest {
+	fun finalizingAnExistingEmptyPresentationDoesNotInsertAnotherRow() = runTest {
 		val component = createComponent()
 		setSession(component, emptySession())
 		setIsNewSession(component, true)
@@ -272,11 +273,11 @@ class SessionTrackerComponentTest {
 		component.onDisable(context)
 
 		coVerify(exactly = 0) { mockSegmentDao.insert(any<SessionSegment>()) }
-		coVerify(exactly = 0) { mockSegmentDao.update(any<SessionSegment>()) }
+		coVerify(exactly = 1) { mockSegmentDao.update(any<SessionSegment>()) }
 	}
 
 	@Test
-	fun deletesEmptySessionWithPositiveDuration() = runTest {
+	fun retainsEmptySessionWithPositiveDurationForRadioEvidenceEvaluation() = runTest {
 		// Session open for a while but GPS never locked → no data
 		val component = createComponent()
 		setSession(component, emptySession(start = 1000L).apply { end = 60_000L })
@@ -284,13 +285,13 @@ class SessionTrackerComponentTest {
 
 		component.onDisable(context)
 
-		coVerify(exactly = 1) { mockSegmentDao.deleteById(any()) }
-		coVerify(exactly = 0) { mockSegmentDao.update(any<SessionSegment>()) }
+		coVerify(exactly = 0) { mockSegmentDao.deleteById(any()) }
+		coVerify(exactly = 1) { mockSegmentDao.update(any<SessionSegment>()) }
 		coVerify(exactly = 0) { mockSegmentDao.insert(any<SessionSegment>()) }
 	}
 
 	@Test
-	fun deletesNewSessionWithoutGpsLocation() = runTest {
+	fun rejectedOrAbsentGpsDoesNotDeletePossibleRadioOnlySession() = runTest {
 		val component = createComponent()
 		setSession(component, emptySession())
 		setIsNewSession(component, true)
@@ -301,8 +302,9 @@ class SessionTrackerComponentTest {
 		)
 		component.onDisable(context)
 
-		coVerify(exactly = 1) { mockSegmentDao.deleteById(any()) }
+		coVerify(exactly = 0) { mockSegmentDao.deleteById(any()) }
 		coVerify(exactly = 0) { mockSegmentDao.insert(any<SessionSegment>()) }
+		coVerify(exactly = 2) { mockSegmentDao.update(any<SessionSegment>()) }
 	}
 
 	@Test
@@ -333,8 +335,6 @@ class SessionTrackerComponentTest {
 		val component = createComponent()
 		setSession(component, nonEmptySession())
 		setIsNewSession(component, true)
-		setCollectedLocationCount(component, 5)
-
 		component.onDisable(context)
 
 		coVerify(exactly = 0) { mockSegmentDao.deleteById(any()) }
@@ -349,8 +349,6 @@ class SessionTrackerComponentTest {
 		coEvery { mockSegmentDao.insert(any<SessionSegment>()) } returns 1L
 		setSession(component, nonEmptySession(collections = 1, distanceInM = 0f))
 		setIsNewSession(component, true)
-		setCollectedLocationCount(component, 1)
-
 		component.onDisable(context)
 
 		coVerify(exactly = 0) { mockSegmentDao.deleteById(any()) }
@@ -426,7 +424,7 @@ class SessionTrackerComponentTest {
 	}
 
 	@Test
-	fun rejectedLocationDoesNotRetainOtherwiseEmptySession() = runTest {
+	fun rejectedLocationStillDefersRetentionDecisionToAllSourceEvidence() = runTest {
 		val component = createComponent()
 		setSession(component, emptySession())
 		setIsNewSession(component, true)
@@ -443,7 +441,8 @@ class SessionTrackerComponentTest {
 		)
 		component.onDisable(context)
 
-		coVerify(exactly = 1) { mockSegmentDao.deleteById(any()) }
+		coVerify(exactly = 0) { mockSegmentDao.deleteById(any()) }
+		coVerify(exactly = 2) { mockSegmentDao.update(any<SessionSegment>()) }
 	}
 
 	@Test

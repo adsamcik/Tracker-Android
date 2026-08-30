@@ -16,6 +16,7 @@ import com.adsamcik.tracker.tracker.component.consumer.post.PlaneTrackingCompone
 import com.adsamcik.tracker.tracker.component.consumer.post.SailingTrackingComponent
 import com.adsamcik.tracker.tracker.component.consumer.post.SkiSegmentWriter
 import com.adsamcik.tracker.tracker.component.consumer.post.SkiTrackingComponent
+import com.adsamcik.tracker.tracker.presentation.SessionPresentationLifecycle
 import com.adsamcik.tracker.tracker.controller.TrackerServiceController
 import com.adsamcik.tracker.tracker.controller.toLiveState
 import kotlinx.coroutines.NonCancellable
@@ -49,6 +50,7 @@ internal class TrackerComponentFactory(
 	private val dispatchers: DispatchersProvider,
 	private val enableNotifications: Boolean = true,
 ) {
+	private val sessionPresentationLifecycle = SessionPresentationLifecycle(appDatabase)
 
 	/**
 	 * Build and enable all tracker components for a new session.
@@ -90,6 +92,7 @@ internal class TrackerComponentFactory(
 				logicalTrackingId,
 				serviceRunId,
 				resumeSessionSegmentId,
+				sessionPresentationLifecycle.takeIf { logicalTrackingId != null },
 			).apply {
 				onEnable(context)
 			}

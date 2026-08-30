@@ -98,4 +98,68 @@ class DefaultActiveTrackingSessionStoreTest {
 		store.clearExact(staleAutomatic) shouldBe ActiveTrackingSessionStoreResult.Success(null)
 		store.read() shouldBe ActiveTrackingSessionStoreResult.Success(null)
 	}
+
+	@Test
+	fun `exact segment mirror is idempotent and cannot overwrite stop candidate`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val dispatcher = StandardTestDispatcher(testScheduler)
+		val store = DefaultActiveTrackingSessionStore(
+			context,
+			TestDispatchersProvider(dispatcher),
+		)
+		store.clear() shouldBe ActiveTrackingSessionStoreResult.Success(null)
+		val active = ActiveTrackingSessionDescriptor(
+			isUserInitiated = true,
+			isAmbient = false,
+			policyTier = PolicyTier.PRECISION,
+			logicalTrackingId = "logical-session",
+			serviceRunId = "service-run",
+		)
+		val bound = active.copy(sessionSegmentId = 42L)
+		store.save(active) shouldBe ActiveTrackingSessionStoreResult.Success(active)
+
+		store.bindSessionSegmentIfCurrent(active, 42L) shouldBe
+			ActiveTrackingSessionStoreResult.Success(bound)
+		store.bindSessionSegmentIfCurrent(active, 42L) shouldBe
+			ActiveTrackingSessionStoreResult.Success(bound)
+
+		val stopping = bound.proposeStop(
+			reason = TrackingStopCandidateReason.EXPLICIT_REQUEST,
+			changedAtEpochMs = 200L,
+		)
+		store.save(stopping) shouldBe ActiveTrackingSessionStoreResult.Success(stopping)
+		store.bindSessionSegmentIfCurrent(bound, 99L) shouldBe
+			ActiveTrackingSessionStoreResult.Success(stopping)
+		store.read() shouldBe ActiveTrackingSessionStoreResult.Success(stopping)
+	}
+
+	@Test
+	fun `stale tier replacement preserves segment binding and cannot revive active`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val dispatcher = StandardTestDispatcher(testScheduler)
+		val store = DefaultActiveTrackingSessionStore(
+			context,
+			TestDispatchersProvider(dispatcher),
+		)
+		store.clear() shouldBe ActiveTrackingSessionStoreResult.Success(null)
+		val bound = ActiveTrackingSessionDescriptor(
+			isUserInitiated = false,
+			isAmbient = false,
+			policyTier = PolicyTier.ACTIVE,
+			logicalTrackingId = "logical-session",
+			serviceRunId = "service-run",
+			sessionSegmentId = 73L,
+		)
+		val stopping = bound.proposeStop(
+			reason = TrackingStopCandidateReason.EXPLICIT_REQUEST,
+			changedAtEpochMs = 300L,
+		)
+		store.save(stopping) shouldBe ActiveTrackingSessionStoreResult.Success(stopping)
+
+		store.replaceExact(
+			expected = bound,
+			replacement = bound.copy(policyTier = PolicyTier.PRECISION),
+		) shouldBe ActiveTrackingSessionStoreResult.Success(stopping)
+		store.read() shouldBe ActiveTrackingSessionStoreResult.Success(stopping)
+	}
 }

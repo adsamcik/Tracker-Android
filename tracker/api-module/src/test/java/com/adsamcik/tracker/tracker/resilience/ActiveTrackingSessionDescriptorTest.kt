@@ -22,7 +22,7 @@ class ActiveTrackingSessionDescriptorTest {
 		val replacement = descriptor.forNewServiceRun(changedAtEpochMs = 100L)
 
 		replacement.logicalTrackingId shouldBe descriptor.logicalTrackingId
-		replacement.sessionSegmentId shouldBe 42L
+		replacement.sessionSegmentId shouldBe null
 		replacement.serviceRunId shouldNotBe descriptor.serviceRunId
 		replacement.lifecycleRevision shouldBe 1L
 		replacement.lifecycleChangedAtEpochMs shouldBe 100L

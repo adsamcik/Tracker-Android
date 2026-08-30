@@ -1816,9 +1816,19 @@ val MIGRATION_27_28: Migration = object : Migration(
 				"ALTER TABLE source_service_run " +
 					"ADD COLUMN start_is_ambient INTEGER NOT NULL DEFAULT 0",
 			)
+			execSQL("ALTER TABLE source_service_run ADD COLUMN session_segment_id INTEGER")
+			execSQL(
+				"ALTER TABLE source_service_run ADD COLUMN " +
+					"presentation_acknowledgement TEXT NOT NULL DEFAULT 'LEGACY_UNVERIFIABLE'",
+			)
+			execSQL("ALTER TABLE source_service_run ADD COLUMN presentation_acknowledged_at_ms INTEGER")
 			execSQL(
 				"CREATE UNIQUE INDEX IF NOT EXISTS idx_source_service_run_delivery_token " +
 					"ON source_service_run(start_delivery_token)",
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_source_service_run_session_segment " +
+					"ON source_service_run(session_segment_id)",
 			)
 			// Released v27 completeness rows identified only a logical session and source instance.
 			// Preserve every recorded fact while making their missing physical-run attribution explicit.

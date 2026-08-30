@@ -46,6 +46,7 @@ import com.adsamcik.tracker.tracker.pipeline.stages.SessionUpdateStage
 import com.adsamcik.tracker.tracker.pipeline.stages.SignalDispatchStage
 import com.adsamcik.tracker.tracker.policy.TrackingPolicyManager
 import com.adsamcik.tracker.tracker.policy.RoomTrackerStateEvidenceWriter
+import com.adsamcik.tracker.tracker.presentation.SessionPresentationBinding
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingSessionOwnership
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
@@ -112,6 +113,8 @@ internal class TrackingOrchestrator(
 	private var trackingPipeline: TrackingPipeline? = null
 	private var sessionComponent: SessionTrackerComponent? = null
 	private var sessionJob: Job? = null
+	private var pendingPresentationBinding: SessionPresentationBinding? = null
+	private var completedShutdownResult: ShutdownResult? = null
 
 	@Volatile
 	private var controlLocationEnabled: Boolean = true
@@ -155,7 +158,7 @@ internal class TrackingOrchestrator(
 	 * @param initialTier          initial [PolicyTier] for this session.
 	 * @param scope                coroutine scope for launching observation coroutines.
 	 */
-	@Suppress("LongMethod")
+	@Suppress("LongMethod", "CyclomaticComplexMethod")
 	suspend fun initialize(
 		context: Context,
 		isSessionUserInitiated: Boolean,
@@ -169,7 +172,7 @@ internal class TrackingOrchestrator(
 		resumeSessionSegmentId: Long? = null,
 		/** Immutable physical-source ownership snapshot for this service run. */
 		rolloutState: TrackingRolloutState? = null,
-	) = componentMutex.withLock {
+	): SessionPresentationBinding? = componentMutex.withLock {
 		require((logicalTrackingId == null) == (serviceRunId == null)) {
 			"Logical tracking and service-run identities must be supplied together"
 		}
@@ -186,6 +189,8 @@ internal class TrackingOrchestrator(
 				sessionJob = null
 			}
 		}
+		pendingPresentationBinding = null
+		completedShutdownResult = null
 
 		val newSessionJob = SupervisorJob(scope.coroutineContext[Job])
 		val sessionScope = CoroutineScope(scope.coroutineContext + newSessionJob)
@@ -314,6 +319,10 @@ internal class TrackingOrchestrator(
 		)
 
 		sessionComponent = componentSet.sessionComponent
+		pendingPresentationBinding = componentSet.sessionComponent.presentationBinding
+		check(logicalTrackingId == null || pendingPresentationBinding != null) {
+			"Durable tracking session did not bind its presentation segment"
+		}
 		dataComponentList.addAll(componentSet.dataComponents)
 		skiTrackingComponent = componentSet.skiTrackingComponent
 		skiSegmentWriter = componentSet.skiSegmentWriter
@@ -402,6 +411,7 @@ internal class TrackingOrchestrator(
 
 		// Wire mutable references into tier escalation handler
 		tierEscalationHandler.processorPipeline = processorPipeline
+		pendingPresentationBinding
 	}
 
 	/**
@@ -435,6 +445,7 @@ internal class TrackingOrchestrator(
 		preShutdown: (suspend () -> Unit)? = null,
 	): ShutdownResult = componentMutex.withLock {
 		preShutdown?.invoke()
+		completedShutdownResult?.let { return@withLock it }
 		// TrackerService can exist briefly as an honest providerless foreground shell while the
 		// process-wide recovery gate is closed. That shell has no tracking session to finalize and
 		// must not open Room merely because Android destroys the Service.
@@ -478,6 +489,8 @@ internal class TrackingOrchestrator(
 		controller.updateSkiState(null)
 		controller.updateSailingState(null)
 		controller.updatePlaneState(null)
+		pendingPresentationBinding = null
+		completedShutdownResult = null
 	}
 
 	fun markServiceStopped() {
@@ -487,7 +500,8 @@ internal class TrackingOrchestrator(
 	// ---- private implementation ----
 
 	private fun hasSessionState(): Boolean {
-		return trackingPolicyManager != null ||
+		return pendingPresentationBinding != null ||
+			trackingPolicyManager != null ||
 			processorPipeline != null ||
 			trackingPipeline != null ||
 			sessionComponent != null ||
@@ -577,6 +591,7 @@ internal class TrackingOrchestrator(
 	}
 
 	private suspend fun destroyComponents(context: Context): ShutdownResult {
+		completedShutdownResult?.let { return it }
 		var shutdownFailure: IllegalStateException? = null
 		fun recordCriticalFailure(message: String, exception: Exception) {
 			val failure = IllegalStateException(message, exception)
@@ -592,6 +607,12 @@ internal class TrackingOrchestrator(
 			sessionComponent?.let { component ->
 				try {
 					component.onDisable(context)
+					component.presentationBinding?.let { binding ->
+						check(pendingPresentationBinding == null || pendingPresentationBinding == binding) {
+							"Presentation binding changed during shutdown"
+						}
+						pendingPresentationBinding = binding
+					}
 					controller.updateSession(component.session.toSnapshot())
 					sessionComponent = null
 				} catch (e: CancellationException) {
@@ -723,7 +744,10 @@ internal class TrackingOrchestrator(
 		return ShutdownResult(
 			dailySummaryMaterialized = dailySummaryMaterialized,
 			fallbackEnqueued = fallbackEnqueued,
-		)
+			presentationReceipt = pendingPresentationBinding?.let { binding ->
+				SessionPresentationShutdownReceipt(binding = binding)
+			},
+		).also { completedShutdownResult = it }
 	}
 
 	fun currentSourceDemands(): List<SourceDemand> = trackingPolicyManager?.sourceDemands?.value.orEmpty()
@@ -739,4 +763,10 @@ internal class TrackingOrchestrator(
 internal data class ShutdownResult(
 	val dailySummaryMaterialized: Boolean,
 	val fallbackEnqueued: Boolean,
+	val presentationReceipt: SessionPresentationShutdownReceipt? = null,
+)
+
+/** Exact proof emitted only after the presentation pipeline has stopped every owned writer. */
+internal data class SessionPresentationShutdownReceipt(
+	val binding: SessionPresentationBinding,
 )

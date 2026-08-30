@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.data.LegacyV27ProjectionDrainEn
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.sqlite.runtime.SQLiteXSupportSQLiteOpenHelperFactory
 import kotlinx.coroutines.runBlocking
@@ -430,7 +431,9 @@ class AppDatabaseMigration27To28Test {
 			"SELECT state, completed_at_ms, completion_reason, boot_id, lease_generation, " +
 				"start_origin, desired_foreground_capability_flags, " +
 				"applied_foreground_capability_flags, runtime_acknowledgement, " +
-				"runtime_failure_code, run_revision FROM source_service_run " +
+				"runtime_failure_code, run_revision, session_segment_id, " +
+				"presentation_acknowledgement, presentation_acknowledged_at_ms " +
+				"FROM source_service_run " +
 				"WHERE service_run_id = '${PopulatedV27Fixture.SERVICE_RUN_ID}'",
 		).use { cursor ->
 			assertTrue(cursor.moveToFirst())
@@ -445,6 +448,21 @@ class AppDatabaseMigration27To28Test {
 			assertEquals("TERMINAL_FAILURE", cursor.getString(8))
 			assertEquals(V28_MIGRATION_INTERRUPTION_REASON, cursor.getString(9))
 			assertEquals(1L, cursor.getLong(10))
+			assertTrue(cursor.isNull(11))
+			assertEquals(SourceServiceRunEntity.PRESENTATION_LEGACY_UNVERIFIABLE, cursor.getString(12))
+			assertTrue(cursor.isNull(13))
+		}
+		database.query("PRAGMA index_list(source_service_run)").use { cursor ->
+			val nameColumn = cursor.getColumnIndexOrThrow("name")
+			val uniqueColumn = cursor.getColumnIndexOrThrow("unique")
+			var foundExactBindingIndex = false
+			while (cursor.moveToNext()) {
+				if (cursor.getString(nameColumn) == "idx_source_service_run_session_segment") {
+					assertEquals(1, cursor.getInt(uniqueColumn))
+					foundExactBindingIndex = true
+				}
+			}
+			assertTrue(foundExactBindingIndex)
 		}
 		database.query(
 			"SELECT end_time_ms, legacy_runtime_fenced FROM tracker_run WHERE id = 1",

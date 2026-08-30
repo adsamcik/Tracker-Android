@@ -96,14 +96,19 @@ internal class SkiSegmentWriter(
 	}
 
 	override suspend fun onDisable(context: Context) {
-		// Flush the last in-progress segment synchronously
-		if (segmentStartTimeMs > 0L && sessionId > 0L && lastEventTimeMs >= segmentStartTimeMs) {
-			writeSegmentImmediate(lastEventTimeMs)
+		try {
+			// Flush the last in-progress segment synchronously, then await every earlier transition.
+			if (segmentStartTimeMs > 0L && sessionId > 0L && lastEventTimeMs >= segmentStartTimeMs) {
+				writeSegmentImmediate(lastEventTimeMs)
+			}
+			scope?.coroutineContext?.get(Job)?.children?.toList()?.forEach { it.join() }
+		} finally {
+			scope?.cancel()
+			scope = null
 		}
-		// Join all in-flight async writes before cancelling
-		scope?.coroutineContext?.get(Job)?.children?.toList()?.forEach { it.join() }
-		scope?.cancel()
-		scope = null
+		// Quiescence proves that this writer can no longer mutate the row. Individual persistence
+		// failures remain payload-free diagnostics; they do not turn writer shutdown into a permanent
+		// Android/provider teardown loop or imply successful product materialization.
 	}
 
 	override fun onNewData(

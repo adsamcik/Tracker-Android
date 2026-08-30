@@ -44,6 +44,11 @@ data class LogicalTrackingSessionEntity(
 	indices = [
 		Index(value = ["logical_tracking_id", "started_at_ms"], name = "idx_source_service_run_tracking"),
 		Index(value = ["start_delivery_token"], unique = true, name = "idx_source_service_run_delivery_token"),
+		Index(
+			value = ["session_segment_id"],
+			unique = true,
+			name = "idx_source_service_run_session_segment",
+		),
 	],
 )
 data class SourceServiceRunEntity(
@@ -84,12 +89,54 @@ data class SourceServiceRunEntity(
 	val startIsUserInitiated: Boolean = false,
 	@ColumnInfo(name = "start_is_ambient", defaultValue = "0")
 	val startIsAmbient: Boolean = false,
+	/** Exact source-neutral presentation segment owned by this physical service run. */
+	@ColumnInfo(name = "session_segment_id")
+	val sessionSegmentId: Long? = null,
+	/**
+	 * Durable proof that every presentation writer for this run has stopped.
+	 *
+	 * Released-v27 rows are explicitly unverifiable. New v28 runs always insert [PRESENTATION_PENDING]
+	 * and may advance to [PRESENTATION_QUIESCED] only through the exact Room lifecycle boundary.
+	 * Quiescence is never evidence that the segment is empty, retained, materialized, or deletable.
+	 */
+	@ColumnInfo(
+		name = "presentation_acknowledgement",
+		defaultValue = "'LEGACY_UNVERIFIABLE'",
+	)
+	val presentationAcknowledgement: String = PRESENTATION_PENDING,
+	@ColumnInfo(name = "presentation_acknowledged_at_ms")
+	val presentationAcknowledgedAtMs: Long? = null,
 ) {
 	init {
 		require(serviceRunId.isNotBlank()) { "Service run id must not be blank" }
 		require(serviceRunId != LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID) {
 			"The legacy completeness sentinel cannot identify a physical service run"
 		}
+		require(sessionSegmentId == null || sessionSegmentId > 0L) {
+			"Session segment id must be positive when present"
+		}
+		require(presentationAcknowledgement in PRESENTATION_ACKNOWLEDGEMENTS) {
+			"Unknown presentation acknowledgement $presentationAcknowledgement"
+		}
+		require(presentationAcknowledgedAtMs == null || presentationAcknowledgedAtMs >= 0L)
+		if (presentationAcknowledgement == PRESENTATION_QUIESCED) {
+			require(sessionSegmentId != null) { "Quiesced presentation requires exact segment ownership" }
+			require(presentationAcknowledgedAtMs != null)
+		} else {
+			require(presentationAcknowledgedAtMs == null)
+		}
+	}
+
+	/** Stable acknowledgement values persisted by Room. */
+	companion object {
+		const val PRESENTATION_PENDING = "PENDING"
+		const val PRESENTATION_QUIESCED = "QUIESCED"
+		const val PRESENTATION_LEGACY_UNVERIFIABLE = "LEGACY_UNVERIFIABLE"
+		private val PRESENTATION_ACKNOWLEDGEMENTS = setOf(
+			PRESENTATION_PENDING,
+			PRESENTATION_QUIESCED,
+			PRESENTATION_LEGACY_UNVERIFIABLE,
+		)
 	}
 }
 

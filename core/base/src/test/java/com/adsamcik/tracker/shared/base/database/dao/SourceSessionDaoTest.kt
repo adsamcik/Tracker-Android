@@ -229,6 +229,45 @@ class SourceSessionDaoTest {
 		dao.hasNonterminalLatestLifecycleAction() shouldBe true
 	}
 
+	@Test
+	fun `presentation binding and acknowledgement preserve lifecycle revision`() = runTest {
+		val active = serviceRun("presentation-run").copy(
+			state = "ACTIVE",
+			runRevision = 4L,
+		)
+		dao.insertServiceRun(active)
+
+		dao.bindSessionSegmentExact(
+			logicalTrackingId = LOGICAL_ID,
+			serviceRunId = active.serviceRunId,
+			sessionSegmentId = 42L,
+		) shouldBe 1
+		val bound = requireNotNull(dao.serviceRun(active.serviceRunId))
+		bound.sessionSegmentId shouldBe 42L
+		bound.runRevision shouldBe 4L
+
+		dao.updateServiceRun(
+			bound.copy(
+				state = "FINALIZED",
+				completedAtMs = 2_000L,
+				completionReason = "STOPPED",
+				runRevision = 5L,
+			),
+		) shouldBe 1
+		dao.acknowledgePresentationQuiescedExact(
+			logicalTrackingId = LOGICAL_ID,
+			serviceRunId = active.serviceRunId,
+			sessionSegmentId = 42L,
+			acknowledgedAtMs = 2_100L,
+		) shouldBe 1
+
+		val acknowledged = requireNotNull(dao.serviceRun(active.serviceRunId))
+		acknowledged.presentationAcknowledgement shouldBe
+			SourceServiceRunEntity.PRESENTATION_QUIESCED
+		acknowledged.presentationAcknowledgedAtMs shouldBe 2_100L
+		acknowledged.runRevision shouldBe 5L
+	}
+
 	private fun manifest(revision: Long, serviceRunId: String) = SessionManifestVersionEntity(
 		logicalTrackingId = LOGICAL_ID,
 		manifestRevision = revision,

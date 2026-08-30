@@ -71,6 +71,42 @@ class DefaultActiveTrackingSessionStore @Inject constructor(
 		}
 	}
 
+	override suspend fun replaceExact(
+		expected: ActiveTrackingSessionDescriptor,
+		replacement: ActiveTrackingSessionDescriptor,
+	): ActiveTrackingSessionStoreResult = withContext(dispatchers.io) {
+		runStoreOperation {
+			var persisted: ActiveTrackingSessionProto? = null
+			context.activeTrackingSessionDataStore.updateData { current ->
+				if (current.toDescriptor() == expected) {
+					replacement.toProto().also { persisted = it }
+				} else {
+					current.also { persisted = it }
+				}
+			}
+			ActiveTrackingSessionStoreResult.Success(persisted?.toDescriptor())
+		}
+	}
+
+	override suspend fun bindSessionSegmentIfCurrent(
+		expected: ActiveTrackingSessionDescriptor,
+		sessionSegmentId: Long,
+	): ActiveTrackingSessionStoreResult = withContext(dispatchers.io) {
+		require(sessionSegmentId > 0L)
+		runStoreOperation {
+			val bound = expected.copy(sessionSegmentId = sessionSegmentId)
+			var persisted: ActiveTrackingSessionProto? = null
+			context.activeTrackingSessionDataStore.updateData { current ->
+				when (current.toDescriptor()) {
+					expected -> bound.toProto().also { persisted = it }
+					bound -> current.also { persisted = it }
+					else -> current.also { persisted = it }
+				}
+			}
+			ActiveTrackingSessionStoreResult.Success(persisted?.toDescriptor())
+		}
+	}
+
 	override suspend fun clear(): ActiveTrackingSessionStoreResult = withContext(dispatchers.io) {
 		runStoreOperation {
 			context.activeTrackingSessionDataStore.updateData {

@@ -7,6 +7,8 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.data.LocationData
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
@@ -27,6 +29,9 @@ import com.adsamcik.tracker.tracker.controller.LivePlaneState
 import com.adsamcik.tracker.tracker.controller.LiveSailingState
 import com.adsamcik.tracker.tracker.controller.LiveSkiState
 import com.adsamcik.tracker.tracker.data.collection.TrackingCycle
+import com.adsamcik.tracker.tracker.presentation.PresentationQuiescenceResult
+import com.adsamcik.tracker.tracker.presentation.SessionPresentationLifecycle
+import com.adsamcik.tracker.tracker.source.coordinator.SessionLifecycleState
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.matchers.collections.shouldHaveSize
@@ -100,12 +105,15 @@ class TrackingOrchestratorIntegrationTest {
 			enableNotifications = false,
 		)
 
+		insertPresentationOwner(LOGICAL_ID, RUN_ID)
 		controller.updateServiceRunning(true)
-		orchestrator.initialize(
+		val binding = orchestrator.initialize(
 			context = context,
 			isSessionUserInitiated = true,
 			initialTier = PolicyTier.PRECISION,
 			scope = backgroundScope,
+			logicalTrackingId = LOGICAL_ID,
+			serviceRunId = RUN_ID,
 			rolloutState = allEventCanonical(),
 		)
 		advanceUntilIdle()
@@ -129,11 +137,26 @@ class TrackingOrchestratorIntegrationTest {
 			),
 		)
 
+		val sourceSessionDao = database.sourceSessionDao()
+		val activeRun = requireNotNull(sourceSessionDao.serviceRun(RUN_ID))
+		sourceSessionDao.updateServiceRun(
+			activeRun.copy(
+				state = SessionLifecycleState.FINALIZED.name,
+				completedAtMs = 3_000L,
+				completionReason = "TEST_STOP",
+			),
+		) shouldBe 1
 		val shutdownResult = orchestrator.shutdown(context)
 		advanceUntilIdle()
 
 		shutdownResult.dailySummaryMaterialized shouldBe true
 		shutdownResult.fallbackEnqueued shouldBe false
+		shutdownResult.presentationReceipt?.binding shouldBe binding
+		orchestrator.shutdown(context) shouldBe shutdownResult
+		SessionPresentationLifecycle(database).acknowledgeQuiescedExact(
+			requireNotNull(binding),
+			acknowledgedAtMs = 3_100L,
+		) shouldBe PresentationQuiescenceResult.ACKNOWLEDGED
 		fallbackEnqueueCount shouldBe 0
 		stopProcessor.segmentCountWhenSessionEnded shouldBe 1L
 		val persistedSegment = database.sessionSegmentDao().getAllBetween(0L, Long.MAX_VALUE)
@@ -196,6 +219,44 @@ class TrackingOrchestratorIntegrationTest {
 	}
 
 	private fun allEventCanonical() = TrackingRolloutState.eventCanonical(SourceKind.entries.toSet())
+
+	private suspend fun insertPresentationOwner(logicalTrackingId: String, serviceRunId: String) {
+		val dao = database.sourceSessionDao()
+		dao.insertSession(
+			LogicalTrackingSessionEntity(
+				logicalTrackingId = logicalTrackingId,
+				state = SessionLifecycleState.ACTIVE.name,
+				lifecycleRevision = 1L,
+				desiredPlanRevision = 1L,
+				rolloutRevision = 1L,
+				startOrigin = "MANUAL_FOREGROUND_START",
+				clockDomainId = "boot-test",
+				startedAtMs = 1_000L,
+				startedElapsedNanos = 1_000L,
+				cutoffAtMs = null,
+				cutoffElapsedNanos = null,
+				completedAtMs = null,
+				finalAdmissionOrdinal = null,
+				failureCode = null,
+				currentServiceRunId = serviceRunId,
+			),
+		)
+		dao.insertServiceRun(
+			SourceServiceRunEntity(
+				serviceRunId = serviceRunId,
+				logicalTrackingId = logicalTrackingId,
+				state = SessionLifecycleState.ACTIVE.name,
+				desiredPlanRevision = 1L,
+				rolloutRevision = 1L,
+				foregroundCapabilityFlags = 0L,
+				startedAtMs = 1_000L,
+				startedElapsedNanos = 1_000L,
+				completedAtMs = null,
+				completionReason = null,
+				bootId = "boot-test",
+			),
+		)
+	}
 
 	@Test
 	fun `providerless foreground shell shutdown does not touch Room or enqueue product work`() =
@@ -352,6 +413,11 @@ class TrackingOrchestratorIntegrationTest {
 		override suspend fun setPreset(preset: TrackingPreset) {
 			state.update { it.copy(presetName = preset.name) }
 		}
+	}
+
+	private companion object {
+		const val LOGICAL_ID = "orchestrator-logical"
+		const val RUN_ID = "orchestrator-run"
 	}
 
 }

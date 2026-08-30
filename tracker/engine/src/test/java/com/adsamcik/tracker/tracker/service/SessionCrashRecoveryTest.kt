@@ -5,8 +5,10 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingPreset
@@ -24,6 +26,8 @@ import com.adsamcik.tracker.stats.api.signal.TrackingSignal
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.stats.engine.processor.AggregatorProcessor
 import com.adsamcik.tracker.tracker.controller.DefaultTrackerServiceController
+import com.adsamcik.tracker.tracker.presentation.SessionPresentationLifecycle
+import com.adsamcik.tracker.tracker.source.coordinator.SessionLifecycleState
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.matchers.collections.shouldHaveAtLeastSize
@@ -103,7 +107,8 @@ class SessionCrashRecoveryTest {
 	}
 
 	@Test
-	fun `initialize resumes exact recent segment without creating a placeholder`() = runTest(testDispatcher) {
+	@Suppress("LongMethod")
+	fun `legacy descriptor-only initialize resumes exact recent segment`() = runTest(testDispatcher) {
 		// Simulate a crash mid-session: the SessionTrackerComponent had time to
 		// persist a segment row, but the process died before shutdown() ran.
 		val orphanEndMs = System.currentTimeMillis() - 1_000L
@@ -180,6 +185,95 @@ class SessionCrashRecoveryTest {
 		orchestrator.shutdown(context)
 		testDispatcher.scheduler.advanceUntilIdle()
 	}
+
+	@Test
+	@Suppress("LongMethod")
+	fun `replacement service run creates a second segment under one logical entry`() =
+		runTest(testDispatcher) {
+			val dao = database.sourceSessionDao()
+			val logicalId = "recovery-logical"
+			val firstRunId = "recovery-run-one"
+			val secondRunId = "recovery-run-two"
+			dao.insertSession(activeLogicalSession(logicalId, firstRunId))
+			dao.insertServiceRun(activeServiceRun(logicalId, firstRunId))
+			val presentationLifecycle = SessionPresentationLifecycle(database)
+			val first = presentationLifecycle.openOrResumeExact(
+				logicalTrackingId = logicalId,
+				serviceRunId = firstRunId,
+				requestedSessionSegmentId = null,
+				newSegment = SessionSegment(
+					startTimeMs = System.currentTimeMillis() - 60_000L,
+					endTimeMs = System.currentTimeMillis() - 1_000L,
+					distanceM = 250f,
+					steps = 400,
+					primaryActivity = null,
+					activityConfidence = null,
+					sampleCount = 12,
+					source = SegmentSource.USER_CREATED,
+					inferenceVersion = "run-one",
+					createdAt = System.currentTimeMillis() - 60_000L,
+					logicalTrackingId = logicalId,
+					serviceRunId = firstRunId,
+				),
+			)
+			val firstRun = requireNotNull(dao.serviceRun(firstRunId))
+			dao.updateServiceRun(
+				firstRun.copy(
+					state = SessionLifecycleState.FINALIZED.name,
+					completedAtMs = System.currentTimeMillis() - 500L,
+					completionReason = "PROCESS_REPLACED",
+				),
+			) shouldBe 1
+			dao.insertServiceRun(activeServiceRun(logicalId, secondRunId))
+			val logical = requireNotNull(dao.session(logicalId))
+			dao.updateSession(
+				logical.copy(
+					currentServiceRunId = secondRunId,
+					lifecycleRevision = logical.lifecycleRevision + 1L,
+				),
+			) shouldBe 1
+
+			val controller = DefaultTrackerServiceController()
+			val orchestrator = TrackingOrchestrator(
+				controller = controller,
+				signalProcessors = setOf(NoOpProcessor()),
+				domainEventRepository = RecordingDomainEventRepository(),
+				dispatchers = dispatchersProvider,
+				appDatabase = database,
+				trackingParamsRepository = newTrackingParamsRepo(),
+				dailySummaryFallbackEnqueuer = {},
+				enableNotifications = false,
+			)
+			controller.updateServiceRunning(true)
+			val secondBinding = orchestrator.initialize(
+				context = context,
+				isSessionUserInitiated = true,
+				initialTier = PolicyTier.PRECISION,
+				scope = backgroundScope,
+				logicalTrackingId = logicalId,
+				serviceRunId = secondRunId,
+				resumeSessionSegmentId = null,
+				rolloutState = allEventCanonical(),
+			)
+			testDispatcher.scheduler.advanceUntilIdle()
+
+			requireNotNull(secondBinding).sessionSegmentId shouldBe orchestrator.currentSessionSegmentId()
+			(secondBinding.sessionSegmentId == first.binding.sessionSegmentId) shouldBe false
+			val segments = database.sessionSegmentDao().getAllBetween(0L, Long.MAX_VALUE)
+			segments.size shouldBe 2
+			segments.map { it.logicalTrackingId }.toSet() shouldBe setOf(logicalId)
+			segments.mapNotNull { it.serviceRunId }.toSet() shouldBe setOf(firstRunId, secondRunId)
+
+			val secondRun = requireNotNull(dao.serviceRun(secondRunId))
+			dao.updateServiceRun(
+				secondRun.copy(
+					state = SessionLifecycleState.FINALIZED.name,
+					completedAtMs = System.currentTimeMillis(),
+					completionReason = "TEST_STOP",
+				),
+			) shouldBe 1
+			orchestrator.shutdown(context).presentationReceipt?.binding shouldBe secondBinding
+		}
 
 	@Test
 	fun `second session's shutdown materializes daily_summary that includes a crashed session's orphan segment`() = runTest(testDispatcher) {
@@ -287,6 +381,40 @@ class SessionCrashRecoveryTest {
 	)
 
 	private fun allEventCanonical() = TrackingRolloutState.eventCanonical(SourceKind.entries.toSet())
+
+	private fun activeLogicalSession(logicalId: String, serviceRunId: String) =
+		LogicalTrackingSessionEntity(
+			logicalTrackingId = logicalId,
+			state = SessionLifecycleState.ACTIVE.name,
+			lifecycleRevision = 1L,
+			desiredPlanRevision = 1L,
+			rolloutRevision = 1L,
+			startOrigin = "RECOVERY",
+			clockDomainId = "boot-test",
+			startedAtMs = System.currentTimeMillis() - 60_000L,
+			startedElapsedNanos = 1_000L,
+			cutoffAtMs = null,
+			cutoffElapsedNanos = null,
+			completedAtMs = null,
+			finalAdmissionOrdinal = null,
+			failureCode = null,
+			currentServiceRunId = serviceRunId,
+		)
+
+	private fun activeServiceRun(logicalId: String, serviceRunId: String) =
+		SourceServiceRunEntity(
+			serviceRunId = serviceRunId,
+			logicalTrackingId = logicalId,
+			state = SessionLifecycleState.ACTIVE.name,
+			desiredPlanRevision = 1L,
+			rolloutRevision = 1L,
+			foregroundCapabilityFlags = 0L,
+			startedAtMs = System.currentTimeMillis() - 60_000L,
+			startedElapsedNanos = 1_000L,
+			completedAtMs = null,
+			completionReason = null,
+			bootId = "boot-test",
+		)
 
 	private fun todayStartMs(): Long = startOfLocalDayMs(LocalDate.now().toEpochDay())
 

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 28,
-    "identityHash": "751083bb4f4058c532394ac3bbf79128",
+    "identityHash": "bb94c94cfafc2a809c8c7cbc3a9933c7",
     "entities": [
       {
         "tableName": "activity",
@@ -3438,7 +3438,7 @@
       },
       {
         "tableName": "source_service_run",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`service_run_id` TEXT NOT NULL, `logical_tracking_id` TEXT NOT NULL, `state` TEXT NOT NULL, `desired_plan_revision` INTEGER NOT NULL, `rollout_revision` INTEGER NOT NULL, `foreground_capability_flags` INTEGER NOT NULL, `started_at_ms` INTEGER NOT NULL, `started_elapsed_nanos` INTEGER NOT NULL, `completed_at_ms` INTEGER, `completion_reason` TEXT, `boot_id` TEXT NOT NULL DEFAULT 'LEGACY_UNKNOWN', `lease_generation` INTEGER NOT NULL DEFAULT 0, `start_origin` TEXT NOT NULL DEFAULT 'LEGACY_UNKNOWN', `desired_foreground_capability_flags` INTEGER NOT NULL DEFAULT 0, `applied_foreground_capability_flags` INTEGER, `runtime_acknowledgement` TEXT NOT NULL DEFAULT 'PENDING', `runtime_failure_code` TEXT, `run_revision` INTEGER NOT NULL DEFAULT 0, `start_delivery_token` TEXT, `start_command_generation` INTEGER NOT NULL DEFAULT 0, `prepared_manifest_revision` INTEGER NOT NULL DEFAULT 0, `prepared_intent_revision` INTEGER NOT NULL DEFAULT 0, `android_delivery_state` TEXT NOT NULL DEFAULT 'LEGACY_UNKNOWN', `android_delivery_updated_at_ms` INTEGER, `start_is_user_initiated` INTEGER NOT NULL DEFAULT 0, `start_is_ambient` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`service_run_id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`service_run_id` TEXT NOT NULL, `logical_tracking_id` TEXT NOT NULL, `state` TEXT NOT NULL, `desired_plan_revision` INTEGER NOT NULL, `rollout_revision` INTEGER NOT NULL, `foreground_capability_flags` INTEGER NOT NULL, `started_at_ms` INTEGER NOT NULL, `started_elapsed_nanos` INTEGER NOT NULL, `completed_at_ms` INTEGER, `completion_reason` TEXT, `boot_id` TEXT NOT NULL DEFAULT 'LEGACY_UNKNOWN', `lease_generation` INTEGER NOT NULL DEFAULT 0, `start_origin` TEXT NOT NULL DEFAULT 'LEGACY_UNKNOWN', `desired_foreground_capability_flags` INTEGER NOT NULL DEFAULT 0, `applied_foreground_capability_flags` INTEGER, `runtime_acknowledgement` TEXT NOT NULL DEFAULT 'PENDING', `runtime_failure_code` TEXT, `run_revision` INTEGER NOT NULL DEFAULT 0, `start_delivery_token` TEXT, `start_command_generation` INTEGER NOT NULL DEFAULT 0, `prepared_manifest_revision` INTEGER NOT NULL DEFAULT 0, `prepared_intent_revision` INTEGER NOT NULL DEFAULT 0, `android_delivery_state` TEXT NOT NULL DEFAULT 'LEGACY_UNKNOWN', `android_delivery_updated_at_ms` INTEGER, `start_is_user_initiated` INTEGER NOT NULL DEFAULT 0, `start_is_ambient` INTEGER NOT NULL DEFAULT 0, `session_segment_id` INTEGER, `presentation_acknowledgement` TEXT NOT NULL DEFAULT 'LEGACY_UNVERIFIABLE', `presentation_acknowledged_at_ms` INTEGER, PRIMARY KEY(`service_run_id`))",
         "fields": [
           {
             "fieldPath": "serviceRunId",
@@ -3601,6 +3601,23 @@
             "affinity": "INTEGER",
             "notNull": true,
             "defaultValue": "0"
+          },
+          {
+            "fieldPath": "sessionSegmentId",
+            "columnName": "session_segment_id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "presentationAcknowledgement",
+            "columnName": "presentation_acknowledgement",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'LEGACY_UNVERIFIABLE'"
+          },
+          {
+            "fieldPath": "presentationAcknowledgedAtMs",
+            "columnName": "presentation_acknowledged_at_ms",
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -3628,6 +3645,15 @@
             ],
             "orders": [],
             "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_source_service_run_delivery_token` ON `${TABLE_NAME}` (`start_delivery_token`)"
+          },
+          {
+            "name": "idx_source_service_run_session_segment",
+            "unique": true,
+            "columnNames": [
+              "session_segment_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_source_service_run_session_segment` ON `${TABLE_NAME}` (`session_segment_id`)"
           }
         ]
       },
@@ -7622,7 +7648,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '751083bb4f4058c532394ac3bbf79128')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'bb94c94cfafc2a809c8c7cbc3a9933c7')"
     ]
   }
 }
