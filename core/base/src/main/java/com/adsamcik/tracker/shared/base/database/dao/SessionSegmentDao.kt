@@ -105,8 +105,10 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 		SELECT MIN(start_time_ms) AS min_start, MAX(end_time_ms) AS max_end
 		FROM session_segment
 		WHERE primary_activity IS NULL
+			AND sample_count > 0
 		"""
 	)
+	/** Bounds for recorded, currently unclassified segments; excludes preinserted placeholders. */
 	suspend fun getUnrecognizedBounds(): SessionSegmentBounds
 
 	@Query(
@@ -114,11 +116,13 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 		SELECT *
 		FROM session_segment
 		WHERE primary_activity IS NULL
+			AND sample_count > 0
 			AND start_time_ms >= :fromMs
 			AND end_time_ms <= :toMs
 		ORDER BY start_time_ms
 		"""
 	)
+	/** Recorded, unclassified segments strictly contained in the requested wall-time range. */
 	suspend fun getUnrecognizedWithin(fromMs: Long, toMs: Long): List<SessionSegment>
 
 	@Query(
@@ -126,11 +130,13 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 		SELECT *
 		FROM session_segment
 		WHERE primary_activity IS NULL
+			AND sample_count > 0
 			AND start_time_ms >= :fromMs
 			AND start_time_ms <= :toMs
 		ORDER BY start_time_ms
 		"""
 	)
+	/** Recorded, unclassified segments whose start time falls in the requested wall-time range. */
 	suspend fun getUnrecognizedStartingBetween(fromMs: Long, toMs: Long): List<SessionSegment>
 
 	/**
@@ -282,7 +288,14 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	@Query("SELECT COALESCE(MAX(CASE WHEN end_time_ms > start_time_ms THEN distance_m / ((end_time_ms - start_time_ms) / 1000.0) ELSE 0 END), 0) FROM session_segment")
 	suspend fun maxAverageSpeedMps(): Double
 
-	@Query("SELECT COUNT(DISTINCT strftime('%H', start_time_ms / 1000, 'unixepoch', 'localtime')) FROM session_segment")
+	@Query(
+		"""
+		SELECT COUNT(DISTINCT strftime('%H', start_time_ms / 1000, 'unixepoch', 'localtime'))
+		FROM session_segment
+		WHERE sample_count > 0
+		"""
+	)
+	/** Number of distinct local start hours represented by recorded segments. */
 	suspend fun countDistinctStartHours(): Long
 
 	@Query(
@@ -295,7 +308,8 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	)
 	suspend fun countDistinctActivitiesBetween(fromMs: Long, toMs: Long): Long
 
-	@Query("SELECT MIN(start_time_ms) FROM session_segment")
+	/** Earliest start time among recorded segments, excluding preinserted placeholders. */
+	@Query("SELECT MIN(start_time_ms) FROM session_segment WHERE sample_count > 0")
 	suspend fun minStartTime(): Long?
 
 	/**
@@ -307,6 +321,7 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 		SELECT COUNT(*) FROM session_segment
 		WHERE CAST(strftime('%H', start_time_ms / 1000, 'unixepoch', 'localtime') AS INTEGER) >= :fromHour
 			AND CAST(strftime('%H', start_time_ms / 1000, 'unixepoch', 'localtime') AS INTEGER) < :toHour
+			AND sample_count > 0
 		"""
 	)
 	suspend fun countSessionsStartingBetweenHours(fromHour: Int, toHour: Int): Long

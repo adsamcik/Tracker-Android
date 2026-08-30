@@ -137,6 +137,43 @@ class SessionSegmentDaoTest {
 		assertEquals(1L, dao.countByActivities(listOf(DetectedActivity.WALKING.value)))
 	}
 
+	@Test
+	fun `crash placeholder is excluded from product time and activity inference queries`() = runBlocking {
+		val day = LocalDate.of(2026, 1, 10).atStartOfDay(ZoneId.systemDefault())
+		val dayStart = day.toInstant().toEpochMilli()
+		val dayEnd = day.plusDays(1).toInstant().toEpochMilli()
+		val placeholderStart = day.plusHours(2).toInstant().toEpochMilli()
+		val recordedStart = day.plusHours(12).toInstant().toEpochMilli()
+		dao.insert(
+			createSegment(placeholderStart, placeholderStart, 0f, null).copy(
+				steps = 0,
+				activityConfidence = null,
+				sampleCount = 0,
+				inferenceVersion = "tracker_v2",
+				logicalTrackingId = "logical-crash",
+				serviceRunId = "run-crash",
+			),
+		)
+		val unpersisted = createSegment(recordedStart, recordedStart + 1_000L, 0f, null)
+		val recorded = unpersisted.copy(id = dao.insert(unpersisted))
+
+		assertEquals(recordedStart, dao.minStartTime())
+		assertEquals(1L, dao.countDistinctStartHours())
+		assertEquals(0L, dao.countSessionsStartingBetweenHours(0, 5))
+		assertEquals(
+			SessionSegmentBounds(recordedStart, recordedStart + 1_000L),
+			dao.getUnrecognizedBounds(),
+		)
+		assertEquals(
+			listOf(recorded),
+			dao.getUnrecognizedWithin(dayStart, dayEnd),
+		)
+		assertEquals(
+			listOf(recorded),
+			dao.getUnrecognizedStartingBetween(dayStart, dayEnd),
+		)
+	}
+
 	private fun createSegment(
 		startTimeMs: Long,
 		endTimeMs: Long,
