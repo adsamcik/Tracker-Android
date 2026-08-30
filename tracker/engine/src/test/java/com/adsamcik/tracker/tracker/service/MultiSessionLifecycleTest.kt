@@ -144,11 +144,11 @@ class MultiSessionLifecycleTest {
 	}
 
 	@Test
-	fun `init then shutdown with zero cycles persists no segment and emits no SessionEnded`() = runTest(testDispatcher) {
+	fun `init then shutdown with zero cycles retains presentation row and emits no SessionEnded`() = runTest(testDispatcher) {
 		val controller = DefaultTrackerServiceController()
 		val domainEvents = RecordingDomainEventRepository()
 		// Use a no-op processor so the assertion really verifies orchestrator
-		// behaviour (no segments / no events), not the test-only SessionEnded
+		// behaviour (retained presentation row / no events), not the test-only SessionEnded
 		// emission baked into SessionEndProcessor.
 		val noopProcessor = NoOpProcessor()
 		var fallbackEnqueueCount = 0
@@ -178,7 +178,10 @@ class MultiSessionLifecycleTest {
 		orchestrator.shutdown(context)
 		advanceUntilIdle()
 
-		database.sessionSegmentDao().getAllBetween(0L, Long.MAX_VALUE).shouldBeEmpty()
+		// Absence of SessionTrackerComponent cycles is not proof that the logical run had no
+		// qualified Wi-Fi or Cell evidence, because those ledgers live outside this component.
+		// Preserve the physical presentation row until an all-source evaluator can classify it.
+		database.sessionSegmentDao().getAllBetween(0L, Long.MAX_VALUE).shouldHaveSize(1)
 		domainEvents.persisted.filterIsInstance<DomainEvent.SessionEnded>().shouldBeEmpty()
 		// The fallback enqueuer is a fail-safe — must not fire when there was
 		// no session to materialize.
