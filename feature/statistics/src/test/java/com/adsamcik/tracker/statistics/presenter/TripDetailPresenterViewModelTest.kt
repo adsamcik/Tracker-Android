@@ -14,7 +14,15 @@ import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.statistics.export.GpxShareHelper
 import com.adsamcik.tracker.stats.api.TransportMode
 import com.adsamcik.tracker.stats.api.repository.LocationSampleRepository
+import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
+import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
+import com.adsamcik.tracker.stats.api.repository.HistoryProductState
+import com.adsamcik.tracker.stats.api.repository.SessionHistory
+import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.SkiRunSegmentRepository
+import com.adsamcik.tracker.stats.api.repository.StepsHistory
+import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
 import com.adsamcik.tracker.stats.api.repository.TripRepository
 import com.adsamcik.tracker.stats.api.repository.TripSummary
@@ -27,15 +35,21 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
@@ -50,6 +64,7 @@ class TripDetailPresenterViewModelTest {
 	private val testDispatcher = StandardTestDispatcher()
 	private val dispatchers = TestDispatchersProvider(testDispatcher)
 	private val tripRepository: TripRepository = mockk()
+	private val trackingHistoryRepository: TrackingHistoryRepository = mockk()
 	private val tripPresentationRepository: TripPresentationRepository = mockk()
 	private val skiRunSegmentRepository: SkiRunSegmentRepository = mockk()
 	private val locationSampleRepository: LocationSampleRepository = mockk()
@@ -66,6 +81,7 @@ class TripDetailPresenterViewModelTest {
 	@BeforeEach
 	fun setUp() {
 		Dispatchers.setMain(testDispatcher)
+		every { trackingHistoryRepository.observeSession(any()) } returns flowOf(completeHistory(TRIP_ID))
 	}
 
 	@AfterEach
@@ -106,6 +122,8 @@ class TripDetailPresenterViewModelTest {
 		val viewModel = createViewModel()
 		val stateCollector = backgroundScope.launch { viewModel.state.collect() }
 
+		advanceUntilIdle()
+		viewModel.loadSupplementalData()
 		advanceUntilIdle()
 
 		val expectedRoutePoints = listOf(
@@ -166,6 +184,8 @@ class TripDetailPresenterViewModelTest {
 		val stateCollector = backgroundScope.launch { viewModel.state.collect() }
 
 		advanceUntilIdle()
+		viewModel.loadSupplementalData()
+		advanceUntilIdle()
 
 		val expected = buildInsights(trip, null, samples)
 		viewModel.insights.value shouldBe expected
@@ -181,6 +201,58 @@ class TripDetailPresenterViewModelTest {
 				limit = SAMPLE_CHUNK_SIZE,
 			),
 		)
+		stateCollector.cancel()
+	}
+
+	@Test
+	fun `history observer stops after the selected detail has no subscribers`() = runTest {
+		val trip = sessionTrip()
+		var historyCancelled = false
+		coEvery { tripRepository.getTripDetail(TRIP_ID) } returns trip.right()
+		every { trackingHistoryRepository.observeSession(TRIP_ID) } returns flow {
+			emit(completeHistory(TRIP_ID))
+			try {
+				awaitCancellation()
+			} finally {
+				historyCancelled = true
+			}
+		}
+
+		val viewModel = createViewModel()
+		val stateCollector = backgroundScope.launch { viewModel.state.collect() }
+		advanceUntilIdle()
+
+		stateCollector.cancel()
+		runCurrent()
+		advanceTimeBy(5_001L)
+		runCurrent()
+
+		historyCancelled shouldBe true
+		viewModel.state.value shouldBe TripDetailState.Loading
+	}
+
+	@Test
+	fun `supplemental reads require a visible-screen request and keep one job`() = runTest {
+		val trip = sessionTrip()
+		coEvery { tripRepository.getTripDetail(TRIP_ID) } returns trip.right()
+		coEvery { tripPresentationRepository.getTripProjection(TRIP_ID) } returns null
+		stubEmptySupplementalData()
+
+		val viewModel = createViewModel()
+		val stateCollector = backgroundScope.launch { viewModel.state.collect() }
+		advanceUntilIdle()
+
+		coVerify(exactly = 0) { tripPresentationRepository.getTripProjection(TRIP_ID) }
+
+		viewModel.loadSupplementalData()
+		viewModel.loadSupplementalData()
+		advanceUntilIdle()
+
+		coVerify(exactly = 1) { tripPresentationRepository.getTripProjection(TRIP_ID) }
+		coVerify(exactly = 1) {
+			locationSampleRepository.getOrderedChunkBetween(any(), any(), any(), any(), any())
+		}
+		coVerify(exactly = 1) { skiRunSegmentRepository.getSegmentsByTimeRange(any(), any()) }
 		stateCollector.cancel()
 	}
 
@@ -242,7 +314,7 @@ class TripDetailPresenterViewModelTest {
 		locationSampleRepository: LocationSampleRepository = this.locationSampleRepository,
 	): TripDetailPresenterViewModel =
 		TripDetailPresenterViewModel(
-			presenter = TripDetailPresenter(tripRepository),
+			presenter = TripDetailPresenter(tripRepository, trackingHistoryRepository),
 			tripPresentationRepository = tripPresentationRepository,
 			skiRunSegmentRepository = skiRunSegmentRepository,
 			locationSampleRepository = locationSampleRepository,
@@ -271,6 +343,8 @@ class TripDetailPresenterViewModelTest {
 
 		val viewModel = createViewModel(ChunkedLocationSampleRepository(samples))
 		val stateCollector = backgroundScope.launch { viewModel.state.collect() }
+		advanceUntilIdle()
+		viewModel.loadSupplementalData()
 		advanceUntilIdle()
 		stateCollector.cancel()
 		return viewModel.insights.value
@@ -325,6 +399,45 @@ class TripDetailPresenterViewModelTest {
 		altitudeModelVersion = if (altitudeM != null) 1 else 0,
 		clockDomainId = "test-clock",
 	)
+
+	private fun completeHistory(segmentId: Long): SessionHistoryQuery = SessionHistoryQuery.Found(
+		SessionHistory(
+			segmentId = segmentId,
+			steps = StepsHistory(
+				count = 0L,
+				availability = HistoryAvailability.AVAILABLE,
+				evidence = HistoryEvidence.ACTIVE,
+				productState = HistoryProductState.READY,
+				coverage = StepsHistoryCoverage.COMPLETE,
+			),
+		),
+	)
+
+	private fun sessionTrip(): TripSummary = TripSummary(
+		id = TRIP_ID,
+		startTimeMs = EpochMs(TRIP_START_MS),
+		endTimeMs = EpochMs(TRIP_END_MS),
+		distance = DistanceM(0f),
+		steps = StepCount(0),
+		duration = DurationMs(TRIP_END_MS - TRIP_START_MS),
+		primaryMode = TransportMode.UNKNOWN,
+		sampleCount = 1,
+	)
+
+	private fun stubEmptySupplementalData() {
+		coEvery {
+			locationSampleRepository.getOrderedChunkBetween(
+				fromMs = TRIP_START_MS,
+				toMs = TRIP_END_MS,
+				afterTimeMs = null,
+				afterId = null,
+				limit = any(),
+			)
+		} returns emptyList()
+		coEvery {
+			skiRunSegmentRepository.getSegmentsByTimeRange(TRIP_START_MS, TRIP_END_MS)
+		} returns emptyList()
+	}
 
 	private data class ChunkRequest(
 		val fromMs: Long,

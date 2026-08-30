@@ -20,13 +20,12 @@ import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
 import com.adsamcik.tracker.stats.api.repository.TripRepository
 import com.adsamcik.tracker.stats.api.repository.TripSummary
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.filterIsInstance
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -56,23 +55,32 @@ class TripDetailPresenterViewModel @Inject constructor(
 	private val events = MutableSharedFlow<TripDetailEvent>(replay = 1)
 
 	val state: StateFlow<TripDetailState> = presenter.present(events)
-		.stateIn(viewModelScope, SharingStarted.Lazily, TripDetailState.Loading)
+		.stateIn(
+			scope = viewModelScope,
+			started = SharingStarted.WhileSubscribed(
+				stopTimeoutMillis = HISTORY_STOP_TIMEOUT_MS,
+				replayExpirationMillis = 0L,
+			),
+			initialValue = TripDetailState.Loading,
+		)
 
 	private val _skiSegments = MutableStateFlow<List<SkiRunSegment>>(emptyList())
 	val skiSegments: StateFlow<List<SkiRunSegment>> = _skiSegments.asStateFlow()
 
 	private val _insights = MutableStateFlow(TripDetailInsights())
 	val insights: StateFlow<TripDetailInsights> = _insights.asStateFlow()
+	private var supplementalDataJob: Job? = null
 
 	init {
 		events.tryEmit(TripDetailEvent.LoadTrip(tripId))
-		loadSupplementalData()
 	}
 
-	private fun loadSupplementalData() {
-		viewModelScope.launch {
+	/** Load optional Location/Ski presentation data only while Trip Detail is composed. */
+	fun loadSupplementalData() {
+		val loaded = state.value as? TripDetailState.Loaded ?: return
+		supplementalDataJob?.cancel()
+		supplementalDataJob = viewModelScope.launch {
 			try {
-				val loaded = state.filterIsInstance<TripDetailState.Loaded>().first()
 				loadSupplementalDataForTrip(loaded)
 			} catch (@Suppress("TooGenericExceptionCaught") _: Exception) {
 				// Supplemental data is optional — don't break trip detail on failure
@@ -106,10 +114,7 @@ class TripDetailPresenterViewModel @Inject constructor(
 	 * Retry loading the trip detail after an error.
 	 */
 	fun retry() {
-		_insights.value = TripDetailInsights()
-		_skiSegments.value = emptyList()
 		events.tryEmit(TripDetailEvent.LoadTrip(tripId))
-		loadSupplementalData()
 	}
 
 	/**
@@ -125,16 +130,6 @@ class TripDetailPresenterViewModel @Inject constructor(
 				startTimeMs = trip.startTimeMs.raw,
 				endTimeMs = trip.endTimeMs.raw,
 			)
-		}
-	}
-
-	/**
-	 * Delete the current trip and invoke [onDeleted] on completion.
-	 */
-	fun deleteTrip(onDeleted: () -> Unit) {
-		viewModelScope.launch {
-			tripPresentationRepository.deleteTrip(tripId)
-			onDeleted()
 		}
 	}
 }
@@ -392,6 +387,7 @@ private const val ROUTE_PREVIEW_MAX_POINTS = 1_500
 private const val ROUTE_COMPACTION_FACTOR = 4
 private const val ROUTE_PREVIEW_TOLERANCE_METERS = 8.0
 private const val E7_DIVISOR = 1e7
+private const val HISTORY_STOP_TIMEOUT_MS = 5_000L
 
 /**
  * Maximum trusted uncertainty for a device-reported speed reading. Readings with a larger

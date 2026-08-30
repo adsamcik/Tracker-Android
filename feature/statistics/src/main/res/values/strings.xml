@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Module title for distribution manifest -->
     <string name="module_statistics_title">Statistics</string>
 
@@ -107,6 +107,20 @@
     <string name="trip_detail_distance">Distance</string>
     <string name="trip_detail_date">Date</string>
     <string name="trip_detail_steps">Steps</string>
+    <string name="trip_detail_steps_complete" tools:ignore="MissingTranslation">Complete coverage</string>
+    <string name="trip_detail_steps_partial" tools:ignore="MissingTranslation">At least this many · partial coverage</string>
+    <string name="trip_detail_steps_legacy_value" tools:ignore="MissingTranslation">Unverified: %1$s</string>
+    <string name="trip_detail_steps_legacy_unverified" tools:ignore="MissingTranslation">Legacy value · completeness unverified</string>
+    <string name="trip_detail_steps_materializing" tools:ignore="MissingTranslation">Updating history…</string>
+    <string name="trip_detail_steps_not_captured" tools:ignore="MissingTranslation">Not captured for this session</string>
+    <string name="trip_detail_steps_disabled" tools:ignore="MissingTranslation">Disabled for this session</string>
+    <string name="trip_detail_steps_unsupported" tools:ignore="MissingTranslation">Not supported</string>
+    <string name="trip_detail_steps_permission_required" tools:ignore="MissingTranslation">Permission was required</string>
+    <string name="trip_detail_steps_os_limited" tools:ignore="MissingTranslation">Limited by Android</string>
+    <string name="trip_detail_steps_unavailable" tools:ignore="MissingTranslation">Unavailable</string>
+    <string name="trip_detail_steps_no_observation" tools:ignore="MissingTranslation">No qualifying observation</string>
+    <string name="trip_detail_steps_deleted" tools:ignore="MissingTranslation">Deleted</string>
+    <string name="trip_detail_steps_failed" tools:ignore="MissingTranslation">History unavailable</string>
     <string name="trip_detail_samples">Samples</string>
     <string name="trip_detail_source">Source</string>
     <string name="trip_detail_avg_speed">Avg speed</string>

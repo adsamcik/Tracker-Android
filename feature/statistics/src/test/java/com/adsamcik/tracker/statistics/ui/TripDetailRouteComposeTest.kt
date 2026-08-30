@@ -9,8 +9,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.adsamcik.tracker.statistics.R
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -126,4 +128,34 @@ class TripDetailRouteComposeTest {
 		composeTestRule.onNodeWithText(activityTypeLabel()).assertIsDisplayed()
 		composeTestRule.onNodeWithText(startTimeLabel()).assertIsDisplayed()
 	}
+
+	@Test
+	fun `detail actions omit unsafe presentation-only deletion`() {
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				Column {
+					TripDetailActions(onViewOnMap = {}, onExportGpx = {})
+				}
+			}
+		}
+
+		composeTestRule.onNodeWithText(text(R.string.trip_detail_view_on_map)).assertIsDisplayed()
+		composeTestRule.onNodeWithText(text(R.string.trip_detail_export_gpx)).assertIsDisplayed()
+		composeTestRule.onNodeWithText(text(R.string.trip_detail_delete)).assertDoesNotExist()
+	}
+
+	@Test
+	fun `failed Steps history exposes an explicit retry`() {
+		var retried = false
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				TripDetailStepsRetry(visible = true, onRetry = { retried = true })
+			}
+		}
+
+		composeTestRule.onNodeWithText(text(R.string.trip_detail_retry)).performClick()
+		assertTrue(retried)
+	}
+
+	private fun text(id: Int): String = RuntimeEnvironment.getApplication().getString(id)
 }

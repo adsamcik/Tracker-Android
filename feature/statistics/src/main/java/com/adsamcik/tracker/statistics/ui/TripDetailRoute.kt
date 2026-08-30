@@ -23,7 +23,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Route
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -37,7 +36,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,6 +49,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.adsamcik.tracker.feature.map.api.preview.RoutePreviewRenderer
 import com.adsamcik.tracker.feature.map.api.preview.RoutePoint
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
@@ -63,6 +63,7 @@ import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.presenter.TripDetailInsights
 import com.adsamcik.tracker.statistics.presenter.TripDetailPresenterViewModel
 import com.adsamcik.tracker.statistics.presenter.TripDetailState
+import com.adsamcik.tracker.statistics.presenter.TripDetailStepsState
 import com.adsamcik.tracker.statistics.presenter.RouteEmptyReason
 import com.adsamcik.tracker.statistics.presenter.resolveRouteEmptyReason
 import com.adsamcik.tracker.stats.api.repository.TripSummary
@@ -94,22 +95,16 @@ fun TripDetailRoute(
 	viewModel: TripDetailPresenterViewModel = hiltViewModel()
 ) {
 	BackHandler(onBack = onBack)
-	val state by viewModel.state.collectAsState()
+	val state by viewModel.state.collectAsStateWithLifecycle()
 	val loadedState = state as? TripDetailState.Loaded
-	val skiSegments by viewModel.skiSegments.collectAsState()
-	val insights by viewModel.insights.collectAsState()
-	var showDeleteDialog by remember { mutableStateOf(false) }
+	val skiSegments by viewModel.skiSegments.collectAsStateWithLifecycle()
+	val insights by viewModel.insights.collectAsStateWithLifecycle()
 	var showMenu by remember { mutableStateOf(false) }
 	val context = LocalContext.current
-
-	if (showDeleteDialog) {
-		DeleteConfirmationDialog(
-			onConfirm = {
-				showDeleteDialog = false
-				viewModel.deleteTrip(onDeleted = onBack)
-			},
-			onDismiss = { showDeleteDialog = false }
-		)
+	LaunchedEffect(loadedState?.trip) {
+		if (loadedState != null) {
+			viewModel.loadSupplementalData()
+		}
 	}
 
 	Scaffold(
@@ -137,30 +132,19 @@ fun TripDetailRoute(
 								expanded = showMenu,
 								onDismissRequest = { showMenu = false }
 							) {
-								DropdownMenuItem(
-									text = { Text(stringResource(R.string.trip_detail_view_on_map)) },
-									onClick = {
+								TripDetailActions(
+									onViewOnMap = {
 										showMenu = false
 										onViewOnMap(
 											loadedState.trip.id,
 											loadedState.trip.startTimeMs.raw,
 											loadedState.trip.endTimeMs.raw,
 										)
-									}
-								)
-								DropdownMenuItem(
-									text = { Text(stringResource(R.string.trip_detail_export_gpx)) },
-									onClick = {
+									},
+									onExportGpx = {
 										showMenu = false
 										viewModel.exportTripGpx(context)
-									}
-								)
-								DropdownMenuItem(
-									text = { Text(stringResource(R.string.trip_detail_delete)) },
-									onClick = {
-										showMenu = false
-										showDeleteDialog = true
-									}
+									},
 								)
 							}
 						}
@@ -188,9 +172,11 @@ fun TripDetailRoute(
 				is TripDetailState.Loaded -> {
 					TripOverview(
 						trip = s.trip,
+						steps = s.steps,
 						insights = insights,
 						skiSegments = skiSegments,
 						routePreviewRenderer = routePreviewRenderer,
+						onRetrySteps = viewModel::retry,
 					)
 				}
 
@@ -234,6 +220,25 @@ fun TripDetailRoute(
 	}
 }
 
+/**
+ * Trip Detail remains read-only until selected-session deletion can retract every source fact.
+ */
+@Composable
+@Suppress("FunctionNaming") // Internal only so Compose tests can verify the safe action set.
+internal fun TripDetailActions(
+	onViewOnMap: () -> Unit,
+	onExportGpx: () -> Unit,
+) {
+	DropdownMenuItem(
+		text = { Text(stringResource(R.string.trip_detail_view_on_map)) },
+		onClick = onViewOnMap,
+	)
+	DropdownMenuItem(
+		text = { Text(stringResource(R.string.trip_detail_export_gpx)) },
+		onClick = onExportGpx,
+	)
+}
+
 private val dateTimeFormatter: DateTimeFormatter by lazy {
 	DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.MEDIUM)
 }
@@ -241,17 +246,15 @@ private val dateTimeFormatter: DateTimeFormatter by lazy {
 @Composable
 private fun TripOverview(
 	trip: TripSummary,
+	steps: TripDetailStepsState,
 	insights: TripDetailInsights,
 	skiSegments: List<com.adsamcik.tracker.shared.model.SkiRunSegment> = emptyList(),
 	routePreviewRenderer: RoutePreviewRenderer,
+	onRetrySteps: () -> Unit,
 ) {
 	val context = LocalContext.current
 	val resources = context.resources
 	val settings = remember { TrackerSettingsQuick.snapshot(context) }
-
-	val stepCounterSupported = remember {
-		context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_SENSOR_STEP_COUNTER)
-	}
 
 	val startText = remember(trip.startTimeMs) {
 		dateTimeFormatter.format(
@@ -343,13 +346,14 @@ private fun TripOverview(
 		)
 		MetricRow(
 			firstLabel = stringResource(R.string.trip_detail_steps),
-			firstValue = if (trip.steps.raw > 0 || stepCounterSupported) {
-				trip.steps.raw.formatReadable()
-			} else {
-				stringResource(R.string.stats_metric_not_available_short)
-			},
+			firstValue = steps.metricValue(),
+			firstSupportingText = steps.metricStatus(),
 			secondLabel = stringResource(R.string.trip_detail_avg_speed),
 			secondValue = averageSpeedText,
+		)
+		TripDetailStepsRetry(
+			visible = steps == TripDetailStepsState.Failed,
+			onRetry = onRetrySteps,
 		)
 		MetricRow(
 			firstLabel = stringResource(R.string.trip_detail_max_speed),
@@ -385,11 +389,26 @@ private fun TripOverview(
 }
 
 @Composable
+@Suppress("FunctionNaming") // Internal only so Compose tests can verify failure recovery is reachable.
+internal fun TripDetailStepsRetry(
+	visible: Boolean,
+	onRetry: () -> Unit,
+) {
+	if (visible) {
+		TextButton(onClick = onRetry) {
+			Text(stringResource(R.string.trip_detail_retry))
+		}
+	}
+}
+
+@Composable
 private fun MetricRow(
 	firstLabel: String,
 	firstValue: String,
 	secondLabel: String,
 	secondValue: String,
+	firstSupportingText: String? = null,
+	secondSupportingText: String? = null,
 ) {
 	Row(
 		modifier = Modifier.fillMaxWidth(),
@@ -398,11 +417,13 @@ private fun MetricRow(
 		MetricCard(
 			label = firstLabel,
 			value = firstValue,
+			supportingText = firstSupportingText,
 			modifier = Modifier.weight(1f)
 		)
 		MetricCard(
 			label = secondLabel,
 			value = secondValue,
+			supportingText = secondSupportingText,
 			modifier = Modifier.weight(1f)
 		)
 	}
@@ -533,35 +554,11 @@ private fun FactRow(
 }
 
 @Composable
-private fun DeleteConfirmationDialog(
-	onConfirm: () -> Unit,
-	onDismiss: () -> Unit
-) {
-	AlertDialog(
-		onDismissRequest = onDismiss,
-		title = { Text(stringResource(R.string.trip_detail_delete_confirm_title)) },
-		text = { Text(stringResource(R.string.trip_detail_delete_confirm_message)) },
-		confirmButton = {
-			TextButton(onClick = onConfirm) {
-				Text(
-					stringResource(R.string.trip_detail_delete_confirm),
-					color = MaterialTheme.colorScheme.error
-				)
-			}
-		},
-		dismissButton = {
-			TextButton(onClick = onDismiss) {
-				Text(stringResource(R.string.trip_detail_cancel))
-			}
-		}
-	)
-}
-
-@Composable
 private fun MetricCard(
 	label: String,
 	value: String,
-	modifier: Modifier = Modifier
+	modifier: Modifier = Modifier,
+	supportingText: String? = null,
 ) {
 	val isEmptyValue = value == "—" || value == "N/A"
 	GlassCard(modifier = modifier) {
@@ -582,9 +579,48 @@ private fun MetricCard(
 					MaterialTheme.colorScheme.onSurface
 				},
 			)
+			if (supportingText != null) {
+				Spacer(Modifier.height(2.dp))
+				Text(
+					text = supportingText,
+					style = MaterialTheme.typography.bodySmall,
+					color = MaterialTheme.colorScheme.onSurfaceVariant,
+				)
+			}
 		}
 	}
 }
+
+@Composable
+private fun TripDetailStepsState.metricValue(): String = when (this) {
+	is TripDetailStepsState.Complete -> count.formatReadable()
+	is TripDetailStepsState.LowerBound -> "≥ ${count.formatReadable()}"
+	is TripDetailStepsState.LegacyUnverified -> recordedCount?.let {
+		stringResource(R.string.trip_detail_steps_legacy_value, it.formatReadable())
+	} ?: "—"
+	else -> "—"
+}
+
+// Exhaustiveness is deliberate: every durable product state must retain distinct UI copy.
+@Composable
+@Suppress("CyclomaticComplexMethod")
+private fun TripDetailStepsState.metricStatus(): String = stringResource(
+	when (this) {
+		is TripDetailStepsState.Complete -> R.string.trip_detail_steps_complete
+		is TripDetailStepsState.LowerBound -> R.string.trip_detail_steps_partial
+		is TripDetailStepsState.LegacyUnverified -> R.string.trip_detail_steps_legacy_unverified
+		TripDetailStepsState.Materializing -> R.string.trip_detail_steps_materializing
+		TripDetailStepsState.NotCaptured -> R.string.trip_detail_steps_not_captured
+		TripDetailStepsState.Disabled -> R.string.trip_detail_steps_disabled
+		TripDetailStepsState.Unsupported -> R.string.trip_detail_steps_unsupported
+		TripDetailStepsState.PermissionRequired -> R.string.trip_detail_steps_permission_required
+		TripDetailStepsState.OsLimited -> R.string.trip_detail_steps_os_limited
+		TripDetailStepsState.Unavailable -> R.string.trip_detail_steps_unavailable
+		TripDetailStepsState.NoObservation -> R.string.trip_detail_steps_no_observation
+		TripDetailStepsState.Deleted -> R.string.trip_detail_steps_deleted
+		TripDetailStepsState.Failed -> R.string.trip_detail_steps_failed
+	},
+)
 
 private fun Double?.formatSpeed(lengthSystem: LengthSystem): String {
 	val speed = this ?: return "—"
