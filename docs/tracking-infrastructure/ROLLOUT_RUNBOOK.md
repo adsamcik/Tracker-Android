@@ -1,12 +1,14 @@
 # Tracking Infrastructure Rollout Runbook
 
-Last updated: 2026-08-26
+Last updated: 2026-08-30
 
 External rollout, publishing, deployment, and remote configuration remain unauthorized. This runbook defines local evidence and the future authorization boundary.
 
 ## Current containment
 
-- Current local integration checkpoint: `648f894a4`; initial audited baseline: `068ebe052`.
+- Current local continuation checkpoint: `03bbda2f1` on `codex/ti410-deletion-rearm`; local and
+  remote `dev/v10` remain at `ffd5d372f`, so the continuation is neither integrated nor pushed.
+  Initial audited baseline: `068ebe052`.
 - The local schema is now v28. Its policy authority row is inert until verified legacy settings activate a complete six-source revision; no external rollout is authorized.
 - A v27 APK/database downgrade is not a rollback path. Any rollback build must understand v28 and continue enforcing Room policy/consent safety state.
 - Acquisition ownership and product-writer rollout are separate per-source state. Rollout schema v3
@@ -80,12 +82,14 @@ Three fresh product, architecture, and delivery adversaries concluded `BLOCK / R
 - Use only runnable evidence for the current release: host invariant/source-contract tests, exact Android migration/recovery execution, and a small representative physical-provider smoke. No production cohort, p95/SLO, OEM-distribution, or remote-canary claim is permitted without an approved evidence channel.
 - Stop mandatory adversarial rounds while the blocking fact is missing implementation or device capacity. Start a fresh round at an actual migration, writer-cutover, or release boundary.
 
-R2 confirmed that v28 never shipped. The migration/schema has been regenerated in place with the
-12 unused generic Phase 3 tables and duplicate lifecycle lease removed; the current schema has 66
-entities (51 released-v27 plus 15 narrowly owned v28 additions). The single additional R1 table is
-the source-local product-lane activation/cursor/retention fence. No v29 compatibility shell was
-introduced. Corrected R1 now permits implementation of the manual/session Steps candidate, but it
-must remain contained until its typed correction/deletion/import/export/query contract passes.
+R2 confirmed that v28 never shipped. The migration/schema was regenerated in place with the 12
+unused generic Phase 3 tables and duplicate lifecycle lease removed; later bounded ownership,
+history, recovery, and deletion-authority slices bring the current schema to 69 entities (51
+released-v27 plus 18 narrowly owned v28 additions). The new payload-free
+`source_deletion_fence` is consumed only by the dormant candidate Steps lane and selected-session
+reader; it has no production producer and is not evidence that permanent trip deletion, retention,
+import, or future writers are fenced. No v29 compatibility shell was introduced. Manual/session
+Steps must remain contained until its typed correction/deletion/import/export/query contract passes.
 
 The candidate must install its executable binding, source-local cursor/drain, stable logical fact
 and delivery receipt, deletion/import fence, truthful query state, portable round trip, and existing
@@ -106,7 +110,7 @@ Ambient Steps uses one selected system continuity provider: prefer Health Connec
 | `broker_v2:<source>` | purpose demand/provider ownership | contained per source | remove v2 demands; restore one proven owner only | authorization/generation foundation, acquisition floors, Activity arbitration and shared Steps ownership are local; explicit source shadow/canonical reachability, provider-specific handoff, durable flag and device matrix still gate each source |
 | `source_shadow:<source>` | optional diff-only typed source projector/query | off | stop the shadow cursor; no canonical mutation | add only where a legacy destination exists and parity must be measured |
 | `source_owner:<source>` | source-specific canonical destination owner | legacy owner until the source gate passes | stop the candidate, preserve facts/WAL, and restore only the last proven sole owner | no generic activation/receipt platform; each destination proves uniqueness, stable identity and idempotent typed writes |
-| `tracking_history_v2` | one production history facade and compatible source readers | source-by-source dual read | retain compatible readers and surface truthful retained-unavailable state; never hide v2-only facts | not implemented |
+| `tracking_history_v2` | one production history facade and compatible source readers | source-by-source dual read | retain compatible readers and surface truthful retained-unavailable state; never hide v2-only facts | dormant partial implementation: one Hilt-bound selected-session Steps facade, no production consumer or cross-surface query proof |
 | `days_journal_v2` | optional future Days-first product | off | restore existing navigation only if every retained fact remains discoverable/explainable/exportable/deletable | backlog; not a source-safety prerequisite |
 | `ambient:<source>` | app-scoped acquisition/materialization/product | off | technical rollback removes demands/stops writes and preserves data; consent revocation/deletion is a separate authorized tombstone/key-rotation operation | not implemented |
 

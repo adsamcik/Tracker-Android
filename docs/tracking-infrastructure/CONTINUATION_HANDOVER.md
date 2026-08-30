@@ -38,13 +38,58 @@ product history, UI, device rollout, or general availability is complete. It pre
 path and adds a tested, explicit Steps writer-transition mechanism; it does not invoke the first
 candidate activation in production.
 
-The current local continuation is code commit `c5118e186` on
+The current local continuation is code commit `03bbda2f1` on
 `codex/ti410-deletion-rearm`. Its local sequence is deletion/re-arm proof `3b2365547`, evidence
-handover `411bfe144`, and the observable Steps history facade `c5118e186`, directly atop local and
-remote `dev/v10` at `ffd5d372fafafceb7d9d595b95e47b89b949de83`. TI-B160 records the retained-AVD
-deletion proof; TI-D108/TI-B162 record the new one-selected-session read contract and its fresh
-reviews. These commits are local-only: they are not integrated into local `dev/v10` or pushed, and
-no new remote delivery is claimed.
+handover `411bfe144`, the observable Steps history facade `c5118e186`, its handover `d6e887d41`, and
+the dormant source-deletion fence `03bbda2f1`, directly atop local and remote `dev/v10` at
+`ffd5d372fafafceb7d9d595b95e47b89b949de83`. TI-B160 records the retained-AVD deletion proof;
+TI-D108/TI-B162 record the one-selected-session read contract; TI-D109/TI-B163–TI-B165 record the
+fresh R1 deletion review, scope withdrawal, dormant authority, and focused gates. These commits and
+this handover update are local-only: they are not integrated into local `dev/v10` or pushed, and no
+new remote delivery is claimed.
+
+## Dormant deletion-fence checkpoint
+
+### Outcome
+
+`03bbda2f1` adds the smallest correction-safe deletion authority that survived fresh R1 review: a
+payload-free v28 source/purpose/logical-run fence, enforced by the dormant candidate Steps WAL lane
+and the selected-session read facade. The fence is battery-neutral and does not register, start, or
+change provider cadence. It has no production producer, and `DefaultTripRepository` remains on its
+legacy segment-only delete path. Active legacy Steps generation 1 remains the sole production
+writer.
+
+The first draft attempted to connect permanent trip deletion through the presentation repository.
+Three independent R1 adversaries returned `NO_GO`, so that production wiring and its
+presentation-owned fact mutation were removed before commit. The resulting code is intentionally a
+dormant primitive, not proof of product deletion, no-resurrection, `QUERYABLE`, or UI completion.
+
+### Evidence and review disposition
+
+- Data/replay/migration review found that legacy `StepInterval`, raw and typed import, retention,
+  future writers, other sources, and persisted `daily_summary` could bypass the proposed scope.
+- Android lifecycle/privacy review demonstrated a finalization-versus-asynchronous-writer-teardown
+  race, unchecked active/`STOPPING` deletion failures, and no durable wake for a lane parked on a
+  now-fenced poison ordinal.
+- Product/scope review found that the existing “permanently deleted” copy would be false for a
+  Steps-only or presentation-only retraction and that the mutation belonged in a data-plane command,
+  not a presentation repository.
+- All shared `BLOCKER`/`HIGH` findings are `MITIGATED` only by withdrawing production wiring or are
+  still accepted phase blockers. None is dispositioned as a passed deletion gate.
+- The exact code passes production Kotlin compile, isolated fence/DAO/lane/selector tests, Detekt,
+  app Hilt compilation, Android-test Kotlin compilation, and the post-commit Room schema guard.
+  Current v28 contains 69 entities. Connected migration execution was not rerun for this revision.
+
+### Required next boundary
+
+Before any selected-session delete action or production Steps consumer is wired, add one narrow
+data-plane deletion command with typed outcomes; prove writer quiescence or universal tombstone
+enforcement; resolve exact legacy Steps ownership; derive all captured source/purpose scopes from
+immutable manifests; invalidate every overlapped civil day; and route retention plus typed
+import/export through the same authority. Separately fix `SessionSegmentDao.deleteEmpty()` so
+periodic maintenance cannot delete an active preinserted zero-sample segment. Only then wire one
+source-adaptive Trip Detail consumer and preserve exact, partial, materializing, legacy, deleted,
+disabled, unavailable, and failed states without fabricating zero.
 
 ## Reconciliation topology
 
@@ -149,10 +194,10 @@ synonymous with `DONE`, `QUERYABLE`, or rollout-ready.
 | A. Policy and v28 | Room is the effective policy authority; consent epochs and immutable manifests exist; v28 is still the direct target because it never shipped; populated v27 migration previously passed 8/8 on `Medium_Phone(AVD) - 16`. | Production backup-wrapper proof, portable import/export containment, connected migrate-to-runtime ordering, retention decisions, and schema-freeze evidence. |
 | B. Broker/acquisition | Direct capture/control/ambient demands, physical registration generations, observed-time authorization intervals, Activity's durable callback seam, source-specific runtime ownership, and contained source rollout exist. | The final app-scoped supervisor contract and all six source registration-set tests; five remaining source-native handoffs/identities; provider-specific reconfiguration and device power/quality evidence. |
 | C. Lifecycle | Durable prepared intent precedes external service work; real origin/type candidates, exact run/action claims, cleanup retry, boot/epoch fencing, and recovery/finalizers are host-tested. | Connected process-death/reboot/FGS legality, permission and provider behavior across supported Android versions, plus device/OEM evidence. |
-| D. Data/writers | Checksummed WAL, source-local containment, frozen-v27 drain, dormant Steps facts/receipts/cursor, retention, event-exact queued provenance, service-run selector, exact owner fence, explicit activation/rollback/deletion-rearm transactions, and the same-process production deletion-service/barrier/rearm proof exist. | Production-visible Steps state, typed correction/export/import, cold process/reboot/provider interleaves, source-qualified lifecycle evidence, and a real source vertical before generalizing any mechanism. |
-| E. History product | A Hilt-bound `TrackingHistoryRepository` observes one selected local session and preserves Steps availability, evidence, product state, coverage, and stable causes without reading current global ownership. Existing legacy readers remain available. | Wire a deletion-safe selected-session consumer, then propagate completeness through Today, Timeline, Calendar, goals/streaks/achievements/widgets and export. Add shared/batched composition before list/day fan-out; no persisted universal `DayOverview` is required. |
+| D. Data/writers | Checksummed WAL, source-local containment, frozen-v27 drain, dormant Steps facts/receipts/cursor, retention, event-exact queued provenance, service-run selector, exact owner fence, explicit activation/rollback/deletion-rearm transactions, same-process production deletion-service/barrier/rearm proof, and a dormant exact-run deletion fence exist. | A typed data-plane deletion command, writer quiescence or universal tombstone enforcement, active legacy Steps resolution, dirty-day invalidation, retention/import/export containment, cold process/reboot/provider interleaves, and a real source vertical before generalizing any mechanism. |
+| E. History product | A Hilt-bound `TrackingHistoryRepository` observes one selected local session and preserves Steps availability, evidence, product state, coverage, stable causes, and fence invalidation without reading current global ownership. Existing legacy readers remain available. | After deletion safety is real, wire one source-adaptive selected-session consumer and propagate completeness through Today, Timeline, Calendar, goals/streaks/achievements/widgets and export. Add shared/batched composition before list/day fan-out; no persisted universal `DayOverview` is required. |
 | F. UI | Manual source selection/prerequisite logic is source-aware and no longer assumes Location for every source. Policy-error/status presentation exists. | Truthful Steps-only product states and completeness in existing consumers; no source history UI or broad day-first journal is authorized yet. |
-| G. Quality | Focused host, Room migration, architecture, lint, Detekt, release-evidence, and full repository gates have substantial evidence. Exact final code merge `9b8ab4b43` passed `ciCheck` in 21m 46s; code checkpoint `c5118e186` passes it in 8m 32s. TI-B160 adds retained-state Android proof, TI-B161 its review disposition, and TI-B162 the selected-session history reviews and host gates. | Current migration/device rerun where relevant, cold process/reboot proof, manual only-Steps end-to-end proof, device/provider/power tests, and later source-specific dynamic/failure gates. |
+| G. Quality | Focused host, Room migration, architecture, lint, Detekt, release-evidence, and full repository gates have substantial evidence. Exact final code merge `9b8ab4b43` passed `ciCheck` in 21m 46s; code checkpoint `c5118e186` passes it in 8m 32s. TI-B160–TI-B162 cover retained-state Android and selected-session history. TI-B163 records the fresh R1 deletion `NO_GO`; TI-B164/TI-B165 record the narrowed code gates. | Current connected migration/device rerun, full `ciUnitTest`/`ciCheck` after the next production boundary, cold process/reboot proof, manual only-Steps end-to-end proof, device/provider/power tests, and later source-specific dynamic/failure gates. |
 
 The intended architecture is still the thin path:
 
@@ -178,7 +223,7 @@ No source/mode row is `DONE` yet.
 | Source | Current honest verdict | Immediate product/writer boundary |
 | --- | --- | --- |
 | Location | `DEGRADED`; manual and automatic scenarios remain `IN_REVIEW`. | Keep the established writer as sole owner. Prove real origin, qualified post-start fixes, shadow parity if a candidate exists, and production history visibility. |
-| Steps | `DEGRADED`; manual/session is `IN_PROGRESS`/`IN_REVIEW`; automatic and ambient are `BLOCKED`. | The candidate lane, historical selector, owner fence, transition engine, and one selected-session observable facade are foundation only. The first production activation has no ordinary caller; no product consumer uses the facade, and export/import/UI/device proof remain. |
+| Steps | `DEGRADED`; manual/session is `IN_PROGRESS`/`IN_REVIEW`; automatic and ambient are `BLOCKED`. | The candidate lane, historical selector, owner fence, transition engine, one selected-session observable facade, and dormant exact-run deletion fence are foundation only. The first production activation and fence producer have no ordinary callers; no product consumer uses the facade, and legacy deletion, dirty-day, export/import/UI/device proof remain. |
 | Activity | `FAILED` as an end-product source; base scenarios remain `BLOCKED`. | Control acquisition is materially more mature, but control facts must remain separate from captured Activity. A typed captured-history path is absent. |
 | Wi-Fi | `FAILED` as an end-product source; base scenarios remain `BLOCKED`. | Freshness/privacy containment exists in parts. Durable cross-process identity, typed identity-free product facts, query/export/delete, optional context, and device scan evidence remain. |
 | Cell | `FAILED` as an end-product source; base scenarios remain `BLOCKED`. | Callback/cache/request semantics are designed, but stable durable delivery, identity-free product facts, multi-SIM completeness, query/export/delete, and device evidence remain. |
@@ -316,6 +361,41 @@ Evidence already established before the second merge:
 | TI-B160 targeted `CollectedDataDeletionStepsRearmIntegrationTest`, twice consecutively on retained `Medium_Phone(AVD) - 16` / API 36 plus one post-rebase replay | pre-handover source-tree runs `BUILD SUCCESSFUL in 1m 6s` and `47s`; post-rebase run `BUILD SUCCESSFUL in 48s`; each `1/1` and 714 tasks; latest XML zero failures/errors/skips | Exact source tree committed as `3b2365547`; proves only same-process production deletion provider/default database/closed barrier/Steps rearm through diagnostics failure and retry. Not full suite, cold process, provider capture, product query/export/UI, activation, or rollout. |
 | TI-B161 focused engine/app/static complement | tracker engine `BUILD SUCCESSFUL in 3m 11s`, 234 tasks; app deletion suite `BUILD SUCCESSFUL in 52s`, 575 tasks; Detekt `BUILD SUCCESSFUL in 33s`, then post-rebase in `18s`, 5 tasks | Seven engine suites cover stale epoch/owner work, WAL recovery, projection non-resurrection and high-water rebasing; app service contracts and final Kotlin structure remain green. |
 | TI-B162 observable Steps history contract | exact committed-code `ciCheck --continue --no-parallel` `BUILD SUCCESSFUL in 8m 32s`, 1,991 tasks (662 executed, 297 from cache, 1,032 up-to-date); focused stats gate `BUILD SUCCESSFUL in 49s`, 219 tasks; `ciUnitTest` `BUILD SUCCESSFUL in 12m 18s`, 990 tasks; stats lint/Hilt `BUILD SUCCESSFUL in 40s`, 569 tasks; Detekt `BUILD SUCCESSFUL in 30s` | Three focused adversaries and one final read-only audit leave no scoped blocker/high. This proves API invariants, Room observation/transaction mapping, Hilt compilation, and host regression only—not any production consumer, `QUERYABLE`, provider/device behavior, export, UI, activation, or rollout. |
+| TI-B163–TI-B165 dormant deletion-fence checkpoint | three fresh R1 adversaries returned aggregate `NO_GO` for production wiring; narrowed production compile `BUILD SUCCESSFUL in 2m 17s` (136 tasks); focused XML fence DAO `3/3`, Steps fact DAO `9/9`, candidate lane `14/14`, selected-session selector/observer `27/27`; Detekt/app Hilt `BUILD SUCCESSFUL in 2m 38s` (366 tasks); post-commit Room guard `BUILD SUCCESSFUL in 22s` (46 tasks) | Production wiring was withdrawn. `03bbda2f1` proves only a dormant opaque fence, candidate pre-write suppression, later-drain terminal-failure release, and observable selected-session invalidation. Active legacy Steps, writer teardown, dirty days, retention/import/export, automatic wake, connected migration/device execution, product delete, consumer, `QUERYABLE`, activation, and rollout remain blocked or unverified. |
+
+The exact TI-B164/TI-B165 command shapes were:
+
+```powershell
+.\gradlew.bat :core:base:compileDebugKotlin :tracker:engine:compileDebugKotlin `
+  :stats:data:compileDebugKotlin --no-daemon --no-parallel --max-workers=1 `
+  '-Pksp.incremental=false' --console=plain --no-configuration-cache
+
+.\gradlew.bat :core:base:testDebugUnitTest `
+  --tests '*SourceDeletionFenceDaoTest' --tests '*StepFactRevisionDaoTest' `
+  --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' `
+  --console=plain --no-configuration-cache
+
+.\gradlew.bat :tracker:engine:testDebugUnitTest `
+  --tests '*StepsSessionFactProjectionLaneTest' `
+  --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' `
+  --console=plain --no-configuration-cache
+
+.\gradlew.bat :stats:data:testDebugUnitTest `
+  --tests '*StepsSegmentHistorySelectorTest' `
+  --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' `
+  --console=plain --no-configuration-cache
+
+.\gradlew.bat detekt :app:hiltJavaCompileDebug --no-daemon --no-parallel `
+  --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+
+.\gradlew.bat :core:base:compileDebugAndroidTestKotlin checkRoomSchemaDrift `
+  --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' `
+  --console=plain --no-configuration-cache
+```
+
+The final command's Android-test compilation completed before the pre-commit schema guard rejected
+the intentionally uncommitted regenerated `28.json`. After `03bbda2f1`, `checkRoomSchemaDrift` alone
+passed with the same serialized flags. The connected Android migration test itself was not executed.
 
 One pre-execution connected attempt compiled successfully but ended with `No connected devices` after
 the earlier AVD had stopped. It is excluded from pass counts. The same `Medium_Phone` AVD was started
@@ -420,11 +500,23 @@ The next session must not infer answers to these behavior-changing decisions:
 
 Implementation blockers that do not require a product choice should continue without asking:
 
-- close selected-session deletion of scoped candidate facts, then wire the observable Steps facade
-  into one real consumer without activating another writer;
+- define one typed data-plane selected-session deletion command; `DefaultTripRepository` must not
+  own writer revisions or turn `BlockedActive`/failure into unchecked coroutine exceptions;
+- prove writer quiescence or make every final legacy/candidate writer honor the tombstone, including
+  the finalization-versus-asynchronous-teardown race across restart;
+- resolve exact active legacy Steps attribution and fence enforcement without assigning facts by
+  wall-time overlap; keep permanent product deletion blocked until this is truthful;
+- derive every captured source/purpose scope from immutable manifests, invalidate all overlapped
+  civil days, and route independent retention plus typed portable import/export through the same
+  deletion authority;
+- add a durable source-local reconciliation wake so a newly fenced poison event cannot indefinitely
+  pin later work;
+- fix `SessionSegmentDao.deleteEmpty()` with exact terminal-run membership before it can remove an
+  active preinserted zero-sample segment;
+- only after those gates, wire the observable Steps facade into one source-adaptive Trip Detail
+  consumer without activating another writer;
 - add shared/batched history composition before any list/day surface; do not instantiate one Room
   observer per row;
-- add typed portable Steps export/import and deletion/replay/no-resurrection proof;
 - cover every existing numeric Steps consumer so partial/unavailable/materializing never becomes
   fabricated zero or a falsely awarded goal/streak;
 - pass manual only-Steps through real provider evidence, durable fact, production query, and UI;
@@ -457,7 +549,7 @@ Expected results:
 On the current integration device, also inspect the unpushed continuation before integration:
 
 ```powershell
-git show --stat --oneline c5118e186
+git show --stat --oneline 03bbda2f1
 git log --oneline dev/v10..codex/ti410-deletion-rearm
 git diff --check dev/v10...codex/ti410-deletion-rearm
 ```
@@ -487,23 +579,26 @@ After that delivery is visible on the target device, create a dedicated worktree
 from updated clean local `dev/v10`, per `AGENTS.md`. The next code wave is TI-410 manual/session Steps,
 not another shared framework:
 
-1. On this device, integrate or continue from the local branch through code commit `c5118e186` and
+1. On this device, integrate or continue from the local branch through code commit `03bbda2f1` and
    this handover only after confirming the exact branch/source-tree status. This continuation is not
    on the remote at this checkpoint.
-2. Keep TI-D107/TI-D108, the current status checkpoint, and TI-B158–TI-B162 synchronized with any
-   correction or newly reproduced result.
-3. Close the scoped-deletion boundary before injecting `TrackingHistoryRepository` into selected
-   session detail: deleting a presentation segment must not strand source facts that remain readable
-   through another retained identity.
-4. Wire one selected-session consumer first, preserving availability/evidence/product/coverage and
-   causes. Before Today/Timeline/Calendar list or day fan-out, add a measured shared/batched query
-   rather than one invalidation observer per row.
-5. Audit and then wire applicable numeric consumers—goals, streaks, achievements, widgets and
+2. Keep TI-D107–TI-D109, the current status checkpoint, and TI-B158–TI-B165 synchronized with any
+   correction or newly reproduced result. Do not reinterpret the dormant fence as product deletion.
+3. Implement the typed data-plane deletion command and exact writer-quiescence/tombstone contract;
+   prove the finalization race, active/`STOPPING` result handling, legacy Steps behavior, and later
+   replay across process restart.
+4. Add manifest-derived captured scopes, cross-midnight dirty-day recomputation, retention/import/
+   export containment, and a durable source-lane wake. Separately fix the active zero-sample
+   `deleteEmpty()` race with exact run-state Room tests.
+5. Wire one source-adaptive selected-session consumer first, preserving availability/evidence/
+   product/coverage and named causes. Before Today/Timeline/Calendar list or day fan-out, add a
+   measured shared/batched query rather than one invalidation observer per row.
+6. Audit and then wire applicable numeric consumers—goals, streaks, achievements, widgets and
    notifications included—so only complete ready values affect awards or progress.
-6. Implement typed Steps portable export/import and repeat deletion/replay/no-resurrection proof.
 7. Run the manual only-Steps scenario with no Activity or Location demand through
    `RECORDING -> MATERIALIZED -> QUERYABLE` and an honest UI state.
-8. Run focused host gates, the complete affected suites, `ciCheck`, then device/provider/process
+8. Run focused host gates, the complete affected suites, `ciCheck`, then connected migration and
+   device/provider/process
    evidence before considering an activation commit.
 
 Only after manual/session Steps is product-queryable and independently gated should work begin on:
@@ -521,10 +616,10 @@ not permit a force push, history rewrite, release, tag, APK publication, Play su
 activation, remote flag change, canary, deployment, or destructive migration/deletion.
 
 That earlier authorization and push were completed through remote `ffd5d372f`. The local sequence
-through `3b2365547`, `411bfe144`, and `c5118e186`, plus this updated handover, is local-only at this
-checkpoint. The latest instruction was applied as commit-and-prepare work; no additional push was
-performed. Do not tell another device that this continuation is remotely available until a later
-ordinary push is explicitly executed and verified.
+through `3b2365547`, `411bfe144`, `c5118e186`, `d6e887d41`, and `03bbda2f1`, plus this updated
+handover, is local-only at this checkpoint. The latest instruction was applied as commit-and-prepare
+work; no additional push was performed. Do not tell another device that this continuation is
+remotely available until a later ordinary push is explicitly executed and verified.
 
 Delivery rules:
 
@@ -549,7 +644,7 @@ performing any external rollout action.
 
 - [x] `9b8ab4b43e0d5ca2e729f511b48936b0dbdfbb6a` is the committed second merge with
   parents `1a112bbd5` and `9a65148a1`.
-- [x] The authoritative historical reconciliation command and the exact TI-B160–TI-B162 commands,
+- [x] The authoritative historical reconciliation command and the exact TI-B160–TI-B165 commands,
   results, task counts, review dispositions, and tested code commits are recorded above.
 - [x] All seven protected root paths on this integration device remain byte-for-byte identical; six
   remain intentionally uncommitted and the statistics XML now exactly matches reconciled `HEAD`.
@@ -559,11 +654,13 @@ performing any external rollout action.
   and the handover preparation; the ordinary-push result above is exact. The containing evidence
   commit intentionally resolves through `git rev-parse origin/dev/v10` rather than self-attestation.
 - [x] No force push, release, tag, deployment, feature activation, or destructive migration occurred.
-- [x] Implementation artifacts close the same-process deletion/rearm seam and add one unconsumed,
-  read-only selected-session Steps facade. They accurately preserve cold-process, product-query/
-  export/UI, provider/device, source, and rollout gates.
+- [x] Implementation artifacts close the same-process collected-data deletion/rearm seam, add one
+  unconsumed read-only selected-session Steps facade, and add one dormant exact-run deletion fence.
+  They accurately preserve product deletion, legacy-writer, dirty-day, retention/import/export,
+  cold-process, product-query/UI, provider/device, source, activation, and rollout gates.
 
-Next-session instruction: continue TI-410 at the scoped deletion/selected-session consumer boundary,
-then propagate completeness safely and add typed export/import. Do not create per-row observers or
-claim `QUERYABLE`, another source, ambient mode, UI, device, or rollout gates without reproducible
-evidence.
+Next-session instruction: continue TI-410 at the typed data-plane deletion and writer-quiescence
+boundary. Resolve legacy Steps, dirty-day, retention/import/export, source-lane wake, and active
+zero-sample cleanup before wiring one source-adaptive Trip Detail consumer. Do not create per-row
+observers or claim product deletion, `QUERYABLE`, another source, ambient mode, UI, device,
+activation, or rollout gates without reproducible evidence.

@@ -867,7 +867,7 @@ Each entry records repository evidence and does not duplicate the final architec
 - Consequences: this deliberately contains tracking in an unreleased development build until each
   source has a real typed lane. It is not a product rollout or a `QUERYABLE` claim. Retained v27
   facts remain available through their established readers, and no schema downgrade is introduced.
-  The current v28 schema has 66 entities (51 released-v27 plus 15 narrowly owned additions). Three
+  At this decision checkpoint, v28 had 66 entities (51 released-v27 plus 15 narrowly owned additions). Three
   fresh R1 adversaries passed the shared boundary for TI-410 only under TI-D099. Connected
   process/reboot/FGS and migrate-to-runtime evidence remain mandatory before source rollout.
 
@@ -1152,7 +1152,40 @@ Each entry records repository evidence and does not duplicate the final architec
   exact Room tables read by the selector, performs the selected snapshot in one transaction, and
   neither starts a provider nor mutates a writer or projection.
 - Consequences: the API is Hilt-bound but has no production consumer, so this is not a `QUERYABLE`,
-  UI, export, activation, or rollout claim. The current observer invalidates on ten relevant tables
+  UI, export, activation, or rollout claim. The current observer invalidates on eleven relevant tables
   and is proportionate for one selected session; profile and introduce a shared/batched composition
   only before list/day fan-out. Do not create one observer per history row or infer unsupported,
   permission, or OS-limited history until durable evidence exists.
+
+## TI-D109 — Deletion authority lands dormant before any permanent-trip product wiring
+
+- Status: `ACCEPTED_AND_IMPLEMENTED_AS_DORMANT_AUTHORITY` at `03bbda2f1`; production session
+  deletion, import, retention, and UI semantics remain `BLOCKED`
+- Owner/date: lead orchestrator after three fresh R1 adversaries, 2026-08-30
+- Alternatives: keep direct `session_segment` deletion and accept retained facts; wire a
+  Steps-only retraction transaction through `DefaultTripRepository`; introduce a universal
+  deletion platform; first persist the smallest source/purpose/run fence and make only the dormant
+  candidate Steps writer and selected-session reader honor it
+- Evidence: the attempted production wiring was falsified independently. The active legacy Steps
+  writer has no exact run attribution or fence check; service teardown can rewrite a segment after
+  a terminal source-run row appears; active/`STOPPING` deletion has no typed UI outcome; persisted
+  `daily_summary` rows are not invalidated; trip retention bypasses the proposed transaction; and
+  raw merge import, typed portable import, future writers, and other captured sources do not yet
+  share one deletion authority. The UI currently promises permanent deletion, so a
+  presentation-only implementation would be materially misleading.
+- Decision: v28 gains one payload-free `source_deletion_fence` keyed by source, purpose, scope kind,
+  and a domain-separated digest of immutable logical/run identity. It retains a positive fence
+  generation, collected-data epoch, deletion time, and integrity checksum. The dormant candidate
+  Steps WAL lane checks the exact fence before validating or writing a fact and treats a matching
+  previously terminal failure as lifecycle-rejected on its next drain. The immutable
+  selected-session selector returns a named deleted state and its Room observer invalidates on fence writes.
+  UPSERT facts must carry deletion generation zero. Full collected-data deletion removes fences.
+  No production path creates a scope fence yet; `DefaultTripRepository`, active legacy generation
+  1, retention, import/export, day summaries, and UI are deliberately unchanged.
+- Consequences: this commit is a battery-neutral schema and dormant data-plane/read-path primitive,
+  not selected-trip deletion or no-resurrection completion. A real deletion command must live at a
+  narrow data-plane mutation owner, return a typed outcome, wait for presentation writers to
+  quiesce or make them honor the tombstone, derive every captured source/purpose from immutable
+  manifests, invalidate all overlapped local days, and route retention/import/export through the
+  same authority. The unreleased v28 schema now has 69 entities: 51 released-v27 entities plus 18
+  narrowly owned v28 additions. No v29 shell is created.

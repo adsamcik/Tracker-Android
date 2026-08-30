@@ -82,7 +82,7 @@ XML now exactly matches reconciled `HEAD`.
 - Initial scope proportionality review: `BLOCKED / RESCOPE`. Three fresh read-only adversaries concluded that the safety spine is justified but the then-current unshipped 23-table v28 expansion, generic Phase 3 platform, mandatory day-journal redesign, all-at-once ambient breadth, fleet telemetry, and exhaustive governance were disproportionate to the app's current offline personal-product workflows and runnable release infrastructure. The user subsequently confirmed ambient persistence as a product requirement; it proceeds only as independently gated, default-off source verticals. The follow-up disposition is the updated R2 gate below.
 - Updated R2 proportionality gate: `IN_PROGRESS / RESCOPED`. v28 never shipped, so it was trimmed
   and regenerated in place rather than preserved or repaired in v29. The 12 ownerless generic Phase
-  3 tables are removed and the duplicate lifecycle lease is unified. The current schema has `66`
+  3 tables are removed and the duplicate lifecycle lease is unified. At that R2 checkpoint, the schema had `66`
   entities: all `51` released-v27 entities plus `15` narrowly owned v28 additions, including the two
   released-v27 recovery records, Activity automation action/epoch state, and one source-local
   product-lane activation/cursor/retention fence. This does not restore a generic platform.
@@ -600,7 +600,7 @@ No repository command was found for a separate Detekt task in CI. Device/OEM, do
 - At review time, lead verification confirmed that v27's 51 owned tables had become 74 under local v28, `AuthoritativeSessionCoordinator` exceeded 2,200 lines, generic Phase 3 repositories had no production callers, CI had no device farm, and the app advertised no remote telemetry.
 - Follow-up integration removed the 12 unused generic tables, isolated merge import, preserved
   explicit automatic Activity-control intent, authenticated/quarantined raw WAL payloads, and
-  unified the two lease mechanisms. Current v28 has 66 entities after the two narrowly owned v27
+  unified the two lease mechanisms. At that follow-up checkpoint, v28 had 66 entities after the two narrowly owned v27
   recovery records, Activity automation action/epoch state, and the source-local product-lane
   activation/cursor/retention fence; these are local mitigations, not phase completion.
 - No external system or rollout state was changed by the scope review or follow-up integration.
@@ -1159,3 +1159,73 @@ been rewired, so the program still makes no `QUERYABLE` or product-visible claim
   propagate the contract through completeness-sensitive consumers. Do not instantiate one observer
   per history row or add a generic day platform. Typed export/import may proceed as a separate
   non-overlapping source-local slice.
+
+## Dormant source-deletion fence checkpoint (2026-08-30)
+
+### Outcome
+
+Commit `03bbda2f1` adds the minimum persisted source/purpose/logical-run deletion authority to the
+unreleased v28 schema and makes the dormant candidate Steps writer plus the one-selected-session
+history facade honor it. It does not wire the production trip-delete action and does not activate a
+writer. Legacy Steps generation 1 remains the only production destination owner.
+
+The fence retains no logical or service-run identifier: mutation/read paths derive the same
+domain-separated SHA-256 scope digest from immutable attribution. A matching fence makes a current
+candidate WAL event a validated no-effect, permits a matching old terminal projection failure to be
+released on the next drain, and makes selected history report a named deleted cause without
+removing the segment. Full collected-data deletion clears the fence table in its existing database
+transaction.
+
+### Evidence
+
+- Three fresh `gpt-5.6-sol` R1 adversaries returned `NO_GO` for the first production-wired draft.
+  Their shared blocking/high timelines were active legacy Steps bypass, teardown resurrection,
+  unchecked active/`STOPPING` UI failure, stale `daily_summary`, and misleading permanent-deletion
+  scope. The production `DefaultTripRepository` delegation and presentation-owned retraction writer
+  were withdrawn before commit. Retention, import/future-writer, source-wide deletion, and automatic
+  cursor wake remain explicitly open rather than hidden behind local tests.
+- Main Kotlin compile passed for `:core:base`, `:tracker:engine`, and `:stats:data` in `2m 17s`
+  (136 tasks). Isolated focused XML is green: fence DAO `3/3`, Steps fact DAO `9/9`, candidate lane
+  `14/14`, and selected-session selector/observer `27/27`, with zero failures/errors/skips.
+- `detekt :app:hiltJavaCompileDebug` passed in `2m 38s` (366 tasks). The app/Hilt graph therefore
+  resolves the 69-entity v28 database; unchanged TestDataSeeder type and Moshi Kapt deprecation
+  warnings remain non-blocking baseline output.
+- `:core:base:compileDebugAndroidTestKotlin` completed successfully. The same pre-commit invocation
+  then failed only because `checkRoomSchemaDrift` correctly detected the intentionally uncommitted
+  regenerated `28.json`. After `03bbda2f1`, the exact schema guard passed in `22s` (46 tasks).
+- One oversized multi-module focused run ended in Gradle test-results `EOFException`; an immediate
+  forced rerun hit a Windows lock held on `classes.jar`. After stopping the two stale daemons, every
+  affected class passed in isolated serialized runs. No assertion failure is attributed to that
+  environment event.
+
+### Gate status
+
+- Passed: v28 entity/migration/schema parity; opaque exact-key fence integrity; full-delete cleanup;
+  candidate pre-write rejection; stale terminal-failure recognition on a later drain; observable
+  selected-session fence invalidation; app graph and static analysis.
+- Failed or unverified: a production fence producer; active legacy `StepInterval` removal/replay;
+  presentation-writer quiescence; typed delete result and failure UX; dirty-day recomputation;
+  retention, typed portable import/export, generic merge containment, future writer/source checks;
+  automatic post-delete drain scheduling; connected migration execution for this schema revision;
+  process/reboot/provider/device/OEM evidence; `QUERYABLE`, UI, activation, or rollout.
+
+### Next wave
+
+1. Define the product deletion contract. With the current “permanently deleted” copy, the safe
+   default is complete product deletion, not presentation-only removal.
+2. Add a narrow data-plane session deletion command with typed `Deleted`, `NotFound`,
+   `BlockedActive`, and failure outcomes. Presentation repositories must not construct writer
+   revisions or expose unchecked lifecycle exceptions.
+3. Establish a durable quiescence obligation or make every final session/ski writer honor the same
+   tombstone. Prove the finalization-versus-delete race across process restart.
+4. Resolve active legacy Steps exactly: add defensible run attribution and fence checks, or keep the
+   user-facing permanent deletion gate blocked. Never infer ownership from overlapping wall time.
+5. Derive captured source/purpose scopes from immutable manifests, enqueue every overlapped civil
+   day for idempotent recomputation, and route independent retention plus typed import/export through
+   the same authority. Add cross-midnight and later-writer no-resurrection tests.
+6. Give deletion a durable source-local reconciliation wake so a fenced poison ordinal cannot pin
+   unrelated later events indefinitely.
+7. Separately fix `SessionSegmentDao.deleteEmpty()` so periodic maintenance cannot erase an active
+   preinserted zero-sample segment; require exact terminal run membership and Room tests.
+8. Only after those gates pass, wire the one selected Trip Detail consumer with source-adaptive,
+   completeness-safe Steps states. Do not fan one observer per list/day row.
