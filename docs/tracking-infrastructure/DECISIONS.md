@@ -1261,3 +1261,41 @@ Each entry records repository evidence and does not duplicate the final architec
   Production activation still waits for deletion, separate retention and portable round trip,
   numeric-consumer completeness, host/device/process gates, and fresh review. Previous-exit orphan
   cleanup, automatic Steps, and ambient Steps remain separate later slices.
+
+## TI-D112 — Selected Trip Detail may consume durable Steps only as a contained read-only slice
+
+- Status: `ACCEPTED_AND_IMPLEMENTED_CONTAINED` at `f9b1c3c45`; source-only discovery, safe deletion,
+  live/day consumers, and `QUERYABLE` remain `BLOCKED`
+- Owner/date: lead orchestrator after three independent product/Android/validation adversaries and
+  one fresh corrected-diff reviewer, 2026-08-30
+- Alternatives: keep the facade unused until every deletion/list/day contract exists; wire the
+  existing screen and retain its presentation-only delete; infer Location presence from
+  `SessionSegment.sampleCount`; add a generic day/UI platform; expose one read-only selected-session
+  Steps metric while withdrawing unsafe mutation and unsupported source-adaptive assumptions
+- Evidence: the current runtime increments `SessionTrackerComponent.collections` per processing
+  cycle and persists it as `sampleCount`, so a Steps-only or Pressure-only run can have a positive
+  count with no Location. `TripPresentationRepository.deleteTrip` removes only the presentation
+  segment while append-only candidate Steps facts have no foreign key or scoped retraction. Fresh
+  review also proved that a terminal Room-flow exception needed an explicit recovery action, an
+  internal supplemental-data waiter could keep history subscribed off-screen, and a slow initial
+  history result must not hide an otherwise valid trip.
+- Decision: Trip Detail consumes exactly one `observeSession(segmentId)` stream. It renders the trip
+  immediately with Steps `Materializing`, then maps durable availability/evidence/product/coverage
+  to explicit typed UI states; corrections may update the value, history failure is isolated to
+  Steps, and the rest of the trip stays visible with a user-triggered selected-history reread. That
+  retry does not activate materialization. The state stream is `WhileSubscribed`, Compose
+  collection is lifecycle-aware, and optional Location/Ski reads begin only from the composed
+  screen with one cancellable job. The screen does not infer capture or Location from `sampleCount`
+  and does not expose direct deletion until a typed data-plane command can retract/fence all scoped
+  facts. No provider demand, writer owner, cadence, schema, or rollout state changes.
+- Review disposition: `ACCEPTED_AS_QUERYABLE_BLOCKER` for ordinary source-only discovery. Existing
+  `TripDao`/`SessionSegmentDao` list paths require positive `sample_count` and can therefore hide a
+  source-only session even though a known segment ID renders truthfully. This is not cleared by the
+  corrected-diff review and must be resolved before any `QUERYABLE` claim.
+- Consequences: this is useful production UI truth for a known selected segment, but not ordinary
+  sole-source discoverability or `QUERYABLE`. Existing list queries still use positive
+  `sample_count`, other statistics delete paths remain unsafe, and no exact historical capture-set
+  or qualifying-Location signal exists to hide map/export/Location facts truthfully. Add that
+  contract before source-adaptive layout or live Dashboard wiring; add shared/batched composition
+  before list/day use. New copy currently falls back to English in localized builds. Activation,
+  automatic/Ambient Steps, device proof, and other sources remain outside this decision.

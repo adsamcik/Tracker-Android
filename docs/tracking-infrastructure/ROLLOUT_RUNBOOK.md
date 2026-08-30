@@ -6,7 +6,7 @@ External rollout, publishing, deployment, and remote configuration remain unauth
 
 ## Current containment
 
-- Current local continuation code checkpoint: `24b9aeffb` on `codex/ti410-deletion-rearm`; local and
+- Current local continuation code checkpoint: `f9b1c3c45` on `codex/ti410-deletion-rearm`; local and
   remote `dev/v10` remain at `ffd5d372f`, so the continuation is neither integrated nor pushed.
   Initial audited baseline: `068ebe052`.
 - The local schema is now v28. Its policy authority row is inert until verified legacy settings activate a complete six-source revision; no external rollout is authorized.
@@ -23,6 +23,8 @@ External rollout, publishing, deployment, and remote configuration remain unauth
   request may still wake the inert shell until cancellation completes. Across `88309387d` and
   `24b9aeffb`, rows without a positive sample count are excluded from the named daily/live,
   source/activity, time-achievement, and ActivityRecognition reads; other DAO reads remain unchanged.
+  `sample_count` is the current runtime's generic collection-cycle count, not qualifying Location
+  evidence, and must not gate map/export or source-adaptive UI.
   Process-death reclamation remains blocked until exact segment ownership and post-presentation
   acknowledgement are durable; terminal source state alone is not deletion authority.
 - Location remains on its existing sole canonical projection until a recorded shadow/cutover decision.
@@ -58,6 +60,12 @@ External rollout, publishing, deployment, and remote configuration remain unauth
   TI-410's smallest manual/session Steps writer/query and truthful existing-surface adaptations;
   typed Steps correction/deletion/import/export and destination fencing are completion gates.
   Automatic/ambient Steps, other materializers, broad product wiring, and rollout remain off.
+- `f9b1c3c45` is the first contained production consumer of the one-selected-session Steps facade.
+  Trip Detail renders typed durable Steps states, immediate materializing state, correction updates,
+  history failure isolation with explicit user retry, and lifecycle-scoped observation. Its unsafe
+  presentation-only delete action is absent. Ordinary History/Stats discovery still requires
+  positive `sample_count` and remains an accepted `QUERYABLE` blocker. This is not list/day/live
+  composition, exact capture/Location evidence, app-wide deletion, activation, or rollout evidence.
 - Existing tracking-settings authority/error presentation is the only allowed Phase 1 production UI safety exception; it exposes fail-closed policy state and is not evidence of source history, materialization, or queryability.
 - Fresh adaptive-collections R3 was `BLOCK_RESCOPE`; TI-D056–TI-D069 defined its correction. Fresh R4 is now complete and TI-D070–TI-D076 integrate every new blocker/high. No source activation is authorized until the accepted implementation and device gates pass.
 - The app targets Android 17 / API 37. Before any Play release, complete the
@@ -118,7 +126,7 @@ Ambient Steps uses one selected system continuity provider: prefer Health Connec
 | `broker_v2:<source>` | purpose demand/provider ownership | contained per source | remove v2 demands; restore one proven owner only | authorization/generation foundation, acquisition floors, Activity arbitration and shared Steps ownership are local; explicit source shadow/canonical reachability, provider-specific handoff, durable flag and device matrix still gate each source |
 | `source_shadow:<source>` | optional diff-only typed source projector/query | off | stop the shadow cursor; no canonical mutation | add only where a legacy destination exists and parity must be measured |
 | `source_owner:<source>` | source-specific canonical destination owner | legacy owner until the source gate passes | stop the candidate, preserve facts/WAL, and restore only the last proven sole owner | no generic activation/receipt platform; each destination proves uniqueness, stable identity and idempotent typed writes |
-| `tracking_history_v2` | one production history facade and compatible source readers | source-by-source dual read | retain compatible readers and surface truthful retained-unavailable state; never hide v2-only facts | dormant partial implementation: one Hilt-bound selected-session Steps facade, no production consumer or cross-surface query proof |
+| `tracking_history_v2` | one production history facade and compatible source readers | source-by-source dual read | retain compatible readers and surface truthful retained-unavailable state; never hide v2-only facts | contained partial implementation: one Hilt-bound selected-session Steps facade and one read-only Trip Detail consumer; no list/day/live or cross-surface query proof |
 | `days_journal_v2` | optional future Days-first product | off | restore existing navigation only if every retained fact remains discoverable/explainable/exportable/deletable | backlog; not a source-safety prerequisite |
 | `ambient:<source>` | app-scoped acquisition/materialization/product | off | technical rollback removes demands/stops writes and preserves data; consent revocation/deletion is a separate authorized tombstone/key-rotation operation | not implemented |
 
@@ -139,6 +147,10 @@ For each source:
 7. Crash, process death, reboot, clock/zone, deletion, and upgrade pass.
 8. Internal/reference-device evidence passes.
 9. Canary thresholds and rollback rehearsal pass.
+
+`f9b1c3c45` satisfies only a known-segment-ID, read-only Trip Detail subset of item 3. It does not
+satisfy the manual only-X production-query gate because ordinary History/Stats navigation can still
+hide a source-only session and Today/Timeline/Calendar/live remain on split legacy paths.
 
 Portable export is part of step 5/8: it must include every released source from typed product facts/membership/completeness, exclude control-only evidence and raw radio identifiers, and remain distinct from empty-target whole-database restore. Merge import stages provenance-bearing base facts through `TrackingWriter`; it never inserts derived summaries directly or uses `INSERT OR IGNORE` as semantic conflict resolution.
 

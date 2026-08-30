@@ -6,21 +6,21 @@ Execution-grade work items, ownership, dependency gates, verification commands, 
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and
 evidence index.
 
-Current scoped code checkpoint: local commit `24b9aeffb` on
+Current scoped code checkpoint: local commit `f9b1c3c45` on
 `codex/ti410-deletion-rearm`, after the deletion/re-arm proof, observable one-selected-session Steps
 facade, dormant source-deletion fence, unsafe empty-session cleanup containment, and remaining
-zero-sample product-read correction, atop local and remote `dev/v10` at
-`ffd5d372fafafceb7d9d595b95e47b89b949de83`. No production consumer uses the facade, no production
-path creates a source-deletion fence, and lifecycle-owned crash-orphan reclamation remains absent.
-The continuation is not integrated into local `dev/v10`, pushed, or evidence of `QUERYABLE` or
-permanent deletion. The delivered reconciliation remains merge
+zero-sample product-read correction. Trip Detail is now the facade's first production read-only
+consumer, but direct Trip Detail deletion is withheld and ordinary list/day/live discoverability is
+unchanged. No production path creates a source-deletion fence, and lifecycle-owned crash-orphan
+reclamation remains absent. The continuation is not integrated into local `dev/v10`, pushed, or
+evidence of `QUERYABLE` or permanent deletion. The delivered reconciliation remains merge
 `9b8ab4b43e0d5ca2e729f511b48936b0dbdfbb6a`, with parents `1a112bbd5` and `9a65148a1`, plus the
 delivered handover commits through `ffd5d372f`. The complete topology, protected-root boundary, and
 next-session commands are recorded in `CONTINUATION_HANDOVER.md`. The initial audited
 baseline was `068ebe052`; no release or artifact publication, deployment, remote configuration,
-feature activation, or external rollout was performed. All seven protected root files retained
-their exact bytes; six remain visible as intentionally uncommitted local work while the statistics
-XML now exactly matches reconciled `HEAD`.
+feature activation, or external rollout was performed. The six currently dirty protected root paths
+remain intentionally uncommitted; `f9b1c3c45` changes the statistics resources only on the dedicated
+continuation branch as part of its reviewed product slice.
 
 ## Current gate
 
@@ -30,6 +30,7 @@ XML now exactly matches reconciled `HEAD`.
   rollback, and post-deletion generation reconstruction now exist. Legacy generation 1 remains the
   only active production owner; first activation and rollback have no ordinary production caller.
 - Gate status: `TRANSITION_FOUNDATION_IN_REVIEW / OBSERVABLE_FACADE_PRESENT /
+  SELECTED_DETAIL_CONSUMER_CONTAINED /
   DELETION_AUTHORITY_DORMANT / EMPTY_CLEANUP_CONTAINED /
   CRASH_PLACEHOLDER_READS_CONTAINED / PRODUCT_WIRING_BLOCKED`. TI-B160 connects the
   production deletion provider, default `AppDatabase` deletion, singleton lifecycle/coordinator,
@@ -39,13 +40,15 @@ XML now exactly matches reconciled `HEAD`.
   adversaries found two `HIGH` test-determinism issues; both were mitigated before those runs.
   Complementary focused engine suites prove stale
   epoch/owner work rejection, WAL recovery, projection non-resurrection, and high-water rebasing.
-  TI-D108/TI-B162 now add one observable selected-session contract whose independent availability,
-  evidence, product, coverage, and cause axes fail closed. It has no production consumer and changes
-  no writer or provider. TI-D109/TI-B163–TI-B165 add only dormant deletion-fence authority after
+  TI-D108/TI-B162 add one observable selected-session contract whose independent availability,
+  evidence, product, coverage, and cause axes fail closed. TI-D112/TI-B168 consume it only from a
+  lifecycle-scoped selected Trip Detail, without changing a writer or provider. TI-D109/TI-B163–
+  TI-B165 add only dormant deletion-fence authority after
   withdrawing unsafe production wiring. TI-D110/TI-B166–TI-B167 retire the racy periodic database
   mutation and exclude every zero-sample row from the named product and ActivityRecognition reads,
   while leaving other DAO paths unchanged and claiming no durable reclamation.
-  TI-D111 narrows the next wave after scope review. Completeness-safe product wiring, typed
+  TI-D111 narrows the next wave after scope review. List/day/live composition, exact capture-set and
+  Location-evidence presentation, completeness-safe numeric consumers, typed
   export/import, cold process/reboot/provider evidence, manual only-Steps device evidence, and every
   other source/mode remain blocked.
 - Integration owner: lead orchestrator
@@ -63,11 +66,15 @@ XML now exactly matches reconciled `HEAD`.
   Activity `CONTROL`, never captured Activity. Process-wide startup ordering is now locally
   implemented and verified; production backup recovery, portable export/import, partial-database
   containment, and connected startup/reboot proof remain TI-184 gates.
-- Current-worktree verification: `88309387d` passes focused worker/quiescer/complete
+- Current-worktree verification: `f9b1c3c45` passes 33 focused selected-detail tests with zero
+  failures/errors/skips (history mapping `10/10`, presenter `9/9`, ViewModel `6/6`, Compose `8/8`),
+  root Detekt in `18s`, and `:feature:statistics:lintDebug` in `32s` with no new issue. It has not run
+  full `ciUnitTest`, `ciCheck`, emulator/device, screenshot, accessibility, provider, or energy
+  evidence. Earlier, `88309387d` passed focused worker/quiescer/complete
   architectural-fitness tests in `1m 9s` (575 tasks; worker `3/3`, quiescer `3/3`, architecture 37
   assertions) and its original Room DAO `11/11`. At code tip `24b9aeffb`, the corrected focused Room
   suite passes in `1m 5s` (79 tasks; XML `12/12`, zero failures/errors/skips), and root Detekt passes
-  in `39s` (5 tasks). It has not run full `ciUnitTest` or `ciCheck`. The most recent authoritative
+  in `39s` (5 tasks). The most recent authoritative
   full gate remains code commit `c5118e186`: `ciCheck --continue --no-parallel` passed in `8m 32s`
   with 1,991 actionable tasks, and `ciUnitTest` passed in `12m 18s` with 990 tasks. The exact
   populated v27→v28 suite most recently remains `8/8` on
@@ -88,7 +95,7 @@ XML now exactly matches reconciled `HEAD`.
   Cell-specific gate. Crash-auditable
   radio handoff, failed-unregister ownership, portable
   export/minimization, immutable ambient day identity, and `ACTIVE` versus qualified `RECORDING`
-  remain open. Materializers, ambient exposure, and history UI are prohibited.
+  remain open. Materializers, ambient exposure, and history UI were prohibited at that gate.
 - Initial scope proportionality review: `BLOCKED / RESCOPE`. Three fresh read-only adversaries concluded that the safety spine is justified but the then-current unshipped 23-table v28 expansion, generic Phase 3 platform, mandatory day-journal redesign, all-at-once ambient breadth, fleet telemetry, and exhaustive governance were disproportionate to the app's current offline personal-product workflows and runnable release infrastructure. The user subsequently confirmed ambient persistence as a product requirement; it proceeds only as independently gated, default-off source verticals. The follow-up disposition is the updated R2 gate below.
 - Updated R2 proportionality gate: `IN_PROGRESS / RESCOPED`. v28 never shipped, so it was trimmed
   and regenerated in place rather than preserved or repaired in v29. The 12 ownerless generic Phase
@@ -140,8 +147,9 @@ XML now exactly matches reconciled `HEAD`.
 - `DailySummaryAggregator` still rebuilds from `SessionSegment`, and History/Calendar still fabricate
   zero-looking summaries from missing data. A Hilt-bound `TrackingHistoryRepository` now observes one
   selected local session and preserves Steps availability, evidence, product state, coverage, and
-  named causes, but no production consumer uses it. A persisted universal `DayOverview` remains
-  intentionally outside this source-local gate.
+  named causes. Trip Detail is its first contained read-only consumer; ordinary history discovery,
+  day/list/live composition, and safe deletion remain unchanged. A persisted universal `DayOverview`
+  remains intentionally outside this source-local gate.
 - Location production legality is bypassed: `LocationSourceRuntime` evaluates `SESSION_ALREADY_FOREGROUND` instead of the real origin, while the production capability provider hardcodes FGS/start legality. Batched pre-start fixes can also be admitted because recording freshness is not checked against the capture boundary.
 - Location writer ownership is contradictory: the established `LocationTrackerComponent`/`PersistenceProcessor` path remains product-visible, while rollout metadata calls `LocationDomainProjection` canonical even though its output effects have no production consumer. The established writer remains protected pending shadow evidence and an explicit cutover decision.
 - Wi-Fi capability, onboarding, settings, and manifest now agree on the scan APIs actually used: precise location plus Wi-Fi state/change permissions and enabled Location Services; an unrelated Nearby Devices grant is not required. Startup cache persistence is removed and generic ingress resolves post-start observed-time authorization; durable cross-process radio delivery identity remains unimplemented.
@@ -170,7 +178,7 @@ XML now exactly matches reconciled `HEAD`.
 | Wi-Fi | `FAILED` | Fresh post-registration broadcast children and confirmed-empty coverage can reach observed-time-authorized WAL after item-level age checks; payload v2 retains item time and withholds identity; startup cache/failed updates are contained; direct capture has one first-evidence scan request | Legacy `WifiObservation` path only; no terminal event materializer or day query | cross-process cache replay, source-native boundary/identity proof, any measured repeated-attempt mode, keyed identity lifecycle if approved, runtime/device proof, no qualified recording state |
 | Cell | `FAILED` | Fresh timestamped callback children and confirmed-empty coverage can reach observed-time-authorized WAL; operational outcomes and persistent radio/subscription identity are omitted; direct capture has one first-evidence refresh group | Legacy `cell_sample` only; joined event frame has no terminal writer or day query | cross-process identity, source-native boundary proof, any measured repeated-refresh mode, hidden controls, multi-SIM partial failure and device proof absent |
 | Activity | `FAILED` | Shared GMS physical arbiter, independent observed-time purpose authorization, atomic callback delivery, sparse writer-stamped WAL admission and zero-effect replay exist | Activity-only input has no terminal materializer or day query | stale/epoch-incomplete automation start, synchronous global drain, no movement-band writer/owner, no production query |
-| Steps | `DEGRADED` | Positive deltas reach WAL; generation-bound baselines reject disabled-gap relabeling | `StepInterval` and legacy session/day totals exist, but additive aggregate is replay-unsafe and no truthful outside-session day contract exists | duplicate physical listeners, corroboration decision, no typed recompute/deletion path, ambient not implemented |
+| Steps | `DEGRADED` | Positive deltas reach WAL; generation-bound baselines reject disabled-gap relabeling | `StepInterval` and legacy session/day totals exist; one selected Trip Detail consumes the durable read facade, but the additive aggregate is replay-unsafe and no truthful outside-session day contract exists | ordinary source-only discovery, duplicate physical listeners, corroboration decision, no typed recompute/deletion path, ambient not implemented |
 | Pressure | `FAILED` | Direct sensor runtime and generation-homogeneous aggregate WAL windows exist; first-sample `RECORDING` state does not | compatibility `pressure_sample` writer exists; no typed correction/day query or Pressure history UI | no qualified recording state, no global broker owner, uncalibrated altitude risk, no product proof |
 
 ## Dependency and ownership map
@@ -1222,10 +1230,11 @@ transaction.
 
 ### Next wave
 
-1. Define and test contained source-adaptive historical and live Steps surfaces against the existing
-   read-only facade. Missing Steps is not zero; Steps-only promotes Steps/duration and hides
-   Location-specific map, route, speed, accuracy, and coordinate controls. Define typed delete UX
-   without enabling mutation.
+1. Keep the contained selected Trip Detail Steps read intact, then define an exact historical
+   capture-set and qualifying-Location contract before adapting its Location-shaped sections. Build
+   the live Steps surface against the same read authority. Missing Steps is not zero; Steps-only
+   promotes Steps/duration and hides Location-specific map, route, speed, accuracy, and coordinate
+   controls. Define typed delete UX without enabling mutation.
 2. Persist exact `(logicalTrackingId, serviceRunId, sessionSegmentId)` ownership, choose durable
    post-presentation acknowledgement for source-neutral session/Ski writers, and relocate graceful
    empty-row cleanup behind it. Previous-exit crash-orphan reclamation remains a later bounded slice.
@@ -1300,3 +1309,63 @@ durable descriptor is not yet updated with its generated segment ID and retentio
   after cycle drain, final segment decision, pipeline stop, Ski flush/join, and shutdown
   materialization. Relocate graceful cleanup behind that boundary. Previous-exit orphan cleanup is
   a separate later slice, not a prerequisite for the first honest manual Steps product proof.
+
+## Contained Trip Detail Steps consumer checkpoint (2026-08-30)
+
+### Outcome
+
+Commit `f9b1c3c45` makes the existing selected Trip Detail the first production consumer of
+`TrackingHistoryRepository.observeSession(segmentId)`. It replaces the hardware/current-device
+guess and legacy summary coercion for the Steps metric with typed durable states: complete covered
+zero or positive count, partial lower bound, legacy-unverified, materializing, not captured,
+disabled, unsupported, permission-required, OS-limited, unavailable, no observation, deleted, and
+failed. A history delay shows the trip immediately with Steps materializing; history failure is
+isolated to Steps, keeps unrelated trip/Location content, and offers an explicit selected-history
+reread that does not activate materialization.
+
+The observer uses `WhileSubscribed` and lifecycle-aware Compose collection. Optional Location/Ski
+reads start only while the selected screen is composed, and repeated requests cancel the previous
+job. This slice starts no provider, changes no acquisition demand or writer, and observes one row
+rather than fanning out over a list.
+
+Two adversarial blockers were removed rather than hidden: `SessionSegment.sampleCount` is a generic
+collection-cycle counter in the current runtime and is not used as Location evidence; Trip Detail's
+presentation-only delete action was removed because it could leave append-only Steps facts behind.
+Other History/Stats delete paths still delegate to presentation-row deletion and remain blocked.
+
+### Evidence
+
+- Four focused suites pass `33/33` with zero failures/errors/skips: history mapping `10/10`,
+  presenter `9/9`, ViewModel `6/6`, and Compose `8/8`; Gradle completed in `36s` with 194 tasks.
+- Root `detekt` passed in `18s`. `:feature:statistics:lintDebug` passed in `32s` with 338 tasks and no
+  new issue; the existing module baseline still filters 137 errors and 32 warnings.
+- The product adversary's commit-local `HIGH` findings (whole-screen source failure and loss of a
+  surviving partial lower bound) were mitigated. Its misleading-icon/`sampleCount` inference was
+  withdrawn; English-only fallback copy remains an explicit `MEDIUM` localization gap.
+- The Android adversary's commit-local `HIGH` findings (off-screen observation and whole-screen
+  failure) were mitigated. Lifecycle collection, disabled precedence, and duplicate supplemental
+  reads were corrected.
+- The validation adversary's two commit-local `BLOCKER` findings were mitigated by removing the
+  presentation-only delete and every new `sampleCount`-as-Location branch. Its separate `HIGH`
+  finding remains accepted: ordinary list queries require `sample_count > 0`, so source-only
+  discoverability and `QUERYABLE` stay blocked.
+- The fresh corrected-diff reviewer required explicit retry, UI-owned cancellable optional reads,
+  `NotCaptured` mapping, and immediate materializing content; all were corrected before
+  `f9b1c3c45`. Thus every commit-local `BLOCKER`/`HIGH` is mitigated, not every program-level gate.
+
+### Gate status and next wave
+
+- Passed: one lifecycle-scoped selected-session production read; correction updates; covered-zero
+  versus missing truth; partial/lower-bound and legacy truth; history failure isolated to Steps plus
+  explicit user-triggered reread; no direct Trip Detail delete; no new `sampleCount` inference; no
+  provider/list fan-out.
+- Failed or unverified: ordinary discovery of source-only sessions, exact capture-set and qualifying-
+  Location evidence, source-adaptive Location/map/export hiding, live Dashboard consumption,
+  list/day batching, every other numeric consumer, safe app-wide selected deletion, localization,
+  `ciUnitTest`, `ciCheck`, emulator/device/visual/accessibility/provider/energy evidence, and
+  `QUERYABLE`.
+- Next: persist exact segment ownership and post-presentation acknowledgement, then add the narrow
+  Steps fence/retraction services and typed selected deletion. Introduce an exact historical capture-
+  set/Location-evidence contract before adapting Trip Detail or live UI; never use `sampleCount` for
+  that decision. Prove the exact `{Steps}` manual path through ordinary production navigation before
+  changing activation state.
