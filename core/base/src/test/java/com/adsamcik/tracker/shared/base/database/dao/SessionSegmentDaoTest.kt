@@ -122,6 +122,21 @@ class SessionSegmentDaoTest {
 		)
 	}
 
+	@Test
+	fun `zero sample placeholders are excluded from product segment queries`() = runBlocking {
+		dao.insert(
+			createSegment(1_000L, 2_000L, 100f, DetectedActivity.WALKING.value)
+				.copy(sampleCount = 0),
+		)
+		dao.insert(createSegment(2_000L, 3_000L, 200f, DetectedActivity.WALKING.value))
+
+		assertEquals(1, dao.getOverlapping(0L, 4_000L).size)
+		assertEquals(1, dao.countBySource(SegmentSource.USER_CREATED))
+		assertEquals(1L, dao.countDistinctActivities())
+		assertEquals(1L, dao.countByActivity(DetectedActivity.WALKING.value))
+		assertEquals(1L, dao.countByActivities(listOf(DetectedActivity.WALKING.value)))
+	}
+
 	private fun createSegment(
 		startTimeMs: Long,
 		endTimeMs: Long,

@@ -164,7 +164,7 @@ class DefaultCollectedDataWriterQuiescerTest {
 		).get().any { it.state == WorkInfo.State.ENQUEUED } shouldBe true
 		workManager.getWorkInfosForUniqueWork(
 			DatabaseMaintenanceWorker.MAINTENANCE_UNIQUE_ID,
-		).get().any { it.state == WorkInfo.State.ENQUEUED } shouldBe true
+		).get().any { it.state == WorkInfo.State.ENQUEUED } shouldBe false
 	}
 
 	@Test

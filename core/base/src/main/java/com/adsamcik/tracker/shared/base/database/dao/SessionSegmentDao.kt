@@ -79,6 +79,9 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	 * straddle either boundary. Used by daily-summary aggregation to prorate
 	 * cross-midnight runs that would otherwise be dropped from every day.
 	 *
+	 * Empty preinserted placeholders are excluded because they are not recorded trips and may survive
+	 * a process death until lifecycle-owned reclamation proves the presentation writer is quiescent.
+	 *
 	 * `INDEXED BY idx_session_segment_end_time_ms` forces the planner to seek on
 	 * `end_time_ms > :fromMs` first. When materializing today against years of history
 	 * the `start_time_ms < :toMs` predicate covers a huge range (anything before now),
@@ -91,7 +94,7 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	@Query(
 		"""
 		SELECT * FROM session_segment INDEXED BY idx_session_segment_end_time_ms
-		WHERE end_time_ms > :fromMs AND start_time_ms < :toMs
+		WHERE sample_count > 0 AND end_time_ms > :fromMs AND start_time_ms < :toMs
 		ORDER BY start_time_ms
 		"""
 	)
@@ -157,7 +160,7 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	/**
 	 * Count segments by source.
 	 */
-	@Query("SELECT COUNT(*) FROM session_segment WHERE source = :source")
+	@Query("SELECT COUNT(*) FROM session_segment WHERE source = :source AND sample_count > 0")
 	suspend fun countBySource(source: SegmentSource): Int
 
 	/**
@@ -179,12 +182,6 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	suspend fun deleteOlderThan(beforeMs: Long): Int
 
 	/**
-	 * Delete empty session segments created without any samples.
-	 */
-	@Query("DELETE FROM session_segment WHERE sample_count = 0")
-	suspend fun deleteEmpty(): Int
-
-	/**
 	 * Count total session segments.
 	 */
 	@Query("SELECT COUNT(*) FROM session_segment")
@@ -198,6 +195,7 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 		SELECT COUNT(DISTINCT primary_activity)
 		FROM session_segment
 		WHERE primary_activity IS NOT NULL
+			AND sample_count > 0
 		"""
 	)
 	suspend fun countDistinctActivities(): Long
@@ -205,13 +203,13 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	/**
 	 * Count segments by primary activity type.
 	 */
-	@Query("SELECT COUNT(*) FROM session_segment WHERE primary_activity = :activityType")
+	@Query("SELECT COUNT(*) FROM session_segment WHERE primary_activity = :activityType AND sample_count > 0")
 	suspend fun countByActivity(activityType: Int): Long
 
 	/**
 	 * Count segments by a set of primary activities.
 	 */
-	@Query("SELECT COUNT(*) FROM session_segment WHERE primary_activity IN (:activityTypes)")
+	@Query("SELECT COUNT(*) FROM session_segment WHERE primary_activity IN (:activityTypes) AND sample_count > 0")
 	suspend fun countByActivities(activityTypes: List<Int>): Long
 
 	/** Count distinct local calendar days containing a classified activity. */

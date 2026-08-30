@@ -3,54 +3,41 @@ package com.adsamcik.tracker.maintenance
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.Configuration
+import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ListenableWorker
+import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.testing.SynchronousExecutor
 import androidx.work.testing.WorkManagerTestInitHelper
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
-import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
-import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
+import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.model.SegmentSource
 import io.kotest.matchers.shouldBe
-import io.mockk.coVerify
-import io.mockk.every
 import io.mockk.mockk
 import io.mockk.unmockkAll
 import kotlinx.coroutines.runBlocking
 import org.junit.After
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import java.util.concurrent.Executor
-import javax.inject.Provider
-import kotlin.coroutines.EmptyCoroutineContext
+import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class DatabaseMaintenanceWorkerTest {
 
 	private lateinit var context: Context
+	private lateinit var database: AppDatabase
 	private val workerParams = mockk<WorkerParameters>(relaxed = true)
-	private val sessionSegmentDao = mockk<SessionSegmentDao>(relaxed = true)
-	private val database = mockk<AppDatabase> {
-		every { sessionSegmentDao() } returns this@DatabaseMaintenanceWorkerTest.sessionSegmentDao
-		every { transactionExecutor } returns DIRECT_EXECUTOR
-		every { suspendingTransactionContext } returns
-			ThreadLocal.withInitial { EmptyCoroutineContext }
-		every { beginTransaction() } returns Unit
-		every { setTransactionSuccessful() } returns Unit
-		every { endTransaction() } returns Unit
-	}
 
 	@Before
 	fun setUp() {
 		context = ApplicationProvider.getApplicationContext()
+		database = AppDatabase.testDatabase(context)
 		WorkManagerTestInitHelper.initializeTestWorkManager(
 			context,
 			Configuration.Builder()
@@ -63,6 +50,7 @@ class DatabaseMaintenanceWorkerTest {
 
 	@After
 	fun tearDown() {
+		database.close()
 		unmockkAll()
 	}
 
@@ -72,38 +60,53 @@ class DatabaseMaintenanceWorkerTest {
 	}
 
 	@Test
-	fun `deletes empty session segments through dao`() {
-		executeDoWork()
-		coVerify(exactly = 1) { sessionSegmentDao.deleteEmpty() }
+	fun `legacy worker preserves attributed zero sample placeholder`() = runBlocking {
+		val id = database.sessionSegmentDao().insert(
+			SessionSegment(
+				startTimeMs = 1_000L,
+				endTimeMs = 1_000L,
+				distanceM = 0f,
+				steps = 0,
+				primaryActivity = null,
+				activityConfidence = null,
+				sampleCount = 0,
+				source = SegmentSource.USER_CREATED,
+				inferenceVersion = "active-placeholder",
+				createdAt = 1_000L,
+				logicalTrackingId = "logical-1",
+				serviceRunId = "run-1",
+			),
+		)
+
+		executeDoWork() shouldBe ListenableWorker.Result.success()
+		database.sessionSegmentDao().getById(id)?.sampleCount shouldBe 0
+		Unit
 	}
 
 	@Test
-	fun `schedules maintenance as unique periodic work`() {
-		DatabaseMaintenanceWorker.schedule(context)
+	fun `cancel retires a persisted legacy periodic request idempotently`() {
+		val workManager = WorkManager.getInstance(context)
+		val request = PeriodicWorkRequestBuilder<DatabaseMaintenanceWorker>(6L, TimeUnit.HOURS)
+			.build()
+		workManager.enqueueUniquePeriodicWork(
+			DatabaseMaintenanceWorker.MAINTENANCE_UNIQUE_ID,
+			ExistingPeriodicWorkPolicy.KEEP,
+			request,
+		).result.get()
+		activeMaintenanceWork().single().state shouldBe WorkInfo.State.ENQUEUED
 
-		val active = activeMaintenanceWork()
-		assertEquals(1, active.size)
-		assertEquals(WorkInfo.State.ENQUEUED, active.single().state)
-	}
+		DatabaseMaintenanceWorker.cancel(context).result.get()
+		workManager.getWorkInfoById(request.id).get()?.state shouldBe WorkInfo.State.CANCELLED
+		activeMaintenanceWork() shouldBe emptyList()
 
-	@Test
-	fun `scheduling again keeps the existing maintenance work`() {
-		DatabaseMaintenanceWorker.schedule(context)
-		val originalId = activeMaintenanceWork().single().id
-
-		DatabaseMaintenanceWorker.schedule(context)
-
-		val active = activeMaintenanceWork()
-		assertEquals(1, active.size)
-		assertEquals(originalId, active.single().id)
+		DatabaseMaintenanceWorker.cancel(context).result.get()
+		activeMaintenanceWork() shouldBe emptyList()
 	}
 
 	private fun executeDoWork(): ListenableWorker.Result = runBlocking {
 		DatabaseMaintenanceWorker(
 			context,
 			workerParams,
-			Provider { database },
-			READY_STARTUP_GATE,
 		).doWork()
 	}
 
@@ -111,17 +114,6 @@ class DatabaseMaintenanceWorkerTest {
 		val work = WorkManager.getInstance(context)
 			.getWorkInfosForUniqueWork(DatabaseMaintenanceWorker.MAINTENANCE_UNIQUE_ID)
 			.get()
-		val active = work.filterNot { it.state.isFinished }
-		assertTrue("expected maintenance work, found ${work.map { it.state }}", active.isNotEmpty())
-		return active
-	}
-
-	private companion object {
-		val DIRECT_EXECUTOR = Executor(Runnable::run)
-		val READY_STARTUP_GATE = object : TrackingStartupGate {
-			override val isReady: Boolean = true
-			override suspend fun reconcile(retryFailedStorage: Boolean) =
-				TrackingStartupResult.Ready(legacyRecoveryPartial = false, liveCompletedThroughOrdinal = 0L)
-		}
+		return work.filterNot { it.state.isFinished }
 	}
 }

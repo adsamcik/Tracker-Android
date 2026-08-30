@@ -232,7 +232,9 @@ class Application : AndroidApplication(), Configuration.Provider {
 	private fun initializeDatabaseMaintenance() {
 		val schedulingFailure = listOfNotNull(
 			maintenanceSchedulingFailure { GoalResetScheduler.ensureScheduled(this) },
-			maintenanceSchedulingFailure { DatabaseMaintenanceWorker.schedule(this) },
+			// Retire the unsafe legacy six-hour empty-segment cleanup. Component-owned teardown
+			// remains the only writer that may remove its preinserted session row.
+			maintenanceSchedulingFailure { DatabaseMaintenanceWorker.cancel(this) },
 			maintenanceSchedulingFailure { dataRetentionScheduler.initialize() },
 			maintenanceSchedulingFailure { DailySummaryMaterializationWorker.schedule(this) },
 			maintenanceSchedulingFailure { GoalNotificationWorker.schedule(this) },

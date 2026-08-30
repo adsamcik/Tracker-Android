@@ -1357,7 +1357,6 @@ class ArchitecturalFitnessTest {
 		private val COLLECTED_DATA_WORKER_PATHS = setOf(
 			"app/src/main/java/com/adsamcik/tracker/app/maintenance/RetentionPipelineWorker.kt",
 			"app/src/main/java/com/adsamcik/tracker/maintenance/DataRetentionWorker.kt",
-			"app/src/main/java/com/adsamcik/tracker/maintenance/DatabaseMaintenanceWorker.kt",
 			"domain/points/src/main/java/com/adsamcik/tracker/points/work/PointsWorker.kt",
 			"feature/import-export/src/main/java/com/adsamcik/tracker/impexp/exporter/automation/ExportPlanWorker.kt",
 			"feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/worker/ImportWorker.kt",

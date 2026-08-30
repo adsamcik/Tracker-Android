@@ -64,7 +64,6 @@ class DefaultCollectedDataWriterQuiescer(
 		{ stopContext -> TrackerServiceApi.stopServiceAndAwaitQuiescence(stopContext) },
 ) : CollectedDataWriterQuiescer {
 	private var restoreRetentionSchedule = false
-	private var restoreDatabaseMaintenance = false
 
 	override suspend fun quiesce() {
 		try {
@@ -72,8 +71,6 @@ class DefaultCollectedDataWriterQuiescer(
 				restoreRetentionSchedule = restoreRetentionSchedule ||
 					hasActiveUniqueWork(RetentionPipelineWorker.WORK_NAME) ||
 					hasActiveUniqueWork(RetentionPipelineWorker.LEGACY_WORK_NAME)
-				restoreDatabaseMaintenance = restoreDatabaseMaintenance ||
-					hasActiveUniqueWork(DatabaseMaintenanceWorker.MAINTENANCE_UNIQUE_ID)
 				activityWatcherController.pauseForDataDeletion()
 				val trackerStop = awaitTrackerQuiescence(context)
 				if (trackerStop != TrackingStopQuiescenceResult.HANDLED) {
@@ -142,11 +139,7 @@ class DefaultCollectedDataWriterQuiescer(
 		if (restoreRetentionSchedule) {
 			RetentionPipelineWorker.ensureScheduled(context)
 		}
-		if (restoreDatabaseMaintenance) {
-			DatabaseMaintenanceWorker.schedule(context)
-		}
 		restoreRetentionSchedule = false
-		restoreDatabaseMaintenance = false
 		DailySummaryMaterializationWorker.schedule(context)
 		exportAutomationController.resumeAfterDataDeletion()
 		activityWatcherController.resumeAfterDataDeletion()
