@@ -17,6 +17,7 @@ import com.adsamcik.tracker.stats.api.repository.SessionStatsRepository
 import com.adsamcik.tracker.stats.api.repository.SkiRunSegmentRepository
 import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
 import com.adsamcik.tracker.stats.api.repository.TripRepository
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import com.adsamcik.tracker.stats.api.repository.WindowedMetricsProvider
 import com.adsamcik.tracker.stats.api.repository.WifiObservationRepository
 import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
@@ -34,6 +35,7 @@ import com.adsamcik.tracker.stats.data.repository.DefaultLiveStatsRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultSessionStatsRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultSkiRunSegmentRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultTripRepository
+import com.adsamcik.tracker.stats.data.repository.DefaultTrackingHistoryRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultWifiObservationRepository
 import com.adsamcik.tracker.stats.data.repository.DefaultWindowedMetricsProvider
 import com.adsamcik.tracker.stats.data.scheduler.WorkManagerAchievementEvaluationScheduler
@@ -162,6 +164,17 @@ abstract class StatsDataModule {
 			@IoDispatcher ioDispatcher: CoroutineDispatcher,
 		): PersistentDirtyState = DefaultPersistentDirtyState(context.filesDir, ioDispatcher)
 	}
+}
+
+/** Keeps the first history facade binding separate from the established stats repository module. */
+@Module
+@InstallIn(SingletonComponent::class)
+internal abstract class TrackingHistoryDataModule {
+	@Binds
+	@Singleton
+	abstract fun bindTrackingHistoryRepository(
+		impl: DefaultTrackingHistoryRepository,
+	): TrackingHistoryRepository
 }
 
 /**

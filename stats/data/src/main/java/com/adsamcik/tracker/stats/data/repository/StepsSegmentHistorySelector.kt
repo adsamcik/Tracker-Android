@@ -22,37 +22,52 @@ import javax.inject.Inject
 internal class StepsSegmentHistorySelector @Inject constructor(
 	private val database: AppDatabase,
 ) {
-	suspend fun select(segment: SessionSegment): StepsSegmentHistoryResult = database.withTransaction {
+	/** Production lookup keeps segment membership and all dependent reads in one Room snapshot. */
+	internal suspend fun selectBySegmentId(segmentId: Long): StepsSegmentHistoryResult? =
+		database.withTransaction {
+			val segment = database.sessionSegmentDao().getById(segmentId)
+				?: return@withTransaction null
+			selectInTransaction(segment)
+		}
+
+	/** Test seam for exercising historical selection without persisting a presentation segment. */
+	internal suspend fun select(segment: SessionSegment): StepsSegmentHistoryResult =
+		database.withTransaction { selectInTransaction(segment) }
+
+	// This is the pre-existing fail-closed decision tree, moved out of the transaction lambda so
+	// production can resolve the segment identity inside the same snapshot without duplicating it.
+	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
+	private suspend fun selectInTransaction(segment: SessionSegment): StepsSegmentHistoryResult {
 		val logicalTrackingId = segment.logicalTrackingId
 		val serviceRunId = segment.serviceRunId
 		if (logicalTrackingId == null && serviceRunId == null) {
-			return@withTransaction unattributedLegacy(segment.steps)
+			return unattributedLegacy(segment.steps)
 		}
 		if (logicalTrackingId.isNullOrBlank() || serviceRunId.isNullOrBlank()) {
-			return@withTransaction unavailable(StepsHistoryReason.SEGMENT_MEMBERSHIP_INCOMPLETE)
+			return unavailable(StepsHistoryReason.SEGMENT_MEMBERSHIP_INCOMPLETE)
 		}
 
 		val sessionDao = database.sourceSessionDao()
 		val serviceRun = sessionDao.serviceRun(serviceRunId)
 		if (serviceRun == null) {
-			return@withTransaction unavailable(StepsHistoryReason.SERVICE_RUN_MISSING)
+			return unavailable(StepsHistoryReason.SERVICE_RUN_MISSING)
 		}
 		if (serviceRun.logicalTrackingId != logicalTrackingId) {
-			return@withTransaction unavailable(StepsHistoryReason.SERVICE_RUN_MEMBERSHIP_MISMATCH)
+			return unavailable(StepsHistoryReason.SERVICE_RUN_MEMBERSHIP_MISMATCH)
 		}
 
 		val manifests = sessionDao.manifestsForServiceRun(serviceRunId)
 		if (manifests.isEmpty()) {
-			return@withTransaction unavailable(StepsHistoryReason.MANIFEST_MISSING)
+			return unavailable(StepsHistoryReason.MANIFEST_MISSING)
 		}
 		val sourcesByRevision = linkedMapOf<Long, List<SessionManifestSourceEntity>>()
 		for (manifest in manifests) {
 			if (manifest.logicalTrackingId != logicalTrackingId || manifest.serviceRunId != serviceRunId) {
-				return@withTransaction unavailable(StepsHistoryReason.MANIFEST_MEMBERSHIP_MISMATCH)
+				return unavailable(StepsHistoryReason.MANIFEST_MEMBERSHIP_MISMATCH)
 			}
 			val sources = sessionDao.manifestSources(logicalTrackingId, manifest.manifestRevision)
 			if (!SessionManifestIntegrity.verify(manifest, sources)) {
-				return@withTransaction unavailable(StepsHistoryReason.MANIFEST_INTEGRITY_FAILED)
+				return unavailable(StepsHistoryReason.MANIFEST_INTEGRITY_FAILED)
 			}
 			sourcesByRevision[manifest.manifestRevision] = sources
 		}
@@ -65,23 +80,36 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 			}
 		}.filterValues { it != null }.mapValues { (_, source) -> requireNotNull(source) }
 		if (stepsBindings.isEmpty()) {
-			return@withTransaction StepsSegmentHistoryResult(
-				count = null,
-				availability = StepsHistoryAvailability.DISABLED,
-				evidence = StepsHistoryEvidence.NO_OBSERVATION,
-				materialization = StepsHistoryMaterialization.NOT_APPLICABLE,
-				coverage = StepsHistoryCoverage.NONE,
-				reasons = setOf(StepsHistoryReason.SOURCE_NOT_CAPTURED),
-			)
+			val policies = manifests.map { manifest ->
+				database.sourcePolicyDao().policyAtRevision(
+					manifest.sourcePolicyRevision,
+					SourceDestinationOwnerEntity.SOURCE_STEPS,
+				)
+			}
+			val disabledForWholeRun = policies.all { policy ->
+				policy != null && !policy.enabled
+			}
+			return if (disabledForWholeRun) {
+				StepsSegmentHistoryResult(
+					count = null,
+					availability = StepsHistoryAvailability.DISABLED,
+					evidence = StepsHistoryEvidence.NO_OBSERVATION,
+					materialization = StepsHistoryMaterialization.NOT_APPLICABLE,
+					coverage = StepsHistoryCoverage.NONE,
+					reasons = setOf(StepsHistoryReason.SOURCE_NOT_CAPTURED),
+				)
+			} else {
+				unavailable(StepsHistoryReason.SOURCE_NOT_CAPTURED)
+			}
 		}
 
 		val writers = stepsBindings.values.map(::writerBinding).distinct()
 		if (writers.size != 1) {
-			return@withTransaction failed(StepsHistoryReason.MIXED_WRITER_WITHIN_SERVICE_RUN)
+			return failed(StepsHistoryReason.MIXED_WRITER_WITHIN_SERVICE_RUN)
 		}
 		val writer = writers.single()
 		val captureCoveredWholeRun = stepsBindings.size == manifests.size
-		return@withTransaction when (writer.owner) {
+		return when (writer.owner) {
 			SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL -> legacy(
 				steps = segment.steps,
 				captureCoveredWholeRun = captureCoveredWholeRun,
@@ -246,7 +274,8 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 		}
 		val coverage = when {
 			coveredFacts.isEmpty() -> StepsHistoryCoverage.NONE
-			acquisitionComplete && captureCoveredWholeRun &&
+			materialization == StepsHistoryMaterialization.READY &&
+				acquisitionComplete && captureCoveredWholeRun &&
 				StepsHistoryReason.DELETED_FACTS !in reasons &&
 				StepsHistoryReason.RESET_GAP !in reasons &&
 				StepsHistoryReason.PARTIAL_FACT !in reasons &&
