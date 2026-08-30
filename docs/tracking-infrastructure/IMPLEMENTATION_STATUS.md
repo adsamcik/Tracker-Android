@@ -6,12 +6,14 @@ Execution-grade work items, ownership, dependency gates, verification commands, 
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and
 evidence index.
 
-Current scoped code checkpoint: local commit
-`c5118e186` on `codex/ti410-deletion-rearm`, after deletion/re-arm commit `3b2365547` and its
-handover, atop local and remote `dev/v10` at `ffd5d372fafafceb7d9d595b95e47b89b949de83`. It exposes
-the immutable Steps selector as a Hilt-bound, read-only, one-selected-session history facade. No
-production consumer uses it, so it is not yet integrated into local `dev/v10`, pushed, or evidence
-of `QUERYABLE`. The delivered reconciliation remains merge
+Current scoped code checkpoint: local commit `24b9aeffb` on
+`codex/ti410-deletion-rearm`, after the deletion/re-arm proof, observable one-selected-session Steps
+facade, dormant source-deletion fence, unsafe empty-session cleanup containment, and remaining
+zero-sample product-read correction, atop local and remote `dev/v10` at
+`ffd5d372fafafceb7d9d595b95e47b89b949de83`. No production consumer uses the facade, no production
+path creates a source-deletion fence, and lifecycle-owned crash-orphan reclamation remains absent.
+The continuation is not integrated into local `dev/v10`, pushed, or evidence of `QUERYABLE` or
+permanent deletion. The delivered reconciliation remains merge
 `9b8ab4b43e0d5ca2e729f511b48936b0dbdfbb6a`, with parents `1a112bbd5` and `9a65148a1`, plus the
 delivered handover commits through `ffd5d372f`. The complete topology, protected-root boundary, and
 next-session commands are recorded in `CONTINUATION_HANDOVER.md`. The initial audited
@@ -28,7 +30,8 @@ XML now exactly matches reconciled `HEAD`.
   rollback, and post-deletion generation reconstruction now exist. Legacy generation 1 remains the
   only active production owner; first activation and rollback have no ordinary production caller.
 - Gate status: `TRANSITION_FOUNDATION_IN_REVIEW / OBSERVABLE_FACADE_PRESENT /
-  PRODUCT_WIRING_BLOCKED`. TI-B160 connects the
+  DELETION_AUTHORITY_DORMANT / EMPTY_CLEANUP_CONTAINED /
+  CRASH_PLACEHOLDER_READS_CONTAINED / PRODUCT_WIRING_BLOCKED`. TI-B160 connects the
   production deletion provider, default `AppDatabase` deletion, singleton lifecycle/coordinator,
   durable pending marker, and closed startup/deletion barrier through a forced post-rearm diagnostics
   failure and successful retry. The final test passes twice consecutively on the same retained
@@ -38,8 +41,13 @@ XML now exactly matches reconciled `HEAD`.
   epoch/owner work rejection, WAL recovery, projection non-resurrection, and high-water rebasing.
   TI-D108/TI-B162 now add one observable selected-session contract whose independent availability,
   evidence, product, coverage, and cause axes fail closed. It has no production consumer and changes
-  no writer or provider. Completeness-safe product wiring, typed export/import, cold process/reboot/
-  provider evidence, manual only-Steps device evidence, and every other source/mode remain blocked.
+  no writer or provider. TI-D109/TI-B163–TI-B165 add only dormant deletion-fence authority after
+  withdrawing unsafe production wiring. TI-D110/TI-B166–TI-B167 retire the racy periodic database
+  mutation and exclude every zero-sample row from the named product and ActivityRecognition reads,
+  while leaving other DAO paths unchanged and claiming no durable reclamation.
+  TI-D111 narrows the next wave after scope review. Completeness-safe product wiring, typed
+  export/import, cold process/reboot/provider evidence, manual only-Steps device evidence, and every
+  other source/mode remain blocked.
 - Integration owner: lead orchestrator
 - Structural implementation: Workstream A policy authority plus the retained v28
   manifest/lifecycle/broker schema, Room-first source-runtime coordinator demands, physical
@@ -55,12 +63,14 @@ XML now exactly matches reconciled `HEAD`.
   Activity `CONTROL`, never captured Activity. Process-wide startup ordering is now locally
   implemented and verified; production backup recovery, portable export/import, partial-database
   containment, and connected startup/reboot proof remain TI-184 gates.
-- Current-worktree verification: code commit `c5118e186` passes the authoritative `ciCheck
-  --continue --no-parallel`: `BUILD SUCCESSFUL in 8m 32s`; 1,991 actionable tasks, 662 executed,
-  297 from cache, and 1,032 up-to-date. It also passes `:stats:api:allTests` plus
-  `:stats:data:testDebugUnitTest` in `49s` (219 actionable tasks); `ciUnitTest` in `12m 18s` (990
-  actionable tasks); `:stats:data:lintDebug :app:hiltJavaCompileDebug` in `40s`; and Detekt in `30s`.
-  The exact populated v27→v28 suite most recently remains `8/8` on
+- Current-worktree verification: `88309387d` passes focused worker/quiescer/complete
+  architectural-fitness tests in `1m 9s` (575 tasks; worker `3/3`, quiescer `3/3`, architecture 37
+  assertions) and its original Room DAO `11/11`. At code tip `24b9aeffb`, the corrected focused Room
+  suite passes in `1m 5s` (79 tasks; XML `12/12`, zero failures/errors/skips), and root Detekt passes
+  in `39s` (5 tasks). It has not run full `ciUnitTest` or `ciCheck`. The most recent authoritative
+  full gate remains code commit `c5118e186`: `ciCheck --continue --no-parallel` passed in `8m 32s`
+  with 1,991 actionable tasks, and `ciUnitTest` passed in `12m 18s` with 990 tasks. The exact
+  populated v27→v28 suite most recently remains `8/8` on
   `Medium_Phone(AVD) - 16` at the pre-reconciliation schema boundary. These are host plus prior
   migration-device checks, not provider/process/reboot/FGS, OEM, production-query, device-energy,
   source-scenario, or rollout proof.
@@ -1204,28 +1214,89 @@ transaction.
   candidate pre-write rejection; stale terminal-failure recognition on a later drain; observable
   selected-session fence invalidation; app graph and static analysis.
 - Failed or unverified: a production fence producer; active legacy `StepInterval` removal/replay;
-  presentation-writer quiescence; typed delete result and failure UX; dirty-day recomputation;
-  retention, typed portable import/export, generic merge containment, future writer/source checks;
-  automatic post-delete drain scheduling; connected migration execution for this schema revision;
-  process/reboot/provider/device/OEM evidence; `QUERYABLE`, UI, activation, or rollout.
+  exact segment ownership and presentation acknowledgement; typed delete/unsupported UX;
+  documented-zone day repair; distinct Steps retention/import/export, generic merge containment,
+  future writer/source checks; post-commit drain integration; connected migration execution for this
+  schema revision; process/reboot/provider/device/OEM evidence; `QUERYABLE`, UI, activation, or
+  rollout.
 
 ### Next wave
 
-1. Define the product deletion contract. With the current “permanently deleted” copy, the safe
-   default is complete product deletion, not presentation-only removal.
-2. Add a narrow data-plane session deletion command with typed `Deleted`, `NotFound`,
-   `BlockedActive`, and failure outcomes. Presentation repositories must not construct writer
-   revisions or expose unchecked lifecycle exceptions.
-3. Establish a durable quiescence obligation or make every final session/ski writer honor the same
-   tombstone. Prove the finalization-versus-delete race across process restart.
-4. Resolve active legacy Steps exactly: add defensible run attribution and fence checks, or keep the
-   user-facing permanent deletion gate blocked. Never infer ownership from overlapping wall time.
-5. Derive captured source/purpose scopes from immutable manifests, enqueue every overlapped civil
-   day for idempotent recomputation, and route independent retention plus typed import/export through
-   the same authority. Add cross-midnight and later-writer no-resurrection tests.
-6. Give deletion a durable source-local reconciliation wake so a fenced poison ordinal cannot pin
-   unrelated later events indefinitely.
-7. Separately fix `SessionSegmentDao.deleteEmpty()` so periodic maintenance cannot erase an active
-   preinserted zero-sample segment; require exact terminal run membership and Room tests.
-8. Only after those gates pass, wire the one selected Trip Detail consumer with source-adaptive,
-   completeness-safe Steps states. Do not fan one observer per list/day row.
+1. Define and test contained source-adaptive historical and live Steps surfaces against the existing
+   read-only facade. Missing Steps is not zero; Steps-only promotes Steps/duration and hides
+   Location-specific map, route, speed, accuracy, and coordinate controls. Define typed delete UX
+   without enabling mutation.
+2. Persist exact `(logicalTrackingId, serviceRunId, sessionSegmentId)` ownership, choose durable
+   post-presentation acknowledgement for source-neutral session/Ski writers, and relocate graceful
+   empty-row cleanup behind it. Previous-exit crash-orphan reclamation remains a later bounded slice.
+3. Add exact manifest/run/purpose/epoch attribution for newly admitted v28 `SESSION_CAPTURE` Steps
+   and monotonic fence checks only to legacy, candidate, and portable-import Steps writes. Migrated
+   unverifiable rows remain a typed unsupported state; never infer ownership by wall-time overlap.
+4. Add a data-plane `DeleteSelectedSession` contract with `Deleted`, accepted `NotFound`,
+   `BlockedActive`, `LegacyUnverifiable`/`UnsupportedScope`, and retryable failure. Only the first two
+   dismiss the row. Define the current summary's zone authority before cross-midnight/day repair, and
+   issue the existing post-commit conflated drain hint; startup recovery covers a crash before it.
+5. Wire the contained historical/live consumers and immediately prove the exact manual Steps-only
+   capture/registration set `{Steps}` with no other source, control, or ambient demand, listener
+   removal after stop, no polling/scheduled recovery, and truthful
+   `RECORDING -> MATERIALIZED -> QUERYABLE`. Keep production activation blocked.
+6. Add distinct cutoff retention, portable import, and read-only export services over the narrow
+   Steps evaluator; preserve batching and module direction. Do not route them through the
+   selected-row command or raw-merge `daily_summary`.
+7. Audit numeric consumers and add measured shared/batched history composition only before list/day
+   fan-out. Then run full host, connected migration, provider, process, and device gates.
+
+## Empty-session cleanup containment checkpoint (2026-08-30)
+
+### Outcome
+
+Commit `88309387d` retires the unsafe six-hour `sample_count = 0` database deletion. The historical
+`DatabaseMaintenanceWorker` class and unique name remain so an already-persisted WorkSpec can load,
+but the worker is an inert success. UI maintenance startup requests asynchronous cancellation;
+collected-data deletion awaits cancellation and never restores the work. A persisted periodic
+request may still wake the inert shell until cancellation completes. Commit `88309387d` adds
+positive-sample predicates to daily/live plus source/all-time activity reads; `24b9aeffb` adds them
+to app-age/hour/night/dawn and ActivityRecognition reads. Every zero-sample row, including the tested
+identity-stamped crash fixture and matching legacy/imported rows, is excluded from those named reads;
+other DAO reads remain unchanged.
+
+This is safety containment, not orphan reclamation. A source run becomes terminal before tracking
+presentation components finish shutdown, so no predicate over current lifecycle state can prove an
+empty row abandoned. A crash may still strand one physical placeholder indefinitely because the
+durable descriptor is not yet updated with its generated segment ID and retention is optional.
+
+### Evidence and review
+
+- Original focused Room verification at `88309387d` passes `11/11` in `1m 13s`. The corrected
+  `24b9aeffb` suite passes `12/12`, zero failures/errors/skips, in `1m 5s`; 79 actionable tasks.
+- Focused app verification passes: worker, deletion-quiescer, and complete architectural-fitness
+  tests, `BUILD SUCCESSFUL in 1m 9s`; 575 actionable tasks. XML is worker `3/3`, quiescer `3/3`,
+  and 37 nested architecture assertions, all with zero failures/errors/skips.
+- Root Detekt passes at the corrected tip: `BUILD SUCCESSFUL in 39s`; 5 actionable tasks. Its first
+  follow-up run found five missing public DAO contracts; those were documented before commit. App
+  production/test Kotlin, Hilt, and the simplified assisted worker constructor compiled in the
+  focused app gate.
+- The first combined verification attempt collided with an independently running shared-worktree
+  Gradle test process and ended in a test-results `EOFException`; it produced no trustworthy
+  assertion result and is not counted. Serialized reruns above passed.
+- Lifecycle and cleanup reviewers independently falsified terminal-state-only SQL and required
+  retirement. A fresh evidence audit then found the app-age/hour/night/dawn/ActivityRecognition gap;
+  `24b9aeffb` corrects those reads. A final falsifier corrected the asynchronous UI-cancellation and
+  affected-query-wide zero-sample wording. An independent scope reviewer and document falsifier
+  found four `HIGH` and three `MEDIUM` next-wave issues, all dispositioned in TI-D111.
+
+### Gate status and next wave
+
+- Passed: no periodic/global zero-row database mutation; persisted worker compatibility; UI
+  maintenance cancellation request plus deletion-time awaited cancellation/no reschedule;
+  identity-stamped placeholder preservation; all zero-sample rows absent from the named
+  product/ActivityRecognition reads; unchanged DAO paths explicitly outside the claim; static worker
+  fencing.
+- Failed or unverified: durable segment-ID handoff, exact presentation-writer acknowledgement,
+  process-death orphan reclamation, storage cleanup, selected-trip deletion, device execution, and
+  full `ciUnitTest`/`ciCheck` at this code checkpoint.
+- Next: first define contained source-adaptive live/history states and typed unsupported UX. Then
+  preserve exact segment identity, validate it on resume, and add lifecycle-owned acknowledgement
+  after cycle drain, final segment decision, pipeline stop, Ski flush/join, and shutdown
+  materialization. Relocate graceful cleanup behind that boundary. Previous-exit orphan cleanup is
+  a separate later slice, not a prerequisite for the first honest manual Steps product proof.

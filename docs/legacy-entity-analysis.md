@@ -31,7 +31,7 @@ AppDatabase contains 7 "legacy session-based" entities that coexist with 9 newer
 | **Status** | ❌ Still primary — no dual-write to TrackerRun/SessionSegment yet |
 | **Active Writers** | `SessionTrackerComponent` (tracker: insert + update), `GpxImport`, `JsonImport` (impexp), `DummyDataSeeder` (debug) |
 | **Active Readers** | `DefaultStatsRepository` / `SummaryGenerator` (statistics), `JsonExporter` / `ImportExportComposeActivity` / `ExportPlanWorker` (impexp), `DefaultDailySummaryProvider` / `SessionTrackerComponent` (tracker), `ChallengeWorker` / `DailyStepGoal` / `WeeklyStepGoal` (game) |
-| **Deletion** | `DatabaseMaintenanceWorker` (invalid session cleanup), `DataRetentionWorker` (time-based pruning) |
+| **Deletion** | `DataRetentionWorker` (time-based pruning); periodic empty-session deletion is retired because terminal source state does not prove presentation-writer quiescence |
 | **FK Dependency** | Has `ForeignKey` to `SessionActivity.id` via `session_activity_id` column |
 | **Migration Path** | 1. Implement `TrackerRun` writer in `SessionTrackerComponent`. 2. Add `SessionSegment` inference from location samples. 3. Migrate statistics/game/impexp readers. 4. Disable legacy write. 5. Add `@Deprecated`. |
 

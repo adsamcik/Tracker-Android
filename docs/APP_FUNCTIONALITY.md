@@ -640,7 +640,7 @@ Progressive permission disclosure aligned with Apple-style UX:
 
 | Worker | Frequency | Purpose |
 |--------|-----------|---------|
-| **DatabaseMaintenanceWorker** | Periodic (1x/day) | Optimizes database (VACUUM, ANALYZE) |
+| **DatabaseMaintenanceWorker** | Retired compatibility shell | Performs no database mutation; UI maintenance startup requests cancellation and collected-data deletion awaits it, while lifecycle-owned empty-session reclamation remains pending |
 | **DataRetentionWorker** | Weekly | Deletes data older than retention period |
 | **ActivityRecognitionWorker** | On-demand | Classifies activity type for historical sessions |
 | **ChallengeExpiredWorker** | Scheduled | Removes expired challenges and activates new ones |

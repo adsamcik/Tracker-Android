@@ -1184,8 +1184,80 @@ Each entry records repository evidence and does not duplicate the final architec
   1, retention, import/export, day summaries, and UI are deliberately unchanged.
 - Consequences: this commit is a battery-neutral schema and dormant data-plane/read-path primitive,
   not selected-trip deletion or no-resurrection completion. A real deletion command must live at a
-  narrow data-plane mutation owner, return a typed outcome, wait for presentation writers to
-  quiesce or make them honor the tombstone, derive every captured source/purpose from immutable
-  manifests, invalidate all overlapped local days, and route retention/import/export through the
-  same authority. The unreleased v28 schema now has 69 entities: 51 released-v27 entities plus 18
-  narrowly owned v28 additions. No v29 shell is created.
+  narrow data-plane mutation owner, return typed product outcomes, and use durable presentation
+  acknowledgement before deleting source-neutral session/Ski rows. Source fences stay inside
+  legacy, candidate, and portable-import Steps writes. Selected deletion, cutoff retention,
+  portable import, and read-only export remain distinct services that may share one narrow
+  Steps-specific fence/retraction evaluator. The unreleased v28 schema now has 69 entities: 51
+  released-v27 entities plus 18 narrowly owned v28 additions. No v29 shell is created.
+
+## TI-D110 — Empty-session reclamation requires presentation quiescence, not terminal SQL
+
+- Status: `ACCEPTED_AND_IMPLEMENTED_AS_CONTAINMENT` at `88309387d`, with remaining zero-sample read
+  correction at `24b9aeffb`; lifecycle-owned orphan reclamation remains `BLOCKED`
+- Owner/date: lead orchestrator after lifecycle, Room, WorkManager, and final-diff review,
+  2026-08-30
+- Alternatives: keep the six-hour global `sample_count = 0` delete; add an exact terminal-run SQL
+  predicate; retire the mutation indefinitely; retire it now and later reclaim only from a durable
+  exact ownership plus post-presentation-quiescence boundary
+- Evidence: `sourceSession.stop()` persists terminal logical/run state before the service drains
+  cycles and calls `orchestrator.shutdown()`. `SessionTrackerComponent.onDisable()` and the Ski
+  writer may therefore still perform final writes after source terminality. No predicate over the
+  current lifecycle tables can distinguish that interval from an abandoned row. Process death can
+  also strand a preinserted zero-sample row because the durable start descriptor does not yet
+  receive its generated segment ID. Retention is optional, so those rows can persist. Before this
+  decision, overlapping/live-stat and achievement count queries could treat such a placeholder as
+  a trip even though normal trip queries already required `sample_count > 0`.
+- Decision: remove `SessionSegmentDao.deleteEmpty()`, stop scheduling the periodic maintenance
+  mutation, never restore it after collected-data deletion, and keep the historical worker class as
+  an inert WorkManager compatibility shell. UI maintenance startup requests asynchronous
+  cancellation; collected-data deletion awaits cancellation and never restores the work. A
+  persisted request may still wake until cancellation completes. `88309387d` requires positive
+  samples for daily/live plus source/all-time activity reads; `24b9aeffb` extends that rule to
+  app-age/hour/night/dawn and ActivityRecognition reads. Every zero-sample row, including matching
+  legacy/imported rows, is excluded from those named queries; other DAO reads are unchanged. Future
+  graceful cleanup must persist and validate exact `(logicalTrackingId, serviceRunId,
+  sessionSegmentId)` ownership and run only after successful presentation shutdown. Previous-exit
+  orphan cleanup is a separate later slice and requires proof that the session is non-recoverable.
+  Terminal SQL may be defense in depth, but call-site quiescence is the proof.
+- Consequences: the active-row data-loss race and database mutation are contained immediately. UI
+  startup only requests cancellation, so a persisted inert wake remains possible until the
+  asynchronous operation completes; deletion provides the awaited path. Zero-sample rows no longer
+  change the named product or ActivityRecognition reads, while unchanged DAO paths retain their
+  prior semantics. A physical orphan may remain indefinitely after a crash; that bounded storage
+  debt is explicit and is not product deletion, forensic erasure, durable writer acknowledgement,
+  or process-death cleanup evidence. Do not restore periodic reclamation or wire permanent-trip
+  deletion until the exact identity and presentation-quiescence contract passes.
+
+## TI-D111 — Manual Steps stays product-first and source-local; no generic mutation platform
+
+- Status: `ACCEPTED_AFTER_ADVERSARIAL_SCOPE_CORRECTION`; implementation remains `BLOCKED`
+- Owner/date: lead orchestrator after independent next-wave scope and document-falsifier reviews,
+  2026-08-30
+- Alternatives: require both presentation acknowledgement and universal session/Ski tombstones;
+  route selected delete, retention, import, and export through one command; add a permanent Room
+  fence observer; finish every numeric consumer before exercising the only-Steps product; keep each
+  operation source-local and prove the smallest product path early
+- Evidence: the first handoff draft put a Steps source/purpose fence into source-neutral session/Ski
+  writers while also requiring quiescence, expanded a row-oriented delete into batch retention and
+  read-only export, omitted `LegacyUnverifiable`/`UnsupportedScope` UI outcomes, covered Trip Detail
+  but not the Location-shaped live surface, excluded only Activity/Location in the sole-source test,
+  assumed explicit-zone day recomputation that the current aggregator cannot perform, and proposed a
+  permanent Room observer even though the Steps lane already has conflated `requestDrain()` plus
+  startup recovery.
+- Decision: define and test contained source-adaptive historical and live Steps states first; missing
+  Steps is never zero, and Steps-only hides Location-specific product controls. Choose durable
+  post-presentation acknowledgement for source-neutral presentation writers. Fence only legacy,
+  candidate, and portable-import Steps writes. Expose distinct `DeleteSelectedSession`,
+  `RetainStepsBefore`, `ImportPortableSteps`, and `ExportPortableSteps` contracts in an API boundary,
+  backed by a narrow data-plane Steps evaluator without reversing module dependencies. Deletion
+  returns `Deleted`, accepted `NotFound`, `BlockedActive`, `LegacyUnverifiable`/`UnsupportedScope`,
+  or retryable failure; only the first two dismiss the row. Define the existing summary's zone
+  authority before day repair. Use the lane's post-commit drain hint and startup recovery, not a
+  worker, polling loop, or long-lived observer.
+- Consequences: immediately after contained history/live consumer wiring, the manual smoke asserts
+  the exact capture/registration set `{Steps}`, no other capture/control/ambient demand, listener
+  removal after stop, no scheduled recovery, and truthful `RECORDING -> MATERIALIZED -> QUERYABLE`.
+  Production activation still waits for deletion, separate retention and portable round trip,
+  numeric-consumer completeness, host/device/process gates, and fresh review. Previous-exit orphan
+  cleanup, automatic Steps, and ambient Steps remain separate later slices.

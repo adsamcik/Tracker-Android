@@ -6,7 +6,7 @@ External rollout, publishing, deployment, and remote configuration remain unauth
 
 ## Current containment
 
-- Current local continuation checkpoint: `03bbda2f1` on `codex/ti410-deletion-rearm`; local and
+- Current local continuation code checkpoint: `24b9aeffb` on `codex/ti410-deletion-rearm`; local and
   remote `dev/v10` remain at `ffd5d372f`, so the continuation is neither integrated nor pushed.
   Initial audited baseline: `068ebe052`.
 - The local schema is now v28. Its policy authority row is inert until verified legacy settings activate a complete six-source revision; no external rollout is authorized.
@@ -17,6 +17,14 @@ External rollout, publishing, deployment, and remote configuration remain unauth
   an explicit named-source shadow/canonical activation may select `EVENT`, and validation requires
   that source to have a reachable product lane. A source advances only through its own evidence.
 - No new canonical writer may default active.
+- The legacy six-hour empty-segment database mutation is retired. Its persisted WorkManager class
+  remains as an inert compatibility shell. UI maintenance startup requests asynchronous
+  cancellation; collected-data deletion awaits cancellation and never restores the work. A persisted
+  request may still wake the inert shell until cancellation completes. Across `88309387d` and
+  `24b9aeffb`, rows without a positive sample count are excluded from the named daily/live,
+  source/activity, time-achievement, and ActivityRecognition reads; other DAO reads remain unchanged.
+  Process-death reclamation remains blocked until exact segment ownership and post-presentation
+  acknowledgement are durable; terminal source state alone is not deletion authority.
 - Location remains on its existing sole canonical projection until a recorded shadow/cutover decision.
 - Wi-Fi and Cell cadence is opportunistic; no wake-reliable claim is allowed.
 - Ambient persistence is a confirmed product requirement, but every source's rollout defaults off until its consent, minimization, retention, export, deletion, query, and explanation contract passes.
