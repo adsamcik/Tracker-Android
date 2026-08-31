@@ -83,6 +83,7 @@ import com.adsamcik.tracker.shared.base.database.dao.SourceProjectionStateDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceRegistrationStateDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceSessionDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackingRolloutStateDao
+import com.adsamcik.tracker.shared.base.database.dao.TrackingHistoryReadDao
 import com.adsamcik.tracker.shared.base.database.dao.recordFullDeletion
 import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
 import com.adsamcik.tracker.shared.base.database.data.ExplorationCellEntity
@@ -317,6 +318,9 @@ abstract class AppDatabase : RoomDatabase() {
 	abstract fun sourceRegistrationStateDao(): SourceRegistrationStateDao
 
 	abstract fun sourceSessionDao(): SourceSessionDao
+
+	/** Fixed-count, read-only composition inputs for source-qualified history. */
+	abstract fun trackingHistoryReadDao(): TrackingHistoryReadDao
 
 	abstract fun activityAutomaticStartActionDao(): ActivityAutomaticStartActionDao
 

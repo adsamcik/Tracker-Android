@@ -69,7 +69,9 @@ data class SessionSegment(
 	val activityConfidence: Int?,
 
 	/**
-	 * Number of location samples used to derive this segment.
+	 * Source-neutral processing-cycle count retained for legacy presentation compatibility.
+	 *
+	 * This is not Location evidence and cannot identify any captured or qualified source.
 	 */
 	@ColumnInfo(name = "sample_count")
 	val sampleCount: Int,

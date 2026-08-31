@@ -2,15 +2,17 @@ package com.adsamcik.tracker.stats.data.repository
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.ScopedStepFactState
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
-import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import javax.inject.Inject
 
 /**
@@ -26,92 +28,180 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 ) {
 	/** Production lookup keeps segment membership and all dependent reads in one Room snapshot. */
 	internal suspend fun selectBySegmentId(segmentId: Long): StepsSegmentHistoryResult? =
+		selectEvidenceBySegmentIds(listOf(segmentId))[segmentId]?.steps
+
+	/** Batch production lookup used by recent/list composition without one query cascade per row. */
+	internal suspend fun selectEvidenceBySegmentIds(
+		segmentIds: List<Long>,
+	): Map<Long, HistoricalSegmentEvidence> = database.withTransaction {
+		val distinctIds = segmentIds.distinct()
+		if (distinctIds.isEmpty()) return@withTransaction emptyMap()
+		require(distinctIds.size <= CANDIDATE_BATCH_CAP) {
+			"At most $CANDIDATE_BATCH_CAP distinct history rows may be selected per batch"
+		}
+		val segments = database.trackingHistoryReadDao().segments(distinctIds)
+		selectManyInTransaction(segments).associateBy { it.segment.id }
+	}
+
+	/** Keysets through bounded candidate batches until exact source evidence fills the requested list. */
+	internal suspend fun selectRecentEvidence(limit: Int): List<HistoricalSegmentEvidence> =
 		database.withTransaction {
-			val segment = database.sessionSegmentDao().getById(segmentId)
-				?: return@withTransaction null
-			selectInTransaction(segment)
+			require(limit in 1..MAX_RECENT_RESULT_COUNT) {
+				"Recent history limit must be between 1 and $MAX_RECENT_RESULT_COUNT"
+			}
+			val accepted = ArrayList<HistoricalSegmentEvidence>(limit)
+			var beforeStartTimeMs: Long? = null
+			var beforeSegmentId: Long? = null
+			while (accepted.size < limit) {
+				val candidates = database.trackingHistoryReadDao().recentCandidatePage(
+					limit = CANDIDATE_BATCH_CAP,
+					stepsSourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+					capturePurpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+					beforeStartTimeMs = beforeStartTimeMs,
+					beforeSegmentId = beforeSegmentId,
+				)
+				if (candidates.isEmpty()) break
+				selectManyInTransaction(candidates)
+					.filter(HistoricalSegmentEvidence::isOrdinarilyDiscoverable)
+					.take(limit - accepted.size)
+					.let(accepted::addAll)
+				val lastScanned = candidates.last()
+				beforeStartTimeMs = lastScanned.startTimeMs
+				beforeSegmentId = lastScanned.id
+				if (candidates.size < CANDIDATE_BATCH_CAP) break
+			}
+			accepted
 		}
 
 	/** Test seam for exercising historical selection without persisting a presentation segment. */
 	internal suspend fun select(segment: SessionSegment): StepsSegmentHistoryResult =
-		database.withTransaction { selectInTransaction(segment) }
+		database.withTransaction { selectManyInTransaction(listOf(segment)).single().steps }
 
-	// This is the pre-existing fail-closed decision tree, moved out of the transaction lambda so
-	// production can resolve the segment identity inside the same snapshot without duplicating it.
+	/** Test seam that also exposes the exact revisioned capture authority. */
+	internal suspend fun selectEvidence(segment: SessionSegment): HistoricalSegmentEvidence =
+		database.withTransaction { selectManyInTransaction(listOf(segment)).single() }
+
+	private suspend fun selectManyInTransaction(
+		segments: List<SessionSegment>,
+	): List<HistoricalSegmentEvidence> {
+		if (segments.isEmpty()) return emptyList()
+		val snapshot = loadStepsHistoryBatchSnapshot(database, segments)
+		return segments.map { segment -> selectWithSnapshot(segment, snapshot) }
+	}
+
+	// This fail-closed tree is pure over one fixed-count batch snapshot.
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
-	private suspend fun selectInTransaction(segment: SessionSegment): StepsSegmentHistoryResult {
+	private fun selectWithSnapshot(
+		segment: SessionSegment,
+		snapshot: StepsHistoryBatchSnapshot,
+	): HistoricalSegmentEvidence {
 		val logicalTrackingId = segment.logicalTrackingId
 		val serviceRunId = segment.serviceRunId
 		if (logicalTrackingId == null && serviceRunId == null) {
-			return unattributedLegacy(segment.steps)
+			return HistoricalSegmentEvidence(
+				segment = segment,
+				captureAuthority = HistoricalCaptureAuthority.Unverifiable(
+					HistoricalCaptureFailure.LEGACY_UNATTRIBUTED,
+				),
+				steps = unattributedLegacy(segment.steps),
+			)
 		}
 		if (logicalTrackingId.isNullOrBlank() || serviceRunId.isNullOrBlank()) {
-			return unavailable(StepsHistoryReason.SEGMENT_MEMBERSHIP_INCOMPLETE)
+			return unavailableEvidence(
+				segment,
+				HistoricalCaptureFailure.SEGMENT_MEMBERSHIP_INCOMPLETE,
+				StepsHistoryReason.SEGMENT_MEMBERSHIP_INCOMPLETE,
+			)
 		}
 
-		val sessionDao = database.sourceSessionDao()
-		val serviceRun = sessionDao.serviceRun(serviceRunId)
+		val serviceRun = snapshot.serviceRuns[serviceRunId]
 		if (serviceRun == null) {
-			return unavailable(StepsHistoryReason.SERVICE_RUN_MISSING)
+			return unavailableEvidence(
+				segment,
+				HistoricalCaptureFailure.SERVICE_RUN_MISSING,
+				StepsHistoryReason.SERVICE_RUN_MISSING,
+			)
 		}
 		if (serviceRun.logicalTrackingId != logicalTrackingId) {
-			return unavailable(StepsHistoryReason.SERVICE_RUN_MEMBERSHIP_MISMATCH)
+			return unavailableEvidence(
+				segment,
+				HistoricalCaptureFailure.SERVICE_RUN_MEMBERSHIP_MISMATCH,
+				StepsHistoryReason.SERVICE_RUN_MEMBERSHIP_MISMATCH,
+			)
 		}
 		if (
 			serviceRun.presentationAcknowledgement ==
 			SourceServiceRunEntity.PRESENTATION_LEGACY_UNVERIFIABLE
 		) {
-			return unavailable(StepsHistoryReason.SERVICE_RUN_SEGMENT_BINDING_UNVERIFIABLE)
+			return unavailableEvidence(
+				segment,
+				HistoricalCaptureFailure.SERVICE_RUN_SEGMENT_BINDING_UNVERIFIABLE,
+				StepsHistoryReason.SERVICE_RUN_SEGMENT_BINDING_UNVERIFIABLE,
+			)
 		}
 		if (serviceRun.sessionSegmentId != segment.id) {
-			return unavailable(StepsHistoryReason.SERVICE_RUN_SEGMENT_BINDING_MISMATCH)
+			return unavailableEvidence(
+				segment,
+				HistoricalCaptureFailure.SERVICE_RUN_SEGMENT_BINDING_MISMATCH,
+				StepsHistoryReason.SERVICE_RUN_SEGMENT_BINDING_MISMATCH,
+			)
 		}
-		if (database.sourceDeletionFenceDao().contains(
-			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
-			scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
-			scopeIdentityDigest = SourceDeletionFenceEntity.logicalServiceRunIdentity(
-				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-				purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
-				logicalTrackingId = logicalTrackingId,
-				serviceRunId = serviceRunId,
-			),
-		)) return deleted()
 
-		val manifests = sessionDao.manifestsForServiceRun(serviceRunId)
+		val manifests = snapshot.manifestsByRun[serviceRunId].orEmpty()
 		if (manifests.isEmpty()) {
-			return unavailable(StepsHistoryReason.MANIFEST_MISSING)
+			return unavailableEvidence(
+				segment,
+				HistoricalCaptureFailure.MANIFEST_MISSING,
+				StepsHistoryReason.MANIFEST_MISSING,
+			)
 		}
 		val sourcesByRevision = linkedMapOf<Long, List<SessionManifestSourceEntity>>()
 		for (manifest in manifests) {
 			if (manifest.logicalTrackingId != logicalTrackingId || manifest.serviceRunId != serviceRunId) {
-				return unavailable(StepsHistoryReason.MANIFEST_MEMBERSHIP_MISMATCH)
+				return unavailableEvidence(
+					segment,
+					HistoricalCaptureFailure.MANIFEST_MEMBERSHIP_MISMATCH,
+					StepsHistoryReason.MANIFEST_MEMBERSHIP_MISMATCH,
+				)
 			}
-			val sources = sessionDao.manifestSources(logicalTrackingId, manifest.manifestRevision)
+			val sources = snapshot.sourcesByManifest[
+				ManifestKey(logicalTrackingId, manifest.manifestRevision)
+			].orEmpty()
 			if (!SessionManifestIntegrity.verify(manifest, sources)) {
-				return unavailable(StepsHistoryReason.MANIFEST_INTEGRITY_FAILED)
+				return unavailableEvidence(
+					segment,
+					HistoricalCaptureFailure.MANIFEST_INTEGRITY_FAILED,
+					StepsHistoryReason.MANIFEST_INTEGRITY_FAILED,
+				)
 			}
 			sourcesByRevision[manifest.manifestRevision] = sources
+		}
+		val captureAuthority = historicalCaptureAuthority(manifests, sourcesByRevision)
+		val scopeDigest = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+		)
+		if (scopeDigest in snapshot.deletionFenceDigests) {
+			return HistoricalSegmentEvidence(segment, captureAuthority, deleted())
 		}
 
 		val stepsBindings = sourcesByRevision.mapValues { (_, sources) ->
 			sources.singleOrNull { source ->
 				source.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
-					source.purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
+				source.purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
 					source.persistenceEligible
 			}
 		}.filterValues { it != null }.mapValues { (_, source) -> requireNotNull(source) }
 		if (stepsBindings.isEmpty()) {
 			val policies = manifests.map { manifest ->
-				database.sourcePolicyDao().policyAtRevision(
-					manifest.sourcePolicyRevision,
-					SourceDestinationOwnerEntity.SOURCE_STEPS,
-				)
+				snapshot.stepPolicies[manifest.sourcePolicyRevision]
 			}
 			val disabledForWholeRun = policies.all { policy ->
 				policy != null && !policy.enabled
 			}
-			return if (disabledForWholeRun) {
+			val steps = if (disabledForWholeRun) {
 				StepsSegmentHistoryResult(
 					count = null,
 					availability = StepsHistoryAvailability.DISABLED,
@@ -123,15 +213,20 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 			} else {
 				unavailable(StepsHistoryReason.SOURCE_NOT_CAPTURED)
 			}
+			return HistoricalSegmentEvidence(segment, captureAuthority, steps)
 		}
 
 		val writers = stepsBindings.values.map(::writerBinding).distinct()
 		if (writers.size != 1) {
-			return failed(StepsHistoryReason.MIXED_WRITER_WITHIN_SERVICE_RUN)
+			return HistoricalSegmentEvidence(
+				segment,
+				captureAuthority,
+				failed(StepsHistoryReason.MIXED_WRITER_WITHIN_SERVICE_RUN),
+			)
 		}
 		val writer = writers.single()
 		val captureCoveredWholeRun = stepsBindings.size == manifests.size
-		return when (writer.owner) {
+		val steps = when (writer.owner) {
 			SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL -> legacy(
 				steps = segment.steps,
 				captureCoveredWholeRun = captureCoveredWholeRun,
@@ -145,12 +240,15 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 				writer = writer,
 				manifestRevisions = stepsBindings.keys.toList(),
 				captureCoveredWholeRun = captureCoveredWholeRun,
+				snapshot = snapshot,
 			)
 			else -> unavailable(StepsHistoryReason.UNKNOWN_WRITER)
 		}
+		return HistoricalSegmentEvidence(segment, captureAuthority, steps)
 	}
 
-	private suspend fun candidate(
+	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
+	private fun candidate(
 		segment: SessionSegment,
 		logicalTrackingId: String,
 		serviceRunId: String,
@@ -158,6 +256,7 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 		writer: HistoricalStepsWriterBinding,
 		manifestRevisions: List<Long>,
 		captureCoveredWholeRun: Boolean,
+		snapshot: StepsHistoryBatchSnapshot,
 	): StepsSegmentHistoryResult {
 		val projectionId = writer.projectionId
 		val projectionVersion = writer.projectionVersion
@@ -165,15 +264,14 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 		if (projectionId == null || projectionVersion == null || bindingGeneration == null) {
 			return unavailable(StepsHistoryReason.CANDIDATE_PROVENANCE_INCOMPLETE)
 		}
-		val lane = database.sourceProjectionStateDao().productLane(
-			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+		val lane = snapshot.productLanes[HistoricalLaneKey(
 			bindingGeneration = bindingGeneration,
 			projectionId = projectionId,
 			projectionVersion = projectionVersion,
-		) ?: return failed(StepsHistoryReason.PRODUCT_LANE_MISSING)
+		)] ?: return failed(StepsHistoryReason.PRODUCT_LANE_MISSING)
 		if (!isValidHistoricalLane(lane)) return failed(StepsHistoryReason.PRODUCT_LANE_INVALID)
 
-		val evidenceState = database.sourceEvidenceStateDao().get()
+		val evidenceState = snapshot.evidenceState
 			?: return failed(StepsHistoryReason.SOURCE_EVIDENCE_STATE_MISSING)
 		if (evidenceState.retainedFromMs?.let { segment.endTimeMs < it } == true) {
 			return unavailable(StepsHistoryReason.OUTSIDE_RETAINED_FLOOR)
@@ -181,14 +279,13 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 		val retentionCrossesSegment = evidenceState.retainedFromMs?.let { retainedFromMs ->
 			segment.startTimeMs < retainedFromMs && segment.endTimeMs >= retainedFromMs
 		} == true
-		val factStates = database.stepFactRevisionDao().latestStatesForServiceRun(
-			writerProjectionId = projectionId,
-			writerProjectionVersion = projectionVersion,
-			writerBindingGeneration = bindingGeneration,
-			logicalTrackingId = logicalTrackingId,
-			serviceRunId = serviceRunId,
-			manifestRevisions = manifestRevisions,
-		)
+		val factStates = snapshot.factStatesByRun[serviceRunId].orEmpty().filter { scoped ->
+			scoped.logicalTrackingId == logicalTrackingId &&
+				scoped.manifestRevision in manifestRevisions &&
+				scoped.writerBindingGeneration == bindingGeneration &&
+				scoped.state.writerProjectionId == projectionId &&
+				scoped.state.writerProjectionVersion == projectionVersion
+		}.map(ScopedStepFactState::state)
 		val deletedFacts = factStates.filter {
 			it.operation == StepFactRevisionEntity.OPERATION_RETRACT
 		}
@@ -203,8 +300,8 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 			return failed(StepsHistoryReason.STALE_COLLECTED_DATA_EPOCH)
 		}
 
-		val completeness = database.sourceSessionDao()
-			.completenessForServiceRun(logicalTrackingId, serviceRunId)
+		val completeness = snapshot.completenessByRun[serviceRunId].orEmpty()
+			.filter { it.logicalTrackingId == logicalTrackingId }
 			.filter { it.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS }
 		val targetOrdinal = completeness.mapNotNull { it.lastAdmissionOrdinal }.maxOrNull()
 		val reasons = linkedSetOf<StepsHistoryReason>()
@@ -241,12 +338,12 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 				reasons += StepsHistoryReason.TARGET_BEFORE_LANE_ACTIVATION
 				StepsHistoryMaterialization.FAILED
 			}
-			targetOrdinal != null && database.sourceProjectionStateDao().firstTerminalFailureAfterThrough(
-				projectionId = projectionId,
-				projectionVersion = projectionVersion,
-				afterOrdinal = lane.activationOrdinal - 1L,
-				throughOrdinal = targetOrdinal,
-			) != null -> {
+			targetOrdinal != null && snapshot.terminalFailures.any { failure ->
+				failure.projectionId == projectionId &&
+					failure.projectionVersion == projectionVersion &&
+					failure.admissionOrdinal > lane.activationOrdinal - 1L &&
+					failure.admissionOrdinal <= targetOrdinal
+			} -> {
 				reasons += StepsHistoryReason.TERMINAL_PROJECTION_FAILURE
 				StepsHistoryMaterialization.FAILED
 			}
@@ -319,6 +416,16 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 			reasons = reasons,
 		)
 	}
+
+	private fun unavailableEvidence(
+		segment: SessionSegment,
+		captureFailure: HistoricalCaptureFailure,
+		stepsReason: StepsHistoryReason,
+	) = HistoricalSegmentEvidence(
+		segment = segment,
+		captureAuthority = HistoricalCaptureAuthority.Unverifiable(captureFailure),
+		steps = unavailable(stepsReason),
+	)
 
 	private fun writerBinding(source: SessionManifestSourceEntity) = HistoricalStepsWriterBinding(
 		owner = requireNotNull(source.writerOwner),
@@ -429,6 +536,8 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 	)
 
 	private companion object {
+		const val CANDIDATE_BATCH_CAP = 64
+		const val MAX_RECENT_RESULT_COUNT = 100
 		const val COMPLETE_STOP_STATUS = "COMPLETE"
 		const val COMPLETE_PROVIDER_COVERAGE = "CALLBACKS_ENTERED_BEFORE_BARRIER"
 		val TERMINAL_SERVICE_RUN_STATES = setOf("FINALIZED", "FAILED", "CLOSED")

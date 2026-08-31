@@ -187,6 +187,14 @@ data class SessionManifestVersionEntity(
 	}
 }
 
+/** Stable persisted purpose vocabulary for immutable session-manifest membership. */
+object SessionManifestPurposeCode {
+	const val SESSION_CAPTURE = SourceBrokerPurpose.SESSION_CAPTURE
+	const val CONTROL = "CONTROL"
+
+	val ALL = setOf(SESSION_CAPTURE, CONTROL)
+}
+
 /** Source/purpose membership of an immutable manifest version. */
 @Entity(
 	tableName = "session_manifest_source",
