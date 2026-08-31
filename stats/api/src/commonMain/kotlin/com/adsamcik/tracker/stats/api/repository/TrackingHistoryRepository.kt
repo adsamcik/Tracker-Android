@@ -26,6 +26,19 @@ interface TrackingHistoryRepository {
 	 * bounded composition against that consumer's actual physical candidate window.
 	 */
 	fun observeRecentStepsOnlyEntries(limit: Int): Flow<List<StepsOnlyHistoryEntry>>
+
+	/**
+	 * Observe one finite recent-history page composed against the caller's physical candidates.
+	 *
+	 * [candidateSegmentIds] is the complete bounded physical candidate window owned by the caller.
+	 * Existing candidates that remain physical are echoed by id; exact Steps-only logical groups are
+	 * represented only by an opaque [StepsAwareHistoryPageEntry.StepsOnly] row. Missing candidates are
+	 * omitted. The final [limit] is applied after both kinds of row are merged by durable recency.
+	 */
+	fun observeRecentStepsAwarePage(
+		candidateSegmentIds: List<Long>,
+		limit: Int,
+	): Flow<List<StepsAwareHistoryPageEntry>>
 }
 
 /** Result of resolving one local session-segment row identity. */
@@ -133,6 +146,28 @@ data class StepsOnlyHistoryEntry(
 	init {
 		require(endTime >= startTime) { "History entry cannot end before it starts" }
 	}
+}
+
+/**
+ * One row in a finite Steps-aware history page.
+ *
+ * A physical row only echoes an identity supplied by the caller. A Steps-only row retains no
+ * selectable physical identity and therefore grants no detail, map, export, or deletion authority.
+ */
+sealed interface StepsAwareHistoryPageEntry {
+	/** A caller-supplied physical candidate that remains eligible for existing Trip presentation. */
+	data class Physical(
+		val segmentId: Long,
+	) : StepsAwareHistoryPageEntry {
+		init {
+			require(segmentId > 0L) { "Physical history candidate id must be positive" }
+		}
+	}
+
+	/** An opaque, non-selectable replacement for an exact qualified Steps-only logical entry. */
+	data class StepsOnly(
+		val history: StepsOnlyHistoryEntry,
+	) : StepsAwareHistoryPageEntry
 }
 
 /** Policy/capability availability, independent of acquisition and product progress. */

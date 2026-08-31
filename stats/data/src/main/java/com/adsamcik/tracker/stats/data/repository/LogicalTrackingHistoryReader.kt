@@ -23,63 +23,108 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 ) {
 	// The bounded keyset loop keeps each fail-closed candidate and stop condition explicit.
 	@Suppress("CyclomaticComplexMethod")
-	internal suspend fun selectRecentEntries(limit: Int): List<HistoricalTrackingEntryEvidence> =
-		selectRecentEntries(limit) { true }
+	internal suspend fun selectRecentEntries(limit: Int): List<HistoricalTrackingEntryEvidence> {
+		validateLimit(limit)
+		return database.withTransaction {
+			selectRecentEntriesInTransaction(limit) { true }
+		}
+	}
 
 	/** Applies the Steps-only product predicate before the accepted-result limit. */
 	internal suspend fun selectRecentStepsOnlyEntries(
 		limit: Int,
-	): List<HistoricalTrackingEntryEvidence> = selectRecentEntries(limit) { entry ->
-		entry.isExactStepsOnlyCapture
+	): List<HistoricalTrackingEntryEvidence> {
+		validateLimit(limit)
+		return database.withTransaction {
+			selectRecentEntriesInTransaction(limit, HistoricalTrackingEntryEvidence::isExactStepsOnlyCapture)
+		}
+	}
+
+	/**
+	 * Composes one finite page against the caller's complete physical candidate window.
+	 *
+	 * Exact Steps-only intent suppresses authoritative physical members even when product evidence is
+	 * baseline, fenced, or otherwise not qualified. Only independently qualified logical entries gain
+	 * an opaque Steps-only replacement row.
+	 */
+	internal suspend fun selectRecentStepsAwarePage(
+		candidateSegmentIds: List<Long>,
+		limit: Int,
+	): List<HistoricalStepsAwarePageEntry> {
+		validatePageRequest(candidateSegmentIds, limit)
+		return database.withTransaction {
+			val candidateSegments = if (candidateSegmentIds.isEmpty()) {
+				emptyList()
+			} else {
+				database.trackingHistoryReadDao().segments(candidateSegmentIds)
+			}
+			val candidateLogicalIds = candidateSegments.mapNotNull { segment ->
+				segment.logicalTrackingId?.takeIf(String::isNotBlank)
+			}.distinct()
+			val candidateGroups = loadLogicalMemberEvidence(candidateLogicalIds).toTrackingEntries()
+			val suppressedCandidateIds = candidateGroups.values
+				.filter(HistoricalTrackingEntryEvidence::hasExactStepsOnlyIntent)
+				.flatMapTo(hashSetOf()) { entry ->
+					entry.physicalMembers.map { member -> member.segment.id }
+				}
+
+			val physicalRows = candidateSegments
+				.filterNot { segment -> segment.id in suppressedCandidateIds }
+				.map(HistoricalStepsAwarePageEntry::Physical)
+			val stepsOnlyRows = selectRecentEntriesInTransaction(
+				limit = limit,
+				accept = HistoricalTrackingEntryEvidence::isExactStepsOnlyCapture,
+			).map(HistoricalStepsAwarePageEntry::StepsOnly)
+
+			(physicalRows + stepsOnlyRows)
+				.sortedWith(stepsAwarePageOrder)
+				.take(limit)
+		}
 	}
 
 	@Suppress("CyclomaticComplexMethod")
-	private suspend fun selectRecentEntries(
+	private suspend fun selectRecentEntriesInTransaction(
 		limit: Int,
 		accept: (HistoricalTrackingEntryEvidence) -> Boolean,
-	): List<HistoricalTrackingEntryEvidence> =
-		database.withTransaction {
-			require(limit in 1..MAX_RECENT_ENTRY_COUNT) {
-				"Recent history limit must be between 1 and $MAX_RECENT_ENTRY_COUNT"
+	): List<HistoricalTrackingEntryEvidence> {
+		val accepted = ArrayList<HistoricalTrackingEntryEvidence>(limit)
+		var beforeStartTimeMs: Long? = null
+		var beforeSegmentId: Long? = null
+
+		entryPages@ while (accepted.size < limit) {
+			val candidates = database.trackingHistoryReadDao().recentEntryCandidatePage(
+				limit = ENTRY_CANDIDATE_BATCH_CAP,
+				stepsSourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				capturePurpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+				beforeStartTimeMs = beforeStartTimeMs,
+				beforeSegmentId = beforeSegmentId,
+			)
+			if (candidates.isEmpty()) {
+				break
 			}
-			val accepted = ArrayList<HistoricalTrackingEntryEvidence>(limit)
-			var beforeStartTimeMs: Long? = null
-			var beforeSegmentId: Long? = null
 
-			entryPages@ while (accepted.size < limit) {
-				val candidates = database.trackingHistoryReadDao().recentEntryCandidatePage(
-					limit = ENTRY_CANDIDATE_BATCH_CAP,
-					stepsSourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-					capturePurpose = SessionManifestPurposeCode.SESSION_CAPTURE,
-					beforeStartTimeMs = beforeStartTimeMs,
-					beforeSegmentId = beforeSegmentId,
-				)
-				if (candidates.isEmpty()) {
-					break
+			val entries = loadCandidateEntries(candidates)
+			for (candidate in candidates) {
+				val identity = candidate.toIdentity() ?: continue
+				val entry = entries[identity] ?: continue
+				if (!entry.isOrdinarilyDiscoverable || !accept(entry)) {
+					continue
 				}
-
-				val entries = loadCandidateEntries(candidates)
-				for (candidate in candidates) {
-					val identity = candidate.toIdentity() ?: continue
-					val entry = entries[identity] ?: continue
-					if (!entry.isOrdinarilyDiscoverable || !accept(entry)) {
-						continue
-					}
-					accepted += entry
-					if (accepted.size == limit) {
-						break@entryPages
-					}
-				}
-
-				val lastScanned = candidates.last()
-				beforeStartTimeMs = lastScanned.sortStartTimeMs
-				beforeSegmentId = lastScanned.sortSegmentId
-				if (candidates.size < ENTRY_CANDIDATE_BATCH_CAP) {
-					break
+				accepted += entry
+				if (accepted.size == limit) {
+					break@entryPages
 				}
 			}
-			accepted
+
+			val lastScanned = candidates.last()
+			beforeStartTimeMs = lastScanned.sortStartTimeMs
+			beforeSegmentId = lastScanned.sortSegmentId
+			if (candidates.size < ENTRY_CANDIDATE_BATCH_CAP) {
+				break
+			}
 		}
+		return accepted
+	}
 
 	private suspend fun loadCandidateEntries(
 		candidates: List<RecentHistoryEntryCandidate>,
@@ -93,7 +138,11 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 			val legacySegments = database.trackingHistoryReadDao().segments(legacyIds)
 			evidence += stepsSelector.selectManyInTransaction(legacySegments)
 		}
-		return evidence.mapNotNull { member ->
+		return evidence.toTrackingEntries()
+	}
+
+	private fun List<HistoricalSegmentEvidence>.toTrackingEntries():
+		Map<HistoricalEntryIdentity, HistoricalTrackingEntryEvidence> = mapNotNull { member ->
 			member.entryIdentity?.let { identity -> identity to member }
 		}.groupBy(
 			keySelector = { (identity, _) -> identity },
@@ -104,7 +153,6 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 				physicalMembers = members.sortedWith(physicalMemberOrder),
 			)
 		}
-	}
 
 	private suspend fun loadLogicalMemberEvidence(
 		logicalIds: List<String>,
@@ -143,8 +191,32 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 			HistoricalEntryIdentity.LegacyPhysical(it)
 		}
 
+	private fun validatePageRequest(candidateSegmentIds: List<Long>, limit: Int) {
+		validateLimit(limit)
+		require(candidateSegmentIds.size <= MAX_PHYSICAL_CANDIDATE_COUNT) {
+			"Physical history candidate count cannot exceed $MAX_PHYSICAL_CANDIDATE_COUNT"
+		}
+		require(candidateSegmentIds.all { it > 0L }) {
+			"Physical history candidate ids must be positive"
+		}
+		require(candidateSegmentIds.distinct().size == candidateSegmentIds.size) {
+			"Physical history candidate ids must be distinct"
+		}
+	}
+
+	private fun validateLimit(limit: Int) {
+		require(limit in 1..MAX_RECENT_ENTRY_COUNT) {
+			"Recent history limit must be between 1 and $MAX_RECENT_ENTRY_COUNT"
+		}
+	}
+
 	private companion object {
 		const val ENTRY_CANDIDATE_BATCH_CAP = 64
+		const val MAX_PHYSICAL_CANDIDATE_COUNT = 100
 		const val MAX_RECENT_ENTRY_COUNT = 100
+
+		val stepsAwarePageOrder =
+			compareByDescending<HistoricalStepsAwarePageEntry> { it.recencyStartTimeMs }
+				.thenByDescending { it.recencySegmentId }
 	}
 }

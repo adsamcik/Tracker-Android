@@ -153,13 +153,43 @@ internal data class HistoricalTrackingEntryEvidence(
 
 	/** Every retained capture revision requested Steps and no other persisted capture source. */
 	val isExactStepsOnlyCapture: Boolean
-		get() = TrackingSourceComponent.STEPS in qualifiedSources && physicalMembers.all { member ->
+		get() = TrackingSourceComponent.STEPS in qualifiedSources && hasExactStepsOnlyIntent
+
+	/** Exact Steps-only historical intent, independent of current product qualification. */
+	val hasExactStepsOnlyIntent: Boolean
+		get() = physicalMembers.all { member ->
 			val capture = member.captureAuthority as? HistoricalCaptureAuthority.Exact
 				?: return@all false
 			capture.revisions.all { revision ->
 				revision.capturedSources == setOf(TrackingSourceComponent.STEPS)
 			}
 		}
+
+	/** Newest authoritative physical member used only for stable product recency ordering. */
+	val newestPhysicalMember: HistoricalSegmentEvidence
+		get() = physicalMembers.maxWith(physicalMemberOrder)
+}
+
+/** Internal finite-page composition; only the public mapper may expose these rows. */
+internal sealed interface HistoricalStepsAwarePageEntry {
+	val recencyStartTimeMs: Long
+	val recencySegmentId: Long
+
+	data class Physical(
+		val segment: SessionSegment,
+	) : HistoricalStepsAwarePageEntry {
+		override val recencyStartTimeMs: Long get() = segment.startTimeMs
+		override val recencySegmentId: Long get() = segment.id
+	}
+
+	data class StepsOnly(
+		val history: HistoricalTrackingEntryEvidence,
+	) : HistoricalStepsAwarePageEntry {
+		override val recencyStartTimeMs: Long
+			get() = history.newestPhysicalMember.segment.startTimeMs
+		override val recencySegmentId: Long
+			get() = history.newestPhysicalMember.segment.id
+	}
 }
 
 /** Explicit identity only; wall-time overlap is never membership authority. */

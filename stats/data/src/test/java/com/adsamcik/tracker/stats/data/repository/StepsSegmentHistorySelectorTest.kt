@@ -20,6 +20,7 @@ import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.stats.api.repository.HistoryCapture
 import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.StepsAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryListState
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CompletableDeferred
@@ -824,6 +825,233 @@ class StepsSegmentHistorySelectorTest {
 		val emissions = withTimeout(5_000L) { collection.await() }
 		emissions.first().single().state shouldBe StepsOnlyHistoryListState.AVAILABLE
 		emissions.last().single().state shouldBe StepsOnlyHistoryListState.PARTIAL
+		Unit
+	}
+
+	@Test
+	fun stepsAwarePageCollapsesReplacementCandidatesIntoOneOpaqueLogicalRow() = runTest {
+		insertRun(RUN_ONE, sessionSegmentId = SEGMENT_ID)
+		insertRun(RUN_TWO, sessionSegmentId = OTHER_SEGMENT_ID)
+		insertManifest(RUN_ONE, revision = 1L, owner = LEGACY_OWNER)
+		insertManifest(RUN_TWO, revision = 2L, owner = LEGACY_OWNER)
+		database.sessionSegmentDao().insert(segment(RUN_ONE, steps = 3, sampleCount = 1))
+		database.sessionSegmentDao().insert(
+			segment(
+				runId = RUN_TWO,
+				steps = 5,
+				sampleCount = 1,
+				id = OTHER_SEGMENT_ID,
+				startTimeMs = 2_100L,
+				endTimeMs = 3_000L,
+			),
+		)
+
+		val page = historyRepository().observeRecentStepsAwarePage(
+			candidateSegmentIds = listOf(SEGMENT_ID, OTHER_SEGMENT_ID),
+			limit = 10,
+		).first()
+
+		page.size shouldBe 1
+		val row = page.single() as StepsAwareHistoryPageEntry.StepsOnly
+		row.history.startTime.raw shouldBe 1_000L
+		row.history.endTime.raw shouldBe 3_000L
+		row.history.state shouldBe StepsOnlyHistoryListState.PARTIAL
+	}
+
+	@Test
+	fun baselineOnlyExactStepsCandidateCannotResurrectAsAPhysicalRow() = runTest {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_BASELINE, 0L)),
+			targetOrdinal = 1L,
+			laneCursor = 1L,
+		)
+		database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null, sampleCount = 1))
+
+		historyRepository().observeRecentStepsAwarePage(
+			candidateSegmentIds = listOf(SEGMENT_ID),
+			limit = 10,
+		).first() shouldBe emptyList()
+	}
+
+	@Test
+	fun fencedExactStepsCandidateCannotResurrectAsAPhysicalRow() = runTest {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)),
+			targetOrdinal = 1L,
+			laneCursor = 1L,
+		)
+		database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null, sampleCount = 1))
+		insertRunFence(RUN_ONE, deletedAtMs = 3_000L)
+
+		historyRepository().observeRecentStepsAwarePage(
+			candidateSegmentIds = listOf(SEGMENT_ID),
+			limit = 10,
+		).first() shouldBe emptyList()
+	}
+
+	@Test
+	fun mixedAndUnverifiableCandidatesRemainPhysicalWithoutStepsInference() = runTest {
+		insertRun(RUN_ONE, sessionSegmentId = SEGMENT_ID)
+		insertManifest(
+			runId = RUN_ONE,
+			revision = 1L,
+			owner = LEGACY_OWNER,
+			additionalSources = listOf(
+				sourceMembership(
+					revision = 1L,
+					source = TrackingSourceComponent.LOCATION,
+					purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+				),
+			),
+		)
+		insertRun(
+			runId = RUN_TWO,
+			sessionSegmentId = null,
+			presentationAcknowledgement =
+				SourceServiceRunEntity.PRESENTATION_LEGACY_UNVERIFIABLE,
+		)
+		database.sessionSegmentDao().insert(segment(RUN_ONE, steps = 4, sampleCount = 1))
+		database.sessionSegmentDao().insert(
+			segment(
+				runId = RUN_TWO,
+				steps = null,
+				sampleCount = 1,
+				id = OTHER_SEGMENT_ID,
+				startTimeMs = 2_100L,
+				endTimeMs = 3_000L,
+			),
+		)
+
+		historyRepository().observeRecentStepsAwarePage(
+			candidateSegmentIds = listOf(SEGMENT_ID, OTHER_SEGMENT_ID),
+			limit = 10,
+		).first() shouldBe listOf(
+			StepsAwareHistoryPageEntry.Physical(OTHER_SEGMENT_ID),
+			StepsAwareHistoryPageEntry.Physical(SEGMENT_ID),
+		)
+	}
+
+	@Test
+	fun qualifiedZeroSampleStepsEntryIsDiscoveredWithoutAPhysicalCandidate() = runTest {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)),
+			targetOrdinal = 1L,
+			laneCursor = 1L,
+		)
+		database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null, sampleCount = 0))
+
+		val page = historyRepository().observeRecentStepsAwarePage(
+			candidateSegmentIds = emptyList(),
+			limit = 10,
+		).first()
+
+		page.single() as StepsAwareHistoryPageEntry.StepsOnly
+	}
+
+	@Test
+	fun stepsAwarePageOrdersLogicalRowByNewestPhysicalMemberBeforeFinalLimit() = runTest {
+		val physicalLogicalId = "logical-physical"
+		val physicalRun = "run-physical"
+		val physicalSegmentId = 43L
+		insertRun(RUN_ONE, sessionSegmentId = SEGMENT_ID)
+		insertRun(RUN_TWO, sessionSegmentId = OTHER_SEGMENT_ID)
+		insertManifest(RUN_ONE, revision = 1L, owner = LEGACY_OWNER)
+		insertManifest(RUN_TWO, revision = 2L, owner = LEGACY_OWNER)
+		database.sessionSegmentDao().insert(
+			segment(RUN_ONE, steps = 2, sampleCount = 0, startTimeMs = 100L, endTimeMs = 10_000L),
+		)
+		database.sessionSegmentDao().insert(
+			segment(
+				runId = RUN_TWO,
+				steps = 3,
+				sampleCount = 0,
+				id = OTHER_SEGMENT_ID,
+				startTimeMs = 3_000L,
+				endTimeMs = 4_000L,
+			),
+		)
+		insertRun(physicalRun, physicalLogicalId, sessionSegmentId = physicalSegmentId)
+		insertManifest(
+			runId = physicalRun,
+			logicalId = physicalLogicalId,
+			revision = 1L,
+			owner = LEGACY_OWNER,
+			additionalSources = listOf(
+				sourceMembership(
+					revision = 1L,
+					source = TrackingSourceComponent.LOCATION,
+					purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+					logicalId = physicalLogicalId,
+				),
+			),
+		)
+		database.sessionSegmentDao().insert(
+			segment(
+				runId = physicalRun,
+				logicalId = physicalLogicalId,
+				steps = 1,
+				sampleCount = 1,
+				id = physicalSegmentId,
+				startTimeMs = 2_500L,
+				endTimeMs = 2_600L,
+			),
+		)
+
+		val page = historyRepository().observeRecentStepsAwarePage(
+			candidateSegmentIds = listOf(physicalSegmentId),
+			limit = 1,
+		).first()
+
+		page.single() as StepsAwareHistoryPageEntry.StepsOnly
+	}
+
+	@Test
+	fun stepsAwarePageValidatesBoundsAndOmitsMissingCandidates() = runTest {
+		val repository = historyRepository()
+		listOf(
+			listOf(0L),
+			listOf(-1L),
+			listOf(1L, 1L),
+			(1L..101L).toList(),
+		).forEach { invalidCandidates ->
+			(runCatching {
+				repository.observeRecentStepsAwarePage(invalidCandidates, limit = 1)
+			}.exceptionOrNull() is IllegalArgumentException) shouldBe true
+		}
+		listOf(0, 101).forEach { invalidLimit ->
+			(runCatching {
+				repository.observeRecentStepsAwarePage(emptyList(), limit = invalidLimit)
+			}.exceptionOrNull() is IllegalArgumentException) shouldBe true
+		}
+
+		repository.observeRecentStepsAwarePage(
+			candidateSegmentIds = listOf(999L),
+			limit = 1,
+		).first() shouldBe emptyList()
+	}
+
+	@Test
+	fun stepsAwarePageReactsWhenAMissingCandidateGenerationAppears() = runBlocking {
+		val initialEmission = CompletableDeferred<Unit>()
+		val collection = async {
+			historyRepository().observeRecentStepsAwarePage(
+				candidateSegmentIds = listOf(SEGMENT_ID),
+				limit = 1,
+			).onEach { initialEmission.complete(Unit) }
+				.take(2)
+				.toList()
+		}
+		withTimeout(5_000L) { initialEmission.await() }
+		database.sessionSegmentDao().insert(
+			segment(null, logicalId = null, steps = null, sampleCount = 1),
+		)
+
+		val emissions = withTimeout(5_000L) { collection.await() }
+		emissions.first() shouldBe emptyList()
+		emissions.last() shouldBe listOf(StepsAwareHistoryPageEntry.Physical(SEGMENT_ID))
 		Unit
 	}
 
@@ -1794,6 +2022,13 @@ class StepsSegmentHistorySelectorTest {
 		logicalHistoryReader.selectRecentEntries(limit).flatMap { entry ->
 			entry.physicalMembers.filter(HistoricalSegmentEvidence::isOrdinarilyDiscoverable)
 		}
+
+	private fun historyRepository() = DefaultTrackingHistoryRepository(
+		database = database,
+		stepsSelector = selector,
+		logicalHistoryReader = logicalHistoryReader,
+		ioDispatcher = Dispatchers.IO,
+	)
 
 	private suspend fun insertRunFence(runId: String, deletedAtMs: Long) {
 		database.sourceDeletionFenceDao().upsert(

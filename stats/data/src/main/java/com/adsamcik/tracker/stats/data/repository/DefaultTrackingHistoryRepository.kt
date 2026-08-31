@@ -13,6 +13,7 @@ import com.adsamcik.tracker.stats.api.repository.SessionHistory
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.StepsHistory
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCause
+import com.adsamcik.tracker.stats.api.repository.StepsAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryListState
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryEntryKey
@@ -54,6 +55,40 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 			logicalHistoryReader.selectRecentStepsOnlyEntries(limit).mapToPublicStepsOnlyEntries()
 		}.distinctUntilChanged()
 			.flowOn(ioDispatcher)
+	}
+
+	@OptIn(ExperimentalCoroutinesApi::class)
+	override fun observeRecentStepsAwarePage(
+		candidateSegmentIds: List<Long>,
+		limit: Int,
+	): Flow<List<StepsAwareHistoryPageEntry>> {
+		validateStepsAwarePageRequest(candidateSegmentIds, limit)
+		val stableCandidateSegmentIds = candidateSegmentIds.toList()
+		return historyInvalidations().mapLatest {
+			logicalHistoryReader.selectRecentStepsAwarePage(
+				candidateSegmentIds = stableCandidateSegmentIds,
+				limit = limit,
+			).map(HistoricalStepsAwarePageEntry::toPublicPageEntry)
+		}.distinctUntilChanged()
+			.flowOn(ioDispatcher)
+	}
+
+	private fun validateStepsAwarePageRequest(
+		candidateSegmentIds: List<Long>,
+		limit: Int,
+	) {
+		require(candidateSegmentIds.size <= MAX_RECENT_ENTRY_COUNT) {
+			"Physical history candidate count cannot exceed $MAX_RECENT_ENTRY_COUNT"
+		}
+		require(candidateSegmentIds.all { it > 0L }) {
+			"Physical history candidate ids must be positive"
+		}
+		require(candidateSegmentIds.distinct().size == candidateSegmentIds.size) {
+			"Physical history candidate ids must be distinct"
+		}
+		require(limit in 1..MAX_RECENT_ENTRY_COUNT) {
+			"Recent Steps-aware history limit must be between 1 and $MAX_RECENT_ENTRY_COUNT"
+		}
 	}
 
 	private fun historyInvalidations() = database.invalidationTracker.createFlow(
@@ -124,16 +159,26 @@ private fun TrackingSourceComponent.toPublicSource(): HistorySource = when (this
 }
 
 private fun List<HistoricalTrackingEntryEvidence>.mapToPublicStepsOnlyEntries() =
-	map { entry ->
-		check(entry.isExactStepsOnlyCapture) { "Steps-only reader returned a non-Steps-only entry" }
-		val identity = entry.identity as? HistoricalEntryIdentity.Logical
-			?: error("Exact Steps-only entry requires logical identity")
-		StepsOnlyHistoryEntry(
-			key = TrackingHistoryEntryKey("logical:${identity.logicalTrackingId}"),
-			startTime = EpochMs(entry.physicalMembers.minOf { it.segment.startTimeMs }),
-			endTime = EpochMs(entry.physicalMembers.maxOf { it.segment.endTimeMs }),
-			state = entry.physicalMembers.map { it.steps.toPublicHistory() }.toStepsOnlyListState(),
-		)
+	map(HistoricalTrackingEntryEvidence::toPublicStepsOnlyEntry)
+
+private fun HistoricalTrackingEntryEvidence.toPublicStepsOnlyEntry(): StepsOnlyHistoryEntry {
+	check(isExactStepsOnlyCapture) { "Steps-only reader returned a non-Steps-only entry" }
+	val logicalIdentity = identity as? HistoricalEntryIdentity.Logical
+		?: error("Exact Steps-only entry requires logical identity")
+	return StepsOnlyHistoryEntry(
+		key = TrackingHistoryEntryKey("logical:${logicalIdentity.logicalTrackingId}"),
+		startTime = EpochMs(physicalMembers.minOf { it.segment.startTimeMs }),
+		endTime = EpochMs(physicalMembers.maxOf { it.segment.endTimeMs }),
+		state = physicalMembers.map { it.steps.toPublicHistory() }.toStepsOnlyListState(),
+	)
+}
+
+private fun HistoricalStepsAwarePageEntry.toPublicPageEntry(): StepsAwareHistoryPageEntry =
+	when (this) {
+		is HistoricalStepsAwarePageEntry.Physical ->
+			StepsAwareHistoryPageEntry.Physical(segment.id)
+		is HistoricalStepsAwarePageEntry.StepsOnly ->
+			StepsAwareHistoryPageEntry.StepsOnly(history.toPublicStepsOnlyEntry())
 	}
 
 internal fun List<StepsHistory>.toStepsOnlyListState(): StepsOnlyHistoryListState {

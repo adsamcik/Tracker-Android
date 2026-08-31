@@ -123,6 +123,26 @@ class TrackingHistoryRepositoryTest {
 	}
 
 	@Test
+	fun `Steps-aware page distinguishes a physical echo from an opaque logical row`() {
+		val history = StepsOnlyHistoryEntry(
+			key = TrackingHistoryEntryKey("logical:one"),
+			startTime = EpochMs(100L),
+			endTime = EpochMs(200L),
+			state = StepsOnlyHistoryListState.AVAILABLE,
+		)
+
+		assertEquals(
+			StepsAwareHistoryPageEntry.Physical(7L),
+			StepsAwareHistoryPageEntry.Physical(7L),
+		)
+		val logicalRow = StepsAwareHistoryPageEntry.StepsOnly(history)
+		assertEquals(history, logicalRow.history)
+		assertFailsWith<IllegalArgumentException> {
+			StepsAwareHistoryPageEntry.Physical(0L)
+		}
+	}
+
+	@Test
 	fun `covered zero remains distinct from missing evidence`() {
 		val history = StepsHistory(
 			count = 0L,
