@@ -1558,3 +1558,39 @@ Each entry records repository evidence and does not duplicate the final architec
   prove broker admission, observed-time freshness, provider callbacks, normal recovery scheduling,
   UI, or listener removal. The disposable device harness must supply those facts and use normal
   recovery; real `SensorService` evidence remains required for listener removal.
+
+## TI-D122 — The manual Steps device gate is a disposable production-observing harness
+
+- Status: `ACCEPTED_AND_IMPLEMENTED_AS_COMPILED_DISPOSABLE_HARNESS` at `1bb9749af`; connected
+  execution and the exact manual device gate remain `BLOCKED`
+- Owner/date: lead orchestrator after instrumentation compile/static verification and two
+  adversarial staged-diff passes, 2026-08-31
+- Alternatives: add an ordinary production caller that activates the candidate writer; inject
+  provider/WAL/fact rows; force a projection drain; clear broker owners directly; accept a partial
+  teardown audit; infer rendered UI or physical listener state from repository rows; use a cleared,
+  disposable debug install to observe the existing production start/provider/admission/writer/query/
+  stop chain and require external platform/UI evidence for boundaries the process cannot prove
+- Evidence: candidate activation is intentionally unreleased and the default settings can create an
+  automatic Activity control owner. The Steps runtime also permits a synchronous callback while
+  `SensorManager.registerListener` is executing, before durable provider acceptance, so acceptance
+  time is not a valid lower bound for the first baseline. Room can prove app-owned retirement but
+  cannot prove Android removed the physical listener, and repository DTOs cannot prove Compose
+  rendering or accessibility.
+- Decision: the operator-run instrumentation class first writes exact Steps-only settings, invokes
+  production automatic-control reconciliation, and requires a disposable empty data plane. It may
+  install the inert Steps shadow lane and invoke the existing source-specific candidate transition
+  only inside that test. Thereafter it uses production manual start/stop, provider callback
+  admission, normal asynchronous writer wakeup, and `TrackingHistoryRepository`; it inserts no
+  tracking rows and calls no drain/recovery shortcut. Durable before/after audits require exactly
+  one new Steps session demand and registration, no other source/control/ambient effect, one fresh
+  baseline followed by a contiguous positive covered window with no later zero-delta window, exact
+  run/manifest/purpose/consent/epoch/lease attribution, one canonical writer, queryable truthful
+  Steps state, and complete retirement. Cleanup is armed before enqueue and is non-cancellable until
+  terminal/no-live-state proof. Settings and rollout mutations persist, so app data is cleared after
+  every outcome.
+- Consequences: compile, Detekt, lint, and review can validate the harness contract without claiming
+  its Android assertions ran. One identified physical step-counter device must still supply the real
+  callback and connected provider-to-query evidence. Before/during/after `dumpsys sensorservice` is
+  mandatory for physical listener removal, and separate rendered UI/accessibility inspection is
+  mandatory for UI truth. The test-only transition is not ordinary activation, external rollout,
+  or permission to begin later Steps-local mutation work before this gate settles.

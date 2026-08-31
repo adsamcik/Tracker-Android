@@ -6,22 +6,26 @@ Execution-grade work items, ownership, dependency gates, verification commands, 
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and
 evidence index.
 
-Current scoped code checkpoint: `ab760d234` on `codex/ti410-deletion-rearm`, atop exact
+Current scoped code checkpoint: `1bb9749af` on `codex/ti410-deletion-rearm`, atop exact
 physical-service-run presentation settlement and the prior TI-410 foundations. Through TI-D114–
-TI-D120, new-v28 Steps history now requires the exact run/segment reverse binding, exact revisioned
+TI-D122, new-v28 Steps history now requires the exact run/segment reverse binding, exact revisioned
 capture intent, source-local qualification, replacement-run logical grouping, and one finite
 candidate-owned product composition. The Dashboard consumes at most 20 recent physical candidates
 through that composed read and presents at most five rows. A qualified stopped Steps-only logical
 entry is therefore ordinarily discoverable and `QUERYABLE` in this bounded Dashboard surface
 without relying on `sampleCount`, exposing a numeric cross-run total, or granting a physical action
-identity. The live Dashboard remains exact and segment-bound. This does not establish the manual
-provider scenario, Statistics/day/Calendar queryability, deletion, correction, portable
-export/import, numeric consumers, activation, or rollout. No production path creates a
-source-deletion fence, and lifecycle-owned crash-orphan reclamation remains absent. The continuation
-is not integrated into local `dev/v10` and was not pushed. The complete topology and protected-root
-boundary are recorded in `CONTINUATION_HANDOVER.md`; the six protected root paths remain outside
-this continuation. The initial audited baseline was `068ebe052`; no release, artifact publication,
-deployment, remote configuration, feature activation, or external rollout was performed.
+identity. The live Dashboard remains exact and segment-bound. A disposable instrumentation harness
+now compiles for the production manual Steps-only chain, including ordinary asynchronous
+materialization, product repository reads, durable retirement audit, and mandatory failure cleanup.
+It has not run because no Android device is attached, so it establishes no provider callback,
+rendered UI, platform-listener removal, or device behavior. Statistics/day/Calendar queryability,
+deletion, correction, portable export/import, numeric consumers, ordinary activation, and rollout
+remain blocked. No production path creates a source-deletion fence, and lifecycle-owned
+crash-orphan reclamation remains absent. The continuation is not integrated into local `dev/v10`
+and was not pushed. The complete topology and protected-root boundary are recorded in
+`CONTINUATION_HANDOVER.md`; the six protected root paths remain outside this continuation. The
+initial audited baseline was `068ebe052`; no release, artifact publication, deployment, remote
+configuration, feature activation, or external rollout was performed.
 
 ## Current gate
 
@@ -35,7 +39,8 @@ deployment, remote configuration, feature activation, or external rollout was pe
   EMPTY_CLEANUP_CONTAINED / CRASH_PLACEHOLDER_READS_CONTAINED /
   STEPS_REVERSE_BINDING_ENFORCED / EXACT_STEPS_HISTORY_COMPOSED /
   LIVE_STEPS_PRESENTED / BOUNDED_DASHBOARD_QUERYABLE /
-  MANUAL_DEVICE_GATE_BLOCKED / BROADER_PRODUCT_WIRING_BLOCKED`. TI-B160 connects the
+  MANUAL_DEVICE_HARNESS_COMPILES / MANUAL_DEVICE_GATE_BLOCKED /
+  BROADER_PRODUCT_WIRING_BLOCKED`. TI-B160 connects the
   production deletion provider, default `AppDatabase` deletion, singleton lifecycle/coordinator,
   durable pending marker, and closed startup/deletion barrier through a forced post-rearm diagnostics
   failure and successful retry. The final test passes twice consecutively on the same retained
@@ -55,10 +60,11 @@ deployment, remote configuration, feature activation, or external rollout was pe
   TI-D114–TI-D118 add exact reverse binding, capture/qualification authority, logical grouping, and
   finite action-bearing composition. TI-D119/TI-B176 add exact live presentation. TI-D120/TI-B177–
   TI-B178 connect the finite composed read to stopped Dashboard history with stable physical
-  ordering and no raw Last Session bypass. The bounded Dashboard query passes; day/Calendar/
-  Statistics composition, completeness-safe numeric consumers, typed export/import, deletion,
-  cold process/reboot/provider evidence, the exact manual only-Steps device scenario, and every
-  other source/mode remain blocked.
+  ordering and no raw Last Session bypass. TI-D121/TI-B179 establish the synthetic positive WAL
+  boundary. TI-D122/TI-B180 add the compiled disposable harness without activating an ordinary
+  product path. The bounded Dashboard query passes; day/Calendar/Statistics composition,
+  completeness-safe numeric consumers, typed export/import, deletion, cold process/reboot/provider
+  evidence, the exact manual only-Steps device scenario, and every other source/mode remain blocked.
 - Integration owner: lead orchestrator
 - Structural implementation: Workstream A policy authority plus the retained v28
   manifest/lifecycle/broker schema, Room-first source-runtime coordinator demands, physical
@@ -74,8 +80,17 @@ deployment, remote configuration, feature activation, or external rollout was pe
   Activity `CONTROL`, never captured Activity. Process-wide startup ordering is now locally
   implemented and verified; production backup recovery, portable export/import, partial-database
   containment, and connected startup/reboot proof remain TI-184 gates.
-- Current-worktree verification: the post-review command selecting `TripDaoTest` plus five focused
-  Dashboard recent-history suites, root `detekt`, and `:feature:dashboard:lintDebug` passes in
+- Current-worktree verification: at `1bb9749af`, `:app:compileDebugAndroidTestKotlin` passes in
+  `26s` with 525 tasks (5 executed, 520 up-to-date), root `detekt` passes in `26s` with one task,
+  and `:app:lintDebug` passes in `56s` with 1,073 tasks (7 executed, 1,066 up-to-date).
+  `adb devices -l` returned no device rows, so the connected class command was not run. Fresh
+  adversarial review found and the final code corrected cleanup arming, durable source-set audit,
+  duplicate-zero admission, stale-baseline linkage, evidence-boundary wording, and a false
+  registration-acceptance time bound for a supported synchronous callback. The final review found
+  no remaining commit-blocking defect. This is instrumentation compilation plus static evidence,
+  not provider, rendered-UI, listener-removal, process/reboot/FGS, battery, OEM, or rollout proof.
+  Earlier, the post-review command selecting `TripDaoTest` plus five focused Dashboard
+  recent-history suites, root `detekt`, and `:feature:dashboard:lintDebug` passes in
   `4m 21s` with 610 tasks (46 executed, 564 up-to-date). XML records `56/56` tests: core DAO
   `16/16` and Dashboard `40/40`, with zero failures/errors/skips. Lint reports zero errors and one
   previously recorded guarded `InlinedApi` warning for the API-29 Activity Recognition permission.
@@ -1903,3 +1918,61 @@ construction.
 - Next: add only the disposable test instrumentation seam for the exact manual Steps-only scenario.
   It must use normal production recovery rather than calling `drainThrough`, and platform listener
   removal still requires before/during/after `dumpsys sensorservice` evidence on real hardware.
+
+## Disposable manual Steps-only device-gate harness checkpoint (2026-08-31)
+
+### Outcome
+
+Commit `1bb9749af` adds `ManualStepsOnlyDeviceGateTest` and the minimum Hilt integration-test access
+needed to observe the existing production chain. On a cleared disposable debug install, the test
+sets the exact Steps-only policy, completes production automatic-control reconciliation, requires
+an otherwise empty tracking database, explicitly installs the inert Steps shadow lane, and activates
+the candidate writer only inside the test. It then starts through `TrackerServiceApi`, waits on Room
+invalidation instead of sleeps, and audits exact manifest/run/segment, demand, registration,
+authorization, policy, consent, collected-data epoch, lease, WAL, fact, canonical-lane, stopped
+history, recent-list, completeness, and durable retirement evidence.
+
+The harness rejects any control, ambient, Location, Activity, Pressure, Wi-Fi, or Cell demand or WAL
+effect. It requires a fresh baseline within the run/manifest/authorization boundaries followed by
+a contiguous positive covered Steps window; every later covered window must also be positive, so an
+unchanged zero delta after baseline cannot pass.
+It observes normal asynchronous candidate materialization and never inserts durable tracking rows,
+calls a drain/recovery shortcut, or treats `sampleCount` as source evidence. Cleanup is armed before
+the start call and runs non-cancellably on every unproven terminal outcome. Setup settings and
+rollout mutations remain in the disposable install, so app data must be cleared after every result.
+
+### Evidence
+
+- `.\gradlew.bat :app:compileDebugAndroidTestKotlin --no-daemon --no-parallel --max-workers=1
+  "-Pksp.incremental=false"` passes in `26s` with 525 tasks (5 executed, 520 up-to-date).
+- `.\gradlew.bat detekt --no-daemon --no-parallel --max-workers=1
+  "-Pksp.incremental=false"` passes in `26s` with one task.
+- `.\gradlew.bat :app:lintDebug --no-daemon --no-parallel --max-workers=1
+  "-Pksp.incremental=false"` passes in `56s` with 1,073 tasks (7 executed, 1,066 up-to-date).
+- `C:\Users\adam-\AppData\Local\Android\Sdk\platform-tools\adb.exe devices -l` returned only the
+  header and no device rows. Therefore the connected class command was not run:
+
+  ```powershell
+  .\gradlew.bat :app:connectedDebugAndroidTest `
+    "-Pandroid.testInstrumentationRunnerArguments.class=com.adsamcik.tracker.app.tracking.ManualStepsOnlyDeviceGateTest" `
+    --no-daemon --no-parallel --max-workers=1 "-Pksp.incremental=false"
+  ```
+
+- Two staged-diff adversarial passes found concrete cleanup, durable-audit, zero-delta, timing, and
+  evidence-boundary issues. The final source corrects them; the last review reports no remaining
+  commit-blocking false-pass, cleanup, privacy, lifecycle, or source-isolation defect.
+
+### Gate status and next wave
+
+- Passed: instrumentation compilation; Detekt; app lint; exact test-owned setup contract; static
+  review of sole-source attribution, asynchronous materialization, terminal cleanup, and durable
+  audit assertions.
+- Blocked: a real post-baseline `TYPE_STEP_COUNTER` callback; connected production admission and
+  query execution; rendered Compose/UI and accessibility truth; before/during/after
+  `dumpsys sensorservice` proof of physical listener removal; process/reboot/FGS/battery/OEM behavior.
+- Next: run this exact class on one identified representative physical step-counter device with a
+  cleared `com.adsamcik.tracker.debug` install, retain the logged device identity, capture
+  `adb logcat -s ManualStepsGate:I "*:S"`, and collect `dumpsys sensorservice` before, during
+  `STEPS_GATE_LISTENER_ACTIVE`, and after `STEPS_GATE_LISTENER_RETIRED`. Separately inspect the
+  rendered live and stopped list surfaces. Do not start later Steps mutation work or another source
+  until those device assertions settle the manual gate.
