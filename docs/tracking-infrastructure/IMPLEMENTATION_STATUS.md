@@ -1848,3 +1848,58 @@ host evidence; it does not prove the sensor-to-WAL-to-fact device scenario.
   persisted `RECORDING` lifecycle state or a production drain delay. The exact provider/listener
   gate remains blocked until a real step-counter device is available; do not begin the later
   Steps-local mutation or another source before that gate.
+
+## Synthetic Steps WAL-to-materialization boundary checkpoint (2026-08-31)
+
+### Outcome
+
+Commit `dff1b85fd` adds a host-only test at a synthetic post-admission WAL boundary. It inserts
+integrity-valid, capture-attributed synthetic Steps WAL rows, reads them through the production
+`RoomDurableSourceIngress` decoder, and distinguishes no observation, baseline only, covered zero,
+positive post-baseline recording evidence, and typed corruption. The producer-shaped chain requires
+exact prior cumulative count, provider sequence, and window-end continuity. Its bounded scan re-reads
+a short valid prefix so a corrupt next row cannot be hidden as baseline-only evidence.
+
+Before projection, the positive WAL ordinal has no candidate writer admission receipt and the exact
+canonical lane cursor remains at zero. After the production Steps lane drains through that ordinal,
+the exact receipt, session/run/manifest/purpose/binding attribution, positive effective count, and
+cursor are present. The legacy destination is checked under its real `source-event:<eventId>`
+identity and remains empty. The test-local `Recorded` result is deliberately not a persisted
+production lifecycle state.
+
+This fixture fabricates capture attribution after the admission boundary. It does not exercise
+observed-time broker authorization, demand freshness, capture-admission fencing, provider callbacks,
+or a real sensor. Those remain the exact manual/device gate rather than being inferred from host WAL
+construction.
+
+### Evidence
+
+- `.\gradlew.bat :tracker:engine:testDebugUnitTest --tests
+  "*StepsRecordingBoundaryIntegrationTest" --tests "*RoomDurableSourceIngressTest" --tests
+  "*StepsSessionFactProjectionLaneTest" --no-daemon --no-parallel --max-workers=1
+  "-Pksp.incremental=false"` passes in `3m 16s` with 234 tasks (7 executed, 227 up-to-date).
+- XML records `65/65` tests with zero failures/errors/skips: boundary `2/2`, production ingress
+  `49/49`, and canonical Steps projection `14/14`.
+- `.\gradlew.bat detekt --no-daemon --no-parallel --max-workers=1
+  "-Pksp.incremental=false"` passes in `21s` with one task.
+- Adversarial review found four initial issues: impossible covered-window continuity, an overbroad
+  admission claim, hidden mid-page corruption, and the wrong legacy signal identity. All four were
+  corrected; the final re-review reports no remaining actionable semantic or flakiness issue.
+- The first sandboxed focused run failed before Gradle configuration because the pinned distribution
+  could not be downloaded. The authorized rerun is the counted evidence. An attempted module-local
+  Detekt task did not exist; the passing repository-level `detekt` task above is authoritative.
+- No exact Steps-only sensor-to-WAL production-admission, provider/listener, device, activation, or
+  rollout evidence was produced by the new boundary test. No process/reboot/FGS/battery/OEM,
+  visual, or accessibility evidence was produced.
+
+### Gate status and next wave
+
+- Passed: integrity/decode boundary; baseline and covered-zero exclusion from the positive recording
+  verdict; producer-shaped positive chain; bounded corrupt-prefix handling; absence of a candidate
+  receipt before drain; exact canonical receipt/cursor afterward; no legacy duplicate destination.
+- Failed or unverified: production admission and freshness; exact sole-source demand/registration;
+  a real `TYPE_STEP_COUNTER` callback; normal recovery timing; live/stopped UI on device; listener
+  removal; process/reboot/FGS/battery behavior; activation and rollout.
+- Next: add only the disposable test instrumentation seam for the exact manual Steps-only scenario.
+  It must use normal production recovery rather than calling `drainThrough`, and platform listener
+  removal still requires before/during/after `dumpsys sensorservice` evidence on real hardware.

@@ -1531,3 +1531,30 @@ Each entry records repository evidence and does not duplicate the final architec
   truthful and does not authorize an unbounded search. This does not solve Statistics paging,
   day/Calendar composition, cross-run totals, deletion, export/import, manual provider proof,
   automatic/ambient Steps, or any other source.
+
+## TI-D121 — Steps RECORDING is a qualified positive WAL boundary, not a persisted session state
+
+- Status: `ACCEPTED_AND_IMPLEMENTED_AS_SYNTHETIC_HOST_BOUNDARY_PROOF` at `dff1b85fd`; exact
+  Steps-only admission/provider/device-chain proof remains `BLOCKED`
+- Owner/date: lead orchestrator after focused ingress/projection verification and adversarial
+  corrected-diff review, 2026-08-31
+- Alternatives: add a durable `RECORDING` lifecycle state; treat the first baseline or unchanged
+  covered window as recording; wait for projection before recognizing capture; force a projection
+  drain or delay into production; define the evidence boundary at the first positive, contiguous,
+  capture-attributed post-baseline WAL window and keep materialization independently observable
+- Evidence: the Steps provider must first establish a noncontributing baseline. A later covered-zero
+  window proves coverage but no positive step effect. The durable WAL can commit before the
+  asynchronous candidate writer receipt/cursor, and production decoding can return a valid prefix
+  before a corrupt row. The legacy bridge addresses its destination as `source-event:<eventId>`.
+- Decision: the manual gate may report `RECORDING` only from an integrity-valid, production-admitted
+  Steps v3 `COVERED` window with positive delta, exact session/run capture attribution, current
+  generation/authorization/lifecycle stamps, and a compatible preceding baseline chain. Baseline,
+  covered zero, reset, legacy-ambiguous, corrupt, scan-exhausted, or attribution-invalid evidence is
+  non-recording or typed unverifiable. `MATERIALIZED` remains the separate exact candidate writer
+  receipt plus committed lane cursor. No production lifecycle row, forced drain, or timing delay is
+  added.
+- Consequences: `dff1b85fd` proves the WAL-before-receipt ordering and canonical materialization only
+  from synthetic capture-attributed host rows decoded by production code. It intentionally does not
+  prove broker admission, observed-time freshness, provider callbacks, normal recovery scheduling,
+  UI, or listener removal. The disposable device harness must supply those facts and use normal
+  recovery; real `SensorService` evidence remains required for listener removal.
