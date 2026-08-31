@@ -1612,3 +1612,62 @@ The new reader remains internal and has no public repository, list, day, live, o
 - Next: expose the smallest truthful Steps-only list/live surface while preserving contained Trip
   Detail and keeping unavailable, partial, and materializing state distinct from zero. Do not route
   a logical entry to presentation-only deletion or an arbitrary physical detail row.
+
+## Public Steps-only history read checkpoint (2026-08-31)
+
+### Outcome
+
+Commit `90f7e758e` exposes the bounded logical Steps-only history read through the production
+`TrackingHistoryRepository`. Selected-session history now carries exact revisioned capture/control
+authority plus qualified source names. Public construction enforces that every qualified source was
+captured by exact historical authority; migrated or incomplete authority remains `Unverifiable` and
+cannot qualify a source. A session is Steps-only only when every retained revision captured exactly
+Steps. Separately named control sources do not become captured history.
+
+The recent list filters exact Steps-only entries before applying its `1..100` accepted-result limit,
+so a newer mixed-source entry cannot starve an older valid entry. Replacement-run members remain
+grouped by the existing logical reader. The public row contains only a non-inspectable equality key,
+the physical-membership time envelope, and `AVAILABLE`, `MATERIALIZING`, or `PARTIAL`; it exposes no
+cross-run number and no segment identity usable for detail, map, export, or deletion.
+
+An initially proposed physical-Trip suppression set was withdrawn during adversarial review. A
+suppression set derived from an independently limited logical list cannot safely cover a separately
+paged Trip consumer. Any action-bearing list must instead add one bounded composition against that
+consumer's actual physical candidate window. No speculative global alias or suppression API remains.
+
+The Room observer shares the selected-history invalidation tables, cancels stale reads with
+`mapLatest`, runs on the injected I/O dispatcher, and reacts to source-local fence changes. This
+checkpoint adds no provider demand, writer, schema, migration, numeric aggregate, UI, navigation,
+deletion, export, activation, or rollout behavior.
+
+### Evidence
+
+- `./gradlew.bat :stats:api:allTests :stats:data:testDebugUnitTest
+  :feature:statistics:testDebugUnitTest detekt :stats:data:lintDebug
+  :app:hiltJavaCompileDebug --no-parallel` passes in `41s` with 672 tasks (`9` executed, `663`
+  up-to-date). Stats API JVM and Android host are each `313/313`, stats data is `183/183`, and
+  feature statistics is `427/427`, with zero failures/errors/skips. Stats-data lint reports no new
+  issue; its existing baseline filters 283 errors and 270 warnings.
+- `./gradlew.bat checkRoomSchemaDrift --no-parallel` passes post-commit in `2s` with 42 tasks; the
+  committed v28 schema is unchanged.
+- Three independent final corrected-diff reviews report no remaining scoped `BLOCKER`, `HIGH`, or
+  `MEDIUM` in the public authority contract, Room selection/invalidation behavior, or tests.
+- Development verification first exposed missing public KDoc and one over-complex reducer; both
+  were corrected. A new reactivity test initially waited on a manifest write that did not change
+  the selected immutable run snapshot, then briefly became a non-void JUnit expression after its
+  dispatcher correction. The final test instead uses an observed source-local fence, returns
+  explicit `Unit`, passes alone, and passes in the complete gate above.
+- No emulator/device/provider/process/reboot/FGS/battery, visual, accessibility, or UI evidence was
+  produced.
+
+### Gate status and next wave
+
+- Passed: exact public capture/control authority; qualification consistency; migrated typed block;
+  every-revision Steps-only filtering before limits; grouped opaque nonnumeric rows; fence-reactive
+  bounded Room observation; contained Trip Detail regression; unchanged schema and writer ownership.
+- Failed or unverified: a concrete list consumer, candidate-window Trip suppression, ordinary
+  navigation, truthful live Dashboard layout, `QUERYABLE`, selected deletion, numeric consumers,
+  device/provider/process evidence, activation, and rollout.
+- Next: wire the smallest truthful Steps-only live/list product surface. Keep the logical row
+  non-clickable, and introduce candidate-scoped batch composition only where the real physical list
+  consumer requires it. Missing or unavailable selected/live Steps must remain nonnumeric.

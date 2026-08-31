@@ -1421,3 +1421,35 @@ Each entry records repository evidence and does not duplicate the final architec
   identity but stay blocked and qualify no source; logical identity grants no deletion, export, or
   fact authority. The reader is internal and has no public list/UI caller, so this commit does not
   establish ordinary navigation, safe deletion, live/day state, or `QUERYABLE`.
+
+## TI-D117 — Public Steps-only history exposes opaque nonnumeric rows, not global suppression aliases
+
+- Status: `ACCEPTED_AND_IMPLEMENTED_AS_PUBLIC_READ_CONTRACT` at `90f7e758e`; concrete list/live UI,
+  ordinary navigation, and `QUERYABLE` remain `BLOCKED`
+- Owner/date: lead orchestrator after focused implementation, complete affected host verification,
+  and three independent final corrected-diff reviews, 2026-08-31
+- Alternatives: expose only selected-session Steps; expose a logical cross-run total; return raw
+  logical or segment IDs to presentation code; infer Steps-only from qualification or `sampleCount`;
+  publish suppression IDs from an independently limited logical list; expose exact revisioned
+  authority plus a bounded opaque nonnumeric logical list and defer physical suppression until a
+  concrete consumer owns both candidate windows
+- Evidence: TI-D115/TI-D116 provide exact per-run capture/product evidence and bounded logical
+  grouping, but neither had a public list caller. Every retained revision matters: a later mixed
+  capture revision or one unverifiable replacement member must block the whole Steps-only claim.
+  Separately, a logical top-N and a paged physical Trip top-N do not share a coverage boundary, so
+  aliases from the former cannot safely suppress the latter.
+- Decision: `SessionHistory` exposes exact immutable capture/control revisions or typed
+  `Unverifiable`, plus qualified sources constrained to the union of exact captured sources.
+  `capturesOnlySteps` requires every retained captured-source set to equal `{Steps}`; control remains
+  separate. `observeRecentStepsOnlyEntries(limit)` applies the exact Steps-only predicate before the
+  accepted-result limit and returns only an opaque equality key, the member time envelope, and a
+  nonnumeric `AVAILABLE`/`MATERIALIZING`/`PARTIAL` state. It returns no cross-run count, physical
+  segment identity, or suppression aliases. Existing Trip-row suppression must be composed in a
+  bounded read against the concrete consumer's actual physical candidates.
+- Consequences: production code now has a source-qualified, replacement-aware read seam suitable
+  for a non-clickable Steps list row without fabricating zero or granting mutation/detail authority.
+  The seam alone does not make source-only entries navigable and cannot safely filter independent
+  Trip paging. The next UI slice must own that concrete composition, preserve the contained Trip
+  Detail state model, preserve truthful selected-session missing and unavailable states, and add
+  them to the live surface. No provider,
+  writer, schema, deletion, export, activation, or rollout behavior changes.
