@@ -95,6 +95,35 @@ class TrackingHistoryMappingTest {
 	}
 
 	@Test
+	fun `presentation binding failures stay typed by verification boundary`() {
+		val mismatched = result(
+			count = null,
+			availability = StepsHistoryAvailability.UNAVAILABLE,
+			evidence = StepsHistoryEvidence.NO_OBSERVATION,
+			materialization = StepsHistoryMaterialization.FAILED,
+			coverage = StepsHistoryCoverage.UNKNOWN,
+			reasons = setOf(StepsHistoryReason.SERVICE_RUN_SEGMENT_BINDING_MISMATCH),
+		).toPublicHistory()
+		mismatched.causes shouldContainExactly setOf(
+			StepsHistoryCause.HISTORY_MEMBERSHIP_UNAVAILABLE,
+			StepsHistoryCause.AVAILABILITY_UNAVAILABLE,
+		)
+
+		val legacyUnverifiable = result(
+			count = null,
+			availability = StepsHistoryAvailability.UNAVAILABLE,
+			evidence = StepsHistoryEvidence.NO_OBSERVATION,
+			materialization = StepsHistoryMaterialization.FAILED,
+			coverage = StepsHistoryCoverage.UNKNOWN,
+			reasons = setOf(StepsHistoryReason.SERVICE_RUN_SEGMENT_BINDING_UNVERIFIABLE),
+		).toPublicHistory()
+		legacyUnverifiable.causes shouldContainExactly setOf(
+			StepsHistoryCause.LEGACY_UNVERIFIED,
+			StepsHistoryCause.AVAILABILITY_UNAVAILABLE,
+		)
+	}
+
+	@Test
 	fun `disabled and deleted history remain different public combinations`() {
 		val disabled = result(
 			count = null,

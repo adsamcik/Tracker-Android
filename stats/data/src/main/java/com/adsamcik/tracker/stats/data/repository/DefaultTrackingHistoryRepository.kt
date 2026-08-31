@@ -154,6 +154,7 @@ internal fun StepsHistoryReason.toPublicCause(): StepsHistoryCause = when (this)
 	StepsHistoryReason.SEGMENT_MEMBERSHIP_INCOMPLETE,
 	StepsHistoryReason.SERVICE_RUN_MISSING,
 	StepsHistoryReason.SERVICE_RUN_MEMBERSHIP_MISMATCH,
+	StepsHistoryReason.SERVICE_RUN_SEGMENT_BINDING_MISMATCH,
 	StepsHistoryReason.MANIFEST_MISSING,
 	StepsHistoryReason.MANIFEST_MEMBERSHIP_MISMATCH -> StepsHistoryCause.HISTORY_MEMBERSHIP_UNAVAILABLE
 	StepsHistoryReason.MANIFEST_INTEGRITY_FAILED -> StepsHistoryCause.HISTORY_INTEGRITY_FAILED
@@ -165,7 +166,9 @@ internal fun StepsHistoryReason.toPublicCause(): StepsHistoryCause = when (this)
 	StepsHistoryReason.TARGET_BEFORE_LANE_ACTIVATION -> StepsHistoryCause.WRITER_PROVENANCE_INVALID
 	StepsHistoryReason.LEGACY_UNATTRIBUTED,
 	StepsHistoryReason.LEGACY_REPLAY_UNVERIFIED,
-	StepsHistoryReason.LEGACY_ZERO_UNVERIFIED -> StepsHistoryCause.LEGACY_UNVERIFIED
+	StepsHistoryReason.LEGACY_ZERO_UNVERIFIED,
+	StepsHistoryReason.SERVICE_RUN_SEGMENT_BINDING_UNVERIFIABLE ->
+		StepsHistoryCause.LEGACY_UNVERIFIED
 	StepsHistoryReason.PRODUCT_LANE_BEHIND -> StepsHistoryCause.MATERIALIZATION_BEHIND
 	StepsHistoryReason.PRODUCT_LANE_CUTOFF_BEFORE_TARGET,
 	StepsHistoryReason.PRODUCT_LANE_RETIRED_BEFORE_TARGET,

@@ -77,6 +77,76 @@ class StepsSegmentHistorySelectorTest {
 	}
 
 	@Test
+	fun newV28RunRequiresItsExactPresentationSegmentBinding() = runTest {
+		insertRun(RUN_ONE, sessionSegmentId = null)
+		database.sourceDeletionFenceDao().upsert(
+			SourceDeletionFenceEntity.createLogicalServiceRun(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+				logicalTrackingId = LOGICAL_ID,
+				serviceRunId = RUN_ONE,
+				fenceGeneration = 1L,
+				collectedDataEpoch = 0L,
+				deletedAtMs = 3_000L,
+			),
+		)
+
+		selector.select(segment(RUN_ONE, steps = 14)) shouldBe StepsSegmentHistoryResult(
+			count = null,
+			availability = StepsHistoryAvailability.UNAVAILABLE,
+			evidence = StepsHistoryEvidence.NO_OBSERVATION,
+			materialization = StepsHistoryMaterialization.FAILED,
+			coverage = StepsHistoryCoverage.UNKNOWN,
+			reasons = setOf(StepsHistoryReason.SERVICE_RUN_SEGMENT_BINDING_MISMATCH),
+		)
+
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ONE))
+		database.sourceSessionDao().updateServiceRun(
+			run.copy(sessionSegmentId = OTHER_SEGMENT_ID),
+		) shouldBe 1
+		selector.select(segment(RUN_ONE, steps = 14)).reasons shouldBe
+			setOf(StepsHistoryReason.SERVICE_RUN_SEGMENT_BINDING_MISMATCH)
+	}
+
+	@Test
+	fun migratedRunWithUnverifiablePresentationOwnershipRemainsTypedAndBlocked() = runTest {
+		insertRun(
+			runId = RUN_ONE,
+			sessionSegmentId = null,
+			presentationAcknowledgement =
+				SourceServiceRunEntity.PRESENTATION_LEGACY_UNVERIFIABLE,
+		)
+
+		selector.select(segment(RUN_ONE, steps = 14)) shouldBe StepsSegmentHistoryResult(
+			count = null,
+			availability = StepsHistoryAvailability.UNAVAILABLE,
+			evidence = StepsHistoryEvidence.NO_OBSERVATION,
+			materialization = StepsHistoryMaterialization.FAILED,
+			coverage = StepsHistoryCoverage.UNKNOWN,
+			reasons = setOf(StepsHistoryReason.SERVICE_RUN_SEGMENT_BINDING_UNVERIFIABLE),
+		)
+	}
+
+	@Test
+	fun exactQuiescedBindingRemainsReadableWithoutBecomingAProductPredicate() = runTest {
+		insertRun(
+			runId = RUN_ONE,
+			presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_QUIESCED,
+			presentationAcknowledgedAtMs = 2_100L,
+		)
+		insertManifest(RUN_ONE, revision = 1L, owner = LEGACY_OWNER)
+
+		selector.select(segment(RUN_ONE, steps = 14)) shouldBe StepsSegmentHistoryResult(
+			count = 14L,
+			availability = StepsHistoryAvailability.AVAILABLE,
+			evidence = StepsHistoryEvidence.LEGACY_RECORDED,
+			materialization = StepsHistoryMaterialization.DEGRADED,
+			coverage = StepsHistoryCoverage.UNKNOWN,
+			reasons = setOf(StepsHistoryReason.LEGACY_REPLAY_UNVERIFIED),
+		)
+	}
+
+	@Test
 	fun observableProductionLookupUsesOnePersistedSnapshotAndEndsAtNotFoundAfterDeletion() = runBlocking {
 		insertRun(RUN_ONE)
 		insertManifest(RUN_ONE, revision = 1L, owner = LEGACY_OWNER)
@@ -684,7 +754,13 @@ class StepsSegmentHistorySelectorTest {
 		facts.forEach { database.stepFactRevisionDao().insert(it.copy(serviceRunId = runId)) }
 	}
 
-	private suspend fun insertRun(runId: String, completed: Boolean = true) {
+	private suspend fun insertRun(
+		runId: String,
+		completed: Boolean = true,
+		sessionSegmentId: Long? = SEGMENT_ID,
+		presentationAcknowledgement: String = SourceServiceRunEntity.PRESENTATION_PENDING,
+		presentationAcknowledgedAtMs: Long? = null,
+	) {
 		database.sourceSessionDao().insertServiceRun(
 			SourceServiceRunEntity(
 				serviceRunId = runId,
@@ -697,6 +773,9 @@ class StepsSegmentHistorySelectorTest {
 				startedElapsedNanos = 1_000L,
 				completedAtMs = 2_000L.takeIf { completed },
 				completionReason = "STOPPED".takeIf { completed },
+				sessionSegmentId = sessionSegmentId,
+				presentationAcknowledgement = presentationAcknowledgement,
+				presentationAcknowledgedAtMs = presentationAcknowledgedAtMs,
 			),
 		)
 	}
@@ -801,6 +880,7 @@ class StepsSegmentHistorySelectorTest {
 		logicalId: String? = LOGICAL_ID,
 		steps: Int?,
 	) = SessionSegment(
+		id = SEGMENT_ID,
 		startTimeMs = 1_000L,
 		endTimeMs = 2_000L,
 		distanceM = 0f,
@@ -972,6 +1052,8 @@ class StepsSegmentHistorySelectorTest {
 	private companion object {
 		const val LOGICAL_ID = "logical-1"
 		const val RUN_ONE = "run-1"
+		const val SEGMENT_ID = 41L
+		const val OTHER_SEGMENT_ID = 42L
 		const val SOURCE_LOCATION = 0
 		const val WRITER_ID = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID
 		const val WRITER_VERSION = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION

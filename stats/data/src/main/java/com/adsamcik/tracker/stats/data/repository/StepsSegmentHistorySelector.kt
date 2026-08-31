@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import javax.inject.Inject
 
@@ -55,6 +56,15 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 		}
 		if (serviceRun.logicalTrackingId != logicalTrackingId) {
 			return unavailable(StepsHistoryReason.SERVICE_RUN_MEMBERSHIP_MISMATCH)
+		}
+		if (
+			serviceRun.presentationAcknowledgement ==
+			SourceServiceRunEntity.PRESENTATION_LEGACY_UNVERIFIABLE
+		) {
+			return unavailable(StepsHistoryReason.SERVICE_RUN_SEGMENT_BINDING_UNVERIFIABLE)
+		}
+		if (serviceRun.sessionSegmentId != segment.id) {
+			return unavailable(StepsHistoryReason.SERVICE_RUN_SEGMENT_BINDING_MISMATCH)
 		}
 		if (database.sourceDeletionFenceDao().contains(
 			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
@@ -461,6 +471,8 @@ internal enum class StepsHistoryReason {
 	SEGMENT_MEMBERSHIP_INCOMPLETE,
 	SERVICE_RUN_MISSING,
 	SERVICE_RUN_MEMBERSHIP_MISMATCH,
+	SERVICE_RUN_SEGMENT_BINDING_UNVERIFIABLE,
+	SERVICE_RUN_SEGMENT_BINDING_MISMATCH,
 	MANIFEST_MISSING,
 	MANIFEST_MEMBERSHIP_MISMATCH,
 	MANIFEST_INTEGRITY_FAILED,
