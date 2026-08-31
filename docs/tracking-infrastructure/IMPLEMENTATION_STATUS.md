@@ -1717,3 +1717,58 @@ deletion, navigation, or UI caller.
   `QUERYABLE`, selected deletion, device/provider/process evidence, activation, and rollout.
 - Next: connect the bounded page only to a concrete finite Dashboard history list, while separately
   completing the live Steps-only surface. Do not apply it as an unbounded paging filter.
+
+## Live Dashboard Steps-only presentation checkpoint (2026-08-31)
+
+### Outcome
+
+Commit `4803d8af3` adds an evidence-backed live Dashboard surface for an active exact Steps-only
+physical segment. The ViewModel binds `observeSession(segmentId)` to the service-running/session
+pair with `flatMapLatest`; replacement or stop cancels the stale observer. Exact revisioned capture
+authority, not `sampleCount`, qualification, or the runtime accumulator, selects the Steps-only
+layout. Control-only Activity remains separate. A missing row, stream failure, or foreign segment
+fails closed to a neutral unavailable surface, while a later valid row may recover.
+
+The Steps value remains typed as complete positive, covered zero, positive partial lower bound,
+materializing, missing, or unavailable. Only complete covered zero renders numeric `0`; unavailable
+authority takes precedence over any numeric payload. The Steps-only screen is intentionally small:
+recording state, durable Steps value, and status. It has no map, Location/GPS, distance, speed,
+accuracy, sensor-detail, or detail action, and it omits a clock-driven duration rather than showing
+a stale value or adding a periodic timer.
+
+The tracking pill now keeps Stop reachable without Location permission. Existing runtime
+distance/Steps/time milestone behavior remains unchanged for a `Standard` presentation only when
+its segment ID equals the current physical session. Steps-only, resolving, unavailable, and stale
+replacement authority consume no raw milestone input. Ten new strings are present in all 27
+Dashboard locale resource sets. No provider demand, writer, schema, list composition, deletion,
+activation, or rollout behavior changes.
+
+### Evidence
+
+- `./gradlew.bat :feature:dashboard:testDebugUnitTest detekt
+  :feature:dashboard:lintDebug :app:hiltJavaCompileDebug --no-parallel --console=plain` passes in
+  `1m 37s` with 766 tasks. Dashboard is `200/200` across 49 suites with zero
+  failures/errors/skips. Lint has zero errors and one pre-existing guarded `InlinedApi` warning;
+  all localized resources compile. Detekt and app Hilt compilation pass.
+- The post-correction focused six-class Dashboard shard passes in `35s` with 268 tasks: `24/24`,
+  zero failures/errors/skips. It covers live-state mapping, replacement/stop cancellation,
+  screen containment, Stop without Location permission, raw-milestone suppression, and typed Steps
+  presentation.
+- The final stale-Standard/new-segment authority correction passes its three focused suites plus
+  root Detekt in `41s` with 269 tasks: `14/14`, zero failures/errors/skips.
+- Two independent reviews found and the final code corrects indefinite `NotFound` resolving, a
+  non-ticking duration, global milestone removal, and stale-segment milestone authority. The final
+  corrected-diff verdict has no remaining scoped `BLOCKER`, `HIGH`, or `MEDIUM`.
+- No emulator/device/provider/process/reboot/FGS/battery, visual, or accessibility evidence was
+  produced.
+
+### Gate status and next wave
+
+- Passed: exact live capture authority; control separation; segment rebinding/cancellation;
+  fail-closed missing/error/mismatch; truthful numeric-zero boundary; contained Steps-only UI;
+  Stop without Location permission; exact-segment milestone containment; localized resources.
+- Failed or unverified: finite recent-list wiring, ordinary sole-source discovery, `QUERYABLE`,
+  selected deletion, manual/device provider and listener-removal proof, activation, and rollout.
+- Next: wire the candidate-scoped page to the finite Dashboard recent-history consumer. Suppress
+  the raw Last Session bypass when the composed newest row is opaque Steps-only, and keep the
+  Statistics paging path outside this bounded contract.

@@ -1475,3 +1475,28 @@ Each entry records repository evidence and does not duplicate the final architec
   arbitrary paging, day aggregation, Statistics lists, export, selected deletion, or numeric
   cross-run totals. A caller that supplies an incomplete candidate window may receive a truthful
   underfilled page; it may not infer that omitted history is absent.
+
+## TI-D119 — Live Dashboard authority is exact, segment-bound, and nonnumeric by default
+
+- Status: `ACCEPTED_AND_IMPLEMENTED_AS_LIVE_PRESENTATION_SLICE` at `4803d8af3`; recent-list
+  discovery, `QUERYABLE`, numeric consumers, and device proof remain `BLOCKED`
+- Owner/date: lead orchestrator after complete Dashboard host verification and corrected-diff
+  review, 2026-08-31
+- Alternatives: reuse `TrackerSessionSnapshot.steps`; select source layout from qualification or
+  `sampleCount`; keep the Location UI until a Steps value appears; show missing values as zero;
+  retain a non-ticking duration; globally remove existing milestones; bind the durable selected-run
+  history to the exact active physical segment and fail closed while authority is absent
+- Decision: the live Dashboard observes durable selected-session history only while the tracker
+  publishes a positive active segment. Exact every-revision `{Steps}` captured intent selects the
+  Steps-only surface; control sources do not make it mixed. `NotFound`, observer failure, or segment
+  mismatch is unavailable, and replacement/stop cancels the old stream. The UI exposes complete
+  positive, covered zero, partial lower bound, materializing, missing, and unavailable states;
+  only complete covered zero is numeric zero. Steps-only UI contains no Location-derived or action
+  affordance and keeps Stop available without Location permission. Runtime milestones retain their
+  previous behavior only for an exact current-segment `Standard` presentation and are disabled for
+  every other authority state.
+- Consequences: an active Steps-only session can be represented without activating Location or
+  trusting the runtime accumulator. Host tests establish the state/UI contract, not sensor,
+  listener, FGS, process, reboot, battery, visual-device, or accessibility behavior. The live slice
+  neither makes stopped Steps-only history ordinarily discoverable nor grants logical detail,
+  export, or deletion authority; the finite list consumer remains the next gate.
