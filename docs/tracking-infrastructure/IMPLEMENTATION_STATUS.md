@@ -1671,3 +1671,49 @@ deletion, export, activation, or rollout behavior.
 - Next: wire the smallest truthful Steps-only live/list product surface. Keep the logical row
   non-clickable, and introduce candidate-scoped batch composition only where the real physical list
   consumer requires it. Missing or unavailable selected/live Steps must remain nonnumeric.
+
+## Candidate-scoped Steps-aware history page checkpoint (2026-08-31)
+
+### Outcome
+
+Commit `2ac4e399d` adds the finite composition required by a real action-bearing history consumer.
+The caller supplies its complete bounded physical candidate window and a final result limit. In one
+Room transaction, the repository snapshots those candidates, loads their authoritative logical
+groups, suppresses every physical member of an exact Steps-only intent group, and emits a qualified
+opaque logical row only when current source evidence permits it. Baseline-only, fenced, unavailable,
+or otherwise unqualified exact Steps-only groups therefore remain hidden rather than resurfacing as
+misleading Trip rows.
+
+Physical results can only echo positive, distinct, existing IDs from the supplied candidate set.
+Logical Steps-only results remain non-selectable and nonnumeric. Both row kinds are ordered by the
+newest authoritative physical `(startTimeMs, segmentId)` member before the final `1..100` limit.
+Missing candidates are omitted, inputs are defensively copied, and the observer invalidates for all
+tables read by the transaction. This commit adds no provider demand, writer, schema, migration,
+deletion, navigation, or UI caller.
+
+### Evidence
+
+- `./gradlew.bat :stats:api:allTests :stats:data:testDebugUnitTest --no-parallel` passes in `28s`
+  with 215 tasks. Stats API JVM and Android host are each `314/314`; stats data is `191/191`, with
+  zero failures/errors/skips.
+- `./gradlew.bat :stats:api:allTests :stats:data:testDebugUnitTest --tests
+  "*StepsSegmentHistorySelectorTest" --no-parallel` passes in `24s` with 219 tasks.
+- The shared `detekt :stats:data:lintDebug :feature:dashboard:lintDebug
+  :app:hiltJavaCompileDebug --no-parallel` run completed root Detekt, Stats lint, and the app Hilt
+  compile. Stats lint reported no new issue; the overall command later failed only on ten new
+  Dashboard `MissingTranslation` findings outside this commit.
+- Two independent final read-only reviews report no scoped `BLOCKER`, `HIGH`, or `MEDIUM`. They
+  confirm transaction coherence, intent-based no-resurrection, qualification-only logical
+  visibility, newest-member ordering, candidate containment, final limiting, and invalidation.
+- No emulator/device/provider/process/reboot/FGS/battery, visual, accessibility, or UI evidence was
+  produced.
+
+### Gate status and next wave
+
+- Passed: finite candidate ownership; whole-group exact Steps-only suppression independent of
+  current qualification; qualified opaque replacement; stable post-merge ordering and limit;
+  missing-candidate omission; no action authority leakage.
+- Failed or unverified: a production list caller, ordinary navigation, live Dashboard truth,
+  `QUERYABLE`, selected deletion, device/provider/process evidence, activation, and rollout.
+- Next: connect the bounded page only to a concrete finite Dashboard history list, while separately
+  completing the live Steps-only surface. Do not apply it as an unbounded paging filter.

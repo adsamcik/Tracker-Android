@@ -1453,3 +1453,25 @@ Each entry records repository evidence and does not duplicate the final architec
   Detail state model, preserve truthful selected-session missing and unavailable states, and add
   them to the live surface. No provider,
   writer, schema, deletion, export, activation, or rollout behavior changes.
+
+## TI-D118 — Action-bearing history composition is finite and candidate-owned
+
+- Status: `ACCEPTED_AND_IMPLEMENTED_AS_BOUNDED_READ_CONTRACT` at `2ac4e399d`; production list
+  wiring and `QUERYABLE` remain `BLOCKED`
+- Owner/date: lead orchestrator after two independent final read-only reviews, 2026-08-31
+- Alternatives: publish a global suppression-ID stream; independently limit physical and logical
+  queries and merge them in UI; filter an unbounded paging stream row by row; expose replacement
+  segment IDs for detail or deletion; compose against the concrete consumer's finite candidate set
+- Decision: a consumer that owns a complete finite physical candidate window may request one
+  Steps-aware page of at most 100 candidates and at most 100 final rows. One Room transaction loads
+  the supplied candidates and their complete authoritative logical groups. Exact Steps-only intent
+  suppresses the whole physical group even when its current evidence is baseline-only, fenced, or
+  unavailable; a logical replacement appears only when the group is currently qualified. Physical
+  results echo only caller-supplied existing IDs, while logical rows expose an opaque nonnumeric,
+  non-selectable identity. The newest physical member determines recency and the final limit is
+  applied only after the merge.
+- Consequences: a finite Dashboard list can avoid duplicate or misleading Trip rows without
+  acquiring cross-screen identity or deletion authority. The contract intentionally does not solve
+  arbitrary paging, day aggregation, Statistics lists, export, selected deletion, or numeric
+  cross-run totals. A caller that supplies an incomplete candidate window may receive a truthful
+  underfilled page; it may not infer that omitted history is absent.
