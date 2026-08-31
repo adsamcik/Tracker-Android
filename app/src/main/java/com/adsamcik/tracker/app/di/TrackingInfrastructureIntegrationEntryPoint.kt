@@ -1,7 +1,11 @@
 package com.adsamcik.tracker.app.di
 
+import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbiter
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import com.adsamcik.tracker.tracker.source.coordinator.StepsSessionFactWriterTransitionCoordinator
+import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
@@ -15,6 +19,10 @@ import dagger.hilt.components.SingletonComponent
 @EntryPoint
 @InstallIn(SingletonComponent::class)
 internal interface TrackingInfrastructureIntegrationEntryPoint {
+	fun activityRegistrationArbiter(): ActivityRegistrationArbiter
 	fun collectedDataLifecycleStore(): CollectedDataLifecycleStore
+	fun durableSourceIngress(): DurableSourceIngress
 	fun stepsWriterTransitionCoordinator(): StepsSessionFactWriterTransitionCoordinator
+	fun trackingHistoryRepository(): TrackingHistoryRepository
+	fun trackingParamsRepository(): TrackingParamsRepository
 }
