@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -112,6 +113,28 @@ class TripDaoTest {
 		// Should be newest first
 		assertEquals(5000L, trips[0].startTimeMs)
 		assertEquals(4000L, trips[1].startTimeMs)
+	}
+
+	@Test
+	fun getRecentTripsBreaksEqualStartTimeTiesByDescendingId() = runBlocking {
+		segmentDao.insert(createSegment(startTimeMs = 1_000L, endTimeMs = 4_000L))
+		val secondId = segmentDao.insert(createSegment(startTimeMs = 1_000L, endTimeMs = 3_000L))
+		val thirdId = segmentDao.insert(createSegment(startTimeMs = 1_000L, endTimeMs = 2_000L))
+
+		val ids = tripDao.getRecentTrips(2).map { it.id }
+
+		assertEquals(listOf(thirdId, secondId), ids)
+	}
+
+	@Test
+	fun getRecentTripsFlowBreaksEqualStartTimeTiesByDescendingId() = runBlocking {
+		segmentDao.insert(createSegment(startTimeMs = 1_000L, endTimeMs = 4_000L))
+		val secondId = segmentDao.insert(createSegment(startTimeMs = 1_000L, endTimeMs = 3_000L))
+		val thirdId = segmentDao.insert(createSegment(startTimeMs = 1_000L, endTimeMs = 2_000L))
+
+		val ids = tripDao.getRecentTripsFlow(2).first().map { it.id }
+
+		assertEquals(listOf(thirdId, secondId), ids)
 	}
 
 	@Test

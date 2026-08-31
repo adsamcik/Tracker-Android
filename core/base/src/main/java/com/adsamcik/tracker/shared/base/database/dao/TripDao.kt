@@ -141,7 +141,7 @@ interface TripDao {
 		       has_distance_anomaly AS hasDistanceAnomaly
 		FROM session_segment
 		WHERE sample_count > 0
-		ORDER BY startTimeMs DESC
+		ORDER BY startTimeMs DESC, id DESC
 		LIMIT :limit
 		"""
 	)
@@ -160,7 +160,7 @@ interface TripDao {
 		       has_distance_anomaly AS hasDistanceAnomaly
 		FROM session_segment
 		WHERE sample_count > 0
-		ORDER BY startTimeMs DESC
+		ORDER BY startTimeMs DESC, id DESC
 		LIMIT :limit
 		"""
 	)
