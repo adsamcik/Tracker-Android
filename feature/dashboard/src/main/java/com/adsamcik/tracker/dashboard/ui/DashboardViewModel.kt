@@ -10,6 +10,8 @@ import com.adsamcik.tracker.dashboard.data.DashboardHistoryRepository
 import com.adsamcik.tracker.dashboard.data.DashboardHistorySection
 import com.adsamcik.tracker.dashboard.data.DashboardLayout
 import com.adsamcik.tracker.dashboard.data.DashboardLayoutStore
+import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryEntry
+import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryState
 import com.adsamcik.tracker.dashboard.data.DashboardWeeklyTrend
 import com.adsamcik.tracker.dashboard.data.DashboardWidgetRegistry
 import com.adsamcik.tracker.dashboard.ui.compose.state.LatestAchievementUi
@@ -25,7 +27,6 @@ import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
 import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
-import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import com.adsamcik.tracker.tracker.insights.SessionInsight
@@ -102,6 +103,36 @@ class DashboardViewModel @Inject constructor(
 		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
 	/**
+	 * The idle history subscription exists only while tracking is stopped. Starting tracking
+	 * cancels the coordinated Room/Stats page and removes stale history from presentation.
+	 */
+	@OptIn(ExperimentalCoroutinesApi::class)
+	val recentHistory: StateFlow<DashboardRecentHistoryState> =
+		trackerStateReader.isServiceRunningFlow
+			.flatMapLatest { isRunning ->
+				if (isRunning) {
+					flowOf(DashboardRecentHistoryState.Loading)
+				} else {
+					historyRepository.observeRecentHistory()
+						.map<List<DashboardRecentHistoryEntry>, DashboardRecentHistoryState> {
+							entries -> DashboardRecentHistoryState.Content(entries)
+						}
+						.onStart { emit(DashboardRecentHistoryState.Loading) }
+						.catch { throwable ->
+							if (throwable is CancellationException) throw throwable
+							emit(DashboardRecentHistoryState.Unavailable)
+						}
+				}
+			}.stateIn(
+				scope = viewModelScope,
+				started = SharingStarted.WhileSubscribed(
+					stopTimeoutMillis = 5_000,
+					replayExpirationMillis = 0,
+				),
+				initialValue = DashboardRecentHistoryState.Loading,
+			)
+
+	/**
 	 * Binds the durable history read to the currently published physical segment. A replacement
 	 * segment or service stop cancels the old Room observation through [flatMapLatest].
 	 */
@@ -134,12 +165,6 @@ class DashboardViewModel @Inject constructor(
 
 	private val _todaySummary = MutableStateFlow<DailySummary?>(null)
 	val todaySummary: StateFlow<DailySummary?> = _todaySummary.asStateFlow()
-
-	private val _dbLastSession = MutableStateFlow<Trip?>(null)
-	val dbLastSession: StateFlow<Trip?> = _dbLastSession.asStateFlow()
-
-	private val _recentTrips = MutableStateFlow<List<Trip>>(emptyList())
-	val recentTrips: StateFlow<List<Trip>> = _recentTrips.asStateFlow()
 
 	private val _explorationState = MutableStateFlow(ExplorationUiState())
 	val explorationState: StateFlow<ExplorationUiState> = _explorationState.asStateFlow()
@@ -175,20 +200,15 @@ class DashboardViewModel @Inject constructor(
 	}
 
 	/**
-	 * Loads historical data from persistence when not actively tracking.
-	 * [lastSessionData] is the controller's last session; if null, the repository
-	 * supplies the latest persisted session.
+	 * Loads optional historical cards from persistence when not actively tracking.
+	 * Recent history is lifecycle-aware and independently observed through [recentHistory].
 	 */
-	fun loadHistoricalData(isTracking: Boolean, lastSessionData: TrackerSessionSnapshot?) {
+	fun loadHistoricalData(isTracking: Boolean) {
 		if (isTracking) return
 
 		viewModelScope.launch {
 			runCatchingCancellable {
-				val history = historyRepository.load(includeLastSession = lastSessionData == null)
-				if (lastSessionData == null) {
-					_dbLastSession.value = history.lastSession
-				}
-				_recentTrips.value = history.recentTrips
+				val history = historyRepository.load()
 				when (val exploration = history.exploration) {
 					is DashboardHistorySection.Loaded -> {
 						_explorationState.value = exploration.value?.let {

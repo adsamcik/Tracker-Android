@@ -65,8 +65,14 @@
     <string name="dashboard_last_session_distance">Afstand</string>
     <string name="dashboard_last_session_steps">Stappen</string>
     <string name="dashboard_last_session_view_map">Kaart bekijken</string>
-    <string name="dashboard_recent_trips_title">Recente ritten</string>
-    <string name="dashboard_recent_trips_empty">Geen recente ritten. Start tracking om je reizen hier te zien.</string>
+    <string name="dashboard_recent_trips_title">Recente tracking</string>
+    <string name="dashboard_recent_trips_empty">Geen recente trackingsessies. Start tracking om ze hier te zien.</string>
+    <string name="dashboard_recent_history_loading">Recente tracking laden…</string>
+    <string name="dashboard_recent_history_unavailable">Recente tracking is niet beschikbaar</string>
+    <string name="dashboard_recent_steps_title">Stappensessie</string>
+    <string name="dashboard_recent_steps_available">Stappengeschiedenis beschikbaar</string>
+    <string name="dashboard_recent_steps_materializing">Stappengeschiedenis voorbereiden…</string>
+    <string name="dashboard_recent_steps_partial">Gedeeltelijke stappengeschiedenis</string>
     <string name="dashboard_exploration_title">Verkenning</string>
     <string name="dashboard_exploration_new_today">Nieuw vandaag</string>
     <string name="dashboard_exploration_total_cells">Totaal aantal cellen</string>
@@ -120,7 +126,7 @@
     <string name="widget_today_progress">Voortgang van vandaag</string>
     <string name="widget_streak">Reeks</string>
     <string name="widget_last_session">Laatste sessie</string>
-    <string name="widget_recent_trips">Recente ritten</string>
+    <string name="widget_recent_trips">Recente tracking</string>
     <string name="widget_exploration">Verkenning</string>
     <string name="dashboard_customize_title">Dashboard aanpassen</string>
     <string name="dashboard_customize_reset">Standaard herstellen</string>

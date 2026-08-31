@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.dashboard.ui.compose.state
 
+import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryState
 import com.adsamcik.tracker.stats.api.PolicyTier
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
@@ -39,9 +40,9 @@ class DashboardUiStateTest {
 		}
 
 		@Test
-		fun `default recent trips is empty`() {
+		fun `default recent history is loading`() {
 			val state = DashboardUiState()
-			state.recentTrips.shouldBeEmpty()
+			state.recentHistory shouldBe DashboardRecentHistoryState.Loading
 		}
 
 		@Test

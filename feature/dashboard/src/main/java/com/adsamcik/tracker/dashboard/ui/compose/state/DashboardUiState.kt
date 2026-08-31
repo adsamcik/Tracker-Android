@@ -1,9 +1,9 @@
 package com.adsamcik.tracker.dashboard.ui.compose.state
 
 import androidx.compose.runtime.Immutable
+import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryState
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.model.Location
-import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
@@ -40,7 +40,7 @@ data class DashboardUiState(
 
 	// ─── Daily summary (idle mode) ───────────────────────────────────
 	val todaySummary: DailySummary? = null,
-	val recentTrips: List<Trip> = emptyList(),
+	val recentHistory: DashboardRecentHistoryState = DashboardRecentHistoryState.Loading,
 
 	// ─── Gamification ────────────────────────────────────────────────
 	val pointsToday: Int = 0,

@@ -1,3 +1,5 @@
+@file:Suppress("FunctionNaming")
+
 package com.adsamcik.tracker.dashboard.ui.compose.cards
 
 import android.text.format.DateUtils
@@ -36,26 +38,27 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
+import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryEntry
+import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryState
 import com.adsamcik.tracker.shared.base.data.SessionActivityIds
 import com.adsamcik.tracker.shared.utils.style.compose.RidgelineCardDefaults
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.extension.formatDistance
 import com.adsamcik.tracker.shared.model.Trip
+import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryListState
 
 /**
- * Card displaying the most recent trips with activity icons,
- * distance, duration, and relative time.
+ * Card displaying the coordinated recent tracking page. Physical rows retain their established
+ * actions while opaque Steps-only rows deliberately expose no detail identity or numeric value.
  */
 @Composable
 internal fun RecentTripsCard(
-	trips: List<Trip>,
+	recentHistory: DashboardRecentHistoryState,
 	onTripClick: ((Long) -> Unit)?,
 	modifier: Modifier = Modifier,
 ) {
-	val context = LocalContext.current
-	val settings = TrackerSettingsQuick.snapshot(context)
-
 	Card(
 		modifier = modifier.fillMaxWidth(),
 		colors = CardDefaults.cardColors(
@@ -75,15 +78,32 @@ internal fun RecentTripsCard(
 				color = MaterialTheme.colorScheme.onSurfaceVariant,
 			)
 
-			if (trips.isEmpty()) {
-				Text(
-					text = stringResource(R.string.dashboard_recent_trips_empty),
-					style = MaterialTheme.typography.bodySmall,
-					color = MaterialTheme.colorScheme.onSurfaceVariant,
-				)
-			} else {
-				trips.forEach { trip ->
-					key(trip.id) {
+			RecentHistoryRows(recentHistory, onTripClick)
+		}
+	}
+}
+
+@Composable
+private fun RecentHistoryRows(
+	recentHistory: DashboardRecentHistoryState,
+	onTripClick: ((Long) -> Unit)?,
+) {
+	val context = LocalContext.current
+	val settings = TrackerSettingsQuick.snapshot(context)
+	when (recentHistory) {
+		DashboardRecentHistoryState.Loading -> RecentHistoryMessage(
+			text = stringResource(R.string.dashboard_recent_history_loading),
+		)
+		DashboardRecentHistoryState.Unavailable -> RecentHistoryMessage(
+			text = stringResource(R.string.dashboard_recent_history_unavailable),
+		)
+		is DashboardRecentHistoryState.Content -> if (recentHistory.entries.isEmpty()) {
+			RecentHistoryMessage(text = stringResource(R.string.dashboard_recent_trips_empty))
+		} else {
+			recentHistory.entries.forEach { entry ->
+				when (entry) {
+					is DashboardRecentHistoryEntry.Physical -> key(entry.trip.id) {
+						val trip = entry.trip
 						RecentTripRow(
 							trip = trip,
 							distanceText = context.resources.formatDistance(
@@ -92,24 +112,80 @@ internal fun RecentTripsCard(
 								settings.lengthSystem,
 							),
 							durationText = trip.durationMs.formatAsDuration(context),
-							timeText = DateUtils.getRelativeTimeSpanString(
-								trip.startTimeMs,
-								System.currentTimeMillis(),
-								DateUtils.MINUTE_IN_MILLIS,
-								DateUtils.FORMAT_ABBREV_RELATIVE,
-							).toString(),
-							onClick = if (onTripClick != null) {
-								{ onTripClick(trip.id) }
-							} else {
-								null
-							},
+							timeText = relativeTime(trip.startTimeMs),
+							onClick = onTripClick?.let { click -> { click(trip.id) } },
 						)
+					}
+					is DashboardRecentHistoryEntry.StepsOnly -> key(entry.history.key) {
+						RecentStepsOnlyRow(entry.history)
 					}
 				}
 			}
 		}
 	}
 }
+
+@Composable
+private fun RecentHistoryMessage(text: String) {
+	Text(
+		text = text,
+		style = MaterialTheme.typography.bodySmall,
+		color = MaterialTheme.colorScheme.onSurfaceVariant,
+	)
+}
+
+@Composable
+private fun RecentStepsOnlyRow(
+	history: StepsOnlyHistoryEntry,
+	modifier: Modifier = Modifier,
+) {
+	Row(
+		modifier = modifier
+			.fillMaxWidth()
+			.heightIn(min = 48.dp)
+			.padding(vertical = 8.dp, horizontal = 4.dp),
+		verticalAlignment = Alignment.CenterVertically,
+		horizontalArrangement = Arrangement.spacedBy(12.dp),
+	) {
+		Column(modifier = Modifier.weight(1f)) {
+			Text(
+				text = stringResource(R.string.dashboard_recent_steps_title),
+				style = MaterialTheme.typography.bodyMedium,
+				color = MaterialTheme.colorScheme.onSurface,
+			)
+			Text(
+				text = stringResource(history.state.labelResource),
+				style = MaterialTheme.typography.bodySmall,
+				color = MaterialTheme.colorScheme.onSurfaceVariant,
+			)
+			Text(
+				text = (history.endTime - history.startTime)
+					.formatAsDuration(LocalContext.current),
+				style = MaterialTheme.typography.bodySmall,
+				color = MaterialTheme.colorScheme.onSurface,
+			)
+		}
+		Text(
+			text = relativeTime(history.startTime.raw),
+			style = MaterialTheme.typography.labelSmall,
+			color = MaterialTheme.colorScheme.onSurface,
+		)
+	}
+}
+
+private val StepsOnlyHistoryListState.labelResource: Int
+	get() = when (this) {
+		StepsOnlyHistoryListState.AVAILABLE -> R.string.dashboard_recent_steps_available
+		StepsOnlyHistoryListState.MATERIALIZING -> R.string.dashboard_recent_steps_materializing
+		StepsOnlyHistoryListState.PARTIAL -> R.string.dashboard_recent_steps_partial
+	}
+
+private fun relativeTime(startTimeMs: Long): String = DateUtils.getRelativeTimeSpanString(
+	startTimeMs,
+	System.currentTimeMillis(),
+	DateUtils.MINUTE_IN_MILLIS,
+	DateUtils.FORMAT_ABBREV_RELATIVE,
+).toString()
 
 @Composable
 private fun RecentTripRow(

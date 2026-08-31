@@ -66,8 +66,14 @@
     <string name="dashboard_last_session_distance">Atstumas</string>
     <string name="dashboard_last_session_steps">Žingsniai</string>
     <string name="dashboard_last_session_view_map">Peržiūrėti žemėlapį</string>
-    <string name="dashboard_recent_trips_title">Naujausios kelionės</string>
-    <string name="dashboard_recent_trips_empty">Nėra naujausių kelionių. Pradėkite sekti, kad čia matytumėte savo keliones.</string>
+    <string name="dashboard_recent_trips_title">Naujausias sekimas</string>
+    <string name="dashboard_recent_trips_empty">Nėra naujausių sekimo seansų. Pradėkite sekti, kad juos matytumėte čia.</string>
+    <string name="dashboard_recent_history_loading">Įkeliamas naujausias sekimas…</string>
+    <string name="dashboard_recent_history_unavailable">Naujausias sekimas nepasiekiamas</string>
+    <string name="dashboard_recent_steps_title">Žingsnių seansas</string>
+    <string name="dashboard_recent_steps_available">Žingsnių istorija pasiekiama</string>
+    <string name="dashboard_recent_steps_materializing">Ruošiama žingsnių istorija…</string>
+    <string name="dashboard_recent_steps_partial">Dalinė žingsnių istorija</string>
     <string name="dashboard_exploration_title">Tyrinėjimas</string>
     <string name="dashboard_exploration_new_today">Nauja šiandien</string>
     <string name="dashboard_exploration_total_cells">Iš viso langelių</string>
@@ -121,7 +127,7 @@
     <string name="widget_today_progress">Šiandienos pažanga</string>
     <string name="widget_streak">Serija</string>
     <string name="widget_last_session">Paskutinė sesija</string>
-    <string name="widget_recent_trips">Naujausios kelionės</string>
+    <string name="widget_recent_trips">Naujausias sekimas</string>
     <string name="widget_exploration">Tyrinėjimas</string>
     <string name="dashboard_customize_title">Tinkinti skydelį</string>
     <string name="dashboard_customize_reset">Atstatyti numatytuosius</string>

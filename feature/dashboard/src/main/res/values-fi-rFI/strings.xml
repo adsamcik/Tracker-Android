@@ -65,8 +65,14 @@
     <string name="dashboard_last_session_distance">Matka</string>
     <string name="dashboard_last_session_steps">Askeleet</string>
     <string name="dashboard_last_session_view_map">Näytä kartta</string>
-    <string name="dashboard_recent_trips_title">Viimeisimmät matkat</string>
-    <string name="dashboard_recent_trips_empty">Ei viimeisimpiä matkoja. Aloita seuranta nähdäksesi matkasi täällä.</string>
+    <string name="dashboard_recent_trips_title">Viimeaikainen seuranta</string>
+    <string name="dashboard_recent_trips_empty">Ei viimeaikaisia seurantaistuntoja. Aloita seuranta nähdäksesi ne täällä.</string>
+    <string name="dashboard_recent_history_loading">Ladataan viimeaikaista seurantaa…</string>
+    <string name="dashboard_recent_history_unavailable">Viimeaikainen seuranta ei ole käytettävissä</string>
+    <string name="dashboard_recent_steps_title">Askelten seuranta</string>
+    <string name="dashboard_recent_steps_available">Askelhistoria on käytettävissä</string>
+    <string name="dashboard_recent_steps_materializing">Valmistellaan askelhistoriaa…</string>
+    <string name="dashboard_recent_steps_partial">Osittainen askelhistoria</string>
     <string name="dashboard_exploration_title">Tutkiminen</string>
     <string name="dashboard_exploration_new_today">Uutta tänään</string>
     <string name="dashboard_exploration_total_cells">Ruutuja yhteensä</string>
@@ -120,7 +126,7 @@
     <string name="widget_today_progress">Tämän päivän edistyminen</string>
     <string name="widget_streak">Putki</string>
     <string name="widget_last_session">Viimeisin istunto</string>
-    <string name="widget_recent_trips">Viimeisimmät matkat</string>
+    <string name="widget_recent_trips">Viimeaikainen seuranta</string>
     <string name="widget_exploration">Tutkiminen</string>
     <string name="dashboard_customize_title">Mukauta yhteenvetoa</string>
     <string name="dashboard_customize_reset">Palauta oletukset</string>

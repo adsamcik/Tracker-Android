@@ -65,8 +65,14 @@
     <string name="dashboard_last_session_distance">Afstand</string>
     <string name="dashboard_last_session_steps">Skridt</string>
     <string name="dashboard_last_session_view_map">Se kort</string>
-    <string name="dashboard_recent_trips_title">Seneste ture</string>
-    <string name="dashboard_recent_trips_empty">Ingen nylige ture. Start sporing for at se dine rejser her.</string>
+    <string name="dashboard_recent_trips_title">Seneste sporing</string>
+    <string name="dashboard_recent_trips_empty">Ingen seneste sporingssessioner. Start sporing for at se dem her.</string>
+    <string name="dashboard_recent_history_loading">Indlæser seneste sporing…</string>
+    <string name="dashboard_recent_history_unavailable">Seneste sporing er ikke tilgængelig</string>
+    <string name="dashboard_recent_steps_title">Skridtsession</string>
+    <string name="dashboard_recent_steps_available">Skridthistorik er tilgængelig</string>
+    <string name="dashboard_recent_steps_materializing">Forbereder skridthistorik…</string>
+    <string name="dashboard_recent_steps_partial">Delvis skridthistorik</string>
     <string name="dashboard_exploration_title">Udforskning</string>
     <string name="dashboard_exploration_new_today">Nye i dag</string>
     <string name="dashboard_exploration_total_cells">Felter i alt</string>
@@ -120,7 +126,7 @@
     <string name="widget_today_progress">Dagens fremskridt</string>
     <string name="widget_streak">Serie</string>
     <string name="widget_last_session">Seneste session</string>
-    <string name="widget_recent_trips">Seneste ture</string>
+    <string name="widget_recent_trips">Seneste sporing</string>
     <string name="widget_exploration">Udforskning</string>
     <string name="dashboard_customize_title">Tilpas oversigt</string>
     <string name="dashboard_customize_reset">Nulstil til standard</string>

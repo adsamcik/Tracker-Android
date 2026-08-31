@@ -66,8 +66,14 @@
     <string name="dashboard_last_session_distance">Distanță</string>
     <string name="dashboard_last_session_steps">Pași</string>
     <string name="dashboard_last_session_view_map">Vezi harta</string>
-    <string name="dashboard_recent_trips_title">Călătorii recente</string>
-    <string name="dashboard_recent_trips_empty">Nicio călătorie recentă. Pornește urmărirea pentru a vedea aici călătoriile.</string>
+    <string name="dashboard_recent_trips_title">Urmărire recentă</string>
+    <string name="dashboard_recent_trips_empty">Nu există sesiuni recente de urmărire. Pornește urmărirea pentru a le vedea aici.</string>
+    <string name="dashboard_recent_history_loading">Se încarcă urmărirea recentă…</string>
+    <string name="dashboard_recent_history_unavailable">Urmărirea recentă nu este disponibilă</string>
+    <string name="dashboard_recent_steps_title">Sesiune de pași</string>
+    <string name="dashboard_recent_steps_available">Istoricul pașilor este disponibil</string>
+    <string name="dashboard_recent_steps_materializing">Se pregătește istoricul pașilor…</string>
+    <string name="dashboard_recent_steps_partial">Istoric parțial al pașilor</string>
     <string name="dashboard_exploration_title">Explorare</string>
     <string name="dashboard_exploration_new_today">Nou astăzi</string>
     <string name="dashboard_exploration_total_cells">Total celule</string>
@@ -121,7 +127,7 @@
     <string name="widget_today_progress">Progresul de astăzi</string>
     <string name="widget_streak">Serie</string>
     <string name="widget_last_session">Ultima sesiune</string>
-    <string name="widget_recent_trips">Călătorii recente</string>
+    <string name="widget_recent_trips">Urmărire recentă</string>
     <string name="widget_exploration">Explorare</string>
     <string name="dashboard_customize_title">Personalizează panoul</string>
     <string name="dashboard_customize_reset">Resetează la valorile implicite</string>

@@ -65,8 +65,14 @@
     <string name="dashboard_last_session_distance">Attālums</string>
     <string name="dashboard_last_session_steps">Soļi</string>
     <string name="dashboard_last_session_view_map">Skatīt karti</string>
-    <string name="dashboard_recent_trips_title">Nesenie braucieni</string>
-    <string name="dashboard_recent_trips_empty">Nav nesenu braucienu. Sāciet izsekošanu, lai šeit redzētu savus ceļojumus.</string>
+    <string name="dashboard_recent_trips_title">Nesenā izsekošana</string>
+    <string name="dashboard_recent_trips_empty">Nav nesenu izsekošanas sesiju. Sāciet izsekošanu, lai tās redzētu šeit.</string>
+    <string name="dashboard_recent_history_loading">Ielādē neseno izsekošanu…</string>
+    <string name="dashboard_recent_history_unavailable">Nesenā izsekošana nav pieejama</string>
+    <string name="dashboard_recent_steps_title">Soļu sesija</string>
+    <string name="dashboard_recent_steps_available">Soļu vēsture ir pieejama</string>
+    <string name="dashboard_recent_steps_materializing">Sagatavo soļu vēsturi…</string>
+    <string name="dashboard_recent_steps_partial">Daļēja soļu vēsture</string>
     <string name="dashboard_exploration_title">Izpēte</string>
     <string name="dashboard_exploration_new_today">Jauns šodien</string>
     <string name="dashboard_exploration_total_cells">Kopējais šūnu skaits</string>
@@ -120,7 +126,7 @@
     <string name="widget_today_progress">Šodienas progress</string>
     <string name="widget_streak">Sērija</string>
     <string name="widget_last_session">Pēdējā sesija</string>
-    <string name="widget_recent_trips">Nesenie braucieni</string>
+    <string name="widget_recent_trips">Nesenā izsekošana</string>
     <string name="widget_exploration">Izpēte</string>
     <string name="dashboard_customize_title">Pielāgot pārskatu</string>
     <string name="dashboard_customize_reset">Atiestatīt uz noklusējuma vērtībām</string>

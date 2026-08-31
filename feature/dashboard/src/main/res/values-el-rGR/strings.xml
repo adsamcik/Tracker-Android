@@ -65,8 +65,14 @@
     <string name="dashboard_last_session_distance">Απόσταση</string>
     <string name="dashboard_last_session_steps">Βήματα</string>
     <string name="dashboard_last_session_view_map">Προβολή χάρτη</string>
-    <string name="dashboard_recent_trips_title">Πρόσφατες διαδρομές</string>
-    <string name="dashboard_recent_trips_empty">Δεν υπάρχουν πρόσφατες διαδρομές. Ξεκινήστε καταγραφή για να δείτε τα ταξίδια σας εδώ.</string>
+    <string name="dashboard_recent_trips_title">Πρόσφατη καταγραφή</string>
+    <string name="dashboard_recent_trips_empty">Δεν υπάρχουν πρόσφατες συνεδρίες καταγραφής. Ξεκινήστε καταγραφή για να εμφανιστούν εδώ.</string>
+    <string name="dashboard_recent_history_loading">Φόρτωση πρόσφατης καταγραφής…</string>
+    <string name="dashboard_recent_history_unavailable">Η πρόσφατη καταγραφή δεν είναι διαθέσιμη</string>
+    <string name="dashboard_recent_steps_title">Συνεδρία βημάτων</string>
+    <string name="dashboard_recent_steps_available">Το ιστορικό βημάτων είναι διαθέσιμο</string>
+    <string name="dashboard_recent_steps_materializing">Προετοιμασία ιστορικού βημάτων…</string>
+    <string name="dashboard_recent_steps_partial">Μερικό ιστορικό βημάτων</string>
     <string name="dashboard_exploration_title">Εξερεύνηση</string>
     <string name="dashboard_exploration_new_today">Νέα σήμερα</string>
     <string name="dashboard_exploration_total_cells">Συνολικά κελιά</string>
@@ -120,7 +126,7 @@
     <string name="widget_today_progress">Η σημερινή πρόοδος</string>
     <string name="widget_streak">Σειρά</string>
     <string name="widget_last_session">Τελευταία συνεδρία</string>
-    <string name="widget_recent_trips">Πρόσφατες διαδρομές</string>
+    <string name="widget_recent_trips">Πρόσφατη καταγραφή</string>
     <string name="widget_exploration">Εξερεύνηση</string>
     <string name="dashboard_customize_title">Προσαρμογή πίνακα ελέγχου</string>
     <string name="dashboard_customize_reset">Επαναφορά στις προεπιλογές</string>

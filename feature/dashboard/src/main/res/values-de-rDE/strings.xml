@@ -65,8 +65,14 @@
     <string name="dashboard_last_session_distance">Strecke</string>
     <string name="dashboard_last_session_steps">Schritte</string>
     <string name="dashboard_last_session_view_map">Karte anzeigen</string>
-    <string name="dashboard_recent_trips_title">Letzte Fahrten</string>
-    <string name="dashboard_recent_trips_empty">Keine letzten Fahrten. Starte die Aufzeichnung, um hier deine Wege zu sehen.</string>
+    <string name="dashboard_recent_trips_title">Letzte Aufzeichnungen</string>
+    <string name="dashboard_recent_trips_empty">Keine letzten Aufzeichnungen. Starte die Aufzeichnung, um sie hier zu sehen.</string>
+    <string name="dashboard_recent_history_loading">Letzte Aufzeichnungen werden geladen…</string>
+    <string name="dashboard_recent_history_unavailable">Letzte Aufzeichnungen sind nicht verfügbar</string>
+    <string name="dashboard_recent_steps_title">Schrittaufzeichnung</string>
+    <string name="dashboard_recent_steps_available">Schrittverlauf verfügbar</string>
+    <string name="dashboard_recent_steps_materializing">Schrittverlauf wird vorbereitet…</string>
+    <string name="dashboard_recent_steps_partial">Unvollständiger Schrittverlauf</string>
     <string name="dashboard_exploration_title">Erkundung</string>
     <string name="dashboard_exploration_new_today">Heute neu</string>
     <string name="dashboard_exploration_total_cells">Zellen insgesamt</string>
@@ -120,7 +126,7 @@
     <string name="widget_today_progress">Heutiger Fortschritt</string>
     <string name="widget_streak">Serie</string>
     <string name="widget_last_session">Letzte Sitzung</string>
-    <string name="widget_recent_trips">Letzte Fahrten</string>
+    <string name="widget_recent_trips">Letzte Aufzeichnungen</string>
     <string name="widget_exploration">Erkundung</string>
     <string name="dashboard_customize_title">Übersicht anpassen</string>
     <string name="dashboard_customize_reset">Auf Standard zurücksetzen</string>

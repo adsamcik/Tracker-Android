@@ -65,8 +65,14 @@
     <string name="dashboard_last_session_distance">Vahemaa</string>
     <string name="dashboard_last_session_steps">Sammud</string>
     <string name="dashboard_last_session_view_map">Kuva kaart</string>
-    <string name="dashboard_recent_trips_title">Hiljutised reisid</string>
-    <string name="dashboard_recent_trips_empty">Hiljutisi reise pole. Alustage jälgimist, et näha oma teekondi siin.</string>
+    <string name="dashboard_recent_trips_title">Hiljutine jälgimine</string>
+    <string name="dashboard_recent_trips_empty">Hiljutisi jälgimisseansse pole. Nende siin nägemiseks alustage jälgimist.</string>
+    <string name="dashboard_recent_history_loading">Hiljutise jälgimise laadimine…</string>
+    <string name="dashboard_recent_history_unavailable">Hiljutine jälgimine pole saadaval</string>
+    <string name="dashboard_recent_steps_title">Sammude seanss</string>
+    <string name="dashboard_recent_steps_available">Sammude ajalugu on saadaval</string>
+    <string name="dashboard_recent_steps_materializing">Sammude ajaloo ettevalmistamine…</string>
+    <string name="dashboard_recent_steps_partial">Osaline sammude ajalugu</string>
     <string name="dashboard_exploration_title">Avastamine</string>
     <string name="dashboard_exploration_new_today">Täna uus</string>
     <string name="dashboard_exploration_total_cells">Rakke kokku</string>
@@ -120,7 +126,7 @@
     <string name="widget_today_progress">Tänane edenemine</string>
     <string name="widget_streak">Jada</string>
     <string name="widget_last_session">Viimane seanss</string>
-    <string name="widget_recent_trips">Hiljutised reisid</string>
+    <string name="widget_recent_trips">Hiljutine jälgimine</string>
     <string name="widget_exploration">Avastamine</string>
     <string name="dashboard_customize_title">Kohanda ülevaadet</string>
     <string name="dashboard_customize_reset">Taasta vaikimisi seaded</string>

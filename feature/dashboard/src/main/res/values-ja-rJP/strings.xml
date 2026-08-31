@@ -65,8 +65,14 @@
     <string name="dashboard_last_session_distance">距離</string>
     <string name="dashboard_last_session_steps">歩数</string>
     <string name="dashboard_last_session_view_map">地図を表示</string>
-    <string name="dashboard_recent_trips_title">最近の移動</string>
-    <string name="dashboard_recent_trips_empty">最近の移動はありません。トラッキングを開始すると、ここに移動履歴が表示されます。</string>
+    <string name="dashboard_recent_trips_title">最近のトラッキング</string>
+    <string name="dashboard_recent_trips_empty">最近のトラッキングセッションはありません。トラッキングを開始すると、ここに表示されます。</string>
+    <string name="dashboard_recent_history_loading">最近のトラッキングを読み込み中…</string>
+    <string name="dashboard_recent_history_unavailable">最近のトラッキングは利用できません</string>
+    <string name="dashboard_recent_steps_title">歩数セッション</string>
+    <string name="dashboard_recent_steps_available">歩数履歴を利用できます</string>
+    <string name="dashboard_recent_steps_materializing">歩数履歴を準備中…</string>
+    <string name="dashboard_recent_steps_partial">一部の歩数履歴</string>
     <string name="dashboard_exploration_title">探索</string>
     <string name="dashboard_exploration_new_today">今日の新規</string>
     <string name="dashboard_exploration_total_cells">合計セル数</string>
@@ -120,7 +126,7 @@
     <string name="widget_today_progress">今日の進捗</string>
     <string name="widget_streak">連続記録</string>
     <string name="widget_last_session">前回のセッション</string>
-    <string name="widget_recent_trips">最近の移動</string>
+    <string name="widget_recent_trips">最近のトラッキング</string>
     <string name="widget_exploration">探索</string>
     <string name="dashboard_customize_title">ダッシュボードをカスタマイズ</string>
     <string name="dashboard_customize_reset">デフォルトに戻す</string>

@@ -27,6 +27,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.adsamcik.tracker.dashboard.R
+import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryEntry
+import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryState
 import com.adsamcik.tracker.dashboard.ui.DashboardViewModel
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardMode
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
@@ -35,6 +37,7 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.GoalProgress
+import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.shared.utils.compose.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.utils.compose.permission.PermissionDeniedSnackbar
 import com.adsamcik.tracker.shared.utils.compose.permission.PermissionType
@@ -225,8 +228,7 @@ fun DashboardRoute(
 
 	// Historical data from ViewModel
 	val todaySummary by viewModel.todaySummary.collectAsState()
-	val dbLastSession by viewModel.dbLastSession.collectAsState()
-	val recentTrips by viewModel.recentTrips.collectAsState()
+	val recentHistory by viewModel.recentHistory.collectAsStateWithLifecycle()
 	val explorationState by viewModel.explorationState.collectAsState()
 	val streakState by viewModel.streakState.collectAsState()
 	val sessionInsights by viewModel.sessionInsights.collectAsState()
@@ -237,10 +239,10 @@ fun DashboardRoute(
 	var showCustomizeSheet by remember { mutableStateOf(false) }
 
 	// Fetch daily summary and historical data reactively
-	LaunchedEffect(deferredDashboardDataEnabled, isTracking, sessionData) {
+	LaunchedEffect(deferredDashboardDataEnabled, isTracking) {
 		if (!deferredDashboardDataEnabled) return@LaunchedEffect
 		viewModel.refreshTodaySummary()
-		viewModel.loadHistoricalData(isTracking, lastSessionData)
+		viewModel.loadHistoricalData(isTracking)
 	}
 
 	LaunchedEffect(lifecycle, isTracking, sessionInfo) {
@@ -276,30 +278,32 @@ fun DashboardRoute(
 		}
 	}
 
-	// Resolve display session (active → controller last → DB last)
-	val dbLastSessionAsTracker: TrackerSessionSnapshot? = remember(dbLastSession) {
-		dbLastSession?.let { trip ->
-			TrackerSessionSnapshot(
-				id = trip.id,
-				start = trip.startTimeMs,
-				end = trip.endTimeMs,
-				isUserInitiated = false,
-				collections = trip.sampleCount,
-				distanceInM = trip.distanceM,
-				steps = trip.steps ?: 0,
-			)
+	// Idle detail authority comes exclusively from the first composed physical row.
+	val displaySession = remember(
+		isTracking,
+		sessionData,
+		lastSessionData,
+		recentHistory,
+	) {
+		if (isTracking) {
+			sessionData
+		} else {
+			resolveIdleDisplaySession(recentHistory, sessionData, lastSessionData)
 		}
 	}
-	val displaySession = if (isTracking) sessionData else (sessionData ?: lastSessionData ?: dbLastSessionAsTracker)
-	val displayPathPoints = if (isTracking) pathPoints else (pathPoints ?: lastPathPoints)
-
-	val relevantPathPoints = remember(displaySession, displayPathPoints) {
-		if (displaySession != null && displayPathPoints != null &&
-			displayPathPoints.first == displaySession.id
-		) {
-			displayPathPoints.second
+	val relevantPathPoints = remember(
+		isTracking,
+		displaySession,
+		pathPoints,
+		lastPathPoints,
+	) {
+		if (isTracking) {
+			pathPoints?.takeIf { it.first == displaySession?.id }?.second
 		} else {
-			null
+			sequenceOf(pathPoints, lastPathPoints)
+				.filterNotNull()
+				.firstOrNull { it.first == displaySession?.id }
+				?.second
 		}
 	}
 	val unifiedTodaySummary = remember(todaySummary, goalProgress.stepsToday) {
@@ -307,12 +311,12 @@ fun DashboardRoute(
 	}
 
 	// Determine dashboard mode
-	val dashboardMode = when {
-		isTracking -> DashboardMode.TRACKING
-		unifiedTodaySummary?.isEmpty == false -> DashboardMode.IDLE
-		displaySession != null -> DashboardMode.IDLE
-		else -> DashboardMode.EMPTY
-	}
+	val dashboardMode = resolveDashboardMode(
+		isTracking = isTracking,
+		hasTodaySummary = unifiedTodaySummary?.isEmpty == false,
+		displaySession = displaySession,
+		recentHistory = recentHistory,
+	)
 
 	LaunchedEffect(deferredDashboardDataEnabled, isTracking, displaySession?.id, displaySession?.end) {
 		if (!deferredDashboardDataEnabled) return@LaunchedEffect
@@ -338,7 +342,7 @@ fun DashboardRoute(
 			dailyProgress = goalProgress.progress,
 		),
 		latestAchievement = latestAchievement,
-		recentTrips = recentTrips,
+		recentHistory = recentHistory,
 		explorationState = explorationState,
 		streakState = streakState,
 		sessionInsights = sessionInsights,
@@ -578,6 +582,52 @@ internal suspend fun runDashboardConsistencyChecksWhenResumed(
 		}
 	}
 }
+
+/**
+ * Resolves idle Last Session only from the leading composed history row. Controller snapshots may
+ * refresh that physical row, but may not introduce a different or Steps-only action identity.
+ */
+internal fun resolveIdleDisplaySession(
+	recentHistory: DashboardRecentHistoryState,
+	currentSession: TrackerSessionSnapshot?,
+	lastSession: TrackerSessionSnapshot?,
+): TrackerSessionSnapshot? {
+	val topPhysical = (recentHistory as? DashboardRecentHistoryState.Content)
+		?.entries
+		?.firstOrNull() as? DashboardRecentHistoryEntry.Physical
+		?: return null
+	val trip = topPhysical.trip
+	return sequenceOf(currentSession, lastSession)
+		.filterNotNull()
+		.firstOrNull { it.id == trip.id }
+		?: trip.toTrackerSessionSnapshot()
+}
+
+/** Loading and unavailable history remain visible idle product states, not first-use emptiness. */
+internal fun resolveDashboardMode(
+	isTracking: Boolean,
+	hasTodaySummary: Boolean,
+	displaySession: TrackerSessionSnapshot?,
+	recentHistory: DashboardRecentHistoryState,
+): DashboardMode = when {
+	isTracking -> DashboardMode.TRACKING
+	hasTodaySummary || displaySession != null -> DashboardMode.IDLE
+	recentHistory is DashboardRecentHistoryState.Loading -> DashboardMode.IDLE
+	recentHistory is DashboardRecentHistoryState.Unavailable -> DashboardMode.IDLE
+	recentHistory is DashboardRecentHistoryState.Content && recentHistory.entries.isNotEmpty() ->
+		DashboardMode.IDLE
+	else -> DashboardMode.EMPTY
+}
+
+private fun Trip.toTrackerSessionSnapshot() = TrackerSessionSnapshot(
+	id = id,
+	start = startTimeMs,
+	end = endTimeMs,
+	isUserInitiated = false,
+	collections = sampleCount,
+	distanceInM = distanceM,
+	steps = steps ?: 0,
+)
 
 private fun DailySummary?.withUnifiedSteps(goalStepsToday: Int): DailySummary? {
 	if (this == null || goalStepsToday <= 0) return this

@@ -65,8 +65,14 @@
     <string name="dashboard_last_session_distance">Distanza</string>
     <string name="dashboard_last_session_steps">Passi</string>
     <string name="dashboard_last_session_view_map">Ara l-mappa</string>
-    <string name="dashboard_recent_trips_title">Vjaġġi reċenti</string>
-    <string name="dashboard_recent_trips_empty">Ebda vjaġġ reċenti. Ibda t-traċċar biex tara l-vjaġġi tiegħek hawn.</string>
+    <string name="dashboard_recent_trips_title">Traċċar reċenti</string>
+    <string name="dashboard_recent_trips_empty">M’hemmx sessjonijiet ta’ traċċar reċenti. Ibda t-traċċar biex tarahom hawn.</string>
+    <string name="dashboard_recent_history_loading">Qed jitgħabba t-traċċar reċenti…</string>
+    <string name="dashboard_recent_history_unavailable">It-traċċar reċenti mhuwiex disponibbli</string>
+    <string name="dashboard_recent_steps_title">Sessjoni tal-passi</string>
+    <string name="dashboard_recent_steps_available">L-istorja tal-passi hija disponibbli</string>
+    <string name="dashboard_recent_steps_materializing">Qed titħejja l-istorja tal-passi…</string>
+    <string name="dashboard_recent_steps_partial">Storja parzjali tal-passi</string>
     <string name="dashboard_exploration_title">Esplorazzjoni</string>
     <string name="dashboard_exploration_new_today">Ġdid illum</string>
     <string name="dashboard_exploration_total_cells">Ċelloli b’kollox</string>
@@ -120,7 +126,7 @@
     <string name="widget_today_progress">L-avvanz tal-lum</string>
     <string name="widget_streak">Serje</string>
     <string name="widget_last_session">L-aħħar sessjoni</string>
-    <string name="widget_recent_trips">Vjaġġi reċenti</string>
+    <string name="widget_recent_trips">Traċċar reċenti</string>
     <string name="widget_exploration">Esplorazzjoni</string>
     <string name="dashboard_customize_title">Ippersonalizza l-pannell</string>
     <string name="dashboard_customize_reset">Irrisettja għall-inadempjenza</string>

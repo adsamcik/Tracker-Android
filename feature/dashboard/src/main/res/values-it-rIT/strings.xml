@@ -65,8 +65,14 @@
     <string name="dashboard_last_session_distance">Distanza</string>
     <string name="dashboard_last_session_steps">Passi</string>
     <string name="dashboard_last_session_view_map">Visualizza mappa</string>
-    <string name="dashboard_recent_trips_title">Viaggi recenti</string>
-    <string name="dashboard_recent_trips_empty">Nessun viaggio recente. Avvia il tracciamento per vedere qui i tuoi spostamenti.</string>
+    <string name="dashboard_recent_trips_title">Tracciamenti recenti</string>
+    <string name="dashboard_recent_trips_empty">Nessuna sessione di tracciamento recente. Avvia il tracciamento per visualizzarle qui.</string>
+    <string name="dashboard_recent_history_loading">Caricamento dei tracciamenti recenti…</string>
+    <string name="dashboard_recent_history_unavailable">I tracciamenti recenti non sono disponibili</string>
+    <string name="dashboard_recent_steps_title">Sessione passi</string>
+    <string name="dashboard_recent_steps_available">Cronologia dei passi disponibile</string>
+    <string name="dashboard_recent_steps_materializing">Preparazione della cronologia dei passi…</string>
+    <string name="dashboard_recent_steps_partial">Cronologia dei passi parziale</string>
     <string name="dashboard_exploration_title">Esplorazione</string>
     <string name="dashboard_exploration_new_today">Nuove oggi</string>
     <string name="dashboard_exploration_total_cells">Celle totali</string>
@@ -120,7 +126,7 @@
     <string name="widget_today_progress">Progressi di oggi</string>
     <string name="widget_streak">Serie</string>
     <string name="widget_last_session">Ultima sessione</string>
-    <string name="widget_recent_trips">Viaggi recenti</string>
+    <string name="widget_recent_trips">Tracciamenti recenti</string>
     <string name="widget_exploration">Esplorazione</string>
     <string name="dashboard_customize_title">Personalizza pannello</string>
     <string name="dashboard_customize_reset">Ripristina predefiniti</string>

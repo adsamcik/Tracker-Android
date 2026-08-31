@@ -65,8 +65,14 @@
     <string name="dashboard_last_session_distance">Разстояние</string>
     <string name="dashboard_last_session_steps">Крачки</string>
     <string name="dashboard_last_session_view_map">Преглед на картата</string>
-    <string name="dashboard_recent_trips_title">Последни пътувания</string>
-    <string name="dashboard_recent_trips_empty">Няма скорошни пътувания. Стартирайте проследяване, за да виждате пътуванията си тук.</string>
+    <string name="dashboard_recent_trips_title">Скорошно проследяване</string>
+    <string name="dashboard_recent_trips_empty">Няма скорошни сесии за проследяване. Стартирайте проследяване, за да ги видите тук.</string>
+    <string name="dashboard_recent_history_loading">Зареждане на скорошното проследяване…</string>
+    <string name="dashboard_recent_history_unavailable">Скорошното проследяване не е налично</string>
+    <string name="dashboard_recent_steps_title">Сесия с крачки</string>
+    <string name="dashboard_recent_steps_available">Историята на крачките е налична</string>
+    <string name="dashboard_recent_steps_materializing">Подготовка на историята на крачките…</string>
+    <string name="dashboard_recent_steps_partial">Частична история на крачките</string>
     <string name="dashboard_exploration_title">Изследване</string>
     <string name="dashboard_exploration_new_today">Ново днес</string>
     <string name="dashboard_exploration_total_cells">Общо клетки</string>
@@ -120,7 +126,7 @@
     <string name="widget_today_progress">Напредък днес</string>
     <string name="widget_streak">Поредица</string>
     <string name="widget_last_session">Последна сесия</string>
-    <string name="widget_recent_trips">Последни пътувания</string>
+    <string name="widget_recent_trips">Скорошно проследяване</string>
     <string name="widget_exploration">Изследване</string>
     <string name="dashboard_customize_title">Персонализиране на таблото за управление</string>
     <string name="dashboard_customize_reset">Възстановяване по подразбиране</string>

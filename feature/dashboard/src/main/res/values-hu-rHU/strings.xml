@@ -65,8 +65,14 @@
     <string name="dashboard_last_session_distance">Távolság</string>
     <string name="dashboard_last_session_steps">Lépések</string>
     <string name="dashboard_last_session_view_map">Térkép megtekintése</string>
-    <string name="dashboard_recent_trips_title">Legutóbbi utak</string>
-    <string name="dashboard_recent_trips_empty">Nincsenek legutóbbi utak. Indítsa el a nyomkövetést, hogy itt láthassa útjait.</string>
+    <string name="dashboard_recent_trips_title">Legutóbbi követések</string>
+    <string name="dashboard_recent_trips_empty">Nincsenek legutóbbi követési munkamenetek. Indítsa el a követést, hogy itt láthassa őket.</string>
+    <string name="dashboard_recent_history_loading">Legutóbbi követések betöltése…</string>
+    <string name="dashboard_recent_history_unavailable">A legutóbbi követések nem érhetők el</string>
+    <string name="dashboard_recent_steps_title">Lépésszámlálási munkamenet</string>
+    <string name="dashboard_recent_steps_available">A lépéselőzmények elérhetők</string>
+    <string name="dashboard_recent_steps_materializing">Lépéselőzmények előkészítése…</string>
+    <string name="dashboard_recent_steps_partial">Részleges lépéselőzmények</string>
     <string name="dashboard_exploration_title">Felfedezés</string>
     <string name="dashboard_exploration_new_today">Ma új</string>
     <string name="dashboard_exploration_total_cells">Összes cella</string>
@@ -120,7 +126,7 @@
     <string name="widget_today_progress">Mai előrehaladás</string>
     <string name="widget_streak">Sorozat</string>
     <string name="widget_last_session">Utolsó munkamenet</string>
-    <string name="widget_recent_trips">Legutóbbi utak</string>
+    <string name="widget_recent_trips">Legutóbbi követések</string>
     <string name="widget_exploration">Felfedezés</string>
     <string name="dashboard_customize_title">Irányítópult testreszabása</string>
     <string name="dashboard_customize_reset">Alapértelmezett visszaállítása</string>

@@ -239,7 +239,7 @@ private fun WidgetContent(
 			}
 		}
 		DashboardWidget.RecentTrips -> RecentTripsCard(
-			trips = state.recentTrips,
+			recentHistory = state.recentHistory,
 			onTripClick = onSessionDetailClick,
 			modifier = modifier,
 		)

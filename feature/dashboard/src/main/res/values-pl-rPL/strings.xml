@@ -67,8 +67,14 @@
     <string name="dashboard_last_session_distance">Odległość</string>
     <string name="dashboard_last_session_steps">Kroki</string>
     <string name="dashboard_last_session_view_map">Zobacz mapę</string>
-    <string name="dashboard_recent_trips_title">Ostatnie podróże</string>
-    <string name="dashboard_recent_trips_empty">Brak ostatnich podróży. Rozpocznij śledzenie, aby zobaczyć tu swoje trasy.</string>
+    <string name="dashboard_recent_trips_title">Ostatnie śledzenie</string>
+    <string name="dashboard_recent_trips_empty">Brak ostatnich sesji śledzenia. Rozpocznij śledzenie, aby zobaczyć je tutaj.</string>
+    <string name="dashboard_recent_history_loading">Wczytywanie ostatniego śledzenia…</string>
+    <string name="dashboard_recent_history_unavailable">Ostatnie śledzenie jest niedostępne</string>
+    <string name="dashboard_recent_steps_title">Sesja kroków</string>
+    <string name="dashboard_recent_steps_available">Historia kroków jest dostępna</string>
+    <string name="dashboard_recent_steps_materializing">Przygotowywanie historii kroków…</string>
+    <string name="dashboard_recent_steps_partial">Częściowa historia kroków</string>
     <string name="dashboard_exploration_title">Odkrywanie</string>
     <string name="dashboard_exploration_new_today">Nowe dzisiaj</string>
     <string name="dashboard_exploration_total_cells">Łącznie komórek</string>
@@ -122,7 +128,7 @@
     <string name="widget_today_progress">Dzisiejszy postęp</string>
     <string name="widget_streak">Seria</string>
     <string name="widget_last_session">Ostatnia sesja</string>
-    <string name="widget_recent_trips">Ostatnie podróże</string>
+    <string name="widget_recent_trips">Ostatnie śledzenie</string>
     <string name="widget_exploration">Odkrywanie</string>
     <string name="dashboard_customize_title">Dostosuj panel główny</string>
     <string name="dashboard_customize_reset">Przywróć domyślne</string>

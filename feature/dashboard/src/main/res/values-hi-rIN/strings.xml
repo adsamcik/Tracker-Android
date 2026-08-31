@@ -65,8 +65,14 @@
     <string name="dashboard_last_session_distance">दूरी</string>
     <string name="dashboard_last_session_steps">कदम</string>
     <string name="dashboard_last_session_view_map">मानचित्र देखें</string>
-    <string name="dashboard_recent_trips_title">हाल की यात्राएँ</string>
-    <string name="dashboard_recent_trips_empty">हाल की कोई यात्रा नहीं। अपनी यात्राएँ यहाँ देखने के लिए ट्रैकिंग शुरू करें।</string>
+    <string name="dashboard_recent_trips_title">हाल की ट्रैकिंग</string>
+    <string name="dashboard_recent_trips_empty">हाल का कोई ट्रैकिंग सत्र नहीं। उन्हें यहाँ देखने के लिए ट्रैकिंग शुरू करें।</string>
+    <string name="dashboard_recent_history_loading">हाल की ट्रैकिंग लोड हो रही है…</string>
+    <string name="dashboard_recent_history_unavailable">हाल की ट्रैकिंग उपलब्ध नहीं है</string>
+    <string name="dashboard_recent_steps_title">कदम सत्र</string>
+    <string name="dashboard_recent_steps_available">कदमों का इतिहास उपलब्ध है</string>
+    <string name="dashboard_recent_steps_materializing">कदमों का इतिहास तैयार हो रहा है…</string>
+    <string name="dashboard_recent_steps_partial">कदमों का आंशिक इतिहास</string>
     <string name="dashboard_exploration_title">खोज</string>
     <string name="dashboard_exploration_new_today">आज नया</string>
     <string name="dashboard_exploration_total_cells">कुल सेल</string>
@@ -120,7 +126,7 @@
     <string name="widget_today_progress">आज की प्रगति</string>
     <string name="widget_streak">स्ट्रीक</string>
     <string name="widget_last_session">पिछला सत्र</string>
-    <string name="widget_recent_trips">हाल की यात्राएँ</string>
+    <string name="widget_recent_trips">हाल की ट्रैकिंग</string>
     <string name="widget_exploration">खोज</string>
     <string name="dashboard_customize_title">डैशबोर्ड अनुकूलित करें</string>
     <string name="dashboard_customize_reset">डिफ़ॉल्ट पर रीसेट करें</string>
