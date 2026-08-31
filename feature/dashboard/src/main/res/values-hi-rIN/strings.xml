@@ -32,6 +32,16 @@
     <string name="dashboard_format_speed_ms">%1$.1f मी/से</string>
     <string name="dashboard_tracking_awaiting_gps">GPS सिग्नल की प्रतीक्षा है…</string>
     <string name="dashboard_tracking_recording_route">मार्ग रिकॉर्ड हो रहा है…</string>
+    <string name="dashboard_live_history_resolving">लाइव सत्र का विवरण तैयार किया जा रहा है…</string>
+    <string name="dashboard_live_history_unavailable">लाइव सत्र का विवरण उपलब्ध नहीं है</string>
+    <string name="dashboard_live_value_missing">—</string>
+    <string name="dashboard_live_steps_lower_bound">कम से कम %1$s</string>
+    <string name="dashboard_live_steps_complete">सत्र का पूरा कवरेज</string>
+    <string name="dashboard_live_steps_covered_zero">कवर की गई अवधि में कोई कदम दर्ज नहीं हुआ</string>
+    <string name="dashboard_live_steps_partial">सत्र का आंशिक कवरेज</string>
+    <string name="dashboard_live_steps_materializing">स्थायी रूप से सहेजा गया कदमों का इतिहास तैयार किया जा रहा है…</string>
+    <string name="dashboard_live_steps_missing">मान्य कदम रिकॉर्ड की प्रतीक्षा है</string>
+    <string name="dashboard_live_steps_unavailable">स्थायी रूप से सहेजा गया कदमों का इतिहास उपलब्ध नहीं है</string>
     <string name="dashboard_milestone_distance">किमी पूरे!</string>
     <string name="dashboard_milestone_steps">कदम पूरे!</string>
     <string name="dashboard_milestone_time">मिनट ट्रैक हुए!</string>

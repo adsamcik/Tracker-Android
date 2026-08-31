@@ -35,6 +35,8 @@ data class DashboardUiState(
 	val sessionData: TrackerSessionSnapshot? = null,
 	val collectionSnapshot: TrackerCollectionSnapshot? = null,
 	val pathPoints: List<Location>? = null,
+	val liveSessionPresentation: DashboardLiveSessionPresentation =
+		DashboardLiveSessionPresentation.Inactive,
 
 	// ─── Daily summary (idle mode) ───────────────────────────────────
 	val todaySummary: DailySummary? = null,
@@ -122,6 +124,14 @@ data class GoalProgressState(
 	val weeklyGoalSteps: Int = 0,
 	val weeklyProgress: Float = 0f,
 )
+
+/** Raw legacy milestone inputs are valid only for the exact current Standard physical segment. */
+internal val DashboardUiState.allowsRuntimeMilestones: Boolean
+	get() {
+		val standard = liveSessionPresentation as? DashboardLiveSessionPresentation.Standard
+			?: return false
+		return sessionData?.id == standard.segmentId
+	}
 
 @Immutable
 data class LatestAchievementUi(

@@ -32,6 +32,16 @@
     <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
     <string name="dashboard_tracking_awaiting_gps">Odotetaan GPS-signaalia…</string>
     <string name="dashboard_tracking_recording_route">Tallennetaan reittiä…</string>
+    <string name="dashboard_live_history_resolving">Aktiivisen istunnon tietoja valmistellaan…</string>
+    <string name="dashboard_live_history_unavailable">Aktiivisen istunnon tiedot eivät ole saatavilla</string>
+    <string name="dashboard_live_value_missing">—</string>
+    <string name="dashboard_live_steps_lower_bound">Vähintään %1$s</string>
+    <string name="dashboard_live_steps_complete">Istunnon täydellinen kattavuus</string>
+    <string name="dashboard_live_steps_covered_zero">Katettu aikaväli ilman tallennettuja askeleita</string>
+    <string name="dashboard_live_steps_partial">Istunnon osittainen kattavuus</string>
+    <string name="dashboard_live_steps_materializing">Pysyvästi tallennettua askelhistoriaa valmistellaan…</string>
+    <string name="dashboard_live_steps_missing">Odotetaan kelvollista askelhavaintoa</string>
+    <string name="dashboard_live_steps_unavailable">Pysyvästi tallennettu askelhistoria ei ole saatavilla</string>
     <string name="dashboard_milestone_distance">km saavutettu!</string>
     <string name="dashboard_milestone_steps">askelta saavutettu!</string>
     <string name="dashboard_milestone_time">min seurattu!</string>

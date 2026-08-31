@@ -32,6 +32,16 @@
     <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
     <string name="dashboard_tracking_awaiting_gps">Αναμονή για σήμα GPS…</string>
     <string name="dashboard_tracking_recording_route">Γίνεται καταγραφή διαδρομής…</string>
+    <string name="dashboard_live_history_resolving">Προετοιμασία λεπτομερειών ζωντανής συνεδρίας…</string>
+    <string name="dashboard_live_history_unavailable">Οι λεπτομέρειες της ζωντανής συνεδρίας δεν είναι διαθέσιμες</string>
+    <string name="dashboard_live_value_missing">—</string>
+    <string name="dashboard_live_steps_lower_bound">Τουλάχιστον %1$s</string>
+    <string name="dashboard_live_steps_complete">Πλήρης κάλυψη συνεδρίας</string>
+    <string name="dashboard_live_steps_covered_zero">Καλυμμένο διάστημα χωρίς καταγεγραμμένα βήματα</string>
+    <string name="dashboard_live_steps_partial">Μερική κάλυψη συνεδρίας</string>
+    <string name="dashboard_live_steps_materializing">Προετοιμασία μόνιμα αποθηκευμένου ιστορικού βημάτων…</string>
+    <string name="dashboard_live_steps_missing">Αναμονή για έγκυρη παρατήρηση βημάτων</string>
+    <string name="dashboard_live_steps_unavailable">Το μόνιμα αποθηκευμένο ιστορικό βημάτων δεν είναι διαθέσιμο</string>
     <string name="dashboard_milestone_distance">km συμπληρώθηκαν!</string>
     <string name="dashboard_milestone_steps">βήματα συμπληρώθηκαν!</string>
     <string name="dashboard_milestone_time">λεπτά καταγραφής!</string>

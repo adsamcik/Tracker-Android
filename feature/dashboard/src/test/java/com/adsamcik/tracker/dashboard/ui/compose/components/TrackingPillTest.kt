@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import io.kotest.matchers.shouldBe
 import org.junit.Rule
@@ -62,6 +63,33 @@ class TrackingPillTest {
 		}
 
 		composeRule.onNodeWithTag("tracking_pill").assertIsDisplayed()
+		composeRule.onNodeWithTag("tracking_pill").performClick()
+		permissionRequested shouldBe true
+		toggleCalled shouldBe false
+	}
+
+	@Test
+	fun trackingWithoutLocationPermission_stillOffersStop() {
+		var permissionRequested = false
+		var toggleCalled = false
+
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				TrackingPill(
+					visible = true,
+					isTracking = true,
+					hasPermission = false,
+					sessionData = null,
+					onToggleTracking = { toggleCalled = true },
+					onRequestPermission = { permissionRequested = true },
+				)
+			}
+		}
+
+		composeRule.onNodeWithText("Stop").assertIsDisplayed()
+		composeRule.onNodeWithTag("tracking_pill").performClick()
+		toggleCalled shouldBe true
+		permissionRequested shouldBe false
 	}
 
 	private fun setContent(

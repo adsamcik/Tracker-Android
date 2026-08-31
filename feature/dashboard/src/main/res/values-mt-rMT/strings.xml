@@ -32,6 +32,16 @@
     <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
     <string name="dashboard_tracking_awaiting_gps">Qed jistenna s-sinjal GPS…</string>
     <string name="dashboard_tracking_recording_route">Qed tiġi rreġistrata r-rotta…</string>
+    <string name="dashboard_live_history_resolving">Qed jitħejjew id-dettalji tas-sessjoni attiva…</string>
+    <string name="dashboard_live_history_unavailable">Id-dettalji tas-sessjoni attiva mhumiex disponibbli</string>
+    <string name="dashboard_live_value_missing">—</string>
+    <string name="dashboard_live_steps_lower_bound">Mill-inqas %1$s</string>
+    <string name="dashboard_live_steps_complete">Kopertura sħiħa tas-sessjoni</string>
+    <string name="dashboard_live_steps_covered_zero">Intervall kopert mingħajr passi rreġistrati</string>
+    <string name="dashboard_live_steps_partial">Kopertura parzjali tas-sessjoni</string>
+    <string name="dashboard_live_steps_materializing">Qed titħejja l-istorja tal-passi maħżuna b’mod permanenti…</string>
+    <string name="dashboard_live_steps_missing">Stennija għal osservazzjoni valida tal-passi</string>
+    <string name="dashboard_live_steps_unavailable">L-istorja tal-passi maħżuna b’mod permanenti mhix disponibbli</string>
     <string name="dashboard_milestone_distance">km milħuqa!</string>
     <string name="dashboard_milestone_steps">passi milħuqa!</string>
     <string name="dashboard_milestone_time">min traċċati!</string>

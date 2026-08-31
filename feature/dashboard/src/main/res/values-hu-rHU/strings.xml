@@ -32,6 +32,16 @@
     <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
     <string name="dashboard_tracking_awaiting_gps">GPS-jelre vár…</string>
     <string name="dashboard_tracking_recording_route">Útvonal rögzítése…</string>
+    <string name="dashboard_live_history_resolving">Az aktív munkamenet részleteinek előkészítése…</string>
+    <string name="dashboard_live_history_unavailable">Az aktív munkamenet részletei nem érhetők el</string>
+    <string name="dashboard_live_value_missing">—</string>
+    <string name="dashboard_live_steps_lower_bound">Legalább %1$s</string>
+    <string name="dashboard_live_steps_complete">A munkamenet teljes lefedettsége</string>
+    <string name="dashboard_live_steps_covered_zero">Lefedett időszak rögzített lépések nélkül</string>
+    <string name="dashboard_live_steps_partial">A munkamenet részleges lefedettsége</string>
+    <string name="dashboard_live_steps_materializing">A tartósan mentett lépéselőzmények előkészítése…</string>
+    <string name="dashboard_live_steps_missing">Várakozás érvényes lépésmegfigyelésre</string>
+    <string name="dashboard_live_steps_unavailable">A tartósan mentett lépéselőzmények nem érhetők el</string>
     <string name="dashboard_milestone_distance">km elérve!</string>
     <string name="dashboard_milestone_steps">lépés teljesítve!</string>
     <string name="dashboard_milestone_time">perc rögzítve!</string>

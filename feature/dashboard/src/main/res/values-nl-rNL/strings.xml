@@ -32,6 +32,16 @@
     <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
     <string name="dashboard_tracking_awaiting_gps">Wachten op GPS-signaal…</string>
     <string name="dashboard_tracking_recording_route">Route vastleggen…</string>
+    <string name="dashboard_live_history_resolving">Details van de actieve sessie worden voorbereid…</string>
+    <string name="dashboard_live_history_unavailable">Details van de actieve sessie zijn niet beschikbaar</string>
+    <string name="dashboard_live_value_missing">—</string>
+    <string name="dashboard_live_steps_lower_bound">Minimaal %1$s</string>
+    <string name="dashboard_live_steps_complete">Volledige sessiedekking</string>
+    <string name="dashboard_live_steps_covered_zero">Gedekt interval zonder geregistreerde stappen</string>
+    <string name="dashboard_live_steps_partial">Gedeeltelijke sessiedekking</string>
+    <string name="dashboard_live_steps_materializing">Permanent opgeslagen stappengeschiedenis wordt voorbereid…</string>
+    <string name="dashboard_live_steps_missing">Wachten op een geldige stapwaarneming</string>
+    <string name="dashboard_live_steps_unavailable">Permanent opgeslagen stappengeschiedenis is niet beschikbaar</string>
     <string name="dashboard_milestone_distance">km bereikt!</string>
     <string name="dashboard_milestone_steps">stappen bereikt!</string>
     <string name="dashboard_milestone_time">min bijgehouden!</string>

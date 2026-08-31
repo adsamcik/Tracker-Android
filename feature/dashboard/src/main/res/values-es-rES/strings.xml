@@ -32,6 +32,16 @@
     <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
     <string name="dashboard_tracking_awaiting_gps">Esperando señal GPS…</string>
     <string name="dashboard_tracking_recording_route">Registrando ruta…</string>
+    <string name="dashboard_live_history_resolving">Preparando los detalles de la sesión en curso…</string>
+    <string name="dashboard_live_history_unavailable">Los detalles de la sesión en curso no están disponibles</string>
+    <string name="dashboard_live_value_missing">—</string>
+    <string name="dashboard_live_steps_lower_bound">Al menos %1$s</string>
+    <string name="dashboard_live_steps_complete">Cobertura completa de la sesión</string>
+    <string name="dashboard_live_steps_covered_zero">Intervalo cubierto sin pasos registrados</string>
+    <string name="dashboard_live_steps_partial">Cobertura parcial de la sesión</string>
+    <string name="dashboard_live_steps_materializing">Preparando el historial de pasos guardado de forma permanente…</string>
+    <string name="dashboard_live_steps_missing">Esperando una observación válida de pasos</string>
+    <string name="dashboard_live_steps_unavailable">El historial de pasos guardado de forma permanente no está disponible</string>
     <string name="dashboard_milestone_distance">¡km alcanzados!</string>
     <string name="dashboard_milestone_steps">¡pasos alcanzados!</string>
     <string name="dashboard_milestone_time">¡min registrados!</string>

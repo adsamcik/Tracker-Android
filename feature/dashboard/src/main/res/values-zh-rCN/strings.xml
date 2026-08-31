@@ -32,6 +32,16 @@
     <string name="dashboard_format_speed_ms">%1$.1f 米/秒</string>
     <string name="dashboard_tracking_awaiting_gps">正在等待 GPS 信号…</string>
     <string name="dashboard_tracking_recording_route">正在记录路线…</string>
+    <string name="dashboard_live_history_resolving">正在准备当前会话详情…</string>
+    <string name="dashboard_live_history_unavailable">当前会话详情不可用</string>
+    <string name="dashboard_live_value_missing">—</string>
+    <string name="dashboard_live_steps_lower_bound">至少 %1$s</string>
+    <string name="dashboard_live_steps_complete">会话覆盖完整</string>
+    <string name="dashboard_live_steps_covered_zero">已覆盖的时间段内没有记录到步数</string>
+    <string name="dashboard_live_steps_partial">会话仅部分覆盖</string>
+    <string name="dashboard_live_steps_materializing">正在准备持久保存的步数历史记录…</string>
+    <string name="dashboard_live_steps_missing">正在等待有效的步数观测</string>
+    <string name="dashboard_live_steps_unavailable">持久保存的步数历史记录不可用</string>
     <string name="dashboard_milestone_distance">千米已达成！</string>
     <string name="dashboard_milestone_steps">步数已达成！</string>
     <string name="dashboard_milestone_time">分钟已跟踪！</string>

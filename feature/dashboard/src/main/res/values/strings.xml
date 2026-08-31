@@ -39,6 +39,16 @@
     <!-- Tracking state -->
     <string name="dashboard_tracking_awaiting_gps">Awaiting GPS signal…</string>
     <string name="dashboard_tracking_recording_route">Recording route…</string>
+    <string name="dashboard_live_history_resolving">Preparing live session details…</string>
+    <string name="dashboard_live_history_unavailable">Live session details are unavailable</string>
+    <string name="dashboard_live_value_missing">—</string>
+    <string name="dashboard_live_steps_lower_bound">At least %1$s</string>
+    <string name="dashboard_live_steps_complete">Complete session coverage</string>
+    <string name="dashboard_live_steps_covered_zero">Covered interval with no recorded steps</string>
+    <string name="dashboard_live_steps_partial">Partial session coverage</string>
+    <string name="dashboard_live_steps_materializing">Preparing durable step history…</string>
+    <string name="dashboard_live_steps_missing">Waiting for a qualifying step observation</string>
+    <string name="dashboard_live_steps_unavailable">Durable step history is unavailable</string>
     <string name="dashboard_milestone_distance">km reached!</string>
     <string name="dashboard_milestone_steps">steps reached!</string>
     <string name="dashboard_milestone_time">min tracked!</string>

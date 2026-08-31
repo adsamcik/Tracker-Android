@@ -71,7 +71,9 @@ internal fun TrackingPill(
 			isTracking = isTracking,
 			hasPermission = hasPermission,
 			sessionData = sessionData,
-			onClick = { if (!hasPermission) onRequestPermission() else onToggleTracking() },
+			onClick = {
+				if (isTracking || hasPermission) onToggleTracking() else onRequestPermission()
+			},
 		)
 	}
 }
@@ -87,25 +89,25 @@ private fun PillContent(
 	val context = LocalContext.current
 
 	val containerColor = when {
-		!hasPermission -> MaterialTheme.colorScheme.surfaceContainerHigh
 		isTracking -> MaterialTheme.colorScheme.errorContainer
+		!hasPermission -> MaterialTheme.colorScheme.surfaceContainerHigh
 		else -> MaterialTheme.colorScheme.primaryContainer
 	}
 	val contentColor = when {
-		!hasPermission -> MaterialTheme.colorScheme.onSurface
 		isTracking -> MaterialTheme.colorScheme.onErrorContainer
+		!hasPermission -> MaterialTheme.colorScheme.onSurface
 		else -> MaterialTheme.colorScheme.onPrimaryContainer
 	}
 
 	val icon = when {
-		!hasPermission -> Icons.Default.LocationOff
 		isTracking -> Icons.Default.Stop
+		!hasPermission -> Icons.Default.LocationOff
 		else -> Icons.Default.PlayArrow
 	}
 
 	val label = when {
-		!hasPermission -> stringResource(R.string.dashboard_pill_enable_location)
 		isTracking -> stringResource(R.string.dashboard_pill_stop)
+		!hasPermission -> stringResource(R.string.dashboard_pill_enable_location)
 		else -> stringResource(R.string.dashboard_pill_start)
 	}
 

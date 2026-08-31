@@ -26,8 +26,14 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
+import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveSessionPresentation
+import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveStepsValue
+import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardMode
+import com.adsamcik.tracker.dashboard.ui.compose.state.allowsRuntimeMilestones
 import com.adsamcik.tracker.shared.utils.style.compose.AppDimensions
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
+import io.kotest.matchers.shouldBe
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -76,6 +82,58 @@ class DashboardScreenTest {
 		composeRule.onNodeWithText(
 			"Tap here to grant location access, then start your first tracking session.",
 		).assertIsDisplayed()
+	}
+
+	@Test
+	fun exactStepsOnlyTracking_hidesLocationSurfaceAndKeepsStopReachable() {
+		val segmentId = 42L
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				DashboardScreen(
+					state = DashboardUiState(
+						dashboardMode = DashboardMode.TRACKING,
+						isTracking = true,
+						hasLocationPermission = false,
+						sessionData = TrackerSessionSnapshot(
+							id = segmentId,
+							start = System.currentTimeMillis() - 60_000L,
+						),
+						liveSessionPresentation =
+							DashboardLiveSessionPresentation.StepsOnly(
+								segmentId = segmentId,
+								steps = DashboardLiveStepsValue.Complete(42L),
+							),
+					),
+					onSettingsClick = {},
+					onMapClick = {},
+					onToggleTracking = {},
+					onRequestPermission = {},
+					onGameClick = null,
+					onSessionDetailClick = null,
+					snackbarHostState = remember { SnackbarHostState() },
+				)
+			}
+		}
+
+		composeRule.onNodeWithTag("dashboard_steps_only_tracking_card").assertIsDisplayed()
+		composeRule.onAllNodesWithText("Awaiting GPS signal", substring = true)
+			.assertCountEquals(0)
+		composeRule.onAllNodesWithText("Enable location", substring = true)
+			.assertCountEquals(0)
+		composeRule.onNodeWithText("Stop").assertIsDisplayed()
+	}
+
+	@Test
+	fun staleStandardPresentation_doesNotAuthorizeNewSegmentMilestones() {
+		DashboardUiState(
+			sessionData = TrackerSessionSnapshot(id = 42L, start = 1L),
+			liveSessionPresentation = DashboardLiveSessionPresentation.Standard(segmentId = 41L),
+		).allowsRuntimeMilestones shouldBe false
+
+		DashboardUiState(
+			sessionData = TrackerSessionSnapshot(id = 42L, start = 1L),
+			liveSessionPresentation = DashboardLiveSessionPresentation.Standard(segmentId = 42L),
+		).allowsRuntimeMilestones shouldBe true
 	}
 
 	private fun setEmptyDashboardContent() {

@@ -1,11 +1,13 @@
 package com.adsamcik.tracker.dashboard.ui.compose.components
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.test.junit4.createComposeRule
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
+import io.kotest.matchers.collections.shouldBeEmpty
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -84,5 +86,42 @@ class MilestoneHapticEffectTest {
 		}
 
 		// When not tracking, the LaunchedEffect resets state — should not crash
+	}
+
+	@Test
+	fun disabledMilestones_doNotConsumeRawDistanceOrSteps() {
+		val now = System.currentTimeMillis()
+		val session = mutableStateOf(
+			TrackerSessionSnapshot(
+				id = 1L,
+				start = now - 120_000L,
+				end = now,
+				distanceInM = 1500f,
+				steps = 1500,
+			),
+		)
+		val feedback = mutableListOf<HapticFeedbackType>()
+		val recordingHaptics = object : HapticFeedback {
+			override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) {
+				feedback += hapticFeedbackType
+			}
+		}
+
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				MilestoneHapticEffect(
+					sessionData = session.value,
+					isTracking = true,
+					haptics = recordingHaptics,
+					milestonesEnabled = false,
+				)
+			}
+		}
+		composeRule.runOnIdle {
+			session.value = session.value.copy(distanceInM = 2500f, steps = 2500)
+		}
+		composeRule.waitForIdle()
+
+		feedback.shouldBeEmpty()
 	}
 }

@@ -32,6 +32,16 @@
     <string name="dashboard_format_speed_ms">%1$.1f 公尺／秒</string>
     <string name="dashboard_tracking_awaiting_gps">正在等待 GPS 訊號…</string>
     <string name="dashboard_tracking_recording_route">正在記錄路線…</string>
+    <string name="dashboard_live_history_resolving">正在準備目前工作階段的詳細資料…</string>
+    <string name="dashboard_live_history_unavailable">目前工作階段的詳細資料無法使用</string>
+    <string name="dashboard_live_value_missing">—</string>
+    <string name="dashboard_live_steps_lower_bound">至少 %1$s</string>
+    <string name="dashboard_live_steps_complete">工作階段涵蓋完整</string>
+    <string name="dashboard_live_steps_covered_zero">已涵蓋的時間區間內沒有記錄到步數</string>
+    <string name="dashboard_live_steps_partial">工作階段僅部分涵蓋</string>
+    <string name="dashboard_live_steps_materializing">正在準備永久儲存的步數記錄…</string>
+    <string name="dashboard_live_steps_missing">正在等待有效的步數觀測</string>
+    <string name="dashboard_live_steps_unavailable">永久儲存的步數記錄無法使用</string>
     <string name="dashboard_milestone_distance">已達成公里數！</string>
     <string name="dashboard_milestone_steps">已達成步數！</string>
     <string name="dashboard_milestone_time">已追蹤分鐘數！</string>

@@ -14,8 +14,10 @@ import com.adsamcik.tracker.dashboard.data.DashboardWeeklyTrend
 import com.adsamcik.tracker.dashboard.data.DashboardWidgetRegistry
 import com.adsamcik.tracker.dashboard.ui.compose.state.LatestAchievementUi
 import com.adsamcik.tracker.dashboard.ui.compose.state.ExplorationUiState
+import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveSessionPresentation
 import com.adsamcik.tracker.dashboard.ui.compose.state.StreakState
 import com.adsamcik.tracker.dashboard.ui.compose.state.WeeklyTrend
+import com.adsamcik.tracker.dashboard.ui.compose.state.toDashboardLiveStepsValue
 import com.adsamcik.tracker.shared.base.di.DailyPointsProvider
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
@@ -24,6 +26,8 @@ import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.shared.model.Trip
+import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import com.adsamcik.tracker.tracker.insights.SessionInsight
 import com.adsamcik.tracker.tracker.insights.SessionInsightsGenerator
 import com.adsamcik.tracker.tracker.controller.LockManager
@@ -31,10 +35,19 @@ import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.util.concurrent.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -53,6 +66,7 @@ class DashboardViewModel @Inject constructor(
 	@ApplicationContext
 	private val appContext: Context,
 	private val historyRepository: DashboardHistoryRepository,
+	private val trackingHistoryRepository: TrackingHistoryRepository,
 	private val layoutRepository: DashboardLayoutStore,
 	private val sessionInsightsGenerator: SessionInsightsGenerator,
 	val widgetRegistry: DashboardWidgetRegistry,
@@ -86,6 +100,37 @@ class DashboardViewModel @Inject constructor(
 		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 	val isLocked: StateFlow<Boolean> = lockManager.isLockedFlow
 		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+	/**
+	 * Binds the durable history read to the currently published physical segment. A replacement
+	 * segment or service stop cancels the old Room observation through [flatMapLatest].
+	 */
+	@OptIn(ExperimentalCoroutinesApi::class)
+	val liveSessionPresentation: StateFlow<DashboardLiveSessionPresentation> = combine(
+		trackerStateReader.isServiceRunningFlow,
+		trackerStateReader.sessionFlow,
+	) { isRunning, session ->
+		session?.id?.takeIf { isRunning && it > 0L }
+	}.distinctUntilChanged()
+		.flatMapLatest { segmentId ->
+			if (segmentId == null) {
+				flowOf(DashboardLiveSessionPresentation.Inactive)
+			} else {
+				trackingHistoryRepository.observeSession(segmentId)
+					.map { query -> query.toLivePresentation(segmentId) }
+					.onStart {
+						emit(DashboardLiveSessionPresentation.Resolving(segmentId))
+					}
+					.catch { throwable ->
+						if (throwable is CancellationException) throw throwable
+						emit(DashboardLiveSessionPresentation.HistoryUnavailable(segmentId))
+					}
+			}
+		}.stateIn(
+			scope = viewModelScope,
+			started = SharingStarted.WhileSubscribed(5_000),
+			initialValue = DashboardLiveSessionPresentation.Inactive,
+		)
 
 	private val _todaySummary = MutableStateFlow<DailySummary?>(null)
 	val todaySummary: StateFlow<DailySummary?> = _todaySummary.asStateFlow()
@@ -259,5 +304,21 @@ class DashboardViewModel @Inject constructor(
 					Manifest.permission.ACCESS_COARSE_LOCATION,
 				) == PackageManager.PERMISSION_GRANTED
 		}
+	}
+}
+
+private fun SessionHistoryQuery.toLivePresentation(
+	requestedSegmentId: Long,
+): DashboardLiveSessionPresentation = when (this) {
+	SessionHistoryQuery.NotFound ->
+		DashboardLiveSessionPresentation.HistoryUnavailable(requestedSegmentId)
+	is SessionHistoryQuery.Found -> when {
+		history.segmentId != requestedSegmentId ->
+			DashboardLiveSessionPresentation.HistoryUnavailable(requestedSegmentId)
+		history.capturesOnlySteps -> DashboardLiveSessionPresentation.StepsOnly(
+			segmentId = requestedSegmentId,
+			steps = history.steps.toDashboardLiveStepsValue(),
+		)
+		else -> DashboardLiveSessionPresentation.Standard(requestedSegmentId)
 	}
 }

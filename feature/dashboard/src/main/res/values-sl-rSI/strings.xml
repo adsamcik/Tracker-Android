@@ -34,6 +34,16 @@
     <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
     <string name="dashboard_tracking_awaiting_gps">Čakanje na signal GPS …</string>
     <string name="dashboard_tracking_recording_route">Beleženje poti …</string>
+    <string name="dashboard_live_history_resolving">Pripravljanje podrobnosti aktivne seje…</string>
+    <string name="dashboard_live_history_unavailable">Podrobnosti aktivne seje niso na voljo</string>
+    <string name="dashboard_live_value_missing">—</string>
+    <string name="dashboard_live_steps_lower_bound">Vsaj %1$s</string>
+    <string name="dashboard_live_steps_complete">Popolna pokritost seje</string>
+    <string name="dashboard_live_steps_covered_zero">Pokrit interval brez zabeleženih korakov</string>
+    <string name="dashboard_live_steps_partial">Delna pokritost seje</string>
+    <string name="dashboard_live_steps_materializing">Pripravljanje trajno shranjene zgodovine korakov…</string>
+    <string name="dashboard_live_steps_missing">Čakanje na veljavno opazovanje korakov</string>
+    <string name="dashboard_live_steps_unavailable">Trajno shranjena zgodovina korakov ni na voljo</string>
     <string name="dashboard_milestone_distance">doseženih km!</string>
     <string name="dashboard_milestone_steps">doseženih korakov!</string>
     <string name="dashboard_milestone_time">sledenih min!</string>

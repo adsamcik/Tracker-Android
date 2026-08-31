@@ -33,6 +33,16 @@
     <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
     <string name="dashboard_tracking_awaiting_gps">Se așteaptă semnal GPS…</string>
     <string name="dashboard_tracking_recording_route">Se înregistrează ruta…</string>
+    <string name="dashboard_live_history_resolving">Se pregătesc detaliile sesiunii active…</string>
+    <string name="dashboard_live_history_unavailable">Detaliile sesiunii active nu sunt disponibile</string>
+    <string name="dashboard_live_value_missing">—</string>
+    <string name="dashboard_live_steps_lower_bound">Cel puțin %1$s</string>
+    <string name="dashboard_live_steps_complete">Acoperire completă a sesiunii</string>
+    <string name="dashboard_live_steps_covered_zero">Interval acoperit fără pași înregistrați</string>
+    <string name="dashboard_live_steps_partial">Acoperire parțială a sesiunii</string>
+    <string name="dashboard_live_steps_materializing">Se pregătește istoricul pașilor salvat permanent…</string>
+    <string name="dashboard_live_steps_missing">Se așteaptă o observație validă a pașilor</string>
+    <string name="dashboard_live_steps_unavailable">Istoricul pașilor salvat permanent nu este disponibil</string>
     <string name="dashboard_milestone_distance">km atinși!</string>
     <string name="dashboard_milestone_steps">pași atinși!</string>
     <string name="dashboard_milestone_time">min urmărite!</string>

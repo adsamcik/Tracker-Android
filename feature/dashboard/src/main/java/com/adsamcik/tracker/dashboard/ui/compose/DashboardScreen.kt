@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.data.DashboardWidget
 import com.adsamcik.tracker.dashboard.data.ResolvedWidget
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
+import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveSessionPresentation
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.dashboard.ui.compose.cards.IdleContent
 import com.adsamcik.tracker.dashboard.ui.compose.components.CustomizeDashboardSheet
@@ -44,7 +45,10 @@ import com.adsamcik.tracker.dashboard.ui.compose.components.GettingStartedCard
 import com.adsamcik.tracker.dashboard.ui.compose.components.MilestoneHapticEffect
 import com.adsamcik.tracker.dashboard.ui.compose.components.TrackingPill
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardMode
+import com.adsamcik.tracker.dashboard.ui.compose.state.allowsRuntimeMilestones
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.TrackingContent
+import com.adsamcik.tracker.dashboard.ui.compose.tracking.StepsOnlyTrackingContent
+import com.adsamcik.tracker.dashboard.ui.compose.tracking.TrackingHistoryResolutionContent
 import com.adsamcik.tracker.shared.utils.style.compose.rememberMainNavigationLayout
 
 /**
@@ -101,6 +105,7 @@ internal fun DashboardScreen(
 		sessionData = state.sessionData,
 		isTracking = state.isTracking,
 		haptics = haptics,
+		milestonesEnabled = state.allowsRuntimeMilestones,
 	)
 
 	// Haptic-wrapped callbacks
@@ -210,11 +215,50 @@ internal fun DashboardScreen(
 						onToggleTracking = wrappedToggle,
 						onRequestPermission = wrappedPermission,
 					)
-					DashboardMode.TRACKING -> TrackingContent(
-						state = state,
-						bottomClearance = bottomClearance,
-						onMapClick = onMapClick,
-					)
+					DashboardMode.TRACKING -> when (
+						val presentation = state.liveSessionPresentation
+					) {
+						is DashboardLiveSessionPresentation.StepsOnly -> {
+							val session = state.sessionData
+							if (session != null && session.id == presentation.segmentId) {
+								StepsOnlyTrackingContent(
+									sessionData = session,
+									presentation = presentation,
+									bottomClearance = bottomClearance,
+								)
+							} else {
+								TrackingHistoryResolutionContent(
+									historyUnavailable = false,
+									bottomClearance = bottomClearance,
+								)
+							}
+						}
+						is DashboardLiveSessionPresentation.Standard -> {
+							if (state.sessionData?.id == presentation.segmentId) {
+								TrackingContent(
+									state = state,
+									bottomClearance = bottomClearance,
+									onMapClick = onMapClick,
+								)
+							} else {
+								TrackingHistoryResolutionContent(
+									historyUnavailable = false,
+									bottomClearance = bottomClearance,
+								)
+							}
+						}
+						is DashboardLiveSessionPresentation.HistoryUnavailable ->
+							TrackingHistoryResolutionContent(
+								historyUnavailable = true,
+								bottomClearance = bottomClearance,
+							)
+						DashboardLiveSessionPresentation.Inactive,
+						is DashboardLiveSessionPresentation.Resolving ->
+							TrackingHistoryResolutionContent(
+								historyUnavailable = false,
+								bottomClearance = bottomClearance,
+							)
+					}
 				}
 			}
 		}
@@ -361,4 +405,3 @@ private fun DashboardScreenTrackingPreview() {
 		)
 	}
 }
-

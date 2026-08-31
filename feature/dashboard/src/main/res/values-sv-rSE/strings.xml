@@ -32,6 +32,16 @@
     <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
     <string name="dashboard_tracking_awaiting_gps">Väntar på GPS-signal…</string>
     <string name="dashboard_tracking_recording_route">Registrerar rutt…</string>
+    <string name="dashboard_live_history_resolving">Förbereder information om den aktiva sessionen…</string>
+    <string name="dashboard_live_history_unavailable">Information om den aktiva sessionen är inte tillgänglig</string>
+    <string name="dashboard_live_value_missing">—</string>
+    <string name="dashboard_live_steps_lower_bound">Minst %1$s</string>
+    <string name="dashboard_live_steps_complete">Fullständig sessionstäckning</string>
+    <string name="dashboard_live_steps_covered_zero">Täckt intervall utan registrerade steg</string>
+    <string name="dashboard_live_steps_partial">Delvis sessionstäckning</string>
+    <string name="dashboard_live_steps_materializing">Förbereder permanent sparad steghistorik…</string>
+    <string name="dashboard_live_steps_missing">Väntar på en giltig stegobservation</string>
+    <string name="dashboard_live_steps_unavailable">Permanent sparad steghistorik är inte tillgänglig</string>
     <string name="dashboard_milestone_distance">km uppnått!</string>
     <string name="dashboard_milestone_steps">steg uppnått!</string>
     <string name="dashboard_milestone_time">min spårat!</string>

@@ -34,6 +34,16 @@
     <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
     <string name="dashboard_tracking_awaiting_gps">Čaká sa na signál GPS…</string>
     <string name="dashboard_tracking_recording_route">Zaznamenáva sa trasa…</string>
+    <string name="dashboard_live_history_resolving">Pripravujú sa podrobnosti aktívnej relácie…</string>
+    <string name="dashboard_live_history_unavailable">Podrobnosti aktívnej relácie nie sú k dispozícii</string>
+    <string name="dashboard_live_value_missing">—</string>
+    <string name="dashboard_live_steps_lower_bound">Aspoň %1$s</string>
+    <string name="dashboard_live_steps_complete">Úplné pokrytie relácie</string>
+    <string name="dashboard_live_steps_covered_zero">Pokrytý interval bez zaznamenaných krokov</string>
+    <string name="dashboard_live_steps_partial">Čiastočné pokrytie relácie</string>
+    <string name="dashboard_live_steps_materializing">Pripravuje sa trvalo uložená história krokov…</string>
+    <string name="dashboard_live_steps_missing">Čaká sa na platné pozorovanie krokov</string>
+    <string name="dashboard_live_steps_unavailable">Trvalo uložená história krokov nie je k dispozícii</string>
     <string name="dashboard_milestone_distance">km dosiahnuté!</string>
     <string name="dashboard_milestone_steps">krokov dosiahnutých!</string>
     <string name="dashboard_milestone_time">min sledovania!</string>

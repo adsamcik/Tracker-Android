@@ -32,6 +32,16 @@
     <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
     <string name="dashboard_tracking_awaiting_gps">Afventer GPS-signal…</string>
     <string name="dashboard_tracking_recording_route">Registrerer rute…</string>
+    <string name="dashboard_live_history_resolving">Forbereder oplysninger om den aktive session…</string>
+    <string name="dashboard_live_history_unavailable">Oplysninger om den aktive session er ikke tilgængelige</string>
+    <string name="dashboard_live_value_missing">—</string>
+    <string name="dashboard_live_steps_lower_bound">Mindst %1$s</string>
+    <string name="dashboard_live_steps_complete">Fuld dækning af sessionen</string>
+    <string name="dashboard_live_steps_covered_zero">Dækket interval uden registrerede skridt</string>
+    <string name="dashboard_live_steps_partial">Delvis dækning af sessionen</string>
+    <string name="dashboard_live_steps_materializing">Forbereder permanent gemt skridthistorik…</string>
+    <string name="dashboard_live_steps_missing">Venter på en gyldig skridtobservation</string>
+    <string name="dashboard_live_steps_unavailable">Permanent gemt skridthistorik er ikke tilgængelig</string>
     <string name="dashboard_milestone_distance">km nået!</string>
     <string name="dashboard_milestone_steps">skridt nået!</string>
     <string name="dashboard_milestone_time">min. registreret!</string>

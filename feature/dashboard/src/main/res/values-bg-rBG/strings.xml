@@ -32,6 +32,16 @@
     <string name="dashboard_format_speed_ms">%1$.1f м/сек</string>
     <string name="dashboard_tracking_awaiting_gps">Изчакване на GPS сигнал…</string>
     <string name="dashboard_tracking_recording_route">Записване на маршрута…</string>
+    <string name="dashboard_live_history_resolving">Подготвяне на подробностите за текущата сесия…</string>
+    <string name="dashboard_live_history_unavailable">Подробностите за текущата сесия не са налични</string>
+    <string name="dashboard_live_value_missing">—</string>
+    <string name="dashboard_live_steps_lower_bound">Поне %1$s</string>
+    <string name="dashboard_live_steps_complete">Пълно покритие на сесията</string>
+    <string name="dashboard_live_steps_covered_zero">Покрит интервал без записани крачки</string>
+    <string name="dashboard_live_steps_partial">Частично покритие на сесията</string>
+    <string name="dashboard_live_steps_materializing">Подготвяне на трайно запазената история на крачките…</string>
+    <string name="dashboard_live_steps_missing">Изчакване на валидно наблюдение на крачки</string>
+    <string name="dashboard_live_steps_unavailable">Трайно запазената история на крачките не е налична</string>
     <string name="dashboard_milestone_distance">км достигнати!</string>
     <string name="dashboard_milestone_steps">крачки достигнати!</string>
     <string name="dashboard_milestone_time">мин проследени!</string>

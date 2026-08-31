@@ -33,6 +33,16 @@
     <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
     <string name="dashboard_tracking_awaiting_gps">Laukiama GPS signalo…</string>
     <string name="dashboard_tracking_recording_route">Įrašomas maršrutas…</string>
+    <string name="dashboard_live_history_resolving">Ruošiama aktyvaus seanso informacija…</string>
+    <string name="dashboard_live_history_unavailable">Aktyvaus seanso informacija nepasiekiama</string>
+    <string name="dashboard_live_value_missing">—</string>
+    <string name="dashboard_live_steps_lower_bound">Bent %1$s</string>
+    <string name="dashboard_live_steps_complete">Visa seanso aprėptis</string>
+    <string name="dashboard_live_steps_covered_zero">Aprėptas intervalas be įrašytų žingsnių</string>
+    <string name="dashboard_live_steps_partial">Dalinė seanso aprėptis</string>
+    <string name="dashboard_live_steps_materializing">Ruošiama visam laikui išsaugota žingsnių istorija…</string>
+    <string name="dashboard_live_steps_missing">Laukiama tinkamo žingsnių stebėjimo</string>
+    <string name="dashboard_live_steps_unavailable">Visam laikui išsaugota žingsnių istorija nepasiekiama</string>
     <string name="dashboard_milestone_distance">km pasiekta!</string>
     <string name="dashboard_milestone_steps">žingsnių pasiekta!</string>
     <string name="dashboard_milestone_time">min. sekimo!</string>

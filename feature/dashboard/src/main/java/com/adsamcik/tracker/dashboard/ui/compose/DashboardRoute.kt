@@ -24,6 +24,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.DashboardViewModel
@@ -111,6 +112,7 @@ fun DashboardRoute(
 	val pathPoints by trackerState.pathPointsFlow.collectAsState()
 	val lastSessionData by trackerState.lastSessionFlow.collectAsState()
 	val lastPathPoints by trackerState.lastPathPointsFlow.collectAsState()
+	val liveSessionPresentation by viewModel.liveSessionPresentation.collectAsStateWithLifecycle()
 	val trackingParams by viewModel.trackingParams.collectAsState()
 	val trackingUnavailableMessage = stringResource(
 		com.adsamcik.tracker.tracker.R.string.notification_tracking_start_failed_title,
@@ -326,6 +328,7 @@ fun DashboardRoute(
 		sessionData = displaySession,
 		collectionSnapshot = collectionSnapshot,
 		pathPoints = relevantPathPoints,
+		liveSessionPresentation = liveSessionPresentation,
 		todaySummary = unifiedTodaySummary,
 		pointsToday = pointsToday,
 		goalProgress = GoalProgressState(

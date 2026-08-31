@@ -6,6 +6,7 @@ import com.adsamcik.tracker.dashboard.data.DashboardLayout
 import com.adsamcik.tracker.dashboard.data.DashboardLayoutStore
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import io.kotest.matchers.shouldBe
@@ -52,6 +53,7 @@ class DashboardViewModelPermissionTest {
 
         val trackerStateReader = mockk<TrackerStateReader>()
         every { trackerStateReader.isServiceRunningFlow } returns MutableStateFlow(false)
+        every { trackerStateReader.sessionFlow } returns MutableStateFlow(null)
 
         val lockManager = mockk<LockManager>()
         every { lockManager.isLockedFlow } returns MutableStateFlow(false)
@@ -62,6 +64,7 @@ class DashboardViewModelPermissionTest {
         return DashboardViewModel(
             appContext = ApplicationProvider.getApplicationContext<Context>(),
             historyRepository = mockk(),
+            trackingHistoryRepository = mockk<TrackingHistoryRepository>(),
             layoutRepository = layoutRepository,
             sessionInsightsGenerator = mockk(relaxed = true),
             widgetRegistry = mockk(relaxed = true),

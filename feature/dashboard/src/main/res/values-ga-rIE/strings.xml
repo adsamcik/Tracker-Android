@@ -32,6 +32,16 @@
     <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
     <string name="dashboard_tracking_awaiting_gps">Ag fanacht le comhartha GPS…</string>
     <string name="dashboard_tracking_recording_route">Ag taifeadadh bealaigh…</string>
+    <string name="dashboard_live_history_resolving">Sonraí an tseisiúin reatha á n-ullmhú…</string>
+    <string name="dashboard_live_history_unavailable">Níl sonraí an tseisiúin reatha ar fáil</string>
+    <string name="dashboard_live_value_missing">—</string>
+    <string name="dashboard_live_steps_lower_bound">%1$s ar a laghad</string>
+    <string name="dashboard_live_steps_complete">Clúdach iomlán an tseisiúin</string>
+    <string name="dashboard_live_steps_covered_zero">Eatramh clúdaithe gan céimeanna taifeadta</string>
+    <string name="dashboard_live_steps_partial">Clúdach páirteach an tseisiúin</string>
+    <string name="dashboard_live_steps_materializing">Stair chéimeanna atá sábháilte go buan á hullmhú…</string>
+    <string name="dashboard_live_steps_missing">Ag fanacht le breathnóireacht bhailí ar chéimeanna</string>
+    <string name="dashboard_live_steps_unavailable">Níl stair chéimeanna atá sábháilte go buan ar fáil</string>
     <string name="dashboard_milestone_distance">km bainte amach!</string>
     <string name="dashboard_milestone_steps">céimeanna bainte amach!</string>
     <string name="dashboard_milestone_time">nóim rianaithe!</string>

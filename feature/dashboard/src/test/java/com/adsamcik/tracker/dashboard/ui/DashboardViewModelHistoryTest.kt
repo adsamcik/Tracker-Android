@@ -14,6 +14,7 @@ import com.adsamcik.tracker.dashboard.data.DashboardWeeklyTrend
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import com.adsamcik.tracker.stats.api.AchievementTier
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import io.kotest.matchers.shouldBe
@@ -110,6 +111,7 @@ class DashboardViewModelHistoryTest {
 		every { layoutRepository.layout } returns flowOf(DashboardLayout())
 		val trackerStateReader = mockk<TrackerStateReader>()
 		every { trackerStateReader.isServiceRunningFlow } returns MutableStateFlow(false)
+		every { trackerStateReader.sessionFlow } returns MutableStateFlow(null)
 		val lockManager = mockk<LockManager>()
 		every { lockManager.isLockedFlow } returns MutableStateFlow(false)
 		val trackingParamsRepository = mockk<TrackingParamsRepository>()
@@ -118,6 +120,7 @@ class DashboardViewModelHistoryTest {
 		return DashboardViewModel(
 			appContext = ApplicationProvider.getApplicationContext<Context>(),
 			historyRepository = historyRepository,
+			trackingHistoryRepository = mockk<TrackingHistoryRepository>(),
 			layoutRepository = layoutRepository,
 			sessionInsightsGenerator = mockk(relaxed = true),
 			widgetRegistry = mockk(relaxed = true),

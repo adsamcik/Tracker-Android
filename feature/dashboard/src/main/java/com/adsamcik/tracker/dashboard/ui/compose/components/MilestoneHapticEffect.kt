@@ -24,13 +24,14 @@ internal fun MilestoneHapticEffect(
 	sessionData: TrackerSessionSnapshot?,
 	isTracking: Boolean,
 	haptics: HapticFeedback,
+	milestonesEnabled: Boolean = true,
 ) {
 	var lastDistanceKm by remember { mutableStateOf(0) }
 	var lastStepsThousand by remember { mutableStateOf(0) }
 	var lastMinutesTen by remember { mutableStateOf(0) }
 
-	LaunchedEffect(sessionData, isTracking) {
-		if (!isTracking || sessionData == null) {
+	LaunchedEffect(sessionData, isTracking, milestonesEnabled) {
+		if (!isTracking || !milestonesEnabled || sessionData == null) {
 			lastDistanceKm = 0
 			lastStepsThousand = 0
 			lastMinutesTen = 0

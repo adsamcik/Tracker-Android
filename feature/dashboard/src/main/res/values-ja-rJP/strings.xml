@@ -32,6 +32,16 @@
     <string name="dashboard_format_speed_ms">%1$.1f m/s</string>
     <string name="dashboard_tracking_awaiting_gps">GPS信号を待っています…</string>
     <string name="dashboard_tracking_recording_route">ルートを記録中…</string>
+    <string name="dashboard_live_history_resolving">進行中のセッションの詳細を準備しています…</string>
+    <string name="dashboard_live_history_unavailable">進行中のセッションの詳細を利用できません</string>
+    <string name="dashboard_live_value_missing">—</string>
+    <string name="dashboard_live_steps_lower_bound">少なくとも%1$s</string>
+    <string name="dashboard_live_steps_complete">セッション全体をカバー</string>
+    <string name="dashboard_live_steps_covered_zero">記録された歩数がない対象区間</string>
+    <string name="dashboard_live_steps_partial">セッションの一部をカバー</string>
+    <string name="dashboard_live_steps_materializing">永続保存された歩数履歴を準備しています…</string>
+    <string name="dashboard_live_steps_missing">有効な歩数の観測を待っています</string>
+    <string name="dashboard_live_steps_unavailable">永続保存された歩数履歴を利用できません</string>
     <string name="dashboard_milestone_distance">km到達！</string>
     <string name="dashboard_milestone_steps">歩到達！</string>
     <string name="dashboard_milestone_time">分を記録！</string>
