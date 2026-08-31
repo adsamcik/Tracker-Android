@@ -6,13 +6,13 @@ Execution-grade work items, ownership, dependency gates, verification commands, 
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and
 evidence index.
 
-Current scoped checkpoint: production code commit `9aeb8853a` plus test-contract correction
-`d067704a9` on `codex/ti410-deletion-rearm`, after the deletion/re-arm proof, observable one-selected-session Steps
-facade, dormant source-deletion fence, unsafe empty-session cleanup containment, remaining
-zero-sample product-read correction, contained Trip Detail consumer, and exact physical-service-run
-presentation settlement. Room now binds one presentation segment to each physical service run and
-records post-writer quiescence; DataStore is only an exact-CAS recovery mirror. This adds no physical
-cleanup, source materializer, writer activation, or product grouping. Direct Trip Detail deletion is
+Current scoped code checkpoint: `f2c7a3225` on `codex/ti410-deletion-rearm`, atop exact
+physical-service-run presentation settlement and the prior TI-410 foundations. Selected new-v28
+Steps history now requires the Room-authoritative reverse link from its physical service run to the
+exact segment before consulting deletion, manifest, lane, completeness, or fact evidence. Migrated
+`LEGACY_UNVERIFIABLE` ownership remains a named unavailable result; exact-bound `PENDING` and
+`QUIESCED` rows retain the existing read semantics. This adds no physical cleanup, source
+materializer, writer activation, schema, or product grouping. Direct Trip Detail deletion is
 withheld and ordinary list/day/live discoverability is unchanged. No production path creates a
 source-deletion fence, and lifecycle-owned crash-orphan reclamation remains absent. The continuation
 is not integrated into local `dev/v10`, pushed, or evidence of `QUERYABLE` or permanent deletion.
@@ -35,7 +35,8 @@ continuation branch as part of its reviewed product slice.
 - Gate status: `TRANSITION_FOUNDATION_IN_REVIEW / OBSERVABLE_FACADE_PRESENT /
   SELECTED_DETAIL_CONSUMER_CONTAINED /
   DELETION_AUTHORITY_DORMANT / EMPTY_CLEANUP_CONTAINED /
-  CRASH_PLACEHOLDER_READS_CONTAINED / PRODUCT_WIRING_BLOCKED`. TI-B160 connects the
+  CRASH_PLACEHOLDER_READS_CONTAINED / STEPS_REVERSE_BINDING_ENFORCED /
+  PRODUCT_WIRING_BLOCKED`. TI-B160 connects the
   production deletion provider, default `AppDatabase` deletion, singleton lifecycle/coordinator,
   durable pending marker, and closed startup/deletion barrier through a forced post-rearm diagnostics
   failure and successful retry. The final test passes twice consecutively on the same retained
@@ -51,7 +52,9 @@ continuation branch as part of its reviewed product slice.
   mutation and exclude every zero-sample row from the named product and ActivityRecognition reads,
   while leaving other DAO paths unchanged and claiming no durable reclamation.
   TI-D111 narrows the next wave after scope review. TI-D113/TI-B169 bind each physical service run
-  to one presentation segment and persist writer quiescence without reclaiming any row. List/day/
+  to one presentation segment and persist writer quiescence without reclaiming any row.
+  TI-D114/TI-B171 close only the selected Steps read-side reverse binding; source qualification,
+  ordinary discovery, and logical-entry grouping remain blocked. List/day/
   live composition, exact capture-set and Location-evidence presentation, completeness-safe numeric consumers, typed
   export/import, cold process/reboot/provider evidence, manual only-Steps device evidence, and every
   other source/mode remain blocked.
@@ -70,7 +73,17 @@ continuation branch as part of its reviewed product slice.
   Activity `CONTROL`, never captured Activity. Process-wide startup ordering is now locally
   implemented and verified; production backup recovery, portable export/import, partial-database
   containment, and connected startup/reboot proof remain TI-184 gates.
-- Current-worktree verification: `9aeb8853a` passes the exact presentation lifecycle/component/
+- Current-worktree verification: `f2c7a3225` passes the focused selector/mapping gate in `43s`
+  (209 tasks; `38/38`), then complete `:stats:api:allTests :stats:data:testDebugUnitTest` in `46s`
+  (219 tasks). XML records stats data `156/156`, including selector `30/30` and mapping `8/8`, plus
+  stats API JVM `308/308` and Android host `308/308`; all have zero failures/errors/skips. Root
+  Detekt, `:stats:data:lintDebug`, and `checkRoomSchemaDrift` pass together in `1m 18s` (345 tasks);
+  lint reports no new issue and the v28 schema is unchanged. Two read-only adversaries report no
+  remaining scoped `BLOCKER`, `HIGH`, or `MEDIUM` after the fence/manifest precedence test was
+  strengthened. The first sandboxed wrapper attempt failed before Gradle configuration because
+  network access to the pinned distribution was denied; approved reruns are the counted evidence.
+  This is host read-contract/schema-parity evidence, not device/provider/process/reboot/energy proof.
+  Earlier, `9aeb8853a` passes the exact presentation lifecycle/component/
   store/orchestrator/crash suite (`BUILD SUCCESSFUL in 4m 20s`; 230 tasks), focused Room DAO and
   tracker-API descriptor tests, root Detekt (`13s`), affected-module lint (`2m 19s`; 383 tasks; no
   new issue), and committed-tree `checkRoomSchemaDrift` (`8s`; 46 tasks). The v27→v28 migration
@@ -1433,3 +1446,41 @@ tracked payload; nonterminal or transient database failure retries. No physical 
   ordinary discovery and logical-entry composition without per-row observers, then implement the
   source-local Steps attribution/fence and typed deletion boundary. Do not turn `QUIESCED` into a
   deletion predicate or add a generic tombstone platform.
+
+## Exact Steps history reverse-binding checkpoint (2026-08-31)
+
+### Outcome
+
+Commit `f2c7a3225` requires a selected new-v28 Steps segment to be the exact presentation row owned
+by its physical service run. Null or foreign reverse bindings fail closed before any deletion-fence,
+manifest, lane, completeness, or fact selection. Migrated `LEGACY_UNVERIFIABLE` ownership remains a
+distinct typed unavailable result.
+
+This changes only the contained selected-session read contract. It adds no schema, provider demand,
+writer activation, cleanup, deletion, or product grouping.
+
+### Evidence
+
+- `./gradlew.bat :stats:data:testDebugUnitTest --tests '*StepsSegmentHistorySelectorTest'
+  --tests '*TrackingHistoryMappingTest' --no-daemon --no-parallel --max-workers=1
+  '-Pksp.incremental=false' --console=plain --no-configuration-cache` passes in `43s` with 209 tasks;
+  selector `30/30` and mapping `8/8` pass with zero failures/errors/skips.
+- `./gradlew.bat :stats:api:allTests :stats:data:testDebugUnitTest --no-daemon --no-parallel
+  --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache` passes in
+  `46s` with 219 tasks. Stats data is `156/156`; stats API JVM and Android host are each `308/308`.
+- `./gradlew.bat detekt :stats:data:lintDebug checkRoomSchemaDrift --no-daemon --no-parallel
+  --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache` passes in
+  `1m 18s` with 345 tasks. Lint reports no new issue and the committed v28 schema is unchanged.
+- Two independent final read-only reviews report no remaining scoped `BLOCKER`, `HIGH`, or `MEDIUM`.
+  The review-requested deletion-fence and missing-manifest precedence assertions pass.
+- No emulator/device/provider/process/reboot/energy evidence was produced.
+
+### Gate status and next wave
+
+- Passed: exact, null, and foreign reverse-binding behavior; migrated legacy typed failure;
+  exhaustive public cause mapping; unchanged schema/provider/writer ownership.
+- Failed or unverified: exact capture-set and qualified-source evidence, ordinary source-only
+  discovery, logical-entry grouping, batched list/day composition, live UI, selected deletion,
+  `QUERYABLE`, device/provider/process/energy proof, activation, and rollout.
+- Next: add exact historical capture-set and qualified-source evidence, then logical-entry grouping
+  and shared/batched discovery. Do not infer source qualification from `sampleCount`.

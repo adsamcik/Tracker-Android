@@ -1333,3 +1333,27 @@ Each entry records repository evidence and does not duplicate the final architec
   families before reclamation. Recovery may now expose multiple physical Trip rows for one logical
   entry until the production history facade groups them. The Steps selector must next require the
   exact reverse binding for new-v28 rows; legacy-unverifiable rows remain typed and blocked.
+
+## TI-D114 — Selected Steps history requires the exact service-run presentation reverse binding
+
+- Status: `ACCEPTED_AND_IMPLEMENTED_CONTAINED` at `f2c7a3225`; logical-entry grouping and
+  `QUERYABLE` remain `BLOCKED`
+- Owner/date: lead orchestrator after focused reverse-binding implementation and independent
+  read-only acceptance reviews, 2026-08-31
+- Alternatives: trust only the segment's forward `serviceRunId`; infer ownership from logical ID or
+  wall-time overlap; reject migrated rows as generic membership failures; require the authoritative
+  Room reverse binding while preserving a distinct migrated-unverifiable result
+- Evidence: TI-D113 made `source_service_run.session_segment_id` the unique Room authority and
+  stamps migrated v27 rows `LEGACY_UNVERIFIABLE`. At `d6a2e31f0`, the Steps selector validated only
+  forward logical/run membership, and its fixtures represented selectable new-v28 runs without the
+  reverse binding.
+- Decision: after logical/run membership validation, migrated `LEGACY_UNVERIFIABLE` ownership
+  returns typed `SERVICE_RUN_SEGMENT_BINDING_UNVERIFIABLE`. Every other v28 run must satisfy
+  `serviceRun.sessionSegmentId == segment.id` before deletion-fence, manifest, lane, completeness,
+  or fact reads. A mismatch returns `SERVICE_RUN_SEGMENT_BINDING_MISMATCH`. These map to the existing
+  stable public `LEGACY_UNVERIFIED` and `HISTORY_MEMBERSHIP_UNAVAILABLE` causes. No schema, provider,
+  writer, or rollout state changes.
+- Consequences: exact-bound `PENDING` and `QUIESCED` rows retain the existing legacy/candidate read
+  semantics; null or foreign reverse links cannot borrow another run's evidence. Migrated rows
+  remain named and blocked rather than guessed. This does not make `QUIESCED` deletion authority,
+  group replacement runs, provide ordinary discovery, or establish `QUERYABLE`.
