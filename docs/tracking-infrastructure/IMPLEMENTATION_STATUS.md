@@ -1551,3 +1551,64 @@ navigation or `QUERYABLE`.
   the consumer limit, retaining exact physical run and segment ownership internally. Then expose the
   smallest truthful Steps-only list/live surface without fabricating zero or enabling unsafe
   presentation-only deletion.
+
+## Logical Steps history composition checkpoint (2026-08-31)
+
+### Outcome
+
+Commit `923bf2025` adds an internal, read-only logical history composition for Steps. Evidence-bearing
+members discover an entry identity, all explicitly eligible replacement-run siblings are then loaded
+before the consumer limit, and recency comes from the newest eligible physical `(startTimeMs,
+segmentId)` tuple. This keeps a newer baseline-only or materializing replacement run attached to and
+ordering its logical entry without making that member source-qualified.
+
+Exact new-v28 membership still requires the run's reverse `sessionSegmentId` binding. Migrated
+`LEGACY_UNVERIFIABLE` members may share a nonblank logical identity only after matching explicit
+forward segment/run identity; each remains typed unavailable and qualifies no source. Null/null
+legacy rows remain independent physical compatibility entries, and partial or mismatched identity
+is excluded. No membership is inferred from wall-time overlap.
+
+Candidate identities and physical siblings use separate `(startTimeMs, segmentId)` keyset loops with
+64-row Room pages inside one transaction. Every physical member retains its exact segment, run,
+manifest/capture, deletion-fence, completeness, projection-lane, and Steps state oldest-first. The
+composition unions qualified source names only; it deliberately creates no cross-run numeric total.
+The new reader remains internal and has no public repository, list, day, live, or UI caller.
+
+### Evidence
+
+- `./gradlew.bat :stats:data:testDebugUnitTest --tests
+  "com.adsamcik.tracker.stats.data.repository.StepsSegmentHistorySelectorTest" --no-daemon
+  --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain
+  --no-configuration-cache` passes in `1m 19s` with 209 tasks; `53/53` pass with zero
+  failures/errors/skips.
+- `./gradlew.bat :core:base:testDebugUnitTest :stats:data:testDebugUnitTest --no-daemon
+  --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain
+  --no-configuration-cache` passes in `1m 26s` with 223 tasks. Core base is `896/896` and stats data
+  is `179/179`, with zero failures/errors/skips.
+- `./gradlew.bat detekt --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false'
+  --console=plain --no-configuration-cache` passes in `35s` with 5 tasks. Two development runs had
+  failed only on the new reader's complexity/required-brace style; the findings were corrected before
+  this final gate.
+- `./gradlew.bat :core:base:lintDebug :stats:data:lintDebug checkRoomSchemaDrift --no-daemon
+  --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain
+  --no-configuration-cache` passes in `1m 55s` with 347 tasks. Both lint tasks report no new issue;
+  existing baselines filter core `13` errors/`6` warnings and stats data `283` errors/`270` warnings.
+  The committed Room schema is unchanged.
+- Three final independent reviews report no remaining scoped `BLOCKER`, `HIGH`, or `MEDIUM`. Earlier
+  rounds found and the final code corrects a synthetic independent-max cursor, unbounded sibling
+  materialization, attributed migrated-row splitting, incomplete 65-member assertions, and recency
+  based only on a coarse discovery seed.
+- No emulator/device/provider/process/reboot/energy or UI evidence was produced.
+
+### Gate status and next wave
+
+- Passed: grouping before the consumer limit; replacement-run membership; exact reverse-binding and
+  typed migrated boundaries; newest-member recency; bounded candidate/sibling paging; per-run
+  materializing/ready/deleted truth; no fabricated aggregate zero; unchanged schema and writer
+  ownership.
+- Failed or unverified: a public production list caller, ordinary navigation, live/day composition,
+  selected deletion, numeric aggregation policy, `QUERYABLE`, device/provider behavior, activation,
+  and rollout.
+- Next: expose the smallest truthful Steps-only list/live surface while preserving contained Trip
+  Detail and keeping unavailable, partial, and materializing state distinct from zero. Do not route
+  a logical entry to presentation-only deletion or an arbitrary physical detail row.

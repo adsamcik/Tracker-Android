@@ -1391,3 +1391,33 @@ Each entry records repository evidence and does not duplicate the final architec
   group replacement-run physical segments under one logical entry before applying the consumer
   limit while retaining exact run/segment ownership internally; safe deletion and other source
   verticals remain separate later work.
+
+## TI-D116 — Logical Steps history composes explicit physical members before consumer limits
+
+- Status: `ACCEPTED_AND_IMPLEMENTED_AS_INTERNAL_PRODUCT_READ_COMPOSITION` at `923bf2025`; public
+  list/live wiring, ordinary navigation, and `QUERYABLE` remain `BLOCKED`
+- Owner/date: lead orchestrator after complete affected host verification and three independent
+  final corrected-diff reviews, 2026-08-31
+- Alternatives: limit physical rows and group afterward; infer membership from wall-time overlap;
+  collapse or sum per-run Steps into one untyped number; group null/null legacy rows; sort only by
+  the member that supplied discovery evidence; materialize every sibling in one unbounded Room
+  result; compose explicit membership in bounded pages before applying the consumer limit
+- Evidence: one logical tracking entry may own replacement-run physical segments. An older member
+  may provide qualified Steps evidence while a newer exact replacement is baseline-only or still
+  materializing, so product recency must follow the newest eligible physical member rather than the
+  discovery seed. Migrated runs can retain matching explicit forward logical/run identity while
+  their reverse presentation binding remains typed unverifiable.
+- Decision: a coarse exact-source or positive legacy-compatibility member discovers an entry
+  identity. For a nonblank logical id, composition then includes only segments whose service run
+  has the same explicit logical/run identity and either the exact reverse segment binding or durable
+  `LEGACY_UNVERIFIABLE` acknowledgement. Null/null legacy rows remain independent physical entries;
+  partial or mismatched identity is excluded. Entry order uses the newest eligible
+  `(startTimeMs, segmentId)` tuple, while physical members remain oldest-first. Candidate identities
+  and sibling rows are keyset-paged in 64-row batches inside one Room transaction before the final
+  `1..100` consumer limit. Every member keeps its own typed capture, fence, completeness, lane, and
+  count state; only qualified-source membership is unioned. No cross-run numeric total is created.
+- Consequences: replacement runs no longer consume separate internal product entries or starve an
+  older logical entry at the result limit. Attributed migrated members share their known product
+  identity but stay blocked and qualify no source; logical identity grants no deletion, export, or
+  fact authority. The reader is internal and has no public list/UI caller, so this commit does not
+  establish ordinary navigation, safe deletion, live/day state, or `QUERYABLE`.
