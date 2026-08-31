@@ -25,100 +25,190 @@ import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 @Dao
 interface TrackingHistoryReadDao {
 	/**
-	 * Evidence-bearing recent candidate page. Genuinely unattributed positive-sample legacy rows stay
-	 * available for compatibility; attributed v28 rows need an exact Steps capture binding plus coarse
-	 * source evidence. Kotlin still verifies checksums, epoch, fence, lane, and completeness, so the
-	 * caller must keyset through pages until its requested number of qualified rows is filled.
+	 * Evidence-bearing logical-entry candidate page.
+	 *
+	 * Exactly bound attributed rows and attributed migrated rows are grouped by their explicit logical
+	 * id before [limit] is applied. Only null/null unattributed legacy rows use their physical segment
+	 * id. A coarse evidence-bearing member discovers the identity; entry recency then uses its newest
+	 * membership-eligible physical sibling with a stable physical-id tiebreaker. Kotlin still verifies
+	 * checksums, epoch, fence, lane, completeness, and every physical member, so the caller must keyset
+	 * until enough qualified entries are filled.
 	 */
 	@Query(
 		"""
-		SELECT segment.*
-		FROM session_segment AS segment
-		WHERE (
-		  (
-			segment.sample_count > 0
-			AND (
-			  (
-				segment.logical_tracking_id IS NULL
-				AND segment.service_run_id IS NULL
-			  )
-			  OR EXISTS (
-				SELECT 1
-				FROM source_service_run AS legacy_run
-				WHERE legacy_run.service_run_id = segment.service_run_id
-				  AND legacy_run.logical_tracking_id = segment.logical_tracking_id
-				  AND legacy_run.presentation_acknowledgement = 'LEGACY_UNVERIFIABLE'
-			  )
-			)
-		  )
-		  OR EXISTS (
-			SELECT 1
-			FROM source_service_run AS run
-			JOIN session_manifest_version AS manifest
-			  ON manifest.service_run_id = run.service_run_id
-			 AND manifest.logical_tracking_id = run.logical_tracking_id
-			JOIN session_manifest_source AS source
-			  ON source.logical_tracking_id = manifest.logical_tracking_id
-			 AND source.manifest_revision = manifest.manifest_revision
-			WHERE run.service_run_id = segment.service_run_id
-			  AND run.logical_tracking_id = segment.logical_tracking_id
-			  AND run.session_segment_id = segment.id
-			  AND run.presentation_acknowledgement != 'LEGACY_UNVERIFIABLE'
-			  AND source.source_kind = :stepsSourceKind
-			  AND source.purpose = :capturePurpose
-			  AND source.persistence_eligible = 1
-			  AND (
-				(source.writer_owner = 'LEGACY_STEP_INTERVAL' AND segment.steps > 0)
-				OR (
-				  source.writer_owner = 'STEPS_SESSION_FACTS'
-				  AND EXISTS (
-					SELECT 1
-					FROM step_fact_revision AS fact
-					WHERE fact.logical_tracking_id = run.logical_tracking_id
-					  AND fact.service_run_id = run.service_run_id
-					  AND fact.manifest_revision = manifest.manifest_revision
-					  AND fact.purpose = :capturePurpose
-					  AND fact.writer_projection_id = source.writer_projection_id
-					  AND fact.writer_projection_version = source.writer_projection_version
-					  AND fact.writer_binding_generation = source.writer_binding_generation
-					  AND fact.operation = 'UPSERT'
-					  AND fact.coverage_kind = 'COVERED'
-					  AND NOT EXISTS (
-						SELECT 1
-						FROM step_fact_revision AS newer
-						WHERE newer.writer_projection_id = fact.writer_projection_id
-						  AND newer.writer_projection_version = fact.writer_projection_version
-						  AND newer.logical_fact_id = fact.logical_fact_id
-						  AND newer.semantic_revision > fact.semantic_revision
-					  )
-				  )
-				)
-			  )
-		  )
+		WITH classified_segment AS (
+		  SELECT segment.id,
+			 segment.start_time_ms,
+			 segment.logical_tracking_id,
+			 CASE WHEN (
+			   segment.sample_count > 0
+			   AND (
+				 (
+				   segment.logical_tracking_id IS NULL
+				   AND segment.service_run_id IS NULL
+				 )
+				 OR EXISTS (
+				   SELECT 1
+				   FROM source_service_run AS legacy_run
+				   WHERE legacy_run.service_run_id = segment.service_run_id
+					 AND legacy_run.logical_tracking_id = segment.logical_tracking_id
+					 AND legacy_run.presentation_acknowledgement = 'LEGACY_UNVERIFIABLE'
+				 )
+			   )
+			 ) THEN 1 ELSE 0 END AS legacy_compatibility,
+			 CASE WHEN EXISTS (
+			   SELECT 1
+			   FROM source_service_run AS run
+			   JOIN session_manifest_version AS manifest
+				 ON manifest.service_run_id = run.service_run_id
+				AND manifest.logical_tracking_id = run.logical_tracking_id
+			   JOIN session_manifest_source AS source
+				 ON source.logical_tracking_id = manifest.logical_tracking_id
+				AND source.manifest_revision = manifest.manifest_revision
+			   WHERE run.service_run_id = segment.service_run_id
+				 AND run.logical_tracking_id = segment.logical_tracking_id
+				 AND run.session_segment_id = segment.id
+				 AND run.presentation_acknowledgement != 'LEGACY_UNVERIFIABLE'
+				 AND source.source_kind = :stepsSourceKind
+				 AND source.purpose = :capturePurpose
+				 AND source.persistence_eligible = 1
+				 AND (
+				   (source.writer_owner = 'LEGACY_STEP_INTERVAL' AND segment.steps > 0)
+				   OR (
+					 source.writer_owner = 'STEPS_SESSION_FACTS'
+					 AND EXISTS (
+					   SELECT 1
+					   FROM step_fact_revision AS fact
+					   WHERE fact.logical_tracking_id = run.logical_tracking_id
+						 AND fact.service_run_id = run.service_run_id
+						 AND fact.manifest_revision = manifest.manifest_revision
+						 AND fact.purpose = :capturePurpose
+						 AND fact.writer_projection_id = source.writer_projection_id
+						 AND fact.writer_projection_version = source.writer_projection_version
+						 AND fact.writer_binding_generation = source.writer_binding_generation
+						 AND fact.operation = 'UPSERT'
+						 AND fact.coverage_kind = 'COVERED'
+						 AND NOT EXISTS (
+						   SELECT 1
+						   FROM step_fact_revision AS newer
+						   WHERE newer.writer_projection_id = fact.writer_projection_id
+							 AND newer.writer_projection_version = fact.writer_projection_version
+							 AND newer.logical_fact_id = fact.logical_fact_id
+							 AND newer.semantic_revision > fact.semantic_revision
+						 )
+					 )
+				   )
+				 )
+			 ) THEN 1 ELSE 0 END AS exact_candidate
+		  FROM session_segment AS segment
+		), coarse_candidate AS (
+		  SELECT id,
+			 start_time_ms,
+			 CASE WHEN exact_candidate = 1 OR (
+			   legacy_compatibility = 1
+			   AND logical_tracking_id IS NOT NULL
+			   AND logical_tracking_id != ''
+			 ) THEN logical_tracking_id ELSE NULL END
+			   AS logical_tracking_id,
+			 CASE WHEN legacy_compatibility = 1 AND logical_tracking_id IS NULL
+			   THEN id ELSE NULL END AS legacy_segment_id
+		  FROM classified_segment
+		  WHERE legacy_compatibility = 1 OR exact_candidate = 1
+		), logical_candidate AS (
+		  SELECT DISTINCT logical_tracking_id
+		  FROM coarse_candidate
+		  WHERE logical_tracking_id IS NOT NULL
+		), candidate_member AS (
+		  SELECT segment.id,
+			 segment.start_time_ms,
+			 logical_candidate.logical_tracking_id,
+			 NULL AS legacy_segment_id
+		  FROM logical_candidate
+		  JOIN session_segment AS segment
+			ON segment.logical_tracking_id = logical_candidate.logical_tracking_id
+		  JOIN source_service_run AS run
+			ON run.service_run_id = segment.service_run_id
+		   AND run.logical_tracking_id = segment.logical_tracking_id
+		  WHERE run.presentation_acknowledgement = 'LEGACY_UNVERIFIABLE'
+			 OR run.session_segment_id = segment.id
+		  UNION ALL
+		  SELECT id,
+			 start_time_ms,
+			 NULL AS logical_tracking_id,
+			 legacy_segment_id
+		  FROM coarse_candidate
+		  WHERE legacy_segment_id IS NOT NULL
+		), candidate_latest AS (
+		  SELECT logical_tracking_id,
+			 legacy_segment_id,
+			 MAX(start_time_ms) AS sort_start_time_ms
+		  FROM candidate_member
+		  GROUP BY logical_tracking_id, legacy_segment_id
+		), grouped_candidate AS (
+		  SELECT candidate_latest.logical_tracking_id,
+			 candidate_latest.legacy_segment_id,
+			 candidate_latest.sort_start_time_ms,
+			 MAX(candidate_member.id) AS sort_segment_id
+		  FROM candidate_latest
+		  JOIN candidate_member
+			ON candidate_member.start_time_ms = candidate_latest.sort_start_time_ms
+		   AND (
+			 (
+			   candidate_latest.logical_tracking_id IS NOT NULL
+			   AND candidate_member.logical_tracking_id = candidate_latest.logical_tracking_id
+			 ) OR (
+			   candidate_latest.logical_tracking_id IS NULL
+			   AND candidate_member.logical_tracking_id IS NULL
+			   AND candidate_member.legacy_segment_id = candidate_latest.legacy_segment_id
+			 )
+		   )
+		  GROUP BY candidate_latest.logical_tracking_id,
+			   candidate_latest.legacy_segment_id,
+			   candidate_latest.sort_start_time_ms
 		)
-		  AND (
-			:beforeStartTimeMs IS NULL
-			OR segment.start_time_ms < :beforeStartTimeMs
-			OR (
-				segment.start_time_ms = :beforeStartTimeMs
-				AND segment.id < COALESCE(:beforeSegmentId, 9223372036854775807)
-			)
-		  )
-		ORDER BY segment.start_time_ms DESC, segment.id DESC
+		SELECT *
+		FROM grouped_candidate
+		WHERE :beforeStartTimeMs IS NULL
+		   OR sort_start_time_ms < :beforeStartTimeMs
+		   OR (
+			 sort_start_time_ms = :beforeStartTimeMs
+			 AND sort_segment_id < COALESCE(:beforeSegmentId, 9223372036854775807)
+		   )
+		ORDER BY sort_start_time_ms DESC, sort_segment_id DESC
 		LIMIT :limit
 		""",
 	)
-	suspend fun recentCandidatePage(
+	suspend fun recentEntryCandidatePage(
 		limit: Int,
 		stepsSourceKind: Int,
 		capturePurpose: String,
 		beforeStartTimeMs: Long?,
 		beforeSegmentId: Long?,
-	): List<SessionSegment>
+	): List<RecentHistoryEntryCandidate>
 
 	/** Reads the requested physical presentation rows without changing their order contract. */
 	@Query("SELECT * FROM session_segment WHERE id IN (:segmentIds)")
 	suspend fun segments(segmentIds: List<Long>): List<SessionSegment>
+
+	/** Keyset page of exact or explicitly attributed migrated siblings for logical entries. */
+	@Query(
+		"SELECT segment.* FROM session_segment AS segment " +
+			"JOIN source_service_run AS run ON run.service_run_id = segment.service_run_id " +
+			"AND run.logical_tracking_id = segment.logical_tracking_id " +
+			"WHERE segment.logical_tracking_id IN (:logicalTrackingIds) " +
+			"AND (run.presentation_acknowledgement = 'LEGACY_UNVERIFIABLE' " +
+			"OR run.session_segment_id = segment.id) " +
+			"AND (:afterStartTimeMs IS NULL OR segment.start_time_ms > :afterStartTimeMs " +
+			"OR (segment.start_time_ms = :afterStartTimeMs " +
+			"AND segment.id > COALESCE(:afterSegmentId, 0))) " +
+			"ORDER BY segment.start_time_ms, segment.id LIMIT :limit",
+	)
+	suspend fun logicalEntrySegmentPage(
+		logicalTrackingIds: List<String>,
+		limit: Int,
+		afterStartTimeMs: Long?,
+		afterSegmentId: Long?,
+	): List<SessionSegment>
 
 	/** Reads the service-run membership needed by one bounded presentation batch. */
 	@Query("SELECT * FROM source_service_run WHERE service_run_id IN (:serviceRunIds)")
@@ -296,6 +386,18 @@ interface TrackingHistoryReadDao {
 		throughOrdinal: Long,
 	): List<SourceProjectionFailureEntity>
 }
+
+/** Stable keyset cursor and identity for one coarse evidence-bearing logical history entry. */
+data class RecentHistoryEntryCandidate(
+	@ColumnInfo(name = "logical_tracking_id")
+	val logicalTrackingId: String?,
+	@ColumnInfo(name = "legacy_segment_id")
+	val legacySegmentId: Long?,
+	@ColumnInfo(name = "sort_start_time_ms")
+	val sortStartTimeMs: Long,
+	@ColumnInfo(name = "sort_segment_id")
+	val sortSegmentId: Long,
+)
 
 /** Latest global state for a fact together with the service-run scope of its latest UPSERT. */
 data class ScopedStepFactState(

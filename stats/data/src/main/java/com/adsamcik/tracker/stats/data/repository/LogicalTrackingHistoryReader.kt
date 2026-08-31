@@ -1,0 +1,136 @@
+package com.adsamcik.tracker.stats.data.repository
+
+import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.dao.RecentHistoryEntryCandidate
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import javax.inject.Inject
+
+/**
+ * Composes recent physical presentation rows into stable logical history entries.
+ *
+ * Candidate entry keys are paged before the caller's result limit. Every explicitly related
+ * physical sibling is then evaluated in bounded batches inside the same Room snapshot. Discovery
+ * needs one evidence-bearing seed, while recency uses the newest membership-eligible physical
+ * sibling. Membership requires an exact authoritative run-to-segment reverse binding, or the
+ * explicit forward identity retained by a typed migrated unverifiable run; it is never inferred
+ * from wall-time overlap.
+ */
+internal class LogicalTrackingHistoryReader @Inject constructor(
+	private val database: AppDatabase,
+	private val stepsSelector: StepsSegmentHistorySelector,
+) {
+	// The bounded keyset loop keeps each fail-closed candidate and stop condition explicit.
+	@Suppress("CyclomaticComplexMethod")
+	internal suspend fun selectRecentEntries(limit: Int): List<HistoricalTrackingEntryEvidence> =
+		database.withTransaction {
+			require(limit in 1..MAX_RECENT_ENTRY_COUNT) {
+				"Recent history limit must be between 1 and $MAX_RECENT_ENTRY_COUNT"
+			}
+			val accepted = ArrayList<HistoricalTrackingEntryEvidence>(limit)
+			var beforeStartTimeMs: Long? = null
+			var beforeSegmentId: Long? = null
+
+			entryPages@ while (accepted.size < limit) {
+				val candidates = database.trackingHistoryReadDao().recentEntryCandidatePage(
+					limit = ENTRY_CANDIDATE_BATCH_CAP,
+					stepsSourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+					capturePurpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+					beforeStartTimeMs = beforeStartTimeMs,
+					beforeSegmentId = beforeSegmentId,
+				)
+				if (candidates.isEmpty()) {
+					break
+				}
+
+				val entries = loadCandidateEntries(candidates)
+				for (candidate in candidates) {
+					val identity = candidate.toIdentity() ?: continue
+					val entry = entries[identity] ?: continue
+					if (!entry.isOrdinarilyDiscoverable) {
+						continue
+					}
+					accepted += entry
+					if (accepted.size == limit) {
+						break@entryPages
+					}
+				}
+
+				val lastScanned = candidates.last()
+				beforeStartTimeMs = lastScanned.sortStartTimeMs
+				beforeSegmentId = lastScanned.sortSegmentId
+				if (candidates.size < ENTRY_CANDIDATE_BATCH_CAP) {
+					break
+				}
+			}
+			accepted
+		}
+
+	private suspend fun loadCandidateEntries(
+		candidates: List<RecentHistoryEntryCandidate>,
+	): Map<HistoricalEntryIdentity, HistoricalTrackingEntryEvidence> {
+		val logicalIds = candidates.mapNotNull(RecentHistoryEntryCandidate::logicalTrackingId)
+			.filter(String::isNotBlank)
+			.distinct()
+		val legacyIds = candidates.mapNotNull(RecentHistoryEntryCandidate::legacySegmentId).distinct()
+		val evidence = loadLogicalMemberEvidence(logicalIds).toMutableList()
+		if (legacyIds.isNotEmpty()) {
+			val legacySegments = database.trackingHistoryReadDao().segments(legacyIds)
+			evidence += stepsSelector.selectManyInTransaction(legacySegments)
+		}
+		return evidence.mapNotNull { member ->
+			member.entryIdentity?.let { identity -> identity to member }
+		}.groupBy(
+			keySelector = { (identity, _) -> identity },
+			valueTransform = { (_, member) -> member },
+		).mapValues { (identity, members) ->
+			HistoricalTrackingEntryEvidence(
+				identity = identity,
+				physicalMembers = members.sortedWith(physicalMemberOrder),
+			)
+		}
+	}
+
+	private suspend fun loadLogicalMemberEvidence(
+		logicalIds: List<String>,
+	): List<HistoricalSegmentEvidence> {
+		if (logicalIds.isEmpty()) {
+			return emptyList()
+		}
+		val evidence = mutableListOf<HistoricalSegmentEvidence>()
+		var afterStartTimeMs: Long? = null
+		var afterSegmentId: Long? = null
+		while (true) {
+			val segmentPage = database.trackingHistoryReadDao().logicalEntrySegmentPage(
+				logicalTrackingIds = logicalIds,
+				limit = HISTORY_SEGMENT_BATCH_CAP,
+				afterStartTimeMs = afterStartTimeMs,
+				afterSegmentId = afterSegmentId,
+			)
+			if (segmentPage.isEmpty()) {
+				break
+			}
+			evidence += stepsSelector.selectManyInTransaction(segmentPage)
+			if (segmentPage.size < HISTORY_SEGMENT_BATCH_CAP) {
+				break
+			}
+			val lastScanned = segmentPage.last()
+			afterStartTimeMs = lastScanned.startTimeMs
+			afterSegmentId = lastScanned.id
+		}
+		return evidence
+	}
+
+	private fun RecentHistoryEntryCandidate.toIdentity(): HistoricalEntryIdentity? =
+		logicalTrackingId?.takeIf(String::isNotBlank)?.let {
+			HistoricalEntryIdentity.Logical(it)
+		} ?: legacySegmentId?.takeIf { it > 0L }?.let {
+			HistoricalEntryIdentity.LegacyPhysical(it)
+		}
+
+	private companion object {
+		const val ENTRY_CANDIDATE_BATCH_CAP = 64
+		const val MAX_RECENT_ENTRY_COUNT = 100
+	}
+}

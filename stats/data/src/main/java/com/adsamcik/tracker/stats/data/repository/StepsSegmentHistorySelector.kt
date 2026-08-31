@@ -36,42 +36,12 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 	): Map<Long, HistoricalSegmentEvidence> = database.withTransaction {
 		val distinctIds = segmentIds.distinct()
 		if (distinctIds.isEmpty()) return@withTransaction emptyMap()
-		require(distinctIds.size <= CANDIDATE_BATCH_CAP) {
-			"At most $CANDIDATE_BATCH_CAP distinct history rows may be selected per batch"
+		require(distinctIds.size <= HISTORY_SEGMENT_BATCH_CAP) {
+			"At most $HISTORY_SEGMENT_BATCH_CAP distinct history rows may be selected per batch"
 		}
 		val segments = database.trackingHistoryReadDao().segments(distinctIds)
 		selectManyInTransaction(segments).associateBy { it.segment.id }
 	}
-
-	/** Keysets through bounded candidate batches until exact source evidence fills the requested list. */
-	internal suspend fun selectRecentEvidence(limit: Int): List<HistoricalSegmentEvidence> =
-		database.withTransaction {
-			require(limit in 1..MAX_RECENT_RESULT_COUNT) {
-				"Recent history limit must be between 1 and $MAX_RECENT_RESULT_COUNT"
-			}
-			val accepted = ArrayList<HistoricalSegmentEvidence>(limit)
-			var beforeStartTimeMs: Long? = null
-			var beforeSegmentId: Long? = null
-			while (accepted.size < limit) {
-				val candidates = database.trackingHistoryReadDao().recentCandidatePage(
-					limit = CANDIDATE_BATCH_CAP,
-					stepsSourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-					capturePurpose = SessionManifestPurposeCode.SESSION_CAPTURE,
-					beforeStartTimeMs = beforeStartTimeMs,
-					beforeSegmentId = beforeSegmentId,
-				)
-				if (candidates.isEmpty()) break
-				selectManyInTransaction(candidates)
-					.filter(HistoricalSegmentEvidence::isOrdinarilyDiscoverable)
-					.take(limit - accepted.size)
-					.let(accepted::addAll)
-				val lastScanned = candidates.last()
-				beforeStartTimeMs = lastScanned.startTimeMs
-				beforeSegmentId = lastScanned.id
-				if (candidates.size < CANDIDATE_BATCH_CAP) break
-			}
-			accepted
-		}
 
 	/** Test seam for exercising historical selection without persisting a presentation segment. */
 	internal suspend fun select(segment: SessionSegment): StepsSegmentHistoryResult =
@@ -81,7 +51,8 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 	internal suspend fun selectEvidence(segment: SessionSegment): HistoricalSegmentEvidence =
 		database.withTransaction { selectManyInTransaction(listOf(segment)).single() }
 
-	private suspend fun selectManyInTransaction(
+	/** Caller must already hold the Room transaction that defines the logical-entry snapshot. */
+	internal suspend fun selectManyInTransaction(
 		segments: List<SessionSegment>,
 	): List<HistoricalSegmentEvidence> {
 		if (segments.isEmpty()) return emptyList()
@@ -536,8 +507,6 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 	)
 
 	private companion object {
-		const val CANDIDATE_BATCH_CAP = 64
-		const val MAX_RECENT_RESULT_COUNT = 100
 		const val COMPLETE_STOP_STATUS = "COMPLETE"
 		const val COMPLETE_PROVIDER_COVERAGE = "CALLBACKS_ENTERED_BEFORE_BARRIER"
 		val TERMINAL_SERVICE_RUN_STATES = setOf("FINALIZED", "FAILED", "CLOSED")

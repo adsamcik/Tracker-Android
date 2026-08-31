@@ -104,6 +104,71 @@ internal data class HistoricalSegmentEvidence(
 	}
 }
 
+/** Stable product identity for a logical tracking entry or one unattributed compatibility row. */
+internal sealed interface HistoricalEntryIdentity {
+	data class Logical(
+		val logicalTrackingId: String,
+	) : HistoricalEntryIdentity {
+		init {
+			require(logicalTrackingId.isNotBlank())
+		}
+	}
+
+	data class LegacyPhysical(
+		val segmentId: Long,
+	) : HistoricalEntryIdentity {
+		init {
+			require(segmentId > 0L)
+		}
+	}
+}
+
+/**
+ * One product entry composed from explicitly identified physical members without inventing totals.
+ *
+ * Physical members remain ordered oldest-first and retain their segment, service-run, manifest,
+ * capture, fence, completeness, and source-product state independently. Logical identity alone
+ * grants neither source qualification nor mutation authority to a typed legacy-unverifiable member.
+ */
+internal data class HistoricalTrackingEntryEvidence(
+	val identity: HistoricalEntryIdentity,
+	val physicalMembers: List<HistoricalSegmentEvidence>,
+) {
+	init {
+		require(physicalMembers.isNotEmpty())
+		require(physicalMembers.all { it.entryIdentity == identity })
+		require(physicalMembers == physicalMembers.sortedWith(physicalMemberOrder))
+		if (identity is HistoricalEntryIdentity.LegacyPhysical) {
+			require(physicalMembers.size == 1)
+		}
+	}
+
+	/** Union of sources qualified by at least one exact physical member. */
+	val qualifiedSources: Set<TrackingSourceComponent>
+		get() = physicalMembers.flatMapTo(linkedSetOf()) { it.qualifiedSources }
+
+	/** A logical entry is visible only when at least one member has real discovery evidence. */
+	val isOrdinarilyDiscoverable: Boolean
+		get() = physicalMembers.any(HistoricalSegmentEvidence::isOrdinarilyDiscoverable)
+}
+
+/** Explicit identity only; wall-time overlap is never membership authority. */
+internal val HistoricalSegmentEvidence.entryIdentity: HistoricalEntryIdentity?
+	get() = segment.logicalTrackingId?.takeIf(String::isNotBlank)?.let {
+		HistoricalEntryIdentity.Logical(it)
+	} ?: if (segment.logicalTrackingId == null && segment.serviceRunId == null) {
+		HistoricalEntryIdentity.LegacyPhysical(segment.id)
+	} else {
+		null
+	}
+
+internal val physicalMemberOrder = compareBy<HistoricalSegmentEvidence>(
+	{ it.segment.startTimeMs },
+	{ it.segment.id },
+)
+
+internal const val HISTORY_SEGMENT_BATCH_CAP = 64
+
 /** Reconstructs checksum-verified manifest intent without consulting current source policy. */
 internal fun historicalCaptureAuthority(
 	manifests: List<SessionManifestVersionEntity>,

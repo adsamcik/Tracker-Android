@@ -40,6 +40,7 @@ import org.robolectric.annotation.Config
 class StepsSegmentHistorySelectorTest {
 	private lateinit var database: AppDatabase
 	private lateinit var selector: StepsSegmentHistorySelector
+	private lateinit var logicalHistoryReader: LogicalTrackingHistoryReader
 
 	@Before
 	fun setUp() = runTest {
@@ -47,6 +48,7 @@ class StepsSegmentHistorySelectorTest {
 		database = AppDatabase.testDatabase(context)
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState())
 		selector = StepsSegmentHistorySelector(database)
+		logicalHistoryReader = LogicalTrackingHistoryReader(database, selector)
 	}
 
 	@After
@@ -127,7 +129,7 @@ class StepsSegmentHistorySelectorTest {
 			reasons = setOf(StepsHistoryReason.SERVICE_RUN_SEGMENT_BINDING_UNVERIFIABLE),
 		)
 		database.sessionSegmentDao().insert(segment(RUN_ONE, steps = 14, sampleCount = 1))
-		val migrated = selector.selectRecentEvidence(limit = 1).single()
+		val migrated = selectRecentEvidence(limit = 1).single()
 		migrated.captureAuthority shouldBe HistoricalCaptureAuthority.Unverifiable(
 			HistoricalCaptureFailure.SERVICE_RUN_SEGMENT_BINDING_UNVERIFIABLE,
 		)
@@ -152,7 +154,7 @@ class StepsSegmentHistorySelectorTest {
 			reasons = setOf(StepsHistoryReason.LEGACY_REPLAY_UNVERIFIED),
 		)
 		database.sessionSegmentDao().insert(segment(RUN_ONE, steps = 14, sampleCount = 0))
-		selector.selectRecentEvidence(limit = 1).single().segment.id shouldBe SEGMENT_ID
+		selectRecentEvidence(limit = 1).single().segment.id shouldBe SEGMENT_ID
 	}
 
 	@Test
@@ -165,7 +167,7 @@ class StepsSegmentHistorySelectorTest {
 		)
 		database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null, sampleCount = 0))
 
-		val evidence = selector.selectRecentEvidence(limit = 10).single()
+		val evidence = selectRecentEvidence(limit = 10).single()
 		evidence.segment.id shouldBe SEGMENT_ID
 		evidence.steps.evidence shouldBe StepsHistoryEvidence.RECORDED
 		evidence.steps.count shouldBe 5L
@@ -187,7 +189,7 @@ class StepsSegmentHistorySelectorTest {
 		)
 		database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null, sampleCount = 0))
 
-		selector.selectRecentEvidence(limit = 10).single().steps.evidence shouldBe
+		selectRecentEvidence(limit = 10).single().steps.evidence shouldBe
 			StepsHistoryEvidence.COVERED_ZERO
 	}
 
@@ -203,7 +205,7 @@ class StepsSegmentHistorySelectorTest {
 		database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null, sampleCount = 0))
 		database.stepFactRevisionDao().insert(retraction(original))
 
-		selector.selectRecentEvidence(limit = 10) shouldBe emptyList()
+		selectRecentEvidence(limit = 10) shouldBe emptyList()
 
 		// Removing a retraction is intentionally unsupported; use the still-exact bound row to prove
 		// that a durable run fence also suppresses ordinary discovery independently of sampleCount.
@@ -221,7 +223,7 @@ class StepsSegmentHistorySelectorTest {
 			),
 		)
 
-		selector.selectRecentEvidence(limit = 10) shouldBe emptyList()
+		selectRecentEvidence(limit = 10) shouldBe emptyList()
 	}
 
 	@Test
@@ -238,7 +240,7 @@ class StepsSegmentHistorySelectorTest {
 		)
 		database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null, sampleCount = 0))
 
-		selector.selectRecentEvidence(limit = 10) shouldBe emptyList()
+		selectRecentEvidence(limit = 10) shouldBe emptyList()
 	}
 
 	@Test
@@ -256,7 +258,7 @@ class StepsSegmentHistorySelectorTest {
 			updatedAtMs = 3_000L,
 		) shouldBe 1
 
-		selector.selectRecentEvidence(limit = 10) shouldBe emptyList()
+		selectRecentEvidence(limit = 10) shouldBe emptyList()
 	}
 
 	@Test
@@ -270,7 +272,7 @@ class StepsSegmentHistorySelectorTest {
 			),
 		)
 
-		val evidence = selector.selectRecentEvidence(limit = 10).single()
+		val evidence = selectRecentEvidence(limit = 10).single()
 		evidence.captureAuthority shouldBe HistoricalCaptureAuthority.Unverifiable(
 			HistoricalCaptureFailure.LEGACY_UNATTRIBUTED,
 		)
@@ -307,7 +309,7 @@ class StepsSegmentHistorySelectorTest {
 		evidence.steps.count shouldBe null
 		evidence.steps.reasons shouldBe setOf(StepsHistoryReason.SOURCE_NOT_CAPTURED)
 		evidence.qualifiedSources shouldBe emptySet()
-		selector.selectRecentEvidence(limit = 10) shouldBe emptyList()
+		selectRecentEvidence(limit = 10) shouldBe emptyList()
 	}
 
 	@Test
@@ -335,7 +337,7 @@ class StepsSegmentHistorySelectorTest {
 		val evidence = selector.selectEvidence(segment)
 		evidence.steps.availability shouldBe StepsHistoryAvailability.DELETED
 		evidence.qualifiedSources shouldBe emptySet()
-		selector.selectRecentEvidence(limit = 10) shouldBe emptyList()
+		selectRecentEvidence(limit = 10) shouldBe emptyList()
 	}
 
 	@Test
@@ -385,7 +387,504 @@ class StepsSegmentHistorySelectorTest {
 			}
 		}
 
-		selector.selectRecentEvidence(limit = 1).map { it.segment.id } shouldBe listOf(1_001L)
+		selectRecentEvidence(limit = 1).map { it.segment.id } shouldBe listOf(1_001L)
+	}
+
+	@Test
+	@Suppress("LongMethod")
+	fun replacementRunsAreGroupedBeforeLimitAcrossPhysicalBatchBoundary() = runTest {
+		val logicalA = "logical-a"
+		val logicalB = "logical-b"
+		database.sourceProjectionStateDao().installProductLane(lane(cursor = 66L))
+		for (index in 1L..65L) {
+			val runId = "run-a-$index"
+			val segmentId = 2_000L + index
+			insertRun(runId, logicalA, sessionSegmentId = segmentId)
+			insertManifest(runId, logicalA, revision = index, owner = CANDIDATE_OWNER)
+			database.sourceSessionDao().saveCompleteness(
+				completeness(runId, logicalA, lastOrdinal = index),
+			)
+			database.stepFactRevisionDao().insert(
+				fact(index, StepFactRevisionEntity.COVERAGE_COVERED, 1L).copy(
+					logicalTrackingId = logicalA,
+					serviceRunId = runId,
+					manifestRevision = index,
+					sourcePolicyRevision = index,
+				),
+			)
+			database.sessionSegmentDao().insert(
+				segment(
+					runId = runId,
+					logicalId = logicalA,
+					steps = null,
+					sampleCount = 0,
+					id = segmentId,
+					startTimeMs = 5_000L + index,
+					endTimeMs = 5_100L + index,
+				),
+			)
+		}
+		val runB = "run-b"
+		val segmentB = 3_000L
+		insertRun(runB, logicalB, sessionSegmentId = segmentB)
+		insertManifest(runB, logicalB, revision = 1L, owner = CANDIDATE_OWNER)
+		database.sourceSessionDao().saveCompleteness(
+			completeness(runB, logicalB, lastOrdinal = 66L),
+		)
+		database.stepFactRevisionDao().insert(
+			fact(66L, StepFactRevisionEntity.COVERAGE_COVERED, 2L).copy(
+				logicalTrackingId = logicalB,
+				serviceRunId = runB,
+				manifestRevision = 1L,
+				sourcePolicyRevision = 1L,
+			),
+		)
+		database.sessionSegmentDao().insert(
+			segment(
+				runId = runB,
+				logicalId = logicalB,
+				steps = null,
+				sampleCount = 0,
+				id = segmentB,
+				startTimeMs = 1_000L,
+				endTimeMs = 1_100L,
+			),
+		)
+
+		val first = logicalHistoryReader.selectRecentEntries(limit = 1).single()
+		first.identity shouldBe HistoricalEntryIdentity.Logical(logicalA)
+		first.physicalMembers.size shouldBe 65
+		first.physicalMembers.map { it.segment.id } shouldBe (2_001L..2_065L).toList()
+		first.physicalMembers.map { it.segment.serviceRunId }.toSet().size shouldBe 65
+		first.physicalMembers.forEachIndexed { index, member ->
+			val expectedRevision = index + 1L
+			val capture = member.captureAuthority as HistoricalCaptureAuthority.Exact
+			capture.revisions.map { it.manifestRevision } shouldBe listOf(expectedRevision)
+			member.steps.count shouldBe 1L
+			member.steps.evidence shouldBe StepsHistoryEvidence.RECORDED
+			member.steps.materialization shouldBe StepsHistoryMaterialization.READY
+			member.steps.coverage shouldBe StepsHistoryCoverage.COMPLETE
+			member.qualifiedSources shouldBe setOf(TrackingSourceComponent.STEPS)
+		}
+		first.qualifiedSources shouldBe setOf(TrackingSourceComponent.STEPS)
+
+		val twoEntries = logicalHistoryReader.selectRecentEntries(limit = 2)
+		twoEntries.map { it.identity } shouldBe listOf(
+			HistoricalEntryIdentity.Logical(logicalA),
+			HistoricalEntryIdentity.Logical(logicalB),
+		)
+		twoEntries.first().physicalMembers.size shouldBe 65
+		twoEntries.last().physicalMembers.single().segment.id shouldBe segmentB
+	}
+
+	@Test
+	@Suppress("LongMethod")
+	fun equalLatestTimesUseTheLatestSeedsIdInsteadOfAnOlderSiblingsId() = runTest {
+		val logicalA = "logical-a"
+		val logicalB = "logical-b"
+		database.sourceProjectionStateDao().installProductLane(lane(cursor = 3L))
+		val runs = listOf(
+			HistoryRunFixture("run-a-old", logicalA, 1L, 100L, 1_000L, 1L),
+			HistoryRunFixture("run-a-latest", logicalA, 2L, 10L, 3_000L, 2L),
+			HistoryRunFixture("run-b-latest", logicalB, 1L, 50L, 3_000L, 3L),
+		)
+		for (fixture in runs) {
+			insertRun(
+				fixture.runId,
+				fixture.logicalId,
+				sessionSegmentId = fixture.segmentId,
+			)
+			insertManifest(
+				fixture.runId,
+				fixture.logicalId,
+				revision = fixture.manifestRevision,
+				owner = CANDIDATE_OWNER,
+			)
+			database.sourceSessionDao().saveCompleteness(
+				completeness(
+					fixture.runId,
+					fixture.logicalId,
+					lastOrdinal = fixture.ordinal,
+				),
+			)
+			database.stepFactRevisionDao().insert(
+				fact(fixture.ordinal, StepFactRevisionEntity.COVERAGE_COVERED, 1L).copy(
+					logicalTrackingId = fixture.logicalId,
+					serviceRunId = fixture.runId,
+					manifestRevision = fixture.manifestRevision,
+					sourcePolicyRevision = fixture.manifestRevision,
+				),
+			)
+			database.sessionSegmentDao().insert(
+				segment(
+					fixture.runId,
+					fixture.logicalId,
+					steps = null,
+					sampleCount = 0,
+					id = fixture.segmentId,
+					startTimeMs = fixture.startTimeMs,
+					endTimeMs = fixture.startTimeMs + 100L,
+				),
+			)
+		}
+
+		logicalHistoryReader.selectRecentEntries(limit = 1).single().identity shouldBe
+			HistoricalEntryIdentity.Logical(logicalB)
+		logicalHistoryReader.selectRecentEntries(limit = 2).map { it.identity } shouldBe listOf(
+			HistoricalEntryIdentity.Logical(logicalB),
+			HistoricalEntryIdentity.Logical(logicalA),
+		)
+	}
+
+	@Test
+	@Suppress("LongMethod")
+	fun newestMembershipEligibleSiblingDeterminesLogicalEntryRecency() = runTest {
+		val logicalA = "logical-a"
+		val logicalB = "logical-b"
+		val runs = listOf(
+			HistoryRunFixture("run-a-covered", logicalA, 1L, 10L, 100L, 1L),
+			HistoryRunFixture("run-a-baseline", logicalA, 2L, 20L, 1_000L, 2L),
+			HistoryRunFixture("run-b-covered", logicalB, 1L, 30L, 500L, 3L),
+		)
+		database.sourceProjectionStateDao().installProductLane(lane(cursor = 3L))
+		for (fixture in runs) {
+			insertRun(
+				fixture.runId,
+				fixture.logicalId,
+				sessionSegmentId = fixture.segmentId,
+			)
+			insertManifest(
+				fixture.runId,
+				fixture.logicalId,
+				revision = fixture.manifestRevision,
+				owner = CANDIDATE_OWNER,
+			)
+			database.sourceSessionDao().saveCompleteness(
+				completeness(
+					fixture.runId,
+					fixture.logicalId,
+					lastOrdinal = fixture.ordinal,
+				),
+			)
+			val coverage = if (fixture.runId == "run-a-baseline") {
+				StepFactRevisionEntity.COVERAGE_BASELINE
+			} else {
+				StepFactRevisionEntity.COVERAGE_COVERED
+			}
+			val stepCount = if (coverage == StepFactRevisionEntity.COVERAGE_BASELINE) 0L else 1L
+			database.stepFactRevisionDao().insert(
+				fact(fixture.ordinal, coverage, stepCount).copy(
+					logicalTrackingId = fixture.logicalId,
+					serviceRunId = fixture.runId,
+					manifestRevision = fixture.manifestRevision,
+					sourcePolicyRevision = fixture.manifestRevision,
+				),
+			)
+			database.sessionSegmentDao().insert(
+				segment(
+					fixture.runId,
+					fixture.logicalId,
+					steps = null,
+					sampleCount = 0,
+					id = fixture.segmentId,
+					startTimeMs = fixture.startTimeMs,
+					endTimeMs = fixture.startTimeMs + 50L,
+				),
+			)
+		}
+
+		val first = logicalHistoryReader.selectRecentEntries(limit = 1).single()
+		first.identity shouldBe HistoricalEntryIdentity.Logical(logicalA)
+		first.physicalMembers.map { it.segment.id } shouldBe listOf(10L, 20L)
+		first.physicalMembers.map { it.steps.evidence } shouldBe listOf(
+			StepsHistoryEvidence.RECORDED,
+			StepsHistoryEvidence.BASELINE,
+		)
+		logicalHistoryReader.selectRecentEntries(limit = 2).map { it.identity } shouldBe listOf(
+			HistoricalEntryIdentity.Logical(logicalA),
+			HistoricalEntryIdentity.Logical(logicalB),
+		)
+	}
+
+	@Test
+	fun logicalReaderExcludesSameLogicalRowWithoutExactRunSegmentBinding() = runTest {
+		insertRun(RUN_ONE, sessionSegmentId = SEGMENT_ID)
+		insertManifest(RUN_ONE, revision = 1L, owner = LEGACY_OWNER)
+		insertRun(RUN_TWO, sessionSegmentId = 999L)
+		insertManifest(RUN_TWO, revision = 2L, owner = LEGACY_OWNER)
+		database.sessionSegmentDao().insert(
+			segment(RUN_ONE, steps = 5, sampleCount = 0, id = SEGMENT_ID),
+		)
+		database.sessionSegmentDao().insert(
+			segment(
+				runId = RUN_TWO,
+				steps = 9,
+				sampleCount = 0,
+				id = OTHER_SEGMENT_ID,
+				startTimeMs = 2_100L,
+				endTimeMs = 3_000L,
+			),
+		)
+
+		val entry = logicalHistoryReader.selectRecentEntries(limit = 1).single()
+		entry.identity shouldBe HistoricalEntryIdentity.Logical(LOGICAL_ID)
+		entry.physicalMembers.map { it.segment.id } shouldBe listOf(SEGMENT_ID)
+		entry.physicalMembers.single().steps.count shouldBe 5L
+	}
+
+	@Test
+	fun soleLaneBehindLogicalEntryRemainsMaterializingWithoutFabricatedZero() = runTest {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)),
+			targetOrdinal = 2L,
+			laneCursor = 1L,
+		)
+		database.sessionSegmentDao().insert(
+			segment(RUN_ONE, steps = null, sampleCount = 0),
+		)
+
+		val entry = logicalHistoryReader.selectRecentEntries(limit = 1).single()
+		val member = entry.physicalMembers.single()
+		entry.identity shouldBe HistoricalEntryIdentity.Logical(LOGICAL_ID)
+		member.steps.count shouldBe 5L
+		member.steps.evidence shouldBe StepsHistoryEvidence.RECORDED
+		member.steps.materialization shouldBe StepsHistoryMaterialization.MATERIALIZING
+		member.steps.coverage shouldBe StepsHistoryCoverage.PARTIAL
+		member.steps.reasons shouldBe setOf(StepsHistoryReason.PRODUCT_LANE_BEHIND)
+		entry.qualifiedSources shouldBe setOf(TrackingSourceComponent.STEPS)
+	}
+
+	@Test
+	fun logicalEntryRetainsReadyAndMaterializingPhysicalTruthWithoutAggregateZero() = runTest {
+		database.sourceProjectionStateDao().installProductLane(lane(cursor = 2L))
+		insertRun(RUN_ONE, sessionSegmentId = SEGMENT_ID)
+		insertRun(RUN_TWO, completed = false, sessionSegmentId = OTHER_SEGMENT_ID)
+		insertManifest(RUN_ONE, revision = 1L, owner = CANDIDATE_OWNER)
+		insertManifest(RUN_TWO, revision = 2L, owner = CANDIDATE_OWNER)
+		database.sourceSessionDao().saveCompleteness(completeness(RUN_ONE, lastOrdinal = 1L))
+		database.sourceSessionDao().saveCompleteness(completeness(RUN_TWO, lastOrdinal = 2L))
+		database.stepFactRevisionDao().insert(
+			fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 3L),
+		)
+		database.stepFactRevisionDao().insert(
+			fact(2L, StepFactRevisionEntity.COVERAGE_BASELINE, 0L).copy(
+				serviceRunId = RUN_TWO,
+				manifestRevision = 2L,
+				sourcePolicyRevision = 2L,
+			),
+		)
+		database.sessionSegmentDao().insert(
+			segment(RUN_ONE, steps = null, sampleCount = 0),
+		)
+		database.sessionSegmentDao().insert(
+			segment(
+				runId = RUN_TWO,
+				steps = null,
+				sampleCount = 0,
+				id = OTHER_SEGMENT_ID,
+				startTimeMs = 2_100L,
+				endTimeMs = 3_000L,
+			),
+		)
+
+		val entry = logicalHistoryReader.selectRecentEntries(limit = 1).single()
+		entry.identity shouldBe HistoricalEntryIdentity.Logical(LOGICAL_ID)
+		entry.physicalMembers.map { it.segment.serviceRunId } shouldBe listOf(RUN_ONE, RUN_TWO)
+		entry.physicalMembers.map { it.steps.count } shouldBe listOf(3L, null)
+		entry.physicalMembers.map { it.steps.evidence } shouldBe listOf(
+			StepsHistoryEvidence.RECORDED,
+			StepsHistoryEvidence.BASELINE,
+		)
+		entry.physicalMembers.map { it.steps.materialization } shouldBe listOf(
+			StepsHistoryMaterialization.READY,
+			StepsHistoryMaterialization.MATERIALIZING,
+		)
+		entry.qualifiedSources shouldBe setOf(TrackingSourceComponent.STEPS)
+	}
+
+	@Test
+	fun unattributedLegacyRowsRemainIndependentPhysicalEntries() = runTest {
+		database.sessionSegmentDao().insert(
+			segment(null, logicalId = null, steps = null, sampleCount = 1, id = SEGMENT_ID),
+		)
+		database.sessionSegmentDao().insert(
+			segment(null, logicalId = null, steps = null, sampleCount = 1, id = OTHER_SEGMENT_ID),
+		)
+		database.sessionSegmentDao().insert(
+			segment(
+				runId = "partial-run",
+				logicalId = null,
+				steps = null,
+				sampleCount = 1,
+				id = 43L,
+			),
+		)
+
+		val entries = logicalHistoryReader.selectRecentEntries(limit = 10)
+		entries.map { it.identity } shouldBe listOf(
+			HistoricalEntryIdentity.LegacyPhysical(OTHER_SEGMENT_ID),
+			HistoricalEntryIdentity.LegacyPhysical(SEGMENT_ID),
+		)
+		entries.map { it.physicalMembers.single().segment.id } shouldBe
+			listOf(OTHER_SEGMENT_ID, SEGMENT_ID)
+		entries.all { it.qualifiedSources.isEmpty() } shouldBe true
+	}
+
+	@Test
+	fun attributedMigratedRowsShareKnownLogicalIdentityWithoutQualifyingASource() = runTest {
+		listOf(RUN_ONE, RUN_TWO).forEach { runId ->
+			insertRun(
+				runId,
+				sessionSegmentId = null,
+				presentationAcknowledgement =
+					SourceServiceRunEntity.PRESENTATION_LEGACY_UNVERIFIABLE,
+			)
+		}
+		database.sessionSegmentDao().insert(
+			segment(RUN_ONE, steps = null, sampleCount = 1, id = SEGMENT_ID),
+		)
+		database.sessionSegmentDao().insert(
+			segment(
+				runId = RUN_TWO,
+				steps = null,
+				sampleCount = 1,
+				id = OTHER_SEGMENT_ID,
+				startTimeMs = 2_100L,
+				endTimeMs = 3_000L,
+			),
+		)
+
+		val entry = logicalHistoryReader.selectRecentEntries(limit = 10).single()
+		entry.identity shouldBe HistoricalEntryIdentity.Logical(LOGICAL_ID)
+		entry.physicalMembers.map { it.segment.id } shouldBe
+			listOf(SEGMENT_ID, OTHER_SEGMENT_ID)
+		entry.physicalMembers.map { it.captureAuthority }.toSet() shouldBe setOf(
+			HistoricalCaptureAuthority.Unverifiable(
+				HistoricalCaptureFailure.SERVICE_RUN_SEGMENT_BINDING_UNVERIFIABLE,
+			),
+		)
+		entry.qualifiedSources shouldBe emptySet()
+	}
+
+	@Test
+	@Suppress("LongMethod")
+	fun attributedMigratedRowsComposeWithExactSiblingUnderKnownLogicalIdentity() = runTest {
+		val thirdRun = "run-3"
+		val thirdSegmentId = 43L
+		insertRun(
+			RUN_ONE,
+			sessionSegmentId = null,
+			presentationAcknowledgement =
+				SourceServiceRunEntity.PRESENTATION_LEGACY_UNVERIFIABLE,
+		)
+		insertRun(
+			RUN_TWO,
+			sessionSegmentId = null,
+			presentationAcknowledgement =
+				SourceServiceRunEntity.PRESENTATION_LEGACY_UNVERIFIABLE,
+		)
+		insertRun(thirdRun, sessionSegmentId = thirdSegmentId)
+		insertManifest(thirdRun, revision = 3L, owner = LEGACY_OWNER)
+		database.sessionSegmentDao().insert(
+			segment(RUN_ONE, steps = null, sampleCount = 1, id = SEGMENT_ID),
+		)
+		database.sessionSegmentDao().insert(
+			segment(
+				runId = RUN_TWO,
+				steps = null,
+				sampleCount = 1,
+				id = OTHER_SEGMENT_ID,
+				startTimeMs = 2_100L,
+				endTimeMs = 3_000L,
+			),
+		)
+		database.sessionSegmentDao().insert(
+			segment(
+				runId = thirdRun,
+				steps = 4,
+				sampleCount = 0,
+				id = thirdSegmentId,
+				startTimeMs = 3_100L,
+				endTimeMs = 4_000L,
+			),
+		)
+
+		val entry = logicalHistoryReader.selectRecentEntries(limit = 10).single()
+		entry.identity shouldBe HistoricalEntryIdentity.Logical(LOGICAL_ID)
+		entry.physicalMembers.map { it.segment.id } shouldBe
+			listOf(SEGMENT_ID, OTHER_SEGMENT_ID, thirdSegmentId)
+		entry.physicalMembers.take(2).map { it.captureAuthority } shouldBe listOf(
+			HistoricalCaptureAuthority.Unverifiable(
+				HistoricalCaptureFailure.SERVICE_RUN_SEGMENT_BINDING_UNVERIFIABLE,
+			),
+			HistoricalCaptureAuthority.Unverifiable(
+				HistoricalCaptureFailure.SERVICE_RUN_SEGMENT_BINDING_UNVERIFIABLE,
+			),
+		)
+		entry.physicalMembers.take(2).all { it.qualifiedSources.isEmpty() } shouldBe true
+		entry.physicalMembers.last().qualifiedSources shouldBe
+			setOf(TrackingSourceComponent.STEPS)
+	}
+
+	@Test
+	fun oneRunFenceCannotDeleteItsLogicalSiblingAndQuiescenceIsNotAFilter() = runTest {
+		database.sourceProjectionStateDao().installProductLane(lane(cursor = 2L))
+		insertRun(
+			RUN_ONE,
+			sessionSegmentId = SEGMENT_ID,
+			presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_QUIESCED,
+			presentationAcknowledgedAtMs = 2_100L,
+		)
+		insertRun(RUN_TWO, sessionSegmentId = OTHER_SEGMENT_ID)
+		insertManifest(RUN_ONE, revision = 1L, owner = CANDIDATE_OWNER)
+		insertManifest(RUN_TWO, revision = 2L, owner = CANDIDATE_OWNER)
+		database.sourceSessionDao().saveCompleteness(completeness(RUN_ONE, lastOrdinal = 1L))
+		database.sourceSessionDao().saveCompleteness(completeness(RUN_TWO, lastOrdinal = 2L))
+		database.stepFactRevisionDao().insert(
+			fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 3L),
+		)
+		database.stepFactRevisionDao().insert(
+			fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 5L).copy(
+				serviceRunId = RUN_TWO,
+				manifestRevision = 2L,
+				sourcePolicyRevision = 2L,
+			),
+		)
+		database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null, sampleCount = 0))
+		database.sessionSegmentDao().insert(
+			segment(
+				RUN_TWO,
+				steps = null,
+				sampleCount = 0,
+				id = OTHER_SEGMENT_ID,
+				startTimeMs = 2_100L,
+				endTimeMs = 3_000L,
+			),
+		)
+		insertRunFence(RUN_TWO, deletedAtMs = 3_000L)
+
+		val surviving = logicalHistoryReader.selectRecentEntries(limit = 1).single()
+		surviving.physicalMembers.map { it.steps.availability } shouldBe listOf(
+			StepsHistoryAvailability.AVAILABLE,
+			StepsHistoryAvailability.DELETED,
+		)
+		surviving.qualifiedSources shouldBe setOf(TrackingSourceComponent.STEPS)
+
+		insertRunFence(RUN_ONE, deletedAtMs = 3_100L)
+		logicalHistoryReader.selectRecentEntries(limit = 1) shouldBe emptyList()
+	}
+
+	@Test
+	fun logicalEntryLimitIsExplicitlyBounded() = runTest {
+		(
+			runCatching { logicalHistoryReader.selectRecentEntries(limit = 0) }
+				.exceptionOrNull() is IllegalArgumentException
+		) shouldBe true
+		(
+			runCatching { logicalHistoryReader.selectRecentEntries(limit = 101) }
+				.exceptionOrNull() is IllegalArgumentException
+		) shouldBe true
 	}
 
 	@Test
@@ -457,6 +956,10 @@ class StepsSegmentHistorySelectorTest {
 			.revisions.map(HistoricalCaptureRevision::manifestRevision) shouldBe listOf(1L)
 		(selected.getValue(OTHER_SEGMENT_ID).captureAuthority as HistoricalCaptureAuthority.Exact)
 			.revisions.map(HistoricalCaptureRevision::manifestRevision) shouldBe listOf(2L)
+		val logicalEntry = logicalHistoryReader.selectRecentEntries(limit = 1).single()
+		logicalEntry.identity shouldBe HistoricalEntryIdentity.Logical(LOGICAL_ID)
+		logicalEntry.physicalMembers.map { it.segment.serviceRunId } shouldBe listOf(RUN_ONE, RUN_TWO)
+		logicalEntry.physicalMembers.map { it.steps.count } shouldBe listOf(3L, 7L)
 	}
 
 	@Test
@@ -536,7 +1039,7 @@ class StepsSegmentHistorySelectorTest {
 			HistoricalCaptureFailure.UNKNOWN_PURPOSE,
 		)
 		evidence.qualifiedSources shouldBe emptySet()
-		selector.selectRecentEvidence(limit = 10) shouldBe emptyList()
+		selectRecentEvidence(limit = 10) shouldBe emptyList()
 	}
 
 	@Test
@@ -1129,6 +1632,25 @@ class StepsSegmentHistorySelectorTest {
 		)
 	}
 
+	private suspend fun selectRecentEvidence(limit: Int): List<HistoricalSegmentEvidence> =
+		logicalHistoryReader.selectRecentEntries(limit).flatMap { entry ->
+			entry.physicalMembers.filter(HistoricalSegmentEvidence::isOrdinarilyDiscoverable)
+		}
+
+	private suspend fun insertRunFence(runId: String, deletedAtMs: Long) {
+		database.sourceDeletionFenceDao().upsert(
+			SourceDeletionFenceEntity.createLogicalServiceRun(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+				logicalTrackingId = LOGICAL_ID,
+				serviceRunId = runId,
+				fenceGeneration = 1L,
+				collectedDataEpoch = 0L,
+				deletedAtMs = deletedAtMs,
+			),
+		)
+	}
+
 	private suspend fun insertCandidateRun(
 		runId: String,
 		facts: List<StepFactRevisionEntity>,
@@ -1510,6 +2032,15 @@ class StepsSegmentHistorySelectorTest {
 		owner = owner,
 		ownerGeneration = generation,
 		updatedAtMs = 1L,
+	)
+
+	private data class HistoryRunFixture(
+		val runId: String,
+		val logicalId: String,
+		val manifestRevision: Long,
+		val segmentId: Long,
+		val startTimeMs: Long,
+		val ordinal: Long,
 	)
 
 	private companion object {
