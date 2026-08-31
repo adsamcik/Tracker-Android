@@ -1484,3 +1484,70 @@ writer activation, cleanup, deletion, or product grouping.
   `QUERYABLE`, device/provider/process/energy proof, activation, and rollout.
 - Next: add exact historical capture-set and qualified-source evidence, then logical-entry grouping
   and shared/batched discovery. Do not infer source qualification from `sampleCount`.
+
+## Exact Steps capture and qualified-history evidence checkpoint (2026-08-31)
+
+### Outcome
+
+Commit `c1d6a4a62` adds a bounded read-only history selector for exact historical capture intent and
+qualified source evidence. It reads checksum-valid revisioned manifests using the persisted
+`SESSION_CAPTURE`/`CONTROL` purpose vocabulary, keeps control membership separate, and fails closed
+on unknown purpose or source values. Steps qualifies only from exact captured intent plus current,
+non-deleted, epoch-valid covered or recorded Steps evidence. Retractions, source-local fences,
+terminal failures, unavailable prefixes, and correction reattribution remain typed.
+
+`SessionSegment.sampleCount` is now documented and enforced as a source-neutral processing-cycle
+count. Compatibility visibility is limited to null/null legacy/imported rows or durable
+`LEGACY_UNVERIFIABLE` runs, and it qualifies no source. A zero-sample Steps run can therefore be
+found from real Steps evidence, while a positive sample count cannot fabricate Steps, Location, or
+capture intent.
+
+Candidate traversal uses `(startTimeMs, id)` keyset pagination in 64-row physical batches and keeps
+loading after rejected batches until the requested accepted-result limit is met or candidates end.
+Run, manifest, source-policy, lane, fence, failure, and fact state are loaded in fixed-count batch
+queries inside one Room transaction. Latest semantic corrections are resolved globally and retain
+their exact physical-run attribution. No entity, table, migration, or committed `28.json` changed.
+The selector still has no production list caller, so this checkpoint does not establish ordinary
+navigation or `QUERYABLE`.
+
+### Evidence
+
+- `./gradlew.bat :stats:data:testDebugUnitTest --tests
+  "com.adsamcik.tracker.stats.data.repository.StepsSegmentHistorySelectorTest" --no-daemon
+  --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain
+  --no-configuration-cache` passes in `1m 12s` with 209 tasks; selector `42/42` passes with zero
+  failures/errors/skips.
+- `./gradlew.bat :core:base:testDebugUnitTest :stats:api:allTests
+  :stats:data:testDebugUnitTest --no-daemon --no-parallel --max-workers=1
+  '-Pksp.incremental=false' --console=plain --no-configuration-cache` passes in `1m 26s` with 233
+  tasks. Core base is `896/896`, stats data is `168/168`, and stats API JVM and Android host are each
+  `308/308`, all with zero failures/errors/skips.
+- `./gradlew.bat detekt --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false'
+  --console=plain --no-configuration-cache` passes in `32s` with 5 tasks after DAO documentation,
+  batch-reader extraction, and required-braces corrections. The initial attempted module paths
+  `:core:base:detekt :stats:data:detekt` do not exist and failed task selection before analysis; the
+  authoritative root task was then used. The first focused compile after extraction exposed one
+  removed `ScopedStepFactState` import; restoring that import produced the passing run above.
+- `./gradlew.bat :core:base:lintDebug :stats:data:lintDebug checkRoomSchemaDrift --no-daemon
+  --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain
+  --no-configuration-cache` passes in `2m 16s` with 347 tasks. Both lint tasks report no new issue;
+  existing baselines filter core `13` errors/`6` warnings and stats data `283` errors/`270`
+  warnings. The committed Room schema is unchanged.
+- Three independent corrected-diff reviews and one final post-extraction read review report no
+  remaining scoped `BLOCKER` or `HIGH`. They confirm exact purpose handling, control exclusion,
+  stale/fenced/retracted no-resurrection, keyset progress, correction-run isolation, and unchanged
+  transaction/batch semantics.
+- No emulator/device/provider/process/reboot/energy evidence was produced.
+
+### Gate status and next wave
+
+- Passed: exact revisioned capture/control evidence; zero-sample qualified Steps discovery;
+  source-neutral sample-count containment; bounded keyset/batch loading; source-local fence, epoch,
+  failure, completeness, and correction attribution; unchanged schema and writer ownership.
+- Failed or unverified: a production list caller, replacement-run logical grouping, ordinary
+  product navigation, shared list/day/live composition, selected deletion, `QUERYABLE`, device or
+  provider behavior, activation, and rollout.
+- Next: compose replacement-run physical segments under one logical tracking entry before applying
+  the consumer limit, retaining exact physical run and segment ownership internally. Then expose the
+  smallest truthful Steps-only list/live surface without fabricating zero or enabling unsafe
+  presentation-only deletion.

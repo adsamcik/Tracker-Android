@@ -1357,3 +1357,37 @@ Each entry records repository evidence and does not duplicate the final architec
   semantics; null or foreign reverse links cannot borrow another run's evidence. Migrated rows
   remain named and blocked rather than guessed. This does not make `QUIESCED` deletion authority,
   group replacement runs, provide ordinary discovery, or establish `QUERYABLE`.
+
+## TI-D115 — Qualified Steps history combines exact intent with source-local product evidence
+
+- Status: `ACCEPTED_AND_IMPLEMENTED_AS_FOUNDATIONAL_READ_COMPOSITION` at `c1d6a4a62`; production
+  logical-entry composition, ordinary discovery, and `QUERYABLE` remain `BLOCKED`
+- Owner/date: lead orchestrator after focused implementation, complete affected host verification,
+  and three independent corrected-diff reviews, 2026-08-31
+- Alternatives: infer captured sources from `SessionSegment.sampleCount`; use the current policy or
+  manifest rather than historical revisions; accept control-only evidence as captured history;
+  issue one Room query per row; stop after one rejected physical batch; combine exact historical
+  intent with bounded source-local evidence and keyset through rejected candidates
+- Evidence: `sampleCount` is a source-neutral processing-cycle count and can be positive without
+  Location or Steps. Immutable manifests already persist revisioned capture and control membership,
+  while the Steps product lane, deletion fences, source epochs, completeness state, and latest
+  semantic revisions provide source-local evidence. More than one physical run may belong to one
+  logical entry, and invalid newer rows must not starve a valid older result at a batch boundary.
+- Decision: persisted manifest purpose values are interpreted through the stable
+  `SESSION_CAPTURE`/`CONTROL` vocabulary. A checksum-valid manifest contributes an exact revisioned
+  captured-source set; control membership stays separate, and unknown purpose or source values fail
+  closed. Steps is qualified only when exact captured intent intersects current, non-deleted,
+  epoch-valid covered or recorded Steps evidence for that run. Retractions, fences, stale epochs,
+  terminal source-local failure, and unavailable prefixes remain typed. `sampleCount` compatibility
+  is restricted to null/null migrated rows or durable `LEGACY_UNVERIFIABLE` runs and never qualifies
+  any source. Candidate rows are traversed by `(startTimeMs, id)` keyset in bounded batches, with
+  fixed-count batch reads for referenced run/manifest/source-policy/evidence state inside one Room
+  transaction. Latest semantic correction ownership is resolved globally, then attributed to its
+  exact physical run. No schema or generic history platform is added.
+- Consequences: a zero-sample Steps run with qualified source-local evidence can now be selected,
+  and a positive source-neutral sample count cannot fabricate Steps, Location, or capture intent.
+  The new batch selector has no production list caller yet. It therefore proves a foundational
+  discovery primitive, not ordinary product navigation or `QUERYABLE`. The next product read must
+  group replacement-run physical segments under one logical entry before applying the consumer
+  limit while retaining exact run/segment ownership internally; safe deletion and other source
+  verticals remain separate later work.
