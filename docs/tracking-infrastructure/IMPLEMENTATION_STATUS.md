@@ -6,24 +6,22 @@ Execution-grade work items, ownership, dependency gates, verification commands, 
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and
 evidence index.
 
-Current scoped code checkpoint: `f2c7a3225` on `codex/ti410-deletion-rearm`, atop exact
-physical-service-run presentation settlement and the prior TI-410 foundations. Selected new-v28
-Steps history now requires the Room-authoritative reverse link from its physical service run to the
-exact segment before consulting deletion, manifest, lane, completeness, or fact evidence. Migrated
-`LEGACY_UNVERIFIABLE` ownership remains a named unavailable result; exact-bound `PENDING` and
-`QUIESCED` rows retain the existing read semantics. This adds no physical cleanup, source
-materializer, writer activation, schema, or product grouping. Direct Trip Detail deletion is
-withheld and ordinary list/day/live discoverability is unchanged. No production path creates a
+Current scoped code checkpoint: `ab760d234` on `codex/ti410-deletion-rearm`, atop exact
+physical-service-run presentation settlement and the prior TI-410 foundations. Through TI-D114–
+TI-D120, new-v28 Steps history now requires the exact run/segment reverse binding, exact revisioned
+capture intent, source-local qualification, replacement-run logical grouping, and one finite
+candidate-owned product composition. The Dashboard consumes at most 20 recent physical candidates
+through that composed read and presents at most five rows. A qualified stopped Steps-only logical
+entry is therefore ordinarily discoverable and `QUERYABLE` in this bounded Dashboard surface
+without relying on `sampleCount`, exposing a numeric cross-run total, or granting a physical action
+identity. The live Dashboard remains exact and segment-bound. This does not establish the manual
+provider scenario, Statistics/day/Calendar queryability, deletion, correction, portable
+export/import, numeric consumers, activation, or rollout. No production path creates a
 source-deletion fence, and lifecycle-owned crash-orphan reclamation remains absent. The continuation
-is not integrated into local `dev/v10`, pushed, or evidence of `QUERYABLE` or permanent deletion.
-The delivered reconciliation remains merge
-`9b8ab4b43e0d5ca2e729f511b48936b0dbdfbb6a`, with parents `1a112bbd5` and `9a65148a1`, plus the
-delivered handover commits through `ffd5d372f`. The complete topology, protected-root boundary, and
-next-session commands are recorded in `CONTINUATION_HANDOVER.md`. The initial audited
-baseline was `068ebe052`; no release or artifact publication, deployment, remote configuration,
-feature activation, or external rollout was performed. The six currently dirty protected root paths
-remain intentionally uncommitted; `f9b1c3c45` changes the statistics resources only on the dedicated
-continuation branch as part of its reviewed product slice.
+is not integrated into local `dev/v10` and was not pushed. The complete topology and protected-root
+boundary are recorded in `CONTINUATION_HANDOVER.md`; the six protected root paths remain outside
+this continuation. The initial audited baseline was `068ebe052`; no release, artifact publication,
+deployment, remote configuration, feature activation, or external rollout was performed.
 
 ## Current gate
 
@@ -33,10 +31,11 @@ continuation branch as part of its reviewed product slice.
   rollback, and post-deletion generation reconstruction now exist. Legacy generation 1 remains the
   only active production owner; first activation and rollback have no ordinary production caller.
 - Gate status: `TRANSITION_FOUNDATION_IN_REVIEW / OBSERVABLE_FACADE_PRESENT /
-  SELECTED_DETAIL_CONSUMER_CONTAINED /
-  DELETION_AUTHORITY_DORMANT / EMPTY_CLEANUP_CONTAINED /
-  CRASH_PLACEHOLDER_READS_CONTAINED / STEPS_REVERSE_BINDING_ENFORCED /
-  PRODUCT_WIRING_BLOCKED`. TI-B160 connects the
+  SELECTED_DETAIL_CONSUMER_CONTAINED / DELETION_AUTHORITY_DORMANT /
+  EMPTY_CLEANUP_CONTAINED / CRASH_PLACEHOLDER_READS_CONTAINED /
+  STEPS_REVERSE_BINDING_ENFORCED / EXACT_STEPS_HISTORY_COMPOSED /
+  LIVE_STEPS_PRESENTED / BOUNDED_DASHBOARD_QUERYABLE /
+  MANUAL_DEVICE_GATE_BLOCKED / BROADER_PRODUCT_WIRING_BLOCKED`. TI-B160 connects the
   production deletion provider, default `AppDatabase` deletion, singleton lifecycle/coordinator,
   durable pending marker, and closed startup/deletion barrier through a forced post-rearm diagnostics
   failure and successful retry. The final test passes twice consecutively on the same retained
@@ -53,10 +52,12 @@ continuation branch as part of its reviewed product slice.
   while leaving other DAO paths unchanged and claiming no durable reclamation.
   TI-D111 narrows the next wave after scope review. TI-D113/TI-B169 bind each physical service run
   to one presentation segment and persist writer quiescence without reclaiming any row.
-  TI-D114/TI-B171 close only the selected Steps read-side reverse binding; source qualification,
-  ordinary discovery, and logical-entry grouping remain blocked. List/day/
-  live composition, exact capture-set and Location-evidence presentation, completeness-safe numeric consumers, typed
-  export/import, cold process/reboot/provider evidence, manual only-Steps device evidence, and every
+  TI-D114–TI-D118 add exact reverse binding, capture/qualification authority, logical grouping, and
+  finite action-bearing composition. TI-D119/TI-B176 add exact live presentation. TI-D120/TI-B177–
+  TI-B178 connect the finite composed read to stopped Dashboard history with stable physical
+  ordering and no raw Last Session bypass. The bounded Dashboard query passes; day/Calendar/
+  Statistics composition, completeness-safe numeric consumers, typed export/import, deletion,
+  cold process/reboot/provider evidence, the exact manual only-Steps device scenario, and every
   other source/mode remain blocked.
 - Integration owner: lead orchestrator
 - Structural implementation: Workstream A policy authority plus the retained v28
@@ -73,16 +74,18 @@ continuation branch as part of its reviewed product slice.
   Activity `CONTROL`, never captured Activity. Process-wide startup ordering is now locally
   implemented and verified; production backup recovery, portable export/import, partial-database
   containment, and connected startup/reboot proof remain TI-184 gates.
-- Current-worktree verification: `f2c7a3225` passes the focused selector/mapping gate in `43s`
-  (209 tasks; `38/38`), then complete `:stats:api:allTests :stats:data:testDebugUnitTest` in `46s`
-  (219 tasks). XML records stats data `156/156`, including selector `30/30` and mapping `8/8`, plus
-  stats API JVM `308/308` and Android host `308/308`; all have zero failures/errors/skips. Root
-  Detekt, `:stats:data:lintDebug`, and `checkRoomSchemaDrift` pass together in `1m 18s` (345 tasks);
-  lint reports no new issue and the v28 schema is unchanged. Two read-only adversaries report no
-  remaining scoped `BLOCKER`, `HIGH`, or `MEDIUM` after the fence/manifest precedence test was
-  strengthened. The first sandboxed wrapper attempt failed before Gradle configuration because
-  network access to the pinned distribution was denied; approved reruns are the counted evidence.
-  This is host read-contract/schema-parity evidence, not device/provider/process/reboot/energy proof.
+- Current-worktree verification: the post-review command selecting `TripDaoTest` plus five focused
+  Dashboard recent-history suites, root `detekt`, and `:feature:dashboard:lintDebug` passes in
+  `4m 21s` with 610 tasks (46 executed, 564 up-to-date). XML records `56/56` tests: core DAO
+  `16/16` and Dashboard `40/40`, with zero failures/errors/skips. Lint reports zero errors and one
+  previously recorded guarded `InlinedApi` warning for the API-29 Activity Recognition permission.
+  All 28 Dashboard resource sets parse and contain exactly one copy of each of the nine affected
+  recent-history/widget keys. Independent storage and product reviews have no remaining finding
+  after the stale lifecycle replay was reset to typed `Loading` and covered by virtual-time
+  unsubscribe/resubscribe evidence. The first sandboxed wrapper attempt failed before Gradle
+  configuration because network access to the pinned distribution was denied; the approved rerun
+  above is the counted evidence. This is host/resource evidence, not emulator/device, visual,
+  provider/listener, process/reboot/FGS, battery, or OEM proof.
   Earlier, `9aeb8853a` passes the exact presentation lifecycle/component/
   store/orchestrator/crash suite (`BUILD SUCCESSFUL in 4m 20s`; 230 tasks), focused Room DAO and
   tracker-API descriptor tests, root Detekt (`13s`), affected-module lint (`2m 19s`; 383 tasks; no
@@ -1772,3 +1775,76 @@ activation, or rollout behavior changes.
 - Next: wire the candidate-scoped page to the finite Dashboard recent-history consumer. Suppress
   the raw Last Session bypass when the composed newest row is opaque Steps-only, and keep the
   Statistics paging path outside this bounded contract.
+
+## Bounded Dashboard recent Steps history checkpoint (2026-08-31)
+
+### Outcome
+
+Commit `123c6399e` makes both recent `TripDao` queries deterministic at equal start times with
+`startTimeMs DESC, id DESC`. Commit `ab760d234` replaces the Dashboard's independently loaded raw
+recent trips with one coordinated product flow: at most 20 physical candidates form an immutable
+generation, `flatMapLatest` supplies that complete generation to the Stats Steps-aware page with a
+final limit of five, and physical echoes are mapped only from the same snapshot. There is no
+per-row lookup, raw fallback, unbounded backfill, or independently limited merge.
+
+The feature-facing state is typed `Loading`/`Content`/`Unavailable`, with typed physical and opaque
+Steps-only rows. Recent history is observed only while tracking is stopped. Lifecycle collection
+uses a five-second stop timeout but expires replay immediately when that timeout elapses, so a stale
+physical top row cannot regain Last Session/map/detail authority before the refreshed composed page.
+Only a leading composed physical row may feed Last Session; a controller snapshot may refine it
+only when IDs match. A leading Steps-only row is non-clickable, exposes no Steps total or distance,
+and shows only a neutral title, state, stopped duration, and relative time. Missing, materializing, partial, loading,
+or unavailable Steps never becomes zero, distance, a map, or a detail action. Existing physical-row
+behavior remains unchanged. The neutral recent-tracking copy is complete in the base resources and
+all 27 locale-specific sets.
+
+This is the first ordinary bounded Dashboard caller of the production Steps-aware history query. A
+qualified stopped Steps-only logical entry can therefore advance the Dashboard's `QUERYABLE` gate
+even when its physical segment has zero generic samples. That statement is limited to seeded/durable
+host evidence; it does not prove the sensor-to-WAL-to-fact device scenario.
+
+### Evidence
+
+- `.\gradlew.bat :core:base:testDebugUnitTest --tests
+  "com.adsamcik.tracker.shared.base.database.dao.TripDaoTest"
+  :feature:dashboard:testDebugUnitTest --tests
+  "com.adsamcik.tracker.dashboard.data.DashboardHistoryRepositoryTest" --tests
+  "com.adsamcik.tracker.dashboard.ui.DashboardViewModelHistoryTest" --tests
+  "com.adsamcik.tracker.dashboard.ui.compose.DashboardRecentHistoryPresentationTest" --tests
+  "com.adsamcik.tracker.dashboard.ui.compose.cards.RecentTripsCardTest" --tests
+  "com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiStateTest" detekt
+  :feature:dashboard:lintDebug --no-daemon --no-parallel --max-workers=1
+  "-Pksp.incremental=false"` passes in `4m 21s` with 610 tasks (46 executed, 564 up-to-date).
+- XML records `56/56` selected tests with zero failures/errors/skips: `TripDaoTest` `16/16` and the
+  Dashboard selection `40/40`. Coverage includes equal-start/limit ordering, configured 20/5 limits,
+  composition, same-generation mapping and cancellation, underfill/no fallback, tracking gating,
+  lifecycle replay expiry, top-row Last Session authority, typed mode decisions, nonnumeric and
+  non-clickable Steps states, and opaque keys whose string representations collide.
+- Dashboard lint has zero errors and one previously recorded guarded `InlinedApi` warning. Root
+  Detekt passes. All 28 resource sets parse and contain exactly one copy of every affected key.
+- Storage/query review found no issue. Product review found one stale replay window; the accepted
+  correction sets `replayExpirationMillis = 0`, adds the virtual-time regression, and the final
+  re-review reports no remaining scoped finding.
+- The initial sandboxed Gradle attempt could not fetch the pinned distribution because network was
+  denied. It failed before configuration and is not counted; the authorized rerun above is the
+  passing result.
+- No emulator/device/provider/listener/process/reboot/FGS/battery/OEM, visual, or accessibility
+  evidence was produced.
+
+### Gate status and next wave
+
+- Passed: deterministic finite candidates; one same-generation composition from at most 20
+  candidates to at most five results; qualified
+  zero-sample Steps-only discovery; whole-group physical suppression; bounded Dashboard
+  `QUERYABLE`; exact Last Session authority; lifecycle reset; truthful loading/unavailable/Steps
+  presentation; physical behavior preservation; localized copy.
+- Failed or unverified: a real `TYPE_STEP_COUNTER` callback, exact manual capture/demand/
+  registration set, positive post-baseline WAL evidence, one canonical materialization on device,
+  listener removal after stop, process/reboot/FGS/battery behavior, Statistics/day/Calendar and
+  numeric consumers, selected deletion, correction/day repair, retention, export/import,
+  automatic/ambient Steps, activation, and rollout.
+- Next: implement only the bounded test evidence/harness needed to observe the existing durable WAL
+  `RECORDING` boundary and prepare the disposable instrumentation activation path. Do not add a
+  persisted `RECORDING` lifecycle state or a production drain delay. The exact provider/listener
+  gate remains blocked until a real step-counter device is available; do not begin the later
+  Steps-local mutation or another source before that gate.

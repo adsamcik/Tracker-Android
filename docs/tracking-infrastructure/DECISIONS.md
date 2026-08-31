@@ -1500,3 +1500,34 @@ Each entry records repository evidence and does not duplicate the final architec
   listener, FGS, process, reboot, battery, visual-device, or accessibility behavior. The live slice
   neither makes stopped Steps-only history ordinarily discoverable nor grants logical detail,
   export, or deletion authority; the finite list consumer remains the next gate.
+
+## TI-D120 — Dashboard history authority is one bounded composed generation
+
+- Status: `ACCEPTED_AND_IMPLEMENTED_AS_BOUNDED_DASHBOARD_PRODUCT_SLICE` at `123c6399e` and
+  `ab760d234`; exact manual provider/device proof and broader consumers remain `BLOCKED`
+- Owner/date: lead orchestrator after focused host/static verification, one storage review, and one
+  corrected product/lifecycle review, 2026-08-31
+- Alternatives: keep raw recent trips and independently overlay Steps; filter or look up each row
+  in presentation; expose logical/physical suppression aliases; fall back to raw trips when Stats
+  fails; allow a cached physical row to regain actions during lifecycle restart; compose one finite
+  physical generation through the existing bounded Stats contract and fail closed
+- Evidence: the Dashboard's action-bearing list needs stable ordering and one common coverage
+  boundary. Independently limited reads can duplicate a Steps-only replacement group, and an
+  indefinitely retained `StateFlow` page can briefly restore a stale physical top row after the
+  screen restarts. `TrackingHistoryEntryKey.toString()` is deliberately non-identifying, so Compose
+  identity must use the typed opaque key itself.
+- Decision: both recent physical queries order by `(startTimeMs DESC, id DESC)`. While tracking is
+  stopped, the Dashboard snapshots at most 20 physical candidates and uses `flatMapLatest` to pass
+  that immutable ID generation to one `observeRecentStepsAwarePage(..., limit = 5)` observation.
+  Only Stats ordering is presented; physical results must resolve from that same snapshot and any
+  failure becomes typed `Unavailable`, never raw fallback or backfill. A top composed physical row
+  alone may authorize Last Session/map/detail, with controller data accepted only for the same ID.
+  An opaque Steps-only row grants no physical action, Steps total, or distance. Lifecycle replay expires when the
+  five-second stop timeout elapses, resetting first presentation to `Loading` before refreshed
+  content.
+- Consequences: qualified stopped Steps-only entries are ordinarily discoverable and
+  `QUERYABLE` in the bounded Dashboard list without `sampleCount`, fabricated zero, or physical
+  identity leakage. Physical rows preserve existing behavior. An intentionally underfilled page is
+  truthful and does not authorize an unbounded search. This does not solve Statistics paging,
+  day/Calendar composition, cross-run totals, deletion, export/import, manual provider proof,
+  automatic/ambient Steps, or any other source.

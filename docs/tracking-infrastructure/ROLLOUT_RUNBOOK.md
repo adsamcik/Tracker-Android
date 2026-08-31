@@ -1,14 +1,14 @@
 # Tracking Infrastructure Rollout Runbook
 
-Last updated: 2026-08-30
+Last updated: 2026-08-31
 
 External rollout, publishing, deployment, and remote configuration remain unauthorized. This runbook defines local evidence and the future authorization boundary.
 
 ## Current containment
 
-- Current local continuation code checkpoint: `f9b1c3c45` on `codex/ti410-deletion-rearm`; local and
-  remote `dev/v10` remain at `ffd5d372f`, so the continuation is neither integrated nor pushed.
-  Initial audited baseline: `068ebe052`.
+- Current local continuation code checkpoint: `ab760d234` on `codex/ti410-deletion-rearm`. The
+  continuation is not integrated into local `dev/v10` and no push was performed; remote state was
+  not refreshed for this checkpoint. Initial audited baseline: `068ebe052`.
 - The local schema is now v28. Its policy authority row is inert until verified legacy settings activate a complete six-source revision; no external rollout is authorized.
 - A v27 APK/database downgrade is not a rollback path. Any rollback build must understand v28 and continue enforcing Room policy/consent safety state.
 - Acquisition ownership and product-writer rollout are separate per-source state. Rollout schema v3
@@ -60,12 +60,14 @@ External rollout, publishing, deployment, and remote configuration remain unauth
   TI-410's smallest manual/session Steps writer/query and truthful existing-surface adaptations;
   typed Steps correction/deletion/import/export and destination fencing are completion gates.
   Automatic/ambient Steps, other materializers, broad product wiring, and rollout remain off.
-- `f9b1c3c45` is the first contained production consumer of the one-selected-session Steps facade.
-  Trip Detail renders typed durable Steps states, immediate materializing state, correction updates,
-  history failure isolation with explicit user retry, and lifecycle-scoped observation. Its unsafe
-  presentation-only delete action is absent. Ordinary History/Stats discovery still requires
-  positive `sample_count` and remains an accepted `QUERYABLE` blocker. This is not list/day/live
-  composition, exact capture/Location evidence, app-wide deletion, activation, or rollout evidence.
+- Through `ab760d234`, production Steps reads now include contained selected Trip Detail, exact
+  segment-bound live Dashboard presentation, and one stopped Dashboard recent-history consumer.
+  The recent list composes at most 20 deterministic physical candidates through one bounded Stats
+  page of at most five rows. A qualified stopped Steps-only logical entry can appear without a
+  positive `sample_count`; its opaque row has no Steps total, distance, map, detail, or delete identity, and a raw
+  Last Session cannot bypass it. This is bounded Dashboard `QUERYABLE` host evidence, not the exact
+  manual provider/WAL/listener device scenario, day/Calendar/Statistics composition, app-wide
+  deletion, activation, or rollout evidence.
 - Existing tracking-settings authority/error presentation is the only allowed Phase 1 production UI safety exception; it exposes fail-closed policy state and is not evidence of source history, materialization, or queryability.
 - Fresh adaptive-collections R3 was `BLOCK_RESCOPE`; TI-D056–TI-D069 defined its correction. Fresh R4 is now complete and TI-D070–TI-D076 integrate every new blocker/high. No source activation is authorized until the accepted implementation and device gates pass.
 - The app targets Android 17 / API 37. Before any Play release, complete the
@@ -126,7 +128,7 @@ Ambient Steps uses one selected system continuity provider: prefer Health Connec
 | `broker_v2:<source>` | purpose demand/provider ownership | contained per source | remove v2 demands; restore one proven owner only | authorization/generation foundation, acquisition floors, Activity arbitration and shared Steps ownership are local; explicit source shadow/canonical reachability, provider-specific handoff, durable flag and device matrix still gate each source |
 | `source_shadow:<source>` | optional diff-only typed source projector/query | off | stop the shadow cursor; no canonical mutation | add only where a legacy destination exists and parity must be measured |
 | `source_owner:<source>` | source-specific canonical destination owner | legacy owner until the source gate passes | stop the candidate, preserve facts/WAL, and restore only the last proven sole owner | no generic activation/receipt platform; each destination proves uniqueness, stable identity and idempotent typed writes |
-| `tracking_history_v2` | one production history facade and compatible source readers | source-by-source dual read | retain compatible readers and surface truthful retained-unavailable state; never hide v2-only facts | contained partial implementation: one Hilt-bound selected-session Steps facade and one read-only Trip Detail consumer; no list/day/live or cross-surface query proof |
+| `tracking_history_v2` | one production history facade and compatible source readers | source-by-source dual read | retain compatible readers and surface truthful retained-unavailable state; never hide v2-only facts | contained Steps implementation: selected Trip Detail, exact live Dashboard, and one bounded stopped recent-history list; no day/Calendar/Statistics, numeric cross-run, delete/export, or cross-surface completion proof |
 | `days_journal_v2` | optional future Days-first product | off | restore existing navigation only if every retained fact remains discoverable/explainable/exportable/deletable | backlog; not a source-safety prerequisite |
 | `ambient:<source>` | app-scoped acquisition/materialization/product | off | technical rollback removes demands/stops writes and preserves data; consent revocation/deletion is a separate authorized tombstone/key-rotation operation | not implemented |
 
@@ -148,9 +150,12 @@ For each source:
 8. Internal/reference-device evidence passes.
 9. Canary thresholds and rollback rehearsal pass.
 
-`f9b1c3c45` satisfies only a known-segment-ID, read-only Trip Detail subset of item 3. It does not
-satisfy the manual only-X production-query gate because ordinary History/Stats navigation can still
-hide a source-only session and Today/Timeline/Calendar/live remain on split legacy paths.
+`ab760d234` adds ordinary bounded Dashboard discovery to the known-segment Trip Detail and live
+Steps surfaces. It satisfies only the stopped Dashboard query portion of item 3 for already
+qualified durable facts. It does not satisfy the manual only-X end-to-end gate: a real
+`TYPE_STEP_COUNTER` session still must prove the exact capture/demand/registration set, positive
+post-baseline WAL onset, sole canonical materialization, production query, truthful UI, and listener
+removal. Today/Timeline/Calendar/Statistics and numeric consumers remain split legacy paths.
 
 Portable export is part of step 5/8: it must include every released source from typed product facts/membership/completeness, exclude control-only evidence and raw radio identifiers, and remain distinct from empty-target whole-database restore. Merge import stages provenance-bearing base facts through `TrackingWriter`; it never inserts derived summaries directly or uses `INSERT OR IGNORE` as semantic conflict resolution.
 
