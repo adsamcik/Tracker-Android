@@ -15,6 +15,7 @@ import com.adsamcik.tracker.statistics.export.GpxShareHelper
 import com.adsamcik.tracker.stats.api.TransportMode
 import com.adsamcik.tracker.stats.api.repository.LocationSampleRepository
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
+import com.adsamcik.tracker.stats.api.repository.HistoryCapture
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.SessionHistory
@@ -403,6 +404,8 @@ class TripDetailPresenterViewModelTest {
 	private fun completeHistory(segmentId: Long): SessionHistoryQuery = SessionHistoryQuery.Found(
 		SessionHistory(
 			segmentId = segmentId,
+			capture = HistoryCapture.Unverifiable,
+			qualifiedSources = emptySet(),
 			steps = StepsHistory(
 				count = 0L,
 				availability = HistoryAvailability.AVAILABLE,

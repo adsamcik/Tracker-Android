@@ -18,11 +18,15 @@ import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessE
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
+import com.adsamcik.tracker.stats.api.repository.HistoryCapture
+import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryListState
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -134,6 +138,19 @@ class StepsSegmentHistorySelectorTest {
 			HistoricalCaptureFailure.SERVICE_RUN_SEGMENT_BINDING_UNVERIFIABLE,
 		)
 		migrated.qualifiedSources shouldBe emptySet()
+		val publicHistory = DefaultTrackingHistoryRepository(
+			database,
+			selector,
+			logicalHistoryReader,
+			Dispatchers.IO,
+		).observeSession(SEGMENT_ID).first() as
+			com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery.Found
+		publicHistory.history.capture shouldBe HistoryCapture.Unverifiable
+		publicHistory.history.qualifiedSources shouldBe emptySet()
+		publicHistory.history.steps.causes shouldBe setOf(
+			com.adsamcik.tracker.stats.api.repository.StepsHistoryCause.LEGACY_UNVERIFIED,
+			com.adsamcik.tracker.stats.api.repository.StepsHistoryCause.AVAILABILITY_UNAVAILABLE,
+		)
 	}
 
 	@Test
@@ -704,6 +721,113 @@ class StepsSegmentHistorySelectorTest {
 	}
 
 	@Test
+	fun stepsOnlyFilterRunsBeforeLimitSoNewerMixedCaptureCannotStarveExactEntry() = runTest {
+		val mixedLogicalId = "logical-mixed"
+		val stepsLogicalId = "logical-steps"
+		val mixedSegmentId = 101L
+		val stepsSegmentId = 102L
+		insertRun("mixed-run", mixedLogicalId, sessionSegmentId = mixedSegmentId)
+		insertManifest(
+			runId = "mixed-run",
+			logicalId = mixedLogicalId,
+			revision = 1L,
+			owner = LEGACY_OWNER,
+			additionalSources = listOf(
+				sourceMembership(
+					revision = 1L,
+					source = TrackingSourceComponent.LOCATION,
+					purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+					logicalId = mixedLogicalId,
+				),
+			),
+		)
+		database.sessionSegmentDao().insert(
+			segment(
+				runId = "mixed-run",
+				logicalId = mixedLogicalId,
+				steps = 8,
+				id = mixedSegmentId,
+				startTimeMs = 3_000L,
+				endTimeMs = 4_000L,
+			),
+		)
+		insertRun("steps-run", stepsLogicalId, sessionSegmentId = stepsSegmentId)
+		insertManifest(
+			runId = "steps-run",
+			logicalId = stepsLogicalId,
+			revision = 1L,
+			owner = LEGACY_OWNER,
+		)
+		database.sessionSegmentDao().insert(
+			segment(
+				runId = "steps-run",
+				logicalId = stepsLogicalId,
+				steps = 4,
+				sampleCount = 0,
+				id = stepsSegmentId,
+			),
+		)
+
+		logicalHistoryReader.selectRecentStepsOnlyEntries(limit = 1).single().identity shouldBe
+			HistoricalEntryIdentity.Logical(stepsLogicalId)
+	}
+
+	@Test
+	fun observableStepsOnlyListGroupsReplacementRunsWithoutCreatingANumericTotal() = runBlocking {
+		database.sourceProjectionStateDao().installProductLane(lane(cursor = 2L))
+		insertRun(RUN_ONE, sessionSegmentId = SEGMENT_ID)
+		insertRun(RUN_TWO, sessionSegmentId = OTHER_SEGMENT_ID)
+		insertManifest(RUN_ONE, revision = 1L, owner = CANDIDATE_OWNER)
+		insertManifest(RUN_TWO, revision = 2L, owner = CANDIDATE_OWNER)
+		database.sourceSessionDao().saveCompleteness(completeness(RUN_ONE, lastOrdinal = 1L))
+		database.sourceSessionDao().saveCompleteness(completeness(RUN_TWO, lastOrdinal = 2L))
+		database.stepFactRevisionDao().insert(
+			fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 3L),
+		)
+		database.stepFactRevisionDao().insert(
+			fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 5L).copy(
+				serviceRunId = RUN_TWO,
+				manifestRevision = 2L,
+				sourcePolicyRevision = 2L,
+			),
+		)
+		database.sessionSegmentDao().insert(
+			segment(RUN_ONE, steps = null, sampleCount = 2),
+		)
+		database.sessionSegmentDao().insert(
+			segment(
+				runId = RUN_TWO,
+				steps = null,
+				sampleCount = 0,
+				id = OTHER_SEGMENT_ID,
+				startTimeMs = 2_100L,
+				endTimeMs = 3_000L,
+			),
+		)
+		val repository = DefaultTrackingHistoryRepository(
+			database,
+			selector,
+			logicalHistoryReader,
+			Dispatchers.IO,
+		)
+
+		val initialEmission = CompletableDeferred<Unit>()
+		val collection = async {
+			repository.observeRecentStepsOnlyEntries(limit = 10)
+				.onEach { initialEmission.complete(Unit) }
+				.take(2)
+				.toList()
+		}
+		withTimeout(5_000L) { initialEmission.await() }
+		insertRunFence(RUN_TWO, deletedAtMs = 3_500L)
+
+		val emissions = withTimeout(5_000L) { collection.await() }
+		emissions.first().single().state shouldBe StepsOnlyHistoryListState.AVAILABLE
+		emissions.last().single().state shouldBe StepsOnlyHistoryListState.PARTIAL
+		Unit
+	}
+
+	@Test
 	fun unattributedLegacyRowsRemainIndependentPhysicalEntries() = runTest {
 		database.sessionSegmentDao().insert(
 			segment(null, logicalId = null, steps = null, sampleCount = 1, id = SEGMENT_ID),
@@ -825,6 +949,7 @@ class StepsSegmentHistorySelectorTest {
 		entry.physicalMembers.take(2).all { it.qualifiedSources.isEmpty() } shouldBe true
 		entry.physicalMembers.last().qualifiedSources shouldBe
 			setOf(TrackingSourceComponent.STEPS)
+		logicalHistoryReader.selectRecentStepsOnlyEntries(limit = 10) shouldBe emptyList()
 	}
 
 	@Test
@@ -1009,6 +1134,8 @@ class StepsSegmentHistorySelectorTest {
 			TrackingSourceComponent.LOCATION,
 		)
 		capture.capturedForWholeRun shouldBe emptySet()
+		database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null, sampleCount = 0))
+		logicalHistoryReader.selectRecentStepsOnlyEntries(limit = 10) shouldBe emptyList()
 	}
 
 	@Test
@@ -1048,7 +1175,12 @@ class StepsSegmentHistorySelectorTest {
 		insertManifest(RUN_ONE, revision = 1L, owner = LEGACY_OWNER)
 		val persisted = segment(RUN_ONE, steps = 14)
 		val segmentId = database.sessionSegmentDao().insert(persisted)
-		val repository = DefaultTrackingHistoryRepository(database, selector, Dispatchers.IO)
+		val repository = DefaultTrackingHistoryRepository(
+			database,
+			selector,
+			logicalHistoryReader,
+			Dispatchers.IO,
+		)
 		val initialEmission = CompletableDeferred<Unit>()
 		val collection = async {
 			repository.observeSession(segmentId)
@@ -1067,6 +1199,17 @@ class StepsSegmentHistorySelectorTest {
 		val emissions = withTimeout(5_000L) { collection.await() }
 		val found = emissions.first() as com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery.Found
 		found.history.segmentId shouldBe segmentId
+		found.history.capture shouldBe HistoryCapture.Exact(
+			listOf(
+				com.adsamcik.tracker.stats.api.repository.HistoryCaptureRevision(
+					revision = 1L,
+					effectiveAt = com.adsamcik.tracker.stats.api.value.EpochMs(1_000L),
+					capturedSources = setOf(HistorySource.STEPS),
+					controlSources = emptySet(),
+				),
+			),
+		)
+		found.history.qualifiedSources shouldBe setOf(HistorySource.STEPS)
 		found.history.steps.count shouldBe 14L
 		found.history.steps.productState shouldBe
 			com.adsamcik.tracker.stats.api.repository.HistoryProductState.DEGRADED
@@ -1079,7 +1222,12 @@ class StepsSegmentHistorySelectorTest {
 		insertRun(RUN_ONE)
 		insertManifestWithoutSteps(RUN_ONE, revision = 1L)
 		val segmentId = database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null))
-		val repository = DefaultTrackingHistoryRepository(database, selector, Dispatchers.IO)
+		val repository = DefaultTrackingHistoryRepository(
+			database,
+			selector,
+			logicalHistoryReader,
+			Dispatchers.IO,
+		)
 		val initialEmission = CompletableDeferred<Unit>()
 		val collection = async {
 			repository.observeSession(segmentId)
@@ -1147,7 +1295,12 @@ class StepsSegmentHistorySelectorTest {
 			laneCursor = 1L,
 		)
 		val segmentId = database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null))
-		val repository = DefaultTrackingHistoryRepository(database, selector, Dispatchers.IO)
+		val repository = DefaultTrackingHistoryRepository(
+			database,
+			selector,
+			logicalHistoryReader,
+			Dispatchers.IO,
+		)
 		val initialEmission = CompletableDeferred<Unit>()
 		val collection = async {
 			repository.observeSession(segmentId)
@@ -1185,7 +1338,12 @@ class StepsSegmentHistorySelectorTest {
 		)
 		val persisted = segment(RUN_ONE, steps = 5)
 		val segmentId = database.sessionSegmentDao().insert(persisted)
-		val repository = DefaultTrackingHistoryRepository(database, selector, Dispatchers.IO)
+		val repository = DefaultTrackingHistoryRepository(
+			database,
+			selector,
+			logicalHistoryReader,
+			Dispatchers.IO,
+		)
 		val initialEmission = CompletableDeferred<Unit>()
 		val collection = async {
 			repository.observeSession(segmentId)

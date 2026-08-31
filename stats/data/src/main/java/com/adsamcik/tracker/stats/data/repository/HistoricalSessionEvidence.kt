@@ -150,6 +150,16 @@ internal data class HistoricalTrackingEntryEvidence(
 	/** A logical entry is visible only when at least one member has real discovery evidence. */
 	val isOrdinarilyDiscoverable: Boolean
 		get() = physicalMembers.any(HistoricalSegmentEvidence::isOrdinarilyDiscoverable)
+
+	/** Every retained capture revision requested Steps and no other persisted capture source. */
+	val isExactStepsOnlyCapture: Boolean
+		get() = TrackingSourceComponent.STEPS in qualifiedSources && physicalMembers.all { member ->
+			val capture = member.captureAuthority as? HistoricalCaptureAuthority.Exact
+				?: return@all false
+			capture.revisions.all { revision ->
+				revision.capturedSources == setOf(TrackingSourceComponent.STEPS)
+			}
+		}
 }
 
 /** Explicit identity only; wall-time overlap is never membership authority. */

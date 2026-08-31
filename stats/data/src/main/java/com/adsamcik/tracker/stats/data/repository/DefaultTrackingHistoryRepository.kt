@@ -2,15 +2,23 @@ package com.adsamcik.tracker.stats.data.repository
 
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
+import com.adsamcik.tracker.stats.api.repository.HistoryCapture
+import com.adsamcik.tracker.stats.api.repository.HistoryCaptureRevision
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
+import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.SessionHistory
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.StepsHistory
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCause
+import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryListState
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryEntryKey
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage as ApiStepsHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
+import com.adsamcik.tracker.stats.api.value.EpochMs
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -23,36 +31,48 @@ import javax.inject.Inject
 internal class DefaultTrackingHistoryRepository @Inject constructor(
 	private val database: AppDatabase,
 	private val stepsSelector: StepsSegmentHistorySelector,
+	private val logicalHistoryReader: LogicalTrackingHistoryReader,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : TrackingHistoryRepository {
 	@OptIn(ExperimentalCoroutinesApi::class)
 	override fun observeSession(segmentId: Long): Flow<SessionHistoryQuery> =
-		database.invalidationTracker.createFlow(
-			SESSION_SEGMENT_TABLE,
-			SERVICE_RUN_TABLE,
-			MANIFEST_TABLE,
-			MANIFEST_SOURCE_TABLE,
-			SOURCE_POLICY_TABLE,
-			PRODUCT_LANE_TABLE,
-			PROJECTION_FAILURE_TABLE,
-			SOURCE_EVIDENCE_TABLE,
-			SOURCE_DELETION_FENCE_TABLE,
-			STEP_FACT_TABLE,
-			SESSION_COMPLETENESS_TABLE,
-			emitInitialState = true,
-		).mapLatest {
-			stepsSelector.selectBySegmentId(segmentId)?.let { selected ->
-				SessionHistoryQuery.Found(
-					SessionHistory(
-						segmentId = segmentId,
-						steps = selected.toPublicHistory(),
-					),
-				)
+		historyInvalidations().mapLatest {
+			stepsSelector.selectEvidenceBySegmentIds(listOf(segmentId))[segmentId]?.let { selected ->
+				SessionHistoryQuery.Found(selected.toPublicSessionHistory())
 			} ?: SessionHistoryQuery.NotFound
 		}.distinctUntilChanged()
 			.flowOn(ioDispatcher)
 
+	@OptIn(ExperimentalCoroutinesApi::class)
+	override fun observeRecentStepsOnlyEntries(
+		limit: Int,
+	): Flow<List<StepsOnlyHistoryEntry>> {
+		require(limit in 1..MAX_RECENT_ENTRY_COUNT) {
+			"Recent Steps-only history limit must be between 1 and $MAX_RECENT_ENTRY_COUNT"
+		}
+		return historyInvalidations().mapLatest {
+			logicalHistoryReader.selectRecentStepsOnlyEntries(limit).mapToPublicStepsOnlyEntries()
+		}.distinctUntilChanged()
+			.flowOn(ioDispatcher)
+	}
+
+	private fun historyInvalidations() = database.invalidationTracker.createFlow(
+		SESSION_SEGMENT_TABLE,
+		SERVICE_RUN_TABLE,
+		MANIFEST_TABLE,
+		MANIFEST_SOURCE_TABLE,
+		SOURCE_POLICY_TABLE,
+		PRODUCT_LANE_TABLE,
+		PROJECTION_FAILURE_TABLE,
+		SOURCE_EVIDENCE_TABLE,
+		SOURCE_DELETION_FENCE_TABLE,
+		STEP_FACT_TABLE,
+		SESSION_COMPLETENESS_TABLE,
+		emitInitialState = true,
+	)
+
 	private companion object {
+		const val MAX_RECENT_ENTRY_COUNT = 100
 		const val SESSION_SEGMENT_TABLE = "session_segment"
 		const val SERVICE_RUN_TABLE = "source_service_run"
 		const val MANIFEST_TABLE = "session_manifest_version"
@@ -64,6 +84,65 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 		const val SOURCE_DELETION_FENCE_TABLE = "source_deletion_fence"
 		const val STEP_FACT_TABLE = "step_fact_revision"
 		const val SESSION_COMPLETENESS_TABLE = "source_session_completeness"
+	}
+}
+
+private fun HistoricalSegmentEvidence.toPublicSessionHistory() = SessionHistory(
+	segmentId = segment.id,
+	capture = captureAuthority.toPublicCapture(),
+	qualifiedSources = qualifiedSources.mapTo(linkedSetOf(), TrackingSourceComponent::toPublicSource),
+	steps = steps.toPublicHistory(),
+)
+
+private fun HistoricalCaptureAuthority.toPublicCapture(): HistoryCapture = when (this) {
+	is HistoricalCaptureAuthority.Exact -> HistoryCapture.Exact(
+		revisions.map { revision ->
+			HistoryCaptureRevision(
+				revision = revision.manifestRevision,
+				effectiveAt = EpochMs(revision.effectiveWallTimeMs),
+				capturedSources = revision.capturedSources.mapTo(
+					linkedSetOf(),
+					TrackingSourceComponent::toPublicSource,
+				),
+				controlSources = revision.controlSources.mapTo(
+					linkedSetOf(),
+					TrackingSourceComponent::toPublicSource,
+				),
+			)
+		},
+	)
+	is HistoricalCaptureAuthority.Unverifiable -> HistoryCapture.Unverifiable
+}
+
+private fun TrackingSourceComponent.toPublicSource(): HistorySource = when (this) {
+	TrackingSourceComponent.LOCATION -> HistorySource.LOCATION
+	TrackingSourceComponent.WIFI -> HistorySource.WIFI
+	TrackingSourceComponent.CELL -> HistorySource.CELL
+	TrackingSourceComponent.ACTIVITY -> HistorySource.ACTIVITY
+	TrackingSourceComponent.STEPS -> HistorySource.STEPS
+	TrackingSourceComponent.PRESSURE -> HistorySource.PRESSURE
+}
+
+private fun List<HistoricalTrackingEntryEvidence>.mapToPublicStepsOnlyEntries() =
+	map { entry ->
+		check(entry.isExactStepsOnlyCapture) { "Steps-only reader returned a non-Steps-only entry" }
+		val identity = entry.identity as? HistoricalEntryIdentity.Logical
+			?: error("Exact Steps-only entry requires logical identity")
+		StepsOnlyHistoryEntry(
+			key = TrackingHistoryEntryKey("logical:${identity.logicalTrackingId}"),
+			startTime = EpochMs(entry.physicalMembers.minOf { it.segment.startTimeMs }),
+			endTime = EpochMs(entry.physicalMembers.maxOf { it.segment.endTimeMs }),
+			state = entry.physicalMembers.map { it.steps.toPublicHistory() }.toStepsOnlyListState(),
+		)
+	}
+
+internal fun List<StepsHistory>.toStepsOnlyListState(): StepsOnlyHistoryListState {
+	require(isNotEmpty()) { "Steps-only logical entry requires a physical member" }
+	return when {
+		any { it.productState == HistoryProductState.MATERIALIZING } ->
+			StepsOnlyHistoryListState.MATERIALIZING
+		all(StepsHistory::hasCompleteValue) -> StepsOnlyHistoryListState.AVAILABLE
+		else -> StepsOnlyHistoryListState.PARTIAL
 	}
 }
 

@@ -5,6 +5,7 @@ import arrow.core.left
 import arrow.core.right
 import com.adsamcik.tracker.stats.api.error.StatsError
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
+import com.adsamcik.tracker.stats.api.repository.HistoryCapture
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.SessionHistory
@@ -239,6 +240,8 @@ class TripDetailPresenterTest {
 		SessionHistoryQuery.Found(
 			SessionHistory(
 				segmentId = segmentId,
+				capture = HistoryCapture.Unverifiable,
+				qualifiedSources = emptySet(),
 				steps = StepsHistory(
 					count = count,
 					availability = HistoryAvailability.AVAILABLE,

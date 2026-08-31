@@ -24,6 +24,20 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 	// The bounded keyset loop keeps each fail-closed candidate and stop condition explicit.
 	@Suppress("CyclomaticComplexMethod")
 	internal suspend fun selectRecentEntries(limit: Int): List<HistoricalTrackingEntryEvidence> =
+		selectRecentEntries(limit) { true }
+
+	/** Applies the Steps-only product predicate before the accepted-result limit. */
+	internal suspend fun selectRecentStepsOnlyEntries(
+		limit: Int,
+	): List<HistoricalTrackingEntryEvidence> = selectRecentEntries(limit) { entry ->
+		entry.isExactStepsOnlyCapture
+	}
+
+	@Suppress("CyclomaticComplexMethod")
+	private suspend fun selectRecentEntries(
+		limit: Int,
+		accept: (HistoricalTrackingEntryEvidence) -> Boolean,
+	): List<HistoricalTrackingEntryEvidence> =
 		database.withTransaction {
 			require(limit in 1..MAX_RECENT_ENTRY_COUNT) {
 				"Recent history limit must be between 1 and $MAX_RECENT_ENTRY_COUNT"
@@ -48,7 +62,7 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 				for (candidate in candidates) {
 					val identity = candidate.toIdentity() ?: continue
 					val entry = entries[identity] ?: continue
-					if (!entry.isOrdinarilyDiscoverable) {
+					if (!entry.isOrdinarilyDiscoverable || !accept(entry)) {
 						continue
 					}
 					accepted += entry

@@ -3,10 +3,13 @@ package com.adsamcik.tracker.stats.data.repository
 import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
 import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
 import com.adsamcik.tracker.stats.api.repository.HistoryProductState
+import com.adsamcik.tracker.stats.api.repository.StepsHistory
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCause
+import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryListState
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage as ApiStepsHistoryCoverage
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import kotlin.test.assertFailsWith
 import org.junit.Test
 
 class TrackingHistoryMappingTest {
@@ -164,6 +167,44 @@ class TrackingHistoryMappingTest {
 			StepsHistoryCause.SESSION_STILL_ACTIVE,
 			StepsHistoryCause.BASELINE_ONLY,
 		)
+	}
+
+	@Test
+	fun `Steps-only list state preserves covered zero and materializing as different truths`() {
+		val coveredZero = result(
+			count = 0L,
+			evidence = StepsHistoryEvidence.COVERED_ZERO,
+			coverage = StepsHistoryCoverage.COMPLETE,
+		).toPublicHistory()
+		val materializing = result(
+			count = null,
+			evidence = StepsHistoryEvidence.BASELINE,
+			materialization = StepsHistoryMaterialization.MATERIALIZING,
+			coverage = StepsHistoryCoverage.NONE,
+			reasons = setOf(StepsHistoryReason.SERVICE_RUN_ACTIVE),
+		).toPublicHistory()
+
+		listOf(coveredZero).toStepsOnlyListState() shouldBe StepsOnlyHistoryListState.AVAILABLE
+		listOf(materializing).toStepsOnlyListState() shouldBe
+			StepsOnlyHistoryListState.MATERIALIZING
+		assertFailsWith<IllegalArgumentException> { emptyList<StepsHistory>().toStepsOnlyListState() }
+	}
+
+	@Test
+	fun `Steps-only list state does not aggregate mixed physical readiness`() {
+		val complete = result(
+			count = 3L,
+			evidence = StepsHistoryEvidence.RECORDED,
+			coverage = StepsHistoryCoverage.COMPLETE,
+		).toPublicHistory()
+		val partial = result(
+			count = 2L,
+			evidence = StepsHistoryEvidence.RECORDED,
+			coverage = StepsHistoryCoverage.PARTIAL,
+			reasons = setOf(StepsHistoryReason.RESET_GAP),
+		).toPublicHistory()
+		listOf(complete, partial).toStepsOnlyListState() shouldBe
+			StepsOnlyHistoryListState.PARTIAL
 	}
 
 	@Test

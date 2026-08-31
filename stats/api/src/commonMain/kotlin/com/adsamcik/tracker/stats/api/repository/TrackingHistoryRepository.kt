@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.stats.api.repository
 
+import com.adsamcik.tracker.stats.api.value.EpochMs
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -16,6 +17,15 @@ interface TrackingHistoryRepository {
 	 * or a list-row API; logical-session and day composition remain separate contracts.
 	 */
 	fun observeSession(segmentId: Long): Flow<SessionHistoryQuery>
+
+	/**
+	 * Observe recent logical entries whose exact capture set was Steps and no other source.
+	 *
+	 * The list is composed in one bounded read. It exposes neither a numeric cross-run total nor a
+	 * selectable physical identity. Existing Trip-row suppression requires a separate, consumer-owned
+	 * bounded composition against that consumer's actual physical candidate window.
+	 */
+	fun observeRecentStepsOnlyEntries(limit: Int): Flow<List<StepsOnlyHistoryEntry>>
 }
 
 /** Result of resolving one local session-segment row identity. */
@@ -32,8 +42,98 @@ sealed interface SessionHistoryQuery {
 /** Source-qualified history attached to one session segment. */
 data class SessionHistory(
 	val segmentId: Long,
+	val capture: HistoryCapture,
+	val qualifiedSources: Set<HistorySource>,
 	val steps: StepsHistory,
-)
+) {
+	init {
+		require(segmentId > 0L) { "Session history requires a persisted segment identity" }
+		val capturedSources = (capture as? HistoryCapture.Exact)?.revisions
+			?.flatMapTo(linkedSetOf()) { it.capturedSources }
+			.orEmpty()
+		require(qualifiedSources.all(capturedSources::contains)) {
+			"Qualified history sources require exact historical capture authority"
+		}
+	}
+
+	/** True only when every retained manifest revision captured Steps and no other source. */
+	val capturesOnlySteps: Boolean
+		get() = (capture as? HistoryCapture.Exact)?.revisions?.all { revision ->
+			revision.capturedSources == setOf(HistorySource.STEPS)
+		} == true
+}
+
+/** Stable source names used by historical capture and source-qualification evidence. */
+enum class HistorySource {
+	LOCATION,
+	WIFI,
+	CELL,
+	ACTIVITY,
+	STEPS,
+	PRESSURE,
+}
+
+/** Exact revisioned capture intent, or a typed boundary that prevents source inference. */
+sealed interface HistoryCapture {
+	/** Checksum-verified immutable capture/control revisions for one physical service run. */
+	data class Exact(
+		val revisions: List<HistoryCaptureRevision>,
+	) : HistoryCapture {
+		init {
+			require(revisions.isNotEmpty()) { "Exact capture history requires a revision" }
+			require(revisions.zipWithNext().all { (left, right) ->
+				left.revision < right.revision
+			}) { "Capture revisions must be strictly increasing" }
+			require(revisions.any { it.capturedSources.isNotEmpty() }) {
+				"Exact capture history requires a captured source"
+			}
+		}
+	}
+
+	/** Migrated or incomplete evidence cannot safely name the historical capture set. */
+	data object Unverifiable : HistoryCapture
+}
+
+/** One checksum-verified immutable capture/control set within a physical service run. */
+data class HistoryCaptureRevision(
+	val revision: Long,
+	val effectiveAt: EpochMs,
+	val capturedSources: Set<HistorySource>,
+	val controlSources: Set<HistorySource>,
+) {
+	init {
+		require(revision > 0L) { "Capture revision must be positive" }
+	}
+}
+
+/** Opaque equality key for a non-selectable logical history row. */
+@JvmInline
+value class TrackingHistoryEntryKey(private val opaqueValue: String) {
+	init {
+		require(opaqueValue.isNotBlank()) { "Tracking history key cannot be blank" }
+	}
+
+	override fun toString(): String = "TrackingHistoryEntryKey"
+}
+
+/** Explicit list state; this seam deliberately exposes no cross-run Steps number. */
+enum class StepsOnlyHistoryListState {
+	AVAILABLE,
+	MATERIALIZING,
+	PARTIAL,
+}
+
+/** One exact Steps-only logical entry suitable for a non-clickable recent-history row. */
+data class StepsOnlyHistoryEntry(
+	val key: TrackingHistoryEntryKey,
+	val startTime: EpochMs,
+	val endTime: EpochMs,
+	val state: StepsOnlyHistoryListState,
+) {
+	init {
+		require(endTime >= startTime) { "History entry cannot end before it starts" }
+	}
+}
 
 /** Policy/capability availability, independent of acquisition and product progress. */
 enum class HistoryAvailability {

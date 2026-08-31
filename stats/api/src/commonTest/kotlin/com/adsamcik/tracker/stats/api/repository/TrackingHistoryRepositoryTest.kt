@@ -1,11 +1,127 @@
 package com.adsamcik.tracker.stats.api.repository
 
+import com.adsamcik.tracker.stats.api.value.EpochMs
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class TrackingHistoryRepositoryTest {
+	@Test
+	fun `exact Steps-only capture ignores separately named control sources`() {
+		val history = SessionHistory(
+			segmentId = 7L,
+			capture = HistoryCapture.Exact(
+				listOf(
+					HistoryCaptureRevision(
+						revision = 1L,
+						effectiveAt = EpochMs(100L),
+						capturedSources = setOf(HistorySource.STEPS),
+						controlSources = setOf(HistorySource.ACTIVITY),
+					),
+				),
+			),
+			qualifiedSources = setOf(HistorySource.STEPS),
+			steps = completeSteps(4L),
+		)
+
+		assertTrue(history.capturesOnlySteps)
+	}
+
+	@Test
+	fun `mixed or unverifiable capture cannot be presented as Steps-only`() {
+		val mixed = SessionHistory(
+			segmentId = 7L,
+			capture = HistoryCapture.Exact(
+				listOf(
+					HistoryCaptureRevision(
+						revision = 1L,
+						effectiveAt = EpochMs(100L),
+						capturedSources = setOf(HistorySource.STEPS, HistorySource.LOCATION),
+						controlSources = emptySet(),
+					),
+				),
+			),
+			qualifiedSources = setOf(HistorySource.STEPS),
+			steps = completeSteps(4L),
+		)
+		val unverifiable = mixed.copy(
+			capture = HistoryCapture.Unverifiable,
+			qualifiedSources = emptySet(),
+		)
+
+		assertFalse(mixed.capturesOnlySteps)
+		assertFalse(unverifiable.capturesOnlySteps)
+	}
+
+	@Test
+	fun `every retained capture revision must remain Steps-only`() {
+		val history = SessionHistory(
+			segmentId = 7L,
+			capture = HistoryCapture.Exact(
+				listOf(
+					HistoryCaptureRevision(
+						revision = 1L,
+						effectiveAt = EpochMs(100L),
+						capturedSources = setOf(HistorySource.STEPS),
+						controlSources = emptySet(),
+					),
+					HistoryCaptureRevision(
+						revision = 2L,
+						effectiveAt = EpochMs(200L),
+						capturedSources = setOf(HistorySource.STEPS, HistorySource.LOCATION),
+						controlSources = emptySet(),
+					),
+				),
+			),
+			qualifiedSources = setOf(HistorySource.STEPS),
+			steps = completeSteps(4L),
+		)
+
+		assertFalse(history.capturesOnlySteps)
+	}
+
+	@Test
+	fun `qualification requires exact matching capture authority`() {
+		assertFailsWith<IllegalArgumentException> {
+			SessionHistory(
+				segmentId = 7L,
+				capture = HistoryCapture.Unverifiable,
+				qualifiedSources = setOf(HistorySource.STEPS),
+				steps = completeSteps(4L),
+			)
+		}
+		assertFailsWith<IllegalArgumentException> {
+			SessionHistory(
+				segmentId = 7L,
+				capture = HistoryCapture.Exact(
+					listOf(
+						HistoryCaptureRevision(
+							revision = 1L,
+							effectiveAt = EpochMs(100L),
+							capturedSources = setOf(HistorySource.STEPS),
+							controlSources = emptySet(),
+						),
+					),
+				),
+				qualifiedSources = setOf(HistorySource.LOCATION),
+				steps = completeSteps(4L),
+			)
+		}
+	}
+
+	@Test
+	fun `recent Steps-only entry retains explicit nonnumeric product state`() {
+		val entry = StepsOnlyHistoryEntry(
+			key = TrackingHistoryEntryKey("logical:one"),
+			startTime = EpochMs(100L),
+			endTime = EpochMs(200L),
+			state = StepsOnlyHistoryListState.PARTIAL,
+		)
+		assertEquals(StepsOnlyHistoryListState.PARTIAL, entry.state)
+	}
+
 	@Test
 	fun `covered zero remains distinct from missing evidence`() {
 		val history = StepsHistory(
@@ -132,4 +248,12 @@ class TrackingHistoryRepositoryTest {
 			)
 		}
 	}
+
+	private fun completeSteps(count: Long) = StepsHistory(
+		count = count,
+		availability = HistoryAvailability.AVAILABLE,
+		evidence = HistoryEvidence.RECORDED,
+		productState = HistoryProductState.READY,
+		coverage = StepsHistoryCoverage.COMPLETE,
+	)
 }
