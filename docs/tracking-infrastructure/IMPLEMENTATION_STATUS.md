@@ -2031,3 +2031,30 @@ merge locally one at a time. A free worker then takes the next dependency-ready 
   existing runtime and 10,000-sample stress test already show window-proportional admission and
   checkpoint work. TI-411 still lacks capability-truthful provider requests, full typed window
   quality fields, a candidate fact lane, `RECORDING`, production query/UI, deletion, and export.
+
+## Pressure capability-normalized request checkpoint (2026-09-01)
+
+### Outcome
+
+The first parallel Pressure slice is accepted and fast-forwarded into local `dev/v10` at
+`afcb009e1`. Pressure now derives one immutable provider request from the Android sensor's truthful
+minimum/maximum delay and FIFO capabilities. The normalized sample period and report latency are
+the exact tuple used for initial registration, compatible refresh comparison, replacement, and
+capacity resume. Unsupported requested quality is reported as `DEGRADED`; no-FIFO hardware forces
+zero report latency instead of preserving a fake batching tier.
+
+### Evidence and boundary
+
+- Fresh review found no remaining blocker, high, or medium issue in the corrected four-file slice.
+- A forced focused rerun passed `53/53`: 7 provider-request, 29 runtime, 8 window-accumulator, and
+  9 acquisition-floor tests (`BUILD SUCCESSFUL in 5m 3s`, 230 tasks executed).
+- The combined affected Detekt and `:tracker:engine:lintDebug` gate passed (`BUILD SUCCESSFUL in
+  31s`, 425 tasks) with no new lint issue.
+- The branch was rebased onto the prior local documentation checkpoint and fast-forwarded into
+  local `dev/v10`; nothing was pushed or activated.
+
+This is JVM/mock-sensor evidence. It does not prove a device's advertised capabilities, realized
+sampling cadence, FIFO delivery, flush behavior, wakeups, battery impact, process/reboot behavior,
+or product UI. Pressure still needs durable atomic delivery identity/admission, complete typed
+quality facts, source-local product materialization/query/UI, deletion, retention, and portable
+export/import before its independent vertical is complete.

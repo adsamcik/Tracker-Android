@@ -1619,3 +1619,24 @@ Each entry records repository evidence and does not duplicate the final architec
   ordinary Steps activation or any device-quality claim. Location remains legacy-canonical until an
   evidence-backed shadow/cutover decision. No worktree may infer proof from another source, create a
   second writer, or claim publication; all commits remain local unless separately authorized.
+
+## TI-D124 — Pressure acquisition tiers are normalized to real sensor capabilities
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` at `afcb009e1`; device and battery realization remain
+  `UNVERIFIED`
+- Owner/date: Pressure source owner with fresh integration review, 2026-09-01
+- Alternatives: pass policy values directly to `SensorManager`; name a batching tier even when the
+  sensor exposes no FIFO; clamp requests while continuing to report `APPLIED`; normalize once and
+  reuse that exact immutable physical tuple throughout the runtime
+- Evidence: Android exposes minimum/maximum delay and FIFO capability per sensor. The corrected
+  runtime's focused 53-test suite covers delay bounds, malformed capability bounds, FIFO/no-FIFO
+  latency, compatible refresh, replacement, capacity resume, window accumulation, and acquisition
+  floors; fresh review found no remaining blocker, high, or medium issue.
+- Decision: Pressure normalizes requested sample period and report latency against the selected
+  sensor before registration. The normalized tuple is the provider fingerprint and the exact tuple
+  used for every registration/resume path. A requested quality floor the provider cannot meet is
+  truthfully `DEGRADED`; absent FIFO forces zero report latency and cannot be described as batching.
+- Consequences: equivalent effective requests do not churn the listener, distinct physical tuples
+  use the existing fenced replacement, and policy names cannot manufacture a battery tier. Host
+  tests do not establish realized cadence, FIFO delivery, wake behavior, or energy savings; those
+  claims remain device-gated. This decision does not activate Pressure or authorize another writer.
