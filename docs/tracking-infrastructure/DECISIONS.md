@@ -1640,3 +1640,24 @@ Each entry records repository evidence and does not duplicate the final architec
   use the existing fenced replacement, and policy names cannot manufacture a battery tier. Host
   tests do not establish realized cadence, FIFO delivery, wake behavior, or energy savings; those
   claims remain device-gated. This decision does not activate Pressure or authorize another writer.
+
+## TI-D125 — Cell durable identity and WAL ordering belong to atomic ingress
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` at `862e839eb`; device radio behavior remains `UNVERIFIED`
+- Owner/date: Cell source owner with fresh independent review, 2026-09-01
+- Alternatives: allocate a source sequence before Room admission; persist every callback or refresh
+  outcome; include raw radio/subscription identity; deduplicate only inside one runtime generation;
+  admit one minimized delivery atomically and let Room allocate its sequence
+- Evidence: the corrected runtime and real in-memory Room suites pass `38/38`; an independent forced
+  rerun passed the exact older-duplicate stop-barrier case and cross-generation Room replay. Detekt
+  and affected lint pass with no new issue.
+- Decision: only a fresh, nonempty, timestamp-qualified callback can form a Cell product delivery.
+  Its stable identity uses the boot clock domain and minimized provider-time product facts; raw cell
+  and subscription identifiers remain absent. Room atomically resolves replay and allocates a
+  sequence only for a new delivery. Callback resolution and the physical-run WAL ordinal high-water
+  advance independently so replay of an older row cannot weaken the stop completeness boundary.
+- Consequences: stale, cached, operational, empty, generation-invalid, prerequisite-invalid, and
+  post-cutoff observations remain non-durable; retries are finite and recheck authority. This is
+  JVM/Robolectric/in-memory-Room evidence, not real Telephony callback, process-death, radio timing,
+  energy, or OEM proof. Cell still needs its typed fact lane, production query/UI, deletion,
+  retention, and portable export/import, and this decision activates no provider or writer.

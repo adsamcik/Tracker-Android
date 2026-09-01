@@ -2058,3 +2058,36 @@ sampling cadence, FIFO delivery, flush behavior, wakeups, battery impact, proces
 or product UI. Pressure still needs durable atomic delivery identity/admission, complete typed
 quality facts, source-local product materialization/query/UI, deletion, retention, and portable
 export/import before its independent vertical is complete.
+
+## Cell atomic delivery-admission checkpoint (2026-09-01)
+
+### Outcome
+
+The first parallel Cell slice is accepted and fast-forwarded into local `dev/v10` at `862e839eb`.
+Cell now turns only a fresh, nonempty, timestamp-qualified callback into one minimized delivery whose
+stable identity is independent of a process-local runtime generation. Room owns replay resolution
+and source-sequence allocation. Cached/operational outcomes, stale/future/unknown timestamps, empty
+coverage, and raw radio or subscription identity remain outside durable product evidence.
+
+The stop acknowledgment now keeps a physical-run admission-ordinal high-water separately from
+callback resolution. A later duplicate can therefore resolve a newer callback without replacing a
+newer WAL boundary with the older duplicate row's ordinal. The high-water resets only on physical
+start and is updated by the existing FIFO actor.
+
+### Evidence and boundary
+
+- Fresh review found no blocker and independently forced the exact ordinal-regression and real-Room
+  replay cases: `2/2`, `BUILD SUCCESSFUL in 4m 6s`, 234 tasks executed.
+- The complete focused post-rebase gate passed `38/38`: 37 Cell runtime cases and one in-memory Room
+  admission/replay case (`BUILD SUCCESSFUL in 3m 50s`, 230 tasks).
+- Post-rebase Detekt and `:tracker:engine:lintDebug` passed (`BUILD SUCCESSFUL in 2m 29s`, 374 tasks),
+  with no new lint issue and six baseline-filtered warnings.
+- The reviewed branch was rebased onto `f40ee2c3e` and locally fast-forwarded; nothing was pushed,
+  activated, released, or deployed.
+
+This is JVM/Robolectric/in-memory-Room evidence only. It does not prove real Telephony callbacks,
+process death, radio timing, active-refresh realization, battery impact, or OEM behavior. Cell still
+needs source-local typed materialization, production query/UI, deletion, retention, and portable
+export/import before the Cell-only product vertical is complete. The next disjoint radio slice is
+Wi-Fi replay-stable durable admission; it must preserve bounded direct-demand attempts and passive
+callback ownership without creating repeated empty or receipt-age-dependent rows.
