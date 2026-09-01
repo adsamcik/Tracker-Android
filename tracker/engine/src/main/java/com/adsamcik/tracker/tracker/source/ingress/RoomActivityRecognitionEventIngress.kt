@@ -79,13 +79,27 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 			-> Unit
 			else -> return ActivityIngressResult.rejected(0, 0, ACTIVITY_REGISTRATION_NOT_ACTIVE)
 		}
+		val acceptedElapsedRealtimeNanos = registration.acceptedElapsedRealtimeNanos
+			?: return ActivityIngressResult.rejected(0, 0, ACTIVITY_REGISTRATION_NOT_ACTIVE)
+		val cutoffElapsedRealtimeNanos = registration.retiredElapsedRealtimeNanos
+		if (registration.status == ProviderRegistrationGenerationEntity.STATUS_RETIRED &&
+			cutoffElapsedRealtimeNanos == null
+		) {
+			return ActivityIngressResult.rejected(0, 0, ACTIVITY_REGISTRATION_NOT_ACTIVE)
+		}
 		val automationAuthority = runCatchingNonCancellation {
 			automationEpochAuthority.epochForCallbackAdmission()
 		}.getOrElse { failure ->
 			return ActivityIngressResult.retryable(0, 0, failure.failureCode())
 		}
-		val delivery = runCatchingNonCancellation {
-			deliveryFactory.create(batch, capturedIdentity, automationAuthority)
+		val selection = runCatchingNonCancellation {
+			deliveryFactory.select(
+				batch = batch,
+				identity = capturedIdentity,
+				automationAuthority = automationAuthority,
+				minimumObservedElapsedRealtimeNanos = acceptedElapsedRealtimeNanos,
+				cutoffElapsedRealtimeNanos = cutoffElapsedRealtimeNanos,
+			)
 		}.getOrElse { failure ->
 			return if (failure is IllegalArgumentException) {
 				ActivityIngressResult.rejected(0, 0, INVALID_PROVIDER_BATCH)
@@ -93,10 +107,20 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 				ActivityIngressResult.retryable(0, 0, failure.failureCode())
 			}
 		}
+		val delivery = selection.delivery ?: return ActivityIngressResult.durable(
+			admittedCount = 0,
+			duplicateCount = 0,
+			discardedCount = selection.discardedCount,
+		)
 		val admission = runCatchingNonCancellation {
 			deliveryIngress.admit(delivery.candidate)
 		}.getOrElse { failure ->
-			return ActivityIngressResult.retryable(0, 0, failure.failureCode())
+			return ActivityIngressResult.retryable(
+				0,
+				0,
+				failure.failureCode(),
+				selection.discardedCount,
+			)
 		}
 		return when (admission) {
 			is DeliveryAdmissionResult.Admitted -> completeDurableAdmission(
@@ -105,6 +129,7 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 				batch.startContext,
 				admittedCount = admission.units.size,
 				duplicateCount = 0,
+				providerDiscardedCount = selection.discardedCount,
 			)
 			is DeliveryAdmissionResult.Duplicate -> completeDurableAdmission(
 				delivery,
@@ -112,17 +137,20 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 				batch.startContext,
 				admittedCount = 0,
 				duplicateCount = admission.units.size,
+				providerDiscardedCount = selection.discardedCount,
 				publishNewEffects = false,
 			)
 			is DeliveryAdmissionResult.RetryableFailure -> ActivityIngressResult.retryable(
 				0,
 				0,
 				admission.code.name,
+				selection.discardedCount,
 			)
 			is DeliveryAdmissionResult.PermanentFailure -> ActivityIngressResult.rejected(
 				0,
 				0,
 				admission.code.name,
+				selection.discardedCount,
 			)
 		}
 	}
@@ -133,6 +161,7 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 		startContext: ActivityIngressStartContext,
 		admittedCount: Int,
 		duplicateCount: Int,
+		providerDiscardedCount: Int,
 		publishNewEffects: Boolean = true,
 	): ActivityIngressResult {
 		val orderedUnits = units.sortedBy(DeliveryAdmissionResult.AdmittedUnit::unitIndex)
@@ -140,8 +169,15 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 			orderedUnits.map { it.unitIndex }.distinct().size != orderedUnits.size ||
 			orderedUnits.any { it.unitIndex !in delivery.originalEvents.indices }
 		) {
-			return ActivityIngressResult.rejected(0, 0, INVALID_DURABLE_SELECTION)
+			return ActivityIngressResult.rejected(
+				0,
+				0,
+				INVALID_DURABLE_SELECTION,
+				providerDiscardedCount,
+			)
 		}
+		val discardedCount = providerDiscardedCount +
+			(delivery.candidate.units.size - orderedUnits.size)
 		val completion = runCatchingNonCancellation {
 			val loaded = orderedUnits.map { unit -> loadExactCommittedEvent(unit) }
 			val targetOrdinal = orderedUnits.maxOf(
@@ -172,6 +208,7 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 				admittedCount,
 				duplicateCount,
 				failure.failureCode(),
+				discardedCount,
 			)
 		}
 		val targetOrdinal = orderedUnits.maxOf(DeliveryAdmissionResult.AdmittedUnit::admissionOrdinal)
@@ -181,6 +218,7 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 				admittedCount,
 				duplicateCount,
 				drain.failureCode(),
+				discardedCount,
 			)
 		}
 		when (completion.second.activityAutomationDrain) {
@@ -191,6 +229,7 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 				admittedCount,
 				duplicateCount,
 				ACTIVITY_AUTOMATION_EFFECT_PENDING,
+				discardedCount,
 			)
 			is ActivityAutomationDrainResult.Complete,
 			null,
@@ -198,7 +237,11 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 		}
 
 		if (!publishNewEffects) {
-			return ActivityIngressResult.durable(0, duplicateCount)
+			return ActivityIngressResult.durable(
+				admittedCount = 0,
+				duplicateCount = duplicateCount,
+				discardedCount = discardedCount,
+			)
 		}
 
 		// Every exact row is loaded and recovery reached this delivery before transient publication.
@@ -215,6 +258,7 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 			admittedCount,
 			duplicateCount,
 			ActivityDurableSelection(recognitionIndexes, transitionIndexes),
+			discardedCount,
 		)
 	}
 

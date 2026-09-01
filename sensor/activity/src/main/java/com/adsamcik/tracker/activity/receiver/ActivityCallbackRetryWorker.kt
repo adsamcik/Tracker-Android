@@ -119,8 +119,7 @@ internal suspend fun runActivityCallbackRetryWork(
 				retryRequired = true
 				continue
 			}
-			val roomOwnsEveryMember = result.admittedCount + result.duplicateCount ==
-				replayBatch.eventCount
+			val roomOwnsEveryMember = result.settledCount == replayBatch.eventCount
 			val terminallyOwnedOrRejected =
 				result.status == ActivityIngressStatus.DURABLE ||
 					result.status == ActivityIngressStatus.REJECTED ||

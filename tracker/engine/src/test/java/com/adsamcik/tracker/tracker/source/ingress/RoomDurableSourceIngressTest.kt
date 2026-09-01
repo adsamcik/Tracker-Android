@@ -43,6 +43,7 @@ import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateS
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
 import com.adsamcik.tracker.tracker.source.coordinator.SourceRecoveryResult
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
+import com.adsamcik.tracker.tracker.source.model.ActivityRecognitionPayload
 import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
@@ -596,16 +597,20 @@ class RoomDurableSourceIngressTest {
 	}
 
 	@Test
-	fun `Activity adapter persists the eligible sparse subset once through real Room admission`() = runTest {
+	@Suppress("LongMethod")
+	fun `Activity adapter settles provider and authorization filtered siblings after real Room admission`() = runTest {
 		val recovery = mockk<SourcePipelineRecovery>()
 		val motion = mockk<CollectionMotionController>(relaxed = true)
 		val automationEpochAuthority = mockk<ActivityAutomationEpochAuthority>()
 		coEvery { automationEpochAuthority.epochForCallbackAdmission() } returnsMany
 			listOf(activityAutomationAuthority(17L), activityAutomationAuthority(18L))
-		coEvery { recovery.drainCommittedWork() } returns SourceRecoveryResult(
-			CoordinatorDrainResult.Complete(Long.MAX_VALUE, 0),
-			0,
-			0,
+		coEvery { recovery.drainCommittedWork() } returnsMany listOf(
+			SourceRecoveryResult(CoordinatorDrainResult.LeaseUnavailable, 0, 0),
+			SourceRecoveryResult(CoordinatorDrainResult.Complete(Long.MAX_VALUE, 0), 0, 0),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_demand SET maximum_age_ms = 0 " +
+				"WHERE demand_id IN ('ambient-demand', 'session-demand')",
 		)
 		val adapter = RoomActivityRecognitionEventIngress(
 			ActivitySourceDeliveryFactory(),
@@ -632,29 +637,38 @@ class RoomDurableSourceIngressTest {
 			recognitions = listOf(
 				ActivityRecognitionEvidence(DetectedActivityType.STILL, 90, 40L),
 				ActivityRecognitionEvidence(DetectedActivityType.WALKING, 90, 60L),
+				ActivityRecognitionEvidence(DetectedActivityType.WALKING, 1, 100L),
 			),
 		)
 
 		val admitted = adapter.admit(delivery)
 
+		admitted.isDurable shouldBe false
 		admitted.admittedCount shouldBe 1
 		admitted.duplicateCount shouldBe 0
-		admitted.durableSelection.recognitionIndexes shouldBe setOf(1)
+		admitted.discardedCount shouldBe 2
+		admitted.settledCount shouldBe delivery.eventCount
+		admitted.failureCode shouldBe "PIPELINE_LEASE_UNAVAILABLE"
+		admitted.durableSelection.isEmpty shouldBe true
 		val persisted = database.sourceEventWalDao().eventsAfter(0L, 10).single()
-		persisted.observedElapsedNanos shouldBe 60L
+		persisted.observedElapsedNanos shouldBe 100L
 		persisted.authorizationRevision shouldBe 1L
 		persisted.logicalTrackingId shouldBe TEST_SESSION_ID
 		persisted.activityAutomationEpoch shouldBe 17L
+		(subject.committedBatch(0L, 1).single().evidence.payload as ActivityRecognitionPayload)
+			.confidencePercent shouldBe 1
 
 		val duplicate = adapter.admit(delivery)
 
 		duplicate.admittedCount shouldBe 0
 		duplicate.duplicateCount shouldBe 1
+		duplicate.discardedCount shouldBe 2
+		duplicate.settledCount shouldBe delivery.eventCount
 		duplicate.durableSelection.isEmpty shouldBe true
 		database.sourceEventWalDao().countAll() shouldBe 1L
 		database.sourceEventWalDao().eventsAfter(0L, 10).single()
 			.activityAutomationEpoch shouldBe 17L
-		verify(exactly = 1) { motion.onDurableEvidence(any()) }
+		verify(exactly = 0) { motion.onDurableEvidence(any()) }
 	}
 
 	@Test

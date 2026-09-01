@@ -86,6 +86,7 @@ class ActivityReceiverTest {
 		mockkObject(Time)
 
 		every { Time.elapsedRealtimeMillis } returns 5000L
+		every { Time.elapsedRealtimeNanos } returns 5_000_000_000L
 
 		// Mock the Hilt EntryPoint so the receiver can obtain the backend.
 		mockBackend = mockk(relaxed = true)
@@ -133,11 +134,12 @@ class ActivityReceiverTest {
 	private fun intentWithActivityResult(
 		activityType: Int,
 		confidenceValue: Int,
+		providerElapsedRealtimeMillis: Long = 5_000L,
 	): Intent {
 		val gmsDetectedActivity = mockGmsDetectedActivity(activityType, confidenceValue)
 		val result: ActivityRecognitionResult = mockk {
 			every { mostProbableActivity } returns gmsDetectedActivity
-			every { elapsedRealtimeMillis } returns 5_000L
+			every { elapsedRealtimeMillis } returns providerElapsedRealtimeMillis
 		}
 		val intent: Intent = mockk(relaxed = true)
 
@@ -159,6 +161,29 @@ class ActivityReceiverTest {
 		every { ActivityRecognitionResult.hasResult(intent) } returns false
 		every { ActivityTransitionResult.hasResult(intent) } returns true
 		every { ActivityTransitionResult.extractResult(intent) } returns result
+
+		return intent
+	}
+
+	private fun intentWithActivityAndTransitionResults(
+		activityType: Int,
+		confidenceValue: Int,
+		providerElapsedRealtimeMillis: Long,
+		transitions: List<ActivityTransitionEvent>,
+	): Intent {
+		val activityResult: ActivityRecognitionResult = mockk {
+			every { mostProbableActivity } returns mockGmsDetectedActivity(activityType, confidenceValue)
+			every { elapsedRealtimeMillis } returns providerElapsedRealtimeMillis
+		}
+		val transitionResult: ActivityTransitionResult = mockk {
+			every { transitionEvents } returns transitions
+		}
+		val intent: Intent = mockk(relaxed = true)
+
+		every { ActivityRecognitionResult.hasResult(intent) } returns true
+		every { ActivityRecognitionResult.extractResult(intent) } returns activityResult
+		every { ActivityTransitionResult.hasResult(intent) } returns true
+		every { ActivityTransitionResult.extractResult(intent) } returns transitionResult
 
 		return intent
 	}
@@ -222,6 +247,21 @@ class ActivityReceiverTest {
 	}
 
 	@Test
+	fun `negative recognition provider time is omitted instead of fabricated as elapsed zero`() {
+		val intent = intentWithActivityResult(
+			com.google.android.gms.location.DetectedActivity.WALKING,
+			85,
+			providerElapsedRealtimeMillis = -1L,
+		)
+
+		receiver.onReceive(context, intent)
+
+		coVerify(exactly = 0) { mockIngress.admit(any()) }
+		verify(exactly = 0) { mockBackend.onActivityResult(any(), any()) }
+		ActivityReceiver.lastActivity shouldBe RecognizedActivity.UNKNOWN
+	}
+
+	@Test
 	fun `retryable callback admission retries the exact delivery until durable`() = runTest {
 		val retryable = ActivityIngressResult.retryable(
 			admittedCount = 0,
@@ -254,6 +294,31 @@ class ActivityReceiverTest {
 		attempts shouldBe 2
 		permissionChecks shouldBe 2
 		published shouldBe durable
+	}
+
+	@Test
+	fun `post WAL retry treats provider-window discards as settled callback members`() = runTest {
+		var attempts = 0
+		var published = false
+
+		val disposition = admitActivityCallbackWithRetry(
+			hasActivityPermission = { true },
+			eventCount = 2,
+			admit = {
+				attempts += 1
+				ActivityIngressResult.retryable(
+					admittedCount = 1,
+					duplicateCount = 0,
+					failureCode = "PIPELINE_LEASE_UNAVAILABLE",
+					discardedCount = 1,
+				)
+			},
+			onDurable = { published = true },
+		)
+
+		disposition shouldBe ActivityCallbackTerminalDisposition.DURABLY_RETRY_OWNED
+		attempts shouldBe 1
+		published shouldBe false
 	}
 
 	@Test
@@ -696,6 +761,165 @@ class ActivityReceiverTest {
 					)
 			})
 		}
+	}
+
+	@Test
+	fun `invalid transition member is omitted while valid sibling remains deliverable`() {
+		coEvery { mockIngress.admit(any()) } returns ActivityIngressResult.durable(
+			1,
+			0,
+			ActivityDurableSelection(transitionIndexes = setOf(0)),
+		)
+		val invalid: ActivityTransitionEvent = mockk {
+			every { activityType } returns com.google.android.gms.location.DetectedActivity.STILL
+			every { elapsedRealTimeNanos } returns -1L
+			every { transitionType } returns ActivityTransitionType.ENTER.value
+		}
+		val valid: ActivityTransitionEvent = mockk {
+			every { activityType } returns com.google.android.gms.location.DetectedActivity.WALKING
+			every { elapsedRealTimeNanos } returns 200L
+			every { transitionType } returns ActivityTransitionType.ENTER.value
+		}
+
+		receiver.onReceive(context, intentWithTransitionResult(listOf(invalid, valid)))
+
+		coVerify {
+			mockIngress.admit(match { batch ->
+				batch.transitions.size == 1 &&
+					batch.transitions.single().activityType == DetectedActivityType.WALKING &&
+					batch.transitions.single().providerElapsedRealtimeNanos == 200L
+			})
+		}
+		verify {
+			mockBackend.onTransitionResult(match { updates ->
+				updates.size == 1 && updates.single().elapsedRealTimeNanos == 200L
+			})
+		}
+	}
+
+	@Test
+	fun `invalid recognition cannot suppress selected transition Activity fallback`() {
+		coEvery { mockIngress.admit(any()) } returns ActivityIngressResult.durable(
+			admittedCount = 1,
+			duplicateCount = 0,
+			durableSelection = ActivityDurableSelection(transitionIndexes = setOf(0)),
+		)
+		val transition: ActivityTransitionEvent = mockk {
+			every { activityType } returns com.google.android.gms.location.DetectedActivity.WALKING
+			every { elapsedRealTimeNanos } returns 4_000_000_000L
+			every { transitionType } returns ActivityTransitionType.ENTER.value
+		}
+
+		receiver.onReceive(
+			context,
+			intentWithActivityAndTransitionResults(
+				activityType = com.google.android.gms.location.DetectedActivity.STILL,
+				confidenceValue = 90,
+				providerElapsedRealtimeMillis = -1L,
+				transitions = listOf(transition),
+			),
+		)
+
+		coVerify {
+			mockIngress.admit(match { batch ->
+				batch.recognitions.isEmpty() && batch.transitions.size == 1
+			})
+		}
+		verify(exactly = 0) { mockBackend.onActivityResult(any(), any()) }
+		verify {
+			mockBackend.onTransitionResult(match { updates ->
+				updates.single().activityType == DetectedActivityType.WALKING
+			})
+			mockBackend.onTransitionActivityResult(
+				match { activity -> activity.type == DetectedActivityType.WALKING },
+				eq(4_000_000_000L),
+			)
+		}
+		ActivityReceiver.lastActivity shouldBe RecognizedActivity(DetectedActivityType.WALKING, 100)
+	}
+
+	@Test
+	fun `future recognition discarded by durable selection cannot suppress transition fallback`() {
+		coEvery { mockIngress.admit(any()) } returns ActivityIngressResult.durable(
+			admittedCount = 1,
+			duplicateCount = 0,
+			durableSelection = ActivityDurableSelection(transitionIndexes = setOf(0)),
+			discardedCount = 1,
+		)
+		val transition: ActivityTransitionEvent = mockk {
+			every { activityType } returns com.google.android.gms.location.DetectedActivity.RUNNING
+			every { elapsedRealTimeNanos } returns 4_000_000_000L
+			every { transitionType } returns ActivityTransitionType.ENTER.value
+		}
+
+		receiver.onReceive(
+			context,
+			intentWithActivityAndTransitionResults(
+				activityType = com.google.android.gms.location.DetectedActivity.STILL,
+				confidenceValue = 90,
+				providerElapsedRealtimeMillis = 60_000L,
+				transitions = listOf(transition),
+			),
+		)
+
+		coVerify {
+			mockIngress.admit(match { batch ->
+				batch.recognitions.single().providerElapsedRealtimeNanos == 60_000_000_000L &&
+					batch.transitions.single().providerElapsedRealtimeNanos == 4_000_000_000L
+			})
+		}
+		verify(exactly = 0) { mockBackend.onActivityResult(any(), any()) }
+		verify {
+			mockBackend.onTransitionResult(match { updates ->
+				updates.single().activityType == DetectedActivityType.RUNNING
+			})
+			mockBackend.onTransitionActivityResult(
+				match { activity -> activity.type == DetectedActivityType.RUNNING },
+				eq(4_000_000_000L),
+			)
+		}
+		ActivityReceiver.lastActivity shouldBe RecognizedActivity(DetectedActivityType.RUNNING, 100)
+	}
+
+	@Test
+	fun `selected recognition keeps precedence over selected transition Activity fallback`() {
+		coEvery { mockIngress.admit(any()) } returns ActivityIngressResult.durable(
+			admittedCount = 2,
+			duplicateCount = 0,
+			durableSelection = ActivityDurableSelection(
+				recognitionIndexes = setOf(0),
+				transitionIndexes = setOf(0),
+			),
+		)
+		val transition: ActivityTransitionEvent = mockk {
+			every { activityType } returns com.google.android.gms.location.DetectedActivity.RUNNING
+			every { elapsedRealTimeNanos } returns 4_500_000_000L
+			every { transitionType } returns ActivityTransitionType.ENTER.value
+		}
+
+		receiver.onReceive(
+			context,
+			intentWithActivityAndTransitionResults(
+				activityType = com.google.android.gms.location.DetectedActivity.WALKING,
+				confidenceValue = 85,
+				providerElapsedRealtimeMillis = 4_000L,
+				transitions = listOf(transition),
+			),
+		)
+
+		verify {
+			mockBackend.onActivityResult(
+				match { activity ->
+					activity.type == DetectedActivityType.WALKING && activity.confidence == 85
+				},
+				eq(5_000L),
+			)
+			mockBackend.onTransitionResult(match { updates ->
+				updates.single().activityType == DetectedActivityType.RUNNING
+			})
+		}
+		verify(exactly = 0) { mockBackend.onTransitionActivityResult(any(), any()) }
+		ActivityReceiver.lastActivity shouldBe RecognizedActivity(DetectedActivityType.WALKING, 85)
 	}
 
 		@Test

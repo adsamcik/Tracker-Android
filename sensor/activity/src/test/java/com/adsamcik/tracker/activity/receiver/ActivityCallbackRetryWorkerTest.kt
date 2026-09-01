@@ -108,11 +108,19 @@ class ActivityCallbackRetryWorkerTest {
 
 	@Test
 	fun `Room ownership after downstream retry removes redundant callback file`() = runTest {
-		owner.retain(callbackBatch())
+		val batch = callbackBatch()
+		owner.retain(
+			batch.copy(
+				transitions = batch.transitions + batch.transitions.single().copy(
+					providerElapsedRealtimeNanos = 200L,
+				),
+			),
+		)
 		coEvery { ingress.admit(any()) } returns ActivityIngressResult.retryable(
 			admittedCount = 1,
 			duplicateCount = 0,
 			failureCode = "PIPELINE_LEASE_UNAVAILABLE",
+			discardedCount = 1,
 		)
 
 		runActivityCallbackRetryWork(owner, ingress) shouldBe

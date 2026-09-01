@@ -74,6 +74,7 @@ internal interface ActivityReceiverEntryPoint {
  * last-activity cache are updated only after every supported event in the delivery is durable.
  */
 internal class ActivityReceiver : BroadcastReceiver() {
+	@Suppress("LongMethod", "ReturnCount")
 	override fun onReceive(context: Context, intent: Intent) {
 		val hasActivityResult = ActivityRecognitionResult.hasResult(intent)
 		val hasTransitionResult = ActivityTransitionResult.hasResult(intent)
@@ -84,6 +85,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		if (!context.hasActivityPermission) return
 
 		val receivedElapsedRealtimeMillis = Time.elapsedRealtimeMillis
+		val receivedElapsedRealtimeNanos = Time.elapsedRealtimeNanos
 		val entryPoint = EntryPointAccessors.fromApplication(
 			context.applicationContext,
 			ActivityReceiverEntryPoint::class.java,
@@ -112,10 +114,15 @@ internal class ActivityReceiver : BroadcastReceiver() {
 					null
 				},
 				receivedElapsedRealtimeMillis = receivedElapsedRealtimeMillis,
+				receivedElapsedRealtimeNanos = receivedElapsedRealtimeNanos,
 				receivedWallTimeMs = System.currentTimeMillis(),
 			)
 		}.getOrElse {
 			// An invalid provider payload is a permanent callback-boundary rejection.
+			callbackPermit?.complete()
+			return
+		}
+		if (delivery.batch.eventCount == 0) {
 			callbackPermit?.complete()
 			return
 		}
@@ -179,23 +186,26 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		activityResult: ActivityRecognitionResult?,
 		transitionResult: ActivityTransitionResult?,
 		receivedElapsedRealtimeMillis: Long,
+		receivedElapsedRealtimeNanos: Long,
 		receivedWallTimeMs: Long,
 	): ParsedActivityDelivery {
-		val recognizedActivity = activityResult?.mostProbableActivity?.let { detected ->
+		val recognitionElapsedNanos = activityResult?.elapsedRealtimeMillis
+			?.takeIf { it in 0L..MAX_PROVIDER_ELAPSED_REALTIME_MILLIS }
+			?.times(NANOS_PER_MILLISECOND)
+		val recognizedActivity = activityResult?.mostProbableActivity
+			?.takeIf { recognitionElapsedNanos != null }
+			?.let { detected ->
 			RecognizedActivity(
 				type = ActivityTypeMapping.fromPlayServicesCode(detected.type),
 				confidence = detected.confidence.coerceIn(0, 100),
 			)
 		}
-		val recognitionElapsedNanos = activityResult?.elapsedRealtimeMillis
-			?.coerceAtLeast(0L)
-			?.times(NANOS_PER_MILLISECOND)
-			?: receivedElapsedRealtimeMillis * NANOS_PER_MILLISECOND
 		val transitionEvents = transitionResult?.transitionEvents.orEmpty()
 		val transitionUpdates = transitionEvents.mapNotNull { event ->
 			val transitionType = ActivityTransitionType.entries
 				.firstOrNull { it.value == event.transitionType }
 				?: return@mapNotNull null
+			if (event.elapsedRealTimeNanos < 0L) return@mapNotNull null
 			TransitionUpdate(
 				activityType = ActivityTypeMapping.fromPlayServicesCode(event.activityType),
 				transitionType = transitionType,
@@ -204,7 +214,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		}
 		return ParsedActivityDelivery(
 			batch = ActivityRecognitionEvidenceBatch(
-				receivedElapsedRealtimeNanos = receivedElapsedRealtimeMillis * NANOS_PER_MILLISECOND,
+				receivedElapsedRealtimeNanos = receivedElapsedRealtimeNanos,
 				receivedWallTimeMs = receivedWallTimeMs,
 				registrationIdentity = registrationIdentity,
 				automaticRecognitionEligible = automaticRecognitionEligible,
@@ -214,7 +224,7 @@ internal class ActivityReceiver : BroadcastReceiver() {
 						ActivityRecognitionEvidence(
 							activityType = activity.type,
 							confidencePercent = activity.confidence,
-							providerElapsedRealtimeNanos = recognitionElapsedNanos,
+							providerElapsedRealtimeNanos = requireNotNull(recognitionElapsedNanos),
 						),
 					)
 				}.orEmpty(),
@@ -230,7 +240,6 @@ internal class ActivityReceiver : BroadcastReceiver() {
 			// Preserve the legacy backend contract while the durable event keeps provider time.
 			recognitionElapsedRealtimeMillis = receivedElapsedRealtimeMillis,
 			transitionUpdates = transitionUpdates,
-			publishTransitionAsActivity = activityResult == null,
 		)
 	}
 
@@ -276,7 +285,6 @@ internal class ActivityReceiver : BroadcastReceiver() {
 		val recognizedActivity: RecognizedActivity?,
 		val recognitionElapsedRealtimeMillis: Long,
 		val transitionUpdates: List<TransitionUpdate>,
-		val publishTransitionAsActivity: Boolean,
 	) {
 		fun publishTo(
 			backend: GmsActivityRecognitionBackend,
@@ -290,7 +298,9 @@ internal class ActivityReceiver : BroadcastReceiver() {
 				index in selection.transitionIndexes
 			}
 			if (selectedTransitions.isNotEmpty()) backend.onTransitionResult(selectedTransitions)
-			selectedTransitions.lastOrNull()?.takeIf { publishTransitionAsActivity }?.let { transition ->
+			selectedTransitions.lastOrNull()
+				?.takeIf { selection.recognitionIndexes.isEmpty() }
+				?.let { transition ->
 				val activity = RecognizedActivity(
 					type = transition.activityType,
 					confidence = TRANSITION_ACTIVITY_CONFIDENCE,
@@ -304,6 +314,8 @@ internal class ActivityReceiver : BroadcastReceiver() {
 	companion object {
 		private const val TRANSITION_ACTIVITY_CONFIDENCE = 100
 		private const val NANOS_PER_MILLISECOND = 1_000_000L
+		private const val MAX_PROVIDER_ELAPSED_REALTIME_MILLIS =
+			Long.MAX_VALUE / NANOS_PER_MILLISECOND
 
 		@Volatile
 		var lastActivity: RecognizedActivity = RecognizedActivity.UNKNOWN
@@ -356,8 +368,9 @@ internal suspend fun admitActivityCallbackWithRetry(
 			ActivityIngressStatus.REJECTED ->
 				return ActivityCallbackTerminalDisposition.PERMANENTLY_REJECTED
 			ActivityIngressStatus.RETRYABLE -> {
-				if (admission.admittedCount + admission.duplicateCount == eventCount) {
-					// WAL/receipts own every member even though downstream recovery still needs work.
+				if (admission.settledCount == eventCount) {
+					// Each member is WAL-owned or permanently discarded by the provider envelope;
+					// downstream recovery alone still needs work.
 					return ActivityCallbackTerminalDisposition.DURABLY_RETRY_OWNED
 				}
 				onRetryableWithoutDurableOwnership()

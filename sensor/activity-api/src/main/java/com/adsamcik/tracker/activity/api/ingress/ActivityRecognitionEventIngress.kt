@@ -73,10 +73,20 @@ data class ActivityIngressResult(
 	val duplicateCount: Int,
 	val durableSelection: ActivityDurableSelection = ActivityDurableSelection.EMPTY,
 	val failureCode: String? = null,
+	/**
+	 * Callback members permanently omitted by the provider-time or observed-time eligibility
+	 * envelope before WAL admission.
+	 *
+	 * These members require no retry. Keeping them separate from [admittedCount] and
+	 * [duplicateCount] preserves truthful durability accounting when a mixed callback has already
+	 * committed every qualifying sibling but downstream recovery still needs another attempt.
+	 */
+	val discardedCount: Int = 0,
 ) {
 	init {
 		require(admittedCount >= 0)
 		require(duplicateCount >= 0)
+		require(discardedCount >= 0)
 		require(status == ActivityIngressStatus.DURABLE || failureCode != null)
 		require(status != ActivityIngressStatus.DURABLE || failureCode == null)
 		require(status == ActivityIngressStatus.DURABLE || durableSelection.isEmpty) {
@@ -93,32 +103,49 @@ data class ActivityIngressResult(
 	val isDurable: Boolean
 		get() = status == ActivityIngressStatus.DURABLE
 
+	val settledCount: Int
+		get() = admittedCount + duplicateCount + discardedCount
+
 	companion object {
 		fun durable(
 			admittedCount: Int,
 			duplicateCount: Int,
 			durableSelection: ActivityDurableSelection = ActivityDurableSelection.EMPTY,
+			discardedCount: Int = 0,
 		): ActivityIngressResult = ActivityIngressResult(
-			ActivityIngressStatus.DURABLE,
-			admittedCount,
-			duplicateCount,
-			durableSelection,
+			status = ActivityIngressStatus.DURABLE,
+			admittedCount = admittedCount,
+			duplicateCount = duplicateCount,
+			durableSelection = durableSelection,
+			discardedCount = discardedCount,
 		)
 
-		fun retryable(admittedCount: Int, duplicateCount: Int, failureCode: String): ActivityIngressResult =
+		fun retryable(
+			admittedCount: Int,
+			duplicateCount: Int,
+			failureCode: String,
+			discardedCount: Int = 0,
+		): ActivityIngressResult =
 			ActivityIngressResult(
-				ActivityIngressStatus.RETRYABLE,
-				admittedCount,
-				duplicateCount,
+				status = ActivityIngressStatus.RETRYABLE,
+				admittedCount = admittedCount,
+				duplicateCount = duplicateCount,
 				failureCode = failureCode,
+				discardedCount = discardedCount,
 			)
 
-		fun rejected(admittedCount: Int, duplicateCount: Int, failureCode: String): ActivityIngressResult =
+		fun rejected(
+			admittedCount: Int,
+			duplicateCount: Int,
+			failureCode: String,
+			discardedCount: Int = 0,
+		): ActivityIngressResult =
 			ActivityIngressResult(
-				ActivityIngressStatus.REJECTED,
-				admittedCount,
-				duplicateCount,
+				status = ActivityIngressStatus.REJECTED,
+				admittedCount = admittedCount,
+				duplicateCount = duplicateCount,
 				failureCode = failureCode,
+				discardedCount = discardedCount,
 			)
 	}
 }

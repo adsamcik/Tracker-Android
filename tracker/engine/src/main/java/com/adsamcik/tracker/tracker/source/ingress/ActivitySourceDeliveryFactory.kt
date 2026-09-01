@@ -24,86 +24,173 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import javax.inject.Inject
 
-/** Converts exactly one parsed GMS callback into exactly one atomic source delivery. */
+/** Converts the provider-window-qualified members of one GMS callback into one atomic delivery. */
 class ActivitySourceDeliveryFactory @Inject constructor() {
 	fun create(
 		batch: ActivityRecognitionEvidenceBatch,
 		identity: ActivityRegistrationIdentity,
 		automationAuthority: ActivityAutomationEpochEntity,
-	): ActivitySourceDelivery {
+	): ActivitySourceDelivery = requireNotNull(
+		select(batch, identity, automationAuthority).delivery,
+	) { "Activity callback has no provider-window-qualified observations" }
+
+	internal fun select(
+		batch: ActivityRecognitionEvidenceBatch,
+		identity: ActivityRegistrationIdentity,
+		automationAuthority: ActivityAutomationEpochEntity,
+		minimumObservedElapsedRealtimeNanos: Long = 0L,
+		cutoffElapsedRealtimeNanos: Long? = null,
+	): ActivitySourceDeliverySelection {
 		require(batch.eventCount > 0)
-		val selectedAutomaticTransitionIndex = batch.transitions.withIndex()
-			.filter { (_, evidence) ->
-				ActivityTransitionData(evidence.activityType, evidence.transitionType) in
-					batch.automaticTransitions
-			}
-			.maxWithOrNull(
-				compareBy<IndexedValue<ActivityTransitionEvidence>>(
-					{ it.value.providerElapsedRealtimeNanos },
-					IndexedValue<ActivityTransitionEvidence>::index,
-				),
-			)
-			?.index
-		val events = buildList {
-			batch.recognitions.forEachIndexed { index, evidence ->
-				add(ActivitySourceEvent.Recognition(index, evidence))
-			}
-			batch.transitions.forEachIndexed { index, evidence ->
-				add(
-					ActivitySourceEvent.Transition(
-						originalIndex = index,
-						evidence = evidence,
-						providerSameTimeOrder = batch.transitions.take(index).count { prior ->
-							prior.providerElapsedRealtimeNanos == evidence.providerElapsedRealtimeNanos
-						},
-					),
-				)
-			}
-		}.sortedWith(
-			compareBy<ActivitySourceEvent>(
-				ActivitySourceEvent::providerElapsedRealtimeNanos,
-				ActivitySourceEvent::kindCode,
-				ActivitySourceEvent::stableActivityTypeCode,
-				ActivitySourceEvent::detailCode,
+		require(minimumObservedElapsedRealtimeNanos >= 0L)
+		require(
+			cutoffElapsedRealtimeNanos == null ||
+				cutoffElapsedRealtimeNanos >= minimumObservedElapsedRealtimeNanos,
+		)
+		val recognitionEvents = batch.qualifiedRecognitionEvents(
+			minimumObservedElapsedRealtimeNanos,
+			cutoffElapsedRealtimeNanos,
+		)
+		val transitionEvents = batch.qualifiedTransitionEvents(
+			minimumObservedElapsedRealtimeNanos,
+			cutoffElapsedRealtimeNanos,
+		)
+		val discardedCount = batch.eventCount - recognitionEvents.size - transitionEvents.size
+		if (recognitionEvents.isEmpty() && transitionEvents.isEmpty()) {
+			return ActivitySourceDeliverySelection(delivery = null, discardedCount = discardedCount)
+		}
+		return ActivitySourceDeliverySelection(
+			discardedCount = discardedCount,
+			delivery = delivery(
+				batch,
+				identity,
+				automationAuthority,
+				qualifiedEvents(recognitionEvents, transitionEvents),
+				selectedAutomaticTransitionIndex(transitionEvents, batch.automaticTransitions),
 			),
 		)
-		val canonicalBytes = ByteBuffer.allocate(HEADER_BYTES + events.size * EVENT_BYTES)
+	}
+
+	private fun ActivityRecognitionEvidenceBatch.qualifiedRecognitionEvents(
+		minimumObservedElapsedRealtimeNanos: Long,
+		cutoffElapsedRealtimeNanos: Long?,
+	) = recognitions.withIndex().filter { (_, evidence) ->
+		evidence.providerElapsedRealtimeNanos.isWithinProviderWindow(
+			receivedElapsedRealtimeNanos,
+			minimumObservedElapsedRealtimeNanos,
+			cutoffElapsedRealtimeNanos,
+		)
+	}
+
+	private fun ActivityRecognitionEvidenceBatch.qualifiedTransitionEvents(
+		minimumObservedElapsedRealtimeNanos: Long,
+		cutoffElapsedRealtimeNanos: Long?,
+	) = transitions.withIndex().filter { (_, evidence) ->
+		evidence.providerElapsedRealtimeNanos.isWithinProviderWindow(
+			receivedElapsedRealtimeNanos,
+			minimumObservedElapsedRealtimeNanos,
+			cutoffElapsedRealtimeNanos,
+		)
+	}
+
+	private fun selectedAutomaticTransitionIndex(
+		transitionEvents: List<IndexedValue<ActivityTransitionEvidence>>,
+		automaticTransitions: Set<ActivityTransitionData>,
+	): Int? = transitionEvents
+		.filter { (_, evidence) ->
+			ActivityTransitionData(evidence.activityType, evidence.transitionType) in automaticTransitions
+		}
+		.maxWithOrNull(
+			compareBy<IndexedValue<ActivityTransitionEvidence>>(
+				{ it.value.providerElapsedRealtimeNanos },
+				IndexedValue<ActivityTransitionEvidence>::index,
+			),
+		)
+		?.index
+
+	private fun qualifiedEvents(
+		recognitionEvents: List<IndexedValue<ActivityRecognitionEvidence>>,
+		transitionEvents: List<IndexedValue<ActivityTransitionEvidence>>,
+	): List<ActivitySourceEvent> = buildList {
+		recognitionEvents.forEach { (index, evidence) ->
+			add(ActivitySourceEvent.Recognition(index, evidence))
+		}
+		transitionEvents.forEachIndexed { qualifiedIndex, (index, evidence) ->
+			add(
+				ActivitySourceEvent.Transition(
+					originalIndex = index,
+					evidence = evidence,
+					providerSameTimeOrder = transitionEvents.take(qualifiedIndex).count { prior ->
+						prior.value.providerElapsedRealtimeNanos == evidence.providerElapsedRealtimeNanos
+					},
+				),
+			)
+		}
+	}.sortedWith(
+		compareBy<ActivitySourceEvent>(
+			ActivitySourceEvent::providerElapsedRealtimeNanos,
+			ActivitySourceEvent::kindCode,
+			ActivitySourceEvent::stableActivityTypeCode,
+			ActivitySourceEvent::detailCode,
+		),
+	)
+
+	private fun delivery(
+		batch: ActivityRecognitionEvidenceBatch,
+		identity: ActivityRegistrationIdentity,
+		automationAuthority: ActivityAutomationEpochEntity,
+		events: List<ActivitySourceEvent>,
+		selectedAutomaticTransitionIndex: Int?,
+	): ActivitySourceDelivery = ActivitySourceDelivery(
+		candidate = SourceDeliveryCandidate(
+			identity = sourceDeliveryIdentity(events.canonicalBytes()),
+			units = events.mapIndexed { unitIndex, event ->
+				SourceDeliveryUnit(
+					unitIndex = unitIndex,
+					evidence = event.toCandidate(
+						batch,
+						identity,
+						automationAuthority,
+						event.automationEligible(batch, selectedAutomaticTransitionIndex),
+					),
+				)
+			},
+		),
+		originalEvents = events.map(ActivitySourceEvent::originalEvent),
+	)
+
+	private fun ActivitySourceEvent.automationEligible(
+		batch: ActivityRecognitionEvidenceBatch,
+		selectedAutomaticTransitionIndex: Int?,
+	): Boolean = when (this) {
+		is ActivitySourceEvent.Recognition -> batch.automaticRecognitionEligible
+		is ActivitySourceEvent.Transition -> originalIndex == selectedAutomaticTransitionIndex
+	}
+
+	private fun List<ActivitySourceEvent>.canonicalBytes(): ByteArray =
+		ByteBuffer.allocate(HEADER_BYTES + size * EVENT_BYTES)
 			.order(ByteOrder.BIG_ENDIAN)
 			.putInt(CANONICAL_MAGIC)
 			.putInt(CANONICAL_VERSION)
-			.putInt(events.size)
+			.putInt(size)
 			.apply {
-					events.forEach { event ->
-						putLong(event.providerElapsedRealtimeNanos)
-						putInt(event.kindCode)
-						putInt(event.stableActivityTypeCode)
-						putInt(event.detailCode)
-						putInt(event.providerSameTimeOrder)
-					}
+				forEach { event ->
+					putLong(event.providerElapsedRealtimeNanos)
+					putInt(event.kindCode)
+					putInt(event.stableActivityTypeCode)
+					putInt(event.detailCode)
+					putInt(event.providerSameTimeOrder)
+				}
 			}
 			.array()
-		return ActivitySourceDelivery(
-			candidate = SourceDeliveryCandidate(
-				identity = sourceDeliveryIdentity(canonicalBytes),
-				units = events.mapIndexed { unitIndex, event ->
-					SourceDeliveryUnit(
-						unitIndex = unitIndex,
-						evidence = event.toCandidate(
-							batch = batch,
-							identity = identity,
-							automationAuthority = automationAuthority,
-							automationEligible = when (event) {
-								is ActivitySourceEvent.Recognition -> batch.automaticRecognitionEligible
-								is ActivitySourceEvent.Transition ->
-									event.originalIndex == selectedAutomaticTransitionIndex
-							},
-						),
-					)
-				},
-			),
-			originalEvents = events.map(ActivitySourceEvent::originalEvent),
-		)
-	}
+
+	private fun Long.isWithinProviderWindow(
+		receivedElapsedRealtimeNanos: Long,
+		minimumObservedElapsedRealtimeNanos: Long,
+		cutoffElapsedRealtimeNanos: Long?,
+	): Boolean = this <= receivedElapsedRealtimeNanos &&
+		this >= minimumObservedElapsedRealtimeNanos &&
+		(cutoffElapsedRealtimeNanos == null || this < cutoffElapsedRealtimeNanos)
 
 	private fun ActivitySourceEvent.toCandidate(
 		batch: ActivityRecognitionEvidenceBatch,
@@ -227,6 +314,15 @@ data class ActivitySourceDelivery(
 	val candidate: SourceDeliveryCandidate,
 	val originalEvents: List<ActivityOriginalEvent>,
 )
+
+internal data class ActivitySourceDeliverySelection(
+	val delivery: ActivitySourceDelivery?,
+	val discardedCount: Int,
+) {
+	init {
+		require(discardedCount >= 0)
+	}
+}
 
 sealed interface ActivityOriginalEvent {
 	data class Recognition(val index: Int) : ActivityOriginalEvent

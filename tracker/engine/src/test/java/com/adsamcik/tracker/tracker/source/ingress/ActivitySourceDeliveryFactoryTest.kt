@@ -10,7 +10,6 @@ import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEnt
 import com.adsamcik.tracker.stats.api.DetectedActivityType
 import com.adsamcik.tracker.tracker.source.model.ActivityRecognitionPayload
 import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
-import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import org.junit.Test
@@ -107,21 +106,45 @@ class ActivitySourceDeliveryFactoryTest {
 	}
 
 	@Test
-	fun `future provider time rejects the whole source delivery`() {
-		val batches = listOf(
-			batch(recognitions = listOf(recognition(5_001L))),
-			batch(transitions = listOf(transition(5_001L))),
-			batch(
-				recognitions = listOf(recognition(5_000L)),
-				transitions = listOf(transition(5_001L)),
+	fun `provider window drops invalid siblings before stable identity and automation selection`() {
+		val mixed = batch(
+			recognitions = listOf(
+				recognition(9L),
+				recognition(10L, confidence = 1),
+				recognition(5_001L),
+			),
+			transitions = listOf(
+				transition(8L),
+				transition(30L),
+				transition(80L),
 			),
 		)
+		val selected = subject.select(
+			mixed,
+			identity(),
+			automationAuthority(),
+			minimumObservedElapsedRealtimeNanos = 10L,
+			cutoffElapsedRealtimeNanos = 80L,
+		)
+		val delivery = requireNotNull(selected.delivery)
+		val clean = batch(
+			recognitions = listOf(recognition(10L, confidence = 1)),
+			transitions = listOf(transition(30L)),
+		)
 
-		batches.forEach { futureBatch ->
-			shouldThrow<IllegalArgumentException> {
-				subject.create(futureBatch, identity(), automationAuthority())
-			}
-		}
+		selected.discardedCount shouldBe 4
+		delivery.originalEvents.shouldContainExactly(
+			ActivityOriginalEvent.Recognition(1),
+			ActivityOriginalEvent.Transition(1),
+		)
+		delivery.candidate.units.map { it.evidence.observedElapsedRealtimeNanos }
+			.shouldContainExactly(10L, 30L)
+		(delivery.candidate.units.first().evidence.payload as ActivityRecognitionPayload)
+			.confidencePercent shouldBe 1
+		delivery.candidate.units.map { it.evidence.activityAutomationEpoch }
+			.shouldContainExactly(AUTOMATION_EPOCH, AUTOMATION_EPOCH)
+		delivery.candidate.identity shouldBe
+			subject.create(clean, identity(), automationAuthority()).candidate.identity
 	}
 
 	@Test

@@ -307,11 +307,15 @@ class RoomActivityRecognitionEventIngressTest {
 			coEvery { recovery.drainCommittedWork() } returns
 				SourceRecoveryResult(drain, 0, 0)
 
-			val result = subject.admit(batch(recognitions = listOf(recognition(30L))))
+			val result = subject.admit(
+				batch(recognitions = listOf(recognition(9L), recognition(30L))),
+			)
 
 			result.isDurable shouldBe false
 			result.admittedCount shouldBe 1
 			result.duplicateCount shouldBe 0
+			result.discardedCount shouldBe 1
+			result.settledCount shouldBe 2
 			result.failureCode shouldBe expectedCode
 			result.durableSelection.isEmpty shouldBe true
 		}
@@ -355,14 +359,51 @@ class RoomActivityRecognitionEventIngressTest {
 	}
 
 	@Test
-	fun `provider timestamp after callback receipt is rejected without escaping ingress`() = runTest {
-		val result = subject.admit(batch(recognitions = listOf(recognition(101L))))
+	fun `mixed pre acceptance and future members retain valid siblings and original indexes`() = runTest {
+		val units = listOf(
+			DeliveryAdmissionResult.AdmittedUnit(0, SourceEventId("event-0"), 10L),
+			DeliveryAdmissionResult.AdmittedUnit(1, SourceEventId("event-1"), 11L),
+		)
+		coEvery { deliveryIngress.admit(capture(capturedDelivery)) } returns
+			DeliveryAdmissionResult.Admitted(units)
+		coEvery { committedIngress.committedBatch(any(), 1) } answers {
+			val ordinal = firstArg<Long>() + 1L
+			val unitIndex = (ordinal - 10L).toInt()
+			listOf(
+				AdmittedSourceEvent(
+					SourceEventId("event-$unitIndex"),
+					ordinal,
+					capturedDelivery.captured.units[unitIndex].evidence,
+				),
+			)
+		}
+		val mixed = batch(
+			recognitions = listOf(recognition(9L), recognition(10L), recognition(101L)),
+			transitions = listOf(transition(8L), transition(20L), transition(102L)),
+		)
 
-		result.isDurable shouldBe false
-		result.failureCode shouldBe "INVALID_ACTIVITY_PROVIDER_BATCH"
-		result.durableSelection.isEmpty shouldBe true
-		coVerify(exactly = 0) { deliveryIngress.admit(any()) }
-		verify(exactly = 0) { motionController.onDurableEvidence(any()) }
+		val result = subject.admit(mixed)
+
+		result.isDurable shouldBe true
+		result.admittedCount shouldBe 2
+		result.discardedCount shouldBe 4
+		result.settledCount shouldBe mixed.eventCount
+		result.durableSelection.recognitionIndexes shouldBe setOf(1)
+		result.durableSelection.transitionIndexes shouldBe setOf(1)
+		capturedDelivery.captured.units.map { it.evidence.observedElapsedRealtimeNanos } shouldBe
+			listOf(10L, 20L)
+		capturedDelivery.captured.units.single {
+			it.evidence.payload is com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
+		}.evidence.activityAutomationEpoch shouldBe 17L
+
+		val allFuture = subject.admit(batch(recognitions = listOf(recognition(101L))))
+
+		allFuture.isDurable shouldBe true
+		allFuture.admittedCount shouldBe 0
+		allFuture.discardedCount shouldBe 1
+		allFuture.durableSelection.isEmpty shouldBe true
+		coVerify(exactly = 1) { deliveryIngress.admit(any()) }
+		verify(exactly = 2) { motionController.onDurableEvidence(any()) }
 	}
 
 	@Test
