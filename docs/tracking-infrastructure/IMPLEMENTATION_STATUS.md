@@ -2233,3 +2233,50 @@ PendingIntent delivery, process death, reboot, Android foreground-service legali
 OEM behavior, source-local Activity materialization, production query/UI, deletion, retention, or
 portable export/import. Activity `CONTROL_AUTOSTART` remains noncaptured operational authority; no
 control-only observation enters captured history, and no provider or writer rollout occurred.
+
+## Steps selected-session deletion and correction-safe day repair checkpoint (2026-09-01)
+
+### Outcome
+
+Typed selected-session deletion for the contained v28 Steps writer is accepted and fast-forwarded
+into local `dev/v10` at `b5698e635`. Deletion now requires one exact presentation reverse binding
+(`serviceRun.sessionSegmentId == segment.id`), a bounded chain of exact candidate-owned Steps-only
+capture manifest revisions, terminal lifecycle authority, historical manifest policy/consent
+attribution, the current collected-data epoch, and exact fact attribution. Active, legacy,
+mixed-source, mismatched, stale, or otherwise unverifiable rows return a typed non-mutating result;
+`QUIESCED`, wall-time overlap, and `sampleCount` are never ownership predicates.
+
+A successful transaction installs the monotonic source-local deletion fence, writes redacted
+retractions, removes the exact presentation/fact membership, advances source evidence, and repairs
+only affected daily summaries. Repair recomposes surviving qualified Steps facts under each summary's
+stored calendar zone. Missing or mixed zone authority, materializing writer state, retention loss,
+terminal projection failure, dependency overflow, or ambiguous surviving evidence fails closed
+before mutation. Terminal-failure reads are deterministically ordered and limited in SQL to
+`2,048 + 1`; overflow makes every affected history selection unavailable and makes deletion repair
+unsupported rather than inspecting a truncated prefix.
+
+### Evidence and boundary
+
+- The focused pre-rebase Room/history gate passed `117/117` with zero failures, errors, or skips
+  (`BUILD SUCCESSFUL in 6m 14s`, 279 tasks): `SourceSessionDaoTest` 14,
+  `RoomStepsSelectedSessionDeletionServiceTest` 29, `StepsSegmentHistorySelectorTest` 64, and
+  `TrackingHistoryMappingTest` 10.
+- The broader post-rebase command passed `161/161` plus
+  `:core:base:compileDebugAndroidTestKotlin`, `:app:hiltJavaCompileDebug`, and
+  `checkRoomSchemaDrift` (`BUILD SUCCESSFUL in 12m 20s`, 505 tasks). It additionally covered
+  `DailySummaryAggregatorTest` 12, `StepFactRevisionDaoTest` 11,
+  `TrackingOrchestratorIntegrationTest` 4, and `StepsDailySummaryRepairComposerTest` 17.
+- Final root Detekt passed in `33s`; `:core:base:lintDebug`, `:stats:data:lintDebug`, and
+  `:tracker:engine:lintDebug` passed in `1m 52s`, `2m 34s`, and `4m 46s` respectively. The tracker
+  lint reported no new issue and six baseline-filtered warnings.
+- Fresh review first rejected an unbounded terminal-failure dependency. The accepted correction uses
+  cap-plus-one SQL reads and adversarial tests where a candidate's only relevant failure lies beyond
+  a prefix filled by another writer. Final review found no blocker, high, or medium finding. The
+  configured `adsamcik` identity created `b5698e635`; the clean integration worktree fast-forwarded
+  locally. Nothing was pushed, activated, released, tagged, or deployed.
+
+This is host/Robolectric/in-memory-Room/static evidence. It does not prove a rendered deletion flow,
+real sensor/provider behavior, listener removal, process death, reboot, foreground-service legality,
+battery/OEM behavior, portable export/import, retention execution, automatic or ambient Steps, or
+ordinary candidate-writer activation. The manual Steps-only device gate remains blocked because no
+device is attached.

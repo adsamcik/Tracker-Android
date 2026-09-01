@@ -1775,3 +1775,35 @@ Each entry records repository evidence and does not duplicate the final architec
   Activity capture fact, captured-history path, writer activation, provider start, rollout, or
   device claim; PendingIntent delivery, process death/reboot, FGS legality, battery/OEM behavior,
   product materialization/query/UI, deletion, retention, and portable export/import remain open.
+
+## TI-D130 — Steps selected deletion requires exact authority and complete bounded day repair
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` at `b5698e635`; rendered/device deletion UI remains
+  `UNVERIFIED`; retention and portability remain `BLOCKED`
+- Owner/date: manual/session Steps deletion owner after terminal-dependency correction and fresh
+  independent review, 2026-09-01
+- Alternatives: delete only the presentation row; accept `QUIESCED` as proof that no writer can
+  mutate; infer ownership from wall-time overlap or `sampleCount`; materialize every terminal
+  projection failure into an unbounded list; require exact immutable run/manifest/fact authority and
+  fail closed when bounded repair dependencies are incomplete
+- Evidence: the focused DAO/deletion/history suite passed `117/117`; the post-rebase selected suite
+  passed `161/161` plus Android-test compilation, app Hilt compilation, and Room schema drift. Root
+  Detekt and all three affected lints pass. Fresh review rejected the original unbounded
+  terminal-failure query, then returned `GO` after deterministic cap-plus-one SQL and adversarial
+  no-false-READY/no-mutation regressions; no final blocker, high, or medium finding remains.
+- Decision: only one exactly reverse-bound, candidate-owned v28 Steps-only presentation scope may be
+  selected for this deletion path. Lifecycle, manifest integrity, capture purpose, writer binding,
+  policy/consent/data epoch, fact attribution, retained source evidence, and every affected calendar
+  zone are preflight authority. The transaction installs a monotonic source-local fence and redacted
+  retractions before removing the exact presentation and repairing affected summaries from surviving
+  qualified facts. Repair uses the stored summary/manifest zone authority and never the device's
+  current zone. Terminal-failure dependencies are ordered by admission ordinal and writer identity,
+  read with a 2,048-row cap plus one, and overflow makes affected history unavailable and deletion
+  repair unsupported before mutation.
+- Consequences: active, legacy, mixed-source, mismatched, stale, materializing, retention-incomplete,
+  overflowed, or otherwise unverifiable scope remains intact under a typed outcome. Exact candidate
+  replay cannot cross the installed fence, while idempotent absence remains `NotFound`; portable and
+  database-import no-resurrection remain separate unimplemented gates.
+  `QUIESCED`, wall overlap, and `sampleCount` prove neither ownership nor source qualification. This
+  does not activate the candidate writer, generalize deletion to another source, complete portable
+  export/import or retention, or prove a rendered/device deletion flow.
