@@ -2159,3 +2159,34 @@ This is JVM/Robolectric/static evidence. It does not prove real fused/framework 
 passive or active cadence, process death, reboot, foreground-service legality, battery impact, OEM
 behavior, production query/UI, deletion/export, or shadow parity. The existing canonical Location
 writer remains the only canonical writer; no destination-owner cutover or rollout action occurred.
+
+## Activity callback freshness-envelope checkpoint (2026-09-01)
+
+### Outcome
+
+The bounded Activity correction is accepted and fast-forwarded into local `dev/v10` at
+`3c7b28545`. Recognition and transition provider times now fail closed when negative, overflowed,
+pre-acceptance, cutoff-invalid, or future-dated while valid siblings retain their original callback
+indexes. The receiver publishes only the sparse subset that atomic Room admission reports durable.
+
+The first review found one remaining product-stream defect: raw recognition presence suppressed a
+valid transition-derived Activity even when the recognition was omitted from durable selection.
+The correction removes that raw flag. A selected recognition retains precedence; otherwise the last
+selected transition updates the contained Activity state, while selected transitions always keep
+their independent transition stream.
+
+### Evidence and boundary
+
+- The serialized focused command passed `112/112`: Activity receiver `30`, retry worker `9`,
+  delivery factory `12`, Activity Room ingress `12`, and generic durable ingress `49`, with zero
+  failures, errors, or skips (`BUILD SUCCESSFUL in 4m 4s`, 269 tasks).
+- Root Detekt plus `:sensor:activity:lintDebug` passed in `1m 22s` (348 tasks) with no new issue.
+- Fresh independent corrected-diff review inspected all ten commit paths and found no remaining
+  scoped blocker, high, or medium finding. The branch was already based on the current local
+  integration head and was fast-forwarded; nothing was pushed, activated, released, or deployed.
+
+This is JVM/Robolectric/static evidence. It does not prove real Google Play services PendingIntent
+delivery, process death, reboot, automation-trigger legality, foreground-service behavior, battery
+impact, OEM behavior, source-local materialization, production query/UI, deletion, retention, or
+portable export/import. Activity capture and control remain separate purposes, and no provider or
+writer rollout occurred.

@@ -1719,3 +1719,28 @@ Each entry records repository evidence and does not duplicate the final architec
   introduced. These host/Robolectric tests do not prove real fused/framework callbacks, passive or
   active cadence, process death, reboot, FGS legality, battery, OEM behavior, product query/UI, or a
   Location cutover decision.
+
+## TI-D128 — Activity publication follows the durable selected subset
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` at `3c7b28545`; physical Activity Recognition behavior remains
+  `UNVERIFIED`
+- Owner/date: Activity source owner after one focused review correction and fresh independent
+  corrected-diff review, 2026-09-01
+- Alternatives: coerce invalid provider time to elapsed zero; reject an entire callback when one
+  sibling is stale; let raw recognition presence suppress transition-derived Activity; derive every
+  publication from the sparse original-index set that atomic Room admission actually made durable
+- Evidence: the corrected focused gate passed `112/112` across the receiver, retry worker, delivery
+  factory, Activity Room adapter, and generic durable ingress. Detekt and Activity lint passed with
+  no new issue. Fresh read-only review found no remaining scoped blocker, high, or medium finding.
+- Decision: negative and overflowed recognition timestamps and negative transition timestamps are
+  omitted. Provider-window qualification is accepted-inclusive, retired-exclusive, and
+  future-exclusive while retaining every valid sibling's original index. The receiver publishes
+  only indexes returned by durable admission. A selected recognition owns Activity state; a selected
+  transition supplies the contained Activity fallback only when the durable recognition-index set
+  is empty, while the transition stream itself remains independently published.
+- Consequences: an invalid, stale, or future recognition cannot suppress a valid selected transition,
+  and a valid selected recognition cannot be overwritten by its transition sibling. Callback retry
+  still settles the complete atomic delivery and low-confidence capture remains preserved without
+  an invented threshold. This is host/Robolectric evidence, not real PendingIntent delivery,
+  process/reboot, automation-start, battery/OEM, product materialization/query/UI, deletion/export,
+  activation, or rollout proof.
