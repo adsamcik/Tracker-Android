@@ -14,11 +14,15 @@ import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.PressurePlan
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
+import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
+import com.adsamcik.tracker.tracker.source.model.SourceDeliveryIdentity
+import com.adsamcik.tracker.tracker.source.model.SourceDeliveryUnit
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
 import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
+import com.adsamcik.tracker.tracker.source.model.sourceDeliveryIdentity
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -1216,7 +1220,9 @@ class PressureSourceRuntime @Inject constructor(
 				deadlineElapsedRealtimeNanos = { stopDeadlineElapsedNanos },
 				nowElapsedRealtimeNanos = SystemClock::elapsedRealtimeNanos,
 				prepare = { prepareWindowAdmission(window) },
-				admit = { prepared -> window.sink.admit(prepared.candidate, prepared.checkpoint) },
+				admit = { prepared ->
+					window.sink.admit(prepared.delivery, prepared.checkpoint).toPressureWindowHandoff()
+				},
 				onAdmissionResolved = { prepared, handoff ->
 					recordWindowResolution(window, prepared, handoff)
 				},
@@ -1248,15 +1254,10 @@ class PressureSourceRuntime @Inject constructor(
 		val payload = window.payload
 		val reception = window.reception
 		val activeRegistration = window.registration
-		val sourceSequence = runCatchingNonCancellation {
-			registrations.allocateSequence(activeRegistration, reception.receivedWallTimeMs)
-		}.getOrNull() ?: return null
 		val delayNanos = (reception.receivedElapsedNanos - payload.windowEndElapsedRealtimeNanos).coerceAtLeast(0L)
 		val acquiredAtMs = (reception.receivedWallTimeMs - delayNanos / NANOS_PER_MILLISECOND).coerceAtLeast(0L)
 		val candidate = SourceEvidenceCandidate(
-			providerDedupKey = "${activeRegistration.state.sourceInstanceId}:" +
-				"${activeRegistration.state.registrationGeneration}:${payload.firstProviderSequence}-" +
-				payload.lastProviderSequence,
+			providerDedupKey = null,
 			logicalTrackingId = null,
 			serviceRunId = null,
 			source = source,
@@ -1266,7 +1267,8 @@ class PressureSourceRuntime @Inject constructor(
 			authorizationRevision = activeRegistration.authorization.authorizationRevision,
 			registrationPurposeEligibilityMask = activeRegistration.purposeEligibilityMask,
 			registrationEligibilityFingerprint = activeRegistration.eligibilityFingerprint,
-			sourceSequence = sourceSequence,
+			// Room allocates the only durable sequence after replay detection succeeds.
+			sourceSequence = 0L,
 			configRevision = activeRegistration.state.appliedRevision,
 			planAttribution = PlanAttribution.CAPTURED_REGISTRATION,
 			clockDomainId = activeRegistration.state.clockDomainId,
@@ -1276,18 +1278,24 @@ class PressureSourceRuntime @Inject constructor(
 			wallTimeUncertaintyMs = 1L,
 			capturedCollectedDataEpoch = activeRegistration.state.collectedDataEpoch,
 			acquiredAtMs = acquiredAtMs,
-			quality = SourceQuality(
-				flags = buildSet {
-					if (delayNanos >= BATCHED_AFTER_NANOS) add(SourceQualityFlag.BATCHED)
-					if (payload.sampleCount == 1) add(SourceQualityFlag.INCOMPLETE_WINDOW)
-				},
-			),
+			quality = pressureWindowQuality(payload, delayNanos),
 			payloadVersion = 1,
 			payload = payload,
 		)
+		val delivery = SourceDeliveryCandidate(
+			identity = pressureProviderDeliveryIdentity(activeRegistration.state.clockDomainId, payload),
+			units = listOf(
+				SourceDeliveryUnit(
+					unitIndex = 0,
+					evidence = candidate,
+					observedIntervalStartElapsedRealtimeNanos =
+						payload.windowStartElapsedRealtimeNanos,
+				),
+			),
+		)
 		val (absoluteGapMetrics, checkpointedCapacityGapSequence) = pressureCheckpointMetricsSnapshot()
 		return PreparedPressureAdmission(
-			candidate = candidate,
+			delivery = delivery,
 			checkpoint = activeRegistration.sensorAdmissionCheckpoint(
 				providerSequenceThrough = payload.lastProviderSequence,
 				checkpoint = pressureAtomicRuntimeCheckpoint(
@@ -1300,6 +1308,13 @@ class PressureSourceRuntime @Inject constructor(
 			checkpointOrderElapsedRealtimeNanos = window.checkpointOrderElapsedRealtimeNanos,
 		)
 	}
+
+	private fun pressureWindowQuality(payload: PressureWindowPayload, delayNanos: Long) = SourceQuality(
+		flags = buildSet {
+			if (delayNanos >= BATCHED_AFTER_NANOS) add(SourceQualityFlag.BATCHED)
+			if (payload.sampleCount == 1) add(SourceQualityFlag.INCOMPLETE_WINDOW)
+		},
+	)
 
 	private fun pressureCheckpointMetricsSnapshot(): Pair<RuntimeAdmissionSnapshot, Long?> =
 		synchronized(callbackLock) {
@@ -1931,12 +1946,58 @@ internal data class PressureCompletedWindow(
 }
 
 internal data class PreparedPressureAdmission(
-	val candidate: SourceEvidenceCandidate<PressureWindowPayload>,
+	val delivery: SourceDeliveryCandidate,
 	val checkpoint: SensorAdmissionCheckpoint,
 	val checkpointedCapacityGapSequence: Long?,
 	/** Full callback-entry causal order retained for the shared checkpoint contract. */
 	val checkpointOrderElapsedRealtimeNanos: Long,
 )
+
+/**
+ * Intrinsic identity for one Pressure provider window. Callback-local sequence numbers remain in
+ * the payload and checkpoint, but cannot define the provider window across runtime replacements.
+ */
+internal fun pressureProviderDeliveryIdentity(
+	clockDomainId: String,
+	payload: PressureWindowPayload,
+): SourceDeliveryIdentity {
+	require(clockDomainId.isNotBlank())
+	require(payload.sampleCount > 0)
+	require(payload.windowStartElapsedRealtimeNanos >= 0L)
+	require(payload.windowEndElapsedRealtimeNanos >= payload.windowStartElapsedRealtimeNanos)
+	val canonical = buildString {
+		append("pressure-window-v1|")
+		append(clockDomainId.length)
+		append(':')
+		append(clockDomainId)
+		append("|start:")
+		append(payload.windowStartElapsedRealtimeNanos)
+		append("|end:")
+		append(payload.windowEndElapsedRealtimeNanos)
+		append("|count:")
+		append(payload.sampleCount)
+		append("|mean-bits:")
+		append(payload.meanHectopascals.toRawBits())
+		append("|m2-bits:")
+		append(payload.sumSquaredDeviations.toRawBits())
+		append("|min-bits:")
+		append(payload.minimumHectopascals.toRawBits())
+		append("|max-bits:")
+		append(payload.maximumHectopascals.toRawBits())
+	}
+	return sourceDeliveryIdentity(canonical.toByteArray(Charsets.UTF_8))
+}
+
+internal fun SourceDeliveryAdmissionHandoff.toPressureWindowHandoff(): SourceAdmissionHandoff = when (this) {
+	is SourceDeliveryAdmissionHandoff.Durable -> admissionOrdinals.singleOrNull()?.let { ordinal ->
+		SourceAdmissionHandoff.Durable(ordinal)
+	} ?: SourceAdmissionHandoff.TerminalFailure(SourceAdmissionFailureCode.INVALID_EVIDENCE)
+	is SourceDeliveryAdmissionHandoff.Duplicate -> existingAdmissionOrdinals.singleOrNull()?.let { ordinal ->
+		SourceAdmissionHandoff.Duplicate(ordinal)
+	} ?: SourceAdmissionHandoff.TerminalFailure(SourceAdmissionFailureCode.INVALID_EVIDENCE)
+	is SourceDeliveryAdmissionHandoff.TerminalFailure -> SourceAdmissionHandoff.TerminalFailure(code)
+	is SourceDeliveryAdmissionHandoff.RetryableFailure -> SourceAdmissionHandoff.RetryableFailure(code)
+}
 
 internal enum class PressureWindowHeadResolution { SETTLED, DEADLINE_UNRESOLVED }
 

@@ -178,6 +178,17 @@ fun interface SourceEventSink {
 	/** Atomic provider-delivery path. Sources adopt this without weakening the legacy single-unit API. */
 	suspend fun admit(delivery: SourceDeliveryCandidate): SourceDeliveryAdmissionHandoff =
 		SourceDeliveryAdmissionHandoff.TerminalFailure(SourceAdmissionFailureCode.INVALID_EVIDENCE)
+
+	/**
+	 * Atomically admits one provider delivery with its sensor checkpoint. The default is deliberately
+	 * explicit: a sink that cannot own both writes in one transaction must not split the handoff.
+	 */
+	suspend fun admit(
+		delivery: SourceDeliveryCandidate,
+		checkpoint: SensorAdmissionCheckpoint,
+	): SourceDeliveryAdmissionHandoff = SourceDeliveryAdmissionHandoff.RetryableFailure(
+		SourceAdmissionFailureCode.ATOMIC_CHECKPOINT_UNSUPPORTED,
+	)
 }
 
 sealed interface SourceDeliveryAdmissionHandoff {

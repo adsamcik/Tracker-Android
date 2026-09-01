@@ -207,14 +207,14 @@ class PressureWindowLaneTest {
 	@Test
 	fun `atomic checkpoint unsupported retains exact head and never falls back to legacy admit`() = runTest {
 		val prepared = PreparedPressureAdmission(
-			candidate = mockk(),
+			delivery = mockk(),
 			checkpoint = mockk(),
 			checkpointedCapacityGapSequence = null,
 			checkpointOrderElapsedRealtimeNanos = 123_456_789L,
 		)
 		var legacyAdmissions = 0
 		var atomicAdmissions = 0
-		val seenCandidates = mutableListOf<com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate<*>>()
+		val seenDeliveries = mutableListOf<com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate>()
 		val seenCheckpoints = mutableListOf<SensorAdmissionCheckpoint>()
 		val sink = object : SourceEventSink {
 			override suspend fun admit(
@@ -225,18 +225,18 @@ class PressureWindowLaneTest {
 			}
 
 			override suspend fun admit(
-				candidate: com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate<*>,
+				delivery: com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate,
 				checkpoint: SensorAdmissionCheckpoint,
-			): SourceAdmissionHandoff {
+			): SourceDeliveryAdmissionHandoff {
 				atomicAdmissions++
-				seenCandidates += candidate
+				seenDeliveries += delivery
 				seenCheckpoints += checkpoint
 				return if (atomicAdmissions <= 4) {
-					SourceAdmissionHandoff.RetryableFailure(
+					SourceDeliveryAdmissionHandoff.RetryableFailure(
 						SourceAdmissionFailureCode.ATOMIC_CHECKPOINT_UNSUPPORTED,
 					)
 				} else {
-					SourceAdmissionHandoff.Duplicate(existingAdmissionOrdinal = 73L)
+					SourceDeliveryAdmissionHandoff.Duplicate(existingAdmissionOrdinals = listOf(73L))
 				}
 			}
 		}
@@ -246,7 +246,9 @@ class PressureWindowLaneTest {
 			deadlineElapsedRealtimeNanos = { null },
 			nowElapsedRealtimeNanos = { 0L },
 			prepare = { prepared },
-			admit = { exact -> sink.admit(exact.candidate, exact.checkpoint) },
+			admit = { exact ->
+				sink.admit(exact.delivery, exact.checkpoint).toPressureWindowHandoff()
+			},
 			onAdmissionResolved = { exact, handoff ->
 				assertSame(prepared, exact)
 				resolved += handoff
@@ -258,7 +260,7 @@ class PressureWindowLaneTest {
 		assertEquals(PressureWindowHeadResolution.SETTLED, result)
 		assertEquals(0, legacyAdmissions)
 		assertEquals(5, atomicAdmissions)
-		assertTrue(seenCandidates.all { it === prepared.candidate })
+		assertTrue(seenDeliveries.all { it === prepared.delivery })
 		assertTrue(seenCheckpoints.all { it === prepared.checkpoint })
 		assertEquals(1, resolved.size)
 		assertEquals<SourceAdmissionHandoff>(SourceAdmissionHandoff.Duplicate(73L), resolved.single())

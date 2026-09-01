@@ -58,6 +58,26 @@ class SourceEventWalDaoTest {
 	}
 
 	@Test
+	fun `delivery identity projection retains checkpoint authority envelope`() = runTest {
+		val dao = database.sourceEventWalDao()
+		val event = event("delivery", sourceSequence = 5L).copy(
+			deliveryIdentity = "delivery-identity",
+			deliveryUnitIndex = 0,
+			deliveryUnitCount = 1,
+			registrationGeneration = 7L,
+			physicalConfigurationFingerprint = "physical-v7",
+			authorizationRevision = 11L,
+		)
+		dao.insertDeliveryUnits(listOf(event)) shouldBe listOf(1L)
+
+		val stored = dao.deliveryUnits(1, 0L, "boot", "delivery-identity").single()
+		stored.sourceInstanceId shouldBe "instance"
+		stored.registrationGeneration shouldBe 7L
+		stored.physicalConfigurationFingerprint shouldBe "physical-v7"
+		stored.authorizationRevision shouldBe 11L
+	}
+
+	@Test
 	fun `source scoped recovery read excludes unrelated ordinals and honors upper bound`() = runTest {
 		val dao = database.sourceEventWalDao()
 		dao.insertIgnoringDuplicate(event("activity-old", 1L).copy(sourceKind = 2)) shouldBe 1L

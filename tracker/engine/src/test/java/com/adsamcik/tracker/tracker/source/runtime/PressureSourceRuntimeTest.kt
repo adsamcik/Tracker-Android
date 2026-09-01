@@ -14,6 +14,7 @@ import com.adsamcik.tracker.tracker.source.model.PressurePlan
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
+import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
@@ -142,6 +143,67 @@ class PressureSourceRuntimeTest {
 				any<SensorEventListener>(), fixture.sensor, any<Int>(), any<Int>(),
 			)
 		}
+	}
+
+	@Test
+	fun `Pressure window delegates Room sequence and retains exact checkpoint identity`() = runTest {
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(10))
+		val activePlan = plan(revision = 1L)
+		val fixture = fixture(
+			scope = this,
+			registrationsToReturn = listOf(
+				registration(activePlan, authorizationRevision = 1L, requiresAcceptance = true),
+			),
+		)
+		val sink = RecordingPressureSink()
+		assertTrue(fixture.runtime.start(activePlan, sink) is SourceStartResult.Started)
+		fixture.listener().onSensorChanged(
+			pressureEvent(
+				fixture.sensor,
+				android.os.SystemClock.elapsedRealtimeNanos(),
+				1_000f,
+			),
+		)
+
+		fixture.runtime.close()
+
+		val delivery = sink.deliveries.single()
+		val evidence = delivery.units.single().evidence
+		val payload = evidence.payload as PressureWindowPayload
+		assertNull(evidence.providerDedupKey)
+		assertEquals(0L, evidence.sourceSequence)
+		assertEquals(
+			pressureProviderDeliveryIdentity(evidence.clockDomainId, payload),
+			delivery.identity,
+		)
+		assertEquals(
+			delivery.identity,
+			pressureProviderDeliveryIdentity(
+				evidence.clockDomainId,
+				payload.copy(firstProviderSequence = 99L, lastProviderSequence = 99L),
+			),
+		)
+		assertFalse(
+			delivery.identity == pressureProviderDeliveryIdentity(
+				evidence.clockDomainId,
+				payload.copy(meanHectopascals = payload.meanHectopascals + 1.0),
+			),
+		)
+		assertFalse(
+			delivery.identity == pressureProviderDeliveryIdentity(
+				"${evidence.clockDomainId}-replacement",
+				payload,
+			),
+		)
+		assertFalse(
+			delivery.identity == pressureProviderDeliveryIdentity(
+				evidence.clockDomainId,
+				payload.copy(
+					windowEndElapsedRealtimeNanos = payload.windowEndElapsedRealtimeNanos + 1L,
+				),
+			),
+		)
+		coVerify(exactly = 0) { fixture.registrations.allocateSequence(any(), any()) }
 	}
 
 	@Test
@@ -442,14 +504,14 @@ class PressureSourceRuntimeTest {
 				error("Pressure must use atomic admission")
 
 			override suspend fun admit(
-				candidate: SourceEvidenceCandidate<*>,
+				delivery: SourceDeliveryCandidate,
 				checkpoint: SensorAdmissionCheckpoint,
-			): SourceAdmissionHandoff {
+			): SourceDeliveryAdmissionHandoff {
 				withContext(NonCancellable) {
 					admissionEntered.complete(Unit)
 					releaseAdmission.await()
 				}
-				return SourceAdmissionHandoff.Durable(candidate.sourceSequence)
+				return SourceDeliveryAdmissionHandoff.Durable(listOf(1L))
 			}
 		}
 		val replacementSink = SourceEventSink { SourceAdmissionHandoff.Durable(1L) }
@@ -525,9 +587,9 @@ class PressureSourceRuntimeTest {
 					error("Pressure must use atomic admission")
 
 				override suspend fun admit(
-					candidate: SourceEvidenceCandidate<*>,
+					delivery: SourceDeliveryCandidate,
 					checkpoint: SensorAdmissionCheckpoint,
-				): SourceAdmissionHandoff = throw failure
+				): SourceDeliveryAdmissionHandoff = throw failure
 			}
 			assertTrue(fixture.runtime.start(activePlan, sink) is SourceStartResult.Started)
 			val exactListener = fixture.listener()
@@ -581,7 +643,7 @@ class PressureSourceRuntimeTest {
 		ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
 		val activePlan = plan(1L, aggregationWindowMs = 1L)
 		val releaseAdmission = CompletableDeferred<Unit>()
-		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
+		val admitted = mutableListOf<SourceDeliveryCandidate>()
 		val fixture = fixture(
 			scope = this,
 			registrationsToReturn = listOf(registration(activePlan, 1L, requiresAcceptance = true)),
@@ -591,12 +653,12 @@ class PressureSourceRuntimeTest {
 				error("Pressure must use atomic admission")
 
 			override suspend fun admit(
-				candidate: SourceEvidenceCandidate<*>,
+				delivery: SourceDeliveryCandidate,
 				checkpoint: SensorAdmissionCheckpoint,
-			): SourceAdmissionHandoff {
+			): SourceDeliveryAdmissionHandoff {
 				releaseAdmission.await()
-				admitted += candidate
-				return SourceAdmissionHandoff.Durable(candidate.sourceSequence)
+				admitted += delivery
+				return SourceDeliveryAdmissionHandoff.Durable(listOf(admitted.size.toLong()))
 			}
 		}
 		assertTrue(fixture.runtime.start(activePlan, sink) is SourceStartResult.Started)
@@ -644,9 +706,9 @@ class PressureSourceRuntimeTest {
 				error("Pressure must use atomic admission")
 
 			override suspend fun admit(
-				candidate: SourceEvidenceCandidate<*>,
+				delivery: SourceDeliveryCandidate,
 				checkpoint: SensorAdmissionCheckpoint,
-			): SourceAdmissionHandoff = SourceAdmissionHandoff.Durable(candidate.sourceSequence)
+			): SourceDeliveryAdmissionHandoff = SourceDeliveryAdmissionHandoff.Durable(listOf(1L))
 		}
 		assertTrue(
 			fixture.runtime.start(activePlan, sink) is SourceStartResult.Started,
@@ -695,9 +757,9 @@ class PressureSourceRuntimeTest {
 				error("Pressure must use atomic admission")
 
 			override suspend fun admit(
-				candidate: SourceEvidenceCandidate<*>,
+				delivery: SourceDeliveryCandidate,
 				checkpoint: SensorAdmissionCheckpoint,
-			): SourceAdmissionHandoff = SourceAdmissionHandoff.Durable(candidate.sourceSequence)
+			): SourceDeliveryAdmissionHandoff = SourceDeliveryAdmissionHandoff.Durable(listOf(1L))
 		}
 		assertTrue(fixture.runtime.start(activePlan, sink) is SourceStartResult.Started)
 		val initialListener = fixture.listener()
@@ -1219,8 +1281,6 @@ class PressureSourceRuntimeTest {
 			operationEvents?.add("complete-retirement")
 			completeRetirement(firstArg())
 		}
-		var allocatedSequence = 0L
-		coEvery { registrations.allocateSequence(any(), any()) } answers { ++allocatedSequence }
 		var acceptanceCalls = 0
 		coEvery { registrations.markAccepted(any(), any(), any()) } coAnswers {
 			acceptanceCalls++
@@ -1357,6 +1417,7 @@ class PressureSourceRuntimeTest {
 	)
 
 	private class RecordingPressureSink : SourceEventSink {
+		val deliveries = mutableListOf<SourceDeliveryCandidate>()
 		val candidates = mutableListOf<SourceEvidenceCandidate<*>>()
 		val windows: List<PressureWindowPayload>
 			get() = candidates.map { candidate -> candidate.payload as PressureWindowPayload }
@@ -1366,11 +1427,12 @@ class PressureSourceRuntimeTest {
 			error("Pressure must not fall back to non-atomic admission")
 
 		override suspend fun admit(
-			candidate: SourceEvidenceCandidate<*>,
+			delivery: SourceDeliveryCandidate,
 			checkpoint: SensorAdmissionCheckpoint,
-		): SourceAdmissionHandoff {
-			candidates += candidate
-			return SourceAdmissionHandoff.Durable(nextOrdinal++)
+		): SourceDeliveryAdmissionHandoff {
+			deliveries += delivery
+			candidates += delivery.units.single().evidence
+			return SourceDeliveryAdmissionHandoff.Durable(listOf(nextOrdinal++))
 		}
 	}
 

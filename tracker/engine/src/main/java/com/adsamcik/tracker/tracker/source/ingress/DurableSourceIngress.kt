@@ -66,6 +66,12 @@ interface DurableSourceIngress {
 /** Batch admission contract adopted source-by-source without widening legacy ingress mocks. */
 interface DurableSourceDeliveryIngress {
 	suspend fun admit(delivery: SourceDeliveryCandidate): DeliveryAdmissionResult
+	suspend fun admit(
+		delivery: SourceDeliveryCandidate,
+		checkpoint: SensorAdmissionCheckpoint,
+	): DeliveryAdmissionResult = DeliveryAdmissionResult.RetryableFailure(
+		AdmissionFailureCode.ATOMIC_CHECKPOINT_UNSUPPORTED,
+	)
 }
 
 sealed interface DeliveryAdmissionResult {
@@ -414,10 +420,29 @@ class RoomDurableSourceIngress @Inject constructor(
 		}
 	}
 
-	override suspend fun admit(delivery: SourceDeliveryCandidate): DeliveryAdmissionResult {
+	override suspend fun admit(delivery: SourceDeliveryCandidate): DeliveryAdmissionResult =
+		admitDeliveryInternal(delivery, checkpoint = null)
+
+	override suspend fun admit(
+		delivery: SourceDeliveryCandidate,
+		checkpoint: SensorAdmissionCheckpoint,
+	): DeliveryAdmissionResult = admitDeliveryInternal(delivery, checkpoint)
+
+	// The transaction keeps authorization selection, replay, allocation, WAL, and checkpoint in one
+	// auditable block. Splitting those phases across helpers would obscure their shared Room boundary.
+	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
+	private suspend fun admitDeliveryInternal(
+		delivery: SourceDeliveryCandidate,
+		checkpoint: SensorAdmissionCheckpoint?,
+	): DeliveryAdmissionResult {
 		if (!delivery.hasValidObservedTimes()) {
 			return DeliveryAdmissionResult.PermanentFailure(
 				AdmissionFailureCode.INVALID_OBSERVED_TIME,
+			)
+		}
+		if (checkpoint != null && !checkpoint.matches(delivery)) {
+			return DeliveryAdmissionResult.PermanentFailure(
+				AdmissionFailureCode.STALE_REGISTRATION_GENERATION,
 			)
 		}
 		val startupGate = trackingStartupGateProvider.get()
@@ -475,6 +500,34 @@ class RoomDurableSourceIngress @Inject constructor(
 						AdmissionFailureCode.LIFECYCLE_BARRIER_IN_PROGRESS,
 					)
 				}
+				val brokerDao = database.sourceBrokerDao()
+				if (checkpoint != null) {
+					val checkpointEvidence = delivery.units.single().evidence
+					if (evidenceState.retainedFromMs?.let { retainedFromMs ->
+							checkpointEvidence.acquiredAtMs < retainedFromMs
+						} == true
+					) {
+						return@transaction DeliveryAdmissionResult.PermanentFailure(
+							AdmissionFailureCode.BEFORE_RETENTION_BOUNDARY,
+						)
+					}
+					val checkpointRegistration = database.sourceRegistrationStateDao().get(
+						checkpoint.source.stableCode,
+						checkpoint.ownerScope,
+					)
+					val checkpointMatchesCurrentRegistration = checkpointRegistration != null &&
+						checkpointRegistration.sourceInstanceId == checkpoint.sourceInstanceId &&
+						checkpointRegistration.clockDomainId == checkpoint.clockDomainId &&
+						checkpointRegistration.registrationGeneration == checkpoint.registrationGeneration
+					if (!checkpointMatchesCurrentRegistration) {
+						return@transaction DeliveryAdmissionResult.PermanentFailure(
+							AdmissionFailureCode.STALE_REGISTRATION_GENERATION,
+						)
+					}
+					delivery.checkpointRegistrationFailure(brokerDao)?.let { failure ->
+						return@transaction DeliveryAdmissionResult.PermanentFailure(failure)
+					}
+				}
 
 				val existing = walDao.deliveryUnits(
 					delivery.source.stableCode,
@@ -483,7 +536,23 @@ class RoomDurableSourceIngress @Inject constructor(
 					delivery.identity.value,
 				)
 				if (existing.isNotEmpty()) {
-					return@transaction resolveDeliveryReplay(delivery, encodedUnits, existing)
+					val replay = resolveDeliveryReplay(delivery, encodedUnits, existing)
+					if (replay is DeliveryAdmissionResult.Duplicate && checkpoint != null) {
+						delivery.checkpointReplayFailure(
+							checkpoint = checkpoint,
+							stored = existing.single(),
+							brokerDao = brokerDao,
+						)?.let { failure ->
+							return@transaction DeliveryAdmissionResult.PermanentFailure(failure)
+						}
+						persistAtomicCheckpoint(
+							checkpoint = checkpoint,
+							admissionOrdinal = replay.units.single().admissionOrdinal,
+							causalOrderElapsedRealtimeNanos =
+								delivery.units.single().evidence.receivedElapsedRealtimeNanos,
+						)
+					}
+					return@transaction replay
 				}
 
 				val authorized = mutableListOf<AuthorizedDeliveryUnit>()
@@ -503,7 +572,6 @@ class RoomDurableSourceIngress @Inject constructor(
 						?: return@transaction DeliveryAdmissionResult.PermanentFailure(
 							AdmissionFailureCode.STALE_REGISTRATION_GENERATION,
 						)
-					val brokerDao = database.sourceBrokerDao()
 					val registration = brokerDao.registrationAtObservedTime(
 						evidence.source.stableCode,
 						evidence.registrationGeneration,
@@ -640,6 +708,14 @@ class RoomDurableSourceIngress @Inject constructor(
 				val rowIds = walDao.insertDeliveryUnits(entities)
 				check(rowIds.size == entities.size && rowIds.all { it > 0L }) {
 					"Unable to append every source delivery unit"
+				}
+				checkpoint?.let {
+					persistAtomicCheckpoint(
+						checkpoint = it,
+						admissionOrdinal = rowIds.single(),
+						causalOrderElapsedRealtimeNanos =
+							delivery.units.single().evidence.receivedElapsedRealtimeNanos,
+					)
 				}
 				check(stateDao.incrementRevision(now) == 1) {
 					"Unable to advance source-evidence revision after delivery admission"
@@ -1068,12 +1144,132 @@ private fun SensorAdmissionCheckpoint.matches(candidate: SourceEvidenceCandidate
 		providerSequenceThrough == payloadProviderSequence
 }
 
+private fun SensorAdmissionCheckpoint.matches(delivery: SourceDeliveryCandidate): Boolean =
+	delivery.units.singleOrNull()?.evidence?.let { evidence -> matches(evidence) } == true
+
+private suspend fun SourceDeliveryCandidate.checkpointRegistrationFailure(
+	brokerDao: SourceBrokerDao,
+): AdmissionFailureCode? {
+	val unit = units.singleOrNull() ?: return AdmissionFailureCode.STALE_REGISTRATION_GENERATION
+	val evidence = unit.evidence
+	val physicalFingerprint = evidence.physicalConfigurationFingerprint
+		?: return AdmissionFailureCode.STALE_REGISTRATION_GENERATION
+	val interval = evidence.observedTimeInterval()
+	val endRegistration = brokerDao.registrationAtObservedTime(
+		evidence.source.stableCode,
+		evidence.registrationGeneration,
+		evidence.sourceInstanceId.value,
+		evidence.clockDomainId,
+		physicalFingerprint,
+		interval.endElapsedRealtimeNanos,
+	)
+	val startRegistration = if (interval.startElapsedRealtimeNanos == interval.endElapsedRealtimeNanos) {
+		endRegistration
+	} else {
+		brokerDao.registrationAtObservedTime(
+			evidence.source.stableCode,
+			evidence.registrationGeneration,
+			evidence.sourceInstanceId.value,
+			evidence.clockDomainId,
+			physicalFingerprint,
+			interval.startElapsedRealtimeNanos,
+		)
+	}
+	return when {
+		startRegistration == null && endRegistration == null ->
+			AdmissionFailureCode.STALE_REGISTRATION_GENERATION
+		startRegistration != endRegistration ->
+			AdmissionFailureCode.AUTHORIZATION_BOUNDARY_SPLIT_REQUIRED
+		else -> null
+	}
+}
+
+private suspend fun SourceDeliveryCandidate.checkpointReplayFailure(
+	checkpoint: SensorAdmissionCheckpoint,
+	stored: SourceDeliveryUnitIdentityRow,
+	brokerDao: SourceBrokerDao,
+): AdmissionFailureCode? {
+	val evidence = units.single().evidence
+	if (!stored.matchesCheckpointEnvelope(checkpoint, evidence)) {
+		return AdmissionFailureCode.STALE_REGISTRATION_GENERATION
+	}
+	return evidence.checkpointReplayAuthorizationFailure(stored, brokerDao)
+}
+
+private fun SourceDeliveryUnitIdentityRow.matchesCheckpointEnvelope(
+	checkpoint: SensorAdmissionCheckpoint,
+	evidence: SourceEvidenceCandidate<*>,
+): Boolean {
+	val matchesCheckpoint = sourceInstanceId == checkpoint.sourceInstanceId &&
+		registrationGeneration == checkpoint.registrationGeneration
+	val matchesEvidence = sourceInstanceId == evidence.sourceInstanceId.value &&
+		registrationGeneration == evidence.registrationGeneration &&
+		physicalConfigurationFingerprint == evidence.physicalConfigurationFingerprint
+	return matchesCheckpoint && matchesEvidence
+}
+
+private suspend fun SourceEvidenceCandidate<*>.checkpointReplayAuthorizationFailure(
+	stored: SourceDeliveryUnitIdentityRow,
+	brokerDao: SourceBrokerDao,
+): AdmissionFailureCode? {
+	val authorization = authorizationAcrossIntrinsicInterval(brokerDao)
+	val endAuthorization = authorization.end ?: return AdmissionFailureCode.STALE_SOURCE_POLICY
+	if (endAuthorization.isDenied) return AdmissionFailureCode.STALE_SOURCE_POLICY
+	val startAuthorization = authorization.start
+		?: return AdmissionFailureCode.AUTHORIZATION_BOUNDARY_SPLIT_REQUIRED
+	return when {
+		startAuthorization.authorizationRevision != endAuthorization.authorizationRevision ->
+			AdmissionFailureCode.AUTHORIZATION_BOUNDARY_SPLIT_REQUIRED
+		startAuthorization.isDenied -> AdmissionFailureCode.STALE_SOURCE_POLICY
+		authorizationRevision != endAuthorization.authorizationRevision ||
+			stored.authorizationRevision != endAuthorization.authorizationRevision ->
+			AdmissionFailureCode.STALE_SOURCE_POLICY
+		else -> null
+	}
+}
+
+private suspend fun SourceEvidenceCandidate<*>.authorizationAcrossIntrinsicInterval(
+	brokerDao: SourceBrokerDao,
+): IntrinsicIntervalAuthorization {
+	val interval = observedTimeInterval()
+	val endAuthorization = brokerDao.authorizationAt(
+		source.stableCode,
+		registrationGeneration,
+		clockDomainId,
+		interval.endElapsedRealtimeNanos,
+	).toAuthorizationSnapshotOrNull()
+	val startAuthorization = if (interval.startElapsedRealtimeNanos == interval.endElapsedRealtimeNanos) {
+		endAuthorization
+	} else {
+		brokerDao.authorizationAt(
+			source.stableCode,
+			registrationGeneration,
+			clockDomainId,
+			interval.startElapsedRealtimeNanos,
+		).toAuthorizationSnapshotOrNull()
+	}
+	return IntrinsicIntervalAuthorization(startAuthorization, endAuthorization)
+}
+
+private data class IntrinsicIntervalAuthorization(
+	val start: SourceAuthorizationSnapshot?,
+	val end: SourceAuthorizationSnapshot?,
+)
+
 private fun SourceDeliveryCandidate.hasValidObservedTimes(): Boolean = units.all { unit ->
 	val evidence = unit.evidence
 	evidence.hasValidObservedTime() &&
+		unit.preservesIntrinsicSensorInterval() &&
 		unit.observedIntervalStartElapsedRealtimeNanos >= 0L &&
 		unit.observedIntervalStartElapsedRealtimeNanos <= evidence.observedElapsedRealtimeNanos &&
 		evidence.observedElapsedRealtimeNanos <= evidence.receivedElapsedRealtimeNanos
+}
+
+private fun SourceDeliveryUnit.preservesIntrinsicSensorInterval(): Boolean = when (evidence.payload) {
+	is StepCounterWindowPayload, is PressureWindowPayload ->
+		observedIntervalStartElapsedRealtimeNanos ==
+			evidence.observedTimeInterval().startElapsedRealtimeNanos
+	else -> true
 }
 
 private fun SourceEvidenceCandidate<*>.observedIntervalStartElapsedRealtimeNanos(): Long =

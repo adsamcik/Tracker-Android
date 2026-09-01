@@ -75,6 +75,11 @@ class DurableSourceEventSinkFactory private constructor(
 
 		override suspend fun admit(delivery: SourceDeliveryCandidate): SourceDeliveryAdmissionHandoff =
 			admitAndDrain(delivery.mapEvidence(bind))
+
+		override suspend fun admit(
+			delivery: SourceDeliveryCandidate,
+			checkpoint: SensorAdmissionCheckpoint,
+		): SourceDeliveryAdmissionHandoff = admitAndDrain(delivery.mapEvidence(bind), checkpoint)
 	}
 
 	private suspend fun admitAndDrain(candidate: SourceEvidenceCandidate<*>): SourceAdmissionHandoff {
@@ -122,6 +127,29 @@ class DurableSourceEventSinkFactory private constructor(
 			SourceAdmissionFailureCode.INVALID_EVIDENCE,
 		)
 		val result = activeDeliveryIngress.admit(delivery)
+		if (result is DeliveryAdmissionResult.Admitted) {
+			val unitsByIndex = delivery.units.associateBy(SourceDeliveryUnit::unitIndex)
+			result.units.forEach { admitted ->
+				unitsByIndex[admitted.unitIndex]?.let { unit ->
+					onDurableMotionEvidence(unit.evidence, duplicate = false)
+				}
+			}
+		}
+		if (result.isDurable) {
+			delivery.units.asSequence().map { it.evidence.source }.distinct()
+				.forEach(::requestSourceDrain)
+		}
+		return result.toHandoff()
+	}
+
+	private suspend fun admitAndDrain(
+		delivery: SourceDeliveryCandidate,
+		checkpoint: SensorAdmissionCheckpoint,
+	): SourceDeliveryAdmissionHandoff {
+		val activeDeliveryIngress = deliveryIngress ?: return SourceDeliveryAdmissionHandoff.RetryableFailure(
+			SourceAdmissionFailureCode.ATOMIC_CHECKPOINT_UNSUPPORTED,
+		)
+		val result = activeDeliveryIngress.admit(delivery, checkpoint)
 		if (result is DeliveryAdmissionResult.Admitted) {
 			val unitsByIndex = delivery.units.associateBy(SourceDeliveryUnit::unitIndex)
 			result.units.forEach { admitted ->

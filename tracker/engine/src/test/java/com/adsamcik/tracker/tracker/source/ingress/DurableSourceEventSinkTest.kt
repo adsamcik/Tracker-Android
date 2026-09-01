@@ -100,6 +100,33 @@ class DurableSourceEventSinkTest {
 	}
 
 	@Test
+	fun `delivery checkpoint is forwarded only through the atomic delivery seam`() = runTest {
+		val ingress = mockk<DurableSourceIngress>()
+		val deliveryIngress = mockk<DurableSourceDeliveryIngress>()
+		val recovery = mockk<SourcePipelineRecovery>(relaxed = true)
+		val delivery = delivery()
+		val checkpoint = mockk<SensorAdmissionCheckpoint>()
+		coEvery { deliveryIngress.admit(delivery, checkpoint) } returns
+			DeliveryAdmissionResult.Duplicate(
+				delivery.units.mapIndexed { index, _ ->
+					DeliveryAdmissionResult.AdmittedUnit(
+						unitIndex = index,
+						eventId = SourceEventId("event-$index"),
+						admissionOrdinal = index + 7L,
+					)
+				},
+			)
+		val subject = DurableSourceEventSinkFactory(ingress, deliveryIngress, recovery)
+
+		subject.unbound.admit(delivery, checkpoint)
+			.shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.Duplicate>()
+
+		coVerify(exactly = 1) { deliveryIngress.admit(delivery, checkpoint) }
+		coVerify(exactly = 0) { deliveryIngress.admit(delivery) }
+		verify(exactly = 1) { recovery.requestCommittedWorkDrain() }
+	}
+
+	@Test
 	fun `atomic delivery runs motion only for sparsely admitted unit indexes`() = runTest {
 		val ingress = mockk<DurableSourceIngress>()
 		val deliveryIngress = mockk<DurableSourceDeliveryIngress>()

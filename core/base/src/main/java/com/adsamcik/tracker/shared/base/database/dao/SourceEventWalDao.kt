@@ -77,8 +77,11 @@ interface SourceEventWalDao {
 		sourceSequence: Long,
 	): SourceEventWalEntity?
 
+	/** Immutable WAL fields required to distinguish replay from checkpoint authority. */
 	@Query(
 		"SELECT event_id, admission_ordinal, delivery_unit_index, delivery_unit_count, " +
+			"source_instance_id, registration_generation, physical_configuration_fingerprint, " +
+			"authorization_revision, " +
 			"observed_elapsed_nanos, observed_interval_start_nanos, " +
 			"payload_version, payload_checksum " +
 			"FROM source_event_wal WHERE source_kind = :sourceKind " +
@@ -246,6 +249,11 @@ data class SourceDeliveryUnitIdentityRow(
 	@ColumnInfo(name = "admission_ordinal") val admissionOrdinal: Long,
 	@ColumnInfo(name = "delivery_unit_index") val deliveryUnitIndex: Int?,
 	@ColumnInfo(name = "delivery_unit_count") val deliveryUnitCount: Int?,
+	@ColumnInfo(name = "source_instance_id") val sourceInstanceId: String,
+	@ColumnInfo(name = "registration_generation") val registrationGeneration: Long,
+	@ColumnInfo(name = "physical_configuration_fingerprint")
+	val physicalConfigurationFingerprint: String?,
+	@ColumnInfo(name = "authorization_revision") val authorizationRevision: Long?,
 	@ColumnInfo(name = "observed_elapsed_nanos") val observedElapsedNanos: Long,
 	@ColumnInfo(name = "observed_interval_start_nanos") val observedIntervalStartNanos: Long?,
 	@ColumnInfo(name = "payload_version") val payloadVersion: Int,
