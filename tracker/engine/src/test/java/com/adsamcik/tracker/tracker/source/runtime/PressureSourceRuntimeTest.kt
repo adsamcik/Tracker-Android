@@ -12,6 +12,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEnt
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.tracker.source.model.PressurePlan
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
+import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
+import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
@@ -612,6 +614,9 @@ class PressureSourceRuntimeTest {
 		releaseAdmission.complete(Unit)
 		testScheduler.runCurrent()
 		assertEquals(2, fixture.listeners.size)
+		verify(exactly = 2) {
+			fixture.sensorManager.registerListener(any(), fixture.sensor, 50_000, 0)
+		}
 		val resumedListener = fixture.listener()
 		exactListener.onSensorChanged(
 			pressureEvent(fixture.sensor, 65L * 1_000_001L, 1_001f),
@@ -733,6 +738,246 @@ class PressureSourceRuntimeTest {
 	}
 
 	@Test
+	fun `minimum delay clamps start and reports an unsatisfied demand floor`() = runTest {
+		val activePlan = plan(
+			revision = 1L,
+			hardwareSamplePeriodMicros = 50_000,
+			maximumReportLatencyMicros = 0,
+		)
+		val providerRequest = activePlan.toPressureProviderRequest(
+			sensorMinimumDelayMicros = 200_000,
+			sensorMaximumDelayMicros = 10_000_000,
+			fifoMaxEventCount = 0,
+		)
+		val fixture = fixture(
+			scope = this,
+			registrationsToReturn = listOf(
+				registration(
+					activePlan,
+					authorizationRevision = 1L,
+					requiresAcceptance = true,
+					providerFingerprint = providerRequest.physicalConfigurationFingerprint,
+				),
+			),
+			sensorMinimumDelayMicros = 200_000,
+			sensorMaximumDelayMicros = 10_000_000,
+			fifoMaxEventCount = 0,
+		)
+		val sink = SourceEventSink { SourceAdmissionHandoff.Durable(1L) }
+
+		val result = assertIs<SourceStartResult.Degraded>(fixture.runtime.start(activePlan, sink))
+		assertEquals(SourceApplyStatus.DEGRADED, result.applied.status)
+		assertEquals(
+			setOf(SourceDegradedReason.DEMAND_FLOOR_UNSATISFIED),
+			result.applied.degradedReasons,
+		)
+		verify(exactly = 1) {
+			fixture.sensorManager.registerListener(any(), fixture.sensor, 200_000, 0)
+		}
+		coVerify(exactly = 1) {
+			fixture.registrations.begin(
+				SourceKind.PRESSURE,
+				activePlan.revision,
+				providerRequest.physicalConfigurationFingerprint,
+				any(),
+				any(),
+			)
+		}
+
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `requested batching without a FIFO is explicitly degraded and does not flush`() = runTest {
+		val activePlan = plan(
+			revision = 1L,
+			hardwareSamplePeriodMicros = 200_000,
+			maximumReportLatencyMicros = 60_000_000,
+		)
+		val providerRequest = activePlan.toPressureProviderRequest(
+			sensorMinimumDelayMicros = 50_000,
+			sensorMaximumDelayMicros = 10_000_000,
+			fifoMaxEventCount = 0,
+		)
+		val fixture = fixture(
+			scope = this,
+			registrationsToReturn = listOf(
+				registration(
+					activePlan,
+					authorizationRevision = 1L,
+					requiresAcceptance = true,
+					providerFingerprint = providerRequest.physicalConfigurationFingerprint,
+				),
+			),
+			sensorMinimumDelayMicros = 50_000,
+			sensorMaximumDelayMicros = 10_000_000,
+			fifoMaxEventCount = 0,
+		)
+		val sink = SourceEventSink { SourceAdmissionHandoff.Durable(1L) }
+
+		val result = assertIs<SourceStartResult.Degraded>(fixture.runtime.start(activePlan, sink))
+		assertEquals(SourceApplyStatus.DEGRADED, result.applied.status)
+		assertEquals(
+			setOf(SourceDegradedReason.PROVIDER_UNAVAILABLE),
+			result.applied.degradedReasons,
+		)
+		val exactListener = fixture.listener()
+		verify(exactly = 1) {
+			fixture.sensorManager.registerListener(exactListener, fixture.sensor, 200_000, 0)
+		}
+
+		val acknowledgement = fixture.runtime.quiesce(pressureCutoff())
+		assertEquals(ProviderFlushOutcome.NOT_SUPPORTED, acknowledgement.providerFlushOutcome)
+		assertEquals(ProviderCoverage.CALLBACKS_ENTERED_BEFORE_BARRIER, acknowledgement.providerCoverage)
+		verify(exactly = 0) { fixture.sensorManager.flush(any<SensorEventListener>()) }
+	}
+
+	@Test
+	fun `FIFO preserves requested latency and attempts an exact flush`() = runTest {
+		val activePlan = plan(
+			revision = 1L,
+			hardwareSamplePeriodMicros = 200_000,
+			maximumReportLatencyMicros = 10_000_000,
+		)
+		val providerRequest = activePlan.toPressureProviderRequest(
+			sensorMinimumDelayMicros = 50_000,
+			sensorMaximumDelayMicros = 60_000_000,
+			fifoMaxEventCount = 3,
+		)
+		val fixture = fixture(
+			scope = this,
+			registrationsToReturn = listOf(
+				registration(
+					activePlan,
+					authorizationRevision = 1L,
+					requiresAcceptance = true,
+					providerFingerprint = providerRequest.physicalConfigurationFingerprint,
+				),
+			),
+			sensorMinimumDelayMicros = 50_000,
+			sensorMaximumDelayMicros = 60_000_000,
+			fifoMaxEventCount = 3,
+			flushResult = false,
+		)
+		val sink = SourceEventSink { SourceAdmissionHandoff.Durable(1L) }
+
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(activePlan, sink))
+		val exactListener = fixture.listener()
+		verify(exactly = 1) {
+			fixture.sensorManager.registerListener(exactListener, fixture.sensor, 200_000, 10_000_000)
+		}
+
+		val acknowledgement = fixture.runtime.quiesce(pressureCutoff())
+		assertEquals(ProviderFlushOutcome.FAILED, acknowledgement.providerFlushOutcome)
+		assertEquals(ProviderCoverage.PROVIDER_COMPLETENESS_UNOBSERVABLE, acknowledgement.providerCoverage)
+		verify(exactly = 1) { fixture.sensorManager.flush(exactListener) }
+	}
+
+	@Test
+	fun `maximum-delay equivalent plan refresh is degraded without replacing the listener`() = runTest {
+		val initialPlan = plan(revision = 1L, hardwareSamplePeriodMicros = 1_000_000)
+		val refreshedPlan = plan(revision = 2L, hardwareSamplePeriodMicros = 60_000_000)
+		val providerRequest = initialPlan.toPressureProviderRequest(
+			sensorMinimumDelayMicros = 50_000,
+			sensorMaximumDelayMicros = 1_000_000,
+			fifoMaxEventCount = 0,
+		)
+		assertEquals(
+			providerRequest.physicalConfigurationFingerprint,
+			refreshedPlan.toPressureProviderRequest(
+				sensorMinimumDelayMicros = 50_000,
+				sensorMaximumDelayMicros = 1_000_000,
+				fifoMaxEventCount = 0,
+			).physicalConfigurationFingerprint,
+		)
+		val fixture = fixture(
+			scope = this,
+			registrationsToReturn = listOf(
+				registration(initialPlan, 1L, requiresAcceptance = true,
+					providerFingerprint = providerRequest.physicalConfigurationFingerprint),
+				registration(refreshedPlan, 2L,
+					providerFingerprint = providerRequest.physicalConfigurationFingerprint),
+			),
+			sensorMinimumDelayMicros = 50_000,
+			sensorMaximumDelayMicros = 1_000_000,
+			fifoMaxEventCount = 0,
+		)
+		val sink = SourceEventSink { SourceAdmissionHandoff.Durable(1L) }
+
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(initialPlan, sink))
+		val refreshed = assertIs<SourceApplyResult.Degraded>(fixture.runtime.reconfigure(refreshedPlan, sink))
+		assertEquals(SourceApplyStatus.DEGRADED, refreshed.state.status)
+		assertEquals(
+			setOf(SourceDegradedReason.PROVIDER_UNAVAILABLE),
+			refreshed.state.degradedReasons,
+		)
+
+		verify(exactly = 1) {
+			fixture.sensorManager.registerListener(any(), fixture.sensor, 1_000_000, 0)
+		}
+		verify(exactly = 0) { fixture.sensorManager.unregisterListener(any<SensorEventListener>()) }
+		coVerify(exactly = 1) {
+			fixture.registrations.refreshActiveAuthorization(
+				SourceKind.PRESSURE,
+				any(),
+				refreshedPlan.revision,
+				providerRequest.physicalConfigurationFingerprint,
+				any(),
+				any(),
+			)
+		}
+
+		fixture.runtime.close()
+		verify(exactly = 1) { fixture.sensorManager.unregisterListener(any<SensorEventListener>()) }
+	}
+
+	@Test
+	fun `maximum-delay replacement reports degraded while collecting at the supported cadence`() = runTest {
+		val initialPlan = plan(revision = 1L, hardwareSamplePeriodMicros = 50_000)
+		val replacementPlan = plan(revision = 2L, hardwareSamplePeriodMicros = 2_000_000)
+		val replacementRequest = replacementPlan.toPressureProviderRequest(
+			sensorMinimumDelayMicros = 50_000,
+			sensorMaximumDelayMicros = 1_000_000,
+			fifoMaxEventCount = 0,
+		)
+		val fixture = fixture(
+			scope = this,
+			registrationsToReturn = listOf(
+				registration(initialPlan, authorizationRevision = 1L, requiresAcceptance = true),
+				registration(
+					replacementPlan,
+					authorizationRevision = 2L,
+					requiresAcceptance = true,
+					providerFingerprint = replacementRequest.physicalConfigurationFingerprint,
+				),
+			),
+			sensorMinimumDelayMicros = 50_000,
+			sensorMaximumDelayMicros = 1_000_000,
+			fifoMaxEventCount = 0,
+		)
+		val sink = SourceEventSink { SourceAdmissionHandoff.Durable(1L) }
+
+		assertIs<SourceStartResult.Started>(fixture.runtime.start(initialPlan, sink))
+		val replacement = assertIs<SourceApplyResult.Degraded>(
+			fixture.runtime.reconfigure(replacementPlan, sink),
+		)
+		assertEquals(SourceApplyStatus.DEGRADED, replacement.state.status)
+		assertEquals(
+			setOf(SourceDegradedReason.PROVIDER_UNAVAILABLE),
+			replacement.state.degradedReasons,
+		)
+		verify(exactly = 1) {
+			fixture.sensorManager.registerListener(any(), fixture.sensor, 50_000, 0)
+		}
+		verify(exactly = 1) {
+			fixture.sensorManager.registerListener(any(), fixture.sensor, 1_000_000, 0)
+		}
+		verify(exactly = 1) { fixture.sensorManager.unregisterListener(any<SensorEventListener>()) }
+
+		fixture.runtime.close()
+	}
+
+	@Test
 	fun `compatible authorization refresh keeps one SensorManager registration`() = runTest {
 		val initialPlan = plan(revision = 1L, aggregationWindowMs = 5_000L)
 		val refreshedPlan = plan(revision = 2L, aggregationWindowMs = 1_000L)
@@ -750,7 +995,7 @@ class PressureSourceRuntimeTest {
 		assertTrue(fixture.runtime.reconfigure(refreshedPlan, refreshedSink) is SourceApplyResult.Applied)
 
 		verify(exactly = 1) {
-			fixture.sensorManager.registerListener(any(), fixture.sensor, 50_000, 1_000_000)
+			fixture.sensorManager.registerListener(any(), fixture.sensor, 50_000, 0)
 		}
 		verify(exactly = 0) { fixture.sensorManager.unregisterListener(any<SensorEventListener>()) }
 		coVerify(exactly = 1) { fixture.registrations.begin(any(), any(), any(), any(), any()) }
@@ -814,7 +1059,7 @@ class PressureSourceRuntimeTest {
 		assertTrue(fixture.runtime.reconfigure(replacementPlan, sink) is SourceApplyResult.Applied)
 
 		verify(exactly = 2) {
-			fixture.sensorManager.registerListener(any(), fixture.sensor, any(), 1_000_000)
+			fixture.sensorManager.registerListener(any(), fixture.sensor, any(), 0)
 		}
 		verify(exactly = 1) { fixture.sensorManager.unregisterListener(any<SensorEventListener>()) }
 
@@ -913,6 +1158,10 @@ class PressureSourceRuntimeTest {
 			},
 		completeRetirement: suspend (SourceRegistrationRetirementToken) -> Boolean = { true },
 		operationEvents: MutableList<String>? = null,
+		sensorMinimumDelayMicros: Int = 50_000,
+		sensorMaximumDelayMicros: Int = 60_000_000,
+		fifoMaxEventCount: Int = 0,
+		flushResult: Boolean = false,
 	): Fixture {
 		val context = mockk<Context>()
 		val sensorManager = mockk<SensorManager>()
@@ -924,8 +1173,10 @@ class PressureSourceRuntimeTest {
 		every { context.getSystemService(Context.SENSOR_SERVICE) } returns sensorManager
 		every { sensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE) } returns sensor
 		every { sensor.type } returns Sensor.TYPE_PRESSURE
-		every { sensor.fifoMaxEventCount } returns 0
-		every { sensor.minDelay } returns 50_000
+		every { sensor.fifoMaxEventCount } returns fifoMaxEventCount
+		every { sensor.minDelay } returns sensorMinimumDelayMicros
+		every { sensor.maxDelay } returns sensorMaximumDelayMicros
+		every { sensorManager.flush(any<SensorEventListener>()) } returns flushResult
 		val registrationCall = every {
 			sensorManager.registerListener(
 				capture(listenerSlot),
@@ -994,12 +1245,13 @@ class PressureSourceRuntimeTest {
 	private fun plan(
 		revision: Long,
 		hardwareSamplePeriodMicros: Int = 50_000,
+		maximumReportLatencyMicros: Int = 0,
 		aggregationWindowMs: Long = 5_000L,
 	) = PressurePlan(
 		revision = revision,
 		enabled = true,
 		hardwareSamplePeriodMicros = hardwareSamplePeriodMicros,
-		maximumReportLatencyMicros = 1_000_000,
+		maximumReportLatencyMicros = maximumReportLatencyMicros,
 		aggregationWindowMs = aggregationWindowMs,
 		movementGatedBurst = false,
 	)
@@ -1027,6 +1279,7 @@ class PressureSourceRuntimeTest {
 		generation: Long = 9L,
 		effectiveElapsedNanos: Long = authorizationRevision,
 		purpose: String = SourceBrokerPurpose.SESSION_CAPTURE,
+		providerFingerprint: String = plan.physicalConfigurationFingerprint(),
 	): SourceRegistration {
 		val capturedPurpose = purpose in setOf(
 			SourceBrokerPurpose.SESSION_CAPTURE,
@@ -1080,7 +1333,7 @@ class PressureSourceRuntimeTest {
 				collectedDataEpoch = 1L,
 				updatedAtMs = 1L,
 			),
-			physicalConfigurationFingerprint = plan.physicalConfigurationFingerprint(),
+			physicalConfigurationFingerprint = providerFingerprint,
 			authorization = authorization,
 			requiresProviderAcceptance = requiresAcceptance,
 		)

@@ -12,7 +12,6 @@ import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.altitude.BarometricAltitudeFormula
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.PressurePlan
-import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
@@ -61,6 +60,7 @@ class PressureSourceRuntime @Inject constructor(
 	private var callbackToken: PressureCallbackToken? = null
 	private var listener: PressureRegistrationListener? = null
 	private var currentPlan: PressurePlan? = null
+	private var currentProviderRequest: PressureProviderRequest? = null
 	private var currentSink: SourceEventSink? = null
 	private var windowLane: Channel<PressureCompletedWindow>? = null
 	private var windowCapacity = PressureWindowCapacityGuard(MAX_PENDING_PRESSURE_WINDOWS)
@@ -268,8 +268,18 @@ class PressureSourceRuntime @Inject constructor(
 		val pressureSensor = sensor ?: return SourceStartResult.Blocked(
 			appliedState(source, plan.revision, null, SourceApplyStatus.BLOCKED, SystemClock.elapsedRealtimeNanos()),
 		)
+		val providerRequest = plan.toPressureProviderRequest(
+			sensorMinimumDelayMicros = pressureSensor.minDelay,
+			sensorMaximumDelayMicros = pressureSensor.maxDelay,
+			fifoMaxEventCount = pressureSensor.fifoMaxEventCount,
+		)
 		val nextRegistration = runCatchingNonCancellation {
-			registrations.begin(source, plan.revision, plan.physicalConfigurationFingerprint(), System.currentTimeMillis())
+			registrations.begin(
+				source,
+				plan.revision,
+				providerRequest.physicalConfigurationFingerprint,
+				System.currentTimeMillis(),
+			)
 		}.getOrElse {
 			return SourceStartResult.Failed(
 				appliedState(source, plan.revision, null, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()),
@@ -338,6 +348,7 @@ class PressureSourceRuntime @Inject constructor(
 		registration = nextRegistration
 		listener = nextListener
 		currentPlan = plan
+		currentProviderRequest = providerRequest
 		currentSink = sink
 		synchronized(callbackLock) {
 			windowLane = nextWindowLane
@@ -358,8 +369,8 @@ class PressureSourceRuntime @Inject constructor(
 				sensorManager.registerListener(
 					nextListener,
 					pressureSensor,
-					plan.hardwareSamplePeriodMicros.coerceAtLeast(1),
-					plan.maximumReportLatencyMicros.coerceAtLeast(0),
+					providerRequest.samplePeriodMicros,
+					providerRequest.maximumReportLatencyMicros,
 				)
 		} catch (cancelled: CancellationException) {
 			cleanupFailedStart(nextRegistration, nextListener, nextToken, nextWindowLane,
@@ -434,10 +445,13 @@ class PressureSourceRuntime @Inject constructor(
 			}
 		}
 		nextActor.start()
-		batchingEnabled = plan.maximumReportLatencyMicros > 0 && pressureSensor.fifoMaxEventCount > 0
-		return SourceStartResult.Started(
-			appliedState(source, plan.revision, nextRegistration, SourceApplyStatus.APPLIED, SystemClock.elapsedRealtimeNanos()),
-		)
+		batchingEnabled = providerRequest.batchingEnabled
+		val state = pressureAppliedState(plan, nextRegistration, providerRequest)
+		return if (providerRequest.degradedReasons.isEmpty()) {
+			SourceStartResult.Started(state)
+		} else {
+			SourceStartResult.Degraded(state)
+		}
 	}
 
 	private fun newPressureAccumulator(
@@ -454,10 +468,18 @@ class PressureSourceRuntime @Inject constructor(
 		onAuthorizationCommitted: () -> Unit = {},
 	): SourceApplyResult? {
 		val activePlan = currentPlan ?: return null
+		val activeProviderRequest = currentProviderRequest ?: return null
 		val activeRegistration = registration ?: return null
 		val activeSink = currentSink ?: return null
+		val pressureSensor = sensor ?: return null
+		val providerRequest = plan.toPressureProviderRequest(
+			sensorMinimumDelayMicros = pressureSensor.minDelay,
+			sensorMaximumDelayMicros = pressureSensor.maxDelay,
+			fifoMaxEventCount = pressureSensor.fifoMaxEventCount,
+		)
 		if (!plan.enabled ||
-			activePlan.physicalConfigurationFingerprint() != plan.physicalConfigurationFingerprint()
+			activeProviderRequest.physicalConfigurationFingerprint !=
+			providerRequest.physicalConfigurationFingerprint
 		) return null
 		val refreshLatch = synchronized(callbackLock) {
 			if (capacityResumeGate.capacityPaused) return null
@@ -481,7 +503,7 @@ class PressureSourceRuntime @Inject constructor(
 					source,
 					activeRegistration,
 					plan.revision,
-					plan.physicalConfigurationFingerprint(),
+					providerRequest.physicalConfigurationFingerprint,
 					System.currentTimeMillis(),
 					refreshLatch.effectiveElapsedRealtimeNanos,
 				)
@@ -491,6 +513,7 @@ class PressureSourceRuntime @Inject constructor(
 				resolvePendingAuthorizationRefreshLocked(
 					refreshLatch,
 					activePlan,
+					activeProviderRequest,
 					PressureCallbackAttribution(activeRegistration, activeSink),
 					refreshed = false,
 				)
@@ -503,6 +526,7 @@ class PressureSourceRuntime @Inject constructor(
 				resolvePendingAuthorizationRefreshLocked(
 					refreshLatch,
 					activePlan,
+					activeProviderRequest,
 					PressureCallbackAttribution(activeRegistration, activeSink),
 					refreshed = false,
 				)
@@ -518,6 +542,7 @@ class PressureSourceRuntime @Inject constructor(
 				resolvePendingAuthorizationRefreshLocked(
 					refreshLatch,
 					activePlan,
+					activeProviderRequest,
 					PressureCallbackAttribution(activeRegistration, activeSink),
 					refreshed = false,
 				)
@@ -534,6 +559,7 @@ class PressureSourceRuntime @Inject constructor(
 				resolvePendingAuthorizationRefreshLocked(
 					refreshLatch,
 					activePlan,
+					activeProviderRequest,
 					PressureCallbackAttribution(activeRegistration, activeSink),
 					refreshed = false,
 				)
@@ -546,6 +572,7 @@ class PressureSourceRuntime @Inject constructor(
 			resolvePendingAuthorizationRefreshLocked(
 				refreshLatch,
 				plan,
+				providerRequest,
 				PressureCallbackAttribution(
 					registration = refreshed,
 					sink = sink,
@@ -562,11 +589,29 @@ class PressureSourceRuntime @Inject constructor(
 				retryable = true,
 			)
 		}
-		return SourceApplyResult.Applied(
-			appliedState(source, plan.revision, refreshed, SourceApplyStatus.APPLIED,
-				SystemClock.elapsedRealtimeNanos()),
-		)
+		val state = pressureAppliedState(plan, refreshed, providerRequest)
+		return if (providerRequest.degradedReasons.isEmpty()) {
+			SourceApplyResult.Applied(state)
+		} else {
+			SourceApplyResult.Degraded(state)
+		}
 	}
+
+	private fun pressureAppliedState(
+		plan: PressurePlan,
+		activeRegistration: SourceRegistration,
+		providerRequest: PressureProviderRequest,
+	) = appliedState(
+		source = source,
+		revision = plan.revision,
+		registration = activeRegistration,
+		status = if (providerRequest.degradedReasons.isEmpty()) {
+			SourceApplyStatus.APPLIED
+		} else {
+			SourceApplyStatus.DEGRADED
+		},
+		elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos(),
+	).copy(degradedReasons = providerRequest.degradedReasons)
 
 	private suspend fun cleanupFailedStart(
 		failedRegistration: SourceRegistration,
@@ -917,12 +962,19 @@ class PressureSourceRuntime @Inject constructor(
 	private fun prepareCapacityResumeLocked(fence: Long): PreparedPressureCapacityResume? =
 		synchronized(callbackLock) {
 			val plan = currentPlan ?: return@synchronized null
+			val providerRequest = currentProviderRequest ?: return@synchronized null
 			val activeRegistration = registration ?: return@synchronized null
 			val sink = currentSink ?: return@synchronized null
-			if (!capacityResumeCurrentLocked(fence, plan, activeRegistration, sink)) {
+			if (!capacityResumeCurrentLocked(fence, plan, providerRequest, activeRegistration, sink)) {
 				return@synchronized null
 			}
-			val context = PressureCapacityResumeContext(fence, plan, activeRegistration, sink)
+			val context = PressureCapacityResumeContext(
+				fence,
+				plan,
+				providerRequest,
+				activeRegistration,
+				sink,
+			)
 			val boundaryWindow = drainPressureWindowAtBoundary(accumulator, lastAccumulatedReception)
 			val boundaryAttribution = accumulatorAttribution
 			val settlement = boundaryWindow?.let { boundary ->
@@ -969,6 +1021,7 @@ class PressureSourceRuntime @Inject constructor(
 				if (!capacityResumeCurrentLocked(
 						context.fence,
 						context.plan,
+						context.providerRequest,
 						context.registration,
 						context.sink,
 					)
@@ -984,6 +1037,7 @@ class PressureSourceRuntime @Inject constructor(
 			capacityResumeCurrentLocked(
 				context.fence,
 				context.plan,
+				context.providerRequest,
 				context.registration,
 				context.sink,
 			) && accumulator?.snapshot() == null
@@ -1001,6 +1055,7 @@ class PressureSourceRuntime @Inject constructor(
 			capacityResumeCurrentLocked(
 				context.fence,
 				context.plan,
+				context.providerRequest,
 				context.registration,
 				context.sink,
 			) && callbackGate.accepts(token)
@@ -1020,8 +1075,8 @@ class PressureSourceRuntime @Inject constructor(
 				sensorManager.registerListener(
 					resumedListener,
 					pressureSensor,
-					context.plan.hardwareSamplePeriodMicros.coerceAtLeast(1),
-					context.plan.maximumReportLatencyMicros.coerceAtLeast(0),
+					context.providerRequest.samplePeriodMicros,
+					context.providerRequest.maximumReportLatencyMicros,
 				)
 		} catch (cancelled: CancellationException) {
 			cleanupFailedCapacityResumeCandidate(token, resumedListener)
@@ -1041,6 +1096,7 @@ class PressureSourceRuntime @Inject constructor(
 			if (!capacityResumeCurrentLocked(
 					context.fence,
 					context.plan,
+					context.providerRequest,
 					context.registration,
 					context.sink,
 				) || !callbackGate.accepts(token)
@@ -1096,6 +1152,7 @@ class PressureSourceRuntime @Inject constructor(
 	private fun capacityResumeCurrentLocked(
 		fence: Long,
 		plan: PressurePlan,
+		providerRequest: PressureProviderRequest,
 		activeRegistration: SourceRegistration,
 		sink: SourceEventSink,
 	): Boolean = capacityResumeFence == fence &&
@@ -1106,6 +1163,7 @@ class PressureSourceRuntime @Inject constructor(
 		cutoffElapsedNanos == null &&
 		stopDeadlineElapsedNanos == null &&
 		currentPlan === plan &&
+		currentProviderRequest === providerRequest &&
 		registration === activeRegistration &&
 		currentSink === sink &&
 		windowLane != null
@@ -1142,6 +1200,7 @@ class PressureSourceRuntime @Inject constructor(
 	private data class PressureCapacityResumeContext(
 		val fence: Long,
 		val plan: PressurePlan,
+		val providerRequest: PressureProviderRequest,
 		val registration: SourceRegistration,
 		val sink: SourceEventSink,
 	)
@@ -1434,6 +1493,7 @@ class PressureSourceRuntime @Inject constructor(
 	private fun resolvePendingAuthorizationRefreshLocked(
 		refreshLatch: PressureAuthorizationRefreshLatch,
 		resolvedPlan: PressurePlan,
+		resolvedProviderRequest: PressureProviderRequest,
 		resolvedAttribution: PressureCallbackAttribution,
 		refreshed: Boolean,
 	): Boolean {
@@ -1450,6 +1510,7 @@ class PressureSourceRuntime @Inject constructor(
 			registration = resolvedAttribution.registration
 			currentSink = resolvedAttribution.sink
 			currentPlan = resolvedPlan
+			currentProviderRequest = resolvedProviderRequest
 		}
 		val buffered = refreshLatch.drainBufferedSamples()
 		pendingAuthorizationRefresh = null
@@ -1605,6 +1666,7 @@ class PressureSourceRuntime @Inject constructor(
 		cutoffElapsedNanos = null
 		stopDeadlineElapsedNanos = null
 		currentPlan = null
+		currentProviderRequest = null
 		currentSink = null
 		retirementIntent = null
 		exceptionalActorFailurePending = false
