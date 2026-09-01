@@ -1690,3 +1690,32 @@ Each entry records repository evidence and does not duplicate the final architec
   candidate fact lane, product query/UI, activation, second writer, ambient Pressure, or rollout.
   Device FIFO/flush/cadence, process death, battery, deletion, retention, and portable export/import
   remain separate Pressure gates.
+
+## TI-D127 — Location provider acceptance establishes an immutable callback observation floor
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` at `a4caa9f12`; physical provider behavior and canonical
+  cutover remain `UNVERIFIED`
+- Owner/date: protected Location source owner after correction and fresh independent review,
+  2026-09-01
+- Alternatives: accept every timestamp-fresh provider fix after callback registration; use receipt
+  time as the floor; replace the floor during compatible authorization refresh; let a duplicate's
+  older WAL ordinal replace a newer stop boundary; capture one exact acceptance boundary and only
+  raise it while the same physical provider registration remains active
+- Evidence: the focused Location gate passed `58/58` for runtime, delivery, normalization,
+  prerequisites, backend, and framework-provider selection. Fresh review independently reran the
+  same six suites (`BUILD SUCCESSFUL in 1m 22s`, 234 tasks) and found no scoped high issue. Detekt
+  and affected lint also pass with no new issue.
+- Decision: a newly reserved Location generation captures one elapsed boundary before provider
+  start, rejects synchronous callbacks until durable provider acceptance, and installs the exact
+  accepted callback context with the stricter provider/authorization floor. A compatible
+  authorization refresh keeps the physical registration and raises the floor to the maximum of its
+  prior value, the refresh boundary, and durable authorization authority. Every retry repartitions
+  immutable raw fixes against that floor plus the current cutoff, future-time, and freshness rules.
+  Durable and duplicate admissions update a physical-run ordinal high-water; only a new physical
+  registration resets it.
+- Consequences: cached pre-start fixes cannot become qualified Location evidence or create a false
+  gap, and replay of an older retained row cannot weaken stop settlement. No second canonical
+  writer, shadow comparison, destination-owner transition, provider activation, or rollout is
+  introduced. These host/Robolectric tests do not prove real fused/framework callbacks, passive or
+  active cadence, process death, reboot, FGS legality, battery, OEM behavior, product query/UI, or a
+  Location cutover decision.

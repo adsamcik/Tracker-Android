@@ -2131,3 +2131,31 @@ advertised or realized FIFO/flush behavior, process death, device lifecycle, or 
 Pressure still needs its typed quality fact lane, `RECORDING`, production query/UI, deletion,
 retention, portable export/import, and representative-device proof before the independent Pressure
 vertical is complete. Continuous ambient Pressure remains outside the default product.
+
+## Location immutable observation-floor checkpoint (2026-09-01)
+
+### Outcome
+
+The protected Location runtime correction is accepted and fast-forwarded into local `dev/v10` at
+`a4caa9f12`. A newly reserved physical registration now captures an immutable elapsed boundary,
+rejects synchronous callbacks until provider acceptance is durable, and admits only fixes at or
+after the stricter provider/authorization floor. A compatible authorization refresh retains the
+same provider but may only raise that floor. Retry processing requalifies the immutable raw fixes
+against the latest cutoff, freshness, future-time, and floor constraints.
+
+Location stop settlement also retains a monotonic admission-ordinal high-water for the complete
+physical run. A later callback that resolves through an older duplicate WAL row cannot replace a
+newer durable boundary. The high-water resets only when a new physical registration starts.
+
+### Evidence and boundary
+
+- The author gate passed all 58 focused Location tests plus Detekt and affected lint.
+- Fresh independent review found no scoped high and reran the same six suites: `58/58`, zero
+  failures/errors/skips, `BUILD SUCCESSFUL in 1m 22s` with 234 tasks.
+- The clean three-file commit was already based on the latest local integration checkpoint and was
+  locally fast-forwarded; nothing was pushed, activated, released, or deployed.
+
+This is JVM/Robolectric/static evidence. It does not prove real fused/framework provider callbacks,
+passive or active cadence, process death, reboot, foreground-service legality, battery impact, OEM
+behavior, production query/UI, deletion/export, or shadow parity. The existing canonical Location
+writer remains the only canonical writer; no destination-owner cutover or rollout action occurred.
