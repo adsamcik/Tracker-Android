@@ -149,6 +149,26 @@ class LocationSourceDeliveryTest {
 	}
 
 	@Test
+	fun `provider observation floor excludes older fixes and includes the exact boundary`() {
+		val before = location("before", elapsedNanos = 699L, wallTimeMs = 1L)
+		val exact = location("exact", elapsedNanos = 700L, wallTimeMs = 2L)
+		val after = location("after", elapsedNanos = 800L, wallTimeMs = 3L)
+
+		val partition = partitionLocationBatch(
+			locations = listOf(after, before, exact),
+			receivedElapsedRealtimeNanos = 1_000L,
+			cutoffElapsedRealtimeNanos = null,
+			minimumObservedElapsedRealtimeNanos = 700L,
+		)
+
+		assertEquals(listOf("exact", "after"), partition.eligible.map { it.location.provider })
+		assertEquals(1, partition.preBoundaryCount)
+		assertEquals(0, partition.poisonCount)
+		assertEquals(0, partition.postCutoffCount)
+		assertEquals(0, partition.staleCount)
+	}
+
+	@Test
 	fun `admission reconciliation is bounded and backs off`() {
 		assertEquals(listOf(25L, 100L, 500L, 2_000L), (0..3).map(::locationAdmissionRetryDelayMs))
 		assertEquals(null, locationAdmissionRetryDelayMs(4))
@@ -178,7 +198,12 @@ class LocationSourceDeliveryTest {
 		receivedElapsedNanos = sequence,
 		receivedWallTimeMs = sequence,
 		callbackSequence = sequence,
-		context = LocationCallbackContext(ATTRIBUTION, approximate = false, sink = NOOP_SINK),
+		context = LocationCallbackContext(
+			ATTRIBUTION,
+			approximate = false,
+			sink = NOOP_SINK,
+			minimumObservedElapsedRealtimeNanos = 0L,
+		),
 	)
 
 	private fun uncheckedDelivery(

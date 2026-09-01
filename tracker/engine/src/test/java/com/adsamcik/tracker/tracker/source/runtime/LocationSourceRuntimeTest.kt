@@ -20,6 +20,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import java.time.Duration
 import kotlin.test.assertFailsWith
 import kotlin.test.assertSame
 import kotlinx.coroutines.CancellationException
@@ -32,6 +33,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -43,11 +45,166 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowSystemClock
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 @OptIn(ExperimentalCoroutinesApi::class)
 class LocationSourceRuntimeTest {
+	@Test
+	fun `all fixes before durable provider acceptance floor are ignored without a false gap`() = runTest {
+		val fixture = locationRuntimeFixture(
+			backgroundScope,
+			requiresProviderAcceptance = true,
+		)
+		assertTrue(fixture.runtime.start(fixture.plan, fixture.sink) is SourceStartResult.Started)
+		val acceptanceFloor = requireNotNull(fixture.providerAcceptanceElapsedNanos())
+		require(acceptanceFloor > 2L)
+
+		fixture.providerCallback()(
+			listOf(
+				location(50.0, acceptanceFloor - 2L),
+				location(51.0, acceptanceFloor - 1L),
+			),
+		)
+		runCurrent()
+		val ack = fixture.runtime.quiesce(sessionCutoff(Long.MAX_VALUE))
+
+		assertTrue(fixture.sink.deliveries.isEmpty())
+		assertEquals(1L, ack.callbackEntryBarrierSequence)
+		assertEquals(0L, ack.failedAdmissionCount)
+		assertNull(ack.lastDurablyAdmittedSequence)
+		assertNull(ack.lastAdmissionOrdinal)
+		coVerify(exactly = 1) {
+			fixture.registrations.markAccepted(any(), any(), acceptanceFloor)
+		}
+	}
+
+	@Test
+	fun `reused active registration applies a local post backend start floor`() = runTest {
+		val fixture = locationRuntimeFixture(backgroundScope)
+		assertTrue(fixture.runtime.start(fixture.plan, fixture.sink) is SourceStartResult.Started)
+
+		fixture.providerCallback()(
+			listOf(
+				location(50.0, 1L),
+				location(51.0, SystemClock.elapsedRealtimeNanos()),
+			),
+		)
+		runCurrent()
+		val admitted = fixture.sink.deliveries.single().units.single().evidence.payload as
+			LocationFixPayload
+
+		assertEquals(51.0, admitted.latitudeDegrees, 0.0)
+		coVerify(exactly = 0) { fixture.registrations.markAccepted(any(), any(), any()) }
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `mixed floor batch retries and duplicate replay keep stable qualified identity and stop accounting`() =
+		runTest {
+			val sink = RecordingLocationSink { _, attempt ->
+				when (attempt) {
+					1 -> SourceDeliveryAdmissionHandoff.RetryableFailure(
+						SourceAdmissionFailureCode.STORAGE_UNAVAILABLE,
+					)
+					2 -> SourceDeliveryAdmissionHandoff.Durable(listOf(41L))
+					else -> SourceDeliveryAdmissionHandoff.Duplicate(listOf(41L))
+				}
+			}
+			val fixture = locationRuntimeFixture(
+				backgroundScope,
+				sink = sink,
+				requiresProviderAcceptance = true,
+			)
+			assertTrue(fixture.runtime.start(fixture.plan, sink) is SourceStartResult.Started)
+			val floor = requireNotNull(fixture.providerAcceptanceElapsedNanos())
+			require(floor > 1L)
+			ShadowSystemClock.advanceBy(Duration.ofMillis(1L))
+			val original = listOf(
+				location(52.0, floor + 1L),
+				location(50.0, floor - 1L),
+				location(51.0, floor),
+			)
+			fixture.providerCallback()(original)
+			runCurrent()
+			advanceTimeBy(25L)
+			runCurrent()
+			fixture.providerCallback()(original.reversed())
+			runCurrent()
+
+			assertEquals(3, sink.deliveries.size)
+			assertEquals(1, sink.deliveries.map(SourceDeliveryCandidate::identity).distinct().size)
+			assertTrue(sink.deliveries.all { delivery ->
+				delivery.units.map { unit ->
+					(unit.evidence.payload as LocationFixPayload).latitudeDegrees
+				} == listOf(51.0, 52.0)
+			})
+			val ack = fixture.runtime.quiesce(sessionCutoff(Long.MAX_VALUE))
+
+			assertEquals(SourceStopStatus.COMPLETE, ack.status)
+			assertEquals(2L, ack.callbackEntryBarrierSequence)
+			assertEquals(0L, ack.failedAdmissionCount)
+			assertEquals(2L, ack.lastDurablyAdmittedSequence)
+			assertEquals(41L, ack.lastAdmissionOrdinal)
+		}
+
+	@Test
+	fun `older duplicate ordinal cannot regress stop high water and physical restart resets it`() = runTest {
+		val sink = RecordingLocationSink { _, attempt ->
+			when (attempt) {
+				1 -> SourceDeliveryAdmissionHandoff.Durable(listOf(100L))
+				2 -> SourceDeliveryAdmissionHandoff.Duplicate(listOf(10L))
+				3 -> SourceDeliveryAdmissionHandoff.Durable(listOf(5L))
+				else -> error("Unexpected Location admission attempt $attempt")
+			}
+		}
+		val fixture = locationRuntimeFixture(backgroundScope, sink = sink)
+		assertTrue(fixture.runtime.start(fixture.plan, sink) is SourceStartResult.Started)
+		ShadowSystemClock.advanceBy(Duration.ofMillis(1L))
+		fixture.providerCallback()(
+			listOf(location(50.0, SystemClock.elapsedRealtimeNanos())),
+		)
+		runCurrent()
+
+		val refreshedPlan = fixture.plan.copy(revision = 2L)
+		val refreshedRegistration = registration(
+			plan = refreshedPlan,
+			authorizationRevision = 2L,
+		)
+		coEvery {
+			fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
+		} returns refreshedRegistration
+		assertTrue(fixture.runtime.reconfigure(refreshedPlan, sink) is SourceApplyResult.Applied)
+		ShadowSystemClock.advanceBy(Duration.ofMillis(1L))
+		fixture.providerCallback()(
+			listOf(location(51.0, SystemClock.elapsedRealtimeNanos())),
+		)
+		runCurrent()
+
+		val firstStop = fixture.runtime.quiesce(sessionCutoff(Long.MAX_VALUE))
+
+		assertEquals(2L, firstStop.lastDurablyAdmittedSequence)
+		assertEquals(100L, firstStop.lastAdmissionOrdinal)
+		assertEquals(0L, firstStop.failedAdmissionCount)
+		assertNull(firstStop.unresolvedSequenceStart)
+		assertNull(firstStop.unresolvedSequenceEndInclusive)
+
+		assertTrue(fixture.runtime.start(refreshedPlan, sink) is SourceStartResult.Started)
+		ShadowSystemClock.advanceBy(Duration.ofMillis(1L))
+		fixture.providerCallback()(
+			listOf(location(52.0, SystemClock.elapsedRealtimeNanos())),
+		)
+		runCurrent()
+		val restartedStop = fixture.runtime.quiesce(sessionCutoff(Long.MAX_VALUE))
+
+		assertEquals(1L, restartedStop.lastDurablyAdmittedSequence)
+		assertEquals(5L, restartedStop.lastAdmissionOrdinal)
+		assertEquals(0L, restartedStop.failedAdmissionCount)
+		assertNull(restartedStop.unresolvedSequenceStart)
+		assertNull(restartedStop.unresolvedSequenceEndInclusive)
+	}
+
 	@Test
 	fun `callbacks before durable provider acceptance are not admitted`() = runTest {
 		val fixture = locationRuntimeFixture(
@@ -341,6 +498,69 @@ class LocationSourceRuntimeTest {
 			assertEquals(3L, ack.lastDurablyAdmittedSequence)
 			coVerify(exactly = 1) { fusedBackend.stop() }
 		}
+
+	@Test
+	fun `compatible authorization refresh raises observation floor without restarting provider`() = runTest {
+		val initialPlan = locationPlan(revision = 1L)
+		val refreshedPlan = initialPlan.copy(revision = 2L)
+		val initialRegistration = registration(initialPlan, 1L, requiresProviderAcceptance = true)
+		val registrations = mockk<SourceRegistrationRepository>(relaxed = true)
+		val fusedBackend = mockk<FusedLocationSourceBackend>(relaxed = true)
+		val frameworkBackend = mockk<FrameworkLocationSourceBackend>(relaxed = true)
+		var callback: ((List<android.location.Location>) -> Unit)? = null
+		var acceptanceFloor: Long? = null
+		var refreshFloor: Long? = null
+		coEvery { registrations.begin(any(), any(), any(), any(), any()) } returns initialRegistration
+		coEvery { registrations.markAccepted(any(), any(), any()) } answers {
+			acceptanceFloor = thirdArg()
+			null
+		}
+		coEvery {
+			registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
+		} answers {
+			val effectiveElapsedRealtimeNanos = arg<Long>(5)
+			refreshFloor = effectiveElapsedRealtimeNanos
+			registration(
+				refreshedPlan,
+				authorizationRevision = 2L,
+				requiresProviderAcceptance = false,
+				authorizationEffectiveElapsedRealtimeNanos = effectiveElapsedRealtimeNanos,
+			)
+		}
+		coEvery { fusedBackend.start(any(), any()) } answers {
+			callback = secondArg()
+			LocationBackendStartOutcome.STARTED
+		}
+		coEvery { fusedBackend.flush() } returns ProviderFlushOutcome.NOT_REQUESTED
+		coEvery { fusedBackend.stop() } returns RegistrationRemovalOutcome.REMOVED
+		stubRetirementRepository(registrations)
+		val runtime = locationRuntime(backgroundScope, registrations, fusedBackend, frameworkBackend)
+		val initialSink = RecordingLocationSink()
+		val refreshedSink = RecordingLocationSink()
+
+		assertTrue(runtime.start(initialPlan, initialSink) is SourceStartResult.Started)
+		ShadowSystemClock.advanceBy(Duration.ofMillis(1L))
+		assertTrue(runtime.reconfigure(refreshedPlan, refreshedSink) is SourceApplyResult.Applied)
+		val authorizationFloor = requireNotNull(refreshFloor)
+		require(authorizationFloor > requireNotNull(acceptanceFloor))
+		require(authorizationFloor > 1L)
+		requireNotNull(callback)(
+			listOf(
+				location(50.0, authorizationFloor - 1L),
+				location(51.0, authorizationFloor),
+			),
+		)
+		runCurrent()
+
+		assertTrue(initialSink.deliveries.isEmpty())
+		val admitted = refreshedSink.deliveries.single().units.single().evidence
+		assertEquals(51.0, (admitted.payload as LocationFixPayload).latitudeDegrees, 0.0)
+		assertEquals(2L, admitted.authorizationRevision)
+		coVerify(exactly = 1) { fusedBackend.start(any(), any()) }
+		val ack = runtime.quiesce(sessionCutoff(Long.MAX_VALUE))
+		assertEquals(0L, ack.failedAdmissionCount)
+		assertEquals(1L, ack.lastDurablyAdmittedSequence)
+	}
 
 	@Test
 	fun `claim transfer fences stale shutdown across compatible refresh and replacement`() = runTest {
@@ -907,6 +1127,43 @@ class LocationSourceRuntimeTest {
 	}
 
 	@Test
+	fun `flush batch straddling stop keeps inclusive pre cutoff fix and drops later sibling`() = runTest {
+		val fixture = locationRuntimeFixture(
+			backgroundScope,
+			requiresProviderAcceptance = true,
+		)
+		assertTrue(fixture.runtime.start(fixture.plan, fixture.sink) is SourceStartResult.Started)
+		val floor = requireNotNull(fixture.providerAcceptanceElapsedNanos())
+		ShadowSystemClock.advanceBy(Duration.ofMillis(1L))
+		val postCutoff = SystemClock.elapsedRealtimeNanos()
+		require(postCutoff > floor)
+		coEvery { fixture.fusedBackend.flush() } answers {
+			fixture.providerCallback()(
+				listOf(
+					location(51.0, postCutoff),
+					location(50.0, floor),
+				),
+			)
+			ProviderFlushOutcome.COMPLETE
+		}
+
+		val ack = fixture.runtime.quiesce(sessionCutoff(floor))
+
+		val delivery = fixture.sink.deliveries.single()
+		assertEquals(1, delivery.units.size)
+		assertEquals(
+			50.0,
+			(delivery.units.single().evidence.payload as LocationFixPayload).latitudeDegrees,
+			0.0,
+		)
+		assertEquals(ProviderFlushOutcome.COMPLETE, ack.providerFlushOutcome)
+		assertEquals(SourceStopStatus.COMPLETE, ack.status)
+		assertEquals(1L, ack.callbackEntryBarrierSequence)
+		assertEquals(0L, ack.failedAdmissionCount)
+		assertEquals(1L, ack.lastDurablyAdmittedSequence)
+	}
+
+	@Test
 	fun `retry rechecks a cutoff installed after the first admission attempt`() = runTest {
 		val sink = RecordingLocationSink { _, attempt ->
 			if (attempt == 1) {
@@ -961,6 +1218,7 @@ class LocationSourceRuntimeTest {
 		val registrations: SourceRegistrationRepository,
 		val fusedBackend: FusedLocationSourceBackend,
 		val providerCallback: () -> ((List<android.location.Location>) -> Unit),
+		val providerAcceptanceElapsedNanos: () -> Long?,
 	)
 
 	private data class FailingStartFixture(
@@ -1021,13 +1279,17 @@ class LocationSourceRuntimeTest {
 		val fusedBackend = mockk<FusedLocationSourceBackend>(relaxed = true)
 		val frameworkBackend = mockk<FrameworkLocationSourceBackend>(relaxed = true)
 		var callback: ((List<android.location.Location>) -> Unit)? = null
+		var providerAcceptanceElapsedNanos: Long? = null
 		coEvery { registrations.begin(any(), any(), any(), any(), any()) } returns registration(
 			plan,
 			authorizationRevision = 1L,
 			requiresProviderAcceptance = requiresProviderAcceptance,
 		)
 		stubRetirementRepository(registrations)
-		coEvery { registrations.markAccepted(any(), any(), any()) } returns null
+		coEvery { registrations.markAccepted(any(), any(), any()) } answers {
+			providerAcceptanceElapsedNanos = thirdArg()
+			null
+		}
 		coEvery { fusedBackend.start(any(), any()) } answers {
 			callback = secondArg()
 			repeat(callbacksDuringStart) { index ->
@@ -1057,6 +1319,7 @@ class LocationSourceRuntimeTest {
 			registrations = registrations,
 			fusedBackend = fusedBackend,
 			providerCallback = { requireNotNull(callback) },
+			providerAcceptanceElapsedNanos = { providerAcceptanceElapsedNanos },
 		)
 	}
 
@@ -1174,6 +1437,7 @@ class LocationSourceRuntimeTest {
 		authorizationRevision: Long,
 		generation: Long = 9L,
 		requiresProviderAcceptance: Boolean = false,
+		authorizationEffectiveElapsedRealtimeNanos: Long = authorizationRevision,
 	): SourceRegistration {
 		val demand = SourceDemandEntity(
 			demandId = "location-demand-$authorizationRevision",
@@ -1191,7 +1455,7 @@ class LocationSourceRuntimeTest {
 			maximumAgeMs = 60_000L,
 			desiredLatencyMs = 5_000L,
 			requestedBootId = "boot-1",
-			requestedElapsedRealtimeNanos = authorizationRevision,
+			requestedElapsedRealtimeNanos = authorizationEffectiveElapsedRealtimeNanos,
 			requestedAtMs = 1L,
 			status = SourceDemandEntity.STATUS_ACTIVE,
 			retireBootId = null,
@@ -1205,7 +1469,7 @@ class LocationSourceRuntimeTest {
 				authorizationRevision = authorizationRevision,
 				demands = listOf(demand),
 				effectiveBootId = "boot-1",
-				effectiveElapsedRealtimeNanos = authorizationRevision,
+				effectiveElapsedRealtimeNanos = authorizationEffectiveElapsedRealtimeNanos,
 				effectiveWallTimeMs = 1L,
 			).toAuthorizationSnapshotOrNull(),
 		)

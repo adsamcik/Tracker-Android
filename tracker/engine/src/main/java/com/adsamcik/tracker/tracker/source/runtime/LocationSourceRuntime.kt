@@ -74,6 +74,7 @@ class LocationSourceRuntime @Inject internal constructor(
 	@Volatile
 	private var cutoffElapsedNanos: Long? = null
 	private var metrics = RuntimeAdmissionMetrics()
+	private var lastAdmissionOrdinalHighWater: Long? = null
 	private var callbackOfferFailureCoverage = LocationCallbackFailureCoverage()
 	private var terminalStopAck: SourceStopAck? = null
 	private var retainedRetirementAck: SourceStopAck? = null
@@ -250,6 +251,7 @@ class LocationSourceRuntime @Inject internal constructor(
 		val activePlan = currentPlan ?: return null
 		val activeRegistration = registration ?: return null
 		val activeToken = callbackToken ?: return null
+		val activeContext = callbackContext ?: return null
 		if (!plan.enabled) return null
 		_capabilities.value = currentCapabilities(activeBackend)
 		val application = prerequisiteEvaluator.evaluate(
@@ -292,7 +294,15 @@ class LocationSourceRuntime @Inject internal constructor(
 				registration = refreshed
 				currentPlan = effectivePlan
 				currentSink = sink
-				callbackContext = refreshed.toLocationCallbackContext(effectivePlan, sink)
+				callbackContext = refreshed.toLocationCallbackContext(
+					plan = effectivePlan,
+					sink = sink,
+					minimumObservedElapsedRealtimeNanos = maxOf(
+						activeContext.minimumObservedElapsedRealtimeNanos,
+						refreshBoundary,
+						refreshed.authorization.effectiveElapsedRealtimeNanos,
+					),
+				)
 				acceptingCallbacks = true
 				true
 			}
@@ -365,7 +375,7 @@ class LocationSourceRuntime @Inject internal constructor(
 			currentSink = sink
 			activeBackend = backend
 			callbackToken = nextCallbackToken
-			callbackContext = nextRegistration.toLocationCallbackContext(effectivePlan, sink)
+			callbackContext = null
 			queue = nextQueue
 			acceptingCallbacks = false
 		}
@@ -373,6 +383,7 @@ class LocationSourceRuntime @Inject internal constructor(
 		processedCallbackSequence.value = 0L
 		cutoffElapsedNanos = null
 		metrics = RuntimeAdmissionMetrics()
+		lastAdmissionOrdinalHighWater = null
 		callbackOfferFailureCoverage = LocationCallbackFailureCoverage()
 		// Provider start is apply-then-report: bind the explicit attempt before the call so a
 		// throwing or partially failed publication remains exactly claim-addressable.
@@ -409,9 +420,20 @@ class LocationSourceRuntime @Inject internal constructor(
 				)
 			}
 		}
+		// A durable ACTIVE row may be reused even though this runtime has just attached a new local
+		// provider callback. In that case durable history cannot prove when this callback became
+		// authoritative, so the local post-start boundary is deliberately stricter.
+		val postBackendStartElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+		var minimumObservedElapsedRealtimeNanos = postBackendStartElapsedRealtimeNanos
 		val accepted = try {
 			if (nextRegistration.requiresProviderAcceptance) {
-				registrations.markAccepted(nextRegistration, System.currentTimeMillis())
+				val acceptedElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+				registrations.markAccepted(
+					nextRegistration,
+					System.currentTimeMillis(),
+					acceptedElapsedRealtimeNanos,
+				)
+				minimumObservedElapsedRealtimeNanos = acceptedElapsedRealtimeNanos
 			}
 			true
 		} catch (cancelled: CancellationException) {
@@ -454,6 +476,14 @@ class LocationSourceRuntime @Inject internal constructor(
 		}
 		synchronized(callbackLock) {
 			check(callbackToken === nextCallbackToken && registration === nextRegistration)
+			callbackContext = nextRegistration.toLocationCallbackContext(
+				plan = effectivePlan,
+				sink = sink,
+				minimumObservedElapsedRealtimeNanos = maxOf(
+					minimumObservedElapsedRealtimeNanos,
+					nextRegistration.authorization.effectiveElapsedRealtimeNanos,
+				),
+			)
 			acceptingCallbacks = true
 		}
 		nextActor.start()
@@ -928,12 +958,7 @@ class LocationSourceRuntime @Inject internal constructor(
 				}
 				// Quiesce may install a cutoff while this batch is in a bounded retry delay. Rebuild
 				// from the immutable raw batch before every sink call so no later retry can cross it.
-				val partition = partitionLocationBatch(
-					locations = batch.locations,
-					receivedElapsedRealtimeNanos = batch.receivedElapsedNanos,
-					cutoffElapsedRealtimeNanos = cutoffElapsedNanos,
-					maximumEvidenceAgeNanos = batch.context.maximumEvidenceAgeNanos,
-				)
+				val partition = batch.partitionAgainst(cutoffElapsedNanos)
 				if (partition.poisonCount > 0) recordGapOnce()
 				if (partition.eligible.isEmpty()) return
 				val delivery = locationDeliveryCandidate(
@@ -947,13 +972,13 @@ class LocationSourceRuntime @Inject internal constructor(
 				when (val handoff = batch.context.sink.admit(delivery)) {
 					is SourceDeliveryAdmissionHandoff.Durable -> {
 						val lastOrdinal = handoff.admissionOrdinals.maxOrNull()
-						if (lastOrdinal != null) metrics.recordDurable(batch.callbackSequence, lastOrdinal)
+						if (lastOrdinal != null) recordDurableAdmission(batch.callbackSequence, lastOrdinal)
 						else recordGapOnce()
 						return
 					}
 					is SourceDeliveryAdmissionHandoff.Duplicate -> {
 						val lastOrdinal = handoff.existingAdmissionOrdinals.maxOrNull()
-						if (lastOrdinal != null) metrics.recordDurable(batch.callbackSequence, lastOrdinal)
+						if (lastOrdinal != null) recordDurableAdmission(batch.callbackSequence, lastOrdinal)
 						else recordGapOnce()
 						return
 					}
@@ -979,6 +1004,16 @@ class LocationSourceRuntime @Inject internal constructor(
 		} catch (_: Exception) {
 			recordGapOnce()
 		}
+	}
+
+	private fun recordDurableAdmission(callbackSequence: Long, admissionOrdinal: Long) {
+		// A replay can resolve a later callback with an older WAL row. Advance callback resolution
+		// without allowing that duplicate ordinal to regress the physical run's stop boundary.
+		val ordinalHighWater = lastAdmissionOrdinalHighWater
+			?.coerceAtLeast(admissionOrdinal)
+			?: admissionOrdinal
+		lastAdmissionOrdinalHighWater = ordinalHighWater
+		metrics.recordDurable(callbackSequence, ordinalHighWater)
 	}
 
 	private fun hasCurrentLocationPermission(): Boolean = permissionGate.allowsCurrentCallback()
@@ -1124,8 +1159,13 @@ internal data class LocationCallbackContext(
 	val attribution: LocationDeliveryAttribution,
 	val approximate: Boolean,
 	val sink: SourceEventSink,
+	val minimumObservedElapsedRealtimeNanos: Long,
 	val maximumEvidenceAgeNanos: Long = Long.MAX_VALUE,
-)
+) {
+	init {
+		require(minimumObservedElapsedRealtimeNanos >= 0L)
+	}
+}
 
 internal enum class LocationLaneOffer { ACCEPTED, CAPACITY_EXHAUSTED, CLOSED }
 
@@ -1173,6 +1213,17 @@ internal data class LocationBatchPartition(
 	val poisonCount: Int,
 	val postCutoffCount: Int,
 	val staleCount: Int,
+	val preBoundaryCount: Int,
+)
+
+private fun RawLocationBatch.partitionAgainst(
+	cutoffElapsedRealtimeNanos: Long?,
+): LocationBatchPartition = partitionLocationBatch(
+	locations = locations,
+	receivedElapsedRealtimeNanos = receivedElapsedNanos,
+	cutoffElapsedRealtimeNanos = cutoffElapsedRealtimeNanos,
+	minimumObservedElapsedRealtimeNanos = context.minimumObservedElapsedRealtimeNanos,
+	maximumEvidenceAgeNanos = context.maximumEvidenceAgeNanos,
 )
 
 /**
@@ -1183,17 +1234,22 @@ internal fun partitionLocationBatch(
 	locations: List<Location>,
 	receivedElapsedRealtimeNanos: Long,
 	cutoffElapsedRealtimeNanos: Long?,
+	minimumObservedElapsedRealtimeNanos: Long = 0L,
 	maximumEvidenceAgeNanos: Long = Long.MAX_VALUE,
 ): LocationBatchPartition {
+	require(minimumObservedElapsedRealtimeNanos >= 0L)
 	require(maximumEvidenceAgeNanos >= 0L)
 	val eligible = mutableListOf<QualifiedLocationFix>()
 	var poisonCount = 0
 	var postCutoffCount = 0
 	var staleCount = 0
+	var preBoundaryCount = 0
 	normalizeLocationBatch(locations).forEach { location ->
 		val observed = location.qualifiedObservedElapsedRealtimeNanos(receivedElapsedRealtimeNanos)
 		if (observed == null || !location.isValidLocationEvidence()) {
 			poisonCount++
+		} else if (observed < minimumObservedElapsedRealtimeNanos) {
+			preBoundaryCount++
 		} else if (cutoffElapsedRealtimeNanos?.let { observed > it } == true) {
 			postCutoffCount++
 		} else if (receivedElapsedRealtimeNanos - observed > maximumEvidenceAgeNanos) {
@@ -1202,7 +1258,7 @@ internal fun partitionLocationBatch(
 			eligible += QualifiedLocationFix(location, observed)
 		}
 	}
-	return LocationBatchPartition(eligible, poisonCount, postCutoffCount, staleCount)
+	return LocationBatchPartition(eligible, poisonCount, postCutoffCount, staleCount, preBoundaryCount)
 }
 
 internal fun LocationDeviceState.hasLocationPermission(): Boolean = coarsePermission || finePermission
@@ -1231,10 +1287,12 @@ private fun SourceRegistration.toLocationDeliveryAttribution() = LocationDeliver
 private fun SourceRegistration.toLocationCallbackContext(
 	plan: LocationPlan,
 	sink: SourceEventSink,
+	minimumObservedElapsedRealtimeNanos: Long,
 ) = LocationCallbackContext(
 	attribution = toLocationDeliveryAttribution(),
 	approximate = !plan.preciseLocationAvailable,
 	sink = sink,
+	minimumObservedElapsedRealtimeNanos = minimumObservedElapsedRealtimeNanos,
 	maximumEvidenceAgeNanos = plan.maximumEvidenceAgeNanos(),
 )
 
