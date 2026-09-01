@@ -2091,3 +2091,43 @@ needs source-local typed materialization, production query/UI, deletion, retenti
 export/import before the Cell-only product vertical is complete. The next disjoint radio slice is
 Wi-Fi replay-stable durable admission; it must preserve bounded direct-demand attempts and passive
 callback ownership without creating repeated empty or receipt-age-dependent rows.
+
+## Pressure atomic delivery-admission checkpoint (2026-09-01)
+
+### Outcome
+
+Pressure durable admission is accepted and fast-forwarded into local `dev/v10` at `3a3bcbadb`.
+The runtime now submits a pre-sequence delivery candidate and Room allocates the source sequence,
+WAL row, and optional sensor checkpoint in one transaction. Exact duplicate repair is deliberately
+narrower than generic replay: the retained WAL row must prove the same provider envelope and the
+same observed-time authorization over the complete intrinsic Pressure window before it may mutate
+the runtime checkpoint.
+
+Fresh review initially returned `NO_GO` on four authority defects. The corrected commit checks the
+retention floor before replay, projects and verifies the retained source instance, registration
+generation, physical fingerprint, and authorization revision, prevents a wrapper from narrowing a
+Pressure or Steps interval, and removes process-local callback sequences from stable Pressure
+identity. A callback-sequence-only payload change is therefore an `IDENTITY_COLLISION`, not a new
+fact or a checkpoint update. Generic duplicate replay without a sensor checkpoint retains its
+existing cross-runtime-envelope semantics.
+
+### Evidence and boundary
+
+- The corrected author gate passed `153/153` focused tests before rebase, plus Detekt, both affected
+  lints, and `checkRoomSchemaDrift`.
+- Independent re-review forced `SourceEventWalDaoTest` and
+  `PressureDurableSourceIngressTest`: `34/34`, `BUILD SUCCESSFUL in 2m 21s`, and returned `GO` on all
+  four original findings.
+- The complete post-rebase set passed `153/153` in `2m 53s` with 248 tasks executed: 26 DAO cases,
+  11 sink cases, 49 generic Room ingress cases, 8 Pressure Room cases, 7 provider-request cases,
+  30 runtime cases, 8 accumulator cases, and 14 window-lane cases.
+- Post-rebase Detekt, `:core:base:lintDebug`, `:tracker:engine:lintDebug`, and
+  `checkRoomSchemaDrift` passed in `1m 53s` (388 tasks), with no new lint issue and only existing
+  baseline-filtered findings. The clean reviewed branch was then locally fast-forwarded; nothing
+  was pushed or activated.
+
+This is host/Robolectric/in-memory-Room evidence. It does not prove real sensor callbacks,
+advertised or realized FIFO/flush behavior, process death, device lifecycle, or battery impact.
+Pressure still needs its typed quality fact lane, `RECORDING`, production query/UI, deletion,
+retention, portable export/import, and representative-device proof before the independent Pressure
+vertical is complete. Continuous ambient Pressure remains outside the default product.

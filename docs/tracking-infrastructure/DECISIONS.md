@@ -1661,3 +1661,32 @@ Each entry records repository evidence and does not duplicate the final architec
   JVM/Robolectric/in-memory-Room evidence, not real Telephony callback, process-death, radio timing,
   energy, or OEM proof. Cell still needs its typed fact lane, production query/UI, deletion,
   retention, and portable export/import, and this decision activates no provider or writer.
+
+## TI-D126 — Pressure checkpoint repair requires the exact retained delivery authority
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` at `3a3bcbadb`; physical sensor and product behavior remain
+  `UNVERIFIED`
+- Owner/date: Pressure source owner after fresh NO_GO correction and independent re-review,
+  2026-09-01
+- Alternatives: allocate a source sequence before ingress; identify a window with process-local
+  callback ordinals; let any duplicate repair a Pressure runtime checkpoint; trust the caller's
+  wrapper interval; couple checkpoint repair to the exact retained WAL authority
+- Evidence: the first review rejected provider-envelope-free duplicate repair, pre-retention
+  mutation, callback-local delivery identity, and wrapper intervals that could hide intrinsic
+  endpoints. The corrected DAO projection, atomic ingress, runtime, and focused Room tests passed
+  `153/153` after rebase; the reviewer independently reran the exact DAO and Pressure ingress cases
+  (`34/34`) and returned `GO`.
+- Decision: Room allocates the Pressure source sequence and WAL row atomically. A duplicate may
+  advance `SensorAdmissionCheckpoint` only when the retained row, incoming evidence, and current
+  checkpoint agree on source instance, registration generation, physical configuration, and one
+  non-denied observed-time authorization revision covering both true Pressure-window endpoints.
+  The retention floor is checked before replay mutation. Pressure identity excludes callback-local
+  sequences, while payload checksum comparison still turns sequence-only changes into an identity
+  collision. Pressure and Steps wrappers cannot narrow their intrinsic sensor interval.
+- Consequences: exact same-generation retry is idempotent; another generation cannot adopt an old
+  window into its checkpoint; pre-floor, boundary-crossing, narrowed, colliding, and failed
+  transactions leave checkpoint, sequence, and WAL state unchanged. Ordinary non-checkpointed
+  duplicate delivery remains envelope-agnostic, and radio spans are unaffected. This adds no
+  candidate fact lane, product query/UI, activation, second writer, ambient Pressure, or rollout.
+  Device FIFO/flush/cadence, process death, battery, deletion, retention, and portable export/import
+  remain separate Pressure gates.
