@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.database.rotateActivityAutomationEpochInTransaction
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntentVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
@@ -130,8 +131,20 @@ class ActivityAutomaticStartActionRepositoryTest {
 		database.withTransaction {
 			database.sourceEvidenceStateDao().synchronizeLifecycle(8, null, 3_000)
 			database.activityAutomaticStartActionDao().deleteAll()
+			database.sourceBrokerDao().insertRegistration(
+				activityRegistration(
+					registrationGeneration = REGISTRATION_GENERATION + 1L,
+					collectedDataEpoch = 8L,
+					bootId = BOOT_ID,
+				),
+			)
+			insertActivityAuthorization(REGISTRATION_GENERATION + 1L)
 		}
-		val replacement = reservation(ordinal = 2, collectedDataEpoch = 8)
+		val replacement = reservation(
+			ordinal = 2,
+			collectedDataEpoch = 8,
+			registrationGeneration = REGISTRATION_GENERATION + 1L,
+		)
 		(subject.reserve(replacement) is ActivityAutomaticStartReserveResult.Reserved) shouldBe true
 
 		subject.markTerminalExact(old.trigger, 3_100, "DELAYED_PRE_DELETION_CALLER") shouldBe false
@@ -369,11 +382,20 @@ class ActivityAutomaticStartActionRepositoryTest {
 				),
 			),
 		)
+		database.sourceBrokerDao().insertRegistration(
+			activityRegistration(REGISTRATION_GENERATION, COLLECTED_DATA_EPOCH, BOOT_ID),
+		)
+		insertActivityAuthorization(REGISTRATION_GENERATION)
+	}
+
+	private suspend fun insertActivityAuthorization(
+		registrationGeneration: Long,
+	) {
 		database.sourceBrokerDao().insertAuthorizations(
 			listOf(
 				SourceAuthorizationEntity(
 					sourceKind = SourceKind.ACTIVITY.stableCode,
-					registrationGeneration = REGISTRATION_GENERATION,
+					registrationGeneration = registrationGeneration,
 					authorizationRevision = AUTHORIZATION_REVISION,
 					memberId = "activity-control",
 					authorizationFingerprint = AUTHORIZATION_FINGERPRINT,
@@ -426,6 +448,7 @@ class ActivityAutomaticStartActionRepositoryTest {
 		ordinal: Long = 1,
 		collectedDataEpoch: Long = COLLECTED_DATA_EPOCH,
 		automationEpoch: Long = AUTOMATION_EPOCH,
+		registrationGeneration: Long = REGISTRATION_GENERATION,
 	): ActivityAutomaticStartReservation {
 		val evidence = ActivityAutomationDeliveryEnvelope(
 			admissionOrdinal = ordinal,
@@ -435,7 +458,7 @@ class ActivityAutomaticStartActionRepositoryTest {
 			clockDomainId = BOOT_ID,
 			observedElapsedRealtimeNanos = 1_000 + ordinal,
 			receivedElapsedRealtimeNanos = 1_100 + ordinal,
-			registrationGeneration = REGISTRATION_GENERATION,
+			registrationGeneration = registrationGeneration,
 			authorizationRevision = AUTHORIZATION_REVISION,
 			authorizationFingerprint = AUTHORIZATION_FINGERPRINT,
 			collectedDataEpoch = collectedDataEpoch,
@@ -597,6 +620,30 @@ class ActivityAutomaticStartActionRepositoryTest {
 		const val LOGICAL_ID = "logical-automatic-1"
 	}
 }
+
+private fun activityRegistration(
+	registrationGeneration: Long,
+	collectedDataEpoch: Long,
+	bootId: String,
+) = ProviderRegistrationGenerationEntity(
+	sourceKind = SourceKind.ACTIVITY.stableCode,
+	registrationGeneration = registrationGeneration,
+	sourceInstanceId = "activity-provider-$registrationGeneration",
+	ownerScope = "activity-automatic-control",
+	clockDomainId = bootId,
+	physicalConfigurationFingerprint = "activity-physical-$registrationGeneration",
+	collectedDataEpoch = collectedDataEpoch,
+	providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE,
+	providerProcessIncarnationId = null,
+	status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+	reservedAtMs = 100L,
+	reservedElapsedRealtimeNanos = 100L,
+	acceptedAtMs = 500L,
+	acceptedElapsedRealtimeNanos = 500L,
+	retiredAtMs = null,
+	retiredElapsedRealtimeNanos = null,
+	failureCode = null,
+)
 
 private class FakeTrackingStartupGate(
 	var ready: Boolean = true,

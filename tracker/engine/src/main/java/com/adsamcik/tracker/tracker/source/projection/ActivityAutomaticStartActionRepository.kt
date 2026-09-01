@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.projection
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
@@ -450,6 +451,12 @@ class ActivityAutomaticStartActionRepository @Inject constructor(
 	private suspend fun currentControlAuthorityFailure(
 		action: ActivityAutomaticStartActionEntity,
 	): String? {
+		database.activityAutomaticRegistrationFailure(
+			registrationGeneration = action.registrationGeneration,
+			bootId = action.bootId,
+			collectedDataEpoch = action.collectedDataEpoch,
+			observedElapsedRealtimeNanos = action.observedElapsedRealtimeNanos,
+		)?.let { return it }
 		val automationAuthority = database.activityAutomationEpochDao().current()
 		if (automationAuthority?.epoch != action.automationEpoch) {
 			return "AUTOMATIC_START_AUTOMATION_EPOCH_SUPERSEDED"
@@ -510,6 +517,58 @@ class ActivityAutomaticStartActionRepository @Inject constructor(
 			return "AUTOMATIC_START_OBSERVED_CONTROL_IDENTITY_MISMATCH"
 		}
 		return null
+	}
+}
+
+internal suspend fun AppDatabase.activityAutomaticRegistrationFailure(
+	registrationGeneration: Long,
+	bootId: String,
+	collectedDataEpoch: Long,
+	observedElapsedRealtimeNanos: Long,
+): String? {
+	val brokerDao = sourceBrokerDao()
+	val registration = brokerDao.registration(
+		sourceKind = SourceKind.ACTIVITY.stableCode,
+		registrationGeneration = registrationGeneration,
+	) ?: return "AUTOMATIC_START_REGISTRATION_MISSING"
+	registration.activityAutomaticStaticFailure(
+		bootId,
+		collectedDataEpoch,
+		observedElapsedRealtimeNanos,
+	)?.let { return it }
+	val registrationAtObservedTime = brokerDao.registrationAtObservedTime(
+		sourceKind = SourceKind.ACTIVITY.stableCode,
+		registrationGeneration = registration.registrationGeneration,
+		sourceInstanceId = registration.sourceInstanceId,
+		bootId = bootId,
+		physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
+		observedElapsedRealtimeNanos = observedElapsedRealtimeNanos,
+	)
+	return when {
+		registrationAtObservedTime != null -> null
+		registration.retiredElapsedRealtimeNanos?.let { cutoff ->
+			observedElapsedRealtimeNanos >= cutoff
+		} == true -> "AUTOMATIC_START_EVIDENCE_AT_OR_AFTER_REGISTRATION_CUTOFF"
+		else -> "AUTOMATIC_START_REGISTRATION_NOT_ELIGIBLE_AT_OBSERVED_TIME"
+	}
+}
+
+private fun ProviderRegistrationGenerationEntity.activityAutomaticStaticFailure(
+	bootId: String,
+	collectedDataEpoch: Long,
+	observedElapsedRealtimeNanos: Long,
+): String? {
+	val acceptedAt = acceptedElapsedRealtimeNanos
+	return when {
+		clockDomainId != bootId || this.collectedDataEpoch != collectedDataEpoch ->
+			"AUTOMATIC_START_REGISTRATION_IDENTITY_MISMATCH"
+		status == ProviderRegistrationGenerationEntity.STATUS_FAILED ->
+			"AUTOMATIC_START_REGISTRATION_FAILED"
+		acceptedAt == null || observedElapsedRealtimeNanos < acceptedAt ->
+			"AUTOMATIC_START_EVIDENCE_PREDATES_REGISTRATION_ACCEPTANCE"
+		status !in ACTIVITY_AUTOMATIC_ELIGIBLE_REGISTRATION_STATUSES ->
+			"AUTOMATIC_START_REGISTRATION_NOT_ELIGIBLE_AT_OBSERVED_TIME"
+		else -> null
 	}
 }
 
@@ -599,3 +658,8 @@ private fun isTerminalSessionState(state: String): Boolean = state in setOf(
 
 private const val POLICY_PURPOSE_CONTROL = "CONTROL"
 private const val MANIFEST_PURPOSE_CONTROL = "CONTROL"
+private val ACTIVITY_AUTOMATIC_ELIGIBLE_REGISTRATION_STATUSES = setOf(
+	ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+	ProviderRegistrationGenerationEntity.STATUS_RETIRING,
+	ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+)

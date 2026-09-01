@@ -615,6 +615,12 @@ internal class ActivityAutomationEffectValidator @Inject constructor(
 				-> Unit
 			}
 		}
+		val registrationFailure = database.activityAutomaticRegistrationFailure(
+			registrationGeneration = effect.registrationGeneration,
+			bootId = effect.clockDomainId,
+			collectedDataEpoch = effect.collectedDataEpoch,
+			observedElapsedRealtimeNanos = effect.observedElapsedRealtimeNanos,
+		)
 		val authorization = database.sourceBrokerDao().authorizationAt(
 			sourceKind = SourceKind.ACTIVITY.stableCode,
 			registrationGeneration = effect.registrationGeneration,
@@ -634,6 +640,7 @@ internal class ActivityAutomationEffectValidator @Inject constructor(
 			automaticControlEnabled = automationAuthority.automaticControlEnabled,
 			lockSuppressed = automationAuthority.lockSuppressed,
 			powerSaverSuppressed = automationAuthority.powerSaverSuppressed,
+			registrationFailure = registrationFailure,
 		)
 	}
 }
@@ -649,6 +656,7 @@ internal fun validateActivityAutomationEffectEnvelope(
 	automaticControlEnabled: Boolean = true,
 	lockSuppressed: Boolean = false,
 	powerSaverSuppressed: Boolean = false,
+	registrationFailure: String? = null,
 ): ActivityAutomationEffectValidation {
 	if (effect.clockDomainId != currentBootId) {
 		return ActivityAutomationEffectValidation.Terminal("STALE_AUTOMATION_BOOT")
@@ -670,6 +678,9 @@ internal fun validateActivityAutomationEffectEnvelope(
 		return ActivityAutomationEffectValidation.Terminal(
 			"AUTOMATION_EVIDENCE_PREDATES_EPOCH",
 		)
+	}
+	if (registrationFailure != null) {
+		return ActivityAutomationEffectValidation.Terminal(registrationFailure)
 	}
 	if (!automaticControlEnabled || lockSuppressed || powerSaverSuppressed) {
 		return ActivityAutomationEffectValidation.Terminal("AUTOMATION_RUNTIME_SUPPRESSED")

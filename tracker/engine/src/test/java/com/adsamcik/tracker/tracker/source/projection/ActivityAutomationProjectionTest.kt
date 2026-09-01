@@ -73,9 +73,37 @@ class ActivityAutomationProjectionTest {
 		context.effects shouldHaveSize 1
 	}
 
+	@Test
+	fun `incomplete control stamps are omitted without poisoning a valid sibling`() = runTest {
+		val context = RecordingProjectionContext()
+
+		projection.apply(
+			event(SourceBrokerPurpose.MASK_CONTROL_AUTOSTART, automationEpoch = null),
+			context,
+		)
+		projection.apply(
+			event(SourceBrokerPurpose.MASK_CONTROL_AUTOSTART, authorizationRevision = null),
+			context,
+		)
+		projection.apply(
+			event(SourceBrokerPurpose.MASK_CONTROL_AUTOSTART, physicalFingerprint = null),
+			context,
+		)
+		projection.apply(
+			event(SourceBrokerPurpose.MASK_CONTROL_AUTOSTART, registrationGeneration = 0L),
+			context,
+		)
+		projection.apply(event(SourceBrokerPurpose.MASK_CONTROL_AUTOSTART), context)
+
+		context.effects shouldHaveSize 1
+	}
+
 	private fun event(
 		purposeMask: Long,
 		automationEpoch: Long? = 17L,
+		authorizationRevision: Long? = 7L,
+		physicalFingerprint: String? = "activity-physical",
+		registrationGeneration: Long = 1L,
 	) = AdmittedSourceEvent(
 		eventId = SourceEventId("activity-$purposeMask"),
 		admissionOrdinal = 1,
@@ -85,8 +113,9 @@ class ActivityAutomationProjectionTest {
 			serviceRunId = null,
 			source = SourceKind.ACTIVITY,
 			sourceInstanceId = SourceInstanceId("activity-provider"),
-			registrationGeneration = 1,
-			authorizationRevision = 7,
+			registrationGeneration = registrationGeneration,
+			physicalConfigurationFingerprint = physicalFingerprint,
+			authorizationRevision = authorizationRevision,
 			registrationPurposeEligibilityMask = purposeMask,
 			registrationEligibilityFingerprint = "eligibility",
 			sourceSequence = 1,

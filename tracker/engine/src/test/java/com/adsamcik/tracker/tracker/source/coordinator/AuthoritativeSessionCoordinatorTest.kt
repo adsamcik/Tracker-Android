@@ -2690,6 +2690,28 @@ class AuthoritativeSessionCoordinatorTest {
 				?.controlConsentEpoch,
 		)
 		val authorizationFingerprint = "activity-control-authorization"
+		database.sourceBrokerDao().insertRegistration(
+			ProviderRegistrationGenerationEntity(
+				sourceKind = SourceKind.ACTIVITY.stableCode,
+				registrationGeneration = 1L,
+				sourceInstanceId = "activity-automatic-provider",
+				ownerScope = "activity-automatic-control",
+				clockDomainId = trigger.bootId,
+				physicalConfigurationFingerprint = "activity-automatic-physical",
+				collectedDataEpoch = trigger.collectedDataEpoch,
+				providerResidency =
+					ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE,
+				providerProcessIncarnationId = null,
+				status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+				reservedAtMs = 1L,
+				reservedElapsedRealtimeNanos = 1L,
+				acceptedAtMs = 1L,
+				acceptedElapsedRealtimeNanos = 1L,
+				retiredAtMs = null,
+				retiredElapsedRealtimeNanos = null,
+				failureCode = null,
+			),
+		)
 		database.sourceBrokerDao().insertAuthorizations(
 			listOf(
 				SourceAuthorizationEntity(

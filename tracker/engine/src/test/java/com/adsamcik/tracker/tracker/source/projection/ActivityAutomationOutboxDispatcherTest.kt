@@ -366,6 +366,20 @@ class ActivityAutomationOutboxDispatcherTest {
 	}
 
 	@Test
+	fun `registration envelope failure terminalizes before automation delivery`() {
+		validateActivityAutomationEffectEnvelope(
+			effect = automationEffect(),
+			currentBootId = "boot",
+			currentElapsedRealtimeNanos = 2_000,
+			authorization = authorization(),
+			currentAutomationEpoch = 17,
+			registrationFailure = "AUTOMATIC_START_REGISTRATION_FAILED",
+		) shouldBe ActivityAutomationEffectValidation.Terminal(
+			"AUTOMATIC_START_REGISTRATION_FAILED",
+		)
+	}
+
+	@Test
 	fun `automation epoch is independent of policy revision and rotates fail closed`() {
 		val policy23 = authorization(sourcePolicyRevision = 23)
 		validateActivityAutomationEffectEnvelope(

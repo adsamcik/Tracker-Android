@@ -4,6 +4,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.tracker.source.model.ActivityRecognitionPayload
 import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
+import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
+import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
@@ -18,17 +20,16 @@ class ActivityAutomationProjection @Inject constructor() : Projection {
 		event: AdmittedSourceEvent<out SourcePayload>,
 		context: ProjectionContext,
 	) {
-		if (event.evidence.registrationPurposeEligibilityMask and
-			SourceBrokerPurpose.MASK_CONTROL_AUTOSTART == 0L
-		) return
-		if (event.evidence.activityAutomationEpoch == null) return
-		val payload = when (val sourcePayload = event.evidence.payload) {
+		val evidence = event.evidence
+		val stamp = evidence.validatedActivityAutomationStamp() ?: return
+		val payload = when (val sourcePayload = evidence.payload) {
 			is ActivityRecognitionPayload -> encode(
 				event,
 				KIND_RECOGNITION,
 				sourcePayload.activityType,
 				sourcePayload.confidencePercent,
 				-1,
+				stamp,
 			)
 			is ActivityTransitionPayload -> encode(
 				event,
@@ -36,6 +37,7 @@ class ActivityAutomationProjection @Inject constructor() : Projection {
 				sourcePayload.activityType,
 				100,
 				sourcePayload.transitionType,
+				stamp,
 			)
 			else -> return
 		}
@@ -55,6 +57,7 @@ class ActivityAutomationProjection @Inject constructor() : Projection {
 		activityType: Int,
 		confidence: Int,
 		transitionType: Int,
+		stamp: ValidatedActivityAutomationStamp,
 	): ByteArray =
 		ByteArrayOutputStream().use { bytes ->
 			DataOutputStream(bytes).use { output ->
@@ -67,10 +70,10 @@ class ActivityAutomationProjection @Inject constructor() : Projection {
 				output.writeLong(evidence.observedElapsedRealtimeNanos)
 				output.writeLong(evidence.receivedElapsedRealtimeNanos)
 				output.writeLong(evidence.registrationGeneration)
-				output.writeLong(requireNotNull(evidence.authorizationRevision))
-				output.writeUTF(requireNotNull(evidence.registrationEligibilityFingerprint))
+				output.writeLong(stamp.authorizationRevision)
+				output.writeUTF(stamp.authorizationFingerprint)
 				output.writeLong(evidence.capturedCollectedDataEpoch)
-				output.writeLong(requireNotNull(evidence.activityAutomationEpoch))
+				output.writeLong(stamp.automationEpoch)
 			}
 			bytes.toByteArray()
 		}
@@ -82,5 +85,33 @@ class ActivityAutomationProjection @Inject constructor() : Projection {
 		const val PAYLOAD_VERSION = 4
 		const val KIND_RECOGNITION = 1
 		const val KIND_TRANSITION = 2
+	}
+}
+
+private data class ValidatedActivityAutomationStamp(
+	val authorizationRevision: Long,
+	val authorizationFingerprint: String,
+	val automationEpoch: Long,
+)
+
+private fun SourceEvidenceCandidate<out SourcePayload>.validatedActivityAutomationStamp():
+	ValidatedActivityAutomationStamp? {
+	val automationEpoch = activityAutomationEpoch?.takeIf { it > 0L }
+	val authorizationRevision = authorizationRevision?.takeIf { it > 0L }
+	val authorizationFingerprint = registrationEligibilityFingerprint
+	return when {
+		source != SourceKind.ACTIVITY -> null
+		registrationPurposeEligibilityMask and
+			SourceBrokerPurpose.MASK_CONTROL_AUTOSTART == 0L -> null
+		registrationGeneration <= 0L -> null
+		physicalConfigurationFingerprint.isNullOrBlank() -> null
+		automationEpoch == null -> null
+		authorizationRevision == null -> null
+		authorizationFingerprint.isNullOrBlank() -> null
+		else -> ValidatedActivityAutomationStamp(
+			authorizationRevision,
+			authorizationFingerprint,
+			automationEpoch,
+		)
 	}
 }
