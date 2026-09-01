@@ -1744,3 +1744,34 @@ Each entry records repository evidence and does not duplicate the final architec
   an invented threshold. This is host/Robolectric evidence, not real PendingIntent delivery,
   process/reboot, automation-start, battery/OEM, product materialization/query/UI, deletion/export,
   activation, or rollout proof.
+
+## TI-D129 — Activity automatic triggers retain exact historical provider authority
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` at `0a6a8f545`; physical automatic-start behavior remains
+  `UNVERIFIED`
+- Owner/date: Activity trigger-envelope owner after focused host gates and fresh independent review,
+  2026-09-01
+- Alternatives: trust the generation and authorization stamps already encoded in an automation
+  effect; require the provider generation to remain currently active; reload the exact historical
+  Activity generation and require the observation to fall inside its accepted-inclusive,
+  retired-exclusive physical lifetime at every pre-start boundary
+- Evidence: the final six-suite selection passed `108/108` with zero failures, errors, or skips
+  (`BUILD SUCCESSFUL in 5m 31s`, 230 tasks). Root Detekt passed in `35s`, and
+  `:tracker:engine:lintDebug` passed in `7m 31s` with 377 tasks and no new issue. Fresh read-only
+  review found no scoped blocker, high, or medium finding across the exact nine-path snapshot.
+- Decision: automation projection emits an effect only for Activity evidence with
+  `CONTROL_AUTOSTART`, a positive physical generation, nonblank physical configuration and
+  authorization fingerprints, and positive authorization and automation revisions. Outbox
+  validation and the action repository reload the exact Activity generation and require matching
+  boot/data epoch, durable provider acceptance, a nonfailed eligible status, and
+  `accepted <= observed < retired` when a retirement cutoff exists. Reserve, Android-request
+  authorization, delayed service validation, and no-intent cold recovery all reuse that authority.
+  A lifecycle intent already committed under those checks remains an acknowledged durable effect;
+  it is not retroactively reclassified because the historical provider later retires.
+- Consequences: missing, failed, unaccepted, wrong-epoch, pre-acceptance, and at/after-cutoff
+  provider evidence terminalizes only its automation action. Retired evidence observed before the
+  cutoff remains valid, so the implementation does not invent a current-generation requirement.
+  Malformed control members are omitted without poisoning a valid sibling. This introduces no
+  Activity capture fact, captured-history path, writer activation, provider start, rollout, or
+  device claim; PendingIntent delivery, process death/reboot, FGS legality, battery/OEM behavior,
+  product materialization/query/UI, deletion, retention, and portable export/import remain open.

@@ -2190,3 +2190,46 @@ delivery, process death, reboot, automation-trigger legality, foreground-service
 impact, OEM behavior, source-local materialization, production query/UI, deletion, retention, or
 portable export/import. Activity capture and control remain separate purposes, and no provider or
 writer rollout occurred.
+
+## Activity automatic trigger provider-authority checkpoint (2026-09-01)
+
+### Outcome
+
+The bounded Activity trigger correction is accepted and fast-forwarded into local `dev/v10` at
+`0a6a8f545`. Automation projection now requires a complete, positive control-eligible Activity
+stamp before it emits an effect. A missing or malformed stamp is omitted normally, so one bad
+member cannot throw and poison a valid sibling.
+
+The outbox validator and every action-repository authority check now reload the exact Activity
+provider generation. Boot identity, collected-data epoch, durable acceptance floor, failed/status
+state, and the existing accepted-inclusive/retired-exclusive registration interval must all cover
+the observation. Historical evidence before a later retirement cutoff remains valid; evidence at
+or after the cutoff is terminal. Reserve, Android-request authorization, delayed service
+validation, and no-intent cold recovery share this rule. A lifecycle intent already committed under
+those checks remains the durable-effect acknowledgement, while service redelivery retains its
+stricter session validation.
+
+### Evidence and boundary
+
+- The exact final command was `./gradlew.bat :tracker:engine:testDebugUnitTest --tests
+  "*ActivityAutomationProjectionTest" --tests "*ActivityAutomationOutboxDispatcherTest" --tests
+  "*ActivityAutomaticStartActionRepositoryTest" --tests
+  "*ActivityAutomaticStartRegistrationAuthorityTest" --tests
+  "*ActivityAutomationEffectValidatorRegistrationTest" --tests
+  "*AuthoritativeSessionCoordinatorTest" --no-daemon --no-parallel --max-workers=1
+  "-Pksp.incremental=false"`. It passed `108/108` with zero failures, errors, or skips (`BUILD
+  SUCCESSFUL in 5m 31s`, 230 tasks; XML execution `44.575s`).
+- `./gradlew.bat detekt --no-daemon --no-parallel --max-workers=1 "-Pksp.incremental=false"`
+  passed in `35s`. `./gradlew.bat :tracker:engine:lintDebug --no-daemon --no-parallel
+  --max-workers=1 "-Pksp.incremental=false"` passed in `7m 31s` with 377 tasks, no new issue, and six
+  baseline-filtered warnings.
+- Fresh independent review inspected the exact nine-path snapshot and found no scoped blocker,
+  high, or medium finding. The configured `adsamcik` identity created `0a6a8f545`, and the clean
+  integration worktree fast-forwarded locally. Nothing was pushed, activated, released, tagged, or
+  deployed.
+
+This is host/Robolectric/static evidence. It does not prove real Google Play services provider or
+PendingIntent delivery, process death, reboot, Android foreground-service legality, battery impact,
+OEM behavior, source-local Activity materialization, production query/UI, deletion, retention, or
+portable export/import. Activity `CONTROL_AUTOSTART` remains noncaptured operational authority; no
+control-only observation enters captured history, and no provider or writer rollout occurred.
