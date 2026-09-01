@@ -84,6 +84,29 @@ class StepsSessionFactWriterTransitionCoordinatorTest {
 	}
 
 	@Test
+	fun `generation 2 promotion authorizes manual and automatic Steps only`() = runTest {
+		installShadow(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V2)
+
+		activate().shouldBeInstanceOf<StepsWriterTransitionResult.Applied>()
+
+		rolloutStore.load().let { rollout ->
+			rollout.isCaptureReachable(
+				SourceKind.STEPS,
+				CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+			) shouldBe true
+			rollout.isCaptureReachable(
+				SourceKind.STEPS,
+				CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE,
+			) shouldBe true
+			SourceKind.entries.filter { source -> source != SourceKind.STEPS }.all { source ->
+				!rollout.isAcquisitionReachable(source)
+			} shouldBe true
+		}
+		database.sourceProjectionStateDao().activeProductLane(STEPS_SOURCE)
+			?.bindingGeneration shouldBe ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V2.bindingGeneration
+	}
+
+	@Test
 	fun `cursor lag keeps legacy owner and inert shadow`() = runTest {
 		installShadow()
 		appendStepsWalEvent()
@@ -295,6 +318,23 @@ class StepsSessionFactWriterTransitionCoordinatorTest {
 	}
 
 	@Test
+	fun `generation 2 rollback and retry resolve the exact retired binding`() = runTest {
+		val binding = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V2
+		installShadow(binding)
+		activate().shouldBeInstanceOf<StepsWriterTransitionResult.Applied>()
+
+		coordinator.beginCandidateRollback(3L, 30L)
+			.shouldBeInstanceOf<StepsWriterTransitionResult.Applied>()
+			.cutoffOrdinal shouldBe 0L
+		val completed = coordinator.completeCandidateRollback(4L, 0L, 40L)
+			.shouldBeInstanceOf<StepsWriterTransitionResult.Applied>()
+
+		assertRollbackCompleted(completed, binding)
+		coordinator.completeCandidateRollback(4L, 0L, 41L)
+			.shouldBeInstanceOf<StepsWriterTransitionResult.AlreadyApplied>()
+	}
+
+	@Test
 	fun `rollback phase checkpoints leave their complete preceding authority state`() = runTest {
 		installShadow()
 		activate()
@@ -346,9 +386,11 @@ class StepsSessionFactWriterTransitionCoordinatorTest {
 		database.sourceProjectionStateDao().activeProductLane(STEPS_SOURCE)?.retentionRequired shouldBe true
 	}
 
-	private suspend fun installShadow() {
+	private suspend fun installShadow(
+		binding: ExecutableSourceLaneBinding = STEPS_BINDING,
+	) {
 		rolloutStore.load() shouldBe TrackingRolloutState.contained(revision = 1L)
-		rolloutStore.installInertShadowLane(STEPS_BINDING, 2L, 10L)
+		rolloutStore.installInertShadowLane(binding, 2L, 10L)
 	}
 
 	private suspend fun activate(): StepsWriterTransitionResult = coordinator.activateCandidate(
@@ -421,7 +463,10 @@ class StepsSessionFactWriterTransitionCoordinatorTest {
 		}
 	}
 
-	private suspend fun assertRollbackCompleted(result: StepsWriterTransitionResult.Applied) {
+	private suspend fun assertRollbackCompleted(
+		result: StepsWriterTransitionResult.Applied,
+		binding: ExecutableSourceLaneBinding = STEPS_BINDING,
+	) {
 		result.ownerGeneration shouldBe 3L
 		database.sourceDestinationOwnerDao().get(STEPS_SOURCE, STEPS_DESTINATION)?.let { owner ->
 			owner.owner shouldBe LEGACY_OWNER
@@ -430,10 +475,11 @@ class StepsSessionFactWriterTransitionCoordinatorTest {
 		database.sourceProjectionStateDao().activeProductLane(STEPS_SOURCE) shouldBe null
 		database.sourceProjectionStateDao().productLane(
 			STEPS_SOURCE,
-			STEPS_BINDING.bindingGeneration,
-			STEPS_BINDING.projectionId,
-			STEPS_BINDING.projectionVersion,
+			binding.bindingGeneration,
+			binding.projectionId,
+			binding.projectionVersion,
 		)?.let { retired ->
+			retired.captureModeMask shouldBe binding.captureModeMask
 			retired.status shouldBe SourceProductProjectionLaneEntity.STATUS_RETIRED
 			retired.terminalDisposition shouldBe
 				SourceProductProjectionLaneEntity.DISPOSITION_CONTAINED_AFTER_DRAIN

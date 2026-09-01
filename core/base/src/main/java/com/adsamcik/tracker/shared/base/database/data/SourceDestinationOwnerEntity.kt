@@ -39,6 +39,9 @@ data class SourceDestinationOwnerEntity(
 		const val FIRST_CANDIDATE_GENERATION = 2L
 		const val STEPS_FACT_PROJECTION_ID = "steps-session-facts"
 		const val STEPS_FACT_PROJECTION_VERSION = 1
+		/** Immutable manual-session binding retained for already attributed v28 facts. */
 		const val STEPS_FACT_BINDING_GENERATION = 1L
+		/** Adds automatic-session capture without changing generation 1 semantics. */
+		const val STEPS_FACT_AUTOMATIC_BINDING_GENERATION = 2L
 	}
 }

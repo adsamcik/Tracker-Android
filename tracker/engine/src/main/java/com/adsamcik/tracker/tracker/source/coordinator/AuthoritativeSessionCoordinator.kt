@@ -93,6 +93,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 	private val clock: Clock,
 	private val rolloutStore: TrackingRolloutStateStore = RoomTrackingRolloutStateStore(database),
 	private val sourceBroker: SourceBroker = SourceBroker(database),
+	private val executableLaneCatalog: ExecutableSourceLaneCatalog = ExecutableSourceLaneCatalog(),
 ) {
 	private data class BoundServiceRunTransition(
 		val session: LogicalTrackingSessionEntity,
@@ -136,7 +137,11 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			return SessionStartPreparationResult.Rejected(it)
 		}
 		val rollout = rolloutStore.load()
-		rollout.validateEventPlan(request.rolloutRevision, request.plan)?.let {
+		rollout.validateEventPlan(
+			request.rolloutRevision,
+			request.plan,
+			request.origin.toSessionMode().captureReachabilityModeOrNull(),
+		)?.let {
 			return SessionStartPreparationResult.Rejected(it)
 		}
 		val ownerToken = preparedStartOwner(delivery.token)
@@ -185,7 +190,11 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		database.withTransaction {
 			requireLeaseInTransaction(lease)
 			failure = validateSourcePolicyInTransaction(request.plan)
-				?: validateRolloutInTransaction(request.rolloutRevision, request.plan)
+				?: validateRolloutInTransaction(
+					request.rolloutRevision,
+					request.plan,
+					request.origin.toSessionMode(),
+				)
 			if (failure != null || database.sourceSessionDao().activeSession() != null) return@withTransaction
 			val automaticAction = request.automaticTrigger?.let { trigger ->
 				when (val validation = automaticStartActions.validateForLifecycleIntentTransaction(trigger)) {
@@ -346,7 +355,11 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		database.withTransaction {
 			requireLeaseInTransaction(lease)
 			failure = validateSourcePolicyInTransaction(request.plan)
-				?: validateRolloutInTransaction(request.rolloutRevision, request.plan)
+				?: validateRolloutInTransaction(
+					request.rolloutRevision,
+					request.plan,
+					request.origin.toSessionMode(),
+				)
 			if (failure != null) return@withTransaction
 			val dao = database.sourceSessionDao()
 			val current = requireNotNull(dao.session(session.logicalTrackingId))
@@ -1215,7 +1228,11 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			return SessionStartResult.InvalidPolicy(it)
 		}
 		val rollout = rolloutStore.load()
-		val rolloutFailure = rollout.validateEventPlan(request.rolloutRevision, request.plan)
+		val rolloutFailure = rollout.validateEventPlan(
+			request.rolloutRevision,
+			request.plan,
+			request.origin.toSessionMode().captureReachabilityModeOrNull(),
+		)
 		if (rolloutFailure != null) return SessionStartResult.InvalidRollout(rolloutFailure)
 		val lease = acquireLease(request.ownerToken)
 			?: return SessionStartResult.Busy
@@ -1259,6 +1276,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				intentRolloutFailure = validateRolloutInTransaction(
 					request.rolloutRevision,
 					request.plan,
+					request.origin.toSessionMode(),
 				)
 				if (intentRolloutFailure != null) return@withTransaction false
 				if (database.sourceSessionDao().activeSession() != null) return@withTransaction false
@@ -1524,7 +1542,11 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			requireLeaseInTransaction(lease)
 			policyFailure = validateSourcePolicyInTransaction(request.plan)
 			if (policyFailure != null) return@withTransaction
-			rolloutFailure = validateRolloutInTransaction(request.rolloutRevision, request.plan)
+			rolloutFailure = validateRolloutInTransaction(
+				request.rolloutRevision,
+				request.plan,
+				request.origin.toSessionMode(),
+			)
 			if (rolloutFailure != null) return@withTransaction
 			val current = requireNotNull(database.sourceSessionDao().session(session.logicalTrackingId))
 			check(current.lifecycleRevision == session.lifecycleRevision) { "Session changed during recovery" }
@@ -1740,7 +1762,11 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		val rollout = rolloutStore.load()
 		val sessionForRollout = database.sourceSessionDao().activeSession()
 			?: return SessionReconfigureResult.NoActiveSession
-		val rolloutFailure = rollout.validateEventPlan(sessionForRollout.rolloutRevision, request.plan)
+		val rolloutFailure = rollout.validateEventPlan(
+			sessionForRollout.rolloutRevision,
+			request.plan,
+			SessionMode.valueOf(sessionForRollout.sessionMode).captureReachabilityModeOrNull(),
+		)
 		if (rolloutFailure != null) return SessionReconfigureResult.InvalidRollout(rolloutFailure)
 		val lease = acquireLease(request.ownerToken)
 			?: return SessionReconfigureResult.Busy
@@ -2043,11 +2069,16 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 	private suspend fun validateRolloutInTransaction(
 		expectedRevision: Long,
 		plan: AcquisitionPlanRevision,
+		sessionMode: SessionMode,
 	): String? {
 		val rollout = database.trackingRolloutStateDao().get()
 			?.decodeCurrentModelOrNull()
 			?: return "ROLLOUT_STATE_MISSING_OR_UNREADABLE"
-		return rollout.validateEventPlan(expectedRevision, plan)
+		return rollout.validateEventPlan(
+			expectedRevision,
+			plan,
+			sessionMode.captureReachabilityModeOrNull(),
+		)
 	}
 
 	private fun validateStartIntent(request: SessionStartRequest): String? {
@@ -2115,6 +2146,35 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		null
 	}
 
+	private suspend fun exactCandidateStepsBinding(
+		rolloutRevision: Long,
+		sessionMode: SessionMode,
+	): ExecutableSourceLaneBinding {
+		val rollout = requireNotNull(
+			database.trackingRolloutStateDao().get()?.decodeCurrentModelOrNull(),
+		) { "Steps rollout state is missing or unreadable" }
+		check(rollout.revision == rolloutRevision) { "Steps rollout revision changed" }
+		val lane = requireNotNull(
+			database.sourceProjectionStateDao().activeProductLane(SourceKind.STEPS.stableCode),
+		) { "Steps candidate product lane is missing" }
+		val binding = requireNotNull(executableLaneCatalog.bindingFor(lane)) {
+			"Steps candidate product lane is not executable"
+		}
+		check(binding.projectionId == StepsSessionFactProjectionLane.WRITER_ID &&
+			binding.projectionVersion == StepsSessionFactProjectionLane.WRITER_VERSION
+		) { "Steps candidate writer identity is unsupported" }
+		val captureMode = requireNotNull(sessionMode.captureReachabilityModeOrNull()) {
+			"Steps candidate session mode is not attributable"
+		}
+		check(captureMode in binding.captureModes) {
+			"Steps candidate binding does not authorize ${captureMode.name}"
+		}
+		check(lane.isCanonicalCaptureAuthorizedBy(database, rollout, executableLaneCatalog)) {
+			"Steps candidate product lane is not canonical capture authority"
+		}
+		return binding
+	}
+
 	private suspend fun buildManifestDraft(
 		logicalTrackingId: String,
 		manifestRevision: Long,
@@ -2177,6 +2237,15 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					),
 				) { "Steps destination owner is missing" }
 			}
+		check(stepsOwner == null ||
+			stepsOwner.owner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS ||
+			stepsOwner.owner == SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL
+		) { "Unsupported Steps destination owner ${stepsOwner?.owner}" }
+		val candidateStepsBinding = stepsOwner
+			?.takeIf { owner ->
+				owner.owner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
+			}
+			?.let { exactCandidateStepsBinding(rolloutRevision, sessionMode) }
 		val captureBindings = plan.plans.values.filter(SourcePlan::enabled).map { sourcePlan ->
 			val policy = requireNotNull(policies[sourcePlan.source.stableCode])
 			val consentEpoch = requireNotNull(policy.captureConsentEpoch)
@@ -2188,11 +2257,10 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				),
 			)
 			val writerOwner = stepsOwner.takeIf { sourcePlan.source == SourceKind.STEPS }
-			val candidateWriter = writerOwner?.owner ==
-				SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
-			check(writerOwner == null || candidateWriter ||
-				writerOwner.owner == SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL) {
-				"Unsupported Steps destination owner ${writerOwner?.owner}"
+			val candidateWriter = if (sourcePlan.source == SourceKind.STEPS) {
+				candidateStepsBinding
+			} else {
+				null
 			}
 			SessionManifestSourceEntity(
 				logicalTrackingId = logicalTrackingId,
@@ -2205,9 +2273,9 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				outputDestination = writerOwner?.destination,
 				writerOwner = writerOwner?.owner,
 				writerOwnerGeneration = writerOwner?.ownerGeneration,
-				writerProjectionId = StepsSessionFactProjectionLane.WRITER_ID.takeIf { candidateWriter },
-				writerProjectionVersion = StepsSessionFactProjectionLane.WRITER_VERSION.takeIf { candidateWriter },
-				writerBindingGeneration = StepsSessionFactProjectionLane.BINDING_GENERATION.takeIf { candidateWriter },
+				writerProjectionId = candidateWriter?.projectionId,
+				writerProjectionVersion = candidateWriter?.projectionVersion,
+				writerBindingGeneration = candidateWriter?.bindingGeneration,
 			)
 		}
 		val controlBindings = controlDependencies.map { source ->
@@ -4677,13 +4745,23 @@ sealed interface SessionReconfigureResult {
 private fun TrackingRolloutState.validateEventPlan(
 	expectedRevision: Long,
 	plan: AcquisitionPlanRevision,
+	captureMode: CaptureReachabilityMode?,
 ): String? = when {
 	revision != expectedRevision -> "ROLLOUT_REVISION_MISMATCH"
 	coordinatorMode != CoordinatorMode.EVENT -> "EVENT_COORDINATOR_DISABLED"
 	plan.plans.values.any { sourcePlan ->
 		sourcePlan.enabled && sourceOwners[sourcePlan.source] != SourceOwner.EVENT
 	} -> "EVENT_SOURCE_NOT_OWNED"
+	captureMode != null && plan.plans.values.any { sourcePlan ->
+		sourcePlan.enabled && captureModeMasks.getValue(sourcePlan.source) and captureMode.mask == 0L
+	} -> "EVENT_CAPTURE_MODE_NOT_REACHABLE"
 	else -> null
+}
+
+private fun SessionMode.captureReachabilityModeOrNull(): CaptureReachabilityMode? = when (this) {
+	SessionMode.MANUAL -> CaptureReachabilityMode.MANUAL_SESSION_CAPTURE
+	SessionMode.AUTOMATIC -> CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE
+	SessionMode.LEGACY_UNKNOWN -> null
 }
 
 data class SessionStopRequest(

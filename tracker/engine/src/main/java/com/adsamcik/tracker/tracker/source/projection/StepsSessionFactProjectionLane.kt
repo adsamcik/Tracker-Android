@@ -13,6 +13,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
@@ -31,7 +33,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * The bounded source-local writer for self-contained manual-session Steps facts.
+ * The bounded source-local writer for self-contained session Steps facts.
  *
  * This is deliberately not a generic materializer. An installed shadow lane may validate retained
  * WAL and advance only its own retention cursor. Destination facts and evidence-state mutations are
@@ -42,6 +44,7 @@ import kotlinx.coroutines.sync.withLock
 class StepsSessionFactProjectionLane private constructor(
 	private val database: AppDatabase,
 	private val ingress: DurableSourceIngress,
+	private val executableLaneCatalog: ExecutableSourceLaneCatalog,
 	applicationScope: CoroutineScope?,
 	@Suppress("UNUSED_PARAMETER") constructionMarker: Unit,
 ) {
@@ -52,13 +55,21 @@ class StepsSessionFactProjectionLane private constructor(
 	constructor(
 		database: AppDatabase,
 		ingress: DurableSourceIngress,
+		executableLaneCatalog: ExecutableSourceLaneCatalog,
 		@ApplicationScope applicationScope: CoroutineScope,
-	) : this(database, ingress, applicationScope, Unit)
+	) : this(database, ingress, executableLaneCatalog, applicationScope, Unit)
+
+	constructor(
+		database: AppDatabase,
+		ingress: DurableSourceIngress,
+		@ApplicationScope applicationScope: CoroutineScope,
+	) : this(database, ingress, ExecutableSourceLaneCatalog(), applicationScope, Unit)
 
 	internal constructor(
 		database: AppDatabase,
 		ingress: DurableSourceIngress,
-	) : this(database, ingress, null, Unit)
+		executableLaneCatalog: ExecutableSourceLaneCatalog = ExecutableSourceLaneCatalog(),
+	) : this(database, ingress, executableLaneCatalog, null, Unit)
 
 	init {
 		applicationScope?.launch {
@@ -460,12 +471,11 @@ class StepsSessionFactProjectionLane private constructor(
 		return current
 	}
 
-	private fun isExecutableLane(lane: SourceProductProjectionLaneEntity): Boolean =
-		lane.sourceKind == SourceKind.STEPS.stableCode &&
-			lane.bindingGeneration == BINDING_GENERATION &&
-			lane.projectionId == WRITER_ID &&
-			lane.projectionVersion == WRITER_VERSION &&
-			lane.captureModeMask == MANUAL_CAPTURE_MODE_MASK &&
+	private fun isExecutableLane(lane: SourceProductProjectionLaneEntity): Boolean {
+		val binding = executableLaneCatalog.bindingFor(lane) ?: return false
+		return binding.source == SourceKind.STEPS &&
+			binding.projectionId == WRITER_ID &&
+			binding.projectionVersion == WRITER_VERSION &&
 			lane.productStage in EXECUTABLE_STAGES &&
 			lane.activatedRolloutRevision > 0L &&
 			lane.activationOrdinal > 0L &&
@@ -476,6 +486,7 @@ class StepsSessionFactProjectionLane private constructor(
 			lane.retentionRequired &&
 			lane.status == SourceProductProjectionLaneEntity.STATUS_ACTIVE &&
 			lane.terminalDisposition == null && lane.terminalAtMs == null
+	}
 
 	private suspend fun evidenceState(): SourceEvidenceState =
 		database.sourceEvidenceStateDao().get()
@@ -736,7 +747,36 @@ class StepsSessionFactProjectionLane private constructor(
 		if (!binding.persistenceEligible || binding.consentEpoch != consentEpoch) {
 			poison("STEPS_MANIFEST_ELIGIBILITY_MISMATCH")
 		}
+		validateExecutableCandidateManifestBinding(binding, manifest.sessionMode, admissionOrdinal)
 		return binding
+	}
+
+	private fun validateExecutableCandidateManifestBinding(
+		binding: SessionManifestSourceEntity,
+		sessionMode: String,
+		admissionOrdinal: Long,
+	) {
+		if (binding.writerOwner != SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS) return
+		fun poison(code: String): Nothing = throw StepsSessionFactPoisonException(
+			admissionOrdinal,
+			code,
+		)
+		val executableBinding = binding.writerBindingGeneration?.let { generation ->
+			executableLaneCatalog.bindingFor(
+				source = SourceKind.STEPS,
+				bindingGeneration = generation,
+				projectionId = binding.writerProjectionId,
+				projectionVersion = binding.writerProjectionVersion,
+			)
+		} ?: poison("STEPS_MANIFEST_PROJECTION_MISMATCH")
+		val captureMode = when (sessionMode) {
+			"MANUAL" -> CaptureReachabilityMode.MANUAL_SESSION_CAPTURE
+			"AUTOMATIC" -> CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE
+			else -> poison("STEPS_MANIFEST_CAPTURE_MODE_MISMATCH")
+		}
+		if (captureMode !in executableBinding.captureModes) {
+			poison("STEPS_MANIFEST_CAPTURE_MODE_MISMATCH")
+		}
 	}
 
 	private suspend fun sessionScopeIsDeleted(
@@ -769,6 +809,7 @@ class StepsSessionFactProjectionLane private constructor(
 	companion object {
 		const val WRITER_ID = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID
 		const val WRITER_VERSION = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION
+		/** Immutable generation-1 manual-session contract. */
 		const val BINDING_GENERATION = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION
 		const val MANUAL_CAPTURE_MODE_MASK = 1L
 

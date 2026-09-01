@@ -88,6 +88,22 @@ class StepsSessionFactWriterDeletionRearmTest {
 	}
 
 	@Test
+	fun `full deletion preserves an already activated generation 2 contract`() = runTest {
+		val binding = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V2
+		installShadow(binding)
+		activate()
+		recordFullDeletion(highWater = 0L, epoch = 1L, updatedAtMs = 30L)
+
+		coordinator.rearmAfterFullDeletion(40L)
+
+		assertCandidateAuthority(
+			ownerGeneration = 3L,
+			rolloutRevision = 4L,
+			binding = binding,
+		)
+	}
+
+	@Test
 	fun `full deletion rearm rejects a residual legacy step interval`() = runTest {
 		database.stepIntervalDao().insert(stepInterval())
 
@@ -157,25 +173,38 @@ class StepsSessionFactWriterDeletionRearmTest {
 		database.sourceProjectionStateDao().deleteAllProductLanes()
 	}
 
-	private suspend fun assertCandidateAuthority(ownerGeneration: Long, rolloutRevision: Long) {
+	private suspend fun assertCandidateAuthority(
+		ownerGeneration: Long,
+		rolloutRevision: Long,
+		binding: ExecutableSourceLaneBinding = STEPS_BINDING,
+	) {
 		database.sourceDestinationOwnerDao().get(STEPS_SOURCE, STEPS_DESTINATION)?.let { owner ->
 			owner.owner shouldBe CANDIDATE_OWNER
 			owner.ownerGeneration shouldBe ownerGeneration
 		}
-		database.sourceProjectionStateDao().activeProductLane(STEPS_SOURCE)?.productStage shouldBe
-			SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL
+		database.sourceProjectionStateDao().activeProductLane(STEPS_SOURCE)?.let { lane ->
+			lane.productStage shouldBe SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL
+			lane.bindingGeneration shouldBe binding.bindingGeneration
+			lane.captureModeMask shouldBe binding.captureModeMask
+		}
 		rolloutStore.load().let { rollout ->
 			rollout.revision shouldBe rolloutRevision
 			rollout.isCaptureReachable(
 				SourceKind.STEPS,
 				CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
 			) shouldBe true
+			rollout.isCaptureReachable(
+				SourceKind.STEPS,
+				CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE,
+			) shouldBe (CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE in binding.captureModes)
 		}
 	}
 
-	private suspend fun installShadow() {
+	private suspend fun installShadow(
+		binding: ExecutableSourceLaneBinding = STEPS_BINDING,
+	) {
 		rolloutStore.load() shouldBe TrackingRolloutState.contained(revision = 1L)
-		rolloutStore.installInertShadowLane(STEPS_BINDING, 2L, 10L)
+		rolloutStore.installInertShadowLane(binding, 2L, 10L)
 	}
 
 	private suspend fun activate() = coordinator.activateCandidate(2L, 20L)

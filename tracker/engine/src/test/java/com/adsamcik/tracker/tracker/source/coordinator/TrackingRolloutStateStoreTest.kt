@@ -51,6 +51,46 @@ class TrackingRolloutStateStoreTest {
 	}
 
 	@Test
+	fun `production catalog retains generation 1 and adds exact automatic generation 2`() {
+		val catalog = ExecutableSourceLaneCatalog()
+		val generationOne = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1
+		val generationTwo = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V2
+
+		catalog.owns(generationOne) shouldBe true
+		catalog.owns(generationTwo) shouldBe true
+		generationOne.captureModes shouldBe setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE)
+		generationTwo.captureModes shouldBe setOf(
+			CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+			CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE,
+		)
+		generationOne.bindingGeneration shouldBe 1L
+		generationTwo.bindingGeneration shouldBe 2L
+	}
+
+	@Test
+	fun `generation 2 shadow installation remains product contained`() = runTest {
+		val productionStore = RoomTrackingRolloutStateStore(database, ExecutableSourceLaneCatalog())
+		productionStore.load() shouldBe TrackingRolloutState.contained(revision = 1L)
+
+		val activation = productionStore.installInertShadowLane(
+			ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V2,
+			rolloutRevision = 2L,
+			updatedAtMs = 1L,
+		)
+
+		activation.lane.bindingGeneration shouldBe 2L
+		activation.rollout shouldBe TrackingRolloutState.contained(revision = 2L)
+		activation.rollout.isCaptureReachable(
+			SourceKind.STEPS,
+			CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+		) shouldBe false
+		activation.rollout.isCaptureReachable(
+			SourceKind.STEPS,
+			CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE,
+		) shouldBe false
+	}
+
+	@Test
 	fun `unreleased global canonical marker is contained without source promotion`() = runTest {
 		database.trackingRolloutStateDao().save(
 			TrackingRolloutStateEntity(
@@ -151,6 +191,33 @@ class TrackingRolloutStateStoreTest {
 		productionStore.load().isCaptureReachable(
 			SourceKind.STEPS,
 			CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+		) shouldBe true
+	}
+
+	@Test
+	fun `generation 2 canonical Steps requires the same exact destination owner`() = runTest {
+		val productionStore = RoomTrackingRolloutStateStore(database, ExecutableSourceLaneCatalog())
+		val binding = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V2
+		database.sourceProjectionStateDao().installProductLane(
+			productLane(binding, rolloutRevision = 3L).copy(
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			),
+		)
+		val canonical = TrackingRolloutState.eventCanonical(
+			sources = setOf(SourceKind.STEPS),
+			revision = 3L,
+			captureModes = mapOf(SourceKind.STEPS to binding.captureModes),
+		)
+
+		shouldThrow<IllegalArgumentException> {
+			productionStore.save(canonical, updatedAtMs = 1_000L)
+		}
+		installStepsDestinationOwner(SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS, 2L)
+		productionStore.save(canonical, updatedAtMs = 1_001L)
+
+		productionStore.load().isCaptureReachable(
+			SourceKind.STEPS,
+			CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE,
 		) shouldBe true
 	}
 

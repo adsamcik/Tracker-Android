@@ -504,6 +504,94 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 	}
 
 	@Test
+	fun `exact generation 2 automatic Steps session remains deletable`() = runTest {
+		val selectedId = insertTerminalStepsSession(
+			startMs = 1_000L,
+			endMs = 2_000L,
+			steps = 4,
+			manifestBindingGeneration =
+				SourceDestinationOwnerEntity.STEPS_FACT_AUTOMATIC_BINDING_GENERATION,
+			factBindingGeneration =
+				SourceDestinationOwnerEntity.STEPS_FACT_AUTOMATIC_BINDING_GENERATION,
+			manifestSessionMode = "AUTOMATIC",
+		)
+
+		subject().deleteSelectedSession(selectedId) shouldBe StepsSessionDeletionResult.Deleted
+
+		database.sessionSegmentDao().getById(selectedId) shouldBe null
+		database.sourceDeletionFenceDao().countAll() shouldBe 1L
+		database.stepFactRevisionDao().revisions(
+			SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+			SELECTED_FACT_ID,
+		).single().writerBindingGeneration shouldBe
+			SourceDestinationOwnerEntity.STEPS_FACT_AUTOMATIC_BINDING_GENERATION
+	}
+
+	@Test
+	fun `generation 1 automatic manifest is rejected before deletion mutation`() = runTest {
+		val selectedId = insertTerminalStepsSession(
+			startMs = 1_000L,
+			endMs = 2_000L,
+			steps = 4,
+			manifestBindingGeneration = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
+			factBindingGeneration = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
+			manifestSessionMode = "AUTOMATIC",
+		)
+
+		subject().deleteSelectedSession(selectedId) shouldBe
+			StepsSessionDeletionResult.UnsupportedScope(
+				StepsSessionDeletionUnsupportedReason.CANDIDATE_WRITER_BINDING_INVALID,
+			)
+
+		database.sessionSegmentDao().getById(selectedId).shouldNotBeNull()
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+		database.stepFactRevisionDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `unknown candidate binding generation fails before deletion mutation`() = runTest {
+		val selectedId = insertTerminalStepsSession(
+			startMs = 1_000L,
+			endMs = 2_000L,
+			steps = 4,
+			manifestBindingGeneration = 99L,
+			factBindingGeneration = 99L,
+		)
+
+		subject().deleteSelectedSession(selectedId) shouldBe
+			StepsSessionDeletionResult.UnsupportedScope(
+				StepsSessionDeletionUnsupportedReason.CANDIDATE_WRITER_BINDING_INVALID,
+			)
+
+		database.sessionSegmentDao().getById(selectedId).shouldNotBeNull()
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+		database.stepFactRevisionDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `manifest and fact binding generation mismatch fails before deletion mutation`() = runTest {
+		val selectedId = insertTerminalStepsSession(
+			startMs = 1_000L,
+			endMs = 2_000L,
+			steps = 4,
+			manifestBindingGeneration =
+				SourceDestinationOwnerEntity.STEPS_FACT_AUTOMATIC_BINDING_GENERATION,
+			factBindingGeneration = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
+			manifestSessionMode = "AUTOMATIC",
+		)
+
+		subject().deleteSelectedSession(selectedId) shouldBe
+			StepsSessionDeletionResult.UnsupportedScope(
+				StepsSessionDeletionUnsupportedReason.FACT_ATTRIBUTION_MISMATCH,
+			)
+
+		database.sessionSegmentDao().getById(selectedId).shouldNotBeNull()
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+		database.stepFactRevisionDao().countAll() shouldBe 1L
+	}
+
+	@Test
 	fun `legacy and mismatched reverse bindings fail closed without mutation`() = runTest {
 		val legacyId = database.sessionSegmentDao().insert(
 			segment(startMs = 1_000L, endMs = 2_000L, steps = 3),
@@ -1505,6 +1593,9 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 		bindingConsentEpoch: Long = CAPTURE_CONSENT_EPOCH,
 		factPolicyRevision: Long = manifestPolicyRevision,
 		factConsentEpoch: Long = bindingConsentEpoch,
+		manifestBindingGeneration: Long = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
+		factBindingGeneration: Long = manifestBindingGeneration,
+		manifestSessionMode: String = "MANUAL",
 		insertFact: Boolean = true,
 		presentationAcknowledgement: String = SourceServiceRunEntity.PRESENTATION_QUIESCED,
 	): Long {
@@ -1517,6 +1608,7 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 		database.sourceSessionDao().insertSession(logicalSession(
 			state = "FINALIZED",
 			currentServiceRunId = null,
+			sessionMode = manifestSessionMode,
 		))
 		database.sourceSessionDao().insertServiceRun(serviceRun(
 			state = "FINALIZED",
@@ -1526,8 +1618,20 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 			presentationAcknowledgedAtMs = endMs.takeIf {
 				presentationAcknowledgement == SourceServiceRunEntity.PRESENTATION_QUIESCED
 			},
+		).copy(
+			startOrigin = if (manifestSessionMode == "AUTOMATIC") {
+				"AUTOMATIC_BACKGROUND_START"
+			} else {
+				"MANUAL_UI"
+			},
 		))
-		insertCandidateManifest(zoneId, manifestPolicyRevision, bindingConsentEpoch)
+		insertCandidateManifest(
+			zoneId = zoneId,
+			sourcePolicyRevision = manifestPolicyRevision,
+			consentEpoch = bindingConsentEpoch,
+			writerBindingGeneration = manifestBindingGeneration,
+			sessionMode = manifestSessionMode,
+		)
 		if (insertFact) {
 			database.stepFactRevisionDao().insert(
 				stepFact(
@@ -1540,6 +1644,7 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 					endMs = endMs,
 					sourcePolicyRevision = factPolicyRevision,
 					captureConsentEpoch = factConsentEpoch,
+					writerBindingGeneration = factBindingGeneration,
 				),
 			) shouldBe 1L
 		}
@@ -1570,13 +1675,18 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 	private fun logicalSession(
 		state: String,
 		currentServiceRunId: String?,
+		sessionMode: String = "MANUAL",
 	) = LogicalTrackingSessionEntity(
 		logicalTrackingId = LOGICAL_TRACKING_ID,
 		state = state,
 		lifecycleRevision = 2L,
 		desiredPlanRevision = 1L,
 		rolloutRevision = 2L,
-		startOrigin = "MANUAL_UI",
+		startOrigin = if (sessionMode == "AUTOMATIC") {
+			"AUTOMATIC_BACKGROUND_START"
+		} else {
+			"MANUAL_UI"
+		},
 		clockDomainId = "boot-1",
 		startedAtMs = 1_000L,
 		startedElapsedNanos = 1_000L,
@@ -1585,13 +1695,13 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 		completedAtMs = 2_000L.takeIf { state != "ACTIVE" },
 		finalAdmissionOrdinal = 1L.takeIf { state != "ACTIVE" },
 		failureCode = null,
-		sessionMode = "MANUAL",
+		sessionMode = sessionMode,
 		currentManifestRevision = MANIFEST_REVISION,
 		currentIntentRevision = null,
 		currentServiceRunId = currentServiceRunId,
 		lifecycleLeaseGeneration = 1L,
 		lifecycleBootId = "boot-1",
-		automationEpoch = null,
+		automationEpoch = 1L.takeIf { sessionMode == "AUTOMATIC" },
 	)
 
 	private fun serviceRun(
@@ -1636,9 +1746,14 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 		zoneId: ZoneId = ZONE,
 		sourcePolicyRevision: Long = SOURCE_POLICY_REVISION,
 		consentEpoch: Long = CAPTURE_CONSENT_EPOCH,
+		writerBindingGeneration: Long = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
+		sessionMode: String = "MANUAL",
 	) {
-		val source = candidateManifestSource(consentEpoch)
-		val unsigned = unsignedManifest(zoneId, sourcePolicyRevision)
+		val source = candidateManifestSource(
+			consentEpoch = consentEpoch,
+			writerBindingGeneration = writerBindingGeneration,
+		)
+		val unsigned = unsignedManifest(zoneId, sourcePolicyRevision, sessionMode)
 		database.sourceSessionDao().insertManifest(
 			unsigned.copy(manifestChecksum = SessionManifestIntegrity.compute(unsigned, listOf(source))),
 		)
@@ -1669,20 +1784,25 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 	private fun unsignedManifest(
 		zoneId: ZoneId = ZONE,
 		sourcePolicyRevision: Long = SOURCE_POLICY_REVISION,
+		sessionMode: String = "MANUAL",
 	) = SessionManifestVersionEntity(
 		logicalTrackingId = LOGICAL_TRACKING_ID,
 		manifestRevision = MANIFEST_REVISION,
 		serviceRunId = SERVICE_RUN_ID,
-		sessionMode = "MANUAL",
+		sessionMode = sessionMode,
 		sourcePolicyRevision = sourcePolicyRevision,
 		acquisitionPlanRevision = 1L,
 		rolloutRevision = 2L,
-		startOrigin = "MANUAL_UI",
+		startOrigin = if (sessionMode == "AUTOMATIC") {
+			"AUTOMATIC_BACKGROUND_START"
+		} else {
+			"MANUAL_UI"
+		},
 		effectiveBootId = "boot-1",
 		effectiveElapsedRealtimeNanos = 1_000L,
 		effectiveWallTimeMs = 1_000L,
 		zoneId = zoneId.id,
-		automationEpoch = null,
+		automationEpoch = 1L.takeIf { sessionMode == "AUTOMATIC" },
 		changeReason = "TEST",
 		manifestChecksum = "",
 	)

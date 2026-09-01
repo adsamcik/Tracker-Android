@@ -146,6 +146,8 @@ class TrackerServiceSourceSessionTest {
 
 		captured.captured.automaticTrigger shouldBe trigger
 		captured.captured.origin shouldBe SessionStartOrigin.AUTOMATIC_BACKGROUND_START
+		captured.captured.plan.plans.filterValues { plan -> plan.enabled }.keys shouldBe
+			setOf(SourceKind.STEPS)
 		captured.captured.controlDependencies shouldBe setOf(SourceKind.ACTIVITY)
 	}
 

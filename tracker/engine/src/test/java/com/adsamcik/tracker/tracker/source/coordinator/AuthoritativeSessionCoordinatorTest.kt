@@ -15,7 +15,9 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionOutboxEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID
 import com.adsamcik.tracker.shared.base.time.FixedClock
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
@@ -104,6 +106,7 @@ class AuthoritativeSessionCoordinatorTest {
 	private lateinit var activityAutomationDrainSignal: RecordingActivityAutomationDrainSignal
 	private lateinit var activityAutomationEpochAuthority: ActivityAutomationEpochAuthority
 	private lateinit var leaseClock: FixedClock
+	private lateinit var rolloutSnapshot: TrackingRolloutState
 	private var currentBootId = "boot-1"
 	private var activityLocked = false
 
@@ -112,6 +115,7 @@ class AuthoritativeSessionCoordinatorTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		activityLocked = false
 		currentBootId = "boot-1"
+		rolloutSnapshot = fixedEventRollout()
 		leaseClock = FixedClock(fixedTimeMillis = 1_000L, fixedRealtimeNanos = 1_000_000L)
 		database = AppDatabase.testDatabase(context)
 		policy = RoomSourcePolicyRepository(database) {
@@ -119,7 +123,7 @@ class AuthoritativeSessionCoordinatorTest {
 		}
 		runBlocking {
 			policy.bootstrapFromLegacy(TrackingParamsState(legacySettingsMigrationCompleted = true))
-			database.trackingRolloutStateDao().save(fixedEventRollout().toEntity(updatedAtMs = 0L))
+			database.trackingRolloutStateDao().save(rolloutSnapshot.toEntity(updatedAtMs = 0L))
 			database.sourceDestinationOwnerDao().insertIfAbsent(
 				SourceDestinationOwnerEntity(
 					sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
@@ -2213,6 +2217,96 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
+	fun `automatic generation 2 Steps registers only Steps capture and Activity control`() = runTest {
+		val binding = installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V2)
+		val trigger = automaticTrigger()
+		seedAutomaticStartAction(trigger)
+		val request = startRequest().copy(
+			origin = SessionStartOrigin.AUTOMATIC_BACKGROUND_START,
+			rolloutRevision = rolloutSnapshot.revision,
+			controlDependencies = setOf(SourceKind.ACTIVITY),
+			automaticTrigger = trigger,
+			logicalTrackingId = "automatic-steps-v2",
+			serviceRunId = "automatic-steps-v2-run",
+		)
+
+		val prepared = subject.prepareAndroidStart(
+			request,
+			AndroidStartDeliveryMetadata(
+				token = PreparedTrackingStartToken("automatic-steps-v2-token"),
+				commandGeneration = 1L,
+				isUserInitiated = false,
+				isAmbient = false,
+			),
+		).shouldBeInstanceOf<SessionStartPreparationResult.Prepared>().start
+
+		val manifestSources = database.sourceSessionDao()
+			.manifestSources(prepared.logicalTrackingId, prepared.manifestRevision)
+		manifestSources.filter { source ->
+			source.purpose == SessionManifestPurpose.SESSION_CAPTURE.name
+		}.let { capture ->
+			capture.map(SessionManifestSourceEntity::sourceKind).toSet() shouldBe
+				setOf(SourceKind.STEPS.stableCode)
+			capture.single().writerProjectionId shouldBe binding.projectionId
+			capture.single().writerProjectionVersion shouldBe binding.projectionVersion
+			capture.single().writerBindingGeneration shouldBe binding.bindingGeneration
+		}
+		manifestSources.filter { source ->
+			source.purpose == SessionManifestPurpose.CONTROL.name
+		}.let { control ->
+			control.map(SessionManifestSourceEntity::sourceKind).toSet() shouldBe
+				setOf(SourceKind.ACTIVITY.stableCode)
+			control.single().persistenceEligible shouldBe false
+			control.single().writerOwner shouldBe null
+		}
+
+		val demands = database.sourceBrokerDao().demandHistory("session:${prepared.logicalTrackingId}")
+		demands.map { demand -> demand.sourceKind to demand.purpose }.toSet() shouldBe setOf(
+			SourceKind.STEPS.stableCode to SourceBrokerPurpose.SESSION_CAPTURE,
+			SourceKind.ACTIVITY.stableCode to SourceBrokerPurpose.CONTROL_CONTINUATION,
+		)
+		demands.all { demand -> demand.status == SourceDemandEntity.STATUS_BLOCKED } shouldBe true
+		database.sourceBrokerDao().currentDemands("session:${prepared.logicalTrackingId}") shouldBe
+			emptyList()
+		demands.single { demand -> demand.sourceKind == SourceKind.ACTIVITY.stableCode }
+			.persistenceEligible shouldBe false
+		setOf(
+			SourceKind.LOCATION,
+			SourceKind.PRESSURE,
+			SourceKind.WIFI,
+			SourceKind.CELL,
+		).all { source -> demands.none { demand -> demand.sourceKind == source.stableCode } } shouldBe true
+	}
+
+	@Test
+	fun `generation 1 candidate remains manual only at the lifecycle boundary`() = runTest {
+		installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1)
+		val trigger = automaticTrigger()
+		seedAutomaticStartAction(trigger)
+
+		subject.prepareAndroidStart(
+			startRequest().copy(
+				origin = SessionStartOrigin.AUTOMATIC_BACKGROUND_START,
+				rolloutRevision = rolloutSnapshot.revision,
+				controlDependencies = setOf(SourceKind.ACTIVITY),
+				automaticTrigger = trigger,
+				logicalTrackingId = "automatic-steps-v1-rejected",
+				serviceRunId = "automatic-steps-v1-rejected-run",
+			),
+			AndroidStartDeliveryMetadata(
+				token = PreparedTrackingStartToken("automatic-steps-v1-rejected-token"),
+				commandGeneration = 1L,
+				isUserInitiated = false,
+				isAmbient = false,
+			),
+		) shouldBe SessionStartPreparationResult.Rejected("EVENT_CAPTURE_MODE_NOT_REACHABLE")
+
+		database.sourceSessionDao().session("automatic-steps-v1-rejected") shouldBe null
+		database.sourceBrokerDao().currentDemands("session:automatic-steps-v1-rejected") shouldBe
+			emptyList()
+	}
+
+	@Test
 	fun `revocation committed during provider start rolls registration back`() = runTest {
 		runtime.blockStart = true
 		val start = async {
@@ -2789,8 +2883,51 @@ class AuthoritativeSessionCoordinatorTest {
 			bytes.toByteArray()
 		}
 
+	private suspend fun installStepsCandidateRollout(
+		binding: ExecutableSourceLaneBinding,
+	): ExecutableSourceLaneBinding {
+		val owner = requireNotNull(database.sourceDestinationOwnerDao().get(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+		))
+		check(database.sourceDestinationOwnerDao().compareAndSetOwner(
+			sourceKind = owner.sourceKind,
+			destination = owner.destination,
+			expectedOwner = owner.owner,
+			expectedOwnerGeneration = owner.ownerGeneration,
+			newOwner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
+			newOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+			updatedAtMs = 1L,
+		) == 1)
+		rolloutSnapshot = TrackingRolloutState.eventCanonical(
+			sources = setOf(SourceKind.STEPS),
+			controlSources = setOf(SourceKind.ACTIVITY),
+			revision = 2L,
+			captureModes = mapOf(SourceKind.STEPS to binding.captureModes),
+		)
+		database.sourceProjectionStateDao().installProductLane(
+			SourceProductProjectionLaneEntity(
+				sourceKind = SourceKind.STEPS.stableCode,
+				bindingGeneration = binding.bindingGeneration,
+				projectionId = binding.projectionId,
+				projectionVersion = binding.projectionVersion,
+				captureModeMask = binding.captureModeMask,
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+				activatedRolloutRevision = rolloutSnapshot.revision,
+				activationOrdinal = 1L,
+				contiguousAdmissionOrdinal = 0L,
+				retentionRequired = true,
+				status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+				installedAtMs = 1L,
+				updatedAtMs = 1L,
+			),
+		)
+		database.trackingRolloutStateDao().save(rolloutSnapshot.toEntity(updatedAtMs = 1L))
+		return binding
+	}
+
 	private fun fixedEventRolloutStore() = object : TrackingRolloutStateStore {
-		override suspend fun load() = fixedEventRollout()
+		override suspend fun load() = rolloutSnapshot
 
 		override suspend fun save(state: TrackingRolloutState, updatedAtMs: Long) = Unit
 	}
@@ -2810,7 +2947,8 @@ class AuthoritativeSessionCoordinatorTest {
 				ProductProjectionStage.EVENT_CANONICAL
 			},
 			captureModeMasks = SourceKind.entries.associateWith {
-				CaptureReachabilityMode.MANUAL_SESSION_CAPTURE.mask
+				CaptureReachabilityMode.MANUAL_SESSION_CAPTURE.mask or
+					CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE.mask
 			},
 			semanticSettingsEnabled = false,
 			batteryEstimateMode = BatteryEstimateMode.SOURCE_PLAN_QUALITATIVE,

@@ -34,7 +34,7 @@ data class ExecutableSourceLaneBinding(
 class ExecutableSourceLaneCatalog internal constructor(
 	bindings: Set<ExecutableSourceLaneBinding>,
 ) : SourceProductLaneExecutionAuthority {
-	@Inject constructor() : this(setOf(STEPS_SESSION_FACTS))
+	@Inject constructor() : this(setOf(STEPS_SESSION_FACTS_V1, STEPS_SESSION_FACTS_V2))
 
 	private val bindingsByGeneration = bindings.associateBy { binding ->
 		binding.source to binding.bindingGeneration
@@ -52,6 +52,24 @@ class ExecutableSourceLaneCatalog internal constructor(
 	fun owns(binding: ExecutableSourceLaneBinding): Boolean =
 		bindingsByGeneration[binding.source to binding.bindingGeneration] == binding
 
+	fun bindingFor(
+		source: SourceKind,
+		bindingGeneration: Long,
+		projectionId: String?,
+		projectionVersion: Int?,
+	): ExecutableSourceLaneBinding? = bindingsByGeneration[source to bindingGeneration]
+		?.takeIf { binding ->
+			binding.projectionId == projectionId && binding.projectionVersion == projectionVersion
+		}
+
+	/** Resolves one exact executable binding for a source mask, failing closed on ambiguity. */
+	fun bindingForCaptureModeMask(
+		source: SourceKind,
+		captureModeMask: Long,
+	): ExecutableSourceLaneBinding? = bindingsByGeneration.values.singleOrNull { binding ->
+		binding.source == source && binding.captureModeMask == captureModeMask
+	}
+
 	fun bindingFor(lane: SourceProductProjectionLaneEntity): ExecutableSourceLaneBinding? {
 		val source = SourceKind.entries.singleOrNull { it.stableCode == lane.sourceKind } ?: return null
 		return bindingsByGeneration[source to lane.bindingGeneration]?.takeIf { binding ->
@@ -68,13 +86,31 @@ class ExecutableSourceLaneCatalog internal constructor(
 		 * The binary can execute this lane, but that fact alone authorizes neither acquisition nor
 		 * canonical publication. The durable lane, rollout, and destination owner must still agree.
 		 */
-		val STEPS_SESSION_FACTS = ExecutableSourceLaneBinding(
+		val STEPS_SESSION_FACTS_V1 = ExecutableSourceLaneBinding(
 			source = SourceKind.STEPS,
 			bindingGeneration = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
 			projectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
 			projectionVersion = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
 			captureModes = setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
 		)
+
+		/**
+		 * Generation 2 is a new immutable contract: it preserves manual capture and additionally
+		 * permits automatic session capture. Generation 1 remains executable for retained history.
+		 */
+		val STEPS_SESSION_FACTS_V2 = STEPS_SESSION_FACTS_V1.copy(
+			bindingGeneration = SourceDestinationOwnerEntity.STEPS_FACT_AUTOMATIC_BINDING_GENERATION,
+			captureModes = setOf(
+				CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+				CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE,
+			),
+		)
+
+		/** Compatibility name for the immutable generation-1 contract. */
+		val STEPS_SESSION_FACTS = STEPS_SESSION_FACTS_V1
+
+		/** Prospective binding used only when no durable Steps lane supplies an exact generation. */
+		val PREFERRED_STEPS_SESSION_FACTS = STEPS_SESSION_FACTS_V2
 
 		fun explicit(vararg bindings: ExecutableSourceLaneBinding) =
 			ExecutableSourceLaneCatalog(bindings.toSet())
@@ -586,7 +622,9 @@ private suspend fun AppDatabase.hasExactCanonicalDestinationOwner(
 	binding: ExecutableSourceLaneBinding,
 	stage: ProductProjectionStage,
 ): Boolean {
-	if (binding != ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS ||
+	if (binding.source != SourceKind.STEPS ||
+		binding.projectionId != SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID ||
+		binding.projectionVersion != SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION ||
 		stage != ProductProjectionStage.EVENT_CANONICAL
 	) return true
 	val owner = sourceDestinationOwnerDao().get(

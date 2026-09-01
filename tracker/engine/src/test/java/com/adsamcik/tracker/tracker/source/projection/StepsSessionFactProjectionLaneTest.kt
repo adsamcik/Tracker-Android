@@ -13,6 +13,8 @@ import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
@@ -118,6 +120,63 @@ class StepsSessionFactProjectionLaneTest {
 		database.sourceEvidenceStateDao().get()?.revision shouldBe 1L
 		activeLane()?.contiguousAdmissionOrdinal shouldBe 4L
 		database.stepIntervalDao().getAllBetween(0L, Long.MAX_VALUE).shouldBeEmpty()
+	}
+
+	@Test
+	fun `generation 2 canonical lane persists an automatic session fact with exact provenance`() = runTest {
+		val binding = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V2
+		installLane(
+			stage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			binding = binding,
+			sessionMode = "AUTOMATIC",
+		)
+		val ingress = sourceIngress(0L, 1L, listOf(stepEvent(1L)))
+
+		StepsSessionFactProjectionLane(database, ingress).drainThrough(1L) shouldBe
+			StepsSessionFactDrainResult.Complete(1L, factsInserted = 1, eventsValidated = 1)
+
+		val fact = requireNotNull(fact(1L))
+		fact.writerProjectionId shouldBe binding.projectionId
+		fact.writerProjectionVersion shouldBe binding.projectionVersion
+		fact.writerBindingGeneration shouldBe binding.bindingGeneration
+	}
+
+	@Test
+	fun `generation 1 is not reinterpreted with the generation 2 capture modes`() = runTest {
+		installManifestBinding(
+			writerOwner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
+			binding = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1,
+		)
+		database.sourceProjectionStateDao().installProductLane(
+			productLane(
+				stage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+				binding = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1,
+			).copy(
+				captureModeMask = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V2.captureModeMask,
+			),
+		)
+
+		StepsSessionFactProjectionLane(database, sourceIngress(0L, 1L, listOf(stepEvent(1L))))
+			.drainThrough(1L) shouldBe StepsSessionFactDrainResult.Inactive
+		database.stepFactRevisionDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `generation 1 rejects an automatic manifest without reinterpreting its capture contract`() = runTest {
+		installLane(
+			stage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			binding = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1,
+			sessionMode = "AUTOMATIC",
+		)
+
+		StepsSessionFactProjectionLane(database, sourceIngress(0L, 1L, listOf(stepEvent(1L))))
+			.drainThrough(1L) shouldBe StepsSessionFactDrainResult.Failed(
+				lastCompletedOrdinal = 0L,
+				failedOrdinal = 1L,
+				failureCode = "STEPS_MANIFEST_CAPTURE_MODE_MISMATCH",
+				terminal = true,
+			)
+		database.stepFactRevisionDao().countAll() shouldBe 0L
 	}
 
 	@Test
@@ -515,6 +574,8 @@ class StepsSessionFactProjectionLaneTest {
 	private suspend fun installLane(
 		stage: String,
 		cutoffOrdinal: Long? = null,
+		binding: ExecutableSourceLaneBinding = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1,
+		sessionMode: String = "MANUAL",
 		manifestOwner: String = if (stage == SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL) {
 			SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
 		} else {
@@ -538,13 +599,17 @@ class StepsSessionFactProjectionLaneTest {
 				) == 1)
 			}
 		}
-		installManifestBinding(manifestOwner)
+		installManifestBinding(manifestOwner, binding, sessionMode)
 		database.sourceProjectionStateDao().installProductLane(
-			productLane(stage = stage, cutoffOrdinal = cutoffOrdinal),
+			productLane(stage = stage, cutoffOrdinal = cutoffOrdinal, binding = binding),
 		)
 	}
 
-	private suspend fun installManifestBinding(writerOwner: String) {
+	private suspend fun installManifestBinding(
+		writerOwner: String,
+		binding: ExecutableSourceLaneBinding = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1,
+		sessionMode: String = "MANUAL",
+	) {
 		if (database.sourceSessionDao().manifest(LOGICAL_TRACKING_ID, MANIFEST_REVISION) != null) return
 		val owner = requireNotNull(database.sourceDestinationOwnerDao().get(
 			SourceDestinationOwnerEntity.SOURCE_STEPS,
@@ -566,24 +631,28 @@ class StepsSessionFactProjectionLaneTest {
 			} else {
 				SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
 			},
-			writerProjectionId = StepsSessionFactProjectionLane.WRITER_ID.takeIf { isCandidate },
-			writerProjectionVersion = StepsSessionFactProjectionLane.WRITER_VERSION.takeIf { isCandidate },
-			writerBindingGeneration = StepsSessionFactProjectionLane.BINDING_GENERATION.takeIf { isCandidate },
+			writerProjectionId = binding.projectionId.takeIf { isCandidate },
+			writerProjectionVersion = binding.projectionVersion.takeIf { isCandidate },
+			writerBindingGeneration = binding.bindingGeneration.takeIf { isCandidate },
 		)
 		val unsigned = SessionManifestVersionEntity(
 			logicalTrackingId = LOGICAL_TRACKING_ID,
 			manifestRevision = MANIFEST_REVISION,
 			serviceRunId = SERVICE_RUN_ID,
-			sessionMode = "MANUAL",
+			sessionMode = sessionMode,
 			sourcePolicyRevision = 3L,
 			acquisitionPlanRevision = 1L,
 			rolloutRevision = 2L,
-			startOrigin = "MANUAL_UI",
+			startOrigin = if (sessionMode == "AUTOMATIC") {
+				"AUTOMATIC_BACKGROUND_START"
+			} else {
+				"MANUAL_UI"
+			},
 			effectiveBootId = "boot-1",
 			effectiveElapsedRealtimeNanos = 0L,
 			effectiveWallTimeMs = 10_000L,
 			zoneId = "UTC",
-			automationEpoch = null,
+			automationEpoch = 1L.takeIf { sessionMode == "AUTOMATIC" },
 			changeReason = "TEST",
 			manifestChecksum = "",
 		)
@@ -605,13 +674,14 @@ class StepsSessionFactProjectionLaneTest {
 	private fun productLane(
 		stage: String,
 		cutoffOrdinal: Long? = null,
+		binding: ExecutableSourceLaneBinding = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1,
 		projectionId: String = StepsSessionFactProjectionLane.WRITER_ID,
 	) = SourceProductProjectionLaneEntity(
 		sourceKind = SourceKind.STEPS.stableCode,
-		bindingGeneration = StepsSessionFactProjectionLane.BINDING_GENERATION,
+		bindingGeneration = binding.bindingGeneration,
 		projectionId = projectionId,
-		projectionVersion = StepsSessionFactProjectionLane.WRITER_VERSION,
-		captureModeMask = StepsSessionFactProjectionLane.MANUAL_CAPTURE_MODE_MASK,
+		projectionVersion = binding.projectionVersion,
+		captureModeMask = binding.captureModeMask,
 		productStage = stage,
 		activatedRolloutRevision = 2L,
 		activationOrdinal = 1L,

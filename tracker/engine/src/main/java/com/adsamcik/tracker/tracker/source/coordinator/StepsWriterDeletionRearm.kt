@@ -20,15 +20,15 @@ internal class StepsWriterDeletionRearm @Inject constructor(
 			val rolloutState = loadRolloutState()
 			val nextRevision = nextRolloutRevision(rolloutState.entityRevision)
 			val contained = containedRollout(rolloutState.model, nextRevision)
-			val binding = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS
-			val rearmCandidate = candidateRearmEligible(owner, rolloutState.decodedModel, binding)
+			val binding = candidateRearmBinding(owner, rolloutState.decodedModel)
+			val rearmCandidate = binding != null
 			val targetOwner = if (rearmCandidate) {
 				StepsWriterDestination.CANDIDATE_OWNER
 			} else {
 				StepsWriterDestination.LEGACY_OWNER
 			}
 			val targetRollout = if (rearmCandidate) {
-				installCandidateLane(contained, binding, nextRevision, updatedAtMs)
+				installCandidateLane(contained, requireNotNull(binding), nextRevision, updatedAtMs)
 			} else {
 				contained
 			}
@@ -98,19 +98,21 @@ internal class StepsWriterDeletionRearm @Inject constructor(
 		batteryEstimateMode = BatteryEstimateMode.SOURCE_PLAN_QUALITATIVE,
 	)
 
-	private fun candidateRearmEligible(
+	private fun candidateRearmBinding(
 		owner: SourceDestinationOwnerEntity,
 		rollout: TrackingRolloutState?,
-		binding: ExecutableSourceLaneBinding,
-	): Boolean {
-		val current = rollout ?: return false
+	): ExecutableSourceLaneBinding? {
+		val current = rollout ?: return null
 		val authorityMatches = owner.owner == StepsWriterDestination.CANDIDATE_OWNER &&
 			current.coordinatorMode == CoordinatorMode.EVENT &&
 			current.sourceOwners.getValue(SourceKind.STEPS) == SourceOwner.EVENT
+		val previousBinding = state.executableLaneCatalog.bindingForCaptureModeMask(
+			SourceKind.STEPS,
+			current.captureModeMasks.getValue(SourceKind.STEPS),
+		)
 		val outputMatches = current.productProjectionStages.getValue(SourceKind.STEPS) ==
-			ProductProjectionStage.EVENT_CANONICAL &&
-			current.captureModeMasks.getValue(SourceKind.STEPS) == binding.captureModeMask
-		return authorityMatches && outputMatches && state.executableLaneCatalog.owns(binding)
+			ProductProjectionStage.EVENT_CANONICAL && previousBinding != null
+		return previousBinding?.takeIf { authorityMatches && outputMatches }
 	}
 
 	private suspend fun installCandidateLane(

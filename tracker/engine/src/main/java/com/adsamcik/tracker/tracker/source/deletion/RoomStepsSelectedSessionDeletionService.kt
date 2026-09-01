@@ -21,6 +21,9 @@ import com.adsamcik.tracker.stats.api.repository.StepsSessionDeletion
 import com.adsamcik.tracker.stats.api.repository.StepsSessionDeletionResult
 import com.adsamcik.tracker.stats.api.repository.StepsSessionDeletionRetryableReason
 import com.adsamcik.tracker.stats.api.repository.StepsSessionDeletionUnsupportedReason
+import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import kotlinx.coroutines.CancellationException
@@ -40,6 +43,7 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 	private val dirtyTracker: MetricDirtyTracker,
 	private val wallTimeMsProvider: () -> Long,
 	private val requestStepsDrain: () -> Unit,
+	private val executableLaneCatalog: ExecutableSourceLaneCatalog = ExecutableSourceLaneCatalog(),
 	private val afterDayLocksAcquired: suspend () -> Unit = {},
 	private val beforeMutation: suspend () -> Unit = {},
 ) : StepsSessionDeletion {
@@ -48,11 +52,13 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 		database: AppDatabase,
 		dirtyTracker: MetricDirtyTracker,
 		sourcePipelineRecovery: Provider<SourcePipelineRecovery>,
+		executableLaneCatalog: ExecutableSourceLaneCatalog,
 	) : this(
 		database = database,
 		dirtyTracker = dirtyTracker,
 		wallTimeMsProvider = System::currentTimeMillis,
 		requestStepsDrain = { sourcePipelineRecovery.get().requestStepsSessionFactDrain() },
+		executableLaneCatalog = executableLaneCatalog,
 	)
 
 	@Suppress("CyclomaticComplexMethod", "ReturnCount", "ThrowsCount")
@@ -316,7 +322,11 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 		}) {
 			return unsupportedScope(StepsSessionDeletionUnsupportedReason.LEGACY_WRITER)
 		}
-		if (!captureBindings.all(::isExactCandidateWriter) ||
+		val executableBindings = manifests.zip(captureBindings).mapNotNull { (manifest, source) ->
+			exactCandidateBinding(source, manifest.sessionMode)
+		}
+		val exactBinding = executableBindings.distinct().singleOrNull()
+		if (executableBindings.size != captureBindings.size || exactBinding == null ||
 			captureBindings.map(SessionManifestSourceEntity::writerOwnerGeneration).distinct().size != 1
 		) {
 			return unsupportedScope(
@@ -348,9 +358,12 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 			val binding = bindingsByRevision[manifestRevision]
 			if (
 				manifest == null || binding == null ||
-				fact.writerProjectionId != SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID ||
-				fact.writerProjectionVersion != SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION ||
-				fact.writerBindingGeneration != SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION ||
+				fact.writerProjectionId != exactBinding.projectionId ||
+				fact.writerProjectionVersion != exactBinding.projectionVersion ||
+				fact.writerBindingGeneration != exactBinding.bindingGeneration ||
+				binding.writerProjectionId != exactBinding.projectionId ||
+				binding.writerProjectionVersion != exactBinding.projectionVersion ||
+				binding.writerBindingGeneration != exactBinding.bindingGeneration ||
 				fact.logicalTrackingId != logicalTrackingId || fact.serviceRunId != serviceRunId ||
 				fact.purpose != SessionManifestPurposeCode.SESSION_CAPTURE ||
 				fact.sourcePolicyRevision != manifest.sourcePolicyRevision ||
@@ -364,9 +377,9 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 		}
 		val manifestRevisions = manifests.map(SessionManifestVersionEntity::manifestRevision)
 		val factStates = factDao.latestStatesForServiceRun(
-			writerProjectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
-			writerProjectionVersion = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
-			writerBindingGeneration = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
+			writerProjectionId = exactBinding.projectionId,
+			writerProjectionVersion = exactBinding.projectionVersion,
+			writerBindingGeneration = exactBinding.bindingGeneration,
 			logicalTrackingId = logicalTrackingId,
 			serviceRunId = serviceRunId,
 			manifestRevisions = manifestRevisions,
@@ -475,13 +488,30 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 		serviceRun.completedAtMs == null ||
 		serviceRun.presentationAcknowledgement != SourceServiceRunEntity.PRESENTATION_QUIESCED
 
-	private fun isExactCandidateWriter(source: SessionManifestSourceEntity): Boolean =
-		source.outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS &&
-			source.writerOwner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS &&
-			source.writerOwnerGeneration?.let { it > 0L } == true &&
-			source.writerProjectionId == SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID &&
-			source.writerProjectionVersion == SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION &&
-			source.writerBindingGeneration == SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION
+	private fun exactCandidateBinding(
+		source: SessionManifestSourceEntity,
+		sessionMode: String,
+	): ExecutableSourceLaneBinding? {
+		if (source.outputDestination != SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS ||
+			source.writerOwner != SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS ||
+			source.writerOwnerGeneration?.let { it > 0L } != true
+		) {
+			return null
+		}
+		val generation = source.writerBindingGeneration ?: return null
+		val binding = executableLaneCatalog.bindingFor(
+			source = SourceKind.STEPS,
+			bindingGeneration = generation,
+			projectionId = source.writerProjectionId,
+			projectionVersion = source.writerProjectionVersion,
+		)
+		val captureMode = when (sessionMode) {
+			"MANUAL" -> CaptureReachabilityMode.MANUAL_SESSION_CAPTURE
+			"AUTOMATIC" -> CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE
+			else -> return null
+		}
+		return binding?.takeIf { captureMode in it.captureModes }
+	}
 
 	private suspend fun insertRetractionOrVerify(
 		fact: StepFactRevisionEntity,

@@ -9,8 +9,15 @@ internal class StepsWriterTransitionState @Inject constructor(
 	val database: AppDatabase,
 	val executableLaneCatalog: ExecutableSourceLaneCatalog,
 ) {
-	fun binding(): ExecutableSourceLaneBinding {
-		val binding = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS
+	suspend fun binding(): ExecutableSourceLaneBinding {
+		val latestLane = exactActiveLane()
+			?: database.sourceProjectionStateDao().latestProductLane(StepsWriterDestination.SOURCE)
+		val binding = if (latestLane == null) {
+			ExecutableSourceLaneCatalog.PREFERRED_STEPS_SESSION_FACTS
+		} else {
+			executableLaneCatalog.bindingFor(latestLane)
+				?: blocked(StepsWriterTransitionBlocker.BINDING_NOT_EXECUTABLE)
+		}
 		if (!executableLaneCatalog.owns(binding)) {
 			blocked(StepsWriterTransitionBlocker.BINDING_NOT_EXECUTABLE)
 		}
