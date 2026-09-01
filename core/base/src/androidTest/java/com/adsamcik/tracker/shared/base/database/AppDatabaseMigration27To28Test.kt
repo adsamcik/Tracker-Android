@@ -597,6 +597,17 @@ class AppDatabaseMigration27To28Test {
 			assertEquals(1, indices["idx_session_segment_service_run"])
 		}
 		assertTableCount(database, "daily_summary", 1)
+		database.query(
+			"SELECT total_distance_m, total_steps, active_tracking_ms, calendar_zone_id " +
+				"FROM daily_summary",
+		).use { cursor ->
+			assertTrue(cursor.moveToFirst())
+			assertEquals(125.5f, cursor.getFloat(0), 0f)
+			assertEquals(23, cursor.getInt(1))
+			assertEquals(60_000L, cursor.getLong(2))
+			// v27 materialization never persisted its ZoneId; migration must not invent one.
+			assertTrue(cursor.isNull(3))
+		}
 		assertTableCount(database, "source_registration_state", 1)
 		assertTableCount(database, "source_runtime_state", 1)
 		assertTableCount(database, "source_event_wal", 1)

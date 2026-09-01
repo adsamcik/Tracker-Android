@@ -146,6 +146,7 @@ interface StepFactRevisionDao {
 			  AND newer.logical_fact_id = scoped_fact.logical_fact_id
 		)
 		ORDER BY scoped_fact.first_interval_start_time_ms ASC, state.logical_fact_id ASC
+		LIMIT :limit
 		""",
 	)
 	suspend fun latestStatesForServiceRun(
@@ -155,7 +156,54 @@ interface StepFactRevisionDao {
 		logicalTrackingId: String,
 		serviceRunId: String,
 		manifestRevisions: List<Long>,
+		limit: Int = Int.MAX_VALUE,
 	): List<StepFactRevisionEntity>
+
+	/**
+	 * Every payload-bearing revision attributed to one exact logical/service-run scope.
+	 *
+	 * Selected-session deletion validates immutable manifest, policy, consent, and calendar
+	 * attribution for every row it will remove. This deliberately spans writer versions and old
+	 * corrections so malformed historical payload cannot be hidden by a newer latest state.
+	 */
+	@Query(
+		"""
+		SELECT * FROM step_fact_revision
+		WHERE operation = 'UPSERT'
+		  AND logical_tracking_id = :logicalTrackingId
+		  AND service_run_id = :serviceRunId
+		  AND purpose = 'SESSION_CAPTURE'
+		ORDER BY writer_projection_id, writer_projection_version, logical_fact_id, semantic_revision
+		LIMIT :limit
+		""",
+	)
+	suspend fun upsertsForServiceRun(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		limit: Int = Int.MAX_VALUE,
+	): List<StepFactRevisionEntity>
+
+	/**
+	 * Removes every payload-bearing revision attributed to one exact Steps run.
+	 *
+	 * The selected-session command inserts redacted latest-state retractions and the permanent scope
+	 * fence before calling this query in the same transaction. Deliberately do not filter writer or
+	 * manifest revision here: deletion is permanent across writer upgrades, corrections, and imports,
+	 * and exact logical/run identity is stronger than historical writer membership.
+	 */
+	@Query(
+		"""
+		DELETE FROM step_fact_revision
+		WHERE operation = 'UPSERT'
+		  AND logical_tracking_id = :logicalTrackingId
+		  AND service_run_id = :serviceRunId
+		  AND purpose = 'SESSION_CAPTURE'
+		""",
+	)
+	suspend fun deleteUpsertsForServiceRun(
+		logicalTrackingId: String,
+		serviceRunId: String,
+	): Int
 
 	@Query(
 		"""

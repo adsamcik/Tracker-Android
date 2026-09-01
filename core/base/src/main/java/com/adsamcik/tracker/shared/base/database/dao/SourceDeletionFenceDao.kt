@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.shared.base.database.dao
 
 import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Upsert
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
@@ -8,6 +10,16 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 /** Exact-key access to durable, payload-free source deletion fences. */
 @Dao
 interface SourceDeletionFenceDao {
+	/**
+	 * Installs the first permanent authority for an exact scope.
+	 *
+	 * Production source-local deletion must use this monotonic operation and then read the winner.
+	 * Replacing an existing row could lower its generation or epoch and reopen an ABA window.
+	 * Returns -1 when the exact scope was already fenced.
+	 */
+	@Insert(onConflict = OnConflictStrategy.IGNORE)
+	suspend fun insertIfAbsent(fence: SourceDeletionFenceEntity): Long
+
 	/** Inserts a new scope fence or replaces the exact existing scope authority. */
 	@Upsert
 	suspend fun upsert(fence: SourceDeletionFenceEntity)

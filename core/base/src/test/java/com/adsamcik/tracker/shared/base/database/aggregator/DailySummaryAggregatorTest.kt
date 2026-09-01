@@ -70,6 +70,42 @@ class DailySummaryAggregatorTest {
 	}
 
 	@Test
+	fun materializeDayRemovesAnEmptyDerivedRowButPreservesIndependentActiveTime() = runBlocking {
+		val emptyDerivedDay = 19000L
+		val activeOnlyDay = 19001L
+		database.dailySummaryDao().upsert(
+			dateEpochDay = emptyDerivedDay,
+			totalDistanceM = 100f,
+			totalSteps = 50,
+			totalDurationMs = 1_000L,
+			tripCount = 1,
+			activeTrackingMs = 0L,
+			lastUpdatedMs = 1L,
+			calendarZoneId = ZoneId.systemDefault().id,
+		)
+		database.dailySummaryDao().upsert(
+			dateEpochDay = activeOnlyDay,
+			totalDistanceM = 100f,
+			totalSteps = 50,
+			totalDurationMs = 1_000L,
+			tripCount = 1,
+			activeTrackingMs = 5_000L,
+			lastUpdatedMs = 1L,
+			calendarZoneId = ZoneId.systemDefault().id,
+		)
+
+		aggregator.materializeDayFromSegments(emptyDerivedDay)
+		aggregator.materializeDayFromSegments(activeOnlyDay)
+
+		assertNull(database.dailySummaryDao().getByDay(emptyDerivedDay))
+		val activeOnly = database.dailySummaryDao().getByDay(activeOnlyDay)
+		assertNotNull(activeOnly)
+		assertEquals(0, activeOnly!!.totalSteps)
+		assertEquals(0, activeOnly.tripCount)
+		assertEquals(5_000L, activeOnly.activeTrackingMs)
+	}
+
+	@Test
 	fun materializeDayCreatesRowFromSingleSegment() = runBlocking {
 		val epochDay = 19000L
 		val startMs = startOfDayMs(epochDay) + 1000L
@@ -92,6 +128,7 @@ class DailySummaryAggregatorTest {
 		assertEquals(2000, result.totalSteps)
 		assertEquals(3600_000L, result.totalDurationMs)
 		assertEquals(1, result.tripCount)
+		assertEquals(ZoneId.systemDefault().id, result.calendarZoneId)
 	}
 
 	@Test
@@ -261,6 +298,7 @@ class DailySummaryAggregatorTest {
 			tripCount = 0,
 			activeTrackingMs = 7200_000L,
 			lastUpdatedMs = System.currentTimeMillis(),
+			calendarZoneId = ZoneId.systemDefault().id,
 		)
 
 		// Add a segment
@@ -287,6 +325,11 @@ class DailySummaryAggregatorTest {
 		try {
 			val pragueZone = ZoneId.of("Europe/Prague")
 			TimeZone.setDefault(TimeZone.getTimeZone(pragueZone))
+			aggregator = DailySummaryAggregator(
+				dailySummaryDao = database.dailySummaryDao(),
+				sessionSegmentDao = database.sessionSegmentDao(),
+				zoneId = pragueZone,
+			)
 			val today = LocalDate.now(pragueZone)
 			val todayEpochDay = today.toEpochDay()
 			val startMs = today
@@ -311,6 +354,36 @@ class DailySummaryAggregatorTest {
 				.sumOf { it.totalDistanceM.toDouble() }
 				.toFloat()
 			assertEquals(5100f, weeklyDistance)
+		} finally {
+			TimeZone.setDefault(originalTimeZone)
+		}
+	}
+
+	@Test
+	fun explicitZoneRemainsTheAuthorityWhenTheProcessDefaultChanges() = runBlocking {
+		val originalTimeZone = TimeZone.getDefault()
+		try {
+			val authorityZone = ZoneId.of("America/New_York")
+			val targetDate = LocalDate.of(2026, 3, 8)
+			val targetDay = targetDate.toEpochDay()
+			val startMs = targetDate.atStartOfDay(authorityZone).plusHours(12)
+				.toInstant().toEpochMilli()
+			val fixedZoneAggregator = DailySummaryAggregator(
+				dailySummaryDao = database.dailySummaryDao(),
+				sessionSegmentDao = database.sessionSegmentDao(),
+				zoneId = authorityZone,
+			)
+			TimeZone.setDefault(TimeZone.getTimeZone("Pacific/Auckland"))
+			database.sessionSegmentDao().insert(
+				createSegment(startMs, startMs + 60_000L, distanceM = 5f, steps = 7),
+			)
+
+			fixedZoneAggregator.materializeDayFromSegments(targetDay)
+
+			val result = database.dailySummaryDao().getByDay(targetDay)
+			assertNotNull(result)
+			assertEquals(7, result!!.totalSteps)
+			assertEquals(authorityZone.id, result.calendarZoneId)
 		} finally {
 			TimeZone.setDefault(originalTimeZone)
 		}

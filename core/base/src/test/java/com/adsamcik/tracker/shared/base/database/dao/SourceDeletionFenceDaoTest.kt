@@ -65,6 +65,23 @@ class SourceDeletionFenceDaoTest {
 	}
 
 	@Test
+	fun insertIfAbsentNeverReplacesTheFirstMonotonicScopeAuthority() = runTest {
+		val first = fence(generation = 4L, epoch = 7L, deletedAtMs = 200L)
+		val staleReplacement = fence(generation = 1L, epoch = 2L, deletedAtMs = 100L)
+
+		(dao.insertIfAbsent(first) > 0L) shouldBe true
+		dao.insertIfAbsent(staleReplacement) shouldBe -1L
+
+		dao.countAll() shouldBe 1L
+		dao.get(
+			sourceKind = SOURCE_STEPS,
+			purpose = PURPOSE_SESSION_CAPTURE,
+			scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			scopeIdentityDigest = first.scopeIdentityDigest,
+		) shouldBe first
+	}
+
+	@Test
 	fun entityRejectsAChangedAuthorityWithAStaleChecksum() {
 		val valid = fence(generation = 1L, epoch = 3L, deletedAtMs = 100L)
 

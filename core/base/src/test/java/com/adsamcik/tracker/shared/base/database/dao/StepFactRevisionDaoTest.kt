@@ -373,6 +373,61 @@ class StepFactRevisionDaoTest {
 	}
 
 	@Test
+	fun `exact run payload read spans every upsert revision and excludes unrelated scope`() = runTest {
+		val first = revision(intervalId = null, admissionOrdinal = 1L, effectiveStepCount = 4L)
+		val correction = revision(
+			intervalId = null,
+			semanticRevision = 2L,
+			admissionOrdinal = 2L,
+			effectiveStepCount = 5L,
+		)
+		val unrelated = revision(intervalId = null, admissionOrdinal = 3L).copy(
+			logicalFactId = "unrelated-fact",
+			mutationId = "unrelated-mutation",
+			sourceEventId = "unrelated-event",
+			originIdentity = "unrelated-event",
+			logicalTrackingId = "unrelated-logical",
+			serviceRunId = "unrelated-run",
+			effectChecksum = "unrelated-checksum",
+		)
+		val otherSelected = revision(
+			intervalId = null,
+			admissionOrdinal = 4L,
+			effectiveStepCount = 6L,
+		).copy(
+			logicalFactId = "zz-selected-fact",
+			mutationId = "zz-selected-mutation",
+			sourceEventId = "zz-selected-event",
+			originIdentity = "zz-selected-event",
+			intervalStartTimeMs = 3_000L,
+			intervalEndTimeMs = 4_000L,
+			effectChecksum = "zz-selected-checksum",
+		)
+		dao.insert(first) shouldBe 1L
+		dao.insert(correction) shouldBe 2L
+		dao.insert(unrelated) shouldBe 3L
+		dao.insert(otherSelected) shouldBe 4L
+
+		dao.upsertsForServiceRun(LOGICAL_TRACKING_ID, SERVICE_RUN_ID) shouldBe
+			listOf(first, correction, otherSelected)
+		dao.upsertsForServiceRun(LOGICAL_TRACKING_ID, SERVICE_RUN_ID, limit = 2) shouldBe
+			listOf(first, correction)
+		dao.latestStatesForServiceRun(
+			writerProjectionId = WRITER_ID,
+			writerProjectionVersion = WRITER_VERSION,
+			writerBindingGeneration = 1L,
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			serviceRunId = SERVICE_RUN_ID,
+			manifestRevisions = listOf(1L),
+			limit = 1,
+		) shouldBe listOf(correction)
+		database.trackingHistoryReadDao().stepFactStates(
+			serviceRunIds = listOf(SERVICE_RUN_ID),
+			limit = 1,
+		).map { scoped -> scoped.state.logicalFactId } shouldBe listOf(first.logicalFactId)
+	}
+
+	@Test
 	fun entityRejectsIncompleteUpsertAndNonRedactedRetraction() {
 		shouldThrow<IllegalArgumentException> {
 			revision(intervalId = 1L, admissionOrdinal = 1L).copy(intervalStartTimeMs = null)
@@ -484,6 +539,61 @@ class StepFactRevisionDaoTest {
 			effectChecksum = "redacted-delete-checksum",
 			appliedAtMs = 3_000L,
 		)
+
+	@Test
+	fun exactServiceRunPayloadDeletionRetainsRetractionAndUnrelatedRun() = runTest {
+		val selected = revision(
+			intervalId = null,
+			admissionOrdinal = 1L,
+			effectiveStepCount = 12L,
+		)
+		val retraction = redactedRetraction(semanticRevision = 2L).copy(
+			writerBindingGeneration = selected.writerBindingGeneration,
+			collectedDataEpoch = selected.collectedDataEpoch,
+		)
+		val unrelated = revision(
+			intervalId = null,
+			admissionOrdinal = 2L,
+			effectiveStepCount = 8L,
+		).copy(
+			logicalFactId = "steps-fact-unrelated",
+			mutationId = "mutation-unrelated",
+			sourceEventId = "event-unrelated",
+			originIdentity = "event-unrelated",
+			logicalTrackingId = "session-unrelated",
+			serviceRunId = "run-unrelated",
+			effectChecksum = "checksum-unrelated",
+		)
+		val priorWriterSelected = unrelated.copy(
+			logicalFactId = "steps-fact-prior-writer",
+			mutationId = "mutation-prior-writer",
+			sourceEventId = "event-prior-writer",
+			originIdentity = "event-prior-writer",
+			writerProjectionId = "steps-session-facts-v0",
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			serviceRunId = SERVICE_RUN_ID,
+			effectChecksum = "checksum-prior-writer",
+		)
+		dao.insert(selected) shouldBe 1L
+		dao.insert(retraction) shouldBe 2L
+		dao.insert(unrelated) shouldBe 3L
+		dao.insert(priorWriterSelected) shouldBe 4L
+
+		dao.deleteUpsertsForServiceRun(
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			serviceRunId = SERVICE_RUN_ID,
+		) shouldBe 2
+
+		dao.revision(WRITER_ID, WRITER_VERSION, LOGICAL_FACT_ID, 1L) shouldBe null
+		dao.revision(WRITER_ID, WRITER_VERSION, LOGICAL_FACT_ID, 2L) shouldBe retraction
+		dao.revision(WRITER_ID, WRITER_VERSION, unrelated.logicalFactId, 1L) shouldBe unrelated
+		dao.revision(
+			priorWriterSelected.writerProjectionId,
+			priorWriterSelected.writerProjectionVersion,
+			priorWriterSelected.logicalFactId,
+			1L,
+		) shouldBe null
+	}
 
 	private companion object {
 		const val LOGICAL_FACT_ID = "steps-fact-1"

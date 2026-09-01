@@ -42,7 +42,7 @@ class DailySummaryDaoTest {
 		durationMs: Long = 3600_000L,
 		tripCount: Int = 2,
 		activeTrackingMs: Long = 3000_000L,
-		lastUpdatedMs: Long = System.currentTimeMillis()
+		lastUpdatedMs: Long = System.currentTimeMillis(),
 	) = DailySummaryEntity(
 		dateEpochDay = dateEpochDay,
 		totalDistanceM = distanceM,
@@ -51,7 +51,8 @@ class DailySummaryDaoTest {
 		tripCount = tripCount,
 		activeTrackingMs = activeTrackingMs,
 		lastUpdatedMs = lastUpdatedMs,
-		createdAt = System.currentTimeMillis()
+		createdAt = System.currentTimeMillis(),
+		calendarZoneId = TEST_ZONE_ID,
 	)
 
 	@Test
@@ -81,7 +82,8 @@ class DailySummaryDaoTest {
 			totalDurationMs = 1800_000L,
 			tripCount = 1,
 			activeTrackingMs = 1500_000L,
-			lastUpdatedMs = 100L
+			lastUpdatedMs = 100L,
+			calendarZoneId = TEST_ZONE_ID,
 		)
 
 		val result = dao.getByDay(19000L)
@@ -89,6 +91,7 @@ class DailySummaryDaoTest {
 		assertEquals(1500f, result!!.totalDistanceM)
 		assertEquals(750, result.totalSteps)
 		assertEquals(1, result.tripCount)
+		assertEquals(TEST_ZONE_ID, result.calendarZoneId)
 	}
 
 	@Test
@@ -101,7 +104,8 @@ class DailySummaryDaoTest {
 			totalDurationMs = 1800_000L,
 			tripCount = 1,
 			activeTrackingMs = 1000_000L,
-			lastUpdatedMs = 100L
+			lastUpdatedMs = 100L,
+			calendarZoneId = TEST_ZONE_ID,
 		)
 
 		// Upsert with new values
@@ -112,7 +116,8 @@ class DailySummaryDaoTest {
 			totalDurationMs = 3600_000L,
 			tripCount = 3,
 			activeTrackingMs = 2000_000L,
-			lastUpdatedMs = 200L
+			lastUpdatedMs = 200L,
+			calendarZoneId = REPLACEMENT_ZONE_ID,
 		)
 
 		val result = dao.getByDay(19000L)
@@ -120,6 +125,7 @@ class DailySummaryDaoTest {
 		assertEquals(2000f, result!!.totalDistanceM)
 		assertEquals(1000, result.totalSteps)
 		assertEquals(3, result.tripCount)
+		assertEquals(REPLACEMENT_ZONE_ID, result.calendarZoneId)
 	}
 
 	@Test
@@ -132,7 +138,8 @@ class DailySummaryDaoTest {
 			totalDurationMs = 1800_000L,
 			tripCount = 1,
 			activeTrackingMs = 1000_000L,
-			lastUpdatedMs = 100L
+			lastUpdatedMs = 100L,
+			calendarZoneId = TEST_ZONE_ID,
 		)
 		val original = dao.getByDay(19000L)!!
 		val originalCreatedAt = original.createdAt
@@ -145,7 +152,8 @@ class DailySummaryDaoTest {
 			totalDurationMs = 3600_000L,
 			tripCount = 2,
 			activeTrackingMs = 2000_000L,
-			lastUpdatedMs = 200L
+			lastUpdatedMs = 200L,
+			calendarZoneId = TEST_ZONE_ID,
 		)
 
 		val updated = dao.getByDay(19000L)!!
@@ -229,5 +237,10 @@ class DailySummaryDaoTest {
 
 		val results = dao.getAllBefore(19000L)
 		assertEquals(0, results.size)
+	}
+
+	private companion object {
+		const val REPLACEMENT_ZONE_ID = "Pacific/Honolulu"
+		const val TEST_ZONE_ID = "UTC"
 	}
 }

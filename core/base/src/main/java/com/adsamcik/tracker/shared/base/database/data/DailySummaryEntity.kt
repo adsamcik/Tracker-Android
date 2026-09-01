@@ -40,5 +40,9 @@ data class DailySummaryEntity(
 	val lastUpdatedMs: Long,
 
 	@ColumnInfo(name = "created_at")
-	val createdAt: Long
+	val createdAt: Long,
+
+	/** Exact calendar authority used for the last complete read-compute-write of this row. */
+	@ColumnInfo(name = "calendar_zone_id")
+	val calendarZoneId: String? = null,
 )

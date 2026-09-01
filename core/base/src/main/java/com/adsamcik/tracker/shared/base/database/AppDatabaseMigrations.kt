@@ -2321,6 +2321,10 @@ val MIGRATION_27_28: Migration = object : Migration(
 				"ALTER TABLE source_coordinator_lease ADD COLUMN " +
 					"expires_elapsed_realtime_nanos INTEGER NOT NULL DEFAULT 0",
 			)
+			// Released summaries have no durable calendar authority and remain explicitly
+			// unverifiable. A later writer establishes authority only when its source-aware rules
+			// prove that capturing a new ZoneId is safe.
+			execSQL("ALTER TABLE daily_summary ADD COLUMN calendar_zone_id TEXT")
 			execSQL(
 				"""
 				INSERT OR IGNORE INTO source_policy_authority (

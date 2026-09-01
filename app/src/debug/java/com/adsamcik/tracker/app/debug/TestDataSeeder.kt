@@ -29,6 +29,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.time.ZoneId
 import javax.inject.Inject
 import kotlin.math.PI
 import kotlin.math.cos
@@ -215,6 +216,7 @@ class TestDataSeeder @Inject constructor(
                 tripCount = segments.size,
                 activeTrackingMs = segments.sumOf { it.endTimeMs - it.startTimeMs },
                 lastUpdatedMs = now,
+                calendarZoneId = ZoneId.systemDefault().id,
             )
         }
     }

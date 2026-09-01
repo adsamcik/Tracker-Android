@@ -109,7 +109,16 @@ internal suspend fun loadStepsHistoryBatchSnapshot(
 			serviceRunIds = serviceRunIds,
 			afterOrdinal = afterOrdinal,
 			throughOrdinal = throughOrdinal,
+			limit = MAX_TERMINAL_FAILURES + 1,
 		)
+	}
+	val dependencyOverflow = if (terminalFailures.size > MAX_TERMINAL_FAILURES) {
+		StepsHistoryBatchDependencyOverflow(
+			dependency = StepsHistoryBatchDependency.TERMINAL_PROJECTION_FAILURES,
+			affectedServiceRunIds = serviceRunIds.toSet(),
+		)
+	} else {
+		null
 	}
 	return StepsHistoryBatchSnapshot(
 		serviceRuns = serviceRuns.associateBy(SourceServiceRunEntity::serviceRunId),
@@ -128,9 +137,25 @@ internal suspend fun loadStepsHistoryBatchSnapshot(
 				projectionVersion = it.projectionVersion,
 			)
 		},
-		terminalFailures = terminalFailures,
+		terminalFailures = terminalFailures.takeIf { dependencyOverflow == null }.orEmpty(),
+		dependencyOverflow = dependencyOverflow,
 		evidenceState = database.sourceEvidenceStateDao().get(),
 	)
+}
+
+private const val MAX_TERMINAL_FAILURES = 2_048
+
+internal enum class StepsHistoryBatchDependency {
+	TERMINAL_PROJECTION_FAILURES,
+}
+
+internal data class StepsHistoryBatchDependencyOverflow(
+	val dependency: StepsHistoryBatchDependency,
+	val affectedServiceRunIds: Set<String>,
+) {
+	init {
+		require(affectedServiceRunIds.isNotEmpty())
+	}
 }
 
 internal data class ManifestKey(
@@ -154,5 +179,6 @@ internal data class StepsHistoryBatchSnapshot(
 	val completenessByRun: Map<String, List<SourceSessionCompletenessEntity>>,
 	val productLanes: Map<HistoricalLaneKey, SourceProductProjectionLaneEntity>,
 	val terminalFailures: List<SourceProjectionFailureEntity>,
+	val dependencyOverflow: StepsHistoryBatchDependencyOverflow?,
 	val evidenceState: SourceEvidenceState?,
 )

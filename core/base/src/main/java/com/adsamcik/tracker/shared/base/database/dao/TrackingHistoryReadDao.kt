@@ -217,9 +217,12 @@ interface TrackingHistoryReadDao {
 	/** Reads all immutable manifest revisions for the requested service runs. */
 	@Query(
 		"SELECT * FROM session_manifest_version WHERE service_run_id IN (:serviceRunIds) " +
-			"ORDER BY service_run_id, manifest_revision",
+			"ORDER BY service_run_id, manifest_revision LIMIT :limit",
 	)
-	suspend fun manifests(serviceRunIds: List<String>): List<SessionManifestVersionEntity>
+	suspend fun manifests(
+		serviceRunIds: List<String>,
+		limit: Int = Int.MAX_VALUE,
+	): List<SessionManifestVersionEntity>
 
 	/** Reads exact source/purpose membership for the requested runs' manifests. */
 	@Query(
@@ -229,9 +232,12 @@ interface TrackingHistoryReadDao {
 			"AND manifest.manifest_revision = source.manifest_revision " +
 			"WHERE manifest.service_run_id IN (:serviceRunIds) " +
 			"ORDER BY source.logical_tracking_id, source.manifest_revision, " +
-			"source.purpose, source.source_kind",
+			"source.purpose, source.source_kind LIMIT :limit",
 	)
-	suspend fun manifestSources(serviceRunIds: List<String>): List<SessionManifestSourceEntity>
+	suspend fun manifestSources(
+		serviceRunIds: List<String>,
+		limit: Int = Int.MAX_VALUE,
+	): List<SessionManifestSourceEntity>
 
 	/** Reads only the source-policy revisions referenced by the requested runs. */
 	@Query(
@@ -249,10 +255,12 @@ interface TrackingHistoryReadDao {
 	/** Reads source-local acquisition settlement for the requested service runs. */
 	@Query(
 		"SELECT * FROM source_session_completeness WHERE service_run_id IN (:serviceRunIds) " +
-			"ORDER BY service_run_id, source_kind, source_instance_id, registration_generation",
+			"ORDER BY service_run_id, source_kind, source_instance_id, registration_generation " +
+			"LIMIT :limit",
 	)
 	suspend fun completeness(
 		serviceRunIds: List<String>,
+		limit: Int = Int.MAX_VALUE,
 	): List<SourceSessionCompletenessEntity>
 
 	/**
@@ -308,9 +316,13 @@ interface TrackingHistoryReadDao {
 		ORDER BY scoped_fact.scoped_service_run_id,
 		         scoped_fact.first_interval_start_time_ms,
 		         scoped_fact.logical_fact_id
+		LIMIT :limit
 		""",
 	)
-	suspend fun stepFactStates(serviceRunIds: List<String>): List<ScopedStepFactState>
+	suspend fun stepFactStates(
+		serviceRunIds: List<String>,
+		limit: Int = Int.MAX_VALUE,
+	): List<ScopedStepFactState>
 
 	/** Reads durable source-local deletion fences for the exact requested scope digests. */
 	@Query(
@@ -375,7 +387,10 @@ interface TrackingHistoryReadDao {
 			  AND source.writer_projection_id = failure.projection_id
 			  AND source.writer_projection_version = failure.projection_version
 		  )
-		ORDER BY failure.admission_ordinal
+		ORDER BY failure.admission_ordinal,
+		         failure.projection_id,
+		         failure.projection_version
+		LIMIT :limit
 		""",
 	)
 	suspend fun terminalFailuresForServiceRuns(
@@ -384,6 +399,7 @@ interface TrackingHistoryReadDao {
 		serviceRunIds: List<String>,
 		afterOrdinal: Long,
 		throughOrdinal: Long,
+		limit: Int,
 	): List<SourceProjectionFailureEntity>
 }
 

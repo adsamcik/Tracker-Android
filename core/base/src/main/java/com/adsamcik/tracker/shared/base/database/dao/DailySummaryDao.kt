@@ -39,11 +39,14 @@ interface DailySummaryDao : BaseDao<DailySummaryEntity> {
 	 * Upsert a daily summary row.
 	 * Uses REPLACE to handle insert-or-update since dateEpochDay is the primary key.
 	 */
+	@Suppress("LongParameterList")
 	@Query("""
 		INSERT OR REPLACE INTO daily_summary
-		(date_epoch_day, total_distance_m, total_steps, total_duration_ms, trip_count, active_tracking_ms, last_updated_ms, created_at)
+		(date_epoch_day, total_distance_m, total_steps, total_duration_ms, trip_count, active_tracking_ms, last_updated_ms, created_at,
+			calendar_zone_id)
 		VALUES (:dateEpochDay, :totalDistanceM, :totalSteps, :totalDurationMs, :tripCount, :activeTrackingMs, :lastUpdatedMs,
-				COALESCE((SELECT created_at FROM daily_summary WHERE date_epoch_day = :dateEpochDay), :lastUpdatedMs))
+				COALESCE((SELECT created_at FROM daily_summary WHERE date_epoch_day = :dateEpochDay), :lastUpdatedMs),
+				:calendarZoneId)
 	""")
 	suspend fun upsert(
 		dateEpochDay: Long,
@@ -52,7 +55,8 @@ interface DailySummaryDao : BaseDao<DailySummaryEntity> {
 		totalDurationMs: Long,
 		tripCount: Int,
 		activeTrackingMs: Long,
-		lastUpdatedMs: Long
+		lastUpdatedMs: Long,
+		calendarZoneId: String,
 	)
 
 	/**
@@ -66,6 +70,10 @@ interface DailySummaryDao : BaseDao<DailySummaryEntity> {
 	 */
 	@Query("DELETE FROM daily_summary")
 	fun deleteAll()
+
+	/** Deletes one derived day after its final segment-backed contribution disappears. */
+	@Query("DELETE FROM daily_summary WHERE date_epoch_day = :dateEpochDay")
+	suspend fun deleteByDay(dateEpochDay: Long): Int
 
 	/**
 	 * Delete summaries older than given epoch day.

@@ -82,7 +82,9 @@ class TrackingOrchestratorIntegrationTest {
 	}
 
 	@Test
-	fun `initialize updates and shutdown persist final session before SessionEnded`() = runTest(testDispatcher) {
+	@Suppress("LongMethod")
+	fun `shutdown persists final session then defers summary until presentation settles`() =
+		runTest(testDispatcher) {
 		val controller = DefaultTrackerServiceController()
 		val domainEvents = RecordingDomainEventRepository()
 		val stopProcessor = SessionEndProcessor(database)
@@ -149,15 +151,15 @@ class TrackingOrchestratorIntegrationTest {
 		val shutdownResult = orchestrator.shutdown(context)
 		advanceUntilIdle()
 
-		shutdownResult.dailySummaryMaterialized shouldBe true
-		shutdownResult.fallbackEnqueued shouldBe false
+		shutdownResult.dailySummaryMaterialized shouldBe false
+		shutdownResult.fallbackEnqueued shouldBe true
 		shutdownResult.presentationReceipt?.binding shouldBe binding
 		orchestrator.shutdown(context) shouldBe shutdownResult
 		SessionPresentationLifecycle(database).acknowledgeQuiescedExact(
 			requireNotNull(binding),
 			acknowledgedAtMs = 3_100L,
 		) shouldBe PresentationQuiescenceResult.ACKNOWLEDGED
-		fallbackEnqueueCount shouldBe 0
+		fallbackEnqueueCount shouldBe 1
 		stopProcessor.segmentCountWhenSessionEnded shouldBe 1L
 		val persistedSegment = database.sessionSegmentDao().getAllBetween(0L, Long.MAX_VALUE)
 			.single()

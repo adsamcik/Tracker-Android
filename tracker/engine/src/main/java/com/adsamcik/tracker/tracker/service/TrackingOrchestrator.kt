@@ -53,6 +53,8 @@ import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.model.SourceDemand
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationWorker
+import com.adsamcik.tracker.tracker.worker.DailySummaryMaterializationOutcome
+import com.adsamcik.tracker.tracker.worker.materializeDailySummaryDayInTransaction
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -68,6 +70,8 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * Orchestrates core tracking logic: component initialization, per-cycle data
@@ -714,13 +718,20 @@ internal class TrackingOrchestrator(
 		// component has saved its final segment to the database.
 		val dailySummaryMaterialized = if (sessionComponent == null) {
 			try {
+				val zoneId = ZoneId.systemDefault()
+				val epochDay = LocalDate.now(zoneId).toEpochDay()
 				val aggregator = DailySummaryAggregator(
 					dailySummaryDao = appDatabase.dailySummaryDao(),
 					sessionSegmentDao = appDatabase.sessionSegmentDao(),
 					onDailySummaryWritten = onDailySummaryWritten,
+					zoneId = zoneId,
 				)
-				aggregator.materializeToday()
-				true
+				materializeDailySummaryDayInTransaction(
+					database = appDatabase,
+					aggregator = aggregator,
+					epochDay = epochDay,
+					capturedZoneId = zoneId,
+				) == DailySummaryMaterializationOutcome.Ready
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {

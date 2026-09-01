@@ -24,6 +24,10 @@ interface SourceSessionDao {
 	@Query("SELECT * FROM logical_tracking_session WHERE logical_tracking_id = :logicalTrackingId")
 	suspend fun session(logicalTrackingId: String): LogicalTrackingSessionEntity?
 
+	/** Bounded exact logical identities used to group replacement-run presentation rows. */
+	@Query("SELECT * FROM logical_tracking_session WHERE logical_tracking_id IN (:logicalTrackingIds)")
+	suspend fun sessions(logicalTrackingIds: List<String>): List<LogicalTrackingSessionEntity>
+
 	@Query(
 		"SELECT * FROM logical_tracking_session WHERE state NOT IN ('FINALIZED', 'CLOSED', 'FAILED') " +
 			"ORDER BY started_at_ms DESC LIMIT 1",
@@ -68,9 +72,13 @@ interface SourceSessionDao {
 
 	@Query(
 		"SELECT * FROM session_manifest_version WHERE service_run_id = :serviceRunId " +
-			"ORDER BY manifest_revision ASC",
+			"ORDER BY manifest_revision ASC LIMIT :limit",
 	)
-	suspend fun manifestsForServiceRun(serviceRunId: String): List<SessionManifestVersionEntity>
+	/** Deterministic bounded manifest-revision read for one exact physical service run. */
+	suspend fun manifestsForServiceRun(
+		serviceRunId: String,
+		limit: Int = Int.MAX_VALUE,
+	): List<SessionManifestVersionEntity>
 
 	@Query(
 		"SELECT * FROM session_manifest_version WHERE service_run_id = :serviceRunId " +
@@ -178,6 +186,29 @@ interface SourceSessionDao {
 			"AND newer.action_revision > candidate.action_revision))",
 	)
 	suspend fun hasNonterminalLatestLifecycleAction(): Boolean
+
+	/**
+	 * True when one exact run still has a nonterminal latest action-family/source claim.
+	 *
+	 * Latest selection spans every persisted status. Filtering attempts, desired state, or status
+	 * before choosing the latest row could let an older accepted start outrank its newer settlement.
+	 */
+	@Query(
+		"SELECT EXISTS(SELECT 1 FROM lifecycle_desired_action candidate WHERE " +
+			"candidate.logical_tracking_id = :logicalTrackingId " +
+			"AND candidate.service_run_id = :serviceRunId " +
+			"AND candidate.status NOT IN ('TERMINAL_FAILURE', 'STOP_ACCEPTED', 'SUPERSEDED') " +
+			"AND NOT EXISTS(SELECT 1 FROM lifecycle_desired_action newer WHERE " +
+			"newer.logical_tracking_id = candidate.logical_tracking_id " +
+			"AND newer.service_run_id = candidate.service_run_id " +
+			"AND newer.action_family = candidate.action_family " +
+			"AND newer.source_kind IS candidate.source_kind " +
+			"AND newer.action_revision > candidate.action_revision))",
+	)
+	suspend fun hasNonterminalLatestLifecycleAction(
+		logicalTrackingId: String,
+		serviceRunId: String,
+	): Boolean
 
 	@Query(
 		"SELECT COALESCE(MAX(action_revision), 0) FROM lifecycle_desired_action " +

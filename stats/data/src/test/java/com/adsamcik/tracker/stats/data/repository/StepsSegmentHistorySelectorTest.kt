@@ -12,6 +12,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
@@ -1661,6 +1662,101 @@ class StepsSegmentHistorySelectorTest {
 	}
 
 	@Test
+	// Keep the complete cap+1 counterfactual together so dependency truncation alone is proven fail-closed.
+	@Suppress("LongMethod")
+	fun terminalFailureDependencyOverflowMakesAffectedHistoryUnavailableBeforeTruncatedRows() =
+		runTest {
+			val candidateFailureOrdinal = TERMINAL_FAILURE_DEPENDENCY_CAP + 2L
+			insertCandidateRun(
+				runId = RUN_ONE,
+				facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)),
+				targetOrdinal = candidateFailureOrdinal,
+				laneCursor = candidateFailureOrdinal,
+			)
+			insertRun(RUN_TWO, sessionSegmentId = OTHER_SEGMENT_ID)
+			val otherWriterSource = SessionManifestSourceEntity(
+				logicalTrackingId = LOGICAL_ID,
+				manifestRevision = 2L,
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+				consentEpoch = 1L,
+				persistenceEligible = true,
+				qosCode = 1,
+				outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+				writerOwner = CANDIDATE_OWNER,
+				writerOwnerGeneration = 2L,
+				writerProjectionId = OVERFLOW_OTHER_WRITER_ID,
+				writerProjectionVersion = OVERFLOW_OTHER_WRITER_VERSION,
+				writerBindingGeneration = OVERFLOW_OTHER_BINDING_GENERATION,
+			)
+			insertExactManifest(
+				runId = RUN_TWO,
+				revision = 2L,
+				sources = listOf(otherWriterSource),
+			)
+			database.sourceSessionDao().saveCompleteness(
+				completeness(RUN_TWO, lastOrdinal = TERMINAL_FAILURE_DEPENDENCY_CAP + 1L),
+			)
+			database.sourceProjectionStateDao().installProductLane(
+				lane(
+					cursor = TERMINAL_FAILURE_DEPENDENCY_CAP + 1L,
+					projectionId = OVERFLOW_OTHER_WRITER_ID,
+					projectionVersion = OVERFLOW_OTHER_WRITER_VERSION,
+					bindingGeneration = OVERFLOW_OTHER_BINDING_GENERATION,
+				),
+			)
+			database.sessionSegmentDao().insert(segment(RUN_ONE, steps = 900, id = SEGMENT_ID))
+			database.sessionSegmentDao().insert(
+				segment(
+					runId = RUN_TWO,
+					steps = 700,
+					id = OTHER_SEGMENT_ID,
+					startTimeMs = 2_100L,
+					endTimeMs = 3_000L,
+				),
+			)
+			for (ordinal in 1L..TERMINAL_FAILURE_DEPENDENCY_CAP + 1L) {
+				database.sourceProjectionStateDao().saveFailure(
+					SourceProjectionFailureEntity(
+						projectionId = OVERFLOW_OTHER_WRITER_ID,
+						projectionVersion = OVERFLOW_OTHER_WRITER_VERSION,
+						admissionOrdinal = ordinal,
+						attemptCount = 1,
+						failureCode = "terminal-$ordinal",
+						terminal = true,
+						lastAttemptAtMs = ordinal,
+					),
+				)
+			}
+			database.sourceProjectionStateDao().saveFailure(
+				SourceProjectionFailureEntity(
+					projectionId = WRITER_ID,
+					projectionVersion = WRITER_VERSION,
+					admissionOrdinal = candidateFailureOrdinal,
+					attemptCount = 1,
+					failureCode = "candidate-terminal",
+					terminal = true,
+					lastAttemptAtMs = candidateFailureOrdinal,
+				),
+			)
+
+			val evidence = selector.selectEvidenceBySegmentIds(
+				listOf(SEGMENT_ID, OTHER_SEGMENT_ID),
+			).getValue(SEGMENT_ID)
+			evidence.captureAuthority shouldBe HistoricalCaptureAuthority.Unverifiable(
+				HistoricalCaptureFailure.BATCH_DEPENDENCY_OVERFLOW,
+			)
+			evidence.steps shouldBe StepsSegmentHistoryResult(
+				count = null,
+				availability = StepsHistoryAvailability.UNAVAILABLE,
+				evidence = StepsHistoryEvidence.NO_OBSERVATION,
+				materialization = StepsHistoryMaterialization.FAILED,
+				coverage = StepsHistoryCoverage.UNKNOWN,
+				reasons = setOf(StepsHistoryReason.BATCH_DEPENDENCY_OVERFLOW),
+			)
+		}
+
+	@Test
 	fun activeServiceRunCannotClaimReadyEvenWhenCurrentCursorIsCaughtUp() = runTest {
 		insertCandidateRun(
 			runId = RUN_ONE,
@@ -2293,11 +2389,16 @@ class StepsSegmentHistorySelectorTest {
 		updatedAtMs = 2_000L,
 	)
 
-	private fun lane(cursor: Long) = SourceProductProjectionLaneEntity(
+	private fun lane(
+		cursor: Long,
+		projectionId: String = WRITER_ID,
+		projectionVersion: Int = WRITER_VERSION,
+		bindingGeneration: Long = BINDING_GENERATION,
+	) = SourceProductProjectionLaneEntity(
 		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-		bindingGeneration = BINDING_GENERATION,
-		projectionId = WRITER_ID,
-		projectionVersion = WRITER_VERSION,
+		bindingGeneration = bindingGeneration,
+		projectionId = projectionId,
+		projectionVersion = projectionVersion,
 		captureModeMask = 1L,
 		productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
 		activatedRolloutRevision = 2L,
@@ -2446,6 +2547,10 @@ class StepsSegmentHistorySelectorTest {
 		const val WRITER_ID = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID
 		const val WRITER_VERSION = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION
 		const val BINDING_GENERATION = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION
+		const val TERMINAL_FAILURE_DEPENDENCY_CAP = 2_048L
+		const val OVERFLOW_OTHER_WRITER_ID = "overflow-other-writer"
+		const val OVERFLOW_OTHER_WRITER_VERSION = 1
+		const val OVERFLOW_OTHER_BINDING_GENERATION = 101L
 		const val LEGACY_OWNER = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL
 		const val CANDIDATE_OWNER = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
 		const val COMPLETE_PROVIDER_COVERAGE = "CALLBACKS_ENTERED_BEFORE_BARRIER"

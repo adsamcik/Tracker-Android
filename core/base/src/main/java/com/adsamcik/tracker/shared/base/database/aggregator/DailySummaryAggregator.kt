@@ -3,10 +3,31 @@ package com.adsamcik.tracker.shared.base.database.aggregator
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
+import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.time.LocalDate
 import java.time.ZoneId
+
+/** Exact source-aware totals ready to persist for one local calendar day. */
+data class DailySummaryTotals(
+	val distanceM: Float = 0f,
+	val steps: Int = 0,
+	val durationMs: Long = 0L,
+	val tripCount: Int = 0,
+)
+
+/**
+ * Unforgeable process-local proof that every listed daily-summary mutex is currently held.
+ *
+ * Instances are scoped to [DailySummaryAggregator.withDayLocks]. Keeping this token explicit makes
+ * lock-before-transaction ordering reviewable at call sites and prevents accidental reacquisition.
+ */
+class DailySummaryLockedDays internal constructor(
+	internal val epochDays: Set<Long>,
+) {
+	internal var active: Boolean = true
+}
 
 /**
  * Aggregates session segment data into the daily_summary table.
@@ -27,8 +48,8 @@ import java.time.ZoneId
  * stale data. The per-day lock guarantees one read-compute-write cycle finishes
  * before another starts for the same day.
  *
- * [onDailySummaryWritten] is invoked after every successful upsert. The unified rule
- * engine injects a callback that marks the `daily_summary` table dirty in the
+ * [onDailySummaryWritten] is invoked after every successful upsert or derived-row removal. The
+ * unified rule engine injects a callback that marks the `daily_summary` table dirty in the
  * `MetricDirtyTracker` so downstream signal processors can short-circuit idle flushes.
  * Defaults to a no-op for legacy/test call sites and to avoid a circular dependency
  * on `:stats-api`.
@@ -43,7 +64,22 @@ class DailySummaryAggregator(
 	private val sessionSegmentDao: SessionSegmentDao,
 	private val verifyCollectedDataAccess: () -> Unit = {},
 	private val onDailySummaryWritten: () -> Unit = {},
+	/** Calendar authority captured once for the complete read-compute-write operation. */
+	private val zoneId: ZoneId = ZoneId.systemDefault(),
 ) {
+	/** Reuses the same access and dirty callbacks under one already-selected durable zone authority. */
+	fun withCalendarZone(zoneId: ZoneId): DailySummaryAggregator = if (zoneId == this.zoneId) {
+		this
+	} else {
+		DailySummaryAggregator(
+			dailySummaryDao = dailySummaryDao,
+			sessionSegmentDao = sessionSegmentDao,
+			verifyCollectedDataAccess = verifyCollectedDataAccess,
+			onDailySummaryWritten = onDailySummaryWritten,
+			zoneId = zoneId,
+		)
+	}
+
 	/**
 	 * Materialize daily summary for a specific epoch day by aggregating
 	 * all session segments that fall within that calendar day. Segments that cross
@@ -63,20 +99,79 @@ class DailySummaryAggregator(
 	 * @param epochDay the [LocalDate.toEpochDay] identifier for the local calendar day
 	 */
 	suspend fun materializeDayFromSegments(epochDay: Long) {
-		// Process-wide per-day serialization. Any concurrent caller (periodic worker +
-		// one-shot session-end materialization) waits its turn so the read snapshot
-		// matches the upsert, not a stale view.
-		mutexForDay(epochDay).withLock {
-			materializeDayFromSegmentsLocked(epochDay)
+		withDayLocks(listOf(epochDay)) { lockedDays ->
+			materializeDayFromSegmentsWhileLocked(epochDay, lockedDays)
 		}
 	}
 
-	private suspend fun materializeDayFromSegmentsLocked(epochDay: Long) {
+	/**
+	 * Acquires every requested process-wide day mutex in ascending order.
+	 *
+	 * Callers that also need a Room write transaction must enter that transaction inside [block].
+	 * This one global order avoids both multi-day deadlocks and transaction-to-mutex inversion.
+	 */
+	suspend fun <T> withDayLocks(
+		epochDays: Collection<Long>,
+		block: suspend (DailySummaryLockedDays) -> T,
+	): T {
+		val sortedDays = epochDays.distinct().sorted()
+		require(sortedDays.isNotEmpty()) { "At least one daily-summary day must be locked" }
+		val authority = DailySummaryLockedDays(sortedDays.toSet())
+		return withDayLocks(sortedDays, index = 0) {
+			try {
+				block(authority)
+			} finally {
+				authority.active = false
+			}
+		}
+	}
+
+	/** Recomputes generic segment totals without reacquiring a day mutex. */
+	suspend fun materializeDayFromSegmentsWhileLocked(
+		epochDay: Long,
+		lockedDays: DailySummaryLockedDays,
+	) {
+		requireLocked(epochDay, lockedDays)
 		val startOfDayMs = startOfLocalDayMs(epochDay)
 		val endOfDayMs = startOfLocalDayMs(epochDay + 1)
 
 		verifyCollectedDataAccess()
 		val segments = sessionSegmentDao.getOverlapping(startOfDayMs, endOfDayMs)
+		val totals = aggregate(segments, startOfDayMs, endOfDayMs)
+
+		val now = Time.nowMillis
+		verifyCollectedDataAccess()
+		val existing = dailySummaryDao.getByDay(epochDay)
+		persist(
+			epochDay = epochDay,
+			totals = totals.takeIf { segments.isNotEmpty() },
+			activeTrackingMs = existing?.activeTrackingMs,
+			nowMs = now,
+		)
+	}
+
+	/** Persists already-qualified source-aware totals without reacquiring a day mutex. */
+	suspend fun repairDayFromSourceTotalsWhileLocked(
+		epochDay: Long,
+		lockedDays: DailySummaryLockedDays,
+		totals: DailySummaryTotals?,
+	) {
+		requireLocked(epochDay, lockedDays)
+		verifyCollectedDataAccess()
+		val existing = dailySummaryDao.getByDay(epochDay)
+		persist(
+			epochDay = epochDay,
+			totals = totals,
+			activeTrackingMs = existing?.activeTrackingMs,
+			nowMs = Time.nowMillis,
+		)
+	}
+
+	private fun aggregate(
+		segments: List<SessionSegment>,
+		startOfDayMs: Long,
+		endOfDayMs: Long,
+	): DailySummaryTotals {
 		var totalDistanceM = 0f
 		var totalSteps = 0
 		var totalDurationMs = 0L
@@ -93,22 +188,35 @@ class DailySummaryAggregator(
 			totalSteps += ((segment.steps ?: 0) * fraction).toInt()
 			totalDurationMs += inDayDuration
 			// Count the trip on the day it STARTED so we don't double-count.
-			if (segment.startTimeMs in startOfDayMs until endOfDayMs) tripCount += 1
+			if (segment.startTimeMs in startOfDayMs until endOfDayMs) {
+				tripCount += 1
+			}
 		}
+		return DailySummaryTotals(totalDistanceM, totalSteps, totalDurationMs, tripCount)
+	}
 
-		val now = Time.nowMillis
-		verifyCollectedDataAccess()
-		val existing = dailySummaryDao.getByDay(epochDay)
-		if (segments.isNotEmpty() || existing != null) {
+	private suspend fun persist(
+		epochDay: Long,
+		totals: DailySummaryTotals?,
+		activeTrackingMs: Long?,
+		nowMs: Long,
+	) {
+		if (totals == null && activeTrackingMs == 0L) {
+			verifyCollectedDataAccess()
+			dailySummaryDao.deleteByDay(epochDay)
+			onDailySummaryWritten()
+		} else if (totals != null || activeTrackingMs != null) {
+			val persistedTotals = totals ?: DailySummaryTotals()
 			verifyCollectedDataAccess()
 			dailySummaryDao.upsert(
 				dateEpochDay = epochDay,
-				totalDistanceM = totalDistanceM,
-				totalSteps = totalSteps,
-				totalDurationMs = totalDurationMs,
-				tripCount = tripCount,
-				activeTrackingMs = existing?.activeTrackingMs ?: 0L,
-				lastUpdatedMs = now,
+				totalDistanceM = persistedTotals.distanceM,
+				totalSteps = persistedTotals.steps,
+				totalDurationMs = persistedTotals.durationMs,
+				tripCount = persistedTotals.tripCount,
+				activeTrackingMs = activeTrackingMs ?: 0L,
+				lastUpdatedMs = nowMs,
+				calendarZoneId = zoneId.id,
 			)
 			onDailySummaryWritten()
 		}
@@ -118,15 +226,33 @@ class DailySummaryAggregator(
 	 * Materialize today's daily summary from session segments.
 	 */
 	suspend fun materializeToday() {
-		val todayEpochDay = LocalDate.now().toEpochDay()
+		val todayEpochDay = LocalDate.now(zoneId).toEpochDay()
 		materializeDayFromSegments(todayEpochDay)
 	}
 
 	private fun startOfLocalDayMs(epochDay: Long): Long {
 		return LocalDate.ofEpochDay(epochDay)
-			.atStartOfDay(ZoneId.systemDefault())
+			.atStartOfDay(zoneId)
 			.toInstant()
 			.toEpochMilli()
+	}
+
+	private fun requireLocked(epochDay: Long, lockedDays: DailySummaryLockedDays) {
+		require(lockedDays.active && epochDay in lockedDays.epochDays) {
+			"Daily-summary day $epochDay is not covered by the active lock authority"
+		}
+	}
+
+	private suspend fun <T> withDayLocks(
+		sortedDays: List<Long>,
+		index: Int,
+		block: suspend () -> T,
+	): T = if (index == sortedDays.size) {
+		block()
+	} else {
+		mutexForDay(sortedDays[index]).withLock {
+			withDayLocks(sortedDays, index + 1, block)
+		}
 	}
 
 	companion object {

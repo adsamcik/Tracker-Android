@@ -296,7 +296,8 @@ internal fun StepsHistoryReason.toPublicCause(): StepsHistoryCause = when (this)
 	StepsHistoryReason.PRODUCT_LANE_BEHIND -> StepsHistoryCause.MATERIALIZATION_BEHIND
 	StepsHistoryReason.PRODUCT_LANE_CUTOFF_BEFORE_TARGET,
 	StepsHistoryReason.PRODUCT_LANE_RETIRED_BEFORE_TARGET,
-	StepsHistoryReason.TERMINAL_PROJECTION_FAILURE -> StepsHistoryCause.MATERIALIZATION_UNAVAILABLE
+	StepsHistoryReason.TERMINAL_PROJECTION_FAILURE,
+	StepsHistoryReason.BATCH_DEPENDENCY_OVERFLOW -> StepsHistoryCause.MATERIALIZATION_UNAVAILABLE
 	StepsHistoryReason.COMPLETENESS_MISSING,
 	StepsHistoryReason.APP_DRAIN_INCOMPLETE,
 	StepsHistoryReason.STOP_INCOMPLETE -> StepsHistoryCause.ACQUISITION_INCOMPLETE

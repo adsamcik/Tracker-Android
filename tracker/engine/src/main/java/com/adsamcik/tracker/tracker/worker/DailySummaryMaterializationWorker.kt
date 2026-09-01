@@ -16,10 +16,127 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
+import com.adsamcik.tracker.tracker.source.deletion.StepsDailySummaryRepairComposer
+import com.adsamcik.tracker.tracker.source.deletion.StepsDayRepairPreflight
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import java.time.DateTimeException
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
 import javax.inject.Provider
+
+/** Exact worker write primitive: process-wide day lock first, then the Room transaction. */
+@Suppress("CyclomaticComplexMethod", "LongMethod")
+internal suspend fun materializeDailySummaryDayInTransaction(
+	database: AppDatabase,
+	aggregator: DailySummaryAggregator,
+	epochDay: Long,
+	capturedZoneId: ZoneId,
+	beforeMaterialize: suspend () -> Unit = {},
+	afterMaterialize: suspend () -> Unit = {},
+): DailySummaryMaterializationOutcome {
+	var outcome: DailySummaryMaterializationOutcome? = null
+	aggregator.withDayLocks(listOf(epochDay)) { lockedDays ->
+		database.withTransaction {
+			beforeMaterialize()
+			try {
+				val existing = database.dailySummaryDao().getByDay(epochDay)
+				val storedZoneId = existing?.calendarZoneId
+				val authorityZone = if (storedZoneId == null) {
+					capturedZoneId
+				} else {
+					try {
+						ZoneId.of(storedZoneId)
+					} catch (_: DateTimeException) {
+						return@withTransaction
+					}
+				}
+				val dayStartMs = try {
+					LocalDate.ofEpochDay(epochDay).atStartOfDay(authorityZone).toInstant().toEpochMilli()
+				} catch (_: DateTimeException) {
+					return@withTransaction
+				}
+				val dayEndMs = try {
+					LocalDate.ofEpochDay(epochDay + 1L).atStartOfDay(authorityZone).toInstant().toEpochMilli()
+				} catch (_: DateTimeException) {
+					return@withTransaction
+				}
+				val attributedBounds = if (existing != null && storedZoneId == null) {
+					allZoneDayBounds(epochDay) ?: return@withTransaction
+				} else {
+					MaterializationDayBounds(dayStartMs, dayEndMs)
+				}
+				val hasAttributedOverlap = database.sessionSegmentDao()
+					.hasAttributedOverlappingForSourceRepair(
+						fromMs = attributedBounds.fromMs,
+						toMs = attributedBounds.toMs,
+					)
+				if (existing != null && storedZoneId == null && hasAttributedOverlap) {
+					outcome = DailySummaryMaterializationOutcome.Unverifiable
+					return@withTransaction
+				}
+				val authorityAggregator = aggregator.withCalendarZone(authorityZone)
+				if (!hasAttributedOverlap) {
+					authorityAggregator.materializeDayFromSegmentsWhileLocked(epochDay, lockedDays)
+					outcome = DailySummaryMaterializationOutcome.Ready
+					return@withTransaction
+				}
+				outcome = when (
+					val preflight = StepsDailySummaryRepairComposer(database)
+						.composeForMaterialization(epochDay, authorityZone)
+				) {
+					is StepsDayRepairPreflight.Ready -> {
+						val plan = preflight.plans.singleOrNull()
+						if (plan == null || plan.epochDay != epochDay || plan.zoneId != authorityZone) {
+							DailySummaryMaterializationOutcome.Unverifiable
+						} else {
+							authorityAggregator.repairDayFromSourceTotalsWhileLocked(
+								epochDay = epochDay,
+								lockedDays = lockedDays,
+								totals = plan.totals,
+							)
+							DailySummaryMaterializationOutcome.Ready
+						}
+					}
+					StepsDayRepairPreflight.Materializing ->
+						DailySummaryMaterializationOutcome.Materializing
+					is StepsDayRepairPreflight.Unsupported ->
+						DailySummaryMaterializationOutcome.Unverifiable
+				}
+			} finally {
+				afterMaterialize()
+			}
+		}
+	}
+	return outcome ?: DailySummaryMaterializationOutcome.Unverifiable
+}
+
+internal sealed interface DailySummaryMaterializationOutcome {
+	data object Ready : DailySummaryMaterializationOutcome
+	data object Materializing : DailySummaryMaterializationOutcome
+	data object Unverifiable : DailySummaryMaterializationOutcome
+}
+
+private data class MaterializationDayBounds(val fromMs: Long, val toMs: Long)
+
+private fun allZoneDayBounds(epochDay: Long): MaterializationDayBounds? = try {
+	MaterializationDayBounds(
+		fromMs = LocalDate.ofEpochDay(epochDay)
+			.atStartOfDay(ZoneOffset.MAX)
+			.toInstant()
+			.toEpochMilli(),
+		toMs = LocalDate.ofEpochDay(epochDay + 1L)
+			.atStartOfDay(ZoneOffset.MIN)
+			.toInstant()
+			.toEpochMilli(),
+	)
+} catch (_: DateTimeException) {
+	null
+} catch (_: ArithmeticException) {
+	null
+}
 
 /**
  * Periodic worker that materializes daily summary rows from session segment data.
@@ -55,6 +172,8 @@ class DailySummaryMaterializationWorker @AssistedInject constructor(
 		return try {
 			requireReadyGeneration(startupGeneration)
 			val database = appDatabaseProvider.get()
+			val zoneId = ZoneId.systemDefault()
+			val epochDay = LocalDate.now(zoneId).toEpochDay()
 			val aggregator = DailySummaryAggregator(
 				dailySummaryDao = database.dailySummaryDao(),
 				sessionSegmentDao = database.sessionSegmentDao(),
@@ -63,18 +182,25 @@ class DailySummaryMaterializationWorker @AssistedInject constructor(
 					dirtyTracker.markDirty(MetricKeys.TABLE_DAILY_SUMMARY)
 				},
 				verifyCollectedDataAccess = { requireReadyGeneration(startupGeneration) },
+				zoneId = zoneId,
 			)
 
-			database.withTransaction {
-				requireReadyGeneration(startupGeneration)
-				try {
-					aggregator.materializeToday()
-				} finally {
-					requireReadyGeneration(startupGeneration)
-				}
-			}
+			// The process-wide day mutex is always acquired before Room's write transaction. Deletion
+			// uses the same order, so neither path can hold the database while waiting on the other.
+			val outcome = materializeDailySummaryDayInTransaction(
+				database = database,
+				aggregator = aggregator,
+				epochDay = epochDay,
+				capturedZoneId = zoneId,
+				beforeMaterialize = { requireReadyGeneration(startupGeneration) },
+				afterMaterialize = { requireReadyGeneration(startupGeneration) },
+			)
 
-			Result.success()
+			when (outcome) {
+				DailySummaryMaterializationOutcome.Ready -> Result.success()
+				DailySummaryMaterializationOutcome.Materializing -> Result.retry()
+				DailySummaryMaterializationOutcome.Unverifiable -> Result.failure()
+			}
 		} catch (_: StartupGenerationChangedException) {
 			Result.success()
 		}

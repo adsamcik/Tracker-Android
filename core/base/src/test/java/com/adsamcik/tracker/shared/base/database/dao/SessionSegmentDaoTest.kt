@@ -124,18 +124,56 @@ class SessionSegmentDaoTest {
 
 	@Test
 	fun `zero sample placeholders are excluded from product segment queries`() = runBlocking {
-		dao.insert(
+		val placeholderId = dao.insert(
 			createSegment(1_000L, 2_000L, 100f, DetectedActivity.WALKING.value)
 				.copy(sampleCount = 0),
 		)
-		dao.insert(createSegment(2_000L, 3_000L, 200f, DetectedActivity.WALKING.value))
+		val recordedId = dao.insert(
+			createSegment(2_000L, 3_000L, 200f, DetectedActivity.WALKING.value),
+		)
 
 		assertEquals(1, dao.getOverlapping(0L, 4_000L).size)
+		assertEquals(
+			listOf(placeholderId, recordedId),
+			dao.getAllOverlappingForSourceRepair(
+				fromMs = 0L,
+				toMs = 4_000L,
+				excludedSegmentId = Long.MIN_VALUE,
+				limit = 3,
+			).map(SessionSegment::id),
+		)
 		assertEquals(1, dao.countBySource(SegmentSource.USER_CREATED))
 		assertEquals(1L, dao.countDistinctActivities())
 		assertEquals(1L, dao.countByActivity(DetectedActivity.WALKING.value))
 		assertEquals(1L, dao.countByActivities(listOf(DetectedActivity.WALKING.value)))
 	}
+
+	@Test
+	fun `source repair overlap query excludes selected row and applies deterministic SQL cap`() =
+		runBlocking {
+			dao.insert(
+				createSegment(2_000L, 3_000L, 10f, DetectedActivity.WALKING.value),
+			)
+			val excludedId = dao.insert(
+				createSegment(1_000L, 2_000L, 20f, DetectedActivity.WALKING.value),
+			)
+			val tieAId = dao.insert(
+				createSegment(1_000L, 2_000L, 30f, DetectedActivity.WALKING.value),
+			)
+			val tieBId = dao.insert(
+				createSegment(1_000L, 2_000L, 40f, DetectedActivity.WALKING.value),
+			)
+
+			assertEquals(
+				listOf(tieAId, tieBId),
+				dao.getAllOverlappingForSourceRepair(
+					fromMs = 0L,
+					toMs = 4_000L,
+					excludedSegmentId = excludedId,
+					limit = 2,
+				).map(SessionSegment::id),
+			)
+		}
 
 	@Test
 	fun `crash placeholder is excluded from product time and activity inference queries`() = runBlocking {
@@ -172,6 +210,26 @@ class SessionSegmentDaoTest {
 			listOf(recorded),
 			dao.getUnrecognizedStartingBetween(dayStart, dayEnd),
 		)
+	}
+
+	@Test
+	fun `deleteExact requires both durable logical and service run ownership`() = runBlocking {
+		val selected = createSegment(1_000L, 2_000L, 10f, null).copy(
+			logicalTrackingId = "logical-selected",
+			serviceRunId = "run-selected",
+		)
+		val selectedId = dao.insert(selected)
+		val unrelatedId = dao.insert(
+			createSegment(3_000L, 4_000L, 20f, null).copy(
+				logicalTrackingId = "logical-unrelated",
+				serviceRunId = "run-unrelated",
+			),
+		)
+
+		assertEquals(0, dao.deleteExact(selectedId, "logical-selected", "wrong-run"))
+		assertEquals(1, dao.deleteExact(selectedId, "logical-selected", "run-selected"))
+		assertEquals(null, dao.getById(selectedId))
+		assertEquals("run-unrelated", dao.getById(unrelatedId)?.serviceRunId)
 	}
 
 	private fun createSegment(

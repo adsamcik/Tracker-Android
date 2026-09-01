@@ -100,6 +100,45 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	)
 	suspend fun getOverlapping(fromMs: Long, toMs: Long): List<SessionSegment>
 
+	/**
+	 * Get every physical segment overlapping `[fromMs, toMs)`, including zero-sample rows.
+	 *
+	 * This is intentionally narrower in use than [getOverlapping]: source-aware repair must inspect
+	 * immutable ownership evidence before deciding whether a zero-sample row is a placeholder or a
+	 * qualified source contribution. Product history and generic aggregation must keep excluding
+	 * placeholders through [getOverlapping].
+	 */
+	@Query(
+		"""
+		SELECT * FROM session_segment INDEXED BY idx_session_segment_end_time_ms
+		WHERE (:excludedSegmentId IS NULL OR id != :excludedSegmentId)
+			AND end_time_ms > :fromMs
+			AND start_time_ms < :toMs
+		ORDER BY start_time_ms, id
+		LIMIT :limit
+		"""
+	)
+	suspend fun getAllOverlappingForSourceRepair(
+		fromMs: Long,
+		toMs: Long,
+		excludedSegmentId: Long?,
+		limit: Int,
+	): List<SessionSegment>
+
+	/** True when any overlapping row carries new-source attribution, including partial attribution. */
+	@Query(
+		"""
+		SELECT EXISTS(
+			SELECT 1 FROM session_segment INDEXED BY idx_session_segment_end_time_ms
+			WHERE end_time_ms > :fromMs
+				AND start_time_ms < :toMs
+				AND (logical_tracking_id IS NOT NULL OR service_run_id IS NOT NULL)
+			LIMIT 1
+		)
+		"""
+	)
+	suspend fun hasAttributedOverlappingForSourceRepair(fromMs: Long, toMs: Long): Boolean
+
 	@Query(
 		"""
 		SELECT MIN(start_time_ms) AS min_start, MAX(end_time_ms) AS max_end
@@ -180,6 +219,17 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	 */
 	@Query("DELETE FROM session_segment WHERE id = :id")
 	fun deleteById(id: Long)
+
+	/** Deletes only the exact v28 physical row owned by the immutable logical/run binding. */
+	@Query(
+		"DELETE FROM session_segment WHERE id = :id " +
+			"AND logical_tracking_id = :logicalTrackingId AND service_run_id = :serviceRunId",
+	)
+	suspend fun deleteExact(
+		id: Long,
+		logicalTrackingId: String,
+		serviceRunId: String,
+	): Int
 
 	/**
 	 * Delete segments older than given timestamp.

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 28,
-    "identityHash": "bb94c94cfafc2a809c8c7cbc3a9933c7",
+    "identityHash": "ed6c04c9e7ed0bc4a5b04d3a9a688aab",
     "entities": [
       {
         "tableName": "activity",
@@ -5699,7 +5699,7 @@
       },
       {
         "tableName": "daily_summary",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`date_epoch_day` INTEGER NOT NULL, `total_distance_m` REAL NOT NULL, `total_steps` INTEGER NOT NULL, `total_duration_ms` INTEGER NOT NULL, `trip_count` INTEGER NOT NULL, `active_tracking_ms` INTEGER NOT NULL, `last_updated_ms` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, PRIMARY KEY(`date_epoch_day`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`date_epoch_day` INTEGER NOT NULL, `total_distance_m` REAL NOT NULL, `total_steps` INTEGER NOT NULL, `total_duration_ms` INTEGER NOT NULL, `trip_count` INTEGER NOT NULL, `active_tracking_ms` INTEGER NOT NULL, `last_updated_ms` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, `calendar_zone_id` TEXT, PRIMARY KEY(`date_epoch_day`))",
         "fields": [
           {
             "fieldPath": "dateEpochDay",
@@ -5748,6 +5748,11 @@
             "columnName": "created_at",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "calendarZoneId",
+            "columnName": "calendar_zone_id",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -7648,7 +7653,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'bb94c94cfafc2a809c8c7cbc3a9933c7')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ed6c04c9e7ed0bc4a5b04d3a9a688aab')"
     ]
   }
 }

@@ -66,6 +66,19 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 		segment: SessionSegment,
 		snapshot: StepsHistoryBatchSnapshot,
 	): HistoricalSegmentEvidence {
+		val dependencyOverflow = snapshot.dependencyOverflow
+		if (
+			dependencyOverflow != null &&
+			segment.serviceRunId?.let(dependencyOverflow.affectedServiceRunIds::contains) == true
+		) {
+			return when (dependencyOverflow.dependency) {
+				StepsHistoryBatchDependency.TERMINAL_PROJECTION_FAILURES -> unavailableEvidence(
+					segment,
+					HistoricalCaptureFailure.BATCH_DEPENDENCY_OVERFLOW,
+					StepsHistoryReason.BATCH_DEPENDENCY_OVERFLOW,
+				)
+			}
+		}
 		val logicalTrackingId = segment.logicalTrackingId
 		val serviceRunId = segment.serviceRunId
 		if (logicalTrackingId == null && serviceRunId == null) {
@@ -582,5 +595,6 @@ internal enum class StepsHistoryReason {
 	RETENTION_CROSSES_SEGMENT,
 	SOURCE_EVIDENCE_STATE_MISSING,
 	STALE_COLLECTED_DATA_EPOCH,
+	BATCH_DEPENDENCY_OVERFLOW,
 	COUNT_OVERFLOW,
 }
