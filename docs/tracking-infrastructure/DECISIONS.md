@@ -1,6 +1,6 @@
 # Tracking Infrastructure Decisions
 
-Last updated: 2026-08-31
+Last updated: 2026-09-01
 
 Each entry records repository evidence and does not duplicate the final architecture document.
 
@@ -1593,4 +1593,29 @@ Each entry records repository evidence and does not duplicate the final architec
   callback and connected provider-to-query evidence. Before/during/after `dumpsys sensorservice` is
   mandatory for physical listener removal, and separate rendered UI/accessibility inspection is
   mandatory for UI truth. The test-only transition is not ordinary activation, external rollout,
-  or permission to begin later Steps-local mutation work before this gate settles.
+  or, by itself, permission to begin later Steps-local mutation work before this gate settles.
+
+## TI-D123 — Parallel worktrees may advance independent seams without weakening source gates
+
+- Status: `ACCEPTED_AND_IN_PROGRESS`; foundation converged locally at `4b25d39e2`, first parallel
+  wave branches are isolated and not activated
+- Owner/date: user-directed program change, implemented by the integration owner, 2026-09-01
+- Alternatives: retain strict Steps-device-first development serialization; let every source branch
+  edit shared schema/history and resolve conflicts later; build all six source stacks in one branch;
+  develop only disjoint source-local or Steps-local seams in clean worktrees and converge them
+  through one gated local `dev/v10`
+- Evidence: the manual Steps device class compiles but cannot run without attached hardware. That
+  missing evidence blocks provider/listener/UI/activation claims, but it does not technically
+  prevent schema-free exact Steps deletion, Pressure request normalization, or Cell atomic admission.
+  Those slices have disjoint declared files and independently useful correctness outcomes. The
+  33-commit foundation passed exact `ciUnitTest` and `ciCheck` before local fast-forward.
+- Decision: independent host-testable seams may develop concurrently in separate clean branches and
+  worktrees. Shared schema, migration, history, portable export/import, cross-source deletion, and
+  documentation retain a single owner. Each branch stages exact paths, passes proportional checks,
+  rebases onto the latest local `dev/v10`, reruns its affected gate, and merges locally one at a time.
+  Parallel development neither activates a candidate writer/provider nor changes rollout state.
+- Consequences: TI-D122's development-order restriction is superseded only for disjoint contained
+  implementation. Its exact manual Steps provider/listener/rendered-UI gate remains mandatory before
+  ordinary Steps activation or any device-quality claim. Location remains legacy-canonical until an
+  evidence-backed shadow/cutover decision. No worktree may infer proof from another source, create a
+  second writer, or claim publication; all commits remain local unless separately authorized.

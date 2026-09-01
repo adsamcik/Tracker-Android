@@ -1,6 +1,6 @@
 # Tracking Infrastructure Implementation Status
 
-Last updated: 2026-08-31
+Last updated: 2026-09-01
 
 Execution-grade work items, ownership, dependency gates, verification commands, and rollback
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and
@@ -1974,5 +1974,60 @@ rollout mutations remain in the disposable install, so app data must be cleared 
   cleared `com.adsamcik.tracker.debug` install, retain the logged device identity, capture
   `adb logcat -s ManualStepsGate:I "*:S"`, and collect `dumpsys sensorservice` before, during
   `STEPS_GATE_LISTENER_ACTIVE`, and after `STEPS_GATE_LISTENER_RETIRED`. Separately inspect the
-  rendered live and stopped list surfaces. Do not start later Steps mutation work or another source
-  until those device assertions settle the manual gate.
+  rendered live and stopped list surfaces. Do not activate Steps or treat another source's host work
+  as a substitute for those assertions. TI-D123 now permits disjoint contained development in
+  parallel worktrees while this device gate remains blocked.
+
+## Local foundation convergence and first parallel wave checkpoint (2026-09-01)
+
+### Outcome
+
+The complete continuation through `4b25d39e2` is now integrated by fast-forward into local
+`dev/v10` in the clean `tracking-infra-integration` worktree. The former continuation worktree and
+merged branch were retired. Nothing was pushed. The root checkout remains detached at its original
+`ffd5d372f` with exactly the six handover-protected dirty/untracked paths; SHA-256 checks before and
+after convergence are identical.
+
+Three disjoint implementation worktrees form the first parallel wave:
+
+- `codex/ti-steps-session-deletion`: schema-free typed exact candidate-owned Steps session deletion,
+  monotonic no-resurrection fence, and explicit-zone day repair;
+- `codex/ti-pressure-capability-plan`: capability-normalized Pressure sample/FIFO request semantics
+  with no fake batching tier or unnecessary provider restart;
+- `codex/ti-cell-durable-admission`: minimized stable Cell delivery identity and atomic ingress-owned
+  sequence allocation without radio/subscription identity.
+
+Shared schema/history/export/import and these tracking documents retain one integration owner. Each
+branch must pass focused gates, receive a corrected-diff review, rebase latest local `dev/v10`, and
+merge locally one at a time. A free worker then takes the next dependency-ready source-local slice.
+
+### Evidence
+
+- `git merge-base dev/v10 codex/ti410-deletion-rearm` was `ffd5d372f`; left/right count was `0 33`,
+  and none of the six protected root paths appeared in the base-to-continuation diff.
+- `.\gradlew.bat ciUnitTest --no-daemon --no-parallel --max-workers=1
+  "-Pksp.incremental=false"` passed in `17m 42s` with 990 tasks (61 executed, 929 up-to-date).
+- `.\gradlew.bat ciCheck --continue --no-daemon --no-parallel --max-workers=1
+  "-Pksp.incremental=false"` passed in `11m 17s` with 1,987 tasks (231 executed, 10 from cache,
+  1,746 up-to-date). This includes Room schema drift, architecture, lint, Detekt, host tests,
+  release compilation, dependency metadata, SQLite linkage, and release-evidence tests.
+- `git rebase dev/v10` reported the continuation up to date. `git merge --ff-only
+  codex/ti410-deletion-rearm` advanced local `dev/v10` from `ffd5d372f` to `4b25d39e2`.
+- The six protected root-file hashes remain exactly `882BAD525CDA927710FD13C1A1DB1DDD11437963BACC2C50313708BB05BB73D4`,
+  `01C7D5CC62AF43100B6F8A1458F45662BE293B659AEC0F23AD7CAD5F79F1D0F3`,
+  `794B8A4ADAC5B6F387BEF07A58C90805538127A85CC2A0C00266209C985CD9E6`,
+  `F6F46E2ABA5B2E110DD0F994E280C961B3E1315F79D8FB59C60D053BEE3FBF28`,
+  `3F77380D36234BCAAD3A193CC2553E8D50F2C0F0D02928232B4CC99BFC7DA332`, and
+  `E0912B613CD330949D12DAF69268E1A7B9DDE0F9181D0D235839E0CD8F8B7BF6` in the order listed by
+  `CONTINUATION_HANDOVER.md`.
+
+### Gate status and correction
+
+- Passed: clean local convergence, authoritative host aggregate, full repository quality gate,
+  exact ancestry, protected-path non-overlap/hash preservation, and first-wave ownership isolation.
+- Blocked: the real manual Steps device gate and every provider/process/reboot/FGS/battery/OEM/UI
+  claim named above; ordinary activation, rollout, release, deployment, tag, and push remain absent.
+- Corrected repository claim: Pressure no longer performs one Room checkpoint per raw callback. The
+  existing runtime and 10,000-sample stress test already show window-proportional admission and
+  checkpoint work. TI-411 still lacks capability-truthful provider requests, full typed window
+  quality fields, a candidate fact lane, `RECORDING`, production query/UI, deletion, and export.

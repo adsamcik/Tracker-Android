@@ -1,6 +1,6 @@
 # Tracking Infrastructure Execution Plan
 
-Last updated: 2026-08-31
+Last updated: 2026-09-01
 
 This is the durable execution ledger for the architecture in
 `docs/TRACKING_INFRASTRUCTURE_FINAL_PLAN_AND_DESIGN.md` and the accepted refinements in
@@ -78,9 +78,33 @@ is unverified.
 | ST-02a manual/session Steps | Lead orchestrator with non-overlapping focused owners | Steps runtime, source-local cursor/facts/correction/deletion/export/query, existing product/start adapters | in progress; dormant writer/retention, selected-detail read, and exact presentation-settlement slices committed through `9aeb8853a`, with test contract at `d067704a9` | manual only-Steps reaches `RECORDING`, `MATERIALIZED`, and a production query with exact capture/registration set `{Steps}`—no Location, Activity, Pressure, Wi-Fi, Cell, control, or ambient demand—and no generic platform; every existing manual-start surface, completeness-sensitive consumer, and typed portable round trip agrees |
 | ST-02b automatic Steps | unassigned until ST-02a proof | Steps vertical plus declared Activity control and automation evidence | blocked | automatic only-Steps uses explicit control-only Activity, bounded no-export control retention, and a legal fresh trigger; control facts never enter Steps or Activity history |
 | ST-02c default-off ambient Steps | unassigned until ST-02a proof | app-scoped counter continuity, ambient consent/retention/export/delete/day allocation/query | blocked | opted-in ambient Steps is sessionless, minimized, deletion/export complete, day-stable, and product-visible; default remains off |
+| PAR-01 local foundation convergence | Integration owner | clean local `dev/v10` integration worktree and the 33-commit continuation | `DONE` at `4b25d39e2`; no push | `ciUnitTest` and `ciCheck` pass on the exact continuation, the branch is rebased/up-to-date, local `dev/v10` fast-forwards, and the six handover-protected root paths remain hash-identical |
+| PAR-02 exact Steps selected-session deletion | `codex/ti-steps-session-deletion` | Steps deletion API/service, exact DAO mutations, day repair, focused tests | write only the declared Steps deletion paths; in progress | exact new-v28 candidate-owned Steps-only scope deletes transactionally; active, legacy, mixed, mismatched, or unverifiable ownership is typed and non-mutating; delayed replay cannot resurrect; one captured zone repairs every affected day |
+| PAR-03 Pressure capability-normalized requests | `codex/ti-pressure-capability-plan` | Pressure request normalization/runtime and focused tests | source-runtime paths only; in progress | effective sampling/report latency follows actual sensor minimum-delay/FIFO capacity; equivalent physical tuples do not restart; distinct tuples use one fenced replacement; no-FIFO mode never claims batching |
+| PAR-04 Cell atomic delivery admission | `codex/ti-cell-durable-admission` | Cell runtime and focused tests | Cell runtime paths only; in progress | one minimized boot-domain/provider-time/content delivery identity enters atomic ingress; ingress allocates sequence; duplicate/restart handling is durable; no radio/subscription identity or unbounded active attempt is introduced |
 
 No two current owners may edit the same file. Read-only findings become lead-owned only after
-disposition. The worktree is already dirty; unrelated and pre-existing changes are preserved.
+disposition. The root checkout's six handover-protected paths remain outside this program; every
+implementation and convergence worktree starts clean and stages exact reviewed paths.
+
+### Parallel convergence rules
+
+The user-directed parallel wave supersedes the former *development scheduling* embargo after the
+manual Steps device harness, but it does not convert missing device evidence into proof and does not
+authorize any source, writer, automatic mode, ambient mode, or rollout. Work is parallel only when
+its file ownership and semantics are independent:
+
+1. Source-local acquisition/admission/runtime changes may proceed beside Steps product-safety work.
+2. Schema, migration, shared history, shared export/import, shared deletion, and documentation have
+   one integration owner; workers may not opportunistically generalize them.
+3. A completed branch is reviewed and runs focused tests, Detekt, lint, and schema drift where
+   applicable. It then rebases onto the latest local `dev/v10`, reruns the affected gate, and merges
+   from the clean integration worktree. Documentation is updated immediately after acceptance.
+4. Only one branch is integrated at a time. The next free worker takes the highest dependency-ready
+   thin slice among remaining Steps, Pressure, protected Location, Activity, Wi-Fi, and Cell work.
+5. Provider, process-death, reboot, FGS, battery, OEM, rendered UI, and accessibility claims remain
+   blocked until their named device evidence runs. Host work can reduce code risk but cannot satisfy
+   those rows by implication.
 
 ## Unreleased-v28 table boundary
 
