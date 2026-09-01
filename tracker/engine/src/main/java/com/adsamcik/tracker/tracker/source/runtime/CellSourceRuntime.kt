@@ -13,11 +13,16 @@ import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
+import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
+import com.adsamcik.tracker.tracker.source.model.SourceDeliveryIdentity
+import com.adsamcik.tracker.tracker.source.model.SourceDeliveryUnit
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
-import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
+import com.adsamcik.tracker.tracker.source.model.sourceDeliveryIdentity
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CoroutineScope
@@ -62,6 +67,7 @@ class CellSourceRuntime @Inject internal constructor(
 	@Volatile
 	private var cutoffElapsedNanos: Long? = null
 	private var metrics = RuntimeAdmissionMetrics()
+	private var lastAdmissionOrdinalHighWater: Long? = null
 	private var retirementIntent: CellProviderRetirementIntent? = null
 	private var automaticFailureAck: SourceStopAck? = null
 	private var ownerClaim: SourceRuntimeClaim? = null
@@ -284,6 +290,7 @@ class CellSourceRuntime @Inject internal constructor(
 		callbackOfferFailureCoverage = CellCallbackFailureCoverage()
 		cutoffElapsedNanos = null
 		metrics = RuntimeAdmissionMetrics()
+		lastAdmissionOrdinalHighWater = null
 		// A provider may throw after installing its callback. Bind the explicit action claim before
 		// publication so a partially failed start remains exactly compensatable.
 		ownerClaim = claim
@@ -673,15 +680,19 @@ class CellSourceRuntime @Inject internal constructor(
 				BoundedReplayIdentityGate()
 			}
 			if (!replayGate.shouldAdmit(qualified.snapshotIdentity)) return false
+			val deliveryIdentity = cellProviderDeliveryIdentity(
+				clockDomainId = input.context.registration.state.clockDomainId,
+				observations = qualified.observations,
+			)
 			return if (admitSnapshot(
 					input.context,
 					qualified.observations,
-					input.outcome,
 					qualified.providerTimeNanos,
 					input.receivedElapsedNanos,
 					input.receivedWallTimeMs,
 					PlanAttribution.CAPTURED_REGISTRATION,
 					input.callbackSequence,
+					deliveryIdentity,
 				)
 			) {
 				replayGate.record(qualified.snapshotIdentity)
@@ -764,46 +775,26 @@ class CellSourceRuntime @Inject internal constructor(
 	private suspend fun admitSnapshot(
 		context: CellCallbackContext,
 		observations: List<CellObservationEvidence>,
-		outcome: CellRefreshOutcome,
-		providerTimeNanos: Long?,
+		providerTimeNanos: Long,
 		receivedNanos: Long,
 		receivedWallTimeMs: Long,
 		attribution: PlanAttribution,
 		callbackSequence: Long,
+		deliveryIdentity: SourceDeliveryIdentity,
 	): Boolean {
 		val registration = context.registration
-		val observed = providerTimeNanos ?: receivedNanos
+		val observed = providerTimeNanos
 		if (!isAtOrBeforeCutoff(observed)) return false
 		if (!prerequisiteGate.allows(context.plan)) {
 			metrics.recordFailure(callbackSequence)
 			return false
 		}
-		val sourceSequence = runCatchingNonCancellation {
-			registrations.allocateSequence(registration, receivedWallTimeMs)
-		}.getOrElse {
-			metrics.recordFailure(
-				callbackSequence,
-				classification = RuntimeGapClassification.SEQUENCE_ALLOCATION_FAILED,
-			)
-			return false
-		}
 		val delayMs = (receivedNanos - observed).coerceAtLeast(0L) / NANOS_PER_MILLISECOND
 		val wallTime = (receivedWallTimeMs - delayMs).coerceAtLeast(0L)
-		val flags = buildSet {
-			if (outcome == CellRefreshOutcome.CACHED) add(SourceQualityFlag.CACHED)
-			if (outcome == CellRefreshOutcome.THROTTLED) add(SourceQualityFlag.THROTTLED)
-			if (outcome == CellRefreshOutcome.PERMISSION_BLOCKED) add(SourceQualityFlag.PERMISSION_DEGRADED)
-			if (outcome in setOf(CellRefreshOutcome.RADIO_UNAVAILABLE, CellRefreshOutcome.PROVIDER_FAILED)) {
-				add(SourceQualityFlag.PROVIDER_DEGRADED)
-			}
-			if (providerTimeNanos == null) add(SourceQualityFlag.CLOCK_UNCERTAIN)
-		}
-		val fingerprint = observations.joinToString("|") {
-			"${it.identifierToken}:${it.radioType}:${it.registered}:${it.signalLevelDbm}:${it.providerTimestampNanos}"
-		}
 		val candidate = SourceEvidenceCandidate(
-			providerDedupKey = "${registration.state.sourceInstanceId}:${registration.state.registrationGeneration}:" +
-				"${outcome.name}:$observed:$fingerprint",
+			// Stable replay identity belongs to SourceDeliveryCandidate. Keeping this null prevents the
+			// legacy single-evidence path from binding provider identity to a runtime registration.
+			providerDedupKey = null,
 			logicalTrackingId = null, serviceRunId = null, source = source,
 			sourceInstanceId = SourceInstanceId(registration.state.sourceInstanceId),
 			registrationGeneration = registration.state.registrationGeneration,
@@ -811,7 +802,8 @@ class CellSourceRuntime @Inject internal constructor(
 			authorizationRevision = registration.authorization.authorizationRevision,
 			registrationPurposeEligibilityMask = registration.purposeEligibilityMask,
 			registrationEligibilityFingerprint = registration.eligibilityFingerprint,
-			sourceSequence = sourceSequence,
+			// Atomic ingress allocates a sequence only when this delivery is newly durable.
+			sourceSequence = 0L,
 			configRevision = registration.state.appliedRevision.takeUnless {
 				attribution == PlanAttribution.RECEIVE_TIME_ONLY
 			},
@@ -819,27 +811,47 @@ class CellSourceRuntime @Inject internal constructor(
 			clockDomainId = registration.state.clockDomainId,
 			observedElapsedRealtimeNanos = observed.coerceAtLeast(0L),
 			receivedElapsedRealtimeNanos = receivedNanos.coerceAtLeast(0L),
-			wallTimeMs = wallTime, wallTimeUncertaintyMs = if (providerTimeNanos == null) delayMs else 1L,
+			wallTimeMs = wallTime, wallTimeUncertaintyMs = 1L,
 			capturedCollectedDataEpoch = registration.state.collectedDataEpoch,
-			acquiredAtMs = wallTime, quality = SourceQuality(flags = flags), payloadVersion = 1,
-			payload = minimizedCellSnapshotPayload(observations, outcome),
+			acquiredAtMs = wallTime, quality = SourceQuality(), payloadVersion = 1,
+			payload = minimizedCellSnapshotPayload(observations, CellRefreshOutcome.CALLBACK),
 		)
-		when (val handoff = retryCellAdmissionWithinBudget(
+		val intervalStart = observations.mapNotNull(CellObservationEvidence::providerTimestampNanos)
+			.minOrNull() ?: observed.coerceAtLeast(0L)
+		val delivery = SourceDeliveryCandidate(
+			identity = deliveryIdentity,
+			units = listOf(
+				SourceDeliveryUnit(
+					unitIndex = 0,
+					evidence = candidate,
+					observedIntervalStartElapsedRealtimeNanos = intervalStart,
+				),
+			),
+		)
+		when (val handoff = retryCellDeliveryAdmissionWithinBudget(
 			prerequisiteAllows = {
 				prerequisiteGate.allows(context.plan) && isAtOrBeforeCutoff(observed)
 			},
-			admit = { context.sink.admit(candidate) },
+			admit = { context.sink.admit(delivery) },
 		)) {
-			is SourceAdmissionHandoff.Durable -> {
-				metrics.recordDurable(callbackSequence, handoff.admissionOrdinal)
+			is SourceDeliveryAdmissionHandoff.Durable -> {
+				val ordinal = handoff.admissionOrdinals.singleOrNull() ?: run {
+					metrics.recordFailure(callbackSequence)
+					return false
+				}
+				recordDurableAdmission(callbackSequence, ordinal)
 				return true
 			}
-			is SourceAdmissionHandoff.Duplicate -> {
-				metrics.recordDurable(callbackSequence, handoff.existingAdmissionOrdinal)
+			is SourceDeliveryAdmissionHandoff.Duplicate -> {
+				val ordinal = handoff.existingAdmissionOrdinals.singleOrNull() ?: run {
+					metrics.recordFailure(callbackSequence)
+					return false
+				}
+				recordDurableAdmission(callbackSequence, ordinal)
 				return true
 			}
-			is SourceAdmissionHandoff.TerminalFailure,
-			is SourceAdmissionHandoff.RetryableFailure,
+			is SourceDeliveryAdmissionHandoff.TerminalFailure,
+			is SourceDeliveryAdmissionHandoff.RetryableFailure,
 			-> {
 				metrics.recordFailure(callbackSequence)
 				return false
@@ -849,6 +861,16 @@ class CellSourceRuntime @Inject internal constructor(
 				return false
 			}
 		}
+	}
+
+	private fun recordDurableAdmission(callbackSequence: Long, admissionOrdinal: Long) {
+		// A duplicate may refer to an older WAL row than a delivery admitted earlier in this
+		// physical run. Advance callback resolution without regressing the stop-ack WAL boundary.
+		val ordinalHighWater = lastAdmissionOrdinalHighWater
+			?.coerceAtLeast(admissionOrdinal)
+			?: admissionOrdinal
+		lastAdmissionOrdinalHighWater = ordinalHighWater
+		metrics.recordDurable(callbackSequence, ordinalHighWater)
 	}
 
 	private fun isAtOrBeforeCutoff(observedElapsedRealtimeNanos: Long): Boolean =
@@ -985,36 +1007,25 @@ internal fun qualifyCellSnapshot(
 	receivedElapsedNanos: Long,
 	maximumAcceptableAgeMs: Long,
 ): QualifiedCellSnapshot? {
+	// Cached snapshots may help bootstrap provider state in memory, but neither they nor
+	// operational outcomes can establish a fresh durable observation.
+	if (outcome != CellRefreshOutcome.CALLBACK) return null
 	val eligible = freshProviderObservations(
 		snapshot.observations,
 		receivedElapsedNanos,
 		maximumAcceptableAgeMs,
 		CellBackendObservation::providerTimestampNanos,
 	)
-	val emptyCoverage = shouldAdmitCoverageOnly(
-		providerItemCount = snapshot.providerItemCount,
-		eligibleItemCount = eligible.size,
-		// An empty cache read has no observation or coverage value. Only a provider delivery can
-		// establish a fresh empty boundary.
-		providerDeliveryConfirmedFresh = outcome != CellRefreshOutcome.CACHED,
-	)
-	if (eligible.isEmpty() && !emptyCoverage) return null
+	// Empty callbacks have no provider timestamp or durable transition state. Receipt-time identity
+	// would persist repeated unchanged emptiness, so empty coverage remains deferred.
+	if (eligible.isEmpty()) return null
 	val providerTime = eligible.mapNotNull(CellBackendObservation::providerTimestampNanos)
-		.maxOrNull() ?: receivedElapsedNanos
-	val ordered = eligible.sortedWith(
-		compareBy(
-			CellBackendObservation::radioType,
-			CellBackendObservation::identity,
-			CellBackendObservation::registered,
-			CellBackendObservation::signalLevelDbm,
-			CellBackendObservation::providerTimestampNanos,
-		),
-	)
-	val observations = ordered.map(CellBackendObservation::toMinimizedEvidence)
-	val identity = if (emptyCoverage) {
-		"coverage-empty:$receivedElapsedNanos"
-	} else ordered.joinToString("|") {
-		"${it.identity}:${it.radioType}:${it.registered}:${it.signalLevelDbm}:${it.providerTimestampNanos}"
+		.maxOrNull() ?: return null
+	val observations = eligible.map(CellBackendObservation::toMinimizedEvidence)
+		.sortedWith(CELL_OBSERVATION_ORDER)
+	val identity = observations.joinToString("|") {
+		"${it.radioType.length}:${it.radioType}:${it.registered}:${it.signalLevelDbm}:" +
+			it.providerTimestampNanos
 	}
 	return QualifiedCellSnapshot(observations, providerTime, identity)
 }
@@ -1024,17 +1035,17 @@ internal fun qualifyCellSnapshot(
  * delay is returned to the caller so the callback can be marked unresolved and the lane can keep
  * draining. A null means the live prerequisite disappeared before an admission attempt.
  */
-internal suspend fun retryCellAdmissionWithinBudget(
+internal suspend fun retryCellDeliveryAdmissionWithinBudget(
 	prerequisiteAllows: () -> Boolean,
-	admit: suspend () -> SourceAdmissionHandoff,
+	admit: suspend () -> SourceDeliveryAdmissionHandoff,
 	retryDelaysMs: LongArray = CELL_ADMISSION_RETRY_DELAYS_MS,
 	waitBeforeRetry: suspend (Long) -> Unit = { delay(it) },
-): SourceAdmissionHandoff? {
+): SourceDeliveryAdmissionHandoff? {
 	var retryIndex = 0
 	while (true) {
 		if (!prerequisiteAllows()) return null
 		val result = admit()
-		if (result !is SourceAdmissionHandoff.RetryableFailure) return result
+		if (result !is SourceDeliveryAdmissionHandoff.RetryableFailure) return result
 		val retryDelayMs = retryDelaysMs.getOrNull(retryIndex++) ?: return result
 		waitBeforeRetry(retryDelayMs)
 	}
@@ -1122,6 +1133,46 @@ internal fun CellBackendObservation.toMinimizedEvidence() = CellObservationEvide
 	providerTimestampNanos = providerTimestampNanos,
 )
 
+/**
+ * Process-independent identity for one qualified Cell provider delivery. Only the boot clock
+ * domain and minimized timestamped provider facts are used; raw cell/subscription identity and
+ * runtime registration state never enter the durable digest.
+ */
+internal fun cellProviderDeliveryIdentity(
+	clockDomainId: String,
+	observations: List<CellObservationEvidence>,
+): SourceDeliveryIdentity {
+	require(clockDomainId.isNotBlank())
+	require(observations.isNotEmpty()) { "Cell delivery identity requires provider facts" }
+	require(observations.all { it.identifierToken == WITHHELD_RADIO_IDENTIFIER_TOKEN }) {
+		"Cell delivery identity accepts minimized observations only"
+	}
+	val canonical = ByteArrayOutputStream().also { bytes ->
+		DataOutputStream(bytes).use { output ->
+			output.writeInt(CELL_DELIVERY_IDENTITY_VERSION)
+			output.writeCanonicalString(clockDomainId)
+			val ordered = observations.sortedWith(CELL_OBSERVATION_ORDER)
+			output.writeInt(ordered.size)
+			ordered.forEach { observation ->
+				output.writeCanonicalString(observation.radioType)
+				output.writeBoolean(observation.registered)
+				output.writeBoolean(observation.signalLevelDbm != null)
+				observation.signalLevelDbm?.let(output::writeInt)
+				output.writeLong(requireNotNull(observation.providerTimestampNanos) {
+					"Qualified Cell evidence requires provider time"
+				})
+			}
+		}
+	}.toByteArray()
+	return sourceDeliveryIdentity(canonical)
+}
+
+private fun DataOutputStream.writeCanonicalString(value: String) {
+	val encoded = value.toByteArray(Charsets.UTF_8)
+	writeInt(encoded.size)
+	write(encoded)
+}
+
 internal fun minimizedCellSnapshotPayload(
 	observations: List<CellObservationEvidence>,
 	outcome: CellRefreshOutcome,
@@ -1130,3 +1181,12 @@ internal fun minimizedCellSnapshotPayload(
 	observations = observations,
 	refreshOutcome = outcome,
 )
+
+private val CELL_OBSERVATION_ORDER = compareBy<CellObservationEvidence>(
+	CellObservationEvidence::radioType,
+	CellObservationEvidence::registered,
+	CellObservationEvidence::signalLevelDbm,
+	CellObservationEvidence::providerTimestampNanos,
+)
+
+private const val CELL_DELIVERY_IDENTITY_VERSION = 1

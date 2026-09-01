@@ -10,6 +10,7 @@ import com.adsamcik.tracker.tracker.source.model.CellPlan
 import com.adsamcik.tracker.tracker.source.model.CellRefreshOutcome
 import com.adsamcik.tracker.tracker.source.model.RetryBackoff
 import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
+import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -103,12 +104,12 @@ class CellSourceRuntimeTest {
 		val fixture = runtimeFixture(this, initialPlan, listOf(initial, replacement))
 		val admissionEntered = CompletableDeferred<Unit>()
 		val releaseAdmission = CompletableDeferred<Unit>()
-		fixture.start(SourceEventSink {
+		fixture.start(cellCandidateSink {
 			admissionEntered.complete(Unit)
 			releaseAdmission.await()
 			SourceAdmissionHandoff.Durable(1L)
 		})
-		fixture.emit(emptyProviderDelivery())
+		fixture.emit(freshProviderDelivery())
 		runCurrent()
 		admissionEntered.await()
 		val stopping = async { fixture.quiesce(deadlineOffsetNanos = 10_000_000_000L) }
@@ -205,19 +206,17 @@ class CellSourceRuntimeTest {
 			true
 		}
 		coEvery { fixture.registrations.markAccepted(any(), any(), any()) } answers {
-			requireNotNull(providerCallback)(emptyProviderDelivery())
+			requireNotNull(providerCallback)(freshProviderDelivery())
 			null
 		}
-		coEvery { fixture.registrations.allocateSequence(any(), any()) } returns 1L
-
-		fixture.start(SourceEventSink { candidate ->
+		fixture.start(cellCandidateSink { candidate ->
 			admitted += candidate
 			SourceAdmissionHandoff.Durable(1L)
 		})
 		advanceUntilIdle()
 		assertTrue(admitted.isEmpty())
 
-		requireNotNull(providerCallback)(emptyProviderDelivery())
+		requireNotNull(providerCallback)(freshProviderDelivery())
 		advanceUntilIdle()
 		assertEquals(1, admitted.size)
 		fixture.runtime.close()
@@ -286,8 +285,7 @@ class CellSourceRuntimeTest {
 				CoroutineExceptionHandler { _, failure -> observedFailure.complete(failure) },
 		)
 		val fixture = runtimeFixture(sourceScope)
-		coEvery { fixture.registrations.allocateSequence(any(), any()) } returns 1L
-		fixture.start(SourceEventSink { throw fatal })
+		fixture.start(cellCandidateSink { throw fatal })
 		val callbackCount = CELL_CALLBACK_BUFFER_CAPACITY + 1
 		repeat(callbackCount) { offset ->
 			fixture.emit(snapshot(android.os.SystemClock.elapsedRealtimeNanos() + offset))
@@ -311,8 +309,7 @@ class CellSourceRuntimeTest {
 	fun `actor local cancellation fences callbacks and retires the provider`() = runTest {
 		val sourceScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
 		val fixture = runtimeFixture(sourceScope)
-		coEvery { fixture.registrations.allocateSequence(any(), any()) } returns 1L
-		fixture.start(SourceEventSink { throw CancellationException("local admission cancellation") })
+		fixture.start(cellCandidateSink { throw CancellationException("local admission cancellation") })
 		fixture.emit(snapshot(android.os.SystemClock.elapsedRealtimeNanos()))
 
 		runCurrent()
@@ -332,9 +329,8 @@ class CellSourceRuntimeTest {
 	fun `automatic actor cleanup never caches a failed provider retirement`() = runTest {
 		val sourceScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
 		val fixture = runtimeFixture(sourceScope)
-		coEvery { fixture.registrations.allocateSequence(any(), any()) } returns 1L
 		every { fixture.backend.stop() } returnsMany listOf(false, true)
-		fixture.start(SourceEventSink { throw CancellationException("local admission cancellation") })
+		fixture.start(cellCandidateSink { throw CancellationException("local admission cancellation") })
 		fixture.emit(snapshot(android.os.SystemClock.elapsedRealtimeNanos()))
 
 		runCurrent()
@@ -496,11 +492,13 @@ class CellSourceRuntimeTest {
 	@Test
 	fun `retryable head stops after the finite retry budget`() = runTest {
 		var attempts = 0
-		val result = retryCellAdmissionWithinBudget(
+		val result = retryCellDeliveryAdmissionWithinBudget(
 			prerequisiteAllows = { true },
 			admit = {
 				attempts++
-				SourceAdmissionHandoff.RetryableFailure(SourceAdmissionFailureCode.STORAGE_UNAVAILABLE)
+				SourceDeliveryAdmissionHandoff.RetryableFailure(
+					SourceAdmissionFailureCode.STORAGE_UNAVAILABLE,
+				)
 			},
 			retryDelaysMs = longArrayOf(0L, 0L, 0L),
 			waitBeforeRetry = {},
@@ -508,7 +506,9 @@ class CellSourceRuntimeTest {
 
 		assertEquals(4, attempts)
 		assertEquals(
-			SourceAdmissionHandoff.RetryableFailure(SourceAdmissionFailureCode.STORAGE_UNAVAILABLE),
+			SourceDeliveryAdmissionHandoff.RetryableFailure(
+				SourceAdmissionFailureCode.STORAGE_UNAVAILABLE,
+			),
 			result,
 		)
 	}
@@ -518,14 +518,16 @@ class CellSourceRuntimeTest {
 		var allowed = true
 		var gateReads = 0
 		var attempts = 0
-		val result = retryCellAdmissionWithinBudget(
+		val result = retryCellDeliveryAdmissionWithinBudget(
 			prerequisiteAllows = {
 				gateReads++
 				allowed
 			},
 			admit = {
 				attempts++
-				SourceAdmissionHandoff.RetryableFailure(SourceAdmissionFailureCode.STORAGE_UNAVAILABLE)
+				SourceDeliveryAdmissionHandoff.RetryableFailure(
+					SourceAdmissionFailureCode.STORAGE_UNAVAILABLE,
+				)
 			},
 			retryDelaysMs = longArrayOf(0L),
 			waitBeforeRetry = { allowed = false },
@@ -539,10 +541,9 @@ class CellSourceRuntimeTest {
 	@Test
 	fun `a stop cutoff installed during retry prevents a second WAL admission`() = runTest {
 		val fixture = runtimeFixture(this)
-		coEvery { fixture.registrations.allocateSequence(any(), any()) } returns 1L
 		val firstAttempt = CompletableDeferred<Unit>()
 		var attempts = 0
-		fixture.start(SourceEventSink {
+		fixture.start(cellCandidateSink {
 			attempts++
 			firstAttempt.complete(Unit)
 			if (attempts == 1) {
@@ -552,7 +553,7 @@ class CellSourceRuntimeTest {
 			}
 		})
 		ShadowSystemClock.advanceBy(Duration.ofSeconds(1))
-		fixture.emit(emptyProviderDelivery())
+		fixture.emit(freshProviderDelivery())
 		runCurrent()
 		firstAttempt.await()
 
@@ -574,31 +575,193 @@ class CellSourceRuntimeTest {
 	}
 
 	@Test
-	fun `stale and empty cached snapshots are rejected and exact cache replay stays gated`() {
+	fun `stale callback observations are rejected`() {
 		val now = 100L * NANOS_PER_MILLISECOND
 		val stale = snapshot(providerTimestampNanos = 80L * NANOS_PER_MILLISECOND)
-		val cached = snapshot(providerTimestampNanos = 95L * NANOS_PER_MILLISECOND)
 
-		assertNull(qualifyCellSnapshot(stale, CellRefreshOutcome.CACHED, now, 10L))
-		assertNull(
-			qualifyCellSnapshot(
-				CellBackendSnapshot(null, emptyList(), providerItemCount = 0),
-				CellRefreshOutcome.CACHED,
-				now,
-				10L,
+		assertNull(qualifyCellSnapshot(stale, CellRefreshOutcome.CALLBACK, now, 10L))
+	}
+
+	@Test
+	fun `cached and operational outcomes never qualify as durable evidence`() {
+		val now = 100L * NANOS_PER_MILLISECOND
+		val fresh = snapshot(providerTimestampNanos = 95L * NANOS_PER_MILLISECOND)
+
+		CellRefreshOutcome.entries.filterNot { it == CellRefreshOutcome.CALLBACK }.forEach { outcome ->
+			assertNull(qualifyCellSnapshot(fresh, outcome, now, 10L), outcome.name)
+		}
+	}
+
+	@Test
+	fun `repeated empty callbacks remain deferred`() {
+		val now = 100L * NANOS_PER_MILLISECOND
+		val empty = emptyProviderDelivery()
+
+		assertNull(qualifyCellSnapshot(empty, CellRefreshOutcome.CALLBACK, now, 10L))
+		assertNull(qualifyCellSnapshot(empty, CellRefreshOutcome.CALLBACK, now + 1L, 10L))
+	}
+
+	@Test
+	fun `cell delivery identity is stable across order and raw provider identifiers`() {
+		val firstQualified = qualifiedCellSnapshot("raw-cell-a", "raw-cell-b")
+		val renamedAndReordered = qualifiedCellSnapshot(
+			"different-raw-a",
+			"different-raw-b",
+			reverseProviderOrder = true,
+		)
+		val first = cellProviderDeliveryIdentity(
+			"boot-1",
+			firstQualified.observations,
+		)
+		val sameProviderFact = cellProviderDeliveryIdentity(
+			"boot-1",
+			renamedAndReordered.observations,
+		)
+
+		assertEquals(first, sameProviderFact)
+		assertEquals(firstQualified.snapshotIdentity, renamedAndReordered.snapshotIdentity)
+		assertTrue(first.value.matches(Regex("[0-9a-f]{64}")))
+		assertFalse(firstQualified.observations.toString().contains("raw-cell-a"))
+		assertFalse(renamedAndReordered.observations.toString().contains("different-raw-a"))
+	}
+
+	@Test
+	fun `cell delivery identity changes with provider fact boundaries`() {
+		val qualified = qualifiedCellSnapshot("raw-cell-a", "raw-cell-b")
+		val first = cellProviderDeliveryIdentity(
+			"boot-1",
+			qualified.observations,
+		)
+		val changedProviderTime = qualified.observations.mapIndexed { index, observation ->
+			if (index == 0) {
+				observation.copy(providerTimestampNanos = requireNotNull(
+					observation.providerTimestampNanos,
+				) + 1L)
+			} else observation
+		}
+
+		assertFalse(
+			first == cellProviderDeliveryIdentity(
+				"boot-2",
+				qualified.observations,
 			),
 		)
-		val qualified = requireNotNull(
-			qualifyCellSnapshot(cached, CellRefreshOutcome.CACHED, now, 10L),
+		assertFalse(
+			first == cellProviderDeliveryIdentity(
+				"boot-1",
+				changedProviderTime,
+			),
 		)
-		val replay = requireNotNull(
-			qualifyCellSnapshot(cached, CellRefreshOutcome.CACHED, now + 1L, 10L),
+	}
+
+	@Test
+	fun `cell delivery identity includes minimized content and rejects raw identity`() {
+		val qualified = qualifiedCellSnapshot("raw-cell-a", "raw-cell-b")
+		val first = cellProviderDeliveryIdentity(
+			"boot-1",
+			qualified.observations,
 		)
-		val gate = BoundedReplayIdentityGate()
-		assertTrue(gate.shouldAdmit(qualified.snapshotIdentity))
-		gate.record(qualified.snapshotIdentity)
-		assertEquals(qualified.snapshotIdentity, replay.snapshotIdentity)
-		assertFalse(gate.shouldAdmit(replay.snapshotIdentity))
+		val changedSignal = qualified.observations.mapIndexed { index, observation ->
+			if (index == 0) observation.copy(signalLevelDbm = -42) else observation
+		}
+
+		assertFalse(
+			first == cellProviderDeliveryIdentity(
+				"boot-1",
+				changedSignal,
+			),
+		)
+		assertFailsWith<IllegalArgumentException> {
+			cellProviderDeliveryIdentity(
+				"boot-1",
+				qualified.observations.map { it.copy(identifierToken = "raw-cell") },
+			)
+		}
+	}
+
+	@Test
+	fun `same cell provider delivery is duplicate safe across runtime envelopes`() = runTest {
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(1))
+		val activePlan = cellPlan()
+		val first = runtimeFixture(
+			this,
+			activePlan,
+			listOf(registration(activePlan, 1L, generation = 9L, sourceInstanceId = "cell-before")),
+		)
+		val afterRestart = runtimeFixture(
+			this,
+			activePlan,
+			listOf(registration(activePlan, 2L, generation = 10L, sourceInstanceId = "cell-after")),
+		)
+		val deliveries = mutableListOf<SourceDeliveryCandidate>()
+		val sink = cellDeliverySink { delivery ->
+			deliveries += delivery
+			if (deliveries.size == 1) {
+				SourceDeliveryAdmissionHandoff.Durable(listOf(41L))
+			} else {
+				SourceDeliveryAdmissionHandoff.Duplicate(listOf(41L))
+			}
+		}
+		val providerTime = android.os.SystemClock.elapsedRealtimeNanos()
+		val snapshot = snapshot(providerTime)
+
+		first.start(sink)
+		first.emit(snapshot)
+		advanceUntilIdle()
+		val firstAck = first.quiesce()
+		ShadowSystemClock.advanceBy(Duration.ofMillis(10))
+		afterRestart.start(sink)
+		afterRestart.emit(snapshot)
+		advanceUntilIdle()
+		val duplicateAck = afterRestart.quiesce()
+
+		assertEquals(2, deliveries.size)
+		assertEquals(deliveries[0].identity, deliveries[1].identity)
+		val units = deliveries.map { it.units.single() }
+		assertTrue(units.all { it.unitIndex == 0 })
+		assertTrue(units.all { it.observedIntervalStartElapsedRealtimeNanos == providerTime })
+		val candidates = units.map { it.evidence }
+		assertTrue(candidates.all { it.providerDedupKey == null })
+		assertTrue(candidates.all { it.sourceSequence == 0L })
+		assertFalse(candidates[0].sourceInstanceId == candidates[1].sourceInstanceId)
+		assertFalse(candidates[0].registrationGeneration == candidates[1].registrationGeneration)
+		assertFalse(candidates[0].authorizationRevision == candidates[1].authorizationRevision)
+		assertFalse(
+			candidates[0].receivedElapsedRealtimeNanos ==
+				candidates[1].receivedElapsedRealtimeNanos,
+		)
+		assertEquals(41L, firstAck.lastAdmissionOrdinal)
+		assertEquals(41L, duplicateAck.lastAdmissionOrdinal)
+		assertEquals(1L, firstAck.lastDurablyAdmittedSequence)
+		assertEquals(1L, duplicateAck.lastDurablyAdmittedSequence)
+		coVerify(exactly = 0) { first.registrations.allocateSequence(any(), any()) }
+		coVerify(exactly = 0) { afterRestart.registrations.allocateSequence(any(), any()) }
+	}
+
+	@Test
+	fun `older duplicate ordinal advances callback resolution without regressing stop ack`() = runTest {
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(1))
+		val fixture = runtimeFixture(this)
+		var admissionCount = 0
+		fixture.start(cellDeliverySink {
+			admissionCount++
+			when (admissionCount) {
+				1 -> SourceDeliveryAdmissionHandoff.Durable(listOf(100L))
+				2 -> SourceDeliveryAdmissionHandoff.Duplicate(listOf(10L))
+				else -> error("Unexpected Cell admission")
+			}
+		})
+
+		fixture.emit(freshProviderDelivery())
+		advanceUntilIdle()
+		ShadowSystemClock.advanceBy(Duration.ofMillis(1))
+		fixture.emit(freshProviderDelivery())
+		advanceUntilIdle()
+		val ack = fixture.quiesce()
+
+		assertEquals(2, admissionCount)
+		assertEquals(2L, ack.lastDurablyAdmittedSequence)
+		assertEquals(100L, ack.lastAdmissionOrdinal)
 	}
 
 	@Test
@@ -637,16 +800,16 @@ class CellSourceRuntimeTest {
 	}
 
 	@Test
-	fun `revoke after callback entry blocks sequence allocation and WAL admission`() = runTest {
+	fun `revoke after callback entry blocks atomic WAL admission`() = runTest {
 		val fixture = runtimeFixture(this)
 		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
-		fixture.start(SourceEventSink { candidate ->
+		fixture.start(cellCandidateSink { candidate ->
 			admitted += candidate
 			SourceAdmissionHandoff.Durable(1L)
 		})
 		runCurrent()
 
-		fixture.emit(emptyProviderDelivery())
+		fixture.emit(freshProviderDelivery())
 		fixture.state = fixture.state.copy(fineLocationPermission = false)
 		advanceUntilIdle()
 
@@ -661,13 +824,12 @@ class CellSourceRuntimeTest {
 	@Test
 	fun `retry exhaustion is unresolved but the callback actor drains`() = runTest {
 		val fixture = runtimeFixture(this)
-		coEvery { fixture.registrations.allocateSequence(any(), any()) } returns 1L
 		var attempts = 0
-		fixture.start(SourceEventSink {
+		fixture.start(cellCandidateSink {
 			attempts++
 			SourceAdmissionHandoff.RetryableFailure(SourceAdmissionFailureCode.STORAGE_FULL)
 		})
-		fixture.emit(emptyProviderDelivery())
+		fixture.emit(freshProviderDelivery())
 		advanceUntilIdle()
 
 		val ack = fixture.quiesce()
@@ -683,11 +845,10 @@ class CellSourceRuntimeTest {
 	@Test
 	fun `bounded callback overflow is visible in an orderly stop acknowledgement`() = runTest {
 		val fixture = runtimeFixture(this)
-		coEvery { fixture.registrations.allocateSequence(any(), any()) } returns 1L
 		val firstAdmissionEntered = CompletableDeferred<Unit>()
 		val releaseFirstAdmission = CompletableDeferred<Unit>()
 		var admissions = 0
-		fixture.start(SourceEventSink {
+		fixture.start(cellCandidateSink {
 			admissions++
 			if (admissions == 1) {
 				firstAdmissionEntered.complete(Unit)
@@ -697,11 +858,11 @@ class CellSourceRuntimeTest {
 		})
 		runCurrent()
 
-		fixture.emit(emptyProviderDelivery())
+		fixture.emit(freshProviderDelivery())
 		runCurrent()
 		firstAdmissionEntered.await()
-		repeat(CELL_CALLBACK_BUFFER_CAPACITY) { fixture.emit(emptyProviderDelivery()) }
-		fixture.emit(emptyProviderDelivery())
+		repeat(CELL_CALLBACK_BUFFER_CAPACITY) { fixture.emit(freshProviderDelivery()) }
+		fixture.emit(freshProviderDelivery())
 		releaseFirstAdmission.complete(Unit)
 		advanceUntilIdle()
 
@@ -720,9 +881,8 @@ class CellSourceRuntimeTest {
 		val initial = registration(initialPlan, authorizationRevision = 1L)
 		val refreshed = registration(refreshedPlan, authorizationRevision = 2L)
 		val fixture = runtimeFixture(this, initialPlan, listOf(initial, refreshed))
-		coEvery { fixture.registrations.allocateSequence(any(), any()) } returns 1L
 		var admitted: SourceEvidenceCandidate<*>? = null
-		val sink = SourceEventSink { candidate ->
+		val sink = cellCandidateSink { candidate ->
 			admitted = candidate
 			SourceAdmissionHandoff.Durable(7L)
 		}
@@ -733,7 +893,7 @@ class CellSourceRuntimeTest {
 		verify(exactly = 1) { fixture.backend.start(any(), any()) }
 		verify(exactly = 0) { fixture.backend.stop() }
 
-		fixture.emit(emptyProviderDelivery())
+		fixture.emit(freshProviderDelivery())
 		advanceUntilIdle()
 
 		assertEquals(2L, admitted?.authorizationRevision)
@@ -817,10 +977,9 @@ class CellSourceRuntimeTest {
 		val initial = registration(initialPlan, authorizationRevision = 1L)
 		val refreshed = registration(refreshedPlan, authorizationRevision = 2L)
 		val fixture = runtimeFixture(this, initialPlan, listOf(initial, refreshed))
-		coEvery { fixture.registrations.allocateSequence(any(), any()) } returns 1L
 		val oldAdmissions = mutableListOf<SourceEvidenceCandidate<*>>()
 		val newAdmissions = mutableListOf<SourceEvidenceCandidate<*>>()
-		fixture.start(SourceEventSink { candidate ->
+		fixture.start(cellCandidateSink { candidate ->
 			oldAdmissions += candidate
 			SourceAdmissionHandoff.Durable(1L)
 		})
@@ -837,7 +996,7 @@ class CellSourceRuntimeTest {
 		val reconfiguring = async {
 			fixture.runtime.reconfigure(
 				refreshedPlan,
-				SourceEventSink { candidate ->
+				cellCandidateSink { candidate ->
 					newAdmissions += candidate
 					SourceAdmissionHandoff.Durable(2L)
 				},
@@ -845,14 +1004,14 @@ class CellSourceRuntimeTest {
 		}
 		runCurrent()
 		refreshEntered.await()
-		fixture.emit(emptyProviderDelivery())
+		fixture.emit(freshProviderDelivery())
 		runCurrent()
 		assertTrue(oldAdmissions.isEmpty())
 		assertTrue(newAdmissions.isEmpty())
 
 		releaseRefresh.complete(Unit)
 		assertTrue(reconfiguring.await() is SourceApplyResult.Applied)
-		fixture.emit(emptyProviderDelivery())
+		fixture.emit(freshProviderDelivery())
 		advanceUntilIdle()
 
 		assertTrue(oldAdmissions.isEmpty())
@@ -863,6 +1022,31 @@ class CellSourceRuntimeTest {
 
 	private suspend fun RuntimeFixture.start(sink: SourceEventSink) {
 		assertTrue(runtime.start(plan, sink) is SourceStartResult.Started)
+	}
+
+	private fun cellCandidateSink(
+		onCandidate: suspend (SourceEvidenceCandidate<*>) -> SourceAdmissionHandoff,
+	): SourceEventSink = cellDeliverySink { delivery ->
+		when (val handoff = onCandidate(delivery.units.single().evidence)) {
+			is SourceAdmissionHandoff.Durable ->
+				SourceDeliveryAdmissionHandoff.Durable(listOf(handoff.admissionOrdinal))
+			is SourceAdmissionHandoff.Duplicate ->
+				SourceDeliveryAdmissionHandoff.Duplicate(listOf(handoff.existingAdmissionOrdinal))
+			is SourceAdmissionHandoff.RetryableFailure ->
+				SourceDeliveryAdmissionHandoff.RetryableFailure(handoff.code)
+			is SourceAdmissionHandoff.TerminalFailure ->
+				SourceDeliveryAdmissionHandoff.TerminalFailure(handoff.code)
+		}
+	}
+
+	private fun cellDeliverySink(
+		onDelivery: suspend (SourceDeliveryCandidate) -> SourceDeliveryAdmissionHandoff,
+	): SourceEventSink = object : SourceEventSink {
+		override suspend fun admit(candidate: SourceEvidenceCandidate<*>): SourceAdmissionHandoff =
+			throw AssertionError("Cell must not call legacy single-evidence admission")
+
+		override suspend fun admit(delivery: SourceDeliveryCandidate): SourceDeliveryAdmissionHandoff =
+			onDelivery(delivery)
 	}
 
 	private data class RuntimeFixture(
@@ -936,11 +1120,49 @@ class CellSourceRuntimeTest {
 		),
 	)
 
+	private fun qualifiedCellSnapshot(
+		lteIdentity: String,
+		nrIdentity: String,
+		reverseProviderOrder: Boolean = false,
+	): QualifiedCellSnapshot {
+		val observations = listOf(
+			CellBackendObservation(
+				lteIdentity,
+				"LTE",
+				true,
+				-91,
+				90L * NANOS_PER_MILLISECOND,
+			),
+			CellBackendObservation(
+				nrIdentity,
+				"NR",
+				false,
+				-105,
+				80L * NANOS_PER_MILLISECOND,
+			),
+		).let { if (reverseProviderOrder) it.reversed() else it }
+		return requireNotNull(
+			qualifyCellSnapshot(
+				CellBackendSnapshot(1, observations),
+				CellRefreshOutcome.CALLBACK,
+				receivedElapsedNanos = 100L * NANOS_PER_MILLISECOND,
+				maximumAcceptableAgeMs = 100L,
+			),
+		)
+	}
+
 	private fun emptyProviderDelivery() = CellBackendSnapshot(
 		subscriptionId = null,
 		observations = emptyList(),
 		providerItemCount = 0,
 	)
+
+	private fun freshProviderDelivery(): CellBackendSnapshot {
+		if (android.os.SystemClock.elapsedRealtimeNanos() <= 0L) {
+			ShadowSystemClock.advanceBy(Duration.ofMillis(1))
+		}
+		return snapshot(android.os.SystemClock.elapsedRealtimeNanos())
+	}
 
 	private fun cellPlan(
 		revision: Long = 1L,
@@ -987,6 +1209,7 @@ class CellSourceRuntimeTest {
 		plan: CellPlan,
 		authorizationRevision: Long,
 		generation: Long = 9L,
+		sourceInstanceId: String = "cell-1",
 	): SourceRegistration {
 		val demand = SourceDemandEntity(
 			demandId = "cell-demand-$authorizationRevision",
@@ -1027,7 +1250,7 @@ class CellSourceRuntimeTest {
 			state = SourceRegistrationStateEntity(
 				sourceKind = SourceKind.CELL.stableCode,
 				ownerScope = "source-broker:${SourceKind.CELL.stableCode}",
-				sourceInstanceId = "cell-1",
+				sourceInstanceId = sourceInstanceId,
 				clockDomainId = "boot-1",
 				registrationGeneration = generation,
 				nextSequence = 0L,
