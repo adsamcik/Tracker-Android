@@ -2280,3 +2280,36 @@ real sensor/provider behavior, listener removal, process death, reboot, foregrou
 battery/OEM behavior, portable export/import, retention execution, automatic or ambient Steps, or
 ordinary candidate-writer activation. The manual Steps-only device gate remains blocked because no
 device is attached.
+
+## Exact automatic-capable Steps writer binding checkpoint (2026-09-02)
+
+### Outcome
+
+The contained Steps writer now has two explicit immutable executable bindings, accepted and
+fast-forwarded into local `dev/v10` at `b7d4900cf`. Generation 1 remains manual-session-only for
+already attributed v28 facts. Generation 2 is the preferred new contract and permits manual plus
+automatic session capture. Selection is exact by generation and capture-mode mask; retained V1
+history is not reinterpreted as automatic-capable.
+
+The coordinator, rollout store, projector, deletion preflight, rollback, and post-deletion re-arm
+now preserve the installed binding generation. Activity remains `CONTROL` only in automatic
+manifests. This commit adds no automatic demand, starts no provider, changes no durable rollout or
+destination owner, and activates no writer.
+
+### Evidence and boundary
+
+- The final exact 14-path snapshot passed independent review with no blocker, high, or medium
+  finding. The review confirmed the post-Detekt manifest-binding extraction preserves validation
+  order and failure codes and that V1/V2 rollback lookup is exact.
+- The final focused seven-class gate passed `188/188` before commit. After the required rebase check
+  reported the branch already current, a forced integration rerun executed all 230 tasks and again
+  passed `188/188` with zero failures, errors, or skips (`BUILD SUCCESSFUL in 5m 30s`).
+- `:app:compileDebugKotlin` passed (`BUILD SUCCESSFUL in 2m 27s`, 352 tasks), root Detekt passed in
+  `21s`, and `:core:base:lintDebug :tracker:engine:lintDebug` passed in `4m 12s` with no new issue.
+  The configured `adsamcik` identity created the commit; nothing was pushed or activated.
+
+This is host/static attribution and rollback evidence only. It does not prove an Activity trigger,
+Steps provider callback, foreground-service start, process death/reboot behavior, bounded control
+retention or export exclusion, production query/UI, battery/OEM behavior, ordinary activation, or
+rollout. Full automatic Steps and default-off ambient Steps remain blocked by their independent
+product and device gates.

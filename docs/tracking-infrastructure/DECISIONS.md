@@ -1807,3 +1807,24 @@ Each entry records repository evidence and does not duplicate the final architec
   `QUIESCED`, wall overlap, and `sampleCount` prove neither ownership nor source qualification. This
   does not activate the candidate writer, generalize deletion to another source, complete portable
   export/import or retention, or prove a rendered/device deletion flow.
+
+## TI-D131 — Automatic-capable Steps attribution is a new immutable binding generation
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` at `b7d4900cf`; automatic product execution remains `BLOCKED`
+- Owner/date: contained Steps binding owner after exact-diff review, 2026-09-02
+- Alternatives: widen generation 1 in place; infer automatic capability from the current rollout;
+  accept any executable Steps lane during re-arm/deletion; add generation 2 with an exact immutable
+  capture-mode mask while retaining generation 1 for historical authority
+- Evidence: the reviewed 14-path snapshot passed `188/188` focused tests, app KSP/compile, root
+  Detekt, and affected core/tracker lints. A forced post-rebase rerun executed all 230 tasks and
+  passed the same `188/188`; fresh review found no blocker, high, or medium finding.
+- Decision: Steps session-fact binding generation 1 remains exactly manual-session-only. Generation
+  2 is exactly manual plus automatic session capture and is preferred only when no durable installed
+  Steps lane supplies its own exact generation. Manifest writer stamps, rollout capture masks,
+  projector authority, selected deletion, rollback, and re-arm must all resolve the same installed
+  generation/mask. Activity in an automatic Steps manifest remains `CONTROL`, never captured.
+- Consequences: retained V1 facts are not retroactively broadened, and rollback/re-arm cannot adopt
+  an ambiguous or unknown Steps binding. Executability is not activation: no policy, demand,
+  provider, destination owner, rollout state, or writer was enabled. Trigger legality, control
+  retention/no-export, provider-to-query execution, process/reboot/device evidence, and full
+  automatic Steps remain separate gates.
