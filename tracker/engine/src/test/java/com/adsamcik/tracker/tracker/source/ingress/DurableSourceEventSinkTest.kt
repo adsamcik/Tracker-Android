@@ -18,6 +18,7 @@ import com.adsamcik.tracker.tracker.source.runtime.SourceAdmissionHandoff
 import com.adsamcik.tracker.tracker.source.runtime.SourceDeliveryAdmissionHandoff
 import com.adsamcik.tracker.tracker.source.runtime.RuntimeCheckpointLifecycle
 import com.adsamcik.tracker.tracker.source.runtime.SensorAdmissionCheckpoint
+import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -175,6 +176,28 @@ class DurableSourceEventSinkTest {
 		coVerify(exactly = 1) { deliveryIngress.admit(any()) }
 		verify(exactly = 0) { motionController.onDurableEvidence(any()) }
 		verify(exactly = 1) { recovery.requestCommittedWorkDrain() }
+	}
+
+	@Test
+	fun `durable session cutoff maps without projection or motion effects`() = runTest {
+		val ingress = mockk<DurableSourceIngress>()
+		val deliveryIngress = mockk<DurableSourceDeliveryIngress>()
+		val recovery = mockk<SourcePipelineRecovery>(relaxed = true)
+		val motionController = mockk<CollectionMotionController>(relaxed = true)
+		coEvery { deliveryIngress.admit(any()) } returns DeliveryAdmissionResult.SessionCutoff(8L)
+		val subject = DurableSourceEventSinkFactory(
+			ingress,
+			deliveryIngress,
+			recovery,
+			motionController,
+		)
+
+		val handoff = subject.unbound.admit(delivery())
+			.shouldBeInstanceOf<SourceDeliveryAdmissionHandoff.SessionCutoff>()
+
+		handoff.cutoffElapsedRealtimeNanos shouldBe 8L
+		verify(exactly = 0) { motionController.onDurableEvidence(any()) }
+		verify(exactly = 0) { recovery.requestCommittedWorkDrain() }
 	}
 
 	@Test

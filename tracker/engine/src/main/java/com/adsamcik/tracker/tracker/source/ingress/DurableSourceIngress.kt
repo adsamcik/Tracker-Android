@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.SourceBrokerDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceEventIdentityRow
 import com.adsamcik.tracker.shared.base.database.dao.SourceDeliveryUnitIdentityRow
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity.Companion.LEGACY_CHECKSUM_MISMATCH
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity.Companion.LEGACY_CHECKSUM_VERIFIED
@@ -12,6 +13,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity.Compa
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
@@ -77,6 +79,12 @@ interface DurableSourceDeliveryIngress {
 sealed interface DeliveryAdmissionResult {
 	data class Admitted(val units: List<AdmittedUnit>) : DeliveryAdmissionResult
 	data class Duplicate(val units: List<AdmittedUnit>) : DeliveryAdmissionResult
+	/** No WAL mutation occurred; the caller may rebuild against this exact durable cutoff. */
+	data class SessionCutoff(val cutoffElapsedRealtimeNanos: Long) : DeliveryAdmissionResult {
+		init {
+			require(cutoffElapsedRealtimeNanos >= 0L)
+		}
+	}
 	data class RetryableFailure(val code: AdmissionFailureCode) : DeliveryAdmissionResult
 	data class PermanentFailure(val code: AdmissionFailureCode) : DeliveryAdmissionResult
 
@@ -556,6 +564,7 @@ class RoomDurableSourceIngress @Inject constructor(
 				}
 
 				val authorized = mutableListOf<AuthorizedDeliveryUnit>()
+				val captureAuthorities = mutableMapOf<CaptureSessionKey, CaptureSessionAuthority>()
 				var emptyDeliveryFailure = AdmissionFailureCode.STALE_SOURCE_POLICY
 				for (unit in encodedUnits) {
 					val evidence = unit.sourceUnit.evidence
@@ -607,19 +616,42 @@ class RoomDurableSourceIngress @Inject constructor(
 							AdmissionFailureCode.STALE_COLLECTED_DATA_EPOCH,
 						)
 					}
-					val observedTimeAuthorization = brokerDao.authorizationAt(
+					val observedTimeAuthorizationRows = brokerDao.authorizationAt(
 						evidence.source.stableCode,
 						evidence.registrationGeneration,
 						evidence.clockDomainId,
 						evidence.observedElapsedRealtimeNanos,
-					).toAuthorizationSnapshotOrNull()
+					)
+					val observedTimeAuthorization = runCatchingNonCancellation {
+						observedTimeAuthorizationRows.toAuthorizationSnapshotOrNull()
+					}.getOrNull()
+					if (evidence.source == SourceKind.WIFI &&
+						(observedTimeAuthorization == null ||
+							observedTimeAuthorization.isDenied ||
+							!observedTimeAuthorization.matchesCapturedEnvelope(evidence))
+					) {
+						val durableSessionCutoff = loadRetiringCaptureCutoff(
+							evidence = evidence,
+							brokerDao = brokerDao,
+						)
+						if (durableSessionCutoff != null &&
+							evidence.observedElapsedRealtimeNanos > durableSessionCutoff
+						) {
+							return@transaction DeliveryAdmissionResult.SessionCutoff(
+								durableSessionCutoff,
+							)
+						}
+					}
 					if (intervalStart < evidence.observedElapsedRealtimeNanos) {
-						val startAuthorization = brokerDao.authorizationAt(
+						val startAuthorizationRows = brokerDao.authorizationAt(
 							evidence.source.stableCode,
 							evidence.registrationGeneration,
 							evidence.clockDomainId,
 							intervalStart,
-						).toAuthorizationSnapshotOrNull()
+						)
+						val startAuthorization = runCatchingNonCancellation {
+							startAuthorizationRows.toAuthorizationSnapshotOrNull()
+						}.getOrNull()
 						if (startAuthorization?.authorizationRevision !=
 							observedTimeAuthorization?.authorizationRevision
 						) {
@@ -629,6 +661,10 @@ class RoomDurableSourceIngress @Inject constructor(
 						}
 					}
 					if (observedTimeAuthorization == null || observedTimeAuthorization.isDenied) {
+						emptyDeliveryFailure = AdmissionFailureCode.STALE_SOURCE_POLICY
+						continue
+					}
+					if (!observedTimeAuthorization.matchesCapturedEnvelope(evidence)) {
 						emptyDeliveryFailure = AdmissionFailureCode.STALE_SOURCE_POLICY
 						continue
 					}
@@ -656,10 +692,36 @@ class RoomDurableSourceIngress @Inject constructor(
 							AdmissionFailureCode.STALE_SESSION_MANIFEST,
 						)
 					}
+					val captureAuthorization = captureMembers.singleOrNull()
+					if (captureAuthorization != null) {
+						val key = captureAuthorization.captureSessionKey(
+							source = evidence.source,
+							clockDomainId = evidence.clockDomainId,
+						) ?: return@transaction DeliveryAdmissionResult.PermanentFailure(
+							AdmissionFailureCode.STALE_SESSION_MANIFEST,
+						)
+						val captureAuthority = captureAuthorities[key] ?: loadCaptureSessionAuthority(key)
+							.also { authority -> captureAuthorities[key] = authority }
+						when (captureAuthority) {
+							CaptureSessionAuthority.Active -> Unit
+							CaptureSessionAuthority.Invalid -> {
+								return@transaction DeliveryAdmissionResult.PermanentFailure(
+									AdmissionFailureCode.STALE_SESSION_MANIFEST,
+								)
+							}
+							is CaptureSessionAuthority.Stopping -> {
+								if (evidence.observedElapsedRealtimeNanos > captureAuthority.cutoffElapsedNanos) {
+									return@transaction DeliveryAdmissionResult.SessionCutoff(
+										captureAuthority.cutoffElapsedNanos,
+									)
+								}
+							}
+						}
+					}
 					authorized += AuthorizedDeliveryUnit(
 						unit,
 						authorization,
-						captureMembers.singleOrNull(),
+						captureAuthorization,
 					)
 				}
 				if (authorized.isEmpty()) {
@@ -733,6 +795,125 @@ class RoomDurableSourceIngress @Inject constructor(
 		}.getOrElse { failure ->
 			if (!failure.isTrackingOperationalFailure()) throw failure
 			DeliveryAdmissionResult.RetryableFailure(AdmissionFailureCode.STORAGE_UNAVAILABLE)
+		}
+	}
+
+	/**
+	 * Resolves only an exact durable session-retirement fence captured by this delivery.
+	 *
+	 * The observed-time authorization may already have rotated at the stop boundary. This lookup
+	 * never grants persistence: it can only return a no-mutation cutoff so the source can rebuild
+	 * its immutable provider delivery. Any mismatch falls through to ordinary admission checks.
+	 */
+	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "ReturnCount")
+	private suspend fun loadRetiringCaptureCutoff(
+		evidence: SourceEvidenceCandidate<*>,
+		brokerDao: SourceBrokerDao,
+	): Long? {
+		val physicalFingerprint = evidence.physicalConfigurationFingerprint ?: return null
+		val authorizationRevision = evidence.authorizationRevision ?: return null
+		val eligibilityFingerprint = evidence.registrationEligibilityFingerprint ?: return null
+		val physical = brokerDao.registration(
+			evidence.source.stableCode,
+			evidence.registrationGeneration,
+		) ?: return null
+		val providerAcceptedElapsedNanos = physical.acceptedElapsedRealtimeNanos ?: return null
+		if (physical.sourceKind != evidence.source.stableCode ||
+			physical.registrationGeneration != evidence.registrationGeneration ||
+			physical.sourceInstanceId != evidence.sourceInstanceId.value ||
+			physical.clockDomainId != evidence.clockDomainId ||
+			physical.physicalConfigurationFingerprint != physicalFingerprint ||
+			physical.collectedDataEpoch != evidence.capturedCollectedDataEpoch ||
+			physical.status !in RETIRING_CUTOFF_PHYSICAL_STATES
+		) return null
+		val claimedAuthorizationRows = brokerDao.authorizationRevision(
+			evidence.source.stableCode,
+			evidence.registrationGeneration,
+			authorizationRevision,
+		)
+		val claimedAuthorization = runCatchingNonCancellation {
+			claimedAuthorizationRows.toAuthorizationSnapshotOrNull()
+		}.getOrNull() ?: return null
+		if (claimedAuthorization.isDenied ||
+			claimedAuthorization.effectiveBootId != evidence.clockDomainId ||
+			claimedAuthorization.authorizationFingerprint != eligibilityFingerprint ||
+			claimedAuthorization.purposeEligibilityMask != evidence.registrationPurposeEligibilityMask
+		) return null
+		val captureAuthorization = claimedAuthorization.authorizedMembers.singleOrNull { member ->
+			member.purpose == SourceBrokerPurpose.SESSION_CAPTURE
+		} ?: return null
+		val demandId = captureAuthorization.demandId ?: return null
+		val demand = brokerDao.demandsByIds(listOf(demandId)).singleOrNull() ?: return null
+		val retirementCutoff = demand.retireElapsedRealtimeNanos ?: return null
+		val observedAgeNanos = evidence.receivedElapsedRealtimeNanos -
+			evidence.observedElapsedRealtimeNanos
+		if (!demand.matchesImmutableAuthority(captureAuthorization) ||
+			captureAuthorization.memberId != "demand:$demandId" ||
+			demand.status != SourceDemandEntity.STATUS_RETIRING ||
+			demand.requestedBootId != evidence.clockDomainId ||
+			demand.retireBootId != evidence.clockDomainId ||
+			demand.retiredAtMs == null ||
+			demand.requestedElapsedRealtimeNanos > retirementCutoff ||
+			claimedAuthorization.effectiveElapsedRealtimeNanos > retirementCutoff ||
+			providerAcceptedElapsedNanos > retirementCutoff ||
+			observedAgeNanos < 0L ||
+			observedAgeNanos > demand.maximumAgeMs.saturatedMillisecondsToNanos()
+		) return null
+		val key = captureAuthorization.captureSessionKey(
+			source = evidence.source,
+			clockDomainId = evidence.clockDomainId,
+		) ?: return null
+		val sessionAuthority = loadCaptureSessionAuthority(key)
+		return (sessionAuthority as? CaptureSessionAuthority.Stopping)
+			?.cutoffElapsedNanos
+			?.takeIf { cutoff -> cutoff == retirementCutoff }
+	}
+
+	/**
+	 * Resolves current capture ownership without rewriting observed-time authorization history.
+	 * Exact replay is handled before this check, so a stopped session can still acknowledge a
+	 * delivery that was already durable. New evidence must still belong to the current run and boot.
+	 */
+	@Suppress("CyclomaticComplexMethod", "ReturnCount")
+	private suspend fun loadCaptureSessionAuthority(key: CaptureSessionKey): CaptureSessionAuthority {
+		val sessionDao = database.sourceSessionDao()
+		val session = sessionDao.session(key.logicalTrackingId) ?: return CaptureSessionAuthority.Invalid
+		val run = sessionDao.serviceRun(key.serviceRunId) ?: return CaptureSessionAuthority.Invalid
+		val manifest = sessionDao.manifestByServiceRunRevision(
+			key.serviceRunId,
+			key.manifestRevision,
+		) ?: return CaptureSessionAuthority.Invalid
+		val binding = sessionDao.manifestSource(
+			key.logicalTrackingId,
+			key.manifestRevision,
+			key.source.stableCode,
+			MANIFEST_PURPOSE_CAPTURE,
+		) ?: return CaptureSessionAuthority.Invalid
+		val immutableAuthorityMatches = session.currentServiceRunId == key.serviceRunId &&
+			session.currentManifestRevision?.let { it >= key.manifestRevision } == true &&
+			session.completedAtMs == null &&
+			session.clockDomainId == key.clockDomainId &&
+			session.lifecycleBootId == key.clockDomainId &&
+			session.lifecycleLeaseGeneration == key.leaseGeneration &&
+			run.logicalTrackingId == key.logicalTrackingId &&
+			run.completedAtMs == null &&
+			run.bootId == key.clockDomainId &&
+			run.leaseGeneration == key.leaseGeneration &&
+			manifest.logicalTrackingId == key.logicalTrackingId &&
+			manifest.serviceRunId == key.serviceRunId &&
+			manifest.effectiveBootId == key.clockDomainId &&
+			manifest.sourcePolicyRevision == key.sourcePolicyRevision &&
+			binding.consentEpoch == key.consentEpoch &&
+			binding.persistenceEligible
+		if (!immutableAuthorityMatches) return CaptureSessionAuthority.Invalid
+		return when {
+			session.state in ADMISSION_SESSION_STATES && run.state in ADMISSION_RUN_STATES &&
+				session.cutoffElapsedNanos == null -> CaptureSessionAuthority.Active
+			session.state == SESSION_STATE_STOPPING && run.state == SESSION_STATE_STOPPING -> {
+				val cutoff = session.cutoffElapsedNanos ?: return CaptureSessionAuthority.Invalid
+				CaptureSessionAuthority.Stopping(cutoff)
+			}
+			else -> CaptureSessionAuthority.Invalid
 		}
 	}
 
@@ -937,6 +1118,54 @@ private data class AuthorizedDeliveryUnit(
 	val captureAuthorization: SourceAuthorizationEntity?,
 )
 
+private data class CaptureSessionKey(
+	val source: SourceKind,
+	val logicalTrackingId: String,
+	val serviceRunId: String,
+	val manifestRevision: Long,
+	val leaseGeneration: Long,
+	val sourcePolicyRevision: Long,
+	val consentEpoch: Long,
+	val clockDomainId: String,
+)
+
+private sealed interface CaptureSessionAuthority {
+	data object Active : CaptureSessionAuthority
+	data class Stopping(val cutoffElapsedNanos: Long) : CaptureSessionAuthority
+	data object Invalid : CaptureSessionAuthority
+}
+
+// Each nullable term is part of the immutable session authority; partial keys must fail closed.
+@Suppress("CyclomaticComplexMethod", "ReturnCount")
+private fun SourceAuthorizationEntity.captureSessionKey(
+	source: SourceKind,
+	clockDomainId: String,
+): CaptureSessionKey? {
+	if (sourceKind != source.stableCode || purpose != MANIFEST_PURPOSE_CAPTURE ||
+		!persistenceEligible || effectiveBootId != clockDomainId
+	) return null
+	return CaptureSessionKey(
+		source = source,
+		logicalTrackingId = logicalTrackingId ?: return null,
+		serviceRunId = serviceRunId ?: return null,
+		manifestRevision = manifestRevision?.takeIf { it > 0L } ?: return null,
+		leaseGeneration = lifecycleLeaseGeneration?.takeIf { it > 0L } ?: return null,
+		sourcePolicyRevision = sourcePolicyRevision?.takeIf { it > 0L } ?: return null,
+		consentEpoch = consentEpoch?.takeIf { it >= 0L } ?: return null,
+		clockDomainId = clockDomainId,
+	)
+}
+
+private fun SourceAuthorizationSnapshot.matchesCapturedEnvelope(
+	evidence: SourceEvidenceCandidate<*>,
+): Boolean {
+	if (evidence.authorizationRevision == null) return true
+	return authorizationRevision == evidence.authorizationRevision &&
+		authorizationFingerprint == evidence.registrationEligibilityFingerprint &&
+		purposeEligibilityMask == evidence.registrationPurposeEligibilityMask &&
+		effectiveBootId == evidence.clockDomainId
+}
+
 private fun SourceAuthorizationSnapshot.hasCapturePurpose(): Boolean =
 	authorizedMembers.any { member ->
 		member.purpose in setOf(
@@ -967,17 +1196,7 @@ private suspend fun SourceAuthorizationSnapshot.qualifiedForFreshness(
 	val qualifiedMembers = authorizedMembers.mapNotNull { member ->
 		val demandId = member.demandId ?: return@mapNotNull null
 		val demand = demandsById[demandId] ?: return@mapNotNull null
-		val immutableAuthorityMatches = demand.sourceKind == member.sourceKind &&
-			demand.consumerId == member.consumerId &&
-			demand.purpose == member.purpose &&
-			demand.sourcePolicyRevision == member.sourcePolicyRevision &&
-			demand.consentEpoch == member.consentEpoch &&
-			demand.persistenceEligible == member.persistenceEligible &&
-			demand.logicalTrackingId == member.logicalTrackingId &&
-			demand.serviceRunId == member.serviceRunId &&
-			demand.manifestRevision == member.manifestRevision &&
-			demand.lifecycleLeaseGeneration == member.lifecycleLeaseGeneration
-		if (!immutableAuthorityMatches) return@mapNotNull null
+		if (!demand.matchesImmutableAuthority(member)) return@mapNotNull null
 		val maximumAgeNanos = demand.maximumAgeMs.saturatedMillisecondsToNanos()
 		member.takeIf { ageNanos <= maximumAgeNanos }
 	}
@@ -992,6 +1211,19 @@ private suspend fun SourceAuthorizationSnapshot.qualifiedForFreshness(
 		},
 	)
 }
+
+private fun SourceDemandEntity.matchesImmutableAuthority(
+	member: SourceAuthorizationEntity,
+): Boolean = sourceKind == member.sourceKind &&
+	consumerId == member.consumerId &&
+	purpose == member.purpose &&
+	sourcePolicyRevision == member.sourcePolicyRevision &&
+	consentEpoch == member.consentEpoch &&
+	persistenceEligible == member.persistenceEligible &&
+	logicalTrackingId == member.logicalTrackingId &&
+	serviceRunId == member.serviceRunId &&
+	manifestRevision == member.manifestRevision &&
+	lifecycleLeaseGeneration == member.lifecycleLeaseGeneration
 
 private fun Long.saturatedMillisecondsToNanos(): Long =
 	if (this > Long.MAX_VALUE / NANOS_PER_MILLISECOND) {
@@ -1279,6 +1511,11 @@ private const val MANIFEST_PURPOSE_CAPTURE = "SESSION_CAPTURE"
 private const val SESSION_STATE_STOPPING = "STOPPING"
 private val ADMISSION_SESSION_STATES = setOf("STARTING", "ACTIVE", "RECONFIGURING")
 private val ADMISSION_RUN_STATES = setOf("STARTING", "ACTIVE")
+private val RETIRING_CUTOFF_PHYSICAL_STATES = setOf(
+	ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+	ProviderRegistrationGenerationEntity.STATUS_RETIRING,
+	ProviderRegistrationGenerationEntity.STATUS_RETIRED,
+)
 private const val RAW_PAYLOAD_INTEGRITY_FAILURE = "RAW_PAYLOAD_INTEGRITY"
 private const val RAW_PAYLOAD_DECODE_FAILURE = "RAW_PAYLOAD_DECODE"
 private const val NANOS_PER_MILLISECOND = 1_000_000L

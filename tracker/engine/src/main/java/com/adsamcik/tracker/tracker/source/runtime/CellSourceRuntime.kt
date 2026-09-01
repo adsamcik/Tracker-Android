@@ -850,6 +850,11 @@ class CellSourceRuntime @Inject internal constructor(
 				recordDurableAdmission(callbackSequence, ordinal)
 				return true
 			}
+			is SourceDeliveryAdmissionHandoff.SessionCutoff -> {
+				// Cell does not reinterpret an already-composed atomic delivery.
+				metrics.recordFailure(callbackSequence)
+				return false
+			}
 			is SourceDeliveryAdmissionHandoff.TerminalFailure,
 			is SourceDeliveryAdmissionHandoff.RetryableFailure,
 			-> {

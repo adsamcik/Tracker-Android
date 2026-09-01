@@ -192,6 +192,7 @@ class SourceRegistrationRepositoryTest {
 			(SourceBrokerPurpose.MASK_SESSION_CAPTURE or SourceBrokerPurpose.MASK_CONTROL_AUTOSTART)
 		registration.authorization.authorizedMembers
 			.map { it.demandId } shouldBe listOf("control", "capture")
+		registration.providerAcceptedElapsedRealtimeNanos shouldBe null
 
 		subject.markAccepted(registration, acceptedAtMs = 120L, acceptedElapsedRealtimeNanos = 120L)
 		database.sourceBrokerDao().registration(SourceKind.STEPS.stableCode, 1L)?.status shouldBe
@@ -215,8 +216,10 @@ class SourceRegistrationRepositoryTest {
 
 		second.state.registrationGeneration shouldBe 1L
 		second.requiresProviderAcceptance shouldBe false
+		second.providerAcceptedElapsedRealtimeNanos shouldBe 110L
 		second.authorization.authorizationRevision shouldBe first.authorization.authorizationRevision + 1L
 		unrelatedGlobalRevision.state.registrationGeneration shouldBe 1L
+		unrelatedGlobalRevision.providerAcceptedElapsedRealtimeNanos shouldBe 110L
 		unrelatedGlobalRevision.authorization.authorizationRevision shouldBe second.authorization.authorizationRevision
 		database.sourceBrokerDao().registration(SourceKind.STEPS.stableCode, 1L)?.status shouldBe
 			ProviderRegistrationGenerationEntity.STATUS_ACTIVE
@@ -251,6 +254,7 @@ class SourceRegistrationRepositoryTest {
 
 		refreshed?.state?.registrationGeneration shouldBe 1L
 		refreshed?.requiresProviderAcceptance shouldBe false
+		refreshed?.providerAcceptedElapsedRealtimeNanos shouldBe 110L
 		incompatible shouldBe null
 		database.sourceBrokerDao().maximumRegistrationGeneration(SourceKind.STEPS.stableCode) shouldBe 1L
 		database.sourceBrokerDao().registration(SourceKind.STEPS.stableCode, 2L) shouldBe null

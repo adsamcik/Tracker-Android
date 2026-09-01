@@ -136,6 +136,18 @@ interface SourceBrokerDao {
 		registrationGeneration: Long,
 	): List<SourceAuthorizationEntity>
 
+	/** Exact immutable authorization envelope captured by an already-entered provider callback. */
+	@Query(
+		"SELECT * FROM source_authorization WHERE source_kind = :sourceKind " +
+			"AND registration_generation = :registrationGeneration " +
+			"AND authorization_revision = :authorizationRevision ORDER BY member_id",
+	)
+	suspend fun authorizationRevision(
+		sourceKind: Int,
+		registrationGeneration: Long,
+		authorizationRevision: Long,
+	): List<SourceAuthorizationEntity>
+
 	@Query(
 		"SELECT EXISTS(SELECT 1 FROM source_authorization " +
 			"WHERE source_kind = :sourceKind AND registration_generation = :registrationGeneration " +

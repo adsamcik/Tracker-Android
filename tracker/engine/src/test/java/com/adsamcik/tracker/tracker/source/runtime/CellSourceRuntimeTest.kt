@@ -843,6 +843,23 @@ class CellSourceRuntimeTest {
 	}
 
 	@Test
+	fun `durable session cutoff fails Cell atomic delivery closed`() = runTest {
+		val fixture = runtimeFixture(this)
+		fixture.start(cellDeliverySink { SourceDeliveryAdmissionHandoff.SessionCutoff(8L) })
+		fixture.emit(freshProviderDelivery())
+		advanceUntilIdle()
+
+		val ack = fixture.quiesce()
+
+		assertTrue(ack.appDrainComplete)
+		assertEquals(1L, ack.callbackEntryBarrierSequence)
+		assertEquals(1L, ack.failedAdmissionCount)
+		assertEquals(1L, ack.unresolvedSequenceStart)
+		assertEquals(1L, ack.unresolvedSequenceEndInclusive)
+		assertNull(ack.lastDurablyAdmittedSequence)
+	}
+
+	@Test
 	fun `bounded callback overflow is visible in an orderly stop acknowledgement`() = runTest {
 		val fixture = runtimeFixture(this)
 		val firstAdmissionEntered = CompletableDeferred<Unit>()

@@ -1102,6 +1102,26 @@ class LocationSourceRuntimeTest {
 	}
 
 	@Test
+	fun `durable session cutoff fails Location atomic delivery closed`() = runTest {
+		val sink = RecordingLocationSink { _, _ ->
+			SourceDeliveryAdmissionHandoff.SessionCutoff(8L)
+		}
+		val fixture = locationRuntimeFixture(backgroundScope, sink = sink)
+		assertTrue(fixture.runtime.start(fixture.plan, sink) is SourceStartResult.Started)
+		fixture.providerCallback()(listOf(location(50.0, SystemClock.elapsedRealtimeNanos())))
+		runCurrent()
+
+		val ack = fixture.runtime.quiesce(sessionCutoff(Long.MAX_VALUE))
+
+		assertTrue(ack.appDrainComplete)
+		assertEquals(1L, ack.callbackEntryBarrierSequence)
+		assertEquals(1L, ack.failedAdmissionCount)
+		assertEquals(1L, ack.unresolvedSequenceStart)
+		assertEquals(1L, ack.unresolvedSequenceEndInclusive)
+		assertNull(ack.lastDurablyAdmittedSequence)
+	}
+
+	@Test
 	fun `flush callback wholly after cutoff admits nothing without a false gap`() = runTest {
 		val fixture = locationRuntimeFixture(backgroundScope)
 		assertTrue(fixture.runtime.start(fixture.plan, fixture.sink) is SourceStartResult.Started)

@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
+import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.RetryBackoff
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
@@ -16,13 +17,16 @@ import com.adsamcik.tracker.tracker.source.model.WifiMode
 import com.adsamcik.tracker.tracker.source.model.WifiPlan
 import com.adsamcik.tracker.tracker.source.model.WifiResultSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -129,10 +133,10 @@ class WifiSourceRuntimeTest {
 			WifiAccessPointEvidence("", 5_180, -60, 9_500_000L),
 		)
 
-		val first = wifiProviderDeliveryIdentity("boot-1", evidence, false, 10_000_000L)
-		val afterProcessDeath = wifiProviderDeliveryIdentity("boot-1", evidence, false, 99_000_000L)
+		val first = wifiProviderDeliveryIdentity("boot-1", evidence)
+		val afterProcessDeath = wifiProviderDeliveryIdentity("boot-1", evidence)
 		val reorderedProviderList = wifiProviderDeliveryIdentity(
-			"boot-1", evidence.reversed(), false, 99_000_000L,
+			"boot-1", evidence.reversed(),
 		)
 
 		assertEquals(first, afterProcessDeath)
@@ -140,6 +144,20 @@ class WifiSourceRuntimeTest {
 		assertTrue(first.value.matches(Regex("[0-9a-f]{64}")))
 		assertFalse(first.value.contains("aa:bb:cc:dd:ee:ff"))
 		assertFalse(first.value.contains("wifi-1"))
+		assertFalse(
+			first == wifiProviderDeliveryIdentity(
+				"boot-1",
+				evidence.mapIndexed { index, item ->
+					if (index == 0) item.copy(signalLevelDbm = -49) else item
+				},
+			),
+		)
+		assertFailsWith<IllegalArgumentException> {
+			wifiProviderDeliveryIdentity(
+				"boot-1",
+				evidence.map { it.copy(identifierToken = "aa:bb:cc:dd:ee:ff") },
+			)
+		}
 	}
 
 	@Test
@@ -164,14 +182,21 @@ class WifiSourceRuntimeTest {
 				SourceDeliveryAdmissionHandoff.Duplicate(listOf(41L))
 			}
 		}
-		val delivery = resultEvent(receivedNanos = 10_000_000L)
+		val firstDelivery = resultEvent(
+			receivedNanos = 10_000_000L,
+			providerTimestampMicros = 9_000L,
+		)
+		val laterReplay = resultEvent(
+			receivedNanos = 12_000_000L,
+			providerTimestampMicros = 9_000L,
+		)
 
 		first.start(sink)
-		first.emit(delivery)
+		first.emit(firstDelivery)
 		advanceUntilIdle()
 		val firstAck = first.quiesce()
 		afterRestart.start(sink)
-		afterRestart.emit(delivery)
+		afterRestart.emit(laterReplay)
 		advanceUntilIdle()
 		val duplicateAck = afterRestart.quiesce()
 
@@ -183,12 +208,54 @@ class WifiSourceRuntimeTest {
 		assertFalse(candidates[0].sourceInstanceId == candidates[1].sourceInstanceId)
 		assertFalse(candidates[0].registrationGeneration == candidates[1].registrationGeneration)
 		assertFalse(candidates[0].authorizationRevision == candidates[1].authorizationRevision)
+		assertFalse(
+			candidates[0].receivedElapsedRealtimeNanos ==
+				candidates[1].receivedElapsedRealtimeNanos,
+		)
+		assertEquals(candidates[0].payload, candidates[1].payload)
+		assertNull((candidates[0].payload as WifiResultSnapshotPayload).resultAgeMs)
 		assertEquals(41L, firstAck.lastAdmissionOrdinal)
 		assertEquals(41L, duplicateAck.lastAdmissionOrdinal)
 		assertEquals(1L, firstAck.lastDurablyAdmittedSequence)
 		assertEquals(1L, duplicateAck.lastDurablyAdmittedSequence)
 		coVerify(exactly = 0) { first.registrations.allocateSequence(any(), any()) }
 		coVerify(exactly = 0) { afterRestart.registrations.allocateSequence(any(), any()) }
+	}
+
+	@Test
+	fun `older duplicate ordinal advances callback resolution without regressing stop ack`() = runTest {
+		val initialPlan = plan(1L)
+		val refreshedPlan = plan(2L)
+		val initial = registration(initialPlan, authorizationRevision = 1L)
+		val refreshed = registration(refreshedPlan, authorizationRevision = 2L)
+		val fixture = runtimeFixture(this, initialPlan, listOf(initial))
+		coEvery {
+			fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
+		} returns refreshed
+		var admissionCount = 0
+		val sink = wifiDeliverySink {
+			admissionCount++
+			when (admissionCount) {
+				1 -> SourceDeliveryAdmissionHandoff.Durable(listOf(100L))
+				2 -> SourceDeliveryAdmissionHandoff.Duplicate(listOf(10L))
+				else -> error("Unexpected Wi-Fi admission")
+			}
+		}
+		fixture.start(sink)
+
+		fixture.emit(resultEvent(frequencyMhz = 2_412, receivedNanos = 10_000_000L))
+		advanceUntilIdle()
+		assertTrue(fixture.runtime.reconfigure(refreshedPlan, sink) is SourceApplyResult.Applied)
+		fixture.emit(resultEvent(frequencyMhz = 5_180, receivedNanos = 20_000_000L))
+		advanceUntilIdle()
+		val ack = fixture.quiesce()
+
+		assertEquals(2, admissionCount)
+		assertEquals(2L, ack.lastDurablyAdmittedSequence)
+		assertEquals(100L, ack.lastAdmissionOrdinal)
+		assertEquals(0L, ack.failedAdmissionCount)
+		assertTrue(ack.appDrainComplete)
+		assertEquals(SourceStopStatus.COMPLETE, ack.status)
 	}
 
 	@Test
@@ -219,6 +286,48 @@ class WifiSourceRuntimeTest {
 		assertEquals(listOf(5_180), payload.accessPoints.map { it.frequencyMhz })
 		assertEquals(9_000_000_000L, payload.accessPoints.single().providerTimestampNanos)
 		assertEquals(9_000_000_000L, admitted.single().observedElapsedRealtimeNanos)
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `mixed registration boundary callback persists only currently authorized access points`() = runTest {
+		val activePlan = plan(1L, maximumAgeMs = 5_000L)
+		val activeRegistration = registration(
+			plan = activePlan,
+			authorizationRevision = 1L,
+			providerAcceptedElapsedRealtimeNanos = 8_000_000L,
+			authorizationEffectiveElapsedRealtimeNanos = 9_000_000L,
+		)
+		val fixture = runtimeFixture(this, activePlan, listOf(activeRegistration))
+		val deliveries = mutableListOf<SourceDeliveryCandidate>()
+		fixture.start(wifiDeliverySink { delivery ->
+			deliveries += delivery
+			SourceDeliveryAdmissionHandoff.Durable(listOf(1L))
+		})
+		fixture.emit(
+			WifiBackendEvent.Results(
+				snapshot = WifiBackendSnapshot(
+					listOf(
+						WifiBackendAccessPoint("before-provider", 2_412, -70, 7_500L),
+						WifiBackendAccessPoint("before-authorization", 2_437, -60, 8_500L),
+						WifiBackendAccessPoint("authorized", 5_180, -45, 9_500L),
+					),
+				),
+				resultsUpdated = true,
+				receivedElapsedRealtimeNanos = 10_000_000L,
+				receivedWallTimeMs = 1_000L,
+			),
+		)
+		advanceUntilIdle()
+
+		val delivery = deliveries.single()
+		val unit = delivery.units.single()
+		val payload = unit.evidence.payload as WifiResultSnapshotPayload
+		assertEquals(listOf(5_180), payload.accessPoints.map { it.frequencyMhz })
+		assertEquals(9_500_000L, unit.observedIntervalStartElapsedRealtimeNanos)
+		assertEquals(9_500_000L, unit.evidence.observedElapsedRealtimeNanos)
+		assertFalse(delivery.identity.value.contains("before-provider"))
+		assertFalse(delivery.identity.value.contains("before-authorization"))
 		fixture.runtime.close()
 	}
 
@@ -337,7 +446,11 @@ class WifiSourceRuntimeTest {
 
 	@Test
 	fun `cancellation during provider acceptance retires exact receiver before propagating`() = runTest {
-		val fixture = runtimeFixture(this)
+		val pendingRegistration = registration(plan(1L), authorizationRevision = 1L).copy(
+			requiresProviderAcceptance = true,
+			providerAcceptedElapsedRealtimeNanos = null,
+		)
+		val fixture = runtimeFixture(this, registrationsToReturn = listOf(pendingRegistration))
 		val events = mutableListOf<String>()
 		coEvery { fixture.registrations.markAccepted(any(), any(), any()) } answers {
 			events += "accept-cancelled"
@@ -365,6 +478,23 @@ class WifiSourceRuntimeTest {
 		}
 
 		assertEquals(listOf("accept-cancelled", "retiring", "provider-stop", "retired"), events)
+	}
+
+	@Test
+	fun `active registration reuse without durable provider boundary fails closed`() = runTest {
+		val invalidActive = registration(plan(1L), authorizationRevision = 1L).copy(
+			providerAcceptedElapsedRealtimeNanos = null,
+		)
+		val fixture = runtimeFixture(this, registrationsToReturn = listOf(invalidActive))
+
+		val result = fixture.runtime.start(
+			fixture.plan,
+			wifiCandidateSink { SourceAdmissionHandoff.Durable(1L) },
+		)
+
+		assertTrue(result is SourceStartResult.Failed)
+		verify(exactly = 1) { fixture.backend.start(any()) }
+		verify(exactly = 1) { fixture.backend.stop() }
 	}
 
 	@Test
@@ -512,7 +642,7 @@ class WifiSourceRuntimeTest {
 	}
 
 	@Test
-	fun `revocation after callback entry preserves the captured snapshot for observed-time admission`() = runTest {
+	fun `revocation after callback entry rejects queued snapshot at persistence boundary`() = runTest {
 		val fixture = runtimeFixture(this)
 		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
 		fixture.start(wifiCandidateSink { candidate ->
@@ -526,15 +656,15 @@ class WifiSourceRuntimeTest {
 		advanceUntilIdle()
 
 		coVerify(exactly = 0) { fixture.registrations.allocateSequence(any(), any()) }
-		assertEquals(1, admitted.size)
+		assertTrue(admitted.isEmpty())
 		val ack = fixture.quiesce()
 		assertEquals(1L, ack.callbackEntryBarrierSequence)
-		assertEquals(0L, ack.failedAdmissionCount)
-		assertEquals(1L, ack.lastDurablyAdmittedSequence)
+		assertEquals(1L, ack.failedAdmissionCount)
+		assertNull(ack.lastDurablyAdmittedSequence)
 	}
 
 	@Test
-	fun `captured snapshot retries remain observed-time stable after current permission changes`() = runTest {
+	fun `prerequisite revocation between retries stops before another admission attempt`() = runTest {
 		val fixture = runtimeFixture(this)
 		var attempts = 0
 		fixture.start(wifiCandidateSink {
@@ -546,10 +676,195 @@ class WifiSourceRuntimeTest {
 		fixture.emit(resultEvent(receivedNanos = 10_000_000L))
 		advanceUntilIdle()
 
-		assertEquals(4, attempts)
+		assertEquals(1, attempts)
 		val ack = fixture.quiesce()
 		assertEquals(1L, ack.failedAdmissionCount)
 		assertEquals(1L, ack.unresolvedSequenceStart)
+	}
+
+	@Test
+	fun `post-cutoff queued observation is filtered before admission`() = runTest {
+		val fixture = runtimeFixture(this)
+		var admissionCount = 0
+		fixture.start(wifiCandidateSink {
+			admissionCount++
+			SourceAdmissionHandoff.Durable(1L)
+		})
+		fixture.emit(
+			resultEvent(
+				receivedNanos = 10_000_000L,
+				providerTimestampMicros = 9_000L,
+			),
+		)
+
+		val ack = fixture.quiesce(cutoffElapsedNanos = 8_999_999L)
+
+		assertEquals(0, admissionCount)
+		assertEquals(1L, ack.callbackEntryBarrierSequence)
+		assertEquals(0L, ack.failedAdmissionCount)
+		assertNull(ack.lastDurablyAdmittedSequence)
+		assertTrue(ack.appDrainComplete)
+	}
+
+	@Test
+	fun `mixed stop boundary callback retains only pre-cutoff access points`() = runTest {
+		val fixture = runtimeFixture(this, runtimePlan = plan(1L, maximumAgeMs = 5_000L))
+		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
+		fixture.start(wifiCandidateSink { candidate ->
+			admitted += candidate
+			SourceAdmissionHandoff.Durable(1L)
+		})
+		fixture.emit(
+			WifiBackendEvent.Results(
+				snapshot = WifiBackendSnapshot(
+					listOf(
+						WifiBackendAccessPoint("before-cutoff", 2_412, -50, 7_000L),
+						WifiBackendAccessPoint("after-cutoff", 5_180, -55, 9_000L),
+					),
+				),
+				resultsUpdated = true,
+				receivedElapsedRealtimeNanos = 10_000_000L,
+				receivedWallTimeMs = 1_000L,
+			),
+		)
+
+		val ack = fixture.quiesce(cutoffElapsedNanos = 8_000_000L)
+
+		val payload = admitted.single().payload as WifiResultSnapshotPayload
+		assertEquals(listOf(2_412), payload.accessPoints.map { it.frequencyMhz })
+		assertEquals(7_000_000L, admitted.single().observedElapsedRealtimeNanos)
+		assertEquals(1L, ack.lastDurablyAdmittedSequence)
+		assertEquals(0L, ack.failedAdmissionCount)
+	}
+
+	@Test
+	fun `retry after cutoff rebuilds delivery from the surviving provider subset`() = runTest {
+		val fixture = runtimeFixture(this, runtimePlan = plan(1L, maximumAgeMs = 5L))
+		val attempts = mutableListOf<SourceDeliveryCandidate>()
+		fixture.start(wifiDeliverySink { delivery ->
+			attempts += delivery
+			if (attempts.size == 1) {
+				SourceDeliveryAdmissionHandoff.RetryableFailure(
+					SourceAdmissionFailureCode.STORAGE_UNAVAILABLE,
+				)
+			} else {
+				SourceDeliveryAdmissionHandoff.Durable(listOf(100L))
+			}
+		})
+		fixture.emit(retryBoundaryEvent())
+		runCurrent()
+		assertEquals(1, attempts.size)
+
+		val stop = async { fixture.quiesce(cutoffElapsedNanos = 8_000_000L) }
+		runCurrent()
+		advanceUntilIdle()
+		val ack = stop.await()
+
+		assertEquals(2, attempts.size)
+		val firstPayload = attempts[0].units.single().evidence.payload as WifiResultSnapshotPayload
+		val secondUnit = attempts[1].units.single()
+		val secondPayload = secondUnit.evidence.payload as WifiResultSnapshotPayload
+		assertEquals(listOf(2_412, 5_180), firstPayload.accessPoints.map { it.frequencyMhz })
+		assertEquals(listOf(2_412), secondPayload.accessPoints.map { it.frequencyMhz })
+		assertEquals(7_000_000L, secondUnit.observedIntervalStartElapsedRealtimeNanos)
+		assertEquals(7_000_000L, secondUnit.evidence.observedElapsedRealtimeNanos)
+		assertFalse(attempts[0].identity == attempts[1].identity)
+		assertEquals(
+			wifiProviderDeliveryIdentity(
+				"boot-1",
+				listOf(WifiAccessPointEvidence("", 2_412, -50, 7_000_000L)),
+			),
+			attempts[1].identity,
+		)
+		assertEquals(1L, ack.callbackEntryBarrierSequence)
+		assertEquals(1L, ack.lastDurablyAdmittedSequence)
+		assertEquals(100L, ack.lastAdmissionOrdinal)
+		assertEquals(0L, ack.failedAdmissionCount)
+		assertNull(ack.unresolvedSequenceStart)
+		assertNull(ack.unresolvedSequenceEndInclusive)
+		assertTrue(ack.appDrainComplete)
+	}
+
+	@Test
+	fun `durable Room cutoff rebuilds subset before local shutdown publishes`() = runTest {
+		val fixture = runtimeFixture(this, runtimePlan = plan(1L, maximumAgeMs = 5L))
+		val attempts = mutableListOf<SourceDeliveryCandidate>()
+		fixture.start(wifiDeliverySink { delivery ->
+			attempts += delivery
+			if (attempts.size == 1) {
+				SourceDeliveryAdmissionHandoff.SessionCutoff(8_000_000L)
+			} else {
+				SourceDeliveryAdmissionHandoff.Durable(listOf(100L))
+			}
+		})
+
+		fixture.emit(retryBoundaryEvent())
+		advanceUntilIdle()
+
+		assertEquals(2, attempts.size)
+		val firstPayload = attempts[0].units.single().evidence.payload as WifiResultSnapshotPayload
+		val survivingUnit = attempts[1].units.single()
+		val survivingPayload = survivingUnit.evidence.payload as WifiResultSnapshotPayload
+		assertEquals(listOf(2_412, 5_180), firstPayload.accessPoints.map { it.frequencyMhz })
+		assertEquals(listOf(2_412), survivingPayload.accessPoints.map { it.frequencyMhz })
+		assertEquals(7_000_000L, survivingUnit.observedIntervalStartElapsedRealtimeNanos)
+		assertEquals(7_000_000L, survivingUnit.evidence.observedElapsedRealtimeNanos)
+		assertFalse(attempts[0].identity == attempts[1].identity)
+
+		val ack = fixture.quiesce()
+		assertEquals(1L, ack.lastDurablyAdmittedSequence)
+		assertEquals(100L, ack.lastAdmissionOrdinal)
+		assertEquals(0L, ack.failedAdmissionCount)
+		assertNull(ack.unresolvedSequenceStart)
+	}
+
+	@Test
+	fun `durable Room cutoff with no survivor settles without another sink call or gap`() = runTest {
+		val fixture = runtimeFixture(this, runtimePlan = plan(1L, maximumAgeMs = 5L))
+		var attempts = 0
+		fixture.start(wifiDeliverySink {
+			attempts++
+			SourceDeliveryAdmissionHandoff.SessionCutoff(6_000_000L)
+		})
+
+		fixture.emit(retryBoundaryEvent())
+		advanceUntilIdle()
+
+		val ack = fixture.quiesce()
+		assertEquals(1, attempts)
+		assertEquals(1L, ack.callbackEntryBarrierSequence)
+		assertEquals(0L, ack.failedAdmissionCount)
+		assertNull(ack.unresolvedSequenceStart)
+		assertNull(ack.lastDurablyAdmittedSequence)
+	}
+
+	@Test
+	fun `retry with every provider fact after cutoff resolves without another sink call or gap`() = runTest {
+		val fixture = runtimeFixture(this, runtimePlan = plan(1L, maximumAgeMs = 5L))
+		var attempts = 0
+		fixture.start(wifiDeliverySink {
+			attempts++
+			SourceDeliveryAdmissionHandoff.RetryableFailure(
+				SourceAdmissionFailureCode.STORAGE_UNAVAILABLE,
+			)
+		})
+		fixture.emit(retryBoundaryEvent())
+		runCurrent()
+		assertEquals(1, attempts)
+
+		val stop = async { fixture.quiesce(cutoffElapsedNanos = 6_000_000L) }
+		runCurrent()
+		advanceUntilIdle()
+		val ack = stop.await()
+
+		assertEquals(1, attempts)
+		assertEquals(1L, ack.callbackEntryBarrierSequence)
+		assertNull(ack.lastDurablyAdmittedSequence)
+		assertNull(ack.lastAdmissionOrdinal)
+		assertEquals(0L, ack.failedAdmissionCount)
+		assertNull(ack.unresolvedSequenceStart)
+		assertNull(ack.unresolvedSequenceEndInclusive)
+		assertTrue(ack.appDrainComplete)
 	}
 
 	@Test
@@ -601,6 +916,47 @@ class WifiSourceRuntimeTest {
 	}
 
 	@Test
+	fun `stale future timestamp unknown and repeated empty results stay non durable`() = runTest {
+		val fixture = runtimeFixture(this)
+		var admissionCount = 0
+		fixture.start(wifiCandidateSink {
+			admissionCount++
+			SourceAdmissionHandoff.Durable(admissionCount.toLong())
+		})
+		fixture.emit(
+			WifiBackendEvent.Results(
+				snapshot = WifiBackendSnapshot(
+					listOf(
+						WifiBackendAccessPoint("stale", 2_412, -80, 1L),
+						WifiBackendAccessPoint("future", 5_180, -45, 11_000L),
+						WifiBackendAccessPoint("unknown", 5_500, -55, 0L),
+					),
+				),
+				resultsUpdated = true,
+				receivedElapsedRealtimeNanos = 10_000_000L,
+				receivedWallTimeMs = 1_000L,
+			),
+		)
+		repeat(2) { fixture.emit(emptyResultEvent(receivedNanos = 20_000_000L + it)) }
+		fixture.emit(
+			WifiBackendEvent.Results(
+				snapshot = null,
+				resultsUpdated = true,
+				receivedElapsedRealtimeNanos = 30_000_000L,
+				receivedWallTimeMs = 1_000L,
+			),
+		)
+		advanceUntilIdle()
+
+		assertEquals(0, admissionCount)
+		val ack = fixture.quiesce()
+		assertEquals(4L, ack.callbackEntryBarrierSequence)
+		assertEquals(0L, ack.failedAdmissionCount)
+		assertNull(ack.lastDurablyAdmittedSequence)
+		assertTrue(ack.appDrainComplete)
+	}
+
+	@Test
 	fun `passive broadcast plan never requests an active scan`() = runTest {
 		val fixture = runtimeFixture(this, runtimePlan = plan(1L).copy(mode = WifiMode.BROADCAST_DRIVEN))
 
@@ -610,6 +966,110 @@ class WifiSourceRuntimeTest {
 		verify(exactly = 0) { fixture.backend.requestScan() }
 		verify(exactly = 0) { fixture.backend.readSnapshot() }
 		coVerify(exactly = 0) { fixture.wakeups.schedule(any(), any()) }
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `active scan budget requires direct session capture demand`() = runTest {
+		val activePlan = plan(1L).copy(mode = WifiMode.ACTIVE_ATTEMPTS)
+		val ambientRegistration = registration(
+			activePlan,
+			authorizationRevision = 1L,
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+		)
+		val fixture = runtimeFixture(this, activePlan, listOf(ambientRegistration))
+
+		fixture.start(wifiCandidateSink { SourceAdmissionHandoff.Durable(1L) })
+		advanceUntilIdle()
+
+		verify(exactly = 0) { fixture.backend.requestScan() }
+		coVerify(exactly = 0) { fixture.wakeups.schedule(any(), any()) }
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `queued active attempt cannot scan after direct capture authority is removed`() = runTest {
+		val activePlan = plan(1L).copy(mode = WifiMode.ACTIVE_ATTEMPTS)
+		val ambientPlan = activePlan.copy(revision = 2L)
+		val directRegistration = registration(activePlan, authorizationRevision = 1L)
+		val ambientRegistration = registration(
+			ambientPlan,
+			authorizationRevision = 2L,
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+		)
+		val fixture = runtimeFixture(this, activePlan, listOf(directRegistration))
+		coEvery {
+			fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
+		} returns ambientRegistration
+		val admissionEntered = CompletableDeferred<Unit>()
+		val releaseAdmission = CompletableDeferred<Unit>()
+		val sink = wifiDeliverySink {
+			admissionEntered.complete(Unit)
+			releaseAdmission.await()
+			SourceDeliveryAdmissionHandoff.TerminalFailure(SourceAdmissionFailureCode.INVALID_EVIDENCE)
+		}
+		fixture.start(sink)
+		fixture.emit(resultEvent(receivedNanos = 10_000_000L))
+		runCurrent()
+		admissionEntered.await()
+		fixture.fireScheduledWakeup()
+
+		assertTrue(fixture.runtime.reconfigure(ambientPlan, sink) is SourceApplyResult.Applied)
+		releaseAdmission.complete(Unit)
+		advanceUntilIdle()
+
+		verify(exactly = 0) { fixture.backend.requestScan() }
+		fixture.runtime.close()
+	}
+
+	@Test
+	fun `queued active attempt cannot scan while orderly stop drains the actor`() = runTest {
+		val activePlan = plan(1L).copy(mode = WifiMode.ACTIVE_ATTEMPTS)
+		val fixture = runtimeFixture(this, runtimePlan = activePlan)
+		val admissionEntered = CompletableDeferred<Unit>()
+		val releaseAdmission = CompletableDeferred<Unit>()
+		fixture.start(wifiDeliverySink {
+			admissionEntered.complete(Unit)
+			releaseAdmission.await()
+			SourceDeliveryAdmissionHandoff.TerminalFailure(SourceAdmissionFailureCode.INVALID_EVIDENCE)
+		})
+		fixture.emit(resultEvent(receivedNanos = 10_000_000L))
+		runCurrent()
+		admissionEntered.await()
+		fixture.fireScheduledWakeup()
+		val stop = async { fixture.quiesce() }
+		runCurrent()
+		verify(exactly = 1) { fixture.backend.stop() }
+
+		releaseAdmission.complete(Unit)
+		val ack = stop.await()
+
+		verify(exactly = 0) { fixture.backend.requestScan() }
+		assertTrue(ack.appDrainComplete)
+		assertEquals(SourceStopStatus.COMPLETE, ack.status)
+	}
+
+	@Test
+	fun `active scan may synchronously publish a callback without callback-lock deadlock`() = runTest {
+		val activePlan = plan(1L).copy(mode = WifiMode.ACTIVE_ATTEMPTS)
+		val fixture = runtimeFixture(this, runtimePlan = activePlan)
+		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
+		every { fixture.backend.requestScan() } answers {
+			fixture.emit(resultEvent(receivedNanos = 10_000_000L))
+			WifiRequestOutcome.ACCEPTED
+		}
+		fixture.start(wifiCandidateSink { candidate ->
+			admitted += candidate
+			SourceAdmissionHandoff.Durable(1L)
+		})
+		advanceUntilIdle()
+
+		fixture.fireScheduledWakeup()
+		advanceUntilIdle()
+
+		verify(exactly = 1) { fixture.backend.requestScan() }
+		assertEquals(1, admitted.size)
+		assertEquals(PlanAttribution.LINKED_ATTEMPT, admitted.single().planAttribution)
 		fixture.runtime.close()
 	}
 
@@ -633,6 +1093,10 @@ class WifiSourceRuntimeTest {
 		fixture.emit(resultEvent(receivedNanos = 10_000_000L))
 		advanceUntilIdle()
 		assertEquals(1, admitted.size)
+		coVerify(atLeast = 1) { fixture.wakeups.cancel(any()) }
+		fixture.fireScheduledWakeup()
+		advanceUntilIdle()
+		verify(exactly = 1) { fixture.backend.requestScan() }
 		fixture.runtime.close()
 	}
 
@@ -673,6 +1137,301 @@ class WifiSourceRuntimeTest {
 		assertEquals(2L, admitted?.authorizationRevision)
 		assertEquals(null, admitted?.configRevision)
 		fixture.runtime.close()
+		verify(exactly = 1) { fixture.backend.stop() }
+	}
+
+	@Test
+	fun `compatible refresh fences and gap accounts callback entry before durable rotation`() = runTest {
+		val initialPlan = plan(1L, maximumAgeMs = 5_000L)
+		val refreshedPlan = plan(2L, maximumAgeMs = 10_000L)
+		val initial = registration(initialPlan, authorizationRevision = 1L)
+		val fixture = runtimeFixture(this, initialPlan, listOf(initial))
+		val refreshEntered = CompletableDeferred<Unit>()
+		val releaseRefresh = CompletableDeferred<Unit>()
+		var refreshBoundary = -1L
+		coEvery {
+			fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
+		} coAnswers {
+			refreshBoundary = arg<Long>(5)
+			refreshEntered.complete(Unit)
+			releaseRefresh.await()
+			registration(
+				refreshedPlan,
+				authorizationRevision = 2L,
+				authorizationEffectiveElapsedRealtimeNanos = refreshBoundary,
+			)
+		}
+		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
+		val sink = wifiCandidateSink { candidate ->
+			admitted += candidate
+			SourceAdmissionHandoff.Durable(7L)
+		}
+		fixture.start(sink)
+
+		val reconfiguring = async { fixture.runtime.reconfigure(refreshedPlan, sink) }
+		runCurrent()
+		refreshEntered.await()
+		fixture.emit(resultEvent(receivedNanos = 10_000_000L))
+		runCurrent()
+		assertTrue(admitted.isEmpty())
+
+		releaseRefresh.complete(Unit)
+		assertTrue(reconfiguring.await() is SourceApplyResult.Applied)
+		val receivedAfterRefresh = maxOf(
+			20_000_000L,
+			refreshBoundary + 2_000_000L,
+		)
+		fixture.emit(
+			resultEvent(
+				frequencyMhz = 5_180,
+				receivedNanos = receivedAfterRefresh,
+				providerTimestampMicros = (receivedAfterRefresh - 1_000_000L) / 1_000L,
+			),
+		)
+		advanceUntilIdle()
+
+		assertEquals(2L, admitted.single().authorizationRevision)
+		val ack = fixture.quiesce()
+		assertEquals(2L, ack.callbackEntryBarrierSequence)
+		assertEquals(2L, ack.lastDurablyAdmittedSequence)
+		assertEquals(1L, ack.failedAdmissionCount)
+		assertEquals(1L, ack.unresolvedSequenceStart)
+		assertEquals(1L, ack.unresolvedSequenceEndInclusive)
+	}
+
+	@Test
+	fun `compatible refresh fence settles control and non-product callbacks without a capture gap`() = runTest {
+		val initialPlan = plan(1L, maximumAgeMs = 5_000L)
+		val refreshedPlan = plan(2L, maximumAgeMs = 10_000L)
+		val initial = registration(initialPlan, authorizationRevision = 1L)
+		val fixture = runtimeFixture(this, initialPlan, listOf(initial))
+		val refreshEntered = CompletableDeferred<Unit>()
+		val releaseRefresh = CompletableDeferred<Unit>()
+		coEvery {
+			fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
+		} coAnswers {
+			val refreshBoundary = arg<Long>(5)
+			refreshEntered.complete(Unit)
+			releaseRefresh.await()
+			registration(
+				refreshedPlan,
+				authorizationRevision = 2L,
+				authorizationEffectiveElapsedRealtimeNanos = refreshBoundary,
+			)
+		}
+		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
+		val sink = wifiCandidateSink { candidate ->
+			admitted += candidate
+			SourceAdmissionHandoff.Durable(7L)
+		}
+		fixture.start(sink)
+
+		val reconfiguring = async { fixture.runtime.reconfigure(refreshedPlan, sink) }
+		runCurrent()
+		refreshEntered.await()
+		fixture.emit(WifiBackendEvent.IdleStateChanged)
+		fixture.emit(resultEvent(resultsUpdated = false, receivedNanos = 10_000_000L))
+		fixture.emit(
+			WifiBackendEvent.Results(
+				snapshot = null,
+				resultsUpdated = true,
+				receivedElapsedRealtimeNanos = 11_000_000L,
+				receivedWallTimeMs = 1_000L,
+			),
+		)
+		runCurrent()
+		assertTrue(admitted.isEmpty())
+
+		releaseRefresh.complete(Unit)
+		assertTrue(reconfiguring.await() is SourceApplyResult.Applied)
+		val ack = fixture.quiesce()
+		assertEquals(3L, ack.callbackEntryBarrierSequence)
+		assertNull(ack.lastDurablyAdmittedSequence)
+		assertNull(ack.lastAdmissionOrdinal)
+		assertEquals(0L, ack.failedAdmissionCount)
+		assertNull(ack.unresolvedSequenceStart)
+		assertNull(ack.unresolvedSequenceEndInclusive)
+		assertTrue(ack.appDrainComplete)
+	}
+
+	@Test
+	fun `failed compatible refresh is retired before a later recovery start`() = runTest {
+		val initialPlan = plan(1L, maximumAgeMs = 5_000L)
+		val failedRefreshPlan = plan(2L, maximumAgeMs = 10_000L)
+		val recoveryPlan = plan(3L, maximumAgeMs = 20_000L)
+		val initial = registration(initialPlan, authorizationRevision = 1L, registrationGeneration = 9L)
+		val replacement = registration(recoveryPlan, authorizationRevision = 3L, registrationGeneration = 10L)
+		val fixture = runtimeFixture(this, initialPlan, listOf(initial, replacement))
+		coEvery {
+			fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
+		} throws IllegalStateException("durable refresh unavailable")
+		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
+		val sink = wifiCandidateSink { candidate ->
+			admitted += candidate
+			SourceAdmissionHandoff.Durable(7L)
+		}
+		fixture.start(sink)
+
+		val failed = fixture.runtime.reconfigure(failedRefreshPlan, sink)
+			.shouldBeInstanceOf<SourceApplyResult.Failed>()
+		assertTrue(failed.retryable)
+		verify(exactly = 0) { fixture.backend.stop() }
+		fixture.emit(resultEvent(receivedNanos = 10_000_000L))
+		runCurrent()
+		assertTrue(admitted.isEmpty())
+
+		val recovered = fixture.runtime.reconfigure(recoveryPlan, sink)
+			.shouldBeInstanceOf<SourceApplyResult.Applied>()
+		val retiredAck = requireNotNull(recovered.stopAck)
+		assertEquals(9L, retiredAck.registrationGeneration)
+		assertEquals(1L, retiredAck.callbackEntryBarrierSequence)
+		assertEquals(1L, retiredAck.failedAdmissionCount)
+		assertEquals(1L, retiredAck.unresolvedSequenceStart)
+		assertEquals(1L, retiredAck.unresolvedSequenceEndInclusive)
+		assertTrue(retiredAck.appDrainComplete)
+		assertEquals(RegistrationRemovalOutcome.REMOVED, retiredAck.registrationRemovalOutcome)
+		coVerify(exactly = 1) {
+			fixture.registrations.refreshActiveAuthorization(
+				SourceKind.WIFI,
+				initial,
+				any(),
+				any(),
+				any(),
+				any(),
+			)
+		}
+		coVerify(exactly = 1) {
+			fixture.registrations.beginRetirement(initial, "ORDERLY_STOP", any(), any())
+		}
+		coVerify(exactly = 1) { fixture.registrations.completeRetirement(any()) }
+		coVerify(exactly = 2) { fixture.registrations.begin(any(), any(), any(), any(), any()) }
+		verify(exactly = 2) { fixture.backend.start(any()) }
+		verify(exactly = 1) { fixture.backend.stop() }
+
+		fixture.runtime.close()
+		verify(exactly = 2) { fixture.backend.stop() }
+	}
+
+	@Test
+	fun `cancelled compatible refresh retires the fenced provider without starting a replacement`() = runTest {
+		val initialPlan = plan(1L, maximumAgeMs = 5_000L)
+		val cancelledRefreshPlan = plan(2L, maximumAgeMs = 10_000L)
+		val initial = registration(initialPlan, authorizationRevision = 1L, registrationGeneration = 9L)
+		val fixture = runtimeFixture(this, initialPlan, listOf(initial))
+		val refreshEntered = CompletableDeferred<Unit>()
+		val neverCompleteRefresh = CompletableDeferred<Unit>()
+		coEvery {
+			fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
+		} coAnswers {
+			refreshEntered.complete(Unit)
+			neverCompleteRefresh.await()
+			error("unreachable")
+		}
+		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
+		val sink = wifiCandidateSink { candidate ->
+			admitted += candidate
+			SourceAdmissionHandoff.Durable(7L)
+		}
+		fixture.start(sink)
+
+		val refreshing = async { fixture.runtime.reconfigure(cancelledRefreshPlan, sink) }
+		runCurrent()
+		refreshEntered.await()
+		fixture.emit(resultEvent(receivedNanos = 10_000_000L))
+		runCurrent()
+		assertTrue(admitted.isEmpty())
+
+		refreshing.cancel(CancellationException("cancel compatible refresh"))
+		val cancellation = assertFailsWith<CancellationException> { refreshing.await() }
+		assertEquals("cancel compatible refresh", cancellation.message)
+
+		coVerify(exactly = 1) {
+			fixture.registrations.beginRetirement(initial, "ORDERLY_STOP", any(), any())
+		}
+		coVerify(exactly = 1) { fixture.registrations.completeRetirement(any()) }
+		coVerify(exactly = 1) { fixture.registrations.begin(any(), any(), any(), any(), any()) }
+		verify(exactly = 1) { fixture.backend.start(any()) }
+		verify(exactly = 1) { fixture.backend.stop() }
+		assertTrue(admitted.isEmpty())
+
+		fixture.runtime.close()
+		verify(exactly = 1) { fixture.backend.stop() }
+	}
+
+	@Test
+	fun `fatal compatible refresh retires the fenced provider and rethrows without replacement`() = runTest {
+		val initialPlan = plan(1L, maximumAgeMs = 5_000L)
+		val fatalRefreshPlan = plan(2L, maximumAgeMs = 10_000L)
+		val initial = registration(initialPlan, authorizationRevision = 1L, registrationGeneration = 9L)
+		val fixture = runtimeFixture(this, initialPlan, listOf(initial))
+		val admitted = mutableListOf<SourceEvidenceCandidate<*>>()
+		val sink = wifiCandidateSink { candidate ->
+			admitted += candidate
+			SourceAdmissionHandoff.Durable(7L)
+		}
+		coEvery {
+			fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
+		} coAnswers {
+			fixture.emit(resultEvent(receivedNanos = 10_000_000L))
+			throw AssertionError("fatal compatible refresh")
+		}
+		fixture.start(sink)
+
+		val fatal = assertFailsWith<AssertionError> {
+			fixture.runtime.reconfigure(fatalRefreshPlan, sink)
+		}
+		assertEquals("fatal compatible refresh", fatal.message)
+		assertTrue(admitted.isEmpty())
+		coVerify(exactly = 1) {
+			fixture.registrations.beginRetirement(initial, "ORDERLY_STOP", any(), any())
+		}
+		coVerify(exactly = 1) { fixture.registrations.completeRetirement(any()) }
+		coVerify(exactly = 1) { fixture.registrations.begin(any(), any(), any(), any(), any()) }
+		verify(exactly = 1) { fixture.backend.start(any()) }
+		verify(exactly = 1) { fixture.backend.stop() }
+
+		fixture.runtime.close()
+		verify(exactly = 1) { fixture.backend.stop() }
+	}
+
+	@Test
+	fun `compatible refresh preserves the original fatal when cleanup also fails fatally`() = runTest {
+		val initialPlan = plan(1L, maximumAgeMs = 5_000L)
+		val fatalRefreshPlan = plan(2L, maximumAgeMs = 10_000L)
+		val initial = registration(initialPlan, authorizationRevision = 1L, registrationGeneration = 9L)
+		val fixture = runtimeFixture(this, initialPlan, listOf(initial))
+		val originalFailure = AssertionError("fatal compatible refresh")
+		val cleanupFailure = AssertionError("fatal refresh cleanup")
+		coEvery {
+			fixture.registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
+		} throws originalFailure
+		coEvery {
+			fixture.registrations.beginRetirement(initial, "ORDERLY_STOP", any(), any())
+		} answers { throw cleanupFailure }
+		val sink = wifiCandidateSink { SourceAdmissionHandoff.Durable(7L) }
+		fixture.start(sink)
+
+		val fatal = assertFailsWith<AssertionError> {
+			fixture.runtime.reconfigure(fatalRefreshPlan, sink)
+		}
+		try {
+			assertTrue(fatal === originalFailure)
+			assertEquals(1, fatal.suppressed.size)
+			val suppressed = fatal.suppressed.single()
+			assertTrue(suppressed is AssertionError)
+			assertEquals(cleanupFailure.message, suppressed.message)
+			coVerify(exactly = 1) {
+				fixture.registrations.beginRetirement(initial, "ORDERLY_STOP", any(), any())
+			}
+			coVerify(exactly = 1) { fixture.registrations.begin(any(), any(), any(), any(), any()) }
+			verify(exactly = 1) { fixture.backend.start(any()) }
+			verify(exactly = 0) { fixture.backend.stop() }
+		} finally {
+			coEvery {
+				fixture.registrations.beginRetirement(initial, "ORDERLY_STOP", any(), any())
+			} answers { retirementToken(firstArg(), secondArg(), thirdArg(), arg(3)) }
+			fixture.runtime.close()
+		}
 		verify(exactly = 1) { fixture.backend.stop() }
 	}
 
@@ -814,12 +1573,15 @@ class WifiSourceRuntimeTest {
 
 		suspend fun fireScheduledWakeup() = requireNotNull(scheduledAction())()
 
-		suspend fun quiesce(deadlineOffsetNanos: Long = 1_000_000_000L): SourceStopAck {
+		suspend fun quiesce(
+			deadlineOffsetNanos: Long = 1_000_000_000L,
+			cutoffElapsedNanos: Long = Long.MAX_VALUE,
+		): SourceStopAck {
 			val now = android.os.SystemClock.elapsedRealtimeNanos()
 			return runtime.quiesce(
 				SessionCutoff(
 					logicalTrackingId = "wifi-test",
-					elapsedRealtimeNanos = Long.MAX_VALUE,
+					elapsedRealtimeNanos = cutoffElapsedNanos,
 					wallTimeMs = 1L,
 					deadlineElapsedRealtimeNanos = now + deadlineOffsetNanos,
 				),
@@ -921,21 +1683,48 @@ class WifiSourceRuntimeTest {
 			receivedWallTimeMs = 1_000L,
 		)
 
+		fun emptyResultEvent(receivedNanos: Long) = WifiBackendEvent.Results(
+			snapshot = WifiBackendSnapshot(emptyList()),
+			resultsUpdated = true,
+			receivedElapsedRealtimeNanos = receivedNanos,
+			receivedWallTimeMs = 1_000L,
+		)
+
+		fun retryBoundaryEvent() = WifiBackendEvent.Results(
+			snapshot = WifiBackendSnapshot(
+				listOf(
+					WifiBackendAccessPoint("raw-a", 2_412, -50, 7_000L),
+					WifiBackendAccessPoint("raw-b", 5_180, -55, 9_000L),
+				),
+			),
+			resultsUpdated = true,
+			receivedElapsedRealtimeNanos = 10_000_000L,
+			receivedWallTimeMs = 1_000L,
+		)
+
 		fun registration(
 			plan: WifiPlan,
 			authorizationRevision: Long,
 			sourceInstanceId: String = "wifi-1",
 			registrationGeneration: Long = 9L,
+			purpose: String = SourceBrokerPurpose.SESSION_CAPTURE,
+			providerAcceptedElapsedRealtimeNanos: Long = 0L,
+			authorizationEffectiveElapsedRealtimeNanos: Long = authorizationRevision,
 		): SourceRegistration {
+			val isSessionCapture = purpose == SourceBrokerPurpose.SESSION_CAPTURE
 			val demand = SourceDemandEntity(
 				demandId = "wifi-demand-$authorizationRevision",
-				consumerId = "session:wifi-test",
+				consumerId = if (isSessionCapture) {
+					"session:wifi-test"
+				} else {
+					"app:wifi-test"
+				},
 				sourceKind = SourceKind.WIFI.stableCode,
-				purpose = SourceBrokerPurpose.SESSION_CAPTURE,
-				logicalTrackingId = "wifi-test",
-				serviceRunId = "run-1",
-				manifestRevision = 1L,
-				lifecycleLeaseGeneration = 1L,
+				purpose = purpose,
+				logicalTrackingId = "wifi-test".takeIf { isSessionCapture },
+				serviceRunId = "run-1".takeIf { isSessionCapture },
+				manifestRevision = 1L.takeIf { isSessionCapture },
+				lifecycleLeaseGeneration = 1L.takeIf { isSessionCapture },
 				sourcePolicyRevision = authorizationRevision,
 				consentEpoch = 1L,
 				persistenceEligible = true,
@@ -957,7 +1746,7 @@ class WifiSourceRuntimeTest {
 					authorizationRevision = authorizationRevision,
 					demands = listOf(demand),
 					effectiveBootId = "boot-1",
-					effectiveElapsedRealtimeNanos = authorizationRevision,
+					effectiveElapsedRealtimeNanos = authorizationEffectiveElapsedRealtimeNanos,
 					effectiveWallTimeMs = 1L,
 				).toAuthorizationSnapshotOrNull(),
 			)
@@ -977,6 +1766,7 @@ class WifiSourceRuntimeTest {
 				physicalConfigurationFingerprint = plan.physicalConfigurationFingerprint(),
 				authorization = authorization,
 				requiresProviderAcceptance = false,
+				providerAcceptedElapsedRealtimeNanos = providerAcceptedElapsedRealtimeNanos,
 			)
 		}
 

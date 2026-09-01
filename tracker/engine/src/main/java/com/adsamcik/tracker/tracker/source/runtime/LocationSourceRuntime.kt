@@ -939,6 +939,8 @@ class LocationSourceRuntime @Inject internal constructor(
 		}
 	}
 
+	// Keep one bounded admission state machine so gap accounting remains exactly once per callback.
+	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	private suspend fun admitLocationBatch(
 		batch: RawLocationBatch,
 	) {
@@ -980,6 +982,11 @@ class LocationSourceRuntime @Inject internal constructor(
 						val lastOrdinal = handoff.existingAdmissionOrdinals.maxOrNull()
 						if (lastOrdinal != null) recordDurableAdmission(batch.callbackSequence, lastOrdinal)
 						else recordGapOnce()
+						return
+					}
+					is SourceDeliveryAdmissionHandoff.SessionCutoff -> {
+						// Location does not reinterpret an already-composed atomic delivery here.
+						recordGapOnce()
 						return
 					}
 					is SourceDeliveryAdmissionHandoff.TerminalFailure -> {

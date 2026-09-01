@@ -407,6 +407,31 @@ class RoomActivityRecognitionEventIngressTest {
 	}
 
 	@Test
+	fun `durable session cutoff rejects Activity atomically without transient effects`() = runTest {
+		coEvery { deliveryIngress.admit(capture(capturedDelivery)) } returns
+			DeliveryAdmissionResult.SessionCutoff(8L)
+		val mixed = batch(
+			recognitions = listOf(recognition(9L), recognition(10L), recognition(101L)),
+			transitions = listOf(transition(8L), transition(20L), transition(102L)),
+		)
+
+		val result = subject.admit(mixed)
+
+		result.isDurable shouldBe false
+		result.admittedCount shouldBe 0
+		result.duplicateCount shouldBe 0
+		result.discardedCount shouldBe 4
+		result.settledCount shouldBe 4
+		result.durableSelection.isEmpty shouldBe true
+		result.failureCode shouldBe "SESSION_CUTOFF_REQUIRES_SOURCE_PARTITION"
+		capturedDelivery.captured.units.map { it.evidence.observedElapsedRealtimeNanos } shouldBe
+			listOf(10L, 20L)
+		verify(exactly = 0) { motionController.onDurableEvidence(any()) }
+		coVerify(exactly = 0) { recovery.drainCommittedWork() }
+		coVerify(exactly = 0) { recovery.drainCommittedActivityCallbackWork(any(), any(), any()) }
+	}
+
+	@Test
 	fun `cancellation propagates and selects nothing`() = runTest {
 		coEvery { deliveryIngress.admit(any()) } throws CancellationException("cancelled")
 

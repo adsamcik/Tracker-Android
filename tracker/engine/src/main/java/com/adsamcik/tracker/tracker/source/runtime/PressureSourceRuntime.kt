@@ -1997,6 +1997,8 @@ internal fun SourceDeliveryAdmissionHandoff.toPressureWindowHandoff(): SourceAdm
 	} ?: SourceAdmissionHandoff.TerminalFailure(SourceAdmissionFailureCode.INVALID_EVIDENCE)
 	is SourceDeliveryAdmissionHandoff.TerminalFailure -> SourceAdmissionHandoff.TerminalFailure(code)
 	is SourceDeliveryAdmissionHandoff.RetryableFailure -> SourceAdmissionHandoff.RetryableFailure(code)
+	is SourceDeliveryAdmissionHandoff.SessionCutoff ->
+		SourceAdmissionHandoff.TerminalFailure(SourceAdmissionFailureCode.SOURCE_POLICY_STALE)
 }
 
 internal enum class PressureWindowHeadResolution { SETTLED, DEADLINE_UNRESOLVED }

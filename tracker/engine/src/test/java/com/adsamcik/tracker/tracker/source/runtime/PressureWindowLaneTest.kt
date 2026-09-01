@@ -267,6 +267,18 @@ class PressureWindowLaneTest {
 	}
 
 	@Test
+	fun `durable session cutoff fails closed without reinterpreting an atomic pressure window`() {
+		val mapped = SourceDeliveryAdmissionHandoff.SessionCutoff(
+			cutoffElapsedRealtimeNanos = 123L,
+		).toPressureWindowHandoff()
+
+		assertEquals<SourceAdmissionHandoff>(
+			SourceAdmissionHandoff.TerminalFailure(SourceAdmissionFailureCode.SOURCE_POLICY_STALE),
+			mapped,
+		)
+	}
+
+	@Test
 	fun `terminal no-fact result persists standalone once admission is resolved`() = runTest {
 		var admissions = 0
 		var terminalRecords = 0

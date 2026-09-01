@@ -140,6 +140,12 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 				providerDiscardedCount = selection.discardedCount,
 				publishNewEffects = false,
 			)
+			is DeliveryAdmissionResult.SessionCutoff -> ActivityIngressResult.rejected(
+				0,
+				0,
+				SESSION_CUTOFF_REQUIRES_SOURCE_PARTITION,
+				selection.discardedCount,
+			)
 			is DeliveryAdmissionResult.RetryableFailure -> ActivityIngressResult.retryable(
 				0,
 				0,
@@ -296,5 +302,7 @@ class RoomActivityRecognitionEventIngress @Inject constructor(
 		const val ACTIVITY_REGISTRATION_ACTIVATION_PENDING =
 			"ACTIVITY_REGISTRATION_ACTIVATION_PENDING"
 		const val ACTIVITY_REGISTRATION_NOT_ACTIVE = "ACTIVITY_REGISTRATION_NOT_ACTIVE"
+		const val SESSION_CUTOFF_REQUIRES_SOURCE_PARTITION =
+			"SESSION_CUTOFF_REQUIRES_SOURCE_PARTITION"
 	}
 }

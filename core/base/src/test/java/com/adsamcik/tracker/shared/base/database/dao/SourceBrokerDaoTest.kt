@@ -62,6 +62,15 @@ class SourceBrokerDaoTest {
 			.toAuthorizationSnapshotOrNull()?.isDenied shouldBe true
 		dao.authorizationAt(SOURCE_KIND, 1L, BOOT_ID, 201L)
 			.toAuthorizationSnapshotOrNull()?.isDenied shouldBe true
+		val historical = requireNotNull(
+			dao.authorizationRevision(SOURCE_KIND, 1L, 1L).toAuthorizationSnapshotOrNull(),
+		)
+		historical.authorizationRevision shouldBe 1L
+		historical.effectiveElapsedRealtimeNanos shouldBe 100L
+		historical.isDenied shouldBe false
+		dao.authorizationRevision(SOURCE_KIND, 1L, 2L)
+			.toAuthorizationSnapshotOrNull()?.isDenied shouldBe true
+		dao.authorizationRevision(SOURCE_KIND, 1L, 3L) shouldBe emptyList()
 
 		dao.registrationAtObservedTime(
 			SOURCE_KIND,

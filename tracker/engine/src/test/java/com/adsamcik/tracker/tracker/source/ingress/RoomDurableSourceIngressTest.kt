@@ -122,6 +122,7 @@ class RoomDurableSourceIngressTest {
 		testPolicyRevision = ambient.revision
 		testCaptureEpoch = requireNotNull(ambient[TrackingSourceComponent.ACTIVITY].captureConsentEpoch)
 		testAmbientEpoch = requireNotNull(ambient[TrackingSourceComponent.ACTIVITY].ambientConsentEpoch)
+		installSession()
 		installCaptureLane(SourceKind.ACTIVITY)
 		installCaptureLane(SourceKind.STEPS)
 		RoomTrackingRolloutStateStore(database, TEST_EXECUTABLE_LANE_CATALOG).save(
@@ -597,6 +598,132 @@ class RoomDurableSourceIngressTest {
 	}
 
 	@Test
+	fun `stopping delivery admits exact cutoff and returns typed cutoff for mixed interval`() = runTest {
+		installSession(
+			sessionState = "STOPPING",
+			runState = "STOPPING",
+			cutoffElapsedNanos = 100L,
+		)
+		val exact = delivery(
+			candidate(sequence = 0L, observedElapsedNanos = 100L),
+		).copy(identity = sourceDeliveryIdentity("exact-cutoff".encodeToByteArray()))
+		subject.admit(exact).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+
+		val mixed = delivery(
+			candidate(sequence = 0L, observedElapsedNanos = 101L),
+		).copy(
+			identity = sourceDeliveryIdentity("mixed-cutoff".encodeToByteArray()),
+			units = listOf(
+				SourceDeliveryUnit(
+					unitIndex = 0,
+					evidence = candidate(sequence = 0L, observedElapsedNanos = 101L),
+					observedIntervalStartElapsedRealtimeNanos = 99L,
+				),
+			),
+		)
+
+		subject.admit(mixed) shouldBe DeliveryAdmissionResult.SessionCutoff(100L)
+		database.sourceEventWalDao().countAll() shouldBe 1L
+		database.sourceRegistrationStateDao().get(
+			SourceKind.ACTIVITY.stableCode,
+			SOURCE_OWNER_SCOPE,
+		)?.nextSequence shouldBe 1L
+	}
+
+	@Test
+	fun `exact delivery replay precedes a later durable session cutoff`() = runTest {
+		val original = delivery(
+			candidate(sequence = 0L, observedElapsedNanos = 101L),
+		).copy(identity = sourceDeliveryIdentity("cutoff-replay".encodeToByteArray()))
+		val admitted = subject.admit(original).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		installSession(
+			sessionState = "STOPPING",
+			runState = "STOPPING",
+			cutoffElapsedNanos = 100L,
+		)
+
+		val duplicate = subject.admit(original).shouldBeInstanceOf<DeliveryAdmissionResult.Duplicate>()
+
+		duplicate.units shouldBe admitted.units
+		database.sourceEventWalDao().countAll() shouldBe 1L
+		database.sourceRegistrationStateDao().get(
+			SourceKind.ACTIVITY.stableCode,
+			SOURCE_OWNER_SCOPE,
+		)?.nextSequence shouldBe 1L
+	}
+
+	@Test
+	fun `historical exact manifest remains eligible for the same current run`() = runTest {
+		val sessionDao = database.sourceSessionDao()
+		val firstManifest = requireNotNull(sessionDao.manifestByServiceRunRevision(TEST_RUN_ID, 1L))
+		val firstBinding = requireNotNull(
+			sessionDao.manifestSource(
+				TEST_SESSION_ID,
+				1L,
+				SourceKind.ACTIVITY.stableCode,
+				SourceBrokerPurpose.SESSION_CAPTURE,
+			),
+		)
+		sessionDao.insertManifest(
+			firstManifest.copy(
+				manifestRevision = 2L,
+				effectiveElapsedRealtimeNanos = 90L,
+				manifestChecksum = "test-manifest-2",
+			),
+		)
+		sessionDao.insertManifestSources(listOf(firstBinding.copy(manifestRevision = 2L)))
+		val session = requireNotNull(sessionDao.session(TEST_SESSION_ID))
+		sessionDao.updateSession(session.copy(currentManifestRevision = 2L)) shouldBe 1
+
+		subject.admit(
+			delivery(candidate(sequence = 0L)).copy(
+				identity = sourceDeliveryIdentity("historical-manifest".encodeToByteArray()),
+			),
+		).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+	}
+
+	@Test
+	fun `capture delivery fails closed for mismatched run boot manifest or lease`() = runTest {
+		val sessionDao = database.sourceSessionDao()
+		val session = requireNotNull(sessionDao.session(TEST_SESSION_ID))
+		val run = requireNotNull(sessionDao.serviceRun(TEST_RUN_ID))
+		var identity = 0
+		suspend fun assertRejected() {
+			val result = subject.admit(
+				delivery(candidate(sequence = 0L)).copy(
+					identity = sourceDeliveryIdentity("authority-mismatch-${identity++}".encodeToByteArray()),
+				),
+			)
+			result shouldBe DeliveryAdmissionResult.PermanentFailure(
+				AdmissionFailureCode.STALE_SESSION_MANIFEST,
+			)
+		}
+
+		sessionDao.updateSession(session.copy(currentServiceRunId = "other-run")) shouldBe 1
+		assertRejected()
+		sessionDao.updateSession(session.copy(lifecycleBootId = "other-boot")) shouldBe 1
+		assertRejected()
+		sessionDao.updateSession(session) shouldBe 1
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_manifest_source SET consent_epoch = consent_epoch + 1 " +
+				"WHERE logical_tracking_id = '$TEST_SESSION_ID' AND manifest_revision = 1",
+		)
+		assertRejected()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_manifest_source SET consent_epoch = consent_epoch - 1 " +
+				"WHERE logical_tracking_id = '$TEST_SESSION_ID' AND manifest_revision = 1",
+		)
+		sessionDao.updateServiceRun(run.copy(leaseGeneration = 8L)) shouldBe 1
+		assertRejected()
+
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRegistrationStateDao().get(
+			SourceKind.ACTIVITY.stableCode,
+			SOURCE_OWNER_SCOPE,
+		)?.nextSequence shouldBe 0L
+	}
+
+	@Test
 	@Suppress("LongMethod")
 	fun `Activity adapter settles provider and authorization filtered siblings after real Room admission`() = runTest {
 		val recovery = mockk<SourcePipelineRecovery>()
@@ -696,6 +823,24 @@ class RoomDurableSourceIngressTest {
 			SOURCE_OWNER_SCOPE,
 		)?.nextSequence shouldBe 0L
 		database.sourceEvidenceStateDao().get()?.revision shouldBe 0L
+	}
+
+	@Test
+	fun `authorization lookup storage failure remains retryable`() = runTest {
+		database.openHelper.writableDatabase.execSQL("DROP TABLE source_authorization")
+
+		val result = subject.admit(
+			delivery(candidate(sequence = 0L)),
+		)
+
+		result shouldBe DeliveryAdmissionResult.RetryableFailure(
+			AdmissionFailureCode.STORAGE_UNAVAILABLE,
+		)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRegistrationStateDao().get(
+			SourceKind.ACTIVITY.stableCode,
+			SOURCE_OWNER_SCOPE,
+		)?.nextSequence shouldBe 0L
 	}
 
 	@Test
@@ -1473,85 +1618,100 @@ class RoomDurableSourceIngressTest {
 			),
 		)
 		val sessionDao = database.sourceSessionDao()
-		sessionDao.insertSession(
-			LogicalTrackingSessionEntity(
-				logicalTrackingId = TEST_SESSION_ID,
-				state = sessionState,
-				lifecycleRevision = 1L,
-				desiredPlanRevision = 1L,
-				rolloutRevision = 1L,
-				startOrigin = "MANUAL_FOREGROUND_START",
-				clockDomainId = "boot",
-				startedAtMs = 50L,
-				startedElapsedNanos = 50L,
-				cutoffAtMs = cutoffElapsedNanos,
-				cutoffElapsedNanos = cutoffElapsedNanos,
-				completedAtMs = null,
-				finalAdmissionOrdinal = null,
-				failureCode = null,
-				sessionMode = "MANUAL",
-				currentManifestRevision = 1L,
-				currentIntentRevision = 1L,
-				currentServiceRunId = TEST_RUN_ID,
-				lifecycleLeaseGeneration = 7L,
-				lifecycleBootId = "boot",
-				automationEpoch = null,
-			),
+		val session = LogicalTrackingSessionEntity(
+			logicalTrackingId = TEST_SESSION_ID,
+			state = sessionState,
+			lifecycleRevision = 1L,
+			desiredPlanRevision = 1L,
+			rolloutRevision = 1L,
+			startOrigin = "MANUAL_FOREGROUND_START",
+			clockDomainId = "boot",
+			startedAtMs = 50L,
+			startedElapsedNanos = 50L,
+			cutoffAtMs = cutoffElapsedNanos,
+			cutoffElapsedNanos = cutoffElapsedNanos,
+			completedAtMs = null,
+			finalAdmissionOrdinal = null,
+			failureCode = null,
+			sessionMode = "MANUAL",
+			currentManifestRevision = 1L,
+			currentIntentRevision = 1L,
+			currentServiceRunId = TEST_RUN_ID,
+			lifecycleLeaseGeneration = 7L,
+			lifecycleBootId = "boot",
+			automationEpoch = null,
 		)
-		sessionDao.insertManifest(
-			SessionManifestVersionEntity(
-				logicalTrackingId = TEST_SESSION_ID,
-				manifestRevision = 1L,
-				serviceRunId = TEST_RUN_ID,
-				sessionMode = "MANUAL",
-				sourcePolicyRevision = authority.currentPolicyRevision,
-				acquisitionPlanRevision = 1L,
-				rolloutRevision = 1L,
-				startOrigin = "MANUAL_FOREGROUND_START",
-				effectiveBootId = "boot",
-				effectiveElapsedRealtimeNanos = 50L,
-				effectiveWallTimeMs = 50L,
-				zoneId = "UTC",
-				automationEpoch = null,
-				changeReason = "TEST",
-				manifestChecksum = "test-manifest",
-			),
+		if (sessionDao.session(TEST_SESSION_ID) == null) {
+			sessionDao.insertSession(session)
+		} else {
+			sessionDao.updateSession(session) shouldBe 1
+		}
+		val manifest = SessionManifestVersionEntity(
+			logicalTrackingId = TEST_SESSION_ID,
+			manifestRevision = 1L,
+			serviceRunId = TEST_RUN_ID,
+			sessionMode = "MANUAL",
+			sourcePolicyRevision = authority.currentPolicyRevision,
+			acquisitionPlanRevision = 1L,
+			rolloutRevision = 1L,
+			startOrigin = "MANUAL_FOREGROUND_START",
+			effectiveBootId = "boot",
+			effectiveElapsedRealtimeNanos = 50L,
+			effectiveWallTimeMs = 50L,
+			zoneId = "UTC",
+			automationEpoch = null,
+			changeReason = "TEST",
+			manifestChecksum = "test-manifest",
 		)
-		sessionDao.insertManifestSources(
-			listOf(
-				SessionManifestSourceEntity(
-					logicalTrackingId = TEST_SESSION_ID,
-					manifestRevision = 1L,
-					sourceKind = SourceKind.ACTIVITY.stableCode,
-					purpose = "SESSION_CAPTURE",
-					consentEpoch = requireNotNull(policy.captureConsentEpoch),
-					persistenceEligible = true,
-					qosCode = policy.qosCode,
+		if (sessionDao.manifestByServiceRunRevision(TEST_RUN_ID, 1L) == null) {
+			sessionDao.insertManifest(manifest)
+		}
+		if (sessionDao.manifestSource(
+				TEST_SESSION_ID,
+				1L,
+				SourceKind.ACTIVITY.stableCode,
+				SourceBrokerPurpose.SESSION_CAPTURE,
+			) == null
+		) {
+			sessionDao.insertManifestSources(
+				listOf(
+					SessionManifestSourceEntity(
+						logicalTrackingId = TEST_SESSION_ID,
+						manifestRevision = 1L,
+						sourceKind = SourceKind.ACTIVITY.stableCode,
+						purpose = "SESSION_CAPTURE",
+						consentEpoch = requireNotNull(policy.captureConsentEpoch),
+						persistenceEligible = true,
+						qosCode = policy.qosCode,
+					),
 				),
-			),
+			)
+		}
+		val run = SourceServiceRunEntity(
+			serviceRunId = TEST_RUN_ID,
+			logicalTrackingId = TEST_SESSION_ID,
+			state = runState,
+			desiredPlanRevision = 1L,
+			rolloutRevision = 1L,
+			foregroundCapabilityFlags = 0L,
+			startedAtMs = 50L,
+			startedElapsedNanos = 50L,
+			completedAtMs = null,
+			completionReason = null,
+			bootId = "boot",
+			leaseGeneration = 7L,
+			startOrigin = "MANUAL_FOREGROUND_START",
+			desiredForegroundCapabilityFlags = 0L,
+			appliedForegroundCapabilityFlags = 0L,
+			runtimeAcknowledgement = "START_ACCEPTED",
+			runtimeFailureCode = null,
+			runRevision = 1L,
 		)
-		sessionDao.insertServiceRun(
-			SourceServiceRunEntity(
-				serviceRunId = TEST_RUN_ID,
-				logicalTrackingId = TEST_SESSION_ID,
-				state = runState,
-				desiredPlanRevision = 1L,
-				rolloutRevision = 1L,
-				foregroundCapabilityFlags = 0L,
-				startedAtMs = 50L,
-				startedElapsedNanos = 50L,
-				completedAtMs = null,
-				completionReason = null,
-				bootId = "boot",
-				leaseGeneration = 7L,
-				startOrigin = "MANUAL_FOREGROUND_START",
-				desiredForegroundCapabilityFlags = 0L,
-				appliedForegroundCapabilityFlags = 0L,
-				runtimeAcknowledgement = "START_ACCEPTED",
-				runtimeFailureCode = null,
-				runRevision = 1L,
-			),
-		)
+		if (sessionDao.serviceRun(TEST_RUN_ID) == null) {
+			sessionDao.insertServiceRun(run)
+		} else {
+			sessionDao.updateServiceRun(run) shouldBe 1
+		}
 		return SessionAuthorization(
 			policyRevision = authority.currentPolicyRevision,
 			captureConsentEpoch = requireNotNull(policy.captureConsentEpoch),

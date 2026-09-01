@@ -221,6 +221,9 @@ private fun DeliveryAdmissionResult.toHandoff(): SourceDeliveryAdmissionHandoff 
 		units.sortedBy(DeliveryAdmissionResult.AdmittedUnit::unitIndex)
 			.map(DeliveryAdmissionResult.AdmittedUnit::admissionOrdinal),
 	)
+	is DeliveryAdmissionResult.SessionCutoff -> SourceDeliveryAdmissionHandoff.SessionCutoff(
+		cutoffElapsedRealtimeNanos,
+	)
 	is DeliveryAdmissionResult.RetryableFailure ->
 		SourceDeliveryAdmissionHandoff.RetryableFailure(code.toRuntimeCode())
 	is DeliveryAdmissionResult.PermanentFailure ->

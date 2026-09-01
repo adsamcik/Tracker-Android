@@ -32,6 +32,7 @@ data class SourceRegistration(
 	val authorization: SourceAuthorizationSnapshot,
 	val requiresProviderAcceptance: Boolean,
 	val predecessorState: SourceRegistrationStateEntity? = null,
+	val providerAcceptedElapsedRealtimeNanos: Long? = null,
 ) {
 	val purposeEligibilityMask: Long get() = authorization.purposeEligibilityMask
 	val eligibilityFingerprint: String get() = authorization.authorizationFingerprint
@@ -147,6 +148,11 @@ class SourceRegistrationRepository @Inject constructor(
 					requiresProviderAcceptance = currentPhysical.status ==
 						ProviderRegistrationGenerationEntity.STATUS_RESERVED,
 					predecessorState = current,
+					providerAcceptedElapsedRealtimeNanos = when (currentPhysical.status) {
+						ProviderRegistrationGenerationEntity.STATUS_ACTIVE ->
+							requireNotNull(currentPhysical.acceptedElapsedRealtimeNanos)
+						else -> null
+					},
 				)
 			}
 			val registrationGeneration = brokerDao.maximumRegistrationGeneration(source.stableCode) + 1L
@@ -286,8 +292,8 @@ class SourceRegistrationRepository @Inject constructor(
 				state = refreshed,
 				physicalConfigurationFingerprint = physicalConfigurationFingerprint,
 				authorization = authorization,
-				requiresProviderAcceptance = false,
-				predecessorState = current,
+				requiresProviderAcceptance = false, predecessorState = current,
+				providerAcceptedElapsedRealtimeNanos = requireNotNull(currentPhysical.acceptedElapsedRealtimeNanos),
 			)
 		}
 	}

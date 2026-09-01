@@ -194,6 +194,12 @@ fun interface SourceEventSink {
 sealed interface SourceDeliveryAdmissionHandoff {
 	data class Durable(val admissionOrdinals: List<Long>) : SourceDeliveryAdmissionHandoff
 	data class Duplicate(val existingAdmissionOrdinals: List<Long>) : SourceDeliveryAdmissionHandoff
+	/** No WAL mutation occurred; rebuild this delivery against the exact durable session cutoff. */
+	data class SessionCutoff(val cutoffElapsedRealtimeNanos: Long) : SourceDeliveryAdmissionHandoff {
+		init {
+			require(cutoffElapsedRealtimeNanos >= 0L)
+		}
+	}
 	data class TerminalFailure(val code: SourceAdmissionFailureCode) : SourceDeliveryAdmissionHandoff
 	data class RetryableFailure(val code: SourceAdmissionFailureCode) : SourceDeliveryAdmissionHandoff
 }
