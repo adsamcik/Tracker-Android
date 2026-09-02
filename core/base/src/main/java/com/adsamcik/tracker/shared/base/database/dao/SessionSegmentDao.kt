@@ -125,6 +125,39 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 		limit: Int,
 	): List<SessionSegment>
 
+	/**
+	 * Keyset page of every physical segment overlapping `[fromMs, toMs)` for source-aware repair.
+	 *
+	 * Cursor keys must both be null for the first page or identify the final row from the preceding
+	 * page. The stable `(start_time_ms, id)` order keeps equal-start rows lossless across pages.
+	 */
+	@Query(
+		"""
+		SELECT * FROM session_segment INDEXED BY idx_session_segment_end_time_ms
+		WHERE (:excludedSegmentId IS NULL OR id != :excludedSegmentId)
+			AND end_time_ms > :fromMs
+			AND start_time_ms < :toMs
+			AND (
+				:afterStartTimeMs IS NULL
+				OR start_time_ms > :afterStartTimeMs
+				OR (
+					start_time_ms = :afterStartTimeMs
+					AND id > COALESCE(:afterSegmentId, 0)
+				)
+			)
+		ORDER BY start_time_ms, id
+		LIMIT :limit
+		"""
+	)
+	suspend fun sourceRepairSegmentPage(
+		fromMs: Long,
+		toMs: Long,
+		excludedSegmentId: Long?,
+		limit: Int,
+		afterStartTimeMs: Long?,
+		afterSegmentId: Long?,
+	): List<SessionSegment>
+
 	/** True when any overlapping row carries new-source attribution, including partial attribution. */
 	@Query(
 		"""

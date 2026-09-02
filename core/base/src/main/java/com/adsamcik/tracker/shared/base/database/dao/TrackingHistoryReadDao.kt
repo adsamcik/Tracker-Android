@@ -214,6 +214,39 @@ interface TrackingHistoryReadDao {
 	@Query("SELECT * FROM source_service_run WHERE service_run_id IN (:serviceRunIds)")
 	suspend fun serviceRuns(serviceRunIds: List<String>): List<SourceServiceRunEntity>
 
+	/**
+	 * Keyset page of all bound and unbound physical runs overlapping or starting within
+	 * `[fromMs, toMs)`.
+	 *
+	 * Cursor keys must both be null for the first page or identify the final row from the preceding
+	 * page. Including starts whose completion wall regressed lets Kotlin fail closed instead of
+	 * silently hiding them. Presentation ownership is deliberately not a selection predicate.
+	 */
+	@Query(
+		"""
+		SELECT * FROM source_service_run
+		WHERE started_at_ms < :toMs
+		  AND (started_at_ms >= :fromMs OR completed_at_ms IS NULL OR completed_at_ms > :fromMs)
+		  AND (
+			:afterStartedAtMs IS NULL
+			OR started_at_ms > :afterStartedAtMs
+			OR (
+			  started_at_ms = :afterStartedAtMs
+			  AND service_run_id > COALESCE(:afterServiceRunId, '')
+			)
+		  )
+		ORDER BY started_at_ms, service_run_id
+		LIMIT :limit
+		""",
+	)
+	suspend fun serviceRunCandidatePage(
+		fromMs: Long,
+		toMs: Long,
+		limit: Int,
+		afterStartedAtMs: Long?,
+		afterServiceRunId: String?,
+	): List<SourceServiceRunEntity>
+
 	/** Reads all immutable manifest revisions for the requested service runs. */
 	@Query(
 		"SELECT * FROM session_manifest_version WHERE service_run_id IN (:serviceRunIds) " +
@@ -300,6 +333,7 @@ interface TrackingHistoryReadDao {
 		       scoped_fact.scoped_logical_tracking_id,
 		       scoped_fact.scoped_manifest_revision,
 		       scoped_fact.scoped_writer_binding_generation,
+		       scoped_fact.first_interval_start_time_ms,
 		       state.*
 		FROM scoped_fact
 		JOIN step_fact_revision AS state
@@ -322,6 +356,107 @@ interface TrackingHistoryReadDao {
 	suspend fun stepFactStates(
 		serviceRunIds: List<String>,
 		limit: Int = Int.MAX_VALUE,
+	): List<ScopedStepFactState>
+
+	/**
+	 * Keyset page of fact-global latest states scoped through each fact's latest UPSERT attribution.
+	 *
+	 * Cursor keys must all be null for the first page or identify the final row from the preceding
+	 * page. The UPSERT interval key remains available even when the latest state is a redacted
+	 * RETRACT.
+	 */
+	@Query(
+		"""
+		WITH latest_upsert AS (
+			SELECT upsert.*
+			FROM step_fact_revision AS upsert
+			WHERE upsert.operation = 'UPSERT'
+			  AND NOT EXISTS (
+				SELECT 1
+				FROM step_fact_revision AS newer_upsert
+				WHERE newer_upsert.writer_projection_id = upsert.writer_projection_id
+				  AND newer_upsert.writer_projection_version = upsert.writer_projection_version
+				  AND newer_upsert.logical_fact_id = upsert.logical_fact_id
+				  AND newer_upsert.operation = 'UPSERT'
+				  AND newer_upsert.semantic_revision > upsert.semantic_revision
+			  )
+		), scoped_fact AS (
+			SELECT latest_upsert.writer_projection_id,
+			       latest_upsert.writer_projection_version,
+			       latest_upsert.logical_fact_id,
+			       latest_upsert.service_run_id AS scoped_service_run_id,
+			       latest_upsert.logical_tracking_id AS scoped_logical_tracking_id,
+			       latest_upsert.manifest_revision AS scoped_manifest_revision,
+			       latest_upsert.writer_binding_generation AS scoped_writer_binding_generation,
+			       latest_upsert.interval_start_time_ms AS first_interval_start_time_ms
+			FROM latest_upsert
+			WHERE latest_upsert.service_run_id IN (:serviceRunIds)
+			  AND latest_upsert.purpose = 'SESSION_CAPTURE'
+		)
+		SELECT scoped_fact.scoped_service_run_id,
+		       scoped_fact.scoped_logical_tracking_id,
+		       scoped_fact.scoped_manifest_revision,
+		       scoped_fact.scoped_writer_binding_generation,
+		       scoped_fact.first_interval_start_time_ms,
+		       state.*
+		FROM scoped_fact
+		JOIN step_fact_revision AS state
+		  ON state.writer_projection_id = scoped_fact.writer_projection_id
+		 AND state.writer_projection_version = scoped_fact.writer_projection_version
+		 AND state.logical_fact_id = scoped_fact.logical_fact_id
+		WHERE state.semantic_revision = (
+			SELECT MAX(newer.semantic_revision)
+			FROM step_fact_revision AS newer
+			WHERE newer.writer_projection_id = scoped_fact.writer_projection_id
+			  AND newer.writer_projection_version = scoped_fact.writer_projection_version
+			  AND newer.logical_fact_id = scoped_fact.logical_fact_id
+		)
+		  AND (
+			:afterServiceRunId IS NULL
+			OR scoped_fact.scoped_service_run_id > :afterServiceRunId
+			OR (
+			  scoped_fact.scoped_service_run_id = :afterServiceRunId
+			  AND (
+				scoped_fact.first_interval_start_time_ms >
+					COALESCE(:afterFirstIntervalStartTimeMs, -1)
+				OR (
+				  scoped_fact.first_interval_start_time_ms =
+					COALESCE(:afterFirstIntervalStartTimeMs, -1)
+				  AND (
+					scoped_fact.logical_fact_id > COALESCE(:afterLogicalFactId, '')
+					OR (
+					  scoped_fact.logical_fact_id = COALESCE(:afterLogicalFactId, '')
+					  AND (
+						scoped_fact.writer_projection_id > COALESCE(:afterWriterProjectionId, '')
+						OR (
+						  scoped_fact.writer_projection_id =
+							COALESCE(:afterWriterProjectionId, '')
+						  AND scoped_fact.writer_projection_version >
+							COALESCE(:afterWriterProjectionVersion, -1)
+						)
+					  )
+					)
+				  )
+				)
+			  )
+			)
+		  )
+		ORDER BY scoped_fact.scoped_service_run_id,
+		         scoped_fact.first_interval_start_time_ms,
+		         scoped_fact.logical_fact_id,
+		         scoped_fact.writer_projection_id,
+		         scoped_fact.writer_projection_version
+		LIMIT :limit
+		""",
+	)
+	suspend fun stepFactStatePage(
+		serviceRunIds: List<String>,
+		limit: Int,
+		afterServiceRunId: String?,
+		afterFirstIntervalStartTimeMs: Long?,
+		afterLogicalFactId: String?,
+		afterWriterProjectionId: String?,
+		afterWriterProjectionVersion: Int?,
 	): List<ScopedStepFactState>
 
 	/** Reads durable source-local deletion fences for the exact requested scope digests. */
@@ -425,6 +560,8 @@ data class ScopedStepFactState(
 	val manifestRevision: Long,
 	@ColumnInfo(name = "scoped_writer_binding_generation")
 	val writerBindingGeneration: Long,
+	@ColumnInfo(name = "first_interval_start_time_ms")
+	val firstIntervalStartTimeMs: Long,
 	@Embedded
 	val state: StepFactRevisionEntity,
 )

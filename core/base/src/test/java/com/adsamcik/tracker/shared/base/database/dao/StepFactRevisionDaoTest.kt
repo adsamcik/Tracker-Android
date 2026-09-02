@@ -19,6 +19,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@Suppress("LargeClass")
 class StepFactRevisionDaoTest {
 
 	private lateinit var database: AppDatabase
@@ -425,6 +426,138 @@ class StepFactRevisionDaoTest {
 			serviceRunIds = listOf(SERVICE_RUN_ID),
 			limit = 1,
 		).map { scoped -> scoped.state.logicalFactId } shouldBe listOf(first.logicalFactId)
+	}
+
+	@Test
+	fun `history latest fact state pages preserve run interval and fact ties exactly once`() = runTest {
+		fun fact(
+			runId: String,
+			factId: String,
+			startMs: Long,
+			admissionOrdinal: Long,
+		) = revision(intervalId = null, admissionOrdinal = admissionOrdinal).copy(
+			logicalFactId = factId,
+			mutationId = "mutation-$factId",
+			sourceEventId = "event-$factId",
+			originIdentity = "event-$factId",
+			intervalStartTimeMs = startMs,
+			intervalEndTimeMs = startMs + 100L,
+			logicalTrackingId = "logical-$runId",
+			serviceRunId = runId,
+			effectChecksum = "checksum-$factId",
+			appliedAtMs = startMs + 100L,
+		)
+
+		val runAFactB = fact("run-a", "fact-b", 1_000L, 2L)
+		val runBFactE = fact("run-b", "fact-e", 500L, 5L)
+		val runAFactA = fact("run-a", "fact-a", 1_000L, 1L)
+		val runBFactD = fact("run-b", "fact-d", 500L, 4L)
+		val runAFactC = fact("run-a", "fact-c", 2_000L, 3L)
+		listOf(runAFactB, runBFactE, runAFactA, runBFactD, runAFactC).forEach { row ->
+			dao.insert(row)
+		}
+		val retractedRunAFactA = redactedRetraction(semanticRevision = 2L).copy(
+			logicalFactId = runAFactA.logicalFactId,
+			mutationId = "delete-${runAFactA.logicalFactId}",
+			originIdentity = "delete-${runAFactA.logicalFactId}",
+			writerBindingGeneration = runAFactA.writerBindingGeneration,
+			collectedDataEpoch = runAFactA.collectedDataEpoch,
+			effectChecksum = "delete-checksum-${runAFactA.logicalFactId}",
+		)
+		dao.insert(retractedRunAFactA)
+
+		val history = database.trackingHistoryReadDao()
+		val seen = mutableListOf<ScopedStepFactState>()
+		var afterServiceRunId: String? = null
+		var afterFirstIntervalStartTimeMs: Long? = null
+		var afterLogicalFactId: String? = null
+		var afterWriterProjectionId: String? = null
+		var afterWriterProjectionVersion: Int? = null
+		while (true) {
+			val page = history.stepFactStatePage(
+				serviceRunIds = listOf("run-b", "run-a"),
+				limit = 2,
+				afterServiceRunId = afterServiceRunId,
+				afterFirstIntervalStartTimeMs = afterFirstIntervalStartTimeMs,
+				afterLogicalFactId = afterLogicalFactId,
+				afterWriterProjectionId = afterWriterProjectionId,
+				afterWriterProjectionVersion = afterWriterProjectionVersion,
+			)
+			seen += page
+			val last = page.lastOrNull() ?: break
+			afterServiceRunId = last.serviceRunId
+			afterFirstIntervalStartTimeMs = last.firstIntervalStartTimeMs
+			afterLogicalFactId = last.state.logicalFactId
+			afterWriterProjectionId = last.state.writerProjectionId
+			afterWriterProjectionVersion = last.state.writerProjectionVersion
+			if (page.size < 2) {
+				break
+			}
+		}
+
+		seen.map { scoped ->
+			Triple(scoped.serviceRunId, scoped.firstIntervalStartTimeMs, scoped.state.logicalFactId)
+		} shouldBe listOf(
+			Triple("run-a", 1_000L, "fact-a"),
+			Triple("run-a", 1_000L, "fact-b"),
+			Triple("run-a", 2_000L, "fact-c"),
+			Triple("run-b", 500L, "fact-d"),
+			Triple("run-b", 500L, "fact-e"),
+		)
+		seen.map { scoped -> scoped.state.logicalFactId to scoped.serviceRunId }.distinct().size shouldBe
+			seen.size
+		seen.first().state.operation shouldBe StepFactRevisionEntity.OPERATION_RETRACT
+	}
+
+	@Test
+	fun `history latest fact state pages cross a full tie boundary exactly once`() = runTest {
+		val sharedFactId = "shared-fact"
+		val sharedStartMs = 1_000L
+		val facts = (1..257).map { writerVersion ->
+			revision(intervalId = null, admissionOrdinal = 1L).copy(
+				logicalFactId = sharedFactId,
+				mutationId = "mutation-$writerVersion",
+				sourceEventId = "event-$writerVersion",
+				originIdentity = "event-$writerVersion",
+				writerProjectionVersion = writerVersion,
+				intervalStartTimeMs = sharedStartMs,
+				intervalEndTimeMs = sharedStartMs + 100L,
+				effectChecksum = "checksum-$writerVersion",
+				appliedAtMs = sharedStartMs + 100L,
+			)
+		}
+		facts.forEach { fact -> dao.insert(fact) }
+
+		val history = database.trackingHistoryReadDao()
+		val seenVersions = mutableListOf<Int>()
+		var afterServiceRunId: String? = null
+		var afterFirstIntervalStartTimeMs: Long? = null
+		var afterLogicalFactId: String? = null
+		var afterWriterProjectionId: String? = null
+		var afterWriterProjectionVersion: Int? = null
+		var pageSize: Int
+		do {
+			val page = history.stepFactStatePage(
+				serviceRunIds = listOf(SERVICE_RUN_ID),
+				limit = 256,
+				afterServiceRunId = afterServiceRunId,
+				afterFirstIntervalStartTimeMs = afterFirstIntervalStartTimeMs,
+				afterLogicalFactId = afterLogicalFactId,
+				afterWriterProjectionId = afterWriterProjectionId,
+				afterWriterProjectionVersion = afterWriterProjectionVersion,
+			)
+			seenVersions += page.map { scoped -> scoped.state.writerProjectionVersion }
+			val last = page.lastOrNull()
+			afterServiceRunId = last?.serviceRunId
+			afterFirstIntervalStartTimeMs = last?.firstIntervalStartTimeMs
+			afterLogicalFactId = last?.state?.logicalFactId
+			afterWriterProjectionId = last?.state?.writerProjectionId
+			afterWriterProjectionVersion = last?.state?.writerProjectionVersion
+			pageSize = page.size
+		} while (pageSize == 256)
+
+		seenVersions shouldBe (1..257).toList()
+		seenVersions.distinct().size shouldBe facts.size
 	}
 
 	@Test

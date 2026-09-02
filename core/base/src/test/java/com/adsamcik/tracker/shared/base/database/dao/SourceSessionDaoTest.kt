@@ -28,6 +28,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@Suppress("LargeClass")
 class SourceSessionDaoTest {
 	private lateinit var database: AppDatabase
 	private lateinit var dao: SourceSessionDao
@@ -86,6 +87,97 @@ class SourceSessionDaoTest {
 			listOf("run-a" to 1L, "run-a" to 3L)
 		history.manifestSources(listOf("run-b", "run-a"), limit = 2)
 			.map(SessionManifestSourceEntity::manifestRevision) shouldContainExactly listOf(1L, 2L)
+	}
+
+	@Test
+	fun `history service run pages include bound and unbound ties exactly once`() = runTest {
+		val runs = listOf(
+			serviceRun("ended-at-from").copy(startedAtMs = 500L, completedAtMs = 1_000L),
+			serviceRun("terminal-overlap").copy(
+				startedAtMs = 500L,
+				completedAtMs = 1_001L,
+				sessionSegmentId = 41L,
+			),
+			serviceRun("a-tie-unbound").copy(startedAtMs = 1_000L),
+			serviceRun("b-tie-bound").copy(startedAtMs = 1_000L, sessionSegmentId = 42L),
+			serviceRun("later-bound").copy(startedAtMs = 1_500L, sessionSegmentId = 43L),
+			serviceRun("started-at-to").copy(startedAtMs = 2_000L),
+		)
+		runs.forEach { run -> dao.insertServiceRun(run) }
+		val history = database.trackingHistoryReadDao()
+
+		val seen = mutableListOf<SourceServiceRunEntity>()
+		var afterStartedAtMs: Long? = null
+		var afterServiceRunId: String? = null
+		while (true) {
+			val page = history.serviceRunCandidatePage(
+				fromMs = 1_000L,
+				toMs = 2_000L,
+				limit = 2,
+				afterStartedAtMs = afterStartedAtMs,
+				afterServiceRunId = afterServiceRunId,
+			)
+			seen += page
+			val last = page.lastOrNull() ?: break
+			afterStartedAtMs = last.startedAtMs
+			afterServiceRunId = last.serviceRunId
+			if (page.size < 2) {
+				break
+			}
+		}
+
+		seen.map(SourceServiceRunEntity::serviceRunId) shouldContainExactly listOf(
+			"terminal-overlap",
+			"a-tie-unbound",
+			"b-tie-bound",
+			"later-bound",
+		)
+		seen.map(SourceServiceRunEntity::serviceRunId).distinct().size shouldBe seen.size
+		seen.map { run -> run.sessionSegmentId != null } shouldContainExactly
+			listOf(true, false, true, true)
+	}
+
+	@Test
+	fun `history service run pages surface in-range starts with regressed completion walls`() = runTest {
+		val runs = listOf(
+			serviceRun("ended-at-from").copy(startedAtMs = 500L, completedAtMs = 1_000L),
+			serviceRun("regressed-outside").copy(startedAtMs = 500L, completedAtMs = 900L),
+			serviceRun("ordinary-inside").copy(startedAtMs = 1_000L),
+			serviceRun("regressed-inside").copy(startedAtMs = 1_500L, completedAtMs = 900L),
+			serviceRun("started-at-to").copy(startedAtMs = 2_000L),
+		)
+		runs.forEach { run -> dao.insertServiceRun(run) }
+		val history = database.trackingHistoryReadDao()
+
+		val firstPage = history.serviceRunCandidatePage(
+			fromMs = 1_000L,
+			toMs = 2_000L,
+			limit = 1,
+			afterStartedAtMs = null,
+			afterServiceRunId = null,
+		)
+		firstPage.map(SourceServiceRunEntity::serviceRunId) shouldContainExactly
+			listOf("ordinary-inside")
+		val firstCursor = firstPage.single()
+
+		val secondPage = history.serviceRunCandidatePage(
+			fromMs = 1_000L,
+			toMs = 2_000L,
+			limit = 1,
+			afterStartedAtMs = firstCursor.startedAtMs,
+			afterServiceRunId = firstCursor.serviceRunId,
+		)
+		secondPage.map(SourceServiceRunEntity::serviceRunId) shouldContainExactly
+			listOf("regressed-inside")
+		val secondCursor = secondPage.single()
+
+		history.serviceRunCandidatePage(
+			fromMs = 1_000L,
+			toMs = 2_000L,
+			limit = 1,
+			afterStartedAtMs = secondCursor.startedAtMs,
+			afterServiceRunId = secondCursor.serviceRunId,
+		) shouldBe emptyList()
 	}
 
 	@Test

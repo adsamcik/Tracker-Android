@@ -68,17 +68,27 @@ internal suspend fun materializeDailySummaryDayInTransaction(
 				} else {
 					MaterializationDayBounds(dayStartMs, dayEndMs)
 				}
-				val hasAttributedOverlap = database.sessionSegmentDao()
+				val hasAttributedSegmentOverlap = database.sessionSegmentDao()
 					.hasAttributedOverlappingForSourceRepair(
 						fromMs = attributedBounds.fromMs,
 						toMs = attributedBounds.toMs,
 					)
-				if (existing != null && storedZoneId == null && hasAttributedOverlap) {
+				val hasSourceRunOverlap = database.trackingHistoryReadDao()
+					.serviceRunCandidatePage(
+						fromMs = attributedBounds.fromMs,
+						toMs = attributedBounds.toMs,
+						limit = 1,
+						afterStartedAtMs = null,
+						afterServiceRunId = null,
+					)
+					.isNotEmpty()
+				val hasSourceAwareOverlap = hasAttributedSegmentOverlap || hasSourceRunOverlap
+				if (existing != null && storedZoneId == null && hasSourceAwareOverlap) {
 					outcome = DailySummaryMaterializationOutcome.Unverifiable
 					return@withTransaction
 				}
 				val authorityAggregator = aggregator.withCalendarZone(authorityZone)
-				if (!hasAttributedOverlap) {
+				if (!hasSourceAwareOverlap) {
 					authorityAggregator.materializeDayFromSegmentsWhileLocked(epochDay, lockedDays)
 					outcome = DailySummaryMaterializationOutcome.Ready
 					return@withTransaction

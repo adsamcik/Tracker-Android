@@ -176,6 +176,53 @@ class SessionSegmentDaoTest {
 		}
 
 	@Test
+	fun `source repair segment pages preserve half open overlap ties and exact once ordering`() =
+		runBlocking {
+			dao.insert(createSegment(0L, 1_000L, 1f, DetectedActivity.WALKING.value))
+			val tieAId = dao.insert(
+				createSegment(1_000L, 1_200L, 2f, DetectedActivity.WALKING.value),
+			)
+			val tieBId = dao.insert(
+				createSegment(1_000L, 1_300L, 3f, DetectedActivity.WALKING.value),
+			)
+			val excludedId = dao.insert(
+				createSegment(1_250L, 1_350L, 4f, DetectedActivity.WALKING.value),
+			)
+			val middleId = dao.insert(
+				createSegment(1_500L, 1_700L, 5f, DetectedActivity.WALKING.value),
+			)
+			val lateId = dao.insert(
+				createSegment(2_500L, 2_900L, 6f, DetectedActivity.WALKING.value),
+			)
+			dao.insert(createSegment(3_000L, 3_100L, 7f, DetectedActivity.WALKING.value))
+
+			val seen = mutableListOf<SessionSegment>()
+			var afterStartTimeMs: Long? = null
+			var afterSegmentId: Long? = null
+			while (true) {
+				val page = dao.sourceRepairSegmentPage(
+					fromMs = 1_000L,
+					toMs = 3_000L,
+					excludedSegmentId = excludedId,
+					limit = 2,
+					afterStartTimeMs = afterStartTimeMs,
+					afterSegmentId = afterSegmentId,
+				)
+				seen += page
+				val last = page.lastOrNull() ?: break
+				afterStartTimeMs = last.startTimeMs
+				afterSegmentId = last.id
+				if (page.size < 2) {
+					break
+				}
+			}
+
+			val expectedIds = listOf(tieAId, tieBId, middleId, lateId)
+			assertEquals(expectedIds, seen.map(SessionSegment::id))
+			assertEquals(expectedIds.size, seen.map(SessionSegment::id).distinct().size)
+		}
+
+	@Test
 	fun `crash placeholder is excluded from product time and activity inference queries`() = runBlocking {
 		val day = LocalDate.of(2026, 1, 10).atStartOfDay(ZoneId.systemDefault())
 		val dayStart = day.toInstant().toEpochMilli()

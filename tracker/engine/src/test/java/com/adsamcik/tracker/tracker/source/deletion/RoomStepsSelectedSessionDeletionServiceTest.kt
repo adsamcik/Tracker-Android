@@ -303,6 +303,7 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 			segmentSteps = 900,
 			sampleCount = 1,
 		)
+		installCanonicalLane(contiguousAdmissionOrdinal = 2L)
 		database.dailySummaryDao().upsert(
 			dateEpochDay = day,
 			totalDistanceM = 123f,
@@ -329,6 +330,82 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 		outcome shouldBe DailySummaryMaterializationOutcome.Materializing
 		database.dailySummaryDao().getByDay(day) shouldBe before
 	}
+
+	@Test
+	@Suppress("LongMethod")
+	fun `production materializer leaves summary unchanged for active unbound non-Steps capture`() =
+		runTest {
+			val day = LocalDate.of(2026, 4, 2).toEpochDay()
+			val dayStart = LocalDate.ofEpochDay(day).atStartOfDay(ZONE).toInstant().toEpochMilli()
+			val logicalId = "logical-worker-unbound-location"
+			val runId = "run-worker-unbound-location"
+			val startMs = dayStart + HOUR_MS
+			database.sourceSessionDao().insertSession(
+				logicalSession(state = "ACTIVE", currentServiceRunId = runId).copy(
+					logicalTrackingId = logicalId,
+					startedAtMs = startMs,
+				),
+			)
+			database.sourceSessionDao().insertServiceRun(
+				serviceRun(
+					state = "ACTIVE",
+					completedAtMs = null,
+					sessionSegmentId = 1L,
+					presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
+					presentationAcknowledgedAtMs = null,
+				).copy(
+					serviceRunId = runId,
+					logicalTrackingId = logicalId,
+					startedAtMs = startMs,
+					startDeliveryToken = "delivery-$runId",
+					sessionSegmentId = null,
+				),
+			)
+			val source = SessionManifestSourceEntity(
+				logicalTrackingId = logicalId,
+				manifestRevision = MANIFEST_REVISION,
+				sourceKind = SourceKind.LOCATION.stableCode,
+				purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+				consentEpoch = CAPTURE_CONSENT_EPOCH,
+				persistenceEligible = true,
+				qosCode = 0,
+			)
+			val unsigned = unsignedManifest().copy(
+				logicalTrackingId = logicalId,
+				serviceRunId = runId,
+				effectiveWallTimeMs = startMs,
+				manifestChecksum = "",
+			)
+			database.sourceSessionDao().insertManifest(
+				unsigned.copy(manifestChecksum = SessionManifestIntegrity.compute(unsigned, listOf(source))),
+			)
+			database.sourceSessionDao().insertManifestSources(listOf(source))
+			database.dailySummaryDao().upsert(
+				dateEpochDay = day,
+				totalDistanceM = 123f,
+				totalSteps = 123,
+				totalDurationMs = 123L,
+				tripCount = 123,
+				activeTrackingMs = 123L,
+				lastUpdatedMs = 123L,
+				calendarZoneId = ZONE.id,
+			)
+			val before = database.dailySummaryDao().getByDay(day)
+
+			val outcome = materializeDailySummaryDayInTransaction(
+				database = database,
+				aggregator = DailySummaryAggregator(
+					database.dailySummaryDao(),
+					database.sessionSegmentDao(),
+					zoneId = ZONE,
+				),
+				epochDay = day,
+				capturedZoneId = ZONE,
+			)
+
+			outcome shouldBe DailySummaryMaterializationOutcome.Materializing
+			database.dailySummaryDao().getByDay(day) shouldBe before
+		}
 
 	@Test
 	fun `production materializer upgrades null-zone pure legacy row under one captured zone`() = runTest {
@@ -1319,6 +1396,7 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 	)
 
 	private suspend fun insertMaterializingCandidateSurvivor(startMs: Long, endMs: Long) {
+		installCanonicalLane()
 		val logicalId = "logical-materializing-survivor"
 		val runId = "run-materializing-survivor"
 		val segmentId = database.sessionSegmentDao().insert(
@@ -1329,11 +1407,9 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 			),
 		)
 		database.sourceSessionDao().insertSession(
-			logicalSession(state = "FINALIZED", currentServiceRunId = null).copy(
+			logicalSession(state = "ACTIVE", currentServiceRunId = runId).copy(
 				logicalTrackingId = logicalId,
 				startedAtMs = startMs,
-				cutoffAtMs = endMs,
-				completedAtMs = endMs,
 			),
 		)
 		database.sourceSessionDao().insertServiceRun(
@@ -1346,6 +1422,7 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 			).copy(
 				serviceRunId = runId,
 				logicalTrackingId = logicalId,
+				startedAtMs = startMs,
 				startDeliveryToken = "delivery-materializing-survivor",
 			),
 		)
@@ -1498,6 +1575,7 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 			).copy(
 				serviceRunId = runId,
 				logicalTrackingId = logicalId,
+				startedAtMs = startMs,
 				startDeliveryToken = "delivery-$runId",
 			),
 		)
@@ -1697,7 +1775,7 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 		failureCode = null,
 		sessionMode = sessionMode,
 		currentManifestRevision = MANIFEST_REVISION,
-		currentIntentRevision = null,
+		currentIntentRevision = 1L,
 		currentServiceRunId = currentServiceRunId,
 		lifecycleLeaseGeneration = 1L,
 		lifecycleBootId = "boot-1",
@@ -1842,41 +1920,45 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 		writerProjectionId: String = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
 		writerProjectionVersion: Int = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
 		writerBindingGeneration: Long = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
-	) = StepFactRevisionEntity(
-		logicalFactId = logicalFactId,
-		semanticRevision = 1L,
-		mutationId = "mutation-$admissionOrdinal",
-		stepIntervalId = null,
-		sourceEventId = "event-$admissionOrdinal",
-		sourceAdmissionOrdinal = admissionOrdinal,
-		originKind = StepFactRevisionEntity.ORIGIN_LIVE_WAL,
-		originIdentity = "event-$admissionOrdinal",
-		writerProjectionId = writerProjectionId,
-		writerProjectionVersion = writerProjectionVersion,
-		writerBindingGeneration = writerBindingGeneration,
-		operation = StepFactRevisionEntity.OPERATION_UPSERT,
-		intervalStartTimeMs = startMs,
-		intervalEndTimeMs = endMs,
-		intervalStartElapsedRealtimeNanos = 1_000L,
-		intervalEndElapsedRealtimeNanos = 2_000L,
-		clockDomainId = "boot-1",
-		bootClockDomainId = "boot-1",
-		cumulativeStepCountStart = 100L,
-		cumulativeStepCountEnd = 100L + stepCount,
-		wallTimeUncertaintyMs = 1L,
-		coverageKind = StepFactRevisionEntity.COVERAGE_COVERED,
-		effectiveStepCount = stepCount,
-		logicalTrackingId = logicalTrackingId,
-		serviceRunId = serviceRunId,
-		purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
-		manifestRevision = manifestRevision,
-		sourcePolicyRevision = sourcePolicyRevision,
-		captureConsentEpoch = captureConsentEpoch,
-		collectedDataEpoch = COLLECTED_DATA_EPOCH,
-		scopeDeletionGeneration = 0L,
-		effectChecksum = "checksum-$admissionOrdinal",
-		appliedAtMs = 2_000L,
-	)
+	): StepFactRevisionEntity {
+		val sourceEventId = logicalFactId.removePrefix("$writerProjectionId:")
+		return StepFactRevisionEntity(
+			logicalFactId = logicalFactId,
+			semanticRevision = 1L,
+			mutationId = "$logicalFactId:1:${StepFactRevisionEntity.OPERATION_UPSERT}",
+			stepIntervalId = null,
+			sourceEventId = sourceEventId,
+			sourceAdmissionOrdinal = admissionOrdinal,
+			originKind = StepFactRevisionEntity.ORIGIN_LIVE_WAL,
+			originIdentity = sourceEventId,
+			writerProjectionId = writerProjectionId,
+			writerProjectionVersion = writerProjectionVersion,
+			writerBindingGeneration = writerBindingGeneration,
+			operation = StepFactRevisionEntity.OPERATION_UPSERT,
+			intervalStartTimeMs = startMs,
+			intervalEndTimeMs = endMs,
+			intervalStartElapsedRealtimeNanos = 1_000L,
+			intervalEndElapsedRealtimeNanos = 1_000L +
+				(endMs - startMs) * NANOS_PER_MILLISECOND,
+			clockDomainId = "boot-1",
+			bootClockDomainId = "boot-1",
+			cumulativeStepCountStart = 100L,
+			cumulativeStepCountEnd = 100L + stepCount,
+			wallTimeUncertaintyMs = 1L,
+			coverageKind = StepFactRevisionEntity.COVERAGE_COVERED,
+			effectiveStepCount = stepCount,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			manifestRevision = manifestRevision,
+			sourcePolicyRevision = sourcePolicyRevision,
+			captureConsentEpoch = captureConsentEpoch,
+			collectedDataEpoch = COLLECTED_DATA_EPOCH,
+			scopeDeletionGeneration = 0L,
+			effectChecksum = "checksum-$admissionOrdinal",
+			appliedAtMs = endMs,
+		)
+	}
 
 	private suspend fun installCanonicalLane(
 		contiguousAdmissionOrdinal: Long = 0L,
@@ -1953,6 +2035,7 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 	private companion object {
 		val ZONE: ZoneId = ZoneId.of("America/New_York")
 		const val HOUR_MS = 60L * 60_000L
+		const val NANOS_PER_MILLISECOND = 1_000_000L
 		const val MINUTE_MS = 60_000L
 		const val LOGICAL_TRACKING_ID = "logical-steps"
 		const val SERVICE_RUN_ID = "run-steps"
