@@ -1,6 +1,6 @@
 # Tracking Infrastructure Execution Plan
 
-Last updated: 2026-09-01
+Last updated: 2026-09-02
 
 This is the durable execution ledger for the architecture in
 `docs/TRACKING_INFRASTRUCTURE_FINAL_PLAN_AND_DESIGN.md` and the accepted refinements in
@@ -43,6 +43,12 @@ does not restate the architecture.
   gate-sized, dependency-coherent slice, stage only reviewed paths, record its scoped verification,
   and leave known blocked assertions explicit. A failing or unverified slice is not committed as a
   completed checkpoint merely because it compiles.
+- Wi-Fi durable admission is locally integrated through `8000f4b16`. Fresh nonempty observations
+  now use a privacy-minimized, replay-stable delivery identity; Room owns source-sequence allocation;
+  delayed callbacks must retain exact historical registration, manifest, policy, purpose, session,
+  run, lease, and cutoff authority; and finite active attempts remain direct-demand-only. This is
+  admission proof, not a Wi-Fi product fact/query/UI, deletion/export, device-radio, activation, or
+  rollout decision.
 
 ## Critical path and gates
 
@@ -87,7 +93,7 @@ is unverified.
 | PAR-02 exact Steps selected-session deletion | `codex/ti-steps-session-deletion` | Steps deletion API/service, exact DAO mutations, day repair, focused tests | `DONE`; corrected after fresh overflow review, rebased and fast-forwarded into local `dev/v10` at `b5698e635` | exact new-v28 candidate-owned Steps-only scope deletes transactionally; active, legacy, mixed, mismatched, or unverifiable ownership is typed and non-mutating; delayed replay cannot resurrect; stored manifest/summary zone authority repairs affected days; bounded dependency overflow fails before mutation |
 | PAR-03 Pressure capability-normalized requests | `codex/ti-pressure-capability-plan` | Pressure request normalization/runtime and focused tests | `DONE`; rebased and fast-forwarded into local `dev/v10` at `afcb009e1` | effective sampling/report latency follows actual sensor minimum-delay/FIFO capability; equivalent physical tuples do not restart; distinct tuples use one fenced replacement; no-FIFO mode never claims batching |
 | PAR-04 Cell atomic delivery admission | `codex/ti-cell-durable-admission` | Cell runtime and focused tests | `DONE`; rebased and fast-forwarded into local `dev/v10` at `862e839eb` | one minimized boot-domain/provider-time/content delivery identity enters atomic ingress; ingress allocates sequence; duplicate/restart handling is durable; no radio/subscription identity or unbounded active attempt is introduced |
-| PAR-05 Wi-Fi atomic delivery admission | `codex/ti-wifi-durable-admission` | Wi-Fi runtime and focused tests | Wi-Fi runtime paths only; in progress | callback/result identity is replay-stable and privacy-minimized; empty or stale state is not repeatedly stored; prerequisites and cutoff are rechecked for every bounded retry; active attempts remain finite and direct-demand-only; real Room replay allocates one sequence |
+| PAR-05 Wi-Fi atomic delivery admission | `codex/ti-wifi-durable-admission` | Wi-Fi runtime, shared atomic ingress authority, compatibility checks, and focused Room tests | `DONE`; corrected and hardened after review, rebased, and fast-forwarded into local `dev/v10` at `8000f4b16` | callback/result identity is replay-stable and privacy-minimized; empty or stale state is not repeatedly stored; prerequisites, current policy, exact historical authority, complete manifest checksums, and cutoff are rechecked for every delayed callback/retry; active attempts remain finite and direct-demand-only; exact real-Room replay allocates one sequence while identity collisions fail closed |
 | PAR-06 Pressure atomic delivery admission | `codex/ti-pressure-durable-admission` | Pressure runtime, shared atomic ingress/checkpoint authority, and focused Room tests | `DONE`; corrected after fresh NO_GO review, rebased, and fast-forwarded into local `dev/v10` at `3a3bcbadb` | one complete Pressure window is admitted without a preallocated sequence; exact replay is idempotent; checkpoint repair requires the retained WAL row's exact provider and authorization envelope; retention, intrinsic-window, identity-collision, and rollback cases fail closed |
 | PAR-07 Location immutable observation floor | `codex/ti-location-observation-floor` | protected Location runtime and focused tests | `DONE`; corrected after fresh review and fast-forwarded into local `dev/v10` at `a4caa9f12` | cached pre-acceptance fixes, synchronous callbacks before durable acceptance, stale/future/cutoff-invalid fixes, and callbacks from superseded contexts fail closed; compatible authorization refresh raises but never weakens the immutable floor; duplicate older WAL ordinals cannot regress stop completeness; the existing canonical Location writer remains unchanged |
 | PAR-08 Activity callback freshness envelope | `codex/ti-activity-freshness-envelope` | Activity receiver, source delivery factory, atomic Room ingress, and focused tests | `DONE`; corrected after fresh review and fast-forwarded into local `dev/v10` at `3c7b28545` | negative/overflow/future/pre-acceptance provider times are excluded without fabricating elapsed zero; valid siblings retain original indexes; durable selection alone chooses recognition-versus-transition Activity publication; discarded and retry settlement remain truthful |

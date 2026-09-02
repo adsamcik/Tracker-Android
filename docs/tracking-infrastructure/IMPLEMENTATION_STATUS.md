@@ -2313,3 +2313,44 @@ Steps provider callback, foreground-service start, process death/reboot behavior
 retention or export exclusion, production query/UI, battery/OEM behavior, ordinary activation, or
 rollout. Full automatic Steps and default-off ambient Steps remain blocked by their independent
 product and device gates.
+
+## Wi-Fi durable delivery-admission checkpoint (2026-09-02)
+
+### Outcome
+
+The Wi-Fi durable-admission lane is accepted and fast-forwarded into local `dev/v10` at
+`8000f4b16` (`e0d0ade07` plus the final hardening commit). Only a fresh, nonempty,
+privacy-minimized observation can form a stable delivery candidate; process-local runtime
+generations are not part of replay identity, and Room owns source-sequence and WAL allocation.
+Exact replay is zero-effect while a checksum collision fails closed.
+
+Delayed callbacks and retries now reauthenticate their complete authority. Historical registration,
+authorization, physical fingerprint, demand set, session, service run, lease, purpose, immutable
+manifest revisions, current policy, and the accepted-inclusive/retired-exclusive cutoff must all
+agree. Manifest checksums are verified over their complete source sets. A suspended registration
+can recover only from the exact current lifecycle-intent checksum and its derived source action.
+Empty, stale, future, generation-invalid, incompatible-purpose, or retired-at-cutoff evidence cannot
+mutate durable product evidence. Active Wi-Fi attempts remain finite and direct-demand-only; optional
+context does not start or retain Location.
+
+### Evidence and boundary
+
+- The forced post-rebase host selection covered 15 exact classes spanning `SourceBrokerDao`, the
+  durable sink and generic Room ingress, Wi-Fi runtime and Room admission, Activity Room admission,
+  and Cell, Location, Pressure, registration, and window compatibility. It passed `311/311` with
+  zero failures, errors, or skips (`BUILD SUCCESSFUL in 7m 32s`, 248 tasks executed).
+- Root Detekt, `:core:base:lintDebug`, and `:tracker:engine:lintDebug` then passed from scratch
+  (`BUILD SUCCESSFUL in 4m 50s`, 381 tasks executed). Lint found no new issue; existing baseline
+  findings remained filtered.
+- The final exact four-file hardening review confirmed that the only post-test delta was narrow,
+  justified Detekt annotations and found no blocker, high, or medium issue. Rebase onto local
+  `dev/v10` was conflict-free. The configured `adsamcik` identity created the commits, and the clean
+  integration worktree fast-forwarded locally. The root checkout still contains exactly its six
+  protected paths with unchanged SHA-256 values. Nothing was pushed, activated, released, tagged,
+  or deployed.
+
+This is host/Robolectric/in-memory-Room/static evidence. It does not prove physical Wi-Fi scan or
+broadcast behavior, process death, reboot, foreground-service behavior, battery cost, API/OEM
+differences, a Wi-Fi product fact/materializer/query/UI, deletion, retention, portable export/import,
+ordinary candidate activation, or rollout. The independent Wi-Fi-only product vertical remains
+blocked on those later source-local gates.

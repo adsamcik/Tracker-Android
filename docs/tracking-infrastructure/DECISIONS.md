@@ -1828,3 +1828,32 @@ Each entry records repository evidence and does not duplicate the final architec
   provider, destination owner, rollout state, or writer was enabled. Trigger legality, control
   retention/no-export, provider-to-query execution, process/reboot/device evidence, and full
   automatic Steps remain separate gates.
+
+## TI-D132 — Wi-Fi delayed admission reauthenticates exact historical and current authority
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` at `8000f4b16`; Wi-Fi product materialization and physical
+  radio behavior remain `BLOCKED`
+- Owner/date: Wi-Fi durable-admission owner after corrected-diff review and a forced post-rebase
+  compatibility gate, 2026-09-02
+- Alternatives: trust a callback's process-local generation; accept the historical registration
+  without rechecking current policy; infer retirement from a session state or wall-time overlap;
+  admit only when one exact historical registration, complete immutable manifests, current policy,
+  session/run/lease/cutoff authority, and the source-local suspension intent still agree
+- Evidence: the forced post-rebase selection passed `311/311` tests with zero failures, errors, or
+  skips across Wi-Fi runtime/admission, generic Room ingress/sink, SourceBroker, and Activity, Cell,
+  Location, and Pressure compatibility. All 248 test-command tasks executed. Root Detekt plus
+  `:core:base:lintDebug` and `:tracker:engine:lintDebug` then passed with 381 tasks executed and no
+  new issue. The final exact hardening review found no blocker, high, or medium finding.
+- Decision: a fresh, nonempty, privacy-minimized Wi-Fi result receives a stable delivery identity
+  independent of process-local runtime generations, and Room alone allocates its source sequence.
+  Delayed historical admission requires the claimed physical registration, authorization,
+  fingerprint, demand set, session/run/lease, and accepted-inclusive/retired-exclusive cutoff to
+  match, plus checksum-valid historical and current manifests and unchanged current policy. A
+  suspended provider may recover only through the exact current lifecycle intent checksum and its
+  deterministically derived source action. Empty, stale, generation-invalid, purpose-incompatible,
+  or identity-colliding results do not mutate durable evidence.
+- Consequences: exact replay remains zero-effect, callbacks cannot borrow another source or expired
+  purpose authority, and optional Location context neither starts nor retains Location. Passive
+  Wi-Fi callbacks remain compatible with direct demand, while active attempts stay finite and
+  direct-demand-only. This adds no Wi-Fi product fact, query/UI, deletion, retention, portable
+  export/import, ordinary writer activation, rollout, or physical scan/callback/battery/OEM proof.
