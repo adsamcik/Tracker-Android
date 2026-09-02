@@ -314,6 +314,7 @@ class ActivityAutomationProjectionLaneTest {
 			source = SourceKind.ACTIVITY,
 			sourceInstanceId = SourceInstanceId("activity-provider"),
 			registrationGeneration = 1L,
+			physicalConfigurationFingerprint = "activity-config",
 			authorizationRevision = 7L,
 			registrationPurposeEligibilityMask = SourceBrokerPurpose.MASK_CONTROL_AUTOSTART,
 			registrationEligibilityFingerprint = "activity-control",
