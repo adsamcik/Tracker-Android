@@ -24,6 +24,7 @@ import com.adsamcik.tracker.stats.api.repository.StepsSessionDeletionUnsupported
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -1180,6 +1181,76 @@ class StepsDailySummaryRepairComposerTest {
 	}
 
 	@Test
+	@Suppress("LongMethod")
+	fun `malformed corrected fact dominates an otherwise exact materializing run`() = runTest {
+		installLane(cursor = 10L)
+		val correctedLogicalId = "stream-corrected-logical"
+		val correctedRunId = "stream-corrected-run"
+		val correctedStartMs = DAY_START + HOUR_MS
+		val correctedEndMs = correctedStartMs + HOUR_MS
+		val correctedOrdinal = 10L
+		val correctionOrdinal = correctedOrdinal + 1L
+		val correctionEventId = "event-$correctedRunId-correction"
+		insertCandidate(
+			logicalId = correctedLogicalId,
+			runId = correctedRunId,
+			manifestRevision = 1L,
+			startMs = correctedStartMs,
+			endMs = correctedEndMs,
+			steps = 4L,
+			admissionOrdinal = correctedOrdinal,
+		)
+		val corrected = fact(
+			logicalId = correctedLogicalId,
+			runId = correctedRunId,
+			manifestRevision = 1L,
+			startMs = correctedStartMs,
+			endMs = correctedEndMs,
+			steps = 9L,
+			coverage = StepFactRevisionEntity.COVERAGE_COVERED,
+			admissionOrdinal = correctedOrdinal,
+		).copy(
+			semanticRevision = 2L,
+			mutationId = "${SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID}:" +
+				"event-$correctedRunId-$correctedOrdinal:" +
+				"2:${StepFactRevisionEntity.OPERATION_UPSERT}",
+			sourceEventId = correctionEventId,
+			sourceAdmissionOrdinal = correctionOrdinal,
+			originIdentity = correctionEventId,
+			effectChecksum = "corrected-checksum",
+			appliedAtMs = correctedEndMs + 1L,
+		)
+		database.stepFactRevisionDao().insert(corrected) shouldNotBe -1L
+		val completeness = database.sourceSessionDao()
+			.completenessForServiceRun(correctedLogicalId, correctedRunId)
+			.single()
+		database.sourceSessionDao().saveCompleteness(
+			completeness.copy(
+				lastAdmissionOrdinal = correctionOrdinal,
+				lastSourceSequence = 2L,
+			),
+		)
+
+		val materializingRunId = "stream-materializing-run"
+		insertCandidate(
+			logicalId = "stream-materializing-logical",
+			runId = materializingRunId,
+			manifestRevision = 1L,
+			startMs = correctedEndMs,
+			endMs = correctedEndMs + HOUR_MS,
+			steps = 6L,
+			admissionOrdinal = 20L,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_service_run SET presentation_acknowledgement = 'PENDING', " +
+				"presentation_acknowledged_at_ms = NULL WHERE service_run_id = ?",
+			arrayOf(materializingRunId),
+		)
+
+		assertDayUnverifiableForNumeric()
+	}
+
+	@Test
 	fun `production composer pages the full 370-session 370-day numeric envelope`() = runTest {
 		val zoneByDay = (0 until StepsNumericSummaryRequest.MAX_DAY_COUNT).associate { offset ->
 			(DAY + offset.toLong()) to ZONE
@@ -1214,6 +1285,64 @@ class StepsDailySummaryRepairComposerTest {
 			zoneByDay + ((DAY + StepsNumericSummaryRequest.MAX_DAY_COUNT) to ZONE),
 		) shouldBe StepsDayRepairPreflight.Unsupported(
 			StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `fact stream finalizes exact runs across and within 256 row pages`() = runTest {
+		val firstLogicalId = "stream-page-a-logical"
+		val firstRunId = "stream-page-a-run"
+		val firstStartMs = DAY_START + HOUR_MS
+		val firstEndMs = firstStartMs + HOUR_MS
+		val firstFactEndMs = firstStartMs + HOUR_MS / STREAM_PAGE_FACT_COUNT
+		installLane(cursor = 300L)
+		insertCandidate(
+			logicalId = firstLogicalId,
+			runId = firstRunId,
+			manifestRevision = 1L,
+			startMs = firstStartMs,
+			endMs = firstEndMs,
+			steps = 1L,
+			admissionOrdinal = 1L,
+			completenessOrdinal = STREAM_PAGE_FACT_COUNT.toLong(),
+			factEndMs = firstFactEndMs,
+		)
+		for (index in 1 until STREAM_PAGE_FACT_COUNT) {
+			val indexLong = index.toLong()
+			database.stepFactRevisionDao().insert(
+				fact(
+					logicalId = firstLogicalId,
+					runId = firstRunId,
+					manifestRevision = 1L,
+					startMs = firstStartMs + HOUR_MS * indexLong / STREAM_PAGE_FACT_COUNT,
+					endMs = firstStartMs + HOUR_MS * (indexLong + 1L) / STREAM_PAGE_FACT_COUNT,
+					steps = 1L,
+					coverage = StepFactRevisionEntity.COVERAGE_COVERED,
+					admissionOrdinal = indexLong + 1L,
+				),
+			)
+		}
+		insertCandidate(
+			logicalId = "stream-page-b-logical",
+			runId = "stream-page-b-run",
+			manifestRevision = 1L,
+			startMs = firstEndMs,
+			endMs = firstEndMs + HOUR_MS,
+			steps = 5L,
+			admissionOrdinal = STREAM_PAGE_FACT_COUNT + 1L,
+			completenessOrdinal = STREAM_PAGE_FACT_COUNT + 1L,
+		)
+
+		val ready = composer().composeForNumericRead(mapOf(DAY to ZONE))
+			as StepsDayRepairPreflight.Ready
+
+		ready.plans.single().numericSteps shouldBe
+			StepsDayNumericComposition.Complete(STREAM_PAGE_FACT_COUNT + 5L)
+		ready.plans.single().totals shouldBe DailySummaryTotals(
+			distanceM = 20f,
+			steps = STREAM_PAGE_FACT_COUNT + 5,
+			durationMs = 2L * HOUR_MS,
+			tripCount = 2,
 		)
 	}
 
@@ -2041,11 +2170,26 @@ class StepsDailySummaryRepairComposerTest {
 	}
 
 	@Test
-	fun `candidate fact beyond settled completeness fails closed`() = runTest {
+	fun `candidate fact beyond settled completeness fails closed even while lane is behind`() = runTest {
 		installLane(cursor = 100L)
 		insertCandidate(
 			logicalId = "unsettled-fact-logical",
 			runId = "unsettled-fact-run",
+			manifestRevision = 1L,
+			startMs = DAY_START + HOUR_MS,
+			endMs = DAY_START + 2L * HOUR_MS,
+			steps = 5L,
+			admissionOrdinal = 5L,
+			completenessOrdinal = 4L,
+		)
+
+		assertDayUnverifiable()
+
+		resetDatabase()
+		installLane(cursor = 3L)
+		insertCandidate(
+			logicalId = "unsettled-materializing-fact-logical",
+			runId = "unsettled-materializing-fact-run",
 			manifestRevision = 1L,
 			startMs = DAY_START + HOUR_MS,
 			endMs = DAY_START + 2L * HOUR_MS,
@@ -2929,6 +3073,7 @@ class StepsDailySummaryRepairComposerTest {
 		val DAY: Long = LocalDate.of(2026, 4, 2).toEpochDay()
 		val DAY_START: Long = LocalDate.ofEpochDay(DAY).atStartOfDay(ZONE).toInstant().toEpochMilli()
 		const val HOUR_MS = 60L * 60_000L
+		const val STREAM_PAGE_FACT_COUNT = 257
 		const val NANOS_PER_MILLISECOND = 1_000_000L
 		const val EPOCH = 2L
 	}

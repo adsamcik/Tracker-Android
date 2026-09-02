@@ -25,9 +25,11 @@ import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.SessionLifecycleState
 import com.adsamcik.tracker.tracker.source.coordinator.SessionMode
 import com.adsamcik.tracker.tracker.source.model.SourceKind
-import java.math.BigInteger
+import com.adsamcik.tracker.tracker.source.summary.StepsNumericCaptureSlice
+import com.adsamcik.tracker.tracker.source.summary.StepsNumericCoveredFact
+import com.adsamcik.tracker.tracker.source.summary.StepsNumericDayWindowAccumulator
+import com.adsamcik.tracker.tracker.source.summary.StepsNumericRunContribution
 import java.time.DateTimeException
-import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
@@ -196,15 +198,24 @@ internal class StepsDailySummaryRepairComposer(
 
 		val snapshot = loadSnapshot(segments, unboundRuns) ?: return unverifiable()
 		val contributions = mutableListOf<SegmentContribution>()
+		val factDescriptors = linkedMapOf<String, RunFactDescriptor>()
 		val unboundNonStepsCaptures = mutableListOf<UnboundNonStepsCapture>()
 		val materializingAuthorities = mutableListOf<LogicalContributionAuthority>()
 		var hasMaterializingSegment = false
 		for (segment in segments) {
 			when (val qualified = qualify(segment, snapshot)) {
-				is SegmentQualification.Ready -> contributions += qualified.contribution
+				is SegmentQualification.Ready -> {
+					contributions += qualified.contribution
+					if (!addFactDescriptor(factDescriptors, qualified.factDescriptor)) {
+						return unverifiable()
+					}
+				}
 				is SegmentQualification.Materializing -> {
 					hasMaterializingSegment = true
 					materializingAuthorities += qualified.authority
+					if (!addFactDescriptor(factDescriptors, qualified.factDescriptor)) {
+						return unverifiable()
+					}
 				}
 				SegmentQualification.Unverifiable -> return unverifiable()
 			}
@@ -250,27 +261,54 @@ internal class StepsDailySummaryRepairComposer(
 		) {
 			return unverifiable()
 		}
+		val accumulator = StepsNumericDayWindowAccumulator.create(zoneByDay) ?: return unverifiable()
+		for (group in groups.values) {
+			if (!accumulator.addLogicalGroup(group.map { contribution ->
+					contribution.toAccumulatorContribution()
+				})
+			) {
+				return unverifiable()
+			}
+		}
+		for (capture in unboundNonStepsCaptures) {
+			if (!accumulator.addUnboundNonStepsCapture(capture.startMs, capture.endMs)) {
+				return unverifiable()
+			}
+		}
+		if (!streamFactStatePages(factDescriptors.values.toList(), accumulator)) {
+			return unverifiable()
+		}
 		if (hasMaterializingSegment) {
 			return StepsDayRepairPreflight.Materializing
 		}
-		val plans = mutableListOf<StepsDayRepairPlan>()
-		for ((epochDay, zoneId) in zoneByDay) {
-			when (val composition = composeDay(
-				epochDay = epochDay,
-				zoneId = zoneId,
-				groups = groups.values,
-				unboundNonStepsCaptures = unboundNonStepsCaptures,
-			)) {
-				is DayComposition.Ready -> plans += StepsDayRepairPlan(
-					epochDay = epochDay,
+		val accumulatedDays = accumulator.results() ?: return unverifiable()
+		return StepsDayRepairPreflight.Ready(
+			accumulatedDays.map { day ->
+				val zoneId = zoneByDay[day.epochDay] ?: return unverifiable()
+				StepsDayRepairPlan(
+					epochDay = day.epochDay,
 					zoneId = zoneId,
-					totals = composition.totals,
-					numericSteps = composition.numericSteps,
+					totals = if (day.hasContribution) {
+						DailySummaryTotals(
+							distanceM = day.distanceM,
+							steps = day.steps,
+							durationMs = day.durationMs,
+							tripCount = day.tripCount,
+						)
+					} else {
+						null
+					},
+					numericSteps = when {
+						day.hasPartialStepsCapture ||
+							day.hasCompleteStepsCapture && day.hasNonStepsCapture ->
+							StepsDayNumericComposition.PartialCapture
+						day.hasCompleteStepsCapture ->
+							StepsDayNumericComposition.Complete(day.exactSteps)
+						else -> StepsDayNumericComposition.NotCaptured
+					},
 				)
-				DayComposition.Unverifiable -> return unverifiable()
-			}
-		}
-		return StepsDayRepairPreflight.Ready(plans)
+			},
+		)
 	}
 
 	private suspend fun sourceRepairSegments(
@@ -413,11 +451,6 @@ internal class StepsDailySummaryRepairComposer(
 				serviceRunIds = ids,
 			)
 		}
-		// Active facts can grow on every callback but can never produce a numeric value. Their durable
-		// attribution is checked once the run terminalizes; settled runs are paged without a fact cap.
-		val terminalRunIds = serviceRuns.filter { run -> run.completedAtMs != null }
-			.map(SourceServiceRunEntity::serviceRunId)
-		val factStates = loadFactStatePages(terminalRunIds) ?: return null
 		val scopeDigests = serviceRuns.mapNotNull { run ->
 			val logicalTrackingId = run.logicalTrackingId.takeIf(String::isNotBlank)
 			val serviceRunId = run.serviceRunId.takeIf(String::isNotBlank)
@@ -479,7 +512,6 @@ internal class StepsDailySummaryRepairComposer(
 				ManifestKey(source.logicalTrackingId, source.manifestRevision)
 			},
 			completenessByRun = completeness.groupBy(SourceSessionCompletenessEntity::serviceRunId),
-			factStatesByRun = factStates.groupBy(ScopedStepFactState::serviceRunId),
 			lanes = lanes.distinct().associateBy { lane ->
 				LaneKey(lane.bindingGeneration, lane.projectionId, lane.projectionVersion)
 			},
@@ -489,53 +521,6 @@ internal class StepsDailySummaryRepairComposer(
 			failures = failures,
 			evidenceState = database.sourceEvidenceStateDao().get(),
 		)
-	}
-
-	private suspend fun loadFactStatePages(
-		serviceRunIds: List<String>,
-	): List<ScopedStepFactState>? {
-		val readDao = database.trackingHistoryReadDao()
-		val rows = mutableListOf<ScopedStepFactState>()
-		for (ids in serviceRunIds.chunked(QUERY_ID_BATCH_SIZE)) {
-			var afterServiceRunId: String? = null
-			var afterFirstIntervalStartTimeMs: Long? = null
-			var afterLogicalFactId: String? = null
-			var afterWriterProjectionId: String? = null
-			var afterWriterProjectionVersion: Int? = null
-			var previous: ScopedStepFactState? = null
-			var pageSize: Int
-			do {
-				val page = readDao.stepFactStatePage(
-					serviceRunIds = ids,
-					limit = READ_PAGE_SIZE,
-					afterServiceRunId = afterServiceRunId,
-					afterFirstIntervalStartTimeMs = afterFirstIntervalStartTimeMs,
-					afterLogicalFactId = afterLogicalFactId,
-					afterWriterProjectionId = afterWriterProjectionId,
-					afterWriterProjectionVersion = afterWriterProjectionVersion,
-				)
-				val orderedPage = previous?.let { listOf(it) + page } ?: page
-				if (page.any { row ->
-						row.serviceRunId !in ids || row.serviceRunId.isBlank() ||
-						row.state.logicalFactId.isBlank()
-					} || orderedPage.zipWithNext().any { (left, right) ->
-						!isFactStateAfter(right, left)
-					}
-				) {
-					return null
-				}
-				rows += page
-				val last = page.lastOrNull()
-				previous = last ?: previous
-				afterServiceRunId = last?.serviceRunId
-				afterFirstIntervalStartTimeMs = last?.firstIntervalStartTimeMs
-				afterLogicalFactId = last?.state?.logicalFactId
-				afterWriterProjectionId = last?.state?.writerProjectionId
-				afterWriterProjectionVersion = last?.state?.writerProjectionVersion
-				pageSize = page.size
-			} while (pageSize == READ_PAGE_SIZE)
-		}
-		return rows
 	}
 
 	private fun isFactStateAfter(
@@ -708,9 +693,6 @@ internal class StepsDailySummaryRepairComposer(
 		snapshot: RepairSnapshot,
 	): Boolean {
 		if (!validUnboundMaterializingLifecycle(logicalSession, run)) {
-			return false
-		}
-		if (snapshot.factStatesByRun[run.serviceRunId].orEmpty().isNotEmpty()) {
 			return false
 		}
 		return snapshot.completenessByRun[run.serviceRunId].orEmpty().none { row ->
@@ -983,6 +965,13 @@ internal class StepsDailySummaryRepairComposer(
 		}
 		val captureSlices = manifestCaptureSlices(authorities, run, segment)
 			?: return SegmentQualification.Unverifiable
+		val contribution = SegmentContribution(
+			logicalTrackingId = logicalTrackingId,
+			logicalStartedAtMs = logicalSession.startedAtMs,
+			zoneId = authorities.values.first().zoneId,
+			segment = segment,
+			captureSlices = captureSlices,
+		)
 		val completeness = context.completeness.filter { row ->
 			row.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS
 		}
@@ -1018,76 +1007,89 @@ internal class StepsDailySummaryRepairComposer(
 		}
 		if (lane.contiguousAdmissionOrdinal < targetOrdinal) {
 			return if (lane.status == SourceProductProjectionLaneEntity.STATUS_ACTIVE) {
-				materializing(logicalSession, authorities)
+				val descriptor = candidateFactDescriptor(
+					contribution = contribution,
+					run = run,
+					authorities = authorities,
+					writer = writer,
+					context = context,
+					targetOrdinal = targetOrdinal,
+					requiresCompleteEvidence = false,
+				) ?: return SegmentQualification.Unverifiable
+				materializing(
+					logicalSession,
+					authorities,
+					descriptor,
+				)
 			} else {
 				SegmentQualification.Unverifiable
 			}
 		}
 
-		val scopedStates = context.scopedStates
-		if (scopedStates.isEmpty()) {
-			return SegmentQualification.Unverifiable
-		}
-		val covered = mutableListOf<StepFactRevisionEntity>()
-		for (scoped in scopedStates) {
-			val state = scoped.state
-			val admissionOrdinal = state.sourceAdmissionOrdinal
-			if (admissionOrdinal == null || admissionOrdinal > targetOrdinal) {
-				return SegmentQualification.Unverifiable
-			}
-			if (state.coverageKind == StepFactRevisionEntity.COVERAGE_COVERED) {
-				covered += state
-			}
-		}
-		if (covered.isEmpty()) {
-			return SegmentQualification.Unverifiable
-		}
-		val coveredByAdmission = covered.groupBy(StepFactRevisionEntity::sourceAdmissionOrdinal)
 		val terminalOrdinals = completeness.mapNotNull(
 			SourceSessionCompletenessEntity::lastAdmissionOrdinal,
 		)
-		if (terminalOrdinals.distinct().size != completeness.size || completeness.any { row ->
-			coveredByAdmission[row.lastAdmissionOrdinal].orEmpty().size != 1
-		}) {
+		if (terminalOrdinals.distinct().size != completeness.size) {
 			return SegmentQualification.Unverifiable
 		}
-		val coveredManifestRevisions = covered.mapTo(hashSetOf(), StepFactRevisionEntity::manifestRevision)
 		val stepsManifestRevisions = authorities.values.mapNotNullTo(hashSetOf()) { authority ->
 			authority.manifest.manifestRevision.takeIf { authority.stepsBinding != null }
 		}
-		if (!coveredManifestRevisions.containsAll(stepsManifestRevisions)) {
-			return SegmentQualification.Unverifiable
-		}
-		val contributions = mutableListOf<StepContribution>()
-		for (fact in covered) {
-			val startMs = fact.intervalStartTimeMs ?: return SegmentQualification.Unverifiable
-			val endMs = fact.intervalEndTimeMs ?: return SegmentQualification.Unverifiable
-			val count = fact.effectiveStepCount ?: return SegmentQualification.Unverifiable
-			val uncertaintyMs = fact.wallTimeUncertaintyMs
-				?: return SegmentQualification.Unverifiable
-			val captureSlice = captureSlices.singleOrNull { slice ->
-				slice.manifestRevision == fact.manifestRevision
-			} ?: return SegmentQualification.Unverifiable
-			if (!captureSlice.capturesSteps || startMs < captureSlice.startMs ||
-				endMs > captureSlice.endMs || endMs <= startMs || count < 0L
-			) {
-				return SegmentQualification.Unverifiable
-			}
-			contributions += StepContribution(startMs, endMs, count, uncertaintyMs)
-		}
-		val contribution = SegmentContribution(
-				logicalTrackingId = logicalTrackingId,
-				logicalStartedAtMs = logicalSession.startedAtMs,
-				zoneId = authorities.values.first().zoneId,
-				segment = segment,
-				captureSlices = captureSlices,
-				stepContributions = contributions,
-			)
+		val descriptor = candidateFactDescriptor(
+			contribution = contribution,
+			run = run,
+			authorities = authorities,
+			writer = writer,
+			context = context,
+			targetOrdinal = targetOrdinal,
+			terminalOrdinals = terminalOrdinals.toSet(),
+			stepsManifestRevisions = stepsManifestRevisions,
+			requiresCompleteEvidence = true,
+		) ?: return SegmentQualification.Unverifiable
 		return if (lifecycle == BoundLifecycle.SETTLED) {
-			SegmentQualification.Ready(contribution)
+			SegmentQualification.Ready(contribution, descriptor)
 		} else {
-			materializing(logicalSession, authorities)
+			materializing(logicalSession, authorities, descriptor)
 		}
+	}
+
+	private fun candidateFactDescriptor(
+		contribution: SegmentContribution,
+		run: SourceServiceRunEntity,
+		authorities: Map<Long, ManifestAuthority>,
+		writer: WriterBinding,
+		context: CandidateAuthorityContext,
+		targetOrdinal: Long,
+		terminalOrdinals: Set<Long> = emptySet(),
+		stepsManifestRevisions: Set<Long> = emptySet(),
+		requiresCompleteEvidence: Boolean,
+	): RunFactDescriptor.Candidate? {
+		val writerBindingGeneration = writer.bindingGeneration ?: return null
+		val orderedAuthorities = authorities.values.sortedBy { authority ->
+			authority.manifest.manifestRevision
+		}
+		return RunFactDescriptor.Candidate(
+			serviceRunId = run.serviceRunId,
+			logicalTrackingId = contribution.logicalTrackingId,
+			run = run,
+			authorities = authorities,
+			nextAuthorityByManifestRevision = orderedAuthorities.zipWithNext().associate { (current, next) ->
+				current.manifest.manifestRevision to next
+			},
+			writerBindingGeneration = writerBindingGeneration,
+			projectionId = context.projectionId,
+			projectionVersion = context.projectionVersion,
+			lane = context.lane,
+			collectedDataEpoch = context.collectedDataEpoch,
+			targetOrdinal = targetOrdinal,
+			terminalOrdinals = terminalOrdinals,
+			stepsManifestRevisions = stepsManifestRevisions,
+			captureSlicesByManifest = contribution.captureSlices.associateBy(
+				SegmentCaptureSlice::manifestRevision,
+			),
+			accumulatorContribution = contribution.toAccumulatorContribution(),
+			requiresCompleteEvidence = requiresCompleteEvidence,
+		)
 	}
 
 	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
@@ -1142,43 +1144,12 @@ internal class StepsDailySummaryRepairComposer(
 		) {
 			return null
 		}
-		val scopedStates = snapshot.factStatesByRun[run.serviceRunId].orEmpty()
-		for (scoped in scopedStates) {
-			val authority = authorities[scoped.manifestRevision] ?: return null
-			val nextAuthority = authorities.values.firstOrNull { candidate ->
-				candidate.manifest.manifestRevision > authority.manifest.manifestRevision
-			}
-			val binding = authority.stepsBinding ?: return null
-			val state = scoped.state
-			val admissionOrdinal = state.sourceAdmissionOrdinal
-			if (scoped.logicalTrackingId != logicalSession.logicalTrackingId ||
-				scoped.writerBindingGeneration != bindingGeneration ||
-				state.writerProjectionId != projectionId ||
-				state.writerProjectionVersion != projectionVersion ||
-				state.writerBindingGeneration != bindingGeneration ||
-				state.operation != StepFactRevisionEntity.OPERATION_UPSERT ||
-				state.originKind != StepFactRevisionEntity.ORIGIN_LIVE_WAL ||
-				admissionOrdinal == null || admissionOrdinal < lane.activationOrdinal ||
-				lane.captureAdmissionCutoffOrdinal?.let { cutoff -> admissionOrdinal > cutoff } == true ||
-				state.logicalTrackingId != logicalSession.logicalTrackingId ||
-				state.serviceRunId != run.serviceRunId ||
-				state.purpose != SessionManifestPurposeCode.SESSION_CAPTURE ||
-				state.manifestRevision != authority.manifest.manifestRevision ||
-				state.sourcePolicyRevision != authority.manifest.sourcePolicyRevision ||
-				state.captureConsentEpoch != binding.consentEpoch ||
-				state.collectedDataEpoch != evidenceState.collectedDataEpoch ||
-				state.coverageKind in UNSAFE_COVERAGE_KINDS ||
-				!validLiveWalFactSemantics(state, run, authority, nextAuthority)
-			) {
-				return null
-			}
-		}
 		return CandidateAuthorityContext(
 			projectionId = projectionId,
 			projectionVersion = projectionVersion,
 			lane = lane,
 			completeness = completeness,
-			scopedStates = scopedStates,
+			collectedDataEpoch = evidenceState.collectedDataEpoch,
 		)
 	}
 
@@ -1310,11 +1281,6 @@ internal class StepsDailySummaryRepairComposer(
 		if (digest in snapshot.deletionFenceDigests) {
 			return SegmentQualification.Unverifiable
 		}
-		// A Steps fact attributed to a run whose immutable manifests never captured Steps is
-		// contradictory source evidence, not a zero-valued non-Steps contribution.
-		if (snapshot.factStatesByRun[serviceRunId].orEmpty().isNotEmpty()) {
-			return SegmentQualification.Unverifiable
-		}
 		val runCompleteness = snapshot.completenessByRun[serviceRunId].orEmpty()
 		val capturedSourceKinds = authorities.values.flatMapTo(hashSetOf()) { authority ->
 			authority.capturedSourceKinds
@@ -1362,17 +1328,17 @@ internal class StepsDailySummaryRepairComposer(
 			}
 			if (hasDurableObservation) {
 				val contribution = SegmentContribution(
-						logicalTrackingId = logicalSession.logicalTrackingId,
-						logicalStartedAtMs = logicalSession.startedAtMs,
-						zoneId = authorities.values.first().zoneId,
-						segment = segment,
-						captureSlices = captureSlices,
-						stepContributions = emptyList(),
-					)
+					logicalTrackingId = logicalSession.logicalTrackingId,
+					logicalStartedAtMs = logicalSession.startedAtMs,
+					zoneId = authorities.values.first().zoneId,
+					segment = segment,
+					captureSlices = captureSlices,
+				)
+				val descriptor = RunFactDescriptor.MustBeEmpty(serviceRunId)
 				return if (lifecycle == BoundLifecycle.SETTLED) {
-					SegmentQualification.Ready(contribution)
+					SegmentQualification.Ready(contribution, descriptor)
 				} else {
-					materializing(logicalSession, authorities)
+					materializing(logicalSession, authorities, descriptor)
 				}
 			}
 		}
@@ -1382,12 +1348,14 @@ internal class StepsDailySummaryRepairComposer(
 	private fun materializing(
 		logicalSession: LogicalTrackingSessionEntity,
 		authorities: Map<Long, ManifestAuthority>,
+		factDescriptor: RunFactDescriptor? = null,
 	) = SegmentQualification.Materializing(
-		LogicalContributionAuthority(
+		authority = LogicalContributionAuthority(
 			logicalTrackingId = logicalSession.logicalTrackingId,
 			logicalStartedAtMs = logicalSession.startedAtMs,
 			zoneId = authorities.values.first().zoneId,
 		),
+		factDescriptor = factDescriptor,
 	)
 
 	private fun hasForbiddenPhysicalOverlap(
@@ -1430,14 +1398,6 @@ internal class StepsDailySummaryRepairComposer(
 				return true
 			}
 			physicalEnd = maxOf(physicalEnd, segment.endTimeMs)
-		}
-		val facts = group.flatMap(SegmentContribution::stepContributions).sortedBy(StepContribution::startMs)
-		var factEnd = Long.MIN_VALUE
-		for (fact in facts) {
-			if (fact.startMs < factEnd) {
-				return true
-			}
-			factEnd = maxOf(factEnd, fact.endMs)
 		}
 		return false
 	}
@@ -1482,275 +1442,231 @@ internal class StepsDailySummaryRepairComposer(
 		return false
 	}
 
-	@Suppress("CyclomaticComplexMethod", "LongMethod", "NestedBlockDepth", "ReturnCount")
-	private fun composeDay(
-		epochDay: Long,
-		zoneId: ZoneId,
-		groups: Collection<List<SegmentContribution>>,
-		unboundNonStepsCaptures: List<UnboundNonStepsCapture>,
-	): DayComposition {
-		var distance = 0.0
-		var steps = 0L
-		var duration = 0L
-		var trips = 0
-		var hasContribution = false
-		var exactNumericSteps = 0L
-		var hasCompleteStepsCapture = false
-		var hasPartialStepsCapture = false
-		var hasNonStepsCapture = false
-		val dayStartMs = startOfDayMs(epochDay, zoneId) ?: return DayComposition.Unverifiable
-		val dayEndMs = startOfDayMs(epochDay + 1L, zoneId) ?: return DayComposition.Unverifiable
-		hasNonStepsCapture = unboundNonStepsCaptures.any { capture ->
-			capture.startMs < dayEndMs && capture.endMs > dayStartMs
-		}
-		for (group in groups) {
-			val overlapping = group.filter { contribution ->
-				(contribution.segment.startTimeMs < dayEndMs &&
-					contribution.segment.endTimeMs > dayStartMs) ||
-					contribution.captureSlices.any { slice ->
-						slice.startMs < dayEndMs && slice.endMs > dayStartMs
-					}
-			}
-			if (overlapping.isEmpty()) {
-				continue
-			}
-			hasContribution = true
-			for (contribution in overlapping) {
-				for (slice in contribution.captureSlices) {
-					val sliceStart = maxOf(slice.startMs, dayStartMs)
-					val sliceEnd = minOf(slice.endMs, dayEndMs)
-					if (sliceEnd <= sliceStart) {
-						continue
-					}
-					if (slice.capturesSteps) {
-						val coveredSteps = exactCoveredSteps(
-							contribution.stepContributions,
-							sliceStart,
-							sliceEnd,
-							dayStartMs,
-							dayEndMs,
-							capturedZoneId = contribution.zoneId,
-							summaryZoneId = zoneId,
-						)
-						if (coveredSteps == null) {
-							hasPartialStepsCapture = true
-						} else {
-							hasCompleteStepsCapture = true
-							exactNumericSteps = try {
-								Math.addExact(exactNumericSteps, coveredSteps)
-							} catch (_: ArithmeticException) {
-								return DayComposition.Unverifiable
-							}
-						}
-					} else {
-						hasNonStepsCapture = true
-					}
-				}
-				val segment = contribution.segment
-				if (segment.startTimeMs < dayEndMs && segment.endTimeMs > dayStartMs) {
-					val segmentDuration = segment.endTimeMs - segment.startTimeMs
-					val inDayDuration = minOf(segment.endTimeMs, dayEndMs) -
-						maxOf(segment.startTimeMs, dayStartMs)
-					if (segmentDuration <= 0L || inDayDuration <= 0L) {
-						return DayComposition.Unverifiable
-					}
-					distance += segment.distanceM.toDouble() *
-						(inDayDuration.toDouble() / segmentDuration.toDouble())
-					duration = try {
-						Math.addExact(duration, inDayDuration)
-					} catch (_: ArithmeticException) {
-						return DayComposition.Unverifiable
-					}
-				}
-				for (fact in contribution.stepContributions) {
-					val allocations = allocateSteps(fact.startMs, fact.endMs, fact.count, zoneId)
-						?: return DayComposition.Unverifiable
-					steps = try {
-						Math.addExact(steps, allocations[epochDay] ?: 0L)
-					} catch (_: ArithmeticException) {
-						return DayComposition.Unverifiable
-					}
-				}
-			}
-			if (group.first().logicalStartedAtMs in dayStartMs until dayEndMs) {
-				trips += 1
-			}
-		}
-		if (!hasContribution) {
-			return DayComposition.Ready(
-				totals = null,
-				numericSteps = StepsDayNumericComposition.NotCaptured,
+	private fun addFactDescriptor(
+		descriptors: MutableMap<String, RunFactDescriptor>,
+		descriptor: RunFactDescriptor?,
+	): Boolean {
+		descriptor ?: return true
+		return descriptors.putIfAbsent(descriptor.serviceRunId, descriptor) == null
+	}
+
+	private fun SegmentContribution.toAccumulatorContribution() = StepsNumericRunContribution(
+		serviceRunId = segment.serviceRunId.orEmpty(),
+		logicalTrackingId = logicalTrackingId,
+		logicalStartedAtMs = logicalStartedAtMs,
+		capturedZoneId = zoneId,
+		segmentStartMs = segment.startTimeMs,
+		segmentEndMs = segment.endTimeMs,
+		distanceM = segment.distanceM,
+		captureSlices = captureSlices.map { slice ->
+			StepsNumericCaptureSlice(
+				manifestRevision = slice.manifestRevision,
+				startMs = slice.startMs,
+				endMs = slice.endMs,
+				capturesSteps = slice.capturesSteps,
 			)
+		},
+	)
+
+	private suspend fun streamFactStatePages(
+		descriptors: List<RunFactDescriptor>,
+		accumulator: StepsNumericDayWindowAccumulator,
+	): Boolean {
+		val ordered = descriptors.sortedBy(RunFactDescriptor::serviceRunId)
+		if (ordered.zipWithNext().any { (left, right) -> left.serviceRunId >= right.serviceRunId }) {
+			return false
 		}
-		if (!distance.isFinite() || distance > Float.MAX_VALUE || steps !in 0L..Int.MAX_VALUE) {
-			return DayComposition.Unverifiable
+		for (batch in ordered.chunked(QUERY_ID_BATCH_SIZE)) {
+			if (!streamFactStateBatch(batch, accumulator)) {
+				return false
+			}
 		}
-		return DayComposition.Ready(
-			totals = DailySummaryTotals(
-				distanceM = distance.toFloat(),
-				steps = steps.toInt(),
-				durationMs = duration,
-				tripCount = trips,
-			),
-			numericSteps = when {
-				hasPartialStepsCapture || hasCompleteStepsCapture && hasNonStepsCapture ->
-					StepsDayNumericComposition.PartialCapture
-				hasCompleteStepsCapture -> StepsDayNumericComposition.Complete(exactNumericSteps)
-				else -> StepsDayNumericComposition.NotCaptured
-			},
-		)
+		return true
 	}
 
-	/**
-	 * Returns an exact day-local total only when covered facts tile the required half-open slice.
-	 * A positive fact crossing its captured calendar day or the summary's structural-day boundary
-	 * has no exact per-day allocation and cannot be proportionally split. A zero fact may be clipped
-	 * because both subintervals remain zero.
-	 */
-	@Suppress("CyclomaticComplexMethod", "ReturnCount")
-	private fun exactCoveredSteps(
-		facts: List<StepContribution>,
-		requiredStartMs: Long,
-		requiredEndMs: Long,
-		dayStartMs: Long,
-		dayEndMs: Long,
-		capturedZoneId: ZoneId,
-		summaryZoneId: ZoneId,
-	): Long? {
-		if (requiredEndMs <= requiredStartMs) {
-			return null
+	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
+	private suspend fun streamFactStateBatch(
+		descriptors: List<RunFactDescriptor>,
+		accumulator: StepsNumericDayWindowAccumulator,
+	): Boolean {
+		if (descriptors.isEmpty()) {
+			return true
 		}
-		val overlapping = facts.asSequence()
-			.filter { fact -> fact.startMs < requiredEndMs && fact.endMs > requiredStartMs }
-			.sortedWith(compareBy<StepContribution>(StepContribution::startMs).thenBy(StepContribution::endMs))
-			.toList()
-		var cursor = requiredStartMs
-		var total = 0L
-		for (fact in overlapping) {
-			if (!hasExactDayAuthority(fact, capturedZoneId, summaryZoneId)) {
-				return null
-			}
-			val clippedStart = maxOf(fact.startMs, requiredStartMs)
-			val clippedEnd = minOf(fact.endMs, requiredEndMs)
-			if (clippedStart != cursor || clippedEnd <= clippedStart) {
-				return null
-			}
-			val crossesDayBoundary = fact.startMs < dayStartMs || fact.endMs > dayEndMs
-			if (crossesDayBoundary && fact.count > 0L) {
-				return null
-			}
-			if (!crossesDayBoundary) {
-				total = try {
-					Math.addExact(total, fact.count)
-				} catch (_: ArithmeticException) {
-					return null
+		val serviceRunIds = descriptors.map(RunFactDescriptor::serviceRunId)
+		val serviceRunIdSet = serviceRunIds.toHashSet()
+		val readDao = database.trackingHistoryReadDao()
+		var descriptorIndex = 0
+		var currentState: CandidateFactStreamState? = null
+		var afterServiceRunId: String? = null
+		var afterFirstIntervalStartTimeMs: Long? = null
+		var afterLogicalFactId: String? = null
+		var afterWriterProjectionId: String? = null
+		var afterWriterProjectionVersion: Int? = null
+		var previous: ScopedStepFactState? = null
+		var pageSize: Int
+		do {
+			val page = readDao.stepFactStatePage(
+				serviceRunIds = serviceRunIds,
+				limit = READ_PAGE_SIZE,
+				afterServiceRunId = afterServiceRunId,
+				afterFirstIntervalStartTimeMs = afterFirstIntervalStartTimeMs,
+				afterLogicalFactId = afterLogicalFactId,
+				afterWriterProjectionId = afterWriterProjectionId,
+				afterWriterProjectionVersion = afterWriterProjectionVersion,
+			)
+			val orderedPage = previous?.let { listOf(it) + page } ?: page
+			if (page.any { row ->
+					row.serviceRunId !in serviceRunIdSet || row.serviceRunId.isBlank() ||
+						row.state.logicalFactId.isBlank()
+				} || orderedPage.zipWithNext().any { (left, right) ->
+					!isFactStateAfter(right, left)
 				}
+			) {
+				return false
 			}
-			cursor = clippedEnd
+			for (row in page) {
+				while (descriptorIndex < descriptors.size &&
+					descriptors[descriptorIndex].serviceRunId < row.serviceRunId
+				) {
+					if (!finishFactDescriptor(
+							descriptors[descriptorIndex],
+							currentState,
+							accumulator,
+						)
+					) {
+						return false
+					}
+					currentState = null
+					descriptorIndex += 1
+				}
+				val descriptor = descriptors.getOrNull(descriptorIndex) ?: return false
+				if (descriptor.serviceRunId != row.serviceRunId || descriptor is RunFactDescriptor.MustBeEmpty) {
+					return false
+				}
+				val candidate = descriptor as RunFactDescriptor.Candidate
+				val state = currentState ?: startCandidateFactStream(candidate, accumulator)
+					?: return false
+				if (state.descriptor != candidate || !consumeCandidateFact(row, state, accumulator)) {
+					return false
+				}
+				currentState = state
+			}
+			val last = page.lastOrNull()
+			previous = last ?: previous
+			afterServiceRunId = last?.serviceRunId
+			afterFirstIntervalStartTimeMs = last?.firstIntervalStartTimeMs
+			afterLogicalFactId = last?.state?.logicalFactId
+			afterWriterProjectionId = last?.state?.writerProjectionId
+			afterWriterProjectionVersion = last?.state?.writerProjectionVersion
+			pageSize = page.size
+		} while (pageSize == READ_PAGE_SIZE)
+		while (descriptorIndex < descriptors.size) {
+			if (!finishFactDescriptor(descriptors[descriptorIndex], currentState, accumulator)) {
+				return false
+			}
+			currentState = null
+			descriptorIndex += 1
 		}
-		return total.takeIf { cursor == requiredEndMs }
+		return true
 	}
 
-	private fun hasExactDayAuthority(
-		fact: StepContribution,
-		capturedZoneId: ZoneId,
-		summaryZoneId: ZoneId,
-	): Boolean {
-		val endpointsAreExact = hasExactEndpoints(fact, capturedZoneId) &&
-			hasExactEndpoints(fact, summaryZoneId)
-		val intervalIsExact = fact.count == 0L || isContainedInCapturedCalendarDay(
-			startMs = fact.startMs,
-			endMs = fact.endMs,
-			zoneId = capturedZoneId,
+	private fun startCandidateFactStream(
+		descriptor: RunFactDescriptor.Candidate,
+		accumulator: StepsNumericDayWindowAccumulator,
+	): CandidateFactStreamState? {
+		if (!accumulator.startRun(descriptor.accumulatorContribution)) {
+			return null
+		}
+		return CandidateFactStreamState(
+			descriptor = descriptor,
+			terminalCoveredCounts = descriptor.terminalOrdinals.associateWith { 0 }.toMutableMap(),
 		)
-		return endpointsAreExact && intervalIsExact
 	}
 
-	private fun hasExactEndpoints(fact: StepContribution, zoneId: ZoneId): Boolean =
-		hasExactEndpointDay(fact.startMs, fact.wallTimeUncertaintyMs, zoneId) &&
-			hasExactEndpointDay(fact.endMs, fact.wallTimeUncertaintyMs, zoneId)
-
-	private fun isContainedInCapturedCalendarDay(
-		startMs: Long,
-		endMs: Long,
-		zoneId: ZoneId,
-	): Boolean = try {
-		endMs > startMs &&
-			Instant.ofEpochMilli(startMs).atZone(zoneId).toLocalDate() ==
-			Instant.ofEpochMilli(Math.subtractExact(endMs, 1L)).atZone(zoneId).toLocalDate()
-	} catch (_: DateTimeException) {
-		false
-	} catch (_: ArithmeticException) {
-		false
+	@Suppress("CyclomaticComplexMethod")
+	private fun finishFactDescriptor(
+		descriptor: RunFactDescriptor,
+		state: CandidateFactStreamState?,
+		accumulator: StepsNumericDayWindowAccumulator,
+	): Boolean = when (descriptor) {
+		is RunFactDescriptor.MustBeEmpty -> state == null
+		is RunFactDescriptor.Candidate -> when {
+			state == null -> !descriptor.requiresCompleteEvidence
+			state.descriptor != descriptor || !accumulator.finishRun() -> false
+			!descriptor.requiresCompleteEvidence -> true
+			else -> state.sawState && state.sawCovered &&
+				state.terminalCoveredCounts.values.all { count -> count == 1 } &&
+				state.coveredManifestRevisions.containsAll(descriptor.stepsManifestRevisions)
+		}
 	}
 
-	private fun hasExactEndpointDay(
-		wallTimeMs: Long,
-		uncertaintyMs: Long,
-		zoneId: ZoneId,
+	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
+	private fun consumeCandidateFact(
+		scoped: ScopedStepFactState,
+		stream: CandidateFactStreamState,
+		accumulator: StepsNumericDayWindowAccumulator,
 	): Boolean {
-		if (uncertaintyMs < 0L) {
+		val descriptor = stream.descriptor
+		val authority = descriptor.authorities[scoped.manifestRevision] ?: return false
+		val nextAuthority = descriptor.nextAuthorityByManifestRevision[scoped.manifestRevision]
+		val binding = authority.stepsBinding ?: return false
+		val state = scoped.state
+		val admissionOrdinal = state.sourceAdmissionOrdinal ?: return false
+		if (scoped.logicalTrackingId != descriptor.logicalTrackingId ||
+			scoped.writerBindingGeneration != descriptor.writerBindingGeneration ||
+			scoped.firstIntervalStartTimeMs != state.intervalStartTimeMs ||
+			state.writerProjectionId != descriptor.projectionId ||
+			state.writerProjectionVersion != descriptor.projectionVersion ||
+			state.writerBindingGeneration != descriptor.writerBindingGeneration ||
+			state.operation != StepFactRevisionEntity.OPERATION_UPSERT ||
+			state.originKind != StepFactRevisionEntity.ORIGIN_LIVE_WAL ||
+			admissionOrdinal < descriptor.lane.activationOrdinal ||
+			admissionOrdinal > descriptor.targetOrdinal ||
+			descriptor.lane.captureAdmissionCutoffOrdinal?.let { cutoff ->
+				admissionOrdinal > cutoff
+			} == true ||
+			state.logicalTrackingId != descriptor.logicalTrackingId ||
+			state.serviceRunId != descriptor.serviceRunId ||
+			state.purpose != SessionManifestPurposeCode.SESSION_CAPTURE ||
+			state.manifestRevision != authority.manifest.manifestRevision ||
+			state.sourcePolicyRevision != authority.manifest.sourcePolicyRevision ||
+			state.captureConsentEpoch != binding.consentEpoch ||
+			state.collectedDataEpoch != descriptor.collectedDataEpoch ||
+			state.coverageKind in UNSAFE_COVERAGE_KINDS ||
+			!validLiveWalFactSemantics(state, descriptor.run, authority, nextAuthority)
+		) {
 			return false
 		}
-		val earliest = try {
-			Math.subtractExact(wallTimeMs, uncertaintyMs)
-		} catch (_: ArithmeticException) {
+		stream.sawState = true
+		if (state.coverageKind != StepFactRevisionEntity.COVERAGE_COVERED) {
+			return true
+		}
+		val startMs = state.intervalStartTimeMs ?: return false
+		val endMs = state.intervalEndTimeMs ?: return false
+		val count = state.effectiveStepCount ?: return false
+		val uncertaintyMs = state.wallTimeUncertaintyMs ?: return false
+		val captureSlice = descriptor.captureSlicesByManifest[scoped.manifestRevision]
+			?: return false
+		if (!captureSlice.capturesSteps || startMs < captureSlice.startMs ||
+			endMs > captureSlice.endMs || endMs <= startMs || count < 0L
+		) {
 			return false
 		}
-		val latest = try {
-			Math.addExact(wallTimeMs, uncertaintyMs)
-		} catch (_: ArithmeticException) {
-			return false
+		stream.sawCovered = true
+		stream.coveredManifestRevisions += scoped.manifestRevision
+		stream.terminalCoveredCounts[admissionOrdinal]?.let { currentCount ->
+			stream.terminalCoveredCounts[admissionOrdinal] = currentCount + 1
 		}
-		return try {
-			val earliestInstant = Instant.ofEpochMilli(earliest)
-			val latestInstant = Instant.ofEpochMilli(latest)
-			epochDay(earliest, zoneId)?.let { earliestDay ->
-				earliestDay == epochDay(latest, zoneId) &&
-					zoneId.rules.getOffset(earliestInstant) == zoneId.rules.getOffset(latestInstant)
-			} == true
-		} catch (_: DateTimeException) {
-			false
-		}
-	}
-
-	@Suppress("CyclomaticComplexMethod", "ReturnCount")
-	private fun allocateSteps(
-		startMs: Long,
-		endMs: Long,
-		count: Long,
-		zoneId: ZoneId,
-	): Map<Long, Long>? {
-		if (endMs <= startMs || count < 0L) {
-			return null
-		}
-		val startDay = epochDay(startMs, zoneId) ?: return null
-		val endDay = epochDay(endMs - 1L, zoneId) ?: return null
-		val dayCount = endDay - startDay + 1L
-		if (dayCount <= 0L || dayCount > MAX_REPAIR_DAYS) {
-			return null
-		}
-		val totalDuration = endMs - startMs
-		val total = BigInteger.valueOf(totalDuration)
-		val weighted = (0L until dayCount).map { offset ->
-			val allocationDay = startDay + offset
-			val dayEndMs = startOfDayMs(allocationDay + 1L, zoneId) ?: return null
-			val dayStartMs = startOfDayMs(allocationDay, zoneId) ?: return null
-			val duration = minOf(endMs, dayEndMs) - maxOf(startMs, dayStartMs)
-			val numerator = BigInteger.valueOf(count).multiply(BigInteger.valueOf(duration))
-			val division = numerator.divideAndRemainder(total)
-			WeightedDay(allocationDay, division[0].toLong(), division[1])
-		}.toMutableList()
-		val assigned = weighted.sumOf(WeightedDay::base)
-		val remainder = count - assigned
-		if (remainder < 0L || remainder >= dayCount) {
-			return null
-		}
-		weighted.sortWith(compareByDescending<WeightedDay> { it.remainder }.thenBy { it.epochDay })
-		repeat(remainder.toInt()) { index ->
-			weighted[index] = weighted[index].copy(base = weighted[index].base + 1L)
-		}
-		return weighted.associate { day -> day.epochDay to day.base }
+		return accumulator.consumeCoveredFact(
+			StepsNumericCoveredFact(
+				serviceRunId = descriptor.serviceRunId,
+				manifestRevision = scoped.manifestRevision,
+				startMs = startMs,
+				endMs = endMs,
+				steps = count,
+				wallTimeUncertaintyMs = uncertaintyMs,
+			),
+		)
 	}
 
 	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
@@ -1995,12 +1911,6 @@ internal class StepsDailySummaryRepairComposer(
 		}
 	}
 
-	private fun epochDay(instantMs: Long, zoneId: ZoneId): Long? = try {
-		Instant.ofEpochMilli(instantMs).atZone(zoneId).toLocalDate().toEpochDay()
-	} catch (_: DateTimeException) {
-		null
-	}
-
 	private fun startOfDayMs(epochDay: Long, zoneId: ZoneId): Long? = try {
 		LocalDate.ofEpochDay(epochDay).atStartOfDay(zoneId).toInstant().toEpochMilli()
 	} catch (_: DateTimeException) {
@@ -2035,7 +1945,6 @@ internal class StepsDailySummaryRepairComposer(
 		val zoneId: ZoneId,
 		val segment: SessionSegment,
 		val captureSlices: List<SegmentCaptureSlice>,
-		val stepContributions: List<StepContribution>,
 	)
 	private data class LogicalContributionAuthority(
 		val logicalTrackingId: String,
@@ -2048,12 +1957,6 @@ internal class StepsDailySummaryRepairComposer(
 		val endMs: Long,
 		val capturesSteps: Boolean,
 	)
-	private data class StepContribution(
-		val startMs: Long,
-		val endMs: Long,
-		val count: Long,
-		val wallTimeUncertaintyMs: Long,
-	)
 	private data class UnboundNonStepsCapture(
 		val logicalTrackingId: String,
 		val startMs: Long,
@@ -2064,17 +1967,45 @@ internal class StepsDailySummaryRepairComposer(
 		val startMs: Long,
 		val endMs: Long,
 	)
-	private data class WeightedDay(
-		val epochDay: Long,
-		val base: Long,
-		val remainder: BigInteger,
-	)
 	private data class CandidateAuthorityContext(
 		val projectionId: String,
 		val projectionVersion: Int,
 		val lane: SourceProductProjectionLaneEntity,
 		val completeness: List<SourceSessionCompletenessEntity>,
-		val scopedStates: List<ScopedStepFactState>,
+		val collectedDataEpoch: Long,
+	)
+	private sealed interface RunFactDescriptor {
+		val serviceRunId: String
+
+		data class Candidate(
+			override val serviceRunId: String,
+			val logicalTrackingId: String,
+			val run: SourceServiceRunEntity,
+			val authorities: Map<Long, ManifestAuthority>,
+			val nextAuthorityByManifestRevision: Map<Long, ManifestAuthority>,
+			val writerBindingGeneration: Long,
+			val projectionId: String,
+			val projectionVersion: Int,
+			val lane: SourceProductProjectionLaneEntity,
+			val collectedDataEpoch: Long,
+			val targetOrdinal: Long,
+			val terminalOrdinals: Set<Long>,
+			val stepsManifestRevisions: Set<Long>,
+			val captureSlicesByManifest: Map<Long, SegmentCaptureSlice>,
+			val accumulatorContribution: StepsNumericRunContribution,
+			val requiresCompleteEvidence: Boolean,
+		) : RunFactDescriptor
+
+		data class MustBeEmpty(
+			override val serviceRunId: String,
+		) : RunFactDescriptor
+	}
+	private data class CandidateFactStreamState(
+		val descriptor: RunFactDescriptor.Candidate,
+		val terminalCoveredCounts: MutableMap<Long, Int>,
+		val coveredManifestRevisions: MutableSet<Long> = hashSetOf(),
+		var sawState: Boolean = false,
+		var sawCovered: Boolean = false,
 	)
 	private data class LiveWalFactValues(
 		val startMs: Long,
@@ -2091,15 +2022,20 @@ internal class StepsDailySummaryRepairComposer(
 		val manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
 		val sourcesByManifest: Map<ManifestKey, List<SessionManifestSourceEntity>>,
 		val completenessByRun: Map<String, List<SourceSessionCompletenessEntity>>,
-		val factStatesByRun: Map<String, List<ScopedStepFactState>>,
 		val lanes: Map<LaneKey, SourceProductProjectionLaneEntity>,
 		val deletionFenceDigests: Set<String>,
 		val failures: List<SourceProjectionFailureEntity>,
 		val evidenceState: SourceEvidenceState?,
 	)
 	private sealed interface SegmentQualification {
-		data class Ready(val contribution: SegmentContribution) : SegmentQualification
-		data class Materializing(val authority: LogicalContributionAuthority) : SegmentQualification
+		data class Ready(
+			val contribution: SegmentContribution,
+			val factDescriptor: RunFactDescriptor?,
+		) : SegmentQualification
+		data class Materializing(
+			val authority: LogicalContributionAuthority,
+			val factDescriptor: RunFactDescriptor?,
+		) : SegmentQualification
 		data object Unverifiable : SegmentQualification
 	}
 	private enum class BoundLifecycle {
@@ -2116,14 +2052,6 @@ internal class StepsDailySummaryRepairComposer(
 		data class Materializing(val authority: LogicalContributionAuthority) : UnboundRunQualification
 		data object Unverifiable : UnboundRunQualification
 	}
-	private sealed interface DayComposition {
-		data class Ready(
-			val totals: DailySummaryTotals?,
-			val numericSteps: StepsDayNumericComposition,
-		) : DayComposition
-		data object Unverifiable : DayComposition
-	}
-
 	private companion object {
 		const val MAX_REPAIR_DAYS = StepsNumericSummaryRequest.MAX_DAY_COUNT
 		const val READ_PAGE_SIZE = 256

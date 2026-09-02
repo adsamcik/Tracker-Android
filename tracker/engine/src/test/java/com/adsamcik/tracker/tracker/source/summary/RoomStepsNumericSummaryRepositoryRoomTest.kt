@@ -21,6 +21,7 @@ import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
 import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlin.coroutines.CoroutineContext
@@ -137,6 +138,62 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 
 		repository.read(request()) shouldBe StepsNumericSummary.Ready(
 			listOf(StepsNumericDay(epochDay = DAY, steps = LARGE_FACT_COUNT.toLong())),
+		)
+	}
+
+	@Test
+	fun `latest corrected fact state remains nonnumeric through the Room repository`() = runBlocking<Unit> {
+		insertCoveredCandidate(stepsPerFact = 2L)
+		val correctionOrdinal = ADMISSION_ORDINAL + 1L
+		val correctionEventId = "$RUN_ID-correction-event"
+		val corrected = coveredFact(
+			runId = RUN_ID,
+			manifestRevision = 1L,
+			factIndex = 0,
+			admissionOrdinal = ADMISSION_ORDINAL,
+			startMs = DAY_START,
+			endMs = DAY_START + HOUR_MS,
+			cumulativeStart = 100L,
+			steps = 3L,
+			wallTimeUncertaintyMs = 0L,
+		).copy(
+			semanticRevision = 2L,
+			mutationId = "${SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID}:" +
+				"$RUN_ID-event-0:2:${StepFactRevisionEntity.OPERATION_UPSERT}",
+			sourceEventId = correctionEventId,
+			sourceAdmissionOrdinal = correctionOrdinal,
+			originIdentity = correctionEventId,
+			effectChecksum = "corrected-room-checksum",
+			appliedAtMs = DAY_START + HOUR_MS + 1L,
+		)
+		database.stepFactRevisionDao().insert(corrected) shouldNotBe -1L
+		check(
+			database.sourceProjectionStateDao().advanceProductLaneCursor(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				bindingGeneration = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
+				projectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+				projectionVersion = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+				expectedCurrentOrdinal = ADMISSION_ORDINAL,
+				throughOrdinal = correctionOrdinal,
+				updatedAtMs = DAY_START + HOUR_MS + 1L,
+			) == 1,
+		)
+		val completeness = database.sourceSessionDao()
+			.completenessForServiceRun(LOGICAL_ID, RUN_ID)
+			.single()
+		database.sourceSessionDao().saveCompleteness(
+			completeness.copy(
+				lastAdmissionOrdinal = correctionOrdinal,
+				lastSourceSequence = 2L,
+			),
+		)
+		val session = requireNotNull(database.sourceSessionDao().session(LOGICAL_ID))
+		database.sourceSessionDao().updateSession(
+			session.copy(finalAdmissionOrdinal = correctionOrdinal),
+		)
+
+		repository.read(request()) shouldBe StepsNumericSummary.Unverifiable(
+			StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
 		)
 	}
 
