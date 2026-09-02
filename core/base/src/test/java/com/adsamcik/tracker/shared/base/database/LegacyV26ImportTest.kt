@@ -10,6 +10,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.legacy.ACTIVE_DATABASE_NAME
 import com.adsamcik.tracker.shared.base.database.legacy.LEGACY_DATABASE_NAME
 import com.adsamcik.tracker.shared.base.database.legacy.LegacyDatabaseException
@@ -65,6 +66,18 @@ class LegacyV26ImportTest {
 		context.getDatabasePath(ACTIVE_DATABASE_NAME).exists() shouldBe true
 		context.getDatabasePath(LEGACY_DATABASE_NAME).exists() shouldBe false
 		LegacyDatabaseRepository(context).currentState().database shouldBe null
+		count(raw, "source_destination_owner") shouldBe 2L
+		stringValue(
+			raw,
+			"SELECT owner FROM source_destination_owner WHERE source_kind = " +
+				"${SourceDestinationOwnerEntity.SOURCE_PRESSURE}",
+		) shouldBe SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE
+		longValue(
+			raw,
+			"SELECT owner_generation FROM source_destination_owner WHERE source_kind = " +
+				"${SourceDestinationOwnerEntity.SOURCE_PRESSURE}",
+		) shouldBe SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
+		count(raw, "pressure_fact_revision") shouldBe 0L
 	}
 
 	@Test
@@ -79,6 +92,7 @@ class LegacyV26ImportTest {
 		count(raw, "location_observation") shouldBe 1L
 		count(raw, "daily_summary") shouldBe 1L
 		count(raw, "achievement_progress") shouldBe 0L
+		count(raw, "pressure_fact_revision") shouldBe 0L
 		longValue(raw, "SELECT primary_activity FROM session_segment WHERE id = 9007") shouldBe 7L
 
 		raw.query(

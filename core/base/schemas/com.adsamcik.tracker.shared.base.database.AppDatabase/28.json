@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 28,
-    "identityHash": "ed6c04c9e7ed0bc4a5b04d3a9a688aab",
+    "identityHash": "c67d640d73f0ebe0bb8438c39edb0df6",
     "entities": [
       {
         "tableName": "activity",
@@ -1325,6 +1325,324 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_step_fact_revision_service_run_latest` ON `${TABLE_NAME}` (`writer_projection_id`, `writer_projection_version`, `service_run_id`, `purpose`, `logical_fact_id`, `semantic_revision`)"
+          }
+        ]
+      },
+      {
+        "tableName": "pressure_fact_revision",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`logical_fact_id` TEXT NOT NULL, `semantic_revision` INTEGER NOT NULL, `mutation_id` TEXT NOT NULL, `source_event_id` TEXT NOT NULL, `source_admission_ordinal` INTEGER NOT NULL, `writer_projection_id` TEXT NOT NULL, `writer_projection_version` INTEGER NOT NULL, `writer_binding_generation` INTEGER NOT NULL, `payload_version` INTEGER NOT NULL, `interval_start_time_ms` INTEGER NOT NULL, `interval_end_time_ms` INTEGER NOT NULL, `window_start_elapsed_realtime_nanos` INTEGER NOT NULL, `window_end_elapsed_realtime_nanos` INTEGER NOT NULL, `clock_domain_id` TEXT NOT NULL, `wall_time_uncertainty_ms` INTEGER NOT NULL, `sample_count` INTEGER NOT NULL, `mean_hectopascals` REAL NOT NULL, `sum_squared_deviations` REAL NOT NULL, `minimum_hectopascals` REAL NOT NULL, `maximum_hectopascals` REAL NOT NULL, `first_provider_sequence` INTEGER NOT NULL, `last_provider_sequence` INTEGER NOT NULL, `first_hectopascals` REAL NOT NULL, `last_hectopascals` REAL NOT NULL, `slope_hectopascals_per_second` REAL, `r_squared` REAL, `sensor_accuracy` TEXT NOT NULL, `effective_sample_period_micros` INTEGER NOT NULL, `effective_maximum_report_latency_micros` INTEGER NOT NULL, `target_window_duration_nanos` INTEGER NOT NULL, `expected_sample_count` INTEGER NOT NULL, `maximum_inter_sample_gap_nanos` INTEGER NOT NULL, `closure_kind` TEXT NOT NULL, `qualification` TEXT NOT NULL, `source_quality_flags` INTEGER NOT NULL, `source_quality_confidence` REAL, `logical_tracking_id` TEXT NOT NULL, `service_run_id` TEXT NOT NULL, `purpose` TEXT NOT NULL, `manifest_revision` INTEGER NOT NULL, `source_policy_revision` INTEGER NOT NULL, `capture_consent_epoch` INTEGER NOT NULL, `collected_data_epoch` INTEGER NOT NULL, `effect_checksum` TEXT NOT NULL, `applied_at_ms` INTEGER NOT NULL, PRIMARY KEY(`writer_projection_id`, `writer_projection_version`, `logical_fact_id`, `semantic_revision`))",
+        "fields": [
+          {
+            "fieldPath": "logicalFactId",
+            "columnName": "logical_fact_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "semanticRevision",
+            "columnName": "semantic_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mutationId",
+            "columnName": "mutation_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceEventId",
+            "columnName": "source_event_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceAdmissionOrdinal",
+            "columnName": "source_admission_ordinal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "writerProjectionId",
+            "columnName": "writer_projection_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "writerProjectionVersion",
+            "columnName": "writer_projection_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "writerBindingGeneration",
+            "columnName": "writer_binding_generation",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payloadVersion",
+            "columnName": "payload_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "intervalStartTimeMs",
+            "columnName": "interval_start_time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "intervalEndTimeMs",
+            "columnName": "interval_end_time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "windowStartElapsedRealtimeNanos",
+            "columnName": "window_start_elapsed_realtime_nanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "windowEndElapsedRealtimeNanos",
+            "columnName": "window_end_elapsed_realtime_nanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "clockDomainId",
+            "columnName": "clock_domain_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "wallTimeUncertaintyMs",
+            "columnName": "wall_time_uncertainty_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sampleCount",
+            "columnName": "sample_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "meanHectopascals",
+            "columnName": "mean_hectopascals",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sumSquaredDeviations",
+            "columnName": "sum_squared_deviations",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "minimumHectopascals",
+            "columnName": "minimum_hectopascals",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maximumHectopascals",
+            "columnName": "maximum_hectopascals",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "firstProviderSequence",
+            "columnName": "first_provider_sequence",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastProviderSequence",
+            "columnName": "last_provider_sequence",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "firstHectopascals",
+            "columnName": "first_hectopascals",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastHectopascals",
+            "columnName": "last_hectopascals",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slopeHectopascalsPerSecond",
+            "columnName": "slope_hectopascals_per_second",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "rSquared",
+            "columnName": "r_squared",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "sensorAccuracy",
+            "columnName": "sensor_accuracy",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effectiveSamplePeriodMicros",
+            "columnName": "effective_sample_period_micros",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effectiveMaximumReportLatencyMicros",
+            "columnName": "effective_maximum_report_latency_micros",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetWindowDurationNanos",
+            "columnName": "target_window_duration_nanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "expectedSampleCount",
+            "columnName": "expected_sample_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maximumInterSampleGapNanos",
+            "columnName": "maximum_inter_sample_gap_nanos",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "closureKind",
+            "columnName": "closure_kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "qualification",
+            "columnName": "qualification",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceQualityFlags",
+            "columnName": "source_quality_flags",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceQualityConfidence",
+            "columnName": "source_quality_confidence",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "logicalTrackingId",
+            "columnName": "logical_tracking_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "serviceRunId",
+            "columnName": "service_run_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "purpose",
+            "columnName": "purpose",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "manifestRevision",
+            "columnName": "manifest_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourcePolicyRevision",
+            "columnName": "source_policy_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "captureConsentEpoch",
+            "columnName": "capture_consent_epoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "collectedDataEpoch",
+            "columnName": "collected_data_epoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effectChecksum",
+            "columnName": "effect_checksum",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "appliedAtMs",
+            "columnName": "applied_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "writer_projection_id",
+            "writer_projection_version",
+            "logical_fact_id",
+            "semantic_revision"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_pressure_fact_revision_mutation",
+            "unique": true,
+            "columnNames": [
+              "writer_projection_id",
+              "writer_projection_version",
+              "mutation_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_pressure_fact_revision_mutation` ON `${TABLE_NAME}` (`writer_projection_id`, `writer_projection_version`, `mutation_id`)"
+          },
+          {
+            "name": "idx_pressure_fact_revision_writer_admission",
+            "unique": true,
+            "columnNames": [
+              "writer_projection_id",
+              "writer_projection_version",
+              "source_admission_ordinal"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_pressure_fact_revision_writer_admission` ON `${TABLE_NAME}` (`writer_projection_id`, `writer_projection_version`, `source_admission_ordinal`)"
+          },
+          {
+            "name": "idx_pressure_fact_revision_latest",
+            "unique": false,
+            "columnNames": [
+              "writer_projection_id",
+              "writer_projection_version",
+              "logical_fact_id",
+              "semantic_revision"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_pressure_fact_revision_latest` ON `${TABLE_NAME}` (`writer_projection_id`, `writer_projection_version`, `logical_fact_id`, `semantic_revision`)"
           }
         ]
       },
@@ -7653,7 +7971,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ed6c04c9e7ed0bc4a5b04d3a9a688aab')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c67d640d73f0ebe0bb8438c39edb0df6')"
     ]
   }
 }

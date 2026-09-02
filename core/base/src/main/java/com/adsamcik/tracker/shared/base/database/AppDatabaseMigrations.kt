@@ -1431,6 +1431,11 @@ val MIGRATION_27_28: Migration = object : Migration(
 					"VALUES (3, 'SESSION_STEPS', 'LEGACY_STEP_INTERVAL', 1, 0)",
 			)
 			execSQL(
+				"INSERT OR IGNORE INTO source_destination_owner " +
+					"(source_kind, destination, owner, owner_generation, updated_at_ms) " +
+					"VALUES (4, 'SESSION_PRESSURE', 'LEGACY_PRESSURE_SAMPLE', 1, 0)",
+			)
+			execSQL(
 				"ALTER TABLE tracker_run ADD COLUMN " +
 					"legacy_runtime_fenced INTEGER NOT NULL DEFAULT 0",
 			)
@@ -1596,6 +1601,77 @@ val MIGRATION_27_28: Migration = object : Migration(
 				"CREATE INDEX IF NOT EXISTS idx_step_fact_revision_service_run_latest " +
 					"ON step_fact_revision(writer_projection_id, writer_projection_version, " +
 					"service_run_id, purpose, logical_fact_id, semantic_revision)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS pressure_fact_revision (
+					logical_fact_id TEXT NOT NULL,
+					semantic_revision INTEGER NOT NULL,
+					mutation_id TEXT NOT NULL,
+					source_event_id TEXT NOT NULL,
+					source_admission_ordinal INTEGER NOT NULL,
+					writer_projection_id TEXT NOT NULL,
+					writer_projection_version INTEGER NOT NULL,
+					writer_binding_generation INTEGER NOT NULL,
+					payload_version INTEGER NOT NULL,
+					interval_start_time_ms INTEGER NOT NULL,
+					interval_end_time_ms INTEGER NOT NULL,
+					window_start_elapsed_realtime_nanos INTEGER NOT NULL,
+					window_end_elapsed_realtime_nanos INTEGER NOT NULL,
+					clock_domain_id TEXT NOT NULL,
+					wall_time_uncertainty_ms INTEGER NOT NULL,
+					sample_count INTEGER NOT NULL,
+					mean_hectopascals REAL NOT NULL,
+					sum_squared_deviations REAL NOT NULL,
+					minimum_hectopascals REAL NOT NULL,
+					maximum_hectopascals REAL NOT NULL,
+					first_provider_sequence INTEGER NOT NULL,
+					last_provider_sequence INTEGER NOT NULL,
+					first_hectopascals REAL NOT NULL,
+					last_hectopascals REAL NOT NULL,
+					slope_hectopascals_per_second REAL,
+					r_squared REAL,
+					sensor_accuracy TEXT NOT NULL,
+					effective_sample_period_micros INTEGER NOT NULL,
+					effective_maximum_report_latency_micros INTEGER NOT NULL,
+					target_window_duration_nanos INTEGER NOT NULL,
+					expected_sample_count INTEGER NOT NULL,
+					maximum_inter_sample_gap_nanos INTEGER NOT NULL,
+					closure_kind TEXT NOT NULL,
+					qualification TEXT NOT NULL,
+					source_quality_flags INTEGER NOT NULL,
+					source_quality_confidence REAL,
+					logical_tracking_id TEXT NOT NULL,
+					service_run_id TEXT NOT NULL,
+					purpose TEXT NOT NULL,
+					manifest_revision INTEGER NOT NULL,
+					source_policy_revision INTEGER NOT NULL,
+					capture_consent_epoch INTEGER NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					effect_checksum TEXT NOT NULL,
+					applied_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(
+						writer_projection_id,
+						writer_projection_version,
+						logical_fact_id,
+						semantic_revision
+					)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_pressure_fact_revision_mutation " +
+					"ON pressure_fact_revision(writer_projection_id, writer_projection_version, mutation_id)",
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_pressure_fact_revision_writer_admission " +
+					"ON pressure_fact_revision(writer_projection_id, writer_projection_version, " +
+					"source_admission_ordinal)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_pressure_fact_revision_latest " +
+					"ON pressure_fact_revision(writer_projection_id, writer_projection_version, " +
+					"logical_fact_id, semantic_revision)",
 			)
 			execSQL(
 				"""

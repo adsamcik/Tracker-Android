@@ -28,6 +28,7 @@ import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDecision
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.StepFactRevisionDao
+import com.adsamcik.tracker.shared.base.database.dao.PressureFactRevisionDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceDeletionFenceDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceDestinationOwnerDao
@@ -57,6 +58,7 @@ import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
 import com.adsamcik.tracker.shared.base.database.data.PlayerProfileEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
@@ -165,6 +167,7 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			LocationObservationDecision::class,
 			StepInterval::class,
 			StepFactRevisionEntity::class,
+			PressureFactRevisionEntity::class,
 			SourceDeletionFenceEntity::class,
 			SourceDestinationOwnerEntity::class,
 			ActivitySnapshot::class,
@@ -279,6 +282,9 @@ abstract class AppDatabase : RoomDatabase() {
 
 	/** Provides append-only semantic revisions and contribution receipts for Steps. */
 	abstract fun stepFactRevisionDao(): StepFactRevisionDao
+
+	/** Provides the dormant append-only source-qualified Pressure fact history. */
+	abstract fun pressureFactRevisionDao(): PressureFactRevisionDao
 
 	/** Provides payload-free source/run deletion authority for source mutation paths. */
 	abstract fun sourceDeletionFenceDao(): SourceDeletionFenceDao
@@ -597,6 +603,7 @@ abstract class AppDatabase : RoomDatabase() {
 			database.locationObservationDecisionDao().deleteAll()
 			database.sourceDeletionFenceDao().deleteAll()
 			database.stepFactRevisionDao().deleteAll()
+			database.pressureFactRevisionDao().deleteAll()
 			database.stepIntervalDao().deleteAll()
 			database.activitySnapshotDao().deleteAll()
 			database.cellSampleDao().deleteAll()

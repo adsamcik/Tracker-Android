@@ -14,6 +14,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 import com.adsamcik.tracker.sqlite.runtime.SQLiteXSupportSQLiteOpenHelperFactory
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -91,8 +92,10 @@ class AppDatabaseMigration27To28Test {
 					assertFailClosedAuthorityAndNoGhostRuntime(database)
 					assertForeignKeysEnabled(database)
 					seedMigratedStepFactRevision(database)
+					seedMigratedPressureFactRevision(database)
 					seedMigratedDeletionFence(database)
 					assertEquals(1L, database.stepFactRevisionDao().countAll())
+					assertEquals(1L, database.pressureFactRevisionDao().count())
 					assertEquals(1L, database.sourceDeletionFenceDao().countAll())
 
 					AppDatabase.deleteAllCollectedData(
@@ -552,14 +555,24 @@ class AppDatabaseMigration27To28Test {
 		assertTableCount(database, "step_interval", 2)
 		// v27 observations remain byte-for-byte facts; migration must not invent semantics.
 		assertTableCount(database, "step_fact_revision", 0)
+		// Legacy pressure_sample rows lack v4 qualification and must never be backfilled.
+		assertTableCount(database, "pressure_fact_revision", 0)
 		assertTableCount(database, "source_deletion_fence", 0)
-		assertTableCount(database, "source_destination_owner", 1)
+		assertTableCount(database, "source_destination_owner", 2)
 		database.query(
 			"SELECT owner, owner_generation FROM source_destination_owner " +
 				"WHERE source_kind = 3 AND destination = 'SESSION_STEPS'",
 		).use { cursor ->
 			assertTrue(cursor.moveToFirst())
 			assertEquals("LEGACY_STEP_INTERVAL", cursor.getString(0))
+			assertEquals(1L, cursor.getLong(1))
+		}
+		database.query(
+			"SELECT owner, owner_generation FROM source_destination_owner " +
+				"WHERE source_kind = 4 AND destination = 'SESSION_PRESSURE'",
+		).use { cursor ->
+			assertTrue(cursor.moveToFirst())
+			assertEquals("LEGACY_PRESSURE_SAMPLE", cursor.getString(0))
 			assertEquals(1L, cursor.getLong(1))
 		}
 		database.query("PRAGMA table_info(step_fact_revision)").use { cursor ->
@@ -1001,6 +1014,12 @@ class AppDatabaseMigration27To28Test {
 		val owner = requireNotNull(database.sourceDestinationOwnerDao().get(3, "SESSION_STEPS"))
 		assertEquals("LEGACY_STEP_INTERVAL", owner.owner)
 		assertEquals(1L, owner.ownerGeneration)
+		val pressureOwner = requireNotNull(
+			database.sourceDestinationOwnerDao().get(4, "SESSION_PRESSURE"),
+		)
+		assertEquals("LEGACY_PRESSURE_SAMPLE", pressureOwner.owner)
+		assertEquals(1L, pressureOwner.ownerGeneration)
+		assertEquals(0L, database.pressureFactRevisionDao().count())
 	}
 
 	private suspend fun seedMigratedStepFactRevision(database: AppDatabase) {
@@ -1041,6 +1060,59 @@ class AppDatabaseMigration27To28Test {
 				collectedDataEpoch = 7L,
 				scopeDeletionGeneration = 0L,
 				effectChecksum = "migration-step-effect",
+				appliedAtMs = PopulatedV27Fixture.END_MS,
+			),
+		)
+		assertTrue(inserted != -1L)
+	}
+
+	private suspend fun seedMigratedPressureFactRevision(database: AppDatabase) {
+		val inserted = database.pressureFactRevisionDao().insert(
+			PressureFactRevisionEntity(
+				logicalFactId = "pressure-session-facts:migration-pressure-event",
+				semanticRevision = 1L,
+				mutationId = "migration-pressure-mutation",
+				sourceEventId = "migration-pressure-event",
+				sourceAdmissionOrdinal = 2L,
+				writerProjectionId = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+				writerProjectionVersion = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
+				writerBindingGeneration = SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
+				payloadVersion = PressureFactRevisionEntity.QUALIFIED_PRESSURE_PAYLOAD_VERSION,
+				intervalStartTimeMs = PopulatedV27Fixture.END_MS - 150L,
+				intervalEndTimeMs = PopulatedV27Fixture.END_MS,
+				windowStartElapsedRealtimeNanos = 1_000_000_000L,
+				windowEndElapsedRealtimeNanos = 1_150_000_000L,
+				clockDomainId = "boot-v28",
+				wallTimeUncertaintyMs = 0L,
+				sampleCount = 4,
+				meanHectopascals = 1_001.5,
+				sumSquaredDeviations = 5.0,
+				minimumHectopascals = 1_000f,
+				maximumHectopascals = 1_003f,
+				firstProviderSequence = 1L,
+				lastProviderSequence = 4L,
+				firstHectopascals = 1_000f,
+				lastHectopascals = 1_003f,
+				slopeHectopascalsPerSecond = 20.0,
+				rSquared = 1.0,
+				sensorAccuracy = PressureFactRevisionEntity.SENSOR_ACCURACY_HIGH,
+				effectiveSamplePeriodMicros = 50_000,
+				effectiveMaximumReportLatencyMicros = 200_000,
+				targetWindowDurationNanos = 200_000_000L,
+				expectedSampleCount = 4,
+				maximumInterSampleGapNanos = 50_000_000L,
+				closureKind = PressureFactRevisionEntity.CLOSURE_TARGET_ELAPSED,
+				qualification = PressureFactRevisionEntity.QUALIFICATION_COMPLETE,
+				sourceQualityFlags = 0L,
+				sourceQualityConfidence = 1f,
+				logicalTrackingId = PopulatedV27Fixture.LOGICAL_TRACKING_ID,
+				serviceRunId = PopulatedV27Fixture.SERVICE_RUN_ID,
+				purpose = PressureFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+				manifestRevision = 1L,
+				sourcePolicyRevision = 1L,
+				captureConsentEpoch = 1L,
+				collectedDataEpoch = 7L,
+				effectChecksum = "migration-pressure-effect",
 				appliedAtMs = PopulatedV27Fixture.END_MS,
 			),
 		)
