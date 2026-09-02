@@ -6,6 +6,8 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import org.junit.Rule
 import org.junit.Test
@@ -29,9 +31,8 @@ class GoalProgressRingsComposeTest {
 				GoalProgressRings(
 					goalProgress = GoalProgressState(
 						gamificationEnabled = false,
-						dailySteps = 5000,
+						dailySteps = QualifiedStepCount.Ready(5000),
 						dailyGoalSteps = 10000,
-						dailyProgress = 0.5f,
 					),
 				)
 			}
@@ -47,15 +48,34 @@ class GoalProgressRingsComposeTest {
 				GoalProgressRings(
 					goalProgress = GoalProgressState(
 						gamificationEnabled = true,
-						dailySteps = 500,
+						dailySteps = QualifiedStepCount.Ready(500),
 						dailyGoalSteps = 0,
-						dailyProgress = 0f,
 					),
 				)
 			}
 		}
 
 		composeRule.onAllNodesWithText("/", substring = true).assertCountEquals(0)
+	}
+
+	@Test
+	fun unavailableQualifiedSteps_renderNoNumericGoal() {
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				GoalProgressRings(
+					goalProgress = GoalProgressState(
+						gamificationEnabled = true,
+						dailySteps = QualifiedStepCount.Unavailable(
+							QualifiedStepCountUnavailableReason.PARTIAL_CAPTURE,
+						),
+						dailyGoalSteps = 10_000,
+					),
+				)
+			}
+		}
+
+		composeRule.onAllNodesWithText("/ 10,000").assertCountEquals(0)
+		composeRule.onAllNodesWithText("0").assertCountEquals(0)
 	}
 
 	// endregion
@@ -69,12 +89,10 @@ class GoalProgressRingsComposeTest {
 				GoalProgressRings(
 					goalProgress = GoalProgressState(
 						gamificationEnabled = true,
-						dailySteps = 6500,
+						dailySteps = QualifiedStepCount.Ready(6500),
 						dailyGoalSteps = 10000,
-						dailyProgress = 0.65f,
-						weeklySteps = 35000,
+						weeklySteps = QualifiedStepCount.Ready(35000),
 						weeklyGoalSteps = 70000,
-						weeklyProgress = 0.5f,
 					),
 				)
 			}
@@ -92,10 +110,8 @@ class GoalProgressRingsComposeTest {
 				GoalProgressRings(
 					goalProgress = GoalProgressState(
 						gamificationEnabled = true,
-						dailySteps = 0,
+						dailySteps = QualifiedStepCount.Ready(0),
 						dailyGoalSteps = 10000,
-						dailyProgress = 0f,
-						weeklyProgress = 0f,
 					),
 				)
 			}
@@ -112,10 +128,8 @@ class GoalProgressRingsComposeTest {
 				GoalProgressRings(
 					goalProgress = GoalProgressState(
 						gamificationEnabled = true,
-						dailySteps = 10000,
+						dailySteps = QualifiedStepCount.Ready(10000),
 						dailyGoalSteps = 10000,
-						dailyProgress = 1.0f,
-						weeklyProgress = 0.5f,
 					),
 				)
 			}
@@ -131,10 +145,8 @@ class GoalProgressRingsComposeTest {
 				GoalProgressRings(
 					goalProgress = GoalProgressState(
 						gamificationEnabled = true,
-						dailySteps = 15000,
+						dailySteps = QualifiedStepCount.Ready(15000),
 						dailyGoalSteps = 10000,
-						dailyProgress = 1.5f,
-						weeklyProgress = 0.8f,
 					),
 				)
 			}
@@ -155,10 +167,8 @@ class GoalProgressRingsComposeTest {
 				GoalProgressRings(
 					goalProgress = GoalProgressState(
 						gamificationEnabled = true,
-						dailySteps = 12000,
+						dailySteps = QualifiedStepCount.Ready(12000),
 						dailyGoalSteps = 10000,
-						dailyProgress = 1.2f,
-						weeklyProgress = 0.5f,
 					),
 				)
 			}

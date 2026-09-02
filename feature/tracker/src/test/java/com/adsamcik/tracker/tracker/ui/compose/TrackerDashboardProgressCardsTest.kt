@@ -7,6 +7,8 @@ import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.GoalProgress
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsState
 import com.adsamcik.tracker.shared.preferences.type.LengthSystem
 import com.adsamcik.tracker.shared.preferences.type.SpeedFormat
@@ -40,13 +42,14 @@ class TrackerDashboardProgressCardsTest {
 	}
 
 	private fun fakeGoalProvider(
-		stepsToday: Int = 0,
+		stepsToday: Int? = null,
 		goalSteps: Int = 0,
 		gamificationEnabled: Boolean = false
 	) = object : GoalProgressProvider {
 		override val goalProgressFlow = MutableStateFlow(
 			GoalProgress(
-				stepsToday = stepsToday,
+				stepsToday = stepsToday?.let { QualifiedStepCount.Ready(it) }
+					?: QualifiedStepCount.Unavailable(QualifiedStepCountUnavailableReason.MISSING),
 				goalSteps = goalSteps,
 				gamificationEnabled = gamificationEnabled
 			)
@@ -161,6 +164,24 @@ class TrackerDashboardProgressCardsTest {
 			}
 		}
 
+		composeRule.onNodeWithText("%", substring = true).assertDoesNotExist()
+	}
+
+	@Test
+	fun goalProgressRing_missingQualifiedSteps_doesNotRenderZero() {
+		composeRule.setContent {
+			AppTheme {
+				GoalProgressRing(
+					goalProgressProvider = fakeGoalProvider(
+						stepsToday = null,
+						goalSteps = 10000,
+						gamificationEnabled = true,
+					),
+				)
+			}
+		}
+
+		composeRule.onNodeWithText("0%").assertDoesNotExist()
 		composeRule.onNodeWithText("%", substring = true).assertDoesNotExist()
 	}
 

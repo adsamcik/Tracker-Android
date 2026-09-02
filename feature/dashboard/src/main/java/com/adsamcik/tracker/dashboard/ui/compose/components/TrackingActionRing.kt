@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.compose.motion.MotionTokens
 import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
 import com.adsamcik.tracker.shared.utils.style.compose.LocalReducedMotion
 
 /**
@@ -72,7 +73,9 @@ internal fun TrackingActionRing(
 	compact: Boolean = false,
 	modifier: Modifier = Modifier,
 ) {
-	val showRings = goalProgress.gamificationEnabled && goalProgress.dailyGoalSteps > 0
+	val showRings = goalProgress.gamificationEnabled &&
+		goalProgress.dailyGoalSteps > 0 &&
+		goalProgress.dailySteps is QualifiedStepCount.Ready
 
 	val fabContentDescription = when {
 		!hasPermission -> stringResource(R.string.dashboard_cd_start_tracking_permission)
@@ -131,6 +134,7 @@ internal fun TrackingActionRing(
 	}
 }
 
+@Suppress("CyclomaticComplexMethod", "LongMethod", "FunctionNaming")
 @Composable
 private fun RingsWithAction(
 	isTracking: Boolean,
@@ -140,6 +144,8 @@ private fun RingsWithAction(
 	onClick: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
+	val dailyProgress = requireNotNull(goalProgress.dailyProgress)
+	val weeklyProgress = goalProgress.weeklyProgress
 	val reducedMotion = LocalReducedMotion.current
 	val sizing = if (compact) TrackingActionRingSizing.Compact else TrackingActionRingSizing.Default
 
@@ -160,12 +166,12 @@ private fun RingsWithAction(
 	}
 
 	val animatedDailyProgress by animateFloatAsState(
-		targetValue = goalProgress.dailyProgress.coerceIn(0f, 1f),
+		targetValue = dailyProgress.coerceIn(0f, 1f),
 		animationSpec = MotionTokens.tweenExpressive(),
 		label = "daily_progress",
 	)
 	val animatedWeeklyProgress by animateFloatAsState(
-		targetValue = goalProgress.weeklyProgress.coerceIn(0f, 1f),
+		targetValue = weeklyProgress?.coerceIn(0f, 1f) ?: 0f,
 		animationSpec = MotionTokens.tweenExpressive(),
 		label = "weekly_progress",
 	)
@@ -198,23 +204,23 @@ private fun RingsWithAction(
 			contentAlignment = Alignment.Center,
 			modifier = Modifier.size(sizing.outerSize),
 		) {
-			// Outer ring track (weekly)
-			CircularProgressIndicator(
-				progress = { 1f },
-				modifier = Modifier.fillMaxSize(),
-				color = trackColor,
-				strokeWidth = sizing.outerStroke,
-				trackColor = Color.Transparent,
-			)
-			// Outer ring progress (weekly)
-			CircularProgressIndicator(
-				progress = { animatedWeeklyProgress },
-				modifier = Modifier.fillMaxSize(),
-				color = secondaryRingColor,
-				strokeWidth = sizing.outerStroke,
-				trackColor = Color.Transparent,
-				strokeCap = StrokeCap.Round,
-			)
+			if (weeklyProgress != null) {
+				CircularProgressIndicator(
+					progress = { 1f },
+					modifier = Modifier.fillMaxSize(),
+					color = trackColor,
+					strokeWidth = sizing.outerStroke,
+					trackColor = Color.Transparent,
+				)
+				CircularProgressIndicator(
+					progress = { animatedWeeklyProgress },
+					modifier = Modifier.fillMaxSize(),
+					color = secondaryRingColor,
+					strokeWidth = sizing.outerStroke,
+					trackColor = Color.Transparent,
+					strokeCap = StrokeCap.Round,
+				)
+			}
 			// Inner ring track (daily)
 			CircularProgressIndicator(
 				progress = { 1f },

@@ -18,6 +18,8 @@ import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.GoalProgress
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsState
 import com.adsamcik.tracker.shared.preferences.type.LengthSystem
 import com.adsamcik.tracker.shared.preferences.type.SpeedFormat
@@ -56,13 +58,14 @@ class TrackerDashboardProgressCardsAdditionalTest {
 	}
 
 	private fun fakeGoalProvider(
-		stepsToday: Int = 0,
+		stepsToday: Int? = null,
 		goalSteps: Int = 0,
 		gamificationEnabled: Boolean = false,
 	) = object : GoalProgressProvider {
 		override val goalProgressFlow = MutableStateFlow(
 			GoalProgress(
-				stepsToday = stepsToday,
+				stepsToday = stepsToday?.let { QualifiedStepCount.Ready(it) }
+					?: QualifiedStepCount.Unavailable(QualifiedStepCountUnavailableReason.MISSING),
 				goalSteps = goalSteps,
 				gamificationEnabled = gamificationEnabled,
 			),
@@ -86,7 +89,7 @@ class TrackerDashboardProgressCardsAdditionalTest {
 							sessionCount = 1,
 						),
 					),
-					goalProgressProvider = fakeGoalProvider(),
+					goalProgressProvider = fakeGoalProvider(stepsToday = 4_500),
 				)
 			}
 		}
@@ -97,7 +100,7 @@ class TrackerDashboardProgressCardsAdditionalTest {
 	}
 
 	@Test
-	fun todayProgressCard_zeroSteps_hidesStepsSection() {
+	fun todayProgressCard_verifiedZeroSteps_showsTruthfulZero() {
 		composeRule.setContent {
 			AppTheme {
 				TodayProgressCard(
@@ -111,14 +114,39 @@ class TrackerDashboardProgressCardsAdditionalTest {
 							sessionCount = 1,
 						),
 					),
+					goalProgressProvider = fakeGoalProvider(stepsToday = 0),
+				)
+			}
+		}
+
+		composeRule.waitForIdle()
+		composeRule.onNodeWithText("Steps", substring = true).assertIsDisplayed()
+		composeRule.onNodeWithText("0").assertIsDisplayed()
+	}
+
+	@Test
+	fun todayProgressCard_unavailableSteps_doesNotReuseLegacySummaryNumber() {
+		composeRule.setContent {
+			AppTheme {
+				TodayProgressCard(
+					isTracking = false,
+					settings = defaultSettings,
+					dailySummaryProvider = fakeSummaryProvider(
+						DailySummary(
+							totalDistanceM = 1000f,
+							totalSteps = 4_500,
+							totalDurationMs = 600_000L,
+							sessionCount = 1,
+						),
+					),
 					goalProgressProvider = fakeGoalProvider(),
 				)
 			}
 		}
 
 		composeRule.waitForIdle()
-		// Steps label should NOT be visible when totalSteps == 0
 		composeRule.onNodeWithText("Steps", substring = true).assertDoesNotExist()
+		composeRule.onNodeWithText("4,500", substring = true).assertDoesNotExist()
 	}
 
 	@Test

@@ -15,10 +15,12 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
 import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import java.time.Instant
 import java.time.ZoneId
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -26,11 +28,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -47,6 +52,7 @@ class DefaultGameRepository @Inject constructor(
 	private val metricDirtyTracker: MetricDirtyTracker,
 	private val achievementScheduler: AchievementEvaluationScheduler,
 	private val goalsSettingsRepository: GoalsSettingsRepository,
+	private val stepsNumericSummaryRepository: StepsNumericSummaryRepository,
 ) : GameRepository {
 	private val pointsDao by lazy { PointsDatabase.database(application).pointsAwardedDao() }
 	private val rewardEnsurer by lazy {
@@ -82,14 +88,57 @@ class DefaultGameRepository @Inject constructor(
 		emitAll(pointsDao.countBetweenFlow(startOfDay(Time.nowMillis), Time.nowMillis))
 	}.map { it.toInt() }.flowOn(dispatchers.io)
 
-	override fun getStepsSummary(): StateFlow<StepsSummaryData?> = combine(
-		GoalTracker.stepsDay,
-		GoalTracker.goalDay,
-		GoalTracker.stepsWeek,
-		GoalTracker.goalWeek,
-	) { stepsDay, goalDay, stepsWeek, goalWeek ->
-		StepsSummaryData(stepsDay, stepsWeek, goalDay, goalWeek)
-	}.stateIn(scope, SharingStarted.Lazily, null)
+	private val stepsSummaryState by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+		sourceQualifiedStepsSummaryFlow(
+			repository = stepsNumericSummaryRepository,
+			invalidations = stepsSummaryInvalidations(),
+			dailyGoal = GoalTracker.goalDay,
+			weeklyGoal = GoalTracker.goalWeek,
+			weeklyDailyLimit = goalsSettingsRepository.data
+				.map { settings -> settings.weeklyProgressDailyLimit }
+				.distinctUntilChanged(),
+			currentDateTime = { Time.now },
+			currentLocale = { Locale.getDefault() },
+		).stateIn(
+			scope = scope,
+			started = SharingStarted.WhileSubscribed(
+				stopTimeoutMillis = 0L,
+				replayExpirationMillis = 0L,
+			),
+			initialValue = null,
+		)
+	}
+
+	override fun getStepsSummary(): StateFlow<StepsSummaryData?> = stepsSummaryState
+
+	private fun stepsSummaryInvalidations(): Flow<Unit> = merge(
+		GoalTracker.stepsDay.drop(1).map { Unit },
+		GoalTracker.stepsWeek.drop(1).map { Unit },
+		dailySummaryInvalidations(),
+	)
+
+	/**
+	 * Selected-session deletion repairs this table in its authoritative transaction. A portable
+	 * importer must likewise repair or touch each affected daily-summary row before live import
+	 * refresh can be claimed; source-evidence-only import writes are intentionally not guessed here.
+	 */
+	private fun dailySummaryInvalidations(): Flow<Unit> = flow {
+		val authority = stepsCalendarAuthority(
+			now = Time.now,
+			locale = Locale.getDefault(),
+		)
+		emitAll(
+			database.dailySummaryDao().getBetweenFlow(
+				authority.startOfWeek.toEpochDay(),
+				authority.today.toEpochDay(),
+			).map { Unit }.catch { failure ->
+				if (failure is CancellationException) {
+					throw failure
+				}
+				emit(Unit)
+			},
+		)
+	}
 
 	override fun getPlayerProfile(): Flow<PlayerProfileUi?> = database.playerProfileDao().observe()
 		.map { entity -> entity?.let { PlayerProfileUi(it.level, it.totalXp, it.xpIntoCurrentLevel, it.xpForNextLevel) } }

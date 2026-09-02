@@ -13,6 +13,7 @@ import com.adsamcik.tracker.game.repository.GameReward
 import com.adsamcik.tracker.game.repository.GameRepository
 import com.adsamcik.tracker.game.repository.PlayerProfileUi
 import com.adsamcik.tracker.game.repository.StepsSummaryData
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import io.kotest.matchers.shouldBe
@@ -186,7 +187,12 @@ class GameViewModelTest {
 private class FakeGameRepository(level: Int) : GameRepository {
 	private val points = MutableStateFlow(120)
 	private val steps = MutableStateFlow<StepsSummaryData?>(
-		StepsSummaryData(stepsToday = 100, stepsWeek = 700, goalDay = 6000, goalWeek = 42000),
+		StepsSummaryData(
+			stepsToday = QualifiedStepCount.Ready(100),
+			stepsWeek = QualifiedStepCount.Ready(700),
+			goalDay = 6000,
+			goalWeek = 42000,
+		),
 	)
 	private val profile = MutableStateFlow<PlayerProfileUi?>(
 		PlayerProfileUi(level = level, totalXp = 0L, xpIntoCurrentLevel = 0L, xpForNextLevel = 100L),

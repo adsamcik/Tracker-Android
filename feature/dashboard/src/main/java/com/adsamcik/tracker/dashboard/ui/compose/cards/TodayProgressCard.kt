@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.compose.components.TrackingActionRing
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
@@ -49,6 +50,7 @@ internal fun TodayProgressCard(
 	val resources = context.resources
 	val settings = TrackerSettingsQuick.snapshot(context)
 	val summary = state.todaySummary
+	val readySteps = state.goalProgress.dailySteps as? QualifiedStepCount.Ready
 	val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 	// Tighter in landscape: phone landscape viewport is short, so the hero must
 	// not crowd out the streak/challenges/last-session widgets below the fold.
@@ -138,7 +140,7 @@ internal fun TodayProgressCard(
 						}
 
 						// Steps
-						if (summary.totalSteps > 0) {
+						if (readySteps != null) {
 							Column {
 								Text(
 									text = stringResource(R.string.dashboard_today_steps),
@@ -146,7 +148,7 @@ internal fun TodayProgressCard(
 									color = MaterialTheme.colorScheme.onSurface,
 								)
 								Text(
-									text = summary.totalSteps.formatReadable(),
+									text = readySteps.value.formatReadable(),
 									style = MaterialTheme.typography.bodyMedium,
 									fontWeight = FontWeight.SemiBold,
 									color = MaterialTheme.colorScheme.onSurface,

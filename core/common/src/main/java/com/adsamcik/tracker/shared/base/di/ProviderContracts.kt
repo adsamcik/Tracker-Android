@@ -21,12 +21,48 @@ interface DailyPointsProvider {
     val pointsTodayFlow: StateFlow<Int>
 }
 
+/** A complete source-qualified Steps total, or a named reason no number may be shown. */
+sealed interface QualifiedStepCount {
+    /** A complete non-negative Steps total backed by qualified source evidence. */
+    data class Ready(val value: Int) : QualifiedStepCount {
+        init {
+            require(value >= 0) { "Qualified Steps count cannot be negative" }
+        }
+    }
+
+    /** A typed reason that a trustworthy numeric Steps total is not available. */
+    data class Unavailable(val reason: QualifiedStepCountUnavailableReason) : QualifiedStepCount
+}
+
+/** Stable presentation reasons that must never be collapsed into a numeric zero. */
+enum class QualifiedStepCountUnavailableReason {
+    MISSING,
+    MATERIALIZING,
+    NOT_CAPTURED,
+    PARTIAL_CAPTURE,
+    SOURCE_EVIDENCE_UNAVAILABLE,
+    CALENDAR_AUTHORITY_UNAVAILABLE,
+    STORAGE_UNAVAILABLE,
+}
+
 data class GoalProgress(
-    val stepsToday: Int,
+    val stepsToday: QualifiedStepCount,
     val goalSteps: Int,
-    val gamificationEnabled: Boolean
+    val gamificationEnabled: Boolean,
 ) {
-    val progress: Float get() = if (goalSteps > 0) (stepsToday.toFloat() / goalSteps).coerceIn(0f, 1f) else 0f
+    init {
+        require(goalSteps >= 0) { "Step goal cannot be negative" }
+    }
+
+    /** Present only when the Steps total is complete and source-qualified. */
+    val progress: Float?
+        get() = (stepsToday as? QualifiedStepCount.Ready)?.let { ready ->
+            if (goalSteps > 0) {
+                (ready.value.toFloat() / goalSteps).coerceIn(0f, 1f)
+            } else {
+                0f
+            }
+        }
 }
 
 interface GoalProgressProvider {

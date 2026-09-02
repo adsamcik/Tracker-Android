@@ -3,6 +3,8 @@ package com.adsamcik.tracker.dashboard.ui.compose.state
 import androidx.compose.runtime.Immutable
 import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryState
 import com.adsamcik.tracker.shared.base.di.DailySummary
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyTier
 import com.adsamcik.tracker.stats.api.AchievementTier
@@ -64,12 +66,10 @@ data class DashboardUiState(
 			pointsToday = 42,
 			goalProgress = GoalProgressState(
 				gamificationEnabled = true,
-				dailySteps = 6500,
+				dailySteps = QualifiedStepCount.Ready(PREVIEW_IDLE_DAILY_STEPS),
 				dailyGoalSteps = 10000,
-				dailyProgress = 0.65f,
-				weeklySteps = 35000,
+				weeklySteps = QualifiedStepCount.Ready(PREVIEW_IDLE_WEEKLY_STEPS),
 				weeklyGoalSteps = 70000,
-				weeklyProgress = 0.5f,
 			),
 			streakState = StreakState(
 				currentStreak = 3,
@@ -94,9 +94,8 @@ data class DashboardUiState(
 			pointsToday = 15,
 			goalProgress = GoalProgressState(
 				gamificationEnabled = true,
-				dailySteps = 2100,
+				dailySteps = QualifiedStepCount.Ready(PREVIEW_TRACKING_DAILY_STEPS),
 				dailyGoalSteps = 10000,
-				dailyProgress = 0.21f,
 			),
 		)
 	}
@@ -117,13 +116,34 @@ enum class DashboardMode {
 @Immutable
 data class GoalProgressState(
 	val gamificationEnabled: Boolean = false,
-	val dailySteps: Int = 0,
+	val dailySteps: QualifiedStepCount = QualifiedStepCount.Unavailable(
+		QualifiedStepCountUnavailableReason.MISSING,
+	),
 	val dailyGoalSteps: Int = 0,
-	val dailyProgress: Float = 0f,
-	val weeklySteps: Int = 0,
+	val weeklySteps: QualifiedStepCount = QualifiedStepCount.Unavailable(
+		QualifiedStepCountUnavailableReason.MISSING,
+	),
 	val weeklyGoalSteps: Int = 0,
-	val weeklyProgress: Float = 0f,
-)
+) {
+	val dailyProgress: Float?
+		get() = dailySteps.progressAgainst(dailyGoalSteps)
+
+	val weeklyProgress: Float?
+		get() = weeklySteps.progressAgainst(weeklyGoalSteps)
+}
+
+private fun QualifiedStepCount.progressAgainst(goal: Int): Float? =
+	(this as? QualifiedStepCount.Ready)?.let { ready ->
+		if (goal > 0) {
+			(ready.value.toFloat() / goal).coerceIn(0f, 1f)
+		} else {
+			0f
+		}
+	}
+
+private const val PREVIEW_IDLE_DAILY_STEPS = 6_500
+private const val PREVIEW_IDLE_WEEKLY_STEPS = 35_000
+private const val PREVIEW_TRACKING_DAILY_STEPS = 2_100
 
 /** Raw legacy milestone inputs are valid only for the exact current Standard physical segment. */
 internal val DashboardUiState.allowsRuntimeMilestones: Boolean

@@ -7,8 +7,11 @@ import com.adsamcik.tracker.game.goals.settings.GoalsSettingsRepository
 import com.adsamcik.tracker.game.goals.settings.GoalsSettingsState
 import com.adsamcik.tracker.shared.base.di.GoalProgress
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
 import com.adsamcik.tracker.shared.preferences.Preferences
 import io.kotest.matchers.shouldBe
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,7 +35,11 @@ class GoalNotificationWorkerTest {
 	@Test
 	fun `disabled repository setting skips worker without changing progress`() {
 		val goalProgressProvider = FakeGoalProgressProvider(
-			GoalProgress(stepsToday = 8_000, goalSteps = 10_000, gamificationEnabled = true),
+			GoalProgress(
+				stepsToday = QualifiedStepCount.Ready(8_000),
+				goalSteps = 10_000,
+				gamificationEnabled = true,
+			),
 		)
 		val worker = GoalNotificationWorker(
 			appContext = mockk<Context>(relaxed = true),
@@ -43,7 +50,31 @@ class GoalNotificationWorkerTest {
 		)
 
 		runBlocking { worker.doWork() } shouldBe ListenableWorker.Result.success()
-		goalProgressProvider.goalProgressFlow.value.stepsToday shouldBe 8_000
+		goalProgressProvider.goalProgressFlow.value.stepsToday shouldBe QualifiedStepCount.Ready(8_000)
+	}
+
+	@Test
+	fun `unavailable qualified Steps cannot produce a notification threshold`() {
+		val preferences = mockk<Preferences>(relaxed = true)
+		val worker = GoalNotificationWorker(
+			appContext = mockk<Context>(relaxed = true),
+			workerParams = mockk<WorkerParameters>(relaxed = true),
+			goalProgressProvider = FakeGoalProgressProvider(
+				GoalProgress(
+					stepsToday = QualifiedStepCount.Unavailable(
+						QualifiedStepCountUnavailableReason.STORAGE_UNAVAILABLE,
+					),
+					goalSteps = 10_000,
+					gamificationEnabled = true,
+				),
+			),
+			preferences = preferences,
+			goalsSettingsRepository = FakeWorkerGoalsSettingsRepository(notificationsEnabled = true),
+		)
+
+		runBlocking { worker.doWork() } shouldBe ListenableWorker.Result.success()
+		coVerify(exactly = 0) { preferences.fetchLong(any(), any()) }
+		coVerify(exactly = 0) { preferences.fetchInt(any(), any()) }
 	}
 }
 

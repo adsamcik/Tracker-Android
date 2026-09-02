@@ -29,7 +29,11 @@ import androidx.glance.text.TextStyle
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.GoalProgress
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
 import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 
 /**
  * Today Summary widget (4x2): distance hero metric, secondary stats, goal progress.
@@ -48,7 +52,13 @@ class TodaySummaryWidget : GlanceAppWidget() {
             )
 
             summary = entryPoint.dailySummaryProvider().fetchTodaySummary()
-            goalProgress = entryPoint.goalProgressProvider().goalProgressFlow.value
+            goalProgress = entryPoint.goalProgressProvider().goalProgressFlow.first { candidate ->
+                candidate.stepsToday != QualifiedStepCount.Unavailable(
+                    QualifiedStepCountUnavailableReason.MISSING,
+                )
+            }
+        } catch (cancellation: CancellationException) {
+            throw cancellation
         } catch (_: Exception) {
             // Hilt not initialized or DB unavailable - show empty state.
             provideContent {
@@ -56,7 +66,9 @@ class TodaySummaryWidget : GlanceAppWidget() {
                     TodaySummaryContent(
                         summary = null,
                         goalProgress = GoalProgress(
-                            stepsToday = 0,
+                            stepsToday = QualifiedStepCount.Unavailable(
+                                QualifiedStepCountUnavailableReason.MISSING,
+                            ),
                             goalSteps = 0,
                             gamificationEnabled = false,
                         ),
@@ -85,6 +97,7 @@ private fun TodaySummaryContent(
     goalProgress: GoalProgress,
     context: Context,
 ) {
+    val readyGoalSteps = goalProgress.stepsToday as? QualifiedStepCount.Ready
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
@@ -139,11 +152,13 @@ private fun TodaySummaryContent(
                 modifier = GlanceModifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.Start,
             ) {
-                StatItem(
-                    label = context.getString(R.string.widget_steps),
-                    value = WidgetFormatters.formatSteps(summary.totalSteps),
-                    modifier = GlanceModifier.defaultWeight(),
-                )
+                if (readyGoalSteps != null) {
+                    StatItem(
+                        label = context.getString(R.string.widget_steps),
+                        value = WidgetFormatters.formatSteps(readyGoalSteps.value),
+                        modifier = GlanceModifier.defaultWeight(),
+                    )
+                }
                 StatItem(
                     label = context.getString(R.string.widget_duration),
                     value = WidgetFormatters.formatDuration(summary.totalDurationMs),
@@ -157,9 +172,9 @@ private fun TodaySummaryContent(
             }
 
             // Goal progress
-            if (goalProgress.gamificationEnabled && goalProgress.goalSteps > 0) {
+            if (goalProgress.gamificationEnabled && goalProgress.goalSteps > 0 && readyGoalSteps != null) {
                 Spacer(modifier = GlanceModifier.height(8.dp))
-                GoalProgressBar(goalProgress, context)
+                GoalProgressBar(goalProgress, readyGoalSteps, context)
             }
         }
     }
@@ -191,10 +206,14 @@ private fun StatItem(
 }
 
 @Composable
-private fun GoalProgressBar(goalProgress: GoalProgress, context: Context) {
+private fun GoalProgressBar(
+    goalProgress: GoalProgress,
+    readySteps: QualifiedStepCount.Ready,
+    context: Context,
+) {
     val progressText = context.getString(
         R.string.widget_goal_progress,
-        WidgetFormatters.formatSteps(goalProgress.stepsToday),
+        WidgetFormatters.formatSteps(readySteps.value),
         WidgetFormatters.formatSteps(goalProgress.goalSteps),
     )
     Row(
@@ -219,7 +238,7 @@ private fun GoalProgressBar(goalProgress: GoalProgress, context: Context) {
         )
         Spacer(modifier = GlanceModifier.width(4.dp))
         Text(
-            text = WidgetFormatters.formatGoalProgress(goalProgress.progress),
+            text = WidgetFormatters.formatGoalProgress(requireNotNull(goalProgress.progress)),
             style = TextStyle(
                 color = GlanceTheme.colors.primary,
                 fontSize = 12.sp,

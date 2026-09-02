@@ -37,6 +37,8 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.GoalProgress
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
 import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.shared.utils.compose.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.utils.compose.permission.PermissionDeniedSnackbar
@@ -212,7 +214,9 @@ fun DashboardRoute(
 	// Observe daily/gamification state
 	val defaultGoalProgress = remember {
 		GoalProgress(
-			stepsToday = 0,
+			stepsToday = QualifiedStepCount.Unavailable(
+				QualifiedStepCountUnavailableReason.MISSING,
+			),
 			goalSteps = 0,
 			gamificationEnabled = false,
 		)
@@ -306,8 +310,9 @@ fun DashboardRoute(
 				?.second
 		}
 	}
-	val unifiedTodaySummary = remember(todaySummary, goalProgress.stepsToday) {
-		todaySummary.withUnifiedSteps(goalProgress.stepsToday)
+	val qualifiedTodaySteps = (goalProgress.stepsToday as? QualifiedStepCount.Ready)?.value
+	val unifiedTodaySummary = remember(todaySummary, qualifiedTodaySteps) {
+		todaySummary.withUnifiedSteps(qualifiedTodaySteps)
 	}
 
 	// Determine dashboard mode
@@ -339,7 +344,6 @@ fun DashboardRoute(
 			gamificationEnabled = goalProgress.gamificationEnabled,
 			dailySteps = goalProgress.stepsToday,
 			dailyGoalSteps = goalProgress.goalSteps,
-			dailyProgress = goalProgress.progress,
 		),
 		latestAchievement = latestAchievement,
 		recentHistory = recentHistory,
@@ -629,8 +633,8 @@ private fun Trip.toTrackerSessionSnapshot() = TrackerSessionSnapshot(
 	steps = steps ?: 0,
 )
 
-private fun DailySummary?.withUnifiedSteps(goalStepsToday: Int): DailySummary? {
-	if (this == null || goalStepsToday <= 0) return this
+private fun DailySummary?.withUnifiedSteps(goalStepsToday: Int?): DailySummary? {
+	if (this == null || goalStepsToday == null) return this
 
 	return when {
 		totalSteps == goalStepsToday -> this

@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsState
@@ -77,6 +78,12 @@ internal fun TodayProgressCard(
 ) {
     val context = LocalContext.current
     val resources = context.resources
+
+    // StatusAndQuickStatsCard owns the active-tracking surface.
+    if (isTracking) return
+
+    val goalProgress by goalProgressProvider.goalProgressFlow.collectAsState()
+    val readySteps = goalProgress.stepsToday as? QualifiedStepCount.Ready
     
     var todaySummary by remember { mutableStateOf<DailySummary?>(null) }
     var isLoading by remember { mutableStateOf(true) }
@@ -91,9 +98,6 @@ internal fun TodayProgressCard(
         }
         isLoading = false
     }
-    
-    // Don't show the card when actively tracking (StatusAndQuickStatsCard handles that)
-    if (isTracking) return
     
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -166,7 +170,7 @@ internal fun TodayProgressCard(
                         }
                         
                         // Steps
-                        if (summary.totalSteps > 0) {
+                        if (readySteps != null) {
                             Column {
                                 Text(
                                     text = stringResource(R.string.dashboard_today_steps),
@@ -174,7 +178,7 @@ internal fun TodayProgressCard(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f)
                                 )
                                 Text(
-                                    text = summary.totalSteps.formatReadable(),
+                                    text = readySteps.value.formatReadable(),
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurface
@@ -212,9 +216,11 @@ internal fun GoalProgressRing(
     val goalProgress by goalProgressProvider.goalProgressFlow.collectAsState()
     
     if (!goalProgress.gamificationEnabled || goalProgress.goalSteps <= 0) return
+    if (goalProgress.stepsToday !is QualifiedStepCount.Ready) return
+    val progress = requireNotNull(goalProgress.progress)
     
     val animatedProgress by animateFloatAsState(
-        targetValue = goalProgress.progress.coerceIn(0f, 1f),
+        targetValue = progress.coerceIn(0f, 1f),
         animationSpec = tween(durationMillis = 1000, easing = FastOutSlowInEasing),
         label = "goal_progress"
     )
@@ -251,7 +257,7 @@ internal fun GoalProgressRing(
                 modifier = Modifier.size(20.dp)
             )
             Text(
-                text = "${(goalProgress.progress * 100).toInt()}%",
+                text = "${(progress * 100).toInt()}%",
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface

@@ -1,8 +1,11 @@
 package com.adsamcik.tracker.dashboard.ui.compose.visualization
 
 import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
 import java.time.LocalTime
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class GoalProgressRingsStatusTest {
@@ -10,7 +13,7 @@ class GoalProgressRingsStatusTest {
 	@Test
 	fun zeroProgressEarlyInDay_isMotivating() {
 		val status = evaluateGoalProgressStatus(
-			goalProgress = baseGoalProgress(dailySteps = 0, dailyProgress = 0f),
+			goalProgress = baseGoalProgress(dailySteps = 0),
 			now = LocalTime.of(8, 30),
 		)
 
@@ -20,7 +23,7 @@ class GoalProgressRingsStatusTest {
 	@Test
 	fun zeroProgressMidMorning_stillShowsGetStarted() {
 		val status = evaluateGoalProgressStatus(
-			goalProgress = baseGoalProgress(dailySteps = 0, dailyProgress = 0f),
+			goalProgress = baseGoalProgress(dailySteps = 0),
 			now = LocalTime.of(10, 0),
 		)
 
@@ -30,7 +33,7 @@ class GoalProgressRingsStatusTest {
 	@Test
 	fun lowProgressLateInDay_showsBehind() {
 		val status = evaluateGoalProgressStatus(
-			goalProgress = baseGoalProgress(dailySteps = 1_000, dailyProgress = 0.1f),
+			goalProgress = baseGoalProgress(dailySteps = 1_000),
 			now = LocalTime.of(18, 0),
 		)
 
@@ -40,7 +43,7 @@ class GoalProgressRingsStatusTest {
 	@Test
 	fun progressNearExpectedPace_isOnTrack() {
 		val status = evaluateGoalProgressStatus(
-			goalProgress = baseGoalProgress(dailySteps = 5_000, dailyProgress = 0.5f),
+			goalProgress = baseGoalProgress(dailySteps = 5_000),
 			now = LocalTime.of(14, 0),
 		)
 
@@ -50,23 +53,36 @@ class GoalProgressRingsStatusTest {
 	@Test
 	fun progressWellAheadOfPace_isAhead() {
 		val status = evaluateGoalProgressStatus(
-			goalProgress = baseGoalProgress(dailySteps = 7_000, dailyProgress = 0.7f),
+			goalProgress = baseGoalProgress(dailySteps = 7_000),
 			now = LocalTime.of(10, 0),
 		)
 
 		assertEquals(GoalProgressStatus.AHEAD, status)
 	}
 
+	@Test
+	fun unavailableQualifiedSteps_haveNoGoalStatus() {
+		val status = evaluateGoalProgressStatus(
+			goalProgress = GoalProgressState(
+				gamificationEnabled = true,
+				dailySteps = QualifiedStepCount.Unavailable(
+					QualifiedStepCountUnavailableReason.STORAGE_UNAVAILABLE,
+				),
+				dailyGoalSteps = 10_000,
+			),
+			now = LocalTime.NOON,
+		)
+
+		assertNull(status)
+	}
+
 	private fun baseGoalProgress(
 		dailySteps: Int,
-		dailyProgress: Float,
 	) = GoalProgressState(
 		gamificationEnabled = true,
-		dailySteps = dailySteps,
+		dailySteps = QualifiedStepCount.Ready(dailySteps),
 		dailyGoalSteps = 10_000,
-		dailyProgress = dailyProgress,
-		weeklySteps = 21_000,
+		weeklySteps = QualifiedStepCount.Ready(21_000),
 		weeklyGoalSteps = 70_000,
-		weeklyProgress = 0.3f,
 	)
 }

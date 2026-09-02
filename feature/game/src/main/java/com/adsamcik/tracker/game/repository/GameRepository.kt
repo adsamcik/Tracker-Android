@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.game.repository
 
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -75,8 +76,8 @@ enum class GameRewardRejectionReason {
 }
 
 data class StepsSummaryData(
-	val stepsToday: Int,
-	val stepsWeek: Int,
+	val stepsToday: QualifiedStepCount,
+	val stepsWeek: QualifiedStepCount,
 	val goalDay: Int,
 	val goalWeek: Int,
 )

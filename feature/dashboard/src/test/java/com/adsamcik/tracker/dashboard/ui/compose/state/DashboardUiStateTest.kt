@@ -1,6 +1,8 @@
 package com.adsamcik.tracker.dashboard.ui.compose.state
 
 import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryState
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
 import com.adsamcik.tracker.stats.api.PolicyTier
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
@@ -78,7 +80,7 @@ class DashboardUiStateTest {
 			val state = DashboardUiState.previewIdle()
 			state.pointsToday shouldBe 42
 			state.goalProgress.gamificationEnabled shouldBe true
-			state.goalProgress.dailySteps shouldBe 6500
+			state.goalProgress.dailySteps shouldBe QualifiedStepCount.Ready(6500)
 			state.goalProgress.dailyGoalSteps shouldBe 10000
 			state.goalProgress.dailyProgress shouldBe 0.65f
 		}
@@ -131,7 +133,7 @@ class DashboardUiStateTest {
 		@Test
 		fun `previewTracking has daily goal progress`() {
 			val state = DashboardUiState.previewTracking()
-			state.goalProgress.dailySteps shouldBe 2100
+			state.goalProgress.dailySteps shouldBe QualifiedStepCount.Ready(2100)
 			state.goalProgress.dailyProgress shouldBe 0.21f
 		}
 	}
@@ -140,13 +142,17 @@ class DashboardUiStateTest {
 	@DisplayName("GoalProgressState")
 	inner class GoalProgressTest {
 		@Test
-		fun `default goal progress has zeroes`() {
+		fun `default goal progress has typed missing Steps`() {
 			val progress = GoalProgressState()
 			progress.gamificationEnabled shouldBe false
-			progress.dailySteps shouldBe 0
-			progress.dailyProgress shouldBe 0f
-			progress.weeklySteps shouldBe 0
-			progress.weeklyProgress shouldBe 0f
+			progress.dailySteps shouldBe QualifiedStepCount.Unavailable(
+				QualifiedStepCountUnavailableReason.MISSING,
+			)
+			progress.dailyProgress shouldBe null
+			progress.weeklySteps shouldBe QualifiedStepCount.Unavailable(
+				QualifiedStepCountUnavailableReason.MISSING,
+			)
+			progress.weeklyProgress shouldBe null
 		}
 	}
 

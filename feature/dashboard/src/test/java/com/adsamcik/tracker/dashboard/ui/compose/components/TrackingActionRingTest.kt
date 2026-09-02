@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import io.kotest.matchers.shouldBe
 import org.junit.Rule
@@ -84,8 +85,7 @@ class TrackingActionRingTest {
 			goalProgress = GoalProgressState(
 				gamificationEnabled = true,
 				dailyGoalSteps = 10_000,
-				dailySteps = 5_000,
-				dailyProgress = 0.5f,
+				dailySteps = QualifiedStepCount.Ready(5_000),
 			),
 		)
 

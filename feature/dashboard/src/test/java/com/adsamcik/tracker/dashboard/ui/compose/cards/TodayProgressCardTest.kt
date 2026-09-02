@@ -7,7 +7,10 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardMode
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
+import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
 import com.adsamcik.tracker.shared.base.di.DailySummary
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import org.junit.Rule
 import org.junit.Test
@@ -35,6 +38,9 @@ class TodayProgressCardTest {
 		setCardContent(
 			DashboardUiState(
 				dashboardMode = DashboardMode.IDLE,
+				goalProgress = GoalProgressState(
+					dailySteps = QualifiedStepCount.Ready(4_200),
+				),
 				todaySummary = DailySummary(
 					totalDistanceM = 2_400f,
 					totalSteps = 4_200,
@@ -50,7 +56,30 @@ class TodayProgressCardTest {
 	}
 
 	@Test
-	fun withSingleSessionAndZeroSteps_hidesOptionalSections() {
+	fun withLegacyStepsButUnavailableQualifiedSteps_hidesStepNumber() {
+		setCardContent(
+			DashboardUiState(
+				dashboardMode = DashboardMode.IDLE,
+				goalProgress = GoalProgressState(
+					dailySteps = QualifiedStepCount.Unavailable(
+						QualifiedStepCountUnavailableReason.STORAGE_UNAVAILABLE,
+					),
+				),
+				todaySummary = DailySummary(
+					totalDistanceM = 800f,
+					totalSteps = 4_200,
+					totalDurationMs = 1_200_000L,
+					sessionCount = 1,
+				),
+			),
+		)
+
+		composeRule.onAllNodesWithText("Steps").assertCountEquals(0)
+		composeRule.onAllNodesWithText("4,200").assertCountEquals(0)
+	}
+
+	@Test
+	fun withSingleSessionAndMissingQualifiedSteps_hidesOptionalSections() {
 		setCardContent(
 			DashboardUiState(
 				dashboardMode = DashboardMode.IDLE,

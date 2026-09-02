@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.compose.motion.MotionTokens
 import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing
 import java.time.LocalTime
@@ -42,6 +43,9 @@ internal fun GoalProgressRings(
 	modifier: Modifier = Modifier,
 ) {
 	if (!goalProgress.gamificationEnabled || goalProgress.dailyGoalSteps <= 0) return
+	val dailySteps = (goalProgress.dailySteps as? QualifiedStepCount.Ready)?.value ?: return
+	val dailyProgress = requireNotNull(goalProgress.dailyProgress)
+	val weeklyProgress = goalProgress.weeklyProgress
 	val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 	val outerSize = if (isLandscape) 80.dp else 96.dp
 	val innerSize = if (isLandscape) 60.dp else 72.dp
@@ -49,13 +53,13 @@ internal fun GoalProgressRings(
 	val innerStroke = if (isLandscape) 5.dp else 6.dp
 
 	val animatedDailyProgress by animateFloatAsState(
-		targetValue = goalProgress.dailyProgress.coerceIn(0f, 1f),
+		targetValue = dailyProgress.coerceIn(0f, 1f),
 		animationSpec = MotionTokens.tweenExpressive(),
 		label = "daily_goal_progress",
 	)
 
 	val animatedWeeklyProgress by animateFloatAsState(
-		targetValue = goalProgress.weeklyProgress.coerceIn(0f, 1f),
+		targetValue = weeklyProgress?.coerceIn(0f, 1f) ?: 0f,
 		animationSpec = MotionTokens.tweenExpressive(),
 		label = "weekly_goal_progress",
 	)
@@ -72,23 +76,24 @@ internal fun GoalProgressRings(
 			contentAlignment = Alignment.Center,
 			modifier = Modifier.size(outerSize),
 		) {
-			// Outer ring track (weekly)
-			CircularProgressIndicator(
-				progress = { 1f },
-				modifier = Modifier.fillMaxSize(),
-				color = trackColor,
-				strokeWidth = outerStroke,
-				trackColor = Color.Transparent,
-			)
-			// Outer ring progress (weekly)
-			CircularProgressIndicator(
-				progress = { animatedWeeklyProgress },
-				modifier = Modifier.fillMaxSize(),
-				color = tertiaryColor,
-				strokeWidth = outerStroke,
-				trackColor = Color.Transparent,
-				strokeCap = StrokeCap.Round,
-			)
+			if (weeklyProgress != null) {
+				// Outer ring is omitted when complete weekly coverage is unavailable.
+				CircularProgressIndicator(
+					progress = { 1f },
+					modifier = Modifier.fillMaxSize(),
+					color = trackColor,
+					strokeWidth = outerStroke,
+					trackColor = Color.Transparent,
+				)
+				CircularProgressIndicator(
+					progress = { animatedWeeklyProgress },
+					modifier = Modifier.fillMaxSize(),
+					color = tertiaryColor,
+					strokeWidth = outerStroke,
+					trackColor = Color.Transparent,
+					strokeCap = StrokeCap.Round,
+				)
+			}
 
 			// Inner ring track (daily)
 			CircularProgressIndicator(
@@ -113,7 +118,7 @@ internal fun GoalProgressRings(
 			// Center: Steps count
 			Column(horizontalAlignment = Alignment.CenterHorizontally) {
 				Text(
-					text = goalProgress.dailySteps.formatReadable(),
+					text = dailySteps.formatReadable(),
 					style = if (isLandscape) {
 						MaterialTheme.typography.labelSmall
 					} else {
@@ -131,7 +136,7 @@ internal fun GoalProgressRings(
 		}
 
 		// Status badge
-		val status = evaluateGoalProgressStatus(goalProgress)
+		val status = requireNotNull(evaluateGoalProgressStatus(goalProgress))
 		val statusText = stringResource(
 			when (status) {
 				GoalProgressStatus.GET_STARTED -> R.string.dashboard_goal_get_started
@@ -167,22 +172,32 @@ internal enum class GoalProgressStatus {
 internal fun evaluateGoalProgressStatus(
 	goalProgress: GoalProgressState,
 	now: LocalTime = LocalTime.now(),
-): GoalProgressStatus {
+): GoalProgressStatus? {
 	if (goalProgress.dailyGoalSteps <= 0) return GoalProgressStatus.GET_STARTED
-	if (goalProgress.dailyProgress <= 0f) return GoalProgressStatus.GET_STARTED
-	if (goalProgress.dailyProgress >= 1f) return GoalProgressStatus.AHEAD
+	val dailySteps = (goalProgress.dailySteps as? QualifiedStepCount.Ready)?.value ?: return null
+	val dailyProgress = requireNotNull(goalProgress.dailyProgress)
+	return evaluateReadyGoalProgressStatus(
+		dailySteps = dailySteps,
+		dailyProgress = dailyProgress,
+		expectedProgress = expectedDailyProgress(now),
+	)
+}
 
-	val expectedProgress = expectedDailyProgress(now)
-	if (goalProgress.dailySteps <= 0 && expectedProgress < EARLY_DAY_NEUTRAL_PROGRESS_CUTOFF) {
-		return GoalProgressStatus.GET_STARTED
-	}
-
-	return when {
-		goalProgress.dailyProgress + PROGRESS_GRACE < expectedProgress -> GoalProgressStatus.BEHIND
-		goalProgress.dailyProgress >= (expectedProgress + PROGRESS_GRACE).coerceAtMost(0.95f) -> GoalProgressStatus.AHEAD
+private fun evaluateReadyGoalProgressStatus(
+	dailySteps: Int,
+	dailyProgress: Float,
+	expectedProgress: Float,
+): GoalProgressStatus =
+	when {
+		dailyProgress <= 0f -> GoalProgressStatus.GET_STARTED
+		dailyProgress >= 1f -> GoalProgressStatus.AHEAD
+		dailySteps <= 0 && expectedProgress < EARLY_DAY_NEUTRAL_PROGRESS_CUTOFF -> {
+			GoalProgressStatus.GET_STARTED
+		}
+		dailyProgress + PROGRESS_GRACE < expectedProgress -> GoalProgressStatus.BEHIND
+		dailyProgress >= (expectedProgress + PROGRESS_GRACE).coerceAtMost(0.95f) -> GoalProgressStatus.AHEAD
 		else -> GoalProgressStatus.ON_TRACK
 	}
-}
 
 internal fun expectedDailyProgress(
 	now: LocalTime,

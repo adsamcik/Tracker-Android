@@ -17,6 +17,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.GoalProgress
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.stats.api.PolicyTier
 import java.util.Locale
@@ -36,7 +37,17 @@ private fun TodaySummaryContentPreview() {
                     "Sessions" to "3",
                 )
                 Text(
-                    text = "Goal ${WidgetFormatters.formatSteps(8_200)} / ${WidgetFormatters.formatSteps(10_000)} (${WidgetFormatters.formatGoalProgress(GoalProgress(8200, 10000, true).progress)})",
+                    text = "Goal ${WidgetFormatters.formatSteps(8_200)} / " +
+                        "${WidgetFormatters.formatSteps(10_000)} (" +
+                        WidgetFormatters.formatGoalProgress(
+                            requireNotNull(
+                                GoalProgress(
+                                    stepsToday = QualifiedStepCount.Ready(8_200),
+                                    goalSteps = 10_000,
+                                    gamificationEnabled = true,
+                                ).progress,
+                            ),
+                        ) + ")",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                 )

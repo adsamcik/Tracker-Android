@@ -18,6 +18,8 @@ import androidx.work.WorkerParameters
 import com.adsamcik.tracker.R
 import com.adsamcik.tracker.game.goals.settings.GoalsSettingsRepository
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
 import com.adsamcik.tracker.shared.preferences.Preferences
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -46,13 +48,19 @@ class GoalNotificationWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         if (!goalsSettingsRepository.data.first().notificationsEnabled) return Result.success()
 
-        val progress = goalProgressProvider.goalProgressFlow.value
+        val progress = goalProgressProvider.goalProgressFlow.first { candidate ->
+            candidate.stepsToday != QualifiedStepCount.Unavailable(
+                QualifiedStepCountUnavailableReason.MISSING,
+            )
+        }
         if (!progress.gamificationEnabled || progress.goalSteps <= 0) {
             return Result.success()
         }
+        val stepsToday = (progress.stepsToday as? QualifiedStepCount.Ready)?.value
+            ?: return Result.success()
 
-        val ratio = progress.progress
-        val remaining = (progress.goalSteps - progress.stepsToday).coerceAtLeast(0)
+        val ratio = requireNotNull(progress.progress)
+        val remaining = (progress.goalSteps - stepsToday).coerceAtLeast(0)
         val todayEpochDay = LocalDate.now().toEpochDay()
         val lastNotifiedDay = preferences.fetchLong(KEY_LAST_NOTIFIED_DAY, -1L)
         val lastNotifiedThreshold = preferences.fetchInt(KEY_LAST_NOTIFIED_THRESHOLD, 0)

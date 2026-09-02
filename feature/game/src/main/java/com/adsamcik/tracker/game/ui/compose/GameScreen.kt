@@ -53,6 +53,8 @@ import com.adsamcik.tracker.game.leaderboard.WeeklyLeaderboardCard
 import com.adsamcik.tracker.game.leaderboard.WeeklyLeaderboardErrorCard
 import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel.AchievementSummaryState
 import com.adsamcik.tracker.game.viewmodel.ExplorationViewModel.ExplorationState
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
 import com.adsamcik.tracker.shared.utils.style.compose.GlassCard
 import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSectionHeader
 import com.adsamcik.tracker.shared.utils.style.compose.RidgelineSpacing
@@ -61,8 +63,8 @@ import com.adsamcik.tracker.shared.utils.style.compose.rememberMainNavigationLay
 import java.text.NumberFormat
 
 internal data class StepsSummaryUi(
-	val stepsToday: Int,
-	val stepsWeek: Int,
+	val stepsToday: QualifiedStepCount,
+	val stepsWeek: QualifiedStepCount,
 	val goalDay: Int,
 	val goalWeek: Int,
 )
@@ -284,21 +286,41 @@ private fun PointsCard(points: Int) {
 	}
 }
 
+@Suppress("CyclomaticComplexMethod", "FunctionNaming")
 @Composable
-private fun StepsCard(steps: StepsSummaryUi, stepCounterSupported: Boolean) {
+internal fun StepsCard(steps: StepsSummaryUi, stepCounterSupported: Boolean) {
 	GlassCard(modifier = Modifier.padding(horizontal = RidgelineSpacing.Lg).fillMaxWidth()) {
 		Column {
 			Row(verticalAlignment = Alignment.CenterVertically) {
 				Icon(Icons.AutoMirrored.Outlined.DirectionsWalk, contentDescription = null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
 				Text(stringResource(R.string.game_steps_goals_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 12.dp))
 			}
-			if (!stepCounterSupported && steps.stepsToday <= 0 && steps.stepsWeek <= 0) {
+			val readyToday = steps.stepsToday as? QualifiedStepCount.Ready
+			val readyWeek = steps.stepsWeek as? QualifiedStepCount.Ready
+			val materializing = listOf(steps.stepsToday, steps.stepsWeek)
+				.filterIsInstance<QualifiedStepCount.Unavailable>()
+				.any { it.reason == QualifiedStepCountUnavailableReason.MATERIALIZING }
+			if (!stepCounterSupported && readyToday == null && readyWeek == null) {
 				Text(stringResource(R.string.game_step_sensor_unavailable), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 16.dp))
 				Text(stringResource(R.string.game_step_sensor_unavailable_detail), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
 			} else {
-				Row(Modifier.padding(top = 16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-					Stat(stringResource(R.string.game_steps_today), steps.stepsToday, steps.goalDay)
-					Stat(stringResource(R.string.game_steps_week), steps.stepsWeek, steps.goalWeek)
+				if (readyToday != null || readyWeek != null) {
+					Row(Modifier.padding(top = 16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+						readyToday?.let {
+							Stat(stringResource(R.string.game_steps_today), it.value, steps.goalDay)
+						}
+						readyWeek?.let {
+							Stat(stringResource(R.string.game_steps_week), it.value, steps.goalWeek)
+						}
+					}
+				}
+				if (materializing) {
+					Text(
+						text = stringResource(R.string.game_loading),
+						style = MaterialTheme.typography.bodySmall,
+						color = MaterialTheme.colorScheme.onSurfaceVariant,
+						modifier = Modifier.padding(top = 12.dp),
+					)
 				}
 			}
 		}
