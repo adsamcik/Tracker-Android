@@ -563,6 +563,7 @@ class StepFactRevisionDaoTest {
 	}
 
 	@Test
+	@Suppress("LongMethod")
 	fun `history upsert revision pages retain corrections and exclude retractions`() = runTest {
 		val rows = listOf(
 			revision(intervalId = null, admissionOrdinal = 1L).copy(
