@@ -244,33 +244,69 @@ data class SessionManifestSourceEntity(
 		require(writerProjectionId == null || outputDestination != null) {
 			"Projection provenance requires destination-owner provenance"
 		}
-		val isPersistenceEligibleStepsCapture =
-			sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
+		val isPersistenceEligibleCapture =
 			purpose == SourceBrokerPurpose.SESSION_CAPTURE && persistenceEligible
-		if (isPersistenceEligibleStepsCapture) {
-			require(outputDestination != null) {
-				"Persistence-eligible Steps capture requires immutable writer provenance"
+		when {
+			isPersistenceEligibleCapture &&
+				sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS -> requireStepsWriter()
+			isPersistenceEligibleCapture &&
+				sourceKind == SourceDestinationOwnerEntity.SOURCE_PRESSURE -> requirePressureWriter()
+			else -> require(outputDestination == null && writerProjectionId == null) {
+				"Only supported persistence-eligible capture sources may carry writer provenance"
 			}
-			require(outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS) {
-				"Steps capture must target the permanent session Steps destination"
-			}
-			require(
-				writerOwner == SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL ||
-					writerOwner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
-			) { "Steps capture must name a permanent destination owner" }
-			if (writerOwner == SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL) {
-				require(writerProjectionId == null) {
-					"Legacy Steps ownership must not claim candidate projection provenance"
-				}
-			} else {
-				require(writerProjectionId != null) {
-					"Candidate Steps ownership requires complete projection provenance"
-				}
+		}
+	}
+
+	private fun requireStepsWriter() {
+		require(outputDestination != null) {
+			"Persistence-eligible Steps capture requires immutable writer provenance"
+		}
+		require(outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS) {
+			"Steps capture must target the permanent session Steps destination"
+		}
+		require(
+			writerOwner == SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL ||
+				writerOwner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
+		) { "Steps capture must name a permanent destination owner" }
+		if (writerOwner == SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL) {
+			require(writerProjectionId == null) {
+				"Legacy Steps ownership must not claim candidate projection provenance"
 			}
 		} else {
-			require(outputDestination == null && writerProjectionId == null) {
-				"Only persistence-eligible Steps capture may carry writer provenance"
+			require(writerProjectionId != null) {
+				"Candidate Steps ownership requires complete projection provenance"
 			}
+		}
+	}
+
+	private fun requirePressureWriter() {
+		require(outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE) {
+			"Pressure capture must target the permanent session Pressure destination"
+		}
+		when (writerOwner) {
+			SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE -> {
+				require(writerOwnerGeneration == SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION) {
+					"Legacy Pressure ownership requires its permanent generation"
+				}
+				require(writerProjectionId == null) {
+					"Legacy Pressure ownership must not claim candidate projection provenance"
+				}
+			}
+			SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS -> {
+				require(writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION) {
+					"Candidate Pressure ownership requires its permanent generation"
+				}
+				require(writerProjectionId == SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID)
+				require(
+					writerProjectionVersion ==
+						SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
+				)
+				require(
+					writerBindingGeneration ==
+						SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
+				)
+			}
+			else -> require(false) { "Pressure capture must name a permanent destination owner" }
 		}
 	}
 }

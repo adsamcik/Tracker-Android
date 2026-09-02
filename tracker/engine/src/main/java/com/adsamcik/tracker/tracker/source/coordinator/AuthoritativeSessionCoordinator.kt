@@ -1848,19 +1848,25 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 				val establishedWriters = priorManifestEnvelopes
 					.filterNotNull()
 					.flatMap(VerifiedSessionManifest::bindings)
-					.filter(SessionManifestSourceEntity::isStepsSessionCaptureWriter)
-					.distinctBy(SessionManifestSourceEntity::writerProvenanceIdentity)
-				if (establishedWriters.size > 1) {
+					.filter(SessionManifestSourceEntity::isSessionCaptureWriter)
+					.groupBy(SessionManifestSourceEntity::sourceKind)
+					.mapValues { (_, bindings) ->
+						bindings.distinctBy(SessionManifestSourceEntity::writerProvenanceIdentity)
+					}
+				if (establishedWriters.values.any { writers -> writers.size > 1 }) {
 					intentValidationFailure = "WRITER_PROVENANCE_INCONSISTENT_WITHIN_SERVICE_RUN"
 					return@withTransaction
 				}
-				val establishedWriter = establishedWriters.singleOrNull()
-				val proposedWriter = draft.bindings.singleOrNull(
-					SessionManifestSourceEntity::isStepsSessionCaptureWriter,
-				)
-				if (establishedWriter != null && proposedWriter != null &&
-					!establishedWriter.hasSameWriterProvenance(proposedWriter)
-				) {
+				val proposedWriters = draft.bindings
+					.filter(SessionManifestSourceEntity::isSessionCaptureWriter)
+					.associateBy(SessionManifestSourceEntity::sourceKind)
+				val changedWriter = establishedWriters.any { (sourceKind, writers) ->
+					val proposed = proposedWriters[sourceKind]
+					val established = writers.singleOrNull()
+					established != null && proposed != null &&
+						!established.hasSameWriterProvenance(proposed)
+				}
+				if (changedWriter) {
 					intentValidationFailure = "WRITER_PROVENANCE_CHANGED_WITHIN_SERVICE_RUN"
 					return@withTransaction
 				}
@@ -2175,6 +2181,32 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		return binding
 	}
 
+	private suspend fun exactCandidatePressureBinding(
+		rolloutRevision: Long,
+		sessionMode: SessionMode,
+	): ExecutableSourceLaneBinding {
+		check(sessionMode == SessionMode.MANUAL) {
+			"Pressure candidate binding is manual-session-only"
+		}
+		val rollout = requireNotNull(
+			database.trackingRolloutStateDao().get()?.decodeCurrentModelOrNull(),
+		) { "Pressure rollout state is missing or unreadable" }
+		check(rollout.revision == rolloutRevision) { "Pressure rollout revision changed" }
+		val lane = requireNotNull(
+			database.sourceProjectionStateDao().activeProductLane(SourceKind.PRESSURE.stableCode),
+		) { "Pressure candidate product lane is missing" }
+		val binding = requireNotNull(executableLaneCatalog.bindingFor(lane)) {
+			"Pressure candidate product lane is not executable"
+		}
+		check(binding == ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS) {
+			"Pressure candidate writer binding is unsupported"
+		}
+		check(lane.isCanonicalCaptureAuthorizedBy(database, rollout, executableLaneCatalog)) {
+			"Pressure candidate product lane is not canonical capture authority"
+		}
+		return binding
+	}
+
 	private suspend fun buildManifestDraft(
 		logicalTrackingId: String,
 		manifestRevision: Long,
@@ -2241,11 +2273,33 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 			stepsOwner.owner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS ||
 			stepsOwner.owner == SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL
 		) { "Unsupported Steps destination owner ${stepsOwner?.owner}" }
+		val pressureOwner = plan.plans[SourceKind.PRESSURE]
+			?.takeIf(SourcePlan::enabled)
+			?.let {
+				requireNotNull(
+					database.sourceDestinationOwnerDao().get(
+						SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+						SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+					),
+				) { "Pressure destination owner is missing" }
+			}
+		check(pressureOwner == null || when (pressureOwner.owner) {
+			SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE ->
+				pressureOwner.ownerGeneration == SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
+			SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS ->
+				pressureOwner.ownerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+			else -> false
+		}) { "Unsupported Pressure destination owner ${pressureOwner?.owner}" }
 		val candidateStepsBinding = stepsOwner
 			?.takeIf { owner ->
 				owner.owner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
 			}
 			?.let { exactCandidateStepsBinding(rolloutRevision, sessionMode) }
+		val candidatePressureBinding = pressureOwner
+			?.takeIf { owner ->
+				owner.owner == SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS
+			}
+			?.let { exactCandidatePressureBinding(rolloutRevision, sessionMode) }
 		val captureBindings = plan.plans.values.filter(SourcePlan::enabled).map { sourcePlan ->
 			val policy = requireNotNull(policies[sourcePlan.source.stableCode])
 			val consentEpoch = requireNotNull(policy.captureConsentEpoch)
@@ -2256,11 +2310,15 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 					requirePersistenceEligible = true,
 				),
 			)
-			val writerOwner = stepsOwner.takeIf { sourcePlan.source == SourceKind.STEPS }
-			val candidateWriter = if (sourcePlan.source == SourceKind.STEPS) {
-				candidateStepsBinding
-			} else {
-				null
+			val writerOwner = when (sourcePlan.source) {
+				SourceKind.STEPS -> stepsOwner
+				SourceKind.PRESSURE -> pressureOwner
+				else -> null
+			}
+			val candidateWriter = when (sourcePlan.source) {
+				SourceKind.STEPS -> candidateStepsBinding
+				SourceKind.PRESSURE -> candidatePressureBinding
+				else -> null
 			}
 			SessionManifestSourceEntity(
 				logicalTrackingId = logicalTrackingId,
@@ -4376,8 +4434,8 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 	}
 }
 
-private fun SessionManifestSourceEntity.isStepsSessionCaptureWriter(): Boolean =
-	sourceKind == SourceKind.STEPS.stableCode &&
+private fun SessionManifestSourceEntity.isSessionCaptureWriter(): Boolean =
+	(sourceKind == SourceKind.STEPS.stableCode || sourceKind == SourceKind.PRESSURE.stableCode) &&
 		purpose == SourceBrokerPurpose.SESSION_CAPTURE &&
 		persistenceEligible && outputDestination != null && writerOwner != null &&
 		writerOwnerGeneration != null

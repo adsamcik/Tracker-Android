@@ -51,10 +51,11 @@ class TrackingRolloutStateStoreTest {
 	}
 
 	@Test
-	fun `production catalog retains generation 1 and adds exact automatic generation 2`() {
+	fun `production catalog retains Steps generations and exact manual Pressure binding`() {
 		val catalog = ExecutableSourceLaneCatalog()
 		val generationOne = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V1
 		val generationTwo = ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V2
+		val pressure = ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS
 
 		catalog.owns(generationOne) shouldBe true
 		catalog.owns(generationTwo) shouldBe true
@@ -65,6 +66,12 @@ class TrackingRolloutStateStoreTest {
 		)
 		generationOne.bindingGeneration shouldBe 1L
 		generationTwo.bindingGeneration shouldBe 2L
+		catalog.owns(pressure) shouldBe true
+		pressure.source shouldBe SourceKind.PRESSURE
+		pressure.bindingGeneration shouldBe SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION
+		pressure.projectionId shouldBe SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID
+		pressure.projectionVersion shouldBe SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION
+		pressure.captureModes shouldBe setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE)
 	}
 
 	@Test
@@ -219,6 +226,87 @@ class TrackingRolloutStateStoreTest {
 			SourceKind.STEPS,
 			CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE,
 		) shouldBe true
+	}
+
+	@Test
+	fun `canonical Pressure requires the exact official lane owner and generation`() = runTest {
+		val productionStore = RoomTrackingRolloutStateStore(database, ExecutableSourceLaneCatalog())
+		val binding = ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS
+		database.sourceProjectionStateDao().installProductLane(
+			productLane(binding, rolloutRevision = 3L).copy(
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			),
+		)
+		val canonical = TrackingRolloutState.eventCanonical(
+			sources = setOf(SourceKind.PRESSURE),
+			revision = 3L,
+			captureModes = mapOf(SourceKind.PRESSURE to binding.captureModes),
+		)
+
+		shouldThrow<IllegalArgumentException> {
+			productionStore.save(canonical, updatedAtMs = 1_000L)
+		}
+		installPressureDestinationOwner(
+			SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
+			SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+		)
+		productionStore.save(canonical, updatedAtMs = 1_001L)
+
+		productionStore.load() shouldBe canonical
+		productionStore.load().isCaptureReachable(
+			SourceKind.PRESSURE,
+			CaptureReachabilityMode.MANUAL_SESSION_CAPTURE,
+		) shouldBe true
+	}
+
+	@Test
+	fun `canonical Pressure rejects the wrong candidate owner generation`() = runTest {
+		val binding = ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS
+		installPressureDestinationOwner(
+			SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
+			SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION + 1L,
+		)
+		val canonical = TrackingRolloutState.eventCanonical(
+			sources = setOf(SourceKind.PRESSURE),
+			revision = 3L,
+			captureModes = mapOf(SourceKind.PRESSURE to binding.captureModes),
+		)
+		val productionStore = RoomTrackingRolloutStateStore(database, ExecutableSourceLaneCatalog())
+		database.sourceProjectionStateDao().installProductLane(
+			productLane(binding, rolloutRevision = 3L).copy(
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			),
+		)
+		shouldThrow<IllegalArgumentException> {
+			productionStore.save(canonical, updatedAtMs = 1_000L)
+		}
+	}
+
+	@Test
+	fun `canonical Pressure rejects an executable but unofficial projection identity`() = runTest {
+		val official = ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS
+		val typo = official.copy(projectionId = "${official.projectionId}-typo")
+		installPressureDestinationOwner(
+			SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
+			SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+		)
+		val typoStore = RoomTrackingRolloutStateStore(
+			database,
+			ExecutableSourceLaneCatalog.explicit(typo),
+		)
+		database.sourceProjectionStateDao().installProductLane(
+			productLane(typo, rolloutRevision = 3L).copy(
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			),
+		)
+		val canonical = TrackingRolloutState.eventCanonical(
+			sources = setOf(SourceKind.PRESSURE),
+			revision = 3L,
+			captureModes = mapOf(SourceKind.PRESSURE to typo.captureModes),
+		)
+		shouldThrow<IllegalArgumentException> {
+			typoStore.save(canonical, updatedAtMs = 1_000L)
+		}
 	}
 
 	@Test
@@ -844,6 +932,18 @@ class TrackingRolloutStateStoreTest {
 			SourceDestinationOwnerEntity(
 				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+				owner = owner,
+				ownerGeneration = generation,
+				updatedAtMs = 1_000L,
+			),
+		)
+	}
+
+	private suspend fun installPressureDestinationOwner(owner: String, generation: Long) {
+		database.sourceDestinationOwnerDao().insertIfAbsent(
+			SourceDestinationOwnerEntity(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
 				owner = owner,
 				ownerGeneration = generation,
 				updatedAtMs = 1_000L,

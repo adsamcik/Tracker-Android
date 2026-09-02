@@ -34,7 +34,9 @@ data class ExecutableSourceLaneBinding(
 class ExecutableSourceLaneCatalog internal constructor(
 	bindings: Set<ExecutableSourceLaneBinding>,
 ) : SourceProductLaneExecutionAuthority {
-	@Inject constructor() : this(setOf(STEPS_SESSION_FACTS_V1, STEPS_SESSION_FACTS_V2))
+	@Inject constructor() : this(
+		setOf(STEPS_SESSION_FACTS_V1, STEPS_SESSION_FACTS_V2, PRESSURE_SESSION_FACTS),
+	)
 
 	private val bindingsByGeneration = bindings.associateBy { binding ->
 		binding.source to binding.bindingGeneration
@@ -111,6 +113,15 @@ class ExecutableSourceLaneCatalog internal constructor(
 
 		/** Prospective binding used only when no durable Steps lane supplies an exact generation. */
 		val PREFERRED_STEPS_SESSION_FACTS = STEPS_SESSION_FACTS_V2
+
+		/** Dormant source-local Pressure writer contract; executable does not imply activation. */
+		val PRESSURE_SESSION_FACTS = ExecutableSourceLaneBinding(
+			source = SourceKind.PRESSURE,
+			bindingGeneration = SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
+			projectionId = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+			projectionVersion = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
+			captureModes = setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
+		)
 
 		fun explicit(vararg bindings: ExecutableSourceLaneBinding) =
 			ExecutableSourceLaneCatalog(bindings.toSet())
@@ -622,17 +633,30 @@ private suspend fun AppDatabase.hasExactCanonicalDestinationOwner(
 	binding: ExecutableSourceLaneBinding,
 	stage: ProductProjectionStage,
 ): Boolean {
-	if (binding.source != SourceKind.STEPS ||
-		binding.projectionId != SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID ||
-		binding.projectionVersion != SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION ||
-		stage != ProductProjectionStage.EVENT_CANONICAL
-	) return true
-	val owner = sourceDestinationOwnerDao().get(
-		SourceDestinationOwnerEntity.SOURCE_STEPS,
-		SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
-	) ?: return false
-	return owner.owner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS &&
-		owner.ownerGeneration >= SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+	if (stage != ProductProjectionStage.EVENT_CANONICAL) return true
+	return when (binding.source) {
+		SourceKind.STEPS -> {
+			if (binding.projectionId != SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID ||
+				binding.projectionVersion != SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION
+			) return true
+			val owner = sourceDestinationOwnerDao().get(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+			) ?: return false
+			owner.owner == SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS &&
+				owner.ownerGeneration >= SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+		}
+		SourceKind.PRESSURE -> {
+			if (binding != ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS) return false
+			val owner = sourceDestinationOwnerDao().get(
+				SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+			) ?: return false
+			owner.owner == SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS &&
+				owner.ownerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+		}
+		else -> true
+	}
 }
 
 /**

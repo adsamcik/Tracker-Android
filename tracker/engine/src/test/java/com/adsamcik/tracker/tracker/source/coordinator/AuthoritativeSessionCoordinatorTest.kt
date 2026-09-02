@@ -37,6 +37,7 @@ import com.adsamcik.tracker.tracker.source.model.LocationBackend
 import com.adsamcik.tracker.tracker.source.model.LocationMode
 import com.adsamcik.tracker.tracker.source.model.LocationPlan
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
+import com.adsamcik.tracker.tracker.source.model.PressurePlan
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
@@ -133,6 +134,15 @@ class AuthoritativeSessionCoordinatorTest {
 					updatedAtMs = 0L,
 				),
 			)
+			database.sourceDestinationOwnerDao().insertIfAbsent(
+				SourceDestinationOwnerEntity(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+					destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+					owner = SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+					ownerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+					updatedAtMs = 0L,
+				),
+			)
 		}
 		runtime = FakeStepsRuntime(database)
 		locationRuntime = FakeLocationRuntime()
@@ -212,6 +222,88 @@ class AuthoritativeSessionCoordinatorTest {
 		database.sourceBrokerDao().demandHistory("session:${started.logicalTrackingId}")
 			.single().status shouldBe SourceDemandEntity.STATUS_RETIRED
 		runtime.closed shouldBe true
+	}
+
+	@Test
+	fun `manual Pressure manifest records the exact legacy destination owner`() = runTest {
+		val prepared = subject.prepareAndroidStart(
+			pressureStartRequest(
+				logicalTrackingId = "legacy-pressure-logical",
+				serviceRunId = "legacy-pressure-run",
+			),
+			AndroidStartDeliveryMetadata(
+				token = PreparedTrackingStartToken("legacy-pressure-token"),
+				commandGeneration = 1L,
+				isUserInitiated = true,
+				isAmbient = false,
+			),
+		).shouldBeInstanceOf<SessionStartPreparationResult.Prepared>().start
+
+		val binding = database.sourceSessionDao()
+			.manifestSources(prepared.logicalTrackingId, prepared.manifestRevision)
+			.single()
+		binding.sourceKind shouldBe SourceKind.PRESSURE.stableCode
+		binding.outputDestination shouldBe SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE
+		binding.writerOwner shouldBe SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE
+		binding.writerOwnerGeneration shouldBe SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION
+		binding.writerProjectionId shouldBe null
+	}
+
+	@Test
+	fun `manual Pressure candidate manifest records only the exact official writer binding`() = runTest {
+		val expected = installPressureCandidateRollout()
+		val prepared = subject.prepareAndroidStart(
+			pressureStartRequest(
+				logicalTrackingId = "candidate-pressure-logical",
+				serviceRunId = "candidate-pressure-run",
+				rolloutRevision = rolloutSnapshot.revision,
+			),
+			AndroidStartDeliveryMetadata(
+				token = PreparedTrackingStartToken("candidate-pressure-token"),
+				commandGeneration = 1L,
+				isUserInitiated = true,
+				isAmbient = false,
+			),
+		).shouldBeInstanceOf<SessionStartPreparationResult.Prepared>().start
+
+		val binding = database.sourceSessionDao()
+			.manifestSources(prepared.logicalTrackingId, prepared.manifestRevision)
+			.single()
+		binding.sourceKind shouldBe SourceKind.PRESSURE.stableCode
+		binding.outputDestination shouldBe SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE
+		binding.writerOwner shouldBe SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS
+		binding.writerOwnerGeneration shouldBe SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+		binding.writerProjectionId shouldBe expected.projectionId
+		binding.writerProjectionVersion shouldBe expected.projectionVersion
+		binding.writerBindingGeneration shouldBe expected.bindingGeneration
+	}
+
+	@Test
+	fun `Pressure generation 1 candidate cannot be attributed to an automatic session`() = runTest {
+		installPressureCandidateRollout()
+		val trigger = automaticTrigger()
+
+		subject.prepareAndroidStart(
+			pressureStartRequest(
+				logicalTrackingId = "automatic-pressure-rejected",
+				serviceRunId = "automatic-pressure-rejected-run",
+				rolloutRevision = rolloutSnapshot.revision,
+			).copy(
+				origin = SessionStartOrigin.AUTOMATIC_BACKGROUND_START,
+				controlDependencies = setOf(SourceKind.ACTIVITY),
+				automaticTrigger = trigger,
+			),
+			AndroidStartDeliveryMetadata(
+				token = PreparedTrackingStartToken("automatic-pressure-rejected-token"),
+				commandGeneration = 1L,
+				isUserInitiated = false,
+				isAmbient = false,
+			),
+		) shouldBe SessionStartPreparationResult.Rejected("EVENT_CAPTURE_MODE_NOT_REACHABLE")
+
+		database.sourceSessionDao().session("automatic-pressure-rejected") shouldBe null
+		database.sourceBrokerDao().currentDemands("session:automatic-pressure-rejected") shouldBe
+			emptyList()
 	}
 
 	@Test
@@ -2674,6 +2766,32 @@ class AuthoritativeSessionCoordinatorTest {
 		zoneId = "Europe/Prague",
 	)
 
+	private fun pressureStartRequest(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		rolloutRevision: Long = 1L,
+	) = startRequest().copy(
+		plan = AcquisitionPlanRevision(
+			revision = 1L,
+			planId = "pressure-only",
+			createdAtMs = 1_000L,
+			plans = mapOf(
+				SourceKind.PRESSURE to PressurePlan(
+					revision = 1L,
+					enabled = true,
+					hardwareSamplePeriodMicros = 200_000,
+					maximumReportLatencyMicros = 10_000_000,
+					aggregationWindowMs = 10_000L,
+					movementGatedBurst = false,
+				),
+			),
+			sourcePolicyRevision = 1L,
+		),
+		rolloutRevision = rolloutRevision,
+		logicalTrackingId = logicalTrackingId,
+		serviceRunId = serviceRunId,
+	)
+
 	private fun locationOnlyPlan(policyRevision: Long) = AcquisitionPlanRevision(
 		revision = 2L,
 		planId = "location-only-after-wifi-policy-change",
@@ -2908,6 +3026,47 @@ class AuthoritativeSessionCoordinatorTest {
 		database.sourceProjectionStateDao().installProductLane(
 			SourceProductProjectionLaneEntity(
 				sourceKind = SourceKind.STEPS.stableCode,
+				bindingGeneration = binding.bindingGeneration,
+				projectionId = binding.projectionId,
+				projectionVersion = binding.projectionVersion,
+				captureModeMask = binding.captureModeMask,
+				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+				activatedRolloutRevision = rolloutSnapshot.revision,
+				activationOrdinal = 1L,
+				contiguousAdmissionOrdinal = 0L,
+				retentionRequired = true,
+				status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
+				installedAtMs = 1L,
+				updatedAtMs = 1L,
+			),
+		)
+		database.trackingRolloutStateDao().save(rolloutSnapshot.toEntity(updatedAtMs = 1L))
+		return binding
+	}
+
+	private suspend fun installPressureCandidateRollout(): ExecutableSourceLaneBinding {
+		val binding = ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS
+		val owner = requireNotNull(database.sourceDestinationOwnerDao().get(
+			SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+			SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+		))
+		check(database.sourceDestinationOwnerDao().compareAndSetOwner(
+			sourceKind = owner.sourceKind,
+			destination = owner.destination,
+			expectedOwner = owner.owner,
+			expectedOwnerGeneration = owner.ownerGeneration,
+			newOwner = SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
+			newOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+			updatedAtMs = 1L,
+		) == 1)
+		rolloutSnapshot = TrackingRolloutState.eventCanonical(
+			sources = setOf(SourceKind.PRESSURE),
+			revision = 2L,
+			captureModes = mapOf(SourceKind.PRESSURE to binding.captureModes),
+		)
+		database.sourceProjectionStateDao().installProductLane(
+			SourceProductProjectionLaneEntity(
+				sourceKind = SourceKind.PRESSURE.stableCode,
 				bindingGeneration = binding.bindingGeneration,
 				projectionId = binding.projectionId,
 				projectionVersion = binding.projectionVersion,

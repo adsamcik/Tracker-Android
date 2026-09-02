@@ -331,6 +331,59 @@ class SourceSessionDaoTest {
 	}
 
 	@Test
+	fun `pressure capture writer provenance accepts only permanent exact contracts`() {
+		shouldThrow<IllegalArgumentException> { pressureManifestSource() }
+		shouldThrow<IllegalArgumentException> {
+			pressureManifestSource(
+				outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+				writerOwner = SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+				writerOwnerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+			)
+		}
+		shouldThrow<IllegalArgumentException> {
+			pressureManifestSource(
+				outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+				writerOwner = SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+				writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+			)
+		}
+		shouldThrow<IllegalArgumentException> {
+			pressureManifestSource(
+				outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+				writerOwner = SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
+				writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+				writerProjectionId = "pressure-session-facts-typo",
+				writerProjectionVersion = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
+				writerBindingGeneration = SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
+			)
+		}
+		shouldThrow<IllegalArgumentException> {
+			pressureManifestSource(
+				outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+				writerOwner = SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
+				writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION + 1L,
+				writerProjectionId = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+				writerProjectionVersion = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
+				writerBindingGeneration = SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
+			)
+		}
+
+		pressureManifestSource(
+			outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+			writerOwner = SourceDestinationOwnerEntity.OWNER_LEGACY_PRESSURE_SAMPLE,
+			writerOwnerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+		).writerProjectionId shouldBe null
+		pressureManifestSource(
+			outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+			writerOwner = SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
+			writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+			writerProjectionId = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID,
+			writerProjectionVersion = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION,
+			writerBindingGeneration = SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION,
+		).writerBindingGeneration shouldBe SourceDestinationOwnerEntity.PRESSURE_FACT_BINDING_GENERATION
+	}
+
+	@Test
 	fun `writer transition boundary rejects every nonterminal durable lifecycle shape`() = runTest {
 		dao.hasLifecycleBoundaryBlocker() shouldBe false
 		dao.hasIncompleteServiceRun() shouldBe false
@@ -696,6 +749,29 @@ class SourceSessionDaoTest {
 		logicalTrackingId = LOGICAL_ID,
 		manifestRevision = manifestRevision,
 		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+		purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+		consentEpoch = 1L,
+		persistenceEligible = true,
+		qosCode = 1,
+		outputDestination = outputDestination,
+		writerOwner = writerOwner,
+		writerOwnerGeneration = writerOwnerGeneration,
+		writerProjectionId = writerProjectionId,
+		writerProjectionVersion = writerProjectionVersion,
+		writerBindingGeneration = writerBindingGeneration,
+	)
+
+	private fun pressureManifestSource(
+		outputDestination: String? = null,
+		writerOwner: String? = null,
+		writerOwnerGeneration: Long? = null,
+		writerProjectionId: String? = null,
+		writerProjectionVersion: Int? = null,
+		writerBindingGeneration: Long? = null,
+	) = SessionManifestSourceEntity(
+		logicalTrackingId = LOGICAL_ID,
+		manifestRevision = 1L,
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
 		purpose = SourceBrokerPurpose.SESSION_CAPTURE,
 		consentEpoch = 1L,
 		persistenceEligible = true,
