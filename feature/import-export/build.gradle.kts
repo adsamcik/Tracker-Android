@@ -24,9 +24,9 @@ dependencies {
     implementation(project(":data:preferences"))
     implementation(project(":core:sqlite-runtime"))
     implementation(project(":feature:statistics:api"))
-    // V2 control-trace export is compiled only in the debug source set. It remains absent from
-    // release artifacts and from the user-facing format registry.
-    debugImplementation(project(":stats:api"))
+    // The portable transfer contract is release code. V2 control-trace export remains compiled
+    // only from the debug source set and stays absent from the user-facing format registry.
+    implementation(project(":stats:api"))
     implementation(libs.androidx.documentfile)
     implementation(libs.androidx.datastore.core)
     implementation(libs.protobuf.java)
