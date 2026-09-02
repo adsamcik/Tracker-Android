@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
@@ -631,6 +632,50 @@ class RoomDurableSourceIngressTest {
 	}
 
 	@Test
+	fun `active capture rejects a wall-only logical cutoff tuple without mutation`() = runTest {
+		installSession(
+			sessionState = "ACTIVE",
+			runState = "ACTIVE",
+			cutoffElapsedNanos = null,
+			cutoffAtMs = 100L,
+		)
+		val delivery = delivery(candidate(sequence = 0L)).copy(
+			identity = sourceDeliveryIdentity("active-wall-only-cutoff".encodeToByteArray()),
+		)
+
+		subject.admit(delivery) shouldBe DeliveryAdmissionResult.PermanentFailure(
+			AdmissionFailureCode.STALE_SESSION_MANIFEST,
+		)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRegistrationStateDao().get(
+			SourceKind.ACTIVITY.stableCode,
+			SOURCE_OWNER_SCOPE,
+		)?.nextSequence shouldBe 0L
+	}
+
+	@Test
+	fun `stopping capture rejects an elapsed-only logical cutoff tuple without mutation`() = runTest {
+		installSession(
+			sessionState = "STOPPING",
+			runState = "STOPPING",
+			cutoffElapsedNanos = 100L,
+			cutoffAtMs = null,
+		)
+		val delivery = delivery(candidate(sequence = 0L, observedElapsedNanos = 100L)).copy(
+			identity = sourceDeliveryIdentity("stopping-elapsed-only-cutoff".encodeToByteArray()),
+		)
+
+		subject.admit(delivery) shouldBe DeliveryAdmissionResult.PermanentFailure(
+			AdmissionFailureCode.STALE_SESSION_MANIFEST,
+		)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRegistrationStateDao().get(
+			SourceKind.ACTIVITY.stableCode,
+			SOURCE_OWNER_SCOPE,
+		)?.nextSequence shouldBe 0L
+	}
+
+	@Test
 	fun `exact delivery replay precedes a later durable session cutoff`() = runTest {
 		val original = delivery(
 			candidate(sequence = 0L, observedElapsedNanos = 101L),
@@ -664,14 +709,21 @@ class RoomDurableSourceIngressTest {
 				SourceBrokerPurpose.SESSION_CAPTURE,
 			),
 		)
+		val secondBinding = firstBinding.copy(manifestRevision = 2L)
+		val unsignedSecondManifest = firstManifest.copy(
+			manifestRevision = 2L,
+			effectiveElapsedRealtimeNanos = 90L,
+			manifestChecksum = "",
+		)
 		sessionDao.insertManifest(
-			firstManifest.copy(
-				manifestRevision = 2L,
-				effectiveElapsedRealtimeNanos = 90L,
-				manifestChecksum = "test-manifest-2",
+			unsignedSecondManifest.copy(
+				manifestChecksum = SessionManifestIntegrity.compute(
+					unsignedSecondManifest,
+					listOf(secondBinding),
+				),
 			),
 		)
-		sessionDao.insertManifestSources(listOf(firstBinding.copy(manifestRevision = 2L)))
+		sessionDao.insertManifestSources(listOf(secondBinding))
 		val session = requireNotNull(sessionDao.session(TEST_SESSION_ID))
 		sessionDao.updateSession(session.copy(currentManifestRevision = 2L)) shouldBe 1
 
@@ -1605,6 +1657,7 @@ class RoomDurableSourceIngressTest {
 		sessionState: String = "ACTIVE",
 		runState: String = "ACTIVE",
 		cutoffElapsedNanos: Long? = null,
+		cutoffAtMs: Long? = cutoffElapsedNanos,
 	): SessionAuthorization {
 		val policyRepository = RoomSourcePolicyRepository(database) {
 			SourcePolicyEffectiveTime("boot", 50L, 50L)
@@ -1628,7 +1681,7 @@ class RoomDurableSourceIngressTest {
 			clockDomainId = "boot",
 			startedAtMs = 50L,
 			startedElapsedNanos = 50L,
-			cutoffAtMs = cutoffElapsedNanos,
+			cutoffAtMs = cutoffAtMs,
 			cutoffElapsedNanos = cutoffElapsedNanos,
 			completedAtMs = null,
 			finalAdmissionOrdinal = null,
@@ -1646,7 +1699,16 @@ class RoomDurableSourceIngressTest {
 		} else {
 			sessionDao.updateSession(session) shouldBe 1
 		}
-		val manifest = SessionManifestVersionEntity(
+		val manifestBinding = SessionManifestSourceEntity(
+			logicalTrackingId = TEST_SESSION_ID,
+			manifestRevision = 1L,
+			sourceKind = SourceKind.ACTIVITY.stableCode,
+			purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+			consentEpoch = requireNotNull(policy.captureConsentEpoch),
+			persistenceEligible = true,
+			qosCode = policy.qosCode,
+		)
+		val unsignedManifest = SessionManifestVersionEntity(
 			logicalTrackingId = TEST_SESSION_ID,
 			manifestRevision = 1L,
 			serviceRunId = TEST_RUN_ID,
@@ -1661,7 +1723,13 @@ class RoomDurableSourceIngressTest {
 			zoneId = "UTC",
 			automationEpoch = null,
 			changeReason = "TEST",
-			manifestChecksum = "test-manifest",
+			manifestChecksum = "",
+		)
+		val manifest = unsignedManifest.copy(
+			manifestChecksum = SessionManifestIntegrity.compute(
+				unsignedManifest,
+				listOf(manifestBinding),
+			),
 		)
 		if (sessionDao.manifestByServiceRunRevision(TEST_RUN_ID, 1L) == null) {
 			sessionDao.insertManifest(manifest)
@@ -1673,19 +1741,7 @@ class RoomDurableSourceIngressTest {
 				SourceBrokerPurpose.SESSION_CAPTURE,
 			) == null
 		) {
-			sessionDao.insertManifestSources(
-				listOf(
-					SessionManifestSourceEntity(
-						logicalTrackingId = TEST_SESSION_ID,
-						manifestRevision = 1L,
-						sourceKind = SourceKind.ACTIVITY.stableCode,
-						purpose = "SESSION_CAPTURE",
-						consentEpoch = requireNotNull(policy.captureConsentEpoch),
-						persistenceEligible = true,
-						qosCode = policy.qosCode,
-					),
-				),
-			)
+			sessionDao.insertManifestSources(listOf(manifestBinding))
 		}
 		val run = SourceServiceRunEntity(
 			serviceRunId = TEST_RUN_ID,

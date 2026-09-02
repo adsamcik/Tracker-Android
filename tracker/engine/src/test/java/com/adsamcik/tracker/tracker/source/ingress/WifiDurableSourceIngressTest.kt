@@ -5,16 +5,21 @@ import android.os.SystemClock
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionLifecycleIntentVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
@@ -27,6 +32,7 @@ import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBindi
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
+import com.adsamcik.tracker.tracker.source.coordinator.stableLifecycleChecksum
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.RetryBackoff
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
@@ -367,21 +373,20 @@ class WifiDurableSourceIngressTest {
 	}
 
 	@Test
-	fun `Wi-Fi-only session stop returns durable cutoff after deny-all rotation`() = runTest {
+	fun `Wi-Fi stop rollover admits pre and exact cutoff then rejects post-cutoff without mutation`() = runTest {
 		installWifiSessionCaptureAuthority(includeAmbient = false)
 		upgradeWifiCaptureLaneForManualSession()
 		val registration = currentWifiRuntimeRegistration()
 		registration.authorization.authorizedMembers.map(SourceAuthorizationEntity::purpose) shouldBe
 			listOf(SourceBrokerPurpose.SESSION_CAPTURE)
 		database.sourceBrokerDao().currentDemands("app:wifi-ingress-test") shouldBe emptyList()
-		val candidate = wifiDeliveryCandidate(
+		fun candidate(observedElapsedNanos: Long, frequencyMhz: Int) = wifiDeliveryCandidate(
 			registrationGeneration = registration.state.registrationGeneration,
 			authorizationRevision = registration.authorization.authorizationRevision,
 			physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
 			receivedElapsedRealtimeNanos = 10_000_000L,
 			accessPoints = listOf(
-				WifiAccessPointEvidence("", 2_412, -50, 7_000_000L),
-				WifiAccessPointEvidence("", 5_180, -55, 9_000_000L),
+				WifiAccessPointEvidence("", frequencyMhz, -50, observedElapsedNanos),
 			),
 			purposeEligibilityMask = registration.purposeEligibilityMask,
 			eligibilityFingerprint = registration.eligibilityFingerprint,
@@ -391,7 +396,397 @@ class WifiDurableSourceIngressTest {
 
 		database.sourceBrokerDao().latestAuthorization(SourceKind.WIFI.stableCode, 1L)
 			.toAuthorizationSnapshotOrNull()?.isDenied shouldBe true
-		ingress.admit(candidate) shouldBe DeliveryAdmissionResult.SessionCutoff(8_000_000L)
+		val session = requireNotNull(database.sourceSessionDao().session(WIFI_SESSION_ID))
+		val run = requireNotNull(database.sourceSessionDao().serviceRun(WIFI_SERVICE_RUN_ID))
+		session.lifecycleLeaseGeneration shouldBe WIFI_STOP_LEASE_GENERATION
+		run.leaseGeneration shouldBe WIFI_STOP_LEASE_GENERATION
+		database.sourceBrokerDao().demandsByIds(listOf(WIFI_CAPTURE_DEMAND_ID)).single()
+			.lifecycleLeaseGeneration shouldBe WIFI_LEASE_GENERATION
+
+		ingress.admit(candidate(7_000_000L, 2_412))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		ingress.admit(candidate(8_000_000L, 5_180))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		val rowsBeforePostCutoff = database.sourceEventWalDao().eventsAfter(0L, 10)
+		rowsBeforePostCutoff.size shouldBe 2
+		rowsBeforePostCutoff.map { row -> row.authorizationRevision } shouldBe listOf(2L, 2L)
+
+		ingress.admit(candidate(8_000_001L, 5_220)) shouldBe
+			DeliveryAdmissionResult.SessionCutoff(8_000_000L)
+		database.sourceEventWalDao().countAll() shouldBe 2L
+		database.sourceRegistrationStateDao().get(SourceKind.WIFI.stableCode, WIFI_OWNER_SCOPE)
+			?.nextSequence shouldBe 2L
+	}
+
+	@Test
+	fun `Wi-Fi exact cutoff retains historical capture when the ambient sibling is unchanged`() = runTest {
+		installWifiSessionCaptureAuthority(includeAmbient = true)
+		upgradeWifiCaptureLaneForManualSession()
+		val registration = currentWifiRuntimeRegistration()
+		markWifiSessionStopping(cutoffElapsedNanos = 8_000_000L, retainAmbient = true)
+		val exactCutoff = wifiDeliveryCandidate(
+			registrationGeneration = registration.state.registrationGeneration,
+			authorizationRevision = registration.authorization.authorizationRevision,
+			physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
+			receivedElapsedRealtimeNanos = 10_000_000L,
+			accessPoints = listOf(WifiAccessPointEvidence("", 5_180, -50, 8_000_000L)),
+			purposeEligibilityMask = registration.purposeEligibilityMask,
+			eligibilityFingerprint = registration.eligibilityFingerprint,
+		)
+
+		ingress.admit(exactCutoff).shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		val stored = database.sourceEventWalDao().eventsAfter(0L, 10).single()
+		stored.authorizationRevision shouldBe 2L
+		stored.sessionManifestRevision shouldBe 1L
+		database.sourceRegistrationStateDao().get(SourceKind.WIFI.stableCode, WIFI_OWNER_SCOPE)
+			?.nextSequence shouldBe 1L
+	}
+
+	@Test
+	fun `Wi-Fi exact cutoff rejects historical capture when the ambient sibling changed`() = runTest {
+		installWifiSessionCaptureAuthority(includeAmbient = true)
+		upgradeWifiCaptureLaneForManualSession()
+		val registration = currentWifiRuntimeRegistration()
+		markWifiSessionStopping(
+			cutoffElapsedNanos = 8_000_000L,
+			retainAmbient = true,
+			ambientSiblingConsumerId = "app:wifi-changed-sibling",
+		)
+		val exactCutoff = wifiDeliveryCandidate(
+			registrationGeneration = registration.state.registrationGeneration,
+			authorizationRevision = registration.authorization.authorizationRevision,
+			physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
+			receivedElapsedRealtimeNanos = 10_000_000L,
+			accessPoints = listOf(WifiAccessPointEvidence("", 5_180, -50, 8_000_000L)),
+			purposeEligibilityMask = registration.purposeEligibilityMask,
+			eligibilityFingerprint = registration.eligibilityFingerprint,
+		)
+
+		ingress.admit(exactCutoff) shouldBe DeliveryAdmissionResult.PermanentFailure(
+			AdmissionFailureCode.STALE_SOURCE_POLICY,
+		)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRegistrationStateDao().get(SourceKind.WIFI.stableCode, WIFI_OWNER_SCOPE)
+			?.nextSequence shouldBe 0L
+	}
+
+	@Test
+	fun `Wi-Fi exact cutoff historical admission fails closed after concurrent policy revoke`() = runTest {
+		installWifiSessionCaptureAuthority(includeAmbient = false)
+		upgradeWifiCaptureLaneForManualSession()
+		val registration = currentWifiRuntimeRegistration()
+		markWifiSessionStopping(cutoffElapsedNanos = 8_000_000L, retainAmbient = false)
+		installRevokedWifiPolicy()
+		val exactCutoff = wifiDeliveryCandidate(
+			registrationGeneration = registration.state.registrationGeneration,
+			authorizationRevision = registration.authorization.authorizationRevision,
+			physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
+			receivedElapsedRealtimeNanos = 10_000_000L,
+			accessPoints = listOf(WifiAccessPointEvidence("", 5_180, -50, 8_000_000L)),
+			purposeEligibilityMask = registration.purposeEligibilityMask,
+			eligibilityFingerprint = registration.eligibilityFingerprint,
+		)
+
+		ingress.admit(exactCutoff) shouldBe DeliveryAdmissionResult.PermanentFailure(
+			AdmissionFailureCode.STALE_SOURCE_POLICY,
+		)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRegistrationStateDao().get(SourceKind.WIFI.stableCode, WIFI_OWNER_SCOPE)
+			?.nextSequence shouldBe 0L
+	}
+
+	@Test
+	fun `Wi-Fi run suspension intent admits through exact cutoff and rejects later evidence`() = runTest {
+		installWifiSessionCaptureAuthority(includeAmbient = false)
+		upgradeWifiCaptureLaneForManualSession()
+		val registration = currentWifiRuntimeRegistration()
+		fun candidate(observedElapsedNanos: Long, frequencyMhz: Int) = wifiDeliveryCandidate(
+			registrationGeneration = registration.state.registrationGeneration,
+			authorizationRevision = registration.authorization.authorizationRevision,
+			physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
+			receivedElapsedRealtimeNanos = 10_000_000L,
+			accessPoints = listOf(
+				WifiAccessPointEvidence("", frequencyMhz, -50, observedElapsedNanos),
+			),
+			purposeEligibilityMask = registration.purposeEligibilityMask,
+			eligibilityFingerprint = registration.eligibilityFingerprint,
+		)
+		markWifiRunSuspending(cutoffElapsedNanos = 8_000_000L)
+
+		ingress.admit(candidate(7_000_000L, 2_412))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		ingress.admit(candidate(8_000_000L, 5_180))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		ingress.admit(candidate(8_000_001L, 5_220)) shouldBe
+			DeliveryAdmissionResult.SessionCutoff(8_000_000L)
+		database.sourceEventWalDao().countAll() shouldBe 2L
+		database.sourceRegistrationStateDao().get(SourceKind.WIFI.stableCode, WIFI_OWNER_SCOPE)
+			?.nextSequence shouldBe 2L
+	}
+
+	@Test
+	fun `Wi-Fi run suspension preserves historical capture under the current manifest`() = runTest {
+		installWifiSessionCaptureAuthority(includeAmbient = false)
+		upgradeWifiCaptureLaneForManualSession()
+		val registration = currentWifiRuntimeRegistration()
+		advanceWifiManifestForSameRun()
+		markWifiRunSuspending(cutoffElapsedNanos = 8_000_000L)
+		fun candidate(observedElapsedNanos: Long, frequencyMhz: Int) = wifiDeliveryCandidate(
+			registrationGeneration = registration.state.registrationGeneration,
+			authorizationRevision = registration.authorization.authorizationRevision,
+			physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
+			receivedElapsedRealtimeNanos = 10_000_000L,
+			accessPoints = listOf(
+				WifiAccessPointEvidence("", frequencyMhz, -50, observedElapsedNanos),
+			),
+			purposeEligibilityMask = registration.purposeEligibilityMask,
+			eligibilityFingerprint = registration.eligibilityFingerprint,
+		)
+
+		ingress.admit(candidate(7_000_000L, 2_412))
+			.shouldBeInstanceOf<DeliveryAdmissionResult.Admitted>()
+		val durable = database.sourceEventWalDao().eventsAfter(0L, 10).single()
+		durable.sessionManifestRevision shouldBe 1L
+		ingress.admit(candidate(8_000_001L, 5_220)) shouldBe
+			DeliveryAdmissionResult.SessionCutoff(8_000_000L)
+		database.sourceEventWalDao().countAll() shouldBe 1L
+		database.sourceRegistrationStateDao().get(SourceKind.WIFI.stableCode, WIFI_OWNER_SCOPE)
+			?.nextSequence shouldBe 1L
+	}
+
+	@Test
+	fun `Wi-Fi run suspension rejects a current action mismatched to its capture binding`() = runTest {
+		installWifiSessionCaptureAuthority(includeAmbient = false)
+		upgradeWifiCaptureLaneForManualSession()
+		val registration = currentWifiRuntimeRegistration()
+		advanceWifiManifestForSameRun(consentEpoch = 2L)
+		markWifiRunSuspending(
+			cutoffElapsedNanos = 8_000_000L,
+			actionConsentEpoch = 1L,
+		)
+		val beforeCutoff = wifiDeliveryCandidate(
+			registrationGeneration = registration.state.registrationGeneration,
+			authorizationRevision = registration.authorization.authorizationRevision,
+			physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
+			receivedElapsedRealtimeNanos = 10_000_000L,
+			accessPoints = listOf(WifiAccessPointEvidence("", 2_412, -50, 7_000_000L)),
+			purposeEligibilityMask = registration.purposeEligibilityMask,
+			eligibilityFingerprint = registration.eligibilityFingerprint,
+		)
+
+		ingress.admit(beforeCutoff) shouldBe DeliveryAdmissionResult.PermanentFailure(
+			AdmissionFailureCode.STALE_SESSION_MANIFEST,
+		)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRegistrationStateDao().get(SourceKind.WIFI.stableCode, WIFI_OWNER_SCOPE)
+			?.nextSequence shouldBe 0L
+	}
+
+	@Test
+	fun `Wi-Fi run suspension rejects a corrupt current intent checksum`() = runTest {
+		installWifiSessionCaptureAuthority(includeAmbient = false)
+		upgradeWifiCaptureLaneForManualSession()
+		val registration = currentWifiRuntimeRegistration()
+		markWifiRunSuspending(
+			cutoffElapsedNanos = 8_000_000L,
+			intentChecksumOverride = "corrupt-intent-checksum",
+		)
+		val candidate = wifiDeliveryCandidate(
+			registrationGeneration = registration.state.registrationGeneration,
+			authorizationRevision = registration.authorization.authorizationRevision,
+			physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
+			receivedElapsedRealtimeNanos = 10_000_000L,
+			accessPoints = listOf(WifiAccessPointEvidence("", 2_412, -50, 7_000_000L)),
+			purposeEligibilityMask = registration.purposeEligibilityMask,
+			eligibilityFingerprint = registration.eligibilityFingerprint,
+		)
+
+		ingress.admit(candidate) shouldBe DeliveryAdmissionResult.PermanentFailure(
+			AdmissionFailureCode.STALE_SESSION_MANIFEST,
+		)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRegistrationStateDao().get(SourceKind.WIFI.stableCode, WIFI_OWNER_SCOPE)
+			?.nextSequence shouldBe 0L
+	}
+
+	@Test
+	fun `Wi-Fi run suspension rejects an action id not derived from the current intent`() = runTest {
+		installWifiSessionCaptureAuthority(includeAmbient = false)
+		upgradeWifiCaptureLaneForManualSession()
+		val registration = currentWifiRuntimeRegistration()
+		markWifiRunSuspending(
+			cutoffElapsedNanos = 8_000_000L,
+			actionIdOverride = "wrong-derived-action-id",
+		)
+		val candidate = wifiDeliveryCandidate(
+			registrationGeneration = registration.state.registrationGeneration,
+			authorizationRevision = registration.authorization.authorizationRevision,
+			physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
+			receivedElapsedRealtimeNanos = 10_000_000L,
+			accessPoints = listOf(WifiAccessPointEvidence("", 2_412, -50, 7_000_000L)),
+			purposeEligibilityMask = registration.purposeEligibilityMask,
+			eligibilityFingerprint = registration.eligibilityFingerprint,
+		)
+
+		ingress.admit(candidate) shouldBe DeliveryAdmissionResult.PermanentFailure(
+			AdmissionFailureCode.STALE_SESSION_MANIFEST,
+		)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRegistrationStateDao().get(SourceKind.WIFI.stableCode, WIFI_OWNER_SCOPE)
+			?.nextSequence shouldBe 0L
+	}
+
+	@Test
+	fun `Wi-Fi active capture rejects a corrupt historical manifest envelope`() = runTest {
+		installWifiSessionCaptureAuthority(includeAmbient = false)
+		upgradeWifiCaptureLaneForManualSession()
+		val registration = currentWifiRuntimeRegistration()
+		corruptWifiManifest(manifestRevision = 1L)
+		val candidate = wifiDeliveryCandidate(
+			registrationGeneration = registration.state.registrationGeneration,
+			authorizationRevision = registration.authorization.authorizationRevision,
+			physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
+			receivedElapsedRealtimeNanos = 10_000_000L,
+			accessPoints = listOf(WifiAccessPointEvidence("", 2_412, -50, 7_000_000L)),
+			purposeEligibilityMask = registration.purposeEligibilityMask,
+			eligibilityFingerprint = registration.eligibilityFingerprint,
+		)
+
+		ingress.admit(candidate) shouldBe DeliveryAdmissionResult.PermanentFailure(
+			AdmissionFailureCode.STALE_SESSION_MANIFEST,
+		)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRegistrationStateDao().get(SourceKind.WIFI.stableCode, WIFI_OWNER_SCOPE)
+			?.nextSequence shouldBe 0L
+	}
+
+	@Test
+	fun `Wi-Fi active historical capture rejects a corrupt current manifest envelope`() = runTest {
+		installWifiSessionCaptureAuthority(includeAmbient = false)
+		upgradeWifiCaptureLaneForManualSession()
+		val registration = currentWifiRuntimeRegistration()
+		advanceWifiManifestForSameRun()
+		corruptWifiManifest(manifestRevision = WIFI_CURRENT_MANIFEST_REVISION)
+		val candidate = wifiDeliveryCandidate(
+			registrationGeneration = registration.state.registrationGeneration,
+			authorizationRevision = registration.authorization.authorizationRevision,
+			physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
+			receivedElapsedRealtimeNanos = 10_000_000L,
+			accessPoints = listOf(WifiAccessPointEvidence("", 2_412, -50, 7_000_000L)),
+			purposeEligibilityMask = registration.purposeEligibilityMask,
+			eligibilityFingerprint = registration.eligibilityFingerprint,
+		)
+
+		ingress.admit(candidate) shouldBe DeliveryAdmissionResult.PermanentFailure(
+			AdmissionFailureCode.STALE_SESSION_MANIFEST,
+		)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRegistrationStateDao().get(SourceKind.WIFI.stableCode, WIFI_OWNER_SCOPE)
+			?.nextSequence shouldBe 0L
+	}
+
+	@Test
+	fun `Wi-Fi active historical capture rejects a missing current manifest envelope`() = runTest {
+		installWifiSessionCaptureAuthority(includeAmbient = false)
+		upgradeWifiCaptureLaneForManualSession()
+		val registration = currentWifiRuntimeRegistration()
+		val sessionDao = database.sourceSessionDao()
+		val session = requireNotNull(sessionDao.session(WIFI_SESSION_ID))
+		sessionDao.updateSession(
+			session.copy(currentManifestRevision = WIFI_CURRENT_MANIFEST_REVISION),
+		) shouldBe 1
+		val candidate = wifiDeliveryCandidate(
+			registrationGeneration = registration.state.registrationGeneration,
+			authorizationRevision = registration.authorization.authorizationRevision,
+			physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
+			receivedElapsedRealtimeNanos = 10_000_000L,
+			accessPoints = listOf(WifiAccessPointEvidence("", 2_412, -50, 7_000_000L)),
+			purposeEligibilityMask = registration.purposeEligibilityMask,
+			eligibilityFingerprint = registration.eligibilityFingerprint,
+		)
+
+		ingress.admit(candidate) shouldBe DeliveryAdmissionResult.PermanentFailure(
+			AdmissionFailureCode.STALE_SESSION_MANIFEST,
+		)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRegistrationStateDao().get(SourceKind.WIFI.stableCode, WIFI_OWNER_SCOPE)
+			?.nextSequence shouldBe 0L
+	}
+
+	@Test
+	fun `Wi-Fi suspension rejects corrupt historical manifest under a valid current manifest`() = runTest {
+		installWifiSessionCaptureAuthority(includeAmbient = false)
+		upgradeWifiCaptureLaneForManualSession()
+		val registration = currentWifiRuntimeRegistration()
+		advanceWifiManifestForSameRun()
+		corruptWifiManifest(manifestRevision = 1L)
+		markWifiRunSuspending(cutoffElapsedNanos = 8_000_000L)
+		val candidate = wifiDeliveryCandidate(
+			registrationGeneration = registration.state.registrationGeneration,
+			authorizationRevision = registration.authorization.authorizationRevision,
+			physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
+			receivedElapsedRealtimeNanos = 10_000_000L,
+			accessPoints = listOf(WifiAccessPointEvidence("", 2_412, -50, 7_000_000L)),
+			purposeEligibilityMask = registration.purposeEligibilityMask,
+			eligibilityFingerprint = registration.eligibilityFingerprint,
+		)
+
+		ingress.admit(candidate) shouldBe DeliveryAdmissionResult.PermanentFailure(
+			AdmissionFailureCode.STALE_SESSION_MANIFEST,
+		)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRegistrationStateDao().get(SourceKind.WIFI.stableCode, WIFI_OWNER_SCOPE)
+			?.nextSequence shouldBe 0L
+	}
+
+	@Test
+	fun `Wi-Fi suspension rejects an active session carrying a logical cutoff`() = runTest {
+		installWifiSessionCaptureAuthority(includeAmbient = false)
+		upgradeWifiCaptureLaneForManualSession()
+		val registration = currentWifiRuntimeRegistration()
+		markWifiRunSuspending(cutoffElapsedNanos = 8_000_000L)
+		val sessionDao = database.sourceSessionDao()
+		val session = requireNotNull(sessionDao.session(WIFI_SESSION_ID))
+		sessionDao.updateSession(
+			session.copy(cutoffAtMs = 1_000L, cutoffElapsedNanos = 8_000_000L),
+		) shouldBe 1
+		val candidate = wifiDeliveryCandidate(
+			registrationGeneration = registration.state.registrationGeneration,
+			authorizationRevision = registration.authorization.authorizationRevision,
+			physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
+			receivedElapsedRealtimeNanos = 10_000_000L,
+			accessPoints = listOf(WifiAccessPointEvidence("", 2_412, -50, 7_000_000L)),
+			purposeEligibilityMask = registration.purposeEligibilityMask,
+			eligibilityFingerprint = registration.eligibilityFingerprint,
+		)
+
+		ingress.admit(candidate) shouldBe DeliveryAdmissionResult.PermanentFailure(
+			AdmissionFailureCode.STALE_SESSION_MANIFEST,
+		)
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceRegistrationStateDao().get(SourceKind.WIFI.stableCode, WIFI_OWNER_SCOPE)
+			?.nextSequence shouldBe 0L
+	}
+
+	@Test
+	fun `Wi-Fi run suspension rejects a stale lifecycle action boundary`() = runTest {
+		installWifiSessionCaptureAuthority(includeAmbient = false)
+		upgradeWifiCaptureLaneForManualSession()
+		val registration = currentWifiRuntimeRegistration()
+		markWifiRunSuspending(cutoffElapsedNanos = 8_000_000L, actionCutoffElapsedNanos = 8_000_001L)
+		val beforeCutoff = wifiDeliveryCandidate(
+			registrationGeneration = registration.state.registrationGeneration,
+			authorizationRevision = registration.authorization.authorizationRevision,
+			physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
+			receivedElapsedRealtimeNanos = 10_000_000L,
+			accessPoints = listOf(WifiAccessPointEvidence("", 2_412, -50, 7_000_000L)),
+			purposeEligibilityMask = registration.purposeEligibilityMask,
+			eligibilityFingerprint = registration.eligibilityFingerprint,
+		)
+
+		ingress.admit(beforeCutoff) shouldBe DeliveryAdmissionResult.PermanentFailure(
+			AdmissionFailureCode.STALE_SESSION_MANIFEST,
+		)
 		database.sourceEventWalDao().countAll() shouldBe 0L
 		database.sourceRegistrationStateDao().get(SourceKind.WIFI.stableCode, WIFI_OWNER_SCOPE)
 			?.nextSequence shouldBe 0L
@@ -702,6 +1097,7 @@ class WifiDurableSourceIngressTest {
 	private suspend fun installWifiSessionCaptureAuthority(includeAmbient: Boolean = true) {
 		val sessionDao = database.sourceSessionDao()
 		val brokerDao = database.sourceBrokerDao()
+		installWifiPolicy(includeAmbient)
 		if (!includeAmbient) {
 			brokerDao.deleteAllDemands()
 		}
@@ -752,37 +1148,9 @@ class WifiDurableSourceIngressTest {
 				runRevision = 1L,
 			),
 		)
-		sessionDao.insertManifest(
-			SessionManifestVersionEntity(
-				logicalTrackingId = WIFI_SESSION_ID,
-				manifestRevision = 1L,
-				serviceRunId = WIFI_SERVICE_RUN_ID,
-				sessionMode = "MANUAL",
-				sourcePolicyRevision = 1L,
-				acquisitionPlanRevision = 1L,
-				rolloutRevision = 2L,
-				startOrigin = "MANUAL_FOREGROUND_START",
-				effectiveBootId = BOOT_CLOCK_DOMAIN_ID,
-				effectiveElapsedRealtimeNanos = 6_000_000L,
-				effectiveWallTimeMs = 1_000L,
-				zoneId = "UTC",
-				automationEpoch = null,
-				changeReason = "TEST",
-				manifestChecksum = "wifi-session-manifest",
-			),
-		)
-		sessionDao.insertManifestSources(
-			listOf(
-				SessionManifestSourceEntity(
-					logicalTrackingId = WIFI_SESSION_ID,
-					manifestRevision = 1L,
-					sourceKind = SourceKind.WIFI.stableCode,
-					purpose = SourceBrokerPurpose.SESSION_CAPTURE,
-					consentEpoch = 1L,
-					persistenceEligible = true,
-					qosCode = 2,
-				),
-			),
+		insertWifiManifest(
+			manifestRevision = 1L,
+			effectiveElapsedRealtimeNanos = 6_000_000L,
 		)
 		brokerDao.insertDemands(
 			listOf(
@@ -869,14 +1237,155 @@ class WifiDurableSourceIngressTest {
 		val state = requireNotNull(
 			database.sourceRegistrationStateDao().get(SourceKind.WIFI.stableCode, WIFI_OWNER_SCOPE),
 		)
-		database.sourceRegistrationStateDao().replace(
-			state.copy(appliedRevision = 2L, updatedAtMs = 1_000L),
+			database.sourceRegistrationStateDao().replace(
+				state.copy(appliedRevision = 2L, updatedAtMs = 1_000L),
+			)
+	}
+
+	private suspend fun insertWifiManifest(
+		manifestRevision: Long,
+		effectiveElapsedRealtimeNanos: Long,
+		persistenceEligible: Boolean = true,
+		consentEpoch: Long = 1L,
+	) {
+		val binding = SessionManifestSourceEntity(
+			logicalTrackingId = WIFI_SESSION_ID,
+			manifestRevision = manifestRevision,
+			sourceKind = SourceKind.WIFI.stableCode,
+			purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+			consentEpoch = consentEpoch,
+			persistenceEligible = persistenceEligible,
+			qosCode = 2,
+		)
+		val unsignedManifest = SessionManifestVersionEntity(
+			logicalTrackingId = WIFI_SESSION_ID,
+			manifestRevision = manifestRevision,
+			serviceRunId = WIFI_SERVICE_RUN_ID,
+			sessionMode = "MANUAL",
+			sourcePolicyRevision = 1L,
+			acquisitionPlanRevision = manifestRevision,
+			rolloutRevision = 2L,
+			startOrigin = "MANUAL_FOREGROUND_START",
+			effectiveBootId = BOOT_CLOCK_DOMAIN_ID,
+			effectiveElapsedRealtimeNanos = effectiveElapsedRealtimeNanos,
+			effectiveWallTimeMs = 1_000L,
+			zoneId = "UTC",
+			automationEpoch = null,
+			changeReason = "TEST",
+			manifestChecksum = "",
+		)
+		val manifest = unsignedManifest.copy(
+			manifestChecksum = SessionManifestIntegrity.compute(unsignedManifest, listOf(binding)),
+		)
+		database.sourceSessionDao().insertManifest(manifest)
+		database.sourceSessionDao().insertManifestSources(listOf(binding))
+	}
+
+	private suspend fun advanceWifiManifestForSameRun(consentEpoch: Long = 1L) {
+		val sessionDao = database.sourceSessionDao()
+		insertWifiManifest(
+			manifestRevision = WIFI_CURRENT_MANIFEST_REVISION,
+			effectiveElapsedRealtimeNanos = 6_500_000L,
+			consentEpoch = consentEpoch,
+		)
+		val session = requireNotNull(sessionDao.session(WIFI_SESSION_ID))
+		sessionDao.updateSession(
+			session.copy(currentManifestRevision = WIFI_CURRENT_MANIFEST_REVISION),
+		) shouldBe 1
+	}
+
+	private fun corruptWifiManifest(manifestRevision: Long) {
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_manifest_version SET manifest_checksum = 'corrupt' " +
+				"WHERE logical_tracking_id = '$WIFI_SESSION_ID' " +
+				"AND manifest_revision = $manifestRevision",
 		)
 	}
 
+	private suspend fun installWifiPolicy(includeAmbient: Boolean) {
+		val policyDao = database.sourcePolicyDao()
+		policyDao.ensureAuthority(
+			SourcePolicyAuthorityEntity(
+				bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+				currentPolicyRevision = 1L,
+				legacySettingsFingerprint = null,
+				updatedAtMs = 1_000L,
+			),
+		)
+		policyDao.insertPolicies(
+			listOf(
+				wifiPolicy(
+					revision = 1L,
+					enabled = true,
+					capturePersistenceEligible = true,
+					captureConsentEpoch = 1L,
+					ambientPersistenceEligible = includeAmbient,
+					ambientConsentEpoch = 1L.takeIf { includeAmbient },
+					effectiveElapsedRealtimeNanos = 6_000_000L,
+				),
+			),
+		)
+	}
+
+	private suspend fun installRevokedWifiPolicy() {
+		val policyDao = database.sourcePolicyDao()
+		policyDao.insertPolicies(
+			listOf(
+				wifiPolicy(
+					revision = 2L,
+					enabled = false,
+					capturePersistenceEligible = false,
+					captureConsentEpoch = 2L,
+					ambientPersistenceEligible = false,
+					ambientConsentEpoch = null,
+					effectiveElapsedRealtimeNanos = 8_000_000L,
+				),
+			),
+		)
+		policyDao.compareAndSetAuthority(
+			expectedBootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			expectedRevision = 1L,
+			bootstrapState = SourcePolicyAuthorityEntity.STATE_ACTIVE,
+			newRevision = 2L,
+			legacySettingsFingerprint = null,
+			updatedAtMs = 1_000L,
+		) shouldBe 1
+	}
+
+	@Suppress("LongParameterList")
+	private fun wifiPolicy(
+		revision: Long,
+		enabled: Boolean,
+		capturePersistenceEligible: Boolean,
+		captureConsentEpoch: Long?,
+		ambientPersistenceEligible: Boolean,
+		ambientConsentEpoch: Long?,
+		effectiveElapsedRealtimeNanos: Long,
+	) = SourcePolicyEntity(
+		policyRevision = revision,
+		sourceKind = SourceKind.WIFI.stableCode,
+		enabled = enabled,
+		qosCode = 2,
+		locationMinTimeSeconds = null,
+		locationMinDistanceMeters = null,
+		locationRequiredAccuracyMeters = null,
+		capturePersistenceEligible = capturePersistenceEligible,
+		controlPersistenceEligible = false,
+		ambientPersistenceEligible = ambientPersistenceEligible,
+		captureConsentEpoch = captureConsentEpoch,
+		controlConsentEpoch = null,
+		ambientConsentEpoch = ambientConsentEpoch,
+		effectiveBootId = BOOT_CLOCK_DOMAIN_ID,
+		effectiveElapsedRealtimeNanos = effectiveElapsedRealtimeNanos,
+		effectiveWallTimeMs = 1_000L,
+		changeReason = "TEST",
+	)
+
+	@Suppress("LongMethod") // Mirrors the complete production-shaped stop transaction.
 	private suspend fun markWifiSessionStopping(
 		cutoffElapsedNanos: Long,
 		retainAmbient: Boolean = true,
+		ambientSiblingConsumerId: String = "app:wifi-ingress-test",
 	) {
 		database.withTransaction {
 			val sessionDao = database.sourceSessionDao()
@@ -899,7 +1408,7 @@ class WifiDurableSourceIngressTest {
 						authorizationFingerprint = WIFI_ELIGIBILITY_FINGERPRINT,
 						purposeEligibilityMask = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
 						demandId = WIFI_DEMAND_ID,
-						consumerId = "app:wifi-ingress-test",
+						consumerId = ambientSiblingConsumerId,
 						purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
 						sourcePolicyRevision = 1L,
 						consentEpoch = 1L,
@@ -928,11 +1437,126 @@ class WifiDurableSourceIngressTest {
 			sessionDao.updateSession(
 				session.copy(
 					state = "STOPPING",
+					lifecycleLeaseGeneration = WIFI_STOP_LEASE_GENERATION,
 					cutoffAtMs = 1_000L,
 					cutoffElapsedNanos = cutoffElapsedNanos,
 				),
 			) shouldBe 1
-			sessionDao.updateServiceRun(run.copy(state = "STOPPING")) shouldBe 1
+			sessionDao.updateServiceRun(
+				run.copy(
+					state = "STOPPING",
+					leaseGeneration = WIFI_STOP_LEASE_GENERATION,
+				),
+			) shouldBe 1
+		}
+	}
+
+	@Suppress("LongMethod") // Mirrors the exact durable ACTIVE-session/STOPPING-run suspend intent.
+	private suspend fun markWifiRunSuspending(
+		cutoffElapsedNanos: Long,
+		actionCutoffElapsedNanos: Long = cutoffElapsedNanos,
+		actionConsentEpoch: Long? = null,
+		intentChecksumOverride: String? = null,
+		actionIdOverride: String? = null,
+	) {
+		database.withTransaction {
+			val sessionDao = database.sourceSessionDao()
+			val session = requireNotNull(sessionDao.session(WIFI_SESSION_ID))
+			val run = requireNotNull(sessionDao.serviceRun(WIFI_SERVICE_RUN_ID))
+			val currentManifestRevision = requireNotNull(session.currentManifestRevision)
+			val currentManifest = requireNotNull(
+				sessionDao.manifestByServiceRunRevision(WIFI_SERVICE_RUN_ID, currentManifestRevision),
+			)
+			val currentCaptureBinding = requireNotNull(
+				sessionDao.manifestSource(
+					WIFI_SESSION_ID,
+					currentManifestRevision,
+					SourceKind.WIFI.stableCode,
+					SourceBrokerPurpose.SESSION_CAPTURE,
+				),
+			)
+			val intentChecksum = intentChecksumOverride ?: stableLifecycleChecksum(
+				WIFI_SESSION_ID,
+				WIFI_SUSPEND_INTENT_REVISION,
+				currentManifestRevision,
+				"ACTIVE",
+				"ANDROID_RESTART",
+				BOOT_CLOCK_DOMAIN_ID,
+				cutoffElapsedNanos,
+			)
+			val actionId = actionIdOverride ?: stableLifecycleChecksum(
+				WIFI_SESSION_ID,
+				WIFI_SUSPEND_INTENT_REVISION,
+				SourceKind.WIFI.stableCode,
+				"STOPPED",
+			)
+			sessionDao.insertLifecycleIntent(
+				SessionLifecycleIntentVersionEntity(
+					logicalTrackingId = WIFI_SESSION_ID,
+					intentRevision = WIFI_SUSPEND_INTENT_REVISION,
+					manifestRevision = currentManifestRevision,
+					desiredState = "ACTIVE",
+					startOrigin = "RECOVERY",
+					requestBootId = BOOT_CLOCK_DOMAIN_ID,
+					requestedElapsedRealtimeNanos = cutoffElapsedNanos,
+					requestedWallTimeMs = 1_000L,
+					automationEpoch = null,
+					triggerId = null,
+					triggerKind = null,
+					triggerBootId = null,
+					triggerObservedElapsedRealtimeNanos = null,
+					triggerReceivedElapsedRealtimeNanos = null,
+					triggerExpiresElapsedRealtimeNanos = null,
+					stopReason = "ANDROID_RESTART",
+					stopDeadlineBootId = null,
+					stopDeadlineElapsedRealtimeNanos = null,
+					intentChecksum = intentChecksum,
+				),
+			)
+			sessionDao.insertLifecycleActions(
+				listOf(
+					LifecycleDesiredActionEntity(
+						actionId = actionId,
+						logicalTrackingId = WIFI_SESSION_ID,
+						serviceRunId = WIFI_SERVICE_RUN_ID,
+						manifestRevision = currentManifestRevision,
+						actionRevision = 1L,
+						actionFamily = "SOURCE_RUNTIME",
+						sourceKind = SourceKind.WIFI.stableCode,
+						desiredState = "STOPPED",
+						desiredPlanRevision = session.desiredPlanRevision,
+						sourcePolicyRevision = currentManifest.sourcePolicyRevision,
+						consentEpoch = actionConsentEpoch ?: currentCaptureBinding.consentEpoch,
+						startOrigin = "POLICY_RECONCILIATION",
+						bootId = BOOT_CLOCK_DOMAIN_ID,
+						leaseGeneration = WIFI_STOP_LEASE_GENERATION,
+						requestedAtMs = 1_000L,
+						requestedElapsedRealtimeNanos = actionCutoffElapsedNanos,
+						status = "APPLYING",
+						attemptCount = 1,
+						acknowledgedAtMs = null,
+						acknowledgedElapsedRealtimeNanos = null,
+						failureCode = null,
+						retryTrigger = null,
+						sourceInstanceId = null,
+						registrationGeneration = null,
+					),
+				),
+			)
+			sessionDao.updateSession(
+				session.copy(
+					currentIntentRevision = WIFI_SUSPEND_INTENT_REVISION,
+					lifecycleLeaseGeneration = WIFI_STOP_LEASE_GENERATION,
+				),
+			) shouldBe 1
+			sessionDao.updateServiceRun(
+				run.copy(
+					state = "STOPPING",
+					leaseGeneration = WIFI_STOP_LEASE_GENERATION,
+					runtimeAcknowledgement = "PENDING",
+					runRevision = run.runRevision + 1L,
+				),
+			) shouldBe 1
 		}
 	}
 
@@ -1096,6 +1720,9 @@ class WifiDurableSourceIngressTest {
 		const val WIFI_SESSION_ID = "wifi-session"
 		const val WIFI_SERVICE_RUN_ID = "wifi-service-run"
 		const val WIFI_LEASE_GENERATION = 7L
+		const val WIFI_STOP_LEASE_GENERATION = 8L
+		const val WIFI_SUSPEND_INTENT_REVISION = 2L
+		const val WIFI_CURRENT_MANIFEST_REVISION = 2L
 		const val WIFI_ELIGIBILITY_FINGERPRINT = "wifi-ambient-eligibility"
 		const val WIFI_CAPTURE_ELIGIBILITY_FINGERPRINT = "wifi-session-eligibility"
 		const val FIRST_PHYSICAL_CONFIGURATION = "wifi-physical-before"

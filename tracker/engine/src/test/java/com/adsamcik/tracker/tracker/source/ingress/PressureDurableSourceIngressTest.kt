@@ -3,13 +3,18 @@ package com.adsamcik.tracker.tracker.source.ingress
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
@@ -50,6 +55,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@Suppress("LargeClass") // One Room fixture keeps the pressure admission cases comparable.
 class PressureDurableSourceIngressTest {
 	private lateinit var database: AppDatabase
 	private lateinit var ingress: RoomDurableSourceIngress
@@ -72,6 +78,7 @@ class PressureDurableSourceIngressTest {
 			),
 			updatedAtMs = 1L,
 		)
+		installPressureSessionAuthority()
 		installPressureDemand()
 		installPressureRegistrationGeneration(
 			generation = 1L,
@@ -547,6 +554,93 @@ class PressureDurableSourceIngressTest {
 				),
 			),
 		)
+	}
+
+	@Suppress("LongMethod") // Builds the exact ACTIVE capture authority required by production ingress.
+	private suspend fun installPressureSessionAuthority() {
+		val sessionDao = database.sourceSessionDao()
+		sessionDao.insertSession(
+			LogicalTrackingSessionEntity(
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				state = "ACTIVE",
+				lifecycleRevision = 1L,
+				desiredPlanRevision = 1L,
+				rolloutRevision = 1L,
+				startOrigin = "MANUAL_FOREGROUND_START",
+				clockDomainId = BOOT_CLOCK_DOMAIN_ID,
+				startedAtMs = 50L,
+				startedElapsedNanos = 50L,
+				cutoffAtMs = null,
+				cutoffElapsedNanos = null,
+				completedAtMs = null,
+				finalAdmissionOrdinal = null,
+				failureCode = null,
+				sessionMode = "MANUAL",
+				currentManifestRevision = 1L,
+				currentIntentRevision = 1L,
+				currentServiceRunId = SERVICE_RUN_ID,
+				lifecycleLeaseGeneration = 1L,
+				lifecycleBootId = BOOT_CLOCK_DOMAIN_ID,
+				automationEpoch = null,
+			),
+		)
+		sessionDao.insertServiceRun(
+			SourceServiceRunEntity(
+				serviceRunId = SERVICE_RUN_ID,
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				state = "ACTIVE",
+				desiredPlanRevision = 1L,
+				rolloutRevision = 1L,
+				foregroundCapabilityFlags = 0L,
+				startedAtMs = 50L,
+				startedElapsedNanos = 50L,
+				completedAtMs = null,
+				completionReason = null,
+				bootId = BOOT_CLOCK_DOMAIN_ID,
+				leaseGeneration = 1L,
+				startOrigin = "MANUAL_FOREGROUND_START",
+				desiredForegroundCapabilityFlags = 0L,
+				appliedForegroundCapabilityFlags = 0L,
+				runtimeAcknowledgement = "START_ACCEPTED",
+				runtimeFailureCode = null,
+				runRevision = 1L,
+			),
+		)
+		val manifestBinding = SessionManifestSourceEntity(
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			manifestRevision = 1L,
+			sourceKind = SourceKind.PRESSURE.stableCode,
+			purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+			consentEpoch = 1L,
+			persistenceEligible = true,
+			qosCode = 2,
+		)
+		val unsignedManifest = SessionManifestVersionEntity(
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			manifestRevision = 1L,
+			serviceRunId = SERVICE_RUN_ID,
+			sessionMode = "MANUAL",
+			sourcePolicyRevision = 1L,
+			acquisitionPlanRevision = 1L,
+			rolloutRevision = 1L,
+			startOrigin = "MANUAL_FOREGROUND_START",
+			effectiveBootId = BOOT_CLOCK_DOMAIN_ID,
+			effectiveElapsedRealtimeNanos = 50L,
+			effectiveWallTimeMs = 50L,
+			zoneId = "UTC",
+			automationEpoch = null,
+			changeReason = "TEST",
+			manifestChecksum = "",
+		)
+		sessionDao.insertManifest(
+			unsignedManifest.copy(
+				manifestChecksum = SessionManifestIntegrity.compute(
+					unsignedManifest,
+					listOf(manifestBinding),
+				),
+			),
+		)
+		sessionDao.insertManifestSources(listOf(manifestBinding))
 	}
 
 	private suspend fun installPressureRegistrationGeneration(
