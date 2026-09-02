@@ -16,6 +16,7 @@ import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEffectVa
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjection
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationStartPermit
+import com.adsamcik.tracker.tracker.source.projection.PressureSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecovery
 import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecoveryResult
@@ -195,23 +196,28 @@ class SourcePipelineRecoveryTest {
 	}
 
 	@Test
-	fun `startup and committed Steps hints only kick the source local lane`() = runTest {
+	fun `startup and committed fact hints independently kick their source local lanes`() = runTest {
 		val stepsLane = mockk<StepsSessionFactProjectionLane>(relaxed = true)
+		val pressureLane = mockk<PressureSessionFactProjectionLane>(relaxed = true)
 		val scheduled = SourcePipelineRecovery(
 			legacy,
 			coordinator,
 			activityLane,
 			activityEffects,
 			stepsLane,
+			pressureLane,
 			backgroundScope,
 		)
 		coEvery { legacy.recover() } returns LegacyV27ProjectionRecoveryResult.NotRequired
 
 		scheduled.recoverStartupAuthority()
 		scheduled.requestStepsSessionFactDrain()
+		scheduled.requestPressureSessionFactDrain()
 
 		verify(exactly = 2) { stepsLane.requestDrain() }
+		verify(exactly = 2) { pressureLane.requestDrain() }
 		coVerify(exactly = 0) { stepsLane.drainAvailable() }
+		coVerify(exactly = 0) { pressureLane.drainAvailable() }
 		coVerify(exactly = 0) { activityLane.drainAvailable() }
 		coVerify(exactly = 0) { coordinator.drainAvailable(any()) }
 	}

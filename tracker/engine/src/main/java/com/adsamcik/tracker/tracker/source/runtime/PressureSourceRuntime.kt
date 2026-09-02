@@ -14,8 +14,8 @@ import com.adsamcik.tracker.tracker.source.ingress.PRESSURE_QUALIFIED_WINDOW_PAY
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.PressurePlan
 import com.adsamcik.tracker.tracker.source.model.PressureSensorAccuracy
-import com.adsamcik.tracker.tracker.source.model.PressureWindowClosureKind
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
+import com.adsamcik.tracker.tracker.source.model.PressureWindowQualification
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryIdentity
@@ -1322,7 +1322,9 @@ class PressureSourceRuntime @Inject constructor(
 	private fun pressureWindowQuality(payload: PressureWindowPayload, delayNanos: Long) = SourceQuality(
 		flags = buildSet {
 			if (delayNanos >= BATCHED_AFTER_NANOS) add(SourceQualityFlag.BATCHED)
-			if (!payload.hasCompleteTargetCoverage()) add(SourceQualityFlag.INCOMPLETE_WINDOW)
+			if (PressureWindowQualification.classify(payload) == PressureWindowQualification.PARTIAL) {
+				add(SourceQualityFlag.INCOMPLETE_WINDOW)
+			}
 		},
 	)
 
@@ -1967,21 +1969,6 @@ private fun Int.toPressureSensorAccuracy(): PressureSensorAccuracy = when (this)
 	SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM -> PressureSensorAccuracy.MEDIUM
 	SensorManager.SENSOR_STATUS_ACCURACY_HIGH -> PressureSensorAccuracy.HIGH
 	else -> PressureSensorAccuracy.UNKNOWN
-}
-
-private fun PressureWindowPayload.hasCompleteTargetCoverage(): Boolean {
-	if (closureKind != PressureWindowClosureKind.TARGET_ELAPSED) return false
-	val expectedCount = requireNotNull(expectedSampleCount)
-	val samplePeriodNanos = requireNotNull(effectiveSamplePeriodMicros).toLong() * 1_000L
-	// The rollover trigger belongs to the next window. A full half-open prior window therefore
-	// covers at least (expected - 1) provider periods with its own first/last observations.
-	val requiredObservedSpanNanos = (expectedCount.toLong() - 1L) * samplePeriodNanos
-	val observedSpanNanos = windowEndElapsedRealtimeNanos - windowStartElapsedRealtimeNanos
-	// A gap of two complete provider periods proves that at least one cadence slot is absent. Keep
-	// ordinary sub-period jitter complete, but never let bunched samples at the ends hide a hole.
-	val hasNoMissingCadenceSlot = requireNotNull(maximumInterSampleGapNanos) < 2L * samplePeriodNanos
-	return sampleCount >= expectedCount && observedSpanNanos >= requiredObservedSpanNanos &&
-		hasNoMissingCadenceSlot
 }
 
 internal data class PressureCompletedWindow(

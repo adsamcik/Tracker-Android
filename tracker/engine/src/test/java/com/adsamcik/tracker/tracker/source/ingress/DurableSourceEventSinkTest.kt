@@ -4,6 +4,9 @@ import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
 import com.adsamcik.tracker.tracker.source.control.CollectionMotionController
 import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
+import com.adsamcik.tracker.tracker.source.model.PressureSensorAccuracy
+import com.adsamcik.tracker.tracker.source.model.PressureWindowClosureKind
+import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryUnit
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
@@ -77,6 +80,26 @@ class DurableSourceEventSinkTest {
 			.shouldBeInstanceOf<SourceAdmissionHandoff.Duplicate>()
 
 		verify(exactly = 1) { recovery.requestStepsSessionFactDrain() }
+		verify(exactly = 0) { recovery.requestCommittedWorkDrain() }
+	}
+
+	@Test
+	fun `durable and duplicate Pressure admissions independently kick the Pressure lane`() = runTest {
+		val ingress = mockk<DurableSourceIngress>()
+		val recovery = mockk<SourcePipelineRecovery>(relaxed = true)
+		coEvery { ingress.admit(any()) } returnsMany listOf(
+			AdmissionResult.Admitted(SourceEventId("pressure-event"), 7L),
+			AdmissionResult.Duplicate(SourceEventId("pressure-event"), 7L),
+		)
+		val subject = DurableSourceEventSinkFactory(ingress, recovery)
+
+		subject.unbound.admit(pressureCandidate())
+			.shouldBeInstanceOf<SourceAdmissionHandoff.Durable>()
+		subject.unbound.admit(pressureCandidate())
+			.shouldBeInstanceOf<SourceAdmissionHandoff.Duplicate>()
+
+		verify(exactly = 2) { recovery.requestPressureSessionFactDrain() }
+		verify(exactly = 0) { recovery.requestStepsSessionFactDrain() }
 		verify(exactly = 0) { recovery.requestCommittedWorkDrain() }
 	}
 
@@ -223,10 +246,12 @@ class DurableSourceEventSinkTest {
 		)
 		val subject = DurableSourceEventSinkFactory(ingress, recovery)
 
-		subject.unbound.admit(candidate()).shouldBeInstanceOf<SourceAdmissionHandoff.RetryableFailure>()
+		subject.unbound.admit(pressureCandidate())
+			.shouldBeInstanceOf<SourceAdmissionHandoff.RetryableFailure>()
 
 		verify(exactly = 0) { recovery.requestCommittedWorkDrain() }
 		verify(exactly = 0) { recovery.requestStepsSessionFactDrain() }
+		verify(exactly = 0) { recovery.requestPressureSessionFactDrain() }
 	}
 
 	@Test
@@ -308,6 +333,34 @@ class DurableSourceEventSinkTest {
 			firstProviderSequence = 1L,
 			lastProviderSequence = 2L,
 			baselineReset = false,
+		),
+	)
+
+	private fun pressureCandidate() = candidate().copy(
+		source = SourceKind.PRESSURE,
+		sourceInstanceId = SourceInstanceId("pressure"),
+		payloadVersion = PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION,
+		payload = PressureWindowPayload(
+			sampleCount = 4,
+			meanHectopascals = 1_001.5,
+			sumSquaredDeviations = 5.0,
+			minimumHectopascals = 1_000f,
+			maximumHectopascals = 1_003f,
+			windowStartElapsedRealtimeNanos = 1L,
+			windowEndElapsedRealtimeNanos = 150_000_001L,
+			firstProviderSequence = 1L,
+			lastProviderSequence = 4L,
+			firstHectopascals = 1_000f,
+			lastHectopascals = 1_003f,
+			slopeHectopascalsPerSecond = 20.0,
+			rSquared = 1.0,
+			sensorAccuracy = PressureSensorAccuracy.HIGH,
+			effectiveSamplePeriodMicros = 50_000,
+			effectiveMaximumReportLatencyMicros = 200_000,
+			targetWindowDurationNanos = 200_000_000L,
+			expectedSampleCount = 4,
+			maximumInterSampleGapNanos = 50_000_000L,
+			closureKind = PressureWindowClosureKind.TARGET_ELAPSED,
 		),
 	)
 

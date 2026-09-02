@@ -8,6 +8,7 @@ import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationOutboxDi
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainResult
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationStartPermit
+import com.adsamcik.tracker.tracker.source.projection.PressureSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecovery
 import com.adsamcik.tracker.tracker.source.projection.legacy.LegacyV27ProjectionRecoveryResult
@@ -30,6 +31,7 @@ class SourcePipelineRecovery private constructor(
 	private val activityProjectionLane: ActivityAutomationProjectionLane,
 	private val activityEffects: ActivityAutomationOutboxDispatcher,
 	private val stepsProjectionLane: StepsSessionFactProjectionLane?,
+	private val pressureProjectionLane: PressureSessionFactProjectionLane?,
 	applicationScope: CoroutineScope?,
 	private val startupGateProvider: Provider<TrackingStartupGate>?,
 	@Suppress("UNUSED_PARAMETER") constructionMarker: Unit,
@@ -46,6 +48,7 @@ class SourcePipelineRecovery private constructor(
 		activityProjectionLane: ActivityAutomationProjectionLane,
 		activityEffects: ActivityAutomationOutboxDispatcher,
 		stepsProjectionLane: StepsSessionFactProjectionLane,
+		pressureProjectionLane: PressureSessionFactProjectionLane,
 		@ApplicationScope applicationScope: CoroutineScope,
 		startupGateProvider: Provider<TrackingStartupGate>,
 	) : this(
@@ -54,6 +57,7 @@ class SourcePipelineRecovery private constructor(
 		activityProjectionLane,
 		activityEffects,
 		stepsProjectionLane,
+		pressureProjectionLane,
 		applicationScope,
 		startupGateProvider,
 		Unit,
@@ -71,6 +75,7 @@ class SourcePipelineRecovery private constructor(
 		activityProjectionLane,
 		activityEffects,
 		null,
+		null,
 		applicationScope,
 		null,
 		Unit,
@@ -89,6 +94,7 @@ class SourcePipelineRecovery private constructor(
 		null,
 		null,
 		null,
+		null,
 		Unit,
 	)
 
@@ -104,6 +110,7 @@ class SourcePipelineRecovery private constructor(
 		coordinator,
 		activityProjectionLane,
 		activityEffects,
+		null,
 		null,
 		applicationScope,
 		startupGateProvider,
@@ -123,6 +130,27 @@ class SourcePipelineRecovery private constructor(
 		activityProjectionLane,
 		activityEffects,
 		stepsProjectionLane,
+		null,
+		applicationScope,
+		null,
+		Unit,
+	)
+
+	internal constructor(
+		legacyRecovery: LegacyV27ProjectionRecovery,
+		coordinator: TrackingCoordinator,
+		activityProjectionLane: ActivityAutomationProjectionLane,
+		activityEffects: ActivityAutomationOutboxDispatcher,
+		stepsProjectionLane: StepsSessionFactProjectionLane,
+		pressureProjectionLane: PressureSessionFactProjectionLane,
+		applicationScope: CoroutineScope,
+	) : this(
+		legacyRecovery,
+		coordinator,
+		activityProjectionLane,
+		activityEffects,
+		stepsProjectionLane,
+		pressureProjectionLane,
 		applicationScope,
 		null,
 		Unit,
@@ -160,6 +188,11 @@ class SourcePipelineRecovery private constructor(
 		stepsProjectionLane?.requestDrain()
 	}
 
+	/** Source-local Pressure hint; poison and retry are isolated from every sibling lane. */
+	fun requestPressureSessionFactDrain() {
+		pressureProjectionLane?.requestDrain()
+	}
+
 	/** Recovers durable projections only; it deliberately cannot invoke application consumers. */
 	suspend fun recoverDurableState(): SourceRecoveryResult {
 		val legacyResult = recoverStartupAuthority()
@@ -185,9 +218,10 @@ class SourcePipelineRecovery private constructor(
 		) {
 			throw LegacyV27ProjectionRecoveryNotReadyException(legacyResult)
 		}
-		// Startup only kicks the source-local lane. It is not awaited by the global gate, so a
-		// poisoned Steps fact cannot block an independently viable source or cause polling.
+		// Startup only kicks source-local lanes. They are not awaited by the global gate, so one
+		// poisoned fact cannot block an independently viable source or cause polling.
 		stepsProjectionLane?.requestDrain()
+		pressureProjectionLane?.requestDrain()
 		return legacyResult
 	}
 
