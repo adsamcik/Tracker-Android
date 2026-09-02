@@ -6,9 +6,13 @@ enum class PressureWindowQualification {
 	PARTIAL,
 	;
 
+	/** Deterministic classifier shared by admission and dormant fact projection. */
 	companion object {
+		/** Classifies only the frozen qualified-v4 Pressure payload shape. */
 		fun classify(payload: PressureWindowPayload): PressureWindowQualification {
-			if (payload.closureKind != PressureWindowClosureKind.TARGET_ELAPSED) return PARTIAL
+			if (payload.closureKind != PressureWindowClosureKind.TARGET_ELAPSED) {
+				return PARTIAL
+			}
 			val expectedCount = requireNotNull(payload.expectedSampleCount)
 			require(expectedCount > 0)
 			val samplePeriodNanos =
@@ -37,6 +41,10 @@ enum class PressureWindowQualification {
 		private const val NANOS_PER_MICROSECOND = 1_000L
 
 		private fun saturatedMultiply(first: Long, second: Long): Long =
-			if (first == 0L || second <= Long.MAX_VALUE / first) first * second else Long.MAX_VALUE
+			if (first == 0L || second <= Long.MAX_VALUE / first) {
+				first * second
+			} else {
+				Long.MAX_VALUE
+			}
 	}
 }

@@ -112,6 +112,7 @@ class AuthoritativeSessionCoordinatorTest {
 	private var activityLocked = false
 
 	@Before
+	@Suppress("LongMethod") // Shared exact-authority fixture for the coordinator test matrix.
 	fun setUp() {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		activityLocked = false

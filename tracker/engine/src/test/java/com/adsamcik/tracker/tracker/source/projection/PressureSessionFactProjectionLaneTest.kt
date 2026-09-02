@@ -13,9 +13,13 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProjectionRegistrationEntity
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.ingress.CorruptSourceEventException
+import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
 import com.adsamcik.tracker.tracker.source.ingress.PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION
+import com.adsamcik.tracker.tracker.source.ingress.RoomDurableSourceIngress
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
@@ -27,13 +31,16 @@ import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
 import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
+import com.adsamcik.tracker.tracker.source.model.toStableFlags
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -44,7 +51,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-@Suppress("LargeClass")
+@Suppress("LargeClass", "TooManyFunctions")
 class PressureSessionFactProjectionLaneTest {
 	private lateinit var database: AppDatabase
 
@@ -115,6 +122,75 @@ class PressureSessionFactProjectionLaneTest {
 	}
 
 	@Test
+	@Suppress("LongMethod")
+	fun `Room drain snapshots sparse high water and leaves a later admission for the next hint`() = runTest {
+		val payloadCodec = DefaultSourcePayloadCodec()
+		insertWalEvent(pressureEvent(3L), payloadCodec)
+		database.sourceEvidenceStateDao().updateAfterFullDeletion(
+			epoch = COLLECTED_DATA_EPOCH,
+			retainedFromMs = null,
+			deletedSourceEventHighWaterOrdinal = 5L,
+			updatedAtMs = 20_000L,
+		) shouldBe 1
+		installLane(
+			stage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+			cutoffOrdinal = 7L,
+		)
+		val roomIngress = RoomDurableSourceIngress(
+			database,
+			mockk(relaxed = true),
+			payloadCodec,
+			ExecutableSourceLaneCatalog(),
+			mockk(relaxed = true),
+		)
+		var laterInserted = false
+		val finiteIngress = object : DurableSourceIngress by roomIngress {
+			override suspend fun committedSourceBatch(
+				source: SourceKind,
+				afterOrdinal: Long,
+				throughOrdinal: Long,
+				limit: Int,
+			): List<AdmittedSourceEvent<out SourcePayload>> {
+				val committed = roomIngress.committedSourceBatch(
+					source,
+					afterOrdinal,
+					throughOrdinal,
+					limit,
+				)
+				if (!laterInserted) {
+					laterInserted = true
+					insertWalEvent(pressureEvent(7L), payloadCodec)
+				}
+				return committed
+			}
+		}
+		val subject = PressureSessionFactProjectionLane(database, finiteIngress)
+		val lifecycleRevision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
+
+		subject.drainAvailable() shouldBe PressureSessionFactDrainResult.Complete(
+			lastCompletedOrdinal = 5L,
+			factsInserted = 0,
+			eventsValidated = 1,
+		)
+
+		laterInserted shouldBe true
+		database.sourceEventWalDao().maximumAdmissionOrdinal() shouldBe 7L
+		activeLane()?.contiguousAdmissionOrdinal shouldBe 5L
+		fact(3L) shouldBe null
+		fact(7L) shouldBe null
+		database.sourceEvidenceStateDao().get()?.revision shouldBe lifecycleRevision
+
+		subject.drainAvailable() shouldBe PressureSessionFactDrainResult.Complete(
+			lastCompletedOrdinal = 7L,
+			factsInserted = 1,
+			eventsValidated = 1,
+		)
+		requireNotNull(fact(7L)).sourceAdmissionOrdinal shouldBe 7L
+		activeLane()?.contiguousAdmissionOrdinal shouldBe 7L
+		database.sourceEvidenceStateDao().get()?.revision shouldBe lifecycleRevision + 1L
+	}
+
+	@Test
 	fun `shadow validates and advances without facts or evidence publication`() = runTest {
 		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW)
 
@@ -167,6 +243,119 @@ class PressureSessionFactProjectionLaneTest {
 		)
 		database.pressureFactRevisionDao().count() shouldBe 0L
 		activeLane()?.contiguousAdmissionOrdinal shouldBe 0L
+	}
+
+	@Test
+	fun `event-local invalid provenance terminally blocks its exact ordinal`() = runTest {
+		val cases = listOf(
+			InvalidEventProvenanceCase(
+				expectedFailureCode = "PRESSURE_MANIFEST_MEMBERSHIP_MISMATCH",
+				sourcePolicyRevision = 99L,
+			),
+			InvalidEventProvenanceCase(
+				expectedFailureCode = "PRESSURE_MANIFEST_ELIGIBILITY_MISMATCH",
+				captureConsentEpoch = 99L,
+			),
+			InvalidEventProvenanceCase(
+				expectedFailureCode = "PRESSURE_MANIFEST_INTEGRITY_MISMATCH",
+				validManifestChecksum = false,
+			),
+		)
+
+		cases.forEach { invalid ->
+			clearProjectionFixture()
+			installLane(
+				stage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+				validManifestChecksum = invalid.validManifestChecksum,
+			)
+			val evidenceRevision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
+			val event = pressureEvent(
+				ordinal = 1L,
+				sourcePolicyRevision = invalid.sourcePolicyRevision,
+				captureConsentEpoch = invalid.captureConsentEpoch,
+			)
+
+			PressureSessionFactProjectionLane(
+				database,
+				sourceIngress(0L, 1L, listOf(event)),
+			).drainThrough(1L) shouldBe PressureSessionFactDrainResult.Failed(
+				lastCompletedOrdinal = 0L,
+				failedOrdinal = 1L,
+				failureCode = invalid.expectedFailureCode,
+				terminal = true,
+			)
+
+			val failure = requireNotNull(database.sourceProjectionStateDao().failure(
+				PressureSessionFactProjectionLane.WRITER_ID,
+				PressureSessionFactProjectionLane.WRITER_VERSION,
+				1L,
+			))
+			failure.admissionOrdinal shouldBe 1L
+			failure.attemptCount shouldBe 1
+			failure.failureCode shouldBe invalid.expectedFailureCode
+			failure.terminal shouldBe true
+			database.pressureFactRevisionDao().count() shouldBe 0L
+			database.sourceEvidenceStateDao().get()?.revision shouldBe evidenceRevision
+			activeLane()?.contiguousAdmissionOrdinal shouldBe 0L
+		}
+	}
+
+	@Test
+	fun `structural projection provenance rejects before any event-local mutation`() = runTest {
+		val invalidLanes = listOf(
+			productLane(
+				stage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+				projectionId = "foreign-pressure-projection",
+			),
+			productLane(
+				stage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+				projectionVersion = PressureSessionFactProjectionLane.WRITER_VERSION + 1,
+			),
+			productLane(
+				stage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+				bindingGeneration = PressureSessionFactProjectionLane.BINDING_GENERATION + 1L,
+			),
+		)
+		val ingress = mockk<DurableSourceIngress>(relaxed = true)
+		val evidenceRevision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
+
+		invalidLanes.forEach { lane ->
+			database.sourceProjectionStateDao().deleteAllProductLanes()
+			database.sourceProjectionStateDao().installProductLane(lane)
+
+			PressureSessionFactProjectionLane(database, ingress).drainThrough(1L) shouldBe
+				PressureSessionFactDrainResult.Inactive
+			activeLane()?.contiguousAdmissionOrdinal shouldBe 0L
+			database.pressureFactRevisionDao().count() shouldBe 0L
+			database.sourceEvidenceStateDao().get()?.revision shouldBe evidenceRevision
+		}
+
+		database.sourceProjectionStateDao().deleteAllProductLanes()
+		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		database.sourceProjectionStateDao().register(
+			SourceProjectionRegistrationEntity(
+				projectionId = PressureSessionFactProjectionLane.WRITER_ID,
+				projectionVersion = PressureSessionFactProjectionLane.WRITER_VERSION,
+				activationOrdinal = 1L,
+				retentionRequired = true,
+				status = "ACTIVE",
+				createdAtMs = 1_000L,
+			),
+		)
+
+		PressureSessionFactProjectionLane(database, ingress).drainThrough(1L) shouldBe
+			PressureSessionFactDrainResult.AuthorityChanged(
+				"PRESSURE_WRITER_HAS_GLOBAL_REGISTRATION",
+			)
+		activeLane()?.contiguousAdmissionOrdinal shouldBe 0L
+		database.sourceProjectionStateDao().failure(
+			PressureSessionFactProjectionLane.WRITER_ID,
+			PressureSessionFactProjectionLane.WRITER_VERSION,
+			1L,
+		) shouldBe null
+		database.pressureFactRevisionDao().count() shouldBe 0L
+		database.sourceEvidenceStateDao().get()?.revision shouldBe evidenceRevision
+		coVerify(exactly = 0) { ingress.committedSourceBatch(any(), any(), any(), any()) }
 	}
 
 	@Test
@@ -266,6 +455,83 @@ class PressureSessionFactProjectionLaneTest {
 		fact(3L) shouldBe null
 		database.sourceEvidenceStateDao().get()?.revision shouldBe 1L
 		activeLane()?.contiguousAdmissionOrdinal shouldBe 1L
+	}
+
+	@Test
+	fun `transient insert failure rolls back before a successful atomic retry`() = runTest {
+		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val ingress = sourceIngress(0L, 1L, listOf(pressureEvent(1L)))
+		val subject = PressureSessionFactProjectionLane(database, ingress)
+		val evidenceRevision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
+		installTransientFactInsertFailure()
+
+		val first = try {
+			subject.drainThrough(1L)
+		} finally {
+			removeTransientFactInsertFailure()
+		}
+
+		val retryable = first as PressureSessionFactDrainResult.Failed
+		retryable.lastCompletedOrdinal shouldBe 0L
+		retryable.failedOrdinal shouldBe 1L
+		retryable.failureCode.isBlank() shouldBe false
+		retryable.terminal shouldBe false
+		database.pressureFactRevisionDao().count() shouldBe 0L
+		database.sourceEvidenceStateDao().get()?.revision shouldBe evidenceRevision
+		activeLane()?.contiguousAdmissionOrdinal shouldBe 0L
+		val storedFailure = requireNotNull(database.sourceProjectionStateDao().failure(
+			PressureSessionFactProjectionLane.WRITER_ID,
+			PressureSessionFactProjectionLane.WRITER_VERSION,
+			1L,
+		))
+		storedFailure.failureCode shouldBe retryable.failureCode
+		storedFailure.terminal shouldBe false
+
+		subject.drainThrough(1L) shouldBe PressureSessionFactDrainResult.Complete(
+			lastCompletedOrdinal = 1L,
+			factsInserted = 1,
+			eventsValidated = 1,
+		)
+		requireNotNull(fact(1L)).sourceAdmissionOrdinal shouldBe 1L
+		database.sourceEvidenceStateDao().get()?.revision shouldBe evidenceRevision + 1L
+		activeLane()?.contiguousAdmissionOrdinal shouldBe 1L
+		database.sourceProjectionStateDao().failure(
+			PressureSessionFactProjectionLane.WRITER_ID,
+			PressureSessionFactProjectionLane.WRITER_VERSION,
+			1L,
+		) shouldBe null
+		coVerify(exactly = 2) {
+			ingress.committedSourceBatch(SourceKind.PRESSURE, 0L, 1L, 64)
+		}
+	}
+
+	@Test
+	fun `cancellation after a fact insert rolls back fact evidence failure and cursor`() = runTest {
+		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		val event = pressureEvent(1L)
+		val ingress = sourceIngress(0L, 1L, cancellingAfterFirstEvent(event))
+		val subject = PressureSessionFactProjectionLane(database, ingress)
+		val evidenceRevision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
+		var cancellationPropagated = false
+
+		try {
+			subject.drainThrough(1L)
+		} catch (_: CancellationException) {
+			cancellationPropagated = true
+		}
+
+		cancellationPropagated shouldBe true
+		database.pressureFactRevisionDao().count() shouldBe 0L
+		database.sourceEvidenceStateDao().get()?.revision shouldBe evidenceRevision
+		activeLane()?.contiguousAdmissionOrdinal shouldBe 0L
+		database.sourceProjectionStateDao().failure(
+			PressureSessionFactProjectionLane.WRITER_ID,
+			PressureSessionFactProjectionLane.WRITER_VERSION,
+			1L,
+		) shouldBe null
+		coVerify(exactly = 1) {
+			ingress.committedSourceBatch(SourceKind.PRESSURE, 0L, 1L, 64)
+		}
 	}
 
 	@Test
@@ -413,6 +679,7 @@ class PressureSessionFactProjectionLaneTest {
 		stage: String,
 		cutoffOrdinal: Long? = null,
 		sessionMode: String = "MANUAL",
+		validManifestChecksum: Boolean = true,
 		manifestOwner: String = if (stage == SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL) {
 			SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS
 		} else {
@@ -436,14 +703,20 @@ class PressureSessionFactProjectionLaneTest {
 				) == 1)
 			}
 		}
-		installManifestBinding(manifestOwner, sessionMode)
+		installManifestBinding(manifestOwner, sessionMode, validManifestChecksum)
 		database.sourceProjectionStateDao().installProductLane(
 			productLane(stage = stage, cutoffOrdinal = cutoffOrdinal),
 		)
 	}
 
-	private suspend fun installManifestBinding(writerOwner: String, sessionMode: String) {
-		if (database.sourceSessionDao().manifest(LOGICAL_TRACKING_ID, MANIFEST_REVISION) != null) return
+	private suspend fun installManifestBinding(
+		writerOwner: String,
+		sessionMode: String,
+		validManifestChecksum: Boolean,
+	) {
+		if (database.sourceSessionDao().manifest(LOGICAL_TRACKING_ID, MANIFEST_REVISION) != null) {
+			return
+		}
 		val candidate = writerOwner == SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS
 		val source = SessionManifestSourceEntity(
 			logicalTrackingId = LOGICAL_TRACKING_ID,
@@ -487,9 +760,11 @@ class PressureSessionFactProjectionLaneTest {
 			changeReason = "TEST",
 			manifestChecksum = "",
 		)
-		val manifest = unsigned.copy(
-			manifestChecksum = SessionManifestIntegrity.compute(unsigned, listOf(source)),
-		)
+		val manifest = unsigned.copy(manifestChecksum = if (validManifestChecksum) {
+			SessionManifestIntegrity.compute(unsigned, listOf(source))
+		} else {
+			"invalid-pressure-manifest-checksum"
+		})
 		database.sourceSessionDao().insertManifest(manifest)
 		database.sourceSessionDao().insertManifestSources(listOf(source))
 	}
@@ -506,11 +781,13 @@ class PressureSessionFactProjectionLaneTest {
 		stage: String,
 		cutoffOrdinal: Long? = null,
 		projectionId: String = PressureSessionFactProjectionLane.WRITER_ID,
+		projectionVersion: Int = PressureSessionFactProjectionLane.WRITER_VERSION,
+		bindingGeneration: Long = PressureSessionFactProjectionLane.BINDING_GENERATION,
 	) = SourceProductProjectionLaneEntity(
 		sourceKind = SourceKind.PRESSURE.stableCode,
-		bindingGeneration = PressureSessionFactProjectionLane.BINDING_GENERATION,
+		bindingGeneration = bindingGeneration,
 		projectionId = projectionId,
-		projectionVersion = PressureSessionFactProjectionLane.WRITER_VERSION,
+		projectionVersion = projectionVersion,
 		captureModeMask = PressureSessionFactProjectionLane.MANUAL_CAPTURE_MODE_MASK,
 		productStage = stage,
 		activatedRolloutRevision = 2L,
@@ -532,6 +809,89 @@ class PressureSessionFactProjectionLaneTest {
 			PressureSessionFactProjectionLane.WRITER_VERSION,
 			"${PressureSessionFactProjectionLane.WRITER_ID}:pressure-event-$ordinal",
 		)
+
+	private fun clearProjectionFixture() {
+		database.pressureFactRevisionDao().deleteAll()
+		database.sourceProjectionStateDao().deleteAllFailures()
+		database.sourceProjectionStateDao().deleteAllRegistrations()
+		database.sourceProjectionStateDao().deleteAllProductLanes()
+		database.sourceSessionDao().deleteAllManifestSources()
+		database.sourceSessionDao().deleteAllManifests()
+	}
+
+	private fun installTransientFactInsertFailure() {
+		database.openHelper.writableDatabase.execSQL(
+			"CREATE TRIGGER pressure_fact_transient_failure " +
+				"BEFORE INSERT ON pressure_fact_revision BEGIN " +
+				"SELECT RAISE(ABORT, 'transient pressure fact insert failure'); END",
+		)
+	}
+
+	private fun removeTransientFactInsertFailure() {
+		database.openHelper.writableDatabase.execSQL(
+			"DROP TRIGGER IF EXISTS pressure_fact_transient_failure",
+		)
+	}
+
+	private fun cancellingAfterFirstEvent(
+		event: AdmittedSourceEvent<PressureWindowPayload>,
+	): List<AdmittedSourceEvent<PressureWindowPayload>> =
+		object : AbstractList<AdmittedSourceEvent<PressureWindowPayload>>() {
+			override val size: Int = 2
+
+			override fun get(index: Int): AdmittedSourceEvent<PressureWindowPayload> = when (index) {
+				0 -> event
+				1 -> throw CancellationException("cancel after the first transactional fact insert")
+				else -> throw IndexOutOfBoundsException(index.toString())
+			}
+		}
+
+	private suspend fun insertWalEvent(
+		event: AdmittedSourceEvent<PressureWindowPayload>,
+		payloadCodec: DefaultSourcePayloadCodec,
+	) {
+		val evidence = event.evidence
+		val encoded = payloadCodec.encode(evidence.payload, evidence.payloadVersion)
+		val raw = SourceEventWalEntity(
+			admissionOrdinal = event.admissionOrdinal,
+			eventId = event.eventId.value,
+			providerDedupKey = evidence.providerDedupKey,
+			logicalTrackingId = evidence.logicalTrackingId?.value,
+			serviceRunId = evidence.serviceRunId?.value,
+			sourceKind = evidence.source.stableCode,
+			sourceInstanceId = evidence.sourceInstanceId.value,
+			registrationGeneration = evidence.registrationGeneration,
+			physicalConfigurationFingerprint = evidence.physicalConfigurationFingerprint,
+			authorizationRevision = evidence.authorizationRevision,
+			authorizationPurposeEligibilityMask = evidence.registrationPurposeEligibilityMask,
+			authorizationFingerprint = evidence.registrationEligibilityFingerprint,
+			sourceSequence = evidence.sourceSequence,
+			configRevision = evidence.configRevision,
+			planAttribution = evidence.planAttribution.ordinal,
+			clockDomainId = evidence.clockDomainId,
+			observedElapsedNanos = evidence.observedElapsedRealtimeNanos,
+			observedIntervalStartNanos = evidence.payload.windowStartElapsedRealtimeNanos,
+			receivedElapsedNanos = evidence.receivedElapsedRealtimeNanos,
+			wallTimeMs = evidence.wallTimeMs,
+			wallTimeUncertaintyMs = evidence.wallTimeUncertaintyMs,
+			capturedCollectedDataEpoch = evidence.capturedCollectedDataEpoch,
+			activityAutomationEpoch = evidence.activityAutomationEpoch,
+			sourcePolicyRevision = evidence.sourcePolicyRevision,
+			captureConsentEpoch = evidence.captureConsentEpoch,
+			sessionManifestRevision = evidence.sessionManifestRevision,
+			lifecycleLeaseGeneration = evidence.lifecycleLeaseGeneration,
+			acquiredAtMs = evidence.acquiredAtMs,
+			qualityFlags = evidence.quality.toStableFlags(),
+			qualityConfidence = evidence.quality.confidence,
+			payloadVersion = evidence.payloadVersion,
+			payload = encoded.bytes,
+			payloadChecksum = encoded.checksum,
+			integrityIdentity = "pending-qualified-integrity",
+			createdAtMs = evidence.acquiredAtMs,
+		)
+		val qualified = raw.copy(integrityIdentity = raw.calculatedIntegrityIdentity())
+		database.sourceEventWalDao().insertIgnoringDuplicate(qualified) shouldBe event.admissionOrdinal
+	}
 
 	private suspend fun insertRawPressureRow(
 		ordinal: Long,
@@ -596,6 +956,8 @@ class PressureSessionFactProjectionLaneTest {
 		qualityFlags: Set<SourceQualityFlag> = setOf(SourceQualityFlag.BATCHED),
 		payloadVersion: Int = PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION,
 		collectedDataEpoch: Long = COLLECTED_DATA_EPOCH,
+		sourcePolicyRevision: Long = 3L,
+		captureConsentEpoch: Long = 4L,
 		wallTimeMs: Long = 10_000L + ordinal,
 		acquiredAtMs: Long = 10_000L + ordinal,
 	): AdmittedSourceEvent<PressureWindowPayload> {
@@ -625,8 +987,8 @@ class PressureSessionFactProjectionLaneTest {
 				wallTimeMs = wallTimeMs,
 				wallTimeUncertaintyMs = 1L,
 				capturedCollectedDataEpoch = collectedDataEpoch,
-				sourcePolicyRevision = 3L,
-				captureConsentEpoch = 4L,
+				sourcePolicyRevision = sourcePolicyRevision,
+				captureConsentEpoch = captureConsentEpoch,
 				sessionManifestRevision = MANIFEST_REVISION,
 				lifecycleLeaseGeneration = 6L,
 				acquiredAtMs = acquiredAtMs,
@@ -657,6 +1019,13 @@ class PressureSessionFactProjectionLaneTest {
 			),
 		)
 	}
+
+	private data class InvalidEventProvenanceCase(
+		val expectedFailureCode: String,
+		val sourcePolicyRevision: Long = 3L,
+		val captureConsentEpoch: Long = 4L,
+		val validManifestChecksum: Boolean = true,
+	)
 
 	private companion object {
 		const val COLLECTED_DATA_EPOCH = 2L

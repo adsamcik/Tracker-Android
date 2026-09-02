@@ -150,6 +150,7 @@ data class PressureFactRevisionEntity(
 		require(sensorAccuracy in SENSOR_ACCURACIES)
 	}
 
+	@Suppress("CyclomaticComplexMethod") // The constructor keeps all numeric invariants atomic.
 	private fun requireStatistics() {
 		require(sampleCount > 0)
 		require(meanHectopascals.isFinite() && meanHectopascals > 0.0)
@@ -192,6 +193,7 @@ data class PressureFactRevisionEntity(
 		require((qualification == QUALIFICATION_COMPLETE) == isComplete)
 	}
 
+	/** Frozen wire and qualification vocabulary for the first Pressure fact revision. */
 	companion object {
 		const val QUALIFIED_PRESSURE_PAYLOAD_VERSION = 4
 		const val PURPOSE_SESSION_CAPTURE = "SESSION_CAPTURE"
@@ -220,11 +222,19 @@ data class PressureFactRevisionEntity(
 		private fun expectedSampleCount(targetNanos: Long, samplePeriodMicros: Int): Int {
 			val samplePeriodNanos = samplePeriodMicros.toLong() * NANOS_PER_MICROSECOND
 			val wholePeriods = targetNanos / samplePeriodNanos
-			val roundedUp = wholePeriods + if (targetNanos % samplePeriodNanos == 0L) 0L else 1L
+			val roundedUp = wholePeriods + if (targetNanos % samplePeriodNanos == 0L) {
+				0L
+			} else {
+				1L
+			}
 			return roundedUp.coerceAtLeast(1L).also { require(it <= Int.MAX_VALUE) }.toInt()
 		}
 
 		private fun saturatedMultiply(first: Long, second: Long): Long =
-			if (first == 0L || second <= Long.MAX_VALUE / first) first * second else Long.MAX_VALUE
+			if (first == 0L || second <= Long.MAX_VALUE / first) {
+				first * second
+			} else {
+				Long.MAX_VALUE
+			}
 	}
 }

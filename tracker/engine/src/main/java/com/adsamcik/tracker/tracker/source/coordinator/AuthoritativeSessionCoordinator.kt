@@ -2236,7 +2236,7 @@ class AuthoritativeSessionCoordinator @Inject constructor(
 		serviceRunId = serviceRunId,
 	)
 
-	@Suppress("LongParameterList")
+	@Suppress("CyclomaticComplexMethod", "LongMethod", "LongParameterList")
 	private suspend fun buildManifestDraft(
 		logicalTrackingId: String,
 		manifestRevision: Long,

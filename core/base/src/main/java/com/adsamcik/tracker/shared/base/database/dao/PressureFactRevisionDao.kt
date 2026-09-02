@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 /** Deliberately narrow storage boundary for the dormant Pressure fact writer. */
 @Dao
 interface PressureFactRevisionDao {
+	/** Appends one immutable revision, returning its row id or `-1` for an existing identity. */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insert(entity: PressureFactRevisionEntity): Long
 
@@ -34,12 +35,14 @@ interface PressureFactRevisionDao {
 			"AND writer_projection_version = :writerProjectionVersion " +
 			"AND logical_fact_id = :logicalFactId ORDER BY semantic_revision DESC LIMIT 1",
 	)
+	/** Returns the latest semantic revision for one exact Pressure writer-owned fact. */
 	suspend fun latest(
 		writerProjectionId: String,
 		writerProjectionVersion: Int,
 		logicalFactId: String,
 	): PressureFactRevisionEntity?
 
+	/** Counts all retained Pressure fact revisions across writer-owned session scopes. */
 	@Query("SELECT COUNT(*) FROM pressure_fact_revision")
 	suspend fun count(): Long
 

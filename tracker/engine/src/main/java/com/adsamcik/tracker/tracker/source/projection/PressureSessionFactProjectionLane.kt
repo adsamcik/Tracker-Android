@@ -43,6 +43,7 @@ import kotlinx.coroutines.sync.withLock
  * Pressure binding, candidate destination ownership, and agreeing manifest provenance. The legacy
  * PressureSample writer and all readers remain untouched until a separate explicit cutover.
  */
+@Suppress("LargeClass", "TooManyFunctions") // One source-local transactional state machine.
 @Singleton
 class PressureSessionFactProjectionLane private constructor(
 	private val database: AppDatabase,
@@ -141,6 +142,12 @@ class PressureSessionFactProjectionLane private constructor(
 		drainThroughLocked(initialLane, target)
 	}
 
+	@Suppress(
+		"CyclomaticComplexMethod",
+		"LongMethod",
+		"ReturnCount",
+		"TooGenericExceptionCaught",
+	) // Keeping read, validate, write, evidence, and cursor mutation in one Room transaction is deliberate.
 	private suspend fun drainThroughLocked(
 		initialLane: SourceProductProjectionLaneEntity,
 		targetAdmissionOrdinal: Long,
@@ -311,7 +318,11 @@ class PressureSessionFactProjectionLane private constructor(
 		return PressureSessionFactDrainResult.Failed(
 			lastCompletedOrdinal = cursor,
 			failedOrdinal = admissionOrdinal,
-			failureCode = if (persisted) normalizedCode else "FAILURE_AUDIT_UNAVAILABLE",
+			failureCode = if (persisted) {
+				normalizedCode
+			} else {
+				"FAILURE_AUDIT_UNAVAILABLE"
+			},
 			terminal = persisted && terminal,
 		)
 	}
@@ -369,7 +380,9 @@ class PressureSessionFactProjectionLane private constructor(
 	}
 
 	private suspend fun publishEvidenceRevisionIfNeeded(inserted: Int) {
-		if (inserted == 0) return
+		if (inserted == 0) {
+			return
+		}
 		check(database.sourceEvidenceStateDao().incrementRevision(nowMs()) == 1) {
 			"Unable to publish the Pressure fact evidence revision"
 		}
@@ -379,10 +392,14 @@ class PressureSessionFactProjectionLane private constructor(
 		admissionOrdinal: Long,
 		evidenceState: SourceEvidenceState,
 	): Boolean {
-		if (admissionOrdinal <= evidenceState.deletedSourceEventHighWaterOrdinal) return true
+		if (admissionOrdinal <= evidenceState.deletedSourceEventHighWaterOrdinal) {
+			return true
+		}
 		val raw = database.sourceEventWalDao()
 			.projectionEligibilityByAdmissionOrdinal(admissionOrdinal) ?: return true
-		if (raw.sourceKind != SourceKind.PRESSURE.stableCode) return true
+		if (raw.sourceKind != SourceKind.PRESSURE.stableCode) {
+			return true
+		}
 		return raw.isLifecycleRejected(evidenceState) || raw.isDeletedScope()
 	}
 
@@ -405,10 +422,13 @@ class PressureSessionFactProjectionLane private constructor(
 	private suspend fun executableLaneOrNull(): SourceProductProjectionLaneEntity? {
 		val active = database.sourceProjectionStateDao().allActiveProductLanes()
 			.filter { lane -> lane.sourceKind == SourceKind.PRESSURE.stableCode }
-		if (active.size != 1) return null
+		if (active.size != 1) {
+			return null
+		}
 		return active.single().takeIf(::isExecutableLane)
 	}
 
+	@Suppress("ThrowsCount") // Each mismatch preserves its exact durable authority reason.
 	private suspend fun requireExactLane(
 		expected: SourceProductProjectionLaneEntity,
 		expectedCursor: Long = expected.contiguousAdmissionOrdinal,
@@ -437,6 +457,7 @@ class PressureSessionFactProjectionLane private constructor(
 		return current
 	}
 
+	@Suppress("CyclomaticComplexMethod") // The complete immutable execution binding is a single guard.
 	private fun isExecutableLane(lane: SourceProductProjectionLaneEntity): Boolean {
 		val binding = executableLaneCatalog.bindingFor(lane) ?: return false
 		return binding == ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS &&
@@ -460,7 +481,9 @@ class PressureSessionFactProjectionLane private constructor(
 		lane: SourceProductProjectionLaneEntity,
 		throughOrdinal: Long,
 	) {
-		if (throughOrdinal == lane.contiguousAdmissionOrdinal) return
+		if (throughOrdinal == lane.contiguousAdmissionOrdinal) {
+			return
+		}
 		check(database.sourceProjectionStateDao().advanceExactProductLaneCursor(
 			sourceKind = lane.sourceKind,
 			bindingGeneration = lane.bindingGeneration,
@@ -481,7 +504,9 @@ class PressureSessionFactProjectionLane private constructor(
 		candidate: PressureFactRevisionEntity,
 	): PressureFactAdmission {
 		val dao = database.pressureFactRevisionDao()
-		if (dao.insert(candidate) != INSERT_IGNORED) return PressureFactAdmission.INSERTED
+		if (dao.insert(candidate) != INSERT_IGNORED) {
+			return PressureFactAdmission.INSERTED
+		}
 		val replay = dao.replay(
 			candidate.writerProjectionId,
 			candidate.writerProjectionVersion,
@@ -490,13 +515,16 @@ class PressureSessionFactProjectionLane private constructor(
 			candidate.mutationId,
 			candidate.sourceAdmissionOrdinal,
 		)
-		if (replay == candidate) return PressureFactAdmission.EXACT_REPLAY
+		if (replay == candidate) {
+			return PressureFactAdmission.EXACT_REPLAY
+		}
 		throw PressureSessionFactIdentityCollisionException(
 			admissionOrdinal = candidate.sourceAdmissionOrdinal,
 			failureCode = "PRESSURE_IDENTITY_COLLISION",
 		)
 	}
 
+	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod")
 	private suspend fun AdmittedSourceEvent<out SourcePayload>.toFactOrNull(
 		evidenceState: SourceEvidenceState,
 		lane: SourceProductProjectionLaneEntity,
@@ -510,10 +538,14 @@ class PressureSessionFactProjectionLane private constructor(
 			SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
 			evidence.logicalTrackingId == null ||
 			evidence.serviceRunId == null
-		) return null
+		) {
+			return null
+		}
 		val logicalTrackingId = evidence.logicalTrackingId.value
 		val serviceRunId = evidence.serviceRunId.value
-		if (sessionScopeIsDeleted(logicalTrackingId, serviceRunId)) return null
+		if (sessionScopeIsDeleted(logicalTrackingId, serviceRunId)) {
+			return null
+		}
 
 		fun poison(code: String): Nothing = throw PressureSessionFactPoisonException(
 			admissionOrdinal,
@@ -528,7 +560,9 @@ class PressureSessionFactProjectionLane private constructor(
 		if (payload.windowStartElapsedRealtimeNanos < 0L ||
 			payload.windowEndElapsedRealtimeNanos < payload.windowStartElapsedRealtimeNanos ||
 			payload.windowEndElapsedRealtimeNanos != evidence.observedElapsedRealtimeNanos
-		) poison("PRESSURE_WINDOW_INVALID")
+		) {
+			poison("PRESSURE_WINDOW_INVALID")
+		}
 
 		val firstHectopascals = payload.firstHectopascals
 			?: poison("PRESSURE_PAYLOAD_V4_INCOMPLETE")
@@ -584,21 +618,31 @@ class PressureSessionFactProjectionLane private constructor(
 				manifestBinding.outputDestination != owner.destination ||
 				manifestBinding.writerOwner != owner.owner ||
 				manifestBinding.writerOwnerGeneration != owner.ownerGeneration
-			) poison("PRESSURE_MANIFEST_WRITER_NOT_ACTIVE")
+			) {
+				poison("PRESSURE_MANIFEST_WRITER_NOT_ACTIVE")
+			}
 			if (manifestBinding.writerProjectionId != lane.projectionId ||
 				manifestBinding.writerProjectionVersion != lane.projectionVersion ||
 				manifestBinding.writerBindingGeneration != lane.bindingGeneration
-			) poison("PRESSURE_MANIFEST_PROJECTION_MISMATCH")
+			) {
+				poison("PRESSURE_MANIFEST_PROJECTION_MISMATCH")
+			}
 		}
 
 		val endTimeMs = evidence.wallTimeMs ?: poison("PRESSURE_WALL_TIME_MISSING")
-		if (endTimeMs < 0L) poison("PRESSURE_WALL_TIME_NEGATIVE")
-		if (evidenceState.retainedFromMs?.let { endTimeMs < it } == true) return null
+		if (endTimeMs < 0L) {
+			poison("PRESSURE_WALL_TIME_NEGATIVE")
+		}
+		if (evidenceState.retainedFromMs?.let { endTimeMs < it } == true) {
+			return null
+		}
 		val uncertaintyMs = evidence.wallTimeUncertaintyMs
 			?: poison("PRESSURE_WALL_TIME_UNCERTAINTY_MISSING")
 		val durationMs = (payload.windowEndElapsedRealtimeNanos -
 			payload.windowStartElapsedRealtimeNanos) / NANOS_PER_MILLISECOND
-		if (durationMs > endTimeMs) poison("PRESSURE_WALL_TIME_UNDERFLOW")
+		if (durationMs > endTimeMs) {
+			poison("PRESSURE_WALL_TIME_UNDERFLOW")
+		}
 		val startTimeMs = endTimeMs - durationMs
 		val logicalFactId = "$WRITER_ID:${eventId.value}"
 		val mutationId = "$logicalFactId:$SEMANTIC_REVISION"
@@ -722,7 +766,9 @@ class PressureSessionFactProjectionLane private constructor(
 		) ?: poison("PRESSURE_MANIFEST_MISSING")
 		if (manifest.logicalTrackingId != key.logicalTrackingId ||
 			manifest.sourcePolicyRevision != key.policyRevision
-		) poison("PRESSURE_MANIFEST_MEMBERSHIP_MISMATCH")
+		) {
+			poison("PRESSURE_MANIFEST_MEMBERSHIP_MISMATCH")
+		}
 		val sources = sessionDao.manifestSources(key.logicalTrackingId, key.manifestRevision)
 		if (!SessionManifestIntegrity.verify(manifest, sources)) {
 			poison("PRESSURE_MANIFEST_INTEGRITY_MISMATCH")
@@ -743,7 +789,9 @@ class PressureSessionFactProjectionLane private constructor(
 		sessionMode: String,
 		admissionOrdinal: Long,
 	) {
-		if (binding.writerOwner != SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS) return
+		if (binding.writerOwner != SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS) {
+			return
+		}
 		fun poison(code: String): Nothing = throw PressureSessionFactPoisonException(
 			admissionOrdinal,
 			code,
@@ -784,7 +832,11 @@ class PressureSessionFactProjectionLane private constructor(
 	private fun effectChecksum(vararg values: Any?): String {
 		val canonical = values.joinToString(separator = "") { value ->
 			val text = value?.toString()
-			if (text == null) "-1:" else "${text.length}:$text"
+			if (text == null) {
+				"-1:"
+			} else {
+				"${text.length}:$text"
+			}
 		}
 		return MessageDigest.getInstance("SHA-256")
 			.digest(canonical.toByteArray())
@@ -793,6 +845,7 @@ class PressureSessionFactProjectionLane private constructor(
 
 	private fun nowMs(): Long = System.currentTimeMillis().coerceAtLeast(0L)
 
+	/** Frozen identity for the dormant generation-1 manual Pressure fact lane. */
 	companion object {
 		const val WRITER_ID = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_ID
 		const val WRITER_VERSION = SourceDestinationOwnerEntity.PRESSURE_FACT_PROJECTION_VERSION
@@ -819,6 +872,7 @@ private data class PressureManifestKey(
 	val consentEpoch: Long,
 )
 
+@Suppress("CyclomaticComplexMethod") // Every immutable lane field participates in the CAS authority.
 private fun SourceProductProjectionLaneEntity.hasSamePressureExecutionBinding(
 	other: SourceProductProjectionLaneEntity,
 ): Boolean = sourceKind == other.sourceKind &&
@@ -836,17 +890,22 @@ private fun SourceProductProjectionLaneEntity.hasSamePressureExecutionBinding(
 	terminalAtMs == other.terminalAtMs &&
 	installedAtMs == other.installedAtMs
 
+/** Typed bounded-drain outcome for the dormant Pressure fact lane. */
 sealed interface PressureSessionFactDrainResult {
+	/** No exact executable Pressure product lane is installed. */
 	data object Inactive : PressureSessionFactDrainResult
 
+	/** The finite high-water completed with the reported validated and inserted counts. */
 	data class Complete(
 		val lastCompletedOrdinal: Long,
 		val factsInserted: Int,
 		val eventsValidated: Int,
 	) : PressureSessionFactDrainResult
 
+	/** Structural source-local authority changed before a cursor commit. */
 	data class AuthorityChanged(val reason: String) : PressureSessionFactDrainResult
 
+	/** A retryable or terminal failure stopped the bounded drain at an exact boundary. */
 	data class Failed(
 		val lastCompletedOrdinal: Long,
 		val failedOrdinal: Long?,

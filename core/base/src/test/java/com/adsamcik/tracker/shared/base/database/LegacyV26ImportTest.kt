@@ -33,6 +33,7 @@ import org.robolectric.annotation.Config
 /** End-to-end coverage for the public v26 vault -> fresh current-schema import boundary. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@Suppress("LargeClass") // This fixture proves the complete public v26 import boundary together.
 class LegacyV26ImportTest {
 	private lateinit var context: Application
 	private val roomDatabases = mutableListOf<RoomDatabase>()

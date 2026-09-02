@@ -956,6 +956,7 @@ class AppDatabaseMigration27To28Test {
 		}
 	}
 
+	@Suppress("LongMethod") // One migration assertion enumerates every collected-data table.
 	private suspend fun assertCollectedRowsDeleted(database: AppDatabase) {
 		assertEquals(0L, database.locationSampleDao().countAll())
 		assertEquals(0L, database.locationObservationDao().countAll())

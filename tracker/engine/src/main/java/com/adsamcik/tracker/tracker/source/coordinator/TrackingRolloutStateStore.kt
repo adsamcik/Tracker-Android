@@ -629,6 +629,7 @@ private fun TrackingRolloutState.authorizesInertShadow(source: SourceKind): Bool
 		productProjectionStages.getValue(source) == ProductProjectionStage.LEGACY_CANONICAL &&
 		captureModeMasks.getValue(source) == 0L
 
+@Suppress("CyclomaticComplexMethod", "ReturnCount") // Source-local owner rules are intentionally explicit.
 private suspend fun AppDatabase.hasExactCanonicalDestinationOwner(
 	binding: ExecutableSourceLaneBinding,
 	stage: ProductProjectionStage,
