@@ -2354,3 +2354,75 @@ broadcast behavior, process death, reboot, foreground-service behavior, battery 
 differences, a Wi-Fi product fact/materializer/query/UI, deletion, retention, portable export/import,
 ordinary candidate activation, or rollout. The independent Wi-Fi-only product vertical remains
 blocked on those later source-local gates.
+
+## Activity projection-authority regression fixture checkpoint (2026-09-02)
+
+### Outcome
+
+The Activity automation projection regression is corrected and fast-forwarded into local `dev/v10`
+at `dcfc546d1`. Production validation was already correct: automation effects require a complete
+control-eligible Activity stamp, including its physical configuration fingerprint. Three tests used
+an incomplete shared fixture and therefore exercised the intended rejection path instead of the
+eligible-control path. The fixture now supplies the missing fingerprint; production code and
+authority rules are unchanged.
+
+### Evidence and boundary
+
+- The exact projection class passed `5/5` before commit. The forced post-rebase rerun executed all
+  234 selected-command tasks and again passed (`BUILD SUCCESSFUL in 4m 24s`). Root Detekt also
+  passed before integration.
+- The configured `adsamcik` identity created `dcfc546d1`; the clean integration worktree
+  fast-forwarded locally, and the merged topic worktree/branch were removed. Nothing was pushed,
+  activated, released, tagged, or deployed.
+
+This is a host-test fixture repair, not new production behavior. It does not prove real Activity
+Recognition delivery, process death, reboot, Android start/FGS legality, battery/OEM behavior,
+captured Activity history, product UI, or rollout.
+
+## Source-qualified Steps numeric-history checkpoint (2026-09-02)
+
+### Outcome
+
+The source-qualified Steps composition foundation and read-only numeric repository are accepted and
+fast-forwarded into local `dev/v10` at `18e4f7acb` (`011b206a8` plus `18e4f7acb`). One coherent Room
+snapshot discovers source runs as well as presentation segments, requires exact reverse binding,
+immutable manifest/run/purpose/consent and writer authority, groups replacement-run physical
+segments by logical tracking identity, and pages settled fact state with the total key
+`(serviceRunId, firstIntervalStartTimeMs, logicalFactId, writerProjectionId,
+writerProjectionVersion)`. Neither `sampleCount`, wall-time overlap, nor `QUIESCED` is source or
+deletion proof.
+
+The public numeric result is deliberately typed. Only complete covered Steps slices produce
+`Ready`; active or settling exact lanes produce `Materializing`; missing, partial, stale, fenced,
+retention-lost, calendar-ambiguous, or contradictory evidence produces a nonnumeric
+`Unverifiable`. Missing physical segments are suppressible only when every retained run has the
+exact logical-service-run Steps deletion fence. Closed-database cancellation maps to storage
+unavailability, while ordinary coroutine cancellation is rethrown. The repository is read-only and
+has no permanent observer, provider demand, writer activation, or product consumer yet.
+
+### Evidence and boundary
+
+- The forced post-rebase product/storage selection passed `103/103` with zero failures, errors, or
+  skips: repair composer `61`, selected deletion/materialization `30`, Room numeric repository `9`,
+  and repository result mapping `3` (`BUILD SUCCESSFUL in 3m 35s`, 234 tasks executed).
+- The forced DAO selection passed `44/44`: session segments `15`, source sessions `16`, and Steps
+  fact revisions `13` (`BUILD SUCCESSFUL in 1m 37s`, 79 tasks executed). The stats API JVM suite
+  passed in `39s` with 12 tasks executed.
+- Root Detekt passed from scratch in `58s`. `:app:compileDebugKotlin`, `:core:base:lintDebug`,
+  `:tracker:engine:lintDebug`, `:stats:api:lintAnalyzeAndroidHostTest`, and
+  `checkRoomSchemaDrift` passed together in `5m 9s` (594 tasks: 111 executed, 483 up-to-date), with
+  no new lint issue or schema drift.
+- The authoritative `ciUnitTest` aggregate passed (`BUILD SUCCESSFUL in 18m 38s`, 994 tasks: 65
+  executed, 929 up-to-date). An earlier aggregate exposed five branch-local deletion/repair
+  regressions and the three incomplete Activity fixtures above; all eight were corrected before the
+  clean rebase and passing aggregate. The configured `adsamcik` identity created both numeric
+  commits, and local `dev/v10` fast-forwarded without conflict. Nothing was pushed or activated.
+
+This is host/Robolectric/in-memory-Room/static evidence. It does not prove the connected manual
+Steps-only provider-to-query scenario, listener removal, rendered UI/accessibility, process death,
+reboot, FGS, battery/OEM behavior, automatic or ambient Steps, retention execution, portable
+export/import, ordinary writer activation, or rollout. No goals, streaks, achievements, widgets, or
+notifications consume this API yet. Before any broad 370-day consumer is wired, settled facts must
+be streamed through a precomputed day-window accumulator instead of retaining and rescanning the
+whole result; a service-run-first index should be considered only with measured schema/retention
+need.

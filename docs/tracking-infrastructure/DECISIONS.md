@@ -1857,3 +1857,34 @@ Each entry records repository evidence and does not duplicate the final architec
   Wi-Fi callbacks remain compatible with direct demand, while active attempts stay finite and
   direct-demand-only. This adds no Wi-Fi product fact, query/UI, deletion, retention, portable
   export/import, ordinary writer activation, rollout, or physical scan/callback/battery/OEM proof.
+
+## TI-D133 — Numeric Steps decisions require complete source-qualified day coverage
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` at `18e4f7acb`; broad numeric consumers and device execution
+  remain `BLOCKED`
+- Owner/date: Steps history/storage owner after corrected aggregate, forced post-rebase focused
+  gates, repository quality gates, and local fast-forward, 2026-09-02
+- Alternatives: reuse `daily_summary.steps` or `sampleCount`; treat absent facts as zero; compose
+  each row independently; expose partial numbers with a warning; retain one permanent Room observer;
+  perform one coherent bounded source-qualified read and return a typed nonnumeric state whenever
+  completeness cannot be proven
+- Evidence: the forced post-rebase product/storage selection passed `103/103`, the DAO selection
+  passed `44/44`, stats API JVM tests passed, root Detekt passed, and app compile, affected lint, and
+  Room drift passed. The authoritative `ciUnitTest` aggregate then passed in `18m 38s` with 994
+  tasks. The earlier aggregate's five branch-local deletion/repair failures and three incomplete
+  Activity fixtures were corrected before this accepted run.
+- Decision: a numeric Steps result is `Ready` only when exact immutable session/run/manifest,
+  `SESSION_CAPTURE`, consent, writer, data-epoch, deletion-fence, calendar-zone, and complete covered
+  fact authority tile every requested captured slice. Replacement physical runs compose under their
+  logical tracking identity while retaining exact run ownership internally. Active or settling
+  exact work is `Materializing`; absence, partial capture, missing authority, ambiguity, retention
+  loss, contradiction, and storage failure remain typed nonnumeric results. `sampleCount`,
+  presentation steps, wall-time overlap, and `QUIESCED` never establish source ownership or a zero.
+- Consequences: the read is one coherent bounded Room generation, starts no provider, writes no
+  repair, and installs no permanent observer. Goals, streaks, achievements, widgets, and
+  notifications must use only `Ready`, but are not wired yet. Before a broad 370-day consumer is
+  enabled, settled facts must be streamed through a precomputed day-window accumulator to avoid
+  retaining and rescanning the whole fact set; a new service-run-first index requires measured need
+  and the later schema/retention owner. Connected provider-to-query, listener removal, rendered UI,
+  process/reboot/FGS, battery/OEM, retention, portable transfer, activation, and rollout remain
+  separate gates.
