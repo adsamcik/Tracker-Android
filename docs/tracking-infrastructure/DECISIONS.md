@@ -1944,3 +1944,27 @@ Each entry records repository evidence and does not duplicate the final architec
   eligibility, particularly for a Steps slice of a mixed-source run. No Room exporter/importer,
   durable origin mapping, registry/UI, retention execution, database-import bridge,
   no-resurrection proof, activation, rollout, push, or release is authorized.
+
+## TI-D136 — Broad Steps numeric reads stream facts into a bounded day accumulator
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` at `b5f43a2e8`; numeric consumer migration remains `BLOCKED`
+- Owner/date: Steps numeric storage owner after fail-closed review, repeated focused gates, static
+  gate, clean rebase, forced post-rebase reruns, and local fast-forward, 2026-09-02
+- Alternatives: retain all latest facts and rescan them for every requested day; add a speculative
+  aggregate schema or service-run-first index; weaken correction or materializing validation; page
+  settled latest state once and accumulate into the already bounded structural-day window
+- Evidence: the exact four-class selection passed `80/80` repeatedly, including 95,090 facts over
+  370 days and cross-page/correction/materializing edge cases. Detekt, tracker lint, and Room drift
+  passed. The final forced post-rebase selection passed `80/80`; Gradle's anomalous printed duration
+  is recorded in the implementation and verification evidence rather than used as a benchmark.
+- Decision: settled latest Steps fact state is read in total-key keyset pages and consumed once by an
+  at-most-370-cell accumulator. Only one physical run's coverage cursors are retained at a time.
+  Immutable authority, exact completeness bounds, deletion and retention fences, stored calendar
+  authority, and replacement membership are unchanged. A lane-behind terminal run may lack rows,
+  but every present row is validated and no row beyond its completeness target is accepted.
+  Per-fact manifest successor and capture-slice lookup is constant time.
+- Consequences: the demonstrated broad-read memory and repeated-scan blocker is removed without a
+  new schema, index, observer, provider demand, or generic materializer. This does not authorize a
+  consumer to treat `Materializing` or `Unverifiable` as zero. Goals, streaks, achievements,
+  widgets, and notifications must be migrated and tested separately; connected provider, UI,
+  retention/portable, automatic/ambient, activation, rollout, push, and release gates remain.

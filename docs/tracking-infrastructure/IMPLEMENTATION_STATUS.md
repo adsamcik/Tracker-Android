@@ -2514,3 +2514,47 @@ preflight correction-expanded dependencies and a bounded complete snapshot befor
 bytes. A mixed-source run's Steps slice is representable, but that does not make the run eligible
 for the existing Steps-only selected-deletion path. No provider, listener, device/process/reboot,
 FGS, battery/OEM, rendered UI, activation, rollout, push, or release behavior is proven.
+
+## Steps numeric streaming checkpoint (2026-09-02)
+
+### Outcome
+
+The broad-day Steps numeric composer now streams settled latest fact state in deterministic 256-row
+keyset pages into a precomputed, at-most-370-cell day-window accumulator. It retains only the
+current physical run's coverage cursors instead of materializing every fact and rescanning the
+complete fact set for every day. Replacement runs still compose under one logical tracking entry,
+while manifest, writer, completeness, deletion, retention, calendar, and exact physical-run
+ownership remain source-local and fail closed.
+
+The stream preserves the prior typed semantics: exact covered slices may produce `Ready`; gaps,
+overlaps, uncertainty, incompatible sources, or malformed attribution remain partial or
+`Unverifiable`; active work remains `Materializing`; and no missing value becomes zero. A terminal
+lane whose cursor is behind still validates any already-present fact, but permits genuinely absent
+or incomplete rows until the exact target is reached. Facts above the terminal completeness target
+are rejected even while the lane is behind. Manifest successors and capture slices are precomputed
+for constant-time per-fact validation.
+
+### Evidence and boundary
+
+- The focused accumulator/composer/Room/result-mapping selection passed `80/80` repeatedly. It
+  includes 95,090 facts across the full 370-day bound, 256-row page boundaries, correction and
+  materializing precedence, covered zero, DST, overlap/gap, replacement, and beyond-completeness
+  cases.
+- After narrow method-level complexity annotations, root Detekt, `:tracker:engine:lintDebug`, and
+  `checkRoomSchemaDrift` passed together in `4m 5s` (381 tasks: 180 executed, 27 from cache, 174
+  up-to-date); tracker lint retained only its six baseline-filtered warnings.
+- The clean branch rebased directly onto `e308141a3`. A forced post-rebase selection passed `80/80`
+  in `3m 21s` with 234 tasks executed. After the final constant-time manifest-successor correction,
+  the identical forced selection again passed `80/80` with 230 tasks executed. Its first sandboxed
+  invocation failed only with `Permission denied: getsockopt`; the authorized identical retry
+  succeeded. Gradle printed `2h 13m 16s` for that retry despite a much shorter observed command wall
+  time, so the anomalous printed duration is preserved rather than treated as performance evidence.
+- Commit `b5f43a2e8` contains exactly five reviewed tracker-engine files and was fast-forwarded into
+  local `dev/v10`. Nothing was pushed, activated, released, tagged, or deployed.
+
+This is host/Robolectric/in-memory-Room/static evidence. It removes the recorded broad-consumer
+memory/rescan blocker, but goals, streaks, achievements, widgets, and notifications still require a
+separate typed-consumer audit and implementation. It does not prove the connected manual
+Steps-only provider/listener scenario, rendered UI/accessibility, process death, reboot, FGS,
+battery/OEM behavior, retention/export/import, automatic or ambient Steps, activation, rollout,
+push, or release.
