@@ -34,6 +34,29 @@ sealed interface QualifiedStepCount {
     data class Unavailable(val reason: QualifiedStepCountUnavailableReason) : QualifiedStepCount
 }
 
+/**
+ * Builds a presentation summary without allowing the legacy aggregate Steps column to become
+ * numeric authority. A qualified zero is still a present and truthful Steps observation.
+ */
+fun DailySummary?.withSourceQualifiedSteps(steps: QualifiedStepCount): DailySummary? {
+    val readySteps = (steps as? QualifiedStepCount.Ready)?.value
+    val qualifiedSummary = when {
+        this != null -> copy(totalSteps = readySteps ?: 0)
+        readySteps != null -> DailySummary(
+            totalDistanceM = 0f,
+            totalSteps = readySteps,
+            totalDurationMs = 0L,
+            sessionCount = 0,
+        )
+        else -> null
+    }
+
+    return qualifiedSummary?.takeIf { readySteps != null || it.hasNonStepData }
+}
+
+private val DailySummary.hasNonStepData: Boolean
+    get() = totalDistanceM > 0f || totalDurationMs > 0L || sessionCount > 0
+
 /** Stable presentation reasons that must never be collapsed into a numeric zero. */
 enum class QualifiedStepCountUnavailableReason {
     MISSING,

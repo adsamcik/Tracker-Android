@@ -16,6 +16,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
 class GoalNotificationWorkerTest {
@@ -73,6 +74,30 @@ class GoalNotificationWorkerTest {
 		)
 
 		runBlocking { worker.doWork() } shouldBe ListenableWorker.Result.success()
+		coVerify(exactly = 0) { preferences.fetchLong(any(), any()) }
+		coVerify(exactly = 0) { preferences.fetchInt(any(), any()) }
+	}
+
+	@Test
+	fun `missing replay sentinel times out and worker finishes without notification`() = runTest {
+		val preferences = mockk<Preferences>(relaxed = true)
+		val worker = GoalNotificationWorker(
+			appContext = mockk<Context>(relaxed = true),
+			workerParams = mockk<WorkerParameters>(relaxed = true),
+			goalProgressProvider = FakeGoalProgressProvider(
+				GoalProgress(
+					stepsToday = QualifiedStepCount.Unavailable(
+						QualifiedStepCountUnavailableReason.MISSING,
+					),
+					goalSteps = 10_000,
+					gamificationEnabled = true,
+				),
+			),
+			preferences = preferences,
+			goalsSettingsRepository = FakeWorkerGoalsSettingsRepository(notificationsEnabled = true),
+		)
+
+		worker.doWork() shouldBe ListenableWorker.Result.success()
 		coVerify(exactly = 0) { preferences.fetchLong(any(), any()) }
 		coVerify(exactly = 0) { preferences.fetchInt(any(), any()) }
 	}

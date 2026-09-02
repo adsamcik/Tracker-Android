@@ -150,6 +150,73 @@ class TrackerDashboardProgressCardsAdditionalTest {
 	}
 
 	@Test
+	fun todayProgressCard_qualifiedStepsWithoutLegacySummary_showsOnlySteps() {
+		composeRule.setContent {
+			AppTheme {
+				TodayProgressCard(
+					isTracking = false,
+					settings = defaultSettings,
+					dailySummaryProvider = fakeSummaryProvider(null),
+					goalProgressProvider = fakeGoalProvider(stepsToday = 4_500),
+				)
+			}
+		}
+
+		composeRule.waitForIdle()
+		composeRule.onNodeWithText("Steps").assertIsDisplayed()
+		composeRule.onNodeWithText("4,500").assertIsDisplayed()
+		composeRule.onNodeWithText("No sessions today").assertDoesNotExist()
+		composeRule.onNodeWithText("Duration").assertDoesNotExist()
+	}
+
+	@Test
+	fun todayProgressCard_qualifiedZeroWithoutLegacySummary_showsZeroSteps() {
+		composeRule.setContent {
+			AppTheme {
+				TodayProgressCard(
+					isTracking = false,
+					settings = defaultSettings,
+					dailySummaryProvider = fakeSummaryProvider(null),
+					goalProgressProvider = fakeGoalProvider(stepsToday = 0),
+				)
+			}
+		}
+
+		composeRule.waitForIdle()
+		composeRule.onNodeWithText("Steps").assertIsDisplayed()
+		composeRule.onNodeWithText("0").assertIsDisplayed()
+		composeRule.onNodeWithText("No sessions today").assertDoesNotExist()
+		composeRule.onNodeWithText("Duration").assertDoesNotExist()
+	}
+
+	@Test
+	fun todayProgressCard_unavailableRawStepsOnlySummary_showsEmptyState() {
+		composeRule.setContent {
+			AppTheme {
+				TodayProgressCard(
+					isTracking = false,
+					settings = defaultSettings,
+					dailySummaryProvider = fakeSummaryProvider(
+						DailySummary(
+							totalDistanceM = 0f,
+							totalSteps = 4_500,
+							totalDurationMs = 0L,
+							sessionCount = 0,
+						),
+					),
+					goalProgressProvider = fakeGoalProvider(),
+				)
+			}
+		}
+
+		composeRule.waitForIdle()
+		composeRule.onNodeWithText("No sessions today").assertIsDisplayed()
+		composeRule.onNodeWithText("Steps").assertDoesNotExist()
+		composeRule.onNodeWithText("4,500").assertDoesNotExist()
+		composeRule.onNodeWithText("Duration").assertDoesNotExist()
+	}
+
+	@Test
 	fun todayProgressCard_showsDurationLabel() {
 		composeRule.setContent {
 			AppTheme {

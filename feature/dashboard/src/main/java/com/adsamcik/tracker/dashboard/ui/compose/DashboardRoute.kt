@@ -35,10 +35,10 @@ import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
 import com.adsamcik.tracker.dashboard.ui.compose.state.GoalProgressState
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
-import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.GoalProgress
 import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
 import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
+import com.adsamcik.tracker.shared.base.di.withSourceQualifiedSteps
 import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.shared.utils.compose.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.utils.compose.permission.PermissionDeniedSnackbar
@@ -310,15 +310,14 @@ fun DashboardRoute(
 				?.second
 		}
 	}
-	val qualifiedTodaySteps = (goalProgress.stepsToday as? QualifiedStepCount.Ready)?.value
-	val unifiedTodaySummary = remember(todaySummary, qualifiedTodaySteps) {
-		todaySummary.withUnifiedSteps(qualifiedTodaySteps)
+	val unifiedTodaySummary = remember(todaySummary, goalProgress.stepsToday) {
+		todaySummary.withSourceQualifiedSteps(goalProgress.stepsToday)
 	}
 
 	// Determine dashboard mode
 	val dashboardMode = resolveDashboardMode(
 		isTracking = isTracking,
-		hasTodaySummary = unifiedTodaySummary?.isEmpty == false,
+		hasTodaySummary = unifiedTodaySummary != null,
 		displaySession = displaySession,
 		recentHistory = recentHistory,
 	)
@@ -632,12 +631,3 @@ private fun Trip.toTrackerSessionSnapshot() = TrackerSessionSnapshot(
 	distanceInM = distanceM,
 	steps = steps ?: 0,
 )
-
-private fun DailySummary?.withUnifiedSteps(goalStepsToday: Int?): DailySummary? {
-	if (this == null || goalStepsToday == null) return this
-
-	return when {
-		totalSteps == goalStepsToday -> this
-		else -> copy(totalSteps = goalStepsToday)
-	}
-}

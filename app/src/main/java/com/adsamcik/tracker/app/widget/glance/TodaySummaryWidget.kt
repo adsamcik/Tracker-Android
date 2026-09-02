@@ -27,13 +27,13 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.app.steps.awaitQualifiedGoalProgress
 import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.GoalProgress
 import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
 import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.first
 
 /**
  * Today Summary widget (4x2): distance hero metric, secondary stats, goal progress.
@@ -52,11 +52,8 @@ class TodaySummaryWidget : GlanceAppWidget() {
             )
 
             summary = entryPoint.dailySummaryProvider().fetchTodaySummary()
-            goalProgress = entryPoint.goalProgressProvider().goalProgressFlow.first { candidate ->
-                candidate.stepsToday != QualifiedStepCount.Unavailable(
-                    QualifiedStepCountUnavailableReason.MISSING,
-                )
-            }
+            goalProgress = entryPoint.goalProgressProvider().goalProgressFlow
+                .awaitQualifiedGoalProgress()
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (_: Exception) {
@@ -97,7 +94,8 @@ private fun TodaySummaryContent(
     goalProgress: GoalProgress,
     context: Context,
 ) {
-    val readyGoalSteps = goalProgress.stepsToday as? QualifiedStepCount.Ready
+    val presentation = todaySummaryWidgetPresentation(summary, goalProgress.stepsToday)
+    val readyGoalSteps = presentation.steps?.let { steps -> QualifiedStepCount.Ready(steps) }
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
@@ -116,7 +114,7 @@ private fun TodaySummaryContent(
             ),
         )
 
-        if (summary == null || summary.isEmpty) {
+        if (!presentation.hasData) {
             Spacer(modifier = GlanceModifier.height(12.dp))
             Text(
                 text = context.getString(R.string.widget_no_data_today),
@@ -128,24 +126,24 @@ private fun TodaySummaryContent(
         } else {
             Spacer(modifier = GlanceModifier.height(4.dp))
 
-            // Hero: Distance
-            Text(
-                text = WidgetFormatters.formatDistance(context, summary.totalDistanceM),
-                style = TextStyle(
-                    color = GlanceTheme.colors.primary,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold,
-                ),
-            )
-            Text(
-                text = context.getString(R.string.widget_distance),
-                style = TextStyle(
-                    color = GlanceTheme.colors.onSurfaceVariant,
-                    fontSize = 11.sp,
-                ),
-            )
-
-            Spacer(modifier = GlanceModifier.height(8.dp))
+            presentation.distanceM?.let { distanceM ->
+                Text(
+                    text = WidgetFormatters.formatDistance(context, distanceM),
+                    style = TextStyle(
+                        color = GlanceTheme.colors.primary,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                )
+                Text(
+                    text = context.getString(R.string.widget_distance),
+                    style = TextStyle(
+                        color = GlanceTheme.colors.onSurfaceVariant,
+                        fontSize = 11.sp,
+                    ),
+                )
+                Spacer(modifier = GlanceModifier.height(8.dp))
+            }
 
             // Secondary stats row
             Row(
@@ -159,16 +157,20 @@ private fun TodaySummaryContent(
                         modifier = GlanceModifier.defaultWeight(),
                     )
                 }
-                StatItem(
-                    label = context.getString(R.string.widget_duration),
-                    value = WidgetFormatters.formatDuration(summary.totalDurationMs),
-                    modifier = GlanceModifier.defaultWeight(),
-                )
-                StatItem(
-                    label = context.getString(R.string.widget_sessions),
-                    value = summary.sessionCount.toString(),
-                    modifier = GlanceModifier.defaultWeight(),
-                )
+                presentation.durationMs?.let { durationMs ->
+                    StatItem(
+                        label = context.getString(R.string.widget_duration),
+                        value = WidgetFormatters.formatDuration(durationMs),
+                        modifier = GlanceModifier.defaultWeight(),
+                    )
+                }
+                presentation.sessionCount?.let { sessionCount ->
+                    StatItem(
+                        label = context.getString(R.string.widget_sessions),
+                        value = sessionCount.toString(),
+                        modifier = GlanceModifier.defaultWeight(),
+                    )
+                }
             }
 
             // Goal progress
@@ -179,6 +181,26 @@ private fun TodaySummaryContent(
         }
     }
 }
+
+internal data class TodaySummaryWidgetPresentation(
+    val distanceM: Float?,
+    val steps: Int?,
+    val durationMs: Long?,
+    val sessionCount: Int?,
+) {
+    val hasData: Boolean
+        get() = distanceM != null || steps != null || durationMs != null || sessionCount != null
+}
+
+internal fun todaySummaryWidgetPresentation(
+    summary: DailySummary?,
+    steps: QualifiedStepCount,
+) = TodaySummaryWidgetPresentation(
+    distanceM = summary?.totalDistanceM?.takeIf { it > 0f },
+    steps = (steps as? QualifiedStepCount.Ready)?.value,
+    durationMs = summary?.totalDurationMs?.takeIf { it > 0L },
+    sessionCount = summary?.sessionCount?.takeIf { it > 0 },
+)
 
 @Composable
 private fun StatItem(

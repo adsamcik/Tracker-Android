@@ -16,10 +16,10 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.R
+import com.adsamcik.tracker.app.steps.awaitQualifiedGoalProgress
 import com.adsamcik.tracker.game.goals.settings.GoalsSettingsRepository
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
 import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
-import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
 import com.adsamcik.tracker.shared.preferences.Preferences
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -48,11 +48,7 @@ class GoalNotificationWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         if (!goalsSettingsRepository.data.first().notificationsEnabled) return Result.success()
 
-        val progress = goalProgressProvider.goalProgressFlow.first { candidate ->
-            candidate.stepsToday != QualifiedStepCount.Unavailable(
-                QualifiedStepCountUnavailableReason.MISSING,
-            )
-        }
+        val progress = goalProgressProvider.goalProgressFlow.awaitQualifiedGoalProgress()
         if (!progress.gamificationEnabled || progress.goalSteps <= 0) {
             return Result.success()
         }

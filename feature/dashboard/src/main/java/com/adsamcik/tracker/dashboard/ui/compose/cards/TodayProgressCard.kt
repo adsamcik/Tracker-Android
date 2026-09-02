@@ -27,6 +27,7 @@ import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.compose.components.TrackingActionRing
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
 import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
+import com.adsamcik.tracker.shared.base.di.withSourceQualifiedSteps
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
@@ -49,7 +50,7 @@ internal fun TodayProgressCard(
 	val configuration = LocalConfiguration.current
 	val resources = context.resources
 	val settings = TrackerSettingsQuick.snapshot(context)
-	val summary = state.todaySummary
+	val summary = state.todaySummary.withSourceQualifiedSteps(state.goalProgress.dailySteps)
 	val readySteps = state.goalProgress.dailySteps as? QualifiedStepCount.Ready
 	val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 	// Tighter in landscape: phone landscape viewport is short, so the hero must
@@ -91,33 +92,34 @@ internal fun TodayProgressCard(
 					color = MaterialTheme.colorScheme.onSurfaceVariant,
 				)
 
-				if (summary == null || summary.isEmpty) {
+				if (summary == null) {
 					Text(
 						text = stringResource(R.string.dashboard_today_no_activity),
 						style = MaterialTheme.typography.bodyLarge,
 						color = MaterialTheme.colorScheme.onSurface,
 					)
 				} else {
-					// Primary metric: distance
-					val distanceText = resources.formatDistance(
-						summary.totalDistanceM,
-						digits = if (summary.totalDistanceM >= 1000f) 1 else 0,
-						unit = settings.lengthSystem,
-					)
+					if (summary.totalDistanceM > 0f) {
+						val distanceText = resources.formatDistance(
+							summary.totalDistanceM,
+							digits = if (summary.totalDistanceM >= 1000f) 1 else 0,
+							unit = settings.lengthSystem,
+						)
 
-					Text(
-						text = stringResource(R.string.dashboard_today_distance),
-						style = MaterialTheme.typography.labelMedium,
-						color = MaterialTheme.colorScheme.onSurfaceVariant,
-					)
-					Text(
-						text = distanceText,
-						style = primaryMetricStyle,
-						fontWeight = FontWeight.Bold,
-						color = MaterialTheme.colorScheme.onSurface,
-					)
+						Text(
+							text = stringResource(R.string.dashboard_today_distance),
+							style = MaterialTheme.typography.labelMedium,
+							color = MaterialTheme.colorScheme.onSurfaceVariant,
+						)
+						Text(
+							text = distanceText,
+							style = primaryMetricStyle,
+							fontWeight = FontWeight.Bold,
+							color = MaterialTheme.colorScheme.onSurface,
+						)
 
-					Spacer(Modifier.height(if (isLandscape) 4.dp else 8.dp))
+						Spacer(Modifier.height(if (isLandscape) 4.dp else 8.dp))
+					}
 
 					// Secondary metrics
 					FlowRow(
@@ -125,18 +127,20 @@ internal fun TodayProgressCard(
 						verticalArrangement = Arrangement.spacedBy(metricRowSpacing),
 					) {
 						// Duration
-						Column {
-							Text(
-								text = stringResource(R.string.dashboard_today_duration),
-								style = MaterialTheme.typography.labelMedium,
-								color = MaterialTheme.colorScheme.onSurface,
-							)
-							Text(
-								text = summary.totalDurationMs.formatAsDuration(context),
-								style = MaterialTheme.typography.bodyMedium,
-								fontWeight = FontWeight.SemiBold,
-								color = MaterialTheme.colorScheme.onSurface,
-							)
+						if (summary.totalDurationMs > 0L) {
+							Column {
+								Text(
+									text = stringResource(R.string.dashboard_today_duration),
+									style = MaterialTheme.typography.labelMedium,
+									color = MaterialTheme.colorScheme.onSurface,
+								)
+								Text(
+									text = summary.totalDurationMs.formatAsDuration(context),
+									style = MaterialTheme.typography.bodyMedium,
+									fontWeight = FontWeight.SemiBold,
+									color = MaterialTheme.colorScheme.onSurface,
+								)
+							}
 						}
 
 						// Steps

@@ -53,12 +53,14 @@ import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
 import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
+import com.adsamcik.tracker.shared.base.di.withSourceQualifiedSteps
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsState
 import com.adsamcik.tracker.shared.preferences.extension.formatDistance
 import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.tracker.R
+import kotlinx.coroutines.CancellationException
 
 /**
  * Today's Progress Card
@@ -68,6 +70,7 @@ import com.adsamcik.tracker.tracker.R
  * prominent display of the primary metric (distance).
  */
 @Composable
+@Suppress("CyclomaticComplexMethod", "LongMethod", "FunctionNaming")
 internal fun TodayProgressCard(
     isTracking: Boolean,
     settings: TrackerSettingsState,
@@ -87,12 +90,15 @@ internal fun TodayProgressCard(
     
     var todaySummary by remember { mutableStateOf<DailySummary?>(null) }
     var isLoading by remember { mutableStateOf(true) }
+    val sourceQualifiedSummary = todaySummary.withSourceQualifiedSteps(goalProgress.stepsToday)
     
     // Fetch on-demand when composition enters or when tracking state changes
     LaunchedEffect(isTracking) {
         isLoading = true
         try {
             todaySummary = dailySummaryProvider.fetchTodaySummary()
+        } catch (cancellation: CancellationException) {
+            throw cancellation
         } catch (_: Exception) {
             todaySummary = null
         }
@@ -126,47 +132,49 @@ internal fun TodayProgressCard(
                     Box(modifier = Modifier.height(40.dp), contentAlignment = Alignment.CenterStart) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                     }
-                } else if (todaySummary == null) {
+                } else if (sourceQualifiedSummary == null) {
                     Text(
                         text = stringResource(R.string.dashboard_today_empty_title),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
                 } else {
-                    // todaySummary is guaranteed non-null in this branch
-                    val summary = requireNotNull(todaySummary) { "todaySummary was null despite passing null check" }
+                    val summary = requireNotNull(sourceQualifiedSummary)
                     
-                    // Primary Metric: Distance
-                    val distanceText = resources.formatDistance(
-                        summary.totalDistanceM,
-                        digits = if (summary.totalDistanceM >= 1000f) 1 else 0,
-                        unit = settings.lengthSystem
-                    )
-                    
-                    Text(
-                        text = distanceText,
-                        style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    
-                    Spacer(Modifier.height(8.dp))
+                    if (summary.totalDistanceM > 0f) {
+                        val distanceText = resources.formatDistance(
+                            summary.totalDistanceM,
+                            digits = if (summary.totalDistanceM >= 1000f) 1 else 0,
+                            unit = settings.lengthSystem
+                        )
+
+                        Text(
+                            text = distanceText,
+                            style = MaterialTheme.typography.displaySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        Spacer(Modifier.height(8.dp))
+                    }
                     
                     // Secondary Metrics Grid
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         // Duration
-                        Column {
-                            Text(
-                                text = stringResource(R.string.dashboard_today_duration),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f)
-                            )
-                            Text(
-                                text = summary.totalDurationMs.formatAsDuration(context),
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                        if (summary.totalDurationMs > 0L) {
+                            Column {
+                                Text(
+                                    text = stringResource(R.string.dashboard_today_duration),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f)
+                                )
+                                Text(
+                                    text = summary.totalDurationMs.formatAsDuration(context),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
                         }
                         
                         // Steps

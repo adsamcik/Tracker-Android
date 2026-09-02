@@ -79,6 +79,71 @@ class TodayProgressCardTest {
 	}
 
 	@Test
+	fun withQualifiedStepsAndNoLegacySummary_showsOnlyTruthfulSteps() {
+		setCardContent(
+			DashboardUiState(
+				dashboardMode = DashboardMode.IDLE,
+				goalProgress = GoalProgressState(
+					dailySteps = QualifiedStepCount.Ready(4_200),
+				),
+				todaySummary = null,
+			),
+		)
+
+		composeRule.onNodeWithText("Steps").assertIsDisplayed()
+		composeRule.onNodeWithText("4,200").assertIsDisplayed()
+		composeRule.onAllNodesWithText("No activity yet today").assertCountEquals(0)
+		composeRule.onAllNodesWithText("Distance").assertCountEquals(0)
+		composeRule.onAllNodesWithText("Duration").assertCountEquals(0)
+		composeRule.onAllNodesWithText("Trips").assertCountEquals(0)
+	}
+
+	@Test
+	fun withQualifiedZeroAndNoLegacySummary_showsTruthfulZeroSteps() {
+		setCardContent(
+			DashboardUiState(
+				dashboardMode = DashboardMode.IDLE,
+				goalProgress = GoalProgressState(
+					dailySteps = QualifiedStepCount.Ready(0),
+				),
+				todaySummary = null,
+			),
+		)
+
+		composeRule.onNodeWithText("Steps").assertIsDisplayed()
+		composeRule.onNodeWithText("0").assertIsDisplayed()
+		composeRule.onAllNodesWithText("No activity yet today").assertCountEquals(0)
+		composeRule.onAllNodesWithText("Distance").assertCountEquals(0)
+		composeRule.onAllNodesWithText("Duration").assertCountEquals(0)
+	}
+
+	@Test
+	fun withUnavailableStepsAndRawStepsOnlySummary_showsNoActivity() {
+		setCardContent(
+			DashboardUiState(
+				dashboardMode = DashboardMode.IDLE,
+				goalProgress = GoalProgressState(
+					dailySteps = QualifiedStepCount.Unavailable(
+						QualifiedStepCountUnavailableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+					),
+				),
+				todaySummary = DailySummary(
+					totalDistanceM = 0f,
+					totalSteps = 4_200,
+					totalDurationMs = 0L,
+					sessionCount = 0,
+				),
+			),
+		)
+
+		composeRule.onNodeWithText("No activity yet today").assertIsDisplayed()
+		composeRule.onAllNodesWithText("Steps").assertCountEquals(0)
+		composeRule.onAllNodesWithText("4,200").assertCountEquals(0)
+		composeRule.onAllNodesWithText("Distance").assertCountEquals(0)
+		composeRule.onAllNodesWithText("Duration").assertCountEquals(0)
+	}
+
+	@Test
 	fun withSingleSessionAndMissingQualifiedSteps_hidesOptionalSections() {
 		setCardContent(
 			DashboardUiState(
