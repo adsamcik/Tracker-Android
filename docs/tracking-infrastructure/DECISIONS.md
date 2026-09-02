@@ -1915,3 +1915,32 @@ Each entry records repository evidence and does not duplicate the final architec
   identity remains replay-stable while changed qualified content reaches checksum-collision
   protection. No schema, materializer, query/UI, deletion, retention, portable transfer, ambient
   Pressure, destination-owner switch, activation, rollout, push, or release is authorized.
+
+## TI-D135 — Portable Steps freezes exact source truth before product file plumbing
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` at `fd558265a`; Room export, authoritative import, retention,
+  and end-to-end no-resurrection remain `BLOCKED`
+- Owner/date: Steps portability contract owner after focused host/static gates, export-design audit,
+  clarification, and local fast-forward, 2026-09-02
+- Alternatives: export legacy presentation rows or the complete database; serialize clear local
+  identities; derive imported identities or deletion scopes again; let storage failures surface
+  after file emission begins; freeze a source-local privacy-minimized schema and typed transfer
+  boundary before adding Room or UI plumbing
+- Evidence: the exact API/codec selection passed `24/24` initially, before commit, and after rebase.
+  Release compilation, root Detekt, and import/export lint passed before and after rebase; root
+  Detekt passed again after the final documentation-only contract clarification. The export audit
+  separated current codec/schema guarantees from later storage and lifecycle obligations.
+- Decision: portable Steps v1 contains only opaque kind-namespaced identities, the original exact
+  v28 run-deletion-scope digest, immutable Steps session-capture attribution, explicit settlement,
+  and latest effective typed facts under canonical semantic checksums. Replacement physical runs
+  stay grouped by logical entry. A producer must validate and bound its complete point-in-time
+  snapshot before the first sink emission; an importer must atomically recompute integrity and
+  durably preserve portable identities and deletion scopes verbatim. Non-covered evidence never
+  carries a fabricated zero.
+- Consequences: the codec can reject malformed, oversized, noncanonical, identity-colliding, or
+  checksum-invalid files without broad database or provider authority. The 2,048 fact cap applies
+  to latest portable states; a later exporter must separately bound historical correction
+  revisions and complete snapshot memory. Portable qualification is not selected-deletion
+  eligibility, particularly for a Steps slice of a mixed-source run. No Room exporter/importer,
+  durable origin mapping, registry/UI, retention execution, database-import bridge,
+  no-resurrection proof, activation, rollout, push, or release is authorized.

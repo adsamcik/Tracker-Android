@@ -2467,3 +2467,50 @@ ordinary writer activation, or rollout. It is host/Robolectric/mock-sensor/stati
 physical sensor/FIFO/flush/cadence, process death, reboot, FGS, battery, OEM, or rendered-product
 proof. A read-only ADB check again found no attached device, so the separate exact manual Steps-only
 device scenario also remains blocked.
+
+## Portable Steps v1 contract and codec checkpoint (2026-09-02)
+
+### Outcome
+
+The source-local portable Steps v1 contract and strict JSON codec are accepted and fast-forwarded
+into local `dev/v10` at `fd558265a` (`89f23c54a`, `dcd120a6c`, and the contract clarification
+`fd558265a`). The standalone `.trackersteps` format carries only opaque kind-namespaced SHA-256
+identities, the exact existing run-deletion-scope digest, immutable Steps session-capture
+attribution, explicit completeness, and latest effective typed facts. Replacement physical runs
+remain grouped under one logical entry. Covered zero remains explicit; baseline, reset-gap,
+partial, unavailable, or absent evidence cannot become numeric zero.
+
+The codec enforces the frozen format/version and privacy vocabulary, canonical ordering, global
+identity/scope uniqueness, semantic checksums, strict JSON types and fields, collection and 64 MiB
+wire bounds, and complete input consumption. Decode is entry-streaming and requires an atomic,
+replay-safe authoritative sink. Encode writes zero bytes for a typed no-entry outcome, propagates
+cancellation, leaves caller streams open, and can finalize only an exact successful count. The
+product contract additionally requires a complete bounded point-in-time preflight before the first
+sink emission and external I/O only after the storage transaction closes.
+
+### Evidence and boundary
+
+- The API and codec selections passed `24/24` (`9/9` format and `15/15` codec) initially, in the
+  forced pre-commit run (`BUILD SUCCESSFUL in 1m 29s`, 178 tasks executed), and after the clean
+  rebase (`BUILD SUCCESSFUL in 1m 32s`, 178 tasks executed), with zero failures, errors, or skips.
+- Release compilation, root Detekt, and import/export lint passed before commit and after rebase;
+  the latter post-rebase gate passed in `1m 49s` with 444 tasks (63 executed) and only the seven
+  already-existing lint warnings outside the portable paths. After the final KDoc clarification,
+  the configured `detekt --rerun-tasks` aggregate passed again in `23s` (5 tasks executed).
+  An attempted module selector, `:stats:api:detekt :feature:import-export:detekt --rerun-tasks`,
+  failed during task selection because `:stats:api` exposes no `detekt` task; no source check ran in
+  that attempt, and the configured root aggregate above replaced it.
+- A fresh export-design audit found no codec/schema corruption, but identified obligations for the
+  later Room exporter/importer. The contract now states that the per-run fact cap covers latest
+  portable states, not historical correction revisions; imported opaque identities and deletion
+  scopes must be durably retained verbatim; and portable qualification does not grant eligibility
+  for selected-session deletion. The reviewed branch was clean and fast-forwarded locally with the
+  configured `adsamcik` identity. Nothing was pushed or activated.
+
+This is a transfer schema, typed API, codec, and host/static evidence only. There is no Room-backed
+exporter, authoritative importer, file registry/UI, durable imported-identity mapping, retention
+execution, database-import bridge, or end-to-end no-resurrection proof yet. The later exporter must
+preflight correction-expanded dependencies and a bounded complete snapshot before emitting any
+bytes. A mixed-source run's Steps slice is representable, but that does not make the run eligible
+for the existing Steps-only selected-deletion path. No provider, listener, device/process/reboot,
+FGS, battery/OEM, rendered UI, activation, rollout, push, or release behavior is proven.
