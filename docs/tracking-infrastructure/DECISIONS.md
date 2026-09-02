@@ -1968,3 +1968,28 @@ Each entry records repository evidence and does not duplicate the final architec
   consumer to treat `Materializing` or `Unverifiable` as zero. Goals, streaks, achievements,
   widgets, and notifications must be migrated and tested separately; connected provider, UI,
   retention/portable, automatic/ambient, activation, rollout, push, and release gates remain.
+
+## TI-D137 — Numeric product surfaces consume only source-qualified Steps
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` at `3e727f255`; award and achievement mutation remain
+  `BLOCKED`
+- Owner/date: Steps product-consumer owner after focused tests, corrected adversarial review,
+  affected static gates, required latest-base check, and local fast-forward, 2026-09-02
+- Alternatives: continue using `daily_summary.steps`; overlay raw live GoalTracker values; map
+  missing or partial evidence to zero; require a legacy summary before showing Steps; keep an
+  unbounded worker wait; expose the existing typed repository through bounded subscription-scoped
+  reads and render only independently qualified metrics
+- Evidence: initial consumers passed `99/99` focused cases. Review found and the correction removed
+  raw-summary presence authority and unbounded widget/worker waits; corrected cases passed `54/54`,
+  root Detekt and four affected lints passed, and a fresh re-review found no blocker, high, or medium
+  issue.
+- Decision: only `QualifiedStepCount.Ready` may provide a Steps number or ratio. Verified zero is a
+  present value; every unavailable reason is nonnumeric. Daily and weekly qualification remain
+  independent. Existing raw flows and Room summaries are invalidation/non-Step inputs only. Product
+  composition strips raw Steps, does not require a legacy summary, omits absent sibling metrics,
+  retries materialization finitely, and bounds replay-sentinel waits while propagating caller
+  cancellation.
+- Consequences: Dashboard, legacy Tracker, Game, Today widget, and goal notifications no longer
+  fabricate or hide Steps through raw aggregate presence. This does not qualify GoalTracker award
+  writes, streaks, achievements, lifetime/best-day metrics, or automatic/ambient Steps. No provider,
+  observer network, schema, writer activation, rollout, push, or release is added.

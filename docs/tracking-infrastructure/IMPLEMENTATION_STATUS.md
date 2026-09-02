@@ -2558,3 +2558,48 @@ separate typed-consumer audit and implementation. It does not prove the connecte
 Steps-only provider/listener scenario, rendered UI/accessibility, process death, reboot, FGS,
 battery/OEM behavior, retention/export/import, automatic or ambient Steps, activation, rollout,
 push, or release.
+
+## Steps source-qualified product-consumer checkpoint (2026-09-02)
+
+### Outcome
+
+The read-only numeric Steps contract now reaches the Dashboard, legacy Tracker card, Game screen,
+Today widget, and goal-notification decision without borrowing a raw `daily_summary.steps` value.
+Only `QualifiedStepCount.Ready`, including a verified zero, supplies a number or progress ratio.
+`Materializing`, missing, partial, not-captured, calendar-ambiguous, source-evidence-unavailable, and
+storage-unavailable states remain typed and nonnumeric. Daily and locale-week reads are independent,
+so a complete current day can remain visible while the wider week is partial.
+
+The consumer flow is subscription-scoped and uses existing Room/GoalTracker changes only as
+invalidation signals; every displayed number is reread from the source-qualified repository. Its
+materializing retry schedule is finite (`250/500/1000 ms`) and a newer invalidation or collector
+cancellation cancels the old read. Widget and notification entry points wait at most five seconds
+for the replay-reset `MISSING` sentinel, preserve external cancellation, and fail closed to a typed
+nonnumeric result. Product presence is composed from qualified Steps plus independently present
+distance, duration, or session facts. Raw aggregate Steps cannot create a data state, and a
+Steps-only `Ready(0)` or positive result does not require a legacy summary or fabricate another
+metric.
+
+### Evidence and boundary
+
+- The initial consumer selection passed `99/99`: Game `22`, Dashboard `45`, legacy Tracker `28`,
+  and notification `4`. A final post-edit selection reran the affected Game `22` and Dashboard
+  status `6` cases with zero failures, errors, or skips.
+- A fresh review returned `NO_GO` for raw-summary presence leakage and unbounded worker/widget
+  waits. The correction added explicit positive/zero/null/raw-only presentation and timeout/caller-
+  cancellation cases; its focused selection passed `54/54` (core `4`, Dashboard `7`, Tracker `31`,
+  app `12`). A separate corrected-diff reviewer returned `GO` with no blocker, high, or medium
+  finding.
+- The initial root Detekt and five-module lint wave passed in `14m 02s` (1,086 tasks). Corrected root
+  Detekt passed from scratch; `:core:common`, Dashboard, Tracker, and app lint passed in `4m 19s`
+  (1,086 tasks), followed by a green `40s` core lint confirmation after narrowing one helper to
+  file-private. Reported warnings were pre-existing and outside changed lines.
+- Commits `39afb9fe4` and `3e727f255` used the configured `adsamcik` identity. The required rebase
+  check reported the branch up to date, and local `dev/v10` fast-forwarded to `3e727f255`. Nothing
+  was pushed, activated, released, tagged, or deployed.
+
+This is host/Robolectric/static product evidence, not a rendered device/accessibility check. Raw
+GoalTracker award mutation, streaks, achievements, lifetime/best-day metrics, and automatic or
+ambient Steps remain separate work. It also does not prove the connected provider/WAL/listener
+scenario, process death, reboot, FGS, battery/OEM behavior, portable import/export, retention,
+ordinary writer activation, rollout, push, or release.
