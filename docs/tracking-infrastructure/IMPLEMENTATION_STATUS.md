@@ -2426,3 +2426,44 @@ notifications consume this API yet. Before any broad 370-day consumer is wired, 
 be streamed through a precomputed day-window accumulator instead of retaining and rescanning the
 whole result; a service-run-first index should be considered only with measured schema/retention
 need.
+
+## Pressure qualified-window evidence checkpoint (2026-09-02)
+
+### Outcome
+
+The source-owned Pressure window now persists a frozen payload-v4 record with exact first/last
+pressure, online slope and coefficient of determination when defined, worst per-event sensor
+accuracy, normalized provider request, target duration and expected count, maximum inter-sample
+gap, and an explicit target-elapsed or source-boundary closure. The rollover sample remains owned by
+the next window. Legacy payload versions 1 through 3 retain their frozen reduced shape, while a
+qualified v4 record cannot be silently downgraded or compacted without its regression evidence.
+
+V4 validation fails closed on invalid statistics, enum codes, sequence cardinality, request/target
+inconsistency, truncated or trailing bytes, and internally inconsistent one-sample evidence. The
+wire layout is frozen by an independently decoded 126-byte golden vector. Runtime completeness is
+conservative: a target-elapsed window must also meet expected count, observed-span, and strict
+maximum-gap evidence; bunched samples cannot hide a gap of two provider cadences.
+
+### Evidence and boundary
+
+- The final forced pre-commit selection passed `95/95` exact codec, accumulator, runtime, provider
+  request, durable ingress, compaction, recovery, lane, and projection tests with zero failures,
+  errors, or skips (`BUILD SUCCESSFUL in 5m 31s`, 230 tasks executed). An earlier `93/93` pass
+  preceded the independent review corrections.
+- Root Detekt and `:tracker:engine:lintDebug` passed from scratch after the corrections
+  (`BUILD SUCCESSFUL in 3m 53s`, 374 tasks executed); lint found no new issue and retained six
+  baseline-filtered warnings.
+- A fresh adversarial review found two medium durable-format gaps, which were corrected with exact
+  sequence/one-sample invariants and independent golden/malformed byte vectors. The corrected
+  re-review found no remaining blocker, high, or medium issue and independently decoded the vector.
+- Commit `d63075f2d` was rebased without conflict onto local `dev/v10`. The required forced
+  post-rebase selection again passed `95/95` (`BUILD SUCCESSFUL in 5m 8s`, 230 tasks executed), and
+  the clean integration worktree fast-forwarded locally. The configured `adsamcik` identity was
+  used. Nothing was pushed, activated, released, tagged, or deployed.
+
+This adds qualified durable Pressure source evidence only. It does not add a Pressure fact table,
+materializer, query, UI, deletion, retention, export/import, ambient collection, destination owner,
+ordinary writer activation, or rollout. It is host/Robolectric/mock-sensor/static evidence, not
+physical sensor/FIFO/flush/cadence, process death, reboot, FGS, battery, OEM, or rendered-product
+proof. A read-only ADB check again found no attached device, so the separate exact manual Steps-only
+device scenario also remains blocked.

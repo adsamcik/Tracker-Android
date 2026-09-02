@@ -1888,3 +1888,30 @@ Each entry records repository evidence and does not duplicate the final architec
   and the later schema/retention owner. Connected provider-to-query, listener removal, rendered UI,
   process/reboot/FGS, battery/OEM, retention, portable transfer, activation, and rollout remain
   separate gates.
+
+## TI-D134 — Pressure windows carry qualified source evidence without inventing altitude
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` at `d63075f2d`; Pressure product materialization remains
+  `BLOCKED`
+- Owner/date: Pressure source-runtime owner after corrected durable-format review, forced focused
+  gates, and local fast-forward, 2026-09-02
+- Alternatives: retain the legacy mean/min/max window; derive altitude from a fixed standard
+  atmosphere; rename identical request tiers; compact qualified windows and recompute an apparent
+  fit; freeze exact source-owned endpoints, fit, accuracy, realized coverage, normalized request,
+  and closure evidence while leaving product interpretation to a later Pressure fact lane
+- Evidence: the corrected pre-commit and post-rebase selections each passed `95/95`; root Detekt and
+  tracker-engine lint passed with no new issue. Fresh review found and then verified corrections for
+  sequence/statistical consistency and a missing frozen wire vector; no blocker, high, or medium
+  issue remains.
+- Decision: payload v4 appends exact qualified Pressure evidence after the frozen v1-v3 shape.
+  Stable enum codes, strict full-byte decoding, sequence cardinality, one-sample invariants, and an
+  independent golden vector protect the durable WAL contract. `TARGET_ELAPSED` is complete only
+  with expected count, sufficient observed span, and no gap reaching two requested cadences;
+  `SOURCE_BOUNDARY` remains durable partial evidence. Per-event accuracy is conservatively reduced
+  to the worst window value. Qualified windows cannot use the legacy compactor because merged
+  regression quality cannot be reconstructed truthfully.
+- Consequences: acquisition tiers now leave measurable request and realized-window evidence without
+  claiming realized device cadence, wake reliability, altitude, or product stability. Delivery
+  identity remains replay-stable while changed qualified content reaches checksum-collision
+  protection. No schema, materializer, query/UI, deletion, retention, portable transfer, ambient
+  Pressure, destination-owner switch, activation, rollout, push, or release is authorized.
