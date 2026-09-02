@@ -1993,3 +1993,31 @@ Each entry records repository evidence and does not duplicate the final architec
   fabricate or hide Steps through raw aggregate presence. This does not qualify GoalTracker award
   writes, streaks, achievements, lifetime/best-day metrics, or automatic/ambient Steps. No provider,
   observer network, schema, writer activation, rollout, push, or release is added.
+
+## TI-D138 — Pressure session facts require exact immutable authority and transactional projection
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` at `db2a460a3`; product query and writer activation remain
+  `BLOCKED`
+- Owner/date: Pressure source-fact owner after focused tests, corrective review, full affected
+  static gates, required rebase, and local fast-forward, 2026-09-02
+- Alternatives: keep compatibility `pressure_sample` as product authority; infer session ownership
+  from wall-time overlap; backfill legacy samples without provenance; share the Steps projector;
+  skip sparse ordinals; advance a cursor independently; activate the new writer immediately; add a
+  Pressure-specific append-only fact lane behind exact existing authority while leaving it dormant
+- Evidence: the rebased nine-suite selection passed `182/182`; Android-test compilation and the
+  595-task Detekt/app/lint/schema gate passed; cancellation, trigger rollback, sparse ordinal,
+  terminal poison, writer/binding conflict, deletion epoch, and exact legacy-owner cases are covered;
+  a fresh reviewer found no blocker, high, or medium issue.
+- Decision: `pressure_fact_revision` is append-only and source-local. Every fact retains its exact
+  service run, physical segment, manifest/policy/consent attribution, source signal, writer and
+  deletion generations, qualified window payload, and correction lineage. Projection operates over
+  one frozen finite WAL/deletion snapshot, accepts legitimate sparse global ordinals, and moves its
+  cursor only atomically with fact/failure/evidence mutation. Event-local semantic poison is
+  terminal for that ordinal; structural authority conflicts and cancellation roll back. No legacy
+  `pressure_sample` row is promoted to a qualified fact, and the lane remains dormant until its own
+  product and cutover gates pass.
+- Consequences: Pressure has durable qualified candidate facts without creating a second canonical
+  writer or claiming product readiness. `RECORDING`, production query/UI, typed deletion,
+  correction/day repair, retention, portable import/export, device behavior, and activation remain
+  independent gates. Standard-atmosphere altitude is not approved as calibrated elevation, and
+  continuous ambient Pressure remains off.

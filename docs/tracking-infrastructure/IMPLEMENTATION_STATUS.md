@@ -209,7 +209,7 @@ configuration, feature activation, or external rollout was performed.
   generation/eligibility identity, and an effective-boundary change makes the next callback
   baseline-only instead of attributing a disabled interval.
 - Steps legacy session totals are additively mutated before the enclosing event-frame outbox acknowledgement. A crash at that boundary can apply the same effective contribution twice even though `StepInterval.sourceSignalId` is unique.
-- Pressure callback tokens and accumulator checkpoints now prevent restored partial windows from mixing registration generations. Provider-active, first durable sample, and stable trend readiness are still not distinct lifecycle/product states.
+- Pressure callback tokens and accumulator checkpoints now prevent restored partial windows from mixing registration generations. Qualified capture windows can also enter a dormant append-only session-fact lane under exact run/segment, writer, manifest, policy, consent, deletion, and completeness authority. The lane is not activated, and provider-active, first durable sample, materialized fact, queryable product, and stable trend readiness remain distinct lifecycle/product states.
 - Pressure-only sessions can be retained, yet `DailySummary` has no Pressure metric and the production UI can show a zero-distance/zero-step shell. Stored standard-atmosphere `altitude_m` is not calibrated elevation and cannot be promoted as vertical history.
 
 ## Focused source review evidence
@@ -221,7 +221,7 @@ configuration, feature activation, or external rollout was performed.
 | Cell | `FAILED` | Fresh timestamped callback children and confirmed-empty coverage can reach observed-time-authorized WAL; operational outcomes and persistent radio/subscription identity are omitted; direct capture has one first-evidence refresh group | Legacy `cell_sample` only; joined event frame has no terminal writer or day query | cross-process identity, source-native boundary proof, any measured repeated-refresh mode, hidden controls, multi-SIM partial failure and device proof absent |
 | Activity | `FAILED` | Shared GMS physical arbiter, independent observed-time purpose authorization, atomic callback delivery, sparse writer-stamped WAL admission and zero-effect replay exist | Activity-only input has no terminal materializer or day query | stale/epoch-incomplete automation start, synchronous global drain, no movement-band writer/owner, no production query |
 | Steps | `DEGRADED` | Positive deltas reach WAL; generation-bound baselines reject disabled-gap relabeling | `StepInterval` and legacy session/day totals exist; one selected Trip Detail consumes the durable read facade, but the additive aggregate is replay-unsafe and no truthful outside-session day contract exists | ordinary source-only discovery, duplicate physical listeners, corroboration decision, no typed recompute/deletion path, ambient not implemented |
-| Pressure | `FAILED` | Direct sensor runtime and generation-homogeneous aggregate WAL windows exist; first-sample `RECORDING` state does not | compatibility `pressure_sample` writer exists; no typed correction/day query or Pressure history UI | no qualified recording state, no global broker owner, uncalibrated altitude risk, no product proof |
+| Pressure | `FAILED` | Direct sensor runtime, generation-homogeneous qualified aggregate WAL windows, and a dormant source-local fact projector exist; first-sample `RECORDING` state does not | append-only `pressure_fact_revision` and exact writer provenance exist, but the lane is not activated and no qualified day query or Pressure history UI exists | no qualified recording/query state, no product read/deletion/retention/portable contract, uncalibrated altitude risk, no device proof |
 
 ## Dependency and ownership map
 
@@ -2603,3 +2603,49 @@ GoalTracker award mutation, streaks, achievements, lifetime/best-day metrics, an
 ambient Steps remain separate work. It also does not prove the connected provider/WAL/listener
 scenario, process death, reboot, FGS, battery/OEM behavior, portable import/export, retention,
 ordinary writer activation, rollout, push, or release.
+
+## Pressure append-only session-fact checkpoint (2026-09-02)
+
+### Outcome
+
+Pressure now has a v28 append-only `pressure_fact_revision` table, immutable source-local writer
+provenance, and a dormant manual-session candidate projector. The migration seeds exact legacy
+destination ownership but does not reinterpret compatibility `pressure_sample` rows as qualified
+facts. A candidate must prove its own captured Pressure purpose, bidirectional service-run/physical-
+segment binding, manifest and policy version, consent epoch, writer generation, deletion epoch, and
+qualified payload semantics before it can append a fact.
+
+The finite drain freezes the maximum available Pressure WAL and deletion high-water marks, clamps
+the requested cutoff to that snapshot, permits legitimate sparse global ordinals, and advances its
+cursor only in the same transaction as fact, terminal failure, and destination evidence. Event-
+local manifest, policy, consent, checksum, or payload poison terminalizes only that exact ordinal;
+structural lane, binding, version, writer, or deletion-authority conflicts fail closed before any
+ingress mutation. Trigger failure rolls back and records retryable audit evidence, cancellation
+after an injected first insert rolls back the fact, evidence, failure, and cursor, and an identical
+retry remains idempotent.
+
+### Evidence and boundary
+
+- The forced post-rebase command selected `LegacyV26ImportTest`, `PressureFactRevisionDaoTest`,
+  `SourceSessionDaoTest`, `AuthoritativeSessionCoordinatorTest`, `SourcePipelineRecoveryTest`,
+  `TrackingRolloutStateStoreTest`, `DurableSourceEventSinkTest`,
+  `PressureWindowQualificationTest`, and `PressureSessionFactProjectionLaneTest`. It passed
+  `182/182` with zero failures, errors, or skips: `BUILD SUCCESSFUL in 6m 46s`, 248 tasks executed.
+- `:core:base:compileDebugAndroidTestKotlin --rerun-tasks` passed with 52 tasks executed in
+  `2m 04s`. One preceding restricted-sandbox attempt could not read the configured GitHub CLI and
+  Android SDK paths and reported missing Build Tools 36.0.0; the identical host-access rerun was
+  green, so that attempt is environment evidence rather than a source failure.
+- `detekt :app:compileDebugKotlin :core:base:lintDebug :tracker:engine:lintDebug
+  checkRoomSchemaDrift --rerun-tasks` passed in `11m 20s` with all 595 tasks executed. Both lints
+  reported no new issues; only their checked-in baseline warnings remained.
+- A fresh corrective-delta reviewer returned `GO` with no blocker, high, or medium finding. Commits
+  `32bfbdafe`, `42b3e1d7b`, `489068b34`, and `db2a460a3` use the configured `adsamcik` identity,
+  were rebased onto `0d562cee2`, and fast-forwarded into local `dev/v10`. Nothing was pushed,
+  activated, released, tagged, or deployed.
+
+This is host/Robolectric/in-memory-Room/static evidence for dormant Pressure facts. It does not
+activate a canonical writer or prove `RECORDING`, `MATERIALIZED`, `QUERYABLE`, production history
+or UI, selected-session deletion, correction/day repair, retention, portable export/import,
+automatic Pressure, physical sensor cadence/FIFO/flush behavior, process death, reboot, FGS,
+battery/OEM behavior, rollout, push, or release. Continuous ambient Pressure remains outside the
+default product.
