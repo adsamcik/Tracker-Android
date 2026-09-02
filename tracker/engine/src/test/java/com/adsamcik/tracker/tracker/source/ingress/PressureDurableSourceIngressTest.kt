@@ -25,6 +25,8 @@ import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatal
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
+import com.adsamcik.tracker.tracker.source.model.PressureSensorAccuracy
+import com.adsamcik.tracker.tracker.source.model.PressureWindowClosureKind
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryUnit
@@ -166,7 +168,7 @@ class PressureDurableSourceIngressTest {
 	}
 
 	@Test
-	fun `Pressure callback-only replay collision cannot mutate sequence or checkpoint`() = runTest {
+	fun `Pressure callback and quality replay collisions cannot mutate sequence or checkpoint`() = runTest {
 		val payload = pressurePayload()
 		val sink = DurableSourceEventSinkFactory(ingress).unbound
 		val first = pressureDeliveryCandidate(payload = payload)
@@ -180,6 +182,19 @@ class PressureDurableSourceIngressTest {
 			.shouldBeInstanceOf<DeliveryAdmissionResult.PermanentFailure>()
 
 		rejected.code shouldBe AdmissionFailureCode.IDENTITY_COLLISION
+		assertSingleAdmissionUnchanged(payload, causalOrderElapsedRealtimeNanos = 120L)
+
+		val changedQuality = payload.copy(sensorAccuracy = PressureSensorAccuracy.LOW)
+		val qualityRetry = pressureDeliveryCandidate(
+			receivedElapsedRealtimeNanos = 140L,
+			payload = changedQuality,
+		)
+		first.identity shouldBe qualityRetry.identity
+		val qualityRejected = ingress.admit(
+			qualityRetry,
+			pressureCheckpoint(1L, changedQuality, 140L),
+		).shouldBeInstanceOf<DeliveryAdmissionResult.PermanentFailure>()
+		qualityRejected.code shouldBe AdmissionFailureCode.IDENTITY_COLLISION
 		assertSingleAdmissionUnchanged(payload, causalOrderElapsedRealtimeNanos = 120L)
 	}
 
@@ -282,13 +297,13 @@ class PressureDurableSourceIngressTest {
 		stored.sourceSequence shouldBe 0L
 		stored.providerDedupKey shouldBe null
 		stored.deliveryIdentity shouldBe first.identity.value
+		stored.payloadVersion shouldBe PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION
 		val storedPayload = DefaultSourcePayloadCodec().decode(
 			SourceKind.PRESSURE,
 			stored.payloadVersion,
 			stored.payload,
 		).shouldBeInstanceOf<PressureWindowPayload>()
-		storedPayload.firstProviderSequence shouldBe 1L
-		storedPayload.lastProviderSequence shouldBe 2L
+		storedPayload shouldBe payload
 
 		val registrationState = requireNotNull(
 			database.sourceRegistrationStateDao().get(
@@ -458,7 +473,7 @@ class PressureDurableSourceIngressTest {
 			capturedCollectedDataEpoch = 0L,
 			acquiredAtMs = 100L,
 			quality = SourceQuality(),
-			payloadVersion = 1,
+			payloadVersion = PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION,
 			payload = payload,
 		)
 		return SourceDeliveryCandidate(
@@ -504,6 +519,17 @@ class PressureDurableSourceIngressTest {
 		windowEndElapsedRealtimeNanos = 110L,
 		firstProviderSequence = 1L,
 		lastProviderSequence = 2L,
+		firstHectopascals = 1_000f,
+		lastHectopascals = 1_001f,
+		slopeHectopascalsPerSecond = 100_000_000.0,
+		rSquared = 1.0,
+		sensorAccuracy = PressureSensorAccuracy.HIGH,
+		effectiveSamplePeriodMicros = 1,
+		effectiveMaximumReportLatencyMicros = 0,
+		targetWindowDurationNanos = 10L,
+		expectedSampleCount = 1,
+		maximumInterSampleGapNanos = 10L,
+		closureKind = PressureWindowClosureKind.TARGET_ELAPSED,
 	)
 
 	private suspend fun installPressureCaptureLane() {

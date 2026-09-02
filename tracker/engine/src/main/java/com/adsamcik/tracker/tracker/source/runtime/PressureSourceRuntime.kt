@@ -10,8 +10,11 @@ import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.tracker.source.runCatchingNonCancellation
 import com.adsamcik.tracker.tracker.altitude.BarometricAltitudeFormula
+import com.adsamcik.tracker.tracker.source.ingress.PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.PressurePlan
+import com.adsamcik.tracker.tracker.source.model.PressureSensorAccuracy
+import com.adsamcik.tracker.tracker.source.model.PressureWindowClosureKind
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
@@ -296,7 +299,7 @@ class PressureSourceRuntime @Inject constructor(
 			currentRegistrationGeneration = nextRegistration.state.registrationGeneration,
 			reusedActiveRegistration = !nextRegistration.requiresProviderAcceptance,
 		)
-		val nextAccumulator = newPressureAccumulator(plan, nextRegistration)
+		val nextAccumulator = newPressureAccumulator(plan, providerRequest, nextRegistration)
 		val restored = recovery.metrics
 		metrics = RuntimeAdmissionMetrics(
 			lastDurablyAdmittedSequence = restored?.lastDurablyAdmittedSequence,
@@ -460,9 +463,12 @@ class PressureSourceRuntime @Inject constructor(
 
 	private fun newPressureAccumulator(
 		plan: PressurePlan,
+		providerRequest: PressureProviderRequest,
 		activeRegistration: SourceRegistration,
 	) = PressureWindowAccumulator(
 		windowNanos = plan.aggregationWindowMs.coerceAtLeast(1L) * NANOS_PER_MILLISECOND,
+		effectiveSamplePeriodMicros = providerRequest.samplePeriodMicros,
+		effectiveMaximumReportLatencyMicros = providerRequest.maximumReportLatencyMicros,
 		boundary = activeRegistration.pressureAccumulatorBoundary(),
 	)
 
@@ -1112,7 +1118,11 @@ class PressureSourceRuntime @Inject constructor(
 				// never a concurrent second registration or an authorization-generation change.
 				callbackToken = token
 				listener = resumedListener
-				accumulator = newPressureAccumulator(context.plan, context.registration)
+				accumulator = newPressureAccumulator(
+					context.plan,
+					context.providerRequest,
+					context.registration,
+				)
 				accumulatorAttribution = PressureCallbackAttribution(context.registration, context.sink)
 				lastAccumulatedReception = null
 				capacityResumeGate.onResumeSucceeded()
@@ -1279,7 +1289,7 @@ class PressureSourceRuntime @Inject constructor(
 			capturedCollectedDataEpoch = activeRegistration.state.collectedDataEpoch,
 			acquiredAtMs = acquiredAtMs,
 			quality = pressureWindowQuality(payload, delayNanos),
-			payloadVersion = 1,
+			payloadVersion = PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION,
 			payload = payload,
 		)
 		val delivery = SourceDeliveryCandidate(
@@ -1312,7 +1322,7 @@ class PressureSourceRuntime @Inject constructor(
 	private fun pressureWindowQuality(payload: PressureWindowPayload, delayNanos: Long) = SourceQuality(
 		flags = buildSet {
 			if (delayNanos >= BATCHED_AFTER_NANOS) add(SourceQualityFlag.BATCHED)
-			if (payload.sampleCount == 1) add(SourceQualityFlag.INCOMPLETE_WINDOW)
+			if (!payload.hasCompleteTargetCoverage()) add(SourceQualityFlag.INCOMPLETE_WINDOW)
 		},
 	)
 
@@ -1397,6 +1407,7 @@ class PressureSourceRuntime @Inject constructor(
 			val providerSequence = ++callbackEntrySequence
 			val sample = PendingPressureSample(
 				pressureHectopascals = pressure,
+				sensorAccuracy = event.accuracy.toPressureSensorAccuracy(),
 				reception = PressureReception(
 					observedElapsedNanos = event.timestamp,
 					receivedElapsedNanos = receivedElapsed,
@@ -1418,7 +1429,12 @@ class PressureSourceRuntime @Inject constructor(
 				return@synchronized
 			}
 			val attribution = callbackAttributionTimeline?.atObservedTime(event.timestamp) ?: return
-			acceptPressureSampleLocked(sample, attribution, requireNotNull(currentPlan))
+			acceptPressureSampleLocked(
+				sample,
+				attribution,
+				requireNotNull(currentPlan),
+				requireNotNull(currentProviderRequest),
+			)
 			lastAcceptedProviderElapsedNanos = event.timestamp
 		}
 		drainCapacityPause()
@@ -1428,6 +1444,7 @@ class PressureSourceRuntime @Inject constructor(
 		sample: PendingPressureSample,
 		attribution: PressureCallbackAttribution,
 		plan: PressurePlan,
+		providerRequest: PressureProviderRequest,
 	) {
 		val reception = sample.reception
 		val currentAttribution = accumulatorAttribution ?: error(
@@ -1446,7 +1463,7 @@ class PressureSourceRuntime @Inject constructor(
 					checkpointOrderElapsedRealtimeNanos = reception.receivedElapsedNanos,
 				)
 			}
-			accumulator = newPressureAccumulator(plan, attribution.registration)
+			accumulator = newPressureAccumulator(plan, providerRequest, attribution.registration)
 			accumulatorAttribution = attribution
 			lastAccumulatedReception = null
 		}
@@ -1454,6 +1471,7 @@ class PressureSourceRuntime @Inject constructor(
 			sample.pressureHectopascals,
 			reception.observedElapsedNanos,
 			reception.providerSequence,
+			sample.sensorAccuracy,
 		)
 		if (completed != null) {
 			enqueueWindowLocked(
@@ -1530,12 +1548,21 @@ class PressureSourceRuntime @Inject constructor(
 		val buffered = refreshLatch.drainBufferedSamples()
 		pendingAuthorizationRefresh = null
 		if (refreshLatch.boundaryClosed) {
-			accumulator = newPressureAccumulator(resolvedPlan, resolvedAttribution.registration)
+			accumulator = newPressureAccumulator(
+				resolvedPlan,
+				resolvedProviderRequest,
+				resolvedAttribution.registration,
+			)
 			accumulatorAttribution = resolvedAttribution
 			lastAccumulatedReception = null
 		}
 		buffered.forEach { sample ->
-			acceptPressureSampleLocked(sample, resolvedAttribution, resolvedPlan)
+			acceptPressureSampleLocked(
+				sample,
+				resolvedAttribution,
+				resolvedPlan,
+				resolvedProviderRequest,
+			)
 		}
 		if (capacityResumeGate.capacityPaused) {
 			val partial = drainPressureWindowAtBoundary(accumulator, lastAccumulatedReception)
@@ -1726,6 +1753,7 @@ class PressureSourceRuntime @Inject constructor(
 	) : SensorEventListener2 {
 		override fun onSensorChanged(event: SensorEvent) = this@PressureSourceRuntime.onSensorChanged(token, event)
 
+		// SensorEvent carries the accuracy attributable to each accepted observation.
 		override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
 
 		override fun onFlushCompleted(sensor: Sensor?) = this@PressureSourceRuntime.onFlushCompleted(token, sensor)
@@ -1809,6 +1837,7 @@ internal data class PressureReception(
 
 internal data class PendingPressureSample(
 	val pressureHectopascals: Float,
+	val sensorAccuracy: PressureSensorAccuracy,
 	val reception: PressureReception,
 )
 
@@ -1931,6 +1960,29 @@ internal fun isFreshPressureSampleTimestamp(
 ): Boolean = providerElapsedNanos > 0L &&
 	providerElapsedNanos <= receivedElapsedNanos &&
 	(previousProviderElapsedNanos == null || providerElapsedNanos > previousProviderElapsedNanos)
+
+private fun Int.toPressureSensorAccuracy(): PressureSensorAccuracy = when (this) {
+	SensorManager.SENSOR_STATUS_UNRELIABLE -> PressureSensorAccuracy.UNRELIABLE
+	SensorManager.SENSOR_STATUS_ACCURACY_LOW -> PressureSensorAccuracy.LOW
+	SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM -> PressureSensorAccuracy.MEDIUM
+	SensorManager.SENSOR_STATUS_ACCURACY_HIGH -> PressureSensorAccuracy.HIGH
+	else -> PressureSensorAccuracy.UNKNOWN
+}
+
+private fun PressureWindowPayload.hasCompleteTargetCoverage(): Boolean {
+	if (closureKind != PressureWindowClosureKind.TARGET_ELAPSED) return false
+	val expectedCount = requireNotNull(expectedSampleCount)
+	val samplePeriodNanos = requireNotNull(effectiveSamplePeriodMicros).toLong() * 1_000L
+	// The rollover trigger belongs to the next window. A full half-open prior window therefore
+	// covers at least (expected - 1) provider periods with its own first/last observations.
+	val requiredObservedSpanNanos = (expectedCount.toLong() - 1L) * samplePeriodNanos
+	val observedSpanNanos = windowEndElapsedRealtimeNanos - windowStartElapsedRealtimeNanos
+	// A gap of two complete provider periods proves that at least one cadence slot is absent. Keep
+	// ordinary sub-period jitter complete, but never let bunched samples at the ends hide a hole.
+	val hasNoMissingCadenceSlot = requireNotNull(maximumInterSampleGapNanos) < 2L * samplePeriodNanos
+	return sampleCount >= expectedCount && observedSpanNanos >= requiredObservedSpanNanos &&
+		hasNoMissingCadenceSlot
+}
 
 internal data class PressureCompletedWindow(
 	val payload: PressureWindowPayload,

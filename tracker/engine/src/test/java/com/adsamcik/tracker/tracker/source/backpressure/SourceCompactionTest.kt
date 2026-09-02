@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.source.backpressure
 
+import com.adsamcik.tracker.tracker.source.model.PressureSensorAccuracy
+import com.adsamcik.tracker.tracker.source.model.PressureWindowClosureKind
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
 import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
 import io.kotest.assertions.throwables.shouldThrow
@@ -35,6 +37,28 @@ class SourceCompactionTest {
 		merged.lastProviderSequence shouldBe 4L
 	}
 
+	@Test
+	fun `qualified Pressure windows cannot silently lose fit and coverage during compaction`() {
+		val legacy = pressure(3, 4, 2, 1_010.0)
+		val qualified = pressure(1, 2, 2, 1_000.0).copy(
+			firstHectopascals = 1_000f,
+			lastHectopascals = 1_000f,
+			slopeHectopascalsPerSecond = 0.0,
+			rSquared = null,
+			sensorAccuracy = PressureSensorAccuracy.HIGH,
+			effectiveSamplePeriodMicros = 1,
+			effectiveMaximumReportLatencyMicros = 0,
+			targetWindowDurationNanos = 10L,
+			expectedSampleCount = 1,
+			maximumInterSampleGapNanos = 10L,
+			closureKind = PressureWindowClosureKind.SOURCE_BOUNDARY,
+		)
+
+		shouldThrow<IllegalArgumentException> {
+			SourceCompaction.mergePressure(qualified, legacy)
+		}
+	}
+
 	private fun step(firstSequence: Long, lastSequence: Long, firstCount: Long, lastCount: Long) =
 		StepCounterWindowPayload(
 			bootClockDomainId = "boot",
@@ -60,4 +84,3 @@ class SourceCompactionTest {
 		lastProviderSequence = last,
 	)
 }
-

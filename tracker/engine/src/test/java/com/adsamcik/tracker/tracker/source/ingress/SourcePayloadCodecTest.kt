@@ -6,7 +6,10 @@ import com.adsamcik.tracker.tracker.source.model.CellObservationEvidence
 import com.adsamcik.tracker.tracker.source.model.CellRefreshOutcome
 import com.adsamcik.tracker.tracker.source.model.CellSnapshotPayload
 import com.adsamcik.tracker.tracker.source.model.LocationFixPayload
+import com.adsamcik.tracker.tracker.source.model.PressureSensorAccuracy
+import com.adsamcik.tracker.tracker.source.model.PressureWindowClosureKind
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
+import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import com.adsamcik.tracker.tracker.source.model.StepBoundaryKind
 import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
@@ -145,6 +148,116 @@ class SourcePayloadCodecTest {
 	}
 
 	@Test
+	fun `version four qualified Pressure bytes are frozen and decode independently`() {
+		val payload = qualifiedPressure()
+
+		val first = codec.encode(payload, PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION)
+		val retry = codec.encode(payload, PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION)
+
+		first.bytes.contentEquals(retry.bytes) shouldBe true
+		first.checksum shouldBe retry.checksum
+		first.bytes.toHex() shouldBe QUALIFIED_PRESSURE_V4_GOLDEN_HEX
+		codec.decode(
+			SourceKind.PRESSURE,
+			PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION,
+			QUALIFIED_PRESSURE_V4_GOLDEN_HEX.hexToByteArray(),
+		) shouldBe payload
+	}
+
+	@Test
+	fun `Pressure payload versions cannot silently add or discard qualified evidence`() {
+		val qualified = qualifiedPressure()
+		val legacy = PressureWindowPayload(4, 1013.2, 0.5, 1012.9f, 1013.5f, 10, 20, 1, 4)
+
+		listOf(1, 2, STEP_BOUNDARY_KIND_PAYLOAD_VERSION).forEach { legacyVersion ->
+			shouldThrow<IllegalArgumentException> { codec.encode(qualified, legacyVersion) }
+			codec.decode(
+				legacy.source,
+				legacyVersion,
+				codec.encode(legacy, legacyVersion).bytes,
+			) shouldBe legacy
+		}
+		shouldThrow<IllegalArgumentException> {
+			codec.encode(legacy, PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION)
+		}
+	}
+
+	@Test
+	fun `version four rejects malformed Pressure quality and wire tails`() {
+		val valid = qualifiedPressure()
+		val oneSample = qualifiedOneSamplePressure()
+		listOf(
+			valid.copy(slopeHectopascalsPerSecond = Double.NaN),
+			valid.copy(rSquared = 1.1),
+			valid.copy(expectedSampleCount = 3),
+			valid.copy(lastProviderSequence = 5L),
+			valid.copy(maximumInterSampleGapNanos = -1L),
+			valid.copy(sensorAccuracy = PressureSensorAccuracy.LEGACY_UNAVAILABLE),
+			valid.copy(closureKind = PressureWindowClosureKind.LEGACY_UNAVAILABLE),
+			oneSample.copy(
+				minimumHectopascals = 999f,
+				maximumHectopascals = 1_001f,
+			),
+			oneSample.copy(
+				lastHectopascals = 1_001f,
+				maximumHectopascals = 1_001f,
+			),
+			oneSample.copy(meanHectopascals = 999.0),
+			oneSample.copy(sumSquaredDeviations = 1.0),
+		).forEach { malformed ->
+			shouldThrow<IllegalArgumentException> {
+				codec.encode(malformed, PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION)
+			}
+		}
+
+		val encoded = codec.encode(valid, PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION).bytes
+		shouldThrow<java.io.EOFException> {
+			codec.decode(
+				valid.source,
+				PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION,
+				encoded.copyOf(encoded.size - 1),
+			)
+		}
+		shouldThrow<IllegalArgumentException> {
+			codec.decode(
+				valid.source,
+				PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION,
+				encoded + byteArrayOf(0),
+			)
+		}
+		val unknownClosure = encoded.copyOf().also { it[it.lastIndex] = 99 }
+		shouldThrow<IllegalStateException> {
+			codec.decode(
+				valid.source,
+				PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION,
+				unknownClosure,
+			)
+		}
+	}
+
+	@Test
+	fun `version four rejects independently encoded Pressure sequence cardinality mismatch`() {
+		shouldThrow<IllegalArgumentException> {
+			codec.decode(
+				SourceKind.PRESSURE,
+				PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION,
+				MISMATCHED_PRESSURE_SEQUENCE_V4_HEX.hexToByteArray(),
+			)
+		}
+	}
+
+	@Test
+	fun `version four rejects independently encoded one sample statistics mismatch`() {
+		shouldThrow<IllegalArgumentException> {
+			codec.decode(
+				SourceKind.PRESSURE,
+				PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION,
+				MISMATCHED_ONE_SAMPLE_PRESSURE_V4_HEX.hexToByteArray(),
+			)
+		}
+	}
+
+	@Test
 	fun `legacy reset-shaped Steps bytes remain explicitly ambiguous`() {
 		val explicitBaseline = StepCounterWindowPayload(
 			bootClockDomainId = "boot-legacy",
@@ -170,6 +283,68 @@ class SourcePayloadCodecTest {
 		}
 	}
 }
+
+private fun qualifiedPressure() = PressureWindowPayload(
+	sampleCount = 4,
+	meanHectopascals = 1_001.5,
+	sumSquaredDeviations = 5.0,
+	minimumHectopascals = 1_000f,
+	maximumHectopascals = 1_003f,
+	windowStartElapsedRealtimeNanos = 1_000_000_000L,
+	windowEndElapsedRealtimeNanos = 4_000_000_000L,
+	firstProviderSequence = 1L,
+	lastProviderSequence = 4L,
+	firstHectopascals = 1_000f,
+	lastHectopascals = 1_003f,
+	slopeHectopascalsPerSecond = 1.0,
+	rSquared = 1.0,
+	sensorAccuracy = PressureSensorAccuracy.LOW,
+	effectiveSamplePeriodMicros = 1_000_000,
+	effectiveMaximumReportLatencyMicros = 5_000_000,
+	targetWindowDurationNanos = 4_000_000_000L,
+	expectedSampleCount = 4,
+	maximumInterSampleGapNanos = 1_000_000_000L,
+	closureKind = PressureWindowClosureKind.TARGET_ELAPSED,
+)
+
+private fun qualifiedOneSamplePressure() = PressureWindowPayload(
+	sampleCount = 1,
+	meanHectopascals = 1_000.0,
+	sumSquaredDeviations = 0.0,
+	minimumHectopascals = 1_000f,
+	maximumHectopascals = 1_000f,
+	windowStartElapsedRealtimeNanos = 1_000_000_000L,
+	windowEndElapsedRealtimeNanos = 1_000_000_000L,
+	firstProviderSequence = 1L,
+	lastProviderSequence = 1L,
+	firstHectopascals = 1_000f,
+	lastHectopascals = 1_000f,
+	sensorAccuracy = PressureSensorAccuracy.HIGH,
+	effectiveSamplePeriodMicros = 1_000_000,
+	effectiveMaximumReportLatencyMicros = 0,
+	targetWindowDurationNanos = 4_000_000_000L,
+	expectedSampleCount = 4,
+	maximumInterSampleGapNanos = 0L,
+	closureKind = PressureWindowClosureKind.SOURCE_BOUNDARY,
+)
+
+private const val QUALIFIED_PRESSURE_V4_GOLDEN_HEX =
+	"0000000500000004408f4c00000000004014000000000000447a0000447ac000" +
+		"000000003b9aca0000000000ee6b280000000000000000010000000000000004" +
+		"447a0000447ac000013ff0000000000000013ff000000000000000000003000f4240" +
+		"004c4b4000000000ee6b280000000004000000003b9aca0000000001"
+
+private const val MISMATCHED_PRESSURE_SEQUENCE_V4_HEX =
+	"0000000500000004408f4c00000000004014000000000000447a0000447ac000" +
+		"000000003b9aca0000000000ee6b280000000000000000010000000000000005" +
+		"447a0000447ac000013ff0000000000000013ff000000000000000000003000f4240" +
+		"004c4b4000000000ee6b280000000004000000003b9aca0000000001"
+
+private const val MISMATCHED_ONE_SAMPLE_PRESSURE_V4_HEX =
+	"0000000500000001408f4000000000003ff0000000000000447a0000447a0000" +
+		"000000003b9aca00000000003b9aca0000000000000000010000000000000001" +
+		"447a0000447a0000000000000005000f42400000000000000000ee6b2800" +
+		"00000004000000000000000000000002"
 
 private fun String.hexToByteArray(): ByteArray = chunked(2)
 	.map { it.toInt(16).toByte() }

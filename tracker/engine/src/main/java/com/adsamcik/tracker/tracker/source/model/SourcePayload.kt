@@ -121,8 +121,67 @@ data class PressureWindowPayload(
 	val windowEndElapsedRealtimeNanos: Long,
 	val firstProviderSequence: Long,
 	val lastProviderSequence: Long,
+	/** Extended qualified-window evidence is present from source-payload version 4 onward. */
+	val firstHectopascals: Float? = null,
+	val lastHectopascals: Float? = null,
+	val slopeHectopascalsPerSecond: Double? = null,
+	val rSquared: Double? = null,
+	val sensorAccuracy: PressureSensorAccuracy = PressureSensorAccuracy.LEGACY_UNAVAILABLE,
+	/** Exact provider request after Android sensor-capability normalization. */
+	val effectiveSamplePeriodMicros: Int? = null,
+	val effectiveMaximumReportLatencyMicros: Int? = null,
+	/** Requested aggregation target. Actual coverage remains [sampleCount] plus the window times. */
+	val targetWindowDurationNanos: Long? = null,
+	val expectedSampleCount: Int? = null,
+	val maximumInterSampleGapNanos: Long? = null,
+	val closureKind: PressureWindowClosureKind = PressureWindowClosureKind.LEGACY_UNAVAILABLE,
 ) : SourcePayload {
 	override val source: SourceKind = SourceKind.PRESSURE
+}
+
+/** Stable, source-owned aggregation of Android's per-event sensor accuracy. */
+enum class PressureSensorAccuracy {
+	/** Version 1-3 bytes did not carry an accuracy fact. This value is decode-only. */
+	LEGACY_UNAVAILABLE,
+
+	/** The current provider event exposed no recognized Android accuracy code. */
+	UNKNOWN,
+
+	UNRELIABLE,
+	LOW,
+	MEDIUM,
+	HIGH,
+}
+
+/** Why the source-owned Pressure window closed. */
+enum class PressureWindowClosureKind {
+	/** Version 1-3 bytes did not carry closure semantics. This value is decode-only. */
+	LEGACY_UNAVAILABLE,
+
+	/** A later fresh sample proved that the configured target duration had elapsed. */
+	TARGET_ELAPSED,
+
+	/** Authorization, lifecycle, provider, or capacity fencing closed a partial source window. */
+	SOURCE_BOUNDARY,
+}
+
+/** Exact target count implied by one normalized Pressure request, without a floating ratio. */
+internal fun expectedPressureSampleCount(
+	targetWindowDurationNanos: Long,
+	effectiveSamplePeriodMicros: Int,
+): Int {
+	require(targetWindowDurationNanos > 0L)
+	require(effectiveSamplePeriodMicros > 0)
+	val samplePeriodNanos = effectiveSamplePeriodMicros.toLong() * 1_000L
+	val wholePeriods = targetWindowDurationNanos / samplePeriodNanos
+	val roundedUp = wholePeriods + if (targetWindowDurationNanos % samplePeriodNanos == 0L) {
+		0L
+	} else {
+		1L
+	}
+	val expected = roundedUp.coerceAtLeast(1L)
+	require(expected <= Int.MAX_VALUE) { "Pressure target sample count exceeds the durable payload range" }
+	return expected.toInt()
 }
 
 data class WifiScanAttemptPayload(

@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
+import com.adsamcik.tracker.tracker.source.model.PressureSensorAccuracy
 import io.mockk.mockk
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -335,7 +336,7 @@ class PressureWindowLaneTest {
 		val registration = mockk<SourceRegistration>()
 		val sink = mockk<SourceEventSink>()
 		val lane = Channel<PressureCompletedWindow>(2)
-		val accumulator = PressureWindowAccumulator(windowNanos = 1L)
+		val accumulator = PressureWindowAccumulator(1L, 1, 0)
 		accumulator.add(1_000f, 1L, 1L)
 		val first = requireNotNull(accumulator.add(1_001f, 2L, 2L))
 		val second = requireNotNull(accumulator.drain())
@@ -392,7 +393,7 @@ class PressureWindowLaneTest {
 
 	@Test
 	fun `ten thousand callback samples cause only window proportional admission and checkpoint work`() = runTest {
-		val accumulator = PressureWindowAccumulator(windowNanos = 100L)
+		val accumulator = PressureWindowAccumulator(100L, 1, 0)
 		val registration = mockk<SourceRegistration>()
 		val sink = mockk<SourceEventSink>()
 		val lane = Channel<PressureCompletedWindow>(100)
@@ -454,6 +455,7 @@ class PressureWindowLaneTest {
 		providerSequence: Long,
 	) = PendingPressureSample(
 		pressureHectopascals = 1_000f,
+		sensorAccuracy = PressureSensorAccuracy.HIGH,
 		reception = PressureReception(
 			observedElapsedNanos = observedElapsedNanos,
 			receivedElapsedNanos = observedElapsedNanos,

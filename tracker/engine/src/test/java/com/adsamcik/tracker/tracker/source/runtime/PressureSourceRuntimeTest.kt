@@ -10,13 +10,17 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
+import com.adsamcik.tracker.tracker.source.ingress.PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION
 import com.adsamcik.tracker.tracker.source.model.PressurePlan
+import com.adsamcik.tracker.tracker.source.model.PressureSensorAccuracy
+import com.adsamcik.tracker.tracker.source.model.PressureWindowClosureKind
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
 import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceDegradedReason
 import com.adsamcik.tracker.tracker.source.model.SourceDeliveryCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -87,8 +91,22 @@ class PressureSourceRuntimeTest {
 
 			val refresh = async { fixture.runtime.reconfigure(refreshedPlan, revokedSink) }
 			val boundary = refreshEntered.await()
-			fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, boundary - 1L, 1_000f))
-			fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, boundary, 1_001f))
+			fixture.listener().onSensorChanged(
+				pressureEvent(
+					fixture.sensor,
+					boundary - 1L,
+					1_000f,
+					SensorManager.SENSOR_STATUS_ACCURACY_HIGH,
+				),
+			)
+			fixture.listener().onSensorChanged(
+				pressureEvent(
+					fixture.sensor,
+					boundary,
+					1_001f,
+					SensorManager.SENSOR_STATUS_ACCURACY_LOW,
+				),
+			)
 			releaseRefresh.complete(Unit)
 			assertTrue(refresh.await() is SourceApplyResult.Applied)
 			fixture.runtime.close()
@@ -97,6 +115,8 @@ class PressureSourceRuntimeTest {
 			assertEquals(listOf(2L), revokedSink.candidates.map { it.authorizationRevision })
 			assertTrue(oldSink.windows.single().windowEndElapsedRealtimeNanos < boundary)
 			assertTrue(revokedSink.windows.single().windowStartElapsedRealtimeNanos >= boundary)
+			assertEquals(PressureSensorAccuracy.HIGH, oldSink.windows.single().sensorAccuracy)
+			assertEquals(PressureSensorAccuracy.LOW, revokedSink.windows.single().sensorAccuracy)
 			verify(exactly = 1) {
 				fixture.sensorManager.registerListener(
 					any<SensorEventListener>(), fixture.sensor, any<Int>(), any<Int>(),
@@ -157,11 +177,21 @@ class PressureSourceRuntimeTest {
 		)
 		val sink = RecordingPressureSink()
 		assertTrue(fixture.runtime.start(activePlan, sink) is SourceStartResult.Started)
+		val observedEnd = android.os.SystemClock.elapsedRealtimeNanos()
 		fixture.listener().onSensorChanged(
 			pressureEvent(
 				fixture.sensor,
-				android.os.SystemClock.elapsedRealtimeNanos(),
+				observedEnd - 1_000_000L,
 				1_000f,
+				SensorManager.SENSOR_STATUS_ACCURACY_HIGH,
+			),
+		)
+		fixture.listener().onSensorChanged(
+			pressureEvent(
+				fixture.sensor,
+				observedEnd,
+				1_001f,
+				SensorManager.SENSOR_STATUS_ACCURACY_LOW,
 			),
 		)
 
@@ -172,38 +202,147 @@ class PressureSourceRuntimeTest {
 		val payload = evidence.payload as PressureWindowPayload
 		assertNull(evidence.providerDedupKey)
 		assertEquals(0L, evidence.sourceSequence)
+		assertEquals(PRESSURE_QUALIFIED_WINDOW_PAYLOAD_VERSION, evidence.payloadVersion)
+		assertQualifiedPressureWindow(payload)
+		assertTrue(SourceQualityFlag.INCOMPLETE_WINDOW in evidence.quality.flags)
+		assertPressureDeliveryIdentity(delivery, evidence.clockDomainId, payload)
+		coVerify(exactly = 0) { fixture.registrations.allocateSequence(any(), any()) }
+	}
+
+	private fun assertQualifiedPressureWindow(payload: PressureWindowPayload) {
+		assertEquals(2, payload.sampleCount)
+		assertEquals(1_000f, payload.firstHectopascals)
+		assertEquals(1_001f, payload.lastHectopascals)
+		assertEquals(1_000.0, requireNotNull(payload.slopeHectopascalsPerSecond), 0.000_000_001)
+		assertEquals(1.0, requireNotNull(payload.rSquared), 0.000_000_000_001)
+		assertEquals(PressureSensorAccuracy.LOW, payload.sensorAccuracy)
+		assertEquals(50_000, payload.effectiveSamplePeriodMicros)
+		assertEquals(0, payload.effectiveMaximumReportLatencyMicros)
+		assertEquals(5_000_000_000L, payload.targetWindowDurationNanos)
+		assertEquals(100, payload.expectedSampleCount)
+		assertEquals(1_000_000L, payload.maximumInterSampleGapNanos)
+		assertEquals(PressureWindowClosureKind.SOURCE_BOUNDARY, payload.closureKind)
+	}
+
+	private fun assertPressureDeliveryIdentity(
+		delivery: SourceDeliveryCandidate,
+		clockDomainId: String,
+		payload: PressureWindowPayload,
+	) {
 		assertEquals(
-			pressureProviderDeliveryIdentity(evidence.clockDomainId, payload),
+			pressureProviderDeliveryIdentity(clockDomainId, payload),
 			delivery.identity,
 		)
 		assertEquals(
 			delivery.identity,
 			pressureProviderDeliveryIdentity(
-				evidence.clockDomainId,
+				clockDomainId,
 				payload.copy(firstProviderSequence = 99L, lastProviderSequence = 99L),
 			),
 		)
 		assertFalse(
 			delivery.identity == pressureProviderDeliveryIdentity(
-				evidence.clockDomainId,
+				clockDomainId,
 				payload.copy(meanHectopascals = payload.meanHectopascals + 1.0),
 			),
 		)
 		assertFalse(
 			delivery.identity == pressureProviderDeliveryIdentity(
-				"${evidence.clockDomainId}-replacement",
+				"$clockDomainId-replacement",
 				payload,
 			),
 		)
 		assertFalse(
 			delivery.identity == pressureProviderDeliveryIdentity(
-				evidence.clockDomainId,
+				clockDomainId,
 				payload.copy(
 					windowEndElapsedRealtimeNanos = payload.windowEndElapsedRealtimeNanos + 1L,
 				),
 			),
 		)
-		coVerify(exactly = 0) { fixture.registrations.allocateSequence(any(), any()) }
+	}
+
+	@Test
+	fun `target completion uses only the prior windows observed coverage`() = runTest {
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(10))
+		listOf(
+			1_000_000L to true,
+			50_000_000L to false,
+		).forEachIndexed { index, (priorObservedSpanNanos, expectedIncomplete) ->
+			val revision = index.toLong() + 1L
+			val activePlan = plan(
+				revision = revision,
+				hardwareSamplePeriodMicros = 50_000,
+				aggregationWindowMs = 100L,
+			)
+			val fixture = fixture(
+				scope = this,
+				registrationsToReturn = listOf(
+					registration(activePlan, authorizationRevision = revision, requiresAcceptance = true),
+				),
+			)
+			val sink = RecordingPressureSink()
+			assertTrue(fixture.runtime.start(activePlan, sink) is SourceStartResult.Started)
+			val firstObserved = android.os.SystemClock.elapsedRealtimeNanos() - 200_000_000L
+			fixture.listener().onSensorChanged(pressureEvent(fixture.sensor, firstObserved, 1_000f))
+			fixture.listener().onSensorChanged(
+				pressureEvent(fixture.sensor, firstObserved + priorObservedSpanNanos, 1_001f),
+			)
+			fixture.listener().onSensorChanged(
+				pressureEvent(fixture.sensor, firstObserved + 100_000_000L, 1_002f),
+			)
+
+			fixture.runtime.close()
+
+			val targetEvidence = sink.candidates.first { candidate ->
+				(candidate.payload as PressureWindowPayload).closureKind ==
+					PressureWindowClosureKind.TARGET_ELAPSED
+			}
+			val targetWindow = targetEvidence.payload as PressureWindowPayload
+			assertEquals(2, targetWindow.sampleCount)
+			assertEquals(2, targetWindow.expectedSampleCount)
+			assertEquals(priorObservedSpanNanos, targetWindow.maximumInterSampleGapNanos)
+			assertEquals(
+				expectedIncomplete,
+				SourceQualityFlag.INCOMPLETE_WINDOW in targetEvidence.quality.flags,
+			)
+		}
+	}
+
+	@Test
+	fun `target completion remains incomplete when bunched samples hide a cadence gap`() = runTest {
+		ShadowSystemClock.advanceBy(Duration.ofSeconds(10))
+		val activePlan = plan(
+			revision = 1L,
+			hardwareSamplePeriodMicros = 50_000,
+			aggregationWindowMs = 200L,
+		)
+		val fixture = fixture(
+			scope = this,
+			registrationsToReturn = listOf(
+				registration(activePlan, authorizationRevision = 1L, requiresAcceptance = true),
+			),
+		)
+		val sink = RecordingPressureSink()
+		assertTrue(fixture.runtime.start(activePlan, sink) is SourceStartResult.Started)
+		val firstObserved = android.os.SystemClock.elapsedRealtimeNanos() - 300_000_000L
+		listOf(0L, 5_000_000L, 10_000_000L, 150_000_000L, 200_000_000L).forEachIndexed { index, offset ->
+			fixture.listener().onSensorChanged(
+				pressureEvent(fixture.sensor, firstObserved + offset, 1_000f + index),
+			)
+		}
+
+		fixture.runtime.close()
+
+		val targetEvidence = sink.candidates.first { candidate ->
+			(candidate.payload as PressureWindowPayload).closureKind ==
+				PressureWindowClosureKind.TARGET_ELAPSED
+		}
+		val targetWindow = targetEvidence.payload as PressureWindowPayload
+		assertEquals(4, targetWindow.sampleCount)
+		assertEquals(4, targetWindow.expectedSampleCount)
+		assertEquals(140_000_000L, targetWindow.maximumInterSampleGapNanos)
+		assertTrue(SourceQualityFlag.INCOMPLETE_WINDOW in targetEvidence.quality.flags)
 	}
 
 	@Test
@@ -228,7 +367,12 @@ class PressureSourceRuntimeTest {
 		val delayed = requireNotNull(timeline.atObservedTime(250L))
 		assertSame(oldRegistration, delayed.registration)
 		assertSame(oldSink, delayed.sink)
-		val oldAccumulator = PressureWindowAccumulator(1_000L, oldRegistration.pressureAccumulatorBoundary())
+		val oldAccumulator = PressureWindowAccumulator(
+			1_000L,
+			1,
+			0,
+			oldRegistration.pressureAccumulatorBoundary(),
+		)
 		oldAccumulator.add(1_000f, 250L, 1L)
 
 		val refreshed = requireNotNull(timeline.atObservedTime(300L))
@@ -237,6 +381,8 @@ class PressureSourceRuntimeTest {
 		val oldWindow = requireNotNull(oldAccumulator.drain())
 		val refreshedAccumulator = PressureWindowAccumulator(
 			1_000L,
+			1,
+			0,
 			refreshedRegistration.pressureAccumulatorBoundary(),
 		)
 		refreshedAccumulator.add(1_001f, 300L, 2L)
@@ -825,7 +971,7 @@ class PressureSourceRuntimeTest {
 			sensorMaximumDelayMicros = 10_000_000,
 			fifoMaxEventCount = 0,
 		)
-		val sink = SourceEventSink { SourceAdmissionHandoff.Durable(1L) }
+		val sink = RecordingPressureSink()
 
 		val result = assertIs<SourceStartResult.Degraded>(fixture.runtime.start(activePlan, sink))
 		assertEquals(SourceApplyStatus.DEGRADED, result.applied.status)
@@ -845,8 +991,15 @@ class PressureSourceRuntimeTest {
 				any(),
 			)
 		}
+		fixture.listener().onSensorChanged(
+			pressureEvent(fixture.sensor, android.os.SystemClock.elapsedRealtimeNanos(), 1_000f),
+		)
 
 		fixture.runtime.close()
+		val payload = sink.windows.single()
+		assertEquals(200_000, payload.effectiveSamplePeriodMicros)
+		assertEquals(0, payload.effectiveMaximumReportLatencyMicros)
+		assertEquals(25, payload.expectedSampleCount)
 	}
 
 	@Test
@@ -1436,13 +1589,19 @@ class PressureSourceRuntimeTest {
 		}
 	}
 
-	private fun pressureEvent(sensor: Sensor, observedElapsedNanos: Long, pressure: Float): SensorEvent {
+	private fun pressureEvent(
+		sensor: Sensor,
+		observedElapsedNanos: Long,
+		pressure: Float,
+		accuracy: Int = SensorManager.SENSOR_STATUS_ACCURACY_HIGH,
+	): SensorEvent {
 		val constructor = SensorEvent::class.java.getDeclaredConstructor(Int::class.javaPrimitiveType!!)
 		constructor.isAccessible = true
 		return constructor.newInstance(1).also { event ->
 			event.sensor = sensor
 			event.timestamp = observedElapsedNanos
 			event.values[0] = pressure
+			event.accuracy = accuracy
 		}
 	}
 }

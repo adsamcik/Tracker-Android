@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.source.backpressure
 
+import com.adsamcik.tracker.tracker.source.model.PressureSensorAccuracy
+import com.adsamcik.tracker.tracker.source.model.PressureWindowClosureKind
 import com.adsamcik.tracker.tracker.source.model.PressureWindowPayload
 import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
 
@@ -30,6 +32,9 @@ object SourceCompaction {
 		first: PressureWindowPayload,
 		second: PressureWindowPayload,
 	): PressureWindowPayload {
+		require(first.isLegacyPressureShape() && second.isLegacyPressureShape()) {
+			"Qualified Pressure windows cannot be compacted without preserving regression evidence"
+		}
 		require(first.sampleCount > 0 && second.sampleCount > 0)
 		require(first.lastProviderSequence + 1L == second.firstProviderSequence)
 		require(first.windowEndElapsedRealtimeNanos <= second.windowStartElapsedRealtimeNanos)
@@ -54,3 +59,24 @@ object SourceCompaction {
 	}
 }
 
+private fun PressureWindowPayload.isLegacyPressureShape(): Boolean =
+	hasLegacyPressureStatistics() &&
+		hasLegacyPressureProviderEvidence() &&
+		hasLegacyPressureCoverage()
+
+private fun PressureWindowPayload.hasLegacyPressureStatistics(): Boolean =
+	firstHectopascals == null &&
+		lastHectopascals == null &&
+		slopeHectopascalsPerSecond == null &&
+		rSquared == null
+
+private fun PressureWindowPayload.hasLegacyPressureProviderEvidence(): Boolean =
+	sensorAccuracy == PressureSensorAccuracy.LEGACY_UNAVAILABLE &&
+		effectiveSamplePeriodMicros == null &&
+		effectiveMaximumReportLatencyMicros == null
+
+private fun PressureWindowPayload.hasLegacyPressureCoverage(): Boolean =
+	targetWindowDurationNanos == null &&
+		expectedSampleCount == null &&
+		maximumInterSampleGapNanos == null &&
+		closureKind == PressureWindowClosureKind.LEGACY_UNAVAILABLE

@@ -81,7 +81,11 @@ class EventTrackingFrameProjectionTest {
 
 	@Test
 	fun `pressure sufficient statistics produce the expected Welford aggregate`() {
-		val accumulator = PressureWindowAccumulator(windowNanos = 1_000_000L)
+		val accumulator = PressureWindowAccumulator(
+			windowNanos = 1_000_000L,
+			effectiveSamplePeriodMicros = 1_000,
+			effectiveMaximumReportLatencyMicros = 0,
+		)
 		val samples = listOf(1000.15f, 1000.45f, 999.95f, 1000.25f)
 		samples.forEachIndexed { index, value ->
 			val timestamp = (index + 1L) * 100L

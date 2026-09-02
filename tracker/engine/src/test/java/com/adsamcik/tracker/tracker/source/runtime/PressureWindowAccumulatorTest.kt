@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
+import com.adsamcik.tracker.tracker.source.model.PressureSensorAccuracy
+import com.adsamcik.tracker.tracker.source.model.PressureWindowClosureKind
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
@@ -17,7 +19,12 @@ class PressureWindowAccumulatorTest {
 			appliedRevision = 11L,
 			authorizationRevision = 13L,
 		)
-		val accumulator = PressureWindowAccumulator(windowNanos = 1_000L, boundary = boundary)
+		val accumulator = PressureWindowAccumulator(
+			windowNanos = 1_000L,
+			effectiveSamplePeriodMicros = 1,
+			effectiveMaximumReportLatencyMicros = 0,
+			boundary = boundary,
+		)
 		accumulator.add(1_003f, elapsedNanos = 400L, providerSequence = 9L)
 		val completed = assertNotNull(accumulator.add(1_004f, elapsedNanos = 1_500L, providerSequence = 10L))
 		val futurePartial = assertNotNull(accumulator.snapshot())
@@ -44,7 +51,7 @@ class PressureWindowAccumulatorTest {
 
 	@Test
 	fun `uses stable Welford aggregation and rolls windows by event time`() {
-		val accumulator = PressureWindowAccumulator(windowNanos = 1_000L)
+		val accumulator = PressureWindowAccumulator(1_000L, 1, 0)
 
 		assertNull(accumulator.add(1_000f, 100L, 1L))
 		assertNull(accumulator.add(1_002f, 500L, 2L))
@@ -61,7 +68,7 @@ class PressureWindowAccumulatorTest {
 
 	@Test
 	fun `thousands of samples produce exact window proportional work`() {
-		val accumulator = PressureWindowAccumulator(windowNanos = 100L)
+		val accumulator = PressureWindowAccumulator(100L, 1, 0)
 		val windows = buildList {
 			repeat(10_000) { index ->
 				accumulator.add(1_000f + index % 100, index.toLong(), index + 1L)?.let(::add)
@@ -86,6 +93,8 @@ class PressureWindowAccumulatorTest {
 	fun `fresh generation and authorization use a fresh accumulator`() {
 		val old = PressureWindowAccumulator(
 			windowNanos = 1_000L,
+			effectiveSamplePeriodMicros = 1,
+			effectiveMaximumReportLatencyMicros = 0,
 			boundary = PressureAccumulatorBoundary(7L, "authorization-a", 11L),
 		)
 		old.add(999f, 100L, 1L)
@@ -93,6 +102,8 @@ class PressureWindowAccumulatorTest {
 
 		val replacement = PressureWindowAccumulator(
 			windowNanos = 1_000L,
+			effectiveSamplePeriodMicros = 1,
+			effectiveMaximumReportLatencyMicros = 0,
 			boundary = PressureAccumulatorBoundary(8L, "authorization-b", 12L),
 		)
 		assertNull(replacement.add(1_010f, 300L, 1L))
@@ -107,6 +118,8 @@ class PressureWindowAccumulatorTest {
 	fun `compatible authorization refresh closes old partial before starting new policy window`() {
 		val old = PressureWindowAccumulator(
 			windowNanos = 5_000L,
+			effectiveSamplePeriodMicros = 1,
+			effectiveMaximumReportLatencyMicros = 0,
 			boundary = PressureAccumulatorBoundary(9L, "authorization-1", 1L),
 		)
 		old.add(1_000f, 100L, 41L)
@@ -116,6 +129,8 @@ class PressureWindowAccumulatorTest {
 		val boundary = assertNotNull(drainPressureWindowAtBoundary(old, oldReception))
 		val refreshed = PressureWindowAccumulator(
 			windowNanos = 1_000L,
+			effectiveSamplePeriodMicros = 1,
+			effectiveMaximumReportLatencyMicros = 0,
 			boundary = PressureAccumulatorBoundary(9L, "authorization-2", 2L),
 		)
 		assertNull(refreshed.add(1_010f, 300L, 43L))
@@ -133,7 +148,7 @@ class PressureWindowAccumulatorTest {
 
 	@Test
 	fun `authorization boundary refuses to relabel accumulator without reception metadata`() {
-		val accumulator = PressureWindowAccumulator(windowNanos = 5_000L)
+		val accumulator = PressureWindowAccumulator(5_000L, 1, 0)
 		accumulator.add(1_000f, 100L, 1L)
 
 		assertFailsWith<IllegalStateException> {
@@ -144,7 +159,7 @@ class PressureWindowAccumulatorTest {
 
 	@Test
 	fun `quiesce drain returns the exact final partial window`() {
-		val accumulator = PressureWindowAccumulator(windowNanos = 1_000L)
+		val accumulator = PressureWindowAccumulator(1_000L, 1, 0)
 
 		assertNull(accumulator.add(1_000f, 100L, 1L))
 		assertNull(accumulator.add(1_002f, 200L, 2L))
@@ -156,5 +171,63 @@ class PressureWindowAccumulatorTest {
 		assertEquals(1L, partial.firstProviderSequence)
 		assertEquals(2L, partial.lastProviderSequence)
 		assertNull(accumulator.drain())
+	}
+
+	@Test
+	fun `qualified window retains endpoints fit accuracy cadence coverage and trigger ownership`() {
+		val oneSecondNanos = 1_000_000_000L
+		val accumulator = PressureWindowAccumulator(
+			windowNanos = 4L * oneSecondNanos,
+			effectiveSamplePeriodMicros = 1_000_000,
+			effectiveMaximumReportLatencyMicros = 5_000_000,
+		)
+		assertNull(accumulator.add(1_000f, oneSecondNanos, 1L, PressureSensorAccuracy.HIGH))
+		assertNull(accumulator.add(1_001f, 2L * oneSecondNanos, 2L, PressureSensorAccuracy.MEDIUM))
+		assertNull(accumulator.add(1_002f, 3L * oneSecondNanos, 3L, PressureSensorAccuracy.LOW))
+		assertNull(accumulator.add(1_003f, 4L * oneSecondNanos, 4L, PressureSensorAccuracy.HIGH))
+
+		val completed = assertNotNull(
+			accumulator.add(1_004f, 5L * oneSecondNanos, 5L, PressureSensorAccuracy.HIGH),
+		)
+
+		assertEquals(4, completed.sampleCount)
+		assertEquals(1_001.5, completed.meanHectopascals)
+		assertEquals(5.0, completed.sumSquaredDeviations)
+		assertEquals(1_000f, completed.firstHectopascals)
+		assertEquals(1_003f, completed.lastHectopascals)
+		assertEquals(1.0, requireNotNull(completed.slopeHectopascalsPerSecond), 0.000_000_000_001)
+		assertEquals(1.0, requireNotNull(completed.rSquared), 0.000_000_000_001)
+		assertEquals(PressureSensorAccuracy.LOW, completed.sensorAccuracy)
+		assertEquals(1_000_000, completed.effectiveSamplePeriodMicros)
+		assertEquals(5_000_000, completed.effectiveMaximumReportLatencyMicros)
+		assertEquals(4L * oneSecondNanos, completed.targetWindowDurationNanos)
+		assertEquals(4, completed.expectedSampleCount)
+		assertEquals(oneSecondNanos, completed.maximumInterSampleGapNanos)
+		assertEquals(PressureWindowClosureKind.TARGET_ELAPSED, completed.closureKind)
+		assertEquals(4L, completed.lastProviderSequence)
+
+		val next = assertNotNull(accumulator.drain())
+		assertEquals(1, next.sampleCount)
+		assertEquals(1_004f, next.firstHectopascals)
+		assertEquals(5L, next.firstProviderSequence)
+		assertEquals(PressureWindowClosureKind.SOURCE_BOUNDARY, next.closureKind)
+	}
+
+	@Test
+	fun `fit remains unavailable when undefined and flat pressure does not fabricate r squared`() {
+		val flat = PressureWindowAccumulator(2_000_000_000L, 1_000_000, 0)
+		flat.add(1_000f, 1_000_000_000L, 1L, PressureSensorAccuracy.HIGH)
+		flat.add(1_000f, 2_000_000_000L, 2L, PressureSensorAccuracy.HIGH)
+		val flatWindow = assertNotNull(flat.drain())
+		assertEquals(0.0, requireNotNull(flatWindow.slopeHectopascalsPerSecond), 0.0)
+		assertNull(flatWindow.rSquared)
+
+		val oneSample = PressureWindowAccumulator(2_000_000_000L, 1_000_000, 0)
+		oneSample.add(1_000f, 1_000_000_000L, 1L, PressureSensorAccuracy.UNKNOWN)
+		val oneSampleWindow = assertNotNull(oneSample.drain())
+		assertNull(oneSampleWindow.slopeHectopascalsPerSecond)
+		assertNull(oneSampleWindow.rSquared)
+		assertEquals(0L, oneSampleWindow.maximumInterSampleGapNanos)
+		assertEquals(PressureSensorAccuracy.UNKNOWN, oneSampleWindow.sensorAccuracy)
 	}
 }

@@ -122,6 +122,8 @@ class PressureRuntimeRecoveryTest {
 
 		val fresh = PressureWindowAccumulator(
 			windowNanos = 1_000L,
+			effectiveSamplePeriodMicros = 1,
+			effectiveMaximumReportLatencyMicros = 0,
 			boundary = PressureAccumulatorBoundary(7L, "authorization-a", 3L),
 		)
 		assertNull(fresh.add(1_010f, 5_000L, 22L))
