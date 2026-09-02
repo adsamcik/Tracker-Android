@@ -26,8 +26,10 @@ fun interface PortableStepsEntrySink {
 /** Read-only product contract. Implementations must never acquire or retain a provider demand. */
 interface ExportPortableSteps {
 	/**
-	 * Streams all qualifying entries in canonical order for [request]. An
-	 * [ExportPortableStepsResult.Exported] count must equal the number of entries accepted by [sink].
+	 * Streams all qualifying entries in canonical order for [request]. Implementations must validate
+	 * and bound the complete point-in-time snapshot before the first [sink] emission, then perform
+	 * external I/O outside the storage transaction. Once emission starts, the only valid result is
+	 * [ExportPortableStepsResult.Exported], whose count must equal the entries accepted by [sink].
 	 */
 	suspend fun export(
 		request: ExportPortableStepsRequest,
@@ -74,7 +76,9 @@ interface ImportPortableSteps {
 	 * Applies or rejects [entry] atomically through the Steps-local authoritative writer.
 	 * Implementations must snapshot caller-owned collections and recompute
 	 * [PortableStepsIntegrity.expectedEntryChecksum] inside the transaction boundary before any
-	 * identity, deletion-fence, retention, or destination mutation.
+	 * identity, deletion-fence, retention, or destination mutation. They must durably preserve the
+	 * already-portable opaque identities and each original deletion-scope digest verbatim; deriving
+	 * either value again from a local imported identity would break replay and no-resurrection.
 	 */
 	suspend fun importEntry(entry: PortableStepsEntryV1): ImportPortableStepsResult
 }

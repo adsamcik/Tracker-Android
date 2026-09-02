@@ -16,8 +16,8 @@ object StepsPortableFormatV1 {
 	const val MAX_ENTRIES: Int = 10_000
 	const val MAX_RUNS_PER_ENTRY: Int = 64
 	const val MAX_MANIFESTS_PER_RUN: Int = 256
-	// This matches the current exact selected-run deletion/day-repair authority. Larger real runs are
-	// typed dependency overflow until all product lifecycle operations gain the same bounded paging.
+	// This bounds latest fact states carried by one portable run. Product readers must separately
+	// preflight historical correction revisions required by deletion and day-repair authority.
 	const val MAX_FACTS_PER_RUN: Int = 2_048
 	const val MAX_ORIGIN_IDENTITY_LENGTH: Int = 4_096
 	const val MAX_ZONE_ID_LENGTH: Int = 128
@@ -240,7 +240,12 @@ data class PortableStepsFactV1(
 	}
 }
 
-/** One exact physical service-run member retained under a logical product entry. */
+/**
+ * One exact physical service-run member retained under a logical product entry.
+ *
+ * Portability qualification does not grant eligibility for a local lifecycle operation. In
+ * particular, selected-session deletion keeps its own exact capture-set and revision prerequisites.
+ */
 @Suppress("LongParameterList")
 data class PortableStepsRunV1(
 	val identity: PortableStepsOpaqueIdentity,
