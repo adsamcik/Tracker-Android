@@ -247,6 +247,43 @@ interface TrackingHistoryReadDao {
 		afterServiceRunId: String?,
 	): List<SourceServiceRunEntity>
 
+	/**
+	 * Keyset page of every physical replacement run for the requested logical entries.
+	 *
+	 * This expands only explicit [SourceServiceRunEntity.logicalTrackingId] membership. Wall-time
+	 * overlap is deliberately absent: callers may use time only to discover a logical entry, then
+	 * must validate every returned run and its exact presentation reverse binding independently.
+	 */
+	@Query(
+		"""
+		SELECT * FROM source_service_run
+		WHERE logical_tracking_id IN (:logicalTrackingIds)
+		  AND (
+			:afterLogicalTrackingId IS NULL
+			OR logical_tracking_id > :afterLogicalTrackingId
+			OR (
+			  logical_tracking_id = :afterLogicalTrackingId
+			  AND (
+				started_at_ms > COALESCE(:afterStartedAtMs, -1)
+				OR (
+				  started_at_ms = COALESCE(:afterStartedAtMs, -1)
+				  AND service_run_id > COALESCE(:afterServiceRunId, '')
+				)
+			  )
+			)
+		  )
+		ORDER BY logical_tracking_id, started_at_ms, service_run_id
+		LIMIT :limit
+		""",
+	)
+	suspend fun logicalEntryServiceRunPage(
+		logicalTrackingIds: List<String>,
+		limit: Int,
+		afterLogicalTrackingId: String?,
+		afterStartedAtMs: Long?,
+		afterServiceRunId: String?,
+	): List<SourceServiceRunEntity>
+
 	/** Reads all immutable manifest revisions for the requested service runs. */
 	@Query(
 		"SELECT * FROM session_manifest_version WHERE service_run_id IN (:serviceRunIds) " +
@@ -458,6 +495,64 @@ interface TrackingHistoryReadDao {
 		afterWriterProjectionId: String?,
 		afterWriterProjectionVersion: Int?,
 	): List<ScopedStepFactState>
+
+	/**
+	 * Keyset page of all historical session-capture UPSERT revisions for exact service runs.
+	 *
+	 * Portable export needs the correction-expanded dependency count even though only the latest
+	 * effective state is product-visible. RETRACT rows are intentionally excluded because they are
+	 * redacted and are already represented by the latest-state query.
+	 */
+	@Query(
+		"""
+		SELECT * FROM step_fact_revision
+		WHERE service_run_id IN (:serviceRunIds)
+		  AND purpose = :capturePurpose
+		  AND operation = 'UPSERT'
+		  AND (
+			:afterServiceRunId IS NULL
+			OR service_run_id > :afterServiceRunId
+			OR (
+			  service_run_id = :afterServiceRunId
+			  AND (
+				writer_projection_id > COALESCE(:afterWriterProjectionId, '')
+				OR (
+				  writer_projection_id = COALESCE(:afterWriterProjectionId, '')
+				  AND (
+					writer_projection_version > COALESCE(:afterWriterProjectionVersion, -1)
+					OR (
+					  writer_projection_version = COALESCE(:afterWriterProjectionVersion, -1)
+					  AND (
+						logical_fact_id > COALESCE(:afterLogicalFactId, '')
+						OR (
+						  logical_fact_id = COALESCE(:afterLogicalFactId, '')
+						  AND semantic_revision > COALESCE(:afterSemanticRevision, -1)
+						)
+					  )
+					)
+				  )
+				)
+			  )
+			)
+		  )
+		ORDER BY service_run_id,
+		         writer_projection_id,
+		         writer_projection_version,
+		         logical_fact_id,
+		         semantic_revision
+		LIMIT :limit
+		""",
+	)
+	suspend fun stepFactUpsertRevisionPage(
+		serviceRunIds: List<String>,
+		capturePurpose: String,
+		limit: Int,
+		afterServiceRunId: String?,
+		afterWriterProjectionId: String?,
+		afterWriterProjectionVersion: Int?,
+		afterLogicalFactId: String?,
+		afterSemanticRevision: Long?,
+	): List<StepFactRevisionEntity>
 
 	/** Reads durable source-local deletion fences for the exact requested scope digests. */
 	@Query(

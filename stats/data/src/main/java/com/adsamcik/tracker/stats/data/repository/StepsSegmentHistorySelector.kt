@@ -57,8 +57,15 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 	): List<HistoricalSegmentEvidence> {
 		if (segments.isEmpty()) return emptyList()
 		val snapshot = loadStepsHistoryBatchSnapshot(database, segments)
-		return segments.map { segment -> selectWithSnapshot(segment, snapshot) }
+		return selectManyWithSnapshot(segments, snapshot)
 	}
+
+	/** Pure reuse seam for readers that already assembled one bounded Room snapshot. */
+	internal fun selectManyWithSnapshot(
+		segments: List<SessionSegment>,
+		snapshot: StepsHistoryBatchSnapshot,
+	): List<HistoricalSegmentEvidence> =
+		segments.map { segment -> selectWithSnapshot(segment, snapshot) }
 
 	// This fail-closed tree is pure over one fixed-count batch snapshot.
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")

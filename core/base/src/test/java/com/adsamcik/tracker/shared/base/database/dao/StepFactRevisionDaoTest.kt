@@ -3,10 +3,12 @@ package com.adsamcik.tracker.shared.base.database.dao
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
@@ -558,6 +560,99 @@ class StepFactRevisionDaoTest {
 
 		seenVersions shouldBe (1..257).toList()
 		seenVersions.distinct().size shouldBe facts.size
+	}
+
+	@Test
+	fun `history upsert revision pages retain corrections and exclude retractions`() = runTest {
+		val rows = listOf(
+			revision(intervalId = null, admissionOrdinal = 1L).copy(
+				logicalFactId = "fact-b",
+				serviceRunId = "run-a",
+				writerProjectionId = "writer-z",
+				mutationId = "a-z-b-1",
+				sourceEventId = "a-z-b-event-1",
+				originIdentity = "a-z-b-event-1",
+			),
+			revision(intervalId = null, semanticRevision = 2L, admissionOrdinal = 2L).copy(
+				logicalFactId = "fact-b",
+				serviceRunId = "run-a",
+				writerProjectionId = "writer-z",
+				mutationId = "a-z-b-2",
+				sourceEventId = "a-z-b-event-2",
+				originIdentity = "a-z-b-event-2",
+			),
+			revision(intervalId = null, admissionOrdinal = 3L).copy(
+				logicalFactId = "fact-z",
+				serviceRunId = "run-a",
+				writerProjectionId = "writer-a",
+				mutationId = "a-a-z-1",
+				sourceEventId = "a-a-z-event-1",
+				originIdentity = "a-a-z-event-1",
+			),
+			revision(intervalId = null, admissionOrdinal = 4L).copy(
+				logicalFactId = "fact-a",
+				serviceRunId = "run-b",
+				writerProjectionId = "writer-a",
+				mutationId = "b-a-a-1",
+				sourceEventId = "b-a-a-event-1",
+				originIdentity = "b-a-a-event-1",
+			),
+		)
+		rows.forEach { row -> dao.insert(row) }
+		dao.insert(redactedRetraction(semanticRevision = 2L))
+
+		val history = database.trackingHistoryReadDao()
+		val seen = mutableListOf<StepFactRevisionEntity>()
+		var afterServiceRunId: String? = null
+		var afterWriterProjectionId: String? = null
+		var afterWriterProjectionVersion: Int? = null
+		var afterLogicalFactId: String? = null
+		var afterSemanticRevision: Long? = null
+		var pageSize: Int
+		do {
+			val page = history.stepFactUpsertRevisionPage(
+				serviceRunIds = listOf("run-b", "run-a"),
+				capturePurpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+				limit = 2,
+				afterServiceRunId = afterServiceRunId,
+				afterWriterProjectionId = afterWriterProjectionId,
+				afterWriterProjectionVersion = afterWriterProjectionVersion,
+				afterLogicalFactId = afterLogicalFactId,
+				afterSemanticRevision = afterSemanticRevision,
+			)
+			seen += page
+			val last = page.lastOrNull()
+			afterServiceRunId = last?.serviceRunId
+			afterWriterProjectionId = last?.writerProjectionId
+			afterWriterProjectionVersion = last?.writerProjectionVersion
+			afterLogicalFactId = last?.logicalFactId
+			afterSemanticRevision = last?.semanticRevision
+			pageSize = page.size
+		} while (pageSize == 2)
+
+		seen.map { row ->
+			listOf(
+				requireNotNull(row.serviceRunId),
+				row.writerProjectionId,
+				row.logicalFactId,
+				row.semanticRevision.toString(),
+			)
+		} shouldContainExactly listOf(
+			listOf("run-a", "writer-a", "fact-z", "1"),
+			listOf("run-a", "writer-z", "fact-b", "1"),
+			listOf("run-a", "writer-z", "fact-b", "2"),
+			listOf("run-b", "writer-a", "fact-a", "1"),
+		)
+		history.stepFactUpsertRevisionPage(
+			serviceRunIds = listOf("run-a", "run-b"),
+			capturePurpose = SessionManifestPurposeCode.CONTROL,
+			limit = 10,
+			afterServiceRunId = null,
+			afterWriterProjectionId = null,
+			afterWriterProjectionVersion = null,
+			afterLogicalFactId = null,
+			afterSemanticRevision = null,
+		) shouldBe emptyList()
 	}
 
 	@Test

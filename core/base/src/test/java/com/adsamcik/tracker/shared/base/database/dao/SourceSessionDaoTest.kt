@@ -181,6 +181,47 @@ class SourceSessionDaoTest {
 	}
 
 	@Test
+	fun `logical entry replacement pages preserve explicit membership across ties`() = runTest {
+		listOf(
+			serviceRun("a-later").copy(logicalTrackingId = "logical-a", startedAtMs = 1_000L),
+			serviceRun("a-tie").copy(logicalTrackingId = "logical-a", startedAtMs = 1_000L),
+			serviceRun("a-first").copy(logicalTrackingId = "logical-a", startedAtMs = 500L),
+			serviceRun("b-first").copy(logicalTrackingId = "logical-b", startedAtMs = 300L),
+			serviceRun("excluded").copy(logicalTrackingId = "logical-c", startedAtMs = 1L),
+		).forEach { run -> dao.insertServiceRun(run) }
+		val history = database.trackingHistoryReadDao()
+		val seen = mutableListOf<SourceServiceRunEntity>()
+		var afterLogicalTrackingId: String? = null
+		var afterStartedAtMs: Long? = null
+		var afterServiceRunId: String? = null
+		var pageSize: Int
+
+		do {
+			val page = history.logicalEntryServiceRunPage(
+				logicalTrackingIds = listOf("logical-b", "logical-a"),
+				limit = 2,
+				afterLogicalTrackingId = afterLogicalTrackingId,
+				afterStartedAtMs = afterStartedAtMs,
+				afterServiceRunId = afterServiceRunId,
+			)
+			seen += page
+			val last = page.lastOrNull()
+			afterLogicalTrackingId = last?.logicalTrackingId
+			afterStartedAtMs = last?.startedAtMs
+			afterServiceRunId = last?.serviceRunId
+			pageSize = page.size
+		} while (pageSize == 2)
+
+		seen.map { run -> run.logicalTrackingId to run.serviceRunId } shouldContainExactly listOf(
+			"logical-a" to "a-first",
+			"logical-a" to "a-later",
+			"logical-a" to "a-tie",
+			"logical-b" to "b-first",
+		)
+		seen.map(SourceServiceRunEntity::serviceRunId).distinct().size shouldBe seen.size
+	}
+
+	@Test
 	fun `history terminal failures apply deterministic tie order and cap in SQL`() = runTest {
 		dao.insertManifest(manifest(revision = 1L, serviceRunId = "run-a"))
 		dao.insertManifest(manifest(revision = 2L, serviceRunId = "run-a"))
