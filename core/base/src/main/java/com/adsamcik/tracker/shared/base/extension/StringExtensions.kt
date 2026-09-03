@@ -70,10 +70,17 @@ fun Int.formatReadable(): String {
 	return df.format(this)
 }
 
-fun Int.formatTrackedSteps(stepCounterSupported: Boolean, unavailableText: String = "—"): String {
+/**
+ * Formats a tracked Steps value without treating hardware capability as capture evidence.
+ *
+ * Positive values remain useful observed lower bounds. Zero is displayed only when the caller
+ * has source-qualified coverage proving that zero was observed; otherwise [unavailableText] is
+ * returned.
+ */
+fun Int.formatTrackedSteps(hasVerifiedCoverage: Boolean, unavailableText: String): String {
 	return when {
 		this > 0 -> formatReadable()
-		stepCounterSupported -> "0"
+		this == 0 && hasVerifiedCoverage -> formatReadable()
 		else -> unavailableText
 	}
 }

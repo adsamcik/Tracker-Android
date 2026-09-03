@@ -94,6 +94,35 @@ class WidgetFormattersTest {
     }
 
     @Nested
+    @DisplayName("formatSessionSteps")
+    inner class FormatSessionSteps {
+
+        @Test
+        fun `positive session progress remains visible`() {
+            assertEquals(
+                WidgetFormatters.formatSteps(1_234),
+                WidgetFormatters.formatSessionSteps(1_234, unavailableText = "Unavailable"),
+            )
+        }
+
+        @Test
+        fun `ambiguous zero is unavailable`() {
+            assertEquals(
+                "Unavailable",
+                WidgetFormatters.formatSessionSteps(0, unavailableText = "Unavailable"),
+            )
+        }
+
+        @Test
+        fun `negative legacy value is unavailable`() {
+            assertEquals(
+                "missing",
+                WidgetFormatters.formatSessionSteps(-1, unavailableText = "missing"),
+            )
+        }
+    }
+
+    @Nested
     @DisplayName("formatGoalProgress")
     inner class FormatGoalProgress {
 

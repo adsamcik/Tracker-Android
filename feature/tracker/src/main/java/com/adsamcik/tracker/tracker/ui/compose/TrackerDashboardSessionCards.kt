@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.tracker.ui.compose
 
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.text.format.DateUtils
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -87,8 +86,10 @@ internal fun SessionOverviewCard(
         digits = if (session.distanceInM >= 1000f) 1 else 2,
         unit = settings.lengthSystem
     )
-    val stepCounterSupported = context.packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER)
-    val stepsText = session.steps.formatTrackedSteps(stepCounterSupported)
+    val stepsText = session.steps.formatTrackedSteps(
+        hasVerifiedCoverage = false,
+        unavailableText = "—",
+    )
     val updatesText = context.getString(R.string.collection_count_value, session.collections)
     val sessionAge = DateUtils.getRelativeTimeSpanString(
         session.start,

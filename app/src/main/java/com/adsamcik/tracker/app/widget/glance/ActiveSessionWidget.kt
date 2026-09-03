@@ -34,6 +34,7 @@ import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.tracker.R as TrackerR
 import com.adsamcik.tracker.tracker.data.collection.TrackerActivityType
 import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
@@ -250,7 +251,10 @@ private fun TrackingContent(
     ) {
         SessionStatItem(
             label = context.getString(R.string.widget_session_steps),
-            value = WidgetFormatters.formatSteps(session.steps),
+            value = WidgetFormatters.formatSessionSteps(
+                steps = session.steps,
+                unavailableText = context.getString(TrackerR.string.tracker_steps_value_unavailable),
+            ),
             modifier = GlanceModifier.defaultWeight(),
         )
         SessionStatItem(

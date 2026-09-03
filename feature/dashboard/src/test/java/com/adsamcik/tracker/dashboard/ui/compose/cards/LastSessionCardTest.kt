@@ -6,9 +6,10 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
-import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
+import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.model.Location
+import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -70,6 +71,23 @@ class LastSessionCardTest {
 		composeRule.onNodeWithText("30 m").assertIsDisplayed()
 		// 1500m → "1.5 km" in metric
 		composeRule.onNodeWithText("km", substring = true).assertIsDisplayed()
+		composeRule.onNodeWithText("Steps").assertIsDisplayed()
+		composeRule.onNodeWithText(3_000.formatReadable()).assertIsDisplayed()
+	}
+
+	@Test
+	fun zeroWithoutQualifiedCoverageHidesStepsMetric() {
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				LastSessionCard(
+					session = makeSession(steps = 0),
+					pathPoints = null,
+					onMapClick = {},
+				)
+			}
+		}
+
+		composeRule.onAllNodesWithText("Steps").assertCountEquals(0)
 	}
 
 	@Test

@@ -1,7 +1,5 @@
 package com.adsamcik.tracker.dashboard.ui.compose.cards
 
-import android.content.pm.PackageManager
-
 import android.text.format.DateUtils
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -61,18 +59,7 @@ internal fun LastSessionCard(
 		digits = if (session.distanceInM >= 1000f) 1 else 2,
 		unit = settings.lengthSystem,
 	)
-	val stepCounterSupported = context.packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER)
-	val stepsUnavailable = session.steps <= 0 && !stepCounterSupported
-	val stepsText = when {
-		session.steps > 0 -> session.steps.formatReadable()
-		stepCounterSupported -> "0"
-		else -> null // Hide steps when sensor unavailable
-	}
-	val stepsSupportingText = if (stepsUnavailable) {
-		null // Don't show "unavailable" text — row is hidden entirely
-	} else {
-		null
-	}
+	val stepsText = session.steps.takeIf { it > 0 }?.formatReadable()
 	val sessionAge = DateUtils.getRelativeTimeSpanString(
 		session.start,
 		System.currentTimeMillis(),
@@ -161,7 +148,6 @@ internal fun LastSessionCard(
 					SessionMetricItem(
 						label = stringResource(R.string.dashboard_last_session_steps),
 						value = stepsText,
-						supportingText = stepsSupportingText,
 						modifier = Modifier.weight(1f),
 					)
 				}
@@ -219,7 +205,6 @@ internal fun LastSessionCard(
 private fun SessionMetricItem(
 	label: String,
 	value: String,
-	supportingText: String? = null,
 	modifier: Modifier = Modifier,
 ) {
 	Column(modifier) {
@@ -235,13 +220,5 @@ private fun SessionMetricItem(
 			fontWeight = FontWeight.SemiBold,
 			color = MaterialTheme.colorScheme.onSurface,
 		)
-		if (!supportingText.isNullOrBlank()) {
-			Spacer(Modifier.height(2.dp))
-			Text(
-				text = supportingText,
-				style = MaterialTheme.typography.bodySmall,
-				color = MaterialTheme.colorScheme.onSurfaceVariant,
-			)
-		}
 	}
 }

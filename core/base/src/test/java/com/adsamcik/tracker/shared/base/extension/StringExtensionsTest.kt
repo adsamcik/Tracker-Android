@@ -7,16 +7,33 @@ class StringExtensionsTest {
 
 	@Test
 	fun `formatTrackedSteps keeps positive counts readable`() {
-		12.formatTrackedSteps(stepCounterSupported = false) shouldBe 12.formatReadable()
+		12.formatTrackedSteps(
+			hasVerifiedCoverage = false,
+			unavailableText = "Unavailable",
+		) shouldBe 12.formatReadable()
 	}
 
 	@Test
-	fun `formatTrackedSteps shows zero when step counter is supported`() {
-		0.formatTrackedSteps(stepCounterSupported = true) shouldBe "0"
+	fun `formatTrackedSteps shows zero only with verified coverage`() {
+		0.formatTrackedSteps(
+			hasVerifiedCoverage = true,
+			unavailableText = "Unavailable",
+		) shouldBe "0"
 	}
 
 	@Test
-	fun `formatTrackedSteps shows placeholder when step counter is unavailable`() {
-		0.formatTrackedSteps(stepCounterSupported = false) shouldBe "—"
+	fun `formatTrackedSteps shows placeholder without verified coverage`() {
+		0.formatTrackedSteps(
+			hasVerifiedCoverage = false,
+			unavailableText = "Unavailable",
+		) shouldBe "Unavailable"
+	}
+
+	@Test
+	fun `formatTrackedSteps never turns an invalid negative value into zero`() {
+		(-1).formatTrackedSteps(
+			hasVerifiedCoverage = true,
+			unavailableText = "Unavailable",
+		) shouldBe "Unavailable"
 	}
 }

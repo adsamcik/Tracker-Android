@@ -1,7 +1,9 @@
 package com.adsamcik.tracker.tracker.ui.compose
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.adsamcik.tracker.shared.base.Time
@@ -109,6 +111,7 @@ class TrackerDashboardStatsCardsAdditionalTest {
 
 		// Activity tab should show steps label
 		composeRule.onNodeWithText("Steps", substring = true).assertIsDisplayed()
+		composeRule.onNodeWithContentDescription("Steps, 3,000").assertIsDisplayed()
 	}
 
 	// endregion
@@ -136,6 +139,9 @@ class TrackerDashboardStatsCardsAdditionalTest {
 		}
 
 		composeRule.onNodeWithText("Tracking", substring = true).assertIsDisplayed()
+		composeRule.onNodeWithText("Activity", substring = true).performClick()
+		composeRule.onNodeWithContentDescription("Steps, Unavailable")
+			.assertTextContains("—")
 	}
 
 	@Test

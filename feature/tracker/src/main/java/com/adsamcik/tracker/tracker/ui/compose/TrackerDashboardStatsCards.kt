@@ -1,6 +1,5 @@
 package com.adsamcik.tracker.tracker.ui.compose
 
-import android.content.pm.PackageManager
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -54,6 +53,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.base.assist.Assist
@@ -112,8 +113,16 @@ internal fun StatusAndQuickStatsCard(
     val accuracyText = collectionData?.location?.horizontalAccuracy?.let {
         "±${resources.formatDistance(it, 0, settings.lengthSystem)}"
     } ?: "—"
-    val stepCounterSupported = context.packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_STEP_COUNTER)
-    val stepsText = sessionData?.steps?.formatTrackedSteps(stepCounterSupported) ?: "—"
+    val stepsValue = sessionData?.steps
+    val stepsUnavailableText = stringResource(R.string.tracker_steps_value_unavailable)
+    val stepsText = stepsValue?.formatTrackedSteps(
+        hasVerifiedCoverage = false,
+        unavailableText = "—",
+    ) ?: "—"
+    val stepsAccessibilityText = stepsValue?.formatTrackedSteps(
+        hasVerifiedCoverage = false,
+        unavailableText = stepsUnavailableText,
+    ) ?: stepsUnavailableText
     val wifiText = collectionData?.wifi?.inRange?.size?.takeIf { it > 0 }?.toString() ?: "—"
     val cellText = collectionData?.cell?.totalCount?.takeIf { it > 0 }?.toString() ?: "—"
     val activityText = currentActivity ?: "—"
@@ -251,7 +260,8 @@ internal fun StatusAndQuickStatsCard(
                     TrackingStatRow(
                         first = stringResource(R.string.tracker_activity_title) to activityText,
                         second = stringResource(R.string.tracker_steps_title) to stepsText,
-                        third = stringResource(R.string.tracker_accuracy_label) to accuracyText
+                        third = stringResource(R.string.tracker_accuracy_label) to accuracyText,
+                        secondAccessibilityValue = stepsAccessibilityText,
                     )
                     Spacer(Modifier.height(12.dp))
                     TrackingTechnicalRow(
@@ -277,7 +287,8 @@ internal enum class TrackingStatsTab(val titleRes: Int) {
 private fun TrackingStatRow(
     first: Pair<String, String>,
     second: Pair<String, String>,
-    third: Pair<String, String>
+    third: Pair<String, String>,
+    secondAccessibilityValue: String? = null,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -291,6 +302,7 @@ private fun TrackingStatRow(
         CompactStatItem(
             label = second.first,
             value = second.second,
+            accessibilityValue = secondAccessibilityValue,
             modifier = Modifier.weight(1f)
         )
         CompactStatItem(
@@ -366,9 +378,19 @@ private fun CompactStatItem(
     label: String,
     value: String,
     modifier: Modifier = Modifier,
+    accessibilityValue: String? = null,
     animated: Boolean = true
 ) {
-    Column(modifier) {
+    val accessibleModifier = if (accessibilityValue == null) {
+        modifier
+    } else {
+        modifier.semantics(mergeDescendants = true) {
+            contentDescription = "$label, $accessibilityValue"
+        }
+    }
+    Column(
+        accessibleModifier
+    ) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
