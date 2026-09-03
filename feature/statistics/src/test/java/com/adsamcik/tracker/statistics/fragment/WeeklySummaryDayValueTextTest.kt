@@ -2,8 +2,11 @@ package com.adsamcik.tracker.statistics.fragment
 
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.preferences.type.LengthSystem
+import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
 import com.adsamcik.tracker.statistics.viewmodel.DayBar
-import com.adsamcik.tracker.statistics.viewmodel.hasTrackedActivity
+import com.adsamcik.tracker.statistics.viewmodel.hasNonStepTrackedActivity
 import io.kotest.matchers.shouldBe
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -18,7 +21,7 @@ import org.robolectric.annotation.Config
  * pick, not a layout pick.
  *
  * Production priority (lines 738-748 in StatsScreen.kt):
- *  1. steps > 0          → formatted step count
+ *  1. qualified Steps available → formatted step count, including covered zero
  *  2. distanceM > 0      → formatted distance (locale-aware)
  *  3. durationMs > 0     → formatted duration
  *  4. sessionCount > 0   → formatted session count
@@ -39,33 +42,42 @@ class WeeklySummaryDayValueTextTest {
 		distanceM: Float = 0f,
 		durationMs: Long = 0L,
 		sessionCount: Int = 0,
+		epochDay: Long = 19_000L,
 	): DayBar = DayBar(
 		dayLabel = "Mon",
 		distanceM = distanceM,
 		steps = steps,
-		epochDay = 19_000L,
+		epochDay = epochDay,
 		sessionCount = sessionCount,
 		durationMs = durationMs,
 	)
 
 	@Test
-	fun `steps win over distance when both are positive`() {
+	fun `qualified Steps win over contradictory legacy Steps and distance`() {
 		val text = weeklySummaryDayValueText(
-			dayBar = day(steps = 1234, distanceM = 5000f),
+			dayBar = day(steps = Int.MAX_VALUE, distanceM = 5000f),
+			qualifiedSteps = 7L,
 			context = context,
 			lengthSystem = LengthSystem.Metric,
 		)
-		// formatReadable on 1234 produces a locale-grouped string; assert it
-		// contains the leading "1" and does NOT contain "km" / "m " (which
-		// would mean distance leaked through).
-		assert(text.contains("1")) { "Expected steps formatting in $text" }
-		assert(!text.contains("km")) { "Distance leaked through: $text" }
+		text shouldBe "7"
 	}
 
 	@Test
-	fun `distance is used when steps are zero`() {
+	fun `qualified covered zero stays visible instead of falling through`() {
+		weeklySummaryDayValueText(
+			dayBar = day(steps = Int.MAX_VALUE, distanceM = 2500f, sessionCount = 3),
+			qualifiedSteps = 0L,
+			context = context,
+			lengthSystem = LengthSystem.Metric,
+		) shouldBe "0"
+	}
+
+	@Test
+	fun `distance is used when legacy Steps are positive but qualified Steps are unavailable`() {
 		val text = weeklySummaryDayValueText(
-			dayBar = day(steps = 0, distanceM = 2500f),
+			dayBar = day(steps = Int.MAX_VALUE, distanceM = 2500f),
+			qualifiedSteps = null,
 			context = context,
 			lengthSystem = LengthSystem.Metric,
 		)
@@ -77,6 +89,7 @@ class WeeklySummaryDayValueTextTest {
 	fun `duration is used when steps and distance are zero`() {
 		val text = weeklySummaryDayValueText(
 			dayBar = day(steps = 0, distanceM = 0f, durationMs = 5L * 60L * 1000L),
+			qualifiedSteps = null,
 			context = context,
 			lengthSystem = LengthSystem.Metric,
 		)
@@ -91,6 +104,7 @@ class WeeklySummaryDayValueTextTest {
 	fun `sessionCount is used when everything else is zero`() {
 		val text = weeklySummaryDayValueText(
 			dayBar = day(steps = 0, distanceM = 0f, durationMs = 0L, sessionCount = 3),
+			qualifiedSteps = null,
 			context = context,
 			lengthSystem = LengthSystem.Metric,
 		)
@@ -99,9 +113,10 @@ class WeeklySummaryDayValueTextTest {
 	}
 
 	@Test
-	fun `em-dash is shown when no activity exists`() {
+	fun `unqualified legacy Steps alone are suppressed`() {
 		val text = weeklySummaryDayValueText(
-			dayBar = day(),
+			dayBar = day(steps = Int.MAX_VALUE),
+			qualifiedSteps = null,
 			context = context,
 			lengthSystem = LengthSystem.Metric,
 		)
@@ -112,6 +127,7 @@ class WeeklySummaryDayValueTextTest {
 	fun `imperial length system formats distance in miles when steps are zero`() {
 		val text = weeklySummaryDayValueText(
 			dayBar = day(steps = 0, distanceM = 5_000f),
+			qualifiedSteps = null,
 			context = context,
 			lengthSystem = LengthSystem.Imperial,
 		)
@@ -121,18 +137,49 @@ class WeeklySummaryDayValueTextTest {
 		assert(hasMiles) { "Expected imperial unit (mi/ft) in $text" }
 	}
 
-	// ─── hasTrackedActivity extension (used by chip to pick container color) ───
-
 	@Test
-	fun `hasTrackedActivity is true when any signal is positive`() {
-		day(steps = 1).hasTrackedActivity shouldBe true
-		day(distanceM = 1f).hasTrackedActivity shouldBe true
-		day(durationMs = 1L).hasTrackedActivity shouldBe true
-		day(sessionCount = 1).hasTrackedActivity shouldBe true
+	fun `nonnumeric summaries ignore legacy Steps when counting active days`() {
+		val legacyOnlyBars = listOf(day(steps = Int.MAX_VALUE))
+
+		sparseSummaryActiveDayCount(
+			legacyOnlyBars,
+			StepsNumericSummary.Materializing,
+		) shouldBe 0
+		sparseSummaryActiveDayCount(
+			legacyOnlyBars,
+			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.PARTIAL_CAPTURE),
+		) shouldBe 0
 	}
 
 	@Test
-	fun `hasTrackedActivity is false when all signals are zero`() {
-		day().hasTrackedActivity shouldBe false
+	fun `active days combine Ready days with non-Step structural signals`() {
+		val firstEpochDay = 19_000L
+		val bars = listOf(
+			day(steps = Int.MAX_VALUE, epochDay = firstEpochDay),
+			day(steps = Int.MAX_VALUE, distanceM = 1f, epochDay = firstEpochDay + 1L),
+		)
+		val qualified = StepsNumericSummary.Ready(
+			days = listOf(
+				StepsNumericDay(epochDay = firstEpochDay, steps = 3L),
+				StepsNumericDay(epochDay = firstEpochDay + 1L, steps = 0L),
+			),
+		)
+
+		sparseSummaryActiveDayCount(bars, qualified) shouldBe 2
+	}
+
+	// ─── Non-Step structural activity (used by chip color and active-day fallback) ───
+
+	@Test
+	fun `non-Step activity ignores legacy Steps and accepts structural signals`() {
+		day(steps = Int.MAX_VALUE).hasNonStepTrackedActivity shouldBe false
+		day(distanceM = 1f).hasNonStepTrackedActivity shouldBe true
+		day(durationMs = 1L).hasNonStepTrackedActivity shouldBe true
+		day(sessionCount = 1).hasNonStepTrackedActivity shouldBe true
+	}
+
+	@Test
+	fun `non-Step activity is false when structural signals are zero`() {
+		day().hasNonStepTrackedActivity shouldBe false
 	}
 }

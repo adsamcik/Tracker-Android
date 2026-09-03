@@ -13,6 +13,9 @@ import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.repository.CellSignalRepository
 import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
 import com.adsamcik.tracker.stats.api.repository.SessionStatsRepository
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
 import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
 import com.adsamcik.tracker.stats.api.repository.WifiObservationRepository
 import com.adsamcik.tracker.stats.api.value.EpochMs
@@ -22,14 +25,18 @@ import com.adsamcik.tracker.statistics.viewmodel.DayBar
 import com.adsamcik.tracker.statistics.viewmodel.StatsLoadState
 import com.adsamcik.tracker.statistics.viewmodel.WifiStatsLoadState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
@@ -53,6 +60,7 @@ class StatsPresenterViewModel @Inject constructor(
 	private val tripPresentationRepository: TripPresentationRepository,
 	private val sessionStatsRepository: SessionStatsRepository,
 	private val dailySummaryRepository: DailySummaryRepository,
+	private val stepsNumericSummaryRepository: StepsNumericSummaryRepository,
 	private val wifiObservationRepository: WifiObservationRepository,
 	private val cellSignalRepository: CellSignalRepository,
 	private val gpxShareHelper: GpxShareHelper,
@@ -116,14 +124,35 @@ class StatsPresenterViewModel @Inject constructor(
 	val heatmapData: StateFlow<Map<LocalDate, Float>> = _heatmapData.asStateFlow()
 
 	private val todayEpochDay = MutableStateFlow(currentLocalDate().toEpochDay())
+	@OptIn(ExperimentalCoroutinesApi::class)
+	val weeklyStepsSummary: StateFlow<StepsNumericSummary> = todayEpochDay
+		.flatMapLatest { currentTodayEpochDay ->
+			stepsNumericSummaryRepository.observe(
+				StepsNumericSummaryRequest(
+					firstEpochDay = currentTodayEpochDay - WEEKLY_SUMMARY_DAY_COUNT + 1,
+					lastEpochDayInclusive = currentTodayEpochDay,
+					fallbackCalendarZoneId = ZoneId.systemDefault().id,
+				),
+			).onStart {
+				emit(StepsNumericSummary.Materializing)
+			}
+		}
+		.stateIn(
+			scope = viewModelScope,
+			started = SharingStarted.WhileSubscribed(
+				stopTimeoutMillis = 0L,
+				replayExpirationMillis = 0L,
+			),
+			initialValue = StepsNumericSummary.Materializing,
+		)
 	private lateinit var dayRolloverJob: Job
 
 	init {
-		observeSummaryWindow()
+		observeStructuralSummaryWindow()
 		dayRolloverJob = observeDayRollovers()
 	}
 
-	private fun observeSummaryWindow() {
+	private fun observeStructuralSummaryWindow() {
 		viewModelScope.launch {
 			todayEpochDay.flatMapLatest { currentTodayEpochDay ->
 				val fromDay = currentTodayEpochDay - HEATMAP_DAYS + 1
@@ -319,6 +348,7 @@ class StatsPresenterViewModel @Inject constructor(
 	companion object {
 		/** ~26 weeks of heatmap history. */
 		private const val HEATMAP_DAYS = 182L
+		private const val WEEKLY_SUMMARY_DAY_COUNT = 7L
 		private const val KEY_DATE_FILTER_START_MS = "stats_date_filter_start_ms"
 		private const val KEY_DATE_FILTER_END_MS = "stats_date_filter_end_ms"
 	}

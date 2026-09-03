@@ -15,6 +15,11 @@ import com.adsamcik.tracker.stats.api.repository.DailySummary
 import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
 import com.adsamcik.tracker.stats.api.repository.SessionStatsRepository
 import com.adsamcik.tracker.stats.api.repository.SessionStatsSnapshot
+import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
+import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
 import com.adsamcik.tracker.stats.api.repository.WifiObservationRepository
 import com.adsamcik.tracker.stats.api.repository.WifiObservationStatsSummary
@@ -30,9 +35,16 @@ import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
@@ -52,6 +64,7 @@ class StatsPresenterViewModelSessionStatsTest {
 	private val testDispatcher = StandardTestDispatcher()
 	private val sessionStatsUiFormatter: SessionStatsUiFormatter = mockk()
 	private val dailySummaryRepository: DailySummaryRepository = mockk()
+	private val stepsNumericSummaryRepository = FakeStepsNumericSummaryRepository()
 	private val tripPresentationRepository: TripPresentationRepository = mockk()
 	private val wifiObservationRepository: WifiObservationRepository = mockk()
 	private val gpxShareHelper: GpxShareHelper = mockk(relaxed = true)
@@ -139,6 +152,9 @@ class StatsPresenterViewModelSessionStatsTest {
 	fun `weekly bars react when daily summaries arrive after init`() = runTest {
 		val todayEpochDay = java.time.LocalDate.now().toEpochDay()
 		val viewModel = createViewModel()
+		val summaryCollector = backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) {
+			viewModel.weeklyStepsSummary.collect()
+		}
 		runCurrent()
 
 		dailySummariesFlow.value = listOf(
@@ -155,9 +171,80 @@ class StatsPresenterViewModelSessionStatsTest {
 
 		viewModel.weeklyBars.value.last().distanceM shouldBe 394f
 		viewModel.weeklyBars.value.last().steps shouldBe 812
+		viewModel.weeklyStepsSummary.value shouldBe StepsNumericSummary.Unverifiable(
+			StepsNumericUnverifiableReason.NOT_CAPTURED,
+		)
 		viewModel.weeklyBars.value.last().sessionCount shouldBe 1
 		viewModel.weeklyBars.value.last().durationMs shouldBe 600_000L
 		viewModel.heatmapData.value[java.time.LocalDate.ofEpochDay(todayEpochDay)] shouldBe 1f
+		summaryCollector.cancelAndJoin()
+	}
+
+	@Test
+	fun `weekly Steps observes one exact seven day qualified window`() = runTest {
+		val today = LocalDate.of(2026, 9, 3)
+		val expected = StepsNumericSummary.Ready(
+			days = (today.toEpochDay() - 6L..today.toEpochDay()).map { epochDay ->
+				StepsNumericDay(epochDay = epochDay, steps = epochDay - today.toEpochDay() + 6L)
+			},
+		)
+		stepsNumericSummaryRepository.result = expected
+		val clock = FixedClock(
+			today.atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+		)
+
+		val viewModel = createViewModel(clock = clock)
+		val summaryCollector = backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) {
+			viewModel.weeklyStepsSummary.collect()
+		}
+		runCurrent()
+
+		viewModel.weeklyStepsSummary.value shouldBe expected
+		val expectedRequest = StepsNumericSummaryRequest(
+			firstEpochDay = today.toEpochDay() - 6L,
+			lastEpochDayInclusive = today.toEpochDay(),
+			fallbackCalendarZoneId = ZoneId.systemDefault().id,
+		)
+		stepsNumericSummaryRepository.requests shouldBe listOf(expectedRequest)
+		stepsNumericSummaryRepository.readRequests shouldBe emptyList()
+
+		summaryCollector.cancelAndJoin()
+		runCurrent()
+		stepsNumericSummaryRepository.cancelledRequests shouldBe listOf(expectedRequest)
+		viewModel.weeklyStepsSummary.value shouldBe StepsNumericSummary.Materializing
+		viewModel.cancelDayRolloverObservation()
+	}
+
+	@Test
+	fun `weekly Steps settles without a daily summary emission`() = runTest {
+		val today = LocalDate.of(2026, 9, 3)
+		val clock = FixedClock(
+			today.atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+		)
+		stepsNumericSummaryRepository.result = StepsNumericSummary.Materializing
+		val viewModel = createViewModel(clock = clock)
+		val summaryCollector = backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) {
+			viewModel.weeklyStepsSummary.collect()
+		}
+		runCurrent()
+
+		viewModel.weeklyStepsSummary.value shouldBe StepsNumericSummary.Materializing
+		dailySummariesFlow.value shouldBe emptyList()
+
+		val settled = StepsNumericSummary.Ready(
+			days = (today.toEpochDay() - 6L..today.toEpochDay()).map { epochDay ->
+				StepsNumericDay(epochDay = epochDay, steps = 1L)
+			},
+		)
+		stepsNumericSummaryRepository.result = settled
+		runCurrent()
+
+		viewModel.weeklyStepsSummary.value shouldBe settled
+		dailySummariesFlow.value shouldBe emptyList()
+		stepsNumericSummaryRepository.requests.size shouldBe 1
+		stepsNumericSummaryRepository.readRequests shouldBe emptyList()
+		summaryCollector.cancelAndJoin()
+		viewModel.cancelDayRolloverObservation()
 	}
 
 	@Test
@@ -214,15 +301,37 @@ class StatsPresenterViewModelSessionStatsTest {
 			clock = clock,
 			dispatchers = TestDispatchersProvider(testDispatcher),
 		)
+		val summaryCollector = backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) {
+			viewModel.weeklyStepsSummary.collect()
+		}
 		runCurrent()
 
 		viewModel.weeklyBars.value.last().epochDay shouldBe initialDate.toEpochDay()
+		val initialRequest = StepsNumericSummaryRequest(
+			firstEpochDay = initialDate.toEpochDay() - 6L,
+			lastEpochDayInclusive = initialDate.toEpochDay(),
+			fallbackCalendarZoneId = ZoneId.systemDefault().id,
+		)
+		stepsNumericSummaryRepository.requests shouldBe listOf(initialRequest)
 
 		clock.advance(2_000L)
 		advanceTimeBy(1_000L)
 		runCurrent()
 
 		viewModel.weeklyBars.value.last().epochDay shouldBe initialDate.plusDays(1).toEpochDay()
+		stepsNumericSummaryRepository.requests shouldBe listOf(
+			initialRequest,
+			StepsNumericSummaryRequest(
+				firstEpochDay = initialDate.toEpochDay() - 5L,
+				lastEpochDayInclusive = initialDate.plusDays(1).toEpochDay(),
+				fallbackCalendarZoneId = ZoneId.systemDefault().id,
+			),
+		)
+		stepsNumericSummaryRepository.cancelledRequests shouldBe listOf(initialRequest)
+		summaryCollector.cancelAndJoin()
+		runCurrent()
+		stepsNumericSummaryRepository.cancelledRequests shouldBe stepsNumericSummaryRepository.requests
+		viewModel.weeklyStepsSummary.value shouldBe StepsNumericSummary.Materializing
 		viewModel.cancelDayRolloverObservation()
 		runCurrent()
 	}
@@ -240,6 +349,7 @@ class StatsPresenterViewModelSessionStatsTest {
 			tripPresentationRepository = tripPresentationRepository,
 			sessionStatsRepository = sessionStatsRepository,
 			dailySummaryRepository = dailySummaryRepository,
+			stepsNumericSummaryRepository = stepsNumericSummaryRepository,
 			wifiObservationRepository = wifiObservationRepository,
 			cellSignalRepository = io.mockk.mockk(relaxed = true),
 			gpxShareHelper = gpxShareHelper,
@@ -287,6 +397,34 @@ class StatsPresenterViewModelSessionStatsTest {
 			capturedFrom = fromMs
 			capturedTo = toMs
 			return betweenResult
+		}
+	}
+
+	private class FakeStepsNumericSummaryRepository : StepsNumericSummaryRepository {
+		private val summaries = MutableStateFlow<StepsNumericSummary>(
+			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED),
+		)
+		var result: StepsNumericSummary
+			get() = summaries.value
+			set(value) {
+				summaries.value = value
+			}
+		val requests = mutableListOf<StepsNumericSummaryRequest>()
+		val readRequests = mutableListOf<StepsNumericSummaryRequest>()
+		val cancelledRequests = mutableListOf<StepsNumericSummaryRequest>()
+
+		override suspend fun read(request: StepsNumericSummaryRequest): StepsNumericSummary {
+			readRequests += request
+			return result
+		}
+
+		override fun observe(request: StepsNumericSummaryRequest): Flow<StepsNumericSummary> = flow {
+			requests += request
+			try {
+				emitAll(summaries)
+			} finally {
+				cancelledRequests += request
+			}
 		}
 	}
 }

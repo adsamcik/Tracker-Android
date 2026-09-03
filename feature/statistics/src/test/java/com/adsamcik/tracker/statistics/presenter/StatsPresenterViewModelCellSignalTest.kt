@@ -15,6 +15,9 @@ import com.adsamcik.tracker.stats.api.repository.CellTowerStat
 import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
 import com.adsamcik.tracker.stats.api.repository.NetworkTypeSignalStat
 import com.adsamcik.tracker.stats.api.repository.SessionStatsRepository
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
+import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
 import com.adsamcik.tracker.stats.api.repository.WifiObservationRepository
 import com.adsamcik.tracker.statistics.export.GpxShareHelper
@@ -40,6 +43,7 @@ class StatsPresenterViewModelCellSignalTest {
 	private val sessionStatsRepository: SessionStatsRepository = mockk()
 	private val sessionStatsUiFormatter: SessionStatsUiFormatter = mockk(relaxed = true)
 	private val dailySummaryRepository: DailySummaryRepository = mockk()
+	private val stepsNumericSummaryRepository: StepsNumericSummaryRepository = mockk()
 	private val tripPresentationRepository: TripPresentationRepository = mockk()
 	private val wifiObservationRepository: WifiObservationRepository = mockk(relaxed = true)
 	private val gpxShareHelper: GpxShareHelper = mockk(relaxed = true)
@@ -48,6 +52,11 @@ class StatsPresenterViewModelCellSignalTest {
 	fun setUp() {
 		Dispatchers.setMain(testDispatcher)
 		every { dailySummaryRepository.observeBetween(any(), any()) } returns kotlinx.coroutines.flow.flowOf(emptyList())
+		every { stepsNumericSummaryRepository.observe(any()) } returns kotlinx.coroutines.flow.flowOf(
+			StepsNumericSummary.Unverifiable(
+				StepsNumericUnverifiableReason.NOT_CAPTURED,
+			),
+		)
 		every { tripPresentationRepository.getPagedTrips() } returns mockk<PagingSource<Int, Trip>>()
 		every {
 			tripPresentationRepository.getPagedTripsOverlapping(any(), any())
@@ -108,6 +117,7 @@ class StatsPresenterViewModelCellSignalTest {
 			tripPresentationRepository = tripPresentationRepository,
 			sessionStatsRepository = sessionStatsRepository,
 			dailySummaryRepository = dailySummaryRepository,
+			stepsNumericSummaryRepository = stepsNumericSummaryRepository,
 			wifiObservationRepository = wifiObservationRepository,
 			cellSignalRepository = cellSignalRepository,
 			gpxShareHelper = gpxShareHelper,

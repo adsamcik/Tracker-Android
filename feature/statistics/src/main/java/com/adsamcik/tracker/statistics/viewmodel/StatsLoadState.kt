@@ -16,7 +16,7 @@ sealed class StatsLoadState {
  * Per-day bar data for the weekly summary chart.
  * @param dayLabel Short day name (e.g. "Mon")
  * @param distanceM Total distance in meters for this day
- * @param steps Total step count for this day
+ * @param steps Legacy derived step projection for chart compatibility; not source qualification
  * @param epochDay The java.time epoch day value
  * @param durationMs Total tracked duration in milliseconds for this day
  */
@@ -29,5 +29,6 @@ data class DayBar(
     val durationMs: Long = 0L,
 )
 
-internal val DayBar.hasTrackedActivity: Boolean
-    get() = distanceM > 0f || steps > 0 || sessionCount > 0 || durationMs > 0L
+/** Structural activity evidence that does not treat the legacy Steps projection as authoritative. */
+internal val DayBar.hasNonStepTrackedActivity: Boolean
+    get() = distanceM > 0f || sessionCount > 0 || durationMs > 0L

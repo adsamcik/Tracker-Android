@@ -8,11 +8,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.LoadState
 import androidx.compose.ui.res.stringResource
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.presenter.StatsPresenterViewModel
+import kotlinx.coroutines.flow.StateFlow
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -59,6 +62,12 @@ fun StatsRoute(
         is LoadState.Error -> AppendUiState.Error
         is LoadState.NotLoading -> AppendUiState.NotLoading
     }
+    val weeklyStepsSummary = collectWeeklyStepsSummaryWhenVisible(
+        summaries = vm.weeklyStepsSummary,
+        visible = refreshState.shouldCollectWeeklyStepsSummary(
+            visibleSessionCount = pagingItems.itemCount,
+        ),
+    )
 
     StatsScreen(
         refreshState = refreshState,
@@ -72,6 +81,7 @@ fun StatsRoute(
         onNavigateToHistory = onNavigateToHistory,
         selectedHeaderAction = selectedHeaderAction,
         weeklyBars = weeklyBars,
+        weeklyStepsSummary = weeklyStepsSummary,
         heatmapData = heatmapData,
         onTripClick = onTripClick,
         onTripViewOnMap = onTripViewOnMap,
@@ -98,6 +108,20 @@ fun StatsRoute(
             onDismiss = { showDateRangeDialog = false },
         )
     }
+}
+
+internal fun RefreshUiState.shouldCollectWeeklyStepsSummary(
+    visibleSessionCount: Int,
+): Boolean = this == RefreshUiState.Content && visibleSessionCount in 1..2
+
+/** Collects the qualified Steps window only while its sparse-summary consumer can be rendered. */
+@Composable
+internal fun collectWeeklyStepsSummaryWhenVisible(
+    summaries: StateFlow<StepsNumericSummary>,
+    visible: Boolean,
+): StepsNumericSummary {
+    if (!visible) return StepsNumericSummary.Materializing
+    return summaries.collectAsStateWithLifecycle().value
 }
 
 private val statsDateFormatter: DateTimeFormatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
