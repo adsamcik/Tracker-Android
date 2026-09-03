@@ -92,6 +92,7 @@
     <string name="tracker_collections_title">Verzamelingen</string>
     <string name="tracker_distance_title">Afstand</string>
     <string name="tracker_steps_title">Stappen</string>
+    <string name="tracker_steps_value_unavailable">Niet beschikbaar</string>
     <string name="tracker_session_age">Sessie gestart</string>
     <string name="tracker_session_card_title">Sessie</string>
     <string name="tracker_component_waiting_data">Wachten op live gegevens</string>

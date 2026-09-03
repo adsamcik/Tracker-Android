@@ -93,6 +93,7 @@
     <string name="tracker_collections_title">Atnaujinimai</string>
     <string name="tracker_distance_title">Atstumas</string>
     <string name="tracker_steps_title">Žingsniai</string>
+    <string name="tracker_steps_value_unavailable">Nepasiekiama</string>
     <string name="tracker_session_age">Sesija pradėta</string>
     <string name="tracker_session_card_title">Sesija</string>
     <string name="tracker_component_waiting_data">Laukiama tiesioginių duomenų</string>

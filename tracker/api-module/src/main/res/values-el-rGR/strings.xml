@@ -92,6 +92,7 @@
     <string name="tracker_collections_title">Συλλογές</string>
     <string name="tracker_distance_title">Απόσταση</string>
     <string name="tracker_steps_title">Βήματα</string>
+    <string name="tracker_steps_value_unavailable">Δεν είναι διαθέσιμο</string>
     <string name="tracker_session_age">Η συνεδρία ξεκίνησε</string>
     <string name="tracker_session_card_title">Συνεδρία</string>
     <string name="tracker_component_waiting_data">Αναμονή για ζωντανά δεδομένα</string>

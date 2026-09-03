@@ -92,6 +92,7 @@
     <string name="tracker_collections_title">Collections</string>
     <string name="tracker_distance_title">Afstand</string>
     <string name="tracker_steps_title">Skridt</string>
+    <string name="tracker_steps_value_unavailable">Ikke tilgængelig</string>
     <string name="tracker_session_age">Session startet</string>
     <string name="tracker_session_card_title">Session</string>
     <string name="tracker_component_waiting_data">Afventer live-data</string>

@@ -94,6 +94,7 @@
     <string name="tracker_collections_title">Aktualizacje</string>
     <string name="tracker_distance_title">Odległość</string>
     <string name="tracker_steps_title">Kroki</string>
+    <string name="tracker_steps_value_unavailable">Niedostępne</string>
     <string name="tracker_session_age">Sesja rozpoczęta</string>
     <string name="tracker_session_card_title">Sesja</string>
     <string name="tracker_component_waiting_data">Oczekiwanie na dane na żywo</string>

@@ -92,6 +92,7 @@
     <string name="tracker_collections_title">Обновявания</string>
     <string name="tracker_distance_title">Разстояние</string>
     <string name="tracker_steps_title">Крачки</string>
+    <string name="tracker_steps_value_unavailable">Не е налично</string>
     <string name="tracker_session_age">Сесията е започнала</string>
     <string name="tracker_session_card_title">Сесия</string>
     <string name="tracker_component_waiting_data">Изчакване на данни в реално време</string>

@@ -93,6 +93,7 @@
     <string name="tracker_collections_title">Actualizări</string>
     <string name="tracker_distance_title">Distanță</string>
     <string name="tracker_steps_title">Pași</string>
+    <string name="tracker_steps_value_unavailable">Indisponibil</string>
     <string name="tracker_session_age">Sesiune începută</string>
     <string name="tracker_session_card_title">Sesiune</string>
     <string name="tracker_component_waiting_data">Se așteaptă date în timp real</string>

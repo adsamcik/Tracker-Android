@@ -92,6 +92,7 @@
     <string name="tracker_collections_title">更新</string>
     <string name="tracker_distance_title">距離</string>
     <string name="tracker_steps_title">歩数</string>
+    <string name="tracker_steps_value_unavailable">利用できません</string>
     <string name="tracker_session_age">セッション開始</string>
     <string name="tracker_session_card_title">セッション</string>
     <string name="tracker_component_waiting_data">ライブデータを待機中</string>

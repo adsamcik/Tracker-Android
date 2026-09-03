@@ -92,6 +92,7 @@
     <string name="tracker_collections_title">更新</string>
     <string name="tracker_distance_title">距离</string>
     <string name="tracker_steps_title">步数</string>
+    <string name="tracker_steps_value_unavailable">不可用</string>
     <string name="tracker_session_age">会话已开始</string>
     <string name="tracker_session_card_title">会话</string>
     <string name="tracker_component_waiting_data">正在等待实时数据</string>

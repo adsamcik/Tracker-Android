@@ -92,6 +92,7 @@
     <string name="tracker_collections_title">Aġġornamenti</string>
     <string name="tracker_distance_title">Distanza</string>
     <string name="tracker_steps_title">Passi</string>
+    <string name="tracker_steps_value_unavailable">Mhux disponibbli</string>
     <string name="tracker_session_age">Is-sessjoni bdiet</string>
     <string name="tracker_session_card_title">Sessjoni</string>
     <string name="tracker_component_waiting_data">Qed jistenna dejta f’ħin reali</string>

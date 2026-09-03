@@ -92,6 +92,7 @@
     <string name="tracker_collections_title">Päivitykset</string>
     <string name="tracker_distance_title">Matka</string>
     <string name="tracker_steps_title">Askeleet</string>
+    <string name="tracker_steps_value_unavailable">Ei saatavilla</string>
     <string name="tracker_session_age">Istunto aloitettu</string>
     <string name="tracker_session_card_title">Istunto</string>
     <string name="tracker_component_waiting_data">Odotetaan reaaliaikaista dataa</string>

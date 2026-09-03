@@ -92,6 +92,7 @@
     <string name="tracker_collections_title">Uppdateringar</string>
     <string name="tracker_distance_title">Avstånd</string>
     <string name="tracker_steps_title">Steg</string>
+    <string name="tracker_steps_value_unavailable">Ej tillgängligt</string>
     <string name="tracker_session_age">Session startad</string>
     <string name="tracker_session_card_title">Session</string>
     <string name="tracker_component_waiting_data">Väntar på livedata</string>

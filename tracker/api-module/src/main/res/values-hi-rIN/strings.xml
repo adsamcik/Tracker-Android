@@ -92,6 +92,7 @@
     <string name="tracker_collections_title">अपडेट</string>
     <string name="tracker_distance_title">दूरी</string>
     <string name="tracker_steps_title">कदम</string>
+    <string name="tracker_steps_value_unavailable">उपलब्ध नहीं</string>
     <string name="tracker_session_age">सत्र शुरू हुआ</string>
     <string name="tracker_session_card_title">सत्र</string>
     <string name="tracker_component_waiting_data">लाइव डेटा की प्रतीक्षा है</string>

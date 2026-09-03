@@ -122,6 +122,7 @@
     <string name="tracker_collections_title">Updates</string>
     <string name="tracker_distance_title">Distance</string>
     <string name="tracker_steps_title">Steps</string>
+    <string name="tracker_steps_value_unavailable">Unavailable</string>
     <string name="tracker_session_age">Session started</string>
     <string name="tracker_session_card_title">Session</string>
     <string name="tracker_component_waiting_data">Waiting for live data</string>

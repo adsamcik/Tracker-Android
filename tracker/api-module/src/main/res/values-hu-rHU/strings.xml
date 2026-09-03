@@ -92,6 +92,7 @@
     <string name="tracker_collections_title">Gyűjtemények</string>
     <string name="tracker_distance_title">Távolság</string>
     <string name="tracker_steps_title">Lépések</string>
+    <string name="tracker_steps_value_unavailable">Nem érhető el</string>
     <string name="tracker_session_age">Munkamenet indult</string>
     <string name="tracker_session_card_title">Munkamenet</string>
     <string name="tracker_component_waiting_data">Élő adatokra vár</string>

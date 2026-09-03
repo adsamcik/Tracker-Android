@@ -93,6 +93,7 @@
     <string name="tracker_collections_title">Ažuriranja</string>
     <string name="tracker_distance_title">Udaljenost</string>
     <string name="tracker_steps_title">Koraci</string>
+    <string name="tracker_steps_value_unavailable">Nije dostupno</string>
     <string name="tracker_session_age">Sesija je započela</string>
     <string name="tracker_session_card_title">Sesija</string>
     <string name="tracker_component_waiting_data">Čekanje podataka uživo</string>

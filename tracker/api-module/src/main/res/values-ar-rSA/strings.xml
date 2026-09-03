@@ -76,6 +76,7 @@
     <string name="tracker_activity_title">Activity</string>
     <string name="tracker_collections_title">Collections</string>
     <string name="tracker_distance_title">Distance</string>
+    <string name="tracker_steps_value_unavailable">غير متاح</string>
     <string name="tracker_session_age">Session started</string>
     <string name="tracker_session_card_title">Session</string>
     <string name="wifi_count_title">Wi-Fi count</string>

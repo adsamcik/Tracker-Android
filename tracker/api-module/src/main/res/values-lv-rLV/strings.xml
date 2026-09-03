@@ -92,6 +92,7 @@
     <string name="tracker_collections_title">Atjauninājumi</string>
     <string name="tracker_distance_title">Attālums</string>
     <string name="tracker_steps_title">Soļi</string>
+    <string name="tracker_steps_value_unavailable">Nav pieejams</string>
     <string name="tracker_session_age">Sesija sākta</string>
     <string name="tracker_session_card_title">Sesija</string>
     <string name="tracker_component_waiting_data">Gaida tiešos datus</string>

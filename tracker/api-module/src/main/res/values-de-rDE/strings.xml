@@ -92,6 +92,7 @@
     <string name="tracker_collections_title">Aktualisierungen</string>
     <string name="tracker_distance_title">Strecke</string>
     <string name="tracker_steps_title">Schritte</string>
+    <string name="tracker_steps_value_unavailable">Nicht verfügbar</string>
     <string name="tracker_session_age">Sitzung gestartet</string>
     <string name="tracker_session_card_title">Sitzung</string>
     <string name="tracker_component_waiting_data">Warte auf Live-Daten</string>

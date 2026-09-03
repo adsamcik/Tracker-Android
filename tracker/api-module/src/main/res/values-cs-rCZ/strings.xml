@@ -94,6 +94,7 @@
     <string name="tracker_collections_title">Záznamů</string>
     <string name="tracker_distance_title">Vzdálenost</string>
     <string name="tracker_steps_title">Kroky</string>
+    <string name="tracker_steps_value_unavailable">Není k dispozici</string>
     <string name="tracker_session_age">Začátek relace</string>
     <string name="tracker_session_card_title">Relace</string>
     <string name="tracker_component_waiting_data">Čekání na živá data</string>

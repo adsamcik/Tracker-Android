@@ -92,6 +92,7 @@
     <string name="tracker_collections_title">Uuendused</string>
     <string name="tracker_distance_title">Vahemaa</string>
     <string name="tracker_steps_title">Sammud</string>
+    <string name="tracker_steps_value_unavailable">Pole saadaval</string>
     <string name="tracker_session_age">Seanss algas</string>
     <string name="tracker_session_card_title">Seanss</string>
     <string name="tracker_component_waiting_data">Ootab reaalajas andmeid</string>
