@@ -14,11 +14,13 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
@@ -71,6 +73,7 @@ internal sealed interface PortableStepsSnapshot {
 internal class PortableStepsRoomReader @Inject constructor(
 	private val database: AppDatabase,
 	private val stepsSelector: StepsSegmentHistorySelector,
+	private val laneExecutionAuthority: SourceProductLaneExecutionAuthority,
 ) {
 	suspend fun read(request: ExportPortableStepsRequest): PortableStepsSnapshot =
 		database.useReaderConnection { connection ->
@@ -176,10 +179,11 @@ internal class PortableStepsRoomReader @Inject constructor(
 		var previous: SessionSegment? = null
 		do {
 			currentCoroutineContext().ensureActive()
-			val page = database.sessionSegmentDao().sourceRepairSegmentPage(
+			val page = database.trackingHistoryReadDao().portableStepsSegmentCandidatePage(
 				fromMs = request.fromInclusiveMs,
 				toMs = request.toExclusiveMs,
-				excludedSegmentId = null,
+				stepsSourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				capturePurpose = SessionManifestPurposeCode.SESSION_CAPTURE,
 				limit = READ_PAGE_SIZE,
 				afterStartTimeMs = afterStartTimeMs,
 				afterSegmentId = afterSegmentId,
@@ -219,9 +223,11 @@ internal class PortableStepsRoomReader @Inject constructor(
 		var previous: SourceServiceRunEntity? = null
 		do {
 			currentCoroutineContext().ensureActive()
-			val page = database.trackingHistoryReadDao().serviceRunCandidatePage(
+			val page = database.trackingHistoryReadDao().portableStepsServiceRunCandidatePage(
 				fromMs = request.fromInclusiveMs,
 				toMs = request.toExclusiveMs,
+				stepsSourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				capturePurpose = SessionManifestPurposeCode.SESSION_CAPTURE,
 				limit = READ_PAGE_SIZE,
 				afterStartedAtMs = afterStartedAtMs,
 				afterServiceRunId = afterServiceRunId,
@@ -360,8 +366,12 @@ internal class PortableStepsRoomReader @Inject constructor(
 			abort(PortableStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW)
 		}
 
-		val factStates = loadFactStatePages(runIds, budget)
-		val upsertRevisions = loadUpsertRevisionPages(runIds, budget)
+		val selectedUpsertRevisions = loadUpsertRevisionPages(runIds, budget)
+		val factLineages = loadFactLineagePages(selectedUpsertRevisions, budget)
+		val factStates = composeFactStates(factLineages, runIds.toSet())
+		val upsertRevisions = factLineages.filter { revision ->
+			revision.operation == StepFactRevisionEntity.OPERATION_UPSERT
+		}
 		val scopeDigests = serviceRuns.map { run -> scopeDigest(run) }
 		val fences = mutableListOf<SourceDeletionFenceEntity>()
 		for (digests in scopeDigests.chunked(QUERY_ID_BATCH_SIZE)) {
@@ -401,49 +411,110 @@ internal class PortableStepsRoomReader @Inject constructor(
 		)
 	}
 
-	private suspend fun loadFactStatePages(
-		serviceRunIds: List<String>,
+	@Suppress("NestedBlockDepth")
+	private suspend fun loadFactLineagePages(
+		selectedUpserts: List<StepFactRevisionEntity>,
 		budget: SnapshotBudget,
-	): List<ScopedStepFactState> {
-		val result = mutableListOf<ScopedStepFactState>()
-		val countByRun = mutableMapOf<String, Int>()
-		for (ids in serviceRunIds.chunked(QUERY_ID_BATCH_SIZE)) {
-			var afterServiceRunId: String? = null
-			var afterFirstIntervalStartTimeMs: Long? = null
-			var afterLogicalFactId: String? = null
-			var afterWriterProjectionId: String? = null
-			var afterWriterProjectionVersion: Int? = null
-			var previous: ScopedStepFactState? = null
-			do {
-				currentCoroutineContext().ensureActive()
-				val page = database.trackingHistoryReadDao().stepFactStatePage(
-					serviceRunIds = ids,
-					limit = READ_PAGE_SIZE,
-					afterServiceRunId = afterServiceRunId,
-					afterFirstIntervalStartTimeMs = afterFirstIntervalStartTimeMs,
-					afterLogicalFactId = afterLogicalFactId,
-					afterWriterProjectionId = afterWriterProjectionId,
-					afterWriterProjectionVersion = afterWriterProjectionVersion,
-				)
-				validateFactStatePage(page, previous, ids.toSet())
-				page.forEach { row ->
-					val count = countByRun.getOrDefault(row.serviceRunId, 0) + 1
-					if (count > StepsPortableFormatV1.MAX_FACTS_PER_RUN) {
-						abort(PortableStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW)
-					}
-					countByRun[row.serviceRunId] = count
-				}
-				budget.consume(page.size)
-				result += page
-				previous = page.lastOrNull() ?: previous
-				afterServiceRunId = page.lastOrNull()?.serviceRunId
-				afterFirstIntervalStartTimeMs = page.lastOrNull()?.firstIntervalStartTimeMs
-				afterLogicalFactId = page.lastOrNull()?.state?.logicalFactId
-				afterWriterProjectionId = page.lastOrNull()?.state?.writerProjectionId
-				afterWriterProjectionVersion = page.lastOrNull()?.state?.writerProjectionVersion
-			} while (page.size == READ_PAGE_SIZE)
+	): List<StepFactRevisionEntity> {
+		if (selectedUpserts.isEmpty()) {
+			return emptyList()
+		}
+		val selectedRunsByFact = selectedUpserts.groupBy(::factKey).mapValues { (_, revisions) ->
+			revisions.mapTo(linkedSetOf()) { revision -> requireNotNull(revision.serviceRunId) }
+		}
+		val result = mutableListOf<StepFactRevisionEntity>()
+		val lineageCountBySelectedRun = mutableMapOf<String, Int>()
+		val writerGroups = selectedRunsByFact.keys.groupBy(::writerKey).entries.sortedWith(
+			compareBy({ it.key.projectionId }, { it.key.projectionVersion }),
+		)
+		for ((writer, factKeys) in writerGroups) {
+			for (logicalFactIds in factKeys.map(PortableFactKey::logicalFactId).sorted()
+				.chunked(QUERY_ID_BATCH_SIZE)
+			) {
+				var afterLogicalFactId: String? = null
+				var afterSemanticRevision: Long? = null
+				var previous: StepFactRevisionEntity? = null
+				do {
+					currentCoroutineContext().ensureActive()
+					val page = database.trackingHistoryReadDao().portableStepFactLineagePage(
+						writerProjectionId = writer.projectionId,
+						writerProjectionVersion = writer.projectionVersion,
+						logicalFactIds = logicalFactIds,
+						limit = READ_PAGE_SIZE,
+						afterLogicalFactId = afterLogicalFactId,
+						afterSemanticRevision = afterSemanticRevision,
+					)
+					validateFactLineagePage(page, previous, writer, logicalFactIds.toSet())
+					page.asSequence()
+						.filter { revision ->
+							revision.operation == StepFactRevisionEntity.OPERATION_UPSERT
+						}
+						.forEach { revision ->
+							selectedRunsByFact.getValue(factKey(revision)).forEach { selectedRunId ->
+								val count = lineageCountBySelectedRun.getOrDefault(
+									selectedRunId,
+									0,
+								) + 1
+								if (count > MAX_HISTORICAL_UPSERT_REVISIONS_PER_RUN) {
+									abort(PortableStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW)
+								}
+								lineageCountBySelectedRun[selectedRunId] = count
+							}
+						}
+					budget.consume(page.size)
+					result += page
+					previous = page.lastOrNull() ?: previous
+					afterLogicalFactId = page.lastOrNull()?.logicalFactId
+					afterSemanticRevision = page.lastOrNull()?.semanticRevision
+				} while (page.size == READ_PAGE_SIZE)
+			}
+		}
+		if (result.mapTo(hashSetOf(), ::factKey) != selectedRunsByFact.keys) {
+			abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
 		}
 		return result
+	}
+
+	private fun composeFactStates(
+		factLineages: List<StepFactRevisionEntity>,
+		selectedRunIds: Set<String>,
+	): List<ScopedStepFactState> {
+		val upserts = factLineages.filter { revision ->
+			revision.operation == StepFactRevisionEntity.OPERATION_UPSERT
+		}
+		if (upserts.any { revision -> revision.serviceRunId !in selectedRunIds }) {
+			abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		}
+		val states = factLineages.groupBy(::factKey).map { (_, revisions) ->
+			val latestUpsert = revisions.lastOrNull { revision ->
+				revision.operation == StepFactRevisionEntity.OPERATION_UPSERT
+			} ?: abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+			ScopedStepFactState(
+				serviceRunId = requireNotNull(latestUpsert.serviceRunId),
+				logicalTrackingId = requireNotNull(latestUpsert.logicalTrackingId),
+				manifestRevision = requireNotNull(latestUpsert.manifestRevision),
+				writerBindingGeneration = latestUpsert.writerBindingGeneration,
+				firstIntervalStartTimeMs = requireNotNull(latestUpsert.intervalStartTimeMs),
+				state = revisions.last(),
+			)
+		}
+		val countByRun = mutableMapOf<String, Int>()
+		states.forEach { state ->
+			val count = countByRun.getOrDefault(state.serviceRunId, 0) + 1
+			if (count > StepsPortableFormatV1.MAX_FACTS_PER_RUN) {
+				abort(PortableStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW)
+			}
+			countByRun[state.serviceRunId] = count
+		}
+		return states.sortedWith(
+			compareBy(
+				ScopedStepFactState::serviceRunId,
+				ScopedStepFactState::firstIntervalStartTimeMs,
+				{ state -> state.state.logicalFactId },
+				{ state -> state.state.writerProjectionId },
+				{ state -> state.state.writerProjectionVersion },
+			),
+		)
 	}
 
 	private suspend fun loadUpsertRevisionPages(
@@ -590,16 +661,16 @@ internal class PortableStepsRoomReader @Inject constructor(
 			}
 			return null
 		}
-		val entryStartMs = surviving.minOf { it.segment.startTimeMs }
-		val entryEndMs = surviving.maxOf { it.segment.endTimeMs }
+		val entryStartMs = surviving.minOf { bound -> bound.portableEnvelope().startTimeMs }
+		val entryEndMs = surviving.maxOf { bound -> bound.portableEnvelope().endTimeMs }
 		if (entryStartMs >= request.toExclusiveMs || entryEndMs <= request.fromInclusiveMs) {
 			return null
 		}
 		val retainedFromMs = evidenceState.retainedFromMs
-		if (retainedFromMs != null && entryEndMs <= retainedFromMs) {
+		if (retainedFromMs != null && entryEndMs < retainedFromMs) {
 			return null
 		}
-		if (retainedFromMs != null && entryStartMs < retainedFromMs && entryEndMs > retainedFromMs) {
+		if (retainedFromMs != null && entryStartMs < retainedFromMs && entryEndMs >= retainedFromMs) {
 			abort(PortableStepsExportUnverifiableReason.RETENTION_CROSSES_ENTRY)
 		}
 		var materializing = missingRunMaterializing || logicalSessionMaterializing(session)
@@ -753,17 +824,19 @@ internal class PortableStepsRoomReader @Inject constructor(
 	): PortableStepsRunV1 {
 		val run = bound.run
 		val segment = bound.segment
+		val envelope = bound.portableEnvelope()
 		val manifests = dependencies.manifestsByRun[run.serviceRunId].orEmpty()
-		if (manifests.isEmpty()) {
+		val orderedManifests = manifests.sortedBy(SessionManifestVersionEntity::manifestRevision)
+		if (!validManifestTimeline(run, sessionMode, orderedManifests)) {
 			abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		}
 		val stepsBindings = linkedMapOf<Long, SessionManifestSourceEntity>()
 		val portableManifests = mutableListOf<PortableStepsManifestV1>()
 		val zoneIds = linkedSetOf<String>()
-		for (manifest in manifests.sortedBy(SessionManifestVersionEntity::manifestRevision)) {
+		for (manifest in orderedManifests) {
 			if (manifest.logicalTrackingId != run.logicalTrackingId ||
 				manifest.serviceRunId != run.serviceRunId || manifest.sessionMode != sessionMode.name ||
-				manifest.effectiveWallTimeMs !in segment.startTimeMs..segment.endTimeMs
+				manifest.effectiveWallTimeMs !in envelope.startTimeMs..envelope.endTimeMs
 			) {
 				abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 			}
@@ -819,7 +892,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 			run = run,
 			sessionMode = sessionMode,
 			stepsBindings = stepsBindings,
-			manifests = manifests,
+			manifests = orderedManifests,
 			writer = writer,
 			dependencies = dependencies,
 		)
@@ -831,11 +904,19 @@ internal class PortableStepsRoomReader @Inject constructor(
 		) {
 			abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		}
-		historicalUpserts.forEach { fact ->
+			historicalUpserts.forEach { fact ->
 			if (fact.originKind != StepFactRevisionEntity.ORIGIN_LIVE_WAL) {
 				abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 			}
-			validateUpsertAttribution(fact, run, segment, manifests, stepsBindings, authority, dependencies)
+			validateUpsertAttribution(
+				fact,
+				run,
+				envelope,
+				orderedManifests,
+				stepsBindings,
+				authority,
+				dependencies,
+			)
 		}
 
 		val factStates = dependencies.factStatesByRun[run.serviceRunId].orEmpty()
@@ -846,7 +927,15 @@ internal class PortableStepsRoomReader @Inject constructor(
 			abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		}
 		val portableFacts = factStates.map { scoped ->
-			validateScopedAttribution(scoped, run, segment, manifests, stepsBindings, authority, dependencies)
+			validateScopedAttribution(
+				scoped,
+				run,
+				envelope,
+				orderedManifests,
+				stepsBindings,
+				authority,
+				dependencies,
+			)
 			when (scoped.state.operation) {
 				StepFactRevisionEntity.OPERATION_RETRACT ->
 					abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
@@ -868,14 +957,57 @@ internal class PortableStepsRoomReader @Inject constructor(
 					logicalTrackingId = run.logicalTrackingId,
 					serviceRunId = run.serviceRunId,
 				),
-				startTimeMs = segment.startTimeMs,
-				endTimeMs = segment.endTimeMs,
+				startTimeMs = envelope.startTimeMs,
+				endTimeMs = envelope.endTimeMs,
 				storedZoneId = zoneIds.single(),
 				manifests = portableManifests,
 				completeness = completeness,
 				facts = portableFacts,
 			)
 		}
+	}
+
+	@Suppress("ComplexCondition", "CyclomaticComplexMethod")
+	private fun validManifestTimeline(
+		run: SourceServiceRunEntity,
+		sessionMode: PortableStepsSessionMode,
+		ordered: List<SessionManifestVersionEntity>,
+	): Boolean {
+		if (ordered.isEmpty() || run.preparedManifestRevision <= 0L ||
+			ordered.map(SessionManifestVersionEntity::manifestRevision).distinct().size != ordered.size ||
+			ordered.first().manifestRevision != run.preparedManifestRevision ||
+			ordered.first().effectiveWallTimeMs != run.startedAtMs ||
+			ordered.first().effectiveElapsedRealtimeNanos != run.startedElapsedNanos ||
+			ordered.first().effectiveBootId != run.bootId ||
+			ordered.last().acquisitionPlanRevision != run.desiredPlanRevision
+		) {
+			return false
+		}
+		return ordered.withIndex().all { (index, manifest) ->
+			val previous = ordered.getOrNull(index - 1)
+			manifest.logicalTrackingId == run.logicalTrackingId &&
+				manifest.serviceRunId == run.serviceRunId && manifest.sessionMode == sessionMode.name &&
+				manifest.rolloutRevision == run.rolloutRevision && manifest.startOrigin == run.startOrigin &&
+				manifest.effectiveBootId == run.bootId &&
+				manifest.effectiveElapsedRealtimeNanos >= run.startedElapsedNanos &&
+				manifest.acquisitionPlanRevision > 0L &&
+				(previous == null || validSuccessorManifest(previous, manifest))
+		}
+	}
+
+	private fun validSuccessorManifest(
+		previous: SessionManifestVersionEntity,
+		current: SessionManifestVersionEntity,
+	): Boolean {
+		val expectedRevision = try {
+			Math.addExact(previous.manifestRevision, 1L)
+		} catch (_: ArithmeticException) {
+			return false
+		}
+		return current.manifestRevision == expectedRevision &&
+			current.effectiveBootId == previous.effectiveBootId &&
+			current.effectiveElapsedRealtimeNanos >= previous.effectiveElapsedRealtimeNanos &&
+			current.effectiveWallTimeMs > previous.effectiveWallTimeMs
 	}
 
 	@Suppress("ComplexCondition", "CyclomaticComplexMethod")
@@ -900,7 +1032,8 @@ internal class PortableStepsRoomReader @Inject constructor(
 			PortableStepsSessionMode.MANUAL -> MANUAL_SESSION_CAPTURE_MASK
 			PortableStepsSessionMode.AUTOMATIC -> AUTOMATIC_SESSION_CAPTURE_MASK
 		}
-		if (!isValidPortableLane(lane) || lane.captureModeMask and requiredModeMask == 0L ||
+		if (!laneExecutionAuthority.owns(lane) || !isValidPortableLane(lane) ||
+			lane.captureModeMask and requiredModeMask == 0L ||
 			stepsBindings.keys.any { revision ->
 				val manifest = manifests.singleOrNull { it.manifestRevision == revision }
 				manifest == null || lane.activatedRolloutRevision > manifest.rolloutRevision
@@ -909,16 +1042,23 @@ internal class PortableStepsRoomReader @Inject constructor(
 			abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
 		}
 		val completeness = exactCompletenessRows(run, dependencies)
-		val targetOrdinal = completeness.maxOf { row -> requireNotNull(row.lastAdmissionOrdinal) }
-		if (targetOrdinal < lane.activationOrdinal ||
-			lane.captureAdmissionCutoffOrdinal?.let { cutoff -> targetOrdinal > cutoff } == true ||
-			lane.status == SourceProductProjectionLaneEntity.STATUS_RETIRED &&
-			lane.contiguousAdmissionOrdinal < targetOrdinal
-		) {
-			abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
-		}
-		if (lane.contiguousAdmissionOrdinal < targetOrdinal) {
-			abort(PortableStepsExportUnverifiableReason.ENTRY_MATERIALIZING)
+		val targetOrdinal = completeness.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal)
+			.maxOrNull()
+		if (targetOrdinal == null) {
+			if (dependencies.upsertsByRun[run.serviceRunId].orEmpty().isNotEmpty()) {
+				abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+			}
+		} else {
+			if (targetOrdinal < lane.activationOrdinal ||
+				lane.captureAdmissionCutoffOrdinal?.let { cutoff -> targetOrdinal > cutoff } == true ||
+				lane.status == SourceProductProjectionLaneEntity.STATUS_RETIRED &&
+				lane.contiguousAdmissionOrdinal < targetOrdinal
+			) {
+				abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+			}
+			if (lane.contiguousAdmissionOrdinal < targetOrdinal) {
+				abort(PortableStepsExportUnverifiableReason.ENTRY_MATERIALIZING)
+			}
 		}
 		return PortableRunAuthority(writer, lane, targetOrdinal, completeness)
 	}
@@ -936,8 +1076,8 @@ internal class PortableStepsRoomReader @Inject constructor(
 				val unresolvedEnd = row.unresolvedSequenceEnd
 				row.logicalTrackingId != run.logicalTrackingId || row.serviceRunId != run.serviceRunId ||
 					row.sourceInstanceId.isBlank() || row.registrationGeneration <= 0L ||
-					row.lastAdmissionOrdinal?.let { it <= 0L } != false ||
-					row.lastSourceSequence?.let { it <= 0L } != false ||
+					row.lastAdmissionOrdinal?.let { it <= 0L } == true ||
+					row.lastSourceSequence?.let { it <= 0L } == true ||
 					(row.lastAdmissionOrdinal == null) != (row.lastSourceSequence == null) ||
 					(unresolvedStart == null) != (unresolvedEnd == null) ||
 					unresolvedStart?.let { start -> start <= 0L || start > requireNotNull(unresolvedEnd) } == true ||
@@ -949,10 +1089,6 @@ internal class PortableStepsRoomReader @Inject constructor(
 		) {
 			abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
 		}
-		val terminalOrdinals = rows.map { row -> requireNotNull(row.lastAdmissionOrdinal) }
-		if (terminalOrdinals.distinct().size != rows.size) {
-			abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
-		}
 		return rows
 	}
 
@@ -960,7 +1096,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 	private fun validateUpsertAttribution(
 		fact: StepFactRevisionEntity,
 		run: SourceServiceRunEntity,
-		segment: SessionSegment,
+		envelope: PortableRunEnvelope,
 		manifests: List<SessionManifestVersionEntity>,
 		stepsBindings: Map<Long, SessionManifestSourceEntity>,
 		authority: PortableRunAuthority,
@@ -970,12 +1106,14 @@ internal class PortableStepsRoomReader @Inject constructor(
 		val manifest = manifests.singleOrNull { it.manifestRevision == manifestRevision }
 		val binding = stepsBindings[manifestRevision]
 		val admissionOrdinal = fact.sourceAdmissionOrdinal
+		val targetOrdinal = authority.targetOrdinal
 		if (manifest == null || binding == null || fact.logicalTrackingId != run.logicalTrackingId ||
 			fact.serviceRunId != run.serviceRunId ||
 			fact.purpose != SessionManifestPurposeCode.SESSION_CAPTURE ||
 			!fact.belongsTo(authority.writer) || admissionOrdinal == null || admissionOrdinal <= 0L ||
+			targetOrdinal == null ||
 			admissionOrdinal < authority.lane.activationOrdinal ||
-			admissionOrdinal > authority.targetOrdinal ||
+			admissionOrdinal > targetOrdinal ||
 			admissionOrdinal > authority.lane.contiguousAdmissionOrdinal ||
 			authority.lane.captureAdmissionCutoffOrdinal?.let { cutoff ->
 				admissionOrdinal > cutoff
@@ -984,10 +1122,76 @@ internal class PortableStepsRoomReader @Inject constructor(
 			fact.sourcePolicyRevision != manifest.sourcePolicyRevision ||
 			fact.captureConsentEpoch != binding.consentEpoch ||
 			fact.collectedDataEpoch != dependencies.evidenceState.collectedDataEpoch ||
-			requireNotNull(fact.intervalStartTimeMs) < segment.startTimeMs ||
-			requireNotNull(fact.intervalEndTimeMs) > segment.endTimeMs
+			requireNotNull(fact.intervalStartTimeMs) < envelope.startTimeMs ||
+			requireNotNull(fact.intervalEndTimeMs) > envelope.endTimeMs
 		) {
 			abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		}
+		val manifestIndex = manifests.indexOfFirst { candidate ->
+			candidate.manifestRevision == manifestRevision
+		}
+		if (manifestIndex < 0) {
+			abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		}
+		val nextManifest = manifests.getOrNull(manifestIndex + 1)
+		if (!validLiveWalFactSemantics(fact, run, manifest, nextManifest)) {
+			abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		}
+	}
+
+	/** Replays every semantic relation retained by a self-contained LIVE_WAL Steps fact. */
+	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
+	private fun validLiveWalFactSemantics(
+		fact: StepFactRevisionEntity,
+		run: SourceServiceRunEntity,
+		manifest: SessionManifestVersionEntity,
+		nextManifest: SessionManifestVersionEntity?,
+	): Boolean {
+		val sourceEventId = fact.sourceEventId ?: return false
+		val startMs = fact.intervalStartTimeMs ?: return false
+		val endMs = fact.intervalEndTimeMs ?: return false
+		val startElapsed = fact.intervalStartElapsedRealtimeNanos ?: return false
+		val endElapsed = fact.intervalEndElapsedRealtimeNanos ?: return false
+		val cumulativeStart = fact.cumulativeStepCountStart ?: return false
+		val cumulativeEnd = fact.cumulativeStepCountEnd ?: return false
+		val effective = fact.effectiveStepCount ?: return false
+		val expectedLogicalFactId = "${fact.writerProjectionId}:$sourceEventId"
+		val expectedMutationId =
+			"$expectedLogicalFactId:${fact.semanticRevision}:${StepFactRevisionEntity.OPERATION_UPSERT}"
+		if (fact.semanticRevision != LIVE_WAL_SEMANTIC_REVISION ||
+			fact.logicalFactId != expectedLogicalFactId || fact.mutationId != expectedMutationId ||
+			fact.originKind != StepFactRevisionEntity.ORIGIN_LIVE_WAL ||
+			!StepFactRevisionIntegrity.hasValidLiveWalEffectChecksum(fact) ||
+			fact.originIdentity != sourceEventId || fact.clockDomainId != run.bootId ||
+			fact.bootClockDomainId != run.bootId || manifest.effectiveBootId != run.bootId ||
+			startMs > endMs || startElapsed > endElapsed || startElapsed < run.startedElapsedNanos ||
+			startElapsed < manifest.effectiveElapsedRealtimeNanos ||
+			endElapsed < manifest.effectiveElapsedRealtimeNanos || fact.appliedAtMs != endMs
+		) {
+			return false
+		}
+		val nextEffective = nextManifest?.effectiveElapsedRealtimeNanos
+		if (nextEffective != null && (startElapsed >= nextEffective || endElapsed >= nextEffective)) {
+			return false
+		}
+		val durationMs = (endElapsed - startElapsed) / NANOS_PER_MILLISECOND
+		val expectedStartMs = if (durationMs > endMs) {
+			0L
+		} else {
+			endMs - durationMs
+		}
+		if (startMs != expectedStartMs) {
+			return false
+		}
+		return when (fact.coverageKind) {
+			StepFactRevisionEntity.COVERAGE_BASELINE ->
+				effective == 0L && cumulativeStart == cumulativeEnd
+			StepFactRevisionEntity.COVERAGE_COVERED ->
+				cumulativeEnd >= cumulativeStart && effective == cumulativeEnd - cumulativeStart
+			StepFactRevisionEntity.COVERAGE_RESET_GAP ->
+				effective == 0L && cumulativeEnd < cumulativeStart
+			StepFactRevisionEntity.COVERAGE_PARTIAL -> effective == 0L
+			else -> false
 		}
 	}
 
@@ -995,7 +1199,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 	private fun validateScopedAttribution(
 		scoped: ScopedStepFactState,
 		run: SourceServiceRunEntity,
-		segment: SessionSegment,
+		envelope: PortableRunEnvelope,
 		manifests: List<SessionManifestVersionEntity>,
 		stepsBindings: Map<Long, SessionManifestSourceEntity>,
 		authority: PortableRunAuthority,
@@ -1019,7 +1223,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 			validateUpsertAttribution(
 				scoped.state,
 				run,
-				segment,
+				envelope,
 				manifests,
 				stepsBindings,
 				authority,
@@ -1274,31 +1478,42 @@ internal class PortableStepsRoomReader @Inject constructor(
 		else -> candidate.serviceRunId > previous.serviceRunId
 	}
 
-	private fun validateFactStatePage(
-		page: List<ScopedStepFactState>,
-		previous: ScopedStepFactState?,
-		expectedRunIds: Set<String>,
+	private fun validateFactLineagePage(
+		page: List<StepFactRevisionEntity>,
+		previous: StepFactRevisionEntity?,
+		expectedWriter: PortableWriterKey,
+		expectedFactIds: Set<String>,
 	) {
 		val ordered = previous?.let { listOf(it) + page } ?: page
-		if (page.any { it.serviceRunId !in expectedRunIds } ||
-			ordered.zipWithNext().any { (left, right) -> !factStateAfter(right, left) }
+		if (page.any { revision ->
+				revision.writerProjectionId != expectedWriter.projectionId ||
+					revision.writerProjectionVersion != expectedWriter.projectionVersion ||
+					revision.logicalFactId !in expectedFactIds
+			} || ordered.zipWithNext().any { (left, right) -> !factLineageAfter(right, left) }
 		) {
 			abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
 		}
 	}
 
-	private fun factStateAfter(candidate: ScopedStepFactState, previous: ScopedStepFactState): Boolean =
-		when {
-			candidate.serviceRunId != previous.serviceRunId ->
-				candidate.serviceRunId > previous.serviceRunId
-			candidate.firstIntervalStartTimeMs != previous.firstIntervalStartTimeMs ->
-				candidate.firstIntervalStartTimeMs > previous.firstIntervalStartTimeMs
-			candidate.state.logicalFactId != previous.state.logicalFactId ->
-				candidate.state.logicalFactId > previous.state.logicalFactId
-			candidate.state.writerProjectionId != previous.state.writerProjectionId ->
-				candidate.state.writerProjectionId > previous.state.writerProjectionId
-			else -> candidate.state.writerProjectionVersion > previous.state.writerProjectionVersion
-		}
+	private fun factLineageAfter(
+		candidate: StepFactRevisionEntity,
+		previous: StepFactRevisionEntity,
+	): Boolean = if (candidate.logicalFactId != previous.logicalFactId) {
+		candidate.logicalFactId > previous.logicalFactId
+	} else {
+		candidate.semanticRevision > previous.semanticRevision
+	}
+
+	private fun factKey(revision: StepFactRevisionEntity) = PortableFactKey(
+		projectionId = revision.writerProjectionId,
+		projectionVersion = revision.writerProjectionVersion,
+		logicalFactId = revision.logicalFactId,
+	)
+
+	private fun writerKey(fact: PortableFactKey) = PortableWriterKey(
+		projectionId = fact.projectionId,
+		projectionVersion = fact.projectionVersion,
+	)
 
 	private fun validateUpsertPage(
 		page: List<StepFactRevisionEntity>,
@@ -1333,9 +1548,19 @@ internal class PortableStepsRoomReader @Inject constructor(
 	private fun abort(reason: PortableStepsExportUnverifiableReason): Nothing =
 		throw PortableSnapshotAbort(reason)
 
+	private fun BoundPortableRun.portableEnvelope() = PortableRunEnvelope(
+		startTimeMs = minOf(run.startedAtMs, segment.startTimeMs),
+		endTimeMs = maxOf(segment.endTimeMs, run.completedAtMs ?: segment.endTimeMs),
+	)
+
 	private data class BoundPortableRun(
 		val run: SourceServiceRunEntity,
 		val segment: SessionSegment,
+	)
+
+	private data class PortableRunEnvelope(
+		val startTimeMs: Long,
+		val endTimeMs: Long,
 	)
 
 	private data class PortableEntryDiscovery(
@@ -1357,10 +1582,21 @@ internal class PortableStepsRoomReader @Inject constructor(
 		val bindingGeneration: Long?,
 	)
 
+	private data class PortableWriterKey(
+		val projectionId: String,
+		val projectionVersion: Int,
+	)
+
+	private data class PortableFactKey(
+		val projectionId: String,
+		val projectionVersion: Int,
+		val logicalFactId: String,
+	)
+
 	private data class PortableRunAuthority(
 		val writer: PortableWriterBinding,
 		val lane: SourceProductProjectionLaneEntity,
-		val targetOrdinal: Long,
+		val targetOrdinal: Long?,
 		val completeness: List<SourceSessionCompletenessEntity>,
 	)
 
@@ -1395,6 +1631,8 @@ internal class PortableStepsRoomReader @Inject constructor(
 		const val COMPLETE_PROVIDER_COVERAGE = "CALLBACKS_ENTERED_BEFORE_BARRIER"
 		const val UNOBSERVABLE_PROVIDER_COVERAGE = "PROVIDER_COMPLETENESS_UNOBSERVABLE"
 		const val COMPLETE_STOP_STATUS = "COMPLETE"
+		const val LIVE_WAL_SEMANTIC_REVISION = 1L
+		const val NANOS_PER_MILLISECOND = 1_000_000L
 		const val MANUAL_SESSION_CAPTURE_MASK = 1L shl 0
 		const val AUTOMATIC_SESSION_CAPTURE_MASK = 1L shl 1
 		const val ALL_CAPTURE_MODE_MASK = 7L

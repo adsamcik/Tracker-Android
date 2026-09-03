@@ -23,6 +23,7 @@ import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
  * observer or query cascade per presentation row.
  */
 @Dao
+@Suppress("LargeClass") // Cohesive batched history reads; a second Room DAO has no independent owner.
 interface TrackingHistoryReadDao {
 	/**
 	 * Evidence-bearing logical-entry candidate page.
@@ -242,6 +243,125 @@ interface TrackingHistoryReadDao {
 	suspend fun serviceRunCandidatePage(
 		fromMs: Long,
 		toMs: Long,
+		limit: Int,
+		afterStartedAtMs: Long?,
+		afterServiceRunId: String?,
+	): List<SourceServiceRunEntity>
+
+	/**
+	 * Keyset page of presentation segments owned by or claiming runs with durable Steps evidence.
+	 *
+	 * Source membership is filtered before paging so unrelated source rows cannot consume a Steps
+	 * reader's dependency budget. A manifest membership keeps a still-materializing Steps run
+	 * discoverable before its first fact. A source-local fact remains discovery evidence when its
+	 * manifest is malformed or missing, allowing the caller to fail closed instead of hiding it.
+	 * Kotlin still validates the segment's reciprocal logical/run identity.
+	 */
+	@Query(
+		"""
+		SELECT segment.*
+		FROM session_segment AS segment
+		WHERE segment.end_time_ms > :fromMs
+		  AND segment.start_time_ms < :toMs
+		  AND EXISTS (
+			SELECT 1
+			FROM source_service_run AS run
+			WHERE (
+			  run.session_segment_id = segment.id
+			  OR run.service_run_id = segment.service_run_id
+			)
+			AND (
+			  EXISTS (
+				SELECT 1
+				FROM session_manifest_version AS manifest
+				JOIN session_manifest_source AS source
+				  ON source.logical_tracking_id = manifest.logical_tracking_id
+				 AND source.manifest_revision = manifest.manifest_revision
+				WHERE manifest.service_run_id = run.service_run_id
+				  AND source.source_kind = :stepsSourceKind
+				  AND source.purpose = :capturePurpose
+				  AND source.persistence_eligible = 1
+			  ) OR EXISTS (
+				SELECT 1
+				FROM step_fact_revision AS fact
+				WHERE fact.service_run_id = run.service_run_id
+				  AND fact.purpose = :capturePurpose
+			  )
+			)
+		  )
+		  AND (
+			:afterStartTimeMs IS NULL
+			OR segment.start_time_ms > :afterStartTimeMs
+			OR (
+			  segment.start_time_ms = :afterStartTimeMs
+			  AND segment.id > COALESCE(:afterSegmentId, 0)
+			)
+		  )
+		ORDER BY segment.start_time_ms, segment.id
+		LIMIT :limit
+		""",
+	)
+	suspend fun portableStepsSegmentCandidatePage(
+		fromMs: Long,
+		toMs: Long,
+		stepsSourceKind: Int,
+		capturePurpose: String,
+		limit: Int,
+		afterStartTimeMs: Long?,
+		afterSegmentId: Long?,
+	): List<SessionSegment>
+
+	/**
+	 * Keyset page of bound or unbound runs carrying durable Steps evidence in `[fromMs, toMs)`.
+	 *
+	 * This is discovery only. The caller expands every physical replacement run through explicit
+	 * logical membership and validates its complete immutable attribution independently.
+	 */
+	@Query(
+		"""
+		SELECT run.*
+		FROM source_service_run AS run
+		WHERE run.started_at_ms < :toMs
+		  AND (
+			run.started_at_ms >= :fromMs
+			OR run.completed_at_ms IS NULL
+			OR run.completed_at_ms > :fromMs
+		  )
+		  AND (
+			EXISTS (
+			  SELECT 1
+			  FROM session_manifest_version AS manifest
+			  JOIN session_manifest_source AS source
+				ON source.logical_tracking_id = manifest.logical_tracking_id
+			   AND source.manifest_revision = manifest.manifest_revision
+			  WHERE manifest.service_run_id = run.service_run_id
+				AND source.source_kind = :stepsSourceKind
+				AND source.purpose = :capturePurpose
+				AND source.persistence_eligible = 1
+			) OR EXISTS (
+			  SELECT 1
+			  FROM step_fact_revision AS fact
+			  WHERE fact.service_run_id = run.service_run_id
+				AND fact.purpose = :capturePurpose
+			)
+		  )
+		  AND (
+			:afterStartedAtMs IS NULL
+			OR run.started_at_ms > :afterStartedAtMs
+			OR (
+			  run.started_at_ms = :afterStartedAtMs
+			  AND run.service_run_id > COALESCE(:afterServiceRunId, '')
+			)
+		  )
+		ORDER BY run.started_at_ms, run.service_run_id
+		LIMIT :limit
+		""",
+	)
+	suspend fun portableStepsServiceRunCandidatePage(
+		fromMs: Long,
+		toMs: Long,
+		stepsSourceKind: Int,
+		capturePurpose: String,
 		limit: Int,
 		afterStartedAtMs: Long?,
 		afterServiceRunId: String?,
@@ -550,6 +670,40 @@ interface TrackingHistoryReadDao {
 		afterServiceRunId: String?,
 		afterWriterProjectionId: String?,
 		afterWriterProjectionVersion: Int?,
+		afterLogicalFactId: String?,
+		afterSemanticRevision: Long?,
+	): List<StepFactRevisionEntity>
+
+	/**
+	 * Keyset page of each complete fact-global lineage selected by exact writer and fact identity.
+	 *
+	 * Portable export first discovers bounded run-local UPSERT seeds, then uses this query to expose
+	 * corrections and retractions even when a later revision changes service-run attribution. The
+	 * caller validates the full lineage before emitting any portable value.
+	 */
+	@Query(
+		"""
+		SELECT * FROM step_fact_revision
+		WHERE writer_projection_id = :writerProjectionId
+		  AND writer_projection_version = :writerProjectionVersion
+		  AND logical_fact_id IN (:logicalFactIds)
+		  AND (
+			:afterLogicalFactId IS NULL
+			OR logical_fact_id > :afterLogicalFactId
+			OR (
+			  logical_fact_id = :afterLogicalFactId
+			  AND semantic_revision > COALESCE(:afterSemanticRevision, -1)
+			)
+		  )
+		ORDER BY logical_fact_id, semantic_revision
+		LIMIT :limit
+		""",
+	)
+	suspend fun portableStepFactLineagePage(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		logicalFactIds: List<String>,
+		limit: Int,
 		afterLogicalFactId: String?,
 		afterSemanticRevision: Long?,
 	): List<StepFactRevisionEntity>

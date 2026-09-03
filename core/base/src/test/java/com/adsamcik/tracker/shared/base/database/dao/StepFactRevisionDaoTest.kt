@@ -657,6 +657,53 @@ class StepFactRevisionDaoTest {
 	}
 
 	@Test
+	fun `portable fact lineage pages retain moved corrections and retractions`() = runTest {
+		val initial = revision(intervalId = null, admissionOrdinal = 1L)
+		val movedCorrection = revision(
+			intervalId = null,
+			semanticRevision = 2L,
+			admissionOrdinal = 2L,
+		).copy(
+			serviceRunId = "replacement-run",
+			mutationId = "moved-correction",
+			sourceEventId = "moved-event",
+			originIdentity = "moved-event",
+		)
+		val retraction = redactedRetraction(semanticRevision = 3L)
+		val unrelated = revision(intervalId = null, admissionOrdinal = 3L).copy(
+			logicalFactId = "unrelated-fact",
+			mutationId = "unrelated-mutation",
+			sourceEventId = "unrelated-event",
+			originIdentity = "unrelated-event",
+		)
+		listOf(initial, movedCorrection, retraction, unrelated).forEach { row ->
+			dao.insert(row)
+		}
+
+		val history = database.trackingHistoryReadDao()
+		val seen = mutableListOf<StepFactRevisionEntity>()
+		var afterLogicalFactId: String? = null
+		var afterSemanticRevision: Long? = null
+		var pageSize: Int
+		do {
+			val page = history.portableStepFactLineagePage(
+				writerProjectionId = WRITER_ID,
+				writerProjectionVersion = WRITER_VERSION,
+				logicalFactIds = listOf(LOGICAL_FACT_ID),
+				limit = 2,
+				afterLogicalFactId = afterLogicalFactId,
+				afterSemanticRevision = afterSemanticRevision,
+			)
+			seen += page
+			afterLogicalFactId = page.lastOrNull()?.logicalFactId
+			afterSemanticRevision = page.lastOrNull()?.semanticRevision
+			pageSize = page.size
+		} while (pageSize == 2)
+
+		seen shouldContainExactly listOf(initial, movedCorrection, retraction)
+	}
+
+	@Test
 	fun entityRejectsIncompleteUpsertAndNonRedactedRetraction() {
 		shouldThrow<IllegalArgumentException> {
 			revision(intervalId = 1L, admissionOrdinal = 1L).copy(intervalStartTimeMs = null)
