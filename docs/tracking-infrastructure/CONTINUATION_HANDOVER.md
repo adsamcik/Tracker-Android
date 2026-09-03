@@ -6,6 +6,106 @@ This handover is for the next device or Codex session continuing the tracking-in
 program after the local and remote `dev/v10` histories were reconciled. It is an execution
 checkpoint, not a replacement for the architecture or evidence ledgers.
 
+## 2026-09-03 pause checkpoint after Steps settlement-race diagnosis
+
+This is the authoritative restart boundary for the next session. It supersedes every older
+checkpoint below for current branch state, draft state, verification, and restart order. Older
+sections remain useful historical evidence only.
+
+### Accepted integration and protected state
+
+- Integration worktree: `G:\Github\Tracker-Android\.worktrees\tracking-infra-integration`.
+- Local integration branch: `dev/v10`. Its clean pre-checkpoint parent is exact HEAD
+  `37d230568fd681b55b40415472098210dfac9688` (`docs(tracking): checkpoint Steps parallel
+  lanes`), 87 commits ahead of `origin/dev/v10`. Resolve this documentation checkpoint's own
+  commit with `git rev-parse HEAD`; no self-referential SHA is asserted here.
+- The accepted implementation boundary remains Pressure selected-session deletion through
+  `61608800e`, `9592c42d8`, and evidence commit `673c4186e`. Neither Steps draft below is
+  accepted, committed, rebased, merged, or published.
+- The detached root checkout remains at exact HEAD
+  `ffd5d372fafafceb7d9d595b95e47b89b949de83` with exactly its six protected dirty paths and no
+  additional path. Their SHA-256 values were rechecked at this pause and still exactly match the
+  values in the immediately following checkpoint section. Never alter, stage, commit, clean,
+  reset, or push those paths as part of this continuation.
+- The focused awards build completed and no `java` or `javaw` process remained afterward. All
+  read-only diagnostic agents completed without editing. Recheck the single global Gradle lease
+  before the next build.
+- Everything remains local-only. No push, release, tag, deployment, source/feature activation,
+  remote flag, destructive or backward-incompatible migration, or external rollout occurred or
+  is authorized here.
+
+### Preserved lane 1: source-qualified awards, goals, and retained metrics
+
+- Worktree: `G:\Github\Tracker-Android\.worktrees\ti-steps-qualified-awards`; branch
+  `codex/ti-steps-qualified-awards`; exact base HEAD
+  `a347df9a25e2902b3d9951639f2303e9806f7645`, 14 commits behind the pre-checkpoint parent and
+  15 behind the resulting documentation checkpoint, with zero commits ahead.
+- Exact draft state: 55 tracked modifications plus nine untracked files, 64 dirty paths total;
+  tracked diffstat `+4377/-592`; nothing staged; `git -c core.fsmonitor=false diff --check`
+  passes.
+- The full five-class cohort hang was reproduced with the formerly parked method alone, ruling
+  out preceding-class leakage as the required cause. A JVM thread dump again showed the
+  Robolectric SDK 34 main thread parked in the settlement wait while dispatcher workers were
+  idle.
+- Root cause is a lost-invalidation race: `awaitSourceEvidenceSettlement` accepted a durable
+  revision token but ignored it and waited for a non-initial Room invalidation. Reconciliation
+  could advance the revision before Room finished installing its transient observer. The bounded
+  draft correction performs an initial observer emission, immediately revalidates the durable
+  revision on every emission, and returns only after the token is `CHANGED` or storage is
+  unavailable. It adds no permanent observer, provider, writer, or timeout to production.
+- The correction touches the already-dirty
+  `RoomStepsNumericSummaryRepository.kt`, `StepsNumericSummaryRepository.kt`, `GoalTracker.kt`,
+  and `RoomStepsNumericSummaryRepositoryRoomTest.kt`. Test waits have a test-only 10-second
+  timeout, and a deterministic regression settles the durable revision before starting the wait.
+- Exact forced focused evidence is green: the two selected
+  `RoomStepsNumericSummaryRepositoryRoomTest` methods completed `2/2`, with zero skipped,
+  failures, or errors (`BUILD SUCCESSFUL in 5m 16s`, 234 tasks executed). The XML is
+  `tracker/engine/build/test-results/testDebugUnitTest/TEST-com.adsamcik.tracker.tracker.source.summary.RoomStepsNumericSummaryRepositoryRoomTest.xml`.
+- This is not acceptance of the broad lane. The exact full five-class cohort, app/Game/stats
+  focused gates, Detekt, lint, Hilt, Room-schema check, current-byte review, staging, commit,
+  rebase, and post-rebase verification remain open.
+
+### Preserved lane 2: portable Steps importer, composition, and no-resurrection
+
+- Worktree: `G:\Github\Tracker-Android\.worktrees\ti-steps-portable-import`; branch
+  `codex/ti-steps-portable-import`; exact base HEAD
+  `a347df9a25e2902b3d9951639f2303e9806f7645`, 14 commits behind the pre-checkpoint parent and
+  15 behind the resulting documentation checkpoint, with zero commits ahead.
+- Exact state remains 37 tracked modifications plus 16 untracked files, 53 dirty paths total;
+  tracked diffstat `+2669/-164`; nothing staged; `git -c core.fsmonitor=false diff --check`
+  passes.
+- No current-byte Gradle evidence exists. In addition to the gates listed below, focused coverage
+  is still needed for imported covered-zero history, replacement-run production composition,
+  history observer invalidation, stale/malformed authority and pagination/overflow cases,
+  selected-deletion preservation and rollback, exact outside-retention behavior, and the
+  codec-to-Room production bridge. The changed 27-to-28 migration still requires a connected
+  device test.
+
+### Exact restart order
+
+1. Repeat the mandatory read-only startup checks and full tracking-document read. Verify this
+   checkpoint HEAD, both dirty-lane counts, root HEAD and six protected hashes, and that no other
+   Gradle process owns the build lease.
+2. Keep the importer frozen. In the awards worktree, rerun the complete exact five-class cohort:
+   `PriorProcessPresentationReconcilerTest`, `PreviousExitRecoveryCoordinatorTest`,
+   `PreviousExitSourceSessionFinalizerTest`, `ForceStopSourceSessionFinalizerTest`, and
+   `RoomStepsNumericSummaryRepositoryRoomTest`, forced and serialized.
+3. If that cohort is green, run the awards lane's affected app/Game/stats, Detekt, lint, Hilt, and
+   Room-schema gates, then obtain a fresh whole-diff review. Only then form coherent exact-path
+   commits, rebase onto current local `dev/v10`, repeat proportional gates, and merge locally.
+4. After the awards lane releases the sole Gradle lease and converges, rebase/reconcile the
+   overlapping importer draft, add its named missing regressions, and run its complete current-byte
+   focused, production compilation, static, schema, and fresh-review gates before coherent commits
+   and local merge.
+5. Run `ciUnitTest` at the combined Steps integration gate and `ciCheck --continue` only at
+   integration readiness. Keep the physical manual Steps-only `TYPE_STEP_COUNTER` and listener
+   removal scenario explicitly open until a suitable device and walking operator exist.
+6. Continue in bounded source-local waves: automatic Steps with explicit control separation;
+   default-off ambient Steps only after a real provider/capability decision; Pressure
+   history/product/retention/transfer; protected Location attribution/shadow work; then Activity,
+   Wi-Fi, and Cell captured-product lanes. Shared schema, history, retention, transfer, app DI/UI,
+   rollout, and documentation collision zones retain one integration owner.
+
 ## 2026-09-03 end-of-day two-lane source checkpoint
 
 This is the authoritative restart boundary. It supersedes the earlier 2026-09-03 checkpoints for
