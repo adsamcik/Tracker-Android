@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
@@ -116,6 +117,7 @@ class StepsSessionFactProjectionLaneTest {
 			fact.stepIntervalId shouldBe null
 			fact.writerBindingGeneration shouldBe
 				StepsSessionFactProjectionLane.BINDING_GENERATION
+			StepFactRevisionIntegrity.hasValidLiveWalEffectChecksum(fact) shouldBe true
 		}
 		database.sourceEvidenceStateDao().get()?.revision shouldBe 1L
 		activeLane()?.contiguousAdmissionOrdinal shouldBe 4L

@@ -104,6 +104,7 @@ data class StepFactRevisionEntity(
 	@ColumnInfo(name = "collected_data_epoch") val collectedDataEpoch: Long,
 	/** Monotonic fence for deletion within this source/purpose scope. */
 	@ColumnInfo(name = "scope_deletion_generation") val scopeDeletionGeneration: Long,
+	/** For canonical LIVE_WAL rows, a versioned digest over every retained field except itself. */
 	@ColumnInfo(name = "effect_checksum") val effectChecksum: String,
 	@ColumnInfo(name = "applied_at_ms") val appliedAtMs: Long,
 ) {

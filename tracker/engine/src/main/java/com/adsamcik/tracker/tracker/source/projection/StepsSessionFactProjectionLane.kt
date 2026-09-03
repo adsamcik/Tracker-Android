@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
@@ -22,7 +23,6 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import com.adsamcik.tracker.tracker.source.model.StepBoundaryKind
 import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
-import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -654,33 +654,7 @@ class StepsSessionFactProjectionLane private constructor(
 		val startTimeMs = if (durationMs > endTimeMs) 0L else endTimeMs - durationMs
 		val logicalFactId = "$WRITER_ID:${eventId.value}"
 		val mutationId = "$logicalFactId:$SEMANTIC_REVISION:${StepFactRevisionEntity.OPERATION_UPSERT}"
-		val effectChecksum = effectChecksum(
-			logicalFactId,
-			admissionOrdinal,
-			eventId.value,
-			lane.bindingGeneration,
-			startTimeMs,
-			endTimeMs,
-			payload.bootClockDomainId,
-			payload.firstCumulativeCount,
-			payload.lastCumulativeCount,
-			payload.deltaCount,
-			payload.windowStartElapsedRealtimeNanos,
-			payload.windowEndElapsedRealtimeNanos,
-			payload.firstProviderSequence,
-			payload.lastProviderSequence,
-			payload.boundaryKind.name,
-			coverage.first,
-			coverage.second,
-			logicalTrackingId,
-			serviceRunId,
-			manifestRevision,
-			policyRevision,
-			consentEpoch,
-			evidence.capturedCollectedDataEpoch,
-			uncertaintyMs,
-		)
-		return StepFactRevisionEntity(
+		val unsignedFact = StepFactRevisionEntity(
 			logicalFactId = logicalFactId,
 			semanticRevision = SEMANTIC_REVISION,
 			mutationId = mutationId,
@@ -712,9 +686,12 @@ class StepsSessionFactProjectionLane private constructor(
 			captureConsentEpoch = consentEpoch,
 			collectedDataEpoch = evidence.capturedCollectedDataEpoch,
 			scopeDeletionGeneration = 0L,
-			effectChecksum = effectChecksum,
+			effectChecksum = UNSIGNED_EFFECT_CHECKSUM,
 			// Deterministic durable-event time keeps a replay byte-for-byte comparable.
 			appliedAtMs = endTimeMs,
+		)
+		return unsignedFact.copy(
+			effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(unsignedFact),
 		)
 	}
 
@@ -794,16 +771,6 @@ class StepsSessionFactProjectionLane private constructor(
 		),
 	)
 
-	private fun effectChecksum(vararg values: Any?): String {
-		val canonical = values.joinToString(separator = "") { value ->
-			val text = value?.toString()
-			if (text == null) "-1:" else "${text.length}:$text"
-		}
-		return MessageDigest.getInstance("SHA-256")
-			.digest(canonical.toByteArray())
-			.joinToString(separator = "") { byte -> "%02x".format(byte) }
-	}
-
 	private fun nowMs(): Long = System.currentTimeMillis().coerceAtLeast(0L)
 
 	companion object {
@@ -814,6 +781,7 @@ class StepsSessionFactProjectionLane private constructor(
 		const val MANUAL_CAPTURE_MODE_MASK = 1L
 
 		private const val SEMANTIC_REVISION = 1L
+		private const val UNSIGNED_EFFECT_CHECKSUM = "pending-live-wal-effect"
 		private const val BATCH_SIZE = 64
 		private const val NANOS_PER_MILLISECOND = 1_000_000L
 		private const val INSERT_IGNORED = -1L
