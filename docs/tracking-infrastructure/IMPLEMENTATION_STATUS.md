@@ -1,31 +1,27 @@
 # Tracking Infrastructure Implementation Status
 
-Last updated: 2026-09-01
+Last updated: 2026-09-03
 
 Execution-grade work items, ownership, dependency gates, verification commands, and rollback
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and
 evidence index.
 
-Current scoped code checkpoint: `1bb9749af` on `codex/ti410-deletion-rearm`, atop exact
-physical-service-run presentation settlement and the prior TI-410 foundations. Through TI-D114–
-TI-D122, new-v28 Steps history now requires the exact run/segment reverse binding, exact revisioned
-capture intent, source-local qualification, replacement-run logical grouping, and one finite
-candidate-owned product composition. The Dashboard consumes at most 20 recent physical candidates
-through that composed read and presents at most five rows. A qualified stopped Steps-only logical
-entry is therefore ordinarily discoverable and `QUERYABLE` in this bounded Dashboard surface
-without relying on `sampleCount`, exposing a numeric cross-run total, or granting a physical action
-identity. The live Dashboard remains exact and segment-bound. A disposable instrumentation harness
-now compiles for the production manual Steps-only chain, including ordinary asynchronous
-materialization, product repository reads, durable retirement audit, and mandatory failure cleanup.
-It has not run because no Android device is attached, so it establishes no provider callback,
-rendered UI, platform-listener removal, or device behavior. Statistics/day/Calendar queryability,
-deletion, correction, portable export/import, numeric consumers, ordinary activation, and rollout
-remain blocked. No production path creates a source-deletion fence, and lifecycle-owned
-crash-orphan reclamation remains absent. The continuation is not integrated into local `dev/v10`
-and was not pushed. The complete topology and protected-root boundary are recorded in
-`CONTINUATION_HANDOVER.md`; the six protected root paths remain outside this continuation. The
-initial audited baseline was `068ebe052`; no release, artifact publication, deployment, remote
-configuration, feature activation, or external rollout was performed.
+Current accepted code checkpoint: `711af5cd0` on local `dev/v10`, before this status document's
+containing commit. It includes the accepted source-qualified Steps product and portable-export
+foundations, dormant Pressure facts and selected deletion, correction-safe Steps deletion, and the
+TI-D141 regression repair. A selected-session deletion now still validates every surviving run and
+fact when no daily summary exists, and the tracker-engine Pressure fixtures once again encode the
+official permanent destination, owner generation, and projection binding. The complete topology,
+parallel draft inventory, and protected-root boundary are recorded in
+`CONTINUATION_HANDOVER.md`.
+
+The immediate product boundary is unchanged: the exact representative-device manual Steps-only
+chain has not run, so provider callbacks, listener removal, rendered UI, process death, reboot,
+foreground-service behavior, battery cost, and OEM behavior remain unproven. The truthful live/UI
+slice is verified but uncommitted; awards/retention work has open integrity blockers; portable
+import remains frozen and unaccepted. Everything is local-only. No push, release, artifact
+publication, deployment, remote configuration, feature activation, destructive migration, or
+external rollout occurred.
 
 ## Current gate
 
@@ -63,8 +59,9 @@ configuration, feature activation, or external rollout was performed.
   ordering and no raw Last Session bypass. TI-D121/TI-B179 establish the synthetic positive WAL
   boundary. TI-D122/TI-B180 add the compiled disposable harness without activating an ordinary
   product path. The bounded Dashboard query passes; day/Calendar/Statistics composition,
-  completeness-safe numeric consumers, typed export/import, deletion, cold process/reboot/provider
-  evidence, the exact manual only-Steps device scenario, and every other source/mode remain blocked.
+  remaining completeness-safe consumers, portable import/no-resurrection, broader-source and
+  device deletion evidence, cold process/reboot/provider evidence, the exact manual only-Steps
+  device scenario, and every other source/mode remain blocked.
 - Integration owner: lead orchestrator
 - Structural implementation: Workstream A policy authority plus the retained v28
   manifest/lifecycle/broker schema, Room-first source-runtime coordinator demands, physical
@@ -2744,3 +2741,76 @@ safe day repair. It does not activate the Pressure writer or prove `RECORDING`, 
 history/query/UI, retention, portable export/import, physical sensor cadence/FIFO/flush, process
 death, reboot, FGS, battery/OEM behavior, rollout, push, or release. Continuous ambient Pressure
 remains outside the default product.
+
+## Empty-summary deletion and canonical fixture regression checkpoint (2026-09-03)
+
+### Outcome
+
+Selected-session Steps deletion no longer rejects an otherwise valid scope merely because no
+surviving daily-summary row needs repair. The ordinary numeric accumulator still rejects an empty
+product-day request. Only deletion composition with an explicit excluded segment may create a
+zero-window validation accumulator, and it still streams every surviving logical group and fact.
+Invalid authority therefore remains `DAY_REPAIR_UNVERIFIABLE`, a valid unsettled run remains
+`DAY_REPAIR_MATERIALIZING`, and a settled scope with no affected summary returns an empty repair
+plan rather than a fabricated numeric zero.
+
+The tracker-engine Pressure ingress and shared broker fixtures now use the official
+`PRESSURE_SESSION_FACTS` lane, exact permanent Pressure destination, candidate owner generation,
+and manifest projection provenance. Generic registration tests that exercise only Steps omit
+Pressure rather than synthesizing an invalid Pressure lane. Production rollout validation was not
+weakened.
+
+### Evidence and boundary
+
+- The exact seven-class selection passed `175/175` before commit in `4m 34s` and again after the
+  required no-op rebase in `4m 25s`. The complete tracker-engine host suite passed `2015/2015` in
+  `11m 4s`, with zero failures, errors, or skips.
+- Root Detekt passed in `40s`. The final `SourceBrokerTest` plus tracker-engine lint gate passed
+  `10/10` in `4m 44s`; lint found no new issue and filtered six checked-in baseline warnings.
+  `checkRoomSchemaDrift` passed in `1m 3s`.
+- The first broad run's 36 failures were resolved without relaxing production checks: two came from
+  the empty deletion window and 34 from fixtures predating the canonical Pressure binding. During
+  correction, Detekt rejected an over-complex fixture helper, and a focused test rejected an
+  intermediate construct-then-copy manifest because entity validation runs at construction. Both
+  precursors were corrected before the final green gates.
+- Two fresh read-only reviews found no defect in the final seven-file delta. Commits `33e0eb71d`
+  and `711af5cd0` use the configured `adsamcik` identity, were already based on current local
+  `dev/v10`, and were fast-forwarded locally. The temporary worktree and merged branch were removed.
+
+#### Exact commands
+
+Focused selection, run before commit and again after the no-op rebase:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests "com.adsamcik.tracker.tracker.source.ingress.PressureDurableSourceIngressTest" --tests "com.adsamcik.tracker.tracker.source.runtime.SourceBrokerTest" --tests "com.adsamcik.tracker.tracker.source.runtime.SourceRegistrationRepositoryTest" --tests "com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStoreTest" --tests "*RoomStepsSelectedSessionDeletionServiceTest" --tests "*StepsDailySummaryRepairComposerTest" --tests "*StepsNumericDayWindowAccumulatorTest" --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+Complete tracker-engine host suite:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+Final Detekt, focused broker plus lint, and Room-schema gates:
+
+```powershell
+.\gradlew.bat detekt --no-daemon --no-parallel --max-workers=1 --console=plain --no-configuration-cache
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests "com.adsamcik.tracker.tracker.source.runtime.SourceBrokerTest" :tracker:engine:lintDebug --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat checkRoomSchemaDrift --no-daemon --no-parallel --max-workers=1 --console=plain --no-configuration-cache
+```
+
+Required integration check:
+
+```powershell
+git rebase dev/v10
+```
+
+The diagnostic static precursor used the same flags with `detekt :tracker:engine:lintDebug` and
+failed before lint on `CyclomaticComplexMethod`. The first focused broker-only rerun used the final
+broker selector above without the lint task and rejected the invalid construct-then-copy manifest
+(`1/10` failed). The first Detekt-only rerun then reported `LargeClass`. The final commands above
+supersede all three diagnostic failures.
+
+This is host/Robolectric/in-memory-Room/static evidence. It does not prove provider callbacks,
+listener removal, rendered UI, process death, reboot, FGS, battery/OEM behavior, automatic or
+ambient Steps, source activation, rollout, push, or release.

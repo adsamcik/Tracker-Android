@@ -1,6 +1,6 @@
 # Tracking Infrastructure Decisions
 
-Last updated: 2026-09-01
+Last updated: 2026-09-03
 
 Each entry records repository evidence and does not duplicate the final architecture document.
 
@@ -2080,4 +2080,29 @@ Each entry records repository evidence and does not duplicate the final architec
   resurrect the deleted scope. `QUIESCED`, sample count, and wall-time overlap are not deletion or
   source proof. This is host/static evidence for a dormant candidate lane, not Pressure history/UI,
   retention/export/import, physical sensor cadence/FIFO, process death/reboot/FGS, battery/OEM,
+  activation, rollout, push, or release proof.
+
+## TI-D141 — Empty deletion windows validate source truth without becoming numeric products
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` at `33e0eb71d`; representative-device deletion and manual
+  Steps-only proof remain `BLOCKED`
+- Owner/date: regression repair owner after full tracker-engine reproduction, focused correction,
+  static/schema gates, fresh review, no-op rebase, and local fast-forward, 2026-09-03
+- Alternatives: classify every empty-summary scope as unverifiable; move `Materializing` ahead of
+  fact validation; allow the ordinary numeric accumulator to accept an empty day request; create a
+  deletion-only zero-window accumulator that validates all surviving groups and facts but emits no
+  numeric result
+- Evidence: the first complete tracker-engine run exposed two empty-summary deletion failures in
+  addition to 34 stale canonical Pressure fixtures. The corrected seven-class cohort passed
+  `175/175` before commit and after rebase, the complete tracker-engine suite passed `2015/2015`,
+  and Detekt, tracker lint, and Room schema drift passed. Two fresh reviews found no final defect.
+- Decision: an explicit selected-session deletion may validate a scope even when no persisted daily
+  summary establishes a product-day window. This exception is available only when an excluded
+  segment identity is present. It must still stream and validate every surviving logical group and
+  fact before returning `Materializing`; invalid authority wins over settlement state. A valid
+  settled empty window yields `Ready(emptyList())`, never `Ready(0)`.
+- Consequences: the ordinary product factory continues to reject an empty day request, so missing
+  or unavailable Steps cannot become numeric zero. Deletion retry semantics remain truthful without
+  weakening source authority, checksum, correction, ownership, or settlement validation. This is
+  host/Robolectric evidence only, not device, provider, listener, process/reboot, FGS, battery/OEM,
   activation, rollout, push, or release proof.

@@ -6,11 +6,132 @@ This handover is for the next device or Codex session continuing the tracking-in
 program after the local and remote `dev/v10` histories were reconciled. It is an execution
 checkpoint, not a replacement for the architecture or evidence ledgers.
 
+## 2026-09-03 final checkpoint: regression repair accepted; three Steps lanes preserved
+
+This is the authoritative restart boundary and supersedes the overnight checkpoint below for
+current branch, dirty-worktree, verification, blocker, and restart-order state. Older sections
+remain historical evidence only.
+
+### Exact accepted and preserved state
+
+- Integration worktree: `G:\Github\Tracker-Android\.worktrees\tracking-infra-integration` on local
+  `dev/v10`. Its code tree was clean at exact parent HEAD
+  `711af5cd05044150fdc9346103c95d96c720c24d`, 92 commits ahead of the unchanged local
+  `origin/dev/v10` tracking ref. This four-document checkpoint is the only successor; after its
+  containing commit the integration worktree is clean. Resolve that documentation HEAD with
+  `git rev-parse HEAD`; no self-referential SHA is asserted. Nothing was pushed.
+- Accepted commits `33e0eb71d` and `711af5cd0` preserve selected-session deletion validation when
+  no surviving daily summary exists, without fabricating `Ready(0)`, and repair Pressure/Broker/
+  registration fixtures to use the official Pressure session-fact lane, exact permanent
+  destination, owner generation, and manifest provenance. The temporary
+  `codex/ti-tracker-test-regressions` worktree and merged local branch were removed after the clean
+  fast-forward.
+- Detached protected root checkout: `G:\Github\Tracker-Android`, exact HEAD
+  `ffd5d372fafafceb7d9d595b95e47b89b949de83`. It still has exactly these six protected dirty
+  paths, with nothing staged:
+  `feature/import-export/src/main/java/com/adsamcik/tracker/impexp/importer/file/DatabaseImport.kt`,
+  `feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/file/DatabaseImportCollisionTest.kt`,
+  `feature/import-export/src/test/java/com/adsamcik/tracker/impexp/importer/file/DatabaseImportTest.kt`,
+  `docs/TRACKING_INFRASTRUCTURE_FINAL_PLAN_AND_DESIGN.docx`,
+  `docs/TRACKING_INFRASTRUCTURE_IMPLEMENTATION_ORCHESTRATOR_PROMPT.md`, and
+  `feature/dashboard/src/test/java/com/adsamcik/tracker/dashboard/ui/compose/DashboardManualStartDecisionTest.kt`.
+  Their SHA-256 values remain, in that order,
+  `882BAD525CDA927710FD13C1A1DB1DDD11437963BACC2C50313708BB05BB73D4`,
+  `01C7D5CC62AF43100B6F8A1458F45662BE293B659AEC0F23AD7CAD5F79F1D0F3`,
+  `794B8A4ADAC5B6F387BEF07A58C90805538127A85CC2A0C00266209C985CD9E6`,
+  `F6F46E2ABA5B2E110DD0F994E280C961B3E1315F79D8FB59C60D053BEE3FBF28`,
+  `3F77380D36234BCAAD3A193CC2553E8D50F2C0F0D02928232B4CC99BFC7DA332`, and
+  `E0912B613CD330949D12DAF69268E1A7B9DDE0F9181D0D235839E0CD8F8B7BF6`. Never alter, stage,
+  commit, clean, reset, or push them as part of this continuation.
+- Live/UI lane: `G:\Github\Tracker-Android\.worktrees\ti-steps-live-consumer-truth`, branch
+  `codex/ti-steps-live-consumer-truth`, exact HEAD `ee21d6615894319d79c4f395441d305520bf55a9`,
+  four commits behind this handover's containing local `dev/v10` commit and zero ahead (three
+  behind exact code parent `711af5cd0`). It remains 54 tracked modifications, no untracked or
+  staged files, tracked diffstat `+203/-50`, and `diff --check` green.
+- Awards lane: `G:\Github\Tracker-Android\.worktrees\ti-steps-qualified-awards`, branch
+  `codex/ti-steps-qualified-awards`, exact HEAD `a347df9a25e2902b3d9951639f2303e9806f7645`,
+  20 commits behind this handover's containing local `dev/v10` commit and zero ahead (19 behind
+  exact code parent `711af5cd0`). It now has 61 tracked modifications plus 14 untracked files, 75
+  dirty paths total, tracked diffstat `+5700/-640`, nothing staged, and `diff --check` green. This
+  replaces the stale 57+12 / `+5672/-591` count below.
+- Importer lane: `G:\Github\Tracker-Android\.worktrees\ti-steps-portable-import`, branch
+  `codex/ti-steps-portable-import`, exact HEAD `a347df9a25e2902b3d9951639f2303e9806f7645`,
+  20 commits behind this handover's containing local `dev/v10` commit and zero ahead (19 behind
+  exact code parent `711af5cd0`). It remains 37 tracked modifications plus 16 untracked files, 53
+  dirty paths total, tracked diffstat `+2669/-164`, nothing staged, and `diff --check` green. It
+  remains frozen and unaccepted.
+- Git's global registry contains an unrelated prunable
+  `/mnt/g/Github/Tracker-Android-tracebox-v10` entry. Do not prune or otherwise mutate unrelated
+  worktree metadata as part of this continuation. No `java` or `javaw` process remained after the
+  final serialized Gradle gate.
+
+### Accepted host verification
+
+- Before commit, the exact seven-class regression cohort passed `175/175` in `4m 34s`; the complete
+  `:tracker:engine:testDebugUnitTest` suite passed `2015/2015` in `11m 4s`.
+- Root Detekt passed in `40s`. After its test-fixture complexity correction, the complete
+  `SourceBrokerTest` plus `:tracker:engine:lintDebug` gate passed `10/10` in `4m 44s`; lint found no
+  new issue and filtered six checked-in baseline warnings.
+- `checkRoomSchemaDrift` passed in `1m 3s`. The required rebase check reported the branch already up
+  to date, and the exact post-rebase seven-class cohort passed `175/175` in `4m 25s`.
+- Exact invocations, serialization flags, selected test classes, and diagnostic precursor failures
+  are recorded under the matching regression checkpoint in `IMPLEMENTATION_STATUS.md`.
+- Two fresh read-only reviews found no defect in the final seven-file regression delta. This is
+  host/Robolectric/in-memory-Room/static evidence only. It does not prove Android provider behavior,
+  listener removal on a device, process-death or reboot recovery, foreground-service behavior,
+  battery cost, OEM behavior, rendered UI, or TalkBack behavior.
+
+### Awards acceptance blockers still open
+
+- **P1 history integrity:** the stale awards draft adds full-row checksum validation to numeric day
+  repair, but `StepsSegmentHistorySelector` still sums retained Steps facts without validating
+  `StepFactRevisionIntegrity`. A tampered row can still become a `READY` selected-detail or recent-
+  list Steps count. Add a typed integrity-failure result and a selector tamper regression before
+  accepting the lane.
+- **P1 test independence:** 13 repair-composer semantic-corruption tests currently mutate SQL
+  fields without recomputing the checksum. Because checksum validation is now first, they all exit
+  for checksum mismatch instead of exercising their named semantic guards. Keep one dedicated
+  checksum-tamper test and canonically re-sign every other intentionally changed fixture.
+- The current canonical full-row signer was introduced only in this local, unreleased v28 history;
+  older draft rows with the prior partial digest now fail closed. Record that compatibility boundary
+  during convergence rather than claiming transparent backward compatibility.
+- Preserve the reviewed P2 correction: XP-ledger-derived perfect weeks and goal-streak days remain
+  available when retained capture facts are partial, materializing, or storage-unavailable. Only
+  retained-fact metrics (`STEPS_TOTAL` and `BEST_DAILY_STEPS`) are capture-readiness gated and retry-
+  blocked.
+
+### Tomorrow's dependency order
+
+1. Repeat the mandatory read-only status/HEAD/log/diff checks, applicable `AGENTS.md` reads, and
+   ordered tracking-document read. Recheck all six protected paths and hashes, confirm local
+   `dev/v10` at this handover's containing commit, and establish the single global Gradle lease.
+2. Give one primary owner the reviewed 54-path live/UI lane. Manually reconcile its four-commit
+   drift, recheck exact diffs and affected tests/static gates, commit coherent scope, rebase onto
+   the latest local `dev/v10`, verify again, and integrate serially from the clean integration
+   worktree.
+3. In parallel, keep one primary owner on awards. Manually converge `33e0eb71d`, close both P1 gaps
+   above, preserve the P2 ledger-independence correction, run the focused core/tracker/stats/Game
+   cohorts plus proportional Detekt/lint/schema gates, obtain a fresh whole-diff review, and split
+   checksum enforcement from achievement independence into reviewable commits.
+4. Keep the importer lane frozen until native re-import deduplication, origin-aware lineage/orphan
+   selection, portable no-resurrection, and schema/test evidence are corrected. Do not stage or
+   merge it merely because its diff is preserved.
+5. After Steps-local host work converges, run the exact representative-device Steps-only scenario:
+   capture set exactly `{Steps}`, no other source/control/ambient demand, fresh positive post-
+   baseline progress through `RECORDING`/`MATERIALIZED`/`QUERYABLE`, truthful UI, and listener
+   removal after stop. Do not claim this gate from JVM/Robolectric evidence.
+6. Only after that device gate continue automatic Steps with explicit control separation and
+   default-off Ambient Steps, then Pressure, protected Location, Activity, Wi-Fi, and Cell as thin
+   independent verticals. Preserve canonical Location and never introduce a second writer.
+
+Everything remains local-only. No push, release, tag, deployment, feature/source activation,
+remote flag, destructive or backward-incompatible migration, force push, or external rollout
+occurred or is authorized.
+
 ## 2026-09-03 overnight checkpoint: verified live slice plus partially verified parallel drafts
 
-This is the authoritative restart boundary for the next session. It supersedes every older
-checkpoint below for current branch state, dirty-worktree state, verification, blockers, and
-restart order. Older sections remain historical evidence only.
+This was the authoritative overnight boundary. It is superseded by the final checkpoint above;
+the section remains historical evidence only.
 
 ### Exact repository state
 
