@@ -6,6 +6,138 @@ This handover is for the next device or Codex session continuing the tracking-in
 program after the local and remote `dev/v10` histories were reconciled. It is an execution
 checkpoint, not a replacement for the architecture or evidence ledgers.
 
+## 2026-09-03 final pause checkpoint after bounded parallel corrections
+
+This is the authoritative restart boundary for the next session. It supersedes every older
+checkpoint below for current branch state, draft state, verification, blockers, and restart order.
+Older sections remain historical evidence only.
+
+### Accepted integration, protected root, and build state
+
+- Integration worktree: `G:\Github\Tracker-Android\.worktrees\tracking-infra-integration`.
+- Local integration branch: `dev/v10`. Its clean pre-checkpoint parent is exact HEAD
+  `560163ecd73b37fdbdceafed3da979cbc2c4e1bb` (`docs(tracking): checkpoint settlement race
+  diagnosis`), 88 commits ahead of `origin/dev/v10`. Resolve this documentation checkpoint's own
+  commit with `git rev-parse HEAD`; no self-referential SHA is asserted here.
+- The accepted implementation boundary remains Pressure selected-session deletion through
+  `61608800e`, `9592c42d8`, and evidence commit `673c4186e`. Neither dirty Steps lane described
+  below is accepted, committed, rebased, merged, or published. The clean live-consumer branch also
+  contains no implementation commit.
+- The detached root checkout remains at exact HEAD
+  `ffd5d372fafafceb7d9d595b95e47b89b949de83` with exactly its six protected dirty paths and no
+  additional path. Their SHA-256 values were rechecked and still exactly match the values in the
+  following checkpoint sections. Never alter, stage, commit, clean, reset, or push those paths as
+  part of this continuation.
+- All three implementation specialists were stopped after completing only their bounded edits and
+  then performed read-only checkpoint audits. No specialist ran Gradle, staged, or committed.
+  `git -c core.fsmonitor=false diff --check` passes in the root, integration, awards, importer, and
+  live-consumer worktrees. No `java` or `javaw` process remained at the checkpoint.
+- The previously green 63-test settlement/recovery cohort and the 2,520 passing tests from the
+  affected-module run predate the final parallel edits below. The latter run stopped at
+  `stats:data` test compilation because `AchievementWorkerTest` lacked `MetricKeys`; that import is
+  now present, but no current-byte rerun exists. Do not treat either earlier result as acceptance
+  evidence for the final dirty awards bytes.
+- Everything remains local-only. No push, release, tag, deployment, feature/source activation,
+  remote flag, destructive or backward-incompatible migration, or external rollout occurred or is
+  authorized here.
+
+### Preserved lane 1: source-qualified awards, goals, and retained metrics
+
+- Worktree: `G:\Github\Tracker-Android\.worktrees\ti-steps-qualified-awards`; branch
+  `codex/ti-steps-qualified-awards`; exact base HEAD
+  `a347df9a25e2902b3d9951639f2303e9806f7645`, 15 commits behind the pre-checkpoint parent and zero
+  commits ahead.
+- Exact draft state: 55 tracked modifications plus nine untracked files, 64 dirty paths total;
+  tracked diffstat `+4780/-590`; nothing staged; `git -c core.fsmonitor=false diff --check` passes.
+- The bounded settlement-race correction remains in the draft: Room installs an initial-emission
+  observer as a registration barrier and revalidates the durable revision token on every emission,
+  while preserving cancellation and structured observer ownership. Before the later parallel edits,
+  the exact two-method regression passed `2/2` and the complete five-class recovery/settlement
+  cohort passed `63/63`.
+- The retained-metrics partition now clips fully pre-floor run discovery, ignores valid atomic facts
+  ending before the retained floor, keeps crossing facts whole rather than prorating them, and
+  excludes the civil day containing a mid-day floor. It is uncompiled and has no new focused tests.
+  Before running it, resolve whether provably pre-floor orphan facts/completeness should be bounded
+  out, test relaxed crossing-run authority adversarially, and cover active crossing runs whose
+  discovery envelope may otherwise be too small.
+- The decision-revision partition preserves general decision triggers, narrows segment UPDATE
+  invalidation to structural fields, suppresses heartbeat amplification, and narrows projection-lane
+  invalidation to Steps authority transitions. Its focused tests are authored but unrun. Before
+  accepting it, resolve the stale-cache risk for INSERT/DELETE of segments whose two durable IDs are
+  null, and audit cursor-only settlement before excluding `contiguous_admission_ordinal`.
+- The Game/achievement partition adds versioned `QUALIFIED_STEPS_DAILY_GOAL_V1` ledger provenance,
+  excludes generic legacy `GOAL` rows from qualified streak/week calculations, derives goal streaks
+  and ISO perfect weeks from distinct qualified epoch days, blocks all four Steps metrics while
+  materializing or storage-unavailable, confines settlement retries to terminal session events, and
+  conflates settings/batch refresh requests. Its focused tests are authored but unrun. Before
+  acceptance, add or justify a Room transaction integration test for XP provenance, review retained
+  lower-bound streak/week semantics, and decide whether unexpected refresh exceptions should end the
+  settings collector. The current `getRecent(Int.MAX_VALUE)` scans are truthful but remain a bounded
+  performance debt rather than a reason for a speculative query framework.
+- No current-byte compile, unit test, Detekt, lint, Hilt, Room-schema, staging, rebase, or fresh
+  whole-diff review exists after these three partitions. Do not form commits merely to preserve the
+  draft; first close the named correctness questions and add the missing retained-metrics Room cases.
+
+### Preserved lane 2: portable Steps importer, composition, and no-resurrection
+
+- Worktree: `G:\Github\Tracker-Android\.worktrees\ti-steps-portable-import`; branch
+  `codex/ti-steps-portable-import`; exact base HEAD
+  `a347df9a25e2902b3d9951639f2303e9806f7645`, 15 commits behind the pre-checkpoint parent and zero
+  commits ahead.
+- Exact repository state is 37 tracked modifications plus 15 untracked status entries, 52 dirty
+  paths total; tracked diffstat `+2669/-164`; nothing staged; `git -c core.fsmonitor=false diff
+  --check` passes. This current count replaces older handover claims of 16 untracked entries.
+- The untracked `ImportedStepsHistoryIntegrationTest.kt` now includes two unrun regressions: an
+  imported covered-zero entry remains discoverable and Steps-qualified without inventing a positive
+  sample, and two replacement physical runs compose into one logical recent entry while preserving
+  exact segment/run ownership and their `3 + 7` counts. Its fixture accepts a strictly ordered run
+  list.
+- No production importer change was made in this final checkpoint pass and no current-byte Gradle
+  evidence exists. Keep this lane frozen until the overlapping awards v28/schema/composer draft is
+  accepted and merged; then reconcile rather than selecting one schema snapshot wholesale.
+
+### Preserved lane 3: truthful live Steps consumers
+
+- Worktree: `G:\Github\Tracker-Android\.worktrees\ti-steps-live-consumer-truth`; branch
+  `codex/ti-steps-live-consumer-truth`; exact clean HEAD
+  `560163ecd73b37fdbdceafed3da979cbc2c4e1bb`, with zero commits ahead of the pre-checkpoint
+  `dev/v10`. No file was edited.
+- The next bounded implementation should keep verified zero available to the Today Summary widget,
+  but stop the Active Session widget, legacy tracker cards, and Last Session card from turning an
+  unsupported non-null integer default or PackageManager hardware capability into captured zero.
+  Positive legacy live values may remain an observed lower bound; zero requires explicit qualified
+  coverage. Reuse the accepted typed Steps-only Dashboard presentation and do not widen
+  `TrackerSessionSnapshot` or introduce another UI platform without demonstrated need.
+
+### Exact restart order
+
+1. Repeat the mandatory read-only checks, applicable `AGENTS.md` reads, and the complete ordered
+   tracking-document read. Verify this checkpoint HEAD, all three lane states, the detached root HEAD
+   and six protected hashes, and that no process owns the sole Gradle lease.
+2. In the awards lane, perform source review and tests in dependency order: resolve the two revision
+   trigger questions; add retained-floor/crossing/orphan Room cases and correct their implementation;
+   then review the qualified goal/achievement lifecycle choices. Run the focused core, tracker,
+   Game, and stats tests serially, followed by the exact five-class recovery/settlement cohort.
+3. If focused behavior is green, run affected full module tests, Detekt, lint, Hilt compilation, and
+   `checkRoomSchemaDrift`, then obtain one fresh whole-diff review. Split and commit only coherent
+   exact-path chunks in dependency order. Rebase onto latest local `dev/v10`, repeat proportional
+   current-byte gates, and merge locally only after GO.
+4. The clean live-consumer lane can receive its narrow UI truth fix in parallel with awards source
+   review, but all Gradle invocations remain globally serialized. Give it focused formatter/widget/
+   Compose tests, static checks, a fresh bounded review, and the same rebase-before-local-merge rule.
+5. Keep the importer frozen until awards releases the overlapping v28/schema/composer ownership.
+   Reconcile it onto the accepted schema, run the imported-history regression plus the full named
+   importer/deletion/repair/retention/codec cohort, then static/schema/review gates before coherent
+   commits and local merge.
+6. Run `ciUnitTest` at the combined Steps integration gate and `ciCheck --continue` only at
+   integration readiness. Keep the physical manual Steps-only `TYPE_STEP_COUNTER`, walking,
+   listener-removal, process/reboot, provider, battery, and UI-device evidence explicitly open.
+7. After the Steps gates converge, continue source-local work in order: automatic Steps with
+   explicit control separation; default-off ambient Steps only after a real provider/capability
+   decision; Pressure history/product/retention/transfer; protected Location; then Activity,
+   Wi-Fi, and Cell. Retain one integration owner for shared schema, history, retention, transfer,
+   app DI/UI, rollout, and documentation collision zones.
+
 ## 2026-09-03 pause checkpoint after Steps settlement-race diagnosis
 
 This is the authoritative restart boundary for the next session. It supersedes every older
