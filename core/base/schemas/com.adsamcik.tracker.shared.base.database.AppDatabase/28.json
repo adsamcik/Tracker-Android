@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 28,
-    "identityHash": "c67d640d73f0ebe0bb8438c39edb0df6",
+    "identityHash": "37eb710526dc9b550e9208d7713dd851",
     "entities": [
       {
         "tableName": "activity",
@@ -1643,6 +1643,20 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_pressure_fact_revision_latest` ON `${TABLE_NAME}` (`writer_projection_id`, `writer_projection_version`, `logical_fact_id`, `semantic_revision`)"
+          },
+          {
+            "name": "idx_pressure_fact_revision_service_run_scope",
+            "unique": false,
+            "columnNames": [
+              "service_run_id",
+              "logical_tracking_id",
+              "writer_projection_id",
+              "writer_projection_version",
+              "logical_fact_id",
+              "semantic_revision"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_pressure_fact_revision_service_run_scope` ON `${TABLE_NAME}` (`service_run_id`, `logical_tracking_id`, `writer_projection_id`, `writer_projection_version`, `logical_fact_id`, `semantic_revision`)"
           }
         ]
       },
@@ -7971,7 +7985,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c67d640d73f0ebe0bb8438c39edb0df6')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '37eb710526dc9b550e9208d7713dd851')"
     ]
   }
 }

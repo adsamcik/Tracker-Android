@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import io.kotest.matchers.shouldBe
@@ -35,6 +36,33 @@ class SourcePolicyDeletionSurvivalTest {
 	@After
 	fun tearDown() {
 		database.close()
+	}
+
+	@Test
+	fun `consent batch lookup returns only exact requested source purpose and epochs`() = runTest {
+		val pressure = SourceDestinationOwnerEntity.SOURCE_PRESSURE
+		val steps = SourceDestinationOwnerEntity.SOURCE_STEPS
+		val dao = database.sourcePolicyDao()
+		dao.insertConsentEpochs(
+			listOf(
+				consent(pressure, "SESSION_CAPTURE", 1L, true, 1L),
+				consent(pressure, "SESSION_CAPTURE", 2L, true, 2L),
+				consent(pressure, "SESSION_CAPTURE_AUX", 1L, true, 1L),
+				consent(steps, "SESSION_CAPTURE", 1L, true, 1L),
+			),
+		)
+
+		val rows = dao.consentEpochs(
+			sourceKind = pressure,
+			purpose = "SESSION_CAPTURE",
+			epochs = listOf(2L, 1L, 2L, 99L),
+		)
+
+		rows.map { it.epoch } shouldBe listOf(1L, 2L)
+		rows.all { row ->
+			row.sourceKind == pressure && row.purpose == "SESSION_CAPTURE"
+		} shouldBe true
+		dao.consentEpochs(pressure, "SESSION", listOf(1L, 2L)) shouldBe emptyList()
 	}
 
 	@Test

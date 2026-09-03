@@ -1674,6 +1674,12 @@ val MIGRATION_27_28: Migration = object : Migration(
 					"logical_fact_id, semantic_revision)",
 			)
 			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_pressure_fact_revision_service_run_scope " +
+					"ON pressure_fact_revision(service_run_id, logical_tracking_id, " +
+					"writer_projection_id, writer_projection_version, logical_fact_id, " +
+					"semantic_revision)",
+			)
+			execSQL(
 				"""
 				CREATE TABLE IF NOT EXISTS legacy_v27_projection_drain (
 					id INTEGER NOT NULL,

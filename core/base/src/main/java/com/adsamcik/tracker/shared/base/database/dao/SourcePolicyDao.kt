@@ -71,6 +71,18 @@ interface SourcePolicyDao {
 	)
 	suspend fun consentEpoch(sourceKind: Int, purpose: String, epoch: Long): SourceConsentEpochEntity?
 
+	/** Exact bounded attribution lookup; callers deduplicate and cap [epochs] before invoking it. */
+	@Query(
+		"SELECT * FROM source_consent_epoch " +
+			"WHERE source_kind = :sourceKind AND purpose = :purpose AND epoch IN (:epochs) " +
+			"ORDER BY epoch",
+	)
+	suspend fun consentEpochs(
+		sourceKind: Int,
+		purpose: String,
+		epochs: List<Long>,
+	): List<SourceConsentEpochEntity>
+
 	@Query(
 		"SELECT * FROM source_consent_epoch " +
 			"WHERE source_kind = :sourceKind AND purpose = :purpose ORDER BY epoch",

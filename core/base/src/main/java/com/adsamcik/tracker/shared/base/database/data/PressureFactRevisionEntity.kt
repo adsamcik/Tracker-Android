@@ -43,6 +43,17 @@ import androidx.room.Index
 			],
 			name = "idx_pressure_fact_revision_latest",
 		),
+		Index(
+			value = [
+				"service_run_id",
+				"logical_tracking_id",
+				"writer_projection_id",
+				"writer_projection_version",
+				"logical_fact_id",
+				"semantic_revision",
+			],
+			name = "idx_pressure_fact_revision_service_run_scope",
+		),
 	],
 )
 @Suppress("LongParameterList")

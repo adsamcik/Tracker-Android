@@ -557,6 +557,18 @@ class AppDatabaseMigration27To28Test {
 		assertTableCount(database, "step_fact_revision", 0)
 		// Legacy pressure_sample rows lack v4 qualification and must never be backfilled.
 		assertTableCount(database, "pressure_fact_revision", 0)
+		assertIndexColumns(
+			database = database,
+			indexName = "idx_pressure_fact_revision_service_run_scope",
+			expected = listOf(
+				"service_run_id",
+				"logical_tracking_id",
+				"writer_projection_id",
+				"writer_projection_version",
+				"logical_fact_id",
+				"semantic_revision",
+			),
+		)
 		assertTableCount(database, "source_deletion_fence", 0)
 		assertTableCount(database, "source_destination_owner", 2)
 		database.query(
@@ -1139,6 +1151,20 @@ class AppDatabaseMigration27To28Test {
 			assertTrue(cursor.moveToFirst())
 			assertEquals(table, expected, cursor.getLong(0))
 		}
+	}
+
+	private fun assertIndexColumns(
+		database: SupportSQLiteDatabase,
+		indexName: String,
+		expected: List<String>,
+	) {
+		val actual = buildList {
+			database.query("PRAGMA index_info('$indexName')").use { cursor ->
+				val nameColumn = cursor.getColumnIndexOrThrow("name")
+				while (cursor.moveToNext()) add(cursor.getString(nameColumn))
+			}
+		}
+		assertEquals(indexName, expected, actual)
 	}
 
 	private fun openProductionDatabase(): AppDatabase = Room.databaseBuilder(

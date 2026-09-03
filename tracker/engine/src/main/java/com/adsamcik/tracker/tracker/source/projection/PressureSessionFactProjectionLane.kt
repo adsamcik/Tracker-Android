@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.SourceEventProjectionEligibilityRow
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
@@ -25,7 +26,6 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import com.adsamcik.tracker.tracker.source.model.SourceQualityFlag
 import com.adsamcik.tracker.tracker.source.model.toStableFlags
-import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -647,59 +647,8 @@ class PressureSessionFactProjectionLane private constructor(
 		val logicalFactId = "$WRITER_ID:${eventId.value}"
 		val mutationId = "$logicalFactId:$SEMANTIC_REVISION"
 		val sourceQualityFlags = evidence.quality.toStableFlags()
-		val effectChecksum = effectChecksum(
-			logicalFactId,
-			SEMANTIC_REVISION,
-			mutationId,
-			eventId.value,
-			admissionOrdinal,
-			WRITER_ID,
-			WRITER_VERSION,
-			lane.bindingGeneration,
-			evidence.payloadVersion,
-			startTimeMs,
-			endTimeMs,
-			payload.windowStartElapsedRealtimeNanos,
-			payload.windowEndElapsedRealtimeNanos,
-			evidence.clockDomainId,
-			uncertaintyMs,
-			payload.sampleCount,
-			payload.meanHectopascals,
-			payload.sumSquaredDeviations,
-			payload.minimumHectopascals,
-			payload.maximumHectopascals,
-			payload.firstProviderSequence,
-			payload.lastProviderSequence,
-			firstHectopascals,
-			lastHectopascals,
-			payload.slopeHectopascalsPerSecond,
-			payload.rSquared,
-			payload.sensorAccuracy.name,
-			effectiveSamplePeriodMicros,
-			effectiveMaximumReportLatencyMicros,
-			targetWindowDurationNanos,
-			expectedSampleCount,
-			maximumInterSampleGapNanos,
-			payload.closureKind.name,
-			qualification.name,
-			sourceQualityFlags,
-			evidence.quality.confidence,
-			logicalTrackingId,
-			serviceRunId,
-			PressureFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
-			manifestRevision,
-			policyRevision,
-			consentEpoch,
-			manifestBinding.outputDestination,
-			manifestBinding.writerOwner,
-			manifestBinding.writerOwnerGeneration,
-			manifestBinding.writerProjectionId,
-			manifestBinding.writerProjectionVersion,
-			manifestBinding.writerBindingGeneration,
-			evidence.capturedCollectedDataEpoch,
-		)
 		return try {
-			PressureFactRevisionEntity(
+			val unsigned = PressureFactRevisionEntity(
 				logicalFactId = logicalFactId,
 				semanticRevision = SEMANTIC_REVISION,
 				mutationId = mutationId,
@@ -743,8 +692,14 @@ class PressureSessionFactProjectionLane private constructor(
 				sourcePolicyRevision = policyRevision,
 				captureConsentEpoch = consentEpoch,
 				collectedDataEpoch = evidence.capturedCollectedDataEpoch,
-				effectChecksum = effectChecksum,
+				effectChecksum = "pending-pressure-effect",
 				appliedAtMs = endTimeMs,
+			)
+			unsigned.copy(
+				effectChecksum = PressureFactRevisionIntegrity.effectChecksum(
+					unsigned,
+					manifestBinding,
+				),
 			)
 		} catch (_: IllegalArgumentException) {
 			poison("PRESSURE_FACT_INVARIANT_MISMATCH")
@@ -828,20 +783,6 @@ class PressureSessionFactProjectionLane private constructor(
 			serviceRunId = serviceRunId,
 		),
 	)
-
-	private fun effectChecksum(vararg values: Any?): String {
-		val canonical = values.joinToString(separator = "") { value ->
-			val text = value?.toString()
-			if (text == null) {
-				"-1:"
-			} else {
-				"${text.length}:$text"
-			}
-		}
-		return MessageDigest.getInstance("SHA-256")
-			.digest(canonical.toByteArray())
-			.joinToString(separator = "") { byte -> "%02x".format(byte) }
-	}
 
 	private fun nowMs(): Long = System.currentTimeMillis().coerceAtLeast(0L)
 
