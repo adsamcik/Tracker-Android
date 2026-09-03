@@ -2693,3 +2693,54 @@ durable portable-origin mapping, no-resurrection round trip, export registry/UI,
 Steps-only provider/listener proof, rendered UI/accessibility, process death, reboot, FGS,
 battery/OEM behavior, retention execution, automatic/ambient Steps, writer activation, rollout,
 push, or release. The v28 schema and candidate writer remain unshipped and inactive.
+
+## Pressure selected-session deletion checkpoint (2026-09-03)
+
+### Outcome
+
+Typed selected-session deletion now covers one exact dormant candidate-owned Pressure-only v28
+scope. The service requires reciprocal physical-run/presentation binding, terminal inactivity, a
+complete immutable manifest chain, exact Pressure `SESSION_CAPTURE` membership, policy and consent
+attribution, capture QoS `1..3`, candidate writer generation, current collected-data epoch, and
+source-local fact integrity. It never uses `QUIESCED`, wall-time overlap, or `sample_count` as
+ownership or deletion authority.
+
+Pressure semantic corrections may form a contiguous same-scope lineage: revision one must exist,
+each later revision increments exactly once, admission ordinals strictly increase, and immutable
+writer/event/logical/run/purpose/epoch attribution cannot change. Cross-scope corrections fail
+closed. All retained revisions are deleted through deterministic exact-cursor 256-row pages inside
+the same Room transaction as the source deletion fence, presentation removal, evidence revision,
+and bounded stored-zone daily-summary repair. Cancellation, mismatched counts, SQLite failure, and
+unverifiable authority roll back; an identical retry is idempotent and delayed replay observes the
+fence.
+
+The real maximal manifest consumer now loads deduplicated consent epochs with one exact capped DAO
+batch per preflight/transaction validation and validates attribution in memory. It does not perform
+per-manifest query fan-out.
+
+### Evidence and boundary
+
+- Before rebase, the corrected focused selection passed `94/94`: Pressure fact DAO `6`, Pressure
+  integrity `2`, policy/deletion survival `2`, selected deletion `21`, and shared day repair `63`.
+  Gradle reported `BUILD SUCCESSFUL in 5m 17s` with all 248 tasks executed. The identical initial
+  sandbox run could not read configured GitHub CLI, Kotlin-cache, or Android SDK paths and reported
+  missing Build Tools 36.0.0; the authorized rerun passed, so that attempt is environment evidence.
+- The first broad gate exposed only Detekt structure/style findings, which were corrected with
+  mandatory braces and narrow annotations around already-reviewed exact validation blocks. The
+  completed pre-rebase static wave passed Detekt, `:core:base:compileDebugAndroidTestKotlin`, both
+  affected lints, and app Hilt compilation; `checkRoomSchemaDrift` then intentionally rejected the
+  dirty generated `28.json`. After exact commits, the drift guard passed in `21s`.
+- Commits `61608800e` and `9592c42d8` were rebased without conflict onto local `6960fb79d`.
+  The forced post-rebase focused selection passed `94/94` in `3m 47s` with 244 tasks executed.
+  Post-rebase Detekt, Android-test compilation, both lints, app Hilt compilation, and Room drift
+  passed in `4m 11s` (615 tasks: 100 executed, 515 up-to-date); lint found no new issue.
+- Fresh review first returned `NO-GO` only for the bounded but prohibited consent point-query
+  fan-out. Exact source/purpose/epoch batch loading plus isolation, multi-consent, missing,
+  ineligible, future-policy, and QoS endpoint tests corrected it. The correction re-review returned
+  `GO` with no blocker, high, or medium finding. Local `dev/v10` fast-forwarded to `9592c42d8`.
+
+This is host/Robolectric/in-memory-Room/static evidence for typed Pressure deletion and correction-
+safe day repair. It does not activate the Pressure writer or prove `RECORDING`, production
+history/query/UI, retention, portable export/import, physical sensor cadence/FIFO/flush, process
+death, reboot, FGS, battery/OEM behavior, rollout, push, or release. Continuous ambient Pressure
+remains outside the default product.

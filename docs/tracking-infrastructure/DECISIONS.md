@@ -2050,3 +2050,34 @@ Each entry records repository evidence and does not duplicate the final architec
   revision bump is justified merely to preserve those non-production rows. This does not authorize
   import, registry/UI exposure, retention/no-resurrection, provider/device behavior, activation,
   rollout, push, or release.
+
+## TI-D140 — Pressure selected deletion requires exact source-local authority
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` at `9592c42d8`; Pressure product query, retention, portable
+  transfer, writer activation, and device proof remain `BLOCKED`
+- Owner/date: Pressure deletion owner after correction-chain review, bounded-query correction,
+  focused and static/schema gates, clean rebase, and local fast-forward, 2026-09-03
+- Alternatives: delete compatibility samples by time overlap; treat presentation quiescence as
+  deletion authority; reject every semantic correction; load an unbounded fact set; query consent
+  once per manifest; reuse the Steps deletion result without Pressure attribution; validate and
+  delete one exact candidate-owned Pressure logical/run scope under source-local fences
+- Evidence: the forced post-rebase DAO/integrity/policy/deletion/day-repair selection passed `94/94`
+  in `3m 47s` with 244 tasks executed. Post-rebase Detekt, Android-test compilation, core and
+  tracker lint, app Hilt compilation, and Room drift passed in `4m 11s` (615 tasks: 100 executed,
+  515 up-to-date). A fresh review found one bounded per-manifest consent-query fan-out; the
+  correction uses one exact capped batch per scope validation, and the re-review returned `GO`
+  with no blocker, high, or medium finding.
+- Decision: deletion is allowed only for an inactive, reciprocally segment-bound, new-v28
+  Pressure-only session whose complete manifest chain, policy, consent, capture QoS `1..3`, writer
+  generation, collected-data epoch, and append-only fact integrity agree. Contiguous same-scope
+  semantic corrections are valid only from revision one with strictly increasing revisions and
+  admission ordinals under immutable lineage. Cross-scope corrections fail closed. The command
+  installs the exact source fence, deletes every revision in deterministic 256-row keyset batches,
+  repairs only bounded stored-zone days, and commits all mutations in one Room transaction.
+- Consequences: cancellation, SQLite failure, mismatched delete counts, active scope, legacy or
+  mixed capture, missing authority, invalid QoS, and unverifiable repair all leave facts,
+  presentation, summaries, and fences unchanged. Retry is idempotent and delayed replay cannot
+  resurrect the deleted scope. `QUIESCED`, sample count, and wall-time overlap are not deletion or
+  source proof. This is host/static evidence for a dormant candidate lane, not Pressure history/UI,
+  retention/export/import, physical sensor cadence/FIFO, process death/reboot/FGS, battery/OEM,
+  activation, rollout, push, or release proof.
