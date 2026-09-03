@@ -6,6 +6,152 @@ This handover is for the next device or Codex session continuing the tracking-in
 program after the local and remote `dev/v10` histories were reconciled. It is an execution
 checkpoint, not a replacement for the architecture or evidence ledgers.
 
+## 2026-09-03 end-of-day two-lane source checkpoint
+
+This is the authoritative restart boundary. It supersedes the earlier 2026-09-03 checkpoints for
+accepted branch state, preserved draft state, current verification, review findings, and restart
+order. Older sections remain historical evidence only.
+
+### Accepted integration and protected state
+
+- Integration worktree: `G:\Github\Tracker-Android\.worktrees\tracking-infra-integration`.
+- Local integration branch: `dev/v10`. Its clean pre-checkpoint parent is exact HEAD
+  `59fb05efeb847d0585b36fd2efbadb25db41ea10` (`docs(tracking): checkpoint parallel
+  continuation`), 86 commits ahead of `origin/dev/v10`. Resolve this documentation checkpoint's
+  own commit with `git rev-parse HEAD`; no self-referential SHA is asserted here.
+- The accepted implementation boundary remains Pressure selected-session deletion through
+  `61608800e`, `9592c42d8`, and its evidence commit `673c4186e`, plus the checkpoint documentation
+  in `59fb05efe`. Neither draft below is accepted, committed, rebased, merged, or published.
+- Both implementation lanes are preserved in their named worktrees at exact base HEAD
+  `a347df9a25e2902b3d9951639f2303e9806f7645`. They are each 13 commits behind the pre-checkpoint
+  parent named above and will be 14 commits behind the resulting documentation checkpoint; both
+  remain zero commits ahead, unstaged, and intentionally dirty. Both pass
+  `git -c core.fsmonitor=false diff --check`.
+- All implementation and review agents completed and stopped. The hung awards Gradle invocation
+  was interrupted with Ctrl+C after a thread dump established the exact wait site. A final
+  `Get-Process -Name java,javaw` returned no process, so the shared Gradle lease is free; recheck
+  it before the next build.
+- Everything remains local-only. No push, release, tag, deployment, feature/source activation,
+  remote flag, destructive or backward-incompatible migration, or external rollout occurred or
+  is authorized here.
+
+The detached root checkout remains at exact HEAD
+`ffd5d372fafafceb7d9d595b95e47b89b949de83` with exactly the same six protected paths and no
+additional changes. Their SHA-256 values were rechecked and remain:
+
+- `DatabaseImport.kt`: `882BAD525CDA927710FD13C1A1DB1DDD11437963BACC2C50313708BB05BB73D4`;
+- `DatabaseImportCollisionTest.kt`:
+  `01C7D5CC62AF43100B6F8A1458F45662BE293B659AEC0F23AD7CAD5F79F1D0F3`;
+- `DatabaseImportTest.kt`: `794B8A4ADAC5B6F387BEF07A58C90805538127A85CC2A0C00266209C985CD9E6`;
+- `TRACKING_INFRASTRUCTURE_FINAL_PLAN_AND_DESIGN.docx`:
+  `F6F46E2ABA5B2E110DD0F994E280C961B3E1315F79D8FB59C60D053BEE3FBF28`;
+- `TRACKING_INFRASTRUCTURE_IMPLEMENTATION_ORCHESTRATOR_PROMPT.md`:
+  `3F77380D36234BCAAD3A193CC2553E8D50F2C0F0D02928232B4CC99BFC7DA332`;
+- `DashboardManualStartDecisionTest.kt`:
+  `E0912B613CD330949D12DAF69268E1A7B9DDE0F9181D0D235839E0CD8F8B7BF6`.
+
+Never alter, stage, commit, clean, reset, or push those six root-checkout paths as part of this
+continuation.
+
+### Preserved lane 1: source-qualified awards, goals, and retained metrics
+
+- Worktree: `G:\Github\Tracker-Android\.worktrees\ti-steps-qualified-awards`; branch
+  `codex/ti-steps-qualified-awards`.
+- Exact state: 55 tracked modifications plus nine untracked files, 64 dirty paths total; tracked
+  diffstat `+4344/-592`; nothing staged; `diff --check` passes.
+- The draft now contains the review-driven corrections for source-qualified retained metrics,
+  goals, achievements, process-exit presentation settlement, revision invalidation, Activity
+  null-admission co-capture, migrated-v27 sentinel isolation, storage retry, subscribed Game
+  invalidation, and active-authority validation. It remains unaccepted pending complete gates and
+  a current-byte final review.
+- The decision-revision singleton defect recorded in the prior checkpoint is corrected: database
+  installation initializes the singleton once, trigger bodies are UPDATE-only, and corrupt or
+  missing post-open singleton state fails closed. `StepsDecisionRevisionTriggersTest` passes
+  `5/5` (`BUILD SUCCESSFUL in 1m 37s`, 79 tasks executed), including ordinary ABORT insert,
+  rollback, repeated `daily_summary INSERT OR REPLACE`, missing-singleton, and corrupt-revision
+  cases.
+- The first corrected five-class tracker run completed 62 tests with 17 failures, all
+  `SOURCE_EVIDENCE_UNAVAILABLE`. This exposed a test-fixture error: production database open now
+  seeds epoch zero, so the fixture's insert-or-ignore did not change it to the requested epoch.
+  The fixture now calls exact lifecycle update after `ensure()`.
+- The two observer regressions then passed in isolation (`2/2`, `BUILD SUCCESSFUL in 6m 55s`, 234
+  tasks executed) after adding the contract-required confirming read before awaiting settlement.
+- The forced full five-class rerun did not complete. After approximately 8m 27s, a read-only
+  `jcmd 41368 Thread.print -l` showed Robolectric's `SDK 34 Main Thread` parked in
+  `RoomStepsNumericSummaryRepositoryRoomTest.startup settlement wakes terminal Steps without
+  another observation or summary write` at line 245, inside `runBlocking`. Ctrl+C ended Gradle
+  with exit 1. Because the same regression passes in the isolated pair, treat this as a test-order,
+  leaked-observer, or shared-fixture/lifecycle defect; do not claim the five-class gate green.
+- The next awards action is to reproduce the parked test in incrementally larger ordered
+  selections, inspect observer/database teardown and settlement acknowledgement, and add a bounded
+  timeout only as a diagnostic—not as a semantic substitute. Then rerun the exact five-class
+  cohort before app, Game, stats, Detekt, lint, Hilt, schema, staging, or review gates.
+
+The exact full cohort is:
+
+1. `PriorProcessPresentationReconcilerTest`;
+2. `PreviousExitRecoveryCoordinatorTest`;
+3. `PreviousExitSourceSessionFinalizerTest`;
+4. `ForceStopSourceSessionFinalizerTest`;
+5. `RoomStepsNumericSummaryRepositoryRoomTest`.
+
+Run with `--no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false'
+'-Dorg.gradle.vfs.watch=false' --no-configuration-cache --rerun-tasks` and the repository-owned
+credentials seam. Keep one global Gradle invocation at a time.
+
+### Preserved lane 2: portable Steps importer, composition, and no-resurrection
+
+- Worktree: `G:\Github\Tracker-Android\.worktrees\ti-steps-portable-import`; branch
+  `codex/ti-steps-portable-import`.
+- Exact state: 37 tracked modifications plus 16 untracked files, 53 dirty paths total; tracked
+  diffstat `+2669/-164`; nothing staged; `diff --check` passes. The three protected root
+  `DatabaseImport` paths are untouched in this worktree.
+- The lane remains bounded to portable Steps format/codec, inert imported origin/run/manifest/fact
+  authority, one-transaction Room import, imported product/history/numeric composition, exact
+  selected deletion, correction-safe day repair, retention, and no-resurrection. It creates no
+  provider demand, live session, policy, canonical writer, or capture authority.
+- All four findings from the prior NO-GO review are source-corrected with focused regressions:
+  `PORTABLE_IMPORT` has a truthful Trip Detail mapping and exhaustive enum coverage; imported
+  deletion uses an exact 372-key-bounded summary lookup and full candidate-window conflict
+  closure; both retention workers immediately transition crossing imported entries and publish
+  one evidence revision even with a pre-synchronized floor plus pending WAL; and imported
+  retention advances forward-only from `ACTIVE` through `RETENTION_CROSSED` to `RETAINED_OUT`.
+- Additional calendar hardening preserves immutable persisted-authority windows, independently
+  resolves candidate keys, rejects cross-key physical aliases, permits deterministic same-key
+  aliases, rejects skipped Apia civil days with a typed zero-mutation result, and covers sparse and
+  UTC/Honolulu spans plus post-lock concurrency. The final nested static review returned GO and
+  found no remaining blocker in the frozen source.
+- No Gradle command ran after these corrections because the awards cohort owned the sole build
+  lease. Consequently the earlier `58/58` result is not evidence for these current bytes. Runtime,
+  Room, production compilation, schema identity, Detekt, lint, Hilt, and final current-byte review
+  all remain pending; do not stage, commit, rebase, or merge this lane before them.
+- The next importer action, after the awards diagnostic releases the lease, is the complete
+  current-byte focused importer/history/deletion/repair/retention cohort plus affected production
+  compilation. Parse exact XML counts, then run proportional static and Room-schema gates and one
+  fresh full-diff review. Rebase only after the awards lane is accepted because both touch v28 and
+  shared Steps composition; reconcile the accepted Room exporter and prove imported-authority
+  re-export plus native same-database dedup/global-authority race behavior before local merge.
+
+### Exact restart order
+
+1. Repeat the mandatory read-only startup checks and full tracking-document read. Verify this
+   checkpoint HEAD, the two exact dirty-lane counts, root HEAD and all six protected hashes, and
+   the absence of another Gradle owner.
+2. Keep both lanes frozen. Diagnose and close the awards order-dependent hang first; do not weaken
+   the production settlement contract or replace evidence with a timeout.
+3. Serialize the importer current-byte focused gate after the awards invocation releases Gradle.
+   Source is static-review GO but has no post-correction runtime evidence.
+4. Complete each lane's focused, Detekt, lint, Hilt, Room-schema, and fresh-review gates; form exact
+   dependency-ordered commits only from green coherent chunks. Rebase each completed branch onto
+   latest local `dev/v10`, force proportional post-rebase gates, and merge locally only after GO.
+5. Run `ciUnitTest` at the next combined integration gate and `ciCheck --continue` only at
+   integration readiness. The physical manual Steps-only gate remains open until a real device
+   exposes `TYPE_STEP_COUNTER` and an operator can walk it.
+6. Continue the remaining source-local program only after these Steps lanes converge: automatic
+   Steps with explicit control separation; default-off ambient Steps; Pressure history/product,
+   retention, and transfer; protected Location; then Activity, Wi-Fi, and Cell as independent
+   source-to-product verticals.
+
 ## 2026-09-03 Pressure accepted and parallel drafts stopped checkpoint
 
 This is the authoritative restart boundary. It supersedes the earlier 2026-09-03 checkpoints for
