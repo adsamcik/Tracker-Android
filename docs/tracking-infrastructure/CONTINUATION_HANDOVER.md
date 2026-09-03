@@ -1,16 +1,195 @@
 # Tracking Infrastructure Continuation Handover
 
-Last updated: 2026-09-02
+Last updated: 2026-09-03
 
 This handover is for the next device or Codex session continuing the tracking-infrastructure
 program after the local and remote `dev/v10` histories were reconciled. It is an execution
 checkpoint, not a replacement for the architecture or evidence ledgers.
 
+## 2026-09-03 end-of-day checkpoint
+
+This is the authoritative local restart boundary. It supersedes the 2026-09-02 parallel-work
+checkpoint for current branch tips, dirty state, verification, review findings, and restart order.
+The older sections remain durable design and historical evidence.
+
+### Accepted integration and stop state
+
+- Integration worktree: `G:\Github\Tracker-Android\.worktrees\tracking-infra-integration`.
+- Local integration branch: `dev/v10`. Its clean pre-checkpoint parent is exact HEAD
+  `8c502b251889a605a1053461b7e51e856fe1593a` (`docs(tracking): checkpoint parallel
+  continuation`), 74 commits ahead of `origin/dev/v10`. Resolve the documentation checkpoint
+  itself with `git rev-parse HEAD`; no self-referential commit SHA is asserted here.
+- No implementation branch described below was staged, committed, rebased, or merged during this
+  stop operation. The last accepted product code remains the source-qualified Steps numeric
+  presentation work and dormant append-only Pressure fact lane already recorded below.
+- All implementation agents were stopped after returning their checkpoint/review results. No new
+  Gradle run was started for the stop operation. A process snapshot showed no visible `java` or
+  `javaw` process; process-command-line enumeration was denied, so tomorrow must still perform the
+  ordinary single-Gradle-lease check before running a build.
+- Every preserved implementation worktree and the integration worktree passed
+  `git -c core.fsmonitor=false diff --check`. Plain Git may emit the known fsmonitor daemon error;
+  keep the explicit `-c core.fsmonitor=false` override for authoritative checks.
+- Everything remains local-only. No push, release, tag, deployment, source activation, remote flag,
+  destructive migration, or external rollout occurred or is authorized by this checkpoint.
+
+The detached root checkout remains at exact HEAD
+`ffd5d372fafafceb7d9d595b95e47b89b949de83` with exactly the six protected paths and no additional
+changes. Their SHA-256 values were rechecked on 2026-09-03 and remain byte-for-byte identical:
+
+- `DatabaseImport.kt`: `882BAD525CDA927710FD13C1A1DB1DDD11437963BACC2C50313708BB05BB73D4`;
+- `DatabaseImportCollisionTest.kt`:
+  `01C7D5CC62AF43100B6F8A1458F45662BE293B659AEC0F23AD7CAD5F79F1D0F3`;
+- `DatabaseImportTest.kt`: `794B8A4ADAC5B6F387BEF07A58C90805538127A85CC2A0C00266209C985CD9E6`;
+- `TRACKING_INFRASTRUCTURE_FINAL_PLAN_AND_DESIGN.docx`:
+  `F6F46E2ABA5B2E110DD0F994E280C961B3E1315F79D8FB59C60D053BEE3FBF28`;
+- `TRACKING_INFRASTRUCTURE_IMPLEMENTATION_ORCHESTRATOR_PROMPT.md`:
+  `3F77380D36234BCAAD3A193CC2553E8D50F2C0F0D02928232B4CC99BFC7DA332`;
+- `DashboardManualStartDecisionTest.kt`:
+  `E0912B613CD330949D12DAF69268E1A7B9DDE0F9181D0D235839E0CD8F8B7BF6`.
+
+Never alter, stage, commit, clean, reset, or push those six root-checkout paths as part of this
+continuation.
+
+### Preserved implementation lanes
+
+All four lanes are intentionally dirty, unstaged, and restartable. Do not discard, clean, reset,
+overwrite, or treat their existence as accepted implementation.
+
+#### 1. Portable Steps exporter correction — fresh review NO-GO
+
+- Worktree: `G:\Github\Tracker-Android\.worktrees\ti-steps-portable-export`.
+- Branch/HEAD: `codex/ti-steps-portable-export` at
+  `34bc50522fb0c5321e832529dfbfd01b6d2e7a7a`.
+- Branch relation at the stop boundary: 11 commits behind and 2 commits ahead of local `dev/v10`.
+- Dirty paths are exactly `TrackingHistoryReadDao.kt`, `PortableStepsRoomReader.kt`, and
+  `RoomExportPortableStepsTest.kt`.
+- Current focused evidence is 30/30 `RoomExportPortableStepsTest` and 14/14
+  `StepFactRevisionDaoTest`, followed by green root Detekt plus `:stats:data:lintDebug`, and green
+  `:app:hiltJavaCompileDebug checkRoomSchemaDrift`. Those results are host/static/schema evidence,
+  not device or round-trip proof.
+- A fresh static adversarial review nevertheless returned NO-GO with two HIGH findings:
+  1. Fact membership follows the globally latest UPSERT, but the export read scopes latest state and
+     revision history inside selected runs. A fact first written in selected run R1 and later moved
+     by correction to unselected run R2 can silently disappear from R1's export and evade the
+     per-run correction bound.
+  2. The exporter does not validate the retained `effect_checksum` over immutable fact semantics
+     before calculating a new portable checksum. A raw mutation such as changed
+     `wall_time_uncertainty_ms` with the old checksum could be laundered into a newly signed portable
+     fact.
+- Required tests before another review: selected R1 revision followed by globally latest unselected
+  R2 correction (including a bounded-lineage/correction-cap variant), and raw-SQL mutation of a
+  writer-checksummed field with unchanged `effect_checksum`. Both must emit nothing and fail closed.
+- The reviewer otherwise accepted the source-local candidate traversal, reverse binding,
+  executable-lane authority, strict retention edge, nullable/repeated completeness high-water,
+  cancellation/pre-emission snapshot, absence of `sampleCount` inference, and absence of provider
+  demand. Do not commit or merge until the two HIGH findings are corrected, tests pass, and a fresh
+  reviewer returns GO.
+
+#### 2. Portable Steps importer storage seam — uncompiled draft
+
+- Worktree: `G:\Github\Tracker-Android\.worktrees\ti-steps-portable-import`.
+- Branch/HEAD: `codex/ti-steps-portable-import` at
+  `a347df9a25e2902b3d9951639f2303e9806f7645`, one documentation commit behind local `dev/v10`.
+- Eight tracked modifications plus four untracked files add the v28 `portable_steps_origin`
+  replay/no-resurrection map, DAO/migration coverage, run checksum, inert import writer identity,
+  portable fact shape, and focused tests. `RoomImportPortableSteps` does not yet exist.
+- The only attempted test command failed during Gradle task selection in 15 seconds because
+  `:stats:api:androidHostTest` is not a task. No importer source compiled and no importer test ran.
+  The fixed-vector run checksum expected by the new test was independently reproduced as
+  `sha256:9bf73383055d5ef121498101721c812d6802c79da4cb24f0bdbcc369ad77e7f8`, but Kotlin has not
+  verified it.
+- Tomorrow first inspect `:stats:api:tasks --all` and select the actual Android-host test task.
+  Then run the portable-format test plus `PortableStepsOriginDaoTest`,
+  `PortableStepFactRevisionEntityTest`, and `LegacyV26ImportTest`; inspect any generated v28 schema
+  diff before proceeding.
+- Do not fabricate local provider policy, QoS, acquisition plan, boot/elapsed clock, or a product
+  projection lane for imported facts. Do not touch the protected legacy `DatabaseImport` bridge.
+
+#### 3. Source-qualified awards/goals/retained metrics — post-review draft
+
+- Worktree: `G:\Github\Tracker-Android\.worktrees\ti-steps-qualified-awards`.
+- Branch/HEAD: `codex/ti-steps-qualified-awards` at
+  `a347df9a25e2902b3d9951639f2303e9806f7645`, one documentation commit behind local `dev/v10`.
+- The tree has 24 tracked modifications and three untracked files, confined to `:core:base`,
+  `:stats:api`, `:stats:data`, `:stats:engine`, `:tracker:engine`, and `:feature:game`. Exact paths are
+  visible in `git status --short`; do not stage a subset before the semantic blockers below are
+  resolved.
+- Accepted draft semantics so far: retained lifetime/best-day reads use source-qualified facts with
+  bounded 370-day authority batches and 256-row fact paging; verified zero remains distinct from
+  unavailable; raw streaming Steps is removed from achievement metrics; `GoalTracker` accepts only
+  typed `Ready`. A materializing Steps metric now carries safe non-Steps `availableMetrics` plus
+  exact `blockedMetrics`, allowing unrelated achievements to persist while affected instances retry.
+  PERFECT_WEEKS and GOAL_STREAK_DAYS were removed from provider output because legacy GOAL XP rows
+  are not qualified, correction-safe Steps provenance; those rows are preserved, not relabelled.
+- The earlier 825-test green focused gate covered the pre-review bytes only. Review corrections were
+  made afterward, so current-byte evidence is only `git diff --check`; do not cite the historical
+  gate as current verification.
+- Four blocking findings remain, in restart order:
+  1. Discover qualified run/fact days without a `daily_summary`; otherwise a newer source-only day
+     can leave a stale retained `Ready` value.
+  2. Fence suspended `GoalTracker` reads against exact settings and daily/weekly calendar authority.
+  3. Unify locale-week reads with ISO persisted-report identity, including Sunday/year boundaries
+     and compatible fail-closed legacy handling.
+  4. Design durable correction/deletion-aware qualified goal-day, zone, and configuration provenance
+     before re-enabling PERFECT_WEEKS or GOAL_STREAK_DAYS; never relabel generic GOAL XP rows.
+- Cancellation propagation, current paging bounds, and missing-versus-verified-zero behavior passed
+  static review. Session XP (`trip.steps ?: 0`), `PointsWorker` raw trip Steps, and the presently
+  unused raw `DefaultWindowedMetricsProvider` remain explicit later audit items.
+
+#### 4. Typed selected-session Pressure deletion — compile-blocked draft
+
+- Worktree: `G:\Github\Tracker-Android\.worktrees\ti-pressure-deletion`.
+- Branch/HEAD: `codex/ti-pressure-deletion` at
+  `a347df9a25e2902b3d9951639f2303e9806f7645`, one documentation commit behind local `dev/v10`.
+- Seven dirty paths hold the typed API, bounded Pressure fact-scope DAO, exact transactional
+  delete/fence, source-aware day repair, Hilt binding, and focused service tests. The tests include
+  isolated control-only and mixed-capture missing-segment fail-closed cases plus a SQLite mutation
+  failure proving rollback and successful retry.
+- Production code compiled and `PressureFactRevisionDaoTest` passed 5/5. Tracker test compilation
+  stopped before execution on seven Kotlin warning-as-error intersection-type assertions in
+  `RoomPressureSelectedSessionDeletionServiceTest.kt` at lines 1021, 1025, 1035, 1043, 1100, 1116,
+  and 1126. No post-failure assertion edit was made.
+- Tomorrow change only those calls to explicit `arrayOf<Any>(...)`, run `diff --check`, then under
+  the shared Gradle lease run:
+
+  ```powershell
+  .\gradlew.bat :tracker:engine:testDebugUnitTest `
+    --tests "*RoomPressureSelectedSessionDeletionServiceTest" `
+    --no-parallel --max-workers=1 -Dorg.gradle.vfs.watch=false
+  ```
+
+- Preserve exact reverse binding, immutable manifest/policy/consent/fact authority, fence-before-
+  delete, and transaction rollback. Never use `QUIESCED`, wall-time overlap, or a generic tombstone
+  platform as ownership/deletion authority.
+
+No Pressure history/product worktree exists. Do not create it until the portable-export DAO overlap
+has been corrected, accepted, rebased, and merged.
+
+### Exact restart sequence
+
+1. Read applicable `AGENTS.md` and the tracking documents in their mandated order. Re-run
+   `status --short --branch`, `rev-parse HEAD`, recent log, and `diff --check` in integration, root,
+   and all four lanes; recheck the six protected hashes. Confirm no Gradle wrapper build is active.
+2. Fix and re-review the two exporter HIGH findings first. After focused/static/schema gates, stage
+   only its three reviewed paths, run cached diff-check, commit with the configured `adsamcik`
+   identity, rebase onto latest local `dev/v10`, rerun forced relevant gates, and merge locally with
+   `--ff-only`. Update the decision/status/verification ledgers in a separate accepted-doc commit.
+3. In parallel, resume Pressure deletion with only the seven assertion type fixes and its focused
+   gate; resume awards with source-only day discovery before the other three semantic blockers; and
+   discover the importer's real host-test task before changing importer code. Serialize all Gradle
+   invocations globally.
+4. Do not commit/rebase/merge any lane merely to make it clean. Require focused behavior tests,
+   proportional static/Hilt/schema evidence, fresh review at the storage/product boundary, exact
+   staging, and `git diff --cached --check` for every coherent accepted chunk.
+5. Only after the existing overlapping lanes converge may Pressure history/product start. Then
+   continue Pressure, protected Location, Activity, Wi-Fi, and Cell as independent thin verticals;
+   preserve the rollout and device-evidence boundaries below.
+
 ## 2026-09-02 local parallel-work checkpoint
 
-This section is the authoritative restart boundary for the next local session. Older historical
-sections below remain useful evidence, but their statements about the then-current branch tip and
-next task are superseded by this checkpoint.
+This section was the authoritative restart boundary on 2026-09-02. It is retained as historical
+evidence, but its statements about the then-current branch tip, verification, and next task are
+superseded by the 2026-09-03 checkpoint above.
 
 ### Accepted integration state
 
