@@ -2649,3 +2649,47 @@ or UI, selected-session deletion, correction/day repair, retention, portable exp
 automatic Pressure, physical sensor cadence/FIFO/flush behavior, process death, reboot, FGS,
 battery/OEM behavior, rollout, push, or release. Continuous ambient Pressure remains outside the
 default product.
+
+## Portable Steps Room-export checkpoint (2026-09-03)
+
+### Outcome
+
+The frozen portable Steps v1 contract now has a production Room-backed exporter for one exact
+candidate-owned logical tracking entry. Export validates the reciprocal service-run/segment
+binding, complete immutable manifest/policy/consent/purpose/writer/deletion authority, replacement-
+run membership, settlement, retained floors, and every latest fact before the first sink emission.
+Historical correction lineage is loaded globally by writer/version/fact identity rather than only
+from the selected service run, so a later correction moved to another run cannot be omitted. Each
+historical UPSERT counts against the selected run's correction bound, and any off-scope UPSERT
+fails closed.
+
+Canonical live facts now carry a versioned integrity digest over every retained field except the
+digest itself. The writer creates that digest and the exporter verifies it before computing the
+portable checksum. The portable time envelope conservatively spans both lifecycle and presentation
+timestamps, which preserves delayed segment presentation without weakening exact physical-run
+ownership. The export remains a bounded point-in-time snapshot and emits nothing until all
+authority, lineage, checksums, limits, and cancellation checks pass.
+
+### Evidence and boundary
+
+- After rebasing onto local `dev/v10`, forced focused tests passed `67/67`: Steps fact DAO `15`,
+  retained-fact integrity `1`, canonical writer/projection `17`, and production Room export `34`.
+  The corresponding Gradle runs were `BUILD SUCCESSFUL` in `1m 19s` (75 tasks), `4m 28s`
+  (230 tasks), and `1m 54s` (205 tasks), with every listed task executed.
+- The post-rebase `detekt :stats:data:lintDebug :app:hiltJavaCompileDebug checkRoomSchemaDrift`
+  gate passed in `2m 46s` (571 tasks: 98 executed, 6 from cache, 467 up-to-date). Lint found no new
+  issue; Hilt compilation and the Room schema guard passed.
+- One restricted-sandbox attempt could not read the configured GitHub CLI, Kotlin cache, or Android
+  SDK and reported missing Build Tools 36.0.0. The identical authorized host-access rerun passed;
+  this is environment evidence, not a source failure.
+- Fresh review first found a lifecycle/presentation timestamp-envelope defect and incomplete
+  checksum-mutation coverage. Both were corrected; a second read-only review returned `GO` with no
+  blocker, high, or medium finding. Commits `fd32fab2b`, `d9771257e`, `47f594f09`, and `6202d16a8`
+  use the configured `adsamcik` identity and were fast-forwarded into local `dev/v10`. Nothing was
+  pushed, activated, released, tagged, or deployed.
+
+This is host/Robolectric/in-memory-Room/static export evidence. It does not provide the importer,
+durable portable-origin mapping, no-resurrection round trip, export registry/UI, connected manual
+Steps-only provider/listener proof, rendered UI/accessibility, process death, reboot, FGS,
+battery/OEM behavior, retention execution, automatic/ambient Steps, writer activation, rollout,
+push, or release. The v28 schema and candidate writer remain unshipped and inactive.

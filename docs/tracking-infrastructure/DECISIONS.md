@@ -2021,3 +2021,32 @@ Each entry records repository evidence and does not duplicate the final architec
   correction/day repair, retention, portable import/export, device behavior, and activation remain
   independent gates. Standard-atmosphere altitude is not approved as calibrated elevation, and
   continuous ambient Pressure remains off.
+
+## TI-D139 — Portable Steps export validates a complete Room snapshot before emission
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` at `6202d16a8`; portable import and no-resurrection remain
+  `BLOCKED`
+- Owner/date: portable Steps export owner after corrected adversarial review, forced focused tests,
+  post-rebase static/schema gates, and local fast-forward, 2026-09-03
+- Alternatives: export only presentation rows; trust selected-run-local correction history; infer
+  ownership from timestamps; stream while validation is incomplete; preserve a partial live-fact
+  checksum; validate the complete bounded Room snapshot and exact immutable authority before the
+  first byte is emitted
+- Evidence: the rebased DAO/integrity/writer/export selection passed `67/67`. Detekt, stats-data
+  lint, app Hilt compilation, and Room drift passed. The initial review found and the correction
+  closed one lifecycle/presentation envelope defect and one integrity-coverage gap; the final
+  read-only review returned `GO` with no blocker, high, or medium finding.
+- Decision: one portable entry is assembled only from reciprocally bound candidate-owned physical
+  runs with complete immutable capture and writer authority. Replacement runs retain exact internal
+  ownership while exporting under one logical entry. Fact lineage is global by writer/version/fact
+  identity and every historical UPSERT consumes the selected run's correction budget; off-scope
+  lineage fails closed. Canonical LIVE_WAL facts use a versioned digest over all retained fields,
+  which is revalidated before portable signing. The export envelope covers both lifecycle and
+  presentation time without using time as ownership.
+- Consequences: a delayed presentation segment and a correction attributed to a later physical run
+  cannot silently disappear from a valid export, and corrupt retained live facts cannot be
+  re-signed as portable data. Earlier dormant-development rows produced with the narrower digest
+  may now fail closed; v28 and the candidate lane have not shipped or activated, so no semantic
+  revision bump is justified merely to preserve those non-production rows. This does not authorize
+  import, registry/UI exposure, retention/no-resurrection, provider/device behavior, activation,
+  rollout, push, or release.
