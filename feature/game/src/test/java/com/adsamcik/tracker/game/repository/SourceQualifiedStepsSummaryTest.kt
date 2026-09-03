@@ -20,6 +20,7 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.toList
@@ -266,6 +267,10 @@ class SourceQualifiedStepsSummaryTest {
 private class FakeStepsNumericSummaryRepository(
 	private val reader: suspend (StepsNumericSummaryRequest) -> StepsNumericSummary,
 ) : StepsNumericSummaryRepository {
+	override fun observe(request: StepsNumericSummaryRequest): Flow<StepsNumericSummary> = flow {
+		emit(read(request))
+	}
+
 	override suspend fun read(request: StepsNumericSummaryRequest): StepsNumericSummary = reader(request)
 }
 

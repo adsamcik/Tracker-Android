@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.summary
 
 import android.app.Application
+import app.cash.turbine.test
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
@@ -128,6 +129,30 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 			listOf(StepsNumericDay(epochDay = DAY, steps = 0L)),
 		)
 	}
+
+	@Test
+	fun `observation refreshes when terminal presentation settles without a daily summary write`() =
+		runBlocking<Unit> {
+			insertCoveredCandidate(
+				stepsPerFact = 5L,
+				presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
+			)
+			val run = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID))
+
+			repository.observe(request()).test {
+				awaitItem() shouldBe StepsNumericSummary.Materializing
+				database.sourceSessionDao().acknowledgePresentationQuiescedExact(
+					logicalTrackingId = LOGICAL_ID,
+					serviceRunId = RUN_ID,
+					sessionSegmentId = requireNotNull(run.sessionSegmentId),
+					acknowledgedAtMs = DAY_START + HOUR_MS + 1L,
+				) shouldBe 1
+				awaitItem() shouldBe StepsNumericSummary.Ready(
+					listOf(StepsNumericDay(epochDay = DAY, steps = 5L)),
+				)
+				cancelAndIgnoreRemainingEvents()
+			}
+		}
 
 	@Test
 	fun `terminal session with more than 2048 covered facts remains Ready`() = runBlocking<Unit> {
@@ -266,6 +291,7 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 		wallTimeUncertaintyMs: Long = 0L,
 		factCount: Int = 1,
 		stepsPerFact: Long = 0L,
+		presentationAcknowledgement: String = SourceServiceRunEntity.PRESENTATION_QUIESCED,
 	) {
 		require(factCount > 0)
 		require(stepsPerFact >= 0L)
@@ -369,8 +395,14 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 				startIsUserInitiated = true,
 				startIsAmbient = false,
 				sessionSegmentId = segmentId,
-				presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_QUIESCED,
-				presentationAcknowledgedAtMs = DAY_START + HOUR_MS,
+				presentationAcknowledgement = presentationAcknowledgement,
+				presentationAcknowledgedAtMs = if (
+					presentationAcknowledgement == SourceServiceRunEntity.PRESENTATION_QUIESCED
+				) {
+					DAY_START + HOUR_MS
+				} else {
+					null
+				},
 			),
 		)
 		val source = SessionManifestSourceEntity(

@@ -23,6 +23,11 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
 /** Room-backed, read-only Steps totals for completeness-sensitive product decisions. */
@@ -31,6 +36,21 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 	private val database: AppDatabase,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : StepsNumericSummaryRepository {
+	override fun observe(request: StepsNumericSummaryRequest): Flow<StepsNumericSummary> =
+		database.invalidationTracker.createFlow(
+			*NUMERIC_SUMMARY_DEPENDENCY_TABLES,
+			emitInitialState = true,
+		)
+			.conflate()
+			.map { read(request) }
+			.catch { failure ->
+				if (failure is CancellationException) {
+					throw failure
+				}
+				emit(storageUnavailable())
+			}
+			.distinctUntilChanged()
+
 	override suspend fun read(request: StepsNumericSummaryRequest): StepsNumericSummary =
 		withContext(ioDispatcher) {
 			try {
@@ -96,6 +116,23 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 	private fun storageUnavailable() = StepsNumericSummary.Unverifiable(
 		StepsNumericUnverifiableReason.STORAGE_UNAVAILABLE,
 	)
+
+	private companion object {
+		val NUMERIC_SUMMARY_DEPENDENCY_TABLES = arrayOf(
+			"daily_summary",
+			"logical_tracking_session",
+			"source_service_run",
+			"session_manifest_version",
+			"session_manifest_source",
+			"source_session_completeness",
+			"source_product_projection_lane",
+			"source_projection_failure",
+			"source_evidence_state",
+			"source_deletion_fence",
+			"step_fact_revision",
+			"session_segment",
+		)
+	}
 }
 
 internal fun StepsDayRepairPreflight.toNumericSummary(

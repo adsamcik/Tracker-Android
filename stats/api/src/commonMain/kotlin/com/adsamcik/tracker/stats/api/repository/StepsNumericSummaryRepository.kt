@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.stats.api.repository
 
+import kotlinx.coroutines.flow.Flow
+
 /**
  * Read-only, source-qualified Steps totals for decision-making product consumers.
  *
@@ -13,6 +15,15 @@ package com.adsamcik.tracker.stats.api.repository
 interface StepsNumericSummaryRepository {
 	/** Reads one coherent durable snapshot for [request]. */
 	suspend fun read(request: StepsNumericSummaryRequest): StepsNumericSummary
+
+	/**
+	 * Observes coherent snapshots for [request] while the caller is subscribed.
+	 *
+	 * Implementations must invalidate for every durable dependency that can change qualification,
+	 * not only for the derived daily summary. This remains a read-only product operation and must
+	 * never repair storage or acquire a provider demand.
+	 */
+	fun observe(request: StepsNumericSummaryRequest): Flow<StepsNumericSummary>
 }
 
 /** One bounded inclusive range of structural calendar days. */
