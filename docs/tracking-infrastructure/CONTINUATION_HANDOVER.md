@@ -15,9 +15,10 @@ verification, and restart order. Older sections remain historical evidence only.
 ### Accepted integration state
 
 - Integration worktree: `G:\Github\Tracker-Android\.worktrees\tracking-infra-integration`.
-- Local integration branch: clean `dev/v10` at exact HEAD
+- Local integration branch: `dev/v10`. Its clean pre-checkpoint parent is exact HEAD
   `e8d514f3f2a94d3576e18db0ee9fdc68194b3c03` (`docs(tracking): record portable Steps Room
-  export`), 80 commits ahead of `origin/dev/v10`.
+  export`), 80 commits ahead of `origin/dev/v10`. Resolve the documentation checkpoint itself with
+  `git rev-parse HEAD`; no self-referential commit SHA is asserted here.
 - The portable Steps Room export slice is accepted in commits `fd32fab2b`, `d9771257e`,
   `47f594f09`, and `6202d16a8`; decision/status/verification evidence is recorded by
   `e8d514f3f`. The merged exporter worktree and local branch were removed.
