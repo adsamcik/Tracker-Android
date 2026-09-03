@@ -6,6 +6,106 @@ This handover is for the next device or Codex session continuing the tracking-in
 program after the local and remote `dev/v10` histories were reconciled. It is an execution
 checkpoint, not a replacement for the architecture or evidence ledgers.
 
+## 2026-09-03 shutdown checkpoint: parallel lanes frozen for tomorrow
+
+This is the authoritative restart boundary. It supersedes the checkpoint immediately below for
+current branch, worktree, device, and blocker state. No implementation byte changed while this
+shutdown checkpoint was prepared.
+
+### Exact durable state
+
+- Integration worktree: `G:\Github\Tracker-Android\.worktrees\tracking-infra-integration`, local
+  branch `dev/v10`. It was clean at exact parent HEAD
+  `9d3a33aeefc9351e669dd86a645a4b8cefb10b9a`, 93 commits ahead of the unchanged
+  `origin/dev/v10` tracking ref. This handover-only commit is its sole successor; resolve the
+  resulting documentation HEAD with `git rev-parse HEAD`. Nothing was pushed.
+- The accepted implementation boundary is unchanged: regression repair through `33e0eb71d` and
+  `711af5cd0`, with exact verification and review evidence recorded by `9d3a33aee`. No draft lane
+  below was staged, committed, rebased, merged, or cleaned during shutdown.
+- The detached protected root checkout remains exact HEAD
+  `ffd5d372fafafceb7d9d595b95e47b89b949de83`, with exactly the same six protected dirty paths,
+  nothing staged, and all six SHA-256 values unchanged from the checkpoint below. Never alter,
+  stage, commit, clean, reset, or push those paths as part of this continuation.
+- Live/UI worktree: `G:\Github\Tracker-Android\.worktrees\ti-steps-live-consumer-truth`, branch
+  `codex/ti-steps-live-consumer-truth`, HEAD
+  `ee21d6615894319d79c4f395441d305520bf55a9`. Relative to the exact integration parent it is zero
+  ahead and four behind; this handover commit adds one documentation-only commit of drift. It has
+  54 tracked modifications, no untracked or staged paths, tracked diffstat `+203/-50`, and clean
+  `git diff --check`. None of its dirty paths overlaps the four newer integration commits.
+- Awards worktree: `G:\Github\Tracker-Android\.worktrees\ti-steps-qualified-awards`, branch
+  `codex/ti-steps-qualified-awards`, HEAD
+  `a347df9a25e2902b3d9951639f2303e9806f7645`. Relative to the exact integration parent it is zero
+  ahead and 20 behind; this handover commit adds one documentation-only commit of drift. It has 61
+  tracked modifications plus 14 untracked files, no staged paths, tracked diffstat `+5700/-640`,
+  and clean `git diff --check`.
+- Importer worktree: `G:\Github\Tracker-Android\.worktrees\ti-steps-portable-import`, branch
+  `codex/ti-steps-portable-import`, at the same exact HEAD and ancestry as the awards worktree. It
+  has 37 tracked modifications plus 16 actual untracked files, no staged paths, tracked diffstat
+  `+2669/-164`, and clean `git diff --check`. Plain porcelain status may show 15 untracked entries
+  because it collapses the two files below the untracked `source/importer/` directory; `-uall` and
+  `git ls-files --others --exclude-standard` confirm 16 files and 53 dirty files total.
+- Two clean, dormant tracking worktrees contain no unmerged branch commit or dirty path:
+  `ti-steps-numeric-consumers` / `codex/ti-steps-numeric-consumers` at
+  `3e727f255062cd328bf45a53dcc39910239a034e` is zero ahead and 26 behind the exact integration
+  parent; `ti-pressure-session-facts` / `codex/ti-pressure-session-facts` at
+  `db2a460a300bf48d3eeace5904b4a32f64967d59` is zero ahead and 21 behind. This handover commit adds
+  one documentation-only commit of drift. They are not active parallel lanes; do not assign work
+  from their stale checkouts. Inspect and remove them only as a deliberate later cleanup.
+- No `java` or `javaw` process remained after the freeze. `adb devices -l` reported no attached
+  Android device. The SDK lists one `Medium_Phone` AVD, but an emulator without proven
+  `TYPE_STEP_COUNTER` input and operator walking cannot satisfy the physical Steps-only gate.
+
+### Frozen-lane acceptance boundaries
+
+- **Live/UI:** the preserved draft removes hardware capability as capture proof, keeps positive
+  legacy Steps as an observed lower bound, renders ambiguous nonpositive Steps unavailable or
+  hidden, and adds localized accessibility truth across the existing surfaces. It has prior green
+  host/static evidence, but its focused tests, Detekt, and affected lint must be repeated after
+  manually reconciling current `dev/v10`. Rendered layout, TalkBack, and translation quality remain
+  device/manual evidence gaps. The weekly Statistics total still needs convergence with qualified
+  numeric facts.
+- **Awards/integrity:** `StepsSegmentHistorySelector` still needs canonical
+  `StepFactRevisionIntegrity` validation, a distinct internal integrity failure mapped to the
+  existing public `HISTORY_INTEGRITY_FAILED`, and tamper coverage through direct selection,
+  selected-session observation, and recent-list suppression. Its fixture rows must be canonically
+  signed. The composer suite contains 12 semantic SQL mutations plus one checksum mutation; keep
+  the checksum case and re-sign each of the 12 semantic mutations so its named guard is tested.
+  Manually port the accepted empty-window deletion behavior from `33e0eb71d`. Preserve the reviewed
+  P2 rule that ledger-derived streak/perfect-week metrics remain independent of retained-fact
+  readiness. Prior unreleased partial-digest v28 rows will fail closed and that boundary must be
+  documented.
+- **Portable import:** the draft is syntax-coherent by static inspection but has no current-byte
+  Kotlin/Room compile evidence. Native same-database re-import still needs a global native-authority
+  preflight: equivalent authority returns typed `Duplicate`; mismatched authority returns a typed
+  conflict. Lineage/orphan validation must choose authority by fact origin, retaining strict native
+  orphan fencing without requiring portable facts to fabricate `source_service_run`. Imported-only
+  re-export, retained-day discovery, the `.trackersteps` product bridge, authority-race coverage,
+  current schema reconciliation, and current-byte verification remain open. Converge this lane only
+  after awards/integrity; never select its generated schema wholesale.
+
+### Exact restart order
+
+1. Repeat mandatory read-only repository checks, ordered tracking-document reads, six-path/hash
+   protection, device inventory, and the single global Gradle lease. Treat the two clean worktrees
+   identified above as dormant, not additional implementation lanes.
+2. Reconcile, review, verify, commit, rebase, reverify, and locally fast-forward the bounded
+   live/UI lane first. Its dirty paths do not overlap current integration drift.
+3. Close the two awards/integrity P1 gaps and manually converge `33e0eb71d`; run the focused
+   core/tracker/stats/Game cohorts plus Detekt, affected lint, and Room schema drift before fresh
+   whole-diff review and reviewable commits.
+4. Correct and verify portable native re-import and origin-aware lineage only after the awards lane
+   establishes the canonical integrity behavior. Keep it unmerged until every blocker above closes.
+5. With Steps-local host work integrated, attach a representative physical device exposing
+   `TYPE_STEP_COUNTER` and run the exact Steps-only scenario, including post-stop listener removal.
+   Do not substitute Robolectric or an unproven emulator for this gate.
+6. Only then continue automatic Steps with explicit control separation and default-off Ambient
+   Steps, followed by Pressure, protected Location, Activity, Wi-Fi, and Cell as independent thin
+   verticals.
+
+Everything remains local-only. No push, release, tag, deployment, source/feature activation,
+remote flag, destructive or backward-incompatible migration, force push, or external rollout was
+performed or authorized.
+
 ## 2026-09-03 final checkpoint: regression repair accepted; three Steps lanes preserved
 
 This is the authoritative restart boundary and supersedes the overnight checkpoint below for
@@ -88,10 +188,10 @@ remain historical evidence only.
   `StepFactRevisionIntegrity`. A tampered row can still become a `READY` selected-detail or recent-
   list Steps count. Add a typed integrity-failure result and a selector tamper regression before
   accepting the lane.
-- **P1 test independence:** 13 repair-composer semantic-corruption tests currently mutate SQL
-  fields without recomputing the checksum. Because checksum validation is now first, they all exit
-  for checksum mismatch instead of exercising their named semantic guards. Keep one dedicated
-  checksum-tamper test and canonically re-sign every other intentionally changed fixture.
+- **P1 test independence:** the repair-composer suite contains 12 semantic-corruption SQL mutations
+  plus one checksum-tamper mutation. Because checksum validation is now first, the 12 semantic cases
+  exit for checksum mismatch instead of exercising their named guards. Keep the dedicated checksum
+  case and canonically re-sign each semantic mutation.
 - The current canonical full-row signer was introduced only in this local, unreleased v28 history;
   older draft rows with the prior partial digest now fail closed. Record that compatibility boundary
   during convergence rather than claiming transparent backward compatibility.
