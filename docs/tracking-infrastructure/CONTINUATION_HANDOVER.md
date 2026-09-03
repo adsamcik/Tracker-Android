@@ -6,6 +6,154 @@ This handover is for the next device or Codex session continuing the tracking-in
 program after the local and remote `dev/v10` histories were reconciled. It is an execution
 checkpoint, not a replacement for the architecture or evidence ledgers.
 
+## 2026-09-03 portable-export accepted restart checkpoint
+
+This is the authoritative restart boundary. It supersedes the earlier 2026-09-03 end-of-day
+checkpoint for branch tips, accepted implementation, dirty-lane state, review findings,
+verification, and restart order. Older sections remain historical evidence only.
+
+### Accepted integration state
+
+- Integration worktree: `G:\Github\Tracker-Android\.worktrees\tracking-infra-integration`.
+- Local integration branch: clean `dev/v10` at exact HEAD
+  `e8d514f3f2a94d3576e18db0ee9fdc68194b3c03` (`docs(tracking): record portable Steps Room
+  export`), 80 commits ahead of `origin/dev/v10`.
+- The portable Steps Room export slice is accepted in commits `fd32fab2b`, `d9771257e`,
+  `47f594f09`, and `6202d16a8`; decision/status/verification evidence is recorded by
+  `e8d514f3f`. The merged exporter worktree and local branch were removed.
+- Accepted export behavior is bounded to one exact candidate Steps logical entry and validates
+  reciprocal run/segment binding, complete immutable authority, replacement grouping, retained
+  floors, settlement, global correction lineage, per-run correction bounds, and full retained
+  `LIVE_WAL` integrity before signing portable output. It emits nothing until the complete bounded
+  snapshot validates. The v28 candidate lane remains unshipped and inactive.
+- Post-rebase host evidence is 15/15 `StepFactRevisionDaoTest`, 1/1
+  `StepFactRevisionIntegrityTest`, 17/17 `StepsSessionFactProjectionLaneTest`, and 34/34
+  `RoomExportPortableStepsTest`: 67 tests, zero failures, errors, or skips. Root Detekt,
+  `:stats:data:lintDebug`, `:app:hiltJavaCompileDebug`, and `checkRoomSchemaDrift` were green.
+  This is host/static/schema evidence, not provider, process-death, reboot, FGS, battery, OEM, or
+  device-UI proof.
+- The exact device gate remains
+  `app/src/androidTest/java/com/adsamcik/tracker/app/tracking/ManualStepsOnlyDeviceGateTest.kt`.
+  `adb devices -l` found no attached device. Although the `Medium_Phone` AVD exists, that test
+  requires an exposed physical `TYPE_STEP_COUNTER` and operator walking, so the manual Steps-only
+  provider/listener gate remains genuinely device-blocked.
+- All three implementation agents returned checkpoint results and stopped. The shared Gradle lease
+  is released. Three Java processes remained visible, but Windows denied process-command-line
+  inspection; tomorrow must still obtain the ordinary single-Gradle lease before any build.
+- Everything remains local-only. No push, release, tag, deployment, feature/source activation,
+  remote flag, destructive migration, or external rollout occurred or is authorized here.
+
+The detached root checkout remains at exact HEAD
+`ffd5d372fafafceb7d9d595b95e47b89b949de83` with exactly the same six protected paths and no
+additional changes. Their SHA-256 values were rechecked at this checkpoint and remain:
+
+- `DatabaseImport.kt`: `882BAD525CDA927710FD13C1A1DB1DDD11437963BACC2C50313708BB05BB73D4`;
+- `DatabaseImportCollisionTest.kt`:
+  `01C7D5CC62AF43100B6F8A1458F45662BE293B659AEC0F23AD7CAD5F79F1D0F3`;
+- `DatabaseImportTest.kt`: `794B8A4ADAC5B6F387BEF07A58C90805538127A85CC2A0C00266209C985CD9E6`;
+- `TRACKING_INFRASTRUCTURE_FINAL_PLAN_AND_DESIGN.docx`:
+  `F6F46E2ABA5B2E110DD0F994E280C961B3E1315F79D8FB59C60D053BEE3FBF28`;
+- `TRACKING_INFRASTRUCTURE_IMPLEMENTATION_ORCHESTRATOR_PROMPT.md`:
+  `3F77380D36234BCAAD3A193CC2553E8D50F2C0F0D02928232B4CC99BFC7DA332`;
+- `DashboardManualStartDecisionTest.kt`:
+  `E0912B613CD330949D12DAF69268E1A7B9DDE0F9181D0D235839E0CD8F8B7BF6`.
+
+Never alter, stage, commit, clean, reset, or push those six root-checkout paths as part of this
+continuation.
+
+### Preserved implementation lanes
+
+All three lanes below are intentionally dirty, unstaged, uncommitted, and based at exact HEAD
+`a347df9a25e2902b3d9951639f2303e9806f7645`. Each passes
+`git -c core.fsmonitor=false diff --check`. Preserve them exactly; a dirty lane is not accepted
+implementation.
+
+#### 1. Typed selected-session Pressure deletion — one focused regression
+
+- Worktree: `G:\Github\Tracker-Android\.worktrees\ti-pressure-deletion`; branch
+  `codex/ti-pressure-deletion`.
+- State: eight tracked modifications (`+432/-84`) and six untracked files. The draft now includes
+  deterministic keyset batching beyond 2,048 facts, the matching v28 scope index and migration
+  assertion, complete run/manifest/policy/consent/fact authority, source-local integrity, exact
+  fence/delete/repair behavior, and focused tests. The generated Room v28 schema hash is
+  `37eb710526dc9b550e9208d7713dd851`.
+- Latest focused run compiled production and test sources. Core reported 8/8 green; tracker reported
+  80/81 green. The sole failure is
+  `materializing Steps survivor returns retryable before Pressure deletion authority`: expected
+  `RetryableFailure(DAY_REPAIR_MATERIALIZING)` but received
+  `UnsupportedScope(DAY_REPAIR_UNVERIFIABLE)` at
+  `RoomPressureSelectedSessionDeletionServiceTest.kt:444`.
+- Tomorrow first compare that fixture's lifecycle/authority with
+  `StepsDailySummaryRepairComposer`. Correct only a demonstrated fixture or composer defect, rerun
+  the isolated test, then rerun the full serialized focused selection. No coherent Pressure commit
+  is ready while this regression is red.
+
+#### 2. Source-qualified awards/goals/retained metrics — review-blocked coherent draft
+
+- Worktree: `G:\Github\Tracker-Android\.worktrees\ti-steps-qualified-awards`; branch
+  `codex/ti-steps-qualified-awards`.
+- State: 27 tracked modifications (`+1731/-437`) and three untracked files. A just-started,
+  incompatible two-file period-signature edit was rolled back before stopping, leaving the prior
+  coherent draft intact.
+- Implemented draft behavior includes qualified retained lifetime/best-day reads, missing versus
+  verified-zero semantics, source-only run/fact day discovery with stale-`Ready` preflights,
+  partial achievement availability, removal of raw streaming Steps from achievement metrics, and
+  settings/calendar generation-CAS guards. Generic PERFECT_WEEKS and GOAL_STREAK output remains
+  intentionally unavailable because legacy GOAL XP lacks correction-safe qualified provenance.
+- Prior focused evidence (tracker 28/28 and game 21/21) predates the latest review corrections and
+  is not current-byte acceptance evidence.
+- Six review blockers remain, in dependency order: (1) locale/week-start `WeeklyStepGoal` v2 report
+  identity with conservative legacy ISO handling and Sunday/year-boundary tests; (2) remove
+  `collectLatest` cancellation loss and make completion/report side effects retry-safe; (3) carry
+  one checked timestamp/day/week/zone/report authority through mutation and completion; (4) add a
+  `service_run_id` plus operation Step-fact index to v28 with migration/query-plan evidence; (5)
+  classify null completion from lifecycle as active materializing versus terminal/inconsistent
+  unavailable; and (6) add explicit orphan-UPSERT and source-without-manifest regressions.
+
+#### 3. Portable Steps importer storage seam — review NO-GO
+
+- Worktree: `G:\Github\Tracker-Android\.worktrees\ti-steps-portable-import`; branch
+  `codex/ti-steps-portable-import`.
+- State: 11 tracked modifications (`+355/-94`) and four untracked files. No new Gradle run was
+  started during this checkpoint.
+- The draft contains the portable run checksum, v28 origin/replay table and DAO, inert import
+  provenance, nullable portable fact shape, full-deletion clearing, migration/schema coverage, and
+  focused tests. This remains storage scaffolding; an accepted transactional Room importer and
+  read/re-export/deletion product integration do not yet exist.
+- Latest review remains NO-GO. Required corrections are: (1) entry-wide globally distinct,
+  monotonic manifest revisions across replacement runs; (2) one document-wide identity namespace
+  across entry/run/fact kinds; (3) enforceable parent integrity plus transactional complete-
+  hierarchy validation and rollback; (4) real complete-hierarchy retention, deletion/reopen, and
+  populated v27-to-v28 migration tests; and (5) fixed-size lookup chunks, positive bounded child
+  limits, cancellation checks, and ignored-insert conflict revalidation.
+- Preserve the integrated full `LIVE_WAL` checksum semantics when this old-base branch is eventually
+  rebased. Never modify the protected legacy `DatabaseImport` bridge or fabricate local provider
+  authority for imported facts.
+
+### Exact restart and convergence order
+
+1. Repeat the mandated startup checks and full document read. Recheck integration, root, and all
+   three lanes with `core.fsmonitor=false`; verify the six protected hashes and obtain the sole
+   Gradle lease before building.
+2. Resume all three lanes only within their listed review boundaries. Source editing may proceed in
+   parallel, but Gradle remains globally serialized.
+3. Close Pressure's one regression first, rerun its full focused and proportional
+   static/Hilt/schema gates, obtain a fresh read-only review, make exact coherent commits, rebase
+   onto current local `dev/v10`, force the relevant post-rebase gates, and merge locally with
+   `--ff-only` only after GO.
+4. Pressure and awards both modify `StepsDailySummaryRepairComposer`; all three lanes modify or may
+   modify the unshipped v28 migration/schema. Therefore integrate serially. After Pressure, rebase
+   awards, regenerate/recheck v28 evidence, close all six findings, review, gate, and only then
+   merge. Repeat for portable import; do not integrate storage scaffolding without its actual
+   bounded transactional importer and complete no-resurrection behavior.
+5. Run `ciUnitTest` at the next meaningful combined integration gate and `ciCheck --continue` only
+   at integration readiness. Keep device-only claims open until one representative suitable
+   physical device supplies the required evidence.
+6. Then continue the remaining source-local dependency order: complete Steps deletion/day repair,
+   portable import/no-resurrection and numeric consumers, automatic Steps control separation, and
+   default-off ambient Steps; finish Pressure history/product/retention/export; then protected
+   Location, Activity, Wi-Fi, and Cell as independent thin verticals.
+
 ## 2026-09-03 end-of-day checkpoint
 
 This is the authoritative local restart boundary. It supersedes the 2026-09-02 parallel-work
