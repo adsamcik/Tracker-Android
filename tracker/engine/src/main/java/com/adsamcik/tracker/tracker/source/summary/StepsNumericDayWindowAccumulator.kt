@@ -509,6 +509,16 @@ internal class StepsNumericDayWindowAccumulator private constructor(
 			}
 			return StepsNumericDayWindowAccumulator(windows)
 		}
+
+		/**
+		 * Creates a zero-window accumulator for selected-session deletion validation only.
+		 *
+		 * The ordinary factory deliberately rejects an empty product-day request. Deletion can have
+		 * no persisted daily summary to repair while still needing to validate every surviving run
+		 * and streamed fact before deciding whether deletion is safe or still materializing.
+		 */
+		fun createEmptyValidationOnly(): StepsNumericDayWindowAccumulator =
+			StepsNumericDayWindowAccumulator(emptyList())
 	}
 }
 

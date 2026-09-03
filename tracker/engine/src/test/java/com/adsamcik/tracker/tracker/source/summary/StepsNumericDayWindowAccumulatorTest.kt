@@ -8,6 +8,24 @@ import org.junit.Test
 
 class StepsNumericDayWindowAccumulatorTest {
 	@Test
+	fun `empty product request stays invalid while deletion validation can stream without results`() {
+		val zone = ZoneId.of("UTC")
+		val day = LocalDate.of(2026, 4, 2).toEpochDay()
+		val startMs = startOfDayMs(day, zone) + HOUR_MS
+		val endMs = startMs + HOUR_MS
+		val slice = StepsNumericCaptureSlice(1L, startMs, endMs, capturesSteps = true)
+		val contribution = contribution(zone, startMs, endMs, listOf(slice))
+
+		StepsNumericDayWindowAccumulator.create(emptyMap()) shouldBe null
+		val validation = StepsNumericDayWindowAccumulator.createEmptyValidationOnly()
+		validation.addLogicalGroup(listOf(contribution)) shouldBe true
+		validation.startRun(contribution) shouldBe true
+		validation.consumeCoveredFact(fact(1L, startMs, endMs, steps = 7L)) shouldBe true
+		validation.finishRun() shouldBe true
+		validation.results() shouldBe emptyList()
+	}
+
+	@Test
 	fun `370 day cells consume about 95 thousand facts exactly once`() {
 		val zone = ZoneId.of("UTC")
 		val firstDay = LocalDate.of(2025, 1, 1).toEpochDay()

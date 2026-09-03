@@ -261,7 +261,11 @@ internal class StepsDailySummaryRepairComposer(
 		) {
 			return unverifiable()
 		}
-		val accumulator = StepsNumericDayWindowAccumulator.create(zoneByDay) ?: return unverifiable()
+		val accumulator = when {
+			zoneByDay.isNotEmpty() -> StepsNumericDayWindowAccumulator.create(zoneByDay)
+			excludedSegmentId != null -> StepsNumericDayWindowAccumulator.createEmptyValidationOnly()
+			else -> null
+		} ?: return unverifiable()
 		for (group in groups.values) {
 			if (!accumulator.addLogicalGroup(group.map { contribution ->
 					contribution.toAccumulatorContribution()

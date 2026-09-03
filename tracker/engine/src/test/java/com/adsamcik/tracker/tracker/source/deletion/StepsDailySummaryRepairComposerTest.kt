@@ -119,6 +119,72 @@ class StepsDailySummaryRepairComposerTest {
 	}
 
 	@Test
+	fun `settled deletion validation without a summary returns no repair plans`() = runTest {
+		database.dailySummaryDao().deleteByDay(DAY) shouldBe 1
+		installLane(cursor = 100L)
+		insertCandidate(
+			logicalId = "no-summary-settled-logical",
+			runId = "no-summary-settled-run",
+			manifestRevision = 1L,
+			startMs = DAY_START + HOUR_MS,
+			endMs = DAY_START + 2L * HOUR_MS,
+			steps = 5L,
+		)
+
+		composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE) shouldBe
+			StepsDayRepairPreflight.Ready(emptyList())
+	}
+
+	@Test
+	fun `deletion validation without a summary preserves materializing state`() = runTest {
+		database.dailySummaryDao().deleteByDay(DAY) shouldBe 1
+		installLane(cursor = 100L)
+		val runId = "no-summary-materializing-run"
+		insertCandidate(
+			logicalId = "no-summary-materializing-logical",
+			runId = runId,
+			manifestRevision = 1L,
+			startMs = DAY_START + HOUR_MS,
+			endMs = DAY_START + 2L * HOUR_MS,
+			steps = 5L,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_service_run SET presentation_acknowledgement = 'PENDING', " +
+				"presentation_acknowledged_at_ms = NULL WHERE service_run_id = ?",
+			arrayOf(runId),
+		)
+
+		composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE) shouldBe
+			StepsDayRepairPreflight.Materializing
+	}
+
+	@Test
+	fun `deletion validation without a summary rejects invalid facts before materializing`() = runTest {
+		database.dailySummaryDao().deleteByDay(DAY) shouldBe 1
+		installLane(cursor = 100L)
+		val runId = "no-summary-invalid-materializing-run"
+		insertCandidate(
+			logicalId = "no-summary-invalid-materializing-logical",
+			runId = runId,
+			manifestRevision = 1L,
+			startMs = DAY_START + HOUR_MS,
+			endMs = DAY_START + 2L * HOUR_MS,
+			steps = 5L,
+			factPolicyRevision = 2L,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_service_run SET presentation_acknowledgement = 'PENDING', " +
+				"presentation_acknowledged_at_ms = NULL WHERE service_run_id = ?",
+			arrayOf(runId),
+		)
+
+		composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE) shouldBe
+			StepsDayRepairPreflight.Unsupported(
+				StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
+			)
+	}
+
+	@Test
 	fun `unbound Steps and production non-Steps materialize while numeric non-Steps stays not captured`() =
 		runTest {
 			installLane(cursor = 100L)
