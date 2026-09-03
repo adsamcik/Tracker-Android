@@ -373,6 +373,7 @@ internal class StepsDailySummaryRepairComposer(
 		return rows
 	}
 
+	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	private suspend fun allMissingSegmentsAreExactlyFenced(
 		runs: List<SourceServiceRunEntity>,
 		readDao: TrackingHistoryReadDao,
@@ -383,23 +384,80 @@ internal class StepsDailySummaryRepairComposer(
 		if (runs.any { run -> run.logicalTrackingId.isBlank() || run.serviceRunId.isBlank() }) {
 			return false
 		}
-		val expectedDigests = runs.mapTo(hashSetOf()) { run ->
-			SourceDeletionFenceEntity.logicalServiceRunIdentity(
-				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-				purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+		val serviceRunIds = runs.map(SourceServiceRunEntity::serviceRunId)
+		if (serviceRunIds.distinct().size != serviceRunIds.size) {
+			return false
+		}
+		val manifests = mutableListOf<SessionManifestVersionEntity>()
+		val sources = mutableListOf<SessionManifestSourceEntity>()
+		for (ids in serviceRunIds.chunked(QUERY_ID_BATCH_SIZE)) {
+			val manifestBatch = readDao.manifests(ids, limit = MAX_MANIFESTS_PER_QUERY_BATCH + 1)
+			val sourceBatch = readDao.manifestSources(ids, limit = MAX_SOURCES_PER_QUERY_BATCH + 1)
+			if (manifestBatch.size > MAX_MANIFESTS_PER_QUERY_BATCH ||
+				sourceBatch.size > MAX_SOURCES_PER_QUERY_BATCH
+			) {
+				return false
+			}
+			manifests += manifestBatch
+			sources += sourceBatch
+		}
+		val manifestsByRun = manifests.groupBy(SessionManifestVersionEntity::serviceRunId)
+		val sourcesByManifest = sources.groupBy { source ->
+			ManifestKey(source.logicalTrackingId, source.manifestRevision)
+		}
+		val expectedBySource = linkedMapOf<Int, MutableSet<String>>()
+		for (run in runs) {
+			val runManifests = manifestsByRun[run.serviceRunId].orEmpty()
+			if (runManifests.isEmpty() || runManifests.any { manifest ->
+				manifest.logicalTrackingId != run.logicalTrackingId
+			}) {
+				return false
+			}
+			val captureSourceKinds = mutableSetOf<Int>()
+			for (manifest in runManifests) {
+				val manifestSources = sourcesByManifest[
+					ManifestKey(manifest.logicalTrackingId, manifest.manifestRevision)
+				].orEmpty()
+				if (!SessionManifestIntegrity.verify(manifest, manifestSources) ||
+					manifestSources.any { source ->
+						source.sourceKind !in KNOWN_SOURCE_KINDS ||
+							source.purpose !in SessionManifestPurposeCode.ALL
+					}
+				) {
+					return false
+				}
+				val captures = manifestSources.filter { source ->
+					source.purpose == SessionManifestPurposeCode.SESSION_CAPTURE
+				}
+				val capture = captures.singleOrNull()?.takeIf { it.persistenceEligible } ?: return false
+				captureSourceKinds += capture.sourceKind
+			}
+			val sourceKind = captureSourceKinds.singleOrNull()
+				?.takeIf { source -> source in DELETABLE_SOURCE_KINDS }
+				?: return false
+			val digest = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+				sourceKind = sourceKind,
+				purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
 				logicalTrackingId = run.logicalTrackingId,
 				serviceRunId = run.serviceRunId,
 			)
+			expectedBySource.getOrPut(sourceKind, ::linkedSetOf) += digest
 		}
-		val actualDigests = expectedDigests.chunked(QUERY_ID_BATCH_SIZE).flatMapTo(hashSetOf()) { digests ->
-			readDao.deletionFences(
-				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-				purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
-				scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
-				scopeIdentityDigests = digests,
-			).map(SourceDeletionFenceEntity::scopeIdentityDigest)
+		for ((sourceKind, expectedDigests) in expectedBySource) {
+			val actualDigests = expectedDigests.chunked(QUERY_ID_BATCH_SIZE)
+				.flatMapTo(hashSetOf()) { digests ->
+					readDao.deletionFences(
+						sourceKind = sourceKind,
+						purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+						scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+						scopeIdentityDigests = digests,
+					).map(SourceDeletionFenceEntity::scopeIdentityDigest)
+				}
+			if (actualDigests != expectedDigests) {
+				return false
+			}
 		}
-		return actualDigests == expectedDigests
+		return true
 	}
 
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
@@ -2094,6 +2152,10 @@ internal class StepsDailySummaryRepairComposer(
 		val EXECUTABLE_PRODUCT_STAGES = setOf(
 			SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
 			SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
+		)
+		val DELETABLE_SOURCE_KINDS = setOf(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			SourceDestinationOwnerEntity.SOURCE_PRESSURE,
 		)
 	}
 }
