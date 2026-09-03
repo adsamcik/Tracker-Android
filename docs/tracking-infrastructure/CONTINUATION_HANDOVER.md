@@ -6,6 +6,325 @@ This handover is for the next device or Codex session continuing the tracking-in
 program after the local and remote `dev/v10` histories were reconciled. It is an execution
 checkpoint, not a replacement for the architecture or evidence ledgers.
 
+## 2026-09-03 overnight checkpoint: verified live slice plus partially verified parallel drafts
+
+This is the authoritative restart boundary for the next session. It supersedes every older
+checkpoint below for current branch state, dirty-worktree state, verification, blockers, and
+restart order. Older sections remain historical evidence only.
+
+### Exact repository state
+
+- Integration worktree: `G:\Github\Tracker-Android\.worktrees\tracking-infra-integration` on local
+  `dev/v10`. Before this handover delta it was clean at exact parent HEAD
+  `ee21d6615894319d79c4f395441d305520bf55a9` (`docs(tracking): checkpoint parallel
+  corrections`), 89 commits ahead of `origin/dev/v10` and not pushed. Resolve this handover's own
+  containing documentation commit with `git rev-parse HEAD`; no self-referential SHA is asserted.
+  It records draft state and evidence, not an accepted implementation change.
+- The accepted implementation boundary remains Pressure selected-session deletion through
+  `61608800e`, `9592c42d8`, and evidence commit `673c4186e`, plus the documentation checkpoint at
+  `ee21d661`. The live/UI slice below is verified but still uncommitted and unmerged. The awards and
+  importer lanes remain draft-only.
+- Detached protected root checkout: `G:\Github\Tracker-Android`, exact HEAD
+  `ffd5d372fafafceb7d9d595b95e47b89b949de83`. It still has exactly the same six protected dirty
+  paths. Their rechecked SHA-256 values are, in the established path order:
+  `882BAD525CDA927710FD13C1A1DB1DDD11437963BACC2C50313708BB05BB73D4`,
+  `01C7D5CC62AF43100B6F8A1458F45662BE293B659AEC0F23AD7CAD5F79F1D0F3`,
+  `794B8A4ADAC5B6F387BEF07A58C90805538127A85CC2A0C00266209C985CD9E6`,
+  `F6F46E2ABA5B2E110DD0F994E280C961B3E1315F79D8FB59C60D053BEE3FBF28`,
+  `3F77380D36234BCAAD3A193CC2553E8D50F2C0F0D02928232B4CC99BFC7DA332`, and
+  `E0912B613CD330949D12DAF69268E1A7B9DDE0F9181D0D235839E0CD8F8B7BF6`. Never alter, stage,
+  commit, clean, reset, or push those paths as part of this continuation.
+- All bounded implementation and review specialists completed. All four implementation/integration
+  worktrees pass `git -c core.fsmonitor=false diff --check`, and no implementation worktree has a
+  staged change.
+  Verification used a single global Gradle lease and never overlapped builds. The one remaining
+  Gradle daemon was stopped explicitly, and no `java` or `javaw` process remained afterward.
+- Everything remains local-only. No push, release, tag, deployment, source/feature activation,
+  remote flag, destructive or backward-incompatible migration, or external rollout occurred or is
+  authorized here.
+
+### Verified but uncommitted lane: truthful legacy Steps surfaces
+
+- Worktree: `G:\Github\Tracker-Android\.worktrees\ti-steps-live-consumer-truth`; branch
+  `codex/ti-steps-live-consumer-truth`; exact base HEAD
+  `ee21d6615894319d79c4f395441d305520bf55a9`, one documentation-only commit behind current
+  `dev/v10`. It contains exactly 54 tracked modifications, no
+  untracked or staged files, and diffstat `+203/-50`.
+- The slice removes PackageManager step-counter capability as capture evidence from the legacy
+  tracker cards, Last Session card, and sparse statistics summary. Positive legacy values remain
+  visible as observed progress. Ambiguous zero/nonpositive values render unavailable or are hidden;
+  zero is rendered only through an explicit verified-coverage formatter branch. The active-session
+  widget now uses a session-specific formatter, while the typed Today Summary widget is unchanged.
+- The immutable legacy snapshot contract now documents that positive Steps is observed progress but
+  zero has no qualified-coverage guarantee. The tracker card and Last Session accessibility
+  descriptions include the truthful Steps value, and the Compose assertions bind specifically to
+  Steps rather than passing on any unrelated placeholder. Last Session still intentionally hides a
+  potentially genuine covered zero because its current model has no coverage bit; that is the safe
+  fail-closed behavior until typed evidence reaches the surface.
+- Unavailable Steps now keep the compact visual em dash in the live tracker cards but announce a
+  localized unavailable value in accessibility semantics. The active widget renders the localized
+  phrase instead of a dash. `tracker_steps_value_unavailable` is present exactly once in all 40
+  existing tracker API locale files; every resource XML parses, and no formatter call relies on a
+  hard-coded default fallback.
+- A fresh read-only review found no P1/P2 production defect in this lane, so this is safe to
+  preserve as a dirty checkpoint. The added compact-stat assertions now cover LIVE speed, ROUTE
+  distance, a positive ACTIVITY Steps value, and the unavailable-zero Steps case. Remaining P3 or
+  cross-lane work is explicit: the Statistics weekly-bar total must be reconciled with the qualified
+  numeric-consumer lane; Last Session still composes localized fragments and an existing
+  English-built accessibility sentence remains; and widget layout, TalkBack behavior, and human
+  translation quality need device review. No UI-device or accessibility-service evidence exists.
+- Focused verification is current-byte green:
+  - formatter/tracker/dashboard/widget cohort: `BUILD SUCCESSFUL in 6m 31s`, 641 actionable tasks;
+  - `StatsScreenComposeTest`: `BUILD SUCCESSFUL in 1m 55s`, 198 actionable tasks;
+  - root `detekt` plus `lintDebug` for `core:base`, `tracker:api`, `feature:tracker`,
+    `feature:dashboard`, `feature:statistics`, and `app`: `BUILD SUCCESSFUL in 6m 41s`, 1,093
+    actionable tasks. This current localized-resource run exposed one new `ModifierParameter`
+    warning in `TrackerDashboardStatsCards.kt`; its parameter order was corrected, then
+    `:feature:tracker:lintDebug` passed in `1m 1s` with only the unrelated existing `InlinedApi`
+    warning in untouched `TrackerRoute`;
+  - after that final patch, `StringExtensionsTest`, `WidgetFormattersTest`,
+    `TrackerDashboardSessionCardsTest`, and `TrackerDashboardStatsCardsAdditionalTest` passed
+    `46/46` with zero failures, errors, or skips. Their three serialized invocations completed in
+    `32s` (79 actionable tasks), `1m 36s` (575 actionable tasks), and `38s` (201 actionable tasks).
+- After the all-metric compact-stat assertions were added, the complete
+  `TrackerDashboardStatsCardsAdditionalTest` class passed again in `24s` with 201 actionable
+  tasks. A separate two-class tracker Compose rerun after the parameter-order correction passed in
+  `45s` with 197 actionable tasks.
+- Two expected diagnostic failures preceded those green runs: the first test compile exposed the
+  unsupported `assertDoesNotExist` Compose API and the first Detekt pass required braces in the new
+  widget formatter. Both were corrected before the green current-byte runs. A command using
+  module-local `:core:base:detekt` also failed because this repository exposes Detekt only as root
+  `:detekt`; it made no source change.
+- Final staging failed before touching the index: Git could not create the linked-worktree
+  `index.lock`, and the required escalation broker then returned `404 Not Found`. Nothing was
+  staged, committed, rebased, or merged. Do not bypass this permission boundary. Once Git metadata
+  writes are available, recheck the diff, rerun the affected static gate, stage exactly the 54 paths, run
+  `git diff --cached --check`, commit with the configured adsamcik identity, rebase only if local
+  `dev/v10` moved, rerun proportional verification, and merge locally.
+
+### Partially verified draft lane: Steps retention, revision invalidation, goals, and awards
+
+- Worktree: `G:\Github\Tracker-Android\.worktrees\ti-steps-qualified-awards`; branch
+  `codex/ti-steps-qualified-awards`; exact base HEAD
+  `a347df9a25e2902b3d9951639f2303e9806f7645`, 17 commits behind current `dev/v10` and zero ahead.
+  It has exactly 57 tracked modifications plus 12 untracked files, 69 dirty files total; tracked
+  diffstat `+5672/-591`; nothing staged; `git diff --check` passes. Focused current-byte storage,
+  Game, and Stats cohorts compile and pass, and root Detekt now passes. A fresh whole-diff review
+  found the two acceptance blockers below. The lane remains unaccepted and is not ready to stage,
+  rebase, or merge.
+- Retention work is confined to `StepFactRevisionDao.kt`, `TrackingHistoryReadDao.kt`,
+  `StepFactRevisionDaoTest.kt`, and `RoomStepsNumericSummaryRepository.kt`. The draft excludes an
+  orphan UPSERT only when its immutable interval is valid and ends strictly before the retained
+  floor; exact-boundary and malformed facts fail closed. Terminal pre-floor completeness may be
+  excluded only with a valid linked run, while missing-run completeness remains fail closed and
+  `updated_at_ms` is not treated as product time. The confirmed non-null-floor fail-open edge is now
+  corrected: `retainedCaptureRunBounds` receives the floor and omits only structurally valid
+  terminal runs completed at or before it; active, crossing, and malformed runs remain visible, and
+  the repository rejects inconsistent bounds regardless of floor. Room coverage now establishes a
+  real non-null floor and proves trustworthy terminal pre-floor evidence can be ignored, missing-run
+  and regressed-run evidence fail closed, an active crossing run remains `Materializing`, crossing
+  facts remain partial, only whole retained days contribute, and missing covered-zero facts cannot
+  fabricate `Ready(0)`. The final correction also prevents a linked UPSERT or persisted Steps capture
+  manifest from hiding behind retained `Ready` when its interval is malformed, falls outside its
+  owning run, crosses the floor, or becomes effective at the exact floor. Physical run ownership and
+  the half-open `[run.start, run.completion)` manifest window remain explicit.
+- Game/award work is confined to `XpLedgerDao.kt` and its new test,
+  `AchievementMetricsProvider.kt`, `DefaultAchievementMetricsProvider.kt` and its new Steps test,
+  `PlayerProgressionRepository.kt`, `GoalTracker.kt`, new `GameGoalRefreshTrigger.kt`,
+  `GameDomainEventConsumer.kt`, and their direct tests. Narrow ledger queries replace
+  `getRecent(Int.MAX_VALUE)` scans. All four Steps metrics require retained Steps `Ready`; unrelated
+  metrics survive materializing/storage-unavailable states. Qualified epoch-day provenance,
+  same-day legacy-XP zero-value markers, bounded terminal settlement, cancellation propagation, and
+  resilient settings refresh are drafted. `PlayerProgressionRepository` now marks the Steps decision
+  cursor dirty only after the marker/profile transaction commits; its Room test proves rollback,
+  exact first-success repair, duplicate idempotency, and exactly one invalidation. The focused Game
+  test caught that a child refresh
+  `CancellationException` was only joined and therefore did not cancel the enclosing collector;
+  the scope now propagates that cancellation and the regression plus the complete focused Game/
+  Stats cohort pass. Terminal refresh is now globally bounded to three settlement cycles even when
+  the source revision keeps changing. A typed retry carries exactly one durable rearm condition:
+  either a source-evidence revision or settings readiness. `GameGoalRefreshTrigger` owns one
+  application-scope one-shot waiter, deduplicates an equal token, cancels and joins a superseded
+  token without holding its state mutex, contains ordinary callback failures, and preserves
+  cancellation. The consumer returns without acknowledging the durable event until the automatic
+  retry settles successfully. Startup-null settings use a race-safe readiness revision rather than
+  silently acknowledging a no-op.
+- The new `StepsDecisionRevisionTriggers` production/test pair now includes `session_segment`
+  `end_time_ms`, because the repair composer uses it for validity, overlap, interval, and source-end
+  decisions. Its focused test proves that metric-only updates stay silent while an end-time update
+  increments the decision revision; the Steps projection cursor invalidation is retained.
+- Two findings must be corrected before any awards chunk is accepted:
+  - **P1 retained-fact integrity:** this stale-base draft does not contain current `dev/v10`'s
+    `StepFactRevisionIntegrity` contract, its writer still uses a partial custom checksum, and
+    `StepsDailySummaryRepairComposer` does not validate a LIVE_WAL fact's full-row effect checksum.
+    A tampered retained fact could therefore become a `Ready` total and feed goals, XP, or
+    achievements after an unsafe convergence. Manually preserve the current full-row signer,
+    validate every candidate LIVE_WAL fact, replace synthetic-checksum fixtures, and add a tamper
+    regression.
+  - **P2 qualified-ledger independence:** `DefaultAchievementMetricsProvider` currently loads and
+    emits already-qualified goal-day ledger identities only when retained raw Steps facts are
+    `Ready`. Streak and perfect-week metrics should remain derivable whenever XP storage is
+    readable; only `STEPS_TOTAL` and `BEST_DAILY_STEPS` belong behind retained-fact readiness and
+    retry blocking. Update the tests that currently encode the broader suppression.
+- Manual convergence is mandatory rather than a wholesale rebase conflict choice. Eight modified
+  paths overlap the 16 newer `dev/v10` commits: schema 28, migration coverage,
+  `AppDatabaseMigrations`, `TrackingHistoryReadDao`, `StepFactRevisionEntity`,
+  `SourceSessionDaoTest`, `StepFactRevisionDaoTest`, and `StepsDailySummaryRepairComposer`.
+  Preserve newer Pressure deletion behavior, portable Steps queries, the Pressure fact index, and
+  retained-fact integrity. The smallest reviewable partition is storage substrate; typed retained
+  numeric composition; prior-process settlement; reward-provenance primitives; Game goals; then
+  achievement evaluation.
+- The numeric-consumer audit is not complete. `GhostLeaderboardProvider` still derives Steps from
+  raw `daily_summary.total_steps`; `PlayerProgressionRepository` still lets `trip.steps ?: 0`
+  influence mixed session XP and needs an explicit source-qualification product decision; and
+  `PointsWorker` selects Location samples by trip wall-time overlap before awarding slope points,
+  violating the no-wall-time-ownership boundary. Treat these as remaining whole-effort work, not
+  as coverage supplied by the draft above.
+- Current-byte focused evidence:
+  - `StepFactRevisionDaoTest` plus `StepsDecisionRevisionTriggersTest`: `BUILD SUCCESSFUL in 2m 14s`,
+    79 actionable tasks executed;
+  - `RoomStepsNumericSummaryRepositoryRoomTest`, `RoomStepsNumericSummaryRepositoryTest`, and
+    `StepsDailySummaryRepairComposerTest`: `BUILD SUCCESSFUL in 8m 15s`, 234 actionable tasks
+    executed;
+  - new `XpLedgerDaoTest` passed during the first combined consumer run before that run encountered
+    a test-double feedback loop in `AchievementWorkerTest`;
+  - after constraining that mock registry to its real source tables and fixing settings-refresh
+    cancellation, the full focused `DefaultAchievementMetricsProviderStepsTest`,
+    `AchievementWorkerTest`, `GoalTrackerTest`, and `GameDomainEventConsumerTest` cohort passed:
+    `BUILD SUCCESSFUL in 1m 1s`, 328 actionable tasks;
+  - the expanded non-null-floor `RoomStepsNumericSummaryRepositoryRoomTest` passed current bytes:
+    `BUILD SUCCESSFUL in 5m 9s`, 234 actionable tasks;
+  - the new `PlayerProgressionRepositoryTest` passed current bytes with
+    `BUILD SUCCESSFUL in 1m 53s`, 304 actionable tasks;
+  - after the final linked-fact/manifest retained-floor guards, the prescribed serialized five-class
+    core/tracker cohort passed `137/137` with zero failures, errors, or skips:
+    `BUILD SUCCESSFUL in 9m 27s`, all 248 actionable tasks executed;
+  - after the bounded cross-revision rearm and startup-readiness corrections, the focused
+    `GoalTrackerTest`, `GameGoalRefreshTriggerTest`, `GameDomainEventConsumerTest`, and
+    `PlayerProgressionRepositoryTest` cohort passed `48/48` with zero failures, errors, or skips:
+    `BUILD SUCCESSFUL in 44s`, 300 actionable tasks.
+  - the combined final `XpLedgerDaoTest`, retained-metrics, achievement, Game, and invalidation
+    cohort passed `110/110` with zero failures, errors, or skips: `BUILD SUCCESSFUL in 1m 18s`, 342
+    actionable tasks;
+  - a forced `:core:base:kspDebugKotlin --rerun-tasks` schema regeneration passed in `59s` with 32
+    executed tasks. Schema 28's SHA-256 was identical before and after:
+    `43EF081FC904E382D1EDC92754264794C9DF63219843C3F690BA7C2662A285E9`;
+  - after correcting eight new style findings without suppressing production complexity, root
+    `detekt` passed in `18s`. The affected refactor/test cohort then passed `111/111`; because the
+    command accidentally applied `--tests` only to `:feature:game`, it also ran the entire
+    `:tracker:engine:testDebugUnitTest` task and the overall build failed after `13m 13s` with 36
+    failures among 2,033 tracker-engine tests. Both failure groups are real pre-existing committed
+    regressions present byte-for-byte on current `dev/v10`, not awards-draft regressions or
+    invocation/environment noise:
+    - 34 tests use stale Pressure fixtures after `42b3e1d` made the official Pressure binding and
+      exact candidate owner mandatory. `PressureDurableSourceIngressTest` must use the official
+      binding and seed that owner; generic `SourceBrokerTest` and
+      `SourceRegistrationRepositoryTest` fixtures should omit Pressure when it is not the subject.
+      Do not relax production `TrackingRolloutStateStore` validation.
+    - two `RoomStepsSelectedSessionDeletionServiceTest` cases have no daily-summary row. Commit
+      `b5f43a2e8` introduced the accumulator's empty-zone rejection before the materializing check,
+      so a valid retryable `DAY_REPAIR_MATERIALIZING` state is misclassified as unsupported
+      `DAY_REPAIR_UNVERIFIABLE`. Add a deletion-only validation accumulator that accepts an empty
+      day window while retaining streamed-fact validation; keep the ordinary numeric factory's
+      empty-request rejection. Do not simply move materializing ahead of fact validation.
+  The failed precursor emitted `UncompletedCoroutinesError` and then exhausted the test JVM while
+  the unrealistic mock repeatedly re-dirtied itself; it was interrupted after the failure. It is
+  superseded by the corrected focused green run, not hidden. `checkRoomSchemaDrift` was invoked and
+  failed for its intentional pre-commit guard because schema 28 is dirty; it cannot be a green gate
+  until the schema is reviewed and committed. No affected-module lint, migration instrumentation,
+  `ciUnitTest`, or `ciCheck` has run on this draft. The first sandboxed XP-test invocation and the
+  first serialized final-storage invocation
+  each failed before Gradle started because the wrapper could not access its distribution over the
+  restricted network; the same commands succeeded with host access and are the evidence above.
+  The scoped liveness review found no P1/P2 issue in settlement bounds, rearm, callback containment,
+  settings readiness, cancellation/locking, Hilt wiring, acknowledgement, or duplicate XP
+  invalidation. That narrower result does not override the whole-diff integrity and metric findings.
+  Resolve those findings and the 36 test failures, then rerun affected full module/lint/schema gates
+  before forming dependency-ordered commits.
+
+### Frozen draft lane: portable Steps import and no-resurrection
+
+- Worktree: `G:\Github\Tracker-Android\.worktrees\ti-steps-portable-import`; branch
+  `codex/ti-steps-portable-import`; exact base HEAD
+  `a347df9a25e2902b3d9951639f2303e9806f7645`, 17 commits behind current `dev/v10` and zero ahead.
+  It has exactly 37 tracked modifications plus 16 untracked files, 53 dirty files total; tracked
+  diffstat `+2669/-164`; nothing staged; `git diff --check` passes. It remains uncompiled and
+  unaccepted.
+- Keep this lane frozen until the overlapping awards v28/schema/composer work is accepted and
+  merged. Reconcile it onto the accepted schema rather than choosing either generated schema file
+  wholesale. Its imported covered-zero and replacement-run composition regressions remain authored
+  but unrun; portable codec-to-Room, deletion/no-resurrection, retention, pagination/malformed
+  authority, migration, static, schema, and fresh-review gates remain open.
+- The current importer audit is **NO-GO** for integration. A same-database native export re-import
+  deduplicates only portable-origin identities and can duplicate native facts; the import transaction
+  needs exact native-authority matching that returns duplicate for byte-equivalent authority and a
+  typed conflict for mismatched authority. Separately, the awards draft's generic orphan-retained
+  query requires `source_service_run` ownership and would reject valid portable facts owned by an
+  imported Steps run. Reconcile lineage by fact origin rather than weakening the orphan fence.
+- Additional importer acceptance work is concrete: include imported-only facts in re-export and
+  retained-day discovery, provide the actual `.trackersteps` product import bridge, define imported
+  retention behavior, and prove monotonic invalidation plus deletion/no-resurrection. Ten importer
+  paths overlap the awards draft, six of them also overlap newer `dev/v10`; preserve the lane in
+  place, but do not compile around or merge ahead of the accepted awards/storage substrate.
+
+### Tomorrow's restart order
+
+1. Repeat the mandatory read-only startup checks, applicable `AGENTS.md` reads, and complete ordered
+   tracking-document read. Verify all four worktree states, the protected root HEAD/hashes, and the
+   single global Gradle lease. Confirm the integration worktree is clean at this handover's
+   containing commit.
+2. Use approved Git metadata authorization; ordinary sandboxed linked-worktree writes were still
+   denied at shutdown. In the live/UI lane, reconcile the Statistics weekly
+   value with the qualified numeric lane, update the three evidence ledgers, review the exact 54
+   paths, stage only them, run `git diff --cached --check`, and commit with the configured adsamcik
+   identity. Rebase only if local `dev/v10` moved, rerun proportional verification, and merge
+   locally. Do not push.
+3. In a fresh bounded worktree from local `dev/v10`, repair the two committed test seams without
+   weakening production policy. Change only the three stale Pressure test classes named above for
+   the 34 fixture failures. For deletion, add the validation-only empty-window accumulator path and
+   focused coverage in `StepsNumericDayWindowAccumulatorTest`,
+   `StepsDailySummaryRepairComposerTest`, and `RoomStepsSelectedSessionDeletionServiceTest`.
+   Rerun those six classes plus `TrackingRolloutStateStoreTest`, then the complete
+   `:tracker:engine:testDebugUnitTest` module before local integration.
+4. In the awards lane, first resolve retained-fact checksum validation and qualified-ledger metric
+   independence. Then rerun the focused
+   storage and XpLedger/Stats/Game cohorts plus affected full module/lint/schema gates. Segment-end
+   invalidation, retained ownership guards, XP transaction behavior, and focused Game liveness are
+   current-byte green but do not waive those blockers.
+5. Split only coherent accepted awards chunks, manually converge onto latest local `dev/v10`, rerun
+   proportional current-byte gates, obtain a fresh storage/lifecycle/product review, and merge
+   locally. Keep the importer frozen until this releases shared v28/schema/composer ownership.
+6. Reconcile and validate the importer, then run `ciUnitTest` at the combined Steps integration gate
+   and `ciCheck --continue` only at integration readiness. The physical manual Steps-only walking,
+   listener-removal, process/reboot, FGS, provider, battery, OEM, and UI-device evidence remains
+   explicitly open.
+7. Only after the Steps gates converge, continue automatic Steps with explicit control separation,
+   default-off ambient Steps after a real capability decision, Pressure product history/retention/
+   transfer, protected Location, then Activity, Wi-Fi, and Cell as thin independent verticals.
+
+Steps 2-4 are safe to resume in parallel because their write ownership is disjoint; serialize all
+Gradle work and keep one primary owner for overlapping schema/composer files. Merge only completed,
+reviewed lanes into local `dev/v10`, one at a time, rebasing and re-verifying after each merge.
+
+The first committed-regression gate is:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest `
+  --tests "com.adsamcik.tracker.tracker.source.ingress.PressureDurableSourceIngressTest" `
+  --tests "com.adsamcik.tracker.tracker.source.runtime.SourceBrokerTest" `
+  --tests "com.adsamcik.tracker.tracker.source.runtime.SourceRegistrationRepositoryTest" `
+  --tests "com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStoreTest" `
+  --tests "*RoomStepsSelectedSessionDeletionServiceTest" `
+  --tests "*StepsDailySummaryRepairComposerTest" `
+  --tests "*StepsNumericDayWindowAccumulatorTest" `
+  --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' `
+  --console=plain --no-configuration-cache
+
+.\gradlew.bat :tracker:engine:testDebugUnitTest `
+  --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' `
+  --console=plain --no-configuration-cache
+```
+
 ## 2026-09-03 final pause checkpoint after bounded parallel corrections
 
 This is the authoritative restart boundary for the next session. It supersedes every older
