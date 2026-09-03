@@ -6,6 +6,106 @@ This handover is for the next device or Codex session continuing the tracking-in
 program after the local and remote `dev/v10` histories were reconciled. It is an execution
 checkpoint, not a replacement for the architecture or evidence ledgers.
 
+## 2026-09-03 final shutdown checkpoint: qualified observation landed; drafts frozen
+
+This is the authoritative restart boundary. It supersedes the shutdown checkpoint immediately
+below for current branch, worktree, verification, and blocker state.
+
+### Exact durable state
+
+- Integration worktree: `G:\Github\Tracker-Android\.worktrees\tracking-infra-integration`, local
+  branch `dev/v10`. It was clean at exact parent HEAD
+  `57cfb4b1015859ce3b989c0825bf56d6775d3a01`, 95 commits ahead of the unchanged
+  `origin/dev/v10` tracking ref. This documentation-only checkpoint commit is its sole successor;
+  resolve the resulting HEAD with `git rev-parse HEAD`. Nothing was pushed.
+- Commit `57cfb4b10` adds the public cold `StepsNumericSummaryRepository.observe(request)` contract
+  and the Room implementation needed for terminal qualification changes to refresh a subscribed
+  product consumer even when `daily_summary` does not change. The observer invalidates from the 12
+  direct durable dependency tables, conflates bursts, performs the existing coherent read, keeps
+  cancellation exceptional, emits typed storage unavailability, and remains provider- and
+  repair-free. Its temporary worktree and fully merged local branch were removed.
+- Live/UI worktree: `G:\Github\Tracker-Android\.worktrees\ti-steps-live-consumer-truth`, branch
+  `codex/ti-steps-live-consumer-truth`, HEAD
+  `ee21d6615894319d79c4f395441d305520bf55a9`. Relative to exact integration parent `57cfb4b10`
+  it is zero ahead and six behind; this handover commit adds one documentation-only commit of
+  drift. It has exactly 59 tracked modifications, no untracked or staged paths, tracked diffstat
+  `+380/-54`, and clean `git diff --check`.
+- Awards/integrity worktree: `G:\Github\Tracker-Android\.worktrees\ti-steps-qualified-awards`,
+  branch `codex/ti-steps-qualified-awards`, HEAD
+  `a347df9a25e2902b3d9951639f2303e9806f7645`. Relative to exact integration parent `57cfb4b10`
+  it is zero ahead and 22 behind; this handover commit adds one documentation-only commit of
+  drift. It has exactly 66 tracked modifications plus 14 untracked files, no staged paths, tracked
+  diffstat `+6008/-662`, and clean `git diff --check`. Do not rebase, clean, or discard this dirty
+  draft wholesale.
+- Portable-import worktree: `G:\Github\Tracker-Android\.worktrees\ti-steps-portable-import`,
+  branch `codex/ti-steps-portable-import`, at the same exact HEAD and ancestry as the awards
+  worktree. It has exactly 37 tracked modifications plus 16 untracked files, no staged paths,
+  tracked diffstat `+2669/-164`, and clean `git diff --check`. It is likewise zero ahead and 22
+  behind exact integration parent `57cfb4b10`; this handover commit adds one documentation-only
+  commit of drift.
+- The detached protected root checkout remains exact HEAD
+  `ffd5d372fafafceb7d9d595b95e47b89b949de83`, with exactly the same six protected dirty paths,
+  nothing staged, and all six SHA-256 values unchanged from the checkpoint below. Never alter,
+  stage, commit, clean, reset, or push those paths as part of this continuation.
+- No `java` or `javaw` process remained after the freeze. The exact SDK `adb devices -l` inventory
+  reported no attached device; the SDK still lists `Medium_Phone` as the sole AVD. This cannot
+  replace a representative physical `TYPE_STEP_COUNTER` device and operator walking for the
+  Steps-only gate.
+
+### Accepted observer evidence
+
+- The exact tracker-engine Room and Game-consumer selection passed after one expected restricted-
+  sandbox wrapper-download denial: `BUILD SUCCESSFUL in 17m 28s`, 368 tasks (205 executed, 163
+  from cache). It includes the regression proving `Materializing` becomes `Ready(5)` after only
+  exact presentation acknowledgement changes, without a `daily_summary` write.
+- The first static invocation correctly failed on one new brace-style finding. After adding the
+  required braces, root Detekt, `:tracker:engine:lintDebug`, and
+  `:stats:api:lintAnalyzeAndroidHostTest` passed in `5m 57s`, 378 tasks (179 executed, 22 from
+  cache, 177 up-to-date); tracker lint reported no new issue and filtered six checked-in baseline
+  warnings. `git diff --check` and cached diff check were clean.
+- A fresh read-only review found no actionable defect. The required rebase was a no-op because the
+  branch already contained current local `dev/v10`; local integration was a clean fast-forward.
+  This is host/Robolectric/static evidence only, not provider, device, rendered UI, process/reboot,
+  FGS, battery/OEM, rollout, push, or release proof.
+
+### Frozen-lane boundaries and exact restart order
+
+1. Repeat the mandatory read-only checks, ordered document reads, six-path/hash protection, device
+   inventory, and single global Gradle lease. Repository evidence remains authoritative.
+2. Resume **Live/UI** first. Manually reconcile the 59-path draft with current `dev/v10`, including
+   `57cfb4b10`; replace the Statistics daily-summary-triggered one-shot read with the cold qualified
+   observer while retaining daily summaries only for structural charts. Add regression coverage
+   for `Materializing -> Ready` without a daily-summary emission and subscription cancellation/day
+   rollover. Rerun the already-green five-module, nine-class host cohort, affected static checks,
+   and a fresh review before coherent commits, no-op/current rebase verification, and local merge.
+   The preserved draft's prior focused cohort passed in `7m 57s` with 641 tasks, but it predates the
+   observer integration and is not final evidence.
+3. Resume **Awards/integrity** next. Reconcile rather than copy its stale schema and canonical
+   integrity blobs. Its selector now validates the raw per-run fact bucket before trusting
+   checksum-covered attribution, semantic deletion fixtures are re-signed, empty-window validation
+   is ported, and ledger-independence tests are drafted. The latest combined run executed zero tests
+   because test compilation found an unnecessary `io.mockk.firstArg` import; the import is removed
+   but unverified. First rerun the exact five-class stats/tracker selection recorded in the status
+   handoff, then extract the 80 dirty paths in the recorded A-through-G dependency order into small
+   reviewed commits. Prior partial-digest v28 development rows remain a documented fail-closed
+   compatibility boundary.
+4. Resume **Portable import** only after the awards/integrity authority converges. The two importer-
+   local draft files now perform a bounded global native-authority preflight and cover duplicate,
+   logical/run/fact collision, unrelated snapshot, materializing, and evidence-token race cases by
+   static inspection. They have no current-byte Gradle evidence. Reconcile exact origin authority,
+   run importer tests, then finish imported-only re-export, retained-day discovery, retention/no-
+   resurrection, and the `.trackersteps` registry/UI bridge before integration.
+5. With Steps-local host work integrated, attach one representative physical device exposing
+   `TYPE_STEP_COUNTER` and run the exact Steps-only scenario through listener removal. Do not
+   substitute host tests or an unproven emulator.
+6. Only after that gate continue automatic Steps with explicit control separation and default-off
+   Ambient Steps, followed by Pressure, protected Location, Activity, Wi-Fi, and Cell as
+   independent thin product verticals.
+
+Everything remains local-only. No push, release, tag, deployment, source/feature activation,
+remote flag, destructive or backward-incompatible migration, force push, or external rollout was
+performed or authorized.
+
 ## 2026-09-03 shutdown checkpoint: parallel lanes frozen for tomorrow
 
 This is the authoritative restart boundary. It supersedes the checkpoint immediately below for

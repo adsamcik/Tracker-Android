@@ -2814,3 +2814,45 @@ supersede all three diagnostic failures.
 This is host/Robolectric/in-memory-Room/static evidence. It does not prove provider callbacks,
 listener removal, rendered UI, process death, reboot, FGS, battery/OEM behavior, automatic or
 ambient Steps, source activation, rollout, push, or release.
+
+## Qualified numeric observation and final shutdown checkpoint (2026-09-03)
+
+### Outcome
+
+Commit `57cfb4b10` adds the smallest shared seam required for truthful Statistics settlement:
+`StepsNumericSummaryRepository.observe(request)` is a cold, subscription-owned Flow over the
+existing coherent numeric read. The Room implementation observes exactly the 12 direct tables that
+can change numeric qualification, conflates table-wide bursts, preserves cancellation, and never
+starts a provider or repairs storage. A presentation-only durable transition can therefore move a
+subscribed result from `Materializing` to `Ready` without relying on a `daily_summary` mutation.
+
+The implementation branch was already based on current local `dev/v10`, committed with the
+configured identity, and fast-forwarded locally. Its merged worktree and branch were removed. The
+integration tree was clean at `57cfb4b10`; the successor documentation commit records three
+preserved dirty drafts for tomorrow. Nothing was pushed.
+
+### Evidence and boundary
+
+- Focused Room/Game host gate: `BUILD SUCCESSFUL in 17m 28s`; 368 tasks (205 executed, 163 from
+  cache). The regression observes `Materializing`, updates only the exact run presentation
+  acknowledgement, then observes `Ready(5)` without writing `daily_summary`.
+- Initial static gate: expected failure on one new `BracesOnIfStatements` finding; no lint task ran.
+  After correction, root Detekt, tracker-engine lint, and stats-API Android-host lint passed in
+  `5m 57s`; 378 tasks (179 executed, 22 from cache, 177 up-to-date). Tracker lint found no new issue
+  and filtered six checked-in baseline warnings.
+- Fresh read-only review: no actionable finding. Unstaged and cached diff checks were clean; the
+  required rebase was a no-op; local integration was a fast-forward.
+
+#### Exact commands
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest :feature:game:testDebugUnitTest --tests "com.adsamcik.tracker.tracker.source.summary.RoomStepsNumericSummaryRepositoryRoomTest" --tests "com.adsamcik.tracker.game.repository.SourceQualifiedStepsSummaryTest" --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :tracker:engine:lintDebug :stats:api:lintAnalyzeAndroidHostTest --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+git rebase dev/v10
+```
+
+This does not make the observer permanent or global: the table set is intentionally broad, notably
+`source_evidence_state`, so callers must own it only while visible/subscribed. It does not finish
+the preserved Live/UI draft, establish rendered UI/accessibility evidence, prove the physical
+Steps-only scenario or listener removal, or advance automatic/Ambient Steps and the remaining
+Pressure, Location, Activity, Wi-Fi, and Cell product verticals.

@@ -2106,3 +2106,27 @@ Each entry records repository evidence and does not duplicate the final architec
   weakening source authority, checksum, correction, ownership, or settlement validation. This is
   host/Robolectric evidence only, not device, provider, listener, process/reboot, FGS, battery/OEM,
   activation, rollout, push, or release proof.
+
+## TI-D142 — Qualified numeric settlement is observed only while a product subscribes
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` at `57cfb4b10`; Statistics integration and device UI proof
+  remain `BLOCKED`
+- Owner/date: Steps numeric-product owner after focused Room/Game tests, static checks, fresh
+  read-only review, clean rebase check, and local fast-forward, 2026-09-03
+- Alternatives: refresh only when `daily_summary` changes; poll indefinitely; install a permanent
+  observer network; expose internal history flows with incomplete dependencies; observe every
+  durable table while one product caller is subscribed
+- Evidence: the focused Room/Game selection passed in `17m 28s` with 368 tasks and proves a
+  presentation-only `Materializing -> Ready(5)` transition without a summary write. After one
+  brace-style precursor failure, root Detekt plus tracker-engine and stats-API lint passed in
+  `5m 57s` with 378 tasks. Fresh review found no actionable defect.
+- Decision: the public repository exposes a cold Flow backed by Room invalidation of the 12 direct
+  coherent-read dependencies. Invalidations are conflated before each existing bounded read;
+  cancellation is rethrown, storage failure remains typed, and the operation neither repairs data
+  nor acquires any provider demand.
+- Consequences: terminal run, completeness, lane, fact, deletion, retention, or calendar changes
+  can refresh qualified numeric state without fabricating a daily-summary event. Because table
+  invalidation is scope-broad and `source_evidence_state` is high-frequency, consumers must keep
+  collection subscription-scoped and must not promote it into a permanent app-wide observer. This
+  is host/Robolectric/static evidence, not rendered UI, provider/listener, physical device,
+  process/reboot/FGS, battery/OEM, activation, rollout, push, or release proof.
