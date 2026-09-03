@@ -6,6 +6,155 @@ This handover is for the next device or Codex session continuing the tracking-in
 program after the local and remote `dev/v10` histories were reconciled. It is an execution
 checkpoint, not a replacement for the architecture or evidence ledgers.
 
+## 2026-09-03 Pressure accepted and parallel drafts stopped checkpoint
+
+This is the authoritative restart boundary. It supersedes the earlier 2026-09-03 checkpoints for
+accepted branch state, preserved draft state, review findings, verification, and restart order.
+Older sections remain historical evidence only.
+
+### Accepted integration state
+
+- Integration worktree: `G:\Github\Tracker-Android\.worktrees\tracking-infra-integration`.
+- Local integration branch: `dev/v10`. Its clean pre-checkpoint parent is exact HEAD
+  `673c4186e04b81a55555be17e63aae222880d892` (`docs(tracking): record Pressure selected
+  deletion`), 85 commits ahead of `origin/dev/v10`. Resolve the documentation checkpoint itself
+  with `git rev-parse HEAD`; no self-referential commit SHA is asserted here.
+- Pressure selected-session deletion is accepted locally in implementation commits `61608800e`
+  and `9592c42d8`, with decision/status/verification evidence in `673c4186e`. The merged Pressure
+  worktree was removed and its local feature branch deleted after verifying the merge.
+- The accepted Pressure slice passed a corrected focused pre-rebase gate (`94/94`), a forced
+  post-rebase focused gate (`94/94`), and the post-rebase Detekt, Android-test compilation,
+  core/tracker lint, app Hilt compilation, and Room-schema gate. A fresh correction-chain review
+  found the original per-manifest consent fan-out; the accepted correction uses one exact capped
+  batch per scope pass, and the final review returned GO with no blocker, high, or medium finding.
+- This is host, Robolectric, in-memory-Room, static, and schema evidence. It is not physical
+  Pressure sensor/FIFO/cadence, device UI, process-death, reboot, FGS, battery/OEM, retention,
+  portable transfer, activation, rollout, push, or release proof.
+- No implementation draft described below was staged, committed, rebased, or merged at this stop
+  boundary. Both pass `git -c core.fsmonitor=false diff --check`; dirty drafts are preserved work,
+  not accepted implementation.
+- All implementation/review agents are stopped. No `java` or `javaw` process was visible at the
+  checkpoint, so the shared Gradle lease is free; tomorrow must still recheck it before building.
+- Everything remains local-only. No push, release, tag, deployment, feature/source activation,
+  remote flag, destructive migration, or external rollout occurred or is authorized here.
+
+The detached root checkout remains at exact HEAD
+`ffd5d372fafafceb7d9d595b95e47b89b949de83` with exactly the same six protected paths and no
+additional changes. Their SHA-256 values were rechecked at this checkpoint and remain:
+
+- `DatabaseImport.kt`: `882BAD525CDA927710FD13C1A1DB1DDD11437963BACC2C50313708BB05BB73D4`;
+- `DatabaseImportCollisionTest.kt`:
+  `01C7D5CC62AF43100B6F8A1458F45662BE293B659AEC0F23AD7CAD5F79F1D0F3`;
+- `DatabaseImportTest.kt`: `794B8A4ADAC5B6F387BEF07A58C90805538127A85CC2A0C00266209C985CD9E6`;
+- `TRACKING_INFRASTRUCTURE_FINAL_PLAN_AND_DESIGN.docx`:
+  `F6F46E2ABA5B2E110DD0F994E280C961B3E1315F79D8FB59C60D053BEE3FBF28`;
+- `TRACKING_INFRASTRUCTURE_IMPLEMENTATION_ORCHESTRATOR_PROMPT.md`:
+  `3F77380D36234BCAAD3A193CC2553E8D50F2C0F0D02928232B4CC99BFC7DA332`;
+- `DashboardManualStartDecisionTest.kt`:
+  `E0912B613CD330949D12DAF69268E1A7B9DDE0F9181D0D235839E0CD8F8B7BF6`.
+
+Never alter, stage, commit, clean, reset, or push those six root-checkout paths as part of this
+continuation.
+
+### Preserved implementation lanes
+
+Both lanes below are intentionally dirty, unstaged, and uncommitted at exact base HEAD
+`a347df9a25e2902b3d9951639f2303e9806f7645` (`docs(tracking): record Pressure fact lane`). Each is
+12 commits behind local `dev/v10` and zero commits ahead because its implementation is still in the
+working tree. Preserve the worktrees exactly until their named findings are corrected and gated.
+
+#### 1. Source-qualified awards, goals, and retained metrics
+
+- Worktree: `G:\Github\Tracker-Android\.worktrees\ti-steps-qualified-awards`; branch
+  `codex/ti-steps-qualified-awards`.
+- State: 55 tracked modifications plus nine untracked files, 64 dirty paths total; tracked diffstat
+  `+4329/-590`; nothing staged; `diff --check` passes.
+- The draft extends exact source-qualified Steps through retained metrics, achievements, goals,
+  progression, and invalidation. It also adds terminal presentation reconciliation and bounded
+  revision-trigger invalidation after a fresh review identified incomplete CAS coverage,
+  process-death settlement, Activity co-capture admission, migrated-v27 sentinel scope,
+  storage-unavailable retry, stale subscribed UI, and premature active discovery. Those semantic
+  corrections remain unaccepted until the current database-trigger defect and all gates are green.
+- Corrected trigger-construction coverage passes `StepsDecisionRevisionTriggersTest` (`2/2`,
+  `BUILD SUCCESSFUL in 1m 44s`, 79 tasks executed). The next tracker gate ran 62 tests: the force-
+  stop, previous-exit coordinator, and previous-exit finalizer classes passed `25/25`; the prior-
+  process reconciler failed `1/1`, and the Room Steps summary class passed `6/36` with 30 failures.
+  All 31 failures have the same root exception:
+  `SQLiteConstraintException: UNIQUE constraint failed: source_evidence_state.id`.
+- Exact diagnosis: each decision trigger currently executes `INSERT OR IGNORE` for the singleton
+  evidence row inside an outer DAO statement. SQLite lets the outer statement's conflict policy
+  override the trigger statement. An ordinary Room `@Insert` with ABORT therefore raises the
+  singleton conflict, while `daily_summary INSERT OR REPLACE` can replace/reset the singleton and
+  violate monotonicity.
+- First correction tomorrow: ensure the singleton once during
+  `StepsDecisionRevisionTriggers.install()`/database open, then make every trigger body UPDATE-only.
+  Missing singleton state after open must fail closed. Strengthen the core regression with an
+  ordinary ABORT `source_service_run` insert and a monotonic `daily_summary` REPLACE assertion.
+- Then rerun the exact core trigger test and the five-class tracker gate before app, Game, stats,
+  Detekt, lint, Hilt, schema, or review gates. Do not stage or commit this lane while that focused
+  gate is red.
+
+#### 2. Portable Steps importer, product composition, and no-resurrection
+
+- Worktree: `G:\Github\Tracker-Android\.worktrees\ti-steps-portable-import`; branch
+  `codex/ti-steps-portable-import`.
+- State: 31 tracked modifications plus 16 untracked files, 47 dirty paths total; tracked diffstat
+  `+2285/-152`; nothing staged; `diff --check` passes.
+- The draft contains bounded portable-format/codec refinement, inert imported origin/run/manifest/
+  fact authority, one-transaction Room import, imported history/numeric composition, selected
+  deletion, day repair, retention, and no-resurrection behavior. It does not register provider
+  demand or fabricate a native live session, writer, policy, manifest, or projection lane.
+- Before the latest static corrections, the focused parity cohort passed `58/58` in
+  `BUILD SUCCESSFUL in 6m 19s` (286 tasks). The regenerated v28 Room identity is
+  `3aa9a02ebc2c87116e676438b9a4c431`, and the schema includes the exact composite imported
+  manifest/run FK index. The current-byte 59-test cohort and affected production compilation have
+  not run, so the earlier green result is not acceptance evidence for the present draft.
+- Fresh full-diff review is NO-GO with three blockers and one medium finding:
+  1. `SegmentSource.PORTABLE_IMPORT` has no exhaustive production mapping in
+     `TripDetailPresenterViewModel`, and `SessionlessEnumsTest` still asserts the old enum set.
+  2. Selected imported deletion repairs only each imported run's own zone. It must lock the bounded
+     plausible-offset envelope, inspect persisted summaries under their stored zones, and repair
+     the exact union of required days and overlapping persisted-zone rows. Add the Kiritimati-to-
+     Honolulu import-then-delete/no-resurrection regression.
+  3. Both retention workers can commit a newer `source_evidence_state.retainedFromMs` and return
+     early for pending WAL before advancing imported entry state. Product history must compare the
+     current authoritative floor directly, so stale `ACTIVE` can never remain numeric/exportable;
+     cover both workers or one genuinely shared invariant plus production composition.
+  4. `ImportedStepsAuthorityDao.advanceRetention` updates only `ACTIVE`, preventing a later
+     `RETENTION_CROSSED` entry from advancing to `RETAINED_OUT`. Add the two-pass transition test
+     and preserve monotonic floor semantics.
+- The schema/migration/entity sub-review otherwise returned GO: FKs, indexes, additive v27-to-v28
+  ordering, deletion order, bounded admission, query paging, and the generated Room hash are
+  coherent. The atomic importer is also acceptable in isolation; the complete stack is not.
+- After those findings pass focused compilation/tests, obtain a fresh full-diff review. Rebase only
+  then onto current local `dev/v10`, reconcile the accepted Room exporter, and add imported-
+  authority re-export plus native same-database dedup/global-authority preflight and race coverage.
+  Do not invent a registry, generic materializer, or imported provider authority.
+
+### Exact restart and convergence order
+
+1. Repeat the mandatory read-only startup checks and full tracking-document read. Verify this
+   checkpoint HEAD, both dirty lanes, the detached root HEAD, all six protected hashes, and the
+   single Gradle lease before editing or building.
+2. Correct awards and importer findings in parallel within their separate worktrees. Keep one
+   owner per overlapping file and serialize all Gradle invocations globally.
+3. For awards, repair the singleton-install/UPDATE-only trigger invariant first, rerun the two
+   named gates, then complete app/Game/stats focused gates, Detekt, affected lint/Hilt/schema,
+   current-byte review, exact coherent commits, rebase, forced post-rebase gates, and local
+   fast-forward only after GO.
+4. For importer, fix all four review findings and production compilation first; rerun the current
+   59-test cohort and proportional static/schema gates, obtain GO, make dependency-ordered commits,
+   rebase after awards because both touch v28/shared Steps composition, reconcile exporter/dedup,
+   force post-rebase gates, and merge locally only when clean and accepted.
+5. Run `ciUnitTest` at the next meaningful combined integration gate and `ciCheck --continue` only
+   at integration readiness. Keep the physical manual Steps-only provider/listener gate open until
+   a suitable real device supplies `TYPE_STEP_COUNTER` evidence.
+6. Continue the remaining program in dependency order: automatic Steps with explicit control
+   separation; default-off ambient Steps; Pressure history/product, retention, and portable
+   transfer; protected Location; then Activity, Wi-Fi, and Cell as independent source-to-product
+   verticals. Preserve canonical Location and all hard privacy, lifecycle, battery, and writer
+   boundaries throughout.
+
 ## 2026-09-03 portable-export accepted restart checkpoint
 
 This is the authoritative restart boundary. It supersedes the earlier 2026-09-03 end-of-day
