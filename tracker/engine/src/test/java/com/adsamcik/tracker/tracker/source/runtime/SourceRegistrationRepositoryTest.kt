@@ -699,15 +699,17 @@ class SourceRegistrationRepositoryTest {
 }
 
 private suspend fun activateAllSourceProductLanes(database: AppDatabase): RoomTrackingRolloutStateStore {
-	val bindings = SourceKind.entries.map { source ->
-		ExecutableSourceLaneBinding(
-			source = source,
-			bindingGeneration = 1L,
-			projectionId = "test-${source.name.lowercase()}-product",
-			projectionVersion = 1,
-			captureModes = setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
-		)
-	}
+	val bindings = SourceKind.entries
+		.filterNot { source -> source == SourceKind.PRESSURE }
+		.map { source ->
+			ExecutableSourceLaneBinding(
+				source = source,
+				bindingGeneration = 1L,
+				projectionId = "test-${source.name.lowercase()}-product",
+				projectionVersion = 1,
+				captureModes = setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
+			)
+		}
 	return installCanonicalProductLanesForTest(
 		database = database,
 		bindings = bindings,

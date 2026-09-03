@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
@@ -20,7 +21,6 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
 import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
-import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
@@ -71,6 +71,7 @@ class PressureDurableSourceIngressTest {
 		lifecycleStore = PressureIngressLifecycleStore()
 		ingress = createIngress()
 		installPressureCaptureLane()
+		installPressureDestinationOwner()
 		RoomTrackingRolloutStateStore(database, PRESSURE_EXECUTABLE_LANE_CATALOG).save(
 			TrackingRolloutState.eventCanonical(
 				sources = setOf(SourceKind.PRESSURE),
@@ -533,13 +534,14 @@ class PressureDurableSourceIngressTest {
 	)
 
 	private suspend fun installPressureCaptureLane() {
+		val binding = ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS
 		database.sourceProjectionStateDao().installProductLane(
 			SourceProductProjectionLaneEntity(
-				sourceKind = SourceKind.PRESSURE.stableCode,
-				bindingGeneration = 1L,
-				projectionId = PRESSURE_PROJECTION_ID,
-				projectionVersion = 1,
-				captureModeMask = CaptureReachabilityMode.MANUAL_SESSION_CAPTURE.mask,
+				sourceKind = binding.source.stableCode,
+				bindingGeneration = binding.bindingGeneration,
+				projectionId = binding.projectionId,
+				projectionVersion = binding.projectionVersion,
+				captureModeMask = binding.captureModeMask,
 				productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
 				activatedRolloutRevision = 1L,
 				activationOrdinal = 1L,
@@ -547,6 +549,18 @@ class PressureDurableSourceIngressTest {
 				retentionRequired = true,
 				status = SourceProductProjectionLaneEntity.STATUS_ACTIVE,
 				installedAtMs = 1L,
+				updatedAtMs = 1L,
+			),
+		)
+	}
+
+	private suspend fun installPressureDestinationOwner() {
+		database.sourceDestinationOwnerDao().insertIfAbsent(
+			SourceDestinationOwnerEntity(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+				destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+				owner = SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
+				ownerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
 				updatedAtMs = 1L,
 			),
 		)
@@ -632,14 +646,21 @@ class PressureDurableSourceIngressTest {
 				runRevision = 1L,
 			),
 		)
+		val binding = ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS
 		val manifestBinding = SessionManifestSourceEntity(
 			logicalTrackingId = LOGICAL_TRACKING_ID,
 			manifestRevision = 1L,
-			sourceKind = SourceKind.PRESSURE.stableCode,
+			sourceKind = binding.source.stableCode,
 			purpose = SourceBrokerPurpose.SESSION_CAPTURE,
 			consentEpoch = 1L,
 			persistenceEligible = true,
 			qosCode = 2,
+			outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+			writerOwner = SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
+			writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+			writerProjectionId = binding.projectionId,
+			writerProjectionVersion = binding.projectionVersion,
+			writerBindingGeneration = binding.bindingGeneration,
 		)
 		val unsignedManifest = SessionManifestVersionEntity(
 			logicalTrackingId = LOGICAL_TRACKING_ID,
@@ -783,18 +804,11 @@ class PressureDurableSourceIngressTest {
 		const val PRESSURE_ELIGIBILITY_FINGERPRINT = "pressure-session-eligibility"
 		const val FIRST_PHYSICAL_CONFIGURATION = "pressure-physical-before"
 		const val SECOND_PHYSICAL_CONFIGURATION = "pressure-physical-after"
-		const val PRESSURE_PROJECTION_ID = "pressure-ingress-test"
 		const val LOGICAL_TRACKING_ID = "pressure-session"
 		const val SERVICE_RUN_ID = "pressure-run"
 		val PRESSURE_OWNER_SCOPE = "source-broker:${SourceKind.PRESSURE.stableCode}"
 		val PRESSURE_EXECUTABLE_LANE_CATALOG = ExecutableSourceLaneCatalog.explicit(
-			ExecutableSourceLaneBinding(
-				source = SourceKind.PRESSURE,
-				bindingGeneration = 1L,
-				projectionId = PRESSURE_PROJECTION_ID,
-				projectionVersion = 1,
-				captureModes = setOf(CaptureReachabilityMode.MANUAL_SESSION_CAPTURE),
-			),
+			ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS,
 		)
 	}
 }

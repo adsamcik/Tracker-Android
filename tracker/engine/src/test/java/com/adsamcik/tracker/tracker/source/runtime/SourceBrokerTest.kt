@@ -20,6 +20,7 @@ import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneBinding
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutState
 import com.adsamcik.tracker.tracker.source.coordinator.installCanonicalProductLanesForTest
 import com.adsamcik.tracker.tracker.source.model.ActivityAcquisitionCapability
@@ -616,21 +617,25 @@ class SourceBrokerTest {
 		consentEpoch: Long,
 		persistenceEligible: Boolean,
 	): SessionManifestSourceEntity {
-		val stepsCapture = source == SourceKind.STEPS &&
-			purpose == SourceBrokerPurpose.SESSION_CAPTURE && persistenceEligible
+		val writer = when {
+			source == SourceKind.STEPS && isCaptured(purpose, persistenceEligible) -> STEPS_TEST_WRITER
+			source == SourceKind.PRESSURE && isCaptured(purpose, persistenceEligible) -> PRESSURE_TEST_WRITER
+			else -> null
+		}
 		return SessionManifestSourceEntity(
-		logicalTrackingId = "session-1",
-		manifestRevision = 4L,
-		sourceKind = source.stableCode,
-		purpose = purpose,
-		consentEpoch = consentEpoch,
-		persistenceEligible = persistenceEligible,
-		qosCode = 2,
-		outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS.takeIf { stepsCapture },
-		writerOwner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL.takeIf { stepsCapture },
-		writerOwnerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION.takeIf {
-			stepsCapture
-		},
+			logicalTrackingId = "session-1",
+			manifestRevision = 4L,
+			sourceKind = source.stableCode,
+			purpose = purpose,
+			consentEpoch = consentEpoch,
+			persistenceEligible = persistenceEligible,
+			qosCode = 2,
+			outputDestination = writer?.destination,
+			writerOwner = writer?.owner,
+			writerOwnerGeneration = writer?.ownerGeneration,
+			writerProjectionId = writer?.projectionId,
+			writerProjectionVersion = writer?.projectionVersion,
+			writerBindingGeneration = writer?.bindingGeneration,
 		)
 	}
 
@@ -645,18 +650,60 @@ class SourceBrokerTest {
 	}
 }
 
+private fun isCaptured(purpose: String, persistenceEligible: Boolean): Boolean =
+	purpose == SourceBrokerPurpose.SESSION_CAPTURE && persistenceEligible
+
+private data class BrokerTestWriter(
+	val destination: String,
+	val owner: String,
+	val ownerGeneration: Long,
+	val projectionId: String? = null,
+	val projectionVersion: Int? = null,
+	val bindingGeneration: Long? = null,
+)
+
+private val STEPS_TEST_WRITER = BrokerTestWriter(
+	destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+	owner = SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL,
+	ownerGeneration = SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION,
+)
+
+private val PRESSURE_TEST_WRITER = ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS.let { binding ->
+	BrokerTestWriter(
+		destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+		owner = SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
+		ownerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+		projectionId = binding.projectionId,
+		projectionVersion = binding.projectionVersion,
+		bindingGeneration = binding.bindingGeneration,
+	)
+}
+
 private suspend fun activateAllBrokerTestProductLanes(
 	database: AppDatabase,
 	captureModes: Set<CaptureReachabilityMode>,
 ): RoomTrackingRolloutStateStore {
+	database.sourceDestinationOwnerDao().insertIfAbsent(
+		SourceDestinationOwnerEntity(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
+			destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_PRESSURE,
+			owner = SourceDestinationOwnerEntity.OWNER_PRESSURE_SESSION_FACTS,
+			ownerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+			updatedAtMs = 1L,
+		),
+	)
 	val bindings = SourceKind.entries.map { source ->
-		ExecutableSourceLaneBinding(
-			source = source,
-			bindingGeneration = 1L,
-			projectionId = "broker-test-${source.name.lowercase()}-product",
-			projectionVersion = 1,
-			captureModes = captureModes,
-		)
+		if (source == SourceKind.PRESSURE) {
+			ExecutableSourceLaneCatalog.PRESSURE_SESSION_FACTS
+		} else {
+			ExecutableSourceLaneBinding(
+				source = source,
+				bindingGeneration = 1L,
+				projectionId = "broker-test-${source.name.lowercase()}-product",
+				projectionVersion = 1,
+				captureModes = captureModes,
+			)
+		}
 	}
 	return installCanonicalProductLanesForTest(
 		database = database,
