@@ -124,6 +124,8 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 			"source_service_run",
 			"session_manifest_version",
 			"session_manifest_source",
+			"source_policy",
+			"source_consent_epoch",
 			"source_session_completeness",
 			"source_product_projection_lane",
 			"source_projection_failure",

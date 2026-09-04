@@ -10,12 +10,15 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
@@ -50,6 +53,8 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
+		database.sourcePolicyDao().insertPolicies(listOf(stepsCapturePolicy()))
+		database.sourcePolicyDao().insertConsentEpochs(listOf(stepsCaptureConsent()))
 		repository = RoomStepsNumericSummaryRepository(database, Dispatchers.IO)
 	}
 
@@ -155,6 +160,42 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 		}
 
 	@Test
+	fun `authority repair invalidates unavailable numeric observation`() = runBlocking<Unit> {
+		insertCoveredCandidate(stepsPerFact = 5L)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_policy WHERE policy_revision = ? AND source_kind = ?",
+			arrayOf<Any>(SOURCE_POLICY_REVISION, SourceDestinationOwnerEntity.SOURCE_STEPS),
+		)
+		val unavailable = StepsNumericSummary.Unverifiable(
+			StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+		)
+		repository.read(request()) shouldBe unavailable
+
+		repository.observe(request()).test {
+			awaitItem() shouldBe unavailable
+			database.sourcePolicyDao().insertPolicies(listOf(stepsCapturePolicy()))
+			val ready = StepsNumericSummary.Ready(
+				listOf(StepsNumericDay(epochDay = DAY, steps = 5L)),
+			)
+			awaitItem() shouldBe ready
+
+			database.openHelper.writableDatabase.execSQL(
+				"DELETE FROM source_consent_epoch WHERE source_kind = ? AND purpose = ? AND epoch = ?",
+				arrayOf<Any>(
+					SourceDestinationOwnerEntity.SOURCE_STEPS,
+					StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+					CAPTURE_CONSENT_EPOCH,
+				),
+			)
+			database.invalidationTracker.refreshAsync()
+			awaitItem() shouldBe unavailable
+			database.sourcePolicyDao().insertConsentEpochs(listOf(stepsCaptureConsent()))
+			awaitItem() shouldBe ready
+			cancelAndIgnoreRemainingEvents()
+		}
+	}
+
+	@Test
 	fun `terminal session with more than 2048 covered facts remains Ready`() = runBlocking<Unit> {
 		insertCoveredCandidate(
 			factCount = LARGE_FACT_COUNT,
@@ -167,11 +208,53 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 	}
 
 	@Test
+	fun `retarget to a durable run outside the day cannot reduce the numeric total`() =
+		runBlocking<Unit> {
+			insertCoveredCandidate(factCount = 2, stepsPerFact = 4L)
+			val selectedSession = requireNotNull(database.sourceSessionDao().session(LOGICAL_ID))
+			val selectedRun = requireNotNull(database.sourceSessionDao().serviceRun(RUN_ID))
+			val outsideLogicalId = "numeric-outside-logical"
+			val outsideRunId = "numeric-outside-run"
+			val outsideStartMs = DAY_START + 3L * 24L * HOUR_MS
+			database.sourceSessionDao().insertSession(
+				selectedSession.copy(
+					logicalTrackingId = outsideLogicalId,
+					startedAtMs = outsideStartMs,
+					cutoffAtMs = outsideStartMs + HOUR_MS,
+					completedAtMs = outsideStartMs + HOUR_MS,
+				),
+			)
+			database.sourceSessionDao().insertServiceRun(
+				selectedRun.copy(
+					serviceRunId = outsideRunId,
+					logicalTrackingId = outsideLogicalId,
+					startedAtMs = outsideStartMs,
+					completedAtMs = outsideStartMs + HOUR_MS,
+					startDeliveryToken = "outside-delivery",
+					sessionSegmentId = null,
+					presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
+					presentationAcknowledgedAtMs = null,
+				),
+			)
+			val hiddenLogicalFactId =
+				"${SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID}:$RUN_ID-event-0"
+			database.openHelper.writableDatabase.execSQL(
+				"UPDATE step_fact_revision SET logical_tracking_id = ?, service_run_id = ? " +
+					"WHERE logical_fact_id = ? AND operation = 'UPSERT'",
+				arrayOf(outsideLogicalId, outsideRunId, hiddenLogicalFactId),
+			)
+
+			repository.read(request()) shouldBe StepsNumericSummary.Unverifiable(
+				StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+			)
+		}
+
+	@Test
 	fun `latest corrected fact state remains nonnumeric through the Room repository`() = runBlocking<Unit> {
 		insertCoveredCandidate(stepsPerFact = 2L)
 		val correctionOrdinal = ADMISSION_ORDINAL + 1L
 		val correctionEventId = "$RUN_ID-correction-event"
-		val corrected = coveredFact(
+		val unsignedCorrection = coveredFact(
 			runId = RUN_ID,
 			manifestRevision = 1L,
 			factIndex = 0,
@@ -188,8 +271,11 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 			sourceEventId = correctionEventId,
 			sourceAdmissionOrdinal = correctionOrdinal,
 			originIdentity = correctionEventId,
-			effectChecksum = "corrected-room-checksum",
+			effectChecksum = "pending-corrected-effect",
 			appliedAtMs = DAY_START + HOUR_MS + 1L,
+		)
+		val corrected = unsignedCorrection.copy(
+			effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(unsignedCorrection),
 		)
 		database.stepFactRevisionDao().insert(corrected) shouldNotBe -1L
 		check(
@@ -333,7 +419,7 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 				lifecycleRevision = 2L,
 				desiredPlanRevision = 1L,
 				rolloutRevision = 1L,
-				startOrigin = "MANUAL_UI",
+				startOrigin = MANUAL_START_ORIGIN,
 				clockDomainId = "boot",
 				startedAtMs = DAY_START,
 				startedElapsedNanos = elapsedAt(DAY_START),
@@ -380,7 +466,7 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 				completionReason = "USER_STOP",
 				bootId = "boot",
 				leaseGeneration = 1L,
-				startOrigin = "MANUAL_UI",
+				startOrigin = MANUAL_START_ORIGIN,
 				desiredForegroundCapabilityFlags = 0L,
 				appliedForegroundCapabilityFlags = 0L,
 				runtimeAcknowledgement = "STOP_ACCEPTED",
@@ -410,9 +496,9 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 			manifestRevision = 1L,
 			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
-			consentEpoch = 1L,
+			consentEpoch = CAPTURE_CONSENT_EPOCH,
 			persistenceEligible = true,
-			qosCode = 0,
+			qosCode = CAPTURE_QOS_CODE,
 			outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
 			writerOwner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
 			writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
@@ -425,10 +511,10 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 			manifestRevision = 1L,
 			serviceRunId = RUN_ID,
 			sessionMode = "MANUAL",
-			sourcePolicyRevision = 1L,
+			sourcePolicyRevision = SOURCE_POLICY_REVISION,
 			acquisitionPlanRevision = 1L,
 			rolloutRevision = 1L,
-			startOrigin = "MANUAL_UI",
+			startOrigin = MANUAL_START_ORIGIN,
 			effectiveBootId = "boot",
 			effectiveElapsedRealtimeNanos = elapsedAt(DAY_START),
 			effectiveWallTimeMs = DAY_START,
@@ -501,7 +587,7 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 				completionReason = null,
 				bootId = "boot",
 				leaseGeneration = 1L,
-				startOrigin = "MANUAL_UI",
+				startOrigin = MANUAL_START_ORIGIN,
 				desiredForegroundCapabilityFlags = 0L,
 				appliedForegroundCapabilityFlags = 0L,
 				runtimeAcknowledgement = "START_ACCEPTED",
@@ -526,10 +612,10 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 			manifestRevision = 2L,
 			serviceRunId = REPLACEMENT_RUN_ID,
 			sessionMode = "MANUAL",
-			sourcePolicyRevision = 1L,
+			sourcePolicyRevision = SOURCE_POLICY_REVISION,
 			acquisitionPlanRevision = 1L,
 			rolloutRevision = 1L,
-			startOrigin = "MANUAL_UI",
+			startOrigin = MANUAL_START_ORIGIN,
 			effectiveBootId = "boot",
 			effectiveElapsedRealtimeNanos = elapsedAt(DAY_START + 2L * HOUR_MS),
 			effectiveWallTimeMs = DAY_START + 2L * HOUR_MS,
@@ -549,15 +635,48 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 		manifestRevision = manifestRevision,
 		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 		purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
-		consentEpoch = 1L,
+		consentEpoch = CAPTURE_CONSENT_EPOCH,
 		persistenceEligible = true,
-		qosCode = 0,
+		qosCode = CAPTURE_QOS_CODE,
 		outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
 		writerOwner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
 		writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
 		writerProjectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
 		writerProjectionVersion = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
 		writerBindingGeneration = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
+	)
+
+	private fun stepsCapturePolicy() = SourcePolicyEntity(
+		policyRevision = SOURCE_POLICY_REVISION,
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+		enabled = true,
+		qosCode = CAPTURE_QOS_CODE,
+		locationMinTimeSeconds = null,
+		locationMinDistanceMeters = null,
+		locationRequiredAccuracyMeters = null,
+		capturePersistenceEligible = true,
+		controlPersistenceEligible = false,
+		ambientPersistenceEligible = false,
+		captureConsentEpoch = CAPTURE_CONSENT_EPOCH,
+		controlConsentEpoch = null,
+		ambientConsentEpoch = null,
+		effectiveBootId = "boot",
+		effectiveElapsedRealtimeNanos = RUN_START_ELAPSED_NANOS,
+		effectiveWallTimeMs = DAY_START,
+		changeReason = "TEST",
+	)
+
+	private fun stepsCaptureConsent() = SourceConsentEpochEntity(
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+		purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+		epoch = CAPTURE_CONSENT_EPOCH,
+		eligible = true,
+		persistenceEligible = true,
+		policyRevision = SOURCE_POLICY_REVISION,
+		effectiveBootId = "boot",
+		effectiveElapsedRealtimeNanos = RUN_START_ELAPSED_NANOS,
+		effectiveWallTimeMs = DAY_START,
+		changeReason = "TEST",
 	)
 
 	private suspend fun insertCoveredFacts(
@@ -608,7 +727,7 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 		val writerProjectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID
 		val sourceEventId = "$runId-event-$factIndex"
 		val logicalFactId = "$writerProjectionId:$sourceEventId"
-		return StepFactRevisionEntity(
+		val unsigned = StepFactRevisionEntity(
 			logicalFactId = logicalFactId,
 			semanticRevision = 1L,
 			mutationId = "$logicalFactId:1:${StepFactRevisionEntity.OPERATION_UPSERT}",
@@ -636,12 +755,15 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 			serviceRunId = runId,
 			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
 			manifestRevision = manifestRevision,
-			sourcePolicyRevision = 1L,
-			captureConsentEpoch = 1L,
+			sourcePolicyRevision = SOURCE_POLICY_REVISION,
+			captureConsentEpoch = CAPTURE_CONSENT_EPOCH,
 			collectedDataEpoch = EPOCH,
 			scopeDeletionGeneration = 0L,
-			effectChecksum = "$runId-checksum-$factIndex",
+			effectChecksum = "pending-test-effect",
 			appliedAtMs = endMs,
+		)
+		return unsigned.copy(
+			effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(unsigned),
 		)
 	}
 
@@ -673,6 +795,10 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 		const val HOUR_MS = 60L * 60_000L
 		const val NANOS_PER_MILLISECOND = 1_000_000L
 		const val RUN_START_ELAPSED_NANOS = 1L
+		const val SOURCE_POLICY_REVISION = 1L
+		const val CAPTURE_CONSENT_EPOCH = 1L
+		const val CAPTURE_QOS_CODE = 1
+		const val MANUAL_START_ORIGIN = "MANUAL_FOREGROUND_START"
 		const val LARGE_FACT_COUNT = 2_049
 		const val EPOCH = 2L
 		const val ADMISSION_ORDINAL = 10L

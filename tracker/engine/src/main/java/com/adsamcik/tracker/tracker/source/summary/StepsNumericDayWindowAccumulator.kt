@@ -28,7 +28,7 @@ internal class StepsNumericDayWindowAccumulator private constructor(
 	private var currentRun: CurrentRun? = null
 	private var compositionInvalid = false
 
-	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
+	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	fun addLogicalGroup(contributions: List<StepsNumericRunContribution>): Boolean {
 		if (currentRun != null || contributions.isEmpty()) {
 			return false
@@ -46,7 +46,10 @@ internal class StepsNumericDayWindowAccumulator private constructor(
 		for (contribution in contributions) {
 			val segmentDuration = contribution.segmentEndMs - contribution.segmentStartMs
 			if (contribution.serviceRunId.isBlank() || segmentDuration <= 0L ||
-				!contribution.distanceM.isFinite() || contribution.distanceM < 0f
+				!contribution.distanceM.isFinite() || contribution.distanceM < 0f ||
+				contribution.stepsManifestRevisions.any { revision -> revision <= 0L } ||
+				contribution.stepsManifestRevisions.isEmpty() &&
+				!contribution.hasManifestWithoutStepsCapture
 			) {
 				return false
 			}
@@ -68,29 +71,19 @@ internal class StepsNumericDayWindowAccumulator private constructor(
 				}
 				cell.hasContribution = true
 				overlaps[dayIndex] = true
-			}
-			for (slice in contribution.captureSlices) {
-				if (slice.manifestRevision <= 0L || slice.endMs <= slice.startMs) {
-					return false
+				if (contribution.stepsManifestRevisions.isNotEmpty()) {
+					// A bound presentation interval is enough to avoid claiming NotCaptured, but
+					// only qualified fact wall intervals may promote the day to exact coverage.
+					cell.potentialStepsRunIds += contribution.serviceRunId
 				}
-				forEachOverlappingWindow(slice.startMs, slice.endMs) { dayIndex ->
-					days[dayIndex].hasContribution = true
-					overlaps[dayIndex] = true
-					if (!slice.capturesSteps) {
-						days[dayIndex].hasNonStepsCapture = true
-					}
+				if (contribution.hasManifestWithoutStepsCapture) {
+					cell.hasNonStepsCapture = true
 				}
 			}
 		}
 		for (dayIndex in windows.indices) {
-			val window = windows[dayIndex]
-			if (overlaps[dayIndex] && logicalStartedAtMs in window.startMs until window.endMs) {
-				val accumulatedTrips = addExact(days[dayIndex].tripCount, 1)
-				if (accumulatedTrips == null) {
-					compositionInvalid = true
-				} else {
-					days[dayIndex].tripCount = accumulatedTrips
-				}
+			if (overlaps[dayIndex]) {
+				markLogicalTrip(dayIndex, logicalTrackingId, logicalStartedAtMs)
 			}
 		}
 		return true
@@ -106,58 +99,32 @@ internal class StepsNumericDayWindowAccumulator private constructor(
 		return true
 	}
 
-	@Suppress("CyclomaticComplexMethod")
+	@Suppress("ComplexCondition", "CyclomaticComplexMethod")
 	fun startRun(contribution: StepsNumericRunContribution): Boolean {
-		if (currentRun != null || contribution.serviceRunId.isBlank()) {
+		if (currentRun != null || contribution.serviceRunId.isBlank() ||
+			contribution.logicalTrackingId.isBlank() ||
+			contribution.stepsManifestRevisions.isEmpty() ||
+			contribution.stepsManifestRevisions.any { revision -> revision <= 0L }
+		) {
 			return false
-		}
-		val requirements = Array<MutableList<CoverageRequirement>?>(windows.size) { null }
-		for (slice in contribution.captureSlices) {
-			if (!slice.capturesSteps) {
-				continue
-			}
-			forEachOverlappingWindow(slice.startMs, slice.endMs) { dayIndex ->
-				val window = windows[dayIndex]
-				val requirement = CoverageRequirement(
-					manifestRevision = slice.manifestRevision,
-					startMs = maxOf(slice.startMs, window.startMs),
-					endMs = minOf(slice.endMs, window.endMs),
-				)
-				if (requirement.endMs <= requirement.startMs) {
-					return false
-				}
-				val dayRequirements = requirements[dayIndex]
-					?: mutableListOf<CoverageRequirement>().also { requirements[dayIndex] = it }
-				dayRequirements += requirement
-			}
-		}
-		val coverageByDay = arrayOfNulls<RunDayCoverage>(windows.size)
-		for (dayIndex in requirements.indices) {
-			val ordered = requirements[dayIndex]
-				?.sortedWith(compareBy<CoverageRequirement>(CoverageRequirement::startMs)
-					.thenBy(CoverageRequirement::endMs)
-					.thenBy(CoverageRequirement::manifestRevision))
-				.orEmpty()
-			if (ordered.zipWithNext().any { (left, right) -> right.startMs < left.endMs }) {
-				return false
-			}
-			if (ordered.isNotEmpty()) {
-				coverageByDay[dayIndex] = RunDayCoverage(ordered, days[dayIndex])
-			}
 		}
 		currentRun = CurrentRun(
 			serviceRunId = contribution.serviceRunId,
+			logicalTrackingId = contribution.logicalTrackingId,
+			logicalStartedAtMs = contribution.logicalStartedAtMs,
 			capturedZoneId = contribution.capturedZoneId,
-			coverageByDay = coverageByDay,
+			stepsManifestRevisions = contribution.stepsManifestRevisions,
+			hasManifestWithoutStepsCapture = contribution.hasManifestWithoutStepsCapture,
+			coverageByDay = arrayOfNulls(windows.size),
 		)
 		return true
 	}
 
-	@Suppress("CyclomaticComplexMethod")
+	@Suppress("ComplexCondition", "CyclomaticComplexMethod")
 	fun consumeCoveredFact(fact: StepsNumericCoveredFact): Boolean {
 		val run = currentRun ?: return false
 		if (fact.serviceRunId != run.serviceRunId || fact.endMs <= fact.startMs || fact.steps < 0L ||
-			fact.wallTimeUncertaintyMs < 0L
+			fact.wallTimeUncertaintyMs < 0L || fact.manifestRevision !in run.stepsManifestRevisions
 		) {
 			return false
 		}
@@ -181,12 +148,39 @@ internal class StepsNumericDayWindowAccumulator private constructor(
 			} else {
 				days[dayIndex].allocatedSteps = accumulated
 			}
+			val cell = days[dayIndex]
+			cell.hasContribution = true
+			if (run.hasManifestWithoutStepsCapture) {
+				cell.hasNonStepsCapture = true
+			}
+			markLogicalTrip(dayIndex, run.logicalTrackingId, run.logicalStartedAtMs)
 			val coverage = run.coverageByDay[dayIndex]
-			if (coverage != null && !coverage.consume(fact, window, run.capturedZoneId)) {
+				?: RunDayCoverage(cell, run.serviceRunId).also { run.coverageByDay[dayIndex] = it }
+			if (!coverage.consume(fact, window, run.capturedZoneId)) {
 				return false
 			}
 		}
 		return true
+	}
+
+	private fun markLogicalTrip(
+		dayIndex: Int,
+		logicalTrackingId: String,
+		logicalStartedAtMs: Long,
+	) {
+		val window = windows[dayIndex]
+		val cell = days[dayIndex]
+		if (logicalStartedAtMs !in window.startMs until window.endMs ||
+			!cell.countedLogicalTrips.add(logicalTrackingId)
+		) {
+			return
+		}
+		val accumulatedTrips = addExact(cell.tripCount, 1)
+		if (accumulatedTrips == null) {
+			compositionInvalid = true
+		} else {
+			cell.tripCount = accumulatedTrips
+		}
 	}
 
 	fun finishRun(): Boolean {
@@ -210,6 +204,9 @@ internal class StepsNumericDayWindowAccumulator private constructor(
 			) {
 				return null
 			}
+			val hasCompleteStepsCapture = cell.completeStepsRunIds.isNotEmpty()
+			val hasPartialStepsCapture = cell.partialStepsRunIds.isNotEmpty() ||
+				cell.potentialStepsRunIds.any { runId -> runId !in cell.completeStepsRunIds }
 			StepsNumericAccumulatedDay(
 				epochDay = window.epochDay,
 				distanceM = cell.distanceM.toFloat(),
@@ -218,8 +215,8 @@ internal class StepsNumericDayWindowAccumulator private constructor(
 				tripCount = cell.tripCount,
 				hasContribution = cell.hasContribution,
 				exactSteps = cell.exactSteps,
-				hasCompleteStepsCapture = cell.hasCompleteStepsCapture,
-				hasPartialStepsCapture = cell.hasPartialStepsCapture,
+				hasCompleteStepsCapture = hasCompleteStepsCapture,
+				hasPartialStepsCapture = hasPartialStepsCapture,
 				hasNonStepsCapture = cell.hasNonStepsCapture,
 			)
 		}
@@ -258,12 +255,12 @@ internal class StepsNumericDayWindowAccumulator private constructor(
 		}
 	}
 
+	/** Civil coverage derived only from the persisted wall interval of each qualified fact. */
 	private class RunDayCoverage(
-		private val requirements: List<CoverageRequirement>,
 		private val day: DayCell,
+		private val serviceRunId: String,
 	) {
-		private var requirementIndex = 0
-		private var cursor = requirements.first().startMs
+		private var cursor: Long? = null
 		private var exactSteps = 0L
 		private var partial = false
 
@@ -273,24 +270,12 @@ internal class StepsNumericDayWindowAccumulator private constructor(
 			window: DayWindow,
 			capturedZoneId: ZoneId,
 		): Boolean {
-			while (requirementIndex < requirements.size &&
-				requirements[requirementIndex].endMs <= fact.startMs
-			) {
-				finishRequirement()
-			}
-			val requirement = requirements.getOrNull(requirementIndex) ?: return true
-			if (fact.endMs <= requirement.startMs || fact.startMs >= requirement.endMs) {
-				return true
-			}
-			if (fact.manifestRevision != requirement.manifestRevision) {
-				return false
-			}
-			val clippedStart = maxOf(fact.startMs, requirement.startMs)
-			val clippedEnd = minOf(fact.endMs, requirement.endMs)
+			val clippedStart = maxOf(fact.startMs, window.startMs)
+			val clippedEnd = minOf(fact.endMs, window.endMs)
 			if (clippedEnd <= clippedStart) {
 				return false
 			}
-			if (clippedStart != cursor ||
+			if (cursor?.let { previousEnd -> clippedStart != previousEnd } == true ||
 				!hasExactDayAuthority(fact, capturedZoneId, window.zoneId)
 			) {
 				partial = true
@@ -304,51 +289,39 @@ internal class StepsNumericDayWindowAccumulator private constructor(
 					exactSteps
 				}
 			}
-			cursor = maxOf(cursor, clippedEnd)
+			cursor = maxOf(cursor ?: clippedStart, clippedEnd)
 			return true
 		}
 
 		fun finish() {
-			while (requirementIndex < requirements.size) {
-				finishRequirement()
+			if (cursor == null) {
+				return
 			}
-		}
-
-		private fun finishRequirement() {
-			val requirement = requirements[requirementIndex]
-			if (partial || cursor != requirement.endMs) {
-				day.hasPartialStepsCapture = true
+			if (partial) {
+				day.partialStepsRunIds += serviceRunId
 			} else {
-				day.hasCompleteStepsCapture = true
+				day.completeStepsRunIds += serviceRunId
 				day.exactSteps = addExact(day.exactSteps, exactSteps) ?: run {
 					day.exactStepsOverflow = true
 					day.exactSteps
 				}
-			}
-			requirementIndex += 1
-			if (requirementIndex < requirements.size) {
-				cursor = requirements[requirementIndex].startMs
-				exactSteps = 0L
-				partial = false
 			}
 		}
 	}
 
 	private data class CurrentRun(
 		val serviceRunId: String,
+		val logicalTrackingId: String,
+		val logicalStartedAtMs: Long,
 		val capturedZoneId: ZoneId,
+		val stepsManifestRevisions: Set<Long>,
+		val hasManifestWithoutStepsCapture: Boolean,
 		val coverageByDay: Array<RunDayCoverage?>,
 	)
 
 	private data class DayWindow(
 		val epochDay: Long,
 		val zoneId: ZoneId,
-		val startMs: Long,
-		val endMs: Long,
-	)
-
-	private data class CoverageRequirement(
-		val manifestRevision: Long,
 		val startMs: Long,
 		val endMs: Long,
 	)
@@ -361,9 +334,11 @@ internal class StepsNumericDayWindowAccumulator private constructor(
 		var hasContribution = false
 		var exactSteps = 0L
 		var exactStepsOverflow = false
-		var hasCompleteStepsCapture = false
-		var hasPartialStepsCapture = false
 		var hasNonStepsCapture = false
+		val potentialStepsRunIds = hashSetOf<String>()
+		val completeStepsRunIds = hashSetOf<String>()
+		val partialStepsRunIds = hashSetOf<String>()
+		val countedLogicalTrips = hashSetOf<String>()
 	}
 
 	internal companion object Factory {
@@ -530,14 +505,10 @@ internal data class StepsNumericRunContribution(
 	val segmentStartMs: Long,
 	val segmentEndMs: Long,
 	val distanceM: Float,
-	val captureSlices: List<StepsNumericCaptureSlice>,
-)
-
-internal data class StepsNumericCaptureSlice(
-	val manifestRevision: Long,
-	val startMs: Long,
-	val endMs: Long,
-	val capturesSteps: Boolean,
+	/** Manifest membership is monotonic-clock authority; it intentionally carries no wall bounds. */
+	val stepsManifestRevisions: Set<Long>,
+	/** Any manifest slice lacking Steps makes fact-backed civil totals conservative for this run. */
+	val hasManifestWithoutStepsCapture: Boolean,
 )
 
 internal data class StepsNumericCoveredFact(

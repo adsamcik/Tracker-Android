@@ -13,8 +13,7 @@ class StepsNumericDayWindowAccumulatorTest {
 		val day = LocalDate.of(2026, 4, 2).toEpochDay()
 		val startMs = startOfDayMs(day, zone) + HOUR_MS
 		val endMs = startMs + HOUR_MS
-		val slice = StepsNumericCaptureSlice(1L, startMs, endMs, capturesSteps = true)
-		val contribution = contribution(zone, startMs, endMs, listOf(slice))
+		val contribution = contribution(zone, startMs, endMs, setOf(1L))
 
 		StepsNumericDayWindowAccumulator.create(emptyMap()) shouldBe null
 		val validation = StepsNumericDayWindowAccumulator.createEmptyValidationOnly()
@@ -32,33 +31,32 @@ class StepsNumericDayWindowAccumulatorTest {
 		val zoneByDay = (0 until StepsNumericSummaryRequest.MAX_DAY_COUNT).associate { offset ->
 			(firstDay + offset) to zone
 		}
-		val slices = zoneByDay.keys.mapIndexed { index, epochDay ->
-			StepsNumericCaptureSlice(
+		val intervals = zoneByDay.keys.mapIndexed { index, epochDay ->
+			FactInterval(
 				manifestRevision = index.toLong() + 1L,
 				startMs = startOfDayMs(epochDay, zone),
 				endMs = startOfDayMs(epochDay + 1L, zone),
-				capturesSteps = true,
 			)
 		}
 		val contribution = contribution(
 			zone = zone,
-			startMs = slices.first().startMs,
-			endMs = slices.last().endMs,
-			slices = slices,
+			startMs = intervals.first().startMs,
+			endMs = intervals.last().endMs,
+			stepsManifestRevisions = intervals.mapTo(linkedSetOf(), FactInterval::manifestRevision),
 		)
 		val accumulator = requireNotNull(StepsNumericDayWindowAccumulator.create(zoneByDay))
 		accumulator.addLogicalGroup(listOf(contribution)) shouldBe true
 		accumulator.startRun(contribution) shouldBe true
 
 		var consumedFacts = 0
-		for (slice in slices) {
-			val durationMs = slice.endMs - slice.startMs
+		for (interval in intervals) {
+			val durationMs = interval.endMs - interval.startMs
 			repeat(FACTS_PER_DAY) { index ->
-				val startMs = slice.startMs + durationMs * index / FACTS_PER_DAY
-				val endMs = slice.startMs + durationMs * (index + 1L) / FACTS_PER_DAY
+				val startMs = interval.startMs + durationMs * index / FACTS_PER_DAY
+				val endMs = interval.startMs + durationMs * (index + 1L) / FACTS_PER_DAY
 				accumulator.consumeCoveredFact(
 					fact(
-						manifestRevision = slice.manifestRevision,
+						manifestRevision = interval.manifestRevision,
 						startMs = startMs,
 						endMs = endMs,
 						steps = 1L,
@@ -85,17 +83,13 @@ class StepsNumericDayWindowAccumulatorTest {
 		val zone = ZoneId.of("UTC")
 		val firstDay = LocalDate.of(2026, 4, 2).toEpochDay()
 		val midnight = startOfDayMs(firstDay + 1L, zone)
-		val slice = StepsNumericCaptureSlice(
-			manifestRevision = 1L,
-			startMs = midnight - HOUR_MS,
-			endMs = midnight + HOUR_MS,
-			capturesSteps = true,
-		)
+		val startMs = midnight - HOUR_MS
+		val endMs = midnight + HOUR_MS
 		val contribution = contribution(
 			zone = zone,
-			startMs = slice.startMs,
-			endMs = slice.endMs,
-			slices = listOf(slice),
+			startMs = startMs,
+			endMs = endMs,
+			stepsManifestRevisions = setOf(1L),
 		)
 		val accumulator = requireNotNull(
 			StepsNumericDayWindowAccumulator.create(
@@ -105,7 +99,7 @@ class StepsNumericDayWindowAccumulatorTest {
 		accumulator.addLogicalGroup(listOf(contribution)) shouldBe true
 		accumulator.startRun(contribution) shouldBe true
 		accumulator.consumeCoveredFact(
-			fact(1L, slice.startMs, slice.endMs, steps = 0L),
+			fact(1L, startMs, endMs, steps = 0L),
 		) shouldBe true
 		accumulator.finishRun() shouldBe true
 
@@ -121,11 +115,7 @@ class StepsNumericDayWindowAccumulatorTest {
 		val firstStart = startOfDayMs(firstDay, zone)
 		val midnight = startOfDayMs(firstDay + 1L, zone)
 		val secondEnd = startOfDayMs(firstDay + 2L, zone)
-		val exactSlices = listOf(
-			StepsNumericCaptureSlice(1L, firstStart, midnight, capturesSteps = true),
-			StepsNumericCaptureSlice(2L, midnight, secondEnd, capturesSteps = true),
-		)
-		val exactContribution = contribution(zone, firstStart, secondEnd, exactSlices)
+		val exactContribution = contribution(zone, firstStart, secondEnd, setOf(1L, 2L))
 		val exact = requireNotNull(
 			StepsNumericDayWindowAccumulator.create(
 				mapOf(firstDay to zone, firstDay + 1L to zone),
@@ -139,17 +129,13 @@ class StepsNumericDayWindowAccumulatorTest {
 		requireNotNull(exact.results()).map(StepsNumericAccumulatedDay::exactSteps) shouldBe
 			listOf(7L, 11L)
 
-		val crossingSlice = StepsNumericCaptureSlice(
-			manifestRevision = 1L,
-			startMs = midnight - HOUR_MS,
-			endMs = midnight + HOUR_MS,
-			capturesSteps = true,
-		)
+		val crossingStartMs = midnight - HOUR_MS
+		val crossingEndMs = midnight + HOUR_MS
 		val crossingContribution = contribution(
 			zone,
-			crossingSlice.startMs,
-			crossingSlice.endMs,
-			listOf(crossingSlice),
+			crossingStartMs,
+			crossingEndMs,
+			setOf(1L),
 		)
 		val crossing = requireNotNull(
 			StepsNumericDayWindowAccumulator.create(
@@ -159,7 +145,7 @@ class StepsNumericDayWindowAccumulatorTest {
 		crossing.addLogicalGroup(listOf(crossingContribution)) shouldBe true
 		crossing.startRun(crossingContribution) shouldBe true
 		crossing.consumeCoveredFact(
-			fact(1L, crossingSlice.startMs, crossingSlice.endMs, steps = 5L),
+			fact(1L, crossingStartMs, crossingEndMs, steps = 5L),
 		) shouldBe true
 		crossing.finishRun() shouldBe true
 		requireNotNull(crossing.results()).map(StepsNumericAccumulatedDay::hasPartialStepsCapture) shouldBe
@@ -172,8 +158,7 @@ class StepsNumericDayWindowAccumulatorTest {
 		val day = LocalDate.of(2026, 4, 2).toEpochDay()
 		val startMs = startOfDayMs(day, zone) + HOUR_MS
 		val endMs = startMs + HOUR_MS
-		val slice = StepsNumericCaptureSlice(1L, startMs, endMs, capturesSteps = true)
-		val contribution = contribution(zone, startMs, endMs, listOf(slice))
+		val contribution = contribution(zone, startMs, endMs, setOf(1L))
 		val accumulator = requireNotNull(
 			StepsNumericDayWindowAccumulator.create(mapOf(day to zone)),
 		)
@@ -192,11 +177,119 @@ class StepsNumericDayWindowAccumulatorTest {
 		result.hasCompleteStepsCapture shouldBe false
 	}
 
+	@Test
+	fun `fact wall time outside presentation still supplies its own civil authority`() {
+		val zone = ZoneId.of("UTC")
+		val day = LocalDate.of(2026, 4, 2).toEpochDay()
+		val presentationStartMs = startOfDayMs(day, zone) + HOUR_MS
+		val factStartMs = presentationStartMs + 4L * HOUR_MS
+		val contribution = contribution(
+			zone = zone,
+			startMs = presentationStartMs,
+			endMs = presentationStartMs + HOUR_MS,
+			stepsManifestRevisions = setOf(1L),
+		)
+		val accumulator = requireNotNull(
+			StepsNumericDayWindowAccumulator.create(mapOf(day to zone)),
+		)
+
+		accumulator.addLogicalGroup(listOf(contribution)) shouldBe true
+		accumulator.startRun(contribution) shouldBe true
+		accumulator.consumeCoveredFact(
+			fact(1L, factStartMs, factStartMs + HOUR_MS, steps = 7L),
+		) shouldBe true
+		accumulator.finishRun() shouldBe true
+
+		val result = requireNotNull(accumulator.results()).single()
+		result.exactSteps shouldBe 7L
+		result.hasCompleteStepsCapture shouldBe true
+		result.hasPartialStepsCapture shouldBe false
+	}
+
+	@Test
+	fun `one exact run cannot mask a second captured run without an in-day fact`() {
+		val zone = ZoneId.of("UTC")
+		val day = LocalDate.of(2026, 4, 2).toEpochDay()
+		val dayStartMs = startOfDayMs(day, zone)
+		val first = contribution(
+			zone = zone,
+			startMs = dayStartMs + HOUR_MS,
+			endMs = dayStartMs + 2L * HOUR_MS,
+			stepsManifestRevisions = setOf(1L),
+		).copy(serviceRunId = "run-a")
+		val second = contribution(
+			zone = zone,
+			startMs = dayStartMs + 3L * HOUR_MS,
+			endMs = dayStartMs + 4L * HOUR_MS,
+			stepsManifestRevisions = setOf(2L),
+		).copy(
+			serviceRunId = "run-b",
+			logicalStartedAtMs = first.logicalStartedAtMs,
+		)
+		val accumulator = requireNotNull(
+			StepsNumericDayWindowAccumulator.create(mapOf(day to zone)),
+		)
+
+		accumulator.addLogicalGroup(listOf(first, second)) shouldBe true
+		accumulator.startRun(first) shouldBe true
+		accumulator.consumeCoveredFact(
+			fact(1L, first.segmentStartMs, first.segmentEndMs, steps = 7L).copy(
+				serviceRunId = first.serviceRunId,
+			),
+		) shouldBe true
+		accumulator.finishRun() shouldBe true
+		accumulator.startRun(second) shouldBe true
+		accumulator.consumeCoveredFact(
+			fact(
+				manifestRevision = 2L,
+				startMs = dayStartMs + 25L * HOUR_MS,
+				endMs = dayStartMs + 26L * HOUR_MS,
+				steps = 11L,
+			).copy(serviceRunId = second.serviceRunId),
+		) shouldBe true
+		accumulator.finishRun() shouldBe true
+
+		val result = requireNotNull(accumulator.results()).single()
+		result.exactSteps shouldBe 7L
+		result.hasCompleteStepsCapture shouldBe true
+		result.hasPartialStepsCapture shouldBe true
+	}
+
+	@Test
+	fun `mixed manifest capture remains partial without inventing a wall boundary`() {
+		val zone = ZoneId.of("UTC")
+		val day = LocalDate.of(2026, 4, 2).toEpochDay()
+		val startMs = startOfDayMs(day, zone) + HOUR_MS
+		val contribution = contribution(
+			zone = zone,
+			startMs = startMs,
+			endMs = startMs + HOUR_MS,
+			stepsManifestRevisions = setOf(2L),
+			hasManifestWithoutStepsCapture = true,
+		)
+		val accumulator = requireNotNull(
+			StepsNumericDayWindowAccumulator.create(mapOf(day to zone)),
+		)
+
+		accumulator.addLogicalGroup(listOf(contribution)) shouldBe true
+		accumulator.startRun(contribution) shouldBe true
+		accumulator.consumeCoveredFact(
+			fact(2L, startMs, startMs + HOUR_MS, steps = 7L),
+		) shouldBe true
+		accumulator.finishRun() shouldBe true
+
+		val result = requireNotNull(accumulator.results()).single()
+		result.exactSteps shouldBe 7L
+		result.hasCompleteStepsCapture shouldBe true
+		result.hasNonStepsCapture shouldBe true
+	}
+
 	private fun contribution(
 		zone: ZoneId,
 		startMs: Long,
 		endMs: Long,
-		slices: List<StepsNumericCaptureSlice>,
+		stepsManifestRevisions: Set<Long>,
+		hasManifestWithoutStepsCapture: Boolean = false,
 	) = StepsNumericRunContribution(
 		serviceRunId = RUN_ID,
 		logicalTrackingId = "logical",
@@ -205,7 +298,14 @@ class StepsNumericDayWindowAccumulatorTest {
 		segmentStartMs = startMs,
 		segmentEndMs = endMs,
 		distanceM = 0f,
-		captureSlices = slices,
+		stepsManifestRevisions = stepsManifestRevisions,
+		hasManifestWithoutStepsCapture = hasManifestWithoutStepsCapture,
+	)
+
+	private data class FactInterval(
+		val manifestRevision: Long,
+		val startMs: Long,
+		val endMs: Long,
 	)
 
 	private fun fact(

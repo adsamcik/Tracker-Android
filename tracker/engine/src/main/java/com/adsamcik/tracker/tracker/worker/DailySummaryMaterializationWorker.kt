@@ -17,6 +17,7 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
 import com.adsamcik.tracker.tracker.source.deletion.StepsDailySummaryRepairComposer
+import com.adsamcik.tracker.tracker.source.deletion.StepsDayNumericComposition
 import com.adsamcik.tracker.tracker.source.deletion.StepsDayRepairPreflight
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -82,7 +83,16 @@ internal suspend fun materializeDailySummaryDayInTransaction(
 						afterServiceRunId = null,
 					)
 					.isNotEmpty()
-				val hasSourceAwareOverlap = hasAttributedSegmentOverlap || hasSourceRunOverlap
+				val hasSourceFactOverlap = database.trackingHistoryReadDao()
+					.stepFactServiceRunCandidateIdPage(
+						fromMs = attributedBounds.fromMs,
+						toMs = attributedBounds.toMs,
+						limit = 1,
+						afterServiceRunId = null,
+					)
+					.isNotEmpty()
+				val hasSourceAwareOverlap = hasAttributedSegmentOverlap || hasSourceRunOverlap ||
+					hasSourceFactOverlap
 				if (existing != null && storedZoneId == null && hasSourceAwareOverlap) {
 					outcome = DailySummaryMaterializationOutcome.Unverifiable
 					return@withTransaction
@@ -99,7 +109,9 @@ internal suspend fun materializeDailySummaryDayInTransaction(
 				) {
 					is StepsDayRepairPreflight.Ready -> {
 						val plan = preflight.plans.singleOrNull()
-						if (plan == null || plan.epochDay != epochDay || plan.zoneId != authorityZone) {
+						if (plan == null || plan.epochDay != epochDay || plan.zoneId != authorityZone ||
+							plan.numericSteps == StepsDayNumericComposition.PartialCapture
+						) {
 							DailySummaryMaterializationOutcome.Unverifiable
 						} else {
 							authorityAggregator.repairDayFromSourceTotalsWhileLocked(

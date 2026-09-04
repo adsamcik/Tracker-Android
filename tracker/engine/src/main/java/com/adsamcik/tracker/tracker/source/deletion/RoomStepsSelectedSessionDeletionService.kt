@@ -5,6 +5,9 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryLockedDays
+import com.adsamcik.tracker.shared.base.database.dao.StepsFactCandidateIdentity
+import com.adsamcik.tracker.shared.base.database.dao.hasValidStepsFactCandidateState
+import com.adsamcik.tracker.shared.base.database.dao.visitStepsFactCandidateStatesByRun
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
@@ -12,9 +15,11 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
 import com.adsamcik.tracker.stats.api.repository.StepsSessionDeletion
@@ -27,7 +32,6 @@ import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatal
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import kotlinx.coroutines.CancellationException
-import java.security.MessageDigest
 import java.time.DateTimeException
 import java.time.Instant
 import java.time.ZoneId
@@ -38,6 +42,7 @@ import javax.inject.Singleton
 
 /** Exact, source-local selected-session deletion for the new-v28 Steps fact writer. */
 @Singleton
+@Suppress("LargeClass", "TooManyFunctions")
 internal class RoomStepsSelectedSessionDeletionService internal constructor(
 	private val database: AppDatabase,
 	private val dirtyTracker: MetricDirtyTracker,
@@ -61,7 +66,7 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 		executableLaneCatalog = executableLaneCatalog,
 	)
 
-	@Suppress("CyclomaticComplexMethod", "ReturnCount", "ThrowsCount")
+	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount", "ThrowsCount")
 	override suspend fun deleteSelectedSession(
 		sessionSegmentId: Long,
 	): StepsSessionDeletionResult {
@@ -105,6 +110,11 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 			}
 		} catch (cancellation: CancellationException) {
 			throw cancellation
+		} catch (malformedEntity: IllegalArgumentException) {
+			if (!malformedEntity.originatesFromSelectedScopeRoomEntity()) {
+				throw malformedEntity
+			}
+			unsupported(StepsSessionDeletionUnsupportedReason.FACT_ATTRIBUTION_MISMATCH)
 		} catch (_: ConcurrentDeletionStateException) {
 			StepsSessionDeletionResult.RetryableFailure(
 				StepsSessionDeletionRetryableReason.CONCURRENT_STATE_CHANGE,
@@ -156,7 +166,16 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 				dailySummaries = scope.dailySummaries,
 			)
 		) {
-			is StepsDayRepairPreflight.Ready -> preflight.plans
+			is StepsDayRepairPreflight.Ready -> {
+				if (
+					preflight.plans.any { plan ->
+						plan.numericSteps == StepsDayNumericComposition.PartialCapture
+					}
+				) {
+					return unsupported(StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE)
+				}
+				preflight.plans
+			}
 			is StepsDayRepairPreflight.Unsupported -> return unsupported(preflight.reason)
 			StepsDayRepairPreflight.Materializing -> return StepsSessionDeletionResult.RetryableFailure(
 				StepsSessionDeletionRetryableReason.DAY_REPAIR_MATERIALIZING,
@@ -268,6 +287,12 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 		if (manifests.size > MAX_SELECTED_MANIFESTS) {
 			return unsupportedScope(StepsSessionDeletionUnsupportedReason.MANIFEST_INTEGRITY_FAILED)
 		}
+		if (!SessionManifestIntegrity.hasValidServiceRunTimeline(serviceRun, manifests)) {
+			return unsupportedScope(StepsSessionDeletionUnsupportedReason.MANIFEST_INTEGRITY_FAILED)
+		}
+		if (manifests.any { manifest -> manifest.sessionMode != logicalSession.sessionMode }) {
+			return unsupportedScope(StepsSessionDeletionUnsupportedReason.FACT_ATTRIBUTION_MISMATCH)
+		}
 		val manifestSources = database.trackingHistoryReadDao().manifestSources(
 			serviceRunIds = listOf(serviceRunId),
 			limit = MAX_SELECTED_MANIFEST_SOURCES + 1,
@@ -278,6 +303,23 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 			)
 		}
 		val sourcesByManifest = manifestSources.groupBy(SessionManifestSourceEntity::manifestRevision)
+		val stepPolicies = database.trackingHistoryReadDao().policiesForServiceRuns(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			serviceRunIds = listOf(serviceRunId),
+		).associateBy { policy -> policy.policyRevision }
+		val requestedConsentEpochs = manifestSources.asSequence().filter { source ->
+			source.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
+				source.purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
+				source.persistenceEligible
+		}.map(SessionManifestSourceEntity::consentEpoch).distinct().toList()
+		val stepCaptureConsents = requestedConsentEpochs.chunked(CONSENT_QUERY_BATCH_SIZE)
+			.flatMap { epochs ->
+				database.sourcePolicyDao().consentEpochs(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+					purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+					epochs = epochs,
+				)
+			}.associateBy(SourceConsentEpochEntity::epoch)
 		val captureBindings = mutableListOf<SessionManifestSourceEntity>()
 		val zonesByManifest = linkedMapOf<Long, ZoneId>()
 		for (manifest in manifests) {
@@ -310,7 +352,17 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 					StepsSessionDeletionUnsupportedReason.MIXED_OR_INCOMPLETE_CAPTURE_SET,
 				)
 			}
-			captureBindings += exactCapture.single()
+			val captureBinding = exactCapture.single()
+			if (!StepFactRevisionIntegrity.hasValidStepsCaptureAuthority(
+					policy = stepPolicies[manifest.sourcePolicyRevision],
+					consent = stepCaptureConsents[captureBinding.consentEpoch],
+					manifestPolicyRevision = manifest.sourcePolicyRevision,
+					binding = captureBinding,
+				)
+			) {
+				return unsupportedScope(StepsSessionDeletionUnsupportedReason.FACT_ATTRIBUTION_MISMATCH)
+			}
+			captureBindings += captureBinding
 			zonesByManifest[manifest.manifestRevision] = try {
 				ZoneId.of(manifest.zoneId)
 			} catch (_: DateTimeException) {
@@ -341,6 +393,9 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 
 		val evidenceState = database.sourceEvidenceStateDao().get()
 			?: return unsupportedScope(StepsSessionDeletionUnsupportedReason.SOURCE_EVIDENCE_STATE_MISSING)
+		if (!hasOnlySelectedRunFactCandidates(serviceRun, logicalTrackingId)) {
+			return unsupportedScope(StepsSessionDeletionUnsupportedReason.FACT_ATTRIBUTION_MISMATCH)
+		}
 		val factDao = database.stepFactRevisionDao()
 		val upserts = factDao.upsertsForServiceRun(
 			logicalTrackingId = logicalTrackingId,
@@ -350,7 +405,13 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 		if (upserts.isEmpty() || upserts.size > MAX_SELECTED_FACTS) {
 			return unsupportedScope(StepsSessionDeletionUnsupportedReason.FACT_ATTRIBUTION_MISMATCH)
 		}
-		val manifestsByRevision = manifests.associateBy(SessionManifestVersionEntity::manifestRevision)
+		val orderedManifests = manifests.sortedBy(SessionManifestVersionEntity::manifestRevision)
+		val manifestsByRevision = orderedManifests.associateBy(
+			SessionManifestVersionEntity::manifestRevision,
+		)
+		val nextManifestsByRevision = orderedManifests.zipWithNext().associate { (current, next) ->
+			current.manifestRevision to next
+		}
 		val bindingsByRevision = captureBindings.associateBy(SessionManifestSourceEntity::manifestRevision)
 		for (fact in upserts) {
 			val manifestRevision = fact.manifestRevision
@@ -371,9 +432,26 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 			) {
 				return unsupportedScope(StepsSessionDeletionUnsupportedReason.FACT_ATTRIBUTION_MISMATCH)
 			}
+			if (!hasValidSelectedFactContext(
+					fact = fact,
+					serviceRun = serviceRun,
+					manifest = manifest,
+					nextManifest = nextManifestsByRevision[manifestRevision],
+				)
+			) {
+				return unsupportedScope(StepsSessionDeletionUnsupportedReason.FACT_ATTRIBUTION_MISMATCH)
+			}
 			if (fact.collectedDataEpoch != evidenceState.collectedDataEpoch) {
 				return unsupportedScope(StepsSessionDeletionUnsupportedReason.STALE_COLLECTED_DATA_EPOCH)
 			}
+		}
+		if (!StepFactRevisionIntegrity.hasValidCanonicalLiveWalRunTimeline(
+				upserts,
+				logicalTrackingId,
+				serviceRunId,
+			)
+		) {
+			return unsupportedScope(StepsSessionDeletionUnsupportedReason.FACT_ATTRIBUTION_MISMATCH)
 		}
 		val manifestRevisions = manifests.map(SessionManifestVersionEntity::manifestRevision)
 		val factStates = factDao.latestStatesForServiceRun(
@@ -453,6 +531,52 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 		)
 	}
 
+	/** Exact run and immutable manifest elapsed authority for one retained LIVE_WAL fact. */
+	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "ReturnCount")
+	private fun hasValidSelectedFactContext(
+		fact: StepFactRevisionEntity,
+		serviceRun: SourceServiceRunEntity,
+		manifest: SessionManifestVersionEntity,
+		nextManifest: SessionManifestVersionEntity?,
+	): Boolean {
+		val startElapsed = fact.intervalStartElapsedRealtimeNanos ?: return false
+		val endElapsed = fact.intervalEndElapsedRealtimeNanos ?: return false
+		if (!StepFactRevisionIntegrity.hasValidCanonicalLiveWalFact(fact) ||
+			fact.clockDomainId != serviceRun.bootId || fact.bootClockDomainId != serviceRun.bootId ||
+			manifest.effectiveBootId != serviceRun.bootId ||
+			startElapsed < serviceRun.startedElapsedNanos ||
+			startElapsed < manifest.effectiveElapsedRealtimeNanos ||
+			endElapsed < manifest.effectiveElapsedRealtimeNanos
+		) {
+			return false
+		}
+		val nextEffective = nextManifest?.effectiveElapsedRealtimeNanos
+		return nextEffective == null ||
+			(startElapsed < nextEffective && endElapsed < nextEffective)
+	}
+
+	private suspend fun hasOnlySelectedRunFactCandidates(
+		serviceRun: SourceServiceRunEntity,
+		logicalTrackingId: String,
+	): Boolean {
+		val identities = hashSetOf<StepsFactCandidateIdentity>()
+		return database.trackingHistoryReadDao().visitStepsFactCandidateStatesByRun(
+			serviceRuns = listOf(serviceRun),
+		) { runId, identity, candidate ->
+			if (!identities.add(identity)) {
+				true
+			} else {
+				val scope = candidate.scopeCarrier
+				val state = candidate.state
+				identities.size <= MAX_SELECTED_FACTS &&
+					hasValidStepsFactCandidateState(candidate) && scope != null && state != null &&
+					runId == serviceRun.serviceRunId && scope.serviceRunId == runId &&
+					scope.logicalTrackingId == logicalTrackingId &&
+					state.operation == StepFactRevisionEntity.OPERATION_UPSERT
+			}
+		}
+	}
+
 	private fun unsupportedScope(
 		reason: StepsSessionDeletionUnsupportedReason,
 	) = SelectedScopePreflight.Unsupported(reason)
@@ -485,8 +609,7 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 		serviceRun: SourceServiceRunEntity,
 	): Boolean = logicalSessionState !in TERMINAL_SESSION_STATES ||
 		currentServiceRunId == serviceRun.serviceRunId || serviceRun.state !in TERMINAL_RUN_STATES ||
-		serviceRun.completedAtMs == null ||
-		serviceRun.presentationAcknowledgement != SourceServiceRunEntity.PRESENTATION_QUIESCED
+		serviceRun.completedAtMs == null
 
 	private fun exactCandidateBinding(
 		source: SessionManifestSourceEntity,
@@ -522,14 +645,13 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 		} catch (_: ArithmeticException) {
 			throw ConcurrentDeletionStateException()
 		}
-		val mutationDigest = digest(
-			"steps-local-delete-mutation-v1",
-			fence.scopeIdentityDigest,
-			fact.logicalFactId,
-			nextRevision,
-			fence.fenceGeneration,
+		val mutationId = StepFactRevisionIntegrity.localDeleteMutationId(
+			scopeIdentityDigest = fence.scopeIdentityDigest,
+			logicalFactId = fact.logicalFactId,
+			semanticRevision = nextRevision,
+			scopeDeletionGeneration = fence.fenceGeneration,
 		)
-		val retraction = buildRetraction(fact, fence, nextRevision, mutationDigest)
+		val retraction = buildRetraction(fact, fence, nextRevision, mutationId)
 		if (database.stepFactRevisionDao().insert(retraction) == INSERT_IGNORED) {
 			val current = database.stepFactRevisionDao().revision(
 				retraction.writerProjectionId,
@@ -548,11 +670,12 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 		fact: StepFactRevisionEntity,
 		fence: SourceDeletionFenceEntity,
 		nextRevision: Long,
-		mutationDigest: String,
-	) = StepFactRevisionEntity(
+		mutationId: String,
+	): StepFactRevisionEntity {
+		val unsigned = StepFactRevisionEntity(
 			logicalFactId = fact.logicalFactId,
 			semanticRevision = nextRevision,
-			mutationId = "local-delete:$mutationDigest",
+			mutationId = mutationId,
 			stepIntervalId = null,
 			sourceEventId = null,
 			sourceAdmissionOrdinal = null,
@@ -581,20 +704,13 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 			captureConsentEpoch = null,
 			collectedDataEpoch = fence.collectedDataEpoch,
 			scopeDeletionGeneration = fence.fenceGeneration,
-			effectChecksum = digest(
-				"steps-local-delete-effect-v1",
-				fact.writerProjectionId,
-				fact.writerProjectionVersion,
-				fact.logicalFactId,
-				nextRevision,
-				mutationDigest,
-				fence.scopeIdentityDigest,
-				fence.fenceGeneration,
-				fence.collectedDataEpoch,
-				fence.deletedAtMs,
-			),
+			effectChecksum = "pending-local-delete-effect",
 			appliedAtMs = fence.deletedAtMs,
 		)
+		return unsigned.copy(
+			effectChecksum = StepFactRevisionIntegrity.localDeleteEffectChecksum(unsigned),
+		)
+	}
 
 	private fun affectedEpochDays(
 		startTimeMs: Long,
@@ -632,23 +748,16 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 		return List(count.toInt()) { offset -> startDay + offset }
 	}
 
-	private fun digest(vararg values: Any?): String {
-		val canonical = values.joinToString(separator = "") { value ->
-			val text = value?.toString()
-			if (text == null) {
-				"-1:"
-			} else {
-				"${text.length}:$text"
-			}
-		}
-		return MessageDigest.getInstance("SHA-256")
-			.digest(canonical.toByteArray(Charsets.UTF_8))
-			.joinToString(separator = "") { byte -> "%02x".format(byte) }
-	}
-
 	private fun unsupported(
 		reason: StepsSessionDeletionUnsupportedReason,
 	): StepsSessionDeletionResult = StepsSessionDeletionResult.UnsupportedScope(reason)
+
+	/** Room entity invariants are data validation; unrelated IllegalArgumentExceptions still escape. */
+	private fun IllegalArgumentException.originatesFromSelectedScopeRoomEntity(): Boolean =
+		stackTrace.any { frame ->
+			frame.methodName == "<init>" &&
+				frame.className.startsWith(ROOM_ENTITY_PACKAGE_PREFIX)
+		}
 
 	private class ConcurrentDeletionStateException : IllegalStateException()
 
@@ -682,6 +791,9 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 		const val MAX_SELECTED_MANIFESTS = 256
 		const val MAX_SELECTED_MANIFEST_SOURCES = 3_072
 		const val MAX_SELECTED_FACTS = 2_048
+		const val CONSENT_QUERY_BATCH_SIZE = 400
+		const val ROOM_ENTITY_PACKAGE_PREFIX =
+			"com.adsamcik.tracker.shared.base.database.data."
 		val KNOWN_SOURCE_KINDS = SourceKind.values().mapTo(hashSetOf(), SourceKind::stableCode)
 		val TERMINAL_SESSION_STATES = setOf("FINALIZED", "FAILED", "CLOSED")
 		val TERMINAL_RUN_STATES = setOf("FINALIZED", "FAILED", "CLOSED")

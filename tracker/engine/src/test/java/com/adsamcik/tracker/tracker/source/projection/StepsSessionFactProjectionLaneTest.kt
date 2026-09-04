@@ -117,7 +117,7 @@ class StepsSessionFactProjectionLaneTest {
 			fact.stepIntervalId shouldBe null
 			fact.writerBindingGeneration shouldBe
 				StepsSessionFactProjectionLane.BINDING_GENERATION
-			StepFactRevisionIntegrity.hasValidLiveWalEffectChecksum(fact) shouldBe true
+			StepFactRevisionIntegrity.hasValidCanonicalLiveWalFact(fact) shouldBe true
 		}
 		database.sourceEvidenceStateDao().get()?.revision shouldBe 1L
 		activeLane()?.contiguousAdmissionOrdinal shouldBe 4L
@@ -141,6 +141,7 @@ class StepsSessionFactProjectionLaneTest {
 		fact.writerProjectionId shouldBe binding.projectionId
 		fact.writerProjectionVersion shouldBe binding.projectionVersion
 		fact.writerBindingGeneration shouldBe binding.bindingGeneration
+		StepFactRevisionIntegrity.hasValidCanonicalLiveWalFact(fact) shouldBe true
 	}
 
 	@Test
@@ -465,23 +466,27 @@ class StepsSessionFactProjectionLaneTest {
 				sourceEventId = "foreign-event",
 				sourceAdmissionOrdinal = 99L,
 				originIdentity = "foreign-event",
-				effectChecksum = "foreign-fact-revision",
+				effectChecksum = "pending-collision-effect",
 			),
 			"MUTATION" to exact.copy(
 				logicalFactId = "foreign-fact",
 				sourceEventId = "foreign-event",
 				sourceAdmissionOrdinal = 99L,
 				originIdentity = "foreign-event",
-				effectChecksum = "foreign-mutation",
+				effectChecksum = "pending-collision-effect",
 			),
 			"WRITER_ADMISSION" to exact.copy(
 				logicalFactId = "foreign-fact",
 				mutationId = "foreign-mutation",
 				sourceEventId = "foreign-event",
 				originIdentity = "foreign-event",
-				effectChecksum = "foreign-admission",
+				effectChecksum = "pending-collision-effect",
 			),
-		)
+		).map { (collisionKind, unsigned) ->
+			collisionKind to unsigned.copy(
+				effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(unsigned),
+			)
+		}
 
 		cases.forEach { (collisionKind, foreign) ->
 			installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)

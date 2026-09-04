@@ -10,14 +10,17 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
 import com.adsamcik.tracker.stats.api.repository.StepsSessionDeletionUnsupportedReason
@@ -55,6 +58,8 @@ class StepsDailySummaryRepairComposerTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = EPOCH))
+		database.sourcePolicyDao().insertPolicies(listOf(stepsCapturePolicy()))
+		database.sourcePolicyDao().insertConsentEpochs(listOf(stepsCaptureConsent()))
 		database.dailySummaryDao().upsert(
 			dateEpochDay = DAY,
 			totalDistanceM = 0f,
@@ -391,6 +396,36 @@ class StepsDailySummaryRepairComposerTest {
 	}
 
 	@Test
+	fun `fact wall projection discovers a run whose source and presentation envelopes are outside day`() =
+		runTest {
+			installLane(cursor = 100L)
+			val outsideStartMs = DAY_START + 2L * 24L * HOUR_MS
+			insertCandidate(
+				logicalId = "fact-projection-discovery-logical",
+				runId = "fact-projection-discovery-run",
+				manifestRevision = 1L,
+				startMs = outsideStartMs,
+				endMs = outsideStartMs + HOUR_MS,
+				steps = 6L,
+				factStartMs = DAY_START + HOUR_MS,
+				factEndMs = DAY_START + 2L * HOUR_MS,
+				factStartElapsedRealtimeNanos = 1L,
+				factEndElapsedRealtimeNanos = 1L + HOUR_MS * NANOS_PER_MILLISECOND,
+			)
+
+			val ready = composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE)
+				as StepsDayRepairPreflight.Ready
+
+			ready.plans.single().numericSteps shouldBe StepsDayNumericComposition.Complete(6L)
+			ready.plans.single().totals shouldBe DailySummaryTotals(
+				distanceM = 0f,
+				steps = 6,
+				durationMs = 0L,
+				tripCount = 0,
+			)
+		}
+
+	@Test
 	fun `source interval day is discoverable when its presentation segment starts next day`() =
 		runTest {
 			installLane(cursor = 100L)
@@ -409,13 +444,20 @@ class StepsDailySummaryRepairComposerTest {
 				segmentEndMs = nextDayStartMs + 20L * 60_000L,
 			)
 
+			val before = database.dailySummaryDao().getByDay(DAY)
 			val ready = composer().composeForNumericRead(mapOf(DAY to ZONE))
-				as StepsDayRepairPreflight.Ready
-			val materialized = composer().composeForMaterialization(DAY, ZONE)
 				as StepsDayRepairPreflight.Ready
 
 			ready.plans.single().numericSteps shouldBe StepsDayNumericComposition.PartialCapture
-			materialized.plans.single().numericSteps shouldBe StepsDayNumericComposition.PartialCapture
+			composer().composeForMaterialization(DAY, ZONE) shouldBe
+				StepsDayRepairPreflight.Unsupported(
+					StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
+				)
+			composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE) shouldBe
+				StepsDayRepairPreflight.Unsupported(
+					StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
+				)
+			database.dailySummaryDao().getByDay(DAY) shouldBe before
 		}
 
 	@Test
@@ -439,10 +481,30 @@ class StepsDailySummaryRepairComposerTest {
 				factUncertaintyMs = 1_000L,
 			)
 
+			database.dailySummaryDao().upsert(
+				dateEpochDay = summaryDay,
+				totalDistanceM = 123f,
+				totalSteps = 123,
+				totalDurationMs = 123L,
+				tripCount = 123,
+				activeTrackingMs = 123L,
+				lastUpdatedMs = 123L,
+				calendarZoneId = summaryZone.id,
+			)
+			val before = database.dailySummaryDao().getByDay(summaryDay)
 			val ready = composer().composeForNumericRead(mapOf(summaryDay to summaryZone))
 				as StepsDayRepairPreflight.Ready
 
 			ready.plans.single().numericSteps shouldBe StepsDayNumericComposition.PartialCapture
+			composer().composeForMaterialization(summaryDay, summaryZone) shouldBe
+				StepsDayRepairPreflight.Unsupported(
+					StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
+				)
+			composer().compose(listOf(summaryDay), excludedSegmentId = Long.MIN_VALUE) shouldBe
+				StepsDayRepairPreflight.Unsupported(
+					StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
+				)
+			database.dailySummaryDao().getByDay(summaryDay) shouldBe before
 		}
 
 	@Test
@@ -492,22 +554,187 @@ class StepsDailySummaryRepairComposerTest {
 				resetDatabase()
 			}
 			installLane(cursor = 100L)
+			val logicalId = "corrupt-live-wal-$index-logical"
 			val runId = "corrupt-live-wal-$index-run"
 			insertCandidate(
-				logicalId = "corrupt-live-wal-$index-logical",
+				logicalId = logicalId,
 				runId = runId,
 				manifestRevision = 1L,
 				startMs = DAY_START + HOUR_MS,
 				endMs = DAY_START + 2L * HOUR_MS,
 				steps = 5L,
 			)
-		database.openHelper.writableDatabase.execSQL(
+			database.openHelper.writableDatabase.execSQL(
 				"UPDATE step_fact_revision SET $corruption WHERE service_run_id = ?",
 				arrayOf(runId),
 			)
+			resignLiveWalFact(logicalId, runId)
 
 			assertDayUnverifiableForNumeric()
 		}
+	}
+
+	@Test
+	fun `same-run covered facts with overlapping elapsed windows are unverifiable without mutation`() =
+		runTest {
+			installLane(cursor = 100L)
+			val logicalId = "elapsed-overlap-logical"
+			val runId = "elapsed-overlap-run"
+			val startMs = DAY_START + HOUR_MS
+			val midpointMs = startMs + HOUR_MS / 2L
+			val endMs = startMs + HOUR_MS
+			val firstEndElapsedNanos = 1L + (midpointMs - startMs) * NANOS_PER_MILLISECOND
+			insertCandidate(
+				logicalId = logicalId,
+				runId = runId,
+				manifestRevision = 1L,
+				startMs = startMs,
+				endMs = endMs,
+				steps = 5L,
+				admissionOrdinal = 1L,
+				completenessOrdinal = 2L,
+				factEndMs = midpointMs,
+			)
+			database.stepFactRevisionDao().insert(
+				fact(
+					logicalId = logicalId,
+					runId = runId,
+					manifestRevision = 1L,
+					startMs = midpointMs,
+					endMs = endMs,
+					steps = 3L,
+					coverage = StepFactRevisionEntity.COVERAGE_COVERED,
+					admissionOrdinal = 2L,
+					cumulativeStepCountStart = 105L,
+					intervalStartElapsedRealtimeNanos = firstEndElapsedNanos - 1L,
+				),
+			) shouldNotBe -1L
+			val beforeFacts = database.stepFactRevisionDao().upsertsForServiceRun(logicalId, runId)
+			beforeFacts.size shouldBe 2
+			beforeFacts.all(StepFactRevisionIntegrity::hasValidCanonicalLiveWalFact) shouldBe true
+			val beforeSummary = database.dailySummaryDao().getByDay(DAY)
+
+			assertDayUnverifiableForNumeric()
+
+			database.stepFactRevisionDao().upsertsForServiceRun(logicalId, runId) shouldBe beforeFacts
+			database.dailySummaryDao().getByDay(DAY) shouldBe beforeSummary
+		}
+
+	@Test
+	fun `same-run covered facts with broken cumulative continuation are unverifiable without mutation`() =
+		runTest {
+			installLane(cursor = 100L)
+			val logicalId = "cumulative-discontinuity-logical"
+			val runId = "cumulative-discontinuity-run"
+			val startMs = DAY_START + HOUR_MS
+			val midpointMs = startMs + HOUR_MS / 2L
+			val endMs = startMs + HOUR_MS
+			val firstEndElapsedNanos = 1L + (midpointMs - startMs) * NANOS_PER_MILLISECOND
+			insertCandidate(
+				logicalId = logicalId,
+				runId = runId,
+				manifestRevision = 1L,
+				startMs = startMs,
+				endMs = endMs,
+				steps = 5L,
+				admissionOrdinal = 1L,
+				completenessOrdinal = 2L,
+				factEndMs = midpointMs,
+			)
+			database.stepFactRevisionDao().insert(
+				fact(
+					logicalId = logicalId,
+					runId = runId,
+					manifestRevision = 1L,
+					startMs = midpointMs,
+					endMs = endMs,
+					steps = 3L,
+					coverage = StepFactRevisionEntity.COVERAGE_COVERED,
+					admissionOrdinal = 2L,
+					cumulativeStepCountStart = 200L,
+					intervalStartElapsedRealtimeNanos = firstEndElapsedNanos,
+				),
+			) shouldNotBe -1L
+			val beforeFacts = database.stepFactRevisionDao().upsertsForServiceRun(logicalId, runId)
+			beforeFacts.size shouldBe 2
+			beforeFacts.all(StepFactRevisionIntegrity::hasValidCanonicalLiveWalFact) shouldBe true
+			val beforeSummary = database.dailySummaryDao().getByDay(DAY)
+
+			assertDayUnverifiableForNumeric()
+
+			database.stepFactRevisionDao().upsertsForServiceRun(logicalId, runId) shouldBe beforeFacts
+			database.dailySummaryDao().getByDay(DAY) shouldBe beforeSummary
+		}
+
+	@Test
+	fun `LIVE_WAL checksum tamper fails typed unsupported`() = runTest {
+		installLane(cursor = 100L)
+		val runId = "checksum-tamper-run"
+		insertCandidate(
+			logicalId = "checksum-tamper-logical",
+			runId = runId,
+			manifestRevision = 1L,
+			startMs = DAY_START + HOUR_MS,
+			endMs = DAY_START + 2L * HOUR_MS,
+			steps = 5L,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE step_fact_revision SET effect_checksum = 'tampered' WHERE service_run_id = ?",
+			arrayOf(runId),
+		)
+
+		assertDayUnverifiableForNumeric()
+	}
+
+	@Test
+	fun `retarget to a durable run outside the day cannot hide a corrupt fact`() = runTest {
+		installLane(cursor = 100L)
+		val selectedLogicalId = "retarget-selected-logical"
+		val selectedRunId = "retarget-selected-run"
+		val selectedStartMs = DAY_START + HOUR_MS
+		val selectedEndMs = DAY_START + 2L * HOUR_MS
+		insertCandidate(
+			logicalId = selectedLogicalId,
+			runId = selectedRunId,
+			manifestRevision = 1L,
+			startMs = selectedStartMs,
+			endMs = selectedEndMs,
+			steps = 4L,
+			admissionOrdinal = 1L,
+			completenessOrdinal = 2L,
+		)
+		database.stepFactRevisionDao().insert(
+			fact(
+				logicalId = selectedLogicalId,
+				runId = selectedRunId,
+				manifestRevision = 1L,
+				startMs = selectedStartMs,
+				endMs = selectedEndMs,
+				steps = 6L,
+				coverage = StepFactRevisionEntity.COVERAGE_COVERED,
+				admissionOrdinal = 2L,
+			),
+		)
+		val outsideLogicalId = "retarget-outside-logical"
+		val outsideRunId = "retarget-outside-run"
+		insertCandidate(
+			logicalId = outsideLogicalId,
+			runId = outsideRunId,
+			manifestRevision = 1L,
+			startMs = DAY_START + 3L * 24L * HOUR_MS,
+			endMs = DAY_START + 3L * 24L * HOUR_MS + HOUR_MS,
+			steps = 3L,
+			admissionOrdinal = 100L,
+		)
+		val hiddenLogicalFactId =
+			"${SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID}:event-$selectedRunId-1"
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE step_fact_revision SET logical_tracking_id = ?, service_run_id = ? " +
+				"WHERE logical_fact_id = ? AND operation = 'UPSERT'",
+			arrayOf(outsideLogicalId, outsideRunId, hiddenLogicalFactId),
+		)
+
+		assertDayUnverifiableForNumeric()
 	}
 
 	@Test
@@ -810,7 +1037,7 @@ class StepsDailySummaryRepairComposerTest {
 			endMs = endMs,
 			steps = 5L,
 			admissionOrdinal = 30L,
-			completenessOrdinal = 31L,
+			completenessOrdinal = 32L,
 			factEndMs = changeAtMs,
 		)
 		insertManifestRevision(
@@ -826,10 +1053,24 @@ class StepsDailySummaryRepairComposerTest {
 				runId = runId,
 				manifestRevision = 2L,
 				startMs = changeAtMs,
+				endMs = changeAtMs,
+				steps = 0L,
+				coverage = StepFactRevisionEntity.COVERAGE_BASELINE,
+				admissionOrdinal = 31L,
+				intervalStartElapsedRealtimeNanos = 1L +
+					(changeAtMs - startMs) * NANOS_PER_MILLISECOND + 1L,
+			),
+		)
+		database.stepFactRevisionDao().insert(
+			fact(
+				logicalId = logicalId,
+				runId = runId,
+				manifestRevision = 2L,
+				startMs = changeAtMs,
 				endMs = endMs,
 				steps = 7L,
 				coverage = StepFactRevisionEntity.COVERAGE_COVERED,
-				admissionOrdinal = 31L,
+				admissionOrdinal = 32L,
 				intervalStartElapsedRealtimeNanos = 1L +
 					(changeAtMs - startMs) * NANOS_PER_MILLISECOND + 1L,
 			),
@@ -838,6 +1079,116 @@ class StepsDailySummaryRepairComposerTest {
 		val ready = composer().composeForNumericRead(mapOf(DAY to ZONE))
 			as StepsDayRepairPreflight.Ready
 		ready.plans.single().numericSteps shouldBe StepsDayNumericComposition.Complete(12L)
+	}
+
+	@Test
+	@Suppress("LongMethod")
+	fun `backward wall jump keeps elapsed manifest ownership and fact civil allocation exact`() =
+		runTest {
+		val logicalId = "clock-jump-steps-logical"
+		val runId = "clock-jump-steps-run"
+		val startMs = DAY_START + 5L * HOUR_MS
+		val changeAtMs = startMs + HOUR_MS / 2L
+		val jumpedFactStartMs = startMs - HOUR_MS / 2L
+		val endMs = startMs + HOUR_MS
+		installLane(cursor = 100L)
+		insertCandidate(
+			logicalId = logicalId,
+			runId = runId,
+			manifestRevision = 1L,
+			startMs = startMs,
+			endMs = endMs,
+			steps = 5L,
+			admissionOrdinal = 30L,
+			completenessOrdinal = 32L,
+			factEndMs = changeAtMs,
+		)
+		insertManifestRevision(
+			logicalId = logicalId,
+			runId = runId,
+			revision = 2L,
+			effectiveAtMs = changeAtMs,
+			sources = listOf(manifestSource(logicalId, revision = 2L)),
+		)
+		rewriteManifestVersion(logicalId, runId, manifestRevision = 2L) { manifest ->
+			manifest.copy(effectiveWallTimeMs = jumpedFactStartMs)
+		}
+		database.stepFactRevisionDao().insert(
+			fact(
+				logicalId = logicalId,
+				runId = runId,
+				manifestRevision = 2L,
+				startMs = jumpedFactStartMs,
+				endMs = jumpedFactStartMs,
+				steps = 0L,
+				coverage = StepFactRevisionEntity.COVERAGE_BASELINE,
+				admissionOrdinal = 31L,
+				intervalStartElapsedRealtimeNanos = 1L +
+					(changeAtMs - startMs) * NANOS_PER_MILLISECOND + 1L,
+			),
+		)
+		database.stepFactRevisionDao().insert(
+			fact(
+				logicalId = logicalId,
+				runId = runId,
+				manifestRevision = 2L,
+				startMs = jumpedFactStartMs,
+				endMs = startMs,
+				steps = 7L,
+				coverage = StepFactRevisionEntity.COVERAGE_COVERED,
+				admissionOrdinal = 32L,
+				intervalStartElapsedRealtimeNanos = 1L +
+					(changeAtMs - startMs) * NANOS_PER_MILLISECOND + 1L,
+			),
+		)
+
+		val ready = composer().composeForNumericRead(mapOf(DAY to ZONE))
+			as StepsDayRepairPreflight.Ready
+
+		ready.plans.single().numericSteps shouldBe StepsDayNumericComposition.Complete(12L)
+		ready.plans.single().totals?.steps shouldBe 12
+	}
+
+	@Test
+	fun `backward wall jump with a non-Steps manifest remains partial instead of zero`() =
+		runTest {
+		val logicalId = "clock-jump-mixed-logical"
+		val runId = "clock-jump-mixed-run"
+		val startMs = DAY_START + 8L * HOUR_MS
+		val changeAtMs = startMs + HOUR_MS / 2L
+		val endMs = startMs + HOUR_MS
+		installLane(cursor = 100L)
+		insertCandidate(
+			logicalId = logicalId,
+			runId = runId,
+			manifestRevision = 1L,
+			startMs = startMs,
+			endMs = endMs,
+			steps = 5L,
+			factEndMs = changeAtMs,
+		)
+		insertManifestRevision(
+			logicalId = logicalId,
+			runId = runId,
+			revision = 2L,
+			effectiveAtMs = changeAtMs,
+			sources = listOf(
+				nonStepsCaptureSource(
+					logicalId,
+					revision = 2L,
+					sourceKind = SourceKind.LOCATION.stableCode,
+				),
+			),
+		)
+		rewriteManifestVersion(logicalId, runId, manifestRevision = 2L) { manifest ->
+			manifest.copy(effectiveWallTimeMs = startMs - HOUR_MS)
+		}
+
+		val ready = composer().composeForNumericRead(mapOf(DAY to ZONE))
+			as StepsDayRepairPreflight.Ready
+
+		ready.plans.single().totals?.steps shouldBe 5
+		ready.plans.single().numericSteps shouldBe StepsDayNumericComposition.PartialCapture
 	}
 
 	@Test
@@ -946,6 +1297,101 @@ class StepsDailySummaryRepairComposerTest {
 	}
 
 	@Test
+	fun `duplicate Steps registration generation across source instances is unverifiable`() = runTest {
+		installLane(cursor = 100L)
+		val logicalId = "duplicate-registration-logical"
+		val runId = "duplicate-registration-run"
+		val startMs = DAY_START + HOUR_MS
+		val midpointMs = startMs + HOUR_MS / 2L
+		val endMs = startMs + HOUR_MS
+		insertCandidate(
+			logicalId = logicalId,
+			runId = runId,
+			manifestRevision = 1L,
+			startMs = startMs,
+			endMs = endMs,
+			steps = 5L,
+			admissionOrdinal = 20L,
+			completenessOrdinal = 20L,
+			factEndMs = midpointMs,
+		)
+		database.stepFactRevisionDao().insert(
+			fact(
+				logicalId = logicalId,
+				runId = runId,
+				manifestRevision = 1L,
+				startMs = midpointMs,
+				endMs = endMs,
+				steps = 1L,
+				coverage = StepFactRevisionEntity.COVERAGE_COVERED,
+				admissionOrdinal = 21L,
+				cumulativeStepCountStart = 105L,
+				intervalStartElapsedRealtimeNanos = 1L +
+					(midpointMs - startMs) * NANOS_PER_MILLISECOND,
+			),
+		) shouldNotBe -1L
+		database.sourceSessionDao().saveCompleteness(
+			completeness(
+				logicalId = logicalId,
+				runId = runId,
+				admissionOrdinal = 21L,
+				sourceInstanceId = "steps-$runId-duplicate",
+				registrationGeneration = 1L,
+			),
+		)
+		val factCount = database.stepFactRevisionDao().countAll()
+
+		assertDayUnverifiableForNumeric()
+		database.stepFactRevisionDao().countAll() shouldBe factCount
+	}
+
+	@Test
+	fun `descending Steps admission high water across registrations is unverifiable`() = runTest {
+		installLane(cursor = 100L)
+		val logicalId = "descending-high-water-logical"
+		val runId = "descending-high-water-run"
+		val startMs = DAY_START + HOUR_MS
+		val midpointMs = startMs + HOUR_MS / 2L
+		val endMs = startMs + HOUR_MS
+		insertCandidate(
+			logicalId = logicalId,
+			runId = runId,
+			manifestRevision = 1L,
+			startMs = startMs,
+			endMs = endMs,
+			steps = 5L,
+			admissionOrdinal = 20L,
+			completenessOrdinal = 20L,
+			factStartMs = midpointMs,
+		)
+		database.stepFactRevisionDao().insert(
+			fact(
+				logicalId = logicalId,
+				runId = runId,
+				manifestRevision = 1L,
+				startMs = startMs,
+				endMs = midpointMs,
+				steps = 0L,
+				coverage = StepFactRevisionEntity.COVERAGE_COVERED,
+				admissionOrdinal = 19L,
+			),
+		) shouldNotBe -1L
+		database.sourceSessionDao().saveCompleteness(
+			completeness(
+				logicalId = logicalId,
+				runId = runId,
+				admissionOrdinal = 19L,
+				sourceInstanceId = "steps-$runId-restarted",
+				registrationGeneration = 2L,
+			),
+		)
+		val factCount = database.stepFactRevisionDao().countAll()
+
+		assertDayUnverifiableForNumeric()
+		database.stepFactRevisionDao().countAll() shouldBe factCount
+	}
+
+	@Test
 	fun `numeric calendar authority requires one exact contiguous wall-time chain`() {
 		val honolulu = ZoneId.of("Pacific/Honolulu")
 		val kiritimati = ZoneId.of("Pacific/Kiritimati")
@@ -1028,6 +1474,9 @@ class StepsDailySummaryRepairComposerTest {
 				steps = 10L,
 				coverage = StepFactRevisionEntity.COVERAGE_COVERED,
 				admissionOrdinal = 11L,
+				cumulativeStepCountStart = 107L,
+				intervalStartElapsedRealtimeNanos = 1L +
+					(dayTwoStartMs - startMs) * NANOS_PER_MILLISECOND,
 			),
 		)
 
@@ -1120,6 +1569,9 @@ class StepsDailySummaryRepairComposerTest {
 				steps = 3L,
 				coverage = StepFactRevisionEntity.COVERAGE_COVERED,
 				admissionOrdinal = 21L,
+				cumulativeStepCountStart = 104L,
+				// Wall time jumped forward by 30 minutes; the monotonic source chain stayed contiguous.
+				intervalStartElapsedRealtimeNanos = 1L + HOUR_MS * NANOS_PER_MILLISECOND,
 			),
 		)
 
@@ -1266,7 +1718,7 @@ class StepsDailySummaryRepairComposerTest {
 			steps = 4L,
 			admissionOrdinal = correctedOrdinal,
 		)
-		val corrected = fact(
+		val unsignedCorrection = fact(
 			logicalId = correctedLogicalId,
 			runId = correctedRunId,
 			manifestRevision = 1L,
@@ -1283,8 +1735,11 @@ class StepsDailySummaryRepairComposerTest {
 			sourceEventId = correctionEventId,
 			sourceAdmissionOrdinal = correctionOrdinal,
 			originIdentity = correctionEventId,
-			effectChecksum = "corrected-checksum",
+			effectChecksum = "pending-corrected-effect",
 			appliedAtMs = correctedEndMs + 1L,
+		)
+		val corrected = unsignedCorrection.copy(
+			effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(unsignedCorrection),
 		)
 		database.stepFactRevisionDao().insert(corrected) shouldNotBe -1L
 		val completeness = database.sourceSessionDao()
@@ -1385,6 +1840,9 @@ class StepsDailySummaryRepairComposerTest {
 					steps = 1L,
 					coverage = StepFactRevisionEntity.COVERAGE_COVERED,
 					admissionOrdinal = indexLong + 1L,
+					cumulativeStepCountStart = 100L + indexLong,
+					intervalStartElapsedRealtimeNanos = 1L +
+						HOUR_MS * indexLong / STREAM_PAGE_FACT_COUNT * NANOS_PER_MILLISECOND,
 				),
 			)
 		}
@@ -1502,6 +1960,32 @@ class StepsDailySummaryRepairComposerTest {
 			ready.plans.single().totals?.tripCount shouldBe 1
 			ready.plans.single().totals?.durationMs shouldBe 2L * HOUR_MS
 		}
+
+	@Test
+	fun `missing manifest revision across replacement members fails day repair closed`() = runTest {
+		installLane(cursor = 100L)
+		insertCandidate(
+			logicalId = "revision-gap-logical",
+			runId = "revision-gap-run-a",
+			manifestRevision = 1L,
+			startMs = DAY_START + HOUR_MS,
+			endMs = DAY_START + 2L * HOUR_MS,
+			steps = 7L,
+		)
+		insertCandidate(
+			logicalId = "revision-gap-logical",
+			runId = "revision-gap-run-b",
+			manifestRevision = 3L,
+			startMs = DAY_START + 2L * HOUR_MS,
+			endMs = DAY_START + 3L * HOUR_MS,
+			steps = 11L,
+		)
+
+		composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE) shouldBe
+			StepsDayRepairPreflight.Unsupported(
+				StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
+			)
+	}
 
 	@Test
 	fun `overlapping replacement members fail closed instead of double counting`() = runTest {
@@ -1667,6 +2151,64 @@ class StepsDailySummaryRepairComposerTest {
 			val run = requireNotNull(database.sourceSessionDao().serviceRun(runId))
 			database.sourceSessionDao().updateServiceRun(run.copy(desiredPlanRevision = 2L))
 		}
+	}
+
+	@Test
+	fun `first manifest wall origin and elapsed authority are unverifiable`() = runTest {
+		assertImmutableEnvelopeMutation { logicalId, runId ->
+			rewriteManifestVersion(logicalId, runId) { manifest ->
+				manifest.copy(effectiveWallTimeMs = manifest.effectiveWallTimeMs + 1L)
+			}
+		}
+		resetDatabase()
+		assertImmutableEnvelopeMutation { logicalId, runId ->
+			rewriteManifestVersion(logicalId, runId) { manifest ->
+				manifest.copy(startOrigin = POLICY_RECONCILIATION_ORIGIN)
+			}
+		}
+		resetDatabase()
+		assertImmutableEnvelopeMutation { logicalId, runId ->
+			rewriteManifestVersion(logicalId, runId) { manifest ->
+				manifest.copy(
+					effectiveElapsedRealtimeNanos = manifest.effectiveElapsedRealtimeNanos + 1L,
+				)
+			}
+		}
+	}
+
+	@Test
+	fun `successor manifest origin and elapsed ordering are unverifiable`() = runTest {
+		installLane(cursor = 100L)
+		val logicalId = "successor-timeline-logical"
+		val runId = "successor-timeline-run"
+		val startMs = DAY_START + HOUR_MS
+		insertCandidate(
+			logicalId = logicalId,
+			runId = runId,
+			manifestRevision = 1L,
+			startMs = startMs,
+			endMs = startMs + HOUR_MS,
+			steps = 5L,
+		)
+		insertManifestRevision(
+			logicalId = logicalId,
+			runId = runId,
+			revision = 2L,
+			effectiveAtMs = startMs + 1_000L,
+			sources = listOf(manifestSource(logicalId, 2L)),
+		)
+		val successor = database.sourceSessionDao().manifestsForServiceRun(runId)
+			.single { manifest -> manifest.manifestRevision == 2L }
+
+		rewriteManifestVersion(logicalId, runId, manifestRevision = 2L) {
+			successor.copy(startOrigin = MANUAL_START_ORIGIN)
+		}
+		assertDayUnverifiableForNumeric()
+
+		rewriteManifestVersion(logicalId, runId, manifestRevision = 2L) {
+			successor.copy(effectiveElapsedRealtimeNanos = 0L)
+		}
+		assertDayUnverifiableForNumeric()
 	}
 
 	@Test
@@ -2328,6 +2870,29 @@ class StepsDailySummaryRepairComposerTest {
 		assertDayUnverifiable()
 	}
 
+	@Test
+	fun `missing immutable Steps capture authority makes day repair unsupported`() = runTest {
+		installLane(cursor = 100L)
+		insertCandidate(
+			logicalId = "missing-authority-logical",
+			runId = "missing-authority-run",
+			manifestRevision = 1L,
+			startMs = DAY_START + HOUR_MS,
+			endMs = DAY_START + 2L * HOUR_MS,
+			steps = 5L,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_consent_epoch WHERE source_kind = ? AND purpose = ? AND epoch = ?",
+			arrayOf<Any>(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+				StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+				CAPTURE_CONSENT_EPOCH,
+			),
+		)
+
+		assertDayUnverifiable()
+	}
+
 	private suspend fun assertDayUnverifiable() {
 		composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE) shouldBe
 			StepsDayRepairPreflight.Unsupported(
@@ -2468,7 +3033,7 @@ class StepsDailySummaryRepairComposerTest {
 					lifecycleRevision = 2L,
 					desiredPlanRevision = 1L,
 					rolloutRevision = 1L,
-					startOrigin = "MANUAL_UI",
+					startOrigin = MANUAL_START_ORIGIN,
 					clockDomainId = "boot",
 					startedAtMs = startMs,
 					startedElapsedNanos = manifestRevision,
@@ -2504,7 +3069,7 @@ class StepsDailySummaryRepairComposerTest {
 				completionReason = "TEST".takeIf { terminal },
 				bootId = "boot",
 				leaseGeneration = 1L,
-				startOrigin = "MANUAL_UI",
+				startOrigin = MANUAL_START_ORIGIN,
 				desiredForegroundCapabilityFlags = 0L,
 				appliedForegroundCapabilityFlags = 0L,
 				runtimeAcknowledgement = if (terminal) {
@@ -2552,6 +3117,47 @@ class StepsDailySummaryRepairComposerTest {
 		)
 		mutation(logicalId, runId)
 		assertDayUnverifiableForNumeric()
+	}
+
+	private suspend fun rewriteManifestVersion(
+		logicalId: String,
+		runId: String,
+		manifestRevision: Long = 1L,
+		transform: (SessionManifestVersionEntity) -> SessionManifestVersionEntity,
+	) {
+		val current = database.sourceSessionDao().manifestsForServiceRun(runId)
+			.single { manifest -> manifest.manifestRevision == manifestRevision }
+		val sources = database.sourceSessionDao().manifestSources(logicalId, manifestRevision)
+		val unsigned = transform(current).copy(manifestChecksum = "")
+		check(unsigned.logicalTrackingId == current.logicalTrackingId &&
+			unsigned.manifestRevision == current.manifestRevision &&
+			unsigned.serviceRunId == current.serviceRunId)
+		val changed = unsigned.copy(
+			manifestChecksum = SessionManifestIntegrity.compute(unsigned, sources),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_manifest_version SET session_mode = ?, source_policy_revision = ?, " +
+				"acquisition_plan_revision = ?, rollout_revision = ?, start_origin = ?, " +
+				"effective_boot_id = ?, effective_elapsed_realtime_nanos = ?, " +
+				"effective_wall_time_ms = ?, zone_id = ?, automation_epoch = ?, change_reason = ?, " +
+				"manifest_checksum = ? WHERE logical_tracking_id = ? AND manifest_revision = ?",
+			arrayOf<Any?>(
+				changed.sessionMode,
+				changed.sourcePolicyRevision,
+				changed.acquisitionPlanRevision,
+				changed.rolloutRevision,
+				changed.startOrigin,
+				changed.effectiveBootId,
+				changed.effectiveElapsedRealtimeNanos,
+				changed.effectiveWallTimeMs,
+				changed.zoneId,
+				changed.automationEpoch,
+				changed.changeReason,
+				changed.manifestChecksum,
+				changed.logicalTrackingId,
+				changed.manifestRevision,
+			),
+		)
 	}
 
 	private suspend fun assertReachableBoundLiveLifecycle(
@@ -2678,6 +3284,7 @@ class StepsDailySummaryRepairComposerTest {
 		return logicalId
 	}
 
+	@Suppress("LongMethod")
 	private suspend fun insertCandidate(
 		logicalId: String,
 		runId: String,
@@ -2693,8 +3300,8 @@ class StepsDailySummaryRepairComposerTest {
 		logicalStartedAtMs: Long = startMs,
 		zoneId: ZoneId = ZONE,
 		manifestEffectiveAtMs: Long = startMs,
-		manifestPolicyRevision: Long = 1L,
-		bindingConsentEpoch: Long = 1L,
+		manifestPolicyRevision: Long = SOURCE_POLICY_REVISION,
+		bindingConsentEpoch: Long = CAPTURE_CONSENT_EPOCH,
 		factPolicyRevision: Long = manifestPolicyRevision,
 		factConsentEpoch: Long = bindingConsentEpoch,
 		factStartMs: Long = startMs,
@@ -2739,6 +3346,16 @@ class StepsDailySummaryRepairComposerTest {
 			manifestEffectiveAtMs,
 			zoneId = zoneId,
 			sourcePolicyRevision = manifestPolicyRevision,
+			startOrigin = if (manifestRevision == preparedManifestRevision) {
+				MANUAL_START_ORIGIN
+			} else {
+				POLICY_RECONCILIATION_ORIGIN
+			},
+			changeReason = if (manifestRevision == preparedManifestRevision) {
+				"TEST"
+			} else {
+				POLICY_RECONCILIATION_ORIGIN
+			},
 		)
 		database.sourceSessionDao().insertManifest(
 			unsigned.copy(manifestChecksum = SessionManifestIntegrity.compute(unsigned, listOf(source))),
@@ -2789,6 +3406,16 @@ class StepsDailySummaryRepairComposerTest {
 			startMs = effectiveAtMs,
 			zoneId = zoneId,
 			effectiveElapsedRealtimeNanos = effectiveElapsedRealtimeNanos,
+			startOrigin = if (revision == run.preparedManifestRevision) {
+				run.startOrigin
+			} else {
+				POLICY_RECONCILIATION_ORIGIN
+			},
+			changeReason = if (revision == run.preparedManifestRevision) {
+				"TEST"
+			} else {
+				POLICY_RECONCILIATION_ORIGIN
+			},
 		)
 		database.sourceSessionDao().insertManifest(
 			unsigned.copy(
@@ -2857,7 +3484,7 @@ class StepsDailySummaryRepairComposerTest {
 			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
 			consentEpoch = 1L,
 			persistenceEligible = true,
-			qosCode = 0,
+			qosCode = CAPTURE_QOS_CODE,
 		)
 
 	private suspend fun ensureLogicalSession(
@@ -2891,7 +3518,7 @@ class StepsDailySummaryRepairComposerTest {
 				lifecycleRevision = 2L,
 				desiredPlanRevision = 1L,
 				rolloutRevision = 1L,
-				startOrigin = "MANUAL_UI",
+				startOrigin = MANUAL_START_ORIGIN,
 				clockDomainId = "boot",
 				startedAtMs = startedAtMs,
 				startedElapsedNanos = 1L,
@@ -2979,7 +3606,7 @@ class StepsDailySummaryRepairComposerTest {
 			completionReason = "USER_STOP",
 			bootId = "boot",
 			leaseGeneration = 1L,
-			startOrigin = "MANUAL_UI",
+			startOrigin = MANUAL_START_ORIGIN,
 			desiredForegroundCapabilityFlags = 0L,
 			appliedForegroundCapabilityFlags = 0L,
 			runtimeAcknowledgement = "STOP_ACCEPTED",
@@ -3004,8 +3631,10 @@ class StepsDailySummaryRepairComposerTest {
 		revision: Long,
 		startMs: Long,
 		zoneId: ZoneId = ZONE,
-		sourcePolicyRevision: Long = 1L,
+		sourcePolicyRevision: Long = SOURCE_POLICY_REVISION,
 		effectiveElapsedRealtimeNanos: Long = revision,
+		startOrigin: String = MANUAL_START_ORIGIN,
+		changeReason: String = "TEST",
 	) =
 		SessionManifestVersionEntity(
 			logicalTrackingId = logicalId,
@@ -3015,20 +3644,20 @@ class StepsDailySummaryRepairComposerTest {
 			sourcePolicyRevision = sourcePolicyRevision,
 			acquisitionPlanRevision = 1L,
 			rolloutRevision = 1L,
-			startOrigin = "MANUAL_UI",
+			startOrigin = startOrigin,
 			effectiveBootId = "boot",
-		effectiveElapsedRealtimeNanos = effectiveElapsedRealtimeNanos,
+			effectiveElapsedRealtimeNanos = effectiveElapsedRealtimeNanos,
 			effectiveWallTimeMs = startMs,
 			zoneId = zoneId.id,
 			automationEpoch = null,
-			changeReason = "TEST",
+			changeReason = changeReason,
 			manifestChecksum = "",
 		)
 
 	private fun manifestSource(
 		logicalId: String,
 		revision: Long,
-		consentEpoch: Long = 1L,
+		consentEpoch: Long = CAPTURE_CONSENT_EPOCH,
 	) = SessionManifestSourceEntity(
 		logicalTrackingId = logicalId,
 		manifestRevision = revision,
@@ -3036,13 +3665,46 @@ class StepsDailySummaryRepairComposerTest {
 		purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
 		consentEpoch = consentEpoch,
 		persistenceEligible = true,
-		qosCode = 0,
+		qosCode = CAPTURE_QOS_CODE,
 		outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
 		writerOwner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
 		writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
 		writerProjectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
 		writerProjectionVersion = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
 		writerBindingGeneration = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
+	)
+
+	private fun stepsCapturePolicy() = SourcePolicyEntity(
+		policyRevision = SOURCE_POLICY_REVISION,
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+		enabled = true,
+		qosCode = CAPTURE_QOS_CODE,
+		locationMinTimeSeconds = null,
+		locationMinDistanceMeters = null,
+		locationRequiredAccuracyMeters = null,
+		capturePersistenceEligible = true,
+		controlPersistenceEligible = false,
+		ambientPersistenceEligible = false,
+		captureConsentEpoch = CAPTURE_CONSENT_EPOCH,
+		controlConsentEpoch = null,
+		ambientConsentEpoch = null,
+		effectiveBootId = "boot",
+		effectiveElapsedRealtimeNanos = 1L,
+		effectiveWallTimeMs = DAY_START,
+		changeReason = "TEST",
+	)
+
+	private fun stepsCaptureConsent() = SourceConsentEpochEntity(
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+		purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+		epoch = CAPTURE_CONSENT_EPOCH,
+		eligible = true,
+		persistenceEligible = true,
+		policyRevision = SOURCE_POLICY_REVISION,
+		effectiveBootId = "boot",
+		effectiveElapsedRealtimeNanos = 1L,
+		effectiveWallTimeMs = DAY_START,
+		changeReason = "TEST",
 	)
 
 	private fun completeness(
@@ -3090,49 +3752,80 @@ class StepsDailySummaryRepairComposerTest {
 		steps: Long,
 		coverage: String,
 		admissionOrdinal: Long,
-		sourcePolicyRevision: Long = 1L,
-		captureConsentEpoch: Long = 1L,
+		sourcePolicyRevision: Long = SOURCE_POLICY_REVISION,
+		captureConsentEpoch: Long = CAPTURE_CONSENT_EPOCH,
 		wallTimeUncertaintyMs: Long = 0L,
+		cumulativeStepCountStart: Long = 100L,
 		intervalStartElapsedRealtimeNanos: Long = manifestRevision,
 		intervalEndElapsedRealtimeNanos: Long = intervalStartElapsedRealtimeNanos +
 			(endMs - startMs) * NANOS_PER_MILLISECOND,
-	) = StepFactRevisionEntity(
-		logicalFactId =
-			"${SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID}:event-$runId-$admissionOrdinal",
-		semanticRevision = 1L,
-		mutationId = "${SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID}:" +
-			"event-$runId-$admissionOrdinal:1:${StepFactRevisionEntity.OPERATION_UPSERT}",
-		stepIntervalId = null,
-		sourceEventId = "event-$runId-$admissionOrdinal",
-		sourceAdmissionOrdinal = admissionOrdinal,
-		originKind = StepFactRevisionEntity.ORIGIN_LIVE_WAL,
-		originIdentity = "event-$runId-$admissionOrdinal",
-		writerProjectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
-		writerProjectionVersion = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
-		writerBindingGeneration = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
-		operation = StepFactRevisionEntity.OPERATION_UPSERT,
-		intervalStartTimeMs = startMs,
-		intervalEndTimeMs = endMs,
-		intervalStartElapsedRealtimeNanos = intervalStartElapsedRealtimeNanos,
-		intervalEndElapsedRealtimeNanos = intervalEndElapsedRealtimeNanos,
-		clockDomainId = "boot",
-		bootClockDomainId = "boot",
-		cumulativeStepCountStart = 100L,
-		cumulativeStepCountEnd = 100L + steps,
-		wallTimeUncertaintyMs = wallTimeUncertaintyMs,
-		coverageKind = coverage,
-		effectiveStepCount = steps,
-		logicalTrackingId = logicalId,
-		serviceRunId = runId,
-		purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
-		manifestRevision = manifestRevision,
-		sourcePolicyRevision = sourcePolicyRevision,
-		captureConsentEpoch = captureConsentEpoch,
-		collectedDataEpoch = EPOCH,
-		scopeDeletionGeneration = 0L,
-		effectChecksum = "checksum-$runId-$admissionOrdinal",
-		appliedAtMs = endMs,
-	)
+	): StepFactRevisionEntity {
+		val sourceEventId = "event-$runId-$admissionOrdinal"
+		val logicalFactId =
+			"${SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID}:$sourceEventId"
+		val unsigned = StepFactRevisionEntity(
+			logicalFactId = logicalFactId,
+			semanticRevision = 1L,
+			mutationId = "$logicalFactId:1:${StepFactRevisionEntity.OPERATION_UPSERT}",
+			stepIntervalId = null,
+			sourceEventId = sourceEventId,
+			sourceAdmissionOrdinal = admissionOrdinal,
+			originKind = StepFactRevisionEntity.ORIGIN_LIVE_WAL,
+			originIdentity = sourceEventId,
+			writerProjectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+			writerProjectionVersion = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+			writerBindingGeneration = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
+			operation = StepFactRevisionEntity.OPERATION_UPSERT,
+			intervalStartTimeMs = startMs,
+			intervalEndTimeMs = endMs,
+			intervalStartElapsedRealtimeNanos = intervalStartElapsedRealtimeNanos,
+			intervalEndElapsedRealtimeNanos = intervalEndElapsedRealtimeNanos,
+			clockDomainId = "boot",
+			bootClockDomainId = "boot",
+			cumulativeStepCountStart = cumulativeStepCountStart,
+			cumulativeStepCountEnd = when (coverage) {
+				StepFactRevisionEntity.COVERAGE_RESET_GAP -> cumulativeStepCountStart - 1L
+				else -> cumulativeStepCountStart + steps
+			},
+			wallTimeUncertaintyMs = wallTimeUncertaintyMs,
+			coverageKind = coverage,
+			effectiveStepCount = when (coverage) {
+				StepFactRevisionEntity.COVERAGE_BASELINE,
+				StepFactRevisionEntity.COVERAGE_RESET_GAP,
+				StepFactRevisionEntity.COVERAGE_PARTIAL,
+				-> 0L
+				else -> steps
+			},
+			logicalTrackingId = logicalId,
+			serviceRunId = runId,
+			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			manifestRevision = manifestRevision,
+			sourcePolicyRevision = sourcePolicyRevision,
+			captureConsentEpoch = captureConsentEpoch,
+			collectedDataEpoch = EPOCH,
+			scopeDeletionGeneration = 0L,
+			effectChecksum = "pending-test-effect",
+			appliedAtMs = endMs,
+		)
+		return unsigned.copy(
+			effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(unsigned),
+		)
+	}
+
+	private suspend fun resignLiveWalFact(logicalId: String, runId: String) {
+		val fact = database.stepFactRevisionDao()
+			.upsertsForServiceRun(logicalId, runId)
+			.single()
+		val checksum = StepFactRevisionIntegrity.liveWalEffectChecksum(fact)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE step_fact_revision SET effect_checksum = ? WHERE service_run_id = ?",
+			arrayOf(checksum, runId),
+		)
+		val resigned = database.stepFactRevisionDao()
+			.upsertsForServiceRun(logicalId, runId)
+			.single()
+		StepFactRevisionIntegrity.hasValidLiveWalEffectChecksum(resigned) shouldBe true
+	}
 
 	private companion object {
 		val ZONE: ZoneId = ZoneId.of("Europe/Prague")
@@ -3141,6 +3834,11 @@ class StepsDailySummaryRepairComposerTest {
 		const val HOUR_MS = 60L * 60_000L
 		const val STREAM_PAGE_FACT_COUNT = 257
 		const val NANOS_PER_MILLISECOND = 1_000_000L
+		const val SOURCE_POLICY_REVISION = 1L
+		const val CAPTURE_CONSENT_EPOCH = 1L
+		const val CAPTURE_QOS_CODE = 1
+		const val MANUAL_START_ORIGIN = "MANUAL_FOREGROUND_START"
+		const val POLICY_RECONCILIATION_ORIGIN = "POLICY_RECONCILIATION"
 		const val EPOCH = 2L
 	}
 }

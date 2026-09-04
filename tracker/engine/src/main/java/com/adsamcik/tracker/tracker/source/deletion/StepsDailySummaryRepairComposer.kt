@@ -4,6 +4,8 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryTotals
 import com.adsamcik.tracker.shared.base.database.dao.ScopedStepFactState
 import com.adsamcik.tracker.shared.base.database.dao.TrackingHistoryReadDao
+import com.adsamcik.tracker.shared.base.database.dao.hasValidStepsFactCandidateState
+import com.adsamcik.tracker.shared.base.database.dao.visitStepsFactCandidateStatesByRun
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -11,21 +13,26 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsSessionCompletenessIntegrity
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
 import com.adsamcik.tracker.stats.api.repository.StepsSessionDeletionUnsupportedReason
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
+import com.adsamcik.tracker.tracker.source.coordinator.ExecutableSourceLaneCatalog
 import com.adsamcik.tracker.tracker.source.coordinator.SessionLifecycleState
 import com.adsamcik.tracker.tracker.source.coordinator.SessionMode
 import com.adsamcik.tracker.tracker.source.model.SourceKind
-import com.adsamcik.tracker.tracker.source.summary.StepsNumericCaptureSlice
 import com.adsamcik.tracker.tracker.source.summary.StepsNumericCoveredFact
 import com.adsamcik.tracker.tracker.source.summary.StepsNumericDayWindowAccumulator
 import com.adsamcik.tracker.tracker.source.summary.StepsNumericRunContribution
@@ -46,6 +53,8 @@ import java.time.ZoneOffset
 @Suppress("LargeClass", "TooManyFunctions")
 internal class StepsDailySummaryRepairComposer(
 	private val database: AppDatabase,
+	private val laneExecutionAuthority: SourceProductLaneExecutionAuthority =
+		ExecutableSourceLaneCatalog(),
 ) {
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	suspend fun compose(
@@ -92,7 +101,7 @@ internal class StepsDailySummaryRepairComposer(
 			queryBounds = queryBounds,
 			discoverSourceRuns = true,
 			blockOnActiveUnboundNonSteps = true,
-		)
+		).requirePersistableNumericSteps()
 	}
 
 	/** Composes one production materialization key under its already-selected calendar authority. */
@@ -108,7 +117,7 @@ internal class StepsDailySummaryRepairComposer(
 			queryBounds = QueryBounds(fromMs = fromMs, toMs = toMs),
 			discoverSourceRuns = true,
 			blockOnActiveUnboundNonSteps = true,
-		)
+		).requirePersistableNumericSteps()
 	}
 
 	/**
@@ -146,7 +155,7 @@ internal class StepsDailySummaryRepairComposer(
 			excludedSegmentId = excludedSegmentId,
 		) ?: return unverifiable()
 		val discoveredSourceRuns = if (discoverSourceRuns) {
-			(serviceRunCandidates(queryBounds) ?: return unverifiable()).filterNot { run ->
+			(allSourceRunCandidates(queryBounds) ?: return unverifiable()).filterNot { run ->
 				excludedSegmentId != null && run.sessionSegmentId == excludedSegmentId
 			}
 		} else {
@@ -377,6 +386,59 @@ internal class StepsDailySummaryRepairComposer(
 		return rows
 	}
 
+	/**
+	 * Unions presentation-envelope discovery with source-fact wall projections.
+	 *
+	 * Wall clocks may jump while one elapsed-authorized run remains active, so neither a run nor its
+	 * segment envelope is sufficient to discover every fact that contributes to a civil day.
+	 */
+	@Suppress("ReturnCount")
+	private suspend fun allSourceRunCandidates(
+		queryBounds: QueryBounds,
+	): List<SourceServiceRunEntity>? {
+		val envelopeRuns = serviceRunCandidates(queryBounds) ?: return null
+		val runsById = envelopeRuns.associateByTo(linkedMapOf()) { run -> run.serviceRunId }
+		val factRunIds = factServiceRunCandidateIds(queryBounds) ?: return null
+		val missingRunIds = factRunIds.filterNot(runsById::containsKey)
+		for (ids in missingRunIds.chunked(QUERY_ID_BATCH_SIZE)) {
+			val loaded = database.trackingHistoryReadDao().serviceRuns(ids)
+			if (loaded.map(SourceServiceRunEntity::serviceRunId).toSet() != ids.toSet()) {
+				return null
+			}
+			loaded.forEach { run ->
+				if (run.serviceRunId.isBlank() || runsById.put(run.serviceRunId, run) != null) {
+					return null
+				}
+			}
+		}
+		return runsById.values.toList()
+	}
+
+	private suspend fun factServiceRunCandidateIds(queryBounds: QueryBounds): List<String>? {
+		val rows = mutableListOf<String>()
+		var afterServiceRunId: String? = null
+		var pageSize: Int
+		do {
+			val page = database.trackingHistoryReadDao().stepFactServiceRunCandidateIdPage(
+				fromMs = queryBounds.fromMs,
+				toMs = queryBounds.toMs,
+				limit = READ_PAGE_SIZE,
+				afterServiceRunId = afterServiceRunId,
+			)
+			val orderedPage = rows.lastOrNull()?.let { previous -> listOf(previous) + page } ?: page
+			if (page.any(String::isBlank) || orderedPage.zipWithNext().any { (left, right) ->
+					right <= left
+				}
+			) {
+				return null
+			}
+			rows += page
+			afterServiceRunId = page.lastOrNull()
+			pageSize = page.size
+		} while (pageSize == READ_PAGE_SIZE)
+		return rows
+	}
+
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	private suspend fun allMissingSegmentsAreExactlyFenced(
 		runs: List<SourceServiceRunEntity>,
@@ -412,9 +474,7 @@ internal class StepsDailySummaryRepairComposer(
 		val expectedBySource = linkedMapOf<Int, MutableSet<String>>()
 		for (run in runs) {
 			val runManifests = manifestsByRun[run.serviceRunId].orEmpty()
-			if (runManifests.isEmpty() || runManifests.any { manifest ->
-				manifest.logicalTrackingId != run.logicalTrackingId
-			}) {
+			if (!SessionManifestIntegrity.hasValidServiceRunTimeline(run, runManifests)) {
 				return false
 			}
 			val captureSourceKinds = mutableSetOf<Int>()
@@ -494,6 +554,7 @@ internal class StepsDailySummaryRepairComposer(
 		val sources = mutableListOf<SessionManifestSourceEntity>()
 		val completeness = mutableListOf<SourceSessionCompletenessEntity>()
 		val lanes = mutableListOf<SourceProductProjectionLaneEntity>()
+		val policies = linkedMapOf<Long, SourcePolicyEntity>()
 		for (ids in serviceRunIds.chunked(QUERY_ID_BATCH_SIZE)) {
 			val manifestBatch = readDao.manifests(ids, limit = MAX_MANIFESTS_PER_QUERY_BATCH + 1)
 			val sourceBatch = readDao.manifestSources(ids, limit = MAX_SOURCES_PER_QUERY_BATCH + 1)
@@ -507,12 +568,28 @@ internal class StepsDailySummaryRepairComposer(
 			manifests += manifestBatch
 			sources += sourceBatch
 			completeness += completenessBatch
+			readDao.policiesForServiceRuns(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				serviceRunIds = ids,
+			).forEach { policy -> policies[policy.policyRevision] = policy }
 			lanes += readDao.productLanesForServiceRuns(
 				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 				capturePurpose = SessionManifestPurposeCode.SESSION_CAPTURE,
 				serviceRunIds = ids,
 			)
 		}
+		val requestedConsentEpochs = sources.asSequence().filter { source ->
+			source.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
+				source.purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
+				source.persistenceEligible
+		}.map(SessionManifestSourceEntity::consentEpoch).distinct().toList()
+		val consents = requestedConsentEpochs.chunked(QUERY_ID_BATCH_SIZE).flatMap { epochs ->
+			database.sourcePolicyDao().consentEpochs(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+				epochs = epochs,
+			)
+		}.associateBy(SourceConsentEpochEntity::epoch)
 		val scopeDigests = serviceRuns.mapNotNull { run ->
 			val logicalTrackingId = run.logicalTrackingId.takeIf(String::isNotBlank)
 			val serviceRunId = run.serviceRunId.takeIf(String::isNotBlank)
@@ -534,6 +611,12 @@ internal class StepsDailySummaryRepairComposer(
 				scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
 				scopeIdentityDigests = digests,
 			)
+		}
+		if (!hasOnlyAuthorizedFactCandidates(readDao, serviceRuns, deletionFences)) {
+			return null
+		}
+		if (!hasValidCanonicalFactTimelines(readDao, serviceRuns)) {
+			return null
 		}
 		val afterOrdinal = lanes.mapNotNull { lane ->
 			lane.activationOrdinal.takeIf { it > 0L }?.minus(1L)
@@ -573,6 +656,8 @@ internal class StepsDailySummaryRepairComposer(
 			sourcesByManifest = sources.groupBy { source ->
 				ManifestKey(source.logicalTrackingId, source.manifestRevision)
 			},
+			stepPolicies = policies,
+			stepCaptureConsents = consents,
 			completenessByRun = completeness.groupBy(SourceSessionCompletenessEntity::serviceRunId),
 			lanes = lanes.distinct().associateBy { lane ->
 				LaneKey(lane.bindingGeneration, lane.projectionId, lane.projectionVersion)
@@ -583,6 +668,122 @@ internal class StepsDailySummaryRepairComposer(
 			failures = failures,
 			evidenceState = database.sourceEvidenceStateDao().get(),
 		)
+	}
+
+	@Suppress("ComplexCondition")
+	private suspend fun hasOnlyAuthorizedFactCandidates(
+		readDao: TrackingHistoryReadDao,
+		serviceRuns: List<SourceServiceRunEntity>,
+		deletionFences: List<SourceDeletionFenceEntity>,
+	): Boolean {
+		val runsById = serviceRuns.associateBy(SourceServiceRunEntity::serviceRunId)
+		val fencesByDigest = deletionFences.associateBy(SourceDeletionFenceEntity::scopeIdentityDigest)
+		return readDao.visitStepsFactCandidateStatesByRun(serviceRuns) { runId, _, candidate ->
+			val run = runsById[runId]
+			val scope = candidate.scopeCarrier
+			val state = candidate.state
+			if (!hasValidStepsFactCandidateState(candidate) || run == null || scope == null ||
+				state == null || scope.serviceRunId != runId ||
+				scope.logicalTrackingId != run.logicalTrackingId
+			) {
+				false
+			} else if (state.operation == StepFactRevisionEntity.OPERATION_RETRACT) {
+				val digest = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+					purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+					logicalTrackingId = run.logicalTrackingId,
+					serviceRunId = runId,
+				)
+				val fence = fencesByDigest[digest]
+				fence != null && state.scopeDeletionGeneration == fence.fenceGeneration &&
+					state.collectedDataEpoch == fence.collectedDataEpoch
+			} else {
+				true
+			}
+		}
+	}
+
+	/** Streams exact run-local fact chains in admission order after raw candidate authentication. */
+	@Suppress("CyclomaticComplexMethod")
+	private suspend fun hasValidCanonicalFactTimelines(
+		readDao: TrackingHistoryReadDao,
+		serviceRuns: List<SourceServiceRunEntity>,
+	): Boolean {
+		val runsById = serviceRuns.associateBy(SourceServiceRunEntity::serviceRunId)
+		for (runBatch in serviceRuns.chunked(QUERY_ID_BATCH_SIZE)) {
+			val runIds = runBatch.map(SourceServiceRunEntity::serviceRunId)
+			var afterServiceRunId: String? = null
+			var afterSourceAdmissionOrdinal: Long? = null
+			var afterWriterProjectionId: String? = null
+			var afterWriterProjectionVersion: Int? = null
+			var afterLogicalFactId: String? = null
+			var afterSemanticRevision: Long? = null
+			var previous: StepFactRevisionEntity? = null
+			var pageSize: Int
+			do {
+				val page = readDao.canonicalStepFactTimelinePage(
+					serviceRunIds = runIds,
+					limit = READ_PAGE_SIZE,
+					afterServiceRunId = afterServiceRunId,
+					afterSourceAdmissionOrdinal = afterSourceAdmissionOrdinal,
+					afterWriterProjectionId = afterWriterProjectionId,
+					afterWriterProjectionVersion = afterWriterProjectionVersion,
+					afterLogicalFactId = afterLogicalFactId,
+					afterSemanticRevision = afterSemanticRevision,
+				)
+				val orderedPage = previous?.let { prior -> listOf(prior) + page } ?: page
+				if (page.any { fact -> fact.serviceRunId !in runIds } ||
+					orderedPage.zipWithNext().any { (left, right) ->
+						!isTimelineFactAfter(right, left)
+					}
+				) {
+					return false
+				}
+				for (fact in page) {
+					val run = runsById[fact.serviceRunId] ?: return false
+					val prior = previous?.takeIf { candidate ->
+						candidate.serviceRunId == fact.serviceRunId
+					}
+					val chain = prior?.let { listOf(it, fact) } ?: listOf(fact)
+					if (!StepFactRevisionIntegrity.hasValidCanonicalLiveWalRunTimeline(
+							chain,
+							run.logicalTrackingId,
+							run.serviceRunId,
+						)
+					) {
+						return false
+					}
+					previous = fact
+				}
+				val last = page.lastOrNull()
+				afterServiceRunId = last?.serviceRunId
+				afterSourceAdmissionOrdinal = last?.sourceAdmissionOrdinal
+				afterWriterProjectionId = last?.writerProjectionId
+				afterWriterProjectionVersion = last?.writerProjectionVersion
+				afterLogicalFactId = last?.logicalFactId
+				afterSemanticRevision = last?.semanticRevision
+				pageSize = page.size
+			} while (pageSize == READ_PAGE_SIZE)
+		}
+		return true
+	}
+
+	private fun isTimelineFactAfter(
+		candidate: StepFactRevisionEntity,
+		previous: StepFactRevisionEntity,
+	): Boolean = when {
+		candidate.serviceRunId != previous.serviceRunId ->
+			requireNotNull(candidate.serviceRunId) > requireNotNull(previous.serviceRunId)
+		candidate.sourceAdmissionOrdinal != previous.sourceAdmissionOrdinal ->
+			requireNotNull(candidate.sourceAdmissionOrdinal) >
+				requireNotNull(previous.sourceAdmissionOrdinal)
+		candidate.writerProjectionId != previous.writerProjectionId ->
+			candidate.writerProjectionId > previous.writerProjectionId
+		candidate.writerProjectionVersion != previous.writerProjectionVersion ->
+			candidate.writerProjectionVersion > previous.writerProjectionVersion
+		candidate.logicalFactId != previous.logicalFactId ->
+			candidate.logicalFactId > previous.logicalFactId
+		else -> candidate.semanticRevision > previous.semanticRevision
 	}
 
 	private fun isFactStateAfter(
@@ -629,6 +830,8 @@ internal class StepsDailySummaryRepairComposer(
 			run = run,
 			manifests = manifests,
 			sourcesByManifest = snapshot.sourcesByManifest,
+			stepPolicies = snapshot.stepPolicies,
+			stepCaptureConsents = snapshot.stepCaptureConsents,
 		) ?: return SegmentQualification.Unverifiable
 		val zones = authorities.values.map(ManifestAuthority::zoneId).distinct()
 		if (zones.size != 1) {
@@ -687,9 +890,15 @@ internal class StepsDailySummaryRepairComposer(
 			run = run,
 			manifests = snapshot.manifestsByRun[run.serviceRunId].orEmpty(),
 			sourcesByManifest = snapshot.sourcesByManifest,
+			stepPolicies = snapshot.stepPolicies,
+			stepCaptureConsents = snapshot.stepCaptureConsents,
 		) ?: return UnboundRunQualification.Unverifiable
-		val relevantAuthorities = unboundOverlappingAuthorities(run, authorities, queryBounds)
-			?: return UnboundRunQualification.Unverifiable
+		// The candidate query already established civil relevance. Manifest membership is exact for
+		// the run as a whole; a wall-clock jump must not select one revision over another.
+		val relevantAuthorities = authorities.values.toList()
+		if (relevantAuthorities.isEmpty()) {
+			return UnboundRunQualification.Unverifiable
+		}
 		val relevantSteps = relevantAuthorities.mapNotNull(ManifestAuthority::stepsBinding)
 		if (relevantSteps.isEmpty()) {
 			return qualifyUnboundNonSteps(
@@ -968,36 +1177,6 @@ internal class StepsDailySummaryRepairComposer(
 		}
 	}
 
-	@Suppress("CyclomaticComplexMethod")
-	private fun unboundOverlappingAuthorities(
-		run: SourceServiceRunEntity,
-		authorities: Map<Long, ManifestAuthority>,
-		queryBounds: QueryBounds,
-	): List<ManifestAuthority>? {
-		val ordered = authorities.values.toList()
-		val runEndMs = run.completedAtMs ?: Long.MAX_VALUE
-		if (ordered.isEmpty() || runEndMs <= run.startedAtMs) {
-			return null
-		}
-		val overlapping = mutableListOf<ManifestAuthority>()
-		for (index in ordered.indices) {
-			val authority = ordered[index]
-			val startMs = if (index == 0) {
-				run.startedAtMs
-			} else {
-				authority.manifest.effectiveWallTimeMs
-			}
-			val endMs = ordered.getOrNull(index + 1)?.manifest?.effectiveWallTimeMs ?: runEndMs
-			if (startMs < run.startedAtMs || endMs > runEndMs || endMs <= startMs) {
-				return null
-			}
-			if (startMs < queryBounds.toMs && endMs > queryBounds.fromMs) {
-				overlapping += authority
-			}
-		}
-		return overlapping.takeIf { it.isNotEmpty() }
-	}
-
 	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	private fun candidateContribution(
 		segment: SessionSegment,
@@ -1025,26 +1204,33 @@ internal class StepsDailySummaryRepairComposer(
 				SegmentQualification.Unverifiable
 			}
 		}
-		val captureSlices = manifestCaptureSlices(authorities, run, segment)
-			?: return SegmentQualification.Unverifiable
 		val contribution = SegmentContribution(
 			logicalTrackingId = logicalTrackingId,
 			logicalStartedAtMs = logicalSession.startedAtMs,
 			zoneId = authorities.values.first().zoneId,
 			segment = segment,
-			captureSlices = captureSlices,
+			allManifestRevisions = authorities.keys,
+			stepsManifestRevisions = authorities.values.mapNotNullTo(linkedSetOf()) { authority ->
+				authority.manifest.manifestRevision.takeIf { authority.stepsBinding != null }
+			},
+			hasManifestWithoutStepsCapture = authorities.values.any { authority ->
+				authority.stepsBinding == null
+			},
 		)
 		val completeness = context.completeness.filter { row ->
 			row.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS
 		}
-		if (completeness.isEmpty()) {
+		if (completeness.isEmpty() ||
+			!StepsSessionCompletenessIntegrity.hasValidRegisteredTimeline(
+				completeness,
+				logicalTrackingId,
+				serviceRunId,
+			)
+		) {
 			return SegmentQualification.Unverifiable
 		}
 		if (completeness.any { row ->
-			!row.appDrainComplete || row.sourceInstanceId.isBlank() ||
-				row.registrationGeneration <= 0L ||
-				row.lastAdmissionOrdinal == null ||
-				row.lastSourceSequence?.let { sequence -> sequence < 0L } != false ||
+			!row.appDrainComplete || row.lastAdmissionOrdinal == null ||
 				row.stopStatus != COMPLETE_STOP_STATUS ||
 				row.providerCoverage != COMPLETE_PROVIDER_COVERAGE ||
 				row.unresolvedSequenceStart != null || row.unresolvedSequenceEnd != null
@@ -1094,9 +1280,6 @@ internal class StepsDailySummaryRepairComposer(
 		if (terminalOrdinals.distinct().size != completeness.size) {
 			return SegmentQualification.Unverifiable
 		}
-		val stepsManifestRevisions = authorities.values.mapNotNullTo(hashSetOf()) { authority ->
-			authority.manifest.manifestRevision.takeIf { authority.stepsBinding != null }
-		}
 		val descriptor = candidateFactDescriptor(
 			contribution = contribution,
 			run = run,
@@ -1105,7 +1288,6 @@ internal class StepsDailySummaryRepairComposer(
 			context = context,
 			targetOrdinal = targetOrdinal,
 			terminalOrdinals = terminalOrdinals.toSet(),
-			stepsManifestRevisions = stepsManifestRevisions,
 			requiresCompleteEvidence = true,
 		) ?: return SegmentQualification.Unverifiable
 		return if (lifecycle == BoundLifecycle.SETTLED) {
@@ -1123,7 +1305,6 @@ internal class StepsDailySummaryRepairComposer(
 		context: CandidateAuthorityContext,
 		targetOrdinal: Long,
 		terminalOrdinals: Set<Long> = emptySet(),
-		stepsManifestRevisions: Set<Long> = emptySet(),
 		requiresCompleteEvidence: Boolean,
 	): RunFactDescriptor.Candidate? {
 		val writerBindingGeneration = writer.bindingGeneration ?: return null
@@ -1145,10 +1326,7 @@ internal class StepsDailySummaryRepairComposer(
 			collectedDataEpoch = context.collectedDataEpoch,
 			targetOrdinal = targetOrdinal,
 			terminalOrdinals = terminalOrdinals,
-			stepsManifestRevisions = stepsManifestRevisions,
-			captureSlicesByManifest = contribution.captureSlices.associateBy(
-				SegmentCaptureSlice::manifestRevision,
-			),
+			stepsManifestRevisions = contribution.stepsManifestRevisions,
 			accumulatorContribution = contribution.toAccumulatorContribution(),
 			requiresCompleteEvidence = requiresCompleteEvidence,
 		)
@@ -1194,11 +1372,23 @@ internal class StepsDailySummaryRepairComposer(
 			}) {
 			return null
 		}
+		val stepsCompleteness = completeness.filter { row ->
+			row.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS
+		}
+		if (!StepsSessionCompletenessIntegrity.hasValidTimeline(
+				stepsCompleteness,
+				logicalSession.logicalTrackingId,
+				run.serviceRunId,
+			)
+		) {
+			return null
+		}
 		val lane = snapshot.lanes[LaneKey(bindingGeneration, projectionId, projectionVersion)]
 			?: return null
 		val requiredCaptureModeMask = historicalCaptureModeMask(authorities) ?: return null
 		val stepsAuthorities = authorities.values.filter { authority -> authority.stepsBinding != null }
-		if (stepsAuthorities.isEmpty() || !validHistoricalLane(lane) ||
+		if (stepsAuthorities.isEmpty() || !laneExecutionAuthority.owns(lane) ||
+			!validHistoricalLane(lane) ||
 			lane.captureModeMask and requiredCaptureModeMask == 0L ||
 			stepsAuthorities.any { authority ->
 				lane.activatedRolloutRevision > authority.manifest.rolloutRevision
@@ -1215,109 +1405,31 @@ internal class StepsDailySummaryRepairComposer(
 		)
 	}
 
-	/** Replays every semantic relation that remains reconstructible from the self-contained fact. */
-	@Suppress("ReturnCount")
+	/** Adds exact run and manifest authority to the shared source-local fact contract. */
+	@Suppress("CyclomaticComplexMethod", "ReturnCount")
 	private fun validLiveWalFactSemantics(
 		state: StepFactRevisionEntity,
 		run: SourceServiceRunEntity,
 		authority: ManifestAuthority,
 		nextAuthority: ManifestAuthority?,
 	): Boolean {
-		val values = liveWalFactValues(state) ?: return false
-		val sourceEventId = state.sourceEventId ?: return false
-		val expectedLogicalFactId = "${state.writerProjectionId}:$sourceEventId"
-		val expectedMutationId =
-			"$expectedLogicalFactId:${state.semanticRevision}:${StepFactRevisionEntity.OPERATION_UPSERT}"
-		if (!validLiveWalIdentity(state, run, sourceEventId, expectedLogicalFactId, expectedMutationId) ||
-			!validLiveWalClockEnvelope(state, run, authority, nextAuthority, values)
+		if (!StepFactRevisionIntegrity.hasValidCanonicalLiveWalFact(state) ||
+			state.clockDomainId != run.bootId || state.bootClockDomainId != run.bootId ||
+			authority.manifest.effectiveBootId != run.bootId
 		) {
 			return false
 		}
-		return validLiveWalCoverage(state.coverageKind, values)
-	}
-
-	@Suppress("ComplexCondition")
-	private fun validLiveWalIdentity(
-		state: StepFactRevisionEntity,
-		run: SourceServiceRunEntity,
-		sourceEventId: String,
-		expectedLogicalFactId: String,
-		expectedMutationId: String,
-	): Boolean =
-		state.clockDomainId == run.bootId && state.bootClockDomainId == run.bootId &&
-			state.semanticRevision == LIVE_WAL_SEMANTIC_REVISION &&
-			state.logicalFactId == expectedLogicalFactId && state.originIdentity == sourceEventId &&
-			state.mutationId == expectedMutationId
-
-	private fun validLiveWalClockEnvelope(
-		state: StepFactRevisionEntity,
-		run: SourceServiceRunEntity,
-		authority: ManifestAuthority,
-		nextAuthority: ManifestAuthority?,
-		values: LiveWalFactValues,
-	): Boolean {
-		if (!validLiveWalIntervalOrder(values) ||
-			!validLiveWalAuthorityFloor(state, run, authority, values) ||
-			!validLiveWalNextAuthority(nextAuthority, values)
+		val startElapsed = state.intervalStartElapsedRealtimeNanos ?: return false
+		val endElapsed = state.intervalEndElapsedRealtimeNanos ?: return false
+		if (startElapsed < run.startedElapsedNanos ||
+			startElapsed < authority.manifest.effectiveElapsedRealtimeNanos ||
+			endElapsed < authority.manifest.effectiveElapsedRealtimeNanos
 		) {
 			return false
 		}
-		val durationMs = (values.endElapsed - values.startElapsed) / NANOS_PER_MILLISECOND
-		val expectedStartMs = if (durationMs > values.endMs) {
-			0L
-		} else {
-			values.endMs - durationMs
-		}
-		return values.startMs == expectedStartMs
-	}
-
-	@Suppress("ComplexCondition")
-	private fun validLiveWalIntervalOrder(values: LiveWalFactValues): Boolean =
-		values.endMs >= values.startMs && values.endElapsed >= values.startElapsed
-
-	@Suppress("ComplexCondition")
-	private fun validLiveWalAuthorityFloor(
-		state: StepFactRevisionEntity,
-		run: SourceServiceRunEntity,
-		authority: ManifestAuthority,
-		values: LiveWalFactValues,
-	): Boolean =
-		values.startElapsed >= run.startedElapsedNanos && state.appliedAtMs == values.endMs &&
-			values.startElapsed >= authority.manifest.effectiveElapsedRealtimeNanos &&
-			values.endElapsed >= authority.manifest.effectiveElapsedRealtimeNanos
-
-	private fun validLiveWalNextAuthority(
-		nextAuthority: ManifestAuthority?,
-		values: LiveWalFactValues,
-	): Boolean {
-		val nextEffective = nextAuthority?.manifest?.effectiveElapsedRealtimeNanos ?: return true
-		return values.startElapsed < nextEffective && values.endElapsed < nextEffective
-	}
-
-	private fun validLiveWalCoverage(
-		coverageKind: String?,
-		values: LiveWalFactValues,
-	): Boolean =
-		when (coverageKind) {
-			StepFactRevisionEntity.COVERAGE_BASELINE ->
-				values.effective == 0L && values.cumulativeStart == values.cumulativeEnd
-			StepFactRevisionEntity.COVERAGE_COVERED ->
-				values.cumulativeEnd >= values.cumulativeStart &&
-					values.effective == values.cumulativeEnd - values.cumulativeStart
-			else -> false
-		}
-
-	@Suppress("ReturnCount")
-	private fun liveWalFactValues(state: StepFactRevisionEntity): LiveWalFactValues? {
-		return LiveWalFactValues(
-			startMs = state.intervalStartTimeMs ?: return null,
-			endMs = state.intervalEndTimeMs ?: return null,
-			startElapsed = state.intervalStartElapsedRealtimeNanos ?: return null,
-			endElapsed = state.intervalEndElapsedRealtimeNanos ?: return null,
-			cumulativeStart = state.cumulativeStepCountStart ?: return null,
-			cumulativeEnd = state.cumulativeStepCountEnd ?: return null,
-			effective = state.effectiveStepCount ?: return null,
-		)
+		val nextEffective = nextAuthority?.manifest?.effectiveElapsedRealtimeNanos
+		return nextEffective == null ||
+			(startElapsed < nextEffective && endElapsed < nextEffective)
 	}
 
 	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
@@ -1356,8 +1468,6 @@ internal class StepsDailySummaryRepairComposer(
 		if (lifecycle == BoundLifecycle.LIVE_MATERIALIZING) {
 			return materializing(logicalSession, authorities)
 		}
-		val captureSlices = manifestCaptureSlices(authorities, run, segment)
-			?: return SegmentQualification.Unverifiable
 		val capturedForWholeRun = authorities.values.drop(1).fold(
 			authorities.values.first().capturedSourceKinds,
 		) { common, authority -> common intersect authority.capturedSourceKinds }
@@ -1394,7 +1504,9 @@ internal class StepsDailySummaryRepairComposer(
 					logicalStartedAtMs = logicalSession.startedAtMs,
 					zoneId = authorities.values.first().zoneId,
 					segment = segment,
-					captureSlices = captureSlices,
+					allManifestRevisions = authorities.keys,
+					stepsManifestRevisions = emptySet(),
+					hasManifestWithoutStepsCapture = true,
 				)
 				val descriptor = RunFactDescriptor.MustBeEmpty(serviceRunId)
 				return if (lifecycle == BoundLifecycle.SETTLED) {
@@ -1449,7 +1561,10 @@ internal class StepsDailySummaryRepairComposer(
 
 	private fun hasIncompatibleLogicalGroup(group: List<SegmentContribution>): Boolean {
 		if (group.map(SegmentContribution::zoneId).distinct().size != 1 ||
-			group.map(SegmentContribution::logicalStartedAtMs).distinct().size != 1
+			group.map(SegmentContribution::logicalStartedAtMs).distinct().size != 1 ||
+			!SessionManifestIntegrity.hasValidLogicalManifestRevisionSliceUnion(
+				group.map(SegmentContribution::allManifestRevisions),
+			)
 		) {
 			return true
 		}
@@ -1469,14 +1584,12 @@ internal class StepsDailySummaryRepairComposer(
 		unboundNonStepsCaptures: List<UnboundNonStepsCapture>,
 		rejectCrossLogicalOverlap: Boolean,
 	): Boolean {
-		val intervals = contributions.flatMap { contribution ->
-			contribution.captureSlices.map { slice ->
-				LogicalCaptureInterval(
-					logicalTrackingId = contribution.logicalTrackingId,
-					startMs = slice.startMs,
-					endMs = slice.endMs,
-				)
-			}
+		val intervals = contributions.map { contribution ->
+			LogicalCaptureInterval(
+				logicalTrackingId = contribution.logicalTrackingId,
+				startMs = contribution.segment.startTimeMs,
+				endMs = contribution.segment.endTimeMs,
+			)
 		} + unboundNonStepsCaptures.map { capture ->
 			LogicalCaptureInterval(
 				logicalTrackingId = capture.logicalTrackingId,
@@ -1520,14 +1633,8 @@ internal class StepsDailySummaryRepairComposer(
 		segmentStartMs = segment.startTimeMs,
 		segmentEndMs = segment.endTimeMs,
 		distanceM = segment.distanceM,
-		captureSlices = captureSlices.map { slice ->
-			StepsNumericCaptureSlice(
-				manifestRevision = slice.manifestRevision,
-				startMs = slice.startMs,
-				endMs = slice.endMs,
-				capturesSteps = slice.capturesSteps,
-			)
-		},
+		stepsManifestRevisions = stepsManifestRevisions,
+		hasManifestWithoutStepsCapture = hasManifestWithoutStepsCapture,
 	)
 
 	private suspend fun streamFactStatePages(
@@ -1707,11 +1814,7 @@ internal class StepsDailySummaryRepairComposer(
 		val endMs = state.intervalEndTimeMs ?: return false
 		val count = state.effectiveStepCount ?: return false
 		val uncertaintyMs = state.wallTimeUncertaintyMs ?: return false
-		val captureSlice = descriptor.captureSlicesByManifest[scoped.manifestRevision]
-			?: return false
-		if (!captureSlice.capturesSteps || startMs < captureSlice.startMs ||
-			endMs > captureSlice.endMs || endMs <= startMs || count < 0L
-		) {
+		if (endMs <= startMs || count < 0L) {
 			return false
 		}
 		stream.sawCovered = true
@@ -1737,18 +1840,13 @@ internal class StepsDailySummaryRepairComposer(
 		run: SourceServiceRunEntity,
 		manifests: List<SessionManifestVersionEntity>,
 		sourcesByManifest: Map<ManifestKey, List<SessionManifestSourceEntity>>,
+		stepPolicies: Map<Long, SourcePolicyEntity>,
+		stepCaptureConsents: Map<Long, SourceConsentEpochEntity>,
 	): Map<Long, ManifestAuthority>? {
 		val logicalTrackingId = logicalSession.logicalTrackingId
 		val serviceRunId = run.serviceRunId
 		val ordered = manifests.sortedBy(SessionManifestVersionEntity::manifestRevision)
-		if (ordered.isEmpty() || run.preparedManifestRevision <= 0L ||
-			ordered.map(SessionManifestVersionEntity::manifestRevision).distinct().size != ordered.size ||
-			ordered.first().manifestRevision != run.preparedManifestRevision ||
-			ordered.first().effectiveWallTimeMs != run.startedAtMs ||
-			ordered.first().effectiveElapsedRealtimeNanos != run.startedElapsedNanos ||
-			ordered.first().effectiveBootId != run.bootId ||
-			ordered.last().acquisitionPlanRevision != run.desiredPlanRevision
-		) {
+		if (!SessionManifestIntegrity.hasValidServiceRunTimeline(run, ordered)) {
 			return null
 		}
 		val currentIntentRevision = logicalSession.currentIntentRevision
@@ -1782,31 +1880,13 @@ internal class StepsDailySummaryRepairComposer(
 			return null
 		}
 		val authorities = linkedMapOf<Long, ManifestAuthority>()
-		for ((index, manifest) in ordered.withIndex()) {
+		for (manifest in ordered) {
 			if (manifest.logicalTrackingId != logicalTrackingId || manifest.serviceRunId != serviceRunId ||
-				manifest.rolloutRevision != run.rolloutRevision ||
 				manifest.rolloutRevision != logicalSession.rolloutRevision ||
 				manifest.sessionMode != logicalSession.sessionMode ||
-				manifest.startOrigin != run.startOrigin ||
-				manifest.effectiveBootId != run.bootId ||
-				manifest.effectiveElapsedRealtimeNanos < run.startedElapsedNanos ||
-				manifest.acquisitionPlanRevision <= 0L
+				manifest.effectiveBootId != run.bootId
 			) {
 				return null
-			}
-			if (index > 0) {
-				val previous = ordered[index - 1]
-				val expectedRevision = try {
-					Math.addExact(previous.manifestRevision, 1L)
-				} catch (_: ArithmeticException) {
-					return null
-				}
-				if (manifest.manifestRevision != expectedRevision ||
-					manifest.effectiveBootId != previous.effectiveBootId ||
-					manifest.effectiveElapsedRealtimeNanos < previous.effectiveElapsedRealtimeNanos
-				) {
-					return null
-				}
 			}
 			val sources = sourcesByManifest[ManifestKey(logicalTrackingId, manifest.manifestRevision)].orEmpty()
 			if (!SessionManifestIntegrity.verify(manifest, sources) ||
@@ -1829,6 +1909,16 @@ internal class StepsDailySummaryRepairComposer(
 			if (stepsSources.size > 1) {
 				return null
 			}
+			val stepsBinding = stepsSources.singleOrNull()
+			if (stepsBinding != null && !StepFactRevisionIntegrity.hasValidStepsCaptureAuthority(
+					policy = stepPolicies[manifest.sourcePolicyRevision],
+					consent = stepCaptureConsents[stepsBinding.consentEpoch],
+					manifestPolicyRevision = manifest.sourcePolicyRevision,
+					binding = stepsBinding,
+				)
+			) {
+				return null
+			}
 			val zoneId = try {
 				ZoneId.of(manifest.zoneId)
 			} catch (_: DateTimeException) {
@@ -1836,7 +1926,7 @@ internal class StepsDailySummaryRepairComposer(
 			}
 			authorities[manifest.manifestRevision] = ManifestAuthority(
 				manifest = manifest,
-				stepsBinding = stepsSources.singleOrNull(),
+				stepsBinding = stepsBinding,
 				capturedSourceKinds = captureSources.mapTo(linkedSetOf(), SessionManifestSourceEntity::sourceKind),
 				zoneId = zoneId,
 			)
@@ -1855,53 +1945,6 @@ internal class StepsDailySummaryRepairComposer(
 			SessionMode.AUTOMATIC.name -> CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE.mask
 			else -> null
 		}
-	}
-
-	/** Exact manifest-effective capture slices for one physical service-run segment. */
-	@Suppress("CyclomaticComplexMethod")
-	private fun manifestCaptureSlices(
-		authorities: Map<Long, ManifestAuthority>,
-		run: SourceServiceRunEntity,
-		segment: SessionSegment,
-	): List<SegmentCaptureSlice>? {
-		val ordered = authorities.values.sortedBy { authority -> authority.manifest.manifestRevision }
-		val sourceEndMs = run.completedAtMs ?: segment.endTimeMs
-		if (ordered.isEmpty() || sourceEndMs <= run.startedAtMs ||
-			ordered.first().manifest.effectiveWallTimeMs != run.startedAtMs
-		) {
-			return null
-		}
-		val slices = mutableListOf<SegmentCaptureSlice>()
-		for (index in ordered.indices) {
-			val authority = ordered[index]
-			val effectiveAtMs = authority.manifest.effectiveWallTimeMs
-			if (index > 0) {
-				val previous = ordered[index - 1].manifest
-				if (authority.manifest.manifestRevision <= previous.manifestRevision ||
-					effectiveAtMs <= previous.effectiveWallTimeMs ||
-					effectiveAtMs <= run.startedAtMs
-				) {
-					return null
-				}
-			}
-			val startMs = if (index == 0) {
-				run.startedAtMs
-			} else {
-				effectiveAtMs
-			}
-			val endMs = ordered.getOrNull(index + 1)?.manifest?.effectiveWallTimeMs
-				?: sourceEndMs
-			if (startMs < run.startedAtMs || endMs > sourceEndMs || endMs <= startMs) {
-				return null
-			}
-			slices += SegmentCaptureSlice(
-				manifestRevision = authority.manifest.manifestRevision,
-				startMs = startMs,
-				endMs = endMs,
-				capturesSteps = authority.stepsBinding != null,
-			)
-		}
-		return slices
 	}
 
 	private fun writerBinding(source: SessionManifestSourceEntity) = WriterBinding(
@@ -1985,6 +2028,21 @@ internal class StepsDailySummaryRepairComposer(
 		StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
 	)
 
+	/** Untyped daily_summary cannot preserve the uncertainty carried by PartialCapture. */
+	private fun StepsDayRepairPreflight.requirePersistableNumericSteps(): StepsDayRepairPreflight =
+		when (this) {
+			is StepsDayRepairPreflight.Ready -> if (
+				plans.any { plan ->
+					plan.numericSteps == StepsDayNumericComposition.PartialCapture
+				}
+			) {
+				unverifiable()
+			} else {
+				this
+			}
+			else -> this
+		}
+
 	private data class ManifestKey(val logicalTrackingId: String, val manifestRevision: Long)
 	private data class LaneKey(val generation: Long, val projectionId: String, val version: Int)
 	private data class QueryBounds(val fromMs: Long, val toMs: Long)
@@ -2006,18 +2064,14 @@ internal class StepsDailySummaryRepairComposer(
 		val logicalStartedAtMs: Long,
 		val zoneId: ZoneId,
 		val segment: SessionSegment,
-		val captureSlices: List<SegmentCaptureSlice>,
+		val allManifestRevisions: Set<Long>,
+		val stepsManifestRevisions: Set<Long>,
+		val hasManifestWithoutStepsCapture: Boolean,
 	)
 	private data class LogicalContributionAuthority(
 		val logicalTrackingId: String,
 		val logicalStartedAtMs: Long,
 		val zoneId: ZoneId,
-	)
-	private data class SegmentCaptureSlice(
-		val manifestRevision: Long,
-		val startMs: Long,
-		val endMs: Long,
-		val capturesSteps: Boolean,
 	)
 	private data class UnboundNonStepsCapture(
 		val logicalTrackingId: String,
@@ -2053,7 +2107,6 @@ internal class StepsDailySummaryRepairComposer(
 			val targetOrdinal: Long,
 			val terminalOrdinals: Set<Long>,
 			val stepsManifestRevisions: Set<Long>,
-			val captureSlicesByManifest: Map<Long, SegmentCaptureSlice>,
 			val accumulatorContribution: StepsNumericRunContribution,
 			val requiresCompleteEvidence: Boolean,
 		) : RunFactDescriptor
@@ -2069,20 +2122,13 @@ internal class StepsDailySummaryRepairComposer(
 		var sawState: Boolean = false,
 		var sawCovered: Boolean = false,
 	)
-	private data class LiveWalFactValues(
-		val startMs: Long,
-		val endMs: Long,
-		val startElapsed: Long,
-		val endElapsed: Long,
-		val cumulativeStart: Long,
-		val cumulativeEnd: Long,
-		val effective: Long,
-	)
 	private data class RepairSnapshot(
 		val logicalSessions: Map<String, LogicalTrackingSessionEntity>,
 		val serviceRuns: Map<String, SourceServiceRunEntity>,
 		val manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
 		val sourcesByManifest: Map<ManifestKey, List<SessionManifestSourceEntity>>,
+		val stepPolicies: Map<Long, SourcePolicyEntity>,
+		val stepCaptureConsents: Map<Long, SourceConsentEpochEntity>,
 		val completenessByRun: Map<String, List<SourceSessionCompletenessEntity>>,
 		val lanes: Map<LaneKey, SourceProductProjectionLaneEntity>,
 		val deletionFenceDigests: Set<String>,
@@ -2125,8 +2171,6 @@ internal class StepsDailySummaryRepairComposer(
 		const val MAX_COMPLETENESS_PER_QUERY_BATCH = 8_192
 		const val MAX_TERMINAL_FAILURES_PER_QUERY_BATCH = 2_048
 		const val MAX_ZONE_OFFSET_MS = 18L * 60L * 60_000L
-		const val NANOS_PER_MILLISECOND = 1_000_000L
-		const val LIVE_WAL_SEMANTIC_REVISION = 1L
 		const val COMPLETE_STOP_STATUS = "COMPLETE"
 		const val COMPLETE_PROVIDER_COVERAGE = "CALLBACKS_ENTERED_BEFORE_BARRIER"
 		val KNOWN_SOURCE_KINDS = SourceKind.values().mapTo(hashSetOf(), SourceKind::stableCode)

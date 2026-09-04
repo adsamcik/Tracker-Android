@@ -13,14 +13,17 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEnti
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SkiRunSegment
 import com.adsamcik.tracker.shared.base.database.data.SkiSegmentType
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
@@ -46,6 +49,7 @@ import com.adsamcik.tracker.tracker.worker.materializeDailySummaryDayInTransacti
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.mockk.coEvery
 import io.mockk.mockk
 import io.mockk.verify
@@ -85,6 +89,8 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 			SourceEvidenceState(collectedDataEpoch = COLLECTED_DATA_EPOCH),
 		)
 		database.sourceDestinationOwnerDao().insertIfAbsent(candidateOwner())
+		database.sourcePolicyDao().insertPolicies(listOf(stepsCapturePolicy()))
+		database.sourcePolicyDao().insertConsentEpochs(listOf(stepsCaptureConsent()))
 	}
 
 	@After
@@ -166,6 +172,15 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 				retraction.serviceRunId shouldBe null
 				retraction.effectiveStepCount shouldBe null
 				retraction.scopeDeletionGeneration shouldBe 1L
+				StepFactRevisionIntegrity.hasValidLocalDeleteEffectChecksum(
+					retraction = retraction,
+					expectedScopeIdentityDigest = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+						sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+						purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+						logicalTrackingId = LOGICAL_TRACKING_ID,
+						serviceRunId = SERVICE_RUN_ID,
+					),
+				) shouldBe true
 			}
 			database.stepFactRevisionDao().revision(
 				unrelatedFact.writerProjectionId,
@@ -332,6 +347,97 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 	}
 
 	@Test
+	fun `production materializer leaves summary unchanged for wall-uncertain Steps`() = runTest {
+		val day = LocalDate.of(2026, 4, 2).toEpochDay()
+		val dayStart = LocalDate.ofEpochDay(day).atStartOfDay(ZONE).toInstant().toEpochMilli()
+		insertAttributedCandidateSurvivor(
+			logicalId = "logical-worker-wall-uncertain",
+			runId = "run-worker-wall-uncertain",
+			startMs = dayStart + 500L,
+			endMs = dayStart + HOUR_MS,
+			stepCount = 6L,
+			factTransform = { fact ->
+				fact.copy(
+					wallTimeUncertaintyMs = 1_000L,
+					effectChecksum = "pending-wall-uncertain-effect",
+				)
+			},
+		)
+		installCanonicalLane(contiguousAdmissionOrdinal = 2L)
+		database.dailySummaryDao().upsert(
+			dateEpochDay = day,
+			totalDistanceM = 123f,
+			totalSteps = 123,
+			totalDurationMs = 123L,
+			tripCount = 123,
+			activeTrackingMs = 123L,
+			lastUpdatedMs = 123L,
+			calendarZoneId = ZONE.id,
+		)
+		val before = database.dailySummaryDao().getByDay(day)
+
+		val outcome = materializeDailySummaryDayInTransaction(
+			database = database,
+			aggregator = DailySummaryAggregator(
+				database.dailySummaryDao(),
+				database.sessionSegmentDao(),
+				zoneId = ZONE,
+			),
+			epochDay = day,
+			capturedZoneId = ZONE,
+		)
+
+		outcome shouldBe DailySummaryMaterializationOutcome.Unverifiable
+		database.dailySummaryDao().getByDay(day) shouldBe before
+	}
+
+	@Test
+	fun `production materializer discovers a day only from the canonical fact wall interval`() =
+		runTest {
+			val day = LocalDate.of(2026, 4, 2).toEpochDay()
+			val dayStart = LocalDate.ofEpochDay(day).atStartOfDay(ZONE).toInstant().toEpochMilli()
+			val priorDayStart = LocalDate.ofEpochDay(day - 1L)
+				.atStartOfDay(ZONE)
+				.toInstant()
+				.toEpochMilli()
+			insertAttributedCandidateSurvivor(
+				logicalId = "logical-worker-fact-wall-only",
+				runId = "run-worker-fact-wall-only",
+				startMs = priorDayStart + HOUR_MS,
+				endMs = priorDayStart + 2L * HOUR_MS,
+				stepCount = 7L,
+				factTransform = { fact ->
+					val factEndMs = dayStart + 2L * HOUR_MS
+					fact.copy(
+						intervalStartTimeMs = dayStart + HOUR_MS,
+						intervalEndTimeMs = factEndMs,
+						appliedAtMs = factEndMs,
+					)
+				},
+			)
+			installCanonicalLane(contiguousAdmissionOrdinal = 2L)
+
+			val outcome = materializeDailySummaryDayInTransaction(
+				database = database,
+				aggregator = DailySummaryAggregator(
+					database.dailySummaryDao(),
+					database.sessionSegmentDao(),
+					zoneId = ZONE,
+				),
+				epochDay = day,
+				capturedZoneId = ZONE,
+			)
+
+			outcome shouldBe DailySummaryMaterializationOutcome.Ready
+			database.dailySummaryDao().getByDay(day).shouldNotBeNull().also { summary ->
+				summary.totalSteps shouldBe 7
+				summary.totalDistanceM shouldBe 0f
+				summary.totalDurationMs shouldBe 0L
+				summary.tripCount shouldBe 0
+			}
+		}
+
+	@Test
 	@Suppress("LongMethod")
 	fun `production materializer leaves summary unchanged for active unbound non-Steps capture`() =
 		runTest {
@@ -368,7 +474,7 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 				purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
 				consentEpoch = CAPTURE_CONSENT_EPOCH,
 				persistenceEligible = true,
-				qosCode = 0,
+				qosCode = CAPTURE_QOS_CODE,
 			)
 			val unsigned = unsignedManifest().copy(
 				logicalTrackingId = logicalId,
@@ -551,7 +657,7 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 	}
 
 	@Test
-	fun `terminal presentation pending blocks deletion until delayed Ski flush is exactly settled`() =
+	fun `terminal exact scope deletes while presentation acknowledgement is pending`() =
 		runTest {
 			val selectedId = insertTerminalStepsSession(
 				startMs = 1_000L,
@@ -561,23 +667,11 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 			)
 			val subject = subject()
 
-			subject.deleteSelectedSession(selectedId) shouldBe StepsSessionDeletionResult.BlockedActive
-			database.sessionSegmentDao().getById(selectedId).shouldNotBeNull()
-			database.stepFactRevisionDao().countAll() shouldBe 1L
-			database.sourceDeletionFenceDao().countAll() shouldBe 0L
-			database.skiRunSegmentDao().insert(skiSegment(selectedId)) shouldBe 1L
-
-			database.sourceSessionDao().acknowledgePresentationQuiescedExact(
-				logicalTrackingId = LOGICAL_TRACKING_ID,
-				serviceRunId = SERVICE_RUN_ID,
-				sessionSegmentId = selectedId,
-				acknowledgedAtMs = 2_001L,
-			) shouldBe 1
 			subject.deleteSelectedSession(selectedId) shouldBe StepsSessionDeletionResult.Deleted
 
 			database.sessionSegmentDao().getById(selectedId) shouldBe null
-			database.skiRunSegmentDao().hasSkiSegments(selectedId) shouldBe false
 			database.sourceDeletionFenceDao().countAll() shouldBe 1L
+			database.sourceEvidenceStateDao().get()?.revision shouldBe 1L
 	}
 
 	@Test
@@ -669,6 +763,63 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 	}
 
 	@Test
+	fun `retargeted selected fact cannot hide behind another durable run before deletion`() = runTest {
+		val selectedId = insertTerminalStepsSession(1_000L, 2_000L, steps = 4)
+		installCanonicalLane(contiguousAdmissionOrdinal = 3L)
+		database.sourceSessionDao().saveCompleteness(
+			SourceSessionCompletenessEntity(
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				serviceRunId = SERVICE_RUN_ID,
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				sourceInstanceId = "steps-selected",
+				registrationGeneration = 1L,
+				lastAdmissionOrdinal = 2L,
+				lastSourceSequence = 2L,
+				appDrainComplete = true,
+				providerCoverage = "CALLBACKS_ENTERED_BEFORE_BARRIER",
+				stopStatus = "COMPLETE",
+				unresolvedSequenceStart = null,
+				unresolvedSequenceEnd = null,
+				updatedAtMs = 2_000L,
+			),
+		)
+		database.stepFactRevisionDao().insert(
+			stepFact(
+				logicalFactId = "steps-session-facts:selected-survivor",
+				admissionOrdinal = 2L,
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				serviceRunId = SERVICE_RUN_ID,
+				stepCount = 6L,
+			),
+		) shouldNotBe -1L
+		val outsideLogicalId = "retarget-outside-logical"
+		val outsideRunId = "retarget-outside-run"
+		insertAttributedCandidateSurvivor(
+			logicalId = outsideLogicalId,
+			runId = outsideRunId,
+			startMs = 3L * 24L * HOUR_MS,
+			endMs = 3L * 24L * HOUR_MS + HOUR_MS,
+			admissionOrdinal = 3L,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE step_fact_revision SET logical_tracking_id = ?, service_run_id = ? " +
+				"WHERE logical_fact_id = ? AND operation = 'UPSERT'",
+			arrayOf(outsideLogicalId, outsideRunId, SELECTED_FACT_ID),
+		)
+
+		subject().deleteSelectedSession(selectedId) shouldBe
+			StepsSessionDeletionResult.UnsupportedScope(
+				StepsSessionDeletionUnsupportedReason.FACT_ATTRIBUTION_MISMATCH,
+			)
+		database.sessionSegmentDao().getById(selectedId).shouldNotBeNull()
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+		database.stepFactRevisionDao().countAll() shouldBe 3L
+		database.sourceEvidenceStateDao().get()?.revision shouldBe 0L
+		verify(exactly = 0) { dirtyTracker.markDirty(any<Set<String>>()) }
+		drainRequests shouldBe 0
+	}
+
+	@Test
 	fun `legacy and mismatched reverse bindings fail closed without mutation`() = runTest {
 		val legacyId = database.sessionSegmentDao().insert(
 			segment(startMs = 1_000L, endMs = 2_000L, steps = 3),
@@ -719,6 +870,63 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 	}
 
 	@Test
+	fun `prepared and desired manifest authority fail before deletion mutation`() = runTest {
+		val selectedId = insertTerminalStepsSession(1_000L, 2_000L, steps = 4)
+		val original = requireNotNull(database.sourceSessionDao().serviceRun(SERVICE_RUN_ID))
+
+		database.sourceSessionDao().updateServiceRun(
+			original.copy(preparedManifestRevision = MANIFEST_REVISION + 1L),
+		) shouldBe 1
+		assertSelectedManifestIntegrityFailure(selectedId)
+
+		database.sourceSessionDao().updateServiceRun(
+			original.copy(desiredPlanRevision = original.desiredPlanRevision + 1L),
+		) shouldBe 1
+		assertSelectedManifestIntegrityFailure(selectedId)
+	}
+
+	@Test
+	fun `first manifest wall origin and elapsed authority fail before deletion mutation`() = runTest {
+		val selectedId = insertTerminalStepsSession(1_000L, 2_000L, steps = 4)
+		val original = database.sourceSessionDao().manifestsForServiceRun(SERVICE_RUN_ID).single()
+
+		rewriteSelectedManifest { manifest ->
+			original.copy(effectiveWallTimeMs = manifest.effectiveWallTimeMs + 1L)
+		}
+		assertSelectedManifestIntegrityFailure(selectedId)
+
+		rewriteSelectedManifest { original.copy(startOrigin = POLICY_RECONCILIATION_ORIGIN) }
+		assertSelectedManifestIntegrityFailure(selectedId)
+
+		rewriteSelectedManifest {
+			original.copy(effectiveElapsedRealtimeNanos = original.effectiveElapsedRealtimeNanos + 1L)
+		}
+		assertSelectedManifestIntegrityFailure(selectedId)
+	}
+
+	@Test
+	fun `successor manifest requires reconciliation origin and monotonic elapsed authority`() = runTest {
+		val selectedId = insertTerminalStepsSession(1_000L, 2_000L, steps = 4)
+		insertSelectedManifestRevision(
+			manifestRevision = MANIFEST_REVISION + 1L,
+			effectiveWallTimeMs = 1_500L,
+			effectiveElapsedRealtimeNanos = 1_500L,
+		)
+		val successor = database.sourceSessionDao().manifestsForServiceRun(SERVICE_RUN_ID)
+			.single { manifest -> manifest.manifestRevision == MANIFEST_REVISION + 1L }
+
+		rewriteSelectedManifest(MANIFEST_REVISION + 1L) {
+			successor.copy(startOrigin = MANUAL_START_ORIGIN)
+		}
+		assertSelectedManifestIntegrityFailure(selectedId)
+
+		rewriteSelectedManifest(MANIFEST_REVISION + 1L) {
+			successor.copy(effectiveElapsedRealtimeNanos = 999L)
+		}
+		assertSelectedManifestIntegrityFailure(selectedId)
+	}
+
+	@Test
 	fun `cross-midnight deletion repairs every affected day under one explicit zone`() = runTest {
 		val dayA = LocalDate.of(2026, 3, 7)
 		val dayB = dayA.plusDays(1)
@@ -742,6 +950,62 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 
 		database.dailySummaryDao().getByDay(dayA.toEpochDay()) shouldBe null
 		database.dailySummaryDao().getByDay(dayB.toEpochDay()) shouldBe null
+	}
+
+	@Test
+	fun `cross-midnight deletion with wall-uncertain survivor leaves both summaries unchanged`() =
+		runTest {
+		val dayA = LocalDate.of(2026, 3, 7)
+		val dayB = dayA.plusDays(1L)
+		val midnight = dayB.atStartOfDay(ZONE).toInstant().toEpochMilli()
+		val selectedId = insertTerminalStepsSession(
+			startMs = midnight - 10L * MINUTE_MS,
+			endMs = midnight + 10L * MINUTE_MS,
+			steps = 20,
+		)
+		insertAttributedCandidateSurvivor(
+			logicalId = "logical-cross-midnight-partial-survivor",
+			runId = "run-cross-midnight-partial-survivor",
+			startMs = midnight + 500L,
+			endMs = midnight + 30L * MINUTE_MS,
+			admissionOrdinal = 2L,
+			stepCount = 6L,
+			factTransform = { fact ->
+				fact.copy(
+					wallTimeUncertaintyMs = 1_000L,
+					effectChecksum = "pending-cross-midnight-uncertain-effect",
+				)
+			},
+		)
+		installCanonicalLane(contiguousAdmissionOrdinal = 2L)
+		listOf(dayA.toEpochDay(), dayB.toEpochDay()).forEach { epochDay ->
+			database.dailySummaryDao().upsert(
+				dateEpochDay = epochDay,
+				totalDistanceM = 123f,
+				totalSteps = 123,
+				totalDurationMs = 123L,
+				tripCount = 123,
+				activeTrackingMs = 123L,
+				lastUpdatedMs = 123L,
+				calendarZoneId = ZONE.id,
+			)
+		}
+		val beforeA = database.dailySummaryDao().getByDay(dayA.toEpochDay())
+		val beforeB = database.dailySummaryDao().getByDay(dayB.toEpochDay())
+
+		subject().deleteSelectedSession(selectedId) shouldBe
+			StepsSessionDeletionResult.UnsupportedScope(
+				StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
+			)
+
+		database.dailySummaryDao().getByDay(dayA.toEpochDay()) shouldBe beforeA
+		database.dailySummaryDao().getByDay(dayB.toEpochDay()) shouldBe beforeB
+		database.sessionSegmentDao().getById(selectedId).shouldNotBeNull()
+		database.stepFactRevisionDao().countAll() shouldBe 2L
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+		database.sourceEvidenceStateDao().get()?.revision shouldBe 0L
+		verify(exactly = 0) { dirtyTracker.markDirty(any<Set<String>>()) }
+		drainRequests shouldBe 0
 	}
 
 	@Test
@@ -863,6 +1127,183 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 		database.stepFactRevisionDao().countAll() shouldBe 1L
 		database.sourceDeletionFenceDao().countAll() shouldBe 0L
 		database.sourceEvidenceStateDao().get()?.revision shouldBe 0L
+	}
+
+	@Test
+	fun `logical session mode must match every selected run manifest before mutation`() = runTest {
+		val selectedId = insertTerminalStepsSession(
+			startMs = 1_000L,
+			endMs = 2_000L,
+			steps = 4,
+			logicalSessionMode = "AUTOMATIC",
+		)
+
+		assertSelectedFactAttributionFailure(selectedId)
+	}
+
+	@Test
+	fun `selected fact clocks must match the exact service run boot before mutation`() = runTest {
+		val selectedId = insertTerminalStepsSession(
+			startMs = 1_000L,
+			endMs = 2_000L,
+			steps = 4,
+			factTransform = { fact ->
+				fact.copy(
+					clockDomainId = "other-boot",
+					bootClockDomainId = "other-boot",
+				)
+			},
+		)
+
+		assertSelectedFactAttributionFailure(selectedId)
+	}
+
+	@Test
+	fun `selected fact elapsed start cannot predate run and manifest authority`() = runTest {
+		val selectedId = insertTerminalStepsSession(
+			startMs = 1_000L,
+			endMs = 2_000L,
+			steps = 4,
+			factTransform = { fact ->
+				fact.copy(
+					intervalStartElapsedRealtimeNanos = 999L,
+					intervalEndElapsedRealtimeNanos = 1_000_000_999L,
+				)
+			},
+		)
+
+		assertSelectedFactAttributionFailure(selectedId)
+	}
+
+	@Test
+	fun `selected fact cannot cross its successor manifest elapsed boundary`() = runTest {
+		val selectedId = insertTerminalStepsSession(1_000L, 2_000L, steps = 4)
+		insertSelectedManifestRevision(
+			manifestRevision = MANIFEST_REVISION + 1L,
+			effectiveWallTimeMs = 1_500L,
+			effectiveElapsedRealtimeNanos = 500_000_000L,
+		)
+
+		assertSelectedFactAttributionFailure(selectedId)
+	}
+
+	@Test
+	fun `selected fact wall projection does not replace exact run and elapsed ownership`() = runTest {
+		val selectedId = insertTerminalStepsSession(
+			startMs = 1_000L,
+			endMs = 2_000L,
+			steps = 4,
+			factTransform = { fact ->
+				fact.copy(
+					intervalEndTimeMs = 2_001L,
+					intervalEndElapsedRealtimeNanos = 1_001_001_000L,
+					appliedAtMs = 2_001L,
+				)
+			},
+		)
+
+		subject().deleteSelectedSession(selectedId) shouldBe StepsSessionDeletionResult.Deleted
+		database.sessionSegmentDao().getById(selectedId) shouldBe null
+		database.sourceDeletionFenceDao().countAll() shouldBe 1L
+	}
+
+	@Test
+	fun `selected facts with an overlapping elapsed timeline fail before mutation`() = runTest {
+		val selectedId = insertTerminalStepsSession(1_000L, 2_000L, steps = 4)
+		database.stepFactRevisionDao().insert(
+			stepFact(
+				logicalFactId = "steps-session-facts:selected-overlap",
+				admissionOrdinal = 2L,
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				serviceRunId = SERVICE_RUN_ID,
+				stepCount = 6L,
+				startMs = 1_500L,
+				endMs = 2_000L,
+			),
+		) shouldNotBe -1L
+
+		assertSelectedFactAttributionFailure(selectedId)
+	}
+
+	@Test
+	fun `malformed raw Room scope is typed and preserves every deletion target`() = runTest {
+		val selectedId = insertTerminalStepsSession(1_000L, 2_000L, steps = 4)
+		insertDeletionSentinelSummary()
+		val segmentBefore = database.sessionSegmentDao().getById(selectedId)
+		val factsBefore = database.stepFactRevisionDao().revisions(
+			SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+			SELECTED_FACT_ID,
+		)
+		val summaryBefore = database.dailySummaryDao().getByDay(0L)
+		val evidenceBefore = database.sourceEvidenceStateDao().get()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_service_run SET presentation_acknowledgement = 'MALFORMED_RAW' " +
+				"WHERE service_run_id = ?",
+			arrayOf(SERVICE_RUN_ID),
+		)
+
+		subject().deleteSelectedSession(selectedId) shouldBe
+			StepsSessionDeletionResult.UnsupportedScope(
+				StepsSessionDeletionUnsupportedReason.FACT_ATTRIBUTION_MISMATCH,
+			)
+
+		database.sessionSegmentDao().getById(selectedId) shouldBe segmentBefore
+		database.stepFactRevisionDao().revisions(
+			SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+			SELECTED_FACT_ID,
+		) shouldBe factsBefore
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+		database.sourceEvidenceStateDao().get() shouldBe evidenceBefore
+		database.dailySummaryDao().getByDay(0L) shouldBe summaryBefore
+		verify(exactly = 0) { dirtyTracker.markDirty(any<Set<String>>()) }
+		drainRequests shouldBe 0
+	}
+
+	@Test
+	fun `unrelated illegal argument exceptions are not converted to persisted-data failures`() = runTest {
+		val selectedId = insertTerminalStepsSession(1_000L, 2_000L, steps = 4)
+		var observed: IllegalArgumentException? = null
+
+		try {
+			subject(
+				afterDayLocksAcquired = {
+					throw IllegalArgumentException("test programming failure")
+				},
+			).deleteSelectedSession(selectedId)
+		} catch (error: IllegalArgumentException) {
+			observed = error
+		}
+
+		observed.shouldNotBeNull().message shouldBe "test programming failure"
+		database.sessionSegmentDao().getById(selectedId).shouldNotBeNull()
+		database.stepFactRevisionDao().countAll() shouldBe 1L
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+		database.sourceEvidenceStateDao().get()?.revision shouldBe 0L
+		verify(exactly = 0) { dirtyTracker.markDirty(any<Set<String>>()) }
+		drainRequests shouldBe 0
+	}
+
+	@Test
+	fun `missing immutable Steps authority fails before every deletion mutation`() = runTest {
+		val selectedId = insertTerminalStepsSession(1_000L, 2_000L, steps = 4)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_policy WHERE policy_revision = ? AND source_kind = ?",
+			arrayOf<Any>(SOURCE_POLICY_REVISION, SourceDestinationOwnerEntity.SOURCE_STEPS),
+		)
+
+		subject().deleteSelectedSession(selectedId) shouldBe
+			StepsSessionDeletionResult.UnsupportedScope(
+				StepsSessionDeletionUnsupportedReason.FACT_ATTRIBUTION_MISMATCH,
+			)
+
+		database.sessionSegmentDao().getById(selectedId).shouldNotBeNull()
+		database.stepFactRevisionDao().countAll() shouldBe 1L
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+		database.sourceEvidenceStateDao().get()?.revision shouldBe 0L
+		verify(exactly = 0) { dirtyTracker.markDirty(any<Set<String>>()) }
+		drainRequests shouldBe 0
 	}
 
 	@Test
@@ -1458,6 +1899,7 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 		writerProjectionId: String = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
 		writerProjectionVersion: Int = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
 		writerBindingGeneration: Long = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
+		factTransform: (StepFactRevisionEntity) -> StepFactRevisionEntity = { fact -> fact },
 	): Long {
 		val segmentId = database.sessionSegmentDao().insert(
 			segment(startMs, endMs, steps = segmentSteps).copy(
@@ -1530,7 +1972,7 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 				updatedAtMs = endMs,
 			),
 		)
-		database.stepFactRevisionDao().insert(
+		val transformedFact = factTransform(
 			stepFact(
 				logicalFactId = "steps-session-facts:$runId",
 				admissionOrdinal = admissionOrdinal,
@@ -1545,6 +1987,11 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 				writerProjectionId = writerProjectionId,
 				writerProjectionVersion = writerProjectionVersion,
 				writerBindingGeneration = writerBindingGeneration,
+			),
+		)
+		database.stepFactRevisionDao().insert(
+			transformedFact.copy(
+				effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(transformedFact),
 			),
 		)
 		return segmentId
@@ -1586,7 +2033,7 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
 			consentEpoch = 1L,
 			persistenceEligible = true,
-			qosCode = 0,
+			qosCode = CAPTURE_QOS_CODE,
 		)
 		val unsigned = unsignedManifest().copy(
 			logicalTrackingId = logicalId,
@@ -1633,7 +2080,7 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 		desiredPlanRevision = 1L,
 		sourcePolicyRevision = SOURCE_POLICY_REVISION,
 		consentEpoch = CAPTURE_CONSENT_EPOCH,
-		startOrigin = "MANUAL_UI",
+		startOrigin = MANUAL_START_ORIGIN,
 		bootId = "boot-1",
 		leaseGeneration = 1L,
 		requestedAtMs = 2_000L,
@@ -1674,6 +2121,8 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 		manifestBindingGeneration: Long = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
 		factBindingGeneration: Long = manifestBindingGeneration,
 		manifestSessionMode: String = "MANUAL",
+		logicalSessionMode: String = manifestSessionMode,
+		factTransform: (StepFactRevisionEntity) -> StepFactRevisionEntity = { fact -> fact },
 		insertFact: Boolean = true,
 		presentationAcknowledgement: String = SourceServiceRunEntity.PRESENTATION_QUIESCED,
 	): Long {
@@ -1686,7 +2135,7 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 		database.sourceSessionDao().insertSession(logicalSession(
 			state = "FINALIZED",
 			currentServiceRunId = null,
-			sessionMode = manifestSessionMode,
+			sessionMode = logicalSessionMode,
 		))
 		database.sourceSessionDao().insertServiceRun(serviceRun(
 			state = "FINALIZED",
@@ -1700,7 +2149,7 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 			startOrigin = if (manifestSessionMode == "AUTOMATIC") {
 				"AUTOMATIC_BACKGROUND_START"
 			} else {
-				"MANUAL_UI"
+				MANUAL_START_ORIGIN
 			},
 		))
 		insertCandidateManifest(
@@ -1711,7 +2160,7 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 			sessionMode = manifestSessionMode,
 		)
 		if (insertFact) {
-			database.stepFactRevisionDao().insert(
+			val transformedFact = factTransform(
 				stepFact(
 					logicalFactId = SELECTED_FACT_ID,
 					admissionOrdinal = 1L,
@@ -1723,6 +2172,11 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 					sourcePolicyRevision = factPolicyRevision,
 					captureConsentEpoch = factConsentEpoch,
 					writerBindingGeneration = factBindingGeneration,
+				),
+			)
+			database.stepFactRevisionDao().insert(
+				transformedFact.copy(
+					effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(transformedFact),
 				),
 			) shouldBe 1L
 		}
@@ -1763,7 +2217,7 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 		startOrigin = if (sessionMode == "AUTOMATIC") {
 			"AUTOMATIC_BACKGROUND_START"
 		} else {
-			"MANUAL_UI"
+			MANUAL_START_ORIGIN
 		},
 		clockDomainId = "boot-1",
 		startedAtMs = 1_000L,
@@ -1801,7 +2255,7 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 		completionReason = "USER_STOP".takeIf { completedAtMs != null },
 		bootId = "boot-1",
 		leaseGeneration = 1L,
-		startOrigin = "MANUAL_UI",
+		startOrigin = MANUAL_START_ORIGIN,
 		desiredForegroundCapabilityFlags = 0L,
 		appliedForegroundCapabilityFlags = 0L,
 		runtimeAcknowledgement = "STOP_ACCEPTED".takeIf { completedAtMs != null } ?: "START_ACCEPTED",
@@ -1838,6 +2292,122 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 		database.sourceSessionDao().insertManifestSources(listOf(source))
 	}
 
+	private suspend fun insertSelectedManifestRevision(
+		manifestRevision: Long,
+		effectiveWallTimeMs: Long,
+		effectiveElapsedRealtimeNanos: Long,
+	) {
+		val source = candidateManifestSource().copy(manifestRevision = manifestRevision)
+		val unsigned = unsignedManifest().copy(
+			manifestRevision = manifestRevision,
+			startOrigin = POLICY_RECONCILIATION_ORIGIN,
+			effectiveElapsedRealtimeNanos = effectiveElapsedRealtimeNanos,
+			effectiveWallTimeMs = effectiveWallTimeMs,
+			changeReason = POLICY_RECONCILIATION_ORIGIN,
+			manifestChecksum = "",
+		)
+		database.sourceSessionDao().insertManifest(
+			unsigned.copy(manifestChecksum = SessionManifestIntegrity.compute(unsigned, listOf(source))),
+		)
+		database.sourceSessionDao().insertManifestSources(listOf(source))
+	}
+
+	private suspend fun rewriteSelectedManifest(
+		manifestRevision: Long = MANIFEST_REVISION,
+		transform: (SessionManifestVersionEntity) -> SessionManifestVersionEntity,
+	) {
+		val current = database.sourceSessionDao().manifestsForServiceRun(SERVICE_RUN_ID)
+			.single { manifest -> manifest.manifestRevision == manifestRevision }
+		val sources = database.sourceSessionDao().manifestSources(LOGICAL_TRACKING_ID, manifestRevision)
+		val unsigned = transform(current).copy(manifestChecksum = "")
+		check(unsigned.logicalTrackingId == current.logicalTrackingId &&
+			unsigned.manifestRevision == current.manifestRevision &&
+			unsigned.serviceRunId == current.serviceRunId)
+		val changed = unsigned.copy(
+			manifestChecksum = SessionManifestIntegrity.compute(unsigned, sources),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE session_manifest_version SET session_mode = ?, source_policy_revision = ?, " +
+				"acquisition_plan_revision = ?, rollout_revision = ?, start_origin = ?, " +
+				"effective_boot_id = ?, effective_elapsed_realtime_nanos = ?, " +
+				"effective_wall_time_ms = ?, zone_id = ?, automation_epoch = ?, change_reason = ?, " +
+				"manifest_checksum = ? WHERE logical_tracking_id = ? AND manifest_revision = ?",
+			arrayOf<Any?>(
+				changed.sessionMode,
+				changed.sourcePolicyRevision,
+				changed.acquisitionPlanRevision,
+				changed.rolloutRevision,
+				changed.startOrigin,
+				changed.effectiveBootId,
+				changed.effectiveElapsedRealtimeNanos,
+				changed.effectiveWallTimeMs,
+				changed.zoneId,
+				changed.automationEpoch,
+				changed.changeReason,
+				changed.manifestChecksum,
+				changed.logicalTrackingId,
+				changed.manifestRevision,
+			),
+		)
+	}
+
+	private suspend fun assertSelectedManifestIntegrityFailure(selectedId: Long) {
+		val factCount = database.stepFactRevisionDao().countAll()
+		val evidence = database.sourceEvidenceStateDao().get()
+
+		subject().deleteSelectedSession(selectedId) shouldBe
+			StepsSessionDeletionResult.UnsupportedScope(
+				StepsSessionDeletionUnsupportedReason.MANIFEST_INTEGRITY_FAILED,
+			)
+		database.sessionSegmentDao().getById(selectedId).shouldNotBeNull()
+		database.stepFactRevisionDao().countAll() shouldBe factCount
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+		database.sourceEvidenceStateDao().get() shouldBe evidence
+		verify(exactly = 0) { dirtyTracker.markDirty(any<Set<String>>()) }
+		drainRequests shouldBe 0
+	}
+
+	private suspend fun assertSelectedFactAttributionFailure(selectedId: Long) {
+		insertDeletionSentinelSummary()
+		val segmentBefore = database.sessionSegmentDao().getById(selectedId)
+		val factsBefore = database.stepFactRevisionDao().revisions(
+			SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+			SELECTED_FACT_ID,
+		)
+		val evidenceBefore = database.sourceEvidenceStateDao().get()
+		val summaryBefore = database.dailySummaryDao().getByDay(0L)
+
+		subject().deleteSelectedSession(selectedId) shouldBe
+			StepsSessionDeletionResult.UnsupportedScope(
+				StepsSessionDeletionUnsupportedReason.FACT_ATTRIBUTION_MISMATCH,
+			)
+		database.sessionSegmentDao().getById(selectedId) shouldBe segmentBefore
+		database.stepFactRevisionDao().revisions(
+			SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+			SELECTED_FACT_ID,
+		) shouldBe factsBefore
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+		database.sourceEvidenceStateDao().get() shouldBe evidenceBefore
+		database.dailySummaryDao().getByDay(0L) shouldBe summaryBefore
+		verify(exactly = 0) { dirtyTracker.markDirty(any<Set<String>>()) }
+		drainRequests shouldBe 0
+	}
+
+	private suspend fun insertDeletionSentinelSummary() {
+		database.dailySummaryDao().upsert(
+			dateEpochDay = 0L,
+			totalDistanceM = 77f,
+			totalSteps = 77,
+			totalDurationMs = 77L,
+			tripCount = 77,
+			activeTrackingMs = 77L,
+			lastUpdatedMs = 77L,
+			calendarZoneId = ZONE.id,
+		)
+	}
+
 	private fun candidateManifestSource(
 		consentEpoch: Long = CAPTURE_CONSENT_EPOCH,
 		writerProjectionId: String = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
@@ -1850,7 +2420,7 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 		purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
 		consentEpoch = consentEpoch,
 		persistenceEligible = true,
-		qosCode = 0,
+		qosCode = CAPTURE_QOS_CODE,
 		outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
 		writerOwner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
 		writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
@@ -1874,7 +2444,7 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 		startOrigin = if (sessionMode == "AUTOMATIC") {
 			"AUTOMATIC_BACKGROUND_START"
 		} else {
-			"MANUAL_UI"
+			MANUAL_START_ORIGIN
 		},
 		effectiveBootId = "boot-1",
 		effectiveElapsedRealtimeNanos = 1_000L,
@@ -1883,6 +2453,39 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 		automationEpoch = 1L.takeIf { sessionMode == "AUTOMATIC" },
 		changeReason = "TEST",
 		manifestChecksum = "",
+	)
+
+	private fun stepsCapturePolicy() = SourcePolicyEntity(
+		policyRevision = SOURCE_POLICY_REVISION,
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+		enabled = true,
+		qosCode = CAPTURE_QOS_CODE,
+		locationMinTimeSeconds = null,
+		locationMinDistanceMeters = null,
+		locationRequiredAccuracyMeters = null,
+		capturePersistenceEligible = true,
+		controlPersistenceEligible = false,
+		ambientPersistenceEligible = false,
+		captureConsentEpoch = CAPTURE_CONSENT_EPOCH,
+		controlConsentEpoch = null,
+		ambientConsentEpoch = null,
+		effectiveBootId = "boot-1",
+		effectiveElapsedRealtimeNanos = 1_000L,
+		effectiveWallTimeMs = 1_000L,
+		changeReason = "TEST",
+	)
+
+	private fun stepsCaptureConsent() = SourceConsentEpochEntity(
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+		purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+		epoch = CAPTURE_CONSENT_EPOCH,
+		eligible = true,
+		persistenceEligible = true,
+		policyRevision = SOURCE_POLICY_REVISION,
+		effectiveBootId = "boot-1",
+		effectiveElapsedRealtimeNanos = 1_000L,
+		effectiveWallTimeMs = 1_000L,
+		changeReason = "TEST",
 	)
 
 	private fun candidateOwner() = SourceDestinationOwnerEntity(
@@ -1922,7 +2525,7 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 		writerBindingGeneration: Long = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION,
 	): StepFactRevisionEntity {
 		val sourceEventId = logicalFactId.removePrefix("$writerProjectionId:")
-		return StepFactRevisionEntity(
+		val unsigned = StepFactRevisionEntity(
 			logicalFactId = logicalFactId,
 			semanticRevision = 1L,
 			mutationId = "$logicalFactId:1:${StepFactRevisionEntity.OPERATION_UPSERT}",
@@ -1955,8 +2558,11 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 			captureConsentEpoch = captureConsentEpoch,
 			collectedDataEpoch = COLLECTED_DATA_EPOCH,
 			scopeDeletionGeneration = 0L,
-			effectChecksum = "checksum-$admissionOrdinal",
+			effectChecksum = "pending-test-effect",
 			appliedAtMs = endMs,
+		)
+		return unsigned.copy(
+			effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(unsigned),
 		)
 	}
 
@@ -2042,6 +2648,9 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 		const val MANIFEST_REVISION = 1L
 		const val SOURCE_POLICY_REVISION = 1L
 		const val CAPTURE_CONSENT_EPOCH = 1L
+		const val CAPTURE_QOS_CODE = 1
+		const val MANUAL_START_ORIGIN = "MANUAL_FOREGROUND_START"
+		const val POLICY_RECONCILIATION_ORIGIN = "POLICY_RECONCILIATION"
 		const val COLLECTED_DATA_EPOCH = 2L
 		const val TERMINAL_FAILURE_DEPENDENCY_CAP = 2_048L
 		const val OVERFLOW_EARLY_WRITER_ID = "overflow-early-writer"
