@@ -7,7 +7,6 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.PlayerProfileEntity
 import com.adsamcik.tracker.shared.base.database.data.XpLedgerEntity
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
-import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
@@ -16,6 +15,11 @@ import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.withContext
+
+internal enum class SessionXpAwardResult {
+	COMPLETED,
+	RETRY_NEEDED,
+}
 
 /**
  * Owns the player XP/level economy that gates mini-game unlocks.
@@ -48,39 +52,52 @@ class PlayerProgressionRepository @Inject constructor(
 	 * transaction inside the deletion generation fence. The legacy segment Steps value is
 	 * intentionally excluded until a source-qualified award decision exists.
 	 */
-	suspend fun awardSessionXp(event: DomainEvent.SessionEnded) {
+	internal suspend fun awardSessionXp(
+		event: DomainEvent.SessionEnded,
+		expectedGeneration: Long,
+	): SessionXpAwardResult {
 		val sessionId = event.sessionId
-		if (sessionId <= 0L) return
-		val expectedGeneration = trackingStartupGate.currentGeneration
+		if (sessionId <= 0L) return SessionXpAwardResult.COMPLETED
 
-		val inserted = runAcceptedXpMutation(expectedGeneration) {
-			val segment = database.sessionSegmentDao().getById(sessionId)
-				?: return@runAcceptedXpMutation false
-			val amount = XpCalculator.sessionXp(
-				distanceM = segment.distanceM,
-				durationMs = (segment.endTimeMs - segment.startTimeMs).coerceAtLeast(0L),
-			)
-			if (amount <= 0) return@runAcceptedXpMutation false
-
-			val todayStart = startOfDay(Time.nowMillis)
-			val todayXp = database.xpLedgerDao().getXpSince(todayStart)
-			val remaining = (XpCalculator.DAILY_CAP - todayXp).coerceAtLeast(0L)
-			val capped = amount.toLong().coerceAtMost(remaining).toInt()
-			if (capped <= 0) return@runAcceptedXpMutation false
-
-			val ledgerId = database.xpLedgerDao().insertOrIgnore(
-				XpLedgerEntity(
-					amount = capped,
-					source = XpSource.SESSION.name,
-					sourceId = sessionId,
-					earnedAt = Time.nowMillis,
-				),
-			)
-			if (ledgerId == -1L) return@runAcceptedXpMutation false
-			recomputePlayerProfile()
-			true
+		val inserted = trackingStartupGate.withReadyGenerationOperation(expectedGeneration) {
+			val acceptedInsert = withContext(dispatchers.io) {
+				database.withTransaction { insertSessionXp(sessionId) }
+			}
+			if (acceptedInsert) metricDirtyTracker.markDirty(LEVELING_DIRTY_TABLES)
+			acceptedInsert
 		}
-		if (inserted == true) metricDirtyTracker.markDirty(LEVELING_DIRTY_TABLES)
+		return if (inserted == null) {
+			SessionXpAwardResult.RETRY_NEEDED
+		} else {
+			SessionXpAwardResult.COMPLETED
+		}
+	}
+
+	private suspend fun insertSessionXp(sessionId: Long): Boolean {
+		val segment = database.sessionSegmentDao().getById(sessionId) ?: return false
+		val amount = XpCalculator.sessionXp(
+			distanceM = segment.distanceM,
+			durationMs = (segment.endTimeMs - segment.startTimeMs).coerceAtLeast(0L),
+		)
+		if (amount <= 0) return false
+
+		val awardedAt = Time.nowMillis
+		val todayXp = database.xpLedgerDao().getXpSince(startOfDay(awardedAt))
+		val remaining = (XpCalculator.DAILY_CAP - todayXp).coerceAtLeast(0L)
+		val capped = amount.toLong().coerceAtMost(remaining).toInt()
+		if (capped <= 0) return false
+
+		val ledgerId = database.xpLedgerDao().insertOrIgnore(
+			XpLedgerEntity(
+				amount = capped,
+				source = XpSource.SESSION.name,
+				sourceId = sessionId,
+				earnedAt = awardedAt,
+			),
+		)
+		if (ledgerId == -1L) return false
+		recomputePlayerProfile()
+		return true
 	}
 
 	/**
@@ -114,23 +131,6 @@ class PlayerProgressionRepository @Inject constructor(
 		}
 		if (inserted) metricDirtyTracker.markDirty(LEVELING_DIRTY_TABLES)
 		return inserted
-	}
-
-	/**
-	 * Captures the deletion generation before the first suspension and keeps the complete Room
-	 * mutation inside the gate's serialized operation. A deletion that closes or replaces that
-	 * generation therefore either waits for this transaction or rejects it before any row is read.
-	 */
-	private suspend fun runAcceptedXpMutation(
-		expectedGeneration: Long,
-		mutation: suspend () -> Boolean,
-	): Boolean? {
-		if (trackingStartupGate.reconcile() !is TrackingStartupResult.Ready) return null
-		return trackingStartupGate.withReadyGenerationOperation(expectedGeneration) {
-			withContext(dispatchers.io) {
-				database.withTransaction { mutation() }
-			}
-		}
 	}
 
 	/**

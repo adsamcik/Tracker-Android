@@ -8,6 +8,9 @@ import androidx.core.app.NotificationManagerCompat
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.goals.GoalTracker
 import com.adsamcik.tracker.game.progression.PlayerProgressionRepository
+import com.adsamcik.tracker.game.progression.SessionXpAwardResult
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
@@ -23,42 +26,83 @@ class GameDomainEventConsumer @Inject constructor(
 	private val domainEventRepository: DomainEventRepository,
 	private val achievementEvaluationScheduler: AchievementEvaluationScheduler,
 	private val progressionRepository: PlayerProgressionRepository,
+	private val trackingStartupGate: TrackingStartupGate,
 	@ApplicationContext private val context: Context,
 ) {
 	private val processMutex = Mutex()
 
 	suspend fun processUnconsumed() = processMutex.withLock {
 		while (true) {
-			val batch = domainEventRepository.getUnconsumedBatchWithIds(CONSUMER_ID, DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE)
+			val expectedGeneration = trackingStartupGate.currentGeneration
+			val batch = loadAcceptedBatch(expectedGeneration) ?: return@withLock
 			if (batch.isEmpty()) return@withLock
 			batch.forEach { unconsumed ->
-				try {
-					handleEvent(unconsumed.event)
+				val handled = try {
+					handleEvent(unconsumed.event, expectedGeneration)
 				} catch (e: CancellationException) {
 					throw e
 				} catch (_: Exception) {
 					return@withLock
 				}
-				domainEventRepository.markBatchConsumed(
-					CONSUMER_ID,
-					unconsumed.event.timestampMs,
-					unconsumed.persistedId,
-				)
+				if (!handled) return@withLock
+				val acknowledged = trackingStartupGate.withReadyGenerationOperation(
+					expectedGeneration,
+				) {
+					if (unconsumed.event is DomainEvent.SessionEnded &&
+						unconsumed.event.sessionId > 0L
+					) {
+						enqueueAchievementWorker()
+					}
+					domainEventRepository.markBatchConsumed(
+						CONSUMER_ID,
+						unconsumed.event.timestampMs,
+						unconsumed.persistedId,
+					)
+					true
+				} ?: false
+				if (!acknowledged) return@withLock
 			}
 		}
 	}
 
-	private suspend fun handleEvent(event: DomainEvent) {
-		when (event) {
-			is DomainEvent.SessionEnded -> {
-				// Passive XP feeds the player level that gates mini-game unlocks.
-				progressionRepository.awardSessionXp(event)
-				if (event.sessionId > 0L) enqueueAchievementWorker()
+	private suspend fun loadAcceptedBatch(expectedGeneration: Long) = try {
+		if (trackingStartupGate.reconcile() !is TrackingStartupResult.Ready) {
+			null
+		} else {
+			trackingStartupGate.withReadyGenerationOperation(expectedGeneration) {
+				domainEventRepository.getUnconsumedBatchWithIds(
+					CONSUMER_ID,
+					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+				)
 			}
-			is DomainEvent.DailySummaryUpdated -> onDailySummaryUpdated(event)
-			is DomainEvent.AchievementUnlocked -> onAchievementUnlocked(event)
-			else -> Unit
 		}
+	} catch (cancellation: CancellationException) {
+		throw cancellation
+	} catch (_: Exception) {
+		null
+	}
+
+	private suspend fun handleEvent(
+		event: DomainEvent,
+		expectedGeneration: Long,
+	): Boolean = when (event) {
+		is DomainEvent.SessionEnded -> {
+			if (!trackingStartupGate.isReadyGeneration(expectedGeneration)) {
+				false
+			} else {
+				// Passive XP feeds the player level that gates mini-game unlocks.
+				progressionRepository.awardSessionXp(event, expectedGeneration) ==
+					SessionXpAwardResult.COMPLETED
+			}
+		}
+		else -> trackingStartupGate.withReadyGenerationOperation(expectedGeneration) {
+			when (event) {
+				is DomainEvent.DailySummaryUpdated -> onDailySummaryUpdated(event)
+				is DomainEvent.AchievementUnlocked -> onAchievementUnlocked(event)
+				else -> Unit
+			}
+			true
+		} ?: false
 	}
 
 	private suspend fun onDailySummaryUpdated(event: DomainEvent.DailySummaryUpdated) {

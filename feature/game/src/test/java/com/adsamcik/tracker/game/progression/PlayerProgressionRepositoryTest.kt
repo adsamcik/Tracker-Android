@@ -18,6 +18,7 @@ import com.adsamcik.tracker.stats.api.value.DurationMs
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.stats.api.value.StepCount
 import com.adsamcik.tracker.testing.TestDispatchersProvider
+import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.runTest
@@ -66,8 +67,14 @@ class PlayerProgressionRepositoryTest {
 			steps = 1_000_000,
 		)
 
-		repository.awardSessionXp(sessionEnded(distanceSessionId))
-		repository.awardSessionXp(sessionEnded(durationSessionId))
+		repository.awardSessionXp(
+			sessionEnded(distanceSessionId),
+			gate.currentGeneration,
+		) shouldBe SessionXpAwardResult.COMPLETED
+		repository.awardSessionXp(
+			sessionEnded(durationSessionId),
+			gate.currentGeneration,
+		) shouldBe SessionXpAwardResult.COMPLETED
 
 		val ledger = database.xpLedgerDao().getRecent(limit = 10)
 		assertEquals(setOf(50, 2), ledger.map { it.amount }.toSet())
@@ -76,7 +83,10 @@ class PlayerProgressionRepositoryTest {
 		assertEquals(2, dirtyTracker.markCalls)
 
 		// A replay is not an accepted insert and must not publish a new dirty generation.
-		repository.awardSessionXp(sessionEnded(distanceSessionId))
+		repository.awardSessionXp(
+			sessionEnded(distanceSessionId),
+			gate.currentGeneration,
+		) shouldBe SessionXpAwardResult.COMPLETED
 		assertEquals(2, database.xpLedgerDao().getRecent(limit = 10).size)
 		assertEquals(2, dirtyTracker.markCalls)
 	}
@@ -110,7 +120,10 @@ class PlayerProgressionRepositoryTest {
 			}
 		}
 
-		repository.awardSessionXp(sessionEnded(sessionId))
+		repository.awardSessionXp(
+			sessionEnded(sessionId),
+			gate.currentGeneration,
+		) shouldBe SessionXpAwardResult.RETRY_NEEDED
 
 		assertEquals(0L, database.sessionSegmentDao().countTotal())
 		assertEquals(0L, database.xpLedgerDao().getTotalXp())
