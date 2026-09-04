@@ -207,7 +207,11 @@ class PlayerProgressionRepositoryTest {
 			operation: suspend () -> T,
 		): T? {
 			beforeOperation?.also { beforeOperation = null }?.invoke()
-			return if (isReadyGeneration(expectedGeneration)) operation() else null
+			return if (isReadyGeneration(expectedGeneration)) {
+				operation()
+			} else {
+				null
+			}
 		}
 
 		fun closeAdmission() {
@@ -229,7 +233,9 @@ class PlayerProgressionRepositoryTest {
 		}
 
 		override fun markDirty(tables: Set<String>) {
-			if (tables.isNotEmpty()) markCalls += 1
+			if (tables.isNotEmpty()) {
+				markCalls += 1
+			}
 		}
 
 		override suspend fun snapshotDirty(

@@ -55,6 +55,7 @@ class WeeklyStepGoal(
 		updateLiveValue()
 	}
 
+	/** Replaces settings-backed presentation limits without evaluating an award. */
 	fun updateConfiguration(
 		target: Int,
 		dailyLimit: Float,

@@ -10,6 +10,7 @@ import com.adsamcik.tracker.game.goals.data.GoalPersistence
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import java.time.ZonedDateTime
 
+/** Shared lifecycle and presentation-state behavior for concrete goal periods. */
 abstract class BaseGoal(
 	protected val persistence: GoalPersistence,
 ) : Goal {
