@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.projection
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.markStepsRetentionTruncation
 import com.adsamcik.tracker.shared.base.database.dao.SourceEventProjectionEligibilityRow
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
@@ -163,7 +164,12 @@ class StepsSessionFactProjectionLane private constructor(
 							throughOrdinal = targetAdmissionOrdinal,
 						)
 					val terminal = storedTerminal?.takeUnless { failure ->
-						if (failureIsLifecycleRejected(failure.admissionOrdinal, evidenceState)) {
+						if (failureIsLifecycleRejected(
+								admissionOrdinal = failure.admissionOrdinal,
+								failureCode = failure.failureCode,
+								evidenceState = evidenceState,
+							)
+						) {
 							database.sourceProjectionStateDao().deleteFailure(
 								WRITER_ID,
 								WRITER_VERSION,
@@ -357,7 +363,12 @@ class StepsSessionFactProjectionLane private constructor(
 		check(corrupt.admissionOrdinal > cursor) {
 			"Steps reader reported corruption at or before its cursor"
 		}
-		if (failureIsLifecycleRejected(corrupt.admissionOrdinal, evidenceState)) {
+		if (failureIsLifecycleRejected(
+				admissionOrdinal = corrupt.admissionOrdinal,
+				failureCode = corrupt.failureCode,
+				evidenceState = evidenceState,
+			)
+		) {
 			database.sourceProjectionStateDao().deleteFailure(
 				WRITER_ID,
 				WRITER_VERSION,
@@ -411,26 +422,48 @@ class StepsSessionFactProjectionLane private constructor(
 		}
 	}
 
+	@Suppress("CyclomaticComplexMethod", "ReturnCount")
 	private suspend fun failureIsLifecycleRejected(
 		admissionOrdinal: Long,
+		failureCode: String,
 		evidenceState: SourceEvidenceState,
 	): Boolean {
 		if (admissionOrdinal <= evidenceState.deletedSourceEventHighWaterOrdinal) return true
+		// A failed WAL integrity identity authenticates none of the row's scope, purpose, epoch,
+		// or time fields. Only the independent global deletion high-water may release it.
+		if (failureCode == RAW_PAYLOAD_INTEGRITY_FAILURE) return false
 		val raw = database.sourceEventWalDao()
 			.projectionEligibilityByAdmissionOrdinal(admissionOrdinal) ?: return true
 		if (raw.sourceKind != SourceKind.STEPS.stableCode) return true
-		return raw.isLifecycleRejected(evidenceState) || raw.isDeletedScope()
+		if (raw.isDeletedScope()) return true
+		if (raw.authorizationPurposeEligibilityMask and
+			SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
+			raw.capturedCollectedDataEpoch != evidenceState.collectedDataEpoch
+		) {
+			return true
+		}
+		// A poison caused by the event's own wall/acquisition shape cannot be released by
+		// consulting those same disputed timestamps. Exact scope deletion above remains valid;
+		// otherwise only the independent global deletion high-water may make it disappear.
+		if (failureCode in RETENTION_UNTRUSTED_TIME_FAILURES) return false
+		val retainedFromMs = evidenceState.retainedFromMs
+		val retentionRejected = retainedFromMs != null && (
+			raw.acquiredAtMs < retainedFromMs ||
+				raw.wallTimeMs?.takeIf { it >= 0L }?.let { it < retainedFromMs } == true
+			)
+		if (retentionRejected) {
+			val logicalTrackingId = raw.logicalTrackingId ?: return true
+			val serviceRunId = raw.serviceRunId ?: return true
+			markRetentionTruncation(
+				logicalTrackingId = logicalTrackingId,
+				serviceRunId = serviceRunId,
+				collectedDataEpoch = evidenceState.collectedDataEpoch,
+				admissionOrdinal = admissionOrdinal,
+			)
+			return true
+		}
+		return false
 	}
-
-	private fun SourceEventProjectionEligibilityRow.isLifecycleRejected(
-		evidenceState: SourceEvidenceState,
-	): Boolean = authorizationPurposeEligibilityMask and
-		SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
-		capturedCollectedDataEpoch != evidenceState.collectedDataEpoch ||
-		evidenceState.retainedFromMs?.let { retainedFrom ->
-			acquiredAtMs < retainedFrom ||
-				wallTimeMs?.takeIf { it >= 0L }?.let { it < retainedFrom } == true
-		} == true
 
 	private suspend fun SourceEventProjectionEligibilityRow.isDeletedScope(): Boolean {
 		val logicalTrackingId = logicalTrackingId ?: return false
@@ -549,6 +582,7 @@ class StepsSessionFactProjectionLane private constructor(
 		)
 	}
 
+	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	private suspend fun AdmittedSourceEvent<out SourcePayload>.toFactOrNull(
 		evidenceState: SourceEvidenceState,
 		lane: SourceProductProjectionLaneEntity,
@@ -557,7 +591,6 @@ class StepsSessionFactProjectionLane private constructor(
 		val evidence = evidence
 		if (evidence.capturedCollectedDataEpoch != evidenceState.collectedDataEpoch ||
 			admissionOrdinal <= evidenceState.deletedSourceEventHighWaterOrdinal ||
-			evidenceState.retainedFromMs?.let { evidence.acquiredAtMs < it } == true ||
 			evidence.registrationPurposeEligibilityMask and
 			SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
 			evidence.logicalTrackingId == null ||
@@ -565,15 +598,28 @@ class StepsSessionFactProjectionLane private constructor(
 		) return null
 		val logicalTrackingId = evidence.logicalTrackingId.value
 		val serviceRunId = evidence.serviceRunId.value
-		if (sessionScopeIsDeleted(
-			logicalTrackingId = logicalTrackingId,
-			serviceRunId = serviceRunId,
-		)) return null
-
 		fun poison(code: String): Nothing = throw StepsSessionFactPoisonException(
 			admissionOrdinal,
 			code,
 		)
+		val endTimeMs = evidence.wallTimeMs ?: poison("STEPS_WALL_TIME_MISSING")
+		if (endTimeMs < 0L) poison("STEPS_WALL_TIME_NEGATIVE")
+		if (endTimeMs != evidence.acquiredAtMs) {
+			poison("STEPS_ACQUIRED_WALL_TIME_MISMATCH")
+		}
+		if (sessionScopeIsDeleted(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+		)) return null
+		if (evidenceState.retainedFromMs?.let { evidence.acquiredAtMs < it } == true) {
+			markRetentionTruncation(
+				logicalTrackingId = logicalTrackingId,
+				serviceRunId = serviceRunId,
+				collectedDataEpoch = evidenceState.collectedDataEpoch,
+				admissionOrdinal = admissionOrdinal,
+			)
+			return null
+		}
 
 		val payload = evidence.payload as? StepCounterWindowPayload
 			?: poison("STEPS_PAYLOAD_TYPE_MISMATCH")
@@ -644,9 +690,15 @@ class StepsSessionFactProjectionLane private constructor(
 				manifestBinding.writerBindingGeneration != lane.bindingGeneration
 			) poison("STEPS_MANIFEST_PROJECTION_MISMATCH")
 		}
-		val endTimeMs = evidence.wallTimeMs ?: poison("STEPS_WALL_TIME_MISSING")
-		if (endTimeMs < 0L) poison("STEPS_WALL_TIME_NEGATIVE")
-		if (evidenceState.retainedFromMs?.let { endTimeMs < it } == true) return null
+		if (evidenceState.retainedFromMs?.let { endTimeMs < it } == true) {
+			markRetentionTruncation(
+				logicalTrackingId = logicalTrackingId,
+				serviceRunId = serviceRunId,
+				collectedDataEpoch = evidenceState.collectedDataEpoch,
+				admissionOrdinal = admissionOrdinal,
+			)
+			return null
+		}
 		val uncertaintyMs = evidence.wallTimeUncertaintyMs
 			?: poison("STEPS_WALL_TIME_UNCERTAINTY_MISSING")
 		val durationMs = (payload.windowEndElapsedRealtimeNanos -
@@ -693,6 +745,38 @@ class StepsSessionFactProjectionLane private constructor(
 		return unsignedFact.copy(
 			effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(unsignedFact),
 		)
+	}
+
+	/** The marker commits with the skipped cursor so a later valid suffix cannot look complete. */
+	private suspend fun markRetentionTruncation(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		collectedDataEpoch: Long,
+		admissionOrdinal: Long,
+	) {
+		val inserted = try {
+			database.markStepsRetentionTruncation(
+				logicalTrackingId = logicalTrackingId,
+				serviceRunId = serviceRunId,
+				collectedDataEpoch = collectedDataEpoch,
+				markedAtMs = nowMs(),
+			)
+		} catch (_: IllegalArgumentException) {
+			throw StepsSessionFactPoisonException(
+				admissionOrdinal,
+				"STEPS_RETENTION_SCOPE_INVALID",
+			)
+		} catch (_: IllegalStateException) {
+			throw StepsSessionFactPoisonException(
+				admissionOrdinal,
+				"STEPS_RETENTION_MARKER_CONFLICT",
+			)
+		}
+		if (inserted) {
+			check(database.sourceEvidenceStateDao().incrementRevision(nowMs()) == 1) {
+				"Unable to publish the Steps retention-truncation marker"
+			}
+		}
 	}
 
 	private suspend fun resolveManifestBinding(
@@ -785,6 +869,12 @@ class StepsSessionFactProjectionLane private constructor(
 		private const val BATCH_SIZE = 64
 		private const val NANOS_PER_MILLISECOND = 1_000_000L
 		private const val INSERT_IGNORED = -1L
+		private const val RAW_PAYLOAD_INTEGRITY_FAILURE = "RAW_PAYLOAD_INTEGRITY"
+		private val RETENTION_UNTRUSTED_TIME_FAILURES = setOf(
+			"STEPS_WALL_TIME_MISSING",
+			"STEPS_WALL_TIME_NEGATIVE",
+			"STEPS_ACQUIRED_WALL_TIME_MISMATCH",
+		)
 		private val EXECUTABLE_STAGES = setOf(
 			SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
 			SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,

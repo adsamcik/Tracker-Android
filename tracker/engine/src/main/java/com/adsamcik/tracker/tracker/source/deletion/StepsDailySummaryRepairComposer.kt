@@ -150,6 +150,17 @@ internal class StepsDailySummaryRepairComposer(
 		blockOnActiveUnboundNonSteps: Boolean = false,
 	): StepsDayRepairPreflight {
 		val readDao = database.trackingHistoryReadDao()
+		val retainedFromMs = database.sourceEvidenceStateDao().get()?.retainedFromMs
+		if (retainedFromMs != null) {
+			for ((epochDay, zoneId) in zoneByDay) {
+				val dayStartMs = startOfDayMs(epochDay, zoneId) ?: return unverifiable()
+				// A fact discarded below this floor could have wall-regressed into any earlier day.
+				// Without its payload, an empty candidate set cannot prove that day was not captured.
+				if (dayStartMs < retainedFromMs) {
+					return unverifiable()
+				}
+			}
+		}
 		val presentationSegments = sourceRepairSegments(
 			queryBounds = queryBounds,
 			excludedSegmentId = excludedSegmentId,
@@ -612,6 +623,22 @@ internal class StepsDailySummaryRepairComposer(
 				scopeIdentityDigests = digests,
 			)
 		}
+		val retentionScopesByDigest = serviceRuns.associateBy { run ->
+			StepFactRevisionIntegrity.retentionTruncationIdentity(
+				logicalTrackingId = run.logicalTrackingId,
+				serviceRunId = run.serviceRunId,
+			)
+		}
+		val retentionTruncationFences = retentionScopesByDigest.keys
+			.chunked(QUERY_ID_BATCH_SIZE)
+			.flatMap { digests ->
+				readDao.deletionFences(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+					purpose = StepFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE,
+					scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+					scopeIdentityDigests = digests,
+				)
+			}
 		if (!hasOnlyAuthorizedFactCandidates(readDao, serviceRuns, deletionFences)) {
 			return null
 		}
@@ -649,6 +676,20 @@ internal class StepsDailySummaryRepairComposer(
 		if (unboundRuns.any { candidate -> serviceRunsById[candidate.serviceRunId] != candidate }) {
 			return null
 		}
+		val evidenceState = database.sourceEvidenceStateDao().get()
+		if (retentionTruncationFences.any { fence ->
+				val run = retentionScopesByDigest[fence.scopeIdentityDigest]
+				run == null || evidenceState == null ||
+					!StepFactRevisionIntegrity.isRetentionTruncationFence(
+						fence = fence,
+						logicalTrackingId = run.logicalTrackingId,
+						serviceRunId = run.serviceRunId,
+						collectedDataEpoch = evidenceState.collectedDataEpoch,
+					)
+			}
+		) {
+			return null
+		}
 		return RepairSnapshot(
 			logicalSessions = logicalSessions.associateBy(LogicalTrackingSessionEntity::logicalTrackingId),
 			serviceRuns = serviceRunsById,
@@ -665,8 +706,11 @@ internal class StepsDailySummaryRepairComposer(
 			deletionFenceDigests = deletionFences.mapTo(hashSetOf()) { fence ->
 				fence.scopeIdentityDigest
 			},
+			retentionTruncationDigests = retentionTruncationFences.mapTo(hashSetOf()) { fence ->
+				fence.scopeIdentityDigest
+			},
 			failures = failures,
-			evidenceState = database.sourceEvidenceStateDao().get(),
+			evidenceState = evidenceState,
 		)
 	}
 
@@ -1360,6 +1404,13 @@ internal class StepsDailySummaryRepairComposer(
 			serviceRunId = run.serviceRunId,
 		)
 		if (digest in snapshot.deletionFenceDigests) {
+			return null
+		}
+		val retentionDigest = StepFactRevisionIntegrity.retentionTruncationIdentity(
+			logicalTrackingId = logicalSession.logicalTrackingId,
+			serviceRunId = run.serviceRunId,
+		)
+		if (retentionDigest in snapshot.retentionTruncationDigests) {
 			return null
 		}
 		val completeness = snapshot.completenessByRun[run.serviceRunId].orEmpty()
@@ -2132,6 +2183,7 @@ internal class StepsDailySummaryRepairComposer(
 		val completenessByRun: Map<String, List<SourceSessionCompletenessEntity>>,
 		val lanes: Map<LaneKey, SourceProductProjectionLaneEntity>,
 		val deletionFenceDigests: Set<String>,
+		val retentionTruncationDigests: Set<String>,
 		val failures: List<SourceProjectionFailureEntity>,
 		val evidenceState: SourceEvidenceState?,
 	)

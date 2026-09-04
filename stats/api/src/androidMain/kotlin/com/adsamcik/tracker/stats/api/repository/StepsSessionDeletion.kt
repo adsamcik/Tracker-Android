@@ -54,6 +54,8 @@ enum class StepsSessionDeletionUnsupportedReason {
 	/** Selected source facts disagree with their exact immutable manifest policy/consent authority. */
 	FACT_ATTRIBUTION_MISMATCH,
 	STALE_COLLECTED_DATA_EPOCH,
+	/** Retention discarded part of this run, so its complete affected-day set is unknowable. */
+	RETENTION_TRUNCATED_HISTORY,
 	DELETION_GENERATION_EXHAUSTED,
 	AFFECTED_DAY_RANGE_TOO_LARGE,
 	/** A surviving day contribution could not be recomposed without inventing source evidence. */

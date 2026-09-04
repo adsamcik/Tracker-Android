@@ -87,7 +87,17 @@ internal data class HistoricalSegmentEvidence(
 	 * even those qualify no source. Attributed v28 rows need exact source-local evidence.
 	 */
 	val isOrdinarilyDiscoverable: Boolean
-		get() = isLegacyCompatibilityRow || qualifiedSources.isNotEmpty()
+		get() = isLegacyCompatibilityRow || qualifiedSources.isNotEmpty() ||
+			hasAuthenticatedRetentionTruncationEvidence
+
+	/** Authenticated loss evidence keeps the entry visible but never qualifies a numeric source. */
+	val hasAuthenticatedRetentionTruncationEvidence: Boolean
+		get() {
+			val capture = captureAuthority as? HistoricalCaptureAuthority.Exact ?: return false
+			return TrackingSourceComponent.STEPS in capture.capturedInAnyRevision &&
+				steps.availability == StepsHistoryAvailability.UNAVAILABLE &&
+				StepsHistoryReason.RETENTION_TRUNCATED_RUN in steps.reasons
+		}
 
 	private val isLegacyCompatibilityRow: Boolean
 		get() = segment.sampleCount > 0 && (
@@ -156,6 +166,13 @@ internal data class HistoricalTrackingEntryEvidence(
 	/** Every retained capture revision requested Steps and no other persisted capture source. */
 	val isExactStepsOnlyCapture: Boolean
 		get() = TrackingSourceComponent.STEPS in qualifiedSources && hasExactStepsOnlyIntent
+
+	/** Exact Steps-only rows retained for the list even when retention removed their numeric facts. */
+	val isContainedStepsOnlyEntry: Boolean
+		get() = hasExactStepsOnlyIntent && (
+			isExactStepsOnlyCapture ||
+				physicalMembers.any(HistoricalSegmentEvidence::hasAuthenticatedRetentionTruncationEvidence)
+			)
 
 	/** Exact Steps-only historical intent, independent of current product qualification. */
 	val hasExactStepsOnlyIntent: Boolean

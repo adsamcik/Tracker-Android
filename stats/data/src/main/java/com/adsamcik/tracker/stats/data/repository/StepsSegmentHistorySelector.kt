@@ -29,7 +29,7 @@ import javax.inject.Inject
  * completeness and materializer progress also remain independent axes so a number cannot silently
  * turn missing, baseline-only, partial, or still-processing evidence into a verified zero.
  */
-@Suppress("TooManyFunctions")
+@Suppress("LargeClass", "TooManyFunctions")
 internal class StepsSegmentHistorySelector @Inject constructor(
 	private val database: AppDatabase,
 	private val laneExecutionAuthority: SourceProductLaneExecutionAuthority,
@@ -191,6 +191,38 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 		)
 		if (scopeDigest in snapshot.deletionFenceDigests) {
 			return HistoricalSegmentEvidence(segment, captureAuthority, deleted())
+		}
+		val retentionTruncationDigest = StepFactRevisionIntegrity.retentionTruncationIdentity(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+		)
+		val retentionTruncationFence =
+			snapshot.retentionTruncationFencesByDigest[retentionTruncationDigest]
+		if (retentionTruncationFence != null) {
+			val evidenceState = snapshot.evidenceState
+				?: return HistoricalSegmentEvidence(
+					segment,
+					captureAuthority,
+					failed(StepsHistoryReason.SOURCE_EVIDENCE_STATE_MISSING),
+				)
+			if (!StepFactRevisionIntegrity.isRetentionTruncationFence(
+					fence = retentionTruncationFence,
+					logicalTrackingId = logicalTrackingId,
+					serviceRunId = serviceRunId,
+					collectedDataEpoch = evidenceState.collectedDataEpoch,
+				)
+			) {
+				return HistoricalSegmentEvidence(
+					segment,
+					captureAuthority,
+					failed(StepsHistoryReason.STEP_FACT_INTEGRITY_FAILED),
+				)
+			}
+			return HistoricalSegmentEvidence(
+				segment,
+				captureAuthority,
+				unavailable(StepsHistoryReason.RETENTION_TRUNCATED_RUN),
+			)
 		}
 
 		val stepsBindings = sourcesByRevision.mapValues { (_, sources) ->
@@ -725,6 +757,7 @@ internal enum class StepsHistoryReason {
 	PARTIAL_FACT,
 	OUTSIDE_RETAINED_FLOOR,
 	RETENTION_CROSSES_SEGMENT,
+	RETENTION_TRUNCATED_RUN,
 	SOURCE_EVIDENCE_STATE_MISSING,
 	STALE_COLLECTED_DATA_EPOCH,
 	BATCH_DEPENDENCY_OVERFLOW,

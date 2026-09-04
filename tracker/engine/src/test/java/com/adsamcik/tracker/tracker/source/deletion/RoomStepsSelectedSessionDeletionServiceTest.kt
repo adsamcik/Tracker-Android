@@ -4,6 +4,9 @@ import android.app.Application
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.markAuthenticatedStepsRunsAffectedByRetentionFloor
+import com.adsamcik.tracker.shared.base.database.markStepsRetentionTruncation
+import com.adsamcik.tracker.shared.base.database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.LifecycleDesiredActionEntity
@@ -439,6 +442,133 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 
 	@Test
 	@Suppress("LongMethod")
+	fun `production materializer cannot fabricate zero around a retention-truncated run`() = runTest {
+		val expiredDay = LocalDate.of(2026, 4, 2).toEpochDay()
+		val retainedDay = expiredDay + 1L
+		val presentationDay = expiredDay + 2L
+		val expiredDayStart = LocalDate.ofEpochDay(expiredDay)
+			.atStartOfDay(ZONE)
+			.toInstant()
+			.toEpochMilli()
+		val retainedDayStart = LocalDate.ofEpochDay(retainedDay)
+			.atStartOfDay(ZONE)
+			.toInstant()
+			.toEpochMilli()
+		val presentationDayStart = LocalDate.ofEpochDay(presentationDay)
+			.atStartOfDay(ZONE)
+			.toInstant()
+			.toEpochMilli()
+		val logicalId = "logical-worker-retention-truncated"
+		val runId = "run-worker-retention-truncated"
+		val expiredStartElapsed = 1_000L
+		val expiredEndElapsed = expiredStartElapsed + HOUR_MS * NANOS_PER_MILLISECOND
+		insertAttributedCandidateSurvivor(
+			logicalId = logicalId,
+			runId = runId,
+			startMs = presentationDayStart + HOUR_MS,
+			endMs = presentationDayStart + 2L * HOUR_MS,
+			admissionOrdinal = 1L,
+			stepCount = 5L,
+			factTransform = { fact ->
+				fact.copy(
+					intervalStartTimeMs = expiredDayStart + HOUR_MS,
+					intervalEndTimeMs = expiredDayStart + 2L * HOUR_MS,
+					intervalStartElapsedRealtimeNanos = expiredStartElapsed,
+					intervalEndElapsedRealtimeNanos = expiredEndElapsed,
+					appliedAtMs = expiredDayStart + 2L * HOUR_MS,
+				)
+			},
+		)
+		val retainedUnsigned = stepFact(
+			logicalFactId = "steps-session-facts:$runId-retained",
+			admissionOrdinal = 2L,
+			logicalTrackingId = logicalId,
+			serviceRunId = runId,
+			stepCount = 4L,
+			startMs = retainedDayStart + HOUR_MS,
+			endMs = retainedDayStart + 2L * HOUR_MS,
+		).copy(
+			intervalStartElapsedRealtimeNanos = expiredEndElapsed,
+			intervalEndElapsedRealtimeNanos =
+				expiredEndElapsed + HOUR_MS * NANOS_PER_MILLISECOND,
+			cumulativeStepCountStart = 105L,
+			cumulativeStepCountEnd = 109L,
+			effectChecksum = "pending-retained-suffix-effect",
+		)
+		val retained = retainedUnsigned.copy(
+			effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(retainedUnsigned),
+		)
+		database.stepFactRevisionDao().insert(retained) shouldBe 2L
+		database.sourceSessionDao().saveCompleteness(
+			SourceSessionCompletenessEntity(
+				logicalTrackingId = logicalId,
+				serviceRunId = runId,
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				sourceInstanceId = "steps-$runId",
+				registrationGeneration = 1L,
+				lastAdmissionOrdinal = 2L,
+				lastSourceSequence = 2L,
+				appDrainComplete = true,
+				providerCoverage = "CALLBACKS_ENTERED_BEFORE_BARRIER",
+				stopStatus = "COMPLETE",
+				unresolvedSequenceStart = null,
+				unresolvedSequenceEnd = null,
+				updatedAtMs = presentationDayStart + 2L * HOUR_MS,
+			),
+		)
+		installCanonicalLane(contiguousAdmissionOrdinal = 2L)
+		val retainedFromMs = expiredDayStart + 3L * HOUR_MS
+		database.sourceEvidenceStateDao().updateLifecycle(
+			epoch = COLLECTED_DATA_EPOCH,
+			retainedFromMs = retainedFromMs,
+			updatedAtMs = retainedFromMs,
+		) shouldBe 1
+
+		database.markAuthenticatedStepsRunsAffectedByRetentionFloor(
+			beforeMs = retainedFromMs,
+			collectedDataEpoch = COLLECTED_DATA_EPOCH,
+			markedAtMs = retainedFromMs,
+		) shouldBe 1
+		database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(
+			beforeMs = retainedFromMs,
+			collectedDataEpoch = COLLECTED_DATA_EPOCH,
+			markedAtMs = retainedFromMs,
+		) shouldBe 1
+		database.stepFactRevisionDao().countAll() shouldBe 1L
+		database.stepFactRevisionDao().revisions(
+			SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+			retained.logicalFactId,
+		) shouldBe listOf(retained)
+
+		listOf(expiredDay, retainedDay).forEach { day ->
+			database.dailySummaryDao().upsert(
+				dateEpochDay = day,
+				totalDistanceM = 123f,
+				totalSteps = 123,
+				totalDurationMs = 123L,
+				tripCount = 123,
+				activeTrackingMs = 123L,
+				lastUpdatedMs = 123L,
+				calendarZoneId = ZONE.id,
+			)
+			val before = database.dailySummaryDao().getByDay(day)
+			materializeDailySummaryDayInTransaction(
+				database = database,
+				aggregator = DailySummaryAggregator(
+					database.dailySummaryDao(),
+					database.sessionSegmentDao(),
+					zoneId = ZONE,
+				),
+				epochDay = day,
+				capturedZoneId = ZONE,
+			) shouldBe DailySummaryMaterializationOutcome.Unverifiable
+			database.dailySummaryDao().getByDay(day) shouldBe before
+		}
+	}
+
+	@Test
+	@Suppress("LongMethod")
 	fun `production materializer leaves summary unchanged for active unbound non-Steps capture`() =
 		runTest {
 			val day = LocalDate.of(2026, 4, 2).toEpochDay()
@@ -672,7 +802,33 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 			database.sessionSegmentDao().getById(selectedId) shouldBe null
 			database.sourceDeletionFenceDao().countAll() shouldBe 1L
 			database.sourceEvidenceStateDao().get()?.revision shouldBe 1L
-	}
+		}
+
+	@Test
+	fun `retention-truncated selected scope is typed unsupported without deleting surviving state`() =
+		runTest {
+			val selectedId = insertTerminalStepsSession(
+				startMs = 1_000L,
+				endMs = 2_000L,
+				steps = 5,
+			)
+			database.markStepsRetentionTruncation(
+				logicalTrackingId = LOGICAL_TRACKING_ID,
+				serviceRunId = SERVICE_RUN_ID,
+				collectedDataEpoch = COLLECTED_DATA_EPOCH,
+				markedAtMs = 3_000L,
+			) shouldBe true
+
+			subject().deleteSelectedSession(selectedId) shouldBe
+				StepsSessionDeletionResult.UnsupportedScope(
+					StepsSessionDeletionUnsupportedReason.RETENTION_TRUNCATED_HISTORY,
+				)
+
+			database.sessionSegmentDao().getById(selectedId).shouldNotBeNull()
+			database.stepFactRevisionDao().countAll() shouldBe 1L
+			database.sourceDeletionFenceDao().countAll() shouldBe 1L
+			verify(exactly = 0) { dirtyTracker.markDirty(any<Set<String>>()) }
+		}
 
 	@Test
 	fun `exact generation 2 automatic Steps session remains deletable`() = runTest {

@@ -12,6 +12,8 @@ import androidx.work.WorkerParameters
 import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.markAuthenticatedStepsRunsAffectedByRetentionFloor
+import com.adsamcik.tracker.shared.base.database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor
 import com.adsamcik.tracker.shared.base.database.pruneSourceEventStorageBefore
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
@@ -133,6 +135,7 @@ class DataRetentionWorker @AssistedInject constructor(
     }
 
     @WorkerThread
+	@Suppress("LongMethod")
     private suspend fun pruneRawData(
 		appDatabase: AppDatabase,
         cutoffMillis: Long,
@@ -149,12 +152,20 @@ class DataRetentionWorker @AssistedInject constructor(
 					retainedFromMs = lifecycle.retainedFromMs,
 					updatedAtMs = updatedAtMs,
 				)
-				if (appDatabase.pendingSignalDao().hasAny()) return@withTransaction false
 				if (!lifecycleChanged) {
 					check(sourceEvidenceStateDao.incrementRevision(updatedAtMs) == 1) {
 						"Unable to advance source-evidence revision for raw-data retention"
 					}
 				}
+				val retainedFromMs = requireNotNull(lifecycle.retainedFromMs) {
+					"Raw retention must establish a durable retained-from floor"
+				}
+				appDatabase.markAuthenticatedStepsRunsAffectedByRetentionFloor(
+					beforeMs = retainedFromMs,
+					collectedDataEpoch = lifecycle.epoch,
+					markedAtMs = updatedAtMs,
+				)
+				if (appDatabase.pendingSignalDao().hasAny()) return@withTransaction false
 				appDatabase.trajectoryReconstructionDao().deleteWithSourceBefore(cutoffMillis)
 				val observationDao = appDatabase.locationObservationDao()
 				observationDao.deleteOlderThan(cutoffMillis)
@@ -165,10 +176,10 @@ class DataRetentionWorker @AssistedInject constructor(
 				}
 				appDatabase.trackerStateEventDao().deleteOlderThan(cutoffMillis)
 				appDatabase.locationSampleDao().deleteOlderThan(cutoffMillis)
-				appDatabase.stepFactRevisionDao().deleteUpsertsEndingBefore(
-					requireNotNull(lifecycle.retainedFromMs) {
-						"Raw retention must establish a durable retained-from floor"
-					},
+				appDatabase.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(
+					beforeMs = retainedFromMs,
+					collectedDataEpoch = lifecycle.epoch,
+					markedAtMs = updatedAtMs,
 				)
 				appDatabase.stepIntervalDao().deleteOlderThan(cutoffMillis)
 				appDatabase.activitySnapshotDao().deleteOlderThan(cutoffMillis)

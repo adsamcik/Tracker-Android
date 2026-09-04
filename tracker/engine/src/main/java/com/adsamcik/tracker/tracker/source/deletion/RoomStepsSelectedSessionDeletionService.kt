@@ -393,6 +393,31 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 
 		val evidenceState = database.sourceEvidenceStateDao().get()
 			?: return unsupportedScope(StepsSessionDeletionUnsupportedReason.SOURCE_EVIDENCE_STATE_MISSING)
+		val retentionIdentity = StepFactRevisionIntegrity.retentionTruncationIdentity(
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+		)
+		val retentionMarker = database.sourceDeletionFenceDao().get(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			purpose = StepFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE,
+			scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			scopeIdentityDigest = retentionIdentity,
+		)
+		if (retentionMarker != null) {
+			val reason = if (StepFactRevisionIntegrity.isRetentionTruncationFence(
+					fence = retentionMarker,
+					logicalTrackingId = logicalTrackingId,
+					serviceRunId = serviceRunId,
+					collectedDataEpoch = evidenceState.collectedDataEpoch,
+				)
+			) {
+				StepsSessionDeletionUnsupportedReason.RETENTION_TRUNCATED_HISTORY
+			} else {
+				// A stale-epoch marker is corruption, not permission to infer a complete scope.
+				StepsSessionDeletionUnsupportedReason.FACT_ATTRIBUTION_MISMATCH
+			}
+			return unsupportedScope(reason)
+		}
 		if (!hasOnlySelectedRunFactCandidates(serviceRun, logicalTrackingId)) {
 			return unsupportedScope(StepsSessionDeletionUnsupportedReason.FACT_ATTRIBUTION_MISMATCH)
 		}

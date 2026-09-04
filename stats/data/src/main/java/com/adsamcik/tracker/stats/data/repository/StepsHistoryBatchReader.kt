@@ -17,6 +17,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEnt
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 
 /** Loads one bounded page's Steps history dependencies with a fixed query count. */
 @Suppress("CyclomaticComplexMethod", "LongMethod")
@@ -94,6 +95,28 @@ internal suspend fun loadStepsHistoryBatchSnapshot(
 			scopeIdentityDigests = scopeDigests,
 		)
 	}
+	val retentionTruncationDigests = segments.mapNotNull { segment ->
+		val logicalTrackingId = segment.logicalTrackingId?.takeIf(String::isNotBlank)
+		val serviceRunId = segment.serviceRunId?.takeIf(String::isNotBlank)
+		if (logicalTrackingId == null || serviceRunId == null) {
+			null
+		} else {
+			StepFactRevisionIntegrity.retentionTruncationIdentity(
+				logicalTrackingId = logicalTrackingId,
+				serviceRunId = serviceRunId,
+			)
+		}
+	}.distinct()
+	val retentionTruncationFences = if (retentionTruncationDigests.isEmpty()) {
+		emptyList()
+	} else {
+		readDao.deletionFences(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			purpose = StepFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE,
+			scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			scopeIdentityDigests = retentionTruncationDigests,
+		)
+	}
 	val productLanes = if (serviceRunIds.isEmpty()) {
 		emptyList()
 	} else {
@@ -138,6 +161,9 @@ internal suspend fun loadStepsHistoryBatchSnapshot(
 		stepPolicies = stepPolicies.associateBy(SourcePolicyEntity::policyRevision),
 		stepCaptureConsents = stepCaptureConsents.associateBy(SourceConsentEpochEntity::epoch),
 		deletionFenceDigests = deletionFences.mapTo(hashSetOf()) { it.scopeIdentityDigest },
+		retentionTruncationFencesByDigest = retentionTruncationFences.associateBy {
+			it.scopeIdentityDigest
+		},
 		factStatesByRun = factStatesByRun,
 		completenessByRun = completeness.groupBy(SourceSessionCompletenessEntity::serviceRunId),
 		productLanes = productLanes.associateBy {
@@ -187,6 +213,7 @@ internal data class StepsHistoryBatchSnapshot(
 	val stepPolicies: Map<Long, SourcePolicyEntity>,
 	val stepCaptureConsents: Map<Long, SourceConsentEpochEntity>,
 	val deletionFenceDigests: Set<String>,
+	val retentionTruncationFencesByDigest: Map<String, SourceDeletionFenceEntity>,
 	val factStatesByRun: Map<String, List<StepsFactCandidateState>>,
 	val completenessByRun: Map<String, List<SourceSessionCompletenessEntity>>,
 	val productLanes: Map<HistoricalLaneKey, SourceProductProjectionLaneEntity>,

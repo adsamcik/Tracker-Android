@@ -12,6 +12,8 @@ import androidx.work.WorkerParameters
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.markAuthenticatedStepsRunsAffectedByRetentionFloor
+import com.adsamcik.tracker.shared.base.database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
 import com.adsamcik.tracker.shared.base.database.pruneSourceEventStorageBefore
 import com.adsamcik.tracker.shared.base.database.migration.DatabaseMigrationBackupRepository
@@ -121,13 +123,21 @@ class RetentionPipelineWorker @AssistedInject constructor(
 					retainedFromMs = lifecycle.retainedFromMs,
 					updatedAtMs = updatedAtMs,
 				)
-				if (db.pendingSignalDao().hasAny()) {
-					return@withTransaction RawRetentionResult.DEFERRED_FOR_PENDING_SIGNALS
-				}
 				if (!lifecycleChanged) {
 					check(sourceEvidenceStateDao.incrementRevision(updatedAtMs) == 1) {
 						"Unable to advance source-evidence revision for raw-data retention"
 					}
+				}
+				val retainedFromMs = requireNotNull(lifecycle.retainedFromMs) {
+					"Raw retention must establish a durable retained-from floor"
+				}
+				db.markAuthenticatedStepsRunsAffectedByRetentionFloor(
+					beforeMs = retainedFromMs,
+					collectedDataEpoch = lifecycle.epoch,
+					markedAtMs = updatedAtMs,
+				)
+				if (db.pendingSignalDao().hasAny()) {
+					return@withTransaction RawRetentionResult.DEFERRED_FOR_PENDING_SIGNALS
 				}
 				// A derived run is only auditable while its complete raw source range remains.
 				// Cascades remove states, visits, hypotheses, and lineage links atomically.
@@ -141,10 +151,10 @@ class RetentionPipelineWorker @AssistedInject constructor(
 				}
 				db.trackerStateEventDao().deleteOlderThan(cutoff)
 				db.locationSampleDao().deleteOlderThan(cutoff)
-				db.stepFactRevisionDao().deleteUpsertsEndingBefore(
-					requireNotNull(lifecycle.retainedFromMs) {
-						"Raw retention must establish a durable retained-from floor"
-					},
+				db.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(
+					beforeMs = retainedFromMs,
+					collectedDataEpoch = lifecycle.epoch,
+					markedAtMs = updatedAtMs,
 				)
 				db.stepIntervalDao().deleteOlderThan(cutoff)
 				db.activitySnapshotDao().deleteOlderThan(cutoff)

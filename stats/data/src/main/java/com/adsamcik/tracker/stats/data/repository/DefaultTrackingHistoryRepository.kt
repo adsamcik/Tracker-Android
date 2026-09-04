@@ -164,7 +164,7 @@ private fun List<HistoricalTrackingEntryEvidence>.mapToPublicStepsOnlyEntries() 
 	map(HistoricalTrackingEntryEvidence::toPublicStepsOnlyEntry)
 
 private fun HistoricalTrackingEntryEvidence.toPublicStepsOnlyEntry(): StepsOnlyHistoryEntry {
-	check(isExactStepsOnlyCapture) { "Steps-only reader returned a non-Steps-only entry" }
+	check(isContainedStepsOnlyEntry) { "Steps-only reader returned a non-Steps-only entry" }
 	val logicalIdentity = identity as? HistoricalEntryIdentity.Logical
 		?: error("Exact Steps-only entry requires logical identity")
 	return StepsOnlyHistoryEntry(
@@ -246,7 +246,8 @@ private fun StepsSegmentHistoryResult.toPublicProductState(): HistoryProductStat
 		StepsHistoryMaterialization.MATERIALIZING -> HistoryProductState.MATERIALIZING
 		StepsHistoryMaterialization.DEGRADED -> HistoryProductState.DEGRADED
 		StepsHistoryMaterialization.FAILED -> if (
-			StepsHistoryReason.OUTSIDE_RETAINED_FLOOR in reasons
+			StepsHistoryReason.OUTSIDE_RETAINED_FLOOR in reasons ||
+				StepsHistoryReason.RETENTION_TRUNCATED_RUN in reasons
 		) {
 			HistoryProductState.PARTIAL
 		} else {
@@ -313,7 +314,8 @@ internal fun StepsHistoryReason.toPublicCause(): StepsHistoryCause = when (this)
 	StepsHistoryReason.FACTS_MISSING_FOR_ADMITTED_RUN -> StepsHistoryCause.FACTS_MISSING
 	StepsHistoryReason.DELETED_FACTS -> StepsHistoryCause.DELETED
 	StepsHistoryReason.OUTSIDE_RETAINED_FLOOR,
-	StepsHistoryReason.RETENTION_CROSSES_SEGMENT -> StepsHistoryCause.RETENTION_LIMIT
+	StepsHistoryReason.RETENTION_CROSSES_SEGMENT,
+	StepsHistoryReason.RETENTION_TRUNCATED_RUN -> StepsHistoryCause.RETENTION_LIMIT
 	StepsHistoryReason.SOURCE_EVIDENCE_STATE_MISSING -> StepsHistoryCause.EVIDENCE_STATE_UNAVAILABLE
 	StepsHistoryReason.STALE_COLLECTED_DATA_EPOCH -> StepsHistoryCause.PRIVACY_EPOCH_MISMATCH
 	StepsHistoryReason.COUNT_OVERFLOW -> StepsHistoryCause.VALUE_OVERFLOW

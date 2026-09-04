@@ -37,7 +37,7 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 	): List<HistoricalTrackingEntryEvidence> {
 		validateLimit(limit)
 		return database.withTransaction {
-			selectRecentEntriesInTransaction(limit, HistoricalTrackingEntryEvidence::isExactStepsOnlyCapture)
+			selectRecentEntriesInTransaction(limit, HistoricalTrackingEntryEvidence::isContainedStepsOnlyEntry)
 		}
 	}
 
@@ -75,7 +75,7 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 				.map(HistoricalStepsAwarePageEntry::Physical)
 			val stepsOnlyRows = selectRecentEntriesInTransaction(
 				limit = limit,
-				accept = HistoricalTrackingEntryEvidence::isExactStepsOnlyCapture,
+				accept = HistoricalTrackingEntryEvidence::isContainedStepsOnlyEntry,
 			).map(HistoricalStepsAwarePageEntry::StepsOnly)
 
 			(physicalRows + stepsOnlyRows)

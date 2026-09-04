@@ -233,44 +233,99 @@ interface StepFactRevisionDao {
 	suspend fun countAll(): Long
 
 	/**
-	 * Removes retained product payloads whose effective interval is below the raw-data floor.
+	 * Bounded keyset page over every retained revision before retention trusts any row predicate.
 	 *
-	 * When the latest UPSERT for a fact expires, every older UPSERT revision for that fact is also
-	 * removed. Otherwise retention could expose an older attribution as the new latest state and
-	 * resurrect a corrected service-run value. Independently expired historical revisions are still
-	 * minimized even while a newer effective correction remains retained.
+	 * The unconstrained read is deliberate. A checksum-covered operation, wall time, run id, or
+	 * semantic revision cannot be used to decide whether the row is worth authenticating. Mapping to
+	 * [UnvalidatedStepFactRevision] also keeps malformed SQLite values visible to the caller instead
+	 * of letting entity constructor validation make them disappear from the audit.
+	 */
+	@Query(
+		"""
+		SELECT *
+		FROM step_fact_revision
+		WHERE :afterWriterProjectionId IS NULL
+		   OR writer_projection_id > :afterWriterProjectionId
+		   OR (
+			 writer_projection_id = :afterWriterProjectionId
+			 AND writer_projection_version > :afterWriterProjectionVersion
+		   )
+		   OR (
+			 writer_projection_id = :afterWriterProjectionId
+			 AND writer_projection_version = :afterWriterProjectionVersion
+			 AND logical_fact_id > :afterLogicalFactId
+		   )
+		   OR (
+			 writer_projection_id = :afterWriterProjectionId
+			 AND writer_projection_version = :afterWriterProjectionVersion
+			 AND logical_fact_id = :afterLogicalFactId
+			 AND semantic_revision > :afterSemanticRevision
+		   )
+		ORDER BY writer_projection_id,
+		         writer_projection_version,
+		         logical_fact_id,
+		         semantic_revision
+		LIMIT :limit
+		""",
+	)
+	suspend fun retentionAuditRevisionPage(
+		afterWriterProjectionId: String?,
+		afterWriterProjectionVersion: Long?,
+		afterLogicalFactId: String?,
+		afterSemanticRevision: Long?,
+		limit: Int,
+	): List<UnvalidatedStepFactRevision>
+
+	/**
+	 * Bounded keyset page of authenticated run ids with any UPSERT revision below the floor.
 	 *
-	 * Redacted retractions deliberately survive so an already-known fact cannot reappear within its
-	 * writer contract. A source deletion fence is separately required for replay, import, or another
-	 * writer version and every such mutation path must consult it transactionally.
+	 * The retention coordinator must first authenticate the complete table in the same Room
+	 * transaction. The canonical Steps producer and ingress contract make interval end equal to
+	 * acquisition time, so this authenticated wall-time predicate also enforces the acquisition-time
+	 * floor. Superseded revisions remain discoverable: retention must never silently leave an old
+	 * payload merely because a newer correction moved its current wall projection beyond the floor.
+	 */
+	@Query(
+		"""
+		SELECT DISTINCT service_run_id
+		FROM step_fact_revision
+		WHERE operation = 'UPSERT'
+		  AND interval_end_time_ms < :beforeMs
+		  AND service_run_id IS NOT NULL
+		  AND (:afterServiceRunId IS NULL OR service_run_id > :afterServiceRunId)
+		ORDER BY service_run_id
+		LIMIT :limit
+		""",
+	)
+	suspend fun retentionCandidateServiceRunIds(
+		beforeMs: Long,
+		afterServiceRunId: String?,
+		limit: Int,
+	): List<String>
+
+	/**
+	 * Removes UPSERT payloads for an exact, already-authenticated revision batch.
+	 *
+	 * The caller validates the complete lineage and checks the returned count inside the same Room
+	 * transaction. The query contains no wall-time or run-scope fallback, so malformed retained fields
+	 * cannot broaden deletion or reveal an older correction. Redacted RETRACT rows always survive.
 	 */
 	@Query(
 		"""
 		DELETE FROM step_fact_revision
-		WHERE operation = 'UPSERT' AND (
-			interval_end_time_ms < :beforeMs OR
-			(writer_projection_id, writer_projection_version, logical_fact_id) IN (
-				SELECT latest_upsert.writer_projection_id,
-				       latest_upsert.writer_projection_version,
-				       latest_upsert.logical_fact_id
-				FROM step_fact_revision AS latest_upsert
-				WHERE latest_upsert.operation = 'UPSERT'
-				  AND latest_upsert.interval_end_time_ms < :beforeMs
-				  AND NOT EXISTS (
-					SELECT 1 FROM step_fact_revision AS newer_upsert
-					WHERE newer_upsert.writer_projection_id =
-						latest_upsert.writer_projection_id
-					  AND newer_upsert.writer_projection_version =
-						latest_upsert.writer_projection_version
-					  AND newer_upsert.logical_fact_id = latest_upsert.logical_fact_id
-					  AND newer_upsert.operation = 'UPSERT'
-					  AND newer_upsert.semantic_revision > latest_upsert.semantic_revision
-				  )
-			)
-		)
+		WHERE operation = 'UPSERT'
+		  AND writer_projection_id = :writerProjectionId
+		  AND writer_projection_version = :writerProjectionVersion
+		  AND semantic_revision = :semanticRevision
+		  AND logical_fact_id IN (:logicalFactIds)
 		""",
 	)
-	suspend fun deleteUpsertsEndingBefore(beforeMs: Long): Int
+	suspend fun deleteAuthenticatedUpsertRevisions(
+		writerProjectionId: String,
+		writerProjectionVersion: Int,
+		semanticRevision: Long,
+		logicalFactIds: List<String>,
+	): Int
 
 	@Query("DELETE FROM step_fact_revision")
 	fun deleteAll()

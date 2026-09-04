@@ -3,7 +3,51 @@ package com.adsamcik.tracker.shared.base.database.data
 import java.security.MessageDigest
 
 /** Verifies the complete retained representation of a canonical LIVE_WAL Steps fact. */
+@Suppress("TooManyFunctions")
 object StepFactRevisionIntegrity {
+	/** Distinct marker purpose: it records loss but never acts as a SESSION_CAPTURE write fence. */
+	const val RETENTION_TRUNCATION_PURPOSE = "SESSION_CAPTURE_RETENTION_TRUNCATION"
+
+	/** Creates the payload-free durable marker for one Steps run crossed by raw retention. */
+	fun retentionTruncationFence(
+		logicalTrackingId: String,
+		serviceRunId: String,
+		collectedDataEpoch: Long,
+		markedAtMs: Long,
+	): SourceDeletionFenceEntity = SourceDeletionFenceEntity.createLogicalServiceRun(
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+		purpose = RETENTION_TRUNCATION_PURPOSE,
+		logicalTrackingId = logicalTrackingId,
+		serviceRunId = serviceRunId,
+		fenceGeneration = RETENTION_TRUNCATION_GENERATION,
+		collectedDataEpoch = collectedDataEpoch,
+		deletedAtMs = markedAtMs,
+	)
+
+	/** Stable opaque lookup identity for the corresponding retention-truncation marker. */
+	fun retentionTruncationIdentity(
+		logicalTrackingId: String,
+		serviceRunId: String,
+	): String = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+		purpose = RETENTION_TRUNCATION_PURPOSE,
+		logicalTrackingId = logicalTrackingId,
+		serviceRunId = serviceRunId,
+	)
+
+	/** Verifies an already-installed marker without requiring its original observation time. */
+	fun isRetentionTruncationFence(
+		fence: SourceDeletionFenceEntity,
+		logicalTrackingId: String,
+		serviceRunId: String,
+		collectedDataEpoch: Long,
+	): Boolean = fence.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
+		fence.purpose == RETENTION_TRUNCATION_PURPOSE &&
+		fence.scopeKind == SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN &&
+		fence.scopeIdentityDigest == retentionTruncationIdentity(logicalTrackingId, serviceRunId) &&
+		fence.fenceGeneration == RETENTION_TRUNCATION_GENERATION &&
+		fence.collectedDataEpoch == collectedDataEpoch
+
 	/** Verifies immutable policy and append-only consent authority for one Steps capture binding. */
 	@Suppress("ComplexCondition", "CyclomaticComplexMethod")
 	fun hasValidStepsCaptureAuthority(
@@ -80,7 +124,9 @@ object StepFactRevisionIntegrity {
 	 * Verifies the complete source-local shape emitted by the sole canonical LIVE_WAL Steps writer.
 	 *
 	 * Run, manifest, consent, lane, deletion-fence, and retained-epoch authority remain contextual
-	 * reader checks. This method authenticates only the intrinsic fact semantics shared by every
+	 * reader checks. The canonical Steps ingress and writer require source wall time to equal source
+	 * acquisition time; consequently the checksummed interval end is also the durable acquisition-time
+	 * retention coordinate. This method authenticates the intrinsic fact semantics shared by every
 	 * reader so a checksum-valid row cannot invent a writer shape the producer never emitted.
 	 */
 	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "ReturnCount")
@@ -264,4 +310,5 @@ object StepFactRevisionIntegrity {
 	private const val NANOS_PER_MILLISECOND = 1_000_000L
 	private const val LOCAL_DELETE_MUTATION_VERSION = "steps-local-delete-mutation-v1"
 	private const val LOCAL_DELETE_EFFECT_VERSION = "steps-local-delete-effect-v1"
+	private const val RETENTION_TRUNCATION_GENERATION = 1L
 }

@@ -28,15 +28,19 @@ import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerStateEventDao
 import com.adsamcik.tracker.shared.base.database.dao.TrackerRunDao
 import com.adsamcik.tracker.shared.base.database.dao.WifiObservationDao
+import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.LocationSample
 import com.adsamcik.tracker.shared.base.database.data.PendingSignalEntity
 import com.adsamcik.tracker.shared.base.database.data.SampleQuality
-import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
@@ -49,12 +53,10 @@ import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactDrainResult
 import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
-import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
 import io.mockk.every
-import io.mockk.just
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
@@ -72,6 +74,7 @@ import kotlin.coroutines.EmptyCoroutineContext
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@Suppress("LargeClass")
 class RetentionPipelineWorkerRobolectricTest {
 	@Test
 	fun `retryable startup does not resolve the collected database`() = runTest {
@@ -189,8 +192,11 @@ class RetentionPipelineWorkerRobolectricTest {
 		coVerify(exactly = 1) { locationObservationDecisionDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { locationObservationDecisionDao.deleteWithoutObservation() }
 		coVerify(exactly = 1) { trackerStateEventDao.deleteOlderThan(any()) }
-		coVerify(exactly = 1) { sourceEvidenceStateDao.updateLifecycle(any(), any(), any()) }
-		coVerify(exactly = 1) { stepFactRevisionDao.deleteUpsertsEndingBefore(any()) }
+		assertEquals(1L, sourceEvidenceStateDao.get()?.collectedDataEpoch)
+		assertEquals(1L, sourceEvidenceStateDao.get()?.retainedFromMs)
+		coVerify(exactly = 2) {
+			stepFactRevisionDao.retentionCandidateServiceRunIds(any(), any(), any())
+		}
 		coVerify(exactly = 1) { stepDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { activityDao.deleteOlderThan(any()) }
 		coVerify(exactly = 1) { runDao.deleteOlderThan(any()) }
@@ -215,6 +221,7 @@ class RetentionPipelineWorkerRobolectricTest {
 		)
 		val migrationBackupRepository: DatabaseMigrationBackupRepository = mockk(relaxed = true)
 		try {
+			insertExpiredStepsHistory(db, collectedDataEpoch = 9L)
 			db.locationSampleDao().insert(
 				LocationSample(
 					timeMs = 1L,
@@ -262,10 +269,26 @@ class RetentionPipelineWorkerRobolectricTest {
 			)
 
 			assertEquals(1L, db.locationSampleDao().countAll())
+			assertEquals(1L, db.stepFactRevisionDao().countAll())
 			assertEquals(1, db.pendingSignalDao().countAll())
 			assertEquals(1L, db.sourceEvidenceStateDao().get()?.revision)
 			assertEquals(9L, db.sourceEvidenceStateDao().get()?.collectedDataEpoch)
 			assertEquals(1_234L, db.sourceEvidenceStateDao().get()?.retainedFromMs)
+			val marker = requireNotNull(db.sourceDeletionFenceDao().get(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				purpose = StepFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE,
+				scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+				scopeIdentityDigest = StepFactRevisionIntegrity.retentionTruncationIdentity(
+					"expired-session",
+					"expired-run",
+				),
+			))
+			assertTrue(StepFactRevisionIntegrity.isRetentionTruncationFence(
+				marker,
+				"expired-session",
+				"expired-run",
+				9L,
+			))
 			coVerify(exactly = 1) { collectedDataLifecycleStore.advanceRetainedFrom(any()) }
 			verify(exactly = 1) { migrationBackupRepository.deleteAll() }
 		} finally {
@@ -274,7 +297,8 @@ class RetentionPipelineWorkerRobolectricTest {
 	}
 
 	@Test
-	fun `raw retention reconciles a stale Steps terminal before pruning its WAL`() = runTest {
+	@Suppress("LongMethod")
+	fun `raw retention cannot trust a stale Steps integrity failure to prune its WAL`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Context>()
 		val db = AppDatabase.testDatabase(context)
 		val lifecycle = lifecycleStore(
@@ -313,7 +337,7 @@ class RetentionPipelineWorkerRobolectricTest {
 					updatedAtMs = 1L,
 				),
 			)
-			db.stepFactRevisionDao().insert(expiredStepFactRevision(collectedDataEpoch = 2L))
+			insertExpiredStepsHistory(db, collectedDataEpoch = 2L)
 			db.sourceEventWalDao().insertIgnoringDuplicate(staleRawStepsEvent())
 			db.sourceProjectionStateDao().installProductLane(
 				SourceProductProjectionLaneEntity(
@@ -357,20 +381,51 @@ class RetentionPipelineWorkerRobolectricTest {
 			)
 
 			assertEquals(0L, db.stepFactRevisionDao().countAll())
-			assertEquals(0L, db.sourceEventWalDao().countAll())
+			assertEquals(1L, db.sourceEventWalDao().countAll())
 			assertEquals(
-				1L,
+				0L,
 				db.sourceProjectionStateDao()
 					.activeProductLane(SourceKind.STEPS.stableCode)?.contiguousAdmissionOrdinal,
 			)
-			assertEquals(
-				null,
+			val retainedFailure = requireNotNull(
 				db.sourceProjectionStateDao().failure(
 					StepsSessionFactProjectionLane.WRITER_ID,
 					StepsSessionFactProjectionLane.WRITER_VERSION,
 					1L,
 				),
 			)
+			assertEquals("RAW_PAYLOAD_INTEGRITY", retainedFailure.failureCode)
+			assertEquals(1, retainedFailure.attemptCount)
+			val factMarker = requireNotNull(db.sourceDeletionFenceDao().get(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				purpose = StepFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE,
+				scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+				scopeIdentityDigest = StepFactRevisionIntegrity.retentionTruncationIdentity(
+					"expired-session",
+					"expired-run",
+				),
+			))
+			assertTrue(StepFactRevisionIntegrity.isRetentionTruncationFence(
+				factMarker,
+				"expired-session",
+				"expired-run",
+				2L,
+			))
+			assertEquals(
+				null,
+				db.sourceDeletionFenceDao().get(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+					purpose = StepFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE,
+					scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+					scopeIdentityDigest = StepFactRevisionIntegrity.retentionTruncationIdentity(
+						"session-1",
+						"run-1",
+					),
+				),
+			)
+			coVerify(exactly = 0) {
+				ingress.committedSourceBatch(SourceKind.STEPS, 0L, 1L, 64)
+			}
 		} finally {
 			db.close()
 		}
@@ -542,11 +597,58 @@ class RetentionPipelineWorkerRobolectricTest {
 		coEvery { advanceRetainedFrom(any()) } returns snapshot
 	}
 
-	private fun sourceEvidenceStateDao(): SourceEvidenceStateDao = mockk {
-		coEvery { ensure(any()) } just Runs
-		coEvery { get() } returns SourceEvidenceState()
-		coEvery { updateLifecycle(any(), any(), any()) } returns 1
-		coEvery { incrementRevision(any()) } returns 1
+	private fun sourceEvidenceStateDao(): SourceEvidenceStateDao {
+		var storedState: SourceEvidenceState? = null
+		return object : SourceEvidenceStateDao {
+			override suspend fun ensure(state: SourceEvidenceState) {
+				if (storedState == null) {
+					storedState = state
+				}
+			}
+
+			override suspend fun get(): SourceEvidenceState? = storedState
+
+			override suspend fun updateLifecycle(
+				epoch: Long,
+				retainedFromMs: Long?,
+				updatedAtMs: Long,
+			): Int {
+				val current = requireNotNull(storedState)
+				storedState = current.copy(
+					revision = current.revision + 1L,
+					collectedDataEpoch = epoch,
+					retainedFromMs = retainedFromMs,
+					updatedAtMs = updatedAtMs,
+				)
+				return 1
+			}
+
+			override suspend fun incrementRevision(updatedAtMs: Long): Int {
+				val current = requireNotNull(storedState)
+				storedState = current.copy(
+					revision = current.revision + 1L,
+					updatedAtMs = updatedAtMs,
+				)
+				return 1
+			}
+
+			override suspend fun updateAfterFullDeletion(
+				epoch: Long,
+				retainedFromMs: Long?,
+				deletedSourceEventHighWaterOrdinal: Long,
+				updatedAtMs: Long,
+			): Int {
+				val current = requireNotNull(storedState)
+				storedState = current.copy(
+					revision = current.revision + 1L,
+					collectedDataEpoch = epoch,
+					retainedFromMs = retainedFromMs,
+					deletedSourceEventHighWaterOrdinal = deletedSourceEventHighWaterOrdinal,
+					updatedAtMs = updatedAtMs,
+				)
+				return 1
+			}
+		}
 	}
 
 	private fun staleRawStepsEvent() = SourceEventWalEntity(
@@ -585,41 +687,108 @@ class RetentionPipelineWorkerRobolectricTest {
 		createdAtMs = 1L,
 	)
 
-	private fun expiredStepFactRevision(collectedDataEpoch: Long) = StepFactRevisionEntity(
-		logicalFactId = "expired-steps-fact",
-		semanticRevision = 1L,
-		mutationId = "expired-steps-mutation",
-		stepIntervalId = null,
-		sourceEventId = null,
-		sourceAdmissionOrdinal = null,
-		originKind = StepFactRevisionEntity.ORIGIN_PORTABLE_IMPORT,
-		originIdentity = "expired-portable-import",
-		writerProjectionId = StepsSessionFactProjectionLane.WRITER_ID,
-		writerProjectionVersion = StepsSessionFactProjectionLane.WRITER_VERSION,
-		writerBindingGeneration = StepsSessionFactProjectionLane.BINDING_GENERATION,
-		operation = StepFactRevisionEntity.OPERATION_UPSERT,
-		intervalStartTimeMs = 1L,
-		intervalEndTimeMs = 2L,
-		intervalStartElapsedRealtimeNanos = 1L,
-		intervalEndElapsedRealtimeNanos = 2L,
-		clockDomainId = "elapsed-domain-1",
-		bootClockDomainId = "boot-1",
-		cumulativeStepCountStart = 100L,
-		cumulativeStepCountEnd = 101L,
-		wallTimeUncertaintyMs = 1L,
-		coverageKind = StepFactRevisionEntity.COVERAGE_COVERED,
-		effectiveStepCount = 1L,
+	private suspend fun insertExpiredStepsHistory(
+		database: AppDatabase,
+		collectedDataEpoch: Long,
+	) {
+		database.sourceSessionDao().insertSession(expiredLogicalSession())
+		database.sourceSessionDao().insertServiceRun(expiredServiceRun())
+		database.stepFactRevisionDao().insert(expiredStepFactRevision(collectedDataEpoch))
+	}
+
+	private fun expiredLogicalSession() = LogicalTrackingSessionEntity(
 		logicalTrackingId = "expired-session",
-		serviceRunId = "expired-run",
-		purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
-		manifestRevision = 1L,
-		sourcePolicyRevision = 1L,
-		captureConsentEpoch = 1L,
-		collectedDataEpoch = collectedDataEpoch,
-		scopeDeletionGeneration = 0L,
-		effectChecksum = "expired-steps-checksum",
-		appliedAtMs = 2L,
+		state = "FINALIZED",
+		lifecycleRevision = 2L,
+		desiredPlanRevision = 1L,
+		rolloutRevision = 1L,
+		startOrigin = "MANUAL_FOREGROUND_START",
+		clockDomainId = "boot-1",
+		startedAtMs = 1L,
+		startedElapsedNanos = 1_000_000L,
+		cutoffAtMs = 2L,
+		cutoffElapsedNanos = 2_000_000L,
+		completedAtMs = 2L,
+		finalAdmissionOrdinal = 1L,
+		failureCode = null,
+		sessionMode = "MANUAL",
+		currentManifestRevision = 1L,
+		currentIntentRevision = 1L,
+		currentServiceRunId = null,
+		lifecycleLeaseGeneration = 1L,
+		lifecycleBootId = "boot-1",
 	)
+
+	private fun expiredServiceRun() = SourceServiceRunEntity(
+		serviceRunId = "expired-run",
+		logicalTrackingId = "expired-session",
+		state = "FINALIZED",
+		desiredPlanRevision = 1L,
+		rolloutRevision = 1L,
+		foregroundCapabilityFlags = 0L,
+		startedAtMs = 1L,
+		startedElapsedNanos = 1_000_000L,
+		completedAtMs = 2L,
+		completionReason = "USER_STOP",
+		bootId = "boot-1",
+		leaseGeneration = 1L,
+		startOrigin = "MANUAL_FOREGROUND_START",
+		desiredForegroundCapabilityFlags = 0L,
+		appliedForegroundCapabilityFlags = 0L,
+		runtimeAcknowledgement = "STOP_ACCEPTED",
+		runRevision = 2L,
+		startDeliveryToken = "expired-delivery",
+		startCommandGeneration = 1L,
+		preparedManifestRevision = 1L,
+		preparedIntentRevision = 1L,
+		androidDeliveryState = "FOREGROUND_ACCEPTED",
+		androidDeliveryUpdatedAtMs = 2L,
+		startIsUserInitiated = true,
+		startIsAmbient = false,
+	)
+
+	private fun expiredStepFactRevision(collectedDataEpoch: Long): StepFactRevisionEntity {
+		val sourceEventId = "expired-source-event"
+		val logicalFactId = "${StepsSessionFactProjectionLane.WRITER_ID}:$sourceEventId"
+		val unsigned = StepFactRevisionEntity(
+			logicalFactId = logicalFactId,
+			semanticRevision = 1L,
+			mutationId = "$logicalFactId:1:${StepFactRevisionEntity.OPERATION_UPSERT}",
+			stepIntervalId = null,
+			sourceEventId = sourceEventId,
+			sourceAdmissionOrdinal = 1L,
+			originKind = StepFactRevisionEntity.ORIGIN_LIVE_WAL,
+			originIdentity = sourceEventId,
+			writerProjectionId = StepsSessionFactProjectionLane.WRITER_ID,
+			writerProjectionVersion = StepsSessionFactProjectionLane.WRITER_VERSION,
+			writerBindingGeneration = StepsSessionFactProjectionLane.BINDING_GENERATION,
+			operation = StepFactRevisionEntity.OPERATION_UPSERT,
+			intervalStartTimeMs = 1L,
+			intervalEndTimeMs = 2L,
+			intervalStartElapsedRealtimeNanos = 1_000_000L,
+			intervalEndElapsedRealtimeNanos = 2_000_000L,
+			clockDomainId = "boot-1",
+			bootClockDomainId = "boot-1",
+			cumulativeStepCountStart = 100L,
+			cumulativeStepCountEnd = 101L,
+			wallTimeUncertaintyMs = 0L,
+			coverageKind = StepFactRevisionEntity.COVERAGE_COVERED,
+			effectiveStepCount = 1L,
+			logicalTrackingId = "expired-session",
+			serviceRunId = "expired-run",
+			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			manifestRevision = 1L,
+			sourcePolicyRevision = 1L,
+			captureConsentEpoch = 1L,
+			collectedDataEpoch = collectedDataEpoch,
+			scopeDeletionGeneration = 0L,
+			effectChecksum = "unsigned",
+			appliedAtMs = 2L,
+		)
+		return unsigned.copy(
+			effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(unsigned),
+		)
+	}
 
 	private companion object {
 		val DIRECT_EXECUTOR = Executor(Runnable::run)

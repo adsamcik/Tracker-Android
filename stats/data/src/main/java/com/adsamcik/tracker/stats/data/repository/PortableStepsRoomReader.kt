@@ -422,6 +422,25 @@ internal class PortableStepsRoomReader @Inject constructor(
 		if (fences.map(SourceDeletionFenceEntity::scopeIdentityDigest).distinct().size != fences.size) {
 			abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
 		}
+		val retentionTruncationDigests = serviceRuns.map { run ->
+			retentionTruncationDigest(run)
+		}
+		val retentionTruncationFences = mutableListOf<SourceDeletionFenceEntity>()
+		for (digests in retentionTruncationDigests.chunked(QUERY_ID_BATCH_SIZE)) {
+			val batch = readDao.deletionFences(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				purpose = StepFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE,
+				scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+				scopeIdentityDigests = digests,
+			)
+			budget.consume(batch.size)
+			retentionTruncationFences += batch
+		}
+		if (retentionTruncationFences.map(SourceDeletionFenceEntity::scopeIdentityDigest)
+			.distinct().size != retentionTruncationFences.size
+		) {
+			abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		}
 		val fencesByDigest = fences.associateBy(SourceDeletionFenceEntity::scopeIdentityDigest)
 		if (historyFactStatesByRun.any { (runId, states) ->
 				val run = requireNotNull(serviceRunsById[runId])
@@ -469,6 +488,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 			factStates = factStates,
 			upsertRevisions = upsertRevisions,
 			fences = fences,
+			retentionTruncationFences = retentionTruncationFences,
 			terminalFailures = failures,
 			evidenceState = evidenceState,
 		)
@@ -661,6 +681,21 @@ internal class PortableStepsRoomReader @Inject constructor(
 				validateDeletedRunFence(run, fence, evidenceState, dependencies)
 				deletedRunCount += 1
 				continue
+			}
+			val retentionTruncationFence = dependencies.retentionTruncationFencesByDigest[
+				retentionTruncationDigest(run)
+			]
+			if (retentionTruncationFence != null) {
+				if (!StepFactRevisionIntegrity.isRetentionTruncationFence(
+						fence = retentionTruncationFence,
+						logicalTrackingId = run.logicalTrackingId,
+						serviceRunId = run.serviceRunId,
+						collectedDataEpoch = evidenceState.collectedDataEpoch,
+					)
+				) {
+					abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+				}
+				abort(PortableStepsExportUnverifiableReason.RETENTION_CROSSES_ENTRY)
 			}
 			val segment = run.sessionSegmentId?.let(segmentsById::get)
 			if (segment == null) {
@@ -1382,6 +1417,12 @@ internal class PortableStepsRoomReader @Inject constructor(
 			serviceRunId = run.serviceRunId,
 		)
 
+	private fun retentionTruncationDigest(run: SourceServiceRunEntity): String =
+		StepFactRevisionIntegrity.retentionTruncationIdentity(
+			logicalTrackingId = run.logicalTrackingId,
+			serviceRunId = run.serviceRunId,
+		)
+
 	private inline fun <T> portableValue(block: () -> T): T = try {
 		block()
 	} catch (abort: PortableSnapshotAbort) {
@@ -1587,6 +1628,7 @@ private data class PortableRoomDependencies(
 	val factStates: List<ScopedStepFactState>,
 	val upsertRevisions: List<StepFactRevisionEntity>,
 	val fences: List<SourceDeletionFenceEntity>,
+	val retentionTruncationFences: List<SourceDeletionFenceEntity>,
 	val terminalFailures: List<SourceProjectionFailureEntity>,
 	val evidenceState: SourceEvidenceState,
 ) {
@@ -1600,6 +1642,9 @@ private data class PortableRoomDependencies(
 	val factStatesByRun = factStates.groupBy(ScopedStepFactState::serviceRunId)
 	val upsertsByRun = upsertRevisions.groupBy { fact -> requireNotNull(fact.serviceRunId) }
 	val fencesByDigest = fences.associateBy(SourceDeletionFenceEntity::scopeIdentityDigest)
+	val retentionTruncationFencesByDigest = retentionTruncationFences.associateBy(
+		SourceDeletionFenceEntity::scopeIdentityDigest,
+	)
 	val lanesByKey = lanes.associateBy {
 		HistoricalLaneKey(it.bindingGeneration, it.projectionId, it.projectionVersion)
 	}
@@ -1635,6 +1680,7 @@ private data class PortableRoomDependencies(
 			stepPolicies = policiesByRevision,
 			stepCaptureConsents = consentsByEpoch,
 			deletionFenceDigests = fencesByDigest.keys,
+			retentionTruncationFencesByDigest = retentionTruncationFencesByDigest,
 			factStatesByRun = historyFactStatesByRun,
 			completenessByRun = completenessByRun,
 			productLanes = lanesByKey,

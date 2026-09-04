@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.deletion
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.markStepsRetentionTruncation
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryTotals
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
@@ -423,6 +424,57 @@ class StepsDailySummaryRepairComposerTest {
 				durationMs = 0L,
 				tripCount = 0,
 			)
+		}
+
+	@Test
+	fun `retention-truncated run cannot certify a fact day outside its presentation envelope`() =
+		runTest {
+			installLane(cursor = 100L)
+			val logicalId = "retention-truncated-logical"
+			val runId = "retention-truncated-run"
+			val outsideStartMs = DAY_START + 2L * 24L * HOUR_MS
+			val retainedFromMs = DAY_START + 3L * HOUR_MS
+			insertCandidate(
+				logicalId = logicalId,
+				runId = runId,
+				manifestRevision = 1L,
+				startMs = outsideStartMs,
+				endMs = outsideStartMs + HOUR_MS,
+				steps = 6L,
+				factStartMs = DAY_START + HOUR_MS,
+				factEndMs = DAY_START + 2L * HOUR_MS,
+				factStartElapsedRealtimeNanos = 1L,
+				factEndElapsedRealtimeNanos = 1L + HOUR_MS * NANOS_PER_MILLISECOND,
+			)
+			database.sourceEvidenceStateDao().updateLifecycle(
+				epoch = EPOCH,
+				retainedFromMs = retainedFromMs,
+				updatedAtMs = retainedFromMs,
+			) shouldBe 1
+			database.markStepsRetentionTruncation(
+				logicalTrackingId = logicalId,
+				serviceRunId = runId,
+				collectedDataEpoch = EPOCH,
+				markedAtMs = retainedFromMs,
+			) shouldBe true
+			database.openHelper.writableDatabase.execSQL(
+				"DELETE FROM step_fact_revision WHERE service_run_id = ?",
+				arrayOf(runId),
+			)
+			database.stepFactRevisionDao().countAll() shouldBe 0L
+
+			composer().composeForNumericRead(mapOf(DAY to ZONE)) shouldBe
+				StepsDayRepairPreflight.Unsupported(
+					StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
+				)
+			composer().composeForMaterialization(DAY, ZONE) shouldBe
+				StepsDayRepairPreflight.Unsupported(
+					StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
+				)
+			composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE) shouldBe
+				StepsDayRepairPreflight.Unsupported(
+					StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
+				)
 		}
 
 	@Test

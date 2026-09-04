@@ -30,6 +30,7 @@ import com.adsamcik.tracker.tracker.source.model.SourceQuality
 import com.adsamcik.tracker.tracker.source.model.StepBoundaryKind
 import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -259,7 +260,8 @@ class StepsSessionFactProjectionLaneTest {
 	}
 
 	@Test
-	fun `retention rejects a fact whose product time is below the retained floor`() = runTest {
+	fun `active run marks a skipped old fact then writes a valid suffix without losing the marker`() =
+		runTest {
 		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
 		database.sourceEvidenceStateDao().updateLifecycle(
 			epoch = COLLECTED_DATA_EPOCH,
@@ -267,25 +269,38 @@ class StepsSessionFactProjectionLaneTest {
 			updatedAtMs = 20_000L,
 		) shouldBe 1
 		val evidenceRevision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
-		val event = stepEvent(
+		val oldEvent = stepEvent(
 			ordinal = 1L,
 			wallTimeMs = 9_999L,
-			acquiredAtMs = 10_001L,
+			acquiredAtMs = 9_999L,
+		)
+		val retainedEvent = stepEvent(
+			ordinal = 2L,
+			wallTimeMs = 10_002L,
+			acquiredAtMs = 10_002L,
 		)
 
 		StepsSessionFactProjectionLane(
 			database,
-			sourceIngress(0L, 1L, listOf(event)),
-		).drainThrough(1L) shouldBe
-			StepsSessionFactDrainResult.Complete(1L, factsInserted = 0, eventsValidated = 1)
+			sourceIngress(0L, 2L, listOf(oldEvent, retainedEvent)),
+		).drainThrough(2L) shouldBe
+			StepsSessionFactDrainResult.Complete(2L, factsInserted = 1, eventsValidated = 2)
 
-		database.stepFactRevisionDao().countAll() shouldBe 0L
-		database.sourceEvidenceStateDao().get()?.revision shouldBe evidenceRevision
-		activeLane()?.contiguousAdmissionOrdinal shouldBe 1L
+		fact(1L) shouldBe null
+		StepFactRevisionIntegrity.hasValidCanonicalLiveWalFact(requireNotNull(fact(2L))) shouldBe true
+		val marker = retentionMarker().shouldNotBeNull()
+		StepFactRevisionIntegrity.isRetentionTruncationFence(
+			marker,
+			LOGICAL_TRACKING_ID,
+			SERVICE_RUN_ID,
+			COLLECTED_DATA_EPOCH,
+		) shouldBe true
+		database.sourceEvidenceStateDao().get()?.revision shouldBe evidenceRevision + 2L
+		activeLane()?.contiguousAdmissionOrdinal shouldBe 2L
 	}
 
 	@Test
-	fun `retention clears an obsolete terminal corrupt row and releases its cursor`() = runTest {
+	fun `retention cannot release a terminal row with unauthenticated WAL identity`() = runTest {
 		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
 		insertRawStepsRow(
 			ordinal = 1L,
@@ -317,24 +332,29 @@ class StepsSessionFactProjectionLaneTest {
 		) shouldBe 1
 		val evidenceRevision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
 
-		subject.drainThrough(1L) shouldBe
-			StepsSessionFactDrainResult.Complete(1L, factsInserted = 0, eventsValidated = 0)
+		subject.drainThrough(1L) shouldBe StepsSessionFactDrainResult.Failed(
+			lastCompletedOrdinal = 0L,
+			failedOrdinal = 1L,
+			failureCode = "RAW_PAYLOAD_INTEGRITY",
+			terminal = true,
+		)
 
 		database.sourceProjectionStateDao().failure(
 			StepsSessionFactProjectionLane.WRITER_ID,
 			StepsSessionFactProjectionLane.WRITER_VERSION,
 			1L,
-		) shouldBe null
+		).shouldNotBeNull()
 		database.sourceEvidenceStateDao().get()?.revision shouldBe evidenceRevision
+		retentionMarker() shouldBe null
 		database.stepFactRevisionDao().countAll() shouldBe 0L
-		activeLane()?.contiguousAdmissionOrdinal shouldBe 1L
-		coVerify(exactly = 2) {
+		activeLane()?.contiguousAdmissionOrdinal shouldBe 0L
+		coVerify(exactly = 1) {
 			ingress.committedSourceBatch(SourceKind.STEPS, 0L, 1L, 64)
 		}
 	}
 
 	@Test
-	fun `session deletion clears an existing terminal failure and releases its cursor`() = runTest {
+	fun `session deletion cannot release a terminal row with unauthenticated WAL identity`() = runTest {
 		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
 		insertRawStepsRow(
 			ordinal = 1L,
@@ -360,16 +380,23 @@ class StepsSessionFactProjectionLaneTest {
 		)
 		insertSessionDeletionFence()
 
-		subject.drainThrough(1L) shouldBe
-			StepsSessionFactDrainResult.Complete(1L, factsInserted = 0, eventsValidated = 0)
+		subject.drainThrough(1L) shouldBe StepsSessionFactDrainResult.Failed(
+			lastCompletedOrdinal = 0L,
+			failedOrdinal = 1L,
+			failureCode = "RAW_PAYLOAD_INTEGRITY",
+			terminal = true,
+		)
 
 		database.sourceProjectionStateDao().failure(
 			StepsSessionFactProjectionLane.WRITER_ID,
 			StepsSessionFactProjectionLane.WRITER_VERSION,
 			1L,
-		) shouldBe null
-		activeLane()?.contiguousAdmissionOrdinal shouldBe 1L
+		).shouldNotBeNull()
+		activeLane()?.contiguousAdmissionOrdinal shouldBe 0L
 		database.stepFactRevisionDao().countAll() shouldBe 0L
+		coVerify(exactly = 1) {
+			ingress.committedSourceBatch(SourceKind.STEPS, 0L, 1L, 64)
+		}
 	}
 
 	@Test
@@ -394,6 +421,40 @@ class StepsSessionFactProjectionLaneTest {
 		subject.drainThrough(1L) shouldBe expected
 
 		database.stepFactRevisionDao().countAll() shouldBe 0L
+		retentionMarker() shouldBe null
+		activeLane()?.contiguousAdmissionOrdinal shouldBe 0L
+		coVerify(exactly = 1) {
+			ingress.committedSourceBatch(SourceKind.STEPS, 0L, 1L, 64)
+		}
+	}
+
+	@Test
+	fun `Steps acquisition and wall mismatch is terminal poison before retention`() = runTest {
+		installLane(SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL)
+		database.sourceEvidenceStateDao().updateLifecycle(
+			epoch = COLLECTED_DATA_EPOCH,
+			retainedFromMs = 20_000L,
+			updatedAtMs = 20_000L,
+		) shouldBe 1
+		insertRawStepsRow(ordinal = 1L, wallTimeMs = 10_002L, acquiredAtMs = 10_001L)
+		val ingress = sourceIngress(
+			0L,
+			1L,
+			listOf(stepEvent(1L, wallTimeMs = 10_002L, acquiredAtMs = 10_001L)),
+		)
+		val subject = StepsSessionFactProjectionLane(database, ingress)
+		val expected = StepsSessionFactDrainResult.Failed(
+			lastCompletedOrdinal = 0L,
+			failedOrdinal = 1L,
+			failureCode = "STEPS_ACQUIRED_WALL_TIME_MISMATCH",
+			terminal = true,
+		)
+
+		subject.drainThrough(1L) shouldBe expected
+		subject.drainThrough(1L) shouldBe expected
+
+		database.stepFactRevisionDao().countAll() shouldBe 0L
+		retentionMarker() shouldBe null
 		activeLane()?.contiguousAdmissionOrdinal shouldBe 0L
 		coVerify(exactly = 1) {
 			ingress.committedSourceBatch(SourceKind.STEPS, 0L, 1L, 64)
@@ -782,6 +843,16 @@ class StepsSessionFactProjectionLaneTest {
 			),
 		)
 	}
+
+	private suspend fun retentionMarker() = database.sourceDeletionFenceDao().get(
+		sourceKind = SourceKind.STEPS.stableCode,
+		purpose = StepFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE,
+		scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+		scopeIdentityDigest = StepFactRevisionIntegrity.retentionTruncationIdentity(
+			LOGICAL_TRACKING_ID,
+			SERVICE_RUN_ID,
+		),
+	)
 
 	private fun stepEvent(
 		ordinal: Long,

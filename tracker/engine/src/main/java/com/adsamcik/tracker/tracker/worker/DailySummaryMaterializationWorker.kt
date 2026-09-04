@@ -64,6 +64,9 @@ internal suspend fun materializeDailySummaryDayInTransaction(
 				} catch (_: DateTimeException) {
 					return@withTransaction
 				}
+				val dayStartsBeforeRetentionFloor = database.sourceEvidenceStateDao().get()
+					?.retainedFromMs
+					?.let { retainedFromMs -> dayStartMs < retainedFromMs } == true
 				val attributedBounds = if (existing != null && storedZoneId == null) {
 					allZoneDayBounds(epochDay) ?: return@withTransaction
 				} else {
@@ -93,12 +96,14 @@ internal suspend fun materializeDailySummaryDayInTransaction(
 					.isNotEmpty()
 				val hasSourceAwareOverlap = hasAttributedSegmentOverlap || hasSourceRunOverlap ||
 					hasSourceFactOverlap
-				if (existing != null && storedZoneId == null && hasSourceAwareOverlap) {
+				if (existing != null && storedZoneId == null &&
+					(hasSourceAwareOverlap || dayStartsBeforeRetentionFloor)
+				) {
 					outcome = DailySummaryMaterializationOutcome.Unverifiable
 					return@withTransaction
 				}
 				val authorityAggregator = aggregator.withCalendarZone(authorityZone)
-				if (!hasSourceAwareOverlap) {
+				if (!hasSourceAwareOverlap && !dayStartsBeforeRetentionFloor) {
 					authorityAggregator.materializeDayFromSegmentsWhileLocked(epochDay, lockedDays)
 					outcome = DailySummaryMaterializationOutcome.Ready
 					return@withTransaction

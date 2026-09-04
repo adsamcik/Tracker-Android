@@ -3,6 +3,8 @@ package com.adsamcik.tracker.stats.data.repository
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.markAuthenticatedStepsRunsAffectedByRetentionFloor
+import com.adsamcik.tracker.shared.base.database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
@@ -2972,6 +2974,158 @@ class StepsSegmentHistorySelectorTest {
 			coverage = StepsHistoryCoverage.UNKNOWN,
 			reasons = setOf(StepsHistoryReason.COUNT_OVERFLOW),
 		)
+	}
+
+	@Test
+	fun retainedPrefixMarkerPreventsSurvivingSuffixFromBecomingCompleteHistory() = runTest {
+		val prunedPrefix = fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(
+				prunedPrefix,
+				fact(
+					ordinal = 2L,
+					coverage = StepFactRevisionEntity.COVERAGE_COVERED,
+					steps = 3L,
+					cumulativeStart = 105L,
+					cumulativeEnd = 108L,
+				),
+			),
+			targetOrdinal = 2L,
+			laneCursor = 2L,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM step_fact_revision WHERE logical_fact_id = ?",
+			arrayOf(prunedPrefix.logicalFactId),
+		)
+		database.sourceDeletionFenceDao().upsert(
+			StepFactRevisionIntegrity.retentionTruncationFence(
+				logicalTrackingId = LOGICAL_ID,
+				serviceRunId = RUN_ONE,
+				collectedDataEpoch = 0L,
+				markedAtMs = 3_000L,
+			),
+		)
+
+		val result = selector.select(segment(RUN_ONE, steps = 999))
+		result shouldBe unavailableResult(StepsHistoryReason.RETENTION_TRUNCATED_RUN)
+		result.toPublicHistory().apply {
+			count shouldBe null
+			availability shouldBe
+				com.adsamcik.tracker.stats.api.repository.HistoryAvailability.UNAVAILABLE
+			productState shouldBe HistoryProductState.PARTIAL
+			causes shouldBe setOf(
+				StepsHistoryCause.RETENTION_LIMIT,
+				StepsHistoryCause.AVAILABILITY_UNAVAILABLE,
+			)
+		}
+	}
+
+	@Test
+	fun authenticatedRetentionMarkerKeepsFactlessStepsOnlyEntryTruthfullyDiscoverable() = runTest {
+		val expired = fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(expired),
+			targetOrdinal = 1L,
+			laneCursor = 1L,
+		)
+		database.sessionSegmentDao().insert(segment(RUN_ONE, steps = 999, sampleCount = 0))
+		database.sourceEvidenceStateDao().updateLifecycle(
+			epoch = 0L,
+			retainedFromMs = 2_000L,
+			updatedAtMs = 3_000L,
+		) shouldBe 1
+		database.markAuthenticatedStepsRunsAffectedByRetentionFloor(
+			beforeMs = 2_000L,
+			collectedDataEpoch = 0L,
+			markedAtMs = 3_000L,
+		) shouldBe 1
+		database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(
+			beforeMs = 2_000L,
+			collectedDataEpoch = 0L,
+			markedAtMs = 3_000L,
+		) shouldBe 1
+		database.stepFactRevisionDao().countAll() shouldBe 0L
+
+		val entry = logicalHistoryReader.selectRecentEntries(limit = 10).single()
+		entry.identity shouldBe HistoricalEntryIdentity.Logical(LOGICAL_ID)
+		entry.qualifiedSources shouldBe emptySet()
+		entry.isExactStepsOnlyCapture shouldBe false
+		entry.isContainedStepsOnlyEntry shouldBe true
+		entry.physicalMembers.single().steps shouldBe
+			unavailableResult(StepsHistoryReason.RETENTION_TRUNCATED_RUN)
+		logicalHistoryReader.selectRecentStepsOnlyEntries(limit = 10).single().identity shouldBe
+			HistoricalEntryIdentity.Logical(LOGICAL_ID)
+
+		val repository = historyRepository()
+		val publicSession = repository.observeSession(SEGMENT_ID).first() as SessionHistoryQuery.Found
+		publicSession.history.qualifiedSources shouldBe emptySet()
+		publicSession.history.steps.count shouldBe null
+		publicSession.history.steps.productState shouldBe HistoryProductState.PARTIAL
+		publicSession.history.steps.causes shouldBe setOf(
+			StepsHistoryCause.RETENTION_LIMIT,
+			StepsHistoryCause.AVAILABILITY_UNAVAILABLE,
+		)
+		repository.observeRecentStepsOnlyEntries(limit = 10).first().single().state shouldBe
+			StepsOnlyHistoryListState.PARTIAL
+		val page = repository.observeRecentStepsAwarePage(
+			candidateSegmentIds = listOf(SEGMENT_ID),
+			limit = 10,
+		).first()
+		page.single() as StepsAwareHistoryPageEntry.StepsOnly
+	}
+
+	@Test
+	fun retentionMarkerFromAnotherEvidenceEpochFailsIntegrityAuthentication() = runTest {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)),
+			targetOrdinal = 1L,
+			laneCursor = 1L,
+		)
+		database.sourceDeletionFenceDao().upsert(
+			StepFactRevisionIntegrity.retentionTruncationFence(
+				logicalTrackingId = LOGICAL_ID,
+				serviceRunId = RUN_ONE,
+				collectedDataEpoch = 0L,
+				markedAtMs = 3_000L,
+			),
+		)
+		database.sourceEvidenceStateDao().updateLifecycle(
+			epoch = 1L,
+			retainedFromMs = null,
+			updatedAtMs = 3_100L,
+		) shouldBe 1
+		database.sessionSegmentDao().insert(segment(RUN_ONE, steps = 999, sampleCount = 0))
+
+		selector.select(segment(RUN_ONE, steps = 999)) shouldBe failedFactIntegrityResult()
+		logicalHistoryReader.selectRecentEntries(limit = 10) shouldBe emptyList()
+		historyRepository().observeRecentStepsOnlyEntries(limit = 10).first() shouldBe emptyList()
+	}
+
+	@Test
+	fun retentionMarkerForAnotherPhysicalRunDoesNotTruncateSelectedHistory() = runTest {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)),
+			targetOrdinal = 1L,
+			laneCursor = 1L,
+		)
+		database.sourceDeletionFenceDao().upsert(
+			StepFactRevisionIntegrity.retentionTruncationFence(
+				logicalTrackingId = LOGICAL_ID,
+				serviceRunId = RUN_TWO,
+				collectedDataEpoch = 0L,
+				markedAtMs = 3_000L,
+			),
+		)
+
+		selector.select(segment(RUN_ONE, steps = 999)).apply {
+			count shouldBe 5L
+			materialization shouldBe StepsHistoryMaterialization.READY
+			coverage shouldBe StepsHistoryCoverage.COMPLETE
+		}
 	}
 
 	@Test

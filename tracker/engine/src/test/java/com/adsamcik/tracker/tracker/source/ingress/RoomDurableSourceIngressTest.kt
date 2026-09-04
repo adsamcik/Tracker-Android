@@ -19,10 +19,12 @@ import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEnti
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
@@ -988,6 +990,27 @@ class RoomDurableSourceIngressTest {
 	}
 
 	@Test
+	fun `Steps wall time must equal acquisition time for single and delivery admission`() = runTest {
+		val mismatch = stepCandidate(
+			startNanos = 100L,
+			endNanos = 100L,
+			wallTimeMs = 101L,
+			acquiredAtMs = 100L,
+		)
+
+		subject.admit(mismatch) shouldBe AdmissionResult.PermanentFailure(
+			AdmissionFailureCode.INVALID_OBSERVED_TIME,
+		)
+		subject.admit(delivery(mismatch)) shouldBe DeliveryAdmissionResult.PermanentFailure(
+			AdmissionFailureCode.INVALID_OBSERVED_TIME,
+		)
+
+		startupGate.reconcileCalls shouldBe 0
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		database.sourceEvidenceStateDao().get()?.revision shouldBe 0L
+	}
+
+	@Test
 	fun `delivery interval model rejects negative start and start after end`() = runTest {
 		val evidence = candidate(sequence = 903L, observedElapsedNanos = 100L)
 
@@ -1287,6 +1310,62 @@ class RoomDurableSourceIngressTest {
 	}
 
 	@Test
+	fun `retained floor rejection marks exact authorized Steps session without WAL`() = runTest {
+		val authorization = installStepSessionCaptureGeneration()
+		lifecycle.update(CollectedDataLifecycleSnapshot(0L, 150L))
+		database.sourceEvidenceStateDao().updateLifecycle(0L, 150L, 150L) shouldBe 1
+		val before = requireNotNull(database.sourceEvidenceStateDao().get())
+		val evidence = stepCandidate(
+			startNanos = 100L,
+			endNanos = 100L,
+			sourceSequence = 1L,
+		).copy(
+			authorizationRevision = authorization.authorizationRevision,
+			registrationPurposeEligibilityMask = authorization.purposeMask,
+			registrationEligibilityFingerprint = authorization.fingerprint,
+			logicalTrackingId = LogicalTrackingId(TEST_SESSION_ID),
+			serviceRunId = ServiceRunId(TEST_RUN_ID),
+			planAttribution = PlanAttribution.CAPTURED_REGISTRATION,
+			sourcePolicyRevision = authorization.policyRevision,
+			captureConsentEpoch = authorization.captureConsentEpoch,
+			sessionManifestRevision = authorization.manifestRevision,
+			lifecycleLeaseGeneration = 7L,
+		)
+
+		val result = subject.admit(evidence).shouldBeInstanceOf<AdmissionResult.PermanentFailure>()
+
+		result.code shouldBe AdmissionFailureCode.BEFORE_RETENTION_BOUNDARY
+		database.sourceEventWalDao().countAll() shouldBe 0L
+		val after = requireNotNull(database.sourceEvidenceStateDao().get())
+		after.revision shouldBe before.revision + 1L
+		after.collectedDataEpoch shouldBe before.collectedDataEpoch
+		val markerIdentity = StepFactRevisionIntegrity.retentionTruncationIdentity(
+			logicalTrackingId = TEST_SESSION_ID,
+			serviceRunId = TEST_RUN_ID,
+		)
+		val marker = requireNotNull(
+			database.sourceDeletionFenceDao().get(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				purpose = StepFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE,
+				scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+				scopeIdentityDigest = markerIdentity,
+			),
+		)
+		marker shouldBe StepFactRevisionIntegrity.retentionTruncationFence(
+			logicalTrackingId = TEST_SESSION_ID,
+			serviceRunId = TEST_RUN_ID,
+			collectedDataEpoch = before.collectedDataEpoch,
+			markedAtMs = marker.deletedAtMs,
+		)
+		StepFactRevisionIntegrity.isRetentionTruncationFence(
+			fence = marker,
+			logicalTrackingId = TEST_SESSION_ID,
+			serviceRunId = TEST_RUN_ID,
+			collectedDataEpoch = before.collectedDataEpoch,
+		) shouldBe true
+	}
+
+	@Test
 	fun `stale collected-data epoch is rejected before database admission`() = runTest {
 		lifecycle.update(CollectedDataLifecycleSnapshot(2L, 500L))
 
@@ -1577,6 +1656,8 @@ class RoomDurableSourceIngressTest {
 		sourceSequence: Long = 0L,
 		providerDedupKey: String? = null,
 		lastProviderSequence: Long = 2L,
+		wallTimeMs: Long = 100L,
+		acquiredAtMs: Long = 100L,
 	) = SourceEvidenceCandidate(
 		providerDedupKey = providerDedupKey,
 		logicalTrackingId = null,
@@ -1593,10 +1674,10 @@ class RoomDurableSourceIngressTest {
 		clockDomainId = "boot",
 		observedElapsedRealtimeNanos = observedNanos,
 		receivedElapsedRealtimeNanos = receivedNanos,
-		wallTimeMs = 100L,
+		wallTimeMs = wallTimeMs,
 		wallTimeUncertaintyMs = 1L,
 		capturedCollectedDataEpoch = 0L,
-		acquiredAtMs = 100L,
+		acquiredAtMs = acquiredAtMs,
 		quality = SourceQuality(),
 		payloadVersion = 1,
 		payload = StepCounterWindowPayload(
@@ -2098,9 +2179,125 @@ class RoomDurableSourceIngressTest {
 		)
 	}
 
+	@Suppress("LongMethod")
+	private suspend fun installStepSessionCaptureGeneration(): StepSessionAuthorization {
+		installStepRegistrationGeneration()
+		database.sourceBrokerDao().markConsumerRetiring(
+			consumerId = "app:step-test",
+			bootId = "boot",
+			elapsedRealtimeNanos = 59L,
+			wallTimeMs = 59L,
+		) shouldBe 1
+		val policy = requireNotNull(
+			database.sourcePolicyDao().policyAtRevision(
+				testPolicyRevision,
+				SourceKind.STEPS.stableCode,
+			),
+		)
+		val manifestRevision = 2L
+		val manifestBinding = SessionManifestSourceEntity(
+			logicalTrackingId = TEST_SESSION_ID,
+			manifestRevision = manifestRevision,
+			sourceKind = SourceKind.STEPS.stableCode,
+			purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+			consentEpoch = requireNotNull(policy.captureConsentEpoch),
+			persistenceEligible = true,
+			qosCode = policy.qosCode,
+			outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
+			writerOwner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
+			writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+			writerProjectionId = "ingress-test-steps",
+			writerProjectionVersion = 1,
+			writerBindingGeneration = 1L,
+		)
+		val unsignedManifest = SessionManifestVersionEntity(
+			logicalTrackingId = TEST_SESSION_ID,
+			manifestRevision = manifestRevision,
+			serviceRunId = TEST_RUN_ID,
+			sessionMode = "MANUAL",
+			sourcePolicyRevision = testPolicyRevision,
+			acquisitionPlanRevision = 1L,
+			rolloutRevision = 1L,
+			startOrigin = "POLICY_RECONCILIATION",
+			effectiveBootId = "boot",
+			effectiveElapsedRealtimeNanos = 60L,
+			effectiveWallTimeMs = 60L,
+			zoneId = "UTC",
+			automationEpoch = null,
+			changeReason = "POLICY_RECONCILIATION",
+			manifestChecksum = "",
+		)
+		val manifest = unsignedManifest.copy(
+			manifestChecksum = SessionManifestIntegrity.compute(
+				unsignedManifest,
+				listOf(manifestBinding),
+			),
+		)
+		val sessionDao = database.sourceSessionDao()
+		sessionDao.insertManifest(manifest)
+		sessionDao.insertManifestSources(listOf(manifestBinding))
+		val session = requireNotNull(sessionDao.session(TEST_SESSION_ID))
+		sessionDao.updateSession(session.copy(currentManifestRevision = manifestRevision)) shouldBe 1
+
+		val demand = SourceDemandEntity(
+			demandId = "step-session-demand",
+			consumerId = "session:$TEST_SESSION_ID",
+			sourceKind = SourceKind.STEPS.stableCode,
+			purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+			logicalTrackingId = TEST_SESSION_ID,
+			serviceRunId = TEST_RUN_ID,
+			manifestRevision = manifestRevision,
+			lifecycleLeaseGeneration = 7L,
+			sourcePolicyRevision = testPolicyRevision,
+			consentEpoch = requireNotNull(policy.captureConsentEpoch),
+			persistenceEligible = true,
+			qosCode = policy.qosCode,
+			maximumAgeMs = 30_000L,
+			desiredLatencyMs = 15_000L,
+			requestedBootId = "boot",
+			requestedElapsedRealtimeNanos = 60L,
+			requestedAtMs = 60L,
+			status = SourceDemandEntity.STATUS_ACTIVE,
+			retireBootId = null,
+			retireElapsedRealtimeNanos = null,
+			retiredAtMs = null,
+		)
+		database.sourceBrokerDao().insertDemands(listOf(demand))
+		val demands = database.sourceBrokerDao().authorizationDemands(SourceKind.STEPS.stableCode)
+		val authorizationRevision = 2L
+		database.sourceBrokerDao().insertAuthorizations(
+			SourceBrokerAuthorization.rows(
+				sourceKind = SourceKind.STEPS.stableCode,
+				registrationGeneration = 1L,
+				authorizationRevision = authorizationRevision,
+				demands = demands,
+				effectiveBootId = "boot",
+				effectiveElapsedRealtimeNanos = 60L,
+				effectiveWallTimeMs = 60L,
+			),
+		)
+		return StepSessionAuthorization(
+			authorizationRevision = authorizationRevision,
+			purposeMask = SourceBrokerAuthorization.purposeMask(demands),
+			fingerprint = SourceBrokerAuthorization.fingerprint(demands),
+			policyRevision = testPolicyRevision,
+			captureConsentEpoch = requireNotNull(policy.captureConsentEpoch),
+			manifestRevision = manifestRevision,
+		)
+	}
+
 	private data class SessionAuthorization(
 		val policyRevision: Long,
 		val captureConsentEpoch: Long,
+	)
+
+	private data class StepSessionAuthorization(
+		val authorizationRevision: Long,
+		val purposeMask: Long,
+		val fingerprint: String,
+		val policyRevision: Long,
+		val captureConsentEpoch: Long,
+		val manifestRevision: Long,
 	)
 
 	private fun activityAutomationAuthority(epoch: Long) = ActivityAutomationEpochEntity(

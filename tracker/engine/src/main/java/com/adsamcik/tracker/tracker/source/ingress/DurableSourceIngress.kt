@@ -4,7 +4,9 @@ package com.adsamcik.tracker.tracker.source.ingress
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.markStepsRetentionTruncation
 import com.adsamcik.tracker.shared.base.database.dao.SourceBrokerDao
+import com.adsamcik.tracker.shared.base.database.dao.SourceEvidenceStateDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceEventIdentityRow
 import com.adsamcik.tracker.shared.base.database.dao.SourceDeliveryUnitIdentityRow
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
@@ -182,7 +184,9 @@ class RoomDurableSourceIngress @Inject constructor(
 		if (candidate.capturedCollectedDataEpoch != lifecycle.epoch) {
 			return AdmissionResult.PermanentFailure(AdmissionFailureCode.STALE_COLLECTED_DATA_EPOCH)
 		}
-		if (lifecycle.retainedFromMs?.let { candidate.acquiredAtMs < it } == true) {
+		if (candidate.source != SourceKind.STEPS &&
+			lifecycle.retainedFromMs?.let { candidate.acquiredAtMs < it } == true
+		) {
 			return AdmissionResult.PermanentFailure(AdmissionFailureCode.BEFORE_RETENTION_BOUNDARY)
 		}
 		val encoded = runCatchingNonCancellation {
@@ -224,7 +228,9 @@ class RoomDurableSourceIngress @Inject constructor(
 						AdmissionFailureCode.STALE_COLLECTED_DATA_EPOCH,
 					)
 				}
-				if (state.retainedFromMs?.let { candidate.acquiredAtMs < it } == true) {
+				if (candidate.source != SourceKind.STEPS &&
+					state.retainedFromMs?.let { candidate.acquiredAtMs < it } == true
+				) {
 					return@transaction AdmissionResult.PermanentFailure(
 						AdmissionFailureCode.BEFORE_RETENTION_BOUNDARY,
 					)
@@ -309,6 +315,16 @@ class RoomDurableSourceIngress @Inject constructor(
 					)
 				}
 				val captureAuthorization = captureMembers.singleOrNull()
+				if (state.retainedFromMs?.let { candidate.acquiredAtMs < it } == true) {
+					val captureKey = captureAuthorization?.captureSessionKey(
+						source = candidate.source,
+						clockDomainId = candidate.clockDomainId,
+					)
+					markStepsRetentionTruncationIfNeeded(captureKey, state, stateDao)
+					return@transaction AdmissionResult.PermanentFailure(
+						AdmissionFailureCode.BEFORE_RETENTION_BOUNDARY,
+					)
+				}
 
 				val existing = candidate.providerDedupKey?.let { key ->
 					walDao.identityByProviderDedupKey(candidate.source.stableCode, key)
@@ -436,6 +452,26 @@ class RoomDurableSourceIngress @Inject constructor(
 		}
 	}
 
+	/** Commits loss evidence with a retained-floor rejection before returning the terminal result. */
+	private suspend fun markStepsRetentionTruncationIfNeeded(
+		captureKey: CaptureSessionKey?,
+		evidenceState: SourceEvidenceState,
+		stateDao: SourceEvidenceStateDao,
+	) {
+		val key = captureKey?.takeIf { it.source == SourceKind.STEPS } ?: return
+		if (database.markStepsRetentionTruncation(
+				logicalTrackingId = key.logicalTrackingId,
+				serviceRunId = key.serviceRunId,
+				collectedDataEpoch = evidenceState.collectedDataEpoch,
+				markedAtMs = System.currentTimeMillis().coerceAtLeast(0L),
+			)
+		) {
+			check(stateDao.incrementRevision(System.currentTimeMillis().coerceAtLeast(0L)) == 1) {
+				"Unable to publish the Steps retention-truncation marker"
+			}
+		}
+	}
+
 	override suspend fun admit(delivery: SourceDeliveryCandidate): DeliveryAdmissionResult =
 		admitDeliveryInternal(delivery, checkpoint = null)
 
@@ -519,7 +555,8 @@ class RoomDurableSourceIngress @Inject constructor(
 				val brokerDao = database.sourceBrokerDao()
 				if (checkpoint != null) {
 					val checkpointEvidence = delivery.units.single().evidence
-					if (evidenceState.retainedFromMs?.let { retainedFromMs ->
+					if (delivery.source != SourceKind.STEPS &&
+						evidenceState.retainedFromMs?.let { retainedFromMs ->
 							checkpointEvidence.acquiredAtMs < retainedFromMs
 						} == true
 					) {
@@ -581,7 +618,9 @@ class RoomDurableSourceIngress @Inject constructor(
 							AdmissionFailureCode.STALE_COLLECTED_DATA_EPOCH,
 						)
 					}
-					if (evidenceState.retainedFromMs?.let { evidence.acquiredAtMs < it } == true) {
+					if (evidence.source != SourceKind.STEPS &&
+						evidenceState.retainedFromMs?.let { evidence.acquiredAtMs < it } == true
+					) {
 						emptyDeliveryFailure = AdmissionFailureCode.BEFORE_RETENTION_BOUNDARY
 						continue
 					}
@@ -708,13 +747,22 @@ class RoomDurableSourceIngress @Inject constructor(
 						)
 					}
 					val captureAuthorization = captureMembers.singleOrNull()
+					val captureKey = captureAuthorization?.captureSessionKey(
+						source = evidence.source,
+						clockDomainId = evidence.clockDomainId,
+					)
+					if (evidence.source == SourceKind.STEPS &&
+						evidenceState.retainedFromMs?.let { evidence.acquiredAtMs < it } == true
+					) {
+						markStepsRetentionTruncationIfNeeded(captureKey, evidenceState, stateDao)
+						emptyDeliveryFailure = AdmissionFailureCode.BEFORE_RETENTION_BOUNDARY
+						continue
+					}
 					if (captureAuthorization != null) {
-						val key = captureAuthorization.captureSessionKey(
-							source = evidence.source,
-							clockDomainId = evidence.clockDomainId,
-						) ?: return@transaction DeliveryAdmissionResult.PermanentFailure(
-							AdmissionFailureCode.STALE_SESSION_MANIFEST,
-						)
+						val key = captureKey
+							?: return@transaction DeliveryAdmissionResult.PermanentFailure(
+								AdmissionFailureCode.STALE_SESSION_MANIFEST,
+							)
 						val captureAuthority = captureAuthorities[key] ?: loadCaptureSessionAuthority(key)
 							.also { authority -> captureAuthorities[key] = authority }
 						when (captureAuthority) {
@@ -1550,7 +1598,8 @@ private fun SourceEvidenceCandidate<*>.observedTimeInterval(): ObservedTimeInter
 
 private fun SourceEvidenceCandidate<*>.hasValidObservedTime(): Boolean {
 	val interval = observedTimeInterval()
-	return interval.clockDomainId == clockDomainId &&
+	val hasCanonicalStepsWallTime = source != SourceKind.STEPS || wallTimeMs == acquiredAtMs
+	return hasCanonicalStepsWallTime && interval.clockDomainId == clockDomainId &&
 		interval.endElapsedRealtimeNanos == observedElapsedRealtimeNanos &&
 		interval.startElapsedRealtimeNanos >= 0L &&
 		interval.startElapsedRealtimeNanos <= interval.endElapsedRealtimeNanos &&

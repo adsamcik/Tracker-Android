@@ -3,10 +3,15 @@ package com.adsamcik.tracker.shared.base.database.dao
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.markAuthenticatedStepsRunsAffectedByRetentionFloor
+import com.adsamcik.tracker.shared.base.database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -251,95 +256,354 @@ class StepFactRevisionDaoTest {
 	}
 
 	@Test
-	fun rawRetentionRemovesExpiredUpsertPayloadAndPreservesRedactedRetraction() = runTest {
-		val intervalId = insertInterval(startMs = 1_000L, endMs = 2_000L)
-		val upsert = revision(
-			intervalId = intervalId,
+	fun rawRetentionRemovesExactAuthenticatedUpsertAndPreservesRedactedRetraction() = runTest {
+		initializeRetentionEpoch(7L)
+		insertServiceRun(SERVICE_RUN_ID, LOGICAL_TRACKING_ID)
+		val upsert = canonicalRetentionFact(
+			factSuffix = "retracted",
 			admissionOrdinal = 1L,
-			effectiveStepCount = 12L,
+			startMs = 1_000L,
+			endMs = 2_000L,
+			startElapsedNanos = 1_000_000_000L,
+			endElapsedNanos = 2_000_000_000L,
+			cumulativeStart = 100L,
+			cumulativeEnd = 112L,
+			collectedDataEpoch = 7L,
 		)
-		val tombstone = redactedRetraction(semanticRevision = 2L)
+		val tombstone = canonicalRetraction(upsert)
 		dao.insert(upsert) shouldBe 1L
 		dao.insert(tombstone) shouldBe 2L
 
-		dao.deleteUpsertsEndingBefore(2_000L) shouldBe 0
-		dao.deleteUpsertsEndingBefore(2_001L) shouldBe 1
+		database.markAuthenticatedStepsRunsAffectedByRetentionFloor(
+			beforeMs = 2_001L,
+			collectedDataEpoch = 7L,
+			markedAtMs = 9_000L,
+		) shouldBe 0
+		database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(
+			beforeMs = 2_001L,
+			collectedDataEpoch = 7L,
+			markedAtMs = 9_000L,
+		) shouldBe 1
 
 		dao.countAll() shouldBe 1L
-		dao.latest(WRITER_ID, WRITER_VERSION, LOGICAL_FACT_ID) shouldBe tombstone
-		dao.latestEffectiveBetween(
-			writerProjectionId = WRITER_ID,
-			writerProjectionVersion = WRITER_VERSION,
-			logicalTrackingId = LOGICAL_TRACKING_ID,
-			fromMs = 0L,
-			toMs = 3_000L,
-		).shouldBeEmpty()
+		dao.latest(WRITER_ID, WRITER_VERSION, upsert.logicalFactId) shouldBe tombstone
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
 	}
 
 	@Test
-	fun retentionCannotRevealAnOlderScopeWhenTheLatestCorrectionExpires() = runTest {
-		val retainedOldScope = revision(
-			intervalId = null,
-			admissionOrdinal = 11L,
-			effectiveStepCount = 0L,
-		).copy(
-			coverageKind = StepFactRevisionEntity.COVERAGE_COVERED,
-			intervalStartTimeMs = 2_000L,
-			intervalEndTimeMs = 3_000L,
+	@Suppress("LongMethod")
+	fun retentionMarksClockRegressedRunAndPrunesOnlyExpiredAuthenticatedFacts() = runTest {
+		initializeRetentionEpoch(7L)
+		insertServiceRun(SERVICE_RUN_ID, LOGICAL_TRACKING_ID)
+		insertServiceRun("unrelated-run", "unrelated-session")
+		val retainedPrefix = canonicalRetentionFact(
+			"prefix", 1L, 3_000L, 4_000L, 0L, 1_000_000_000L, 100L, 110L, 7L,
 		)
-		val expiredCurrentScope = retainedOldScope.copy(
+		val clockRegressedCurrent = canonicalRetentionFact(
+			"regressed", 2L, 500L, 1_000L, 1_000_000_000L, 1_500_000_000L,
+			110L, 120L, 7L,
+		)
+		val laterRetractedUpsert = canonicalRetentionFact(
+			"retracted", 3L, 750L, 1_250L, 1_500_000_000L, 2_000_000_000L,
+			120L, 125L, 7L,
+		)
+		val retainedRetraction = canonicalRetraction(laterRetractedUpsert)
+		val unrelated = canonicalRetentionFact(
+			"unrelated", 4L, 2_500L, 3_500L, 0L, 1_000_000_000L, 20L, 25L, 7L,
+			logicalTrackingId = "unrelated-session",
+			serviceRunId = "unrelated-run",
+		)
+		listOf(retainedPrefix, clockRegressedCurrent, laterRetractedUpsert, retainedRetraction, unrelated)
+			.forEach { row -> (dao.insert(row) != -1L) shouldBe true }
+
+		database.markAuthenticatedStepsRunsAffectedByRetentionFloor(
+			beforeMs = 1_500L,
+			collectedDataEpoch = 7L,
+			markedAtMs = 9_000L,
+		) shouldBe 1
+		database.markAuthenticatedStepsRunsAffectedByRetentionFloor(
+			beforeMs = 1_500L,
+			collectedDataEpoch = 7L,
+			markedAtMs = 9_500L,
+		) shouldBe 0
+		shouldThrow<IllegalStateException> {
+			database.markAuthenticatedStepsRunsAffectedByRetentionFloor(
+				beforeMs = 1_500L,
+				collectedDataEpoch = 8L,
+				markedAtMs = 9_500L,
+			)
+		}
+		val markerIdentity = StepFactRevisionIntegrity.retentionTruncationIdentity(
+			LOGICAL_TRACKING_ID,
+			SERVICE_RUN_ID,
+		)
+		val marker = database.sourceDeletionFenceDao().get(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			purpose = StepFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE,
+			scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			scopeIdentityDigest = markerIdentity,
+		).shouldNotBeNull()
+		marker shouldBe StepFactRevisionIntegrity.retentionTruncationFence(
+			logicalTrackingId = LOGICAL_TRACKING_ID,
+			serviceRunId = SERVICE_RUN_ID,
+			collectedDataEpoch = 7L,
+			markedAtMs = 9_000L,
+		)
+		marker.collectedDataEpoch shouldBe
+			requireNotNull(database.sourceEvidenceStateDao().get()).collectedDataEpoch
+		marker.effectChecksum.length shouldBe 64
+		StepFactRevisionIntegrity.isRetentionTruncationFence(
+			marker,
+			LOGICAL_TRACKING_ID,
+			SERVICE_RUN_ID,
+			7L,
+		) shouldBe true
+		StepFactRevisionIntegrity.isRetentionTruncationFence(
+			marker,
+			LOGICAL_TRACKING_ID,
+			SERVICE_RUN_ID,
+			8L,
+		) shouldBe false
+		database.sourceDeletionFenceDao().get(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			purpose = StepFactRevisionIntegrity.RETENTION_TRUNCATION_PURPOSE,
+			scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			scopeIdentityDigest = StepFactRevisionIntegrity.retentionTruncationIdentity(
+				LOGICAL_TRACKING_ID,
+				"unrelated-run",
+			),
+		) shouldBe null
+
+		database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(
+			beforeMs = 1_500L,
+			collectedDataEpoch = 7L,
+			markedAtMs = 9_500L,
+		) shouldBe 2
+		dao.revisions(WRITER_ID, WRITER_VERSION, retainedPrefix.logicalFactId) shouldBe
+			listOf(retainedPrefix)
+		dao.revisions(WRITER_ID, WRITER_VERSION, clockRegressedCurrent.logicalFactId)
+			.shouldBeEmpty()
+		dao.revisions(WRITER_ID, WRITER_VERSION, laterRetractedUpsert.logicalFactId) shouldBe
+			listOf(retainedRetraction)
+		dao.revisions(WRITER_ID, WRITER_VERSION, unrelated.logicalFactId) shouldBe listOf(unrelated)
+		database.sourceDeletionFenceDao().countAll() shouldBe 1L
+
+		AppDatabase.deleteAllCollectedData(
+			database = database,
+			collectedDataEpoch = 8L,
+			retainedFromMs = 1_500L,
+			updatedAtMs = 10_000L,
+		)
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+		dao.countAll() shouldBe 0L
+	}
+
+	@Test
+	fun retentionRejectsChecksumValidUnsupportedCorrectionEvenWithoutAFloorCandidate() = runTest {
+		initializeRetentionEpoch(7L)
+		insertServiceRun(SERVICE_RUN_ID, LOGICAL_TRACKING_ID)
+		val original = canonicalRetentionFact(
+			"future-corrected", 1L, 2_000L, 2_500L, 0L, 500_000_000L,
+			10L, 11L, 7L,
+		)
+		val unsignedCorrection = original.copy(
 			semanticRevision = 2L,
-			mutationId = "mutation-expired-run-2",
-			sourceEventId = "event-expired-run-2",
-			sourceAdmissionOrdinal = 22L,
-			originIdentity = "event-expired-run-2",
-			writerBindingGeneration = 2L,
-			intervalStartTimeMs = 500L,
-			intervalEndTimeMs = 1_000L,
-			serviceRunId = "run-2",
-			manifestRevision = 2L,
-			effectChecksum = "checksum-expired-run-2",
+			mutationId = "${original.logicalFactId}:2:${StepFactRevisionEntity.OPERATION_UPSERT}",
+			sourceEventId = "future-correction",
+			sourceAdmissionOrdinal = 2L,
+			originIdentity = "future-correction",
+			intervalStartTimeMs = 2_500L,
+			intervalEndTimeMs = 3_000L,
+			intervalStartElapsedRealtimeNanos = 500_000_000L,
+			intervalEndElapsedRealtimeNanos = 1_000_000_000L,
+			cumulativeStepCountStart = 11L,
+			cumulativeStepCountEnd = 12L,
+			effectiveStepCount = 1L,
+			effectChecksum = "unsigned",
+			appliedAtMs = 3_000L,
 		)
-		dao.insert(retainedOldScope) shouldBe 1L
-		dao.insert(expiredCurrentScope) shouldBe 2L
+		val correction = unsignedCorrection.copy(
+			effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(unsignedCorrection),
+		)
+		dao.insert(original)
+		dao.insert(correction)
 
-		dao.deleteUpsertsEndingBefore(1_500L) shouldBe 2
-		dao.latestStatesForServiceRun(
-			writerProjectionId = WRITER_ID,
-			writerProjectionVersion = WRITER_VERSION,
-			writerBindingGeneration = 1L,
+		shouldThrow<IllegalStateException> {
+			database.markAuthenticatedStepsRunsAffectedByRetentionFloor(1_500L, 7L, 9_000L)
+		}
+		shouldThrow<IllegalStateException> {
+			database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(1_500L, 7L, 9_000L)
+		}
+		dao.revisions(WRITER_ID, WRITER_VERSION, original.logicalFactId) shouldBe
+			listOf(original, correction)
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun retentionRejectsCorruptAndStaleCandidatesBeforeMarkerOrDeletion() = runTest {
+		initializeRetentionEpoch(7L)
+		insertServiceRun(SERVICE_RUN_ID, LOGICAL_TRACKING_ID)
+		val affected = canonicalRetentionFact(
+			"affected", 1L, 500L, 1_000L, 0L, 500_000_000L, 100L, 105L, 7L,
+		)
+		val corrupt = canonicalRetentionFact(
+			"corrupt", 2L, 2_000L, 2_500L, 500_000_000L, 1_000_000_000L,
+			105L, 110L, 7L,
+		).copy(effectChecksum = "checksum-invalid")
+		val stale = canonicalRetentionFact(
+			"stale", 3L, 2_500L, 3_000L, 1_000_000_000L, 1_500_000_000L,
+			110L, 115L, 6L,
+		)
+		val nonCanonical = revision(intervalId = null, admissionOrdinal = 4L).copy(
+			logicalFactId = "noncanonical-fact",
+			mutationId = "noncanonical-mutation",
+			sourceEventId = "noncanonical-event",
+			originIdentity = "noncanonical-event",
 			logicalTrackingId = LOGICAL_TRACKING_ID,
 			serviceRunId = SERVICE_RUN_ID,
-			manifestRevisions = listOf(1L),
-		).shouldBeEmpty()
-		dao.latestStatesForServiceRun(
-			writerProjectionId = WRITER_ID,
-			writerProjectionVersion = WRITER_VERSION,
-			writerBindingGeneration = 2L,
-			logicalTrackingId = LOGICAL_TRACKING_ID,
-			serviceRunId = "run-2",
-			manifestRevisions = listOf(2L),
-		).shouldBeEmpty()
+			intervalStartTimeMs = 3_000L,
+			intervalEndTimeMs = 3_500L,
+			effectChecksum = "noncanonical-checksum",
+		)
+		listOf(affected, corrupt, stale, nonCanonical).forEach { dao.insert(it) }
 
-		val redactedDeletion = redactedRetraction(semanticRevision = 3L)
-		(dao.insert(redactedDeletion) != -1L) shouldBe true
-		dao.countAll() shouldBe 1L
-		dao.latestStatesForServiceRun(
-			writerProjectionId = WRITER_ID,
-			writerProjectionVersion = WRITER_VERSION,
-			writerBindingGeneration = 1L,
+		shouldThrow<IllegalStateException> {
+			database.markAuthenticatedStepsRunsAffectedByRetentionFloor(1_500L, 7L, 9_000L)
+		}
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+		shouldThrow<IllegalStateException> {
+			database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(1_500L, 7L, 9_000L)
+		}
+		dao.countAll() shouldBe 4L
+		dao.revision(WRITER_ID, WRITER_VERSION, affected.logicalFactId, 1L) shouldBe affected
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun unauthenticatedCandidatesAloneCannotAuthorizeRetention() = runTest {
+		initializeRetentionEpoch(7L)
+		insertServiceRun(SERVICE_RUN_ID, LOGICAL_TRACKING_ID)
+		val checksumInvalid = canonicalRetentionFact(
+			"checksum-invalid", 1L, 500L, 1_000L, 0L, 500_000_000L, 10L, 11L, 7L,
+		).copy(effectChecksum = "invalid")
+		val stale = canonicalRetentionFact(
+			"stale-only", 2L, 600L, 1_100L, 500_000_000L, 1_000_000_000L,
+			11L, 12L, 6L,
+		)
+		val nonCanonical = revision(intervalId = null, admissionOrdinal = 3L).copy(
+			logicalFactId = "noncanonical-only",
+			mutationId = "noncanonical-only-mutation",
+			sourceEventId = "noncanonical-only-event",
+			originIdentity = "noncanonical-only-event",
 			logicalTrackingId = LOGICAL_TRACKING_ID,
 			serviceRunId = SERVICE_RUN_ID,
-			manifestRevisions = listOf(1L),
-		).shouldBeEmpty()
-		dao.latestStatesForServiceRun(
-			writerProjectionId = WRITER_ID,
-			writerProjectionVersion = WRITER_VERSION,
-			writerBindingGeneration = 2L,
-			logicalTrackingId = LOGICAL_TRACKING_ID,
-			serviceRunId = "run-2",
-			manifestRevisions = listOf(2L),
-		).shouldBeEmpty()
+			intervalStartTimeMs = 700L,
+			intervalEndTimeMs = 1_200L,
+			effectChecksum = "noncanonical-only-checksum",
+		)
+		listOf(checksumInvalid, stale, nonCanonical).forEach { dao.insert(it) }
+
+		shouldThrow<IllegalStateException> {
+			database.markAuthenticatedStepsRunsAffectedByRetentionFloor(1_500L, 7L, 9_000L)
+		}
+		shouldThrow<IllegalStateException> {
+			database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(1_500L, 7L, 9_000L)
+		}
+		dao.countAll() shouldBe 3L
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun retentionFailsClosedWhenCandidateHasNoAuthoritativeServiceRun() = runTest {
+		initializeRetentionEpoch(7L)
+		val orphaned = canonicalRetentionFact(
+			"orphaned", 1L, 500L, 1_000L, 0L, 500_000_000L, 10L, 11L, 7L,
+		)
+		dao.insert(orphaned)
+
+		shouldThrow<IllegalStateException> {
+			database.markAuthenticatedStepsRunsAffectedByRetentionFloor(1_500L, 7L, 9_000L)
+		}
+		shouldThrow<IllegalStateException> {
+			database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(1_500L, 7L, 9_000L)
+		}
+		dao.revision(WRITER_ID, WRITER_VERSION, orphaned.logicalFactId, 1L) shouldBe orphaned
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun supersededExpiredRevisionCannotBeDeletedOrResurrectedWithoutAuthenticatedLineage() = runTest {
+		initializeRetentionEpoch(7L)
+		insertServiceRun(SERVICE_RUN_ID, LOGICAL_TRACKING_ID)
+		val expired = canonicalRetentionFact(
+			"corrected", 1L, 500L, 1_000L, 0L, 500_000_000L, 10L, 11L, 7L,
+		)
+		val unsignedCorrection = expired.copy(
+			semanticRevision = 2L,
+			mutationId = "${expired.logicalFactId}:2:${StepFactRevisionEntity.OPERATION_UPSERT}",
+			sourceEventId = "retention-correction",
+			sourceAdmissionOrdinal = 2L,
+			originIdentity = "retention-correction",
+			intervalStartTimeMs = 2_000L,
+			intervalEndTimeMs = 2_500L,
+			intervalStartElapsedRealtimeNanos = 500_000_000L,
+			intervalEndElapsedRealtimeNanos = 1_000_000_000L,
+			cumulativeStepCountStart = 11L,
+			cumulativeStepCountEnd = 12L,
+			effectiveStepCount = 1L,
+			effectChecksum = "unsigned",
+			appliedAtMs = 2_500L,
+		)
+		val correction = unsignedCorrection.copy(
+			effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(unsignedCorrection),
+		)
+		dao.insert(expired)
+		dao.insert(correction)
+
+		shouldThrow<IllegalStateException> {
+			database.markAuthenticatedStepsRunsAffectedByRetentionFloor(1_500L, 7L, 9_000L)
+		}
+		shouldThrow<IllegalStateException> {
+			database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(1_500L, 7L, 9_000L)
+		}
+		dao.revisions(WRITER_ID, WRITER_VERSION, expired.logicalFactId) shouldBe
+			listOf(expired, correction)
+		dao.latest(WRITER_ID, WRITER_VERSION, expired.logicalFactId) shouldBe correction
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun retentionAuditsMutatedDiscoveryFieldsBeforeMarkerOrDeletion() = runTest {
+		initializeRetentionEpoch(7L)
+		insertServiceRun(SERVICE_RUN_ID, LOGICAL_TRACKING_ID)
+		val mutations = listOf(
+			"UPDATE step_fact_revision SET logical_tracking_id = NULL, service_run_id = NULL, " +
+				"purpose = 'CONTROL' WHERE logical_fact_id = ?",
+			"UPDATE step_fact_revision SET operation = 'RETRACT' WHERE logical_fact_id = ?",
+			"UPDATE step_fact_revision SET interval_end_time_ms = 2500 " +
+				"WHERE logical_fact_id = ?",
+		)
+		mutations.forEachIndexed { index, sql ->
+			val malformed = canonicalRetentionFact(
+				"malformed-$index", index + 1L, 500L, 1_000L,
+				0L, 500_000_000L, 1L, 2L, 7L,
+			)
+			(dao.insert(malformed) != -1L) shouldBe true
+			database.openHelper.writableDatabase.execSQL(
+				sql,
+				arrayOf<Any>(malformed.logicalFactId),
+			)
+
+			shouldThrow<IllegalStateException> {
+				database.markAuthenticatedStepsRunsAffectedByRetentionFloor(1_500L, 7L, 9_000L)
+			}
+			shouldThrow<IllegalStateException> {
+				database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(1_500L, 7L, 9_000L)
+			}
+			dao.countAll() shouldBe 1L
+			database.sourceDeletionFenceDao().countAll() shouldBe 0L
+			dao.deleteAll()
+		}
 	}
 
 	@Test
@@ -772,6 +1036,137 @@ class StepFactRevisionDaoTest {
 				sourceSignalId = "signal-$startMs",
 			),
 		)
+
+	private suspend fun initializeRetentionEpoch(epoch: Long) {
+		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = epoch))
+	}
+
+	private suspend fun insertServiceRun(serviceRunId: String, logicalTrackingId: String) {
+		database.sourceSessionDao().insertServiceRun(
+			SourceServiceRunEntity(
+				serviceRunId = serviceRunId,
+				logicalTrackingId = logicalTrackingId,
+				state = "PREPARED",
+				desiredPlanRevision = 1L,
+				rolloutRevision = 1L,
+				foregroundCapabilityFlags = 0L,
+				startedAtMs = 0L,
+				startedElapsedNanos = 0L,
+				completedAtMs = null,
+				completionReason = null,
+			),
+		)
+	}
+
+	@Suppress("LongParameterList")
+	private fun canonicalRetentionFact(
+		factSuffix: String,
+		admissionOrdinal: Long,
+		startMs: Long,
+		endMs: Long,
+		startElapsedNanos: Long,
+		endElapsedNanos: Long,
+		cumulativeStart: Long,
+		cumulativeEnd: Long,
+		collectedDataEpoch: Long,
+		logicalTrackingId: String = LOGICAL_TRACKING_ID,
+		serviceRunId: String = SERVICE_RUN_ID,
+	): StepFactRevisionEntity {
+		val sourceEventId = "retention-$factSuffix"
+		val logicalFactId = "$WRITER_ID:$sourceEventId"
+		val unsigned = StepFactRevisionEntity(
+			logicalFactId = logicalFactId,
+			semanticRevision = 1L,
+			mutationId = "$logicalFactId:1:${StepFactRevisionEntity.OPERATION_UPSERT}",
+			stepIntervalId = null,
+			sourceEventId = sourceEventId,
+			sourceAdmissionOrdinal = admissionOrdinal,
+			originKind = StepFactRevisionEntity.ORIGIN_LIVE_WAL,
+			originIdentity = sourceEventId,
+			writerProjectionId = WRITER_ID,
+			writerProjectionVersion = WRITER_VERSION,
+			writerBindingGeneration = 1L,
+			operation = StepFactRevisionEntity.OPERATION_UPSERT,
+			intervalStartTimeMs = startMs,
+			intervalEndTimeMs = endMs,
+			intervalStartElapsedRealtimeNanos = startElapsedNanos,
+			intervalEndElapsedRealtimeNanos = endElapsedNanos,
+			clockDomainId = "retention-boot",
+			bootClockDomainId = "retention-boot",
+			cumulativeStepCountStart = cumulativeStart,
+			cumulativeStepCountEnd = cumulativeEnd,
+			wallTimeUncertaintyMs = 0L,
+			coverageKind = StepFactRevisionEntity.COVERAGE_COVERED,
+			effectiveStepCount = cumulativeEnd - cumulativeStart,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			manifestRevision = 1L,
+			sourcePolicyRevision = 1L,
+			captureConsentEpoch = 1L,
+			collectedDataEpoch = collectedDataEpoch,
+			scopeDeletionGeneration = 0L,
+			effectChecksum = "unsigned",
+			appliedAtMs = endMs,
+		)
+		return unsigned.copy(
+			effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(unsigned),
+		)
+	}
+
+	private fun canonicalRetraction(scope: StepFactRevisionEntity): StepFactRevisionEntity {
+		val scopeIdentity = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			purpose = requireNotNull(scope.purpose),
+			logicalTrackingId = requireNotNull(scope.logicalTrackingId),
+			serviceRunId = requireNotNull(scope.serviceRunId),
+		)
+		val semanticRevision = scope.semanticRevision + 1L
+		val deletionGeneration = 1L
+		val unsigned = StepFactRevisionEntity(
+			logicalFactId = scope.logicalFactId,
+			semanticRevision = semanticRevision,
+			mutationId = StepFactRevisionIntegrity.localDeleteMutationId(
+				scopeIdentityDigest = scopeIdentity,
+				logicalFactId = scope.logicalFactId,
+				semanticRevision = semanticRevision,
+				scopeDeletionGeneration = deletionGeneration,
+			),
+			stepIntervalId = null,
+			sourceEventId = null,
+			sourceAdmissionOrdinal = null,
+			originKind = StepFactRevisionEntity.ORIGIN_LOCAL_DELETE,
+			originIdentity = scopeIdentity,
+			writerProjectionId = scope.writerProjectionId,
+			writerProjectionVersion = scope.writerProjectionVersion,
+			writerBindingGeneration = scope.writerBindingGeneration,
+			operation = StepFactRevisionEntity.OPERATION_RETRACT,
+			intervalStartTimeMs = null,
+			intervalEndTimeMs = null,
+			intervalStartElapsedRealtimeNanos = null,
+			intervalEndElapsedRealtimeNanos = null,
+			clockDomainId = null,
+			bootClockDomainId = null,
+			cumulativeStepCountStart = null,
+			cumulativeStepCountEnd = null,
+			wallTimeUncertaintyMs = null,
+			coverageKind = null,
+			effectiveStepCount = null,
+			logicalTrackingId = null,
+			serviceRunId = null,
+			purpose = scope.purpose,
+			manifestRevision = null,
+			sourcePolicyRevision = null,
+			captureConsentEpoch = null,
+			collectedDataEpoch = scope.collectedDataEpoch,
+			scopeDeletionGeneration = deletionGeneration,
+			effectChecksum = "unsigned",
+			appliedAtMs = requireNotNull(scope.intervalEndTimeMs) + 1L,
+		)
+		return unsigned.copy(
+			effectChecksum = StepFactRevisionIntegrity.localDeleteEffectChecksum(unsigned),
+		)
+	}
 
 	private fun revision(
 		intervalId: Long?,

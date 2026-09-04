@@ -30,10 +30,11 @@ interface TrackingHistoryReadDao {
 	 *
 	 * Exactly bound attributed rows and attributed migrated rows are grouped by their explicit logical
 	 * id before [limit] is applied. Only null/null unattributed legacy rows use their physical segment
-	 * id. A coarse evidence-bearing member discovers the identity; entry recency then uses its newest
-	 * membership-eligible physical sibling with a stable physical-id tiebreaker. Kotlin still verifies
-	 * checksums, epoch, fence, lane, completeness, and every physical member, so the caller must keyset
-	 * until enough qualified entries are filled.
+	 * id. An exact reverse-bound Steps manifest is a coarse seed so an authenticated, payload-free
+	 * retention marker can keep a pruned entry discoverable. It is not source qualification: Kotlin
+	 * still requires either authenticated source facts or that exact marker, verifies checksums, epoch,
+	 * fence, lane, completeness, and every physical member, and keysets until enough accepted entries
+	 * are filled. Entry recency uses the newest membership-eligible sibling and physical-id tiebreaker.
 	 */
 	@Query(
 		"""
@@ -77,27 +78,6 @@ interface TrackingHistoryReadDao {
 				   (source.writer_owner = 'LEGACY_STEP_INTERVAL' AND segment.steps > 0)
 				   OR (
 					 source.writer_owner = 'STEPS_SESSION_FACTS'
-					 AND EXISTS (
-					   SELECT 1
-					   FROM step_fact_revision AS fact
-					   WHERE fact.logical_tracking_id = run.logical_tracking_id
-						 AND fact.service_run_id = run.service_run_id
-						 AND fact.manifest_revision = manifest.manifest_revision
-						 AND fact.purpose = :capturePurpose
-						 AND fact.writer_projection_id = source.writer_projection_id
-						 AND fact.writer_projection_version = source.writer_projection_version
-						 AND fact.writer_binding_generation = source.writer_binding_generation
-						 AND fact.operation = 'UPSERT'
-						 AND fact.coverage_kind = 'COVERED'
-						 AND NOT EXISTS (
-						   SELECT 1
-						   FROM step_fact_revision AS newer
-						   WHERE newer.writer_projection_id = fact.writer_projection_id
-							 AND newer.writer_projection_version = fact.writer_projection_version
-							 AND newer.logical_fact_id = fact.logical_fact_id
-							 AND newer.semantic_revision > fact.semantic_revision
-						 )
-					 )
 				   )
 				 )
 			 ) THEN 1 ELSE 0 END AS exact_candidate

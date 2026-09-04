@@ -1307,6 +1307,50 @@ class RoomExportPortableStepsTest {
 	}
 
 	@Test
+	fun `durable retention marker blocks export of a surviving fact suffix`() = runTest {
+		insertReadyFixture(
+			facts = listOf(
+				FactSeed("pruned-prefix", 1L, count = 2L),
+				FactSeed("surviving-suffix", 2L, count = 3L),
+			),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM step_fact_revision " +
+				"WHERE service_run_id = ? AND source_admission_ordinal = 1",
+			arrayOf(RUN_ONE),
+		)
+		database.sourceDeletionFenceDao().upsert(
+			StepFactRevisionIntegrity.retentionTruncationFence(
+				logicalTrackingId = LOGICAL_ONE,
+				serviceRunId = RUN_ONE,
+				collectedDataEpoch = 0L,
+				markedAtMs = 3_000L,
+			),
+		)
+
+		assertZeroSinkUnverifiable(
+			PortableStepsExportUnverifiableReason.RETENTION_CROSSES_ENTRY,
+		)
+	}
+
+	@Test
+	fun `retention marker from another evidence epoch fails before sink emission`() = runTest {
+		insertReadyFixture()
+		database.sourceDeletionFenceDao().upsert(
+			StepFactRevisionIntegrity.retentionTruncationFence(
+				logicalTrackingId = LOGICAL_ONE,
+				serviceRunId = RUN_ONE,
+				collectedDataEpoch = 1L,
+				markedAtMs = 3_000L,
+			),
+		)
+
+		assertZeroSinkUnverifiable(
+			PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+		)
+	}
+
+	@Test
 	fun `latest-state bound accepts 2048 and rejects 2049 before emission`() = runTest {
 		insertLogicalSession(LOGICAL_ONE, startMs = 1_000L, endMs = 10_000L)
 		insertSettledRun(
