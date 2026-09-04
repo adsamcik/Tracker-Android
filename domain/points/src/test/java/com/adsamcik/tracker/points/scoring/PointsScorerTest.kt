@@ -106,6 +106,24 @@ class PointsScorerTest {
 			)
 			result shouldBeExactly 5.0
 		}
+
+		@Test
+		fun `fallback is independent of slope policy`() {
+			val slopeHeavyPolicy = PointsScoringPolicy(
+				pointsPerMeterMps = Double.MAX_VALUE,
+				slopeMultiplier = Double.MAX_VALUE,
+				halfSlope = Double.MIN_VALUE,
+				altitudeThreshold = 0.0,
+				fallbackPointsPerMeter = 0.005,
+				fallbackPointsPerMinute = 0.5,
+			)
+			val fallbackPoints = PointsScorer(slopeHeavyPolicy).calculateFallbackPoints(
+				distanceMeters = 1_000.0,
+				durationMinutes = 20.0,
+			)
+
+			fallbackPoints shouldBeExactly 10.0
+		}
 	}
 
 	// ── Slope points ────────────────────────────────────────────────

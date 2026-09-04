@@ -9,19 +9,13 @@ import com.adsamcik.tracker.points.data.AwardSource
 import com.adsamcik.tracker.points.data.Points
 import com.adsamcik.tracker.points.data.PointsAwarded
 import com.adsamcik.tracker.points.database.PointsDatabase
-import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.points.scoring.PointsScorer
-import com.adsamcik.tracker.points.scoring.PointsScorer.ScoringLocation
-import com.adsamcik.tracker.shared.base.data.ActivityInfo
+import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.TrackerSession
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.dao.getAllBetweenChunked
-import com.adsamcik.tracker.shared.base.mapper.toModel
-import com.adsamcik.tracker.shared.base.work.getNonNegativeLongOrNull
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
-import com.adsamcik.tracker.shared.model.Location
-import com.adsamcik.tracker.shared.model.LocationSample
+import com.adsamcik.tracker.shared.base.work.getNonNegativeLongOrNull
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import javax.inject.Provider
@@ -62,28 +56,15 @@ internal class PointsWorker @AssistedInject constructor(
 				return Result.success()
 			}
 
-			if (!isReadyGeneration(startupGeneration)) return Result.success()
-			val locationData = appDatabase
-				.locationSampleDao()
-				.getAllBetweenChunked(
-					fromMs = trip.startTimeMs,
-					toMs = trip.endTimeMs,
-					verifyCollectedDataAccess = { requireReadyGeneration(startupGeneration) },
-				)
-				.map { it.toModel() }
-				.mapNotNull { it.toScoringLocation() }
-				.filter { it.altitude != null }
-
 			val scorer = PointsScorer()
-			val points = if (locationData.size > 1) {
-				scorer.calculateSlopePoints(locationData)
-			} else {
-				val durationMinutes = ((trip.endTimeMs - trip.startTimeMs).coerceAtLeast(0L) / 60_000.0)
-				scorer.calculateFallbackPoints(
-					distanceMeters = trip.distanceM.toDouble(),
-					durationMinutes = durationMinutes,
-				)
-			}
+			val durationMinutes = ((trip.endTimeMs - trip.startTimeMs).coerceAtLeast(0L) / 60_000.0)
+			// Location rows are not bound to this exact segment/run in the current read contract.
+			// Wall-time overlap is not ownership, so slope scoring stays disabled until an exact
+			// ownership query exists. Segment-local distance and duration remain independently useful.
+			val points = scorer.calculateFallbackPoints(
+				distanceMeters = trip.distanceM.toDouble(),
+				durationMinutes = durationMinutes,
+			)
 
 			if (points <= 0.0) {
 				return Result.failure()
@@ -119,24 +100,6 @@ internal class PointsWorker @AssistedInject constructor(
 
 	private fun requireReadyGeneration(startupGeneration: Long) {
 		if (!isReadyGeneration(startupGeneration)) throw StartupGenerationChangedException
-	}
-
-	private fun LocationSample.toScoringLocation(): ScoringLocation? {
-		val lat = latE7 ?: return null
-		val lon = lonE7 ?: return null
-		return ScoringLocation(
-			location = Location(
-				time = timeMs,
-				latitude = lat / 1e7,
-				longitude = lon / 1e7,
-				altitude = altitudeM?.toDouble(),
-				horizontalAccuracy = hAccM,
-				verticalAccuracy = null,
-				speed = speedMps,
-				speedAccuracy = null,
-			),
-			activity = ActivityInfo.UNKNOWN,
-		)
 	}
 
 	companion object {

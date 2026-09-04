@@ -19,6 +19,8 @@ class PointsScorer(private val policy: PointsScoringPolicy = PointsScoringPolicy
 	/**
 	 * Calculates points based on slope segments derived from ordered location data.
 	 * Requires at least two locations with non-null altitude.
+	 * Callers must provide locations with exact run/segment ownership; wall-time overlap is not
+	 * ownership and cannot authorize an irreversible points award.
 	 *
 	 * @return total points earned across all qualifying segments.
 	 */

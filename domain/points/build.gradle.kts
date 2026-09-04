@@ -33,4 +33,6 @@ dependencies {
 
     // Hilt worker bridge
     implementation(libs.hilt.work)
+
+    testImplementation(libs.androidx.work.testing)
 }
