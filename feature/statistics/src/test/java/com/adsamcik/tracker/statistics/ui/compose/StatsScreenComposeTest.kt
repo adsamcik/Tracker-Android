@@ -22,7 +22,6 @@ import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.model.Trip
-import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
 import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
@@ -258,7 +257,6 @@ class StatsScreenComposeTest {
 			DayBar(
 				dayLabel = "Today",
 				distanceM = 304f,
-				steps = 0,
 				epochDay = todayEpochDay,
 				sessionCount = 1,
 				durationMs = 57_000L,
@@ -283,14 +281,13 @@ class StatsScreenComposeTest {
 	}
 
 	@Test
-	fun `sparse summary does not expose an overflowing legacy daily total`() {
+	fun `sparse summary keeps partial Steps nonnumeric`() {
 		val todayEpochDay = LocalDate.now().toEpochDay()
 		val trip = sparseSummaryTrip()
-		val weeklyBars = listOf(Int.MAX_VALUE, Int.MAX_VALUE, 5).mapIndexed { index, steps ->
+		val weeklyBars = List(3) { index ->
 			DayBar(
 				dayLabel = "Day $index",
 				distanceM = 0f,
-				steps = steps,
 				epochDay = todayEpochDay - index,
 				sessionCount = 1,
 			)
@@ -310,8 +307,6 @@ class StatsScreenComposeTest {
 
 		composeTestRule.waitForIdle()
 		composeTestRule.onNodeWithText("N/A").assertIsDisplayed()
-		composeTestRule.onAllNodesWithText(Int.MAX_VALUE.formatReadable())
-			.fetchSemanticsNodes().isEmpty() shouldBe true
 	}
 
 	@Test
@@ -326,7 +321,6 @@ class StatsScreenComposeTest {
 						DayBar(
 							dayLabel = "Today",
 							distanceM = 0f,
-							steps = Int.MAX_VALUE,
 							epochDay = todayEpochDay,
 							sessionCount = 1,
 						),
@@ -343,8 +337,6 @@ class StatsScreenComposeTest {
 		composeTestRule.onNodeWithContentDescription("Today, 0")
 			.performScrollTo()
 			.assertIsDisplayed()
-		composeTestRule.onAllNodesWithText(Int.MAX_VALUE.formatReadable())
-			.fetchSemanticsNodes().isEmpty() shouldBe true
 	}
 
 	@Test
@@ -358,7 +350,6 @@ class StatsScreenComposeTest {
 						DayBar(
 							dayLabel = "Today",
 							distanceM = 0f,
-							steps = Int.MAX_VALUE,
 							epochDay = todayEpochDay,
 						),
 					),
@@ -372,8 +363,6 @@ class StatsScreenComposeTest {
 		composeTestRule.onNodeWithContentDescription("Today, —")
 			.performScrollTo()
 			.assertIsDisplayed()
-		composeTestRule.onAllNodesWithText(Int.MAX_VALUE.formatReadable())
-			.fetchSemanticsNodes().isEmpty() shouldBe true
 	}
 
 	@Test

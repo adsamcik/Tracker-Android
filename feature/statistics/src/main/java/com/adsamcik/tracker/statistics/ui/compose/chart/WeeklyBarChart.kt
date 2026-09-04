@@ -103,13 +103,13 @@ private fun WeeklyBarChartPreview() {
     AppTheme(useDynamicColor = false) {
         WeeklyBarChart(
             bars = listOf(
-                DayBar("Mon", 1200f, 3000, todayEpoch - 6),
-                DayBar("Tue", 800f, 2000, todayEpoch - 5),
-                DayBar("Wed", 2000f, 5000, todayEpoch - 4),
-                DayBar("Thu", 0f, 0, todayEpoch - 3),
-                DayBar("Fri", 1500f, 4000, todayEpoch - 2),
-                DayBar("Sat", 3000f, 8000, todayEpoch - 1),
-                DayBar("Sun", 500f, 1200, todayEpoch),
+                DayBar("Mon", 1200f, todayEpoch - 6),
+                DayBar("Tue", 800f, todayEpoch - 5),
+                DayBar("Wed", 2000f, todayEpoch - 4),
+                DayBar("Thu", 0f, todayEpoch - 3),
+                DayBar("Fri", 1500f, todayEpoch - 2),
+                DayBar("Sat", 3000f, todayEpoch - 1),
+                DayBar("Sun", 500f, todayEpoch),
             ),
             modifier = Modifier.fillMaxWidth().height(140.dp),
         )

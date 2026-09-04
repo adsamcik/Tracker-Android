@@ -840,13 +840,11 @@ internal fun buildTripRowContentDescription(
     activityTypeText: String,
     durationText: String?,
     distanceText: String?,
-    stepsText: String?,
 ): String = listOfNotNull(
     timeText.takeIf { it.isNotBlank() },
     activityTypeText.takeIf { it.isNotBlank() },
     durationText?.takeIf { it.isNotBlank() },
     distanceText?.takeIf { it.isNotBlank() },
-    stepsText?.takeIf { it.isNotBlank() },
 ).joinToString(separator = ", ")
 
 /**
@@ -913,7 +911,6 @@ internal fun TripRow(
             activityTypeText = activityTypeText,
             durationText = durationText,
             distanceText = distanceText,
-            stepsText = null,
         )
     }
 

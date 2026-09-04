@@ -170,7 +170,6 @@ class StatsPresenterViewModelSessionStatsTest {
 		runCurrent()
 
 		viewModel.weeklyBars.value.last().distanceM shouldBe 394f
-		viewModel.weeklyBars.value.last().steps shouldBe 812
 		viewModel.weeklyStepsSummary.value shouldBe StepsNumericSummary.Unverifiable(
 			StepsNumericUnverifiableReason.NOT_CAPTURED,
 		)
@@ -267,7 +266,6 @@ class StatsPresenterViewModelSessionStatsTest {
 
 		val todayBar = viewModel.weeklyBars.value.last()
 		todayBar.distanceM shouldBe 304.06f
-		todayBar.steps shouldBe 0
 		todayBar.sessionCount shouldBe 1
 		todayBar.durationMs shouldBe 57_000L
 		viewModel.heatmapData.value[java.time.LocalDate.ofEpochDay(todayEpochDay)] shouldBe 1f

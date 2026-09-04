@@ -19,8 +19,8 @@ class WeeklyBarChartTest {
     @Test
     fun `max value computation avoids division by zero`() {
         val bars = listOf(
-            DayBar("Mon", 0f, 0, 0L),
-            DayBar("Tue", 0f, 0, 1L),
+            DayBar("Mon", 0f, 0L),
+            DayBar("Tue", 0f, 1L),
         )
         val maxVal = bars.maxOfOrNull { it.distanceM }?.coerceAtLeast(1f) ?: 1f
         maxVal shouldBe 1f
@@ -30,8 +30,8 @@ class WeeklyBarChartTest {
     fun `today detection works via epochDay`() {
         val todayEpoch = LocalDate.now().toEpochDay()
         val bars = listOf(
-            DayBar("Mon", 100f, 50, todayEpoch - 1),
-            DayBar("Tue", 200f, 100, todayEpoch),
+            DayBar("Mon", 100f, todayEpoch - 1),
+            DayBar("Tue", 200f, todayEpoch),
         )
         val todayBar = bars.find { it.epochDay == todayEpoch }
         todayBar?.dayLabel shouldBe "Tue"
@@ -40,9 +40,9 @@ class WeeklyBarChartTest {
     @Test
     fun `bar height fraction calculation is correct`() {
         val bars = listOf(
-            DayBar("Mon", 500f, 50, 0L),
-            DayBar("Tue", 1000f, 100, 1L),
-            DayBar("Wed", 250f, 25, 2L),
+            DayBar("Mon", 500f, 0L),
+            DayBar("Tue", 1000f, 1L),
+            DayBar("Wed", 250f, 2L),
         )
         val maxVal = bars.maxOf { it.distanceM }.coerceAtLeast(1f)
         val fractions = bars.map { it.distanceM / maxVal }

@@ -208,7 +208,6 @@ class StatsPresenterViewModel @Inject constructor(
 			DayBar(
 				dayLabel = date.format(dayFormatter),
 				distanceM = summaryMap[epochDay]?.totalDistance?.raw ?: 0f,
-				steps = summaryMap[epochDay]?.totalSteps?.raw ?: 0,
 				epochDay = epochDay,
 				sessionCount = summaryMap[epochDay]?.tripCount ?: 0,
 				durationMs = summaryMap[epochDay]?.totalDuration?.raw ?: 0L,

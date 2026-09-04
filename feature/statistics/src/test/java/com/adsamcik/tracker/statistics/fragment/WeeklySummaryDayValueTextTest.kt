@@ -38,7 +38,6 @@ class WeeklySummaryDayValueTextTest {
 	private val context get() = ApplicationProvider.getApplicationContext<android.content.Context>()
 
 	private fun day(
-		steps: Int = 0,
 		distanceM: Float = 0f,
 		durationMs: Long = 0L,
 		sessionCount: Int = 0,
@@ -46,16 +45,15 @@ class WeeklySummaryDayValueTextTest {
 	): DayBar = DayBar(
 		dayLabel = "Mon",
 		distanceM = distanceM,
-		steps = steps,
 		epochDay = epochDay,
 		sessionCount = sessionCount,
 		durationMs = durationMs,
 	)
 
 	@Test
-	fun `qualified Steps win over contradictory legacy Steps and distance`() {
+	fun `qualified Steps win over distance`() {
 		val text = weeklySummaryDayValueText(
-			dayBar = day(steps = Int.MAX_VALUE, distanceM = 5000f),
+			dayBar = day(distanceM = 5000f),
 			qualifiedSteps = 7L,
 			context = context,
 			lengthSystem = LengthSystem.Metric,
@@ -66,7 +64,7 @@ class WeeklySummaryDayValueTextTest {
 	@Test
 	fun `qualified covered zero stays visible instead of falling through`() {
 		weeklySummaryDayValueText(
-			dayBar = day(steps = Int.MAX_VALUE, distanceM = 2500f, sessionCount = 3),
+			dayBar = day(distanceM = 2500f, sessionCount = 3),
 			qualifiedSteps = 0L,
 			context = context,
 			lengthSystem = LengthSystem.Metric,
@@ -74,9 +72,9 @@ class WeeklySummaryDayValueTextTest {
 	}
 
 	@Test
-	fun `distance is used when legacy Steps are positive but qualified Steps are unavailable`() {
+	fun `distance is used when qualified Steps are unavailable`() {
 		val text = weeklySummaryDayValueText(
-			dayBar = day(steps = Int.MAX_VALUE, distanceM = 2500f),
+			dayBar = day(distanceM = 2500f),
 			qualifiedSteps = null,
 			context = context,
 			lengthSystem = LengthSystem.Metric,
@@ -86,9 +84,9 @@ class WeeklySummaryDayValueTextTest {
 	}
 
 	@Test
-	fun `duration is used when steps and distance are zero`() {
+	fun `duration is used when distance is zero`() {
 		val text = weeklySummaryDayValueText(
-			dayBar = day(steps = 0, distanceM = 0f, durationMs = 5L * 60L * 1000L),
+			dayBar = day(distanceM = 0f, durationMs = 5L * 60L * 1000L),
 			qualifiedSteps = null,
 			context = context,
 			lengthSystem = LengthSystem.Metric,
@@ -103,7 +101,7 @@ class WeeklySummaryDayValueTextTest {
 	@Test
 	fun `sessionCount is used when everything else is zero`() {
 		val text = weeklySummaryDayValueText(
-			dayBar = day(steps = 0, distanceM = 0f, durationMs = 0L, sessionCount = 3),
+			dayBar = day(distanceM = 0f, durationMs = 0L, sessionCount = 3),
 			qualifiedSteps = null,
 			context = context,
 			lengthSystem = LengthSystem.Metric,
@@ -113,20 +111,9 @@ class WeeklySummaryDayValueTextTest {
 	}
 
 	@Test
-	fun `unqualified legacy Steps alone are suppressed`() {
+	fun `imperial length system formats distance in miles`() {
 		val text = weeklySummaryDayValueText(
-			dayBar = day(steps = Int.MAX_VALUE),
-			qualifiedSteps = null,
-			context = context,
-			lengthSystem = LengthSystem.Metric,
-		)
-		text shouldBe "—"
-	}
-
-	@Test
-	fun `imperial length system formats distance in miles when steps are zero`() {
-		val text = weeklySummaryDayValueText(
-			dayBar = day(steps = 0, distanceM = 5_000f),
+			dayBar = day(distanceM = 5_000f),
 			qualifiedSteps = null,
 			context = context,
 			lengthSystem = LengthSystem.Imperial,
@@ -138,15 +125,15 @@ class WeeklySummaryDayValueTextTest {
 	}
 
 	@Test
-	fun `nonnumeric summaries ignore legacy Steps when counting active days`() {
-		val legacyOnlyBars = listOf(day(steps = Int.MAX_VALUE))
+	fun `nonnumeric summaries do not count days without structural activity`() {
+		val emptyBars = listOf(day())
 
 		sparseSummaryActiveDayCount(
-			legacyOnlyBars,
+			emptyBars,
 			StepsNumericSummary.Materializing,
 		) shouldBe 0
 		sparseSummaryActiveDayCount(
-			legacyOnlyBars,
+			emptyBars,
 			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.PARTIAL_CAPTURE),
 		) shouldBe 0
 	}
@@ -155,8 +142,8 @@ class WeeklySummaryDayValueTextTest {
 	fun `active days combine Ready days with non-Step structural signals`() {
 		val firstEpochDay = 19_000L
 		val bars = listOf(
-			day(steps = Int.MAX_VALUE, epochDay = firstEpochDay),
-			day(steps = Int.MAX_VALUE, distanceM = 1f, epochDay = firstEpochDay + 1L),
+			day(epochDay = firstEpochDay),
+			day(distanceM = 1f, epochDay = firstEpochDay + 1L),
 		)
 		val qualified = StepsNumericSummary.Ready(
 			days = listOf(
@@ -171,8 +158,8 @@ class WeeklySummaryDayValueTextTest {
 	// ─── Non-Step structural activity (used by chip color and active-day fallback) ───
 
 	@Test
-	fun `non-Step activity ignores legacy Steps and accepts structural signals`() {
-		day(steps = Int.MAX_VALUE).hasNonStepTrackedActivity shouldBe false
+	fun `non-Step activity accepts structural signals`() {
+		day().hasNonStepTrackedActivity shouldBe false
 		day(distanceM = 1f).hasNonStepTrackedActivity shouldBe true
 		day(durationMs = 1L).hasNonStepTrackedActivity shouldBe true
 		day(sessionCount = 1).hasNonStepTrackedActivity shouldBe true
