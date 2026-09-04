@@ -45,7 +45,6 @@
     <string name="dashboard_milestone_distance">km συμπληρώθηκαν!</string>
     <string name="dashboard_milestone_steps">βήματα συμπληρώθηκαν!</string>
     <string name="dashboard_milestone_time">λεπτά καταγραφής!</string>
-    <string name="dashboard_milestone_points">+10 πόντοι</string>
     <string name="dashboard_today_title">Σήμερα</string>
     <string name="dashboard_today_no_activity">Δεν υπάρχει ακόμη δραστηριότητα σήμερα</string>
     <string name="dashboard_today_distance">Απόσταση</string>

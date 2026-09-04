@@ -46,7 +46,6 @@
     <string name="dashboard_milestone_distance">km pasiekta!</string>
     <string name="dashboard_milestone_steps">žingsnių pasiekta!</string>
     <string name="dashboard_milestone_time">min. sekimo!</string>
-    <string name="dashboard_milestone_points">+10 tšk.</string>
     <string name="dashboard_today_title">Šiandien</string>
     <string name="dashboard_today_no_activity">Šiandien dar nėra veiklos</string>
     <string name="dashboard_today_distance">Atstumas</string>

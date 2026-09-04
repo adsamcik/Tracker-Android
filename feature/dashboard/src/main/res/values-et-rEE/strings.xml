@@ -45,7 +45,6 @@
     <string name="dashboard_milestone_distance">km saavutatud!</string>
     <string name="dashboard_milestone_steps">sammu saavutatud!</string>
     <string name="dashboard_milestone_time">min jälgitud!</string>
-    <string name="dashboard_milestone_points">+10 punkti</string>
     <string name="dashboard_today_title">Täna</string>
     <string name="dashboard_today_no_activity">Täna pole veel tegevust</string>
     <string name="dashboard_today_distance">Vahemaa</string>

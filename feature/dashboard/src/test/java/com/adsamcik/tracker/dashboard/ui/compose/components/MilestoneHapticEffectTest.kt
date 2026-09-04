@@ -90,8 +90,9 @@ class MilestoneHapticEffectTest {
 	}
 
 	@Test
-	fun disabledMilestones_doNotConsumeRawDistanceOrSteps() {
+	fun disabledMilestones_preserveHighWaterWithoutReplayingFeedback() {
 		val now = System.currentTimeMillis()
+		val milestonesEnabled = mutableStateOf(false)
 		val session = mutableStateOf(
 			TrackerSessionSnapshot(
 				id = 1L,
@@ -114,12 +115,16 @@ class MilestoneHapticEffectTest {
 					sessionData = session.value,
 					isTracking = true,
 					haptics = recordingHaptics,
-					milestonesEnabled = false,
+					milestonesEnabled = milestonesEnabled.value,
 				)
 			}
 		}
 		composeRule.runOnIdle {
 			session.value = session.value.copy(distanceInM = 2500f, steps = 2500)
+		}
+		composeRule.waitForIdle()
+		composeRule.runOnIdle {
+			milestonesEnabled.value = true
 		}
 		composeRule.waitForIdle()
 
@@ -192,6 +197,39 @@ class MilestoneHapticEffectTest {
 			qualifiedSteps.value = 2500L
 		}
 		composeRule.waitForIdle()
+
+		feedback.shouldContainExactly(HapticFeedbackType.TextHandleMove)
+	}
+
+	@Test
+	fun qualifiedStepCorrectionDoesNotReplayFeedback() {
+		val now = System.currentTimeMillis()
+		val qualifiedSteps = mutableStateOf<Long?>(1500L)
+		val feedback = mutableListOf<HapticFeedbackType>()
+		val recordingHaptics = object : HapticFeedback {
+			override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) {
+				feedback += hapticFeedbackType
+			}
+		}
+
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				MilestoneHapticEffect(
+					sessionData = TrackerSessionSnapshot(
+						id = 1L,
+						start = now - 120_000L,
+						distanceInM = 500f,
+					),
+					isTracking = true,
+					haptics = recordingHaptics,
+					qualifiedSteps = qualifiedSteps.value,
+				)
+			}
+		}
+		listOf<Long?>(2500L, null, 1500L, 2500L).forEach { correctedValue ->
+			composeRule.runOnIdle { qualifiedSteps.value = correctedValue }
+			composeRule.waitForIdle()
+		}
 
 		feedback.shouldContainExactly(HapticFeedbackType.TextHandleMove)
 	}

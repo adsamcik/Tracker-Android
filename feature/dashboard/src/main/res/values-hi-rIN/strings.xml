@@ -45,7 +45,6 @@
     <string name="dashboard_milestone_distance">किमी पूरे!</string>
     <string name="dashboard_milestone_steps">कदम पूरे!</string>
     <string name="dashboard_milestone_time">मिनट ट्रैक हुए!</string>
-    <string name="dashboard_milestone_points">+10 अंक</string>
     <string name="dashboard_today_title">आज</string>
     <string name="dashboard_today_no_activity">आज अभी तक कोई गतिविधि नहीं</string>
     <string name="dashboard_today_distance">दूरी</string>

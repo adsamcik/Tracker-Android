@@ -45,7 +45,6 @@
     <string name="dashboard_milestone_distance">km raggiunti!</string>
     <string name="dashboard_milestone_steps">passi raggiunti!</string>
     <string name="dashboard_milestone_time">min tracciati!</string>
-    <string name="dashboard_milestone_points">+10 pt</string>
     <string name="dashboard_today_title">Oggi</string>
     <string name="dashboard_today_no_activity">Nessuna attività oggi</string>
     <string name="dashboard_today_distance">Distanza</string>

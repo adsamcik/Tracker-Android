@@ -46,7 +46,6 @@
     <string name="dashboard_milestone_distance">km dosegnuto!</string>
     <string name="dashboard_milestone_steps">koraka dosegnuto!</string>
     <string name="dashboard_milestone_time">min praćeno!</string>
-    <string name="dashboard_milestone_points">+10 bod.</string>
     <string name="dashboard_today_title">Danas</string>
     <string name="dashboard_today_no_activity">Danas još nema aktivnosti</string>
     <string name="dashboard_today_distance">Udaljenost</string>

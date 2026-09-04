@@ -47,7 +47,6 @@
     <string name="dashboard_milestone_distance">km dosaženo!</string>
     <string name="dashboard_milestone_steps">kroků dosaženo!</string>
     <string name="dashboard_milestone_time">min sledování!</string>
-    <string name="dashboard_milestone_points">+10 bodů</string>
     <string name="dashboard_today_title">Dnes</string>
     <string name="dashboard_today_no_activity">Dnes zatím žádná aktivita</string>
     <string name="dashboard_today_distance">Vzdálenost</string>

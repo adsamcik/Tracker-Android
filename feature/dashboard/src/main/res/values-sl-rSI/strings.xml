@@ -47,7 +47,6 @@
     <string name="dashboard_milestone_distance">doseženih km!</string>
     <string name="dashboard_milestone_steps">doseženih korakov!</string>
     <string name="dashboard_milestone_time">sledenih min!</string>
-    <string name="dashboard_milestone_points">+10 točk</string>
     <string name="dashboard_today_title">Danes</string>
     <string name="dashboard_today_no_activity">Danes še ni dejavnosti</string>
     <string name="dashboard_today_distance">Razdalja</string>

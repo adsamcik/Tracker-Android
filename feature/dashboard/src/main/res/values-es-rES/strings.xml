@@ -45,7 +45,6 @@
     <string name="dashboard_milestone_distance">¡km alcanzados!</string>
     <string name="dashboard_milestone_steps">¡pasos alcanzados!</string>
     <string name="dashboard_milestone_time">¡min registrados!</string>
-    <string name="dashboard_milestone_points">+10 pt</string>
     <string name="dashboard_today_title">Hoy</string>
     <string name="dashboard_today_no_activity">Aún no hay actividad hoy</string>
     <string name="dashboard_today_distance">Distancia</string>

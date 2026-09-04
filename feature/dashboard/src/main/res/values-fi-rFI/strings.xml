@@ -45,7 +45,6 @@
     <string name="dashboard_milestone_distance">km saavutettu!</string>
     <string name="dashboard_milestone_steps">askelta saavutettu!</string>
     <string name="dashboard_milestone_time">min seurattu!</string>
-    <string name="dashboard_milestone_points">+10 pistettä</string>
     <string name="dashboard_today_title">Tänään</string>
     <string name="dashboard_today_no_activity">Ei aktiviteettia vielä tänään</string>
     <string name="dashboard_today_distance">Matka</string>

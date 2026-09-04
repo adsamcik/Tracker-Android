@@ -19,8 +19,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -35,6 +33,9 @@ import kotlinx.coroutines.delay
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 
 private const val MILESTONE_DISPLAY_DURATION_MS = 3000L
+private const val METERS_PER_KILOMETER = 1000f
+private const val STEPS_PER_MILESTONE = 1000L
+private const val MINUTES_PER_MILESTONE = 10
 
 /**
  * Celebration overlay that appears when tracking milestones are hit.
@@ -54,9 +55,7 @@ internal fun MilestoneCelebrationOverlay(
 	qualifiedSteps: Long? = null,
 	modifier: Modifier = Modifier,
 ) {
-	var lastDistanceKm by remember { mutableIntStateOf(0) }
-	var lastStepsThousand by remember { mutableLongStateOf(0L) }
-	var lastMinutesTen by remember { mutableIntStateOf(0) }
+	val highWater = remember { SegmentMilestoneHighWater() }
 
 	var celebrationText by remember { mutableStateOf<String?>(null) }
 	var showCelebration by remember { mutableStateOf(false) }
@@ -67,31 +66,30 @@ internal fun MilestoneCelebrationOverlay(
 
 	LaunchedEffect(sessionData, isTracking, qualifiedSteps) {
 		if (!isTracking || sessionData == null) {
-			lastDistanceKm = 0
-			lastStepsThousand = 0L
-			lastMinutesTen = 0
+			highWater.clear()
 			return@LaunchedEffect
 		}
+		highWater.activate(sessionData.id)
 
-		val currentDistanceKm = (sessionData.distanceInM / 1000f).toInt()
-		val currentStepsThousand = qualifiedSteps?.div(1000L)
+		val currentDistanceKm = (sessionData.distanceInM / METERS_PER_KILOMETER).toInt()
+		val currentStepsThousand = qualifiedSteps?.div(STEPS_PER_MILESTONE)
 		val durationMinutes = ((Time.nowMillis - sessionData.start) / 60000).toInt()
-		val currentMinutesTen = durationMinutes / 10
+		val currentMinutesTen = durationMinutes / MINUTES_PER_MILESTONE
+		val crossings = highWater.record(
+			currentDistanceKm = currentDistanceKm,
+			currentStepsThousand = currentStepsThousand,
+			currentMinutesTen = currentMinutesTen,
+		)
 
-		val milestone = when {
-			currentDistanceKm > lastDistanceKm && lastDistanceKm > 0 ->
-				"$currentDistanceKm $distanceMilestoneText"
-			currentStepsThousand != null &&
-				currentStepsThousand > lastStepsThousand && lastStepsThousand > 0 ->
-				"${currentStepsThousand * 1000} $stepsMilestoneText"
-			currentMinutesTen > lastMinutesTen && lastMinutesTen > 0 ->
-				"${currentMinutesTen * 10} $timeMilestoneText"
-			else -> null
-		}
-
-		lastDistanceKm = currentDistanceKm
-		lastStepsThousand = currentStepsThousand ?: 0L
-		lastMinutesTen = currentMinutesTen
+		val milestone = milestoneCelebrationText(
+			crossings = crossings,
+			currentDistanceKm = currentDistanceKm,
+			currentStepsThousand = currentStepsThousand,
+			currentMinutesTen = currentMinutesTen,
+			distanceMilestoneText = distanceMilestoneText,
+			stepsMilestoneText = stepsMilestoneText,
+			timeMilestoneText = timeMilestoneText,
+		)
 
 		if (milestone != null) {
 			celebrationText = milestone
@@ -139,12 +137,23 @@ internal fun MilestoneCelebrationOverlay(
 					fontWeight = FontWeight.SemiBold,
 					modifier = Modifier.weight(1f),
 				)
-				Text(
-					text = stringResource(R.string.dashboard_milestone_points),
-					style = MaterialTheme.typography.labelMedium,
-					color = MaterialTheme.colorScheme.tertiary,
-				)
 			}
 		}
 	}
+}
+
+internal fun milestoneCelebrationText(
+	crossings: MilestoneCrossings,
+	currentDistanceKm: Int,
+	currentStepsThousand: Long?,
+	currentMinutesTen: Int,
+	distanceMilestoneText: String,
+	stepsMilestoneText: String,
+	timeMilestoneText: String,
+): String? = when {
+	crossings.distance -> "$currentDistanceKm $distanceMilestoneText"
+	crossings.steps && currentStepsThousand != null ->
+		"${currentStepsThousand * STEPS_PER_MILESTONE} $stepsMilestoneText"
+	crossings.time -> "${currentMinutesTen * MINUTES_PER_MILESTONE} $timeMilestoneText"
+	else -> null
 }

@@ -45,7 +45,6 @@
     <string name="dashboard_milestone_distance">km bereikt!</string>
     <string name="dashboard_milestone_steps">stappen bereikt!</string>
     <string name="dashboard_milestone_time">min bijgehouden!</string>
-    <string name="dashboard_milestone_points">+10 ptn</string>
     <string name="dashboard_today_title">Vandaag</string>
     <string name="dashboard_today_no_activity">Nog geen activiteit vandaag</string>
     <string name="dashboard_today_distance">Afstand</string>

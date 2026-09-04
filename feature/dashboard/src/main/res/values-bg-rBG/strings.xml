@@ -45,7 +45,6 @@
     <string name="dashboard_milestone_distance">км достигнати!</string>
     <string name="dashboard_milestone_steps">крачки достигнати!</string>
     <string name="dashboard_milestone_time">мин проследени!</string>
-    <string name="dashboard_milestone_points">+10 т.</string>
     <string name="dashboard_today_title">Днес</string>
     <string name="dashboard_today_no_activity">Все още няма активност днес</string>
     <string name="dashboard_today_distance">Разстояние</string>

@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.runtime.mutableStateOf
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
+import io.kotest.matchers.shouldBe
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -106,5 +107,21 @@ class MilestoneCelebrationTest {
 		composeRule.waitForIdle()
 
 		composeRule.onAllNodesWithText("steps", substring = true).assertCountEquals(0)
+	}
+
+	@Test
+	fun qualifiedStepMilestoneClaimsOnlyTheMilestone() {
+		val text = milestoneCelebrationText(
+			crossings = MilestoneCrossings(distance = false, steps = true, time = false),
+			currentDistanceKm = 0,
+			currentStepsThousand = 2L,
+			currentMinutesTen = 0,
+			distanceMilestoneText = "km reached!",
+			stepsMilestoneText = "steps reached!",
+			timeMilestoneText = "min tracked!",
+		)
+
+		text shouldBe "2000 steps reached!"
+		text?.contains("+10") shouldBe false
 	}
 }

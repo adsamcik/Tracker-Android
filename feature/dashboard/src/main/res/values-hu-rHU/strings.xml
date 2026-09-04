@@ -45,7 +45,6 @@
     <string name="dashboard_milestone_distance">km elérve!</string>
     <string name="dashboard_milestone_steps">lépés teljesítve!</string>
     <string name="dashboard_milestone_time">perc rögzítve!</string>
-    <string name="dashboard_milestone_points">+10 pont</string>
     <string name="dashboard_today_title">Ma</string>
     <string name="dashboard_today_no_activity">Ma még nincs tevékenység</string>
     <string name="dashboard_today_distance">Távolság</string>

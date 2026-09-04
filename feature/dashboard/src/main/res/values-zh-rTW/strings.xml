@@ -45,7 +45,6 @@
     <string name="dashboard_milestone_distance">已達成公里數！</string>
     <string name="dashboard_milestone_steps">已達成步數！</string>
     <string name="dashboard_milestone_time">已追蹤分鐘數！</string>
-    <string name="dashboard_milestone_points">+10 分</string>
     <string name="dashboard_today_title">今天</string>
     <string name="dashboard_today_no_activity">今天尚無活動</string>
     <string name="dashboard_today_distance">距離</string>

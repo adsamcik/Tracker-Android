@@ -45,7 +45,6 @@
     <string name="dashboard_milestone_distance">km bainte amach!</string>
     <string name="dashboard_milestone_steps">céimeanna bainte amach!</string>
     <string name="dashboard_milestone_time">nóim rianaithe!</string>
-    <string name="dashboard_milestone_points">+10 pt</string>
     <string name="dashboard_today_title">Inniu</string>
     <string name="dashboard_today_no_activity">Gan ghníomhaíocht fós inniu</string>
     <string name="dashboard_today_distance">Fad</string>

@@ -45,7 +45,6 @@
     <string name="dashboard_milestone_distance">km nået!</string>
     <string name="dashboard_milestone_steps">skridt nået!</string>
     <string name="dashboard_milestone_time">min. registreret!</string>
-    <string name="dashboard_milestone_points">+10 point</string>
     <string name="dashboard_today_title">I dag</string>
     <string name="dashboard_today_no_activity">Ingen aktivitet endnu i dag</string>
     <string name="dashboard_today_distance">Afstand</string>
