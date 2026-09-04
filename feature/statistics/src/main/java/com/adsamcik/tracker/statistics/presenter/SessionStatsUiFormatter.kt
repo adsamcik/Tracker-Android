@@ -70,12 +70,8 @@ class SessionStatsUiFormatter @Inject constructor(
 				StatisticDisplayType.INFORMATION,
 				snapshot.collections.formatReadable(),
 			),
-			Stat(
-				R.string.stats_steps,
-				com.adsamcik.tracker.shared.base.R.drawable.ic_outline_directions_run_24px,
-				StatisticDisplayType.INFORMATION,
-				snapshot.steps.raw.formatReadable(),
-			),
+			// SessionStatsSnapshot.steps is a legacy aggregate without retained source proof. Keep
+			// independent metrics visible, but withhold Steps until a qualified aggregate exists.
 		)
 	}
 

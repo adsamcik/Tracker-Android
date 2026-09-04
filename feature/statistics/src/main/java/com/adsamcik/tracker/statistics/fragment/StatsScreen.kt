@@ -826,20 +826,9 @@ private fun getTripActivityPresentation(trip: Trip): TripActivityPresentation {
         2 -> TripActivityPresentation(Icons.AutoMirrored.Filled.DirectionsWalk, BaseR.string.activity_on_foot)
         7 -> TripActivityPresentation(Icons.AutoMirrored.Filled.DirectionsWalk, BaseR.string.activity_walking)
         8 -> TripActivityPresentation(Icons.AutoMirrored.Filled.DirectionsRun, BaseR.string.activity_running)
-        else -> {
-            val steps = trip.steps ?: 0
-            when {
-                steps > 0 && trip.distanceM > 1000 -> TripActivityPresentation(
-                    Icons.AutoMirrored.Filled.DirectionsRun,
-                    BaseR.string.activity_running
-                )
-                steps > 0 -> TripActivityPresentation(
-                    Icons.AutoMirrored.Filled.DirectionsWalk,
-                    BaseR.string.activity_walking
-                )
-                else -> TripActivityPresentation(Icons.Filled.Route, R.string.stats_format_unknown_activity)
-            }
-        }
+        // Trip.steps is a legacy projection without source qualification. Do not use it to invent
+        // an activity label for list presentation.
+        else -> TripActivityPresentation(Icons.Filled.Route, R.string.stats_format_unknown_activity)
     }
 }
 
@@ -861,7 +850,7 @@ internal fun buildTripRowContentDescription(
 ).joinToString(separator = ", ")
 
 /**
- * Trip row with activity icon, formatted duration, distance, and steps.
+ * Trip row with activity icon, formatted duration, and distance.
  */
 @Composable
 internal fun TripRow(
@@ -911,27 +900,20 @@ internal fun TripRow(
         } else "--"
     }
     
-    val tripActivity = remember(trip.primaryActivity, trip.steps, trip.distanceM) {
+    val tripActivity = remember(trip.primaryActivity) {
         getTripActivityPresentation(trip)
     }
     val tripIcon = tripActivity.icon
     val activityTypeText = stringResource(tripActivity.labelRes)
-    val steps = trip.steps ?: 0
-    val stepsText = remember(steps) {
-        if (steps > 0) {
-            resources.getQuantityString(R.plurals.stats_trip_row_steps_content_description, steps, steps.formatReadable())
-        } else {
-            null
-        }
-    }
-    
-    val rowLabel = remember(timeText, activityTypeText, durationText, distanceText, stepsText) {
+    // The physical Trip row has no source-qualified Steps authority; contained numeric Steps live
+    // on the selected-session detail surface instead.
+    val rowLabel = remember(timeText, activityTypeText, durationText, distanceText) {
         buildTripRowContentDescription(
             timeText = timeText,
             activityTypeText = activityTypeText,
             durationText = durationText,
             distanceText = distanceText,
-            stepsText = stepsText,
+            stepsText = null,
         )
     }
 
@@ -1037,24 +1019,16 @@ internal fun TripRow(
                             )
                         }
                     }
-                    if (distanceText != null || steps > 0) {
+                    if (distanceText != null) {
                         Spacer(Modifier.height(4.dp))
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            if (distanceText != null) {
-                                MetricBadge(
-                                    icon = Icons.Filled.Route,
-                                    value = distanceText
-                                )
-                            }
-                            if (steps > 0) {
-                                MetricBadge(
-                                    icon = Icons.AutoMirrored.Filled.DirectionsWalk,
-                                    value = steps.formatReadable()
-                                )
-                            }
+                            MetricBadge(
+                                icon = Icons.Filled.Route,
+                                value = distanceText
+                            )
                         }
                     }
                 }

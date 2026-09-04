@@ -26,6 +26,8 @@ class TripRowAccessibilityLabelTest {
     private val context: Context = mockk {
         every { resources } returns mockResources
         every { getString(com.adsamcik.tracker.shared.base.R.string.activity_running) } returns "Running"
+        every { getString(com.adsamcik.tracker.statistics.R.string.stats_format_unknown_activity) } returns
+            "Unknown activity"
     }
 
     @Test
@@ -59,7 +61,7 @@ class TripRowAccessibilityLabelTest {
     }
 
     @Test
-    fun `activity label matches inferred presentation when activity type missing`() {
+    fun `activity label does not infer from unqualified Steps when activity type missing`() {
         val trip = Trip(
             id = 1L,
             startTimeMs = 0L,
@@ -73,6 +75,6 @@ class TripRowAccessibilityLabelTest {
             createdAt = 0L,
         )
 
-        getTripActivityLabel(context, trip) shouldBe "Running"
+        getTripActivityLabel(context, trip) shouldBe "Unknown activity"
     }
 }
