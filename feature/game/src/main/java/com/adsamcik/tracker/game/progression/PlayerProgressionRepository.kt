@@ -51,8 +51,9 @@ class PlayerProgressionRepository @Inject constructor(
 	suspend fun awardSessionXp(event: DomainEvent.SessionEnded) {
 		val sessionId = event.sessionId
 		if (sessionId <= 0L) return
+		val expectedGeneration = trackingStartupGate.currentGeneration
 
-		val inserted = runAcceptedXpMutation {
+		val inserted = runAcceptedXpMutation(expectedGeneration) {
 			val segment = database.sessionSegmentDao().getById(sessionId)
 				?: return@runAcceptedXpMutation false
 			val amount = XpCalculator.sessionXp(
@@ -79,7 +80,7 @@ class PlayerProgressionRepository @Inject constructor(
 			recomputePlayerProfile()
 			true
 		}
-		if (inserted) metricDirtyTracker.markDirty(LEVELING_DIRTY_TABLES)
+		if (inserted == true) metricDirtyTracker.markDirty(LEVELING_DIRTY_TABLES)
 	}
 
 	/**
@@ -88,10 +89,26 @@ class PlayerProgressionRepository @Inject constructor(
 	 * a retried persist of the same run is ignored.
 	 */
 	suspend fun awardMiniGameXp(points: Int, earnedAtMs: Long) {
-		val amount = XpCalculator.miniGameXp(points)
-		if (amount <= 0) return
+		val expectedGeneration = trackingStartupGate.currentGeneration
+		awardMiniGameXpForGeneration(points, earnedAtMs, expectedGeneration)
+	}
 
-		val inserted = runAcceptedXpMutation {
+	/**
+	 * Repairs the XP half of one mini-game reward only in the generation that accepted the reward.
+	 * This overload lets the separate Points database and AppDatabase use the same deletion fence
+	 * without nesting [TrackingStartupGate.withReadyGenerationOperation] leases.
+	 *
+	 * @return `true` when the expected generation accepted the idempotent XP operation.
+	 */
+	internal suspend fun awardMiniGameXpForGeneration(
+		points: Int,
+		earnedAtMs: Long,
+		expectedGeneration: Long,
+	): Boolean {
+		val amount = XpCalculator.miniGameXp(points)
+		if (amount <= 0) return trackingStartupGate.isReadyGeneration(expectedGeneration)
+
+		val inserted = runAcceptedXpMutation(expectedGeneration) {
 			val ledgerId = database.xpLedgerDao().insertOrIgnore(
 				XpLedgerEntity(
 					amount = amount,
@@ -104,7 +121,9 @@ class PlayerProgressionRepository @Inject constructor(
 			recomputePlayerProfile()
 			true
 		}
+		if (inserted == null) return false
 		if (inserted) metricDirtyTracker.markDirty(LEVELING_DIRTY_TABLES)
+		return true
 	}
 
 	/**
@@ -116,12 +135,13 @@ class PlayerProgressionRepository @Inject constructor(
 	suspend fun awardGoalXp(earnedAtMs: Long) {
 		val amount = XpCalculator.goalXp()
 		if (amount <= 0) return
+		val expectedGeneration = trackingStartupGate.currentGeneration
 		val dayEpoch = Instant.ofEpochMilli(earnedAtMs)
 			.atZone(ZoneId.systemDefault())
 			.toLocalDate()
 			.toEpochDay()
 
-		val inserted = runAcceptedXpMutation {
+		val inserted = runAcceptedXpMutation(expectedGeneration) {
 			val ledgerId = database.xpLedgerDao().insertOrIgnore(
 				XpLedgerEntity(
 					amount = amount,
@@ -134,7 +154,7 @@ class PlayerProgressionRepository @Inject constructor(
 			recomputePlayerProfile()
 			true
 		}
-		if (inserted) metricDirtyTracker.markDirty(LEVELING_DIRTY_TABLES)
+		if (inserted == true) metricDirtyTracker.markDirty(LEVELING_DIRTY_TABLES)
 	}
 
 	/**
@@ -143,15 +163,15 @@ class PlayerProgressionRepository @Inject constructor(
 	 * generation therefore either waits for this transaction or rejects it before any row is read.
 	 */
 	private suspend fun runAcceptedXpMutation(
+		expectedGeneration: Long,
 		mutation: suspend () -> Boolean,
-	): Boolean {
-		val expectedGeneration = trackingStartupGate.currentGeneration
-		if (trackingStartupGate.reconcile() !is TrackingStartupResult.Ready) return false
+	): Boolean? {
+		if (trackingStartupGate.reconcile() !is TrackingStartupResult.Ready) return null
 		return trackingStartupGate.withReadyGenerationOperation(expectedGeneration) {
 			withContext(dispatchers.io) {
 				database.withTransaction { mutation() }
 			}
-		} ?: false
+		}
 	}
 
 	/**

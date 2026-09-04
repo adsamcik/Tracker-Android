@@ -13,6 +13,8 @@ import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
@@ -53,13 +55,15 @@ class DefaultGameRepository @Inject constructor(
 	private val achievementScheduler: AchievementEvaluationScheduler,
 	private val goalsSettingsRepository: GoalsSettingsRepository,
 	private val stepsNumericSummaryRepository: StepsNumericSummaryRepository,
+	private val trackingStartupGate: TrackingStartupGate,
 ) : GameRepository {
 	private val pointsDao by lazy { PointsDatabase.database(application).pointsAwardedDao() }
 	private val rewardEnsurer by lazy {
 		MiniGameRewardEnsurer(
 			pointsDao = pointsDao,
 			dispatchers = dispatchers,
-			awardProgression = progressionRepository::awardMiniGameXp,
+			trackingStartupGate = trackingStartupGate,
+			awardProgression = progressionRepository::awardMiniGameXpForGeneration,
 			markMiniGameMetricsDirty = {
 				metricDirtyTracker.markDirty(setOf(MetricKeys.TABLE_MINI_GAME_SCORE))
 			},
@@ -165,7 +169,12 @@ internal fun miniGameRewardId(gameId: String, earnedAtMs: Long): String =
 internal class MiniGameRewardEnsurer(
 	private val pointsDao: PointsAwardedDao,
 	private val dispatchers: DispatchersProvider,
-	private val awardProgression: suspend (points: Int, earnedAtMs: Long) -> Unit,
+	private val trackingStartupGate: TrackingStartupGate,
+	private val awardProgression: suspend (
+		points: Int,
+		earnedAtMs: Long,
+		expectedGeneration: Long,
+	) -> Boolean,
 	private val markMiniGameMetricsDirty: () -> Unit,
 	private val scheduleAchievementEvaluation: () -> Unit,
 ) {
@@ -175,38 +184,60 @@ internal class MiniGameRewardEnsurer(
 		if (reward.rewardId != miniGameRewardId(reward.gameId, reward.earnedAtMs)) {
 			return GameRewardEnsureResult.Rejected(GameRewardRejectionReason.INVALID_REWARD)
 		}
+		val expectedGeneration = trackingStartupGate.currentGeneration
+		try {
+			if (trackingStartupGate.reconcile() !is TrackingStartupResult.Ready) {
+				return persistenceUnavailable()
+			}
+		} catch (cancellation: CancellationException) {
+			throw cancellation
+		} catch (_: Throwable) {
+			return persistenceUnavailable()
+		}
 		return mutex.withLock {
 			try {
 				val source = "minigame:${reward.gameId}"
-				val alreadyAwarded = withContext(dispatchers.io) {
-					val exists = pointsDao.hasAwardAt(reward.earnedAtMs, source)
-					if (!exists && reward.points > 0) {
-						pointsDao.insert(
-							PointsAwarded(
-								time = reward.earnedAtMs,
-								value = Points(reward.points.toDouble()),
-								source = AwardSource(source),
-							),
-						)
+				val alreadyAwarded = trackingStartupGate.withReadyGenerationOperation(
+					expectedGeneration,
+				) {
+					withContext(dispatchers.io) {
+						val exists = pointsDao.hasAwardAt(reward.earnedAtMs, source)
+						if (!exists && reward.points > 0) {
+							pointsDao.insert(
+								PointsAwarded(
+									time = reward.earnedAtMs,
+									value = Points(reward.points.toDouble()),
+									source = AwardSource(source),
+								),
+							)
+						}
+						exists
 					}
-					exists
-				}
+				} ?: return@withLock persistenceUnavailable()
 
 				// Retried deliberately: the progression ledger is independently
 				// idempotent and this repairs a points-written/progression-missed split.
-				awardProgression(reward.points, reward.earnedAtMs)
-				markMiniGameMetricsDirty()
-				scheduleAchievementEvaluation()
-				if (alreadyAwarded) {
-					GameRewardEnsureResult.AlreadyEnsured
-				} else {
-					GameRewardEnsureResult.Created
+				if (!awardProgression(reward.points, reward.earnedAtMs, expectedGeneration)) {
+					return@withLock persistenceUnavailable()
 				}
+				trackingStartupGate.withReadyGeneration(expectedGeneration) {
+					markMiniGameMetricsDirty()
+					scheduleAchievementEvaluation()
+					if (alreadyAwarded) {
+						GameRewardEnsureResult.AlreadyEnsured
+					} else {
+						GameRewardEnsureResult.Created
+					}
+				} ?: persistenceUnavailable()
 			} catch (cancellation: CancellationException) {
 				throw cancellation
 			} catch (_: Throwable) {
-				GameRewardEnsureResult.Rejected(GameRewardRejectionReason.PERSISTENCE_UNAVAILABLE)
+				persistenceUnavailable()
 			}
 		}
 	}
+
+	private fun persistenceUnavailable() = GameRewardEnsureResult.Rejected(
+		GameRewardRejectionReason.PERSISTENCE_UNAVAILABLE,
+	)
 }
