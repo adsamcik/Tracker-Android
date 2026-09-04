@@ -16,6 +16,8 @@ import dagger.hilt.components.SingletonComponent
 @InstallIn(SingletonComponent::class)
 interface TrackerWidgetEntryPoint {
     fun trackerStateReader(): TrackerStateReader
+
+    /** Source-qualified durable history used by bounded widget reads. */
     fun trackingHistoryRepository(): TrackingHistoryRepository
     fun dailySummaryProvider(): DailySummaryProvider
     fun goalProgressProvider(): GoalProgressProvider

@@ -181,7 +181,11 @@ class ActiveSessionWidgetPresentationTest {
 		steps = StepsHistory(
 			count = count,
 			availability = HistoryAvailability.AVAILABLE,
-			evidence = if (count == 0L) HistoryEvidence.ACTIVE else HistoryEvidence.RECORDED,
+			evidence = if (count == 0L) {
+				HistoryEvidence.ACTIVE
+			} else {
+				HistoryEvidence.RECORDED
+			},
 			productState = HistoryProductState.READY,
 			coverage = StepsHistoryCoverage.COMPLETE,
 		),
@@ -204,7 +208,11 @@ class ActiveSessionWidgetPresentationTest {
 					),
 				),
 			),
-			qualifiedSources = if (qualified) setOf(HistorySource.STEPS) else emptySet(),
+			qualifiedSources = if (qualified) {
+				setOf(HistorySource.STEPS)
+			} else {
+				emptySet()
+			},
 			steps = steps,
 		),
 	)
