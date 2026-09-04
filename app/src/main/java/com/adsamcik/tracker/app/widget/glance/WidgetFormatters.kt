@@ -49,20 +49,6 @@ object WidgetFormatters {
     }
 
     /**
-     * Formats the legacy live-session counter without fabricating covered zero.
-     *
-     * A positive value is observable progress. The legacy snapshot has no source-qualified
-     * coverage bit, so a nonpositive value remains unavailable.
-     */
-    fun formatSessionSteps(steps: Int, unavailableText: String): String {
-        return if (steps > 0) {
-            formatSteps(steps)
-        } else {
-            unavailableText
-        }
-    }
-
-    /**
      * Formats goal progress as percentage string.
      */
     fun formatGoalProgress(progress: Float): String {

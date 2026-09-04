@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.app.widget.glance
 
 import android.content.Context
+import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -34,7 +35,6 @@ import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyTier
-import com.adsamcik.tracker.tracker.R as TrackerR
 import com.adsamcik.tracker.tracker.data.collection.TrackerActivityType
 import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
@@ -42,7 +42,7 @@ import dagger.hilt.android.EntryPointAccessors
 
 /**
  * Active Session widget (4x3): live-ish session data during tracking.
- * Shows distance, steps, duration, activity tier, and collection count.
+ * Shows distance, duration, activity tier, and collection count.
  * When not tracking, shows a "tap to start" idle state.
  *
  * Limitation: True real-time updates (e.g. every 5s) are not feasible with Glance
@@ -228,20 +228,21 @@ private fun TrackingContent(
 
     Spacer(modifier = GlanceModifier.height(12.dp))
 
-    // Stats grid
+    val stats = buildActiveSessionStats(
+        context = context,
+        session = session,
+        nowMillis = System.currentTimeMillis(),
+    )
     Row(
         modifier = GlanceModifier.fillMaxWidth(),
     ) {
-        SessionStatItem(
-            label = context.getString(R.string.widget_session_distance),
-            value = WidgetFormatters.formatDistance(context, session.distanceInM),
-            modifier = GlanceModifier.defaultWeight(),
-        )
-        SessionStatItem(
-            label = context.getString(R.string.widget_session_duration),
-            value = WidgetFormatters.formatDuration(System.currentTimeMillis() - session.start),
-            modifier = GlanceModifier.defaultWeight(),
-        )
+        stats.take(2).forEach { stat ->
+            SessionStatItem(
+                label = context.getString(stat.labelRes),
+                value = stat.value,
+                modifier = GlanceModifier.defaultWeight(),
+            )
+        }
     }
 
     Spacer(modifier = GlanceModifier.height(8.dp))
@@ -249,19 +250,13 @@ private fun TrackingContent(
     Row(
         modifier = GlanceModifier.fillMaxWidth(),
     ) {
-        SessionStatItem(
-            label = context.getString(R.string.widget_session_steps),
-            value = WidgetFormatters.formatSessionSteps(
-                steps = session.steps,
-                unavailableText = context.getString(TrackerR.string.tracker_steps_value_unavailable),
-            ),
-            modifier = GlanceModifier.defaultWeight(),
-        )
-        SessionStatItem(
-            label = context.getString(R.string.widget_collections),
-            value = session.collections.toString(),
-            modifier = GlanceModifier.defaultWeight(),
-        )
+        stats.drop(2).forEach { stat ->
+            SessionStatItem(
+                label = context.getString(stat.labelRes),
+                value = stat.value,
+                modifier = GlanceModifier.defaultWeight(),
+            )
+        }
     }
 
     Spacer(modifier = GlanceModifier.height(8.dp))
@@ -282,6 +277,31 @@ private fun TrackingContent(
         ),
     )
 }
+
+internal data class ActiveSessionStat(
+    @StringRes val labelRes: Int,
+    val value: String,
+)
+
+/** Raw live-session Steps are intentionally absent until this widget has exact source authority. */
+internal fun buildActiveSessionStats(
+    context: Context,
+    session: TrackerSessionSnapshot,
+    nowMillis: Long,
+): List<ActiveSessionStat> = listOf(
+    ActiveSessionStat(
+        R.string.widget_session_distance,
+        WidgetFormatters.formatDistance(context, session.distanceInM),
+    ),
+    ActiveSessionStat(
+        R.string.widget_session_duration,
+        WidgetFormatters.formatDuration(nowMillis - session.start),
+    ),
+    ActiveSessionStat(
+        R.string.widget_collections,
+        session.collections.toString(),
+    ),
+)
 
 @Composable
 private fun SessionStatItem(
