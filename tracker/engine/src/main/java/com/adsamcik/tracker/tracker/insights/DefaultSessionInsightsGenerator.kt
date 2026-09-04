@@ -36,16 +36,11 @@ class DefaultSessionInsightsGenerator @Inject constructor(
     private suspend fun MutableList<SessionInsight>.addAchievementInsight(
         session: TrackerSessionSnapshot,
     ) {
-        when {
-            session.steps >= BIG_STEP_SESSION_THRESHOLD -> add(
-                SessionInsight(
-                    iconRes = com.adsamcik.tracker.shared.base.R.drawable.ic_shoe_print,
-                    title = context.getString(R.string.insight_steps_title),
-                    description = context.getString(R.string.insight_steps_desc, session.steps.toString()),
-                    category = InsightCategory.ACHIEVEMENT,
-                ),
-            )
-            session.distanceInM >= LONG_DISTANCE_THRESHOLD_M -> add(
+        // TrackerSessionSnapshot.steps is a legacy live projection without retained source proof.
+        // Keep independent distance insights, but never turn that projection into a completed
+        // post-session Steps achievement.
+        if (session.distanceInM >= LONG_DISTANCE_THRESHOLD_M) {
+            add(
                 SessionInsight(
                     iconRes = com.adsamcik.tracker.shared.base.R.drawable.ic_ruler,
                     title = context.getString(R.string.insight_distance_title),
@@ -123,7 +118,6 @@ class DefaultSessionInsightsGenerator @Inject constructor(
         private const val EXPLORATION_LEVEL = 14
         private const val LOOKBACK_DAYS = 7L
         private const val MAX_INSIGHTS = 4
-        private const val BIG_STEP_SESSION_THRESHOLD = 4_000
         private const val LONG_DISTANCE_THRESHOLD_M = 4_000f
         private const val ABOVE_AVERAGE_MULTIPLIER = 1.2
     }

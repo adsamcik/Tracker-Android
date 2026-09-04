@@ -51,14 +51,24 @@ class SessionInsightsGeneratorTest {
     }
 
     @Test
-    fun `adds achievement and fun fact for strong walking session`() = runTest(dispatcher) {
+    fun `unqualified Steps do not create achievement insight`() = runTest(dispatcher) {
         coEvery { explorationCellDao.countDiscoveredSince(any(), any()) } returns 0
         coEvery { dailySummaryDao.getBetween(any(), any()) } returns emptyList()
 
         val insights = generator.generate(session(steps = 4_500, distanceInM = 2_500f))
 
-        insights.map { it.category } shouldContain InsightCategory.ACHIEVEMENT
+        insights.map { it.category } shouldNotContain InsightCategory.ACHIEVEMENT
         insights.map { it.category } shouldContain InsightCategory.FUN_FACT
+    }
+
+    @Test
+    fun `independent distance still creates achievement insight`() = runTest(dispatcher) {
+        coEvery { explorationCellDao.countDiscoveredSince(any(), any()) } returns 0
+        coEvery { dailySummaryDao.getBetween(any(), any()) } returns emptyList()
+
+        val insights = generator.generate(session(steps = 0, distanceInM = 4_500f))
+
+        insights.map { it.category } shouldContain InsightCategory.ACHIEVEMENT
     }
 
     @Test
