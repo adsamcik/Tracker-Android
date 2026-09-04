@@ -7,26 +7,14 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import com.adsamcik.tracker.game.R
 import com.adsamcik.tracker.game.goals.data.GoalPersistence
-import com.adsamcik.tracker.shared.base.Time
-import com.adsamcik.tracker.shared.base.concurrency.DefaultDispatchersProvider
-import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import java.time.ZonedDateTime
-import kotlin.coroutines.CoroutineContext
 
 abstract class BaseGoal(
 	protected val persistence: GoalPersistence,
-	private val dispatchers: DispatchersProvider = DefaultDispatchersProvider,
-) : Goal, CoroutineScope {
-	private val job = SupervisorJob()
-	override val coroutineContext: CoroutineContext
-		get() = dispatchers.main + job
+) : Goal {
 
 	abstract val goalReachedPreferenceKey: String
-	private lateinit var persistedGoalReachedKey: String
 
 	abstract val period: GoalPeriod
 	override var onValueChanged: (value: Int) -> Unit = {}
@@ -49,19 +37,6 @@ abstract class BaseGoal(
 	 * Used instead of boolean to provide better durability against unreliable resets.
 	 */
 	private var lastReportTime: Int = 0
-		set(value) {
-			field = value
-			val nowRounded = getGoalTime(Time.now)
-			isReported = nowRounded == value
-			if (isEnabled) {
-				launch { persistence.persist(persistedGoalReachedKey, value) }
-			}
-		}
-
-	/**
-	 * Caches lastReportTime
-	 */
-	private var isReported: Boolean = false
 
 	override var isEnabled: Boolean = false
 		protected set
@@ -79,19 +54,13 @@ abstract class BaseGoal(
 	override suspend fun onEnable(context: Context) {
 		onEnableInternal(context)
 		updateFromDatabase(context)
-		persistedGoalReachedKey = goalReachedPreferenceKey
-		persistence.load(persistedGoalReachedKey)?.let { lastReportTime = it }
+		persistence.load(goalReachedPreferenceKey)?.let { lastReportTime = it }
 		isEnabled = true
 	}
 
 	override suspend fun onDisable(context: Context) {
 		onDisableInternal(context)
 		isEnabled = false
-	}
-
-	override fun onSessionUpdated(session: TrackerSessionSnapshot, isNewSession: Boolean): Boolean {
-		onSessionPresentationUpdated(session, isNewSession)
-		return evaluateGoalReached()
 	}
 
 	override fun onSessionPresentationUpdated(
@@ -106,21 +75,12 @@ abstract class BaseGoal(
 		isNewSession: Boolean,
 	)
 
-	protected fun evaluateGoalReached(): Boolean {
-		if (!isReported && value >= target) {
-			lastReportTime = getGoalTime(Time.now)
-			return true
-		}
-		return false
-	}
-
 	override suspend fun onNewDay(context: Context, day: ZonedDateTime) {
 		val time = getGoalTime(day)
 		// This will trigger recount once a day if the goal is not reached, but
 		// because the cost should not be very high, the extra code complexity does not seem
 		// to be worth it.
 		if (time != lastReportTime) {
-			isReported = false
 			updateFromDatabase(context)
 		}
 	}

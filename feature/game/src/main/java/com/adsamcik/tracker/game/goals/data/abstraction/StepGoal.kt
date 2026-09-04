@@ -29,18 +29,8 @@ abstract class StepGoal(
 		return diff.coerceAtLeast(0)
 	}
 
-	override fun onCumulativeStepsUpdated(totalSteps: Int): Boolean {
-		onCumulativeStepsPresentationUpdated(totalSteps)
-		return evaluateGoalReached()
-	}
-
 	override fun onCumulativeStepsPresentationUpdated(totalSteps: Int) {
 		value = totalSteps.coerceAtLeast(0)
-	}
-
-	override fun onTargetUpdated(target: Int): Boolean {
-		onTargetPresentationUpdated(target)
-		return evaluateGoalReached()
 	}
 
 	override fun onTargetPresentationUpdated(target: Int) = replaceTarget(target)

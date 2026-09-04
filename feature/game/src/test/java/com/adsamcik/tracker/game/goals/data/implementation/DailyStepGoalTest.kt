@@ -14,8 +14,8 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 
 /**
- * Tests for [DailyStepGoal] covering properties, step accumulation,
- * goal completion logic, and day-boundary getGoalTime encoding.
+ * Tests for [DailyStepGoal] covering properties, presentation accumulation,
+ * and day-boundary getGoalTime encoding.
  */
 @DisplayName("DailyStepGoal")
 class DailyStepGoalTest {
@@ -105,7 +105,7 @@ class DailyStepGoalTest {
 		fun `explicit target update immediately reaches exposed flow without PreferenceFlows`() {
 			val listenable = GoalListenable(goal)
 
-			listenable.onTargetUpdated(9_000)
+			listenable.onTargetPresentationUpdated(9_000)
 
 			goal.target shouldBe 9_000
 			listenable.target.value shouldBe 9_000
@@ -124,39 +124,39 @@ class DailyStepGoalTest {
 
 		@Test
 		fun `new session adds all steps to value`() {
-			goal.onSessionUpdated(createSession(steps = 500), isNewSession = true)
+			goal.onSessionPresentationUpdated(createSession(steps = 500), isNewSession = true)
 
 			goal.value shouldBe 500
 		}
 
 		@Test
 		fun `continuing session adds step difference`() {
-			goal.onSessionUpdated(createSession(id = 1L, steps = 100), isNewSession = true)
-			goal.onSessionUpdated(createSession(id = 1L, steps = 250), isNewSession = false)
+			goal.onSessionPresentationUpdated(createSession(id = 1L, steps = 100), isNewSession = true)
+			goal.onSessionPresentationUpdated(createSession(id = 1L, steps = 250), isNewSession = false)
 
 			goal.value shouldBe 250
 		}
 
 		@Test
 		fun `multiple new sessions accumulate steps`() {
-			goal.onSessionUpdated(createSession(id = 1L, steps = 300), isNewSession = true)
-			goal.onSessionUpdated(createSession(id = 2L, steps = 200), isNewSession = true)
+			goal.onSessionPresentationUpdated(createSession(id = 1L, steps = 300), isNewSession = true)
+			goal.onSessionPresentationUpdated(createSession(id = 2L, steps = 200), isNewSession = true)
 
 			goal.value shouldBe 500
 		}
 
 		@Test
 		fun `zero steps on new session does not change value`() {
-			goal.onSessionUpdated(createSession(steps = 0), isNewSession = true)
+			goal.onSessionPresentationUpdated(createSession(steps = 0), isNewSession = true)
 
 			goal.value shouldBe 0
 		}
 
 		@Test
 		fun `incremental updates within same session accumulate correctly`() {
-			goal.onSessionUpdated(createSession(id = 1L, steps = 100), isNewSession = true)
-			goal.onSessionUpdated(createSession(id = 1L, steps = 200), isNewSession = false)
-			goal.onSessionUpdated(createSession(id = 1L, steps = 350), isNewSession = false)
+			goal.onSessionPresentationUpdated(createSession(id = 1L, steps = 100), isNewSession = true)
+			goal.onSessionPresentationUpdated(createSession(id = 1L, steps = 200), isNewSession = false)
+			goal.onSessionPresentationUpdated(createSession(id = 1L, steps = 350), isNewSession = false)
 
 			// Total: 100 (new) + 100 (diff 200-100) + 150 (diff 350-200) = 350
 			goal.value shouldBe 350
@@ -164,98 +164,21 @@ class DailyStepGoalTest {
 
 		@Test
 		fun `regressing same-session step count clamps the delta`() {
-			goal.onSessionUpdated(createSession(id = 1L, steps = 100), isNewSession = true)
-			goal.onSessionUpdated(createSession(id = 1L, steps = 50), isNewSession = false)
+			goal.onSessionPresentationUpdated(createSession(id = 1L, steps = 100), isNewSession = true)
+			goal.onSessionPresentationUpdated(createSession(id = 1L, steps = 50), isNewSession = false)
 
 			goal.value shouldBe 100
 		}
 
 		@Test
 		fun `new session after continuing session resets diff tracking`() {
-			goal.onSessionUpdated(createSession(id = 1L, steps = 100), isNewSession = true)
-			goal.onSessionUpdated(createSession(id = 1L, steps = 300), isNewSession = false)
+			goal.onSessionPresentationUpdated(createSession(id = 1L, steps = 100), isNewSession = true)
+			goal.onSessionPresentationUpdated(createSession(id = 1L, steps = 300), isNewSession = false)
 			// value = 300 (100 + 200 diff), lastStepValue = 300
-			goal.onSessionUpdated(createSession(id = 2L, steps = 50), isNewSession = true)
+			goal.onSessionPresentationUpdated(createSession(id = 2L, steps = 50), isNewSession = true)
 			// New session: diff = 50 (all steps), value = 300 + 50 = 350
 
 			goal.value shouldBe 350
-		}
-	}
-
-	@Nested
-	@DisplayName("Goal completion")
-	inner class GoalCompletion {
-
-		@Test
-		fun `returns true when value meets target`() {
-			setTarget(500)
-
-			val result = goal.onSessionUpdated(createSession(steps = 500), isNewSession = true)
-
-			result shouldBe true
-		}
-
-		@Test
-		fun `returns true when value exceeds target`() {
-			setTarget(500)
-
-			val result = goal.onSessionUpdated(createSession(steps = 700), isNewSession = true)
-
-			result shouldBe true
-		}
-
-		@Test
-		fun `returns false when value is below target`() {
-			setTarget(1000)
-
-			val result = goal.onSessionUpdated(createSession(steps = 500), isNewSession = true)
-
-			result shouldBe false
-		}
-
-		@Test
-		fun `does not re-report after goal completion`() {
-			setTarget(500)
-
-			val first = goal.onSessionUpdated(createSession(id = 1L, steps = 600), isNewSession = true)
-			val second = goal.onSessionUpdated(createSession(id = 2L, steps = 100), isNewSession = true)
-
-			first shouldBe true
-			second shouldBe false
-		}
-
-		@Test
-		fun `reports completion when accumulation crosses target`() {
-			setTarget(500)
-
-			val below = goal.onSessionUpdated(createSession(id = 1L, steps = 300), isNewSession = true)
-			val crosses = goal.onSessionUpdated(createSession(id = 2L, steps = 200), isNewSession = true)
-
-			below shouldBe false
-			crosses shouldBe true
-		}
-
-		@Test
-		fun `lowering target reports at most once for the current period`() {
-			goal.onSessionUpdated(createSession(steps = 1_000), isNewSession = true)
-
-			val first = goal.onTargetUpdated(500)
-			val second = goal.onTargetUpdated(250)
-
-			first shouldBe true
-			second shouldBe false
-		}
-
-		@Test
-		fun `raw presentation value and target do not consume a later qualified completion`() {
-			setTarget(1_000)
-			goal.onSessionPresentationUpdated(createSession(steps = 600), isNewSession = true)
-
-			goal.onTargetPresentationUpdated(500)
-
-			goal.value shouldBe 600
-			goal.target shouldBe 500
-			goal.onCumulativeStepsUpdated(600) shouldBe true
 		}
 	}
 
@@ -266,7 +189,7 @@ class DailyStepGoalTest {
 		@Test
 		fun `progress can be calculated from value and target`() {
 			setTarget(1000)
-			goal.onSessionUpdated(createSession(steps = 250), isNewSession = true)
+			goal.onSessionPresentationUpdated(createSession(steps = 250), isNewSession = true)
 
 			val progress = if (goal.target > 0) {
 				goal.value.toDouble() / goal.target
@@ -280,7 +203,7 @@ class DailyStepGoalTest {
 		@Test
 		fun `progress exceeding target can be over 100 percent`() {
 			setTarget(500)
-			goal.onSessionUpdated(createSession(steps = 750), isNewSession = true)
+			goal.onSessionPresentationUpdated(createSession(steps = 750), isNewSession = true)
 
 			val progress = goal.value.toDouble() / goal.target
 

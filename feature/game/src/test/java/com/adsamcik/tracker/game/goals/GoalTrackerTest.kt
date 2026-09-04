@@ -327,7 +327,6 @@ class GoalTrackerTest {
 			GoalTracker.update(createSession())
 
 			verify(exactly = 1) { mockGoal1.onSessionPresentationUpdated(any(), any()) }
-			verify(exactly = 0) { mockGoal1.onSessionUpdated(any(), any()) }
 		}
 
 		@Test
@@ -339,8 +338,6 @@ class GoalTrackerTest {
 
 			verify(exactly = 1) { mockGoal1.onCumulativeStepsPresentationUpdated(20_000) }
 			verify(exactly = 1) { mockGoal2.onCumulativeStepsPresentationUpdated(20_000) }
-			verify(exactly = 0) { mockGoal1.onCumulativeStepsUpdated(any()) }
-			verify(exactly = 0) { mockGoal2.onCumulativeStepsUpdated(any()) }
 		}
 	}
 }

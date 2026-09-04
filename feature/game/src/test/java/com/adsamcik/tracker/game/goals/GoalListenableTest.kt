@@ -1,7 +1,5 @@
 package com.adsamcik.tracker.game.goals
 
-import android.app.Notification
-import android.content.Context
 import com.adsamcik.tracker.game.goals.data.GoalListenable
 import com.adsamcik.tracker.game.goals.data.abstraction.Goal
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
@@ -13,7 +11,6 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import java.time.ZonedDateTime
 
 /**
  * Tests for [GoalListenable] which wraps a Goal and exposes reactive StateFlow state.
@@ -88,7 +85,7 @@ class GoalListenableTest {
 	inner class SessionUpdates {
 
 		@Test
-		fun `onSessionUpdated delegates to goal`() {
+		fun `presentation session update delegates to goal`() {
 			val session = TrackerSessionSnapshot(
 				id = 1L,
 				start = 1000L,
@@ -101,33 +98,9 @@ class GoalListenableTest {
 				steps = 500
 			)
 
-			every { mockGoal.onSessionUpdated(session, true) } returns false
+			listenable.onSessionPresentationUpdated(session, isNewSession = true)
 
-			val result = listenable.onSessionUpdated(session, isNewSession = true)
-
-			result shouldBe false
-			verify { mockGoal.onSessionUpdated(session, true) }
-		}
-
-		@Test
-		fun `returns true when goal reports completion`() {
-			val session = TrackerSessionSnapshot(
-				id = 2L,
-				start = 1000L,
-				end = 2000L,
-				isUserInitiated = true,
-				collections = 5,
-				distanceInM = 5000f,
-				distanceOnFootInM = 5000f,
-				distanceInVehicleInM = 0f,
-				steps = 10_000
-			)
-
-			every { mockGoal.onSessionUpdated(session, false) } returns true
-
-			val result = listenable.onSessionUpdated(session, isNewSession = false)
-
-			result shouldBe true
+			verify { mockGoal.onSessionPresentationUpdated(session, true) }
 		}
 
 		@Test
@@ -144,31 +117,28 @@ class GoalListenableTest {
 				steps = 200
 			)
 
-			// Simulate goal changing its value during onSessionUpdated
+			// Simulate goal changing its value during the presentation update.
 			every { mockGoal.value } returns 0 andThen 200
-			every { mockGoal.onSessionUpdated(session, true) } returns false
 
-			listenable.onSessionUpdated(session, isNewSession = true)
+			listenable.onSessionPresentationUpdated(session, isNewSession = true)
 
 			listenable.value.value shouldBe 200
 		}
 
 		@Test
-		fun `presentation-only session update cannot invoke completion evaluation`() {
+		fun `presentation-only session update delegates exactly once`() {
 			val session = TrackerSessionSnapshot(id = 4L, steps = 20_000)
 
 			listenable.onSessionPresentationUpdated(session, isNewSession = true)
 
 			verify(exactly = 1) { mockGoal.onSessionPresentationUpdated(session, true) }
-			verify(exactly = 0) { mockGoal.onSessionUpdated(any(), any()) }
 		}
 
 		@Test
-		fun `presentation-only cumulative update cannot invoke completion evaluation`() {
+		fun `presentation-only cumulative update delegates exactly once`() {
 			listenable.onCumulativeStepsPresentationUpdated(20_000)
 
 			verify(exactly = 1) { mockGoal.onCumulativeStepsPresentationUpdated(20_000) }
-			verify(exactly = 0) { mockGoal.onCumulativeStepsUpdated(any()) }
 		}
 	}
 }

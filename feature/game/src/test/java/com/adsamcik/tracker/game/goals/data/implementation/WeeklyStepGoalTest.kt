@@ -107,7 +107,7 @@ class WeeklyStepGoalTest {
 		@Test
 		fun `changing cap recomputes live weekly progress immediately`() {
 			goal.updateConfiguration(target = 20_000, dailyLimit = 0.3f)
-			goal.onCumulativeStepsUpdated(9_000)
+			goal.onCumulativeStepsPresentationUpdated(9_000)
 			goal.value shouldBe 6_000
 
 			goal.updateConfiguration(target = 20_000, dailyLimit = 0.5f)
@@ -116,16 +116,16 @@ class WeeklyStepGoalTest {
 		}
 
 		@Test
-		fun `initial settings synchronization does not consume completion`() {
-			goal.onCumulativeStepsUpdated(30_000)
+		fun `settings synchronization remains presentation only`() {
+			goal.onCumulativeStepsPresentationUpdated(30_000)
 
 			goal.updateConfiguration(
 				target = 20_000,
 				dailyLimit = 1f,
-				evaluateCompletion = false,
-			) shouldBe false
+			)
 
-			goal.onCumulativeStepsUpdated(30_000) shouldBe true
+			goal.value shouldBe 20_000
+			goal.target shouldBe 20_000
 		}
 	}
 
@@ -140,24 +140,24 @@ class WeeklyStepGoalTest {
 
 		@Test
 		fun `new session adds all steps to value`() {
-			goal.onSessionUpdated(createSession(steps = 1000), isNewSession = true)
+			goal.onSessionPresentationUpdated(createSession(steps = 1000), isNewSession = true)
 
 			goal.value shouldBe 1000
 		}
 
 		@Test
 		fun `continuing session adds step difference`() {
-			goal.onSessionUpdated(createSession(id = 1L, steps = 200), isNewSession = true)
-			goal.onSessionUpdated(createSession(id = 1L, steps = 500), isNewSession = false)
+			goal.onSessionPresentationUpdated(createSession(id = 1L, steps = 200), isNewSession = true)
+			goal.onSessionPresentationUpdated(createSession(id = 1L, steps = 500), isNewSession = false)
 
 			goal.value shouldBe 500
 		}
 
 		@Test
 		fun `multiple sessions across the week accumulate`() {
-			goal.onSessionUpdated(createSession(id = 1L, steps = 3000), isNewSession = true)
-			goal.onSessionUpdated(createSession(id = 2L, steps = 4000), isNewSession = true)
-			goal.onSessionUpdated(createSession(id = 3L, steps = 2000), isNewSession = true)
+			goal.onSessionPresentationUpdated(createSession(id = 1L, steps = 3000), isNewSession = true)
+			goal.onSessionPresentationUpdated(createSession(id = 2L, steps = 4000), isNewSession = true)
+			goal.onSessionPresentationUpdated(createSession(id = 3L, steps = 2000), isNewSession = true)
 
 			goal.value shouldBe 9000
 		}
@@ -165,10 +165,10 @@ class WeeklyStepGoalTest {
 		@Test
 		fun `mixed new and continuing sessions accumulate correctly`() {
 			// Day 1: walk session
-			goal.onSessionUpdated(createSession(id = 1L, steps = 2000), isNewSession = true)
-			goal.onSessionUpdated(createSession(id = 1L, steps = 5000), isNewSession = false)
+			goal.onSessionPresentationUpdated(createSession(id = 1L, steps = 2000), isNewSession = true)
+			goal.onSessionPresentationUpdated(createSession(id = 1L, steps = 5000), isNewSession = false)
 			// Day 2: new session
-			goal.onSessionUpdated(createSession(id = 2L, steps = 3000), isNewSession = true)
+			goal.onSessionPresentationUpdated(createSession(id = 2L, steps = 3000), isNewSession = true)
 
 			// 2000 (new) + 3000 (diff) + 3000 (new) = 8000
 			goal.value shouldBe 8000
@@ -176,73 +176,34 @@ class WeeklyStepGoalTest {
 	}
 
 	@Nested
-	@DisplayName("Weekly aggregation and goal completion")
+	@DisplayName("Weekly aggregation")
 	inner class WeeklyAggregation {
-
-		@Test
-		fun `returns false when partial week progress is below target`() {
-			setTarget(50000)
-
-			val result = goal.onSessionUpdated(createSession(steps = 10000), isNewSession = true)
-
-			result shouldBe false
-		}
-
-		@Test
-		fun `returns true when weekly total meets target`() {
-			setTarget(10000)
-
-			goal.onSessionUpdated(createSession(id = 1L, steps = 5000), isNewSession = true)
-			val result = goal.onSessionUpdated(createSession(id = 2L, steps = 5000), isNewSession = true)
-
-			result shouldBe true
-		}
-
-		@Test
-		fun `returns true when weekly total exceeds target`() {
-			setTarget(10000)
-
-			val result = goal.onSessionUpdated(createSession(steps = 15000), isNewSession = true)
-
-			result shouldBe true
-		}
-
-		@Test
-		fun `does not re-report after weekly goal reached`() {
-			setTarget(10000)
-
-			goal.onSessionUpdated(createSession(id = 1L, steps = 12000), isNewSession = true)
-			val second = goal.onSessionUpdated(createSession(id = 2L, steps = 3000), isNewSession = true)
-
-			second shouldBe false
-		}
 
 		@Test
 		fun `partial week progress tracked correctly`() {
 			setTarget(70000)
 
-			goal.onSessionUpdated(createSession(id = 1L, steps = 10000), isNewSession = true)
+			goal.onSessionPresentationUpdated(createSession(id = 1L, steps = 10000), isNewSession = true)
 			goal.value shouldBe 10000
 
-			goal.onSessionUpdated(createSession(id = 2L, steps = 10000), isNewSession = true)
+			goal.onSessionPresentationUpdated(createSession(id = 2L, steps = 10000), isNewSession = true)
 			goal.value shouldBe 20000
 
-			goal.onSessionUpdated(createSession(id = 3L, steps = 10000), isNewSession = true)
+			goal.onSessionPresentationUpdated(createSession(id = 3L, steps = 10000), isNewSession = true)
 			goal.value shouldBe 30000
 		}
 
 		@Test
-		fun `raw presentation value and reconfiguration do not consume qualified completion`() {
+		fun `raw presentation value and reconfiguration remain visible`() {
 			goal.onSessionPresentationUpdated(createSession(steps = 10_000), isNewSession = true)
 
 			goal.updateConfiguration(
 				target = 10_000,
 				dailyLimit = 1f,
-				evaluateCompletion = false,
-			) shouldBe false
+			)
 
 			goal.value shouldBe 10_000
-			goal.onCumulativeStepsUpdated(10_000) shouldBe true
+			goal.target shouldBe 10_000
 		}
 	}
 

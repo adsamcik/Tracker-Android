@@ -135,7 +135,6 @@ internal object GoalTracker : CoroutineScope {
 				weeklyGoal.updateConfiguration(
 					target = settings.weeklyStepGoal,
 					dailyLimit = settings.weeklyProgressDailyLimit,
-					evaluateCompletion = false,
 				)
 			}
 			latestSettings = settings

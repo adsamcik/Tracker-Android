@@ -45,21 +45,15 @@ interface Goal {
 
 	/**
 	 * Called when goal is enabled.
-	 * From now on the goal can expect [onSessionUpdated] calls.
+	 * From now on the goal can expect [onSessionPresentationUpdated] calls.
 	 */
 	suspend fun onEnable(context: Context)
 
 	/**
 	 * Called when goal is disabled.
-	 * The goal is no longer active and [onSessionUpdated] will no longer be invoked.
+	 * The goal is no longer active and [onSessionPresentationUpdated] will no longer be invoked.
 	 */
 	suspend fun onDisable(context: Context)
-
-	/**
-	 * Called when latest session data changes.
-	 * Returns true if goal is reached.
-	 */
-	fun onSessionUpdated(session: TrackerSessionSnapshot, isNewSession: Boolean): Boolean
 
 	/**
 	 * Updates legacy presentation state without evaluating completion.
@@ -69,20 +63,8 @@ interface Goal {
 	 */
 	fun onSessionPresentationUpdated(session: TrackerSessionSnapshot, isNewSession: Boolean)
 
-	/**
-	 * Called when a cumulative (absolute) step value is available.
-	 * Returns true if goal is reached.
-	 */
-	fun onCumulativeStepsUpdated(totalSteps: Int): Boolean = false
-
 	/** Updates legacy presentation state from an unqualified cumulative value without completing. */
 	fun onCumulativeStepsPresentationUpdated(totalSteps: Int) = Unit
-
-	/**
-	 * Replaces the target with a settings-backed value.
-	 * Returns true when the new target newly completes the current period.
-	 */
-	fun onTargetUpdated(target: Int): Boolean = false
 
 	/** Replaces a target without evaluating it against unqualified presentation state. */
 	fun onTargetPresentationUpdated(target: Int) = Unit

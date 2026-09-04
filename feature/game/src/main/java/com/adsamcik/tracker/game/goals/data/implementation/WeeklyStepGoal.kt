@@ -47,11 +47,6 @@ class WeeklyStepGoal(
 		updateLiveValue()
 	}
 
-	override fun onCumulativeStepsUpdated(totalSteps: Int): Boolean {
-		onCumulativeStepsPresentationUpdated(totalSteps)
-		return evaluateGoalReached()
-	}
-
 	override fun onCumulativeStepsPresentationUpdated(totalSteps: Int) {
 		rollDateForwardIfNeeded()
 		dailyRawSteps = dailyRawSteps.toMutableMap().apply {
@@ -63,12 +58,10 @@ class WeeklyStepGoal(
 	fun updateConfiguration(
 		target: Int,
 		dailyLimit: Float,
-		evaluateCompletion: Boolean = true,
-	): Boolean {
+	) {
 		this.target = target.coerceAtLeast(1)
 		this.dailyLimit = dailyLimit
 		updateLiveValue()
-		return evaluateCompletion && evaluateGoalReached()
 	}
 
 	override suspend fun updateFromDatabase(context: Context) {

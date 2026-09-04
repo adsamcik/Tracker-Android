@@ -31,7 +31,7 @@ data class GoalListenable(val goal: Goal) {
 
 	/**
 	 * Called when goal is enabled.
-	 * From now on the goal can expect [onSessionUpdated] calls.
+	 * From now on the goal can expect [onSessionPresentationUpdated] calls.
 	 */
 	suspend fun onEnable(context: Context) {
 		goal.onEnable(context)
@@ -41,7 +41,7 @@ data class GoalListenable(val goal: Goal) {
 
 	/**
 	 * Called when goal is disabled.
-	 * The goal is no longer active and [onSessionUpdated] will no longer be invoked.
+	 * The goal is no longer active and [onSessionPresentationUpdated] will no longer be invoked.
 	 */
 	suspend fun onDisable(context: Context) {
 		goal.onDisable(context)
@@ -57,40 +57,10 @@ data class GoalListenable(val goal: Goal) {
 		}
 	}
 
-	@JvmName("notifyIfValueChangedTyped")
-	private inline fun <T> notifyIfValueChanged(func: () -> T): T {
-		return synchronized(lock) {
-			val value = goal.value
-			val returnValue = func()
-			if (value != goal.value) {
-				valueMutable.value = goal.value
-			}
-			returnValue
-		}
-	}
-
-	/**
-	 * Called when latest session data changes.
-	 */
-	fun onSessionUpdated(session: TrackerSessionSnapshot, isNewSession: Boolean): Boolean {
-		return notifyIfValueChanged<Boolean> {
-			goal.onSessionUpdated(session, isNewSession)
-		}
-	}
-
 	/** Updates the displayed value while deliberately withholding completion evaluation. */
 	fun onSessionPresentationUpdated(session: TrackerSessionSnapshot, isNewSession: Boolean) {
 		notifyIfValueChanged {
 			goal.onSessionPresentationUpdated(session, isNewSession)
-		}
-	}
-
-	/**
-	 * Called when cumulative (absolute) step value changes.
-	 */
-	fun onCumulativeStepsUpdated(totalSteps: Int): Boolean {
-		return notifyIfValueChanged<Boolean> {
-			goal.onCumulativeStepsUpdated(totalSteps)
 		}
 	}
 
@@ -100,8 +70,6 @@ data class GoalListenable(val goal: Goal) {
 			goal.onCumulativeStepsPresentationUpdated(totalSteps)
 		}
 	}
-
-	fun onTargetUpdated(target: Int): Boolean = goal.onTargetUpdated(target)
 
 	/** Replaces the displayed target without evaluating unqualified progress for an award. */
 	fun onTargetPresentationUpdated(target: Int) = goal.onTargetPresentationUpdated(target)
