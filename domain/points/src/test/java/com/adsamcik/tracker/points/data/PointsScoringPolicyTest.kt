@@ -33,11 +33,6 @@ class PointsScoringPolicyTest {
 		}
 
 		@Test
-		fun `fallbackPointsPerStep defaults to 0_01`() {
-			PointsScoringPolicy().fallbackPointsPerStep shouldBeExactly 0.01
-		}
-
-		@Test
 		fun `fallbackPointsPerMeter defaults to 0_005`() {
 			PointsScoringPolicy().fallbackPointsPerMeter shouldBeExactly 0.005
 		}
@@ -75,12 +70,6 @@ class PointsScoringPolicyTest {
 		}
 
 		@Test
-		fun `custom fallbackPointsPerStep is stored`() {
-			val policy = PointsScoringPolicy(fallbackPointsPerStep = 0.1)
-			policy.fallbackPointsPerStep shouldBeExactly 0.1
-		}
-
-		@Test
 		fun `custom fallbackPointsPerMeter is stored`() {
 			val policy = PointsScoringPolicy(fallbackPointsPerMeter = 0.02)
 			policy.fallbackPointsPerMeter shouldBeExactly 0.02
@@ -99,7 +88,6 @@ class PointsScoringPolicyTest {
 				slopeMultiplier = 6.0,
 				halfSlope = 0.5,
 				altitudeThreshold = 5.0,
-				fallbackPointsPerStep = 0.05,
 				fallbackPointsPerMeter = 0.01,
 				fallbackPointsPerMinute = 1.0,
 			)
@@ -107,7 +95,6 @@ class PointsScoringPolicyTest {
 			policy.slopeMultiplier shouldBeExactly 6.0
 			policy.halfSlope shouldBeExactly 0.5
 			policy.altitudeThreshold shouldBeExactly 5.0
-			policy.fallbackPointsPerStep shouldBeExactly 0.05
 			policy.fallbackPointsPerMeter shouldBeExactly 0.01
 			policy.fallbackPointsPerMinute shouldBeExactly 1.0
 		}
@@ -130,7 +117,6 @@ class PointsScoringPolicyTest {
 			modified.slopeMultiplier shouldBeExactly original.slopeMultiplier
 			modified.halfSlope shouldBeExactly original.halfSlope
 			modified.altitudeThreshold shouldBeExactly original.altitudeThreshold
-			modified.fallbackPointsPerStep shouldBeExactly original.fallbackPointsPerStep
 			modified.fallbackPointsPerMeter shouldBeExactly original.fallbackPointsPerMeter
 			modified.fallbackPointsPerMinute shouldBeExactly original.fallbackPointsPerMinute
 		}
@@ -177,7 +163,6 @@ class PointsScoringPolicyTest {
 				slopeMultiplier = 0.0,
 				halfSlope = 0.0,
 				altitudeThreshold = 0.0,
-				fallbackPointsPerStep = 0.0,
 				fallbackPointsPerMeter = 0.0,
 				fallbackPointsPerMinute = 0.0,
 			)
@@ -209,7 +194,6 @@ class PointsScoringPolicyTest {
 					"slopeMultiplier=12.0, " +
 					"halfSlope=${kotlin.math.PI / 4}, " +
 					"altitudeThreshold=10.0, " +
-					"fallbackPointsPerStep=0.01, " +
 					"fallbackPointsPerMeter=0.005, " +
 					"fallbackPointsPerMinute=0.5)"
 		}

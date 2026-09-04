@@ -10,7 +10,6 @@ data class PointsScoringPolicy(
 	val slopeMultiplier: Double = DEFAULT_SLOPE_MULTIPLIER,
 	val halfSlope: Double = DEFAULT_HALF_SLOPE,
 	val altitudeThreshold: Double = DEFAULT_ALTITUDE_THRESHOLD,
-	val fallbackPointsPerStep: Double = DEFAULT_FALLBACK_POINTS_PER_STEP,
 	val fallbackPointsPerMeter: Double = DEFAULT_FALLBACK_POINTS_PER_METER,
 	val fallbackPointsPerMinute: Double = DEFAULT_FALLBACK_POINTS_PER_MINUTE,
 ) {
@@ -19,7 +18,6 @@ data class PointsScoringPolicy(
 		private const val DEFAULT_SLOPE_MULTIPLIER = 12.0
 		private val DEFAULT_HALF_SLOPE = kotlin.math.PI / 4
 		private const val DEFAULT_ALTITUDE_THRESHOLD = 10.0
-		private const val DEFAULT_FALLBACK_POINTS_PER_STEP = 0.01
 		private const val DEFAULT_FALLBACK_POINTS_PER_METER = 0.005
 		private const val DEFAULT_FALLBACK_POINTS_PER_MINUTE = 0.5
 	}

@@ -37,9 +37,6 @@ internal class PointsWorker @AssistedInject constructor(
 	context,
 	workerParams
 ) {
-	// Investigation (M2): Fallback scoring (steps*0.01 + distance*0.005 + duration*0.5) yields
-	// >0 points for any real session. Zero-points on emulator is likely a WorkManager scheduling
-	// timing issue rather than a calculation bug. No logic change needed.
 	override suspend fun doWork(): Result {
 		val id = this.inputData.getNonNegativeLongOrNull(ARG_ID) ?: return Result.failure()
 		val startupGeneration = trackingStartupGate.currentGeneration
@@ -83,7 +80,6 @@ internal class PointsWorker @AssistedInject constructor(
 			} else {
 				val durationMinutes = ((trip.endTimeMs - trip.startTimeMs).coerceAtLeast(0L) / 60_000.0)
 				scorer.calculateFallbackPoints(
-					steps = (trip.steps ?: 0),
 					distanceMeters = trip.distanceM.toDouble(),
 					durationMinutes = durationMinutes,
 				)

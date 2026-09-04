@@ -49,7 +49,6 @@ class PointsScorerTest {
 			p.slopeMultiplier shouldBeExactly 12.0
 			p.halfSlope shouldBeExactly kotlin.math.PI / 4
 			p.altitudeThreshold shouldBeExactly 10.0
-			p.fallbackPointsPerStep shouldBeExactly 0.01
 			p.fallbackPointsPerMeter shouldBeExactly 0.005
 			p.fallbackPointsPerMinute shouldBeExactly 0.5
 		}
@@ -60,21 +59,9 @@ class PointsScorerTest {
 	@Nested
 	inner class FallbackPoints {
 		@Test
-		fun `returns step points when steps dominate`() {
-			// 10_000 steps × 0.01 = 100
-			val result = scorer.calculateFallbackPoints(
-				steps = 10_000,
-				distanceMeters = 0.0,
-				durationMinutes = 0.0,
-			)
-			result shouldBeExactly 100.0
-		}
-
-		@Test
 		fun `returns distance points when distance dominates`() {
 			// 30_000 m × 0.005 = 150
 			val result = scorer.calculateFallbackPoints(
-				steps = 0,
 				distanceMeters = 30_000.0,
 				durationMinutes = 0.0,
 			)
@@ -85,7 +72,6 @@ class PointsScorerTest {
 		fun `returns duration points when duration dominates`() {
 			// 120 min × 0.5 = 60
 			val result = scorer.calculateFallbackPoints(
-				steps = 0,
 				distanceMeters = 0.0,
 				durationMinutes = 120.0,
 			)
@@ -93,9 +79,8 @@ class PointsScorerTest {
 		}
 
 		@Test
-		fun `picks the maximum of the three`() {
+		fun `picks the maximum of distance and duration`() {
 			val result = scorer.calculateFallbackPoints(
-				steps = 1_000,       // 10
 				distanceMeters = 5_000.0, // 25
 				durationMinutes = 60.0,   // 30  ← winner
 			)
@@ -105,7 +90,6 @@ class PointsScorerTest {
 		@Test
 		fun `negative inputs are clamped to zero`() {
 			val result = scorer.calculateFallbackPoints(
-				steps = -100,
 				distanceMeters = -500.0,
 				durationMinutes = -10.0,
 			)
@@ -113,12 +97,11 @@ class PointsScorerTest {
 		}
 
 		@Test
-		fun `custom policy is respected`() {
-			val custom = PointsScoringPolicy(fallbackPointsPerStep = 1.0)
+		fun `custom non-step policy is respected`() {
+			val custom = PointsScoringPolicy(fallbackPointsPerMeter = 1.0)
 			val customScorer = PointsScorer(custom)
 			val result = customScorer.calculateFallbackPoints(
-				steps = 5,
-				distanceMeters = 0.0,
+				distanceMeters = 5.0,
 				durationMinutes = 0.0,
 			)
 			result shouldBeExactly 5.0

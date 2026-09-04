@@ -34,17 +34,18 @@ class PointsScorer(private val policy: PointsScoringPolicy = PointsScoringPolicy
 
 	/**
 	 * Fallback scoring when fewer than two altitude-bearing locations are available.
-	 * Returns the best of step-based, distance-based, or duration-based estimates.
+	 * Returns the best of distance-based or duration-based estimates.
+	 *
+	 * Steps are deliberately absent: the legacy session segment counter is not source-qualified and
+	 * cannot authorize an irreversible points-ledger write.
 	 */
 	fun calculateFallbackPoints(
-		steps: Int,
 		distanceMeters: Double,
 		durationMinutes: Double,
 	): Double {
-		val stepPoints = steps.coerceAtLeast(0) * policy.fallbackPointsPerStep
 		val distancePoints = distanceMeters.coerceAtLeast(0.0) * policy.fallbackPointsPerMeter
 		val durationPoints = durationMinutes.coerceAtLeast(0.0) * policy.fallbackPointsPerMinute
-		return max(stepPoints, max(distancePoints, durationPoints))
+		return max(distancePoints, durationPoints)
 	}
 
 	/**
