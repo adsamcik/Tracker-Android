@@ -221,6 +221,66 @@ class AchievementWorkerTest {
 	}
 
 	@Test
+	fun `missing metric is withheld instead of persisting fabricated zero`() = runTest {
+		val stepsDefinition = AchievementCatalog.byMetric(MetricKey.STEPS_TOTAL).first()
+		val distanceDefinition = AchievementCatalog.byMetric(MetricKey.DISTANCE_TOTAL_M).first()
+		val registry = mockk<RuleRegistry>()
+		coEvery { registry.instancesAffectedByTables(any()) } returnsMany listOf(
+			listOf(ruleInstanceFor(stepsDefinition), ruleInstanceFor(distanceDefinition)),
+			emptyList(),
+		)
+
+		val metricsProvider = mockk<AchievementMetricsProvider>()
+		coEvery { metricsProvider.collect() } returns MetricSnapshot.of(
+			MetricKey.DISTANCE_TOTAL_M to 2_000,
+		)
+
+		val existingSteps = AchievementProgressEntity(
+			metricKey = MetricKey.STEPS_TOTAL.storageKey,
+			lastTierIndex = 1,
+			lastValue = 10_000.0,
+			updatedAt = 1L,
+		)
+		val achievementDao = mockk<AchievementProgressDao>(relaxed = true)
+		coEvery { achievementDao.getAll() } returns listOf(existingSteps)
+		val upsertSlot = slot<List<AchievementProgressEntity>>()
+		coEvery { achievementDao.upsertAll(capture(upsertSlot)) } returns Unit
+
+		val dirtyTracker = DefaultMetricDirtyTracker().apply {
+			markDirty("daily_summary")
+		}
+		val result = newWorker(registry, metricsProvider, achievementDao, dirtyTracker).doWork()
+
+		result shouldBe ListenableWorker.Result.success()
+		upsertSlot.captured.map(AchievementProgressEntity::metricKey) shouldBe
+			listOf(MetricKey.DISTANCE_TOTAL_M.storageKey)
+		dirtyTracker.snapshotDirty(MetricDirtyTracker.Consumer.PERSISTENCE).isEmpty shouldBe true
+	}
+
+	@Test
+	fun `missing pacing metric withholds a paced achievement`() = runTest {
+		val pacedDefinition = AchievementCatalog.byMetric(MetricKey.DISTANCE_TOTAL_M)
+			.first { definition -> definition.minimumActiveDays > 1 }
+		val registry = mockk<RuleRegistry>()
+		coEvery { registry.instancesAffectedByTables(any()) } returns
+			listOf(ruleInstanceFor(pacedDefinition))
+		val metricsProvider = mockk<AchievementMetricsProvider>()
+		coEvery { metricsProvider.collect() } returns MetricSnapshot.of(
+			MetricKey.DISTANCE_TOTAL_M to pacedDefinition.threshold,
+		)
+		val achievementDao = mockk<AchievementProgressDao>(relaxed = true)
+		val dirtyTracker = DefaultMetricDirtyTracker().apply {
+			markDirty("daily_summary")
+		}
+
+		val result = newWorker(registry, metricsProvider, achievementDao, dirtyTracker).doWork()
+
+		result shouldBe ListenableWorker.Result.success()
+		coVerify(exactly = 0) { achievementDao.upsertAll(any()) }
+		dirtyTracker.snapshotDirty(MetricDirtyTracker.Consumer.PERSISTENCE).isEmpty shouldBe true
+	}
+
+	@Test
 	fun `dirty generation arriving during evaluation is drained before success`() = runTest {
 		val definition = AchievementCatalog.byMetric(MetricKey.DISTANCE_TOTAL_M).first()
 		val registry = mockk<RuleRegistry>()

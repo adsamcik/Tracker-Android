@@ -130,7 +130,8 @@ class AchievementWorker @AssistedInject constructor(
 
 				requireReadyGeneration(startupGeneration)
 				val snapshot = dependencies.metricsProvider.collect()
-				if (snapshot.asMap().isEmpty()) {
+				val snapshotValues = snapshot.asMap()
+				if (snapshotValues.isEmpty()) {
 					return@run
 				}
 
@@ -150,7 +151,16 @@ class AchievementWorker @AssistedInject constructor(
 				val accumulators = HashMap<MetricKey, ProgressAccumulator>()
 				for (instance in instances) {
 				val metric = instance.rule.metric
-				val currentValue = snapshot.valueOf(metric)
+				// A missing metric is an explicit nonnumeric boundary, not a numeric zero.
+				// Source-qualified providers omit unavailable or unverifiable values so an
+				// unrelated available metric can still advance in the same worker pass.
+				val currentValue = snapshotValues[metric] ?: continue
+				val definition = instance.attachment as? AchievementDefinition
+				if (definition != null && definition.minimumActiveDays > 1 &&
+					definition.pacingMetric !in snapshotValues
+				) {
+					continue
+				}
 				val accum = accumulators.getOrPut(metric) {
 					val existing = progressByMetric[metric]
 					ProgressAccumulator(
@@ -163,9 +173,8 @@ class AchievementWorker @AssistedInject constructor(
 					accum.changed = true
 				}
 
-				val definition = instance.attachment as? AchievementDefinition
 				if (definition != null && definition.minimumActiveDays > 1) {
-					val pacingDays = snapshot.valueOf(definition.pacingMetric).toLong()
+					val pacingDays = snapshotValues.getValue(definition.pacingMetric).toLong()
 					if (!definition.isEligible(pacingDays)) continue
 				}
 				// Eligibility can change while the raw metric is unchanged. Force a
