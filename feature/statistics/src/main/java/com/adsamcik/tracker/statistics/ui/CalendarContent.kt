@@ -64,6 +64,7 @@ import java.util.Locale
 internal fun CalendarContent(
 	state: CalendarState,
 	onDayClick: (LocalDate) -> Unit,
+	onMonthChange: (YearMonth) -> Unit = {},
 	onNavigateToTripDetail: (Long) -> Unit,
 	onViewTripOnMap: (Trip) -> Unit = {},
 	modifier: Modifier = Modifier,
@@ -71,8 +72,8 @@ internal fun CalendarContent(
 	Column(modifier = modifier.fillMaxSize()) {
 		MonthHeader(
 			yearMonth = state.currentMonth,
-			onPreviousMonth = { onDayClick(state.currentMonth.atDay(1).minusMonths(1)) },
-			onNextMonth = { onDayClick(state.currentMonth.atEndOfMonth().plusDays(1)) },
+			onPreviousMonth = { onMonthChange(state.currentMonth.minusMonths(1)) },
+			onNextMonth = { onMonthChange(state.currentMonth.plusMonths(1)) },
 		)
 
 		CalendarGrid(

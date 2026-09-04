@@ -38,6 +38,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
@@ -94,6 +96,15 @@ class HistoryPresenterViewModel @Inject constructor(
 		),
 	)
 	val calendarState: StateFlow<CalendarState> = _calendarState.asStateFlow()
+	private var calendarRequestGeneration = 0L
+	private val calendarRequest = MutableStateFlow(
+		CalendarRequest(
+			generation = calendarRequestGeneration,
+			month = restoredCalendarMonth,
+			selectedDay = restoredSelectedDay
+				?.takeIf { YearMonth.from(it) == restoredCalendarMonth },
+		),
+	)
 
 	private val _pendingDeletes = MutableStateFlow(
 		savedStateHandle.get<LongArray>(KEY_PENDING_DELETE_IDS)?.toSet().orEmpty(),
@@ -121,10 +132,7 @@ class HistoryPresenterViewModel @Inject constructor(
 	init {
 		loadTimeline()
 		viewModelScope.launch {
-			loadCalendarMonth(restoredCalendarMonth)
-			restoredSelectedDay
-				?.takeIf { YearMonth.from(it) == restoredCalendarMonth }
-				?.let { loadSelectedDay(it) }
+			calendarRequest.collectLatest(::loadCalendarRequest)
 		}
 		restorePendingDeletes()
 	}
@@ -145,15 +153,38 @@ class HistoryPresenterViewModel @Inject constructor(
 		val newMonth = YearMonth.from(date)
 		savedStateHandle[KEY_CALENDAR_MONTH] = newMonth.toString()
 		savedStateHandle[KEY_CALENDAR_SELECTED_DAY] = date.toEpochDay()
-		viewModelScope.launch {
-			if (newMonth != _calendarState.value.currentMonth) {
-				loadCalendarMonth(newMonth)
-			}
-			loadSelectedDay(date)
+		_calendarState.update {
+			it.copy(selectedDay = date, selectedDayDetail = null)
 		}
+		calendarRequest.value = CalendarRequest(
+			generation = ++calendarRequestGeneration,
+			month = newMonth,
+			selectedDay = date,
+		)
 	}
 
-	private suspend fun loadSelectedDay(date: LocalDate) {
+	/** Navigate without inventing a selected boundary day for the target month. */
+	fun selectMonth(month: YearMonth) {
+		savedStateHandle[KEY_CALENDAR_MONTH] = month.toString()
+		savedStateHandle.remove<Long>(KEY_CALENDAR_SELECTED_DAY)
+		_calendarState.update {
+			it.copy(selectedDay = null, selectedDayDetail = null)
+		}
+		calendarRequest.value = CalendarRequest(
+			generation = ++calendarRequestGeneration,
+			month = month,
+			selectedDay = null,
+		)
+	}
+
+	private suspend fun loadCalendarRequest(request: CalendarRequest) {
+		if (request.month != _calendarState.value.currentMonth || _calendarState.value.dayData.isEmpty()) {
+			loadCalendarMonth(request.month, request)
+		}
+		request.selectedDay?.let { observeSelectedDay(it, request) }
+	}
+
+	private suspend fun observeSelectedDay(date: LocalDate, request: CalendarRequest) {
 		val startOfDay = date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
 		val endOfDay = date.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant()
 			.toEpochMilli()
@@ -162,19 +193,28 @@ class HistoryPresenterViewModel @Inject constructor(
 		val summary = dailySummaryRepository.observeBetween(epochDay, epochDay)
 			.first()
 			.firstOrNull()
-		val qualifiedSteps = stepsNumericSummaryRepository.read(
-			stepsRequest(epochDay, epochDay),
-		).forDay(epochDay)
+		if (calendarRequest.value != request) return
 		_calendarState.update {
 			it.copy(
 				selectedDay = date,
 				selectedDayDetail = CalendarState.DayDetail(
 					totalDistanceM = summary?.totalDistance?.raw ?: 0f,
-					steps = qualifiedSteps,
+					steps = HistoryStepsValue.Materializing,
 					tripCount = trips.size,
 					trips = trips,
 				),
 			)
+		}
+		stepsNumericSummaryRepository.observe(stepsRequest(epochDay, epochDay)).collect { summary ->
+			if (calendarRequest.value == request) {
+				_calendarState.update { state ->
+					state.copy(
+						selectedDayDetail = state.selectedDayDetail?.copy(
+							steps = summary.forDay(epochDay),
+						),
+					)
+				}
+			}
 		}
 	}
 
@@ -239,7 +279,10 @@ class HistoryPresenterViewModel @Inject constructor(
 		}
 	}
 
-	private suspend fun loadCalendarMonth(yearMonth: YearMonth) {
+	private suspend fun loadCalendarMonth(
+		yearMonth: YearMonth,
+		request: CalendarRequest,
+	) {
 		val firstDay = yearMonth.atDay(1).toEpochDay()
 		val lastDay = yearMonth.atEndOfMonth().toEpochDay()
 		val summaries = dailySummaryRepository.observeBetween(firstDay, lastDay)
@@ -255,13 +298,15 @@ class HistoryPresenterViewModel @Inject constructor(
 			)
 		}
 
-		_calendarState.update {
-			it.copy(
-				currentMonth = yearMonth,
-				dayData = dayData,
-				selectedDay = null,
-				selectedDayDetail = null,
-			)
+		if (calendarRequest.value == request) {
+			_calendarState.update {
+				it.copy(
+					currentMonth = yearMonth,
+					dayData = dayData,
+					selectedDay = request.selectedDay,
+					selectedDayDetail = null,
+				)
+			}
 		}
 	}
 
@@ -366,6 +411,12 @@ class HistoryPresenterViewModel @Inject constructor(
 		internal const val KEY_PENDING_DELETE_IDS = "history_pending_delete_ids"
 	}
 }
+
+private data class CalendarRequest(
+	val generation: Long,
+	val month: YearMonth,
+	val selectedDay: LocalDate?,
+)
 
 /** Never converts a nonnumeric retained Steps result into zero. */
 internal fun StepsNumericSummary.forDay(epochDay: Long): HistoryStepsValue = when (this) {

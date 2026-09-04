@@ -145,6 +145,7 @@ fun HistoryRoute(
 					HistoryTab.CALENDAR -> CalendarContent(
 						state = calendarState,
 						onDayClick = viewModel::selectDay,
+						onMonthChange = viewModel::selectMonth,
 						onNavigateToTripDetail = onNavigateToTripDetail,
 						onViewTripOnMap = { trip ->
 							onNavigateToMap(trip.id, trip.startTimeMs, trip.endTimeMs)

@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToKey
 import com.adsamcik.tracker.shared.model.SegmentSource
@@ -15,6 +16,7 @@ import com.adsamcik.tracker.statistics.viewmodel.CalendarDayData
 import com.adsamcik.tracker.statistics.viewmodel.CalendarState
 import com.adsamcik.tracker.statistics.viewmodel.HistoryStepsValue
 import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
+import io.kotest.matchers.shouldBe
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -80,6 +82,29 @@ class CalendarContentComposeTest {
 			}
 		}
 		composeTestRule.onNodeWithText("March 2024", substring = true).assertIsDisplayed()
+	}
+
+	@Test
+	fun `month arrows change month without selecting a synthetic day`() {
+		val month = YearMonth.of(2024, 3)
+		val requestedMonths = mutableListOf<YearMonth>()
+		val selectedDays = mutableListOf<LocalDate>()
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				CalendarContent(
+					state = CalendarState(currentMonth = month),
+					onDayClick = selectedDays::add,
+					onMonthChange = requestedMonths::add,
+					onNavigateToTripDetail = {},
+				)
+			}
+		}
+
+		composeTestRule.onNodeWithContentDescription("Previous month").performClick()
+		composeTestRule.onNodeWithContentDescription("Next month").performClick()
+
+		requestedMonths shouldBe listOf(month.minusMonths(1), month.plusMonths(1))
+		selectedDays shouldBe emptyList()
 	}
 
 	// ─── Day data with intensity ─────────────────────────────────────────

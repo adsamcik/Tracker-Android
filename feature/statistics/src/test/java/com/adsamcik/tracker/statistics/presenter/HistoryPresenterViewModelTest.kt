@@ -32,6 +32,8 @@ import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -65,8 +67,9 @@ class HistoryPresenterViewModelTest {
 		// Default: empty flows and results
 		every { explorationRepository.observeCellCount(any()) } returns flowOf(0)
 		every { dailySummaryRepository.observeBetween(any(), any()) } returns flowOf(emptyList())
-		coEvery { stepsNumericSummaryRepository.read(any()) } returns
-			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED)
+		every { stepsNumericSummaryRepository.observe(any()) } returns flowOf(
+			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED),
+		)
 		coEvery { tripPresentationRepository.getTripsBetween(any(), any()) } returns emptyList()
 		every { tripPresentationRepository.getPagedTrips() } returns mockk<PagingSource<Int, Trip>>()
 	}
@@ -266,9 +269,10 @@ class HistoryPresenterViewModelTest {
 		}
 
 		@Test
-		fun `selected day preserves materializing Steps instead of raw summary zero`() = runTest {
+		fun `selected day settles materializing Steps without reselection`() = runTest {
 			val date = LocalDate.of(2024, 6, 15)
 			val epochDay = date.toEpochDay()
+			val steps = MutableStateFlow<StepsNumericSummary>(StepsNumericSummary.Materializing)
 			every { dailySummaryRepository.observeBetween(epochDay, epochDay) } returns flowOf(
 				listOf(
 					DailySummary(
@@ -281,11 +285,11 @@ class HistoryPresenterViewModelTest {
 					),
 				),
 			)
-			coEvery {
-				stepsNumericSummaryRepository.read(
+			every {
+				stepsNumericSummaryRepository.observe(
 					match { it.firstEpochDay == epochDay && it.lastEpochDayInclusive == epochDay },
 				)
-			} returns StepsNumericSummary.Materializing
+			} returns steps
 
 			val vm = createViewModel()
 			advanceUntilIdle()
@@ -293,17 +297,23 @@ class HistoryPresenterViewModelTest {
 			advanceUntilIdle()
 
 			vm.calendarState.value.selectedDayDetail?.steps shouldBe HistoryStepsValue.Materializing
+
+			steps.value = StepsNumericSummary.Ready(listOf(StepsNumericDay(epochDay, 42L)))
+			advanceUntilIdle()
+
+			vm.calendarState.value.selectedDayDetail?.steps shouldBe HistoryStepsValue.Ready(42L)
+			coVerify(exactly = 0) { stepsNumericSummaryRepository.read(any()) }
 		}
 
 		@Test
 		fun `selected day exposes zero only from complete qualified coverage`() = runTest {
 			val date = LocalDate.of(2024, 7, 3)
 			val epochDay = date.toEpochDay()
-			coEvery {
-				stepsNumericSummaryRepository.read(
+			every {
+				stepsNumericSummaryRepository.observe(
 					match { it.firstEpochDay == epochDay && it.lastEpochDayInclusive == epochDay },
 				)
-			} returns StepsNumericSummary.Ready(listOf(StepsNumericDay(epochDay, 0L)))
+			} returns flowOf(StepsNumericSummary.Ready(listOf(StepsNumericDay(epochDay, 0L))))
 
 			val vm = createViewModel()
 			advanceUntilIdle()
@@ -311,6 +321,68 @@ class HistoryPresenterViewModelTest {
 			advanceUntilIdle()
 
 			vm.calendarState.value.selectedDayDetail?.steps shouldBe HistoryStepsValue.Ready(0L)
+		}
+
+		@Test
+		fun `late selected day emission cannot overwrite replacement day`() = runTest {
+			val dayA = LocalDate.of(2024, 7, 3)
+			val dayB = LocalDate.of(2024, 7, 4)
+			val stepsA = MutableStateFlow<StepsNumericSummary>(StepsNumericSummary.Materializing)
+			val stepsB = MutableStateFlow<StepsNumericSummary>(
+				StepsNumericSummary.Ready(listOf(StepsNumericDay(dayB.toEpochDay(), 20L))),
+			)
+			every {
+				stepsNumericSummaryRepository.observe(match { it.firstEpochDay == dayA.toEpochDay() })
+			} returns stepsA
+			every {
+				stepsNumericSummaryRepository.observe(match { it.firstEpochDay == dayB.toEpochDay() })
+			} returns stepsB
+			val vm = createViewModel()
+			advanceUntilIdle()
+
+			vm.selectDay(dayA)
+			advanceUntilIdle()
+			vm.selectDay(dayB)
+			advanceUntilIdle()
+			vm.calendarState.value.selectedDayDetail?.steps shouldBe HistoryStepsValue.Ready(20L)
+
+			stepsA.value = StepsNumericSummary.Ready(
+				listOf(StepsNumericDay(dayA.toEpochDay(), 99L)),
+			)
+			advanceUntilIdle()
+
+			vm.calendarState.value.selectedDay shouldBe dayB
+			vm.calendarState.value.selectedDayDetail?.steps shouldBe HistoryStepsValue.Ready(20L)
+		}
+
+		@Test
+		fun `month navigation cancels selected day settlement and clears selection`() = runTest {
+			val day = LocalDate.of(2024, 7, 3)
+			val backingSteps = MutableStateFlow<StepsNumericSummary>(StepsNumericSummary.Materializing)
+			var cancelled = false
+			every {
+				stepsNumericSummaryRepository.observe(match { it.firstEpochDay == day.toEpochDay() })
+			} returns flow {
+				try {
+					emitAll(backingSteps)
+				} finally {
+					cancelled = true
+				}
+			}
+			val savedStateHandle = SavedStateHandle()
+			val vm = createViewModel(savedStateHandle)
+			advanceUntilIdle()
+
+			vm.selectDay(day)
+			advanceUntilIdle()
+			vm.selectMonth(YearMonth.of(2024, 8))
+			advanceUntilIdle()
+
+			cancelled shouldBe true
+			vm.calendarState.value.currentMonth shouldBe YearMonth.of(2024, 8)
+			vm.calendarState.value.selectedDay shouldBe null
+			vm.calendarState.value.selectedDayDetail shouldBe null
+			savedStateHandle.get<Long>("history_calendar_selected_day") shouldBe null
 		}
 	}
 
