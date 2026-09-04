@@ -75,8 +75,6 @@ class DefaultGameRepository @Inject constructor(
 		GoalTracker.initialize(
 			context = application,
 			trackerStateReader = trackerStateReader,
-			progressionRepository = progressionRepository,
-			achievementScheduler = achievementScheduler,
 			settingsRepository = goalsSettingsRepository,
 		)
 	}

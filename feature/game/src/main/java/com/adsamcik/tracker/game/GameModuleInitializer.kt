@@ -5,7 +5,6 @@ import com.adsamcik.tracker.game.event.ExplorationDomainEventConsumer
 import com.adsamcik.tracker.game.event.GameDomainEventConsumer
 import com.adsamcik.tracker.game.goals.GoalTracker
 import com.adsamcik.tracker.game.goals.settings.GoalsSettingsRepository
-import com.adsamcik.tracker.game.progression.PlayerProgressionRepository
 import com.adsamcik.tracker.game.repository.GameRepository
 import com.adsamcik.tracker.game.session.GameFinalizationReconciler
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
@@ -13,7 +12,6 @@ import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.startup.ModuleInitializer
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
-import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -37,8 +35,6 @@ class GameModuleInitializer @Inject constructor(
 	private val explorationConsumer: ExplorationDomainEventConsumer,
 	private val trackerStateReader: TrackerStateReader,
 	private val domainEventRepository: DomainEventRepository,
-	private val progressionRepository: PlayerProgressionRepository,
-	private val achievementScheduler: AchievementEvaluationScheduler,
 	private val goalsSettingsRepository: GoalsSettingsRepository,
 	private val miniGameScoreDao: MiniGameScoreDao,
 	private val gameRepository: GameRepository,
@@ -67,8 +63,6 @@ class GameModuleInitializer @Inject constructor(
 		GoalTracker.initialize(
 			context = context,
 			trackerStateReader = trackerStateReader,
-			progressionRepository = progressionRepository,
-			achievementScheduler = achievementScheduler,
 			settingsRepository = goalsSettingsRepository,
 		)
 	}
