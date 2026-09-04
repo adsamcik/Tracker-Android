@@ -39,6 +39,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -178,6 +179,9 @@ class DashboardViewModel @Inject constructor(
 
 	private val _sessionInsights = MutableStateFlow<List<SessionInsight>>(emptyList())
 	val sessionInsights: StateFlow<List<SessionInsight>> = _sessionInsights.asStateFlow()
+	private var sessionInsightsJob: Job? = null
+	private var activeSessionInsightsRequest: SessionInsightsRequest? = null
+	private var sessionInsightsGeneration = 0L
 
 	private val _hasLocationPermission = MutableStateFlow(checkLocationPermission(appContext))
 	val hasLocationPermission: StateFlow<Boolean> = _hasLocationPermission.asStateFlow()
@@ -257,15 +261,31 @@ class DashboardViewModel @Inject constructor(
 
 	fun refreshSessionInsights(isTracking: Boolean, session: TrackerSessionSnapshot?) {
 		if (isTracking || session == null) {
+			activeSessionInsightsRequest = null
+			sessionInsightsJob?.cancel()
+			sessionInsightsJob = null
 			_sessionInsights.value = emptyList()
 			return
 		}
 
-		viewModelScope.launch {
-			_sessionInsights.value = runCatchingCancellable {
+		if (activeSessionInsightsRequest?.session == session && sessionInsightsJob?.isActive == true) {
+			return
+		}
+		sessionInsightsJob?.cancel()
+		val request = SessionInsightsRequest(
+			generation = ++sessionInsightsGeneration,
+			session = session,
+		)
+		activeSessionInsightsRequest = request
+		_sessionInsights.value = emptyList()
+		sessionInsightsJob = viewModelScope.launch {
+			val generated = runCatchingCancellable {
 				sessionInsightsGenerator.generate(session)
 			}.getOrElse {
 				emptyList()
+			}
+			if (activeSessionInsightsRequest == request) {
+				_sessionInsights.value = generated
 			}
 		}
 	}
@@ -327,6 +347,11 @@ class DashboardViewModel @Inject constructor(
 		}
 	}
 }
+
+private data class SessionInsightsRequest(
+	val generation: Long,
+	val session: TrackerSessionSnapshot,
+)
 
 private fun SessionHistoryQuery.toLivePresentation(
 	requestedSegmentId: Long,
