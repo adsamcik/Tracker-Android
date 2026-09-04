@@ -183,55 +183,64 @@ internal class MiniGameRewardEnsurer(
 			return GameRewardEnsureResult.Rejected(GameRewardRejectionReason.INVALID_REWARD)
 		}
 		val expectedGeneration = trackingStartupGate.currentGeneration
-		try {
-			if (trackingStartupGate.reconcile() !is TrackingStartupResult.Ready) {
-				return persistenceUnavailable()
-			}
-		} catch (cancellation: CancellationException) {
-			throw cancellation
-		} catch (_: Throwable) {
+		if (!reconcileReady()) {
 			return persistenceUnavailable()
 		}
 		return mutex.withLock {
-			try {
-				val source = "minigame:${reward.gameId}"
-				val alreadyAwarded = trackingStartupGate.withReadyGenerationOperation(
-					expectedGeneration,
-				) {
-					withContext(dispatchers.io) {
-						val exists = pointsDao.hasAwardAt(reward.earnedAtMs, source)
-						if (!exists && reward.points > 0) {
-							pointsDao.insert(
-								PointsAwarded(
-									time = reward.earnedAtMs,
-									value = Points(reward.points.toDouble()),
-									source = AwardSource(source),
-								),
-							)
-						}
-						exists
-					}
-				} ?: return@withLock persistenceUnavailable()
+			ensureAcceptedGeneration(reward, expectedGeneration)
+		}
+	}
 
-				// Retried deliberately: the progression ledger is independently
-				// idempotent and this repairs a points-written/progression-missed split.
-				if (!awardProgression(reward.points, reward.earnedAtMs, expectedGeneration)) {
-					return@withLock persistenceUnavailable()
-				}
-				trackingStartupGate.withReadyGeneration(expectedGeneration) {
-					markMiniGameMetricsDirty()
-					scheduleAchievementEvaluation()
-					if (alreadyAwarded) {
-						GameRewardEnsureResult.AlreadyEnsured
-					} else {
-						GameRewardEnsureResult.Created
+	private suspend fun reconcileReady(): Boolean = try {
+		trackingStartupGate.reconcile() is TrackingStartupResult.Ready
+	} catch (cancellation: CancellationException) {
+		throw cancellation
+	} catch (_: Throwable) {
+		false
+	}
+
+	private suspend fun ensureAcceptedGeneration(
+		reward: GameReward,
+		expectedGeneration: Long,
+	): GameRewardEnsureResult {
+		return try {
+			val source = "minigame:${reward.gameId}"
+			val alreadyAwarded = trackingStartupGate.withReadyGenerationOperation(
+				expectedGeneration,
+			) {
+				withContext(dispatchers.io) {
+					val exists = pointsDao.hasAwardAt(reward.earnedAtMs, source)
+					if (!exists && reward.points > 0) {
+						pointsDao.insert(
+							PointsAwarded(
+								time = reward.earnedAtMs,
+								value = Points(reward.points.toDouble()),
+								source = AwardSource(source),
+							),
+						)
 					}
-				} ?: persistenceUnavailable()
-			} catch (cancellation: CancellationException) {
-				throw cancellation
-			} catch (_: Throwable) {
-				persistenceUnavailable()
+					exists
+				}
+			} ?: return persistenceUnavailable()
+
+			// Retried deliberately: the progression ledger is independently idempotent and this repairs
+			// a points-written/progression-missed split.
+			if (!awardProgression(reward.points, reward.earnedAtMs, expectedGeneration)) {
+				return persistenceUnavailable()
 			}
+			trackingStartupGate.withReadyGeneration(expectedGeneration) {
+				markMiniGameMetricsDirty()
+				scheduleAchievementEvaluation()
+				if (alreadyAwarded) {
+					GameRewardEnsureResult.AlreadyEnsured
+				} else {
+					GameRewardEnsureResult.Created
+				}
+			} ?: persistenceUnavailable()
+		} catch (cancellation: CancellationException) {
+			throw cancellation
+		} catch (_: Throwable) {
+			persistenceUnavailable()
 		}
 	}
 

@@ -15,6 +15,7 @@ import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
@@ -129,12 +130,7 @@ class MiniGameRewardEnsurerTest {
 			val gate = SerializedTestTrackingStartupGate()
 			val dirtyTracker = RecordingMetricDirtyTracker()
 			val progressionGenerations = mutableListOf<Long>()
-			val progression = PlayerProgressionRepository(
-				database = database,
-				dispatchers = TestDispatchersProvider(dispatcher),
-				metricDirtyTracker = dirtyTracker,
-				trackingStartupGate = gate,
-			)
+			val progression = progressionRepository(dispatcher, dirtyTracker, gate)
 			var scheduledEvaluations = 0
 			val ensurer = MiniGameRewardEnsurer(
 				pointsDao = dao,
@@ -151,23 +147,12 @@ class MiniGameRewardEnsurerTest {
 				markMiniGameMetricsDirty = { error("stale reward marked metrics dirty") },
 				scheduleAchievementEvaluation = { scheduledEvaluations++ },
 			)
-			val reward = GameReward(
-				rewardId = miniGameRewardId("outrun", 789L),
-				gameId = "outrun",
-				points = 40,
-				earnedAtMs = 789L,
-			)
+			val reward = reward(gameId = "outrun", points = 40, earnedAtMs = 789L)
 
 			val ensure = async { ensurer.ensure(reward) }
 			insertStarted.await()
 			val deletion = async {
-				gate.closeDeleteReopen {
-					dao.deleteAll()
-					database.withTransaction {
-						database.xpLedgerDao().deleteAll()
-						database.playerProfileDao().deleteAll()
-					}
-				}
+				gate.closeDeleteReopen { deleteRewardState(dao) }
 			}
 			runCurrent()
 
@@ -193,22 +178,11 @@ class MiniGameRewardEnsurerTest {
 		val dao = RecordingPointsDao()
 		val gate = SerializedTestTrackingStartupGate().apply {
 			afterNextReconcile = {
-				closeDeleteReopen {
-					dao.deleteAll()
-					database.withTransaction {
-						database.xpLedgerDao().deleteAll()
-						database.playerProfileDao().deleteAll()
-					}
-				}
+				closeDeleteReopen { deleteRewardState(dao) }
 			}
 		}
 		val dirtyTracker = RecordingMetricDirtyTracker()
-		val progression = PlayerProgressionRepository(
-			database = database,
-			dispatchers = TestDispatchersProvider(dispatcher),
-			metricDirtyTracker = dirtyTracker,
-			trackingStartupGate = gate,
-		)
+		val progression = progressionRepository(dispatcher, dirtyTracker, gate)
 		val ensurer = MiniGameRewardEnsurer(
 			pointsDao = dao,
 			dispatchers = TestDispatchersProvider(dispatcher),
@@ -218,14 +192,8 @@ class MiniGameRewardEnsurerTest {
 			scheduleAchievementEvaluation = { error("retired reward scheduled evaluation") },
 		)
 
-		ensurer.ensure(
-			GameReward(
-				rewardId = miniGameRewardId("territory", 987L),
-				gameId = "territory",
-				points = 50,
-				earnedAtMs = 987L,
-			),
-		) shouldBe GameRewardEnsureResult.Rejected(
+		ensurer.ensure(reward(gameId = "territory", points = 50, earnedAtMs = 987L)) shouldBe
+			GameRewardEnsureResult.Rejected(
 			GameRewardRejectionReason.PERSISTENCE_UNAVAILABLE,
 		)
 
@@ -234,6 +202,32 @@ class MiniGameRewardEnsurerTest {
 		database.playerProfileDao().get() shouldBe null
 		dirtyTracker.markCalls shouldBe 0
 		gate.operationGenerations shouldBe listOf(1L)
+	}
+
+	private fun progressionRepository(
+		dispatcher: CoroutineDispatcher,
+		dirtyTracker: MetricDirtyTracker,
+		gate: TrackingStartupGate,
+	) = PlayerProgressionRepository(
+		database = database,
+		dispatchers = TestDispatchersProvider(dispatcher),
+		metricDirtyTracker = dirtyTracker,
+		trackingStartupGate = gate,
+	)
+
+	private fun reward(gameId: String, points: Int, earnedAtMs: Long) = GameReward(
+		rewardId = miniGameRewardId(gameId, earnedAtMs),
+		gameId = gameId,
+		points = points,
+		earnedAtMs = earnedAtMs,
+	)
+
+	private suspend fun deleteRewardState(dao: RecordingPointsDao) {
+		dao.deleteAll()
+		database.withTransaction {
+			database.xpLedgerDao().deleteAll()
+			database.playerProfileDao().deleteAll()
+		}
 	}
 
 	private class RecordingPointsDao(
@@ -294,14 +288,22 @@ class MiniGameRewardEnsurerTest {
 		): T? {
 			operationGenerations += expectedGeneration
 			return operationMutex.withLock {
-				if (isReadyGeneration(expectedGeneration)) operation() else null
+				if (isReadyGeneration(expectedGeneration)) {
+					operation()
+				} else {
+					null
+				}
 			}
 		}
 
 		override fun <T> withReadyGeneration(
 			expectedGeneration: Long,
 			operation: () -> T,
-		): T? = if (isReadyGeneration(expectedGeneration)) operation() else null
+		): T? = if (isReadyGeneration(expectedGeneration)) {
+			operation()
+		} else {
+			null
+		}
 
 		suspend fun closeDeleteReopen(delete: suspend () -> Unit) {
 			ready = false
@@ -322,7 +324,9 @@ class MiniGameRewardEnsurerTest {
 		}
 
 		override fun markDirty(tables: Set<String>) {
-			if (tables.isNotEmpty()) markCalls += 1
+			if (tables.isNotEmpty()) {
+				markCalls += 1
+			}
 		}
 
 		override suspend fun snapshotDirty(

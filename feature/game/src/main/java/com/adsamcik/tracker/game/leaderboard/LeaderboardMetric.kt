@@ -13,6 +13,7 @@ enum class LeaderboardMetric(val labelRes: Int, val unitRes: Int) {
 	val isSelectable: Boolean
 		get() = this != STEPS
 
+	/** Product-safe choices whose values are backed by independently valid retained facts. */
 	companion object {
 		val selectableEntries: List<LeaderboardMetric> = entries.filter(LeaderboardMetric::isSelectable)
 	}
