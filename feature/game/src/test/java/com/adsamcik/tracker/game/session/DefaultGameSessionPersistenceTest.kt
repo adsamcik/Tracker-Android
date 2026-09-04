@@ -46,6 +46,7 @@ class DefaultGameSessionPersistenceTest {
 		)
 		val commit = GameSessionCommit(
 			sessionId = GameSessionId("session-1"),
+			startupGeneration = 1L,
 			configuration = MiniGameConfigurations.DEFAULT_OUTRUN,
 			score = 12.5,
 			points = 41,
@@ -115,7 +116,7 @@ class DefaultGameSessionPersistenceTest {
 	}
 
 	@Test
-	fun `generation replaced before admission rejects score and reward`() = runTest {
+	fun `session admitted before deletion cannot commit after replacement generation opens`() = runTest {
 		val events = mutableListOf<String>()
 		val scoreDao = RecordingScoreDao(events)
 		val gate = SerializedTestTrackingStartupGate().apply {
@@ -142,6 +143,7 @@ class DefaultGameSessionPersistenceTest {
 
 	private fun commit() = GameSessionCommit(
 		sessionId = GameSessionId("session-race"),
+		startupGeneration = 1L,
 		configuration = MiniGameConfigurations.DEFAULT_OUTRUN,
 		score = 12.5,
 		points = 41,
@@ -171,7 +173,11 @@ class DefaultGameSessionPersistenceTest {
 			operationGenerations += expectedGeneration
 			beforeNextOperation?.also { beforeNextOperation = null }?.invoke()
 			return operationMutex.withLock {
-				if (isReadyGeneration(expectedGeneration)) operation() else null
+				if (isReadyGeneration(expectedGeneration)) {
+					operation()
+				} else {
+					null
+				}
 			}
 		}
 

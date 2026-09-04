@@ -113,6 +113,7 @@ internal class ConfiguredGameSessionFactory(
 
 internal data class GameSessionCommit(
 	val sessionId: GameSessionId,
+	val startupGeneration: Long,
 	val configuration: MiniGameConfiguration,
 	val score: Double,
 	val points: Int,
@@ -120,6 +121,7 @@ internal data class GameSessionCommit(
 )
 
 internal interface GameSessionPersistence {
+	suspend fun admitSessionGeneration(): Long?
 	suspend fun loadPersonalBest(gameId: String): Double?
 	suspend fun commit(commit: GameSessionCommit): GameRewardEnsureResult
 }
@@ -133,13 +135,20 @@ internal class DefaultGameSessionPersistence(
 		acceptedGeneration: Long,
 	) -> GameRewardEnsureResult,
 ) : GameSessionPersistence {
+	override suspend fun admitSessionGeneration(): Long? {
+		val expectedGeneration = trackingStartupGate.currentGeneration
+		return trackingStartupGate.withReadyGenerationOperation(expectedGeneration) {
+			expectedGeneration
+		}
+	}
+
 	override suspend fun loadPersonalBest(gameId: String): Double? =
 		withContext(dispatchers.io) {
 			scoreDao.getPersonalBest(gameId)
 		}
 
 	override suspend fun commit(commit: GameSessionCommit): GameRewardEnsureResult {
-		val expectedGeneration = trackingStartupGate.currentGeneration
+		val expectedGeneration = commit.startupGeneration
 		val reward = GameReward(
 			rewardId = miniGameRewardId(
 				gameId = commit.configuration.gameId,
@@ -254,6 +263,17 @@ internal class GameSessionRuntime(
 		}
 		terminalNotificationSent = false
 		publish(GameSessionState.Starting(configuration), isCommandTransition = true)
+		val startupGeneration = try {
+			persistence.admitSessionGeneration()
+		} catch (cancellation: CancellationException) {
+			throw cancellation
+		} catch (_: Throwable) {
+			null
+		}
+		if (startupGeneration == null) {
+			fail(configuration, GameSessionFailureReason.PERSISTENCE_FAILED)
+			return
+		}
 
 		val personalBest = try {
 			persistence.loadPersonalBest(configuration.gameId)
@@ -278,6 +298,7 @@ internal class GameSessionRuntime(
 		val now = clock.elapsedRealtimeMs()
 		val newActive = ActiveSession(
 			sessionId = sessionIdFactory.create(),
+			startupGeneration = startupGeneration,
 			configuration = configuration,
 			session = prepared.session,
 			locationRequest = prepared.locationRequest,
@@ -439,6 +460,7 @@ internal class GameSessionRuntime(
 		val completedAtMs = clock.currentTimeMillis().coerceAtLeast(0L)
 		val commit = GameSessionCommit(
 			sessionId = current.sessionId,
+			startupGeneration = current.startupGeneration,
 			configuration = current.configuration,
 			score = finalScore,
 			points = points,
@@ -538,6 +560,7 @@ internal class GameSessionRuntime(
 
 	private inner class ActiveSession(
 		val sessionId: GameSessionId,
+		val startupGeneration: Long,
 		val configuration: MiniGameConfiguration,
 		val session: MiniGameSession,
 		val locationRequest: LocationRequest,

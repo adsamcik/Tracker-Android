@@ -11,6 +11,7 @@ import com.adsamcik.tracker.game.minigame.MiniGameVisualPayload
 import com.adsamcik.tracker.game.minigame.location.MiniGameLocationSample
 import com.adsamcik.tracker.game.minigame.location.MiniGameLocationSource
 import com.adsamcik.tracker.game.repository.GameRewardEnsureResult
+import com.adsamcik.tracker.game.repository.GameRewardRejectionReason
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.Priority
 import io.kotest.matchers.collections.shouldHaveSize
@@ -193,6 +194,42 @@ class GameSessionRuntimeTest {
 		harness.runtime.shutdown()
 	}
 
+	@Test
+	fun `start while startup admission is closed cannot activate or later commit`() = runTest {
+		val harness = RuntimeHarness(this)
+		harness.persistence.admittedGeneration = null
+
+		harness.runtime.submit(GameSessionCommand.Start(CONFIGURATION))
+		runCurrent()
+
+		val failed = harness.publisher.states.last().shouldBeInstanceOf<GameSessionState.Failed>()
+		failed.reason shouldBe GameSessionFailureReason.PERSISTENCE_FAILED
+		harness.factory.sessions shouldBe emptyList()
+		harness.locationSource.subscribers shouldBe 0
+		harness.persistence.commitAttempts shouldBe emptyList()
+		harness.terminalCalls shouldBe 1
+		harness.runtime.shutdown()
+	}
+
+	@Test
+	fun `active run keeps its admitted generation and cannot commit after deletion`() = runTest {
+		val harness = RuntimeHarness(this)
+		harness.runtime.submit(GameSessionCommand.Start(CONFIGURATION))
+		runCurrent()
+		harness.locationSource.emit(SAMPLE)
+		runCurrent()
+
+		harness.persistence.acceptedGeneration = 2L
+		harness.runtime.submit(GameSessionCommand.Finish)
+		runCurrent()
+
+		harness.persistence.commitAttempts.single().startupGeneration shouldBe 1L
+		harness.persistence.commits shouldBe emptyList()
+		val failed = harness.publisher.states.last().shouldBeInstanceOf<GameSessionState.Failed>()
+		failed.reason shouldBe GameSessionFailureReason.PERSISTENCE_FAILED
+		harness.runtime.shutdown()
+	}
+
 	private class RuntimeHarness(
 		testScope: TestScope,
 		finishAfterSamples: Int = Int.MAX_VALUE,
@@ -322,8 +359,13 @@ class GameSessionRuntimeTest {
 
 	private class RecordingPersistence : GameSessionPersistence {
 		var personalBest: Double? = null
+		var admittedGeneration: Long? = 1L
+		var acceptedGeneration: Long = 1L
 		val commits = mutableListOf<GameSessionCommit>()
+		val commitAttempts = mutableListOf<GameSessionCommit>()
 		val events = mutableListOf<String>()
+
+		override suspend fun admitSessionGeneration(): Long? = admittedGeneration
 
 		override suspend fun loadPersonalBest(gameId: String): Double? {
 			events += "personal-best"
@@ -331,6 +373,12 @@ class GameSessionRuntimeTest {
 		}
 
 		override suspend fun commit(commit: GameSessionCommit): GameRewardEnsureResult {
+			commitAttempts += commit
+			if (commit.startupGeneration != acceptedGeneration) {
+				return GameRewardEnsureResult.Rejected(
+					GameRewardRejectionReason.PERSISTENCE_UNAVAILABLE,
+				)
+			}
 			commits += commit
 			return GameRewardEnsureResult.Created
 		}
