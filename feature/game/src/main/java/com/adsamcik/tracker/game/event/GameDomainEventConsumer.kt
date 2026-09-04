@@ -37,8 +37,9 @@ class GameDomainEventConsumer @Inject constructor(
 			val batch = loadAcceptedBatch(expectedGeneration) ?: return@withLock
 			if (batch.isEmpty()) return@withLock
 			batch.forEach { unconsumed ->
+				val event = unconsumed.event
 				val handled = try {
-					handleEvent(unconsumed.event, expectedGeneration)
+					handleEvent(event, expectedGeneration)
 				} catch (e: CancellationException) {
 					throw e
 				} catch (_: Exception) {
@@ -48,14 +49,12 @@ class GameDomainEventConsumer @Inject constructor(
 				val acknowledged = trackingStartupGate.withReadyGenerationOperation(
 					expectedGeneration,
 				) {
-					if (unconsumed.event is DomainEvent.SessionEnded &&
-						unconsumed.event.sessionId > 0L
-					) {
+					if (event is DomainEvent.SessionEnded && event.sessionId > 0L) {
 						enqueueAchievementWorker()
 					}
 					domainEventRepository.markBatchConsumed(
 						CONSUMER_ID,
-						unconsumed.event.timestampMs,
+						event.timestampMs,
 						unconsumed.persistedId,
 					)
 					true

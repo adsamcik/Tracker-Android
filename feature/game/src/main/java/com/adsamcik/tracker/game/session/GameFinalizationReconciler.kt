@@ -51,13 +51,13 @@ internal class GameFinalizationReconciler(
 			val result = try {
 				trackingStartupGate.withReadyGenerationOperation(expectedGeneration) {
 					ensureRewardInsideAcceptedGeneration(
-						reward = GameReward(
+						GameReward(
 							rewardId = miniGameRewardId(row.gameId, row.playedAt),
 							gameId = row.gameId,
 							points = row.xpAwarded,
 							earnedAtMs = row.playedAt,
 						),
-						acceptedGeneration = expectedGeneration,
+						expectedGeneration,
 					)
 				} ?: run {
 					failed++
