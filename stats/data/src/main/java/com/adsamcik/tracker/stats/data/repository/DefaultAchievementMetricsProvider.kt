@@ -24,7 +24,6 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
-import java.time.temporal.WeekFields
 import javax.inject.Inject
 import kotlin.math.asin
 import kotlin.math.cos
@@ -62,7 +61,6 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 		val countriesVisited = explorationCellDao.getCellCenters(EXPLORATION_CELL_LEVEL)
 			.mapNotNullTo(HashSet()) { countryLookup.countryOf(it.latE7 / E7, it.lonE7 / E7) }
 			.size
-		val goalMetMillis = xpLedgerDao.getEarnedAtBySource(XP_SOURCE_GOAL)
 		val progressRows = achievementProgressDao.getAll()
 		val unlockedTierByMetric = progressRows
 			.mapNotNull { row -> MetricKey.fromStorageKey(row.metricKey)?.let { it to row.lastTierIndex } }
@@ -73,10 +71,13 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 			defs.isNotEmpty() && defs.all { def -> (unlockedTierByMetric[def.metric] ?: -1) >= def.tierIndex }
 		}
 
+		// STEPS_TOTAL, BEST_DAILY_STEPS, PERFECT_WEEKS, and GOAL_STREAK_DAYS remain
+		// deliberately absent. daily_summary is a projection rather than source qualification, and
+		// legacy GOAL XP timestamps do not prove the exact captured day or its calendar authority.
+		// The retained Steps repository contract is the re-enable boundary for these metrics.
 		return MetricSnapshot.from(
 			mapOf(
 				MetricKey.DISTANCE_TOTAL_M to dailySummaryDao.sumTotalDistance().toDouble(),
-				MetricKey.STEPS_TOTAL to dailySummaryDao.sumTotalSteps().toDouble(),
 				MetricKey.ACTIVE_DAYS_TOTAL to activeDays.size.toDouble(),
 				MetricKey.SESSIONS_TOTAL to dailySummaryDao.sumTotalTrips().toDouble(),
 				MetricKey.CELLS_DISTINCT_LIFETIME to explorationCellDao.countAtLevelLong(EXPLORATION_CELL_LEVEL).toDouble(),
@@ -108,7 +109,6 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 				MetricKey.ON_FOOT_ACTIVE_DAYS to sessionSegmentDao.countDistinctDaysByActivities(SessionActivityIds.ON_FOOT.toList()).toDouble(),
 				MetricKey.CYCLING_ACTIVE_DAYS to sessionSegmentDao.countDistinctDaysByActivities(SessionActivityIds.CYCLING.toList()).toDouble(),
 				MetricKey.VEHICLE_ACTIVE_DAYS to sessionSegmentDao.countDistinctDaysByActivities(SessionActivityIds.IN_VEHICLE.toList()).toDouble(),
-				MetricKey.BEST_DAILY_STEPS to dailySummaryDao.maxDailySteps().toDouble(),
 				MetricKey.BEST_DAY_DISTANCE_M to dailySummaryDao.maxDailyDistance().toDouble(),
 				MetricKey.EXPORTS_TOTAL to exportLogDao.countTotal().toDouble(),
 				MetricKey.SEASONS_EXPLORED to Integer.bitCount(combinedSeasons).toDouble(),
@@ -134,8 +134,6 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 				MetricKey.MINIGAMES_PLAYED to miniGameScoreDao.countTotal().toDouble(),
 				MetricKey.TOTAL_ASCENT_M to totalAscent(locationSampleDao.getAltitudeSamplesOrdered()),
 				MetricKey.XP_SOURCES_USED to xpLedgerDao.countDistinctSources().toDouble(),
-				MetricKey.PERFECT_WEEKS to countPerfectWeeks(goalMetMillis, zoneId).toDouble(),
-				MetricKey.GOAL_STREAK_DAYS to maxGoalStreak(goalMetMillis, zoneId).toDouble(),
 				MetricKey.ACHIEVEMENTS_UNLOCKED to achievementsUnlocked.toDouble(),
 				MetricKey.CATEGORIES_COMPLETED to categoriesCompleted.toDouble(),
 			)
@@ -176,41 +174,6 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 			.groupBy { LocalDate.ofEpochDay(it).withDayOfMonth(1) }
 			.count { (firstOfMonth, days) -> days.size >= firstOfMonth.lengthOfMonth() }
 			.toLong()
-	}
-
-	/**
-	 * Counts ISO calendar weeks in which the daily step goal was met on all 7 days.
-	 * [goalMetMillis] are the `earned_at` timestamps of GOAL-source XP rows (one per
-	 * goal-met day, idempotent).
-	 */
-	private fun countPerfectWeeks(goalMetMillis: List<Long>, zoneId: ZoneId): Long {
-		if (goalMetMillis.isEmpty()) return 0L
-		val weekFields = WeekFields.ISO
-		return goalMetMillis
-			.map { Instant.ofEpochMilli(it).atZone(zoneId).toLocalDate() }
-			.groupBy { it.get(weekFields.weekBasedYear()) to it.get(weekFields.weekOfWeekBasedYear()) }
-			.count { (_, days) -> days.distinct().size >= DAYS_PER_WEEK }
-			.toLong()
-	}
-
-	/** Longest run of consecutive days on which the daily goal was met. */
-	private fun maxGoalStreak(goalMetMillis: List<Long>, zoneId: ZoneId): Long {
-		if (goalMetMillis.isEmpty()) return 0L
-		val days = goalMetMillis
-			.map { Instant.ofEpochMilli(it).atZone(zoneId).toLocalDate().toEpochDay() }
-			.distinct()
-			.sorted()
-		var best = 1L
-		var run = 1L
-		for (index in 1 until days.size) {
-			if (days[index] == days[index - 1] + 1) {
-				run++
-				if (run > best) best = run
-			} else {
-				run = 1L
-			}
-		}
-		return best
 	}
 
 	/**
@@ -280,9 +243,6 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 		private const val E7 = 1e7
 		private const val ASCENT_MIN_DELTA_M = 0.5
 		private const val ASCENT_MAX_DELTA_M = 50.0
-		private const val DAYS_PER_WEEK = 7
-		private const val XP_SOURCE_GOAL = "GOAL"
-
 		/** Meta metrics are excluded from category-completion so completing a
 		 * category never depends on the meta achievements that live in it. */
 		private val META_METRICS = setOf(
