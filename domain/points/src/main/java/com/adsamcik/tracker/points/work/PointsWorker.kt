@@ -39,21 +39,16 @@ internal class PointsWorker @AssistedInject constructor(
 			is TrackingStartupResult.RetryableFailure -> return Result.retry()
 			is TrackingStartupResult.Blocked -> return Result.success()
 		}
-		return try {
-			if (!isReadyGeneration(startupGeneration)) return Result.success()
+		return trackingStartupGate.withReadyGenerationOperation(startupGeneration) {
 			val appDatabase = appDatabaseProvider.get()
-			if (!isReadyGeneration(startupGeneration)) return Result.success()
 			val pointsDatabase = pointsDatabaseProvider.get()
-			if (!isReadyGeneration(startupGeneration)) return Result.success()
 			val trip = appDatabase.tripDao().getById(id)
-				?: return Result.failure()
+				?: return@withReadyGenerationOperation Result.failure()
 			val awardTime = trip.endTimeMs.takeIf { it > 0L } ?: Time.nowMillis
-			if (!isReadyGeneration(startupGeneration)) return Result.success()
 			val pointsDao = pointsDatabase.pointsAwardedDao()
 
-			if (!isReadyGeneration(startupGeneration)) return Result.success()
 			if (pointsDao.hasAwardAt(awardTime, AwardSource.SESSION.value)) {
-				return Result.success()
+				return@withReadyGenerationOperation Result.success()
 			}
 
 			val scorer = PointsScorer()
@@ -67,7 +62,7 @@ internal class PointsWorker @AssistedInject constructor(
 			)
 
 			if (points <= 0.0) {
-				return Result.failure()
+				return@withReadyGenerationOperation Result.failure()
 			}
 
 			val awardPoints = PointsAwarded(
@@ -77,34 +72,18 @@ internal class PointsWorker @AssistedInject constructor(
 			)
 
 			pointsDatabase.withTransaction {
-				requireReadyGeneration(startupGeneration)
-				try {
-					// Re-check under the same fenced transaction as the insert so a concurrent
-					// duplicate worker cannot race the earlier fast-path query.
-					if (!pointsDao.hasAwardAt(awardTime, AwardSource.SESSION.value)) {
-						pointsDao.insert(awardPoints)
-					}
-				} finally {
-					requireReadyGeneration(startupGeneration)
+				// Re-check under the same fenced transaction as the insert so a concurrent
+				// duplicate worker cannot race the earlier fast-path query.
+				if (!pointsDao.hasAwardAt(awardTime, AwardSource.SESSION.value)) {
+					pointsDao.insert(awardPoints)
 				}
 			}
 
 			Result.success()
-		} catch (_: StartupGenerationChangedException) {
-			Result.success()
-		}
-	}
-
-	private fun isReadyGeneration(startupGeneration: Long): Boolean =
-		trackingStartupGate.isReady && trackingStartupGate.currentGeneration == startupGeneration
-
-	private fun requireReadyGeneration(startupGeneration: Long) {
-		if (!isReadyGeneration(startupGeneration)) throw StartupGenerationChangedException
+		} ?: Result.success()
 	}
 
 	companion object {
 		private const val ARG_ID = TrackerSession.RECEIVER_SESSION_ID
 	}
-
-	private object StartupGenerationChangedException : RuntimeException()
 }
