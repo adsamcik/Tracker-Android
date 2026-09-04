@@ -1,10 +1,124 @@
 # Tracking Infrastructure Continuation Handover
 
-Last updated: 2026-09-03
+Last updated: 2026-09-04
 
 This handover is for the next device or Codex session continuing the tracking-infrastructure
 program after the local and remote `dev/v10` histories were reconciled. It is an execution
 checkpoint, not a replacement for the architecture or evidence ledgers.
+
+## 2026-09-04 checkpoint: retained Steps history and retention loss are fail closed
+
+This is the authoritative restart boundary. It supersedes every checkpoint below for current
+branch, worktree, verification, and blocker state.
+
+### Exact durable state
+
+- Integration worktree: `G:\Github\Tracker-Android\.worktrees\tracking-infra-integration`, local
+  branch `dev/v10`. After the required fast-forward it is clean at this handover's containing
+  commit, 106 commits ahead of the unchanged `origin/dev/v10` tracking ref. Resolve the containing
+  commit with `git rev-parse HEAD`; its exact accepted code parent is
+  `7cc3149fb2383dad749ac0573ab9124ce7d0e2b7`. Nothing was pushed.
+- Code commits `c9c1921cc`, `9c83f6a3d`, and `4190ab4cf` preserve the counter-reset boundary,
+  authenticate retained Steps evidence, and fail closed when history/day-repair authority is not
+  verifiable. Commit `b84f52d7b` aligns the two stale cross-suite fixtures found by the first broad
+  gate without weakening production validation. The completed
+  `codex/ti-steps-history-integrity` branch also contains `c164387b8`, which rejects logical
+  replacement composition unless every exact service run owns one reciprocally bound physical
+  segment, and `7cc3149fb`, which authenticates and marks retention loss before exact pruning.
+  The completed branch is fast-forwarded locally; its clean temporary worktree and local branch
+  are removed after integration.
+- Portable-import draft: `G:\Github\Tracker-Android\.worktrees\ti-steps-portable-import`, branch
+  `codex/ti-steps-portable-import`, remains at exact HEAD
+  `a347df9a25e2902b3d9951639f2303e9806f7645`. It retains exactly 37 tracked modifications and 16
+  untracked files, tracked diffstat `+2669/-164`, no staged paths, and a clean `git diff --check`.
+  It is 33 commits behind this handover's containing commit. Do not rebase, clean, discard, or copy
+  it wholesale.
+- Awards/retained-metrics draft:
+  `G:\Github\Tracker-Android\.worktrees\ti-steps-qualified-awards`, branch
+  `codex/ti-steps-qualified-awards`, remains at the same exact HEAD and ancestry as the portable
+  draft. It retains exactly 66 tracked modifications and 14 untracked files, tracked diffstat
+  `+6008/-662`, no staged paths, and a clean `git diff --check`. It is likewise 33 commits behind
+  this handover's containing commit and must be reconciled against current authority in bounded
+  chunks.
+- The detached protected root checkout remains exact HEAD
+  `ffd5d372fafafceb7d9d595b95e47b89b949de83`. It still contains only the six protected paths
+  named below, nothing staged, and their SHA-256 values remain respectively
+  `882BAD525CDA927710FD13C1A1DB1DDD11437963BACC2C50313708BB05BB73D4`,
+  `01C7D5CC62AF43100B6F8A1458F45662BE293B659AEC0F23AD7CAD5F79F1D0F3`,
+  `794B8A4ADAC5B6F387BEF07A58C90805538127A85CC2A0C00266209C985CD9E6`,
+  `F6F46E2ABA5B2E110DD0F994E280C961B3E1315F79D8FB59C60D053BEE3FBF28`,
+  `3F77380D36234BCAAD3A193CC2553E8D50F2C0F0D02928232B4CC99BFC7DA332`, and
+  `E0912B613CD330949D12DAF69268E1A7B9DDE0F9181D0D235839E0CD8F8B7BF6` in the documented path
+  order. Never alter, stage, commit, clean, reset, or push them in this program.
+- No representative physical `TYPE_STEP_COUNTER` device is attached. The device-only manual
+  Steps scenario and listener-removal assertion therefore remain the immediate blocking evidence
+  gate; host tests and an emulator cannot substitute for it.
+
+### Accepted history-integrity evidence
+
+- Retained candidate Steps facts are now trusted only after canonical shape/checksum, source-local
+  correction/deletion lineage, reciprocal run/segment binding, exact manifest/policy/consent/
+  purpose/writer attribution, lane/epoch authority, and completeness validation. Full snapshots
+  require the exact manifest union; a bounded civil-day slice may start at a retained prefix but
+  must stay contiguous and noninterleaved. `sampleCount`, `QUIESCED`, and wall overlap are not
+  source or deletion proof.
+- Reset gaps retain the previous counter, elapsed, and sequence boundary while contributing zero.
+  Replacement physical runs remain exact internally and compose only after each run independently
+  proves complete/partial state. One complete run cannot mask another run's missing fact. Fact-wall
+  intervals make source-only days discoverable, while missing, unavailable, partial, or
+  materializing Steps never become a persisted zero.
+- Retention now audits every fact revision in the current epoch before SQL discovery may trust a
+  checksum-covered operation, time, run, or revision. It writes an exact payload-free run marker
+  before deleting only authenticated expired UPSERT identities, preserves post-floor suffix facts,
+  and refuses unsupported future origins. Canonical Steps ingress requires wall time to equal
+  acquisition time. A valid marker can keep an exact Steps-only entry discoverable, but it never
+  qualifies a source or fabricates a count; export and selected deletion remain blocked on the
+  known loss. Pre-floor daily repair also fails closed when the old fact is gone.
+- The final complete `:core:base`, `:tracker:engine`, and `:stats:data` suites passed together in
+  `13m 44s` (283 tasks). The app retention-worker selection passed in `2m 30s` (575 tasks). Root
+  Detekt, all three changed-module lints, and Room drift passed together in `5m 29s` (424 tasks),
+  with no new lint issue. Exact committed `ciUnitTest` passed in `20m 32s` (994 tasks), and
+  `ciCheck --continue` passed in `8m 4s` (1,991 tasks), including release compilation/lint,
+  architecture, SQLite linkage, 27 release-evidence tests, and 16 dependency-metadata checks.
+- A storage reviewer found the legitimate first source sequence zero and the correction is covered.
+  A later retention review rejected old HEAD `86a956431` for four loss/discovery defects and one
+  wall/acquisition hardening gap. The final code corrects all five. Independent exact-HEAD review
+  returned `GO` for `7cc3149fb` with no P1/P2 finding. The initial corrected static run found one
+  Detekt complexity issue; extraction of the intrinsic audit predicate cleared the exact rerun.
+  This remains host/Robolectric/in-memory-Room/static/release-build evidence, not device/provider
+  or rollout proof.
+
+### Exact restart order
+
+1. Repeat the mandatory read-only checks, ordered tracking-document reads, six-path/hash
+   protection, device inventory, and single global Gradle lease. Repository evidence remains
+   authoritative.
+2. Attach one representative physical device exposing `TYPE_STEP_COUNTER` and execute the exact
+   manual Steps-only chain: capture set exactly `{Steps}`; no Location, Activity, Pressure, Wi-Fi,
+   Cell, control, or ambient demand; fresh positive post-baseline delta reaches `RECORDING`; one
+   canonical writer reaches `MATERIALIZED`; the production query reaches `QUERYABLE`; UI remains
+   truthful; the listener is removed after stop. Do not substitute host or emulator evidence.
+3. Reconcile the awards/retained-metrics draft against current `dev/v10` in source-owned chunks.
+   Finish the numeric consumer audit for awards, goals, streaks, achievements, widgets, and
+   notifications. Only typed complete values may mutate durable decisions; partial,
+   materializing, unavailable, or legacy-unverifiable state remains nonnumeric.
+4. Reconcile the portable-import draft only after the shared integrity contracts above are
+   retained. Finish portable-origin mapping, correction-complete import, retained-day discovery,
+   imported-origin retention/no-resurrection, and round-trip export/import. The current retention
+   audit intentionally refuses portable-import facts because no production intrinsic verifier is
+   installed yet. Do not change the schema destructively or claim a portable round trip from
+   exporter-only evidence.
+5. Complete automatic Steps with explicit Activity `CONTROL` separation and exact generation-2
+   attribution, then default-off Ambient Steps. Record the existing ST-02b generation-2 fixture/
+   authority gap rather than hiding it.
+6. Only after the Steps-local gates proceed through Pressure, protected Location, Activity,
+   Wi-Fi, and Cell as independent thin source-to-product verticals. Preserve bounded direct-demand
+   radio attempts, fresh/new-in-effect filtering, source-local fences, and no enrichment-only
+   expensive provider demand.
+
+Everything remains local-only. No push, release, tag, deployment, source/feature activation,
+remote flag, destructive or backward-incompatible migration, force push, or external rollout was
+performed or authorized.
 
 ## 2026-09-03 final shutdown checkpoint: qualified observation landed; drafts frozen
 

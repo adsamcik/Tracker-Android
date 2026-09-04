@@ -1,27 +1,27 @@
 # Tracking Infrastructure Implementation Status
 
-Last updated: 2026-09-03
+Last updated: 2026-09-04
 
 Execution-grade work items, ownership, dependency gates, verification commands, and rollback
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and
 evidence index.
 
-Current accepted code checkpoint: `711af5cd0` on local `dev/v10`, before this status document's
-containing commit. It includes the accepted source-qualified Steps product and portable-export
-foundations, dormant Pressure facts and selected deletion, correction-safe Steps deletion, and the
-TI-D141 regression repair. A selected-session deletion now still validates every surviving run and
-fact when no daily summary exists, and the tracker-engine Pressure fixtures once again encode the
-official permanent destination, owner generation, and projection binding. The complete topology,
-parallel draft inventory, and protected-root boundary are recorded in
-`CONTINUATION_HANDOVER.md`.
+Current accepted code checkpoint: `7cc3149fb2383dad749ac0573ab9124ce7d0e2b7` on the completed
+history-integrity branch, before this status document's containing commit and local fast-forward.
+It adds authenticated retained Steps facts, exact all-run logical composition, manifest-slice and
+run/segment binding, reset-gap continuity, per-run numeric completeness, purpose-separated
+retention-loss evidence, and fail-closed history/export/deletion/day repair to the already accepted
+source-qualified Steps product foundation. The complete topology, preserved parallel draft
+inventory, and protected-root boundary are recorded in `CONTINUATION_HANDOVER.md`.
 
 The immediate product boundary is unchanged: the exact representative-device manual Steps-only
 chain has not run, so provider callbacks, listener removal, rendered UI, process death, reboot,
-foreground-service behavior, battery cost, and OEM behavior remain unproven. The truthful live/UI
-slice is verified but uncommitted; awards/retention work has open integrity blockers; portable
-import remains frozen and unaccepted. Everything is local-only. No push, release, artifact
-publication, deployment, remote configuration, feature activation, destructive migration, or
-external rollout occurred.
+foreground-service behavior, battery cost, and OEM behavior remain unproven. Truthful live/list,
+weekly, and bounded numeric consumers are locally integrated, but the awards/retained-metrics and
+portable-import drafts remain frozen and unaccepted. Automatic/control-separated and Ambient
+Steps also remain open. Everything is local-only. No push, release, artifact publication,
+deployment, remote configuration, feature activation, destructive migration, or external rollout
+occurred.
 
 ## Current gate
 
@@ -2856,3 +2856,138 @@ This does not make the observer permanent or global: the table set is intentiona
 the preserved Live/UI draft, establish rendered UI/accessibility evidence, prove the physical
 Steps-only scenario or listener removal, or advance automatic/Ambient Steps and the remaining
 Pressure, Location, Activity, Wi-Fi, and Cell product verticals.
+
+## Steps retained-history and retention-loss integrity checkpoint (2026-09-04)
+
+### Outcome
+
+Commits `c9c1921cc`, `9c83f6a3d`, and `4190ab4cf` make every current Steps product reader treat
+retained source data as authenticated evidence rather than trusted rows. The shared validators and
+candidate reader require reciprocal `serviceRun.sessionSegmentId == segment.id`, exact v28
+manifest/run/purpose/policy/consent/writer attribution, canonical LIVE_WAL shape and checksum,
+source-local correction/deletion lineage, and a valid completeness timeline. Migrated legacy or
+otherwise unverifiable rows remain typed and nonnumeric. Neither `sampleCount`, `QUIESCED`, nor
+wall-time overlap is accepted as source ownership.
+
+The manifest contract distinguishes a complete retained service-run timeline from a bounded civil
+day slice. A full snapshot must contain the exact manifest revision union; a day-local read may
+start within a retained prefix, but its revisions must remain ordered, contiguous, and
+noninterleaved. Replacement physical segments compose under one logical tracking entry while
+retaining exact physical run ownership internally. Reset gaps now retain the previous counter,
+elapsed-time, and source-sequence boundary, contribute zero, and remain explicitly partial instead
+of looking like a fresh baseline.
+
+Daily numeric composition now tracks potential, complete, and partial Steps evidence per physical
+run. One complete run cannot mask another run with missing or invalid in-day facts; partial or
+materializing evidence cannot be persisted as a fabricated numeric zero. Source-aware daily work
+also discovers runs whose authenticated fact wall interval intersects the day even if the physical
+segment envelope does not. Selector, portable export, selected deletion, and correction-safe day
+repair share the same retained-fact authority and fail closed on gaps, malformed rows, bad
+checksums, or conflicting corrections.
+
+Commit `b84f52d7b` aligns the two broad-suite fixtures with those contracts: a real reset is an
+observable zero-delta legacy compatibility frame, and the cross-source Pressure deletion fixture
+installs exact Steps policy, consent, and valid capture QoS before expecting a materializing result.
+Production validation was not weakened.
+
+Commit `c164387b8` closes logical replacement composition: every service run for one logical
+tracking identity must resolve to exactly one physical member with reciprocal
+`serviceRun.sessionSegmentId == segment.id` ownership. Missing, duplicate, foreign, or mismatched
+runs preserve physical rows instead of emitting a falsely complete logical replacement; migrated
+legacy ownership remains typed and grants no exact authority.
+
+Commit `7cc3149fb` makes retention loss durable and product-visible without turning it into capture
+proof. The retention transaction first keyset-audits every current-epoch fact revision before SQL
+may trust a checksum-covered operation, time, run, or revision. It installs a purpose-separated,
+payload-free exact-run marker before deleting only authenticated expired UPSERT identities, keeps
+post-floor suffix facts for temporal discovery, and refuses unsupported future origins. Canonical
+Steps admission and projection require wall time to equal acquisition time, and timestamp-shape
+terminal failures cannot be released using their own disputed times.
+
+An authenticated marker can keep an exactly bound Steps-only history entry ordinarily visible as
+unavailable/partial after its last fact is pruned, but it never qualifies Steps, contributes a
+count, or turns a stored segment value into truth. Export and selected deletion remain blocked by
+the loss marker. Daily materialization checks the retained floor before its legacy no-overlap fast
+path, so neither a pruned pre-floor day nor a retained suffix crossed by the marker can become an
+authoritative zero.
+
+### Evidence and boundary
+
+- The forced post-rebase 12-class core/stats/tracker selection passed `374/374`, with zero failures,
+  errors, or skips: `BUILD SUCCESSFUL in 8m 48s`, 286 tasks executed.
+- A fresh storage review found one valid first-callback edge: source sequence zero is the
+  repository's legitimate first allocated sequence. The check was corrected from `<= 0` to `< 0`
+  and covered through the production completeness path. A fresh corrected-diff review then
+  returned `GO` with no scoped blocker, high, or medium finding.
+- The first authoritative `ciUnitTest` run failed after `23m 17s` with exactly two stale
+  cross-suite assertions and no production failure: reset projection still expected the former
+  baseline-only shape, and a Pressure deletion fixture omitted Steps policy/consent authority.
+  During correction, the first six-class run exposed the remaining valid-QoS and observable-reset
+  expectations (`169/171` passed). The corrected two tests passed in `2m 55s`; the complete final
+  six-class slice passed `171/171` in `3m 53s` (234 tasks: 5 executed, 229 up-to-date).
+- Root Detekt plus tracker-engine lint passed in `3m 26s` (378 tasks: 53 executed, 325 up-to-date);
+  lint found no new issue and filtered six checked-in baseline warnings. An earlier module-local
+  `:tracker:engine:detekt` selector failed before analysis because that task does not exist; the
+  repository exposes Detekt only at root, and the passing command below supersedes it.
+- The final committed `ciUnitTest` passed in `10m 47s` (994 tasks: 34 executed, 16 from cache, 944
+  up-to-date). The full `ciCheck --continue` passed in `9m 22s` (1,991 tasks: 674 executed, 277 from
+  cache, 1,040 up-to-date), including Room schema drift, architecture, release lint, Detekt,
+  SQLite runtime/linkage, 27 release-evidence tests, and 16 reviewed dependency-metadata entries.
+- The first exact-retention review rejected old HEAD `86a956431` with four P1 findings and one P2:
+  unauthenticated indexed selection, false-zero repair before the retained floor, whole-run deletion
+  of post-floor authority, invisible marker-only history, and an unenforced wall/acquisition
+  invariant. The corrected regressions cover every case. One focused engine precursor then exposed
+  repeated release of a timestamp-shape terminal failure; the final code pins it unless exact scope
+  deletion or the independent global deletion high-water applies.
+- Focused retention worker tests passed in `2m 30s` (575 tasks). Complete `:core:base`,
+  `:tracker:engine`, and `:stats:data` host suites passed together in `13m 44s` (283 tasks: 7
+  executed, 276 up-to-date). The first combined static command stopped on one new Detekt complexity
+  finding before lint; extracting the intrinsic audit predicate preserved behavior, and the exact
+  rerun of root Detekt, all three changed-module lints, and Room drift passed in `5m 29s` (424 tasks:
+  64 executed, 360 up-to-date) with no new lint issue.
+- Independent exact-commit review returned `GO` for
+  `7cc3149fb2383dad749ac0573ab9124ce7d0e2b7`, with no P1/P2 finding. The final repository-owned
+  `ciUnitTest` passed in `20m 32s` (994 tasks: 95 executed, 899 up-to-date). Final
+  `ciCheck --continue` passed in `8m 4s` (1,991 tasks: 199 executed, 1 from cache, 1,791 up-to-date),
+  including Room drift, architecture, release compile/lint, Detekt, SQLite runtime/linkage, 27
+  release-evidence tests, and 16 reviewed dependency-metadata entries.
+
+#### Exact commands
+
+Forced post-rebase integrity selection:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests "*HistoricalEvidenceIntegrityTest" --tests "*StepFactRevisionIntegrityTest" --tests "*StepFactRevisionDaoTest" :stats:api:testAndroidHostTest --tests "*StepsPortableFormatV1Test" :stats:data:testDebugUnitTest --tests "*RoomExportPortableStepsTest" --tests "*StepsSegmentHistorySelectorTest" :tracker:engine:testDebugUnitTest --tests "*StepWindowAccumulatorTest" --tests "*StepsSessionFactProjectionLaneTest" --tests "*RoomStepsSelectedSessionDeletionServiceTest" --tests "*StepsDailySummaryRepairComposerTest" --tests "*RoomStepsNumericSummaryRepositoryRoomTest" --tests "*StepsNumericDayWindowAccumulatorTest" --rerun-tasks --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+Final six-class correction slice and static gate:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests "*EventTrackingFrameProjectionTest" --tests "*StepWindowAccumulatorTest" --tests "*RoomPressureSelectedSessionDeletionServiceTest" --tests "*RoomStepsSelectedSessionDeletionServiceTest" --tests "*StepsDailySummaryRepairComposerTest" --tests "*StepsNumericDayWindowAccumulatorTest" --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :tracker:engine:lintDebug --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+Repository aggregates:
+
+```powershell
+.\gradlew.bat ciUnitTest --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat ciCheck --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+Retention-loss focused and final affected-module/static commands:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests "com.adsamcik.tracker.maintenance.DataRetentionWorkerTest" --tests "com.adsamcik.tracker.app.maintenance.RetentionPipelineWorkerRobolectricTest" --tests "com.adsamcik.tracker.app.maintenance.RetentionPipelineWorkerTest" --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat :core:base:testDebugUnitTest :tracker:engine:testDebugUnitTest :stats:data:testDebugUnitTest --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :core:base:lintDebug :stats:data:lintDebug :tracker:engine:lintDebug checkRoomSchemaDrift --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat ciUnitTest --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat ciCheck --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+This is host/Robolectric/in-memory-Room/static/release-build evidence. It does not execute the
+representative physical-device manual Steps-only scenario, prove provider callback freshness or
+listener removal, render UI/accessibility, exercise process death/reboot/FGS/battery/OEM behavior,
+complete portable import/imported-origin retention/no-resurrection or award/streak/achievement
+consumers, separate
+automatic control authority, enable default-off Ambient Steps, activate a writer, roll out, push,
+tag, deploy, or release anything.

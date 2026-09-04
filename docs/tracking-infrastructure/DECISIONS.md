@@ -1,6 +1,6 @@
 # Tracking Infrastructure Decisions
 
-Last updated: 2026-09-03
+Last updated: 2026-09-04
 
 Each entry records repository evidence and does not duplicate the final architecture document.
 
@@ -2130,3 +2130,68 @@ Each entry records repository evidence and does not duplicate the final architec
   collection subscription-scoped and must not promote it into a permanent app-wide observer. This
   is host/Robolectric/static evidence, not rendered UI, provider/listener, physical device,
   process/reboot/FGS, battery/OEM, activation, rollout, push, or release proof.
+
+## TI-D143 — Retained Steps facts are authenticated before product composition
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` at `b84f52d7b`; physical manual Steps-only proof and the
+  remaining retained-metrics/import work remain `BLOCKED`
+- Owner/date: Steps history-integrity owner after exact code reconciliation, storage and product
+  adversarial review, forced focused gates, broad-suite correction, repository aggregates, and
+  local integration preparation, 2026-09-04
+- Alternatives: trust latest Room rows because they were locally written; infer source ownership
+  from segment samples or wall overlap; let one complete replacement run mask another incomplete
+  run; treat a counter reset as a new zero baseline; add a generic materializer/tombstone platform;
+  share one bounded source-local validator/candidate reader across demonstrated Steps consumers
+- Evidence: the forced 12-class selection passed `374/374`; review found and regression coverage
+  corrected legitimate source sequence zero; the final six-class cross-source selection passed
+  `171/171`; root Detekt and tracker lint passed; committed `ciUnitTest` and `ciCheck --continue`
+  both passed. The initial broad suite's two stale test expectations and the invalid module-local
+  Detekt selector are retained in the status/evidence ledger rather than hidden.
+- Decision: a retained Steps row becomes product evidence only after its canonical checksum and
+  LIVE_WAL shape, source-local correction/deletion lineage, reciprocal run/segment identity,
+  immutable manifest/policy/consent/purpose/writer binding, completeness generation, lane, and
+  retention/deletion epoch agree. Full-run consumers require the exact manifest revision union;
+  civil-day consumers may read a retained contiguous slice without inventing omitted prefix
+  authority. Numeric completeness is evaluated per physical run before logical replacement runs
+  compose. Reset gaps span the prior and new counter domains, contribute zero, and remain partial.
+- Consequences: malformed, missing, retained-prefix-incompatible, correction-conflicting, or
+  materializing data stays typed and nonnumeric across history, portable export, deletion repair,
+  and numeric consumers. `sampleCount`, `QUIESCED`, and wall-time overlap cannot authenticate
+  ownership, and one valid run cannot conceal another invalid run. This adds no schema, provider
+  demand, permanent observer, generic materializer, writer activation, rollout, push, or release.
+  Device/provider/listener, process/reboot/FGS, battery/OEM, portable import/no-resurrection,
+  retained awards/streaks/achievements, automatic control separation, and Ambient Steps remain
+  separate gates.
+
+## TI-D144 — Retention loss remains discoverable but never becomes source or numeric proof
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` at `7cc3149fb`; portable-import retention and physical-device
+  Steps proof remain `BLOCKED`
+- Owner/date: Steps retention/history owner after the old exact-head rejection, corrected focused
+  and repository gates, and independent exact-commit review, 2026-09-04
+- Alternatives: trust indexed operation/time/run fields before checksum validation; delete a whole
+  affected run; let pruned entries disappear; infer Steps qualification from an exact manifest or
+  stored segment count; create a generic tombstone/materializer framework; use one purpose-separated
+  Steps run marker plus exact fact authentication and existing product composition
+- Evidence: old exact HEAD `86a956431` was rejected for unauthenticated retention selection,
+  pre-floor false-zero repair, deletion of post-floor suffix authority, marker-only history
+  invisibility, and an unenforced wall/acquisition invariant. Focused regressions, complete affected
+  module suites, root Detekt, changed-module lints, Room drift, `ciUnitTest`, and `ciCheck --continue`
+  pass on corrected exact code commit `7cc3149fb`. Independent final review returned `GO` with no
+  P1/P2 finding.
+- Decision: within the retention transaction, authenticate the complete current-epoch Steps fact
+  table before using any row field for indexed discovery. Install one immutable payload-free
+  logical-run marker before pruning, delete only exact authenticated expired UPSERT identities,
+  and retain post-floor suffix facts for bounded temporal discovery. Canonical Steps ingress and
+  projection require `wallTimeMs == acquiredAtMs`; terminal failures caused by missing, negative, or
+  mismatched source time cannot be released using those disputed times. A current-epoch marker can
+  keep an exactly bound Steps-only entry visible as unavailable/partial, but never enters
+  `qualifiedSources`, supplies a count, or authorizes selected deletion/export. Pre-floor day repair
+  checks the retained floor before any no-overlap fast path.
+- Consequences: retention cannot silently leave unauthenticated private payload or certify a pruned
+  day as zero; replacement suffixes remain temporally visible while known loss stays explicit.
+  Future portable-import facts fail retention closed until that vertical supplies its own intrinsic
+  verifier. The whole-store audit runs twice in the current mark/prune pipeline; this bounded cost
+  is accepted for the personal app and may be optimized only after measured need. No schema,
+  provider demand, permanent observer, generic tombstone platform, activation, rollout, push, or
+  release is added.
