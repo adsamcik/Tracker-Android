@@ -3,6 +3,7 @@ package com.adsamcik.tracker.game.leaderboard
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.doubles.shouldBeGreaterThan
 import io.kotest.matchers.floats.shouldBeGreaterThan
@@ -12,6 +13,7 @@ import io.kotest.matchers.ints.shouldBeLessThanOrEqual
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -79,7 +81,7 @@ class GhostLeaderboardProviderTest {
 			coEvery { dao.getBetween(any(), any()) } returns emptyList()
 			coEvery { dao.getAllBefore(any()) } returns emptyList()
 
-			val state = provider.getLeaderboard(LeaderboardMetric.STEPS, zone = utc)
+			val state = provider.getLeaderboard(LeaderboardMetric.DISTANCE, zone = utc)
 
 			state.currentWeekValue shouldBe 0.0
 			// Should have exactly 1 competitor: the current user
@@ -88,7 +90,7 @@ class GhostLeaderboardProviderTest {
 			state.competitors[0].value shouldBe 0.0
 			state.ghosts shouldHaveSize 0
 			state.currentRank shouldBe 1
-			state.metric shouldBe LeaderboardMetric.STEPS
+			state.metric shouldBe LeaderboardMetric.DISTANCE
 		}
 
 		@Test
@@ -96,7 +98,7 @@ class GhostLeaderboardProviderTest {
 			coEvery { dao.getBetween(any(), any()) } returns emptyList()
 			coEvery { dao.getAllBefore(any()) } returns emptyList()
 
-			LeaderboardMetric.entries.forEach { metric ->
+			LeaderboardMetric.selectableEntries.forEach { metric ->
 				val state = provider.getLeaderboard(metric, zone = utc)
 				state.competitors shouldHaveSize 1
 				state.competitors[0].isCurrentUser shouldBe true
@@ -116,14 +118,14 @@ class GhostLeaderboardProviderTest {
 			val now = today.toInstantAtStartOfDay()
 
 			val currentWeekData = listOf(
-				makeSummary(monday.toEpochDay(), steps = 5000),
-				makeSummary(monday.plusDays(1).toEpochDay(), steps = 3000),
+				makeSummary(monday.toEpochDay(), tripCount = 5000),
+				makeSummary(monday.plusDays(1).toEpochDay(), tripCount = 3000),
 			)
 
 			coEvery { dao.getBetween(monday.toEpochDay(), monday.plusDays(6).toEpochDay()) } returns currentWeekData
 			coEvery { dao.getAllBefore(monday.toEpochDay()) } returns emptyList()
 
-			val state = provider.getLeaderboard(LeaderboardMetric.STEPS, now = now, zone = utc)
+			val state = provider.getLeaderboard(LeaderboardMetric.SESSIONS, now = now, zone = utc)
 
 			state.currentWeekValue shouldBe 8000.0
 			state.ghosts shouldHaveSize 0
@@ -142,17 +144,17 @@ class GhostLeaderboardProviderTest {
 			val now = today.toInstantAtStartOfDay()
 
 			val currentWeekData = listOf(
-				makeSummary(monday.toEpochDay(), steps = 5000),
+				makeSummary(monday.toEpochDay(), tripCount = 5000),
 			)
 			val historicalData = listOf(
-				makeSummary(prevMonday.toEpochDay(), steps = 10000),
-				makeSummary(prevMonday.plusDays(1).toEpochDay(), steps = 8000),
+				makeSummary(prevMonday.toEpochDay(), tripCount = 10000),
+				makeSummary(prevMonday.plusDays(1).toEpochDay(), tripCount = 8000),
 			)
 
 			coEvery { dao.getBetween(monday.toEpochDay(), monday.plusDays(6).toEpochDay()) } returns currentWeekData
 			coEvery { dao.getAllBefore(monday.toEpochDay()) } returns historicalData
 
-			val state = provider.getLeaderboard(LeaderboardMetric.STEPS, now = now, zone = utc)
+			val state = provider.getLeaderboard(LeaderboardMetric.SESSIONS, now = now, zone = utc)
 
 			state.currentWeekValue shouldBe 5000.0
 			state.ghosts shouldHaveSize 3 // best, last 4 avg, average
@@ -177,30 +179,30 @@ class GhostLeaderboardProviderTest {
 		private val now = today.toInstantAtStartOfDay()
 
 		private fun setupMultiWeekData() {
-			// Current week: 3000 steps
+			// Current week: 3000 units
 			coEvery {
 				dao.getBetween(monday.toEpochDay(), monday.plusDays(6).toEpochDay())
 			} returns listOf(
-				makeSummary(monday.toEpochDay(), steps = 3000),
+				makeSummary(monday.toEpochDay(), tripCount = 3000),
 			)
 
-			// Historical: 4 previous weeks with varying steps
+			// Historical: 4 previous weeks with varying values
 			val week1Start = monday.minusWeeks(1)
 			val week2Start = monday.minusWeeks(2)
 			val week3Start = monday.minusWeeks(3)
 			val week4Start = monday.minusWeeks(4)
 
 			val historicalData = listOf(
-				// Week -1: 20000 steps
-				makeSummary(week1Start.toEpochDay(), steps = 10000),
-				makeSummary(week1Start.plusDays(1).toEpochDay(), steps = 10000),
-				// Week -2: 15000 steps
-				makeSummary(week2Start.toEpochDay(), steps = 8000),
-				makeSummary(week2Start.plusDays(1).toEpochDay(), steps = 7000),
-				// Week -3: 5000 steps
-				makeSummary(week3Start.toEpochDay(), steps = 5000),
-				// Week -4: 10000 steps
-				makeSummary(week4Start.toEpochDay(), steps = 10000),
+				// Week -1: 20000 units
+				makeSummary(week1Start.toEpochDay(), tripCount = 10000),
+				makeSummary(week1Start.plusDays(1).toEpochDay(), tripCount = 10000),
+				// Week -2: 15000 units
+				makeSummary(week2Start.toEpochDay(), tripCount = 8000),
+				makeSummary(week2Start.plusDays(1).toEpochDay(), tripCount = 7000),
+				// Week -3: 5000 units
+				makeSummary(week3Start.toEpochDay(), tripCount = 5000),
+				// Week -4: 10000 units
+				makeSummary(week4Start.toEpochDay(), tripCount = 10000),
 			)
 
 			coEvery { dao.getAllBefore(monday.toEpochDay()) } returns historicalData
@@ -210,7 +212,7 @@ class GhostLeaderboardProviderTest {
 		fun `best week is the maximum across all completed weeks`() = runTest {
 			setupMultiWeekData()
 
-			val state = provider.getLeaderboard(LeaderboardMetric.STEPS, now = now, zone = utc)
+			val state = provider.getLeaderboard(LeaderboardMetric.SESSIONS, now = now, zone = utc)
 
 			val bestGhost = state.ghosts.first { it.type == GhostType.BEST_WEEK }
 			bestGhost.value shouldBe 20000.0
@@ -222,7 +224,7 @@ class GhostLeaderboardProviderTest {
 		fun `last 4 weeks average is calculated correctly`() = runTest {
 			setupMultiWeekData()
 
-			val state = provider.getLeaderboard(LeaderboardMetric.STEPS, now = now, zone = utc)
+			val state = provider.getLeaderboard(LeaderboardMetric.SESSIONS, now = now, zone = utc)
 
 			val avgGhost = state.ghosts.first { it.type == GhostType.LAST_4_WEEKS_AVG }
 			// (20000 + 15000 + 5000 + 10000) / 4 = 12500
@@ -234,7 +236,7 @@ class GhostLeaderboardProviderTest {
 		fun `average week is calculated over all completed weeks`() = runTest {
 			setupMultiWeekData()
 
-			val state = provider.getLeaderboard(LeaderboardMetric.STEPS, now = now, zone = utc)
+			val state = provider.getLeaderboard(LeaderboardMetric.SESSIONS, now = now, zone = utc)
 
 			val avgGhost = state.ghosts.first { it.type == GhostType.AVERAGE_WEEK }
 			// (20000 + 15000 + 5000 + 10000) / 4 = 12500
@@ -245,7 +247,7 @@ class GhostLeaderboardProviderTest {
 		fun `competitors are sorted descending by value`() = runTest {
 			setupMultiWeekData()
 
-			val state = provider.getLeaderboard(LeaderboardMetric.STEPS, now = now, zone = utc)
+			val state = provider.getLeaderboard(LeaderboardMetric.SESSIONS, now = now, zone = utc)
 
 			val values = state.competitors.map { it.value }
 			values shouldBe values.sortedDescending()
@@ -255,7 +257,7 @@ class GhostLeaderboardProviderTest {
 		fun `rank is derived from position in sorted competitors list`() = runTest {
 			setupMultiWeekData()
 
-			val state = provider.getLeaderboard(LeaderboardMetric.STEPS, now = now, zone = utc)
+			val state = provider.getLeaderboard(LeaderboardMetric.SESSIONS, now = now, zone = utc)
 
 			// Current = 3000, all ghosts are > 3000 so user should be last
 			val userIndex = state.competitors.indexOfFirst { it.isCurrentUser }
@@ -268,7 +270,7 @@ class GhostLeaderboardProviderTest {
 		fun `user entry is always included in competitors list`() = runTest {
 			setupMultiWeekData()
 
-			val state = provider.getLeaderboard(LeaderboardMetric.STEPS, now = now, zone = utc)
+			val state = provider.getLeaderboard(LeaderboardMetric.SESSIONS, now = now, zone = utc)
 
 			state.competitors.any { it.isCurrentUser } shouldBe true
 			state.competitors.first { it.isCurrentUser }.id shouldBe GhostLeaderboardProvider.CURRENT_USER_ID
@@ -342,21 +344,13 @@ class GhostLeaderboardProviderTest {
 		}
 
 		@Test
-		fun `steps metric aggregates total steps`() = runTest {
-			val prevMonday = monday.minusWeeks(1)
-			coEvery {
-				dao.getBetween(monday.toEpochDay(), monday.plusDays(6).toEpochDay())
-			} returns listOf(
-				makeSummary(monday.toEpochDay(), steps = 8000),
-			)
-			coEvery { dao.getAllBefore(monday.toEpochDay()) } returns listOf(
-				makeSummary(prevMonday.toEpochDay(), steps = 12000),
-			)
+		fun `steps metric is rejected before reading unqualified summaries`() = runTest {
+			shouldThrow<IllegalArgumentException> {
+				provider.getLeaderboard(LeaderboardMetric.STEPS, now = now, zone = utc)
+			}
 
-			val state = provider.getLeaderboard(LeaderboardMetric.STEPS, now = now, zone = utc)
-
-			state.currentWeekValue shouldBe 8000.0
-			state.ghosts.first { it.type == GhostType.BEST_WEEK }.value shouldBe 12000.0
+			coVerify(exactly = 0) { dao.getBetween(any(), any()) }
+			coVerify(exactly = 0) { dao.getAllBefore(any()) }
 		}
 	}
 
@@ -381,14 +375,14 @@ class GhostLeaderboardProviderTest {
 			coEvery {
 				dao.getBetween(monday.toEpochDay(), monday.plusDays(6).toEpochDay())
 			} returns listOf(
-				makeSummary(monday.toEpochDay(), steps = 5000),
+				makeSummary(monday.toEpochDay(), tripCount = 5000),
 			)
 			coEvery { dao.getAllBefore(monday.toEpochDay()) } returns listOf(
-				makeSummary(lastYearDate.toEpochDay(), steps = 7000),
-				makeSummary(lastYearDate.plusDays(1).toEpochDay(), steps = 3000),
+				makeSummary(lastYearDate.toEpochDay(), tripCount = 7000),
+				makeSummary(lastYearDate.plusDays(1).toEpochDay(), tripCount = 3000),
 			)
 
-			val state = provider.getLeaderboard(LeaderboardMetric.STEPS, now = now, zone = utc)
+			val state = provider.getLeaderboard(LeaderboardMetric.SESSIONS, now = now, zone = utc)
 
 			val sameWeekGhost = state.ghosts.find { it.type == GhostType.SAME_WEEK_LAST_YEAR }
 			sameWeekGhost shouldNotBe null
@@ -407,10 +401,10 @@ class GhostLeaderboardProviderTest {
 				dao.getBetween(monday.toEpochDay(), monday.plusDays(6).toEpochDay())
 			} returns emptyList()
 			coEvery { dao.getAllBefore(monday.toEpochDay()) } returns listOf(
-				makeSummary(prevMonday.toEpochDay(), steps = 5000),
+				makeSummary(prevMonday.toEpochDay(), tripCount = 5000),
 			)
 
-			val state = provider.getLeaderboard(LeaderboardMetric.STEPS, now = now, zone = utc)
+			val state = provider.getLeaderboard(LeaderboardMetric.SESSIONS, now = now, zone = utc)
 
 			state.ghosts.none { it.type == GhostType.SAME_WEEK_LAST_YEAR } shouldBe true
 		}
@@ -427,7 +421,7 @@ class GhostLeaderboardProviderTest {
 
 			val monday = LocalDate.of(2024, 7, 8) // Monday
 			val now = monday.atStartOfDay(utc).toInstant()
-			val state = provider.getLeaderboard(LeaderboardMetric.STEPS, now = now, zone = utc)
+			val state = provider.getLeaderboard(LeaderboardMetric.DISTANCE, now = now, zone = utc)
 
 			state.weekProgressFraction shouldBe 0f
 		}
@@ -439,7 +433,7 @@ class GhostLeaderboardProviderTest {
 
 			val sunday = LocalDate.of(2024, 7, 14) // Sunday
 			val now = sunday.atTime(23, 59).toInstant(ZoneOffset.UTC)
-			val state = provider.getLeaderboard(LeaderboardMetric.STEPS, now = now, zone = utc)
+			val state = provider.getLeaderboard(LeaderboardMetric.DISTANCE, now = now, zone = utc)
 
 			state.weekProgressFraction shouldBeGreaterThan 0.99f
 			state.weekProgressFraction shouldBeLessThan 1.0f
@@ -453,7 +447,7 @@ class GhostLeaderboardProviderTest {
 			val wednesday = LocalDate.of(2024, 7, 10) // Wednesday
 			// Wednesday noon = 2.5 days into week; 2.5/7 ≈ 0.357
 			val now = wednesday.atTime(12, 0).toInstant(ZoneOffset.UTC)
-			val state = provider.getLeaderboard(LeaderboardMetric.STEPS, now = now, zone = utc)
+			val state = provider.getLeaderboard(LeaderboardMetric.DISTANCE, now = now, zone = utc)
 
 			// 2.5 days / 7 days ≈ 0.357
 			state.weekProgressFraction shouldBeGreaterThan 0.3f
@@ -467,7 +461,7 @@ class GhostLeaderboardProviderTest {
 
 			val friday = LocalDate.of(2024, 7, 12) // Friday
 			val now = friday.atStartOfDay(utc).toInstant()
-			val state = provider.getLeaderboard(LeaderboardMetric.STEPS, now = now, zone = utc)
+			val state = provider.getLeaderboard(LeaderboardMetric.DISTANCE, now = now, zone = utc)
 
 			// 4 days / 7 ≈ 0.571
 			val expected = 4f / 7f
@@ -484,7 +478,7 @@ class GhostLeaderboardProviderTest {
 		@Test
 		fun `progressAgainstTop is 0 when no ghosts`() {
 			val state = LeaderboardState(
-				metric = LeaderboardMetric.STEPS,
+				metric = LeaderboardMetric.DISTANCE,
 				currentWeekValue = 5000.0,
 				competitors = listOf(
 					GhostCompetitor(
@@ -506,7 +500,7 @@ class GhostLeaderboardProviderTest {
 		@Test
 		fun `progressAgainstTop caps at 1 when exceeding top ghost`() {
 			val state = LeaderboardState(
-				metric = LeaderboardMetric.STEPS,
+				metric = LeaderboardMetric.DISTANCE,
 				currentWeekValue = 20000.0,
 				competitors = listOf(
 					GhostCompetitor(
@@ -558,7 +552,7 @@ class GhostLeaderboardProviderTest {
 		@Test
 		fun `ghosts property filters out current user`() {
 			val state = LeaderboardState(
-				metric = LeaderboardMetric.STEPS,
+				metric = LeaderboardMetric.DISTANCE,
 				currentWeekValue = 5000.0,
 				competitors = listOf(
 					GhostCompetitor(id = "best_week", type = GhostType.BEST_WEEK, nameRes = 0, value = 20000.0),
@@ -587,12 +581,12 @@ class GhostLeaderboardProviderTest {
 
 			coEvery {
 				dao.getBetween(monday.toEpochDay(), monday.plusDays(6).toEpochDay())
-			} returns listOf(makeSummary(monday.toEpochDay(), steps = 1000))
+			} returns listOf(makeSummary(monday.toEpochDay(), tripCount = 1000))
 			coEvery { dao.getAllBefore(monday.toEpochDay()) } returns listOf(
-				makeSummary(prevMonday.toEpochDay(), steps = 5000),
+				makeSummary(prevMonday.toEpochDay(), tripCount = 5000),
 			)
 
-			val state = provider.getLeaderboard(LeaderboardMetric.STEPS, now = now, zone = utc)
+			val state = provider.getLeaderboard(LeaderboardMetric.SESSIONS, now = now, zone = utc)
 
 			state.competitors.first { it.type == GhostType.BEST_WEEK }.id shouldBe "best_week"
 			state.competitors.first { it.type == GhostType.AVERAGE_WEEK }.id shouldBe "average_week"
@@ -608,12 +602,12 @@ class GhostLeaderboardProviderTest {
 
 			coEvery {
 				dao.getBetween(monday.toEpochDay(), monday.plusDays(6).toEpochDay())
-			} returns listOf(makeSummary(monday.toEpochDay(), steps = 1000))
+			} returns listOf(makeSummary(monday.toEpochDay(), tripCount = 1000))
 			coEvery { dao.getAllBefore(monday.toEpochDay()) } returns listOf(
-				makeSummary(prevMonday.toEpochDay(), steps = 5000),
+				makeSummary(prevMonday.toEpochDay(), tripCount = 5000),
 			)
 
-			val state = provider.getLeaderboard(LeaderboardMetric.STEPS, now = now, zone = utc)
+			val state = provider.getLeaderboard(LeaderboardMetric.SESSIONS, now = now, zone = utc)
 
 			state.ghosts.forEach { ghost ->
 				ghost.nameRes shouldBe ghost.type.labelRes
@@ -629,12 +623,12 @@ class GhostLeaderboardProviderTest {
 
 			coEvery {
 				dao.getBetween(monday.toEpochDay(), monday.plusDays(6).toEpochDay())
-			} returns listOf(makeSummary(monday.toEpochDay(), steps = 1000))
+			} returns listOf(makeSummary(monday.toEpochDay(), tripCount = 1000))
 			coEvery { dao.getAllBefore(monday.toEpochDay()) } returns listOf(
-				makeSummary(prevMonday.toEpochDay(), steps = 5000),
+				makeSummary(prevMonday.toEpochDay(), tripCount = 5000),
 			)
 
-			val state = provider.getLeaderboard(LeaderboardMetric.STEPS, now = now, zone = utc)
+			val state = provider.getLeaderboard(LeaderboardMetric.SESSIONS, now = now, zone = utc)
 
 			val bestGhost = state.ghosts.first { it.type == GhostType.BEST_WEEK }
 			bestGhost.period shouldNotBe null
@@ -674,12 +668,14 @@ class GhostLeaderboardProviderTest {
 		}
 
 		@Test
-		fun `aggregateMetric sums steps correctly`() {
+		fun `aggregateMetric rejects raw steps`() {
 			val days = listOf(
 				makeSummary(0, steps = 100),
 				makeSummary(1, steps = 200),
 			)
-			provider.aggregateMetric(days, LeaderboardMetric.STEPS) shouldBe 300.0
+			shouldThrow<IllegalStateException> {
+				provider.aggregateMetric(days, LeaderboardMetric.STEPS)
+			}
 		}
 
 		@Test
@@ -715,12 +711,12 @@ class GhostLeaderboardProviderTest {
 			val monday1 = LocalDate.of(2024, 7, 1) // Week 27
 			val monday2 = LocalDate.of(2024, 7, 8) // Week 28
 			val days = listOf(
-				makeSummary(monday1.toEpochDay(), steps = 100),
-				makeSummary(monday1.plusDays(1).toEpochDay(), steps = 200),
-				makeSummary(monday2.toEpochDay(), steps = 300),
+				makeSummary(monday1.toEpochDay(), tripCount = 100),
+				makeSummary(monday1.plusDays(1).toEpochDay(), tripCount = 200),
+				makeSummary(monday2.toEpochDay(), tripCount = 300),
 			)
 
-			val result = provider.groupByIsoWeek(days, LeaderboardMetric.STEPS)
+			val result = provider.groupByIsoWeek(days, LeaderboardMetric.SESSIONS)
 			result.size shouldBe 2
 			result[2024 to 27] shouldBe 300.0
 			result[2024 to 28] shouldBe 300.0
@@ -731,7 +727,7 @@ class GhostLeaderboardProviderTest {
 			val result = provider.buildGhosts(
 				emptyMap(),
 				LocalDate.of(2024, 7, 10),
-				LeaderboardMetric.STEPS,
+				LeaderboardMetric.DISTANCE,
 			)
 			result shouldHaveSize 0
 		}

@@ -25,7 +25,7 @@ class WeeklyLeaderboardCardTest {
 	@Test
 	fun showsTitle() {
 		val state = LeaderboardState(
-			metric = LeaderboardMetric.STEPS,
+			metric = LeaderboardMetric.DISTANCE,
 			currentWeekValue = 5000.0,
 			competitors = listOf(
 				GhostCompetitor(
@@ -68,7 +68,7 @@ class WeeklyLeaderboardCardTest {
 			),
 		)
 		val state = LeaderboardState(
-			metric = LeaderboardMetric.STEPS,
+			metric = LeaderboardMetric.DISTANCE,
 			currentWeekValue = 5000.0,
 			competitors = competitors,
 			currentRank = 2,
@@ -121,7 +121,7 @@ class WeeklyLeaderboardCardTest {
 	@Test
 	fun showsMetricChips() {
 		val state = LeaderboardState(
-			metric = LeaderboardMetric.STEPS,
+			metric = LeaderboardMetric.DISTANCE,
 			currentWeekValue = 1000.0,
 			competitors = listOf(
 				GhostCompetitor(
@@ -145,7 +145,7 @@ class WeeklyLeaderboardCardTest {
 		}
 
 		composeRule.onNodeWithText("Distance").assertIsDisplayed()
-		composeRule.onNodeWithText("Steps").assertIsDisplayed()
+		composeRule.onNodeWithText("Steps").assertDoesNotExist()
 		composeRule.onNodeWithText("Active").assertIsDisplayed()
 		composeRule.onNodeWithText("Sessions").assertIsDisplayed()
 	}

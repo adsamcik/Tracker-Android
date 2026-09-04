@@ -104,7 +104,7 @@ class GameViewModelTest {
 	}
 
 	@Test
-	fun leaderboardBecomesReadyAndMetricSelectionRecomputes() = runTest(testDispatcher) {
+	fun leaderboardRecomputesForQualifiedMetricsAndRejectsRawSteps() = runTest(testDispatcher) {
 		val vm = GameViewModel(
 			gameRepository = FakeGameRepository(level = 9),
 			miniGameRegistry = registry(),
@@ -121,17 +121,20 @@ class GameViewModelTest {
 			state.leaderboard.state.metric shouldBe
 				LeaderboardMetric.DISTANCE
 
-			vm.selectLeaderboardMetric(LeaderboardMetric.STEPS)
+			vm.selectLeaderboardMetric(LeaderboardMetric.ACTIVE_TIME)
 
 			var recomputed = awaitItem()
 			while (recomputed == null ||
 				recomputed.leaderboard !is LeaderboardUiState.Ready ||
-				recomputed.leaderboard.state.metric != LeaderboardMetric.STEPS
+				recomputed.leaderboard.state.metric != LeaderboardMetric.ACTIVE_TIME
 			) {
 				recomputed = awaitItem()
 			}
 			recomputed.leaderboard.state.metric shouldBe
-				LeaderboardMetric.STEPS
+				LeaderboardMetric.ACTIVE_TIME
+
+			vm.selectLeaderboardMetric(LeaderboardMetric.STEPS)
+			expectNoEvents()
 
 			cancelAndIgnoreRemainingEvents()
 		}

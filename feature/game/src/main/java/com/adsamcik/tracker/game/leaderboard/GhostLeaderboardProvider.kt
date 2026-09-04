@@ -48,65 +48,70 @@ class GhostLeaderboardProvider @Inject constructor(
 		metric: LeaderboardMetric,
 		now: Instant,
 		zone: ZoneId,
-	): LeaderboardState = withContext(dispatchers.io) {
-		val zonedNow = now.atZone(zone)
-		val today = zonedNow.toLocalDate()
-		val currentWeekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-		val currentWeekEnd = currentWeekStart.plusDays(6) // Sunday
-
-		// Current week value
-		val currentWeekDays = dailySummaryDao.getBetween(
-			currentWeekStart.toEpochDay(),
-			currentWeekEnd.toEpochDay(),
-		)
-		val currentWeekValue = aggregateMetric(currentWeekDays, metric)
-
-		// Fetch all historical data before this week
-		val allHistorical = if (currentWeekStart.toEpochDay() > 0) {
-			dailySummaryDao.getAllBefore(currentWeekStart.toEpochDay())
-		} else {
-			emptyList()
+	): LeaderboardState {
+		require(metric.isSelectable) {
+			"Steps leaderboard requires source-qualified historical composition"
 		}
+		return withContext(dispatchers.io) {
+			val zonedNow = now.atZone(zone)
+			val today = zonedNow.toLocalDate()
+			val currentWeekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+			val currentWeekEnd = currentWeekStart.plusDays(6) // Sunday
 
-		// Group historical data by ISO week
-		val weeklyTotals = groupByIsoWeek(allHistorical, metric)
+			// Current week value
+			val currentWeekDays = dailySummaryDao.getBetween(
+				currentWeekStart.toEpochDay(),
+				currentWeekEnd.toEpochDay(),
+			)
+			val currentWeekValue = aggregateMetric(currentWeekDays, metric)
 
-		// Build ghost competitors
-		val ghosts = buildGhosts(weeklyTotals, today, metric)
+			// Fetch all historical data before this week
+			val allHistorical = if (currentWeekStart.toEpochDay() > 0) {
+				dailySummaryDao.getAllBefore(currentWeekStart.toEpochDay())
+			} else {
+				emptyList()
+			}
 
-		// Build current user entry
-		val currentUserEntry = GhostCompetitor(
-			id = CURRENT_USER_ID,
-			type = GhostType.CURRENT_USER,
-			nameRes = R.string.leaderboard_you,
-			value = currentWeekValue,
-			period = zone.id,
-		)
+			// Group historical data by ISO week
+			val weeklyTotals = groupByIsoWeek(allHistorical, metric)
 
-		// Merge and sort all competitors descending by value
-		val allCompetitors = (ghosts + currentUserEntry).sortedByDescending { it.value }
+			// Build ghost competitors
+			val ghosts = buildGhosts(weeklyTotals, today, metric)
 
-		// Rank: 1-based position of current user in the sorted list
-		val currentRank = allCompetitors.indexOfFirst { it.isCurrentUser } + 1
+			// Build current user entry
+			val currentUserEntry = GhostCompetitor(
+				id = CURRENT_USER_ID,
+				type = GhostType.CURRENT_USER,
+				nameRes = R.string.leaderboard_you,
+				value = currentWeekValue,
+				period = zone.id,
+			)
 
-		// Week progress: timezone-aware, 0.0 at Monday 00:00, approaching 1.0 at end of Sunday
-		val weekStartInstant = currentWeekStart.atStartOfDay(zone).toInstant()
-		val weekEndInstant = currentWeekStart.plusDays(7).atStartOfDay(zone).toInstant()
-		val totalMs = Duration.between(weekStartInstant, weekEndInstant).toMillis()
-		val elapsedMs = Duration.between(weekStartInstant, now).toMillis()
-		val weekProgressFraction = if (totalMs > 0) {
-			(elapsedMs.toDouble() / totalMs.toDouble()).coerceIn(0.0, 1.0).toFloat()
-		} else {
-			0f
+			// Merge and sort all competitors descending by value
+			val allCompetitors = (ghosts + currentUserEntry).sortedByDescending { it.value }
+
+			// Rank: 1-based position of current user in the sorted list
+			val currentRank = allCompetitors.indexOfFirst { it.isCurrentUser } + 1
+
+			// Week progress: timezone-aware, 0.0 at Monday 00:00, approaching 1.0 at end of Sunday
+			val weekStartInstant = currentWeekStart.atStartOfDay(zone).toInstant()
+			val weekEndInstant = currentWeekStart.plusDays(7).atStartOfDay(zone).toInstant()
+			val totalMs = Duration.between(weekStartInstant, weekEndInstant).toMillis()
+			val elapsedMs = Duration.between(weekStartInstant, now).toMillis()
+			val weekProgressFraction = if (totalMs > 0) {
+				(elapsedMs.toDouble() / totalMs.toDouble()).coerceIn(0.0, 1.0).toFloat()
+			} else {
+				0f
+			}
+
+			LeaderboardState(
+				metric = metric,
+				currentWeekValue = currentWeekValue,
+				competitors = allCompetitors,
+				currentRank = currentRank.coerceAtLeast(1),
+				weekProgressFraction = weekProgressFraction,
+			)
 		}
-
-		LeaderboardState(
-			metric = metric,
-			currentWeekValue = currentWeekValue,
-			competitors = allCompetitors,
-			currentRank = currentRank.coerceAtLeast(1),
-			weekProgressFraction = weekProgressFraction,
-		)
 	}
 
 	internal fun aggregateMetric(
@@ -114,7 +119,9 @@ class GhostLeaderboardProvider @Inject constructor(
 		metric: LeaderboardMetric,
 	): Double = when (metric) {
 		LeaderboardMetric.DISTANCE -> days.sumOf { it.totalDistanceM.toDouble() } / 1000.0
-		LeaderboardMetric.STEPS -> days.sumOf { it.totalSteps.toDouble() }
+		LeaderboardMetric.STEPS -> error(
+			"Steps leaderboard requires source-qualified historical composition",
+		)
 		LeaderboardMetric.ACTIVE_TIME -> days.sumOf { it.totalDurationMs.toDouble() } / 3_600_000.0
 		LeaderboardMetric.SESSIONS -> days.sumOf { it.tripCount.toDouble() }
 	}

@@ -130,6 +130,7 @@ internal class GameViewModel @Inject constructor(
 	}.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS), null)
 
 	fun selectLeaderboardMetric(metric: LeaderboardMetric) {
+		if (!metric.isSelectable) return
 		selectedMetric.value = metric
 	}
 

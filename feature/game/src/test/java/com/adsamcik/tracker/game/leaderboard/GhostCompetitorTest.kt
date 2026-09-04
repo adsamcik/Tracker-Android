@@ -105,4 +105,14 @@ class LeaderboardMetricTest {
 		val names = LeaderboardMetric.entries.map { it.name }
 		names shouldBe listOf("DISTANCE", "STEPS", "ACTIVE_TIME", "SESSIONS")
 	}
+
+	@Test
+	fun `raw steps is retained but not selectable`() {
+		LeaderboardMetric.STEPS.isSelectable shouldBe false
+		LeaderboardMetric.selectableEntries shouldBe listOf(
+			LeaderboardMetric.DISTANCE,
+			LeaderboardMetric.ACTIVE_TIME,
+			LeaderboardMetric.SESSIONS,
+		)
+	}
 }

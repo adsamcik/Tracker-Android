@@ -106,7 +106,7 @@ class LeaderboardStateTest {
 		competitors: List<GhostCompetitor> = emptyList(),
 	): LeaderboardState {
 		return LeaderboardState(
-			metric = LeaderboardMetric.STEPS,
+			metric = LeaderboardMetric.DISTANCE,
 			currentWeekValue = currentWeekValue,
 			competitors = competitors,
 			currentRank = 1,

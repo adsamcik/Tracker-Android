@@ -74,7 +74,7 @@ internal fun WeeklyLeaderboardCard(
 				horizontalArrangement = Arrangement.spacedBy(8.dp),
 				modifier = Modifier.fillMaxWidth(),
 			) {
-				LeaderboardMetric.entries.forEach { metric ->
+				LeaderboardMetric.selectableEntries.forEach { metric ->
 					FilterChip(
 						selected = state.metric == metric,
 						onClick = { onMetricSelected(metric) },
