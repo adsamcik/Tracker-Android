@@ -13,6 +13,7 @@ import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
+import com.adsamcik.tracker.stats.api.repository.UnconsumedEvent
 import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -36,32 +37,43 @@ class GameDomainEventConsumer @Inject constructor(
 			val expectedGeneration = trackingStartupGate.currentGeneration
 			val batch = loadAcceptedBatch(expectedGeneration) ?: return@withLock
 			if (batch.isEmpty()) return@withLock
-			batch.forEach { unconsumed ->
-				val event = unconsumed.event
-				val handled = try {
-					handleEvent(event, expectedGeneration)
-				} catch (e: CancellationException) {
-					throw e
-				} catch (_: Exception) {
-					return@withLock
-				}
-				if (!handled) return@withLock
-				val acknowledged = trackingStartupGate.withReadyGenerationOperation(
-					expectedGeneration,
-				) {
-					if (event is DomainEvent.SessionEnded && event.sessionId > 0L) {
-						enqueueAchievementWorker()
-					}
-					domainEventRepository.markBatchConsumed(
-						CONSUMER_ID,
-						event.timestampMs,
-						unconsumed.persistedId,
-					)
-					true
-				} ?: false
-				if (!acknowledged) return@withLock
-			}
+			if (!processBatch(batch, expectedGeneration)) return@withLock
 		}
+	}
+
+	private suspend fun processBatch(
+		batch: List<UnconsumedEvent>,
+		expectedGeneration: Long,
+	): Boolean {
+		for (unconsumed in batch) {
+			val handled = try {
+				handleEvent(unconsumed.event, expectedGeneration)
+			} catch (cancellation: CancellationException) {
+				throw cancellation
+			} catch (_: Exception) {
+				return false
+			}
+			if (!handled || !acknowledgeEvent(unconsumed, expectedGeneration)) return false
+		}
+		return true
+	}
+
+	private suspend fun acknowledgeEvent(
+		unconsumed: UnconsumedEvent,
+		expectedGeneration: Long,
+	): Boolean {
+		val event = unconsumed.event
+		return trackingStartupGate.withReadyGenerationOperation(expectedGeneration) {
+			if (event is DomainEvent.SessionEnded && event.sessionId > 0L) {
+				enqueueAchievementWorker()
+			}
+			domainEventRepository.markBatchConsumed(
+				CONSUMER_ID,
+				event.timestampMs,
+				unconsumed.persistedId,
+			)
+			true
+		} ?: false
 	}
 
 	private suspend fun loadAcceptedBatch(expectedGeneration: Long) = try {

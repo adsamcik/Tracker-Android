@@ -315,7 +315,11 @@ class GameDomainEventConsumerTest {
 			operation: suspend () -> T,
 		): T? {
 			operationGenerations += expectedGeneration
-			val result = if (isReadyGeneration(expectedGeneration)) operation() else null
+			val result = if (isReadyGeneration(expectedGeneration)) {
+				operation()
+			} else {
+				null
+			}
 			afterNextOperation?.also { afterNextOperation = null }?.invoke()
 			return result
 		}

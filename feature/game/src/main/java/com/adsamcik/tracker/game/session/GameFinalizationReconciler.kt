@@ -35,43 +35,12 @@ internal class GameFinalizationReconciler(
 		var alreadyComplete = 0
 		var failed = 0
 		val expectedGeneration = trackingStartupGate.currentGeneration
-		val rows = try {
-			if (trackingStartupGate.reconcile() !is TrackingStartupResult.Ready) {
-				return GameFinalizationReconciliationSummary(0, 0, 0, 1)
-			}
-			trackingStartupGate.withReadyGenerationOperation(expectedGeneration) {
-				loadScores(batchLimit)
-			} ?: return GameFinalizationReconciliationSummary(0, 0, 0, 1)
-		} catch (cancellation: CancellationException) {
-			throw cancellation
-		} catch (_: Throwable) {
-			return GameFinalizationReconciliationSummary(0, 0, 0, 1)
-		}
+		val rows = loadAcceptedRows(expectedGeneration) ?: return unavailableSummary()
 		rows.forEach { row ->
-			val result = try {
-				trackingStartupGate.withReadyGenerationOperation(expectedGeneration) {
-					ensureRewardInsideAcceptedGeneration(
-						GameReward(
-							rewardId = miniGameRewardId(row.gameId, row.playedAt),
-							gameId = row.gameId,
-							points = row.xpAwarded,
-							earnedAtMs = row.playedAt,
-						),
-						expectedGeneration,
-					)
-				} ?: run {
-					failed++
-					return@forEach
-				}
-			} catch (cancellation: CancellationException) {
-				throw cancellation
-			} catch (_: Throwable) {
-				failed++
-				return@forEach
-			}
-			when (result) {
+			when (ensureAcceptedRow(row, expectedGeneration)) {
 				GameRewardEnsureResult.Created -> repaired++
 				GameRewardEnsureResult.AlreadyEnsured -> alreadyComplete++
+				null,
 				GameRewardEnsureResult.Unsupported,
 				is GameRewardEnsureResult.Rejected,
 				-> failed++
@@ -84,6 +53,50 @@ internal class GameFinalizationReconciler(
 			failed = failed,
 		)
 	}
+
+	private suspend fun loadAcceptedRows(
+		expectedGeneration: Long,
+	): List<MiniGameScoreEntity>? = try {
+		if (trackingStartupGate.reconcile() !is TrackingStartupResult.Ready) {
+			null
+		} else {
+			trackingStartupGate.withReadyGenerationOperation(expectedGeneration) {
+				loadScores(batchLimit)
+			}
+		}
+	} catch (cancellation: CancellationException) {
+		throw cancellation
+	} catch (_: Throwable) {
+		null
+	}
+
+	private suspend fun ensureAcceptedRow(
+		row: MiniGameScoreEntity,
+		expectedGeneration: Long,
+	): GameRewardEnsureResult? = try {
+		trackingStartupGate.withReadyGenerationOperation(expectedGeneration) {
+			ensureRewardInsideAcceptedGeneration(
+				GameReward(
+					rewardId = miniGameRewardId(row.gameId, row.playedAt),
+					gameId = row.gameId,
+					points = row.xpAwarded,
+					earnedAtMs = row.playedAt,
+				),
+				expectedGeneration,
+			)
+		}
+	} catch (cancellation: CancellationException) {
+		throw cancellation
+	} catch (_: Throwable) {
+		null
+	}
+
+	private fun unavailableSummary() = GameFinalizationReconciliationSummary(
+		examined = 0,
+		repaired = 0,
+		alreadyComplete = 0,
+		failed = 1,
+	)
 
 	private companion object {
 		const val DEFAULT_BATCH_LIMIT: Int = 50

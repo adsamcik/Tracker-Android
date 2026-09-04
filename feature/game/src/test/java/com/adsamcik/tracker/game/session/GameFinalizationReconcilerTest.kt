@@ -122,7 +122,11 @@ class GameFinalizationReconcilerTest {
 		): T? {
 			operationGenerations += expectedGeneration
 			val result = operationMutex.withLock {
-				if (isReadyGeneration(expectedGeneration)) operation() else null
+				if (isReadyGeneration(expectedGeneration)) {
+					operation()
+				} else {
+					null
+				}
 			}
 			afterNextOperation?.also { afterNextOperation = null }?.invoke()
 			return result
