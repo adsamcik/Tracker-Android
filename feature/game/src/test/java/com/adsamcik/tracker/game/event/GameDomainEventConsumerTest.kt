@@ -44,9 +44,42 @@ class GameDomainEventConsumerTest {
 			duration = DurationMs(0L),
 		)
 
+	private fun dailySummaryUpdatedEvent(timestampMs: Long) =
+		DomainEvent.DailySummaryUpdated(
+			timestampMs = EpochMs(timestampMs),
+			processorId = "test-processor",
+			dayEpoch = 20_000L,
+			totalDistance = DistanceM(0f),
+			totalSteps = StepCount(20_000),
+			totalDuration = DurationMs(0L),
+			tripCount = 1,
+		)
+
 	@Nested
 	@DisplayName("processUnconsumed")
 	inner class ProcessUnconsumed {
+
+		@Test
+		fun `raw daily summary goal event is acknowledged without entering session XP`() = runTest {
+			val event = UnconsumedEvent(dailySummaryUpdatedEvent(1_000L), 1L)
+			coEvery {
+				domainEventRepository.getUnconsumedBatchWithIds(
+					GameDomainEventConsumer.CONSUMER_ID,
+					DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+				)
+			} returnsMany listOf(listOf(event), emptyList())
+
+			consumer.processUnconsumed()
+
+			coVerify(exactly = 0) { progressionRepository.awardSessionXp(any()) }
+			coVerify(exactly = 1) {
+				domainEventRepository.markBatchConsumed(
+					GameDomainEventConsumer.CONSUMER_ID,
+					EpochMs(1_000L),
+					1L,
+				)
+			}
+		}
 
 		@Test
 		fun `stops at a handler failure and acknowledges only prior events`() = runTest {

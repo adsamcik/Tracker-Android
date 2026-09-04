@@ -63,7 +63,7 @@ class GameDomainEventConsumer @Inject constructor(
 
 	private suspend fun onDailySummaryUpdated(event: DomainEvent.DailySummaryUpdated) {
 		val cumulativeSteps = event.totalSteps.raw.toInt().coerceAtLeast(0)
-		GoalTracker.updateCumulativeSteps(cumulativeSteps)
+		GoalTracker.updateUnqualifiedCumulativeStepsPresentation(cumulativeSteps)
 	}
 
 	private fun onAchievementUnlocked(event: DomainEvent.AchievementUnlocked) {

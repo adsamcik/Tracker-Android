@@ -245,6 +245,18 @@ class DailyStepGoalTest {
 			first shouldBe true
 			second shouldBe false
 		}
+
+		@Test
+		fun `raw presentation value and target do not consume a later qualified completion`() {
+			setTarget(1_000)
+			goal.onSessionPresentationUpdated(createSession(steps = 600), isNewSession = true)
+
+			goal.onTargetPresentationUpdated(500)
+
+			goal.value shouldBe 600
+			goal.target shouldBe 500
+			goal.onCumulativeStepsUpdated(600) shouldBe true
+		}
 	}
 
 	@Nested

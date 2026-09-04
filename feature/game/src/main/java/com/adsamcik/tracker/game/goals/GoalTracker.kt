@@ -124,23 +124,19 @@ internal object GoalTracker : CoroutineScope {
 
 			if (previousSettings == null) {
 				dailyGoal.replaceTarget(settings.dailyStepGoal)
-			} else if (
-				previousSettings.dailyStepGoal != settings.dailyStepGoal &&
-				goalList[DAILY_INDEX].onTargetUpdated(settings.dailyStepGoal)
-			) {
-				onGoalReached(dailyGoal)
+			} else if (previousSettings.dailyStepGoal != settings.dailyStepGoal) {
+				goalList[DAILY_INDEX].onTargetPresentationUpdated(settings.dailyStepGoal)
 			}
 
 			val weeklyConfigurationChanged = previousSettings == null ||
 				previousSettings.weeklyStepGoal != settings.weeklyStepGoal ||
 				previousSettings.weeklyProgressDailyLimit != settings.weeklyProgressDailyLimit
 			if (weeklyConfigurationChanged) {
-				val weeklyReached = weeklyGoal.updateConfiguration(
+				weeklyGoal.updateConfiguration(
 					target = settings.weeklyStepGoal,
 					dailyLimit = settings.weeklyProgressDailyLimit,
-					evaluateCompletion = previousSettings != null,
+					evaluateCompletion = false,
 				)
-				if (previousSettings != null && weeklyReached) onGoalReached(weeklyGoal)
 			}
 			latestSettings = settings
 		}
@@ -191,23 +187,25 @@ internal object GoalTracker : CoroutineScope {
 			val isNewSession = mLastSessionId != session.id
 			mLastSessionId = session.id
 			goalList.forEach {
-				if (it.onSessionUpdated(session, isNewSession)) onGoalReached(it.goal)
+				it.onSessionPresentationUpdated(session, isNewSession)
 			}
 		}
 	}
 
-	internal suspend fun updateCumulativeSteps(totalSteps: Int) {
+	internal suspend fun updateUnqualifiedCumulativeStepsPresentation(totalSteps: Int) {
 		if (mAppContext == null || goalList.size < GOAL_COUNT) return
 		val dailyTotal = totalSteps.coerceAtLeast(0)
 		mutex.withLock {
-			if (goalList[DAILY_INDEX].onCumulativeStepsUpdated(dailyTotal)) {
-				onGoalReached(goalList[DAILY_INDEX].goal)
-			}
-			if (goalList[WEEKLY_INDEX].onCumulativeStepsUpdated(dailyTotal)) {
-				onGoalReached(goalList[WEEKLY_INDEX].goal)
-			}
+			goalList[DAILY_INDEX].onCumulativeStepsPresentationUpdated(dailyTotal)
+			goalList[WEEKLY_INDEX].onCumulativeStepsPresentationUpdated(dailyTotal)
 		}
 	}
+
+	/*
+	 * Raw TrackerSessionSnapshot, Trip, and DailySummaryUpdated values intentionally stop at the
+	 * presentation methods above. Re-enable completion only through a new source-qualified decision
+	 * entry point that also defines correction/deletion race semantics; never reconnect these paths.
+	 */
 
 	private const val DAILY_INDEX = 0
 	private const val WEEKLY_INDEX = 1

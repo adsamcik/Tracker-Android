@@ -90,8 +90,15 @@ abstract class BaseGoal(
 	}
 
 	override fun onSessionUpdated(session: TrackerSessionSnapshot, isNewSession: Boolean): Boolean {
-		onSessionUpdatedInternal(session, isNewSession)
+		onSessionPresentationUpdated(session, isNewSession)
 		return evaluateGoalReached()
+	}
+
+	override fun onSessionPresentationUpdated(
+		session: TrackerSessionSnapshot,
+		isNewSession: Boolean,
+	) {
+		onSessionUpdatedInternal(session, isNewSession)
 	}
 
 	protected abstract fun onSessionUpdatedInternal(

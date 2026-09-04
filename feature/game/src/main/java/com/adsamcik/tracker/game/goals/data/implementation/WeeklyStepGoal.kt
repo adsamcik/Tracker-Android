@@ -48,12 +48,16 @@ class WeeklyStepGoal(
 	}
 
 	override fun onCumulativeStepsUpdated(totalSteps: Int): Boolean {
+		onCumulativeStepsPresentationUpdated(totalSteps)
+		return evaluateGoalReached()
+	}
+
+	override fun onCumulativeStepsPresentationUpdated(totalSteps: Int) {
 		rollDateForwardIfNeeded()
 		dailyRawSteps = dailyRawSteps.toMutableMap().apply {
 			this[currentDate] = totalSteps.coerceAtLeast(0)
 		}
 		updateLiveValue()
-		return evaluateGoalReached()
 	}
 
 	fun updateConfiguration(
@@ -72,6 +76,8 @@ class WeeklyStepGoal(
 	}
 
 	private suspend fun loadCurrentWeek(context: Context) {
+		// Legacy Trip.steps seeds presentation invalidation only; GoalTracker never evaluates it for
+		// points, XP, notifications, or reported-period persistence.
 		val now = Time.now
 		val zone = now.zone
 		val startOfWeek = now

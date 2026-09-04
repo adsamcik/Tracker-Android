@@ -62,16 +62,30 @@ interface Goal {
 	fun onSessionUpdated(session: TrackerSessionSnapshot, isNewSession: Boolean): Boolean
 
 	/**
+	 * Updates legacy presentation state without evaluating completion.
+	 *
+	 * [TrackerSessionSnapshot.steps] is not source-qualified, so callers handling that snapshot must
+	 * use this entry point and cannot make points, XP, notification, or reported-period decisions.
+	 */
+	fun onSessionPresentationUpdated(session: TrackerSessionSnapshot, isNewSession: Boolean)
+
+	/**
 	 * Called when a cumulative (absolute) step value is available.
 	 * Returns true if goal is reached.
 	 */
 	fun onCumulativeStepsUpdated(totalSteps: Int): Boolean = false
+
+	/** Updates legacy presentation state from an unqualified cumulative value without completing. */
+	fun onCumulativeStepsPresentationUpdated(totalSteps: Int) = Unit
 
 	/**
 	 * Replaces the target with a settings-backed value.
 	 * Returns true when the new target newly completes the current period.
 	 */
 	fun onTargetUpdated(target: Int): Boolean = false
+
+	/** Replaces a target without evaluating it against unqualified presentation state. */
+	fun onTargetPresentationUpdated(target: Int) = Unit
 
 	/**
 	 * Called on a new day. Roughly sometime after midnight based on scheduling.

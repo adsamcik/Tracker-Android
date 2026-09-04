@@ -51,7 +51,7 @@ class GoalTrackerTest {
 		every { pointMultiplier } returns 0.01
 		every { onValueChanged = any() } just Runs
 		every { onTargetChanged = any() } just Runs
-		every { onSessionUpdated(any(), any()) } returns false
+		every { onSessionPresentationUpdated(any(), any()) } just Runs
 	}
 
 	private fun createSession(id: Long = 1L, steps: Int = 100) = TrackerSessionSnapshot(
@@ -135,8 +135,8 @@ class GoalTrackerTest {
 
 			GoalTracker.update(session)
 
-			verify { mockGoal1.onSessionUpdated(session, true) }
-			verify { mockGoal2.onSessionUpdated(session, true) }
+			verify { mockGoal1.onSessionPresentationUpdated(session, true) }
+			verify { mockGoal2.onSessionPresentationUpdated(session, true) }
 		}
 
 		@Test
@@ -152,7 +152,7 @@ class GoalTrackerTest {
 			GoalTracker.update(session)
 
 			verify {
-				mockGoal1.onSessionUpdated(
+				mockGoal1.onSessionPresentationUpdated(
 					match { it.id == 99L && it.steps == 5000 },
 					true,
 				)
@@ -170,7 +170,7 @@ class GoalTrackerTest {
 
 			GoalTracker.update(createSession(id = 42L))
 
-			verify { mockGoal1.onSessionUpdated(any(), eq(true)) }
+			verify { mockGoal1.onSessionPresentationUpdated(any(), eq(true)) }
 		}
 
 		@Test
@@ -181,8 +181,8 @@ class GoalTrackerTest {
 			GoalTracker.update(createSession(id = 42L, steps = 150))
 
 			verifyOrder {
-				mockGoal1.onSessionUpdated(match { it.steps == 50 }, eq(true))
-				mockGoal1.onSessionUpdated(match { it.steps == 150 }, eq(false))
+				mockGoal1.onSessionPresentationUpdated(match { it.steps == 50 }, eq(true))
+				mockGoal1.onSessionPresentationUpdated(match { it.steps == 150 }, eq(false))
 			}
 		}
 
@@ -193,7 +193,7 @@ class GoalTrackerTest {
 			GoalTracker.update(createSession(id = 1L))
 			GoalTracker.update(createSession(id = 2L))
 
-			verify(exactly = 2) { mockGoal1.onSessionUpdated(any(), eq(true)) }
+			verify(exactly = 2) { mockGoal1.onSessionPresentationUpdated(any(), eq(true)) }
 		}
 
 		@Test
@@ -204,7 +204,7 @@ class GoalTrackerTest {
 			GoalTracker.update(createSession(id = 2L, steps = 20))
 			GoalTracker.update(createSession(id = 1L, steps = 30))
 
-			verify(exactly = 3) { mockGoal1.onSessionUpdated(any(), eq(true)) }
+			verify(exactly = 3) { mockGoal1.onSessionPresentationUpdated(any(), eq(true)) }
 		}
 
 		@Test
@@ -215,8 +215,8 @@ class GoalTrackerTest {
 			GoalTracker.update(createSession(id = 7L, steps = 200))
 			GoalTracker.update(createSession(id = 7L, steps = 300))
 
-			verify(exactly = 1) { mockGoal1.onSessionUpdated(any(), eq(true)) }
-			verify(exactly = 2) { mockGoal1.onSessionUpdated(any(), eq(false)) }
+			verify(exactly = 1) { mockGoal1.onSessionPresentationUpdated(any(), eq(true)) }
+			verify(exactly = 2) { mockGoal1.onSessionPresentationUpdated(any(), eq(false)) }
 		}
 	}
 
@@ -238,9 +238,9 @@ class GoalTrackerTest {
 			GoalTracker.update(createSession(id = 5L, steps = 50))
 
 			verifyOrder {
-				mockGoal1.onSessionUpdated(match { it.steps == 100 }, eq(true))
-				mockGoal1.onSessionUpdated(match { it.steps == 200 }, eq(false))
-				mockGoal1.onSessionUpdated(match { it.steps == 50 }, eq(true))
+				mockGoal1.onSessionPresentationUpdated(match { it.steps == 100 }, eq(true))
+				mockGoal1.onSessionPresentationUpdated(match { it.steps == 200 }, eq(false))
+				mockGoal1.onSessionPresentationUpdated(match { it.steps == 50 }, eq(true))
 			}
 		}
 
@@ -255,7 +255,7 @@ class GoalTrackerTest {
 
 			GoalTracker.update(createSession(id = 2L))
 
-			verify(exactly = 2) { mockGoal1.onSessionUpdated(any(), eq(true)) }
+			verify(exactly = 2) { mockGoal1.onSessionPresentationUpdated(any(), eq(true)) }
 		}
 	}
 
@@ -270,8 +270,8 @@ class GoalTrackerTest {
 
 			GoalTracker.update(session)
 
-			verify { mockGoal1.onSessionUpdated(session, true) }
-			verify { mockGoal2.onSessionUpdated(session, true) }
+			verify { mockGoal1.onSessionPresentationUpdated(session, true) }
+			verify { mockGoal2.onSessionPresentationUpdated(session, true) }
 		}
 
 		@Test
@@ -281,24 +281,24 @@ class GoalTrackerTest {
 			GoalTracker.update(createSession(id = 1L, steps = 100))
 			GoalTracker.update(createSession(id = 1L, steps = 200))
 
-			verify(exactly = 1) { mockGoal1.onSessionUpdated(match { it.steps == 100 }, eq(true)) }
-			verify(exactly = 1) { mockGoal1.onSessionUpdated(match { it.steps == 200 }, eq(false)) }
-			verify(exactly = 1) { mockGoal2.onSessionUpdated(match { it.steps == 100 }, eq(true)) }
-			verify(exactly = 1) { mockGoal2.onSessionUpdated(match { it.steps == 200 }, eq(false)) }
+			verify(exactly = 1) { mockGoal1.onSessionPresentationUpdated(match { it.steps == 100 }, eq(true)) }
+			verify(exactly = 1) { mockGoal1.onSessionPresentationUpdated(match { it.steps == 200 }, eq(false)) }
+			verify(exactly = 1) { mockGoal2.onSessionPresentationUpdated(match { it.steps == 100 }, eq(true)) }
+			verify(exactly = 1) { mockGoal2.onSessionPresentationUpdated(match { it.steps == 200 }, eq(false)) }
 		}
 
 		@Test
 		fun `all goals evaluated even when none complete`() = runTest {
 			// Both goals return false (no completion)
-			every { mockGoal1.onSessionUpdated(any(), any()) } returns false
-			every { mockGoal2.onSessionUpdated(any(), any()) } returns false
+			every { mockGoal1.onSessionPresentationUpdated(any(), any()) } just Runs
+			every { mockGoal2.onSessionPresentationUpdated(any(), any()) } just Runs
 
 			goalList.addAll(listOf(listenable1, listenable2))
 
 			GoalTracker.update(createSession())
 
-			verify(exactly = 1) { mockGoal1.onSessionUpdated(any(), any()) }
-			verify(exactly = 1) { mockGoal2.onSessionUpdated(any(), any()) }
+			verify(exactly = 1) { mockGoal1.onSessionPresentationUpdated(any(), any()) }
+			verify(exactly = 1) { mockGoal2.onSessionPresentationUpdated(any(), any()) }
 		}
 
 		@Test
@@ -310,38 +310,37 @@ class GoalTrackerTest {
 
 			GoalTracker.update(session)
 
-			verify { mockGoal1.onSessionUpdated(session, true) }
-			verify { mockGoal2.onSessionUpdated(session, true) }
-			verify { mockGoal3.onSessionUpdated(session, true) }
+			verify { mockGoal1.onSessionPresentationUpdated(session, true) }
+			verify { mockGoal2.onSessionPresentationUpdated(session, true) }
+			verify { mockGoal3.onSessionPresentationUpdated(session, true) }
 		}
 	}
 
 	@Nested
-	@DisplayName("Goal completion detection")
-	inner class GoalCompletionDetection {
+	@DisplayName("Raw step award boundary")
+	inner class RawStepAwardBoundary {
 
 		@Test
-		fun `goal returning false does not trigger completion`() = runTest {
-			every { mockGoal1.onSessionUpdated(any(), any()) } returns false
+		fun `raw session update mutates presentation without evaluating completion`() = runTest {
 			goalList.add(listenable1)
 
-			// update() should complete without calling onGoalReached
 			GoalTracker.update(createSession())
 
-			verify(exactly = 1) { mockGoal1.onSessionUpdated(any(), any()) }
+			verify(exactly = 1) { mockGoal1.onSessionPresentationUpdated(any(), any()) }
+			verify(exactly = 0) { mockGoal1.onSessionUpdated(any(), any()) }
 		}
 
 		@Test
-		fun `result from onSessionUpdated is per-goal`() = runTest {
-			every { mockGoal1.onSessionUpdated(any(), any()) } returns false
-			every { mockGoal2.onSessionUpdated(any(), any()) } returns false
+		fun `raw daily summary update mutates presentation without evaluating completion`() = runTest {
+			contextField.set(GoalTracker, mockk<Context>(relaxed = true))
 			goalList.addAll(listOf(listenable1, listenable2))
 
-			GoalTracker.update(createSession())
+			GoalTracker.updateUnqualifiedCumulativeStepsPresentation(20_000)
 
-			// Both were called and returned false — no goal reached
-			verify(exactly = 1) { mockGoal1.onSessionUpdated(any(), any()) }
-			verify(exactly = 1) { mockGoal2.onSessionUpdated(any(), any()) }
+			verify(exactly = 1) { mockGoal1.onCumulativeStepsPresentationUpdated(20_000) }
+			verify(exactly = 1) { mockGoal2.onCumulativeStepsPresentationUpdated(20_000) }
+			verify(exactly = 0) { mockGoal1.onCumulativeStepsUpdated(any()) }
+			verify(exactly = 0) { mockGoal2.onCumulativeStepsUpdated(any()) }
 		}
 	}
 }

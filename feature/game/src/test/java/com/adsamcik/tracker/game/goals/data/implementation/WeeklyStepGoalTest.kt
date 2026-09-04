@@ -230,6 +230,20 @@ class WeeklyStepGoalTest {
 			goal.onSessionUpdated(createSession(id = 3L, steps = 10000), isNewSession = true)
 			goal.value shouldBe 30000
 		}
+
+		@Test
+		fun `raw presentation value and reconfiguration do not consume qualified completion`() {
+			goal.onSessionPresentationUpdated(createSession(steps = 10_000), isNewSession = true)
+
+			goal.updateConfiguration(
+				target = 10_000,
+				dailyLimit = 1f,
+				evaluateCompletion = false,
+			) shouldBe false
+
+			goal.value shouldBe 10_000
+			goal.onCumulativeStepsUpdated(10_000) shouldBe true
+		}
 	}
 
 	@Nested

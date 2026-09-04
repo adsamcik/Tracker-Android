@@ -23,6 +23,8 @@ class DailyStepGoal(
 		get() = GoalPeriod.Day
 
 	override suspend fun updateFromDatabase(context: Context) {
+		// Legacy Trip.steps seeds presentation invalidation only; GoalTracker never evaluates it for
+		// points, XP, notifications, or reported-period persistence.
 		val today = Time.today
 		val tomorrow = Time.tomorrow
 		val todayTrips = AppDatabase

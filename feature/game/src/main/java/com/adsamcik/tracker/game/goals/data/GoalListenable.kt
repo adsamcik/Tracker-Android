@@ -78,6 +78,13 @@ data class GoalListenable(val goal: Goal) {
 		}
 	}
 
+	/** Updates the displayed value while deliberately withholding completion evaluation. */
+	fun onSessionPresentationUpdated(session: TrackerSessionSnapshot, isNewSession: Boolean) {
+		notifyIfValueChanged {
+			goal.onSessionPresentationUpdated(session, isNewSession)
+		}
+	}
+
 	/**
 	 * Called when cumulative (absolute) step value changes.
 	 */
@@ -87,7 +94,16 @@ data class GoalListenable(val goal: Goal) {
 		}
 	}
 
+	/** Updates the displayed cumulative value without making an award decision. */
+	fun onCumulativeStepsPresentationUpdated(totalSteps: Int) {
+		notifyIfValueChanged {
+			goal.onCumulativeStepsPresentationUpdated(totalSteps)
+		}
+	}
+
 	fun onTargetUpdated(target: Int): Boolean = goal.onTargetUpdated(target)
+
+	fun onTargetPresentationUpdated(target: Int) = goal.onTargetPresentationUpdated(target)
 
 	/**
 	 * Called on a new day. Roughly sometime after midnight based on scheduling.

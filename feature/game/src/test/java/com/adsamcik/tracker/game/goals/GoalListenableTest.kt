@@ -152,5 +152,23 @@ class GoalListenableTest {
 
 			listenable.value.value shouldBe 200
 		}
+
+		@Test
+		fun `presentation-only session update cannot invoke completion evaluation`() {
+			val session = TrackerSessionSnapshot(id = 4L, steps = 20_000)
+
+			listenable.onSessionPresentationUpdated(session, isNewSession = true)
+
+			verify(exactly = 1) { mockGoal.onSessionPresentationUpdated(session, true) }
+			verify(exactly = 0) { mockGoal.onSessionUpdated(any(), any()) }
+		}
+
+		@Test
+		fun `presentation-only cumulative update cannot invoke completion evaluation`() {
+			listenable.onCumulativeStepsPresentationUpdated(20_000)
+
+			verify(exactly = 1) { mockGoal.onCumulativeStepsPresentationUpdated(20_000) }
+			verify(exactly = 0) { mockGoal.onCumulativeStepsUpdated(any()) }
+		}
 	}
 }
