@@ -49,7 +49,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
-import com.adsamcik.tracker.shared.base.extension.formatTrackedSteps
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.extension.formatDistance
 import com.adsamcik.tracker.shared.model.Location
@@ -86,10 +85,6 @@ internal fun SessionOverviewCard(
         digits = if (session.distanceInM >= 1000f) 1 else 2,
         unit = settings.lengthSystem
     )
-    val stepsText = session.steps.formatTrackedSteps(
-        hasVerifiedCoverage = false,
-        unavailableText = "—",
-    )
     val updatesText = context.getString(R.string.collection_count_value, session.collections)
     val sessionAge = DateUtils.getRelativeTimeSpanString(
         session.start,
@@ -104,7 +99,6 @@ internal fun SessionOverviewCard(
                 appendLine("Session Summary")
                 appendLine("Duration: $durationText")
                 appendLine("Distance: $distanceText (${session.distanceInM}m)")
-                appendLine("Steps: $stepsText")
                 appendLine("Updates: ${session.collections}")
                 appendLine("Started: $sessionAge")
                 if (session.distanceOnFootInM > 0) {
@@ -215,11 +209,6 @@ internal fun SessionOverviewCard(
                 SessionMetric(
                     label = stringResource(R.string.tracker_distance_title),
                     value = distanceText,
-                    modifier = Modifier.weight(1f)
-                )
-                SessionMetric(
-                    label = stringResource(R.string.tracker_steps_title),
-                    value = stepsText,
                     modifier = Modifier.weight(1f)
                 )
             }

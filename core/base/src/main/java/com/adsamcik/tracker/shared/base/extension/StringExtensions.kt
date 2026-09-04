@@ -71,21 +71,6 @@ fun Int.formatReadable(): String {
 }
 
 /**
- * Formats a tracked Steps value without treating hardware capability as capture evidence.
- *
- * Positive values remain useful observed lower bounds. Zero is displayed only when the caller
- * has source-qualified coverage proving that zero was observed; otherwise [unavailableText] is
- * returned.
- */
-fun Int.formatTrackedSteps(hasVerifiedCoverage: Boolean, unavailableText: String): String {
-	return when {
-		this > 0 -> formatReadable()
-		this == 0 && hasVerifiedCoverage -> formatReadable()
-		else -> unavailableText
-	}
-}
-
-/**
  * Formats double in to human readable locale sensitive format.
  * eg. 123,456,789 (123 456 789)
  */

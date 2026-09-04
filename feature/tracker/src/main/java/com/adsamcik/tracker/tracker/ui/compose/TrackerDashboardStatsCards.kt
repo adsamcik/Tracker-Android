@@ -59,7 +59,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.shared.base.assist.Assist
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
-import com.adsamcik.tracker.shared.base.extension.formatTrackedSteps
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.extension.formatDistance
 import com.adsamcik.tracker.shared.preferences.extension.formatSpeed
@@ -113,16 +112,6 @@ internal fun StatusAndQuickStatsCard(
     val accuracyText = collectionData?.location?.horizontalAccuracy?.let {
         "±${resources.formatDistance(it, 0, settings.lengthSystem)}"
     } ?: "—"
-    val stepsValue = sessionData?.steps
-    val stepsUnavailableText = stringResource(R.string.tracker_steps_value_unavailable)
-    val stepsText = stepsValue?.formatTrackedSteps(
-        hasVerifiedCoverage = false,
-        unavailableText = "—",
-    ) ?: "—"
-    val stepsAccessibilityText = stepsValue?.formatTrackedSteps(
-        hasVerifiedCoverage = false,
-        unavailableText = stepsUnavailableText,
-    ) ?: stepsUnavailableText
     val wifiText = collectionData?.wifi?.inRange?.size?.takeIf { it > 0 }?.toString() ?: "—"
     val cellText = collectionData?.cell?.totalCount?.takeIf { it > 0 }?.toString() ?: "—"
     val activityText = currentActivity ?: "—"
@@ -259,9 +248,8 @@ internal fun StatusAndQuickStatsCard(
                 TrackingStatsTab.ACTIVITY -> {
                     TrackingStatRow(
                         first = stringResource(R.string.tracker_activity_title) to activityText,
-                        second = stringResource(R.string.tracker_steps_title) to stepsText,
+                        second = null,
                         third = stringResource(R.string.tracker_accuracy_label) to accuracyText,
-                        secondAccessibilityValue = stepsAccessibilityText,
                     )
                     Spacer(Modifier.height(12.dp))
                     TrackingTechnicalRow(
@@ -286,9 +274,8 @@ internal enum class TrackingStatsTab(val titleRes: Int) {
 @Composable
 private fun TrackingStatRow(
     first: Pair<String, String>,
-    second: Pair<String, String>,
+    second: Pair<String, String>?,
     third: Pair<String, String>,
-    secondAccessibilityValue: String? = null,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -299,12 +286,15 @@ private fun TrackingStatRow(
             value = first.second,
             modifier = Modifier.weight(1f)
         )
-        CompactStatItem(
-            label = second.first,
-            value = second.second,
-            accessibilityValue = secondAccessibilityValue,
-            modifier = Modifier.weight(1f)
-        )
+        if (second != null) {
+            CompactStatItem(
+                label = second.first,
+                value = second.second,
+                modifier = Modifier.weight(1f)
+            )
+        } else {
+            Spacer(Modifier.weight(1f))
+        }
         CompactStatItem(
             label = third.first,
             value = third.second,

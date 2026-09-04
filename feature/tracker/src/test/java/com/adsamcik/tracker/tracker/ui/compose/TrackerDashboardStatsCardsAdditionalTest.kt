@@ -1,9 +1,9 @@
 package com.adsamcik.tracker.tracker.ui.compose
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.adsamcik.tracker.shared.base.Time
@@ -92,7 +92,7 @@ class TrackerDashboardStatsCardsAdditionalTest {
 	}
 
 	@Test
-	fun statusCard_switchToActivityTab_showsActivityContent() {
+	fun statusCard_switchToActivityTab_omitsRawSessionSteps() {
 		val session = createSession()
 		composeRule.setContent {
 			AppTheme {
@@ -109,9 +109,9 @@ class TrackerDashboardStatsCardsAdditionalTest {
 		// Click on Activity tab
 		composeRule.onNodeWithText("Activity", substring = true).performClick()
 
-		// Activity tab should show steps label
-		composeRule.onNodeWithText("Steps", substring = true).assertIsDisplayed()
-		composeRule.onNodeWithContentDescription("Steps, 3,000").assertIsDisplayed()
+		composeRule.onNodeWithText("Accuracy", substring = true).assertIsDisplayed()
+		composeRule.onAllNodesWithText("Steps", substring = true).assertCountEquals(0)
+		composeRule.onAllNodesWithText("3,000", substring = true).assertCountEquals(0)
 	}
 
 	// endregion
@@ -140,8 +140,7 @@ class TrackerDashboardStatsCardsAdditionalTest {
 
 		composeRule.onNodeWithText("Tracking", substring = true).assertIsDisplayed()
 		composeRule.onNodeWithText("Activity", substring = true).performClick()
-		composeRule.onNodeWithContentDescription("Steps, Unavailable")
-			.assertTextContains("—")
+		composeRule.onAllNodesWithText("Steps", substring = true).assertCountEquals(0)
 	}
 
 	@Test

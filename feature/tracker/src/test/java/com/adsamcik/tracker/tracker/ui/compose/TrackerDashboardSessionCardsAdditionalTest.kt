@@ -5,7 +5,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.dp
@@ -180,7 +182,7 @@ class TrackerDashboardSessionCardsAdditionalTest {
 	}
 
 	@Test
-	fun sessionOverviewCard_showsStepsMetric() {
+	fun sessionOverviewCard_omitsRawStepsMetric() {
 		val session = createSession(steps = 3500)
 		composeRule.setContent {
 			AppTheme {
@@ -194,8 +196,10 @@ class TrackerDashboardSessionCardsAdditionalTest {
 			}
 		}
 
-		composeRule.onNodeWithText("Steps", substring = true, useUnmergedTree = true)
-			.assertIsDisplayed()
+		composeRule.onAllNodesWithText("Steps", substring = true, useUnmergedTree = true)
+			.assertCountEquals(0)
+		composeRule.onAllNodesWithText("3,500", substring = true, useUnmergedTree = true)
+			.assertCountEquals(0)
 	}
 
 	// endregion

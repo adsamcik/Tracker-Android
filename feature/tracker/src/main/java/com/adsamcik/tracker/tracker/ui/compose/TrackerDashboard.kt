@@ -141,7 +141,7 @@ internal fun TrackerDashboard(
 
     val haptics = LocalHapticFeedback.current
     
-    // Milestone haptic feedback - trigger at distance/step milestones during tracking
+    // Milestone haptic feedback for metrics owned by this exact session snapshot.
     MilestoneHapticEffect(
         sessionData = sessionData,
         isTracking = isTracking,
@@ -210,7 +210,6 @@ internal fun TrackerDashboard(
  * 
  * Milestones:
  * - Every 1000 meters (1 km)
- * - Every 1000 steps
  * - Every 10 minutes of tracking
  */
 @Composable
@@ -221,20 +220,17 @@ private fun MilestoneHapticEffect(
 ) {
     // Track previous milestone values to detect crossings
     var lastDistanceKm by remember { mutableStateOf(0) }
-    var lastStepsThousand by remember { mutableStateOf(0) }
     var lastMinutesTen by remember { mutableStateOf(0) }
     
     LaunchedEffect(sessionData, isTracking) {
         if (!isTracking || sessionData == null) {
             // Reset on stop
             lastDistanceKm = 0
-            lastStepsThousand = 0
             lastMinutesTen = 0
             return@LaunchedEffect
         }
         
         val currentDistanceKm = (sessionData.distanceInM / 1000f).toInt()
-        val currentStepsThousand = sessionData.steps / 1000
         val durationMinutes = ((Time.nowMillis - sessionData.start) / 60000).toInt()
         val currentMinutesTen = durationMinutes / 10
         
@@ -243,12 +239,6 @@ private fun MilestoneHapticEffect(
             haptics.performHapticFeedback(HapticFeedbackType.Confirm)
         }
         lastDistanceKm = currentDistanceKm
-        
-        // Check for steps milestone (every 1000 steps)
-        if (currentStepsThousand > lastStepsThousand && lastStepsThousand > 0) {
-            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-        }
-        lastStepsThousand = currentStepsThousand
         
         // Check for time milestone (every 10 minutes)
         if (currentMinutesTen > lastMinutesTen && lastMinutesTen > 0) {

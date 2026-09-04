@@ -111,7 +111,6 @@ class TrackerDashboardSessionCardsTest {
 			substring = true,
 			label = "Session overview"
 		).assertIsDisplayed()
-		composeRule.onNodeWithText("—").assertIsDisplayed()
 	}
 
 	@Test
