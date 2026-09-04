@@ -84,16 +84,6 @@ class PlayerProgressionRepository @Inject constructor(
 	}
 
 	/**
-	 * Award XP for a finished mini-game run (points credited 1:1). The run's
-	 * wall-clock timestamp is the ledger source id, so each run is distinct but
-	 * a retried persist of the same run is ignored.
-	 */
-	suspend fun awardMiniGameXp(points: Int, earnedAtMs: Long) {
-		val expectedGeneration = trackingStartupGate.currentGeneration
-		awardMiniGameXpForGeneration(points, earnedAtMs, expectedGeneration)
-	}
-
-	/**
 	 * Repairs the XP half of one mini-game reward only in the generation that accepted the reward.
 	 * This overload lets the separate Points database and AppDatabase use the same deletion fence
 	 * without nesting [TrackingStartupGate.withReadyGenerationOperation] leases.
@@ -124,37 +114,6 @@ class PlayerProgressionRepository @Inject constructor(
 		if (inserted == null) return false
 		if (inserted) metricDirtyTracker.markDirty(LEVELING_DIRTY_TABLES)
 		return true
-	}
-
-	/**
-	 * Award XP for meeting a daily goal. The local epoch-day is the ledger source
-	 * id, so each day's goal is credited at most once (idempotent) and the GOAL
-	 * source rows double as the "daily goal met" record consumed by Perfect Week
-	 * and Point Portfolio achievements.
-	 */
-	suspend fun awardGoalXp(earnedAtMs: Long) {
-		val amount = XpCalculator.goalXp()
-		if (amount <= 0) return
-		val expectedGeneration = trackingStartupGate.currentGeneration
-		val dayEpoch = Instant.ofEpochMilli(earnedAtMs)
-			.atZone(ZoneId.systemDefault())
-			.toLocalDate()
-			.toEpochDay()
-
-		val inserted = runAcceptedXpMutation(expectedGeneration) {
-			val ledgerId = database.xpLedgerDao().insertOrIgnore(
-				XpLedgerEntity(
-					amount = amount,
-					source = XpSource.GOAL.name,
-					sourceId = dayEpoch,
-					earnedAt = earnedAtMs,
-				),
-			)
-			if (ledgerId == -1L) return@runAcceptedXpMutation false
-			recomputePlayerProfile()
-			true
-		}
-		if (inserted == true) metricDirtyTracker.markDirty(LEVELING_DIRTY_TABLES)
 	}
 
 	/**

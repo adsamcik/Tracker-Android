@@ -119,25 +119,6 @@ class PlayerProgressionRepositoryTest {
 		assertEquals(0, dirtyTracker.markCalls)
 	}
 
-	@Test
-	fun `generation closure also fences mini game and goal mutations`() = runTest {
-		val gate = TestTrackingStartupGate()
-		val dirtyTracker = RecordingMetricDirtyTracker()
-		val repository = repository(gate, dirtyTracker, testScheduler)
-
-		gate.beforeOperation = { gate.closeAdmission() }
-		repository.awardMiniGameXp(points = 25, earnedAtMs = 1_000L)
-
-		gate.openAdmission()
-		gate.beforeOperation = { gate.closeAdmission() }
-		repository.awardGoalXp(earnedAtMs = 2_000L)
-
-		assertEquals(0L, database.xpLedgerDao().getTotalXp())
-		assertTrue(database.xpLedgerDao().getRecent(limit = 10).isEmpty())
-		assertNull(database.playerProfileDao().get())
-		assertEquals(0, dirtyTracker.markCalls)
-	}
-
 	private fun repository(
 		gate: TrackingStartupGate,
 		dirtyTracker: MetricDirtyTracker,
@@ -217,10 +198,6 @@ class PlayerProgressionRepositoryTest {
 		fun closeAdmission() {
 			ready = false
 			generation += 1L
-		}
-
-		fun openAdmission() {
-			ready = true
 		}
 	}
 
