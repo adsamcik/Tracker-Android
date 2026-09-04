@@ -62,19 +62,26 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 			.mapNotNullTo(HashSet()) { countryLookup.countryOf(it.latE7 / E7, it.lonE7 / E7) }
 			.size
 		val progressRows = achievementProgressDao.getAll()
-		val unlockedTierByMetric = progressRows
+		val qualifiedProgressRows = progressRows.filter { row ->
+			MetricKey.fromStorageKey(row.metricKey) !in WITHHELD_STEPS_ACHIEVEMENT_METRICS
+		}
+		val unlockedTierByMetric = qualifiedProgressRows
 			.mapNotNull { row -> MetricKey.fromStorageKey(row.metricKey)?.let { it to row.lastTierIndex } }
 			.toMap()
-		val achievementsUnlocked = progressRows.sumOf { (it.lastTierIndex + 1).coerceAtLeast(0) }
+		val achievementsUnlocked = qualifiedProgressRows.sumOf {
+			(it.lastTierIndex + 1).coerceAtLeast(0)
+		}
 		val categoriesCompleted = AchievementCategory.entries.count { category ->
 			val defs = AchievementCatalog.byCategory(category).filterNot { it.metric in META_METRICS }
-			defs.isNotEmpty() && defs.all { def -> (unlockedTierByMetric[def.metric] ?: -1) >= def.tierIndex }
+			defs.isNotEmpty() && defs.none { it.metric in WITHHELD_STEPS_ACHIEVEMENT_METRICS } &&
+				defs.all { def -> (unlockedTierByMetric[def.metric] ?: -1) >= def.tierIndex }
 		}
 
 		// STEPS_TOTAL, BEST_DAILY_STEPS, PERFECT_WEEKS, and GOAL_STREAK_DAYS remain
 		// deliberately absent. daily_summary is a projection rather than source qualification, and
 		// legacy GOAL XP timestamps do not prove the exact captured day or its calendar authority.
-		// The retained Steps repository contract is the re-enable boundary for these metrics.
+		// Lifetime/best-day re-enable only after one coherent retained-fact decision; streak metrics
+		// additionally require exact qualified goal-day provenance and atomic award revalidation.
 		return MetricSnapshot.from(
 			mapOf(
 				MetricKey.DISTANCE_TOTAL_M to dailySummaryDao.sumTotalDistance().toDouble(),
@@ -248,6 +255,12 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 		private val META_METRICS = setOf(
 			MetricKey.ACHIEVEMENTS_UNLOCKED,
 			MetricKey.CATEGORIES_COMPLETED,
+		)
+		private val WITHHELD_STEPS_ACHIEVEMENT_METRICS = setOf(
+			MetricKey.STEPS_TOTAL,
+			MetricKey.BEST_DAILY_STEPS,
+			MetricKey.PERFECT_WEEKS,
+			MetricKey.GOAL_STREAK_DAYS,
 		)
 	}
 }

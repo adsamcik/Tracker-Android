@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.database.dao.PlayerProfileDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.XpLedgerDao
+import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
 import com.adsamcik.tracker.stats.api.metric.MetricKey
 import com.adsamcik.tracker.stats.data.geo.CountryBoundaryLookup
 import io.kotest.matchers.shouldBe
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.Test
 class DefaultAchievementMetricsProviderStepsTest {
 	private val dailySummaryDao = mockk<DailySummaryDao>(relaxed = true)
 	private val xpLedgerDao = mockk<XpLedgerDao>(relaxed = true)
+	private val achievementProgressDao = mockk<AchievementProgressDao>(relaxed = true)
 	private val provider = DefaultAchievementMetricsProvider(
 		dailySummaryDao = dailySummaryDao,
 		explorationCellDao = mockk<ExplorationCellDao>(relaxed = true),
@@ -33,7 +35,7 @@ class DefaultAchievementMetricsProviderStepsTest {
 		miniGameScoreDao = mockk<MiniGameScoreDao>(relaxed = true),
 		locationSampleDao = mockk<LocationSampleDao>(relaxed = true),
 		countryLookup = mockk<CountryBoundaryLookup>(relaxed = true),
-		achievementProgressDao = mockk<AchievementProgressDao>(relaxed = true),
+		achievementProgressDao = achievementProgressDao,
 	)
 
 	@Test
@@ -54,4 +56,25 @@ class DefaultAchievementMetricsProviderStepsTest {
 		coVerify(exactly = 0) { dailySummaryDao.maxDailySteps() }
 		coVerify(exactly = 0) { xpLedgerDao.getEarnedAtBySource(any()) }
 	}
+
+	@Test
+	fun `legacy Steps progress cannot inflate meta achievements`() = runTest {
+		coEvery { achievementProgressDao.getAll() } returns listOf(
+			progress(MetricKey.STEPS_TOTAL, lastTierIndex = 6),
+			progress(MetricKey.BEST_DAILY_STEPS, lastTierIndex = 4),
+			progress(MetricKey.DISTANCE_TOTAL_M, lastTierIndex = 1),
+		)
+
+		val metrics = provider.collect().asMap()
+
+		metrics[MetricKey.ACHIEVEMENTS_UNLOCKED] shouldBe 2.0
+		metrics[MetricKey.CATEGORIES_COMPLETED] shouldBe 0.0
+	}
+
+	private fun progress(metric: MetricKey, lastTierIndex: Int) = AchievementProgressEntity(
+		metricKey = metric.storageKey,
+		lastTierIndex = lastTierIndex,
+		lastValue = 1_000_000.0,
+		updatedAt = 1L,
+	)
 }

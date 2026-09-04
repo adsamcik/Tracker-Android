@@ -27,7 +27,9 @@ import com.adsamcik.tracker.stats.engine.aggregator.StreamingAggregator
  * marks [MetricKeys.TABLE_AGGREGATOR_STATE] dirty. Achievement evaluation reads
  * the live totals via [snapshotMetrics] (NOT a pre-aggregated table), so without
  * full coverage the achievement processor's dirty-aware short-circuit would
- * suppress real progress events for steps / distance / trip count. The mutating
+ * suppress real progress events for qualified distance / trip count. Steps remain
+ * deliberately absent from this live achievement snapshot until source-qualified
+ * retained evidence can be evaluated coherently. The mutating
  * surface is exactly:
  *  - [onSignal] when a non-zero distance/step delta or activity sample arrives.
  *  - [notifyTripCompleted] when a trip is closed (mutates `total_trips`).
@@ -142,10 +144,11 @@ class AggregatorProcessor(
 
 	fun seedDayTotals(distanceM: Float, steps: Int, durationMs: Long, trips: Int) {
 		aggregator.seedDayTotals(distanceM, steps, durationMs, trips)
-		// Pre-session totals feed `total_distance_km`, `total_steps`, `total_trips`,
-		// and `best_daily_steps` in snapshotMetrics(). If any of them are non-zero,
-		// the in-memory snapshot changed without any sensor signal — mark dirty so
-		// the first achievement flush after session start re-evaluates them.
+		// Pre-session totals feed distance and trip metrics in snapshotMetrics(). Steps
+		// still mutate aggregator state and therefore remain part of the dirty decision,
+		// but they are withheld from achievement evaluation until qualified durable
+		// evidence is available. If any seeded value is non-zero, mark dirty so the first
+		// achievement flush after session start re-evaluates the eligible metrics.
 		if (distanceM != 0f || steps != 0 || durationMs != 0L || trips != 0) {
 			markStateDirty()
 		}
