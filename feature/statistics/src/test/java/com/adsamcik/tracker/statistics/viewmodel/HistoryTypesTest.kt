@@ -73,7 +73,6 @@ class HistoryTypesTest {
 				timestampMs = 3000L,
 				dateLabel = "Mon, Jan 1",
 				distanceLabel = "5.0 km",
-				stepsLabel = "8000",
 				tripCount = 3,
 			)
 			entry.id shouldBe "day_19800"
@@ -141,12 +140,12 @@ class HistoryTypesTest {
 		fun `DayDetail stores all fields`() {
 			val detail = CalendarState.DayDetail(
 				totalDistanceM = 5000f,
-				totalSteps = 10000,
+				steps = HistoryStepsValue.Ready(10000L),
 				tripCount = 2,
 				trips = emptyList(),
 			)
 			detail.totalDistanceM shouldBe 5000f
-			detail.totalSteps shouldBe 10000
+			detail.steps shouldBe HistoryStepsValue.Ready(10000L)
 			detail.tripCount shouldBe 2
 		}
 	}

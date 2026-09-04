@@ -122,7 +122,6 @@ class TimelineContentComposeTest {
 				timestampMs = 1_700_000_000_000L,
 				dateLabel = "Monday, Nov 14",
 				distanceLabel = "5.2 km",
-				stepsLabel = "7,200 steps",
 				tripCount = 3,
 			),
 		)
@@ -136,7 +135,6 @@ class TimelineContentComposeTest {
 		}
 		composeTestRule.onNodeWithText("Monday, Nov 14").assertIsDisplayed()
 		composeTestRule.onNodeWithText("5.2 km").assertIsDisplayed()
-		composeTestRule.onNodeWithText("7,200 steps").assertIsDisplayed()
 		composeTestRule.onNodeWithText("3 trips").assertIsDisplayed()
 	}
 
@@ -177,7 +175,6 @@ class TimelineContentComposeTest {
 				timestampMs = 1_700_000_002_000L,
 				dateLabel = "Summary Day",
 				distanceLabel = "10 km",
-				stepsLabel = "12k steps",
 				tripCount = 5,
 			),
 			TimelineEntry.TripEntry(
@@ -247,7 +244,6 @@ class TimelineContentComposeTest {
 				timestampMs = 1_700_000_100_000L,
 				dateLabel = "Tuesday, Nov 15",
 				distanceLabel = "1.0 km",
-				stepsLabel = "1,000 steps",
 				tripCount = 1,
 			),
 		)
@@ -271,7 +267,6 @@ class TimelineContentComposeTest {
 				timestampMs = 1_700_000_200_000L,
 				dateLabel = "Wednesday, Nov 16",
 				distanceLabel = "0 m",
-				stepsLabel = "0 steps",
 				tripCount = 0,
 			),
 		)
@@ -295,7 +290,6 @@ class TimelineContentComposeTest {
 				timestampMs = 1_700_000_300_000L,
 				dateLabel = "Thursday, Nov 17",
 				distanceLabel = "20 km",
-				stepsLabel = "25,000 steps",
 				tripCount = 12,
 			),
 		)

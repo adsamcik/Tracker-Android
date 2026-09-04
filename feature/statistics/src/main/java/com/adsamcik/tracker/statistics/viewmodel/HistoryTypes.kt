@@ -14,6 +14,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.adsamcik.tracker.shared.base.data.SessionActivityIds
 import com.adsamcik.tracker.shared.model.Trip
+import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
 import java.time.LocalDate
 import java.time.YearMonth
 import java.util.Locale
@@ -55,7 +56,6 @@ sealed interface TimelineEntry {
 		override val timestampMs: Long,
 		val dateLabel: String,
 		val distanceLabel: String,
-		val stepsLabel: String,
 		// Raw count so the UI layer can pick the right plural form via
 		// `pluralStringResource(R.plurals.history_trip_count, tripCount, tripCount)`.
 		// Previously this was a pre-formatted "${n} trips" string which produced
@@ -64,6 +64,27 @@ sealed interface TimelineEntry {
 	) : TimelineEntry {
 		override val id: String get() = "day_$epochDay"
 	}
+}
+
+/** Source-qualified Steps presentation for a structural history day. */
+@Immutable
+sealed interface HistoryStepsValue {
+	/** The requested day has complete retained coverage, including a verified zero. */
+	data class Ready(
+		val count: Long,
+	) : HistoryStepsValue {
+		init {
+			require(count >= 0L) { "Qualified history Steps cannot be negative" }
+		}
+	}
+
+	/** A required writer, run, or projection has not settled yet. */
+	data object Materializing : HistoryStepsValue
+
+	/** Retained evidence cannot prove a complete value. */
+	data class Unavailable(
+		val reason: StepsNumericUnverifiableReason,
+	) : HistoryStepsValue
 }
 
 /**
@@ -102,7 +123,7 @@ data class CalendarState(
 	@Immutable
 	data class DayDetail(
 		val totalDistanceM: Float,
-		val totalSteps: Int,
+		val steps: HistoryStepsValue,
 		val tripCount: Int,
 		val trips: List<Trip>,
 	)

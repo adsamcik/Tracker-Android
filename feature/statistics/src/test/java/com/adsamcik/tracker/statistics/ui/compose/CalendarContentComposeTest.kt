@@ -13,6 +13,8 @@ import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.statistics.ui.CalendarContent
 import com.adsamcik.tracker.statistics.viewmodel.CalendarDayData
 import com.adsamcik.tracker.statistics.viewmodel.CalendarState
+import com.adsamcik.tracker.statistics.viewmodel.HistoryStepsValue
+import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -127,7 +129,7 @@ class CalendarContentComposeTest {
 		val month = YearMonth.of(2024, 6)
 		val detail = CalendarState.DayDetail(
 			totalDistanceM = 5200f,
-			totalSteps = 7000,
+			steps = HistoryStepsValue.Ready(7000L),
 			tripCount = 2,
 			trips = listOf(
 				sampleTrip(id = 1L),
@@ -150,7 +152,59 @@ class CalendarContentComposeTest {
 		composeTestRule.onNodeWithText("Distance").assertIsDisplayed()
 		composeTestRule.onNodeWithText("Steps").assertIsDisplayed()
 		composeTestRule.onNodeWithText("Trips").assertIsDisplayed()
-		composeTestRule.onNodeWithText("7000").assertIsDisplayed()
+		composeTestRule.onNodeWithText("7,000").assertIsDisplayed()
+	}
+
+	@Test
+	fun `selected day renders materializing Steps without fabricated zero`() {
+		val detail = CalendarState.DayDetail(
+			totalDistanceM = 100f,
+			steps = HistoryStepsValue.Materializing,
+			tripCount = 1,
+			trips = emptyList(),
+		)
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				CalendarContent(
+					state = CalendarState(
+						currentMonth = YearMonth.of(2024, 6),
+						selectedDay = LocalDate.of(2024, 6, 15),
+						selectedDayDetail = detail,
+					),
+					onDayClick = {},
+					onNavigateToTripDetail = {},
+				)
+			}
+		}
+
+		composeTestRule.onNodeWithText("Updating…").assertIsDisplayed()
+	}
+
+	@Test
+	fun `selected day renders partial Steps as incomplete`() {
+		val detail = CalendarState.DayDetail(
+			totalDistanceM = 100f,
+			steps = HistoryStepsValue.Unavailable(
+				StepsNumericUnverifiableReason.PARTIAL_CAPTURE,
+			),
+			tripCount = 1,
+			trips = emptyList(),
+		)
+		composeTestRule.setContent {
+			MaterialTheme(colorScheme = lightColorScheme()) {
+				CalendarContent(
+					state = CalendarState(
+						currentMonth = YearMonth.of(2024, 6),
+						selectedDay = LocalDate.of(2024, 6, 15),
+						selectedDayDetail = detail,
+					),
+					onDayClick = {},
+					onNavigateToTripDetail = {},
+				)
+			}
+		}
+
+		composeTestRule.onNodeWithText("Incomplete").assertIsDisplayed()
 	}
 
 	// ─── No detail when no day selected ──────────────────────────────────
@@ -180,7 +234,7 @@ class CalendarContentComposeTest {
 		var navigatedTripId: Long? = null
 		val detail = CalendarState.DayDetail(
 			totalDistanceM = 1000f,
-			totalSteps = 500,
+			steps = HistoryStepsValue.Ready(500L),
 			tripCount = 1,
 			trips = listOf(sampleTrip(id = 99L)),
 		)

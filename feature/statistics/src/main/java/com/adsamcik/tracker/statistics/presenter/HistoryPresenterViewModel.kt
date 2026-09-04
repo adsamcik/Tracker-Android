@@ -10,11 +10,16 @@ import androidx.paging.cachedIn
 import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
 import com.adsamcik.tracker.stats.api.repository.ExplorationRepository
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
+import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
 import com.adsamcik.tracker.statistics.viewmodel.CalendarDayData
 import com.adsamcik.tracker.statistics.viewmodel.CalendarState
 import com.adsamcik.tracker.statistics.viewmodel.ExplorationStats
 import com.adsamcik.tracker.statistics.viewmodel.HistoryTab
+import com.adsamcik.tracker.statistics.viewmodel.HistoryStepsValue
 import com.adsamcik.tracker.statistics.viewmodel.TimelineEntry
 import com.adsamcik.tracker.statistics.viewmodel.TimelineState
 import com.adsamcik.tracker.statistics.viewmodel.activityIcon
@@ -59,6 +64,7 @@ import javax.inject.Inject
 class HistoryPresenterViewModel @Inject constructor(
 	private val tripPresentationRepository: TripPresentationRepository,
 	private val dailySummaryRepository: DailySummaryRepository,
+	private val stepsNumericSummaryRepository: StepsNumericSummaryRepository,
 	private val explorationRepository: ExplorationRepository,
 	private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -156,12 +162,15 @@ class HistoryPresenterViewModel @Inject constructor(
 		val summary = dailySummaryRepository.observeBetween(epochDay, epochDay)
 			.first()
 			.firstOrNull()
+		val qualifiedSteps = stepsNumericSummaryRepository.read(
+			stepsRequest(epochDay, epochDay),
+		).forDay(epochDay)
 		_calendarState.update {
 			it.copy(
 				selectedDay = date,
 				selectedDayDetail = CalendarState.DayDetail(
 					totalDistanceM = summary?.totalDistance?.raw ?: 0f,
-					totalSteps = summary?.totalSteps?.raw ?: 0,
+					steps = qualifiedSteps,
 					tripCount = trips.size,
 					trips = trips,
 				),
@@ -196,7 +205,6 @@ class HistoryPresenterViewModel @Inject constructor(
 			val summaryMap = dailySummaryRepository.observeBetween(firstDay, lastDay)
 				.first()
 				.associateBy { it.dayEpoch }
-
 			for ((date, dayTrips) in tripsByDay.toSortedMap(compareByDescending { it })) {
 				val summary = summaryMap[date.toEpochDay()]
 				entries.add(
@@ -208,7 +216,6 @@ class HistoryPresenterViewModel @Inject constructor(
 						distanceLabel = formatDistanceLabel(
 							summary?.totalDistance?.raw ?: 0f,
 						),
-						stepsLabel = "${summary?.totalSteps?.raw ?: 0} steps",
 						tripCount = dayTrips.size,
 					),
 				)
@@ -257,6 +264,15 @@ class HistoryPresenterViewModel @Inject constructor(
 			)
 		}
 	}
+
+	private fun stepsRequest(
+		firstEpochDay: Long,
+		lastEpochDayInclusive: Long,
+	) = StepsNumericSummaryRequest(
+		firstEpochDay = firstEpochDay,
+		lastEpochDayInclusive = lastEpochDayInclusive,
+		fallbackCalendarZoneId = ZoneId.systemDefault().id,
+	)
 
 	/**
 	 * Mark a trip as pending deletion and start the ViewModel-owned undo deadline.
@@ -349,4 +365,13 @@ class HistoryPresenterViewModel @Inject constructor(
 		private const val KEY_CALENDAR_SELECTED_DAY = "history_calendar_selected_day"
 		internal const val KEY_PENDING_DELETE_IDS = "history_pending_delete_ids"
 	}
+}
+
+/** Never converts a nonnumeric retained Steps result into zero. */
+internal fun StepsNumericSummary.forDay(epochDay: Long): HistoryStepsValue = when (this) {
+	is StepsNumericSummary.Ready -> days.firstOrNull { it.epochDay == epochDay }
+		?.let { HistoryStepsValue.Ready(it.steps) }
+		?: HistoryStepsValue.Unavailable(StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+	StepsNumericSummary.Materializing -> HistoryStepsValue.Materializing
+	is StepsNumericSummary.Unverifiable -> HistoryStepsValue.Unavailable(reason)
 }

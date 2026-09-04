@@ -41,11 +41,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import android.content.res.Configuration
+import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.statistics.R
 import com.adsamcik.tracker.statistics.viewmodel.CalendarDayData
 import com.adsamcik.tracker.statistics.viewmodel.CalendarState
+import com.adsamcik.tracker.statistics.viewmodel.HistoryStepsValue
 import com.adsamcik.tracker.statistics.viewmodel.activityIcon
 import com.adsamcik.tracker.statistics.viewmodel.activityLabel
 import com.adsamcik.tracker.statistics.viewmodel.formatDistanceLabel
@@ -257,7 +259,7 @@ private fun DayDetailSection(
 					)
 					DayStatItem(
 						label = stringResource(R.string.history_calendar_steps),
-						value = detail.totalSteps.toString(),
+						value = detail.steps.calendarText(),
 					)
 					DayStatItem(
 						label = stringResource(R.string.history_calendar_trips),
@@ -278,6 +280,19 @@ private fun DayDetailSection(
 				onViewOnMap = { onViewTripOnMap(trip) },
 			)
 		}
+	}
+}
+
+@Composable
+private fun HistoryStepsValue.calendarText(): String = when (this) {
+	is HistoryStepsValue.Ready -> count.formatReadable()
+	HistoryStepsValue.Materializing -> stringResource(R.string.history_value_materializing)
+	is HistoryStepsValue.Unavailable -> when (reason) {
+		com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason.NOT_CAPTURED ->
+			stringResource(R.string.history_value_not_captured)
+		com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason.PARTIAL_CAPTURE ->
+			stringResource(R.string.history_value_partial)
+		else -> stringResource(R.string.history_value_unavailable)
 	}
 }
 

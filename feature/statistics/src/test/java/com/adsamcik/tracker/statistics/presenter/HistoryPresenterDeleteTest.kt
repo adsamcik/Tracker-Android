@@ -186,9 +186,17 @@ class HistoryPresenterDeleteTest {
 			mockk(relaxed = true) {
 				every { observeCellCount(any()) } returns kotlinx.coroutines.flow.flowOf(0)
 			}
+		val stepsNumericSummaryRepository =
+			mockk<com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository> {
+				coEvery { read(any()) } returns
+					com.adsamcik.tracker.stats.api.repository.StepsNumericSummary.Unverifiable(
+						com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason.NOT_CAPTURED,
+					)
+			}
 		return HistoryPresenterViewModel(
 			tripPresentationRepository = tripPresentationRepository,
 			dailySummaryRepository = dailySummaryRepository,
+			stepsNumericSummaryRepository = stepsNumericSummaryRepository,
 			explorationRepository = explorationRepository,
 			savedStateHandle = savedStateHandle,
 		)

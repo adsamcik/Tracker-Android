@@ -45,6 +45,7 @@ import com.adsamcik.tracker.statistics.viewmodel.CalendarDayData
 import com.adsamcik.tracker.statistics.viewmodel.CalendarState
 import com.adsamcik.tracker.statistics.presenter.HistoryPresenterViewModel
 import com.adsamcik.tracker.statistics.viewmodel.HistoryTab
+import com.adsamcik.tracker.statistics.viewmodel.HistoryStepsValue
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -205,7 +206,7 @@ private fun HistoryRoutePreview() {
 		selectedDay = today,
 		selectedDayDetail = CalendarState.DayDetail(
 			totalDistanceM = 5420f,
-			totalSteps = 7812,
+			steps = HistoryStepsValue.Ready(7812L),
 			tripCount = 2,
 			trips = listOf(
 				Trip(

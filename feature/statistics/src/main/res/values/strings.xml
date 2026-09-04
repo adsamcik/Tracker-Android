@@ -196,6 +196,10 @@
     <string name="history_calendar_next_month">Next month</string>
     <string name="history_calendar_distance">Distance</string>
     <string name="history_calendar_steps">Steps</string>
+    <string name="history_value_materializing" tools:ignore="MissingTranslation">Updating…</string>
+    <string name="history_value_not_captured" tools:ignore="MissingTranslation">Not captured</string>
+    <string name="history_value_partial" tools:ignore="MissingTranslation">Incomplete</string>
+    <string name="history_value_unavailable" tools:ignore="MissingTranslation">Unavailable</string>
     <string name="history_calendar_trips">Trips</string>
 
     <!-- Exploration -->

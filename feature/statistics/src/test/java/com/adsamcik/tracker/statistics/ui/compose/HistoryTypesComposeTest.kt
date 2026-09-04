@@ -169,7 +169,6 @@ class HistoryTypesComposeTest {
 			timestampMs = 0L,
 			dateLabel = "",
 			distanceLabel = "",
-			stepsLabel = "",
 			tripCount = 0,
 		)
 		entry.id shouldBe "day_19000"

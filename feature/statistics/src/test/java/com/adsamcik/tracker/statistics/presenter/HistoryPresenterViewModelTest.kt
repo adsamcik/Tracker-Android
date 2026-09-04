@@ -8,6 +8,10 @@ import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.repository.DailySummary
 import com.adsamcik.tracker.stats.api.repository.DailySummaryRepository
 import com.adsamcik.tracker.stats.api.repository.ExplorationRepository
+import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
+import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
 import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
@@ -15,6 +19,8 @@ import com.adsamcik.tracker.stats.api.value.StepCount
 import com.adsamcik.tracker.statistics.viewmodel.CalendarDayData
 import com.adsamcik.tracker.statistics.viewmodel.CalendarState
 import com.adsamcik.tracker.statistics.viewmodel.HistoryTab
+import com.adsamcik.tracker.statistics.viewmodel.HistoryStepsValue
+import com.adsamcik.tracker.statistics.viewmodel.TimelineEntry
 import com.adsamcik.tracker.statistics.viewmodel.TimelineState
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
@@ -50,6 +56,7 @@ class HistoryPresenterViewModelTest {
 
 	private val tripPresentationRepository: TripPresentationRepository = mockk(relaxed = true)
 	private val dailySummaryRepository: DailySummaryRepository = mockk()
+	private val stepsNumericSummaryRepository: StepsNumericSummaryRepository = mockk()
 	private val explorationRepository: ExplorationRepository = mockk()
 
 	@BeforeEach
@@ -58,6 +65,8 @@ class HistoryPresenterViewModelTest {
 		// Default: empty flows and results
 		every { explorationRepository.observeCellCount(any()) } returns flowOf(0)
 		every { dailySummaryRepository.observeBetween(any(), any()) } returns flowOf(emptyList())
+		coEvery { stepsNumericSummaryRepository.read(any()) } returns
+			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED)
 		coEvery { tripPresentationRepository.getTripsBetween(any(), any()) } returns emptyList()
 		every { tripPresentationRepository.getPagedTrips() } returns mockk<PagingSource<Int, Trip>>()
 	}
@@ -72,6 +81,7 @@ class HistoryPresenterViewModelTest {
 	) = HistoryPresenterViewModel(
 		tripPresentationRepository = tripPresentationRepository,
 		dailySummaryRepository = dailySummaryRepository,
+		stepsNumericSummaryRepository = stepsNumericSummaryRepository,
 		explorationRepository = explorationRepository,
 		savedStateHandle = savedStateHandle,
 	)
@@ -162,6 +172,33 @@ class HistoryPresenterViewModelTest {
 		}
 
 		@Test
+		fun `timeline omits raw summary Steps without per-day qualification`() = runTest {
+			val today = LocalDate.now()
+			val todayStart = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+			coEvery { tripPresentationRepository.getTripsBetween(any(), any()) } returns listOf(
+				makeTrip(startTimeMs = todayStart + 1_000L, endTimeMs = todayStart + 2_000L),
+			)
+			every { dailySummaryRepository.observeBetween(any(), any()) } returns flowOf(
+				listOf(
+					DailySummary(
+						dayEpoch = today.toEpochDay(),
+						totalDistance = DistanceM(10f),
+						totalSteps = StepCount(9_999),
+						totalDuration = DurationMs(1_000L),
+						tripCount = 1,
+						activeTrackingDuration = DurationMs(1_000L),
+					),
+				),
+			)
+			val vm = createViewModel()
+			advanceUntilIdle()
+
+			val state = vm.timelineState.value.shouldBeInstanceOf<TimelineState.Content>()
+			state.entries.first().shouldBeInstanceOf<TimelineEntry.DaySummaryEntry>()
+			coVerify(exactly = 0) { stepsNumericSummaryRepository.read(any()) }
+		}
+
+		@Test
 		fun `timeline only loads trips from last 30 days`() = runTest {
 			val vm = createViewModel()
 			advanceUntilIdle()
@@ -226,6 +263,54 @@ class HistoryPresenterViewModelTest {
 			data2.intensity shouldBe 0.5f
 			data1.tripCount shouldBe 2
 			data2.tripCount shouldBe 1
+		}
+
+		@Test
+		fun `selected day preserves materializing Steps instead of raw summary zero`() = runTest {
+			val date = LocalDate.of(2024, 6, 15)
+			val epochDay = date.toEpochDay()
+			every { dailySummaryRepository.observeBetween(epochDay, epochDay) } returns flowOf(
+				listOf(
+					DailySummary(
+						dayEpoch = epochDay,
+						totalDistance = DistanceM(0f),
+						totalSteps = StepCount(0),
+						totalDuration = DurationMs(0L),
+						tripCount = 0,
+						activeTrackingDuration = DurationMs(0L),
+					),
+				),
+			)
+			coEvery {
+				stepsNumericSummaryRepository.read(
+					match { it.firstEpochDay == epochDay && it.lastEpochDayInclusive == epochDay },
+				)
+			} returns StepsNumericSummary.Materializing
+
+			val vm = createViewModel()
+			advanceUntilIdle()
+			vm.selectDay(date)
+			advanceUntilIdle()
+
+			vm.calendarState.value.selectedDayDetail?.steps shouldBe HistoryStepsValue.Materializing
+		}
+
+		@Test
+		fun `selected day exposes zero only from complete qualified coverage`() = runTest {
+			val date = LocalDate.of(2024, 7, 3)
+			val epochDay = date.toEpochDay()
+			coEvery {
+				stepsNumericSummaryRepository.read(
+					match { it.firstEpochDay == epochDay && it.lastEpochDayInclusive == epochDay },
+				)
+			} returns StepsNumericSummary.Ready(listOf(StepsNumericDay(epochDay, 0L)))
+
+			val vm = createViewModel()
+			advanceUntilIdle()
+			vm.selectDay(date)
+			advanceUntilIdle()
+
+			vm.calendarState.value.selectedDayDetail?.steps shouldBe HistoryStepsValue.Ready(0L)
 		}
 	}
 
