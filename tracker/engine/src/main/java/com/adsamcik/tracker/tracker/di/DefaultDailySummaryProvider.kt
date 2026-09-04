@@ -35,7 +35,15 @@ class DefaultDailySummaryProvider(
 
 		// Try materialized data first (fast single-row reads)
 		val liveStats = liveStatsDao.get()
-		if (liveStats != null && liveStats.dateEpochDay == epochDay) {
+		if (
+			liveStats != null &&
+			liveStats.dateEpochDay == epochDay &&
+			hasNonStepSummaryEvidence(
+				distanceM = liveStats.dayTotalDistanceM,
+				durationMs = liveStats.dayTotalDurationMs,
+				sessionCount = 0,
+			)
+		) {
 			return@withContext DailySummary(
 				totalDistanceM = liveStats.dayTotalDistanceM,
 				totalSteps = liveStats.dayTotalSteps,
@@ -46,12 +54,19 @@ class DefaultDailySummaryProvider(
 
 		// Try daily summary (covers finished sessions)
 		val dailySummary = dailySummaryDao.getByDay(epochDay)
-		if (dailySummary != null && (dailySummary.totalDistanceM > 0f || dailySummary.totalSteps > 0)) {
+		if (
+			dailySummary != null &&
+			hasNonStepSummaryEvidence(
+				distanceM = dailySummary.totalDistanceM,
+				durationMs = dailySummary.totalDurationMs,
+				sessionCount = dailySummary.tripCount,
+			)
+		) {
 			return@withContext DailySummary(
 				totalDistanceM = dailySummary.totalDistanceM,
 				totalSteps = dailySummary.totalSteps,
 				totalDurationMs = dailySummary.totalDurationMs,
-				sessionCount = dailySummary.tripCount.coerceAtLeast(1)
+				sessionCount = dailySummary.tripCount
 			)
 		}
 
@@ -73,7 +88,15 @@ class DefaultDailySummaryProvider(
 	override fun observeTodayLive(): Flow<DailySummary?> {
 		return liveStatsDao.getFlow().map { liveStats ->
 			val epochDay = Time.todayMillis / Time.DAY_IN_MILLISECONDS
-			if (liveStats != null && liveStats.dateEpochDay == epochDay) {
+			if (
+				liveStats != null &&
+				liveStats.dateEpochDay == epochDay &&
+				hasNonStepSummaryEvidence(
+					distanceM = liveStats.dayTotalDistanceM,
+					durationMs = liveStats.dayTotalDurationMs,
+					sessionCount = 0,
+				)
+			) {
 				DailySummary(
 					totalDistanceM = liveStats.dayTotalDistanceM,
 					totalSteps = liveStats.dayTotalSteps,
@@ -86,3 +109,10 @@ class DefaultDailySummaryProvider(
 		}
 	}
 }
+
+/** Raw aggregate Steps are not evidence that a product-visible session or day exists. */
+internal fun hasNonStepSummaryEvidence(
+	distanceM: Float,
+	durationMs: Long,
+	sessionCount: Int,
+): Boolean = distanceM > 0f || durationMs > 0L || sessionCount > 0
