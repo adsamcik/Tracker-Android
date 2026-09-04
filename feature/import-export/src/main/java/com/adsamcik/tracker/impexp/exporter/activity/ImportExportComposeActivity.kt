@@ -620,18 +620,18 @@ internal data class ShareTripSummary(
     val formattedSteps: String?
 )
 
-private fun buildShareText(trip: ShareTripSummary): String {
+internal fun buildShareText(trip: ShareTripSummary): String {
     val titleLine = "${trip.activityEmoji} ${trip.tripName} — ${trip.formattedDate}"
-    val statsLine = if (
-        trip.formattedDistance != null &&
-        trip.formattedDuration != null &&
-        trip.formattedSteps != null
-    ) {
-        "📏 ${trip.formattedDistance} · ⏱ ${trip.formattedDuration} · 🦶 ${trip.formattedSteps}"
-    } else {
-        "📏 — · ⏱ — · 🦶 —"
-    }
-    return "$titleLine\n$statsLine\nExported from Tracker (local-only, no cloud)"
+    val statsLine = buildList {
+        trip.formattedDistance?.let { distance -> add("📏 $distance") }
+        trip.formattedDuration?.let { duration -> add("⏱ $duration") }
+        trip.formattedSteps?.let { steps -> add("🦶 $steps") }
+    }.joinToString(separator = " · ")
+    return listOfNotNull(
+        titleLine,
+        statsLine.takeIf(String::isNotEmpty),
+        "Exported from Tracker (local-only, no cloud)",
+    ).joinToString(separator = "\n")
 }
 
 internal fun mapActivityToEmoji(activityName: String?, activityId: Long?): String {

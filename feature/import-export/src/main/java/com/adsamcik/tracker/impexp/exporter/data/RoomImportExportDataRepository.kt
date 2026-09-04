@@ -49,7 +49,6 @@ internal class RoomImportExportDataRepository @Inject constructor(
             startTimeMs = primaryTrip.startTimeMs,
             totalDistanceM = trips.sumOf { it.distanceM.toDouble() }.toFloat(),
             totalDurationMs = trips.sumOf { it.durationMs },
-            totalSteps = trips.sumOf { it.steps ?: 0 },
             activityName = activity?.name,
             activityId = activity?.id,
         )

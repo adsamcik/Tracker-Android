@@ -60,10 +60,35 @@ class RoomImportExportDataRepositoryTest {
             startTimeMs = 300L,
             totalDistanceM = 2_000f,
             totalDurationMs = 350L,
-            totalSteps = 800,
             activityName = "Walking",
             activityId = 7L,
         )
+    }
+
+    @Test
+    fun `share snapshot omits missing zero and positive raw Steps`() = runTest {
+        every { tripDao.countTripsBetween(100L, 500L) } returns 1L
+
+        listOf<Int?>(null, 0, 800).forEach { rawSteps ->
+            coEvery { tripDao.getBetween(100L, 500L) } returns listOf(
+                trip(
+                    id = 1L,
+                    startTimeMs = 100L,
+                    endTimeMs = 500L,
+                    distanceM = 750f,
+                    steps = rawSteps,
+                    primaryActivity = null,
+                ),
+            )
+
+            repository.loadTripShareSnapshot(100L, 500L) shouldBe TripShareSnapshot(
+                startTimeMs = 100L,
+                totalDistanceM = 750f,
+                totalDurationMs = 400L,
+                activityName = null,
+                activityId = null,
+            )
+        }
     }
 
     @Test

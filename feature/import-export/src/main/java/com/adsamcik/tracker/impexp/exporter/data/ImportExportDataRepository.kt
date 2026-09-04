@@ -32,7 +32,6 @@ data class TripShareSnapshot(
     val startTimeMs: Long,
     val totalDistanceM: Float,
     val totalDurationMs: Long,
-    val totalSteps: Int,
     val activityName: String?,
     val activityId: Long?,
 )

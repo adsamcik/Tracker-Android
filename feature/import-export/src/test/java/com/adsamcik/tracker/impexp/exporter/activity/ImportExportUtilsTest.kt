@@ -6,6 +6,8 @@ import com.adsamcik.tracker.impexp.exporter.Exporter
 import com.adsamcik.tracker.shared.base.data.NativeSessionActivity
 import org.junit.Test
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -159,6 +161,25 @@ class ImportExportUtilsTest {
         mapActivityToEmoji("WALKING", null) shouldBe "🥾"
         mapActivityToEmoji("Running", null) shouldBe "🏃"
         mapActivityToEmoji("BIKE ride", null) shouldBe "🚴"
+    }
+
+    @Test
+    fun `share text preserves independent stats while omitting unavailable Steps token`() {
+        val text = buildShareText(
+            ShareTripSummary(
+                tripName = "Morning walk",
+                formattedDate = "Sep 4, 2026",
+                activityEmoji = "🥾",
+                formattedDistance = "1.5 km",
+                formattedDuration = "30 min",
+                formattedSteps = null,
+            ),
+        )
+
+        text shouldContain "📏 1.5 km"
+        text shouldContain "⏱ 30 min"
+        text shouldNotContain "🦶"
+        text shouldNotContain "📏 —"
     }
 
     // --- findAvailableFileName tests ---

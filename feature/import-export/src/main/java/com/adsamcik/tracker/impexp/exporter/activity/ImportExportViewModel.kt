@@ -11,7 +11,6 @@ import com.adsamcik.tracker.impexp.exporter.data.ImportExportDataRepository
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
-import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.base.extension.openOutputStream
 import com.adsamcik.tracker.shared.base.extension.toEpochMillis
 import com.adsamcik.tracker.shared.base.misc.LocalizedString
@@ -186,7 +185,8 @@ class ImportExportViewModel @Inject constructor(
                     activityEmoji = emoji,
                     formattedDistance = distance,
                     formattedDuration = trip.totalDurationMs.formatAsDuration(appContext),
-                    formattedSteps = trip.totalSteps.formatReadable()
+                    // Trip.steps is a legacy aggregate without exact capture/source authority.
+                    formattedSteps = null
                 )
             }
             onResult(summary)
