@@ -8,20 +8,26 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
+import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.stats.api.repository.HistoryCapture
+import com.adsamcik.tracker.stats.api.repository.HistoryProductState
 import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.StepsAwareHistoryPageEntry
+import com.adsamcik.tracker.stats.api.repository.StepsHistoryCause
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryListState
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CompletableDeferred
@@ -53,7 +59,7 @@ class StepsSegmentHistorySelectorTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState())
-		selector = StepsSegmentHistorySelector(database)
+		selector = StepsSegmentHistorySelector(database, executableLaneAuthority())
 		logicalHistoryReader = LogicalTrackingHistoryReader(database, selector)
 	}
 
@@ -196,6 +202,498 @@ class StepsSegmentHistorySelectorTest {
 		capture.capturedInAnyRevision shouldBe setOf(TrackingSourceComponent.STEPS)
 		capture.capturedForWholeRun shouldBe setOf(TrackingSourceComponent.STEPS)
 		capture.revisions.single().controlSources shouldBe emptySet()
+	}
+
+	@Test
+	fun corruptedLiveWalFactFailsClosedAcrossSelectorAndPublicHistoryProducts() = runTest {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)),
+			targetOrdinal = 1L,
+			laneCursor = 1L,
+		)
+		database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null, sampleCount = 0))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE step_fact_revision SET effect_checksum = 'tampered' WHERE service_run_id = ?",
+			arrayOf(RUN_ONE),
+		)
+
+		selector.select(segment(RUN_ONE, steps = null, sampleCount = 0)) shouldBe
+			StepsSegmentHistoryResult(
+				count = null,
+				availability = StepsHistoryAvailability.AVAILABLE,
+				evidence = StepsHistoryEvidence.NO_OBSERVATION,
+				materialization = StepsHistoryMaterialization.FAILED,
+				coverage = StepsHistoryCoverage.UNKNOWN,
+				reasons = setOf(StepsHistoryReason.STEP_FACT_INTEGRITY_FAILED),
+			)
+
+		val repository = historyRepository()
+		val publicHistory = repository.observeSession(SEGMENT_ID).first() as SessionHistoryQuery.Found
+		publicHistory.history.qualifiedSources shouldBe emptySet()
+		publicHistory.history.steps.count shouldBe null
+		publicHistory.history.steps.productState shouldBe HistoryProductState.FAILED
+		publicHistory.history.steps.causes shouldBe setOf(
+			StepsHistoryCause.HISTORY_INTEGRITY_FAILED,
+		)
+		repository.observeRecentStepsOnlyEntries(limit = 10).first() shouldBe emptyList()
+		repository.observeRecentStepsAwarePage(
+			candidateSegmentIds = listOf(SEGMENT_ID),
+			limit = 10,
+		).first() shouldBe emptyList()
+	}
+
+	@Test
+	fun checksumValidCoveredFactsWithAnImpossibleRunTimelineFailClosed() = runTest {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(
+				fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L),
+				fact(
+					ordinal = 2L,
+					coverage = StepFactRevisionEntity.COVERAGE_COVERED,
+					steps = 6L,
+					cumulativeStart = 500L,
+				),
+			),
+			targetOrdinal = 2L,
+			laneCursor = 2L,
+			factTransform = { fact ->
+				val startElapsed = if (fact.sourceAdmissionOrdinal == 1L) {
+					TEST_MANIFEST_ELAPSED_STRIDE + 1L
+				} else {
+					TEST_MANIFEST_ELAPSED_STRIDE + 51L
+				}
+				val transformed = fact.copy(
+					intervalStartElapsedRealtimeNanos = startElapsed,
+					intervalEndElapsedRealtimeNanos = startElapsed + 100L,
+				).withValidLiveWalEffectChecksum()
+				StepFactRevisionIntegrity.hasValidCanonicalLiveWalFact(transformed) shouldBe true
+				transformed
+			},
+		)
+
+		selector.select(segment(RUN_ONE, steps = null, sampleCount = 0)) shouldBe
+			failedFactIntegrityResult()
+	}
+
+	@Test
+	fun checksumValidBackwardAuthorizationBaselineFailsClosed() = runTest {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(
+				fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L),
+				fact(
+					ordinal = 2L,
+					coverage = StepFactRevisionEntity.COVERAGE_BASELINE,
+					steps = 0L,
+					cumulativeStart = 500L,
+					cumulativeEnd = 500L,
+				),
+			),
+			targetOrdinal = 2L,
+			laneCursor = 2L,
+			factTransform = { fact ->
+				if (fact.sourceAdmissionOrdinal == 2L) {
+					fact.copy(
+						intervalStartElapsedRealtimeNanos = TEST_MANIFEST_ELAPSED_STRIDE + 1L,
+						intervalEndElapsedRealtimeNanos = TEST_MANIFEST_ELAPSED_STRIDE + 1L,
+					).withValidLiveWalEffectChecksum()
+				} else {
+					fact
+				}
+			},
+		)
+
+		selector.select(segment(RUN_ONE, steps = null, sampleCount = 0)) shouldBe
+			failedFactIntegrityResult()
+	}
+
+	@Test
+	fun portableShapedOriginTamperCannotBypassNativeFactIntegrity() = runTest {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)),
+			targetOrdinal = 1L,
+			laneCursor = 1L,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE step_fact_revision SET origin_kind = 'PORTABLE_IMPORT', " +
+				"source_event_id = NULL, source_admission_ordinal = NULL WHERE service_run_id = ?",
+			arrayOf(RUN_ONE),
+		)
+
+		selector.select(segment(RUN_ONE, steps = null, sampleCount = 0)).reasons shouldBe
+			setOf(StepsHistoryReason.STEP_FACT_INTEGRITY_FAILED)
+	}
+
+	@Test
+	fun checksumCoveredAttributionTamperFailsBeforeFactFiltering() = runTest {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)),
+			targetOrdinal = 1L,
+			laneCursor = 1L,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE step_fact_revision SET logical_tracking_id = 'other-logical' " +
+				"WHERE service_run_id = ?",
+			arrayOf(RUN_ONE),
+		)
+
+		selector.select(segment(RUN_ONE, steps = null, sampleCount = 0)).reasons shouldBe
+			setOf(StepsHistoryReason.STEP_FACT_INTEGRITY_FAILED)
+	}
+
+	@Test
+	fun checksumCoveredRunAndPurposeTamperCannotHideBesideAValidFact() = runTest {
+		val hidden = fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 4L)
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(
+				hidden,
+				fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 6L),
+			),
+			targetOrdinal = 2L,
+			laneCursor = 2L,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE step_fact_revision SET service_run_id = 'tampered-run', purpose = 'CONTROL' " +
+				"WHERE logical_fact_id = ? AND operation = 'UPSERT'",
+			arrayOf(hidden.logicalFactId),
+		)
+
+		selector.select(segment(RUN_ONE, steps = null, sampleCount = 0)) shouldBe
+			failedFactIntegrityResult()
+	}
+
+	@Test
+	fun retargetToExistingReplacementRunCannotHideCorruptFactFromSelectedRun() = runTest {
+		insertRun(RUN_ONE, sessionSegmentId = SEGMENT_ID)
+		insertRun(RUN_TWO, sessionSegmentId = OTHER_SEGMENT_ID)
+		insertManifest(RUN_ONE, revision = 1L, owner = CANDIDATE_OWNER)
+		insertManifest(RUN_TWO, revision = 2L, owner = CANDIDATE_OWNER)
+		database.sourceProjectionStateDao().installProductLane(lane(cursor = 2L))
+		database.sourceSessionDao().saveCompleteness(
+			completeness(RUN_ONE, lastOrdinal = 2L, registrationGeneration = 1L),
+		)
+		val hidden = fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 4L)
+		val survivor = fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 6L)
+		database.stepFactRevisionDao().insert(hidden)
+		database.stepFactRevisionDao().insert(survivor)
+		database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null, sampleCount = 0))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE step_fact_revision SET service_run_id = ? " +
+				"WHERE logical_fact_id = ? AND operation = 'UPSERT'",
+			arrayOf(RUN_TWO, hidden.logicalFactId),
+		)
+
+		selector.select(segment(RUN_ONE, steps = null, sampleCount = 0)) shouldBe
+			failedFactIntegrityResult()
+		val publicHistory = historyRepository().observeSession(SEGMENT_ID).first() as
+			SessionHistoryQuery.Found
+		publicHistory.history.steps.count shouldBe null
+		publicHistory.history.steps.productState shouldBe HistoryProductState.FAILED
+		publicHistory.history.steps.causes shouldBe setOf(
+			StepsHistoryCause.HISTORY_INTEGRITY_FAILED,
+		)
+	}
+
+	@Test
+	fun checksumCoveredRunAndLogicalMembershipTamperIsFoundByOrdinalAnchor() = runTest {
+		val hidden = fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 4L)
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(
+				hidden,
+				fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 6L),
+			),
+			targetOrdinal = 2L,
+			laneCursor = 2L,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE step_fact_revision SET service_run_id = 'tampered-run', " +
+				"logical_tracking_id = 'tampered-logical' " +
+				"WHERE logical_fact_id = ? AND operation = 'UPSERT'",
+			arrayOf(hidden.logicalFactId),
+		)
+
+		selector.select(segment(RUN_ONE, steps = null, sampleCount = 0)) shouldBe
+			failedFactIntegrityResult()
+	}
+
+	@Test
+	fun checksumValidForeignWriterAndManifestCannotHideBesideSelectedRunFact() = runTest {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 4L)),
+			targetOrdinal = 2L,
+			laneCursor = 2L,
+		)
+		val foreign = fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 6L).copy(
+			writerProjectionId = "foreign-steps-writer",
+			writerProjectionVersion = 7,
+			writerBindingGeneration = BINDING_GENERATION + 5L,
+			manifestRevision = 99L,
+			sourcePolicyRevision = 99L,
+		).withSourceEventIdentity("foreign-writer-event").withValidLiveWalEffectChecksum()
+		database.stepFactRevisionDao().insert(foreign)
+
+		selector.select(segment(RUN_ONE, steps = null, sampleCount = 0)) shouldBe
+			failedFactIntegrityResult()
+	}
+
+	@Test
+	fun checksumValidWrongPolicyRevisionCannotBecomeNumericHistory() = runTest {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)),
+			targetOrdinal = 1L,
+			laneCursor = 1L,
+			factTransform = { fact -> fact.copy(sourcePolicyRevision = 2L) },
+		)
+
+		selector.select(segment(RUN_ONE, steps = null, sampleCount = 0)) shouldBe
+			failedFactIntegrityResult()
+	}
+
+	@Test
+	fun checksumValidWrongRunCannotDisappearBeforeMembershipValidation() = runTest {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)),
+			targetOrdinal = 1L,
+			laneCursor = 1L,
+			factTransform = { fact -> fact.copy(serviceRunId = "foreign-run") },
+		)
+
+		selector.select(segment(RUN_ONE, steps = null, sampleCount = 0)) shouldBe
+			failedFactIntegrityResult()
+	}
+
+	@Test
+	fun checksumValidWrongCaptureConsentCannotBecomeNumericHistory() = runTest {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)),
+			targetOrdinal = 1L,
+			laneCursor = 1L,
+			factTransform = { fact -> fact.copy(captureConsentEpoch = 2L) },
+		)
+
+		selector.select(segment(RUN_ONE, steps = null, sampleCount = 0)) shouldBe
+			failedFactIntegrityResult()
+	}
+
+	@Test
+	fun checksumValidImpossibleCoveredDeltaCannotBecomeNumericHistory() = runTest {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)),
+			targetOrdinal = 1L,
+			laneCursor = 1L,
+			factTransform = { fact ->
+				fact.copy(
+					cumulativeStepCountStart = 100L,
+					cumulativeStepCountEnd = 101L,
+					effectiveStepCount = 999L,
+				)
+			},
+		)
+
+		selector.select(segment(RUN_ONE, steps = null, sampleCount = 0)) shouldBe
+			failedFactIntegrityResult()
+	}
+
+	@Test
+	fun checksumValidFactCannotHideBehindControlOnlyStepsManifest() = runTest {
+		insertRun(RUN_ONE, sessionSegmentId = SEGMENT_ID)
+		insertExactManifest(
+			runId = RUN_ONE,
+			revision = 1L,
+			sources = listOf(
+				sourceMembership(
+					revision = 1L,
+					source = TrackingSourceComponent.LOCATION,
+					purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+				),
+				sourceMembership(
+					revision = 1L,
+					source = TrackingSourceComponent.STEPS,
+					purpose = SessionManifestPurposeCode.CONTROL,
+				),
+			),
+		)
+		database.sourceProjectionStateDao().installProductLane(lane(cursor = 1L))
+		database.sourceSessionDao().saveCompleteness(completeness(RUN_ONE, lastOrdinal = 1L))
+		val strayCaptureFact = fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)
+			.withTestAttribution(LOGICAL_ID, RUN_ONE, manifestRevision = 1L)
+			.withValidLiveWalEffectChecksum()
+		database.stepFactRevisionDao().insert(strayCaptureFact)
+
+		selector.select(segment(RUN_ONE, steps = null, sampleCount = 0)) shouldBe
+			failedFactIntegrityResult()
+	}
+
+	@Test
+	fun checksumCoveredOperationTamperCannotHideBesideAValidFact() = runTest {
+		val hidden = fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 4L)
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(
+				hidden,
+				fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 6L),
+			),
+			targetOrdinal = 2L,
+			laneCursor = 2L,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE step_fact_revision SET operation = 'RETRACT' " +
+				"WHERE logical_fact_id = ? AND semantic_revision = 1",
+			arrayOf(hidden.logicalFactId),
+		)
+
+		selector.select(segment(RUN_ONE, steps = null, sampleCount = 0)) shouldBe
+			failedFactIntegrityResult()
+	}
+
+	@Test
+	fun movedCorrectionOperationTamperRemainsAnchoredToItsLatestProvisionalRun() = runTest {
+		insertRun(RUN_ONE, sessionSegmentId = SEGMENT_ID)
+		insertRun(RUN_TWO, sessionSegmentId = OTHER_SEGMENT_ID)
+		insertManifest(RUN_ONE, revision = 1L, owner = CANDIDATE_OWNER)
+		insertManifest(RUN_TWO, revision = 2L, owner = CANDIDATE_OWNER)
+		database.sourceProjectionStateDao().installProductLane(lane(cursor = 3L))
+		database.sourceSessionDao().saveCompleteness(
+			completeness(RUN_ONE, lastOrdinal = 1L, registrationGeneration = 1L),
+		)
+		database.sourceSessionDao().saveCompleteness(
+			completeness(RUN_TWO, lastOrdinal = 3L, registrationGeneration = 2L),
+		)
+		val original = fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 4L)
+			.withSourceEventIdentity("moved-operation-event")
+			.withTestAttribution(LOGICAL_ID, RUN_ONE, manifestRevision = 1L)
+			.withValidLiveWalEffectChecksum()
+		val moved = original.copy(
+			semanticRevision = 2L,
+			mutationId = "${original.logicalFactId}:2:${StepFactRevisionEntity.OPERATION_UPSERT}",
+			sourceAdmissionOrdinal = 2L,
+		).withTestAttribution(LOGICAL_ID, RUN_TWO, manifestRevision = 2L)
+			.withValidLiveWalEffectChecksum()
+		val runTwoSurvivor = fact(3L, StepFactRevisionEntity.COVERAGE_COVERED, 6L)
+			.withTestAttribution(LOGICAL_ID, RUN_TWO, manifestRevision = 2L)
+			.withValidLiveWalEffectChecksum()
+		listOf(original, moved, runTwoSurvivor).forEach {
+			database.stepFactRevisionDao().insert(it)
+		}
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE step_fact_revision SET operation = 'RETRACT' " +
+				"WHERE logical_fact_id = ? AND semantic_revision = 2",
+			arrayOf(original.logicalFactId),
+		)
+
+		selector.select(
+			segment(
+				runId = RUN_TWO,
+				steps = null,
+				id = OTHER_SEGMENT_ID,
+				startTimeMs = 2_100L,
+				endTimeMs = 3_000L,
+			),
+		) shouldBe failedFactIntegrityResult()
+	}
+
+	@Test
+	fun corruptedScopeCarrierBelowRetractionCannotHideBesideAValidFact() = runTest {
+		val deleted = fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 4L)
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(
+				deleted,
+				fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 6L),
+			),
+			targetOrdinal = 2L,
+			laneCursor = 2L,
+		)
+		database.stepFactRevisionDao().insert(retraction(deleted))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE step_fact_revision SET effect_checksum = 'tampered-scope' " +
+				"WHERE logical_fact_id = ? AND operation = 'UPSERT'",
+			arrayOf(deleted.logicalFactId),
+		)
+
+		selector.select(segment(RUN_ONE, steps = null, sampleCount = 0)) shouldBe
+			failedFactIntegrityResult()
+	}
+
+	@Test
+	fun selfConsistentRetractionForAnotherScopeCannotDeleteSelectedFact() = runTest {
+		val deleted = fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 4L)
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(
+				deleted,
+				fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 6L),
+			),
+			targetOrdinal = 2L,
+			laneCursor = 2L,
+		)
+		val otherScope = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			logicalTrackingId = "other-logical",
+			serviceRunId = "other-run",
+		)
+		val otherScopeRetraction = retraction(deleted).let { canonical ->
+			val unsigned = canonical.copy(
+				originIdentity = otherScope,
+				mutationId = StepFactRevisionIntegrity.localDeleteMutationId(
+					scopeIdentityDigest = otherScope,
+					logicalFactId = canonical.logicalFactId,
+					semanticRevision = canonical.semanticRevision,
+					scopeDeletionGeneration = canonical.scopeDeletionGeneration,
+				),
+				effectChecksum = "pending-other-scope-effect",
+			)
+			unsigned.copy(
+				effectChecksum = StepFactRevisionIntegrity.localDeleteEffectChecksum(unsigned),
+			)
+		}
+		database.stepFactRevisionDao().insert(otherScopeRetraction)
+
+		selector.select(segment(RUN_ONE, steps = null, sampleCount = 0)) shouldBe
+			failedFactIntegrityResult()
+	}
+
+	@Test
+	fun malformedLatestRetractionsCannotHideBesideAValidFact() = runTest {
+		val zeroGeneration = fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 2L)
+		val nonRedacted = fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 3L)
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(
+				zeroGeneration,
+				nonRedacted,
+				fact(3L, StepFactRevisionEntity.COVERAGE_COVERED, 5L),
+			),
+			targetOrdinal = 3L,
+			laneCursor = 3L,
+		)
+		database.stepFactRevisionDao().insert(retraction(zeroGeneration))
+		database.stepFactRevisionDao().insert(retraction(nonRedacted))
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE step_fact_revision SET scope_deletion_generation = 0 " +
+				"WHERE logical_fact_id = ? AND operation = 'RETRACT'",
+			arrayOf(zeroGeneration.logicalFactId),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE step_fact_revision SET effective_step_count = 3 " +
+				"WHERE logical_fact_id = ? AND operation = 'RETRACT'",
+			arrayOf(nonRedacted.logicalFactId),
+		)
+
+		selector.select(segment(RUN_ONE, steps = null, sampleCount = 0)) shouldBe
+			failedFactIntegrityResult()
 	}
 
 	@Test
@@ -377,10 +875,9 @@ class StepsSegmentHistorySelectorTest {
 				completeness(runId = runId, logicalId = logicalId, lastOrdinal = index),
 			)
 			database.stepFactRevisionDao().insert(
-				fact(index, StepFactRevisionEntity.COVERAGE_COVERED, index).copy(
-					logicalTrackingId = logicalId,
-					serviceRunId = runId,
-				),
+				fact(index, StepFactRevisionEntity.COVERAGE_COVERED, index)
+					.withTestAttribution(logicalId, runId, manifestRevision = 1L)
+					.withValidLiveWalEffectChecksum(),
 			)
 			database.sessionSegmentDao().insert(
 				segment(
@@ -424,12 +921,9 @@ class StepsSegmentHistorySelectorTest {
 				completeness(runId, logicalA, lastOrdinal = index),
 			)
 			database.stepFactRevisionDao().insert(
-				fact(index, StepFactRevisionEntity.COVERAGE_COVERED, 1L).copy(
-					logicalTrackingId = logicalA,
-					serviceRunId = runId,
-					manifestRevision = index,
-					sourcePolicyRevision = index,
-				),
+				fact(index, StepFactRevisionEntity.COVERAGE_COVERED, 1L)
+					.withTestAttribution(logicalA, runId, manifestRevision = index)
+					.withValidLiveWalEffectChecksum(),
 			)
 			database.sessionSegmentDao().insert(
 				segment(
@@ -451,12 +945,9 @@ class StepsSegmentHistorySelectorTest {
 			completeness(runB, logicalB, lastOrdinal = 66L),
 		)
 		database.stepFactRevisionDao().insert(
-			fact(66L, StepFactRevisionEntity.COVERAGE_COVERED, 2L).copy(
-				logicalTrackingId = logicalB,
-				serviceRunId = runB,
-				manifestRevision = 1L,
-				sourcePolicyRevision = 1L,
-			),
+			fact(66L, StepFactRevisionEntity.COVERAGE_COVERED, 2L)
+				.withTestAttribution(logicalB, runB, manifestRevision = 1L)
+				.withValidLiveWalEffectChecksum(),
 		)
 		database.sessionSegmentDao().insert(
 			segment(
@@ -527,12 +1018,13 @@ class StepsSegmentHistorySelectorTest {
 				),
 			)
 			database.stepFactRevisionDao().insert(
-				fact(fixture.ordinal, StepFactRevisionEntity.COVERAGE_COVERED, 1L).copy(
-					logicalTrackingId = fixture.logicalId,
-					serviceRunId = fixture.runId,
-					manifestRevision = fixture.manifestRevision,
-					sourcePolicyRevision = fixture.manifestRevision,
-				),
+				fact(fixture.ordinal, StepFactRevisionEntity.COVERAGE_COVERED, 1L)
+					.withTestAttribution(
+						fixture.logicalId,
+						fixture.runId,
+						manifestRevision = fixture.manifestRevision,
+					)
+					.withValidLiveWalEffectChecksum(),
 			)
 			database.sessionSegmentDao().insert(
 				segment(
@@ -592,12 +1084,13 @@ class StepsSegmentHistorySelectorTest {
 			}
 			val stepCount = if (coverage == StepFactRevisionEntity.COVERAGE_BASELINE) 0L else 1L
 			database.stepFactRevisionDao().insert(
-				fact(fixture.ordinal, coverage, stepCount).copy(
-					logicalTrackingId = fixture.logicalId,
-					serviceRunId = fixture.runId,
-					manifestRevision = fixture.manifestRevision,
-					sourcePolicyRevision = fixture.manifestRevision,
-				),
+				fact(fixture.ordinal, coverage, stepCount)
+					.withTestAttribution(
+						fixture.logicalId,
+						fixture.runId,
+						manifestRevision = fixture.manifestRevision,
+					)
+					.withValidLiveWalEffectChecksum(),
 			)
 			database.sessionSegmentDao().insert(
 				segment(
@@ -687,11 +1180,9 @@ class StepsSegmentHistorySelectorTest {
 			fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 3L),
 		)
 		database.stepFactRevisionDao().insert(
-			fact(2L, StepFactRevisionEntity.COVERAGE_BASELINE, 0L).copy(
-				serviceRunId = RUN_TWO,
-				manifestRevision = 2L,
-				sourcePolicyRevision = 2L,
-			),
+			fact(2L, StepFactRevisionEntity.COVERAGE_BASELINE, 0L)
+				.withTestAttribution(LOGICAL_ID, RUN_TWO, manifestRevision = 2L)
+				.withValidLiveWalEffectChecksum(),
 		)
 		database.sessionSegmentDao().insert(
 			segment(RUN_ONE, steps = null, sampleCount = 0),
@@ -720,6 +1211,44 @@ class StepsSegmentHistorySelectorTest {
 			StepsHistoryMaterialization.MATERIALIZING,
 		)
 		entry.qualifiedSources shouldBe setOf(TrackingSourceComponent.STEPS)
+	}
+
+	@Test
+	fun logicalStepsOnlyQualificationRejectsMissingRevisionAcrossReplacementRuns() = runTest {
+		database.sourceProjectionStateDao().installProductLane(lane(cursor = 2L))
+		insertRun(RUN_ONE, sessionSegmentId = SEGMENT_ID)
+		insertRun(RUN_TWO, sessionSegmentId = OTHER_SEGMENT_ID)
+		insertManifest(RUN_ONE, revision = 1L, owner = CANDIDATE_OWNER)
+		insertManifest(RUN_TWO, revision = 3L, owner = CANDIDATE_OWNER)
+		database.sourceSessionDao().saveCompleteness(completeness(RUN_ONE, lastOrdinal = 1L))
+		database.sourceSessionDao().saveCompleteness(completeness(RUN_TWO, lastOrdinal = 2L))
+		database.stepFactRevisionDao().insert(
+			fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 3L),
+		)
+		database.stepFactRevisionDao().insert(
+			fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)
+				.withTestAttribution(LOGICAL_ID, RUN_TWO, manifestRevision = 3L)
+				.withValidLiveWalEffectChecksum(),
+		)
+		database.sessionSegmentDao().insert(
+			segment(RUN_ONE, steps = null, sampleCount = 0),
+		)
+		database.sessionSegmentDao().insert(
+			segment(
+				runId = RUN_TWO,
+				steps = null,
+				sampleCount = 0,
+				id = OTHER_SEGMENT_ID,
+				startTimeMs = 2_100L,
+				endTimeMs = 3_000L,
+			),
+		)
+
+		val genericEntry = logicalHistoryReader.selectRecentEntries(limit = 1).single()
+		genericEntry.qualifiedSources shouldBe setOf(TrackingSourceComponent.STEPS)
+		genericEntry.hasExactStepsOnlyIntent shouldBe false
+		genericEntry.isExactStepsOnlyCapture shouldBe false
+		logicalHistoryReader.selectRecentStepsOnlyEntries(limit = 10) shouldBe emptyList()
 	}
 
 	@Test
@@ -787,11 +1316,9 @@ class StepsSegmentHistorySelectorTest {
 			fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 3L),
 		)
 		database.stepFactRevisionDao().insert(
-			fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 5L).copy(
-				serviceRunId = RUN_TWO,
-				manifestRevision = 2L,
-				sourcePolicyRevision = 2L,
-			),
+			fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)
+				.withTestAttribution(LOGICAL_ID, RUN_TWO, manifestRevision = 2L)
+				.withValidLiveWalEffectChecksum(),
 		)
 		database.sessionSegmentDao().insert(
 			segment(RUN_ONE, steps = null, sampleCount = 2),
@@ -1199,11 +1726,9 @@ class StepsSegmentHistorySelectorTest {
 			fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 3L),
 		)
 		database.stepFactRevisionDao().insert(
-			fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 5L).copy(
-				serviceRunId = RUN_TWO,
-				manifestRevision = 2L,
-				sourcePolicyRevision = 2L,
-			),
+			fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)
+				.withTestAttribution(LOGICAL_ID, RUN_TWO, manifestRevision = 2L)
+				.withValidLiveWalEffectChecksum(),
 		)
 		database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null, sampleCount = 0))
 		database.sessionSegmentDao().insert(
@@ -1243,7 +1768,7 @@ class StepsSegmentHistorySelectorTest {
 
 	@Test
 	@Suppress("LongMethod")
-	fun batchSelectionKeepsLatestCorrectionScopedToItsReplacementRun() = runTest {
+	fun unsupportedCorrectionTaintsEveryProvisionalReplacementRunWithoutFabricatingCount() = runTest {
 		insertRun(RUN_ONE, sessionSegmentId = SEGMENT_ID)
 		insertRun(RUN_TWO, sessionSegmentId = OTHER_SEGMENT_ID)
 		insertManifest(RUN_ONE, revision = 1L, owner = CANDIDATE_OWNER)
@@ -1252,39 +1777,23 @@ class StepsSegmentHistorySelectorTest {
 		database.sourceSessionDao().saveCompleteness(completeness(RUN_ONE, lastOrdinal = 1L))
 		database.sourceSessionDao().saveCompleteness(completeness(RUN_TWO, lastOrdinal = 3L))
 
-		val stable = fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 3L).copy(
-			logicalFactId = "stable",
-			mutationId = "stable-1",
-			originIdentity = "stable-event",
-			sourceEventId = "stable-event",
-			serviceRunId = RUN_ONE,
-		)
-		val moved = fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 5L).copy(
-			logicalFactId = "moved",
-			mutationId = "moved-1",
-			originIdentity = "moved-event-1",
-			sourceEventId = "moved-event-1",
-			serviceRunId = RUN_ONE,
-		)
+		val stable = fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 3L)
+			.withSourceEventIdentity("stable-event")
+			.withTestAttribution(LOGICAL_ID, RUN_ONE, manifestRevision = 1L)
+			.withValidLiveWalEffectChecksum()
+		val moved = fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)
+			.withSourceEventIdentity("moved-event")
+			.withTestAttribution(LOGICAL_ID, RUN_ONE, manifestRevision = 1L)
+			.withValidLiveWalEffectChecksum()
 		val corrected = moved.copy(
 			semanticRevision = 2L,
-			mutationId = "moved-2",
-			sourceEventId = "moved-event-2",
+			mutationId = "${moved.logicalFactId}:2:${StepFactRevisionEntity.OPERATION_UPSERT}",
 			sourceAdmissionOrdinal = 3L,
-			originIdentity = "moved-event-2",
-			intervalStartTimeMs = 1_300L,
-			intervalEndTimeMs = 1_400L,
-			intervalStartElapsedRealtimeNanos = 1_300L,
-			intervalEndElapsedRealtimeNanos = 1_400L,
 			cumulativeStepCountStart = 200L,
 			cumulativeStepCountEnd = 207L,
 			effectiveStepCount = 7L,
-			serviceRunId = RUN_TWO,
-			manifestRevision = 2L,
-			sourcePolicyRevision = 2L,
-			effectChecksum = "moved-checksum-2",
-			appliedAtMs = 3_000L,
-		)
+		).withTestAttribution(LOGICAL_ID, RUN_TWO, manifestRevision = 2L)
+			.withValidLiveWalEffectChecksum()
 		listOf(stable, moved, corrected).forEach { database.stepFactRevisionDao().insert(it) }
 		database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null, sampleCount = 0))
 		database.sessionSegmentDao().insert(
@@ -1302,18 +1811,231 @@ class StepsSegmentHistorySelectorTest {
 			listOf(OTHER_SEGMENT_ID, SEGMENT_ID, OTHER_SEGMENT_ID, 999L),
 		)
 		selected.keys shouldBe setOf(SEGMENT_ID, OTHER_SEGMENT_ID)
-		selected.getValue(SEGMENT_ID).steps.count shouldBe 3L
-		selected.getValue(OTHER_SEGMENT_ID).steps.count shouldBe 7L
+		selected.getValue(SEGMENT_ID).steps shouldBe failedFactIntegrityResult()
+		selected.getValue(OTHER_SEGMENT_ID).steps shouldBe failedFactIntegrityResult()
 		selected.getValue(SEGMENT_ID).segment.serviceRunId shouldBe RUN_ONE
 		selected.getValue(OTHER_SEGMENT_ID).segment.serviceRunId shouldBe RUN_TWO
 		(selected.getValue(SEGMENT_ID).captureAuthority as HistoricalCaptureAuthority.Exact)
 			.revisions.map(HistoricalCaptureRevision::manifestRevision) shouldBe listOf(1L)
 		(selected.getValue(OTHER_SEGMENT_ID).captureAuthority as HistoricalCaptureAuthority.Exact)
 			.revisions.map(HistoricalCaptureRevision::manifestRevision) shouldBe listOf(2L)
-		val logicalEntry = logicalHistoryReader.selectRecentEntries(limit = 1).single()
-		logicalEntry.identity shouldBe HistoricalEntryIdentity.Logical(LOGICAL_ID)
-		logicalEntry.physicalMembers.map { it.segment.serviceRunId } shouldBe listOf(RUN_ONE, RUN_TWO)
-		logicalEntry.physicalMembers.map { it.steps.count } shouldBe listOf(3L, 7L)
+		logicalHistoryReader.selectRecentEntries(limit = 1) shouldBe emptyList()
+	}
+
+	@Test
+	fun sharedGenerationHighWaterAttachesCorruptOrdinalEvidenceToEveryPlausibleRun() = runTest {
+		insertRun(RUN_ONE, sessionSegmentId = SEGMENT_ID)
+		insertRun(RUN_TWO, sessionSegmentId = OTHER_SEGMENT_ID)
+		insertManifest(RUN_ONE, revision = 1L, owner = CANDIDATE_OWNER)
+		insertManifest(RUN_TWO, revision = 2L, owner = CANDIDATE_OWNER)
+		database.sourceProjectionStateDao().installProductLane(lane(cursor = 3L))
+		database.sourceSessionDao().saveCompleteness(
+			completeness(RUN_ONE, lastOrdinal = 3L, registrationGeneration = 1L),
+		)
+		database.sourceSessionDao().saveCompleteness(
+			completeness(RUN_TWO, lastOrdinal = 3L, registrationGeneration = 1L),
+		)
+		val hidden = fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 2L)
+		val runOneSurvivor = fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 3L)
+		val runTwoSurvivor = fact(3L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)
+			.withTestAttribution(LOGICAL_ID, RUN_TWO, manifestRevision = 2L)
+			.withValidLiveWalEffectChecksum()
+		listOf(hidden, runOneSurvivor, runTwoSurvivor).forEach {
+			database.stepFactRevisionDao().insert(it)
+		}
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE step_fact_revision SET service_run_id = 'tampered-run', " +
+				"logical_tracking_id = 'tampered-logical' " +
+				"WHERE logical_fact_id = ? AND operation = 'UPSERT'",
+			arrayOf(hidden.logicalFactId),
+		)
+
+		selector.select(segment(RUN_ONE, steps = null)) shouldBe failedFactIntegrityResult()
+		selector.select(
+			segment(
+				runId = RUN_TWO,
+				steps = null,
+				id = OTHER_SEGMENT_ID,
+				startTimeMs = 2_100L,
+				endTimeMs = 3_000L,
+			),
+		) shouldBe failedFactIntegrityResult()
+	}
+
+	@Test
+	fun nullHighWaterBetweenReplacementGenerationsDoesNotExcludeOrDuplicateValidFacts() = runTest {
+		insertRun(RUN_ONE, sessionSegmentId = SEGMENT_ID)
+		insertRun(RUN_TWO, sessionSegmentId = OTHER_SEGMENT_ID)
+		insertManifest(RUN_ONE, revision = 1L, owner = CANDIDATE_OWNER)
+		insertManifest(RUN_TWO, revision = 2L, owner = CANDIDATE_OWNER)
+		database.sourceProjectionStateDao().installProductLane(lane(cursor = 4L))
+		database.sourceSessionDao().saveCompleteness(
+			completeness(RUN_ONE, lastOrdinal = 2L, registrationGeneration = 1L),
+		)
+		database.sourceSessionDao().saveCompleteness(
+			completeness(RUN_TWO, lastOrdinal = null, registrationGeneration = 2L),
+		)
+		database.sourceSessionDao().saveCompleteness(
+			completeness(RUN_TWO, lastOrdinal = 4L, registrationGeneration = 3L),
+		)
+		val runOneFact = fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 3L)
+		val runTwoFact = fact(3L, StepFactRevisionEntity.COVERAGE_COVERED, 7L)
+			.withTestAttribution(LOGICAL_ID, RUN_TWO, manifestRevision = 2L)
+			.withValidLiveWalEffectChecksum()
+		database.stepFactRevisionDao().insert(runOneFact)
+		database.stepFactRevisionDao().insert(runTwoFact)
+
+		selector.select(segment(RUN_ONE, steps = null)).also { result ->
+			result.count shouldBe 3L
+			result.materialization shouldBe StepsHistoryMaterialization.READY
+			result.coverage shouldBe StepsHistoryCoverage.COMPLETE
+		}
+		selector.select(
+			segment(
+				runId = RUN_TWO,
+				steps = null,
+				id = OTHER_SEGMENT_ID,
+				startTimeMs = 2_100L,
+				endTimeMs = 3_000L,
+			),
+		).also { result ->
+			result.count shouldBe 7L
+			result.materialization shouldBe StepsHistoryMaterialization.READY
+			result.coverage shouldBe StepsHistoryCoverage.COMPLETE
+		}
+	}
+
+	@Test
+	fun nativeFactWithNullCompletenessHighWaterFailsClosedWithoutExposingCount() = runTest {
+		insertRun(RUN_ONE, sessionSegmentId = SEGMENT_ID)
+		insertManifest(RUN_ONE, revision = 1L, owner = CANDIDATE_OWNER)
+		database.sourceProjectionStateDao().installProductLane(lane(cursor = 1L))
+		database.sourceSessionDao().saveCompleteness(
+			completeness(RUN_ONE, lastOrdinal = null),
+		)
+		database.stepFactRevisionDao().insert(
+			fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L),
+		)
+
+		selector.select(segment(RUN_ONE, steps = null)) shouldBe invalidCompletenessResult()
+	}
+
+	@Test
+	fun notOwnedGenerationZeroRetirementRemainsTruthfulUnavailableEvidence() = runTest {
+		insertRun(RUN_ONE, sessionSegmentId = SEGMENT_ID)
+		insertManifest(RUN_ONE, revision = 1L, owner = CANDIDATE_OWNER)
+		database.sourceProjectionStateDao().installProductLane(lane(cursor = 0L))
+		database.sourceSessionDao().saveCompleteness(
+			completeness(
+				runId = RUN_ONE,
+				lastOrdinal = null,
+				providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
+				registrationGeneration = 0L,
+				sourceInstanceId = "not-owned-steps",
+			),
+		)
+
+		selector.select(segment(RUN_ONE, steps = null, sampleCount = 0)) shouldBe
+			StepsSegmentHistoryResult(
+				count = null,
+				availability = StepsHistoryAvailability.AVAILABLE,
+				evidence = StepsHistoryEvidence.NO_OBSERVATION,
+				materialization = StepsHistoryMaterialization.READY,
+				coverage = StepsHistoryCoverage.NONE,
+				reasons = setOf(StepsHistoryReason.PROVIDER_COMPLETENESS_UNOBSERVABLE),
+			)
+	}
+
+	@Test
+	fun unresolvedGenerationZeroRetirementRemainsPartialRatherThanCorrupt() = runTest {
+		insertRun(RUN_ONE, sessionSegmentId = SEGMENT_ID)
+		insertManifest(RUN_ONE, revision = 1L, owner = CANDIDATE_OWNER)
+		database.sourceProjectionStateDao().installProductLane(lane(cursor = 0L))
+		database.sourceSessionDao().saveCompleteness(
+			completeness(
+				runId = RUN_ONE,
+				lastOrdinal = null,
+				providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
+				registrationGeneration = 0L,
+				sourceInstanceId = "unresolved-steps",
+			).copy(
+				appDrainComplete = false,
+				stopStatus = "TIMED_OUT",
+			),
+		)
+
+		selector.select(segment(RUN_ONE, steps = null, sampleCount = 0)) shouldBe
+			StepsSegmentHistoryResult(
+				count = null,
+				availability = StepsHistoryAvailability.AVAILABLE,
+				evidence = StepsHistoryEvidence.NO_OBSERVATION,
+				materialization = StepsHistoryMaterialization.READY,
+				coverage = StepsHistoryCoverage.NONE,
+				reasons = setOf(
+					StepsHistoryReason.APP_DRAIN_INCOMPLETE,
+					StepsHistoryReason.STOP_INCOMPLETE,
+					StepsHistoryReason.PROVIDER_COMPLETENESS_UNOBSERVABLE,
+				),
+			)
+	}
+
+	@Test
+	fun unavailableGenerationZeroAckRemainsPartialRatherThanCorrupt() = runTest {
+		insertRun(RUN_ONE, sessionSegmentId = SEGMENT_ID)
+		insertManifest(RUN_ONE, revision = 1L, owner = CANDIDATE_OWNER)
+		database.sourceProjectionStateDao().installProductLane(lane(cursor = 0L))
+		database.sourceSessionDao().saveCompleteness(
+			completeness(
+				runId = RUN_ONE,
+				lastOrdinal = null,
+				providerCoverage = "PROVIDER_COMPLETENESS_UNOBSERVABLE",
+				registrationGeneration = 0L,
+				sourceInstanceId = "unavailable-steps",
+			).copy(stopStatus = "PROVIDER_FAILED"),
+		)
+
+		selector.select(segment(RUN_ONE, steps = null, sampleCount = 0)) shouldBe
+			StepsSegmentHistoryResult(
+				count = null,
+				availability = StepsHistoryAvailability.AVAILABLE,
+				evidence = StepsHistoryEvidence.NO_OBSERVATION,
+				materialization = StepsHistoryMaterialization.READY,
+				coverage = StepsHistoryCoverage.NONE,
+				reasons = setOf(
+					StepsHistoryReason.STOP_INCOMPLETE,
+					StepsHistoryReason.PROVIDER_COMPLETENESS_UNOBSERVABLE,
+				),
+			)
+	}
+
+	@Test
+	fun nativeFactAboveCompletenessHighWaterCannotHideBesideValidSibling() = runTest {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(
+				fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 4L),
+				fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 6L),
+			),
+			targetOrdinal = 1L,
+			laneCursor = 2L,
+		)
+
+		selector.select(segment(RUN_ONE, steps = null)) shouldBe invalidCompletenessResult()
+	}
+
+	@Test
+	fun duplicateNonNullCompletenessHighWaterWithinRunFailsClosed() = runTest {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)),
+			targetOrdinal = 1L,
+			laneCursor = 1L,
+		)
+		database.sourceSessionDao().saveCompleteness(
+			completeness(RUN_ONE, lastOrdinal = 1L, registrationGeneration = 2L),
+		)
+
+		selector.select(segment(RUN_ONE, steps = null)) shouldBe invalidCompletenessResult()
 	}
 
 	@Test
@@ -1396,6 +2118,264 @@ class StepsSegmentHistorySelectorTest {
 		)
 		evidence.qualifiedSources shouldBe emptySet()
 		selectRecentEvidence(limit = 10) shouldBe emptyList()
+	}
+
+	@Test
+	fun preparedManifestRevisionMismatchFailsClosed() = runTest {
+		insertRun(RUN_ONE, preparedManifestRevision = 2L)
+		insertManifest(
+			runId = RUN_ONE,
+			revision = 1L,
+			owner = LEGACY_OWNER,
+			synchronizeRunTimeline = false,
+		)
+
+		assertManifestTimelineRejected()
+	}
+
+	@Test
+	fun desiredPlanAndLastManifestMismatchFailsClosed() = runTest {
+		insertRun(RUN_ONE, desiredPlanRevision = 2L)
+		insertManifest(
+			runId = RUN_ONE,
+			revision = 1L,
+			owner = LEGACY_OWNER,
+			acquisitionPlanRevision = 1L,
+			synchronizeRunTimeline = false,
+		)
+
+		assertManifestTimelineRejected()
+	}
+
+	@Test
+	fun manifestRolloutMismatchFailsClosed() = runTest {
+		insertRun(RUN_ONE, rolloutRevision = TEST_ROLLOUT_REVISION)
+		insertManifest(
+			runId = RUN_ONE,
+			revision = 1L,
+			owner = LEGACY_OWNER,
+			rolloutRevision = TEST_ROLLOUT_REVISION + 1L,
+			synchronizeRunTimeline = false,
+		)
+
+		assertManifestTimelineRejected()
+	}
+
+	@Test
+	fun firstManifestOriginMismatchFailsClosed() = runTest {
+		insertRun(RUN_ONE, startOrigin = MANUAL_START_ORIGIN)
+		insertManifest(
+			runId = RUN_ONE,
+			revision = 1L,
+			owner = LEGACY_OWNER,
+			startOrigin = POLICY_RECONCILIATION_ORIGIN,
+			synchronizeRunTimeline = false,
+		)
+
+		assertManifestTimelineRejected()
+	}
+
+	@Test
+	fun successorManifestMustUsePolicyReconciliationOrigin() = runTest {
+		insertRun(RUN_ONE)
+		insertManifest(RUN_ONE, revision = 1L, owner = LEGACY_OWNER)
+		insertManifest(
+			runId = RUN_ONE,
+			revision = 2L,
+			owner = LEGACY_OWNER,
+			startOrigin = MANUAL_START_ORIGIN,
+		)
+
+		assertManifestTimelineRejected()
+	}
+
+	@Test
+	fun noncontiguousManifestRevisionFailsClosed() = runTest {
+		insertRun(RUN_ONE)
+		insertManifest(RUN_ONE, revision = 1L, owner = LEGACY_OWNER)
+		insertManifest(RUN_ONE, revision = 3L, owner = LEGACY_OWNER)
+
+		assertManifestTimelineRejected()
+	}
+
+	@Test
+	fun successorManifestElapsedRegressionFailsClosed() = runTest {
+		insertRun(RUN_ONE)
+		insertManifest(RUN_ONE, revision = 1L, owner = LEGACY_OWNER)
+		insertManifest(
+			runId = RUN_ONE,
+			revision = 2L,
+			owner = LEGACY_OWNER,
+			effectiveElapsedRealtimeNanos = TEST_RUN_STARTED_ELAPSED_NANOS - 1L,
+		)
+
+		assertManifestTimelineRejected()
+	}
+
+	@Test
+	fun missingHistoricalStepsPolicyFailsClosed() = runTest {
+		assertCandidateCaptureAuthorityRejected(
+			policy = null,
+			consent = stepCaptureConsent(epoch = 1L, policyRevision = 1L),
+		)
+	}
+
+	@Test
+	fun disabledHistoricalStepsPolicyFailsClosed() = runTest {
+		assertCandidateCaptureAuthorityRejected(
+			policy = stepPolicy(revision = 1L, enabled = false),
+			consent = stepCaptureConsent(epoch = 1L, policyRevision = 1L),
+		)
+	}
+
+	@Test
+	fun nonPersistentHistoricalStepsPolicyFailsClosed() = runTest {
+		assertCandidateCaptureAuthorityRejected(
+			policy = stepPolicy(revision = 1L, enabled = true).copy(
+				capturePersistenceEligible = false,
+			),
+			consent = stepCaptureConsent(epoch = 1L, policyRevision = 1L),
+		)
+	}
+
+	@Test
+	fun mismatchedHistoricalStepsPolicyConsentFailsClosed() = runTest {
+		assertCandidateCaptureAuthorityRejected(
+			policy = stepPolicy(revision = 1L, enabled = true).copy(captureConsentEpoch = 2L),
+			consent = stepCaptureConsent(epoch = 1L, policyRevision = 1L),
+		)
+	}
+
+	@Test
+	fun mismatchedHistoricalStepsPolicyQosFailsClosed() = runTest {
+		assertCandidateCaptureAuthorityRejected(
+			policy = stepPolicy(revision = 1L, enabled = true).copy(qosCode = 2),
+			consent = stepCaptureConsent(epoch = 1L, policyRevision = 1L),
+		)
+	}
+
+	@Test
+	fun missingHistoricalStepsConsentFailsClosed() = runTest {
+		assertCandidateCaptureAuthorityRejected(
+			policy = stepPolicy(revision = 1L, enabled = true),
+			consent = null,
+		)
+	}
+
+	@Test
+	fun ineligibleHistoricalStepsConsentFailsClosed() = runTest {
+		assertCandidateCaptureAuthorityRejected(
+			policy = stepPolicy(revision = 1L, enabled = true),
+			consent = stepCaptureConsent(epoch = 1L, policyRevision = 1L).copy(eligible = false),
+		)
+	}
+
+	@Test
+	fun nonPersistentHistoricalStepsConsentFailsClosed() = runTest {
+		assertCandidateCaptureAuthorityRejected(
+			policy = stepPolicy(revision = 1L, enabled = true),
+			consent = stepCaptureConsent(epoch = 1L, policyRevision = 1L).copy(
+				persistenceEligible = false,
+			),
+		)
+	}
+
+	@Test
+	fun futurePolicyHistoricalStepsConsentFailsClosed() = runTest {
+		assertCandidateCaptureAuthorityRejected(
+			policy = stepPolicy(revision = 1L, enabled = true),
+			consent = stepCaptureConsent(epoch = 1L, policyRevision = 2L),
+		)
+	}
+
+	@Test
+	fun generationOneAutomaticCaptureFailsClosed() = runTest {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)),
+			targetOrdinal = 1L,
+			laneCursor = 1L,
+			sessionMode = AUTOMATIC_SESSION_MODE,
+			writerBindingGeneration = BINDING_GENERATION,
+		)
+
+		selector.select(segment(RUN_ONE, steps = null)) shouldBe
+			failedResult(StepsHistoryReason.PRODUCT_LANE_INVALID)
+	}
+
+	@Test
+	fun generationTwoAutomaticCaptureUsesTheExactExecutableLane() = runTest {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)),
+			targetOrdinal = 1L,
+			laneCursor = 1L,
+			sessionMode = AUTOMATIC_SESSION_MODE,
+			writerBindingGeneration = AUTOMATIC_BINDING_GENERATION,
+		)
+
+		selector.select(segment(RUN_ONE, steps = null)) shouldBe StepsSegmentHistoryResult(
+			count = 5L,
+			availability = StepsHistoryAvailability.AVAILABLE,
+			evidence = StepsHistoryEvidence.RECORDED,
+			materialization = StepsHistoryMaterialization.READY,
+			coverage = StepsHistoryCoverage.COMPLETE,
+			reasons = emptySet(),
+		)
+	}
+
+	@Test
+	fun unknownStepsWriterGenerationFailsClosed() = runTest {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)),
+			targetOrdinal = 1L,
+			laneCursor = 1L,
+			writerBindingGeneration = UNKNOWN_BINDING_GENERATION,
+		)
+
+		selector.select(segment(RUN_ONE, steps = null)) shouldBe
+			failedResult(StepsHistoryReason.PRODUCT_LANE_INVALID)
+	}
+
+	@Test
+	fun observableLookupReactsWhenMissingCaptureConsentIsRestored() = runBlocking {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)),
+			targetOrdinal = 1L,
+			laneCursor = 1L,
+			seedStepCaptureAuthority = false,
+		)
+		database.sourcePolicyDao().insertPolicies(
+			listOf(stepPolicy(revision = 1L, enabled = true)),
+		)
+		val segmentId = database.sessionSegmentDao().insert(segment(RUN_ONE, steps = null))
+		val repository = historyRepository()
+		val initialEmission = CompletableDeferred<Unit>()
+		val collection = async {
+			repository.observeSession(segmentId)
+				.onEach { initialEmission.complete(Unit) }
+				.take(2)
+				.toList()
+		}
+
+		withTimeout(5_000L) { initialEmission.await() }
+		database.sourcePolicyDao().insertConsentEpochs(
+			listOf(stepCaptureConsent(epoch = 1L, policyRevision = 1L)),
+		)
+
+		val emissions = withTimeout(5_000L) { collection.await() }
+		val rejected = emissions.first() as SessionHistoryQuery.Found
+		rejected.history.qualifiedSources shouldBe emptySet()
+		rejected.history.steps.count shouldBe null
+		rejected.history.steps.productState shouldBe HistoryProductState.FAILED
+		rejected.history.steps.causes shouldBe setOf(StepsHistoryCause.HISTORY_INTEGRITY_FAILED)
+		val restored = emissions.last() as SessionHistoryQuery.Found
+		restored.history.qualifiedSources shouldBe setOf(HistorySource.STEPS)
+		restored.history.steps.count shouldBe 5L
+		restored.history.steps.productState shouldBe HistoryProductState.READY
+		Unit
 	}
 
 	@Test
@@ -1662,6 +2642,82 @@ class StepsSegmentHistorySelectorTest {
 	}
 
 	@Test
+	@Suppress("LongMethod")
+	fun validFactsRemainQueryableAcrossEveryBoundedIdentityPage() = runTest {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = (1L..FORMER_FACT_DEPENDENCY_CAP).map { ordinal ->
+				fact(
+					ordinal = ordinal,
+					coverage = StepFactRevisionEntity.COVERAGE_COVERED,
+					steps = 1L,
+					cumulativeStart = ordinal - 1L,
+					cumulativeEnd = ordinal,
+				)
+			},
+			targetOrdinal = FORMER_FACT_DEPENDENCY_CAP,
+			laneCursor = FORMER_FACT_DEPENDENCY_CAP,
+		)
+
+		selector.select(segment(RUN_ONE, steps = null)).also { exactCap ->
+			exactCap.count shouldBe FORMER_FACT_DEPENDENCY_CAP
+			exactCap.materialization shouldBe StepsHistoryMaterialization.READY
+			exactCap.coverage shouldBe StepsHistoryCoverage.COMPLETE
+		}
+
+		val nextPageOrdinal = FORMER_FACT_DEPENDENCY_CAP + 1L
+		database.stepFactRevisionDao().insert(
+			fact(
+				ordinal = nextPageOrdinal,
+				coverage = StepFactRevisionEntity.COVERAGE_COVERED,
+				steps = 1L,
+				cumulativeStart = nextPageOrdinal - 1L,
+				cumulativeEnd = nextPageOrdinal,
+			),
+		)
+		database.sourceSessionDao().saveCompleteness(
+			completeness(RUN_ONE, lastOrdinal = nextPageOrdinal),
+		)
+		advanceLane(
+			expectedCursor = FORMER_FACT_DEPENDENCY_CAP,
+			throughOrdinal = nextPageOrdinal,
+		)
+
+		selector.select(segment(RUN_ONE, steps = null)).also { nextPage ->
+			nextPage.count shouldBe nextPageOrdinal
+			nextPage.materialization shouldBe StepsHistoryMaterialization.READY
+			nextPage.coverage shouldBe StepsHistoryCoverage.COMPLETE
+		}
+	}
+
+	@Test
+	fun identityPagingUsesDatabaseOrderingAcrossUnicodeBoundary() = runTest {
+		val sourceEventIds = (1..255).map { index ->
+			"ascii-${index.toString().padStart(3, '0')}"
+		} + listOf("\uE000-fact", "\uD800\uDC00-fact")
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = sourceEventIds.mapIndexed { index, sourceEventId ->
+				fact(
+					ordinal = index + 1L,
+					coverage = StepFactRevisionEntity.COVERAGE_COVERED,
+					steps = 1L,
+					cumulativeStart = index.toLong(),
+					cumulativeEnd = index + 1L,
+				).withSourceEventIdentity(sourceEventId)
+			},
+			targetOrdinal = sourceEventIds.size.toLong(),
+			laneCursor = sourceEventIds.size.toLong(),
+		)
+
+		selector.select(segment(RUN_ONE, steps = null)).also { result ->
+			result.count shouldBe sourceEventIds.size.toLong()
+			result.materialization shouldBe StepsHistoryMaterialization.READY
+			result.coverage shouldBe StepsHistoryCoverage.COMPLETE
+		}
+	}
+
+	@Test
 	// Keep the complete cap+1 counterfactual together so dependency truncation alone is proven fail-closed.
 	@Suppress("LongMethod")
 	fun terminalFailureDependencyOverflowMakesAffectedHistoryUnavailableBeforeTruncatedRows() =
@@ -1796,7 +2852,13 @@ class StepsSegmentHistorySelectorTest {
 			runId = RUN_ONE,
 			facts = listOf(
 				fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L),
-				fact(2L, StepFactRevisionEntity.COVERAGE_RESET_GAP, 0L),
+				fact(
+					ordinal = 2L,
+					coverage = StepFactRevisionEntity.COVERAGE_RESET_GAP,
+					steps = 0L,
+					cumulativeStart = 105L,
+					cumulativeEnd = 0L,
+				),
 			),
 			targetOrdinal = 2L,
 			laneCursor = 2L,
@@ -1822,10 +2884,23 @@ class StepsSegmentHistorySelectorTest {
 					cumulativeStart = 0L,
 					cumulativeEnd = Long.MAX_VALUE,
 				),
-				fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 1L),
+				fact(
+					ordinal = 2L,
+					coverage = StepFactRevisionEntity.COVERAGE_BASELINE,
+					steps = 0L,
+					cumulativeStart = 0L,
+					cumulativeEnd = 0L,
+				),
+				fact(
+					ordinal = 3L,
+					coverage = StepFactRevisionEntity.COVERAGE_COVERED,
+					steps = 1L,
+					cumulativeStart = 0L,
+					cumulativeEnd = 1L,
+				),
 			),
-			targetOrdinal = 2L,
-			laneCursor = 2L,
+			targetOrdinal = 3L,
+			laneCursor = 3L,
 		)
 
 		selector.select(segment(RUN_ONE, steps = 999)) shouldBe StepsSegmentHistoryResult(
@@ -1867,8 +2942,17 @@ class StepsSegmentHistorySelectorTest {
 		insertCandidateRun(
 			runId = RUN_ONE,
 			facts = listOf(
-				fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L),
-				fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 3L),
+				fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L).copy(
+					intervalStartTimeMs = 1_101L,
+					intervalEndTimeMs = 1_101L,
+				),
+				fact(
+					ordinal = 2L,
+					coverage = StepFactRevisionEntity.COVERAGE_COVERED,
+					steps = 3L,
+					cumulativeStart = 105L,
+					cumulativeEnd = 108L,
+				),
 			),
 			targetOrdinal = 2L,
 			laneCursor = 2L,
@@ -1888,7 +2972,7 @@ class StepsSegmentHistorySelectorTest {
 	}
 
 	@Test
-	fun soleFactRetractionIsAnIntentionalDeletedResultRatherThanMissingMaterialization() = runTest {
+	fun unfencedSoleFactRetractionFailsIntegrityInsteadOfClaimingDeletion() = runTest {
 		val original = fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)
 		insertCandidateRun(
 			runId = RUN_ONE,
@@ -1898,18 +2982,11 @@ class StepsSegmentHistorySelectorTest {
 		)
 		database.stepFactRevisionDao().insert(retraction(original))
 
-		selector.select(segment(RUN_ONE, steps = 999)) shouldBe StepsSegmentHistoryResult(
-			count = null,
-			availability = StepsHistoryAvailability.DELETED,
-			evidence = StepsHistoryEvidence.NO_OBSERVATION,
-			materialization = StepsHistoryMaterialization.READY,
-			coverage = StepsHistoryCoverage.NONE,
-			reasons = setOf(StepsHistoryReason.DELETED_FACTS),
-		)
+		selector.select(segment(RUN_ONE, steps = 999)) shouldBe failedFactIntegrityResult()
 	}
 
 	@Test
-	fun partialFactRetractionKeepsOnlyTheSurvivingLowerBoundAndMarksItPartial() = runTest {
+	fun unfencedPartialFactRetractionCannotReduceTheVisibleTotal() = runTest {
 		val deleted = fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)
 		val surviving = fact(2L, StepFactRevisionEntity.COVERAGE_COVERED, 3L)
 		insertCandidateRun(
@@ -1920,20 +2997,14 @@ class StepsSegmentHistorySelectorTest {
 		)
 		database.stepFactRevisionDao().insert(retraction(deleted))
 
-		val result = selector.select(segment(RUN_ONE, steps = 999))
-		result.count shouldBe 3L
-		result.availability shouldBe StepsHistoryAvailability.AVAILABLE
-		result.evidence shouldBe StepsHistoryEvidence.RECORDED
-		result.materialization shouldBe StepsHistoryMaterialization.READY
-		result.coverage shouldBe StepsHistoryCoverage.PARTIAL
-		result.reasons shouldBe setOf(StepsHistoryReason.DELETED_FACTS)
+		selector.select(segment(RUN_ONE, steps = 999)) shouldBe failedFactIntegrityResult()
 	}
 
 	@Test
-	fun staleRetractionCannotDeleteAFactFromTheCurrentDataEpoch() = runTest {
+	fun staleUnfencedRetractionFailsDeletionAuthorityBeforeEpochInterpretation() = runTest {
 		val current = fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L).copy(
 			collectedDataEpoch = 1L,
-		)
+		).withValidLiveWalEffectChecksum()
 		insertCandidateRun(
 			runId = RUN_ONE,
 			facts = listOf(current),
@@ -1949,18 +3020,11 @@ class StepsSegmentHistorySelectorTest {
 			retraction(current, collectedDataEpoch = 0L),
 		)
 
-		selector.select(segment(RUN_ONE, steps = 999)) shouldBe StepsSegmentHistoryResult(
-			count = null,
-			availability = StepsHistoryAvailability.AVAILABLE,
-			evidence = StepsHistoryEvidence.NO_OBSERVATION,
-			materialization = StepsHistoryMaterialization.FAILED,
-			coverage = StepsHistoryCoverage.UNKNOWN,
-			reasons = setOf(StepsHistoryReason.STALE_COLLECTED_DATA_EPOCH),
-		)
+		selector.select(segment(RUN_ONE, steps = 999)) shouldBe failedFactIntegrityResult()
 	}
 
 	@Test
-	fun currentRetractionSafelySuppressesAnUpsertFromThePriorDataEpoch() = runTest {
+	fun currentEpochRetractionStillRequiresDurableDeletionFence() = runTest {
 		val stale = fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)
 		insertCandidateRun(
 			runId = RUN_ONE,
@@ -1977,11 +3041,7 @@ class StepsSegmentHistorySelectorTest {
 			retraction(stale, collectedDataEpoch = 1L),
 		)
 
-		val result = selector.select(segment(RUN_ONE, steps = 999))
-		result.availability shouldBe StepsHistoryAvailability.DELETED
-		result.materialization shouldBe StepsHistoryMaterialization.READY
-		result.coverage shouldBe StepsHistoryCoverage.NONE
-		result.reasons shouldBe setOf(StepsHistoryReason.DELETED_FACTS)
+		selector.select(segment(RUN_ONE, steps = 999)) shouldBe failedFactIntegrityResult()
 	}
 
 	@Test
@@ -2119,6 +3179,32 @@ class StepsSegmentHistorySelectorTest {
 			entry.physicalMembers.filter(HistoricalSegmentEvidence::isOrdinarilyDiscoverable)
 		}
 
+	private fun failedFactIntegrityResult() = failedResult(
+		StepsHistoryReason.STEP_FACT_INTEGRITY_FAILED,
+	)
+
+	private fun invalidCompletenessResult() = failedResult(
+		StepsHistoryReason.COMPLETENESS_INVALID,
+	)
+
+	private fun failedResult(reason: StepsHistoryReason) = StepsSegmentHistoryResult(
+		count = null,
+		availability = StepsHistoryAvailability.AVAILABLE,
+		evidence = StepsHistoryEvidence.NO_OBSERVATION,
+		materialization = StepsHistoryMaterialization.FAILED,
+		coverage = StepsHistoryCoverage.UNKNOWN,
+		reasons = setOf(reason),
+	)
+
+	private fun unavailableResult(reason: StepsHistoryReason) = StepsSegmentHistoryResult(
+		count = null,
+		availability = StepsHistoryAvailability.UNAVAILABLE,
+		evidence = StepsHistoryEvidence.NO_OBSERVATION,
+		materialization = StepsHistoryMaterialization.FAILED,
+		coverage = StepsHistoryCoverage.UNKNOWN,
+		reasons = setOf(reason),
+	)
+
 	private fun historyRepository() = DefaultTrackingHistoryRepository(
 		database = database,
 		stepsSelector = selector,
@@ -2140,6 +3226,34 @@ class StepsSegmentHistorySelectorTest {
 		)
 	}
 
+	private suspend fun assertManifestTimelineRejected() {
+		val evidence = selector.selectEvidence(segment(RUN_ONE, steps = 14))
+		evidence.captureAuthority shouldBe HistoricalCaptureAuthority.Unverifiable(
+			HistoricalCaptureFailure.MANIFEST_INTEGRITY_FAILED,
+		)
+		evidence.steps shouldBe unavailableResult(StepsHistoryReason.MANIFEST_INTEGRITY_FAILED)
+		evidence.qualifiedSources shouldBe emptySet()
+	}
+
+	private suspend fun assertCandidateCaptureAuthorityRejected(
+		policy: SourcePolicyEntity?,
+		consent: SourceConsentEpochEntity?,
+	) {
+		insertCandidateRun(
+			runId = RUN_ONE,
+			facts = listOf(fact(1L, StepFactRevisionEntity.COVERAGE_COVERED, 5L)),
+			targetOrdinal = 1L,
+			laneCursor = 1L,
+			seedStepCaptureAuthority = false,
+		)
+		policy?.let { database.sourcePolicyDao().insertPolicies(listOf(it)) }
+		consent?.let { database.sourcePolicyDao().insertConsentEpochs(listOf(it)) }
+
+		val evidence = selector.selectEvidence(segment(RUN_ONE, steps = null))
+		evidence.steps shouldBe failedResult(StepsHistoryReason.SOURCE_POLICY_ATTRIBUTION_INVALID)
+		evidence.qualifiedSources shouldBe emptySet()
+	}
+
 	private suspend fun insertCandidateRun(
 		runId: String,
 		facts: List<StepFactRevisionEntity>,
@@ -2150,19 +3264,40 @@ class StepsSegmentHistorySelectorTest {
 		manifestRevision: Long = 1L,
 		providerCoverage: String = COMPLETE_PROVIDER_COVERAGE,
 		serviceRunCompleted: Boolean = true,
-		installedLane: SourceProductProjectionLaneEntity = lane(cursor = laneCursor),
+		sessionMode: String = MANUAL_SESSION_MODE,
+		writerBindingGeneration: Long = BINDING_GENERATION,
+		captureModeMask: Long = if (writerBindingGeneration == AUTOMATIC_BINDING_GENERATION) {
+			MANUAL_AND_AUTOMATIC_CAPTURE_MASK
+		} else {
+			MANUAL_CAPTURE_MASK
+		},
+		seedStepCaptureAuthority: Boolean = true,
+		installedLane: SourceProductProjectionLaneEntity = lane(
+			cursor = laneCursor,
+			bindingGeneration = writerBindingGeneration,
+			captureModeMask = captureModeMask,
+		),
+		factTransform: (StepFactRevisionEntity) -> StepFactRevisionEntity = { it },
 	) {
 		insertRun(
 			runId = runId,
 			logicalId = logicalId,
 			completed = serviceRunCompleted,
 			sessionSegmentId = segmentId,
+			startOrigin = if (sessionMode == AUTOMATIC_SESSION_MODE) {
+				AUTOMATIC_START_ORIGIN
+			} else {
+				MANUAL_START_ORIGIN
+			},
 		)
 		insertManifest(
 			runId = runId,
 			logicalId = logicalId,
 			revision = manifestRevision,
 			owner = CANDIDATE_OWNER,
+			sessionMode = sessionMode,
+			writerBindingGeneration = writerBindingGeneration,
+			seedStepCaptureAuthority = seedStepCaptureAuthority,
 		)
 		database.sourceProjectionStateDao().installProductLane(installedLane)
 		database.sourceSessionDao().saveCompleteness(
@@ -2174,15 +3309,52 @@ class StepsSegmentHistorySelectorTest {
 			),
 		)
 		facts.forEach { fact ->
-			database.stepFactRevisionDao().insert(
-				fact.copy(
-					logicalTrackingId = logicalId,
-					serviceRunId = runId,
+			val transformed = factTransform(
+				fact.withTestAttribution(
+					logicalId = logicalId,
+					runId = runId,
 					manifestRevision = manifestRevision,
-					sourcePolicyRevision = manifestRevision,
+					writerBindingGeneration = writerBindingGeneration,
 				),
 			)
+			database.stepFactRevisionDao().insert(
+				transformed.withValidLiveWalEffectChecksum(),
+			)
 		}
+	}
+
+	private fun StepFactRevisionEntity.withTestAttribution(
+		logicalId: String,
+		runId: String,
+		manifestRevision: Long,
+		writerBindingGeneration: Long = BINDING_GENERATION,
+	): StepFactRevisionEntity {
+		val endTimeMs = requireNotNull(intervalEndTimeMs)
+		val admissionOrdinal = requireNotNull(sourceAdmissionOrdinal)
+		val elapsedEndNanos = Math.addExact(
+			Math.addExact(
+				Math.multiplyExact(manifestRevision, TEST_MANIFEST_ELAPSED_STRIDE),
+				Math.multiplyExact(admissionOrdinal, TEST_FACT_ELAPSED_STRIDE),
+			),
+			1L,
+		)
+		val elapsedStartNanos = if (coverageKind == StepFactRevisionEntity.COVERAGE_BASELINE) {
+			elapsedEndNanos
+		} else {
+			elapsedEndNanos - 1L
+		}
+		return copy(
+			intervalStartTimeMs = endTimeMs,
+			intervalEndTimeMs = endTimeMs,
+			intervalStartElapsedRealtimeNanos = elapsedStartNanos,
+			intervalEndElapsedRealtimeNanos = elapsedEndNanos,
+			logicalTrackingId = logicalId,
+			serviceRunId = runId,
+			manifestRevision = manifestRevision,
+			sourcePolicyRevision = manifestRevision,
+			writerBindingGeneration = writerBindingGeneration,
+			appliedAtMs = endTimeMs,
+		)
 	}
 
 	private suspend fun insertRun(
@@ -2192,19 +3364,34 @@ class StepsSegmentHistorySelectorTest {
 		sessionSegmentId: Long? = SEGMENT_ID,
 		presentationAcknowledgement: String = SourceServiceRunEntity.PRESENTATION_PENDING,
 		presentationAcknowledgedAtMs: Long? = null,
+		desiredPlanRevision: Long = 1L,
+		rolloutRevision: Long = TEST_ROLLOUT_REVISION,
+		startedAtMs: Long = TEST_RUN_STARTED_AT_MS,
+		startedElapsedNanos: Long = TEST_RUN_STARTED_ELAPSED_NANOS,
+		startOrigin: String = MANUAL_START_ORIGIN,
+		preparedManifestRevision: Long = 1L,
 	) {
 		database.sourceSessionDao().insertServiceRun(
 			SourceServiceRunEntity(
 				serviceRunId = runId,
 				logicalTrackingId = logicalId,
 				state = if (completed) "FINALIZED" else "ACTIVE",
-				desiredPlanRevision = 1L,
-				rolloutRevision = 1L,
+				desiredPlanRevision = desiredPlanRevision,
+				rolloutRevision = rolloutRevision,
 				foregroundCapabilityFlags = 0L,
-				startedAtMs = 1_000L,
-				startedElapsedNanos = 1_000L,
-				completedAtMs = 2_000L.takeIf { completed },
+				startedAtMs = startedAtMs,
+				startedElapsedNanos = startedElapsedNanos,
+				completedAtMs = (startedAtMs + TEST_RUN_DURATION_MS).takeIf { completed },
 				completionReason = "STOPPED".takeIf { completed },
+				bootId = "boot-1",
+				leaseGeneration = 1L,
+				startOrigin = startOrigin,
+				runRevision = 1L,
+				startDeliveryToken = "delivery-$runId",
+				startCommandGeneration = 1L,
+				preparedManifestRevision = preparedManifestRevision,
+				preparedIntentRevision = 1L,
+				startIsUserInitiated = startOrigin == MANUAL_START_ORIGIN,
 				sessionSegmentId = sessionSegmentId,
 				presentationAcknowledgement = presentationAcknowledgement,
 				presentationAcknowledgedAtMs = presentationAcknowledgedAtMs,
@@ -2218,6 +3405,15 @@ class StepsSegmentHistorySelectorTest {
 		revision: Long,
 		owner: String,
 		additionalSources: List<SessionManifestSourceEntity> = emptyList(),
+		sessionMode: String = MANUAL_SESSION_MODE,
+		writerBindingGeneration: Long = BINDING_GENERATION,
+		seedStepCaptureAuthority: Boolean = true,
+		acquisitionPlanRevision: Long = revision,
+		rolloutRevision: Long = TEST_ROLLOUT_REVISION,
+		startOrigin: String? = null,
+		effectiveElapsedRealtimeNanos: Long? = null,
+		effectiveWallTimeMs: Long? = null,
+		synchronizeRunTimeline: Boolean = true,
 	) {
 		val candidate = owner == CANDIDATE_OWNER
 		val source = SessionManifestSourceEntity(
@@ -2233,7 +3429,7 @@ class StepsSegmentHistorySelectorTest {
 			writerOwnerGeneration = if (candidate) 2L else 1L,
 			writerProjectionId = WRITER_ID.takeIf { candidate },
 			writerProjectionVersion = WRITER_VERSION.takeIf { candidate },
-			writerBindingGeneration = BINDING_GENERATION.takeIf { candidate },
+			writerBindingGeneration = writerBindingGeneration.takeIf { candidate },
 		)
 		val sources = listOf(source) + additionalSources
 		insertExactManifest(
@@ -2241,37 +3437,100 @@ class StepsSegmentHistorySelectorTest {
 			logicalId = logicalId,
 			revision = revision,
 			sources = sources,
+			sessionMode = sessionMode,
+			seedStepCaptureAuthority = seedStepCaptureAuthority,
+			acquisitionPlanRevision = acquisitionPlanRevision,
+			rolloutRevision = rolloutRevision,
+			startOrigin = startOrigin,
+			effectiveElapsedRealtimeNanos = effectiveElapsedRealtimeNanos,
+			effectiveWallTimeMs = effectiveWallTimeMs,
+			synchronizeRunTimeline = synchronizeRunTimeline,
 		)
 	}
 
+	@Suppress("CyclomaticComplexMethod", "LongMethod")
 	private suspend fun insertExactManifest(
 		runId: String,
 		logicalId: String = LOGICAL_ID,
 		revision: Long,
 		sources: List<SessionManifestSourceEntity>,
+		sessionMode: String = MANUAL_SESSION_MODE,
+		seedStepCaptureAuthority: Boolean = true,
+		acquisitionPlanRevision: Long = revision,
+		rolloutRevision: Long = TEST_ROLLOUT_REVISION,
+		startOrigin: String? = null,
+		effectiveElapsedRealtimeNanos: Long? = null,
+		effectiveWallTimeMs: Long? = null,
+		synchronizeRunTimeline: Boolean = true,
 	) {
+		val sourceSessionDao = database.sourceSessionDao()
+		val priorManifest = sourceSessionDao.manifestsForServiceRun(runId).lastOrNull()
+		val run = requireNotNull(sourceSessionDao.serviceRun(runId))
+		val resolvedElapsedRealtimeNanos = effectiveElapsedRealtimeNanos ?: priorManifest
+			?.effectiveElapsedRealtimeNanos
+			?.plus(TEST_MANIFEST_ELAPSED_STRIDE)
+			?: run.startedElapsedNanos
+		val resolvedWallTimeMs = effectiveWallTimeMs ?: priorManifest?.effectiveWallTimeMs
+			?.plus(TEST_MANIFEST_WALL_STRIDE_MS)
+			?: run.startedAtMs
+		val resolvedStartOrigin = startOrigin ?: if (priorManifest == null) {
+			run.startOrigin
+		} else {
+			POLICY_RECONCILIATION_ORIGIN
+		}
+		if (synchronizeRunTimeline) {
+			val completedAtMs = run.completedAtMs?.coerceAtLeast(resolvedWallTimeMs)
+			val synchronizedRun = if (priorManifest == null) {
+				run.copy(
+					desiredPlanRevision = acquisitionPlanRevision,
+					rolloutRevision = rolloutRevision,
+					startedAtMs = resolvedWallTimeMs,
+					startedElapsedNanos = resolvedElapsedRealtimeNanos,
+					completedAtMs = completedAtMs,
+					startOrigin = resolvedStartOrigin,
+					preparedManifestRevision = revision,
+					startIsUserInitiated = resolvedStartOrigin == MANUAL_START_ORIGIN,
+				)
+			} else {
+				run.copy(
+					desiredPlanRevision = acquisitionPlanRevision,
+					completedAtMs = completedAtMs,
+				)
+			}
+			if (synchronizedRun != run) {
+				sourceSessionDao.updateServiceRun(synchronizedRun) shouldBe 1
+			}
+		}
 		val unsigned = SessionManifestVersionEntity(
 			logicalTrackingId = logicalId,
 			manifestRevision = revision,
 			serviceRunId = runId,
-			sessionMode = "MANUAL",
+			sessionMode = sessionMode,
 			sourcePolicyRevision = revision,
-			acquisitionPlanRevision = revision,
-			rolloutRevision = 1L,
-			startOrigin = "MANUAL_FOREGROUND_START",
+			acquisitionPlanRevision = acquisitionPlanRevision,
+			rolloutRevision = rolloutRevision,
+			startOrigin = resolvedStartOrigin,
 			effectiveBootId = "boot-1",
-			effectiveElapsedRealtimeNanos = revision * 1_000L,
-			effectiveWallTimeMs = revision * 1_000L,
+			effectiveElapsedRealtimeNanos = resolvedElapsedRealtimeNanos,
+			effectiveWallTimeMs = resolvedWallTimeMs,
 			zoneId = "UTC",
-			automationEpoch = null,
-			changeReason = "TEST",
+			automationEpoch = FIRST_AUTOMATION_EPOCH.takeIf {
+				sessionMode == AUTOMATIC_SESSION_MODE
+			},
+			changeReason = if (priorManifest == null) "TEST" else POLICY_RECONCILIATION_ORIGIN,
 			manifestChecksum = "",
 		)
 		val manifest = unsigned.copy(
 			manifestChecksum = SessionManifestIntegrity.compute(unsigned, sources),
 		)
-		database.sourceSessionDao().insertManifest(manifest)
-		database.sourceSessionDao().insertManifestSources(sources)
+		sourceSessionDao.insertManifest(manifest)
+		sourceSessionDao.insertManifestSources(sources)
+		if (seedStepCaptureAuthority) {
+			seedValidStepCaptureAuthority(
+				manifestPolicyRevision = manifest.sourcePolicyRevision,
+				sources = sources,
+			)
+		}
 	}
 
 	private fun sourceMembership(
@@ -2300,35 +3559,63 @@ class StepsSegmentHistorySelectorTest {
 			persistenceEligible = true,
 			qosCode = 1,
 		)
-		val unsigned = SessionManifestVersionEntity(
-			logicalTrackingId = LOGICAL_ID,
-			manifestRevision = revision,
-			serviceRunId = runId,
-			sessionMode = "MANUAL",
-			sourcePolicyRevision = revision,
-			acquisitionPlanRevision = revision,
-			rolloutRevision = 1L,
-			startOrigin = "MANUAL_FOREGROUND_START",
-			effectiveBootId = "boot-1",
-			effectiveElapsedRealtimeNanos = revision * 1_000L,
-			effectiveWallTimeMs = revision * 1_000L,
-			zoneId = "UTC",
-			automationEpoch = null,
-			changeReason = "TEST",
-			manifestChecksum = "",
+		insertExactManifest(
+			runId = runId,
+			revision = revision,
+			sources = listOf(locationSource),
+			seedStepCaptureAuthority = false,
 		)
-		val manifest = unsigned.copy(
-			manifestChecksum = SessionManifestIntegrity.compute(unsigned, listOf(locationSource)),
-		)
-		database.sourceSessionDao().insertManifest(manifest)
-		database.sourceSessionDao().insertManifestSources(listOf(locationSource))
+	}
+
+	private suspend fun seedValidStepCaptureAuthority(
+		manifestPolicyRevision: Long,
+		sources: List<SessionManifestSourceEntity>,
+	) {
+		val sourcePolicyDao = database.sourcePolicyDao()
+		sources.filter { source ->
+			source.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
+				source.purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
+				source.persistenceEligible
+		}.forEach { binding ->
+			if (
+				sourcePolicyDao.policyAtRevision(
+					manifestPolicyRevision,
+					SourceDestinationOwnerEntity.SOURCE_STEPS,
+				) == null
+			) {
+				sourcePolicyDao.insertPolicies(
+					listOf(
+						stepPolicy(revision = manifestPolicyRevision, enabled = true).copy(
+							qosCode = binding.qosCode,
+							captureConsentEpoch = binding.consentEpoch,
+						),
+					),
+				)
+			}
+			if (
+				sourcePolicyDao.consentEpoch(
+					SourceDestinationOwnerEntity.SOURCE_STEPS,
+					SessionManifestPurposeCode.SESSION_CAPTURE,
+					binding.consentEpoch,
+				) == null
+			) {
+				sourcePolicyDao.insertConsentEpochs(
+					listOf(
+						stepCaptureConsent(
+							epoch = binding.consentEpoch,
+							policyRevision = FIRST_POLICY_REVISION,
+						),
+					),
+				)
+			}
+		}
 	}
 
 	private fun stepPolicy(revision: Long, enabled: Boolean) = SourcePolicyEntity(
 		policyRevision = revision,
 		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 		enabled = enabled,
-		qosCode = 1,
+		qosCode = if (enabled) 1 else 0,
 		locationMinTimeSeconds = null,
 		locationMinDistanceMeters = null,
 		locationRequiredAccuracyMeters = null,
@@ -2339,8 +3626,24 @@ class StepsSegmentHistorySelectorTest {
 		controlConsentEpoch = null,
 		ambientConsentEpoch = null,
 		effectiveBootId = "boot-1",
-		effectiveElapsedRealtimeNanos = revision * 1_000L,
+		effectiveElapsedRealtimeNanos = revision * TEST_MANIFEST_ELAPSED_STRIDE,
 		effectiveWallTimeMs = revision * 1_000L,
+		changeReason = "TEST",
+	)
+
+	private fun stepCaptureConsent(
+		epoch: Long,
+		policyRevision: Long,
+	) = SourceConsentEpochEntity(
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+		purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+		epoch = epoch,
+		eligible = true,
+		persistenceEligible = true,
+		policyRevision = policyRevision,
+		effectiveBootId = "boot-1",
+		effectiveElapsedRealtimeNanos = policyRevision * TEST_MANIFEST_ELAPSED_STRIDE,
+		effectiveWallTimeMs = policyRevision * 1_000L,
 		changeReason = "TEST",
 	)
 
@@ -2371,14 +3674,16 @@ class StepsSegmentHistorySelectorTest {
 	private fun completeness(
 		runId: String,
 		logicalId: String = LOGICAL_ID,
-		lastOrdinal: Long,
+		lastOrdinal: Long?,
 		providerCoverage: String = COMPLETE_PROVIDER_COVERAGE,
+		registrationGeneration: Long = 1L,
+		sourceInstanceId: String = "steps-instance-$registrationGeneration",
 	) = SourceSessionCompletenessEntity(
 		logicalTrackingId = logicalId,
 		serviceRunId = runId,
 		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
-		sourceInstanceId = "steps-instance",
-		registrationGeneration = 1L,
+		sourceInstanceId = sourceInstanceId,
+		registrationGeneration = registrationGeneration,
 		lastAdmissionOrdinal = lastOrdinal,
 		lastSourceSequence = lastOrdinal,
 		appDrainComplete = true,
@@ -2394,12 +3699,13 @@ class StepsSegmentHistorySelectorTest {
 		projectionId: String = WRITER_ID,
 		projectionVersion: Int = WRITER_VERSION,
 		bindingGeneration: Long = BINDING_GENERATION,
+		captureModeMask: Long = MANUAL_CAPTURE_MASK,
 	) = SourceProductProjectionLaneEntity(
 		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 		bindingGeneration = bindingGeneration,
 		projectionId = projectionId,
 		projectionVersion = projectionVersion,
-		captureModeMask = 1L,
+		captureModeMask = captureModeMask,
 		productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
 		activatedRolloutRevision = 2L,
 		activationOrdinal = 1L,
@@ -2444,23 +3750,29 @@ class StepsSegmentHistorySelectorTest {
 		steps: Long,
 		cumulativeStart: Long = 100L,
 		cumulativeEnd: Long? = null,
-	) = StepFactRevisionEntity(
-		logicalFactId = "fact-$ordinal",
+	): StepFactRevisionEntity {
+		val sourceEventId = "event-$ordinal"
+		val logicalFactId = "$WRITER_ID:$sourceEventId"
+		return StepFactRevisionEntity(
+		logicalFactId = logicalFactId,
 		semanticRevision = 1L,
-		mutationId = "mutation-$ordinal",
+		mutationId = "$logicalFactId:1:${StepFactRevisionEntity.OPERATION_UPSERT}",
 		stepIntervalId = null,
-		sourceEventId = "event-$ordinal",
+		sourceEventId = sourceEventId,
 		sourceAdmissionOrdinal = ordinal,
 		originKind = StepFactRevisionEntity.ORIGIN_LIVE_WAL,
-		originIdentity = "event-$ordinal",
+		originIdentity = sourceEventId,
 		writerProjectionId = WRITER_ID,
 		writerProjectionVersion = WRITER_VERSION,
 		writerBindingGeneration = BINDING_GENERATION,
 		operation = StepFactRevisionEntity.OPERATION_UPSERT,
-		intervalStartTimeMs = 1_000L + ordinal,
-		intervalEndTimeMs = 1_100L + ordinal,
-		intervalStartElapsedRealtimeNanos = 1_000L + ordinal,
-		intervalEndElapsedRealtimeNanos = 1_100L + ordinal,
+		intervalStartTimeMs = 1_500L,
+		intervalEndTimeMs = 1_500L,
+		intervalStartElapsedRealtimeNanos = TEST_MANIFEST_ELAPSED_STRIDE +
+			ordinal * TEST_FACT_ELAPSED_STRIDE +
+			if (coverage == StepFactRevisionEntity.COVERAGE_BASELINE) 1L else 0L,
+		intervalEndElapsedRealtimeNanos = TEST_MANIFEST_ELAPSED_STRIDE +
+			ordinal * TEST_FACT_ELAPSED_STRIDE + 1L,
 		clockDomainId = "boot-1",
 		bootClockDomainId = "boot-1",
 		cumulativeStepCountStart = cumulativeStart,
@@ -2473,7 +3785,11 @@ class StepsSegmentHistorySelectorTest {
 		},
 		wallTimeUncertaintyMs = 0L,
 		coverageKind = coverage,
-		effectiveStepCount = steps,
+		effectiveStepCount = if (
+			coverage == StepFactRevisionEntity.COVERAGE_BASELINE ||
+			coverage == StepFactRevisionEntity.COVERAGE_RESET_GAP ||
+			coverage == StepFactRevisionEntity.COVERAGE_PARTIAL
+		) 0L else steps,
 		logicalTrackingId = LOGICAL_ID,
 		serviceRunId = RUN_ONE,
 		purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
@@ -2483,42 +3799,76 @@ class StepsSegmentHistorySelectorTest {
 		collectedDataEpoch = 0L,
 		scopeDeletionGeneration = 0L,
 		effectChecksum = "checksum-$ordinal",
-		appliedAtMs = 2_000L,
-	)
+		appliedAtMs = 1_500L,
+	).withValidLiveWalEffectChecksum()
+	}
+
+	private fun StepFactRevisionEntity.withValidLiveWalEffectChecksum(): StepFactRevisionEntity =
+		copy(effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(this))
+
+	private fun StepFactRevisionEntity.withSourceEventIdentity(
+		sourceEventId: String,
+	): StepFactRevisionEntity {
+		val logicalFactId = "$writerProjectionId:$sourceEventId"
+		return copy(
+			logicalFactId = logicalFactId,
+			mutationId = "$logicalFactId:$semanticRevision:${StepFactRevisionEntity.OPERATION_UPSERT}",
+			sourceEventId = sourceEventId,
+			originIdentity = sourceEventId,
+		).withValidLiveWalEffectChecksum()
+	}
 
 	private fun retraction(
 		fact: StepFactRevisionEntity,
 		collectedDataEpoch: Long = fact.collectedDataEpoch,
-	) = fact.copy(
-		semanticRevision = fact.semanticRevision + 1L,
-		mutationId = "delete-${fact.logicalFactId}",
-		stepIntervalId = null,
-		sourceEventId = null,
-		sourceAdmissionOrdinal = null,
-		originKind = StepFactRevisionEntity.ORIGIN_LOCAL_DELETE,
-		originIdentity = "delete-request-${fact.logicalFactId}",
-		operation = StepFactRevisionEntity.OPERATION_RETRACT,
-		intervalStartTimeMs = null,
-		intervalEndTimeMs = null,
-		intervalStartElapsedRealtimeNanos = null,
-		intervalEndElapsedRealtimeNanos = null,
-		clockDomainId = null,
-		bootClockDomainId = null,
-		cumulativeStepCountStart = null,
-		cumulativeStepCountEnd = null,
-		wallTimeUncertaintyMs = null,
-		coverageKind = null,
-		effectiveStepCount = null,
-		logicalTrackingId = null,
-		serviceRunId = null,
-		manifestRevision = null,
-		sourcePolicyRevision = null,
-		captureConsentEpoch = null,
-		collectedDataEpoch = collectedDataEpoch,
-		scopeDeletionGeneration = 1L,
-		effectChecksum = "delete-checksum-${fact.logicalFactId}",
-		appliedAtMs = 3_000L,
-	)
+	): StepFactRevisionEntity {
+		val scopeIdentityDigest = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			purpose = fact.purpose,
+			logicalTrackingId = requireNotNull(fact.logicalTrackingId),
+			serviceRunId = requireNotNull(fact.serviceRunId),
+		)
+		val semanticRevision = fact.semanticRevision + 1L
+		val deletionGeneration = 1L
+		val unsigned = fact.copy(
+			semanticRevision = semanticRevision,
+			mutationId = StepFactRevisionIntegrity.localDeleteMutationId(
+				scopeIdentityDigest = scopeIdentityDigest,
+				logicalFactId = fact.logicalFactId,
+				semanticRevision = semanticRevision,
+				scopeDeletionGeneration = deletionGeneration,
+			),
+			stepIntervalId = null,
+			sourceEventId = null,
+			sourceAdmissionOrdinal = null,
+			originKind = StepFactRevisionEntity.ORIGIN_LOCAL_DELETE,
+			originIdentity = scopeIdentityDigest,
+			operation = StepFactRevisionEntity.OPERATION_RETRACT,
+			intervalStartTimeMs = null,
+			intervalEndTimeMs = null,
+			intervalStartElapsedRealtimeNanos = null,
+			intervalEndElapsedRealtimeNanos = null,
+			clockDomainId = null,
+			bootClockDomainId = null,
+			cumulativeStepCountStart = null,
+			cumulativeStepCountEnd = null,
+			wallTimeUncertaintyMs = null,
+			coverageKind = null,
+			effectiveStepCount = null,
+			logicalTrackingId = null,
+			serviceRunId = null,
+			manifestRevision = null,
+			sourcePolicyRevision = null,
+			captureConsentEpoch = null,
+			collectedDataEpoch = collectedDataEpoch,
+			scopeDeletionGeneration = deletionGeneration,
+			effectChecksum = "pending-local-delete-checksum",
+			appliedAtMs = 3_000L,
+		)
+		return unsigned.copy(
+			effectChecksum = StepFactRevisionIntegrity.localDeleteEffectChecksum(unsigned),
+		)
+	}
 
 	private fun owner(owner: String, generation: Long) = SourceDestinationOwnerEntity(
 		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
@@ -2527,6 +3877,22 @@ class StepsSegmentHistorySelectorTest {
 		ownerGeneration = generation,
 		updatedAtMs = 1L,
 	)
+
+	private fun executableLaneAuthority() = SourceProductLaneExecutionAuthority { lane ->
+		if (
+			lane.sourceKind != SourceDestinationOwnerEntity.SOURCE_STEPS ||
+			lane.projectionId != WRITER_ID || lane.projectionVersion != WRITER_VERSION
+		) {
+			false
+		} else {
+			when (lane.bindingGeneration) {
+				BINDING_GENERATION -> lane.captureModeMask == MANUAL_CAPTURE_MASK
+				AUTOMATIC_BINDING_GENERATION ->
+					lane.captureModeMask == MANUAL_AND_AUTOMATIC_CAPTURE_MASK
+				else -> false
+			}
+		}
+	}
 
 	private data class HistoryRunFixture(
 		val runId: String,
@@ -2547,6 +3913,27 @@ class StepsSegmentHistorySelectorTest {
 		const val WRITER_ID = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID
 		const val WRITER_VERSION = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION
 		const val BINDING_GENERATION = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION
+		const val AUTOMATIC_BINDING_GENERATION =
+			SourceDestinationOwnerEntity.STEPS_FACT_AUTOMATIC_BINDING_GENERATION
+		const val UNKNOWN_BINDING_GENERATION = 99L
+		const val MANUAL_CAPTURE_MASK = 1L
+		const val AUTOMATIC_CAPTURE_MASK = 1L shl 1
+		const val MANUAL_AND_AUTOMATIC_CAPTURE_MASK = MANUAL_CAPTURE_MASK + AUTOMATIC_CAPTURE_MASK
+		const val MANUAL_SESSION_MODE = "MANUAL"
+		const val AUTOMATIC_SESSION_MODE = "AUTOMATIC"
+		const val MANUAL_START_ORIGIN = "MANUAL_FOREGROUND_START"
+		const val AUTOMATIC_START_ORIGIN = "AUTOMATIC_BACKGROUND_START"
+		const val POLICY_RECONCILIATION_ORIGIN = "POLICY_RECONCILIATION"
+		const val TEST_ROLLOUT_REVISION = 2L
+		const val TEST_RUN_STARTED_AT_MS = 1_000L
+		const val TEST_RUN_STARTED_ELAPSED_NANOS = 10_000_000L
+		const val TEST_RUN_DURATION_MS = 1_000L
+		const val FIRST_AUTOMATION_EPOCH = 1L
+		const val FIRST_POLICY_REVISION = 1L
+		const val FORMER_FACT_DEPENDENCY_CAP = 2_048L
+		const val TEST_MANIFEST_ELAPSED_STRIDE = 10_000_000L
+		const val TEST_FACT_ELAPSED_STRIDE = 1L
+		const val TEST_MANIFEST_WALL_STRIDE_MS = 1_000L
 		const val TERMINAL_FAILURE_DEPENDENCY_CAP = 2_048L
 		const val OVERFLOW_OTHER_WRITER_ID = "overflow-other-writer"
 		const val OVERFLOW_OTHER_WRITER_VERSION = 1

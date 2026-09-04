@@ -4,12 +4,16 @@ import androidx.room.deferredTransaction
 import androidx.room.useReaderConnection
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.ScopedStepFactState
+import com.adsamcik.tracker.shared.base.database.dao.StepsFactCandidateState
+import com.adsamcik.tracker.shared.base.database.dao.hasValidStepsFactCandidateState
+import com.adsamcik.tracker.shared.base.database.dao.loadStepsFactCandidateStatesByRun
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
@@ -21,6 +25,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsSessionCompletenessIntegrity
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsRequest
 import com.adsamcik.tracker.stats.api.repository.ExportPortableStepsResult
@@ -83,6 +88,15 @@ internal class PortableStepsRoomReader @Inject constructor(
 				} catch (abort: PortableSnapshotAbort) {
 					PortableStepsSnapshot.Outcome(
 						ExportPortableStepsResult.Unverifiable(abort.reason),
+					)
+				} catch (_: IllegalArgumentException) {
+					// Room entity invariants are part of the untrusted retained snapshot. Convert only
+					// that validation family at this read boundary; cancellation and database failures
+					// continue to propagate to their existing owners.
+					PortableStepsSnapshot.Outcome(
+						ExportPortableStepsResult.Unverifiable(
+							PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+						),
 					)
 				}
 			}
@@ -311,7 +325,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 		return result.associateBy(LogicalTrackingSessionEntity::logicalTrackingId)
 	}
 
-	@Suppress("CyclomaticComplexMethod", "LongMethod")
+	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod")
 	private suspend fun loadDependencies(
 		serviceRuns: List<SourceServiceRunEntity>,
 		budget: SnapshotBudget,
@@ -366,7 +380,28 @@ internal class PortableStepsRoomReader @Inject constructor(
 			abort(PortableStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW)
 		}
 
-		val selectedUpsertRevisions = loadUpsertRevisionPages(runIds, budget)
+		val historyFactStatesByRun = readDao.loadStepsFactCandidateStatesByRun(
+			serviceRuns = serviceRuns,
+			onPageLoaded = budget::consume,
+		)
+		val serviceRunsById = serviceRuns.associateBy(SourceServiceRunEntity::serviceRunId)
+		if (historyFactStatesByRun.any { (runId, states) ->
+				val run = serviceRunsById[runId]
+				states.any { scoped ->
+					val scope = scoped.scopeCarrier
+					!hasValidStepsFactCandidateState(scoped) || run == null || scope == null ||
+						scope.serviceRunId != runId ||
+						scope.logicalTrackingId != run.logicalTrackingId
+				}
+			}
+		) {
+			abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		}
+		val selectedUpsertRevisions = historyFactStatesByRun.values.asSequence()
+			.flatten()
+			.map { scoped -> requireNotNull(scoped.scopeCarrier) }
+			.distinctBy(::factKey)
+			.toList()
 		val factLineages = loadFactLineagePages(selectedUpsertRevisions, budget)
 		val factStates = composeFactStates(factLineages, runIds.toSet())
 		val upsertRevisions = factLineages.filter { revision ->
@@ -387,6 +422,32 @@ internal class PortableStepsRoomReader @Inject constructor(
 		if (fences.map(SourceDeletionFenceEntity::scopeIdentityDigest).distinct().size != fences.size) {
 			abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
 		}
+		val fencesByDigest = fences.associateBy(SourceDeletionFenceEntity::scopeIdentityDigest)
+		if (historyFactStatesByRun.any { (runId, states) ->
+				val run = requireNotNull(serviceRunsById[runId])
+				val fence = fencesByDigest[scopeDigest(run)]
+				states.any { scoped ->
+					val state = requireNotNull(scoped.state)
+					state.operation == StepFactRevisionEntity.OPERATION_RETRACT &&
+						(fence == null || state.scopeDeletionGeneration != fence.fenceGeneration ||
+							state.collectedDataEpoch != fence.collectedDataEpoch)
+				}
+			}
+		) {
+			abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+		}
+		val requestedConsentEpochs = sources.asSequence().filter { source ->
+			source.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
+				source.purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
+				source.persistenceEligible
+		}.map(SessionManifestSourceEntity::consentEpoch).distinct().toList()
+		val consents = requestedConsentEpochs.chunked(QUERY_ID_BATCH_SIZE).flatMap { epochs ->
+			database.sourcePolicyDao().consentEpochs(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+				epochs = epochs,
+			)
+		}.also { rows -> budget.consume(rows.size) }
 
 		val failures = loadTerminalFailures(
 			runIds = runIds,
@@ -401,8 +462,10 @@ internal class PortableStepsRoomReader @Inject constructor(
 			manifests = manifests,
 			sources = sources,
 			policies = policies.values.toList(),
+			consents = consents,
 			completeness = completeness,
 			lanes = lanes.values.toList(),
+			historyFactStatesByRun = historyFactStatesByRun,
 			factStates = factStates,
 			upsertRevisions = upsertRevisions,
 			fences = fences,
@@ -517,53 +580,6 @@ internal class PortableStepsRoomReader @Inject constructor(
 		)
 	}
 
-	private suspend fun loadUpsertRevisionPages(
-		serviceRunIds: List<String>,
-		budget: SnapshotBudget,
-	): List<StepFactRevisionEntity> {
-		val result = mutableListOf<StepFactRevisionEntity>()
-		val countByRun = mutableMapOf<String, Int>()
-		for (ids in serviceRunIds.chunked(QUERY_ID_BATCH_SIZE)) {
-			var afterServiceRunId: String? = null
-			var afterWriterProjectionId: String? = null
-			var afterWriterProjectionVersion: Int? = null
-			var afterLogicalFactId: String? = null
-			var afterSemanticRevision: Long? = null
-			var previous: StepFactRevisionEntity? = null
-			do {
-				currentCoroutineContext().ensureActive()
-				val page = database.trackingHistoryReadDao().stepFactUpsertRevisionPage(
-					serviceRunIds = ids,
-					capturePurpose = SessionManifestPurposeCode.SESSION_CAPTURE,
-					limit = READ_PAGE_SIZE,
-					afterServiceRunId = afterServiceRunId,
-					afterWriterProjectionId = afterWriterProjectionId,
-					afterWriterProjectionVersion = afterWriterProjectionVersion,
-					afterLogicalFactId = afterLogicalFactId,
-					afterSemanticRevision = afterSemanticRevision,
-				)
-				validateUpsertPage(page, previous, ids.toSet())
-				page.forEach { row ->
-					val runId = requireNotNull(row.serviceRunId)
-					val count = countByRun.getOrDefault(runId, 0) + 1
-					if (count > MAX_HISTORICAL_UPSERT_REVISIONS_PER_RUN) {
-						abort(PortableStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW)
-					}
-					countByRun[runId] = count
-				}
-				budget.consume(page.size)
-				result += page
-				previous = page.lastOrNull() ?: previous
-				afterServiceRunId = page.lastOrNull()?.serviceRunId
-				afterWriterProjectionId = page.lastOrNull()?.writerProjectionId
-				afterWriterProjectionVersion = page.lastOrNull()?.writerProjectionVersion
-				afterLogicalFactId = page.lastOrNull()?.logicalFactId
-				afterSemanticRevision = page.lastOrNull()?.semanticRevision
-			} while (page.size == READ_PAGE_SIZE)
-		}
-		return result
-	}
-
 	private suspend fun loadTerminalFailures(
 		runIds: List<String>,
 		lanes: List<SourceProductProjectionLaneEntity>,
@@ -619,6 +635,15 @@ internal class PortableStepsRoomReader @Inject constructor(
 		val session = logicalSession
 			?: abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		if (session.logicalTrackingId != logicalTrackingId) {
+			abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+		}
+		if (!SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(
+				serviceRuns.map { run ->
+					dependencies.manifestsByRun[run.serviceRunId].orEmpty()
+						.map(SessionManifestVersionEntity::manifestRevision)
+				},
+			)
+		) {
 			abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		}
 		val sessionMode = sessionMode(session.sessionMode)
@@ -688,6 +713,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 			if (TrackingSourceComponent.STEPS !in capture.capturedInAnyRevision) {
 				abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 			}
+			val portableRun = buildRun(bound, sessionMode, dependencies)
 			when (evidence.steps.materialization) {
 				StepsHistoryMaterialization.MATERIALIZING -> materializing = true
 				StepsHistoryMaterialization.READY -> if (
@@ -697,7 +723,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 				}
 				else -> abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
 			}
-			buildRun(bound, sessionMode, dependencies)
+			portableRun
 		}.sortedWith(PORTABLE_STEPS_RUN_ORDER)
 		if (materializing) {
 			abort(PortableStepsExportUnverifiableReason.ENTRY_MATERIALIZING)
@@ -785,7 +811,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 		dependencies: PortableRoomDependencies,
 	): PortableWriterBinding {
 		val manifests = dependencies.manifestsByRun[run.serviceRunId].orEmpty()
-		if (manifests.isEmpty()) {
+		if (!SessionManifestIntegrity.hasValidServiceRunTimeline(run, manifests)) {
 			abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		}
 		val bindings = manifests.mapNotNull { manifest ->
@@ -798,11 +824,15 @@ internal class PortableStepsRoomReader @Inject constructor(
 			) {
 				abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 			}
-			sources.singleOrNull { source ->
+			val binding = sources.singleOrNull { source ->
 				source.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
 					source.purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
 					source.persistenceEligible
-			}?.let(::writerBinding)
+			}
+			if (binding != null && !dependencies.hasValidStepsCaptureAuthority(manifest, binding)) {
+				abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
+			}
+			binding?.let(::writerBinding)
 		}
 		val writer = bindings.distinct().singleOrNull()
 			?: abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
@@ -835,8 +865,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 		val zoneIds = linkedSetOf<String>()
 		for (manifest in orderedManifests) {
 			if (manifest.logicalTrackingId != run.logicalTrackingId ||
-				manifest.serviceRunId != run.serviceRunId || manifest.sessionMode != sessionMode.name ||
-				manifest.effectiveWallTimeMs !in envelope.startTimeMs..envelope.endTimeMs
+				manifest.serviceRunId != run.serviceRunId || manifest.sessionMode != sessionMode.name
 			) {
 				abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 			}
@@ -860,10 +889,12 @@ internal class PortableStepsRoomReader @Inject constructor(
 			}
 			if (binding != null) {
 				val policy = dependencies.policiesByRevision[manifest.sourcePolicyRevision]
-				if (policy == null || policy.sourceKind != SourceDestinationOwnerEntity.SOURCE_STEPS ||
-					!policy.enabled || !policy.capturePersistenceEligible ||
-					policy.captureConsentEpoch != binding.consentEpoch ||
-					policy.qosCode != binding.qosCode
+				if (!StepFactRevisionIntegrity.hasValidStepsCaptureAuthority(
+						policy = policy,
+						consent = dependencies.consentsByEpoch[binding.consentEpoch],
+						manifestPolicyRevision = manifest.sourcePolicyRevision,
+						binding = binding,
+					)
 				) {
 					abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 				}
@@ -898,25 +929,39 @@ internal class PortableStepsRoomReader @Inject constructor(
 		)
 
 		val historicalUpserts = dependencies.upsertsByRun[run.serviceRunId].orEmpty()
+		val retainedFromMs = dependencies.evidenceState.retainedFromMs
+		if (retainedFromMs != null && historicalUpserts.any { fact ->
+				fact.intervalEndTimeMs?.let { endMs -> endMs < retainedFromMs } == true
+			}
+		) {
+			abort(PortableStepsExportUnverifiableReason.RETENTION_CROSSES_ENTRY)
+		}
 		if (historicalUpserts.any { fact ->
 				!fact.belongsTo(writer)
 			}
 		) {
 			abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		}
-			historicalUpserts.forEach { fact ->
+		historicalUpserts.forEach { fact ->
 			if (fact.originKind != StepFactRevisionEntity.ORIGIN_LIVE_WAL) {
 				abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 			}
 			validateUpsertAttribution(
 				fact,
 				run,
-				envelope,
 				orderedManifests,
 				stepsBindings,
 				authority,
 				dependencies,
 			)
+		}
+		if (!StepFactRevisionIntegrity.hasValidCanonicalLiveWalRunTimeline(
+				historicalUpserts,
+				run.logicalTrackingId,
+				run.serviceRunId,
+			)
+		) {
+			abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		}
 
 		val factStates = dependencies.factStatesByRun[run.serviceRunId].orEmpty()
@@ -930,7 +975,6 @@ internal class PortableStepsRoomReader @Inject constructor(
 			validateScopedAttribution(
 				scoped,
 				run,
-				envelope,
 				orderedManifests,
 				stepsBindings,
 				authority,
@@ -972,43 +1016,8 @@ internal class PortableStepsRoomReader @Inject constructor(
 		run: SourceServiceRunEntity,
 		sessionMode: PortableStepsSessionMode,
 		ordered: List<SessionManifestVersionEntity>,
-	): Boolean {
-		if (ordered.isEmpty() || run.preparedManifestRevision <= 0L ||
-			ordered.map(SessionManifestVersionEntity::manifestRevision).distinct().size != ordered.size ||
-			ordered.first().manifestRevision != run.preparedManifestRevision ||
-			ordered.first().effectiveWallTimeMs != run.startedAtMs ||
-			ordered.first().effectiveElapsedRealtimeNanos != run.startedElapsedNanos ||
-			ordered.first().effectiveBootId != run.bootId ||
-			ordered.last().acquisitionPlanRevision != run.desiredPlanRevision
-		) {
-			return false
-		}
-		return ordered.withIndex().all { (index, manifest) ->
-			val previous = ordered.getOrNull(index - 1)
-			manifest.logicalTrackingId == run.logicalTrackingId &&
-				manifest.serviceRunId == run.serviceRunId && manifest.sessionMode == sessionMode.name &&
-				manifest.rolloutRevision == run.rolloutRevision && manifest.startOrigin == run.startOrigin &&
-				manifest.effectiveBootId == run.bootId &&
-				manifest.effectiveElapsedRealtimeNanos >= run.startedElapsedNanos &&
-				manifest.acquisitionPlanRevision > 0L &&
-				(previous == null || validSuccessorManifest(previous, manifest))
-		}
-	}
-
-	private fun validSuccessorManifest(
-		previous: SessionManifestVersionEntity,
-		current: SessionManifestVersionEntity,
-	): Boolean {
-		val expectedRevision = try {
-			Math.addExact(previous.manifestRevision, 1L)
-		} catch (_: ArithmeticException) {
-			return false
-		}
-		return current.manifestRevision == expectedRevision &&
-			current.effectiveBootId == previous.effectiveBootId &&
-			current.effectiveElapsedRealtimeNanos >= previous.effectiveElapsedRealtimeNanos &&
-			current.effectiveWallTimeMs > previous.effectiveWallTimeMs
-	}
+	): Boolean = SessionManifestIntegrity.hasValidServiceRunTimeline(run, ordered) &&
+		ordered.all { manifest -> manifest.sessionMode == sessionMode.name }
 
 	@Suppress("ComplexCondition", "CyclomaticComplexMethod")
 	private fun portableRunAuthority(
@@ -1071,21 +1080,11 @@ internal class PortableStepsRoomReader @Inject constructor(
 		val rows = dependencies.completenessByRun[run.serviceRunId].orEmpty().filter { row ->
 			row.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS
 		}
-		if (rows.isEmpty() || rows.any { row ->
-				val unresolvedStart = row.unresolvedSequenceStart
-				val unresolvedEnd = row.unresolvedSequenceEnd
-				row.logicalTrackingId != run.logicalTrackingId || row.serviceRunId != run.serviceRunId ||
-					row.sourceInstanceId.isBlank() || row.registrationGeneration <= 0L ||
-					row.lastAdmissionOrdinal?.let { it <= 0L } == true ||
-					row.lastSourceSequence?.let { it <= 0L } == true ||
-					(row.lastAdmissionOrdinal == null) != (row.lastSourceSequence == null) ||
-					(unresolvedStart == null) != (unresolvedEnd == null) ||
-					unresolvedStart?.let { start -> start <= 0L || start > requireNotNull(unresolvedEnd) } == true ||
-					row.providerCoverage !in PROVIDER_COVERAGE_VALUES ||
-					row.stopStatus !in STOP_STATUS_VALUES ||
-					row.stopStatus == COMPLETE_STOP_STATUS && !row.appDrainComplete ||
-					row.updatedAtMs < 0L
-			}
+		if (rows.isEmpty() || !StepsSessionCompletenessIntegrity.hasValidRegisteredTimeline(
+				rows,
+				run.logicalTrackingId,
+				run.serviceRunId,
+			)
 		) {
 			abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
 		}
@@ -1096,7 +1095,6 @@ internal class PortableStepsRoomReader @Inject constructor(
 	private fun validateUpsertAttribution(
 		fact: StepFactRevisionEntity,
 		run: SourceServiceRunEntity,
-		envelope: PortableRunEnvelope,
 		manifests: List<SessionManifestVersionEntity>,
 		stepsBindings: Map<Long, SessionManifestSourceEntity>,
 		authority: PortableRunAuthority,
@@ -1121,9 +1119,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 			authority.lane.activatedRolloutRevision > manifest.rolloutRevision ||
 			fact.sourcePolicyRevision != manifest.sourcePolicyRevision ||
 			fact.captureConsentEpoch != binding.consentEpoch ||
-			fact.collectedDataEpoch != dependencies.evidenceState.collectedDataEpoch ||
-			requireNotNull(fact.intervalStartTimeMs) < envelope.startTimeMs ||
-			requireNotNull(fact.intervalEndTimeMs) > envelope.endTimeMs
+			fact.collectedDataEpoch != dependencies.evidenceState.collectedDataEpoch
 		) {
 			abort(PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		}
@@ -1139,67 +1135,34 @@ internal class PortableStepsRoomReader @Inject constructor(
 		}
 	}
 
-	/** Replays every semantic relation retained by a self-contained LIVE_WAL Steps fact. */
-	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
+	/** Adds exact run and manifest authority to the shared source-local fact contract. */
+	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "ReturnCount")
 	private fun validLiveWalFactSemantics(
 		fact: StepFactRevisionEntity,
 		run: SourceServiceRunEntity,
 		manifest: SessionManifestVersionEntity,
 		nextManifest: SessionManifestVersionEntity?,
 	): Boolean {
-		val sourceEventId = fact.sourceEventId ?: return false
-		val startMs = fact.intervalStartTimeMs ?: return false
-		val endMs = fact.intervalEndTimeMs ?: return false
 		val startElapsed = fact.intervalStartElapsedRealtimeNanos ?: return false
 		val endElapsed = fact.intervalEndElapsedRealtimeNanos ?: return false
-		val cumulativeStart = fact.cumulativeStepCountStart ?: return false
-		val cumulativeEnd = fact.cumulativeStepCountEnd ?: return false
-		val effective = fact.effectiveStepCount ?: return false
-		val expectedLogicalFactId = "${fact.writerProjectionId}:$sourceEventId"
-		val expectedMutationId =
-			"$expectedLogicalFactId:${fact.semanticRevision}:${StepFactRevisionEntity.OPERATION_UPSERT}"
-		if (fact.semanticRevision != LIVE_WAL_SEMANTIC_REVISION ||
-			fact.logicalFactId != expectedLogicalFactId || fact.mutationId != expectedMutationId ||
-			fact.originKind != StepFactRevisionEntity.ORIGIN_LIVE_WAL ||
-			!StepFactRevisionIntegrity.hasValidLiveWalEffectChecksum(fact) ||
-			fact.originIdentity != sourceEventId || fact.clockDomainId != run.bootId ||
+		if (!StepFactRevisionIntegrity.hasValidCanonicalLiveWalFact(fact) ||
+			fact.clockDomainId != run.bootId ||
 			fact.bootClockDomainId != run.bootId || manifest.effectiveBootId != run.bootId ||
-			startMs > endMs || startElapsed > endElapsed || startElapsed < run.startedElapsedNanos ||
+			startElapsed < run.startedElapsedNanos ||
 			startElapsed < manifest.effectiveElapsedRealtimeNanos ||
-			endElapsed < manifest.effectiveElapsedRealtimeNanos || fact.appliedAtMs != endMs
+			endElapsed < manifest.effectiveElapsedRealtimeNanos
 		) {
 			return false
 		}
 		val nextEffective = nextManifest?.effectiveElapsedRealtimeNanos
-		if (nextEffective != null && (startElapsed >= nextEffective || endElapsed >= nextEffective)) {
-			return false
-		}
-		val durationMs = (endElapsed - startElapsed) / NANOS_PER_MILLISECOND
-		val expectedStartMs = if (durationMs > endMs) {
-			0L
-		} else {
-			endMs - durationMs
-		}
-		if (startMs != expectedStartMs) {
-			return false
-		}
-		return when (fact.coverageKind) {
-			StepFactRevisionEntity.COVERAGE_BASELINE ->
-				effective == 0L && cumulativeStart == cumulativeEnd
-			StepFactRevisionEntity.COVERAGE_COVERED ->
-				cumulativeEnd >= cumulativeStart && effective == cumulativeEnd - cumulativeStart
-			StepFactRevisionEntity.COVERAGE_RESET_GAP ->
-				effective == 0L && cumulativeEnd < cumulativeStart
-			StepFactRevisionEntity.COVERAGE_PARTIAL -> effective == 0L
-			else -> false
-		}
+		return nextEffective == null ||
+			(startElapsed < nextEffective && endElapsed < nextEffective)
 	}
 
 	@Suppress("ComplexCondition")
 	private fun validateScopedAttribution(
 		scoped: ScopedStepFactState,
 		run: SourceServiceRunEntity,
-		envelope: PortableRunEnvelope,
 		manifests: List<SessionManifestVersionEntity>,
 		stepsBindings: Map<Long, SessionManifestSourceEntity>,
 		authority: PortableRunAuthority,
@@ -1223,7 +1186,6 @@ internal class PortableStepsRoomReader @Inject constructor(
 			validateUpsertAttribution(
 				scoped.state,
 				run,
-				envelope,
 				manifests,
 				stepsBindings,
 				authority,
@@ -1316,7 +1278,7 @@ internal class PortableStepsRoomReader @Inject constructor(
 		val completedAtMs = run.completedAtMs
 		return when (run.state) {
 			"FINALIZED", "FAILED" -> when {
-				completedAtMs == null || completedAtMs < run.startedAtMs -> RunSettlement.INVALID
+				completedAtMs == null || completedAtMs < 0L -> RunSettlement.INVALID
 				run.presentationAcknowledgement == SourceServiceRunEntity.PRESENTATION_QUIESCED ->
 					RunSettlement.SETTLED
 				run.presentationAcknowledgement == SourceServiceRunEntity.PRESENTATION_PENDING ->
@@ -1515,34 +1477,6 @@ internal class PortableStepsRoomReader @Inject constructor(
 		projectionVersion = fact.projectionVersion,
 	)
 
-	private fun validateUpsertPage(
-		page: List<StepFactRevisionEntity>,
-		previous: StepFactRevisionEntity?,
-		expectedRunIds: Set<String>,
-	) {
-		val ordered = previous?.let { listOf(it) + page } ?: page
-		if (page.any { it.serviceRunId !in expectedRunIds } ||
-			ordered.zipWithNext().any { (left, right) -> !upsertAfter(right, left) }
-		) {
-			abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
-		}
-	}
-
-	private fun upsertAfter(
-		candidate: StepFactRevisionEntity,
-		previous: StepFactRevisionEntity,
-	): Boolean = when {
-		candidate.serviceRunId != previous.serviceRunId ->
-			requireNotNull(candidate.serviceRunId) > requireNotNull(previous.serviceRunId)
-		candidate.writerProjectionId != previous.writerProjectionId ->
-			candidate.writerProjectionId > previous.writerProjectionId
-		candidate.writerProjectionVersion != previous.writerProjectionVersion ->
-			candidate.writerProjectionVersion > previous.writerProjectionVersion
-		candidate.logicalFactId != previous.logicalFactId ->
-			candidate.logicalFactId > previous.logicalFactId
-		else -> candidate.semanticRevision > previous.semanticRevision
-	}
-
 	private fun noEntries() = PortableStepsSnapshot.Outcome(ExportPortableStepsResult.NoEntries)
 
 	private fun abort(reason: PortableStepsExportUnverifiableReason): Nothing =
@@ -1631,22 +1565,9 @@ internal class PortableStepsRoomReader @Inject constructor(
 		const val COMPLETE_PROVIDER_COVERAGE = "CALLBACKS_ENTERED_BEFORE_BARRIER"
 		const val UNOBSERVABLE_PROVIDER_COVERAGE = "PROVIDER_COMPLETENESS_UNOBSERVABLE"
 		const val COMPLETE_STOP_STATUS = "COMPLETE"
-		const val LIVE_WAL_SEMANTIC_REVISION = 1L
-		const val NANOS_PER_MILLISECOND = 1_000_000L
 		const val MANUAL_SESSION_CAPTURE_MASK = 1L shl 0
 		const val AUTOMATIC_SESSION_CAPTURE_MASK = 1L shl 1
 		const val ALL_CAPTURE_MODE_MASK = 7L
-		val PROVIDER_COVERAGE_VALUES = setOf(
-			COMPLETE_PROVIDER_COVERAGE,
-			UNOBSERVABLE_PROVIDER_COVERAGE,
-		)
-		val STOP_STATUS_VALUES = setOf(
-			COMPLETE_STOP_STATUS,
-			"TIMED_OUT",
-			"PERMISSION_LOST",
-			"PROVIDER_FAILED",
-			"PROCESS_RESTARTED",
-		)
 		val PRODUCT_STAGES = setOf(
 			SourceProductProjectionLaneEntity.STAGE_EVENT_SHADOW,
 			SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
@@ -1659,8 +1580,10 @@ private data class PortableRoomDependencies(
 	val manifests: List<SessionManifestVersionEntity>,
 	val sources: List<SessionManifestSourceEntity>,
 	val policies: List<SourcePolicyEntity>,
+	val consents: List<SourceConsentEpochEntity>,
 	val completeness: List<SourceSessionCompletenessEntity>,
 	val lanes: List<SourceProductProjectionLaneEntity>,
+	val historyFactStatesByRun: Map<String, List<StepsFactCandidateState>>,
 	val factStates: List<ScopedStepFactState>,
 	val upsertRevisions: List<StepFactRevisionEntity>,
 	val fences: List<SourceDeletionFenceEntity>,
@@ -1672,6 +1595,7 @@ private data class PortableRoomDependencies(
 		ManifestKey(it.logicalTrackingId, it.manifestRevision)
 	}
 	val policiesByRevision = policies.associateBy(SourcePolicyEntity::policyRevision)
+	val consentsByEpoch = consents.associateBy(SourceConsentEpochEntity::epoch)
 	val completenessByRun = completeness.groupBy(SourceSessionCompletenessEntity::serviceRunId)
 	val factStatesByRun = factStates.groupBy(ScopedStepFactState::serviceRunId)
 	val upsertsByRun = upsertRevisions.groupBy { fact -> requireNotNull(fact.serviceRunId) }
@@ -1693,14 +1617,25 @@ private data class PortableRoomDependencies(
 		}
 	}
 
+	fun hasValidStepsCaptureAuthority(
+		manifest: SessionManifestVersionEntity,
+		binding: SessionManifestSourceEntity,
+	): Boolean = StepFactRevisionIntegrity.hasValidStepsCaptureAuthority(
+		policy = policiesByRevision[manifest.sourcePolicyRevision],
+		consent = consentsByEpoch[binding.consentEpoch],
+		manifestPolicyRevision = manifest.sourcePolicyRevision,
+		binding = binding,
+	)
+
 	fun toHistorySnapshot(serviceRuns: List<SourceServiceRunEntity>): StepsHistoryBatchSnapshot =
 		StepsHistoryBatchSnapshot(
 			serviceRuns = serviceRuns.associateBy(SourceServiceRunEntity::serviceRunId),
 			manifestsByRun = manifestsByRun,
 			sourcesByManifest = sourcesByManifest,
 			stepPolicies = policiesByRevision,
+			stepCaptureConsents = consentsByEpoch,
 			deletionFenceDigests = fencesByDigest.keys,
-			factStatesByRun = factStatesByRun,
+			factStatesByRun = historyFactStatesByRun,
 			completenessByRun = completenessByRun,
 			productLanes = lanesByKey,
 			terminalFailures = terminalFailures,

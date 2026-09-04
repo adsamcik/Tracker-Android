@@ -1,11 +1,13 @@
 package com.adsamcik.tracker.stats.data.repository
 
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.dao.ScopedStepFactState
+import com.adsamcik.tracker.shared.base.database.dao.StepsFactCandidateState
+import com.adsamcik.tracker.shared.base.database.dao.loadStepsFactCandidateStatesByRun
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
@@ -50,16 +52,24 @@ internal suspend fun loadStepsHistoryBatchSnapshot(
 			serviceRunIds = serviceRunIds,
 		)
 	}
+	val requestedConsentEpochs = manifestSources.asSequence().filter { source ->
+		source.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
+			source.purpose == SessionManifestPurposeCode.SESSION_CAPTURE &&
+			source.persistenceEligible
+	}.map(SessionManifestSourceEntity::consentEpoch).distinct().toList()
+	val stepCaptureConsents = requestedConsentEpochs.chunked(QUERY_ID_BATCH_SIZE).flatMap { epochs ->
+		database.sourcePolicyDao().consentEpochs(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+			epochs = epochs,
+		)
+	}
 	val completeness = if (serviceRunIds.isEmpty()) {
 		emptyList()
 	} else {
 		readDao.completeness(serviceRunIds)
 	}
-	val factStates = if (serviceRunIds.isEmpty()) {
-		emptyList()
-	} else {
-		readDao.stepFactStates(serviceRunIds)
-	}
+	val factStatesByRun = readDao.loadStepsFactCandidateStatesByRun(serviceRuns)
 	val scopeDigests = segments.mapNotNull { segment ->
 		val logicalTrackingId = segment.logicalTrackingId?.takeIf(String::isNotBlank)
 		val serviceRunId = segment.serviceRunId?.takeIf(String::isNotBlank)
@@ -112,13 +122,12 @@ internal suspend fun loadStepsHistoryBatchSnapshot(
 			limit = MAX_TERMINAL_FAILURES + 1,
 		)
 	}
-	val dependencyOverflow = if (terminalFailures.size > MAX_TERMINAL_FAILURES) {
-		StepsHistoryBatchDependencyOverflow(
+	val dependencyOverflow = when {
+		terminalFailures.size > MAX_TERMINAL_FAILURES -> StepsHistoryBatchDependencyOverflow(
 			dependency = StepsHistoryBatchDependency.TERMINAL_PROJECTION_FAILURES,
 			affectedServiceRunIds = serviceRunIds.toSet(),
 		)
-	} else {
-		null
+		else -> null
 	}
 	return StepsHistoryBatchSnapshot(
 		serviceRuns = serviceRuns.associateBy(SourceServiceRunEntity::serviceRunId),
@@ -127,8 +136,9 @@ internal suspend fun loadStepsHistoryBatchSnapshot(
 			ManifestKey(it.logicalTrackingId, it.manifestRevision)
 		},
 		stepPolicies = stepPolicies.associateBy(SourcePolicyEntity::policyRevision),
+		stepCaptureConsents = stepCaptureConsents.associateBy(SourceConsentEpochEntity::epoch),
 		deletionFenceDigests = deletionFences.mapTo(hashSetOf()) { it.scopeIdentityDigest },
-		factStatesByRun = factStates.groupBy(ScopedStepFactState::serviceRunId),
+		factStatesByRun = factStatesByRun,
 		completenessByRun = completeness.groupBy(SourceSessionCompletenessEntity::serviceRunId),
 		productLanes = productLanes.associateBy {
 			HistoricalLaneKey(
@@ -144,6 +154,7 @@ internal suspend fun loadStepsHistoryBatchSnapshot(
 }
 
 private const val MAX_TERMINAL_FAILURES = 2_048
+private const val QUERY_ID_BATCH_SIZE = 400
 
 internal enum class StepsHistoryBatchDependency {
 	TERMINAL_PROJECTION_FAILURES,
@@ -174,8 +185,9 @@ internal data class StepsHistoryBatchSnapshot(
 	val manifestsByRun: Map<String, List<SessionManifestVersionEntity>>,
 	val sourcesByManifest: Map<ManifestKey, List<SessionManifestSourceEntity>>,
 	val stepPolicies: Map<Long, SourcePolicyEntity>,
+	val stepCaptureConsents: Map<Long, SourceConsentEpochEntity>,
 	val deletionFenceDigests: Set<String>,
-	val factStatesByRun: Map<String, List<ScopedStepFactState>>,
+	val factStatesByRun: Map<String, List<StepsFactCandidateState>>,
 	val completenessByRun: Map<String, List<SourceSessionCompletenessEntity>>,
 	val productLanes: Map<HistoricalLaneKey, SourceProductProjectionLaneEntity>,
 	val terminalFailures: List<SourceProjectionFailureEntity>,

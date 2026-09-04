@@ -1,9 +1,10 @@
 package com.adsamcik.tracker.stats.data.repository
 
-import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 
 /** One checksum-verified immutable capture/control set within a physical service run. */
@@ -158,11 +159,22 @@ internal data class HistoricalTrackingEntryEvidence(
 
 	/** Exact Steps-only historical intent, independent of current product qualification. */
 	val hasExactStepsOnlyIntent: Boolean
-		get() = physicalMembers.all { member ->
-			val capture = member.captureAuthority as? HistoricalCaptureAuthority.Exact
-				?: return@all false
-			capture.revisions.all { revision ->
-				revision.capturedSources == setOf(TrackingSourceComponent.STEPS)
+		get() {
+			val exactCaptures = physicalMembers.map { member ->
+				member.captureAuthority as? HistoricalCaptureAuthority.Exact ?: return false
+			}
+			if (!SessionManifestIntegrity.hasValidLogicalManifestRevisionUnion(
+					exactCaptures.map { capture ->
+						capture.revisions.map(HistoricalCaptureRevision::manifestRevision)
+					},
+				)
+			) {
+				return false
+			}
+			return exactCaptures.all { capture ->
+				capture.revisions.all { revision ->
+					revision.capturedSources == setOf(TrackingSourceComponent.STEPS)
+				}
 			}
 		}
 

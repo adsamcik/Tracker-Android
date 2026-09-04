@@ -243,6 +243,10 @@ data class PortableStepsFactV1(
 /**
  * One exact physical service-run member retained under a logical product entry.
  *
+ * [startTimeMs] and [endTimeMs] are the run's product/presentation envelope. Manifest and fact wall
+ * projections may fall outside it after a system-clock adjustment; their exact run membership is
+ * established before serialization from durable identities and elapsed-realtime authority.
+ *
  * Portability qualification does not grant eligibility for a local lifecycle operation. In
  * particular, selected-session deletion keeps its own exact capture-set and revision prerequisites.
  */
@@ -273,19 +277,15 @@ data class PortableStepsRunV1(
 			"Portable Steps manifests must use canonical revision order"
 		}
 		require(manifests.map(PortableStepsManifestV1::revision).distinct().size == manifests.size)
-		require(manifests.all { manifest ->
-			manifest.effectiveWallTimeMs in startTimeMs..endTimeMs
-		})
 		require(facts.size <= StepsPortableFormatV1.MAX_FACTS_PER_RUN)
 		require(facts == facts.sortedWith(PORTABLE_STEPS_FACT_ORDER)) {
 			"Portable Steps facts must use canonical interval and identity order"
 		}
 		require(facts.map(PortableStepsFactV1::identity).distinct().size == facts.size)
 		val manifestRevisions = manifests.mapTo(hashSetOf(), PortableStepsManifestV1::revision)
-		require(facts.all { fact ->
-			fact.manifestRevision in manifestRevisions &&
-				fact.intervalStartTimeMs >= startTimeMs && fact.intervalEndTimeMs <= endTimeMs
-		}) { "Portable Steps facts must remain inside their exact attributed run" }
+		require(facts.all { fact -> fact.manifestRevision in manifestRevisions }) {
+			"Portable Steps facts must reference an exported manifest"
+		}
 	}
 }
 

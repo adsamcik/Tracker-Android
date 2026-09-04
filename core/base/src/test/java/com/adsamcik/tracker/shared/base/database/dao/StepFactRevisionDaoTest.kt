@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import io.kotest.assertions.throwables.shouldThrow
@@ -427,7 +429,43 @@ class StepFactRevisionDaoTest {
 		database.trackingHistoryReadDao().stepFactStates(
 			serviceRunIds = listOf(SERVICE_RUN_ID),
 			limit = 1,
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 		).map { scoped -> scoped.state.logicalFactId } shouldBe listOf(first.logicalFactId)
+	}
+
+	@Test
+	fun `candidate paging keeps out of Int projection version typed and advancing`() = runTest {
+		val row = revision(intervalId = null, admissionOrdinal = 1L)
+		dao.insert(row) shouldBe 1L
+		val rawVersion = Int.MAX_VALUE.toLong() + 1L
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE step_fact_revision SET writer_projection_version = ? " +
+				"WHERE writer_projection_id = ? AND logical_fact_id = ?",
+			arrayOf<Any>(rawVersion, row.writerProjectionId, row.logicalFactId),
+		)
+		val pageSizes = mutableListOf<Int>()
+		val candidates = database.trackingHistoryReadDao().loadStepsFactCandidateStatesByRun(
+			serviceRuns = listOf(
+				SourceServiceRunEntity(
+					serviceRunId = SERVICE_RUN_ID,
+					logicalTrackingId = LOGICAL_TRACKING_ID,
+					state = "PREPARED",
+					desiredPlanRevision = 1L,
+					rolloutRevision = 1L,
+					foregroundCapabilityFlags = 0L,
+					startedAtMs = 1_000L,
+					startedElapsedNanos = 1_000L,
+					completedAtMs = null,
+					completionReason = null,
+				),
+			),
+			onPageLoaded = pageSizes::add,
+		)
+
+		pageSizes shouldContainExactly listOf(1, 0)
+		val candidate = candidates.getValue(SERVICE_RUN_ID).single()
+		candidate.scopeCarrier shouldBe null
+		candidate.state shouldBe null
 	}
 
 	@Test

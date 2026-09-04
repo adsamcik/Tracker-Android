@@ -177,6 +177,35 @@ class StepsPortableFormatV1Test {
 	}
 
 	@Test
+	fun `run wall envelope does not claim manifest or fact ownership`() {
+		val clockJumpFact = fact(
+			identity = factIdentity("clock-jump"),
+			count = 3L,
+			startTimeMs = 100L,
+			endTimeMs = 200L,
+		)
+		val run = run(
+			logicalTrackingId = "entry",
+			identitySeed = "clock-jump-run",
+			startTimeMs = 1_000L,
+			endTimeMs = 2_000L,
+			fact = clockJumpFact,
+		).copy(
+			manifests = listOf(
+				PortableStepsManifestV1(
+					revision = 1L,
+					effectiveWallTimeMs = 50L,
+					originSourcePolicyRevision = 7L,
+					captureConsentEpoch = 3L,
+				),
+			),
+		)
+
+		run.facts.single() shouldBe clockJumpFact
+		run.manifests.single().effectiveWallTimeMs shouldBe 50L
+	}
+
+	@Test
 	fun `schema v1 has only Steps session capture membership`() {
 		PortableStepsSource.entries shouldContainExactly listOf(PortableStepsSource.STEPS)
 		PortableStepsPurpose.entries shouldContainExactly listOf(

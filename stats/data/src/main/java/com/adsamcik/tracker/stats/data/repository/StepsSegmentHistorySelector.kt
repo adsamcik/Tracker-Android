@@ -2,16 +2,22 @@ package com.adsamcik.tracker.stats.data.repository
 
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
-import com.adsamcik.tracker.shared.base.database.dao.ScopedStepFactState
+import com.adsamcik.tracker.shared.base.database.dao.StepsFactCandidateState
+import com.adsamcik.tracker.shared.base.database.dao.hasValidStepsFactCandidateState
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProductLaneExecutionAuthority
 import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLaneEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsSessionCompletenessIntegrity
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import javax.inject.Inject
 
@@ -23,8 +29,10 @@ import javax.inject.Inject
  * completeness and materializer progress also remain independent axes so a number cannot silently
  * turn missing, baseline-only, partial, or still-processing evidence into a verified zero.
  */
+@Suppress("TooManyFunctions")
 internal class StepsSegmentHistorySelector @Inject constructor(
 	private val database: AppDatabase,
+	private val laneExecutionAuthority: SourceProductLaneExecutionAuthority,
 ) {
 	/** Production lookup keeps segment membership and all dependent reads in one Room snapshot. */
 	internal suspend fun selectBySegmentId(segmentId: Long): StepsSegmentHistoryResult? =
@@ -167,6 +175,13 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 			}
 			sourcesByRevision[manifest.manifestRevision] = sources
 		}
+		if (!SessionManifestIntegrity.hasValidServiceRunTimeline(serviceRun, manifests)) {
+			return unavailableEvidence(
+				segment,
+				HistoricalCaptureFailure.MANIFEST_INTEGRITY_FAILED,
+				StepsHistoryReason.MANIFEST_INTEGRITY_FAILED,
+			)
+		}
 		val captureAuthority = historicalCaptureAuthority(manifests, sourcesByRevision)
 		val scopeDigest = SourceDeletionFenceEntity.logicalServiceRunIdentity(
 			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
@@ -186,6 +201,13 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 			}
 		}.filterValues { it != null }.mapValues { (_, source) -> requireNotNull(source) }
 		if (stepsBindings.isEmpty()) {
+			if (snapshot.factStatesByRun[serviceRunId].orEmpty().isNotEmpty()) {
+				return HistoricalSegmentEvidence(
+					segment,
+					captureAuthority,
+					failed(StepsHistoryReason.STEP_FACT_INTEGRITY_FAILED),
+				)
+			}
 			val policies = manifests.map { manifest ->
 				snapshot.stepPolicies[manifest.sourcePolicyRevision]
 			}
@@ -206,6 +228,24 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 			}
 			return HistoricalSegmentEvidence(segment, captureAuthority, steps)
 		}
+		val manifestsByRevision = manifests.associateBy(SessionManifestVersionEntity::manifestRevision)
+		if (stepsBindings.any { (revision, binding) ->
+				val policyRevision = manifestsByRevision[revision]?.sourcePolicyRevision
+				val policy = policyRevision?.let(snapshot.stepPolicies::get)
+				!StepFactRevisionIntegrity.hasValidStepsCaptureAuthority(
+					policy = policy,
+					consent = snapshot.stepCaptureConsents[binding.consentEpoch],
+					manifestPolicyRevision = policyRevision ?: Long.MIN_VALUE,
+					binding = binding,
+				)
+			}
+		) {
+			return HistoricalSegmentEvidence(
+				segment,
+				captureAuthority,
+				failed(StepsHistoryReason.SOURCE_POLICY_ATTRIBUTION_INVALID),
+			)
+		}
 
 		val writers = stepsBindings.values.map(::writerBinding).distinct()
 		if (writers.size != 1) {
@@ -217,6 +257,10 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 		}
 		val writer = writers.single()
 		val captureCoveredWholeRun = stepsBindings.size == manifests.size
+		val orderedManifests = manifests.sortedBy(SessionManifestVersionEntity::manifestRevision)
+		val nextManifestByRevision = orderedManifests.mapIndexed { index, manifest ->
+			manifest.manifestRevision to orderedManifests.getOrNull(index + 1)
+		}.toMap()
 		val steps = when (writer.owner) {
 			SourceDestinationOwnerEntity.OWNER_LEGACY_STEP_INTERVAL -> legacy(
 				steps = segment.steps,
@@ -224,12 +268,11 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 			)
 			SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS -> candidate(
 				segment = segment,
-				logicalTrackingId = logicalTrackingId,
-				serviceRunId = serviceRunId,
-				serviceRunCompleted = serviceRun.completedAtMs != null &&
-					serviceRun.state in TERMINAL_SERVICE_RUN_STATES,
+				serviceRun = serviceRun,
 				writer = writer,
-				manifestRevisions = stepsBindings.keys.toList(),
+				manifestsByRevision = manifestsByRevision,
+				nextManifestByRevision = nextManifestByRevision,
+				stepsBindings = stepsBindings,
 				captureCoveredWholeRun = captureCoveredWholeRun,
 				snapshot = snapshot,
 			)
@@ -238,17 +281,21 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 		return HistoricalSegmentEvidence(segment, captureAuthority, steps)
 	}
 
-	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
+	@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	private fun candidate(
 		segment: SessionSegment,
-		logicalTrackingId: String,
-		serviceRunId: String,
-		serviceRunCompleted: Boolean,
+		serviceRun: SourceServiceRunEntity,
 		writer: HistoricalStepsWriterBinding,
-		manifestRevisions: List<Long>,
+		manifestsByRevision: Map<Long, SessionManifestVersionEntity>,
+		nextManifestByRevision: Map<Long, SessionManifestVersionEntity?>,
+		stepsBindings: Map<Long, SessionManifestSourceEntity>,
 		captureCoveredWholeRun: Boolean,
 		snapshot: StepsHistoryBatchSnapshot,
 	): StepsSegmentHistoryResult {
+		val logicalTrackingId = serviceRun.logicalTrackingId
+		val serviceRunId = serviceRun.serviceRunId
+		val serviceRunCompleted = serviceRun.completedAtMs != null &&
+			serviceRun.state in TERMINAL_SERVICE_RUN_STATES
 		val projectionId = writer.projectionId
 		val projectionVersion = writer.projectionVersion
 		val bindingGeneration = writer.bindingGeneration
@@ -260,7 +307,15 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 			projectionId = projectionId,
 			projectionVersion = projectionVersion,
 		)] ?: return failed(StepsHistoryReason.PRODUCT_LANE_MISSING)
-		if (!isValidHistoricalLane(lane)) return failed(StepsHistoryReason.PRODUCT_LANE_INVALID)
+		val requiredModeMask = manifestsByRevision.values.map(SessionManifestVersionEntity::sessionMode)
+			.distinct()
+			.singleOrNull()
+			?.let(::sessionCaptureModeMask)
+		if (requiredModeMask == null || !laneExecutionAuthority.owns(lane) ||
+			!isValidHistoricalLane(lane) || lane.captureModeMask and requiredModeMask == 0L
+		) {
+			return failed(StepsHistoryReason.PRODUCT_LANE_INVALID)
+		}
 
 		val evidenceState = snapshot.evidenceState
 			?: return failed(StepsHistoryReason.SOURCE_EVIDENCE_STATE_MISSING)
@@ -270,36 +325,89 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 		val retentionCrossesSegment = evidenceState.retainedFromMs?.let { retainedFromMs ->
 			segment.startTimeMs < retainedFromMs && segment.endTimeMs >= retainedFromMs
 		} == true
-		val factStates = snapshot.factStatesByRun[serviceRunId].orEmpty().filter { scoped ->
-			scoped.logicalTrackingId == logicalTrackingId &&
-				scoped.manifestRevision in manifestRevisions &&
-				scoped.writerBindingGeneration == bindingGeneration &&
-				scoped.state.writerProjectionId == projectionId &&
-				scoped.state.writerProjectionVersion == projectionVersion
-		}.map(ScopedStepFactState::state)
-		val deletedFacts = factStates.filter {
-			it.operation == StepFactRevisionEntity.OPERATION_RETRACT
+		val completeness = snapshot.completenessByRun[serviceRunId].orEmpty()
+			.filter { it.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS }
+		if (!hasValidStepsCompleteness(completeness, logicalTrackingId, serviceRunId)) {
+			return failed(StepsHistoryReason.COMPLETENESS_INVALID)
 		}
+		val targetOrdinal = completeness.mapNotNull { it.lastAdmissionOrdinal }.maxOrNull()
+		// The batch is provisionally anchored by either retained membership value. Validate each
+		// complete carrier/state pair before trusting checksum-covered attribution for filtering.
+		val rawFactStates = snapshot.factStatesByRun[serviceRunId].orEmpty()
+		if (rawFactStates.any { scoped -> !hasValidStepsFactCandidateState(scoped) } ||
+			rawFactStates.any { scoped ->
+				scoped.state?.operation == StepFactRevisionEntity.OPERATION_RETRACT
+			}
+		) {
+			return failed(StepsHistoryReason.STEP_FACT_INTEGRITY_FAILED)
+		}
+		if (
+			(rawFactStates.isNotEmpty() && targetOrdinal == null) ||
+			(targetOrdinal != null && rawFactStates.any { scoped ->
+				val admissionOrdinal = requireNotNull(scoped.scopeCarrier).sourceAdmissionOrdinal
+				admissionOrdinal == null ||
+					admissionOrdinal < lane.activationOrdinal || admissionOrdinal > targetOrdinal
+			})
+		) {
+			return failed(StepsHistoryReason.COMPLETENESS_INVALID)
+		}
+		if (rawFactStates.any { scoped ->
+			val scope = requireNotNull(scoped.scopeCarrier)
+			val manifestRevision = scope.manifestRevision
+			val manifest = manifestRevision?.let(manifestsByRevision::get)
+			val binding = manifestRevision?.let(stepsBindings::get)
+			val startElapsed = scope.intervalStartElapsedRealtimeNanos
+			val endElapsed = scope.intervalEndElapsedRealtimeNanos
+			val nextManifest = manifestRevision?.let(nextManifestByRevision::get)
+			scope.logicalTrackingId != logicalTrackingId ||
+				scope.serviceRunId != serviceRunId ||
+				manifest == null || binding == null ||
+				scope.purpose != SessionManifestPurposeCode.SESSION_CAPTURE ||
+				scope.sourcePolicyRevision != manifest.sourcePolicyRevision ||
+				scope.captureConsentEpoch != binding.consentEpoch ||
+				scope.writerBindingGeneration != bindingGeneration ||
+				scope.writerProjectionId != projectionId ||
+				scope.writerProjectionVersion != projectionVersion ||
+				!StepFactRevisionIntegrity.hasValidCanonicalLiveWalFact(scope) ||
+				scope.clockDomainId != serviceRun.bootId ||
+				scope.bootClockDomainId != serviceRun.bootId ||
+				manifest.effectiveBootId != serviceRun.bootId ||
+				startElapsed == null || endElapsed == null ||
+				startElapsed < serviceRun.startedElapsedNanos ||
+				startElapsed < manifest.effectiveElapsedRealtimeNanos ||
+				endElapsed < manifest.effectiveElapsedRealtimeNanos ||
+				nextManifest?.effectiveElapsedRealtimeNanos?.let { nextEffective ->
+					startElapsed >= nextEffective || endElapsed >= nextEffective
+				} == true ||
+				lane.activatedRolloutRevision > manifest.rolloutRevision
+		}) return failed(StepsHistoryReason.STEP_FACT_INTEGRITY_FAILED)
+		val canonicalRunFacts = rawFactStates.map { scoped -> requireNotNull(scoped.scopeCarrier) }
+		if (!StepFactRevisionIntegrity.hasValidCanonicalLiveWalRunTimeline(
+				canonicalRunFacts,
+				logicalTrackingId,
+				serviceRunId,
+			)
+		) {
+			return failed(StepsHistoryReason.STEP_FACT_INTEGRITY_FAILED)
+		}
+		val factStates = rawFactStates
 		val facts = factStates.filter {
-			it.operation == StepFactRevisionEntity.OPERATION_UPSERT
-		}.filter { fact ->
+			it.state?.operation == StepFactRevisionEntity.OPERATION_UPSERT
+		}.mapNotNull(StepsFactCandidateState::scopeCarrier).filter { fact ->
 			evidenceState.retainedFromMs?.let { retainedFromMs ->
 				requireNotNull(fact.intervalEndTimeMs) >= retainedFromMs
 			} != false
 		}
-		if (factStates.any { it.collectedDataEpoch != evidenceState.collectedDataEpoch }) {
+		if (factStates.any {
+			requireNotNull(it.state).collectedDataEpoch != evidenceState.collectedDataEpoch
+		}) {
 			return failed(StepsHistoryReason.STALE_COLLECTED_DATA_EPOCH)
 		}
 
-		val completeness = snapshot.completenessByRun[serviceRunId].orEmpty()
-			.filter { it.logicalTrackingId == logicalTrackingId }
-			.filter { it.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS }
-		val targetOrdinal = completeness.mapNotNull { it.lastAdmissionOrdinal }.maxOrNull()
 		val reasons = linkedSetOf<StepsHistoryReason>()
 		if (!captureCoveredWholeRun) reasons += StepsHistoryReason.CAPTURE_NOT_ENABLED_FOR_WHOLE_RUN
 		if (!serviceRunCompleted) reasons += StepsHistoryReason.SERVICE_RUN_ACTIVE
 		if (retentionCrossesSegment) reasons += StepsHistoryReason.RETENTION_CROSSES_SEGMENT
-		if (deletedFacts.isNotEmpty()) reasons += StepsHistoryReason.DELETED_FACTS
 		if (completeness.isEmpty()) reasons += StepsHistoryReason.COMPLETENESS_MISSING
 		if (completeness.any { !it.appDrainComplete }) reasons += StepsHistoryReason.APP_DRAIN_INCOMPLETE
 		if (completeness.any { it.stopStatus != COMPLETE_STOP_STATUS }) {
@@ -386,7 +494,6 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 			coveredFacts.isEmpty() -> StepsHistoryCoverage.NONE
 			materialization == StepsHistoryMaterialization.READY &&
 				acquisitionComplete && captureCoveredWholeRun &&
-				StepsHistoryReason.DELETED_FACTS !in reasons &&
 				StepsHistoryReason.RESET_GAP !in reasons &&
 				StepsHistoryReason.PARTIAL_FACT !in reasons &&
 				StepsHistoryReason.RETENTION_CROSSES_SEGMENT !in reasons &&
@@ -396,17 +503,24 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 		}
 		return StepsSegmentHistoryResult(
 			count = count,
-			availability = if (deletedFacts.isNotEmpty() && facts.isEmpty()) {
-				StepsHistoryAvailability.DELETED
-			} else {
-				StepsHistoryAvailability.AVAILABLE
-			},
+			availability = StepsHistoryAvailability.AVAILABLE,
 			evidence = evidence,
 			materialization = materialization,
 			coverage = coverage,
 			reasons = reasons,
 		)
 	}
+
+	@Suppress("ComplexCondition")
+	private fun hasValidStepsCompleteness(
+		rows: List<SourceSessionCompletenessEntity>,
+		logicalTrackingId: String,
+		serviceRunId: String,
+	): Boolean = StepsSessionCompletenessIntegrity.hasValidTimeline(
+		rows,
+		logicalTrackingId,
+		serviceRunId,
+	)
 
 	private fun unavailableEvidence(
 		segment: SessionSegment,
@@ -425,6 +539,12 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 		projectionVersion = source.writerProjectionVersion,
 		bindingGeneration = source.writerBindingGeneration,
 	)
+
+	private fun sessionCaptureModeMask(sessionMode: String): Long? = when (sessionMode) {
+		"MANUAL" -> MANUAL_SESSION_CAPTURE_MASK
+		"AUTOMATIC" -> AUTOMATIC_SESSION_CAPTURE_MASK
+		else -> null
+	}
 
 	private fun isValidHistoricalLane(lane: SourceProductProjectionLaneEntity): Boolean {
 		if (lane.captureModeMask <= 0L ||
@@ -529,6 +649,8 @@ internal class StepsSegmentHistorySelector @Inject constructor(
 	private companion object {
 		const val COMPLETE_STOP_STATUS = "COMPLETE"
 		const val COMPLETE_PROVIDER_COVERAGE = "CALLBACKS_ENTERED_BEFORE_BARRIER"
+		const val MANUAL_SESSION_CAPTURE_MASK = 1L shl 0
+		const val AUTOMATIC_SESSION_CAPTURE_MASK = 1L shl 1
 		val TERMINAL_SERVICE_RUN_STATES = setOf("FINALIZED", "FAILED", "CLOSED")
 	}
 }
@@ -574,6 +696,8 @@ internal enum class StepsHistoryReason {
 	MANIFEST_MISSING,
 	MANIFEST_MEMBERSHIP_MISMATCH,
 	MANIFEST_INTEGRITY_FAILED,
+	SOURCE_POLICY_ATTRIBUTION_INVALID,
+	STEP_FACT_INTEGRITY_FAILED,
 	MIXED_WRITER_WITHIN_SERVICE_RUN,
 	UNKNOWN_WRITER,
 	CANDIDATE_PROVENANCE_INCOMPLETE,
@@ -590,6 +714,7 @@ internal enum class StepsHistoryReason {
 	TARGET_BEFORE_LANE_ACTIVATION,
 	TERMINAL_PROJECTION_FAILURE,
 	COMPLETENESS_MISSING,
+	COMPLETENESS_INVALID,
 	APP_DRAIN_INCOMPLETE,
 	STOP_INCOMPLETE,
 	UNRESOLVED_PROVIDER_SEQUENCE,

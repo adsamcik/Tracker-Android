@@ -97,6 +97,7 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 		MANIFEST_TABLE,
 		MANIFEST_SOURCE_TABLE,
 		SOURCE_POLICY_TABLE,
+		SOURCE_CONSENT_EPOCH_TABLE,
 		PRODUCT_LANE_TABLE,
 		PROJECTION_FAILURE_TABLE,
 		SOURCE_EVIDENCE_TABLE,
@@ -113,6 +114,7 @@ internal class DefaultTrackingHistoryRepository @Inject constructor(
 		const val MANIFEST_TABLE = "session_manifest_version"
 		const val MANIFEST_SOURCE_TABLE = "session_manifest_source"
 		const val SOURCE_POLICY_TABLE = "source_policy"
+		const val SOURCE_CONSENT_EPOCH_TABLE = "source_consent_epoch"
 		const val PRODUCT_LANE_TABLE = "source_product_projection_lane"
 		const val PROJECTION_FAILURE_TABLE = "source_projection_failure"
 		const val SOURCE_EVIDENCE_TABLE = "source_evidence_state"
@@ -281,7 +283,10 @@ internal fun StepsHistoryReason.toPublicCause(): StepsHistoryCause = when (this)
 	StepsHistoryReason.SERVICE_RUN_SEGMENT_BINDING_MISMATCH,
 	StepsHistoryReason.MANIFEST_MISSING,
 	StepsHistoryReason.MANIFEST_MEMBERSHIP_MISMATCH -> StepsHistoryCause.HISTORY_MEMBERSHIP_UNAVAILABLE
-	StepsHistoryReason.MANIFEST_INTEGRITY_FAILED -> StepsHistoryCause.HISTORY_INTEGRITY_FAILED
+	StepsHistoryReason.MANIFEST_INTEGRITY_FAILED,
+	StepsHistoryReason.SOURCE_POLICY_ATTRIBUTION_INVALID,
+	StepsHistoryReason.STEP_FACT_INTEGRITY_FAILED,
+	StepsHistoryReason.COMPLETENESS_INVALID -> StepsHistoryCause.HISTORY_INTEGRITY_FAILED
 	StepsHistoryReason.MIXED_WRITER_WITHIN_SERVICE_RUN,
 	StepsHistoryReason.UNKNOWN_WRITER,
 	StepsHistoryReason.CANDIDATE_PROVENANCE_INCOMPLETE,

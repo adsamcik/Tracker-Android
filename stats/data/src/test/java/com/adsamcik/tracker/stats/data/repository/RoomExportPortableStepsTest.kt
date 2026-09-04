@@ -13,6 +13,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
@@ -149,6 +150,61 @@ class RoomExportPortableStepsTest {
 	}
 
 	@Test
+	fun `elapsed ownership survives a wall clock regression outside the run envelope`() = runTest {
+		insertReadyFixture(facts = emptyList())
+		insertAdditionalManifest(
+			manifestRevision = 2L,
+			effectiveWallTimeMs = 900L,
+			effectiveElapsedRealtimeNanos = 20_001_000L,
+		)
+		val canonical = fact(
+			logicalId = LOGICAL_ONE,
+			runId = RUN_ONE,
+			manifestRevision = 2L,
+			seed = FactSeed("clock-jump", 1L, count = 3L),
+			startMs = 1_000L,
+		).copy(
+			intervalStartTimeMs = 105L,
+			intervalEndTimeMs = 110L,
+			appliedAtMs = 110L,
+		)
+		database.stepFactRevisionDao().insert(
+			canonical.copy(
+				effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(canonical),
+			),
+		)
+		database.sourceSessionDao().saveCompleteness(
+			stepsCompleteness().copy(lastAdmissionOrdinal = 1L, lastSourceSequence = 1L),
+		)
+		val entries = mutableListOf<com.adsamcik.tracker.stats.api.repository.PortableStepsEntryV1>()
+
+		exporter.export(request()) { entry -> entries += entry } shouldBe
+			ExportPortableStepsResult.Exported(1)
+		val exported = entries.single().runs.single()
+		exported.startTimeMs shouldBe 1_000L
+		exported.manifests.last().effectiveWallTimeMs shouldBe 900L
+		exported.facts.single().intervalStartTimeMs shouldBe 105L
+	}
+
+	@Test
+	fun `terminal completion wall regression remains exportable`() = runTest {
+		insertLogicalSession(LOGICAL_ONE, startMs = 1_000L, endMs = 2_000L)
+		insertSettledRun(
+			logicalId = LOGICAL_ONE,
+			runId = RUN_ONE,
+			segmentId = 41L,
+			manifestRevision = 1L,
+			startMs = 1_000L,
+			endMs = 2_000L,
+			runStartedAtMs = 1_000L,
+			runCompletedAtMs = 900L,
+			facts = listOf(FactSeed("covered", 1L, count = 3L)),
+		)
+
+		exporter.export(request()) {} shouldBe ExportPortableStepsResult.Exported(1)
+	}
+
+	@Test
 	fun `range discovery expands exact replacement runs in canonical order`() = runTest {
 		insertLogicalSession(LOGICAL_ONE, startMs = 1_000L, endMs = 3_000L)
 		insertSettledRun(
@@ -186,6 +242,36 @@ class RoomExportPortableStepsTest {
 				"later-run",
 			),
 		)
+	}
+
+	@Test
+	fun `missing logical manifest revision blocks replacement export before emission`() = runTest {
+		insertLogicalSession(LOGICAL_ONE, startMs = 1_000L, endMs = 3_000L)
+		insertSettledRun(
+			logicalId = LOGICAL_ONE,
+			runId = RUN_ONE,
+			segmentId = 41L,
+			manifestRevision = 1L,
+			startMs = 1_000L,
+			endMs = 1_500L,
+			facts = listOf(FactSeed("first-fact", 1L, count = 3L)),
+		)
+		insertSettledRun(
+			logicalId = LOGICAL_ONE,
+			runId = RUN_TWO,
+			segmentId = 42L,
+			manifestRevision = 3L,
+			startMs = 2_000L,
+			endMs = 3_000L,
+			facts = listOf(FactSeed("later-fact", 2L, count = 4L)),
+		)
+		val emitted = mutableListOf<Any>()
+
+		exporter.export(request(toMs = 4_000L)) { emitted += it } shouldBe
+			ExportPortableStepsResult.Unverifiable(
+				PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+			)
+		emitted shouldBe emptyList()
 	}
 
 	@Test
@@ -404,6 +490,42 @@ class RoomExportPortableStepsTest {
 	}
 
 	@Test
+	fun `retarget to durable run outside export cannot hide a corrupt selected fact`() = runTest {
+		insertLogicalSession(LOGICAL_ONE, startMs = 1_000L, endMs = 2_000L)
+		insertSettledRun(
+			logicalId = LOGICAL_ONE,
+			runId = RUN_ONE,
+			segmentId = 41L,
+			manifestRevision = 1L,
+			startMs = 1_000L,
+			endMs = 2_000L,
+			facts = listOf(
+				FactSeed("hidden", 1L, count = 4L),
+				FactSeed("survivor", 2L, count = 6L),
+			),
+		)
+		insertLogicalSession(LOGICAL_TWO, startMs = 5_000L, endMs = 6_000L)
+		insertSettledRun(
+			logicalId = LOGICAL_TWO,
+			runId = RUN_TWO,
+			segmentId = 42L,
+			manifestRevision = 2L,
+			startMs = 5_000L,
+			endMs = 6_000L,
+			facts = listOf(FactSeed("outside", 10L, count = 3L)),
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE step_fact_revision SET logical_tracking_id = ?, service_run_id = ? " +
+				"WHERE logical_fact_id = ? AND operation = 'UPSERT'",
+			arrayOf(LOGICAL_TWO, RUN_TWO, "$WRITER_ID:event-hidden"),
+		)
+
+		assertZeroSinkUnverifiable(
+			PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+		)
+	}
+
+	@Test
 	@Suppress("LongMethod")
 	fun `LIVE_WAL facts require canonical identity clocks consent and effect semantics`() = runTest {
 		val mutations = listOf<(StepFactRevisionEntity) -> StepFactRevisionEntity>(
@@ -463,6 +585,89 @@ class RoomExportPortableStepsTest {
 	}
 
 	@Test
+	fun `malformed retained Room entity becomes typed zero-sink export`() = runTest {
+		insertReadyFixture()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_service_run SET presentation_acknowledgement = 'BROKEN' " +
+				"WHERE service_run_id = ?",
+			arrayOf(RUN_ONE),
+		)
+		val emitted = mutableListOf<Any>()
+
+		exporter.export(request()) { emitted += it } shouldBe
+			ExportPortableStepsResult.Unverifiable(
+				PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+			)
+		emitted shouldBe emptyList()
+	}
+
+	@Test
+	fun `checksum valid covered facts with an impossible run timeline emit nothing`() = runTest {
+		insertReadyFixture(
+			facts = listOf(
+				FactSeed("first-covered", 1L, count = 5L),
+				FactSeed("second-covered", 2L, count = 6L),
+			),
+			factTransform = { fact ->
+				val transformed = when (fact.sourceAdmissionOrdinal) {
+					1L -> fact.copy(
+						intervalStartTimeMs = 1_020L,
+						intervalEndTimeMs = 1_030L,
+						intervalStartElapsedRealtimeNanos = 20_001_000L,
+						intervalEndElapsedRealtimeNanos = 30_001_000L,
+						cumulativeStepCountStart = 100L,
+						cumulativeStepCountEnd = 105L,
+						appliedAtMs = 1_030L,
+					)
+					else -> fact.copy(
+						intervalStartTimeMs = 1_025L,
+						intervalEndTimeMs = 1_035L,
+						intervalStartElapsedRealtimeNanos = 25_001_000L,
+						intervalEndElapsedRealtimeNanos = 35_001_000L,
+						cumulativeStepCountStart = 500L,
+						cumulativeStepCountEnd = 506L,
+						appliedAtMs = 1_035L,
+					)
+				}
+				val signed = transformed.copy(
+					effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(transformed),
+				)
+				StepFactRevisionIntegrity.hasValidCanonicalLiveWalFact(signed) shouldBe true
+				signed
+			},
+		)
+
+		assertZeroSinkUnverifiable(
+			PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+		)
+	}
+
+	@Test
+	fun `missing or ineligible historical capture authority emits nothing`() = runTest {
+		insertReadyFixture()
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM source_policy WHERE source_kind = ?",
+			arrayOf(SourceDestinationOwnerEntity.SOURCE_STEPS),
+		)
+		assertZeroSinkUnverifiable(
+			PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+		)
+
+		resetDatabase()
+		insertReadyFixture()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_consent_epoch SET eligible = 0 WHERE source_kind = ? AND purpose = ?",
+			arrayOf<Any>(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+				SessionManifestPurposeCode.SESSION_CAPTURE,
+			),
+		)
+		assertZeroSinkUnverifiable(
+			PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+		)
+	}
+
+	@Test
 	@Suppress("LongMethod")
 	fun `manifest effective timeline must retain exact run authority`() = runTest {
 		val mutations = listOf<(SessionManifestVersionEntity) -> SessionManifestVersionEntity>(
@@ -501,9 +706,7 @@ class RoomExportPortableStepsTest {
 			effectiveWallTimeMs = 1_000L,
 			effectiveElapsedRealtimeNanos = 500_001_000L,
 		)
-		assertZeroSinkUnverifiable(
-			PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
-		)
+		exporter.export(request()) {} shouldBe ExportPortableStepsResult.Exported(1)
 	}
 
 	@Test
@@ -753,9 +956,51 @@ class RoomExportPortableStepsTest {
 		resetDatabase()
 		insertReadyFixture()
 		database.sourceSessionDao().saveCompleteness(
-			stepsCompleteness().copy(sourceInstanceId = "same-terminal", registrationGeneration = 2L),
+			stepsCompleteness().copy(
+				sourceInstanceId = "same-terminal",
+				registrationGeneration = 2L,
+				lastAdmissionOrdinal = 2L,
+				lastSourceSequence = 2L,
+			),
 		)
 		exporter.export(request()) {} shouldBe ExportPortableStepsResult.Exported(1)
+	}
+
+	@Test
+	fun `duplicate completeness registration generation fails closed before export`() = runTest {
+		insertReadyFixture()
+		val firstGeneration = stepsCompleteness()
+		database.sourceSessionDao().saveCompleteness(
+			firstGeneration.copy(
+				sourceInstanceId = "steps-$RUN_ONE-duplicate",
+				lastAdmissionOrdinal = 2L,
+				lastSourceSequence = 2L,
+			),
+		)
+
+		assertZeroSinkUnverifiable(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+	}
+
+	@Test
+	fun `generation ordered completeness admission high water cannot regress`() = runTest {
+		insertReadyFixture()
+		val firstGeneration = stepsCompleteness()
+		database.sourceSessionDao().saveCompleteness(
+			firstGeneration.copy(
+				lastAdmissionOrdinal = 2L,
+				lastSourceSequence = 2L,
+			),
+		)
+		database.sourceSessionDao().saveCompleteness(
+			firstGeneration.copy(
+				sourceInstanceId = "second-generation-instance",
+				registrationGeneration = 2L,
+				lastAdmissionOrdinal = 1L,
+				lastSourceSequence = 1L,
+			),
+		)
+
+		assertZeroSinkUnverifiable(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
 	}
 
 	@Test
@@ -968,7 +1213,7 @@ class RoomExportPortableStepsTest {
 		resetDatabase()
 		insertReadyFixture()
 		database.stepFactRevisionDao().insert(
-			retraction("covered", semanticRevision = 2L).copy(collectedDataEpoch = 1L),
+			retraction("covered", semanticRevision = 2L, collectedDataEpoch = 1L),
 		)
 		insertFence(LOGICAL_ONE, RUN_ONE)
 		assertZeroSinkUnverifiable(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
@@ -1026,6 +1271,42 @@ class RoomExportPortableStepsTest {
 	}
 
 	@Test
+	fun `retention rejects an old fact even when its run envelope is newer than the floor`() = runTest {
+		insertReadyFixture(facts = emptyList())
+		insertAdditionalManifest(
+			manifestRevision = 2L,
+			effectiveWallTimeMs = 900L,
+			effectiveElapsedRealtimeNanos = 20_001_000L,
+		)
+		val unsigned = fact(
+			logicalId = LOGICAL_ONE,
+			runId = RUN_ONE,
+			manifestRevision = 2L,
+			seed = FactSeed("retained-clock-jump", 1L, count = 3L),
+			startMs = 1_000L,
+		).copy(
+			intervalStartTimeMs = 105L,
+			intervalEndTimeMs = 110L,
+			appliedAtMs = 110L,
+		)
+		database.stepFactRevisionDao().insert(
+			unsigned.copy(
+				effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(unsigned),
+			),
+		)
+		database.sourceSessionDao().saveCompleteness(
+			stepsCompleteness().copy(lastAdmissionOrdinal = 1L, lastSourceSequence = 1L),
+		)
+		database.sourceEvidenceStateDao().updateLifecycle(0L, 500L, 2_001L)
+		val emitted = mutableListOf<Any>()
+
+		exporter.export(request()) { emitted += it } shouldBe ExportPortableStepsResult.Unverifiable(
+			PortableStepsExportUnverifiableReason.RETENTION_CROSSES_ENTRY,
+		)
+		emitted shouldBe emptyList()
+	}
+
+	@Test
 	fun `latest-state bound accepts 2048 and rejects 2049 before emission`() = runTest {
 		insertLogicalSession(LOGICAL_ONE, startMs = 1_000L, endMs = 10_000L)
 		insertSettledRun(
@@ -1060,7 +1341,7 @@ class RoomExportPortableStepsTest {
 	}
 
 	@Test
-	fun `historical correction bound validates 2048 and rejects 2049 before emission`() = runTest {
+	fun `unsupported historical corrections fail closed independent of lineage size`() = runTest {
 		insertLogicalSession(LOGICAL_ONE, startMs = 1_000L, endMs = 10_000L)
 		insertSettledRun(
 			logicalId = LOGICAL_ONE,
@@ -1091,13 +1372,13 @@ class RoomExportPortableStepsTest {
 
 		exporter.export(request(toMs = 11_000L)) { emitted += it } shouldBe
 			ExportPortableStepsResult.Unverifiable(
-				PortableStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW,
+				PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
 			)
 		emitted shouldBe emptyList()
 	}
 
 	@Test
-	fun `off-scope corrections cannot evade the selected-run lineage bound`() = runTest {
+	fun `off-scope unsupported corrections cannot evade selected-run integrity`() = runTest {
 		insertLogicalSession(LOGICAL_ONE, startMs = 1_000L, endMs = 2_000L)
 		insertSettledRun(
 			logicalId = LOGICAL_ONE,
@@ -1122,7 +1403,7 @@ class RoomExportPortableStepsTest {
 		)
 
 		assertZeroSinkUnverifiable(
-			PortableStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW,
+			PortableStepsExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
 		)
 	}
 
@@ -1219,6 +1500,7 @@ class RoomExportPortableStepsTest {
 				startMs = startMs,
 				endMs = startMs + 2_000L,
 				facts = listOf(FactSeed("fact-$index", index.toLong(), count = 1L)),
+				registrationGeneration = index.toLong(),
 			)
 		}
 		val boundaryStartMs = 10_000L + 400L * 3_000L
@@ -1228,7 +1510,6 @@ class RoomExportPortableStepsTest {
 		queryCount.set(0)
 		exporter.export(firstBatch) {} shouldBe ExportPortableStepsResult.Exported(400)
 		val atBoundary = queryCount.get()
-		exporter.export(secondBatch) {}
 		queryCount.set(0)
 		exporter.export(secondBatch) {} shouldBe ExportPortableStepsResult.Exported(401)
 		val afterBoundary = queryCount.get()
@@ -1324,7 +1605,7 @@ class RoomExportPortableStepsTest {
 	) = RoomExportPortableSteps(
 		reader = PortableStepsRoomReader(
 			database,
-			StepsSegmentHistorySelector(database),
+			StepsSegmentHistorySelector(database, laneAuthority),
 			laneAuthority,
 		),
 		ioDispatcher = Dispatchers.Unconfined,
@@ -1470,6 +1751,7 @@ class RoomExportPortableStepsTest {
 		sessionMode: String = "MANUAL",
 		rolloutRevision: Long = 1L,
 		bindingGeneration: Long = BINDING_GENERATION,
+		registrationGeneration: Long = 1L,
 		factTransform: (StepFactRevisionEntity) -> StepFactRevisionEntity = { it },
 		manifestTransform: (SessionManifestVersionEntity) -> SessionManifestVersionEntity = { it },
 	) {
@@ -1490,6 +1772,7 @@ class RoomExportPortableStepsTest {
 			sessionMode = sessionMode,
 			rolloutRevision = rolloutRevision,
 			bindingGeneration = bindingGeneration,
+			registrationGeneration = registrationGeneration,
 			factTransform = factTransform,
 			manifestTransform = manifestTransform,
 		)
@@ -1525,7 +1808,7 @@ class RoomExportPortableStepsTest {
 		exporter = RoomExportPortableSteps(
 			reader = PortableStepsRoomReader(
 				database,
-				StepsSegmentHistorySelector(database),
+				StepsSegmentHistorySelector(database, executableLaneAuthority()),
 				executableLaneAuthority(),
 			),
 			ioDispatcher = Dispatchers.IO,
@@ -1578,6 +1861,11 @@ class RoomExportPortableStepsTest {
 		currentRunId: String? = null,
 		sessionMode: String = "MANUAL",
 	) {
+		val startOrigin = if (sessionMode == "AUTOMATIC") {
+			"AUTOMATIC_BACKGROUND_START"
+		} else {
+			"MANUAL_FOREGROUND_START"
+		}
 		database.sourceSessionDao().insertSession(
 			LogicalTrackingSessionEntity(
 				logicalTrackingId = logicalId,
@@ -1585,7 +1873,7 @@ class RoomExportPortableStepsTest {
 				lifecycleRevision = 1L,
 				desiredPlanRevision = 1L,
 				rolloutRevision = 1L,
-				startOrigin = "MANUAL_FOREGROUND_START",
+				startOrigin = startOrigin,
 				clockDomainId = "boot-1",
 				startedAtMs = startMs,
 				startedElapsedNanos = startMs,
@@ -1598,10 +1886,12 @@ class RoomExportPortableStepsTest {
 				currentManifestRevision = null,
 				currentIntentRevision = null,
 				currentServiceRunId = currentRunId,
+				automationEpoch = 1L.takeIf { sessionMode == "AUTOMATIC" },
 			),
 		)
 	}
 
+	@Suppress("LongMethod")
 	private suspend fun insertSettledRun(
 		logicalId: String,
 		runId: String,
@@ -1617,6 +1907,7 @@ class RoomExportPortableStepsTest {
 		sessionMode: String = "MANUAL",
 		rolloutRevision: Long = 1L,
 		bindingGeneration: Long = BINDING_GENERATION,
+		registrationGeneration: Long = 1L,
 		factTransform: (StepFactRevisionEntity) -> StepFactRevisionEntity = { it },
 		manifestTransform: (SessionManifestVersionEntity) -> SessionManifestVersionEntity = { it },
 	) {
@@ -1650,10 +1941,21 @@ class RoomExportPortableStepsTest {
 				serviceRunId = runId,
 			),
 		)
+		var previousCanonicalLiveWal: StepFactRevisionEntity? = null
+		val canonicalFacts = facts.map { seed ->
+			val raw = fact(logicalId, runId, manifestRevision, seed, startMs)
+			val canonical = previousCanonicalLiveWal?.let { previous ->
+				continueCanonicalLiveWalFact(previous, raw)
+			} ?: raw
+			if (canonical.originKind == StepFactRevisionEntity.ORIGIN_LIVE_WAL) {
+				previousCanonicalLiveWal = canonical
+			}
+			canonical
+		}
 		database.withTransaction {
-			facts.forEach { seed ->
+			canonicalFacts.forEach { canonical ->
 				database.stepFactRevisionDao().insert(
-					factTransform(fact(logicalId, runId, manifestRevision, seed, startMs)),
+					factTransform(canonical),
 				)
 			}
 		}
@@ -1663,7 +1965,7 @@ class RoomExportPortableStepsTest {
 				serviceRunId = runId,
 				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 				sourceInstanceId = "steps-$runId",
-				registrationGeneration = 1L,
+				registrationGeneration = registrationGeneration,
 				lastAdmissionOrdinal = facts.maxOfOrNull(FactSeed::ordinal),
 				lastSourceSequence = facts.maxOfOrNull(FactSeed::ordinal),
 				appDrainComplete = true,
@@ -1693,6 +1995,11 @@ class RoomExportPortableStepsTest {
 	) {
 		ensurePolicy(manifestRevision)
 		val terminal = state == "FINALIZED" || state == "FAILED"
+		val startOrigin = if (sessionMode == "AUTOMATIC") {
+			"AUTOMATIC_BACKGROUND_START"
+		} else {
+			"MANUAL_FOREGROUND_START"
+		}
 		database.sourceSessionDao().insertServiceRun(
 			SourceServiceRunEntity(
 				serviceRunId = runId,
@@ -1707,7 +2014,7 @@ class RoomExportPortableStepsTest {
 				completionReason = "STOPPED".takeIf { terminal },
 				bootId = "boot-1",
 				leaseGeneration = 1L,
-				startOrigin = "MANUAL_FOREGROUND_START",
+				startOrigin = startOrigin,
 				runRevision = 1L,
 				startDeliveryToken = "delivery-$runId",
 				startCommandGeneration = 1L,
@@ -1761,12 +2068,12 @@ class RoomExportPortableStepsTest {
 			sourcePolicyRevision = manifestRevision,
 			acquisitionPlanRevision = manifestRevision,
 			rolloutRevision = rolloutRevision,
-			startOrigin = "MANUAL_FOREGROUND_START",
+			startOrigin = startOrigin,
 			effectiveBootId = "boot-1",
 			effectiveElapsedRealtimeNanos = startMs,
 			effectiveWallTimeMs = startMs,
 			zoneId = "UTC",
-			automationEpoch = null,
+			automationEpoch = 1L.takeIf { sessionMode == "AUTOMATIC" },
 			changeReason = "TEST",
 			manifestChecksum = "",
 		))
@@ -1816,13 +2123,13 @@ class RoomExportPortableStepsTest {
 			sourcePolicyRevision = manifestRevision,
 			acquisitionPlanRevision = manifestRevision,
 			rolloutRevision = firstManifest.rolloutRevision,
-			startOrigin = firstManifest.startOrigin,
+			startOrigin = POLICY_RECONCILIATION_ORIGIN,
 			effectiveBootId = firstManifest.effectiveBootId,
 			effectiveElapsedRealtimeNanos = effectiveElapsedRealtimeNanos,
 			effectiveWallTimeMs = effectiveWallTimeMs,
 			zoneId = firstManifest.zoneId,
 			automationEpoch = firstManifest.automationEpoch,
-			changeReason = "TEST_RECONFIGURE",
+			changeReason = POLICY_RECONCILIATION_ORIGIN,
 			manifestChecksum = "",
 		)
 		database.sourceSessionDao().insertManifest(
@@ -1863,6 +2170,29 @@ class RoomExportPortableStepsTest {
 				),
 			)
 		}
+		if (database.sourcePolicyDao().consentEpoch(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+				epoch = 1L,
+			) == null
+		) {
+			database.sourcePolicyDao().insertConsentEpochs(
+				listOf(
+					SourceConsentEpochEntity(
+						sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+						purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+						epoch = 1L,
+						eligible = true,
+						persistenceEligible = true,
+						policyRevision = FIRST_POLICY_REVISION,
+						effectiveBootId = "boot-1",
+						effectiveElapsedRealtimeNanos = revision,
+						effectiveWallTimeMs = revision,
+						changeReason = "TEST",
+					),
+				),
+			)
+		}
 	}
 
 	@Suppress("LongMethod")
@@ -1875,12 +2205,26 @@ class RoomExportPortableStepsTest {
 	): StepFactRevisionEntity {
 		val intervalStart = startMs + 10L + (seed.ordinal % 100L) * 10L
 		val intervalEnd = intervalStart + 5L
+		val canonicalIntervalStart = if (
+			seed.coverage == StepFactRevisionEntity.COVERAGE_BASELINE
+		) {
+			intervalEnd
+		} else {
+			intervalStart
+		}
 		val portableOrigin = seed.portableImport
 		val sourceEventId = "event-${seed.logicalFactId}"
 		val logicalFactId = "${seed.writerProjectionId}:$sourceEventId"
-		val intervalStartElapsed = startMs + (intervalStart - startMs) * NANOS_PER_MILLISECOND
-		val intervalEndElapsed = intervalStartElapsed +
-			(intervalEnd - intervalStart) * NANOS_PER_MILLISECOND
+		val elapsedDuration = (intervalEnd - canonicalIntervalStart) * NANOS_PER_MILLISECOND
+		val intervalStartElapsed = startMs + (
+			10L + seed.ordinal * 10L +
+				if (seed.coverage == StepFactRevisionEntity.COVERAGE_BASELINE) {
+					5L
+				} else {
+					0L
+				}
+			) * NANOS_PER_MILLISECOND
+		val intervalEndElapsed = intervalStartElapsed + elapsedDuration
 		val unsigned = StepFactRevisionEntity(
 			logicalFactId = logicalFactId,
 			semanticRevision = seed.semanticRevision,
@@ -1898,7 +2242,7 @@ class RoomExportPortableStepsTest {
 			writerProjectionVersion = seed.writerProjectionVersion,
 			writerBindingGeneration = seed.writerBindingGeneration,
 			operation = StepFactRevisionEntity.OPERATION_UPSERT,
-			intervalStartTimeMs = intervalStart,
+			intervalStartTimeMs = canonicalIntervalStart,
 			intervalEndTimeMs = intervalEnd,
 			intervalStartElapsedRealtimeNanos = intervalStartElapsed,
 			intervalEndElapsedRealtimeNanos = intervalEndElapsed,
@@ -1936,21 +2280,67 @@ class RoomExportPortableStepsTest {
 		}
 	}
 
+	private fun continueCanonicalLiveWalFact(
+		previous: StepFactRevisionEntity,
+		current: StepFactRevisionEntity,
+	): StepFactRevisionEntity {
+		if (current.originKind != StepFactRevisionEntity.ORIGIN_LIVE_WAL ||
+			current.coverageKind == StepFactRevisionEntity.COVERAGE_BASELINE
+		) {
+			return current
+		}
+		val startElapsed = requireNotNull(previous.intervalEndElapsedRealtimeNanos)
+		val durationNanos = Math.multiplyExact(
+			requireNotNull(current.intervalEndTimeMs) - requireNotNull(current.intervalStartTimeMs),
+			NANOS_PER_MILLISECOND,
+		)
+		val cumulativeStart = requireNotNull(previous.cumulativeStepCountEnd)
+		val cumulativeEnd = when (current.coverageKind) {
+			StepFactRevisionEntity.COVERAGE_COVERED ->
+				Math.addExact(cumulativeStart, requireNotNull(current.effectiveStepCount))
+			StepFactRevisionEntity.COVERAGE_RESET_GAP -> cumulativeStart - 1L
+			StepFactRevisionEntity.COVERAGE_PARTIAL -> cumulativeStart
+			else -> error("Unexpected canonical coverage ${current.coverageKind}")
+		}
+		val unsigned = current.copy(
+			intervalStartElapsedRealtimeNanos = startElapsed,
+			intervalEndElapsedRealtimeNanos = Math.addExact(startElapsed, durationNanos),
+			cumulativeStepCountStart = cumulativeStart,
+			cumulativeStepCountEnd = cumulativeEnd,
+			effectChecksum = "pending-test-effect",
+		)
+		return unsigned.copy(
+			effectChecksum = StepFactRevisionIntegrity.liveWalEffectChecksum(unsigned),
+		)
+	}
+
 	private fun retraction(
 		logicalFactId: String,
 		semanticRevision: Long,
 		deletionGeneration: Long = 1L,
+		collectedDataEpoch: Long = 0L,
 	): StepFactRevisionEntity {
 		val canonicalLogicalFactId = "$WRITER_ID:event-$logicalFactId"
-		return StepFactRevisionEntity(
+		val scopeIdentityDigest = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			logicalTrackingId = LOGICAL_ONE,
+			serviceRunId = RUN_ONE,
+		)
+		val unsigned = StepFactRevisionEntity(
 			logicalFactId = canonicalLogicalFactId,
 			semanticRevision = semanticRevision,
-			mutationId = "delete-$canonicalLogicalFactId-$semanticRevision",
+			mutationId = StepFactRevisionIntegrity.localDeleteMutationId(
+				scopeIdentityDigest = scopeIdentityDigest,
+				logicalFactId = canonicalLogicalFactId,
+				semanticRevision = semanticRevision,
+				scopeDeletionGeneration = deletionGeneration,
+			),
 			stepIntervalId = null,
 			sourceEventId = null,
 			sourceAdmissionOrdinal = null,
 			originKind = StepFactRevisionEntity.ORIGIN_LOCAL_DELETE,
-			originIdentity = "delete-request-$canonicalLogicalFactId",
+			originIdentity = scopeIdentityDigest,
 			writerProjectionId = WRITER_ID,
 			writerProjectionVersion = WRITER_VERSION,
 			writerBindingGeneration = BINDING_GENERATION,
@@ -1972,10 +2362,13 @@ class RoomExportPortableStepsTest {
 			manifestRevision = null,
 			sourcePolicyRevision = null,
 			captureConsentEpoch = null,
-			collectedDataEpoch = 0L,
+			collectedDataEpoch = collectedDataEpoch,
 			scopeDeletionGeneration = deletionGeneration,
-			effectChecksum = "delete-effect-$canonicalLogicalFactId-$semanticRevision",
+			effectChecksum = "pending-local-delete-effect",
 			appliedAtMs = 3_000L,
+		)
+		return unsigned.copy(
+			effectChecksum = StepFactRevisionIntegrity.localDeleteEffectChecksum(unsigned),
 		)
 	}
 
@@ -2061,6 +2454,8 @@ class RoomExportPortableStepsTest {
 	}
 
 	private companion object {
+		const val FIRST_POLICY_REVISION = 1L
+		const val POLICY_RECONCILIATION_ORIGIN = "POLICY_RECONCILIATION"
 		const val LOGICAL_ONE = "logical-one"
 		const val LOGICAL_TWO = "logical-two"
 		const val RUN_ONE = "run-one"
