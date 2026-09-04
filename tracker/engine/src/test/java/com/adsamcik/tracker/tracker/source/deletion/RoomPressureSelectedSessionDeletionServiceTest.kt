@@ -1376,7 +1376,7 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
 		consentEpoch = 1L,
 		persistenceEligible = true,
-		qosCode = 0,
+		qosCode = STEPS_CAPTURE_QOS_CODE,
 		outputDestination = SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS,
 		writerOwner = SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
 		writerOwnerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
@@ -1445,6 +1445,15 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		effectiveElapsedRealtimeNanos = 0L,
 		effectiveWallTimeMs = 0L,
 		changeReason = "TEST",
+	)
+
+	private fun stepsPolicy() = pressurePolicy().copy(
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+		qosCode = STEPS_CAPTURE_QOS_CODE,
+	)
+
+	private fun stepsConsent() = pressureConsent().copy(
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
 	)
 
 	private fun candidatePressureOwner() = SourceDestinationOwnerEntity(
@@ -1841,6 +1850,8 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 	private suspend fun insertMaterializingStepsSurvivor(startMs: Long, endMs: Long) {
 		val logicalId = "logical-materializing-steps-survivor"
 		val runId = "run-materializing-steps-survivor"
+		database.sourcePolicyDao().insertPolicies(listOf(stepsPolicy()))
+		database.sourcePolicyDao().insertConsentEpochs(listOf(stepsConsent()))
 		database.sourceDestinationOwnerDao().insertIfAbsent(candidateStepsOwner())
 		installCanonicalStepsLane()
 		val segmentId = database.sessionSegmentDao().insert(
@@ -2014,6 +2025,7 @@ class RoomPressureSelectedSessionDeletionServiceTest {
 		const val MANIFEST_REVISION = 1L
 		const val SOURCE_POLICY_REVISION = 1L
 		const val CAPTURE_CONSENT_EPOCH = 1L
+		const val STEPS_CAPTURE_QOS_CODE = 1
 		const val PRESSURE_CAPTURE_QOS_CODE = 2
 		const val COLLECTED_DATA_EPOCH = 2L
 		const val DELETED_AT_MS = 9_000_000L
