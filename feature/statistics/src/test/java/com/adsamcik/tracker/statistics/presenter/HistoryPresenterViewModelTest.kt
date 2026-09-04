@@ -29,6 +29,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -128,6 +129,25 @@ class HistoryPresenterViewModelTest {
 			recreatedViewModel.selectedTab.value shouldBe HistoryTab.CALENDAR
 			recreatedViewModel.calendarState.value.currentMonth shouldBe YearMonth.of(2024, 6)
 			recreatedViewModel.calendarState.value.selectedDay shouldBe selectedDay
+		}
+
+		@Test
+		fun `restored Timeline selection does not observe its saved calendar day`() = runTest {
+			val selectedDay = LocalDate.of(2024, 6, 15)
+			val savedStateHandle = SavedStateHandle(
+				mapOf(
+					"history_selected_tab" to HistoryTab.TIMELINE.name,
+					"history_calendar_month" to YearMonth.from(selectedDay).toString(),
+					"history_calendar_selected_day" to selectedDay.toEpochDay(),
+				),
+			)
+
+			val vm = createViewModel(savedStateHandle)
+			advanceUntilIdle()
+
+			vm.selectedTab.value shouldBe HistoryTab.TIMELINE
+			vm.calendarState.value.selectedDay shouldBe selectedDay
+			verify(exactly = 0) { stepsNumericSummaryRepository.observe(any()) }
 		}
 	}
 
@@ -253,6 +273,7 @@ class HistoryPresenterViewModelTest {
 			advanceUntilIdle()
 
 			// Navigate to the target month
+			vm.selectTab(HistoryTab.CALENDAR)
 			vm.selectDay(day1)
 			advanceUntilIdle()
 
@@ -293,6 +314,7 @@ class HistoryPresenterViewModelTest {
 
 			val vm = createViewModel()
 			advanceUntilIdle()
+			vm.selectTab(HistoryTab.CALENDAR)
 			vm.selectDay(date)
 			advanceUntilIdle()
 
@@ -317,6 +339,7 @@ class HistoryPresenterViewModelTest {
 
 			val vm = createViewModel()
 			advanceUntilIdle()
+			vm.selectTab(HistoryTab.CALENDAR)
 			vm.selectDay(date)
 			advanceUntilIdle()
 
@@ -340,6 +363,7 @@ class HistoryPresenterViewModelTest {
 			val vm = createViewModel()
 			advanceUntilIdle()
 
+			vm.selectTab(HistoryTab.CALENDAR)
 			vm.selectDay(dayA)
 			advanceUntilIdle()
 			vm.selectDay(dayB)
@@ -373,6 +397,7 @@ class HistoryPresenterViewModelTest {
 			val vm = createViewModel(savedStateHandle)
 			advanceUntilIdle()
 
+			vm.selectTab(HistoryTab.CALENDAR)
 			vm.selectDay(day)
 			advanceUntilIdle()
 			vm.selectMonth(YearMonth.of(2024, 8))
@@ -384,6 +409,51 @@ class HistoryPresenterViewModelTest {
 			vm.calendarState.value.selectedDayDetail shouldBe null
 			savedStateHandle.get<Long>("history_calendar_selected_day") shouldBe null
 		}
+
+		@Test
+		fun `leaving Calendar cancels selected day settlement and reentering resubscribes`() =
+			runTest {
+				val day = LocalDate.of(2024, 7, 3)
+				val backingSteps = MutableStateFlow<StepsNumericSummary>(StepsNumericSummary.Materializing)
+				var subscriptions = 0
+				var cancellations = 0
+				every {
+					stepsNumericSummaryRepository.observe(
+						match { it.firstEpochDay == day.toEpochDay() },
+					)
+				} returns flow {
+					subscriptions += 1
+					try {
+						emitAll(backingSteps)
+					} finally {
+						cancellations += 1
+					}
+				}
+				val vm = createViewModel()
+				advanceUntilIdle()
+
+				vm.selectTab(HistoryTab.CALENDAR)
+				vm.selectDay(day)
+				advanceUntilIdle()
+				subscriptions shouldBe 1
+
+				vm.selectTab(HistoryTab.TIMELINE)
+				advanceUntilIdle()
+				cancellations shouldBe 1
+
+				backingSteps.value = StepsNumericSummary.Ready(
+					listOf(StepsNumericDay(day.toEpochDay(), 42L)),
+				)
+				advanceUntilIdle()
+				vm.calendarState.value.selectedDayDetail?.steps shouldBe
+					HistoryStepsValue.Materializing
+
+				vm.selectTab(HistoryTab.CALENDAR)
+				advanceUntilIdle()
+
+				subscriptions shouldBe 2
+				vm.calendarState.value.selectedDayDetail?.steps shouldBe HistoryStepsValue.Ready(42L)
+			}
 	}
 
 	@Nested

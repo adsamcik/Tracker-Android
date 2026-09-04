@@ -40,6 +40,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
@@ -132,7 +133,12 @@ class HistoryPresenterViewModel @Inject constructor(
 	init {
 		loadTimeline()
 		viewModelScope.launch {
-			calendarRequest.collectLatest(::loadCalendarRequest)
+			combine(_selectedTab, calendarRequest) { tab, request -> tab to request }
+				.collectLatest { (tab, request) ->
+					if (tab == HistoryTab.CALENDAR) {
+						loadCalendarRequest(request)
+					}
+				}
 		}
 		restorePendingDeletes()
 	}
