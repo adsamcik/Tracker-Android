@@ -30,6 +30,7 @@ import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveSessionPrese
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveStepsValue
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardMode
 import com.adsamcik.tracker.dashboard.ui.compose.state.allowsRuntimeMilestones
+import com.adsamcik.tracker.dashboard.ui.compose.state.qualifiedMilestoneSteps
 import com.adsamcik.tracker.shared.utils.style.compose.AppDimensions
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
@@ -134,6 +135,35 @@ class DashboardScreenTest {
 			sessionData = TrackerSessionSnapshot(id = 42L, start = 1L),
 			liveSessionPresentation = DashboardLiveSessionPresentation.Standard(segmentId = 42L),
 		).allowsRuntimeMilestones shouldBe true
+	}
+
+	@Test
+	fun onlyCompleteQualifiedSteps_authorizeCelebratoryStepEffects() {
+		val session = TrackerSessionSnapshot(id = 42L, start = 1L, steps = 2_500)
+
+		DashboardUiState(
+			sessionData = session,
+			liveSessionPresentation = DashboardLiveSessionPresentation.Standard(
+				segmentId = 42L,
+				steps = DashboardLiveStepsValue.Partial(2_000L),
+			),
+		).qualifiedMilestoneSteps shouldBe null
+
+		DashboardUiState(
+			sessionData = session,
+			liveSessionPresentation = DashboardLiveSessionPresentation.Standard(
+				segmentId = 42L,
+				steps = DashboardLiveStepsValue.Complete(2_400L),
+			),
+		).qualifiedMilestoneSteps shouldBe 2_400L
+
+		DashboardUiState(
+			sessionData = session,
+			liveSessionPresentation = DashboardLiveSessionPresentation.Standard(
+				segmentId = 41L,
+				steps = DashboardLiveStepsValue.Complete(2_400L),
+			),
+		).qualifiedMilestoneSteps shouldBe null
 	}
 
 	private fun setEmptyDashboardContent() {

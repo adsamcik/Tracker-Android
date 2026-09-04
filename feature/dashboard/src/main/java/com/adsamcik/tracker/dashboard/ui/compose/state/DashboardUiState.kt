@@ -153,6 +153,17 @@ internal val DashboardUiState.allowsRuntimeMilestones: Boolean
 		return sessionData?.id == standard.segmentId
 	}
 
+/** Complete source-qualified Steps for celebratory effects on the exact active segment. */
+internal val DashboardUiState.qualifiedMilestoneSteps: Long?
+	get() {
+		val standard = liveSessionPresentation as? DashboardLiveSessionPresentation.Standard
+			?: return null
+		if (sessionData?.id != standard.segmentId) {
+			return null
+		}
+		return (standard.steps as? DashboardLiveStepsValue.Complete)?.count
+	}
+
 @Immutable
 data class LatestAchievementUi(
 	val id: String,

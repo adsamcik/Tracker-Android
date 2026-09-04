@@ -3,6 +3,7 @@ package com.adsamcik.tracker.dashboard.ui.compose.tracking
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.runtime.mutableStateOf
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import org.junit.Rule
@@ -75,6 +76,35 @@ class MilestoneCelebrationTest {
 		// On initial render, lastDistanceKm starts at 0, so the milestone check
 		// requires lastDistanceKm > 0 to fire — nothing shows
 		composeRule.onAllNodesWithText("km", substring = true).assertCountEquals(0)
+		composeRule.onAllNodesWithText("steps", substring = true).assertCountEquals(0)
+	}
+
+	@Test
+	fun rawStepThresholdCrossing_withoutQualification_showsNoCelebration() {
+		val now = System.currentTimeMillis()
+		val session = mutableStateOf(
+			TrackerSessionSnapshot(
+				id = 1L,
+				start = now - 300_000L,
+				distanceInM = 500f,
+				steps = 1500,
+			),
+		)
+
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				MilestoneCelebrationOverlay(
+					sessionData = session.value,
+					isTracking = true,
+					qualifiedSteps = null,
+				)
+			}
+		}
+		composeRule.runOnIdle {
+			session.value = session.value.copy(steps = 2500)
+		}
+		composeRule.waitForIdle()
+
 		composeRule.onAllNodesWithText("steps", substring = true).assertCountEquals(0)
 	}
 }

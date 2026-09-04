@@ -8,6 +8,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldContainExactly
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -123,5 +124,75 @@ class MilestoneHapticEffectTest {
 		composeRule.waitForIdle()
 
 		feedback.shouldBeEmpty()
+	}
+
+	@Test
+	fun rawStepsWithoutQualification_doNotTriggerFeedback() {
+		val now = System.currentTimeMillis()
+		val session = mutableStateOf(
+			TrackerSessionSnapshot(
+				id = 1L,
+				start = now - 120_000L,
+				distanceInM = 1500f,
+				steps = 1500,
+			),
+		)
+		val feedback = mutableListOf<HapticFeedbackType>()
+		val recordingHaptics = object : HapticFeedback {
+			override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) {
+				feedback += hapticFeedbackType
+			}
+		}
+
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				MilestoneHapticEffect(
+					sessionData = session.value,
+					isTracking = true,
+					haptics = recordingHaptics,
+					qualifiedSteps = null,
+				)
+			}
+		}
+		composeRule.runOnIdle {
+			session.value = session.value.copy(steps = 2500)
+		}
+		composeRule.waitForIdle()
+
+		feedback.shouldBeEmpty()
+	}
+
+	@Test
+	fun completeQualifiedSteps_triggerStepFeedbackAfterCrossing() {
+		val now = System.currentTimeMillis()
+		val qualifiedSteps = mutableStateOf<Long?>(1500L)
+		val feedback = mutableListOf<HapticFeedbackType>()
+		val recordingHaptics = object : HapticFeedback {
+			override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) {
+				feedback += hapticFeedbackType
+			}
+		}
+
+		composeRule.setContent {
+			AppTheme(useDynamicColor = false) {
+				MilestoneHapticEffect(
+					sessionData = TrackerSessionSnapshot(
+						id = 1L,
+						start = now - 120_000L,
+						distanceInM = 1500f,
+						steps = 0,
+					),
+					isTracking = true,
+					haptics = recordingHaptics,
+					qualifiedSteps = qualifiedSteps.value,
+				)
+			}
+		}
+		composeRule.runOnIdle {
+			qualifiedSteps.value = 2500L
+		}
+		composeRule.waitForIdle()
+
+		feedback.shouldContainExactly(HapticFeedbackType.TextHandleMove)
 	}
 }

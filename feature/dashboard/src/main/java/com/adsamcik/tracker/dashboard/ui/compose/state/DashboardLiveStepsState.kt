@@ -25,6 +25,8 @@ sealed interface DashboardLiveSessionPresentation {
 	/** Exact history does not establish a Steps-only capture set; preserve the existing surface. */
 	data class Standard(
 		val segmentId: Long,
+		/** Qualified Steps for this mixed-source segment, or null when Steps is not qualified. */
+		val steps: DashboardLiveStepsValue? = null,
 	) : DashboardLiveSessionPresentation {
 		init {
 			require(segmentId > 0L)

@@ -43,6 +43,7 @@ import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.compose.DashboardLayoutDefaults
 import com.adsamcik.tracker.dashboard.ui.compose.components.SensorDetailsCard
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
+import com.adsamcik.tracker.dashboard.ui.compose.state.qualifiedMilestoneSteps
 import com.adsamcik.tracker.dashboard.ui.compose.visualization.AltitudeSparkline
 import com.adsamcik.tracker.dashboard.ui.compose.visualization.SessionPathPreview
 import com.adsamcik.tracker.dashboard.ui.compose.visualization.SpeedSparkline
@@ -149,6 +150,7 @@ internal fun TrackingContent(
 		MilestoneCelebrationOverlay(
 			sessionData = state.sessionData,
 			isTracking = state.isTracking,
+			qualifiedSteps = state.qualifiedMilestoneSteps,
 			modifier = Modifier.align(Alignment.TopCenter),
 		)
 	}

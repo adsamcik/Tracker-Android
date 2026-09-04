@@ -46,6 +46,7 @@ import com.adsamcik.tracker.dashboard.ui.compose.components.MilestoneHapticEffec
 import com.adsamcik.tracker.dashboard.ui.compose.components.TrackingPill
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardMode
 import com.adsamcik.tracker.dashboard.ui.compose.state.allowsRuntimeMilestones
+import com.adsamcik.tracker.dashboard.ui.compose.state.qualifiedMilestoneSteps
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.TrackingContent
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.StepsOnlyTrackingContent
 import com.adsamcik.tracker.dashboard.ui.compose.tracking.TrackingHistoryResolutionContent
@@ -106,6 +107,7 @@ internal fun DashboardScreen(
 		isTracking = state.isTracking,
 		haptics = haptics,
 		milestonesEnabled = state.allowsRuntimeMilestones,
+		qualifiedSteps = state.qualifiedMilestoneSteps,
 	)
 
 	// Haptic-wrapped callbacks

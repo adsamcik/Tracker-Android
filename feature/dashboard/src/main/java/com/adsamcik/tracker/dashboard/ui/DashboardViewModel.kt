@@ -27,6 +27,7 @@ import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
 import com.adsamcik.tracker.shared.base.result.runCatchingCancellable
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsRepository
 import com.adsamcik.tracker.shared.preferences.tracking.TrackingParamsState
+import com.adsamcik.tracker.stats.api.repository.HistorySource
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import com.adsamcik.tracker.tracker.insights.SessionInsight
@@ -339,6 +340,11 @@ private fun SessionHistoryQuery.toLivePresentation(
 			segmentId = requestedSegmentId,
 			steps = history.steps.toDashboardLiveStepsValue(),
 		)
-		else -> DashboardLiveSessionPresentation.Standard(requestedSegmentId)
+		else -> DashboardLiveSessionPresentation.Standard(
+			segmentId = requestedSegmentId,
+			steps = history.steps
+				.takeIf { HistorySource.STEPS in history.qualifiedSources }
+				?.toDashboardLiveStepsValue(),
+		)
 	}
 }

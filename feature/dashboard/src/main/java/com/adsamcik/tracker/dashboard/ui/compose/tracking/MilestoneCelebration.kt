@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -40,7 +41,7 @@ private const val MILESTONE_DISPLAY_DURATION_MS = 3000L
  *
  * Tracks the same thresholds as [MilestoneHapticEffect]:
  * - Every 1 km of distance
- * - Every 1000 steps
+ * - Every 1000 source-qualified steps
  * - Every 10 minutes of tracking
  *
  * Shows a banner that auto-dismisses after 3 seconds.
@@ -49,10 +50,12 @@ private const val MILESTONE_DISPLAY_DURATION_MS = 3000L
 internal fun MilestoneCelebrationOverlay(
 	sessionData: TrackerSessionSnapshot?,
 	isTracking: Boolean,
+	/** Complete source-qualified Steps for the exact active segment; null suppresses only Steps. */
+	qualifiedSteps: Long? = null,
 	modifier: Modifier = Modifier,
 ) {
 	var lastDistanceKm by remember { mutableIntStateOf(0) }
-	var lastStepsThousand by remember { mutableIntStateOf(0) }
+	var lastStepsThousand by remember { mutableLongStateOf(0L) }
 	var lastMinutesTen by remember { mutableIntStateOf(0) }
 
 	var celebrationText by remember { mutableStateOf<String?>(null) }
@@ -62,23 +65,24 @@ internal fun MilestoneCelebrationOverlay(
 	val stepsMilestoneText = stringResource(R.string.dashboard_milestone_steps)
 	val timeMilestoneText = stringResource(R.string.dashboard_milestone_time)
 
-	LaunchedEffect(sessionData, isTracking) {
+	LaunchedEffect(sessionData, isTracking, qualifiedSteps) {
 		if (!isTracking || sessionData == null) {
 			lastDistanceKm = 0
-			lastStepsThousand = 0
+			lastStepsThousand = 0L
 			lastMinutesTen = 0
 			return@LaunchedEffect
 		}
 
 		val currentDistanceKm = (sessionData.distanceInM / 1000f).toInt()
-		val currentStepsThousand = sessionData.steps / 1000
+		val currentStepsThousand = qualifiedSteps?.div(1000L)
 		val durationMinutes = ((Time.nowMillis - sessionData.start) / 60000).toInt()
 		val currentMinutesTen = durationMinutes / 10
 
 		val milestone = when {
 			currentDistanceKm > lastDistanceKm && lastDistanceKm > 0 ->
 				"$currentDistanceKm $distanceMilestoneText"
-			currentStepsThousand > lastStepsThousand && lastStepsThousand > 0 ->
+			currentStepsThousand != null &&
+				currentStepsThousand > lastStepsThousand && lastStepsThousand > 0 ->
 				"${currentStepsThousand * 1000} $stepsMilestoneText"
 			currentMinutesTen > lastMinutesTen && lastMinutesTen > 0 ->
 				"${currentMinutesTen * 10} $timeMilestoneText"
@@ -86,7 +90,7 @@ internal fun MilestoneCelebrationOverlay(
 		}
 
 		lastDistanceKm = currentDistanceKm
-		lastStepsThousand = currentStepsThousand
+		lastStepsThousand = currentStepsThousand ?: 0L
 		lastMinutesTen = currentMinutesTen
 
 		if (milestone != null) {

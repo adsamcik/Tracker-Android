@@ -148,6 +148,19 @@ class DashboardViewModelLiveStepsTest {
 
 			repository.update(
 				FIRST_SEGMENT_ID,
+				SessionHistoryQuery.Found(
+					mixedHistory(FIRST_SEGMENT_ID, qualifiedSteps = true),
+				),
+			)
+			advanceUntilIdle()
+			viewModel.liveSessionPresentation.value shouldBe
+				DashboardLiveSessionPresentation.Standard(
+					FIRST_SEGMENT_ID,
+					DashboardLiveStepsValue.Complete(1_500L),
+				)
+
+			repository.update(
+				FIRST_SEGMENT_ID,
 				SessionHistoryQuery.Found(stepsOnlyHistory(SECOND_SEGMENT_ID)),
 			)
 			advanceUntilIdle()
@@ -207,7 +220,10 @@ class DashboardViewModelLiveStepsTest {
 		steps = materializingSteps(),
 	)
 
-	private fun mixedHistory(segmentId: Long) = SessionHistory(
+	private fun mixedHistory(
+		segmentId: Long,
+		qualifiedSteps: Boolean = false,
+	) = SessionHistory(
 		segmentId = segmentId,
 		capture = HistoryCapture.Exact(
 			listOf(
@@ -225,8 +241,24 @@ class DashboardViewModelLiveStepsTest {
 				),
 			),
 		),
-		qualifiedSources = emptySet(),
-		steps = materializingSteps(),
+		qualifiedSources = if (qualifiedSteps) {
+			setOf(HistorySource.STEPS)
+		} else {
+			emptySet()
+		},
+		steps = if (qualifiedSteps) {
+			completeSteps()
+		} else {
+			materializingSteps()
+		},
+	)
+
+	private fun completeSteps() = StepsHistory(
+		count = 1_500L,
+		availability = HistoryAvailability.AVAILABLE,
+		evidence = HistoryEvidence.RECORDED,
+		productState = HistoryProductState.READY,
+		coverage = StepsHistoryCoverage.COMPLETE,
 	)
 
 	private fun materializingSteps() = StepsHistory(
