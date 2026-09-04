@@ -84,9 +84,10 @@ internal class StepWindowAccumulator(
 			// observed by this app (for example 10_000 -> 3 must not become +3).
 			0L
 		}
-		val payloadBaseline = authorizedPrevious?.takeIf {
-			boundaryKind == StepBoundaryKind.COVERED
-		}
+		// A reset contributes no steps, but its canonical gap still spans the last value from the
+		// discarded counter domain through the first value in the new domain. Keeping that boundary
+		// lets the sole fact writer distinguish a reset from a newly authorized baseline.
+		val payloadBaseline = authorizedPrevious
 		val payload = StepCounterWindowPayload(
 			bootClockDomainId = bootClockDomainId,
 			firstCumulativeCount = payloadBaseline?.cumulativeCount ?: cumulativeCount,
