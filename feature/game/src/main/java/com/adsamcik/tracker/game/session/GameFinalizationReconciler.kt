@@ -1,11 +1,11 @@
 package com.adsamcik.tracker.game.session
 
-import com.adsamcik.tracker.game.repository.GameRepository
 import com.adsamcik.tracker.game.repository.GameReward
 import com.adsamcik.tracker.game.repository.GameRewardEnsureResult
 import com.adsamcik.tracker.game.repository.miniGameRewardId
-import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import kotlinx.coroutines.CancellationException
 
 internal data class GameFinalizationReconciliationSummary(
@@ -21,27 +21,27 @@ internal data class GameFinalizationReconciliationSummary(
  */
 internal class GameFinalizationReconciler(
 	private val loadScores: suspend (Int) -> List<MiniGameScoreEntity>,
-	private val repository: GameRepository,
+	private val trackingStartupGate: TrackingStartupGate,
+	private val ensureRewardInsideAcceptedGeneration: suspend (
+		reward: GameReward,
+		acceptedGeneration: Long,
+	) -> GameRewardEnsureResult,
 	batchLimit: Int = DEFAULT_BATCH_LIMIT,
 ) {
 	private val batchLimit = batchLimit.coerceIn(1, MAX_BATCH_LIMIT)
-
-	constructor(
-		scoreDao: MiniGameScoreDao,
-		repository: GameRepository,
-		batchLimit: Int = DEFAULT_BATCH_LIMIT,
-	) : this(
-		loadScores = scoreDao::getRecentForReconciliation,
-		repository = repository,
-		batchLimit = batchLimit,
-	)
 
 	suspend fun reconcile(): GameFinalizationReconciliationSummary {
 		var repaired = 0
 		var alreadyComplete = 0
 		var failed = 0
+		val expectedGeneration = trackingStartupGate.currentGeneration
 		val rows = try {
-			loadScores(batchLimit)
+			if (trackingStartupGate.reconcile() !is TrackingStartupResult.Ready) {
+				return GameFinalizationReconciliationSummary(0, 0, 0, 1)
+			}
+			trackingStartupGate.withReadyGenerationOperation(expectedGeneration) {
+				loadScores(batchLimit)
+			} ?: return GameFinalizationReconciliationSummary(0, 0, 0, 1)
 		} catch (cancellation: CancellationException) {
 			throw cancellation
 		} catch (_: Throwable) {
@@ -49,14 +49,20 @@ internal class GameFinalizationReconciler(
 		}
 		rows.forEach { row ->
 			val result = try {
-				repository.ensureMiniGameReward(
-					GameReward(
-						rewardId = miniGameRewardId(row.gameId, row.playedAt),
-						gameId = row.gameId,
-						points = row.xpAwarded,
-						earnedAtMs = row.playedAt,
-					),
-				)
+				trackingStartupGate.withReadyGenerationOperation(expectedGeneration) {
+					ensureRewardInsideAcceptedGeneration(
+						reward = GameReward(
+							rewardId = miniGameRewardId(row.gameId, row.playedAt),
+							gameId = row.gameId,
+							points = row.xpAwarded,
+							earnedAtMs = row.playedAt,
+						),
+						acceptedGeneration = expectedGeneration,
+					)
+				} ?: run {
+					failed++
+					return@forEach
+				}
 			} catch (cancellation: CancellationException) {
 				throw cancellation
 			} catch (_: Throwable) {

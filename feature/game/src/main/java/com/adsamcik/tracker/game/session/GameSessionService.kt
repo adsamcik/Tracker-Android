@@ -13,6 +13,7 @@ import com.adsamcik.tracker.game.repository.DefaultGameRepository
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.service.CoreService
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.Job
@@ -31,6 +32,7 @@ internal class GameSessionService : CoreService() {
 	@Inject lateinit var gameRepository: DefaultGameRepository
 	@Inject lateinit var dispatchers: DispatchersProvider
 	@Inject lateinit var goalsSettingsRepository: GoalsSettingsRepository
+	@Inject lateinit var trackingStartupGate: TrackingStartupGate
 
 	private lateinit var runtime: GameSessionRuntime
 	private lateinit var notificationUpdater: GameSessionNotificationUpdater
@@ -71,7 +73,13 @@ internal class GameSessionService : CoreService() {
 			clock = SystemGameSessionClock,
 			sessionFactory = ConfiguredGameSessionFactory(registry),
 			locationSource = locationSource,
-			persistence = DefaultGameSessionPersistence(scoreDao, gameRepository, dispatchers),
+			persistence = DefaultGameSessionPersistence(
+				scoreDao = scoreDao,
+				dispatchers = dispatchers,
+				trackingStartupGate = trackingStartupGate,
+				ensureRewardInsideAcceptedGeneration =
+					gameRepository::ensureMiniGameRewardInsideAcceptedGeneration,
+			),
 			statePublisher = stateStore,
 			onStateUpdate = ::onRuntimeStateUpdate,
 			onTerminal = ::stopAfterTerminalState,

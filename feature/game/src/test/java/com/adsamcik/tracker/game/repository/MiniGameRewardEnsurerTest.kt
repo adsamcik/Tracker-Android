@@ -56,16 +56,19 @@ class MiniGameRewardEnsurerTest {
 		val dao = RecordingPointsDao()
 		val gate = SerializedTestTrackingStartupGate()
 		val progressionAttempts = mutableListOf<Pair<Int, Long>>()
+		var progressionCreated = true
+		var dirtyCalls = 0
+		var scheduledEvaluations = 0
 		val ensurer = MiniGameRewardEnsurer(
 			pointsDao = dao,
 			dispatchers = TestDispatchersProvider(dispatcher),
 			trackingStartupGate = gate,
-			awardProgression = { points, time, _ ->
+			awardProgressionInsideAcceptedGeneration = { points, time ->
 				progressionAttempts += points to time
-				true
+				progressionCreated.also { progressionCreated = false }
 			},
-			markMiniGameMetricsDirty = {},
-			scheduleAchievementEvaluation = {},
+			markMiniGameMetricsDirty = { dirtyCalls++ },
+			scheduleAchievementEvaluation = { scheduledEvaluations++ },
 		)
 		val reward = GameReward(
 			rewardId = miniGameRewardId("outrun", 123L),
@@ -81,6 +84,8 @@ class MiniGameRewardEnsurerTest {
 		dao.inserted.single().source.value shouldBe "minigame:outrun"
 		dao.inserted.single().time shouldBe 123L
 		progressionAttempts shouldBe listOf(40 to 123L, 40 to 123L)
+		dirtyCalls shouldBe 1
+		scheduledEvaluations shouldBe 1
 	}
 
 	@Test
@@ -89,16 +94,18 @@ class MiniGameRewardEnsurerTest {
 		val dao = RecordingPointsDao().apply { existing += 456L to "minigame:territory" }
 		val gate = SerializedTestTrackingStartupGate()
 		var progressionAttempts = 0
+		var dirtyCalls = 0
+		var scheduledEvaluations = 0
 		val ensurer = MiniGameRewardEnsurer(
 			pointsDao = dao,
 			dispatchers = TestDispatchersProvider(dispatcher),
 			trackingStartupGate = gate,
-			awardProgression = { _, _, _ ->
+			awardProgressionInsideAcceptedGeneration = { _, _ ->
 				progressionAttempts++
 				true
 			},
-			markMiniGameMetricsDirty = {},
-			scheduleAchievementEvaluation = {},
+			markMiniGameMetricsDirty = { dirtyCalls++ },
+			scheduleAchievementEvaluation = { scheduledEvaluations++ },
 		)
 
 		val result = ensurer.ensure(
@@ -113,10 +120,38 @@ class MiniGameRewardEnsurerTest {
 		result shouldBe GameRewardEnsureResult.AlreadyEnsured
 		dao.inserted shouldBe emptyList()
 		progressionAttempts shouldBe 1
+		dirtyCalls shouldBe 1
+		scheduledEvaluations shouldBe 1
 	}
 
 	@Test
-	fun `admitted points write quiesces before deletion and stale generation cannot restore xp`() =
+	fun `zero point reward persists one completion marker and schedules only once`() = runTest {
+		val dispatcher = StandardTestDispatcher(testScheduler)
+		val dao = RecordingPointsDao()
+		val gate = SerializedTestTrackingStartupGate()
+		var dirtyCalls = 0
+		var scheduledEvaluations = 0
+		val ensurer = MiniGameRewardEnsurer(
+			pointsDao = dao,
+			dispatchers = TestDispatchersProvider(dispatcher),
+			trackingStartupGate = gate,
+			awardProgressionInsideAcceptedGeneration = { _, _ -> false },
+			markMiniGameMetricsDirty = { dirtyCalls++ },
+			scheduleAchievementEvaluation = { scheduledEvaluations++ },
+		)
+		val reward = reward(gameId = "zen_walk", points = 0, earnedAtMs = 600L)
+
+		ensurer.ensure(reward) shouldBe GameRewardEnsureResult.Created
+		ensurer.ensure(reward) shouldBe GameRewardEnsureResult.AlreadyEnsured
+
+		dao.inserted.shouldHaveSize(1)
+		dao.inserted.single().value.value shouldBe 0.0
+		dirtyCalls shouldBe 1
+		scheduledEvaluations shouldBe 1
+	}
+
+	@Test
+	fun `admitted reward quiesces before deletion and deletion prevents resurrection`() =
 		runTest {
 			val dispatcher = StandardTestDispatcher(testScheduler)
 			val insertStarted = CompletableDeferred<Unit>()
@@ -129,22 +164,16 @@ class MiniGameRewardEnsurerTest {
 			)
 			val gate = SerializedTestTrackingStartupGate()
 			val dirtyTracker = RecordingMetricDirtyTracker()
-			val progressionGenerations = mutableListOf<Long>()
 			val progression = progressionRepository(dispatcher, dirtyTracker, gate)
+			var dirtyCalls = 0
 			var scheduledEvaluations = 0
 			val ensurer = MiniGameRewardEnsurer(
 				pointsDao = dao,
 				dispatchers = TestDispatchersProvider(dispatcher),
 				trackingStartupGate = gate,
-				awardProgression = { points, earnedAtMs, expectedGeneration ->
-					progressionGenerations += expectedGeneration
-					progression.awardMiniGameXpForGeneration(
-						points,
-						earnedAtMs,
-						expectedGeneration,
-					)
-				},
-				markMiniGameMetricsDirty = { error("stale reward marked metrics dirty") },
+				awardProgressionInsideAcceptedGeneration =
+					progression::awardMiniGameXpInsideAcceptedGeneration,
+				markMiniGameMetricsDirty = { dirtyCalls++ },
 				scheduleAchievementEvaluation = { scheduledEvaluations++ },
 			)
 			val reward = reward(gameId = "outrun", points = 40, earnedAtMs = 789L)
@@ -160,15 +189,13 @@ class MiniGameRewardEnsurerTest {
 			releaseInsert.complete(Unit)
 			deletion.await()
 
-			ensure.await() shouldBe GameRewardEnsureResult.Rejected(
-				GameRewardRejectionReason.PERSISTENCE_UNAVAILABLE,
-			)
+			ensure.await() shouldBe GameRewardEnsureResult.Created
 			dao.inserted shouldBe emptyList()
 			database.xpLedgerDao().getTotalXp() shouldBe 0L
 			database.playerProfileDao().get() shouldBe null
-			dirtyTracker.markCalls shouldBe 0
-			scheduledEvaluations shouldBe 0
-			progressionGenerations shouldBe listOf(1L)
+			dirtyTracker.markCalls shouldBe 1
+			dirtyCalls shouldBe 1
+			scheduledEvaluations shouldBe 1
 			gate.operationGenerations shouldBe listOf(1L)
 		}
 
@@ -177,7 +204,7 @@ class MiniGameRewardEnsurerTest {
 		val dispatcher = StandardTestDispatcher(testScheduler)
 		val dao = RecordingPointsDao()
 		val gate = SerializedTestTrackingStartupGate().apply {
-			afterNextReconcile = {
+			beforeNextOperation = {
 				closeDeleteReopen { deleteRewardState(dao) }
 			}
 		}
@@ -187,7 +214,8 @@ class MiniGameRewardEnsurerTest {
 			pointsDao = dao,
 			dispatchers = TestDispatchersProvider(dispatcher),
 			trackingStartupGate = gate,
-			awardProgression = progression::awardMiniGameXpForGeneration,
+			awardProgressionInsideAcceptedGeneration =
+				progression::awardMiniGameXpInsideAcceptedGeneration,
 			markMiniGameMetricsDirty = { error("retired reward marked metrics dirty") },
 			scheduleAchievementEvaluation = { error("retired reward scheduled evaluation") },
 		)
@@ -260,7 +288,7 @@ class MiniGameRewardEnsurerTest {
 		@Volatile private var ready = true
 		@Volatile private var generation = 1L
 		private val operationMutex = Mutex()
-		var afterNextReconcile: (suspend () -> Unit)? = null
+		var beforeNextOperation: (suspend () -> Unit)? = null
 		val operationGenerations = mutableListOf<Long>()
 
 		override val isReady: Boolean
@@ -269,8 +297,8 @@ class MiniGameRewardEnsurerTest {
 		override val currentGeneration: Long
 			get() = generation
 
-		override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult {
-			val result = if (ready) {
+		override suspend fun reconcile(retryFailedStorage: Boolean): TrackingStartupResult =
+			if (ready) {
 				TrackingStartupResult.Ready(false, 0L)
 			} else {
 				TrackingStartupResult.Blocked(
@@ -278,15 +306,13 @@ class MiniGameRewardEnsurerTest {
 					"TEST_DELETION_CLOSED",
 				)
 			}
-			afterNextReconcile?.also { afterNextReconcile = null }?.invoke()
-			return result
-		}
 
 		override suspend fun <T> withReadyGenerationOperation(
 			expectedGeneration: Long,
 			operation: suspend () -> T,
 		): T? {
 			operationGenerations += expectedGeneration
+			beforeNextOperation?.also { beforeNextOperation = null }?.invoke()
 			return operationMutex.withLock {
 				if (isReadyGeneration(expectedGeneration)) {
 					operation()

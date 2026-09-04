@@ -23,14 +23,15 @@ import com.adsamcik.tracker.game.minigame.SwitchbackConfiguration
 import com.adsamcik.tracker.game.minigame.switchback.SwitchbackSession
 import com.adsamcik.tracker.game.minigame.territory.TerritorySession
 import com.adsamcik.tracker.game.minigame.zenwalk.ZenWalkSession
-import com.adsamcik.tracker.game.repository.GameRepository
 import com.adsamcik.tracker.game.repository.GameReward
 import com.adsamcik.tracker.game.repository.GameRewardEnsureResult
+import com.adsamcik.tracker.game.repository.GameRewardRejectionReason
 import com.adsamcik.tracker.game.repository.miniGameRewardId
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.google.android.gms.location.LocationRequest
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
@@ -125,8 +126,12 @@ internal interface GameSessionPersistence {
 
 internal class DefaultGameSessionPersistence(
 	private val scoreDao: MiniGameScoreDao,
-	private val repository: GameRepository,
 	private val dispatchers: DispatchersProvider,
+	private val trackingStartupGate: TrackingStartupGate,
+	private val ensureRewardInsideAcceptedGeneration: suspend (
+		reward: GameReward,
+		acceptedGeneration: Long,
+	) -> GameRewardEnsureResult,
 ) : GameSessionPersistence {
 	override suspend fun loadPersonalBest(gameId: String): Double? =
 		withContext(dispatchers.io) {
@@ -134,26 +139,30 @@ internal class DefaultGameSessionPersistence(
 		}
 
 	override suspend fun commit(commit: GameSessionCommit): GameRewardEnsureResult {
-		withContext(dispatchers.io) {
-			scoreDao.insert(
-				MiniGameScoreEntity(
-					gameId = commit.configuration.gameId,
-					score = commit.score,
-					xpAwarded = commit.points,
-					playedAt = commit.completedAtMs,
-				),
-			)
-		}
-		return repository.ensureMiniGameReward(
-			GameReward(
-				rewardId = miniGameRewardId(
-					gameId = commit.configuration.gameId,
-					earnedAtMs = commit.completedAtMs,
-				),
+		val expectedGeneration = trackingStartupGate.currentGeneration
+		val reward = GameReward(
+			rewardId = miniGameRewardId(
 				gameId = commit.configuration.gameId,
-				points = commit.points,
 				earnedAtMs = commit.completedAtMs,
 			),
+			gameId = commit.configuration.gameId,
+			points = commit.points,
+			earnedAtMs = commit.completedAtMs,
+		)
+		return trackingStartupGate.withReadyGenerationOperation(expectedGeneration) {
+			withContext(dispatchers.io) {
+				scoreDao.insert(
+					MiniGameScoreEntity(
+						gameId = commit.configuration.gameId,
+						score = commit.score,
+						xpAwarded = commit.points,
+						playedAt = commit.completedAtMs,
+					),
+				)
+			}
+			ensureRewardInsideAcceptedGeneration(reward, expectedGeneration)
+		} ?: GameRewardEnsureResult.Rejected(
+			GameRewardRejectionReason.PERSISTENCE_UNAVAILABLE,
 		)
 	}
 }

@@ -84,36 +84,36 @@ class PlayerProgressionRepository @Inject constructor(
 	}
 
 	/**
-	 * Repairs the XP half of one mini-game reward only in the generation that accepted the reward.
-	 * This overload lets the separate Points database and AppDatabase use the same deletion fence
-	 * without nesting [TrackingStartupGate.withReadyGenerationOperation] leases.
+	 * Repairs the XP half of one mini-game reward while the caller holds the accepted startup-gate
+	 * operation. The caller owns deletion serialization so this method must not acquire a nested
+	 * [TrackingStartupGate.withReadyGenerationOperation] lease.
 	 *
-	 * @return `true` when the expected generation accepted the idempotent XP operation.
+	 * @return `true` only when this call inserted a new XP ledger row.
 	 */
-	internal suspend fun awardMiniGameXpForGeneration(
+	internal suspend fun awardMiniGameXpInsideAcceptedGeneration(
 		points: Int,
 		earnedAtMs: Long,
-		expectedGeneration: Long,
 	): Boolean {
 		val amount = XpCalculator.miniGameXp(points)
-		if (amount <= 0) return trackingStartupGate.isReadyGeneration(expectedGeneration)
+		if (amount <= 0) return false
 
-		val inserted = runAcceptedXpMutation(expectedGeneration) {
-			val ledgerId = database.xpLedgerDao().insertOrIgnore(
-				XpLedgerEntity(
-					amount = amount,
-					source = XpSource.MINI_GAME.name,
-					sourceId = earnedAtMs,
-					earnedAt = earnedAtMs,
-				),
-			)
-			if (ledgerId == -1L) return@runAcceptedXpMutation false
-			recomputePlayerProfile()
-			true
+		val inserted = withContext(dispatchers.io) {
+			database.withTransaction {
+				val ledgerId = database.xpLedgerDao().insertOrIgnore(
+					XpLedgerEntity(
+						amount = amount,
+						source = XpSource.MINI_GAME.name,
+						sourceId = earnedAtMs,
+						earnedAt = earnedAtMs,
+					),
+				)
+				if (ledgerId == -1L) return@withTransaction false
+				recomputePlayerProfile()
+				true
+			}
 		}
-		if (inserted == null) return false
 		if (inserted) metricDirtyTracker.markDirty(LEVELING_DIRTY_TABLES)
-		return true
+		return inserted
 	}
 
 	/**

@@ -5,12 +5,13 @@ import com.adsamcik.tracker.game.event.ExplorationDomainEventConsumer
 import com.adsamcik.tracker.game.event.GameDomainEventConsumer
 import com.adsamcik.tracker.game.goals.GoalTracker
 import com.adsamcik.tracker.game.goals.settings.GoalsSettingsRepository
-import com.adsamcik.tracker.game.repository.GameRepository
+import com.adsamcik.tracker.game.repository.DefaultGameRepository
 import com.adsamcik.tracker.game.session.GameFinalizationReconciler
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.startup.ModuleInitializer
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.tracker.controller.TrackerStateReader
@@ -37,7 +38,8 @@ class GameModuleInitializer @Inject constructor(
 	private val domainEventRepository: DomainEventRepository,
 	private val goalsSettingsRepository: GoalsSettingsRepository,
 	private val miniGameScoreDao: MiniGameScoreDao,
-	private val gameRepository: GameRepository,
+	private val gameRepository: DefaultGameRepository,
+	private val trackingStartupGate: TrackingStartupGate,
 ) : ModuleInitializer {
 	override val priority: Int = 30
 
@@ -45,8 +47,10 @@ class GameModuleInitializer @Inject constructor(
 		initializeGoals()
 		appScope.launch(dispatchers.io) {
 			GameFinalizationReconciler(
-				scoreDao = miniGameScoreDao,
-				repository = gameRepository,
+				loadScores = miniGameScoreDao::getRecentForReconciliation,
+				trackingStartupGate = trackingStartupGate,
+				ensureRewardInsideAcceptedGeneration =
+					gameRepository::ensureMiniGameRewardInsideAcceptedGeneration,
 			).reconcile()
 		}
 		appScope.launch(dispatchers.default) {

@@ -14,7 +14,6 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
-import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
@@ -63,7 +62,8 @@ class DefaultGameRepository @Inject constructor(
 			pointsDao = pointsDao,
 			dispatchers = dispatchers,
 			trackingStartupGate = trackingStartupGate,
-			awardProgression = progressionRepository::awardMiniGameXpForGeneration,
+			awardProgressionInsideAcceptedGeneration =
+				progressionRepository::awardMiniGameXpInsideAcceptedGeneration,
 			markMiniGameMetricsDirty = {
 				metricDirtyTracker.markDirty(setOf(MetricKeys.TABLE_MINI_GAME_SCORE))
 			},
@@ -149,6 +149,19 @@ class DefaultGameRepository @Inject constructor(
 	override suspend fun ensureMiniGameReward(reward: GameReward): GameRewardEnsureResult =
 		rewardEnsurer.ensure(reward)
 
+	/**
+	 * Completes a reward while the caller holds the startup-gate operation for
+	 * [acceptedGeneration]. This keeps the live score row and both reward databases inside one
+	 * deletion-linearized operation without attempting to acquire a nested gate lease.
+	 */
+	internal suspend fun ensureMiniGameRewardInsideAcceptedGeneration(
+		reward: GameReward,
+		acceptedGeneration: Long,
+	): GameRewardEnsureResult = rewardEnsurer.ensureInsideAcceptedGeneration(
+		reward = reward,
+		acceptedGeneration = acceptedGeneration,
+	)
+
 	override suspend fun creditMiniGameXp(gameId: String, xp: Int, earnedAtMs: Long) {
 		ensureMiniGameReward(
 			GameReward(
@@ -168,10 +181,9 @@ internal class MiniGameRewardEnsurer(
 	private val pointsDao: PointsAwardedDao,
 	private val dispatchers: DispatchersProvider,
 	private val trackingStartupGate: TrackingStartupGate,
-	private val awardProgression: suspend (
+	private val awardProgressionInsideAcceptedGeneration: suspend (
 		points: Int,
 		earnedAtMs: Long,
-		expectedGeneration: Long,
 	) -> Boolean,
 	private val markMiniGameMetricsDirty: () -> Unit,
 	private val scheduleAchievementEvaluation: () -> Unit,
@@ -179,68 +191,76 @@ internal class MiniGameRewardEnsurer(
 	private val mutex = Mutex()
 
 	suspend fun ensure(reward: GameReward): GameRewardEnsureResult {
-		if (reward.rewardId != miniGameRewardId(reward.gameId, reward.earnedAtMs)) {
-			return GameRewardEnsureResult.Rejected(GameRewardRejectionReason.INVALID_REWARD)
-		}
 		val expectedGeneration = trackingStartupGate.currentGeneration
-		if (!reconcileReady()) {
-			return persistenceUnavailable()
-		}
-		return mutex.withLock {
-			ensureAcceptedGeneration(reward, expectedGeneration)
-		}
-	}
-
-	private suspend fun reconcileReady(): Boolean = try {
-		trackingStartupGate.reconcile() is TrackingStartupResult.Ready
-	} catch (cancellation: CancellationException) {
-		throw cancellation
-	} catch (_: Throwable) {
-		false
-	}
-
-	private suspend fun ensureAcceptedGeneration(
-		reward: GameReward,
-		expectedGeneration: Long,
-	): GameRewardEnsureResult {
 		return try {
-			val source = "minigame:${reward.gameId}"
-			val alreadyAwarded = trackingStartupGate.withReadyGenerationOperation(
-				expectedGeneration,
-			) {
-				withContext(dispatchers.io) {
-					val exists = pointsDao.hasAwardAt(reward.earnedAtMs, source)
-					if (!exists && reward.points > 0) {
-						pointsDao.insert(
-							PointsAwarded(
-								time = reward.earnedAtMs,
-								value = Points(reward.points.toDouble()),
-								source = AwardSource(source),
-							),
-						)
-					}
-					exists
-				}
-			} ?: return persistenceUnavailable()
-
-			// Retried deliberately: the progression ledger is independently idempotent and this repairs
-			// a points-written/progression-missed split.
-			if (!awardProgression(reward.points, reward.earnedAtMs, expectedGeneration)) {
-				return persistenceUnavailable()
-			}
-			trackingStartupGate.withReadyGeneration(expectedGeneration) {
-				markMiniGameMetricsDirty()
-				scheduleAchievementEvaluation()
-				if (alreadyAwarded) {
-					GameRewardEnsureResult.AlreadyEnsured
-				} else {
-					GameRewardEnsureResult.Created
-				}
+			trackingStartupGate.withReadyGenerationOperation(expectedGeneration) {
+				ensureInsideAcceptedGeneration(reward, expectedGeneration)
 			} ?: persistenceUnavailable()
 		} catch (cancellation: CancellationException) {
 			throw cancellation
 		} catch (_: Throwable) {
 			persistenceUnavailable()
+		}
+	}
+
+	/**
+	 * The caller must already hold [TrackingStartupGate.withReadyGenerationOperation] for
+	 * [acceptedGeneration]. Keeping this method lease-free prevents a non-reentrant nested gate
+	 * operation while allowing score persistence and reward persistence to share one boundary.
+	 */
+	suspend fun ensureInsideAcceptedGeneration(
+		reward: GameReward,
+		acceptedGeneration: Long,
+	): GameRewardEnsureResult {
+		if (reward.rewardId != miniGameRewardId(reward.gameId, reward.earnedAtMs)) {
+			return GameRewardEnsureResult.Rejected(GameRewardRejectionReason.INVALID_REWARD)
+		}
+		if (trackingStartupGate.currentGeneration != acceptedGeneration) {
+			return persistenceUnavailable()
+		}
+		return mutex.withLock {
+			try {
+				persistAcceptedReward(reward)
+			} catch (cancellation: CancellationException) {
+				throw cancellation
+			} catch (_: Throwable) {
+				persistenceUnavailable()
+			}
+		}
+	}
+
+	private suspend fun persistAcceptedReward(reward: GameReward): GameRewardEnsureResult {
+		val source = "minigame:${reward.gameId}"
+		val alreadyAwarded = withContext(dispatchers.io) {
+			val exists = pointsDao.hasAwardAt(reward.earnedAtMs, source)
+			if (!exists) {
+				// A zero-valued row is the durable completion marker for a valid zero-point run.
+				pointsDao.insert(
+					PointsAwarded(
+						time = reward.earnedAtMs,
+						value = Points(reward.points.toDouble()),
+						source = AwardSource(source),
+					),
+				)
+			}
+			exists
+		}
+
+		// Retried deliberately: the progression ledger is independently idempotent and this repairs
+		// a points-written/progression-missed split.
+		val progressionCreated = awardProgressionInsideAcceptedGeneration(
+			reward.points,
+			reward.earnedAtMs,
+		)
+		val rewardCreated = !alreadyAwarded
+		if (rewardCreated || progressionCreated) {
+			markMiniGameMetricsDirty()
+			scheduleAchievementEvaluation()
+		}
+		return if (rewardCreated) {
+			GameRewardEnsureResult.Created
+		} else {
+			GameRewardEnsureResult.AlreadyEnsured
 		}
 	}
 
