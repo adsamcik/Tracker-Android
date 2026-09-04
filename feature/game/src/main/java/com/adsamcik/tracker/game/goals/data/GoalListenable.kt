@@ -103,6 +103,7 @@ data class GoalListenable(val goal: Goal) {
 
 	fun onTargetUpdated(target: Int): Boolean = goal.onTargetUpdated(target)
 
+	/** Replaces the displayed target without evaluating unqualified progress for an award. */
 	fun onTargetPresentationUpdated(target: Int) = goal.onTargetPresentationUpdated(target)
 
 	/**
