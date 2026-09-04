@@ -39,10 +39,11 @@ class PlayerProgressionRepository @Inject constructor(
 	 * by the remaining daily budget so leveling can't be farmed by spamming
 	 * short sessions. Idempotent on the session id.
 	 *
-	 * The session's real distance/steps come from the persisted `session_segment`
+	 * The session's distance and duration come from the persisted `session_segment`
 	 * (via [com.adsamcik.tracker.shared.base.database.dao.TripDao.getById]) — the
-	 * [DomainEvent.SessionEnded] payload itself does not carry aggregated
-	 * distance/steps, mirroring how points scoring loads the session by id.
+	 * [DomainEvent.SessionEnded] payload itself does not carry the authoritative aggregates,
+	 * mirroring how points scoring loads the session by id. The legacy segment Steps value is
+	 * intentionally excluded until a source-qualified award decision exists.
 	 */
 	suspend fun awardSessionXp(event: DomainEvent.SessionEnded) {
 		val sessionId = event.sessionId
@@ -52,7 +53,6 @@ class PlayerProgressionRepository @Inject constructor(
 			val trip = database.tripDao().getById(sessionId) ?: return@withContext
 			val amount = XpCalculator.sessionXp(
 				distanceM = trip.distanceM,
-				steps = trip.steps ?: 0,
 				durationMs = trip.durationMs.coerceAtLeast(0L),
 			)
 			if (amount <= 0) return@withContext

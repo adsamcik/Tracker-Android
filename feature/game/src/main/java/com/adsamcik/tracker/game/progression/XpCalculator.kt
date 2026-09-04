@@ -22,13 +22,15 @@ internal object XpCalculator {
 	/**
 	 * XP from a passive tracking session.
 	 *
-	 * `distanceM × 0.05 + steps × 0.005 + min(durationMin, 120) × 0.2`, clamped
-	 * to `[0, SESSION_CAP]`.
+	 * `distanceM × 0.05 + min(durationMin, 120) × 0.2`, clamped to
+	 * `[0, SESSION_CAP]`.
+	 *
+	 * Steps are deliberately absent. The legacy session/trip counters do not carry source-qualified
+	 * evidence and therefore cannot authorize an irreversible XP award.
 	 */
-	fun sessionXp(distanceM: Float, steps: Int, durationMs: Long): Int {
+	fun sessionXp(distanceM: Float, durationMs: Long): Int {
 		val durationMin = (durationMs / MILLIS_PER_MINUTE).coerceAtMost(MAX_DURATION_MIN)
 		val raw = distanceM * DISTANCE_WEIGHT +
-			steps * STEP_WEIGHT +
 			durationMin * DURATION_WEIGHT
 		return min(raw.roundToInt(), SESSION_CAP).coerceAtLeast(0)
 	}
@@ -44,6 +46,5 @@ internal object XpCalculator {
 	private const val MILLIS_PER_MINUTE = 60_000.0
 	private const val MAX_DURATION_MIN = 120.0
 	private const val DISTANCE_WEIGHT = 0.05
-	private const val STEP_WEIGHT = 0.005
 	private const val DURATION_WEIGHT = 0.2
 }
