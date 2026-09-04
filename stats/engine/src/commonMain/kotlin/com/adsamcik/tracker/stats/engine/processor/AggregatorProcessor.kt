@@ -191,11 +191,9 @@ class AggregatorProcessor(
 		return MetricSnapshot.from(
 			mapOf(
 				MetricKey.DISTANCE_TOTAL_M to snap.dayTotalDistanceM.toDouble(),
-				MetricKey.STEPS_TOTAL to snap.dayTotalSteps.toDouble(),
 				MetricKey.SESSIONS_TOTAL to snap.tripCount.toDouble(),
 				MetricKey.MAX_SESSION_DISTANCE_M to snap.sessionDistanceM.toDouble(),
 				MetricKey.MAX_SESSION_DURATION_MS to snap.sessionDurationMs.toDouble(),
-				MetricKey.BEST_DAILY_STEPS to snap.dayTotalSteps.toDouble(),
 				MetricKey.BEST_DAY_DISTANCE_M to snap.dayTotalDistanceM.toDouble(),
 			)
 		)

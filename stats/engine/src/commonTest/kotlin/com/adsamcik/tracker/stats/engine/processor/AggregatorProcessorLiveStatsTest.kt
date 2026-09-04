@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.stats.engine.processor
 
+import com.adsamcik.tracker.stats.api.metric.MetricKey
 import com.adsamcik.tracker.stats.api.processor.ProcessorContext
 import com.adsamcik.tracker.stats.api.repository.LiveStats
 import com.adsamcik.tracker.stats.api.signal.LocationSignal
@@ -20,6 +21,27 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 
 class AggregatorProcessorLiveStatsTest {
+	@Test
+	fun `live achievement snapshot withholds unqualified Steps totals`() = runTest {
+		val processor = AggregatorProcessor(
+			liveStatsRepository = FakeLiveStatsRepository(),
+			aggregator = StreamingAggregator(),
+		)
+		processor.onStart(ProcessorContext(startTimestamp = EpochMs(MILLIS_PER_DAY)))
+		processor.seedDayTotals(
+			distanceM = 100f,
+			steps = 20_000,
+			durationMs = 2_000L,
+			trips = 1,
+		)
+
+		val metrics = processor.snapshotMetrics().asMap()
+
+		metrics[MetricKey.DISTANCE_TOTAL_M] shouldBe 100.0
+		metrics[MetricKey.SESSIONS_TOTAL] shouldBe 1.0
+		metrics[MetricKey.STEPS_TOTAL] shouldBe null
+		metrics[MetricKey.BEST_DAILY_STEPS] shouldBe null
+	}
 
 	@Test
 	fun `flush persists the exact supported aggregator snapshot`() = runTest {
