@@ -65,8 +65,7 @@ class DefaultAchievementRepository @Inject constructor(
 
 	private fun AchievementProgressEntity.toLatestUnlockSnapshot(): AchievementSnapshot? {
 		val metric = MetricKey.fromStorageKey(metricKey) ?: return null
-		if (!AchievementMetricQualification.isTrustedPersistedProgress(metric)) return null
-		if (lastTierIndex < 0) return null
+		if (!AchievementMetricQualification.isTrustedPersistedProgress(metric) || lastTierIndex < 0) return null
 		val definition = AchievementCatalog.byMetric(metric).getOrNull(lastTierIndex) ?: return null
 		return AchievementSnapshot(definition.id, definition.nameRes, definition.descriptionRes, definition.category, definition.tier, definition.metric, lastValue, definition.threshold, true, updatedAt)
 	}

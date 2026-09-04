@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.OrderedAltitudeSampleRow
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
+import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
 import com.adsamcik.tracker.shared.base.data.SessionActivityIds
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.stats.api.AchievementCategory
@@ -57,26 +58,9 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 		val countriesVisited = explorationCellDao.getCellCenters(EXPLORATION_CELL_LEVEL)
 			.mapNotNullTo(HashSet()) { countryLookup.countryOf(it.latE7 / E7, it.lonE7 / E7) }
 			.size
-		val progressRows = achievementProgressDao.getAll()
-		val unlockedTierByMetric = progressRows
-			.mapNotNull { row ->
-				MetricKey.fromStorageKey(row.metricKey)
-					?.takeIf(AchievementMetricQualification::isTrustedPersistedProgress)
-					?.let { it to row.lastTierIndex }
-			}
-			.toMap()
-		val achievementsUnlocked = AchievementCatalog.definitions.count { definition ->
-			AchievementMetricQualification.isTrustedPersistedProgress(definition.metric) &&
-				(unlockedTierByMetric[definition.metric] ?: -1) >= definition.tierIndex
-		}
-		val categoriesCompleted = AchievementCategory.entries.count { category ->
-			val defs = AchievementCatalog.byCategory(category)
-				.filterNot { it.metric in AchievementMetricQualification.derivedMetaMetrics }
-			defs.isNotEmpty() && defs.all {
-				AchievementMetricQualification.isTrustedPersistedProgress(it.metric)
-			} &&
-				defs.all { def -> (unlockedTierByMetric[def.metric] ?: -1) >= def.tierIndex }
-		}
+		val unlockedTierByMetric = qualifiedUnlockedTiers(achievementProgressDao.getAll())
+		val achievementsUnlocked = countQualifiedUnlocked(unlockedTierByMetric)
+		val categoriesCompleted = countQualifiedCompletedCategories(unlockedTierByMetric)
 
 		// STEPS_TOTAL, BEST_DAILY_STEPS, PERFECT_WEEKS, and GOAL_STREAK_DAYS remain
 		// deliberately absent. daily_summary is a projection rather than source qualification, and
@@ -146,6 +130,32 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 			)
 		)
 	}
+
+	private fun qualifiedUnlockedTiers(
+		progressRows: List<AchievementProgressEntity>,
+	): Map<MetricKey, Int> = progressRows
+		.mapNotNull { row ->
+			MetricKey.fromStorageKey(row.metricKey)
+				?.takeIf(AchievementMetricQualification::isTrustedPersistedProgress)
+				?.let { it to row.lastTierIndex }
+		}
+		.toMap()
+
+	private fun countQualifiedUnlocked(unlockedTierByMetric: Map<MetricKey, Int>): Int =
+		AchievementCatalog.definitions.count { definition ->
+			AchievementMetricQualification.isTrustedPersistedProgress(definition.metric) &&
+				(unlockedTierByMetric[definition.metric] ?: -1) >= definition.tierIndex
+		}
+
+	private fun countQualifiedCompletedCategories(unlockedTierByMetric: Map<MetricKey, Int>): Int =
+		AchievementCategory.entries.count { category ->
+			val defs = AchievementCatalog.byCategory(category)
+				.filterNot { it.metric in AchievementMetricQualification.derivedMetaMetrics }
+			defs.isNotEmpty() && defs.all {
+				AchievementMetricQualification.isTrustedPersistedProgress(it.metric)
+			} &&
+				defs.all { def -> (unlockedTierByMetric[def.metric] ?: -1) >= def.tierIndex }
+		}
 
 	private fun appAgeDays(firstActivityMs: Long?, zoneId: ZoneId): Long {
 		if (firstActivityMs == null || firstActivityMs <= 0L) return 0L
