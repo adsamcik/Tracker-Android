@@ -3,13 +3,13 @@ package com.adsamcik.tracker.tracker.insights
 import android.content.Context
 import com.adsamcik.tracker.shared.base.concurrency.TestDispatchersProvider
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
-import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -24,9 +24,7 @@ class SessionInsightsGeneratorTest {
 
     private val context = mockk<Context>(relaxed = true)
     private val dailySummaryDao = mockk<DailySummaryDao>()
-    private val explorationCellDao = mockk<ExplorationCellDao>()
     private val dailySummaryDaoProvider = mockk<Provider<DailySummaryDao>>()
-    private val explorationCellDaoProvider = mockk<Provider<ExplorationCellDao>>()
     private val dispatcher = StandardTestDispatcher()
 
     private lateinit var generator: SessionInsightsGenerator
@@ -41,18 +39,15 @@ class SessionInsightsGeneratorTest {
             }
         }
         every { dailySummaryDaoProvider.get() } returns dailySummaryDao
-        every { explorationCellDaoProvider.get() } returns explorationCellDao
         generator = DefaultSessionInsightsGenerator(
             context = context,
             dailySummaryDaoProvider = dailySummaryDaoProvider,
-            explorationCellDaoProvider = explorationCellDaoProvider,
             dispatchers = TestDispatchersProvider(dispatcher),
         )
     }
 
     @Test
     fun `unqualified Steps do not create achievement insight`() = runTest(dispatcher) {
-        coEvery { explorationCellDao.countDiscoveredSince(any(), any()) } returns 0
         coEvery { dailySummaryDao.getBetween(any(), any()) } returns emptyList()
 
         val insights = generator.generate(session(steps = 4_500, distanceInM = 2_500f))
@@ -63,7 +58,6 @@ class SessionInsightsGeneratorTest {
 
     @Test
     fun `independent distance still creates achievement insight`() = runTest(dispatcher) {
-        coEvery { explorationCellDao.countDiscoveredSince(any(), any()) } returns 0
         coEvery { dailySummaryDao.getBetween(any(), any()) } returns emptyList()
 
         val insights = generator.generate(session(steps = 0, distanceInM = 4_500f))
@@ -72,18 +66,17 @@ class SessionInsightsGeneratorTest {
     }
 
     @Test
-    fun `adds exploration insight when new cells discovered`() = runTest(dispatcher) {
-        coEvery { explorationCellDao.countDiscoveredSince(any(), any()) } returns 3
+    fun `does not query or claim exploration without exact session ownership`() = runTest(dispatcher) {
         coEvery { dailySummaryDao.getBetween(any(), any()) } returns emptyList()
 
         val insights = generator.generate(session())
 
-        insights.map { it.category } shouldContain InsightCategory.EXPLORATION
+        insights.map { it.category } shouldNotContain InsightCategory.EXPLORATION
+        coVerify(exactly = 1) { dailySummaryDao.getBetween(any(), any()) }
     }
 
     @Test
     fun `adds comparison insight when session beats recent average`() = runTest(dispatcher) {
-        coEvery { explorationCellDao.countDiscoveredSince(any(), any()) } returns 0
         coEvery { dailySummaryDao.getBetween(any(), any()) } returns listOf(
             summary(distanceM = 4_000f, tripCount = 2),
             summary(distanceM = 3_000f, tripCount = 2),
@@ -96,7 +89,6 @@ class SessionInsightsGeneratorTest {
 
     @Test
     fun `skips comparison insight without historical trips`() = runTest(dispatcher) {
-        coEvery { explorationCellDao.countDiscoveredSince(any(), any()) } returns 0
         coEvery { dailySummaryDao.getBetween(any(), any()) } returns listOf(summary(distanceM = 0f, tripCount = 0))
 
         val insights = generator.generate(session(distanceInM = 3_000f))
@@ -105,8 +97,7 @@ class SessionInsightsGeneratorTest {
     }
 
     @Test
-    fun `returns at most four insights`() = runTest(dispatcher) {
-        coEvery { explorationCellDao.countDiscoveredSince(any(), any()) } returns 5
+    fun `returns only supported bounded insights`() = runTest(dispatcher) {
         coEvery { dailySummaryDao.getBetween(any(), any()) } returns listOf(
             summary(distanceM = 4_000f, tripCount = 2),
             summary(distanceM = 3_000f, tripCount = 2),
@@ -114,7 +105,7 @@ class SessionInsightsGeneratorTest {
 
         val insights = generator.generate(session(steps = 5_000, distanceInM = 6_000f))
 
-        insights.size shouldBe 4
+        insights.size shouldBe 3
     }
 
     private fun session(

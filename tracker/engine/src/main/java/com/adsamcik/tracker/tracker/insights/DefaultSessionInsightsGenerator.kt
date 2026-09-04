@@ -3,7 +3,6 @@ package com.adsamcik.tracker.tracker.insights
 import android.content.Context
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
-import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.tracker.R
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -18,7 +17,6 @@ import kotlin.math.roundToInt
 class DefaultSessionInsightsGenerator @Inject constructor(
     @ApplicationContext private val context: Context,
     private val dailySummaryDaoProvider: Provider<DailySummaryDao>,
-    private val explorationCellDaoProvider: Provider<ExplorationCellDao>,
     private val dispatchers: DispatchersProvider,
 ) : SessionInsightsGenerator {
 
@@ -28,7 +26,6 @@ class DefaultSessionInsightsGenerator @Inject constructor(
         val insights = mutableListOf<SessionInsight>()
         insights.addAchievementInsight(session)
         insights.addFunFactInsight(session)
-        insights.addExplorationInsight(session)
         insights.addComparisonInsight(session)
         insights.take(MAX_INSIGHTS)
     }
@@ -67,23 +64,6 @@ class DefaultSessionInsightsGenerator @Inject constructor(
         )
     }
 
-    private suspend fun MutableList<SessionInsight>.addExplorationInsight(
-        session: TrackerSessionSnapshot,
-    ) {
-        val newCells = withContext(dispatchers.io) {
-            explorationCellDaoProvider.get().countDiscoveredSince(session.start, EXPLORATION_LEVEL)
-        }
-        if (newCells <= 0) return
-        add(
-            SessionInsight(
-                iconRes = com.adsamcik.tracker.shared.base.R.drawable.ic_baseline_commute,
-                title = context.getString(R.string.insight_exploration_title),
-                description = context.resources.getQuantityString(R.plurals.insight_exploration_desc, newCells, newCells),
-                category = InsightCategory.EXPLORATION,
-            ),
-        )
-    }
-
     private suspend fun MutableList<SessionInsight>.addComparisonInsight(
         session: TrackerSessionSnapshot,
     ) {
@@ -115,7 +95,6 @@ class DefaultSessionInsightsGenerator @Inject constructor(
     }
 
     private companion object {
-        private const val EXPLORATION_LEVEL = 14
         private const val LOOKBACK_DAYS = 7L
         private const val MAX_INSIGHTS = 4
         private const val LONG_DISTANCE_THRESHOLD_M = 4_000f
