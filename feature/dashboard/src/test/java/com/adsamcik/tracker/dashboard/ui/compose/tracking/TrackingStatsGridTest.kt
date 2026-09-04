@@ -3,8 +3,12 @@ package com.adsamcik.tracker.dashboard.ui.compose.tracking
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
-import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
+import com.adsamcik.tracker.dashboard.R
+import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveStepsValue
+import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
+import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
+import io.kotest.matchers.shouldBe
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,6 +37,7 @@ class TrackingStatsGridTest {
 						collections = 10,
 					),
 					collectionSnapshot = null,
+					steps = null,
 				)
 			}
 		}
@@ -42,7 +47,7 @@ class TrackingStatsGridTest {
 	}
 
 	@Test
-	fun withSteps_showsStepsLabel() {
+	fun qualifiedSteps_showDurableValueInsteadOfRawSnapshot() {
 		val now = System.currentTimeMillis()
 
 		composeRule.setContent {
@@ -53,15 +58,18 @@ class TrackingStatsGridTest {
 						start = now - 120_000L,
 						end = now,
 						distanceInM = 500f,
-						steps = 2500,
+						steps = 9_999,
 						collections = 10,
 					),
 					collectionSnapshot = null,
+					steps = DashboardLiveStepsValue.Complete(2_500L),
 				)
 			}
 		}
 
 		composeRule.onNodeWithText("Steps", substring = true).assertIsDisplayed()
+		composeRule.onNodeWithText(2_500L.formatReadable()).assertIsDisplayed()
+		composeRule.onNodeWithText(9_999L.formatReadable()).assertDoesNotExist()
 	}
 
 	@Test
@@ -78,6 +86,7 @@ class TrackingStatsGridTest {
 						distanceInM = 0f,
 					),
 					collectionSnapshot = null,
+					steps = null,
 				)
 			}
 		}
@@ -87,7 +96,7 @@ class TrackingStatsGridTest {
 	}
 
 	@Test
-	fun withZeroSteps_showsStepsRowWithPlaceholder() {
+	fun coveredZero_showsNumericZero() {
 		val now = System.currentTimeMillis()
 
 		composeRule.setContent {
@@ -101,17 +110,29 @@ class TrackingStatsGridTest {
 						steps = 0,
 					),
 					collectionSnapshot = null,
+					steps = DashboardLiveStepsValue.CoveredZero,
 				)
 			}
 		}
 
-		// Steps label is always shown (parity with the rest of the compact grid);
-		// when the count is zero the row renders an em-dash placeholder value
-		// instead of being hidden, so column widths stay stable across sessions
-		// and the layout doesn't jump when the first step is registered.
-		// (Multiple stats render '–' in the zero-data path — activity, accuracy
-		// etc. — so we don't try to uniquely identify the dash, only that the
-		// Steps row itself is present.)
 		composeRule.onNodeWithText("Steps").assertIsDisplayed()
+		composeRule.onNodeWithText("0").assertIsDisplayed()
+	}
+
+	@Test
+	fun cellState_preservesEveryTypedNonnumericBoundary() {
+		DashboardLiveStepsValue.Complete(42L).toTrackingStepsCell() shouldBe
+			TrackingStepsCell.Numeric(42L)
+		DashboardLiveStepsValue.CoveredZero.toTrackingStepsCell() shouldBe
+			TrackingStepsCell.Numeric(0L)
+		DashboardLiveStepsValue.Partial(12L).toTrackingStepsCell() shouldBe
+			TrackingStepsCell.Status(R.string.dashboard_live_steps_partial)
+		DashboardLiveStepsValue.Materializing.toTrackingStepsCell() shouldBe
+			TrackingStepsCell.Status(R.string.dashboard_live_steps_materializing)
+		DashboardLiveStepsValue.Missing.toTrackingStepsCell() shouldBe
+			TrackingStepsCell.Status(R.string.dashboard_live_steps_missing)
+		DashboardLiveStepsValue.Unavailable.toTrackingStepsCell() shouldBe
+			TrackingStepsCell.Status(R.string.dashboard_live_steps_unavailable)
+		(null as DashboardLiveStepsValue?).toTrackingStepsCell() shouldBe TrackingStepsCell.Omitted
 	}
 }

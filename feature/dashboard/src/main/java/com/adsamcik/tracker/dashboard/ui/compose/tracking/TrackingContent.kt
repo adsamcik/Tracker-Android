@@ -43,6 +43,7 @@ import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.compose.DashboardLayoutDefaults
 import com.adsamcik.tracker.dashboard.ui.compose.components.SensorDetailsCard
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
+import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveSessionPresentation
 import com.adsamcik.tracker.dashboard.ui.compose.state.qualifiedMilestoneSteps
 import com.adsamcik.tracker.dashboard.ui.compose.visualization.AltitudeSparkline
 import com.adsamcik.tracker.dashboard.ui.compose.visualization.SessionPathPreview
@@ -74,6 +75,8 @@ internal fun TrackingContent(
 	modifier: Modifier = Modifier,
 ) {
 	Box(modifier = modifier.fillMaxSize()) {
+		val standardPresentation = state.liveSessionPresentation
+			.asStandardFor(state.sessionData?.id)
 		LazyColumn(
 			modifier = Modifier
 				.fillMaxSize()
@@ -94,6 +97,7 @@ internal fun TrackingContent(
 					TrackingStatsGrid(
 						sessionData = state.sessionData,
 						collectionSnapshot = state.collectionSnapshot,
+						steps = standardPresentation?.steps,
 					)
 				}
 			}
@@ -155,6 +159,12 @@ internal fun TrackingContent(
 		)
 	}
 }
+
+private fun DashboardLiveSessionPresentation.asStandardFor(
+	segmentId: Long?,
+): DashboardLiveSessionPresentation.Standard? =
+	(this as? DashboardLiveSessionPresentation.Standard)
+		?.takeIf { it.segmentId == segmentId }
 
 /**
  * Hero card with Canvas path preview and primary metric overlay.

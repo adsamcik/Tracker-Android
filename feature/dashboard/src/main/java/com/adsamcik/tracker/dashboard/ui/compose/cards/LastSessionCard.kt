@@ -30,15 +30,13 @@ import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.compose.visualization.SessionPathPreview
 import com.adsamcik.tracker.shared.utils.style.compose.RidgelineCardDefaults
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
-import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.extension.formatDistance
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 
 /**
- * Card showing last session overview with duration, distance, steps,
- * and an animated path preview.
+ * Card showing last session duration, distance, and an animated path preview.
  */
 @Composable
 internal fun LastSessionCard(
@@ -59,7 +57,6 @@ internal fun LastSessionCard(
 		digits = if (session.distanceInM >= 1000f) 1 else 2,
 		unit = settings.lengthSystem,
 	)
-	val stepsText = session.steps.takeIf { it > 0 }?.formatReadable()
 	val sessionAge = DateUtils.getRelativeTimeSpanString(
 		session.start,
 		System.currentTimeMillis(),
@@ -144,13 +141,6 @@ internal fun LastSessionCard(
 					value = distanceText,
 					modifier = Modifier.weight(1f),
 				)
-				if (stepsText != null) {
-					SessionMetricItem(
-						label = stringResource(R.string.dashboard_last_session_steps),
-						value = stepsText,
-						modifier = Modifier.weight(1f),
-					)
-				}
 			}
 
 			// Path preview

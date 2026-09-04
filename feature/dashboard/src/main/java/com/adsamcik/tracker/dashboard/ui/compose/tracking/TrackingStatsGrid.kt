@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.dashboard.ui.compose.tracking
 
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -38,6 +39,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.adsamcik.tracker.dashboard.R
+import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardLiveStepsValue
 import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.data.ActivityInfo
 import com.adsamcik.tracker.shared.base.data.GroupedActivity
@@ -63,6 +66,7 @@ import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 internal fun TrackingStatsGrid(
 	sessionData: TrackerSessionSnapshot,
 	collectionSnapshot: TrackerCollectionSnapshot?,
+	steps: DashboardLiveStepsValue?,
 	modifier: Modifier = Modifier,
 ) {
 	val context = LocalContext.current
@@ -153,11 +157,19 @@ internal fun TrackingStatsGrid(
 				modifier = Modifier.weight(1f),
 			)
 
-			CompactAnimatedStatItem(
-				label = stringResource(TrackerR.string.tracker_steps_title),
-				value = if (sessionData.steps > 0) sessionData.steps.formatReadable() else "–",
-				modifier = Modifier.weight(1f),
-			)
+			when (val stepsCell = steps.toTrackingStepsCell()) {
+				is TrackingStepsCell.Numeric -> CompactAnimatedStatItem(
+					label = stringResource(TrackerR.string.tracker_steps_title),
+					value = stepsCell.count.formatReadable(),
+					modifier = Modifier.weight(1f),
+				)
+				is TrackingStepsCell.Status -> CompactAnimatedStatItem(
+					label = stringResource(TrackerR.string.tracker_steps_title),
+					value = stringResource(stepsCell.messageRes),
+					modifier = Modifier.weight(1f),
+				)
+				TrackingStepsCell.Omitted -> Spacer(Modifier.weight(1f))
+			}
 
 			CompactAnimatedStatItem(
 				label = stringResource(TrackerR.string.tracker_accuracy_label),
@@ -186,6 +198,33 @@ internal fun TrackingStatsGrid(
 			}
 		}
 	}
+}
+
+internal sealed interface TrackingStepsCell {
+	data class Numeric(val count: Long) : TrackingStepsCell {
+		init {
+			require(count >= 0L)
+		}
+	}
+
+	data class Status(@StringRes val messageRes: Int) : TrackingStepsCell
+
+	data object Omitted : TrackingStepsCell
+}
+
+/** Maps only durable source-qualified Steps to a numeric cell. */
+internal fun DashboardLiveStepsValue?.toTrackingStepsCell(): TrackingStepsCell = when (this) {
+	is DashboardLiveStepsValue.Complete -> TrackingStepsCell.Numeric(count)
+	DashboardLiveStepsValue.CoveredZero -> TrackingStepsCell.Numeric(0L)
+	is DashboardLiveStepsValue.Partial ->
+		TrackingStepsCell.Status(R.string.dashboard_live_steps_partial)
+	DashboardLiveStepsValue.Materializing ->
+		TrackingStepsCell.Status(R.string.dashboard_live_steps_materializing)
+	DashboardLiveStepsValue.Missing ->
+		TrackingStepsCell.Status(R.string.dashboard_live_steps_missing)
+	DashboardLiveStepsValue.Unavailable ->
+		TrackingStepsCell.Status(R.string.dashboard_live_steps_unavailable)
+	null -> TrackingStepsCell.Omitted
 }
 
 private fun TrackerActivityGroup.toLegacyGroupedActivity(): GroupedActivity = when (this) {
