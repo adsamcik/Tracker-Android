@@ -48,6 +48,11 @@ object WidgetFormatters {
         return String.format(Locale.getDefault(), "%,d", steps)
     }
 
+    /** Formats a durable Steps count without narrowing or overflowing it. */
+    fun formatSteps(steps: Long): String {
+        return String.format(Locale.getDefault(), "%,d", steps)
+    }
+
     /**
      * Formats goal progress as percentage string.
      */

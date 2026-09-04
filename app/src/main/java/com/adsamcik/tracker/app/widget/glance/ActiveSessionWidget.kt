@@ -35,10 +35,15 @@ import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyTier
+import com.adsamcik.tracker.stats.api.repository.HistorySource
+import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
+import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import com.adsamcik.tracker.tracker.data.collection.TrackerActivityType
 import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 
 /**
  * Active Session widget (4x3): live-ish session data during tracking.
@@ -57,6 +62,7 @@ class ActiveSessionWidget : GlanceAppWidget() {
         val policyTier: PolicyTier
         val collectionSnapshot: TrackerCollectionSnapshot?
         val pathPoints: List<Location>
+        val qualifiedSteps: Long?
 
         try {
             val entryPoint = EntryPointAccessors.fromApplication(
@@ -69,6 +75,13 @@ class ActiveSessionWidget : GlanceAppWidget() {
             policyTier = controller.policyTierFlow.value
             collectionSnapshot = controller.collectionDataFlow.value
             pathPoints = controller.pathPointsFlow.value?.second.orEmpty()
+            qualifiedSteps = if (isRunning) {
+                readQualifiedWidgetSteps(entryPoint.trackingHistoryRepository(), session)
+            } else {
+                null
+            }
+        } catch (cancellation: CancellationException) {
+            throw cancellation
         } catch (_: Exception) {
             // Hilt not initialized - show idle state.
             provideContent {
@@ -78,6 +91,7 @@ class ActiveSessionWidget : GlanceAppWidget() {
                         session = null,
                         policyTier = PolicyTier.OFF,
                         snapshot = ActiveSessionSnapshot.empty(context),
+                        qualifiedSteps = null,
                         context = context,
                     )
                 }
@@ -93,6 +107,7 @@ class ActiveSessionWidget : GlanceAppWidget() {
                     session = session,
                     policyTier = policyTier,
                     snapshot = snapshot,
+                    qualifiedSteps = qualifiedSteps,
                     context = context,
                 )
             }
@@ -106,6 +121,7 @@ private fun ActiveSessionContent(
     session: TrackerSessionSnapshot?,
     policyTier: PolicyTier,
     snapshot: ActiveSessionSnapshot,
+    qualifiedSteps: Long?,
     context: Context,
 ) {
     Column(
@@ -122,6 +138,7 @@ private fun ActiveSessionContent(
                 session = session,
                 policyTier = policyTier,
                 snapshot = snapshot,
+                qualifiedSteps = qualifiedSteps,
                 context = context,
             )
         }
@@ -168,6 +185,7 @@ private fun TrackingContent(
     session: TrackerSessionSnapshot,
     policyTier: PolicyTier,
     snapshot: ActiveSessionSnapshot,
+    qualifiedSteps: Long?,
     context: Context,
 ) {
     Row(
@@ -231,6 +249,7 @@ private fun TrackingContent(
     val stats = buildActiveSessionStats(
         context = context,
         session = session,
+        qualifiedSteps = qualifiedSteps,
         nowMillis = System.currentTimeMillis(),
     )
     Row(
@@ -283,25 +302,66 @@ internal data class ActiveSessionStat(
     val value: String,
 )
 
-/** Raw live-session Steps are intentionally absent until this widget has exact source authority. */
+/** Raw live-session Steps are never read; only exact-segment complete history may add the cell. */
 internal fun buildActiveSessionStats(
     context: Context,
     session: TrackerSessionSnapshot,
+    qualifiedSteps: Long?,
     nowMillis: Long,
-): List<ActiveSessionStat> = listOf(
-    ActiveSessionStat(
-        R.string.widget_session_distance,
-        WidgetFormatters.formatDistance(context, session.distanceInM),
-    ),
-    ActiveSessionStat(
-        R.string.widget_session_duration,
-        WidgetFormatters.formatDuration(nowMillis - session.start),
-    ),
-    ActiveSessionStat(
-        R.string.widget_collections,
-        session.collections.toString(),
-    ),
-)
+): List<ActiveSessionStat> = buildList {
+    add(
+        ActiveSessionStat(
+            R.string.widget_session_distance,
+            WidgetFormatters.formatDistance(context, session.distanceInM),
+        ),
+    )
+    add(
+        ActiveSessionStat(
+            R.string.widget_session_duration,
+            WidgetFormatters.formatDuration(nowMillis - session.start),
+        ),
+    )
+    qualifiedSteps?.let { steps ->
+        add(
+            ActiveSessionStat(
+                R.string.widget_session_steps,
+                WidgetFormatters.formatSteps(steps),
+            ),
+        )
+    }
+    add(
+        ActiveSessionStat(
+            R.string.widget_collections,
+            session.collections.toString(),
+        ),
+    )
+}
+
+internal suspend fun readQualifiedWidgetSteps(
+    repository: TrackingHistoryRepository,
+    session: TrackerSessionSnapshot?,
+): Long? {
+    val segmentId = session?.id?.takeIf { it > 0L } ?: return null
+    return try {
+        repository.observeSession(segmentId).first().completeStepsForSegment(segmentId)
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (_: Exception) {
+        null
+    }
+}
+
+/** Fences the value to the exact active physical segment and complete qualified coverage. */
+internal fun SessionHistoryQuery.completeStepsForSegment(expectedSegmentId: Long): Long? =
+    (this as? SessionHistoryQuery.Found)
+        ?.history
+        ?.takeIf { history ->
+            history.segmentId == expectedSegmentId &&
+                HistorySource.STEPS in history.qualifiedSources
+        }
+        ?.steps
+        ?.takeIf { steps -> steps.hasCompleteValue }
+        ?.count
 
 @Composable
 private fun SessionStatItem(
