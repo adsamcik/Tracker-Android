@@ -5,6 +5,7 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.RecentHistoryEntryCandidate
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import javax.inject.Inject
 
 /**
@@ -44,8 +45,9 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 	 * Composes one finite page against the caller's complete physical candidate window.
 	 *
 	 * Exact Steps-only intent suppresses authoritative physical members even when product evidence is
-	 * baseline, fenced, or otherwise not qualified. Only independently qualified logical entries gain
-	 * an opaque Steps-only replacement row.
+	 * baseline, fenced, or otherwise not qualified. Suppression also requires every replacement run
+	 * to have one exact physical member. Only independently qualified, fully bound logical entries
+	 * gain an opaque Steps-only replacement row.
 	 */
 	internal suspend fun selectRecentStepsAwarePage(
 		candidateSegmentIds: List<Long>,
@@ -160,6 +162,7 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 		if (logicalIds.isEmpty()) {
 			return emptyList()
 		}
+		val serviceRuns = loadLogicalServiceRuns(logicalIds)
 		val evidence = mutableListOf<HistoricalSegmentEvidence>()
 		var afterStartTimeMs: Long? = null
 		var afterSegmentId: Long? = null
@@ -181,7 +184,67 @@ internal class LogicalTrackingHistoryReader @Inject constructor(
 			afterStartTimeMs = lastScanned.startTimeMs
 			afterSegmentId = lastScanned.id
 		}
-		return evidence
+		val runsByLogicalId = serviceRuns.groupBy(SourceServiceRunEntity::logicalTrackingId)
+		val evidenceByLogicalId = evidence.groupBy { member -> member.segment.logicalTrackingId }
+		val completelyBoundLogicalIds = logicalIds.filterTo(hashSetOf()) { logicalId ->
+			hasCompletePhysicalMembership(
+				serviceRuns = runsByLogicalId[logicalId].orEmpty(),
+				members = evidenceByLogicalId[logicalId].orEmpty(),
+			)
+		}
+		return evidence.filter { member ->
+			member.segment.logicalTrackingId in completelyBoundLogicalIds
+		}
+	}
+
+	private suspend fun loadLogicalServiceRuns(
+		logicalIds: List<String>,
+	): List<SourceServiceRunEntity> {
+		val serviceRuns = mutableListOf<SourceServiceRunEntity>()
+		var afterLogicalTrackingId: String? = null
+		var afterStartedAtMs: Long? = null
+		var afterServiceRunId: String? = null
+		while (true) {
+			val runPage = database.trackingHistoryReadDao().logicalEntryServiceRunPage(
+				logicalTrackingIds = logicalIds,
+				limit = HISTORY_SEGMENT_BATCH_CAP,
+				afterLogicalTrackingId = afterLogicalTrackingId,
+				afterStartedAtMs = afterStartedAtMs,
+				afterServiceRunId = afterServiceRunId,
+			)
+			if (runPage.isEmpty()) {
+				break
+			}
+			serviceRuns += runPage
+			if (runPage.size < HISTORY_SEGMENT_BATCH_CAP) {
+				break
+			}
+			val lastScanned = runPage.last()
+			afterLogicalTrackingId = lastScanned.logicalTrackingId
+			afterStartedAtMs = lastScanned.startedAtMs
+			afterServiceRunId = lastScanned.serviceRunId
+		}
+		return serviceRuns
+	}
+
+	private fun hasCompletePhysicalMembership(
+		serviceRuns: List<SourceServiceRunEntity>,
+		members: List<HistoricalSegmentEvidence>,
+	): Boolean {
+		if (serviceRuns.isEmpty() || serviceRuns.size != members.size) {
+			return false
+		}
+		val membersByRunId = members.groupBy { member -> member.segment.serviceRunId }
+		return serviceRuns.all { serviceRun ->
+			val member = membersByRunId[serviceRun.serviceRunId]?.singleOrNull()
+				?: return@all false
+			val segment = member.segment
+			segment.logicalTrackingId == serviceRun.logicalTrackingId && (
+				serviceRun.presentationAcknowledgement ==
+					SourceServiceRunEntity.PRESENTATION_LEGACY_UNVERIFIABLE ||
+					serviceRun.sessionSegmentId == segment.id
+			)
+		}
 	}
 
 	private fun RecentHistoryEntryCandidate.toIdentity(): HistoricalEntryIdentity? =

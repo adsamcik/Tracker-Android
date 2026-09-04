@@ -1119,7 +1119,7 @@ class StepsSegmentHistorySelectorTest {
 	}
 
 	@Test
-	fun logicalReaderExcludesSameLogicalRowWithoutExactRunSegmentBinding() = runTest {
+	fun logicalReaderRejectsWholeEntryWithoutExactRunSegmentBinding() = runTest {
 		insertRun(RUN_ONE, sessionSegmentId = SEGMENT_ID)
 		insertManifest(RUN_ONE, revision = 1L, owner = LEGACY_OWNER)
 		insertRun(RUN_TWO, sessionSegmentId = 999L)
@@ -1138,10 +1138,71 @@ class StepsSegmentHistorySelectorTest {
 			),
 		)
 
-		val entry = logicalHistoryReader.selectRecentEntries(limit = 1).single()
-		entry.identity shouldBe HistoricalEntryIdentity.Logical(LOGICAL_ID)
-		entry.physicalMembers.map { it.segment.id } shouldBe listOf(SEGMENT_ID)
-		entry.physicalMembers.single().steps.count shouldBe 5L
+		logicalHistoryReader.selectRecentEntries(limit = 10) shouldBe emptyList()
+		logicalHistoryReader.selectRecentStepsOnlyEntries(limit = 10) shouldBe emptyList()
+		historyRepository().observeRecentStepsAwarePage(
+			candidateSegmentIds = listOf(SEGMENT_ID, OTHER_SEGMENT_ID),
+			limit = 10,
+		).first() shouldBe listOf(
+			StepsAwareHistoryPageEntry.Physical(OTHER_SEGMENT_ID),
+			StepsAwareHistoryPageEntry.Physical(SEGMENT_ID),
+		)
+	}
+
+	@Test
+	fun activeUnboundReplacementKeepsBoundSegmentPhysical() = runTest {
+		insertRun(RUN_ONE, sessionSegmentId = SEGMENT_ID)
+		insertManifest(RUN_ONE, revision = 1L, owner = LEGACY_OWNER)
+		database.sessionSegmentDao().insert(
+			segment(RUN_ONE, steps = 5, sampleCount = 1, id = SEGMENT_ID),
+		)
+		insertRun(
+			runId = RUN_TWO,
+			completed = false,
+			sessionSegmentId = null,
+			preparedManifestRevision = 2L,
+		)
+
+		logicalHistoryReader.selectRecentEntries(limit = 10) shouldBe emptyList()
+		logicalHistoryReader.selectRecentStepsOnlyEntries(limit = 10) shouldBe emptyList()
+		historyRepository().observeRecentStepsAwarePage(
+			candidateSegmentIds = listOf(SEGMENT_ID),
+			limit = 10,
+		).first() shouldBe listOf(StepsAwareHistoryPageEntry.Physical(SEGMENT_ID))
+	}
+
+	@Test
+	fun terminalUnboundReplacementKeepsBoundSegmentPhysical() = runTest {
+		insertRun(RUN_ONE, sessionSegmentId = SEGMENT_ID)
+		insertManifest(RUN_ONE, revision = 1L, owner = LEGACY_OWNER)
+		database.sessionSegmentDao().insert(
+			segment(RUN_ONE, steps = 5, sampleCount = 1, id = SEGMENT_ID),
+		)
+		insertRun(
+			runId = RUN_TWO,
+			completed = true,
+			sessionSegmentId = null,
+			preparedManifestRevision = 2L,
+		)
+		insertManifest(
+			runId = RUN_TWO,
+			revision = 2L,
+			owner = LEGACY_OWNER,
+			additionalSources = listOf(
+				sourceMembership(
+					revision = 2L,
+					source = TrackingSourceComponent.LOCATION,
+					purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
+				),
+			),
+		)
+
+		logicalHistoryReader.selectRecentEntries(limit = 10) shouldBe emptyList()
+		logicalHistoryReader.selectRecentStepsOnlyEntries(limit = 10) shouldBe emptyList()
+		historyRepository().observeRecentStepsAwarePage(
+			candidateSegmentIds = listOf(SEGMENT_ID),
+			limit = 10,
+		).first() shouldBe listOf(StepsAwareHistoryPageEntry.Physical(SEGMENT_ID))
 	}
 
 	@Test
