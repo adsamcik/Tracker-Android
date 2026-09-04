@@ -8,9 +8,7 @@ import com.adsamcik.tracker.shared.base.database.dao.ExportLogDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.database.dao.OrderedAltitudeSampleRow
-import com.adsamcik.tracker.shared.base.database.dao.PlayerProfileDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
-import com.adsamcik.tracker.shared.base.database.dao.XpLedgerDao
 import com.adsamcik.tracker.shared.model.AltitudeDatum
 import com.adsamcik.tracker.stats.data.geo.CountryBoundaryLookup
 import io.kotest.matchers.shouldBe
@@ -25,8 +23,6 @@ class DefaultAchievementMetricsProviderAltitudeTest {
 		explorationStreakDao = mockk<ExplorationStreakDao>(relaxed = true),
 		sessionSegmentDao = mockk<SessionSegmentDao>(relaxed = true),
 		exportLogDao = mockk<ExportLogDao>(relaxed = true),
-		xpLedgerDao = mockk<XpLedgerDao>(relaxed = true),
-		playerProfileDao = mockk<PlayerProfileDao>(relaxed = true),
 		miniGameScoreDao = mockk<MiniGameScoreDao>(relaxed = true),
 		locationSampleDao = mockk<LocationSampleDao>(relaxed = true),
 		countryLookup = mockk<CountryBoundaryLookup>(relaxed = true),

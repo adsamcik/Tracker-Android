@@ -8,9 +8,7 @@ import com.adsamcik.tracker.shared.base.database.dao.CellBounds
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.OrderedAltitudeSampleRow
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
-import com.adsamcik.tracker.shared.base.database.dao.PlayerProfileDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
-import com.adsamcik.tracker.shared.base.database.dao.XpLedgerDao
 import com.adsamcik.tracker.shared.base.data.SessionActivityIds
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.stats.api.AchievementCategory
@@ -37,8 +35,6 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 	private val explorationStreakDao: ExplorationStreakDao,
 	private val sessionSegmentDao: SessionSegmentDao,
 	private val exportLogDao: ExportLogDao,
-	private val xpLedgerDao: XpLedgerDao,
-	private val playerProfileDao: PlayerProfileDao,
 	private val miniGameScoreDao: MiniGameScoreDao,
 	private val locationSampleDao: LocationSampleDao,
 	private val countryLookup: CountryBoundaryLookup,
@@ -62,18 +58,23 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 			.mapNotNullTo(HashSet()) { countryLookup.countryOf(it.latE7 / E7, it.lonE7 / E7) }
 			.size
 		val progressRows = achievementProgressDao.getAll()
-		val qualifiedProgressRows = progressRows.filter { row ->
-			MetricKey.fromStorageKey(row.metricKey) !in WITHHELD_STEPS_ACHIEVEMENT_METRICS
-		}
-		val unlockedTierByMetric = qualifiedProgressRows
-			.mapNotNull { row -> MetricKey.fromStorageKey(row.metricKey)?.let { it to row.lastTierIndex } }
+		val unlockedTierByMetric = progressRows
+			.mapNotNull { row ->
+				MetricKey.fromStorageKey(row.metricKey)
+					?.takeIf(AchievementMetricQualification::isTrustedPersistedProgress)
+					?.let { it to row.lastTierIndex }
+			}
 			.toMap()
-		val achievementsUnlocked = qualifiedProgressRows.sumOf {
-			(it.lastTierIndex + 1).coerceAtLeast(0)
+		val achievementsUnlocked = AchievementCatalog.definitions.count { definition ->
+			AchievementMetricQualification.isTrustedPersistedProgress(definition.metric) &&
+				(unlockedTierByMetric[definition.metric] ?: -1) >= definition.tierIndex
 		}
 		val categoriesCompleted = AchievementCategory.entries.count { category ->
-			val defs = AchievementCatalog.byCategory(category).filterNot { it.metric in META_METRICS }
-			defs.isNotEmpty() && defs.none { it.metric in WITHHELD_STEPS_ACHIEVEMENT_METRICS } &&
+			val defs = AchievementCatalog.byCategory(category)
+				.filterNot { it.metric in AchievementMetricQualification.derivedMetaMetrics }
+			defs.isNotEmpty() && defs.all {
+				AchievementMetricQualification.isTrustedPersistedProgress(it.metric)
+			} &&
 				defs.all { def -> (unlockedTierByMetric[def.metric] ?: -1) >= def.tierIndex }
 		}
 
@@ -82,6 +83,8 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 		// legacy GOAL XP timestamps do not prove the exact captured day or its calendar authority.
 		// Lifetime/best-day re-enable only after one coherent retained-fact decision; streak metrics
 		// additionally require exact qualified goal-day provenance and atomic award revalidation.
+		// PLAYER_LEVEL, BEST_DAY_XP, and XP_SOURCES_USED are also absent because legacy XP storage
+		// cannot separate raw Steps-derived awards from independently qualified XP.
 		return MetricSnapshot.from(
 			mapOf(
 				MetricKey.DISTANCE_TOTAL_M to dailySummaryDao.sumTotalDistance().toDouble(),
@@ -136,11 +139,8 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 				MetricKey.MAX_CELL_REVISIT_GAP_DAYS to explorationCellDao.maxRevisitGapDays(EXPLORATION_CELL_LEVEL).toDouble(),
 				MetricKey.PERFECT_MONTHS to countPerfectMonths(activeDays).toDouble(),
 				MetricKey.EXPORT_FORMATS to exportLogDao.countDistinctFormats().toDouble(),
-				MetricKey.PLAYER_LEVEL to (playerProfileDao.get()?.level ?: 0).toDouble(),
-				MetricKey.BEST_DAY_XP to xpLedgerDao.maxDailyXp().toDouble(),
 				MetricKey.MINIGAMES_PLAYED to miniGameScoreDao.countTotal().toDouble(),
 				MetricKey.TOTAL_ASCENT_M to totalAscent(locationSampleDao.getAltitudeSamplesOrdered()),
-				MetricKey.XP_SOURCES_USED to xpLedgerDao.countDistinctSources().toDouble(),
 				MetricKey.ACHIEVEMENTS_UNLOCKED to achievementsUnlocked.toDouble(),
 				MetricKey.CATEGORIES_COMPLETED to categoriesCompleted.toDouble(),
 			)
@@ -250,17 +250,5 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 		private const val E7 = 1e7
 		private const val ASCENT_MIN_DELTA_M = 0.5
 		private const val ASCENT_MAX_DELTA_M = 50.0
-		/** Meta metrics are excluded from category-completion so completing a
-		 * category never depends on the meta achievements that live in it. */
-		private val META_METRICS = setOf(
-			MetricKey.ACHIEVEMENTS_UNLOCKED,
-			MetricKey.CATEGORIES_COMPLETED,
-		)
-		private val WITHHELD_STEPS_ACHIEVEMENT_METRICS = setOf(
-			MetricKey.STEPS_TOTAL,
-			MetricKey.BEST_DAILY_STEPS,
-			MetricKey.PERFECT_WEEKS,
-			MetricKey.GOAL_STREAK_DAYS,
-		)
 	}
 }

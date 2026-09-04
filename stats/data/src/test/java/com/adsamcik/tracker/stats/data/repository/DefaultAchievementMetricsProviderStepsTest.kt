@@ -7,10 +7,9 @@ import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
 import com.adsamcik.tracker.shared.base.database.dao.ExportLogDao
 import com.adsamcik.tracker.shared.base.database.dao.LocationSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
-import com.adsamcik.tracker.shared.base.database.dao.PlayerProfileDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
-import com.adsamcik.tracker.shared.base.database.dao.XpLedgerDao
 import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
+import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
 import com.adsamcik.tracker.stats.api.metric.MetricKey
 import com.adsamcik.tracker.stats.data.geo.CountryBoundaryLookup
 import io.kotest.matchers.shouldBe
@@ -22,7 +21,6 @@ import org.junit.jupiter.api.Test
 
 class DefaultAchievementMetricsProviderStepsTest {
 	private val dailySummaryDao = mockk<DailySummaryDao>(relaxed = true)
-	private val xpLedgerDao = mockk<XpLedgerDao>(relaxed = true)
 	private val achievementProgressDao = mockk<AchievementProgressDao>(relaxed = true)
 	private val provider = DefaultAchievementMetricsProvider(
 		dailySummaryDao = dailySummaryDao,
@@ -30,8 +28,6 @@ class DefaultAchievementMetricsProviderStepsTest {
 		explorationStreakDao = mockk<ExplorationStreakDao>(relaxed = true),
 		sessionSegmentDao = mockk<SessionSegmentDao>(relaxed = true),
 		exportLogDao = mockk<ExportLogDao>(relaxed = true),
-		xpLedgerDao = xpLedgerDao,
-		playerProfileDao = mockk<PlayerProfileDao>(relaxed = true),
 		miniGameScoreDao = mockk<MiniGameScoreDao>(relaxed = true),
 		locationSampleDao = mockk<LocationSampleDao>(relaxed = true),
 		countryLookup = mockk<CountryBoundaryLookup>(relaxed = true),
@@ -43,7 +39,6 @@ class DefaultAchievementMetricsProviderStepsTest {
 		coEvery { dailySummaryDao.sumTotalDistance() } returns 321L
 		coEvery { dailySummaryDao.sumTotalSteps() } returns 999_999L
 		coEvery { dailySummaryDao.maxDailySteps() } returns 888_888L
-		coEvery { xpLedgerDao.getEarnedAtBySource(any()) } returns List(7) { it.toLong() }
 
 		val metrics = provider.collect().asMap()
 
@@ -52,27 +47,37 @@ class DefaultAchievementMetricsProviderStepsTest {
 		metrics[MetricKey.BEST_DAILY_STEPS] shouldBe null
 		metrics[MetricKey.PERFECT_WEEKS] shouldBe null
 		metrics[MetricKey.GOAL_STREAK_DAYS] shouldBe null
+		metrics[MetricKey.PLAYER_LEVEL] shouldBe null
+		metrics[MetricKey.BEST_DAY_XP] shouldBe null
+		metrics[MetricKey.XP_SOURCES_USED] shouldBe null
 		coVerify(exactly = 0) { dailySummaryDao.sumTotalSteps() }
 		coVerify(exactly = 0) { dailySummaryDao.maxDailySteps() }
-		coVerify(exactly = 0) { xpLedgerDao.getEarnedAtBySource(any()) }
 	}
 
 	@Test
 	fun `legacy Steps progress cannot inflate meta achievements`() = runTest {
+		val distanceTiers = AchievementCatalog.byMetric(MetricKey.DISTANCE_TOTAL_M).size
 		coEvery { achievementProgressDao.getAll() } returns listOf(
 			progress(MetricKey.STEPS_TOTAL, lastTierIndex = 6),
 			progress(MetricKey.BEST_DAILY_STEPS, lastTierIndex = 4),
-			progress(MetricKey.DISTANCE_TOTAL_M, lastTierIndex = 1),
+			progress(MetricKey.PLAYER_LEVEL, lastTierIndex = 7),
+			progress(MetricKey.ACHIEVEMENTS_UNLOCKED, lastTierIndex = 3),
+			progress(MetricKey.CATEGORIES_COMPLETED, lastTierIndex = 2),
+			progress("imported_unknown", lastTierIndex = Int.MAX_VALUE),
+			progress(MetricKey.DISTANCE_TOTAL_M, lastTierIndex = Int.MAX_VALUE),
 		)
 
 		val metrics = provider.collect().asMap()
 
-		metrics[MetricKey.ACHIEVEMENTS_UNLOCKED] shouldBe 2.0
+		metrics[MetricKey.ACHIEVEMENTS_UNLOCKED] shouldBe distanceTiers.toDouble()
 		metrics[MetricKey.CATEGORIES_COMPLETED] shouldBe 0.0
 	}
 
-	private fun progress(metric: MetricKey, lastTierIndex: Int) = AchievementProgressEntity(
-		metricKey = metric.storageKey,
+	private fun progress(metric: MetricKey, lastTierIndex: Int) =
+		progress(metric.storageKey, lastTierIndex)
+
+	private fun progress(metricKey: String, lastTierIndex: Int) = AchievementProgressEntity(
+		metricKey = metricKey,
 		lastTierIndex = lastTierIndex,
 		lastValue = 1_000_000.0,
 		updatedAt = 1L,
