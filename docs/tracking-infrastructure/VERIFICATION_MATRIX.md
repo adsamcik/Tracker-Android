@@ -390,4 +390,106 @@ device rows. All six protected root hashes match the prior checkpoint. The two f
 their exact HEAD and tracked diffstats; use `--untracked-files=all` to count 16 portable and 14
 awards files (default status groups the portable importer directory as one entry).
 
+### Award/deletion and notification checkpoint (TI-B206)
+
+The corrected pre-rebase game/points cohort ran with the common flags above:
+
+```powershell
+.\gradlew.bat :feature:game:testDebugUnitTest --tests '*PlayerProgressionRepositoryTest' --tests '*ExplorationDomainEventConsumerTest' --tests '*GameModuleInitializerTest' --tests '*GameSessionRuntimeTest' --tests '*MiniGameRewardEnsurerTest' --tests '*DefaultGameSessionPersistenceTest' --tests '*GameFinalizationReconcilerTest' --tests '*GameDomainEventConsumerTest' --tests '*GoalTrackerTest' --tests '*GhostLeaderboardProviderTest' --tests '*GhostCompetitorTest' --tests '*LeaderboardStateTest' --tests '*GameViewModelTest' --tests '*WeeklyLeaderboardCardTest' :domain:points:testDebugUnitTest --tests '*PointsWorkerScoringBoundaryTest' --tests '*PointsScorerTest' --tests '*PointsScorerSlopeGuardTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+`BUILD SUCCESSFUL in 1m 3s`, 320 tasks (8 executed, 312 up-to-date); XML 106 game + 22 points =
+128 tests, zero failures/errors/skips. The earlier `2m 5s` run failed three tests because MockK
+generated negative `EpochMs` matcher values, not because the production domain invariant was wrong.
+Exact constants and exhaustive no-extra-call verification corrected the fixtures without relaxing
+timestamp validation.
+
+The next Detekt run failed four return/throw/braces findings. A behavior-preserving preparation
+extraction and test braces cleared `.\gradlew.bat :feature:game:testDebugUnitTest --tests
+'*GameSessionRuntimeTest' detekt` with the common flags: `BUILD SUCCESSFUL in 1m 9s`, 305 tasks
+(13 executed, 292 up-to-date), 11 runtime tests. Earlier compile-seam and Detekt failures from the
+interrupted branch were corrected before these green results; none is counted as accepted evidence.
+
+After the 25-commit clean rebase, the final queued-notification patch at `21437e97c` passed:
+
+```powershell
+.\gradlew.bat :feature:game:testDebugUnitTest --tests '*GameAchievementNotificationTest' --tests '*GameDomainEventConsumer*' :stats:data:testDebugUnitTest --tests '*DefaultAchievementRepositoryQualificationTest' detekt --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+`BUILD SUCCESSFUL in 2m 16s`, 329 tasks (48 executed, 5 cache, 276 up-to-date); XML 11 game +
+3 stats-data tests, zero failures/errors/skips. Five Robolectric notification cases use the real
+qualified repository/catalog and cover quarantined old rows, unknown IDs, a trusted first unlock
+before progress persistence, tier mismatch, one-read batching, retry, cancellation, and generation
+replacement. Independent final review returned GO with no P1/P2. Rebase against `e7c9d63fb` was a
+no-op; the branch was clean at `21437e97cd041dd8e07c5177c52a404be0e15aab` before documentation work.
+
+These gates prove bounded host behavior and containment, not positive qualified Steps awards,
+portable import, physical provider/listener, rendered UI, process/reboot/FGS, battery/OEM, activation,
+or rollout. Full repository gates and the transfer receipt are recorded at finalization below.
+
+### Architecture guard compatibility (TI-B207)
+
+The first `.\gradlew.bat ciUnitTest checkRoomSchemaDrift` with the common flags failed in
+`4m 44s`, 578 tasks (151 executed, 139 cache, 288 up-to-date): 697 app tests ran with one failure.
+The static worker check recognized only the older `isReady`-style guard and rejected PointsWorker's
+stronger `withReadyGenerationOperation`, despite both lazy provider resolutions and the mutation
+being inside that accepted operation. Room drift and the complete aggregate were not reached.
+
+Verification-only commit `b5bc3674c` recognizes that existing guard and keeps full startup outcome,
+generation-before-reconcile, guard-before-provider-resolution, lazy injection, and no-singleton
+requirements. Two regression fixtures reject missing/reordered fences and eager injection. No
+production check or timestamp invariant was weakened.
+
+`.\gradlew.bat :app:testDebugUnitTest --tests '*ArchitecturalFitnessTest*' detekt` with the common
+flags passed in `1m 11s`, 576 tasks (8 executed, 568 up-to-date); XML 39 tests, zero failures/errors/
+skips. This correction is tested separately before the full aggregate rerun.
+
+### Final repository host and schema gate (TI-B208)
+
+At exact implementation/verification HEAD `b5bc3674cd6fafbcd50fddd98a78581428756b6a`:
+
+```powershell
+.\gradlew.bat ciUnitTest checkRoomSchemaDrift --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+`BUILD SUCCESSFUL in 19m 46s`, 995 tasks (261 executed, 110 cache, 624 up-to-date). The only working
+changes during the gate were the seven coordinator-owned Markdown handover/evidence files; Kotlin,
+build, resource, and schema inputs stayed at the exact committed HEAD. The earlier architecture
+check failure is superseded by this corrected complete aggregate, not omitted from the record.
+
+Repository/included-build XML inventory: 1,677 suites, 9,392 tests, zero failures/errors, three
+pre-existing skips (9,389 non-skipped passing results, including valid cached results). Core/base has 948 tests, stats/data 301,
+tracker/engine 2,061, and game 463. The skipped tests are `BaseMapLayerTest`'s
+`lifecycle_runs_pipeline_and_disable_calls_onDisable` and
+`enable_twice_restarts_pipeline_without_crash` (class disabled because the tests moved to
+`androidTest` and need Android Context), plus `LocationAndSensorsManagerTest`'s
+`location updates flow completes gracefully without permission` (needs Android permission
+framework). Those unchanged skips are not counted as provider or UI-device evidence.
+
+`RoomExportPortableStepsTest` passed all 46 tests; its 400-identity batching case completed in
+`32.984s` (class total `41.219s`). The earlier 60-second timeout did not recur and the limit was not
+relaxed. This is host regression evidence, not a measured device/export latency or battery result.
+
 Known historical failure notes in `.github/context/FOLLOWUPS.md` are not treated as current baseline results until reproduced.
+
+### Final full quality gate (TI-B209)
+
+At the same code HEAD `b5bc3674cd6fafbcd50fddd98a78581428756b6a`, with only the seven
+coordinator-owned Markdown changes present:
+
+```powershell
+.\gradlew.bat ciCheck --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+`BUILD SUCCESSFUL in 9m 46s`, 1,991 tasks (668 executed, 288 from cache, 1,035 up-to-date).
+The repository quality aggregate includes host tests, Detekt, release lint, Room drift,
+architecture, SQLite linkage, release-evidence fixtures, and dependency metadata verification.
+Release lint completed with existing warnings and baseline-filtered findings; this is not a
+warning-free claim. Release-evidence fixtures reported 27 passing tests, and selective dependency
+metadata verified 16 reviewed components. No release, signing/publication, candidate activation,
+or device behavior is inferred from these checks.
+
+The final documentation-only successor records the accepted local integration. Its exact HEAD,
+standalone bundle SHA-256/size, `git bundle verify` and independent clone/connectivity results are
+in the transfer receipt accompanying the bundle, avoiding a self-referential commit hash in this
+document. Protected root changes and frozen draft branches are excluded from that bundle.

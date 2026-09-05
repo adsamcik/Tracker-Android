@@ -1,10 +1,26 @@
 # Tracking Infrastructure Rollout Runbook
 
-Last updated: 2026-08-31
+Last updated: 2026-09-05
 
 External rollout, publishing, deployment, and remote configuration remain unauthorized. This runbook defines local evidence and the future authorization boundary.
 
-## Current containment
+## Current checkpoint and containment
+
+Use `VISION_AND_SCOPE.md` for the product north star, `MACHINE_HANDOVER.md` for another-machine
+continuation, and the September 5 sections of `CONTINUATION_HANDOVER.md`, `IMPLEMENTATION_STATUS.md`,
+and `VERIFICATION_MATRIX.md` for accepted code and exact evidence. The local source checkpoint is
+`b5bc3674cd6fafbcd50fddd98a78581428756b6a` plus its documentation-only successor on local `dev/v10`.
+It is not pushed or activated. Older snapshots below are historical, including their unintegrated
+branch, schema-v3, missing radio identity, and blanket numeric-consumer gap claims.
+
+Current rollout schema v4 defaults all six sources to `CONTAINED`, legacy product stages and zero
+capture masks. Steps V1/V2 and Pressure executable contracts remain dormant; there is no ordinary
+first-activation caller. Existing canonical Location remains protected. No quality/battery or
+wake-reliable radio claim follows from host tests. Manual physical Steps-only, actual listener
+removal, and rendered UI require representative-device evidence; the harness alone does not prove
+the last two. All feature activation, publishing and external rollout still require fresh authority.
+
+## Historical containment inventory (superseded by the checkpoint above)
 
 - Current local continuation code checkpoint: `ab760d234` on `codex/ti410-deletion-rearm`. The
   continuation is not integrated into local `dev/v10` and no push was performed; remote state was

@@ -1,6 +1,6 @@
 # Tracking Infrastructure Decisions
 
-Last updated: 2026-09-04
+Last updated: 2026-09-05
 
 Each entry records repository evidence and does not duplicate the final architecture document.
 
@@ -2230,3 +2230,43 @@ Each entry records repository evidence and does not duplicate the final architec
   610 tasks, XML 446 Statistics + 697 app + 31 selected import/export tests, no failures/errors/skips.
   Prior root Detekt and affected lint passed. No device/render, provider/listener, process/reboot,
   battery/OEM, push, release, or activation evidence is implied.
+
+## TI-D147 — Raw Steps cannot award; accepted effects cannot cross deletion generations
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` through `501ad5bb1`, 2026-09-05; positive qualified Steps
+  completion awards remain unfinished.
+- Decision: remove raw Steps from fallback points/session XP and withhold raw goal completion
+  writes, goal-reached notifications, and Steps Ghost comparisons. Remove wall-overlap slope awards.
+  Preserve independently useful exact-segment distance/duration and mini-game behavior.
+- Reuse the existing startup/deletion gate around admitted run identity, score/points/XP/profile
+  effects, retry reconciliation, event load/apply/ACK, and exploration dirty handoff. New work must
+  capture the generation before loading and carry it through mutation; reopened state cannot lend
+  authority to an old run or loaded batch. Keep one accepted operation rather than nested gate
+  acquisition. A zero-points row is an idempotency sentinel, not fabricated Steps coverage.
+- `collect` replaces cancellation-on-invalidation for existing durable event drains. Cell/streak
+  writes and acknowledgement share a Room transaction; dirty delivery is after commit and within
+  the accepted generation. Cancellation remains exceptional and failures leave retry authority.
+- Session XP uses exact persisted segment-end time and the corresponding half-open civil-day cap
+  in the current device zone. It does not claim historical stored-zone authority for Steps goals
+  or choose the final cross-midnight product rule.
+- Evidence: corrected 128-test game/points cohort, 11 startup/runtime tests and root Detekt passed;
+  deletion/load/reopen, cancellation, ACK rollback, delayed XP and inclusive/exclusive day bounds
+  have focused regressions. Final rebased repository gates are recorded in TI-B206 onward. No
+  migration, provider demand, activation, generic deletion platform, or device proof is added.
+
+## TI-D148 — Queued achievement notifications share existing qualification authority
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` at `21437e97c`, 2026-09-05.
+- Evidence: review found that quarantining persisted achievement presentation did not filter old
+  `AchievementUnlocked` events. The queued event consumer could still announce legacy raw Steps,
+  XP, or meta achievements. A five-case Robolectric regression uses the real qualified repository
+  and catalog; the combined consumer/repository cohort is 14 tests, all passing with root Detekt.
+- Decision: read qualified snapshot ID/tier membership once for each batch containing unlocks,
+  within the existing accepted generation. Notify only matching ID/tier, acknowledge suppressed
+  unknown or quarantined events, and retry without acknowledgement on query failure. Do not
+  require `isUnlocked`: legitimate events can precede background progress persistence. Generation
+  replacement after qualification still rejects both notification and acknowledgement.
+- Consequences: notifications and achievement presentation agree without a duplicated metric
+  blacklist, new schema, public abstraction, observer, or per-row database query. This closes a
+  concrete consumer interaction; it does not qualify old numeric reward history or complete new
+  positive Steps awards. The checkpoint now returns to the source vertical and device gates.

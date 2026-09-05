@@ -1,10 +1,84 @@
 # Tracking Infrastructure Continuation Handover
 
-Last updated: 2026-09-04
+Last updated: 2026-09-05
 
 This handover is for the next device or Codex session continuing the tracking-infrastructure
-program after the local and remote `dev/v10` histories were reconciled. It is an execution
-checkpoint, not a replacement for the architecture or evidence ledgers.
+program from the locally accepted checkpoint. It is an execution checkpoint, not a replacement
+for the architecture or evidence ledgers, and does not claim remote publication.
+
+## 2026-09-05 checkpoint: qualified consumers, deletion-safe effects, and machine transfer
+
+This is the authoritative restart boundary and supersedes every checkpoint below. Start with
+[MACHINE_HANDOVER.md](MACHINE_HANDOVER.md) for cross-machine transfer, the exact continuation
+prompt, and the distinction between accepted code, frozen drafts, and unproven product behavior.
+[VISION_AND_SCOPE.md](VISION_AND_SCOPE.md), committed at `e7c9d63fb`, matches the user-supplied
+September 5 north star. Nothing here narrows its requirement for six useful independent verticals
+and measured quality per battery.
+
+### Exact durable boundary
+
+- Integration remains local `dev/v10` in
+  `G:\Github\Tracker-Android\.worktrees\tracking-infra-integration`. Accepted implementation HEAD
+  is `b5bc3674cd6fafbcd50fddd98a78581428756b6a`; this handover is its documentation-only successor.
+  Resolve final HEAD with `git rev-parse HEAD` and match the transfer receipt. The source tracking
+  ref `origin/dev/v10` remains `ffd5d372fafafceb7d9d595b95e47b89b949de83`, not refreshed or pushed.
+- The clean numeric-surfaces branch through `884b50550` and the 27-commit awards branch through
+  `b5bc3674c` are locally fast-forwarded after rebase/verification. The final awards commit updates
+  only the architecture-test guard recognition; production implementation ends at `21437e97c`.
+  Their clean merged temporary
+  worktrees and branches are removed; all accepted commits remain in `dev/v10`.
+- The protected detached root remains exact HEAD `ffd5d372fafafceb7d9d595b95e47b89b949de83`, with
+  exactly the six paths and SHA-256 values in the protected-path table below, nothing staged.
+  Those edits are not part of the bundle and must never be changed, staged, committed, or pushed
+  as tracking continuation work.
+- The portable and qualified-awards drafts remain at
+  `a347df9a25e2902b3d9951639f2303e9806f7645`, with respectively 37/66 tracked modifications,
+  16/14 untracked files, and tracked diffstats `+2669/-164` / `+6008/-662`. Both have nothing staged
+  and clean diff checks. Count untracked files with `--untracked-files=all`; default status groups
+  the portable importer directory. Neither draft is accepted, copied into the bundle, rebased,
+  cleaned, or discarded.
+
+### Accepted improvement and limits
+
+- Achievement metric evaluation skips absent values instead of inventing zero. Unverifiable legacy
+  Steps, contaminated XP, and derived meta progress are hidden but retained. Queued achievement
+  notifications now use one qualified snapshot membership/tier read per batch, preserve legitimate
+  pre-persistence first unlocks, and remain retryable on a failed read.
+- Qualified Dashboard/live, selected-day Calendar, Trip Detail, and active widget values remain;
+  hidden Calendar observation cancels, widget reads are exact and bounded, stale insight results
+  are fenced, and qualified milestones have a segment-local high-water boundary. Raw timeline/trip
+  badges, shared Steps, legacy counters, and unqualified insights are withheld, not replaced with
+  zero. These removals are containment, not completed positive consumers.
+- Raw Steps cannot complete goals or award points/XP. Existing exact-segment distance/duration and
+  mini-game behavior remain useful. Startup-generation admission, score/reward/profile writes,
+  reconciliation, event load/apply/ACK, and exploration dirty handoff are fenced across deletion.
+  Sequential event collection preserves accepted handoffs. Session XP uses persisted segment-end
+  time and a half-open current-device-zone day; historical Steps goal zone authority stays open.
+- No schema, provider, observer network, framework, remote egress, writer activation, release,
+  rollout, or publication is introduced. Full implementation/evidence ledgers are TI-D145–TI-D148
+  and TI-B204 onward. Their exact commands distinguish corrected fixture/static failures from final
+  passing gates.
+
+### Restart priority and proof boundary
+
+At code HEAD `b5bc3674c`, `ciUnitTest checkRoomSchemaDrift` passed in `19m 46s`; the complete
+`ciCheck --continue` passed in `9m 46s`. The XML inventory has 9,392 tests, zero failures/errors,
+and three unchanged Android-dependent skips, including valid cached results. Existing release
+lint warnings/baseline findings remain. TI-B208/TI-B209 record exact commands and task counts.
+
+No Android device is attached. The exact physical manual `{Steps}` chain, rendered Compose UI,
+and actual listener-removal proof remain open. `ManualStepsOnlyDeviceGateTest` is a disposable,
+operator-run harness: it checks production read models and app-owned retirement, but requires
+separate UI inspection and before/during/after `sensorservice` evidence. It is not ordinary
+activation authorization.
+
+Finish positive qualified Steps goals/streaks/achievements, bounded portable import/round trip/
+retention/no-resurrection, exact automatic control separation, then default-off Ambient Steps.
+Proceed through Pressure, protected Location, Activity, Wi-Fi, and Cell as thin independent
+verticals. Do not start another generic platform or use permanent omission as the product outcome.
+Current source-by-source state and documentation drift corrections are in `IMPLEMENTATION_STATUS.md`.
+Host/static/build integration is not sensor, process-death, reboot, FGS, battery, OEM, UI-device,
+or six-source success evidence.
 
 ## 2026-09-04 checkpoint: retained Steps history and retention loss are fail closed
 

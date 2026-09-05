@@ -12,6 +12,16 @@ The September 5 checkpoint in `CONTINUATION_HANDOVER.md` is the authoritative br
 verification, and restart inventory. This section supersedes the historical gate inventories below.
 The whole six-source program and TI-410 remain **in progress**.
 
+Accepted implementation/verification code is `b5bc3674cd6fafbcd50fddd98a78581428756b6a`; the containing
+documentation checkpoint records its integration and transfer. `VISION_AND_SCOPE.md` is the
+user-confirmed north star, and `MACHINE_HANDOVER.md` provides the copy-paste restart on another
+machine. Exact repository gates and corrected failure history are TI-B204 onward.
+
+Final gates at that code HEAD passed: `ciUnitTest checkRoomSchemaDrift` in `19m 46s` and full
+`ciCheck --continue` in `9m 46s`. XML inventory: 9,392 tests, zero failures/errors, three unchanged
+Android-dependent skips, including valid cached results. Release lint retains existing warnings
+and baseline findings. See TI-B208/TI-B209 for the precise validation boundary.
+
 The accepted numeric-consumer work keeps useful qualified Dashboard/live, selected-day Calendar,
 Trip Detail, and active-widget Steps. Calendar observation is subscription/tab-scoped; the widget
 performs one exact selected-session read per refresh. Missing, partial, materializing, and
@@ -19,6 +29,13 @@ unverifiable values remain nonnumeric; covered zero is valid. Raw timeline/trip 
 tracker counters, and shared Steps totals are withheld where no qualified replacement exists.
 Achievement evaluation skips unavailable metrics, and unverifiable historical Steps/XP/meta
 achievement progress is hidden without deleting the stored rows.
+
+Raw Steps cannot produce goal-completion, point, or XP effects. Existing score/reward/profile,
+session/event, and exploration side effects use the existing deletion-generation gate; an old
+in-memory run or batch cannot be accepted after deletion/reopen. Queued achievement notifications
+share qualified repository membership and tier authority with presentation. Sequential event
+draining preserves accepted commit-to-dirty handoffs. Session XP is dated by exact persisted segment
+end with a half-open current-device-zone cap; future Steps goal stored-zone authority remains open.
 
 These are concrete correctness improvements, not completion of positive Steps rewards. Replacing
 unsafe numbers with permanent feature absence would miss the product goal. Next work must return

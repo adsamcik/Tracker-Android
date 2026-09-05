@@ -1,11 +1,19 @@
 # Tracking Infrastructure Execution Plan
 
-Last updated: 2026-09-02
+Last updated: 2026-09-05
 
 This is the durable execution ledger for the architecture in
 `docs/TRACKING_INFRASTRUCTURE_FINAL_PLAN_AND_DESIGN.md` and the accepted refinements in
 `ADAPTIVE_COLLECTIONS_GREENFIELD_DESIGN.md`. It records implementation boundaries and proof; it
 does not restate the architecture.
+
+Current execution boundary: the September 5 checkpoint in `CONTINUATION_HANDOVER.md` and TI-B204
+onward in `VERIFICATION_MATRIX.md` supersede older progress snapshots in this ledger. Read
+`VISION_AND_SCOPE.md` as the product north star and `MACHINE_HANDOVER.md` when continuing on another
+machine. Qualified consumer/deletion-safety containment is accepted progress, not completion of
+positive Steps awards, physical only-source proof, portable import, automatic/Ambient, or six-source
+delivery. Preserve the existing Steps-first dependency gates; no further generic framework or
+unrelated reward expansion is the next implementation wave.
 
 ## Program truth
 
