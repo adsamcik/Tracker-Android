@@ -17,6 +17,7 @@ import com.adsamcik.tracker.stats.api.value.StepCount
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.confirmVerified
 import io.mockk.coVerifyOrder
 import io.mockk.mockk
 import kotlinx.coroutines.CancellationException
@@ -281,9 +282,13 @@ class GameDomainEventConsumerTest {
 				coVerify(exactly = 0) {
 					progressionRepository.awardSessionXp(any(), any())
 				}
-				coVerify(exactly = 0) {
-					domainEventRepository.markBatchConsumed(any(), any(), any())
+				coVerify(exactly = 1) {
+					domainEventRepository.getUnconsumedBatchWithIds(
+						GameDomainEventConsumer.CONSUMER_ID,
+						DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
+					)
 				}
+				confirmVerified(domainEventRepository)
 				trackingStartupGate.operationGenerations shouldBe listOf(1L)
 			}
 	}
