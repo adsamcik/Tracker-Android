@@ -1,29 +1,59 @@
 # Tracking Infrastructure Implementation Status
 
-Last updated: 2026-09-04
+Last updated: 2026-09-05
 
 Execution-grade work items, ownership, dependency gates, verification commands, and rollback
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and
 evidence index.
 
-Current accepted code checkpoint: `7cc3149fb2383dad749ac0573ab9124ce7d0e2b7` on the completed
-history-integrity branch, before this status document's containing commit and local fast-forward.
-It adds authenticated retained Steps facts, exact all-run logical composition, manifest-slice and
-run/segment binding, reset-gap continuity, per-run numeric completeness, purpose-separated
-retention-loss evidence, and fail-closed history/export/deletion/day repair to the already accepted
-source-qualified Steps product foundation. The complete topology, preserved parallel draft
-inventory, and protected-root boundary are recorded in `CONTINUATION_HANDOVER.md`.
+## Current checkpoint and goal assessment
 
-The immediate product boundary is unchanged: the exact representative-device manual Steps-only
-chain has not run, so provider callbacks, listener removal, rendered UI, process death, reboot,
-foreground-service behavior, battery cost, and OEM behavior remain unproven. Truthful live/list,
-weekly, and bounded numeric consumers are locally integrated, but the awards/retained-metrics and
-portable-import drafts remain frozen and unaccepted. Automatic/control-separated and Ambient
-Steps also remain open. Everything is local-only. No push, release, artifact publication,
-deployment, remote configuration, feature activation, destructive migration, or external rollout
-occurred.
+The September 5 checkpoint in `CONTINUATION_HANDOVER.md` is the authoritative branch, commit,
+verification, and restart inventory. This section supersedes the historical gate inventories below.
+The whole six-source program and TI-410 remain **in progress**.
 
-## Current gate
+The accepted numeric-consumer work keeps useful qualified Dashboard/live, selected-day Calendar,
+Trip Detail, and active-widget Steps. Calendar observation is subscription/tab-scoped; the widget
+performs one exact selected-session read per refresh. Missing, partial, materializing, and
+unverifiable values remain nonnumeric; covered zero is valid. Raw timeline/trip badges, legacy
+tracker counters, and shared Steps totals are withheld where no qualified replacement exists.
+Achievement evaluation skips unavailable metrics, and unverifiable historical Steps/XP/meta
+achievement progress is hidden without deleting the stored rows.
+
+These are concrete correctness improvements, not completion of positive Steps rewards. Replacing
+unsafe numbers with permanent feature absence would miss the product goal. Next work must return
+to the useful Steps path, qualified positive decisions, and physical evidence rather than expand
+generic infrastructure or unrelated reward behavior.
+
+| Source | Implemented boundary | Remaining product gate |
+| --- | --- | --- |
+| Steps | Exact attribution, authenticated facts, replacement-run composition, qualified reads, selected deletion, correction/retention containment, portable export, bounded numeric presentation | Physical only-Steps chain, rendered UI and actual listener removal; qualified positive goals/streaks/achievements; portable import/round trip/no-resurrection; automatic control separation; default-off Ambient |
+| Pressure | Qualified window admission, dormant append-only facts, exact selected deletion | Qualified history/UI, retention/transfer, explicit writer cutover, representative sensor evidence |
+| Location | Existing canonical behavior protected; source-native immutable acceptance floor and stale/generation rejection | Evidence-backed shadow/cutover and independent lifecycle/product/device gate |
+| Activity | Durable callback admission and exact automatic-control trigger authority | Captured Activity facts/query/UI/deletion/transfer; full automatic Steps trigger-to-query proof |
+| Wi-Fi | Fresh/new-in-effect minimized durable delivery identity, observed-time authority, bounded direct-demand attempts | Product facts/query/UI/deletion/retention/transfer; measured radio behavior and meaningful tiers |
+| Cell | Fresh callback filtering, atomic minimized identity/duplicate rejection, bounded direct-demand attempts | Product facts/query/UI/deletion/retention/transfer; subscription/device evidence and meaningful tiers |
+
+`TrackingRolloutState` schema **v4** defaults all six sources to `CONTAINED`, retained legacy product
+stages, and zero capture masks. The executable candidate catalog contains Steps V1/V2 and Pressure;
+installation is not activation. There is no ordinary production first-activation caller. Retaining
+legacy generation 1 as destination owner does not prove ordinary Steps-only source-native capture
+is enabled. No writer, source, or feature was activated by this checkpoint.
+
+The historical inventories below predate the implemented Wi-Fi/Cell durable identities, Location
+acceptance-floor rejection, and qualified Calendar/numeric consumers. Their missing-identity,
+pre-acceptance cached-fix, schema-v3, and blanket Calendar-blocked statements are historical findings,
+not current defects. Radio destination materializers and the other open product gates above remain
+unfinished.
+
+No Android device is attached. The manual harness itself proves app-owned retirement, not actual
+sensor listener removal or rendered Compose UI: those require before/during/after `sensorservice`
+evidence and direct UI inspection on the representative physical `TYPE_STEP_COUNTER` device.
+Host/Robolectric/Room/static/release-build checks do not prove provider, process-death, reboot, FGS,
+battery, or OEM behavior. Everything remains local-only; no push, release, tag, deployment, external
+rollout, feature activation, or destructive migration occurred.
+
+## Historical gate inventory (superseded by the current checkpoint above)
 
 - Current phase: TI-410 manual/session Steps is `IN_PROGRESS`; its atomic writer-transition
   foundation is `IN_REVIEW`. Durable service-run provenance, dormant facts/receipts/cursor,
@@ -144,7 +174,7 @@ occurred.
   product-lane activation/cursor/retention fence. This does not restore a generic platform.
 - Adaptive collections target: TI-D054–TI-D087 and `ADAPTIVE_COLLECTIONS_GREENFIELD_DESIGN.md` define sole-source capture, explicit ambient/control authority, authorization-homogeneous source-native durable units, source-specific platform-mechanism ladders and handoffs, measured rather than assumed energy separation, item-level freshness/relevance admission, zero-effect exact replay, quality floors/targets, one supervisor/runtime owner per source, one thin data-plane mutation owner with source lanes created on demand, distinct delivery and logical correction identities, narrow deletion/owner fences, platform-legal automatic starts, one selected Ambient Steps continuity provider, explicit radio aggregate/identity tiers, optional query-time Location context, and one minimum production history facade. The current v28 runtime implements the shared authority/admission substrate and Activity's first atomic callback adapter; source-local facts and every product claim remain blocked.
 
-## Observed repository state
+## Historical repository observations (superseded where noted above)
 
 - Acquisition and product-writer rollout are separate per-source state.
   `TrackingRolloutState`

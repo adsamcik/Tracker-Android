@@ -2195,3 +2195,38 @@ Each entry records repository evidence and does not duplicate the final architec
   is accepted for the personal app and may be optimized only after measured need. No schema,
   provider demand, permanent observer, generic tombstone platform, activation, rollout, push, or
   release is added.
+
+## TI-D145 — Unverifiable achievement progress is withheld without erasing history
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` through `2650857e4`, locally integrated, 2026-09-05.
+- Decision: absent metrics are skipped, not defaulted to zero. Raw Steps-derived metrics and
+  legacy XP metrics that cannot separate old raw-Steps contributions are unavailable for evaluation.
+  Their stored achievement progress and derived meta rows are hidden from product presentation but
+  retained. Meta evaluation counts only catalog-backed, directly trusted progress.
+- Scope: this closes false awards/presentation, not qualified positive Steps achievements. It adds
+  no retention schema, migration, provider, permanent observer, or activation. Revisit withholding
+  when exact retained source authority supports a bounded positive consumer, not by trusting raw
+  `daily_summary` or old ledger/profile rows.
+- Evidence: focused stats-data tests, the live aggregator regression, Detekt and stats lint passed
+  before this resume. Repository integration verification is recorded separately in TI-B204 onward;
+  an earlier full stats-data run hit the 60-second portable-export batching test timeout and is not
+  claimed as a green aggregate.
+
+## TI-D146 — Preserve useful qualified Steps surfaces and contain raw-number bypasses
+
+- Status: `ACCEPTED_AND_IMPLEMENTED` through `884b50550`, locally fast-forwarded after the required
+  no-op rebase and post-rebase test gate, 2026-09-05.
+- Decision: reuse existing Dashboard/history/detail and numeric repositories. Selected Calendar
+  observation cancels when its tab is hidden; exact active-session widget Steps require qualified
+  source evidence and complete coverage in one bounded read per refresh. Covered zero remains a
+  value; missing, partial, materializing, and unverifiable states cannot become zero. Live milestone
+  effects require qualified values and a segment-local high-water boundary. Stale session insight
+  responses cannot cross a selected-session change.
+- Containment: remove raw Steps badges/counters/share tokens and unqualified insight/achievement
+  claims where no complete source-qualified consumer exists. Preserve independent distance/duration
+  and the useful qualified live/Calendar/detail/widget surfaces. This does not complete positive
+  awards, all-history Steps sharing/badges, or ordinary source-native activation.
+- Evidence: fresh exact-HEAD review found no P1/P2; post-rebase host gate passed in `4m 11s`,
+  610 tasks, XML 446 Statistics + 697 app + 31 selected import/export tests, no failures/errors/skips.
+  Prior root Detekt and affected lint passed. No device/render, provider/listener, process/reboot,
+  battery/OEM, push, release, or activation evidence is implied.
