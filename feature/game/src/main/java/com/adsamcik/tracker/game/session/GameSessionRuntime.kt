@@ -275,25 +275,7 @@ internal class GameSessionRuntime(
 			return
 		}
 
-		val personalBest = try {
-			persistence.loadPersonalBest(configuration.gameId)
-		} catch (cancellation: CancellationException) {
-			throw cancellation
-		} catch (_: Throwable) {
-			fail(configuration, GameSessionFailureReason.PERSISTENCE_FAILED)
-			return
-		}
-		val prepared = try {
-			sessionFactory.create(configuration, personalBest)
-		} catch (cancellation: CancellationException) {
-			throw cancellation
-		} catch (_: IllegalArgumentException) {
-			fail(configuration, GameSessionFailureReason.INVALID_COMMAND)
-			return
-		} catch (_: Throwable) {
-			fail(configuration, GameSessionFailureReason.INTERNAL_ERROR)
-			return
-		}
+		val prepared = prepareSession(configuration) ?: return
 
 		val now = clock.elapsedRealtimeMs()
 		val newActive = ActiveSession(
@@ -310,6 +292,28 @@ internal class GameSessionRuntime(
 		publish(newActive.toState(), isCommandTransition = true)
 		startLocationCollection(newActive)
 		startTicker(newActive)
+	}
+
+	private suspend fun prepareSession(configuration: MiniGameConfiguration): PreparedGameSession? {
+		val personalBest = try {
+			persistence.loadPersonalBest(configuration.gameId)
+		} catch (cancellation: CancellationException) {
+			throw cancellation
+		} catch (_: Throwable) {
+			fail(configuration, GameSessionFailureReason.PERSISTENCE_FAILED)
+			return null
+		}
+		return try {
+			sessionFactory.create(configuration, personalBest)
+		} catch (cancellation: CancellationException) {
+			throw cancellation
+		} catch (_: IllegalArgumentException) {
+			fail(configuration, GameSessionFailureReason.INVALID_COMMAND)
+			null
+		} catch (_: Throwable) {
+			fail(configuration, GameSessionFailureReason.INTERNAL_ERROR)
+			null
+		}
 	}
 
 	private suspend fun pause() {
