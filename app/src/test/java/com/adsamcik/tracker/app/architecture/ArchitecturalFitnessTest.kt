@@ -1026,9 +1026,11 @@ class ArchitecturalFitnessTest {
 						"TrackingStartupResult.RetryableFailure",
 						"TrackingStartupResult.Blocked",
 						"currentGeneration",
-						"isReady",
 					).filterNot(source::contains)
 						.mapTo(this) { marker -> "$path -> missing startup fence marker `$marker`" }
+					if (readinessGuardIndex(source) < 0) {
+						add("$path -> missing startup readiness or accepted generation-operation guard")
+					}
 					if ("Provider<" !in source && "Lazy<" !in source) {
 						add("$path -> collected persistence must be injected through Provider/Lazy")
 					}
@@ -1041,23 +1043,12 @@ class ArchitecturalFitnessTest {
 						add("$path -> worker must use its gated AppDatabase Provider, not a singleton open")
 					}
 
-					val reconcileIndex = source.indexOf("trackingStartupGate.reconcile()")
-					val readinessGuardIndex = listOf(
-						"trackingStartupGate.isReady",
-						"isReadyGeneration(",
-						"requireReadyGeneration(",
-					).map(source::indexOf).filter { it >= 0 }.minOrNull() ?: -1
-					val generationIndex = source.indexOf("trackingStartupGate.currentGeneration")
 					PROVIDER_PROPERTY_PATTERN.findAll(source).forEach { declaration ->
 						val providerName = declaration.groupValues[1]
 						val resolutionPattern = Regex("""\b${Regex.escape(providerName)}\.get\(\)""")
 						resolutionPattern.findAll(source).forEach { resolution ->
 							val resolutionIndex = resolution.range.first
-							if (
-								reconcileIndex !in 0 until resolutionIndex ||
-								readinessGuardIndex !in 0 until resolutionIndex ||
-								generationIndex !in 0 until reconcileIndex
-							) {
+							if (!providerResolutionIsFenced(source, resolutionIndex)) {
 								add(
 									"$path -> `$providerName.get()` resolves before Ready + generation fencing",
 								)
@@ -1081,6 +1072,52 @@ class ArchitecturalFitnessTest {
 						violations.joinToString("\n"),
 				)
 			}
+		}
+
+		@Test
+		fun `accepted operation guard does not permit missing or reordered startup fences`() {
+			val generation = "val generation = trackingStartupGate.currentGeneration"
+			val reconcile = "trackingStartupGate.reconcile()"
+			val acceptedGuard = "trackingStartupGate.withReadyGenerationOperation(generation)"
+			val resolution = "databaseProvider.get()"
+			val valid = "$generation\n$reconcile\n$acceptedGuard { $resolution }"
+			check(providerResolutionIsFenced(valid, valid.indexOf(resolution)))
+			val invalid = listOf(
+				valid.replace(reconcile, ""),
+				valid.replace(generation, ""),
+				valid.replace(acceptedGuard, "run"),
+				"$reconcile\n$generation\n$acceptedGuard { $resolution }",
+				"$generation\n$reconcile\n$resolution\n$acceptedGuard { }",
+				"$resolution\n$generation\n$reconcile\n$acceptedGuard { }",
+			)
+			invalid.forEach { source ->
+				check(!providerResolutionIsFenced(source, source.indexOf(resolution)))
+			}
+		}
+
+		@Test
+		fun `accepted operation guard does not excuse eager persistence injection`() {
+			val source = """
+				private val database: AppDatabase
+				trackingStartupGate.withReadyGenerationOperation(generation) { database.tripDao() }
+			""".trimIndent()
+			check(readinessGuardIndex(source) >= 0)
+			check(EAGER_COLLECTED_DATA_PROPERTY_PATTERN.containsMatchIn(source))
+		}
+
+		private fun readinessGuardIndex(source: String): Int = listOf(
+			"trackingStartupGate.isReady",
+			"isReadyGeneration(",
+			"requireReadyGeneration(",
+			"trackingStartupGate.withReadyGenerationOperation(",
+		).map(source::indexOf).filter { it >= 0 }.minOrNull() ?: -1
+
+		private fun providerResolutionIsFenced(source: String, resolutionIndex: Int): Boolean {
+			val reconcileIndex = source.indexOf("trackingStartupGate.reconcile()")
+			val generationIndex = source.indexOf("trackingStartupGate.currentGeneration")
+			return reconcileIndex in 0 until resolutionIndex &&
+				readinessGuardIndex(source) in 0 until resolutionIndex &&
+				generationIndex in 0 until reconcileIndex
 		}
 
 		@Test
