@@ -18,7 +18,7 @@ import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 /**
@@ -56,7 +56,9 @@ class GameModuleInitializer @Inject constructor(
 		appScope.launch(dispatchers.default) {
 			consumer.processUnconsumed()
 			explorationConsumer.processUnconsumed()
-			domainEventRepository.observeEvents(EpochMs(0L)).collectLatest {
+			// Each consumer drains durable work. A newer invalidation must not cancel an accepted
+			// transaction between its commit/acknowledgement and its mark-after-commit handoff.
+			domainEventRepository.observeEvents(EpochMs(0L)).collect {
 				consumer.processUnconsumed()
 				explorationConsumer.processUnconsumed()
 			}
