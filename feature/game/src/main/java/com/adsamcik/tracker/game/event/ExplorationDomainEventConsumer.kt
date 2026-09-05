@@ -6,10 +6,13 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
 import com.adsamcik.tracker.shared.base.database.data.ExplorationCellEntity
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.stats.api.event.DomainEvent
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
+import com.adsamcik.tracker.stats.api.repository.UnconsumedEvent
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -36,6 +39,7 @@ class ExplorationDomainEventConsumer @Inject constructor(
 	private val domainEventRepository: DomainEventRepository,
 	@ApplicationContext private val context: Context,
 	private val dirtyTracker: MetricDirtyTracker,
+	private val trackingStartupGate: TrackingStartupGate,
 ) {
 	private val streakTracker = ExplorationStreakTracker()
 	// Single-flight guard: this consumer is a @Singleton and processUnconsumed() can be
@@ -46,47 +50,62 @@ class ExplorationDomainEventConsumer @Inject constructor(
 
 	/** Process any unconsumed CellDiscovered events. */
 	suspend fun processUnconsumed() = processMutex.withLock {
-		val database = AppDatabase.database(context)
-		val cellDao = database.explorationCellDao()
-		val streakDao = database.explorationStreakDao()
-
 		while (true) {
-			val batch = domainEventRepository.getUnconsumedBatchWithIds(
+			val expectedGeneration = trackingStartupGate.currentGeneration
+			val batch = loadAcceptedBatch(expectedGeneration) ?: return@withLock
+			if (batch.isEmpty()) return@withLock
+			if (!applyAcceptedBatch(batch, expectedGeneration)) return@withLock
+		}
+	}
+
+	private suspend fun loadAcceptedBatch(expectedGeneration: Long): List<UnconsumedEvent>? {
+		if (trackingStartupGate.reconcile() !is TrackingStartupResult.Ready) return null
+		return trackingStartupGate.withReadyGenerationOperation(expectedGeneration) {
+			domainEventRepository.getUnconsumedBatchWithIds(
 				consumerId = CONSUMER_ID,
 				limit = DomainEventRepository.DEFAULT_UNCONSUMED_BATCH_SIZE,
 			)
-			if (batch.isEmpty()) return@withLock
-
-			// One transaction per BATCH instead of per event. During backlog/replay
-			// (100 cell events × 100 BEGIN+COMMIT+fsync = 100-400 ms of write I/O)
-			// this drops to ONE transaction. Atomicity per event is still preserved
-			// because all cell+streak writes inside the loop roll back together if
-			// any fail. The cursor acknowledgement is included so mutations and
-			// consumption progress commit or roll back together. We collect dirty
-			// effects and apply them outside the transaction (mark-after-commit contract).
-			val dirtyTables = mutableSetOf<String>()
-			val last = batch.last()
-			database.withTransaction {
-				batch.forEach { unconsumed ->
-					val effects = handleEvent(
-						event = unconsumed.event,
-						cellDao = cellDao,
-						streakDao = streakDao,
-					)
-					dirtyTables += effects.dirty
-				}
-				// Ack the LAST event by (timestamp, id) so a future event sharing the same
-				// timestamp as our boundary doesn't get silently skipped by the next fetch.
-				domainEventRepository.markBatchConsumed(
-					consumerId = CONSUMER_ID,
-					upToTimestamp = last.event.timestampMs,
-					upToEventId = last.persistedId,
-				)
-			}
-
-			if (dirtyTables.isNotEmpty()) dirtyTracker.markDirty(dirtyTables)
 		}
 	}
+
+	private suspend fun applyAcceptedBatch(
+		batch: List<UnconsumedEvent>,
+		expectedGeneration: Long,
+	): Boolean = trackingStartupGate.withReadyGenerationOperation(expectedGeneration) {
+		val database = AppDatabase.database(context)
+		val cellDao = database.explorationCellDao()
+		val streakDao = database.explorationStreakDao()
+		val dirtyTables = mutableSetOf<String>()
+		val last = batch.last()
+
+		// One transaction per BATCH instead of per event. During backlog/replay
+		// (100 cell events × 100 BEGIN+COMMIT+fsync = 100-400 ms of write I/O)
+		// this drops to ONE transaction. Cell/streak writes and cursor acknowledgement
+		// commit or roll back together, and the startup-generation lease makes deletion
+		// wait for the whole accepted batch before clearing it.
+		database.withTransaction {
+			batch.forEach { unconsumed ->
+				val effects = handleEvent(
+					event = unconsumed.event,
+					cellDao = cellDao,
+					streakDao = streakDao,
+				)
+				dirtyTables += effects.dirty
+			}
+			// Ack the LAST event by (timestamp, id) so a future event sharing the same
+			// timestamp as our boundary doesn't get silently skipped by the next fetch.
+			domainEventRepository.markBatchConsumed(
+				consumerId = CONSUMER_ID,
+				upToTimestamp = last.event.timestampMs,
+				upToEventId = last.persistedId,
+			)
+		}
+
+		// Keep the in-memory dirty handoff in the same deletion-linearized lease. It is
+		// still mark-after-commit, and this accepted generation cannot hand off after deletion.
+		if (dirtyTables.isNotEmpty()) dirtyTracker.markDirty(dirtyTables)
+		true
+	} ?: false
 
 	/** Side effects to apply AFTER the transaction commits (mark-after-commit). */
 	private data class EventEffects(
