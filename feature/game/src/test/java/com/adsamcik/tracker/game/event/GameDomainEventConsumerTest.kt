@@ -38,6 +38,7 @@ class GameDomainEventConsumerTest {
 		achievementEvaluationScheduler,
 		progressionRepository,
 		trackingStartupGate,
+		mockk(),
 		context,
 	)
 

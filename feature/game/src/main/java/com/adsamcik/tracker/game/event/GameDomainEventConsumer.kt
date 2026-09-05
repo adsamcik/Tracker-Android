@@ -12,6 +12,7 @@ import com.adsamcik.tracker.game.progression.SessionXpAwardResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.stats.api.event.DomainEvent
+import com.adsamcik.tracker.stats.api.repository.AchievementRepository
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import com.adsamcik.tracker.stats.api.repository.UnconsumedEvent
 import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
@@ -28,6 +29,7 @@ class GameDomainEventConsumer @Inject constructor(
 	private val achievementEvaluationScheduler: AchievementEvaluationScheduler,
 	private val progressionRepository: PlayerProgressionRepository,
 	private val trackingStartupGate: TrackingStartupGate,
+	private val achievementRepository: AchievementRepository,
 	@ApplicationContext private val context: Context,
 ) {
 	private val processMutex = Mutex()
@@ -45,9 +47,10 @@ class GameDomainEventConsumer @Inject constructor(
 		batch: List<UnconsumedEvent>,
 		expectedGeneration: Long,
 	): Boolean {
+		val qualifiedAchievementTiers = loadQualifiedAchievementTiers(batch, expectedGeneration) ?: return false
 		for (unconsumed in batch) {
 			val handled = try {
-				handleEvent(unconsumed.event, expectedGeneration)
+				handleEvent(unconsumed.event, expectedGeneration, qualifiedAchievementTiers)
 			} catch (cancellation: CancellationException) {
 				throw cancellation
 			} catch (_: Exception) {
@@ -56,6 +59,26 @@ class GameDomainEventConsumer @Inject constructor(
 			if (!handled || !acknowledgeEvent(unconsumed, expectedGeneration)) return false
 		}
 		return true
+	}
+
+	private suspend fun loadQualifiedAchievementTiers(
+		batch: List<UnconsumedEvent>,
+		expectedGeneration: Long,
+	): Map<String, String>? = try {
+		if (batch.none { it.event is DomainEvent.AchievementUnlocked }) {
+			emptyMap()
+		} else {
+			trackingStartupGate.withReadyGenerationOperation(expectedGeneration) {
+				// One qualified repository read per batch; do not repeat its metric quarantine here.
+				// Live unlock events precede persisted progress, so membership/tier is the authority
+				// for this boundary, not snapshot.isUnlocked.
+				achievementRepository.getAllSnapshots().associate { it.id to it.tier.name }
+			}
+		}
+	} catch (cancellation: CancellationException) {
+		throw cancellation
+	} catch (_: Exception) {
+		null
 	}
 
 	private suspend fun acknowledgeEvent(
@@ -96,6 +119,7 @@ class GameDomainEventConsumer @Inject constructor(
 	private suspend fun handleEvent(
 		event: DomainEvent,
 		expectedGeneration: Long,
+		qualifiedAchievementTiers: Map<String, String>,
 	): Boolean = when (event) {
 		is DomainEvent.SessionEnded -> {
 			if (!trackingStartupGate.isReadyGeneration(expectedGeneration)) {
@@ -109,7 +133,11 @@ class GameDomainEventConsumer @Inject constructor(
 		else -> trackingStartupGate.withReadyGenerationOperation(expectedGeneration) {
 			when (event) {
 				is DomainEvent.DailySummaryUpdated -> onDailySummaryUpdated(event)
-				is DomainEvent.AchievementUnlocked -> onAchievementUnlocked(event)
+				is DomainEvent.AchievementUnlocked -> {
+					if (qualifiedAchievementTiers[event.achievementId] == event.tier) {
+						onAchievementUnlocked(event)
+					}
+				}
 				else -> Unit
 			}
 			true
