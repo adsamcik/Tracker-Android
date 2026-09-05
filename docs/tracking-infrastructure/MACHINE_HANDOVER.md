@@ -2,6 +2,10 @@
 
 Last updated: 2026-09-05
 
+Publication update: [PUBLICATION_HANDOVER.md](PUBLICATION_HANDOVER.md) records the user's subsequent
+one-time push authorization and GitHub clone instructions. The local-only statements below
+describe the exact earlier bundle checkpoint; implementation limits and remaining work are unchanged.
+
 ## Read this first
 
 This is a **local implementation checkpoint, not completion or activation of the six-source

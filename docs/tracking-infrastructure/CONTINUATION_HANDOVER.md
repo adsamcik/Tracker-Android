@@ -2,6 +2,10 @@
 
 Last updated: 2026-09-05
 
+Publication update: see [PUBLICATION_HANDOVER.md](PUBLICATION_HANDOVER.md) for the subsequent
+one-time push authorization and GitHub restart instructions. The local-only inventory below is
+the pre-publication checkpoint; its protected-work and implementation boundaries still apply.
+
 This handover is for the next device or Codex session continuing the tracking-infrastructure
 program from the locally accepted checkpoint. It is an execution checkpoint, not a replacement
 for the architecture or evidence ledgers, and does not claim remote publication.
