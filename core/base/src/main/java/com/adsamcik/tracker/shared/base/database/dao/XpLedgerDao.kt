@@ -25,6 +25,13 @@ interface XpLedgerDao : BaseDao<XpLedgerEntity> {
 	@Query("SELECT COALESCE(SUM(amount), 0) FROM xp_ledger WHERE earned_at >= :since")
 	fun getXpSince(since: Long): Long
 
+	/** XP earned inside one explicitly bounded, half-open calendar-day interval. */
+	@Query(
+		"SELECT COALESCE(SUM(amount), 0) FROM xp_ledger " +
+			"WHERE earned_at >= :fromInclusive AND earned_at < :untilExclusive",
+	)
+	fun getXpBetween(fromInclusive: Long, untilExclusive: Long): Long
+
 	@Query("SELECT * FROM xp_ledger ORDER BY earned_at DESC LIMIT :limit")
 	suspend fun getRecent(limit: Int): List<XpLedgerEntity>
 	/** Highest total XP earned within any single LOCAL calendar day. */

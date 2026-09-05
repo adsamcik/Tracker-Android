@@ -3,6 +3,7 @@ package com.adsamcik.tracker.game.progression
 import android.app.Application
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
+import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.PlayerProfileEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
@@ -19,6 +20,9 @@ import com.adsamcik.tracker.stats.api.value.EpochMs
 import com.adsamcik.tracker.stats.api.value.StepCount
 import com.adsamcik.tracker.testing.TestDispatchersProvider
 import io.kotest.matchers.shouldBe
+import io.mockk.every
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.runTest
@@ -89,6 +93,81 @@ class PlayerProgressionRepositoryTest {
 		) shouldBe SessionXpAwardResult.COMPLETED
 		assertEquals(2, database.xpLedgerDao().getRecent(limit = 10).size)
 		assertEquals(2, dirtyTracker.markCalls)
+	}
+
+	@Test
+	fun `delayed session uses segment end day for timestamp and daily cap`() = runTest {
+		val gate = TestTrackingStartupGate()
+		val dirtyTracker = RecordingMetricDirtyTracker()
+		val repository = repository(gate, dirtyTracker, testScheduler)
+		val sessionEndMs = java.time.Instant.parse("2024-01-15T12:00:00Z").toEpochMilli()
+		val delayedProcessingMs = java.time.Instant.parse("2024-01-17T12:00:00Z").toEpochMilli()
+		val sessionId = insertSegment(
+			startTimeMs = sessionEndMs - 60_000L,
+			endTimeMs = sessionEndMs,
+			distanceM = 1_000f,
+			steps = 0,
+		)
+		database.xpLedgerDao().insertOrIgnore(
+			XpLedgerEntity(
+				amount = XpCalculator.DAILY_CAP.toInt(),
+				source = XpSource.MINI_GAME.name,
+				sourceId = 99L,
+				earnedAt = delayedProcessingMs,
+			),
+		)
+		mockkObject(Time)
+		every { Time.nowMillis } returns delayedProcessingMs
+
+		try {
+			repository.awardSessionXp(
+				sessionEnded(sessionId),
+				gate.currentGeneration,
+			) shouldBe SessionXpAwardResult.COMPLETED
+		} finally {
+			unmockkObject(Time)
+		}
+
+		val sessionAward = database.xpLedgerDao().getRecent(limit = 10)
+			.single { it.source == XpSource.SESSION.name }
+		sessionAward.earnedAt shouldBe sessionEndMs
+		sessionAward.amount shouldBe 50
+		dirtyTracker.markCalls shouldBe 1
+	}
+
+	@Test
+	fun `session daily cap includes day start and excludes both adjacent days`() = runTest {
+		val gate = TestTrackingStartupGate()
+		val dirtyTracker = RecordingMetricDirtyTracker()
+		val repository = repository(gate, dirtyTracker, testScheduler)
+		val zone = java.time.ZoneId.systemDefault()
+		val day = java.time.LocalDate.of(2024, 1, 15)
+		val start = day.atStartOfDay(zone).toInstant().toEpochMilli()
+		val end = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+		val sessionId = insertSegment(start, start, 1_000f, 0)
+		listOf(
+			start - 1L to XpCalculator.DAILY_CAP.toInt(),
+			start to XpCalculator.DAILY_CAP.toInt() - 7,
+			end to XpCalculator.DAILY_CAP.toInt(),
+		).forEachIndexed { index, (earnedAt, amount) ->
+			database.xpLedgerDao().insertOrIgnore(
+				XpLedgerEntity(
+					amount = amount,
+					source = XpSource.MINI_GAME.name,
+					sourceId = index.toLong(),
+					earnedAt = earnedAt,
+				),
+			)
+		}
+
+		repository.awardSessionXp(sessionEnded(sessionId), gate.currentGeneration)
+			.shouldBe(SessionXpAwardResult.COMPLETED)
+
+		val sessionAward = database.xpLedgerDao().getRecent(10)
+			.single { it.source == XpSource.SESSION.name }
+		sessionAward.amount shouldBe 7
+		sessionAward.earnedAt shouldBe start
+		dirtyTracker.markCalls shouldBe 1
 	}
 
 	@Test

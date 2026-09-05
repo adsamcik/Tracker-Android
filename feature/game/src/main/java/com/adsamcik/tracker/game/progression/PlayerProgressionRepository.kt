@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.game.progression
 
 import androidx.room.withTransaction
-import com.adsamcik.tracker.shared.base.Time
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.PlayerProfileEntity
@@ -50,7 +49,9 @@ class PlayerProgressionRepository @Inject constructor(
 	 * [DomainEvent.SessionEnded] payload itself does not carry the authoritative aggregates,
 	 * mirroring how points scoring loads the session by id. The lookup and award share one Room
 	 * transaction inside the deletion generation fence. The legacy segment Steps value is
-	 * intentionally excluded until a source-qualified award decision exists.
+	 * intentionally excluded until a source-qualified award decision exists. Delayed processing uses
+	 * the persisted segment end for earned time and its civil-day cap, using the current device zone.
+	 * This does not establish historical stored-zone authority for source-qualified Steps goals.
 	 */
 	internal suspend fun awardSessionXp(
 		event: DomainEvent.SessionEnded,
@@ -81,8 +82,12 @@ class PlayerProgressionRepository @Inject constructor(
 		)
 		if (amount <= 0) return false
 
-		val awardedAt = Time.nowMillis
-		val todayXp = database.xpLedgerDao().getXpSince(startOfDay(awardedAt))
+		val awardedAt = segment.endTimeMs.coerceAtLeast(0L)
+		val awardDay = dayBounds(awardedAt)
+		val todayXp = database.xpLedgerDao().getXpBetween(
+			awardDay.startInclusive,
+			awardDay.endExclusive,
+		)
 		val remaining = (XpCalculator.DAILY_CAP - todayXp).coerceAtLeast(0L)
 		val capped = amount.toLong().coerceAtMost(remaining).toInt()
 		if (capped <= 0) return false
@@ -95,9 +100,12 @@ class PlayerProgressionRepository @Inject constructor(
 				earnedAt = awardedAt,
 			),
 		)
-		if (ledgerId == -1L) return false
-		recomputePlayerProfile()
-		return true
+		return if (ledgerId == -1L) {
+			false
+		} else {
+			recomputePlayerProfile()
+			true
+		}
 	}
 
 	/**
@@ -154,15 +162,21 @@ class PlayerProgressionRepository @Inject constructor(
 		)
 	}
 
-	private fun startOfDay(timeMillis: Long): Long {
+	private fun dayBounds(timeMillis: Long): DayBounds {
 		val zoneId = ZoneId.systemDefault()
-		return Instant.ofEpochMilli(timeMillis)
+		val localDate = Instant.ofEpochMilli(timeMillis)
 			.atZone(zoneId)
 			.toLocalDate()
-			.atStartOfDay(zoneId)
-			.toInstant()
-			.toEpochMilli()
+		return DayBounds(
+			startInclusive = localDate.atStartOfDay(zoneId).toInstant().toEpochMilli(),
+			endExclusive = localDate.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli(),
+		)
 	}
+
+	private data class DayBounds(
+		val startInclusive: Long,
+		val endExclusive: Long,
+	)
 
 	private companion object {
 		/** Tables whose achievement rules depend on XP/level changes. */
