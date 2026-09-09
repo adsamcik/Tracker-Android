@@ -1604,6 +1604,54 @@ val MIGRATION_27_28: Migration = object : Migration(
 			)
 			execSQL(
 				"""
+				CREATE TABLE IF NOT EXISTS imported_steps_entry (
+					identity TEXT NOT NULL PRIMARY KEY,
+					content_checksum TEXT NOT NULL,
+					session_mode TEXT NOT NULL,
+					start_time_ms INTEGER NOT NULL,
+					end_time_ms INTEGER NOT NULL,
+					collected_data_epoch INTEGER NOT NULL
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_steps_run (
+					identity TEXT NOT NULL PRIMARY KEY,
+					entry_identity TEXT NOT NULL,
+					deletion_scope_digest TEXT NOT NULL,
+					start_time_ms INTEGER NOT NULL,
+					end_time_ms INTEGER NOT NULL,
+					stored_zone_id TEXT NOT NULL,
+					capture_coverage TEXT NOT NULL,
+					provider_coverage TEXT NOT NULL,
+					app_drain_complete INTEGER NOT NULL,
+					stop_complete INTEGER NOT NULL,
+					has_unresolved_provider_range INTEGER NOT NULL,
+					FOREIGN KEY(entry_identity) REFERENCES imported_steps_entry(identity) ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL("CREATE INDEX IF NOT EXISTS idx_imported_steps_run_entry ON imported_steps_run(entry_identity)")
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_imported_steps_run_scope " +
+					"ON imported_steps_run(deletion_scope_digest)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS imported_steps_manifest (
+					run_identity TEXT NOT NULL,
+					revision INTEGER NOT NULL,
+					effective_wall_time_ms INTEGER NOT NULL,
+					origin_source_policy_revision INTEGER NOT NULL,
+					capture_consent_epoch INTEGER NOT NULL,
+					PRIMARY KEY(run_identity, revision),
+					FOREIGN KEY(run_identity) REFERENCES imported_steps_run(identity) ON DELETE CASCADE
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"""
 				CREATE TABLE IF NOT EXISTS pressure_fact_revision (
 					logical_fact_id TEXT NOT NULL,
 					semantic_revision INTEGER NOT NULL,

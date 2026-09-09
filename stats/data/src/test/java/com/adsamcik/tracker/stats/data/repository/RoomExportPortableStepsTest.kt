@@ -2288,22 +2288,22 @@ class RoomExportPortableStepsTest {
 			operation = StepFactRevisionEntity.OPERATION_UPSERT,
 			intervalStartTimeMs = canonicalIntervalStart,
 			intervalEndTimeMs = intervalEnd,
-			intervalStartElapsedRealtimeNanos = intervalStartElapsed,
-			intervalEndElapsedRealtimeNanos = intervalEndElapsed,
-			clockDomainId = "boot-1",
-			bootClockDomainId = "boot-1",
-			cumulativeStepCountStart = 100L,
+			intervalStartElapsedRealtimeNanos = intervalStartElapsed.takeUnless { portableOrigin },
+			intervalEndElapsedRealtimeNanos = intervalEndElapsed.takeUnless { portableOrigin },
+			clockDomainId = "boot-1".takeUnless { portableOrigin },
+			bootClockDomainId = "boot-1".takeUnless { portableOrigin },
+			cumulativeStepCountStart = 100L.takeUnless { portableOrigin },
 			cumulativeStepCountEnd = when (seed.coverage) {
 				StepFactRevisionEntity.COVERAGE_RESET_GAP -> 99L
 				else -> 100L + seed.count
-			},
+			}.takeUnless { portableOrigin },
 			wallTimeUncertaintyMs = 0L,
 			coverageKind = seed.coverage,
 			effectiveStepCount = when (seed.coverage) {
 				StepFactRevisionEntity.COVERAGE_BASELINE,
 				StepFactRevisionEntity.COVERAGE_RESET_GAP,
 				StepFactRevisionEntity.COVERAGE_PARTIAL,
-				-> 0L
+				-> 0L.takeUnless { portableOrigin }
 				else -> seed.count
 			},
 			logicalTrackingId = logicalId,

@@ -2,9 +2,19 @@ package com.adsamcik.tracker.shared.base.database.data
 
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class StepFactRevisionIntegrityTest {
+	@Test
+	fun `existing LIVE_WAL retained checksum stays byte compatible`() {
+		// Independently reconstructed from the pre-import-origin retained field order and domain.
+		assertEquals(
+			"94558832903fcae736e5c29d3d5735e44c1121c30e7ad1ad8dadcd53e46156b4",
+			StepFactRevisionIntegrity.liveWalEffectChecksum(liveWalFact()),
+		)
+	}
+
 	@Test
 	fun `Steps capture authority rejects every missing or mismatched immutable relation`() {
 		val policy = stepsPolicy()

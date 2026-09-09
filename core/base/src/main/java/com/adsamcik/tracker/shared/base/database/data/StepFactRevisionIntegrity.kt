@@ -73,8 +73,42 @@ object StepFactRevisionIntegrity {
 	fun liveWalEffectChecksum(fact: StepFactRevisionEntity): String {
 		require(fact.originKind == StepFactRevisionEntity.ORIGIN_LIVE_WAL)
 		require(fact.operation == StepFactRevisionEntity.OPERATION_UPSERT)
-		return digest(
-			LIVE_WAL_RETAINED_EFFECT_VERSION,
+		return retainedEffectChecksum(fact, LIVE_WAL_RETAINED_EFFECT_VERSION)
+	}
+
+	/** Intrinsic retained bytes only; admission still needs the exact imported hierarchy and fences. */
+	fun portableImportEffectChecksum(fact: StepFactRevisionEntity): String {
+		require(fact.originKind == StepFactRevisionEntity.ORIGIN_PORTABLE_IMPORT)
+		require(fact.operation == StepFactRevisionEntity.OPERATION_UPSERT)
+		return retainedEffectChecksum(fact, PORTABLE_IMPORT_RETAINED_EFFECT_VERSION)
+	}
+
+	/** No portable data may borrow LIVE_WAL boot, provider, cursor, or consent authority. */
+	fun hasValidPortableImportFact(fact: StepFactRevisionEntity): Boolean =
+		fact.originKind == StepFactRevisionEntity.ORIGIN_PORTABLE_IMPORT &&
+			fact.operation == StepFactRevisionEntity.OPERATION_UPSERT &&
+			hasPortableWriterShape(fact) &&
+			fact.effectChecksum == portableImportEffectChecksum(fact)
+
+	private fun hasPortableWriterShape(fact: StepFactRevisionEntity): Boolean =
+		fact.semanticRevision == 1L &&
+			fact.writerProjectionId == SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID &&
+			fact.writerProjectionVersion == SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION &&
+			ImportedStepsIdentity.isOpaque(fact.logicalFactId) &&
+			ImportedStepsIdentity.isOpaque(fact.logicalTrackingId) &&
+			ImportedStepsIdentity.isOpaque(fact.serviceRunId) &&
+			fact.originIdentity == fact.logicalFactId &&
+			fact.mutationId == portableImportMutationId(fact.logicalFactId)
+
+	/** Portable v1 accepts one immutable latest state; different content is an import conflict. */
+	fun portableImportMutationId(portableFactIdentity: String): String {
+		require(ImportedStepsIdentity.isOpaque(portableFactIdentity))
+		return "portable-steps:$portableFactIdentity:1:UPSERT"
+	}
+
+	private fun retainedEffectChecksum(fact: StepFactRevisionEntity, version: String): String =
+		digest(
+			version,
 			fact.logicalFactId,
 			fact.semanticRevision,
 			fact.mutationId,
@@ -108,7 +142,6 @@ object StepFactRevisionIntegrity {
 			fact.scopeDeletionGeneration,
 			fact.appliedAtMs,
 		)
-	}
 
 	/** Verifies retained LIVE_WAL UPSERT bytes; source-writer semantics require the stricter check. */
 	fun hasValidLiveWalEffectChecksum(fact: StepFactRevisionEntity): Boolean {
@@ -304,6 +337,7 @@ object StepFactRevisionIntegrity {
 	}
 
 	private const val LIVE_WAL_RETAINED_EFFECT_VERSION = "steps-live-wal-retained-effect-v1"
+	private const val PORTABLE_IMPORT_RETAINED_EFFECT_VERSION = "steps-portable-import-retained-effect-v1"
 	private const val MIN_CAPTURE_QOS_CODE = 1
 	private const val MAX_CAPTURE_QOS_CODE = 3
 	private const val LIVE_WAL_SEMANTIC_REVISION = 1L

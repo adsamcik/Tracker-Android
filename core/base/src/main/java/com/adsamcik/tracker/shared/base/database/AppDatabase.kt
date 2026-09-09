@@ -28,6 +28,7 @@ import com.adsamcik.tracker.shared.base.database.dao.LocationObservationDecision
 import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.StepFactRevisionDao
+import com.adsamcik.tracker.shared.base.database.dao.ImportedStepsDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureFactRevisionDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
 import com.adsamcik.tracker.shared.base.database.dao.SourceDeletionFenceDao
@@ -58,6 +59,9 @@ import com.adsamcik.tracker.shared.base.database.data.MiniGameScoreEntity
 import com.adsamcik.tracker.shared.base.database.data.PlayerProfileEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedStepsEntryEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedStepsRunEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedStepsManifestEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
@@ -167,6 +171,9 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			LocationObservationDecision::class,
 			StepInterval::class,
 			StepFactRevisionEntity::class,
+			ImportedStepsEntryEntity::class,
+			ImportedStepsRunEntity::class,
+			ImportedStepsManifestEntity::class,
 			PressureFactRevisionEntity::class,
 			SourceDeletionFenceEntity::class,
 			SourceDestinationOwnerEntity::class,
@@ -282,6 +289,9 @@ abstract class AppDatabase : RoomDatabase() {
 
 	/** Provides append-only semantic revisions and contribution receipts for Steps. */
 	abstract fun stepFactRevisionDao(): StepFactRevisionDao
+
+	/** Dormant imported Steps metadata; this accessor does not grant import admission authority. */
+	abstract fun importedStepsDao(): ImportedStepsDao
 
 	/** Provides the dormant append-only source-qualified Pressure fact history. */
 	abstract fun pressureFactRevisionDao(): PressureFactRevisionDao
@@ -603,6 +613,7 @@ abstract class AppDatabase : RoomDatabase() {
 			database.locationObservationDecisionDao().deleteAll()
 			database.sourceDeletionFenceDao().deleteAll()
 			database.stepFactRevisionDao().deleteAll()
+			database.importedStepsDao().deleteAll()
 			database.pressureFactRevisionDao().deleteAll()
 			database.stepIntervalDao().deleteAll()
 			database.activitySnapshotDao().deleteAll()

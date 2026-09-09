@@ -93,7 +93,7 @@ data class StepFactRevisionEntity(
 	@ColumnInfo(name = "wall_time_uncertainty_ms") val wallTimeUncertaintyMs: Long?,
 	/** Boundary/coverage semantics are the sole truth; no redundant reset flag is persisted. */
 	@ColumnInfo(name = "coverage_kind") val coverageKind: String?,
-	/** Effective value after this revision. Null means a redacted tombstone, not verified zero. */
+	/** Null means redaction or non-covered portable evidence, never verified zero. */
 	@ColumnInfo(name = "effective_step_count") val effectiveStepCount: Long?,
 	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String?,
 	@ColumnInfo(name = "service_run_id") val serviceRunId: String?,
@@ -133,15 +133,24 @@ data class StepFactRevisionEntity(
 	private fun requireUpsertShape() {
 		require(scopeDeletionGeneration == 0L)
 		require(originKind == ORIGIN_LIVE_WAL || originKind == ORIGIN_PORTABLE_IMPORT)
-		when (originKind) {
-			ORIGIN_LIVE_WAL -> require(
-				sourceEventId?.isNotBlank() == true &&
-					sourceAdmissionOrdinal != null && sourceAdmissionOrdinal > 0L,
-			)
-			ORIGIN_PORTABLE_IMPORT -> require(sourceEventId == null && sourceAdmissionOrdinal == null)
-		}
 		require(intervalStartTimeMs != null && intervalStartTimeMs >= 0L)
 		require(intervalEndTimeMs != null && intervalEndTimeMs >= intervalStartTimeMs)
+		require(wallTimeUncertaintyMs != null && wallTimeUncertaintyMs >= 0L)
+		require(coverageKind in COVERAGE_KINDS)
+		require(!logicalTrackingId.isNullOrBlank())
+		require(!serviceRunId.isNullOrBlank())
+		require(manifestRevision != null && manifestRevision > 0L)
+		require(sourcePolicyRevision != null && sourcePolicyRevision > 0L)
+		require(captureConsentEpoch != null && captureConsentEpoch >= 0L)
+		when (originKind) {
+			ORIGIN_LIVE_WAL -> requireLiveWalUpsertShape()
+			ORIGIN_PORTABLE_IMPORT -> requirePortableImportUpsertShape()
+		}
+	}
+
+	private fun requireLiveWalUpsertShape() {
+		require(sourceEventId?.isNotBlank() == true)
+		require(sourceAdmissionOrdinal != null && sourceAdmissionOrdinal > 0L)
 		require(
 			intervalStartElapsedRealtimeNanos != null && intervalStartElapsedRealtimeNanos >= 0L,
 		)
@@ -153,17 +162,24 @@ data class StepFactRevisionEntity(
 		require(bootClockDomainId?.isNotBlank() == true)
 		require(cumulativeStepCountStart != null && cumulativeStepCountStart >= 0L)
 		require(cumulativeStepCountEnd != null && cumulativeStepCountEnd >= 0L)
-		require(wallTimeUncertaintyMs != null && wallTimeUncertaintyMs >= 0L)
-		require(coverageKind in COVERAGE_KINDS)
 		require(effectiveStepCount != null && effectiveStepCount >= 0L)
 		if (coverageKind == COVERAGE_BASELINE || coverageKind == COVERAGE_RESET_GAP) {
 			require(effectiveStepCount == 0L)
 		}
-		require(!logicalTrackingId.isNullOrBlank())
-		require(!serviceRunId.isNullOrBlank())
-		require(manifestRevision != null && manifestRevision > 0L)
-		require(sourcePolicyRevision != null && sourcePolicyRevision > 0L)
-		require(captureConsentEpoch != null && captureConsentEpoch >= 0L)
+	}
+
+	/** Portable v1 deliberately carries no provider or local lifecycle clocks/counters. */
+	private fun requirePortableImportUpsertShape() {
+		require(stepIntervalId == null)
+		require(sourceEventId == null && sourceAdmissionOrdinal == null)
+		require(intervalStartElapsedRealtimeNanos == null && intervalEndElapsedRealtimeNanos == null)
+		require(clockDomainId == null && bootClockDomainId == null)
+		require(cumulativeStepCountStart == null && cumulativeStepCountEnd == null)
+		if (coverageKind == COVERAGE_COVERED) {
+			require(effectiveStepCount != null && effectiveStepCount >= 0L)
+		} else {
+			require(effectiveStepCount == null)
+		}
 	}
 
 	private fun requireRedactedRetractionShape() {

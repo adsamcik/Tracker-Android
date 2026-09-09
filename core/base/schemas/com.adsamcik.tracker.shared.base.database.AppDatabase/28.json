@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 28,
-    "identityHash": "37eb710526dc9b550e9208d7713dd851",
+    "identityHash": "7ac9aaf2efdc3f8ab9eedbb76ce0dbc3",
     "entities": [
       {
         "tableName": "activity",
@@ -1325,6 +1325,221 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_step_fact_revision_service_run_latest` ON `${TABLE_NAME}` (`writer_projection_id`, `writer_projection_version`, `service_run_id`, `purpose`, `logical_fact_id`, `semantic_revision`)"
+          }
+        ]
+      },
+      {
+        "tableName": "imported_steps_entry",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`identity` TEXT NOT NULL, `content_checksum` TEXT NOT NULL, `session_mode` TEXT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER NOT NULL, `collected_data_epoch` INTEGER NOT NULL, PRIMARY KEY(`identity`))",
+        "fields": [
+          {
+            "fieldPath": "identity",
+            "columnName": "identity",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "contentChecksum",
+            "columnName": "content_checksum",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionMode",
+            "columnName": "session_mode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startTimeMs",
+            "columnName": "start_time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endTimeMs",
+            "columnName": "end_time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "collectedDataEpoch",
+            "columnName": "collected_data_epoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "identity"
+          ]
+        }
+      },
+      {
+        "tableName": "imported_steps_run",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`identity` TEXT NOT NULL, `entry_identity` TEXT NOT NULL, `deletion_scope_digest` TEXT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER NOT NULL, `stored_zone_id` TEXT NOT NULL, `capture_coverage` TEXT NOT NULL, `provider_coverage` TEXT NOT NULL, `app_drain_complete` INTEGER NOT NULL, `stop_complete` INTEGER NOT NULL, `has_unresolved_provider_range` INTEGER NOT NULL, PRIMARY KEY(`identity`), FOREIGN KEY(`entry_identity`) REFERENCES `imported_steps_entry`(`identity`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "identity",
+            "columnName": "identity",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "entryIdentity",
+            "columnName": "entry_identity",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deletionScopeDigest",
+            "columnName": "deletion_scope_digest",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startTimeMs",
+            "columnName": "start_time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endTimeMs",
+            "columnName": "end_time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "storedZoneId",
+            "columnName": "stored_zone_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "captureCoverage",
+            "columnName": "capture_coverage",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "providerCoverage",
+            "columnName": "provider_coverage",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "appDrainComplete",
+            "columnName": "app_drain_complete",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stopComplete",
+            "columnName": "stop_complete",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hasUnresolvedProviderRange",
+            "columnName": "has_unresolved_provider_range",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "identity"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_imported_steps_run_entry",
+            "unique": false,
+            "columnNames": [
+              "entry_identity"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_imported_steps_run_entry` ON `${TABLE_NAME}` (`entry_identity`)"
+          },
+          {
+            "name": "idx_imported_steps_run_scope",
+            "unique": true,
+            "columnNames": [
+              "deletion_scope_digest"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_imported_steps_run_scope` ON `${TABLE_NAME}` (`deletion_scope_digest`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "imported_steps_entry",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "entry_identity"
+            ],
+            "referencedColumns": [
+              "identity"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "imported_steps_manifest",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`run_identity` TEXT NOT NULL, `revision` INTEGER NOT NULL, `effective_wall_time_ms` INTEGER NOT NULL, `origin_source_policy_revision` INTEGER NOT NULL, `capture_consent_epoch` INTEGER NOT NULL, PRIMARY KEY(`run_identity`, `revision`), FOREIGN KEY(`run_identity`) REFERENCES `imported_steps_run`(`identity`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "runIdentity",
+            "columnName": "run_identity",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effectiveWallTimeMs",
+            "columnName": "effective_wall_time_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originSourcePolicyRevision",
+            "columnName": "origin_source_policy_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "captureConsentEpoch",
+            "columnName": "capture_consent_epoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "run_identity",
+            "revision"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "imported_steps_run",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "run_identity"
+            ],
+            "referencedColumns": [
+              "identity"
+            ]
           }
         ]
       },
@@ -7985,7 +8200,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '37eb710526dc9b550e9208d7713dd851')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7ac9aaf2efdc3f8ab9eedbb76ce0dbc3')"
     ]
   }
 }

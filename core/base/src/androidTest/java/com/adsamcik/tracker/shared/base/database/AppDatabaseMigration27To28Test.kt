@@ -14,6 +14,10 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.ImportedStepsEntryEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedStepsRunEntity
+import com.adsamcik.tracker.shared.base.database.data.ImportedStepsManifestEntity
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
 import com.adsamcik.tracker.sqlite.runtime.SQLiteXSupportSQLiteOpenHelperFactory
 import kotlinx.coroutines.runBlocking
@@ -71,14 +75,7 @@ class AppDatabaseMigration27To28Test {
 	fun populatedV27MigrationIsInertQueryableAndDeletionSafeAcrossReopen() {
 		helper.createDatabase(TEST_DATABASE, 27).use { database ->
 			PopulatedV27Fixture.seed(database)
-			database.execSQL(
-				"INSERT INTO quarantined_signal " +
-					"(source_pending_id, signal_id, session_id, envelope_version, " +
-					"payload_checksum, signal_json, created_at, delivery_attempt_count, " +
-					"failure_reason, failure_detail, quarantined_at) VALUES " +
-					"(7001, 'v27-quarantine', 1, 1, NULL, '{}', 1234, 1, " +
-					"'test', NULL, 5678)",
-			)
+			seedV27Quarantine(database)
 		}
 
 		helper.runMigrationsAndValidate(TEST_DATABASE, 28, true, MIGRATION_27_28).use { database ->
@@ -125,6 +122,127 @@ class AppDatabaseMigration27To28Test {
 				database.close()
 			}
 		}
+	}
+
+	@Test
+	fun portableOriginStorageSurvivesMigratedReopenWithoutInventingLocalRuntime() {
+		helper.createDatabase(TEST_DATABASE, 27).use { database ->
+			PopulatedV27Fixture.seed(database)
+			seedV27Quarantine(database)
+		}
+		helper.runMigrationsAndValidate(TEST_DATABASE, 28, true, MIGRATION_27_28).use { database ->
+			assertMigrationState(database)
+		}
+		val entryIdentity = "sha256:${"1".repeat(64)}"
+		val runIdentity = "sha256:${"2".repeat(64)}"
+		val entry = ImportedStepsEntryEntity(
+			entryIdentity, "sha256:${"3".repeat(64)}", "MANUAL", 10L, 20L, 7L,
+		)
+		val run = ImportedStepsRunEntity(
+			runIdentity, entryIdentity, "4".repeat(64), 10L, 20L, "Europe/Prague", "WHOLE_RUN", "PARTIAL",
+			appDrainComplete = true, stopComplete = true, hasUnresolvedProviderRange = true,
+		)
+		val manifest = ImportedStepsManifestEntity(runIdentity, 1L, 9L, 5L, 3L)
+		val facts = listOf(
+			portableMigrationFact('5', StepFactRevisionEntity.COVERAGE_COVERED, 0L),
+			portableMigrationFact('6', StepFactRevisionEntity.COVERAGE_PARTIAL, null),
+		)
+		withProductionDatabase { database ->
+			runBlocking {
+				assertProductionQueriesPreserveV27Facts(database)
+				database.importedStepsDao().insertEntry(entry)
+				database.importedStepsDao().insertRun(run)
+				database.importedStepsDao().insertManifest(manifest)
+				facts.forEach { assertTrue(database.stepFactRevisionDao().insert(it) != -1L) }
+			}
+		}
+		withProductionDatabase { database ->
+			runBlocking {
+				assertEquals(entry, database.importedStepsDao().entry(entryIdentity))
+				assertEquals(run, database.importedStepsDao().run(runIdentity))
+				assertEquals(listOf(manifest), database.importedStepsDao().manifests(runIdentity))
+				facts.forEach { expected ->
+					val actual = requireNotNull(database.stepFactRevisionDao().latest(
+						expected.writerProjectionId, expected.writerProjectionVersion, expected.logicalFactId,
+					))
+					assertEquals(expected, actual)
+					assertTrue(StepFactRevisionIntegrity.hasValidPortableImportFact(actual))
+					assertFalse(StepFactRevisionIntegrity.hasValidCanonicalLiveWalFact(actual))
+				}
+				assertNull(database.sourceSessionDao().session(entryIdentity))
+				assertNull(database.sourceSessionDao().serviceRun(runIdentity))
+				assertFailClosedAuthorityAndNoGhostRuntime(database)
+				AppDatabase.deleteAllCollectedData(database, 8L, null, PopulatedV27Fixture.END_MS + 1L)
+			}
+		}
+		withProductionDatabase { database ->
+			runBlocking {
+				assertNull(database.importedStepsDao().entry(entryIdentity))
+				assertNull(database.importedStepsDao().run(runIdentity))
+				assertTrue(database.importedStepsDao().manifests(runIdentity).isEmpty())
+				assertCollectedRowsDeleted(database)
+			}
+		}
+	}
+
+	private fun seedV27Quarantine(database: SupportSQLiteDatabase) {
+		database.execSQL(
+			"INSERT INTO quarantined_signal " +
+				"(source_pending_id, signal_id, session_id, envelope_version, " +
+				"payload_checksum, signal_json, created_at, delivery_attempt_count, " +
+				"failure_reason, failure_detail, quarantined_at) VALUES " +
+				"(7001, 'v27-quarantine', 1, 1, NULL, '{}', 1234, 1, " +
+				"'test', NULL, 5678)",
+		)
+	}
+
+	private fun withProductionDatabase(block: (AppDatabase) -> Unit) {
+		val database = openProductionDatabase()
+		try {
+			block(database)
+		} finally {
+			database.close()
+		}
+	}
+
+	private fun portableMigrationFact(identityDigit: Char, coverage: String, count: Long?): StepFactRevisionEntity {
+		val identity = "sha256:${identityDigit.toString().repeat(64)}"
+		val unsigned = StepFactRevisionEntity(
+			logicalFactId = identity,
+			semanticRevision = 1L,
+			mutationId = StepFactRevisionIntegrity.portableImportMutationId(identity),
+			stepIntervalId = null,
+			sourceEventId = null,
+			sourceAdmissionOrdinal = null,
+			originKind = StepFactRevisionEntity.ORIGIN_PORTABLE_IMPORT,
+			originIdentity = identity,
+			writerProjectionId = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+			writerProjectionVersion = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+			writerBindingGeneration = 1L,
+			operation = StepFactRevisionEntity.OPERATION_UPSERT,
+			intervalStartTimeMs = 10L,
+			intervalEndTimeMs = 20L,
+			intervalStartElapsedRealtimeNanos = null,
+			intervalEndElapsedRealtimeNanos = null,
+			clockDomainId = null,
+			bootClockDomainId = null,
+			cumulativeStepCountStart = null,
+			cumulativeStepCountEnd = null,
+			wallTimeUncertaintyMs = 0L,
+			coverageKind = coverage,
+			effectiveStepCount = count,
+			logicalTrackingId = "sha256:${"1".repeat(64)}",
+			serviceRunId = "sha256:${"2".repeat(64)}",
+			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			manifestRevision = 1L,
+			sourcePolicyRevision = 5L,
+			captureConsentEpoch = 3L,
+			collectedDataEpoch = 7L,
+			scopeDeletionGeneration = 0L,
+			effectChecksum = "unsigned",
+			appliedAtMs = 30L,
+		)
+		return unsigned.copy(effectChecksum = StepFactRevisionIntegrity.portableImportEffectChecksum(unsigned))
 	}
 
 	@Test
@@ -555,6 +673,9 @@ class AppDatabaseMigration27To28Test {
 		assertTableCount(database, "step_interval", 2)
 		// v27 observations remain byte-for-byte facts; migration must not invent semantics.
 		assertTableCount(database, "step_fact_revision", 0)
+		assertTableCount(database, "imported_steps_entry", 0)
+		assertTableCount(database, "imported_steps_run", 0)
+		assertTableCount(database, "imported_steps_manifest", 0)
 		// Legacy pressure_sample rows lack v4 qualification and must never be backfilled.
 		assertTableCount(database, "pressure_fact_revision", 0)
 		assertIndexColumns(
