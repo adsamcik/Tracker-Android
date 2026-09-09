@@ -2,7 +2,6 @@ package com.adsamcik.tracker.game.repository
 
 import com.adsamcik.tracker.game.goals.WeeklyProgressCalculator
 import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
-import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
@@ -11,16 +10,20 @@ import java.time.ZonedDateTime
 import java.time.temporal.WeekFields
 import java.util.Locale
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.transformLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 
 /**
- * Reads source-qualified Steps after concrete product invalidations.
+ * Observes source-qualified Steps only while the product is subscribed.
  *
  * Signal values are deliberately absent from the result: they only say that durable evidence may
- * have changed. Every number comes from [StepsNumericSummaryRepository].
+ * have changed. They rebind calendar authority; durable source changes are observed directly, so
+ * late settlement, correction, and deletion do not depend on a raw summary update or retry timer.
+ * Settings only transform the current qualified values and never restart database observation.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @Suppress("LongParameterList")
@@ -32,65 +35,50 @@ internal fun sourceQualifiedStepsSummaryFlow(
 	weeklyDailyLimit: Flow<Float>,
 	currentDateTime: () -> ZonedDateTime,
 	currentLocale: () -> Locale,
-	materializingRetryDelaysMs: List<Long> = MATERIALIZING_RETRY_DELAYS_MS,
 ): Flow<StepsSummaryData> {
-	require(materializingRetryDelaysMs.all { delayMs -> delayMs >= 0L }) {
-		"Materializing retry delays cannot be negative"
-	}
+	val periods = invalidations
+		.onStart { emit(Unit) }
+		.map { stepsCalendarAuthority(currentDateTime(), currentLocale()) }
+		.distinctUntilChanged()
+		.flatMapLatest { authority -> repository.observePeriods(authority) }
 	return combine(
-		invalidations,
+		periods,
 		dailyGoal,
 		weeklyGoal,
 		weeklyDailyLimit,
-	) { _, goalDay, goalWeek, dailyLimit ->
-		StepsSummaryReadInput(
+	) { values, goalDay, goalWeek, dailyLimit ->
+		StepsSummaryData(
+			stepsToday = values.daily.toQualifiedStepCount(),
+			stepsWeek = values.weekly.toQualifiedWeeklyStepCount(
+				today = values.authority.today,
+				weeklyGoal = goalWeek,
+				dailyLimit = dailyLimit,
+			),
 			goalDay = goalDay,
 			goalWeek = goalWeek,
-			weeklyDailyLimit = dailyLimit,
 		)
-	}.transformLatest { input ->
-		var attempt = 0
-		while (true) {
-			val authority = stepsCalendarAuthority(currentDateTime(), currentLocale())
-			val summary = repository.readSummary(authority, input)
-			emit(summary)
-			if (!summary.isMaterializing || attempt >= materializingRetryDelaysMs.size) {
-				return@transformLatest
-			}
-			delay(materializingRetryDelaysMs[attempt])
-			attempt += 1
-		}
 	}
 }
 
-private suspend fun StepsNumericSummaryRepository.readSummary(
+private fun StepsNumericSummaryRepository.observePeriods(
 	authority: StepsCalendarAuthority,
-	input: StepsSummaryReadInput,
-): StepsSummaryData {
-	val daily = read(
+): Flow<QualifiedStepsPeriods> = combine(
+	observe(
 		StepsNumericSummaryRequest(
 			firstEpochDay = authority.today.toEpochDay(),
 			lastEpochDayInclusive = authority.today.toEpochDay(),
 			fallbackCalendarZoneId = authority.zoneId,
 		),
-	)
-	val weekly = read(
+	).onStart { emit(StepsNumericSummary.Materializing) },
+	observe(
 		StepsNumericSummaryRequest(
 			firstEpochDay = authority.startOfWeek.toEpochDay(),
 			lastEpochDayInclusive = authority.today.toEpochDay(),
 			fallbackCalendarZoneId = authority.zoneId,
 		),
-	)
-	return StepsSummaryData(
-		stepsToday = daily.toQualifiedStepCount(),
-		stepsWeek = weekly.toQualifiedWeeklyStepCount(
-			today = authority.today,
-			weeklyGoal = input.goalWeek,
-			dailyLimit = input.weeklyDailyLimit,
-		),
-		goalDay = input.goalDay,
-		goalWeek = input.goalWeek,
-	)
+	).onStart { emit(StepsNumericSummary.Materializing) },
+) { daily, weekly ->
+	QualifiedStepsPeriods(authority, daily, weekly)
 }
 
 private fun StepsNumericSummary.toQualifiedWeeklyStepCount(
@@ -115,13 +103,6 @@ private fun StepsNumericSummary.toQualifiedWeeklyStepCount(
 
 private fun Long.toPresentationInt(): Int = coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
 
-private val StepsSummaryData.isMaterializing: Boolean
-	get() = stepsToday.isMaterializing || stepsWeek.isMaterializing
-
-private val QualifiedStepCount.isMaterializing: Boolean
-	get() = this is QualifiedStepCount.Unavailable &&
-		reason == QualifiedStepCountUnavailableReason.MATERIALIZING
-
 internal fun stepsCalendarAuthority(
 	now: ZonedDateTime,
 	locale: Locale,
@@ -141,10 +122,8 @@ internal data class StepsCalendarAuthority(
 	val zoneId: String,
 )
 
-private data class StepsSummaryReadInput(
-	val goalDay: Int,
-	val goalWeek: Int,
-	val weeklyDailyLimit: Float,
+private data class QualifiedStepsPeriods(
+	val authority: StepsCalendarAuthority,
+	val daily: StepsNumericSummary,
+	val weekly: StepsNumericSummary,
 )
-
-private val MATERIALIZING_RETRY_DELAYS_MS = listOf(250L, 500L, 1_000L)

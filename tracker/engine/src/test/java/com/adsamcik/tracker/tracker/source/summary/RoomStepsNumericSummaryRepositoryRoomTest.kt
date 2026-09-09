@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntit
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestVersionEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
@@ -194,6 +195,32 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 			cancelAndIgnoreRemainingEvents()
 		}
 	}
+
+	@Test
+	fun `exact deletion fence invalidates a ready observation without a daily summary write`() =
+		runBlocking<Unit> {
+			insertCoveredCandidate(stepsPerFact = 5L)
+			val summariesBefore = database.dailySummaryDao().getBetween(DAY, DAY)
+			repository.observe(request()).test {
+				awaitItem() shouldBe StepsNumericSummary.Ready(listOf(StepsNumericDay(DAY, 5L)))
+				database.sourceDeletionFenceDao().insertIfAbsent(
+					SourceDeletionFenceEntity.createLogicalServiceRun(
+						sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+						purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+						logicalTrackingId = LOGICAL_ID,
+						serviceRunId = RUN_ID,
+						fenceGeneration = 1L,
+						collectedDataEpoch = EPOCH,
+						deletedAtMs = DAY_START + HOUR_MS + 1L,
+					),
+				) shouldNotBe -1L
+				awaitItem() shouldBe StepsNumericSummary.Unverifiable(
+					StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+				)
+				database.dailySummaryDao().getBetween(DAY, DAY) shouldBe summariesBefore
+				cancelAndIgnoreRemainingEvents()
+			}
+		}
 
 	@Test
 	fun `terminal session with more than 2048 covered facts remains Ready`() = runBlocking<Unit> {

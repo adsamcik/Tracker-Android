@@ -120,9 +120,9 @@ class DefaultGameRepository @Inject constructor(
 	)
 
 	/**
-	 * Selected-session deletion repairs this table in its authoritative transaction. A portable
-	 * importer must likewise repair or touch each affected daily-summary row before live import
-	 * refresh can be claimed; source-evidence-only import writes are intentionally not guessed here.
+	 * This existing product signal rechecks calendar authority. Source-value refresh comes directly
+	 * from the numeric repository's durable dependency observation, including fact-only changes;
+	 * touching a daily-summary row is neither required nor sufficient to qualify imported Steps.
 	 */
 	private fun dailySummaryInvalidations(): Flow<Unit> = flow {
 		val authority = stepsCalendarAuthority(
