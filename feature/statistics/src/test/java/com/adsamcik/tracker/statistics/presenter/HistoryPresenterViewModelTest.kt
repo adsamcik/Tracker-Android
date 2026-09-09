@@ -15,7 +15,6 @@ import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
 import com.adsamcik.tracker.stats.api.repository.TripPresentationRepository
 import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
-import com.adsamcik.tracker.stats.api.value.StepCount
 import com.adsamcik.tracker.statistics.viewmodel.CalendarDayData
 import com.adsamcik.tracker.statistics.viewmodel.CalendarState
 import com.adsamcik.tracker.statistics.viewmodel.HistoryTab
@@ -177,7 +176,6 @@ class HistoryPresenterViewModelTest {
 					DailySummary(
 						dayEpoch = today.toEpochDay(),
 						totalDistance = DistanceM(1500f),
-						totalSteps = StepCount(2000),
 						totalDuration = DurationMs(3600_000L),
 						tripCount = 1,
 						activeTrackingDuration = DurationMs(3600_000L),
@@ -195,7 +193,7 @@ class HistoryPresenterViewModelTest {
 		}
 
 		@Test
-		fun `timeline omits raw summary Steps without per-day qualification`() = runTest {
+		fun `timeline omits Steps without per-day qualification`() = runTest {
 			val today = LocalDate.now()
 			val todayStart = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
 			coEvery { tripPresentationRepository.getTripsBetween(any(), any()) } returns listOf(
@@ -206,7 +204,6 @@ class HistoryPresenterViewModelTest {
 					DailySummary(
 						dayEpoch = today.toEpochDay(),
 						totalDistance = DistanceM(10f),
-						totalSteps = StepCount(9_999),
 						totalDuration = DurationMs(1_000L),
 						tripCount = 1,
 						activeTrackingDuration = DurationMs(1_000L),
@@ -253,7 +250,6 @@ class HistoryPresenterViewModelTest {
 					DailySummary(
 						dayEpoch = day1.toEpochDay(),
 						totalDistance = DistanceM(5000f),
-						totalSteps = StepCount(8000),
 						totalDuration = DurationMs(3600_000L),
 						tripCount = 2,
 						activeTrackingDuration = DurationMs(3600_000L),
@@ -261,7 +257,6 @@ class HistoryPresenterViewModelTest {
 					DailySummary(
 						dayEpoch = day2.toEpochDay(),
 						totalDistance = DistanceM(2500f),
-						totalSteps = StepCount(4000),
 						totalDuration = DurationMs(1800_000L),
 						tripCount = 1,
 						activeTrackingDuration = DurationMs(1800_000L),
@@ -299,7 +294,6 @@ class HistoryPresenterViewModelTest {
 					DailySummary(
 						dayEpoch = epochDay,
 						totalDistance = DistanceM(0f),
-						totalSteps = StepCount(0),
 						totalDuration = DurationMs(0L),
 						tripCount = 0,
 						activeTrackingDuration = DurationMs(0L),

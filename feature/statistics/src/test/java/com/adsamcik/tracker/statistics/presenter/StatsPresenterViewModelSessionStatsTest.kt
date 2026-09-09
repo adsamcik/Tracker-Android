@@ -161,7 +161,6 @@ class StatsPresenterViewModelSessionStatsTest {
 			DailySummary(
 				dayEpoch = todayEpochDay,
 				totalDistance = DistanceM(394f),
-				totalSteps = StepCount(812),
 				totalDuration = DurationMs(600_000L),
 				tripCount = 1,
 				activeTrackingDuration = DurationMs(0L),
@@ -256,7 +255,6 @@ class StatsPresenterViewModelSessionStatsTest {
 			DailySummary(
 				dayEpoch = todayEpochDay,
 				totalDistance = DistanceM(304.06f),
-				totalSteps = StepCount(0),
 				totalDuration = DurationMs(57_000L),
 				tripCount = 1,
 				activeTrackingDuration = DurationMs(57_000L),

@@ -1,17 +1,22 @@
 package com.adsamcik.tracker.stats.data.repository
 
+import arrow.core.left
+import arrow.core.right
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationCellDao
 import com.adsamcik.tracker.shared.base.database.dao.ExplorationStreakDao
 import com.adsamcik.tracker.shared.base.database.dao.ExportLogDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.data.ExplorationStreakEntity
+import com.adsamcik.tracker.stats.api.error.StatsError
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
 import com.adsamcik.tracker.stats.api.metric.TimeWindow
 import io.kotest.matchers.shouldBe
+import io.mockk.Called
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -38,12 +43,17 @@ class DefaultWindowedMetricsProviderTest {
 	}
 
 	@Test
-	fun `collect returns cumulative steps`() = runTest {
-		coEvery { dailySummaryDao.sumTotalSteps() } returns 12_345L
-
-		val result = provider.collect(MetricKeys.STEPS_TOTAL, TimeWindow.Cumulative)
-
-		result shouldBe 12_345L
+	fun `all Steps metrics and windows reject unqualified aggregates before any DAO access`() = runTest {
+		val windows = listOf(TimeWindow.Cumulative, TimeWindow.Interval(100L, 200L), TimeWindow.Rolling(60_000L))
+		for (metric in listOf(MetricKeys.STEPS, MetricKeys.STEPS_TOTAL, MetricKeys.BEST_DAILY_STEPS)) {
+			for (window in windows) {
+				provider.collect(metric, window) shouldBe
+					StatsError.ValidationError("Steps require source-qualified numeric evidence").left()
+			}
+		}
+		verify {
+			listOf(dailySummaryDao, explorationCellDao, explorationStreakDao, sessionSegmentDao, exportLogDao) wasNot Called
+		}
 	}
 
 	@Test
@@ -58,7 +68,7 @@ class DefaultWindowedMetricsProviderTest {
 			window = TimeWindow.Interval(1_000L, 5_000L),
 		)
 
-		result shouldBe 15_500L
+		result shouldBe 15_500L.right()
 	}
 
 	@Test
@@ -70,7 +80,7 @@ class DefaultWindowedMetricsProviderTest {
 			window = TimeWindow.Cumulative,
 		)
 
-		result shouldBe 42_125L
+		result shouldBe 42_125L.right()
 	}
 
 	@Test
@@ -82,7 +92,7 @@ class DefaultWindowedMetricsProviderTest {
 			window = TimeWindow.Interval(10L, 50L),
 		)
 
-		result shouldBe 42L
+		result shouldBe 42L.right()
 	}
 
 	@Test
@@ -94,7 +104,7 @@ class DefaultWindowedMetricsProviderTest {
 			window = TimeWindow.Interval(100L, 200L),
 		)
 
-		result shouldBe 7L
+		result shouldBe 7L.right()
 	}
 
 	@Test
@@ -106,7 +116,7 @@ class DefaultWindowedMetricsProviderTest {
 			window = TimeWindow.Interval(100L, 200L),
 		)
 
-		result shouldBe 1_250L
+		result shouldBe 1_250L.right()
 	}
 
 	@Test
@@ -118,7 +128,7 @@ class DefaultWindowedMetricsProviderTest {
 			window = TimeWindow.Interval(100L, 200L),
 		)
 
-		result shouldBe 11L
+		result shouldBe 11L.right()
 	}
 
 	@Test
@@ -130,20 +140,20 @@ class DefaultWindowedMetricsProviderTest {
 			window = TimeWindow.Interval(1L, 2L),
 		)
 
-		result shouldBe 9L
+		result shouldBe 9L.right()
 	}
 
 	@Test
 	fun `collect rolling delegates to interval query`() = runTest {
-		coEvery { dailySummaryDao.sumStepsBetween(any(), any()) } returns 999L
+		coEvery { dailySummaryDao.sumTotalDistanceBetween(any(), any()) } returns 999L
 
 		val result = provider.collect(
-			metric = MetricKeys.STEPS,
+			metric = MetricKeys.DISTANCE_TOTAL_M,
 			window = TimeWindow.Rolling(durationMs = 60_000L),
 		)
 
-		result shouldBe 999L
-		coVerify(exactly = 1) { dailySummaryDao.sumStepsBetween(any(), any()) }
+		result shouldBe 999L.right()
+		coVerify(exactly = 1) { dailySummaryDao.sumTotalDistanceBetween(any(), any()) }
 	}
 
 	@Test
@@ -161,7 +171,7 @@ class DefaultWindowedMetricsProviderTest {
 			window = TimeWindow.Interval(1_000L, 2_000L),
 		)
 
-		result shouldBe 17L
+		result shouldBe 17L.right()
 	}
 
 	@Test
@@ -171,7 +181,7 @@ class DefaultWindowedMetricsProviderTest {
 			window = TimeWindow.Interval(1_000L, 2_000L),
 		)
 
-		result shouldBe 0L
+		result shouldBe 0L.right()
 	}
 
 	@Test
@@ -185,7 +195,7 @@ class DefaultWindowedMetricsProviderTest {
 			window = TimeWindow.Interval(10_000L, 50_000L),
 		)
 
-		result shouldBe 4L
+		result shouldBe 4L.right()
 	}
 
 	@Test
@@ -197,7 +207,7 @@ class DefaultWindowedMetricsProviderTest {
 			window = TimeWindow.Cumulative,
 		)
 
-		result shouldBe 12L
+		result shouldBe 12L.right()
 	}
 
 	@Test
@@ -211,7 +221,7 @@ class DefaultWindowedMetricsProviderTest {
 			window = TimeWindow.Rolling(durationMs = 7L * 24 * 60 * 60 * 1000L),
 		)
 
-		result shouldBe 3L
+		result shouldBe 3L.right()
 		coVerify(exactly = 1) {
 			dailySummaryDao.countActiveDaysBetween(any(), any(), MetricKeys.MIN_DAILY_TRIPS)
 		}
