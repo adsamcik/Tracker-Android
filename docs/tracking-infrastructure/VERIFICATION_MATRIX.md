@@ -562,3 +562,14 @@ Publication preparation subsequently changed only six coordinator-owned Markdown
 user explicitly confirmed: "Push reviewed implementation and handover only." The protected root
 hashes still match, both old frozen drafts are unchanged, and the new import-origin draft is paused
 without Gradle or a commit. Its eight-path inventory and incomplete checks are in the handover.
+
+Pre-integration acceptance: the six handover/evidence files were committed separately as
+`c0be5c79513a11f04e95305fac30af246edd3d5c`. `git rebase dev/v10` reported the branch already
+up to date against clean local `d020e1e7d`; no code changed. The exact focused gate command above
+was rerun after that rebase: `BUILD SUCCESSFUL in 41s`, 369 tasks (4 executed, 2 from cache,
+363 up-to-date). Both focused test tasks restored valid cached results: four XML reports,
+33 tests, zero failures/errors/skips; Detekt remained up to date. This is a cache-backed
+post-rebase verification, not a claim that all 33 tests executed again. Working/staged diff checks
+and all relative Markdown links in the six documents passed. This final evidence-only successor
+does not change the code/test inputs accepted by either gate. Final integration and remote HEAD
+must be verified by the publishing task; do not infer publication from this document alone.
