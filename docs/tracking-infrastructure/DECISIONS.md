@@ -2321,3 +2321,17 @@ Each entry records repository evidence and does not duplicate the final architec
   Imported selected deletion may authorize only the retained Steps subset under its original
   deletion digest, never omitted source/control facts. These are continuation requirements, not
   implemented imported history or deletion support.
+
+## TI-D151 — Publish only the accepted checkpoint; preserve unfinished parallel work
+
+- Status: `PUBLICATION_SCOPE_CONFIRMED`, 2026-09-09.
+- The user's clarification, "Push reviewed implementation and handover only", authorizes one
+  normal `dev/v10` push containing accepted source `099f9e1b9`, evidence checkpoint `b925e89bc`
+  and the current documentation successor. It does not authorize unfinished draft publication,
+  feature/importer activation, a release, force push or subsequent publication.
+- The six protected root paths, two older frozen drafts and three new uncompiled imported
+  admission/product/actions worktrees remain local, unstaged and excluded. Their state and
+  unresolved coordinated gates are recorded in `CONTINUATION_HANDOVER.md`.
+- No source implementation or acceptance boundary changes. TI-D150/TI-B211 remain the accepted
+  dormant storage boundary; proposed full-clear fences, imported history and source-local actions
+  are not accepted fixes. The complete six-source vision and physical Steps gate remain open.

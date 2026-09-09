@@ -8,6 +8,15 @@ evidence index.
 
 ## September 9 continuation
 
+Publication checkpoint: the user now explicitly authorizes pushing reviewed implementation and
+handover only, through accepted source `099f9e1b9` and documentation `b925e89bc` plus the current
+documentation successor. See `PUBLICATION_HANDOVER.md` for scope and the task's post-push receipt
+for the actual remote hash. TI-B212 adds publication checks, not new implementation evidence.
+Three newer import admission/product/actions worktrees are paused, uncompiled and excluded;
+their inventory and unresolved storage/lifecycle gates are in `CONTINUATION_HANDOVER.md`.
+The six protected paths and two old frozen drafts remain excluded. No source or importer is enabled.
+Earlier local-only wording below describes the pre-publication state.
+
 Latest accepted local slice: portable-origin representation at `099f9e1b9fc33c624cf1152550ec4c98857b938d`,
 rebased onto the published `9f750052e` checkpoint for local `dev/v10`. TI-D150/TI-B211
 record the three Steps-only metadata tables, truthful nullable portable fact shape, preserved live

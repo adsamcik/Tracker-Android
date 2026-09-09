@@ -672,3 +672,43 @@ old importer/awards draft bases, diff totals and empty indexes remain unchanged.
 `git ls-remote origin refs/heads/dev/v10` still resolved published
 `9f750052e28374dd104746321f8cd3573b135925`. This new slice is authorized for local convergence
 only; no new push, importer registration, provider activation or external rollout is implied.
+
+## Reviewed checkpoint publication audit (TI-B212)
+
+2026-09-09: user explicitly confirmed "Push reviewed implementation and handover only".
+This supersedes TI-B211's local-only publication scope for one normal push, without changing its
+implementation or verification boundary. Initial clean integration `dev/v10` HEAD was
+`b925e89bc5191a2cfb58d02d9b50265a478528bb`, two commits beyond the live remote:
+
+```powershell
+git -c core.fsmonitor=false status --short --branch
+git rev-parse HEAD
+git log -5 --oneline --decorate
+git ls-remote origin refs/heads/dev/v10
+git merge-base --is-ancestor 9f750052e HEAD
+git diff 9f750052e..HEAD --stat
+git config user.name
+git config user.email
+```
+
+Remote resolved `9f750052e28374dd104746321f8cd3573b135925`; ancestor check exited 0.
+The accepted outgoing delta was 13 source/test/schema paths in `099f9e1b9` and six evidence
+documents in `b925e89bc`. Configured identity is `adsamcik <adsamcik@users.noreply.github.com>`.
+Six protected root SHA-256 values match the recorded inventory; nothing there is staged.
+The supplied vision and committed `VISION_AND_SCOPE.md` match after line-ending normalization
+and trimming. No source/test/schema input changed in this publication successor, so TI-B211's
+full gate is retained rather than represented as a newly executed Gradle run.
+
+The three new import draft owners paused without Gradle or commits. Admission has nine modified
+and six untracked paths; product six modified and five untracked; actions eight modified and three
+untracked. These and the older frozen drafts have empty indexes and remain excluded. Their
+uncompiled tests are not acceptance evidence. Working/staged diff checks and relative Markdown
+link checks are required for the seven current documentation paths before committing.
+Git's existing fsmonitor daemon sometimes terminates during read-only checks; checks are repeated
+with `-c core.fsmonitor=false`, without changing repository configuration or discarding files.
+
+Publication requires a normal explicit `git push origin dev/v10:dev/v10`, followed by matching
+`git ls-remote origin refs/heads/dev/v10` to `git rev-parse HEAD` and a clean integration status.
+The publishing task reports that receipt after success; this document does not anticipate its own
+hash or claim remote CI success. No provider, rendered UI, listener, process/reboot, FGS, battery,
+OEM or enabled importer proof is added, and the six-source program is not complete.

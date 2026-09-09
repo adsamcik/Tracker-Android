@@ -2,6 +2,38 @@
 
 Last updated: 2026-09-09
 
+## Current transfer checkpoint: reviewed portable origins
+
+The current publication request includes accepted source `099f9e1b9`, accepted documentation
+`b925e89bc`, and this documentation successor. See [PUBLICATION_HANDOVER.md](PUBLICATION_HANDOVER.md)
+and match the destination HEAD to the publishing task's post-push receipt. The older local-only
+and published-source sections below describe earlier checkpoints, not this publication scope.
+Source verification is unchanged: TI-B211 records full `ciCheck --continue`, 9,407 host tests
+with zero failures/errors and three unchanged skips, plus nine migration tests on one API 36
+emulator. This is dormant origin storage, not a functioning importer or completed six-source product.
+
+Three new uncompiled import worktrees are paused and excluded alongside the six protected paths
+and two old frozen drafts. A GitHub clone contains none of their dirty work. Use the inventory and
+dependency gates at the top of [CONTINUATION_HANDOVER.md](CONTINUATION_HANDOVER.md); do not infer
+completed imported history, deletion, retention or full-clear no-resurrection from this checkpoint.
+
+Current copy-paste restart prompt (supersedes the older prompt below):
+
+> Resume Tracker Android from the latest verified publication on dev/v10. Verify a clean checkout
+> and HEAD against the publication receipt; require 099f9e1b9 and b925e89bc as ancestors. Read
+> AGENTS, VISION_AND_SCOPE, the complete technical/adaptive designs, then continuation, execution,
+> decisions, status, verification and rollout documents in order. The accepted latest source is
+> dormant truthful portable Steps origin storage, not enabled import. Keep the full six-source
+> vision and the physical manual Steps-only gate. Continue bounded imported admission, qualified
+> product composition, exact deletion, retention, repair and no-resurrection together before registry
+> exposure; preserve exact live ownership and original imported identity without inventing local
+> consent or original full capture sets. The three new and two older dirty drafts stayed on the
+> source machine and are unaccepted. Do not assume they arrived or copy them wholesale. Use one
+> file owner and one Gradle lane; rebase and verify before local dev/v10 integration. Preserve all
+> excluded work. No subsequent push, release, activation or destructive migration is authorized.
+> Finish at an evidence-backed checkpoint without claiming host tests prove physical providers,
+> rendered device UI, listener removal, battery, reboot, FGS or OEM behavior.
+
 ## Local continuation after the published checkpoint
 
 Local-only source checkpoint `099f9e1b9fc33c624cf1152550ec4c98857b938d` adds truthful dormant
