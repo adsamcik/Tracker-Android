@@ -213,6 +213,21 @@ class RetentionPipelineWorkerRobolectricTest {
 	}
 
 	@Test
+	fun `trip retention removes imported physical member and fences its original Steps scope`() = runTest {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val db = AppDatabase.testDatabase(context)
+		try {
+			val (entry, segmentId) = com.adsamcik.tracker.maintenance.seedExpiredImportedSteps(db, 1L)
+			val config = autoPurgeConfig(rawDataRetentionDays = 0).copy(tripRetentionDays = 1)
+			assertEquals(ListenableWorker.Result.success(), worker(context, retentionStore(config), db).doWork())
+			com.adsamcik.tracker.maintenance.assertExpiredImportedStepsRemoved(db, entry, segmentId)
+			assertEquals(0L, db.stepFactRevisionDao().countAll())
+		} finally {
+			db.close()
+		}
+	}
+
+	@Test
 	fun `pending signal WAL defers raw retention after advancing privacy boundary`() = runTest {
 		val context = ApplicationProvider.getApplicationContext<Context>()
 		val db = AppDatabase.testDatabase(context)

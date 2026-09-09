@@ -829,3 +829,42 @@ Assertions cover nine Steps metric/window combinations rejected before all five 
 non-Steps metrics, and summary mapping independent of raw legacy zero versus `Int.MAX_VALUE`.
 This is host/static evidence only, not accepted engine day repair, deletion, awards, device UI,
 provider behavior or integration readiness. The converged implementation still needs its full gate.
+
+## TI-B216 — Exact imported raw/trip retention and production worker hooks
+
+Nine reviewed source/test paths in `ti-steps-import-actions`: four core/base paths (source-local
+retention adapter, existing retention partition, two Room test classes) and five app paths (two
+worker hooks, their existing tests and one shared authenticated fixture). No schema or activation.
+
+Combined input gate, session `81757`, established JDK 21/SDK environment:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*ImportedSteps*' --tests '*StepFactRevisionIntegrityTest' --tests '*StepFactRevisionDaoTest' :feature:dashboard:testDebugUnitTest --tests '*DashboardHistoryRepositoryTest' --tests '*DashboardLiveStepsStateTest' --tests '*RecentImportedStepsRowTest' :feature:statistics:testDebugUnitTest --tests '*TripDetailHistoryPresentationTest' --tests '*TripDetailPresenterViewModelTest' --tests '*ImportedStepsOverviewTest' :app:testDebugUnitTest --tests '*DataRetentionWorkerTest' --tests '*RetentionPipelineWorker*Test' detekt :core:base:lintDebug :feature:dashboard:lintDebug :feature:statistics:lintDebug :app:lintDebug checkRoomSchemaDrift --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+Terminal failure in 12m 16s/1,089 tasks (677 executed, 283 cached, 129 up-to-date), solely because
+the new Dashboard strings used an unbound XML `tools` prefix. Core's 68 tests, statistics' 20 tests,
+Detekt, core/statistics lint and Room drift passed; Dashboard/app acceptance was not established
+by that failed command. Core source/test bytes did not change afterward.
+
+After the namespace fix and two additional Dashboard state assertions, session `97335`:
+
+```powershell
+.\gradlew.bat :feature:dashboard:testDebugUnitTest --tests '*DashboardHistoryRepositoryTest' --tests '*DashboardLiveStepsStateTest' --tests '*RecentImportedStepsRowTest' :app:testDebugUnitTest --tests '*DataRetentionWorkerTest' --tests '*RetentionPipelineWorker*Test' detekt :feature:dashboard:lintDebug :app:lintDebug --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+Passed in 4m 33s, 1,113 tasks (67 executed, three cached, 1,043 up-to-date): all 26 app retention
+tests and 18 Dashboard tests, Detekt and both lints. All focused XML results have zero failures,
+errors and skips. App lint reports 16 warnings on unchanged code/configuration; no new baseline
+was introduced. Two Dashboard plural-resource warnings are corrected and verified separately in
+the UI slice; they do not modify these retention source/test inputs.
+
+The core cohort includes 11 imported-retention Room cases and one mixed live/imported case:
+exact cutoff and straddling suffix, nullable/covered-zero preservation, last-payload loss, original
+scope and sibling survival, same-wall unrelated ownership, tampered fact/epoch rollback, second
+member deletion rollback, retained-receipt update rollback, two legal 33-run entries, and a 600-fact
+three-page audit proving two complete-entry fact reads (authenticate plus mark), not one per page.
+Both actual worker entry points execute against Room fixtures; the broader worker tests retain
+startup/generation and existing live-retention checks. No physical provider, Android scheduling,
+process-death, reboot, battery, selected deletion, authoritative admission or full no-resurrection
+claim follows from these host tests. `ciUnitTest`/full `ciCheck` remain convergence gates.

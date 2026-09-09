@@ -2397,3 +2397,24 @@ Each entry records repository evidence and does not duplicate the final architec
   redaction is implemented and verified. Redaction zero must never become qualified observed zero.
 - This API cleanup neither accepts the pending engine repair draft nor completes positive awards,
   authoritative import, deletion, physical provider proof or the six-source program.
+
+## TI-D155 — Retain imported Steps under their exact original ownership
+
+- Status: `VERIFIED_LOCAL_RETENTION`, 2026-09-09; TI-B216. Extend the existing source-local
+  retention functions and two app workers; no new scheduler, provider, migration or tombstone platform.
+- Authenticate intrinsic raw revisions plus complete retained hierarchy before age selection. Use
+  exact entry/run/segment membership to delete, never wall overlap, QUIESCED or sample counts.
+  Preserve the original opaque deletion digest and distinguish truncation markers from capture
+  deletion fences. Imported and live run identities cannot share ownership.
+- Raw retention removes only expired exact UPSERT revisions; cutoff boundaries and straddling
+  intervals survive as partial evidence. Update the retained-member receipt atomically, keeping
+  the original whole-entry checksum unchanged. Empty retained coverage is not numeric zero.
+- Trip retention removes only selected physical imported members and their payload, with original
+  scope fences and source evidence revision in the worker's existing generation-guarded transaction.
+  Retained siblings survive. Authenticated malformed scope/receipt state aborts rather than silently
+  authorizing deletion. This does not implement arbitrary-corruption recovery or selected-session deletion.
+- Full-entry authentication occurs once per retention pass, not once per raw fact page. Bounded
+  adaptive entry batches preserve legitimate multi-entry cases without ordinary per-row fan-out.
+- This supplies the worker hooks required by TI-D152, but integration still requires the frozen
+  converged gate. Authoritative import, numeric/day repair, selected deletion and complete
+  round-trip/no-resurrection remain separate dependencies before importer exposure.

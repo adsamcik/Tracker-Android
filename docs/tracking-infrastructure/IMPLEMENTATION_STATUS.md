@@ -8,6 +8,14 @@ evidence index.
 
 ## September 9 continuation
 
+Verified local imported-retention slice: TI-D155/TI-B216. Raw pruning now authenticates retained
+imported membership independently of live runs, retains boundary/straddling facts as partial, and
+updates exact retained receipts. Both existing app worker entry points remove expired exact
+imported members atomically with original-scope fences. Core coverage passed 68 focused tests;
+app retention coverage passed 26, with Detekt, affected lint and Room drift. The pending Dashboard
+resource refinement and engine day repair are separate inputs. No integration, push or importer
+activation occurred; retained fences alone do not prove a complete admission/no-resurrection path.
+
 Verified local summary-authority cleanup: `3f62d5c644b44277088097800a85637a955cfdb0`
 (actions dependency cherry-pick `d519df577`). TI-D154/TI-B215 record removal of the unused raw
 stats API Steps property and typed refusal of unqualified windowed Steps metrics before any DAO
