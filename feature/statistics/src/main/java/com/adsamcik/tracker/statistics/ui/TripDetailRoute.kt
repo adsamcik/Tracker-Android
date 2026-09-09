@@ -67,6 +67,7 @@ import com.adsamcik.tracker.statistics.presenter.TripDetailStepsState
 import com.adsamcik.tracker.statistics.presenter.RouteEmptyReason
 import com.adsamcik.tracker.statistics.presenter.resolveRouteEmptyReason
 import com.adsamcik.tracker.stats.api.repository.TripSummary
+import com.adsamcik.tracker.shared.model.SegmentSource
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -120,7 +121,7 @@ fun TripDetailRoute(
 					}
 				},
 				actions = {
-					if (loadedState != null) {
+					if (loadedState != null && loadedState.trip.source != SegmentSource.PORTABLE_STEPS_IMPORT) {
 						Box {
 							IconButton(onClick = { showMenu = true }) {
 								Icon(
@@ -170,14 +171,18 @@ fun TripDetailRoute(
 				}
 
 				is TripDetailState.Loaded -> {
-					TripOverview(
-						trip = s.trip,
-						steps = s.steps,
-						insights = insights,
-						skiSegments = skiSegments,
-						routePreviewRenderer = routePreviewRenderer,
-						onRetrySteps = viewModel::retry,
-					)
+					if (s.trip.source == SegmentSource.PORTABLE_STEPS_IMPORT) {
+						ImportedStepsOverview(s.trip, s.steps, viewModel::retry)
+					} else {
+						TripOverview(
+							trip = s.trip,
+							steps = s.steps,
+							insights = insights,
+							skiSegments = skiSegments,
+							routePreviewRenderer = routePreviewRenderer,
+							onRetrySteps = viewModel::retry,
+						)
+					}
 				}
 
 				is TripDetailState.NotFound -> {
@@ -241,6 +246,40 @@ internal fun TripDetailActions(
 
 private val dateTimeFormatter: DateTimeFormatter by lazy {
 	DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.MEDIUM)
+}
+
+/** Retained imported Steps do not establish distance, activity, route, or elapsed-time coverage. */
+@Composable
+@Suppress("FunctionNaming")
+internal fun ImportedStepsOverview(
+	trip: TripSummary,
+	steps: TripDetailStepsState,
+	onRetrySteps: () -> Unit,
+) {
+	val zone = ZoneId.systemDefault()
+	val startText = dateTimeFormatter.format(Instant.ofEpochMilli(trip.startTimeMs.raw).atZone(zone))
+	val endText = dateTimeFormatter.format(Instant.ofEpochMilli(trip.endTimeMs.raw).atZone(zone))
+	val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+	Column(
+		modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+			.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 32.dp + navBottom),
+		verticalArrangement = Arrangement.spacedBy(16.dp),
+	) {
+		Text(stringResource(R.string.trip_detail_imported_steps), style = MaterialTheme.typography.titleMedium)
+		Text("$startText → $endText", style = MaterialTheme.typography.bodyMedium)
+		MetricCard(
+			label = stringResource(R.string.trip_detail_steps),
+			value = steps.metricValue(),
+			supportingText = steps.metricStatus(),
+			modifier = Modifier.fillMaxWidth(),
+		)
+		Text(
+			stringResource(R.string.trip_detail_imported_steps_scope),
+			style = MaterialTheme.typography.bodySmall,
+			color = MaterialTheme.colorScheme.onSurfaceVariant,
+		)
+		TripDetailStepsRetry(visible = steps == TripDetailStepsState.Failed, onRetry = onRetrySteps)
+	}
 }
 
 @Composable

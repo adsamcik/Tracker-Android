@@ -8,12 +8,20 @@ evidence index.
 
 ## September 9 continuation
 
+Verified local imported Dashboard/Detail presentation: TI-D156/TI-B217. The existing recent-history
+surface exposes logical imported entries with exact selectable physical recordings; contained
+Detail shows only retained Steps and timestamps. Covered zero, lower bounds, materializing and
+unavailable states remain distinct. Imported history cannot prove the current provider is active
+or borrow local route/Ski/GPX data. All 18 Dashboard and 20 statistics focused tests passed,
+alongside Detekt and affected lint. Broader History/Calendar, day repair and importer activation
+remain open; the full program and physical Steps gate are not complete.
+
 Verified local imported-retention slice: TI-D155/TI-B216. Raw pruning now authenticates retained
 imported membership independently of live runs, retains boundary/straddling facts as partial, and
 updates exact retained receipts. Both existing app worker entry points remove expired exact
 imported members atomically with original-scope fences. Core coverage passed 68 focused tests;
-app retention coverage passed 26, with Detekt, affected lint and Room drift. The pending Dashboard
-resource refinement and engine day repair are separate inputs. No integration, push or importer
+app retention coverage passed 26, with Detekt, affected lint and Room drift. Dashboard presentation
+is verified separately above; engine day repair remains pending. No integration, push or importer
 activation occurred; retained fences alone do not prove a complete admission/no-resurrection path.
 
 Verified local summary-authority cleanup: `3f62d5c644b44277088097800a85637a955cfdb0`
@@ -27,8 +35,8 @@ Verified local product dependency: `ecbdf6161c059e5d2ef93726b5700b9441854e8c`, w
 core parent `4db55146e` preserved. TI-D153/TI-B214 record qualified imported history composition,
 exact selectable physical members, original-identity export and bounded batch budgets. The API
 cohort passed 650 tests; data-layer coverage passed 188 tests, followed by the final 17-test import
-rerun, Detekt and lint. Dashboard/Detail presentation, worker retention hooks and imported day
-repair remain separate unaccepted follow-up inputs. No local `dev/v10` integration or push occurred.
+rerun, Detekt and lint. Dashboard/Detail and worker retention acceptance are recorded separately
+above; imported day repair remains pending. No local `dev/v10` integration or push occurred.
 
 Current local dependency checkpoint: `4db55146eccad9e39adc7725076cb2783d92e330` on
 `codex/ti-steps-import-admission`, clean and rebased onto published `0460f12a5`. TI-D152/TI-B213

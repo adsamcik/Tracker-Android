@@ -868,3 +868,34 @@ Both actual worker entry points execute against Room fixtures; the broader worke
 startup/generation and existing live-retention checks. No physical provider, Android scheduling,
 process-death, reboot, battery, selected deletion, authoritative admission or full no-resurrection
 claim follows from these host tests. `ciUnitTest`/full `ciCheck` remain convergence gates.
+
+## TI-B217 — Truthful imported Dashboard member selection and contained Detail
+
+Fourteen reviewed Dashboard/statistics source/resource/test paths in `ti-steps-import-actions`.
+No schema, provider, writer, manifest permission or importer activation change. The source maps
+TI-D153's authenticated imported product contract onto the existing list and Detail consumers.
+
+TI-B216 gives the exact combined `81757` and follow-up `97335` commands. Their relevant evidence:
+20 statistics tests passed in `81757` (11 history-state, seven presenter, two host Compose), with
+statistics lint; 18 Dashboard tests passed in `97335` (six repository, seven live-state, five host
+Compose), with Detekt/lint. The namespace failure is recorded there, not presented as a green
+combined run. Statistics source/test bytes did not change after their successful gate.
+
+Two new plural-resource warnings found in `97335` were fixed using `plurals` and
+`pluralStringResource`, without a suppression or baseline edit. Final session `74425`:
+
+```powershell
+.\gradlew.bat :feature:dashboard:testDebugUnitTest --tests '*DashboardHistoryRepositoryTest' --tests '*DashboardLiveStepsStateTest' --tests '*RecentImportedStepsRowTest' detekt :feature:dashboard:lintDebug --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+Passed in 2m 5s, 596 tasks (35 executed, 561 up-to-date). All 18 Dashboard tests and Detekt passed.
+Dashboard lint has zero errors and two warnings on unchanged DashboardRoute/MilestoneCelebration
+lines; the two new plural warnings are gone. All 38 focused UI/presentation XML tests have zero
+failures/errors/skips. Host Compose uses Robolectric API 34, not a device rendering run.
+
+Assertions prove imported discovery with an empty physical-candidate list, exact selection of two
+replacement-member IDs, no invented aggregate/distance, selectable covered zero, explicit partial
+zero lower bound, materializing without zero/unavailable substitution, imported history not proving
+live provider state, typed Detail states, no route/distance/duration/sample cards, and zero local
+supplement/GPX repository calls. They do not prove broader History/Calendar, imported admission,
+physical source-only registration/listener removal, reboot/FGS/battery or integration readiness.

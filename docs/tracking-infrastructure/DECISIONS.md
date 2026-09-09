@@ -2418,3 +2418,20 @@ Each entry records repository evidence and does not duplicate the final architec
 - This supplies the worker hooks required by TI-D152, but integration still requires the frozen
   converged gate. Authoritative import, numeric/day repair, selected deletion and complete
   round-trip/no-resurrection remain separate dependencies before importer exposure.
+
+## TI-D156 — Show imported Steps without borrowing other source products
+
+- Status: `VERIFIED_LOCAL_PRESENTATION`, 2026-09-09; TI-B217. Use the existing Dashboard recent
+  history card and contained Trip Detail, not a new UI platform or all-source schema.
+- A logical imported entry exposes each retained physical recording by exact segment ID. Multiple
+  recordings expand on demand; neither the latest member nor their sum becomes an invented
+  logical total. One member is directly selectable. Recording labels use Android plural resources.
+- Retained covered zero remains zero, partial coverage an explicit lower bound, and missing or
+  materializing evidence distinct from both. Imported evidence does not establish current live
+  Steps registration or the original complete capture/control set.
+- Imported Detail presents retained Steps and timestamps only. It suppresses distance, samples,
+  route, elapsed duration and activity claims; map/GPX actions and supplemental local route/Ski
+  reads are excluded. Wall overlap cannot enrich imported ownership by accident.
+- The broader History/Calendar composition, authoritative import and source-local actions still
+  have their own gates. Host Compose evidence is not rendered device UI or physical Steps-only
+  proof. No source, importer, writer or feature is activated by this contained read surface.

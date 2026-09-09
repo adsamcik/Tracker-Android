@@ -91,6 +91,29 @@ class TripDetailPresenterViewModelTest {
 	}
 
 	@Test
+	fun `imported Steps never reads overlapping local supplements or exports GPX`() = runTest {
+		val trip = sessionTrip().copy(source = com.adsamcik.tracker.shared.model.SegmentSource.PORTABLE_STEPS_IMPORT)
+		coEvery { tripRepository.getTripDetail(TRIP_ID) } returns trip.right()
+		val viewModel = createViewModel()
+		val collector = backgroundScope.launch { viewModel.state.collect() }
+		advanceUntilIdle()
+
+		viewModel.loadSupplementalData()
+		viewModel.exportTripGpx(mockk())
+		advanceUntilIdle()
+
+		viewModel.insights.value shouldBe TripDetailInsights()
+		viewModel.skiSegments.value shouldBe emptyList()
+		coVerify(exactly = 0) { tripPresentationRepository.getTripProjection(any()) }
+		coVerify(exactly = 0) {
+			locationSampleRepository.getOrderedChunkBetween(any(), any(), any(), any(), any())
+		}
+		coVerify(exactly = 0) { skiRunSegmentRepository.getSegmentsByTimeRange(any(), any()) }
+		coVerify(exactly = 0) { gpxShareHelper.exportAndShare(any(), any(), any(), any()) }
+		collector.cancel()
+	}
+
+	@Test
 	fun `emits persisted route points for loaded trip`() = runTest {
 		val trip = TripSummary(
 			id = TRIP_ID,

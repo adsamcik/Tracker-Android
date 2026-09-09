@@ -54,6 +54,7 @@ sealed interface TripDetailStepsState {
  */
 internal fun StepsHistory.toTripDetailStepsState(): TripDetailStepsState {
 	val legacyPresentation = legacyState()
+	val unavailablePresentation = availability.unavailableState()
 	return when {
 		legacyPresentation != null -> legacyPresentation
 		hasCompleteValue -> TripDetailStepsState.Complete(requireNotNull(count))
@@ -61,7 +62,7 @@ internal fun StepsHistory.toTripDetailStepsState(): TripDetailStepsState {
 		StepsHistoryCause.DELETED in causes -> TripDetailStepsState.Deleted
 		availability == HistoryAvailability.DISABLED -> TripDetailStepsState.Disabled
 		StepsHistoryCause.SOURCE_NOT_CAPTURED in causes -> TripDetailStepsState.NotCaptured
-		availability != HistoryAvailability.AVAILABLE -> availability.toTripDetailStepsState()
+		unavailablePresentation != null -> unavailablePresentation
 		productState == HistoryProductState.MATERIALIZING -> TripDetailStepsState.Materializing
 		else -> fallbackState()
 	}
@@ -78,13 +79,14 @@ private fun StepsHistory.fallbackState(): TripDetailStepsState = when {
 	else -> TripDetailStepsState.NoObservation
 }
 
-private fun HistoryAvailability.toTripDetailStepsState(): TripDetailStepsState = when (this) {
+private fun HistoryAvailability.unavailableState(): TripDetailStepsState? = when (this) {
 	HistoryAvailability.DISABLED -> TripDetailStepsState.Disabled
 	HistoryAvailability.UNSUPPORTED -> TripDetailStepsState.Unsupported
 	HistoryAvailability.PERMISSION_REQUIRED -> TripDetailStepsState.PermissionRequired
 	HistoryAvailability.OS_LIMITED -> TripDetailStepsState.OsLimited
 	HistoryAvailability.UNAVAILABLE -> TripDetailStepsState.Unavailable
-	HistoryAvailability.AVAILABLE -> error("Available history must be mapped by its evidence state")
+	HistoryAvailability.AVAILABLE,
+	HistoryAvailability.RETAINED_IMPORTED -> null
 }
 
 private val HistoryProductState.isIncompleteWithoutValue: Boolean

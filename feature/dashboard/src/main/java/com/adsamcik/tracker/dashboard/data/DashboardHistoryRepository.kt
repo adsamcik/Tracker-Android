@@ -13,6 +13,7 @@ import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
 import com.adsamcik.tracker.stats.api.metric.MetricKey
 import com.adsamcik.tracker.stats.api.repository.StepsAwareHistoryPageEntry
+import com.adsamcik.tracker.stats.api.repository.ImportedStepsHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import java.util.Calendar
@@ -39,6 +40,9 @@ sealed interface DashboardRecentHistoryEntry {
 
 	/** Opaque logical Steps-only row with no physical action identity. */
 	data class StepsOnly(val history: StepsOnlyHistoryEntry) : DashboardRecentHistoryEntry
+
+	/** Retained imported Steps, with exact selectable physical members and no inferred route. */
+	data class ImportedSteps(val history: ImportedStepsHistoryEntry) : DashboardRecentHistoryEntry
 }
 
 /** Explicit recent-history state; failures never fall back to raw physical rows. */
@@ -249,6 +253,8 @@ private class DashboardPhysicalCandidateGeneration(
 				)
 				is StepsAwareHistoryPageEntry.StepsOnly ->
 					DashboardRecentHistoryEntry.StepsOnly(entry.history)
+				is StepsAwareHistoryPageEntry.ImportedSteps ->
+					DashboardRecentHistoryEntry.ImportedSteps(entry.history)
 			}
 		}
 }

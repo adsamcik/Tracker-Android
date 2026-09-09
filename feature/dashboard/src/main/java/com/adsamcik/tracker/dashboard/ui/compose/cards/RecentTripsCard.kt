@@ -119,6 +119,9 @@ private fun RecentHistoryRows(
 					is DashboardRecentHistoryEntry.StepsOnly -> key(entry.history.key) {
 						RecentStepsOnlyRow(entry.history)
 					}
+					is DashboardRecentHistoryEntry.ImportedSteps -> key(entry.history.key) {
+						RecentImportedStepsRow(entry.history, onTripClick)
+					}
 				}
 			}
 		}
@@ -180,7 +183,8 @@ private val StepsOnlyHistoryListState.labelResource: Int
 		StepsOnlyHistoryListState.PARTIAL -> R.string.dashboard_recent_steps_partial
 	}
 
-private fun relativeTime(startTimeMs: Long): String = DateUtils.getRelativeTimeSpanString(
+/** Shared display-only recency; it does not establish capture or interval ownership. */
+internal fun relativeTime(startTimeMs: Long): String = DateUtils.getRelativeTimeSpanString(
 	startTimeMs,
 	System.currentTimeMillis(),
 	DateUtils.MINUTE_IN_MILLIS,

@@ -9,6 +9,13 @@ import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.model.SegmentSource
+import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
+import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
+import com.adsamcik.tracker.stats.api.repository.HistoryProductState
+import com.adsamcik.tracker.stats.api.repository.ImportedStepsHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.ImportedStepsHistoryMember
+import com.adsamcik.tracker.stats.api.repository.StepsHistory
+import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage
 import com.adsamcik.tracker.stats.api.repository.StepsAwareHistoryPageEntry
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryListState
@@ -45,6 +52,24 @@ class DashboardHistoryRepositoryTest {
 	private val explorationStreakDao = mockk<ExplorationStreakDao>()
 	private val dailySummaryDao = mockk<DailySummaryDao>()
 	private val achievementProgressDao = mockk<AchievementProgressDao>()
+
+	@Test
+	fun `imported Steps is discoverable without a raw physical candidate or fake sample count`() = runTest {
+		val imported = ImportedStepsHistoryEntry(
+			TrackingHistoryEntryKey("imported-steps:entry"), EpochMs(10L), EpochMs(20L),
+			listOf(ImportedStepsHistoryMember(42L, EpochMs(10L), EpochMs(20L), StepsHistory(
+				count = 4L, availability = HistoryAvailability.RETAINED_IMPORTED,
+				evidence = HistoryEvidence.RECORDED, productState = HistoryProductState.READY,
+				coverage = StepsHistoryCoverage.COMPLETE, causes = emptySet(),
+			))),
+		)
+		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_LIMIT) } returns flowOf(emptyList())
+		every {
+			trackingHistoryRepository.observeRecentStepsAwarePage(emptyList(), RECENT_HISTORY_LIMIT)
+		} returns flowOf(listOf(StepsAwareHistoryPageEntry.ImportedSteps(imported)))
+		repository(testScheduler).observeRecentHistory().first() shouldContainExactly
+			listOf(DashboardRecentHistoryEntry.ImportedSteps(imported))
+	}
 
 	@Test
 	fun `recent history coordinates exact candidate generation and preserves Stats ordering`() = runTest {

@@ -217,4 +217,6 @@
 
     <!-- Calendar heatmap -->
     <string name="stats_heatmap_title">Activity</string>
+    <string name="trip_detail_imported_steps" tools:ignore="MissingTranslation">Imported Steps</string>
+    <string name="trip_detail_imported_steps_scope" tools:ignore="MissingTranslation">Route and other sensor data are not included.</string>
 </resources>
