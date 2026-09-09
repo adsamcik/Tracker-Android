@@ -1,6 +1,6 @@
 # Tracking Infrastructure Verification Matrix
 
-Last updated: 2026-09-05
+Last updated: 2026-09-09
 
 Status meanings: `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `IN_REVIEW`, `DONE`. `DONE` requires production repository evidence, not provider registration alone.
 
@@ -763,3 +763,43 @@ their retention worker hooks, Dashboard/Detail UI, importer transaction, day rep
 deletion. Full `ciCheck` must run on the converged cohort before integration readiness. None of
 these host or migration checks proves physical StepCounter behavior, listener removal, rendered
 device UI, process death, reboot, FGS, battery, OEM behavior or source activation.
+
+## TI-B214 — Imported history and original-identity export composition
+
+Source `ecbdf6161c059e5d2ef93726b5700b9441854e8c` contains exactly 13 reviewed source/test
+paths, committed under adsamcik after exact staging and cached diff checks. The clean branch was
+rebased onto canonical core `4db55146e`, dropping the duplicate core cherry-pick; rebase onto
+local `dev/v10` (`0460f12a5`) was then up-to-date. Comparing source/test/build inputs with the
+pre-rebase commit returned no differences; only the seven already-published documents changed.
+Subsequent uncommitted engine work is not covered by this product checkpoint.
+
+Commands ran from `ti-steps-import-product` with the established JDK/cache environment:
+
+```powershell
+.\gradlew.bat :stats:api:jvmTest :stats:api:testAndroidHostTest :stats:data:testDebugUnitTest --tests '*ImportedSteps*' --tests '*DefaultTripRepositoryTest' --tests '*RoomExportPortableStepsTest' --tests '*StepsSegmentHistorySelectorTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :stats:api:jvmTest :stats:api:testAndroidHostTest :stats:data:testDebugUnitTest --tests '*ImportedSteps*' --tests '*DefaultTripRepositoryTest' --tests '*RoomExportPortableStepsTest' --tests '*StepsSegmentHistorySelectorTest' :stats:data:lintDebug :stats:api:lintAnalyzeAndroidHostTest --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+Sessions `42612` and `25261` passed in 4m 54s/218 tasks and 4m 27s/393 tasks. API results:
+320 JVM plus 330 Android-host tests; data results initially 187 tests. Earlier static selection
+`6794` failed only 23 scoped Detekt findings; lint passed. Those findings were corrected without
+weakening assertions. The final budget regression expanded data coverage to 188 tests:
+
+```powershell
+.\gradlew.bat detekt :stats:data:testDebugUnitTest --tests '*ImportedSteps*' --tests '*DefaultTripRepositoryTest' --tests '*RoomExportPortableStepsTest' --tests '*StepsSegmentHistorySelectorTest' :stats:data:lintDebug --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :stats:data:testDebugUnitTest --tests '*ImportedSteps*' :stats:data:lintDebug --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+Session `32631` passed all 188 tests and lint, failing only one redundant-return Detekt finding
+(3m 47s/384 tasks). An equivalent short-circuit failure merge removed that extra return without
+suppression. Final `16117` passed Detekt, all 17 imported-product tests and lint in 2m 10s/384 tasks.
+Host XML reported zero failures/errors/skips. These totals include valid reused outputs, not a
+claim that every API test executed again in the final command.
+
+Evidence covers exact imported reverse membership, typed foreign capture provenance, covered
+zero/partial/overflow/overlap, sibling survival, two legal 33-run entries, original-identity export,
+and stopping before another entry batch after dependency overflow. Actual Room tests cover ten
+imported scenarios; a focused reader test verifies budget control flow. A read-only product/UI
+review found no blocker in the scoped composition but explicitly retained later UI/device,
+History/Calendar, admission, numeric/day repair and selected-deletion gates. No physical provider,
+rendered device UI, importer activation, local integration or push is claimed.

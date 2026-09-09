@@ -2358,3 +2358,25 @@ Each entry records repository evidence and does not duplicate the final architec
 - This dependency does not implement authoritative admission, imported numeric/day repair,
   selected deletion or full round-trip/no-resurrection. Those source-local operations must converge
   before importer exposure. The full six-source product and physical Steps gate remain incomplete.
+
+## TI-D153 — Imported Steps history exposes retained evidence, not original capture selection
+
+- Status: `VERIFIED_LOCAL_PRODUCT_DEPENDENCY`, 2026-09-09; source `ecbdf6161`, TI-B214.
+- Add a bounded imported branch to the existing history/read/export composition and cold Room
+  invalidations. `HistoryCapture.ImportedSteps` preserves foreign Steps manifests without claiming
+  the original full capture/control set. `RETAINED_IMPORTED` is not local provider availability;
+  neither `capturesOnlySteps` nor Location qualification is inferred from compatibility samples.
+- Group retained physical runs under their logical imported entry, while preserving individually
+  selectable segment IDs and per-member values. Covered zero is numeric; overlap, overflow,
+  missing coverage and retention loss stay typed partial/unavailable. No latest-run value or sum
+  is presented as an invented logical total.
+- Re-export only when the original whole-entry identity/checksum can still be reconstructed.
+  Missing/deleted/retention-truncated members are not silently reminted. This conservative v1
+  boundary does not complete portable round-trip support after retention loss.
+- Both origins have independent 16,384-dependency export budgets, so the combined read is bounded
+  by their sum, not by a claimed single 16,384 cap. Imported budget enforcement is incremental:
+  overflow stops before requesting the next batch. Combined wire identity/scope uniqueness and
+  entry limits are still enforced before output I/O.
+- No new UI or importer activation is included in this commit. Dashboard/Detail integration,
+  broader History/Calendar discovery, numeric/day repair, exact deletion and authoritative import
+  must converge with source-local retention before the product gate is complete.

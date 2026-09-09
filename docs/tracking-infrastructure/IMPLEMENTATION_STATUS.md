@@ -8,6 +8,13 @@ evidence index.
 
 ## September 9 continuation
 
+Verified local product dependency: `ecbdf6161c059e5d2ef93726b5700b9441854e8c`, with canonical
+core parent `4db55146e` preserved. TI-D153/TI-B214 record qualified imported history composition,
+exact selectable physical members, original-identity export and bounded batch budgets. The API
+cohort passed 650 tests; data-layer coverage passed 188 tests, followed by the final 17-test import
+rerun, Detekt and lint. Dashboard/Detail presentation, worker retention hooks and imported day
+repair remain separate unaccepted follow-up inputs. No local `dev/v10` integration or push occurred.
+
 Current local dependency checkpoint: `4db55146eccad9e39adc7725076cb2783d92e330` on
 `codex/ti-steps-import-admission`, clean and rebased onto published `0460f12a5`. TI-D152/TI-B213
 record authenticated retained imported membership, origin-specific binding, original-scope
