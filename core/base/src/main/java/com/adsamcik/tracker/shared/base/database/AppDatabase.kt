@@ -6,6 +6,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.room.withTransaction
+import com.adsamcik.tracker.shared.base.database.steps.imported.preserveStepsFullClearFences
 import com.adsamcik.tracker.shared.base.data.SessionActivity
 import com.adsamcik.tracker.shared.base.database.converter.CellTypeConverter
 import com.adsamcik.tracker.shared.base.database.converter.DetectedActivityTypeConverter
@@ -580,6 +581,7 @@ abstract class AppDatabase : RoomDatabase() {
 		}
 
 		private fun deleteCollectedRows(database: AppDatabase) {
+			preserveStepsFullClearFences(database.openHelper.writableDatabase)
 			// Source-event pipeline. Delete dependent state before immutable evidence.
 			database.locationProjectionDao().deleteAllObservations()
 			database.sourceBrokerDao().deleteAllAuthorizations()
@@ -611,7 +613,8 @@ abstract class AppDatabase : RoomDatabase() {
 			database.locationSampleDao().deleteAll()
 			database.locationObservationDao().deleteAll()
 			database.locationObservationDecisionDao().deleteAll()
-			database.sourceDeletionFenceDao().deleteAll()
+			// Payload-free source fences deliberately survive repeated full clears: portable files
+			// have no previous local epoch and must not resurrect an explicitly deleted run.
 			database.stepFactRevisionDao().deleteAll()
 			database.importedStepsDao().deleteAll()
 			database.pressureFactRevisionDao().deleteAll()

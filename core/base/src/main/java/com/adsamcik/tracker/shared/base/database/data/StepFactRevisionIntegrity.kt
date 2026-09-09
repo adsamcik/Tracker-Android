@@ -5,6 +5,13 @@ import java.security.MessageDigest
 /** Verifies the complete retained representation of a canonical LIVE_WAL Steps fact. */
 @Suppress("TooManyFunctions")
 object StepFactRevisionIntegrity {
+	/**
+	 * Immutable PORTABLE_IMPORT representation contract, not a LIVE_WAL acquisition lane.
+	 * Foreign manual/automatic mode cannot choose a local capture binding. The independently
+	 * monotonic destination-owner generation belongs in the imported entry's admission receipt.
+	 */
+	const val PORTABLE_IMPORT_BINDING_GENERATION = 1L
+
 	/** Distinct marker purpose: it records loss but never acts as a SESSION_CAPTURE write fence. */
 	const val RETENTION_TRUNCATION_PURPOSE = "SESSION_CAPTURE_RETENTION_TRUNCATION"
 
@@ -92,6 +99,7 @@ object StepFactRevisionIntegrity {
 
 	private fun hasPortableWriterShape(fact: StepFactRevisionEntity): Boolean =
 		fact.semanticRevision == 1L &&
+			fact.writerBindingGeneration == PORTABLE_IMPORT_BINDING_GENERATION &&
 			fact.writerProjectionId == SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID &&
 			fact.writerProjectionVersion == SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION &&
 			ImportedStepsIdentity.isOpaque(fact.logicalFactId) &&

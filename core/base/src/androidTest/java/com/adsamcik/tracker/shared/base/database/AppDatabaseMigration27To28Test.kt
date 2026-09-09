@@ -125,6 +125,7 @@ class AppDatabaseMigration27To28Test {
 	}
 
 	@Test
+	@Suppress("LongMethod") // One populated migration and close/reopen verifies the origin storage contract.
 	fun portableOriginStorageSurvivesMigratedReopenWithoutInventingLocalRuntime() {
 		helper.createDatabase(TEST_DATABASE, 27).use { database ->
 			PopulatedV27Fixture.seed(database)
@@ -137,10 +138,13 @@ class AppDatabaseMigration27To28Test {
 		val runIdentity = "sha256:${"2".repeat(64)}"
 		val entry = ImportedStepsEntryEntity(
 			entryIdentity, "sha256:${"3".repeat(64)}", "MANUAL", 10L, 20L, 7L,
+			writerOwnerGeneration = 2L,
 		)
 		val run = ImportedStepsRunEntity(
 			runIdentity, entryIdentity, "4".repeat(64), 10L, 20L, "Europe/Prague", "WHOLE_RUN", "PARTIAL",
 			appDrainComplete = true, stopComplete = true, hasUnresolvedProviderRange = true,
+			// Storage-only fixture, not an admitted hierarchy; the original format checksum is synthetic.
+			retainedChecksum = "9".repeat(64),
 		)
 		val manifest = ImportedStepsManifestEntity(runIdentity, 1L, 9L, 5L, 3L)
 		val facts = listOf(
@@ -676,6 +680,14 @@ class AppDatabaseMigration27To28Test {
 		assertTableCount(database, "imported_steps_entry", 0)
 		assertTableCount(database, "imported_steps_run", 0)
 		assertTableCount(database, "imported_steps_manifest", 0)
+		assertIndexColumns(database, "idx_imported_steps_run_segment", listOf("session_segment_id"))
+		database.query("PRAGMA table_info(imported_steps_run)").use { cursor ->
+			val nullable = buildMap {
+				while (cursor.moveToNext()) put(cursor.getString(1), cursor.getInt(3))
+			}
+			assertEquals(0, nullable["session_segment_id"])
+			assertEquals(0, nullable["retained_checksum"])
+		}
 		// Legacy pressure_sample rows lack v4 qualification and must never be backfilled.
 		assertTableCount(database, "pressure_fact_revision", 0)
 		assertIndexColumns(
@@ -1100,7 +1112,8 @@ class AppDatabaseMigration27To28Test {
 		assertTrue(database.stepIntervalDao()
 			.getAllBetween(PopulatedV27Fixture.START_MS, PopulatedV27Fixture.END_MS).isEmpty())
 		assertEquals(0L, database.stepFactRevisionDao().countAll())
-		assertEquals(0L, database.sourceDeletionFenceDao().countAll())
+		// Payload-free prior/original portable deletion authority survives full clear and reopen.
+		assertEquals(1L, database.sourceDeletionFenceDao().countAll())
 		assertTrue(database.activitySnapshotDao()
 			.getAllBetween(PopulatedV27Fixture.START_MS, PopulatedV27Fixture.END_MS).isEmpty())
 		assertTrue(database.wifiObservationDao().getChunkBetweenOrdered(

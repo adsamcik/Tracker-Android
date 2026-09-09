@@ -54,7 +54,7 @@ interface SourceDeletionFenceDao {
 	@Query("SELECT COUNT(*) FROM source_deletion_fence")
 	suspend fun countAll(): Long
 
-	/** Removes every fence only as part of the complete collected-data deletion transaction. */
+	/** Explicit database teardown only. Production collected-data clear must preserve these fences. */
 	@Query("DELETE FROM source_deletion_fence")
 	fun deleteAll()
 }

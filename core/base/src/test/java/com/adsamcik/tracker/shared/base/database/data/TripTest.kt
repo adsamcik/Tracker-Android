@@ -49,6 +49,7 @@ class TripTest {
 			trip(source = SegmentSource.INFERRED_MEDIUM_CONFIDENCE).isUserInitiated shouldBe false
 			trip(source = SegmentSource.INFERRED_LOW_CONFIDENCE).isUserInitiated shouldBe false
 			trip(source = SegmentSource.LEGACY_MIGRATION).isUserInitiated shouldBe false
+			trip(source = SegmentSource.PORTABLE_STEPS_IMPORT).isUserInitiated shouldBe false
 		}
 	}
 

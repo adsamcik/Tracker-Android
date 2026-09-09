@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 28,
-    "identityHash": "7ac9aaf2efdc3f8ab9eedbb76ce0dbc3",
+    "identityHash": "7a956b1a13e8480dd3c5bfd66d5f5fe7",
     "entities": [
       {
         "tableName": "activity",
@@ -1330,7 +1330,7 @@
       },
       {
         "tableName": "imported_steps_entry",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`identity` TEXT NOT NULL, `content_checksum` TEXT NOT NULL, `session_mode` TEXT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER NOT NULL, `collected_data_epoch` INTEGER NOT NULL, PRIMARY KEY(`identity`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`identity` TEXT NOT NULL, `content_checksum` TEXT NOT NULL, `session_mode` TEXT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER NOT NULL, `collected_data_epoch` INTEGER NOT NULL, `writer_owner_generation` INTEGER, PRIMARY KEY(`identity`))",
         "fields": [
           {
             "fieldPath": "identity",
@@ -1367,6 +1367,11 @@
             "columnName": "collected_data_epoch",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "writerOwnerGeneration",
+            "columnName": "writer_owner_generation",
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -1378,7 +1383,7 @@
       },
       {
         "tableName": "imported_steps_run",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`identity` TEXT NOT NULL, `entry_identity` TEXT NOT NULL, `deletion_scope_digest` TEXT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER NOT NULL, `stored_zone_id` TEXT NOT NULL, `capture_coverage` TEXT NOT NULL, `provider_coverage` TEXT NOT NULL, `app_drain_complete` INTEGER NOT NULL, `stop_complete` INTEGER NOT NULL, `has_unresolved_provider_range` INTEGER NOT NULL, PRIMARY KEY(`identity`), FOREIGN KEY(`entry_identity`) REFERENCES `imported_steps_entry`(`identity`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`identity` TEXT NOT NULL, `entry_identity` TEXT NOT NULL, `deletion_scope_digest` TEXT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER NOT NULL, `stored_zone_id` TEXT NOT NULL, `capture_coverage` TEXT NOT NULL, `provider_coverage` TEXT NOT NULL, `app_drain_complete` INTEGER NOT NULL, `stop_complete` INTEGER NOT NULL, `has_unresolved_provider_range` INTEGER NOT NULL, `session_segment_id` INTEGER, `retained_checksum` TEXT, PRIMARY KEY(`identity`), FOREIGN KEY(`entry_identity`) REFERENCES `imported_steps_entry`(`identity`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "identity",
@@ -1445,6 +1450,16 @@
             "columnName": "has_unresolved_provider_range",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "sessionSegmentId",
+            "columnName": "session_segment_id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "retainedChecksum",
+            "columnName": "retained_checksum",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -1471,6 +1486,15 @@
             ],
             "orders": [],
             "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_imported_steps_run_scope` ON `${TABLE_NAME}` (`deletion_scope_digest`)"
+          },
+          {
+            "name": "idx_imported_steps_run_segment",
+            "unique": true,
+            "columnNames": [
+              "session_segment_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_imported_steps_run_segment` ON `${TABLE_NAME}` (`session_segment_id`)"
           }
         ],
         "foreignKeys": [
@@ -8200,7 +8224,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7ac9aaf2efdc3f8ab9eedbb76ce0dbc3')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7a956b1a13e8480dd3c5bfd66d5f5fe7')"
     ]
   }
 }

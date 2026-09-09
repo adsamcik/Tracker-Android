@@ -15,6 +15,7 @@ class ImportedStepsEntityTest {
 			{ entry.copy(startTimeMs = -1L) },
 			{ entry.copy(endTimeMs = 9L) },
 			{ entry.copy(collectedDataEpoch = -1L) },
+			{ entry.copy(writerOwnerGeneration = 0L) },
 		).forEach { invalid -> assertThrows(IllegalArgumentException::class.java) { invalid() } }
 	}
 
@@ -34,6 +35,8 @@ class ImportedStepsEntityTest {
 			{ run.copy(endTimeMs = 9L) },
 			{ run.copy(captureCoverage = "CONTROL") },
 			{ run.copy(providerCoverage = "ASSUMED") },
+			{ run.copy(sessionSegmentId = 0L) },
+			{ run.copy(retainedChecksum = "invalid") },
 		).forEach { invalid -> assertThrows(IllegalArgumentException::class.java) { invalid() } }
 		assertThrows(DateTimeException::class.java) { run.copy(storedZoneId = "not-a-zone") }
 	}

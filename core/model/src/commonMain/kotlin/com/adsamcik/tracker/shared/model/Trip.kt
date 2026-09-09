@@ -29,6 +29,8 @@ INFERRED_HIGH_CONFIDENCE,
 INFERRED_MEDIUM_CONFIDENCE,
 INFERRED_LOW_CONFIDENCE,
 LEGACY_MIGRATION,
+/** Retained Steps-only portable product; never local provider/lifecycle capture authority. */
+PORTABLE_STEPS_IMPORT,
 }
 
 /**

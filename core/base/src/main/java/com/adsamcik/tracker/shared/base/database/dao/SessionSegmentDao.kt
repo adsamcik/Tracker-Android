@@ -265,9 +265,11 @@ interface SessionSegmentDao : BaseDao<SessionSegment> {
 	): Int
 
 	/**
-	 * Delete segments older than given timestamp.
+	 * Delete segments older than given timestamp. Imported Steps has an exact source-local
+	 * retention owner that removes its physical binding and metadata together.
+	 * Imported admission remains dormant until those source-local retention hooks are connected.
 	 */
-	@Query("DELETE FROM session_segment WHERE end_time_ms < :beforeMs")
+	@Query("DELETE FROM session_segment WHERE end_time_ms < :beforeMs AND source != 'PORTABLE_STEPS_IMPORT'")
 	suspend fun deleteOlderThan(beforeMs: Long): Int
 
 	/**

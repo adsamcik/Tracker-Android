@@ -90,15 +90,15 @@ class SessionlessEnumsTest {
 	@DisplayName("SegmentSource")
 	inner class SegmentSourceTest {
 		@Test
-		fun `has 5 entries`() {
-			SegmentSource.entries.size shouldBe 5
+		fun `has 6 entries`() {
+			SegmentSource.entries.size shouldBe 6
 		}
 
 		@Test
 		fun `contains expected values`() {
 			SegmentSource.entries.map { it.name } shouldBe listOf(
 				"USER_CREATED", "INFERRED_HIGH_CONFIDENCE", "INFERRED_MEDIUM_CONFIDENCE",
-				"INFERRED_LOW_CONFIDENCE", "LEGACY_MIGRATION"
+				"INFERRED_LOW_CONFIDENCE", "LEGACY_MIGRATION", "PORTABLE_STEPS_IMPORT"
 			)
 		}
 

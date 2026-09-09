@@ -1610,7 +1610,8 @@ val MIGRATION_27_28: Migration = object : Migration(
 					session_mode TEXT NOT NULL,
 					start_time_ms INTEGER NOT NULL,
 					end_time_ms INTEGER NOT NULL,
-					collected_data_epoch INTEGER NOT NULL
+					collected_data_epoch INTEGER NOT NULL,
+					writer_owner_generation INTEGER
 				)
 				""".trimIndent(),
 			)
@@ -1628,11 +1629,17 @@ val MIGRATION_27_28: Migration = object : Migration(
 					app_drain_complete INTEGER NOT NULL,
 					stop_complete INTEGER NOT NULL,
 					has_unresolved_provider_range INTEGER NOT NULL,
+					session_segment_id INTEGER,
+					retained_checksum TEXT,
 					FOREIGN KEY(entry_identity) REFERENCES imported_steps_entry(identity) ON DELETE CASCADE
 				)
 				""".trimIndent(),
 			)
 			execSQL("CREATE INDEX IF NOT EXISTS idx_imported_steps_run_entry ON imported_steps_run(entry_identity)")
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_imported_steps_run_segment " +
+					"ON imported_steps_run(session_segment_id)",
+			)
 			execSQL(
 				"CREATE UNIQUE INDEX IF NOT EXISTS idx_imported_steps_run_scope " +
 					"ON imported_steps_run(deletion_scope_digest)",

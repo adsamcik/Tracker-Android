@@ -8,6 +8,15 @@ import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 
 @Dao
 interface StepFactRevisionDao {
+	/** Bounded complete retained lineage for exact foreign run identities, without origin filtering. */
+	@Query("SELECT * FROM step_fact_revision WHERE service_run_id IN (:runIdentities) " +
+		"ORDER BY service_run_id, logical_fact_id, semantic_revision LIMIT :limit")
+	suspend fun revisionsForImportedRuns(runIdentities: List<String>, limit: Int): List<UnvalidatedStepFactRevision>
+
+	/** Global identity collision check, including redacted revisions with no remaining run payload. */
+	@Query("SELECT * FROM step_fact_revision WHERE logical_fact_id IN (:identities) " +
+		"ORDER BY logical_fact_id, semantic_revision LIMIT :limit")
+	suspend fun revisionsForFactIdentities(identities: List<String>, limit: Int): List<UnvalidatedStepFactRevision>
 	/** Returns -1 when this fact revision, mutation, or live writer ordinal already exists. */
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insert(entity: StepFactRevisionEntity): Long
