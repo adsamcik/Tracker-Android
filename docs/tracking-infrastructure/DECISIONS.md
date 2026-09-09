@@ -2380,3 +2380,20 @@ Each entry records repository evidence and does not duplicate the final architec
 - No new UI or importer activation is included in this commit. Dashboard/Detail integration,
   broader History/Calendar discovery, numeric/day repair, exact deletion and authoritative import
   must converge with source-local retention before the product gate is complete.
+
+## TI-D154 — Keep Steps numeric authority in source-qualified reads
+
+- Status: `VERIFIED_LOCAL_API_CLEANUP`, 2026-09-09; source `3f62d5c644b44277088097800a85637a955cfdb0`,
+  TI-B215. Remove the unused `stats.api.repository.DailySummary.totalSteps` property and make
+  windowed Steps metrics return the existing typed validation error before any DAO read.
+  Non-Steps metrics keep their existing behavior. No production windowed collector was found.
+- Do not add a nullable daily cache or broaden the schema for a nonexistent consumer. Existing
+  source-fact composition remains the numeric authority; other compatibility summary types still
+  exist and their product callers must retain their source-qualified Steps overrides.
+- Import-only partial materialization may preserve an old non-authoritative compatibility integer
+  while repairing independent metrics and the stored zone. This is not a deletion policy: full
+  database exports copy retained SQL aggregates, so keeping a deleted contribution would leak it.
+  Keep selected deletion's partial/unrepresentable repair guard until atomic Steps-only aggregate
+  redaction is implemented and verified. Redaction zero must never become qualified observed zero.
+- This API cleanup neither accepts the pending engine repair draft nor completes positive awards,
+  authoritative import, deletion, physical provider proof or the six-source program.

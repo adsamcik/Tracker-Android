@@ -803,3 +803,29 @@ imported scenarios; a focused reader test verifies budget control flow. A read-o
 review found no blocker in the scoped composition but explicitly retained later UI/device,
 History/Calendar, admission, numeric/day repair and selected-deletion gates. No physical provider,
 rendered device UI, importer activation, local integration or push is claimed.
+
+## TI-B215 — Remove unused unqualified Steps summary escape paths
+
+Source `3f62d5c644b44277088097800a85637a955cfdb0` contains eight reviewed source/test paths,
+committed under adsamcik on clean `codex/ti-steps-summary-authority`, based on local `dev/v10`
+`0460f12a5`. Actions cherry-pick: `d519df577`. No integration, publication or schema change.
+
+Commands ran from `ti-steps-summary-authority` with JDK 21 and the established cache environment:
+
+```powershell
+.\gradlew.bat :stats:api:jvmTest :stats:data:testDebugUnitTest --tests '*DefaultDailySummaryRepositoryTest' --tests '*DefaultWindowedMetricsProviderTest' :feature:statistics:testDebugUnitTest --tests '*HistoryPresenterViewModelTest' --tests '*StatsPresenterViewModelSessionStatsTest' :detekt :stats:data:lintDebug :feature:statistics:lintDebug --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat :stats:data:testDebugUnitTest --tests '*DefaultDailySummaryRepositoryTest' --tests '*DefaultWindowedMetricsProviderTest' :detekt :stats:data:lintDebug --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+Session `5330` passed API/statistics tests and both lints, but failed data-test compilation on a
+missing `io.mockk.Called` import and Detekt on missing API method KDoc. Those two scoped fixes
+were followed by green `95713`: 2m 1s, 384 tasks (12 executed, one cached, 371 up-to-date).
+Final XML cohort: 318 API JVM, 18 data and 27 statistics tests, zero failures/errors/skips.
+The second command verified the data/import fix and KDoc via Detekt; unchanged API/statistics
+test bodies were not claimed as newly executed. Earlier `22561`/`71367` failed task selection
+because Detekt is root-owned; no source failure or successful test evidence is inferred from them.
+
+Assertions cover nine Steps metric/window combinations rejected before all five DAOs, unchanged
+non-Steps metrics, and summary mapping independent of raw legacy zero versus `Int.MAX_VALUE`.
+This is host/static evidence only, not accepted engine day repair, deletion, awards, device UI,
+provider behavior or integration readiness. The converged implementation still needs its full gate.

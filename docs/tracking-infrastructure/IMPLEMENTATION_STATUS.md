@@ -8,6 +8,13 @@ evidence index.
 
 ## September 9 continuation
 
+Verified local summary-authority cleanup: `3f62d5c644b44277088097800a85637a955cfdb0`
+(actions dependency cherry-pick `d519df577`). TI-D154/TI-B215 record removal of the unused raw
+stats API Steps property and typed refusal of unqualified windowed Steps metrics before any DAO
+read. The 363-test focused cohort, Detekt and affected lint passed across the documented runs.
+No new cache/schema was added; existing source-fact numeric authority remains in place. This
+does not finish imported day repair, awards, retention or deletion. No integration or push occurred.
+
 Verified local product dependency: `ecbdf6161c059e5d2ef93726b5700b9441854e8c`, with canonical
 core parent `4db55146e` preserved. TI-D153/TI-B214 record qualified imported history composition,
 exact selectable physical members, original-identity export and bounded batch budgets. The API
@@ -25,8 +32,8 @@ worktrees are not accepted merely because their dependency passed. No importer i
 
 The subsequent day-repair consumer audit found no production reads of the raw
 `stats.api.repository.DailySummary.totalSteps` property and no production collector for
-`WindowedMetricsProvider`. Remove those unqualified escape paths in a separate bounded slice;
-do not add a nullable Steps cache without a real consumer. Partial imported days must retain
+`WindowedMetricsProvider`. TI-D154 now removes those unqualified escape paths in a bounded slice;
+no nullable Steps cache is needed without a real consumer. Partial imported days must retain
 independently composed non-Steps metrics and durable calendar authority, while the existing
 source-fact composer supplies typed Steps availability. This is the next implementation direction,
 not completed partial-import admission or repair. Publication/paused-work wording below is historical.
