@@ -2,6 +2,43 @@
 
 Last updated: 2026-09-09
 
+## Current publication and paused parallel work
+
+The user confirmed publication of **reviewed implementation and handover only**. Accepted source
+remains `099f9e1b9fc33c624cf1152550ec4c98857b938d`, with acceptance documentation at
+`b925e89bc5191a2cfb58d02d9b50265a478528bb`. This successor changes documentation only.
+Use [PUBLICATION_HANDOVER.md](PUBLICATION_HANDOVER.md) and the post-push receipt for remote truth;
+the local-only wording below is historical. The whole six-source effort remains incomplete.
+
+New parallel drafts were paused for this publication, without Gradle verification or commits.
+All are based on `b925e89bc` under `G:\Github\Tracker-Android\.worktrees\`, with matching
+`codex/` branch names. Their indexes are empty; none is part of the reviewed publication:
+
+| Worktree | Owner boundary and draft state | Required next gate |
+| --- | --- | --- |
+| `ti-steps-import-admission` | core/base origin binding, retained reader/integrity, original-digest full-clear fences; core/model portable wire model and stats/api compatibility facade. Nine modified and six untracked files. | Compile, generated schema, focused storage/receipt/clear tests, populated migration/reopen. Atomic engine admission and real day repair are not implemented. |
+| `ti-steps-import-product` | stats/api imported capture/member contract and exact trip origin; stats/data list/detail/export adapters and tests. Six modified and five untracked files. | Integrate reviewed core contracts, compile, Room round-trip and exact membership/partial/collision tests. One corrupt entry must not hide healthy peers. |
+| `ti-steps-import-actions` | Dashboard imported-member selection and contained imported Trip Detail, resources and host UI tests. Eight modified and three untracked files. | Integrate reviewed contracts, compile and run UI tests. Imported selected deletion, retention worker integration and numeric/day repair remain unwritten. |
+
+Do not merge or publish these drafts as completed work. Preserve the separate two older frozen
+drafts and the six protected root paths listed below. No draft files arrive in a GitHub clone;
+resume from accepted code if no separately authorized draft transfer exists.
+
+Concrete pending integration risks: generic physical-segment retention must not orphan imported
+metadata; raw pruning needs authenticated original ownership and truthful truncated coverage;
+full clear currently removes fences while portable files carry no former local epoch. The proposed
+payload-free original-run fence preservation is an untested draft, not an accepted fix. Preserve
+live writer fencing and exact imported bindings; no wall-overlap ownership, fake service runs,
+sample-count source proof, borrowed route data or fabricated zero. Admission must perform actual
+transactional day repair, not a default-success callback. Review these coupled storage/lifecycle
+changes before exposing an importer registry entry.
+The shared reader's `database.inTransaction()` assertion must also be verified against the
+exporter's `useReaderConnection`/`deferredTransaction` path; no transaction compatibility is proven.
+
+Source-only physical Steps and listener/UI-device proof, positive durable awards, explicit-control
+automatic Steps, default-off Ambient Steps and the remaining five source verticals are still open.
+Keep the dependency-ordered plan below; containment alone is not product completion.
+
 Publication update: see [PUBLICATION_HANDOVER.md](PUBLICATION_HANDOVER.md) for the subsequent
 one-time push authorization and GitHub restart instructions. The local-only inventory below is
 the pre-publication checkpoint; its protected-work and implementation boundaries still apply.

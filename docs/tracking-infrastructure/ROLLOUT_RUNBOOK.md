@@ -2,10 +2,13 @@
 
 Last updated: 2026-09-09
 
-External rollout, deployment, and remote configuration remain unauthorized. The reviewed checkpoint
-through `9f750052e` was published under a consumed one-time authorization. Subsequent continuation
-work remains local-only; no future push or feature activation is authorized. This runbook defines
-local evidence and the future authorization boundary.
+External rollout, deployment, and remote configuration remain unauthorized. The user has now
+authorized one normal push of reviewed portable-origin source `099f9e1b9`, acceptance documentation
+`b925e89bc`, and the current handover successor. See `PUBLICATION_HANDOVER.md`; verify its actual
+remote HEAD using the publishing task's receipt. The three newer and two older dirty drafts remain
+excluded. This publication does not activate any source, writer, importer or feature. Subsequent
+pushes and feature activation still need fresh authority. Earlier local-only statements below
+describe the pre-publication state.
 
 ## Current checkpoint and containment
 

@@ -1,5 +1,35 @@
 # Checkpoint publication and restart
 
+## Current publication: reviewed portable-origin checkpoint
+
+The user's current confirmation is **"Push reviewed implementation and handover only."**
+This authorizes one normal `dev/v10` push of accepted source
+`099f9e1b9fc33c624cf1152550ec4c98857b938d`, its accepted evidence checkpoint
+`b925e89bc5191a2cfb58d02d9b50265a478528bb`, and this documentation-only successor.
+The remote was verified immediately before preparation as
+`9f750052e28374dd104746321f8cd3573b135925`; local `dev/v10` was clean and two commits ahead.
+TI-B211 records the completed source verification; TI-B212 records this publication audit.
+Final publication is confirmed only by the publishing task's post-push remote hash, not by this
+document anticipating its own commit. No remote CI success is claimed.
+
+The six protected root paths, two older frozen importer/awards drafts, and three newer unfinished
+`ti-steps-import-admission`, `ti-steps-import-product`, and `ti-steps-import-actions` worktrees
+are excluded. Their dirty files are not in GitHub and will not arrive in a clone. Their paused
+ownership and missing gates are recorded in the current `CONTINUATION_HANDOVER.md` section.
+No importer, source, writer, feature, release, deployment, tag or external rollout is activated.
+Later implementation and publication still require their applicable gates and fresh push authority.
+
+For another machine, use the clone commands below in a nonexistent destination, match HEAD to the
+final publication receipt, and require:
+
+```powershell
+git merge-base --is-ancestor 099f9e1b9fc33c624cf1152550ec4c98857b938d HEAD
+git merge-base --is-ancestor b925e89bc5191a2cfb58d02d9b50265a478528bb HEAD
+```
+
+Read the current top sections of `MACHINE_HANDOVER.md` and `CONTINUATION_HANDOVER.md` first.
+The publication sections below are historical receipts and do not describe the newest source boundary.
+
 ## September 9 publication scope
 
 The user requested: "Please commit and push everything including the handover." The publishing
