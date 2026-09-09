@@ -2335,3 +2335,26 @@ Each entry records repository evidence and does not duplicate the final architec
 - No source implementation or acceptance boundary changes. TI-D150/TI-B211 remain the accepted
   dormant storage boundary; proposed full-clear fences, imported history and source-local actions
   are not accepted fixes. The complete six-source vision and physical Steps gate remain open.
+
+## TI-D152 — Authenticate retained imported members without inventing live authority
+
+- Status: `VERIFIED_LOCAL_DEPENDENCY`, 2026-09-09; source `4db55146e`, TI-B213. Not integrated,
+  published or activated. Imported-retention worker hooks must accompany integration because
+  generic physical-segment retention now excludes the explicitly imported source.
+- Retain the original whole-entry checksum and add an exact reverse physical-member binding and
+  per-member retained checksum to the unshipped-v28 imported representation. Null legacy receipts
+  remain unverifiable. A retained sibling need not reconstruct a deleted original whole entry;
+  it must still authenticate its own exact hierarchy, facts, stored zone and original scope.
+- Keep historical writer-owner generation distinct from origin-specific fact binding generation.
+  Portable binding is a fixed representation contract, not a claim to the local manual or automatic
+  live writer lane. Preserve LIVE_WAL checksums and source-specific ownership.
+- Reuse the portable v1 canonicalizer through core/model and the existing stats API facade. Raw
+  Room shape checks precede Boolean/Int narrowing; malformed zones produce typed integrity failure.
+  Bounded adaptive batch splitting isolates malformed entries without permanent observers or
+  ordinary per-row query fan-out.
+- Full collected-data clear retains payload-free original-scope fences for admitted imports and
+  exactly attributable live Steps capture. A malformed original scope digest causes atomic rollback;
+  this is a documented corruption-recovery limit, not arbitrary-corruption deletion proof.
+- This dependency does not implement authoritative admission, imported numeric/day repair,
+  selected deletion or full round-trip/no-resurrection. Those source-local operations must converge
+  before importer exposure. The full six-source product and physical Steps gate remain incomplete.

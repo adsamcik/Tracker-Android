@@ -8,6 +8,22 @@ evidence index.
 
 ## September 9 continuation
 
+Current local dependency checkpoint: `4db55146eccad9e39adc7725076cb2783d92e330` on
+`codex/ti-steps-import-admission`, clean and rebased onto published `0460f12a5`. TI-D152/TI-B213
+record authenticated retained imported membership, origin-specific binding, original-scope
+full-clear fences, 98 focused core tests, 10 portable API tests and nine emulator migration tests.
+This commit is not integrated into local `dev/v10` or published. Its generic trip-pruning exclusion
+requires coordinated imported-retention hooks before integration; pending product/actions
+worktrees are not accepted merely because their dependency passed. No importer is exposed.
+
+The subsequent day-repair consumer audit found no production reads of the raw
+`stats.api.repository.DailySummary.totalSteps` property and no production collector for
+`WindowedMetricsProvider`. Remove those unqualified escape paths in a separate bounded slice;
+do not add a nullable Steps cache without a real consumer. Partial imported days must retain
+independently composed non-Steps metrics and durable calendar authority, while the existing
+source-fact composer supplies typed Steps availability. This is the next implementation direction,
+not completed partial-import admission or repair. Publication/paused-work wording below is historical.
+
 Publication checkpoint: the user now explicitly authorizes pushing reviewed implementation and
 handover only, through accepted source `099f9e1b9` and documentation `b925e89bc` plus the current
 documentation successor. See `PUBLICATION_HANDOVER.md` for scope and the task's post-push receipt

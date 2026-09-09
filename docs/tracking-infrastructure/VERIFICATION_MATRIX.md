@@ -712,3 +712,54 @@ Publication requires a normal explicit `git push origin dev/v10:dev/v10`, follow
 The publishing task reports that receipt after success; this document does not anticipate its own
 hash or claim remote CI success. No provider, rendered UI, listener, process/reboot, FGS, battery,
 OEM or enabled importer proof is added, and the six-source program is not complete.
+
+## TI-B213 — Retained imported-member core dependency
+
+Verified local source: `4db55146eccad9e39adc7725076cb2783d92e330`, rebased onto published
+`0460f12a54a3550244f8e8ea5c9fb1f5e2ef27d2`. Exactly 23 source/test/schema paths were reviewed,
+staged explicitly and committed with the configured adsamcik identity; staged/final diff checks
+passed and the source worktree is clean. This is a dependency checkpoint, not integration readiness.
+
+Final source/static gate, session `37505`:
+
+```powershell
+.\gradlew.bat detekt :core:base:testDebugUnitTest --tests '*ImportedSteps*' --tests '*StepFactRevisionIntegrityTest' --tests '*StepFactRevisionDaoTest' --tests '*SessionlessEnumsTest*' --tests '*TripTest*' --tests '*SessionlessTypeConverterTest*' :core:base:lintDebug --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+Passed in 3m 7s, 148 tasks (20 executed, 128 up-to-date): 98 core tests, Detekt and core lint.
+No scoped source/test change followed, only commit/rebase. This command did not run stats API tests.
+Earlier session `89366` verified the unchanged portable wire implementation/API facade and API lint:
+
+```powershell
+.\gradlew.bat detekt :core:base:testDebugUnitTest --tests '*ImportedSteps*' --tests '*StepFactRevisionDaoTest' --tests '*SessionlessEnumsTest*' --tests '*TripTest*' --tests '*SessionlessTypeConverterTest*' :stats:api:testAndroidHostTest --tests '*StepsPortable*' :core:base:connectedDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.adsamcik.tracker.shared.base.database.AppDatabaseMigration27To28Test' :core:base:lintDebug :stats:api:lint --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+Passed in 4m 22s, 214 tasks (115 executed, 16 cached, 83 up-to-date), including 10 portable API
+tests and nine device tests. Subsequent binding/owner distinction and peer-isolation corrections
+changed core integrity, admission conversion, retained reader and reader tests, not the wire/API
+facade. Their final static/host evidence is `37505`; final schema/device evidence follows.
+
+Final post-rebase gate in `ti-steps-import-admission`, session `10704`:
+
+```powershell
+$env:ANDROID_SERIAL = 'emulator-5554'
+.\gradlew.bat checkRoomSchemaDrift :core:base:testDebugUnitTest --tests '*ImportedSteps*' --tests '*StepFactRevisionIntegrityTest' --tests '*StepFactRevisionDaoTest' --tests '*SessionlessEnumsTest*' --tests '*TripTest*' --tests '*SessionlessTypeConverterTest*' :stats:api:testAndroidHostTest --tests '*StepsPortable*' :core:base:connectedDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.adsamcik.tracker.shared.base.database.AppDatabaseMigration27To28Test' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+`BUILD SUCCESSFUL in 59s`, 141 tasks. Room schema drift passed. The 98 focused core and 10
+portable API host tests were up-to-date for unchanged source/test bytes, not newly executed by
+this final command. All nine migration tests reran and passed on the same representative
+Medium_Phone, Android 16/API 36, `sdk_gphone64_x86_64`; zero failures/errors/skips. The device
+claim was released after the gate. No Tracker user data was modified for this library test run.
+
+Assertions include exact reverse binding, original entry versus retained member receipts,
+historical owner generation 7 versus portable binding generation 1, rejection of forged alternate
+bindings, null legacy receipts, raw pre-narrowing integrity checks, malformed-zone peer isolation,
+bounded multi-entry reads, and full-clear original-scope fences through Room reopen. Invalid
+original digest corruption rolls back clear atomically; no alternate identity platform was added.
+
+The later product and actions worktrees are separate test inputs. This evidence does not cover
+their retention worker hooks, Dashboard/Detail UI, importer transaction, day repair or selected
+deletion. Full `ciCheck` must run on the converged cohort before integration readiness. None of
+these host or migration checks proves physical StepCounter behavior, listener removal, rendered
+device UI, process death, reboot, FGS, battery, OEM behavior or source activation.
