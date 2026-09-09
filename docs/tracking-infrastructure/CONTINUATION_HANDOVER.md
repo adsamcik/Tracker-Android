@@ -1,6 +1,6 @@
 # Tracking Infrastructure Continuation Handover
 
-Last updated: 2026-09-05
+Last updated: 2026-09-09
 
 Publication update: see [PUBLICATION_HANDOVER.md](PUBLICATION_HANDOVER.md) for the subsequent
 one-time push authorization and GitHub restart instructions. The local-only inventory below is
@@ -10,9 +10,69 @@ This handover is for the next device or Codex session continuing the tracking-in
 program from the locally accepted checkpoint. It is an execution checkpoint, not a replacement
 for the architecture or evidence ledgers, and does not claim remote publication.
 
+## 2026-09-09 continuation: source-observed Steps goal progress
+
+The latest accepted source commit is `b6301c80bd2691ddeadb93f4522755eb1e193724` (TI-D149/TI-B210),
+on top of the published September 5 base `d020e1e7d7d4fc9db9e6213e2e9d9cbf0c74875e`. The user
+subsequently requested committing and pushing the checkpoint, including this handover. Follow
+[PUBLICATION_HANDOVER.md](PUBLICATION_HANDOVER.md) for that one-time publication scope and verify
+the final remote HEAD against the publishing task's receipt. A documentation claim alone is not
+push confirmation; do not use the old bundle's HEAD for this new checkpoint.
+
+The useful existing Game/GoalProgress day/week presentation now follows the qualified numeric
+repository's cold observation rather than a finite retry schedule and raw-summary signals. It
+keeps independent period availability and covered zero, cancels replaced observations, and keeps
+settings changes out of query registration. Durable goal/XP/achievement awards are not re-enabled.
+
+Ordinary typed read failures can recover through subsequent Room invalidation. A terminal failure
+of the invalidation stream still needs a new subscription or calendar rebind; silent clock/zone/
+locale changes still need an existing product signal or renewed subscription. Do not claim this
+change implements automatic midnight or closed-database reopen recovery.
+
+No Android device was attached on September 9. Physical manual `{Steps}`, rendered UI and actual
+listener removal remain open. The six root hashes still match; frozen importer/qualified-awards
+drafts remain unaccepted and untouched. Next source-local storage work must supply exact goal-day
+authority for correction-safe awards and truthful imported-origin representation plus coordinated
+history/export/deletion/retention admission. Do not synthesize live boot/counter authority to fit
+portable data, or register an importer before a complete round-trip/no-resurrection gate.
+
+Exact verification and scope limits are in TI-B210. The September 9 `ciCheck --continue` passed
+in `37m 40s`, including `ciUnitTest`; host XML inventory is 9,396 tests, zero failures/errors and
+three unchanged skips, including valid cached outputs. Earlier September 5 evidence remains
+historical rather than being attributed to the new code.
+
+There is also a **new, paused, unaccepted** worktree, distinct from the two older frozen drafts:
+`G:\Github\Tracker-Android\.worktrees\ti-steps-import-origin`, branch
+`codex/ti-steps-import-origin`, based on `d020e1e7d7d4fc9db9e6213e2e9d9cbf0c74875e`.
+It contains an unfinished Steps-specific imported-origin representation/storage slice. It has
+not run Gradle, regenerated the Room schema, or completed downstream fixture/migration checks.
+Do not activate it, call it an importer, merge it, or assume a GitHub clone contains its dirty
+files. Inventory it before resuming; first finish/review the dormant shape and populated migration
+gate, then coordinate history/export/deletion/retention admission before any production writes.
+The coordinator stopped this parallel work for publication rather than broadening the checkpoint.
+The user explicitly confirmed publication is for reviewed implementation and handover only.
+
+Paused import-origin inventory, relative to that worktree (nothing staged; diff check passed):
+
+| State | Path |
+| --- | --- |
+| Modified | `core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabase.kt` |
+| Modified | `core/base/src/main/java/com/adsamcik/tracker/shared/base/database/AppDatabaseMigrations.kt` |
+| Modified | `core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/StepFactRevisionEntity.kt` |
+| Modified | `core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/StepFactRevisionIntegrity.kt` |
+| Untracked | `core/base/src/main/java/com/adsamcik/tracker/shared/base/database/dao/ImportedStepsDao.kt` |
+| Untracked | `core/base/src/main/java/com/adsamcik/tracker/shared/base/database/data/ImportedStepsEntities.kt` |
+| Untracked | `core/base/src/test/java/com/adsamcik/tracker/shared/base/database/dao/ImportedStepsDaoTest.kt` |
+| Untracked | `core/base/src/test/java/com/adsamcik/tracker/shared/base/database/data/ImportedStepsFactTest.kt` |
+
+Its proposed three Steps-only metadata tables and origin-specific intrinsic checks do not confer
+production admission. Kotlin/Room compilation, tests, Detekt, lint, generated schema 28 and
+populated v27 migration/reopen evidence are absent. The migration-test additions are not written;
+the exporter negative fixture still uses an old live-shaped portable fact and needs scoped review.
+
 ## 2026-09-05 checkpoint: qualified consumers, deletion-safe effects, and machine transfer
 
-This is the authoritative restart boundary and supersedes every checkpoint below. Start with
+This is the historical September 5 boundary, superseded by the September 9 section above. Start with
 [MACHINE_HANDOVER.md](MACHINE_HANDOVER.md) for cross-machine transfer, the exact continuation
 prompt, and the distinction between accepted code, frozen drafts, and unproven product behavior.
 [VISION_AND_SCOPE.md](VISION_AND_SCOPE.md), committed at `e7c9d63fb`, matches the user-supplied

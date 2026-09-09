@@ -493,3 +493,72 @@ The final documentation-only successor records the accepted local integration. I
 standalone bundle SHA-256/size, `git bundle verify` and independent clone/connectivity results are
 in the transfer receipt accompanying the bundle, avoiding a self-referential commit hash in this
 document. Protected root changes and frozen draft branches are excluded from that bundle.
+
+## September 9 qualified goal observation (TI-B210)
+
+Base: clean local `dev/v10` at `d020e1e7d7d4fc9db9e6213e2e9d9cbf0c74875e`. Worktree:
+`G:\Github\Tracker-Android\.worktrees\ti-steps-goal-observation`, branch
+`codex/ti-steps-goal-observation`. Read-only remote inspection still returned the base commit.
+All six protected root hashes matched. `adb devices -l` returned no connected devices.
+
+Focused gate:
+
+```powershell
+.\gradlew.bat :feature:game:testDebugUnitTest --tests '*SourceQualifiedStepsSummaryTest' --tests '*QualifiedStepsPresentationTest' --tests '*DefaultGoalProgressProviderTest' :tracker:engine:testDebugUnitTest --tests '*RoomStepsNumericSummaryRepositoryRoomTest' detekt --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+`BUILD SUCCESSFUL in 6m 58s`, 369 tasks (205 executed, 164 from cache). XML: 11 source-qualified
+summary + 6 presentation + 2 GoalProgress provider + 14 Room tests = 33 tests, zero failures,
+errors or skips. The new Room test observes `Ready(5)` becoming exact source-evidence unavailable
+after inserting only the run's deletion fence; the daily-summary rows remain unchanged.
+
+Feature tests exercise source-only settlement after 60 seconds without legacy invalidations,
+downward correction, typed unavailable/recovery, qualified zero, deletion, independent readiness
+while weekly observation is suspended, calendar replacement, stale old-flow rejection, unchanged
+authority/settings without query restarts, and cold cancellation/resubscription. Polling-specific
+tests were replaced by the corresponding observation lifetime assertions, not weakened into raw
+fallback acceptance. Independent read-only product/lifecycle review found no concrete blocker.
+
+These are host/Robolectric/Room/static results, not rendered UI or physical source evidence.
+The ordinary typed storage-failure recovery test is not closed-database reopen proof. Terminal
+invalidation-stream failure requires reattachment; silent calendar changes require an existing
+signal or new subscription. Persistent goal awards, portable import, automatic/ambient Steps,
+provider/listener, process/reboot/FGS/battery/OEM and source activation remain open. These tests
+add no remote publication or remote-CI proof.
+
+Complete affected-module/static gate at code commit `b6301c80bd2691ddeadb93f4522755eb1e193724`:
+
+```powershell
+.\gradlew.bat :feature:game:testDebugUnitTest :feature:game:lintDebug :tracker:engine:lintDebug checkRoomSchemaDrift --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+`BUILD SUCCESSFUL in 4m 51s`, 647 tasks (271 executed, 35 from cache, 341 up-to-date). Complete
+Game XML: 466 tests, zero failures/errors/skips. Affected lint and Room drift passed; tracker lint
+reported no new issues with six existing baseline-filtered warnings. Only the five coordinator-
+owned Markdown documents remained dirty after committing the four reviewed code/test paths.
+
+Full repository integration gate at the same source commit (code/test inputs remained frozen):
+
+```powershell
+.\gradlew.bat ciCheck --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+`BUILD SUCCESSFUL in 37m 40s`, 1,991 tasks (1,027 executed, 539 from cache, 425 up-to-date).
+`ciCheck` includes `ciUnitTest`; it completed the host aggregate, release lint, Detekt, Room drift,
+architecture, release SQLite linkage, release-evidence fixtures and dependency metadata checks.
+The Python release-evidence fixture suite passed all 27 tests; dependency metadata verified 16
+reviewed components. Release lint retained existing warnings/baseline findings; this is not a
+warning-free claim. No gates, baselines, timeouts or provider settings were weakened.
+
+Host XML inventory after the full gate: 1,677 reports, 9,396 tests, zero failures/errors and three
+unchanged skips. This includes valid cached outputs, not 9,396 newly executed tests. The skips are
+`BaseMapLayerTest.lifecycle_runs_pipeline_and_disable_calls_onDisable`,
+`BaseMapLayerTest.enable_twice_restarts_pipeline_without_crash`, and
+`LocationAndSensorsManagerTest.location updates flow completes gracefully without permission`.
+The first two remain Android-device lifecycle coverage; the third remains framework permission
+coverage. None is new Steps coverage or physical device evidence.
+
+Publication preparation subsequently changed only six coordinator-owned Markdown paths. The
+user explicitly confirmed: "Push reviewed implementation and handover only." The protected root
+hashes still match, both old frozen drafts are unchanged, and the new import-origin draft is paused
+without Gradle or a commit. Its eight-path inventory and incomplete checks are in the handover.

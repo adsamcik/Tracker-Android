@@ -1,6 +1,6 @@
 # Tracking Infrastructure Decisions
 
-Last updated: 2026-09-05
+Last updated: 2026-09-09
 
 Each entry records repository evidence and does not duplicate the final architecture document.
 
@@ -2270,3 +2270,19 @@ Each entry records repository evidence and does not duplicate the final architec
   blacklist, new schema, public abstraction, observer, or per-row database query. This closes a
   concrete consumer interaction; it does not qualify old numeric reward history or complete new
   positive Steps awards. The checkpoint now returns to the source vertical and device gates.
+
+## TI-D149 — Qualified goal progress follows durable source changes while subscribed
+
+- Status: `ACCEPTED`, 2026-09-09; code `b6301c80bd2691ddeadb93f4522755eb1e193724`,
+  focused/module/full-gate acceptance evidence in TI-B210.
+- Evidence: `SourceQualifiedStepsSummary` read once per legacy invalidation and retried only for
+  1.75 seconds. Late source-only presentation settlement, correction or deletion could therefore
+  leave a subscribed Game/GoalProgress consumer stale, despite the existing qualified Room
+  repository already offering a cold dependency-complete observation.
+- Decision: use that existing observation for independently qualified daily and weekly progress,
+  scoped to actual subscribers. Keep calendar replacement and cancellation explicit, goal settings
+  as presentation inputs, and missing/partial/materializing/storage states nonnumeric. Do not add
+  timer polling, provider demand, background observer ownership, or a second qualification path.
+- Boundary: this improves useful goal progress; it does not authorize positive durable awards from
+  raw totals, choose new reward/storage semantics, solve silent clock changes without a product
+  invalidation, activate Steps, or replace the physical only-source/UI/listener gate.

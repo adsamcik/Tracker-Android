@@ -1,12 +1,51 @@
 # Tracking Infrastructure Implementation Status
 
-Last updated: 2026-09-05
+Last updated: 2026-09-09
 
 Execution-grade work items, ownership, dependency gates, verification commands, and rollback
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and
 evidence index.
 
-## Current checkpoint and goal assessment
+## September 9 continuation
+
+Restart inventory: clean local `dev/v10` at `d020e1e7d7d4fc9db9e6213e2e9d9cbf0c74875e`;
+read-only remote inspection still resolved that exact commit. The user subsequently requested
+publication of this checkpoint and handover; see `PUBLICATION_HANDOVER.md` for the bounded scope
+and require remote-HEAD verification after pushing. All six protected root
+hashes match the checkpoint. No Android device is connected, so the physical Steps-only gate
+remains unproven.
+
+Current bounded change: make existing qualified Steps goal progress observe the existing numeric
+repository while subscribed. Previously it used legacy update signals and only 250/500/1000 ms
+settlement retries; a later source-only settlement or correction could leave a visible goal stale.
+The existing Room observer already tracks the 14 durable read dependencies. No new schema,
+provider, canonical writer, permanent observer network, or positive durable reward is needed for
+this presentation correction. Source commit: `b6301c80bd2691ddeadb93f4522755eb1e193724`.
+Acceptance evidence is recorded in TI-B210.
+Focused tests, full Game tests, affected lint, Detekt, Room drift and the full `ciCheck --continue`
+gate passed; full host XML inventory is 9,396 tests, zero failures/errors and three unchanged
+skips, including valid cached outputs. This is host/static evidence, not a device or rollout gate.
+
+Two independent read-only assessments also clarified the next implementation boundary:
+
+- Positive durable Steps awards need exact source revision, stored-zone and goal-period/target
+  authority plus correction/deletion repair. Existing latest-period preferences and raw XP rows
+  cannot supply it. Do not reconnect raw completion paths or mistake live progress for an award.
+- Portable import needs truthful imported-origin representation and stable opaque identity/deletion
+  mapping. Portable v1 intentionally omits live boot/elapsed/cumulative fields that the current fact
+  shape requires; history/export/retention/deletion still authenticate live origins. A persistence-
+  only codec importer would fail the product gate and could block retention. Additive Steps-local
+  unshipped-v28 storage is allowed by TI-D068; destructive changes, fabricated live authority and
+  registry exposure before coordinated round-trip/no-resurrection proof are not.
+
+The frozen importer and qualified-awards drafts are not accepted or changed by these assessments.
+The separate new `codex/ti-steps-import-origin` worktree contains an unfinished core/base shape/
+storage slice, paused without Gradle or a commit at the publication request. It is not part of
+accepted `dev/v10`; its exact resume boundary is in `CONTINUATION_HANDOVER.md`.
+Continue the positive Steps/source-local sequence; neither physical proof nor the other five
+source verticals is complete.
+
+## September 5 checkpoint and goal assessment
 
 The September 5 checkpoint in `CONTINUATION_HANDOVER.md` is the authoritative branch, commit,
 verification, and restart inventory. This section supersedes the historical gate inventories below.

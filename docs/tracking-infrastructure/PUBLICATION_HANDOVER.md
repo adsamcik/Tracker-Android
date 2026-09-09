@@ -1,4 +1,43 @@
-# September 5 checkpoint publication and restart
+# Checkpoint publication and restart
+
+## September 9 publication scope
+
+The user requested: "Please commit and push everything including the handover." The publishing
+task is preparing a normal `dev/v10` push containing accepted code through
+`b6301c80bd2691ddeadb93f4522755eb1e193724` and the handover/evidence successors. Remote HEAD before
+this push was verified as `d020e1e7d7d4fc9db9e6213e2e9d9cbf0c74875e`. This is fresh, one-time
+publication authorization, not authorization for release, deployment, tags, force push, source
+activation, destructive migration or future pushes.
+
+The user explicitly clarified: "Push reviewed implementation and handover only." The six
+protected root paths, both old frozen drafts and the new unfinished import-origin worktree remain
+untouched and excluded. No unfinished draft is represented as accepted code.
+See [MACHINE_HANDOVER.md](MACHINE_HANDOVER.md) for the
+current restart prompt and [CONTINUATION_HANDOVER.md](CONTINUATION_HANDOVER.md) for their inventory.
+
+TI-B210 records exact validation for the new source commit. Publication must wait for the full
+gate and local integration checks. This document records scope, not confirmation of its own
+remote commit; the publishing task must verify `git ls-remote` after the push and report the hash.
+Local verification does not claim remote CI success or Android device evidence.
+
+For a new machine, choose a nonexistent destination and run:
+
+```powershell
+git clone --branch dev/v10 https://github.com/adsamcik/Tracker-Android.git 'D:\Github\Tracker-Android-checkpoint'
+Set-Location 'D:\Github\Tracker-Android-checkpoint'
+git status --short --branch
+git rev-parse HEAD
+git ls-remote --heads origin refs/heads/dev/v10
+git log -10 --oneline --decorate
+git diff --check
+git merge-base --is-ancestor b6301c80bd2691ddeadb93f4522755eb1e193724 HEAD
+```
+
+Match HEAD to the publishing task's confirmed hash; investigate later branch changes rather than
+resetting them. Read the current September 9 section of `MACHINE_HANDOVER.md` before the older
+bundle instructions. The September 5 bundle does not contain this new code or its documents.
+
+## Historical September 5 publication
 
 The user authorized committing and pushing the accepted checkpoint and handover on 2026-09-05.
 This supersedes the earlier local-only/no-push instruction **for this one normal `dev/v10` push**.

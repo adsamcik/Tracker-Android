@@ -1,6 +1,73 @@
 # Tracking infrastructure: cross-machine handover
 
-Last updated: 2026-09-05
+Last updated: 2026-09-09
+
+## Current checkpoint: September 9
+
+This section supersedes the September 5 snapshot below. Read it first on the destination machine.
+The latest source commit is `b6301c80bd2691ddeadb93f4522755eb1e193724`; its successor documents
+record acceptance and the user's one-time request to publish the checkpoint and handover.
+Use [PUBLICATION_HANDOVER.md](PUBLICATION_HANDOVER.md) to clone `dev/v10`, then match HEAD to the
+publishing task's confirmed remote hash. Do not overwrite an existing checkout. The September 5
+offline bundle remains valid for its older snapshot but does not include the September 9 fix.
+
+What changed: qualified Game/GoalProgress day/week values now observe durable Steps changes while
+subscribed. Late settlement, correction and exact deletion no longer require a legacy summary
+update or fit inside a 1.75-second retry window. Covered zero remains numeric; missing, partial,
+materializing and unavailable remain typed. Settings do not restart the query; hidden consumers
+release their observation. This reuses existing repositories and does not start a sensor, create
+a writer, change the schema, or enable persistent Steps awards.
+
+The supplied September 5 vision still matches `VISION_AND_SCOPE.md` after line-ending
+normalization, rechecked September 9. This is a concrete freshness/lifecycle improvement to an
+existing product surface, not proof of better physical sensor quality or measured battery use.
+TI-B210 in [VERIFICATION_MATRIX.md](VERIFICATION_MATRIX.md) records the exact host/static gates.
+Full `ciCheck --continue` passed in `37m 40s`; the host XML inventory contains 9,396 tests,
+zero failures/errors and three unchanged skips, including valid cached outputs.
+No Android device was attached. The six-source program is incomplete and remains contained.
+
+Resume order:
+
+1. Read `AGENTS.md`, `VISION_AND_SCOPE.md`, and the complete technical/adaptive designs, then
+   continuation, execution, decisions, status, verification and rollout documents in that order.
+   Verify clean branch/HEAD, toolchain, author identity and current device capability.
+2. Complete the representative physical manual `{Steps}` provider-to-fact-to-production-query
+   gate, rendered UI inspection and actual listener-removal evidence. Host tests cannot replace it.
+3. Continue bounded source-local positive Steps awards and portable import. Awards need exact
+   goal-day/target/stored-zone authority and correction/deletion repair. Import needs truthful
+   imported origins plus coordinated history/export/delete/retention/no-resurrection before use.
+4. Complete control-separated automatic Steps, then default-off Ambient Steps; continue Pressure,
+   protected Location, Activity, Wi-Fi and Cell as independent thin verticals. Preserve canonical
+   Location until its evidence-backed shadow/cutover gate and measure quality per battery.
+
+Known observer limits: silent clock/zone/locale changes need an existing product signal or new
+subscription. A terminal database-invalidation stream failure needs reattachment. Do not treat
+independent day/week presentation snapshots as atomic durable reward authority.
+
+Unpublished work stays on the source machine: the six protected root files, the two frozen
+importer/awards drafts listed below, and the new paused `codex/ti-steps-import-origin` worktree at
+base `d020e1e7d`. The latter is an untested core/base representation draft, not accepted import
+support. Its inventory and next checks are in `CONTINUATION_HANDOVER.md`. Do not silently merge,
+discard, publish, or assume any of those dirty files arrived in a clone.
+
+Copy-paste restart prompt:
+
+> Resume Tracker Android from the verified published September 9 checkpoint on dev/v10. Verify
+> HEAD and a clean checkout against the publication receipt, then read AGENTS and the ordered
+> documents above. Repository code and commits outrank old chat. The latest source change is
+> b6301c80b: subscribed qualified Steps goal progress, not persistent awards or completed tracking.
+> Keep the complete six-source vision. Advance the exact physical Steps gate and bounded positive
+> Steps/import work, then automatic/ambient Steps and the remaining thin source verticals. Use
+> one owner per overlapping file and one Gradle invocation globally. Rebase and verify before
+> local dev/v10 integration; remove only clean fully merged worktrees. Preserve all excluded dirty
+> work. No future push, release, activation, destructive migration, or external rollout is authorized.
+> End at an evidence-backed checkpoint with exact remaining gates, never fabricated zero or claims
+> that host tests prove sensors, UI-device behavior, battery, reboot or OEM reliability.
+
+## Historical September 5 snapshot and offline transfer
+
+The remaining sections describe the immutable older bundle and its then-current code boundary.
+For the September 9 source fix and publication, use the current section above and TI-B210.
 
 Publication update: [PUBLICATION_HANDOVER.md](PUBLICATION_HANDOVER.md) records the user's subsequent
 one-time push authorization and GitHub clone instructions. The local-only statements below
