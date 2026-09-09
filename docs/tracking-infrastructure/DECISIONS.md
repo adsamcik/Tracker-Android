@@ -2286,3 +2286,38 @@ Each entry records repository evidence and does not duplicate the final architec
 - Boundary: this improves useful goal progress; it does not authorize positive durable awards from
   raw totals, choose new reward/storage semantics, solve silent clock changes without a product
   invalidation, activate Steps, or replace the physical only-source/UI/listener gate.
+
+## TI-D150 — Portable Steps retain foreign evidence without fabricated live authority
+
+- Status: `ACCEPTED_DORMANT_STORAGE`, 2026-09-09; source
+  `099f9e1b9fc33c624cf1152550ec4c98857b938d`, full acceptance evidence TI-B211.
+- Evidence: portable v1 deliberately omits live WAL/admission, boot, elapsed-clock and cumulative
+  counter fields. The prior `PORTABLE_IMPORT` fact shape nevertheless required those fields and
+  numeric zero for non-covered evidence. The wire contract already contains exact entry/run/
+  manifest identities, original deletion-scope digests, stored zones and five completeness fields.
+- Decision: retain that Steps-specific hierarchy in three dormant metadata tables and reuse the
+  existing append-only fact table with origin-specific shape validation. Portable omitted fields
+  must be null; only covered counts are numeric, including verified zero. Local collected-data
+  epoch and writer binding remain distinct from foreign policy/consent provenance. No live runtime,
+  local consent grant, provider demand, or compatibility session is synthesized.
+- Integrity: retain the existing LIVE_WAL namespace and exact checksum field order, with a pinned
+  pre-change digest regression. Portable intrinsic checks use a separate domain and preserve
+  opaque identity verbatim. The retained fields can reconstruct the existing portable entry
+  checksum; intrinsic integrity alone never admits an entry or establishes contextual ownership.
+- Storage boundary: ABORT conflicts, exact parent foreign keys and unique original run-scope
+  digests prevent silent identity replacement. Full collected-data clear removes facts and cascades
+  imported metadata. Only three tables are added to unshipped v28; every existing v28 entity
+  definition and all 51 released-v27 tables are preserved.
+- Scope: this is the first necessary import slice, not a new origin platform or enabled importer.
+  Production writes require a subsequent coordinated hierarchy/checksum/owner/fence/retention
+  transaction, qualified history and numeric consumers, re-export, selected deletion, repair and
+  no-resurrection proof. Existing readers continue rejecting non-live authority. Physical manual
+  Steps, positive durable awards, automatic/ambient Steps and all other source gates remain open.
+- Next-slice truthfulness constraint: the current portable exporter retains only the Steps capture
+  binding even when the original run also captured other sources or used controls. Imported Steps
+  therefore prove retained Steps membership, not the original full capture/control set. Keep
+  `HistoryCapture.Exact` and live reverse-binding checks unchanged; use a bounded typed imported
+  product branch rather than claiming `capturesOnlySteps` or inventing a local service run.
+  Imported selected deletion may authorize only the retained Steps subset under its original
+  deletion digest, never omitted source/control facts. These are continuation requirements, not
+  implemented imported history or deletion support.

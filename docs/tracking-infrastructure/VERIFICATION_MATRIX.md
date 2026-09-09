@@ -573,3 +573,102 @@ post-rebase verification, not a claim that all 33 tests executed again. Working/
 and all relative Markdown links in the six documents passed. This final evidence-only successor
 does not change the code/test inputs accepted by either gate. Final integration and remote HEAD
 must be verified by the publishing task; do not infer publication from this document alone.
+
+## September 9 portable-origin representation (TI-B211)
+
+Source worktree: `G:\Github\Tracker-Android\.worktrees\ti-steps-import-origin`, branch
+`codex/ti-steps-import-origin`. The paused eight-path draft at `d020e1e7d` was resumed after the
+published `9f750052e` checkpoint. The final 13 reviewed source/test/schema paths were committed
+as `31b36b461`, then rebased onto clean local `dev/v10` at `9f750052e`, yielding
+`099f9e1b9fc33c624cf1152550ec4c98857b938d`. A post-rebase diff of `core/base` and `stats/data`
+against the pre-rebase commit was empty. New work is local-only; the preceding one-time push
+authorization is consumed. The six root hashes still match; the two older frozen drafts are untouched.
+
+Corrected initial gate:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*ImportedSteps*' --tests '*StepFactRevisionIntegrityTest' --tests '*StepFactRevisionDaoTest' :core:base:compileDebugAndroidTestKotlin --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+`BUILD FAILED in 4m 19s`, 88 tasks (47 executed, 41 cached). All 37 initial host tests passed;
+Android-test compilation rejected three new `RoomDatabase.use()` calls because the receiver did
+not satisfy the available Closeable extension. The test now uses explicit try/finally close.
+
+Final focused/static command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*ImportedSteps*' --tests '*StepFactRevisionIntegrityTest' --tests '*StepFactRevisionDaoTest' :stats:data:testDebugUnitTest --tests '*RoomExportPortableStepsTest' :core:base:compileDebugAndroidTestKotlin detekt :core:base:lintDebug :stats:data:lintDebug --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The first run of this command failed in `5m 37s`, 233 tasks (85 executed, 64 cached, 84 up-to-date):
+core 41, exporter 46 and Android compilation passed, then Detekt rejected seven missing public
+KDocs, a zone-length literal, two complexity findings and two missing-brace findings. KDoc, a named
+constant, same-condition helper extraction and a nullable fixture expression corrected these;
+no baseline, suppression or gate was weakened. Lint had not been reached. A shared quarantine
+seed required by the populated fixture was also supplied before actual device execution.
+
+Final run: `BUILD SUCCESSFUL in 5m 20s`, 410 tasks (180 executed, 21 cached, 209 up-to-date).
+Six XML reports independently confirmed 87 tests, zero failures/errors/skips: ImportedStepsDao 3,
+ImportedStepsEntity 3, ImportedStepsFact 4, StepFactRevisionIntegrity 9, StepFactRevisionDao 22,
+and portable exporter 46. Both affected lints reported no new issues, retaining their existing
+baselines (core 13 errors/6 warnings; stats 283 errors/270 warnings filtered). Detekt and Android
+test compilation passed. Two read-only code reviews found no concrete representation blocker.
+
+An independent generated-schema comparison found zero changed prior-v28 entity definitions,
+exactly `imported_steps_entry`, `imported_steps_run`, `imported_steps_manifest` added, and no
+missing tables among the 51 released-v27 tables. This structural comparison is not runtime proof.
+
+Representative Android gate: claimed and started existing `Medium_Phone` headlessly as
+`emulator-5554`, Android 16/API 36, `sdk_gphone64_x86_64`. No core/base test package was initially
+installed. Only the library test package and fixture databases were used.
+
+```powershell
+$env:ANDROID_SERIAL = 'emulator-5554'
+.\gradlew.bat :core:base:connectedDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.adsamcik.tracker.shared.base.database.AppDatabaseMigration27To28Test' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+`BUILD SUCCESSFUL in 2m 19s`, 108 tasks (37 executed, 2 cached, 69 up-to-date). Connected XML
+confirms 9 tests, zero failures/errors/skips. The expanded populated-v27 suite preserves released
+facts, reopens through production Room, retains exact foreign metadata and covered-zero/partial-null
+portable facts without local runtime rows, then clears collected data and reopens without restoring
+those rows. Direct fixture inserts are storage proof, not authoritative import or portable re-export.
+The emulator sensor controls and actual `sensorservice` list contain no step counter; this is not
+the physical manual Steps-only, listener removal, rendered product UI, process/reboot/FGS/battery/
+OEM, importer no-resurrection, source activation or rollout gate.
+
+Post-commit/rebase gate at `099f9e1b9` on the same claimed emulator:
+
+```powershell
+$env:ANDROID_SERIAL = 'emulator-5554'
+.\gradlew.bat checkRoomSchemaDrift :core:base:connectedDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.adsamcik.tracker.shared.base.database.AppDatabaseMigration27To28Test' detekt --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+`BUILD SUCCESSFUL in 1m 14s`, 119 tasks (6 executed, 5 cached, 108 up-to-date). Committed Room
+schema drift and Detekt passed; the same nine migration tests executed again successfully. The
+test runner left no core/base test package installed. The emulator claim was released afterward.
+Working/staged diff checks and relative Markdown links passed. Only the six coordinator-owned
+tracking documents changed after the source commit; no test/code input changed during integration
+verification.
+
+Final repository integration gate, with source/test/schema inputs frozen at `099f9e1b9`:
+
+```powershell
+.\gradlew.bat ciCheck --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+`BUILD SUCCESSFUL in 40m 50s`, 1,991 tasks (1,122 executed, 597 cached, 272 up-to-date), including
+`ciUnitTest`, Detekt, release lint, architecture, schema and release-verifier checks. The terminal
+release-verifier Python cohort also passed 27 tests. Independent host XML inventory afterward:
+1,680 reports, 9,407 tests, zero failures/errors and three unchanged skips. This includes valid
+cached outputs, not 9,407 newly executed tests. Skips remain
+`BaseMapLayerTest.lifecycle_runs_pipeline_and_disable_calls_onDisable`,
+`BaseMapLayerTest.enable_twice_restarts_pipeline_without_crash`, and
+`LocationAndSensorsManagerTest.location updates flow completes gracefully without permission`.
+The nine connected migration tests are separate, not counted as host sensor/UI proof.
+
+The six documentation-only successors record acceptance and the bounded imported-product plan;
+they do not alter the verified source/test/schema inputs. Rechecked root hashes match exactly;
+old importer/awards draft bases, diff totals and empty indexes remain unchanged. A read-only
+`git ls-remote origin refs/heads/dev/v10` still resolved published
+`9f750052e28374dd104746321f8cd3573b135925`. This new slice is authorized for local convergence
+only; no new push, importer registration, provider activation or external rollout is implied.

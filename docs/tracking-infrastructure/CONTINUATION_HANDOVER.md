@@ -10,7 +10,53 @@ This handover is for the next device or Codex session continuing the tracking-in
 program from the locally accepted checkpoint. It is an execution checkpoint, not a replacement
 for the architecture or evidence ledgers, and does not claim remote publication.
 
-## 2026-09-09 continuation: source-observed Steps goal progress
+## 2026-09-09 local continuation: truthful portable-origin storage
+
+The accepted local source commit is `099f9e1b9fc33c624cf1152550ec4c98857b938d`, developed on
+`codex/ti-steps-import-origin` in `G:\Github\Tracker-Android\.worktrees\ti-steps-import-origin`.
+It is rebased onto the published `9f750052e` checkpoint and accepted for local `dev/v10` with this
+documentation successor, not published. Use the clean `tracking-infra-integration` checkout and
+verify the source commit is an ancestor of local `dev/v10`; do not recreate a merged worktree.
+The six protected root paths and the two old frozen drafts remain unchanged. The eight-path
+paused draft recorded below has now become this reviewed 13-path source/test/schema slice.
+
+TI-D150/TI-B211 describe the exact boundary: three Steps-specific metadata tables preserve foreign
+entry/run/manifest identity, original deletion digest, zone and completeness. Portable fact shape
+requires omitted sensor clocks/counters/WAL fields to stay null; non-covered count is null rather
+than zero. LIVE_WAL shape and digest compatibility remain protected. No fake lifecycle/consent,
+new provider, second writer, generic origin platform or production importer was added.
+
+Focused/static verification passed 87 host tests, Detekt, affected lint and Android-test compilation.
+All nine populated migration tests passed on the existing API 36 `Medium_Phone`, including nullable
+portable facts through production Room reopen and collected-data deletion/reopen. Full integration
+verification passed: `ciCheck --continue` in 40m 50s, 9,407 host tests with zero failures/errors and
+three unchanged skips, including valid cached outputs. This emulator lacks a step counter; physical manual `{Steps}`, actual
+listener removal and rendered product UI remain unproven.
+
+Continue with coordinated imported-origin admission/read/export/deletion/retention/repair and
+the positive Steps/device gates, not a registry-only importer. Intrinsic checksums and direct fixture
+inserts are not admission authority. Local scope is unchanged; no further push or rollout is authorized.
+
+Bounded import continuation, in dependency order:
+
+1. Atomically admit the original hierarchy and facts with whole-entry checksum, exact ownership,
+   collision, local epoch, deletion-fence and retention checks. Reuse physical presentation segments
+   only with an explicit imported classification and an exact bidirectional run binding; do not
+   fabricate local lifecycle, provider, consent, positive `sampleCount`, or raw Steps authority.
+2. Add a batched imported-origin branch to existing history/detail composition. Portable v1 exports
+   only the Steps binding, so it does not prove the original full capture/control set. Preserve
+   `HistoryCapture.Exact`; represent retained imported Steps separately. Keep logical replacement-run
+   grouping and exact selectable physical members, with missing/partial counts nonnumeric.
+3. Coordinate selected retained-Steps deletion, original-identity re-export, retention and day repair
+   before importer registry exposure. Deletion cannot affect omitted original source/control facts.
+   Prove duplicate no-op, conflicting-identity rollback, swapped/missing binding rejection,
+   mixed-source original capture truthfulness, reopen/round-trip parity and fenced re-import.
+
+This is a reviewed implementation direction, not completed admission/product support. Existing
+`TripDao` pages filter on `sample_count > 0`, while the Steps-only list variant is non-selectable;
+neither should be bypassed with fake samples or a latest-run count presented as a logical total.
+
+## 2026-09-09 published checkpoint: source-observed Steps goal progress
 
 The latest accepted source commit is `b6301c80bd2691ddeadb93f4522755eb1e193724` (TI-D149/TI-B210),
 on top of the published September 5 base `d020e1e7d7d4fc9db9e6213e2e9d9cbf0c74875e`. The user
@@ -29,7 +75,7 @@ of the invalidation stream still needs a new subscription or calendar rebind; si
 locale changes still need an existing product signal or renewed subscription. Do not claim this
 change implements automatic midnight or closed-database reopen recovery.
 
-No Android device was attached on September 9. Physical manual `{Steps}`, rendered UI and actual
+No Android device was attached for the published goal-observation gate. Physical manual `{Steps}`, rendered UI and actual
 listener removal remain open. The six root hashes still match; frozen importer/qualified-awards
 drafts remain unaccepted and untouched. Next source-local storage work must supply exact goal-day
 authority for correction-safe awards and truthful imported-origin representation plus coordinated
@@ -41,7 +87,8 @@ in `37m 40s`, including `ciUnitTest`; host XML inventory is 9,396 tests, zero fa
 three unchanged skips, including valid cached outputs. Earlier September 5 evidence remains
 historical rather than being attributed to the new code.
 
-There is also a **new, paused, unaccepted** worktree, distinct from the two older frozen drafts:
+Historical inventory at publication (superseded for this worktree by the local continuation above):
+there was also a **new, paused, unaccepted** worktree, distinct from the two older frozen drafts:
 `G:\Github\Tracker-Android\.worktrees\ti-steps-import-origin`, branch
 `codex/ti-steps-import-origin`, based on `d020e1e7d7d4fc9db9e6213e2e9d9cbf0c74875e`.
 It contains an unfinished Steps-specific imported-origin representation/storage slice. It has

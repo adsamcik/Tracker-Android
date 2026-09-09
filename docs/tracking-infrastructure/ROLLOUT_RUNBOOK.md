@@ -1,16 +1,20 @@
 # Tracking Infrastructure Rollout Runbook
 
-Last updated: 2026-09-05
+Last updated: 2026-09-09
 
-External rollout, publishing, deployment, and remote configuration remain unauthorized. This runbook defines local evidence and the future authorization boundary.
+External rollout, deployment, and remote configuration remain unauthorized. The reviewed checkpoint
+through `9f750052e` was published under a consumed one-time authorization. Subsequent continuation
+work remains local-only; no future push or feature activation is authorized. This runbook defines
+local evidence and the future authorization boundary.
 
 ## Current checkpoint and containment
 
 Use `VISION_AND_SCOPE.md` for the product north star, `MACHINE_HANDOVER.md` for another-machine
-continuation, and the September 5 sections of `CONTINUATION_HANDOVER.md`, `IMPLEMENTATION_STATUS.md`,
-and `VERIFICATION_MATRIX.md` for accepted code and exact evidence. The local source checkpoint is
-`b5bc3674cd6fafbcd50fddd98a78581428756b6a` plus its documentation-only successor on local `dev/v10`.
-It is not pushed or activated. Older snapshots below are historical, including their unintegrated
+continuation, and the latest sections of `CONTINUATION_HANDOVER.md`, `IMPLEMENTATION_STATUS.md`,
+and `VERIFICATION_MATRIX.md` for accepted code and exact evidence. The published source boundary
+includes `b6301c80b`; the newer accepted local-only portable-origin storage slice is described in TI-D150/TI-B211.
+Neither change activates a source or completes the import/device gates. Older snapshots below are
+historical, including their unintegrated
 branch, schema-v3, missing radio identity, and blanket numeric-consumer gap claims.
 
 Current rollout schema v4 defaults all six sources to `CONTAINED`, legacy product stages and zero

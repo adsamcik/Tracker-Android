@@ -2,7 +2,24 @@
 
 Last updated: 2026-09-09
 
-## Current checkpoint: September 9
+## Local continuation after the published checkpoint
+
+Local-only source checkpoint `099f9e1b9fc33c624cf1152550ec4c98857b938d` adds truthful dormant
+portable Steps origin storage. It is rebased onto the published checkpoint below and accepted for
+local `dev/v10` with this documentation successor. Full `ciCheck --continue` passed in 40m 50s:
+9,407 host tests, zero failures/errors, three unchanged skips, including valid cached results.
+Read the latest `CONTINUATION_HANDOVER.md` section and TI-D150/TI-B211 before resuming it.
+The nine populated migration tests passed on one API 36 emulator; this is not enabled import or
+physical Steps proof. Do not assume a GitHub clone contains this local checkpoint. On a transferred
+local checkout, verify `git merge-base --is-ancestor 099f9e1b9fc33c624cf1152550ec4c98857b938d dev/v10`
+and a clean status. The previously paused new import-origin draft is now this accepted slice;
+the two older frozen drafts and six protected root paths remain excluded.
+
+## Published checkpoint: September 9
+
+Remote `refs/heads/dev/v10` was rechecked read-only during the local continuation and resolved
+`9f750052e28374dd104746321f8cd3573b135925`. That hash includes the accepted goal-observation
+implementation and handover, but not the newer portable-origin slice described above.
 
 This section supersedes the September 5 snapshot below. Read it first on the destination machine.
 The latest source commit is `b6301c80bd2691ddeadb93f4522755eb1e193724`; its successor documents
@@ -24,7 +41,7 @@ existing product surface, not proof of better physical sensor quality or measure
 TI-B210 in [VERIFICATION_MATRIX.md](VERIFICATION_MATRIX.md) records the exact host/static gates.
 Full `ciCheck --continue` passed in `37m 40s`; the host XML inventory contains 9,396 tests,
 zero failures/errors and three unchanged skips, including valid cached outputs.
-No Android device was attached. The six-source program is incomplete and remains contained.
+No Android device was attached for that gate. The six-source program is incomplete and remains contained.
 
 Resume order:
 
@@ -44,7 +61,8 @@ Known observer limits: silent clock/zone/locale changes need an existing product
 subscription. A terminal database-invalidation stream failure needs reattachment. Do not treat
 independent day/week presentation snapshots as atomic durable reward authority.
 
-Unpublished work stays on the source machine: the six protected root files, the two frozen
+Historical publication inventory (the new import-origin state is superseded above): unpublished
+work stayed on the source machine: the six protected root files, the two frozen
 importer/awards drafts listed below, and the new paused `codex/ti-steps-import-origin` worktree at
 base `d020e1e7d`. The latter is an untested core/base representation draft, not accepted import
 support. Its inventory and next checks are in `CONTINUATION_HANDOVER.md`. Do not silently merge,

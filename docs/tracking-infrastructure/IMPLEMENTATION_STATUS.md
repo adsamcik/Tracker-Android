@@ -8,14 +8,26 @@ evidence index.
 
 ## September 9 continuation
 
-Restart inventory: clean local `dev/v10` at `d020e1e7d7d4fc9db9e6213e2e9d9cbf0c74875e`;
+Latest accepted local slice: portable-origin representation at `099f9e1b9fc33c624cf1152550ec4c98857b938d`,
+rebased onto the published `9f750052e` checkpoint for local `dev/v10`. TI-D150/TI-B211
+record the three Steps-only metadata tables, truthful nullable portable fact shape, preserved live
+integrity contract, 87 focused host tests and nine populated migration/reopen/deletion tests on one
+API 36 emulator. Full `ciCheck --continue` passed in 40m 50s; 9,407 host tests have zero failures/
+errors and three unchanged skips, including valid cached results. No importer, provider,
+writer or feature was activated; existing product readers still require their exact live authority.
+This replaces the paused status of the new import-origin draft below, not the two older frozen drafts.
+Next import work must coordinate admission with history/numeric consumers, re-export, scoped
+deletion, retention and repair before exposing production writes. New work remains local-only.
+
+Historical restart inventory before the published goal-observation checkpoint: clean local
+`dev/v10` at `d020e1e7d7d4fc9db9e6213e2e9d9cbf0c74875e`;
 read-only remote inspection still resolved that exact commit. The user subsequently requested
 publication of this checkpoint and handover; see `PUBLICATION_HANDOVER.md` for the bounded scope
 and require remote-HEAD verification after pushing. All six protected root
 hashes match the checkpoint. No Android device is connected, so the physical Steps-only gate
 remains unproven.
 
-Current bounded change: make existing qualified Steps goal progress observe the existing numeric
+Published bounded change: make existing qualified Steps goal progress observe the existing numeric
 repository while subscribed. Previously it used legacy update signals and only 250/500/1000 ms
 settlement retries; a later source-only settlement or correction could leave a visible goal stale.
 The existing Room observer already tracks the 14 durable read dependencies. No new schema,
