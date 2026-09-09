@@ -84,7 +84,9 @@ internal class PortableStepsRoomReader @Inject constructor(
 		database.useReaderConnection { connection ->
 			connection.deferredTransaction {
 				try {
-					readInTransaction(request)
+					mergeImportedSnapshot(
+						readInTransaction(request), ImportedStepsProductReader(database).exportInTransaction(request),
+					)
 				} catch (abort: PortableSnapshotAbort) {
 					PortableStepsSnapshot.Outcome(
 						ExportPortableStepsResult.Unverifiable(abort.reason),
@@ -169,6 +171,30 @@ internal class PortableStepsRoomReader @Inject constructor(
 			abort(PortableStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW)
 		}
 		return PortableStepsSnapshot.Ready(entries)
+	}
+
+	/** Both origins were preflighted in this same snapshot; external I/O remains outside it. */
+	private fun mergeImportedSnapshot(
+		live: PortableStepsSnapshot,
+		imported: PortableStepsSnapshot,
+	): PortableStepsSnapshot {
+		val snapshots = listOf(live, imported)
+		snapshots.filterIsInstance<PortableStepsSnapshot.Outcome>().firstOrNull {
+			it.result != ExportPortableStepsResult.NoEntries
+		}?.let { return it }
+		val entries = snapshots.filterIsInstance<PortableStepsSnapshot.Ready>().flatMap { it.entries }
+		if (entries.isEmpty()) { return noEntries() }
+		if (entries.size > StepsPortableFormatV1.MAX_ENTRIES) {
+			abort(PortableStepsExportUnverifiableReason.DEPENDENCY_OVERFLOW)
+		}
+		val runs = entries.flatMap { it.runs }
+		val facts = runs.flatMap { it.facts }
+		if (entries.map { it.identity }.distinct().size != entries.size ||
+			runs.map { it.identity }.distinct().size != runs.size ||
+			runs.map { it.deletionScopeDigest }.distinct().size != runs.size ||
+			facts.map { it.identity }.distinct().size != facts.size
+		) { abort(PortableStepsExportUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE) }
+		return PortableStepsSnapshot.Ready(entries.sortedWith(PORTABLE_STEPS_ENTRY_ORDER))
 	}
 
 	private suspend fun discoverLogicalEntries(

@@ -63,6 +63,21 @@ class DefaultTripRepositoryTest {
 		io.mockk.every { tripDao.getRecentTripsFlow(100) } returns flowOf(trips.toList())
 	}
 
+	@Test
+	fun `exact imported zero-sample detail carries origin before any supplementary lookup`() = runTest {
+		coEvery { tripDao.getById(10L) } returns Trip(
+			id = 10L, startTimeMs = 1_000L, endTimeMs = 2_000L, distanceM = 0f,
+			steps = null, primaryActivity = null, activityConfidence = null, sampleCount = 0,
+			source = SegmentSource.PORTABLE_STEPS_IMPORT, createdAt = 3_000L,
+		)
+		val detail = repository.getTripDetail(10L).getOrNull()!!
+		detail.source shouldBe SegmentSource.PORTABLE_STEPS_IMPORT
+		detail.primaryMode shouldBe TransportMode.UNKNOWN
+		detail.sampleCount shouldBe 0
+		io.mockk.coVerify(exactly = 1) { tripDao.getById(10L) }
+		io.mockk.confirmVerified(tripDao)
+	}
+
 	private fun <T> resultError(result: arrow.core.Either<StatsError, T>): StatsError {
 		return result.fold({ it }, { error("Expected Left but was Right") })
 	}

@@ -61,9 +61,11 @@ data class SessionHistory(
 ) {
 	init {
 		require(segmentId > 0L) { "Session history requires a persisted segment identity" }
-		val capturedSources = (capture as? HistoryCapture.Exact)?.revisions
-			?.flatMapTo(linkedSetOf()) { it.capturedSources }
-			.orEmpty()
+		val capturedSources = when (capture) {
+			is HistoryCapture.Exact -> capture.revisions.flatMapTo(linkedSetOf()) { it.capturedSources }
+			is HistoryCapture.ImportedSteps -> setOf(HistorySource.STEPS)
+			HistoryCapture.Unverifiable -> emptySet()
+		}
 		require(qualifiedSources.all(capturedSources::contains)) {
 			"Qualified history sources require exact historical capture authority"
 		}
@@ -105,6 +107,22 @@ sealed interface HistoryCapture {
 
 	/** Migrated or incomplete evidence cannot safely name the historical capture set. */
 	data object Unverifiable : HistoryCapture
+
+	/**
+	 * Verified portable Steps membership, not the original full capture/control selection.
+	 * Other captured sources and automation controls are deliberately absent from portable v1.
+	 */
+	data class ImportedSteps(val revisions: List<ImportedStepsCaptureRevision>) : HistoryCapture {
+		init {
+			require(revisions.isNotEmpty())
+			require(revisions.zipWithNext().all { (left, right) -> left.revision < right.revision })
+		}
+	}
+}
+
+/** A retained Steps capture revision; makes no claim about omitted capture or control sources. */
+data class ImportedStepsCaptureRevision(val revision: Long, val effectiveAt: EpochMs) {
+	init { require(revision > 0L) }
 }
 
 /** One checksum-verified immutable capture/control set within a physical service run. */
@@ -168,6 +186,42 @@ sealed interface StepsAwareHistoryPageEntry {
 	data class StepsOnly(
 		val history: StepsOnlyHistoryEntry,
 	) : StepsAwareHistoryPageEntry
+
+	/** Only Steps is retained here; the original capture/control selection is not known. */
+	data class ImportedSteps(val history: ImportedStepsHistoryEntry) : StepsAwareHistoryPageEntry
+}
+
+/** One authenticated imported logical entry and its exactly bound, individually selectable runs. */
+data class ImportedStepsHistoryEntry(
+	val key: TrackingHistoryEntryKey,
+	val startTime: EpochMs,
+	val endTime: EpochMs,
+	val physicalMembers: List<ImportedStepsHistoryMember>,
+) {
+	init {
+		require(physicalMembers.isNotEmpty())
+		require(physicalMembers.size <= MAX_PHYSICAL_MEMBERS) { "Imported Steps entries support at most 64 physical runs" }
+		require(physicalMembers.map { it.segmentId }.distinct().size == physicalMembers.size)
+		require(startTime == physicalMembers.minOf { it.startTime })
+		require(endTime == physicalMembers.maxOf { it.endTime })
+	}
+
+	private companion object {
+		const val MAX_PHYSICAL_MEMBERS = 64
+	}
+}
+
+/** Physical detail authority is local; its Long id is never exported as a portable identity. */
+data class ImportedStepsHistoryMember(
+	val segmentId: Long,
+	val startTime: EpochMs,
+	val endTime: EpochMs,
+	val steps: StepsHistory,
+) {
+	init {
+		require(segmentId > 0L)
+		require(endTime >= startTime)
+	}
 }
 
 /** Policy/capability availability, independent of acquisition and product progress. */
@@ -177,6 +231,8 @@ enum class HistoryAvailability {
 	PERMISSION_REQUIRED,
 	OS_LIMITED,
 	AVAILABLE,
+	/** Imported product is retained; this says nothing about local provider capability or consent. */
+	RETAINED_IMPORTED,
 	/** Retained evidence cannot safely distinguish the policy/capability state. */
 	UNAVAILABLE,
 }

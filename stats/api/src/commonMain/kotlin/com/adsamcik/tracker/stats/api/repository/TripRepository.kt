@@ -19,6 +19,8 @@ data class TripSummary(
 	val duration: DurationMs,
 	val primaryMode: TransportMode,
 	val sampleCount: Int,
+	/** Exact presentation origin; imported Steps must not trigger time-overlap route enrichment. */
+	val source: com.adsamcik.tracker.shared.model.SegmentSource? = null,
 )
 
 interface TripRepository {

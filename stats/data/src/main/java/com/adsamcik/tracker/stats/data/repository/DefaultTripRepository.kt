@@ -74,6 +74,7 @@ class DefaultTripRepository @Inject constructor(
 			duration = DurationMs((endTimeMs - startTimeMs).coerceAtLeast(0L)),
 			primaryMode = resolveTransportMode(),
 			sampleCount = sampleCount,
+			source = source,
 		)
 	}
 
