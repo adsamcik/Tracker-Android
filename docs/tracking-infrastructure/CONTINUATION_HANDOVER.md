@@ -2,6 +2,53 @@
 
 Last updated: 2026-09-09
 
+## Local follow-up after the reviewed publication
+
+Published `dev/v10` is `0460f12a54a3550244f8e8ea5c9fb1f5e2ef27d2`; the clean integration
+checkout remains `G:\Github\Tracker-Android\.worktrees\tracking-infra-integration`.
+The user's confirmed publication scope was consumed by that normal push. No later source work
+below is integrated or published, and none arrives in a clone of that checkpoint.
+This section supersedes the older paused/uncompiled inventory below without accepting drafts.
+
+- `ti-steps-import-admission`, `codex/ti-steps-import-admission`: clean accepted core dependency
+  `4db55146eccad9e39adc7725076cb2783d92e330`, parent `0460f12a5`. TI-D152/TI-B213.
+  Generic imported segment-retention exclusion requires the pending worker hooks before integration.
+- `ti-steps-import-product`, `codex/ti-steps-import-product`: accepted product dependency
+  `ecbdf6161c059e5d2ef93726b5700b9441854e8c`, canonical parent `4db55146e`. TI-D153/TI-B214.
+  Subsequent engine imported-day repair edits are unaccepted; preserve them separately.
+- `ti-steps-summary-authority`, `codex/ti-steps-summary-authority`: clean accepted API cleanup
+  `3f62d5c644b44277088097800a85637a955cfdb0`, parent `0460f12a5`. TI-D154/TI-B215.
+- `ti-steps-import-actions`, `codex/ti-steps-import-actions`: coordinator worktree with accepted
+  dependency cherries and accepted retention `299f9de21` (TI-D155/TI-B216), followed by accepted
+  Dashboard/Detail `0a820f3f6` (TI-D156/TI-B217). The source branches above retain canonical
+  ancestry. Both actions source chunks are committed, not integrated or authorized for publication.
+
+Actions gate `81757` ended with only the Dashboard XML namespace failure; its core/static/Detail
+successes and exact boundary are in TI-B216. The namespace fix was verified by green `97335`
+(4m 33s): 26 app retention tests, 18 Dashboard tests, Detekt and lint. Final plural-resource
+refinement passed `74425` (2m 5s), including the same 18 Dashboard tests, Detekt and lint.
+Together with 68 core and 20 statistics tests, this is 132 passing focused host tests, not a full
+converged `ciCheck`. All three actions sessions are terminal; do not poll their old handles.
+
+The product agent owns the sole Gradle lane for engine follow-up. Session `62111` began its first
+focused engine/selected-deletion cohort after main released the lane. Engine source remains
+unaccepted until its terminal results, scoped fixes, Detekt/lint and exact commit are recorded.
+Use the live task's receipt to supersede this transient process state; never assume a historical
+PID/session is active. Do not start a competing build or edit its frozen input.
+
+Engine follow-up must preserve source-qualified partial/zero semantics and stored zone authority,
+not invent elapsed duration from imported wall bounds or allocate an unbounded collection of full
+entry facts. Import-only compatibility-cache preservation must not be reused for deletion: raw
+database exports can contain a deleted aggregate contribution. Keep the existing selected-deletion
+partial/unrepresentable guard until atomic redaction is implemented and tested.
+
+Next integration requires coordinated retention/repair acceptance, a frozen converged input,
+`ciUnitTest` at the integration gate and full `ciCheck --continue`, then rebase onto latest local
+`dev/v10` and integrate from the clean integration checkout. Preserve canonical source commits
+when removing duplicate cherries. Do not merge a dependency alone while its retention hooks are
+missing. Keep the six protected root paths and both older frozen drafts untouched. No new push,
+importer activation, provider proof, release or completion of the six-source program is claimed.
+
 ## Current publication and paused parallel work
 
 The user confirmed publication of **reviewed implementation and handover only**. Accepted source

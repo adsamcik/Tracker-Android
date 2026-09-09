@@ -2,6 +2,31 @@
 
 Last updated: 2026-09-09
 
+## Verified publication versus newer local work
+
+The actual published checkpoint is `0460f12a54a3550244f8e8ea5c9fb1f5e2ef27d2`, verified by
+`git ls-remote --heads origin refs/heads/dev/v10`. A normal clone of `dev/v10` contains reviewed
+portable-origin storage and its handover, not the subsequent work below. No new push is authorized.
+
+Newer local accepted dependencies are core `4db55146e`, imported product `ecbdf6161`, and API
+cleanup `3f62d5c6`. The coordinator's `ti-steps-import-actions` branch contains their dependency
+cherries plus retention/worker hooks `299f9de21` and Dashboard/Detail `0a820f3f6`. Exact commands,
+results and boundaries are TI-B213 through TI-B217. These are local dependency/slice checkpoints,
+not fully converged integration or importer activation. A separate engine repair draft is still
+under validation. See the current top of [CONTINUATION_HANDOVER.md](CONTINUATION_HANDOVER.md)
+for ownership, branch ancestry and build-lane state before continuing on this machine.
+
+On another machine, do not assume these local commits or drafts arrived. Restart from the verified
+published boundary unless a separately authorized transfer supplies them; verify its hashes and
+cleanliness before use. Preserve the original source branches until canonical ancestry is restored
+in convergence. The six protected paths and two older frozen importer/awards drafts remain excluded;
+all six protected hashes were rechecked unchanged after the local retention/UI commits.
+
+The remaining source order and product goals below are unchanged. Partial imported materialization
+must neither invent duration from wall bounds nor turn unavailable Steps into zero. Retention fences
+are not complete admission/deletion/no-resurrection proof. Full host integration and representative
+physical Steps-only evidence remain open; do not claim that the six-source effort is finished.
+
 ## Current transfer checkpoint: reviewed portable origins
 
 The current publication request includes accepted source `099f9e1b9`, accepted documentation
