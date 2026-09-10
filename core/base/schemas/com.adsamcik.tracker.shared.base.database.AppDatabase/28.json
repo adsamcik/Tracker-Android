@@ -8235,7 +8235,7 @@
       },
       {
         "tableName": "xp_ledger",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `amount` INTEGER NOT NULL, `source` TEXT NOT NULL, `source_id` INTEGER, `earned_at` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `amount` INTEGER NOT NULL, `source` TEXT NOT NULL, `source_id` INTEGER, `source_key` TEXT, `source_revision` INTEGER, `earned_at` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -8261,6 +8261,16 @@
             "affinity": "INTEGER"
           },
           {
+            "fieldPath": "sourceKey",
+            "columnName": "source_key",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceRevision",
+            "columnName": "source_revision",
+            "affinity": "INTEGER"
+          },
+          {
             "fieldPath": "earnedAt",
             "columnName": "earned_at",
             "affinity": "INTEGER",
@@ -8283,6 +8293,16 @@
             ],
             "orders": [],
             "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_xp_ledger_source_source_id` ON `${TABLE_NAME}` (`source`, `source_id`)"
+          },
+          {
+            "name": "index_xp_ledger_source_source_key",
+            "unique": true,
+            "columnNames": [
+              "source",
+              "source_key"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_xp_ledger_source_source_key` ON `${TABLE_NAME}` (`source`, `source_key`)"
           }
         ]
       },

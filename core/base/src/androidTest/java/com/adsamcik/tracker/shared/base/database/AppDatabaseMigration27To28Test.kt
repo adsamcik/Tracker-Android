@@ -678,6 +678,19 @@ class AppDatabaseMigration27To28Test {
 		// v27 observations remain byte-for-byte facts; migration must not invent semantics.
 		assertTableCount(database, "step_fact_revision", 0)
 		assertTableCount(database, "steps_goal_effect", 0)
+		database.query("PRAGMA table_info(xp_ledger)").use { cursor ->
+			val columns = buildSet {
+				val nameColumn = cursor.getColumnIndexOrThrow("name")
+				while (cursor.moveToNext()) add(cursor.getString(nameColumn))
+			}
+			assertTrue("source_key" in columns)
+			assertTrue("source_revision" in columns)
+		}
+		assertIndexColumns(
+			database,
+			"index_xp_ledger_source_source_key",
+			listOf("source", "source_key"),
+		)
 		assertTableCount(database, "imported_steps_entry", 0)
 		assertTableCount(database, "imported_steps_run", 0)
 		assertTableCount(database, "imported_steps_manifest", 0)

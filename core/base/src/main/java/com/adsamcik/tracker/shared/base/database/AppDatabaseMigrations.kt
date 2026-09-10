@@ -1386,6 +1386,12 @@ val MIGRATION_27_28: Migration = object : Migration(
 		with(db) {
 			execSQL("ALTER TABLE session_segment ADD COLUMN logical_tracking_id TEXT")
 			execSQL("ALTER TABLE session_segment ADD COLUMN service_run_id TEXT")
+			execSQL("ALTER TABLE xp_ledger ADD COLUMN source_key TEXT")
+			execSQL("ALTER TABLE xp_ledger ADD COLUMN source_revision INTEGER")
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS index_xp_ledger_source_source_key " +
+					"ON xp_ledger(source, source_key)",
+			)
 			execSQL(
 				"ALTER TABLE quarantined_signal ADD COLUMN " +
 					"acquired_at_ms INTEGER NOT NULL DEFAULT 0",
