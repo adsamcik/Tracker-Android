@@ -90,6 +90,23 @@ the TI-B220 focused set plus complete affected suites, static/schema gates, `ciU
 `ciCheck`; registry exposure, malformed/reopen/correction coverage, file round trip,
 no-resurrection, device/UI, activation, integration, publication, and release remain open.
 
+## TI-B222 — Portable Steps file routing and transaction ownership, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `c58fcc85f`. Nine reviewed import/export source, resource,
+and test paths register the import-only `.trackersteps` format, resolve the authoritative
+source-local importer, apply the strict bounded v1 codec, and make the import worker honor per-format
+transaction ownership for both direct and archived entries. Existing formats remain worker-managed;
+portable Steps acquires its day locks before its own Room transaction and records a success or
+failure receipt afterward in the existing receipt store.
+
+Authored, unexecuted assertions cover format discovery, import-only metadata, byte-limit routing,
+applied/replay/fence/conflict/unverifiable/retry mappings, valid-prefix continuation after permanent
+entry refusal, malformed input, cancellation, importer-versus-worker transaction boundaries, and
+transactional receipt writes. No command was run under TI-D157. Later convergence must compile and
+run the import/export module and PORT-011 Room contracts before broader source, static/schema,
+`ciUnitTest`, `ciCheck`, round-trip/no-resurrection, device/UI, integration, activation, publication,
+or release claims.
+
 ## Static source × mode matrix
 
 | ID | Source | Mode | Capture sources | Declared controls | Qualified `RECORDING` evidence | Canonical output | Production history/UI assertion | Current status |

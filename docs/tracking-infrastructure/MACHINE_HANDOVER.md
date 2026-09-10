@@ -14,13 +14,13 @@ convergence phase, do not invoke Gradle, compilation, tests, lint, Detekt, schem
 emulator/device, evaluator, battery, CI, or release tasks. New commits are
 `IMPLEMENTED_UNVALIDATED` and stay off local `dev/v10` and all remotes.
 
-The current implementation boundary is atomic portable Steps stored-zone day repair `3dfa4eaad` on
+The current implementation boundary is the import-only `.trackersteps` file bridge `c58fcc85f` on
 the coordinator `codex/ti-steps-import-actions`, after imported day composition `293ff43e5`
-(canonical `f93b373ef`), portable admission `8abd7c6e3`, and their documentation checkpoints.
-TI-D158/TI-B219 through TI-D160/TI-B221 record the source contracts, authored tests, and deliberately
-deferred validation. The importer is bound for dependency injection but remains unreachable from
-the file registry. The earlier two stopped-run failures remain validation debt rather than current
-acceptance evidence.
+(canonical `f93b373ef`), portable admission `8abd7c6e3`, atomic stored-zone day repair `3dfa4eaad`,
+and their documentation checkpoints. TI-D158/TI-B219 through TI-D161/TI-B222 record the source
+contracts, authored tests, and deliberately deferred validation. The strict file adapter is now
+discoverable, while importer-owned entry transactions remain outside the legacy receipt transaction.
+The earlier two stopped-run failures remain validation debt rather than current acceptance evidence.
 Preserve the six root paths, both older frozen drafts, and all source branch ancestry. Once every
 source vertical is built, assemble a dedicated convergence branch and only then run and fix the
 full evidence plan.
@@ -38,9 +38,9 @@ composition `f93b373ef`, and API cleanup `3f62d5c6`. The coordinator's
 boundaries are TI-B213 through TI-B219. These are local dependency/slice checkpoints, not fully
 converged integration or importer activation; no validation is active. See the current top of
 [CONTINUATION_HANDOVER.md](CONTINUATION_HANDOVER.md) for ownership and branch ancestry before
-continuing on this machine. `TODO-STEPS-PORT-007` is implemented at `3dfa4eaad`; next,
-`TODO-STEPS-PORT-010` may connect the file path without touching the protected legacy
-DatabaseImport files. Finish the remaining PORT-011 tests before exposure.
+continuing on this machine. `TODO-STEPS-PORT-010` is implemented at `c58fcc85f` without touching the
+protected legacy DatabaseImport files. Finish PORT-011's remaining malformed retained-state,
+reopen, and correction-specific tests before continuing with imported selected deletion.
 
 On another machine, do not assume these local commits or drafts arrived. Restart from the verified
 published boundary unless a separately authorized transfer supplies them; verify its hashes and

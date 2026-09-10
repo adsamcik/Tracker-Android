@@ -212,7 +212,7 @@ commits. Remaining work may complete concrete bindings, but must not replace the
   from lossy compatibility aggregates.
 - [x] TODO-STEPS-PORT-009 Return a typed refusal when retention has removed identity required to
   reproduce the original portable scope.
-- [ ] TODO-STEPS-PORT-010 Connect the production file import path and registry to the new importer
+- [x] TODO-STEPS-PORT-010 Connect the production file import path and registry to the new importer
   without touching the six protected root-checkout drafts.
 - [ ] TODO-STEPS-PORT-011 Author atomicity, malformed input, collision, replay, correction,
   cancellation, storage failure, reopen, and bounded-resource tests without executing them.
@@ -223,8 +223,10 @@ completes PORT-007 by holding all conservatively affected civil-day locks before
 transaction, resolving persisted-or-imported stored-zone authority, repairing exact source totals,
 and publishing source/table invalidation only after commit. Partial or Int-unrepresentable Steps
 requires a pre-existing compatibility integer; conflicting or unverifiable day authority rolls the
-whole hierarchy back. PORT-011 remains open for malformed retained-state, reopen, and
-correction-specific coverage.
+whole hierarchy back. `c58fcc85f` supplies PORT-010 with a strict bounded `.trackersteps` adapter,
+registry and worker routing, importer-owned transaction dispatch, post-success receipt recording,
+and focused unexecuted file/transaction tests. PORT-011 remains open for malformed retained-state,
+reopen, and correction-specific coverage.
 
 ### Imported selected deletion and repair
 

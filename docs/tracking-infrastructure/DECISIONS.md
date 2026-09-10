@@ -2510,3 +2510,22 @@ Each entry records repository evidence and does not duplicate the final architec
 - The importer remains unreachable from file discovery. No validation command ran; compilation,
   test behavior, malformed/reopen/correction coverage, file round trip, no-resurrection, activation,
   integration, publication, device, or release evidence is claimed.
+
+## TI-D161 — Route portable Steps files without stealing source-local transaction authority
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-10; source `c58fcc85f`, TI-B222.
+- Register one import-only, versioned `.trackersteps` descriptor and decode it only through the
+  existing strict bounded portable v1 codec. Resolve the already-bound source-local command from
+  the application graph; the adapter creates no provider, session, run, capture, or control demand.
+- Honor the existing `FileImport.transactionMode` contract. Legacy importers retain the worker's
+  enclosing receipt transaction. Portable Steps executes outside it so bounded civil-day locks can
+  precede the importer's own atomic Room transaction; a successful replay receipt is recorded in a
+  separate transaction only after source-local completion.
+- Map applied entries, identical replay, deletion/retention fences, permanent conflict or
+  unverifiable state, and transient retryable failure distinctly. Cancellation continues to escape.
+  Direct-file content addressing is bounded by the format's maximum byte count; archive bounds and
+  per-entry replay receipts remain owned by the existing archive path.
+- Focused adapter, registry, routing, transaction-boundary, failure-receipt, malformed-input, and
+  cancellation tests are authored but were not run. Malformed retained-state, reopen,
+  correction-specific Room coverage, complete file round trip, no-resurrection, device/UI,
+  integration, activation, publication, and release evidence remain open.
