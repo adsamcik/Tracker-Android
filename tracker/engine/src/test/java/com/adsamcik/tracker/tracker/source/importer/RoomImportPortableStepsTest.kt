@@ -5,6 +5,7 @@ import android.database.sqlite.SQLiteException
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.markAuthenticatedStepsRunsAffectedByRetentionFloor
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
@@ -280,6 +281,64 @@ class RoomImportPortableStepsTest {
 		tableCount("imported_steps_run") shouldBe 1L
 		database.sessionSegmentDao().countTotal() shouldBe 1L
 		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `extra imported correction lineage blocks deletion before mutation`() = runTest {
+		val entry = entry()
+		subject().importEntry(entry) shouldBe ImportPortableStepsResult.Applied(1, 1)
+		val portableRun = entry.runs.single()
+		val storedRun = requireNotNull(database.importedStepsDao().run(portableRun.identity.value))
+		val original = requireNotNull(database.stepFactRevisionDao().latest(
+			SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+			SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+			portableRun.facts.single().identity.value,
+		))
+		val localScope = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			entry.identity.value,
+			portableRun.identity.value,
+		)
+		database.stepFactRevisionDao().insert(localRetraction(original, localScope)) shouldNotBe -1L
+
+		deletionSubject().deleteSelectedSession(requireNotNull(storedRun.sessionSegmentId)) shouldBe
+			StepsSessionDeletionResult.UnsupportedScope(
+				StepsSessionDeletionUnsupportedReason.IMPORTED_AUTHORITY_UNVERIFIABLE,
+			)
+
+		tableCount("imported_steps_entry") shouldBe 1L
+		tableCount("imported_steps_run") shouldBe 1L
+		database.sessionSegmentDao().countTotal() shouldBe 1L
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `retention loss blocks imported deletion before capture fences or payload removal`() = runTest {
+		val entry = entry()
+		subject().importEntry(entry) shouldBe ImportPortableStepsResult.Applied(1, 1)
+		val storedRun = requireNotNull(database.importedStepsDao().run(entry.runs.single().identity.value))
+		database.markAuthenticatedStepsRunsAffectedByRetentionFloor(
+			beforeMs = START_MS + 1L,
+			collectedDataEpoch = 3L,
+			markedAtMs = 50_050L,
+		) shouldBe 1
+
+		deletionSubject().deleteSelectedSession(requireNotNull(storedRun.sessionSegmentId)) shouldBe
+			StepsSessionDeletionResult.UnsupportedScope(
+				StepsSessionDeletionUnsupportedReason.RETENTION_TRUNCATED_HISTORY,
+			)
+
+		tableCount("imported_steps_entry") shouldBe 1L
+		tableCount("imported_steps_run") shouldBe 1L
+		database.sessionSegmentDao().countTotal() shouldBe 1L
+		database.stepFactRevisionDao().countAll() shouldBe 1L
+		database.sourceDeletionFenceDao().contains(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+			SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+			entry.runs.single().deletionScopeDigest.value,
+		) shouldBe false
 	}
 
 	@Test
