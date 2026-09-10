@@ -133,6 +133,9 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 			"source_deletion_fence",
 			"step_fact_revision",
 			"session_segment",
+			"imported_steps_entry",
+			"imported_steps_run",
+			"imported_steps_manifest",
 		)
 	}
 }

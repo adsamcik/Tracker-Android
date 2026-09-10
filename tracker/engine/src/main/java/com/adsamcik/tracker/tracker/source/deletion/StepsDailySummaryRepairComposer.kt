@@ -26,6 +26,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessE
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.base.database.data.StepsSessionCompletenessIntegrity
+import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
 import com.adsamcik.tracker.stats.api.repository.StepsSessionDeletionUnsupportedReason
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
@@ -101,7 +102,7 @@ internal class StepsDailySummaryRepairComposer(
 			queryBounds = queryBounds,
 			discoverSourceRuns = true,
 			blockOnActiveUnboundNonSteps = true,
-		).requirePersistableNumericSteps()
+		).requireDeletionNumericSteps()
 	}
 
 	/** Composes one production materialization key under its already-selected calendar authority. */
@@ -117,7 +118,7 @@ internal class StepsDailySummaryRepairComposer(
 			queryBounds = QueryBounds(fromMs = fromMs, toMs = toMs),
 			discoverSourceRuns = true,
 			blockOnActiveUnboundNonSteps = true,
-		).requirePersistableNumericSteps()
+		).preservePartialCompatibilitySteps(database.dailySummaryDao().getBetween(epochDay, epochDay))
 	}
 
 	/**
@@ -165,8 +166,24 @@ internal class StepsDailySummaryRepairComposer(
 			queryBounds = queryBounds,
 			excludedSegmentId = excludedSegmentId,
 		) ?: return unverifiable()
+		val factRunIds = if (discoverSourceRuns) {
+			factServiceRunCandidateIds(queryBounds) ?: return unverifiable()
+		} else {
+			emptyList()
+		}
+		// Imported batches can be consumed and discarded now. Any later failure discards this
+		// read-only accumulator; no derived row is written before all origin partitions validate.
+		val accumulator = when {
+			zoneByDay.isNotEmpty() -> StepsNumericDayWindowAccumulator.create(zoneByDay)
+			excludedSegmentId != null -> StepsNumericDayWindowAccumulator.createEmptyValidationOnly()
+			else -> null
+		} ?: return unverifiable()
+		val imported = ImportedStepsDayContributionReader(database).read(
+			queryBounds.fromMs, queryBounds.toMs, presentationSegments, factRunIds,
+			accumulator, excludedSegmentId,
+		) ?: return unverifiable()
 		val discoveredSourceRuns = if (discoverSourceRuns) {
-			(allSourceRunCandidates(queryBounds) ?: return unverifiable()).filterNot { run ->
+			(allSourceRunCandidates(queryBounds, factRunIds - imported.runIds) ?: return unverifiable()).filterNot { run ->
 				excludedSegmentId != null && run.sessionSegmentId == excludedSegmentId
 			}
 		} else {
@@ -197,10 +214,11 @@ internal class StepsDailySummaryRepairComposer(
 		if (sourceOwnedSegments.map(SessionSegment::id).toSet() != referencedSegmentIds) {
 			return unverifiable()
 		}
-		val segments = (presentationSegments + sourceOwnedSegments)
+		val importedSegments = imported.segments.filterNot { it.id == excludedSegmentId }
+		val segments = (presentationSegments.filterNot { it.source == SegmentSource.PORTABLE_STEPS_IMPORT } + sourceOwnedSegments)
 			.distinctBy(SessionSegment::id)
 			.sortedWith(compareBy<SessionSegment>(SessionSegment::startTimeMs).thenBy(SessionSegment::id))
-		if (segments.isEmpty() && unboundRuns.isEmpty()) {
+		if (segments.isEmpty() && unboundRuns.isEmpty() && importedSegments.isEmpty()) {
 			return StepsDayRepairPreflight.Ready(
 				zoneByDay.map { (epochDay, zoneId) ->
 					StepsDayRepairPlan(
@@ -212,7 +230,7 @@ internal class StepsDailySummaryRepairComposer(
 				},
 			)
 		}
-		if (hasForbiddenPhysicalOverlap(segments, requireNonOverlappingLogicalSessions)) {
+		if (hasForbiddenPhysicalOverlap(segments + importedSegments, requireNonOverlappingLogicalSessions)) {
 			return unverifiable()
 		}
 
@@ -258,12 +276,18 @@ internal class StepsDailySummaryRepairComposer(
 		}
 		if (hasForbiddenCaptureOverlap(
 			contributions = contributions,
+			importedSegments = importedSegments,
 			unboundNonStepsCaptures = unboundNonStepsCaptures,
 			rejectCrossLogicalOverlap = requireNonOverlappingLogicalSessions,
 		)) {
 			return unverifiable()
 		}
 		val groups = contributions.groupBy(SegmentContribution::logicalTrackingId)
+		if (groups.keys.any { it in imported.logicalTrackingIds } ||
+			materializingAuthorities.any { it.logicalTrackingId in imported.logicalTrackingIds }
+		) {
+			return unverifiable()
+		}
 		if (groups.values.any(::hasIncompatibleLogicalGroup)) {
 			return unverifiable()
 		}
@@ -281,11 +305,6 @@ internal class StepsDailySummaryRepairComposer(
 		) {
 			return unverifiable()
 		}
-		val accumulator = when {
-			zoneByDay.isNotEmpty() -> StepsNumericDayWindowAccumulator.create(zoneByDay)
-			excludedSegmentId != null -> StepsNumericDayWindowAccumulator.createEmptyValidationOnly()
-			else -> null
-		} ?: return unverifiable()
 		for (group in groups.values) {
 			if (!accumulator.addLogicalGroup(group.map { contribution ->
 					contribution.toAccumulatorContribution()
@@ -315,13 +334,14 @@ internal class StepsDailySummaryRepairComposer(
 					totals = if (day.hasContribution) {
 						DailySummaryTotals(
 							distanceM = day.distanceM,
-							steps = day.steps,
+							steps = day.steps ?: 0,
 							durationMs = day.durationMs,
 							tripCount = day.tripCount,
 						)
 					} else {
 						null
 					},
+					hasCompatibilitySteps = day.steps != null,
 					numericSteps = when {
 						day.hasPartialStepsCapture ||
 							day.hasCompleteStepsCapture && day.hasNonStepsCapture ->
@@ -406,10 +426,10 @@ internal class StepsDailySummaryRepairComposer(
 	@Suppress("ReturnCount")
 	private suspend fun allSourceRunCandidates(
 		queryBounds: QueryBounds,
+		factRunIds: List<String>,
 	): List<SourceServiceRunEntity>? {
 		val envelopeRuns = serviceRunCandidates(queryBounds) ?: return null
 		val runsById = envelopeRuns.associateByTo(linkedMapOf()) { run -> run.serviceRunId }
-		val factRunIds = factServiceRunCandidateIds(queryBounds) ?: return null
 		val missingRunIds = factRunIds.filterNot(runsById::containsKey)
 		for (ids in missingRunIds.chunked(QUERY_ID_BATCH_SIZE)) {
 			val loaded = database.trackingHistoryReadDao().serviceRuns(ids)
@@ -1632,6 +1652,7 @@ internal class StepsDailySummaryRepairComposer(
 
 	private fun hasForbiddenCaptureOverlap(
 		contributions: List<SegmentContribution>,
+		importedSegments: List<SessionSegment>,
 		unboundNonStepsCaptures: List<UnboundNonStepsCapture>,
 		rejectCrossLogicalOverlap: Boolean,
 	): Boolean {
@@ -1641,6 +1662,8 @@ internal class StepsDailySummaryRepairComposer(
 				startMs = contribution.segment.startTimeMs,
 				endMs = contribution.segment.endTimeMs,
 			)
+		} + importedSegments.map { segment ->
+			LogicalCaptureInterval(requireNotNull(segment.logicalTrackingId), segment.startTimeMs, segment.endTimeMs)
 		} + unboundNonStepsCaptures.map { capture ->
 			LogicalCaptureInterval(
 				logicalTrackingId = capture.logicalTrackingId,
@@ -2079,17 +2102,43 @@ internal class StepsDailySummaryRepairComposer(
 		StepsSessionDeletionUnsupportedReason.DAY_REPAIR_UNVERIFIABLE,
 	)
 
-	/** Untyped daily_summary cannot preserve the uncertainty carried by PartialCapture. */
-	private fun StepsDayRepairPreflight.requirePersistableNumericSteps(): StepsDayRepairPreflight =
+	/** Selected deletion must not preserve a compatibility count that could contain deleted data. */
+	private fun StepsDayRepairPreflight.requireDeletionNumericSteps(): StepsDayRepairPreflight =
+		if (this is StepsDayRepairPreflight.Ready && plans.any {
+			it.numericSteps == StepsDayNumericComposition.PartialCapture || !it.hasCompatibilitySteps
+		}) {
+			unverifiable()
+		} else {
+			this
+		}
+
+	/**
+	 * The raw Steps cache is compatibility-only. Partial repair updates independent metrics without
+	 * replacing that cache with a proportional estimate or presenting it as qualified numeric proof.
+	 */
+	private fun StepsDayRepairPreflight.preservePartialCompatibilitySteps(
+		summaries: List<DailySummaryEntity>,
+	): StepsDayRepairPreflight =
 		when (this) {
-			is StepsDayRepairPreflight.Ready -> if (
-				plans.any { plan ->
-					plan.numericSteps == StepsDayNumericComposition.PartialCapture
+			is StepsDayRepairPreflight.Ready -> {
+				val existing = summaries.associateBy(DailySummaryEntity::dateEpochDay)
+				val needsPreservedSteps = plans.filter { plan ->
+					plan.totals != null &&
+						(plan.numericSteps == StepsDayNumericComposition.PartialCapture || !plan.hasCompatibilitySteps)
 				}
-			) {
-				unverifiable()
-			} else {
-				this
+				if (needsPreservedSteps.any { plan -> existing[plan.epochDay] == null }) {
+					unverifiable()
+				} else {
+					copy(plans = plans.map { plan ->
+						if (plan in needsPreservedSteps) {
+							plan.copy(totals = plan.totals?.copy(
+								steps = requireNotNull(existing[plan.epochDay]).totalSteps,
+							))
+						} else {
+							plan
+						}
+					})
+				}
 			}
 			else -> this
 		}
@@ -2273,6 +2322,8 @@ internal data class StepsDayRepairPlan(
 	val zoneId: ZoneId,
 	val totals: DailySummaryTotals?,
 	val numericSteps: StepsDayNumericComposition,
+	/** False means the legacy integer cache must be preserved, not clamped into decision evidence. */
+	val hasCompatibilitySteps: Boolean = true,
 )
 
 /** Decision-facing Steps truth carried beside the broader day-repair totals. */

@@ -63,7 +63,8 @@ internal class StepsNumericDayWindowAccumulator private constructor(
 				val cell = days[dayIndex]
 				cell.distanceM += contribution.distanceM.toDouble() *
 					(inDayDuration.toDouble() / segmentDuration.toDouble())
-				val accumulatedDuration = addExact(cell.durationMs, inDayDuration)
+				val durationContribution = if (contribution.contributesTrackedDuration) { inDayDuration } else { 0L }
+				val accumulatedDuration = addExact(cell.durationMs, durationContribution)
 				if (accumulatedDuration == null) {
 					compositionInvalid = true
 				} else {
@@ -75,6 +76,9 @@ internal class StepsNumericDayWindowAccumulator private constructor(
 					// A bound presentation interval is enough to avoid claiming NotCaptured, but
 					// only qualified fact wall intervals may promote the day to exact coverage.
 					cell.potentialStepsRunIds += contribution.serviceRunId
+				}
+				if (contribution.hasPartialStepsEvidence) {
+					cell.partialStepsRunIds += contribution.serviceRunId
 				}
 				if (contribution.hasManifestWithoutStepsCapture) {
 					cell.hasNonStepsCapture = true
@@ -99,6 +103,17 @@ internal class StepsNumericDayWindowAccumulator private constructor(
 		return true
 	}
 
+	/** A retained nonnumeric interval is source evidence even outside its presentation envelope. */
+	fun addUncoveredStepsInterval(serviceRunId: String, startMs: Long, endMs: Long, isGap: Boolean): Boolean {
+		if (serviceRunId.isBlank() || endMs < startMs || startMs == Long.MAX_VALUE) { return false }
+		forEachOverlappingWindow(startMs, maxOf(endMs, startMs + 1L)) { dayIndex ->
+			days[dayIndex].potentialStepsRunIds += serviceRunId
+			if (isGap) { days[dayIndex].partialStepsRunIds += serviceRunId }
+			days[dayIndex].hasContribution = true
+		}
+		return true
+	}
+
 	@Suppress("ComplexCondition", "CyclomaticComplexMethod")
 	fun startRun(contribution: StepsNumericRunContribution): Boolean {
 		if (currentRun != null || contribution.serviceRunId.isBlank() ||
@@ -115,6 +130,7 @@ internal class StepsNumericDayWindowAccumulator private constructor(
 			capturedZoneId = contribution.capturedZoneId,
 			stepsManifestRevisions = contribution.stepsManifestRevisions,
 			hasManifestWithoutStepsCapture = contribution.hasManifestWithoutStepsCapture,
+			hasPartialStepsEvidence = contribution.hasPartialStepsEvidence,
 			coverageByDay = arrayOfNulls(windows.size),
 		)
 		return true
@@ -150,6 +166,9 @@ internal class StepsNumericDayWindowAccumulator private constructor(
 			}
 			val cell = days[dayIndex]
 			cell.hasContribution = true
+			if (run.hasPartialStepsEvidence) {
+				cell.partialStepsRunIds += run.serviceRunId
+			}
 			if (run.hasManifestWithoutStepsCapture) {
 				cell.hasNonStepsCapture = true
 			}
@@ -199,8 +218,7 @@ internal class StepsNumericDayWindowAccumulator private constructor(
 		return windows.mapIndexed { index, window ->
 			val cell = days[index]
 			if (!cell.distanceM.isFinite() || cell.distanceM > Float.MAX_VALUE ||
-				cell.exactStepsOverflow ||
-				cell.allocatedSteps !in 0L..Int.MAX_VALUE
+				cell.exactStepsOverflow
 			) {
 				return null
 			}
@@ -210,7 +228,7 @@ internal class StepsNumericDayWindowAccumulator private constructor(
 			StepsNumericAccumulatedDay(
 				epochDay = window.epochDay,
 				distanceM = cell.distanceM.toFloat(),
-				steps = cell.allocatedSteps.toInt(),
+				steps = cell.allocatedSteps.takeIf { it in 0L..Int.MAX_VALUE }?.toInt(),
 				durationMs = cell.durationMs,
 				tripCount = cell.tripCount,
 				hasContribution = cell.hasContribution,
@@ -316,6 +334,7 @@ internal class StepsNumericDayWindowAccumulator private constructor(
 		val capturedZoneId: ZoneId,
 		val stepsManifestRevisions: Set<Long>,
 		val hasManifestWithoutStepsCapture: Boolean,
+		val hasPartialStepsEvidence: Boolean,
 		val coverageByDay: Array<RunDayCoverage?>,
 	)
 
@@ -509,6 +528,10 @@ internal data class StepsNumericRunContribution(
 	val stepsManifestRevisions: Set<Long>,
 	/** Any manifest slice lacking Steps makes fact-backed civil totals conservative for this run. */
 	val hasManifestWithoutStepsCapture: Boolean,
+	/** Retained gaps/settlement/retention uncertainty never imply a different captured source. */
+	val hasPartialStepsEvidence: Boolean = false,
+	/** Portable wall envelopes do not establish elapsed tracked duration. */
+	val contributesTrackedDuration: Boolean = true,
 )
 
 internal data class StepsNumericCoveredFact(
@@ -523,7 +546,8 @@ internal data class StepsNumericCoveredFact(
 internal data class StepsNumericAccumulatedDay(
 	val epochDay: Long,
 	val distanceM: Float,
-	val steps: Int,
+	/** Compatibility allocation only; a Long qualified count need not fit this obsolete cache. */
+	val steps: Int?,
 	val durationMs: Long,
 	val tripCount: Int,
 	val hasContribution: Boolean,

@@ -350,14 +350,16 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 	}
 
 	@Test
-	fun `production materializer leaves summary unchanged for wall-uncertain Steps`() = runTest {
+	fun `production materializer preserves compatibility Steps while repairing independent totals`() = runTest {
 		val day = LocalDate.of(2026, 4, 2).toEpochDay()
 		val dayStart = LocalDate.ofEpochDay(day).atStartOfDay(ZONE).toInstant().toEpochMilli()
+		val startMs = dayStart + 500L
+		val endMs = dayStart + HOUR_MS
 		insertAttributedCandidateSurvivor(
 			logicalId = "logical-worker-wall-uncertain",
 			runId = "run-worker-wall-uncertain",
-			startMs = dayStart + 500L,
-			endMs = dayStart + HOUR_MS,
+			startMs = startMs,
+			endMs = endMs,
 			stepCount = 6L,
 			factTransform = { fact ->
 				fact.copy(
@@ -377,8 +379,6 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 			lastUpdatedMs = 123L,
 			calendarZoneId = ZONE.id,
 		)
-		val before = database.dailySummaryDao().getByDay(day)
-
 		val outcome = materializeDailySummaryDayInTransaction(
 			database = database,
 			aggregator = DailySummaryAggregator(
@@ -390,8 +390,14 @@ class RoomStepsSelectedSessionDeletionServiceTest {
 			capturedZoneId = ZONE,
 		)
 
-		outcome shouldBe DailySummaryMaterializationOutcome.Unverifiable
-		database.dailySummaryDao().getByDay(day) shouldBe before
+		outcome shouldBe DailySummaryMaterializationOutcome.Ready
+		val repaired = requireNotNull(database.dailySummaryDao().getByDay(day))
+		repaired.totalSteps shouldBe 123
+		repaired.totalDistanceM shouldBe 0f
+		repaired.totalDurationMs shouldBe endMs - startMs
+		repaired.tripCount shouldBe 1
+		repaired.activeTrackingMs shouldBe 123L
+		repaired.calendarZoneId shouldBe ZONE.id
 	}
 
 	@Test
