@@ -17,6 +17,15 @@ interface StepsNumericSummaryRepository {
 	suspend fun read(request: StepsNumericSummaryRequest): StepsNumericSummary
 
 	/**
+	 * Reads one or two demonstrated consumer windows from the same durable snapshot.
+	 *
+	 * The bounded batch exists for consumers such as daily plus week-to-date goal presentation,
+	 * where combining independently committed snapshots could temporarily expose an impossible
+	 * pair. Implementations must not turn this into per-day or per-source query fan-out.
+	 */
+	suspend fun readBatch(requests: List<StepsNumericSummaryRequest>): StepsNumericSummaryBatch
+
+	/**
 	 * Observes coherent snapshots for [request] while the caller is subscribed.
 	 *
 	 * Implementations must invalidate for every durable dependency that can change qualification,
@@ -24,6 +33,24 @@ interface StepsNumericSummaryRepository {
 	 * never repair storage or acquire a provider demand.
 	 */
 	fun observe(request: StepsNumericSummaryRequest): Flow<StepsNumericSummary>
+
+	/** Observes a transaction-coherent [readBatch] result while the caller is subscribed. */
+	fun observeBatch(requests: List<StepsNumericSummaryRequest>): Flow<StepsNumericSummaryBatch>
+}
+
+/** One bounded, transaction-coherent set of qualified numeric results. */
+data class StepsNumericSummaryBatch(
+	val summaries: List<StepsNumericSummary>,
+) {
+	init {
+		require(summaries.size in 1..MAX_SUMMARY_COUNT) {
+			"Steps numeric summary batch requires one or two requested windows"
+		}
+	}
+
+	companion object {
+		const val MAX_SUMMARY_COUNT = 2
+	}
 }
 
 /** One bounded inclusive range of structural calendar days. */

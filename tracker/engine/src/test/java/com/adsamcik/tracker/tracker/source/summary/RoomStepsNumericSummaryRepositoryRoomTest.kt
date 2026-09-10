@@ -23,6 +23,7 @@ import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryBatch
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
 import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
 import io.kotest.matchers.shouldBe
@@ -134,6 +135,31 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 		repository.read(request()) shouldBe StepsNumericSummary.Ready(
 			listOf(StepsNumericDay(epochDay = DAY, steps = 0L)),
 		)
+	}
+
+	@Test
+	fun `bounded batch preserves request order and independent typed outcomes`() = runBlocking<Unit> {
+		insertCoveredCandidate(stepsPerFact = 5L)
+
+		repository.readBatch(
+			listOf(
+				request(),
+				request(lastEpochDay = DAY + 1L),
+			),
+		) shouldBe StepsNumericSummaryBatch(
+			listOf(
+				StepsNumericSummary.Ready(listOf(StepsNumericDay(DAY, 5L))),
+				StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.PARTIAL_CAPTURE),
+			),
+		)
+	}
+
+	@Test
+	fun `batch rejects empty and speculative fan out before opening storage`() = runBlocking<Unit> {
+		assertFailsWith<IllegalArgumentException> { repository.readBatch(emptyList()) }
+		assertFailsWith<IllegalArgumentException> {
+			repository.readBatch(listOf(request(), request(), request()))
+		}
 	}
 
 	@Test

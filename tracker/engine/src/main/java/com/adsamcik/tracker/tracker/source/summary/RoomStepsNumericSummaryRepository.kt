@@ -7,6 +7,7 @@ import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryBatch
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
 import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
@@ -37,71 +38,104 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : StepsNumericSummaryRepository {
 	override fun observe(request: StepsNumericSummaryRequest): Flow<StepsNumericSummary> =
+		observeBatch(listOf(request)).map { batch -> batch.summaries.single() }
+
+	override fun observeBatch(
+		requests: List<StepsNumericSummaryRequest>,
+	): Flow<StepsNumericSummaryBatch> {
+		requireValidBatch(requests)
+		return observedInvalidations()
+			.map { readBatch(requests) }
+			.catch { failure ->
+				if (failure is CancellationException) {
+					throw failure
+				}
+				emit(storageUnavailableBatch(requests.size))
+			}
+			.distinctUntilChanged()
+	}
+
+	private fun observedInvalidations(): Flow<Set<String>> =
 		database.invalidationTracker.createFlow(
 			*NUMERIC_SUMMARY_DEPENDENCY_TABLES,
 			emitInitialState = true,
 		)
 			.conflate()
-			.map { read(request) }
-			.catch { failure ->
-				if (failure is CancellationException) {
-					throw failure
-				}
-				emit(storageUnavailable())
-			}
-			.distinctUntilChanged()
 
 	override suspend fun read(request: StepsNumericSummaryRequest): StepsNumericSummary =
-		withContext(ioDispatcher) {
+		readBatch(listOf(request)).summaries.single()
+
+	override suspend fun readBatch(
+		requests: List<StepsNumericSummaryRequest>,
+	): StepsNumericSummaryBatch {
+		requireValidBatch(requests)
+		return withContext(ioDispatcher) {
 			try {
-				readInTransaction(request)
+				readBatchInTransaction(requests)
 			} catch (cancellation: CancellationException) {
 				currentCoroutineContext().ensureActive()
 				if (database.isOpen) {
 					throw cancellation
 				}
-				storageUnavailable()
+				storageUnavailableBatch(requests.size)
 			} catch (_: Exception) {
-				storageUnavailable()
-			}
-		}
-
-	private suspend fun readInTransaction(
-		request: StepsNumericSummaryRequest,
-	): StepsNumericSummary {
-		return database.useReaderConnection { connection ->
-			connection.deferredTransaction {
-				val summaries = database.dailySummaryDao().getBetween(
-					request.firstEpochDay,
-					request.lastEpochDayInclusive,
-				)
-				val summariesByDay = summaries.associateBy(DailySummaryEntity::dateEpochDay)
-				if (summariesByDay.size != summaries.size || summariesByDay.keys.any { day ->
-					day !in request.firstEpochDay..request.lastEpochDayInclusive
-				}) {
-					return@deferredTransaction calendarUnavailable()
-				}
-				val zoneByDay = linkedMapOf<Long, ZoneId>()
-				for (epochDay in request.firstEpochDay..request.lastEpochDayInclusive) {
-					val storedZone = summariesByDay[epochDay]?.let { summary ->
-						parseZone(
-							summary.calendarZoneId
-								?: return@deferredTransaction calendarUnavailable(),
-						) ?: return@deferredTransaction calendarUnavailable()
-					}
-					zoneByDay[epochDay] = storedZone
-						?: parseZone(request.fallbackCalendarZoneId)
-						?: return@deferredTransaction calendarUnavailable()
-				}
-				if (stepsNumericReadQueryBounds(zoneByDay) == null) {
-					return@deferredTransaction calendarUnavailable()
-				}
-				StepsDailySummaryRepairComposer(database)
-					.composeForNumericRead(zoneByDay)
-					.toNumericSummary(request, zoneByDay)
+				storageUnavailableBatch(requests.size)
 			}
 		}
 	}
+
+	private suspend fun readBatchInTransaction(
+		requests: List<StepsNumericSummaryRequest>,
+	): StepsNumericSummaryBatch = database.useReaderConnection { connection ->
+		connection.deferredTransaction {
+			StepsNumericSummaryBatch(
+				summaries = requests.map { request -> readInCurrentTransaction(request) },
+			)
+		}
+	}
+
+	private suspend fun readInCurrentTransaction(
+		request: StepsNumericSummaryRequest,
+	): StepsNumericSummary {
+		val summaries = database.dailySummaryDao().getBetween(
+			request.firstEpochDay,
+			request.lastEpochDayInclusive,
+		)
+		val summariesByDay = summaries.associateBy(DailySummaryEntity::dateEpochDay)
+		if (summariesByDay.size != summaries.size || summariesByDay.keys.any { day ->
+			day !in request.firstEpochDay..request.lastEpochDayInclusive
+		}) {
+			return calendarUnavailable()
+		}
+		val zoneByDay = linkedMapOf<Long, ZoneId>()
+		for (epochDay in request.firstEpochDay..request.lastEpochDayInclusive) {
+			val storedZone = summariesByDay[epochDay]?.let { summary ->
+				parseZone(
+					summary.calendarZoneId
+						?: return calendarUnavailable(),
+				) ?: return calendarUnavailable()
+			}
+			zoneByDay[epochDay] = storedZone
+				?: parseZone(request.fallbackCalendarZoneId)
+				?: return calendarUnavailable()
+		}
+		if (stepsNumericReadQueryBounds(zoneByDay) == null) {
+			return calendarUnavailable()
+		}
+		return StepsDailySummaryRepairComposer(database)
+			.composeForNumericRead(zoneByDay)
+			.toNumericSummary(request, zoneByDay)
+	}
+
+	private fun requireValidBatch(requests: List<StepsNumericSummaryRequest>) {
+		require(requests.size in 1..StepsNumericSummaryBatch.MAX_SUMMARY_COUNT) {
+			"Steps numeric summary batch requires one or two requested windows"
+		}
+	}
+
+	private fun storageUnavailableBatch(size: Int) = StepsNumericSummaryBatch(
+		summaries = List(size) { storageUnavailable() },
+	)
 
 	private fun parseZone(zoneId: String): ZoneId? = try {
 		ZoneId.of(zoneId)

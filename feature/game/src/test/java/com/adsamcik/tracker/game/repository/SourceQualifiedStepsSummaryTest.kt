@@ -4,6 +4,7 @@ import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
 import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryBatch
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
 import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
@@ -13,9 +14,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.Locale
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -101,23 +100,18 @@ class SourceQualifiedStepsSummaryTest {
 	}
 
 	@Test
-	fun `daily Ready is visible before the weekly observer produces its first value`() = runTest {
-		val weeklyStarted = CompletableDeferred<Unit>()
-		val repository = ObservableStepsRepository { request ->
-			if (request.dayCount > 1) {
-				weeklyStarted.complete(Unit)
-				awaitCancellation()
-			}
-		}
+	fun `daily and weekly presentation never mix different batch generations`() = runTest {
+		val repository = ObservableStepsRepository()
 		val results = mutableListOf<StepsSummaryData>()
 		backgroundScope.launch { summaryFlow(repository).collect(results::add) }
 		runCurrent()
-		weeklyStarted.await()
-		val dayRequest = repository.requests.single { it.dayCount == 1 }
-		repository.emit(dayRequest, readyFor(dayRequest) { 42L })
+		repository.emitDays { request, _ -> if (request.dayCount == 1) 42L else 84L }
 		runCurrent()
 		results.last().stepsToday shouldBe QualifiedStepCount.Ready(42)
-		results.last().stepsWeek shouldBe materializing()
+		results.last().stepsWeek shouldBe QualifiedStepCount.Ready(252)
+		results.none { result ->
+			result.stepsToday == QualifiedStepCount.Ready(42) && result.stepsWeek == materializing()
+		} shouldBe true
 	}
 
 	@Test
@@ -258,8 +252,8 @@ class SourceQualifiedStepsSummaryTest {
 		invalidations.emit(Unit)
 		runCurrent()
 		repository.requests shouldHaveSize 4
-		repository.activeCount shouldBe 2
-		repository.cancelledCount shouldBe 2
+		repository.activeCount shouldBe 1
+		repository.cancelledCount shouldBe 1
 		results.last().stepsToday shouldBe materializing()
 		results.last().stepsWeek shouldBe materializing()
 		oldRequests.forEach { request -> repository.emit(request, readyFor(request) { 999L }) }
@@ -323,8 +317,8 @@ class SourceQualifiedStepsSummaryTest {
 		runCurrent()
 		repository.requests shouldHaveSize 6
 		repository.requests.takeLast(2).forEach { it.fallbackCalendarZoneId shouldBe "UTC" }
-		repository.activeCount shouldBe 2
-		repository.cancelledCount shouldBe 4
+		repository.activeCount shouldBe 1
+		repository.cancelledCount shouldBe 2
 	}
 
 	@Test
@@ -334,18 +328,18 @@ class SourceQualifiedStepsSummaryTest {
 		repository.requests shouldHaveSize 0
 		val collection = backgroundScope.launch { summaries.collect() }
 		runCurrent()
-		repository.activeCount shouldBe 2
+		repository.activeCount shouldBe 1
 		collection.cancel()
 		runCurrent()
 		repository.activeCount shouldBe 0
-		repository.cancelledCount shouldBe 2
+		repository.cancelledCount shouldBe 1
 		advanceTimeBy(60_000L)
 		runCurrent()
 		repository.requests shouldHaveSize 2
 		val resumed = backgroundScope.launch { summaries.collect() }
 		runCurrent()
 		repository.requests shouldHaveSize 4
-		repository.activeCount shouldBe 2
+		repository.activeCount shouldBe 1
 		resumed.cancel()
 		runCurrent()
 		repository.activeCount shouldBe 0
@@ -373,36 +367,70 @@ private class ObservableStepsRepository(
 	private val beforeObserve: suspend (StepsNumericSummaryRequest) -> Unit = {},
 ) : StepsNumericSummaryRepository {
 	val requests = mutableListOf<StepsNumericSummaryRequest>()
-	private val states = mutableMapOf<StepsNumericSummaryRequest, MutableStateFlow<StepsNumericSummary>>()
+	private val states = mutableMapOf<List<StepsNumericSummaryRequest>, MutableStateFlow<StepsNumericSummaryBatch>>()
 	var activeCount = 0
 		private set
 	var cancelledCount = 0
 		private set
 
 	override fun observe(request: StepsNumericSummaryRequest): Flow<StepsNumericSummary> = flow {
-		requests += request
+		emitAll(observeBatch(listOf(request)).map { batch -> batch.summaries.single() })
+	}
+
+	override suspend fun read(request: StepsNumericSummaryRequest): StepsNumericSummary =
+		error("The product must observe source settlement rather than poll")
+
+	override suspend fun readBatch(
+		requests: List<StepsNumericSummaryRequest>,
+	): StepsNumericSummaryBatch = error("The product must observe source settlement rather than poll")
+
+	override fun observeBatch(
+		requests: List<StepsNumericSummaryRequest>,
+	): Flow<StepsNumericSummaryBatch> = flow {
+		val key = requests.toList()
+		this@ObservableStepsRepository.requests += key
 		activeCount += 1
 		try {
-			beforeObserve(request)
-			emitAll(states.getOrPut(request) { MutableStateFlow(StepsNumericSummary.Materializing) })
+			key.forEach { request -> beforeObserve(request) }
+			emitAll(
+				states.getOrPut(key) {
+					MutableStateFlow(
+						StepsNumericSummaryBatch(
+							summaries = List(key.size) { StepsNumericSummary.Materializing },
+						),
+					)
+				},
+			)
 		} finally {
 			activeCount -= 1
 			cancelledCount += 1
 		}
 	}
 
-	override suspend fun read(request: StepsNumericSummaryRequest): StepsNumericSummary =
-		error("The product must observe source settlement rather than poll")
-
 	fun emit(request: StepsNumericSummaryRequest, summary: StepsNumericSummary) {
-		states.getValue(request).value = summary
+		states.forEach { (requests, state) ->
+			val index = requests.indexOf(request)
+			if (index >= 0) {
+				state.value = StepsNumericSummaryBatch(
+					summaries = state.value.summaries.toMutableList().apply { set(index, summary) },
+				)
+			}
+		}
 	}
 
-	fun emitDays(steps: (Long) -> Long) = requests.distinct().forEach { request ->
-		emit(request, readyFor(request, steps))
+	fun emitDays(steps: (Long) -> Long) = emitDays { _, epochDay -> steps(epochDay) }
+
+	fun emitDays(steps: (StepsNumericSummaryRequest, Long) -> Long) = states.forEach { (requests, state) ->
+		state.value = StepsNumericSummaryBatch(
+			summaries = requests.map { request ->
+				readyFor(request) { epochDay -> steps(request, epochDay) }
+			},
+		)
 	}
 
-	fun emitState(summary: StepsNumericSummary) = states.values.forEach { it.value = summary }
+	fun emitState(summary: StepsNumericSummary) = states.forEach { (requests, state) ->
+		state.value = StepsNumericSummaryBatch(List(requests.size) { summary })
+	}
 }
 
 private fun materializing() = QualifiedStepCount.Unavailable(QualifiedStepCountUnavailableReason.MATERIALIZING)
@@ -415,6 +443,14 @@ private class FakeStepsNumericSummaryRepository(
 	}
 
 	override suspend fun read(request: StepsNumericSummaryRequest): StepsNumericSummary = reader(request)
+
+	override suspend fun readBatch(
+		requests: List<StepsNumericSummaryRequest>,
+	): StepsNumericSummaryBatch = StepsNumericSummaryBatch(requests.map { request -> reader(request) })
+
+	override fun observeBatch(
+		requests: List<StepsNumericSummaryRequest>,
+	): Flow<StepsNumericSummaryBatch> = flow { emit(readBatch(requests)) }
 }
 
 private fun readyFor(

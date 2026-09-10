@@ -17,6 +17,7 @@ import com.adsamcik.tracker.stats.api.repository.SessionStatsRepository
 import com.adsamcik.tracker.stats.api.repository.SessionStatsSnapshot
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryBatch
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
 import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
@@ -414,6 +415,12 @@ class StatsPresenterViewModelSessionStatsTest {
 			return result
 		}
 
+		override suspend fun readBatch(
+			requests: List<StepsNumericSummaryRequest>,
+		): StepsNumericSummaryBatch = StepsNumericSummaryBatch(
+			summaries = requests.map { request -> read(request) },
+		)
+
 		override fun observe(request: StepsNumericSummaryRequest): Flow<StepsNumericSummary> = flow {
 			requests += request
 			try {
@@ -421,6 +428,12 @@ class StatsPresenterViewModelSessionStatsTest {
 			} finally {
 				cancelledRequests += request
 			}
+		}
+
+		override fun observeBatch(
+			requests: List<StepsNumericSummaryRequest>,
+		): Flow<StepsNumericSummaryBatch> = flow {
+			emit(readBatch(requests))
 		}
 	}
 }

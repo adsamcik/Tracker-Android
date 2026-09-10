@@ -3,6 +3,7 @@ package com.adsamcik.tracker.game.repository
 import com.adsamcik.tracker.game.goals.WeeklyProgressCalculator
 import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
+import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryBatch
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
 import java.time.LocalDate
@@ -62,23 +63,37 @@ internal fun sourceQualifiedStepsSummaryFlow(
 
 private fun StepsNumericSummaryRepository.observePeriods(
 	authority: StepsCalendarAuthority,
-): Flow<QualifiedStepsPeriods> = combine(
-	observe(
+): Flow<QualifiedStepsPeriods> {
+	val requests = listOf(
 		StepsNumericSummaryRequest(
 			firstEpochDay = authority.today.toEpochDay(),
 			lastEpochDayInclusive = authority.today.toEpochDay(),
 			fallbackCalendarZoneId = authority.zoneId,
 		),
-	).onStart { emit(StepsNumericSummary.Materializing) },
-	observe(
 		StepsNumericSummaryRequest(
 			firstEpochDay = authority.startOfWeek.toEpochDay(),
 			lastEpochDayInclusive = authority.today.toEpochDay(),
 			fallbackCalendarZoneId = authority.zoneId,
 		),
-	).onStart { emit(StepsNumericSummary.Materializing) },
-) { daily, weekly ->
-	QualifiedStepsPeriods(authority, daily, weekly)
+	)
+	return observeBatch(requests)
+		.onStart {
+			emit(
+				StepsNumericSummaryBatch(
+					summaries = List(requests.size) { StepsNumericSummary.Materializing },
+				),
+			)
+		}
+		.map { batch ->
+			check(batch.summaries.size == requests.size) {
+				"Steps period batch did not preserve requested window count"
+			}
+			QualifiedStepsPeriods(
+				authority = authority,
+				daily = batch.summaries[DAILY_SUMMARY_INDEX],
+				weekly = batch.summaries[WEEKLY_SUMMARY_INDEX],
+			)
+		}
 }
 
 private fun StepsNumericSummary.toQualifiedWeeklyStepCount(
@@ -127,3 +142,6 @@ private data class QualifiedStepsPeriods(
 	val daily: StepsNumericSummary,
 	val weekly: StepsNumericSummary,
 )
+
+private const val DAILY_SUMMARY_INDEX = 0
+private const val WEEKLY_SUMMARY_INDEX = 1
