@@ -64,6 +64,7 @@ class StepsGoalEffectDaoTest {
 		revisionTwo.xpAppliedRevision shouldBe 1L
 		revisionTwo.notificationClaimedRevision shouldBe 1L
 		revisionTwo.notificationClaimedAtMs shouldBe 150L
+		revisionTwo.firstCompletedAtMs shouldBe 100L
 		revisionTwo.desiredPointsMicros shouldBe 0L
 		revisionTwo.desiredXp shouldBe 0
 		dao.observePending().first() shouldBe listOf(revisionTwo)
@@ -136,6 +137,7 @@ class StepsGoalEffectDaoTest {
 		effectRevision = 1L,
 		desiredPointsMicros = 100_000_000L,
 		desiredXp = 25,
+		firstCompletedAtMs = 100L,
 		pointsAppliedRevision = 0L,
 		xpAppliedRevision = 0L,
 		notificationClaimedRevision = null,

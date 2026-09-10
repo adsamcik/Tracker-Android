@@ -1621,6 +1621,7 @@ val MIGRATION_27_28: Migration = object : Migration(
 					effect_revision INTEGER NOT NULL,
 					desired_points_micros INTEGER NOT NULL,
 					desired_xp INTEGER NOT NULL,
+					first_completed_at_ms INTEGER,
 					points_applied_revision INTEGER NOT NULL,
 					xp_applied_revision INTEGER NOT NULL,
 					notification_claimed_revision INTEGER,

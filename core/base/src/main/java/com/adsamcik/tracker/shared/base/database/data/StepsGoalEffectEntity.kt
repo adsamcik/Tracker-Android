@@ -47,6 +47,8 @@ data class StepsGoalEffectEntity(
 	@ColumnInfo(name = "effect_revision") val effectRevision: Long,
 	@ColumnInfo(name = "desired_points_micros") val desiredPointsMicros: Long,
 	@ColumnInfo(name = "desired_xp") val desiredXp: Int,
+	/** Stable first qualified-completion time; retained when a later correction retracts the effect. */
+	@ColumnInfo(name = "first_completed_at_ms") val firstCompletedAtMs: Long?,
 	@ColumnInfo(name = "points_applied_revision") val pointsAppliedRevision: Long,
 	@ColumnInfo(name = "xp_applied_revision") val xpAppliedRevision: Long,
 	@ColumnInfo(name = "notification_claimed_revision") val notificationClaimedRevision: Long?,
@@ -96,9 +98,11 @@ data class StepsGoalEffectEntity(
 		require(desiredXp >= 0)
 		if (decisionState == STATE_READY_COMPLETE) {
 			require(desiredPointsMicros > 0L)
+			require(firstCompletedAtMs != null)
 		} else {
 			require(desiredPointsMicros == 0L && desiredXp == 0)
 		}
+		firstCompletedAtMs?.let { time -> require(time in 0L..updatedAtMs) }
 		require(pointsAppliedRevision in 0L..effectRevision)
 		require(xpAppliedRevision in 0L..effectRevision)
 		require((notificationClaimedRevision == null) == (notificationClaimedAtMs == null))

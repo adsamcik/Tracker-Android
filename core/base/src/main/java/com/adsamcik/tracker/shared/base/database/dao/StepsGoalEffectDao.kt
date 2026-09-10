@@ -102,6 +102,7 @@ interface StepsGoalEffectDao : BaseDao<StepsGoalEffectEntity> {
 		update(
 			candidate.copy(
 				effectRevision = current.effectRevision + 1L,
+				firstCompletedAtMs = current.firstCompletedAtMs ?: candidate.firstCompletedAtMs,
 				pointsAppliedRevision = current.pointsAppliedRevision,
 				xpAppliedRevision = current.xpAppliedRevision,
 				notificationClaimedRevision = current.notificationClaimedRevision,

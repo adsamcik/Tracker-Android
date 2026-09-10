@@ -44,6 +44,12 @@ class StepsGoalEffectEntityTest {
 			complete().copy(desiredPointsMicros = 0L)
 		}
 		assertThrows(IllegalArgumentException::class.java) {
+			complete().copy(firstCompletedAtMs = null)
+		}
+		assertThrows(IllegalArgumentException::class.java) {
+			complete().copy(firstCompletedAtMs = 101L)
+		}
+		assertThrows(IllegalArgumentException::class.java) {
 			incomplete().copy(desiredXp = 1)
 		}
 		assertThrows(IllegalArgumentException::class.java) {
@@ -102,6 +108,7 @@ class StepsGoalEffectEntityTest {
 		effectRevision = 1L,
 		desiredPointsMicros = 100_000_000L,
 		desiredXp = 25,
+		firstCompletedAtMs = 100L,
 		pointsAppliedRevision = 0L,
 		xpAppliedRevision = 0L,
 		notificationClaimedRevision = null,
