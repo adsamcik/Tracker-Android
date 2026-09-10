@@ -2,6 +2,7 @@ package com.adsamcik.tracker.tracker.source.importer
 
 import android.app.Application
 import android.database.sqlite.SQLiteException
+import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
@@ -39,10 +40,12 @@ import com.adsamcik.tracker.stats.api.repository.PortableStepsTransferRetryableR
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import java.io.File
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -235,6 +238,110 @@ class RoomImportPortableStepsTest {
 		database.sourceEvidenceStateDao().get()?.revision shouldBe revision
 		dirtyTracker.marked shouldBe emptyList()
 	}
+
+	@Test
+	fun `malformed retained imported state cannot be accepted as an exact replay`() = runTest {
+		val candidate = entry()
+		val importer = subject()
+		importer.importEntry(candidate) shouldBe ImportPortableStepsResult.Applied(1, 1)
+		val revision = database.sourceEvidenceStateDao().get()?.revision
+		dirtyTracker.marked.clear()
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE imported_steps_run SET app_drain_complete = 2 WHERE identity = ?",
+			arrayOf(candidate.runs.single().identity.value),
+		)
+
+		importer.importEntry(candidate) shouldBe ImportPortableStepsResult.Unverifiable(
+			PortableStepsImportUnverifiableReason.ATTRIBUTION_UNVERIFIABLE,
+		)
+
+		tableCount("imported_steps_entry") shouldBe 1L
+		tableCount("imported_steps_run") shouldBe 1L
+		database.stepFactRevisionDao().countAll() shouldBe 1L
+		database.sessionSegmentDao().countTotal() shouldBe 1L
+		database.sourceEvidenceStateDao().get()?.revision shouldBe revision
+		dirtyTracker.marked shouldBe emptyList()
+	}
+
+	@Test
+	fun `extra retained correction lineage cannot be collapsed into an exact replay`() = runTest {
+		val candidate = entry()
+		val importer = subject()
+		importer.importEntry(candidate) shouldBe ImportPortableStepsResult.Applied(1, 1)
+		val revision = database.sourceEvidenceStateDao().get()?.revision
+		val original = requireNotNull(
+			database.stepFactRevisionDao().latest(
+				SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+				candidate.runs.single().facts.single().identity.value,
+			),
+		)
+		val retraction = localRetraction(
+			original = original,
+			scopeIdentity = candidate.runs.single().deletionScopeDigest.value,
+		)
+		(database.stepFactRevisionDao().insert(retraction) > 0L) shouldBe true
+		dirtyTracker.marked.clear()
+
+		importer.importEntry(candidate) shouldBe ImportPortableStepsResult.Unverifiable(
+			PortableStepsImportUnverifiableReason.ATTRIBUTION_UNVERIFIABLE,
+		)
+
+		database.stepFactRevisionDao().countAll() shouldBe 2L
+		database.sourceEvidenceStateDao().get()?.revision shouldBe revision
+		dirtyTracker.marked shouldBe emptyList()
+	}
+
+	@Test
+	@Suppress("LongMethod")
+	fun `committed imported authority survives Room reopen as a side effect free duplicate`(): Unit =
+		runBlocking {
+			val inMemoryDatabase = database
+			val context: Application = ApplicationProvider.getApplicationContext()
+			val databaseName = "portable-steps-import-reopen-${System.nanoTime()}.db"
+			val databaseFile = File(System.getProperty("java.io.tmpdir"), databaseName)
+			val databaseDirectory = requireNotNull(databaseFile.parentFile)
+			check(databaseDirectory.exists() || databaseDirectory.mkdirs())
+			check(!databaseFile.exists() || databaseFile.delete())
+			var reopenedDatabase: AppDatabase? = null
+			try {
+				val candidate = entry()
+				subject().importEntry(candidate) shouldBe ImportPortableStepsResult.Applied(1, 1)
+				val revision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
+				database.openHelper.writableDatabase.execSQL(
+					"VACUUM INTO ?",
+					arrayOf(databaseFile.path),
+				)
+				inMemoryDatabase.close()
+
+				reopenedDatabase = Room.databaseBuilder(
+					context,
+					AppDatabase::class.java,
+					databaseFile.path,
+				)
+					.allowMainThreadQueries()
+					.build()
+				database = reopenedDatabase
+				dirtyTracker.marked.clear()
+
+				subject().importEntry(candidate) shouldBe ImportPortableStepsResult.Duplicate
+
+				tableCount("imported_steps_entry") shouldBe 1L
+				tableCount("imported_steps_run") shouldBe 1L
+				database.stepFactRevisionDao().countAll() shouldBe 1L
+				database.sessionSegmentDao().countTotal() shouldBe 1L
+				requireNotNull(database.dailySummaryDao().getByDay(ENTRY_DAY)).totalSteps shouldBe 11
+				database.sourceEvidenceStateDao().get()?.revision shouldBe revision
+				dirtyTracker.marked shouldBe emptyList()
+			} finally {
+				reopenedDatabase?.close()
+				if (database === inMemoryDatabase) {
+					inMemoryDatabase.close()
+				}
+				database = AppDatabase.testDatabase(context)
+				context.deleteDatabase(databaseFile.path)
+			}
+		}
 
 	@Test
 	fun `same imported logical identity with changed content is a conflict`() = runTest {
@@ -590,6 +697,57 @@ class RoomImportPortableStepsTest {
 			startTimeMs = startTimeMs,
 			endTimeMs = endTimeMs,
 			runs = listOf(changedRun),
+		)
+	}
+
+	private fun localRetraction(
+		original: StepFactRevisionEntity,
+		scopeIdentity: String,
+	): StepFactRevisionEntity {
+		val semanticRevision = original.semanticRevision + 1L
+		val scopeDeletionGeneration = original.scopeDeletionGeneration + 1L
+		val unsigned = StepFactRevisionEntity(
+			logicalFactId = original.logicalFactId,
+			semanticRevision = semanticRevision,
+			mutationId = StepFactRevisionIntegrity.localDeleteMutationId(
+				scopeIdentityDigest = scopeIdentity,
+				logicalFactId = original.logicalFactId,
+				semanticRevision = semanticRevision,
+				scopeDeletionGeneration = scopeDeletionGeneration,
+			),
+			stepIntervalId = null,
+			sourceEventId = null,
+			sourceAdmissionOrdinal = null,
+			originKind = StepFactRevisionEntity.ORIGIN_LOCAL_DELETE,
+			originIdentity = scopeIdentity,
+			writerProjectionId = original.writerProjectionId,
+			writerProjectionVersion = original.writerProjectionVersion,
+			writerBindingGeneration = original.writerBindingGeneration,
+			operation = StepFactRevisionEntity.OPERATION_RETRACT,
+			intervalStartTimeMs = null,
+			intervalEndTimeMs = null,
+			intervalStartElapsedRealtimeNanos = null,
+			intervalEndElapsedRealtimeNanos = null,
+			clockDomainId = null,
+			bootClockDomainId = null,
+			cumulativeStepCountStart = null,
+			cumulativeStepCountEnd = null,
+			wallTimeUncertaintyMs = null,
+			coverageKind = null,
+			effectiveStepCount = null,
+			logicalTrackingId = null,
+			serviceRunId = null,
+			purpose = original.purpose,
+			manifestRevision = null,
+			sourcePolicyRevision = null,
+			captureConsentEpoch = null,
+			collectedDataEpoch = original.collectedDataEpoch,
+			scopeDeletionGeneration = scopeDeletionGeneration,
+			effectChecksum = "pending",
+			appliedAtMs = 50_001L,
+		)
+		return unsigned.copy(
+			effectChecksum = StepFactRevisionIntegrity.localDeleteEffectChecksum(unsigned),
 		)
 	}
 
