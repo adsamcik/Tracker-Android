@@ -21,6 +21,7 @@ import java.io.OutputStream
  * at a time, so an archive containing multiple databases is not an atomic cross-database snapshot.
  */
 class DatabaseExporter : Exporter {
+	override val requiresLocationData: Boolean = false
 	override val canSelectDateRange: Boolean = false
 	override val mimeType: String = "application/zip"
 	override val extension: String = "zip"

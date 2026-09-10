@@ -5,6 +5,9 @@
     <string name="export_default_file_name_all">Advention_export_data_%1$s</string>
     <string name="export_error_no_locations_in_interval">No locations found in the selected interval.</string>
     <string name="export_error_no_databases">No application databases are available to export.</string>
+    <string name="export_error_no_portable_steps">No verified Steps history is available to export.</string>
+    <string name="export_error_portable_steps_retryable">Steps export is temporarily unavailable. Try again.</string>
+    <string name="export_error_portable_steps_unverifiable">Steps history is incomplete or cannot be verified for export.</string>
     <string name="export_error_no_uri">No export folder was selected</string>
     <string name="export_error_stream_failed">Could not create stream to file %s</string>
     <string name="export_error_unknown">Export failed.</string>

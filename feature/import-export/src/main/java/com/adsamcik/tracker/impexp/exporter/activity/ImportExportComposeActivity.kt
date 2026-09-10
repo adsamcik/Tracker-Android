@@ -147,7 +147,7 @@ fun ExportScreen(
 
     BackHandler(enabled = isExporting) {}
 
-    if (uiState.showNoDataDialog) {
+    if (uiState.showNoDataDialog && exporter.requiresLocationData) {
         AlertDialog(
             onDismissRequest = { activity.finish() },
             title = { Text(text = stringResource(id = R.string.settings_export_no_data)) },
@@ -443,7 +443,11 @@ fun ExportScreen(
 
                 OutlinedButton(
                     onClick = {
-                        pendingSensitiveAction.value = ExportSensitiveAction.Export
+                        if (exporter.containsSensitiveLocationData) {
+                            pendingSensitiveAction.value = ExportSensitiveAction.Export
+                        } else {
+                            exportLauncher.launch(null)
+                        }
                     },
                     modifier = Modifier.weight(1f),
                     enabled = fileNameErrorState.value == null && !isExporting,
@@ -457,7 +461,11 @@ fun ExportScreen(
 
                 OutlinedButton(
                     onClick = {
-                        pendingSensitiveAction.value = ExportSensitiveAction.Share
+                        if (exporter.containsSensitiveLocationData) {
+                            pendingSensitiveAction.value = ExportSensitiveAction.Share
+                        } else {
+                            startShareExport()
+                        }
                     },
                     modifier = Modifier.weight(1f),
                     enabled = fileNameErrorState.value == null && !isExporting,

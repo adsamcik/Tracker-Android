@@ -76,6 +76,12 @@ class FormatRegistryTest {
 		}
 
 		@Test
+		fun `portable Steps resolves one exporter and importer`() {
+			FormatRegistry.exporterFor("portable-steps-v1").shouldNotBeNull()
+			FormatRegistry.importerForExtension("trackersteps").shouldNotBeNull()
+		}
+
+		@Test
 		fun `exporterFor unknown returns null`() {
 			FormatRegistry.exporterFor("csv").shouldBeNull()
 		}
@@ -152,12 +158,12 @@ class FormatRegistryTest {
 		}
 
 		@Test
-		fun `portable Steps descriptor is import only and versioned`() {
+		fun `portable Steps descriptor is bidirectional range-aware and versioned`() {
 			val steps = FormatRegistry.allEntries().first { it.descriptor.id == "portable-steps-v1" }
 			steps.descriptor.supportsImport shouldBe true
-			steps.descriptor.supportsExport shouldBe false
-			steps.descriptor.supportsDateRange shouldBe false
-			steps.descriptor.mimeType shouldBe "application/vnd.tracker.steps+json"
+			steps.descriptor.supportsExport shouldBe true
+			steps.descriptor.supportsDateRange shouldBe true
+			steps.descriptor.mimeType shouldBe "application/vnd.adsamcik.tracker.steps+json"
 		}
 	}
 

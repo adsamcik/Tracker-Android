@@ -55,6 +55,12 @@ class ExporterInterfaceTest {
 		fun `extension returns configured value`() {
 			StubExporter(extension = "gpx").extension shouldBe "gpx"
 		}
+
+		@Test
+		fun `legacy exporters default to Location-backed sensitive artifacts`() {
+			StubExporter().requiresLocationData shouldBe true
+			StubExporter().containsSensitiveLocationData shouldBe true
+		}
 	}
 
 	@Nested

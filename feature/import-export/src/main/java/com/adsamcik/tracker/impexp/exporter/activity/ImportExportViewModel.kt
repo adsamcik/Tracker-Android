@@ -213,7 +213,7 @@ class ImportExportViewModel @Inject constructor(
         }
     }
 
-    private suspend fun exportToStream(
+    internal suspend fun exportToStream(
         outputStream: java.io.OutputStream,
         exporter: Exporter,
         range: ClosedRange<ZonedDateTime>?,
@@ -222,18 +222,21 @@ class ImportExportViewModel @Inject constructor(
             val fromMs = range.start.toEpochMillis()
             val toMs = range.endInclusive.toEpochMillis()
 
-            val totalCount = dataRepository.countLocationSamples(fromMs, toMs)
-            if (totalCount == 0) {
-                return@withContext ExportResult.Error(
-                    LocalizedString(R.string.export_error_no_locations_in_interval)
-                )
+            val locationSequence = if (exporter.requiresLocationData) {
+                val totalCount = dataRepository.countLocationSamples(fromMs, toMs)
+                if (totalCount == 0) {
+                    return@withContext ExportResult.Error(
+                        LocalizedString(R.string.export_error_no_locations_in_interval)
+                    )
+                }
+                dataRepository.pagedLocationSamples(
+                    fromMs = fromMs,
+                    toMs = toMs,
+                    pageSize = EXPORT_PAGE_SIZE,
+                ).filter { it.latE7 != null && it.lonE7 != null }
+            } else {
+                emptySequence()
             }
-
-            val locationSequence = dataRepository.pagedLocationSamples(
-                fromMs = fromMs,
-                toMs = toMs,
-                pageSize = EXPORT_PAGE_SIZE,
-            ).filter { it.latE7 != null && it.lonE7 != null }
 
             exporter.export(appContext, locationSequence, outputStream, fromMs..toMs)
         } else {

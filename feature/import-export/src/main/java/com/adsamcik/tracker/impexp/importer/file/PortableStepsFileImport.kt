@@ -72,7 +72,7 @@ internal class PortableStepsFileImport(
 	}
 
 	internal companion object {
-		const val EXTENSION = "trackersteps"
+		const val EXTENSION = StepsPortableFormatV1.FILE_EXTENSION
 		const val MAX_FILE_BYTES = StepsPortableFormatV1.MAX_FILE_BYTES
 	}
 }
