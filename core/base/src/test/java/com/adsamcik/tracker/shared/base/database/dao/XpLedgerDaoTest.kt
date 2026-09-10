@@ -42,5 +42,8 @@ class XpLedgerDaoTest {
 		stored.amount shouldBe 0
 		stored.sourceRevision shouldBe 4L
 		dao.getTotalXp() shouldBe 0L
+		dao.getRecent(limit = 10) shouldBe emptyList()
+		dao.countDistinctSources() shouldBe 0L
+		dao.getEarnedAtBySource("GOAL") shouldBe emptyList()
 	}
 }

@@ -33,7 +33,7 @@ interface XpLedgerDao : BaseDao<XpLedgerEntity> {
 	)
 	fun getXpBetween(fromInclusive: Long, untilExclusive: Long): Long
 
-	@Query("SELECT * FROM xp_ledger ORDER BY earned_at DESC LIMIT :limit")
+	@Query("SELECT * FROM xp_ledger WHERE amount > 0 ORDER BY earned_at DESC LIMIT :limit")
 	suspend fun getRecent(limit: Int): List<XpLedgerEntity>
 
 	@Query(
@@ -119,11 +119,14 @@ interface XpLedgerDao : BaseDao<XpLedgerEntity> {
 	suspend fun maxDailyXp(): Long
 
 	/** Number of distinct XP sources (session / mini-game / goal) ever credited. */
-	@Query("SELECT COUNT(DISTINCT source) FROM xp_ledger")
+	@Query("SELECT COUNT(DISTINCT source) FROM xp_ledger WHERE amount > 0")
 	suspend fun countDistinctSources(): Long
 
 	/** `earned_at` timestamps for all ledger rows of a given source, oldest first. */
-	@Query("SELECT earned_at FROM xp_ledger WHERE source = :source ORDER BY earned_at ASC")
+	@Query(
+		"SELECT earned_at FROM xp_ledger " +
+			"WHERE source = :source AND amount > 0 ORDER BY earned_at ASC",
+	)
 	suspend fun getEarnedAtBySource(source: String): List<Long>
 	@Query("DELETE FROM xp_ledger")
 	fun deleteAll()
