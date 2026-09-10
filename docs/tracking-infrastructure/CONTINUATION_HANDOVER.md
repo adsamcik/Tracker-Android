@@ -22,14 +22,16 @@ Location, Activity, Wi-Fi, and Cell piece plus its applicable product/action tes
 one dedicated local convergence branch. Only then begin the complete validation/fix phase; after it
 passes, rebase and merge through the clean integration checkout. No push or activation is authorized.
 
-Current coordinator source checkpoint: `2d7af2b70` on `codex/ti-steps-import-actions`, after the
+Current coordinator source checkpoint: `4562432d0` on `codex/ti-steps-import-actions`, after the
 imported day-composition cherry `293ff43e5`, portable admission `8abd7c6e3`, atomic stored-zone day
 repair `3dfa4eaad`, file bridge `c58fcc85f`, imported deletion `89454b8c1`, its contract completion
 `3ff5c086c`, bidirectional file export `19b8789b2`, and production round-trip contract `2d7af2b70`,
 plus their documentation checkpoints. It adds the protected-path-safe `.trackersteps` import/export
 bridge, exact complete-entry selected deletion with dual no-resurrection fences, and the two-database
 export/import/history/re-export contract. TI-D159/TI-B220 through TI-D164/TI-B225 are authoritative
-for guarantees and validation debt. Continue next with remaining manual Steps and numeric effects.
+for guarantees and validation debt. Manual/session Steps has since been source-audited as a complete
+`IMPLEMENTED_UNVALIDATED` slice with one additional exact-plan host contract; continue next with the
+qualified numeric/effect consumer audit.
 
 ## Local follow-up after the reviewed publication
 
@@ -79,8 +81,10 @@ nonqualified. The source and tests are unvalidated; do not infer that compilatio
 The complete portable round trip is now authored. PORT-010 is implemented at `c58fcc85f` without
 editing a protected legacy DatabaseImport path, PORT-011 is complete at `03db9e565`, DEL-001 through
 DEL-007 are authored at `89454b8c1`/`3ff5c086c`, and ROUND-001 through ROUND-005 are authored at
-`19b8789b2`/`2d7af2b70`; all remain deliberately unexecuted. Next implementation is remaining manual
-Steps wiring and the qualified numeric/effect consumer audit.
+`19b8789b2`/`2d7af2b70`; all remain deliberately unexecuted. Manual/session Steps is also fully
+authored through TI-D165/TI-B226, including the exact `{Steps}`/no-control host contract and the
+existing disposable device gate; it remains deliberately unexecuted. Next implementation is the
+qualified numeric/effect consumer audit.
 Next integration requires coordinated retention/repair acceptance, a frozen converged input,
 `ciUnitTest` at the integration gate and full `ciCheck --continue`, then rebase onto latest local
 `dev/v10` and integrate from the clean integration checkout. Preserve canonical source commits

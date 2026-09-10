@@ -3258,3 +3258,24 @@ canonical-byte, and privacy-whitelist inventory.
 No Gradle, compiler, test, lint, Detekt, Room drift, device, UI, battery, CI, integration, or
 publication command ran. The next implementation boundary is remaining manual Steps wiring,
 followed by qualified numeric/effect consumers.
+
+## 2026-09-10 implementation-only checkpoint — manual/session Steps inventory
+
+The manual/session Steps implementation is now classified **IMPLEMENTED_UNVALIDATED**. A complete
+source audit confirms that all Dashboard, Tracker, shortcut, and widget starts use the centralized
+source-aware API; readiness accepts capable Steps without Location; the manual source session emits
+exactly the reachable Steps plan with no control dependency; and immutable manifest/run, broker,
+authorization, WAL, candidate writer and history identities remain exact. The step-counter runtime
+already owns post-effective baseline/reset/gap/freshness handling, atomic admission, callback
+generation fencing, typed failure/completeness state, and exact durable listener retirement.
+
+The contained candidate writer and its rollback/deletion-rearm paths stay default-off. Existing
+source-only recent, Today/Calendar, Detail and live composition keeps unavailable, materializing,
+partial, covered-zero and positive states distinct and never uses legacy `sampleCount` as source
+proof. One focused host assertion was added for the exact manual `{Steps}` plan/no-trigger/no-
+control boundary; the existing disposable device gate owns the eventual provider-to-product and
+listener-removal proof.
+
+No Gradle, compiler, test, lint, Detekt, Room drift, device, UI, battery, CI, integration,
+activation or publication command ran. The next implementation boundary is the complete qualified
+numeric/effect consumer audit.

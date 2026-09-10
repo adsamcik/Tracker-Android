@@ -283,24 +283,37 @@ compiled or executed.
 
 ### Manual and session Steps completion
 
-- [ ] TODO-STEPS-MANUAL-001 Connect every real manual-start surface to one centralized source-aware
+- [x] TODO-STEPS-MANUAL-001 Connect every real manual-start surface to one centralized source-aware
   start decision and immutable manifest creation path.
-- [ ] TODO-STEPS-MANUAL-002 Make a Steps-only manual request register exactly Steps and no Location,
+- [x] TODO-STEPS-MANUAL-002 Make a Steps-only manual request register exactly Steps and no Location,
   Activity, Pressure, Wi-Fi, Cell, CONTROL, or AMBIENT demand.
-- [ ] TODO-STEPS-MANUAL-003 Complete app-scoped TYPE_STEP_COUNTER registration, post-effective
+- [x] TODO-STEPS-MANUAL-003 Complete app-scoped TYPE_STEP_COUNTER registration, post-effective
   baseline, boot or reset gap handling, positive fresh delta admission, and listener removal.
-- [ ] TODO-STEPS-MANUAL-004 Keep a baseline, missing interval, counter reset, unchanged boundary,
+- [x] TODO-STEPS-MANUAL-004 Keep a baseline, missing interval, counter reset, unchanged boundary,
   covered zero, positive delta, partial coverage, unsupported sensor, permission limitation, and
   storage failure distinct.
-- [ ] TODO-STEPS-MANUAL-005 Wire the dormant canonical writer transition through contained
+- [x] TODO-STEPS-MANUAL-005 Wire the dormant canonical writer transition through contained
   activation, exact owner fencing, legacy drain, rollback, deletion rearm, and product invalidation
   without enabling it by default.
-- [ ] TODO-STEPS-MANUAL-006 Ensure a positive post-baseline delta can advance RECORDING, the one
+- [x] TODO-STEPS-MANUAL-006 Ensure a positive post-baseline delta can advance RECORDING, the one
   canonical writer can advance MATERIALIZED, and the production history path can advance QUERYABLE.
-- [ ] TODO-STEPS-MANUAL-007 Finish source-only recent or list, Today, Calendar, selected detail, and
+- [x] TODO-STEPS-MANUAL-007 Finish source-only recent or list, Today, Calendar, selected detail, and
   live state composition without requiring a Location trip or positive legacy sample count.
-- [ ] TODO-STEPS-MANUAL-008 Author the exact provider-to-WAL-to-writer-to-history-to-UI contract
+- [x] TODO-STEPS-MANUAL-008 Author the exact provider-to-WAL-to-writer-to-history-to-UI contract
   tests and listener teardown test without executing the physical scenario yet.
+
+Implementation checkpoint: the production graph already routes Dashboard, Tracker, shortcut, and
+widget starts through `TrackerServiceApi.requestManualTrackingStart`; the service-owned plan emits
+only reachable event sources, gives manual sessions no control dependency, and binds the immutable
+manifest, run, demand, authorization, WAL and source-local writer identities exactly. The app-scoped
+step-counter runtime preserves a post-effective baseline, reset/gap and freshness semantics, atomic
+durable admission, generation fencing, and exact listener retirement. Existing history, recent
+list, Today/Calendar, Detail and live compositions keep missing, materializing, partial, covered
+zero and positive states distinct without treating `sampleCount` as source proof. The newly added
+host contract fixes the exact manual `{Steps}` plan/no-control boundary; the disposable Android
+gate already covers the complete provider-to-product chain and listener teardown. All of this
+remains `IMPLEMENTED_UNVALIDATED`: no test, build, static-analysis, device, UI, battery, activation,
+integration or publication command ran for this checkpoint.
 
 ### Qualified numeric consumers and effects
 

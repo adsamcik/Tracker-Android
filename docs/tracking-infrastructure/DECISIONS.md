@@ -2589,3 +2589,24 @@ Each entry records repository evidence and does not duplicate the final architec
   admission ordinal, or original full-capture claim.
 - The production and focused test source is authored only. No compiler, Gradle, test, lint, Detekt,
   Room drift, device, UI, integration, publication, activation, or release command ran.
+
+## TI-D165 — Manual Steps is one exact source-owned path with no implicit control
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-10; source audit plus focused contract, TI-B226.
+- Every ordinary manual entry point delegates to the same source-aware start API. Readiness and
+  service preparation resolve the current immutable policy and rollout; a capable reachable Steps
+  source is sufficient and Location is not a prerequisite.
+- A manual Steps-only plan contains exactly Steps. Manual origin adds no control dependency, so it
+  cannot create or retain an Activity, Location, Pressure, Wi-Fi, Cell, CONTROL, or AMBIENT demand
+  merely to enrich Steps. The exact manifest, service run, demand, authorization, WAL evidence and
+  candidate fact retain their source, purpose, policy, consent, epoch and generation bindings.
+- The app-scoped step-counter owner establishes a post-effective baseline, admits only fresh
+  generation-valid boundaries through the atomic durable ingress, treats reset/gaps/unchanged/
+  covered-zero/positive/partial/capability/storage states distinctly, and durably retires the exact
+  listener before releasing provider ownership.
+- The source-only list, Today/Calendar, Detail and live read surfaces consume qualified history and
+  never infer source presence from legacy `sampleCount` or fabricate zero. The dormant writer
+  transition stays contained and default-off; this decision does not activate or roll out the lane.
+- Production and test source was inspected and one missing exact host-plan assertion was authored.
+  No compiler, Gradle, test, lint, Detekt, Room drift, Android provider, listener, UI, battery,
+  integration, publication, activation, or release command ran.

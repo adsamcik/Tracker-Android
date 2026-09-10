@@ -183,6 +183,37 @@ This is authored source and expected-command inventory, not compile, host, file-
 device, rendered UI, process, reboot, battery, integration, activation, publication, or release
 evidence.
 
+## TI-B226 — Manual Steps implementation inventory and exact-plan contract, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED**. Source inspection maps the complete manual Steps path to the
+central `requestManualTrackingStart` boundary, current policy/rollout readiness, exact foreground
+source acceptance, immutable manifest/run creation, source-purpose demand and authorization,
+app-scoped `TYPE_STEP_COUNTER` ownership, atomic durable ingress, the candidate Steps fact lane,
+logical history composition, source-only list/Today/Calendar/Detail/live presentation, and exact
+provider retirement. The existing disposable Android gate asserts the production chain from a
+fresh post-baseline delta through `RECORDING`, `MATERIALIZED`, `QUERYABLE`, and terminal broker
+cleanup while requiring exactly one Steps demand/registration and no control or sibling demand.
+
+The focused host contract added to `TrackerServiceSourceSessionTest` requires a manual Steps-only
+request to contain exactly one enabled Steps plan, no automatic trigger, and no control dependency.
+The established runtime tests cover exact listener removal, stale-generation fencing, reset/gap/
+freshness and atomic durability; the established product tests cover materializing, missing,
+partial, covered zero and positive values without `sampleCount` inference. This is an authored
+inventory, not an executed result.
+
+Run only in the final convergence phase:
+
+```powershell
+.\gradlew.bat :tracker:api-module:testDebugUnitTest --tests '*TrackerServiceLaunchArchitectureTest' --tests '*ManualTrackingStartTest' :tracker:engine:testDebugUnitTest --tests '*TrackerServiceSourceSessionTest' --tests '*StepSourceRuntime*Test' --tests '*StepWindowAccumulatorTest' --tests '*StepsRecordingBoundaryIntegrationTest' --tests '*StepsSessionFactProjectionLaneTest' :feature:dashboard:testDebugUnitTest --tests '*DashboardViewModelLiveStepsTest' --tests '*StepsOnlyTrackingContentTest' --tests '*RecentTripsCardTest' :feature:statistics:testDebugUnitTest --tests '*TripDetail*Test' --tests '*Calendar*Test' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :tracker:api-module:lintDebug :tracker:engine:lintDebug :feature:dashboard:lintDebug :feature:statistics:lintDebug checkRoomSchemaDrift --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat :app:connectedDebugAndroidTest '-Pandroid.testInstrumentationRunnerArguments.class=com.adsamcik.tracker.app.tracking.ManualStepsOnlyDeviceGateTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The Android command still requires the documented identified physical step-counter device and
+before/during/after `dumpsys sensorservice` evidence. Until it runs, there is no provider,
+listener-removal, rendered UI, process/reboot, FGS, battery/OEM, activation, integration,
+publication, or release proof.
+
 ## Static source × mode matrix
 
 | ID | Source | Mode | Capture sources | Declared controls | Qualified `RECORDING` evidence | Canonical output | Production history/UI assertion | Current status |
