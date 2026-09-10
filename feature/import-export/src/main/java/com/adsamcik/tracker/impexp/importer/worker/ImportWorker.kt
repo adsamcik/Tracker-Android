@@ -25,6 +25,8 @@ import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveClassification
 import com.adsamcik.tracker.impexp.importer.archive.ZipArchiveExtractor
 import com.adsamcik.tracker.impexp.importer.file.DatabaseImportFailure
 import com.adsamcik.tracker.impexp.importer.file.FileImport
+import com.adsamcik.tracker.impexp.importer.file.ImportTransactionMode
+import com.adsamcik.tracker.impexp.importer.file.PortableStepsFileImport
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
@@ -90,13 +92,7 @@ class ImportWorker @AssistedInject constructor(
 
         return try {
             val fileName = file.name ?: throw IOException("Missing import file name")
-            val sourceReadLimit = if (
-                file.extension.equals("zip", ignoreCase = true)
-            ) {
-                ZipArchiveExtractor.MAX_COMPRESSED_INPUT_BYTES
-            } else {
-                Long.MAX_VALUE
-            }
+            val sourceReadLimit = importSourceReadLimit(file.extension)
             val jobId = computeImportJobId(context, file, sourceReadLimit)
 			requireReadyGeneration()
             if (!importJobRunner.start(jobId, fileName, file.length())) {
@@ -208,14 +204,16 @@ class ImportWorker @AssistedInject constructor(
             context = context,
             file = file,
             extractor = extractor,
+			transactionModeForEntry = { stream ->
+				importerFor(stream)?.transactionMode ?: ImportTransactionMode.WORKER_MANAGED
+			},
             importEntry = ::tryImport,
         )
     }
 
     @WorkerThread
     private suspend fun tryImport(stream: FileImportStream): ImportResult {
-        val extension = stream.extension.lowercase(Locale.ROOT)
-        val importer = FormatRegistry.importerForExtension(extension)
+        val importer = importerFor(stream)
 
         if (importer != null) {
             return import(stream, importer)
@@ -232,6 +230,9 @@ class ImportWorker @AssistedInject constructor(
             )
         }
     }
+
+	private fun importerFor(stream: FileImportStream): FileImport? =
+		FormatRegistry.importerForExtension(stream.extension.lowercase(Locale.ROOT))
 
     @WorkerThread
     private suspend fun import(
@@ -277,6 +278,9 @@ class ImportWorker @AssistedInject constructor(
                         receiptKey = DIRECT_ENTRY_KEY,
                         streamProvider = { inputStream },
                     ),
+					transactionMode = FormatRegistry.importerForExtension(
+						fileName.substringAfterLast('.', "").lowercase(Locale.ROOT),
+					)?.transactionMode ?: ImportTransactionMode.WORKER_MANAGED,
                     importEntry = ::tryImport,
                 )
             } ?: throw IOException("Failed to open ${fileName}")
@@ -298,4 +302,12 @@ class ImportWorker @AssistedInject constructor(
     }
 
 	private object StartupGenerationChangedException : RuntimeException()
+
+}
+
+internal fun importSourceReadLimit(extension: String?): Long = when {
+	extension.equals("zip", ignoreCase = true) -> ZipArchiveExtractor.MAX_COMPRESSED_INPUT_BYTES
+	extension.equals(PortableStepsFileImport.EXTENSION, ignoreCase = true) ->
+		PortableStepsFileImport.MAX_FILE_BYTES
+	else -> Long.MAX_VALUE
 }

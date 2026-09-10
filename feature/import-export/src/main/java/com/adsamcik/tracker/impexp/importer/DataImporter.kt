@@ -11,8 +11,9 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.Operation
 import androidx.work.WorkManager
 import androidx.work.workDataOf
-import com.adsamcik.tracker.impexp.importer.worker.ImportWorker
 import com.adsamcik.tracker.impexp.importer.archive.ArchiveExtractor
+import com.adsamcik.tracker.impexp.importer.file.ImportTransactionMode
+import com.adsamcik.tracker.impexp.importer.worker.ImportWorker
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ImportEntryReceiptEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportJobReceiptEntity
@@ -97,6 +98,9 @@ internal class ImportJobRunner(
 		context: Context,
 		file: DocumentFile,
 		extractor: ArchiveExtractor,
+		transactionModeForEntry: (FileImportStream) -> ImportTransactionMode = {
+			ImportTransactionMode.WORKER_MANAGED
+		},
 		importEntry: suspend (FileImportStream) -> ImportResult,
 	): ImportResult {
 		var aggregate = ImportResult.EMPTY
@@ -113,6 +117,7 @@ internal class ImportJobRunner(
 					jobId = jobId,
 					entryKey = stream.receiptKey,
 					entryName = stream.fileName,
+					transactionMode = transactionModeForEntry(stream),
 				) {
 					importEntry(stream)
 				}
@@ -125,8 +130,9 @@ internal class ImportJobRunner(
 	suspend fun importSingle(
 		jobId: String,
 		stream: FileImportStream,
+		transactionMode: ImportTransactionMode = ImportTransactionMode.WORKER_MANAGED,
 		importEntry: suspend (FileImportStream) -> ImportResult,
-	): ImportResult = processEntry(jobId, stream.receiptKey, stream.fileName) {
+	): ImportResult = processEntry(jobId, stream.receiptKey, stream.fileName, transactionMode) {
 		importEntry(stream)
 	}
 
@@ -153,29 +159,25 @@ internal class ImportJobRunner(
 		jobId: String,
 		entryKey: String,
 		entryName: String,
+		transactionMode: ImportTransactionMode,
 		importEntry: suspend () -> ImportResult,
 	): ImportResult {
 		successfulEntryResult(jobId, entryKey)?.let { return it }
 
 		return try {
-			verifyCollectedDataAccess()
-			receiptStore.transaction {
-				verifyCollectedDataAccess()
-				successfulEntryResult(jobId, entryKey)?.let { return@transaction it }
-				val result = importEntry()
-				verifyCollectedDataAccess()
-				if (result.failedCount > 0) throw ImportEntryRollback(result)
-				receiptStore.putEntry(
-					result.toReceipt(
-						jobId = jobId,
-						entryKey = entryKey,
-						entryName = entryName,
-						status = ImportEntryReceiptEntity.STATUS_SUCCESS,
-						updatedAt = nowMs(),
-					)
+			when (transactionMode) {
+				ImportTransactionMode.WORKER_MANAGED -> workerManagedEntry(
+					jobId = jobId,
+					entryKey = entryKey,
+					entryName = entryName,
+					importEntry = importEntry,
 				)
-				verifyCollectedDataAccess()
-				result
+				ImportTransactionMode.IMPORTER_MANAGED -> importerManagedEntry(
+					jobId = jobId,
+					entryKey = entryKey,
+					entryName = entryName,
+					importEntry = importEntry,
+				)
 			}
 		} catch (rollback: ImportEntryRollback) {
 			recordFailure(jobId, entryKey, entryName, rollback.result)
@@ -198,6 +200,58 @@ internal class ImportJobRunner(
 			throw failure
 		}
 	}
+
+	private suspend fun workerManagedEntry(
+		jobId: String,
+		entryKey: String,
+		entryName: String,
+		importEntry: suspend () -> ImportResult,
+	): ImportResult {
+		verifyCollectedDataAccess()
+		return receiptStore.transaction {
+			verifyCollectedDataAccess()
+			successfulEntryResult(jobId, entryKey)?.let { return@transaction it }
+			val result = importEntry()
+			verifyCollectedDataAccess()
+			if (result.failedCount > 0) throw ImportEntryRollback(result)
+			receiptStore.putEntry(result.successReceipt(jobId, entryKey, entryName))
+			verifyCollectedDataAccess()
+			result
+		}
+	}
+
+	private suspend fun importerManagedEntry(
+		jobId: String,
+		entryKey: String,
+		entryName: String,
+		importEntry: suspend () -> ImportResult,
+	): ImportResult {
+		// The source-local importer may acquire non-Room locks before opening its own transaction.
+		// A successful receipt is therefore a separate replay marker written only after that work.
+		verifyCollectedDataAccess()
+		val result = importEntry()
+		verifyCollectedDataAccess()
+		if (result.failedCount > 0) throw ImportEntryRollback(result)
+		return receiptStore.transaction {
+			verifyCollectedDataAccess()
+			successfulEntryResult(jobId, entryKey)?.let { return@transaction it }
+			receiptStore.putEntry(result.successReceipt(jobId, entryKey, entryName))
+			verifyCollectedDataAccess()
+			result
+		}
+	}
+
+	private fun ImportResult.successReceipt(
+		jobId: String,
+		entryKey: String,
+		entryName: String,
+	): ImportEntryReceiptEntity = toReceipt(
+		jobId = jobId,
+		entryKey = entryKey,
+		entryName = entryName,
+		status = ImportEntryReceiptEntity.STATUS_SUCCESS,
+		updatedAt = nowMs(),
+	)
 
 	private suspend fun recordFailure(
 		jobId: String,

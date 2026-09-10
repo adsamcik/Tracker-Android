@@ -11,6 +11,7 @@ import com.adsamcik.tracker.impexp.importer.file.FileImport
 import com.adsamcik.tracker.impexp.importer.file.GpxImport
 import com.adsamcik.tracker.impexp.importer.file.JsonImport
 import com.adsamcik.tracker.impexp.importer.file.KmlImport
+import com.adsamcik.tracker.impexp.importer.file.PortableStepsFileImport
 
 /**
  * Central registry that maps format identifiers to [Exporter] and [FileImport]
@@ -137,6 +138,19 @@ object FormatRegistry {
 			),
 			exporter = DatabaseExporter(),
 			importer = DatabaseImport(),
+		)
+
+		register(
+			descriptor = FormatDescriptor(
+				id = "portable-steps-v1",
+				displayNameRes = R.string.format_portable_steps,
+				mimeType = "application/vnd.tracker.steps+json",
+				extensions = setOf(PortableStepsFileImport.EXTENSION),
+				supportsExport = false,
+				supportsImport = true,
+				supportsDateRange = false,
+			),
+			importer = PortableStepsFileImport(),
 		)
 	}
 }
