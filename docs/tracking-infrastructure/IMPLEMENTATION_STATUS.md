@@ -6,6 +6,10 @@ Execution-grade work items, ownership, dependency gates, verification commands, 
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and
 evidence index.
 
+The exhaustive remaining-work checklist is
+[IMPLEMENTATION_TODO.md](IMPLEMENTATION_TODO.md). It distinguishes implementation code and tests
+to author now from product decisions and the deferred convergence-validation phase.
+
 ## September 10 workflow and current boundary
 
 The program is now in an explicit implementation-only phase (TI-D157/TI-B218). Production logic

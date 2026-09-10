@@ -5,6 +5,8 @@ Last updated: 2026-09-10
 ## Implementation-only directive
 
 The user has stopped all testing and validation until the entire planned implementation is built.
+Use [IMPLEMENTATION_TODO.md](IMPLEMENTATION_TODO.md) as the canonical checkbox ledger for every
+remaining implementation, product-decision, convergence, validation, and local-integration item.
 Do not run Gradle, compile/build tasks, tests, lint, Detekt, Room drift, emulator/device, UI
 evaluation, battery, CI, or release validation. Continue writing bounded production logic and its
 unit/contract tests. Mark every new source commit `IMPLEMENTED_UNVALIDATED`; preserve expected

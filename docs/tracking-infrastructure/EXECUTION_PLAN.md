@@ -15,6 +15,10 @@ positive Steps awards, physical only-source proof, portable import, automatic/Am
 delivery. Preserve the existing Steps-first dependency gates; no further generic framework or
 unrelated reward expansion is the next implementation wave.
 
+[IMPLEMENTATION_TODO.md](IMPLEMENTATION_TODO.md) is the canonical remaining-work checklist. This
+execution plan retains work-item rationale, dependency gates, and historical evidence; progress
+must not be inferred by scanning the historical rows alone.
+
 ## September 10 implementation-only phase
 
 The user has explicitly changed the sequencing for the remainder of the program. Until every

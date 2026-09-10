@@ -4,6 +4,10 @@ Last updated: 2026-09-10
 
 ## Current implementation-only operating mode
 
+Start from [IMPLEMENTATION_TODO.md](IMPLEMENTATION_TODO.md). It is the canonical exhaustive
+checklist for remaining source logic, tests to author, product decisions, assembly, deferred
+validation, and eventual local integration.
+
 Do not run validation on the continuation machine yet. The user explicitly requires all remaining
 production logic and focused unit/contract tests to be authored first. Until the dedicated final
 convergence phase, do not invoke Gradle, compilation, tests, lint, Detekt, schema drift,
