@@ -27,6 +27,10 @@ interface ImportedStepsDao {
 	@Insert(onConflict = OnConflictStrategy.ABORT)
 	suspend fun insertManifest(manifest: ImportedStepsManifestEntity)
 
+	/** Inserts one bounded immutable-manifest batch; any conflict aborts the owning entry transaction. */
+	@Insert(onConflict = OnConflictStrategy.ABORT)
+	suspend fun insertManifests(manifests: List<ImportedStepsManifestEntity>)
+
 	/** Reads the exact original portable entry identity, not a timestamp overlap. */
 	@Query("SELECT * FROM imported_steps_entry WHERE identity = :identity")
 	suspend fun entry(identity: String): ImportedStepsEntryEntity?

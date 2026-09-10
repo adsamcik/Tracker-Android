@@ -21,6 +21,10 @@ interface StepFactRevisionDao {
 	@Insert(onConflict = OnConflictStrategy.IGNORE)
 	suspend fun insert(entity: StepFactRevisionEntity): Long
 
+	/** Bounded writer batch; each -1 result remains an identity conflict, never an accepted replay. */
+	@Insert(onConflict = OnConflictStrategy.IGNORE)
+	suspend fun insert(entities: List<StepFactRevisionEntity>): List<Long>
+
 	@Query(
 		"SELECT * FROM step_fact_revision WHERE writer_projection_id = :writerProjectionId " +
 			"AND writer_projection_version = :writerProjectionVersion " +
