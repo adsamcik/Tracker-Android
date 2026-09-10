@@ -214,6 +214,28 @@ before/during/after `dumpsys sensorservice` evidence. Until it runs, there is no
 listener-removal, rendered UI, process/reboot, FGS, battery/OEM, activation, integration,
 publication, or release proof.
 
+## TI-B227 — Coherent daily/week qualified Steps batch, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `7eaa891b3`. The numeric repository now exposes only the
+demonstrated one-or-two-window batch. Room evaluates the ordered requests in one reader transaction;
+single-window APIs delegate to it. Game daily/week-to-date presentation observes one batch rather
+than combining two independently committed flows, while calendar rebinding remains cold and
+subscriber-owned.
+
+Authored assertions cover the public batch bound, ordered independent Ready/partial outcomes, one
+Game subscription, atomic paired generation presentation, calendar replacement cancellation, and
+compatibility fakes for existing single-window statistics consumers. They have not compiled or run.
+
+Run only in the final convergence phase:
+
+```powershell
+.\gradlew.bat :stats:api:jvmTest :tracker:engine:testDebugUnitTest --tests '*RoomStepsNumericSummaryRepository*' :feature:game:testDebugUnitTest --tests '*SourceQualifiedStepsSummaryTest' :feature:statistics:testDebugUnitTest --tests '*StatsPresenterViewModelSessionStatsTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :tracker:engine:lintDebug :feature:game:lintDebug :feature:statistics:lintDebug checkRoomSchemaDrift --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+This checkpoint is not effect revision/CAS, positive award, correction/deletion retraction, streak,
+achievement, device, rendered UI, integration, activation, publication, or release evidence.
+
 ## Static source × mode matrix
 
 | ID | Source | Mode | Capture sources | Declared controls | Qualified `RECORDING` evidence | Canonical output | Production history/UI assertion | Current status |

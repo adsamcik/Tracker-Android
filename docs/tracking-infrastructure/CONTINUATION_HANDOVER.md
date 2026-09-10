@@ -22,16 +22,17 @@ Location, Activity, Wi-Fi, and Cell piece plus its applicable product/action tes
 one dedicated local convergence branch. Only then begin the complete validation/fix phase; after it
 passes, rebase and merge through the clean integration checkout. No push or activation is authorized.
 
-Current coordinator source checkpoint: `4562432d0` on `codex/ti-steps-import-actions`, after the
+Current coordinator source checkpoint: `7eaa891b3` on `codex/ti-steps-import-actions`, after the
 imported day-composition cherry `293ff43e5`, portable admission `8abd7c6e3`, atomic stored-zone day
 repair `3dfa4eaad`, file bridge `c58fcc85f`, imported deletion `89454b8c1`, its contract completion
 `3ff5c086c`, bidirectional file export `19b8789b2`, and production round-trip contract `2d7af2b70`,
-plus their documentation checkpoints. It adds the protected-path-safe `.trackersteps` import/export
-bridge, exact complete-entry selected deletion with dual no-resurrection fences, and the two-database
-export/import/history/re-export contract. TI-D159/TI-B220 through TI-D164/TI-B225 are authoritative
-for guarantees and validation debt. Manual/session Steps has since been source-audited as a complete
-`IMPLEMENTED_UNVALIDATED` slice with one additional exact-plan host contract; continue next with the
-qualified numeric/effect consumer audit.
+manual inventory `753c76834`, and the coherent numeric-window batch `7eaa891b3`, plus their
+documentation checkpoints. It adds the protected-path-safe `.trackersteps` import/export bridge,
+exact complete-entry selected deletion with dual no-resurrection fences, the two-database
+export/import/history/re-export contract, and one transaction-coherent daily/week Steps read.
+TI-D159/TI-B220 through TI-D166/TI-B227 are authoritative for guarantees and validation debt.
+Continue next with Steps-specific persisted effect identity and replace/retract reconciliation;
+positive awards remain disabled.
 
 ## Local follow-up after the reviewed publication
 

@@ -334,6 +334,15 @@ integration or publication command ran for this checkpoint.
 - [ ] TODO-STEPS-NUM-008 Author focused tests for every audited consumer and every positive,
   zero, partial, correction, deletion, retention, and imported-origin case without running them.
 
+Implementation checkpoint: `7eaa891b3` adds the first bounded numeric-consumer correction. The
+production repository can now read or observe exactly one or two requested windows in one Room
+reader transaction, and the existing daily plus week-to-date Game presentation uses that batch
+instead of combining independently committed snapshots. Single-window consumers delegate to the
+same implementation. Focused API, Room, Game, and statistics-fake contracts are authored but not
+run. This does not complete NUM-001–008: no positive award is enabled, no effect identity/revision
+is persisted, and correction/deletion retraction for points, XP, streaks, achievements, badges, or
+notifications remains the next boundary.
+
 ### Automatic Steps
 
 - [ ] TODO-STEPS-AUTO-001 Resolve the explicit product decision on optional Step corroboration; it

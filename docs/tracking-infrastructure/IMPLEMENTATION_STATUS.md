@@ -3279,3 +3279,18 @@ listener-removal proof.
 No Gradle, compiler, test, lint, Detekt, Room drift, device, UI, battery, CI, integration,
 activation or publication command ran. The next implementation boundary is the complete qualified
 numeric/effect consumer audit.
+
+## 2026-09-10 implementation-only checkpoint — coherent qualified numeric windows
+
+Commit `7eaa891b3` adds a bounded one-or-two-window API and implements it with one Room reader
+transaction. The Game daily/week-to-date Steps summary now observes one batch, so a source
+settlement, correction, deletion, retention change, or imported-fact change cannot expose a daily
+result from one commit beside a weekly result from another. Existing single-window consumers use
+the same production path, and no provider or persistent observer is introduced.
+
+Focused API bounds, Room ordering/typed-outcome, Game generation-pairing/cancellation, and existing
+statistics fake contracts were authored. No command compiled or ran them. The checkpoint remains
+**IMPLEMENTED_UNVALIDATED** and deliberately does not enable goal completion or any durable effect.
+The next boundary is a Steps-specific persisted effect identity carrying exact zone, period,
+target, qualified source authority and desired completion, followed by idempotent replace/retract
+reconciliation for points and XP before streak or achievement restoration.

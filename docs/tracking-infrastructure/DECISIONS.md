@@ -2610,3 +2610,22 @@ Each entry records repository evidence and does not duplicate the final architec
 - Production and test source was inspected and one missing exact host-plan assertion was authored.
   No compiler, Gradle, test, lint, Detekt, Room drift, Android provider, listener, UI, battery,
   integration, publication, activation, or release command ran.
+
+## TI-D166 — Daily and weekly qualified Steps share one bounded read snapshot
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-10; source `7eaa891b3`, TI-B227.
+- The only demonstrated multi-window consumer is current-day plus week-to-date Steps presentation.
+  Its repository contract therefore accepts one or two complete range requests, not arbitrary
+  source/day fan-out, and preserves request order in one immutable result.
+- Room resolves every requested window inside one reader transaction. Calendar authority and
+  local/imported source qualification are still evaluated independently per range, but daily and
+  weekly results can no longer come from different committed database generations.
+- Existing single-window reads and observations delegate to the same batch implementation. The
+  Game summary owns one cold subscription per calendar authority; cancellation retires that one
+  observer, and settings changes continue to remap qualified values without restarting storage.
+- This is a read-composition boundary only. It does not make the source-evidence revision an effect
+  CAS, persist a goal/effect identity, re-enable points or XP, create a streak, mutate achievement
+  progress, or define correction/deletion retraction. Those remain required before any positive
+  Steps effect is allowed.
+- Focused source and tests were authored but no compiler, Gradle, test, lint, Detekt, Room drift,
+  device, UI, integration, publication, activation, or release command ran.
