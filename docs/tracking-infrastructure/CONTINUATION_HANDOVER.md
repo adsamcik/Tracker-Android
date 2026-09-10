@@ -22,6 +22,13 @@ Location, Activity, Wi-Fi, and Cell piece plus its applicable product/action tes
 one dedicated local convergence branch. Only then begin the complete validation/fix phase; after it
 passes, rebase and merge through the clean integration checkout. No push or activation is authorized.
 
+Current coordinator source checkpoint: `8abd7c6e3` on `codex/ti-steps-import-actions`, after the
+imported day-composition cherry `293ff43e5` and documentation checkpoint `aaa270d2f`. It adds the
+injected but registry-inactive atomic portable Steps admission command and unexecuted Room tests.
+TI-D159/TI-B220 are authoritative for its guarantees and validation debt. Continue next with exact
+stored-zone day repair/post-commit invalidation, then the protected-path-safe `.trackersteps` file
+bridge and remaining importer tests. Do not expose the registry before the day action is truthful.
+
 ## Local follow-up after the reviewed publication
 
 Published `dev/v10` is `0460f12a54a3550244f8e8ea5c9fb1f5e2ef27d2`; the clean integration

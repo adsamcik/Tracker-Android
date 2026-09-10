@@ -44,6 +44,29 @@ tracker-engine unit task, followed by the complete tracker-engine suite, root De
 tracker-engine lint, and the repository convergence gates. The pre-directive imported test-class
 initialization result remains unresolved until that phase.
 
+## TI-B220 — Atomic portable Steps admission, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `8abd7c6e3`. Five reviewed production/test paths add bounded
+Room batch inserts, one Hilt-bound but product-inactive import command, and its focused Room
+contracts. The command rechecks caller checksum stability, global native/imported identity and
+scope uniqueness, deletion/retention fences, lifecycle state, and destination ownership before
+atomically inserting the imported hierarchy and advancing source evidence. It records a truthful
+zero-sample/null-Steps presentation segment and no local provider, service-run, consent, control,
+elapsed-time, duration, or canonical-live-writer claim.
+
+Authored assertions cover exact attribution, fixed portable fact binding, 257-fact batching,
+side-effect-free replay, changed-content and cross-origin entry/run/fact/scope conflicts, capture
+deletion and retention fences, monotonic floor rejection, cancellation and SQLite rollback,
+caller-graph mutation, unknown owner, source-evidence advancement, post-commit dirty marking, and
+absence of fabricated local session/service-run authority. They have not run.
+
+The later focused command should select `RoomImportPortableStepsTest`, imported retained-reader,
+portable export, numeric/day-composition, selected-deletion, and retention suites, followed by
+tracker-engine/core/stats tests, Detekt, affected lint, Room drift, `ciUnitTest`, and `ciCheck` on
+the frozen convergence branch. Exact day repair/invalidation, file-registry exposure, malformed
+retained-state/reopen/correction tests, end-to-end import/export/no-resurrection, device/UI evidence,
+integration, activation, push, and release remain outside this checkpoint.
+
 ## Static source × mode matrix
 
 | ID | Source | Mode | Capture sources | Declared controls | Qualified `RECORDING` evidence | Canonical output | Production history/UI assertion | Current status |

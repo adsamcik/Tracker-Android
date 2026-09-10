@@ -2469,3 +2469,26 @@ Each entry records repository evidence and does not duplicate the final architec
 - The production code and focused tests exist at f93b373ef and continuation cherry 293ff43e5.
   No validation command ran; compilation, test behavior, static checks, and the previously reported
   imported test-class initialization failure remain deferred to convergence.
+
+## TI-D159 — Admit portable Steps through one inert source-local transaction
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-10; source `8abd7c6e3`, TI-B220.
+- Bind one source-local `ImportPortableSteps` command, but keep it unreachable from file discovery
+  until stored-zone day repair and registry work are complete. Import never starts or retains a
+  provider and never creates a local logical session, service run, policy, consent, elapsed clock,
+  provider generation, or control observation.
+- Deep-snapshot the caller graph and recompute its canonical checksum before preflight and again in
+  the owning Room transaction. Use the existing bounded production exporter as the one global
+  native/imported identity view; reject cross-entry entry, run, fact, or original deletion-scope
+  reuse instead of introducing another identity index or generic import framework.
+- Preserve portable entry, physical run, manifest, original policy/consent numbers, purpose, zone,
+  fact, checksum, and deletion-scope identity. Store the current canonical destination-owner
+  generation only as the local admission receipt; imported facts keep the fixed portable binding
+  and cannot acquire live writer authority from that receipt.
+- Check the monotonic lifecycle floor plus capture-deletion and retention-truncation fences before
+  mutation, then insert the full hierarchy and advance source evidence in one transaction. Exact
+  replay returns `Duplicate` without changing Room or observers. Cancellation propagates and rolls
+  back; transient storage and state races stay retryable.
+- Post-commit table invalidation is present, but exact affected-day repair and the product file
+  bridge remain explicit blockers. This commit is not compilation, test, Room-schema, device,
+  no-resurrection round-trip, activation, integration, publication, or release evidence.

@@ -193,29 +193,35 @@ commits. Remaining work may complete concrete bindings, but must not replace the
 
 ### Production portable import and no-resurrection
 
-- [ ] TODO-STEPS-PORT-001 Implement a real production portable Steps importer behind an inactive
+- [x] TODO-STEPS-PORT-001 Implement a real production portable Steps importer behind an inactive
   entry point using the frozen versioned format and strict codec.
-- [ ] TODO-STEPS-PORT-002 Validate the complete bounded snapshot, checksums, correction lineage,
+- [x] TODO-STEPS-PORT-002 Validate the complete bounded snapshot, checksums, correction lineage,
   original capture set, source qualification, settlement, deletion scope, and all limits before
   mutating production storage.
-- [ ] TODO-STEPS-PORT-003 Stage and commit one import atomically, with entry-wide global identity
+- [x] TODO-STEPS-PORT-003 Stage and commit one import atomically, with entry-wide global identity
   uniqueness and typed collision or replay outcomes.
-- [ ] TODO-STEPS-PORT-004 Persist original entry, run, segment, manifest, purpose, consent, policy,
+- [x] TODO-STEPS-PORT-004 Persist original entry, run, segment, manifest, purpose, consent, policy,
   owner, deletion scope, fact, receipt, zone, and provenance identity verbatim where supplied.
-- [ ] TODO-STEPS-PORT-005 Never fabricate a local service run, local elapsed time, local consent,
+- [x] TODO-STEPS-PORT-005 Never fabricate a local service run, local elapsed time, local consent,
   local provider generation, full original capture set, or tracked duration for an imported fact.
-- [ ] TODO-STEPS-PORT-006 Distinguish an identical replay from a conflicting reuse of entry, run,
+- [x] TODO-STEPS-PORT-006 Distinguish an identical replay from a conflicting reuse of entry, run,
   segment, fact, correction, receipt, or deletion-scope identity.
 - [ ] TODO-STEPS-PORT-007 Invalidate exact source evidence, logical history, affected civil days,
   numeric consumers, and product observers after a committed import.
-- [ ] TODO-STEPS-PORT-008 Make retained imported origins exportable without reconstructing facts
+- [x] TODO-STEPS-PORT-008 Make retained imported origins exportable without reconstructing facts
   from lossy compatibility aggregates.
-- [ ] TODO-STEPS-PORT-009 Return a typed refusal when retention has removed identity required to
+- [x] TODO-STEPS-PORT-009 Return a typed refusal when retention has removed identity required to
   reproduce the original portable scope.
 - [ ] TODO-STEPS-PORT-010 Connect the production file import path and registry to the new importer
   without touching the six protected root-checkout drafts.
 - [ ] TODO-STEPS-PORT-011 Author atomicity, malformed input, collision, replay, correction,
   cancellation, storage failure, reopen, and bounded-resource tests without executing them.
+
+Implementation checkpoint: `8abd7c6e3` supplies PORT-001 through PORT-006 and preserves the
+already implemented retained export/refusal behavior in PORT-008 and PORT-009. Source-evidence and
+table observers advance after commit, but PORT-007 remains open until the affected stored-zone
+civil days are repaired or explicitly failed before product exposure. PORT-011 remains open for
+malformed retained-state, reopen, and correction-specific coverage.
 
 ### Imported selected deletion and repair
 

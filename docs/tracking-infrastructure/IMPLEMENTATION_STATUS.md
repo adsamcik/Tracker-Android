@@ -12,6 +12,21 @@ to author now from product decisions and the deferred convergence-validation pha
 
 ## September 10 workflow and current boundary
 
+Production portable Steps admission is now committed at `8abd7c6e3` as
+**IMPLEMENTED_UNVALIDATED**. The injected command is deliberately unreachable from the file
+registry. It snapshots and revalidates one bounded logical entry, preflights the complete existing
+portable/native authority, checks original deletion and retention scopes, records the current
+destination-owner generation only as a local admission receipt, and atomically inserts exact
+imported entry/run/manifest/fact identity plus a zero-sample, null-Steps presentation segment.
+Exact replay is a database- and observer-no-op; conflicting identity reuse, lifecycle races,
+storage failure, and unverifiable attribution remain typed. No local service run, provider demand,
+consent grant, elapsed clock, tracked duration, or live-writer binding is fabricated.
+
+The focused importer Room contracts are authored but unexecuted. Exact stored-zone day repair and
+post-commit day invalidation, the `.trackersteps` file adapter/registry bridge, and remaining
+malformed/reopen/correction tests are still open before product exposure. No validation command
+ran for this slice, so compilation and behavior remain deferred debt under TI-D157.
+
 Imported Steps day composition is now committed as **IMPLEMENTED_UNVALIDATED**: canonical source
 commit f93b373ef and continuation cherry 293ff43e5. Authenticated imported facts are consumed in
 bounded batches beside local facts, remain discoverable by source-fact wall projection, preserve
@@ -39,7 +54,7 @@ retains its commit-specific evidence. Newer local imported Steps work is split a
 `4db55146e`, product `ecbdf6161`, summary authority `3f62d5c6`, and actions checkpoint `08d8b8d9c`.
 The imported day-repair worktree is clean at canonical commit f93b373ef after its nine-path
 implementation checkpoint. The continuation coordinator contains the same source delta at
-293ff43e5; neither commit is integrated into dev/v10 or published.
+293ff43e5 followed by portable admission `8abd7c6e3`; none is integrated into dev/v10 or published.
 
 The final stopped engine run did not pass: one selected-session materializer assertion failed and
 `ImportedStepsNumericRoomTest` had an invalid test-class initialization, after which the build was
