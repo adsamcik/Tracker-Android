@@ -5,7 +5,12 @@ import androidx.room.useReaderConnection
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.di.IoDispatcher
+import com.adsamcik.tracker.stats.api.repository.StepsNumericCalendarAuthority
+import com.adsamcik.tracker.stats.api.repository.StepsNumericCalendarDay
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
+import com.adsamcik.tracker.stats.api.repository.StepsNumericDecisionBatch
+import com.adsamcik.tracker.stats.api.repository.StepsNumericDecisionRepository
+import com.adsamcik.tracker.stats.api.repository.StepsNumericDecisionWindow
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryBatch
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
@@ -16,6 +21,10 @@ import com.adsamcik.tracker.tracker.source.deletion.StepsDayNumericComposition
 import com.adsamcik.tracker.tracker.source.deletion.StepsDayRepairPlan
 import com.adsamcik.tracker.tracker.source.deletion.StepsDayRepairPreflight
 import com.adsamcik.tracker.tracker.source.deletion.stepsNumericReadQueryBounds
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 import java.time.DateTimeException
 import java.time.ZoneId
 import javax.inject.Inject
@@ -36,21 +45,27 @@ import kotlinx.coroutines.withContext
 class RoomStepsNumericSummaryRepository @Inject constructor(
 	private val database: AppDatabase,
 	@IoDispatcher private val ioDispatcher: CoroutineDispatcher,
-) : StepsNumericSummaryRepository {
+) : StepsNumericSummaryRepository, StepsNumericDecisionRepository {
 	override fun observe(request: StepsNumericSummaryRequest): Flow<StepsNumericSummary> =
 		observeBatch(listOf(request)).map { batch -> batch.summaries.single() }
 
 	override fun observeBatch(
 		requests: List<StepsNumericSummaryRequest>,
-	): Flow<StepsNumericSummaryBatch> {
+	): Flow<StepsNumericSummaryBatch> = observeDecisionBatch(requests)
+		.map { batch -> batch.toSummaryBatch(requests.size) }
+		.distinctUntilChanged()
+
+	override fun observeDecisionBatch(
+		requests: List<StepsNumericSummaryRequest>,
+	): Flow<StepsNumericDecisionBatch> {
 		requireValidBatch(requests)
 		return observedInvalidations()
-			.map { readBatch(requests) }
+			.map { readDecisionBatch(requests) }
 			.catch { failure ->
 				if (failure is CancellationException) {
 					throw failure
 				}
-				emit(storageUnavailableBatch(requests.size))
+				emit(StepsNumericDecisionBatch.StorageUnavailable)
 			}
 			.distinctUntilChanged()
 	}
@@ -67,36 +82,50 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 
 	override suspend fun readBatch(
 		requests: List<StepsNumericSummaryRequest>,
-	): StepsNumericSummaryBatch {
+	): StepsNumericSummaryBatch = readDecisionBatch(requests).toSummaryBatch(requests.size)
+
+	override suspend fun readDecisionBatch(
+		requests: List<StepsNumericSummaryRequest>,
+	): StepsNumericDecisionBatch {
 		requireValidBatch(requests)
 		return withContext(ioDispatcher) {
 			try {
-				readBatchInTransaction(requests)
+				readDecisionBatchInTransaction(requests)
 			} catch (cancellation: CancellationException) {
 				currentCoroutineContext().ensureActive()
 				if (database.isOpen) {
 					throw cancellation
 				}
-				storageUnavailableBatch(requests.size)
+				StepsNumericDecisionBatch.StorageUnavailable
 			} catch (_: Exception) {
-				storageUnavailableBatch(requests.size)
+				StepsNumericDecisionBatch.StorageUnavailable
 			}
 		}
 	}
 
-	private suspend fun readBatchInTransaction(
+	private suspend fun readDecisionBatchInTransaction(
 		requests: List<StepsNumericSummaryRequest>,
-	): StepsNumericSummaryBatch = database.useReaderConnection { connection ->
+	): StepsNumericDecisionBatch = database.useReaderConnection { connection ->
 		connection.deferredTransaction {
-			StepsNumericSummaryBatch(
-				summaries = requests.map { request -> readInCurrentTransaction(request) },
+			val before = database.sourceEvidenceStateDao().get()
+				?: return@deferredTransaction StepsNumericDecisionBatch.StorageUnavailable
+			val windows = requests.map { request -> readInCurrentTransaction(request) }
+			val after = database.sourceEvidenceStateDao().get()
+				?: return@deferredTransaction StepsNumericDecisionBatch.StorageUnavailable
+			check(before.revision == after.revision) {
+				"Source evidence changed during a Steps decision snapshot"
+			}
+			StepsNumericDecisionBatch.Snapshot(
+				sourceEvidenceRevision = before.revision,
+				windows = windows,
 			)
 		}
 	}
 
+	@Suppress("LongMethod", "ReturnCount")
 	private suspend fun readInCurrentTransaction(
 		request: StepsNumericSummaryRequest,
-	): StepsNumericSummary {
+	): StepsNumericDecisionWindow {
 		val summaries = database.dailySummaryDao().getBetween(
 			request.firstEpochDay,
 			request.lastEpochDayInclusive,
@@ -105,26 +134,48 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 		if (summariesByDay.size != summaries.size || summariesByDay.keys.any { day ->
 			day !in request.firstEpochDay..request.lastEpochDayInclusive
 		}) {
-			return calendarUnavailable()
+			return decisionWindow(
+				request,
+				calendarUnavailable(),
+				StepsNumericCalendarAuthority.Unavailable,
+			)
 		}
 		val zoneByDay = linkedMapOf<Long, ZoneId>()
 		for (epochDay in request.firstEpochDay..request.lastEpochDayInclusive) {
 			val storedZone = summariesByDay[epochDay]?.let { summary ->
 				parseZone(
 					summary.calendarZoneId
-						?: return calendarUnavailable(),
-				) ?: return calendarUnavailable()
+						?: return decisionWindow(
+							request,
+							calendarUnavailable(),
+							StepsNumericCalendarAuthority.Unavailable,
+						),
+				) ?: return decisionWindow(
+					request,
+					calendarUnavailable(),
+					StepsNumericCalendarAuthority.Unavailable,
+				)
 			}
 			zoneByDay[epochDay] = storedZone
 				?: parseZone(request.fallbackCalendarZoneId)
-				?: return calendarUnavailable()
+				?: return decisionWindow(
+					request,
+					calendarUnavailable(),
+					StepsNumericCalendarAuthority.Unavailable,
+				)
 		}
+		val authority = StepsNumericCalendarAuthority.Exact(
+			zoneByDay.map { (epochDay, zoneId) ->
+				StepsNumericCalendarDay(epochDay, zoneId.id)
+			},
+		)
 		if (stepsNumericReadQueryBounds(zoneByDay) == null) {
-			return calendarUnavailable()
+			return decisionWindow(request, calendarUnavailable(), authority)
 		}
-		return StepsDailySummaryRepairComposer(database)
+		val summary = StepsDailySummaryRepairComposer(database)
 			.composeForNumericRead(zoneByDay)
 			.toNumericSummary(request, zoneByDay)
+		return decisionWindow(request, summary, authority)
 	}
 
 	private fun requireValidBatch(requests: List<StepsNumericSummaryRequest>) {
@@ -136,6 +187,15 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 	private fun storageUnavailableBatch(size: Int) = StepsNumericSummaryBatch(
 		summaries = List(size) { storageUnavailable() },
 	)
+
+	private fun StepsNumericDecisionBatch.toSummaryBatch(size: Int): StepsNumericSummaryBatch =
+		when (this) {
+			is StepsNumericDecisionBatch.Snapshot -> {
+				check(windows.size == size) { "Steps decision batch changed requested window count" }
+				StepsNumericSummaryBatch(windows.map(StepsNumericDecisionWindow::summary))
+			}
+			StepsNumericDecisionBatch.StorageUnavailable -> storageUnavailableBatch(size)
+		}
 
 	private fun parseZone(zoneId: String): ZoneId? = try {
 		ZoneId.of(zoneId)
@@ -149,6 +209,17 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 
 	private fun storageUnavailable() = StepsNumericSummary.Unverifiable(
 		StepsNumericUnverifiableReason.STORAGE_UNAVAILABLE,
+	)
+
+	private fun decisionWindow(
+		request: StepsNumericSummaryRequest,
+		summary: StepsNumericSummary,
+		calendarAuthority: StepsNumericCalendarAuthority,
+	): StepsNumericDecisionWindow = StepsNumericDecisionWindow(
+		request = request,
+		summary = summary,
+		calendarAuthority = calendarAuthority,
+		sourceResultDigest = stepsSourceResultDigest(request, calendarAuthority, summary),
 	)
 
 	private companion object {
@@ -173,6 +244,71 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 		)
 	}
 }
+
+internal fun stepsSourceResultDigest(
+	request: StepsNumericSummaryRequest,
+	calendarAuthority: StepsNumericCalendarAuthority,
+	summary: StepsNumericSummary,
+): String {
+	val buffer = ByteArrayOutputStream()
+	DataOutputStream(buffer).use { output ->
+		output.writeInt(STEPS_SOURCE_RESULT_DIGEST_VERSION)
+		output.writeLong(request.firstEpochDay)
+		output.writeLong(request.lastEpochDayInclusive)
+		when (calendarAuthority) {
+			is StepsNumericCalendarAuthority.Exact -> {
+				output.writeByte(CALENDAR_EXACT_TAG)
+				output.writeInt(calendarAuthority.days.size)
+				calendarAuthority.days.forEach { day ->
+					output.writeLong(day.epochDay)
+					output.writeSizedUtf8(day.zoneId)
+				}
+			}
+			StepsNumericCalendarAuthority.Unavailable -> {
+				output.writeByte(CALENDAR_UNAVAILABLE_TAG)
+				output.writeSizedUtf8(request.fallbackCalendarZoneId)
+			}
+		}
+		when (summary) {
+			is StepsNumericSummary.Ready -> {
+				output.writeByte(SUMMARY_READY_TAG)
+				output.writeInt(summary.days.size)
+				summary.days.forEach { day ->
+					output.writeLong(day.epochDay)
+					output.writeLong(day.steps)
+				}
+			}
+			StepsNumericSummary.Materializing -> output.writeByte(SUMMARY_MATERIALIZING_TAG)
+			is StepsNumericSummary.Unverifiable -> {
+				output.writeByte(SUMMARY_UNVERIFIABLE_TAG)
+				output.writeSizedUtf8(summary.reason.name)
+			}
+		}
+	}
+	return MessageDigest.getInstance("SHA-256").digest(buffer.toByteArray()).toLowerHex()
+}
+
+private fun DataOutputStream.writeSizedUtf8(value: String) {
+	val bytes = value.toByteArray(StandardCharsets.UTF_8)
+	writeInt(bytes.size)
+	write(bytes)
+}
+
+private fun ByteArray.toLowerHex(): String = buildString(size * 2) {
+	for (byte in this@toLowerHex) {
+		val unsigned = byte.toInt() and 0xff
+		append(HEX_DIGITS[unsigned ushr 4])
+		append(HEX_DIGITS[unsigned and 0x0f])
+	}
+}
+
+private const val STEPS_SOURCE_RESULT_DIGEST_VERSION = 1
+private const val CALENDAR_EXACT_TAG = 1
+private const val CALENDAR_UNAVAILABLE_TAG = 2
+private const val SUMMARY_READY_TAG = 1
+private const val SUMMARY_MATERIALIZING_TAG = 2
+private const val SUMMARY_UNVERIFIABLE_TAG = 3
+private const val HEX_DIGITS = "0123456789abcdef"
 
 internal fun StepsDayRepairPreflight.toNumericSummary(
 	request: StepsNumericSummaryRequest,

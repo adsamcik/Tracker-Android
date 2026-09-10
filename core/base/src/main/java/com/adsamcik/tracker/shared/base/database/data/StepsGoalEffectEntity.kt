@@ -41,7 +41,7 @@ data class StepsGoalEffectEntity(
 	@ColumnInfo(name = "decision_state") val decisionState: String,
 	@ColumnInfo(name = "unavailable_reason") val unavailableReason: String?,
 	@ColumnInfo(name = "qualified_steps") val qualifiedSteps: Long?,
-	/** Lowercase SHA-256 over the exact qualified source inputs and their semantic revisions. */
+	/** Lowercase SHA-256 over the exact qualified result and structural-calendar authority. */
 	@ColumnInfo(name = "source_authority_digest") val sourceAuthorityDigest: String,
 	@ColumnInfo(name = "source_evidence_revision") val sourceEvidenceRevision: Long,
 	@ColumnInfo(name = "effect_revision") val effectRevision: Long,
