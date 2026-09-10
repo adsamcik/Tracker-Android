@@ -114,6 +114,14 @@ class RoomImportPortableStepsTest {
 		segment.primaryActivity shouldBe null
 		segment.logicalTrackingId shouldBe entry.identity.value
 		segment.serviceRunId shouldBe sourceRun.identity.value
+		requireNotNull(database.dailySummaryDao().getByDay(ENTRY_DAY)).also { summary ->
+			summary.totalDistanceM shouldBe 0f
+			summary.totalSteps shouldBe 11
+			summary.totalDurationMs shouldBe 0L
+			summary.tripCount shouldBe 1
+			summary.activeTrackingMs shouldBe 0L
+			summary.calendarZoneId shouldBe ENTRY_ZONE_ID
+		}
 		entry.runs.single().facts.forEach { portable ->
 			val fact = requireNotNull(
 				database.stepFactRevisionDao().latest(
@@ -158,6 +166,56 @@ class RoomImportPortableStepsTest {
 		tableCount("imported_steps_manifest") shouldBe 1L
 		database.sessionSegmentDao().countTotal() shouldBe 1L
 	}
+
+	@Test
+	fun `partial imported Steps cannot create a fabricated compatibility count`() = runTest {
+		val candidate = entry(captureCoverage = PortableStepsCaptureCoverage.PARTIAL)
+
+		subject().importEntry(candidate) shouldBe ImportPortableStepsResult.Unverifiable(
+			PortableStepsImportUnverifiableReason.DAY_REPAIR_UNVERIFIABLE,
+		)
+
+		assertNoImportedPayload()
+		database.dailySummaryDao().getByDay(ENTRY_DAY) shouldBe null
+		database.sourceEvidenceStateDao().get() shouldBe null
+		dirtyTracker.marked shouldBe emptyList()
+	}
+
+	@Test
+	fun `partial imported Steps preserves an existing compatibility count while repairing other totals`() =
+		runTest {
+			upsertDailySummary(totalSteps = 123, totalDistanceM = 45f, totalDurationMs = 67L, tripCount = 8)
+
+			subject().importEntry(entry(captureCoverage = PortableStepsCaptureCoverage.PARTIAL)) shouldBe
+				ImportPortableStepsResult.Applied(1, 1)
+
+			requireNotNull(database.dailySummaryDao().getByDay(ENTRY_DAY)).also { summary ->
+				summary.totalDistanceM shouldBe 0f
+				summary.totalSteps shouldBe 123
+				summary.totalDurationMs shouldBe 0L
+				summary.tripCount shouldBe 1
+				summary.activeTrackingMs shouldBe 99L
+				summary.calendarZoneId shouldBe ENTRY_ZONE_ID
+			}
+		}
+
+	@Test
+	fun `conflicting persisted calendar authority rejects and rolls back the imported hierarchy`() =
+		runTest {
+			upsertDailySummary(totalSteps = 123, calendarZoneId = "America/Los_Angeles")
+
+			subject().importEntry(entry()) shouldBe ImportPortableStepsResult.Unverifiable(
+				PortableStepsImportUnverifiableReason.DAY_REPAIR_UNVERIFIABLE,
+			)
+
+			assertNoImportedPayload()
+			requireNotNull(database.dailySummaryDao().getByDay(ENTRY_DAY)).also { summary ->
+				summary.totalSteps shouldBe 123
+				summary.calendarZoneId shouldBe "America/Los_Angeles"
+			}
+			database.sourceEvidenceStateDao().get() shouldBe null
+			dirtyTracker.marked shouldBe emptyList()
+		}
 
 	@Test
 	fun `exact replay is a side effect free duplicate`() = runTest {
@@ -307,6 +365,22 @@ class RoomImportPortableStepsTest {
 	}
 
 	@Test
+	fun `lifecycle change after payload insertion is retryable and rolls back day repair`() = runTest {
+		val importer = subject(afterPayloadInserted = {
+			lifecycle.update(CollectedDataLifecycleSnapshot(epoch = 4L, retainedFromMs = null))
+		})
+
+		importer.importEntry(entry()) shouldBe ImportPortableStepsResult.RetryableFailure(
+			PortableStepsTransferRetryableReason.CONCURRENT_STATE_CHANGE,
+		)
+
+		assertNoImportedPayload()
+		database.dailySummaryDao().getByDay(ENTRY_DAY) shouldBe null
+		database.sourceEvidenceStateDao().get() shouldBe null
+		dirtyTracker.marked shouldBe emptyList()
+	}
+
+	@Test
 	fun `lifecycle storage failure is typed and cannot touch Room`() = runTest {
 		val failingLifecycle = object : CollectedDataLifecycleStore by lifecycle {
 			override suspend fun snapshot(): CollectedDataLifecycleSnapshot =
@@ -366,6 +440,7 @@ class RoomImportPortableStepsTest {
 	private fun subject(
 		nativeStepsExporter: ExportPortableSteps = nativeExporter(),
 		lifecycleStore: CollectedDataLifecycleStore = lifecycle,
+		afterDayLocksAcquired: suspend () -> Unit = {},
 		beforeMutation: suspend () -> Unit = {},
 		afterPayloadInserted: suspend () -> Unit = {},
 	) = RoomImportPortableSteps(
@@ -376,6 +451,7 @@ class RoomImportPortableStepsTest {
 		ioDispatcher = Dispatchers.Unconfined,
 		dirtyTracker = dirtyTracker,
 		nativeStepsExporter = nativeStepsExporter,
+		afterDayLocksAcquired = afterDayLocksAcquired,
 		beforeMutation = beforeMutation,
 		afterPayloadInserted = afterPayloadInserted,
 	)
@@ -416,6 +492,26 @@ class RoomImportPortableStepsTest {
 		}
 	}
 
+	@Suppress("LongParameterList")
+	private suspend fun upsertDailySummary(
+		totalSteps: Int,
+		totalDistanceM: Float = 12f,
+		totalDurationMs: Long = 34L,
+		tripCount: Int = 2,
+		calendarZoneId: String = ENTRY_ZONE_ID,
+	) {
+		database.dailySummaryDao().upsert(
+			dateEpochDay = ENTRY_DAY,
+			totalDistanceM = totalDistanceM,
+			totalSteps = totalSteps,
+			totalDurationMs = totalDurationMs,
+			tripCount = tripCount,
+			activeTrackingMs = 99L,
+			lastUpdatedMs = 1L,
+			calendarZoneId = calendarZoneId,
+		)
+	}
+
 	private fun entry(
 		logicalSeed: String = SOURCE_LOGICAL_ID,
 		runIdentity: PortableStepsOpaqueIdentity =
@@ -424,15 +520,20 @@ class RoomImportPortableStepsTest {
 			opaque(PortableStepsIdentityKind.FACT, SOURCE_FACT_ID),
 		deletionScope: PortableStepsDeletionScopeDigest = deletionScope(SOURCE_LOGICAL_ID, SOURCE_RUN_ID),
 		stepCounts: List<Long> = listOf(11L),
+		captureCoverage: PortableStepsCaptureCoverage = PortableStepsCaptureCoverage.WHOLE_RUN,
 	): PortableStepsEntryV1 {
+		require(stepCounts.isNotEmpty())
+		val durationMs = END_MS - START_MS
 		val facts = stepCounts.mapIndexed { index, count ->
+			val intervalStartTimeMs = START_MS + index.toLong() * durationMs / stepCounts.size
+			val intervalEndTimeMs = START_MS + (index + 1L) * durationMs / stepCounts.size
 			PortableStepsFactV1.create(
 				identity = if (index == 0) factIdentity else {
 					opaque(PortableStepsIdentityKind.FACT, "$logicalSeed-fact-$index")
 				},
 				manifestRevision = 1L,
-				intervalStartTimeMs = START_MS + index * 100L,
-				intervalEndTimeMs = START_MS + (index + 1L) * 100L,
+				intervalStartTimeMs = intervalStartTimeMs,
+				intervalEndTimeMs = intervalEndTimeMs,
 				wallTimeUncertaintyMs = 25L,
 				coverage = PortableStepsFactCoverage.COVERED,
 				stepCount = count,
@@ -443,7 +544,7 @@ class RoomImportPortableStepsTest {
 			deletionScopeDigest = deletionScope,
 			startTimeMs = START_MS,
 			endTimeMs = END_MS,
-			storedZoneId = "Europe/Prague",
+			storedZoneId = ENTRY_ZONE_ID,
 			manifests = listOf(
 				PortableStepsManifestV1(
 					revision = 1L,
@@ -453,7 +554,7 @@ class RoomImportPortableStepsTest {
 				),
 			),
 			completeness = PortableStepsCompletenessV1(
-				captureCoverage = PortableStepsCaptureCoverage.WHOLE_RUN,
+				captureCoverage = captureCoverage,
 				providerCoverage = PortableStepsProviderCoverage.COMPLETE,
 				appDrainComplete = true,
 				stopComplete = true,
@@ -541,6 +642,8 @@ class RoomImportPortableStepsTest {
 		const val OWNER_GENERATION = 8L
 		const val START_MS = 1_000L
 		const val END_MS = 2_000L
+		const val ENTRY_DAY = 0L
+		const val ENTRY_ZONE_ID = "Europe/Prague"
 		const val SOURCE_LOGICAL_ID = "source-logical"
 		const val SOURCE_RUN_ID = "source-run"
 		const val SOURCE_FACT_ID = "source-fact"

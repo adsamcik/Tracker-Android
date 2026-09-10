@@ -141,6 +141,33 @@ internal class StepsDailySummaryRepairComposer(
 		)
 	}
 
+	/**
+	 * Rebuilds the bounded product days affected by one atomic portable import.
+	 *
+	 * The importer resolves every calendar authority and holds every applicable day lock before it
+	 * mutates Room. Sparse replacement runs use the conservative all-zone envelope rather than the
+	 * contiguous numeric-read contract. A partial or Int-unrepresentable Steps result may preserve an
+	 * existing compatibility integer, but can never create a new row whose zero would be fabricated.
+	 */
+	suspend fun composeForImportedMutation(
+		zoneByDay: Map<Long, ZoneId>,
+	): StepsDayRepairPreflight {
+		val orderedZones = zoneByDay.toSortedMap()
+		val queryBounds = allZoneQueryBounds(orderedZones.keys.toList()) ?: return unverifiable()
+		return composeQualifiedDays(
+			excludedSegmentId = null,
+			zoneByDay = orderedZones,
+			queryBounds = queryBounds,
+			discoverSourceRuns = true,
+			blockOnActiveUnboundNonSteps = true,
+		).preservePartialCompatibilitySteps(
+			database.dailySummaryDao().getBetween(
+				orderedZones.keys.firstOrNull() ?: return unverifiable(),
+				orderedZones.keys.lastOrNull() ?: return unverifiable(),
+			),
+		)
+	}
+
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	private suspend fun composeQualifiedDays(
 		excludedSegmentId: Long?,
