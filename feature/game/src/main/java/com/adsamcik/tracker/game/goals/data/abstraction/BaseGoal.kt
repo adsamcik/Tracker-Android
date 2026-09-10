@@ -97,38 +97,7 @@ abstract class BaseGoal(
 	protected abstract fun getGoalTime(day: ZonedDateTime): Int
 
 	override fun buildNotification(context: Context): Notification {
-		val encouragement = context.resources.getStringArray(R.array.goals_encouragement).random()
-		val periodString = context.getString(period.stringResource)
-
-		// Build an intent to open the app without a compile-time dependency on :app
-		// Use the default launch intent and pass the extra recognized by MainActivity
-		val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
-			putExtra("navigate_to", "dashboard")
-			putExtra("scroll_to", "goals")
-			addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-		}
-		val pendingIntent = PendingIntent.getActivity(
-			context,
-			0,
-			launchIntent,
-			PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-		)
-
-	return NotificationCompat.Builder(
-		context,
-		context.getString(com.adsamcik.tracker.shared.base.R.string.channel_goals_id)
-	)
-				.setContentTitle(
-						context.getString(
-								R.string.goals_reached_notification,
-								encouragement,
-								periodString
-						)
-				)
-				.setSmallIcon(R.drawable.ic_flag)
-				.setContentIntent(pendingIntent)
-				.setAutoCancel(true)
-				.build()
+		return buildGoalReachedNotification(context, period)
 	}
 
 	/**
@@ -150,4 +119,41 @@ abstract class BaseGoal(
 
 		abstract val stringResource: Int
 	}
+}
+
+internal fun buildGoalReachedNotification(
+	context: Context,
+	period: BaseGoal.GoalPeriod,
+): Notification {
+	val encouragement = context.resources.getStringArray(R.array.goals_encouragement).random()
+	val periodString = context.getString(period.stringResource)
+
+	// Build an intent to open the app without a compile-time dependency on :app.
+	val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
+		putExtra("navigate_to", "dashboard")
+		putExtra("scroll_to", "goals")
+		addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+	}
+	val pendingIntent = PendingIntent.getActivity(
+		context,
+		0,
+		launchIntent,
+		PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+	)
+
+	return NotificationCompat.Builder(
+		context,
+		context.getString(com.adsamcik.tracker.shared.base.R.string.channel_goals_id),
+	)
+		.setContentTitle(
+			context.getString(
+				R.string.goals_reached_notification,
+				encouragement,
+				periodString,
+			),
+		)
+		.setSmallIcon(R.drawable.ic_flag)
+		.setContentIntent(pendingIntent)
+		.setAutoCancel(true)
+		.build()
 }
