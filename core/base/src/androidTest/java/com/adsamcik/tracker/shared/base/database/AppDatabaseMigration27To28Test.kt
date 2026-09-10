@@ -677,6 +677,7 @@ class AppDatabaseMigration27To28Test {
 		assertTableCount(database, "step_interval", 2)
 		// v27 observations remain byte-for-byte facts; migration must not invent semantics.
 		assertTableCount(database, "step_fact_revision", 0)
+		assertTableCount(database, "steps_goal_effect", 0)
 		assertTableCount(database, "imported_steps_entry", 0)
 		assertTableCount(database, "imported_steps_run", 0)
 		assertTableCount(database, "imported_steps_manifest", 0)
@@ -1112,6 +1113,7 @@ class AppDatabaseMigration27To28Test {
 		assertTrue(database.stepIntervalDao()
 			.getAllBetween(PopulatedV27Fixture.START_MS, PopulatedV27Fixture.END_MS).isEmpty())
 		assertEquals(0L, database.stepFactRevisionDao().countAll())
+		assertEquals(0L, database.stepsGoalEffectDao().countAll())
 		// Payload-free prior/original portable deletion authority survives full clear and reopen.
 		assertEquals(1L, database.sourceDeletionFenceDao().countAll())
 		assertTrue(database.activitySnapshotDao()

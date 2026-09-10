@@ -1604,6 +1604,42 @@ val MIGRATION_27_28: Migration = object : Migration(
 			)
 			execSQL(
 				"""
+				CREATE TABLE IF NOT EXISTS steps_goal_effect (
+					effect_identity TEXT NOT NULL,
+					period_kind TEXT NOT NULL,
+					period_start_epoch_day INTEGER NOT NULL,
+					period_end_epoch_day INTEGER NOT NULL,
+					qualified_through_epoch_day INTEGER NOT NULL,
+					calendar_authority TEXT NOT NULL,
+					target_steps INTEGER NOT NULL,
+					weekly_daily_limit_bits INTEGER,
+					decision_state TEXT NOT NULL,
+					unavailable_reason TEXT,
+					qualified_steps INTEGER,
+					source_authority_digest TEXT NOT NULL,
+					source_evidence_revision INTEGER NOT NULL,
+					effect_revision INTEGER NOT NULL,
+					desired_points_micros INTEGER NOT NULL,
+					desired_xp INTEGER NOT NULL,
+					points_applied_revision INTEGER NOT NULL,
+					xp_applied_revision INTEGER NOT NULL,
+					notification_claimed_revision INTEGER,
+					notification_claimed_at_ms INTEGER,
+					updated_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(effect_identity)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_steps_goal_effect_points_pending " +
+					"ON steps_goal_effect(points_applied_revision, effect_revision)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_steps_goal_effect_xp_pending " +
+					"ON steps_goal_effect(xp_applied_revision, effect_revision)",
+			)
+			execSQL(
+				"""
 				CREATE TABLE IF NOT EXISTS imported_steps_entry (
 					identity TEXT NOT NULL PRIMARY KEY,
 					content_checksum TEXT NOT NULL,

@@ -1329,6 +1329,161 @@
         ]
       },
       {
+        "tableName": "steps_goal_effect",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`effect_identity` TEXT NOT NULL, `period_kind` TEXT NOT NULL, `period_start_epoch_day` INTEGER NOT NULL, `period_end_epoch_day` INTEGER NOT NULL, `qualified_through_epoch_day` INTEGER NOT NULL, `calendar_authority` TEXT NOT NULL, `target_steps` INTEGER NOT NULL, `weekly_daily_limit_bits` INTEGER, `decision_state` TEXT NOT NULL, `unavailable_reason` TEXT, `qualified_steps` INTEGER, `source_authority_digest` TEXT NOT NULL, `source_evidence_revision` INTEGER NOT NULL, `effect_revision` INTEGER NOT NULL, `desired_points_micros` INTEGER NOT NULL, `desired_xp` INTEGER NOT NULL, `points_applied_revision` INTEGER NOT NULL, `xp_applied_revision` INTEGER NOT NULL, `notification_claimed_revision` INTEGER, `notification_claimed_at_ms` INTEGER, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`effect_identity`))",
+        "fields": [
+          {
+            "fieldPath": "effectIdentity",
+            "columnName": "effect_identity",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "periodKind",
+            "columnName": "period_kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "periodStartEpochDay",
+            "columnName": "period_start_epoch_day",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "periodEndEpochDay",
+            "columnName": "period_end_epoch_day",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "qualifiedThroughEpochDay",
+            "columnName": "qualified_through_epoch_day",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "calendarAuthority",
+            "columnName": "calendar_authority",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetSteps",
+            "columnName": "target_steps",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weeklyDailyLimitBits",
+            "columnName": "weekly_daily_limit_bits",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "decisionState",
+            "columnName": "decision_state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "unavailableReason",
+            "columnName": "unavailable_reason",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "qualifiedSteps",
+            "columnName": "qualified_steps",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "sourceAuthorityDigest",
+            "columnName": "source_authority_digest",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceEvidenceRevision",
+            "columnName": "source_evidence_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effectRevision",
+            "columnName": "effect_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "desiredPointsMicros",
+            "columnName": "desired_points_micros",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "desiredXp",
+            "columnName": "desired_xp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pointsAppliedRevision",
+            "columnName": "points_applied_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "xpAppliedRevision",
+            "columnName": "xp_applied_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "notificationClaimedRevision",
+            "columnName": "notification_claimed_revision",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "notificationClaimedAtMs",
+            "columnName": "notification_claimed_at_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "updatedAtMs",
+            "columnName": "updated_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "effect_identity"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_steps_goal_effect_points_pending",
+            "unique": false,
+            "columnNames": [
+              "points_applied_revision",
+              "effect_revision"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_steps_goal_effect_points_pending` ON `${TABLE_NAME}` (`points_applied_revision`, `effect_revision`)"
+          },
+          {
+            "name": "idx_steps_goal_effect_xp_pending",
+            "unique": false,
+            "columnNames": [
+              "xp_applied_revision",
+              "effect_revision"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_steps_goal_effect_xp_pending` ON `${TABLE_NAME}` (`xp_applied_revision`, `effect_revision`)"
+          }
+        ]
+      },
+      {
         "tableName": "imported_steps_entry",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`identity` TEXT NOT NULL, `content_checksum` TEXT NOT NULL, `session_mode` TEXT NOT NULL, `start_time_ms` INTEGER NOT NULL, `end_time_ms` INTEGER NOT NULL, `collected_data_epoch` INTEGER NOT NULL, `writer_owner_generation` INTEGER, PRIMARY KEY(`identity`))",
         "fields": [
