@@ -168,6 +168,29 @@ internal class StepsDailySummaryRepairComposer(
 		)
 	}
 
+	/**
+	 * Rebuilds days after an authenticated imported logical entry is permanently deleted.
+	 *
+	 * Unlike import, deletion cannot preserve a legacy compatibility count that may still contain
+	 * the deleted contribution. When surviving evidence is partial or cannot fit the legacy Int,
+	 * the compatibility column is explicitly redacted to its historical zero sentinel. Qualified
+	 * product readers continue to use [StepsDayNumericComposition], so that sentinel is never proof
+	 * that Steps was captured as a real zero.
+	 */
+	suspend fun composeForImportedDeletion(
+		zoneByDay: Map<Long, ZoneId>,
+	): StepsDayRepairPreflight {
+		val orderedZones = zoneByDay.toSortedMap()
+		val queryBounds = allZoneQueryBounds(orderedZones.keys.toList()) ?: return unverifiable()
+		return composeQualifiedDays(
+			excludedSegmentId = null,
+			zoneByDay = orderedZones,
+			queryBounds = queryBounds,
+			discoverSourceRuns = true,
+			blockOnActiveUnboundNonSteps = true,
+		).redactDeletedImportedCompatibilitySteps()
+	}
+
 	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
 	private suspend fun composeQualifiedDays(
 		excludedSegmentId: Long?,
@@ -2335,6 +2358,27 @@ internal class StepsDailySummaryRepairComposer(
 		)
 	}
 }
+
+/**
+ * Removes compatibility payload that could retain deleted imported Steps when exact surviving
+ * numeric evidence is unavailable. The typed composition remains partial/unrepresentable so no
+ * decision-facing consumer can mistake the compatibility sentinel for a measured zero.
+ */
+internal fun StepsDayRepairPreflight.redactDeletedImportedCompatibilitySteps(): StepsDayRepairPreflight =
+	when (this) {
+		is StepsDayRepairPreflight.Ready -> copy(plans = plans.map { plan ->
+			val totals = plan.totals
+			if (totals != null &&
+				(plan.numericSteps == StepsDayNumericComposition.PartialCapture ||
+					!plan.hasCompatibilitySteps)
+			) {
+				plan.copy(totals = totals.copy(steps = 0))
+			} else {
+				plan
+			}
+		})
+		else -> this
+	}
 
 internal sealed interface StepsDayRepairPreflight {
 	data class Ready(val plans: List<StepsDayRepairPlan>) : StepsDayRepairPreflight

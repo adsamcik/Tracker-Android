@@ -2994,6 +2994,45 @@ class StepsDailySummaryRepairComposerTest {
 		assertDayUnverifiable()
 	}
 
+	@Test
+	fun `imported deletion redacts partial compatibility payload without fabricating numeric truth`() {
+		val plan = StepsDayRepairPlan(
+			epochDay = DAY,
+			zoneId = ZONE,
+			totals = DailySummaryTotals(steps = 47),
+			numericSteps = StepsDayNumericComposition.PartialCapture,
+			hasCompatibilitySteps = false,
+		)
+
+		val redacted = StepsDayRepairPreflight.Ready(listOf(plan))
+			.redactDeletedImportedCompatibilitySteps() as StepsDayRepairPreflight.Ready
+
+		redacted.plans.single() shouldBe plan.copy(totals = plan.totals?.copy(steps = 0))
+		redacted.plans.single().numericSteps shouldBe StepsDayNumericComposition.PartialCapture
+		redacted.plans.single().hasCompatibilitySteps shouldBe false
+	}
+
+	@Test
+	fun `imported deletion preserves complete and absent day payloads`() {
+		val complete = StepsDayRepairPlan(
+			epochDay = DAY,
+			zoneId = ZONE,
+			totals = DailySummaryTotals(steps = 19),
+			numericSteps = StepsDayNumericComposition.Complete(19L),
+		)
+		val absent = StepsDayRepairPlan(
+			epochDay = DAY + 1L,
+			zoneId = ZONE,
+			totals = null,
+			numericSteps = StepsDayNumericComposition.NotCaptured,
+			hasCompatibilitySteps = false,
+		)
+
+		StepsDayRepairPreflight.Ready(listOf(complete, absent))
+			.redactDeletedImportedCompatibilitySteps() shouldBe
+			StepsDayRepairPreflight.Ready(listOf(complete, absent))
+	}
+
 	private suspend fun assertDayUnverifiable() {
 		composer().compose(listOf(DAY), excludedSegmentId = Long.MIN_VALUE) shouldBe
 			StepsDayRepairPreflight.Unsupported(

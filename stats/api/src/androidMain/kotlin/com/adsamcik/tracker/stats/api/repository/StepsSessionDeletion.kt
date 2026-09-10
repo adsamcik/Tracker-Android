@@ -56,6 +56,8 @@ enum class StepsSessionDeletionUnsupportedReason {
 	STALE_COLLECTED_DATA_EPOCH,
 	/** Retention discarded part of this run, so its complete affected-day set is unknowable. */
 	RETENTION_TRUNCATED_HISTORY,
+	/** Portable metadata cannot prove the complete original entry and every retained physical member. */
+	IMPORTED_AUTHORITY_UNVERIFIABLE,
 	DELETION_GENERATION_EXHAUSTED,
 	AFFECTED_DAY_RANGE_TOO_LARGE,
 	/** A surviving day contribution could not be recomposed without inventing source evidence. */

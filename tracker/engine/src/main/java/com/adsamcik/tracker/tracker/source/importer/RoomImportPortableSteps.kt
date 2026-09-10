@@ -237,7 +237,7 @@ internal class RoomImportPortableSteps internal constructor(
 						throw PortableStepsConcurrentStateException()
 					}
 
-					val repairZones = resolveRepairZones(prepared)
+					val repairZones = database.resolvePortableStepsRepairZones(prepared)
 					beforeMutation()
 					insertEntryPayload(entry, lifecycle, owner.ownerGeneration, appliedAtMs)
 					afterPayloadInserted()
@@ -380,88 +380,8 @@ internal class RoomImportPortableSteps internal constructor(
 		}
 	}
 
-	@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
-	private suspend fun resolveRepairZones(
-		prepared: PreparedPortableStepsImport,
-	): Map<Long, ZoneId> {
-		val lockedDaySet = prepared.lockDays.toSet()
-		val summaries = database.dailySummaryDao()
-			.getBetween(prepared.lockDays.first(), prepared.lockDays.last())
-			.filter { summary -> summary.dateEpochDay in lockedDaySet }
-		if (summaries.map(DailySummaryEntity::dateEpochDay).distinct().size != summaries.size) {
-			throw dayRepairUnverifiable()
-		}
-		val persistedWindows = linkedMapOf<Long, Pair<ZoneId, ImportWallInterval>>()
-		for (summary in summaries) {
-			val zoneId = try {
-				ZoneId.of(summary.calendarZoneId ?: throw dayRepairUnverifiable())
-			} catch (_: DateTimeException) {
-				throw dayRepairUnverifiable()
-			}
-			persistedWindows[summary.dateEpochDay] = zoneId to
-				(dayWindow(summary.dateEpochDay, zoneId) ?: throw dayRepairUnverifiable())
-		}
-		val candidateWindowsByDay = prepared.candidateZonesByDay.mapValues { (epochDay, zones) ->
-			zones.map { zoneId -> zoneId to (dayWindow(epochDay, zoneId) ?: throw dayRepairUnverifiable()) }
-		}
-		val constraintWindows = persistedWindows.filter { (epochDay, authority) ->
-			epochDay in candidateWindowsByDay ||
-				prepared.coverageIntervals.any(authority.second::overlaps)
-		}.values.map { (_, window) -> window }.sortedBy(ImportWallInterval::startMs)
-		if (constraintWindows.zipWithNext().any { (left, right) -> right.startMs < left.endMs }) {
-			throw dayRepairUnverifiable()
-		}
-
-		val resolved = persistedWindows.filterValues { (_, window) ->
-			prepared.coverageIntervals.any(window::overlaps)
-		}.mapValuesTo(linkedMapOf()) { (_, authority) -> authority.first }
-		for ((epochDay, candidateZones) in candidateWindowsByDay.toSortedMap()) {
-			val candidateSlices = candidateZones.flatMap { (_, window) ->
-				prepared.coverageIntervals.mapNotNull(window::intersection)
-			}.distinct()
-			if (candidateSlices.isEmpty()) {
-				throw dayRepairUnverifiable()
-			}
-			val resolvedWindows = resolved.map { (day, zone) ->
-				dayWindow(day, zone) ?: throw dayRepairUnverifiable()
-			}.sortedBy(ImportWallInterval::startMs)
-			if (candidateSlices.all(resolvedWindows::cover)) {
-				continue
-			}
-			if (epochDay in persistedWindows) {
-				throw dayRepairUnverifiable()
-			}
-			val viableByWindow = candidateZones.filterNot { (_, candidateWindow) ->
-				persistedWindows.values.any { (_, persistedWindow) -> persistedWindow.overlaps(candidateWindow) } ||
-					resolvedWindows.any(candidateWindow::overlaps)
-			}.groupBy { (_, window) -> window }.filterKeys { candidateWindow ->
-				val coverageWindows = (resolvedWindows + candidateWindow)
-					.sortedBy(ImportWallInterval::startMs)
-				candidateSlices.all(coverageWindows::cover)
-			}
-			val selectedZone = viableByWindow.values.singleOrNull()
-				?.minByOrNull { (zone, _) -> zone.id }
-				?.first
-				?: throw dayRepairUnverifiable()
-			resolved[epochDay] = selectedZone
-		}
-
-		if (resolved.isEmpty() || resolved.size > StepsNumericSummaryRequest.MAX_DAY_COUNT) {
-			throw dayRepairUnverifiable()
-		}
-		val windows = resolved.map { (epochDay, zoneId) ->
-			dayWindow(epochDay, zoneId) ?: throw dayRepairUnverifiable()
-		}.sortedBy(ImportWallInterval::startMs)
-		if (windows.zipWithNext().any { (left, right) -> right.startMs < left.endMs } ||
-			prepared.coverageIntervals.any { interval -> !windows.cover(interval) }
-		) {
-			throw dayRepairUnverifiable()
-		}
-		return resolved.toSortedMap()
-	}
-
 	private suspend fun repairImportedDays(
-		prepared: PreparedPortableStepsImport,
+		prepared: PreparedPortableStepsDayScope,
 		repairZones: Map<Long, ZoneId>,
 		lockedDays: DailySummaryLockedDays,
 	) {
@@ -502,6 +422,90 @@ internal class RoomImportPortableSteps internal constructor(
 			SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS,
 		)
 	}
+}
+
+/**
+ * Resolves the persisted calendar authority shared by portable admission and source-local deletion.
+ * Callers must already hold every [PreparedPortableStepsDayScope.lockDays] lock and a Room transaction.
+ */
+@Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
+internal suspend fun AppDatabase.resolvePortableStepsRepairZones(
+	prepared: PreparedPortableStepsDayScope,
+): Map<Long, ZoneId> {
+	val lockedDaySet = prepared.lockDays.toSet()
+	val summaries = dailySummaryDao()
+		.getBetween(prepared.lockDays.first(), prepared.lockDays.last())
+		.filter { summary -> summary.dateEpochDay in lockedDaySet }
+	if (summaries.map(DailySummaryEntity::dateEpochDay).distinct().size != summaries.size) {
+		throw dayRepairUnverifiable()
+	}
+	val persistedWindows = linkedMapOf<Long, Pair<ZoneId, ImportWallInterval>>()
+	for (summary in summaries) {
+		val zoneId = try {
+			ZoneId.of(summary.calendarZoneId ?: throw dayRepairUnverifiable())
+		} catch (_: DateTimeException) {
+			throw dayRepairUnverifiable()
+		}
+		persistedWindows[summary.dateEpochDay] = zoneId to
+			(dayWindow(summary.dateEpochDay, zoneId) ?: throw dayRepairUnverifiable())
+	}
+	val candidateWindowsByDay = prepared.candidateZonesByDay.mapValues { (epochDay, zones) ->
+		zones.map { zoneId -> zoneId to (dayWindow(epochDay, zoneId) ?: throw dayRepairUnverifiable()) }
+	}
+	val constraintWindows = persistedWindows.filter { (epochDay, authority) ->
+		epochDay in candidateWindowsByDay ||
+			prepared.coverageIntervals.any(authority.second::overlaps)
+	}.values.map { (_, window) -> window }.sortedBy(ImportWallInterval::startMs)
+	if (constraintWindows.zipWithNext().any { (left, right) -> right.startMs < left.endMs }) {
+		throw dayRepairUnverifiable()
+	}
+
+	val resolved = persistedWindows.filterValues { (_, window) ->
+		prepared.coverageIntervals.any(window::overlaps)
+	}.mapValuesTo(linkedMapOf()) { (_, authority) -> authority.first }
+	for ((epochDay, candidateZones) in candidateWindowsByDay.toSortedMap()) {
+		val candidateSlices = candidateZones.flatMap { (_, window) ->
+			prepared.coverageIntervals.mapNotNull(window::intersection)
+		}.distinct()
+		if (candidateSlices.isEmpty()) {
+			throw dayRepairUnverifiable()
+		}
+		val resolvedWindows = resolved.map { (day, zone) ->
+			dayWindow(day, zone) ?: throw dayRepairUnverifiable()
+		}.sortedBy(ImportWallInterval::startMs)
+		if (candidateSlices.all(resolvedWindows::cover)) {
+			continue
+		}
+		if (epochDay in persistedWindows) {
+			throw dayRepairUnverifiable()
+		}
+		val viableByWindow = candidateZones.filterNot { (_, candidateWindow) ->
+			persistedWindows.values.any { (_, persistedWindow) -> persistedWindow.overlaps(candidateWindow) } ||
+				resolvedWindows.any(candidateWindow::overlaps)
+		}.groupBy { (_, window) -> window }.filterKeys { candidateWindow ->
+			val coverageWindows = (resolvedWindows + candidateWindow)
+				.sortedBy(ImportWallInterval::startMs)
+			candidateSlices.all(coverageWindows::cover)
+		}
+		val selectedZone = viableByWindow.values.singleOrNull()
+			?.minByOrNull { (zone, _) -> zone.id }
+			?.first
+			?: throw dayRepairUnverifiable()
+		resolved[epochDay] = selectedZone
+	}
+
+	if (resolved.isEmpty() || resolved.size > StepsNumericSummaryRequest.MAX_DAY_COUNT) {
+		throw dayRepairUnverifiable()
+	}
+	val windows = resolved.map { (epochDay, zoneId) ->
+		dayWindow(epochDay, zoneId) ?: throw dayRepairUnverifiable()
+	}.sortedBy(ImportWallInterval::startMs)
+	if (windows.zipWithNext().any { (left, right) -> right.startMs < left.endMs } ||
+		prepared.coverageIntervals.any { interval -> !windows.cover(interval) }
+	) {
+		throw dayRepairUnverifiable()
+	}
+	return resolved.toSortedMap()
 }
 
 private class NativeAuthorityCollector(
@@ -659,7 +663,7 @@ private fun PortableStepsEntryV1.snapshotAndValidate(): PortableStepsEntryV1 = t
 }
 
 @Suppress("CyclomaticComplexMethod", "LongMethod")
-private fun PortableStepsEntryV1.prepareForImport(): PreparedPortableStepsImport {
+internal fun PortableStepsEntryV1.prepareForImport(): PreparedPortableStepsDayScope {
 	val entry = snapshotAndValidate()
 	val candidateZonesByDay = linkedMapOf<Long, MutableSet<ZoneId>>()
 	val lockDays = sortedSetOf<Long>()
@@ -725,7 +729,7 @@ private fun PortableStepsEntryV1.prepareForImport(): PreparedPortableStepsImport
 	if (span !in 1L..MAX_IMPORT_DAYS.toLong()) {
 		throw dependencyOverflow()
 	}
-	return PreparedPortableStepsImport(
+	return PreparedPortableStepsDayScope(
 		entry = entry,
 		candidateZonesByDay = candidateZonesByDay.mapValues { (_, zones) -> zones.toSet() },
 		lockDays = lockDays.toList(),
@@ -852,7 +856,7 @@ private fun storageUnavailable() = ImportPortableStepsResult.RetryableFailure(
 	PortableStepsTransferRetryableReason.STORAGE_UNAVAILABLE,
 )
 
-private fun dayRepairUnverifiable() = PortableStepsImportUnverifiableException(
+internal fun dayRepairUnverifiable() = PortableStepsImportUnverifiableException(
 	PortableStepsImportUnverifiableReason.DAY_REPAIR_UNVERIFIABLE,
 )
 
@@ -860,7 +864,7 @@ private fun dependencyOverflow() = PortableStepsImportUnverifiableException(
 	PortableStepsImportUnverifiableReason.DEPENDENCY_OVERFLOW,
 )
 
-private data class PreparedPortableStepsImport(
+internal data class PreparedPortableStepsDayScope(
 	val entry: PortableStepsEntryV1,
 	val candidateZonesByDay: Map<Long, Set<ZoneId>>,
 	val lockDays: List<Long>,
@@ -868,7 +872,7 @@ private data class PreparedPortableStepsImport(
 	val coverageIntervals: List<ImportWallInterval>,
 )
 
-private data class ImportWallInterval(
+internal data class ImportWallInterval(
 	val startMs: Long,
 	val endMs: Long,
 ) {
@@ -885,8 +889,8 @@ private data class ImportWallInterval(
 	}
 }
 
-private class PortableStepsSnapshotException(cause: Throwable) : IllegalStateException(cause)
-private class PortableStepsImportUnverifiableException(
+internal class PortableStepsSnapshotException(cause: Throwable) : IllegalStateException(cause)
+internal class PortableStepsImportUnverifiableException(
 	val reason: PortableStepsImportUnverifiableReason,
 ) : IllegalStateException()
 private class PortableStepsDayRepairException(

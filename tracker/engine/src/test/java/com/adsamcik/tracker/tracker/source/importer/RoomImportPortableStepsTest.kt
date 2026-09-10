@@ -37,6 +37,9 @@ import com.adsamcik.tracker.stats.api.repository.PortableStepsProviderCoverage
 import com.adsamcik.tracker.stats.api.repository.PortableStepsRunV1
 import com.adsamcik.tracker.stats.api.repository.PortableStepsSessionMode
 import com.adsamcik.tracker.stats.api.repository.PortableStepsTransferRetryableReason
+import com.adsamcik.tracker.stats.api.repository.StepsSessionDeletionResult
+import com.adsamcik.tracker.stats.api.repository.StepsSessionDeletionUnsupportedReason
+import com.adsamcik.tracker.tracker.source.deletion.RoomStepsSelectedSessionDeletionService
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
@@ -168,6 +171,195 @@ class RoomImportPortableStepsTest {
 		tableCount("imported_steps_run") shouldBe 1L
 		tableCount("imported_steps_manifest") shouldBe 1L
 		database.sessionSegmentDao().countTotal() shouldBe 1L
+	}
+
+	@Test
+	fun `selecting one replacement member deletes the complete imported entry and blocks replay`() =
+		runTest {
+			val entry = replacementEntry()
+			subject().importEntry(entry) shouldBe ImportPortableStepsResult.Applied(2, 2)
+			val storedRuns = database.importedStepsDao().runsForEntries(
+				entryIdentities = listOf(entry.identity.value),
+				limit = 3,
+			)
+			val selectedSegmentId = requireNotNull(storedRuns.last().sessionSegmentId)
+			dirtyTracker.marked.clear()
+			var drainRequests = 0
+
+			deletionSubject { drainRequests++ }.deleteSelectedSession(selectedSegmentId) shouldBe
+				StepsSessionDeletionResult.Deleted
+
+			tableCount("imported_steps_entry") shouldBe 0L
+			tableCount("imported_steps_run") shouldBe 0L
+			tableCount("imported_steps_manifest") shouldBe 0L
+			database.sessionSegmentDao().countTotal() shouldBe 0L
+			database.stepFactRevisionDao().countAll() shouldBe 2L
+			entry.runs.forEach { run ->
+				val originalDigest = run.deletionScopeDigest.value
+				val localDigest = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+					sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+					purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+					logicalTrackingId = entry.identity.value,
+					serviceRunId = run.identity.value,
+				)
+				database.sourceDeletionFenceDao().contains(
+					SourceDestinationOwnerEntity.SOURCE_STEPS,
+					StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+					SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+					originalDigest,
+				) shouldBe true
+				database.sourceDeletionFenceDao().contains(
+					SourceDestinationOwnerEntity.SOURCE_STEPS,
+					StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
+					SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+					localDigest,
+				) shouldBe true
+				run.facts.forEach { portableFact ->
+					requireNotNull(database.stepFactRevisionDao().latest(
+						SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID,
+						SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION,
+						portableFact.identity.value,
+					)).also { retained ->
+						retained.operation shouldBe StepFactRevisionEntity.OPERATION_RETRACT
+						retained.originKind shouldBe StepFactRevisionEntity.ORIGIN_LOCAL_DELETE
+						retained.originIdentity shouldBe localDigest
+						retained.effectiveStepCount shouldBe null
+					}
+				}
+			}
+			database.dailySummaryDao().getByDay(ENTRY_DAY) shouldBe null
+			drainRequests shouldBe 0
+			dirtyTracker.marked.shouldContainExactly(
+				setOf(MetricKeys.TABLE_SESSION_SEGMENT, MetricKeys.TABLE_DAILY_SUMMARY),
+			)
+
+			dirtyTracker.marked.clear()
+			subject().importEntry(entry) shouldBe ImportPortableStepsResult.DeletedScope
+			tableCount("imported_steps_entry") shouldBe 0L
+			tableCount("imported_steps_run") shouldBe 0L
+			tableCount("imported_steps_manifest") shouldBe 0L
+			database.sessionSegmentDao().countTotal() shouldBe 0L
+			database.stepFactRevisionDao().countAll() shouldBe 2L
+			dirtyTracker.marked shouldBe emptyList()
+		}
+
+	@Test
+	fun `imported deletion redacts a preserved partial compatibility total`() = runTest {
+		upsertDailySummary(totalSteps = 123)
+		val entry = entry(captureCoverage = PortableStepsCaptureCoverage.PARTIAL)
+		subject().importEntry(entry) shouldBe ImportPortableStepsResult.Applied(1, 1)
+		val segmentId = requireNotNull(
+			database.importedStepsDao().run(entry.runs.single().identity.value)?.sessionSegmentId,
+		)
+
+		deletionSubject().deleteSelectedSession(segmentId) shouldBe StepsSessionDeletionResult.Deleted
+
+		requireNotNull(database.dailySummaryDao().getByDay(ENTRY_DAY)).also { summary ->
+			summary.totalSteps shouldBe 0
+			summary.activeTrackingMs shouldBe 99L
+			summary.calendarZoneId shouldBe ENTRY_ZONE_ID
+		}
+	}
+
+	@Test
+	fun `incomplete imported hierarchy is typed and remains untouched`() = runTest {
+		val entry = entry()
+		subject().importEntry(entry) shouldBe ImportPortableStepsResult.Applied(1, 1)
+		val run = requireNotNull(database.importedStepsDao().run(entry.runs.single().identity.value))
+		database.openHelper.writableDatabase.execSQL(
+			"DELETE FROM imported_steps_manifest WHERE run_identity = ?",
+			arrayOf(run.identity),
+		)
+
+		deletionSubject().deleteSelectedSession(requireNotNull(run.sessionSegmentId)) shouldBe
+			StepsSessionDeletionResult.UnsupportedScope(
+				StepsSessionDeletionUnsupportedReason.IMPORTED_AUTHORITY_UNVERIFIABLE,
+			)
+
+		tableCount("imported_steps_entry") shouldBe 1L
+		tableCount("imported_steps_run") shouldBe 1L
+		database.sessionSegmentDao().countTotal() shouldBe 1L
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+	}
+
+	@Test
+	fun `cancellation before imported deletion mutation leaves payload and fences untouched`() = runTest {
+		val entry = replacementEntry()
+		subject().importEntry(entry) shouldBe ImportPortableStepsResult.Applied(2, 2)
+		val segmentId = requireNotNull(
+			database.importedStepsDao().runsForEntries(listOf(entry.identity.value), 3)
+				.last().sessionSegmentId,
+		)
+		dirtyTracker.marked.clear()
+
+		shouldThrow<CancellationException> {
+			deletionSubject(
+				beforeMutation = { throw CancellationException("cancel imported deletion") },
+			).deleteSelectedSession(segmentId)
+		}
+
+		tableCount("imported_steps_entry") shouldBe 1L
+		tableCount("imported_steps_run") shouldBe 2L
+		tableCount("imported_steps_manifest") shouldBe 2L
+		database.sessionSegmentDao().countTotal() shouldBe 2L
+		database.stepFactRevisionDao().countAll() shouldBe 2L
+		database.sourceDeletionFenceDao().countAll() shouldBe 0L
+		requireNotNull(database.dailySummaryDao().getByDay(ENTRY_DAY)).totalSteps shouldBe 11
+		dirtyTracker.marked shouldBe emptyList()
+	}
+
+	@Test
+	@Suppress("LongMethod")
+	fun `deleted imported scope survives Room reopen and still rejects replay`(): Unit = runBlocking {
+		val inMemoryDatabase = database
+		val context: Application = ApplicationProvider.getApplicationContext()
+		val databaseName = "portable-steps-deletion-reopen-${System.nanoTime()}.db"
+		val databaseFile = File(System.getProperty("java.io.tmpdir"), databaseName)
+		val databaseDirectory = requireNotNull(databaseFile.parentFile)
+		check(databaseDirectory.exists() || databaseDirectory.mkdirs())
+		check(!databaseFile.exists() || databaseFile.delete())
+		var reopenedDatabase: AppDatabase? = null
+		try {
+			val entry = entry()
+			subject().importEntry(entry) shouldBe ImportPortableStepsResult.Applied(1, 1)
+			val segmentId = requireNotNull(
+				database.importedStepsDao().run(entry.runs.single().identity.value)?.sessionSegmentId,
+			)
+			deletionSubject().deleteSelectedSession(segmentId) shouldBe StepsSessionDeletionResult.Deleted
+			database.openHelper.writableDatabase.execSQL(
+				"VACUUM INTO ?",
+				arrayOf(databaseFile.path),
+			)
+			inMemoryDatabase.close()
+
+			reopenedDatabase = Room.databaseBuilder(
+				context,
+				AppDatabase::class.java,
+				databaseFile.path,
+			)
+				.allowMainThreadQueries()
+				.build()
+			database = reopenedDatabase
+			dirtyTracker.marked.clear()
+
+			subject().importEntry(entry) shouldBe ImportPortableStepsResult.DeletedScope
+
+			tableCount("imported_steps_entry") shouldBe 0L
+			tableCount("imported_steps_run") shouldBe 0L
+			tableCount("imported_steps_manifest") shouldBe 0L
+			database.sessionSegmentDao().countTotal() shouldBe 0L
+			database.stepFactRevisionDao().countAll() shouldBe 1L
+			database.sourceDeletionFenceDao().countAll() shouldBe 2L
+			database.dailySummaryDao().getByDay(ENTRY_DAY) shouldBe null
+			dirtyTracker.marked shouldBe emptyList()
+		} finally {
+			reopenedDatabase?.close()
+			if (database === inMemoryDatabase) {
+				inMemoryDatabase.close()
+			}
+			database = AppDatabase.testDatabase(context)
+			context.deleteDatabase(databaseFile.path)
+		}
 	}
 
 	@Test
@@ -563,6 +755,19 @@ class RoomImportPortableStepsTest {
 		afterPayloadInserted = afterPayloadInserted,
 	)
 
+	private fun deletionSubject(
+		requestStepsDrain: () -> Unit = {},
+		afterDayLocksAcquired: suspend () -> Unit = {},
+		beforeMutation: suspend () -> Unit = {},
+	) = RoomStepsSelectedSessionDeletionService(
+		database = database,
+		dirtyTracker = dirtyTracker,
+		wallTimeMsProvider = { 50_100L },
+		requestStepsDrain = requestStepsDrain,
+		afterDayLocksAcquired = afterDayLocksAcquired,
+		beforeMutation = beforeMutation,
+	)
+
 	private fun nativeExporter(
 		entries: List<PortableStepsEntryV1> = emptyList(),
 		result: ExportPortableStepsResult? = null,
@@ -675,6 +880,57 @@ class RoomImportPortableStepsTest {
 			startTimeMs = START_MS,
 			endTimeMs = END_MS,
 			runs = listOf(run),
+		)
+	}
+
+	private fun replacementEntry(): PortableStepsEntryV1 {
+		val entryIdentity = opaque(PortableStepsIdentityKind.LOGICAL_ENTRY, SOURCE_LOGICAL_ID)
+		val midpoint = START_MS + (END_MS - START_MS) / 2L
+		fun run(suffix: String, startMs: Long, endMs: Long, steps: Long): PortableStepsRunV1 {
+			val runSeed = "$SOURCE_RUN_ID-$suffix"
+			return PortableStepsRunV1(
+				identity = opaque(PortableStepsIdentityKind.PHYSICAL_RUN, runSeed),
+				deletionScopeDigest = deletionScope(SOURCE_LOGICAL_ID, runSeed),
+				startTimeMs = startMs,
+				endTimeMs = endMs,
+				storedZoneId = ENTRY_ZONE_ID,
+				manifests = listOf(
+					PortableStepsManifestV1(
+						revision = 1L,
+						effectiveWallTimeMs = startMs,
+						originSourcePolicyRevision = 7L,
+						captureConsentEpoch = 5L,
+					),
+				),
+				completeness = PortableStepsCompletenessV1(
+					captureCoverage = PortableStepsCaptureCoverage.WHOLE_RUN,
+					providerCoverage = PortableStepsProviderCoverage.COMPLETE,
+					appDrainComplete = true,
+					stopComplete = true,
+					hasUnresolvedProviderRange = false,
+				),
+				facts = listOf(
+					PortableStepsFactV1.create(
+						identity = opaque(PortableStepsIdentityKind.FACT, "$SOURCE_FACT_ID-$suffix"),
+						manifestRevision = 1L,
+						intervalStartTimeMs = startMs,
+						intervalEndTimeMs = endMs,
+						wallTimeUncertaintyMs = 25L,
+						coverage = PortableStepsFactCoverage.COVERED,
+						stepCount = steps,
+					),
+				),
+			)
+		}
+		return PortableStepsEntryV1.create(
+			identity = entryIdentity,
+			sessionMode = PortableStepsSessionMode.MANUAL,
+			startTimeMs = START_MS,
+			endTimeMs = END_MS,
+			runs = listOf(
+				run("a", START_MS, midpoint, 4L),
+				run("b", midpoint, END_MS, 7L),
+			),
 		)
 	}
 

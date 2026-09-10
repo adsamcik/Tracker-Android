@@ -20,6 +20,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
 import com.adsamcik.tracker.stats.api.repository.StepsSessionDeletion
@@ -74,38 +75,48 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 			return unsupported(StepsSessionDeletionUnsupportedReason.INVALID_SEGMENT_ID)
 		}
 		val deletedAtMs = wallTimeMsProvider().coerceAtLeast(0L)
+		var requestLiveDrainAfterDelete = true
 		val result = try {
 			val preReadSegment = database.sessionSegmentDao().getById(sessionSegmentId)
 				?: return StepsSessionDeletionResult.NotFound
-			if (preReadHasActiveOwner(preReadSegment)) {
-				return StepsSessionDeletionResult.BlockedActive
-			}
-			val expectedScope = when (val preflight = selectedScope(preReadSegment)) {
-				is SelectedScopePreflight.Ready -> preflight.scope
-				is SelectedScopePreflight.Unsupported -> return unsupported(preflight.reason)
-				SelectedScopePreflight.LegacyUnverifiable ->
-					return StepsSessionDeletionResult.LegacyUnverifiable
-			}
-			val lockCoordinator = DailySummaryAggregator(
-				dailySummaryDao = database.dailySummaryDao(),
-				sessionSegmentDao = database.sessionSegmentDao(),
-				zoneId = expectedScope.zoneId,
-			)
-			lockCoordinator.withDayLocks(expectedScope.affectedDays) { lockedDays ->
-				afterDayLocksAcquired()
-				database.withTransaction {
-					val segment = database.sessionSegmentDao().getById(sessionSegmentId)
-						?: throw ConcurrentDeletionStateException()
-					val actualScope = (selectedScope(segment) as? SelectedScopePreflight.Ready)?.scope
-						?: throw ConcurrentDeletionStateException()
-					if (actualScope != expectedScope) {
-						throw ConcurrentDeletionStateException()
+			if (preReadSegment.source == SegmentSource.PORTABLE_STEPS_IMPORT) {
+				requestLiveDrainAfterDelete = false
+				RoomImportedStepsSelectedSessionDeletion(
+					database = database,
+					afterDayLocksAcquired = afterDayLocksAcquired,
+					beforeMutation = beforeMutation,
+				).delete(sessionSegmentId, deletedAtMs)
+			} else {
+				if (preReadHasActiveOwner(preReadSegment)) {
+					return StepsSessionDeletionResult.BlockedActive
+				}
+				val expectedScope = when (val preflight = selectedScope(preReadSegment)) {
+					is SelectedScopePreflight.Ready -> preflight.scope
+					is SelectedScopePreflight.Unsupported -> return unsupported(preflight.reason)
+					SelectedScopePreflight.LegacyUnverifiable ->
+						return StepsSessionDeletionResult.LegacyUnverifiable
+				}
+				val lockCoordinator = DailySummaryAggregator(
+					dailySummaryDao = database.dailySummaryDao(),
+					sessionSegmentDao = database.sessionSegmentDao(),
+					zoneId = expectedScope.zoneId,
+				)
+				lockCoordinator.withDayLocks(expectedScope.affectedDays) { lockedDays ->
+					afterDayLocksAcquired()
+					database.withTransaction {
+						val segment = database.sessionSegmentDao().getById(sessionSegmentId)
+							?: throw ConcurrentDeletionStateException()
+						val actualScope = (selectedScope(segment) as? SelectedScopePreflight.Ready)?.scope
+							?: throw ConcurrentDeletionStateException()
+						if (actualScope != expectedScope) {
+							throw ConcurrentDeletionStateException()
+						}
+						deleteInTransaction(
+							scope = actualScope,
+							deletedAtMs = deletedAtMs,
+							lockedDays = lockedDays,
+						)
 					}
-					deleteInTransaction(
-						scope = actualScope,
-						deletedAtMs = deletedAtMs,
-						lockedDays = lockedDays,
-					)
 				}
 			}
 		} catch (cancellation: CancellationException) {
@@ -132,7 +143,9 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 				setOf(MetricKeys.TABLE_SESSION_SEGMENT, MetricKeys.TABLE_DAILY_SUMMARY),
 			)
 			// A hint is enough: the WAL/fence is durable and startup recovery retries after a crash.
-			requestStepsDrain()
+			if (requestLiveDrainAfterDelete) {
+				requestStepsDrain()
+			}
 		}
 		return result
 	}
@@ -226,7 +239,11 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 
 		scope.factStates.asSequence()
 			.filter { fact -> fact.operation == StepFactRevisionEntity.OPERATION_UPSERT }
-			.forEach { fact -> insertRetractionOrVerify(fact, fence) }
+			.forEach { fact ->
+				if (!database.insertStepsDeletionRetractionOrVerify(fact, fence)) {
+					throw ConcurrentDeletionStateException()
+				}
+			}
 		factDao.deleteUpsertsForServiceRun(
 			logicalTrackingId = logicalTrackingId,
 			serviceRunId = serviceRunId,
@@ -661,82 +678,6 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 		return binding?.takeIf { captureMode in it.captureModes }
 	}
 
-	private suspend fun insertRetractionOrVerify(
-		fact: StepFactRevisionEntity,
-		fence: SourceDeletionFenceEntity,
-	) {
-		val nextRevision = try {
-			Math.addExact(fact.semanticRevision, 1L)
-		} catch (_: ArithmeticException) {
-			throw ConcurrentDeletionStateException()
-		}
-		val mutationId = StepFactRevisionIntegrity.localDeleteMutationId(
-			scopeIdentityDigest = fence.scopeIdentityDigest,
-			logicalFactId = fact.logicalFactId,
-			semanticRevision = nextRevision,
-			scopeDeletionGeneration = fence.fenceGeneration,
-		)
-		val retraction = buildRetraction(fact, fence, nextRevision, mutationId)
-		if (database.stepFactRevisionDao().insert(retraction) == INSERT_IGNORED) {
-			val current = database.stepFactRevisionDao().revision(
-				retraction.writerProjectionId,
-				retraction.writerProjectionVersion,
-				retraction.logicalFactId,
-				retraction.semanticRevision,
-			)
-			if (current != retraction) {
-				throw ConcurrentDeletionStateException()
-			}
-		}
-	}
-
-	@Suppress("LongMethod") // Explicit redaction makes every cleared payload field reviewable.
-	private fun buildRetraction(
-		fact: StepFactRevisionEntity,
-		fence: SourceDeletionFenceEntity,
-		nextRevision: Long,
-		mutationId: String,
-	): StepFactRevisionEntity {
-		val unsigned = StepFactRevisionEntity(
-			logicalFactId = fact.logicalFactId,
-			semanticRevision = nextRevision,
-			mutationId = mutationId,
-			stepIntervalId = null,
-			sourceEventId = null,
-			sourceAdmissionOrdinal = null,
-			originKind = StepFactRevisionEntity.ORIGIN_LOCAL_DELETE,
-			originIdentity = fence.scopeIdentityDigest,
-			writerProjectionId = fact.writerProjectionId,
-			writerProjectionVersion = fact.writerProjectionVersion,
-			writerBindingGeneration = fact.writerBindingGeneration,
-			operation = StepFactRevisionEntity.OPERATION_RETRACT,
-			intervalStartTimeMs = null,
-			intervalEndTimeMs = null,
-			intervalStartElapsedRealtimeNanos = null,
-			intervalEndElapsedRealtimeNanos = null,
-			clockDomainId = null,
-			bootClockDomainId = null,
-			cumulativeStepCountStart = null,
-			cumulativeStepCountEnd = null,
-			wallTimeUncertaintyMs = null,
-			coverageKind = null,
-			effectiveStepCount = null,
-			logicalTrackingId = null,
-			serviceRunId = null,
-			purpose = StepFactRevisionEntity.PURPOSE_SESSION_CAPTURE,
-			manifestRevision = null,
-			sourcePolicyRevision = null,
-			captureConsentEpoch = null,
-			collectedDataEpoch = fence.collectedDataEpoch,
-			scopeDeletionGeneration = fence.fenceGeneration,
-			effectChecksum = "pending-local-delete-effect",
-			appliedAtMs = fence.deletedAtMs,
-		)
-		return unsigned.copy(
-			effectChecksum = StepFactRevisionIntegrity.localDeleteEffectChecksum(unsigned),
-		)
-	}
-
 	private fun affectedEpochDays(
 		startTimeMs: Long,
 		endTimeMs: Long,
@@ -811,7 +752,6 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 	)
 
 	private companion object {
-		const val INSERT_IGNORED = -1L
 		const val MAX_AFFECTED_DAYS = 370L
 		const val MAX_SELECTED_MANIFESTS = 256
 		const val MAX_SELECTED_MANIFEST_SOURCES = 3_072
