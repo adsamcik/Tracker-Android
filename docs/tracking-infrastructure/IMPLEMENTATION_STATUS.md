@@ -12,7 +12,8 @@ to author now from product decisions and the deferred convergence-validation pha
 
 ## September 10 workflow and current boundary
 
-Production portable Steps admission is now committed at `8abd7c6e3` as
+Production portable Steps admission is committed at `8abd7c6e3`, with exact atomic stored-zone
+day repair at `3dfa4eaad`; both are
 **IMPLEMENTED_UNVALIDATED**. The injected command is deliberately unreachable from the file
 registry. It snapshots and revalidates one bounded logical entry, preflights the complete existing
 portable/native authority, checks original deletion and retention scopes, records the current
@@ -22,10 +23,17 @@ Exact replay is a database- and observer-no-op; conflicting identity reuse, life
 storage failure, and unverifiable attribution remain typed. No local service run, provider demand,
 consent grant, elapsed clock, tracked duration, or live-writer binding is fabricated.
 
-The focused importer Room contracts are authored but unexecuted. Exact stored-zone day repair and
-post-commit day invalidation, the `.trackersteps` file adapter/registry bridge, and remaining
-malformed/reopen/correction tests are still open before product exposure. No validation command
-ran for this slice, so compilation and behavior remain deferred debt under TI-D157.
+The importer now locks the complete conservative day-key envelope before its Room transaction,
+preserves an existing calendar authority where its physical window applies, otherwise uses one
+unambiguous original stored zone, and repairs every affected summary from authenticated local plus
+imported source facts before commit. Missing partial/unrepresentable compatibility state, zone
+conflict, lifecycle drift, cancellation, or repair failure rolls back the hierarchy and evidence.
+Only a committed import advances source evidence, Room observers, and metric-table dirty state.
+
+Focused importer Room contracts are authored but unexecuted. The `.trackersteps` file adapter/
+registry bridge and remaining malformed/reopen/correction tests are still open before product
+exposure. No validation command ran for this slice, so compilation and behavior remain deferred
+debt under TI-D157.
 
 Imported Steps day composition is now committed as **IMPLEMENTED_UNVALIDATED**: canonical source
 commit f93b373ef and continuation cherry 293ff43e5. Authenticated imported facts are consumed in
@@ -54,7 +62,8 @@ retains its commit-specific evidence. Newer local imported Steps work is split a
 `4db55146e`, product `ecbdf6161`, summary authority `3f62d5c6`, and actions checkpoint `08d8b8d9c`.
 The imported day-repair worktree is clean at canonical commit f93b373ef after its nine-path
 implementation checkpoint. The continuation coordinator contains the same source delta at
-293ff43e5 followed by portable admission `8abd7c6e3`; none is integrated into dev/v10 or published.
+293ff43e5, portable admission `8abd7c6e3`, and atomic day repair `3dfa4eaad`; none is integrated
+into dev/v10 or published.
 
 The final stopped engine run did not pass: one selected-session materializer assertion failed and
 `ImportedStepsNumericRoomTest` had an invalid test-class initialization, after which the build was

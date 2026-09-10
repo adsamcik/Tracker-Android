@@ -206,7 +206,7 @@ commits. Remaining work may complete concrete bindings, but must not replace the
   local provider generation, full original capture set, or tracked duration for an imported fact.
 - [x] TODO-STEPS-PORT-006 Distinguish an identical replay from a conflicting reuse of entry, run,
   segment, fact, correction, receipt, or deletion-scope identity.
-- [ ] TODO-STEPS-PORT-007 Invalidate exact source evidence, logical history, affected civil days,
+- [x] TODO-STEPS-PORT-007 Invalidate exact source evidence, logical history, affected civil days,
   numeric consumers, and product observers after a committed import.
 - [x] TODO-STEPS-PORT-008 Make retained imported origins exportable without reconstructing facts
   from lossy compatibility aggregates.
@@ -217,11 +217,14 @@ commits. Remaining work may complete concrete bindings, but must not replace the
 - [ ] TODO-STEPS-PORT-011 Author atomicity, malformed input, collision, replay, correction,
   cancellation, storage failure, reopen, and bounded-resource tests without executing them.
 
-Implementation checkpoint: `8abd7c6e3` supplies PORT-001 through PORT-006 and preserves the
-already implemented retained export/refusal behavior in PORT-008 and PORT-009. Source-evidence and
-table observers advance after commit, but PORT-007 remains open until the affected stored-zone
-civil days are repaired or explicitly failed before product exposure. PORT-011 remains open for
-malformed retained-state, reopen, and correction-specific coverage.
+Implementation checkpoints: `8abd7c6e3` supplies PORT-001 through PORT-006 and preserves the
+already implemented retained export/refusal behavior in PORT-008 and PORT-009. `3dfa4eaad`
+completes PORT-007 by holding all conservatively affected civil-day locks before the owning Room
+transaction, resolving persisted-or-imported stored-zone authority, repairing exact source totals,
+and publishing source/table invalidation only after commit. Partial or Int-unrepresentable Steps
+requires a pre-existing compatibility integer; conflicting or unverifiable day authority rolls the
+whole hierarchy back. PORT-011 remains open for malformed retained-state, reopen, and
+correction-specific coverage.
 
 ### Imported selected deletion and repair
 

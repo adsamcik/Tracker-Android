@@ -2492,3 +2492,21 @@ Each entry records repository evidence and does not duplicate the final architec
 - Post-commit table invalidation is present, but exact affected-day repair and the product file
   bridge remain explicit blockers. This commit is not compilation, test, Room-schema, device,
   no-resurrection round-trip, activation, integration, publication, or release evidence.
+
+## TI-D160 — Repair imported Steps days before exposing an admitted hierarchy
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-10; source `3dfa4eaad`, TI-B221.
+- Acquire the bounded conservative epoch-day lock envelope before the owning Room transaction.
+  Inside it, preserve an existing calendar-zone authority whose physical window intersects the
+  imported evidence; otherwise accept exactly one physical window derived from the original stored
+  run zones. Conflicting, missing, overlapping, excessive, or uncovered authority fails closed.
+- Insert the exact imported hierarchy and recompose every resolved day from authenticated local and
+  imported facts in the same transaction. Imported facts contribute neither invented local duration
+  nor provider authority. A partial or Int-unrepresentable result may retain an existing legacy
+  compatibility integer, but cannot create a new zero-valued compatibility row.
+- Recheck lifecycle state after repair. Cancellation, storage failure, lifecycle drift, typed
+  materialization, or unverifiable repair rolls back payload, summaries, and source evidence
+  together. Room/source observers and metric dirty state advance only after commit.
+- The importer remains unreachable from file discovery. No validation command ran; compilation,
+  test behavior, malformed/reopen/correction coverage, file round trip, no-resurrection, activation,
+  integration, publication, device, or release evidence is claimed.

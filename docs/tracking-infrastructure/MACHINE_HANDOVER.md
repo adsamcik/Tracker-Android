@@ -14,13 +14,13 @@ convergence phase, do not invoke Gradle, compilation, tests, lint, Detekt, schem
 emulator/device, evaluator, battery, CI, or release tasks. New commits are
 `IMPLEMENTED_UNVALIDATED` and stay off local `dev/v10` and all remotes.
 
-The current implementation boundary is portable Steps admission `8abd7c6e3` on the coordinator
-`codex/ti-steps-import-actions`, after imported day composition `293ff43e5` (canonical
-`f93b373ef`) and documentation checkpoint `aaa270d2f`. TI-D158/TI-B219 and TI-D159/TI-B220 record
-the source contracts, authored tests, and deliberately deferred validation. The importer is bound
-for dependency injection but remains unreachable from the file registry; exact stored-zone day
-repair/invalidation must precede the protected-path-safe `.trackersteps` bridge. The earlier two
-stopped-run failures remain validation debt rather than current acceptance evidence.
+The current implementation boundary is atomic portable Steps stored-zone day repair `3dfa4eaad` on
+the coordinator `codex/ti-steps-import-actions`, after imported day composition `293ff43e5`
+(canonical `f93b373ef`), portable admission `8abd7c6e3`, and their documentation checkpoints.
+TI-D158/TI-B219 through TI-D160/TI-B221 record the source contracts, authored tests, and deliberately
+deferred validation. The importer is bound for dependency injection but remains unreachable from
+the file registry. The earlier two stopped-run failures remain validation debt rather than current
+acceptance evidence.
 Preserve the six root paths, both older frozen drafts, and all source branch ancestry. Once every
 source vertical is built, assemble a dedicated convergence branch and only then run and fix the
 full evidence plan.
@@ -38,10 +38,9 @@ composition `f93b373ef`, and API cleanup `3f62d5c6`. The coordinator's
 boundaries are TI-B213 through TI-B219. These are local dependency/slice checkpoints, not fully
 converged integration or importer activation; no validation is active. See the current top of
 [CONTINUATION_HANDOVER.md](CONTINUATION_HANDOVER.md) for ownership and branch ancestry before
-continuing on this machine. The next production slice is `TODO-STEPS-PORT-007`: complete exact
-imported stored-zone day repair and post-commit invalidation. Then `TODO-STEPS-PORT-010` may connect
-the file path without touching the protected legacy DatabaseImport files; finish the remaining
-PORT-011 tests before exposure.
+continuing on this machine. `TODO-STEPS-PORT-007` is implemented at `3dfa4eaad`; next,
+`TODO-STEPS-PORT-010` may connect the file path without touching the protected legacy
+DatabaseImport files. Finish the remaining PORT-011 tests before exposure.
 
 On another machine, do not assume these local commits or drafts arrived. Restart from the verified
 published boundary unless a separately authorized transfer supplies them; verify its hashes and

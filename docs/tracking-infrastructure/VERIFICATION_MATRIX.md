@@ -67,6 +67,29 @@ the frozen convergence branch. Exact day repair/invalidation, file-registry expo
 retained-state/reopen/correction tests, end-to-end import/export/no-resurrection, device/UI evidence,
 integration, activation, push, and release remain outside this checkpoint.
 
+## TI-B221 — Atomic imported Steps stored-zone day repair, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `3dfa4eaad`. Three reviewed tracker-engine source/test paths
+extend the inactive importer with lock-before-transaction civil-day repair. Planning includes every
+run envelope and fact wall interval, bounds the day span, locks the all-zone plausible envelope,
+preserves applicable persisted day authority, rejects overlapping or ambiguous physical windows,
+and requires the final resolved windows to cover all imported evidence.
+
+The owning Room transaction now inserts the hierarchy, composes authenticated surviving local plus
+imported facts, repairs every resolved day, rechecks lifecycle state, and only then advances source
+evidence. Partial or Int-unrepresentable composition preserves an existing legacy integer and fails
+closed when none exists. Imported presentation remains zero-sample/null-Steps and contributes no
+invented tracked duration.
+
+Authored, unexecuted assertions cover a complete two-fact import producing 11 Steps, zero imported
+duration and one logical trip in `Europe/Prague`; a 257-fact atomic batch; partial import rollback
+without a compatibility row; partial non-Steps repair with an existing count; conflicting persisted
+zone rollback; cancellation, SQLite failure, and lifecycle drift after payload insertion; exact
+replay and collision/fence behavior. No command was run under TI-D157. Later convergence must run
+the TI-B220 focused set plus complete affected suites, static/schema gates, `ciUnitTest`, and
+`ciCheck`; registry exposure, malformed/reopen/correction coverage, file round trip,
+no-resurrection, device/UI, activation, integration, publication, and release remain open.
+
 ## Static source × mode matrix
 
 | ID | Source | Mode | Capture sources | Declared controls | Qualified `RECORDING` evidence | Canonical output | Production history/UI assertion | Current status |
