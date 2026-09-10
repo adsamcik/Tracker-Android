@@ -1,8 +1,28 @@
 # Tracking Infrastructure Verification Matrix
 
-Last updated: 2026-09-09
+Last updated: 2026-09-10
 
 Status meanings: `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `IN_REVIEW`, `DONE`. `DONE` requires production repository evidence, not provider registration alone.
+
+## TI-B218 — Deferred-validation implementation phase
+
+Effective 2026-09-10, no new execution-based evidence will be produced until all planned source,
+product, and action logic plus focused unit/contract tests are present on source-owned branches.
+This includes no Gradle invocation, compile/build, test, lint, Detekt, Room schema drift,
+emulator/device, UI evaluator, battery, CI, or release command. Existing evidence below remains
+valid only for its exact historical commit inputs.
+
+The last pre-directive engine attempt from `ti-steps-import-product` ended with two unresolved
+results: `RoomStepsSelectedSessionDeletionServiceTest` failed its wall-uncertain materializer
+assertion, and `ImportedStepsNumericRoomTest` failed test-class initialization. The client then
+disconnected and cancelled the build. No success, test count, or accepted behavior is inferred.
+The eight engine paths remain an `IMPLEMENTED_UNVALIDATED` draft and these failures are intentionally
+deferred until the final convergence-validation phase.
+
+During implementation, this matrix records intended assertions and validation debt rather than
+passes. Final validation will begin only on a frozen dedicated convergence branch and must still
+include focused unit/Room contracts, `ciUnitTest`, Detekt/lint/schema drift, full `ciCheck`, one
+representative device per applicable source gate, and the exact physical Steps-only scenario.
 
 ## Static source × mode matrix
 

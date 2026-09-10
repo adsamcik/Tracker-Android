@@ -2435,3 +2435,19 @@ Each entry records repository evidence and does not duplicate the final architec
 - The broader History/Calendar composition, authoritative import and source-local actions still
   have their own gates. Host Compose evidence is not rendered device UI or physical Steps-only
   proof. No source, importer, writer or feature is activated by this contained read surface.
+
+## TI-D157 — Defer all execution-based validation until implementation convergence
+
+- Status: `ACTIVE_USER_DIRECTIVE`, 2026-09-10; TI-B218. Author production logic and focused unit/
+  contract tests together, but run no build, compilation, test, lint, Detekt, Room drift, emulator,
+  device, evaluator, battery, CI, or release task during the implementation-only phase.
+- Source review and exact-path Git review continue because they protect ownership and unrelated
+  work; they are not evidence that code compiles or behaves correctly. Every new implementation
+  commit is explicitly `IMPLEMENTED_UNVALIDATED` and carries its expected validation commands and
+  known debt forward.
+- Do not integrate unvalidated work into local `dev/v10`. After every required source/product/action
+  piece exists, compose a dedicated local convergence branch, freeze inputs, execute the complete
+  dependency-ordered validation plan, fix failures, and only then use the repository's normal
+  reviewed rebase/merge process.
+- Prior evidence remains scoped to the exact earlier commits. Deferral does not weaken final
+  acceptance, privacy, lifecycle, battery, device, migration, or six-source product requirements.

@@ -1,6 +1,6 @@
 # Tracking Infrastructure Execution Plan
 
-Last updated: 2026-09-05
+Last updated: 2026-09-10
 
 This is the durable execution ledger for the architecture in
 `docs/TRACKING_INFRASTRUCTURE_FINAL_PLAN_AND_DESIGN.md` and the accepted refinements in
@@ -14,6 +14,28 @@ machine. Qualified consumer/deletion-safety containment is accepted progress, no
 positive Steps awards, physical only-source proof, portable import, automatic/Ambient, or six-source
 delivery. Preserve the existing Steps-first dependency gates; no further generic framework or
 unrelated reward expansion is the next implementation wave.
+
+## September 10 implementation-only phase
+
+The user has explicitly changed the sequencing for the remainder of the program. Until every
+planned source vertical and its required product/action pieces has been implemented, work is
+`IMPLEMENTATION_ONLY`:
+
+- write production logic and its focused unit/contract tests together;
+- perform source review and exact-path commit review, but do not execute Gradle, compilation,
+  tests, lint, Detekt, Room schema drift, emulator/device, UI evaluator, battery, CI, or release gates;
+- record expected commands and known validation debt without investigating failures produced by
+  the stopped validation phase;
+- label every new slice `IMPLEMENTED_UNVALIDATED`, never `DONE`, accepted, or integration-ready;
+- keep source-owned branches and protected drafts separate; do not merge unvalidated source into
+  local `dev/v10`, push it, activate a writer/provider/importer, or alter rollout state; and
+- once all pieces exist, compose a dedicated local convergence branch, freeze inputs, then run the
+  dependency-ordered compile/unit/static/schema/integration/device gates and fix the resulting
+  issues before the normal reviewed merge into clean local `dev/v10`.
+
+Prior green evidence remains valid for the exact earlier commits it covered. It must not be
+projected onto later unvalidated edits. This phase changes validation timing, not the product
+definition, architecture invariants, required final proof, or six-source completion criteria.
 
 ## Program truth
 
@@ -47,10 +69,10 @@ unrelated reward expansion is the next implementation wave.
   immutable Steps session-fact binding for manual plus automatic capture while keeping generation 1
   manual-only and executable for retained history. It changes no rollout state, provider demand,
   destination owner, or ordinary activation; full automatic Steps remains independently gated.
-- Local commits are authorized and are the unit of integration. Each commit must contain one
-  gate-sized, dependency-coherent slice, stage only reviewed paths, record its scoped verification,
-  and leave known blocked assertions explicit. A failing or unverified slice is not committed as a
-  completed checkpoint merely because it compiles.
+- Local commits are authorized and remain the unit of implementation. During the September 10
+  implementation-only phase, each commit contains one dependency-coherent slice, its unit-test
+  specification, exact reviewed paths, and explicit deferred validation debt. It is not a completed
+  checkpoint and does not enter `dev/v10` until the final convergence validation phase succeeds.
 - Wi-Fi durable admission is locally integrated through `8000f4b16`. Fresh nonempty observations
   now use a privacy-minimized, replay-stable delivery identity; Room owns source-sequence allocation;
   delayed callbacks must retain exact historical registration, manifest, policy, purpose, session,

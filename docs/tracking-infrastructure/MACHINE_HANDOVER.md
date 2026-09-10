@@ -1,6 +1,20 @@
 # Tracking infrastructure: cross-machine handover
 
-Last updated: 2026-09-09
+Last updated: 2026-09-10
+
+## Current implementation-only operating mode
+
+Do not run validation on the continuation machine yet. The user explicitly requires all remaining
+production logic and focused unit/contract tests to be authored first. Until the dedicated final
+convergence phase, do not invoke Gradle, compilation, tests, lint, Detekt, schema drift,
+emulator/device, evaluator, battery, CI, or release tasks. New commits are
+`IMPLEMENTED_UNVALIDATED` and stay off local `dev/v10` and all remotes.
+
+The current dirty implementation boundary is the eight-path imported day-repair draft in
+`ti-steps-import-product` at `ecbdf6161`; its last stopped run had two deferred failures recorded in
+TI-B218. Clean newer local dependency/action checkpoints remain listed below. Preserve the six root
+paths, both older frozen drafts, and all source branch ancestry. Once every source vertical is built,
+assemble a dedicated convergence branch and only then run and fix the full evidence plan.
 
 ## Verified publication versus newer local work
 

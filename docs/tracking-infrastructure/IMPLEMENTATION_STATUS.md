@@ -1,14 +1,35 @@
 # Tracking Infrastructure Implementation Status
 
-Last updated: 2026-09-09
+Last updated: 2026-09-10
 
 Execution-grade work items, ownership, dependency gates, verification commands, and rollback
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and
 evidence index.
 
+## September 10 workflow and current boundary
+
+The program is now in an explicit implementation-only phase (TI-D157/TI-B218). Production logic
+and focused unit/contract tests will be authored together, but no test, compile, Gradle, lint,
+Detekt, schema, emulator/device, UI-evaluator, battery, CI, or release validation will run until
+all planned pieces are assembled on a dedicated convergence branch. New commits are
+`IMPLEMENTED_UNVALIDATED`; they do not enter local `dev/v10`, get pushed, or activate behavior.
+
+Clean published/local integration truth remains `dev/v10` at `0460f12a5`. Earlier numeric-consumer,
+Pressure-fact, portable-export, privacy/fencing, and source-admission work already in that history
+retains its commit-specific evidence. Newer local imported Steps work is split across clean core
+`4db55146e`, product `ecbdf6161`, summary authority `3f62d5c6`, and actions checkpoint `08d8b8d9c`.
+The imported day-repair worktree is dirty at `ecbdf6161` with six modified and two untracked engine
+paths; it is not accepted or integrated.
+
+The final stopped engine run did not pass: one selected-session materializer assertion failed and
+`ImportedStepsNumericRoomTest` had an invalid test-class initialization, after which the build was
+cancelled on client disconnect. These are deferred validation debt, not current implementation
+tasks. No Tracker Gradle 9.6.1 process remains active. Two observed Gradle/Kotlin 9.5.1 Java daemons
+belong to unrelated work and were deliberately left running.
+
 ## September 9 continuation
 
-Verified local imported Dashboard/Detail presentation: TI-D156/TI-B217. The existing recent-history
+Previously verified local imported Dashboard/Detail presentation: TI-D156/TI-B217. The existing recent-history
 surface exposes logical imported entries with exact selectable physical recordings; contained
 Detail shows only retained Steps and timestamps. Covered zero, lower bounds, materializing and
 unavailable states remain distinct. Imported history cannot prove the current provider is active
@@ -16,7 +37,7 @@ or borrow local route/Ski/GPX data. All 18 Dashboard and 20 statistics focused t
 alongside Detekt and affected lint. Broader History/Calendar, day repair and importer activation
 remain open; the full program and physical Steps gate are not complete.
 
-Verified local imported-retention slice: TI-D155/TI-B216. Raw pruning now authenticates retained
+Previously verified local imported-retention slice: TI-D155/TI-B216. Raw pruning now authenticates retained
 imported membership independently of live runs, retains boundary/straddling facts as partial, and
 updates exact retained receipts. Both existing app worker entry points remove expired exact
 imported members atomically with original-scope fences. Core coverage passed 68 focused tests;

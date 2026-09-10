@@ -1,6 +1,24 @@
 # Tracking Infrastructure Continuation Handover
 
-Last updated: 2026-09-09
+Last updated: 2026-09-10
+
+## Implementation-only directive
+
+The user has stopped all testing and validation until the entire planned implementation is built.
+Do not run Gradle, compile/build tasks, tests, lint, Detekt, Room drift, emulator/device, UI
+evaluation, battery, CI, or release validation. Continue writing bounded production logic and its
+unit/contract tests. Mark every new source commit `IMPLEMENTED_UNVALIDATED`; preserve expected
+commands and known failures for the later convergence phase.
+
+No Tracker Gradle 9.6.1 process is active. The former engine session is terminal: it reported one
+wall-uncertain materializer assertion failure and one invalid imported-Room test initialization,
+then was cancelled after client disconnect. Do not restart it or fix from test feedback now.
+Observed Gradle/Kotlin 9.5.1 daemons are unrelated and must not be stopped as Tracker work.
+
+Keep unvalidated branches out of local `dev/v10`. When every planned Steps, Pressure, protected
+Location, Activity, Wi-Fi, and Cell piece plus its applicable product/action tests exists, compose
+one dedicated local convergence branch. Only then begin the complete validation/fix phase; after it
+passes, rebase and merge through the clean integration checkout. No push or activation is authorized.
 
 ## Local follow-up after the reviewed publication
 
