@@ -15,7 +15,10 @@ import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.filterNotNull
@@ -43,6 +46,8 @@ internal object GoalTracker : CoroutineScope {
 	private var mLastSessionId: Long = -1
 	private val job = SupervisorJob()
 	private val mutex = Mutex()
+	private val calendarInvalidationsMutable = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+	internal val calendarInvalidations: SharedFlow<Unit> = calendarInvalidationsMutable.asSharedFlow()
 
 	override val coroutineContext: CoroutineContext
 		get() = dispatchers.default + job
@@ -129,6 +134,7 @@ internal object GoalTracker : CoroutineScope {
 			mLastSessionId = -1
 			goalList.forEach { it.onNewDay(context, Time.now) }
 		}
+		calendarInvalidationsMutable.tryEmit(Unit)
 	}
 
 	internal suspend fun update(session: TrackerSessionSnapshot) {

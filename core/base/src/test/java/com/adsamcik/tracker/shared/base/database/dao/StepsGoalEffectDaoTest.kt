@@ -45,6 +45,9 @@ class StepsGoalEffectDaoTest {
 			updatedAtMs = 200L,
 		)
 		dao.observePending().first() shouldBe emptyList()
+		dao.observeActionable().first() shouldBe listOf(requireNotNull(dao.get(IDENTITY)))
+		dao.claimNotification(IDENTITY, 1L, 201L) shouldBe 1
+		dao.observeActionable().first() shouldBe emptyList()
 	}
 
 	@Test

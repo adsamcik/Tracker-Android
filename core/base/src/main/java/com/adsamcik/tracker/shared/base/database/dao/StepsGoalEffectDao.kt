@@ -22,6 +22,16 @@ interface StepsGoalEffectDao : BaseDao<StepsGoalEffectEntity> {
 	fun observePending(): Flow<List<StepsGoalEffectEntity>>
 
 	@Query(
+		"SELECT * FROM steps_goal_effect " +
+			"WHERE points_applied_revision < effect_revision " +
+			"OR xp_applied_revision < effect_revision " +
+			"OR (decision_state = '${StepsGoalEffectEntity.STATE_READY_COMPLETE}' " +
+			"AND notification_claimed_revision IS NULL) " +
+			"ORDER BY period_start_epoch_day ASC, period_kind ASC",
+	)
+	fun observeActionable(): Flow<List<StepsGoalEffectEntity>>
+
+	@Query(
 		"UPDATE steps_goal_effect SET source_evidence_revision = :sourceEvidenceRevision, " +
 			"updated_at_ms = :updatedAtMs WHERE effect_identity = :effectIdentity " +
 			"AND effect_revision = :expectedEffectRevision " +
