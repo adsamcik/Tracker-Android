@@ -107,6 +107,21 @@ run the import/export module and PORT-011 Room contracts before broader source, 
 `ciUnitTest`, `ciCheck`, round-trip/no-resurrection, device/UI, integration, activation, publication,
 or release claims.
 
+## TI-B223 — Portable Steps retained-state, lineage, and reopen contracts, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `03db9e565`. One tracker-engine Room test path completes the
+remaining PORT-011 contract inventory. Authored assertions require raw malformed imported state to
+return attribution-unverifiable without mutation, require an extra authenticated local-deletion
+revision to prevent exact-replay classification, and require a committed entry to reopen through a
+fresh production Room instance as a side-effect-free duplicate with its summary and source revision
+unchanged.
+
+No command was run under TI-D157. These tests have not compiled or executed. Final convergence must
+run the complete `RoomImportPortableStepsTest` plus the portable codec/file, retained-reader,
+export, day-composition, deletion, retention, migration/reopen, static/schema, `ciUnitTest`, and
+`ciCheck` gates before any round-trip/no-resurrection, integration, activation, publication,
+device/UI, or release claim.
+
 ## Static source × mode matrix
 
 | ID | Source | Mode | Capture sources | Declared controls | Qualified `RECORDING` evidence | Canonical output | Production history/UI assertion | Current status |

@@ -22,13 +22,13 @@ Location, Activity, Wi-Fi, and Cell piece plus its applicable product/action tes
 one dedicated local convergence branch. Only then begin the complete validation/fix phase; after it
 passes, rebase and merge through the clean integration checkout. No push or activation is authorized.
 
-Current coordinator source checkpoint: `c58fcc85f` on `codex/ti-steps-import-actions`, after the
+Current coordinator source checkpoint: `03db9e565` on `codex/ti-steps-import-actions`, after the
 imported day-composition cherry `293ff43e5`, portable admission `8abd7c6e3`, atomic stored-zone day
-repair `3dfa4eaad`, and their documentation checkpoints. It adds the protected-path-safe,
-import-only `.trackersteps` registry/worker bridge while retaining source-local transaction
-authority. TI-D159/TI-B220 through TI-D161/TI-B222 are authoritative for its guarantees and
-validation debt. Continue next with PORT-011's remaining malformed retained-state, reopen, and
-correction-specific importer contracts.
+repair `3dfa4eaad`, file bridge `c58fcc85f`, and their documentation checkpoints. It adds the
+protected-path-safe, import-only `.trackersteps` registry/worker bridge while retaining source-local transaction
+authority plus the remaining retained-state, correction-lineage, and Room-reopen contracts.
+TI-D159/TI-B220 through TI-D162/TI-B223 are authoritative for its guarantees and validation debt.
+Continue next with exact imported selected deletion and repair.
 
 ## Local follow-up after the reviewed publication
 
@@ -49,9 +49,9 @@ This section supersedes the older paused/uncompiled inventory below without acce
 - `ti-steps-import-actions`, `codex/ti-steps-import-actions`: coordinator worktree with accepted
   dependency cherries and accepted retention `299f9de21` (TI-D155/TI-B216), followed by accepted
   Dashboard/Detail `0a820f3f6` (TI-D156/TI-B217), unvalidated imported composition `293ff43e5`,
-  portable admission `8abd7c6e3`, atomic day repair `3dfa4eaad`, and the `.trackersteps` file bridge
-  `c58fcc85f`. The source branches above retain canonical ancestry. These source chunks are
-  committed, not integrated or authorized for publication.
+  portable admission `8abd7c6e3`, atomic day repair `3dfa4eaad`, the `.trackersteps` file bridge
+  `c58fcc85f`, and completed importer contracts `03db9e565`. The source branches above retain
+  canonical ancestry. These source chunks are committed, not integrated or authorized for publication.
 
 Actions gate `81757` ended with only the Dashboard XML namespace failure; its core/static/Detail
 successes and exact boundary are in TI-B216. The namespace fix was verified by green `97335`
@@ -73,9 +73,9 @@ in bounded batches. Import-only compatibility-cache preservation must not be reu
 raw database exports can contain a deleted aggregate contribution. Keep the existing
 selected-deletion partial/unrepresentable guard until atomic redaction is implemented and tested.
 
-Next implementation is PORT-011's remaining malformed retained-state, reopen, and
-correction-specific contracts, followed by imported selected deletion. PORT-010 is implemented at
-`c58fcc85f` without editing a protected legacy DatabaseImport path.
+Next implementation is imported selected deletion. PORT-010 is implemented at `c58fcc85f` without
+editing a protected legacy DatabaseImport path, and PORT-011 is complete at `03db9e565` with its
+contracts authored but deliberately unexecuted.
 Next integration requires coordinated retention/repair acceptance, a frozen converged input,
 `ciUnitTest` at the integration gate and full `ciCheck --continue`, then rebase onto latest local
 `dev/v10` and integrate from the clean integration checkout. Preserve canonical source commits

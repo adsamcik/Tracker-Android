@@ -214,7 +214,7 @@ commits. Remaining work may complete concrete bindings, but must not replace the
   reproduce the original portable scope.
 - [x] TODO-STEPS-PORT-010 Connect the production file import path and registry to the new importer
   without touching the six protected root-checkout drafts.
-- [ ] TODO-STEPS-PORT-011 Author atomicity, malformed input, collision, replay, correction,
+- [x] TODO-STEPS-PORT-011 Author atomicity, malformed input, collision, replay, correction,
   cancellation, storage failure, reopen, and bounded-resource tests without executing them.
 
 Implementation checkpoints: `8abd7c6e3` supplies PORT-001 through PORT-006 and preserves the
@@ -225,8 +225,9 @@ and publishing source/table invalidation only after commit. Partial or Int-unrep
 requires a pre-existing compatibility integer; conflicting or unverifiable day authority rolls the
 whole hierarchy back. `c58fcc85f` supplies PORT-010 with a strict bounded `.trackersteps` adapter,
 registry and worker routing, importer-owned transaction dispatch, post-success receipt recording,
-and focused unexecuted file/transaction tests. PORT-011 remains open for malformed retained-state,
-reopen, and correction-specific coverage.
+and focused unexecuted file/transaction tests. `03db9e565` completes PORT-011 with fail-closed
+malformed retained-state, extra correction-lineage, and fresh-Room-reopen replay contracts. All
+portable importer tests remain deliberately unexecuted until convergence.
 
 ### Imported selected deletion and repair
 

@@ -2529,3 +2529,17 @@ Each entry records repository evidence and does not duplicate the final architec
   cancellation tests are authored but were not run. Malformed retained-state, reopen,
   correction-specific Room coverage, complete file round trip, no-resurrection, device/UI,
   integration, activation, publication, and release evidence remain open.
+
+## TI-D162 — Retained corruption and extra lineage can never become an import replay
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-10; tests `03db9e565`, TI-B223.
+- An existing imported entry is an identical replay only when its complete retained hierarchy still
+  authenticates. Raw Boolean corruption must return typed unverifiable state without payload,
+  evidence-revision, summary, or observer mutation.
+- Any additional fact correction or redaction lineage prevents the portable v1 latest-state row
+  from being treated as the complete original hierarchy. The importer fails closed instead of
+  silently collapsing correction history into a duplicate.
+- A committed import and its source evidence, presentation binding, day summary, and replay identity
+  must survive a close and fresh production Room open; the next identical import is a side-effect-free
+  duplicate. These contracts are authored only. No test, compilation, schema, device, integration,
+  publication, activation, or release evidence is claimed.

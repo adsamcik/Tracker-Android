@@ -14,12 +14,14 @@ convergence phase, do not invoke Gradle, compilation, tests, lint, Detekt, schem
 emulator/device, evaluator, battery, CI, or release tasks. New commits are
 `IMPLEMENTED_UNVALIDATED` and stay off local `dev/v10` and all remotes.
 
-The current implementation boundary is the import-only `.trackersteps` file bridge `c58fcc85f` on
+The current implementation boundary is the completed portable importer contract set `03db9e565` on
 the coordinator `codex/ti-steps-import-actions`, after imported day composition `293ff43e5`
 (canonical `f93b373ef`), portable admission `8abd7c6e3`, atomic stored-zone day repair `3dfa4eaad`,
-and their documentation checkpoints. TI-D158/TI-B219 through TI-D161/TI-B222 record the source
-contracts, authored tests, and deliberately deferred validation. The strict file adapter is now
-discoverable, while importer-owned entry transactions remain outside the legacy receipt transaction.
+the `.trackersteps` bridge `c58fcc85f`, and their documentation checkpoints. TI-D158/TI-B219 through
+TI-D162/TI-B223 record the source contracts, authored tests, and deliberately deferred validation.
+The strict file adapter is discoverable, importer-owned entry transactions remain outside the
+legacy receipt transaction, and malformed retained bytes, correction lineage, and Room reopen now
+have focused contracts.
 The earlier two stopped-run failures remain validation debt rather than current acceptance evidence.
 Preserve the six root paths, both older frozen drafts, and all source branch ancestry. Once every
 source vertical is built, assemble a dedicated convergence branch and only then run and fix the
@@ -39,8 +41,8 @@ boundaries are TI-B213 through TI-B219. These are local dependency/slice checkpo
 converged integration or importer activation; no validation is active. See the current top of
 [CONTINUATION_HANDOVER.md](CONTINUATION_HANDOVER.md) for ownership and branch ancestry before
 continuing on this machine. `TODO-STEPS-PORT-010` is implemented at `c58fcc85f` without touching the
-protected legacy DatabaseImport files. Finish PORT-011's remaining malformed retained-state,
-reopen, and correction-specific tests before continuing with imported selected deletion.
+protected legacy DatabaseImport files, and PORT-011 is implemented at `03db9e565`. Continue with
+imported selected deletion and exact day repair.
 
 On another machine, do not assume these local commits or drafts arrived. Restart from the verified
 published boundary unless a separately authorized transfer supplies them; verify its hashes and
