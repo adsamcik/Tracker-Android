@@ -12,6 +12,21 @@ to author now from product decisions and the deferred convergence-validation pha
 
 ## September 10 workflow and current boundary
 
+Imported Steps day composition is now committed as **IMPLEMENTED_UNVALIDATED**: canonical source
+commit f93b373ef and continuation cherry 293ff43e5. Authenticated imported facts are consumed in
+bounded batches beside local facts, remain discoverable by source-fact wall projection, preserve
+exact foreign ownership and stored-zone authority, contribute no invented local tracked duration,
+and retain Long numeric truth independently of the obsolete Int compatibility cache. Partial or
+overflow materialization preserves an existing compatibility count while repairing independent
+totals; when no such row exists it fails closed rather than creating a fabricated zero. Selected
+deletion remains stricter and rejects partial or non-representable compatibility repair.
+
+The focused Room, accumulator, composer, worker, observer, and selected-deletion tests are authored
+but have not been run. The pre-directive wall-uncertain assertion was updated to the new explicit
+compatibility contract. The previously reported imported test-class initialization result remains
+deferred validation debt; no success is inferred. TODO-STEPS-IMPORT-001 through
+TODO-STEPS-IMPORT-006 are implemented only, not validated.
+
 The program is now in an explicit implementation-only phase (TI-D157/TI-B218). Production logic
 and focused unit/contract tests will be authored together, but no test, compile, Gradle, lint,
 Detekt, schema, emulator/device, UI-evaluator, battery, CI, or release validation will run until
@@ -22,8 +37,9 @@ Clean published/local integration truth remains `dev/v10` at `0460f12a5`. Earlie
 Pressure-fact, portable-export, privacy/fencing, and source-admission work already in that history
 retains its commit-specific evidence. Newer local imported Steps work is split across clean core
 `4db55146e`, product `ecbdf6161`, summary authority `3f62d5c6`, and actions checkpoint `08d8b8d9c`.
-The imported day-repair worktree is dirty at `ecbdf6161` with six modified and two untracked engine
-paths; it is not accepted or integrated.
+The imported day-repair worktree is clean at canonical commit f93b373ef after its nine-path
+implementation checkpoint. The continuation coordinator contains the same source delta at
+293ff43e5; neither commit is integrated into dev/v10 or published.
 
 The final stopped engine run did not pass: one selected-session materializer assertion failed and
 `ImportedStepsNumericRoomTest` had an invalid test-class initialization, after which the build was

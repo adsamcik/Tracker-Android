@@ -177,18 +177,18 @@ commits. Remaining work may complete concrete bindings, but must not replace the
 
 ### Current imported-history lane
 
-- [ ] TODO-STEPS-IMPORT-001 Review and finish the preserved eight-path imported Steps day-repair
+- [x] TODO-STEPS-IMPORT-001 Review and finish the preserved eight-path imported Steps day-repair
   draft without relying on the stopped test run as proof.
-- [ ] TODO-STEPS-IMPORT-002 Compose imported local-day contributions from exact retained portable
+- [x] TODO-STEPS-IMPORT-002 Compose imported local-day contributions from exact retained portable
   fact identity, original structural zone, explicit coverage, gaps, baseline, correction, and
   truncation state.
-- [ ] TODO-STEPS-IMPORT-003 Discover authenticated imported source facts that fall outside a
+- [x] TODO-STEPS-IMPORT-003 Discover authenticated imported source facts that fall outside a
   presentation wall envelope without inferring ownership from wall-time overlap.
-- [ ] TODO-STEPS-IMPORT-004 Preserve exact imported versus local ownership partition, replacement
+- [x] TODO-STEPS-IMPORT-004 Preserve exact imported versus local ownership partition, replacement
   grouping, Long-valued counts, and null or partial state; never invent tracked duration.
-- [ ] TODO-STEPS-IMPORT-005 Keep partial import materialization compatible with legacy summary
+- [x] TODO-STEPS-IMPORT-005 Keep partial import materialization compatible with legacy summary
   consumers without turning missing or unavailable Steps into a qualified zero.
-- [ ] TODO-STEPS-IMPORT-006 Author focused accumulator, Room, selected-deletion, and worker tests for
+- [x] TODO-STEPS-IMPORT-006 Author focused accumulator, Room, selected-deletion, and worker tests for
   imported day composition, then commit the coherent slice as IMPLEMENTED_UNVALIDATED.
 
 ### Production portable import and no-resurrection

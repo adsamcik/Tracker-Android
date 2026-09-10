@@ -2451,3 +2451,21 @@ Each entry records repository evidence and does not duplicate the final architec
   reviewed rebase/merge process.
 - Prior evidence remains scoped to the exact earlier commits. Deferral does not weaken final
   acceptance, privacy, lifecycle, battery, device, migration, or six-source product requirements.
+
+## TI-D158 — Imported Steps share numeric composition without gaining local lifecycle authority
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-10; TI-B219.
+- Authenticated portable entries are consumed in bounded entry batches into the existing Steps
+  day accumulator. Imported run, entry, segment, manifest, fact, deletion-scope, retention, zone,
+  and checksum identity remain their own authority; no local service run, consent, policy,
+  provider generation, elapsed clock, or tracked duration is fabricated.
+- Fact-time discovery supplements the presentation envelope after wall-clock movement. Imported
+  and local partitions must not reuse a run, segment, or logical identity, and exact physical
+  ownership remains internal when replacement members compose into a logical result.
+- Qualified numeric product state keeps Long counts. The legacy daily-summary integer is only a
+  compatibility cache: partial or Int-overflow materialization may preserve an existing value while
+  repairing independent totals, but it must fail closed when preservation would otherwise invent
+  zero. Selected deletion remains stricter and refuses any nonexact compatibility recomposition.
+- The production code and focused tests exist at f93b373ef and continuation cherry 293ff43e5.
+  No validation command ran; compilation, test behavior, static checks, and the previously reported
+  imported test-class initialization failure remain deferred to convergence.

@@ -14,11 +14,13 @@ convergence phase, do not invoke Gradle, compilation, tests, lint, Detekt, schem
 emulator/device, evaluator, battery, CI, or release tasks. New commits are
 `IMPLEMENTED_UNVALIDATED` and stay off local `dev/v10` and all remotes.
 
-The current dirty implementation boundary is the eight-path imported day-repair draft in
-`ti-steps-import-product` at `ecbdf6161`; its last stopped run had two deferred failures recorded in
-TI-B218. Clean newer local dependency/action checkpoints remain listed below. Preserve the six root
-paths, both older frozen drafts, and all source branch ancestry. Once every source vertical is built,
-assemble a dedicated convergence branch and only then run and fix the full evidence plan.
+The current implementation boundary is the clean imported Steps day-composition commit
+`f93b373ef` in `ti-steps-import-product`, cherry-picked into the coordinator as `293ff43e5`.
+TI-D158/TI-B219 record its source contract, authored tests, and deliberately deferred validation;
+the earlier two stopped-run failures remain validation debt rather than current acceptance evidence.
+Preserve the six root paths, both older frozen drafts, and all source branch ancestry. Once every
+source vertical is built, assemble a dedicated convergence branch and only then run and fix the
+full evidence plan.
 
 ## Verified publication versus newer local work
 
@@ -26,13 +28,16 @@ The actual published checkpoint is `0460f12a54a3550244f8e8ea5c9fb1f5e2ef27d2`, v
 `git ls-remote --heads origin refs/heads/dev/v10`. A normal clone of `dev/v10` contains reviewed
 portable-origin storage and its handover, not the subsequent work below. No new push is authorized.
 
-Newer local accepted dependencies are core `4db55146e`, imported product `ecbdf6161`, and API
-cleanup `3f62d5c6`. The coordinator's `ti-steps-import-actions` branch contains their dependency
-cherries plus retention/worker hooks `299f9de21` and Dashboard/Detail `0a820f3f6`. Exact commands,
-results and boundaries are TI-B213 through TI-B217. These are local dependency/slice checkpoints,
-not fully converged integration or importer activation. A separate engine repair draft is still
-under validation. See the current top of [CONTINUATION_HANDOVER.md](CONTINUATION_HANDOVER.md)
-for ownership, branch ancestry and build-lane state before continuing on this machine.
+Newer local dependencies are core `4db55146e`, imported product `ecbdf6161`, imported Steps day
+composition `f93b373ef`, and API cleanup `3f62d5c6`. The coordinator's
+`ti-steps-import-actions` branch contains their dependency cherries plus retention/worker hooks
+`299f9de21`, Dashboard/Detail `0a820f3f6`, and the day-composition cherry `293ff43e5`. Exact
+boundaries are TI-B213 through TI-B219. These are local dependency/slice checkpoints, not fully
+converged integration or importer activation; no validation is active. See the current top of
+[CONTINUATION_HANDOVER.md](CONTINUATION_HANDOVER.md) for ownership and branch ancestry before
+continuing on this machine. The next production slice is `TODO-STEPS-PORT-001`: wire the real
+portable Steps importer behind its inactive entry point without touching the protected legacy
+DatabaseImport files.
 
 On another machine, do not assume these local commits or drafts arrived. Restart from the verified
 published boundary unless a separately authorized transfer supplies them; verify its hashes and

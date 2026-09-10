@@ -50,17 +50,18 @@ refinement passed `74425` (2m 5s), including the same 18 Dashboard tests, Detekt
 Together with 68 core and 20 statistics tests, this is 132 passing focused host tests, not a full
 converged `ciCheck`. All three actions sessions are terminal; do not poll their old handles.
 
-The product agent owns the sole Gradle lane for engine follow-up. Session `62111` began its first
-focused engine/selected-deletion cohort after main released the lane. Engine source remains
-unaccepted until its terminal results, scoped fixes, Detekt/lint and exact commit are recorded.
-Use the live task's receipt to supersede this transient process state; never assume a historical
-PID/session is active. Do not start a competing build or edit its frozen input.
+The former engine run is terminal and no Gradle lane is active. Its imported Steps day-composition
+source was reviewed without restarting validation, completed as canonical commit `f93b373ef` in
+`ti-steps-import-product`, and cherry-picked into this coordinator as `293ff43e5`. Both commits are
+`IMPLEMENTED_UNVALIDATED`; their nine production/test paths are clean. The old wall-uncertain
+assertion and invalid imported-Room test initialization remain deferred evidence in TI-B218/TI-B219,
+not proof that the current source passes or fails. Do not revive historical PID/session `62111`.
 
-Engine follow-up must preserve source-qualified partial/zero semantics and stored zone authority,
-not invent elapsed duration from imported wall bounds or allocate an unbounded collection of full
-entry facts. Import-only compatibility-cache preservation must not be reused for deletion: raw
-database exports can contain a deleted aggregate contribution. Keep the existing selected-deletion
-partial/unrepresentable guard until atomic redaction is implemented and tested.
+The implemented engine slice preserves source-qualified partial/zero semantics and stored zone
+authority, does not invent elapsed duration from imported wall bounds, and reads imported entries
+in bounded batches. Import-only compatibility-cache preservation must not be reused for deletion:
+raw database exports can contain a deleted aggregate contribution. Keep the existing
+selected-deletion partial/unrepresentable guard until atomic redaction is implemented and tested.
 
 Next integration requires coordinated retention/repair acceptance, a frozen converged input,
 `ciUnitTest` at the integration gate and full `ciCheck --continue`, then rebase onto latest local

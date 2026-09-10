@@ -24,6 +24,26 @@ passes. Final validation will begin only on a frozen dedicated convergence branc
 include focused unit/Room contracts, `ciUnitTest`, Detekt/lint/schema drift, full `ciCheck`, one
 representative device per applicable source gate, and the exact physical Steps-only scenario.
 
+## TI-B219 — Imported Steps numeric and day composition, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at canonical f93b373ef and continuation cherry 293ff43e5.
+Nine tracker-engine paths implement bounded authenticated imported fact consumption, exact
+local/imported ownership partitioning, source-fact discovery outside the presentation envelope,
+stored-zone and completeness-sensitive numeric composition, Long product counts, no imported
+tracked-duration fabrication, dependency observation, and compatibility-safe materialization.
+
+Authored assertions cover positive and covered-zero reads, baseline and gap states, fact-wall
+discovery, cross-midnight and zone uncertainty, mixed local/imported composition, retention,
+deletion fences, manifest-only invalidation, physical binding corruption, batching, compatibility
+preservation, Long overflow, and refusal to fabricate a missing compatibility row.
+
+No command was run. The later focused command must select ImportedStepsNumericRoomTest,
+StepsDailySummaryRepairComposerTest, StepsNumericDayWindowAccumulatorTest,
+RoomStepsNumericSummaryRepositoryRoomTest, and RoomStepsSelectedSessionDeletionServiceTest in the
+tracker-engine unit task, followed by the complete tracker-engine suite, root Detekt,
+tracker-engine lint, and the repository convergence gates. The pre-directive imported test-class
+initialization result remains unresolved until that phase.
+
 ## Static source × mode matrix
 
 | ID | Source | Mode | Capture sources | Declared controls | Qualified `RECORDING` evidence | Canonical output | Production history/UI assertion | Current status |
