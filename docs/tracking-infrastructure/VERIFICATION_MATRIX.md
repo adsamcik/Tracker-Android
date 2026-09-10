@@ -122,6 +122,35 @@ export, day-composition, deletion, retention, migration/reopen, static/schema, `
 `ciCheck` gates before any round-trip/no-resurrection, integration, activation, publication,
 device/UI, or release claim.
 
+## TI-B224 — Exact imported Steps selected deletion, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `89454b8c1`, with contract completion at `3ff5c086c`.
+Eight production/test paths route imported presentation selection to a source-local command,
+reuse the now-shared bounded portable calendar plan, authenticate the complete original entry,
+install original and current-local per-run fences, retain redacted fact lineage, remove exact
+replacement members, and repair every affected day without waking the live Steps writer.
+
+Authored assertions cover selecting one of two replacement members while deleting both, exact
+portable and local fences, redacted latest-state facts, no live drain, post-commit dirty marking,
+re-import refusal, partial compatibility redaction, malformed hierarchy refusal, correction-lineage
+refusal, retention-loss refusal, cancellation rollback, and backup/fresh-Room reopen with durable
+no-resurrection state. They have not compiled or executed. Source inspection is not test evidence.
+
+At final convergence, run at minimum:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*RoomImportPortableStepsTest' --tests '*RoomStepsSelectedSessionDeletionServiceTest' --tests '*StepsDailySummaryRepairComposerTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*ImportedSteps*' --tests '*StepFactRevision*' :stats:api:testAndroidHostTest --tests '*StepsPortable*' :stats:data:testDebugUnitTest --tests '*ImportedSteps*' --tests '*RoomExportPortableStepsTest' :tracker:engine:testDebugUnitTest --tests '*RoomImportPortableStepsTest' --tests '*RoomStepsSelectedSessionDeletionServiceTest' --tests '*StepsDailySummaryRepairComposerTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :core:base:lintDebug :stats:data:lintDebug :tracker:engine:lintDebug checkRoomSchemaDrift --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat ciUnitTest --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat ciCheck --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+This deferred gate still needs source-review fixes found by compilation/tests, exact portable
+round-trip coverage, and the representative device/UI Steps-only scenario. It proves no provider,
+listener, process-death, reboot, FGS, battery, OEM, activation, integration, publication, or release
+behavior today.
+
 ## Static source × mode matrix
 
 | ID | Source | Mode | Capture sources | Declared controls | Qualified `RECORDING` evidence | Canonical output | Production history/UI assertion | Current status |

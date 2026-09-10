@@ -3216,3 +3216,25 @@ complete portable import/imported-origin retention/no-resurrection or award/stre
 consumers, separate
 automatic control authority, enable default-off Ambient Steps, activate a writer, roll out, push,
 tag, deploy, or release anything.
+
+## 2026-09-10 implementation-only checkpoint — imported selected deletion
+
+Commits `89454b8c1` and `3ff5c086c` on `codex/ti-steps-import-actions` complete the authored
+imported selected-deletion slice as **IMPLEMENTED_UNVALIDATED**. Selecting one authenticated
+portable replacement member now resolves the complete logical imported entry, takes the shared
+stored-zone/all-zone day locks, rechecks the exact retained scope, and atomically installs both
+original portable and current-local per-run deletion fences before redacting facts and removing all
+physical members. It does not create, inspect, wake, or drain live Steps demand.
+
+Day repair uses the complete surviving local/imported fact set. A partial or Int-unrepresentable
+survivor cannot retain a compatibility value containing deleted data: the raw integer is redacted
+to zero while typed product state remains nonqualified. Retention loss, incomplete/corrected
+portable authority, ambiguous calendar authority, concurrent drift, materialization, and storage
+failure remain typed and fail before commit or roll the transaction back.
+
+Focused contracts were authored for complete replacement deletion, dual fences, redacted
+retractions, replay refusal, no live drain, partial-summary cleanup, malformed/corrected retained
+state, retention loss, cancellation, and backup-to-fresh-Room persistence. No Gradle, compiler,
+test, lint, Detekt, Room drift, device, UI, battery, CI, integration, or publication command ran.
+The next implementation boundary is the complete portable local-export/import/history round trip,
+followed by the remaining manual Steps wiring and numeric/effect consumer audit.

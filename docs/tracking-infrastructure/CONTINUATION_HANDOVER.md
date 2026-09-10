@@ -22,13 +22,13 @@ Location, Activity, Wi-Fi, and Cell piece plus its applicable product/action tes
 one dedicated local convergence branch. Only then begin the complete validation/fix phase; after it
 passes, rebase and merge through the clean integration checkout. No push or activation is authorized.
 
-Current coordinator source checkpoint: `03db9e565` on `codex/ti-steps-import-actions`, after the
+Current coordinator source checkpoint: `3ff5c086c` on `codex/ti-steps-import-actions`, after the
 imported day-composition cherry `293ff43e5`, portable admission `8abd7c6e3`, atomic stored-zone day
-repair `3dfa4eaad`, file bridge `c58fcc85f`, and their documentation checkpoints. It adds the
-protected-path-safe, import-only `.trackersteps` registry/worker bridge while retaining source-local transaction
-authority plus the remaining retained-state, correction-lineage, and Room-reopen contracts.
-TI-D159/TI-B220 through TI-D162/TI-B223 are authoritative for its guarantees and validation debt.
-Continue next with exact imported selected deletion and repair.
+repair `3dfa4eaad`, file bridge `c58fcc85f`, imported deletion `89454b8c1`, its contract completion
+`3ff5c086c`, and their documentation checkpoints. It adds the protected-path-safe, import-only
+`.trackersteps` bridge plus exact complete-entry selected deletion with dual no-resurrection fences.
+TI-D159/TI-B220 through TI-D163/TI-B224 are authoritative for guarantees and validation debt.
+Continue next with the complete portable round trip, then remaining manual Steps and numeric effects.
 
 ## Local follow-up after the reviewed publication
 
@@ -50,8 +50,9 @@ This section supersedes the older paused/uncompiled inventory below without acce
   dependency cherries and accepted retention `299f9de21` (TI-D155/TI-B216), followed by accepted
   Dashboard/Detail `0a820f3f6` (TI-D156/TI-B217), unvalidated imported composition `293ff43e5`,
   portable admission `8abd7c6e3`, atomic day repair `3dfa4eaad`, the `.trackersteps` file bridge
-  `c58fcc85f`, and completed importer contracts `03db9e565`. The source branches above retain
-  canonical ancestry. These source chunks are committed, not integrated or authorized for publication.
+  `c58fcc85f`, completed importer contracts `03db9e565`, exact imported selected deletion
+  `89454b8c1`, and contract completion `3ff5c086c`. The source branches above retain canonical
+  ancestry. These source chunks are committed, not integrated or authorized for publication.
 
 Actions gate `81757` ended with only the Dashboard XML namespace failure; its core/static/Detail
 successes and exact boundary are in TI-B216. The namespace fix was verified by green `97335`
@@ -69,13 +70,13 @@ not proof that the current source passes or fails. Do not revive historical PID/
 
 The implemented engine slice preserves source-qualified partial/zero semantics and stored zone
 authority, does not invent elapsed duration from imported wall bounds, and reads imported entries
-in bounded batches. Import-only compatibility-cache preservation must not be reused for deletion:
-raw database exports can contain a deleted aggregate contribution. Keep the existing
-selected-deletion partial/unrepresentable guard until atomic redaction is implemented and tested.
+in bounded batches. Imported deletion now uses a distinct post-delete composer: partial or
+Int-unrepresentable compatibility Steps are redacted to zero while typed product state remains
+nonqualified. The source and tests are unvalidated; do not infer that compilation or behavior passes.
 
-Next implementation is imported selected deletion. PORT-010 is implemented at `c58fcc85f` without
-editing a protected legacy DatabaseImport path, and PORT-011 is complete at `03db9e565` with its
-contracts authored but deliberately unexecuted.
+Next implementation is the complete portable round trip. PORT-010 is implemented at `c58fcc85f`
+without editing a protected legacy DatabaseImport path, PORT-011 is complete at `03db9e565`, and
+DEL-001 through DEL-007 are authored at `89454b8c1`/`3ff5c086c`; all remain deliberately unexecuted.
 Next integration requires coordinated retention/repair acceptance, a frozen converged input,
 `ciUnitTest` at the integration gate and full `ciCheck --continue`, then rebase onto latest local
 `dev/v10` and integrate from the clean integration checkout. Preserve canonical source commits

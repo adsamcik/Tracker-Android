@@ -231,22 +231,30 @@ portable importer tests remain deliberately unexecuted until convergence.
 
 ### Imported selected deletion and repair
 
-- [ ] TODO-STEPS-DEL-001 Extend typed selected-session deletion to exact imported ownership without
+- [x] TODO-STEPS-DEL-001 Extend typed selected-session deletion to exact imported ownership without
   treating a portable source-qualified entry as locally candidate-owned.
-- [ ] TODO-STEPS-DEL-002 Validate complete original entry, run, segment, capture, manifest,
+- [x] TODO-STEPS-DEL-002 Validate complete original entry, run, segment, capture, manifest,
   purpose, zone, fact, correction, retention, and deletion-scope identity before mutation.
-- [ ] TODO-STEPS-DEL-003 Install original-scope and current local deletion fences before deleting
+- [x] TODO-STEPS-DEL-003 Install original-scope and current local deletion fences before deleting
   imported facts, memberships, receipts, product rows, and presentation identity.
-- [ ] TODO-STEPS-DEL-004 Recompose every affected day from the complete surviving local and imported
+- [x] TODO-STEPS-DEL-004 Recompose every affected day from the complete surviving local and imported
   fact set in the stored zone.
-- [ ] TODO-STEPS-DEL-005 When a surviving imported remainder is partial, redact the legacy
+- [x] TODO-STEPS-DEL-005 When a surviving imported remainder is partial, redact the legacy
   daily-summary Steps compatibility value so byte-level database export cannot leak a stale total;
   treat its zero sentinel as redaction, never as qualified product zero.
-- [ ] TODO-STEPS-DEL-006 Preserve typed blocked outcomes for retained-history loss, unverifiable
+- [x] TODO-STEPS-DEL-006 Preserve typed blocked outcomes for retained-history loss, unverifiable
   original scope, active or unsettled work, unsupported mixed ownership, and retryable storage
   failure.
-- [ ] TODO-STEPS-DEL-007 Prove by authored tests that replay, re-import, delayed projection,
+- [x] TODO-STEPS-DEL-007 Prove by authored tests that replay, re-import, delayed projection,
   correction, retention, restore, and process restart cannot resurrect deleted imported Steps.
+
+Implementation checkpoint: `89454b8c1` adds the source-local imported deletion branch, shared
+portable day authority, dual original/current-local fences, payload-free retractions, complete
+replacement-member removal, post-delete day composition, compatibility redaction, and the first
+focused contracts. `3ff5c086c` completes the authored correction-lineage and retention-loss
+contracts. Replay/re-import, backup-to-fresh-Room reopen, cancellation, malformed hierarchy,
+partial compatibility state, and no live-provider drain are covered in source. All tests remain
+deliberately unexecuted until convergence.
 
 ### Portable round trip
 

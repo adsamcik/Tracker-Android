@@ -2543,3 +2543,29 @@ Each entry records repository evidence and does not duplicate the final architec
   must survive a close and fresh production Room open; the next identical import is a side-effect-free
   duplicate. These contracts are authored only. No test, compilation, schema, device, integration,
   publication, activation, or release evidence is claimed.
+
+## TI-D163 — Imported selected deletion owns the complete logical entry and two run fences
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-10; source `89454b8c1`, tests `3ff5c086c`,
+  TI-B224.
+- A portable replacement member is a product selection handle, not an independently deletable
+  ownership scope. Resolve it through the exact imported run-to-segment binding, authenticate the
+  complete retained original entry, and delete all of its physical replacement members together.
+  Never reinterpret the portable entry as a locally captured service run and never consult, start,
+  retain, or drain the live Steps provider.
+- Plan from every run envelope and every fact wall interval. Lock the bounded all-zone plausible
+  day set before the Room transaction, preserve one nonoverlapping persisted calendar authority,
+  and re-read the complete scope after locking. Any authority drift is retryable; incomplete,
+  retained-away, corrupted, or ambiguous original evidence fails closed before mutation.
+- For every physical run, install the original portable deletion-scope fence and the independently
+  derived current-local logical/run fence before removing payload. Retain one payload-free latest
+  retraction per fact, then compare-and-delete exact imported receipts, manifests, segments, and
+  the now-empty entry. This rejects both portable re-import and delayed local projection/restore.
+- Recompose all affected days from surviving authenticated source facts in the same transaction.
+  If the surviving Steps state is partial or cannot fit the compatibility integer, write zero only
+  as an explicit legacy redaction sentinel; typed product qualification remains partial or
+  unavailable and can never treat the sentinel as measured zero.
+- The focused source contracts cover complete replacement deletion, both fences, redacted
+  retractions, re-import refusal, partial compatibility cleanup, malformed and corrected hierarchy
+  refusal, retention-loss refusal, cancellation rollback, and backup/fresh-Room reopen. They have
+  not compiled or run. No activation, integration, publication, device, or release claim follows.
