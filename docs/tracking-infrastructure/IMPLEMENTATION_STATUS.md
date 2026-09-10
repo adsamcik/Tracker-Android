@@ -3236,5 +3236,25 @@ Focused contracts were authored for complete replacement deletion, dual fences, 
 retractions, replay refusal, no live drain, partial-summary cleanup, malformed/corrected retained
 state, retention loss, cancellation, and backup-to-fresh-Room persistence. No Gradle, compiler,
 test, lint, Detekt, Room drift, device, UI, battery, CI, integration, or publication command ran.
-The next implementation boundary is the complete portable local-export/import/history round trip,
-followed by the remaining manual Steps wiring and numeric/effect consumer audit.
+The next implementation boundary is the remaining manual Steps wiring and numeric/effect consumer
+audit.
+
+## 2026-09-10 implementation-only checkpoint — bidirectional portable Steps round trip
+
+Commits `19b8789b2` and `2d7af2b70` on `codex/ti-steps-import-actions` complete the authored
+portable round-trip slice as **IMPLEMENTED_UNVALIDATED**. `.trackersteps` is now a registered
+export/import format using the shared extension and MIME contract. Source-owned range export
+bypasses the legacy Location-row prerequisite, streams through the strict v1 codec, and uses a
+format-specific privacy warning policy rather than claiming the minimized artifact contains
+precise Location.
+
+The application host contract uses separate source and destination Room databases and the real
+exporter, importer, and history implementations. It authors a sample-count-zero local Steps entry,
+exports, imports, queries a qualified retained value, and re-exports the identical portable object
+without creating live local authority. Existing focused contracts complete the zero/partial,
+replacement, correction/refusal, retention, selected/full deletion, reopen/replay/re-import,
+canonical-byte, and privacy-whitelist inventory.
+
+No Gradle, compiler, test, lint, Detekt, Room drift, device, UI, battery, CI, integration, or
+publication command ran. The next implementation boundary is remaining manual Steps wiring,
+followed by qualified numeric/effect consumers.

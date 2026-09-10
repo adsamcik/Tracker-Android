@@ -2569,3 +2569,23 @@ Each entry records repository evidence and does not duplicate the final architec
   retractions, re-import refusal, partial compatibility cleanup, malformed and corrected hierarchy
   refusal, retention-loss refusal, cancellation rollback, and backup/fresh-Room reopen. They have
   not compiled or run. No activation, integration, publication, device, or release claim follows.
+
+## TI-D164 — Portable Steps is a bidirectional source-owned product format
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-10; source `19b8789b2`, tests `2d7af2b70`,
+  TI-B225.
+- Register `.trackersteps` for export as well as import. The export adapter resolves the existing
+  read-only `ExportPortableSteps` singleton and streams it through the strict v1 codec; it creates
+  no provider, demand, session, writer, policy, consent, repair, or mutation authority.
+- A source-owned exporter declares that it does not depend on Location rows. Date-range selection
+  therefore passes an empty Location sequence to the adapter instead of applying the legacy
+  Location-count preflight. Whole-history export remains a bounded half-open request.
+- Use the portable contract's canonical extension and MIME type. The privacy-minimized artifact is
+  not labelled as containing precise Location; database, GPX, KML, and legacy JSON exports retain
+  their existing sensitive-location confirmation.
+- No-entry, durable unverifiable state, and retryable storage/state failure remain distinct user
+  errors. A local export can be imported into a fresh database, queried as retained imported
+  history, and canonically re-exported without creating a local service run, source event,
+  admission ordinal, or original full-capture claim.
+- The production and focused test source is authored only. No compiler, Gradle, test, lint, Detekt,
+  Room drift, device, UI, integration, publication, activation, or release command ran.

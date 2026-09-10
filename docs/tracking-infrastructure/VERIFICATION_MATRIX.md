@@ -151,6 +151,38 @@ round-trip coverage, and the representative device/UI Steps-only scenario. It pr
 listener, process-death, reboot, FGS, battery, OEM, activation, integration, publication, or release
 behavior today.
 
+## TI-B225 — Bidirectional portable Steps production round trip, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `19b8789b2`, with the cross-module contract authored at
+`2d7af2b70`. The production format registry now resolves both export and import for `.trackersteps`.
+The export adapter selects a half-open source range, invokes the exact Room-backed portable reader,
+and streams canonical v1 bytes without requiring or iterating Location rows. The export screen does
+not block source-owned or database-owned artifacts on the legacy trip preflight, and only formats
+that may actually contain precise Location or raw database content retain that warning.
+
+The new application host contract owns separate source and destination Room databases. It authors
+an exact local Steps session with sample count zero and separately declared Activity CONTROL,
+exports it with the production Room exporter, imports it with the production source-local command,
+queries the imported physical member through the production history facade, and re-exports the
+canonical portable entry. Assertions require a qualified count without a local service run,
+source-event identity, admission ordinal, or claim about the original full capture set. Existing
+source tests provide the typed zero, partial, replacement, correction/refusal, retention, selected
+and full deletion, reopen/replay/re-import, canonical codec, and privacy-whitelist cases.
+
+No command was run for this boundary. In the final convergence phase run at minimum:
+
+```powershell
+.\gradlew.bat :feature:import-export:testDebugUnitTest --tests '*PortableStepsExporterTest' --tests '*PortableStepsJsonV1CodecTest' --tests '*PortableStepsFileImportTest' --tests '*FormatRegistryTest' --tests '*ImportExportViewModelTest' :app:testDebugUnitTest --tests '*PortableStepsProductionRoundTripTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*ImportedSteps*' :stats:data:testDebugUnitTest --tests '*RoomExportPortableStepsTest' --tests '*ImportedStepsProductRoomTest' :tracker:engine:testDebugUnitTest --tests '*RoomImportPortableStepsTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :feature:import-export:lintDebug :app:lintDebug :stats:data:lintDebug :tracker:engine:lintDebug checkRoomSchemaDrift --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat ciUnitTest --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat ciCheck --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+This is authored source and expected-command inventory, not compile, host, file-system, Room,
+device, rendered UI, process, reboot, battery, integration, activation, publication, or release
+evidence.
+
 ## Static source × mode matrix
 
 | ID | Source | Mode | Capture sources | Declared controls | Qualified `RECORDING` evidence | Canonical output | Production history/UI assertion | Current status |

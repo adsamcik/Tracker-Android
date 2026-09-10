@@ -22,13 +22,14 @@ Location, Activity, Wi-Fi, and Cell piece plus its applicable product/action tes
 one dedicated local convergence branch. Only then begin the complete validation/fix phase; after it
 passes, rebase and merge through the clean integration checkout. No push or activation is authorized.
 
-Current coordinator source checkpoint: `3ff5c086c` on `codex/ti-steps-import-actions`, after the
+Current coordinator source checkpoint: `2d7af2b70` on `codex/ti-steps-import-actions`, after the
 imported day-composition cherry `293ff43e5`, portable admission `8abd7c6e3`, atomic stored-zone day
 repair `3dfa4eaad`, file bridge `c58fcc85f`, imported deletion `89454b8c1`, its contract completion
-`3ff5c086c`, and their documentation checkpoints. It adds the protected-path-safe, import-only
-`.trackersteps` bridge plus exact complete-entry selected deletion with dual no-resurrection fences.
-TI-D159/TI-B220 through TI-D163/TI-B224 are authoritative for guarantees and validation debt.
-Continue next with the complete portable round trip, then remaining manual Steps and numeric effects.
+`3ff5c086c`, bidirectional file export `19b8789b2`, and production round-trip contract `2d7af2b70`,
+plus their documentation checkpoints. It adds the protected-path-safe `.trackersteps` import/export
+bridge, exact complete-entry selected deletion with dual no-resurrection fences, and the two-database
+export/import/history/re-export contract. TI-D159/TI-B220 through TI-D164/TI-B225 are authoritative
+for guarantees and validation debt. Continue next with remaining manual Steps and numeric effects.
 
 ## Local follow-up after the reviewed publication
 
@@ -51,7 +52,8 @@ This section supersedes the older paused/uncompiled inventory below without acce
   Dashboard/Detail `0a820f3f6` (TI-D156/TI-B217), unvalidated imported composition `293ff43e5`,
   portable admission `8abd7c6e3`, atomic day repair `3dfa4eaad`, the `.trackersteps` file bridge
   `c58fcc85f`, completed importer contracts `03db9e565`, exact imported selected deletion
-  `89454b8c1`, and contract completion `3ff5c086c`. The source branches above retain canonical
+  `89454b8c1`, contract completion `3ff5c086c`, portable export `19b8789b2`, and round-trip contract
+  `2d7af2b70`. The source branches above retain canonical
   ancestry. These source chunks are committed, not integrated or authorized for publication.
 
 Actions gate `81757` ended with only the Dashboard XML namespace failure; its core/static/Detail
@@ -74,9 +76,11 @@ in bounded batches. Imported deletion now uses a distinct post-delete composer: 
 Int-unrepresentable compatibility Steps are redacted to zero while typed product state remains
 nonqualified. The source and tests are unvalidated; do not infer that compilation or behavior passes.
 
-Next implementation is the complete portable round trip. PORT-010 is implemented at `c58fcc85f`
-without editing a protected legacy DatabaseImport path, PORT-011 is complete at `03db9e565`, and
-DEL-001 through DEL-007 are authored at `89454b8c1`/`3ff5c086c`; all remain deliberately unexecuted.
+The complete portable round trip is now authored. PORT-010 is implemented at `c58fcc85f` without
+editing a protected legacy DatabaseImport path, PORT-011 is complete at `03db9e565`, DEL-001 through
+DEL-007 are authored at `89454b8c1`/`3ff5c086c`, and ROUND-001 through ROUND-005 are authored at
+`19b8789b2`/`2d7af2b70`; all remain deliberately unexecuted. Next implementation is remaining manual
+Steps wiring and the qualified numeric/effect consumer audit.
 Next integration requires coordinated retention/repair acceptance, a frozen converged input,
 `ciUnitTest` at the integration gate and full `ciCheck --continue`, then rebase onto latest local
 `dev/v10` and integrate from the clean integration checkout. Preserve canonical source commits

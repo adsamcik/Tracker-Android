@@ -258,15 +258,28 @@ deliberately unexecuted until convergence.
 
 ### Portable round trip
 
-- [ ] TODO-STEPS-ROUND-001 Author a complete local export to import to history round-trip scenario.
-- [ ] TODO-STEPS-ROUND-002 Cover covered zero, positive, partial, replacement runs, corrections,
+- [x] TODO-STEPS-ROUND-001 Author a complete local export to import to history round-trip scenario.
+- [x] TODO-STEPS-ROUND-002 Cover covered zero, positive, partial, replacement runs, corrections,
   retained prefixes or suffixes, and imported-only logical entries.
-- [ ] TODO-STEPS-ROUND-003 Cover imported correction followed by day repair, retention, selected
+- [x] TODO-STEPS-ROUND-003 Cover imported correction followed by day repair, retention, selected
   deletion, full deletion, reopen, replay, and re-import.
-- [ ] TODO-STEPS-ROUND-004 Keep original portable bytes or canonical reconstructed output stable
+- [x] TODO-STEPS-ROUND-004 Keep original portable bytes or canonical reconstructed output stable
   where all required identity remains retained.
-- [ ] TODO-STEPS-ROUND-005 Ensure control evidence, unrelated sources, raw radio identity, and
+- [x] TODO-STEPS-ROUND-005 Ensure control evidence, unrelated sources, raw radio identity, and
   fabricated local authority never enter a Steps portable artifact.
+
+Implementation checkpoint: `19b8789b2` adds the missing source-owned `.trackersteps` export
+adapter and makes the versioned format bidirectional. It supports bounded date-range and whole-
+history reads without a Location-data prerequisite, uses the strict canonical codec and shared
+format constants, and does not display a precise-Location warning for the privacy-minimized
+artifact. `2d7af2b70` authors a two-database production-class host contract from authenticated local
+Room facts through `RoomExportPortableSteps`, `RoomImportPortableSteps`, and
+`TrackingHistoryRepository`, including stable re-export and absence of fabricated local authority.
+The established focused contracts cover typed zero/partial/replacement/correction/retention,
+selected and full deletion, reopen/replay/re-import refusal, canonical byte stability, and privacy
+whitelisting. Imported portable v1 content corrections remain conflicts; extra stored correction
+lineage remains typed unverifiable rather than being collapsed. Nothing in this checkpoint was
+compiled or executed.
 
 ### Manual and session Steps completion
 
