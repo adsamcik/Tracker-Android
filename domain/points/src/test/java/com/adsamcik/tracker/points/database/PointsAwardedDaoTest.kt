@@ -75,4 +75,54 @@ class PointsAwardedDaoTest {
 
         dao.countBetween(Long.MIN_VALUE, Long.MAX_VALUE) shouldBe 0.0
     }
+
+    @Test
+    fun applyGoalEffectPersistsExactIdentityRevisionAndMicros(): Unit = runBlocking {
+        dao.applyGoalEffect(
+            effectKey = "steps-goal-v1:DAY:20000",
+            effectRevision = 7L,
+            time = 12_345L,
+            valueMicros = 25_000_000L,
+        ) shouldBe true
+
+        val stored = dao.getRevisionedEffect(
+            source = AwardSource.GOAL.value,
+            effectKey = "steps-goal-v1:DAY:20000",
+        )
+        checkNotNull(stored)
+        stored.effectRevision shouldBe 7L
+        stored.effectValueMicros shouldBe 25_000_000L
+        stored.value shouldBe Points(25.0)
+        dao.countBetween(Long.MIN_VALUE, Long.MAX_VALUE) shouldBe 25.0
+    }
+
+    @Test
+    fun newerZeroRevisionPreventsOlderRewardFromResurrecting(): Unit = runBlocking {
+        val effectKey = "steps-goal-v1:DAY:20000"
+        dao.applyGoalEffect(effectKey, effectRevision = 7L, time = 12_345L, valueMicros = 25_000_000L)
+        dao.applyGoalEffect(effectKey, effectRevision = 8L, time = 12_345L, valueMicros = 0L) shouldBe true
+        dao.applyGoalEffect(effectKey, effectRevision = 7L, time = 12_345L, valueMicros = 25_000_000L) shouldBe false
+
+        val stored = dao.getRevisionedEffect(AwardSource.GOAL.value, effectKey)
+        checkNotNull(stored)
+        stored.effectRevision shouldBe 8L
+        stored.effectValueMicros shouldBe 0L
+        stored.value shouldBe Points(0.0)
+        dao.countBetween(Long.MIN_VALUE, Long.MAX_VALUE) shouldBe 0.0
+    }
+
+    @Test
+    fun legacyGoalAwardsRemainIndependentWithoutEffectKeys(): Unit = runBlocking {
+        repeat(2) {
+            dao.insert(
+                PointsAwarded(
+                    time = 1_000L + it,
+                    value = Points(1.0),
+                    source = AwardSource.GOAL,
+                ),
+            )
+        }
+
+        dao.countBetween(Long.MIN_VALUE, Long.MAX_VALUE) shouldBe 2.0
+    }
 }

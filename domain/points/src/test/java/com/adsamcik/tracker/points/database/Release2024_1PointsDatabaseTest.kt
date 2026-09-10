@@ -40,16 +40,26 @@ class Release2024_1PointsDatabaseTest {
 	fun `2024_1 points database opens through current Room without schema drift`() {
 		val opened = Room.databaseBuilder(context, PointsDatabase::class.java, TEST_DATABASE)
 			.allowMainThreadQueries()
+			.addMigrations(PointsDatabase.MIGRATION_1_2)
 			.build()
 		database = opened
 		val raw = opened.openHelper.writableDatabase
 
-		raw.version shouldBe 1
-		raw.query("SELECT id, time, value, source FROM points_awarded ORDER BY id").use { cursor ->
+		raw.version shouldBe 2
+		raw.query(
+			"""
+			SELECT id, time, value, source, effect_key, effect_revision, effect_value_micros
+			FROM points_awarded
+			ORDER BY id
+			""".trimIndent(),
+		).use { cursor ->
 			cursor.moveToNext() shouldBe true
 			cursor.getLong(0) shouldBe 1L
 			cursor.getDouble(2) shouldBe 1.25
 			cursor.getString(3) shouldBe "walk"
+			cursor.isNull(4) shouldBe true
+			cursor.isNull(5) shouldBe true
+			cursor.isNull(6) shouldBe true
 			cursor.moveToNext() shouldBe true
 			cursor.getDouble(2) shouldBe -5.5
 			cursor.getString(3) shouldBe "correction"
