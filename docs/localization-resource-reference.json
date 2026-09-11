@@ -19288,7 +19288,7 @@
       "usage_files": [
         "app/src/main/java/com/adsamcik/tracker/notification/GoalNotificationWorker.kt",
         "app/src/main/java/com/adsamcik/tracker/notification/NotificationChannels.kt",
-        "feature/game/src/main/java/com/adsamcik/tracker/game/goals/data/abstraction/BaseGoal.kt"
+        "feature/game/src/main/java/com/adsamcik/tracker/game/goals/GoalReachedNotification.kt"
       ],
       "existing_locale_qualifiers": []
     },
@@ -35125,7 +35125,7 @@
         "%2$s"
       ],
       "usage_files": [
-        "feature/game/src/main/java/com/adsamcik/tracker/game/goals/data/abstraction/BaseGoal.kt"
+        "feature/game/src/main/java/com/adsamcik/tracker/game/goals/GoalReachedNotification.kt"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
@@ -35169,7 +35169,7 @@
       "value": "daily",
       "format_tokens": [],
       "usage_files": [
-        "feature/game/src/main/java/com/adsamcik/tracker/game/goals/data/abstraction/BaseGoal.kt"
+        "feature/game/src/main/java/com/adsamcik/tracker/game/goals/GoalReachedNotification.kt"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
@@ -35213,7 +35213,7 @@
       "value": "weekly",
       "format_tokens": [],
       "usage_files": [
-        "feature/game/src/main/java/com/adsamcik/tracker/game/goals/data/abstraction/BaseGoal.kt"
+        "feature/game/src/main/java/com/adsamcik/tracker/game/goals/GoalReachedNotification.kt"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
@@ -35256,9 +35256,7 @@
       "attributes": {},
       "value": "monthly",
       "format_tokens": [],
-      "usage_files": [
-        "feature/game/src/main/java/com/adsamcik/tracker/game/goals/data/abstraction/BaseGoal.kt"
-      ],
+      "usage_files": [],
       "existing_locale_qualifiers": [
         "values-bg-rBG",
         "values-cs-rCZ",
@@ -36446,7 +36444,7 @@
       ],
       "format_tokens": [],
       "usage_files": [
-        "feature/game/src/main/java/com/adsamcik/tracker/game/goals/data/abstraction/BaseGoal.kt"
+        "feature/game/src/main/java/com/adsamcik/tracker/game/goals/GoalReachedNotification.kt"
       ],
       "existing_locale_qualifiers": [
         "values-bg-rBG",

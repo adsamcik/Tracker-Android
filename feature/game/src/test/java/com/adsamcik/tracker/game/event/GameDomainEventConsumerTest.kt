@@ -21,6 +21,7 @@ import io.mockk.coVerify
 import io.mockk.confirmVerified
 import io.mockk.coVerifyOrder
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.DisplayName
@@ -88,6 +89,7 @@ class GameDomainEventConsumerTest {
 			consumer.processUnconsumed()
 
 			coVerify(exactly = 0) { progressionRepository.awardSessionXp(any(), any()) }
+			verify(exactly = 0) { achievementEvaluationScheduler.scheduleEvaluation() }
 			coVerify(exactly = 1) {
 				domainEventRepository.markBatchConsumed(
 					GameDomainEventConsumer.CONSUMER_ID,
