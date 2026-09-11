@@ -27,7 +27,6 @@ import com.adsamcik.tracker.stats.api.repository.WifiObservationStatsSummary
 import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
 import com.adsamcik.tracker.stats.api.value.EpochMs
-import com.adsamcik.tracker.stats.api.value.StepCount
 import com.adsamcik.tracker.statistics.data.Stat
 import com.adsamcik.tracker.statistics.export.GpxShareHelper
 import com.adsamcik.tracker.statistics.viewmodel.StatsLoadState
@@ -364,7 +363,6 @@ class StatsPresenterViewModelSessionStatsTest {
 			totalDistance = DistanceM(1234.5f),
 			onFootDistance = DistanceM(456.7f),
 			inVehicleDistance = DistanceM(890.1f),
-			steps = StepCount(678),
 			tripCount = 9L,
 			locationCount = 77L,
 			wifiCount = 4L,

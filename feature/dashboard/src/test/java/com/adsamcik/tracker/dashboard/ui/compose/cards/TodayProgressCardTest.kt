@@ -43,7 +43,6 @@ class TodayProgressCardTest {
 				),
 				todaySummary = DailySummary(
 					totalDistanceM = 2_400f,
-					totalSteps = 4_200,
 					totalDurationMs = 3_600_000L,
 					sessionCount = 3,
 				),
@@ -67,7 +66,6 @@ class TodayProgressCardTest {
 				),
 				todaySummary = DailySummary(
 					totalDistanceM = 800f,
-					totalSteps = 4_200,
 					totalDurationMs = 1_200_000L,
 					sessionCount = 1,
 				),
@@ -129,7 +127,6 @@ class TodayProgressCardTest {
 				),
 				todaySummary = DailySummary(
 					totalDistanceM = 0f,
-					totalSteps = 4_200,
 					totalDurationMs = 0L,
 					sessionCount = 0,
 				),
@@ -150,7 +147,6 @@ class TodayProgressCardTest {
 				dashboardMode = DashboardMode.IDLE,
 				todaySummary = DailySummary(
 					totalDistanceM = 800f,
-					totalSteps = 0,
 					totalDurationMs = 1_200_000L,
 					sessionCount = 1,
 				),

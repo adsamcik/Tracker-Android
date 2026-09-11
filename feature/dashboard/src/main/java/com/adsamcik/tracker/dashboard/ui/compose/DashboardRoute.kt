@@ -38,7 +38,7 @@ import com.adsamcik.tracker.shared.base.data.GroupedActivity
 import com.adsamcik.tracker.shared.base.di.GoalProgress
 import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
 import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
-import com.adsamcik.tracker.shared.base.di.withSourceQualifiedSteps
+import com.adsamcik.tracker.shared.base.di.withQualifiedStepsPresence
 import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.shared.utils.compose.permission.ContextualPermissionRequest
 import com.adsamcik.tracker.shared.utils.compose.permission.PermissionDeniedSnackbar
@@ -311,7 +311,7 @@ fun DashboardRoute(
 		}
 	}
 	val unifiedTodaySummary = remember(todaySummary, goalProgress.stepsToday) {
-		todaySummary.withSourceQualifiedSteps(goalProgress.stepsToday)
+		todaySummary.withQualifiedStepsPresence(goalProgress.stepsToday)
 	}
 
 	// Determine dashboard mode

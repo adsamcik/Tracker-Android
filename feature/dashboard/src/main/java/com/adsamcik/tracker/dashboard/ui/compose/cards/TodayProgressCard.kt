@@ -27,7 +27,7 @@ import com.adsamcik.tracker.dashboard.R
 import com.adsamcik.tracker.dashboard.ui.compose.components.TrackingActionRing
 import com.adsamcik.tracker.dashboard.ui.compose.state.DashboardUiState
 import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
-import com.adsamcik.tracker.shared.base.di.withSourceQualifiedSteps
+import com.adsamcik.tracker.shared.base.di.withQualifiedStepsPresence
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
@@ -50,7 +50,7 @@ internal fun TodayProgressCard(
 	val configuration = LocalConfiguration.current
 	val resources = context.resources
 	val settings = TrackerSettingsQuick.snapshot(context)
-	val summary = state.todaySummary.withSourceQualifiedSteps(state.goalProgress.dailySteps)
+	val summary = state.todaySummary.withQualifiedStepsPresence(state.goalProgress.dailySteps)
 	val readySteps = state.goalProgress.dailySteps as? QualifiedStepCount.Ready
 	val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 	// Tighter in landscape: phone landscape viewport is short, so the hero must

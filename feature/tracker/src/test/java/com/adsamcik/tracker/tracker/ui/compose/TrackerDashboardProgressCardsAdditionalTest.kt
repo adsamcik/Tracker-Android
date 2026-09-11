@@ -84,7 +84,6 @@ class TrackerDashboardProgressCardsAdditionalTest {
 					dailySummaryProvider = fakeSummaryProvider(
 						DailySummary(
 							totalDistanceM = 3200f,
-							totalSteps = 4500,
 							totalDurationMs = 2400_000L,
 							sessionCount = 1,
 						),
@@ -109,7 +108,6 @@ class TrackerDashboardProgressCardsAdditionalTest {
 					dailySummaryProvider = fakeSummaryProvider(
 						DailySummary(
 							totalDistanceM = 1000f,
-							totalSteps = 0,
 							totalDurationMs = 600_000L,
 							sessionCount = 1,
 						),
@@ -134,7 +132,6 @@ class TrackerDashboardProgressCardsAdditionalTest {
 					dailySummaryProvider = fakeSummaryProvider(
 						DailySummary(
 							totalDistanceM = 1000f,
-							totalSteps = 4_500,
 							totalDurationMs = 600_000L,
 							sessionCount = 1,
 						),
@@ -199,7 +196,6 @@ class TrackerDashboardProgressCardsAdditionalTest {
 					dailySummaryProvider = fakeSummaryProvider(
 						DailySummary(
 							totalDistanceM = 0f,
-							totalSteps = 4_500,
 							totalDurationMs = 0L,
 							sessionCount = 0,
 						),
@@ -226,7 +222,6 @@ class TrackerDashboardProgressCardsAdditionalTest {
 					dailySummaryProvider = fakeSummaryProvider(
 						DailySummary(
 							totalDistanceM = 5000f,
-							totalSteps = 7500,
 							totalDurationMs = 7200_000L,
 							sessionCount = 3,
 						),
@@ -256,7 +251,6 @@ class TrackerDashboardProgressCardsAdditionalTest {
 					dailySummaryProvider = fakeSummaryProvider(
 						DailySummary(
 							totalDistanceM = 8000f,
-							totalSteps = 10000,
 							totalDurationMs = 5400_000L,
 							sessionCount = 2,
 						),

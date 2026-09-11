@@ -53,7 +53,7 @@ import com.adsamcik.tracker.shared.base.di.DailySummary
 import com.adsamcik.tracker.shared.base.di.DailySummaryProvider
 import com.adsamcik.tracker.shared.base.di.GoalProgressProvider
 import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
-import com.adsamcik.tracker.shared.base.di.withSourceQualifiedSteps
+import com.adsamcik.tracker.shared.base.di.withQualifiedStepsPresence
 import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.base.extension.formatReadable
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsState
@@ -90,7 +90,7 @@ internal fun TodayProgressCard(
     
     var todaySummary by remember { mutableStateOf<DailySummary?>(null) }
     var isLoading by remember { mutableStateOf(true) }
-    val sourceQualifiedSummary = todaySummary.withSourceQualifiedSteps(goalProgress.stepsToday)
+    val sourceQualifiedSummary = todaySummary.withQualifiedStepsPresence(goalProgress.stepsToday)
     
     // Fetch on-demand when composition enters or when tracking state changes
     LaunchedEffect(isTracking) {

@@ -68,7 +68,6 @@ class TrackerDashboardProgressCardsTest {
 					dailySummaryProvider = fakeSummaryProvider(
 						DailySummary(
 							totalDistanceM = 5000f,
-							totalSteps = 7500,
 							totalDurationMs = 3600_000L,
 							sessionCount = 2
 						)
@@ -95,7 +94,6 @@ class TrackerDashboardProgressCardsTest {
 					dailySummaryProvider = fakeSummaryProvider(
 						DailySummary(
 							totalDistanceM = 5000f,
-							totalSteps = 7500,
 							totalDurationMs = 3600_000L,
 							sessionCount = 2
 						)

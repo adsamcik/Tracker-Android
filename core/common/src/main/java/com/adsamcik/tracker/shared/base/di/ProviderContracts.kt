@@ -5,12 +5,9 @@ import kotlinx.coroutines.flow.StateFlow
 
 data class DailySummary(
     val totalDistanceM: Float,
-    val totalSteps: Int,
     val totalDurationMs: Long,
     val sessionCount: Int
-) {
-    val isEmpty: Boolean get() = totalDistanceM == 0f && totalSteps == 0 && totalDurationMs == 0L
-}
+)
 
 interface DailySummaryProvider {
     suspend fun fetchTodaySummary(): DailySummary?
@@ -35,23 +32,21 @@ sealed interface QualifiedStepCount {
 }
 
 /**
- * Builds a presentation summary without allowing the legacy aggregate Steps column to become
- * numeric authority. A qualified zero is still a present and truthful Steps observation.
+ * Retains or creates the non-Steps summary shell when qualified Steps provide product presence.
+ *
+ * The Steps value remains in [QualifiedStepCount]; this function never copies it into a legacy
+ * numeric field. A qualified zero is still a present and truthful observation.
  */
-fun DailySummary?.withSourceQualifiedSteps(steps: QualifiedStepCount): DailySummary? {
-    val readySteps = (steps as? QualifiedStepCount.Ready)?.value
-    val qualifiedSummary = when {
-        this != null -> copy(totalSteps = readySteps ?: 0)
-        readySteps != null -> DailySummary(
+fun DailySummary?.withQualifiedStepsPresence(steps: QualifiedStepCount): DailySummary? {
+    return when {
+        this?.hasNonStepData == true -> this
+        steps is QualifiedStepCount.Ready -> this ?: DailySummary(
             totalDistanceM = 0f,
-            totalSteps = readySteps,
             totalDurationMs = 0L,
             sessionCount = 0,
         )
         else -> null
     }
-
-    return qualifiedSummary?.takeIf { readySteps != null || it.hasNonStepData }
 }
 
 private val DailySummary.hasNonStepData: Boolean

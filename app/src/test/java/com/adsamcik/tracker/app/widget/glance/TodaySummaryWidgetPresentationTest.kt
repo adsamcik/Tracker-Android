@@ -31,11 +31,10 @@ class TodaySummaryWidgetPresentationTest {
     }
 
     @Test
-    fun `unavailable Steps cannot make a raw Steps-only summary present`() {
+    fun `unavailable Steps cannot make an empty non-Step summary present`() {
         val presentation = todaySummaryWidgetPresentation(
             summary = DailySummary(
                 totalDistanceM = 0f,
-                totalSteps = 4_200,
                 totalDurationMs = 0L,
                 sessionCount = 0,
             ),
@@ -51,7 +50,6 @@ class TodaySummaryWidgetPresentationTest {
         todaySummaryWidgetPresentation(
             summary = DailySummary(
                 totalDistanceM = 800f,
-                totalSteps = 4_200,
                 totalDurationMs = 1_200_000L,
                 sessionCount = 1,
             ),
