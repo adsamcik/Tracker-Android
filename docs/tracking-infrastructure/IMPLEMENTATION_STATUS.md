@@ -3357,3 +3357,25 @@ emulator/device, UI, battery, CI, integration, activation, publication, or relea
 `TODO-STEPS-NUM-004` is implemented only. The remaining Steps numeric boundary is the exact
 consumer inventory, truthful widget/notification nonnumeric states, and consumer-wide authored
 tests (`TODO-STEPS-NUM-001`, `TODO-STEPS-NUM-005`, and `TODO-STEPS-NUM-008`).
+
+## 2026-09-11 implementation-only checkpoint — widget and notification Steps truth states
+
+Commit `8e3cb68e5` on `codex/ti-steps-import-actions` replaces nullable widget Steps values with an
+app-local typed presentation. The active-session widget reads only the selected physical segment,
+waits boundedly through materialization, preserves a correction-safe partial lower bound, and
+shows explicit nonnumeric status instead of omitting Steps or falling back to
+`TrackerSessionSnapshot.steps`. The Today widget ignores the legacy daily-summary Steps column and
+preserves qualified ready zero, positive, partial, materializing, not-captured, unavailable, and
+storage-failure states with explicit localized labels.
+
+The legacy periodic goal-notification worker now lets only qualified `Ready` values reach threshold
+logic. Materializing and storage failures retry; terminal nonnumeric states do not read or mutate
+notification claims; zero and below-threshold values do no claim I/O; and denied Android
+notification permission no longer consumes a threshold claim for a notification that was not
+posted.
+
+The session history contract can prove `Disabled`; the daily `QualifiedStepCount` contract cannot
+yet distinguish current Steps policy being off from a truthful `NotCaptured` day. That policy-
+authority propagation remains the precise open part of `TODO-STEPS-NUM-005`; no missing observation
+is reclassified as disabled. No Gradle, compiler, test, lint, Detekt, Room drift, emulator/device,
+UI, battery, CI, integration, activation, publication, or release command ran.

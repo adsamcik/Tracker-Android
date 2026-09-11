@@ -344,6 +344,27 @@ Run only in the final convergence phase:
 .\gradlew.bat detekt :core:base:lintDebug :stats:data:lintDebug :feature:game:lintDebug checkRoomSchemaDrift --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
 ```
 
+## TI-B235 — Widget and legacy notification Steps truth states, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `8e3cb68e5`. Authored source removes raw/nullable widget
+fallback, maps qualified day and exact selected-segment history to explicit numeric or nonnumeric
+states, gives active-session materialization a five-second bound, and keeps cancellation distinct
+from storage failure. The Today widget displays qualified zero and positive values while partial,
+materializing, not-captured, unavailable, and storage-failure states remain nonnumeric.
+
+The goal-notification worker authors retry behavior for transient materializing/storage outcomes,
+terminal no-effect behavior for other nonnumeric outcomes, no claim reads below a threshold, and no
+claim write when Android notification permission prevents delivery. Focused unit/Robolectric tests
+are authored for these branches but have not compiled or run. Daily disabled remains an explicit
+open contract gap; only selected-session history can currently prove it.
+
+Run only in the final convergence phase:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests '*ActiveSessionWidgetPresentationTest' --tests '*TodaySummaryWidgetPresentationTest' --tests '*GoalNotificationWorkerTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :app:lintDebug --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
 ## Static source × mode matrix
 
 | ID | Source | Mode | Capture sources | Declared controls | Qualified `RECORDING` evidence | Canonical output | Production history/UI assertion | Current status |

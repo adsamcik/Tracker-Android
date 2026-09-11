@@ -2728,3 +2728,20 @@ Each entry records repository evidence and does not duplicate the final architec
   activate an achievement writer, provider, reward, notification, rollout, or release path. No
   compiler, Gradle, test, lint, Detekt, Room drift, device, UI, battery, CI, integration, or
   publication command ran.
+
+## TI-D173 — Widget and legacy notification Steps remain typed through presentation
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-11; source `8e3cb68e5`; TI-B235.
+- Widgets must not use `DailySummary.totalSteps` or `TrackerSessionSnapshot.steps` as numeric
+  authority. The app maps qualified day results and exact selected-segment history into ready,
+  partial, materializing, not-captured, disabled, unavailable, and storage-unavailable presentation
+  states. Only qualified complete evidence may display a number; covered zero remains numeric.
+- The active widget waits for bounded settlement and accepts only its selected segment. The Today
+  widget keeps every nonnumeric source state visible with an explicit localized label. A lower
+  bound is labeled with `≥`; an unknown partial is labeled `Partial` rather than zero.
+- The legacy periodic goal-notification worker retries transient materialization/storage state and
+  terminates without claim mutation for nonnumeric terminal state. It persists a threshold claim
+  only after platform notification handoff; denied notification permission is not a delivery.
+- Current session history carries a disabled availability. Daily qualified totals do not yet carry
+  current policy authority, so a missing or not-captured day must not be guessed as disabled. That
+  bounded propagation remains open before `TODO-STEPS-NUM-005` can close.
