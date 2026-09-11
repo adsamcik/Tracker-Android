@@ -304,6 +304,46 @@ Run this combined authored boundary only during final convergence:
 .\gradlew.bat ciCheck --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
 ```
 
+## TI-B233 — Retained Steps metric composition, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `77a48b2b1` and `04aaf16e8`. The public contract and
+production Room repository author typed lifetime-total and best-day decisions from authenticated
+retained local/imported facts. Exact correction lineage, stored-zone authority, source-evidence
+revision/digest, retention loss, orphan-manifest rejection, finite native metadata bounds, and
+pre-retention-floor active work remain fail-closed or explicitly materializing/unverifiable.
+
+Authored assertions cover decision invariants, local/imported composition, corrections, partial and
+retained-away history, conflicting authority, active pre-floor work, malformed attribution,
+transactional snapshots, and Hilt binding. No command ran.
+
+Run only in the final convergence phase:
+
+```powershell
+.\gradlew.bat :stats:api:jvmTest :tracker:engine:testDebugUnitTest --tests '*RoomStepsRetainedMetricsRepositoryTest' --tests '*RoomStepsRetainedMetricsRepositoryRoomTest' --tests '*RetainedStepsDayAuthorityTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :tracker:engine:lintDebug checkRoomSchemaDrift --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+## TI-B234 — Correction-safe retained Steps achievements, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `be1f0cd7b`. Authored production source projects qualified
+retained lifetime-total and best-day metrics under exact source revision/digest authority, preserves
+a durable notification high-water through downward correction, emits every genuinely newly crossed
+tier, and writes achievement replacement plus unlock outbox atomically. Materializing and
+unverifiable decisions preserve existing qualified state without creating a missing zero row.
+
+The notification consumer now authorizes all four qualified Steps metrics with exact revision and
+digest equality under one startup-generation lease through delivery. Generic raw achievement
+collection cannot reclaim retained total/best ownership. Focused DAO/entity, repository,
+reconciler, notification, event-consumer, and presentation tests are authored. Static inspection
+confirms neither Steps reconciler is started by `GameModuleInitializer`. No command ran.
+
+Run only in the final convergence phase:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*AchievementProgressQualifiedDaoTest' --tests '*AchievementProgressEntityTest' :stats:data:testDebugUnitTest --tests '*DefaultAchievementMetricsProviderStepsTest' --tests '*DefaultAchievementRepositoryQualificationTest' :feature:game:testDebugUnitTest --tests '*StepsRetainedAchievementReconcilerTest' --tests '*GameDomainEventConsumerTest' --tests '*GameAchievementNotificationTest' --tests '*AchievementProgressPresentationTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :core:base:lintDebug :stats:data:lintDebug :feature:game:lintDebug checkRoomSchemaDrift --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
 ## Static source × mode matrix
 
 | ID | Source | Mode | Capture sources | Declared controls | Qualified `RECORDING` evidence | Canonical output | Production history/UI assertion | Current status |

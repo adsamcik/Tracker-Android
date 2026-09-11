@@ -323,7 +323,7 @@ integration or publication command ran for this checkpoint.
   stored zone, period, target, and completeness.
 - [x] TODO-STEPS-NUM-003 Make streak creation, continuation, repair, and removal depend on qualified
   complete periods rather than raw totals.
-- [ ] TODO-STEPS-NUM-004 Make achievements, points, XP, badges, lifetime totals, best-day metrics,
+- [x] TODO-STEPS-NUM-004 Make achievements, points, XP, badges, lifetime totals, best-day metrics,
   and game effects use qualified source facts and retract or repair after correction or deletion.
 - [ ] TODO-STEPS-NUM-005 Ensure widgets and notifications distinguish ready zero, positive,
   partial, materializing, unavailable, disabled, and storage failure without raw fallback.
@@ -343,13 +343,15 @@ deliberately dormant coordinator. `9520af007` adds historical repair for fact pr
 materialization, import, selected deletion, and retention; qualified streak/perfect-week
 replacement; exact unlock-time/high-water handling; and fail-closed product filtering.
 `e9f344f46` and `90f603c36` remove the raw session/daily-summary goal bridge and close its static
-review follow-ups.
+review follow-ups. `77a48b2b1` defines typed retained lifetime/best-day decisions, `04aaf16e8`
+composes them from exact retained local/imported source facts, and `be1f0cd7b` projects the two
+retained metrics into qualified, correction-safe achievement rows with exact revision/digest
+authorization and durable notification high-water.
 
-All commits remain **IMPLEMENTED_UNVALIDATED**. NUM-001, NUM-004, NUM-005, and NUM-008 remain open:
-finish the consumer inventory, add qualified lifetime/best-day and any retained badge effects,
-preserve explicit widget/notification nonnumeric states, and complete the consumer-wide authored
-test matrix. The v28 Room schema identity hash is intentionally not guessed and must be regenerated
-during final convergence validation.
+All commits remain **IMPLEMENTED_UNVALIDATED**. NUM-001, NUM-005, and NUM-008 remain open: finish
+the consumer inventory, preserve explicit widget/notification nonnumeric states, and complete the
+consumer-wide authored test matrix. The v28 Room schema identity hash is intentionally not guessed
+and must be regenerated during final convergence validation.
 
 ### Automatic Steps
 

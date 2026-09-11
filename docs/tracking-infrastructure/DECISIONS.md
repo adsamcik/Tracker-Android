@@ -2700,3 +2700,31 @@ Each entry records repository evidence and does not duplicate the final architec
   effect dispatcher and remove the unused `:tracker:api` module dependency.
 - A read-only post-commit review found no P0/P1 defect. Its localization-inventory and explicit
   no-scheduler test follow-ups are included in `90f603c36`. No validation command ran.
+
+## TI-D172 — Retained Steps achievements derive only from exact source facts
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-11; sources `77a48b2b1`, `04aaf16e8`, and
+  `be1f0cd7b`; TI-B233 and TI-B234.
+- Lifetime total and best daily Steps are typed retained-source decisions, not reads of
+  `daily_summary`, `SessionSegment.steps`, raw intervals, or presentation rows. Their production
+  repository composes exact authenticated local and imported facts, correction lineage, stored-zone
+  day authority, retention loss, completeness, source-evidence revision, and a canonical digest.
+- A retained metric snapshot may be READY, MATERIALIZING, UNVERIFIABLE, or storage-unavailable.
+  Missing, partial, retained-away, malformed, conflicting-zone, or Int-unrepresentable evidence
+  never becomes fabricated zero. Active pre-floor work receives a bounded post-floor probe so it
+  remains pending or unverifiable rather than falsely absent.
+- `STEPS_TOTAL` and `BEST_DAILY_STEPS` use the same qualified achievement authority as goal streak
+  and perfect weeks: exact `QUALIFIED_STEPS_V1` revision/digest, READY state, and a persisted claimed
+  high-water. First qualification bootstraps without retroactive notification; downward correction
+  repairs the visible tier/value without lowering the claim; restoration at or below that claim does
+  not notify again; a later tier above it emits each newly crossed tier.
+- Achievement row replacement and nonempty unlock-event outbox insertion share one Room transaction.
+  Notification authorization requires exact revision and digest equality while holding one startup-
+  generation lease through platform delivery. A deletion or generation change after that lease
+  cannot retroactively redefine a delivery that was valid under the held authority, while stale
+  acknowledgement remains fenced.
+- `StepsRetainedAchievementReconciler` is deliberately absent from `GameModuleInitializer`, as is
+  `StepsGoalCoordinator`. This decision authors dormant logic and focused tests only; it does not
+  activate an achievement writer, provider, reward, notification, rollout, or release path. No
+  compiler, Gradle, test, lint, Detekt, Room drift, device, UI, battery, CI, integration, or
+  publication command ran.

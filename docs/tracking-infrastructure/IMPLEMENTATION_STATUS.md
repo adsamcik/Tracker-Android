@@ -3334,3 +3334,26 @@ No Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, batter
 activation, publication, or release command ran for either checkpoint. The remaining Steps numeric
 boundary is qualified lifetime total/best day plus widget and consumer-audit closure; the dormant
 coordinator must remain unstarted until final convergence.
+
+## 2026-09-11 implementation-only checkpoint — retained Steps metrics and achievements
+
+Commits `77a48b2b1`, `04aaf16e8`, and `be1f0cd7b` on
+`codex/ti-steps-import-actions` complete the dormant retained lifetime-total/best-day achievement
+slice as **IMPLEMENTED_UNVALIDATED**. The public decision contract and Room repository compose exact
+authenticated local/imported facts with correction lineage, stored-zone day authority, retention
+loss, completeness, source-evidence revision, and a canonical digest. Missing, partial,
+materializing, unverifiable, malformed, or retained-away evidence never becomes a numeric zero.
+
+Qualified lifetime-total and best-day achievement rows now use the same exact revision/digest,
+READY-state, and claimed-high-water authority as the two qualified goal achievements. First
+qualification establishes a non-notifying baseline; downward correction repairs visible progress;
+restoration at or below the historical claim cannot recreate a notification; a later advance emits
+each genuinely new tier. Row replacement and its nonempty unlock outbox share one Room transaction,
+and platform notification authorization holds one startup-generation lease through delivery.
+
+Static inspection confirms `StepsRetainedAchievementReconciler` and `StepsGoalCoordinator` remain
+absent from `GameModuleInitializer`. No compiler, Gradle, test, lint, Detekt, Room drift,
+emulator/device, UI, battery, CI, integration, activation, publication, or release command ran.
+`TODO-STEPS-NUM-004` is implemented only. The remaining Steps numeric boundary is the exact
+consumer inventory, truthful widget/notification nonnumeric states, and consumer-wide authored
+tests (`TODO-STEPS-NUM-001`, `TODO-STEPS-NUM-005`, and `TODO-STEPS-NUM-008`).
