@@ -3379,3 +3379,22 @@ yet distinguish current Steps policy being off from a truthful `NotCaptured` day
 authority propagation remains the precise open part of `TODO-STEPS-NUM-005`; no missing observation
 is reclassified as disabled. No Gradle, compiler, test, lint, Detekt, Room drift, emulator/device,
 UI, battery, CI, integration, activation, publication, or release command ran.
+
+## 2026-09-11 implementation-only checkpoint — legacy trip Steps authority removed
+
+Commit `7a36129db` on `codex/ti-steps-import-actions` removes the non-null Steps field from the
+generic `TripSummary` read model and stops `DefaultTripRepository` from fabricating zero when the
+legacy trip column is null. Trip Detail continues to obtain Steps from exact
+`TrackingHistoryRepository` composition; non-Steps trip fields and imported-origin identity are
+unchanged.
+
+New schema-3 JSON exports omit the optional legacy session `steps` member even when the physical
+trip row stores a positive value. The historical JSON importer continues accepting older payloads
+that contain that optional member, so file compatibility is preserved. Exact portable Steps
+transfer remains owned by `.trackersteps`, which carries manifest/run/fact/correction/completeness
+evidence that generic JSON cannot represent.
+
+A fresh read-only call-site and compatibility review found no concrete blocker. No Gradle,
+compiler, test, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran. `TODO-STEPS-NUM-001` remains open for raw daily
+summary, session-statistics, and historical-trajectory paths.

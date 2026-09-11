@@ -2745,3 +2745,16 @@ Each entry records repository evidence and does not duplicate the final architec
 - Current session history carries a disabled availability. Daily qualified totals do not yet carry
   current policy authority, so a missing or not-captured day must not be guessed as disabled. That
   bounded propagation remains open before `TODO-STEPS-NUM-005` can close.
+
+## TI-D174 — Generic trip and JSON products do not carry unqualified Steps
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-11; source `7a36129db`; TI-B236.
+- `TripSummary` carries only independently truthful non-Steps fields. Selected-session Steps belong
+  to `TrackingHistoryRepository`, which can verify exact segment/run/writer/source completeness;
+  the nullable legacy trip column cannot.
+- Newly written schema-3 JSON omits its already-optional session `steps` member. The importer keeps
+  accepting historical files that contain it, so compatibility does not require continuing to
+  emit an unqualified number.
+- `.trackersteps` remains the portable Steps product because it carries exact source evidence,
+  correction lineage, covered zero, partial state, and ownership. Generic JSON location/radio
+  export does not borrow that authority or infer it from a trip row.

@@ -365,6 +365,26 @@ Run only in the final convergence phase:
 .\gradlew.bat detekt :app:lintDebug --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
 ```
 
+## TI-B236 — Legacy TripSummary and JSON Steps authority removal, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `7a36129db`. The generic `TripSummary` API has no Steps
+field, `DefaultTripRepository` cannot coerce a nullable legacy trip value to zero, and the generic
+JSON exporter cannot emit a session Steps number. Existing exact history and `.trackersteps`
+contracts remain the numeric/display and portable-transfer authorities.
+
+Authored assertions preserve non-Steps trip mapping and prove Room-backed JSON omits `steps` even
+when the underlying physical trip contains a positive legacy value. Static review accounted for
+every in-repository `TripSummary` and JSON `SessionSnapshot` constructor and confirmed the existing
+importer still accepts old schema-3 files with the optional field. No command compiled or ran the
+changes.
+
+Run only in the final convergence phase:
+
+```powershell
+.\gradlew.bat :stats:api:jvmTest :stats:data:testDebugUnitTest --tests '*DefaultTripRepositoryTest' :feature:statistics:testDebugUnitTest --tests '*TripDetail*' :feature:import-export:testDebugUnitTest --tests '*JsonExporter*' --tests '*JsonImportTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :stats:data:lintDebug :feature:statistics:lintDebug :feature:import-export:lintDebug --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
 ## Static source × mode matrix
 
 | ID | Source | Mode | Capture sources | Declared controls | Qualified `RECORDING` evidence | Canonical output | Production history/UI assertion | Current status |

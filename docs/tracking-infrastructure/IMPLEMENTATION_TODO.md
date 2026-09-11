@@ -350,13 +350,17 @@ authorization and durable notification high-water. `8e3cb68e5` replaces nullable
 with explicit ready, partial, materializing, not-captured, disabled, unavailable, and storage-
 unavailable presentation states; fences the active widget to its exact segment; and makes the
 legacy goal-notification worker retry transient qualified states without consuming a claim when
-Android notification permission denies delivery.
+Android notification permission denies delivery. `7a36129db` removes Steps from the generic
+`TripSummary` API and from newly written schema-3 JSON sessions; old optional JSON Steps remain
+importable, while exact source-owned transfer stays in `.trackersteps`.
 
 All commits remain **IMPLEMENTED_UNVALIDATED**. NUM-001, NUM-005, and NUM-008 remain open. NUM-005
 still needs an authoritative current-policy signal before a daily widget or notification can call
 an otherwise not-captured day `disabled`; session history already carries that distinction. Finish
-the consumer inventory and consumer-wide authored test matrix. The v28 Room schema identity hash
-is intentionally not guessed and must be regenerated during final convergence validation.
+the consumer inventory: raw `DailySummary.totalSteps`, `SessionStatsSnapshot.steps`, and historical
+trajectory StepInterval enrichment remain. Complete the consumer-wide authored test matrix. The
+v28 Room schema identity hash is intentionally not guessed and must be regenerated during final
+convergence validation.
 
 ### Automatic Steps
 
