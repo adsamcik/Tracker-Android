@@ -19,7 +19,7 @@ class DefaultTripRepositoryTest {
 	private val repository = DefaultTripRepository(tripDao)
 
 	@Test
-	fun `observeTrips maps entity values and coerces invalid fields`() = runTest {
+	fun `observeTrips maps non-Steps values and coerces invalid fields`() = runTest {
 		everyRecentTripsFlow(
 			Trip(
 				id = 7L,
@@ -37,7 +37,6 @@ class DefaultTripRepositoryTest {
 
 		val trip = repository.observeTrips().first().single()
 		trip.distance.raw shouldBe 0f
-		trip.steps.raw shouldBe 0
 		trip.duration.raw shouldBe 0L
 		trip.primaryMode shouldBe TransportMode.TRANSIT
 	}

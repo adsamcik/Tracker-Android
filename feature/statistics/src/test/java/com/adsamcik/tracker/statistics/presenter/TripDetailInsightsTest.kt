@@ -13,7 +13,6 @@ import com.adsamcik.tracker.stats.api.repository.TripSummary
 import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
 import com.adsamcik.tracker.stats.api.value.EpochMs
-import com.adsamcik.tracker.stats.api.value.StepCount
 import io.kotest.matchers.doubles.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeLessThanOrEqual
 import io.kotest.matchers.nulls.shouldBeNull
@@ -513,7 +512,6 @@ class TripDetailInsightsTest {
 			startTimeMs = EpochMs(1_700_000_000_000L),
 			endTimeMs = EpochMs(1_700_000_000_000L + durationMs),
 			distance = DistanceM(distanceM),
-			steps = StepCount(500),
 			duration = DurationMs(durationMs),
 			primaryMode = primaryMode,
 			sampleCount = 100,

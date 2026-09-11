@@ -30,7 +30,6 @@ import com.adsamcik.tracker.stats.api.repository.TripSummary
 import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
 import com.adsamcik.tracker.stats.api.value.EpochMs
-import com.adsamcik.tracker.stats.api.value.StepCount
 import io.kotest.matchers.doubles.shouldBeLessThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -120,7 +119,6 @@ class TripDetailPresenterViewModelTest {
 			startTimeMs = EpochMs(TRIP_START_MS),
 			endTimeMs = EpochMs(TRIP_END_MS),
 			distance = DistanceM(5_100f),
-			steps = StepCount(0),
 			duration = DurationMs(TRIP_END_MS - TRIP_START_MS),
 			primaryMode = TransportMode.WALK,
 			sampleCount = 3,
@@ -192,7 +190,6 @@ class TripDetailPresenterViewModelTest {
 			startTimeMs = EpochMs(TRIP_START_MS),
 			endTimeMs = EpochMs(tripEndMs),
 			distance = DistanceM(5_100f),
-			steps = StepCount(0),
 			duration = DurationMs(tripEndMs - TRIP_START_MS),
 			primaryMode = TransportMode.WALK,
 			sampleCount = samples.size,
@@ -354,7 +351,6 @@ class TripDetailPresenterViewModelTest {
 			startTimeMs = EpochMs(TRIP_START_MS),
 			endTimeMs = EpochMs(tripEndMs),
 			distance = DistanceM(1_000f),
-			steps = StepCount(0),
 			duration = DurationMs(tripEndMs - TRIP_START_MS),
 			primaryMode = TransportMode.WALK,
 			sampleCount = samples.size,
@@ -444,7 +440,6 @@ class TripDetailPresenterViewModelTest {
 		startTimeMs = EpochMs(TRIP_START_MS),
 		endTimeMs = EpochMs(TRIP_END_MS),
 		distance = DistanceM(0f),
-		steps = StepCount(0),
 		duration = DurationMs(TRIP_END_MS - TRIP_START_MS),
 		primaryMode = TransportMode.UNKNOWN,
 		sampleCount = 1,

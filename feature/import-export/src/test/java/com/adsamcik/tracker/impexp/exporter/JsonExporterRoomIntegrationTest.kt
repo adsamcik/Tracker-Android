@@ -68,7 +68,7 @@ class JsonExporterRoomIntegrationTest {
 	}
 
 	@Test
-	fun `tracking samples persisted in Room export to valid json with session snapshot`() = runTest {
+	fun `Room json export keeps location data but omits unqualified session Steps`() = runTest {
 		val dispatcher = StandardTestDispatcher(testScheduler)
 		val exporter = JsonExporter(TestDispatchersProvider(dispatcher))
 		val baseTimeMs = 1_725_000_000_000L
@@ -191,7 +191,7 @@ class JsonExporterRoomIntegrationTest {
 		session.getLong("endTimeMs") shouldBe dateRange.last
 		session.getInt("sampleCount") shouldBe inRangeSamples.size
 		session.getDouble("distanceM").toFloat() shouldBe 185.4f
-		session.getInt("steps") shouldBe 248
+		session.has("steps") shouldBe false
 		record.getJSONArray("wifiObservations").getJSONObject(0).getString("bssid") shouldBe "00:11:22:33:44:55"
 		record.getJSONArray("cellSamples").getJSONObject(0).getLong("cellId") shouldBe 1234L
 	}

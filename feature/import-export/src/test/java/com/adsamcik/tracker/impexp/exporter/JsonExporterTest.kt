@@ -9,10 +9,11 @@ import com.adsamcik.tracker.shared.model.AltitudeSource
 import com.adsamcik.tracker.shared.model.LocationSample
 import com.adsamcik.tracker.shared.model.SampleQuality
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.string.shouldContain
-import org.junit.jupiter.api.Test
+import io.kotest.matchers.string.shouldNotContain
+import io.kotest.matchers.types.shouldBeInstanceOf
 import java.io.ByteArrayOutputStream
+import org.junit.jupiter.api.Test
 
 class JsonExporterTest {
 
@@ -35,6 +36,7 @@ class JsonExporterTest {
 		output shouldContain "\"altitudeDatum\":\"android_model_msl\""
 		output shouldContain "\"altitudeSource\":\"gps_conversion\""
 		output shouldContain "\"rawGpsAltitudeDatum\":\"wgs84_ellipsoid\""
+		output shouldNotContain "\"steps\":"
         output shouldContain "\"wifiObservations\":[{\"timeMs\":1725000010000,\"bssid\":\"00:11:22:33:44:55\""
         output shouldContain "\"cellSamples\":[{\"timeMs\":1725000020000,\"cellId\":9876543210"
     }
@@ -82,7 +84,6 @@ class JsonExporterTest {
             startTimeMs = 1_725_000_000_000L,
             endTimeMs = 1_725_000_060_000L,
             distanceM = 1234.5f,
-            steps = 500,
             primaryActivity = 7,
             activityConfidence = 93,
             sampleCount = 1,

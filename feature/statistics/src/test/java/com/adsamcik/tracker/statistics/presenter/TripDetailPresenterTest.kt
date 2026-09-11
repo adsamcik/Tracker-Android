@@ -18,7 +18,6 @@ import com.adsamcik.tracker.stats.api.repository.TripSummary
 import com.adsamcik.tracker.stats.api.value.DistanceM
 import com.adsamcik.tracker.stats.api.value.DurationMs
 import com.adsamcik.tracker.stats.api.value.EpochMs
-import com.adsamcik.tracker.stats.api.value.StepCount
 import com.adsamcik.tracker.stats.api.TransportMode
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -42,7 +41,6 @@ class TripDetailPresenterTest {
 		startTimeMs = EpochMs(1000L),
 		endTimeMs = EpochMs(5000L),
 		distance = DistanceM(1500f),
-		steps = StepCount(300),
 		duration = DurationMs(4000L),
 		primaryMode = TransportMode.WALK,
 		sampleCount = 20,
