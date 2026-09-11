@@ -317,7 +317,7 @@ integration or publication command ran for this checkpoint.
 
 ### Qualified numeric consumers and effects
 
-- [ ] TODO-STEPS-NUM-001 Audit every remaining read of daily_summary Steps, SessionSegment.steps,
+- [x] TODO-STEPS-NUM-001 Audit every remaining read of daily_summary Steps, SessionSegment.steps,
   raw StepInterval, or nullable numeric fallback in product and effect code.
 - [x] TODO-STEPS-NUM-002 Route goal progress and award mutation through exact qualified revision,
   stored zone, period, target, and completeness.
@@ -356,13 +356,18 @@ importable, while exact source-owned transfer stays in `.trackersteps`.
 `294b76c16` removes raw Steps from the app-level `DailySummary`, aggregate
 `SessionStatsSnapshot`, and their Room projection. Daily and session non-Steps metrics remain
 available, while qualified day Steps stay in `QualifiedStepCount` and retained numeric summaries.
+`967b7ebc9` removes raw legacy `StepInterval` from historical trajectory input, source bounds, and
+lineage; gives the changed location-plus-activity composition a new persisted version; and keeps
+old step-influenced runs eligible for corrected reconstruction.
 
-All commits remain **IMPLEMENTED_UNVALIDATED**. NUM-001, NUM-005, and NUM-008 remain open. NUM-005
+All commits remain **IMPLEMENTED_UNVALIDATED**. NUM-005 and NUM-008 remain open. NUM-005
 still needs an authoritative current-policy signal before a daily widget or notification can call
-an otherwise not-captured day `disabled`; session history already carries that distinction. Finish
-the consumer inventory by removing or source-qualifying historical-trajectory raw StepInterval
-enrichment. Complete the consumer-wide authored test matrix. The v28 Room schema identity hash is
-intentionally not guessed and must be regenerated during final convergence validation.
+an otherwise not-captured day `disabled`; session history already carries that distinction. The
+product/effect numeric inventory is authored complete: remaining raw legacy interval access is
+limited to source-local persistence/recovery/deletion and inactive research/debug evidence paths,
+not numeric product authority. Complete the consumer-wide authored test matrix. The v28 Room
+schema identity hash is intentionally not guessed and must be regenerated during final convergence
+validation.
 
 ### Automatic Steps
 

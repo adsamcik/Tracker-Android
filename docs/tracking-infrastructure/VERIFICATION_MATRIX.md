@@ -400,6 +400,28 @@ activation, publication, or release command ran. Final convergence must include 
 core-common/core-base, stats API/data, Dashboard, Tracker, widget, statistics, Detekt/lint, Room,
 and repository-wide gates.
 
+## TI-B238 — Historical trajectory Steps authority removal, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `967b7ebc9`. Four reviewed source, documentation, and test
+paths remove the raw clock-domain StepInterval query from trajectory composition, keep the legacy
+lineage column null, exclude interval wall/boot bounds, and persist a new location-plus-activity
+composition version. Authored Room assertions compare normalized trajectory states before and
+after a revisioned legacy interval and prove old `default_v1` output does not suppress corrected
+reconstruction.
+
+A fresh static review found no remaining call site of the removed DAO query and no legacy interval
+input in the runner. One reviewer inadvertently ran `git diff --check`; it returned clean. This is
+not compiler, Room, algorithm, worker, or behavioral evidence. No Gradle, test, lint, Detekt,
+schema-drift, emulator/device, battery, CI, integration, activation, publication, or release command
+ran.
+
+Run only in the final convergence phase:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*TrackerStateEventDaoTest' :tracker:engine:testDebugUnitTest --tests '*HistoricalTrajectoryReconstructionRunnerTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :core:base:lintDebug :tracker:engine:lintDebug checkRoomSchemaDrift --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
 ## Static source × mode matrix
 
 | ID | Source | Mode | Capture sources | Declared controls | Qualified `RECORDING` evidence | Canonical output | Production history/UI assertion | Current status |

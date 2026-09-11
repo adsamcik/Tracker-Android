@@ -2770,3 +2770,18 @@ Each entry records repository evidence and does not duplicate the final architec
 - Removing a public projection field does not authorize removing legacy Room columns, migration
   inputs, correction/day-repair state, or source-local portable data. No destructive schema change
   is part of this decision.
+
+## TI-D176 — Historical trajectory V1 excludes unqualified legacy Steps
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-11; source `967b7ebc9`; TI-B238.
+- Clock-domain and monotonic overlap with `StepInterval` do not prove manifest membership, service
+  run, writer, capture purpose, consent, completeness, or correction/deletion authority. Historical
+  reconstruction therefore cannot use such a row as stationary evidence or source lineage.
+- The pure reconstruction API retains optional `stepDelta`, and the nullable Room lineage column
+  remains compatible, but V1 supplies neither until an exact source-qualified reader is justified.
+- Input composition is part of derivative identity. The runner appends
+  `location_activity_v2` to the pure configuration version and persists that exact value, ensuring
+  old step-influenced `default_v1` runs remain eligible for replacement.
+- Raw legacy interval reads remain permitted only for source-local persistence, migration,
+  recovery, deletion/rearm, and inactive local research/debug evidence. They cannot authorize a
+  product number or effect without a new explicit decision and source-qualified contract.

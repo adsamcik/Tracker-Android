@@ -3417,3 +3417,25 @@ site of the removed public fields. No Gradle, compiler, test, lint, Detekt, Room
 emulator/device, UI, battery, CI, integration, activation, publication, or release command ran.
 `TODO-STEPS-NUM-001` remains open only for historical trajectory reconstruction's raw
 `StepInterval` enrichment.
+
+## 2026-09-11 implementation-only checkpoint — historical trajectory Steps authority removed
+
+Commit `967b7ebc9` on `codex/ti-steps-import-actions` removes legacy `StepInterval` reads from
+historical trajectory reconstruction. Raw interval overlap can no longer populate `stepDelta`,
+change stationary probability or reconstructed states, widen reconstruction source bounds, choose
+a boot domain, or appear in trajectory lineage. The unused clock-domain interval query was removed;
+the nullable schema link remains for backward compatibility and a future exact qualified reader.
+
+The runner now exposes and persists `default_v1+location_activity_v2`, leaving the pure
+reconstruction algorithm/configuration unchanged while accurately versioning its input
+composition. Consequently an old completed `robust_cv_rts_v1/default_v1` run remains pending for a
+corrected pass instead of suppressing replacement. The normal battery/storage-constrained worker
+scheduling remains unchanged; no new observer or provider demand was introduced.
+
+Focused Room contracts were authored to compare normalized reconstructed states before and after a
+revisioned legacy interval, require null Steps lineage and unchanged source bounds, require the new
+persisted version, and prove old-version replacement eligibility. A fresh read-only review found no
+remaining code or call-site blocker. One reviewer inadvertently ran `git diff --check`; it returned
+clean but is not treated as behavioral evidence. No Gradle, compiler, test, lint, Detekt, Room
+drift, emulator/device, UI, battery, CI, integration, activation, publication, or release command
+ran. `TODO-STEPS-NUM-001` is implemented and remains unvalidated.
