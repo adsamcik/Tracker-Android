@@ -1,6 +1,6 @@
 # Tracking Infrastructure Decisions
 
-Last updated: 2026-09-09
+Last updated: 2026-09-11
 
 Each entry records repository evidence and does not duplicate the final architecture document.
 
@@ -2629,3 +2629,74 @@ Each entry records repository evidence and does not duplicate the final architec
   Steps effect is allowed.
 - Focused source and tests were authored but no compiler, Gradle, test, lint, Detekt, Room drift,
   device, UI, integration, publication, activation, or release command ran.
+
+## TI-D167 — Qualified goal decisions carry exact replaceable source authority
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-11; sources `ead24608c`, `759c369b4`,
+  `343f13577`; TI-B228.
+- A Steps goal effect is keyed by structural period and kind and records source-evidence revision,
+  source-result digest, exact per-day zone authority, target, qualified value, decision state, and
+  its own monotonic effect revision. The effect row is the decision authority, not
+  `daily_summary`, `SessionSegment.steps`, or a live tracker snapshot.
+- Effect creation rechecks the source snapshot inside the owning Room transaction. Identical replay
+  is unchanged; a newer source decision replaces the exact effect; an older observation cannot
+  overwrite it. Materializing and unverifiable inputs remain typed and never become zero.
+- The v28 schema shape and migration contracts are authored. The generated Room identity hash is
+  intentionally deferred to convergence and must not be guessed manually.
+
+## TI-D168 — Qualified goal rewards are source-local reversible projections
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-11; sources `8bbe2d0d5`, `26442893a`,
+  `1f4041d00`; TI-B229.
+- Points and XP use independent source-local ledger identities and monotonic effect revisions.
+  One effect can create, replace, or retract its own delta without reopening unrelated award
+  ownership or relying on wall-time overlap.
+- A replay of the same effect revision is zero-effect. A correction or deletion projects the exact
+  replacement delta, including zero, while stale revisions and generation-invalid transactions are
+  rejected. Point and XP component failure remains independently retryable.
+- This does not authorize legacy XP cleanup, player-level requalification, coordinator activation,
+  or any other source's awards.
+
+## TI-D169 — Goal notification delivery is claimed durably and orchestration stays dormant
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-11; sources `2745384f8`, `dc23917e5`;
+  TI-B230.
+- A notification claim belongs to the exact current eligible effect revision and is committed
+  before platform delivery. Disabled notification policy consumes the claim without delivery;
+  ambiguous platform failure does not reopen it and risk duplicates.
+- One app-process coordinator is authored to observe qualified current periods, drain historical
+  repairs, project both reward components, and dispatch claims. It does not create provider demand.
+- The coordinator is deliberately not started by `GameModuleInitializer`. Runtime activation
+  remains forbidden until all implementation pieces converge and the deferred validation gate
+  succeeds.
+
+## TI-D170 — Historical Steps effects repair under stored zone authority
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-11; source `9520af007`; TI-B231.
+- Normal fact projection, day materialization, portable import, selected deletion, and retention
+  enqueue exact affected structural days while advancing source evidence. The queue collapses
+  revisions and removes only the exact request it settled.
+- Historical reconciliation uses persisted per-day zone authority. Pending repair marks dependent
+  qualified achievements materializing; terminal unverifiable evidence stays nonnumeric; ready
+  history replaces day/week effects and correction-sensitive streak/perfect-week progress.
+- Qualified achievement rows preserve an explicit notification high-water and exact unlock time.
+  Bootstrap creates a baseline without retroactive celebration, and a downward correction followed
+  by restoration cannot resurrect a prior notification.
+- Dashboard and Game product composition accept only READY qualified rows. Missing,
+  materializing, or unverifiable progress is absent rather than displayed as fabricated zero.
+
+## TI-D171 — Raw Steps presentation cannot feed Game goals
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-11; sources `e9f344f46`, `90f603c36`;
+  TI-B232.
+- Remove the legacy goal object graph and every Game-goal dependency on
+  `TrackerSessionSnapshot`, raw `DailySummaryUpdated.totalSteps`, and `SessionSegment.steps`.
+  `GoalTracker` now carries only a payload-free structural calendar invalidation.
+- Daily and weekly target settings remain direct flows. Numeric presentation reads only
+  `StepsNumericSummaryRepository`, whose durable dependency observation handles source
+  settlement, correction, deletion, retention, and import changes.
+- Keep `DailySummaryUpdated` as an acknowledged compatibility event with no goal, XP, or
+  achievement-scheduling effect. Retain only the notification UI helper needed by the qualified
+  effect dispatcher and remove the unused `:tracker:api` module dependency.
+- A read-only post-commit review found no P0/P1 defect. Its localization-inventory and explicit
+  no-scheduler test follow-ups are included in `90f603c36`. No validation command ran.

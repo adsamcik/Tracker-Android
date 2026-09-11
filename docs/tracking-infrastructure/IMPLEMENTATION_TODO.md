@@ -1,6 +1,6 @@
 # Tracking Infrastructure Completion TODO
 
-Last updated: 2026-09-10
+Last updated: 2026-09-11
 
 This is the canonical remaining-work ledger for the six source-to-product verticals. It translates
 the vision, final design, adaptive acquisition design, execution ledger, decisions, current
@@ -319,29 +319,37 @@ integration or publication command ran for this checkpoint.
 
 - [ ] TODO-STEPS-NUM-001 Audit every remaining read of daily_summary Steps, SessionSegment.steps,
   raw StepInterval, or nullable numeric fallback in product and effect code.
-- [ ] TODO-STEPS-NUM-002 Route goal progress and award mutation through exact qualified revision,
+- [x] TODO-STEPS-NUM-002 Route goal progress and award mutation through exact qualified revision,
   stored zone, period, target, and completeness.
-- [ ] TODO-STEPS-NUM-003 Make streak creation, continuation, repair, and removal depend on qualified
+- [x] TODO-STEPS-NUM-003 Make streak creation, continuation, repair, and removal depend on qualified
   complete periods rather than raw totals.
 - [ ] TODO-STEPS-NUM-004 Make achievements, points, XP, badges, lifetime totals, best-day metrics,
   and game effects use qualified source facts and retract or repair after correction or deletion.
 - [ ] TODO-STEPS-NUM-005 Ensure widgets and notifications distinguish ready zero, positive,
   partial, materializing, unavailable, disabled, and storage failure without raw fallback.
-- [ ] TODO-STEPS-NUM-006 Prevent imported, ambient, session, or retained facts from awarding twice
+- [x] TODO-STEPS-NUM-006 Prevent imported, ambient, session, or retained facts from awarding twice
   when their intervals overlap or their presentation grouping changes.
-- [ ] TODO-STEPS-NUM-007 Persist effect identity and revision so identical replay is zero-effect and
+- [x] TODO-STEPS-NUM-007 Persist effect identity and revision so identical replay is zero-effect and
   correction or deletion performs an exact replace or retract.
 - [ ] TODO-STEPS-NUM-008 Author focused tests for every audited consumer and every positive,
   zero, partial, correction, deletion, retention, and imported-origin case without running them.
 
-Implementation checkpoint: `7eaa891b3` adds the first bounded numeric-consumer correction. The
-production repository can now read or observe exactly one or two requested windows in one Room
-reader transaction, and the existing daily plus week-to-date Game presentation uses that batch
-instead of combining independently committed snapshots. Single-window consumers delegate to the
-same implementation. Focused API, Room, Game, and statistics-fake contracts are authored but not
-run. This does not complete NUM-001–008: no positive award is enabled, no effect identity/revision
-is persisted, and correction/deletion retraction for points, XP, streaks, achievements, badges, or
-notifications remains the next boundary.
+Implementation checkpoints: `7eaa891b3` adds the bounded coherent numeric-read foundation.
+`ead24608c`, `759c369b4`, and `343f13577` persist exact source revision, digest, stored-zone
+authority, period, target, completion state, and revisioned effect identity. `8bbe2d0d5`,
+`26442893a`, and `1f4041d00` add source-local point and XP fences plus idempotent reversible
+projection. `2745384f8` and `dc23917e5` add durable at-most-once notification claims and a
+deliberately dormant coordinator. `9520af007` adds historical repair for fact projection,
+materialization, import, selected deletion, and retention; qualified streak/perfect-week
+replacement; exact unlock-time/high-water handling; and fail-closed product filtering.
+`e9f344f46` and `90f603c36` remove the raw session/daily-summary goal bridge and close its static
+review follow-ups.
+
+All commits remain **IMPLEMENTED_UNVALIDATED**. NUM-001, NUM-004, NUM-005, and NUM-008 remain open:
+finish the consumer inventory, add qualified lifetime/best-day and any retained badge effects,
+preserve explicit widget/notification nonnumeric states, and complete the consumer-wide authored
+test matrix. The v28 Room schema identity hash is intentionally not guessed and must be regenerated
+during final convergence validation.
 
 ### Automatic Steps
 

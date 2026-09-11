@@ -1,6 +1,6 @@
 # Tracking Infrastructure Verification Matrix
 
-Last updated: 2026-09-10
+Last updated: 2026-09-11
 
 Status meanings: `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `IN_REVIEW`, `DONE`. `DONE` requires production repository evidence, not provider registration alone.
 
@@ -235,6 +235,74 @@ Run only in the final convergence phase:
 
 This checkpoint is not effect revision/CAS, positive award, correction/deletion retraction, streak,
 achievement, device, rendered UI, integration, activation, publication, or release evidence.
+
+## TI-B228 — Exact qualified Steps goal decisions, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `ead24608c`, `759c369b4`, and `343f13577`. Authored
+source and tests cover the v28 effect table/migration shape, one-or-two-window decision snapshots,
+source revision stability, exact stored calendar authority, canonical digests, current day/week
+decision replacement, typed materializing/unverifiable state, replay, stale revision rejection, and
+transaction rollback.
+
+No command ran. Final convergence must run the focused Steps effect DAO/entity/migration, decision
+API, Room summary, and reconciler tests, regenerate and review the v28 identity hash, then run the
+affected suites and repository gates.
+
+## TI-B229 — Reversible qualified goal points and XP, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `8bbe2d0d5`, `26442893a`, and `1f4041d00`. Authored
+source and tests cover independent point and XP source-local fences, exact effect identity and
+revision, create/replace/retract, identical replay, stale revision refusal, partial component retry,
+startup-generation rejection, and unrelated-ledger preservation.
+
+No command ran. Final convergence must include both Room schema/reopen paths, point and XP DAO
+contracts, the qualified reward projector suite, affected module suites, Detekt/lint/schema drift,
+`ciUnitTest`, and `ciCheck --continue`.
+
+## TI-B230 — Claimed notifications and dormant coordinator, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `2745384f8` and `dc23917e5`. Authored source and tests
+cover exact eligible-revision claims, at-most-once platform handoff, disabled-policy suppression,
+ambiguous delivery failure, superseded effects, current-period dispatch policy, repair/action queue
+drain, retry behavior, and absence of any provider-demand operation. Static inspection confirms
+`GameModuleInitializer` does not start `StepsGoalCoordinator`.
+
+No command ran. Runtime activation remains prohibited. Final convergence must run focused
+dispatcher/coordinator tests and verify the complete Hilt graph while preserving dormancy.
+
+## TI-B231 — Historical goal-effect and qualified achievement repair, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `9520af007`. Authored production/test source connects normal
+fact projection, terminal day materialization, portable import, selected deletion, and retention to
+an exact revision-collapsing repair queue. Historical reconciliation uses stored zones and updates
+qualified goal effects, streak/perfect-week achievements, durable notification high-water, and
+exact unlock timestamps. Dashboard and Game product reads exclude non-READY or unqualified rows.
+
+Authored assertions cover bootstrap suppression, genuine later advancement, correction
+down-and-restore no-resurrection, terminal unverifiable settlement, queue rollback, authority-bound
+events, product filtering, and exact unlock recency. No command ran. The v28 schema identity hash
+remains explicit convergence debt.
+
+## TI-B232 — Raw Game goal bridge removal, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `e9f344f46` with review follow-up `90f603c36`. The old
+goal/listener/persistence graph is removed. Game has no tracker module dependency; target values
+come from settings and Steps values only from the qualified numeric repository. A payload-free day
+signal rebinds calendar periods, and `DailySummaryUpdated` is acknowledged without goal, XP, or
+achievement-scheduling effects.
+
+A read-only exact-commit review found no P0/P1 issue. It identified a stale localization usage
+inventory and one missing explicit no-scheduler assertion; both are authored in `90f603c36`.
+No build, compiler, test, lint, Detekt, Room drift, device, UI, battery, or CI command ran.
+
+Run this combined authored boundary only during final convergence:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*StepsGoal*' :domain:points:testDebugUnitTest --tests '*PointsAwarded*' :stats:api:jvmTest :stats:data:testDebugUnitTest --tests '*Achievement*' :tracker:engine:testDebugUnitTest --tests '*RoomStepsNumericSummaryRepository*' --tests '*StepsSessionFactProjectionLaneTest' --tests '*RoomImportPortableStepsTest' --tests '*RoomStepsSelectedSessionDeletionServiceTest' :feature:game:testDebugUnitTest --tests '*StepsGoal*' --tests '*GameDomainEventConsumerTest' --tests '*GameAchievementNotificationTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :core:base:lintDebug :domain:points:lintDebug :stats:data:lintDebug :tracker:engine:lintDebug :feature:game:lintDebug checkRoomSchemaDrift --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat ciUnitTest --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat ciCheck --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
 
 ## Static source × mode matrix
 

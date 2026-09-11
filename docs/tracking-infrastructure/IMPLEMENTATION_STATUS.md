@@ -1,6 +1,6 @@
 # Tracking Infrastructure Implementation Status
 
-Last updated: 2026-09-10
+Last updated: 2026-09-11
 
 Execution-grade work items, ownership, dependency gates, verification commands, and rollback
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and
@@ -3294,3 +3294,43 @@ statistics fake contracts were authored. No command compiled or ran them. The ch
 The next boundary is a Steps-specific persisted effect identity carrying exact zone, period,
 target, qualified source authority and desired completion, followed by idempotent replace/retract
 reconciliation for points and XP before streak or achievement restoration.
+
+## 2026-09-11 implementation-only checkpoint — reversible qualified Steps goal effects
+
+Branch `codex/ti-steps-import-actions` now contains the dependency-ordered sequence
+`ead24608c`, `759c369b4`, `343f13577`, `8bbe2d0d5`, `26442893a`, `1f4041d00`,
+`2745384f8`, `dc23917e5`, and `9520af007`. It persists exact source-evidence revision and
+digest, structural calendar authority, period, target, completion state, and effect revision;
+projects point and XP deltas with source-local monotonic fences; and claims goal notifications
+at most once. Corrections and deletions replace or retract exact effects rather than adding a
+second award.
+
+Historical fact projection, materialization, portable import, selected deletion, and retention
+now enqueue exact affected days. The repair consumer re-evaluates them under their stored zones,
+keeps pending work materializing, settles terminal unverifiable state without fabricated zero, and
+replaces correction-sensitive goal-streak and perfect-week achievement progress. Qualified unlock
+events carry the exact authority revision/digest and a durable high-water claim, so bootstrap,
+downward correction, and later restoration do not recreate a celebration.
+
+`StepsGoalCoordinator` remains deliberately dormant: it is not started by
+`GameModuleInitializer`, so this checkpoint does not activate a writer, provider, reward, or
+notification path. The exported v28 schema shape was updated for authored Room entities and tests,
+but its generated identity hash remains known convergence debt rather than a hand-written guess.
+
+## 2026-09-11 implementation-only checkpoint — raw goal bridge removed
+
+Commits `e9f344f46` and `90f603c36` remove the legacy `GoalListenable`/`BaseGoal` graph and
+all Tracker session-snapshot and raw daily-summary Steps inputs from Game goals. The retained
+`GoalTracker` is only a payload-free calendar invalidation signal. Daily and weekly presentation
+targets come directly from settings; actual values come only from
+`StepsNumericSummaryRepository`. The now-unused `:tracker:api` dependency is removed.
+
+`DailySummaryUpdated` remains durably acknowledged for compatibility but has no goal, XP, or
+achievement-scheduling side effect. The notification builder was retained beside the qualified
+dispatcher, and the localization usage inventory was corrected. A fresh read-only review found no
+P0/P1 defect and identified the two follow-ups closed by `90f603c36`.
+
+No Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran for either checkpoint. The remaining Steps numeric
+boundary is qualified lifetime total/best day plus widget and consumer-audit closure; the dormant
+coordinator must remain unstarted until final convergence.
