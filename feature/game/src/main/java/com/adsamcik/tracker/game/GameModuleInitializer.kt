@@ -1,10 +1,7 @@
 package com.adsamcik.tracker.game
 
-import android.content.Context
 import com.adsamcik.tracker.game.event.ExplorationDomainEventConsumer
 import com.adsamcik.tracker.game.event.GameDomainEventConsumer
-import com.adsamcik.tracker.game.goals.GoalTracker
-import com.adsamcik.tracker.game.goals.settings.GoalsSettingsRepository
 import com.adsamcik.tracker.game.repository.DefaultGameRepository
 import com.adsamcik.tracker.game.session.GameFinalizationReconciler
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
@@ -14,8 +11,6 @@ import com.adsamcik.tracker.shared.base.startup.ModuleInitializer
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import com.adsamcik.tracker.stats.api.value.EpochMs
-import com.adsamcik.tracker.tracker.controller.TrackerStateReader
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.collect
@@ -29,14 +24,11 @@ import kotlinx.coroutines.launch
  * events are persisted.
  */
 class GameModuleInitializer @Inject constructor(
-	@ApplicationContext private val context: Context,
 	@ApplicationScope private val appScope: CoroutineScope,
 	private val dispatchers: DispatchersProvider,
 	private val consumer: GameDomainEventConsumer,
 	private val explorationConsumer: ExplorationDomainEventConsumer,
-	private val trackerStateReader: TrackerStateReader,
 	private val domainEventRepository: DomainEventRepository,
-	private val goalsSettingsRepository: GoalsSettingsRepository,
 	private val miniGameScoreDao: MiniGameScoreDao,
 	private val gameRepository: DefaultGameRepository,
 	private val trackingStartupGate: TrackingStartupGate,
@@ -44,7 +36,6 @@ class GameModuleInitializer @Inject constructor(
 	override val priority: Int = 30
 
 	override fun initialize() {
-		initializeGoals()
 		appScope.launch(dispatchers.io) {
 			GameFinalizationReconciler(
 				loadScores = miniGameScoreDao::getRecentForReconciliation,
@@ -63,13 +54,5 @@ class GameModuleInitializer @Inject constructor(
 				explorationConsumer.processUnconsumed()
 			}
 		}
-	}
-
-	private fun initializeGoals() {
-		GoalTracker.initialize(
-			context = context,
-			trackerStateReader = trackerStateReader,
-			settingsRepository = goalsSettingsRepository,
-		)
 	}
 }

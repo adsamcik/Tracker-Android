@@ -18,7 +18,6 @@ import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
 import com.adsamcik.tracker.stats.api.scheduler.AchievementEvaluationScheduler
-import com.adsamcik.tracker.tracker.controller.TrackerStateReader
 import java.time.Instant
 import java.time.ZoneId
 import java.util.Locale
@@ -29,14 +28,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -46,7 +42,6 @@ import kotlinx.coroutines.withContext
 class DefaultGameRepository @Inject constructor(
 	private val application: Application,
 	@ApplicationScope private val scope: CoroutineScope,
-	private val trackerStateReader: TrackerStateReader,
 	private val dispatchers: DispatchersProvider,
 	private val database: AppDatabase,
 	private val progressionRepository: PlayerProgressionRepository,
@@ -71,14 +66,6 @@ class DefaultGameRepository @Inject constructor(
 		)
 	}
 
-	init {
-		GoalTracker.initialize(
-			context = application,
-			trackerStateReader = trackerStateReader,
-			settingsRepository = goalsSettingsRepository,
-		)
-	}
-
 	private fun startOfDay(now: Long): Long = Instant.ofEpochMilli(now)
 		.atZone(ZoneId.systemDefault())
 		.toLocalDate()
@@ -93,9 +80,13 @@ class DefaultGameRepository @Inject constructor(
 	private val stepsSummaryState by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
 		sourceQualifiedStepsSummaryFlow(
 			repository = stepsNumericSummaryRepository,
-			invalidations = stepsSummaryInvalidations(),
-			dailyGoal = GoalTracker.goalDay,
-			weeklyGoal = GoalTracker.goalWeek,
+			invalidations = GoalTracker.calendarInvalidations,
+			dailyGoal = goalsSettingsRepository.data
+				.map { settings -> settings.dailyStepGoal }
+				.distinctUntilChanged(),
+			weeklyGoal = goalsSettingsRepository.data
+				.map { settings -> settings.weeklyStepGoal }
+				.distinctUntilChanged(),
 			weeklyDailyLimit = goalsSettingsRepository.data
 				.map { settings -> settings.weeklyProgressDailyLimit }
 				.distinctUntilChanged(),
@@ -112,35 +103,6 @@ class DefaultGameRepository @Inject constructor(
 	}
 
 	override fun getStepsSummary(): StateFlow<StepsSummaryData?> = stepsSummaryState
-
-	private fun stepsSummaryInvalidations(): Flow<Unit> = merge(
-		GoalTracker.stepsDay.drop(1).map { Unit },
-		GoalTracker.stepsWeek.drop(1).map { Unit },
-		dailySummaryInvalidations(),
-	)
-
-	/**
-	 * This existing product signal rechecks calendar authority. Source-value refresh comes directly
-	 * from the numeric repository's durable dependency observation, including fact-only changes;
-	 * touching a daily-summary row is neither required nor sufficient to qualify imported Steps.
-	 */
-	private fun dailySummaryInvalidations(): Flow<Unit> = flow {
-		val authority = stepsCalendarAuthority(
-			now = Time.now,
-			locale = Locale.getDefault(),
-		)
-		emitAll(
-			database.dailySummaryDao().getBetweenFlow(
-				authority.startOfWeek.toEpochDay(),
-				authority.today.toEpochDay(),
-			).map { Unit }.catch { failure ->
-				if (failure is CancellationException) {
-					throw failure
-				}
-				emit(Unit)
-			},
-		)
-	}
 
 	override fun getPlayerProfile(): Flow<PlayerProfileUi?> = database.playerProfileDao().observe()
 		.map { entity -> entity?.let { PlayerProfileUi(it.level, it.totalXp, it.xpIntoCurrentLevel, it.xpForNextLevel) } }

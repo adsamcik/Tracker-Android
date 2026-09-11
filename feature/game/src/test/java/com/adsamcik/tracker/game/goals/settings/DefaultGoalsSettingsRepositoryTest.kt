@@ -1,7 +1,6 @@
 package com.adsamcik.tracker.game.goals.settings
 
 import androidx.datastore.core.DataStore
-import com.adsamcik.tracker.game.goals.data.GoalsSettingsGoalPersistence
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -159,20 +158,6 @@ class DefaultGoalsSettingsRepositoryTest {
 		store.current.hasRememberedFuseRunDifficulty() shouldBe false
 		store.current.hasRememberedSwitchbackGoal() shouldBe false
 		store.current.hasRememberedSwitchbackDifficulty() shouldBe false
-	}
-
-	@Test
-	fun `goal reached persistence never requires legacy writes`() = runTest(dispatcher) {
-		val legacy = FakeLegacyGoalsSettingsSource()
-		val repository = DefaultGoalsSettingsRepository(FakeDataStore(), dispatcher, legacy)
-		val persistence = GoalsSettingsGoalPersistence(repository)
-
-		persistence.persist("goalDayReached", 2_026_199)
-		persistence.persist("goalWeekReached", 202_629)
-
-		persistence.load("goalDayReached") shouldBe 2_026_199
-		persistence.load("goalWeekReached") shouldBe 202_629
-		legacy.readCount shouldBe 1
 	}
 
 	private class FakeDataStore(

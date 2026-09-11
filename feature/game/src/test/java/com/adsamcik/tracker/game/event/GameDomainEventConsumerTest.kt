@@ -76,7 +76,7 @@ class GameDomainEventConsumerTest {
 	inner class ProcessUnconsumed {
 
 		@Test
-		fun `raw daily summary goal event is acknowledged without entering session XP`() = runTest {
+		fun `compatibility daily summary event is acknowledged without product side effects`() = runTest {
 			val event = UnconsumedEvent(dailySummaryUpdatedEvent(1_000L), 1L)
 			coEvery {
 				domainEventRepository.getUnconsumedBatchWithIds(

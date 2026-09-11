@@ -19,7 +19,6 @@ dependencies {
     // Removed :app dependency as part of converting to a library module
     implementation(project(":feature:game:api"))
     implementation(project(":feature:dashboard:api"))
-    implementation(project(":tracker:api"))
     implementation(project(":core:common"))
     implementation(project(":core:base"))
     implementation(project(":core:ui"))

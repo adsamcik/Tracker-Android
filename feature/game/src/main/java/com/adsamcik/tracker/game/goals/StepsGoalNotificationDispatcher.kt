@@ -2,8 +2,6 @@ package com.adsamcik.tracker.game.goals
 
 import android.content.Context
 import androidx.room.withTransaction
-import com.adsamcik.tracker.game.goals.data.abstraction.BaseGoal
-import com.adsamcik.tracker.game.goals.data.abstraction.buildGoalReachedNotification
 import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.StepsGoalEffectEntity
@@ -87,8 +85,8 @@ internal class StepsGoalNotificationDispatcher @Inject constructor(
 			) { "Current Steps goal notification could not be claimed" }
 			NotificationClaim.Claimed(
 				when (effect.periodKind) {
-					StepsGoalEffectEntity.PERIOD_DAY -> BaseGoal.GoalPeriod.Day
-					StepsGoalEffectEntity.PERIOD_WEEK -> BaseGoal.GoalPeriod.Week
+					StepsGoalEffectEntity.PERIOD_DAY -> GoalPeriod.DAY
+					StepsGoalEffectEntity.PERIOD_WEEK -> GoalPeriod.WEEK
 					else -> error("Unsupported Steps goal period ${effect.periodKind}")
 				},
 			)
@@ -98,7 +96,7 @@ internal class StepsGoalNotificationDispatcher @Inject constructor(
 	private sealed interface NotificationClaim {
 		val result: StepsGoalNotificationDispatchResult
 
-		data class Claimed(val period: BaseGoal.GoalPeriod) : NotificationClaim {
+		data class Claimed(val period: GoalPeriod) : NotificationClaim {
 			override val result = StepsGoalNotificationDispatchResult.CLAIMED_DELIVERY_ATTEMPTED
 		}
 

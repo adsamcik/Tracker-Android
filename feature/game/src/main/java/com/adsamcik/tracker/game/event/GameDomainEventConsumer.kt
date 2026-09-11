@@ -6,7 +6,6 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.adsamcik.tracker.game.R
-import com.adsamcik.tracker.game.goals.GoalTracker
 import com.adsamcik.tracker.game.progression.PlayerProgressionRepository
 import com.adsamcik.tracker.game.progression.SessionXpAwardResult
 import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
@@ -145,7 +144,9 @@ class GameDomainEventConsumer @Inject constructor(
 		}
 		else -> trackingStartupGate.withReadyGenerationOperation(expectedGeneration) {
 			when (event) {
-				is DomainEvent.DailySummaryUpdated -> onDailySummaryUpdated(event)
+				// This compatibility event has no source-qualified Steps authority. Durable numeric
+				// observers refresh product state directly; consuming it must have no goal side effect.
+				is DomainEvent.DailySummaryUpdated -> Unit
 				is DomainEvent.AchievementUnlocked -> {
 					val authority = achievementAuthority.byAchievementId[event.achievementId]
 					val metric = authority?.metric ?: AchievementCatalog.byId(event.achievementId)?.metric
@@ -189,11 +190,6 @@ class GameDomainEventConsumer @Inject constructor(
 
 	private fun MetricKey?.isQualifiedStepsGoalMetric(): Boolean =
 		this == MetricKey.GOAL_STREAK_DAYS || this == MetricKey.PERFECT_WEEKS
-
-	private suspend fun onDailySummaryUpdated(event: DomainEvent.DailySummaryUpdated) {
-		val cumulativeSteps = event.totalSteps.raw.coerceAtLeast(0)
-		GoalTracker.updateUnqualifiedCumulativeStepsPresentation(cumulativeSteps)
-	}
 
 	private fun onAchievementUnlocked(event: DomainEvent.AchievementUnlocked) {
 		val title = context.getString(R.string.achievement_unlocked_notification_title, event.achievementId)

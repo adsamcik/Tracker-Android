@@ -2,7 +2,6 @@ package com.adsamcik.tracker.game
 
 import com.adsamcik.tracker.game.event.ExplorationDomainEventConsumer
 import com.adsamcik.tracker.game.event.GameDomainEventConsumer
-import com.adsamcik.tracker.game.goals.GoalTracker
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
@@ -13,8 +12,6 @@ import com.adsamcik.tracker.testing.TestDispatchersProvider
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.mockkObject
-import io.mockk.unmockkObject
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -51,37 +48,28 @@ class GameModuleInitializerTest {
 		coEvery { explorationConsumer.processUnconsumed() } coAnswers {
 			completed += "exploration-$drains"
 		}
-		mockkObject(GoalTracker)
-		every { GoalTracker.initialize(any(), any(), any()) } returns Unit
-		try {
-			GameModuleInitializer(
-				context = mockk(),
-				appScope = backgroundScope,
-				dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler)),
-				consumer = consumer,
-				explorationConsumer = explorationConsumer,
-				trackerStateReader = mockk(),
-				domainEventRepository = repository,
-				goalsSettingsRepository = mockk(),
-				miniGameScoreDao = mockk(),
-				gameRepository = mockk(),
-				trackingStartupGate = gate,
-			).initialize()
-			runCurrent()
-			events.emit(emptyList())
-			runCurrent()
-			events.emit(emptyList())
-			runCurrent()
-			assertEquals(listOf("game-1", "exploration-1"), completed)
+		GameModuleInitializer(
+			appScope = backgroundScope,
+			dispatchers = TestDispatchersProvider(StandardTestDispatcher(testScheduler)),
+			consumer = consumer,
+			explorationConsumer = explorationConsumer,
+			domainEventRepository = repository,
+			miniGameScoreDao = mockk(),
+			gameRepository = mockk(),
+			trackingStartupGate = gate,
+		).initialize()
+		runCurrent()
+		events.emit(emptyList())
+		runCurrent()
+		events.emit(emptyList())
+		runCurrent()
+		assertEquals(listOf("game-1", "exploration-1"), completed)
 
-			releaseHandoff.complete(Unit)
-			runCurrent()
-			assertEquals(
-				listOf("game-1", "exploration-1", "game-2", "exploration-2", "game-3", "exploration-3"),
-				completed,
-			)
-		} finally {
-			unmockkObject(GoalTracker)
-		}
+		releaseHandoff.complete(Unit)
+		runCurrent()
+		assertEquals(
+			listOf("game-1", "exploration-1", "game-2", "exploration-2", "game-3", "exploration-3"),
+			completed,
+		)
 	}
 }
