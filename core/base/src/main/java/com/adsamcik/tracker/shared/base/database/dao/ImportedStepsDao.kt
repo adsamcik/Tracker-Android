@@ -117,6 +117,30 @@ interface ImportedStepsDao {
 	@Query("SELECT * FROM imported_steps_run WHERE identity IN (:identities) LIMIT :limit")
 	suspend fun runsForIdentities(identities: List<String>, limit: Int): List<ImportedStepsRunEntity>
 
+	/** Conservative imported-run bounds used only for bounded source-authority discovery. */
+	@Query(
+		"""
+		SELECT MIN(start_time_ms) AS first_wall_time_ms,
+		       MAX(end_time_ms) AS last_wall_time_ms,
+		       COUNT(*) AS candidate_count,
+		       COALESCE(SUM(CASE
+		         WHEN start_time_ms < 0
+		           OR end_time_ms < start_time_ms
+		           OR stored_zone_id = ''
+		           OR entry_identity = ''
+		           OR session_segment_id IS NULL
+		           OR retained_checksum IS NULL
+		         THEN 1 ELSE 0
+		       END), 0) AS invalid_count
+		FROM imported_steps_run
+		WHERE :retainedFromMs IS NULL
+		   OR start_time_ms < 0
+		   OR end_time_ms < start_time_ms
+		   OR end_time_ms >= :retainedFromMs
+		""",
+	)
+	suspend fun retainedRunWallBounds(retainedFromMs: Long?): RetainedStepsWallBounds
+
 	/** Removes only the authenticated physical member; manifest rows cascade, siblings remain. */
 	@Query("DELETE FROM imported_steps_run WHERE identity = :identity AND entry_identity = :entryIdentity " +
 		"AND session_segment_id = :sessionSegmentId AND retained_checksum = :expectedChecksum")

@@ -2,7 +2,9 @@ package com.adsamcik.tracker.tracker.di
 
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDecisionRepository
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
+import com.adsamcik.tracker.stats.api.repository.StepsRetainedMetricsRepository
 import com.adsamcik.tracker.tracker.source.summary.RoomStepsNumericSummaryRepository
+import com.adsamcik.tracker.tracker.source.summary.RoomStepsRetainedMetricsRepository
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -23,4 +25,10 @@ abstract class StepsNumericSummaryBindings {
 	abstract fun bindStepsNumericDecisionRepository(
 		impl: RoomStepsNumericSummaryRepository,
 	): StepsNumericDecisionRepository
+
+	/** Binds the separate source-only lifetime and best-day decision reader. */
+	@Binds
+	abstract fun bindStepsRetainedMetricsRepository(
+		impl: RoomStepsRetainedMetricsRepository,
+	): StepsRetainedMetricsRepository
 }

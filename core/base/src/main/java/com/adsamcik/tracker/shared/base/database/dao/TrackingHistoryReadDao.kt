@@ -196,6 +196,86 @@ interface TrackingHistoryReadDao {
 	suspend fun serviceRuns(serviceRunIds: List<String>): List<SourceServiceRunEntity>
 
 	/**
+	 * Time-independent Steps authority seeds, including orphan manifest/completeness run ids.
+	 *
+	 * This is discovery only. Callers load every page's exact service-run identities and fail closed
+	 * when a seed has no run. Facts are audited separately because their correction lineage, not a
+	 * filtered manifest join, owns their current attribution.
+	 */
+	@Query(
+		"""
+		SELECT service_run_id FROM (
+			SELECT manifest.service_run_id AS service_run_id
+			FROM session_manifest_version AS manifest
+			JOIN session_manifest_source AS source
+			  ON source.logical_tracking_id = manifest.logical_tracking_id
+			 AND source.manifest_revision = manifest.manifest_revision
+			WHERE source.source_kind = :stepsSourceKind
+			  AND source.purpose = :capturePurpose
+			  AND source.persistence_eligible = 1
+			UNION
+			SELECT completeness.service_run_id AS service_run_id
+			FROM source_session_completeness AS completeness
+			WHERE completeness.source_kind = :stepsSourceKind
+			  AND completeness.service_run_id != '__LEGACY_V27_UNATTRIBUTED__'
+		)
+		WHERE (:afterServiceRunId IS NULL OR service_run_id > :afterServiceRunId)
+		ORDER BY service_run_id
+		LIMIT :limit
+		""",
+	)
+	suspend fun retainedStepsAuthorityServiceRunIdPage(
+		stepsSourceKind: Int,
+		capturePurpose: String,
+		afterServiceRunId: String?,
+		limit: Int,
+	): List<String>
+
+	/** A persistence-eligible Steps source without its immutable manifest has no time authority. */
+	@Query(
+		"""
+		SELECT EXISTS(
+			SELECT 1
+			FROM session_manifest_source AS source
+			LEFT JOIN session_manifest_version AS manifest
+			  ON manifest.logical_tracking_id = source.logical_tracking_id
+			 AND manifest.manifest_revision = source.manifest_revision
+			WHERE source.source_kind = :stepsSourceKind
+			  AND source.purpose = :capturePurpose
+			  AND source.persistence_eligible = 1
+			  AND manifest.logical_tracking_id IS NULL
+		)
+		""",
+	)
+	suspend fun hasOrphanRetainedStepsManifestSource(
+		stepsSourceKind: Int,
+		capturePurpose: String,
+	): Boolean
+
+	/** Legacy or broken segment-local Steps cannot be promoted into a qualified lifetime number. */
+	@Query(
+		"""
+		SELECT EXISTS(
+			SELECT 1
+			FROM session_segment AS segment
+			LEFT JOIN source_service_run AS run
+			  ON run.service_run_id = segment.service_run_id
+			WHERE segment.steps IS NOT NULL
+			  AND (:retainedFromMs IS NULL OR segment.end_time_ms >= :retainedFromMs)
+			  AND (
+				segment.logical_tracking_id IS NULL OR
+				segment.logical_tracking_id = '' OR
+				segment.service_run_id IS NULL OR
+				run.service_run_id IS NULL OR
+				run.logical_tracking_id != segment.logical_tracking_id OR
+				run.presentation_acknowledgement = 'LEGACY_UNVERIFIABLE'
+			  )
+		)
+		""",
+	)
+	suspend fun hasLegacyUnverifiableStepsPresentation(retainedFromMs: Long?): Boolean
+
+	/**
 	 * Keyset page of all bound and unbound physical runs overlapping or starting within
 	 * `[fromMs, toMs)`.
 	 *
@@ -1079,6 +1159,14 @@ data class RecentHistoryEntryCandidate(
 	val sortStartTimeMs: Long,
 	@ColumnInfo(name = "sort_segment_id")
 	val sortSegmentId: Long,
+)
+
+/** Conservative metadata bounds used only to divide a retained read into finite windows. */
+data class RetainedStepsWallBounds(
+	@ColumnInfo(name = "first_wall_time_ms") val firstWallTimeMs: Long?,
+	@ColumnInfo(name = "last_wall_time_ms") val lastWallTimeMs: Long?,
+	@ColumnInfo(name = "candidate_count") val candidateCount: Long,
+	@ColumnInfo(name = "invalid_count") val invalidCount: Long,
 )
 
 /** Latest global state for a fact together with the service-run scope of its latest UPSERT. */
