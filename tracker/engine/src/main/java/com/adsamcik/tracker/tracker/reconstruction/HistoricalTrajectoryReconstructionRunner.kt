@@ -5,7 +5,6 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
 import com.adsamcik.tracker.shared.base.database.data.CompletedTrackerSession
 import com.adsamcik.tracker.shared.base.database.data.LocationObservation
-import com.adsamcik.tracker.shared.base.database.data.StepInterval
 import com.adsamcik.tracker.shared.base.database.data.TrajectoryReconstructionRunEntity
 import com.adsamcik.tracker.shared.base.database.data.TrajectorySourceLinkEntity
 import com.adsamcik.tracker.shared.base.database.data.TrajectoryStateEntity
@@ -42,7 +41,7 @@ class HistoricalTrajectoryReconstructionRunner @Inject constructor(
 		get() = reconstructor.algorithmVersion
 
 	val configurationVersion: String
-		get() = reconstructor.configurationVersion
+		get() = "${reconstructor.configurationVersion}+$SOURCE_COMPOSITION_VERSION"
 
 	suspend fun reconstruct(
 		session: CompletedTrackerSession,
@@ -61,11 +60,6 @@ class HistoricalTrajectoryReconstructionRunner @Inject constructor(
 					fromElapsedRealtimeNanos = session.startElapsedRealtimeNanos,
 					toElapsedRealtimeNanos = session.endElapsedRealtimeNanos,
 				)
-				val steps = database.stepIntervalDao().getAllInClockDomain(
-					clockDomainId = session.clockDomainId,
-					fromElapsedRealtimeNanos = session.startElapsedRealtimeNanos,
-					toElapsedRealtimeNanos = session.endElapsedRealtimeNanos,
-				)
 				val activities = database.activitySnapshotDao().getAllInClockDomain(
 					clockDomainId = session.clockDomainId,
 					fromElapsedRealtimeNanos = session.startElapsedRealtimeNanos,
@@ -74,7 +68,6 @@ class HistoricalTrajectoryReconstructionRunner @Inject constructor(
 				HistoricalSourceSnapshot(
 					revision = revision,
 					observations = observations,
-					steps = steps,
 					activities = activities,
 				)
 			} finally {
@@ -83,15 +76,15 @@ class HistoricalTrajectoryReconstructionRunner @Inject constructor(
 		}
 		val sourceRevision = sourceSnapshot.revision
 		val rawObservations = sourceSnapshot.observations
-		val stationaryEvidenceBySource = rawObservations.associate { observation ->
+		val activityEvidenceBySource = rawObservations.associate { observation ->
 			val sourceId = observation.sourceId()
-			sourceId to sourceSnapshot.stationaryEvidenceFor(observation)
+			sourceId to sourceSnapshot.activityEvidenceFor(observation)
 		}
 		val inputs = rawObservations.mapNotNull { value ->
 			val latitude = value.latE7 ?: return@mapNotNull null
 			val longitude = value.lonE7 ?: return@mapNotNull null
 			val sourceId = value.sourceId()
-			val stationaryEvidence = stationaryEvidenceBySource[sourceId]
+			val activityEvidence = activityEvidenceBySource[sourceId]
 			LocationReconstructionObservation(
 				sourceId = sourceId,
 				epochMs = value.fixTimeMs,
@@ -116,8 +109,7 @@ class HistoricalTrajectoryReconstructionRunner @Inject constructor(
 				timeUncertaintyMs = null,
 				isMock = value.isMock,
 				ingressDisposition = value.ingressDisposition,
-				stepDelta = stationaryEvidence?.step?.stepCount,
-				activity = stationaryEvidence?.activity?.activityName,
+				activity = activityEvidence?.activityName,
 			)
 		}
 		val result = reconstructor.reconstruct(inputs)
@@ -130,19 +122,12 @@ class HistoricalTrajectoryReconstructionRunner @Inject constructor(
 			add(session.startWallTimeMs)
 			add(session.endWallTimeMs)
 			rawObservations.forEach { add(it.fixTimeMs) }
-			sourceSnapshot.steps.forEach {
-				add(it.startTimeMs)
-				add(it.endTimeMs)
-			}
 			sourceSnapshot.activities.forEach { add(it.timeMs) }
 		}
 		val fromMs = sourceWallTimes.min()
 		val toMs = sourceWallTimes.max()
 		val sourceBootClockDomainId = buildList<String> {
 			rawObservations.mapNotNullTo(this, LocationObservation::bootClockDomainId)
-			sourceSnapshot.steps.mapNotNullTo(this) {
-				it.observationStamp.bootClockDomainId
-			}
 			sourceSnapshot.activities.mapNotNullTo(this) {
 				it.observationStamp.bootClockDomainId
 			}
@@ -171,7 +156,7 @@ class HistoricalTrajectoryReconstructionRunner @Inject constructor(
 					sourceEndElapsedRealtimeNanos = session.endElapsedRealtimeNanos,
 					sourceRevision = sourceRevision,
 					algorithmVersion = result.algorithmVersion,
-					configurationVersion = result.configurationVersion,
+					configurationVersion = configurationVersion,
 					permissionBranch = permissionBranch,
 					status = STATUS_RUNNING,
 					createdAtMs = now,
@@ -191,15 +176,15 @@ class HistoricalTrajectoryReconstructionRunner @Inject constructor(
 				val links = rawObservations.map { observation ->
 				val sourceId = observation.sourceId()
 				val assessed = weightedBySource[sourceId]
-				val stationaryEvidence = stationaryEvidenceBySource[sourceId]
+				val activityEvidence = activityEvidenceBySource[sourceId]
 				TrajectorySourceLinkEntity(
 					runId = runId,
 					stateIndex = stateIndexBySource[sourceId] ?: NO_DERIVED_STATE_INDEX,
 					observationId = observation.id,
 					sourceEventId = observation.sourceEventId,
 					sourceSignalId = observation.sourceSignalId,
-					stepIntervalId = stationaryEvidence?.step?.id,
-					activitySnapshotId = stationaryEvidence?.activity?.id,
+					stepIntervalId = null,
+					activitySnapshotId = activityEvidence?.id,
 					weight = assessed?.informationWeight ?: 0.0,
 					health = assessed?.health?.name ?: "REJECTED",
 					reasonCodes = if (assessed == null) {
@@ -300,30 +285,12 @@ class HistoricalTrajectoryReconstructionRunner @Inject constructor(
 	private fun LocationObservation.sourceId(): String =
 		sourceEventId ?: "location-observation:$id"
 
-	private fun HistoricalSourceSnapshot.stationaryEvidenceFor(
+	private fun HistoricalSourceSnapshot.activityEvidenceFor(
 		observation: LocationObservation,
-	): StationaryEvidence {
+	): ActivityEvidence? {
 		val fixElapsedRealtimeNanos = observation.fixElapsedRealtimeNanos
 		val bootClockDomainId = observation.bootClockDomainId
-		val overlappingStep = steps
-			.asSequence()
-			.filter { it.matchesBootDomain(bootClockDomainId) }
-			.filter { step ->
-				val start = step.startElapsedRealtimeNanos() ?: return@filter false
-				val end = step.endElapsedRealtimeNanos() ?: return@filter false
-				fixElapsedRealtimeNanos in start..end
-			}
-			.maxByOrNull { it.endElapsedRealtimeNanos() ?: Long.MIN_VALUE }
-		val recentStep = overlappingStep ?: steps
-			.asSequence()
-			.filter { it.matchesBootDomain(bootClockDomainId) }
-			.filter { step ->
-				val end = step.endElapsedRealtimeNanos() ?: return@filter false
-				end <= fixElapsedRealtimeNanos &&
-					fixElapsedRealtimeNanos - end <= STEP_CONTEXT_MAX_AGE_NANOS
-			}
-			.maxByOrNull { it.endElapsedRealtimeNanos() ?: Long.MIN_VALUE }
-		val recentActivity = activities
+		return activities
 			.asSequence()
 			.filter { it.matchesBootDomain(bootClockDomainId) }
 			.mapNotNull { activity ->
@@ -348,25 +315,6 @@ class HistoricalTrajectoryReconstructionRunner @Inject constructor(
 					ACTIVITY_CONTEXT_MAX_AGE_NANOS
 			}
 			.maxByOrNull(ActivityEvidence::elapsedRealtimeNanos)
-		return StationaryEvidence(
-			step = recentStep?.let { StepEvidence(it.id, it.stepCount) },
-			activity = recentActivity,
-		)
-	}
-
-	private fun StepInterval.startElapsedRealtimeNanos(): Long? =
-		observationStamp.sourceFirstElapsedRealtimeNanos
-			?: observationStamp.sourceElapsedRealtimeNanos
-			?: observationStamp.receivedElapsedRealtimeNanos
-
-	private fun StepInterval.endElapsedRealtimeNanos(): Long? =
-		observationStamp.sourceElapsedRealtimeNanos
-			?: observationStamp.receivedElapsedRealtimeNanos
-
-	private fun StepInterval.matchesBootDomain(bootClockDomainId: String?): Boolean =
-		bootClockDomainId == null ||
-			observationStamp.bootClockDomainId == null ||
-			observationStamp.bootClockDomainId == bootClockDomainId
 
 	private fun ActivitySnapshot.matchesBootDomain(bootClockDomainId: String?): Boolean =
 		bootClockDomainId == null ||
@@ -376,18 +324,7 @@ class HistoricalTrajectoryReconstructionRunner @Inject constructor(
 	private data class HistoricalSourceSnapshot(
 		val revision: Long,
 		val observations: List<LocationObservation>,
-		val steps: List<StepInterval>,
 		val activities: List<ActivitySnapshot>,
-	)
-
-	private data class StationaryEvidence(
-		val step: StepEvidence?,
-		val activity: ActivityEvidence?,
-	)
-
-	private data class StepEvidence(
-		val id: Long,
-		val stepCount: Int,
 	)
 
 	private data class ActivityEvidence(
@@ -399,11 +336,11 @@ class HistoricalTrajectoryReconstructionRunner @Inject constructor(
 	private companion object {
 		const val STATUS_RUNNING = "RUNNING"
 		const val STATUS_COMPLETED = "COMPLETED"
+		const val SOURCE_COMPOSITION_VERSION = "location_activity_v2"
 		const val PRECISE_BRANCH = "PRECISE"
 		const val APPROXIMATE_BRANCH = "APPROXIMATE_REGION"
 		const val APPROXIMATE_E7_GRID = 100_000
 		const val APPROXIMATE_MINIMUM_VARIANCE_M2 = 500.0 * 500.0
-		const val STEP_CONTEXT_MAX_AGE_NANOS = 2L * 60L * 1_000_000_000L
 		const val ACTIVITY_CONTEXT_MAX_AGE_NANOS = 10L * 60L * 1_000_000_000L
 		const val NO_DERIVED_STATE_INDEX = -1
 	}

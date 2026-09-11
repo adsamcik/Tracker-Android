@@ -22,30 +22,6 @@ interface StepIntervalDao : BaseDao<StepInterval> {
 	)
 	suspend fun getAllBetween(fromMs: Long, toMs: Long): List<StepInterval>
 
-	@Query(
-		"""
-		SELECT * FROM step_interval
-		WHERE clock_domain_id = :clockDomainId
-		  AND COALESCE(source_elapsed_realtime_nanos, received_elapsed_realtime_nanos) >=
-			  :fromElapsedRealtimeNanos
-		  AND COALESCE(
-			  source_first_elapsed_realtime_nanos,
-			  source_elapsed_realtime_nanos,
-			  received_elapsed_realtime_nanos
-		  ) <= :toElapsedRealtimeNanos
-		ORDER BY COALESCE(
-			source_first_elapsed_realtime_nanos,
-			source_elapsed_realtime_nanos,
-			received_elapsed_realtime_nanos
-		) ASC, id ASC
-		""",
-	)
-	suspend fun getAllInClockDomain(
-		clockDomainId: String,
-		fromElapsedRealtimeNanos: Long,
-		toElapsedRealtimeNanos: Long,
-	): List<StepInterval>
-	
 	/**
 	 * Get step intervals within time range as Flow.
 	 */
