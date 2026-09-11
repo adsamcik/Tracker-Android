@@ -78,7 +78,9 @@ suspend fun AppDatabase.markAuthenticatedStepsRunsAffectedByRetentionFloor(
 			}
 		}
 	}
-	inserted + markImportedStepsRetentionFloor(beforeMs, markedAtMs)
+	val changed = inserted + markImportedStepsRetentionFloor(beforeMs, markedAtMs)
+	enqueueAllStepsGoalRepairs()
+	changed
 }
 
 /**
@@ -136,7 +138,9 @@ suspend fun AppDatabase.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(
 				}
 		}
 	}
-	deleted + pruneImportedStepsRetentionFloor(beforeMs, markedAtMs)
+	val changed = deleted + pruneImportedStepsRetentionFloor(beforeMs, markedAtMs)
+	enqueueAllStepsGoalRepairs()
+	changed
 }
 
 private suspend fun AppDatabase.requireCurrentCollectedDataEpoch(expectedEpoch: Long) {

@@ -218,6 +218,7 @@ class AchievementWorkerTest {
 		row.metricKey shouldBe MetricKey.DISTANCE_TOTAL_M.storageKey
 		row.lastTierIndex shouldBe definitions.maxOf { it.tierIndex }
 		row.lastValue shouldBe 10_000.0
+		row.lastUnlockedAt shouldBe row.updatedAt
 	}
 
 	@Test

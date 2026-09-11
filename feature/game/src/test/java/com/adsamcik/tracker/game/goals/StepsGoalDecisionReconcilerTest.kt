@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.game.goals.settings.GoalsSettingsState
 import com.adsamcik.tracker.game.repository.StepsCalendarAuthority
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.data.AchievementProgressEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.StepsGoalEffectEntity
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
@@ -19,6 +20,7 @@ import com.adsamcik.tracker.stats.api.repository.StepsNumericDecisionWindow
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRequest
 import com.adsamcik.tracker.stats.api.repository.StepsNumericUnverifiableReason
+import com.adsamcik.tracker.stats.api.metric.MetricKey
 import com.adsamcik.tracker.testing.TestDispatchersProvider
 import io.kotest.matchers.shouldBe
 import java.time.LocalDate
@@ -100,6 +102,7 @@ class StepsGoalDecisionReconcilerTest {
 		)
 		val reconciler = reconciler(source, StandardTestDispatcher(testScheduler))
 		reconciler.reconcile(AUTHORITY, SETTINGS, 100L)
+		seedReadyQualifiedAchievements(sourceRevision = 4L)
 		database.sourceEvidenceStateDao().incrementRevision(150L) shouldBe 1
 		source.result = snapshot(
 			5L,
@@ -119,6 +122,11 @@ class StepsGoalDecisionReconcilerTest {
 		daily.desiredPointsMicros shouldBe 0L
 		daily.desiredXp shouldBe 0
 		daily.firstCompletedAtMs shouldBe 100L
+		GOAL_ACHIEVEMENT_METRICS.forEach { metric ->
+			val row = requireNotNull(database.achievementProgressDao().getByMetric(metric.storageKey))
+			row.authorityState shouldBe AchievementProgressEntity.AUTHORITY_STATE_MATERIALIZING
+			row.authorityRevision shouldBe 5L
+		}
 	}
 
 	@Test
@@ -132,6 +140,7 @@ class StepsGoalDecisionReconcilerTest {
 			),
 		)
 		val reconciler = reconciler(source, StandardTestDispatcher(testScheduler))
+		seedReadyQualifiedAchievements(sourceRevision = 4L)
 
 		reconciler.reconcile(AUTHORITY, SETTINGS, 100L) shouldBe
 			StepsGoalDecisionReconcileResult.RetryableFailure(
@@ -151,6 +160,10 @@ class StepsGoalDecisionReconcilerTest {
 			)
 		database.stepsGoalEffectDao().get(dailyIdentity()) shouldBe null
 		database.stepsGoalEffectDao().get(weeklyIdentity())?.qualifiedSteps shouldBe 8_000L
+		GOAL_ACHIEVEMENT_METRICS.forEach { metric ->
+			database.achievementProgressDao().getByMetric(metric.storageKey)?.authorityState shouldBe
+				AchievementProgressEntity.AUTHORITY_STATE_MATERIALIZING
+		}
 	}
 
 	@Test
@@ -251,11 +264,32 @@ class StepsGoalDecisionReconcilerTest {
 		listOf(StepsNumericDay(TODAY, steps)),
 	)
 
+	private suspend fun seedReadyQualifiedAchievements(sourceRevision: Long) {
+		GOAL_ACHIEVEMENT_METRICS.forEach { metric ->
+			database.achievementProgressDao().replaceQualified(
+				metricKey = metric.storageKey,
+				lastTierIndex = 0,
+				lastValue = 3.0,
+				updatedAt = 100L,
+				lastUnlockedAt = 100L,
+				authorityKind = AchievementProgressEntity.AUTHORITY_QUALIFIED_STEPS_V1,
+				authorityRevision = sourceRevision,
+				authorityDigest = "a".repeat(64),
+				authorityState = AchievementProgressEntity.AUTHORITY_STATE_READY,
+				qualifiedNotificationClaimedTierIndex = 0,
+			)
+		}
+	}
+
 	private class FakeDecisionRepository(
 		var result: StepsNumericDecisionBatch,
 	) : StepsNumericDecisionRepository {
 		override suspend fun readDecisionBatch(
 			requests: List<StepsNumericSummaryRequest>,
+		): StepsNumericDecisionBatch = result
+
+		override suspend fun readExactDecisionBatch(
+			requests: List<com.adsamcik.tracker.stats.api.repository.StepsNumericExactDecisionRequest>,
 		): StepsNumericDecisionBatch = result
 
 		override fun observeDecisionBatch(
@@ -293,6 +327,10 @@ class StepsGoalDecisionReconcilerTest {
 			dailyStepGoal = 10_000,
 			weeklyStepGoal = 20_000,
 			weeklyProgressDailyLimit = 0.3f,
+		)
+		val GOAL_ACHIEVEMENT_METRICS = listOf(
+			MetricKey.GOAL_STREAK_DAYS,
+			MetricKey.PERFECT_WEEKS,
 		)
 		fun dailyIdentity(): String = StepsGoalEffectEntity.identity(
 			StepsGoalEffectEntity.PERIOD_DAY,

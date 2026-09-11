@@ -106,6 +106,7 @@ suspend fun AppDatabase.pruneImportedStepsSegmentsBefore(beforeMs: Long, markedA
 		check(sourceEvidenceStateDao().incrementRevision(markedAtMs) == 1) {
 			"Imported trip retention requires initialized source evidence"
 		}
+		enqueueAllStepsGoalRepairs()
 	}
 	deleted
 }

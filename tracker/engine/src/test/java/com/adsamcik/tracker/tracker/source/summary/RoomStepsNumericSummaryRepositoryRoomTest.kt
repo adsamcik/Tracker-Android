@@ -24,6 +24,7 @@ import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.stats.api.repository.StepsNumericCalendarAuthority
 import com.adsamcik.tracker.stats.api.repository.StepsNumericCalendarDay
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDecisionBatch
+import com.adsamcik.tracker.stats.api.repository.StepsNumericExactDecisionRequest
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryBatch
@@ -183,6 +184,37 @@ class RoomStepsNumericSummaryRepositoryRoomTest {
 		second.windows.map { window -> window.sourceResultDigest } shouldBe
 			first.windows.map { window -> window.sourceResultDigest }
 	}
+
+	@Test
+	fun `exact historical decision keeps persisted effect zone when summary zone is corrupted`() =
+		runBlocking<Unit> {
+			insertCoveredCandidate(stepsPerFact = 5L)
+			database.dailySummaryDao().upsert(
+				dateEpochDay = DAY,
+				totalDistanceM = 0f,
+				totalSteps = 999,
+				totalDurationMs = 0L,
+				tripCount = 0,
+				activeTrackingMs = 0L,
+				lastUpdatedMs = 2L,
+				calendarZoneId = "not-a-zone",
+			)
+			val request = request()
+			val exact = StepsNumericExactDecisionRequest(
+				request,
+				StepsNumericCalendarAuthority.Exact(
+					listOf(StepsNumericCalendarDay(DAY, ZONE.id)),
+				),
+			)
+
+			val snapshot = repository.readExactDecisionBatch(listOf(exact)) as
+				StepsNumericDecisionBatch.Snapshot
+
+			snapshot.windows.single().calendarAuthority shouldBe exact.calendarAuthority
+			snapshot.windows.single().summary shouldBe StepsNumericSummary.Ready(
+				listOf(StepsNumericDay(DAY, 5L)),
+			)
+		}
 
 	@Test
 	fun `missing source evidence state grants no decision authority`() = runBlocking<Unit> {

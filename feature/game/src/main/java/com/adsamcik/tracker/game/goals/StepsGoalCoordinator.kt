@@ -34,12 +34,26 @@ internal class StepsGoalCoordinator @Inject constructor(
 	private val source: StepsNumericDecisionRepository,
 	private val settingsRepository: GoalsSettingsRepository,
 	private val decisionReconciler: StepsGoalDecisionReconciler,
+	private val historicalReconciler: StepsGoalHistoricalReconciler,
+	private val achievementReconciler: StepsGoalAchievementReconciler,
 	private val rewardProjector: StepsGoalRewardProjector,
 	private val notificationDispatcher: StepsGoalNotificationDispatcher,
 ) {
 	suspend fun run(): Unit = coroutineScope {
 		launch { observeCurrentPeriods() }
+		launch { drainHistoricalRepairs() }
 		launch { drainActions() }
+	}
+
+	private suspend fun drainHistoricalRepairs() {
+		while (true) {
+			database.stepsGoalRepairDayDao().observeNext().first { it != null }
+			when (historicalReconciler.reconcileNext(Time.nowMillis)) {
+				is StepsGoalHistoricalReconcileResult.Applied -> reconcileAchievementsUntilSettled()
+				StepsGoalHistoricalReconcileResult.Empty -> Unit
+				is StepsGoalHistoricalReconcileResult.RetryableFailure -> delay(RETRY_DELAY_MS)
+			}
+		}
 	}
 
 	private suspend fun observeCurrentPeriods() {
@@ -68,8 +82,22 @@ internal class StepsGoalCoordinator @Inject constructor(
 					observedAtMs = Time.nowMillis,
 				)
 			) {
-				is StepsGoalDecisionReconcileResult.Applied -> return
+				is StepsGoalDecisionReconcileResult.Applied -> {
+					reconcileAchievementsUntilSettled()
+					return
+				}
 				is StepsGoalDecisionReconcileResult.RetryableFailure -> delay(RETRY_DELAY_MS)
+			}
+		}
+	}
+
+	private suspend fun reconcileAchievementsUntilSettled() {
+		while (true) {
+			when (achievementReconciler.reconcile(Time.nowMillis)) {
+				is StepsGoalAchievementReconcileResult.Applied,
+				is StepsGoalAchievementReconcileResult.Materializing,
+				is StepsGoalAchievementReconcileResult.Unverifiable -> return
+				StepsGoalAchievementReconcileResult.RetryableFailure -> delay(RETRY_DELAY_MS)
 			}
 		}
 	}

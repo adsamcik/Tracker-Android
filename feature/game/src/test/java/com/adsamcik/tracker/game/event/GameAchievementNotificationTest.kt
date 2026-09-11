@@ -55,6 +55,7 @@ class GameAchievementNotificationTest {
 		)
 		progressDao = mockk()
 		coEvery { progressDao.getAll() } returns emptyList()
+		coEvery { progressDao.getQualifiedStepsGoalRows() } returns emptyList()
 		events = RecordingEventRepository()
 		gate = TestTrackingStartupGate()
 		consumer = GameDomainEventConsumer(
@@ -63,6 +64,7 @@ class GameAchievementNotificationTest {
 			progressionRepository = mockk(),
 			trackingStartupGate = gate,
 			achievementRepository = DefaultAchievementRepository(progressDao),
+			achievementProgressDao = progressDao,
 			context = context,
 		)
 	}
@@ -100,6 +102,42 @@ class GameAchievementNotificationTest {
 		shadowOf(notificationManager).allNotifications.size shouldBe 1
 		events.acknowledgedIds shouldBe listOf(1L, 2L)
 		coVerify(exactly = 1) { progressDao.getAll() }
+	}
+
+	@Test
+	fun `qualified Steps identity requires exact current authority even for generic processor`() = runTest {
+		val definition = definition(MetricKey.GOAL_STREAK_DAYS)
+		val event = unlock(definition).copy(
+			processorId = "generic-or-stale-producer",
+			authorityRevision = 2L,
+			authorityDigest = "a".repeat(64),
+		)
+		val locked = qualifiedProgress(lastTierIndex = -1)
+		coEvery { progressDao.getAll() } returns listOf(locked)
+		coEvery { progressDao.getQualifiedStepsGoalRows() } returns listOf(locked)
+		events.persist(listOf(event))
+
+		consumer.processUnconsumed()
+
+		shadowOf(notificationManager).allNotifications.size shouldBe 0
+		val unlocked = qualifiedProgress(lastTierIndex = 0)
+		coEvery { progressDao.getAll() } returns listOf(unlocked)
+		coEvery { progressDao.getQualifiedStepsGoalRows() } returns listOf(unlocked)
+		events.persist(
+			listOf(
+				event.copy(
+					timestampMs = EpochMs(1_500L),
+					authorityDigest = "b".repeat(64),
+				),
+				unlock(definition).copy(timestampMs = EpochMs(1_750L)),
+			),
+		)
+		consumer.processUnconsumed()
+		shadowOf(notificationManager).allNotifications.size shouldBe 0
+
+		events.persist(listOf(event.copy(timestampMs = EpochMs(2_000L))))
+		consumer.processUnconsumed()
+		shadowOf(notificationManager).allNotifications.size shouldBe 1
 	}
 
 	@Test
@@ -152,6 +190,18 @@ class GameAchievementNotificationTest {
 		processorId = "test",
 		achievementId = definition.id,
 		tier = definition.tier.name,
+	)
+
+	private fun qualifiedProgress(lastTierIndex: Int) = AchievementProgressEntity(
+		metricKey = MetricKey.GOAL_STREAK_DAYS.storageKey,
+		lastTierIndex = lastTierIndex,
+		lastValue = if (lastTierIndex >= 0) 3.0 else 0.0,
+		updatedAt = 1_000L,
+		authorityKind = AchievementProgressEntity.AUTHORITY_QUALIFIED_STEPS_V1,
+		authorityRevision = 2L,
+		authorityDigest = "a".repeat(64),
+		authorityState = AchievementProgressEntity.AUTHORITY_STATE_READY,
+		qualifiedNotificationClaimedTierIndex = 0.takeIf { lastTierIndex >= 0 },
 	)
 
 	private class RecordingEventRepository : DomainEventRepository {

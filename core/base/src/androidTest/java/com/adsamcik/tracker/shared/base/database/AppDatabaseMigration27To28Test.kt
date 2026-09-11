@@ -678,6 +678,27 @@ class AppDatabaseMigration27To28Test {
 		// v27 observations remain byte-for-byte facts; migration must not invent semantics.
 		assertTableCount(database, "step_fact_revision", 0)
 		assertTableCount(database, "steps_goal_effect", 0)
+		assertTableCount(database, "steps_goal_repair_day", 0)
+		database.query("PRAGMA table_info(steps_goal_effect)").use { cursor ->
+			val columns = buildSet {
+				val nameColumn = cursor.getColumnIndexOrThrow("name")
+				while (cursor.moveToNext()) add(cursor.getString(nameColumn))
+			}
+			assertTrue("completion_points_micros" in columns)
+			assertTrue("completion_xp" in columns)
+		}
+		database.query("PRAGMA table_info(achievement_progress)").use { cursor ->
+			val columns = buildSet {
+				val nameColumn = cursor.getColumnIndexOrThrow("name")
+				while (cursor.moveToNext()) add(cursor.getString(nameColumn))
+			}
+			assertTrue("authority_kind" in columns)
+			assertTrue("authority_revision" in columns)
+			assertTrue("authority_digest" in columns)
+			assertTrue("authority_state" in columns)
+			assertTrue("last_unlocked_at" in columns)
+			assertTrue("qualified_notification_claimed_tier_index" in columns)
+		}
 		database.query("PRAGMA table_info(xp_ledger)").use { cursor ->
 			val columns = buildSet {
 				val nameColumn = cursor.getColumnIndexOrThrow("name")

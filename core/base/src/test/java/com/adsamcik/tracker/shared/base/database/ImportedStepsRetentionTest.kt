@@ -10,6 +10,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsGoalEffectEntity
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsAdmissionRows
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsReadFailure
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsRetainedRead
@@ -61,8 +62,10 @@ class ImportedStepsRetentionTest {
 	@Test
 	fun `raw prune keeps boundary and straddling evidence with a truthful partial receipt`() = runTest {
 		val entry = seed()
+		database.stepsGoalEffectDao().recordDecision(goalEffect())
 		database.sourceEvidenceStateDao().updateLifecycle(1L, 25L, 100L)
 		database.markAuthenticatedStepsRunsAffectedByRetentionFloor(25L, 1L, 100L) shouldBe 1
+		database.stepsGoalRepairDayDao().get(0L)?.sourceEvidenceRevision shouldBe 1L
 		read(entry) shouldBe ImportedStepsRetainedRead.Unverifiable(ImportedStepsReadFailure.RETENTION)
 		database.pruneAuthenticatedStepsFactsAffectedByRetentionFloor(25L, 1L, 100L) shouldBe 1
 		val retained = ready(entry)
@@ -101,9 +104,11 @@ class ImportedStepsRetentionTest {
 	@Test
 	fun `trip retention removes exact member and fences original scope while sibling survives`() = runTest {
 		val entry = seed(runCount = 2)
+		database.stepsGoalEffectDao().recordDecision(goalEffect())
 		val first = ready(entry).runs.first()
 		database.sessionSegmentDao().deleteOlderThan(41L) shouldBe 0
 		database.pruneImportedStepsSegmentsBefore(41L, 100L) shouldBe 1
+		database.stepsGoalRepairDayDao().get(0L)?.sourceEvidenceRevision shouldBe 1L
 		val retained = ready(entry)
 		retained.runs.map { it.identity } shouldBe listOf(entry.runs.last().identity.value)
 		retained.portable shouldBe null
@@ -251,5 +256,32 @@ class ImportedStepsRetentionTest {
 		startTimeMs = start, endTimeMs = end, distanceM = 0f, steps = null,
 		primaryActivity = null, activityConfidence = null, sampleCount = 0,
 		source = SegmentSource.PORTABLE_STEPS_IMPORT, inferenceVersion = null, createdAt = 100L,
+	)
+
+	private fun goalEffect() = StepsGoalEffectEntity(
+		effectIdentity = StepsGoalEffectEntity.identity(StepsGoalEffectEntity.PERIOD_DAY, 0L),
+		periodKind = StepsGoalEffectEntity.PERIOD_DAY,
+		periodStartEpochDay = 0L,
+		periodEndEpochDay = 0L,
+		qualifiedThroughEpochDay = 0L,
+		calendarAuthority = "0=UTC",
+		targetSteps = 10_000L,
+		weeklyDailyLimitBits = null,
+		decisionState = StepsGoalEffectEntity.STATE_READY_INCOMPLETE,
+		unavailableReason = null,
+		qualifiedSteps = 0L,
+		sourceAuthorityDigest = "a".repeat(64),
+		sourceEvidenceRevision = 0L,
+		effectRevision = 1L,
+		completionPointsMicros = 100_000_000L,
+		completionXp = 50,
+		desiredPointsMicros = 0L,
+		desiredXp = 0,
+		firstCompletedAtMs = null,
+		pointsAppliedRevision = 0L,
+		xpAppliedRevision = 0L,
+		notificationClaimedRevision = null,
+		notificationClaimedAtMs = null,
+		updatedAtMs = 0L,
 	)
 }

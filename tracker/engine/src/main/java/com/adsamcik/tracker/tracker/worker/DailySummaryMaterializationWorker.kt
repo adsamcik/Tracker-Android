@@ -11,6 +11,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.enqueueStepsGoalRepairDay
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
@@ -130,6 +131,9 @@ internal suspend fun materializeDailySummaryDayInTransaction(
 						DailySummaryMaterializationOutcome.Unverifiable
 				}
 			} finally {
+				if (outcome != DailySummaryMaterializationOutcome.Materializing) {
+					database.enqueueStepsGoalRepairDay(epochDay)
+				}
 				afterMaterialize()
 			}
 		}

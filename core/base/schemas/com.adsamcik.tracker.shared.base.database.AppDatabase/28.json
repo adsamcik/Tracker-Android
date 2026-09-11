@@ -1330,7 +1330,7 @@
       },
       {
         "tableName": "steps_goal_effect",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`effect_identity` TEXT NOT NULL, `period_kind` TEXT NOT NULL, `period_start_epoch_day` INTEGER NOT NULL, `period_end_epoch_day` INTEGER NOT NULL, `qualified_through_epoch_day` INTEGER NOT NULL, `calendar_authority` TEXT NOT NULL, `target_steps` INTEGER NOT NULL, `weekly_daily_limit_bits` INTEGER, `decision_state` TEXT NOT NULL, `unavailable_reason` TEXT, `qualified_steps` INTEGER, `source_authority_digest` TEXT NOT NULL, `source_evidence_revision` INTEGER NOT NULL, `effect_revision` INTEGER NOT NULL, `desired_points_micros` INTEGER NOT NULL, `desired_xp` INTEGER NOT NULL, `first_completed_at_ms` INTEGER, `points_applied_revision` INTEGER NOT NULL, `xp_applied_revision` INTEGER NOT NULL, `notification_claimed_revision` INTEGER, `notification_claimed_at_ms` INTEGER, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`effect_identity`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`effect_identity` TEXT NOT NULL, `period_kind` TEXT NOT NULL, `period_start_epoch_day` INTEGER NOT NULL, `period_end_epoch_day` INTEGER NOT NULL, `qualified_through_epoch_day` INTEGER NOT NULL, `calendar_authority` TEXT NOT NULL, `target_steps` INTEGER NOT NULL, `weekly_daily_limit_bits` INTEGER, `decision_state` TEXT NOT NULL, `unavailable_reason` TEXT, `qualified_steps` INTEGER, `source_authority_digest` TEXT NOT NULL, `source_evidence_revision` INTEGER NOT NULL, `effect_revision` INTEGER NOT NULL, `completion_points_micros` INTEGER NOT NULL, `completion_xp` INTEGER NOT NULL, `desired_points_micros` INTEGER NOT NULL, `desired_xp` INTEGER NOT NULL, `first_completed_at_ms` INTEGER, `points_applied_revision` INTEGER NOT NULL, `xp_applied_revision` INTEGER NOT NULL, `notification_claimed_revision` INTEGER, `notification_claimed_at_ms` INTEGER, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`effect_identity`))",
         "fields": [
           {
             "fieldPath": "effectIdentity",
@@ -1414,6 +1414,18 @@
             "notNull": true
           },
           {
+            "fieldPath": "completionPointsMicros",
+            "columnName": "completion_points_micros",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completionXp",
+            "columnName": "completion_xp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
             "fieldPath": "desiredPointsMicros",
             "columnName": "desired_points_micros",
             "affinity": "INTEGER",
@@ -1487,6 +1499,31 @@
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_steps_goal_effect_xp_pending` ON `${TABLE_NAME}` (`xp_applied_revision`, `effect_revision`)"
           }
         ]
+      },
+      {
+        "tableName": "steps_goal_repair_day",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`epoch_day` INTEGER NOT NULL, `source_evidence_revision` INTEGER NOT NULL, PRIMARY KEY(`epoch_day`))",
+        "fields": [
+          {
+            "fieldPath": "epochDay",
+            "columnName": "epoch_day",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceEvidenceRevision",
+            "columnName": "source_evidence_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "epoch_day"
+          ]
+        },
+        "indices": []
       },
       {
         "tableName": "imported_steps_entry",
@@ -7288,7 +7325,7 @@
       },
       {
         "tableName": "achievement_progress",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`metric_key` TEXT NOT NULL, `last_tier_index` INTEGER NOT NULL, `last_value` REAL NOT NULL, `updated_at` INTEGER NOT NULL, PRIMARY KEY(`metric_key`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`metric_key` TEXT NOT NULL, `last_tier_index` INTEGER NOT NULL, `last_value` REAL NOT NULL, `updated_at` INTEGER NOT NULL, `last_unlocked_at` INTEGER, `authority_kind` TEXT, `authority_revision` INTEGER, `authority_digest` TEXT, `authority_state` TEXT, `qualified_notification_claimed_tier_index` INTEGER, PRIMARY KEY(`metric_key`))",
         "fields": [
           {
             "fieldPath": "metricKey",
@@ -7313,6 +7350,36 @@
             "columnName": "updated_at",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "lastUnlockedAt",
+            "columnName": "last_unlocked_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "authorityKind",
+            "columnName": "authority_kind",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "authorityRevision",
+            "columnName": "authority_revision",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "authorityDigest",
+            "columnName": "authority_digest",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "authorityState",
+            "columnName": "authority_state",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "qualifiedNotificationClaimedTierIndex",
+            "columnName": "qualified_notification_claimed_tier_index",
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {

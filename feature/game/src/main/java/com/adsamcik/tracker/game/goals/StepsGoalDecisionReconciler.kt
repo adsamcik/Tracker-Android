@@ -96,6 +96,12 @@ internal class StepsGoalDecisionReconciler @Inject constructor(
 							sourceEvidenceRevision = snapshot.sourceEvidenceRevision,
 							observedAtMs = observedAtMs,
 						)
+						if (daily.invalidatesDailyAchievementAuthority()) {
+							database.achievementProgressDao().markQualifiedStepsMaterializing(
+								sourceEvidenceRevision = snapshot.sourceEvidenceRevision,
+								updatedAtMs = observedAtMs,
+							)
+						}
 						StepsGoalDecisionReconcileResult.Applied(daily, weekly)
 					}
 				}
@@ -106,6 +112,11 @@ internal class StepsGoalDecisionReconciler @Inject constructor(
 			retryable(StepsGoalDecisionRetryableReason.STORAGE_UNAVAILABLE)
 		}
 	}
+
+	private fun StepsGoalPeriodDecisionWriteResult.invalidatesDailyAchievementAuthority(): Boolean =
+		this == StepsGoalPeriodDecisionWriteResult.INSERTED ||
+			this == StepsGoalPeriodDecisionWriteResult.REVISED ||
+			this == StepsGoalPeriodDecisionWriteResult.DEFERRED_MATERIALIZING
 
 	private suspend fun recordDaily(
 		window: StepsNumericDecisionWindow,
@@ -193,7 +204,8 @@ internal class StepsGoalDecisionReconciler @Inject constructor(
 			qualifiedThroughEpochDay = qualifiedThroughEpochDay,
 			calendarAuthority = when (val calendar = window.calendarAuthority) {
 				is StepsNumericCalendarAuthority.Exact -> calendar.canonical
-				StepsNumericCalendarAuthority.Unavailable -> CALENDAR_AUTHORITY_UNAVAILABLE
+				StepsNumericCalendarAuthority.Unavailable ->
+					StepsGoalEffectEntity.CALENDAR_AUTHORITY_UNAVAILABLE
 			},
 			targetSteps = targetSteps.toLong(),
 			weeklyDailyLimitBits = weeklyDailyLimitBits,
@@ -203,11 +215,14 @@ internal class StepsGoalDecisionReconciler @Inject constructor(
 			sourceAuthorityDigest = window.sourceResultDigest,
 			sourceEvidenceRevision = sourceEvidenceRevision,
 			effectRevision = 1L,
+			completionPointsMicros = Math.multiplyExact(
+				targetSteps.toLong(),
+				POINTS_MICROS_PER_TARGET_STEP,
+			),
+			completionXp = desiredXp,
 			desiredPointsMicros = if (complete) {
 				Math.multiplyExact(targetSteps.toLong(), POINTS_MICROS_PER_TARGET_STEP)
-			} else {
-				0L
-			},
+			} else 0L,
 			desiredXp = if (complete) desiredXp else 0,
 			firstCompletedAtMs = observedAtMs.takeIf { complete },
 			pointsAppliedRevision = 0L,
@@ -248,7 +263,6 @@ internal class StepsGoalDecisionReconciler @Inject constructor(
 		const val WEEK_END_OFFSET = 6L
 		const val POINTS_MICROS_PER_TARGET_STEP = 10_000L
 		const val NO_WEEKLY_XP = 0
-		const val CALENDAR_AUTHORITY_UNAVAILABLE = "UNAVAILABLE"
 	}
 }
 

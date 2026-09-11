@@ -159,6 +159,8 @@ class DefaultDomainEventRepositoryTest {
 				processorId = "test",
 				achievementId = "first_walk",
 				tier = "gold",
+				authorityRevision = 7L,
+				authorityDigest = "a".repeat(64),
 			),
 		)
 	}

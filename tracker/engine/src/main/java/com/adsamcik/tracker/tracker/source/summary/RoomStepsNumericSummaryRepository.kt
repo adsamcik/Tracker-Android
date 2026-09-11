@@ -11,6 +11,7 @@ import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDecisionBatch
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDecisionRepository
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDecisionWindow
+import com.adsamcik.tracker.stats.api.repository.StepsNumericExactDecisionRequest
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryBatch
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
@@ -103,6 +104,23 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 		}
 	}
 
+	override suspend fun readExactDecisionBatch(
+		requests: List<StepsNumericExactDecisionRequest>,
+	): StepsNumericDecisionBatch {
+		requireValidBatch(requests.map(StepsNumericExactDecisionRequest::request))
+		return withContext(ioDispatcher) {
+			try {
+				readExactDecisionBatchInTransaction(requests)
+			} catch (cancellation: CancellationException) {
+				currentCoroutineContext().ensureActive()
+				if (database.isOpen) throw cancellation
+				StepsNumericDecisionBatch.StorageUnavailable
+			} catch (_: Exception) {
+				StepsNumericDecisionBatch.StorageUnavailable
+			}
+		}
+	}
+
 	private suspend fun readDecisionBatchInTransaction(
 		requests: List<StepsNumericSummaryRequest>,
 	): StepsNumericDecisionBatch = database.useReaderConnection { connection ->
@@ -120,6 +138,47 @@ class RoomStepsNumericSummaryRepository @Inject constructor(
 				windows = windows,
 			)
 		}
+	}
+
+	private suspend fun readExactDecisionBatchInTransaction(
+		requests: List<StepsNumericExactDecisionRequest>,
+	): StepsNumericDecisionBatch = database.useReaderConnection { connection ->
+		connection.deferredTransaction {
+			val before = database.sourceEvidenceStateDao().get()
+				?: return@deferredTransaction StepsNumericDecisionBatch.StorageUnavailable
+			val windows = requests.map { exact -> readInCurrentTransaction(exact) }
+			val after = database.sourceEvidenceStateDao().get()
+				?: return@deferredTransaction StepsNumericDecisionBatch.StorageUnavailable
+			check(before.revision == after.revision) {
+				"Source evidence changed during an exact historical Steps decision snapshot"
+			}
+			StepsNumericDecisionBatch.Snapshot(before.revision, windows)
+		}
+	}
+
+	private suspend fun readInCurrentTransaction(
+		exact: StepsNumericExactDecisionRequest,
+	): StepsNumericDecisionWindow {
+		val zoneByDay = linkedMapOf<Long, ZoneId>()
+		for (day in exact.calendarAuthority.days) {
+			zoneByDay[day.epochDay] = parseZone(day.zoneId)
+				?: return decisionWindow(
+					exact.request,
+					calendarUnavailable(),
+					exact.calendarAuthority,
+				)
+		}
+		if (stepsNumericReadQueryBounds(zoneByDay) == null) {
+			return decisionWindow(
+				exact.request,
+				calendarUnavailable(),
+				exact.calendarAuthority,
+			)
+		}
+		val summary = StepsDailySummaryRepairComposer(database)
+			.composeForNumericRead(zoneByDay)
+			.toNumericSummary(exact.request, zoneByDay)
+		return decisionWindow(exact.request, summary, exact.calendarAuthority)
 	}
 
 	@Suppress("LongMethod", "ReturnCount")

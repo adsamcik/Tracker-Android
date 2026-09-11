@@ -106,6 +106,8 @@ class StepsGoalEffectEntityTest {
 		sourceAuthorityDigest = "a".repeat(64),
 		sourceEvidenceRevision = 4L,
 		effectRevision = 1L,
+		completionPointsMicros = 100_000_000L,
+		completionXp = 25,
 		desiredPointsMicros = 100_000_000L,
 		desiredXp = 25,
 		firstCompletedAtMs = 100L,

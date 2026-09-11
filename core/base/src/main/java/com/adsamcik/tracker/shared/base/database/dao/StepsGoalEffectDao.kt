@@ -16,6 +16,63 @@ interface StepsGoalEffectDao : BaseDao<StepsGoalEffectEntity> {
 
 	@Query(
 		"SELECT * FROM steps_goal_effect " +
+			"WHERE period_start_epoch_day <= :epochDay " +
+			"AND qualified_through_epoch_day >= :epochDay " +
+			"AND source_evidence_revision < :sourceEvidenceRevision " +
+			"AND calendar_authority != '${StepsGoalEffectEntity.CALENDAR_AUTHORITY_UNAVAILABLE}' " +
+			"ORDER BY period_kind ASC, period_start_epoch_day ASC LIMIT :limit",
+	)
+	suspend fun getStaleAffectedByDay(
+		epochDay: Long,
+		sourceEvidenceRevision: Long,
+		limit: Int,
+	): List<StepsGoalEffectEntity>
+
+	@Query(
+		"SELECT EXISTS(SELECT 1 FROM steps_goal_effect " +
+			"WHERE period_start_epoch_day <= :epochDay " +
+			"AND qualified_through_epoch_day >= :epochDay " +
+			"AND source_evidence_revision < :sourceEvidenceRevision " +
+			"AND calendar_authority != '${StepsGoalEffectEntity.CALENDAR_AUTHORITY_UNAVAILABLE}')",
+	)
+	suspend fun hasStaleAffectedByDay(
+		epochDay: Long,
+		sourceEvidenceRevision: Long,
+	): Boolean
+
+	@Query(
+		"SELECT * FROM steps_goal_effect " +
+			"WHERE period_start_epoch_day <= :lastEpochDayInclusive " +
+			"AND qualified_through_epoch_day >= :firstEpochDay " +
+			"AND source_evidence_revision < :sourceEvidenceRevision " +
+			"AND calendar_authority != '${StepsGoalEffectEntity.CALENDAR_AUTHORITY_UNAVAILABLE}' " +
+			"ORDER BY period_start_epoch_day ASC, period_kind ASC",
+	)
+	suspend fun getStaleAffectedByDayRange(
+		firstEpochDay: Long,
+		lastEpochDayInclusive: Long,
+		sourceEvidenceRevision: Long,
+	): List<StepsGoalEffectEntity>
+
+	@Query(
+		"SELECT * FROM steps_goal_effect " +
+			"WHERE source_evidence_revision < :sourceEvidenceRevision " +
+			"AND calendar_authority != '${StepsGoalEffectEntity.CALENDAR_AUTHORITY_UNAVAILABLE}' " +
+			"ORDER BY period_start_epoch_day ASC, period_kind ASC",
+	)
+	suspend fun getAllStale(
+		sourceEvidenceRevision: Long,
+	): List<StepsGoalEffectEntity>
+
+	@Query(
+		"SELECT * FROM steps_goal_effect " +
+			"WHERE period_kind = '${StepsGoalEffectEntity.PERIOD_DAY}' " +
+			"ORDER BY period_start_epoch_day ASC",
+	)
+	suspend fun getDailyDecisions(): List<StepsGoalEffectEntity>
+
+	@Query(
+		"SELECT * FROM steps_goal_effect " +
 			"WHERE points_applied_revision < effect_revision OR xp_applied_revision < effect_revision " +
 			"ORDER BY period_start_epoch_day ASC, period_kind ASC",
 	)

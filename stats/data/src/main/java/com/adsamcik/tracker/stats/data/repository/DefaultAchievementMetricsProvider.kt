@@ -58,15 +58,14 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 		val countriesVisited = explorationCellDao.getCellCenters(EXPLORATION_CELL_LEVEL)
 			.mapNotNullTo(HashSet()) { countryLookup.countryOf(it.latE7 / E7, it.lonE7 / E7) }
 			.size
-		val unlockedTierByMetric = qualifiedUnlockedTiers(achievementProgressDao.getAll())
-		val achievementsUnlocked = countQualifiedUnlocked(unlockedTierByMetric)
-		val categoriesCompleted = countQualifiedCompletedCategories(unlockedTierByMetric)
+		val qualifiedProgressByMetric = qualifiedProgress(achievementProgressDao.getAll())
+		val achievementsUnlocked = countQualifiedUnlocked(qualifiedProgressByMetric)
+		val categoriesCompleted = countQualifiedCompletedCategories(qualifiedProgressByMetric)
 
-		// STEPS_TOTAL, BEST_DAILY_STEPS, PERFECT_WEEKS, and GOAL_STREAK_DAYS remain
-		// deliberately absent. daily_summary is a projection rather than source qualification, and
-		// legacy GOAL XP timestamps do not prove the exact captured day or its calendar authority.
-		// Lifetime/best-day re-enable only after one coherent retained-fact decision; streak metrics
-		// additionally require exact qualified goal-day provenance and atomic award revalidation.
+		// Raw STEPS_TOTAL and BEST_DAILY_STEPS remain deliberately absent: daily_summary is a
+		// projection rather than source qualification. PERFECT_WEEKS and GOAL_STREAK_DAYS are owned
+		// by the exact qualified goal-effect projector and are consumed only through READY persisted
+		// rows above; this general collector must never re-derive or overwrite them.
 		// PLAYER_LEVEL, BEST_DAY_XP, and XP_SOURCES_USED are also absent because legacy XP storage
 		// cannot separate raw Steps-derived awards from independently qualified XP.
 		return MetricSnapshot.from(
@@ -131,30 +130,42 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 		)
 	}
 
-	private fun qualifiedUnlockedTiers(
+	private fun qualifiedProgress(
 		progressRows: List<AchievementProgressEntity>,
-	): Map<MetricKey, Int> = progressRows
+	): Map<MetricKey, AchievementProgressEntity> = progressRows
 		.mapNotNull { row ->
 			MetricKey.fromStorageKey(row.metricKey)
-				?.takeIf(AchievementMetricQualification::isTrustedPersistedProgress)
-				?.let { it to row.lastTierIndex }
+				?.takeIf { metric ->
+					AchievementMetricQualification.isTrustedPersistedProgress(metric, row)
+				}
+				?.let { it to row }
 		}
 		.toMap()
 
-	private fun countQualifiedUnlocked(unlockedTierByMetric: Map<MetricKey, Int>): Int =
+	private fun countQualifiedUnlocked(
+		progressByMetric: Map<MetricKey, AchievementProgressEntity>,
+	): Int =
 		AchievementCatalog.definitions.count { definition ->
-			AchievementMetricQualification.isTrustedPersistedProgress(definition.metric) &&
-				(unlockedTierByMetric[definition.metric] ?: -1) >= definition.tierIndex
+			val row = progressByMetric[definition.metric]
+			AchievementMetricQualification.isTrustedPersistedProgress(definition.metric, row) &&
+				(row?.lastTierIndex ?: -1) >= definition.tierIndex
 		}
 
-	private fun countQualifiedCompletedCategories(unlockedTierByMetric: Map<MetricKey, Int>): Int =
+	private fun countQualifiedCompletedCategories(
+		progressByMetric: Map<MetricKey, AchievementProgressEntity>,
+	): Int =
 		AchievementCategory.entries.count { category ->
 			val defs = AchievementCatalog.byCategory(category)
 				.filterNot { it.metric in AchievementMetricQualification.derivedMetaMetrics }
 			defs.isNotEmpty() && defs.all {
-				AchievementMetricQualification.isTrustedPersistedProgress(it.metric)
+				AchievementMetricQualification.isTrustedPersistedProgress(
+					it.metric,
+					progressByMetric[it.metric],
+				)
 			} &&
-				defs.all { def -> (unlockedTierByMetric[def.metric] ?: -1) >= def.tierIndex }
+				defs.all { def ->
+					(progressByMetric[def.metric]?.lastTierIndex ?: -1) >= def.tierIndex
+				}
 		}
 
 	private fun appAgeDays(firstActivityMs: Long?, zoneId: ZoneId): Long {

@@ -45,6 +45,9 @@ data class StepsGoalEffectEntity(
 	@ColumnInfo(name = "source_authority_digest") val sourceAuthorityDigest: String,
 	@ColumnInfo(name = "source_evidence_revision") val sourceEvidenceRevision: Long,
 	@ColumnInfo(name = "effect_revision") val effectRevision: Long,
+	/** Reward policy frozen when this period decision was authored. */
+	@ColumnInfo(name = "completion_points_micros") val completionPointsMicros: Long,
+	@ColumnInfo(name = "completion_xp") val completionXp: Int,
 	@ColumnInfo(name = "desired_points_micros") val desiredPointsMicros: Long,
 	@ColumnInfo(name = "desired_xp") val desiredXp: Int,
 	/** Stable first qualified-completion time; retained when a later correction retracts the effect. */
@@ -94,10 +97,13 @@ data class StepsGoalEffectEntity(
 		require(SHA_256_HEX.matches(sourceAuthorityDigest))
 		require(sourceEvidenceRevision >= 0L)
 		require(effectRevision > 0L)
+		require(completionPointsMicros > 0L)
+		require(completionXp >= 0)
 		require(desiredPointsMicros >= 0L)
 		require(desiredXp >= 0)
 		if (decisionState == STATE_READY_COMPLETE) {
-			require(desiredPointsMicros > 0L)
+			require(desiredPointsMicros == completionPointsMicros)
+			require(desiredXp == completionXp)
 			require(firstCompletedAtMs != null)
 		} else {
 			require(desiredPointsMicros == 0L && desiredXp == 0)
@@ -125,6 +131,8 @@ data class StepsGoalEffectEntity(
 			unavailableReason == other.unavailableReason &&
 			qualifiedSteps == other.qualifiedSteps &&
 			sourceAuthorityDigest == other.sourceAuthorityDigest &&
+			completionPointsMicros == other.completionPointsMicros &&
+			completionXp == other.completionXp &&
 			desiredPointsMicros == other.desiredPointsMicros &&
 			desiredXp == other.desiredXp
 
@@ -135,6 +143,7 @@ data class StepsGoalEffectEntity(
 		const val STATE_READY_INCOMPLETE = "READY_INCOMPLETE"
 		const val STATE_MATERIALIZING = "MATERIALIZING"
 		const val STATE_UNVERIFIABLE = "UNVERIFIABLE"
+		const val CALENDAR_AUTHORITY_UNAVAILABLE = "UNAVAILABLE"
 
 		private val PERIOD_KINDS = setOf(PERIOD_DAY, PERIOD_WEEK)
 		private val DECISION_STATES = setOf(

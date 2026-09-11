@@ -11,6 +11,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsGoalEffectEntity
 import com.adsamcik.tracker.shared.base.database.steps.imported.ImportedStepsAdmissionRows
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.model.steps.portable.PortableStepsCaptureCoverage
@@ -150,6 +151,8 @@ class ImportedStepsNumericRoomTest {
 		val original = run(0L)
 		seed(original.copy(completeness = original.completeness.copy(stopComplete = false)))
 		seedSummary(73)
+		database.stepsGoalEffectDao().recordDecision(goalEffect())
+		database.sourceEvidenceStateDao().incrementRevision(50L) shouldBe 1
 		val result = materializeDailySummaryDayInTransaction(
 			database, aggregator(), DAY, ZoneId.of("Pacific/Kiritimati"),
 		)
@@ -160,6 +163,10 @@ class ImportedStepsNumericRoomTest {
 		summary.totalDurationMs shouldBe 0L
 		summary.tripCount shouldBe 1
 		summary.calendarZoneId shouldBe "UTC"
+		requireNotNull(database.stepsGoalRepairDayDao().next()).let { queued ->
+			queued.epochDay shouldBe DAY
+			queued.sourceEvidenceRevision shouldBe 1L
+		}
 		repository.read(request()) shouldBe partial()
 		val deletion = database.withTransaction {
 			StepsDailySummaryRepairComposer(database).compose(listOf(DAY), Long.MIN_VALUE)
@@ -171,10 +178,13 @@ class ImportedStepsNumericRoomTest {
 	fun `partial materialization without compatibility row does not invent zero`() = runBlocking {
 		val original = run(0L)
 		seed(original.copy(completeness = original.completeness.copy(stopComplete = false)))
+		database.stepsGoalEffectDao().recordDecision(goalEffect())
+		database.sourceEvidenceStateDao().incrementRevision(50L) shouldBe 1
 
 		materializeDailySummaryDayInTransaction(database, aggregator(), DAY, ZONE) shouldBe
 			DailySummaryMaterializationOutcome.Unverifiable
 		database.dailySummaryDao().getByDay(DAY) shouldBe null
+		database.stepsGoalRepairDayDao().get(DAY)?.sourceEvidenceRevision shouldBe 1L
 		repository.read(request()) shouldBe partial()
 	}
 
@@ -289,6 +299,33 @@ class ImportedStepsNumericRoomTest {
 	private fun ready(count: Long) = StepsNumericSummary.Ready(listOf(StepsNumericDay(DAY, count)))
 	private fun partial() = StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.PARTIAL_CAPTURE)
 	private fun sourceUnavailable() = StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.SOURCE_EVIDENCE_UNAVAILABLE)
+
+	private fun goalEffect() = StepsGoalEffectEntity(
+		effectIdentity = StepsGoalEffectEntity.identity(StepsGoalEffectEntity.PERIOD_DAY, DAY),
+		periodKind = StepsGoalEffectEntity.PERIOD_DAY,
+		periodStartEpochDay = DAY,
+		periodEndEpochDay = DAY,
+		qualifiedThroughEpochDay = DAY,
+		calendarAuthority = "$DAY=${ZONE.id}",
+		targetSteps = 10_000L,
+		weeklyDailyLimitBits = null,
+		decisionState = StepsGoalEffectEntity.STATE_READY_COMPLETE,
+		unavailableReason = null,
+		qualifiedSteps = 12_000L,
+		sourceAuthorityDigest = "a".repeat(64),
+		sourceEvidenceRevision = 0L,
+		effectRevision = 1L,
+		completionPointsMicros = 100_000_000L,
+		completionXp = 50,
+		desiredPointsMicros = 100_000_000L,
+		desiredXp = 50,
+		firstCompletedAtMs = 1L,
+		pointsAppliedRevision = 0L,
+		xpAppliedRevision = 0L,
+		notificationClaimedRevision = null,
+		notificationClaimedAtMs = null,
+		updatedAtMs = 1L,
+	)
 
 	private fun run(count: Long?, start: Long = START, end: Long = END) = PortableStepsRunV1(
 		identity = opaque('2'), deletionScopeDigest = PortableStepsDeletionScopeDigest("2".repeat(64)),

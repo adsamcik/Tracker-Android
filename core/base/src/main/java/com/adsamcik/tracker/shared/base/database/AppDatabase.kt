@@ -30,6 +30,7 @@ import com.adsamcik.tracker.shared.base.database.dao.MiniGameScoreDao
 import com.adsamcik.tracker.shared.base.database.dao.SessionSegmentDao
 import com.adsamcik.tracker.shared.base.database.dao.StepFactRevisionDao
 import com.adsamcik.tracker.shared.base.database.dao.StepsGoalEffectDao
+import com.adsamcik.tracker.shared.base.database.dao.StepsGoalRepairDayDao
 import com.adsamcik.tracker.shared.base.database.dao.ImportedStepsDao
 import com.adsamcik.tracker.shared.base.database.dao.PressureFactRevisionDao
 import com.adsamcik.tracker.shared.base.database.dao.StepIntervalDao
@@ -62,6 +63,7 @@ import com.adsamcik.tracker.shared.base.database.data.PlayerProfileEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepsGoalEffectEntity
+import com.adsamcik.tracker.shared.base.database.data.StepsGoalRepairDayEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsEntryEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsRunEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportedStepsManifestEntity
@@ -175,6 +177,7 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			StepInterval::class,
 			StepFactRevisionEntity::class,
 			StepsGoalEffectEntity::class,
+			StepsGoalRepairDayEntity::class,
 			ImportedStepsEntryEntity::class,
 			ImportedStepsRunEntity::class,
 			ImportedStepsManifestEntity::class,
@@ -296,6 +299,9 @@ abstract class AppDatabase : RoomDatabase() {
 
 	/** Desired, revisioned source-qualified goal effects; no provider or award is started by access. */
 	abstract fun stepsGoalEffectDao(): StepsGoalEffectDao
+
+	/** Source-local dirty-day queue for bounded historical Steps goal correction. */
+	abstract fun stepsGoalRepairDayDao(): StepsGoalRepairDayDao
 
 	/** Dormant imported Steps metadata; this accessor does not grant import admission authority. */
 	abstract fun importedStepsDao(): ImportedStepsDao
@@ -623,6 +629,7 @@ abstract class AppDatabase : RoomDatabase() {
 			// have no previous local epoch and must not resurrect an explicitly deleted run.
 			database.stepFactRevisionDao().deleteAll()
 			database.stepsGoalEffectDao().deleteAll()
+			database.stepsGoalRepairDayDao().deleteAll()
 			database.importedStepsDao().deleteAll()
 			database.pressureFactRevisionDao().deleteAll()
 			database.stepIntervalDao().deleteAll()

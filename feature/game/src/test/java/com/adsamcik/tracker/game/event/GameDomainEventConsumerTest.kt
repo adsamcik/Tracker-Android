@@ -3,6 +3,7 @@ package com.adsamcik.tracker.game.event
 import android.content.Context
 import com.adsamcik.tracker.game.progression.PlayerProgressionRepository
 import com.adsamcik.tracker.game.progression.SessionXpAwardResult
+import com.adsamcik.tracker.shared.base.database.dao.AchievementProgressDao
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupStage
@@ -39,6 +40,7 @@ class GameDomainEventConsumerTest {
 		progressionRepository,
 		trackingStartupGate,
 		mockk(),
+		mockk<AchievementProgressDao>(relaxed = true),
 		context,
 	)
 

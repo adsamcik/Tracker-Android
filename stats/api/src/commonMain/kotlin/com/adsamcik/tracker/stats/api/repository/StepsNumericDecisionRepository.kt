@@ -16,10 +16,32 @@ interface StepsNumericDecisionRepository {
 		requests: List<StepsNumericSummaryRequest>,
 	): StepsNumericDecisionBatch
 
+	/**
+	 * Re-evaluates one or two historical windows under their previously persisted exact calendar
+	 * authority. This is used only by correction repair; it must not reinterpret an old structural
+	 * day through the process's current zone or a mutable daily-summary projection.
+	 */
+	suspend fun readExactDecisionBatch(
+		requests: List<StepsNumericExactDecisionRequest>,
+	): StepsNumericDecisionBatch
+
 	/** Observes the same exact snapshot contract while a concrete product consumer is active. */
 	fun observeDecisionBatch(
 		requests: List<StepsNumericSummaryRequest>,
 	): Flow<StepsNumericDecisionBatch>
+}
+
+/** One historical window plus the exact per-day zones under which its effect was decided. */
+data class StepsNumericExactDecisionRequest(
+	val request: StepsNumericSummaryRequest,
+	val calendarAuthority: StepsNumericCalendarAuthority.Exact,
+) {
+	init {
+		require(
+			calendarAuthority.days.map(StepsNumericCalendarDay::epochDay) ==
+				(request.firstEpochDay..request.lastEpochDayInclusive).toList(),
+		) { "Exact historical Steps authority must cover the complete request" }
+	}
 }
 
 /** A coherent source snapshot, or a transient failure that grants no effect-writing authority. */

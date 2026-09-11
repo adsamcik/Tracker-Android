@@ -1388,6 +1388,15 @@ val MIGRATION_27_28: Migration = object : Migration(
 			execSQL("ALTER TABLE session_segment ADD COLUMN service_run_id TEXT")
 			execSQL("ALTER TABLE xp_ledger ADD COLUMN source_key TEXT")
 			execSQL("ALTER TABLE xp_ledger ADD COLUMN source_revision INTEGER")
+			execSQL("ALTER TABLE achievement_progress ADD COLUMN authority_kind TEXT")
+			execSQL("ALTER TABLE achievement_progress ADD COLUMN authority_revision INTEGER")
+			execSQL("ALTER TABLE achievement_progress ADD COLUMN authority_digest TEXT")
+			execSQL("ALTER TABLE achievement_progress ADD COLUMN authority_state TEXT")
+			execSQL("ALTER TABLE achievement_progress ADD COLUMN last_unlocked_at INTEGER")
+			execSQL(
+				"ALTER TABLE achievement_progress ADD COLUMN " +
+					"qualified_notification_claimed_tier_index INTEGER",
+			)
 			execSQL(
 				"CREATE UNIQUE INDEX IF NOT EXISTS index_xp_ledger_source_source_key " +
 					"ON xp_ledger(source, source_key)",
@@ -1625,6 +1634,8 @@ val MIGRATION_27_28: Migration = object : Migration(
 					source_authority_digest TEXT NOT NULL,
 					source_evidence_revision INTEGER NOT NULL,
 					effect_revision INTEGER NOT NULL,
+					completion_points_micros INTEGER NOT NULL,
+					completion_xp INTEGER NOT NULL,
 					desired_points_micros INTEGER NOT NULL,
 					desired_xp INTEGER NOT NULL,
 					first_completed_at_ms INTEGER,
@@ -1644,6 +1655,15 @@ val MIGRATION_27_28: Migration = object : Migration(
 			execSQL(
 				"CREATE INDEX IF NOT EXISTS idx_steps_goal_effect_xp_pending " +
 					"ON steps_goal_effect(xp_applied_revision, effect_revision)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS steps_goal_repair_day (
+					epoch_day INTEGER NOT NULL,
+					source_evidence_revision INTEGER NOT NULL,
+					PRIMARY KEY(epoch_day)
+				)
+				""".trimIndent(),
 			)
 			execSQL(
 				"""

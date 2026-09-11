@@ -132,6 +132,8 @@ class StepsGoalNotificationDispatcherTest {
 		sourceAuthorityDigest = "a".repeat(64),
 		sourceEvidenceRevision = 1L,
 		effectRevision = 1L,
+		completionPointsMicros = 40_000_000L,
+		completionXp = 50,
 		desiredPointsMicros = if (complete) 40_000_000L else 0L,
 		desiredXp = if (complete) 50 else 0,
 		firstCompletedAtMs = 100L.takeIf { complete },

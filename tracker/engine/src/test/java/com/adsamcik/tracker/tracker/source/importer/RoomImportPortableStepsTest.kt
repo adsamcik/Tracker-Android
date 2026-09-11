@@ -8,8 +8,10 @@ import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.markAuthenticatedStepsRunsAffectedByRetentionFloor
 import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.StepFactRevisionIntegrity
+import com.adsamcik.tracker.shared.base.database.data.StepsGoalEffectEntity
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.shared.base.time.FixedClock
@@ -90,6 +92,10 @@ class RoomImportPortableStepsTest {
 
 	@Test
 	fun `applied import preserves portable attribution without fabricating live authority`() = runTest {
+		database.sourceEvidenceStateDao().ensure(
+			SourceEvidenceState(collectedDataEpoch = 3L),
+		)
+		database.stepsGoalEffectDao().recordDecision(goalEffect(ENTRY_DAY, sourceRevision = 0L))
 		val entry = entry(stepCounts = listOf(4L, 7L))
 
 		subject().importEntry(entry) shouldBe ImportPortableStepsResult.Applied(
@@ -153,6 +159,10 @@ class RoomImportPortableStepsTest {
 			fact.effectiveStepCount shouldBe portable.stepCount
 		}
 		database.sourceEvidenceStateDao().get()?.revision shouldBe 1L
+		requireNotNull(database.stepsGoalRepairDayDao().next()).let { queued ->
+			queued.epochDay shouldBe ENTRY_DAY
+			queued.sourceEvidenceRevision shouldBe 1L
+		}
 		database.sessionSegmentDao().countTotal() shouldBe 1L
 		tableCount("source_service_run") shouldBe 0L
 		tableCount("logical_tracking_session") shouldBe 0L
@@ -184,6 +194,7 @@ class RoomImportPortableStepsTest {
 				limit = 3,
 			)
 			val selectedSegmentId = requireNotNull(storedRuns.last().sessionSegmentId)
+			database.stepsGoalEffectDao().recordDecision(goalEffect(ENTRY_DAY, sourceRevision = 1L))
 			dirtyTracker.marked.clear()
 			var drainRequests = 0
 
@@ -194,6 +205,10 @@ class RoomImportPortableStepsTest {
 			tableCount("imported_steps_run") shouldBe 0L
 			tableCount("imported_steps_manifest") shouldBe 0L
 			database.sessionSegmentDao().countTotal() shouldBe 0L
+			requireNotNull(database.stepsGoalRepairDayDao().next()).let { queued ->
+				queued.epochDay shouldBe ENTRY_DAY
+				queued.sourceEvidenceRevision shouldBe 2L
+			}
 			database.stepFactRevisionDao().countAll() shouldBe 2L
 			entry.runs.forEach { run ->
 				val originalDigest = run.deletionScopeDigest.value
@@ -1065,6 +1080,33 @@ class RoomImportPortableStepsTest {
 			effectChecksum = StepFactRevisionIntegrity.localDeleteEffectChecksum(unsigned),
 		)
 	}
+
+	private fun goalEffect(day: Long, sourceRevision: Long) = StepsGoalEffectEntity(
+		effectIdentity = StepsGoalEffectEntity.identity(StepsGoalEffectEntity.PERIOD_DAY, day),
+		periodKind = StepsGoalEffectEntity.PERIOD_DAY,
+		periodStartEpochDay = day,
+		periodEndEpochDay = day,
+		qualifiedThroughEpochDay = day,
+		calendarAuthority = "$day=$ENTRY_ZONE_ID",
+		targetSteps = 10_000L,
+		weeklyDailyLimitBits = null,
+		decisionState = StepsGoalEffectEntity.STATE_READY_COMPLETE,
+		unavailableReason = null,
+		qualifiedSteps = 12_000L,
+		sourceAuthorityDigest = "a".repeat(64),
+		sourceEvidenceRevision = sourceRevision,
+		effectRevision = 1L,
+		completionPointsMicros = 100_000_000L,
+		completionXp = 50,
+		desiredPointsMicros = 100_000_000L,
+		desiredXp = 50,
+		firstCompletedAtMs = 1L,
+		pointsAppliedRevision = 0L,
+		xpAppliedRevision = 0L,
+		notificationClaimedRevision = null,
+		notificationClaimedAtMs = null,
+		updatedAtMs = 1L,
+	)
 
 	private fun opaque(kind: PortableStepsIdentityKind, value: String) =
 		PortableStepsOpaqueIdentity.derive(kind, value)

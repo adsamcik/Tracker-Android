@@ -39,6 +39,15 @@ class StepsNumericDecisionRepositoryTest {
 
 	@Test
 	fun `window requires exact request coverage and lowercase digest`() {
+		assertEquals(request, StepsNumericExactDecisionRequest(request, calendar).request)
+		assertFailsWith<IllegalArgumentException> {
+			StepsNumericExactDecisionRequest(
+				request,
+				StepsNumericCalendarAuthority.Exact(
+					listOf(StepsNumericCalendarDay(10L, "Europe/Prague")),
+				),
+			)
+		}
 		assertEquals("10=Europe/Prague\n11=Europe/Prague", calendar.canonical)
 		assertFailsWith<IllegalArgumentException> {
 			StepsNumericDecisionWindow(request, summary, calendar, "A".repeat(64))

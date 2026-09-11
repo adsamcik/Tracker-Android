@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.importer
 import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.enqueueStepsGoalRepairDay
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryLockedDays
 import com.adsamcik.tracker.shared.base.database.dao.synchronizeLifecycle
@@ -251,6 +252,9 @@ internal class RoomImportPortableSteps internal constructor(
 					}
 					if (!lifecycleChanged && evidenceDao.incrementRevision(appliedAtMs) != 1) {
 						throw PortableStepsConcurrentStateException()
+					}
+					repairZones.keys.forEach { epochDay ->
+						database.enqueueStepsGoalRepairDay(epochDay)
 					}
 					ImportPortableStepsResult.Applied(
 						physicalRunCount = entry.runs.size,

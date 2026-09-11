@@ -170,6 +170,8 @@ class StepsGoalRewardProjectorTest {
 		sourceAuthorityDigest = digest.toString().repeat(64),
 		sourceEvidenceRevision = sourceRevision,
 		effectRevision = 1L,
+		completionPointsMicros = 40_000_000L,
+		completionXp = 50,
 		desiredPointsMicros = if (complete) 40_000_000L else 0L,
 		desiredXp = if (complete) 50 else 0,
 		firstCompletedAtMs = updatedAt.takeIf { complete },

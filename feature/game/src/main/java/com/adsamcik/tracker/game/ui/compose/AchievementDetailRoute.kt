@@ -40,11 +40,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.adsamcik.tracker.game.R
+import com.adsamcik.tracker.game.data.AchievementProgress
 import com.adsamcik.tracker.game.data.ExplorationProgressRepository
 import com.adsamcik.tracker.stats.api.AchievementCategory
 import com.adsamcik.tracker.stats.api.AchievementDefinition
 import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
+import com.adsamcik.tracker.stats.data.repository.AchievementMetricQualification
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
@@ -55,18 +57,29 @@ import kotlinx.coroutines.flow.stateIn
 class AchievementDetailViewModel @Inject constructor(
 	progressRepository: ExplorationProgressRepository,
 ) : ViewModel() {
-	val rows = progressRepository.achievements.map { progressRows ->
-		val progressByMetric = progressRows
-			.associateBy { it.metric }
-		AchievementCatalog.definitions.map { definition ->
-			val progress = progressByMetric[definition.metric]
-			AchievementDetailRow(
-				definition = definition,
-				currentValue = progress?.lastValue ?: 0.0,
-				isUnlocked = (progress?.lastTierIndex ?: -1) >= definition.tierIndex,
+	val rows = progressRepository.achievements.map(::achievementDetailRows)
+		.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS), emptyList())
+}
+
+internal fun achievementDetailRows(
+	progressRows: List<AchievementProgress>,
+): List<AchievementDetailRow> {
+	val progressByMetric = progressRows.associateBy { it.metric }
+	return AchievementCatalog.definitions.mapNotNull { definition ->
+		val progress = progressByMetric[definition.metric]
+		if (!AchievementMetricQualification.isAvailableForProduct(
+				definition.metric,
+				progress != null,
 			)
+		) {
+			return@mapNotNull null
 		}
-	}.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MS), emptyList())
+		AchievementDetailRow(
+			definition = definition,
+			currentValue = progress?.lastValue ?: 0.0,
+			isUnlocked = (progress?.lastTierIndex ?: -1) >= definition.tierIndex,
+		)
+	}
 }
 
 /**

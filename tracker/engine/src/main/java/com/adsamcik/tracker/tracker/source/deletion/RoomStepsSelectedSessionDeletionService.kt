@@ -3,6 +3,7 @@ package com.adsamcik.tracker.tracker.source.deletion
 import android.database.sqlite.SQLiteException
 import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.AppDatabase
+import com.adsamcik.tracker.shared.base.database.enqueueStepsGoalRepairDay
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryAggregator
 import com.adsamcik.tracker.shared.base.database.aggregator.DailySummaryLockedDays
 import com.adsamcik.tracker.shared.base.database.dao.StepsFactCandidateIdentity
@@ -266,6 +267,7 @@ internal class RoomStepsSelectedSessionDeletionService internal constructor(
 				lockedDays = lockedDays,
 				totals = plan.totals,
 			)
+			database.enqueueStepsGoalRepairDay(plan.epochDay)
 		}
 		return StepsSessionDeletionResult.Deleted
 	}

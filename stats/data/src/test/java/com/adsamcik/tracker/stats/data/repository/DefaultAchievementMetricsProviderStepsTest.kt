@@ -73,6 +73,26 @@ class DefaultAchievementMetricsProviderStepsTest {
 		metrics[MetricKey.CATEGORIES_COMPLETED] shouldBe 0.0
 	}
 
+	@Test
+	fun `ready qualified goal streak progress contributes to meta achievements`() = runTest {
+		val distanceTiers = AchievementCatalog.byMetric(MetricKey.DISTANCE_TOTAL_M).size
+		val streakTiers = AchievementCatalog.byMetric(MetricKey.GOAL_STREAK_DAYS).size
+		coEvery { achievementProgressDao.getAll() } returns listOf(
+			progress(MetricKey.DISTANCE_TOTAL_M, lastTierIndex = Int.MAX_VALUE),
+			qualifiedProgress(MetricKey.GOAL_STREAK_DAYS, lastTierIndex = Int.MAX_VALUE),
+			qualifiedProgress(
+				MetricKey.PERFECT_WEEKS,
+				lastTierIndex = Int.MAX_VALUE,
+				authorityState = AchievementProgressEntity.AUTHORITY_STATE_MATERIALIZING,
+			),
+		)
+
+		val metrics = provider.collect().asMap()
+
+		metrics[MetricKey.ACHIEVEMENTS_UNLOCKED] shouldBe (distanceTiers + streakTiers).toDouble()
+		metrics[MetricKey.CATEGORIES_COMPLETED] shouldBe 0.0
+	}
+
 	private fun progress(metric: MetricKey, lastTierIndex: Int) =
 		progress(metric.storageKey, lastTierIndex)
 
@@ -81,5 +101,21 @@ class DefaultAchievementMetricsProviderStepsTest {
 		lastTierIndex = lastTierIndex,
 		lastValue = 1_000_000.0,
 		updatedAt = 1L,
+	)
+
+	private fun qualifiedProgress(
+		metric: MetricKey,
+		lastTierIndex: Int,
+		authorityState: String = AchievementProgressEntity.AUTHORITY_STATE_READY,
+	) = AchievementProgressEntity(
+		metricKey = metric.storageKey,
+		lastTierIndex = lastTierIndex,
+		lastValue = 1_000_000.0,
+		updatedAt = 1L,
+		authorityKind = AchievementProgressEntity.AUTHORITY_QUALIFIED_STEPS_V1,
+		authorityRevision = 3L,
+		authorityDigest = "a".repeat(64),
+		authorityState = authorityState,
+		qualifiedNotificationClaimedTierIndex = lastTierIndex,
 	)
 }

@@ -138,6 +138,8 @@ class StepsGoalEffectDaoTest {
 		sourceAuthorityDigest = digest.toString().repeat(64),
 		sourceEvidenceRevision = evidenceRevision,
 		effectRevision = 1L,
+		completionPointsMicros = 100_000_000L,
+		completionXp = 25,
 		desiredPointsMicros = 100_000_000L,
 		desiredXp = 25,
 		firstCompletedAtMs = 100L,

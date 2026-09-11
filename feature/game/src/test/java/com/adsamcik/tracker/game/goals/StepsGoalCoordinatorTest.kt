@@ -15,6 +15,7 @@ import com.adsamcik.tracker.shared.base.database.data.StepsGoalEffectEntity
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupResult
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
+import com.adsamcik.tracker.stats.api.repository.DomainEventRepository
 import com.adsamcik.tracker.stats.api.repository.StepsNumericCalendarAuthority
 import com.adsamcik.tracker.stats.api.repository.StepsNumericCalendarDay
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
@@ -86,6 +87,18 @@ class StepsGoalCoordinatorTest {
 				dispatchers,
 				ReadyGate,
 			),
+			historicalReconciler = StepsGoalHistoricalReconciler(
+				appDatabase,
+				ReadyDecisionRepository,
+				dispatchers,
+				ReadyGate,
+			),
+			achievementReconciler = StepsGoalAchievementReconciler(
+				appDatabase,
+				dispatchers,
+				ReadyGate,
+				mockk<DomainEventRepository>(relaxed = true),
+			),
 			rewardProjector = StepsGoalRewardProjector(
 				appDatabase,
 				pointsDatabase,
@@ -125,6 +138,10 @@ class StepsGoalCoordinatorTest {
 		override suspend fun readDecisionBatch(
 			requests: List<StepsNumericSummaryRequest>,
 		): StepsNumericDecisionBatch = snapshot(requests)
+
+		override suspend fun readExactDecisionBatch(
+			requests: List<com.adsamcik.tracker.stats.api.repository.StepsNumericExactDecisionRequest>,
+		): StepsNumericDecisionBatch = snapshot(requests.map { it.request })
 
 		override fun observeDecisionBatch(
 			requests: List<StepsNumericSummaryRequest>,
