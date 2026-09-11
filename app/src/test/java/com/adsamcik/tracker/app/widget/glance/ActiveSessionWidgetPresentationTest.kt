@@ -36,9 +36,10 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class ActiveSessionWidgetPresentationTest {
 	@Test
-	fun `raw positive session Steps are absent while independent stats remain`() {
+	fun `raw positive session Steps are ignored while truthful status remains`() {
+		val context = ApplicationProvider.getApplicationContext<Context>()
 		val stats = buildActiveSessionStats(
-			context = ApplicationProvider.getApplicationContext<Context>(),
+			context = context,
 			session = TrackerSessionSnapshot(
 				id = 1L,
 				start = 1_000L,
@@ -46,16 +47,18 @@ class ActiveSessionWidgetPresentationTest {
 				steps = 9_999,
 				collections = 12,
 			),
-			qualifiedSteps = null,
+			stepsPresentation = WidgetStepsPresentation.NotCaptured,
 			nowMillis = 61_000L,
 		)
 
 		stats.map(ActiveSessionStat::labelRes) shouldContainExactly listOf(
 			R.string.widget_session_distance,
 			R.string.widget_session_duration,
+			R.string.widget_session_steps,
 			R.string.widget_collections,
 		)
-		(R.string.widget_session_steps in stats.map(ActiveSessionStat::labelRes)) shouldBe false
+		stats.first { it.labelRes == R.string.widget_session_steps }.value shouldBe
+			context.getString(R.string.widget_steps_not_captured)
 		stats.last().value shouldBe "12"
 	}
 
@@ -68,7 +71,7 @@ class ActiveSessionWidgetPresentationTest {
 			val stats = buildActiveSessionStats(
 				context = context,
 				session = session,
-				qualifiedSteps = steps,
+				stepsPresentation = WidgetStepsPresentation.Ready(steps),
 				nowMillis = 61_000L,
 			)
 
@@ -86,19 +89,22 @@ class ActiveSessionWidgetPresentationTest {
 	@Test
 	fun `exact segment complete history exposes its qualified value`() {
 		completeQuery(segmentId = 7L, count = 1_234L)
-			.completeStepsForSegment(expectedSegmentId = 7L) shouldBe 1_234L
+			.toWidgetStepsPresentation(expectedSegmentId = 7L) shouldBe
+			WidgetStepsPresentation.Ready(1_234L)
 		completeQuery(segmentId = 7L, count = 0L)
-			.completeStepsForSegment(expectedSegmentId = 7L) shouldBe 0L
+			.toWidgetStepsPresentation(expectedSegmentId = 7L) shouldBe
+			WidgetStepsPresentation.Ready(0L)
 	}
 
 	@Test
 	fun `segment mismatch withholds otherwise complete Steps`() {
 		completeQuery(segmentId = 8L, count = 1_234L)
-			.completeStepsForSegment(expectedSegmentId = 7L) shouldBe null
+			.toWidgetStepsPresentation(expectedSegmentId = 7L) shouldBe
+			WidgetStepsPresentation.Unavailable
 	}
 
 	@Test
-	fun `partial unqualified Steps are withheld`() {
+	fun `partial unqualified Steps remain an explicit lower bound`() {
 		query(
 			segmentId = 7L,
 			qualified = false,
@@ -110,7 +116,8 @@ class ActiveSessionWidgetPresentationTest {
 				coverage = StepsHistoryCoverage.PARTIAL,
 				causes = setOf(StepsHistoryCause.CAPTURE_PARTIAL),
 			),
-		).completeStepsForSegment(expectedSegmentId = 7L) shouldBe null
+		).toWidgetStepsPresentation(expectedSegmentId = 7L) shouldBe
+			WidgetStepsPresentation.Partial(123L)
 	}
 
 	@Test
@@ -125,37 +132,92 @@ class ActiveSessionWidgetPresentationTest {
 				productState = HistoryProductState.READY,
 				coverage = StepsHistoryCoverage.COMPLETE,
 			),
-		).completeStepsForSegment(expectedSegmentId = 7L) shouldBe null
+		).toWidgetStepsPresentation(expectedSegmentId = 7L) shouldBe
+			WidgetStepsPresentation.Unavailable
 	}
 
 	@Test
-	fun `materializing Steps are withheld`() {
+	fun `materializing and disabled Steps remain distinct`() {
+		materializingQuery(segmentId = 7L)
+			.toWidgetStepsPresentation(expectedSegmentId = 7L) shouldBe
+			WidgetStepsPresentation.Materializing
 		query(
 			segmentId = 7L,
 			qualified = false,
 			steps = StepsHistory(
 				count = null,
-				availability = HistoryAvailability.AVAILABLE,
-				evidence = HistoryEvidence.STARTING,
-				productState = HistoryProductState.MATERIALIZING,
+				availability = HistoryAvailability.DISABLED,
+				evidence = HistoryEvidence.NONE,
+				productState = HistoryProductState.FAILED,
 				coverage = StepsHistoryCoverage.NONE,
-				causes = setOf(StepsHistoryCause.MATERIALIZATION_BEHIND),
+				causes = setOf(StepsHistoryCause.SOURCE_NOT_CAPTURED),
 			),
-		).completeStepsForSegment(expectedSegmentId = 7L) shouldBe null
+		).toWidgetStepsPresentation(expectedSegmentId = 7L) shouldBe
+			WidgetStepsPresentation.Disabled
 	}
 
 	@Test
-	fun `qualified widget read uses exact segment identity`() = runTest {
+	fun `nonnumeric widget states never display fabricated zero`() {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val zero = WidgetFormatters.formatSteps(0L)
+		listOf(
+			WidgetStepsPresentation.Partial(),
+			WidgetStepsPresentation.Materializing,
+			WidgetStepsPresentation.NotCaptured,
+			WidgetStepsPresentation.Disabled,
+			WidgetStepsPresentation.Unavailable,
+			WidgetStepsPresentation.StorageUnavailable,
+		).forEach { state ->
+			(state.displayValue(context) == zero) shouldBe false
+		}
+		WidgetStepsPresentation.Partial(123L).displayValue(context) shouldBe
+			"≥${WidgetFormatters.formatSteps(123L)}"
+		WidgetStepsPresentation.Partial().displayValue(context) shouldBe
+			context.getString(R.string.widget_steps_partial)
+		WidgetStepsPresentation.NotCaptured.displayValue(context) shouldBe
+			context.getString(R.string.widget_steps_not_captured)
+		WidgetStepsPresentation.Disabled.displayValue(context) shouldBe
+			context.getString(R.string.widget_steps_disabled)
+		WidgetStepsPresentation.Unavailable.displayValue(context) shouldBe
+			context.getString(R.string.widget_steps_unavailable)
+		WidgetStepsPresentation.StorageUnavailable.displayValue(context) shouldBe
+			context.getString(R.string.widget_steps_storage_unavailable)
+	}
+
+	@Test
+	fun `widget read waits through materializing and uses exact segment identity`() = runTest {
 		val repository = mockk<TrackingHistoryRepository>()
 		every { repository.observeSession(7L) } returns flowOf(
+			materializingQuery(segmentId = 7L),
 			completeQuery(segmentId = 7L, count = 1_234L),
 		)
 
-		readQualifiedWidgetSteps(
+		readWidgetSteps(
 			repository = repository,
 			session = TrackerSessionSnapshot(id = 7L),
-		) shouldBe 1_234L
+		) shouldBe WidgetStepsPresentation.Ready(1_234L)
 		verify(exactly = 1) { repository.observeSession(7L) }
+	}
+
+	@Test
+	fun `widget read preserves materializing timeout and storage failure`() = runTest {
+		val materializingRepository = mockk<TrackingHistoryRepository>()
+		every { materializingRepository.observeSession(7L) } returns flow {
+			emit(materializingQuery(segmentId = 7L))
+			kotlinx.coroutines.awaitCancellation()
+		}
+		readWidgetSteps(
+			repository = materializingRepository,
+			session = TrackerSessionSnapshot(id = 7L),
+			timeoutMillis = 1L,
+		) shouldBe WidgetStepsPresentation.Materializing
+
+		val failedRepository = mockk<TrackingHistoryRepository>()
+		every { failedRepository.observeSession(7L) } throws IllegalStateException("storage")
+		readWidgetSteps(
+			repository = failedRepository,
+			session = TrackerSessionSnapshot(id = 7L),
+		) shouldBe WidgetStepsPresentation.StorageUnavailable
 	}
 
 	@Test
@@ -166,7 +228,7 @@ class ActiveSessionWidgetPresentationTest {
 		}
 
 		val failure = runCatching {
-			readQualifiedWidgetSteps(
+			readWidgetSteps(
 				repository = repository,
 				session = TrackerSessionSnapshot(id = 7L),
 			)
@@ -174,6 +236,19 @@ class ActiveSessionWidgetPresentationTest {
 
 		failure.shouldBeInstanceOf<CancellationException>()
 	}
+
+	private fun materializingQuery(segmentId: Long): SessionHistoryQuery = query(
+		segmentId = segmentId,
+		qualified = false,
+		steps = StepsHistory(
+			count = null,
+			availability = HistoryAvailability.AVAILABLE,
+			evidence = HistoryEvidence.STARTING,
+			productState = HistoryProductState.MATERIALIZING,
+			coverage = StepsHistoryCoverage.NONE,
+			causes = setOf(StepsHistoryCause.MATERIALIZATION_BEHIND),
+		),
+	)
 
 	private fun completeQuery(segmentId: Long, count: Long): SessionHistoryQuery = query(
 		segmentId = segmentId,

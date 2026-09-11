@@ -35,8 +35,6 @@ import com.adsamcik.tracker.R
 import com.adsamcik.tracker.shared.base.data.DetectedActivity
 import com.adsamcik.tracker.shared.model.Location
 import com.adsamcik.tracker.stats.api.PolicyTier
-import com.adsamcik.tracker.stats.api.repository.HistorySource
-import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import com.adsamcik.tracker.tracker.data.collection.TrackerActivityType
 import com.adsamcik.tracker.tracker.data.collection.TrackerCollectionSnapshot
@@ -44,6 +42,8 @@ import com.adsamcik.tracker.tracker.data.session.TrackerSessionSnapshot
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Active Session widget (4x3): live-ish session data during tracking.
@@ -62,7 +62,7 @@ class ActiveSessionWidget : GlanceAppWidget() {
         val policyTier: PolicyTier
         val collectionSnapshot: TrackerCollectionSnapshot?
         val pathPoints: List<Location>
-        val qualifiedSteps: Long?
+        val stepsPresentation: WidgetStepsPresentation
 
         try {
             val entryPoint = EntryPointAccessors.fromApplication(
@@ -75,10 +75,10 @@ class ActiveSessionWidget : GlanceAppWidget() {
             policyTier = controller.policyTierFlow.value
             collectionSnapshot = controller.collectionDataFlow.value
             pathPoints = controller.pathPointsFlow.value?.second.orEmpty()
-            qualifiedSteps = if (isRunning) {
-                readQualifiedWidgetSteps(entryPoint.trackingHistoryRepository(), session)
+            stepsPresentation = if (isRunning) {
+                readWidgetSteps(entryPoint.trackingHistoryRepository(), session)
             } else {
-                null
+                WidgetStepsPresentation.NotCaptured
             }
         } catch (cancellation: CancellationException) {
             throw cancellation
@@ -91,7 +91,7 @@ class ActiveSessionWidget : GlanceAppWidget() {
                         session = null,
                         policyTier = PolicyTier.OFF,
                         snapshot = ActiveSessionSnapshot.empty(context),
-                        qualifiedSteps = null,
+                        stepsPresentation = WidgetStepsPresentation.StorageUnavailable,
                         context = context,
                     )
                 }
@@ -107,7 +107,7 @@ class ActiveSessionWidget : GlanceAppWidget() {
                     session = session,
                     policyTier = policyTier,
                     snapshot = snapshot,
-                    qualifiedSteps = qualifiedSteps,
+                    stepsPresentation = stepsPresentation,
                     context = context,
                 )
             }
@@ -121,7 +121,7 @@ private fun ActiveSessionContent(
     session: TrackerSessionSnapshot?,
     policyTier: PolicyTier,
     snapshot: ActiveSessionSnapshot,
-    qualifiedSteps: Long?,
+    stepsPresentation: WidgetStepsPresentation,
     context: Context,
 ) {
     Column(
@@ -138,7 +138,7 @@ private fun ActiveSessionContent(
                 session = session,
                 policyTier = policyTier,
                 snapshot = snapshot,
-                qualifiedSteps = qualifiedSteps,
+                stepsPresentation = stepsPresentation,
                 context = context,
             )
         }
@@ -185,7 +185,7 @@ private fun TrackingContent(
     session: TrackerSessionSnapshot,
     policyTier: PolicyTier,
     snapshot: ActiveSessionSnapshot,
-    qualifiedSteps: Long?,
+    stepsPresentation: WidgetStepsPresentation,
     context: Context,
 ) {
     Row(
@@ -249,7 +249,7 @@ private fun TrackingContent(
     val stats = buildActiveSessionStats(
         context = context,
         session = session,
-        qualifiedSteps = qualifiedSteps,
+        stepsPresentation = stepsPresentation,
         nowMillis = System.currentTimeMillis(),
     )
     Row(
@@ -302,11 +302,11 @@ internal data class ActiveSessionStat(
     val value: String,
 )
 
-/** Raw live-session Steps are never read; only exact-segment complete history may add the cell. */
+/** Raw live-session Steps are never read; exact-segment history supplies a value or typed status. */
 internal fun buildActiveSessionStats(
     context: Context,
     session: TrackerSessionSnapshot,
-    qualifiedSteps: Long?,
+    stepsPresentation: WidgetStepsPresentation,
     nowMillis: Long,
 ): List<ActiveSessionStat> = buildList {
     add(
@@ -321,14 +321,12 @@ internal fun buildActiveSessionStats(
             WidgetFormatters.formatDuration(nowMillis - session.start),
         ),
     )
-    qualifiedSteps?.let { steps ->
-        add(
-            ActiveSessionStat(
-                R.string.widget_session_steps,
-                WidgetFormatters.formatSteps(steps),
-            ),
-        )
-    }
+    add(
+        ActiveSessionStat(
+            R.string.widget_session_steps,
+            stepsPresentation.displayValue(context),
+        ),
+    )
     add(
         ActiveSessionStat(
             R.string.widget_collections,
@@ -337,31 +335,28 @@ internal fun buildActiveSessionStats(
     )
 }
 
-internal suspend fun readQualifiedWidgetSteps(
+internal const val WIDGET_STEPS_SETTLEMENT_TIMEOUT_MILLIS = 5_000L
+
+internal suspend fun readWidgetSteps(
     repository: TrackingHistoryRepository,
     session: TrackerSessionSnapshot?,
-): Long? {
-    val segmentId = session?.id?.takeIf { it > 0L } ?: return null
+    timeoutMillis: Long = WIDGET_STEPS_SETTLEMENT_TIMEOUT_MILLIS,
+): WidgetStepsPresentation {
+    require(timeoutMillis > 0L) { "Widget Steps timeout must be positive" }
+    val segmentId = session?.id?.takeIf { it > 0L }
+        ?: return WidgetStepsPresentation.Unavailable
     return try {
-        repository.observeSession(segmentId).first().completeStepsForSegment(segmentId)
+        withTimeoutOrNull(timeoutMillis) {
+            repository.observeSession(segmentId)
+                .map { query -> query.toWidgetStepsPresentation(segmentId) }
+                .first { presentation -> presentation != WidgetStepsPresentation.Materializing }
+        } ?: WidgetStepsPresentation.Materializing
     } catch (cancellation: CancellationException) {
         throw cancellation
     } catch (_: Exception) {
-        null
+        WidgetStepsPresentation.StorageUnavailable
     }
 }
-
-/** Fences the value to the exact active physical segment and complete qualified coverage. */
-internal fun SessionHistoryQuery.completeStepsForSegment(expectedSegmentId: Long): Long? =
-    (this as? SessionHistoryQuery.Found)
-        ?.history
-        ?.takeIf { history ->
-            history.segmentId == expectedSegmentId &&
-                HistorySource.STEPS in history.qualifiedSources
-        }
-        ?.steps
-        ?.takeIf { steps -> steps.hasCompleteValue }
-        ?.count
 
 @Composable
 private fun SessionStatItem(
