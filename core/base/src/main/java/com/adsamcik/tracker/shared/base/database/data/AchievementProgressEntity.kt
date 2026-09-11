@@ -36,6 +36,8 @@ data class AchievementProgressEntity(
 		const val AUTHORITY_STATE_READY = "READY"
 		const val AUTHORITY_STATE_MATERIALIZING = "MATERIALIZING"
 		const val AUTHORITY_STATE_UNVERIFIABLE = "UNVERIFIABLE"
+		const val METRIC_STEPS_TOTAL = "steps_total"
+		const val METRIC_BEST_DAILY_STEPS = "best_daily_steps"
 		const val METRIC_GOAL_STREAK_DAYS = "goal_streak_days"
 		const val METRIC_PERFECT_WEEKS = "perfect_weeks"
 

@@ -93,6 +93,26 @@ class DefaultAchievementMetricsProviderStepsTest {
 		metrics[MetricKey.CATEGORIES_COMPLETED] shouldBe 0.0
 	}
 
+	@Test
+	fun `qualified retained Steps rows never reenter the generic metric collector`() = runTest {
+		val totalTiers = AchievementCatalog.byMetric(MetricKey.STEPS_TOTAL).size
+		val bestDayTiers = AchievementCatalog.byMetric(MetricKey.BEST_DAILY_STEPS).size
+		coEvery { achievementProgressDao.getAll() } returns listOf(
+			qualifiedProgress(MetricKey.STEPS_TOTAL, lastTierIndex = Int.MAX_VALUE),
+			qualifiedProgress(MetricKey.BEST_DAILY_STEPS, lastTierIndex = Int.MAX_VALUE),
+		)
+		coEvery { dailySummaryDao.sumTotalSteps() } returns 999_999L
+		coEvery { dailySummaryDao.maxDailySteps() } returns 888_888L
+
+		val metrics = provider.collect().asMap()
+
+		metrics[MetricKey.STEPS_TOTAL] shouldBe null
+		metrics[MetricKey.BEST_DAILY_STEPS] shouldBe null
+		metrics[MetricKey.ACHIEVEMENTS_UNLOCKED] shouldBe (totalTiers + bestDayTiers).toDouble()
+		coVerify(exactly = 0) { dailySummaryDao.sumTotalSteps() }
+		coVerify(exactly = 0) { dailySummaryDao.maxDailySteps() }
+	}
+
 	private fun progress(metric: MetricKey, lastTierIndex: Int) =
 		progress(metric.storageKey, lastTierIndex)
 

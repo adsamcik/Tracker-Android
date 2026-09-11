@@ -6,11 +6,10 @@ import com.adsamcik.tracker.stats.api.metric.MetricKey
 /**
  * Metrics whose persisted achievement progress is currently safe to consume as product truth.
  *
- * Goal streak rows are trusted only when the dedicated qualified Steps projector attached exact
- * READY provenance. Other Steps-derived metrics remain unavailable until retained source facts
- * can qualify them. The XP metrics are also unavailable because existing ledger/profile rows do
- * not identify which portion came from historical raw Steps goals or session scoring. Derived
- * meta rows are excluded from persisted presentation because older rows may include an unavailable
+ * Steps-owned rows are trusted only when a dedicated qualified Steps projector attached exact
+ * READY provenance. The XP metrics remain unavailable because existing ledger/profile rows do not
+ * identify which portion came from historical raw Steps goals or session scoring. Derived meta
+ * rows are excluded from persisted presentation because older rows may include an unavailable
  * family.
  */
 object AchievementMetricQualification {
@@ -29,21 +28,27 @@ object AchievementMetricQualification {
 		MetricKey.XP_SOURCES_USED,
 	)
 
+	private val qualifiedStepsMetrics = setOf(
+		MetricKey.STEPS_TOTAL,
+		MetricKey.BEST_DAILY_STEPS,
+		MetricKey.GOAL_STREAK_DAYS,
+		MetricKey.PERFECT_WEEKS,
+	)
+
+	fun requiresQualifiedStepsAuthority(metric: MetricKey): Boolean = metric in qualifiedStepsMetrics
+
 	fun isAvailableForEvaluation(metric: MetricKey): Boolean = metric !in sourceUnverifiableMetrics
 
 	/** Whether a catalog series can be shown without inventing unavailable progress as zero. */
-	fun isAvailableForProduct(metric: MetricKey, hasTrustedProgress: Boolean): Boolean = when (metric) {
-		MetricKey.GOAL_STREAK_DAYS,
-		MetricKey.PERFECT_WEEKS -> hasTrustedProgress
-		else -> isTrustedPersistedProgress(metric)
-	}
+	fun isAvailableForProduct(metric: MetricKey, hasTrustedProgress: Boolean): Boolean =
+		if (metric in qualifiedStepsMetrics) hasTrustedProgress else isTrustedPersistedProgress(metric)
 
 	fun isTrustedPersistedProgress(
 		metric: MetricKey,
 		row: AchievementProgressEntity? = null,
 	): Boolean {
 		if (metric in derivedMetaMetrics) return false
-		if (metric == MetricKey.GOAL_STREAK_DAYS || metric == MetricKey.PERFECT_WEEKS) {
+		if (metric in qualifiedStepsMetrics) {
 			return row?.metricKey == metric.storageKey &&
 				row.authorityKind == AchievementProgressEntity.AUTHORITY_QUALIFIED_STEPS_V1 &&
 				row.authorityRevision != null &&
@@ -67,7 +72,7 @@ object AchievementMetricQualification {
 		row: AchievementProgressEntity,
 	): Boolean {
 		if (!isTrustedPersistedProgress(metric, row) || row.lastUnlockedAt == null) return false
-		return if (metric == MetricKey.GOAL_STREAK_DAYS || metric == MetricKey.PERFECT_WEEKS) {
+		return if (metric in qualifiedStepsMetrics) {
 			row.qualifiedNotificationClaimedTierIndex == row.lastTierIndex
 		} else {
 			true

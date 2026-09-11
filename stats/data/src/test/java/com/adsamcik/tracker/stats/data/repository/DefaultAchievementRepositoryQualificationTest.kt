@@ -58,23 +58,54 @@ class DefaultAchievementRepositoryQualificationTest {
 	}
 
 	@Test
-	fun `snapshots expose only ready source-qualified goal streak progress`() = runTest {
-		val rows = listOf(
-			qualifiedProgress(MetricKey.GOAL_STREAK_DAYS, 1),
-			qualifiedProgress(
-				MetricKey.PERFECT_WEEKS,
-				0,
-				authorityState = AchievementProgressEntity.AUTHORITY_STATE_MATERIALIZING,
-			),
-		)
+	fun `snapshots expose all four ready source-qualified Steps metrics`() = runTest {
+		val rows = QUALIFIED_STEPS_METRICS.mapIndexed { index, metric ->
+			qualifiedProgress(metric, index)
+		}
 		coEvery { progressDao.getAll() } returns rows
 
 		val snapshots = repository.getAllSnapshots()
 
-		snapshots.count { it.metric == MetricKey.GOAL_STREAK_DAYS } shouldBe
-			AchievementCatalog.byMetric(MetricKey.GOAL_STREAK_DAYS).size
-		(snapshots.none { it.metric == MetricKey.PERFECT_WEEKS }) shouldBe true
-		snapshots.first { it.metric == MetricKey.GOAL_STREAK_DAYS }.currentValue shouldBe 7.0
+		QUALIFIED_STEPS_METRICS.forEachIndexed { index, metric ->
+			snapshots.count { it.metric == metric } shouldBe AchievementCatalog.byMetric(metric).size
+			snapshots.first { it.metric == metric }.currentValue shouldBe (index + 1).toDouble()
+		}
+	}
+
+	@Test
+	fun `snapshots hide Steps metrics without exact ready provenance and a claimed tier`() = runTest {
+		QUALIFIED_STEPS_METRICS.forEach { metric ->
+			val unavailableRows = listOf(
+				progress(metric, 0),
+				qualifiedProgress(
+					metric,
+					0,
+					authorityState = AchievementProgressEntity.AUTHORITY_STATE_MATERIALIZING,
+				),
+				qualifiedProgress(
+					metric,
+					0,
+					authorityState = AchievementProgressEntity.AUTHORITY_STATE_UNVERIFIABLE,
+				),
+				qualifiedProgress(metric, 0, claimedTierIndex = null),
+				AchievementProgressEntity(
+					metricKey = metric.storageKey,
+					lastTierIndex = 0,
+					lastValue = 1.0,
+					updatedAt = 2L,
+					authorityKind = "OTHER_AUTHORITY",
+					authorityRevision = 3L,
+					authorityDigest = "a".repeat(64),
+					authorityState = AchievementProgressEntity.AUTHORITY_STATE_READY,
+				),
+			)
+
+			unavailableRows.forEach { row ->
+				coEvery { progressDao.getAll() } returns listOf(row)
+
+				(repository.getAllSnapshots().none { it.metric == metric }) shouldBe true
+			}
+		}
 	}
 
 	@Test
@@ -124,15 +155,25 @@ class DefaultAchievementRepositoryQualificationTest {
 		lastTierIndex: Int,
 		authorityState: String = AchievementProgressEntity.AUTHORITY_STATE_READY,
 		updatedAt: Long = 2L,
+		claimedTierIndex: Int? = lastTierIndex,
 	) = AchievementProgressEntity(
 		metricKey = metric.storageKey,
 		lastTierIndex = lastTierIndex,
-		lastValue = 7.0,
+		lastValue = (lastTierIndex + 1).toDouble(),
 		updatedAt = updatedAt,
 		authorityKind = AchievementProgressEntity.AUTHORITY_QUALIFIED_STEPS_V1,
 		authorityRevision = 3L,
 		authorityDigest = "a".repeat(64),
 		authorityState = authorityState,
-		qualifiedNotificationClaimedTierIndex = lastTierIndex,
+		qualifiedNotificationClaimedTierIndex = claimedTierIndex,
 	)
+
+	private companion object {
+		val QUALIFIED_STEPS_METRICS = listOf(
+			MetricKey.STEPS_TOTAL,
+			MetricKey.BEST_DAILY_STEPS,
+			MetricKey.GOAL_STREAK_DAYS,
+			MetricKey.PERFECT_WEEKS,
+		)
+	}
 }

@@ -10,6 +10,12 @@ class AchievementProgressEntityTest {
 			qualified().copy(authorityDigest = null)
 		}
 		shouldThrow<IllegalArgumentException> {
+			qualified().copy(authorityRevision = null)
+		}
+		shouldThrow<IllegalArgumentException> {
+			qualified().copy(authorityState = null)
+		}
+		shouldThrow<IllegalArgumentException> {
 			qualified().copy(authorityRevision = -1L)
 		}
 		shouldThrow<IllegalArgumentException> {

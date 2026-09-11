@@ -55,7 +55,7 @@ class GameAchievementNotificationTest {
 		)
 		progressDao = mockk()
 		coEvery { progressDao.getAll() } returns emptyList()
-		coEvery { progressDao.getQualifiedStepsGoalRows() } returns emptyList()
+		coEvery { progressDao.getQualifiedStepsAchievementRows() } returns emptyList()
 		events = RecordingEventRepository()
 		gate = TestTrackingStartupGate()
 		consumer = GameDomainEventConsumer(
@@ -105,39 +105,91 @@ class GameAchievementNotificationTest {
 	}
 
 	@Test
-	fun `qualified Steps identity requires exact current authority even for generic processor`() = runTest {
-		val definition = definition(MetricKey.GOAL_STREAK_DAYS)
-		val event = unlock(definition).copy(
-			processorId = "generic-or-stale-producer",
-			authorityRevision = 2L,
-			authorityDigest = "a".repeat(64),
+	fun `retained Steps unlocks require exact current revision digest ready state and claimed tier`() = runTest {
+		val metrics = listOf(MetricKey.STEPS_TOTAL, MetricKey.BEST_DAILY_STEPS)
+		val definitions = metrics.map(::definition)
+		val currentRevision = 3L
+		val currentDigest = "c".repeat(64)
+
+		setQualifiedRows(
+			metrics.map { metric ->
+				qualifiedProgress(metric, authorityRevision = currentRevision, authorityDigest = currentDigest)
+			},
 		)
-		val locked = qualifiedProgress(lastTierIndex = -1)
-		coEvery { progressDao.getAll() } returns listOf(locked)
-		coEvery { progressDao.getQualifiedStepsGoalRows() } returns listOf(locked)
-		events.persist(listOf(event))
-
+		persistQualifiedUnlocks(definitions, authorityRevision = 2L, authorityDigest = currentDigest)
 		consumer.processUnconsumed()
-
 		shadowOf(notificationManager).allNotifications.size shouldBe 0
-		val unlocked = qualifiedProgress(lastTierIndex = 0)
-		coEvery { progressDao.getAll() } returns listOf(unlocked)
-		coEvery { progressDao.getQualifiedStepsGoalRows() } returns listOf(unlocked)
-		events.persist(
+
+		persistQualifiedUnlocks(
+			definitions,
+			authorityRevision = currentRevision,
+			authorityDigest = "d".repeat(64),
+		)
+		consumer.processUnconsumed()
+		shadowOf(notificationManager).allNotifications.size shouldBe 0
+
+		setQualifiedRows(
 			listOf(
-				event.copy(
-					timestampMs = EpochMs(1_500L),
-					authorityDigest = "b".repeat(64),
+				qualifiedProgress(
+					MetricKey.STEPS_TOTAL,
+					authorityRevision = currentRevision,
+					authorityDigest = currentDigest,
+					authorityState = AchievementProgressEntity.AUTHORITY_STATE_MATERIALIZING,
 				),
-				unlock(definition).copy(timestampMs = EpochMs(1_750L)),
+				qualifiedProgress(
+					MetricKey.BEST_DAILY_STEPS,
+					authorityRevision = currentRevision,
+					authorityDigest = currentDigest,
+					authorityState = AchievementProgressEntity.AUTHORITY_STATE_UNVERIFIABLE,
+				),
 			),
 		)
+		persistQualifiedUnlocks(definitions, currentRevision, currentDigest)
 		consumer.processUnconsumed()
 		shadowOf(notificationManager).allNotifications.size shouldBe 0
 
-		events.persist(listOf(event.copy(timestampMs = EpochMs(2_000L))))
+		setQualifiedRows(
+			metrics.map { metric ->
+				qualifiedProgress(
+					metric,
+					authorityRevision = currentRevision,
+					authorityDigest = currentDigest,
+					claimedTierIndex = null,
+				)
+			},
+		)
+		persistQualifiedUnlocks(definitions, currentRevision, currentDigest)
 		consumer.processUnconsumed()
-		shadowOf(notificationManager).allNotifications.size shouldBe 1
+		shadowOf(notificationManager).allNotifications.size shouldBe 0
+
+		setQualifiedRows(
+			metrics.map { metric ->
+				qualifiedProgress(metric, authorityRevision = currentRevision, authorityDigest = currentDigest)
+			},
+		)
+		persistQualifiedUnlocks(definitions, currentRevision, currentDigest)
+		consumer.processUnconsumed()
+
+		shadowOf(notificationManager).allNotifications.size shouldBe 2
+		events.acknowledgedIds shouldBe (1L..10L).toList()
+	}
+
+	@Test
+	fun `qualified Steps goal unlocks remain authorized by exact current authority`() = runTest {
+		val metrics = listOf(MetricKey.GOAL_STREAK_DAYS, MetricKey.PERFECT_WEEKS)
+		val revision = 5L
+		val digest = "e".repeat(64)
+		setQualifiedRows(
+			metrics.map { metric ->
+				qualifiedProgress(metric, authorityRevision = revision, authorityDigest = digest)
+			},
+		)
+
+		persistQualifiedUnlocks(metrics.map(::definition), revision, digest)
+		consumer.processUnconsumed()
+
+		shadowOf(notificationManager).allNotifications.size shouldBe 2
+		events.acknowledgedIds shouldBe listOf(1L, 2L)
 	}
 
 	@Test
@@ -168,7 +220,7 @@ class GameAchievementNotificationTest {
 	}
 
 	@Test
-	fun `deletion after qualification read prevents old notification and acknowledgement`() = runTest {
+	fun `deletion waits for notification lease and prevents stale acknowledgement`() = runTest {
 		events.persist(listOf(unlock(definition(MetricKey.DISTANCE_TOTAL_M))))
 		gate.afterSecondOperation = {
 			gate.retireAndReopen()
@@ -177,7 +229,7 @@ class GameAchievementNotificationTest {
 
 		consumer.processUnconsumed()
 
-		shadowOf(notificationManager).allNotifications.size shouldBe 0
+		shadowOf(notificationManager).allNotifications.size shouldBe 1
 		events.acknowledgedIds shouldBe emptyList()
 		gate.operationGenerations shouldBe listOf(1L, 1L, 1L)
 	}
@@ -192,16 +244,44 @@ class GameAchievementNotificationTest {
 		tier = definition.tier.name,
 	)
 
-	private fun qualifiedProgress(lastTierIndex: Int) = AchievementProgressEntity(
-		metricKey = MetricKey.GOAL_STREAK_DAYS.storageKey,
+	private fun setQualifiedRows(rows: List<AchievementProgressEntity>) {
+		coEvery { progressDao.getAll() } returns rows
+		coEvery { progressDao.getQualifiedStepsAchievementRows() } returns rows
+	}
+
+	private suspend fun persistQualifiedUnlocks(
+		definitions: List<AchievementDefinition>,
+		authorityRevision: Long,
+		authorityDigest: String,
+	) {
+		events.persist(
+			definitions.map { definition ->
+				unlock(definition).copy(
+					processorId = "generic-or-stale-producer",
+					authorityRevision = authorityRevision,
+					authorityDigest = authorityDigest,
+				)
+			},
+		)
+	}
+
+	private fun qualifiedProgress(
+		metric: MetricKey,
+		authorityRevision: Long,
+		authorityDigest: String,
+		authorityState: String = AchievementProgressEntity.AUTHORITY_STATE_READY,
+		claimedTierIndex: Int? = 0,
+		lastTierIndex: Int = 0,
+	) = AchievementProgressEntity(
+		metricKey = metric.storageKey,
 		lastTierIndex = lastTierIndex,
 		lastValue = if (lastTierIndex >= 0) 3.0 else 0.0,
 		updatedAt = 1_000L,
 		authorityKind = AchievementProgressEntity.AUTHORITY_QUALIFIED_STEPS_V1,
-		authorityRevision = 2L,
-		authorityDigest = "a".repeat(64),
-		authorityState = AchievementProgressEntity.AUTHORITY_STATE_READY,
-		qualifiedNotificationClaimedTierIndex = 0.takeIf { lastTierIndex >= 0 },
+		authorityRevision = authorityRevision,
+		authorityDigest = authorityDigest,
+		authorityState = authorityState,
+		qualifiedNotificationClaimedTierIndex = claimedTierIndex,
 	)
 
 	private class RecordingEventRepository : DomainEventRepository {

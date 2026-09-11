@@ -97,7 +97,48 @@ class AchievementProgressQualifiedDaoTest {
 		dao.getByMetric(METRIC)?.lastUnlockedAt shouldBe 300L
 	}
 
+	@Test
+	fun `qualified Steps query returns every owned metric and excludes other rows`() = runTest {
+		QUALIFIED_STEPS_METRICS.forEachIndexed { index, metricKey ->
+			dao.replaceQualified(
+				metricKey = metricKey,
+				lastTierIndex = index,
+				lastValue = (index + 1).toDouble(),
+				updatedAt = 100L + index,
+				authorityKind = AchievementProgressEntity.AUTHORITY_QUALIFIED_STEPS_V1,
+				authorityRevision = 4L,
+				authorityDigest = "a".repeat(64),
+				authorityState = AchievementProgressEntity.AUTHORITY_STATE_READY,
+				qualifiedNotificationClaimedTierIndex = index,
+			)
+		}
+		dao.upsertMonotonic("distance_total_m", 0, 1_000.0, 200L)
+
+		dao.getQualifiedStepsAchievementRows().map { it.metricKey }.toSet() shouldBe
+			QUALIFIED_STEPS_METRICS.toSet()
+
+		dao.markQualifiedStepsMaterializing(sourceEvidenceRevision = 5L, updatedAtMs = 300L) shouldBe 2
+		dao.getQualifiedStepsAchievementRows().forEach { row ->
+			val isGoalMetric = row.metricKey == AchievementProgressEntity.METRIC_GOAL_STREAK_DAYS ||
+				row.metricKey == AchievementProgressEntity.METRIC_PERFECT_WEEKS
+			row.authorityRevision shouldBe if (isGoalMetric) 5L else 4L
+			row.authorityDigest shouldBe "a".repeat(64)
+			row.authorityState shouldBe if (isGoalMetric) {
+				AchievementProgressEntity.AUTHORITY_STATE_MATERIALIZING
+			} else {
+				AchievementProgressEntity.AUTHORITY_STATE_READY
+			}
+		}
+		dao.getByMetric("distance_total_m")?.authorityState shouldBe null
+	}
+
 	private companion object {
 		const val METRIC = "goal_streak_days"
+		val QUALIFIED_STEPS_METRICS = listOf(
+			AchievementProgressEntity.METRIC_STEPS_TOTAL,
+			AchievementProgressEntity.METRIC_BEST_DAILY_STEPS,
+			AchievementProgressEntity.METRIC_GOAL_STREAK_DAYS,
+			AchievementProgressEntity.METRIC_PERFECT_WEEKS,
+		)
 	}
 }

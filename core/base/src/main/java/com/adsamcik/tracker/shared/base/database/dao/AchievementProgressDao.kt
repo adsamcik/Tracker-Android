@@ -15,10 +15,12 @@ interface AchievementProgressDao {
 		"SELECT * FROM achievement_progress " +
 			"WHERE authority_kind = '${AchievementProgressEntity.AUTHORITY_QUALIFIED_STEPS_V1}' " +
 			"AND metric_key IN (" +
+			"'${AchievementProgressEntity.METRIC_STEPS_TOTAL}', " +
+			"'${AchievementProgressEntity.METRIC_BEST_DAILY_STEPS}', " +
 			"'${AchievementProgressEntity.METRIC_GOAL_STREAK_DAYS}', " +
 			"'${AchievementProgressEntity.METRIC_PERFECT_WEEKS}')",
 	)
-	suspend fun getQualifiedStepsGoalRows(): List<AchievementProgressEntity>
+	suspend fun getQualifiedStepsAchievementRows(): List<AchievementProgressEntity>
 
 	@Query(
 		"UPDATE achievement_progress SET " +

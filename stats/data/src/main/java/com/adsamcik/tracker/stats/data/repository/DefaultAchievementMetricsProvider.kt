@@ -63,9 +63,10 @@ class DefaultAchievementMetricsProvider @Inject constructor(
 		val categoriesCompleted = countQualifiedCompletedCategories(qualifiedProgressByMetric)
 
 		// Raw STEPS_TOTAL and BEST_DAILY_STEPS remain deliberately absent: daily_summary is a
-		// projection rather than source qualification. PERFECT_WEEKS and GOAL_STREAK_DAYS are owned
-		// by the exact qualified goal-effect projector and are consumed only through READY persisted
-		// rows above; this general collector must never re-derive or overwrite them.
+		// projection rather than source qualification. All four Steps achievement series are consumed
+		// only through READY persisted rows above; the goal-effect and retained-fact projectors keep
+		// their separate exact authorities, and this general collector never re-derives or overwrites
+		// them.
 		// PLAYER_LEVEL, BEST_DAY_XP, and XP_SOURCES_USED are also absent because legacy XP storage
 		// cannot separate raw Steps-derived awards from independently qualified XP.
 		return MetricSnapshot.from(
