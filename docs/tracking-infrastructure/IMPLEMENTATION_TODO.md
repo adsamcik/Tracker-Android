@@ -353,14 +353,16 @@ legacy goal-notification worker retry transient qualified states without consumi
 Android notification permission denies delivery. `7a36129db` removes Steps from the generic
 `TripSummary` API and from newly written schema-3 JSON sessions; old optional JSON Steps remain
 importable, while exact source-owned transfer stays in `.trackersteps`.
+`294b76c16` removes raw Steps from the app-level `DailySummary`, aggregate
+`SessionStatsSnapshot`, and their Room projection. Daily and session non-Steps metrics remain
+available, while qualified day Steps stay in `QualifiedStepCount` and retained numeric summaries.
 
 All commits remain **IMPLEMENTED_UNVALIDATED**. NUM-001, NUM-005, and NUM-008 remain open. NUM-005
 still needs an authoritative current-policy signal before a daily widget or notification can call
 an otherwise not-captured day `disabled`; session history already carries that distinction. Finish
-the consumer inventory: raw `DailySummary.totalSteps`, `SessionStatsSnapshot.steps`, and historical
-trajectory StepInterval enrichment remain. Complete the consumer-wide authored test matrix. The
-v28 Room schema identity hash is intentionally not guessed and must be regenerated during final
-convergence validation.
+the consumer inventory by removing or source-qualifying historical-trajectory raw StepInterval
+enrichment. Complete the consumer-wide authored test matrix. The v28 Room schema identity hash is
+intentionally not guessed and must be regenerated during final convergence validation.
 
 ### Automatic Steps
 

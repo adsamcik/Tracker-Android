@@ -385,6 +385,21 @@ Run only in the final convergence phase:
 .\gradlew.bat detekt :stats:data:lintDebug :feature:statistics:lintDebug :feature:import-export:lintDebug --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
 ```
 
+## TI-B237 — Aggregate Steps presentation authority removal, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `294b76c16`. Twenty reviewed production/test paths remove
+Steps from the app-level daily-summary contract, aggregate session-statistics contract, and Room
+session-summary projection. Authored assertions preserve qualified ready-zero presence, reject an
+empty non-Steps shell for unavailable Steps, retain independent non-Steps metrics, and remove stale
+expectations that the generic DAO sums physical segment Steps.
+
+Static call-site searches found no remaining use of the removed public fields after two stale DAO
+assertions were corrected. This is source inspection, not compilation or behavioral evidence. No
+Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran. Final convergence must include the affected
+core-common/core-base, stats API/data, Dashboard, Tracker, widget, statistics, Detekt/lint, Room,
+and repository-wide gates.
+
 ## Static source × mode matrix
 
 | ID | Source | Mode | Capture sources | Declared controls | Qualified `RECORDING` evidence | Canonical output | Production history/UI assertion | Current status |

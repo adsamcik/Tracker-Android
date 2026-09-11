@@ -3398,3 +3398,22 @@ A fresh read-only call-site and compatibility review found no concrete blocker. 
 compiler, test, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
 activation, publication, or release command ran. `TODO-STEPS-NUM-001` remains open for raw daily
 summary, session-statistics, and historical-trajectory paths.
+
+## 2026-09-11 implementation-only checkpoint — aggregate Steps presentation authority removed
+
+Commit `294b76c16` on `codex/ti-steps-import-actions` removes Steps from the app-level
+`DailySummary` and aggregate `SessionStatsSnapshot` contracts. Dashboard, Tracker, and Today widget
+presence is now composed beside `QualifiedStepCount`; the qualified value remains separate and a
+qualified zero still produces truthful product presence. Non-Steps daily and session statistics
+remain available independently.
+
+The Room `SessionSegmentStats` projection no longer sums the legacy `SessionSegment.steps` column,
+so that query cannot accidentally become a numeric product escape path. Compatibility storage,
+source-specific repair, import, and migration fields remain intact; this is a projection/API change,
+not a destructive schema migration. Focused contract fixtures and assertions were updated together.
+
+Static repository searches found and closed two stale DAO assertions and found no remaining call
+site of the removed public fields. No Gradle, compiler, test, lint, Detekt, Room drift,
+emulator/device, UI, battery, CI, integration, activation, publication, or release command ran.
+`TODO-STEPS-NUM-001` remains open only for historical trajectory reconstruction's raw
+`StepInterval` enrichment.

@@ -2758,3 +2758,15 @@ Each entry records repository evidence and does not duplicate the final architec
 - `.trackersteps` remains the portable Steps product because it carries exact source evidence,
   correction lineage, covered zero, partial state, and ownership. Generic JSON location/radio
   export does not borrow that authority or infer it from a trip row.
+
+## TI-D175 — Generic daily and session aggregates do not carry Steps authority
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-11; source `294b76c16`; TI-B237.
+- The app-level `DailySummary` carries only distance, duration, and session count. Qualified daily
+  Steps remain a separate `QualifiedStepCount`, including covered zero and typed unavailability.
+- Aggregate `SessionStatsSnapshot` and its Room `SessionSegmentStats` projection carry only
+  non-Steps metrics. The legacy physical segment Steps column is compatibility storage and cannot
+  be reintroduced as an aggregate product number through this query.
+- Removing a public projection field does not authorize removing legacy Room columns, migration
+  inputs, correction/day-repair state, or source-local portable data. No destructive schema change
+  is part of this decision.
