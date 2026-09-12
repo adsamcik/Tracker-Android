@@ -554,6 +554,21 @@ No test, compiler, Gradle, lint, Detekt, Room drift, emulator/device, UI, batter
 activation, publication, or release command ran. This does not prove Android PendingIntent timing,
 process/reboot behavior, FGS legality, physical providers, or the production Automatic Steps query.
 
+## TI-B246 — Automatic interruption no-revival contract authored, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `0bb36227b`. Static inspection traces automatic-mode stop
+selection, stop grace and cancellation, bounded provider-removal retry, previous-exit finalization,
+force-stop finalization, manual same-boot restart eligibility, generation-fenced provider rollback,
+and finalized-logical-identity rejection at their existing owners.
+
+The added focused Room case constructs an interrupted automatic session with an exact same-boot
+descriptor and restart token, then requires the session and run to become FINALIZED, the pending
+lifecycle action to become terminal failure, its demand to retire, and the Activity automation
+epoch to rotate. Its adjacent contract continues to require that exact valid same-boot manual
+authority survive. This is source/test authorship only: no Gradle, compiler, test, lint, Detekt,
+Room drift, process-death, reboot, Android service, provider, emulator/device, battery, CI,
+integration, activation, publication, or release command ran.
+
 ## Static source × mode matrix
 
 | ID | Source | Mode | Capture sources | Declared controls | Qualified `RECORDING` evidence | Canonical output | Production history/UI assertion | Current status |

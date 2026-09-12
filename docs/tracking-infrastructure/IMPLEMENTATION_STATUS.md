@@ -3575,3 +3575,21 @@ No Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, batter
 activation, publication, or release command ran. This is **IMPLEMENTED_UNVALIDATED**. AUTO-005 is
 still open because TI-D007/TI-D022 deliberately leave the fixed Activity control-only retention
 duration to a product/privacy decision; the next unblocked implementation boundary is AUTO-007.
+
+## 2026-09-12 implementation-only checkpoint — Automatic interruption recovery pinned
+
+`TODO-STEPS-AUTO-007` is implemented at `0bb36227b`. Existing production ownership already stops
+automatic sessions when automation is disabled, preserves manual sessions, applies bounded grace
+and removal retry, finalizes stale/old-boot or force-stopped authority, permits only exact
+same-boot ACTIVE manual recovery, fences provider rollback by generation, and prevents a finalized
+logical identity from being recreated.
+
+The added focused Room contract supplies an exact same-boot restart-bearing descriptor for an
+automatic session and requires final session/run/action settlement, demand retirement, and
+automation-epoch rotation. It complements the adjacent positive manual-recovery contract and makes
+the automatic no-revival boundary explicit without adding an automatic restart mechanism.
+
+No Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran. This is **IMPLEMENTED_UNVALIDATED**. AUTO-005
+remains blocked only on the explicit fixed control-evidence retention duration; the next unblocked
+implementation boundary is AUTO-008.

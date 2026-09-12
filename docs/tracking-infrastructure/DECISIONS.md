@@ -2923,3 +2923,21 @@ Each entry records repository evidence and does not duplicate the final architec
 - No new provider, start path, lifecycle authority, or generic action framework is introduced.
   AUTO-005 remains open solely for the unresolved fixed control-evidence lifetime, and Android,
   process/reboot, FGS, provider, and end-to-end query evidence remains deferred.
+
+## TI-D184 — Automatic sessions never receive restart authority after process interruption
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-12; focused contract `0bb36227b`; TI-B246.
+- Existing automatic mode reconciliation stops an automatic session when the mode is disabled,
+  preserves a manual session, grants incompatible Activity a bounded stop grace, and cancels that
+  grace for compatible or user-initiated sessions. Provider removal remains bounded and retriable.
+- Previous-exit recovery preserves only an ACTIVE manual session whose exact logical entry, current
+  run, same-boot restart token, and Room authority still agree. Old-boot, stopping, mismatched,
+  automatic, and otherwise stale sessions have their demands retired and incomplete runs/actions
+  terminalized; force-stop uses the same no-recovery direction.
+- The focused Room contract now gives an automatic session the strongest misleading descriptor—a
+  matching same-boot logical/run identity and restart token—and requires final session/run/action
+  settlement, demand retirement, and automation-epoch rotation. Existing coordinator fences keep a
+  finalized logical identity from being recreated, including by an accepted automatic action.
+- This closes AUTO-007's authored logic boundary without creating an automatic restart path or
+  broadening manual fallback. Process death, reboot, Android service delivery, provider teardown,
+  and device behavior remain deferred validation, not current evidence.

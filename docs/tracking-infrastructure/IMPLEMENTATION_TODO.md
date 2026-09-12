@@ -405,7 +405,7 @@ regenerated during final convergence validation. Continue with Automatic Steps.
   history and portable export, and independently revocable and deletable.
 - [x] TODO-STEPS-AUTO-006 Fence stale triggers by observed and received clocks, boot identity,
   automation epoch, policy, consent, registration generation, action identity, and consumption.
-- [ ] TODO-STEPS-AUTO-007 Complete automatic stop, interrupted-session finalization, process or
+- [x] TODO-STEPS-AUTO-007 Complete automatic stop, interrupted-session finalization, process or
   reboot recovery, manual fallback, and rollback without reviving a finalized session.
 - [ ] TODO-STEPS-AUTO-008 Author trigger-to-provider-to-query and control-nonleakage tests without
   running them.
@@ -424,7 +424,11 @@ with AUTO-005's control-data minimization, retention, deletion, and export bound
 
 TI-D183/TI-B245 additionally pin every immutable automatic-trigger field at the service-validation
 boundary. AUTO-005 remains open because the repository deliberately has no approved fixed lifetime
-for control-only Activity WAL/outbox evidence; the unblocked continuation is AUTO-007.
+for control-only Activity WAL/outbox evidence. TI-D184/TI-B246 close AUTO-007's authored recovery
+boundary: automatic stop and bounded cleanup remain source-owned, valid same-boot manual authority
+is the only restart survivor, old-boot and force-stop authority is finalized, and even a same-boot
+automatic descriptor cannot revive its interrupted session. The next unblocked continuation is
+AUTO-008.
 
 ### Default-off Ambient Steps
 
