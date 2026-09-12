@@ -1,7 +1,13 @@
 package com.adsamcik.tracker.tracker.source.ambient.steps
 
 import com.adsamcik.tracker.shared.base.Time
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRepository
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
+import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
+import com.adsamcik.tracker.tracker.source.coordinator.TrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionMechanism
+import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.runtime.AmbientStepsDemandInactiveReason
 import com.adsamcik.tracker.tracker.source.runtime.AmbientStepsDemandResult
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
@@ -30,13 +36,23 @@ class AmbientStepsDemandReconciler internal constructor(
 	private val resolveCapability: suspend () -> AmbientStepsCapability,
 	private val sourceBroker: SourceBroker,
 	private val bootClockDomainProvider: BootClockDomainProvider,
+	private val sourcePolicyRepository: SourcePolicyRepository,
+	private val trackingRolloutStateStore: TrackingRolloutStateStore,
 ) {
 	@Inject
 	constructor(
 		capabilityResolver: AndroidAmbientStepsCapabilityResolver,
 		sourceBroker: SourceBroker,
 		bootClockDomainProvider: BootClockDomainProvider,
-	) : this(capabilityResolver::resolve, sourceBroker, bootClockDomainProvider)
+		sourcePolicyRepository: SourcePolicyRepository,
+		trackingRolloutStateStore: TrackingRolloutStateStore,
+	) : this(
+		capabilityResolver::resolve,
+		sourceBroker,
+		bootClockDomainProvider,
+		sourcePolicyRepository,
+		trackingRolloutStateStore,
+	)
 
 	suspend fun reconcile(): AmbientStepsDemandReconciliation = reconcileAt(
 		AmbientStepsDemandBoundary(
@@ -48,43 +64,74 @@ class AmbientStepsDemandReconciler internal constructor(
 
 	internal suspend fun reconcileAt(
 		boundary: AmbientStepsDemandBoundary,
-	): AmbientStepsDemandReconciliation = when (val capability = resolveCapability()) {
-		is AmbientStepsCapability.ReadyForRegistration -> {
-			when (val demand = sourceBroker.replaceAmbientStepsDemand(
-				consumerId = CONSUMER_ID,
-				mechanism = capability.provider.toAcquisitionMechanism(),
-				bootId = boundary.bootId,
-				elapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
-				wallTimeMs = boundary.wallTimeMs,
-			)) {
-				is AmbientStepsDemandResult.Active -> AmbientStepsDemandReconciliation.DemandReady(
+	): AmbientStepsDemandReconciliation {
+		ambientPolicyBlockReason()?.let { reason ->
+			retireDemand(boundary)
+			return AmbientStepsDemandReconciliation.PolicyBlocked(
+				provider = null,
+				reason = reason,
+			)
+		}
+		return when (val capability = resolveCapability()) {
+			is AmbientStepsCapability.ReadyForRegistration -> {
+				when (val demand = sourceBroker.replaceAmbientStepsDemand(
+					consumerId = CONSUMER_ID,
+					mechanism = capability.provider.toAcquisitionMechanism(),
+					bootId = boundary.bootId,
+					elapsedRealtimeNanos = boundary.elapsedRealtimeNanos,
+					wallTimeMs = boundary.wallTimeMs,
+				)) {
+					is AmbientStepsDemandResult.Active -> AmbientStepsDemandReconciliation.DemandReady(
+						provider = capability.provider,
+						importAccess = capability.importAccess,
+						optionalPermissions = capability.optionalPermissions,
+						demandId = demand.demand.demandId,
+					)
+					is AmbientStepsDemandResult.Inactive -> AmbientStepsDemandReconciliation.PolicyBlocked(
+						provider = capability.provider,
+						reason = demand.reason.toPublicReason(),
+					)
+				}
+			}
+			is AmbientStepsCapability.PermissionRequired -> {
+				retireDemand(boundary)
+				AmbientStepsDemandReconciliation.PermissionRequired(
 					provider = capability.provider,
-					importAccess = capability.importAccess,
+					requiredPermissions = capability.requiredPermissions,
 					optionalPermissions = capability.optionalPermissions,
-					demandId = demand.demand.demandId,
 				)
-				is AmbientStepsDemandResult.Inactive -> AmbientStepsDemandReconciliation.PolicyBlocked(
-					provider = capability.provider,
-					reason = demand.reason.toPublicReason(),
+			}
+			is AmbientStepsCapability.Unavailable -> {
+				retireDemand(boundary)
+				AmbientStepsDemandReconciliation.Unavailable(
+					healthConnect = capability.healthConnect,
+					localRecording = capability.localRecording,
 				)
 			}
 		}
-		is AmbientStepsCapability.PermissionRequired -> {
-			retireDemand(boundary)
-			AmbientStepsDemandReconciliation.PermissionRequired(
-				provider = capability.provider,
-				requiredPermissions = capability.requiredPermissions,
-				optionalPermissions = capability.optionalPermissions,
-			)
-		}
-		is AmbientStepsCapability.Unavailable -> {
-			retireDemand(boundary)
-			AmbientStepsDemandReconciliation.Unavailable(
-				healthConnect = capability.healthConnect,
-				localRecording = capability.localRecording,
-			)
-		}
 	}
+
+	/** Avoids platform permission/provider probes while Ambient Steps is not product-eligible. */
+	private suspend fun ambientPolicyBlockReason(): AmbientStepsDemandBlockReason? =
+		when (val authority = sourcePolicyRepository.currentState()) {
+			SourcePolicyAuthorityState.Uninitialized,
+			is SourcePolicyAuthorityState.Invalid -> AmbientStepsDemandBlockReason.AUTHORITY_INACTIVE
+
+			is SourcePolicyAuthorityState.Active -> {
+				val policy = authority.snapshot[TrackingSourceComponent.STEPS]
+				when {
+					policy.ambientConsentEpoch == null ->
+						AmbientStepsDemandBlockReason.REQUEST_DISABLED
+					!policy.ambientPersistenceEligible ->
+						AmbientStepsDemandBlockReason.PERSISTENCE_INELIGIBLE
+					!trackingRolloutStateStore.load().isCaptureReachable(
+						SourceKind.STEPS,
+						CaptureReachabilityMode.AMBIENT,
+					) -> AmbientStepsDemandBlockReason.ROLLOUT_CONTAINED
+					else -> null
+				}
+			}
+		}
 
 	private suspend fun retireDemand(boundary: AmbientStepsDemandBoundary) {
 		sourceBroker.replaceAmbientStepsDemand(
@@ -116,7 +163,8 @@ sealed interface AmbientStepsDemandReconciliation {
 	) : AmbientStepsDemandReconciliation
 
 	data class PolicyBlocked(
-		val provider: AmbientStepsProvider,
+		/** Null when policy or rollout rejects collection before any provider is inspected. */
+		val provider: AmbientStepsProvider?,
 		val reason: AmbientStepsDemandBlockReason,
 	) : AmbientStepsDemandReconciliation
 
