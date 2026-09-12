@@ -13,7 +13,6 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
@@ -44,11 +43,11 @@ class SharedStepSourceControllerTest {
 	}
 
 	@Test
-	fun `missing explicit Steps control epoch stays disabled and registers nothing`() = runTest {
+	fun `legacy Steps control is retired and registers nothing`() = runTest {
 		coEvery { broker.replaceAutomaticControlDemand(any(), any(), any(), any(), any(), any(), any(), any()) } returns null
 		coEvery { broker.authorizationDemands(SourceKind.STEPS) } returns emptyList()
 
-		assertFalse(subject.reconcileAutomaticControl(enabled = true))
+		subject.retireLegacyAutomaticControl()
 
 		coVerify(exactly = 1) {
 			broker.replaceAutomaticControlDemand(any(), SourceKind.STEPS, false, any(), any(), any(), any(), any())
@@ -73,7 +72,7 @@ class SharedStepSourceControllerTest {
 		val cutoff = SessionCutoff("logical-1", 900L, 10L, Long.MAX_VALUE)
 		coEvery { physical.quiesce(cutoff) } returns completeAck()
 
-		assertFalse(subject.reconcileAutomaticControl(enabled = true))
+		subject.retireLegacyAutomaticControl()
 		assertIs<SourceStartResult.Started>(subject.start(sessionPlan, mockk()))
 		assertIs<SourceStopAck>(subject.quiesce(cutoff))
 		subject.close()

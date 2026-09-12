@@ -61,8 +61,8 @@ object TrackerTraceboxTemplates {
 	)
 	val MAPLIBRE_SDK_INITIALIZATION_FAILED = LogTemplate.of("MapLibre SDK initialization failed")
 	val NAVIGATION_DESTINATION_REJECTED = LogTemplate.of("Navigation destination was rejected")
-	val OPTIONAL_STEP_CONTROL_RECONCILIATION_FAILED =
-		LogTemplate.of("Optional Steps automatic-control reconciliation failed")
+	val LEGACY_STEP_CONTROL_RETIREMENT_FAILED =
+		LogTemplate.of("Legacy Steps automatic-control retirement failed")
 	val PERSISTENCE_COMMIT_INCONSISTENT = LogTemplate.of("Persistence commit became inconsistent")
 	val PROCESS_TRACKING_CYCLE = LogTemplate.of("Process tracking cycle")
 	val RAW_LOCATION_REPAIR_COMPLETED =

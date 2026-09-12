@@ -16,9 +16,9 @@ import kotlinx.coroutines.sync.withLock
 /**
  * The one broker-driven owner of the physical step-counter registration.
  *
- * Session lifecycle calls attach/detach one consumer. CONTROL_AUTOSTART is currently fenced off:
- * without an Activity Transition callback it has no legal cold-start trigger, so keeping the step
- * counter registered would spend power without being able to start tracking.
+ * Session lifecycle calls attach/detach one consumer. Steps has no automatic-control role: Activity
+ * Transition owns the legal cold-start trigger, and the step counter is never retained solely for
+ * cross-source corroboration.
  */
 @Singleton
 class SharedStepSourceController @Inject constructor(
@@ -199,26 +199,22 @@ class SharedStepSourceController @Inject constructor(
 		if (acknowledgement.toOwnedShutdown() is OwnedSourceShutdown.Released) sessionClaim = null
 	}
 
-	/** Retires any legacy Steps CONTROL_AUTOSTART demand until a legal trigger contract exists. */
-	@Suppress("UNUSED_PARAMETER")
-	suspend fun reconcileAutomaticControl(enabled: Boolean): Boolean = mutex.withLock {
+	/** Retires any Steps CONTROL_AUTOSTART demand written by an older build. */
+	suspend fun retireLegacyAutomaticControl(): Unit = mutex.withLock {
 		val elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
-		val demand = sourceBroker.replaceAutomaticControlDemand(
+		sourceBroker.replaceAutomaticControlDemand(
 			consumerId = AUTOMATIC_CONTROL_CONSUMER,
 			source = source,
 			enabled = false,
 			bootId = clockDomainProvider.current(),
 			elapsedRealtimeNanos = elapsedRealtimeNanos,
 			wallTimeMs = System.currentTimeMillis(),
-			maximumAgeMs = RECENT_CONTROL_STEP_WINDOW_MS,
-			desiredLatencyMs = CONTROL_STEP_LATENCY_MS,
+			maximumAgeMs = LEGACY_CONTROL_MAXIMUM_AGE_MS,
+			desiredLatencyMs = LEGACY_CONTROL_LATENCY_MS,
 		)
 		reconcileSelectedDemands()
-		demand != null
+		Unit
 	}
-
-	/** Unknown after process death and false unless evidence matches the exact current CONTROL join. */
-	fun hasRecentControlSteps(): Boolean = physicalRuntime.hasRecentControlSteps()
 
 	private suspend fun reconcileSelectedDemands(): SourceApplyResult? {
 		val effective = effectivePlan(selectedDemands())
@@ -293,7 +289,7 @@ class SharedStepSourceController @Inject constructor(
 
 	private companion object {
 		const val AUTOMATIC_CONTROL_CONSUMER = "app:automatic-start:steps"
-		const val RECENT_CONTROL_STEP_WINDOW_MS = 30_000L
-		const val CONTROL_STEP_LATENCY_MS = 5_000L
+		const val LEGACY_CONTROL_MAXIMUM_AGE_MS = 30_000L
+		const val LEGACY_CONTROL_LATENCY_MS = 5_000L
 	}
 }

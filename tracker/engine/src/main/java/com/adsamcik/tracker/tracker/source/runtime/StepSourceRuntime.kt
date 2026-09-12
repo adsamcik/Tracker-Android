@@ -86,7 +86,6 @@ class StepSourceRuntime @Inject constructor(
 	private var batchingEnabled = false
 	private var metrics = RuntimeAdmissionMetrics()
 	private val processedCallbackSequence = MutableStateFlow(0L)
-	private val recentEvidence = RecentStepEvidenceTracker(SystemClock::elapsedRealtimeNanos)
 
 	override suspend fun start(plan: StepsPlan, sink: SourceEventSink): SourceStartResult = lifecycleMutex.withLock {
 		startForClaimLocked(claim = null, plan, sink)
@@ -231,13 +230,6 @@ class StepSourceRuntime @Inject constructor(
 	/** Drains callbacks through a session cutoff while another durable consumer keeps Steps alive. */
 	internal suspend fun sharedCutoff(cutoff: SessionCutoff): SourceStopAck = lifecycleMutex.withLock {
 		sharedCutoffLocked(cutoff)
-	}
-
-	internal fun hasRecentControlSteps(): Boolean {
-		val active = synchronized(callbackLock) {
-			registration?.takeIf { acceptingCallbacks }
-		} ?: return false
-		return recentEvidence.hasRecent(active, RECENT_CONTROL_STEP_WINDOW_NANOS)
 	}
 
 	override suspend fun close() = lifecycleMutex.withLock {
@@ -1315,13 +1307,11 @@ class StepSourceRuntime @Inject constructor(
 			is SourceAdmissionHandoff.Durable -> {
 				check(commitDurableStepPreview(accumulator, preview, handoff))
 				metrics.recordDurable(event.providerSequence, handoff.admissionOrdinal)
-				recentEvidence.recordQualified(activeRegistration, payload, event.observedElapsedNanos)
 				true
 			}
 			is SourceAdmissionHandoff.Duplicate -> {
 				check(commitDurableStepPreview(accumulator, preview, handoff))
 				metrics.recordDurable(event.providerSequence, handoff.existingAdmissionOrdinal)
-				recentEvidence.recordQualified(activeRegistration, payload, event.observedElapsedNanos)
 				true
 			}
 			is SourceAdmissionHandoff.TerminalFailure -> {
@@ -1996,69 +1986,6 @@ internal class StepObservedAuthorizationTimeline(
 	}
 }
 
-internal data class RecentStepEvidenceIdentity(
-	val bootClockDomainId: String,
-	val collectedDataEpoch: Long,
-	val registrationGeneration: Long,
-	val authorizationRevision: Long,
-	val authorizationFingerprint: String,
-)
-
-/** Process-local corroboration cache; durable replay never substitutes receipt time for observation. */
-internal class RecentStepEvidenceTracker(
-	private val elapsedRealtimeNanos: () -> Long,
-) {
-	private val lock = Any()
-	@Volatile private var evidence: Evidence? = null
-
-	fun recordQualified(
-		registration: SourceRegistration,
-		payload: com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload,
-		observedElapsedNanos: Long,
-	) {
-		if (registration.purposeEligibilityMask and SourceBrokerPurpose.MASK_CONTROL_AUTOSTART == 0L ||
-			payload.deltaCount <= 0L || payload.baselineReset ||
-			payload.bootClockDomainId != registration.authorization.effectiveBootId ||
-			payload.bootClockDomainId != registration.state.clockDomainId ||
-			payload.windowStartElapsedRealtimeNanos <
-				registration.authorization.effectiveElapsedRealtimeNanos ||
-			payload.windowEndElapsedRealtimeNanos <
-				registration.authorization.effectiveElapsedRealtimeNanos ||
-			observedElapsedNanos != payload.windowEndElapsedRealtimeNanos
-		) return
-		val next = Evidence(registration.evidenceIdentity(), observedElapsedNanos)
-		synchronized(lock) {
-			val current = evidence
-			// A duplicate replay retains its original sensor-observed timestamp. It may prove an
-			// otherwise-empty cache, but can neither refresh nor replace newer evidence.
-			if (current == null || current.identity != next.identity ||
-				next.observedElapsedNanos > current.observedElapsedNanos
-			) evidence = next
-		}
-	}
-
-	fun hasRecent(registration: SourceRegistration, maximumAgeNanos: Long): Boolean {
-		if (registration.purposeEligibilityMask and SourceBrokerPurpose.MASK_CONTROL_AUTOSTART == 0L) return false
-		val snapshot = evidence ?: return false
-		if (snapshot.identity != registration.evidenceIdentity()) return false
-		val age = elapsedRealtimeNanos() - snapshot.observedElapsedNanos
-		return age in 0L..maximumAgeNanos
-	}
-
-	private fun SourceRegistration.evidenceIdentity() = RecentStepEvidenceIdentity(
-		bootClockDomainId = state.clockDomainId,
-		collectedDataEpoch = state.collectedDataEpoch,
-		registrationGeneration = state.registrationGeneration,
-		authorizationRevision = authorization.authorizationRevision,
-		authorizationFingerprint = authorization.authorizationFingerprint,
-	)
-
-	private data class Evidence(
-		val identity: RecentStepEvidenceIdentity,
-		val observedElapsedNanos: Long,
-	)
-}
-
 internal class StepCallbackToken internal constructor(
 	val registrationGeneration: Long,
 	val eligibilityFingerprint: String,
@@ -2142,7 +2069,6 @@ private fun SourceApplyResult.withStopAckIfAbsent(replay: SourceStopAck?): Sourc
 	is SourceApplyResult.Failed -> copy(stopAck = stopAck ?: replay)
 }
 
-private const val RECENT_CONTROL_STEP_WINDOW_NANOS = 30_000L * 1_000_000L
 private const val STEP_NANOS_PER_MILLISECOND = 1_000_000L
 internal const val STEP_CALLBACK_LANE_CAPACITY = 64
 private val STEP_TRANSIENT_RETRY_DELAYS_MS = longArrayOf(10L, 50L, 250L, 1_000L, 5_000L, 30_000L)
