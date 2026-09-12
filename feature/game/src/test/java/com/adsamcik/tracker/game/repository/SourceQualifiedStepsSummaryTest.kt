@@ -65,7 +65,7 @@ class SourceQualifiedStepsSummaryTest {
 
 		val summary = summaryFlow(
 			repository = repository,
-			stepsCapturePolicy = flowOf(StepsCapturePolicyState.DISABLED),
+			stepsProductPolicy = flowOf(StepsProductPolicyState.DISABLED),
 		).first {
 			it.stepsToday is QualifiedStepCount.Ready && it.stepsWeek is QualifiedStepCount.Ready
 		}
@@ -116,7 +116,7 @@ class SourceQualifiedStepsSummaryTest {
 
 		val summary = summaryFlow(
 			repository = repository,
-			stepsCapturePolicy = flowOf(StepsCapturePolicyState.DISABLED),
+			stepsProductPolicy = flowOf(StepsProductPolicyState.DISABLED),
 		).first {
 			it.stepsToday == QualifiedStepCount.Unavailable(
 				QualifiedStepCountUnavailableReason.DISABLED,
@@ -139,7 +139,7 @@ class SourceQualifiedStepsSummaryTest {
 
 		val summary = summaryFlow(
 			repository = repository,
-			stepsCapturePolicy = flowOf(StepsCapturePolicyState.UNVERIFIABLE),
+			stepsProductPolicy = flowOf(StepsProductPolicyState.UNVERIFIABLE),
 		).first {
 			it.stepsToday == QualifiedStepCount.Unavailable(
 				QualifiedStepCountUnavailableReason.SOURCE_EVIDENCE_UNAVAILABLE,
@@ -155,15 +155,23 @@ class SourceQualifiedStepsSummaryTest {
 	}
 
 	@Test
-	fun `validated policy authority exposes only the Steps capture switch`() {
-		activePolicyState(stepsEnabled = true).toStepsCapturePolicyState() shouldBe
-			StepsCapturePolicyState.ENABLED
-		activePolicyState(stepsEnabled = false).toStepsCapturePolicyState() shouldBe
-			StepsCapturePolicyState.DISABLED
-		SourcePolicyAuthorityState.Uninitialized.toStepsCapturePolicyState() shouldBe
-			StepsCapturePolicyState.UNVERIFIABLE
-		SourcePolicyAuthorityState.Invalid("incomplete vector").toStepsCapturePolicyState() shouldBe
-			StepsCapturePolicyState.UNVERIFIABLE
+	fun `validated policy authority distinguishes Steps capture ambient and control`() {
+		activePolicyState(stepsEnabled = true).toStepsProductPolicyState() shouldBe
+			StepsProductPolicyState.ENABLED
+		activePolicyState(stepsEnabled = false).toStepsProductPolicyState() shouldBe
+			StepsProductPolicyState.DISABLED
+		activePolicyState(
+			stepsEnabled = false,
+			ambientStepsEnabled = true,
+		).toStepsProductPolicyState() shouldBe StepsProductPolicyState.ENABLED
+		activePolicyState(
+			stepsEnabled = false,
+			controlStepsEnabled = true,
+		).toStepsProductPolicyState() shouldBe StepsProductPolicyState.DISABLED
+		SourcePolicyAuthorityState.Uninitialized.toStepsProductPolicyState() shouldBe
+			StepsProductPolicyState.UNVERIFIABLE
+		SourcePolicyAuthorityState.Invalid("incomplete vector").toStepsProductPolicyState() shouldBe
+			StepsProductPolicyState.UNVERIFIABLE
 	}
 
 	@Test
@@ -193,7 +201,7 @@ class SourceQualifiedStepsSummaryTest {
 					)
 				}
 			},
-			stepsCapturePolicy = flowOf(StepsCapturePolicyState.DISABLED),
+			stepsProductPolicy = flowOf(StepsProductPolicyState.DISABLED),
 		).first { it.stepsWeek == QualifiedStepCount.Unavailable(QualifiedStepCountUnavailableReason.PARTIAL_CAPTURE) }
 		var storageReads = 0
 		val storageUnavailable = summaryFlow(
@@ -201,7 +209,7 @@ class SourceQualifiedStepsSummaryTest {
 				storageReads += 1
 				StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.STORAGE_UNAVAILABLE)
 			},
-			stepsCapturePolicy = flowOf(StepsCapturePolicyState.DISABLED),
+			stepsProductPolicy = flowOf(StepsProductPolicyState.DISABLED),
 		).toList().last()
 
 		materializing.stepsToday shouldBe QualifiedStepCount.Unavailable(
@@ -343,12 +351,12 @@ class SourceQualifiedStepsSummaryTest {
 		val dayGoal = MutableStateFlow(10_000)
 		val weekGoal = MutableStateFlow(70_000)
 		val dailyLimit = MutableStateFlow(0.5f)
-		val capturePolicy = MutableStateFlow(StepsCapturePolicyState.ENABLED)
+		val productPolicy = MutableStateFlow(StepsProductPolicyState.ENABLED)
 		val results = mutableListOf<StepsSummaryData>()
 		backgroundScope.launch {
 			sourceQualifiedStepsSummaryFlow(
 				repository, invalidations, dayGoal, weekGoal, dailyLimit,
-				stepsCapturePolicy = capturePolicy,
+				stepsProductPolicy = productPolicy,
 				currentDateTime = { now }, currentLocale = { Locale.GERMANY },
 			).collect(results::add)
 		}
@@ -372,7 +380,7 @@ class SourceQualifiedStepsSummaryTest {
 		results.last().stepsToday shouldBe QualifiedStepCount.Unavailable(
 			QualifiedStepCountUnavailableReason.NOT_CAPTURED,
 		)
-		capturePolicy.value = StepsCapturePolicyState.DISABLED
+		productPolicy.value = StepsProductPolicyState.DISABLED
 		runCurrent()
 		results.last().stepsToday shouldBe QualifiedStepCount.Unavailable(
 			QualifiedStepCountUnavailableReason.DISABLED,
@@ -438,8 +446,8 @@ class SourceQualifiedStepsSummaryTest {
 		invalidations: Flow<Unit> = flowOf(Unit),
 		weeklyGoal: Int = 70_000,
 		weeklyDailyLimit: Float = 0.5f,
-		stepsCapturePolicy: Flow<StepsCapturePolicyState> =
-			flowOf(StepsCapturePolicyState.ENABLED),
+		stepsProductPolicy: Flow<StepsProductPolicyState> =
+			flowOf(StepsProductPolicyState.ENABLED),
 		currentDateTime: () -> ZonedDateTime = { now },
 		currentLocale: () -> Locale = { Locale.GERMANY },
 	): Flow<StepsSummaryData> = sourceQualifiedStepsSummaryFlow(
@@ -448,13 +456,17 @@ class SourceQualifiedStepsSummaryTest {
 		dailyGoal = flowOf(10_000),
 		weeklyGoal = flowOf(weeklyGoal),
 		weeklyDailyLimit = flowOf(weeklyDailyLimit),
-		stepsCapturePolicy = stepsCapturePolicy,
+		stepsProductPolicy = stepsProductPolicy,
 		currentDateTime = currentDateTime,
 		currentLocale = currentLocale,
 	)
 }
 
-private fun activePolicyState(stepsEnabled: Boolean): SourcePolicyAuthorityState.Active {
+private fun activePolicyState(
+	stepsEnabled: Boolean,
+	ambientStepsEnabled: Boolean = false,
+	controlStepsEnabled: Boolean = false,
+): SourcePolicyAuthorityState.Active {
 	val revision = 7L
 	val effectiveTime = SourcePolicyEffectiveTime(
 		bootId = "test-boot",
@@ -463,6 +475,8 @@ private fun activePolicyState(stepsEnabled: Boolean): SourcePolicyAuthorityState
 	)
 	val policies = TrackingSourceComponent.entries.associateWith { source ->
 		val enabled = source == TrackingSourceComponent.STEPS && stepsEnabled
+		val ambientEnabled = source == TrackingSourceComponent.STEPS && ambientStepsEnabled
+		val controlEnabled = source == TrackingSourceComponent.STEPS && controlStepsEnabled
 		SourcePolicy(
 			source = source,
 			enabled = enabled,
@@ -471,11 +485,11 @@ private fun activePolicyState(stepsEnabled: Boolean): SourcePolicyAuthorityState
 			locationMinDistanceMeters = 20.takeIf { source == TrackingSourceComponent.LOCATION },
 			locationRequiredAccuracyMeters = 50.takeIf { source == TrackingSourceComponent.LOCATION },
 			captureConsentEpoch = 1L.takeIf { enabled },
-			controlConsentEpoch = null,
-			ambientConsentEpoch = null,
+			controlConsentEpoch = 1L.takeIf { controlEnabled },
+			ambientConsentEpoch = 1L.takeIf { ambientEnabled },
 			capturePersistenceEligible = enabled,
-			controlPersistenceEligible = false,
-			ambientPersistenceEligible = false,
+			controlPersistenceEligible = controlEnabled,
+			ambientPersistenceEligible = ambientEnabled,
 			effectiveTime = effectiveTime,
 			policyRevision = revision,
 		)

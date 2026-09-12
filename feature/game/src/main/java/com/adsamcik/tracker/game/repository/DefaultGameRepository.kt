@@ -92,8 +92,8 @@ class DefaultGameRepository @Inject constructor(
 			weeklyDailyLimit = goalsSettingsRepository.data
 				.map { settings -> settings.weeklyProgressDailyLimit }
 				.distinctUntilChanged(),
-			stepsCapturePolicy = sourcePolicyRepository.states
-				.map { state -> state.toStepsCapturePolicyState() }
+			stepsProductPolicy = sourcePolicyRepository.states
+				.map { state -> state.toStepsProductPolicyState() }
 				.distinctUntilChanged(),
 			currentDateTime = { Time.now },
 			currentLocale = { Locale.getDefault() },
