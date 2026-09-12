@@ -463,7 +463,7 @@ revoke rotate their own epoch; revoke atomically retires matching demand and den
 registration without changing session capture. The preference alone creates no provider demand.
 AMBIENT-002 remains open for capability, permission, retention/explanation UI, and end-user wiring.
 
-TI-D187/TI-B249 and `75f389f4f`/`754835f7c` complete only the capability-selection portion of
+TI-D187/TI-B249 and `75f389f4f`/`754835f7c` complete the capability-selection portion of
 AMBIENT-002/003: the read-only Android resolver chooses Health Connect mobile Steps when capable,
 never treats a missing Health Connect grant as permission to switch, falls back to Local Recording
 only for genuine Health Connect unavailability, and rejects the direct sensor as an ambient
@@ -471,8 +471,12 @@ acquisition floor. TI-D188/TI-B250 and `aa6995b98` complete only the registratio
 of AMBIENT-004, with TI-B251/`1023ab6b5` correcting all checkpoint/ingress sequence ownership:
 direct Step Counter ownership is exact `SESSION_CAPTURE`, while future ambient ownership has a
 distinct pointer and authorization vector. These TODOs stay unchecked until the
-permission UI, durable ambient demand/reconciler, provider acceptance/import, overlap and canonical
-composition, retention, product reads, deletion, and complete authored scenario cohort exist.
+permission UI, provider acceptance/import, overlap and canonical composition, retention, product
+reads, deletion, and complete authored scenario cohort exist. TI-D189/TI-B252/TI-B253 and
+`7b33b2271`/`c16a65e8d`/`039153f67` now add provider-specific opportunistic floors and a typed,
+idempotent capability-to-demand reconciler. It requires exact ambient policy/consent plus the Steps
+`AMBIENT` lane and creates no direct sensor or provider side effect. The production invocation,
+provider lifecycle, cursor, permission/revocation UI, and retention explanation remain open.
 
 ## Pressure vertical
 

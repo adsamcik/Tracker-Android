@@ -3017,3 +3017,21 @@ Each entry records repository evidence and does not duplicate the final architec
 - This is structural isolation, not ambient registration. The system-rearmable provider lifecycle,
   demand reconciler, external subscription acceptance, record import, and exact overlap partition
   remain subsequent AMBIENT-002 through AMBIENT-006 work.
+
+## TI-D189 — Ambient Steps demand names the selected provider without inventing cadence
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-12; source/tests `7b33b2271`, `c16a65e8d`, and
+  `039153f67`; TI-B252/TI-B253.
+- Health Connect mobile Steps and Local Recording have distinct canonical acquisition floors.
+  Both promise only opportunistic coverage and declare provider-native cursor authority for record
+  freshness; neither advertises a requested delivery latency or an adaptive/direct-counter tier.
+- A ready capability becomes one sessionless persistent `AMBIENT_PRODUCT` demand only when the
+  current Room policy has exact ambient consent and the Steps product lane admits `AMBIENT`.
+  Session Steps may remain disabled. Permission-required, unavailable, revoked, and contained
+  outcomes retire the app ambient consumer and remain typed.
+- Unchanged reconciliation reuses the existing demand. A provider change retires the prior demand
+  before inserting the replacement, and provider identity participates in demand identity. The
+  exact direct Step Counter cannot satisfy either ambient floor.
+- This is durable demand authority only. No production caller, system-rearmable provider
+  registration, Local Recording subscription, Health Connect read, import cursor, fact composition,
+  permission UI, or retention UI is claimed by this decision.

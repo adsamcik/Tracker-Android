@@ -22,7 +22,7 @@ Location, Activity, Wi-Fi, and Cell piece plus its applicable product/action tes
 one dedicated local convergence branch. Only then begin the complete validation/fix phase; after it
 passes, rebase and merge through the clean integration checkout. No push or activation is authorized.
 
-Current coordinator source checkpoint: `1023ab6b5` on `codex/ti-steps-import-actions`. Exact
+Current coordinator source checkpoint: `039153f67` on `codex/ti-steps-import-actions`. Exact
 Automatic Steps work is authored through TI-D185/TI-B247: Activity-only automatic control, the
 durable pre-Android gateway, immutable `{Steps capture, Activity control}` manifest, demand/runtime
 separation, exact trigger-envelope validation, stop/recovery/no-revival ownership, and linked real
@@ -39,8 +39,12 @@ TI-D188/TI-B250 separate the direct Step Counter into exact `SESSION_CAPTURE` re
 authorization ownership, so a future `AMBIENT_PRODUCT` provider can coexist without authorizing or
 retaining that listener. TI-B251/`1023ab6b5` propagate that exact owner through sensor checkpoints,
 single/batch durable ingress, and sequence allocation instead of reconstructing a shared scope from
-source kind. The actual ambient demand/reconciler, provider subscription and import,
-retention/explanation UI, and end-user permission/revocation flow remain next.
+source kind. TI-D189/TI-B252/TI-B253 then add provider-specific opportunistic floors and a typed,
+idempotent capability-to-demand reconciler at `7b33b2271`, `c16a65e8d`, and `039153f67`. It
+creates authority only after exact ambient consent and rollout agree, remains independent from
+session Steps, and performs no provider side effect. Production invocation, system-rearmable
+provider acceptance, subscription/read and import, retention/explanation UI, and the end-user
+permission/revocation flow remain next.
 
 The preceding history also contains the protected-path-safe `.trackersteps` import/export bridge,
 exact complete-entry selected deletion with dual no-resurrection fences, the two-database

@@ -3683,3 +3683,29 @@ scope. Authored contracts cover noncanonical scope rejection and an exact-purpos
 The deferred focused command extends the TI-B250 command with
 `--tests '*SensorRuntimeSupportTest' --tests '*RoomDurableSourceIngressTest'`. It was not run, and
 all prior validation limitations remain unchanged.
+
+## 2026-09-12 implementation-only checkpoint — Ambient provider demand authority authored
+
+TI-D189/TI-B252/TI-B253 are implemented at `7b33b2271`, `c16a65e8d`, and `039153f67`.
+Ambient Steps now has distinct canonical Health Connect mobile Steps and Local Recording floors.
+They encode opportunistic coverage and provider-native cursor freshness without a fake delivery
+cadence, adaptive tier, or compatibility with the direct Step Counter.
+
+`SourceBroker` can now replace the one app-scoped Steps `AMBIENT_PRODUCT` demand. It requires the
+current persistent ambient consent and an executable Steps `AMBIENT` rollout lane, remains valid
+when session Steps is disabled, uses no session/run/manifest identity, and is idempotent for an
+unchanged provider. Provider replacement retires before insert and includes the provider floor in
+the demand identity. `AmbientStepsDemandReconciler` maps a ready capability into that durable
+demand; missing permission or unavailable capability retires it, while policy and rollout failures
+remain typed.
+
+Focused model, broker, and capability-to-demand contracts were authored. The deferred command is:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*SourceAcquisitionFloorTest' --tests '*SourceBrokerTest' --tests '*AmbientStepsDemandReconcilerTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+No Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran. This is **IMPLEMENTED_UNVALIDATED**. The
+reconciler is not invoked by a production surface, and no provider registration, subscription,
+read, import, cursor, ambient fact, or UI behavior exists yet.

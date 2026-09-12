@@ -1561,3 +1561,29 @@ zero lower bound, materializing without zero/unavailable substitution, imported 
 live provider state, typed Detail states, no route/distance/duration/sample cards, and zero local
 supplement/GPX repository calls. They do not prove broader History/Calendar, imported admission,
 physical source-only registration/listener removal, reboot/FGS/battery or integration readiness.
+
+## TI-B252 — Provider-specific Ambient Steps floor contract authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `7b33b2271`. Authored `SourceAcquisitionFloorTest`
+assertions cover canonical round trips for both supported system continuity mechanisms, no
+requested/provider delivery cadence, no adaptive reduction, and rejection by every direct
+`StepsPlan`. Provider-native cursor freshness is encoded explicitly rather than represented as
+same-boot historical-record age.
+
+## TI-B253 — Capability-to-ambient-demand authority authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `c16a65e8d` and `039153f67`. Authored `SourceBrokerTest` and
+`AmbientStepsDemandReconcilerTest` assertions cover ambient-only policy with session Steps off,
+exact sessionless persistent demand fields, provider-distinct identity, idempotent unchanged
+reconciliation, retire-before-replace behavior, contained rollout, revoked consent, exact missing
+permission, unavailable-provider retirement, and no direct-counter fallback.
+
+Deferred exact command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*SourceAcquisitionFloorTest' --tests '*SourceBrokerTest' --tests '*AmbientStepsDemandReconcilerTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. No compiler, test, static, schema, device, provider, UI, battery, CI,
+integration, activation, publication, or release evidence follows. In particular, `DemandReady`
+means durable broker authority only; it does not prove provider acceptance or collected records.

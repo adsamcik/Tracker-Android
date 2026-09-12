@@ -14,7 +14,7 @@ convergence phase, do not invoke Gradle, compilation, tests, lint, Detekt, schem
 emulator/device, evaluator, battery, CI, or release tasks. New commits are
 `IMPLEMENTED_UNVALIDATED` and stay off local `dev/v10` and all remotes.
 
-The current source/test implementation boundary is `1023ab6b5`, with documentation reconciled
+The current source/test implementation boundary is `039153f67`, with documentation reconciled
 through the current HEAD on coordinator `codex/ti-steps-import-actions`. Portable import, selected
 deletion, production round trip, manual Steps inventory, qualified day/week reads, numeric effects
 and consumer audit are authored through the preceding checkpoints. TI-D179/TI-B241 resolves
@@ -49,6 +49,11 @@ future `AMBIENT_PRODUCT` provider; it does not create ambient demand, subscribe 
 provider, import a record, or expose an end-user permission/retention surface. TI-B251 and
 `1023ab6b5` correct checkpoint and ingress propagation so exact physical owner scope—not a
 source-kind reconstruction—owns runtime state and sequence allocation.
+TI-D189/TI-B252/TI-B253 and `7b33b2271`/`c16a65e8d`/`039153f67` add provider-specific
+opportunistic floors and the typed capability-to-demand seam. It creates one sessionless persistent
+ambient demand only after capability, exact consent, and the Steps `AMBIENT` lane agree; an
+unchanged provider is idempotent, a changed provider cannot overlap demand, and permission or
+capability loss retires demand. No production caller or provider side effect exists yet.
 The earlier two stopped-run failures remain validation debt rather than current acceptance evidence.
 Preserve the six root paths, both older frozen drafts, and all source branch ancestry. Once every
 source vertical is built, assemble a dedicated convergence branch and only then run and fix the
@@ -62,8 +67,8 @@ portable-origin storage and its handover, not the subsequent work below. No new 
 
 The coordinator branch now carries the accepted local dependency cherries and subsequent portable
 import, deletion, numeric-consumer, policy, automatic-corroboration, manifest, and demand-contract
-checkpoints in one ordered history through `1023ab6b5`, plus the current documentation
-reconciliation. Exact authored boundaries are TI-B213 through TI-B251. They remain
+checkpoints in one ordered history through `039153f67`, plus the current documentation
+reconciliation. Exact authored boundaries are TI-B213 through TI-B253. They remain
 local implementation slices, not a validated convergence, importer activation, `dev/v10`
 integration, or publication. Resolve AUTO-005's fixed retention duration when product direction is
 available; otherwise continue `TODO-STEPS-AMBIENT-002`. Do not repeat the completed
