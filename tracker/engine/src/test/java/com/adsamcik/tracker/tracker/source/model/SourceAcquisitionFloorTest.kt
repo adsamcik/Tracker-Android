@@ -61,6 +61,33 @@ class SourceAcquisitionFloorTest {
 	}
 
 	@Test
+	fun `Ambient Steps providers round trip without fake cadence or direct counter compatibility`() {
+		AmbientStepsAcquisitionMechanism.entries.forEach { mechanism ->
+			val contract = SourceDemandContractFactory.forAmbientSteps(mechanism)
+			val restored = SourceDemandContract.decode(
+				source = SourceKind.STEPS,
+				floorSpec = contract.encodeFloor(),
+				maximumProviderItemAgeMs = contract.maximumProviderItemAgeMs,
+				targetPlanningLatencyMs = contract.targetPlanningLatencyMs,
+				requestedDeliveryLatencyMs = contract.requestedDeliveryLatencyMs,
+				adaptiveReductionAllowed = contract.adaptiveReductionAllowed,
+			)
+
+			restored shouldBe contract
+			contract.targetPlanningLatencyMs shouldBe Long.MAX_VALUE
+			contract.requestedDeliveryLatencyMs shouldBe null
+			contract.adaptiveReductionAllowed shouldBe false
+			StepsPlan(
+				revision = 1L,
+				enabled = true,
+				maximumReportLatencyMs = 300_000L,
+				projectionCheckpointIntervalMs = 1_000L,
+				hardwareBatchingAvailable = false,
+			).satisfies(contract.toDemand()) shouldBe false
+		}
+	}
+
+	@Test
 	fun `Activity capture and control retain orthogonal capabilities`() {
 		(1..3).forEach { qos ->
 			val capture = SourceDemandContractFactory.forQos(
