@@ -468,8 +468,9 @@ AMBIENT-002/003: the read-only Android resolver chooses Health Connect mobile St
 never treats a missing Health Connect grant as permission to switch, falls back to Local Recording
 only for genuine Health Connect unavailability, and rejects the direct sensor as an ambient
 acquisition floor. TI-D188/TI-B250 and `aa6995b98` complete only the registration-isolation portion
-of AMBIENT-004: direct Step Counter ownership is exact `SESSION_CAPTURE`, while future ambient
-ownership has a distinct pointer and authorization vector. These TODOs stay unchecked until the
+of AMBIENT-004, with TI-B251/`1023ab6b5` correcting all checkpoint/ingress sequence ownership:
+direct Step Counter ownership is exact `SESSION_CAPTURE`, while future ambient ownership has a
+distinct pointer and authorization vector. These TODOs stay unchecked until the
 permission UI, durable ambient demand/reconciler, provider acceptance/import, overlap and canonical
 composition, retention, product reads, deletion, and complete authored scenario cohort exist.
 

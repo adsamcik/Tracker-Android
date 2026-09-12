@@ -3000,7 +3000,8 @@ Each entry records repository evidence and does not duplicate the final architec
 
 ## TI-D188 — Incompatible Steps providers own exact purpose-scoped authorization
 
-- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-12; source/tests `aa6995b98`; TI-B250.
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-12; source/tests `aa6995b98` and correction
+  `1023ab6b5`; TI-B250/TI-B251.
 - The live direct Step Counter now reserves and refreshes only an exact `SESSION_CAPTURE` owner
   scope. A future system continuity adapter will use a separate `AMBIENT_PRODUCT` scope, durable
   pointer, sequence space, and observed-time authorization vector.
@@ -3010,6 +3011,9 @@ Each entry records repository evidence and does not duplicate the final architec
 - Existing shared broker owners and unrelated legacy provider owners retain their established
   all-purpose behavior. A malformed or wrong-source broker scope fails closed. No Room schema or
   generic provider platform was added.
+- Sensor checkpoint and durable-ingress sequence state follows the exact authenticated physical
+  registration owner. No path may reconstruct a shared owner from source kind after physical
+  authorization has selected a purpose-scoped registration.
 - This is structural isolation, not ambient registration. The system-rearmable provider lifecycle,
   demand reconciler, external subscription acceptance, record import, and exact overlap partition
   remain subsequent AMBIENT-002 through AMBIENT-006 work.

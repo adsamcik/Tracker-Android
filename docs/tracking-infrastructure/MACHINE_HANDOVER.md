@@ -14,7 +14,7 @@ convergence phase, do not invoke Gradle, compilation, tests, lint, Detekt, schem
 emulator/device, evaluator, battery, CI, or release tasks. New commits are
 `IMPLEMENTED_UNVALIDATED` and stay off local `dev/v10` and all remotes.
 
-The current source/test implementation boundary is `aa6995b98`, with documentation reconciled
+The current source/test implementation boundary is `1023ab6b5`, with documentation reconciled
 through the current HEAD on coordinator `codex/ti-steps-import-actions`. Portable import, selected
 deletion, production round trip, manual Steps inventory, qualified day/week reads, numeric effects
 and consumer audit are authored through the preceding checkpoints. TI-D179/TI-B241 resolves
@@ -46,7 +46,9 @@ Connect is genuinely unavailable. Generic ambient Steps planning now rejects the
 TI-D188/TI-B250 make the direct Step Counter exact `SESSION_CAPTURE` ownership and rotate each
 physical registration against only its eligible demands. This is the prerequisite for a distinct
 future `AMBIENT_PRODUCT` provider; it does not create ambient demand, subscribe either system
-provider, import a record, or expose an end-user permission/retention surface.
+provider, import a record, or expose an end-user permission/retention surface. TI-B251 and
+`1023ab6b5` correct checkpoint and ingress propagation so exact physical owner scope—not a
+source-kind reconstruction—owns runtime state and sequence allocation.
 The earlier two stopped-run failures remain validation debt rather than current acceptance evidence.
 Preserve the six root paths, both older frozen drafts, and all source branch ancestry. Once every
 source vertical is built, assemble a dedicated convergence branch and only then run and fix the
@@ -60,8 +62,8 @@ portable-origin storage and its handover, not the subsequent work below. No new 
 
 The coordinator branch now carries the accepted local dependency cherries and subsequent portable
 import, deletion, numeric-consumer, policy, automatic-corroboration, manifest, and demand-contract
-checkpoints in one ordered history through `aa6995b98`, plus the current documentation
-reconciliation. Exact authored boundaries are TI-B213 through TI-B250. They remain
+checkpoints in one ordered history through `1023ab6b5`, plus the current documentation
+reconciliation. Exact authored boundaries are TI-B213 through TI-B251. They remain
 local implementation slices, not a validated convergence, importer activation, `dev/v10`
 integration, or publication. Resolve AUTO-005's fixed retention duration when product direction is
 available; otherwise continue `TODO-STEPS-AMBIENT-002`. Do not repeat the completed

@@ -645,6 +645,27 @@ Authored pure, repository, refresh, and retirement contracts are deferred to:
 It was not run. This establishes no ambient provider acceptance, imported record, canonical overlap
 composition, listener/device behavior, integration, rollout, or release evidence.
 
+## TI-B251 — Purpose-scoped checkpoint and ingress ownership authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `1023ab6b5`. Static follow-up found two legacy shared-owner
+assumptions after TI-B250: sensor checkpoints rejected an exact broker owner, while delivery ingress
+allocated sequence state from `source-broker:<kind>` instead of the authenticated physical
+registration. The correction accepts only canonical shared/exact broker encodings, binds checkpoint
+owner to the physical generation, carries the authenticated registration through batch admission,
+and allocates from its exact owner pointer. Non-broker checkpoint owners and noncanonical purpose
+masks fail closed; unrelated legacy registration authorization behavior remains unchanged.
+
+Authored contracts add exact-owner checkpoint state, wrong-source/noncanonical rejection, exact
+Step runtime fixtures, and a purpose-scoped physical delivery whose sequence advances only its exact
+owner pointer. Deferred command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*SourceProviderPurposeScopeTest' :tracker:engine:testDebugUnitTest --tests '*SourceRegistrationRepositoryTest' --tests '*StepSourceRuntimeRefreshTest' --tests '*StepSourceRuntimeRetirementTest' --tests '*SensorRuntimeSupportTest' --tests '*RoomDurableSourceIngressTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+It was not run. This is source/contract authorship, not compiler, provider, device, integration,
+rollout, or release evidence.
+
 ## Static source × mode matrix
 
 | ID | Source | Mode | Capture sources | Declared controls | Qualified `RECORDING` evidence | Canonical output | Production history/UI assertion | Current status |

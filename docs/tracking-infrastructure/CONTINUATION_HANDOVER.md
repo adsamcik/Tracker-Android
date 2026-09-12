@@ -22,7 +22,7 @@ Location, Activity, Wi-Fi, and Cell piece plus its applicable product/action tes
 one dedicated local convergence branch. Only then begin the complete validation/fix phase; after it
 passes, rebase and merge through the clean integration checkout. No push or activation is authorized.
 
-Current coordinator source checkpoint: `aa6995b98` on `codex/ti-steps-import-actions`. Exact
+Current coordinator source checkpoint: `1023ab6b5` on `codex/ti-steps-import-actions`. Exact
 Automatic Steps work is authored through TI-D185/TI-B247: Activity-only automatic control, the
 durable pre-Android gateway, immutable `{Steps capture, Activity control}` manifest, demand/runtime
 separation, exact trigger-envelope validation, stop/recovery/no-revival ownership, and linked real
@@ -37,7 +37,9 @@ permission cannot silently switch providers, and Local Recording is considered o
 Connect is genuinely unavailable. Generic ambient Steps planning now rejects the direct sensor.
 TI-D188/TI-B250 separate the direct Step Counter into exact `SESSION_CAPTURE` registration and
 authorization ownership, so a future `AMBIENT_PRODUCT` provider can coexist without authorizing or
-retaining that listener. The actual ambient demand/reconciler, provider subscription and import,
+retaining that listener. TI-B251/`1023ab6b5` propagate that exact owner through sensor checkpoints,
+single/batch durable ingress, and sequence allocation instead of reconstructing a shared scope from
+source kind. The actual ambient demand/reconciler, provider subscription and import,
 retention/explanation UI, and end-user permission/revocation flow remain next.
 
 The preceding history also contains the protected-path-safe `.trackersteps` import/export bridge,

@@ -8,12 +8,13 @@ This is the durable execution ledger for the architecture in
 does not restate the architecture.
 
 Current execution boundary: TI-D186 through TI-D188, TI-B248 through TI-B250, and source commits
-`a8e876909`, `75f389f4f`, `754835f7c`, and `aa6995b98`. Ambient Steps is an opportunistic,
+`a8e876909`, `75f389f4f`, `754835f7c`, `aa6995b98`, and `1023ab6b5`. Ambient Steps is an opportunistic,
 default-off product with an independent persisted preference plus Room `AMBIENT_PRODUCT`
 consent/epoch/revocation fence. A side-effect-free Android capability snapshot selects one capable
 system provider without permission-driven fallback; generic ambient Steps planning rejects the
 direct sensor. Direct Step Counter registration and authorization are now purpose-scoped to
-`SESSION_CAPTURE`, structurally preventing future ambient demand from retaining it.
+`SESSION_CAPTURE`, and that owner identity propagates through sensor checkpoints and durable
+sequence allocation, structurally preventing future ambient demand from retaining or sharing it.
 `TODO-STEPS-AUTO-005` remains open only at its deliberately unresolved fixed control-only Activity
 retention duration. Automatic Steps has no other implementation item open. AMBIENT-001 is closed;
 AMBIENT-002 next needs the end-user permission/revocation surface, retention/explanation UI, and

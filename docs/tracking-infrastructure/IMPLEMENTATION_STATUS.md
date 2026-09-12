@@ -3674,3 +3674,12 @@ activation, publication, or release command ran. This is **IMPLEMENTED_UNVALIDAT
 ambient demand/reconciler, system-rearmable provider acceptance, import cursor, record ingestion,
 overlap composition, permission UI, retention explanation, and end-user revocation wiring remain
 open.
+
+Follow-up source audit found that `SensorAdmissionCheckpoint` and delivery ingress still assumed the
+legacy shared `source-broker:<kind>` owner. TI-B251 corrects that at `1023ab6b5`: canonical exact
+owner scopes are accepted by sensor checkpoints, checkpoint ownership must match the authenticated
+physical registration, and delivery sequence allocation uses that registration's durable owner
+scope. Authored contracts cover noncanonical scope rejection and an exact-purpose delivery owner.
+The deferred focused command extends the TI-B250 command with
+`--tests '*SensorRuntimeSupportTest' --tests '*RoomDurableSourceIngressTest'`. It was not run, and
+all prior validation limitations remain unchanged.
