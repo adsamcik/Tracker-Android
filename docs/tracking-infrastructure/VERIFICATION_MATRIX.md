@@ -607,6 +607,44 @@ retention/UI explanation, and device behavior remain unimplemented. No Gradle, c
 lint, Detekt, Room drift, emulator/device, provider, UI, battery, CI, integration, activation,
 publication, or release command ran.
 
+## TI-B249 — Singular Ambient Steps capability selection authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `75f389f4f` and `754835f7c`. The read-only Android resolver
+classifies Health Connect mobile Steps by API/extension/SDK/feature state, reads exact Steps and
+optional background-read grants, and classifies Local Recording by its published Play services
+minimum plus Activity Recognition permission. The pure selector requires capable Health Connect to
+win, treats its missing permission as user action rather than fallback authority, fails closed on a
+Health Connect probe failure, and selects Local Recording only for genuine Health Connect
+unavailability. The source-demand factory rejects direct-counter ambient plans.
+
+Authored contracts cover precedence, required versus optional grants, foreground-only access,
+platform/extension unavailability, probe failure, Local Recording permission, total unavailability,
+and the ambient direct-counter rejection. Deferred command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*AmbientStepsCapabilitySelectorTest' --tests '*SourceAcquisitionFloorTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+It was not run. No provider, permission UI, demand, subscription, import, device, or product evidence
+exists from this boundary.
+
+## TI-B250 — Purpose-isolated Steps provider authority authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `aa6995b98`. Exact broker owner scopes select only their
+durably encoded purpose masks. Authorization rotation and reservation acceptance use that selection;
+malformed/wrong-source broker scopes fail closed while shared and unrelated legacy owners preserve
+compatibility. `StepSourceRuntime` uses exact `SESSION_CAPTURE` scope, and a Room repository contract
+holds simultaneous capture and ambient pointers, then fences ambient without denying capture.
+
+Authored pure, repository, refresh, and retirement contracts are deferred to:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*SourceProviderPurposeScopeTest' :tracker:engine:testDebugUnitTest --tests '*SourceRegistrationRepositoryTest' --tests '*StepSourceRuntimeRefreshTest' --tests '*StepSourceRuntimeRetirementTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+It was not run. This establishes no ambient provider acceptance, imported record, canonical overlap
+composition, listener/device behavior, integration, rollout, or release evidence.
+
 ## Static source × mode matrix
 
 | ID | Source | Mode | Capture sources | Declared controls | Qualified `RECORDING` evidence | Canonical output | Production history/UI assertion | Current status |

@@ -7,13 +7,18 @@ This is the durable execution ledger for the architecture in
 `ADAPTIVE_COLLECTIONS_GREENFIELD_DESIGN.md`. It records implementation boundaries and proof; it
 does not restate the architecture.
 
-Current execution boundary: TI-D186/TI-B248 and `a8e876909` resolve Ambient Steps as an
-opportunistic, default-off product and author its independent persisted preference plus Room
-`AMBIENT_PRODUCT` consent/epoch/revocation fence.
+Current execution boundary: TI-D186 through TI-D188, TI-B248 through TI-B250, and source commits
+`a8e876909`, `75f389f4f`, `754835f7c`, and `aa6995b98`. Ambient Steps is an opportunistic,
+default-off product with an independent persisted preference plus Room `AMBIENT_PRODUCT`
+consent/epoch/revocation fence. A side-effect-free Android capability snapshot selects one capable
+system provider without permission-driven fallback; generic ambient Steps planning rejects the
+direct sensor. Direct Step Counter registration and authorization are now purpose-scoped to
+`SESSION_CAPTURE`, structurally preventing future ambient demand from retaining it.
 `TODO-STEPS-AUTO-005` remains open only at its deliberately unresolved fixed control-only Activity
 retention duration. Automatic Steps has no other implementation item open. AMBIENT-001 is closed;
-AMBIENT-002 next needs capability, permission, retention/explanation UI, and adapter demand wiring
-without registering the direct sensor for sessionless collection. TI-D180 through TI-D185 retain
+AMBIENT-002 next needs the end-user permission/revocation surface, retention/explanation UI, and
+adapter demand wiring. AMBIENT-003 still needs durable selected-provider registration, ingestion,
+cursor/overlap semantics, and canonical composition. TI-D180 through TI-D185 retain
 the preceding gateway, manifest, exact-demand, immutable-trigger, recovery, and product-path
 evidence. The September
 5 checkpoint in `CONTINUATION_HANDOVER.md` and TI-B204 onward in

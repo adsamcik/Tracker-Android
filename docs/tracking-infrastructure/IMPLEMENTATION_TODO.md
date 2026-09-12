@@ -1,6 +1,6 @@
 # Tracking Infrastructure Completion TODO
 
-Last updated: 2026-09-11
+Last updated: 2026-09-12
 
 This is the canonical remaining-work ledger for the six source-to-product verticals. It translates
 the vision, final design, adaptive acquisition design, execution ledger, decisions, current
@@ -462,6 +462,16 @@ default-off preference and independent Room Steps `AMBIENT_PRODUCT` consent auth
 revoke rotate their own epoch; revoke atomically retires matching demand and denies its live
 registration without changing session capture. The preference alone creates no provider demand.
 AMBIENT-002 remains open for capability, permission, retention/explanation UI, and end-user wiring.
+
+TI-D187/TI-B249 and `75f389f4f`/`754835f7c` complete only the capability-selection portion of
+AMBIENT-002/003: the read-only Android resolver chooses Health Connect mobile Steps when capable,
+never treats a missing Health Connect grant as permission to switch, falls back to Local Recording
+only for genuine Health Connect unavailability, and rejects the direct sensor as an ambient
+acquisition floor. TI-D188/TI-B250 and `aa6995b98` complete only the registration-isolation portion
+of AMBIENT-004: direct Step Counter ownership is exact `SESSION_CAPTURE`, while future ambient
+ownership has a distinct pointer and authorization vector. These TODOs stay unchecked until the
+permission UI, durable ambient demand/reconciler, provider acceptance/import, overlap and canonical
+composition, retention, product reads, deletion, and complete authored scenario cohort exist.
 
 ## Pressure vertical
 

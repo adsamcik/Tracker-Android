@@ -14,7 +14,7 @@ convergence phase, do not invoke Gradle, compilation, tests, lint, Detekt, schem
 emulator/device, evaluator, battery, CI, or release tasks. New commits are
 `IMPLEMENTED_UNVALIDATED` and stay off local `dev/v10` and all remotes.
 
-The current source/test implementation boundary is `a8e876909`, with documentation reconciled
+The current source/test implementation boundary is `aa6995b98`, with documentation reconciled
 through the current HEAD on coordinator `codex/ti-steps-import-actions`. Portable import, selected
 deletion, production round trip, manual Steps inventory, qualified day/week reads, numeric effects
 and consumer audit are authored through the preceding checkpoints. TI-D179/TI-B241 resolves
@@ -38,7 +38,15 @@ still requires an explicit fixed lifetime for control-only Activity WAL/outbox e
 TI-D186/TI-B248 resolve AMBIENT-001 as opportunistic and begin AMBIENT-002 with a persisted
 default-off preference plus independent persistent Steps `AMBIENT_PRODUCT` consent/epoch and exact
 revocation fencing. This preference creates no demand; capability, permission, retention and
-explanation UI, and the single selected continuity adapter remain unimplemented.
+explanation UI, and the single selected continuity adapter were still unimplemented there.
+TI-D187/TI-B249 add a read-only Android capability resolver and one-provider precedence contract:
+capable Health Connect mobile Steps wins, missing Health Connect permission cannot silently switch
+to Local Recording, probe failure fails closed, and Local Recording is used only when Health
+Connect is genuinely unavailable. Generic ambient Steps planning now rejects the direct sensor.
+TI-D188/TI-B250 make the direct Step Counter exact `SESSION_CAPTURE` ownership and rotate each
+physical registration against only its eligible demands. This is the prerequisite for a distinct
+future `AMBIENT_PRODUCT` provider; it does not create ambient demand, subscribe either system
+provider, import a record, or expose an end-user permission/retention surface.
 The earlier two stopped-run failures remain validation debt rather than current acceptance evidence.
 Preserve the six root paths, both older frozen drafts, and all source branch ancestry. Once every
 source vertical is built, assemble a dedicated convergence branch and only then run and fix the
@@ -52,8 +60,8 @@ portable-origin storage and its handover, not the subsequent work below. No new 
 
 The coordinator branch now carries the accepted local dependency cherries and subsequent portable
 import, deletion, numeric-consumer, policy, automatic-corroboration, manifest, and demand-contract
-checkpoints in one ordered history through `a8e876909`, plus the current documentation
-reconciliation. Exact authored boundaries are TI-B213 through TI-B248. They remain
+checkpoints in one ordered history through `aa6995b98`, plus the current documentation
+reconciliation. Exact authored boundaries are TI-B213 through TI-B250. They remain
 local implementation slices, not a validated convergence, importer activation, `dev/v10`
 integration, or publication. Resolve AUTO-005's fixed retention duration when product direction is
 available; otherwise continue `TODO-STEPS-AMBIENT-002`. Do not repeat the completed

@@ -1,6 +1,6 @@
 # Tracking Infrastructure Continuation Handover
 
-Last updated: 2026-09-10
+Last updated: 2026-09-12
 
 ## Implementation-only directive
 
@@ -22,7 +22,7 @@ Location, Activity, Wi-Fi, and Cell piece plus its applicable product/action tes
 one dedicated local convergence branch. Only then begin the complete validation/fix phase; after it
 passes, rebase and merge through the clean integration checkout. No push or activation is authorized.
 
-Current coordinator source checkpoint: `a8e876909` on `codex/ti-steps-import-actions`. Exact
+Current coordinator source checkpoint: `aa6995b98` on `codex/ti-steps-import-actions`. Exact
 Automatic Steps work is authored through TI-D185/TI-B247: Activity-only automatic control, the
 durable pre-Android gateway, immutable `{Steps capture, Activity control}` manifest, demand/runtime
 separation, exact trigger-envelope validation, stop/recovery/no-revival ownership, and linked real
@@ -31,8 +31,14 @@ explicit fixed lifetime for control-only Activity WAL/outbox evidence. TI-D186/T
 AMBIENT-001 as an opportunistic first release with no hidden always-on service and begin
 AMBIENT-002: a separate persisted default-off preference now owns an independent, persistent
 Steps `AMBIENT_PRODUCT` consent epoch and atomically fences that purpose on revocation. It creates
-no provider demand. Capability, permission, retention/explanation UI, and the selected continuity
-adapter remain next.
+no provider demand. TI-D187/TI-B249 add a side-effect-free Android capability snapshot and
+deterministically select exactly one provider: capable Health Connect mobile Steps wins, its missing
+permission cannot silently switch providers, and Local Recording is considered only when Health
+Connect is genuinely unavailable. Generic ambient Steps planning now rejects the direct sensor.
+TI-D188/TI-B250 separate the direct Step Counter into exact `SESSION_CAPTURE` registration and
+authorization ownership, so a future `AMBIENT_PRODUCT` provider can coexist without authorizing or
+retaining that listener. The actual ambient demand/reconciler, provider subscription and import,
+retention/explanation UI, and end-user permission/revocation flow remain next.
 
 The preceding history also contains the protected-path-safe `.trackersteps` import/export bridge,
 exact complete-entry selected deletion with dual no-resurrection fences, the two-database

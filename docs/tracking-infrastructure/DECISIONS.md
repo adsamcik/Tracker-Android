@@ -2979,3 +2979,37 @@ Each entry records repository evidence and does not duplicate the final architec
 - The preference alone authorizes no provider side effect and creates no demand. Capability,
   permission, one selected continuity adapter, retention/explanation UI, and provider evidence are
   subsequent AMBIENT-002/003 work, not implied by this checkpoint.
+
+## TI-D187 — Ambient Steps selects one system continuity provider without a direct-sensor fallback
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-12; source/tests `75f389f4f` and `754835f7c`;
+  TI-B249.
+- Health Connect mobile Steps has precedence whenever its platform, extension, SDK, and feature
+  capability are available. Missing `READ_STEPS` is a typed user action and cannot silently switch
+  Tracker to Local Recording. Optional background-read permission changes import opportunity only;
+  it does not change provider identity or promise a cadence.
+- Local Recording is selected only when Health Connect mobile Steps is genuinely unavailable and
+  its exact Play services and Activity Recognition requirements can be represented. A Health
+  Connect probe failure fails closed instead of authorizing a different provider from an uncertain
+  snapshot.
+- The Android resolver reads capability and grants but performs no registration and creates no
+  demand. The generic Steps QoS-to-floor path rejects `AMBIENT_PRODUCT`; direct Step Counter is not
+  an ambient provider under a renamed acquisition tier.
+- This decides provider precedence and capability semantics only. Durable provider acceptance,
+  import cursors, overlap ownership, product composition, UI, and device evidence remain open.
+
+## TI-D188 — Incompatible Steps providers own exact purpose-scoped authorization
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-12; source/tests `aa6995b98`; TI-B250.
+- The live direct Step Counter now reserves and refreshes only an exact `SESSION_CAPTURE` owner
+  scope. A future system continuity adapter will use a separate `AMBIENT_PRODUCT` scope, durable
+  pointer, sequence space, and observed-time authorization vector.
+- Source authorization rotation and reserved-provider acceptance filter demands through the
+  physical registration's durable owner scope. Revoking ambient authority therefore cannot revoke
+  a valid session listener, and adding ambient authority cannot retain or authorize that listener.
+- Existing shared broker owners and unrelated legacy provider owners retain their established
+  all-purpose behavior. A malformed or wrong-source broker scope fails closed. No Room schema or
+  generic provider platform was added.
+- This is structural isolation, not ambient registration. The system-rearmable provider lifecycle,
+  demand reconciler, external subscription acceptance, record import, and exact overlap partition
+  remain subsequent AMBIENT-002 through AMBIENT-006 work.

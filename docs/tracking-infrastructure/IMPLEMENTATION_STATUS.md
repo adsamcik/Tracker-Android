@@ -3630,3 +3630,47 @@ Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, battery, 
 activation, publication, or release command ran. This is **IMPLEMENTED_UNVALIDATED**. AMBIENT-002
 remains open for capability, permission, retention class, explanation/UI, and end-user revocation
 wiring; AMBIENT-003 then selects one continuity adapter.
+
+## 2026-09-12 implementation-only checkpoint — Ambient provider selection authored
+
+TI-D187/TI-B249 are implemented at `75f389f4f` and `754835f7c`. Tracker now has a read-only Android
+capability snapshot for Health Connect mobile Steps and Local Recording, with typed availability,
+required permission, optional background-read, and import-access results. Selection is stable and
+singular: capable Health Connect wins; a missing grant does not switch providers; Health Connect
+probe uncertainty fails closed; Local Recording is considered only when Health Connect is actually
+unavailable.
+
+The generic `SourceDemandContractFactory.forQos` path now rejects Steps `AMBIENT_PRODUCT`, so the
+existing direct Step Counter cannot be retained through a fake ambient QoS mode. Focused selector
+and floor contracts were authored. The deferred focused command is:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*AmbientStepsCapabilitySelectorTest' --tests '*SourceAcquisitionFloorTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+No Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran. This is **IMPLEMENTED_UNVALIDATED**. No provider
+has been registered and no ambient demand exists.
+
+## 2026-09-12 implementation-only checkpoint — Steps provider purpose authority isolated
+
+TI-D188/TI-B250 are implemented at `aa6995b98`. Existing provider registration owner scopes now
+support exact purpose masks without a Room schema change. Registration begin/refresh, source-wide
+authorization rotation, and reserved replacement acceptance all derive authorization from the
+physical registration's eligible demand subset. Shared and unrelated legacy owner scopes remain
+compatible; malformed or wrong-source broker scopes deny all demands.
+
+The direct `StepSourceRuntime` now reserves and refreshes only
+`SourceBrokerPurpose.MASK_SESSION_CAPTURE`. Authored contracts cover parser failure, legacy
+compatibility, two simultaneous purpose-isolated Steps provider pointers, purpose-local fencing,
+and direct runtime use of the exact capture mask. The deferred focused command is:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*SourceProviderPurposeScopeTest' :tracker:engine:testDebugUnitTest --tests '*SourceRegistrationRepositoryTest' --tests '*StepSourceRuntimeRefreshTest' --tests '*StepSourceRuntimeRetirementTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+No Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran. This is **IMPLEMENTED_UNVALIDATED**. The actual
+ambient demand/reconciler, system-rearmable provider acceptance, import cursor, record ingestion,
+overlap composition, permission UI, retention explanation, and end-user revocation wiring remain
+open.
