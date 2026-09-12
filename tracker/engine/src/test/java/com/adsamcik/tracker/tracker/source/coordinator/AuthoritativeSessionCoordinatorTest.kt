@@ -2310,7 +2310,7 @@ class AuthoritativeSessionCoordinatorTest {
 	}
 
 	@Test
-	fun `automatic generation 2 Steps registers only Steps capture and Activity control`() = runTest {
+	fun `automatic generation 2 Steps persists exact immutable capture and control attribution`() = runTest {
 		val binding = installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V2)
 		val trigger = automaticTrigger()
 		seedAutomaticStartAction(trigger)
@@ -2333,13 +2333,54 @@ class AuthoritativeSessionCoordinatorTest {
 			),
 		).shouldBeInstanceOf<SessionStartPreparationResult.Prepared>().start
 
-		val manifestSources = database.sourceSessionDao()
+		val sessionDao = database.sourceSessionDao()
+		val manifest = requireNotNull(
+			sessionDao.manifest(prepared.logicalTrackingId, prepared.manifestRevision),
+		)
+		val manifestSources = sessionDao
 			.manifestSources(prepared.logicalTrackingId, prepared.manifestRevision)
+		val stepsPolicy = requireNotNull(
+			database.sourcePolicyDao().policyAtRevision(
+				request.plan.sourcePolicyRevision,
+				SourceKind.STEPS.stableCode,
+			),
+		)
+		val activityPolicy = requireNotNull(
+			database.sourcePolicyDao().policyAtRevision(
+				request.plan.sourcePolicyRevision,
+				SourceKind.ACTIVITY.stableCode,
+			),
+		)
+
+		manifest.logicalTrackingId shouldBe prepared.logicalTrackingId
+		manifest.manifestRevision shouldBe prepared.manifestRevision
+		manifest.serviceRunId shouldBe prepared.serviceRunId
+		manifest.sessionMode shouldBe SessionMode.AUTOMATIC.name
+		manifest.sourcePolicyRevision shouldBe request.plan.sourcePolicyRevision
+		manifest.acquisitionPlanRevision shouldBe request.plan.revision
+		manifest.rolloutRevision shouldBe rolloutSnapshot.revision
+		manifest.startOrigin shouldBe SessionStartOrigin.AUTOMATIC_BACKGROUND_START.name
+		manifest.effectiveBootId shouldBe request.clockDomainId
+		manifest.effectiveElapsedRealtimeNanos shouldBe request.elapsedRealtimeNanos
+		manifest.effectiveWallTimeMs shouldBe request.wallTimeMs
+		manifest.zoneId shouldBe request.zoneId
+		manifest.automationEpoch shouldBe trigger.automationEpoch
+		manifest.changeReason shouldBe "SESSION_START"
+		manifestSources.size shouldBe 2
+		SessionManifestIntegrity.verify(manifest, manifestSources) shouldBe true
 		manifestSources.filter { source ->
 			source.purpose == SessionManifestPurpose.SESSION_CAPTURE.name
 		}.let { capture ->
 			capture.map(SessionManifestSourceEntity::sourceKind).toSet() shouldBe
 				setOf(SourceKind.STEPS.stableCode)
+			capture.single().consentEpoch shouldBe stepsPolicy.captureConsentEpoch
+			capture.single().persistenceEligible shouldBe true
+			capture.single().qosCode shouldBe stepsPolicy.qosCode
+			capture.single().outputDestination shouldBe
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_STEPS
+			capture.single().writerOwner shouldBe SourceDestinationOwnerEntity.OWNER_STEPS_SESSION_FACTS
+			capture.single().writerOwnerGeneration shouldBe
+				SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
 			capture.single().writerProjectionId shouldBe binding.projectionId
 			capture.single().writerProjectionVersion shouldBe binding.projectionVersion
 			capture.single().writerBindingGeneration shouldBe binding.bindingGeneration
@@ -2349,8 +2390,15 @@ class AuthoritativeSessionCoordinatorTest {
 		}.let { control ->
 			control.map(SessionManifestSourceEntity::sourceKind).toSet() shouldBe
 				setOf(SourceKind.ACTIVITY.stableCode)
+			control.single().consentEpoch shouldBe activityPolicy.controlConsentEpoch
 			control.single().persistenceEligible shouldBe false
+			control.single().qosCode shouldBe activityPolicy.qosCode
+			control.single().outputDestination shouldBe null
 			control.single().writerOwner shouldBe null
+			control.single().writerOwnerGeneration shouldBe null
+			control.single().writerProjectionId shouldBe null
+			control.single().writerProjectionVersion shouldBe null
+			control.single().writerBindingGeneration shouldBe null
 		}
 
 		val demands = database.sourceBrokerDao().demandHistory("session:${prepared.logicalTrackingId}")
