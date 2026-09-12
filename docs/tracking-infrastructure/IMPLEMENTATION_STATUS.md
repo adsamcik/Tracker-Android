@@ -3593,3 +3593,20 @@ No Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, batter
 activation, publication, or release command ran. This is **IMPLEMENTED_UNVALIDATED**. AUTO-005
 remains blocked only on the explicit fixed control-evidence retention duration; the next unblocked
 implementation boundary is AUTO-008.
+
+## 2026-09-12 implementation-only checkpoint — Automatic trigger-to-query cohort authored
+
+`TODO-STEPS-AUTO-008` is implemented at `a097575b3`. The exact generation-2 automatic coordinator
+scenario now switches only its admission seam to production `RoomDurableSourceIngress`, admits a
+baseline and positive fresh delta from the owned Steps runtime under current provider and
+authorization identity, and drains the canonical source-local writer to two exact-run facts.
+
+The application production-facade scenario is now an automatic generation-2 run. It requires
+history capture and qualification to contain only Steps, keeps Activity separately identified as
+control, returns the complete ready step value, excludes Activity from portable export, and retains
+the existing fresh-database import/history/re-export no-fabrication contract.
+
+No Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran. This is **IMPLEMENTED_UNVALIDATED**. Automatic
+Steps now has only AUTO-005's fixed control-evidence retention duration unresolved. The next Steps
+wave begins with the AMBIENT-001 continuity-provider and user-promise decision.

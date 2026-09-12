@@ -22,17 +22,18 @@ Location, Activity, Wi-Fi, and Cell piece plus its applicable product/action tes
 one dedicated local convergence branch. Only then begin the complete validation/fix phase; after it
 passes, rebase and merge through the clean integration checkout. No push or activation is authorized.
 
-Current coordinator source checkpoint: `0bb36227b` on `codex/ti-steps-import-actions`. Exact
-Automatic Steps work is authored through TI-D184/TI-B246: Activity-only automatic control, the
+Current coordinator source checkpoint: `a097575b3` on `codex/ti-steps-import-actions`. Exact
+Automatic Steps work is authored through TI-D185/TI-B247: Activity-only automatic control, the
 durable pre-Android gateway, immutable `{Steps capture, Activity control}` manifest, demand/runtime
-separation, exact trigger-envelope validation, and stop/recovery/no-revival ownership. AUTO-005
-still needs an explicit fixed lifetime for control-only Activity WAL/outbox evidence; AUTO-008 is
-the next unblocked boundary.
+separation, exact trigger-envelope validation, stop/recovery/no-revival ownership, and linked real
+Room ingress/writer plus production query/export nonleakage contracts. AUTO-005 still needs an
+explicit fixed lifetime for control-only Activity WAL/outbox evidence. Default-off Ambient Steps is
+next, beginning with the explicit AMBIENT-001 continuity-provider/user-promise decision.
 
 The preceding history also contains the protected-path-safe `.trackersteps` import/export bridge,
 exact complete-entry selected deletion with dual no-resurrection fences, the two-database
 export/import/history/re-export contract, one transaction-coherent daily/week Steps read, manual
-inventory, and the qualified numeric/effect consumer audit. TI-D159/TI-B220 through TI-D184/TI-B246
+inventory, and the qualified numeric/effect consumer audit. TI-D159/TI-B220 through TI-D185/TI-B247
 are authoritative for guarantees and validation debt. Positive awards remain disabled.
 
 ## Local follow-up after the reviewed publication

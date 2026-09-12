@@ -407,7 +407,7 @@ regenerated during final convergence validation. Continue with Automatic Steps.
   automation epoch, policy, consent, registration generation, action identity, and consumption.
 - [x] TODO-STEPS-AUTO-007 Complete automatic stop, interrupted-session finalization, process or
   reboot recovery, manual fallback, and rollback without reviving a finalized session.
-- [ ] TODO-STEPS-AUTO-008 Author trigger-to-provider-to-query and control-nonleakage tests without
+- [x] TODO-STEPS-AUTO-008 Author trigger-to-provider-to-query and control-nonleakage tests without
   running them.
 
 AUTO-002 is satisfied by the existing shared Activity path, not a new Steps-local abstraction.
@@ -427,8 +427,13 @@ boundary. AUTO-005 remains open because the repository deliberately has no appro
 for control-only Activity WAL/outbox evidence. TI-D184/TI-B246 close AUTO-007's authored recovery
 boundary: automatic stop and bounded cleanup remain source-owned, valid same-boot manual authority
 is the only restart survivor, old-boot and force-stop authority is finalized, and even a same-boot
-automatic descriptor cannot revive its interrupted session. The next unblocked continuation is
-AUTO-008.
+automatic descriptor cannot revive its interrupted session. TI-D185/TI-B247 close AUTO-008 with
+linked production-seam contracts: the exact
+automatic trigger reaches the Steps runtime, real Room ingress admits baseline plus positive delta,
+the canonical generation-2 writer materializes both facts, and the production history/export
+facades expose only qualified Steps while retaining Activity solely as declared control. No command
+has executed those contracts yet. Automatic Steps now has only AUTO-005's fixed control-evidence
+retention decision outstanding.
 
 ### Default-off Ambient Steps
 

@@ -2941,3 +2941,24 @@ Each entry records repository evidence and does not duplicate the final architec
 - This closes AUTO-007's authored logic boundary without creating an automatic restart path or
   broadening manual fallback. Process death, reboot, Android service delivery, provider teardown,
   and device behavior remain deferred validation, not current evidence.
+
+## TI-D185 — Automatic Steps end-to-end authorship is a linked production-seam cohort
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-12; focused contracts `a097575b3`; TI-B247.
+- The coordinator's exact generation-2 automatic scenario now uses real `RoomDurableSourceIngress`
+  after trigger validation and foreground acceptance. Its owned Steps runtime admits a baseline and
+  fresh positive post-baseline delta under the exact physical registration and observed-time
+  authorization; the canonical Steps lane materializes both and binds the positive fact to the
+  exact logical entry and physical service run.
+- The application-level production-facade contract uses the same immutable generation-2 automatic
+  attribution and requires `TrackingHistoryRepository` to report captured and qualified Steps only,
+  with Activity visible solely in the separate control-source field. Portable export emits only
+  Steps `SESSION_CAPTURE`; import into a fresh database remains explicitly unable to fabricate the
+  original capture set.
+- This is intentionally a linked cohort at existing module owners, not a new cross-module
+  materializer harness or runtime architecture. The real-ingress writer contract and production
+  query/export contract share the exact stored schema and generation semantics while remaining
+  independently useful.
+- This closes AUTO-008's authored boundary only. No contract in the cohort has been executed on the
+  current branch, and no physical sensor, listener removal, Android FGS, process/reboot, UI-device,
+  battery, OEM, integration, rollout, or release evidence follows.

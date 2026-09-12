@@ -569,6 +569,26 @@ authority survive. This is source/test authorship only: no Gradle, compiler, tes
 Room drift, process-death, reboot, Android service, provider, emulator/device, battery, CI,
 integration, activation, publication, or release command ran.
 
+## TI-B247 — Automatic trigger-to-query and control-nonleakage cohort authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `a097575b3`. The tracker-engine contract follows one exact
+Activity-owned automatic trigger through immutable start preparation, foreground acceptance, and a
+Steps-only runtime start. It then admits baseline and positive-delta observations through real Room
+ingress using the active provider registration/authorization envelope and requires the canonical
+generation-2 writer to publish two exact-run Steps facts, including the positive value.
+
+The app-level contract gives the production history and portable-export facades a finalized
+automatic generation-2 Steps run whose immutable manifest separately declares Activity control.
+History must return Steps as the only captured and qualified source, retain Activity only as
+control metadata, and expose a complete ready value. Export must contain only Steps
+`SESSION_CAPTURE`; the existing fresh-database import/history/re-export assertions remain in the
+same contract and do not fabricate original capture authority.
+
+These are linked production-seam tests, not executed evidence or a claim that one host test drives
+Android's physical Step Counter. No Gradle, compiler, test, lint, Detekt, Room drift,
+emulator/device, listener, FGS, process-death, reboot, UI, battery, CI, integration, activation,
+publication, or release command ran.
+
 ## Static source × mode matrix
 
 | ID | Source | Mode | Capture sources | Declared controls | Qualified `RECORDING` evidence | Canonical output | Production history/UI assertion | Current status |
