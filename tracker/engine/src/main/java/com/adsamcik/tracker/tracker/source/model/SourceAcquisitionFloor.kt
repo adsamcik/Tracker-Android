@@ -146,21 +146,26 @@ internal object SourceDemandContractFactory {
 				adaptiveReductionAllowed = true,
 			)
 			SourceKind.ACTIVITY -> activityContract(effectiveQos, purpose)
-			SourceKind.STEPS -> SourceDemandContract(
-				floor = StepsAcquisitionFloor(
-					mechanism = StepsAcquisitionMechanism.DIRECT_COUNTER,
-					maximumReportLatencyMs = 300_000L,
-					continuousCoverageRequired = false,
-				),
-				maximumProviderItemAgeMs = 300_000L,
-				targetPlanningLatencyMs = when (effectiveQos) {
-					1 -> 300_000L
-					2 -> 60_000L
-					else -> 5_000L
-				},
-				requestedDeliveryLatencyMs = 300_000L,
-				adaptiveReductionAllowed = true,
-			)
+			SourceKind.STEPS -> {
+				require(purpose != DirectSourceDemandPurpose.AMBIENT_PRODUCT) {
+					"Ambient Steps requires one explicitly selected system continuity provider"
+				}
+				SourceDemandContract(
+					floor = StepsAcquisitionFloor(
+						mechanism = StepsAcquisitionMechanism.DIRECT_COUNTER,
+						maximumReportLatencyMs = 300_000L,
+						continuousCoverageRequired = false,
+					),
+					maximumProviderItemAgeMs = 300_000L,
+					targetPlanningLatencyMs = when (effectiveQos) {
+						1 -> 300_000L
+						2 -> 60_000L
+						else -> 5_000L
+					},
+					requestedDeliveryLatencyMs = 300_000L,
+					adaptiveReductionAllowed = true,
+				)
+			}
 			SourceKind.PRESSURE -> SourceDemandContract(
 				floor = PressureAcquisitionFloor(
 					maximumSamplePeriodMicros = 1_000_000,

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.model
 
 import io.kotest.matchers.shouldBe
+import kotlin.test.assertFailsWith
 import org.junit.Test
 
 class SourceAcquisitionFloorTest {
@@ -13,8 +14,11 @@ class SourceAcquisitionFloorTest {
 			DirectSourceDemandPurpose.CONTROL_CONTINUATION,
 		)
 		SourceKind.entries.forEach { source ->
+			val sourcePurposes = purposes.filterNot { purpose ->
+				source == SourceKind.STEPS && purpose == DirectSourceDemandPurpose.AMBIENT_PRODUCT
+			}
 			(1..3).forEach { qos ->
-				purposes.forEach { purpose ->
+				sourcePurposes.forEach { purpose ->
 					val live = SourceDemandContractFactory.forQos(source, qos, purpose)
 					SourceDemandContract.decode(
 						source = source,
@@ -28,7 +32,10 @@ class SourceAcquisitionFloorTest {
 			}
 		}
 		SourceKind.entries.forEach { source ->
-			purposes.filter { it != DirectSourceDemandPurpose.SESSION_CAPTURE }.forEach { purpose ->
+			purposes.filterNot { purpose ->
+				purpose == DirectSourceDemandPurpose.SESSION_CAPTURE ||
+					(source == SourceKind.STEPS && purpose == DirectSourceDemandPurpose.AMBIENT_PRODUCT)
+			}.forEach { purpose ->
 				val disabledCapturePolicy = SourceDemandContractFactory.forQos(source, 0, purpose)
 				SourceDemandContract.decode(
 					source,
@@ -39,6 +46,17 @@ class SourceAcquisitionFloorTest {
 					disabledCapturePolicy.adaptiveReductionAllowed,
 				) shouldBe disabledCapturePolicy
 			}
+		}
+	}
+
+	@Test
+	fun `generic Ambient Steps demand cannot retain the direct live counter`() {
+		assertFailsWith<IllegalArgumentException> {
+			SourceDemandContractFactory.forQos(
+				SourceKind.STEPS,
+				1,
+				DirectSourceDemandPurpose.AMBIENT_PRODUCT,
+			)
 		}
 	}
 
