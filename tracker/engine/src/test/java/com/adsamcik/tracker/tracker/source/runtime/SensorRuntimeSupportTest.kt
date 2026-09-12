@@ -1,5 +1,7 @@
 package com.adsamcik.tracker.tracker.source.runtime
 
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.SourceRuntimeStateEntity
 import com.adsamcik.tracker.tracker.source.model.SourceEvidenceCandidate
 import com.adsamcik.tracker.tracker.source.model.SourceKind
@@ -7,6 +9,7 @@ import io.kotest.matchers.shouldBe
 import io.mockk.mockk
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
@@ -40,6 +43,21 @@ class SensorRuntimeSupportTest {
 		decoded.metrics.unresolvedSequenceEndInclusive shouldBe 4L
 		decoded.componentPayload.toList() shouldBe listOf<Byte>(1, 2, 3)
 		decoded.causalOrderElapsedRealtimeNanos shouldBe 12_345L
+	}
+
+	@Test
+	fun `atomic checkpoint accepts exact source purpose ownership and rejects mismatched broker scope`() {
+		val exactOwner = SourceProviderPurposeScope.exactOwnerScope(
+			SourceKind.STEPS.stableCode,
+			SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+		)
+
+		atomicCheckpoint(ownerScope = exactOwner).toRuntimeState(91L).ownerScope shouldBe exactOwner
+		assertFailsWith<IllegalArgumentException> {
+			atomicCheckpoint(
+				ownerScope = SourceProviderPurposeScope.sharedOwnerScope(SourceKind.PRESSURE.stableCode),
+			)
+		}
 	}
 
 	@Test
@@ -419,9 +437,11 @@ class SensorRuntimeSupportTest {
 			bytes.toByteArray()
 		}
 
-	private fun atomicCheckpoint() = SensorAdmissionCheckpoint(
+	private fun atomicCheckpoint(
+		ownerScope: String = SourceProviderPurposeScope.sharedOwnerScope(SourceKind.STEPS.stableCode),
+	) = SensorAdmissionCheckpoint(
 		source = SourceKind.STEPS,
-		ownerScope = "source-broker:${SourceKind.STEPS.stableCode}",
+		ownerScope = ownerScope,
 		sourceInstanceId = "step-instance",
 		clockDomainId = "boot",
 		registrationGeneration = 1L,

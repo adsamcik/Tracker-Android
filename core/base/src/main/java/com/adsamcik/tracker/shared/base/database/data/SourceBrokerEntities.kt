@@ -47,6 +47,12 @@ object SourceProviderPurposeScope {
 		return sharedOwnerScope(sourceKind) + PURPOSE_MARKER + purposeMask
 	}
 
+	fun isCanonicalOwnerScope(sourceKind: Int, ownerScope: String): Boolean {
+		val shared = sharedOwnerScope(sourceKind)
+		if (ownerScope == shared) return true
+		return exactPurposeMaskOrNull(sourceKind, ownerScope) != null
+	}
+
 	fun selectDemands(
 		sourceKind: Int,
 		ownerScope: String,
@@ -55,13 +61,8 @@ object SourceProviderPurposeScope {
 		val shared = sharedOwnerScope(sourceKind)
 		val purposeMask = when {
 			ownerScope == shared -> SourceBrokerPurpose.ALL_MASK
-			ownerScope.startsWith(shared + PURPOSE_MARKER) -> ownerScope
-				.substringAfter(PURPOSE_MARKER)
-				.toLongOrNull()
-				?.takeIf {
-					it > 0L && (it and SourceBrokerPurpose.ALL_MASK.inv()) == 0L
-				}
-				?: return emptyList()
+			ownerScope.startsWith(shared + PURPOSE_MARKER) ->
+				exactPurposeMaskOrNull(sourceKind, ownerScope) ?: return emptyList()
 			ownerScope.startsWith(BROKER_PREFIX) -> return emptyList()
 			else -> SourceBrokerPurpose.ALL_MASK
 		}
@@ -69,6 +70,18 @@ object SourceProviderPurposeScope {
 			demand.sourceKind == sourceKind &&
 				(SourceBrokerPurpose.mask(demand.purpose) and purposeMask) != 0L
 		}
+	}
+
+	private fun exactPurposeMaskOrNull(sourceKind: Int, ownerScope: String): Long? {
+		val prefix = sharedOwnerScope(sourceKind) + PURPOSE_MARKER
+		if (!ownerScope.startsWith(prefix)) return null
+		val purposeMask = ownerScope.removePrefix(prefix)
+			.toLongOrNull()
+			?.takeIf {
+				it > 0L && (it and SourceBrokerPurpose.ALL_MASK.inv()) == 0L
+			}
+			?: return null
+		return purposeMask.takeIf { ownerScope == prefix + purposeMask }
 	}
 }
 

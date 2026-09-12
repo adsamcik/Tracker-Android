@@ -44,6 +44,11 @@ class SourceProviderPurposeScopeTest {
 		) shouldBe emptyList()
 		SourceProviderPurposeScope.selectDemands(
 			SOURCE_STEPS,
+			"source-broker:$SOURCE_STEPS:purposes=04",
+			demands,
+		) shouldBe emptyList()
+		SourceProviderPurposeScope.selectDemands(
+			SOURCE_STEPS,
 			SourceProviderPurposeScope.exactOwnerScope(
 				SOURCE_LOCATION,
 				SourceBrokerPurpose.MASK_SESSION_CAPTURE,
@@ -63,6 +68,29 @@ class SourceProviderPurposeScopeTest {
 				SourceBrokerPurpose.ALL_MASK shl 1,
 			)
 		}
+	}
+
+	@Test
+	fun `only canonical broker owner encodings belong to a source`() {
+		val exact = SourceProviderPurposeScope.exactOwnerScope(
+			SOURCE_STEPS,
+			SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+		)
+
+		SourceProviderPurposeScope.isCanonicalOwnerScope(SOURCE_STEPS, exact) shouldBe true
+		SourceProviderPurposeScope.isCanonicalOwnerScope(
+			SOURCE_STEPS,
+			SourceProviderPurposeScope.sharedOwnerScope(SOURCE_STEPS),
+		) shouldBe true
+		SourceProviderPurposeScope.isCanonicalOwnerScope(
+			SOURCE_STEPS,
+			"source-broker:$SOURCE_STEPS:purposes=04",
+		) shouldBe false
+		SourceProviderPurposeScope.isCanonicalOwnerScope(SOURCE_LOCATION, exact) shouldBe false
+		SourceProviderPurposeScope.isCanonicalOwnerScope(
+			SOURCE_STEPS,
+			"activity-registration-arbiter",
+		) shouldBe false
 	}
 
 	private fun demands(): List<SourceDemandEntity> = listOf(
