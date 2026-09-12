@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.ambient.steps
 
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -82,6 +83,18 @@ internal class AmbientStepsProviderRegistrationCoordinator(
 	private val cleanupStore: AmbientStepsProviderCleanupStore,
 	providerBackends: Set<AmbientStepsProviderBackend>,
 ) {
+	@Inject
+	constructor(
+		registrations: AmbientStepsProviderRegistrationRepository,
+		cleanupStore: AmbientStepsProviderCleanupStore,
+		healthConnectBackend: HealthConnectAmbientStepsProviderBackend,
+		localRecordingBackend: LocalRecordingAmbientStepsProviderBackend,
+	) : this(
+		registrations = registrations,
+		cleanupStore = cleanupStore,
+		providerBackends = setOf(healthConnectBackend, localRecordingBackend),
+	)
+
 	private val mutex = Mutex()
 	private val backends = providerBackends.associateBy(AmbientStepsProviderBackend::provider).also { indexed ->
 		require(indexed.size == providerBackends.size) { "Ambient Steps provider backends must be unique" }
