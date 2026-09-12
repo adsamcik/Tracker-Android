@@ -476,8 +476,7 @@ class SourceBroker @Inject constructor(
 	 */
 	internal suspend fun replaceAmbientStepsDemand(
 		consumerId: String,
-		enabled: Boolean,
-		mechanism: AmbientStepsAcquisitionMechanism,
+		mechanism: AmbientStepsAcquisitionMechanism?,
 		bootId: String,
 		elapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
@@ -501,7 +500,9 @@ class SourceBroker @Inject constructor(
 			return AmbientStepsDemandResult.Inactive(reason)
 		}
 
-		if (!enabled) return@withTransaction inactive(AmbientStepsDemandInactiveReason.REQUEST_DISABLED)
+		if (mechanism == null) {
+			return@withTransaction inactive(AmbientStepsDemandInactiveReason.REQUEST_DISABLED)
+		}
 		val policyDao = database.sourcePolicyDao()
 		val authority = policyDao.authority()
 		if (authority?.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE) {

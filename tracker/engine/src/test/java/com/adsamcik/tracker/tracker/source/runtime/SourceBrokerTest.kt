@@ -267,7 +267,6 @@ class SourceBrokerTest {
 
 		val result = subject.replaceAmbientStepsDemand(
 			consumerId = "app:ambient:steps",
-			enabled = true,
 			mechanism = AmbientStepsAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
 			bootId = "boot-1",
 			elapsedRealtimeNanos = 100L,
@@ -302,7 +301,6 @@ class SourceBrokerTest {
 		)
 		val healthConnect = (subject.replaceAmbientStepsDemand(
 			"app:ambient:steps",
-			true,
 			AmbientStepsAcquisitionMechanism.HEALTH_CONNECT_MOBILE_STEPS,
 			"boot-1",
 			100L,
@@ -310,7 +308,6 @@ class SourceBrokerTest {
 		) as AmbientStepsDemandResult.Active).demand
 		val localRecording = (subject.replaceAmbientStepsDemand(
 			"app:ambient:steps",
-			true,
 			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
 			"boot-1",
 			100L,
@@ -328,7 +325,6 @@ class SourceBrokerTest {
 
 		val unchanged = subject.replaceAmbientStepsDemand(
 			"app:ambient:steps",
-			true,
 			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
 			"boot-1",
 			150L,
@@ -353,7 +349,6 @@ class SourceBrokerTest {
 
 		subject.replaceAmbientStepsDemand(
 			"app:ambient:steps",
-			true,
 			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
 			"boot-1",
 			200L,
@@ -369,7 +364,6 @@ class SourceBrokerTest {
 		}.bootstrapFromLegacy(TrackingParamsState(legacySettingsMigrationCompleted = true))
 		subject.replaceAmbientStepsDemand(
 			"app:ambient:steps",
-			true,
 			AmbientStepsAcquisitionMechanism.LOCAL_RECORDING_STEPS,
 			"boot-1",
 			300L,
