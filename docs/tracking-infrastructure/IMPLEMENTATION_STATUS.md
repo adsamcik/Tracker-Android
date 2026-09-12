@@ -3610,3 +3610,23 @@ No Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, batter
 activation, publication, or release command ran. This is **IMPLEMENTED_UNVALIDATED**. Automatic
 Steps now has only AUTO-005's fixed control-evidence retention duration unresolved. The next Steps
 wave begins with the AMBIENT-001 continuity-provider and user-promise decision.
+
+## 2026-09-12 implementation-only checkpoint — Ambient Steps promise and consent authority
+
+`TODO-STEPS-AMBIENT-001` is resolved by TI-D186 as an opportunistic first release: Tracker will
+never imply full-day continuity across provider gaps and will not run an always-on hidden Steps
+service. A future explicit continuous product would require a separate visible-foreground promise.
+
+The first `TODO-STEPS-AMBIENT-002` slice is implemented at `a8e876909`. Proto/DataStore now retains
+a separate default-off `ambientStepsEnabled` intent. The authoritative Room policy imports and
+projects it independently from session Steps, appends a persistent Steps `AMBIENT_PRODUCT` consent
+epoch on each grant or revoke, and retires/denies only matching live ambient demand at the exact
+revocation boundary. Enabling the preference does not register a provider or create demand.
+
+Focused unit contracts were authored for legacy default-off behavior, persistence independent from
+session Steps, explicit ambient-only bootstrap, consent epoch rotation, capture independence,
+authoritative mirror behavior, and atomic ambient-demand retirement/authorization denial. No
+Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran. This is **IMPLEMENTED_UNVALIDATED**. AMBIENT-002
+remains open for capability, permission, retention class, explanation/UI, and end-user revocation
+wiring; AMBIENT-003 then selects one continuity adapter.

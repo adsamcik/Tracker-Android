@@ -7,13 +7,15 @@ This is the durable execution ledger for the architecture in
 `ADAPTIVE_COLLECTIONS_GREENFIELD_DESIGN.md`. It records implementation boundaries and proof; it
 does not restate the architecture.
 
-Current execution boundary: TI-D185/TI-B247 and `a097575b3` close the authored
-`TODO-STEPS-AUTO-008` trigger-to-provider-to-query and control-nonleakage cohort.
+Current execution boundary: TI-D186/TI-B248 and `a8e876909` resolve Ambient Steps as an
+opportunistic, default-off product and author its independent persisted preference plus Room
+`AMBIENT_PRODUCT` consent/epoch/revocation fence.
 `TODO-STEPS-AUTO-005` remains open only at its deliberately unresolved fixed control-only Activity
-retention duration. Automatic Steps has no other implementation item open; default-off Ambient
-Steps next requires the explicit `TODO-STEPS-AMBIENT-001` continuity-provider promise. TI-D180
-through TI-D184 retain the preceding gateway, manifest, exact-demand, immutable-trigger, and
-recovery evidence. The September
+retention duration. Automatic Steps has no other implementation item open. AMBIENT-001 is closed;
+AMBIENT-002 next needs capability, permission, retention/explanation UI, and adapter demand wiring
+without registering the direct sensor for sessionless collection. TI-D180 through TI-D185 retain
+the preceding gateway, manifest, exact-demand, immutable-trigger, recovery, and product-path
+evidence. The September
 5 checkpoint in `CONTINUATION_HANDOVER.md` and TI-B204 onward in
 `VERIFICATION_MATRIX.md` supersede older progress snapshots in this ledger. Read
 `VISION_AND_SCOPE.md` as the product north star and `MACHINE_HANDOVER.md` when continuing on another

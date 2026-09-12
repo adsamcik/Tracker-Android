@@ -2962,3 +2962,20 @@ Each entry records repository evidence and does not duplicate the final architec
 - This closes AUTO-008's authored boundary only. No contract in the cohort has been executed on the
   current branch, and no physical sensor, listener removal, Android FGS, process/reboot, UI-device,
   battery, OEM, integration, rollout, or release evidence follows.
+
+## TI-D186 — Ambient Steps starts opportunistically behind independent default-off consent
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-12; source/tests `a8e876909`; TI-B248.
+- The first Ambient Steps product promises only opportunistic continuity. Provider gaps, process
+  absence, reboot discontinuity, unavailable capability, and revoked permission remain explicit
+  incomplete coverage; Tracker does not present them as a complete zero-step interval.
+- Tracker will not retain the direct Step Counter or add an always-on hidden service solely to make
+  ambient history look continuous. A future full-day guarantee would be a distinct, explicitly
+  enabled visible-foreground product with its own battery and lifecycle evidence.
+- Ambient consent is a separate default-off persisted preference. It maps only to persistent Steps
+  `AMBIENT_PRODUCT` policy, has its own monotonic consent epochs, and can exist while session Steps
+  is disabled. Revocation retires and denies only ambient demand at its exact monotonic boundary;
+  session capture policy and epoch are unchanged.
+- The preference alone authorizes no provider side effect and creates no demand. Capability,
+  permission, one selected continuity adapter, retention/explanation UI, and provider evidence are
+  subsequent AMBIENT-002/003 work, not implied by this checkpoint.

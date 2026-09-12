@@ -589,6 +589,24 @@ Android's physical Step Counter. No Gradle, compiler, test, lint, Detekt, Room d
 emulator/device, listener, FGS, process-death, reboot, UI, battery, CI, integration, activation,
 publication, or release command ran.
 
+## TI-B248 — Default-off Ambient Steps consent authority authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `a8e876909`. Source inspection and focused authored unit
+contracts establish a separate Proto/DataStore `ambientStepsEnabled` intent whose missing/legacy
+value is false. The authoritative projection maps that intent only to persistent Steps
+`AMBIENT_PRODUCT` consent; session capture enablement, frequency, and capture epoch stay independent.
+
+Bootstrap can represent ambient-only Steps without inventing session capture. Later grants and
+revokes append purpose-local consent epochs. Revocation fences only `AMBIENT_PRODUCT`, retires a
+matching live demand, and installs a deny authorization at the same boot/elapsed boundary. Merely
+enabling the preference creates no provider registration or demand.
+
+The product promise is opportunistic: missing intervals remain gaps/partial and no hidden always-on
+service is authorized. Capability, Android permission, provider selection, continuity collection,
+retention/UI explanation, and device behavior remain unimplemented. No Gradle, compiler, test,
+lint, Detekt, Room drift, emulator/device, provider, UI, battery, CI, integration, activation,
+publication, or release command ran.
+
 ## Static source × mode matrix
 
 | ID | Source | Mode | Capture sources | Declared controls | Qualified `RECORDING` evidence | Canonical output | Production history/UI assertion | Current status |

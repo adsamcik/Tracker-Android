@@ -437,7 +437,7 @@ retention decision outstanding.
 
 ### Default-off Ambient Steps
 
-- [ ] TODO-STEPS-AMBIENT-001 Resolve the continuity-provider and user promise decision:
+- [x] TODO-STEPS-AMBIENT-001 Resolve the continuity-provider and user promise decision:
   opportunistic versus visible-foreground continuity.
 - [ ] TODO-STEPS-AMBIENT-002 Add a separate default-off ambient Steps setting, consent epoch,
   capability result, permission flow, retention class, explanation, and revocation path.
@@ -455,6 +455,13 @@ retention decision outstanding.
   export/import, and no-resurrection behavior for ambient-only and overlapping days.
 - [ ] TODO-STEPS-AMBIENT-009 Author capability, provider precedence, overlap, DST, zone change,
   partial-day, process, reboot, consent, retention, export, and deletion tests without running them.
+
+TI-D186/TI-B248 resolve AMBIENT-001 as an opportunistic first release with explicit partial/gap
+semantics and no always-on hidden service. `a8e876909` begins AMBIENT-002 with a persisted
+default-off preference and independent Room Steps `AMBIENT_PRODUCT` consent authority. Grant and
+revoke rotate their own epoch; revoke atomically retires matching demand and denies its live
+registration without changing session capture. The preference alone creates no provider demand.
+AMBIENT-002 remains open for capability, permission, retention/explanation UI, and end-user wiring.
 
 ## Pressure vertical
 

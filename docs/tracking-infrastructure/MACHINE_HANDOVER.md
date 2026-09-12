@@ -14,7 +14,7 @@ convergence phase, do not invoke Gradle, compilation, tests, lint, Detekt, schem
 emulator/device, evaluator, battery, CI, or release tasks. New commits are
 `IMPLEMENTED_UNVALIDATED` and stay off local `dev/v10` and all remotes.
 
-The current source/test implementation boundary is `a097575b3`, with documentation reconciled
+The current source/test implementation boundary is `a8e876909`, with documentation reconciled
 through the current HEAD on coordinator `codex/ti-steps-import-actions`. Portable import, selected
 deletion, production round trip, manual Steps inventory, qualified day/week reads, numeric effects
 and consumer audit are authored through the preceding checkpoints. TI-D179/TI-B241 resolves
@@ -34,8 +34,11 @@ TI-D184/TI-B246 close the authored stop/recovery/no-revival boundary, including 
 valid same-boot manual authority can survive process exit. TI-D185/TI-B247 add linked production
 seams from exact automatic trigger through real Steps Room admission and canonical materialization,
 then through production history and portable export with Activity remaining control-only. AUTO-005
-still requires an explicit fixed lifetime for control-only Activity WAL/outbox evidence. Ambient
-Steps begins only after the AMBIENT-001 continuity-provider/user-promise decision.
+still requires an explicit fixed lifetime for control-only Activity WAL/outbox evidence.
+TI-D186/TI-B248 resolve AMBIENT-001 as opportunistic and begin AMBIENT-002 with a persisted
+default-off preference plus independent persistent Steps `AMBIENT_PRODUCT` consent/epoch and exact
+revocation fencing. This preference creates no demand; capability, permission, retention and
+explanation UI, and the single selected continuity adapter remain unimplemented.
 The earlier two stopped-run failures remain validation debt rather than current acceptance evidence.
 Preserve the six root paths, both older frozen drafts, and all source branch ancestry. Once every
 source vertical is built, assemble a dedicated convergence branch and only then run and fix the
@@ -49,11 +52,11 @@ portable-origin storage and its handover, not the subsequent work below. No new 
 
 The coordinator branch now carries the accepted local dependency cherries and subsequent portable
 import, deletion, numeric-consumer, policy, automatic-corroboration, manifest, and demand-contract
-checkpoints in one ordered history through `a097575b3`, plus the current documentation
-reconciliation. Exact authored boundaries are TI-B213 through TI-B247. They remain
+checkpoints in one ordered history through `a8e876909`, plus the current documentation
+reconciliation. Exact authored boundaries are TI-B213 through TI-B248. They remain
 local implementation slices, not a validated convergence, importer activation, `dev/v10`
 integration, or publication. Resolve AUTO-005's fixed retention duration when product direction is
-available; otherwise resolve `TODO-STEPS-AMBIENT-001`. Do not repeat the completed
+available; otherwise continue `TODO-STEPS-AMBIENT-002`. Do not repeat the completed
 selected-deletion, round-trip, or numeric-audit waves. See the latest status/TODO/decision/matrix
 sections and verify the branch log before acting on older chronological handover passages.
 

@@ -22,13 +22,17 @@ Location, Activity, Wi-Fi, and Cell piece plus its applicable product/action tes
 one dedicated local convergence branch. Only then begin the complete validation/fix phase; after it
 passes, rebase and merge through the clean integration checkout. No push or activation is authorized.
 
-Current coordinator source checkpoint: `a097575b3` on `codex/ti-steps-import-actions`. Exact
+Current coordinator source checkpoint: `a8e876909` on `codex/ti-steps-import-actions`. Exact
 Automatic Steps work is authored through TI-D185/TI-B247: Activity-only automatic control, the
 durable pre-Android gateway, immutable `{Steps capture, Activity control}` manifest, demand/runtime
 separation, exact trigger-envelope validation, stop/recovery/no-revival ownership, and linked real
 Room ingress/writer plus production query/export nonleakage contracts. AUTO-005 still needs an
-explicit fixed lifetime for control-only Activity WAL/outbox evidence. Default-off Ambient Steps is
-next, beginning with the explicit AMBIENT-001 continuity-provider/user-promise decision.
+explicit fixed lifetime for control-only Activity WAL/outbox evidence. TI-D186/TI-B248 resolve
+AMBIENT-001 as an opportunistic first release with no hidden always-on service and begin
+AMBIENT-002: a separate persisted default-off preference now owns an independent, persistent
+Steps `AMBIENT_PRODUCT` consent epoch and atomically fences that purpose on revocation. It creates
+no provider demand. Capability, permission, retention/explanation UI, and the selected continuity
+adapter remain next.
 
 The preceding history also contains the protected-path-safe `.trackersteps` import/export bridge,
 exact complete-entry selected deletion with dual no-resurrection fences, the two-database
