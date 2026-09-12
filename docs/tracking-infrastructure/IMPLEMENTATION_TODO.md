@@ -397,7 +397,7 @@ regenerated during final convergence validation. Continue with Automatic Steps.
   must be a visible CONTROL demand or absent.
 - [x] TODO-STEPS-AUTO-002 Connect an eligible fresh Activity control trigger through the durable
   automatic gateway before Android service launch.
-- [ ] TODO-STEPS-AUTO-003 Create an immutable automatic manifest with capture set exactly Steps and
+- [x] TODO-STEPS-AUTO-003 Create an immutable automatic manifest with capture set exactly Steps and
   declared controls separately attributed.
 - [ ] TODO-STEPS-AUTO-004 Reconcile provider demand so Steps is captured and Activity, when used,
   remains CONTROL only.
@@ -414,7 +414,10 @@ AUTO-002 is satisfied by the existing shared Activity path, not a new Steps-loca
 TI-D180/TI-B242 trace exact transition-callback permission through durable outbox/action state and
 Room PREPARE before the Android call. Its focused tests are authored and historical validation is
 recorded only for the commits on which it ran; the current convergence remains unvalidated.
-Continue with AUTO-003's exact immutable Automatic Steps manifest.
+AUTO-003 is additionally pinned by TI-D181/TI-B243 and `3e1fb6189`: the checksum-protected manifest
+contains exactly Steps `SESSION_CAPTURE` and Activity `CONTROL`, with exact run, origin, mode,
+policy, plan, rollout, clocks, zone, automation, consent, QoS, persistence, and writer attribution.
+Continue with AUTO-004's provider-demand reconciliation.
 
 ### Default-off Ambient Steps
 

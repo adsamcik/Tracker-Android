@@ -3517,5 +3517,25 @@ applies only to its exact source commit and is not current-branch validation.
 
 No Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
 activation, publication, or release command ran. This is **IMPLEMENTED_UNVALIDATED** and closes only
-the shared gateway prerequisite. The next boundary is `TODO-STEPS-AUTO-003`: exact immutable
-Automatic Steps capture/control attribution.
+the shared gateway prerequisite. That checkpoint handed off AUTO-003; the next section records its
+implementation boundary.
+
+## 2026-09-12 implementation-only checkpoint — Automatic Steps manifest attribution pinned
+
+`TODO-STEPS-AUTO-003` is implemented at `3e1fb6189`. The production coordinator already builds the
+automatic manifest from enabled capture plans and a separately derived Activity control dependency.
+The strengthened focused Room contract now requires exactly two members: persistence-eligible Steps
+`SESSION_CAPTURE` with its exact consent, QoS, destination-owner generation, projection identity,
+and automatic-capable binding generation; and nonpersistent Activity `CONTROL` with its independent
+consent/QoS and no destination or writer provenance.
+
+The same assertion pins the checksum-protected manifest to its exact logical entry, physical service
+run, automatic session mode and start origin, policy/plan/rollout revisions, boot and effective
+elapsed/wall clocks, stored zone, automation epoch, and `SESSION_START` reason. Location, Pressure,
+Wi-Fi, Cell, and captured Activity are absent. Existing generation-1 Steps containment remains
+manual-only.
+
+No Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran. Production code and the expanded test remain
+**IMPLEMENTED_UNVALIDATED**. The next boundary is `TODO-STEPS-AUTO-004`: exact provider demand and
+Activity-control-only runtime reconciliation.

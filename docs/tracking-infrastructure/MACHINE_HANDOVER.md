@@ -14,8 +14,9 @@ convergence phase, do not invoke Gradle, compilation, tests, lint, Detekt, schem
 emulator/device, evaluator, battery, CI, or release tasks. New commits are
 `IMPLEMENTED_UNVALIDATED` and stay off local `dev/v10` and all remotes.
 
-The current source implementation boundary is `b779afd1e`, with documentation reconciled through
-the current HEAD on coordinator `codex/ti-steps-import-actions`. Portable import, selected deletion, production round trip, manual
+The current source/test implementation boundary is `3e1fb6189`, with documentation reconciled
+through the current HEAD on coordinator `codex/ti-steps-import-actions`. Portable import, selected
+deletion, production round trip, manual
 Steps inventory, qualified day/week reads, numeric effects and consumer audit are authored through
 the preceding checkpoints. TI-D179/TI-B241 resolves automatic Step corroboration as absent:
 Activity is the sole automatic control, sampled recognition keeps its full confidence threshold,
@@ -23,6 +24,9 @@ and legacy Steps `CONTROL_AUTOSTART` demand is retired without becoming an Activ
 TI-D180/TI-B242 additionally reconcile the already-present shared durable Activity gateway as
 AUTO-002: exact fresh Transition permission, durable action state, and Room PREPARE precede the
 Android service call; Sampling and cold replay cannot spend that permission.
+TI-D181/TI-B243 then pin the checksum-valid automatic manifest to exactly Steps capture and
+nonpersistent writerless Activity control, including exact physical run, lifecycle, consent, QoS,
+clock, zone, automation, and Steps writer attribution.
 The earlier two stopped-run failures remain validation debt rather than current acceptance evidence.
 Preserve the six root paths, both older frozen drafts, and all source branch ancestry. Once every
 source vertical is built, assemble a dedicated convergence branch and only then run and fix the
@@ -35,11 +39,11 @@ The actual published checkpoint is `0460f12a54a3550244f8e8ea5c9fb1f5e2ef27d2`, v
 portable-origin storage and its handover, not the subsequent work below. No new push is authorized.
 
 The coordinator branch now carries the accepted local dependency cherries and subsequent portable
-import, deletion, numeric-consumer, policy, and automatic-corroboration checkpoints in one ordered
-history through `b779afd1e`, plus the current documentation reconciliation. Exact authored
-boundaries are TI-B213 through TI-B242. They remain
+import, deletion, numeric-consumer, policy, automatic-corroboration, and manifest-contract
+checkpoints in one ordered history through `3e1fb6189`, plus the current documentation
+reconciliation. Exact authored boundaries are TI-B213 through TI-B243. They remain
 local implementation slices, not a validated convergence, importer activation, `dev/v10`
-integration, or publication. Continue at `TODO-STEPS-AUTO-003`; do not repeat the completed
+integration, or publication. Continue at `TODO-STEPS-AUTO-004`; do not repeat the completed
 selected-deletion, round-trip, or numeric-audit waves. See the latest status/TODO/decision/matrix
 sections and verify the branch log before acting on older chronological handover passages.
 

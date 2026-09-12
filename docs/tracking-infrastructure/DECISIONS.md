@@ -2867,6 +2867,25 @@ Each entry records repository evidence and does not duplicate the final architec
   from current motion or wall time.
 - Automatic Steps therefore uses this shared Activity-owned gateway; no Steps-local gateway,
   provider, observer, action table, or service entry is introduced. This closes AUTO-002 only.
-  AUTO-003 onward must still prove an exact Steps capture manifest, Activity control separation,
-  provider demand, control nonleakage, full stale-action coverage, recovery, production query/UI,
-  and eventual Android/device legality.
+  TI-D181 subsequently closes the exact manifest-attribution contract. Provider demand, control
+  nonleakage, full stale-action coverage, recovery, production query/UI, and eventual Android/device
+  legality remain later gates.
+
+## TI-D181 — Automatic Steps manifests contain exactly Steps capture and Activity control
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-12; source/test contract `3e1fb6189`; TI-B243.
+- The existing coordinator derives session capture bindings only from enabled plans and derives
+  automatic control dependencies only as Activity. For generation 2 Automatic Steps, the immutable
+  manifest therefore contains exactly two purpose-qualified members: persistence-eligible Steps
+  `SESSION_CAPTURE` and nonpersistent Activity `CONTROL`.
+- The Steps member carries the exact capture consent and QoS plus the current candidate destination,
+  owner generation, projection identity/version, and automatic-capable binding generation. The
+  Activity member carries its distinct control consent and QoS, is not persistence eligible, and
+  has no output destination or writer provenance.
+- The manifest itself is checksum-protected and bound to the exact logical entry, physical service
+  run, automatic mode/origin, policy, plan, rollout, boot and elapsed/wall effective clocks, stored
+  zone, and automation epoch. No source is inferred from sample count, wall overlap, or control
+  evidence.
+- The focused Room contract now asserts all of this in one Automatic Steps preparation scenario.
+  Existing generation-1 containment remains manual-only. This closes AUTO-003 only; provider-demand
+  activation and exact control/capture runtime reconciliation remain AUTO-004.

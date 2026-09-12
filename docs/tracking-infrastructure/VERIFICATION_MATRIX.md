@@ -494,7 +494,27 @@ promoted to validation of later current-branch changes.
 No test, compiler, Gradle, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
 activation, publication, or release command ran for this reconciliation. Android background-start
 legality, real PendingIntent/provider acceptance, process death/reboot, FGS type behavior, and the
-complete Automatic Steps manifest-to-provider-to-query product path remain unproven.
+complete Automatic Steps provider-to-query product path remain unproven.
+
+## TI-B243 — Exact Automatic Steps manifest contract authored, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `3e1fb6189`. The focused coordinator Room contract now
+requires one checksum-valid immutable manifest bound to the exact logical entry, physical service
+run, automatic mode/origin, policy, plan, rollout, effective boot/elapsed/wall clocks, stored zone,
+automation epoch, and start reason. Its complete membership is exactly Steps `SESSION_CAPTURE` and
+Activity `CONTROL`.
+
+The Steps capture member must carry its authoritative capture consent/QoS and exact candidate
+destination, owner generation, projection identity/version, and automatic-capable binding
+generation. The Activity control member must carry independent control consent/QoS, remain
+nonpersistent, and have no destination or writer provenance. Location, Pressure, Wi-Fi, Cell, and
+captured Activity cannot appear in the scenario. The existing generation-1 rejection preserves the
+manual-only predecessor boundary.
+
+No test, compiler, Gradle, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran. This is authored Room-contract evidence only;
+provider demand/registration, trigger-to-query behavior, real Activity/Steps providers, listener
+removal, process/reboot/FGS, battery/OEM, rollout, and release remain unproven.
 
 ## Static source × mode matrix
 
