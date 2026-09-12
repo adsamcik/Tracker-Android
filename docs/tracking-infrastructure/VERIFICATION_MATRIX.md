@@ -1587,3 +1587,53 @@ Deferred exact command:
 The command was not run. No compiler, test, static, schema, device, provider, UI, battery, CI,
 integration, activation, publication, or release evidence follows. In particular, `DemandReady`
 means durable broker authority only; it does not prove provider acceptance or collected records.
+
+## TI-B254 — Ineligible Ambient Steps preflight contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `187800e03`. Authored
+`AmbientStepsDemandReconcilerTest` cases require an eligible request to probe capability while
+default-off, revoked, inactive-authority, and contained-rollout paths do not. Revocation also
+retires stale app-owned ambient demand. The broker's transactional revalidation remains covered by
+its existing boundary; no provider call or device behavior is claimed.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*AmbientStepsDemandReconcilerTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run.
+
+## TI-B255 — Ambient structural-window contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `33874e0fe`. Authored
+`AmbientStepsStructuralWindowPlannerTest` cases cover exact partial/full days, Prague 23-hour and
+25-hour DST days, bounded continuation, second alignment, and invalid bounds. They are host
+contracts for pure planning only; they do not prove the zone across an unobserved process/reboot
+gap or execute a provider read.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :tracker:engine:testDebugUnitTest --tests '*AmbientStepsStructuralWindowPlannerTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run.
+
+## TI-B256 — Ambient aggregate-fact storage contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `88c14a52e`. Authored entity/integrity and Room DAO tests
+cover valid positive and covered-zero provider facts, redacted local deletion, revision ordering,
+latest-effective day/range reads, and exact source-owner fencing. The v27-to-v28 migration fixture,
+fresh-install callback, and collected-data full-clear fixture include the new table.
+
+Deferred host/schema command:
+
+```powershell
+.\gradlew.bat :core:base:testDebugUnitTest --tests '*AmbientStepsFact*' checkRoomSchemaDrift --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. The checked-in v28 schema JSON has the authored structural table/index
+shape, but its identity hash has not been regenerated or checked. Migration/reopen, Kotlin/Room
+compilation, Android API behavior, provider behavior, device/UI/battery, CI, integration,
+activation, publication, and release therefore remain unproven.

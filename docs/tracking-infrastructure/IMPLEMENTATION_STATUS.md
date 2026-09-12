@@ -10,6 +10,30 @@ The exhaustive remaining-work checklist is
 [IMPLEMENTATION_TODO.md](IMPLEMENTATION_TODO.md). It distinguishes implementation code and tests
 to author now from product decisions and the deferred convergence-validation phase.
 
+## September 12 paused checkpoint — Ambient Steps facts, before cursor/import
+
+The clean source checkpoint is `88c14a52e` on `codex/ti-steps-import-actions` in
+`G:\Github\Tracker-Android\.worktrees\ti-steps-import-actions`. The latest bounded commits are
+`187800e03` (policy/rollout preflight before any ambient capability probe), `33874e0fe` (exact
+stored-zone structural window planning), and `88c14a52e` (a source-specific, sessionless Ambient
+Steps revision table and source-owner fence). Earlier commits on the same branch own the
+system-rearmable provider lifecycle, startup rearm, deletion fencing, and exact Health Connect or
+Local Recording reads. All source and focused-test commits remain **IMPLEMENTED_UNVALIDATED**.
+
+The continuation stops deliberately before the durable import cursor or importer transaction.
+That is the next dependency: persist one cursor per accepted ambient provider registration
+generation, represent reboot/provider/zone/process discontinuities without guessing coverage, and
+then revise one stable logical segment as provider aggregates grow or are corrected. Before the
+importer writes facts, review `AmbientStepsFactIntegrity.logicalFactId`: its current inclusion of
+the read-window end is not yet accepted as correction-safe identity for a progressively extending
+segment.
+
+The v28 schema JSON contains the authored ambient table shape, but its identity hash has not been
+regenerated or checked. Kotlin/Room/API compilation, focused tests, migration/reopen, schema drift,
+static analysis, emulator/device behavior, and all broader gates remain deferred. No Gradle or
+validation command ran for these commits. Nothing in this checkpoint is integrated into
+`dev/v10`, pushed, activated, rolled out, or released.
+
 ## September 10 workflow and current boundary
 
 Production portable Steps admission is committed at `8abd7c6e3`, with exact atomic stored-zone

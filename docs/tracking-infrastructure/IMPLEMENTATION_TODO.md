@@ -478,6 +478,14 @@ idempotent capability-to-demand reconciler. It requires exact ambient policy/con
 `AMBIENT` lane and creates no direct sensor or provider side effect. The production invocation,
 provider lifecycle, cursor, permission/revocation UI, and retention explanation remain open.
 
+Paused source checkpoint `88c14a52e` adds the next source-local portions without completing any
+whole Ambient TODO: `187800e03` prevents default-off, revoked, contained, or otherwise ineligible
+state from probing provider capability; `33874e0fe` plans bounded exact structural-day windows
+under explicit zone authority; and `88c14a52e` stores independent sessionless ambient aggregate
+fact revisions behind an `AMBIENT_STEPS` owner fence. Durable cursor/gap authority, a
+correction-safe stable logical segment identity, the exact importer transaction, overlap
+partitioning, product reads/UI, retention, deletion, and portable transfer remain unchecked.
+
 ## Pressure vertical
 
 - [ ] TODO-PRESS-001 Complete the Pressure demand adapter and honest low, standard, and bounded

@@ -22,29 +22,50 @@ Location, Activity, Wi-Fi, and Cell piece plus its applicable product/action tes
 one dedicated local convergence branch. Only then begin the complete validation/fix phase; after it
 passes, rebase and merge through the clean integration checkout. No push or activation is authorized.
 
-Current coordinator source checkpoint: `039153f67` on `codex/ti-steps-import-actions`. Exact
-Automatic Steps work is authored through TI-D185/TI-B247: Activity-only automatic control, the
-durable pre-Android gateway, immutable `{Steps capture, Activity control}` manifest, demand/runtime
-separation, exact trigger-envelope validation, stop/recovery/no-revival ownership, and linked real
-Room ingress/writer plus production query/export nonleakage contracts. AUTO-005 still needs an
-explicit fixed lifetime for control-only Activity WAL/outbox evidence. TI-D186/TI-B248 resolve
-AMBIENT-001 as an opportunistic first release with no hidden always-on service and begin
-AMBIENT-002: a separate persisted default-off preference now owns an independent, persistent
-Steps `AMBIENT_PRODUCT` consent epoch and atomically fences that purpose on revocation. It creates
-no provider demand. TI-D187/TI-B249 add a side-effect-free Android capability snapshot and
-deterministically select exactly one provider: capable Health Connect mobile Steps wins, its missing
-permission cannot silently switch providers, and Local Recording is considered only when Health
-Connect is genuinely unavailable. Generic ambient Steps planning now rejects the direct sensor.
-TI-D188/TI-B250 separate the direct Step Counter into exact `SESSION_CAPTURE` registration and
-authorization ownership, so a future `AMBIENT_PRODUCT` provider can coexist without authorizing or
-retaining that listener. TI-B251/`1023ab6b5` propagate that exact owner through sensor checkpoints,
-single/batch durable ingress, and sequence allocation instead of reconstructing a shared scope from
-source kind. TI-D189/TI-B252/TI-B253 then add provider-specific opportunistic floors and a typed,
-idempotent capability-to-demand reconciler at `7b33b2271`, `c16a65e8d`, and `039153f67`. It
-creates authority only after exact ambient consent and rollout agree, remains independent from
-session Steps, and performs no provider side effect. Production invocation, system-rearmable
-provider acceptance, subscription/read and import, retention/explanation UI, and the end-user
-permission/revocation flow remain next.
+## 2026-09-12 paused checkpoint — resume before Ambient Steps cursor/import
+
+Use the existing worktree
+`G:\Github\Tracker-Android\.worktrees\ti-steps-import-actions`, branch
+`codex/ti-steps-import-actions`. Its clean source checkpoint is `88c14a52e`. On resume, first run
+only `git status --short --branch`, `git rev-parse HEAD`, and `git log -10 --oneline --decorate`.
+Do not reset, discard, rebase, merge, or run the deferred verification suite if the state differs.
+
+Ambient Steps now has exact default-off policy/consent and provider selection, purpose-scoped
+demand and registration authority, owned system-rearmable lifecycle, startup rearm, deletion
+fencing, exact provider-window reads, policy/rollout preflight before capability probes, stored-zone
+structural windows, and a distinct sessionless aggregate-fact revision store. The last three source
+commits are `187800e03`, `33874e0fe`, and `88c14a52e`; TI-D190 through TI-D192 and TI-B254 through
+TI-B256 describe their exact boundaries. No production import cursor or fact importer exists yet.
+
+Resume with one bounded storage/lifecycle slice:
+
+1. Add a durable Ambient Steps cursor/gap representation in `:core:base`, keyed to one accepted
+   provider registration generation and its exact provider/source/authorization/policy/consent/
+   collected-data/boot/zone authority.
+2. Keep provider absence, retention loss, reboot, observed zone changes, and process gaps explicit;
+   do not turn an unverifiable interval into covered zero or a positive aggregate.
+3. Before using `AmbientStepsFactIntegrity.logicalFactId` in production, make its logical segment
+   identity stable across an extending read-through boundary. Repeated reads and corrections must
+   revise one segment rather than create overlapping facts that can be summed twice.
+4. Then implement the smallest exact cursor/read/fact transaction in `:tracker:engine`, including
+   no pre-consent backfill and bounded structural-day batches. Provider replacement must eventually
+   drain the old provider to an exact handoff boundary before unsubscribe.
+
+Likely owning paths are the Ambient Steps entity/integrity/DAO and v28 migration under
+`core/base/src/main`, their focused host and migration tests, and
+`tracker/engine/src/main/java/com/adsamcik/tracker/tracker/source/ambient/steps/` plus its focused
+tests. Do not add a generic cursor or tombstone platform, activate an executable Ambient lane, or
+start product UI/composition before this source-local transaction is coherent.
+
+Validation debt is intentional. The v28 schema JSON was structurally edited for the ambient fact
+table, but its identity hash is still stale pending final Room generation/checking. The Kotlin,
+Room, Health Connect, and Local Recording APIs in the new source have not compiled on this branch.
+No test, Gradle, lint, Detekt, schema, emulator/device, provider, UI, battery, CI, integration,
+activation, publication, or release command ran. The work is not in local `dev/v10` and is not on
+the remote.
+
+Automatic Steps remains authored through TI-D185/TI-B247. AUTO-005 still needs an explicit fixed
+lifetime for control-only Activity WAL/outbox evidence. Positive awards remain disabled.
 
 The preceding history also contains the protected-path-safe `.trackersteps` import/export bridge,
 exact complete-entry selected deletion with dual no-resurrection fences, the two-database

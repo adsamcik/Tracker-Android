@@ -3035,3 +3035,44 @@ Each entry records repository evidence and does not duplicate the final architec
 - This is durable demand authority only. No production caller, system-rearmable provider
   registration, Local Recording subscription, Health Connect read, import cursor, fact composition,
   permission UI, or retention UI is claimed by this decision.
+
+## TI-D190 — Ineligible Ambient Steps state is resolved before capability probing
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-12; source/tests `187800e03`; TI-B254.
+- Ambient reconciliation reads authoritative source policy and rollout before asking Android or a
+  provider which continuity mechanism is available. Default-off or revoked policy returns typed
+  `REQUEST_DISABLED`, and inactive authority or contained rollout also remains typed without a
+  capability probe.
+- Any stale app-owned ambient demand is retired at that boundary. The broker still performs its
+  existing transactional policy, consent, rollout, and generation revalidation before accepting an
+  eligible demand; preflight is side-effect minimization, not a replacement for broker authority.
+- This prevents a disabled local-first product from touching Health Connect or Play services merely
+  to rediscover that it is disabled. It does not add a provider, importer, cadence, or UI claim.
+
+## TI-D191 — Ambient Steps windows require explicit stored-zone structural authority
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-12; source/tests `33874e0fe`; TI-B255.
+- Provider read intervals are split at exact second-aligned local-day boundaries only under an
+  explicit `ZoneId`. Each planned window carries epoch day, zone, day start/end, and exact covered
+  start/end; 23-hour and 25-hour days are structural truth rather than normalized durations.
+- One pass is bounded to ten windows by default and never more than 31. An explicit deferred
+  boundary identifies remaining work rather than hiding it in an unbounded provider read.
+- A zone observed after process absence or reboot is not proof of the unobserved interval's zone.
+  Cursor/gap authority must preserve that uncertainty before this planner can drive production
+  import.
+
+## TI-D192 — Ambient provider aggregates use a distinct sessionless revision store
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-12; source/tests/schema `88c14a52e`; TI-B256.
+- Ambient provider aggregates are not session `StepFactRevisionEntity` rows. Their v28 table owns
+  opaque logical/mutation identity, exact writer and owner generation, provider class, registration
+  and authorization identity, structural day/zone/bounds, read window, `Long` count, ambient
+  policy/consent/collected-data epochs, deletion generation, and an effect checksum.
+- Covered zero is valid only for an exact covered provider window. Local delete uses a redacted
+  revision shape, full collected-data deletion clears ambient facts, and a separate
+  `AMBIENT_STEPS` destination-owner fence prevents this path from borrowing the session writer.
+- Provider account/origin identifiers are deliberately not persisted. No session, elapsed clock,
+  route, sample count, or source qualification is fabricated.
+- This accepts the source-specific storage boundary, not the final importer identity. Before first
+  production write, the logical fact identifier must remain stable across an extending read-through
+  window so corrections revise one segment rather than create overlapping sum-able facts.
