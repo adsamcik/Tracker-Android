@@ -14,6 +14,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import com.adsamcik.tracker.tracker.controller.LockManager
 import com.adsamcik.tracker.tracker.resilience.TrackingAutoRecoveryAuthorization
 import com.adsamcik.tracker.tracker.resilience.TrackingStartupGuard
+import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsProviderLifecycleOwner
+import com.adsamcik.tracker.tracker.source.ambient.steps.AmbientStepsProviderRegistrationResult
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePipelineRecovery
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainResult
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationEpochAuthority
@@ -41,6 +43,7 @@ class TrackerModuleInitializer @Inject constructor(
 	private val sourcePipelineRecovery: SourcePipelineRecovery,
 	private val activityAutomationEpochAuthority: ActivityAutomationEpochAuthority,
 	private val automaticControlRecoveryScheduler: AutomaticControlRecoveryScheduler,
+	private val ambientStepsProviderLifecycleOwner: AmbientStepsProviderLifecycleOwner,
 ) : ModuleInitializer {
 	override val priority: Int = 20
 	private val initializationGate = TrackerModuleInitializationGate()
@@ -70,6 +73,23 @@ class TrackerModuleInitializer @Inject constructor(
 						authorization = handoffAuthorization,
 						initialize = { BackgroundTrackingApi.initialize(context) },
 					)
+					runAmbientStepsStartupReconciliation(
+						reconcile = ambientStepsProviderLifecycleOwner::reconcile,
+						onFailure = { failure ->
+							if (failure == null) {
+								Tracebox.log.warn(
+									TrackerTraceboxTemplates
+										.AMBIENT_STEPS_PROVIDER_RECONCILIATION_FAILED,
+								)
+							} else {
+								Tracebox.log.error(
+									failure,
+									TrackerTraceboxTemplates
+										.AMBIENT_STEPS_PROVIDER_RECONCILIATION_FAILED,
+								)
+							}
+						},
+					)
 				},
 			) ?: return@launch
 			driveActivityAutomationEffectDrain(
@@ -83,6 +103,25 @@ class TrackerModuleInitializer @Inject constructor(
 			)
 		}
 	}
+}
+
+/** One opportunistic process-start reconciliation; provider failures do not block core tracking. */
+internal suspend fun runAmbientStepsStartupReconciliation(
+	reconcile: suspend () -> AmbientStepsProviderRegistrationResult,
+	onFailure: (Exception?) -> Unit,
+): AmbientStepsProviderRegistrationResult? = try {
+	reconcile().also { result ->
+		if (result is AmbientStepsProviderRegistrationResult.Degraded ||
+			result is AmbientStepsProviderRegistrationResult.Failed
+		) {
+			onFailure(null)
+		}
+	}
+} catch (cancellation: CancellationException) {
+	throw cancellation
+} catch (failure: Exception) {
+	onFailure(failure)
+	null
 }
 
 /**
