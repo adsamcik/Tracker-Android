@@ -2804,3 +2804,18 @@ Each entry records repository evidence and does not duplicate the final architec
   fall back to raw daily/session Steps.
 - The new policy flow shares the existing while-subscribed product lifecycle. It does not register
   provider demand, activate either dormant Steps effect reconciler, or create a permanent observer.
+
+## TI-D178 — Numeric consumer tests stay split at their owning authority seams
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-12; source this documentation checkpoint; TI-B240.
+- Do not introduce a synthetic end-to-end numeric fixture that bypasses production ownership merely
+  to put every scenario in one class. The exact Room readers own positive, covered-zero, partial,
+  correction, deletion-fence, retention, and imported-origin assertions. Presentation consumers own
+  typed mapping and observation lifecycle; durable effect consumers own replay, replace, retract,
+  high-water, atomicity, and stale-generation assertions.
+- Imported origin is authenticated by the storage reader. Downstream product and effect consumers
+  intentionally receive the same qualified decision as a local source fact and must not branch on
+  provenance or award it again.
+- Static inspection found focused authored coverage for every audited production consumer and each
+  required scenario category. No test or validation command was run; all evidence remains authored
+  and unvalidated until final convergence.

@@ -3462,3 +3462,20 @@ composition, widget, and worker assertions were authored but intentionally not e
 Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
 activation, publication, or release command ran. `TODO-STEPS-NUM-008` is now the only open Steps
 numeric-consumer item.
+
+## 2026-09-12 implementation-only checkpoint — qualified numeric consumer matrix complete
+
+Static production-call-site and test inspection completes `TODO-STEPS-NUM-008`. Exact daily and
+weekly Room readers, retained metrics, Game and Statistics presentation, Dashboard/detail/live
+history, widgets, the legacy threshold worker, durable daily/weekly effects, rewards, streaks,
+historical repair, retained achievements, import, deletion, and retention each have focused authored
+tests at their owning seam. The storage tests cover positive and covered zero, partial capture,
+correction, deletion-fence invalidation, retention truncation, and imported-origin composition;
+downstream tests preserve that typed authority without provenance-specific branching or a second
+award path.
+
+No new redundant fixture or horizontal test framework was added. No Gradle, compiler, test, lint,
+Detekt, Room drift, emulator/device, UI, battery, CI, integration, activation, publication, or
+release command ran. All qualified numeric work remains **IMPLEMENTED_UNVALIDATED**. The next
+implementation boundary is Automatic Steps, beginning with the explicit optional-corroboration
+decision and its control-demand contract.

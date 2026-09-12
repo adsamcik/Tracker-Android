@@ -441,6 +441,20 @@ release command ran. Run only in the final convergence phase:
 .\gradlew.bat detekt :core:common:lintDebug :feature:game:lintDebug :app:lintDebug --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
 ```
 
+## TI-B240 — Qualified numeric consumer matrix authored, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED**. Static inspection closes `TODO-STEPS-NUM-008` by mapping every
+production numeric reader, presenter, widget/notification path, and durable effect reconciler to its
+focused authored tests. The owning storage suites cover positive and covered-zero source facts,
+partial state, live correction, exact deletion-fence invalidation, retained-boundary loss, and
+imported-origin composition. Downstream suites cover typed propagation, observation cancellation,
+idempotent replay, correction/deletion replacement or retraction, atomic outbox writes, retained
+achievement high-water, and stale-generation rejection.
+
+No test, compiler, Gradle, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran. Run the focused suites named in the TODO consumer
+matrix only during final convergence, followed by the repository-owned aggregate gates.
+
 ## Static source × mode matrix
 
 | ID | Source | Mode | Capture sources | Declared controls | Qualified `RECORDING` evidence | Canonical output | Production history/UI assertion | Current status |

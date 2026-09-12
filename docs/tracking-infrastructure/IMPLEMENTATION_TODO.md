@@ -331,7 +331,7 @@ integration or publication command ran for this checkpoint.
   when their intervals overlap or their presentation grouping changes.
 - [x] TODO-STEPS-NUM-007 Persist effect identity and revision so identical replay is zero-effect and
   correction or deletion performs an exact replace or retract.
-- [ ] TODO-STEPS-NUM-008 Author focused tests for every audited consumer and every positive,
+- [x] TODO-STEPS-NUM-008 Author focused tests for every audited consumer and every positive,
   zero, partial, correction, deletion, retention, and imported-origin case without running them.
 
 Implementation checkpoints: `7eaa891b3` adds the bounded coherent numeric-read foundation.
@@ -364,12 +364,32 @@ the existing validated immutable source-policy authority into the daily Steps co
 persistence are both off, ignore control-only authority, and keep ready, partial, materializing,
 storage-failure, and historical weekly truth unchanged.
 
-All commits remain **IMPLEMENTED_UNVALIDATED**. NUM-008 is the only open qualified numeric item.
-The product/effect numeric inventory and the daily policy distinction are authored complete:
+The authored consumer test matrix is complete without a redundant all-in-one fixture:
+
+| Boundary | Focused authored coverage |
+| --- | --- |
+| Exact daily/weekly source reader | `RoomStepsNumericSummaryRepositoryRoomTest`, `ImportedStepsNumericRoomTest`, `RoomStepsNumericSummaryRepositoryTest` |
+| Retained lifetime/best-day reader | `RoomStepsRetainedMetricsRepositoryRoomTest`, `RoomStepsRetainedMetricsRepositoryTest` |
+| Game daily/week presentation | `SourceQualifiedStepsSummaryTest`, `QualifiedStepsPresentationTest`, `StepsCardTest` |
+| Statistics weekly/Calendar presentation | `StatsPresenterViewModelSessionStatsTest`, `HistoryPresenterViewModelTest` |
+| Dashboard, recent, detail, and live presentation | `DashboardViewModelHistoryTest`, `DashboardViewModelLiveStepsTest`, `TripDetailPresenterTest`, `TripDetailPresenterViewModelTest` |
+| Widgets and legacy threshold notification | `ActiveSessionWidgetPresentationTest`, `TodaySummaryWidgetPresentationTest`, `GoalNotificationWorkerTest` |
+| Daily/weekly effects, rewards, streaks, and repair | `StepsGoalDecisionReconcilerTest`, `StepsGoalRewardProjectorTest`, `StepsGoalAchievementReconcilerTest`, `StepsGoalHistoricalReconcilerTest`, `StepsGoalNotificationDispatcherTest` |
+| Retained achievements | `StepsRetainedAchievementReconcilerTest`, `DefaultAchievementRepositoryQualificationTest`, `DefaultAchievementMetricsProviderStepsTest` |
+| Correction, deletion, retention, and imported origin | `StepsDailySummaryRepairComposerTest`, `RoomStepsSelectedSessionDeletionServiceTest`, `ImportedStepsRetentionTest`, `RoomImportPortableStepsTest`, `PortableStepsProductionRoundTripTest` |
+
+Positive and covered-zero facts, typed partial/materializing/unavailable states, correction and
+deletion retraction, retained boundaries, and imported-origin composition are therefore asserted at
+their owning seams and observed by each product/effect consumer. Origin remains storage authority;
+presenters deliberately receive the same typed result rather than branching on import provenance.
+
+All commits remain **IMPLEMENTED_UNVALIDATED**. Every qualified numeric item is implemented; none
+has been executed in the deferred convergence phase. The product/effect numeric inventory and the
+daily policy distinction are authored complete:
 remaining raw legacy interval access is limited to source-local persistence/recovery/deletion and
 inactive research/debug evidence paths, not numeric product authority. Complete the consumer-wide
-authored test matrix. The v28 Room schema identity hash is intentionally not guessed and must be
-regenerated during final convergence validation.
+validation later. The v28 Room schema identity hash is intentionally not guessed and must be
+regenerated during final convergence validation. Continue with Automatic Steps.
 
 ### Automatic Steps
 
