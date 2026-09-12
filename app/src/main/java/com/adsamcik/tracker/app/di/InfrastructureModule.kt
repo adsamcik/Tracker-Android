@@ -13,6 +13,7 @@ import com.adsamcik.tracker.app.settings.PostDeletionAutomaticControlRestorer
 import com.adsamcik.tracker.app.receiver.BootTrackingRecoveryScheduler
 import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbiter
+import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
 import com.adsamcik.tracker.impexp.exporter.automation.ExportAutomationController
 import com.adsamcik.tracker.impexp.exporter.automation.ExportPlanStore
 import com.adsamcik.tracker.points.database.PointsDatabase
@@ -207,6 +208,7 @@ object InfrastructureModule {
 		collectedDataLifecycleStore: CollectedDataLifecycleStore,
 		startupDeletionBarrier: TrackingStartupDeletionBarrier,
 		activityRegistrationArbiter: Provider<ActivityRegistrationArbiter>,
+		ambientStepsProviderLifecycle: Provider<AmbientStepsProviderLifecycle>,
 		automaticControlRestorer: PostDeletionAutomaticControlRestorer,
 		stepsWriterTransitionCoordinator: Provider<StepsSessionFactWriterTransitionCoordinator>,
         dispatchersProvider: DispatchersProvider,
@@ -219,6 +221,7 @@ object InfrastructureModule {
 		collectedDataLifecycleStore = collectedDataLifecycleStore,
 		startupDeletionBarrier = startupDeletionBarrier,
 		activityRegistrationArbiterProvider = activityRegistrationArbiter,
+		ambientStepsProviderLifecycleProvider = ambientStepsProviderLifecycle,
 		automaticControlRestorer = automaticControlRestorer,
 		postDatabaseDeletion = { updatedAtMs ->
 			stepsWriterTransitionCoordinator.get().rearmAfterFullDeletion(updatedAtMs)

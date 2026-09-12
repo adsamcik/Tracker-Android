@@ -11,6 +11,8 @@ import com.adsamcik.tracker.activity.api.ActivityRecognitionApi
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationArbiter
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationFailureCode
 import com.adsamcik.tracker.activity.api.registration.ActivityRegistrationStatus
+import com.adsamcik.tracker.tracker.api.AmbientStepsProviderCleanupFailure
+import com.adsamcik.tracker.tracker.api.AmbientStepsProviderLifecycle
 import com.adsamcik.tracker.app.maintenance.RetentionPipelineWorker
 import com.adsamcik.tracker.app.startup.TrackingStartupDeletionBarrier
 import com.adsamcik.tracker.impexp.importer.DataImporter
@@ -190,6 +192,7 @@ class DefaultCollectedDataDeletionService(
 	private val startupDeletionBarrier: TrackingStartupDeletionBarrier =
 		TrackingStartupDeletionBarrier(),
 	private val activityRegistrationArbiterProvider: Provider<ActivityRegistrationArbiter>? = null,
+	private val ambientStepsProviderLifecycleProvider: Provider<AmbientStepsProviderLifecycle>? = null,
 	private val automaticControlRestorer: PostDeletionAutomaticControlRestorer,
 	private val traceboxDataDeletion: suspend () -> Boolean,
 	private val appDatabaseDeletion: suspend (Context, Long, Long?, Long) -> Unit =
@@ -225,6 +228,7 @@ class DefaultCollectedDataDeletionService(
 
 	private suspend fun runDeletion(writeMarker: Boolean) {
 		var activityRegistrationArbiter: ActivityRegistrationArbiter? = null
+		var ambientStepsProviderLifecycle: AmbientStepsProviderLifecycle? = null
 		var deletionCompleted = false
 		// The on-disk marker is the crash authority. Persist it before closing the in-process gate so
 		// a process death at this boundary cannot forget a user-confirmed deletion request.
@@ -243,13 +247,20 @@ class DefaultCollectedDataDeletionService(
 				deleteRetiredDatabases()
 			}
 			activityRegistrationArbiter = activityRegistrationArbiterProvider?.get()
-			fenceCollectedDataWriters(activityRegistrationArbiter)
+			ambientStepsProviderLifecycle = ambientStepsProviderLifecycleProvider?.get()
+			fenceCollectedDataWriters(
+				activityRegistrationArbiter,
+				ambientStepsProviderLifecycle,
+			)
 			// Admission is already closed and writers/providers have now received cancellation. Only
 			// after the admitted startup operation unwinds may destructive Room deletion begin. An
 			// operation admitted before closeAdmission may have resumed providers while unwinding, so
 			// deletion takes the final fence after the barrier reaches quiescence.
 			startupDeletionBarrier.awaitQuiescence()
-			fenceCollectedDataWriters(activityRegistrationArbiter)
+			fenceCollectedDataWriters(
+				activityRegistrationArbiter,
+				ambientStepsProviderLifecycle,
+			)
 			performDeletion(
 				epoch = lifecycle.epoch,
 				retainedFromMs = lifecycle.retainedFromMs,
@@ -272,6 +283,7 @@ class DefaultCollectedDataDeletionService(
 
 	private suspend fun fenceCollectedDataWriters(
 		activityRegistrationArbiter: ActivityRegistrationArbiter?,
+		ambientStepsProviderLifecycle: AmbientStepsProviderLifecycle?,
 	) {
 		activityRegistrationArbiter?.closeForCollectedDataDeletion()?.let { result ->
 			val cleanupIsDurablyDeferred =
@@ -281,6 +293,16 @@ class DefaultCollectedDataDeletionService(
 			if (result.status != ActivityRegistrationStatus.APPLIED && !cleanupIsDurablyDeferred) {
 				throw DatabaseMigrationBackupException(
 					"Could not fence activity-recognition callbacks: ${result.failureCode}",
+				)
+			}
+		}
+		ambientStepsProviderLifecycle?.closeForCollectedDataDeletion()?.let { result ->
+			val cleanupIsDurablyDeferred =
+				result.failure == AmbientStepsProviderCleanupFailure.PROVIDER_REMOVAL_FAILED &&
+					result.retryable
+			if (!result.complete && !cleanupIsDurablyDeferred) {
+				throw DatabaseMigrationBackupException(
+					"Could not fence Ambient Steps provider: ${result.failure}",
 				)
 			}
 		}
