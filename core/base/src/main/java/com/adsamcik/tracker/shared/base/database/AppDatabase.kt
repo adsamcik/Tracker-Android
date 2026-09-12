@@ -16,6 +16,7 @@ import com.adsamcik.tracker.shared.base.database.dao.ActivityDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivityAutomaticStartActionDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivityAutomationEpochDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
+import com.adsamcik.tracker.shared.base.database.dao.AmbientStepsFactRevisionDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.GeneralDao
@@ -46,6 +47,7 @@ import com.adsamcik.tracker.shared.base.database.dao.XpLedgerDao
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellSample
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportEntryReceiptEntity
@@ -176,6 +178,7 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			LocationObservationDecision::class,
 			StepInterval::class,
 			StepFactRevisionEntity::class,
+			AmbientStepsFactRevisionEntity::class,
 			StepsGoalEffectEntity::class,
 			StepsGoalRepairDayEntity::class,
 			ImportedStepsEntryEntity::class,
@@ -296,6 +299,9 @@ abstract class AppDatabase : RoomDatabase() {
 
 	/** Provides append-only semantic revisions and contribution receipts for Steps. */
 	abstract fun stepFactRevisionDao(): StepFactRevisionDao
+
+	/** Provides append-only sessionless system-provider Steps aggregates. */
+	abstract fun ambientStepsFactRevisionDao(): AmbientStepsFactRevisionDao
 
 	/** Desired, revisioned source-qualified goal effects; no provider or award is started by access. */
 	abstract fun stepsGoalEffectDao(): StepsGoalEffectDao
@@ -628,6 +634,7 @@ abstract class AppDatabase : RoomDatabase() {
 			// Payload-free source fences deliberately survive repeated full clears: portable files
 			// have no previous local epoch and must not resurrect an explicitly deleted run.
 			database.stepFactRevisionDao().deleteAll()
+			database.ambientStepsFactRevisionDao().deleteAll()
 			database.stepsGoalEffectDao().deleteAll()
 			database.stepsGoalRepairDayDao().deleteAll()
 			database.importedStepsDao().deleteAll()

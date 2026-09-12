@@ -1451,6 +1451,11 @@ val MIGRATION_27_28: Migration = object : Migration(
 					"VALUES (4, 'SESSION_PRESSURE', 'LEGACY_PRESSURE_SAMPLE', 1, 0)",
 			)
 			execSQL(
+				"INSERT OR IGNORE INTO source_destination_owner " +
+					"(source_kind, destination, owner, owner_generation, updated_at_ms) " +
+					"VALUES (3, 'AMBIENT_STEPS', 'AMBIENT_STEPS_FACTS', 1, 0)",
+			)
+			execSQL(
 				"ALTER TABLE tracker_run ADD COLUMN " +
 					"legacy_runtime_fenced INTEGER NOT NULL DEFAULT 0",
 			)
@@ -1616,6 +1621,55 @@ val MIGRATION_27_28: Migration = object : Migration(
 				"CREATE INDEX IF NOT EXISTS idx_step_fact_revision_service_run_latest " +
 					"ON step_fact_revision(writer_projection_id, writer_projection_version, " +
 					"service_run_id, purpose, logical_fact_id, semantic_revision)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS ambient_steps_fact_revision (
+					logical_fact_id TEXT NOT NULL,
+					semantic_revision INTEGER NOT NULL,
+					mutation_id TEXT NOT NULL,
+					writer_id TEXT NOT NULL,
+					writer_version INTEGER NOT NULL,
+					writer_owner_generation INTEGER NOT NULL,
+					operation TEXT NOT NULL,
+					origin_kind TEXT NOT NULL,
+					provider TEXT,
+					registration_generation INTEGER,
+					source_instance_id TEXT,
+					authorization_revision INTEGER,
+					authorization_fingerprint TEXT,
+					window_start_time_ms INTEGER,
+					window_end_time_ms INTEGER,
+					observed_at_ms INTEGER,
+					structural_epoch_day INTEGER,
+					stored_zone_id TEXT,
+					structural_day_start_time_ms INTEGER,
+					structural_day_end_time_ms INTEGER,
+					step_count INTEGER,
+					purpose TEXT NOT NULL,
+					source_policy_revision INTEGER,
+					ambient_consent_epoch INTEGER,
+					collected_data_epoch INTEGER NOT NULL,
+					scope_deletion_generation INTEGER NOT NULL,
+					effect_checksum TEXT NOT NULL,
+					applied_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(writer_id, writer_version, logical_fact_id, semantic_revision)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_ambient_steps_fact_mutation " +
+					"ON ambient_steps_fact_revision(writer_id, writer_version, mutation_id)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_ambient_steps_fact_day_window " +
+					"ON ambient_steps_fact_revision(" +
+					"structural_epoch_day, stored_zone_id, window_start_time_ms)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_ambient_steps_fact_registration_window " +
+					"ON ambient_steps_fact_revision(" +
+					"provider, registration_generation, window_start_time_ms)",
 			)
 			execSQL(
 				"""

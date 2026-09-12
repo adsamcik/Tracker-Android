@@ -672,6 +672,7 @@ class CollectedDataDeletionStepsRearmIntegrationTest {
 			"source_event_wal",
 			"step_interval",
 			"step_fact_revision",
+			"ambient_steps_fact_revision",
 			"pending_signal",
 			"source_product_projection_lane",
 			"source_demand",

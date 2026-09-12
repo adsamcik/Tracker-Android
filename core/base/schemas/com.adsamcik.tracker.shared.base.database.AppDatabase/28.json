@@ -1329,6 +1329,209 @@
         ]
       },
       {
+        "tableName": "ambient_steps_fact_revision",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`logical_fact_id` TEXT NOT NULL, `semantic_revision` INTEGER NOT NULL, `mutation_id` TEXT NOT NULL, `writer_id` TEXT NOT NULL, `writer_version` INTEGER NOT NULL, `writer_owner_generation` INTEGER NOT NULL, `operation` TEXT NOT NULL, `origin_kind` TEXT NOT NULL, `provider` TEXT, `registration_generation` INTEGER, `source_instance_id` TEXT, `authorization_revision` INTEGER, `authorization_fingerprint` TEXT, `window_start_time_ms` INTEGER, `window_end_time_ms` INTEGER, `observed_at_ms` INTEGER, `structural_epoch_day` INTEGER, `stored_zone_id` TEXT, `structural_day_start_time_ms` INTEGER, `structural_day_end_time_ms` INTEGER, `step_count` INTEGER, `purpose` TEXT NOT NULL, `source_policy_revision` INTEGER, `ambient_consent_epoch` INTEGER, `collected_data_epoch` INTEGER NOT NULL, `scope_deletion_generation` INTEGER NOT NULL, `effect_checksum` TEXT NOT NULL, `applied_at_ms` INTEGER NOT NULL, PRIMARY KEY(`writer_id`, `writer_version`, `logical_fact_id`, `semantic_revision`))",
+        "fields": [
+          {
+            "fieldPath": "logicalFactId",
+            "columnName": "logical_fact_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "semanticRevision",
+            "columnName": "semantic_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mutationId",
+            "columnName": "mutation_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "writerId",
+            "columnName": "writer_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "writerVersion",
+            "columnName": "writer_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "writerOwnerGeneration",
+            "columnName": "writer_owner_generation",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "operation",
+            "columnName": "operation",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originKind",
+            "columnName": "origin_kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "provider",
+            "columnName": "provider",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "registrationGeneration",
+            "columnName": "registration_generation",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "sourceInstanceId",
+            "columnName": "source_instance_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "authorizationRevision",
+            "columnName": "authorization_revision",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "authorizationFingerprint",
+            "columnName": "authorization_fingerprint",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "windowStartTimeMs",
+            "columnName": "window_start_time_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "windowEndTimeMs",
+            "columnName": "window_end_time_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "observedAtMs",
+            "columnName": "observed_at_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "structuralEpochDay",
+            "columnName": "structural_epoch_day",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "storedZoneId",
+            "columnName": "stored_zone_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "structuralDayStartTimeMs",
+            "columnName": "structural_day_start_time_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "structuralDayEndTimeMs",
+            "columnName": "structural_day_end_time_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "stepCount",
+            "columnName": "step_count",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "purpose",
+            "columnName": "purpose",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourcePolicyRevision",
+            "columnName": "source_policy_revision",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "ambientConsentEpoch",
+            "columnName": "ambient_consent_epoch",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "collectedDataEpoch",
+            "columnName": "collected_data_epoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scopeDeletionGeneration",
+            "columnName": "scope_deletion_generation",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effectChecksum",
+            "columnName": "effect_checksum",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "appliedAtMs",
+            "columnName": "applied_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "writer_id",
+            "writer_version",
+            "logical_fact_id",
+            "semantic_revision"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_ambient_steps_fact_mutation",
+            "unique": true,
+            "columnNames": [
+              "writer_id",
+              "writer_version",
+              "mutation_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_ambient_steps_fact_mutation` ON `${TABLE_NAME}` (`writer_id`, `writer_version`, `mutation_id`)"
+          },
+          {
+            "name": "idx_ambient_steps_fact_day_window",
+            "unique": false,
+            "columnNames": [
+              "structural_epoch_day",
+              "stored_zone_id",
+              "window_start_time_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_ambient_steps_fact_day_window` ON `${TABLE_NAME}` (`structural_epoch_day`, `stored_zone_id`, `window_start_time_ms`)"
+          },
+          {
+            "name": "idx_ambient_steps_fact_registration_window",
+            "unique": false,
+            "columnNames": [
+              "provider",
+              "registration_generation",
+              "window_start_time_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_ambient_steps_fact_registration_window` ON `${TABLE_NAME}` (`provider`, `registration_generation`, `window_start_time_ms`)"
+          }
+        ]
+      },
+      {
         "tableName": "steps_goal_effect",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`effect_identity` TEXT NOT NULL, `period_kind` TEXT NOT NULL, `period_start_epoch_day` INTEGER NOT NULL, `period_end_epoch_day` INTEGER NOT NULL, `qualified_through_epoch_day` INTEGER NOT NULL, `calendar_authority` TEXT NOT NULL, `target_steps` INTEGER NOT NULL, `weekly_daily_limit_bits` INTEGER, `decision_state` TEXT NOT NULL, `unavailable_reason` TEXT, `qualified_steps` INTEGER, `source_authority_digest` TEXT NOT NULL, `source_evidence_revision` INTEGER NOT NULL, `effect_revision` INTEGER NOT NULL, `completion_points_micros` INTEGER NOT NULL, `completion_xp` INTEGER NOT NULL, `desired_points_micros` INTEGER NOT NULL, `desired_xp` INTEGER NOT NULL, `first_completed_at_ms` INTEGER, `points_applied_revision` INTEGER NOT NULL, `xp_applied_revision` INTEGER NOT NULL, `notification_claimed_revision` INTEGER, `notification_claimed_at_ms` INTEGER, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`effect_identity`))",
         "fields": [
