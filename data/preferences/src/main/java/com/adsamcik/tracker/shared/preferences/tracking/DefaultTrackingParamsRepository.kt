@@ -41,6 +41,7 @@ private object TrackingParamsSerializer : Serializer<TrackingParamsProto> {
 		.setWifiFrequency(SourceCollectionFrequency.OFF.stableCode)
 		.setCellFrequency(SourceCollectionFrequency.OFF.stableCode)
 		.setSourceSettingsVersion(TrackingParamsState.CURRENT_SOURCE_SETTINGS_VERSION)
+		.setAmbientStepsEnabled(false)
         .setLegacyMigrated(false)
         .build()
 
@@ -327,6 +328,7 @@ private fun TrackingParamsProto.toDomain(): TrackingParamsState {
         } else {
             PreferenceKeys.BAROMETER_ENABLED_DEFAULT
         },
+		ambientStepsEnabled = ambientStepsEnabled,
         autoTrackingMode = autoTrackingMode,
         transitionDetectionEnabled = transitionDetectionEnabled,
         notificationStyled = notificationStyled,
@@ -375,6 +377,7 @@ private fun TrackingParamsState.toProto(): TrackingParamsProto =
 		.setCellFrequency(sourceCollectionSettings.cell.stableCode)
 		.setAdvancedSourceControlsEnabled(advancedSourceControlsEnabled)
 		.setSourceSettingsVersion(TrackingParamsState.CURRENT_SOURCE_SETTINGS_VERSION)
+		.setAmbientStepsEnabled(ambientStepsEnabled)
         .setLegacyMigrated(true)
         .build()
 

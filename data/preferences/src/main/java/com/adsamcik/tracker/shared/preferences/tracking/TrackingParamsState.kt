@@ -8,6 +8,8 @@ data class TrackingParamsState(
     val wifiEnabled: Boolean = false,
     val cellEnabled: Boolean = false,
     val barometerEnabled: Boolean = true,
+	/** Default-off consent intent for opportunistic Steps outside a tracking session. */
+	val ambientStepsEnabled: Boolean = false,
     val autoTrackingMode: Int = 1,
     val transitionDetectionEnabled: Boolean = true,
     val notificationStyled: Boolean = true,

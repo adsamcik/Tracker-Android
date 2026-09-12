@@ -147,8 +147,8 @@ interface SourcePolicyRepository {
 	suspend fun bootstrapFromLegacy(settings: TrackingParamsState): SourcePolicySnapshot
 
 	/**
-	 * Reconciles capture policy and the legacy automatic-tracking control intent at an explicit
-	 * revision; frequency can never revive a false capture toggle.
+	 * Reconciles capture policy, automatic-tracking control intent, and default-off Ambient Steps
+	 * consent at an explicit revision; frequency can never revive a false capture toggle.
 	 */
 	suspend fun replaceCaptureSettings(
 		expectedPolicyRevision: Long,

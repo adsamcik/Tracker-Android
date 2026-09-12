@@ -125,6 +125,24 @@ class DefaultTrackingParamsRepositoryTest {
         assertTrue(state.wifiEnabled)
     }
 
+	@Test
+	fun `ambient steps is default off and persists independently from session steps`() = runTest {
+		val repo = DefaultTrackingParamsRepository(context, Dispatchers.IO)
+
+		assertFalse(repo.data.first().ambientStepsEnabled)
+		repo.setAmbientStepsEnabled(true)
+		repo.setStepsEnabled(false)
+
+		val enabled = repo.data.first()
+		assertTrue(enabled.ambientStepsEnabled)
+		assertFalse(enabled.stepsEnabled)
+		assertTrue(readTrackingProto().ambientStepsEnabled)
+
+		repo.setAmbientStepsEnabled(false)
+		assertFalse(repo.data.first().ambientStepsEnabled)
+		assertFalse(readTrackingProto().ambientStepsEnabled)
+	}
+
     @Test
     fun `shared preferences upgrade maps every legacy source to an explicit frequency`() = runTest {
         PreferenceManager.getDefaultSharedPreferences(context).edit()

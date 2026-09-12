@@ -105,6 +105,120 @@ class RoomSourcePolicyRepositoryTest {
 	}
 
 	@Test
+	fun `explicit ambient Steps bootstrap grants only persistent ambient consent`() = runTest {
+		val snapshot = repository.bootstrapFromLegacy(
+			readySettings().copy(
+				stepsEnabled = false,
+				ambientStepsEnabled = true,
+				sourceCollectionSettings = readySettings().sourceCollectionSettings.copy(
+					steps = SourceCollectionFrequency.OFF,
+				),
+			),
+		)
+
+		val steps = snapshot[TrackingSourceComponent.STEPS]
+		steps.enabled.shouldBeFalse()
+		steps.captureConsentEpoch shouldBe null
+		steps.ambientConsentEpoch shouldBe 1L
+		steps.ambientPersistenceEligible.shouldBeTrue()
+		snapshot.policies.values
+			.filter { it.source != TrackingSourceComponent.STEPS }
+			.forEach { policy ->
+				policy.ambientConsentEpoch shouldBe null
+				policy.ambientPersistenceEligible.shouldBeFalse()
+			}
+		database.sourcePolicyDao()
+			.consentHistory(
+				TrackingSourceComponent.STEPS.stableCode,
+				SourcePurpose.AMBIENT_PRODUCT.stableName,
+			)
+			.map { it.epoch to it.eligible } shouldBe listOf(0L to false, 1L to true)
+	}
+
+	@Test
+	fun `ambient Steps revoke and regrant rotate only ambient consent`() = runTest {
+		val first = repository.bootstrapFromLegacy(readySettings())
+		val granted = repository.replaceCaptureSettings(
+			expectedPolicyRevision = first.revision,
+			settings = readySettings().copy(ambientStepsEnabled = true),
+			reason = "TEST_AMBIENT_STEPS_GRANT",
+		)
+		val revoked = repository.replaceCaptureSettings(
+			expectedPolicyRevision = granted.revision,
+			settings = readySettings().copy(ambientStepsEnabled = false),
+			reason = "TEST_AMBIENT_STEPS_REVOKE",
+		)
+		val regranted = repository.replaceCaptureSettings(
+			expectedPolicyRevision = revoked.revision,
+			settings = readySettings().copy(ambientStepsEnabled = true),
+			reason = "TEST_AMBIENT_STEPS_REGRANT",
+		)
+
+		val originalCaptureEpoch = first[TrackingSourceComponent.STEPS].captureConsentEpoch
+		granted[TrackingSourceComponent.STEPS].ambientConsentEpoch shouldBe 1L
+		granted[TrackingSourceComponent.STEPS].captureConsentEpoch shouldBe originalCaptureEpoch
+		revoked[TrackingSourceComponent.STEPS].ambientConsentEpoch shouldBe null
+		revoked[TrackingSourceComponent.STEPS].ambientPersistenceEligible.shouldBeFalse()
+		revoked[TrackingSourceComponent.STEPS].captureConsentEpoch shouldBe originalCaptureEpoch
+		regranted[TrackingSourceComponent.STEPS].ambientConsentEpoch shouldBe 3L
+		regranted[TrackingSourceComponent.STEPS].captureConsentEpoch shouldBe originalCaptureEpoch
+		database.sourcePolicyDao()
+			.consentHistory(
+				TrackingSourceComponent.STEPS.stableCode,
+				SourcePurpose.AMBIENT_PRODUCT.stableName,
+			)
+			.map { it.epoch to it.eligible } shouldBe listOf(
+				0L to false,
+				1L to true,
+				2L to false,
+				3L to true,
+			)
+	}
+
+	@Test
+	fun `ambient Steps revoke atomically retires demand and denies its live registration`() = runTest {
+		val first = repository.bootstrapFromLegacy(readySettings())
+		val granted = repository.replaceCaptureSettings(
+			expectedPolicyRevision = first.revision,
+			settings = readySettings().copy(ambientStepsEnabled = true),
+			reason = "TEST_AMBIENT_STEPS_GRANT",
+		)
+		installLiveAuthority(
+			snapshot = granted,
+			source = TrackingSourceComponent.STEPS,
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+		)
+		elapsedNanos = 400L
+		wallTimeMs = 4_000L
+
+		val revoked = repository.replaceCaptureSettings(
+			expectedPolicyRevision = granted.revision,
+			settings = readySettings(),
+			reason = "TEST_AMBIENT_STEPS_FENCE",
+		)
+
+		val demand = database.sourceBrokerDao().demandHistory(TEST_AMBIENT_CONSUMER_ID).single()
+		demand.status shouldBe SourceDemandEntity.STATUS_RETIRING
+		demand.retireBootId shouldBe TEST_BOOT_ID
+		demand.retireElapsedRealtimeNanos shouldBe 400L
+		revoked[TrackingSourceComponent.STEPS].enabled.shouldBeTrue()
+		revoked[TrackingSourceComponent.STEPS].captureConsentEpoch shouldBe
+			first[TrackingSourceComponent.STEPS].captureConsentEpoch
+		database.sourceBrokerDao().authorizationAt(
+			TrackingSourceComponent.STEPS.stableCode,
+			TEST_REGISTRATION_GENERATION,
+			TEST_BOOT_ID,
+			399L,
+		).toAuthorizationSnapshotOrNull()?.authorizedMembers?.size shouldBe 1
+		database.sourceBrokerDao().authorizationAt(
+			TrackingSourceComponent.STEPS.stableCode,
+			TEST_REGISTRATION_GENERATION,
+			TEST_BOOT_ID,
+			400L,
+		).toAuthorizationSnapshotOrNull()?.isDenied shouldBe true
+	}
+
+	@Test
 	fun `capture revoke and regrant append epochs without mutating old policy`() = runTest {
 		val first = repository.bootstrapFromLegacy(readySettings())
 		val revoked = repository.replaceCaptureSettings(
@@ -352,19 +466,33 @@ class RoomSourcePolicyRepositoryTest {
 	private suspend fun installLiveCaptureAuthority(
 		snapshot: SourcePolicySnapshot,
 		source: TrackingSourceComponent,
+	) = installLiveAuthority(snapshot, source, SourceBrokerPurpose.SESSION_CAPTURE)
+
+	private suspend fun installLiveAuthority(
+		snapshot: SourcePolicySnapshot,
+		source: TrackingSourceComponent,
+		purpose: String,
 	) {
 		val policy = snapshot[source]
+		val sessionScoped = purpose == SourceBrokerPurpose.SESSION_CAPTURE
+		val consentEpoch = when (purpose) {
+			SourceBrokerPurpose.SESSION_CAPTURE -> policy.captureConsentEpoch
+			SourceBrokerPurpose.AMBIENT_PRODUCT -> policy.ambientConsentEpoch
+			else -> error("Unsupported test purpose $purpose")
+		}
+		val demandId = if (sessionScoped) TEST_DEMAND_ID else TEST_AMBIENT_DEMAND_ID
+		val consumerId = if (sessionScoped) TEST_CONSUMER_ID else TEST_AMBIENT_CONSUMER_ID
 		val demand = SourceDemandEntity(
-			demandId = TEST_DEMAND_ID,
-			consumerId = TEST_CONSUMER_ID,
+			demandId = demandId,
+			consumerId = consumerId,
 			sourceKind = source.stableCode,
-			purpose = SourceBrokerPurpose.SESSION_CAPTURE,
-			logicalTrackingId = "tracking-1",
-			serviceRunId = "run-1",
-			manifestRevision = 1L,
-			lifecycleLeaseGeneration = 1L,
+			purpose = purpose,
+			logicalTrackingId = "tracking-1".takeIf { sessionScoped },
+			serviceRunId = "run-1".takeIf { sessionScoped },
+			manifestRevision = 1L.takeIf { sessionScoped },
+			lifecycleLeaseGeneration = 1L.takeIf { sessionScoped },
 			sourcePolicyRevision = snapshot.revision,
-			consentEpoch = requireNotNull(policy.captureConsentEpoch),
+			consentEpoch = requireNotNull(consentEpoch),
 			persistenceEligible = true,
 			qosCode = policy.qos.stableCode,
 			maximumAgeMs = 60_000L,
@@ -420,6 +548,8 @@ class RoomSourcePolicyRepositoryTest {
 		const val TEST_BOOT_ID = "boot-7"
 		const val TEST_DEMAND_ID = "capture-steps"
 		const val TEST_CONSUMER_ID = "session:tracking-1"
+		const val TEST_AMBIENT_DEMAND_ID = "ambient-steps"
+		const val TEST_AMBIENT_CONSUMER_ID = "ambient:steps"
 		const val TEST_REGISTRATION_GENERATION = 1L
 	}
 }

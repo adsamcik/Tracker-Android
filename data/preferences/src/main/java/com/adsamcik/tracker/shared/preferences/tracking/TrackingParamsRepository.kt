@@ -18,6 +18,10 @@ interface TrackingParamsRepository {
     suspend fun setWifiEnabled(enabled: Boolean)
     suspend fun setCellEnabled(enabled: Boolean)
     suspend fun setBarometerEnabled(enabled: Boolean)
+	/** Changes only sessionless Ambient Steps consent; live session Steps remain independent. */
+	suspend fun setAmbientStepsEnabled(enabled: Boolean) {
+		update { copy(ambientStepsEnabled = enabled) }
+	}
     suspend fun setTransitionDetectionEnabled(enabled: Boolean)
     suspend fun setNotificationStyled(enabled: Boolean)
     suspend fun setMinDistanceMeters(meters: Int)
