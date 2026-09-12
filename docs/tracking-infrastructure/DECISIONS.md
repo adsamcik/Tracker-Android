@@ -231,12 +231,20 @@ Each entry records repository evidence and does not duplicate the final architec
 
 ## TI-D026 — Automatic production entry remains contained until a durable trigger gateway exists
 
-- Status: `ACCEPTED_FOR_CONTAINMENT`
+- Status: `SUPERSEDED_BY_TI-D062_AND_TI-D180`
 - Owner/date: lead orchestrator, 2026-08-21
 - Alternatives: accept an unstamped service intent; infer freshness from current motion state; fail closed until the trigger envelope is durable and consumed transactionally
-- Evidence: the coordinator validates a boot/elapsed/expiry/automation envelope, but `TrackerServiceApi` and `TrackerServiceSourceSession` do not carry one and Android service launch currently happens first.
-- Decision: do not weaken the coordinator validator. Production automatic v2 starts remain unavailable until trigger identity, control registration generation, policy/consent purpose, current automation epoch, consumption state, and Android action identity are durably connected before service launch.
-- Consequences: automatic-mode tests must currently expect fail-closed containment, not successful tracking. This is a structural blocker, not a product decision request.
+- Historical evidence: at this decision's checkpoint the coordinator validated a partial envelope,
+  while `TrackerServiceApi` and `TrackerServiceSourceSession` did not carry it and Android service
+  launch happened first. TI-D062 later specified the legal trigger and ordering contract; TI-D180
+  records the current implementation.
+- Decision: do not weaken the coordinator validator. Production automatic v2 starts remain
+  unavailable until trigger identity, control registration generation, policy/consent purpose,
+  current automation epoch, consumption state, and Android action identity are durably connected
+  before service launch.
+- Consequences: the original containment condition has been implemented but remains unvalidated.
+  Automatic product completion still depends on the source-specific manifest, provider, history,
+  recovery, Android legality, and device gates; see TI-D180.
 
 ## TI-D027 — Expand unreleased v28 with durable broker demand and registration generations
 
@@ -2833,6 +2841,32 @@ Each entry records repository evidence and does not duplicate the final architec
   created. Builds retire the old app-scoped Steps control demand and reconcile the shared physical
   listener back to session capture only. Cleanup failure is retryable but cannot make Steps a hidden
   prerequisite for a usable Activity registration or prevent Activity removal on disable.
-- This closes only the corroboration product decision and dead control path. The durable Activity
-  trigger, immutable automatic manifest, purpose-limited control retention, stale-trigger fences,
-  recovery, trigger-to-query composition, and default-off Ambient Steps remain later gates.
+- This closes only the corroboration product decision and dead control path. TI-D180 subsequently
+  reconciles the already-present durable Activity gateway; the immutable automatic manifest,
+  purpose-limited control retention, complete stale-trigger proof, recovery, trigger-to-query
+  composition, and default-off Ambient Steps remain later gates.
+
+## TI-D180 — Automatic Steps reuses the existing durable Activity start gateway
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-12; current-source reconciliation at `9e59e8601`;
+  historical gateway source includes `0a6a8f545`; TI-B242.
+- Activity automation persists a source outbox envelope with exact provider registration,
+  authorization, boot, observed/received clocks, automation epoch, and collected-data epoch. Only
+  the exact still-live Activity Transition callback ordinal receives a foreground-start permit;
+  sampled recognition and cold replay cannot create a legal cold start.
+- The consumer reserves and revalidates one durable automatic-start action, commits
+  `START_REQUESTED`, and then asks `TrackerServiceApi` to prepare the immutable lifecycle intent.
+  Room PREPARE and exact startup/lifecycle authority checks precede
+  `ContextCompat.startForegroundService`; expiry is checked before PREPARE and again immediately
+  before enqueue. Failed or stale preparation is compensated or terminalized without Android
+  delivery, and cold replay never reissues the platform call.
+- The trigger carries its immutable identity, origin, boot and elapsed clocks, expiry, automation
+  and policy revisions, requested and intended capture masks, intended FGS type mask, and collected
+  data epoch. Provider generation, control consent, current policy, lifecycle action, and manifest
+  correspondence are revalidated transactionally at their owning boundaries rather than inferred
+  from current motion or wall time.
+- Automatic Steps therefore uses this shared Activity-owned gateway; no Steps-local gateway,
+  provider, observer, action table, or service entry is introduced. This closes AUTO-002 only.
+  AUTO-003 onward must still prove an exact Steps capture manifest, Activity control separation,
+  provider demand, control nonleakage, full stale-action coverage, recovery, production query/UI,
+  and eventual Android/device legality.

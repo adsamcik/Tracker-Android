@@ -474,6 +474,28 @@ activation, publication, or release command ran. Final convergence must compile 
 focused engine tests, then prove automatic trigger-to-provider-to-query behavior and absence of
 Steps control demand on the representative device before TI-V010 can advance.
 
+## TI-B242 — Durable automatic-start gateway reconciled, current validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** after static reconciliation at `9e59e8601`. The production path
+persists Activity admission and provider authority into the source outbox; grants start context only
+to the exact unexpired Transition callback ordinal; reserves and revalidates one durable action;
+commits `START_REQUESTED`; prepares the immutable manifest/lifecycle intent under current startup,
+policy, consent, automation, provider-registration, deletion-epoch, capture-mask, and FGS-mask
+authority; and reaches `ContextCompat.startForegroundService` only afterward. Sampling and cold
+replay receive `DURABLE_REPLAY` and cannot cold-start.
+
+Existing authored tests cover PREPARE-before-enqueue ordering, stop and startup-generation fences,
+deadline expiry before and during PREPARE, enqueue compensation, exact callback permits, replay
+non-reissue, action collision/consumption, deletion epoch, policy/consent/automation changes,
+provider acceptance/retirement, and manifest tampering. TI-B187 records a historical `108/108`
+focused run plus static gates for the provider-authority commit `0a6a8f545`; that evidence is not
+promoted to validation of later current-branch changes.
+
+No test, compiler, Gradle, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran for this reconciliation. Android background-start
+legality, real PendingIntent/provider acceptance, process death/reboot, FGS type behavior, and the
+complete Automatic Steps manifest-to-provider-to-query product path remain unproven.
+
 ## Static source × mode matrix
 
 | ID | Source | Mode | Capture sources | Declared controls | Qualified `RECORDING` evidence | Canonical output | Production history/UI assertion | Current status |
@@ -604,7 +626,7 @@ The three-review scope round did not authorize weakening the source contracts ab
 | TI-V180 | Platform variants | Android versions, OEMs, multi-SIM | `NOT_STARTED` | device matrix required |
 | TI-V190 | Soak | repeated starts/stops, policy transitions, delayed providers | `NOT_STARTED` | soak harness required |
 | TI-V200 | Policy rollback privacy | revoke source/purpose, disable v2 execution, reboot | `IN_REVIEW` | Room policy/consent epochs survive deletion; broker demand/registration rows are deleted; exact vector/current-policy/boot-effective-time callback fences and Activity purpose projection pass host tests; schema-capable rollback, reboot, demand rebuild, and global reconciliation remain pending |
-| TI-V210 | Android trigger legality | crash after durable intent for every origin; expiry/new legal trigger | `BLOCKED` | trigger envelope schema/validator exists, but production propagation, current-epoch comparison, consumption, and pre-service durable gateway are missing |
+| TI-V210 | Android trigger legality | crash after durable intent for every origin; expiry/new legal trigger | `IN_REVIEW` | TI-D180/TI-B242 trace production propagation, current authority checks, exact action consumption, callback expiry, and Room PREPARE before Android enqueue. Current code is unvalidated; representative provider acceptance, process death, API-level FGS legality, denial behavior, and device execution remain blocking |
 | TI-V220 | Eligibility boundary | add/remove capture while shared control registration is unchanged; reorder callbacks | `IN_REVIEW` | demand add/remove rotates exact immutable generation/vector; generic and Activity delayed/pre-effective callbacks are rejected; replacement failure, process recovery, all-source global reconcile, and device interleave remain pending |
 | TI-V230 | Accumulator boundary | kill/revoke/disable/re-enable Steps and Pressure mid-window | `IN_REVIEW` | Steps baselines and Pressure windows reset at generation/eligibility change and delayed callbacks are rejected; process-kill/device execution and completeness reporting remain pending |
 | TI-V240 | Writer interleave | pause legacy writer, activate typed owner, race both commits | `IN_REVIEW` | At `9b8ab4b43`, the legacy Steps write and exact owner read share one transaction, queued ABA generations are immutable, missing authority cannot consume the command, and old/new service runs retain their immutable writer. Host tests cover closed callbacks/commands, legacy drain, atomic candidate activation, candidate receipt/cursor commit, contain/drain rollback, and deletion re-arm. TI-B160 adds the same-process production deletion-service/barrier/re-arm interleave. Cold process-death/device races, continuous production query/export/delete reads, and an explicit release action remain required. |

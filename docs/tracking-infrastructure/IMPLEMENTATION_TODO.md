@@ -395,7 +395,7 @@ regenerated during final convergence validation. Continue with Automatic Steps.
 
 - [x] TODO-STEPS-AUTO-001 Resolve the explicit product decision on optional Step corroboration; it
   must be a visible CONTROL demand or absent.
-- [ ] TODO-STEPS-AUTO-002 Connect an eligible fresh Activity control trigger through the durable
+- [x] TODO-STEPS-AUTO-002 Connect an eligible fresh Activity control trigger through the durable
   automatic gateway before Android service launch.
 - [ ] TODO-STEPS-AUTO-003 Create an immutable automatic manifest with capture set exactly Steps and
   declared controls separately attributed.
@@ -409,6 +409,12 @@ regenerated during final convergence validation. Continue with Automatic Steps.
   reboot recovery, manual fallback, and rollback without reviving a finalized session.
 - [ ] TODO-STEPS-AUTO-008 Author trigger-to-provider-to-query and control-nonleakage tests without
   running them.
+
+AUTO-002 is satisfied by the existing shared Activity path, not a new Steps-local abstraction.
+TI-D180/TI-B242 trace exact transition-callback permission through durable outbox/action state and
+Room PREPARE before the Android call. Its focused tests are authored and historical validation is
+recorded only for the commits on which it ran; the current convergence remains unvalidated.
+Continue with AUTO-003's exact immutable Automatic Steps manifest.
 
 ### Default-off Ambient Steps
 

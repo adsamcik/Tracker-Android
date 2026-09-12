@@ -406,7 +406,7 @@ rollout, feature activation, or destructive migration occurred.
 - Reconfiguration appends immutable manifest and lifecycle-intent revisions. Effective time cannot regress within a boot domain, failed starts append terminal intent, and disabling the last accepted source cannot leave the logical session `ACTIVE`.
 - Coordinator leases use boot identity, elapsed-realtime expiry, and monotonic generations. Release/expiry reacquisition increments the generation and stale tokens are fenced; SQL state-transition CAS and a durable lease/action reconciler remain absent.
 - Runtime acceptance moves the session to `ACTIVE`; source-qualified `RECORDING`, `MATERIALIZED`, and `QUERYABLE` lifecycle evidence remain distinct but are not yet represented.
-- Legacy automatic-mode upgrade semantics are now explicit: an enabled existing automatic preference grants nonpersistent Activity `CONTROL` only, and later mode transitions append control consent epochs without changing Activity capture consent. Automatic requests still lack the complete durable trigger envelope and fail closed after Android service request, so this is upgrade preservation rather than automatic-mode completion.
+- Legacy automatic-mode upgrade semantics are now explicit: an enabled existing automatic preference grants nonpersistent Activity `CONTROL` only, and later mode transitions append control consent epochs without changing Activity capture consent. The current automatic path carries a complete durable trigger/action envelope through Room PREPARE before Android service enqueue; it remains implementation-only until source-specific composition and Android/device gates pass.
 - `DailySummaryAggregator` still rebuilds from `SessionSegment`, and History/Calendar still fabricate
   zero-looking summaries from missing data. A Hilt-bound `TrackingHistoryRepository` now observes one
   selected local session and preserves Steps availability, evidence, product state, coverage, and
@@ -422,7 +422,7 @@ rollout, feature activation, or destructive migration occurred.
   stale automatic/runtime state without restarting `STOPPING` or terminal sessions in host tests.
   Connected process-kill/reboot proof is still required before an automatic source gate.
 - Activity has a shared physical-registration arbiter whose PendingIntent carries only physical identity/configuration. Purpose/policy/manifest/consent changes rotate observed-time authorization without restarting unchanged GMS configuration; one parsed callback is now admitted in one Room transaction and sparse eligible members map back to the exact original recognition/transition indexes. Exact duplicate delivery reloads/recovery-drains but cannot repeat motion, backend flows or the receiver cache. Provider replacement is accepted before the old generation's half-open retirement boundary; full process-wide durable-demand/provider recovery remains blocked.
-- Activity automation still drops parts of the durable trigger envelope before external start, source-native staleness thresholds are not calibrated, the synchronous global drain remains, and no typed movement-band materializer or production query exists. The adapter is admission evidence, not an Activity source gate.
+- Activity automation now preserves the durable trigger/action envelope through the pre-service Room boundary and permits only the exact fresh Transition callback to request a cold start. Source-native staleness thresholds are not calibrated, the synchronous global drain remains, and no typed movement-band materializer or production query exists. The adapter is admission evidence, not an Activity source gate.
 - `SharedStepSourceController` now owns one app-scoped physical counter registration for exact
   session capture. Steps corroboration has been removed: Activity owns automatic control, and a
   legacy app-scoped Steps control demand is retired rather than selected. Runtime callbacks and
@@ -669,7 +669,7 @@ Three fresh read-only reviewers attacked the integrated demand, registration, ca
 | BROKER-A05 capability/permission revoke is not a callback admission fence | `HIGH` | `ACCEPTED` | capability revisions and revoke-race tests are required for all six sources |
 | BROKER-A06 Wi-Fi/Cell pseudonyms are unkeyed and non-rotatable | `HIGH` | `ACCEPTED` | per-install HMAC generation and deletion/consent-reset rotation remain required |
 | BROKER-A07 Wi-Fi/Cell background cadence is not wake-reliable | `MEDIUM` | `MITIGATED_BY_CONTAINMENT` | product/runbook call it opportunistic; Doze/OEM measurement remains required |
-| BROKER-P01 all automatic scenarios lack the durable trigger handoff | `BLOCKER` | `ACCEPTED` | six automatic only-X scenarios remain fail-closed |
+| BROKER-P01 all automatic scenarios lack the durable trigger handoff | `BLOCKER` | `MITIGATED_LOCALLY` | TI-D180/TI-B242 reconcile the shared pre-service durable gateway; each automatic only-X scenario still needs exact manifest/provider/query and Android/device proof |
 | BROKER-P02 Step corroborator bypasses broker ownership | `BLOCKER` | `MITIGATED_LOCALLY` | removed at `b779afd1e`; legacy Steps control is retired and final convergence remains unvalidated |
 | BROKER-P03 qualified `RECORDING` state is absent | `BLOCKER` | `ACCEPTED` | persist source-qualified evidence and make UI distinguish provider-active from recording |
 | BROKER-P04 production history query is absent | `BLOCKER` | `ACCEPTED` | no source is `QUERYABLE` until real `TrackingHistoryRepository` and applicable consumer proof exists |
@@ -913,7 +913,7 @@ R4 is deliberately incremental: each fresh perspective reviews the pipeline afte
 | R4-D06 cancellation is converted to storage/projection failure | `HIGH` | `ACCEPTED` | rethrow `CancellationException` at encode/admission/projection/drain and assert no attempt/cursor/quarantine change; current code remains unfixed |
 | R4-D07 legacy cutover lacks atomic destination owner fence | `BLOCKER` | `MITIGATED_IN_DESIGN` | TI-D072 adds narrow persisted source/destination owner generation checked in every legacy/candidate mutation; paused-writer race remains |
 | R4-D08 portable export omits Activity/Steps/Pressure and exposes legacy raw radio identity | `HIGH` | `ACCEPTED` | export must come from typed product facts/membership/completeness for all released sources and exclude control/raw radio data; current exporter remains blocking |
-| R4-A01 Sampling can still create automatic start effects; durable trigger/type envelope is absent | `BLOCKER` | `ACCEPTED` | TI-D062 already specifies Transition-only pre-service CAS; current `ActivityAutomationProjection`/`BackgroundTrackingApi` and service-first launch remain blocking |
+| R4-A01 Sampling can still create automatic start effects; durable trigger/type envelope is absent | `BLOCKER` | `MITIGATED_LOCALLY` | only an exact fresh Transition callback can spend the pre-service durable action; Sampling and replay fail closed. Current code remains unvalidated and Android/provider legality is still blocking |
 | R4-A02 bounded `trySend` queues and radio dedupe silently lose qualified deliveries | `BLOCKER` | `ACCEPTED` | TI-D056/TI-D061 require lossless bounded handoff/backpressure and radio headers; current five runtime queues and unchanged-result drops remain blocking |
 | R4-A03 receipt-time/persistence gates reject valid pre-boundary and control evidence | `BLOCKER` | `ACCEPTED` | TI-D055/TI-D070 require observed-time authorization-homogeneous bulk admission; current registration-ACTIVE and persistence gates remain blocking |
 | R4-A04 demand floors are not operative; sole-source Pressure can be disabled | `BLOCKER` | `ACCEPTED` | TI-D058/TI-D060 already define binding floors/targets; `SourceDemand`/resolver implementation and exhaustive property/device proof remain |
@@ -3497,3 +3497,25 @@ registration. They are authored only. No Gradle, compiler, test, lint, Detekt, R
 emulator/device, UI, battery, CI, integration, activation, publication, or release command ran.
 The next implementation boundary is `TODO-STEPS-AUTO-002`: reconcile the existing durable Activity
 automatic-start gateway against the Automatic Steps contract before adding anything new.
+
+## 2026-09-12 implementation-only checkpoint — durable automatic gateway reconciled
+
+`TODO-STEPS-AUTO-002` is implemented by the existing shared Activity automatic-start path; no new
+Steps-local gateway was added. Static production tracing at `9e59e8601` follows the admitted
+Activity outbox envelope through exact fresh-Transition callback permission, durable action
+reservation and `START_REQUESTED`, current provider/policy/consent/automation/data-epoch checks,
+immutable lifecycle-intent PREPARE, startup/lifecycle authority, and only then Android foreground
+service enqueue. The trigger retains exact identity, origin, clocks, expiry, policy and automation
+revisions, requested/intended capture masks, intended FGS mask, and collected-data epoch.
+
+Sampled recognition and durable replay cannot receive the callback start context. Expiry is checked
+before PREPARE and immediately before enqueue; stale, stopped, closed-generation, failed-enqueue,
+or mismatched actions are compensated or terminalized without being treated as accepted. Existing
+focused tests cover ordering, deadline crossing, cold replay, action serialization, deletion epoch,
+policy/consent/automation/provider retirement, and manifest tampering. Historical TI-B187 evidence
+applies only to its exact source commit and is not current-branch validation.
+
+No Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran. This is **IMPLEMENTED_UNVALIDATED** and closes only
+the shared gateway prerequisite. The next boundary is `TODO-STEPS-AUTO-003`: exact immutable
+Automatic Steps capture/control attribution.
