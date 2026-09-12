@@ -289,6 +289,19 @@ internal class AmbientStepsProviderRegistrationRepository @Inject constructor(
 				registration.status == ProviderRegistrationGenerationEntity.STATUS_RESERVED
 		}
 
+	internal suspend fun hasNonterminalProvider(provider: AmbientStepsProvider): Boolean =
+		(
+			database.sourceBrokerDao().currentPhysicalRegistrations(SOURCE_KIND) +
+				database.sourceBrokerDao().pendingProviderRemovals(SOURCE_KIND)
+		)
+			.distinctBy(ProviderRegistrationGenerationEntity::registrationGeneration)
+			.any { registration ->
+				registration.ownerScope == OWNER_SCOPE &&
+					registration.providerResidency ==
+					ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE &&
+					registration.ambientStepsProviderOrNull() == provider
+			}
+
 	internal suspend fun markActiveRetiring(
 		registration: ProviderRegistrationGenerationEntity,
 		reason: String,

@@ -1,6 +1,7 @@
 package com.adsamcik.tracker.tracker.source.ambient.steps
 
 import android.app.Application
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
@@ -18,6 +19,7 @@ import com.adsamcik.tracker.tracker.source.runtime.AmbientStepsDemandResult
 import com.adsamcik.tracker.tracker.source.runtime.BootClockDomainProvider
 import com.adsamcik.tracker.tracker.source.runtime.SourceBroker
 import io.kotest.matchers.shouldBe
+import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
@@ -35,6 +37,8 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 	private lateinit var broker: SourceBroker
 	private lateinit var lifecycleStore: CoordinatorLifecycleStore
 	private lateinit var registrations: AmbientStepsProviderRegistrationRepository
+	private lateinit var cleanupFile: File
+	private lateinit var cleanupStore: AmbientStepsProviderCleanupStore
 	private lateinit var local: FakeAmbientStepsProviderBackend
 	private lateinit var health: FakeAmbientStepsProviderBackend
 	private lateinit var subject: AmbientStepsProviderRegistrationCoordinator
@@ -44,6 +48,9 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 	fun setUp() = runTest {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
+		cleanupFile = File(context.cacheDir, "ambient-steps-provider-coordinator-cleanup")
+		deleteCleanupFiles()
+		cleanupStore = AmbientStepsProviderCleanupStore(cleanupFile)
 		val rollout = installCanonicalProductLanesForTest(
 			database = database,
 			bindings = listOf(
@@ -81,7 +88,10 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 	}
 
 	@After
-	fun tearDown() = database.close()
+	fun tearDown() {
+		database.close()
+		deleteCleanupFiles()
+	}
 
 	@Test
 	fun `provider activation observes reserved authority before acceptance`() = runTest {
@@ -101,6 +111,8 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 			active.registrationGeneration
 		local.ensureCalls shouldBe 1
 		local.removeCalls shouldBe 0
+		cleanupStore.read().pending shouldBe
+			setOf(AmbientStepsProvider.LOCAL_RECORDING_STEPS)
 	}
 
 	@Test
@@ -123,6 +135,7 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 		)
 		failed?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_FAILED
 		registrations.currentActive() shouldBe null
+		cleanupStore.read().pending shouldBe emptySet()
 	}
 
 	@Test
@@ -179,6 +192,8 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 		local.removeCalls shouldBe 1
 		health.removeCalls shouldBe 0
 		registrations.pendingRetirements() shouldBe emptyList()
+		cleanupStore.read().pending shouldBe
+			setOf(AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS)
 	}
 
 	@Test
@@ -195,6 +210,8 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 		local.ensureCalls shouldBe 2
 		local.removeCalls shouldBe 0
 		registrations.pendingRetirements() shouldBe emptyList()
+		cleanupStore.read().pending shouldBe
+			setOf(AmbientStepsProvider.LOCAL_RECORDING_STEPS)
 		database.sourceBrokerDao().registration(
 			SourceKind.STEPS.stableCode,
 			first.registrationGeneration,
@@ -236,6 +253,7 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 			SourceKind.STEPS.stableCode,
 			1L,
 		)?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_RETIRED
+		cleanupStore.read().pending shouldBe emptySet()
 	}
 
 	@Test
@@ -259,6 +277,38 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 		)
 		registrations.pendingRetirements().single().status shouldBe
 			ProviderRegistrationGenerationEntity.STATUS_RETIRING
+		cleanupStore.read().pending shouldBe
+			setOf(AmbientStepsProvider.LOCAL_RECORDING_STEPS)
+	}
+
+	@Test
+	fun `deletion cleanup retries from no backup journal after Room authority is erased`() = runTest {
+		val demand = ready(AmbientStepsProvider.LOCAL_RECORDING_STEPS, 100L)
+		subject.reconcile(demand, boundary(110L))
+		local.failRemove = true
+
+		val first = subject.closeForCollectedDataDeletion()
+
+		first shouldBe AmbientStepsProviderCleanupResult(
+			complete = false,
+			pendingProviders = setOf(AmbientStepsProvider.LOCAL_RECORDING_STEPS),
+			failure = AmbientStepsProviderRegistrationFailure.PROVIDER_REMOVAL_FAILED,
+			retryable = true,
+		)
+		database.withTransaction {
+			database.sourceBrokerDao().deleteAllAuthorizations()
+			database.sourceBrokerDao().deleteAllRegistrations()
+			database.sourceRegistrationStateDao().deleteAll()
+			database.sourceBrokerDao().deleteAllDemands()
+		}
+		local.failRemove = false
+
+		subject.closeForCollectedDataDeletion() shouldBe AmbientStepsProviderCleanupResult(
+			complete = true,
+			pendingProviders = emptySet(),
+		)
+		local.removeCalls shouldBe 2
+		cleanupStore.read().pending shouldBe emptySet()
 	}
 
 	@Test
@@ -269,6 +319,7 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 			localDemand.demandId,
 			boundary(110L),
 		)
+		cleanupStore.addPending(AmbientStepsProvider.LOCAL_RECORDING_STEPS)
 		local.ensureActive()
 		val healthDemand = ready(AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS, 120L)
 
@@ -282,12 +333,21 @@ class AmbientStepsProviderRegistrationCoordinatorTest {
 			SourceKind.STEPS.stableCode,
 			interrupted.state.registrationGeneration,
 		)?.status shouldBe ProviderRegistrationGenerationEntity.STATUS_FAILED
+		cleanupStore.read().pending shouldBe
+			setOf(AmbientStepsProvider.HEALTH_CONNECT_MOBILE_STEPS)
 	}
 
 	private fun coordinator() = AmbientStepsProviderRegistrationCoordinator(
 		registrations = registrations,
-		backends = setOf(local, health),
+		cleanupStore = cleanupStore,
+		providerBackends = setOf(local, health),
 	)
+
+	private fun deleteCleanupFiles() {
+		cleanupFile.delete()
+		File("${cleanupFile.path}.bak").delete()
+		File("${cleanupFile.path}.new").delete()
+	}
 
 	private suspend fun ready(
 		provider: AmbientStepsProvider,
