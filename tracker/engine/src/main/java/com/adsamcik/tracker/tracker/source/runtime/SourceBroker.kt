@@ -15,6 +15,7 @@ import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrN
 import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import com.adsamcik.tracker.tracker.source.coordinator.RoomTrackingRolloutStateStore
 import com.adsamcik.tracker.tracker.source.coordinator.SessionManifestPurpose
+import com.adsamcik.tracker.tracker.source.model.AmbientStepsAcquisitionMechanism
 import com.adsamcik.tracker.tracker.source.model.DirectSourceDemandPurpose
 import com.adsamcik.tracker.tracker.source.model.SourceDemandContract
 import com.adsamcik.tracker.tracker.source.model.SourceDemandContractFactory
@@ -468,6 +469,117 @@ class SourceBroker @Inject constructor(
 		)
 	}
 
+	/**
+	 * Replaces the one app-scoped Ambient Steps demand after capability and permission selection.
+	 * Preference alone is insufficient: Room policy, persistent ambient consent, and the source's
+	 * ambient rollout lane must all agree in this transaction.
+	 */
+	internal suspend fun replaceAmbientStepsDemand(
+		consumerId: String,
+		enabled: Boolean,
+		mechanism: AmbientStepsAcquisitionMechanism,
+		bootId: String,
+		elapsedRealtimeNanos: Long,
+		wallTimeMs: Long,
+	): AmbientStepsDemandResult = database.withTransaction {
+		require(consumerId.isNotBlank())
+		val source = SourceKind.STEPS
+		val dao = database.sourceBrokerDao()
+		val currentDemands = dao.currentDemands(consumerId)
+		val affectedSourceKinds = (
+			currentDemands.map(SourceDemandEntity::sourceKind) + source.stableCode
+		).toSet()
+
+		suspend fun inactive(reason: AmbientStepsDemandInactiveReason): AmbientStepsDemandResult {
+			dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
+			rotateCurrentAuthorizationsInTransaction(
+				affectedSourceKinds,
+				bootId,
+				elapsedRealtimeNanos,
+				wallTimeMs,
+			)
+			return AmbientStepsDemandResult.Inactive(reason)
+		}
+
+		if (!enabled) return@withTransaction inactive(AmbientStepsDemandInactiveReason.REQUEST_DISABLED)
+		val policyDao = database.sourcePolicyDao()
+		val authority = policyDao.authority()
+		if (authority?.bootstrapState != SourcePolicyAuthorityEntity.STATE_ACTIVE) {
+			return@withTransaction inactive(AmbientStepsDemandInactiveReason.AUTHORITY_INACTIVE)
+		}
+		val policy = policyDao.policyAtRevision(authority.currentPolicyRevision, source.stableCode)
+			?: return@withTransaction inactive(AmbientStepsDemandInactiveReason.POLICY_MISSING)
+		val consentEpoch = policy.ambientConsentEpoch
+			?: return@withTransaction inactive(AmbientStepsDemandInactiveReason.CONSENT_REVOKED)
+		if (!policy.ambientPersistenceEligible) {
+			return@withTransaction inactive(AmbientStepsDemandInactiveReason.PERSISTENCE_INELIGIBLE)
+		}
+		if (!trackingRolloutStateStore.load().isCaptureReachable(source, CaptureReachabilityMode.AMBIENT)) {
+			return@withTransaction inactive(AmbientStepsDemandInactiveReason.ROLLOUT_CONTAINED)
+		}
+
+		val contract = SourceDemandContractFactory.forAmbientSteps(mechanism)
+		currentDemands.singleOrNull()?.takeIf { demand ->
+			demand.status == SourceDemandEntity.STATUS_ACTIVE &&
+				demand.sourceKind == source.stableCode &&
+				demand.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
+				demand.sourcePolicyRevision == authority.currentPolicyRevision &&
+				demand.consentEpoch == consentEpoch &&
+				demand.persistenceEligible &&
+				demand.qosCode == 0 &&
+				demand.minimumAcquisitionSpec == contract.encodeFloor() &&
+				demand.adaptiveReductionAllowed == contract.adaptiveReductionAllowed &&
+				demand.maximumAgeMs == contract.maximumProviderItemAgeMs &&
+				demand.desiredLatencyMs == contract.targetPlanningLatencyMs &&
+				demand.requestedDeliveryLatencyMs == contract.requestedDeliveryLatencyMs
+		}?.let { unchanged -> return@withTransaction AmbientStepsDemandResult.Active(unchanged) }
+		dao.retireConsumer(consumerId, bootId, elapsedRealtimeNanos, wallTimeMs)
+		val demand = SourceDemandEntity(
+			demandId = demandId(
+				consumerId,
+				source.stableCode,
+				SourceBrokerPurpose.AMBIENT_PRODUCT,
+				authority.currentPolicyRevision,
+				consentEpoch,
+				null,
+				bootId,
+				elapsedRealtimeNanos,
+				contract.encodeFloor(),
+			),
+			consumerId = consumerId,
+			sourceKind = source.stableCode,
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+			logicalTrackingId = null,
+			serviceRunId = null,
+			manifestRevision = null,
+			lifecycleLeaseGeneration = null,
+			sourcePolicyRevision = authority.currentPolicyRevision,
+			consentEpoch = consentEpoch,
+			persistenceEligible = true,
+			qosCode = 0,
+			minimumAcquisitionSpec = contract.encodeFloor(),
+			adaptiveReductionAllowed = contract.adaptiveReductionAllowed,
+			maximumAgeMs = contract.maximumProviderItemAgeMs,
+			desiredLatencyMs = contract.targetPlanningLatencyMs,
+			requestedDeliveryLatencyMs = contract.requestedDeliveryLatencyMs,
+			requestedBootId = bootId,
+			requestedElapsedRealtimeNanos = elapsedRealtimeNanos,
+			requestedAtMs = wallTimeMs,
+			status = SourceDemandEntity.STATUS_ACTIVE,
+			retireBootId = null,
+			retireElapsedRealtimeNanos = null,
+			retiredAtMs = null,
+		)
+		dao.insertDemands(listOf(demand))
+		rotateCurrentAuthorizationsInTransaction(
+			affectedSourceKinds,
+			bootId,
+			elapsedRealtimeNanos,
+			wallTimeMs,
+		)
+		AmbientStepsDemandResult.Active(demand)
+	}
+
 	suspend fun registrationAuthorization(
 		source: SourceKind,
 		sourceInstanceId: String,
@@ -538,8 +650,9 @@ class SourceBroker @Inject constructor(
 		manifestRevision: Long?,
 		activationBootId: String,
 		activationElapsedRealtimeNanos: Long,
+		discriminator: String? = null,
 	): String {
-		val value = listOf(
+		val components = mutableListOf<Any>(
 			consumerId,
 			sourceKind,
 			purpose,
@@ -548,12 +661,28 @@ class SourceBroker @Inject constructor(
 			manifestRevision ?: 0L,
 			activationBootId,
 			activationElapsedRealtimeNanos,
-		).joinToString("\u001f")
+		)
+		if (discriminator != null) components += discriminator
+		val value = components.joinToString("\u001f")
 		return MessageDigest.getInstance("SHA-256")
 			.digest(value.toByteArray(Charsets.UTF_8))
 			.joinToString("") { byte -> "%02x".format(byte) }
 	}
 
+}
+
+internal sealed interface AmbientStepsDemandResult {
+	data class Active(val demand: SourceDemandEntity) : AmbientStepsDemandResult
+	data class Inactive(val reason: AmbientStepsDemandInactiveReason) : AmbientStepsDemandResult
+}
+
+internal enum class AmbientStepsDemandInactiveReason {
+	REQUEST_DISABLED,
+	AUTHORITY_INACTIVE,
+	POLICY_MISSING,
+	CONSENT_REVOKED,
+	PERSISTENCE_INELIGIBLE,
+	ROLLOUT_CONTAINED,
 }
 
 internal fun SourceDemandEntity.toSourceDemandContract(): SourceDemandContract =
