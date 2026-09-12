@@ -19,7 +19,10 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLan
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestSourceEntity
 import com.adsamcik.tracker.shared.base.database.data.LEGACY_V27_UNATTRIBUTED_SERVICE_RUN_ID
+import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
 import com.adsamcik.tracker.shared.base.time.FixedClock
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleSnapshot
+import com.adsamcik.tracker.shared.preferences.lifecycle.CollectedDataLifecycleStore
 import com.adsamcik.tracker.shared.preferences.tracking.RoomSourcePolicyRepository
 import com.adsamcik.tracker.shared.preferences.tracking.SourceCollectionFrequency
 import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
@@ -29,8 +32,10 @@ import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartContext
 import com.adsamcik.tracker.tracker.resilience.AutomaticTrackingStartTrigger
 import com.adsamcik.tracker.tracker.resilience.PreviousExitSourceSessionFinalizer
 import com.adsamcik.tracker.tracker.source.ingress.AdmissionResult
+import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceEventSinkFactory
 import com.adsamcik.tracker.tracker.source.ingress.DurableSourceIngress
+import com.adsamcik.tracker.tracker.source.ingress.RoomDurableSourceIngress
 import com.adsamcik.tracker.tracker.source.model.AcquisitionPlanRevision
 import com.adsamcik.tracker.tracker.source.model.AppliedSourcePlan
 import com.adsamcik.tracker.tracker.source.model.LocationBackend
@@ -45,9 +50,12 @@ import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourcePlan
 import com.adsamcik.tracker.tracker.source.model.SourceQuality
+import com.adsamcik.tracker.tracker.source.model.StepBoundaryKind
 import com.adsamcik.tracker.tracker.source.model.StepCounterWindowPayload
 import com.adsamcik.tracker.tracker.source.model.StepsPlan
 import com.adsamcik.tracker.tracker.source.projection.ProjectionDispatcher
+import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactDrainResult
+import com.adsamcik.tracker.tracker.source.projection.StepsSessionFactProjectionLane
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomaticStartActionRepository
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomaticStartServiceValidation
 import com.adsamcik.tracker.tracker.source.projection.ActivityAutomationDrainSignal
@@ -2312,6 +2320,7 @@ class AuthoritativeSessionCoordinatorTest {
 	@Test
 	fun `automatic generation 2 Steps persists exact immutable capture and control attribution`() = runTest {
 		val binding = installStepsCandidateRollout(ExecutableSourceLaneCatalog.STEPS_SESSION_FACTS_V2)
+		val ingress = useDurableStepsIngress()
 		val trigger = automaticTrigger()
 		seedAutomaticStartAction(trigger)
 		val request = startRequest().copy(
@@ -2459,6 +2468,26 @@ class AuthoritativeSessionCoordinatorTest {
 		started.applied.map(AppliedSourcePlan::source).toSet() shouldBe setOf(SourceKind.STEPS)
 		runtime.startCount shouldBe 1
 		locationRuntime.isActive shouldBe false
+		val sink = requireNotNull(runtime.sinkAtStart)
+		sink.admit(automaticStepsCandidate(sequence = 1L, delta = 0L)) shouldBe
+			SourceAdmissionHandoff.Durable(1L)
+		sink.admit(automaticStepsCandidate(sequence = 2L, delta = 5L)) shouldBe
+			SourceAdmissionHandoff.Durable(2L)
+
+		StepsSessionFactProjectionLane(database, ingress).drainThrough(2L) shouldBe
+			StepsSessionFactDrainResult.Complete(
+				lastCompletedOrdinal = 2L,
+				factsInserted = 2,
+				eventsValidated = 2,
+			)
+		val positive = requireNotNull(database.stepFactRevisionDao().writerAdmission(
+			StepsSessionFactProjectionLane.WRITER_ID,
+			StepsSessionFactProjectionLane.WRITER_VERSION,
+			2L,
+		))
+		positive.logicalTrackingId shouldBe prepared.logicalTrackingId
+		positive.serviceRunId shouldBe prepared.serviceRunId
+		positive.effectiveStepCount shouldBe 5L
 	}
 
 	@Test
@@ -2619,6 +2648,91 @@ class AuthoritativeSessionCoordinatorTest {
 		payloadVersion = 1,
 		payload = StepCounterWindowPayload("boot-1", 100, 101, 1, 1, 2, 1, 1, false),
 	)
+
+	private fun useDurableStepsIngress(): RoomDurableSourceIngress {
+		val lifecycleStore = mockk<CollectedDataLifecycleStore>()
+		coEvery { lifecycleStore.snapshot() } returns
+			CollectedDataLifecycleSnapshot(epoch = 0L, retainedFromMs = null)
+		val ingress = RoomDurableSourceIngress(
+			database = database,
+			lifecycleStore = lifecycleStore,
+			payloadCodec = DefaultSourcePayloadCodec(),
+			executableLaneCatalog = ExecutableSourceLaneCatalog(),
+			trackingStartupGateProvider = Provider<TrackingStartupGate> { ReadyTrackingStartupGate },
+		)
+		subject = AuthoritativeSessionCoordinator(
+			database,
+			RoomSourcePlanStore(database, SourcePlanCodec()),
+			SourceRuntimeRegistry(setOf(runtime, locationRuntime)),
+			DurableSourceEventSinkFactory(ingress),
+			TrackingCoordinator(database, ingress, ProjectionDispatcher(database, emptySet())),
+			ActivityAutomaticStartActionRepository(database, ReadyTrackingStartupGate),
+			activityAutomationDrainSignal,
+			activityAutomationEpochAuthority,
+			BootClockDomainProvider { currentBootId },
+			leaseClock,
+			rolloutStore = fixedEventRolloutStore(),
+		)
+		return ingress
+	}
+
+	private suspend fun automaticStepsCandidate(
+		sequence: Long,
+		delta: Long,
+	): SourceEvidenceCandidate<StepCounterWindowPayload> {
+		require(sequence in 1L..2L)
+		require(delta == 0L || sequence == 2L)
+		val registration = requireNotNull(
+			database.sourceBrokerDao().currentPhysicalRegistration(SourceKind.STEPS.stableCode),
+		)
+		val authorization = database.sourceBrokerDao().latestAuthorization(
+			SourceKind.STEPS.stableCode,
+			registration.registrationGeneration,
+		).single { row -> row.purpose == SourceBrokerPurpose.SESSION_CAPTURE }
+		val baselineAt = maxOf(
+			authorization.effectiveElapsedRealtimeNanos,
+			requireNotNull(registration.acceptedElapsedRealtimeNanos),
+		) + 1_000L
+		val observedAt = baselineAt + (sequence - 1L) * 1_000L
+		val firstCount = 100L
+		val lastCount = firstCount + delta
+		val boundary = if (sequence == 1L) StepBoundaryKind.BASELINE else StepBoundaryKind.COVERED
+		return SourceEvidenceCandidate(
+			providerDedupKey = "automatic-steps-$sequence",
+			logicalTrackingId = null,
+			serviceRunId = null,
+			source = SourceKind.STEPS,
+			sourceInstanceId = SourceInstanceId(registration.sourceInstanceId),
+			registrationGeneration = registration.registrationGeneration,
+			physicalConfigurationFingerprint = registration.physicalConfigurationFingerprint,
+			authorizationRevision = authorization.authorizationRevision,
+			registrationPurposeEligibilityMask = authorization.purposeEligibilityMask,
+			registrationEligibilityFingerprint = authorization.authorizationFingerprint,
+			sourceSequence = sequence,
+			configRevision = 1L,
+			planAttribution = PlanAttribution.CAPTURED_REGISTRATION,
+			clockDomainId = registration.clockDomainId,
+			observedElapsedRealtimeNanos = observedAt,
+			receivedElapsedRealtimeNanos = observedAt + 1L,
+			wallTimeMs = 1_300L + sequence,
+			wallTimeUncertaintyMs = 1L,
+			capturedCollectedDataEpoch = registration.collectedDataEpoch,
+			acquiredAtMs = 1_300L + sequence,
+			quality = SourceQuality(),
+			payloadVersion = 3,
+			payload = StepCounterWindowPayload(
+				bootClockDomainId = registration.clockDomainId,
+				firstCumulativeCount = firstCount,
+				lastCumulativeCount = lastCount,
+				deltaCount = delta,
+				windowStartElapsedRealtimeNanos = baselineAt,
+				windowEndElapsedRealtimeNanos = observedAt,
+				firstProviderSequence = 1L,
+				lastProviderSequence = sequence,
+				boundaryKind = boundary,
+			),
+		)
+	}
 
 	private suspend fun prepareAndroidStart(
 		tokenValue: String,

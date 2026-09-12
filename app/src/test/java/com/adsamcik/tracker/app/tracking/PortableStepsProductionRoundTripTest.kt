@@ -37,6 +37,7 @@ import com.adsamcik.tracker.stats.api.repository.PortableStepsEntryV1
 import com.adsamcik.tracker.stats.api.repository.SessionHistoryQuery
 import com.adsamcik.tracker.stats.api.repository.StepsHistoryCoverage
 import com.adsamcik.tracker.stats.data.metric.DefaultMetricDirtyTracker
+import com.adsamcik.tracker.tracker.source.coordinator.CaptureReachabilityMode
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.Dispatchers
@@ -88,8 +89,22 @@ class PortableStepsProductionRoundTripTest {
 	}
 
 	@Test
-	fun `local source exports then imports into fresh Room history without fabricating authority`() = runTest {
+	fun `automatic Steps reaches production history while Activity control stays out of captured product`() = runTest {
 		seedLocalStepsOnlySession()
+		val sourceHistory = PortableStepsRoundTripInternals.history(
+			source, laneAuthority, Dispatchers.Unconfined,
+		)
+		val local = (sourceHistory.observeSession(SEGMENT_ID).first() as SessionHistoryQuery.Found).history
+		val exactCapture = local.capture as HistoryCapture.Exact
+		exactCapture.revisions.single().capturedSources shouldBe setOf(HistorySource.STEPS)
+		exactCapture.revisions.single().controlSources shouldBe setOf(HistorySource.ACTIVITY)
+		local.capturesOnlySteps shouldBe true
+		local.qualifiedSources shouldBe setOf(HistorySource.STEPS)
+		local.steps.count shouldBe 12L
+		local.steps.availability shouldBe HistoryAvailability.AVAILABLE
+		local.steps.productState shouldBe HistoryProductState.READY
+		local.steps.coverage shouldBe StepsHistoryCoverage.COMPLETE
+
 		val sourceExporter = PortableStepsRoundTripInternals.exporter(
 			source, laneAuthority, Dispatchers.Unconfined,
 		)
@@ -101,6 +116,7 @@ class PortableStepsProductionRoundTripTest {
 			run.facts.map { it.stepCount } shouldContainExactly listOf(12L)
 			run.manifests.map { it.source.name } shouldContainExactly listOf("STEPS")
 			run.manifests.map { it.purpose.name } shouldContainExactly listOf("SESSION_CAPTURE")
+			run.manifests.none { it.source.name == "ACTIVITY" } shouldBe true
 		}
 
 		val destinationExporter = PortableStepsRoundTripInternals.exporter(
@@ -164,7 +180,7 @@ class PortableStepsProductionRoundTripTest {
 				lifecycleRevision = 1L,
 				desiredPlanRevision = 1L,
 				rolloutRevision = 1L,
-				startOrigin = "MANUAL_FOREGROUND_START",
+				startOrigin = "AUTOMATIC_BACKGROUND_START",
 				clockDomainId = "boot-1",
 				startedAtMs = START_MS,
 				startedElapsedNanos = START_MS,
@@ -173,11 +189,11 @@ class PortableStepsProductionRoundTripTest {
 				completedAtMs = END_MS,
 				finalAdmissionOrdinal = 1L,
 				failureCode = null,
-				sessionMode = "MANUAL",
+				sessionMode = "AUTOMATIC",
 				currentManifestRevision = null,
 				currentIntentRevision = null,
 				currentServiceRunId = null,
-				automationEpoch = null,
+				automationEpoch = 1L,
 			),
 		)
 		source.sourceSessionDao().insertServiceRun(
@@ -194,7 +210,7 @@ class PortableStepsProductionRoundTripTest {
 				completionReason = "STOPPED",
 				bootId = "boot-1",
 				leaseGeneration = 1L,
-				startOrigin = "MANUAL_FOREGROUND_START",
+				startOrigin = "AUTOMATIC_BACKGROUND_START",
 				runRevision = 1L,
 				startDeliveryToken = "delivery-1",
 				startCommandGeneration = 1L,
@@ -235,16 +251,16 @@ class PortableStepsProductionRoundTripTest {
 			logicalTrackingId = LOGICAL_ID,
 			manifestRevision = 1L,
 			serviceRunId = RUN_ID,
-			sessionMode = "MANUAL",
+			sessionMode = "AUTOMATIC",
 			sourcePolicyRevision = 1L,
 			acquisitionPlanRevision = 1L,
 			rolloutRevision = 1L,
-			startOrigin = "MANUAL_FOREGROUND_START",
+			startOrigin = "AUTOMATIC_BACKGROUND_START",
 			effectiveBootId = "boot-1",
 			effectiveElapsedRealtimeNanos = START_MS,
 			effectiveWallTimeMs = START_MS,
 			zoneId = "Europe/Prague",
-			automationEpoch = null,
+			automationEpoch = 1L,
 			changeReason = "TEST",
 			manifestChecksum = "",
 		)
@@ -319,7 +335,7 @@ class PortableStepsProductionRoundTripTest {
 				lastAdmissionOrdinal = 1L,
 				lastSourceSequence = 1L,
 				appDrainComplete = true,
-				providerCoverage = "COMPLETE",
+				providerCoverage = "CALLBACKS_ENTERED_BEFORE_BARRIER",
 				stopStatus = "COMPLETE",
 				unresolvedSequenceStart = null,
 				unresolvedSequenceEnd = null,
@@ -366,7 +382,8 @@ class PortableStepsProductionRoundTripTest {
 		bindingGeneration = BINDING_GENERATION,
 		projectionId = WRITER_ID,
 		projectionVersion = WRITER_VERSION,
-		captureModeMask = 1L,
+		captureModeMask = CaptureReachabilityMode.MANUAL_SESSION_CAPTURE.mask or
+			CaptureReachabilityMode.AUTOMATIC_SESSION_CAPTURE.mask,
 		productStage = SourceProductProjectionLaneEntity.STAGE_EVENT_CANONICAL,
 		activatedRolloutRevision = 1L,
 		activationOrdinal = 1L,
@@ -400,6 +417,7 @@ class PortableStepsProductionRoundTripTest {
 		const val END_MS = 2_000L
 		const val WRITER_ID = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_ID
 		const val WRITER_VERSION = SourceDestinationOwnerEntity.STEPS_FACT_PROJECTION_VERSION
-		const val BINDING_GENERATION = SourceDestinationOwnerEntity.STEPS_FACT_BINDING_GENERATION
+		const val BINDING_GENERATION =
+			SourceDestinationOwnerEntity.STEPS_FACT_AUTOMATIC_BINDING_GENERATION
 	}
 }
