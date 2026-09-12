@@ -3439,3 +3439,26 @@ remaining code or call-site blocker. One reviewer inadvertently ran `git diff --
 clean but is not treated as behavioral evidence. No Gradle, compiler, test, lint, Detekt, Room
 drift, emulator/device, UI, battery, CI, integration, activation, publication, or release command
 ran. `TODO-STEPS-NUM-001` is implemented and remains unvalidated.
+
+## 2026-09-12 implementation-only checkpoint — authoritative daily Steps disabled state
+
+Commits `d95d8bc56` and `987cb550b` on `codex/ti-steps-import-actions` complete the implementation
+portion of `TODO-STEPS-NUM-005`. `DefaultGameRepository` now combines the daily qualified Steps
+result with the existing fail-closed `SourcePolicyRepository.states` authority. That repository
+already validates the active immutable policy revision, all six source policies, per-source
+invariants, and referenced consent history; the product layer does not reinterpret raw Room rows.
+
+Only daily `NOT_CAPTURED` is refined by current policy. The new typed `DISABLED` reason requires
+both Steps session capture and ambient-product persistence to be off. Either product purpose keeps
+the result `NOT_CAPTURED`; control-only authority does not. Uninitialized or invalid authority
+becomes source-evidence unavailable. Ready zero/positive, partial, materializing, calendar/storage
+failure, and every weekly result remain under their original source authority. The Today widget
+renders `Disabled`; the periodic goal-notification worker treats it as terminal nonnumeric state
+and performs no threshold-claim I/O.
+
+Policy observation is owned by the existing while-subscribed Steps summary and creates no source
+demand, provider registration, writer, scheduler, or permanent observer. Focused policy,
+composition, widget, and worker assertions were authored but intentionally not executed. No
+Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran. `TODO-STEPS-NUM-008` is now the only open Steps
+numeric-consumer item.

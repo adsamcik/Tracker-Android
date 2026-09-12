@@ -2785,3 +2785,22 @@ Each entry records repository evidence and does not duplicate the final architec
 - Raw legacy interval reads remain permitted only for source-local persistence, migration,
   recovery, deletion/rearm, and inactive local research/debug evidence. They cannot authorize a
   product number or effect without a new explicit decision and source-qualified contract.
+
+## TI-D177 — Daily disabled Steps requires active source-policy authority
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-12; sources `d95d8bc56`, `987cb550b`;
+  TI-B239.
+- A daily absence can be labeled `DISABLED` only when the existing `SourcePolicyRepository`
+  supplies an active, validated immutable six-source snapshot whose Steps session capture and
+  ambient-product persistence are both off. Control-only authority cannot make captured history
+  available. Product code does not infer disablement from a missing fact, legacy preference,
+  sample count, or raw policy row.
+- Current policy refines only daily `NOT_CAPTURED`. It cannot replace a qualified ready value,
+  partial/materializing result, calendar/storage failure, or a weekly period that may contain
+  historical captured days. Uninitialized or invalid policy authority is unavailable, never an
+  all-disabled user choice.
+- Widget presentation maps the typed reason to `Disabled`. The legacy goal-notification worker
+  treats it as terminal nonnumeric state before threshold or claim access. Neither consumer may
+  fall back to raw daily/session Steps.
+- The new policy flow shares the existing while-subscribed product lifecycle. It does not register
+  provider demand, activate either dormant Steps effect reconciler, or create a permanent observer.

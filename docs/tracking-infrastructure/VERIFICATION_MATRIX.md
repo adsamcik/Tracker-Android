@@ -422,6 +422,25 @@ Run only in the final convergence phase:
 .\gradlew.bat detekt :core:base:lintDebug :tracker:engine:lintDebug checkRoomSchemaDrift --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
 ```
 
+## TI-B239 — Authoritative daily Steps disabled state, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `d95d8bc56` plus correction `987cb550b`. Eight reviewed
+production/test paths add the typed daily `DISABLED` reason, derive it from the existing validated
+`SourcePolicyRepository` authority, render it in the Today widget, and stop the periodic
+notification worker before any threshold-claim access. Authored assertions cover session-capture,
+ambient-product, and control-only policy semantics; uninitialized/invalid authority; live policy
+remapping without restarting durable observation; ready zero; partial/materializing/storage
+preservation; unchanged weekly history; widget mapping; and terminal worker behavior.
+
+Static source and staged-diff inspection only was performed. No Gradle, compiler, test, lint,
+Detekt, Room drift, emulator/device, UI, battery, CI, integration, activation, publication, or
+release command ran. Run only in the final convergence phase:
+
+```powershell
+.\gradlew.bat :core:common:testDebugUnitTest :feature:game:testDebugUnitTest --tests '*SourceQualifiedStepsSummaryTest' --tests '*QualifiedStepsPresentationTest' :app:testDebugUnitTest --tests '*TodaySummaryWidgetPresentationTest' --tests '*GoalNotificationWorkerTest' --tests '*QualifiedGoalProgressAwaitTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+.\gradlew.bat detekt :core:common:lintDebug :feature:game:lintDebug :app:lintDebug --continue --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
 ## Static source × mode matrix
 
 | ID | Source | Mode | Capture sources | Declared controls | Qualified `RECORDING` evidence | Canonical output | Production history/UI assertion | Current status |

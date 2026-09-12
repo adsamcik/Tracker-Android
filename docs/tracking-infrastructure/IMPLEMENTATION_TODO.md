@@ -325,7 +325,7 @@ integration or publication command ran for this checkpoint.
   complete periods rather than raw totals.
 - [x] TODO-STEPS-NUM-004 Make achievements, points, XP, badges, lifetime totals, best-day metrics,
   and game effects use qualified source facts and retract or repair after correction or deletion.
-- [ ] TODO-STEPS-NUM-005 Ensure widgets and notifications distinguish ready zero, positive,
+- [x] TODO-STEPS-NUM-005 Ensure widgets and notifications distinguish ready zero, positive,
   partial, materializing, unavailable, disabled, and storage failure without raw fallback.
 - [x] TODO-STEPS-NUM-006 Prevent imported, ambient, session, or retained facts from awarding twice
   when their intervals overlap or their presentation grouping changes.
@@ -358,16 +358,18 @@ importable, while exact source-owned transfer stays in `.trackersteps`.
 available, while qualified day Steps stay in `QualifiedStepCount` and retained numeric summaries.
 `967b7ebc9` removes raw legacy `StepInterval` from historical trajectory input, source bounds, and
 lineage; gives the changed location-plus-activity composition a new persisted version; and keeps
-old step-influenced runs eligible for corrected reconstruction.
+old step-influenced runs eligible for corrected reconstruction. `d95d8bc56` and `987cb550b` carry
+the existing validated immutable source-policy authority into the daily Steps composition, report
+`disabled` only for an otherwise not-captured day when session capture and ambient-product
+persistence are both off, ignore control-only authority, and keep ready, partial, materializing,
+storage-failure, and historical weekly truth unchanged.
 
-All commits remain **IMPLEMENTED_UNVALIDATED**. NUM-005 and NUM-008 remain open. NUM-005
-still needs an authoritative current-policy signal before a daily widget or notification can call
-an otherwise not-captured day `disabled`; session history already carries that distinction. The
-product/effect numeric inventory is authored complete: remaining raw legacy interval access is
-limited to source-local persistence/recovery/deletion and inactive research/debug evidence paths,
-not numeric product authority. Complete the consumer-wide authored test matrix. The v28 Room
-schema identity hash is intentionally not guessed and must be regenerated during final convergence
-validation.
+All commits remain **IMPLEMENTED_UNVALIDATED**. NUM-008 is the only open qualified numeric item.
+The product/effect numeric inventory and the daily policy distinction are authored complete:
+remaining raw legacy interval access is limited to source-local persistence/recovery/deletion and
+inactive research/debug evidence paths, not numeric product authority. Complete the consumer-wide
+authored test matrix. The v28 Room schema identity hash is intentionally not guessed and must be
+regenerated during final convergence validation.
 
 ### Automatic Steps
 
