@@ -39,6 +39,7 @@ internal fun QualifiedStepCount.toWidgetStepsPresentation(): WidgetStepsPresenta
     is QualifiedStepCount.Unavailable -> when (reason) {
         QualifiedStepCountUnavailableReason.MATERIALIZING -> WidgetStepsPresentation.Materializing
         QualifiedStepCountUnavailableReason.NOT_CAPTURED -> WidgetStepsPresentation.NotCaptured
+        QualifiedStepCountUnavailableReason.DISABLED -> WidgetStepsPresentation.Disabled
         QualifiedStepCountUnavailableReason.PARTIAL_CAPTURE -> WidgetStepsPresentation.Partial()
         QualifiedStepCountUnavailableReason.STORAGE_UNAVAILABLE ->
             WidgetStepsPresentation.StorageUnavailable

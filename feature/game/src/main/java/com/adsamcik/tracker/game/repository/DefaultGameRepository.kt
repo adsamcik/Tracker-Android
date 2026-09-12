@@ -14,6 +14,7 @@ import com.adsamcik.tracker.shared.base.concurrency.DispatchersProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.di.ApplicationScope
 import com.adsamcik.tracker.shared.base.startup.TrackingStartupGate
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyRepository
 import com.adsamcik.tracker.stats.api.metric.MetricDirtyTracker
 import com.adsamcik.tracker.stats.api.metric.MetricKeys
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
@@ -49,6 +50,7 @@ class DefaultGameRepository @Inject constructor(
 	private val achievementScheduler: AchievementEvaluationScheduler,
 	private val goalsSettingsRepository: GoalsSettingsRepository,
 	private val stepsNumericSummaryRepository: StepsNumericSummaryRepository,
+	private val sourcePolicyRepository: SourcePolicyRepository,
 	private val trackingStartupGate: TrackingStartupGate,
 ) : GameRepository {
 	private val pointsDao by lazy { PointsDatabase.database(application).pointsAwardedDao() }
@@ -89,6 +91,9 @@ class DefaultGameRepository @Inject constructor(
 				.distinctUntilChanged(),
 			weeklyDailyLimit = goalsSettingsRepository.data
 				.map { settings -> settings.weeklyProgressDailyLimit }
+				.distinctUntilChanged(),
+			stepsCapturePolicy = sourcePolicyRepository.states
+				.map { state -> state.toStepsCapturePolicyState() }
 				.distinctUntilChanged(),
 			currentDateTime = { Time.now },
 			currentLocale = { Locale.getDefault() },

@@ -2,6 +2,12 @@ package com.adsamcik.tracker.game.repository
 
 import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
 import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicy
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyEffectiveTime
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicySnapshot
+import com.adsamcik.tracker.shared.preferences.tracking.SourceQos
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.stats.api.repository.StepsNumericDay
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryBatch
@@ -57,7 +63,10 @@ class SourceQualifiedStepsSummaryTest {
 			}
 		}
 
-		val summary = summaryFlow(repository).first {
+		val summary = summaryFlow(
+			repository = repository,
+			stepsCapturePolicy = flowOf(StepsCapturePolicyState.DISABLED),
+		).first {
 			it.stepsToday is QualifiedStepCount.Ready && it.stepsWeek is QualifiedStepCount.Ready
 		}
 
@@ -100,6 +109,64 @@ class SourceQualifiedStepsSummaryTest {
 	}
 
 	@Test
+	fun `disabled policy refines only an otherwise not-captured day`() = runTest {
+		val repository = FakeStepsNumericSummaryRepository {
+			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED)
+		}
+
+		val summary = summaryFlow(
+			repository = repository,
+			stepsCapturePolicy = flowOf(StepsCapturePolicyState.DISABLED),
+		).first {
+			it.stepsToday == QualifiedStepCount.Unavailable(
+				QualifiedStepCountUnavailableReason.DISABLED,
+			)
+		}
+
+		summary.stepsToday shouldBe QualifiedStepCount.Unavailable(
+			QualifiedStepCountUnavailableReason.DISABLED,
+		)
+		summary.stepsWeek shouldBe QualifiedStepCount.Unavailable(
+			QualifiedStepCountUnavailableReason.NOT_CAPTURED,
+		)
+	}
+
+	@Test
+	fun `unverifiable policy cannot manufacture a disabled day`() = runTest {
+		val repository = FakeStepsNumericSummaryRepository {
+			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED)
+		}
+
+		val summary = summaryFlow(
+			repository = repository,
+			stepsCapturePolicy = flowOf(StepsCapturePolicyState.UNVERIFIABLE),
+		).first {
+			it.stepsToday == QualifiedStepCount.Unavailable(
+				QualifiedStepCountUnavailableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+			)
+		}
+
+		summary.stepsToday shouldBe QualifiedStepCount.Unavailable(
+			QualifiedStepCountUnavailableReason.SOURCE_EVIDENCE_UNAVAILABLE,
+		)
+		summary.stepsWeek shouldBe QualifiedStepCount.Unavailable(
+			QualifiedStepCountUnavailableReason.NOT_CAPTURED,
+		)
+	}
+
+	@Test
+	fun `validated policy authority exposes only the Steps capture switch`() {
+		activePolicyState(stepsEnabled = true).toStepsCapturePolicyState() shouldBe
+			StepsCapturePolicyState.ENABLED
+		activePolicyState(stepsEnabled = false).toStepsCapturePolicyState() shouldBe
+			StepsCapturePolicyState.DISABLED
+		SourcePolicyAuthorityState.Uninitialized.toStepsCapturePolicyState() shouldBe
+			StepsCapturePolicyState.UNVERIFIABLE
+		SourcePolicyAuthorityState.Invalid("incomplete vector").toStepsCapturePolicyState() shouldBe
+			StepsCapturePolicyState.UNVERIFIABLE
+	}
+
+	@Test
 	fun `daily and weekly presentation never mix different batch generations`() = runTest {
 		val repository = ObservableStepsRepository()
 		val results = mutableListOf<StepsSummaryData>()
@@ -117,7 +184,7 @@ class SourceQualifiedStepsSummaryTest {
 	@Test
 	fun `materializing and storage outcomes remain independently nonnumeric`() = runTest {
 		val materializing = summaryFlow(
-			FakeStepsNumericSummaryRepository { request ->
+			repository = FakeStepsNumericSummaryRepository { request ->
 				if (request.dayCount == 1) {
 					StepsNumericSummary.Materializing
 				} else {
@@ -126,13 +193,15 @@ class SourceQualifiedStepsSummaryTest {
 					)
 				}
 			},
+			stepsCapturePolicy = flowOf(StepsCapturePolicyState.DISABLED),
 		).first { it.stepsWeek == QualifiedStepCount.Unavailable(QualifiedStepCountUnavailableReason.PARTIAL_CAPTURE) }
 		var storageReads = 0
 		val storageUnavailable = summaryFlow(
-			FakeStepsNumericSummaryRepository {
+			repository = FakeStepsNumericSummaryRepository {
 				storageReads += 1
 				StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.STORAGE_UNAVAILABLE)
 			},
+			stepsCapturePolicy = flowOf(StepsCapturePolicyState.DISABLED),
 		).toList().last()
 
 		materializing.stepsToday shouldBe QualifiedStepCount.Unavailable(
@@ -274,10 +343,12 @@ class SourceQualifiedStepsSummaryTest {
 		val dayGoal = MutableStateFlow(10_000)
 		val weekGoal = MutableStateFlow(70_000)
 		val dailyLimit = MutableStateFlow(0.5f)
+		val capturePolicy = MutableStateFlow(StepsCapturePolicyState.ENABLED)
 		val results = mutableListOf<StepsSummaryData>()
 		backgroundScope.launch {
 			sourceQualifiedStepsSummaryFlow(
 				repository, invalidations, dayGoal, weekGoal, dailyLimit,
+				stepsCapturePolicy = capturePolicy,
 				currentDateTime = { now }, currentLocale = { Locale.GERMANY },
 			).collect(results::add)
 		}
@@ -294,6 +365,23 @@ class SourceQualifiedStepsSummaryTest {
 		results.last().goalDay shouldBe 20_000
 		results.last().goalWeek shouldBe 20_000
 		results.last().stepsWeek shouldBe QualifiedStepCount.Ready(18_000)
+		repository.emitState(
+			StepsNumericSummary.Unverifiable(StepsNumericUnverifiableReason.NOT_CAPTURED),
+		)
+		runCurrent()
+		results.last().stepsToday shouldBe QualifiedStepCount.Unavailable(
+			QualifiedStepCountUnavailableReason.NOT_CAPTURED,
+		)
+		capturePolicy.value = StepsCapturePolicyState.DISABLED
+		runCurrent()
+		results.last().stepsToday shouldBe QualifiedStepCount.Unavailable(
+			QualifiedStepCountUnavailableReason.DISABLED,
+		)
+		results.last().stepsWeek shouldBe QualifiedStepCount.Unavailable(
+			QualifiedStepCountUnavailableReason.NOT_CAPTURED,
+		)
+		repository.requests shouldHaveSize 2
+		repository.cancelledCount shouldBe 0
 	}
 
 	@Test
@@ -350,6 +438,8 @@ class SourceQualifiedStepsSummaryTest {
 		invalidations: Flow<Unit> = flowOf(Unit),
 		weeklyGoal: Int = 70_000,
 		weeklyDailyLimit: Float = 0.5f,
+		stepsCapturePolicy: Flow<StepsCapturePolicyState> =
+			flowOf(StepsCapturePolicyState.ENABLED),
 		currentDateTime: () -> ZonedDateTime = { now },
 		currentLocale: () -> Locale = { Locale.GERMANY },
 	): Flow<StepsSummaryData> = sourceQualifiedStepsSummaryFlow(
@@ -358,9 +448,39 @@ class SourceQualifiedStepsSummaryTest {
 		dailyGoal = flowOf(10_000),
 		weeklyGoal = flowOf(weeklyGoal),
 		weeklyDailyLimit = flowOf(weeklyDailyLimit),
+		stepsCapturePolicy = stepsCapturePolicy,
 		currentDateTime = currentDateTime,
 		currentLocale = currentLocale,
 	)
+}
+
+private fun activePolicyState(stepsEnabled: Boolean): SourcePolicyAuthorityState.Active {
+	val revision = 7L
+	val effectiveTime = SourcePolicyEffectiveTime(
+		bootId = "test-boot",
+		elapsedRealtimeNanos = 10L,
+		wallTimeMs = 20L,
+	)
+	val policies = TrackingSourceComponent.entries.associateWith { source ->
+		val enabled = source == TrackingSourceComponent.STEPS && stepsEnabled
+		SourcePolicy(
+			source = source,
+			enabled = enabled,
+			qos = if (enabled) SourceQos.BALANCED else SourceQos.OFF,
+			locationMinTimeSeconds = 30.takeIf { source == TrackingSourceComponent.LOCATION },
+			locationMinDistanceMeters = 20.takeIf { source == TrackingSourceComponent.LOCATION },
+			locationRequiredAccuracyMeters = 50.takeIf { source == TrackingSourceComponent.LOCATION },
+			captureConsentEpoch = 1L.takeIf { enabled },
+			controlConsentEpoch = null,
+			ambientConsentEpoch = null,
+			capturePersistenceEligible = enabled,
+			controlPersistenceEligible = false,
+			ambientPersistenceEligible = false,
+			effectiveTime = effectiveTime,
+			policyRevision = revision,
+		)
+	}
+	return SourcePolicyAuthorityState.Active(SourcePolicySnapshot(revision, policies))
 }
 
 private class ObservableStepsRepository(

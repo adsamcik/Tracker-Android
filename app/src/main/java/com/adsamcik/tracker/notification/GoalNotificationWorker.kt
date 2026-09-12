@@ -61,6 +61,7 @@ class GoalNotificationWorker @AssistedInject constructor(
                 -> Result.retry()
                 QualifiedStepCountUnavailableReason.MISSING,
                 QualifiedStepCountUnavailableReason.NOT_CAPTURED,
+                QualifiedStepCountUnavailableReason.DISABLED,
                 QualifiedStepCountUnavailableReason.PARTIAL_CAPTURE,
                 QualifiedStepCountUnavailableReason.SOURCE_EVIDENCE_UNAVAILABLE,
                 QualifiedStepCountUnavailableReason.CALENDAR_AUTHORITY_UNAVAILABLE,

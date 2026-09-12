@@ -2,6 +2,9 @@ package com.adsamcik.tracker.game.repository
 
 import com.adsamcik.tracker.game.goals.WeeklyProgressCalculator
 import com.adsamcik.tracker.shared.base.di.QualifiedStepCount
+import com.adsamcik.tracker.shared.base.di.QualifiedStepCountUnavailableReason
+import com.adsamcik.tracker.shared.preferences.tracking.SourcePolicyAuthorityState
+import com.adsamcik.tracker.shared.preferences.tracking.TrackingSourceComponent
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummary
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryBatch
 import com.adsamcik.tracker.stats.api.repository.StepsNumericSummaryRepository
@@ -34,6 +37,7 @@ internal fun sourceQualifiedStepsSummaryFlow(
 	dailyGoal: Flow<Int>,
 	weeklyGoal: Flow<Int>,
 	weeklyDailyLimit: Flow<Float>,
+	stepsCapturePolicy: Flow<StepsCapturePolicyState>,
 	currentDateTime: () -> ZonedDateTime,
 	currentLocale: () -> Locale,
 ): Flow<StepsSummaryData> {
@@ -47,9 +51,11 @@ internal fun sourceQualifiedStepsSummaryFlow(
 		dailyGoal,
 		weeklyGoal,
 		weeklyDailyLimit,
-	) { values, goalDay, goalWeek, dailyLimit ->
+		stepsCapturePolicy,
+	) { values, goalDay, goalWeek, dailyLimit, capturePolicy ->
 		StepsSummaryData(
-			stepsToday = values.daily.toQualifiedStepCount(),
+			stepsToday = values.daily.toQualifiedStepCount()
+				.withCurrentCapturePolicy(capturePolicy),
 			stepsWeek = values.weekly.toQualifiedWeeklyStepCount(
 				today = values.authority.today,
 				weeklyGoal = goalWeek,
@@ -60,6 +66,49 @@ internal fun sourceQualifiedStepsSummaryFlow(
 		)
 	}
 }
+
+/**
+ * Current capture policy can refine only a day with no retained Steps evidence. Historical values
+ * and all source-local uncertainty remain authoritative, and the current switch never rewrites a
+ * weekly period that may contain earlier captured days.
+ */
+private fun QualifiedStepCount.withCurrentCapturePolicy(
+	policy: StepsCapturePolicyState,
+): QualifiedStepCount {
+	if (this !is QualifiedStepCount.Unavailable ||
+		reason != QualifiedStepCountUnavailableReason.NOT_CAPTURED
+	) {
+		return this
+	}
+	val qualifiedReason = when (policy) {
+		StepsCapturePolicyState.ENABLED -> QualifiedStepCountUnavailableReason.NOT_CAPTURED
+		StepsCapturePolicyState.DISABLED -> QualifiedStepCountUnavailableReason.DISABLED
+		StepsCapturePolicyState.UNVERIFIABLE ->
+			QualifiedStepCountUnavailableReason.SOURCE_EVIDENCE_UNAVAILABLE
+	}
+	return QualifiedStepCount.Unavailable(qualifiedReason)
+}
+
+internal enum class StepsCapturePolicyState {
+	ENABLED,
+	DISABLED,
+	UNVERIFIABLE,
+}
+
+/** Reuses the validated immutable six-source authority rather than interpreting Room rows here. */
+internal fun SourcePolicyAuthorityState.toStepsCapturePolicyState(): StepsCapturePolicyState =
+	when (this) {
+		is SourcePolicyAuthorityState.Active -> if (
+			snapshot[TrackingSourceComponent.STEPS].enabled
+		) {
+			StepsCapturePolicyState.ENABLED
+		} else {
+			StepsCapturePolicyState.DISABLED
+		}
+		is SourcePolicyAuthorityState.Invalid,
+		SourcePolicyAuthorityState.Uninitialized,
+		-> StepsCapturePolicyState.UNVERIFIABLE
+	}
 
 private fun StepsNumericSummaryRepository.observePeriods(
 	authority: StepsCalendarAuthority,

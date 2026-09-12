@@ -70,6 +70,8 @@ class TodaySummaryWidgetPresentationTest {
                 WidgetStepsPresentation.Materializing,
             QualifiedStepCountUnavailableReason.NOT_CAPTURED to
                 WidgetStepsPresentation.NotCaptured,
+            QualifiedStepCountUnavailableReason.DISABLED to
+                WidgetStepsPresentation.Disabled,
             QualifiedStepCountUnavailableReason.PARTIAL_CAPTURE to
                 WidgetStepsPresentation.Partial(),
             QualifiedStepCountUnavailableReason.SOURCE_EVIDENCE_UNAVAILABLE to

@@ -81,6 +81,7 @@ class GoalNotificationWorkerTest {
 	fun `terminal nonnumeric Steps states finish without reading notification claims`() {
 		listOf(
 			QualifiedStepCountUnavailableReason.NOT_CAPTURED,
+			QualifiedStepCountUnavailableReason.DISABLED,
 			QualifiedStepCountUnavailableReason.PARTIAL_CAPTURE,
 			QualifiedStepCountUnavailableReason.SOURCE_EVIDENCE_UNAVAILABLE,
 			QualifiedStepCountUnavailableReason.CALENDAR_AUTHORITY_UNAVAILABLE,
