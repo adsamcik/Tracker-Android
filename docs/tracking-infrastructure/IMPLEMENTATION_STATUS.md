@@ -3560,3 +3560,18 @@ prove physical Activity/Steps registration, callbacks, listener removal, FGS leg
 reboot recovery, query/UI behavior, battery, or OEM behavior. The next boundary is
 `TODO-STEPS-AUTO-005`: purpose-limited Activity control data, retention, deletion, and export
 nonleakage.
+
+## 2026-09-12 implementation-only checkpoint — Automatic trigger envelope pinned
+
+`TODO-STEPS-AUTO-006` is implemented at `b37862fde`. The production Activity gateway already fences
+provider observation and receipt clocks, callback expiry, boot, automation epoch/effective boundary,
+policy, consent, registration and authorization history, collected-data epoch, exact action state,
+and durable outbox settlement. The new focused Room contract changes every service-visible trigger
+field independently and requires the stored action-envelope comparison to reject it. Stale
+collected-data epoch and missing action remain typed separately, and the exact original trigger is
+still accepted.
+
+No Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran. This is **IMPLEMENTED_UNVALIDATED**. AUTO-005 is
+still open because TI-D007/TI-D022 deliberately leave the fixed Activity control-only retention
+duration to a product/privacy decision; the next unblocked implementation boundary is AUTO-007.

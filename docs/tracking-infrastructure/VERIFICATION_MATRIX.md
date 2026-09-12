@@ -535,6 +535,25 @@ activation, publication, or release command ran. This is authored mock-runtime/R
 physical provider sharing/registration, callbacks, listener removal, process/reboot/FGS,
 trigger-to-query behavior, battery/OEM, rollout, and release remain unproven.
 
+## TI-B245 — Exact automatic trigger-envelope contract authored, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `b37862fde`. Static inspection confirms that the production
+gateway validates observed and received monotonic clocks, absolute callback expiry, boot and
+automation-epoch identity/effective boundary, current policy and control consent, exact provider
+registration/authorization history, collected-data epoch, durable action identity, and one-time
+outbox/action settlement at their owning boundaries.
+
+The added Room contract reserves and requests one valid action, then changes trigger kind, boot,
+observed time, received time, expiry, automation epoch, policy revision, requested capture mask,
+and intended foreground-service mask one at a time. Every changed envelope must be rejected; a
+stale deletion epoch and absent action must remain distinguishable; the untouched trigger must
+remain valid. Existing authored dispatcher tests cover exact callback ordinal, expiry, cold replay,
+terminal settlement, and no second delivery.
+
+No test, compiler, Gradle, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran. This does not prove Android PendingIntent timing,
+process/reboot behavior, FGS legality, physical providers, or the production Automatic Steps query.
+
 ## Static source × mode matrix
 
 | ID | Source | Mode | Capture sources | Declared controls | Qualified `RECORDING` evidence | Canonical output | Production history/UI assertion | Current status |

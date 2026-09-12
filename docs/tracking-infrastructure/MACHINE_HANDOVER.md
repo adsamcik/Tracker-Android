@@ -14,7 +14,7 @@ convergence phase, do not invoke Gradle, compilation, tests, lint, Detekt, schem
 emulator/device, evaluator, battery, CI, or release tasks. New commits are
 `IMPLEMENTED_UNVALIDATED` and stay off local `dev/v10` and all remotes.
 
-The current source/test implementation boundary is `27ec42e74`, with documentation reconciled
+The current source/test implementation boundary is `b37862fde`, with documentation reconciled
 through the current HEAD on coordinator `codex/ti-steps-import-actions`. Portable import, selected
 deletion, production round trip, manual Steps inventory, qualified day/week reads, numeric effects
 and consumer audit are authored through the preceding checkpoints. TI-D179/TI-B241 resolves
@@ -29,6 +29,9 @@ nonpersistent writerless Activity control, including exact physical run, lifecyc
 clock, zone, automation, and Steps writer attribution.
 TI-D182/TI-B244 follow the exact prepared token through foreground acceptance: only Steps capture
 and Activity control demands become active, and only Steps receives a source action/runtime start.
+TI-D183/TI-B245 pin exact immutable trigger-envelope rejection through service validation. AUTO-005
+still requires an explicit fixed lifetime for control-only Activity WAL/outbox evidence; AUTO-007 is
+the next unblocked implementation boundary.
 The earlier two stopped-run failures remain validation debt rather than current acceptance evidence.
 Preserve the six root paths, both older frozen drafts, and all source branch ancestry. Once every
 source vertical is built, assemble a dedicated convergence branch and only then run and fix the
@@ -42,10 +45,11 @@ portable-origin storage and its handover, not the subsequent work below. No new 
 
 The coordinator branch now carries the accepted local dependency cherries and subsequent portable
 import, deletion, numeric-consumer, policy, automatic-corroboration, manifest, and demand-contract
-checkpoints in one ordered history through `27ec42e74`, plus the current documentation
-reconciliation. Exact authored boundaries are TI-B213 through TI-B244. They remain
+checkpoints in one ordered history through `b37862fde`, plus the current documentation
+reconciliation. Exact authored boundaries are TI-B213 through TI-B245. They remain
 local implementation slices, not a validated convergence, importer activation, `dev/v10`
-integration, or publication. Continue at `TODO-STEPS-AUTO-005`; do not repeat the completed
+integration, or publication. Resolve AUTO-005's fixed retention duration when product direction is
+available; otherwise continue at `TODO-STEPS-AUTO-007`. Do not repeat the completed
 selected-deletion, round-trip, or numeric-audit waves. See the latest status/TODO/decision/matrix
 sections and verify the branch log before acting on older chronological handover passages.
 

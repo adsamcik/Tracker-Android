@@ -403,7 +403,7 @@ regenerated during final convergence validation. Continue with Automatic Steps.
   remains CONTROL only.
 - [ ] TODO-STEPS-AUTO-005 Keep control evidence purpose-limited, short-lived, absent from normal
   history and portable export, and independently revocable and deletable.
-- [ ] TODO-STEPS-AUTO-006 Fence stale triggers by observed and received clocks, boot identity,
+- [x] TODO-STEPS-AUTO-006 Fence stale triggers by observed and received clocks, boot identity,
   automation epoch, policy, consent, registration generation, action identity, and consumption.
 - [ ] TODO-STEPS-AUTO-007 Complete automatic stop, interrupted-session finalization, process or
   reboot recovery, manual fallback, and rollback without reviving a finalized session.
@@ -421,6 +421,10 @@ AUTO-004 is additionally pinned by TI-D182/TI-B244 and `27ec42e74`: demand stays
 foreground acceptance, then only Steps `SESSION_CAPTURE` and nonpersistent Activity
 `CONTROL_CONTINUATION` become active; only Steps receives a source action/runtime start. Continue
 with AUTO-005's control-data minimization, retention, deletion, and export boundary.
+
+TI-D183/TI-B245 additionally pin every immutable automatic-trigger field at the service-validation
+boundary. AUTO-005 remains open because the repository deliberately has no approved fixed lifetime
+for control-only Activity WAL/outbox evidence; the unblocked continuation is AUTO-007.
 
 ### Default-off Ambient Steps
 

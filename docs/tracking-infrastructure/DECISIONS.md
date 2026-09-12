@@ -2906,3 +2906,20 @@ Each entry records repository evidence and does not duplicate the final architec
   orchestration path. It closes AUTO-004's authored logic boundary, not physical Activity/Steps
   registration, callback, listener, device, FGS, or query proof. Control minimization, retention,
   deletion, and export nonleakage remain AUTO-005.
+
+## TI-D183 — Automatic service acceptance requires the exact immutable trigger envelope
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-12; focused contract `b37862fde`; TI-B245.
+- The existing Activity gateway already checks provider observed/received clocks, callback expiry,
+  boot identity, automation epoch and effective boundary, current policy/control consent,
+  registration generation and lifetime, authorization identity, collected-data epoch, and one
+  durable action slot before a service start can be accepted.
+- The focused Room contract now mutates each service-carried trigger field independently and
+  requires exact action-envelope rejection. A stale collected-data epoch and a missing action keep
+  their distinct terminal reasons, while the original untouched trigger remains valid.
+- Durable outbox settlement remains a compare-and-set operation: delivered/terminal effects are
+  not selected again, cold replay cannot regain callback permission, and a reused singleton action
+  slot cannot be mutated by an older trigger. This closes AUTO-006's authored logic boundary.
+- No new provider, start path, lifecycle authority, or generic action framework is introduced.
+  AUTO-005 remains open solely for the unresolved fixed control-evidence lifetime, and Android,
+  process/reboot, FGS, provider, and end-to-end query evidence remains deferred.
