@@ -393,7 +393,7 @@ regenerated during final convergence validation. Continue with Automatic Steps.
 
 ### Automatic Steps
 
-- [ ] TODO-STEPS-AUTO-001 Resolve the explicit product decision on optional Step corroboration; it
+- [x] TODO-STEPS-AUTO-001 Resolve the explicit product decision on optional Step corroboration; it
   must be a visible CONTROL demand or absent.
 - [ ] TODO-STEPS-AUTO-002 Connect an eligible fresh Activity control trigger through the durable
   automatic gateway before Android service launch.
@@ -653,7 +653,7 @@ regenerated during final convergence validation. Continue with Automatic Steps.
 
 ## Product decisions that must be resolved before affected activation
 
-- [ ] TODO-DEC-001 Decide whether Step corroboration remains an explicit automatic CONTROL option.
+- [x] TODO-DEC-001 Decide whether Step corroboration remains an explicit automatic CONTROL option.
 - [ ] TODO-DEC-002 Decide the single Ambient Steps continuity provider strategy and whether its
   promise is opportunistic or visible-foreground continuous.
 - [ ] TODO-DEC-003 Decide final retention durations and user-facing privacy copy for each source and

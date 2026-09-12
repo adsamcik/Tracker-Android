@@ -300,7 +300,6 @@ query-to-user-visible result.
 The architecture can continue without guessing these answers, but they must be resolved before the
 affected feature ships:
 
-- whether Step corroboration remains an explicit automation control;
 - how Ambient Steps selects one capable continuity provider and what continuity it promises;
 - final retention duration for each source and purpose;
 - whether ambient Location offers a product beyond passive opportunistic points;

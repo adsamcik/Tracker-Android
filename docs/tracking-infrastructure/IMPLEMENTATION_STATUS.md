@@ -1,6 +1,6 @@
 # Tracking Infrastructure Implementation Status
 
-Last updated: 2026-09-11
+Last updated: 2026-09-12
 
 Execution-grade work items, ownership, dependency gates, verification commands, and rollback
 behavior now live in `EXECUTION_PLAN.md`. This status file remains the checkpoint summary and
@@ -295,8 +295,7 @@ rollout, feature activation, or destructive migration occurred.
   Phase 3 tables/repositories remain removed. Activity has the first durable automatic-action and
   atomic callback lane; Steps has one app-scoped shared physical controller. These are foundation
   seams, not production materializers or source gates.
-- Blocking decisions: whether Steps corroboration remains an explicit broker-owned
-  `CONTROL_AUTOSTART` option; ambient continuity promise and per-source
+- Blocking decisions: ambient continuity promise and per-source
   retention/minimization/export/deletion behavior; local-only rollout evidence channel; and the
   final product decisions listed in `DECISIONS.md`. Existing enabled automatic mode grants bounded
   Activity `CONTROL`, never captured Activity. Process-wide startup ordering is now locally
@@ -424,10 +423,10 @@ rollout, feature activation, or destructive migration occurred.
   Connected process-kill/reboot proof is still required before an automatic source gate.
 - Activity has a shared physical-registration arbiter whose PendingIntent carries only physical identity/configuration. Purpose/policy/manifest/consent changes rotate observed-time authorization without restarting unchanged GMS configuration; one parsed callback is now admitted in one Room transaction and sparse eligible members map back to the exact original recognition/transition indexes. Exact duplicate delivery reloads/recovery-drains but cannot repeat motion, backend flows or the receiver cache. Provider replacement is accepted before the old generation's half-open retirement boundary; full process-wide durable-demand/provider recovery remains blocked.
 - Activity automation still drops parts of the durable trigger envelope before external start, source-native staleness thresholds are not calibrated, the synchronous global drain remains, and no typed movement-band materializer or production query exists. The adapter is admission evidence, not an Activity source gate.
-- `SharedStepSourceController` now owns one app-scoped physical counter registration shared by
-  capture and any explicitly declared corroboration demand. The product decision whether Steps
-  corroboration remains `CONTROL_AUTOSTART` is still unresolved; the implementation cannot make it
-  a hidden capture dependency. Runtime callbacks and baselines carry immutable
+- `SharedStepSourceController` now owns one app-scoped physical counter registration for exact
+  session capture. Steps corroboration has been removed: Activity owns automatic control, and a
+  legacy app-scoped Steps control demand is retired rather than selected. Runtime callbacks and
+  baselines carry immutable
   generation/eligibility identity, and an effective-boundary change makes the next callback
   baseline-only instead of attributing a disabled interval.
 - Steps legacy session totals are additively mutated before the enclosing event-frame outbox acknowledgement. A crash at that boundary can apply the same effective contribution twice even though `StepInterval.sourceSignalId` is unique.
@@ -442,7 +441,7 @@ rollout, feature activation, or destructive migration occurred.
 | Wi-Fi | `FAILED` | Fresh post-registration broadcast children and confirmed-empty coverage can reach observed-time-authorized WAL after item-level age checks; payload v2 retains item time and withholds identity; startup cache/failed updates are contained; direct capture has one first-evidence scan request | Legacy `WifiObservation` path only; no terminal event materializer or day query | cross-process cache replay, source-native boundary/identity proof, any measured repeated-attempt mode, keyed identity lifecycle if approved, runtime/device proof, no qualified recording state |
 | Cell | `FAILED` | Fresh timestamped callback children and confirmed-empty coverage can reach observed-time-authorized WAL; operational outcomes and persistent radio/subscription identity are omitted; direct capture has one first-evidence refresh group | Legacy `cell_sample` only; joined event frame has no terminal writer or day query | cross-process identity, source-native boundary proof, any measured repeated-refresh mode, hidden controls, multi-SIM partial failure and device proof absent |
 | Activity | `FAILED` | Shared GMS physical arbiter, independent observed-time purpose authorization, atomic callback delivery, sparse writer-stamped WAL admission and zero-effect replay exist | Activity-only input has no terminal materializer or day query | stale/epoch-incomplete automation start, synchronous global drain, no movement-band writer/owner, no production query |
-| Steps | `DEGRADED` | Positive deltas reach WAL; generation-bound baselines reject disabled-gap relabeling | `StepInterval` and legacy session/day totals exist; one selected Trip Detail consumes the durable read facade, but the additive aggregate is replay-unsafe and no truthful outside-session day contract exists | ordinary source-only discovery, duplicate physical listeners, corroboration decision, no typed recompute/deletion path, ambient not implemented |
+| Steps | `DEGRADED` | Positive deltas reach WAL; generation-bound baselines reject disabled-gap relabeling | `StepInterval` and legacy session/day totals exist; one selected Trip Detail consumes the durable read facade, but the additive aggregate is replay-unsafe and no truthful outside-session day contract exists | ordinary source-only discovery, duplicate physical listeners, no typed recompute/deletion path, automatic trigger-to-query proof and ambient not implemented |
 | Pressure | `FAILED` | Direct sensor runtime, generation-homogeneous qualified aggregate WAL windows, and a dormant source-local fact projector exist; first-sample `RECORDING` state does not | append-only `pressure_fact_revision` and exact writer provenance exist, but the lane is not activated and no qualified day query or Pressure history UI exists | no qualified recording/query state, no product read/deletion/retention/portable contract, uncalibrated altitude risk, no device proof |
 
 ## Dependency and ownership map
@@ -671,7 +670,7 @@ Three fresh read-only reviewers attacked the integrated demand, registration, ca
 | BROKER-A06 Wi-Fi/Cell pseudonyms are unkeyed and non-rotatable | `HIGH` | `ACCEPTED` | per-install HMAC generation and deletion/consent-reset rotation remain required |
 | BROKER-A07 Wi-Fi/Cell background cadence is not wake-reliable | `MEDIUM` | `MITIGATED_BY_CONTAINMENT` | product/runbook call it opportunistic; Doze/OEM measurement remains required |
 | BROKER-P01 all automatic scenarios lack the durable trigger handoff | `BLOCKER` | `ACCEPTED` | six automatic only-X scenarios remain fail-closed |
-| BROKER-P02 Step corroborator bypasses broker ownership | `BLOCKER` | `DEFERRED_BY_EXPLICIT_DECISION` | user/product must remove it or retain it as declared `CONTROL_AUTOSTART` |
+| BROKER-P02 Step corroborator bypasses broker ownership | `BLOCKER` | `MITIGATED_LOCALLY` | removed at `b779afd1e`; legacy Steps control is retired and final convergence remains unvalidated |
 | BROKER-P03 qualified `RECORDING` state is absent | `BLOCKER` | `ACCEPTED` | persist source-qualified evidence and make UI distinguish provider-active from recording |
 | BROKER-P04 production history query is absent | `BLOCKER` | `ACCEPTED` | no source is `QUERYABLE` until real `TrackingHistoryRepository` and applicable consumer proof exists |
 | BROKER-P05 ambient authority has no producer/product contract | `HIGH` | `ACCEPTED` | explicitly disabled acceptance or full consent/retention/export/deletion/UI path required per source |
@@ -3476,6 +3475,25 @@ award path.
 
 No new redundant fixture or horizontal test framework was added. No Gradle, compiler, test, lint,
 Detekt, Room drift, emulator/device, UI, battery, CI, integration, activation, publication, or
-release command ran. All qualified numeric work remains **IMPLEMENTED_UNVALIDATED**. The next
-implementation boundary is Automatic Steps, beginning with the explicit optional-corroboration
-decision and its control-demand contract.
+release command ran. All qualified numeric work remains **IMPLEMENTED_UNVALIDATED**. That
+checkpoint handed off Automatic Steps at the then-open optional-corroboration decision; the next
+section records its resolution.
+
+## 2026-09-12 implementation-only checkpoint — Steps corroboration removed
+
+`TODO-STEPS-AUTO-001` and `TODO-DEC-001` are resolved at `b779afd1e`. Activity recognition now
+owns automatic-start evidence without a Steps fallback; sampled recognition retains the existing
+full-confidence threshold, and Activity Transition remains the legal cold-start trigger. The
+process-local recent-Step evidence cache, hidden Steps control-eligibility observer, and
+corroboration tests are removed.
+
+`SharedStepSourceController` retires the legacy app-scoped Steps `CONTROL_AUTOSTART` demand and
+selects only exact session-capture demand. A failed retirement stays retryable without tearing down
+a usable Activity registration, and Activity disable still attempts its own independent removal.
+No new setting, provider, writer, observer, schema, history fact, or activation was added.
+
+Focused unit-test changes assert the full confidence floor and legacy-demand retirement/no physical
+registration. They are authored only. No Gradle, compiler, test, lint, Detekt, Room drift,
+emulator/device, UI, battery, CI, integration, activation, publication, or release command ran.
+The next implementation boundary is `TODO-STEPS-AUTO-002`: reconcile the existing durable Activity
+automatic-start gateway against the Automatic Steps contract before adding anything new.

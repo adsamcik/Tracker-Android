@@ -20,6 +20,10 @@ Neither change activates a source or completes the import/device gates. Older sn
 historical, including their unintegrated
 branch, schema-v3, missing radio identity, and blanket numeric-consumer gap claims.
 
+The newer local implementation-only checkpoint `b779afd1e` resolves Step corroboration as absent:
+Activity is the sole automatic control and legacy Steps control demand is retired. This is authored,
+unvalidated code, not rollout evidence or activation authority.
+
 Current rollout schema v4 defaults all six sources to `CONTAINED`, legacy product stages and zero
 capture masks. Steps V1/V2 and Pressure executable contracts remain dormant; there is no ordinary
 first-activation caller. Existing canonical Location remains protected. No quality/battery or

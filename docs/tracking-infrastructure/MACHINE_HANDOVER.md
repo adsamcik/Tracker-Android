@@ -1,6 +1,6 @@
 # Tracking infrastructure: cross-machine handover
 
-Last updated: 2026-09-10
+Last updated: 2026-09-12
 
 ## Current implementation-only operating mode
 
@@ -14,14 +14,12 @@ convergence phase, do not invoke Gradle, compilation, tests, lint, Detekt, schem
 emulator/device, evaluator, battery, CI, or release tasks. New commits are
 `IMPLEMENTED_UNVALIDATED` and stay off local `dev/v10` and all remotes.
 
-The current implementation boundary is the completed portable importer contract set `03db9e565` on
-the coordinator `codex/ti-steps-import-actions`, after imported day composition `293ff43e5`
-(canonical `f93b373ef`), portable admission `8abd7c6e3`, atomic stored-zone day repair `3dfa4eaad`,
-the `.trackersteps` bridge `c58fcc85f`, and their documentation checkpoints. TI-D158/TI-B219 through
-TI-D162/TI-B223 record the source contracts, authored tests, and deliberately deferred validation.
-The strict file adapter is discoverable, importer-owned entry transactions remain outside the
-legacy receipt transaction, and malformed retained bytes, correction lineage, and Room reopen now
-have focused contracts.
+The current implementation boundary is `b779afd1e` on coordinator
+`codex/ti-steps-import-actions`. Portable import, selected deletion, production round trip, manual
+Steps inventory, qualified day/week reads, numeric effects and consumer audit are authored through
+the preceding checkpoints. TI-D179/TI-B241 resolves automatic Step corroboration as absent:
+Activity is the sole automatic control, sampled recognition keeps its full confidence threshold,
+and legacy Steps `CONTROL_AUTOSTART` demand is retired without becoming an Activity dependency.
 The earlier two stopped-run failures remain validation debt rather than current acceptance evidence.
 Preserve the six root paths, both older frozen drafts, and all source branch ancestry. Once every
 source vertical is built, assemble a dedicated convergence branch and only then run and fix the
@@ -33,16 +31,13 @@ The actual published checkpoint is `0460f12a54a3550244f8e8ea5c9fb1f5e2ef27d2`, v
 `git ls-remote --heads origin refs/heads/dev/v10`. A normal clone of `dev/v10` contains reviewed
 portable-origin storage and its handover, not the subsequent work below. No new push is authorized.
 
-Newer local dependencies are core `4db55146e`, imported product `ecbdf6161`, imported Steps day
-composition `f93b373ef`, and API cleanup `3f62d5c6`. The coordinator's
-`ti-steps-import-actions` branch contains their dependency cherries plus retention/worker hooks
-`299f9de21`, Dashboard/Detail `0a820f3f6`, and the day-composition cherry `293ff43e5`. Exact
-boundaries are TI-B213 through TI-B219. These are local dependency/slice checkpoints, not fully
-converged integration or importer activation; no validation is active. See the current top of
-[CONTINUATION_HANDOVER.md](CONTINUATION_HANDOVER.md) for ownership and branch ancestry before
-continuing on this machine. `TODO-STEPS-PORT-010` is implemented at `c58fcc85f` without touching the
-protected legacy DatabaseImport files, and PORT-011 is implemented at `03db9e565`. Continue with
-imported selected deletion and exact day repair.
+The coordinator branch now carries the accepted local dependency cherries and subsequent portable
+import, deletion, numeric-consumer, policy, and automatic-corroboration checkpoints in one ordered
+history through `b779afd1e`. Exact authored boundaries are TI-B213 through TI-B241. They remain
+local implementation slices, not a validated convergence, importer activation, `dev/v10`
+integration, or publication. Continue at `TODO-STEPS-AUTO-002`; do not repeat the completed
+selected-deletion, round-trip, or numeric-audit waves. See the latest status/TODO/decision/matrix
+sections and verify the branch log before acting on older chronological handover passages.
 
 On another machine, do not assume these local commits or drafts arrived. Restart from the verified
 published boundary unless a separately authorized transfer supplies them; verify its hashes and
@@ -300,8 +295,8 @@ another framework or another broad reward audit before advancing the positive St
    Each needs source-appropriate query/UI and correction/retention/export/deletion/device proof.
    Keep radio active attempts bounded/direct-demand-only and cadence claims opportunistic.
 
-Final retention durations, optional Step control corroboration, Ambient Steps continuity/provider
-choice, extra ambient Location product, measured active-radio tiers, calibrated Pressure elevation,
+Final retention durations, Ambient Steps continuity/provider choice, extra ambient Location
+product, measured active-radio tiers, calibrated Pressure elevation,
 and cross-midnight presentation remain product choices. This checkpoint does not choose them.
 
 ## Verification and integration rules

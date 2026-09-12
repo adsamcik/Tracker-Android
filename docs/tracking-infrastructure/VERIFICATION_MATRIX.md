@@ -1,6 +1,6 @@
 # Tracking Infrastructure Verification Matrix
 
-Last updated: 2026-09-11
+Last updated: 2026-09-12
 
 Status meanings: `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `IN_REVIEW`, `DONE`. `DONE` requires production repository evidence, not provider registration alone.
 
@@ -455,6 +455,25 @@ No test, compiler, Gradle, lint, Detekt, Room drift, emulator/device, UI, batter
 activation, publication, or release command ran. Run the focused suites named in the TODO consumer
 matrix only during final convergence, followed by the repository-owned aggregate gates.
 
+## TI-B241 — Automatic Steps corroboration removal authored, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `b779afd1e`. Static source inspection established that the
+former Steps path only widened a sampled Activity result after Activity had already delivered a
+callback; it provided no legal cold-start mechanism of its own. Production code now uses the full
+Activity confidence threshold, keeps Activity Transition as the only transition trigger, removes
+the process-local recent-Step evidence cache, and never selects Steps `CONTROL_AUTOSTART` demand.
+
+Focused authored assertions require legacy Steps control retirement to leave no physical Steps
+registration, ignore a stale control row while exact session capture continues, and reject sampled
+confidence below the configured Activity threshold. Retry logic preserves a usable Activity
+registration when legacy Steps cleanup fails and still attempts Activity removal independently on
+disable. No provider, schema, setting, writer, product query, or activation was added.
+
+No test, compiler, Gradle, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran. Final convergence must compile and execute the
+focused engine tests, then prove automatic trigger-to-provider-to-query behavior and absence of
+Steps control demand on the representative device before TI-V010 can advance.
+
 ## Static source × mode matrix
 
 | ID | Source | Mode | Capture sources | Declared controls | Qualified `RECORDING` evidence | Canonical output | Production history/UI assertion | Current status |
@@ -468,7 +487,7 @@ matrix only during final convergence, followed by the repository-owned aggregate
 | TI-V007 | Activity | Manual | Activity | none | fresh captured classification above threshold | coalesced movement bands | day active time/movement | `BLOCKED` |
 | TI-V008 | Activity | Automatic | Activity | Activity control purpose on shared registration | fresh control starts; capture-consented trigger handoff seeds the first band or the interval stays partial until fresh captured evidence | coalesced movement bands with explicit handoff provenance | one physical registration, purpose-safe history | `BLOCKED` |
 | TI-V009 | Steps | Manual | Steps | none | positive post-baseline delta | canonical day/session step delta | total and session partition | `IN_REVIEW` |
-| TI-V010 | Steps | Automatic | Steps | Activity Transition; optional Step corroboration only if separately enabled | fresh legal control starts; positive post-baseline delta records | canonical day/session step delta | no hidden/captured control facts | `BLOCKED` |
+| TI-V010 | Steps | Automatic | Steps | Activity Transition only; no Steps corroboration demand | fresh legal control starts; positive post-baseline delta records | canonical day/session step delta | no hidden/captured control facts | `BLOCKED` |
 | TI-V011 | Pressure | Manual | Pressure | none | first committed qualified microsegment/window under capture generation | pressure trend/window plus coverage | correct session/day, gap and stability state | `BLOCKED` |
 | TI-V012 | Pressure | Automatic | Pressure | Activity Transition | fresh legal control starts; first qualified pressure window records | pressure trend/window plus coverage | correct day/session; no captured control Activity | `BLOCKED` |
 

@@ -1,6 +1,6 @@
 # Tracking Infrastructure Decisions
 
-Last updated: 2026-09-11
+Last updated: 2026-09-12
 
 Each entry records repository evidence and does not duplicate the final architecture document.
 
@@ -42,12 +42,12 @@ Each entry records repository evidence and does not duplicate the final architec
 
 ## TI-D005 — Step corroboration policy
 
-- Status: `DEFERRED_BY_EXPLICIT_DECISION_REQUIRED`
-- Owner/date: user/product owner, unresolved
+- Status: `SUPERSEDED_BY_TI-D179`
+- Owner/date: user/product owner, resolved 2026-09-12 by TI-D179
 - Alternatives: remove corroboration; retain it as a visible, consented `CONTROL` demand/setting
 - Evidence: `BackgroundTrackingApi` owns a hidden `StepActivityCorroborator` whenever confidence-based automatic detection is active, even when Steps capture is disabled
-- Decision needed: choose removal or explicit control product behavior before broker rollout.
-- Consequences: TI-200 is blocked at the automatic demand contract. Read-only analysis and independent work may continue.
+- Decision: remove corroboration; see TI-D179 for current code evidence and consequences.
+- Consequences: automatic control remains Activity-owned and no Steps control setting or demand is added.
 
 ## TI-D006 — Persistent target records require a forward migration decision
 
@@ -195,12 +195,12 @@ Each entry records repository evidence and does not duplicate the final architec
 
 ## TI-D022 — Automatic controls require their own policy purpose and consent epoch
 
-- Status: `ACCEPTED_FOR_CONTAINMENT`; step-corroboration membership and control-data retention remain `DEFERRED_BY_EXPLICIT_DECISION_REQUIRED`
+- Status: `ACCEPTED_FOR_CONTAINMENT`; Steps membership is resolved by TI-D179, while Activity control-data retention remains open
 - Owner/date: lead orchestrator, 2026-08-21
 - Alternatives: let the legacy automatic-mode preference register Activity and Steps; infer control permission from a captured-source consent; require an independently eligible `CONTROL` epoch for each physical control registration
 - Evidence: the legacy background API registered Activity whenever automatic mode was enabled and could register Steps for corroboration without an authoritative source/purpose decision. The v28 bootstrap deliberately imports only verified capture intent and denies new control/ambient purposes. Reusing capture consent would violate purpose separation and make an upgrade silently grant new processing authority.
-- Decision: automatic Activity registration requires an eligible Activity `CONTROL` decision and epoch. Optional step corroboration independently requires an eligible Steps `CONTROL` decision and epoch. Missing, corrupt, unavailable, revoked, or superseded control policy fails registration closed and stops legacy automatic control use; it does not stop an independently started manual session.
-- Consequences: automatic tracking remains unavailable after migration until explicit control decisions are granted. No retention duration, export behavior, or final product copy is inferred. Whether step corroboration remains part of automation and the minimized control-evidence retention/export/deletion contract still require user/product/privacy direction before TI-200 can pass.
+- Decision: automatic Activity registration requires an eligible Activity `CONTROL` decision and epoch. TI-D179 removes optional Step corroboration, so no Steps control decision or epoch is created for enrichment. Missing, corrupt, unavailable, revoked, or superseded Activity control policy fails registration closed and stops automatic control use; it does not stop an independently started manual session.
+- Consequences: automatic tracking remains unavailable after migration until explicit Activity control is granted. No retention duration, export behavior, or final product copy is inferred. The minimized Activity control-evidence retention/export/deletion contract still requires user/product/privacy direction before TI-200 can pass.
 
 ## TI-D023 — Expand the unreleased v28 migration for manifests and lifecycle intent
 
@@ -2819,3 +2819,20 @@ Each entry records repository evidence and does not duplicate the final architec
 - Static inspection found focused authored coverage for every audited production consumer and each
   required scenario category. No test or validation command was run; all evidence remains authored
   and unvalidated until final convergence.
+
+## TI-D179 — Automatic start does not retain Steps for corroboration
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-12; source `b779afd1e`; TI-B241.
+- The former Step corroboration path could only widen sampled Activity starts from confidence 50 to
+  75 after an Activity callback. It could not legally cold-start tracking by itself, yet retaining
+  its `CONTROL_AUTOSTART` join kept the physical counter alive solely for cross-source enrichment.
+- Activity recognition is the sole automatic-start control. Sampled recognition requires the full
+  configured confidence threshold; Activity Transition remains the legal transition trigger.
+  Automatic Steps sessions still capture Steps exactly and declare Activity separately as control.
+- No Steps automatic-control setting, consent, demand, recent-evidence cache, or product history is
+  created. Builds retire the old app-scoped Steps control demand and reconcile the shared physical
+  listener back to session capture only. Cleanup failure is retryable but cannot make Steps a hidden
+  prerequisite for a usable Activity registration or prevent Activity removal on disable.
+- This closes only the corroboration product decision and dead control path. The durable Activity
+  trigger, immutable automatic manifest, purpose-limited control retention, stale-trigger fences,
+  recovery, trigger-to-query composition, and default-off Ambient Steps remain later gates.
