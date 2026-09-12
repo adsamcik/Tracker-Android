@@ -9,6 +9,7 @@ import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenera
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 
@@ -601,7 +602,11 @@ interface SourceBrokerDao {
 			check(pointer?.sourceInstanceId == expectedPointerInstanceId)
 		}
 
-		val demands = authorizationDemands(reservedState.sourceKind)
+		val demands = SourceProviderPurposeScope.selectDemands(
+			reservedState.sourceKind,
+			reservation.ownerScope,
+			authorizationDemands(reservedState.sourceKind),
+		)
 		check(demands.isNotEmpty()) { "Provider registration no longer has an active demand" }
 		val currentFingerprint = SourceBrokerAuthorization.fingerprint(demands)
 		val authorization = requireNotNull(

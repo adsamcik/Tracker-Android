@@ -265,13 +265,14 @@ class StepSourceRuntime @Inject constructor(
 		var refreshCompleted = false
 		try {
 			val refreshed = runCatchingNonCancellation {
-				registrations.refreshActiveAuthorization(
+				registrations.refreshPurposeScopedAuthorization(
 					source,
 					activeRegistration,
 					plan.revision,
 					plan.physicalConfigurationFingerprint(),
 					System.currentTimeMillis(),
 					pendingRefresh.effectiveElapsedRealtimeNanos,
+					SourceBrokerPurpose.MASK_SESSION_CAPTURE,
 				)
 			}.getOrElse {
 				return SourceApplyResult.Failed(
@@ -366,7 +367,13 @@ class StepSourceRuntime @Inject constructor(
 			appliedState(source, plan.revision, null, SourceApplyStatus.BLOCKED, SystemClock.elapsedRealtimeNanos()),
 		)
 		val nextRegistration = runCatchingNonCancellation {
-			registrations.begin(source, plan.revision, plan.physicalConfigurationFingerprint(), System.currentTimeMillis())
+			registrations.beginPurposeScoped(
+				source = source,
+				appliedRevision = plan.revision,
+				physicalConfigurationFingerprint = plan.physicalConfigurationFingerprint(),
+				updatedAtMs = System.currentTimeMillis(),
+				purposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			)
 		}.getOrElse {
 			return SourceStartResult.Failed(
 				appliedState(source, plan.revision, null, SourceApplyStatus.FAILED, SystemClock.elapsedRealtimeNanos()),

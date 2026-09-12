@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.database.fenceSourcePurposesInTransactio
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.shared.base.process.ProcessIncarnationIdProvider
@@ -197,6 +198,86 @@ class SourceRegistrationRepositoryTest {
 		subject.markAccepted(registration, acceptedAtMs = 120L, acceptedElapsedRealtimeNanos = 120L)
 		database.sourceBrokerDao().registration(SourceKind.STEPS.stableCode, 1L)?.status shouldBe
 			ProviderRegistrationGenerationEntity.STATUS_ACTIVE
+	}
+
+	@Test
+	fun `incompatible Steps providers retain isolated purpose authority and owner pointers`() = runTest {
+		val capture = demand(
+			"capture",
+			"session:s1",
+			SourceBrokerPurpose.SESSION_CAPTURE,
+			"s1",
+			1L,
+			true,
+		)
+		val ambient = demand(
+			"ambient",
+			"app:ambient:steps",
+			SourceBrokerPurpose.AMBIENT_PRODUCT,
+			null,
+			null,
+			true,
+		)
+		database.sourceBrokerDao().insertDemands(listOf(capture, ambient))
+
+		val direct = subject.beginPurposeScoped(
+			source = SourceKind.STEPS,
+			appliedRevision = 1L,
+			physicalConfigurationFingerprint = "direct-counter-v1",
+			updatedAtMs = 100L,
+			updatedElapsedRealtimeNanos = 100L,
+			purposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+		)
+		subject.markAccepted(direct, 110L, 110L)
+		val ambientProvider = subject.beginPurposeScoped(
+			source = SourceKind.STEPS,
+			appliedRevision = 1L,
+			physicalConfigurationFingerprint = "ambient-provider-v1",
+			updatedAtMs = 120L,
+			updatedElapsedRealtimeNanos = 120L,
+			purposeEligibilityMask = SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+		)
+		subject.markAccepted(ambientProvider, 130L, 130L)
+
+		direct.ownerScope shouldBe SourceProviderPurposeScope.exactOwnerScope(
+			SourceKind.STEPS.stableCode,
+			SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+		)
+		ambientProvider.ownerScope shouldBe SourceProviderPurposeScope.exactOwnerScope(
+			SourceKind.STEPS.stableCode,
+			SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+		)
+		direct.authorization.authorizedMembers.map { it.demandId } shouldBe listOf("capture")
+		ambientProvider.authorization.authorizedMembers.map { it.demandId } shouldBe listOf("ambient")
+		database.sourceBrokerDao().currentPhysicalRegistrations(SourceKind.STEPS.stableCode)
+			.map { it.registrationGeneration to it.status } shouldBe listOf(
+			1L to ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+			2L to ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+		)
+
+		database.withTransaction {
+			database.fenceSourcePurposesInTransaction(
+				sourceKind = SourceKind.STEPS.stableCode,
+				purposes = listOf(SourceBrokerPurpose.AMBIENT_PRODUCT),
+				bootId = "boot-7",
+				elapsedRealtimeNanos = 200L,
+				wallTimeMs = 200L,
+			)
+		}
+
+		database.sourceBrokerDao().authorizationAt(
+			SourceKind.STEPS.stableCode,
+			direct.state.registrationGeneration,
+			"boot-7",
+			200L,
+		).toAuthorizationSnapshotOrNull()?.authorizedMembers?.map { it.demandId } shouldBe
+			listOf("capture")
+		database.sourceBrokerDao().authorizationAt(
+			SourceKind.STEPS.stableCode,
+			ambientProvider.state.registrationGeneration,
+			"boot-7",
+			200L,
+		).toAuthorizationSnapshotOrNull()?.isDenied shouldBe true
 	}
 
 	@Test

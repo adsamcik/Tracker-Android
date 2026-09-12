@@ -672,7 +672,7 @@ class StepSourceRuntimeRetirementTest {
 			}
 		}
 		var beginIndex = 0
-		coEvery { repository.begin(any(), any(), any(), any(), any()) } answers {
+		coEvery { repository.beginPurposeScoped(any(), any(), any(), any(), any(), any()) } answers {
 			registrations[beginIndex++.coerceAtMost(registrations.lastIndex)]
 		}
 		coEvery { repository.loadRuntimeState(any()) } returns null

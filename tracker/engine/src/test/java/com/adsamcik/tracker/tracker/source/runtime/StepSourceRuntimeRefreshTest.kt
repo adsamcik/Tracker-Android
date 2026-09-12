@@ -54,9 +54,11 @@ class StepSourceRuntimeRefreshTest {
 			sensorManager.registerListener(any<SensorEventListener>(), sensor, any<Int>(), any<Int>())
 		} returns true
 		every { sensorManager.unregisterListener(any<SensorEventListener>()) } just Runs
-		coEvery { registrations.begin(any(), any(), any(), any(), any()) } returns initialRegistration
 		coEvery {
-			registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
+			registrations.beginPurposeScoped(any(), any(), any(), any(), any(), any())
+		} returns initialRegistration
+		coEvery {
+			registrations.refreshPurposeScopedAuthorization(any(), any(), any(), any(), any(), any(), any())
 		} returns refreshedRegistration
 		coEvery { registrations.loadRuntimeState(any()) } returns null
 		coEvery { registrations.beginRetirement(any(), any(), any(), any()) } answers {
@@ -69,9 +71,16 @@ class StepSourceRuntimeRefreshTest {
 		assertIs<SourceStartResult.Started>(runtime.start(initialPlan, sink))
 		assertIs<SourceApplyResult.Applied>(runtime.reconfigure(refreshedPlan, sink))
 
-		coVerify(exactly = 1) { registrations.begin(any(), any(), any(), any(), any()) }
 		coVerify(exactly = 1) {
-			registrations.refreshActiveAuthorization(any(), initialRegistration, any(), any(), any(), any())
+			registrations.beginPurposeScoped(
+				any(), any(), any(), any(), any(), SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			)
+		}
+		coVerify(exactly = 1) {
+			registrations.refreshPurposeScopedAuthorization(
+				any(), initialRegistration, any(), any(), any(), any(),
+				SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			)
 		}
 		verify(exactly = 1) {
 			sensorManager.registerListener(any<SensorEventListener>(), sensor, any<Int>(), any<Int>())
@@ -101,10 +110,12 @@ class StepSourceRuntimeRefreshTest {
 			sensorManager.registerListener(any<SensorEventListener>(), sensor, any<Int>(), any<Int>())
 		} returns true
 		every { sensorManager.unregisterListener(any<SensorEventListener>()) } just Runs
-		coEvery { registrations.begin(any(), any(), any(), any(), any()) } returnsMany
+		coEvery {
+			registrations.beginPurposeScoped(any(), any(), any(), any(), any(), any())
+		} returnsMany
 			listOf(initialRegistration, replacementRegistration)
 		coEvery {
-			registrations.refreshActiveAuthorization(any(), any(), any(), any(), any(), any())
+			registrations.refreshPurposeScopedAuthorization(any(), any(), any(), any(), any(), any(), any())
 		} returns null
 		coEvery { registrations.loadRuntimeState(any()) } returns null
 		coEvery { registrations.beginRetirement(any(), any(), any(), any()) } answers {
@@ -118,10 +129,17 @@ class StepSourceRuntimeRefreshTest {
 		assertIs<SourceApplyResult.Applied>(runtime.reconfigure(replacementPlan, sink))
 
 		coVerify(exactly = 1) {
-			registrations.refreshActiveAuthorization(any(), initialRegistration, any(), any(), any(), any())
+			registrations.refreshPurposeScopedAuthorization(
+				any(), initialRegistration, any(), any(), any(), any(),
+				SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			)
 		}
 		// Initial acquisition plus the orderly post-stop replacement; no speculative reservation.
-		coVerify(exactly = 2) { registrations.begin(any(), any(), any(), any(), any()) }
+		coVerify(exactly = 2) {
+			registrations.beginPurposeScoped(
+				any(), any(), any(), any(), any(), SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+			)
+		}
 		verify(exactly = 2) {
 			sensorManager.registerListener(any<SensorEventListener>(), sensor, any<Int>(), any<Int>())
 		}
