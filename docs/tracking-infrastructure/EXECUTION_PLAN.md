@@ -7,9 +7,10 @@ This is the durable execution ledger for the architecture in
 `ADAPTIVE_COLLECTIONS_GREENFIELD_DESIGN.md`. It records implementation boundaries and proof; it
 does not restate the architecture.
 
-Current execution boundary: TI-D181/TI-B243 and `3e1fb6189` pin `TODO-STEPS-AUTO-003` exact
-immutable Automatic Steps attribution; `TODO-STEPS-AUTO-004` provider-demand reconciliation is
-next. TI-D180/TI-B242 retain the preceding shared durable Activity-gateway evidence. The September
+Current execution boundary: TI-D182/TI-B244 and `27ec42e74` pin `TODO-STEPS-AUTO-004` exact
+Automatic Steps capture/control demand activation; `TODO-STEPS-AUTO-005` control-data minimization,
+retention, deletion, and export nonleakage is next. TI-D180/TI-B243 retain the preceding gateway and
+manifest evidence. The September
 5 checkpoint in `CONTINUATION_HANDOVER.md` and TI-B204 onward in
 `VERIFICATION_MATRIX.md` supersede older progress snapshots in this ledger. Read
 `VISION_AND_SCOPE.md` as the product north star and `MACHINE_HANDOVER.md` when continuing on another

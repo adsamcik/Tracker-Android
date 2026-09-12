@@ -516,6 +516,25 @@ activation, publication, or release command ran. This is authored Room-contract 
 provider demand/registration, trigger-to-query behavior, real Activity/Steps providers, listener
 removal, process/reboot/FGS, battery/OEM, rollout, and release remain unproven.
 
+## TI-B244 — Automatic Steps provider-demand separation authored, validation deferred
+
+Status: **IMPLEMENTED_UNVALIDATED** at `27ec42e74`. The focused coordinator Room scenario follows
+one exact Automatic Steps PREPARE through enqueue acknowledgement, service claim, foreground
+acceptance, and runtime application. Before foreground acceptance, exactly Steps
+`SESSION_CAPTURE` and Activity `CONTROL_CONTINUATION` exist as blocked demands. After acceptance,
+only that exact run/manifest/lease pair is active.
+
+Activity remains nonpersistent control, while accepted capture sources, lifecycle source actions,
+and applied runtime plans contain Steps alone. The exact trigger survives the claim, Steps starts
+once, Location remains inactive, and Location, Pressure, Wi-Fi, Cell, and captured Activity are not
+introduced. Existing broker contracts independently map manifest control to continuation demand
+and keep Activity acquisition reachable as control without admitting Activity capture.
+
+No test, compiler, Gradle, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran. This is authored mock-runtime/Room evidence only;
+physical provider sharing/registration, callbacks, listener removal, process/reboot/FGS,
+trigger-to-query behavior, battery/OEM, rollout, and release remain unproven.
+
 ## Static source × mode matrix
 
 | ID | Source | Mode | Capture sources | Declared controls | Qualified `RECORDING` evidence | Canonical output | Production history/UI assertion | Current status |

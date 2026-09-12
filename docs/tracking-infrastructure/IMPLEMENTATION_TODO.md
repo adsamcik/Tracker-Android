@@ -399,7 +399,7 @@ regenerated during final convergence validation. Continue with Automatic Steps.
   automatic gateway before Android service launch.
 - [x] TODO-STEPS-AUTO-003 Create an immutable automatic manifest with capture set exactly Steps and
   declared controls separately attributed.
-- [ ] TODO-STEPS-AUTO-004 Reconcile provider demand so Steps is captured and Activity, when used,
+- [x] TODO-STEPS-AUTO-004 Reconcile provider demand so Steps is captured and Activity, when used,
   remains CONTROL only.
 - [ ] TODO-STEPS-AUTO-005 Keep control evidence purpose-limited, short-lived, absent from normal
   history and portable export, and independently revocable and deletable.
@@ -417,7 +417,10 @@ recorded only for the commits on which it ran; the current convergence remains u
 AUTO-003 is additionally pinned by TI-D181/TI-B243 and `3e1fb6189`: the checksum-protected manifest
 contains exactly Steps `SESSION_CAPTURE` and Activity `CONTROL`, with exact run, origin, mode,
 policy, plan, rollout, clocks, zone, automation, consent, QoS, persistence, and writer attribution.
-Continue with AUTO-004's provider-demand reconciliation.
+AUTO-004 is additionally pinned by TI-D182/TI-B244 and `27ec42e74`: demand stays blocked before
+foreground acceptance, then only Steps `SESSION_CAPTURE` and nonpersistent Activity
+`CONTROL_CONTINUATION` become active; only Steps receives a source action/runtime start. Continue
+with AUTO-005's control-data minimization, retention, deletion, and export boundary.
 
 ### Default-off Ambient Steps
 

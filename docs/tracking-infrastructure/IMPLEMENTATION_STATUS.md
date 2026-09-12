@@ -3537,5 +3537,26 @@ manual-only.
 
 No Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
 activation, publication, or release command ran. Production code and the expanded test remain
-**IMPLEMENTED_UNVALIDATED**. The next boundary is `TODO-STEPS-AUTO-004`: exact provider demand and
-Activity-control-only runtime reconciliation.
+**IMPLEMENTED_UNVALIDATED**. That checkpoint handed off AUTO-004; the next section records its
+implementation boundary.
+
+## 2026-09-12 implementation-only checkpoint — Automatic Steps demand separation pinned
+
+`TODO-STEPS-AUTO-004` is implemented at `27ec42e74`. The existing coordinator stages the exact
+manifest-derived Steps `SESSION_CAPTURE` and Activity `CONTROL_CONTINUATION` demands as blocked
+during Room PREPARE. The strengthened focused Room contract now follows the exact prepared token
+through Android-enqueue acknowledgement, service claim, and foreground acceptance before requiring
+that pair to become active.
+
+The scenario additionally proves that the accepted capture-source set and lifecycle source actions
+contain Steps only, the exact automatic trigger survives claim, runtime application starts the Steps
+source once, Location stays inactive, Activity remains nonpersistent control, and no Location,
+Pressure, Wi-Fi, or Cell demand appears. This reuses the existing broker and source coordinator; it
+does not add a provider, observer, writer, or alternate orchestration path.
+
+No Gradle, compiler, test, lint, Detekt, Room drift, emulator/device, UI, battery, CI, integration,
+activation, publication, or release command ran. This is **IMPLEMENTED_UNVALIDATED** and does not
+prove physical Activity/Steps registration, callbacks, listener removal, FGS legality, process or
+reboot recovery, query/UI behavior, battery, or OEM behavior. The next boundary is
+`TODO-STEPS-AUTO-005`: purpose-limited Activity control data, retention, deletion, and export
+nonleakage.

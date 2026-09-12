@@ -2887,5 +2887,22 @@ Each entry records repository evidence and does not duplicate the final architec
   zone, and automation epoch. No source is inferred from sample count, wall overlap, or control
   evidence.
 - The focused Room contract now asserts all of this in one Automatic Steps preparation scenario.
-  Existing generation-1 containment remains manual-only. This closes AUTO-003 only; provider-demand
-  activation and exact control/capture runtime reconciliation remain AUTO-004.
+  Existing generation-1 containment remains manual-only. This closes AUTO-003 only; TI-D182
+  subsequently records provider-demand activation and exact control/capture runtime reconciliation.
+
+## TI-D182 — Automatic Steps activates only Steps capture and Activity control demand
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-12; focused contract `27ec42e74`; TI-B244.
+- Room PREPARE stages the exact manifest-derived Steps `SESSION_CAPTURE` and Activity
+  `CONTROL_CONTINUATION` demand pair as blocked. Neither is registration/callback authority before
+  the exact Android start is claimed and foreground acceptance is durably acknowledged.
+- Foreground acceptance activates only that exact run/manifest/lease demand vector. The Activity
+  member remains nonpersistent control, while lifecycle source actions and runtime application are
+  derived only from the enabled capture plan and therefore contain/start Steps alone.
+- The focused Automatic Steps scenario requires exact trigger preservation, accepted sources
+  `{Steps}`, active purpose-qualified demand membership, one Steps runtime start, no Location
+  runtime start, no captured Activity action, and no Location, Pressure, Wi-Fi, or Cell demand.
+- This reuses the existing broker and coordinator; it adds no second provider owner or source-local
+  orchestration path. It closes AUTO-004's authored logic boundary, not physical Activity/Steps
+  registration, callback, listener, device, FGS, or query proof. Control minimization, retention,
+  deletion, and export nonleakage remain AUTO-005.
