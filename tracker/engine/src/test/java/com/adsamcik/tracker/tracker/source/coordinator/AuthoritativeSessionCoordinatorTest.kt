@@ -2417,6 +2417,48 @@ class AuthoritativeSessionCoordinatorTest {
 			SourceKind.WIFI,
 			SourceKind.CELL,
 		).all { source -> demands.none { demand -> demand.sourceKind == source.stableCode } } shouldBe true
+		database.sourceSessionDao().lifecycleActions(prepared.logicalTrackingId)
+			.mapNotNull { action -> action.sourceKind }
+			.toSet() shouldBe setOf(SourceKind.STEPS.stableCode)
+
+		subject.markAndroidStartEnqueued(prepared.token, 1L, 1_050L) shouldBe true
+		val claimed = subject.claimAndroidStart(
+			prepared.token,
+			1L,
+			"boot-1",
+			1_100_000L,
+			1_100L,
+		).shouldBeInstanceOf<PreparedSessionClaimResult.Claimed>().start
+		claimed.acceptedSources shouldBe setOf(SourceKind.STEPS)
+		claimed.automaticTrigger shouldBe trigger
+		subject.markPreparedForegroundAccepted(
+			prepared.token,
+			1L,
+			"boot-1",
+			1_200_000L,
+			1_200L,
+		) shouldBe true
+
+		val activeDemands = database.sourceBrokerDao()
+			.currentDemands("session:${prepared.logicalTrackingId}")
+		activeDemands.map { demand -> demand.sourceKind to demand.purpose }.toSet() shouldBe setOf(
+			SourceKind.STEPS.stableCode to SourceBrokerPurpose.SESSION_CAPTURE,
+			SourceKind.ACTIVITY.stableCode to SourceBrokerPurpose.CONTROL_CONTINUATION,
+		)
+		activeDemands.all { demand -> demand.status == SourceDemandEntity.STATUS_ACTIVE } shouldBe true
+		activeDemands.single { demand -> demand.sourceKind == SourceKind.ACTIVITY.stableCode }
+			.persistenceEligible shouldBe false
+
+		val started = subject.applyPreparedAndroidStart(
+			prepared.token,
+			1L,
+			"boot-1",
+			1_300_000L,
+			1_300L,
+		).shouldBeInstanceOf<SessionStartResult.Started>()
+		started.applied.map(AppliedSourcePlan::source).toSet() shouldBe setOf(SourceKind.STEPS)
+		runtime.startCount shouldBe 1
+		locationRuntime.isActive shouldBe false
 	}
 
 	@Test
