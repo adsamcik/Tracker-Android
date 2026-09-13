@@ -204,8 +204,11 @@ internal class WifiWalQualificationAdapter @Inject constructor(
 		if (run == null || session == null) {
 			return@withTransaction rejected(WifiWalAdapterRejection.MISSING_SESSION)
 		}
+		val currentRun = session.currentServiceRunId?.let { currentRunId ->
+			sessionDao.serviceRun(currentRunId)
+		}
 		if (!session.hasValidLifecycleShape(wal.admissionOrdinal) || !run.hasValidLifecycleShape() ||
-			!run.hasValidRelationshipTo(session)
+			!run.hasValidRelationshipTo(session, currentRun)
 		) {
 			return@withTransaction rejected(WifiWalAdapterRejection.SESSION_MISMATCH)
 		}
@@ -842,16 +845,28 @@ private fun SourceServiceRunEntity.hasValidLifecycleShape(): Boolean {
 
 private fun SourceServiceRunEntity.hasValidRelationshipTo(
 	session: LogicalTrackingSessionEntity,
+	currentRun: SourceServiceRunEntity?,
 ): Boolean = when {
 	logicalTrackingId != session.logicalTrackingId -> false
-	state !in TERMINAL_SESSION_STATES ->
-		session.state !in TERMINAL_SESSION_STATES && session.currentServiceRunId == serviceRunId &&
-			((session.state in ADMISSION_SESSION_STATES && state in ADMISSION_RUN_STATES) ||
-				(session.state == "ACTIVE" && state == "STOPPING") ||
-				(session.state == "STOPPING" && state == "STOPPING"))
+	state !in TERMINAL_SESSION_STATES -> hasValidCurrentRelationshipTo(session)
 	session.state in TERMINAL_SESSION_STATES -> session.currentServiceRunId == null
-	else -> false
+	session.currentServiceRunId == serviceRunId -> false
+	else -> currentRun?.hasValidLifecycleShape() == true &&
+		currentRun.hasValidCurrentRelationshipTo(session)
 }
+
+private fun SourceServiceRunEntity.hasValidCurrentRelationshipTo(
+	session: LogicalTrackingSessionEntity,
+): Boolean = logicalTrackingId == session.logicalTrackingId &&
+	state !in TERMINAL_SESSION_STATES && session.state !in TERMINAL_SESSION_STATES &&
+	session.currentServiceRunId == serviceRunId && bootId == session.lifecycleBootId &&
+	leaseGeneration == session.lifecycleLeaseGeneration &&
+	desiredPlanRevision == session.desiredPlanRevision &&
+	preparedManifestRevision == session.currentManifestRevision &&
+	startedAtMs >= session.startedAtMs && startedElapsedNanos >= session.startedElapsedNanos &&
+	((session.state in ADMISSION_SESSION_STATES && state in ADMISSION_RUN_STATES) ||
+		(session.state == "ACTIVE" && state == "STOPPING") ||
+		(session.state == "STOPPING" && state == "STOPPING"))
 
 private fun WifiPlan.maximumObservationAgeNanos(): Long =
 	if (maximumAcceptableResultAgeMs > Long.MAX_VALUE / 1_000_000L) {

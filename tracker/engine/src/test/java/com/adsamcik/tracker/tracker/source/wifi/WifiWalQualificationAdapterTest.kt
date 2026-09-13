@@ -313,6 +313,25 @@ class WifiWalQualificationAdapterTest {
 	}
 
 	@Test
+	fun `terminal older run remains attributable after session moves to a valid live replacement`() = runTest {
+		installValidFixture()
+		installLiveReplacement()
+
+		assertIs<WifiWalAdapterResult.Evaluated>(subject.qualify(EVENT_ID))
+	}
+
+	@Test
+	fun `terminal run still named by nonterminal session remains invalid`() = runTest {
+		installValidFixture()
+		setLiveLifecyclePair(sessionState = "ACTIVE", runState = "FINALIZED")
+
+		assertEquals(
+			WifiWalAdapterResult.Rejected(WifiWalAdapterRejection.SESSION_MISMATCH),
+			subject.qualify(EVENT_ID),
+		)
+	}
+
+	@Test
 	fun `same-registration next authorization ignores interleaved global revision`() = runTest {
 		installValidFixture()
 		database.sourceBrokerDao().insertRegistration(
@@ -612,6 +631,38 @@ class WifiWalQualificationAdapterTest {
 			run.copy(
 				state = runState,
 				completedAtMs = SESSION_END_WALL_MS.takeIf { runState in setOf("FINALIZED", "CLOSED", "FAILED") },
+			),
+		))
+	}
+
+	private suspend fun installLiveReplacement() {
+		val sessionDao = database.sourceSessionDao()
+		val session = requireNotNull(sessionDao.session(LOGICAL_ID))
+		val terminalRun = requireNotNull(sessionDao.serviceRun(RUN_ID))
+		sessionDao.insertServiceRun(
+			terminalRun.copy(
+				serviceRunId = REPLACEMENT_RUN_ID,
+				state = "ACTIVE",
+				startedAtMs = SESSION_END_WALL_MS + 1L,
+				startedElapsedNanos = SESSION_END_NANOS + 1L,
+				completedAtMs = null,
+				completionReason = null,
+				runtimeAcknowledgement = "START_ACCEPTED",
+				runRevision = 1L,
+				startDeliveryToken = "wifi-replacement-start-token",
+				sessionSegmentId = null,
+				presentationAcknowledgement = SourceServiceRunEntity.PRESENTATION_PENDING,
+				presentationAcknowledgedAtMs = null,
+			),
+		)
+		assertEquals(1, sessionDao.updateSession(
+			session.copy(
+				state = "ACTIVE",
+				completedAtMs = null,
+				cutoffAtMs = null,
+				cutoffElapsedNanos = null,
+				finalAdmissionOrdinal = null,
+				currentServiceRunId = REPLACEMENT_RUN_ID,
 			),
 		))
 	}
@@ -1082,6 +1133,7 @@ class WifiWalQualificationAdapterTest {
 		val WIFI_SOURCE = SourceKind.WIFI.stableCode
 		const val LOGICAL_ID = "logical-wifi"
 		const val RUN_ID = "run-wifi"
+		const val REPLACEMENT_RUN_ID = "run-wifi-replacement"
 		const val SOURCE_INSTANCE = "wifi-instance"
 		const val DEMAND_ID = "wifi-demand"
 		const val BOOT_ID = "boot-1"
