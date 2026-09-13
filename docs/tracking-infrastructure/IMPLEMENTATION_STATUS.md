@@ -127,8 +127,14 @@ accepted identity-free fact schema, source-local deletion epoch, bounded writer,
 aggregate-owner references, and cursor CAS. New compact coverage reuse requires finite owner
 authority, while exact historical owner revisions remain usable only inside a bounded complete
 aggregate lineage with an authenticated current tip. v1 evidence still cannot prove subscription
-grouping, so coverage remains typed `UNKNOWN`; provider activation, retention worker, product read,
-portable transfer, and UI are not claimed.
+grouping, so coverage remains typed `UNKNOWN`. The separate product-read branch is independently
+accepted through `79056b454`: one Room transaction discovers source-only entries from exact
+writer/version cursor carriers, expands bounded replacement membership and aggregate-owner
+lineages, and authenticates manifest/run/segment/plan/provider/lifecycle/policy/consent/deletion/
+retention/zone authority. Missing, moved, or corrupt current heads remain discoverable as typed
+failure instead of vanishing; aggregate metrics require both dependent and referenced owner to pass
+current privacy and retention authority. Provider activation, retention worker, portable transfer,
+and shared UI are not claimed.
 
 The isolated Wi-Fi branch is clean at `d7c5e5d4b`. Its pure dormant classifier requires exact
 `CAPTURED_REGISTRATION` authority while allowing the passive runtime's nullable redundant

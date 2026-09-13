@@ -3505,3 +3505,20 @@ Each entry records repository evidence and does not duplicate the final architec
   unavailable history instead of spinning forever.
 - This is contained selected-detail presentation only. Calendar, full Today/Timeline composition,
   maintenance/import, localization/device/accessibility evidence, and activation remain open.
+
+## TI-D219 — Cell history discovery starts from exact durable cursor ownership
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated product/API/source/tests `1edd65264`
+  through `79056b454` atop TI-D213; TI-B282.
+- Source-only Cell entries are discovered from exact writer/version cursor carriers joined to
+  reciprocal run/segment ownership, never from `sample_count`, Location, or self-declared fact
+  scope. Missing or corrupt current revisions therefore remain visible as typed integrity failure.
+- One Room transaction expands complete bounded replacement membership, cursor-carried correction
+  lineages, and finite direct aggregate owners. It authenticates manifest, plan, provider,
+  lifecycle, policy/consent, lane, deletion/high-water, uncertainty-safe retention, and stored-zone
+  authority before composition.
+- A compact coverage fact may expose referenced metrics only when both it and the referenced exact
+  owner pass current source epoch, deletion, high-water, cursor, lineage, and retention authority.
+  v1 subscription grouping remains typed `UNKNOWN`; no stable radio identity is introduced.
+- This adds no provider/callback owner, runtime projection, maintenance, transfer, shared UI,
+  automatic/ambient activation, or Location enrichment.

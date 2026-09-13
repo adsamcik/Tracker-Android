@@ -127,8 +127,13 @@ Independent clean lanes:
   Compact coverage reuse requires finite owner authority; historical owner revisions remain valid
   only inside one bounded complete lineage with an authenticated current tip, preventing correction
   from dangling dependents. Coverage remains typed `UNKNOWN` because v1 WAL cannot prove
-  subscription grouping. Runtime projection, retention-worker handling of referenced revisions,
-  transfer, product history/UI, and activation remain open.
+  subscription grouping. `codex/ti-cell-product-read` is independently accepted through
+  `79056b454`: one bounded transactional repository discovers source-only entries from exact
+  writer/version cursor carriers, expands complete replacement and aggregate-owner lineages, and
+  returns typed failure for missing, moved, or corrupt current heads rather than hiding them. Both
+  dependent and referenced owner must satisfy current deletion/epoch/high-water and uncertainty-safe
+  retention authority before identity-free metrics appear. Runtime projection, retention-worker
+  handling of referenced revisions, transfer, shared UI, and activation remain open.
 - Wi-Fi identity-free fact qualification and retained-WAL adapter: `codex/ti-wifi-fact-model` at
   `d7c5e5d4b` in
   `G:\Github\Tracker-Android\.worktrees\ti-wifi-fact-model`; clean and independently accepted as

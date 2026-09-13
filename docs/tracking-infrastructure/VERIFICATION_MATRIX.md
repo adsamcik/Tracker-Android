@@ -2139,3 +2139,26 @@ Deferred focused command:
 The command was not run. Compilation, Room execution, full Today/Timeline/Calendar composition,
 localization/accessibility/device rendering, process/provider behavior, maintenance/import,
 integration, activation, and release remain unproven.
+
+## TI-B282 — Bounded Cell history and fail-closed discovery contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `79056b454`. Authored API, selector, composer,
+repository, and real-Room tests cover exact cursor-carried source-only discovery, reciprocal
+run/segment scope, complete 33-member replacement pagination, replacement siblings without facts,
+33-entry recency paging, correction and direct aggregate-owner lineage, identity-free technology/
+quality/availability/coverage state, v1 grouping `UNKNOWN`, and one-transaction selected/recent
+reads. Missing current revisions, moved facts, and corruption of each cursor-head identity field
+produce typed `FACT_INTEGRITY_FAILED` rather than disappearing. Dependent and owner epoch/deletion/
+high-water/retention failures, limit-plus-one overflow, and cancellation are covered. Reviews
+rejected self-declared discovery, stale owner privacy, missing fixtures, and a current-head inner join
+before accepting this correction.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :stats:api:testAndroidHostTest --tests '*CellHistoryReadModelTest' :stats:data:testDebugUnitTest --tests '*CellHistoryComposerTest' --tests '*CellHistoryRepositoryRoomTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room query execution, generated v28 schema convergence,
+runtime projection, retention/deletion/transfer, shared UI, provider/callback/device behavior,
+automatic/ambient operation, integration, activation, and release remain unproven.

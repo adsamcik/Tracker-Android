@@ -776,6 +776,15 @@ selected/all-data deletion, transfer/no-resurrection, product history/UI, automa
 and the complete authored scenario cohort exist. Generated v28 JSON remains deferred convergence
 debt.
 
+Accepted product-read commits `1edd65264` through `79056b454` implement bounded portions of
+CELL-006/011/013 and HIST-002/003/004/005/006. Exact Cell cursor carriers make source-only entries
+discoverable without Location or `sample_count`; complete replacement and direct aggregate-owner
+lineages are authenticated in one Room snapshot. Missing or corrupt current heads remain typed
+failed entries, while retained identity-free technology/quality/availability/coverage metrics
+require current privacy and retention authority for both dependent and owner. These TODOs remain
+unchecked until runtime projection, shared Today/Timeline/Calendar/detail UI, maintenance, transfer,
+automatic/ambient behavior, and complete scenarios exist.
+
 ## Production history and UI
 
 - [ ] TODO-HIST-001 Complete one read-only TrackingHistoryRepository facade for observeToday,
