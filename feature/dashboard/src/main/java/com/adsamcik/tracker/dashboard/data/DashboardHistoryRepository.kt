@@ -12,7 +12,8 @@ import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.stats.api.AchievementTier
 import com.adsamcik.tracker.stats.api.achievement.AchievementCatalog
 import com.adsamcik.tracker.stats.api.metric.MetricKey
-import com.adsamcik.tracker.stats.api.repository.StepsAwareHistoryPageEntry
+import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageEntry
+import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryRepository
 import java.util.Calendar
@@ -39,6 +40,9 @@ sealed interface DashboardRecentHistoryEntry {
 
 	/** Opaque logical Steps-only row with no physical action identity. */
 	data class StepsOnly(val history: StepsOnlyHistoryEntry) : DashboardRecentHistoryEntry
+
+	/** Opaque logical Pressure-only row with direct Pressure facts and no physical action identity. */
+	data class PressureOnly(val history: PressureOnlyHistoryEntry) : DashboardRecentHistoryEntry
 }
 
 /** Explicit recent-history state; failures never fall back to raw physical rows. */
@@ -90,7 +94,7 @@ data class DashboardAchievementHistory(
  * Feature-facing boundary for the dashboard's historical cards.
  */
 interface DashboardHistoryRepository {
-	/** Observe one coordinated, bounded physical/Steps-aware recent-history page. */
+	/** Observe one coordinated, bounded physical/Steps/Pressure-aware recent-history page. */
 	fun observeRecentHistory(): Flow<List<DashboardRecentHistoryEntry>>
 
 	/** Load optional historical cards independently from the recent-history product. */
@@ -114,7 +118,7 @@ internal class RoomDashboardHistoryRepository @Inject constructor(
 				DashboardPhysicalCandidateGeneration(rows.map { row -> row.toModel() })
 			}
 			.flatMapLatest { generation ->
-				trackingHistoryRepository.observeRecentStepsAwarePage(
+				trackingHistoryRepository.observeRecentPressureAwarePage(
 					candidateSegmentIds = generation.candidateIds,
 					limit = RECENT_HISTORY_LIMIT,
 				).map(generation::mapPage)
@@ -239,16 +243,18 @@ private class DashboardPhysicalCandidateGeneration(
 	private val candidatesById = candidates.associateBy(Trip::id)
 	val candidateIds: List<Long> = candidates.map(Trip::id)
 
-	fun mapPage(page: List<StepsAwareHistoryPageEntry>): List<DashboardRecentHistoryEntry> =
+	fun mapPage(page: List<PressureAwareHistoryPageEntry>): List<DashboardRecentHistoryEntry> =
 		page.map { entry ->
 			when (entry) {
-				is StepsAwareHistoryPageEntry.Physical -> DashboardRecentHistoryEntry.Physical(
+				is PressureAwareHistoryPageEntry.Physical -> DashboardRecentHistoryEntry.Physical(
 					checkNotNull(candidatesById[entry.segmentId]) {
 						"Stats returned a physical row outside this Dashboard candidate generation"
 					},
 				)
-				is StepsAwareHistoryPageEntry.StepsOnly ->
+				is PressureAwareHistoryPageEntry.StepsOnly ->
 					DashboardRecentHistoryEntry.StepsOnly(entry.history)
+				is PressureAwareHistoryPageEntry.PressureOnly ->
+					DashboardRecentHistoryEntry.PressureOnly(entry.history)
 			}
 		}
 }

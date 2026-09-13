@@ -18,6 +18,17 @@ import com.adsamcik.tracker.dashboard.data.DashboardRecentHistoryState
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.shared.model.Trip
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
+import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
+import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
+import com.adsamcik.tracker.stats.api.repository.HistoryProductState
+import com.adsamcik.tracker.stats.api.repository.PressureHistory
+import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
+import com.adsamcik.tracker.stats.api.repository.PressureHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.PressureHistoryWindow
+import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
+import com.adsamcik.tracker.stats.api.repository.PressureSensorAccuracy
+import com.adsamcik.tracker.stats.api.repository.PressureWindowClosure
+import com.adsamcik.tracker.stats.api.repository.PressureWindowQualification
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryListState
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryEntryKey
@@ -125,6 +136,39 @@ class RecentTripsCardTest {
 	}
 
 	@Test
+	fun pressureOnlyRowShowsDirectPressureWithoutPhysicalActionsOrDerivedMetrics() {
+		setContent(
+			DashboardRecentHistoryState.Content(
+				listOf(DashboardRecentHistoryEntry.PressureOnly(pressureEntry(withWindow = true))),
+			),
+			onTripClick = { error("Pressure-only rows must not expose a physical click identity") },
+		)
+
+		composeRule.onNodeWithText("Pressure session").assertIsDisplayed().assertHasNoClickAction()
+		composeRule.onNodeWithText("Pressure history available").assertIsDisplayed()
+		composeRule.onNodeWithText("1001.5 hPa · range 999.5–1002.0 hPa").assertIsDisplayed()
+		composeRule.onNodeWithText("Change 1.5 hPa · Complete coverage").assertIsDisplayed()
+		composeRule.onAllNodesWithText("km", substring = true).assertCountEquals(0)
+		composeRule.onAllNodesWithText("elevation", substring = true, ignoreCase = true)
+			.assertCountEquals(0)
+		composeRule.onAllNodesWithText("ascent", substring = true, ignoreCase = true)
+			.assertCountEquals(0)
+		composeRule.onAllNodesWithContentDescription("View details").assertCountEquals(0)
+	}
+
+	@Test
+	fun unavailablePressureOnlyRowDoesNotFabricateNumericPressure() {
+		setContent(
+			DashboardRecentHistoryState.Content(
+				listOf(DashboardRecentHistoryEntry.PressureOnly(pressureEntry(withWindow = false))),
+			),
+		)
+
+		composeRule.onNodeWithText("Pressure history unavailable").assertIsDisplayed()
+		composeRule.onAllNodesWithText("hPa", substring = true).assertCountEquals(0)
+	}
+
+	@Test
 	fun getTripIconSupportsGmsNativeAndSkiIds() {
 		getTripIcon(7) shouldBe Icons.AutoMirrored.Filled.DirectionsWalk
 		getTripIcon(-2) shouldBe Icons.AutoMirrored.Filled.DirectionsWalk
@@ -172,5 +216,56 @@ class RecentTripsCardTest {
 		startTime = EpochMs(startTimeMs),
 		endTime = EpochMs(startTimeMs + 1_800_000L),
 		state = state,
+	)
+
+	private fun pressureEntry(withWindow: Boolean): PressureOnlyHistoryEntry {
+		val now = System.currentTimeMillis()
+		val windows = if (withWindow) listOf(pressureWindow(now)) else emptyList()
+		return PressureOnlyHistoryEntry(
+			key = TrackingHistoryEntryKey(if (withWindow) "pressure-ready" else "pressure-unavailable"),
+			startTime = EpochMs(now - 1_800_000L),
+			endTime = EpochMs(now),
+			pressure = PressureHistory(
+				availability = if (withWindow) {
+					HistoryAvailability.AVAILABLE
+				} else {
+					HistoryAvailability.UNAVAILABLE
+				},
+				evidence = if (withWindow) HistoryEvidence.RECORDED else HistoryEvidence.NONE,
+				productState = if (withWindow) HistoryProductState.READY else HistoryProductState.DEGRADED,
+				coverage = if (withWindow) {
+					PressureHistoryCoverage.COMPLETE
+				} else {
+					PressureHistoryCoverage.UNKNOWN
+				},
+				windows = windows,
+				causes = if (withWindow) emptySet() else setOf(PressureHistoryCause.PROVIDER_UNAVAILABLE),
+			),
+		)
+	}
+
+	private fun pressureWindow(now: Long) = PressureHistoryWindow(
+		intervalStartTime = EpochMs(now - 1_000L),
+		intervalEndTime = EpochMs(now),
+		sampleCount = 5,
+		expectedSampleCount = 5,
+		meanHectopascals = 1000.5,
+		sumSquaredDeviations = 1.0,
+		minimumHectopascals = 999.5f,
+		maximumHectopascals = 1002.0f,
+		firstHectopascals = 1000.0f,
+		latestHectopascals = 1001.5f,
+		slopeHectopascalsPerSecond = 0.01,
+		rSquared = 0.8,
+		sensorAccuracy = PressureSensorAccuracy.HIGH,
+		effectiveSamplePeriodMicros = 200_000,
+		effectiveMaximumReportLatencyMicros = 0,
+		targetWindowDurationNanos = 1_000_000_000L,
+		maximumInterSampleGapNanos = 200_000_000L,
+		closure = PressureWindowClosure.TARGET_ELAPSED,
+		qualification = PressureWindowQualification.COMPLETE,
+		sourceQualityFlags = 0L,
+		sourceQualityConfidence = 1f,
+		zoneId = "Europe/Prague",
 	)
 }

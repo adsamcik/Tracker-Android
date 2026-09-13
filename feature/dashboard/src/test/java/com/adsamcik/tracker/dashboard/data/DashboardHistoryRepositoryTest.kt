@@ -9,7 +9,14 @@ import com.adsamcik.tracker.shared.base.database.dao.TripDao
 import com.adsamcik.tracker.shared.base.database.data.Trip
 import com.adsamcik.tracker.shared.base.mapper.toModel
 import com.adsamcik.tracker.shared.model.SegmentSource
-import com.adsamcik.tracker.stats.api.repository.StepsAwareHistoryPageEntry
+import com.adsamcik.tracker.stats.api.repository.HistoryAvailability
+import com.adsamcik.tracker.stats.api.repository.HistoryEvidence
+import com.adsamcik.tracker.stats.api.repository.HistoryProductState
+import com.adsamcik.tracker.stats.api.repository.PressureAwareHistoryPageEntry
+import com.adsamcik.tracker.stats.api.repository.PressureHistory
+import com.adsamcik.tracker.stats.api.repository.PressureHistoryCause
+import com.adsamcik.tracker.stats.api.repository.PressureHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryListState
 import com.adsamcik.tracker.stats.api.repository.TrackingHistoryEntryKey
@@ -52,17 +59,17 @@ class DashboardHistoryRepositoryTest {
 		val steps = stepsEntry("zero-sample", 25_000L)
 		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_LIMIT) } returns flowOf(candidates)
 		every {
-			trackingHistoryRepository.observeRecentStepsAwarePage(
+			trackingHistoryRepository.observeRecentPressureAwarePage(
 				candidateSegmentIds = candidates.map { it.id },
 				limit = RECENT_HISTORY_LIMIT,
 			)
 		} returns flowOf(
 			listOf(
-				StepsAwareHistoryPageEntry.Physical(3L),
-				StepsAwareHistoryPageEntry.StepsOnly(steps),
-				StepsAwareHistoryPageEntry.Physical(20L),
-				StepsAwareHistoryPageEntry.Physical(2L),
-				StepsAwareHistoryPageEntry.Physical(1L),
+				PressureAwareHistoryPageEntry.Physical(3L),
+				PressureAwareHistoryPageEntry.StepsOnly(steps),
+				PressureAwareHistoryPageEntry.Physical(20L),
+				PressureAwareHistoryPageEntry.Physical(2L),
+				PressureAwareHistoryPageEntry.Physical(1L),
 			),
 		)
 
@@ -77,7 +84,7 @@ class DashboardHistoryRepositoryTest {
 		)
 		verify(exactly = 1) { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_LIMIT) }
 		verify(exactly = 1) {
-			trackingHistoryRepository.observeRecentStepsAwarePage(
+			trackingHistoryRepository.observeRecentPressureAwarePage(
 				candidateSegmentIds = candidates.map { it.id },
 				limit = RECENT_HISTORY_LIMIT,
 			)
@@ -87,18 +94,18 @@ class DashboardHistoryRepositoryTest {
 	@Test
 	fun `replacement generation cancels old page and maps matching physical snapshot`() = runTest {
 		val candidateRows = MutableStateFlow(listOf(trip(1L)))
-		val firstPage = MutableStateFlow<List<StepsAwareHistoryPageEntry>>(
-			listOf(StepsAwareHistoryPageEntry.Physical(1L)),
+		val firstPage = MutableStateFlow<List<PressureAwareHistoryPageEntry>>(
+			listOf(PressureAwareHistoryPageEntry.Physical(1L)),
 		)
-		val secondPage = MutableStateFlow<List<StepsAwareHistoryPageEntry>>(
-			listOf(StepsAwareHistoryPageEntry.Physical(2L)),
+		val secondPage = MutableStateFlow<List<PressureAwareHistoryPageEntry>>(
+			listOf(PressureAwareHistoryPageEntry.Physical(2L)),
 		)
 		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_LIMIT) } returns candidateRows
 		every {
-			trackingHistoryRepository.observeRecentStepsAwarePage(listOf(1L), RECENT_HISTORY_LIMIT)
+			trackingHistoryRepository.observeRecentPressureAwarePage(listOf(1L), RECENT_HISTORY_LIMIT)
 		} returns firstPage
 		every {
-			trackingHistoryRepository.observeRecentStepsAwarePage(listOf(2L), RECENT_HISTORY_LIMIT)
+			trackingHistoryRepository.observeRecentPressureAwarePage(listOf(2L), RECENT_HISTORY_LIMIT)
 		} returns secondPage
 		val pages = mutableListOf<List<DashboardRecentHistoryEntry>>()
 		val collection = launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -121,22 +128,39 @@ class DashboardHistoryRepositoryTest {
 		val steps = stepsEntry("suppressed", 30_000L)
 		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_LIMIT) } returns flowOf(candidates)
 		every {
-			trackingHistoryRepository.observeRecentStepsAwarePage(any(), RECENT_HISTORY_LIMIT)
-		} returns flowOf(listOf(StepsAwareHistoryPageEntry.StepsOnly(steps)))
+			trackingHistoryRepository.observeRecentPressureAwarePage(any(), RECENT_HISTORY_LIMIT)
+		} returns flowOf(listOf(PressureAwareHistoryPageEntry.StepsOnly(steps)))
 
 		val page = repository(testScheduler).observeRecentHistory().first()
 
 		page shouldContainExactly listOf(DashboardRecentHistoryEntry.StepsOnly(steps))
 		verify(exactly = 1) {
-			trackingHistoryRepository.observeRecentStepsAwarePage(any(), RECENT_HISTORY_LIMIT)
+			trackingHistoryRepository.observeRecentPressureAwarePage(any(), RECENT_HISTORY_LIMIT)
 		}
+	}
+
+	@Test
+	fun `opaque Pressure row is mapped without a physical detail identity`() = runTest {
+		val candidates = listOf(trip(1L))
+		val pressure = pressureEntry("pressure-one", 2_000L)
+		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_LIMIT) } returns flowOf(candidates)
+		every {
+			trackingHistoryRepository.observeRecentPressureAwarePage(
+				listOf(1L),
+				RECENT_HISTORY_LIMIT,
+			)
+		} returns flowOf(listOf(PressureAwareHistoryPageEntry.PressureOnly(pressure)))
+
+		val page = repository(testScheduler).observeRecentHistory().first()
+
+		page shouldContainExactly listOf(DashboardRecentHistoryEntry.PressureOnly(pressure))
 	}
 
 	@Test
 	fun `Stats page failure is propagated without raw fallback`() = runTest {
 		every { tripDao.getRecentTripsFlow(PHYSICAL_CANDIDATE_LIMIT) } returns flowOf(listOf(trip(1L)))
 		every {
-			trackingHistoryRepository.observeRecentStepsAwarePage(listOf(1L), RECENT_HISTORY_LIMIT)
+			trackingHistoryRepository.observeRecentPressureAwarePage(listOf(1L), RECENT_HISTORY_LIMIT)
 		} returns flow { throw IllegalStateException("history unavailable") }
 
 		shouldThrow<IllegalStateException> {
@@ -201,6 +225,20 @@ class DashboardHistoryRepositoryTest {
 		startTime = EpochMs(startTimeMs),
 		endTime = EpochMs(startTimeMs + 500L),
 		state = StepsOnlyHistoryListState.AVAILABLE,
+	)
+
+	private fun pressureEntry(key: String, startTimeMs: Long) = PressureOnlyHistoryEntry(
+		key = TrackingHistoryEntryKey(key),
+		startTime = EpochMs(startTimeMs),
+		endTime = EpochMs(startTimeMs + 500L),
+		pressure = PressureHistory(
+			availability = HistoryAvailability.UNAVAILABLE,
+			evidence = HistoryEvidence.NONE,
+			productState = HistoryProductState.DEGRADED,
+			coverage = PressureHistoryCoverage.UNKNOWN,
+			windows = emptyList(),
+			causes = setOf(PressureHistoryCause.RETENTION_TRUNCATED),
+		),
 	)
 
 	private companion object {

@@ -46,12 +46,17 @@ import com.adsamcik.tracker.shared.base.extension.formatAsDuration
 import com.adsamcik.tracker.shared.preferences.settings.TrackerSettingsQuick
 import com.adsamcik.tracker.shared.preferences.extension.formatDistance
 import com.adsamcik.tracker.shared.model.Trip
+import com.adsamcik.tracker.stats.api.repository.PressureHistory
+import com.adsamcik.tracker.stats.api.repository.PressureHistoryCoverage
+import com.adsamcik.tracker.stats.api.repository.PressureHistoryPresentationState
+import com.adsamcik.tracker.stats.api.repository.PressureOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryEntry
 import com.adsamcik.tracker.stats.api.repository.StepsOnlyHistoryListState
 
 /**
  * Card displaying the coordinated recent tracking page. Physical rows retain their established
- * actions while opaque Steps-only rows deliberately expose no detail identity or numeric value.
+ * actions while opaque source-only rows deliberately expose no physical detail identity. Pressure
+ * rows show only retained direct Pressure values; they never derive elevation or ascent.
  */
 @Composable
 internal fun RecentTripsCard(
@@ -119,11 +124,96 @@ private fun RecentHistoryRows(
 					is DashboardRecentHistoryEntry.StepsOnly -> key(entry.history.key) {
 						RecentStepsOnlyRow(entry.history)
 					}
+					is DashboardRecentHistoryEntry.PressureOnly -> key(entry.history.key) {
+						RecentPressureOnlyRow(entry.history)
+					}
 				}
 			}
 		}
 	}
 }
+
+@Composable
+private fun RecentPressureOnlyRow(
+	history: PressureOnlyHistoryEntry,
+	modifier: Modifier = Modifier,
+) {
+	Row(
+		modifier = modifier
+			.fillMaxWidth()
+			.heightIn(min = 48.dp)
+			.padding(vertical = 8.dp, horizontal = 4.dp),
+		verticalAlignment = Alignment.CenterVertically,
+		horizontalArrangement = Arrangement.spacedBy(12.dp),
+	) {
+		Column(modifier = Modifier.weight(1f)) {
+			Text(
+				text = stringResource(R.string.dashboard_recent_pressure_title),
+				style = MaterialTheme.typography.bodyMedium,
+				color = MaterialTheme.colorScheme.onSurface,
+			)
+			Text(
+				text = stringResource(history.state.labelResource),
+				style = MaterialTheme.typography.bodySmall,
+				color = MaterialTheme.colorScheme.onSurfaceVariant,
+			)
+			PressureSummary(history.pressure)
+			Text(
+				text = (history.endTime - history.startTime)
+					.formatAsDuration(LocalContext.current),
+				style = MaterialTheme.typography.bodySmall,
+				color = MaterialTheme.colorScheme.onSurface,
+			)
+		}
+		Text(
+			text = relativeTime(history.startTime.raw),
+			style = MaterialTheme.typography.labelSmall,
+			color = MaterialTheme.colorScheme.onSurface,
+		)
+	}
+}
+
+@Composable
+private fun PressureSummary(pressure: PressureHistory) {
+	val summary = pressure.summary ?: return
+	Text(
+		text = stringResource(
+			R.string.dashboard_recent_pressure_latest_and_range,
+			summary.latestHectopascals,
+			summary.minimumHectopascals,
+			summary.maximumHectopascals,
+		),
+		style = MaterialTheme.typography.bodySmall,
+		color = MaterialTheme.colorScheme.onSurface,
+	)
+	Text(
+		text = stringResource(
+			R.string.dashboard_recent_pressure_change_and_coverage,
+			summary.latestHectopascals - summary.firstHectopascals,
+			stringResource(pressure.coverage.labelResource),
+		),
+		style = MaterialTheme.typography.labelSmall,
+		color = MaterialTheme.colorScheme.onSurfaceVariant,
+	)
+}
+
+private val PressureHistoryPresentationState.labelResource: Int
+	get() = when (this) {
+		PressureHistoryPresentationState.MATERIALIZING ->
+			R.string.dashboard_recent_pressure_materializing
+		PressureHistoryPresentationState.PARTIAL -> R.string.dashboard_recent_pressure_partial
+		PressureHistoryPresentationState.READY -> R.string.dashboard_recent_pressure_available
+		PressureHistoryPresentationState.UNAVAILABLE -> R.string.dashboard_recent_pressure_unavailable
+		PressureHistoryPresentationState.FAILED -> R.string.dashboard_recent_pressure_failed
+	}
+
+private val PressureHistoryCoverage.labelResource: Int
+	get() = when (this) {
+		PressureHistoryCoverage.NONE -> R.string.dashboard_pressure_coverage_none
+		PressureHistoryCoverage.COMPLETE -> R.string.dashboard_pressure_coverage_complete
+		PressureHistoryCoverage.PARTIAL -> R.string.dashboard_pressure_coverage_partial
+		PressureHistoryCoverage.UNKNOWN -> R.string.dashboard_pressure_coverage_unknown
+	}
 
 @Composable
 private fun RecentHistoryMessage(text: String) {
