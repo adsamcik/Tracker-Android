@@ -14,6 +14,8 @@ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import java.time.DateTimeException
 import java.time.ZoneId
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 private suspend fun AppDatabase.markPressureRetentionTruncation(
 	logicalTrackingId: String,
@@ -53,16 +55,34 @@ private suspend fun AppDatabase.markPressureRetentionTruncation(
  * revision whose earliest possible start precedes [beforeMs] selects its whole logical fact lineage,
  * including later corrections. The exact run marker and every selected revision are changed in one
  * Room transaction; any incomplete authority rolls the operation back without inferring retention
- * from absence.
+ * from absence. Explicit total and per-run traversal ceilings keep that transaction finite; an
+ * overflow is a no-mutation failure, never permission to prune an unaudited suffix.
  */
 suspend fun AppDatabase.pruneAuthenticatedPressureFactsAffectedByRetentionFloor(
 	beforeMs: Long,
 	collectedDataEpoch: Long,
 	markedAtMs: Long,
+): Int = pruneAuthenticatedPressureFactsAffectedByRetentionFloor(
+	beforeMs = beforeMs,
+	collectedDataEpoch = collectedDataEpoch,
+	markedAtMs = markedAtMs,
+	limits = DEFAULT_PRESSURE_RETENTION_TRAVERSAL_LIMITS,
+	checkpoint = { currentCoroutineContext().ensureActive() },
+)
+
+/** Internal deterministic seam for proving bounded rollback and cooperative cancellation. */
+internal suspend fun AppDatabase.pruneAuthenticatedPressureFactsAffectedByRetentionFloor(
+	beforeMs: Long,
+	collectedDataEpoch: Long,
+	markedAtMs: Long,
+	limits: PressureRetentionTraversalLimits,
+	checkpoint: suspend (PressureRetentionCheckpoint) -> Unit,
 ): Int = withTransaction {
 	require(beforeMs >= 0L)
 	require(collectedDataEpoch >= 0L)
 	require(markedAtMs >= 0L)
+	val budget = PressureRetentionTraversalBudget(limits)
+	checkpoint(PressureRetentionCheckpoint.TRANSACTION_STARTED)
 	val evidence = requireNotNull(sourceEvidenceStateDao().get()) {
 		"Pressure retention requires initialized source-evidence state"
 	}
@@ -85,7 +105,13 @@ suspend fun AppDatabase.pruneAuthenticatedPressureFactsAffectedByRetentionFloor(
 		check(candidateRunIds.size == candidateRunIds.distinct().size &&
 			candidateRunIds == candidateRunIds.sorted()
 		) { "Pressure retention candidate page is not a unique ordered keyset" }
-		val authorities = loadPressureRetentionAuthorities(candidateRunIds, collectedDataEpoch)
+		budget.consumeRuns(candidateRunIds.size)
+		checkpoint(PressureRetentionCheckpoint.RUN_PAGE_LOADED)
+		val authorities = loadPressureRetentionAuthorities(
+			candidateRunIds,
+			collectedDataEpoch,
+			budget,
+		)
 		check(!factDao.hasCrossScopeRevisionsForRuns(candidateRunIds)) {
 			"Pressure retention encountered a correction lineage crossing run scope"
 		}
@@ -95,7 +121,10 @@ suspend fun AppDatabase.pruneAuthenticatedPressureFactsAffectedByRetentionFloor(
 				authority = authority,
 				beforeMs = beforeMs,
 				collectedDataEpoch = collectedDataEpoch,
+				budget = budget,
+				checkpoint = checkpoint,
 			)
+			checkpoint(PressureRetentionCheckpoint.RUN_AUTHENTICATED)
 			if (selected.revisionCountByLogicalFactId.isEmpty()) return@forEach
 			markPressureRetentionTruncation(
 				logicalTrackingId = authority.run.logicalTrackingId,
@@ -103,6 +132,7 @@ suspend fun AppDatabase.pruneAuthenticatedPressureFactsAffectedByRetentionFloor(
 				collectedDataEpoch = collectedDataEpoch,
 				markedAtMs = markedAtMs,
 			)
+			checkpoint(PressureRetentionCheckpoint.RUN_MARKED)
 			selected.revisionCountByLogicalFactId.entries
 				.chunked(RETENTION_FACT_DELETE_BATCH_SIZE)
 				.forEach { batch ->
@@ -121,6 +151,7 @@ suspend fun AppDatabase.pruneAuthenticatedPressureFactsAffectedByRetentionFloor(
 						"Authenticated Pressure retention lineage changed during pruning"
 					}
 					deleted = Math.addExact(deleted, actualDeleted)
+					checkpoint(PressureRetentionCheckpoint.DELETE_BATCH_APPLIED)
 				}
 		}
 		afterServiceRunId = candidateRunIds.last()
@@ -133,9 +164,11 @@ suspend fun AppDatabase.pruneAuthenticatedPressureFactsAffectedByRetentionFloor(
 private suspend fun AppDatabase.loadPressureRetentionAuthorities(
 	serviceRunIds: List<String>,
 	collectedDataEpoch: Long,
+	budget: PressureRetentionTraversalBudget,
 ): Map<String, PressureRetentionAuthority> {
 	val historyDao = trackingHistoryReadDao()
 	val runs = historyDao.serviceRuns(serviceRunIds)
+	budget.consumeAuthorityRows(runs.size)
 	val runsById = runs.associateBy(SourceServiceRunEntity::serviceRunId)
 	check(runs.size == runsById.size && runsById.keys == serviceRunIds.toSet()) {
 		"Pressure retention candidate is missing its authoritative service run"
@@ -144,6 +177,7 @@ private suspend fun AppDatabase.loadPressureRetentionAuthorities(
 		"Pressure retention requires exact run-to-segment ownership"
 	} }
 	val segments = historyDao.segments(segmentIds)
+	budget.consumeAuthorityRows(segments.size)
 	val segmentsById = segments.associateBy { segment -> segment.id }
 	check(segments.size == segmentsById.size && segmentsById.keys == segmentIds.toSet()) {
 		"Pressure retention run is missing its exact presentation segment"
@@ -160,6 +194,7 @@ private suspend fun AppDatabase.loadPressureRetentionAuthorities(
 		1,
 	)
 	val manifests = historyDao.manifests(serviceRunIds, manifestLimit)
+	budget.consumeAuthorityRows(manifests.size)
 	check(manifests.size < manifestLimit) { "Pressure retention manifest set exceeds its bound" }
 	val manifestsByRun = manifests.groupBy(SessionManifestVersionEntity::serviceRunId)
 	val sourceLimit = Math.addExact(
@@ -167,6 +202,7 @@ private suspend fun AppDatabase.loadPressureRetentionAuthorities(
 		1,
 	)
 	val sources = historyDao.manifestSources(serviceRunIds, sourceLimit)
+	budget.consumeAuthorityRows(sources.size)
 	check(sources.size < sourceLimit) { "Pressure retention manifest membership exceeds its bound" }
 	val sourcesByManifest = sources.groupBy { source ->
 		PressureRetentionManifestKey(source.logicalTrackingId, source.manifestRevision)
@@ -175,6 +211,7 @@ private suspend fun AppDatabase.loadPressureRetentionAuthorities(
 		sourceKind = SourceDestinationOwnerEntity.SOURCE_PRESSURE,
 		serviceRunIds = serviceRunIds,
 	)
+	budget.consumeAuthorityRows(policies.size)
 	val policiesByRevision = policies.associateBy(SourcePolicyEntity::policyRevision)
 	check(policies.size == policiesByRevision.size) {
 		"Pressure retention policy authority is ambiguous"
@@ -213,6 +250,7 @@ private suspend fun AppDatabase.loadPressureRetentionAuthorities(
 		purpose = SessionManifestPurposeCode.SESSION_CAPTURE,
 		epochs = consentEpochs,
 	)
+	budget.consumeAuthorityRows(consents.size)
 	val consentsByEpoch = consents.associateBy(SourceConsentEpochEntity::epoch)
 	check(consents.size == consentsByEpoch.size && consentsByEpoch.keys == consentEpochs.toSet()) {
 		"Pressure retention consent authority is missing or ambiguous"
@@ -251,6 +289,8 @@ private suspend fun AppDatabase.authenticatePressureRetentionRun(
 	authority: PressureRetentionAuthority,
 	beforeMs: Long,
 	collectedDataEpoch: Long,
+	budget: PressureRetentionTraversalBudget,
+	checkpoint: suspend (PressureRetentionCheckpoint) -> Unit,
 ): AuthenticatedPressureRetentionSelection {
 	val factDao = pressureFactRevisionDao()
 	val run = authority.run
@@ -281,6 +321,7 @@ private suspend fun AppDatabase.authenticatePressureRetentionRun(
 	var cursor: PressureRetentionFactCursor? = null
 	var previousFact: PressureFactRevisionEntity? = null
 	var factCount = 0
+	var lineageCount = 0
 	while (true) {
 		val page = cursor?.let { after ->
 			factDao.exactServiceRunPageAfter(
@@ -298,6 +339,12 @@ private suspend fun AppDatabase.authenticatePressureRetentionRun(
 			limit = RETENTION_FACT_PAGE_SIZE,
 		)
 		if (page.isEmpty()) break
+		factCount = Math.addExact(factCount, page.size)
+		check(factCount <= budget.limits.maximumFactRevisionsPerRun) {
+			"Pressure retention run fact revision budget exceeded"
+		}
+		budget.consumeFactRevisions(page.size)
+		checkpoint(PressureRetentionCheckpoint.FACT_PAGE_LOADED)
 		for (fact in page) {
 			val nextCursor = PressureRetentionFactCursor(fact)
 			check(cursor == null || nextCursor > requireNotNull(cursor)) {
@@ -322,8 +369,19 @@ private suspend fun AppDatabase.authenticatePressureRetentionRun(
 				} != false && hasValidPressureFactIdentity(fact, binding) &&
 				continuesValidPressureCorrection(previousFact, fact, authority.manifests)
 			) { "Pressure retention fact authority or correction lineage is invalid" }
+			val startsLineage = previousFact?.let { previous ->
+				previous.logicalFactId != fact.logicalFactId ||
+					previous.writerProjectionId != fact.writerProjectionId ||
+					previous.writerProjectionVersion != fact.writerProjectionVersion
+			} != false
+			if (startsLineage) {
+				lineageCount = Math.addExact(lineageCount, 1)
+				check(lineageCount <= budget.limits.maximumFactLineagesPerRun) {
+					"Pressure retention run fact lineage budget exceeded"
+				}
+				budget.consumeFactLineage()
+			}
 			previousFact = fact
-			factCount = Math.addExact(factCount, 1)
 			revisionCountByLogicalFactId[fact.logicalFactId] = Math.addExact(
 				revisionCountByLogicalFactId[fact.logicalFactId] ?: 0,
 				1,
@@ -448,6 +506,81 @@ private data class AuthenticatedPressureRetentionSelection(
 	val revisionCountByLogicalFactId: Map<String, Int>,
 )
 
+internal enum class PressureRetentionCheckpoint {
+	TRANSACTION_STARTED,
+	RUN_PAGE_LOADED,
+	FACT_PAGE_LOADED,
+	RUN_AUTHENTICATED,
+	RUN_MARKED,
+	DELETE_BATCH_APPLIED,
+}
+
+internal data class PressureRetentionTraversalLimits(
+	val maximumRuns: Long,
+	val maximumTraversalRows: Long,
+	val maximumFactRevisions: Long,
+	val maximumFactLineages: Long,
+	val maximumFactRevisionsPerRun: Int,
+	val maximumFactLineagesPerRun: Int,
+) {
+	init {
+		require(maximumRuns > 0L)
+		require(maximumTraversalRows > 0L)
+		require(maximumFactRevisions > 0L)
+		require(maximumFactLineages > 0L)
+		require(maximumFactRevisionsPerRun > 0)
+		require(maximumFactLineagesPerRun > 0)
+		require(maximumFactLineages <= maximumFactRevisions)
+		require(maximumFactRevisionsPerRun.toLong() <= maximumFactRevisions)
+		require(maximumFactLineagesPerRun.toLong() <= maximumFactLineages)
+		require(maximumFactLineagesPerRun <= maximumFactRevisionsPerRun)
+	}
+}
+
+private class PressureRetentionTraversalBudget(
+	val limits: PressureRetentionTraversalLimits,
+) {
+	private var runCount = 0L
+	private var traversalRowCount = 0L
+	private var factRevisionCount = 0L
+	private var factLineageCount = 0L
+
+	fun consumeRuns(count: Int) {
+		require(count >= 0)
+		runCount = Math.addExact(runCount, count.toLong())
+		check(runCount <= limits.maximumRuns) {
+			"Pressure retention transaction run budget exceeded"
+		}
+		consumeTraversalRows(count)
+	}
+
+	fun consumeAuthorityRows(count: Int) = consumeTraversalRows(count)
+
+	fun consumeFactRevisions(count: Int) {
+		require(count >= 0)
+		factRevisionCount = Math.addExact(factRevisionCount, count.toLong())
+		check(factRevisionCount <= limits.maximumFactRevisions) {
+			"Pressure retention transaction fact revision budget exceeded"
+		}
+		consumeTraversalRows(count)
+	}
+
+	fun consumeFactLineage() {
+		factLineageCount = Math.addExact(factLineageCount, 1L)
+		check(factLineageCount <= limits.maximumFactLineages) {
+			"Pressure retention transaction fact lineage budget exceeded"
+		}
+	}
+
+	private fun consumeTraversalRows(count: Int) {
+		require(count >= 0)
+		traversalRowCount = Math.addExact(traversalRowCount, count.toLong())
+		check(traversalRowCount <= limits.maximumTraversalRows) {
+			"Pressure retention transaction traversal row budget exceeded"
+		}
+	}
+}
+
 private data class PressureRetentionFactCursor(
 	val writerProjectionId: String,
 	val writerProjectionVersion: Int,
@@ -481,3 +614,12 @@ private const val MAX_SOURCES_PER_MANIFEST = 12
 private const val FIRST_SEMANTIC_REVISION = 1L
 private const val MIN_CAPTURE_QOS = 1
 private const val MAX_CAPTURE_QOS = 3
+
+private val DEFAULT_PRESSURE_RETENTION_TRAVERSAL_LIMITS = PressureRetentionTraversalLimits(
+	maximumRuns = 2_048L,
+	maximumTraversalRows = 262_144L,
+	maximumFactRevisions = 131_072L,
+	maximumFactLineages = 65_536L,
+	maximumFactRevisionsPerRun = 65_536,
+	maximumFactLineagesPerRun = 32_768,
+)
