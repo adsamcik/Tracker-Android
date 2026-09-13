@@ -1729,6 +1729,158 @@ val MIGRATION_27_28: Migration = object : Migration(
 			)
 			execSQL(
 				"""
+				CREATE TABLE IF NOT EXISTS cell_captured_fact_revision (
+					writer_projection_id TEXT NOT NULL,
+					writer_projection_version INTEGER NOT NULL,
+					writer_binding_generation INTEGER NOT NULL,
+					writer_owner_generation INTEGER NOT NULL,
+					logical_fact_id TEXT NOT NULL,
+					semantic_revision INTEGER NOT NULL,
+					supersedes_semantic_revision INTEGER,
+					mutation_id TEXT NOT NULL,
+					fact_kind TEXT NOT NULL,
+					aggregate_owner_logical_fact_id TEXT,
+					aggregate_owner_semantic_revision INTEGER,
+					logical_tracking_id TEXT NOT NULL,
+					service_run_id TEXT NOT NULL,
+					session_segment_id INTEGER NOT NULL,
+					purpose TEXT NOT NULL,
+					source_delivery_identity TEXT NOT NULL,
+					source_event_id TEXT NOT NULL,
+					source_admission_ordinal INTEGER NOT NULL,
+					wal_integrity_identity TEXT NOT NULL,
+					payload_checksum TEXT NOT NULL,
+					delivery_unit_index INTEGER NOT NULL,
+					delivery_unit_count INTEGER NOT NULL,
+					source_sequence INTEGER NOT NULL,
+					plan_attribution TEXT NOT NULL,
+					payload_version INTEGER NOT NULL,
+					canonical_provider_semantics_digest TEXT NOT NULL,
+					source_instance_id TEXT NOT NULL,
+					registration_generation INTEGER NOT NULL,
+					configuration_revision INTEGER NOT NULL,
+					physical_configuration_fingerprint TEXT NOT NULL,
+					authorization_revision INTEGER NOT NULL,
+					authorization_fingerprint TEXT NOT NULL,
+					purpose_eligibility_mask INTEGER NOT NULL,
+					source_policy_revision INTEGER NOT NULL,
+					capture_consent_epoch INTEGER NOT NULL,
+					manifest_revision INTEGER NOT NULL,
+					lifecycle_lease_generation INTEGER NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					scope_deletion_generation INTEGER NOT NULL,
+					clock_domain_id TEXT NOT NULL,
+					stored_zone_id TEXT NOT NULL,
+					structural_epoch_day INTEGER NOT NULL,
+					provider_acceptance_start_nanos INTEGER NOT NULL,
+					provider_acceptance_end_nanos INTEGER NOT NULL,
+					authorization_effect_start_nanos INTEGER NOT NULL,
+					authorization_effect_end_nanos INTEGER NOT NULL,
+					consent_effect_start_nanos INTEGER NOT NULL,
+					consent_effect_end_nanos INTEGER NOT NULL,
+					session_run_effect_start_nanos INTEGER NOT NULL,
+					session_run_effect_end_nanos INTEGER NOT NULL,
+					deletion_effect_start_nanos INTEGER NOT NULL,
+					deletion_effect_end_nanos INTEGER NOT NULL,
+					maximum_observation_age_nanos INTEGER NOT NULL,
+					observed_interval_start_nanos INTEGER NOT NULL,
+					observed_elapsed_nanos INTEGER NOT NULL,
+					received_elapsed_nanos INTEGER NOT NULL,
+					coverage_interval_start_nanos INTEGER NOT NULL,
+					coverage_interval_end_nanos INTEGER NOT NULL,
+					observed_wall_time_ms INTEGER NOT NULL,
+					wall_time_uncertainty_ms INTEGER NOT NULL,
+					acquired_at_ms INTEGER NOT NULL,
+					created_at_ms INTEGER NOT NULL,
+					quality_flags INTEGER NOT NULL,
+					quality_confidence REAL,
+					availability TEXT NOT NULL,
+					submitted_child_count INTEGER NOT NULL,
+					accepted_child_count INTEGER NOT NULL,
+					stale_child_count INTEGER NOT NULL,
+					future_time_child_count INTEGER NOT NULL,
+					missing_time_child_count INTEGER NOT NULL,
+					clock_unverifiable_child_count INTEGER NOT NULL,
+					authority_mismatch_child_count INTEGER NOT NULL,
+					unsupported_technology_child_count INTEGER NOT NULL,
+					subscription_completeness TEXT NOT NULL,
+					child_completeness TEXT NOT NULL,
+					observation_count INTEGER,
+					registered_observation_count INTEGER,
+					gsm_count INTEGER,
+					cdma_count INTEGER,
+					wcdma_count INTEGER,
+					tdscdma_count INTEGER,
+					lte_count INTEGER,
+					nr_count INTEGER,
+					quality_unknown_count INTEGER,
+					quality_none_or_unknown_count INTEGER,
+					quality_poor_count INTEGER,
+					quality_moderate_count INTEGER,
+					quality_good_count INTEGER,
+					quality_great_count INTEGER,
+					weak_observation_count INTEGER,
+					known_quality_observation_count INTEGER,
+					all_known_quality_is_weak INTEGER,
+					effect_checksum TEXT NOT NULL,
+					applied_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(writer_projection_id, writer_projection_version, logical_fact_id, semantic_revision)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_cell_captured_fact_mutation " +
+					"ON cell_captured_fact_revision(writer_projection_id, writer_projection_version, mutation_id)",
+			)
+			execSQL(
+				"CREATE UNIQUE INDEX IF NOT EXISTS idx_cell_captured_fact_admission " +
+					"ON cell_captured_fact_revision(writer_projection_id, writer_projection_version, " +
+					"source_admission_ordinal)",
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_cell_captured_fact_run_scope " +
+					"ON cell_captured_fact_revision(service_run_id, logical_tracking_id, session_segment_id)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS cell_captured_fact_cursor (
+					writer_projection_id TEXT NOT NULL,
+					writer_projection_version INTEGER NOT NULL,
+					logical_fact_id TEXT NOT NULL,
+					logical_tracking_id TEXT NOT NULL,
+					service_run_id TEXT NOT NULL,
+					session_segment_id INTEGER NOT NULL,
+					writer_owner_generation INTEGER NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					scope_deletion_generation INTEGER NOT NULL,
+					latest_semantic_revision INTEGER NOT NULL,
+					latest_mutation_id TEXT NOT NULL,
+					latest_effect_checksum TEXT NOT NULL,
+					latest_source_admission_ordinal INTEGER NOT NULL,
+					cursor_revision INTEGER NOT NULL,
+					updated_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(writer_projection_id, writer_projection_version, logical_fact_id)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_cell_captured_cursor_run_scope " +
+					"ON cell_captured_fact_cursor(service_run_id, logical_tracking_id, session_segment_id)",
+			)
+			execSQL(
+				"""
+				CREATE TABLE IF NOT EXISTS cell_capture_deletion_generation (
+					logical_tracking_id TEXT NOT NULL,
+					service_run_id TEXT NOT NULL,
+					collected_data_epoch INTEGER NOT NULL,
+					generation INTEGER NOT NULL,
+					updated_at_ms INTEGER NOT NULL,
+					PRIMARY KEY(logical_tracking_id, service_run_id)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"""
 				CREATE TABLE IF NOT EXISTS legacy_v27_projection_drain (
 					id INTEGER NOT NULL,
 					source_schema_version INTEGER NOT NULL,

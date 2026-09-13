@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -13,6 +14,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
 import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDesiredPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEvidenceState
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
@@ -53,12 +55,14 @@ class CellWalQualificationAdapterTest {
 	private val payloadCodec = DefaultSourcePayloadCodec()
 	private val planCodec = SourcePlanCodec()
 	private lateinit var subject: CellWalQualificationAdapter
+	private lateinit var writer: CellCapturedFactWriter
 
 	@Before
 	fun setUp() {
 		val context: Application = ApplicationProvider.getApplicationContext()
 		database = AppDatabase.testDatabase(context)
 		subject = CellWalQualificationAdapter(database, payloadCodec, planCodec)
+		writer = CellCapturedFactWriter(database, subject)
 	}
 
 	@After
@@ -237,6 +241,143 @@ class CellWalQualificationAdapterTest {
 		)
 	}
 
+	@Test
+	fun `dormant candidate writer atomically appends fact cursor and evidence revision`() = runTest {
+		installValidFixture(candidateWriter = true)
+		val beforeEvidenceRevision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
+
+		val applied = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val cursor = requireNotNull(
+			database.cellCapturedFactDao().cursor(
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+				applied.logicalFactId,
+			),
+		)
+		val fact = requireNotNull(
+			database.cellCapturedFactDao().revision(
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+				applied.logicalFactId,
+				applied.semanticRevision,
+			),
+		)
+
+		assertEquals(1L, database.cellCapturedFactDao().revisionCount())
+		assertEquals(fact.semanticRevision, cursor.latestSemanticRevision)
+		assertEquals(fact.mutationId, cursor.latestMutationId)
+		assertEquals(fact.effectChecksum, cursor.latestEffectChecksum)
+		assertEquals(0L, fact.scopeDeletionGeneration)
+		assertEquals("UNKNOWN", fact.subscriptionCompleteness)
+		assertEquals(beforeEvidenceRevision + 1L, database.sourceEvidenceStateDao().get()?.revision)
+	}
+
+	@Test
+	fun `exact WAL replay is a zero mutation idempotent result`() = runTest {
+		installValidFixture(candidateWriter = true)
+		val first = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val evidenceRevision = requireNotNull(database.sourceEvidenceStateDao().get()).revision
+
+		val replay = assertIs<CellCapturedWriteResult.Unchanged>(writer.write(EVENT_ID))
+
+		assertEquals(first.logicalFactId, replay.logicalFactId)
+		assertEquals(1L, database.cellCapturedFactDao().revisionCount())
+		assertEquals(evidenceRevision, database.sourceEvidenceStateDao().get()?.revision)
+	}
+
+	@Test
+	fun `candidate writer remains dormant without exact destination owner`() = runTest {
+		installValidFixture(candidateWriter = true, installDestinationOwner = false)
+
+		assertEquals(
+			CellCapturedWriteResult.Rejected(CellCapturedWriteRejection.DESTINATION_OWNER_CHANGED),
+			writer.write(EVENT_ID),
+		)
+		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `v1 WAL cannot be rebound to a later source deletion generation`() = runTest {
+		installValidFixture(candidateWriter = true, deletionGeneration = 1L)
+
+		assertEquals(
+			CellCapturedWriteResult.AdapterRejected(
+				CellWalAdapterRejection.SCOPE_DELETION_AUTHORITY_MISMATCH,
+			),
+			writer.write(EVENT_ID),
+		)
+		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `source deletion generation advances only by exact sequential CAS`() = runTest {
+		database.cellCapturedFactDao().insertDeletionGeneration(
+			CellCaptureDeletionGenerationEntity(
+				logicalTrackingId = LOGICAL_ID,
+				serviceRunId = RUN_ID,
+				collectedDataEpoch = 0L,
+				generation = 1L,
+				updatedAtMs = RUN_START_WALL_MS,
+			),
+		)
+
+		assertEquals(
+			0,
+			database.cellCapturedFactDao().advanceDeletionGenerationExact(
+				LOGICAL_ID, RUN_ID, 0L, 1L, 3L, RUN_START_WALL_MS + 1L,
+			),
+		)
+		assertEquals(
+			1,
+			database.cellCapturedFactDao().advanceDeletionGenerationExact(
+				LOGICAL_ID, RUN_ID, 0L, 1L, 2L, RUN_START_WALL_MS + 1L,
+			),
+		)
+		assertEquals(2L, database.cellCapturedFactDao().deletionGeneration(LOGICAL_ID, RUN_ID)?.generation)
+	}
+
+	@Test
+	fun `global epoch rotation blocks old generation zero WAL before scope reuse`() = runTest {
+		installValidFixture(candidateWriter = true)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_evidence_state SET collected_data_epoch = 1 WHERE id = 1",
+		)
+
+		assertEquals(
+			CellCapturedWriteResult.AdapterRejected(CellWalAdapterRejection.DELETED_EVIDENCE),
+			writer.write(EVENT_ID),
+		)
+		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
+	}
+
+	@Test
+	fun `partial delivery persists only fresh child coverage while retaining full WAL interval`() = runTest {
+		val staleTime = AUTHORIZATION_START_NANOS - 1L
+		installValidFixture(
+			candidateWriter = true,
+			observations = listOf(
+				CellObservationEvidence("", "LTE", true, -100, staleTime),
+				CellObservationEvidence("", "NR", false, -85, OBSERVED_END_NANOS),
+			),
+		)
+
+		val applied = assertIs<CellCapturedWriteResult.Applied>(writer.write(EVENT_ID))
+		val fact = requireNotNull(
+			database.cellCapturedFactDao().revision(
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID,
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION,
+				applied.logicalFactId,
+				applied.semanticRevision,
+			),
+		)
+
+		assertEquals(staleTime, fact.observedIntervalStartNanos)
+		assertEquals(OBSERVED_END_NANOS, fact.coverageIntervalStartNanos)
+		assertEquals(OBSERVED_END_NANOS, fact.coverageIntervalEndNanos)
+		assertEquals(1, fact.acceptedChildCount)
+		assertEquals(1, fact.staleChildCount)
+	}
+
 	private suspend fun installValidFixture(
 		sourceSequence: Long = SOURCE_SEQUENCE,
 		deliveryIdentityOverride: String? = null,
@@ -244,14 +385,40 @@ class CellWalQualificationAdapterTest {
 		zoneId: String = ZONE_ID,
 		observedWallMs: Long = OBSERVED_WALL_MS,
 		segmentRunId: String = RUN_ID,
+		candidateWriter: Boolean = false,
+		installDestinationOwner: Boolean = candidateWriter,
+		deletionGeneration: Long? = null,
+		observations: List<CellObservationEvidence> = observations(),
 	) {
 		database.sourceEvidenceStateDao().ensure(evidenceState)
+		if (deletionGeneration != null) {
+			database.cellCapturedFactDao().insertDeletionGeneration(
+				CellCaptureDeletionGenerationEntity(
+					logicalTrackingId = LOGICAL_ID,
+					serviceRunId = RUN_ID,
+					collectedDataEpoch = evidenceState.collectedDataEpoch,
+					generation = deletionGeneration,
+					updatedAtMs = RUN_START_WALL_MS,
+				),
+			)
+		}
+		if (installDestinationOwner) {
+			database.sourceDestinationOwnerDao().insertIfAbsent(
+				SourceDestinationOwnerEntity(
+					sourceKind = CELL_SOURCE,
+					destination = SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL,
+					owner = SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS,
+					ownerGeneration = SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION,
+					updatedAtMs = RUN_START_WALL_MS,
+				),
+			)
+		}
 		val plan = cellPlan()
 		insertPlan(plan)
 		installPolicyAndConsent()
 		val segmentId = database.sessionSegmentDao().insert(segment(segmentRunId))
 		assertEquals(SEGMENT_ID, segmentId)
-		installSessionAndManifest(segmentId, zoneId)
+		installSessionAndManifest(segmentId, zoneId, candidateWriter)
 		val demand = demand()
 		database.sourceBrokerDao().insertDemands(listOf(demand))
 		database.sourceBrokerDao().insertRegistration(registration(plan.physicalConfigurationFingerprint()))
@@ -265,7 +432,6 @@ class CellWalQualificationAdapterTest {
 			effectiveWallTimeMs = RUN_START_WALL_MS,
 		)
 		database.sourceBrokerDao().insertAuthorizations(authorization)
-		val observations = observations()
 		val payload = CellSnapshotPayload(null, observations, CellRefreshOutcome.CALLBACK)
 		val encodedPayload = payloadCodec.encode(payload, PAYLOAD_VERSION)
 		val deliveryIdentity = deliveryIdentityOverride ?: cellProviderDeliveryIdentity(
@@ -291,8 +457,12 @@ class CellWalQualificationAdapterTest {
 			configRevision = PLAN_REVISION,
 			planAttribution = PlanAttribution.CAPTURED_REGISTRATION.ordinal,
 			clockDomainId = BOOT_ID,
-			observedElapsedNanos = OBSERVED_END_NANOS,
-			observedIntervalStartNanos = OBSERVED_START_NANOS,
+			observedElapsedNanos = requireNotNull(
+				observations.mapNotNull(CellObservationEvidence::providerTimestampNanos).maxOrNull(),
+			),
+			observedIntervalStartNanos = requireNotNull(
+				observations.mapNotNull(CellObservationEvidence::providerTimestampNanos).minOrNull(),
+			),
 			receivedElapsedNanos = RECEIVED_NANOS,
 			wallTimeMs = observedWallMs,
 			wallTimeUncertaintyMs = WALL_UNCERTAINTY_MS,
@@ -389,7 +559,11 @@ class CellWalQualificationAdapterTest {
 		)
 	}
 
-	private suspend fun installSessionAndManifest(segmentId: Long, zoneId: String) {
+	private suspend fun installSessionAndManifest(
+		segmentId: Long,
+		zoneId: String,
+		candidateWriter: Boolean,
+	) {
 		database.sourceSessionDao().insertSession(
 			LogicalTrackingSessionEntity(
 				logicalTrackingId = LOGICAL_ID,
@@ -456,6 +630,24 @@ class CellWalQualificationAdapterTest {
 			consentEpoch = CONSENT_EPOCH,
 			persistenceEligible = true,
 			qosCode = QOS_CODE,
+			outputDestination = if (candidateWriter) {
+				SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL
+			} else null,
+			writerOwner = if (candidateWriter) {
+				SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS
+			} else null,
+			writerOwnerGeneration = if (candidateWriter) {
+				SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION
+			} else null,
+			writerProjectionId = if (candidateWriter) {
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID
+			} else null,
+			writerProjectionVersion = if (candidateWriter) {
+				SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION
+			} else null,
+			writerBindingGeneration = if (candidateWriter) {
+				SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION
+			} else null,
 		)
 		val unsigned = SessionManifestVersionEntity(
 			logicalTrackingId = LOGICAL_ID,

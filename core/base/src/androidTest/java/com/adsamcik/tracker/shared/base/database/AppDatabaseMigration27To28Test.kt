@@ -678,6 +678,10 @@ class AppDatabaseMigration27To28Test {
 		assertTableCount(database, "imported_steps_manifest", 0)
 		// Legacy pressure_sample rows lack v4 qualification and must never be backfilled.
 		assertTableCount(database, "pressure_fact_revision", 0)
+		// v27 Cell samples likewise cannot acquire v28 WAL/authority provenance by migration.
+		assertTableCount(database, "cell_captured_fact_revision", 0)
+		assertTableCount(database, "cell_captured_fact_cursor", 0)
+		assertTableCount(database, "cell_capture_deletion_generation", 0)
 		assertIndexColumns(
 			database = database,
 			indexName = "idx_pressure_fact_revision_service_run_scope",
@@ -1154,6 +1158,9 @@ class AppDatabaseMigration27To28Test {
 		assertEquals("LEGACY_PRESSURE_SAMPLE", pressureOwner.owner)
 		assertEquals(1L, pressureOwner.ownerGeneration)
 		assertEquals(0L, database.pressureFactRevisionDao().count())
+		assertEquals(0L, database.cellCapturedFactDao().revisionCount())
+		assertEquals(0L, database.cellCapturedFactDao().cursorCount())
+		assertEquals(0L, database.cellCapturedFactDao().deletionGenerationCount())
 	}
 
 	private suspend fun seedMigratedStepFactRevision(database: AppDatabase) {

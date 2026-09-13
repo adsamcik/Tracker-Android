@@ -15,6 +15,7 @@ import com.adsamcik.tracker.shared.base.database.dao.ActivityDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivityAutomaticStartActionDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivityAutomationEpochDao
 import com.adsamcik.tracker.shared.base.database.dao.ActivitySnapshotDao
+import com.adsamcik.tracker.shared.base.database.dao.CellCapturedFactDao
 import com.adsamcik.tracker.shared.base.database.dao.CellSampleDao
 import com.adsamcik.tracker.shared.base.database.dao.DailySummaryDao
 import com.adsamcik.tracker.shared.base.database.dao.GeneralDao
@@ -43,6 +44,9 @@ import com.adsamcik.tracker.shared.base.database.dao.XpLedgerDao
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomationEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCaptureDeletionGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactCursorEntity
+import com.adsamcik.tracker.shared.base.database.data.CellCapturedFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.CellSample
 import com.adsamcik.tracker.shared.base.database.data.DailySummaryEntity
 import com.adsamcik.tracker.shared.base.database.data.ImportEntryReceiptEntity
@@ -175,6 +179,9 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			ImportedStepsRunEntity::class,
 			ImportedStepsManifestEntity::class,
 			PressureFactRevisionEntity::class,
+			CellCapturedFactRevisionEntity::class,
+			CellCapturedFactCursorEntity::class,
+			CellCaptureDeletionGenerationEntity::class,
 			SourceDeletionFenceEntity::class,
 			SourceDestinationOwnerEntity::class,
 			ActivitySnapshot::class,
@@ -295,6 +302,9 @@ abstract class AppDatabase : RoomDatabase() {
 
 	/** Provides the dormant append-only source-qualified Pressure fact history. */
 	abstract fun pressureFactRevisionDao(): PressureFactRevisionDao
+
+	/** Dormant identity-free Cell captured-fact persistence. */
+	abstract fun cellCapturedFactDao(): CellCapturedFactDao
 
 	/** Provides payload-free source/run deletion authority for source mutation paths. */
 	abstract fun sourceDeletionFenceDao(): SourceDeletionFenceDao
@@ -615,6 +625,9 @@ abstract class AppDatabase : RoomDatabase() {
 			database.stepFactRevisionDao().deleteAll()
 			database.importedStepsDao().deleteAll()
 			database.pressureFactRevisionDao().deleteAll()
+			database.cellCapturedFactDao().deleteAllCursors()
+			database.cellCapturedFactDao().deleteAllRevisions()
+			database.cellCapturedFactDao().deleteAllDeletionGenerations()
 			database.stepIntervalDao().deleteAll()
 			database.activitySnapshotDao().deleteAll()
 			database.cellSampleDao().deleteAll()

@@ -247,6 +247,10 @@ data class SessionManifestSourceEntity(
 		val isPersistenceEligibleCapture =
 			purpose == SourceBrokerPurpose.SESSION_CAPTURE && persistenceEligible
 		when {
+			isPersistenceEligibleCapture && outputDestination != null &&
+				sourceKind == SourceDestinationOwnerEntity.SOURCE_CELL -> requireCellWriter()
+			isPersistenceEligibleCapture &&
+				sourceKind == SourceDestinationOwnerEntity.SOURCE_CELL -> Unit
 			isPersistenceEligibleCapture &&
 				sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS -> requireStepsWriter()
 			isPersistenceEligibleCapture &&
@@ -255,6 +259,17 @@ data class SessionManifestSourceEntity(
 				"Only supported persistence-eligible capture sources may carry writer provenance"
 			}
 		}
+	}
+
+	private fun requireCellWriter() {
+		require(outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_CELL) {
+			"Cell capture must target the permanent session Cell destination"
+		}
+		require(writerOwner == SourceDestinationOwnerEntity.OWNER_CELL_SESSION_FACTS)
+		require(writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION)
+		require(writerProjectionId == SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_ID)
+		require(writerProjectionVersion == SourceDestinationOwnerEntity.CELL_FACT_PROJECTION_VERSION)
+		require(writerBindingGeneration == SourceDestinationOwnerEntity.CELL_FACT_BINDING_GENERATION)
 	}
 
 	private fun requireStepsWriter() {

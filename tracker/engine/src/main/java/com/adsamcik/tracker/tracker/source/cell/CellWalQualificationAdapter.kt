@@ -8,6 +8,7 @@ import com.adsamcik.tracker.shared.base.database.data.SessionManifestPurposeCode
 import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationSnapshot
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceDeletionFenceEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
@@ -57,6 +58,8 @@ internal enum class CellWalAdapterRejection {
 	INVALID_STORED_ZONE,
 	STRUCTURAL_DAY_UNVERIFIABLE,
 	DELETED_EVIDENCE,
+	DELETED_SCOPE,
+	SCOPE_DELETION_AUTHORITY_MISMATCH,
 	BEFORE_RETENTION_FLOOR,
 	TEMPORAL_AUTHORITY_UNVERIFIABLE,
 }
@@ -380,6 +383,34 @@ internal class CellWalQualificationAdapter @Inject constructor(
 		) {
 			return@withTransaction rejected(CellWalAdapterRejection.DELETED_EVIDENCE)
 		}
+		val deletionIdentity = SourceDeletionFenceEntity.logicalServiceRunIdentity(
+			sourceKind = CELL_SOURCE,
+			purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+			logicalTrackingId = logicalTrackingId,
+			serviceRunId = serviceRunId,
+		)
+		if (database.sourceDeletionFenceDao().contains(
+				sourceKind = CELL_SOURCE,
+				purpose = SourceBrokerPurpose.SESSION_CAPTURE,
+				scopeKind = SourceDeletionFenceEntity.SCOPE_LOGICAL_SERVICE_RUN,
+				scopeIdentityDigest = deletionIdentity,
+			)
+		) {
+			return@withTransaction rejected(CellWalAdapterRejection.DELETED_SCOPE)
+		}
+		val deletionState = database.cellCapturedFactDao().deletionGeneration(
+			logicalTrackingId,
+			serviceRunId,
+		)
+		if (deletionState != null) {
+			// Cell WAL v1 did not capture a source-local deletion generation. It can prove the
+			// initial generation only through the already-validated global collected-data epoch;
+			// assigning a later current generation here would resurrect pre-deletion evidence.
+			return@withTransaction rejected(
+				CellWalAdapterRejection.SCOPE_DELETION_AUTHORITY_MISMATCH,
+			)
+		}
+		val scopeDeletionGeneration = 0L
 		val wallInterval = providerWallInterval(wal)
 			?: return@withTransaction rejected(CellWalAdapterRejection.STRUCTURAL_DAY_UNVERIFIABLE)
 		if (evidenceState.retainedFromMs?.let { wallInterval.first < it } == true) {
@@ -431,8 +462,7 @@ internal class CellWalQualificationAdapter @Inject constructor(
 				sessionManifestRevision = manifestRevision,
 				lifecycleLeaseGeneration = leaseGeneration,
 				collectedDataEpoch = wal.capturedCollectedDataEpoch,
-				// No Cell fact table/deletion fence exists yet; global epoch/high-water/retention are exact.
-				scopeDeletionGeneration = 0L,
+				scopeDeletionGeneration = scopeDeletionGeneration,
 				clockDomainId = wal.clockDomainId,
 				zoneId = manifest.zoneId,
 				structuralEpochDay = firstDay,
