@@ -57,6 +57,37 @@ class WifiSourceRuntimeTest {
 	}
 
 	@Test
+	fun `wifi capability uses the same API-specific scan prerequisites as admission`() {
+		val api27ChangeOnly = wifiCapabilities(
+			readyState().copy(
+				apiLevel = 27,
+				fineLocationPermission = false,
+				changeWifiStatePermission = true,
+				locationServicesEnabled = false,
+			),
+		)
+		val api28Coarse = wifiCapabilities(
+			readyState().copy(
+				apiLevel = 28,
+				fineLocationPermission = false,
+				coarseLocationPermission = true,
+			),
+		)
+		val api29Coarse = wifiCapabilities(
+			readyState().copy(
+				apiLevel = 29,
+				fineLocationPermission = false,
+				coarseLocationPermission = true,
+			),
+		)
+
+		assertTrue(api27ChangeOnly.available)
+		assertTrue(api28Coarse.available)
+		assertFalse(api29Coarse.available)
+		assertTrue(SourceDegradedReason.PERMISSION_MISSING in api29Coarse.degradedReasons)
+	}
+
+	@Test
 	fun `callback prerequisite gate always reads current permission and capability state`() {
 		var state = readyState()
 		val gate = WifiCallbackPrerequisiteGate { state }

@@ -4,14 +4,18 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.location.LocationManager
 import android.os.Build
+import android.Manifest
 import com.adsamcik.tracker.shared.base.assist.Assist
+import com.adsamcik.tracker.shared.base.extension.WifiScanPlatformRequirements
 import com.adsamcik.tracker.shared.base.extension.hasActivityPermission
 import com.adsamcik.tracker.shared.base.extension.hasBackgroundLocationPermission
+import com.adsamcik.tracker.shared.base.extension.hasCoarseLocationPermission
 import com.adsamcik.tracker.shared.base.extension.hasLocationPermission
+import com.adsamcik.tracker.shared.base.extension.hasPreciseLocationPermission
 import com.adsamcik.tracker.shared.base.extension.hasPressureSensor
 import com.adsamcik.tracker.shared.base.extension.hasReadPhonePermission
+import com.adsamcik.tracker.shared.base.extension.hasSelfPermission
 import com.adsamcik.tracker.shared.base.extension.hasStepCounterSensor
-import com.adsamcik.tracker.shared.base.extension.hasWifiScanPermission
 import com.adsamcik.tracker.tracker.source.coordinator.SessionStartOrigin
 import com.adsamcik.tracker.tracker.source.model.SourceKind
 
@@ -20,6 +24,7 @@ internal fun Context.foregroundSourceCapabilities(
 	startOrigin: SessionStartOrigin,
 ): ForegroundSourceCapabilities {
 	val device = manualTrackingDeviceCapabilities()
+	val manual = device.toManualTrackingSourceCapabilities()
 	return ForegroundSourceCapabilities(
 		sdkInt = Build.VERSION.SDK_INT,
 		startOrigin = startOrigin,
@@ -30,8 +35,7 @@ internal fun Context.foregroundSourceCapabilities(
 		activity = device.activityProviderAvailable && device.hasActivityRecognitionPermission,
 		steps = device.stepCounterAvailable && device.hasActivityRecognitionPermission,
 		pressure = device.pressureSensorAvailable,
-		wifi = device.wifiHardwareAvailable && device.hasPreciseLocationPermission &&
-			device.locationServicesEnabled,
+		wifi = SourceKind.WIFI in manual.availableSources,
 		cell = device.cellHardwareAvailable && device.hasPreciseLocationPermission &&
 			device.hasReadPhoneStatePermission && device.locationServicesEnabled,
 	)
@@ -48,6 +52,7 @@ internal data class ManualTrackingSourceCapabilities(
 )
 
 internal data class ManualTrackingDeviceCapabilities(
+	val apiLevel: Int,
 	val locationHardwareAvailable: Boolean,
 	val activityProviderAvailable: Boolean,
 	val stepCounterAvailable: Boolean,
@@ -55,7 +60,9 @@ internal data class ManualTrackingDeviceCapabilities(
 	val wifiHardwareAvailable: Boolean,
 	val cellHardwareAvailable: Boolean,
 	val hasAnyLocationPermission: Boolean,
+	val hasCoarseLocationPermission: Boolean,
 	val hasPreciseLocationPermission: Boolean,
+	val hasChangeWifiStatePermission: Boolean,
 	val hasActivityRecognitionPermission: Boolean,
 	val hasReadPhoneStatePermission: Boolean,
 	val locationServicesEnabled: Boolean,
@@ -71,11 +78,17 @@ internal fun ManualTrackingDeviceCapabilities.toManualTrackingSourceCapabilities
 		if (wifiHardwareAvailable) add(SourceKind.WIFI)
 		if (cellHardwareAvailable) add(SourceKind.CELL)
 	}
+	val wifiPermissionAvailable = WifiScanPlatformRequirements.hasRequiredPermission(
+		apiLevel,
+		hasCoarseLocationPermission,
+		hasPreciseLocationPermission,
+		hasChangeWifiStatePermission,
+	)
 	val missingPreciseLocationPermission = buildSet {
 		if (SourceKind.LOCATION in supportedSources && !hasAnyLocationPermission) {
 			add(SourceKind.LOCATION)
 		}
-		if (SourceKind.WIFI in supportedSources && !hasPreciseLocationPermission) {
+		if (SourceKind.WIFI in supportedSources && !wifiPermissionAvailable) {
 			add(SourceKind.WIFI)
 		}
 		if (SourceKind.CELL in supportedSources && !hasPreciseLocationPermission) {
@@ -95,10 +108,13 @@ internal fun ManualTrackingDeviceCapabilities.toManualTrackingSourceCapabilities
 			add(SourceKind.CELL)
 		}
 	}
-	val blockedByLocationServices = if (locationServicesEnabled) {
-		emptySet()
-	} else {
-		supportedSources intersect setOf(SourceKind.LOCATION, SourceKind.WIFI, SourceKind.CELL)
+	val blockedByLocationServices = buildSet {
+		if (!locationServicesEnabled) {
+			addAll(supportedSources intersect setOf(SourceKind.LOCATION, SourceKind.CELL))
+			if (SourceKind.WIFI in supportedSources &&
+				WifiScanPlatformRequirements.requiresLocationServices(apiLevel)
+			) add(SourceKind.WIFI)
+		}
 	}
 	val unavailableSources = missingPreciseLocationPermission +
 		missingActivityRecognitionPermission +
@@ -120,6 +136,7 @@ internal fun Context.manualTrackingSourceCapabilities(): ManualTrackingSourceCap
 private fun Context.manualTrackingDeviceCapabilities(): ManualTrackingDeviceCapabilities {
 	val packageManager = packageManager
 	return ManualTrackingDeviceCapabilities(
+		apiLevel = Build.VERSION.SDK_INT,
 		locationHardwareAvailable = packageManager.hasSystemFeature(PackageManager.FEATURE_LOCATION),
 		activityProviderAvailable = Assist.isPlayServicesAvailable(this),
 		stepCounterAvailable = hasStepCounterSensor,
@@ -129,7 +146,9 @@ private fun Context.manualTrackingDeviceCapabilities(): ManualTrackingDeviceCapa
 			(Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
 				packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_RADIO_ACCESS)),
 		hasAnyLocationPermission = hasLocationPermission,
-		hasPreciseLocationPermission = hasWifiScanPermission,
+		hasCoarseLocationPermission = hasCoarseLocationPermission,
+		hasPreciseLocationPermission = hasPreciseLocationPermission,
+		hasChangeWifiStatePermission = hasSelfPermission(Manifest.permission.CHANGE_WIFI_STATE),
 		hasActivityRecognitionPermission = hasActivityPermission,
 		hasReadPhoneStatePermission = hasReadPhonePermission,
 		locationServicesEnabled = locationServicesEnabledForManualTracking(),

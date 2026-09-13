@@ -1975,7 +1975,7 @@ internal class TrackerService : CoreService() {
 				activity = hasActivityPermission && Assist.isPlayServicesAvailable(this),
 				steps = hasActivityPermission && hasStepCounterSensor,
 				pressure = hasPressureSensor,
-				wifi = wifiFeature && permissionCapabilities.hasWifiScanPermissions,
+				wifi = wifiFeature && permissionCapabilities.hasWifiScan,
 				cell = cellFeature && hasCellScanPermission,
 			),
 		)

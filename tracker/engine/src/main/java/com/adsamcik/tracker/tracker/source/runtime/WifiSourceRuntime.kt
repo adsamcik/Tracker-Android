@@ -1048,13 +1048,8 @@ private data class WifiProviderRetirementIntent(
  * attempt are opportunistic; neither establishes a wake-reliable sampling interval.
  */
 internal fun wifiCapabilities(state: WifiDeviceState): SourceCapabilities {
-	val available = state.wifiFeatureAvailable && state.fineLocationPermission &&
-		state.locationServicesEnabled
-	val reasons = buildSet {
-		if (!state.wifiFeatureAvailable) add(SourceDegradedReason.HARDWARE_UNAVAILABLE)
-		if (!state.fineLocationPermission) add(SourceDegradedReason.PERMISSION_MISSING)
-		if (!state.locationServicesEnabled) add(SourceDegradedReason.PROVIDER_UNAVAILABLE)
-	}
+	val reasons = wifiPrerequisiteBlockers(state)
+	val available = reasons.isEmpty()
 	return SourceCapabilities(
 		available = available,
 		batchingSupported = false,

@@ -25,6 +25,38 @@ class ConnectivityPrerequisiteEvaluatorTest {
 	}
 
 	@Test
+	fun `Wi-Fi runtime admission follows API 27 through 29 scan prerequisites`() {
+		val api27ChangeOnly = WifiPrerequisiteEvaluator.evaluate(
+			wifiPlan(),
+			wifiDevice(
+				api = 27,
+				fine = false,
+				changeWifiState = true,
+				locationServices = false,
+			),
+		)
+		val api28Coarse = WifiPrerequisiteEvaluator.evaluate(
+			wifiPlan(),
+			wifiDevice(api = 28, fine = false, coarse = true),
+		)
+		val api28ServicesOff = WifiPrerequisiteEvaluator.evaluate(
+			wifiPlan(),
+			wifiDevice(api = 28, fine = false, coarse = true, locationServices = false),
+		)
+		val api29Coarse = WifiPrerequisiteEvaluator.evaluate(
+			wifiPlan(),
+			wifiDevice(api = 29, fine = false, coarse = true),
+		)
+
+		assertEquals(SourceApplyStatus.APPLIED, api27ChangeOnly.status)
+		assertEquals(SourceApplyStatus.APPLIED, api28Coarse.status)
+		assertEquals(SourceApplyStatus.BLOCKED, api28ServicesOff.status)
+		assertTrue(SourceDegradedReason.PROVIDER_UNAVAILABLE in api28ServicesOff.reasons)
+		assertEquals(SourceApplyStatus.BLOCKED, api29Coarse.status)
+		assertTrue(SourceDegradedReason.PERMISSION_MISSING in api29Coarse.reasons)
+	}
+
+	@Test
 	fun `Wi-Fi location services disabled is a visible provider block`() {
 		val result = WifiPrerequisiteEvaluator.evaluate(wifiPlan(), wifiDevice(locationServices = false))
 
@@ -91,10 +123,21 @@ class ConnectivityPrerequisiteEvaluatorTest {
 	private fun backoff() = RetryBackoff(30_000, 1_800_000)
 
 	private fun wifiDevice(
+		api: Int = 29,
 		fine: Boolean = true,
+		coarse: Boolean = false,
+		changeWifiState: Boolean = false,
 		locationServices: Boolean = true,
 		idle: Boolean = false,
-	) = WifiDeviceState(true, fine, locationServices, idle)
+	) = WifiDeviceState(
+		wifiFeatureAvailable = true,
+		fineLocationPermission = fine,
+		locationServicesEnabled = locationServices,
+		deviceIdle = idle,
+		apiLevel = api,
+		coarseLocationPermission = coarse,
+		changeWifiStatePermission = changeWifiState,
+	)
 
 	private fun cellDevice(
 		api: Int = 31,

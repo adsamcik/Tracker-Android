@@ -34,9 +34,39 @@ enum class BackgroundLocationCapability {
 /** The effective capability for this app's scan-based [android.net.wifi.WifiManager] calls. */
 enum class WifiScanCapability {
 	UNAVAILABLE,
-	MISSING_PRECISE_LOCATION,
+	MISSING_REQUIRED_PERMISSION,
 	REVOKED,
 	AVAILABLE,
+}
+
+/** Platform prerequisites for this app's scan-only startScan()/getScanResults() path. */
+object WifiScanPlatformRequirements {
+	fun hasRequiredPermission(
+		apiLevel: Int,
+		coarseLocationGranted: Boolean,
+		preciseLocationGranted: Boolean,
+		changeWifiStateGranted: Boolean,
+	): Boolean = when {
+		apiLevel <= Build.VERSION_CODES.O_MR1 ->
+			coarseLocationGranted || preciseLocationGranted || changeWifiStateGranted
+		apiLevel == Build.VERSION_CODES.P -> coarseLocationGranted || preciseLocationGranted
+		else -> preciseLocationGranted
+	}
+
+	fun requiresLocationServices(apiLevel: Int): Boolean = apiLevel >= Build.VERSION_CODES.P
+
+	fun isReady(
+		apiLevel: Int,
+		coarseLocationGranted: Boolean,
+		preciseLocationGranted: Boolean,
+		changeWifiStateGranted: Boolean,
+		locationServicesEnabled: Boolean,
+	): Boolean = hasRequiredPermission(
+		apiLevel,
+		coarseLocationGranted,
+		preciseLocationGranted,
+		changeWifiStateGranted,
+	) && (!requiresLocationServices(apiLevel) || locationServicesEnabled)
 }
 
 /** Grant history retained by UI/persistence so a later loss is distinguishable from first denial. */
@@ -59,6 +89,7 @@ data class TrackingPermissionCapabilities(
 	val preciseLocationGranted: Boolean,
 	val backgroundLocationGranted: Boolean,
 	val nearbyWifiGranted: Boolean,
+	val changeWifiStateGranted: Boolean,
 	val foregroundLocation: ForegroundLocationCapability,
 	val backgroundLocation: BackgroundLocationCapability,
 	val wifiScan: WifiScanCapability,
@@ -81,11 +112,17 @@ data class TrackingPermissionCapabilities(
 	 * Permissions required by this app's scan-only Wi-Fi path.
 	 *
 	 * [android.Manifest.permission.NEARBY_WIFI_DEVICES] protects connection-management APIs on
-	 * Android 13+, but this app only calls startScan()/getScanResults(), whose permission remains
-	 * precise location.
+	 * Android 13+, but this app only calls startScan()/getScanResults(). Android 8.1 and earlier
+	 * accept coarse, fine, or CHANGE_WIFI_STATE; Android 9 accepts coarse or fine; Android 10+
+	 * requires fine location for this target SDK.
 	 */
 	val hasWifiScanPermissions: Boolean
-		get() = preciseLocationGranted
+		get() = WifiScanPlatformRequirements.hasRequiredPermission(
+			apiLevel,
+			coarseLocationGranted,
+			preciseLocationGranted,
+			changeWifiStateGranted,
+		)
 
 	val isManualLocationOnly: Boolean
 		get() = backgroundLocation == BackgroundLocationCapability.MANUAL_ONLY
@@ -106,6 +143,7 @@ data class TrackingPermissionCapabilities(
 			preciseLocationGranted = false,
 			backgroundLocationGranted = false,
 			nearbyWifiGranted = false,
+			changeWifiStateGranted = false,
 		)
 
 		fun evaluate(
@@ -117,6 +155,7 @@ data class TrackingPermissionCapabilities(
 			preciseLocationGranted: Boolean,
 			backgroundLocationGranted: Boolean,
 			nearbyWifiGranted: Boolean,
+			changeWifiStateGranted: Boolean = false,
 			history: PermissionGrantHistory = PermissionGrantHistory(),
 		): TrackingPermissionCapabilities {
 			val foreground = when {
@@ -135,12 +174,20 @@ data class TrackingPermissionCapabilities(
 				history.backgroundLocationGranted -> BackgroundLocationCapability.REVOKED
 				else -> BackgroundLocationCapability.MANUAL_ONLY
 			}
+			val hasWifiPermission = WifiScanPlatformRequirements.hasRequiredPermission(
+				apiLevel,
+				coarseLocationGranted,
+				preciseLocationGranted,
+				changeWifiStateGranted,
+			)
 			val wifi = when {
-				!wifiFeatureAvailable || !locationServicesEnabled -> WifiScanCapability.UNAVAILABLE
-				!preciseLocationGranted -> if (history.wifiScanGranted) {
+				!wifiFeatureAvailable ||
+					(WifiScanPlatformRequirements.requiresLocationServices(apiLevel) &&
+						!locationServicesEnabled) -> WifiScanCapability.UNAVAILABLE
+				!hasWifiPermission -> if (history.wifiScanGranted) {
 					WifiScanCapability.REVOKED
 				} else {
-					WifiScanCapability.MISSING_PRECISE_LOCATION
+					WifiScanCapability.MISSING_REQUIRED_PERMISSION
 				}
 				else -> WifiScanCapability.AVAILABLE
 			}
@@ -153,6 +200,7 @@ data class TrackingPermissionCapabilities(
 				preciseLocationGranted = preciseLocationGranted,
 				backgroundLocationGranted = apiLevel < Build.VERSION_CODES.Q || backgroundLocationGranted,
 				nearbyWifiGranted = apiLevel < Build.VERSION_CODES.TIRAMISU || nearbyWifiGranted,
+				changeWifiStateGranted = changeWifiStateGranted,
 				foregroundLocation = foreground,
 				backgroundLocation = background,
 				wifiScan = wifi,
@@ -195,6 +243,7 @@ fun Context.trackingPermissionCapabilities(
 			hasSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION),
 		nearbyWifiGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
 			hasSelfPermission(Manifest.permission.NEARBY_WIFI_DEVICES),
+		changeWifiStateGranted = hasSelfPermission(Manifest.permission.CHANGE_WIFI_STATE),
 		history = history,
 	)
 }

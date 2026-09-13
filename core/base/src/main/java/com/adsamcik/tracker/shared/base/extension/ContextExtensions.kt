@@ -219,12 +219,16 @@ inline val Context.hasReadPhonePermission: Boolean
 
 /**
  * Checks if application can collect Wi-Fi scan data.
- * This application uses startScan()/getScanResults(), which continue to require precise
- * location and enabled Location Services. NEARBY_WIFI_DEVICES applies to other Wi-Fi operations
- * and is deliberately not requested for this scan-only path.
+ * This application uses startScan()/getScanResults(). NEARBY_WIFI_DEVICES applies to other Wi-Fi
+ * operations and is deliberately not requested for this scan-only path.
  */
 inline val Context.hasWifiScanPermission: Boolean
-	get() = hasPreciseLocationPermission
+	get() = WifiScanPlatformRequirements.hasRequiredPermission(
+		Build.VERSION.SDK_INT,
+		hasCoarseLocationPermission,
+		hasPreciseLocationPermission,
+		hasSelfPermission(Manifest.permission.CHANGE_WIFI_STATE),
+	)
 
 /**
  * Checks if application can collect cell/radio scan data.
