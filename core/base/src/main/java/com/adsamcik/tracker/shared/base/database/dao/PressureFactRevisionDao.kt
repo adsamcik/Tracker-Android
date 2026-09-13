@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.PressureFactRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.SessionSegment
 
 /** Deliberately narrow storage boundary for the dormant Pressure fact writer. */
 @Dao
@@ -75,16 +76,72 @@ interface PressureFactRevisionDao {
 	): List<PressureFactRevisionEntity>
 
 	/**
-	 * Reads a bounded correction-expanded page for a set of exact physical service runs.
+	 * Discovers presentation rows from retained Pressure facts and exact reciprocal run binding.
+	 *
+	 * A segment's generic sample count is deliberately absent. This is only a coarse source-local
+	 * seed; the Pressure history selector still expands the complete logical replacement membership
+	 * and authenticates every manifest, policy, consent, writer, fact, and lifecycle row.
+	 */
+	@Query(
+		"""
+		SELECT segment.*
+		FROM session_segment AS segment
+		WHERE EXISTS (
+		  SELECT 1
+		  FROM source_service_run AS run
+		  JOIN pressure_fact_revision AS fact
+		    ON fact.service_run_id = run.service_run_id
+		   AND fact.logical_tracking_id = run.logical_tracking_id
+		  WHERE run.session_segment_id = segment.id
+		    AND run.service_run_id = segment.service_run_id
+		    AND run.logical_tracking_id = segment.logical_tracking_id
+		    AND fact.purpose = '${PressureFactRevisionEntity.PURPOSE_SESSION_CAPTURE}'
+		)
+		  AND (
+		    :beforeStartTimeMs IS NULL
+		    OR segment.start_time_ms < :beforeStartTimeMs
+		    OR (
+		      segment.start_time_ms = :beforeStartTimeMs
+		      AND segment.id < COALESCE(:beforeSegmentId, 9223372036854775807)
+		    )
+		  )
+		ORDER BY segment.start_time_ms DESC, segment.id DESC
+		LIMIT :limit
+		""",
+	)
+	suspend fun historySegmentCandidatePage(
+		limit: Int,
+		beforeStartTimeMs: Long?,
+		beforeSegmentId: Long?,
+	): List<SessionSegment>
+
+	/**
+	 * Reads a bounded correction-expanded candidate page for exact physical/logical scopes.
 	 *
 	 * Product history validates every retained revision before selecting the effective state. The
-	 * full primary key in the cursor prevents a replacement run or correction boundary from being
-	 * skipped without issuing one fact query per presentation row.
+	 * logical-id arm exposes a whole lineage moved away from its expected service run. The
+	 * correlated arm then retains every revision of a lineage having any candidate-scoped member, so
+	 * a correction that corrupts both ownership columns cannot hide. The full primary key cursor
+	 * prevents a replacement run or correction boundary from being skipped without per-row queries.
 	 */
 	@Query(
 		"""
 		SELECT * FROM pressure_fact_revision
-		WHERE service_run_id IN (:serviceRunIds)
+		WHERE (
+		  service_run_id IN (:serviceRunIds)
+		  OR logical_tracking_id IN (:logicalTrackingIds)
+		  OR EXISTS (
+		     SELECT 1
+		     FROM pressure_fact_revision AS candidate
+		     WHERE candidate.writer_projection_id = pressure_fact_revision.writer_projection_id
+		       AND candidate.writer_projection_version = pressure_fact_revision.writer_projection_version
+		       AND candidate.logical_fact_id = pressure_fact_revision.logical_fact_id
+		       AND (
+		         candidate.service_run_id IN (:serviceRunIds)
+		         OR candidate.logical_tracking_id IN (:logicalTrackingIds)
+		       )
+		  )
+		)
 		  AND (
 			:afterServiceRunId IS NULL
 			OR service_run_id > :afterServiceRunId
@@ -121,6 +178,7 @@ interface PressureFactRevisionDao {
 	)
 	suspend fun historyRevisionPage(
 		serviceRunIds: List<String>,
+		logicalTrackingIds: List<String>,
 		limit: Int,
 		afterServiceRunId: String?,
 		afterWriterProjectionId: String?,

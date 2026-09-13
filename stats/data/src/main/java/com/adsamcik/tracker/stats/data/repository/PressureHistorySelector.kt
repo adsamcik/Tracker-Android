@@ -38,8 +38,10 @@ internal class PressureHistorySelector @Inject constructor(
 		require(distinctIds.size <= PRESSURE_HISTORY_SEGMENT_BATCH_CAP) {
 			"At most $PRESSURE_HISTORY_SEGMENT_BATCH_CAP Pressure history rows may be selected"
 		}
-		val segments = database.trackingHistoryReadDao().segments(distinctIds)
-		selectManyInTransaction(segments).associateBy { it.segment.id }
+		val seeds = database.trackingHistoryReadDao().segments(distinctIds)
+		selectManyInTransaction(seeds)
+			.filter { it.segment.id in distinctIds }
+			.associateBy { it.segment.id }
 	}
 
 	internal suspend fun selectLogicalBySegmentIds(
@@ -50,8 +52,41 @@ internal class PressureHistorySelector @Inject constructor(
 		require(distinctIds.size <= PRESSURE_HISTORY_SEGMENT_BATCH_CAP) {
 			"At most $PRESSURE_HISTORY_SEGMENT_BATCH_CAP Pressure history rows may be selected"
 		}
-		val segments = database.trackingHistoryReadDao().segments(distinctIds)
-		PressureLogicalHistoryComposer.compose(selectManyInTransaction(segments))
+		val seeds = database.trackingHistoryReadDao().segments(distinctIds)
+		selectLogicalFromSeedsInTransaction(seeds)
+	}
+
+	/**
+	 * Source-local ordinary discovery driven by Pressure facts and exact run/segment bindings.
+	 * Generic [SessionSegment.sampleCount] is deliberately not consulted.
+	 */
+	internal suspend fun discoverRecentLogicalByPressureFacts(
+		limit: Int,
+		beforeStartTimeMs: Long? = null,
+		beforeSegmentId: Long? = null,
+	): List<PressureLogicalHistoryEntry> = database.withTransaction {
+		require(limit in 1..PRESSURE_HISTORY_SEGMENT_BATCH_CAP)
+		val seeds = database.pressureFactRevisionDao().historySegmentCandidatePage(
+			limit = limit,
+			beforeStartTimeMs = beforeStartTimeMs,
+			beforeSegmentId = beforeSegmentId,
+		)
+		selectLogicalFromSeedsInTransaction(seeds)
+	}
+
+	private suspend fun selectLogicalFromSeedsInTransaction(
+		seeds: List<SessionSegment>,
+	): List<PressureLogicalHistoryEntry> {
+		if (seeds.isEmpty()) return emptyList()
+		val expansion = expandPressureLogicalMembership(database, seeds)
+		val snapshot = loadPressureHistoryBatchSnapshot(
+			database = database,
+			segments = expansion.segments,
+			logicalMembershipFailures = expansion.failures,
+		)
+		return PressureLogicalHistoryComposer.compose(
+			selectManyWithSnapshot(expansion.segments, snapshot),
+		)
 	}
 
 	/** Caller must already hold the Room transaction defining the source-local history snapshot. */
@@ -59,7 +94,13 @@ internal class PressureHistorySelector @Inject constructor(
 		segments: List<SessionSegment>,
 	): List<PressurePhysicalHistory> {
 		if (segments.isEmpty()) return emptyList()
-		return selectManyWithSnapshot(segments, loadPressureHistoryBatchSnapshot(database, segments))
+		val expansion = expandPressureLogicalMembership(database, segments)
+		val snapshot = loadPressureHistoryBatchSnapshot(
+			database = database,
+			segments = expansion.segments,
+			logicalMembershipFailures = expansion.failures,
+		)
+		return selectManyWithSnapshot(expansion.segments, snapshot)
 	}
 
 	/** Pure seam for correction, attribution, and replacement-run contract tests. */
@@ -73,7 +114,7 @@ internal class PressureHistorySelector @Inject constructor(
 		segment: SessionSegment,
 		snapshot: PressureHistoryBatchSnapshot,
 	): PressurePhysicalHistory {
-		if (snapshot.terminalFailureOverflow) {
+		if (snapshot.terminalFailureOverflow || snapshot.factRevisionOverflow) {
 			return unavailable(
 				segment,
 				HistoricalCaptureFailure.BATCH_DEPENDENCY_OVERFLOW,
@@ -95,6 +136,15 @@ internal class PressureHistorySelector @Inject constructor(
 				HistoricalCaptureFailure.SEGMENT_MEMBERSHIP_INCOMPLETE,
 				PressureHistoryReason.SEGMENT_MEMBERSHIP_INCOMPLETE,
 			)
+		}
+		val membershipFailure = snapshot.logicalMembershipFailures[logicalTrackingId]
+		if (membershipFailure != null) {
+			val captureFailure = if (membershipFailure == PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW) {
+				HistoricalCaptureFailure.BATCH_DEPENDENCY_OVERFLOW
+			} else {
+				HistoricalCaptureFailure.SEGMENT_MEMBERSHIP_INCOMPLETE
+			}
+			return unavailable(segment, captureFailure, membershipFailure)
 		}
 		val serviceRun = snapshot.serviceRuns[serviceRunId]
 			?: return unavailable(
@@ -317,8 +367,11 @@ internal class PressureHistorySelector @Inject constructor(
 		}
 		val targetOrdinal = completeness.mapNotNull(SourceSessionCompletenessEntity::lastAdmissionOrdinal)
 			.maxOrNull()
+		if (completeness.singleOrNull()?.registrationGeneration == 0L) {
+			return providerUnavailable(segment, captureAuthority)
+		}
 		val revisions = snapshot.factRevisionsByRun[serviceRunId].orEmpty()
-		if (snapshot.hasCrossScopeFactRevisions) {
+		if (logicalTrackingId in snapshot.invalidFactScopeLogicalIds) {
 			return failed(
 				segment,
 				captureAuthority,
@@ -531,6 +584,7 @@ internal class PressureHistorySelector @Inject constructor(
 		logicalTrackingId: String,
 		serviceRunId: String,
 	): Boolean {
+		if (rows.any { it.registrationGeneration == 0L } && rows.size != 1) return false
 		if (rows.map(SourceSessionCompletenessEntity::registrationGeneration).distinct().size !=
 			rows.size
 		) return false
@@ -639,13 +693,23 @@ internal class PressureHistorySelector @Inject constructor(
 		windowEndElapsedRealtimeNanos = windowEndElapsedRealtimeNanos,
 		sampleCount = sampleCount,
 		meanHectopascals = meanHectopascals,
+		sumSquaredDeviations = sumSquaredDeviations,
 		minimumHectopascals = minimumHectopascals,
 		maximumHectopascals = maximumHectopascals,
 		firstHectopascals = firstHectopascals,
 		lastHectopascals = lastHectopascals,
 		slopeHectopascalsPerSecond = slopeHectopascalsPerSecond,
 		rSquared = rSquared,
+		sensorAccuracy = sensorAccuracy,
+		effectiveSamplePeriodMicros = effectiveSamplePeriodMicros,
+		effectiveMaximumReportLatencyMicros = effectiveMaximumReportLatencyMicros,
+		targetWindowDurationNanos = targetWindowDurationNanos,
+		expectedSampleCount = expectedSampleCount,
+		maximumInterSampleGapNanos = maximumInterSampleGapNanos,
+		closureKind = closureKind,
 		qualification = qualification,
+		sourceQualityFlags = sourceQualityFlags,
+		sourceQualityConfidence = sourceQualityConfidence,
 	)
 
 	private fun unavailable(
@@ -714,6 +778,20 @@ internal class PressureHistorySelector @Inject constructor(
 		materialization = PressureHistoryMaterialization.READY,
 		coverage = PressureHistoryCoverage.NONE,
 		reasons = setOf(PressureHistoryReason.DELETED_FACTS),
+	)
+
+	private fun providerUnavailable(
+		segment: SessionSegment,
+		captureAuthority: HistoricalCaptureAuthority,
+	) = PressurePhysicalHistory(
+		segment = segment,
+		captureAuthority = captureAuthority,
+		windows = emptyList(),
+		availability = PressureHistoryAvailability.UNAVAILABLE,
+		evidence = PressureHistoryEvidence.NO_OBSERVATION,
+		materialization = PressureHistoryMaterialization.NOT_APPLICABLE,
+		coverage = PressureHistoryCoverage.NONE,
+		reasons = setOf(PressureHistoryReason.PROVIDER_UNAVAILABLE),
 	)
 
 	private fun hasValidZone(zoneId: String): Boolean = try {

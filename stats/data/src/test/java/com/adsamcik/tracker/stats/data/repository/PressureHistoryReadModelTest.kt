@@ -42,6 +42,8 @@ class PressureHistoryReadModelTest {
 		entry.qualifiedSources shouldBe setOf(TrackingSourceComponent.PRESSURE)
 		entry.isOrdinarilyDiscoverable shouldBe true
 		entry.hasExactPressureOnlyIntent shouldBe true
+		entry.windows.first().sampleVarianceHectopascalsSquared shouldBe 0.5
+		entry.windows.first().actualToExpectedSampleRatio shouldBe 1.0
 		entry.summary shouldBe PressureHistorySummary(
 			firstHectopascals = 1001f,
 			latestHectopascals = 998f,
@@ -146,13 +148,23 @@ class PressureHistoryReadModelTest {
 		windowEndElapsedRealtimeNanos = startElapsedNanos + 1L,
 		sampleCount = 2,
 		meanHectopascals = (first.toDouble() + last.toDouble()) / 2.0,
+		sumSquaredDeviations = 0.5,
 		minimumHectopascals = minOf(first, last) - 0.5f,
 		maximumHectopascals = maxOf(first, last) + 0.5f,
 		firstHectopascals = first,
 		lastHectopascals = last,
 		slopeHectopascalsPerSecond = 0.0,
 		rSquared = 1.0,
+		sensorAccuracy = "HIGH",
+		effectiveSamplePeriodMicros = 1,
+		effectiveMaximumReportLatencyMicros = 0,
+		targetWindowDurationNanos = 2_000L,
+		expectedSampleCount = 2,
+		maximumInterSampleGapNanos = 1L,
+		closureKind = "TARGET_ELAPSED",
 		qualification = "COMPLETE",
+		sourceQualityFlags = 0L,
+		sourceQualityConfidence = 1f,
 	)
 
 	private fun segment(

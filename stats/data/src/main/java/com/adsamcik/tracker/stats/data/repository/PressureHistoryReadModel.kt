@@ -23,13 +23,24 @@ internal data class PressureHistoryWindow(
 	val windowEndElapsedRealtimeNanos: Long,
 	val sampleCount: Int,
 	val meanHectopascals: Double,
+	/** Welford M2 retained so stability/variance is not reconstructed from rounded extrema. */
+	val sumSquaredDeviations: Double,
 	val minimumHectopascals: Float,
 	val maximumHectopascals: Float,
 	val firstHectopascals: Float,
 	val lastHectopascals: Float,
 	val slopeHectopascalsPerSecond: Double?,
 	val rSquared: Double?,
+	val sensorAccuracy: String,
+	val effectiveSamplePeriodMicros: Int,
+	val effectiveMaximumReportLatencyMicros: Int,
+	val targetWindowDurationNanos: Long,
+	val expectedSampleCount: Int,
+	val maximumInterSampleGapNanos: Long,
+	val closureKind: String,
 	val qualification: String,
+	val sourceQualityFlags: Long,
+	val sourceQualityConfidence: Float?,
 ) {
 	init {
 		require(logicalFactId.isNotBlank())
@@ -49,14 +60,32 @@ internal data class PressureHistoryWindow(
 		)
 		require(sampleCount > 0)
 		require(meanHectopascals.isFinite() && meanHectopascals > 0.0)
+		require(sumSquaredDeviations.isFinite() && sumSquaredDeviations >= 0.0)
 		require(minimumHectopascals.isFinite() && minimumHectopascals > 0f)
 		require(maximumHectopascals.isFinite() && maximumHectopascals >= minimumHectopascals)
 		require(firstHectopascals in minimumHectopascals..maximumHectopascals)
 		require(lastHectopascals in minimumHectopascals..maximumHectopascals)
 		require(slopeHectopascalsPerSecond == null || slopeHectopascalsPerSecond.isFinite())
 		require(rSquared == null || rSquared.isFinite() && rSquared in 0.0..1.0)
+		require(sensorAccuracy.isNotBlank())
+		require(effectiveSamplePeriodMicros > 0)
+		require(effectiveMaximumReportLatencyMicros >= 0)
+		require(targetWindowDurationNanos > 0L)
+		require(expectedSampleCount > 0)
+		require(maximumInterSampleGapNanos >= 0L)
+		require(closureKind.isNotBlank())
 		require(qualification.isNotBlank())
+		require(sourceQualityFlags >= 0L)
+		require(sourceQualityConfidence == null || sourceQualityConfidence in 0f..1f)
 	}
+
+	/** Sample variance derived from retained Welford M2; one observation has no sample variance. */
+	val sampleVarianceHectopascalsSquared: Double?
+		get() = if (sampleCount > 1) sumSquaredDeviations / (sampleCount - 1).toDouble() else null
+
+	/** Unclamped actual/expected ratio preserves both missing samples and legitimate oversampling. */
+	val actualToExpectedSampleRatio: Double
+		get() = sampleCount.toDouble() / expectedSampleCount.toDouble()
 }
 
 /** Truthful source-local state for one presentation segment and its exact physical run. */
@@ -129,6 +158,7 @@ internal enum class PressureHistoryReason {
 	STOP_INCOMPLETE,
 	UNRESOLVED_PROVIDER_SEQUENCE,
 	PROVIDER_COMPLETENESS_UNOBSERVABLE,
+	PROVIDER_UNAVAILABLE,
 	CAPTURE_NOT_ENABLED_FOR_WHOLE_RUN,
 	SERVICE_RUN_ACTIVE,
 	FACTS_MISSING_FOR_ADMITTED_RUN,

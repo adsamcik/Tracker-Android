@@ -15,14 +15,19 @@ import com.adsamcik.tracker.shared.base.database.data.SourceProductProjectionLan
 import com.adsamcik.tracker.shared.base.database.data.SourceProjectionFailureEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceSessionCompletenessEntity
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 /** Loads all bounded-page dependencies for one Pressure history snapshot without per-row queries. */
 @Suppress("CyclomaticComplexMethod", "LongMethod")
 internal suspend fun loadPressureHistoryBatchSnapshot(
 	database: AppDatabase,
 	segments: List<SessionSegment>,
+	logicalMembershipFailures: Map<String, PressureHistoryReason> = emptyMap(),
+	factRevisionBudget: Int = MAX_PRESSURE_FACT_REVISIONS,
 ): PressureHistoryBatchSnapshot {
 	require(segments.isNotEmpty())
+	require(factRevisionBudget > 0)
 	val readDao = database.trackingHistoryReadDao()
 	val serviceRunIds = segments.mapNotNull(SessionSegment::serviceRunId)
 		.filter(String::isNotBlank)
@@ -56,9 +61,17 @@ internal suspend fun loadPressureHistoryBatchSnapshot(
 			)
 		}
 	val completeness = if (serviceRunIds.isEmpty()) emptyList() else readDao.completeness(serviceRunIds)
-	val pressureFacts = loadPressureHistoryFactRevisions(database, serviceRunIds)
-	val hasCrossScopeFactRevisions = serviceRunIds.isNotEmpty() &&
-		database.pressureFactRevisionDao().hasCrossScopeRevisionsForRuns(serviceRunIds)
+	val logicalTrackingIds = segments.mapNotNull(SessionSegment::logicalTrackingId)
+		.filter(String::isNotBlank)
+		.distinct()
+	val pressureFactLoad = loadPressureHistoryFactRevisions(
+		database = database,
+		serviceRunIds = serviceRunIds,
+		logicalTrackingIds = logicalTrackingIds,
+		factRevisionBudget = factRevisionBudget,
+	)
+	val pressureFacts = pressureFactLoad.revisions
+	val invalidFactScopeLogicalIds = invalidFactScopeLogicalIds(segments, pressureFacts)
 	val scopeDigests = segments.mapNotNull { segment ->
 		val logicalTrackingId = segment.logicalTrackingId?.takeIf(String::isNotBlank)
 		val serviceRunId = segment.serviceRunId?.takeIf(String::isNotBlank)
@@ -125,7 +138,9 @@ internal suspend fun loadPressureHistoryBatchSnapshot(
 		pressureCaptureConsents = pressureCaptureConsents.associateBy(SourceConsentEpochEntity::epoch),
 		deletionFenceDigests = deletionFences.mapTo(hashSetOf()) { it.scopeIdentityDigest },
 		factRevisionsByRun = pressureFacts.groupBy(PressureFactRevisionEntity::serviceRunId),
-		hasCrossScopeFactRevisions = hasCrossScopeFactRevisions,
+		invalidFactScopeLogicalIds = invalidFactScopeLogicalIds,
+		logicalMembershipFailures = logicalMembershipFailures,
+		factRevisionOverflow = pressureFactLoad.overflow,
 		completenessByRun = completeness.groupBy(SourceSessionCompletenessEntity::serviceRunId),
 		productLanes = productLanes.associateBy { lane ->
 			PressureLaneKey(lane.bindingGeneration, lane.projectionId, lane.projectionVersion)
@@ -139,14 +154,20 @@ internal suspend fun loadPressureHistoryBatchSnapshot(
 private suspend fun loadPressureHistoryFactRevisions(
 	database: AppDatabase,
 	serviceRunIds: List<String>,
-): List<PressureFactRevisionEntity> {
-	if (serviceRunIds.isEmpty()) return emptyList()
+	logicalTrackingIds: List<String>,
+	factRevisionBudget: Int,
+): PressureFactLoad {
+	if (serviceRunIds.isEmpty() && logicalTrackingIds.isEmpty()) return PressureFactLoad.EMPTY
 	val facts = mutableListOf<PressureFactRevisionEntity>()
 	var cursor: PressureFactCursor? = null
 	while (true) {
+		currentCoroutineContext().ensureActive()
+		val remaining = factRevisionBudget - facts.size
+		val pageLimit = minOf(PRESSURE_FACT_PAGE_SIZE, remaining + 1)
 		val page = database.pressureFactRevisionDao().historyRevisionPage(
 			serviceRunIds = serviceRunIds,
-			limit = PRESSURE_FACT_PAGE_SIZE,
+			logicalTrackingIds = logicalTrackingIds,
+			limit = pageLimit,
 			afterServiceRunId = cursor?.serviceRunId,
 			afterWriterProjectionId = cursor?.writerProjectionId,
 			afterWriterProjectionVersion = cursor?.writerProjectionVersion,
@@ -154,13 +175,129 @@ private suspend fun loadPressureHistoryFactRevisions(
 			afterSemanticRevision = cursor?.semanticRevision,
 		)
 		if (page.isEmpty()) break
+		if (page.size > remaining) return PressureFactLoad(facts, overflow = true)
 		val nextCursor = PressureFactCursor(page.last())
 		check(cursor == null || nextCursor > cursor) { "Pressure history fact cursor did not advance" }
 		facts += page
 		cursor = nextCursor
-		if (page.size < PRESSURE_FACT_PAGE_SIZE) break
+		if (page.size < pageLimit) break
 	}
-	return facts
+	return PressureFactLoad(facts, overflow = false)
+}
+
+private fun invalidFactScopeLogicalIds(
+	segments: List<SessionSegment>,
+	revisions: List<PressureFactRevisionEntity>,
+): Set<String> {
+	val expectedLogicalByRun = segments.mapNotNull { segment ->
+		val logicalTrackingId = segment.logicalTrackingId?.takeIf(String::isNotBlank)
+		val serviceRunId = segment.serviceRunId?.takeIf(String::isNotBlank)
+		if (logicalTrackingId == null || serviceRunId == null) null else serviceRunId to logicalTrackingId
+	}.toMap()
+	val selectedLogicalIds = expectedLogicalByRun.values.toHashSet()
+	return buildSet {
+		revisions.forEach { fact ->
+			val expectedLogicalId = expectedLogicalByRun[fact.serviceRunId]
+			if (expectedLogicalId == null || expectedLogicalId != fact.logicalTrackingId) {
+				expectedLogicalId?.let(::add)
+				fact.logicalTrackingId.takeIf(selectedLogicalIds::contains)?.let(::add)
+			}
+		}
+		revisions.groupBy { fact ->
+			PressureFactLineageKey(
+				fact.writerProjectionId,
+				fact.writerProjectionVersion,
+				fact.logicalFactId,
+			)
+		}.values.forEach { lineage ->
+			if (lineage.map { it.logicalTrackingId to it.serviceRunId }.distinct().size > 1) {
+				lineage.forEach { fact ->
+					expectedLogicalByRun[fact.serviceRunId]?.let(::add)
+					fact.logicalTrackingId.takeIf(selectedLogicalIds::contains)?.let(::add)
+				}
+			}
+		}
+	}
+}
+
+/** Complete explicit replacement-run expansion before logical Pressure composition. */
+internal suspend fun expandPressureLogicalMembership(
+	database: AppDatabase,
+	seedSegments: List<SessionSegment>,
+	memberBudget: Int = MAX_PRESSURE_LOGICAL_MEMBERS,
+): PressureLogicalMembershipExpansion {
+	require(memberBudget > 0)
+	val logicalTrackingIds = seedSegments.mapNotNull(SessionSegment::logicalTrackingId)
+		.filter(String::isNotBlank)
+		.distinct()
+	if (logicalTrackingIds.isEmpty()) return PressureLogicalMembershipExpansion(seedSegments, emptyMap())
+
+	val runs = mutableListOf<SourceServiceRunEntity>()
+	var cursor: PressureServiceRunCursor? = null
+	while (true) {
+		currentCoroutineContext().ensureActive()
+		val remaining = memberBudget - runs.size
+		val pageLimit = minOf(PRESSURE_MEMBERSHIP_PAGE_SIZE, remaining + 1)
+		val page = database.trackingHistoryReadDao().logicalEntryServiceRunPage(
+			logicalTrackingIds = logicalTrackingIds,
+			limit = pageLimit,
+			afterLogicalTrackingId = cursor?.logicalTrackingId,
+			afterStartedAtMs = cursor?.startedAtMs,
+			afterServiceRunId = cursor?.serviceRunId,
+		)
+		if (page.isEmpty()) break
+		if (page.size > remaining) {
+			return PressureLogicalMembershipExpansion(
+				segments = seedSegments,
+				failures = logicalTrackingIds.associateWith {
+					PressureHistoryReason.BATCH_DEPENDENCY_OVERFLOW
+				},
+			)
+		}
+		val nextCursor = PressureServiceRunCursor(page.last())
+		check(cursor == null || nextCursor > cursor) {
+			"Pressure logical-membership cursor did not advance"
+		}
+		runs += page
+		cursor = nextCursor
+		if (page.size < pageLimit) break
+	}
+	currentCoroutineContext().ensureActive()
+
+	val failures = linkedMapOf<String, PressureHistoryReason>()
+	val runsByLogicalId = runs.groupBy(SourceServiceRunEntity::logicalTrackingId)
+	logicalTrackingIds.forEach { logicalTrackingId ->
+		if (runsByLogicalId[logicalTrackingId].isNullOrEmpty()) {
+			failures[logicalTrackingId] = PressureHistoryReason.SEGMENT_MEMBERSHIP_INCOMPLETE
+		}
+	}
+	val segmentIds = runs.mapNotNull(SourceServiceRunEntity::sessionSegmentId).distinct()
+	val loadedSegments = if (segmentIds.isEmpty()) {
+		emptyList()
+	} else {
+		database.trackingHistoryReadDao().segments(segmentIds)
+	}
+	val segmentsById = loadedSegments.associateBy(SessionSegment::id)
+	runs.forEach { run ->
+		val segmentId = run.sessionSegmentId
+		val segment = segmentId?.let(segmentsById::get)
+		if (segment == null || segment.logicalTrackingId != run.logicalTrackingId ||
+			segment.serviceRunId != run.serviceRunId
+		) {
+			failures[run.logicalTrackingId] = PressureHistoryReason.SEGMENT_MEMBERSHIP_INCOMPLETE
+		}
+	}
+	seedSegments.forEach { seed ->
+		val logicalTrackingId = seed.logicalTrackingId ?: return@forEach
+		val run = runs.firstOrNull { it.serviceRunId == seed.serviceRunId }
+		if (run == null || run.logicalTrackingId != logicalTrackingId || run.sessionSegmentId != seed.id) {
+			failures[logicalTrackingId] = PressureHistoryReason.SEGMENT_MEMBERSHIP_INCOMPLETE
+		}
+	}
+	return PressureLogicalMembershipExpansion(
+		segments = (loadedSegments + seedSegments).distinctBy(SessionSegment::id),
+		failures = failures,
+	)
 }
 
 private data class PressureFactCursor(
@@ -189,6 +326,46 @@ private data class PressureFactCursor(
 	)
 }
 
+private data class PressureServiceRunCursor(
+	val logicalTrackingId: String,
+	val startedAtMs: Long,
+	val serviceRunId: String,
+) : Comparable<PressureServiceRunCursor> {
+	constructor(run: SourceServiceRunEntity) : this(
+		logicalTrackingId = run.logicalTrackingId,
+		startedAtMs = run.startedAtMs,
+		serviceRunId = run.serviceRunId,
+	)
+
+	override fun compareTo(other: PressureServiceRunCursor): Int = compareValuesBy(
+		this,
+		other,
+		PressureServiceRunCursor::logicalTrackingId,
+		PressureServiceRunCursor::startedAtMs,
+		PressureServiceRunCursor::serviceRunId,
+	)
+}
+
+private data class PressureFactLineageKey(
+	val writerProjectionId: String,
+	val writerProjectionVersion: Int,
+	val logicalFactId: String,
+)
+
+private data class PressureFactLoad(
+	val revisions: List<PressureFactRevisionEntity>,
+	val overflow: Boolean,
+) {
+	companion object {
+		val EMPTY = PressureFactLoad(emptyList(), overflow = false)
+	}
+}
+
+internal data class PressureLogicalMembershipExpansion(
+	val segments: List<SessionSegment>,
+	val failures: Map<String, PressureHistoryReason>,
+)
+
 internal data class PressureManifestKey(
 	val logicalTrackingId: String,
 	val manifestRevision: Long,
@@ -209,7 +386,9 @@ internal data class PressureHistoryBatchSnapshot(
 	val pressureCaptureConsents: Map<Long, SourceConsentEpochEntity>,
 	val deletionFenceDigests: Set<String>,
 	val factRevisionsByRun: Map<String, List<PressureFactRevisionEntity>>,
-	val hasCrossScopeFactRevisions: Boolean,
+	val invalidFactScopeLogicalIds: Set<String>,
+	val logicalMembershipFailures: Map<String, PressureHistoryReason>,
+	val factRevisionOverflow: Boolean,
 	val completenessByRun: Map<String, List<SourceSessionCompletenessEntity>>,
 	val productLanes: Map<PressureLaneKey, SourceProductProjectionLaneEntity>,
 	val terminalFailures: List<SourceProjectionFailureEntity>,
@@ -220,3 +399,6 @@ internal data class PressureHistoryBatchSnapshot(
 private const val PRESSURE_FACT_PAGE_SIZE = 400
 private const val PRESSURE_QUERY_ID_BATCH_SIZE = 400
 private const val MAX_PRESSURE_TERMINAL_FAILURES = 2_048
+private const val MAX_PRESSURE_FACT_REVISIONS = 8_192
+private const val MAX_PRESSURE_LOGICAL_MEMBERS = 64
+private const val PRESSURE_MEMBERSHIP_PAGE_SIZE = 32
