@@ -35,7 +35,6 @@ enum class BackgroundLocationCapability {
 enum class WifiScanCapability {
 	UNAVAILABLE,
 	MISSING_PRECISE_LOCATION,
-	MISSING_NEARBY_WIFI,
 	REVOKED,
 	AVAILABLE,
 }
@@ -78,8 +77,15 @@ data class TrackingPermissionCapabilities(
 	val hasWifiScan: Boolean
 		get() = wifiScan == WifiScanCapability.AVAILABLE
 
+	/**
+	 * Permissions required by this app's scan-only Wi-Fi path.
+	 *
+	 * [android.Manifest.permission.NEARBY_WIFI_DEVICES] protects connection-management APIs on
+	 * Android 13+, but this app only calls startScan()/getScanResults(), whose permission remains
+	 * precise location.
+	 */
 	val hasWifiScanPermissions: Boolean
-		get() = preciseLocationGranted && nearbyWifiGranted
+		get() = preciseLocationGranted
 
 	val isManualLocationOnly: Boolean
 		get() = backgroundLocation == BackgroundLocationCapability.MANUAL_ONLY
@@ -136,12 +142,6 @@ data class TrackingPermissionCapabilities(
 				} else {
 					WifiScanCapability.MISSING_PRECISE_LOCATION
 				}
-				apiLevel >= Build.VERSION_CODES.TIRAMISU && !nearbyWifiGranted ->
-					if (history.wifiScanGranted) {
-						WifiScanCapability.REVOKED
-					} else {
-						WifiScanCapability.MISSING_NEARBY_WIFI
-					}
 				else -> WifiScanCapability.AVAILABLE
 			}
 			return TrackingPermissionCapabilities(

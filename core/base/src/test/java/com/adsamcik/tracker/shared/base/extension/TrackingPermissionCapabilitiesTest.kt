@@ -39,9 +39,11 @@ class TrackingPermissionCapabilitiesTest {
 	}
 
 	@Test
-	fun `API 33 scan capability requires both precise and nearby Wi-Fi grants`() {
-		capabilities(api = 33, fine = true, nearby = false).wifiScan shouldBe
-			WifiScanCapability.MISSING_NEARBY_WIFI
+	fun `API 33 scan-only capability does not require nearby Wi-Fi grant`() {
+		val preciseWithoutNearby = capabilities(api = 33, fine = true, nearby = false)
+
+		preciseWithoutNearby.wifiScan shouldBe WifiScanCapability.AVAILABLE
+		preciseWithoutNearby.hasWifiScanPermissions shouldBe true
 		capabilities(api = 33, fine = false, nearby = true).wifiScan shouldBe
 			WifiScanCapability.MISSING_PRECISE_LOCATION
 		capabilities(api = 33, fine = true, nearby = true).wifiScan shouldBe

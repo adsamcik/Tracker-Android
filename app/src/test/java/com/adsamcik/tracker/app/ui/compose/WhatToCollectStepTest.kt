@@ -1,5 +1,6 @@
 package com.adsamcik.tracker.app.ui.compose
 
+import android.Manifest
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
@@ -17,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import com.adsamcik.tracker.app.onboarding.data.SetupUiState
 import com.adsamcik.tracker.app.onboarding.ui.components.LocationPrecisionMode
 import com.adsamcik.tracker.app.onboarding.ui.steps.WhatToCollectStep
+import com.adsamcik.tracker.app.onboarding.ui.steps.wifiScanPermissions
 import com.adsamcik.tracker.shared.utils.style.compose.AppTheme
 import io.kotest.matchers.shouldBe
 import kotlin.test.assertTrue
@@ -32,6 +34,14 @@ class WhatToCollectStepTest {
 
     @get:Rule
     val composeTestRule = createComposeRule()
+
+    @Test
+    fun wifiScanGrantRequestsOnlyScanPermissions() {
+        wifiScanPermissions().toList() shouldBe listOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+        )
+    }
 
     @Test
     fun displaysCompleteButton() {

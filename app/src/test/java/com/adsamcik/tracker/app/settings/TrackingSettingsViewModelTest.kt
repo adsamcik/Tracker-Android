@@ -47,6 +47,7 @@ class TrackingSettingsViewModelTest {
     private val context: Context = mockk(relaxed = true)
     private val packageManager: PackageManager = mockk(relaxed = true)
     private var permissionsGranted = true
+    private var nearbyWifiGranted = true
 
     // Backing state for the fake repository
 	private val paramsFlow = MutableStateFlow(TrackingParamsState(sourcePolicyRevision = 1L))
@@ -76,7 +77,7 @@ class TrackingSettingsViewModelTest {
                 coarseLocationGranted = permissionsGranted,
                 preciseLocationGranted = permissionsGranted,
                 backgroundLocationGranted = permissionsGranted,
-                nearbyWifiGranted = permissionsGranted,
+                nearbyWifiGranted = nearbyWifiGranted,
             )
         }
         every { context.hasPressureSensor } returns true
@@ -138,9 +139,12 @@ class TrackingSettingsViewModelTest {
         unmockkStatic("com.adsamcik.tracker.shared.base.extension.TrackingPermissionCapabilitiesKt")
     }
 
-    private fun createViewModel(): TrackingSettingsViewModel {
+    private fun createViewModel(
+        nearbyWifiGranted: Boolean = true,
+    ): TrackingSettingsViewModel {
         paramsFlow.value = TrackingParamsState()
         permissionsGranted = true
+        this.nearbyWifiGranted = nearbyWifiGranted
         return TrackingSettingsViewModel(
             context,
             trackingParamsRepository,
@@ -606,6 +610,17 @@ class TrackingSettingsViewModelTest {
     @Nested
     @DisplayName("Permission refresh")
     inner class PermissionRefresh {
+
+        @Test
+        fun `scan-only Wi-Fi remains permitted when nearby devices is denied`() =
+            runTest(testDispatcher) {
+                val vm = createViewModel(nearbyWifiGranted = false)
+
+                advanceUntilIdle()
+
+                vm.uiState.value.wifiPermissionGranted shouldBe true
+                vm.uiState.value.permissionCapabilities.nearbyWifiGranted shouldBe false
+            }
 
         @Test
         fun `refreshPermissionState updates effective wifi state without repository emission`() =
