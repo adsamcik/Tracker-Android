@@ -39,6 +39,26 @@ class RoomExportPortableAmbientStepsTest {
 	}
 
 	@Test
+	fun `materializing snapshot never reaches the artifact sink`() = runTest {
+		var emitted = false
+		val exporter = RoomExportPortableAmbientSteps(
+			AmbientStepsPortableSnapshotSource {
+				AmbientStepsPortableSnapshot.Unverifiable(
+					AmbientStepsPortableReadFailure.MATERIALIZING,
+				)
+			},
+			StandardTestDispatcher(testScheduler),
+		)
+
+		val result = exporter.export(REQUEST) { emitted = true }
+
+		result shouldBe ExportPortableAmbientStepsResult.Unverifiable(
+			PortableAmbientStepsExportUnverifiableReason.MATERIALIZING,
+		)
+		emitted shouldBe false
+	}
+
+	@Test
 	fun `complete snapshot reaches the sink only after its reader returns`() = runTest {
 		var readerActive = false
 		var emitted: PortableAmbientStepsArchiveV1? = null

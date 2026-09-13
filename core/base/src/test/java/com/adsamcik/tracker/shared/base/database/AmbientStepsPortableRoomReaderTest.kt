@@ -17,6 +17,7 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
+import com.adsamcik.tracker.shared.base.database.data.SourceRegistrationStateEntity
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsCoverage
 import com.adsamcik.tracker.shared.model.steps.portable.PortableAmbientStepsPartialCause
 import io.kotest.matchers.collections.shouldContainExactly
@@ -121,6 +122,63 @@ class AmbientStepsPortableRoomReaderTest {
 			AmbientStepsPortableReadRequest(0L, DAY_END),
 		) shouldBe AmbientStepsPortableSnapshot.Unverifiable(
 			AmbientStepsPortableReadFailure.MATERIALIZING,
+		)
+	}
+
+	@Test
+	fun `authenticated successor backlog before a retired fact day remains materializing`() = runTest {
+		val retired = seed(importedThroughMs = SECOND_DAY_END)
+		database.ambientStepsFactRevisionDao().insert(
+			retired.fact(
+				startTimeMs = DAY_END,
+				endTimeMs = SECOND_DAY_END,
+				stepCount = 11L,
+				structuralEpochDay = 1L,
+				structuralDayStartTimeMs = DAY_END,
+				structuralDayEndTimeMs = SECOND_DAY_END,
+			),
+		)
+		insertActiveBacklogCursor(
+			registrationGeneration = SUCCESSOR_REGISTRATION,
+			sourceInstanceId = SUCCESSOR_SOURCE_INSTANCE,
+			importedThroughTimeMs = 1_000L,
+		)
+
+		AmbientStepsPortableRoomReader(database).read(
+			AmbientStepsPortableReadRequest(DAY_END, SECOND_DAY_END),
+		) shouldBe AmbientStepsPortableSnapshot.Unverifiable(
+			AmbientStepsPortableReadFailure.MATERIALIZING,
+		)
+	}
+
+	@Test
+	fun `unauthenticated active backlog cursor fails closed instead of exporting retired facts`() = runTest {
+		val retired = seed(importedThroughMs = SECOND_DAY_END)
+		database.ambientStepsFactRevisionDao().insert(
+			retired.fact(
+				startTimeMs = DAY_END,
+				endTimeMs = SECOND_DAY_END,
+				stepCount = 11L,
+				structuralEpochDay = 1L,
+				structuralDayStartTimeMs = DAY_END,
+				structuralDayEndTimeMs = SECOND_DAY_END,
+			),
+		)
+		insertActiveBacklogCursor(
+			registrationGeneration = SUCCESSOR_REGISTRATION,
+			sourceInstanceId = SUCCESSOR_SOURCE_INSTANCE,
+			importedThroughTimeMs = 1_000L,
+		)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_authorization SET consumer_id = 'tampered' " +
+				"WHERE source_kind = ${SourceDestinationOwnerEntity.SOURCE_STEPS} " +
+				"AND registration_generation = $SUCCESSOR_REGISTRATION",
+		)
+
+		AmbientStepsPortableRoomReader(database).read(
+			AmbientStepsPortableReadRequest(DAY_END, SECOND_DAY_END),
+		) shouldBe AmbientStepsPortableSnapshot.Unverifiable(
+			AmbientStepsPortableReadFailure.CORRUPT_RETAINED_STATE,
 		)
 	}
 
@@ -237,16 +295,26 @@ class AmbientStepsPortableRoomReaderTest {
 			consentEpoch = ACTIVE_CONSENT,
 			persistenceEligible = true,
 			qosCode = 1,
-			minimumAcquisitionSpec = "ambient-steps:v1:LOCAL_RECORDING_STEPS",
+			minimumAcquisitionSpec = AMBIENT_ACQUISITION_SPEC,
 			maximumAgeMs = 0L,
 			desiredLatencyMs = 0L,
 			requestedBootId = BOOT_ID,
 			requestedElapsedRealtimeNanos = 0L,
 			requestedAtMs = 0L,
-			status = SourceDemandEntity.STATUS_RETIRED,
-			retireBootId = BOOT_ID,
-			retireElapsedRealtimeNanos = DAY_END * 1_000_000L,
-			retiredAtMs = DAY_END,
+			status = if (cursorStatus == AmbientStepsImportCursorEntity.STATUS_ACTIVE) {
+				SourceDemandEntity.STATUS_ACTIVE
+			} else {
+				SourceDemandEntity.STATUS_RETIRED
+			},
+			retireBootId = BOOT_ID.takeIf {
+				cursorStatus == AmbientStepsImportCursorEntity.STATUS_RETIRED
+			},
+			retireElapsedRealtimeNanos = (importedThroughMs * 1_000_000L).takeIf {
+				cursorStatus == AmbientStepsImportCursorEntity.STATUS_RETIRED
+			},
+			retiredAtMs = importedThroughMs.takeIf {
+				cursorStatus == AmbientStepsImportCursorEntity.STATUS_RETIRED
+			},
 		)
 		database.sourceBrokerDao().insertDemands(listOf(demand))
 		val fingerprint = SourceBrokerAuthorization.fingerprint(listOf(demand))
@@ -274,10 +342,10 @@ class AmbientStepsPortableRoomReaderTest {
 				reservedElapsedRealtimeNanos = 0L,
 				acceptedAtMs = 0L,
 				acceptedElapsedRealtimeNanos = 0L,
-				retiredAtMs = DAY_END.takeIf {
+				retiredAtMs = importedThroughMs.takeIf {
 					cursorStatus == AmbientStepsImportCursorEntity.STATUS_RETIRED
 				},
-				retiredElapsedRealtimeNanos = (DAY_END * 1_000_000L).takeIf {
+				retiredElapsedRealtimeNanos = (importedThroughMs * 1_000_000L).takeIf {
 					cursorStatus == AmbientStepsImportCursorEntity.STATUS_RETIRED
 				},
 				failureCode = null,
@@ -294,6 +362,11 @@ class AmbientStepsPortableRoomReaderTest {
 				0L,
 			),
 		)
+		if (cursorStatus == AmbientStepsImportCursorEntity.STATUS_ACTIVE) {
+			database.sourceRegistrationStateDao().insertIfAbsent(
+				registrationState(REGISTRATION, SOURCE_INSTANCE, importedThroughMs),
+			)
+		}
 		val cursor = AmbientStepsImportCursorEntity(
 			registrationGeneration = REGISTRATION,
 			provider = PROVIDER,
@@ -325,6 +398,128 @@ class AmbientStepsPortableRoomReaderTest {
 		database.ambientStepsImportStateDao().insertCursor(cursor)
 		return Fixture(fingerprint)
 	}
+
+	private suspend fun insertActiveBacklogCursor(
+		registrationGeneration: Long,
+		sourceInstanceId: String,
+		importedThroughTimeMs: Long,
+	) {
+		val demand = SourceDemandEntity(
+			demandId = "ambient-demand-$registrationGeneration",
+			consumerId = "ambient-consumer-$registrationGeneration",
+			sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+			purpose = SourceBrokerPurpose.AMBIENT_PRODUCT,
+			logicalTrackingId = null,
+			serviceRunId = null,
+			manifestRevision = null,
+			lifecycleLeaseGeneration = null,
+			sourcePolicyRevision = HISTORICAL_POLICY,
+			consentEpoch = ACTIVE_CONSENT,
+			persistenceEligible = true,
+			qosCode = 1,
+			minimumAcquisitionSpec = AMBIENT_ACQUISITION_SPEC,
+			maximumAgeMs = 0L,
+			desiredLatencyMs = 0L,
+			requestedBootId = BOOT_ID,
+			requestedElapsedRealtimeNanos = 0L,
+			requestedAtMs = 0L,
+			status = SourceDemandEntity.STATUS_ACTIVE,
+			retireBootId = null,
+			retireElapsedRealtimeNanos = null,
+			retiredAtMs = null,
+		)
+		database.sourceBrokerDao().insertDemands(listOf(demand))
+		val fingerprint = SourceBrokerAuthorization.fingerprint(listOf(demand))
+		database.sourceBrokerDao().insertRegistration(
+			ProviderRegistrationGenerationEntity(
+				sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+				registrationGeneration = registrationGeneration,
+				sourceInstanceId = sourceInstanceId,
+				ownerScope = SourceProviderPurposeScope.exactOwnerScope(
+					SourceDestinationOwnerEntity.SOURCE_STEPS,
+					SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+				),
+				clockDomainId = BOOT_ID,
+				physicalConfigurationFingerprint =
+					"ambient-steps-provider:v1:mechanism=$PROVIDER",
+				collectedDataEpoch = EPOCH,
+				providerResidency =
+					ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE,
+				providerProcessIncarnationId = null,
+				status = ProviderRegistrationGenerationEntity.STATUS_ACTIVE,
+				reservedAtMs = 0L,
+				reservedElapsedRealtimeNanos = 0L,
+				acceptedAtMs = 0L,
+				acceptedElapsedRealtimeNanos = 0L,
+				retiredAtMs = null,
+				retiredElapsedRealtimeNanos = null,
+				failureCode = null,
+			),
+		)
+		database.sourceBrokerDao().insertAuthorizations(
+			SourceBrokerAuthorization.rows(
+				SourceDestinationOwnerEntity.SOURCE_STEPS,
+				registrationGeneration,
+				AUTHORIZATION,
+				listOf(demand),
+				BOOT_ID,
+				0L,
+				0L,
+			),
+		)
+		database.sourceRegistrationStateDao().replace(
+			registrationState(registrationGeneration, sourceInstanceId, importedThroughTimeMs),
+		)
+		database.ambientStepsImportStateDao().insertCursor(
+			AmbientStepsImportCursorEntity(
+				registrationGeneration = registrationGeneration,
+				provider = PROVIDER,
+				sourceInstanceId = sourceInstanceId,
+				registrationClockDomainId = BOOT_ID,
+				registrationAcceptedAtMs = 0L,
+				registrationAcceptedElapsedRealtimeNanos = 0L,
+				authorizationRevision = AUTHORIZATION,
+				authorizationFingerprint = fingerprint,
+				authorizationEffectiveBootId = BOOT_ID,
+				authorizationEffectiveElapsedRealtimeNanos = 0L,
+				authorizationEffectiveWallTimeMs = 0L,
+				sourcePolicyRevision = HISTORICAL_POLICY,
+				ambientConsentEpoch = ACTIVE_CONSENT,
+				collectedDataEpoch = EPOCH,
+				eligibleFromTimeMs = 0L,
+				continuitySegmentGeneration = 1L,
+				segmentStartTimeMs = 0L,
+				importedThroughTimeMs = importedThroughTimeMs,
+				lastObservedAtMs = importedThroughTimeMs,
+				lastObservedBootId = BOOT_ID,
+				lastObservedZoneId = "UTC",
+				lastGapSequence = 0L,
+				authorityTransitionSequence = 0L,
+				cursorRevision = 1L,
+				status = AmbientStepsImportCursorEntity.STATUS_ACTIVE,
+				updatedAtMs = importedThroughTimeMs,
+			),
+		)
+	}
+
+	private fun registrationState(
+		registrationGeneration: Long,
+		sourceInstanceId: String,
+		updatedAtMs: Long,
+	) = SourceRegistrationStateEntity(
+		sourceKind = SourceDestinationOwnerEntity.SOURCE_STEPS,
+		ownerScope = SourceProviderPurposeScope.exactOwnerScope(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+		),
+		sourceInstanceId = sourceInstanceId,
+		clockDomainId = BOOT_ID,
+		registrationGeneration = registrationGeneration,
+		nextSequence = 1L,
+		appliedRevision = HISTORICAL_POLICY,
+		collectedDataEpoch = EPOCH,
+		updatedAtMs = updatedAtMs,
+	)
 
 	private fun policy(revision: Long, consentEpoch: Long?, eligible: Boolean) = SourcePolicyEntity(
 		policyRevision = revision,
@@ -366,6 +561,9 @@ class AmbientStepsPortableRoomReaderTest {
 			endTimeMs: Long,
 			stepCount: Long,
 			continuityGeneration: Long = 1L,
+			structuralEpochDay: Long = 0L,
+			structuralDayStartTimeMs: Long = 0L,
+			structuralDayEndTimeMs: Long = DAY_END,
 		): AmbientStepsFactRevisionEntity {
 			val logicalFactId = AmbientStepsFactIntegrity.logicalFactId(
 				PROVIDER,
@@ -373,7 +571,7 @@ class AmbientStepsPortableRoomReaderTest {
 				continuityGeneration,
 				SOURCE_INSTANCE,
 				startTimeMs,
-				0L,
+				structuralEpochDay,
 				"UTC",
 				EPOCH,
 			)
@@ -401,8 +599,8 @@ class AmbientStepsPortableRoomReaderTest {
 				endTimeMs,
 				0L,
 				"UTC",
-				0L,
-				DAY_END,
+				structuralDayStartTimeMs,
+				structuralDayEndTimeMs,
 				stepCount,
 				AmbientStepsFactRevisionEntity.PURPOSE_AMBIENT_PRODUCT,
 				HISTORICAL_POLICY,
@@ -457,15 +655,21 @@ class AmbientStepsPortableRoomReaderTest {
 		const val EPOCH = 7L
 		const val OWNER_GENERATION = 3L
 		const val REGISTRATION = 1L
+		const val SUCCESSOR_REGISTRATION = 2L
 		const val AUTHORIZATION = 1L
 		const val HISTORICAL_POLICY = 1L
 		const val CURRENT_POLICY = 2L
 		const val ACTIVE_CONSENT = 4L
 		const val REVOKED_CONSENT = 5L
 		const val SOURCE_INSTANCE = "ambient-source"
+		const val SUCCESSOR_SOURCE_INSTANCE = "ambient-source-successor"
 		const val BOOT_ID = "boot-a"
 		const val PROVIDER =
 			AmbientStepsFactRevisionEntity.PROVIDER_LOCAL_RECORDING_STEPS
 		const val DAY_END = 86_400_000L
+		const val SECOND_DAY_END = DAY_END * 2L
+		const val AMBIENT_ACQUISITION_SPEC =
+			"ambient-steps:v1:mechanism=LOCAL_RECORDING_STEPS;" +
+				"coverage=OPPORTUNISTIC;record_freshness=SOURCE_NATIVE_CURSOR"
 	}
 }

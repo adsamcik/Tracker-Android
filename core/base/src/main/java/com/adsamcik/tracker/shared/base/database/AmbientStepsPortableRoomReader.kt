@@ -4,9 +4,16 @@ import androidx.room.withTransaction
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsFactRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.AmbientStepsImportGapEntity
+import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceAuthorizationEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceBrokerAuthorization
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.shared.base.database.data.SourceConsentEpochEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceDemandEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEntity
 import com.adsamcik.tracker.shared.base.database.data.SourcePolicyAuthorityEntity
+import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
+import com.adsamcik.tracker.shared.base.database.data.SourceProviderPurposeScope
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableFormatV1
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableIdentityKind
 import com.adsamcik.tracker.shared.model.steps.portable.AmbientStepsPortableOpaqueIdentity
@@ -199,8 +206,23 @@ class AmbientStepsPortableRoomReader(private val database: AppDatabase) {
 		requirePortableBound(selectedKeys.size <= limits.maximumDays)
 		val selectedFacts = effectiveFacts.filter { it.dayKey() in selectedKeys }
 		requirePortableBound(selectedFacts.size <= limits.maximumFacts)
+		val activeCursors = audit.cursors.filter {
+			it.status == AmbientStepsImportCursorEntity.STATUS_ACTIVE
+		}
+		if (activeCursors.any { cursor ->
+			!database.hasExactActiveAmbientCursorAuthority(
+				cursor,
+				currentPolicy,
+				currentConsent,
+				limits.maintenance.maximumAuthorizationMembersPerRevision,
+			)
+		}) {
+			return AmbientStepsPortableSnapshot.Unverifiable(
+				AmbientStepsPortableReadFailure.CORRUPT_RETAINED_STATE,
+			)
+		}
 		if (selectedKeys.any { day ->
-			audit.cursors.any { cursor -> cursor.isMaterializing(day) }
+			activeCursors.any { cursor -> cursor.isMaterializing(day) }
 		}) {
 			return AmbientStepsPortableSnapshot.Unverifiable(
 				AmbientStepsPortableReadFailure.MATERIALIZING,
@@ -259,7 +281,137 @@ private fun AmbientStepsFactRevisionEntity.dayKey() = AmbientStepsPortableDayKey
 
 private fun AmbientStepsImportCursorEntity.isMaterializing(day: AmbientStepsPortableDayKey): Boolean =
 	status == AmbientStepsImportCursorEntity.STATUS_ACTIVE && segmentStartTimeMs < day.endTimeMs &&
-		importedThroughTimeMs >= day.startTimeMs && importedThroughTimeMs < day.endTimeMs
+		importedThroughTimeMs < day.endTimeMs
+
+private suspend fun AppDatabase.hasExactActiveAmbientCursorAuthority(
+	cursor: AmbientStepsImportCursorEntity,
+	policy: SourcePolicyEntity,
+	consent: SourceConsentEpochEntity,
+	maximumAuthorizationMembers: Int,
+): Boolean {
+	val registration = sourceBrokerDao().registration(
+		SourceDestinationOwnerEntity.SOURCE_STEPS,
+		cursor.registrationGeneration,
+	) ?: return false
+	if (registration.sourceKind != SourceDestinationOwnerEntity.SOURCE_STEPS ||
+		registration.registrationGeneration != cursor.registrationGeneration ||
+		registration.sourceInstanceId != cursor.sourceInstanceId ||
+		registration.ownerScope != SourceProviderPurposeScope.exactOwnerScope(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			SourceBrokerPurpose.MASK_AMBIENT_PRODUCT,
+		) || registration.clockDomainId != cursor.registrationClockDomainId ||
+		registration.physicalConfigurationFingerprint !=
+			"ambient-steps-provider:v1:mechanism=${cursor.provider}" ||
+		registration.collectedDataEpoch != cursor.collectedDataEpoch ||
+		registration.providerResidency !=
+			ProviderRegistrationGenerationEntity.RESIDENCY_SYSTEM_REARMABLE ||
+		registration.providerProcessIncarnationId != null ||
+		registration.status != ProviderRegistrationGenerationEntity.STATUS_ACTIVE ||
+		registration.acceptedAtMs != cursor.registrationAcceptedAtMs ||
+		registration.acceptedElapsedRealtimeNanos !=
+			cursor.registrationAcceptedElapsedRealtimeNanos ||
+		registration.retiredAtMs != null || registration.retiredElapsedRealtimeNanos != null ||
+		registration.failureCode != null ||
+		registration.captureCallbackBarrierAuthorizationRevision != 0L
+	) return false
+	if (sourceBrokerDao().maximumCaptureAuthorizationRevision(
+			SourceDestinationOwnerEntity.SOURCE_STEPS,
+			cursor.registrationGeneration,
+		) != cursor.authorizationRevision
+	) return false
+	val pointer = sourceRegistrationStateDao().get(
+		SourceDestinationOwnerEntity.SOURCE_STEPS,
+		registration.ownerScope,
+	) ?: return false
+	if (pointer.sourceKind != registration.sourceKind ||
+		pointer.ownerScope != registration.ownerScope ||
+		pointer.sourceInstanceId != registration.sourceInstanceId ||
+		pointer.clockDomainId != registration.clockDomainId ||
+		pointer.registrationGeneration != registration.registrationGeneration ||
+		pointer.appliedRevision != cursor.sourcePolicyRevision ||
+		pointer.collectedDataEpoch != registration.collectedDataEpoch ||
+		pointer.updatedAtMs < cursor.registrationAcceptedAtMs
+	) return false
+
+	val authorization = sourceBrokerDao().authorizationRevisionBounded(
+		SourceDestinationOwnerEntity.SOURCE_STEPS,
+		cursor.registrationGeneration,
+		cursor.authorizationRevision,
+		maximumAuthorizationMembers + 1,
+	)
+	requirePortableBound(authorization.size <= maximumAuthorizationMembers)
+	val first = authorization.firstOrNull() ?: return false
+	if (authorization.any { member -> !member.matches(cursor, first) }) return false
+	val demandIds = authorization.mapNotNull(SourceAuthorizationEntity::demandId)
+	if (demandIds.size != authorization.size || demandIds.distinct().size != demandIds.size) {
+		return false
+	}
+	val demands = sourceBrokerDao().demandsByIds(demandIds)
+	if (demands.size != demandIds.size ||
+		demands.map(SourceDemandEntity::demandId).toSet() != demandIds.toSet() ||
+		SourceBrokerAuthorization.fingerprint(demands) != cursor.authorizationFingerprint ||
+		demands.any { demand -> !demand.matchesActiveAmbientCursor(cursor) }
+	) return false
+	val expectedAuthorization = SourceBrokerAuthorization.rows(
+		SourceDestinationOwnerEntity.SOURCE_STEPS,
+		cursor.registrationGeneration,
+		cursor.authorizationRevision,
+		demands,
+		cursor.authorizationEffectiveBootId,
+		cursor.authorizationEffectiveElapsedRealtimeNanos,
+		cursor.authorizationEffectiveWallTimeMs,
+	)
+	if (authorization.toSet() != expectedAuthorization.toSet()) return false
+
+	return policy.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS && policy.enabled &&
+		policy.policyRevision == cursor.sourcePolicyRevision && policy.ambientPersistenceEligible &&
+		policy.ambientConsentEpoch == cursor.ambientConsentEpoch &&
+		policy.effectiveBootId == cursor.authorizationEffectiveBootId &&
+		policy.effectiveElapsedRealtimeNanos <= cursor.authorizationEffectiveElapsedRealtimeNanos &&
+		policy.effectiveWallTimeMs <= cursor.authorizationEffectiveWallTimeMs &&
+		consent.sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
+		consent.purpose == SourceBrokerPurpose.AMBIENT_PRODUCT &&
+		consent.epoch == cursor.ambientConsentEpoch && consent.eligible &&
+		consent.persistenceEligible && consent.policyRevision == cursor.sourcePolicyRevision &&
+		consent.effectiveBootId == cursor.authorizationEffectiveBootId &&
+		consent.effectiveElapsedRealtimeNanos <=
+			cursor.authorizationEffectiveElapsedRealtimeNanos &&
+		consent.effectiveWallTimeMs <= cursor.authorizationEffectiveWallTimeMs
+}
+
+private fun SourceAuthorizationEntity.matches(
+	cursor: AmbientStepsImportCursorEntity,
+	first: SourceAuthorizationEntity,
+): Boolean = sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
+	registrationGeneration == cursor.registrationGeneration &&
+	authorizationRevision == cursor.authorizationRevision && !isDenyAll &&
+	authorizationFingerprint == cursor.authorizationFingerprint &&
+	purposeEligibilityMask == SourceBrokerPurpose.MASK_AMBIENT_PRODUCT &&
+	purpose == SourceBrokerPurpose.AMBIENT_PRODUCT && persistenceEligible &&
+	sourcePolicyRevision == cursor.sourcePolicyRevision && consentEpoch == cursor.ambientConsentEpoch &&
+	effectiveBootId == cursor.authorizationEffectiveBootId &&
+	effectiveElapsedRealtimeNanos == cursor.authorizationEffectiveElapsedRealtimeNanos &&
+	effectiveWallTimeMs == cursor.authorizationEffectiveWallTimeMs &&
+	effectiveBootId == first.effectiveBootId &&
+	effectiveElapsedRealtimeNanos == first.effectiveElapsedRealtimeNanos &&
+	effectiveWallTimeMs == first.effectiveWallTimeMs && logicalTrackingId == null &&
+	serviceRunId == null && manifestRevision == null && lifecycleLeaseGeneration == null
+
+private fun SourceDemandEntity.matchesActiveAmbientCursor(
+	cursor: AmbientStepsImportCursorEntity,
+): Boolean = sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS &&
+	purpose == SourceBrokerPurpose.AMBIENT_PRODUCT && persistenceEligible &&
+	sourcePolicyRevision == cursor.sourcePolicyRevision && consentEpoch == cursor.ambientConsentEpoch &&
+	logicalTrackingId == null && serviceRunId == null && manifestRevision == null &&
+	lifecycleLeaseGeneration == null && requestedBootId == cursor.authorizationEffectiveBootId &&
+	requestedElapsedRealtimeNanos <= cursor.authorizationEffectiveElapsedRealtimeNanos &&
+	requestedAtMs <= cursor.authorizationEffectiveWallTimeMs &&
+	minimumAcquisitionSpec == listOf(
+		"ambient-steps:v1:mechanism=${cursor.provider}",
+		"coverage=OPPORTUNISTIC",
+		"record_freshness=SOURCE_NATIVE_CURSOR",
+	).joinToString(";") && status == SourceDemandEntity.STATUS_ACTIVE && retireBootId == null &&
+	retireElapsedRealtimeNanos == null && retiredAtMs == null
 
 private fun AmbientStepsImportGapEntity.subtractCoveredFacts(
 	facts: List<AmbientStepsFactRevisionEntity>,
