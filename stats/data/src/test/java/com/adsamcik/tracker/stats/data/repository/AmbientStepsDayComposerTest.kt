@@ -184,6 +184,11 @@ class AmbientStepsDayComposerTest {
 	}
 
 	@Test
+	fun `positive session aggregate cannot claim a zero-width capture window`() {
+		assertThrows<IllegalArgumentException> { session(40L, 40L, 1L) }
+	}
+
+	@Test
 	fun `session origin remains explicit in contained attribution`() {
 		val imported = session(20L, 40L, 5L).copy(
 			origin = QualifiedSessionStepsOrigin.PORTABLE_IMPORT,

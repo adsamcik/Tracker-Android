@@ -98,6 +98,9 @@ internal data class QualifiedSessionStepsWindow(
 		require(startTimeMs >= 0L)
 		require(endTimeMs >= startTimeMs)
 		require(stepCount == null || stepCount >= 0L)
+		require(stepCount == null || endTimeMs > startTimeMs) {
+			"A positive or zero session aggregate requires a non-empty capture window"
+		}
 		require(storedZoneId == null || storedZoneId.isNotBlank())
 		storedZoneId?.let(ZoneId::of)
 	}
