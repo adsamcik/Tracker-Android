@@ -248,12 +248,35 @@ data class SessionManifestSourceEntity(
 			purpose == SourceBrokerPurpose.SESSION_CAPTURE && persistenceEligible
 		when {
 			isPersistenceEligibleCapture &&
+				sourceKind == SourceDestinationOwnerEntity.SOURCE_ACTIVITY -> requireActivityWriter()
+			isPersistenceEligibleCapture &&
 				sourceKind == SourceDestinationOwnerEntity.SOURCE_STEPS -> requireStepsWriter()
 			isPersistenceEligibleCapture &&
 				sourceKind == SourceDestinationOwnerEntity.SOURCE_PRESSURE -> requirePressureWriter()
 			else -> require(outputDestination == null && writerProjectionId == null) {
 				"Only supported persistence-eligible capture sources may carry writer provenance"
 			}
+		}
+	}
+
+	private fun requireActivityWriter() {
+		require(outputDestination == SourceDestinationOwnerEntity.DESTINATION_SESSION_ACTIVITY) {
+			"Activity capture must target the permanent session Activity destination"
+		}
+		when (writerOwner) {
+			SourceDestinationOwnerEntity.OWNER_LEGACY_ACTIVITY_SNAPSHOT -> {
+				require(writerOwnerGeneration == SourceDestinationOwnerEntity.INITIAL_LEGACY_GENERATION)
+				require(writerProjectionId == null) {
+					"Legacy Activity ownership must not claim candidate projection provenance"
+				}
+			}
+			SourceDestinationOwnerEntity.OWNER_ACTIVITY_SESSION_FACTS -> {
+				require(writerOwnerGeneration == SourceDestinationOwnerEntity.FIRST_CANDIDATE_GENERATION)
+				require(writerProjectionId == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID)
+				require(writerProjectionVersion == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION)
+				require(writerBindingGeneration == SourceDestinationOwnerEntity.ACTIVITY_FACT_BINDING_GENERATION)
+			}
+			else -> require(false) { "Activity capture must name a permanent destination owner" }
 		}
 	}
 
