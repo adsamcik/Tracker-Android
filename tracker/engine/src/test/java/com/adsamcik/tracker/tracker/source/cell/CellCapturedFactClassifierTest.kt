@@ -77,8 +77,10 @@ class CellCapturedFactClassifierTest {
 		val changed = assertIs<CellCapturedFactClassification.FreshChanged>(
 			CellCapturedFactClassifier.classify(
 				input(
-					expectedSubscriptionCount = 2,
-					observedSubscriptionCount = 1,
+					subscriptionGroupProof = CellSubscriptionGroupProof(
+						expectedGroupCount = 2,
+						observedGroupSizeHistogram = mapOf(children.size to 1),
+					),
 					children = children,
 				),
 				exactAuthority,
@@ -183,37 +185,37 @@ class CellCapturedFactClassifierTest {
 	}
 
 	@Test
-	fun `confirmed empty requires stable source identity and provider time`() {
-		val unverifiable = classify(
+	fun `empty callback stays source unverifiable without immutable provider proof`() {
+		val unverifiable = classify(input(children = emptyList()))
+		assertEquals(
+			CellSourceUnverifiableReason.PROVIDER_CONFIRMED_EMPTY_PROOF_UNAVAILABLE,
+			assertIs<CellCapturedFactClassification.SourceUnverifiable>(unverifiable).reason,
+		)
+		val withoutWalIdentity = classify(
 			input(
-				sourceDeliveryIdentity = null,
+				walEvidence = null,
 				children = emptyList(),
-				providerEmptyObservationElapsedRealtimeNanos = FRESH_TIME,
 			),
 		)
 		assertEquals(
-			CellSourceUnverifiableReason.CONFIRMED_EMPTY_IDENTITY_MISSING,
-			assertIs<CellCapturedFactClassification.SourceUnverifiable>(unverifiable).reason,
+			CellSourceUnverifiableReason.PROVIDER_CONFIRMED_EMPTY_PROOF_UNAVAILABLE,
+			assertIs<CellCapturedFactClassification.SourceUnverifiable>(withoutWalIdentity).reason,
 		)
-
-		val empty = assertIs<CellCapturedFactClassification.FreshConfirmedEmpty>(
-			classify(
-				input(
-					children = emptyList(),
-					providerEmptyObservationElapsedRealtimeNanos = FRESH_TIME,
-					expectedSubscriptionCount = 2,
-					observedSubscriptionCount = 1,
-				),
+		val impossibleCallerProof = classify(
+			input(
+				subscriptionGroupProof = CellSubscriptionGroupProof(1, mapOf(2 to 1)),
+				children = emptyList(),
 			),
 		)
-		assertEquals(CellAvailability.CONFIRMED_EMPTY, empty.fact.availability)
-		assertNull(empty.fact.reusesAggregate)
-		assertTrue(empty.fact.coverage.isPartialMultiSim)
+		assertEquals(
+			CellSourceUnverifiableReason.PROVIDER_CONFIRMED_EMPTY_PROOF_UNAVAILABLE,
+			assertIs<CellCapturedFactClassification.SourceUnverifiable>(impossibleCallerProof).reason,
+		)
 	}
 
 	@Test
-	fun `exact replay is stable and a new delivery with the same aggregate is unchanged`() {
-		val firstInput = input(sourceDeliveryIdentity = identity('a'))
+	fun `exact replay is stable and changed delivery semantics collide`() {
+		val firstInput = input(deliveryIdentity = identity('a'))
 		val first = assertIs<CellCapturedFactClassification.FreshChanged>(classify(firstInput)).fact
 		val reusable = first.reusable()
 
@@ -224,23 +226,25 @@ class CellCapturedFactClassifierTest {
 		assertEquals(reusable.reference, replay.reference)
 
 		val unchanged = assertIs<CellCapturedFactClassification.FreshUnchanged>(
-			classify(input(sourceDeliveryIdentity = identity('b')), priorFact = reusable),
+			classify(input(deliveryIdentity = identity('b')), priorFact = reusable),
 		)
-		assertEquals(reusable.aggregateOwnerReference, unchanged.fact.reusesAggregate)
+		assertEquals(reusable.reference, unchanged.fact.reusesAggregate.reference)
 		assertEquals(CellAvailability.AVAILABLE, unchanged.fact.availability)
 
-		val replayAfterCoverageContextChanges = assertIs<CellCapturedFactClassification.Replay>(
+		val collisionAfterCoverageContextChanges = assertIs<CellCapturedFactClassification.Rejected>(
 			classify(
-				firstInput.copy(expectedSubscriptionCount = 2, observedSubscriptionCount = 1),
+				firstInput.copy(
+					subscriptionGroupProof = CellSubscriptionGroupProof(2, mapOf(1 to 1)),
+				),
 				priorFact = reusable,
 			),
 		)
-		assertEquals(CellReplayReason.EXACT_DELIVERY, replayAfterCoverageContextChanges.reason)
+		assertEquals(CellFactRejection.DELIVERY_IDENTITY_COLLISION, collisionAfterCoverageContextChanges.reason)
 	}
 
 	@Test
 	fun `delivery identity collision and correction chain fail closed`() {
-		val firstInput = input(sourceDeliveryIdentity = identity('a'))
+		val firstInput = input(deliveryIdentity = identity('a'))
 		val first = assertIs<CellCapturedFactClassification.FreshChanged>(classify(firstInput)).fact
 		val base = first.reusable()
 		assertEquals(
@@ -312,83 +316,283 @@ class CellCapturedFactClassifierTest {
 		assertEquals(
 			CellFactRejection.INVALID_SUBSCRIPTION_COUNTS,
 			assertIs<CellCapturedFactClassification.Rejected>(
-				classify(input(expectedSubscriptionCount = 1, observedSubscriptionCount = 2)),
+				classify(
+					input(
+						subscriptionGroupProof = CellSubscriptionGroupProof(1, mapOf(1 to 2)),
+						children = listOf(child(), child()),
+					),
+				),
 			).reason,
+		)
+	}
+
+	@Test
+	fun `subscription completeness requires a consistent nonidentifying group proof`() {
+		val unknown = assertIs<CellCapturedFactClassification.FreshChanged>(
+			classify(input(subscriptionGroupProof = null)),
+		).fact.coverage
+		assertEquals(CellSubscriptionCompleteness.UNKNOWN, unknown.subscriptionCompleteness)
+		assertNull(unknown.expectedSubscriptionCount)
+		assertNull(unknown.observedSubscriptionCount)
+
+		val partial = assertIs<CellCapturedFactClassification.FreshChanged>(
+			classify(
+				input(
+					subscriptionGroupProof = CellSubscriptionGroupProof(2, mapOf(1 to 1)),
+				),
+			),
+		).fact.coverage
+		assertEquals(CellSubscriptionCompleteness.PARTIAL, partial.subscriptionCompleteness)
+		assertEquals(2, partial.expectedSubscriptionCount)
+		assertEquals(1, partial.observedSubscriptionCount)
+
+		val mismatch = classify(
+			input(
+				subscriptionGroupProof = CellSubscriptionGroupProof(2, mapOf(2 to 1)),
+			),
+		)
+		assertEquals(
+			CellFactRejection.INVALID_SUBSCRIPTION_COUNTS,
+			assertIs<CellCapturedFactClassification.Rejected>(mismatch).reason,
+		)
+	}
+
+	@Test
+	fun `provider authority is half open at the exact end boundary`() {
+		val boundedAuthority = authority(
+			temporalAuthority = CellCaptureTemporalAuthority(
+				providerAcceptance = interval(endExclusiveNanos = RECEIVED_ELAPSED_NANOS),
+				authorizationEffect = interval(endExclusiveNanos = RECEIVED_ELAPSED_NANOS),
+				consentEffect = interval(endExclusiveNanos = RECEIVED_ELAPSED_NANOS),
+				sessionRunEffect = interval(endExclusiveNanos = RECEIVED_ELAPSED_NANOS),
+				deletionEffect = interval(endExclusiveNanos = RECEIVED_ELAPSED_NANOS),
+			),
+			maximumObservationAgeNanos = RECEIVED_ELAPSED_NANOS,
+		)
+		val children = listOf(
+			child(
+				providerTimeNanos = boundedAuthority.temporalAuthority.capturedStartInclusiveNanos,
+				authority = boundedAuthority.childAuthority,
+			),
+			child(
+				providerTimeNanos = boundedAuthority.temporalAuthority.capturedEndExclusiveNanos,
+				authority = boundedAuthority.childAuthority,
+			),
+		)
+
+		val fact = assertIs<CellCapturedFactClassification.FreshChanged>(
+			classify(
+				input(authority = boundedAuthority, children = children),
+				authority = boundedAuthority,
+			),
+		).fact
+		assertEquals(1, fact.coverage.acceptedChildCount)
+		assertEquals(1, fact.coverage.staleChildCount)
+	}
+
+	@Test
+	fun `captured WAL authority mismatch and semantic identity collisions fail closed`() {
+		val exactAuthority = authority()
+		val firstInput = input(authority = exactAuthority, deliveryIdentity = identity('a'))
+		val first = assertIs<CellCapturedFactClassification.FreshChanged>(
+			classify(firstInput, authority = exactAuthority),
+		).fact.reusable()
+		val mismatchedWal = cellWalEvidence(
+			identity('b'),
+			exactAuthority.childAuthority.copy(registrationGeneration = 2L),
+		)
+		assertEquals(
+			CellFactRejection.CAPTURE_AUTHORITY_MISMATCH,
+			assertIs<CellCapturedFactClassification.Rejected>(
+				classify(
+					input(authority = exactAuthority, walEvidence = mismatchedWal),
+					authority = exactAuthority,
+				),
+			).reason,
+		)
+
+		val changedTimes = firstInput.copy(
+			receivedElapsedRealtimeNanos = RECEIVED_ELAPSED_NANOS + 1_000_000L,
+		)
+		assertEquals(
+			CellFactRejection.DELIVERY_IDENTITY_COLLISION,
+			assertIs<CellCapturedFactClassification.Rejected>(
+				classify(changedTimes, authority = exactAuthority, priorFact = first),
+			).reason,
+		)
+		val changedWal = firstInput.copy(
+			walEvidence = requireNotNull(firstInput.walEvidence).copy(
+				walIntegrityIdentity = "e".repeat(64),
+			),
+		)
+		assertEquals(
+			CellFactRejection.DELIVERY_IDENTITY_COLLISION,
+			assertIs<CellCapturedFactClassification.Rejected>(
+				classify(changedWal, authority = exactAuthority, priorFact = first),
+			).reason,
+		)
+		val changedScope = authority(sessionManifestRevision = 2L)
+		assertEquals(
+			CellFactRejection.DELIVERY_IDENTITY_COLLISION,
+			assertIs<CellCapturedFactClassification.Rejected>(
+				classify(
+					input(
+						authority = changedScope,
+						deliveryIdentity = identity('a'),
+					),
+					authority = changedScope,
+					priorFact = first,
+				),
+			).reason,
+		)
+	}
+
+	@Test
+	fun `direct aggregate reuse crosses only compatible physical authority`() {
+		val originalAuthority = authority()
+		val directOwner = assertIs<CellCapturedFactClassification.FreshChanged>(
+			classify(input(authority = originalAuthority), authority = originalAuthority),
+		).fact.reusable()
+		val replacementAuthority = authority(
+			sourceInstanceId = SourceInstanceId("cell-source-replacement"),
+			registrationGeneration = 2L,
+			configurationRevision = 2L,
+			authorizationRevision = 2L,
+			authorizationFingerprint = "b".repeat(64),
+			sourcePolicyRevision = 2L,
+			sessionManifestRevision = 2L,
+			lifecycleLeaseGeneration = 2L,
+			clockDomainId = "boot-2",
+		)
+		val reused = assertIs<CellCapturedFactClassification.FreshUnchanged>(
+			classify(
+				input(authority = replacementAuthority, deliveryIdentity = identity('b')),
+				authority = replacementAuthority,
+				priorFact = directOwner,
+			),
+		).fact
+		assertEquals(replacementAuthority, reused.authority)
+		assertEquals(directOwner.reference, reused.reusesAggregate.reference)
+
+		val incompatibleAuthorities = listOf(
+			replacementAuthority.copy(captureConsentEpoch = 2L),
+			replacementAuthority.copy(collectedDataEpoch = 2L),
+			replacementAuthority.copy(scopeDeletionGeneration = 2L),
+			replacementAuthority.copy(capturedSources = setOf(SourceKind.CELL, SourceKind.STEPS)),
+		)
+		incompatibleAuthorities.forEachIndexed { index, incompatible ->
+			assertIs<CellCapturedFactClassification.FreshChanged>(
+				classify(
+					input(
+						authority = incompatible,
+						deliveryIdentity = identity(('c'.code + index).toChar()),
+					),
+					authority = incompatible,
+					priorFact = directOwner,
+				),
+			)
+		}
+
+		assertIs<CellCapturedFactClassification.FreshChanged>(
+			classify(
+				input(authority = replacementAuthority, deliveryIdentity = identity('z')),
+				authority = replacementAuthority,
+				priorFact = reused.toReusableFact(),
+			),
 		)
 	}
 
 	private fun classify(
 		input: CellObservationInput,
+		authority: CellCaptureAuthority = authority(),
 		priorFact: CellReusableFact? = null,
 		semanticRevision: Long = 1L,
 		supersedesSemanticRevision: Long? = null,
 		correctionBase: CellReusableFact? = null,
 	): CellCapturedFactClassification = CellCapturedFactClassifier.classify(
 		input = input,
-		authority = authority(),
+		authority = authority,
 		semanticRevision = semanticRevision,
 		supersedesSemanticRevision = supersedesSemanticRevision,
 		priorFact = priorFact,
 		correctionBase = correctionBase,
 	)
 
-	private fun authority() = CellCaptureAuthority(
-		logicalTrackingId = LogicalTrackingId("logical-cell-session"),
-		serviceRunId = ServiceRunId("cell-run"),
-		sessionSegmentId = 71L,
-		capturedSources = setOf(SourceKind.CELL),
-		controlSources = emptySet(),
-		sourceInstanceId = SourceInstanceId("cell-source-instance"),
-		registrationGeneration = 1L,
-		configurationRevision = 1L,
-		physicalConfigurationFingerprint = "cell-change-callback-v1",
-		authorizationRevision = 1L,
-		authorizationFingerprint = "a".repeat(64),
-		purposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
-		sourcePolicyRevision = 1L,
-		captureConsentEpoch = 1L,
-		sessionManifestRevision = 1L,
-		lifecycleLeaseGeneration = 1L,
-		collectedDataEpoch = 1L,
-		scopeDeletionGeneration = 1L,
-		clockDomainId = "boot-1",
-		zoneId = "Europe/Prague",
-		structuralEpochDay = 20_000L,
-		temporalAuthority = CellCaptureTemporalAuthority(
+	private fun authority(
+		sourceInstanceId: SourceInstanceId = SourceInstanceId("cell-source-instance"),
+		registrationGeneration: Long = 1L,
+		configurationRevision: Long = 1L,
+		authorizationRevision: Long = 1L,
+		authorizationFingerprint: String = "a".repeat(64),
+		sourcePolicyRevision: Long = 1L,
+		captureConsentEpoch: Long = 1L,
+		sessionManifestRevision: Long = 1L,
+		lifecycleLeaseGeneration: Long = 1L,
+		collectedDataEpoch: Long = 1L,
+		scopeDeletionGeneration: Long = 1L,
+		clockDomainId: String = "boot-1",
+		temporalAuthority: CellCaptureTemporalAuthority = CellCaptureTemporalAuthority(
 			providerAcceptance = interval(),
 			authorizationEffect = interval(),
 			consentEffect = interval(),
 			sessionRunEffect = interval(),
 			deletionEffect = interval(),
 		),
-		maximumObservationAgeNanos = 2_000_000_000L,
+		maximumObservationAgeNanos: Long = 2_000_000_000L,
+	) = CellCaptureAuthority(
+		logicalTrackingId = LogicalTrackingId("logical-cell-session"),
+		serviceRunId = ServiceRunId("cell-run"),
+		sessionSegmentId = 71L,
+		capturedSources = setOf(SourceKind.CELL),
+		controlSources = emptySet(),
+		sourceInstanceId = sourceInstanceId,
+		registrationGeneration = registrationGeneration,
+		configurationRevision = configurationRevision,
+		physicalConfigurationFingerprint = "cell-change-callback-v1",
+		authorizationRevision = authorizationRevision,
+		authorizationFingerprint = authorizationFingerprint,
+		purposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
+		sourcePolicyRevision = sourcePolicyRevision,
+		captureConsentEpoch = captureConsentEpoch,
+		sessionManifestRevision = sessionManifestRevision,
+		lifecycleLeaseGeneration = lifecycleLeaseGeneration,
+		collectedDataEpoch = collectedDataEpoch,
+		scopeDeletionGeneration = scopeDeletionGeneration,
+		clockDomainId = clockDomainId,
+		zoneId = "Europe/Prague",
+		structuralEpochDay = 20_000L,
+		temporalAuthority = temporalAuthority,
+		maximumObservationAgeNanos = maximumObservationAgeNanos,
 	)
 
-	private fun interval() = CellProviderTimeInterval(
-		startInclusiveNanos = 5_000_000_000L,
-		endExclusiveNanos = 20_000_000_000L,
+	private fun interval(
+		startInclusiveNanos: Long = 5_000_000_000L,
+		endExclusiveNanos: Long = 20_000_000_000L,
+	) = CellProviderTimeInterval(
+		startInclusiveNanos = startInclusiveNanos,
+		endExclusiveNanos = endExclusiveNanos,
 	)
 
 	private fun input(
+		authority: CellCaptureAuthority = authority(),
 		origin: CellObservationOrigin = CellObservationOrigin.CHANGE_CALLBACK,
 		outcome: CellProviderOutcome = CellProviderOutcome.DELIVERED,
-		sourceDeliveryIdentity: SourceDeliveryIdentity? = identity('a'),
-		clockDomainId: String? = "boot-1",
-		providerEmptyObservationElapsedRealtimeNanos: Long? = null,
-		expectedSubscriptionCount: Int? = 1,
-		observedSubscriptionCount: Int = 1,
-		children: List<CellProviderChild> = listOf(child()),
+		deliveryIdentity: SourceDeliveryIdentity? = identity('a'),
+		walEvidence: CellWalObservationEvidence? = deliveryIdentity?.let { identity ->
+			cellWalEvidence(identity, authority.childAuthority)
+		},
+		clockDomainId: String? = authority.clockDomainId,
+		subscriptionGroupProof: CellSubscriptionGroupProof? = null,
+		children: List<CellProviderChild> = listOf(child(authority = authority.childAuthority)),
 	) = CellObservationInput(
 		origin = origin,
 		outcome = outcome,
-		sourceDeliveryIdentity = sourceDeliveryIdentity,
+		walEvidence = walEvidence,
 		clockDomainId = clockDomainId,
-		providerEmptyObservationElapsedRealtimeNanos = providerEmptyObservationElapsedRealtimeNanos,
 		receivedElapsedRealtimeNanos = RECEIVED_ELAPSED_NANOS,
 		receivedWallTimeMs = RECEIVED_WALL_TIME_MS,
 		wallTimeUncertaintyMs = 25L,
-		expectedSubscriptionCount = expectedSubscriptionCount,
-		observedSubscriptionCount = observedSubscriptionCount,
+		subscriptionGroupProof = subscriptionGroupProof,
 		children = children,
 	)
 
@@ -408,16 +612,21 @@ class CellCapturedFactClassifierTest {
 		authority = authority,
 	)
 
-	private fun CellCapturedFact.Aggregate.reusable() = CellReusableFact(
-		reference = CellAggregateFactReference(mutation.identity, mutation.semanticRevision),
-		authority = authority,
-		availability = availability,
-		coverage = coverage,
-		aggregate = aggregate,
-		aggregateOwnerReference = CellAggregateFactReference(
-			mutation.identity,
-			mutation.semanticRevision,
-		),
+	private fun CellCapturedFact.Aggregate.reusable() =
+		CellReusableFact.DirectAggregateOwner.from(this)
+
+	private fun cellWalEvidence(
+		identity: SourceDeliveryIdentity,
+		capturedAuthority: CellChildAuthority,
+	) = CellWalObservationEvidence(
+		sourceDeliveryIdentity = identity,
+		sourceAdmissionOrdinal = 1L,
+		walIntegrityIdentity = "c".repeat(64),
+		payloadChecksum = "d".repeat(64),
+		deliveryUnitIndex = 0,
+		deliveryUnitCount = 1,
+		sourceSequence = 1L,
+		capturedAuthority = capturedAuthority,
 	)
 
 	private fun identity(character: Char) = SourceDeliveryIdentity(character.toString().repeat(64))

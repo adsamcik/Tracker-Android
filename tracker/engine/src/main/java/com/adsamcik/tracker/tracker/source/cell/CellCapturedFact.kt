@@ -255,7 +255,7 @@ internal data class CellIdentityFreeAggregate(
 	}
 }
 
-internal enum class CellAvailability { AVAILABLE, CONFIRMED_EMPTY }
+internal enum class CellAvailability { AVAILABLE }
 internal enum class CellSubscriptionCompleteness { COMPLETE, PARTIAL, UNKNOWN }
 internal enum class CellChildCompleteness { COMPLETE, PARTIAL }
 
@@ -272,7 +272,7 @@ internal data class CellCoverageEvidence(
 	val authorityMismatchChildCount: Int,
 	val unsupportedTechnologyChildCount: Int,
 	val expectedSubscriptionCount: Int?,
-	val observedSubscriptionCount: Int,
+	val observedSubscriptionCount: Int?,
 	val subscriptionCompleteness: CellSubscriptionCompleteness,
 	val childCompleteness: CellChildCompleteness,
 ) {
@@ -291,16 +291,19 @@ internal data class CellCoverageEvidence(
 		require(submittedChildCount >= 0 && counts.all { it >= 0 })
 		require(counts.fold(0) { total, count -> Math.addExact(total, count) } == submittedChildCount)
 		require(expectedSubscriptionCount == null || expectedSubscriptionCount >= 0)
-		require(observedSubscriptionCount >= 0)
+		require(observedSubscriptionCount == null || observedSubscriptionCount >= 0)
 		require(
 			when (subscriptionCompleteness) {
 				CellSubscriptionCompleteness.COMPLETE ->
 					expectedSubscriptionCount != null &&
+						observedSubscriptionCount != null &&
 						observedSubscriptionCount == expectedSubscriptionCount
 				CellSubscriptionCompleteness.PARTIAL ->
 					expectedSubscriptionCount != null &&
+						observedSubscriptionCount != null &&
 						observedSubscriptionCount < expectedSubscriptionCount
-				CellSubscriptionCompleteness.UNKNOWN -> expectedSubscriptionCount == null
+				CellSubscriptionCompleteness.UNKNOWN ->
+					expectedSubscriptionCount == null && observedSubscriptionCount == null
 			},
 		)
 		require(
@@ -322,9 +325,50 @@ internal data class CellAggregateFactReference(
 	}
 }
 
+/** Immutable WAL and canonical decoded-provider binding for collision-safe replay. */
+internal data class CellCapturedEvidenceBinding(
+	val sourceDeliveryIdentity: SourceDeliveryIdentity,
+	val sourceAdmissionOrdinal: Long,
+	val walIntegrityIdentity: String,
+	val payloadChecksum: String,
+	val deliveryUnitIndex: Int,
+	val deliveryUnitCount: Int,
+	val sourceSequence: Long,
+	val canonicalProviderSemanticsDigest: String,
+	val capturedAuthority: CellChildAuthority,
+) {
+	init {
+		require(sourceAdmissionOrdinal > 0L)
+		require(LOWERCASE_SHA_256.matches(walIntegrityIdentity))
+		require(LOWERCASE_SHA_256.matches(payloadChecksum))
+		require(deliveryUnitCount > 0)
+		require(deliveryUnitIndex in 0 until deliveryUnitCount)
+		require(sourceSequence >= 0L)
+		require(LOWERCASE_SHA_256.matches(canonicalProviderSemanticsDigest))
+	}
+}
+
+/** Complete effective fact value; exact replay must match every field, not only its aggregate. */
+internal data class CellCapturedProductEffect(
+	val evidenceBinding: CellCapturedEvidenceBinding,
+	val observedWallTimeMs: Long,
+	val wallTimeUncertaintyMs: Long,
+	val availability: CellAvailability,
+	val coverage: CellCoverageEvidence,
+	val aggregate: CellIdentityFreeAggregate,
+) {
+	init {
+		require(observedWallTimeMs >= 0L)
+		require(wallTimeUncertaintyMs >= 0L)
+		require(availability == CellAvailability.AVAILABLE)
+		require(coverage.acceptedChildCount == aggregate.observationCount)
+	}
+}
+
 internal sealed interface CellCapturedFact {
 	val mutation: CellCapturedFactMutation
 	val authority: CellCaptureAuthority
+	val evidenceBinding: CellCapturedEvidenceBinding
 	val observedWallTimeMs: Long
 	val wallTimeUncertaintyMs: Long
 	val availability: CellAvailability
@@ -333,6 +377,7 @@ internal sealed interface CellCapturedFact {
 	data class Aggregate(
 		override val mutation: CellCapturedFactMutation,
 		override val authority: CellCaptureAuthority,
+		override val evidenceBinding: CellCapturedEvidenceBinding,
 		override val observedWallTimeMs: Long,
 		override val wallTimeUncertaintyMs: Long,
 		override val availability: CellAvailability,
@@ -340,7 +385,7 @@ internal sealed interface CellCapturedFact {
 		val aggregate: CellIdentityFreeAggregate,
 	) : CellCapturedFact {
 		init {
-			validateCellFactBinding(mutation, authority, coverage)
+			validateCellFactBinding(mutation, authority, evidenceBinding, coverage)
 			require(observedWallTimeMs >= 0L)
 			require(wallTimeUncertaintyMs >= 0L)
 			require(availability == CellAvailability.AVAILABLE)
@@ -348,59 +393,160 @@ internal sealed interface CellCapturedFact {
 		}
 	}
 
-	data class CoverageOnly(
+	class CoverageOnly private constructor(
 		override val mutation: CellCapturedFactMutation,
 		override val authority: CellCaptureAuthority,
+		override val evidenceBinding: CellCapturedEvidenceBinding,
 		override val observedWallTimeMs: Long,
 		override val wallTimeUncertaintyMs: Long,
 		override val availability: CellAvailability,
 		override val coverage: CellCoverageEvidence,
-		val reusesAggregate: CellAggregateFactReference?,
+		val reusesAggregate: CellReusableFact.DirectAggregateOwner,
 	) : CellCapturedFact {
 		init {
-			validateCellFactBinding(mutation, authority, coverage)
+			validateCellFactBinding(mutation, authority, evidenceBinding, coverage)
 			require(observedWallTimeMs >= 0L)
 			require(wallTimeUncertaintyMs >= 0L)
-			require((availability == CellAvailability.AVAILABLE) == (reusesAggregate != null))
-			reusesAggregate?.let { aggregateReference ->
-				validateCellFactIdentityBinding(aggregateReference.identity, authority)
-				if (aggregateReference.identity == mutation.identity) {
-					require(aggregateReference.semanticRevision < mutation.semanticRevision)
-				}
-			}
+			require(availability == CellAvailability.AVAILABLE)
+			require(authority.canReuseAggregateFrom(reusesAggregate.authority))
+			require(reusesAggregate.productEffect.aggregate.observationCount > 0)
 			require(
-				availability != CellAvailability.CONFIRMED_EMPTY ||
-					(coverage.submittedChildCount == 0 && coverage.acceptedChildCount == 0),
+				coverage.acceptedChildCount ==
+					reusesAggregate.productEffect.aggregate.observationCount,
 			)
+		}
+
+		companion object {
+			fun create(
+				mutation: CellCapturedFactMutation,
+				authority: CellCaptureAuthority,
+				evidenceBinding: CellCapturedEvidenceBinding,
+				observedWallTimeMs: Long,
+				wallTimeUncertaintyMs: Long,
+				availability: CellAvailability,
+				coverage: CellCoverageEvidence,
+				aggregate: CellIdentityFreeAggregate,
+				reusesAggregate: CellReusableFact.DirectAggregateOwner,
+			): CoverageOnly {
+				require(reusesAggregate.productEffect.aggregate == aggregate)
+				return CoverageOnly(
+					mutation = mutation,
+					authority = authority,
+					evidenceBinding = evidenceBinding,
+					observedWallTimeMs = observedWallTimeMs,
+					wallTimeUncertaintyMs = wallTimeUncertaintyMs,
+					availability = availability,
+					coverage = coverage,
+					reusesAggregate = reusesAggregate,
+				)
+			}
 		}
 	}
 }
 
-/** Exact effective state used for replay, one-hop reuse, and correction-base validation. */
-internal data class CellReusableFact(
-	val reference: CellAggregateFactReference,
-	val authority: CellCaptureAuthority,
-	val availability: CellAvailability,
-	val coverage: CellCoverageEvidence,
-	val aggregate: CellIdentityFreeAggregate?,
-	val aggregateOwnerReference: CellAggregateFactReference?,
-) {
-	init {
-		require((availability == CellAvailability.AVAILABLE) == (aggregate != null))
-		require((aggregate != null) == (aggregateOwnerReference != null))
-		validateCellFactIdentityBinding(reference.identity, authority)
-		aggregateOwnerReference?.let { validateCellFactIdentityBinding(it.identity, authority) }
+/** Persisted prior state. A coverage-only fact can never become a second-hop aggregate owner. */
+internal sealed interface CellReusableFact {
+	val reference: CellAggregateFactReference
+	val authority: CellCaptureAuthority
+	val productEffect: CellCapturedProductEffect
+
+	class DirectAggregateOwner private constructor(
+		override val reference: CellAggregateFactReference,
+		override val authority: CellCaptureAuthority,
+		override val productEffect: CellCapturedProductEffect,
+	) : CellReusableFact {
+		init {
+			validateCellFactIdentityBinding(reference.identity, authority)
+			require(
+				reference.identity.sourceDeliveryIdentity ==
+					productEffect.evidenceBinding.sourceDeliveryIdentity,
+			)
+			require(productEffect.evidenceBinding.capturedAuthority == authority.childAuthority)
+			require(
+				productEffect.coverage.acceptedChildCount ==
+					productEffect.aggregate.observationCount,
+			)
+		}
+
+		companion object {
+			fun from(fact: CellCapturedFact.Aggregate) = DirectAggregateOwner(
+				reference = CellAggregateFactReference(
+					fact.mutation.identity,
+					fact.mutation.semanticRevision,
+				),
+				authority = fact.authority,
+				productEffect = fact.productEffect,
+			)
+		}
+	}
+
+	data class CoverageOnly(
+		override val reference: CellAggregateFactReference,
+		override val authority: CellCaptureAuthority,
+		override val productEffect: CellCapturedProductEffect,
+		val directAggregateOwner: DirectAggregateOwner,
+	) : CellReusableFact {
+		init {
+			validateCellFactIdentityBinding(reference.identity, authority)
+			require(
+				reference.identity.sourceDeliveryIdentity ==
+					productEffect.evidenceBinding.sourceDeliveryIdentity,
+			)
+			require(productEffect.evidenceBinding.capturedAuthority == authority.childAuthority)
+			require(authority.canReuseAggregateFrom(directAggregateOwner.authority))
+			require(productEffect.aggregate == directAggregateOwner.productEffect.aggregate)
+			require(
+				productEffect.coverage.acceptedChildCount ==
+					productEffect.aggregate.observationCount,
+			)
+		}
 	}
 }
 
 private fun validateCellFactBinding(
 	mutation: CellCapturedFactMutation,
 	authority: CellCaptureAuthority,
+	evidenceBinding: CellCapturedEvidenceBinding,
 	coverage: CellCoverageEvidence,
 ) {
 	validateCellFactIdentityBinding(mutation.identity, authority)
+	require(mutation.identity.sourceDeliveryIdentity == evidenceBinding.sourceDeliveryIdentity)
+	require(evidenceBinding.capturedAuthority == authority.childAuthority)
 	require(coverage.providerIntervalStartElapsedRealtimeNanos in authority.temporalAuthority)
 	require(coverage.providerIntervalEndElapsedRealtimeNanos in authority.temporalAuthority)
+}
+
+/** Physical provider/auth changes may reuse bytes only inside the same exact product authority. */
+internal fun CellCaptureAuthority.canReuseAggregateFrom(other: CellCaptureAuthority): Boolean =
+	logicalTrackingId == other.logicalTrackingId && serviceRunId == other.serviceRunId &&
+		sessionSegmentId == other.sessionSegmentId && capturedSources == other.capturedSources &&
+		controlSources == other.controlSources && purposeEligibilityMask == other.purposeEligibilityMask &&
+		captureConsentEpoch == other.captureConsentEpoch &&
+		collectedDataEpoch == other.collectedDataEpoch &&
+		scopeDeletionGeneration == other.scopeDeletionGeneration && zoneId == other.zoneId &&
+		structuralEpochDay == other.structuralEpochDay
+
+internal val CellCapturedFact.productEffect: CellCapturedProductEffect
+	get() = CellCapturedProductEffect(
+		evidenceBinding = evidenceBinding,
+		observedWallTimeMs = observedWallTimeMs,
+		wallTimeUncertaintyMs = wallTimeUncertaintyMs,
+		availability = availability,
+		coverage = coverage,
+		aggregate = when (this) {
+			is CellCapturedFact.Aggregate -> aggregate
+			is CellCapturedFact.CoverageOnly -> reusesAggregate.productEffect.aggregate
+		},
+	)
+
+internal fun CellCapturedFact.toReusableFact(): CellReusableFact = when (this) {
+	is CellCapturedFact.Aggregate -> CellReusableFact.DirectAggregateOwner.from(this)
+	is CellCapturedFact.CoverageOnly -> CellReusableFact.CoverageOnly(
+		reference = CellAggregateFactReference(mutation.identity, mutation.semanticRevision),
+		authority = authority,
+		productEffect = productEffect,
+		directAggregateOwner = reusesAggregate,
+	)
 }
 
 private fun validateCellFactIdentityBinding(
@@ -416,3 +562,4 @@ private fun validateCellFactIdentityBinding(
 }
 
 private val AUTHORIZATION_FINGERPRINT = Regex("[0-9a-f]{64}")
+private val LOWERCASE_SHA_256 = Regex("[0-9a-f]{64}")
