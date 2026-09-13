@@ -4,6 +4,124 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
+import java.security.MessageDigest
+
+/**
+ * Immutable proof that one Activity provider registration applied one exact desired plan.
+ *
+ * The coordinator's latest applied-state row is mutable and therefore cannot authorize delayed
+ * facts or corrections. This append-only source-local binding remains valid for the lifetime of
+ * its exact provider registration generation.
+ */
+@Entity(
+	tableName = "activity_captured_registration_plan",
+	primaryKeys = ["source_instance_id", "registration_generation"],
+	indices = [
+		Index(
+			value = ["configuration_revision", "desired_plan_payload_checksum"],
+			name = "idx_activity_captured_registration_plan_configuration",
+		),
+	],
+)
+@Suppress("LongParameterList")
+data class ActivityCapturedRegistrationPlanEntity(
+	@ColumnInfo(name = "source_instance_id") val sourceInstanceId: String,
+	@ColumnInfo(name = "registration_generation") val registrationGeneration: Long,
+	@ColumnInfo(name = "configuration_revision") val configurationRevision: Long,
+	@ColumnInfo(name = "desired_plan_payload_version") val desiredPlanPayloadVersion: Int,
+	@ColumnInfo(name = "desired_plan_payload_checksum") val desiredPlanPayloadChecksum: String,
+	@ColumnInfo(name = "physical_configuration_fingerprint")
+	val physicalConfigurationFingerprint: String,
+	@ColumnInfo(name = "applied_at_elapsed_realtime_nanos") val appliedAtElapsedRealtimeNanos: Long,
+	@ColumnInfo(name = "apply_status") val applyStatus: String,
+	@ColumnInfo(name = "binding_identity") val bindingIdentity: String,
+) {
+	init {
+		require(sourceInstanceId.isNotBlank())
+		require(registrationGeneration > 0L && configurationRevision > 0L)
+		require(desiredPlanPayloadVersion > 0 && desiredPlanPayloadChecksum.isNotBlank())
+		require(physicalConfigurationFingerprint.isNotBlank())
+		require(appliedAtElapsedRealtimeNanos >= 0L)
+		require(applyStatus in APPLIED_STATUSES)
+		require(bindingIdentity == calculatedBindingIdentity())
+	}
+
+	fun calculatedBindingIdentity(): String = calculateBindingIdentity(
+		sourceInstanceId = sourceInstanceId,
+		registrationGeneration = registrationGeneration,
+		configurationRevision = configurationRevision,
+		desiredPlanPayloadVersion = desiredPlanPayloadVersion,
+		desiredPlanPayloadChecksum = desiredPlanPayloadChecksum,
+		physicalConfigurationFingerprint = physicalConfigurationFingerprint,
+		appliedAtElapsedRealtimeNanos = appliedAtElapsedRealtimeNanos,
+		applyStatus = applyStatus,
+	)
+
+	companion object {
+		val APPLIED_STATUSES = setOf("APPLIED", "DEGRADED")
+
+		@Suppress("LongParameterList")
+		fun create(
+			sourceInstanceId: String,
+			registrationGeneration: Long,
+			configurationRevision: Long,
+			desiredPlanPayloadVersion: Int,
+			desiredPlanPayloadChecksum: String,
+			physicalConfigurationFingerprint: String,
+			appliedAtElapsedRealtimeNanos: Long,
+			applyStatus: String,
+		): ActivityCapturedRegistrationPlanEntity = ActivityCapturedRegistrationPlanEntity(
+			sourceInstanceId = sourceInstanceId,
+			registrationGeneration = registrationGeneration,
+			configurationRevision = configurationRevision,
+			desiredPlanPayloadVersion = desiredPlanPayloadVersion,
+			desiredPlanPayloadChecksum = desiredPlanPayloadChecksum,
+			physicalConfigurationFingerprint = physicalConfigurationFingerprint,
+			appliedAtElapsedRealtimeNanos = appliedAtElapsedRealtimeNanos,
+			applyStatus = applyStatus,
+			bindingIdentity = calculateBindingIdentity(
+				sourceInstanceId,
+				registrationGeneration,
+				configurationRevision,
+				desiredPlanPayloadVersion,
+				desiredPlanPayloadChecksum,
+				physicalConfigurationFingerprint,
+				appliedAtElapsedRealtimeNanos,
+				applyStatus,
+			),
+		)
+
+		@Suppress("LongParameterList")
+		private fun calculateBindingIdentity(
+			sourceInstanceId: String,
+			registrationGeneration: Long,
+			configurationRevision: Long,
+			desiredPlanPayloadVersion: Int,
+			desiredPlanPayloadChecksum: String,
+			physicalConfigurationFingerprint: String,
+			appliedAtElapsedRealtimeNanos: Long,
+			applyStatus: String,
+		): String {
+			val values = listOf(
+				"activity-registration-plan-v1",
+				sourceInstanceId,
+				registrationGeneration.toString(),
+				configurationRevision.toString(),
+				desiredPlanPayloadVersion.toString(),
+				desiredPlanPayloadChecksum,
+				physicalConfigurationFingerprint,
+				appliedAtElapsedRealtimeNanos.toString(),
+				applyStatus,
+			)
+			val canonical = values.joinToString(separator = "") { value ->
+				"${value.length}:$value"
+			}
+			return MessageDigest.getInstance("SHA-256")
+				.digest(canonical.toByteArray(Charsets.UTF_8))
+				.joinToString(separator = "") { byte -> "%02x".format(byte) }
+		}
+	}
+}
 
 /**
  * Append-only authority and summary for one semantic revision of a captured Activity window.
@@ -297,6 +415,12 @@ data class ActivityCapturedEvidenceEntity(
 	@ColumnInfo(name = "source_sequence") val sourceSequence: Long,
 	@ColumnInfo(name = "provider_elapsed_realtime_nanos") val providerElapsedRealtimeNanos: Long,
 	@ColumnInfo(name = "received_elapsed_realtime_nanos") val receivedElapsedRealtimeNanos: Long,
+	@ColumnInfo(name = "observation_kind") val observationKind: String,
+	@ColumnInfo(name = "observed_activity") val observedActivity: String,
+	@ColumnInfo(name = "transition_change") val transitionChange: String?,
+	@ColumnInfo(name = "confidence_percent") val confidencePercent: Int?,
+	@ColumnInfo(name = "coverage_end_exclusive_elapsed_realtime_nanos")
+	val coverageEndExclusiveElapsedRealtimeNanos: Long?,
 ) {
 	init {
 		require(writerProjectionId == SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_ID)
@@ -306,6 +430,29 @@ data class ActivityCapturedEvidenceEntity(
 		require(sourceEventId.isNotBlank() && sourceAdmissionOrdinal > 0L && sourceSequence > 0L)
 		require(providerElapsedRealtimeNanos >= 0L)
 		require(receivedElapsedRealtimeNanos >= providerElapsedRealtimeNanos)
+		require(observedActivity.isNotBlank())
+		when (observationKind) {
+			KIND_TRANSITION -> {
+				require(transitionChange in TRANSITION_CHANGES)
+				require(confidencePercent == null)
+				require(coverageEndExclusiveElapsedRealtimeNanos == null)
+			}
+			KIND_SAMPLED_CLASSIFICATION -> {
+				require(transitionChange == null)
+				require(confidencePercent != null && confidencePercent in 0..100)
+				require(
+					coverageEndExclusiveElapsedRealtimeNanos != null &&
+						coverageEndExclusiveElapsedRealtimeNanos > providerElapsedRealtimeNanos,
+				)
+			}
+			else -> require(false) { "Unknown captured Activity observation kind $observationKind" }
+		}
+	}
+
+	companion object {
+		const val KIND_TRANSITION = "TRANSITION"
+		const val KIND_SAMPLED_CLASSIFICATION = "SAMPLED_CLASSIFICATION"
+		val TRANSITION_CHANGES = setOf("ENTER", "EXIT")
 	}
 }
 

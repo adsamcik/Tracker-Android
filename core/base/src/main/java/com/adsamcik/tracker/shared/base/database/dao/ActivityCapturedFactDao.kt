@@ -6,12 +6,26 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedEvidenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEntity
+import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowRevisionEntity
 
 /** Narrow append-only storage boundary for the dormant captured Activity writer. */
 @Dao
 interface ActivityCapturedFactDao {
+	@Insert(onConflict = OnConflictStrategy.IGNORE)
+	suspend fun insertRegistrationPlanBinding(entity: ActivityCapturedRegistrationPlanEntity): Long
+
+	@Query(
+		"SELECT * FROM activity_captured_registration_plan " +
+			"WHERE source_instance_id = :sourceInstanceId " +
+			"AND registration_generation = :registrationGeneration LIMIT 1",
+	)
+	suspend fun registrationPlanBinding(
+		sourceInstanceId: String,
+		registrationGeneration: Long,
+	): ActivityCapturedRegistrationPlanEntity?
+
 	/** Exact next immutable authorization boundary in the provider's canonical elapsed-time order. */
 	@Query(
 		"SELECT effective_elapsed_realtime_nanos FROM source_authorization " +
@@ -150,6 +164,9 @@ interface ActivityCapturedFactDao {
 	@Query("SELECT COUNT(*) FROM activity_captured_window_revision")
 	suspend fun revisionCount(): Long
 
+	@Query("SELECT COUNT(*) FROM activity_captured_registration_plan")
+	suspend fun registrationPlanBindingCount(): Long
+
 	@Query("DELETE FROM activity_captured_evidence")
 	fun deleteAllEvidence()
 
@@ -161,4 +178,7 @@ interface ActivityCapturedFactDao {
 
 	@Query("DELETE FROM activity_captured_window_revision")
 	fun deleteAllRevisions()
+
+	@Query("DELETE FROM activity_captured_registration_plan")
+	fun deleteAllRegistrationPlanBindings()
 }

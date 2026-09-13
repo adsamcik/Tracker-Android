@@ -63,7 +63,9 @@ class ActivityCapturedFactCoalescerTest {
 			band.intervalEndExclusiveElapsedRealtimeNanos shouldBe 1_000L
 			band.activity shouldBe CapturedActivityType.WALKING
 			band.mechanism shouldBe ActivityBandMechanism.TRANSITION
-			band.evidence shouldContainExactly listOf(reference("walking", 100L))
+			band.evidence shouldContainExactly listOf(
+				transition("walking", 100L, CapturedActivityType.WALKING).reference,
+			)
 			band.wallTimeRange.endExclusive.authority.kind shouldBe
 				ActivityWallTimeBoundaryKind.SAME_CLOCK_EXTRAPOLATION
 			band.wallTimeRange.endExclusive.uncertaintyMs shouldBe 6L
@@ -99,8 +101,8 @@ class ActivityCapturedFactCoalescerTest {
 		window.bands[1].confidence shouldBe ActivityBandConfidence.Sampled(90, 90, 1)
 		window.bands[1].refinedTransitionActivity shouldBe CapturedActivityType.ON_FOOT
 		window.bands[1].evidence shouldContainExactly listOf(
-			reference("on-foot", 100L),
-			reference("walking", 200L),
+			transition("on-foot", 100L, CapturedActivityType.ON_FOOT).reference,
+			sampled("walking", 200L, 90, 400L, CapturedActivityType.WALKING).reference,
 		)
 	}
 
@@ -142,7 +144,9 @@ class ActivityCapturedFactCoalescerTest {
 
 		window.bands.single().intervalStartElapsedRealtimeNanos shouldBe 100L
 		window.bands.single().intervalEndExclusiveElapsedRealtimeNanos shouldBe 900L
-		window.bands.single().evidence shouldContainExactly listOf(reference("walking", 100L))
+		window.bands.single().evidence shouldContainExactly listOf(
+			sampled("walking", 100L, 90, 900L, CapturedActivityType.WALKING).reference,
+		)
 		window.unchangedEvidenceCount shouldBe 1
 	}
 
@@ -161,8 +165,9 @@ class ActivityCapturedFactCoalescerTest {
 		window.bands.single().intervalStartElapsedRealtimeNanos shouldBe 100L
 		window.bands.single().intervalEndExclusiveElapsedRealtimeNanos shouldBe 400L
 		window.bands.single().evidence shouldContainExactly listOf(
-			reference("unknown", 100L),
-			reference("unknown-exit", 400L),
+			sampled("unknown", 100L, 90, 900L, CapturedActivityType.UNKNOWN).reference,
+			transition("unknown-exit", 400L, CapturedActivityType.UNKNOWN,
+				ActivityTransitionChange.EXIT).reference,
 		)
 		window.gaps.last() shouldBe ActivityCoverageGap(
 			400L,
@@ -187,8 +192,9 @@ class ActivityCapturedFactCoalescerTest {
 		window.bands.single().intervalStartElapsedRealtimeNanos shouldBe 100L
 		window.bands.single().intervalEndExclusiveElapsedRealtimeNanos shouldBe 400L
 		window.bands.single().evidence shouldContainExactly listOf(
-			reference("walking", 100L),
-			reference("walking-exit", 400L),
+			sampled("walking", 100L, 90, 900L, CapturedActivityType.WALKING).reference,
+			transition("walking-exit", 400L, CapturedActivityType.WALKING,
+				ActivityTransitionChange.EXIT).reference,
 		)
 		window.gaps.last() shouldBe ActivityCoverageGap(
 			400L,
@@ -214,8 +220,9 @@ class ActivityCapturedFactCoalescerTest {
 		window.bands.single().intervalStartElapsedRealtimeNanos shouldBe 100L
 		window.bands.single().intervalEndExclusiveElapsedRealtimeNanos shouldBe 400L
 		window.bands.single().evidence shouldContainExactly listOf(
-			reference("old-walking", 100L),
-			reference("on-foot-exit", 400L),
+			sampled("old-walking", 100L, 90, 900L, CapturedActivityType.WALKING).reference,
+			transition("on-foot-exit", 400L, CapturedActivityType.ON_FOOT,
+				ActivityTransitionChange.EXIT).reference,
 		)
 		window.unchangedEvidenceCount shouldBe 1
 	}
@@ -244,9 +251,11 @@ class ActivityCapturedFactCoalescerTest {
 		window.bands.single().intervalStartElapsedRealtimeNanos shouldBe 100L
 		window.bands.single().intervalEndExclusiveElapsedRealtimeNanos shouldBe 700L
 		window.bands.single().evidence shouldContainExactly listOf(
-			reference("old-walking", 100L),
-			reference("on-foot-exit", 400L, sourceSequence = 401L),
-			reference("new-walking", 400L, sourceSequence = 402L),
+			sampled("old-walking", 100L, 90, 900L, CapturedActivityType.WALKING).reference,
+			transition("on-foot-exit", 400L, CapturedActivityType.ON_FOOT,
+				ActivityTransitionChange.EXIT, sourceSequence = 401L).reference,
+			sampled("new-walking", 400L, 90, 700L, CapturedActivityType.WALKING,
+				sourceSequence = 402L).reference,
 		)
 	}
 
@@ -262,7 +271,9 @@ class ActivityCapturedFactCoalescerTest {
 			band.activity shouldBe CapturedActivityType.RUNNING
 			band.mechanism shouldBe ActivityBandMechanism.SAMPLED_CLASSIFICATION
 			band.confidence shouldBe ActivityBandConfidence.Sampled(80, 80, 1)
-			band.evidence shouldContainExactly listOf(reference("running", 200L))
+			band.evidence shouldContainExactly listOf(
+				sampled("running", 200L, 80, 450L, CapturedActivityType.RUNNING).reference,
+			)
 		}
 		window.gaps shouldContainExactly listOf(
 			ActivityCoverageGap(0L, 200L, ActivityCoverageGapReason.NO_QUALIFIED_EVIDENCE),
@@ -285,8 +296,10 @@ class ActivityCapturedFactCoalescerTest {
 			band.mechanism shouldBe ActivityBandMechanism.SAMPLED_CLASSIFICATION
 			band.confidence shouldBe ActivityBandConfidence.Sampled(80, 90, 2)
 			band.evidence shouldContainExactly listOf(
-				reference("walking-1", 100L),
-				reference("walking-2", 300L),
+				sampled("walking-1", 100L, 80, 300L,
+					CapturedActivityType.WALKING).reference,
+				sampled("walking-2", 300L, 90, 600L,
+					CapturedActivityType.WALKING).reference,
 			)
 		}
 	}
@@ -294,7 +307,9 @@ class ActivityCapturedFactCoalescerTest {
 	@Test
 	fun `exact semantic and unchanged observations are suppressed independently`() {
 		val enter = transition("enter", 100L, CapturedActivityType.WALKING)
-		val sameMeaning = enter.copy(reference = reference("same-meaning", 100L))
+		val sameMeaning = enter.copy(
+			reference = transition("same-meaning", 100L, CapturedActivityType.WALKING).reference,
+		)
 		val duplicateEnter = transition("duplicate-enter", 200L, CapturedActivityType.WALKING)
 		val result = ActivityCapturedFactCoalescer.coalesce(
 			request(observations = listOf(enter, enter, sameMeaning, duplicateEnter)),
@@ -304,7 +319,9 @@ class ActivityCapturedFactCoalescerTest {
 		window.exactDuplicateCount shouldBe 1
 		window.semanticDuplicateCount shouldBe 1
 		window.unchangedEvidenceCount shouldBe 1
-		window.bands.single().evidence shouldContainExactly listOf(reference("enter", 100L))
+		window.bands.single().evidence shouldContainExactly listOf(
+			transition("enter", 100L, CapturedActivityType.WALKING).reference,
+		)
 	}
 
 	@Test
@@ -331,7 +348,9 @@ class ActivityCapturedFactCoalescerTest {
 			band.intervalEndExclusiveElapsedRealtimeNanos shouldBe 400L
 			band.activity shouldBe CapturedActivityType.WALKING
 			band.mechanism shouldBe ActivityBandMechanism.TRANSITION
-			band.evidence shouldContainExactly listOf(reference("walking", 100L))
+			band.evidence shouldContainExactly listOf(
+				transition("walking", 100L, CapturedActivityType.WALKING).reference,
+			)
 		}
 		window.gaps shouldContainExactly listOf(
 			ActivityCoverageGap(0L, 100L, ActivityCoverageGapReason.NO_QUALIFIED_EVIDENCE),
@@ -521,7 +540,7 @@ class ActivityCapturedFactCoalescerTest {
 		change: ActivityTransitionChange = ActivityTransitionChange.ENTER,
 		sourceSequence: Long = time + 1L,
 	) = ActivityCapturedObservation.Transition(
-		reference = reference(id, time, sourceSequence),
+		reference = transitionReference(id, time, activity, change, sourceSequence),
 		authority = authority,
 		activity = activity,
 		observedWallTimeMs = time + 10_000L,
@@ -537,7 +556,7 @@ class ActivityCapturedFactCoalescerTest {
 		activity: CapturedActivityType,
 		sourceSequence: Long = time + 1L,
 	) = ActivityCapturedObservation.SampledClassification(
-		reference = reference(id, time, sourceSequence),
+		reference = sampledReference(id, time, confidence, coverageEnd, activity, sourceSequence),
 		authority = authority,
 		activity = activity,
 		observedWallTimeMs = time + 10_000L,
@@ -546,9 +565,11 @@ class ActivityCapturedFactCoalescerTest {
 		coverageEndExclusiveElapsedRealtimeNanos = coverageEnd,
 	)
 
-	private fun reference(
+	private fun transitionReference(
 		id: String,
 		time: Long,
+		activity: CapturedActivityType,
+		change: ActivityTransitionChange = ActivityTransitionChange.ENTER,
 		sourceSequence: Long = time + 1L,
 	) = ActivityCapturedObservationReference(
 		sourceEventId = SourceEventId(id),
@@ -556,6 +577,31 @@ class ActivityCapturedFactCoalescerTest {
 		sourceSequence = sourceSequence,
 		providerElapsedRealtimeNanos = time,
 		receivedElapsedRealtimeNanos = time + 10L,
+		observationKind = ActivityCapturedObservationKind.TRANSITION,
+		observedActivity = activity,
+		transitionChange = change,
+		confidencePercent = null,
+		coverageEndExclusiveElapsedRealtimeNanos = null,
+	)
+
+	private fun sampledReference(
+		id: String,
+		time: Long,
+		confidence: Int,
+		coverageEnd: Long,
+		activity: CapturedActivityType,
+		sourceSequence: Long = time + 1L,
+	) = ActivityCapturedObservationReference(
+		sourceEventId = SourceEventId(id),
+		admissionOrdinal = time + 1L,
+		sourceSequence = sourceSequence,
+		providerElapsedRealtimeNanos = time,
+		receivedElapsedRealtimeNanos = time + 10L,
+		observationKind = ActivityCapturedObservationKind.SAMPLED_CLASSIFICATION,
+		observedActivity = activity,
+		transitionChange = null,
+		confidencePercent = confidence,
+		coverageEndExclusiveElapsedRealtimeNanos = coverageEnd,
 	)
 
 	private val authority = ActivityCaptureAuthority(

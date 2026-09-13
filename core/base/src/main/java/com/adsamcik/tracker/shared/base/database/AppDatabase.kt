@@ -44,6 +44,7 @@ import com.adsamcik.tracker.shared.base.database.dao.XpLedgerDao
 import com.adsamcik.tracker.shared.base.database.data.ActivitySnapshot
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedEvidenceEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedFragmentEntity
+import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowCursorEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedWindowRevisionEntity
 import com.adsamcik.tracker.shared.base.database.data.ActivityAutomaticStartActionEntity
@@ -180,6 +181,7 @@ internal const val CURRENT_DATABASE_VERSION = 28
 			ImportedStepsRunEntity::class,
 			ImportedStepsManifestEntity::class,
 			PressureFactRevisionEntity::class,
+			ActivityCapturedRegistrationPlanEntity::class,
 			ActivityCapturedWindowRevisionEntity::class,
 			ActivityCapturedFragmentEntity::class,
 			ActivityCapturedEvidenceEntity::class,
@@ -631,6 +633,7 @@ abstract class AppDatabase : RoomDatabase() {
 			database.activityCapturedFactDao().deleteAllFragments()
 			database.activityCapturedFactDao().deleteAllCursors()
 			database.activityCapturedFactDao().deleteAllRevisions()
+			database.activityCapturedFactDao().deleteAllRegistrationPlanBindings()
 			database.stepIntervalDao().deleteAll()
 			database.activitySnapshotDao().deleteAll()
 			database.cellSampleDao().deleteAll()

@@ -1734,6 +1734,27 @@ val MIGRATION_27_28: Migration = object : Migration(
 			)
 			execSQL(
 				"""
+				CREATE TABLE IF NOT EXISTS activity_captured_registration_plan (
+					source_instance_id TEXT NOT NULL,
+					registration_generation INTEGER NOT NULL,
+					configuration_revision INTEGER NOT NULL,
+					desired_plan_payload_version INTEGER NOT NULL,
+					desired_plan_payload_checksum TEXT NOT NULL,
+					physical_configuration_fingerprint TEXT NOT NULL,
+					applied_at_elapsed_realtime_nanos INTEGER NOT NULL,
+					apply_status TEXT NOT NULL,
+					binding_identity TEXT NOT NULL,
+					PRIMARY KEY(source_instance_id, registration_generation)
+				)
+				""".trimIndent(),
+			)
+			execSQL(
+				"CREATE INDEX IF NOT EXISTS idx_activity_captured_registration_plan_configuration " +
+					"ON activity_captured_registration_plan(configuration_revision, " +
+					"desired_plan_payload_checksum)",
+			)
+			execSQL(
+				"""
 				CREATE TABLE IF NOT EXISTS activity_captured_window_revision (
 					writer_projection_id TEXT NOT NULL,
 					writer_projection_version INTEGER NOT NULL,
@@ -1851,6 +1872,11 @@ val MIGRATION_27_28: Migration = object : Migration(
 					source_sequence INTEGER NOT NULL,
 					provider_elapsed_realtime_nanos INTEGER NOT NULL,
 					received_elapsed_realtime_nanos INTEGER NOT NULL,
+					observation_kind TEXT NOT NULL,
+					observed_activity TEXT NOT NULL,
+					transition_change TEXT,
+					confidence_percent INTEGER,
+					coverage_end_exclusive_elapsed_realtime_nanos INTEGER,
 					PRIMARY KEY(writer_projection_id, writer_projection_version, logical_window_id, semantic_revision, fragment_ordinal, evidence_ordinal),
 					FOREIGN KEY(writer_projection_id, writer_projection_version, logical_window_id, semantic_revision, fragment_ordinal)
 						REFERENCES activity_captured_fragment(writer_projection_id, writer_projection_version, logical_window_id, semantic_revision, fragment_ordinal)

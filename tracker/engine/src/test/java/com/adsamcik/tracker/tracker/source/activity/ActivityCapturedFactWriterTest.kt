@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import com.adsamcik.tracker.shared.base.database.data.AcquisitionPlanRevisionEntity
+import com.adsamcik.tracker.shared.base.database.data.ActivityCapturedRegistrationPlanEntity
 import com.adsamcik.tracker.shared.base.database.data.LogicalTrackingSessionEntity
 import com.adsamcik.tracker.shared.base.database.data.ProviderRegistrationGenerationEntity
 import com.adsamcik.tracker.shared.base.database.data.SessionManifestIntegrity
@@ -23,14 +24,19 @@ import com.adsamcik.tracker.shared.base.database.data.SourcePolicyEntity
 import com.adsamcik.tracker.shared.base.database.data.SourceServiceRunEntity
 import com.adsamcik.tracker.shared.model.SegmentSource
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
+import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
 import com.adsamcik.tracker.tracker.source.model.ActivityMode
+import com.adsamcik.tracker.tracker.source.model.ActivityRecognitionPayload
 import com.adsamcik.tracker.tracker.source.model.ActivityPlan
+import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
 import com.adsamcik.tracker.tracker.source.model.LogicalTrackingId
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
 import com.adsamcik.tracker.tracker.source.model.ServiceRunId
 import com.adsamcik.tracker.tracker.source.model.SourceEventId
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.model.SourcePayload
+import com.adsamcik.tracker.tracker.source.model.StableActivityTypeCode
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
@@ -81,8 +87,14 @@ class ActivityCapturedFactWriterTest {
 		dao.revisionCount() shouldBe 1L
 		dao.fragments(WRITER_ID, WRITER_VERSION, logicalWindowId, 1L).map { it.fragmentKind } shouldBe
 			listOf("BAND", "GAP")
-		dao.evidence(WRITER_ID, WRITER_VERSION, logicalWindowId, 1L).single().sourceEventId shouldBe
-			"activity-event-1"
+		dao.evidence(WRITER_ID, WRITER_VERSION, logicalWindowId, 1L).single().let { evidence ->
+			evidence.sourceEventId shouldBe "activity-event-1"
+			evidence.observationKind shouldBe "TRANSITION"
+			evidence.observedActivity shouldBe "WALKING"
+			evidence.transitionChange shouldBe "ENTER"
+			evidence.confidencePercent shouldBe null
+			evidence.coverageEndExclusiveElapsedRealtimeNanos shouldBe null
+		}
 		dao.cursor(WRITER_ID, WRITER_VERSION, logicalWindowId)?.latestSemanticRevision shouldBe 1L
 		database.activitySnapshotDao().getAllBetween(0L, Long.MAX_VALUE).size shouldBe 0
 
@@ -202,8 +214,64 @@ class ActivityCapturedFactWriterTest {
 	}
 
 	@Test
-	fun `applied Activity state must bind the exact registration generation`() = runTest {
-		seedAuthority(appliedRegistrationGeneration = 2L)
+	fun `historical Activity plan must bind the exact registration generation`() = runTest {
+		seedAuthority(historicalRegistrationGeneration = 2L)
+
+		ActivityCapturedFactWriter(database).write(
+			ActivityCapturedWriteCommand.Captured(capturedWindow()),
+		) shouldBe ActivityCapturedWriteResult.Rejected(
+			ActivityCapturedWriteRejection.ACQUISITION_CONFIGURATION_MISMATCH,
+		)
+	}
+
+	@Test
+	fun `later mutable applied-plan state does not invalidate delayed historical evidence`() = runTest {
+		seedAuthority()
+		database.sourcePlanStateDao().saveAppliedState(
+			SourceAppliedPlanStateEntity(
+				sourceKind = SourceKind.ACTIVITY.stableCode,
+				desiredRevision = 2L,
+				appliedRevision = 2L,
+				sourceInstanceId = "activity-provider-new",
+				registrationGeneration = 2L,
+				appliedAtElapsedNanos = 500L,
+				status = "APPLIED",
+				degradedReasons = "",
+				updatedAtMs = 3_000L,
+			),
+		)
+
+		val result = ActivityCapturedFactWriter(database).write(
+			ActivityCapturedWriteCommand.Captured(capturedWindow()),
+		)
+
+		(result is ActivityCapturedWriteResult.Applied) shouldBe true
+	}
+
+	@Test
+	fun `historical registration plan binding cannot be overwritten by reconfiguration`() = runTest {
+		seedAuthority()
+		val replacement = ActivityCapturedRegistrationPlanEntity.create(
+			sourceInstanceId = SOURCE_INSTANCE_ID,
+			registrationGeneration = 1L,
+			configurationRevision = 2L,
+			desiredPlanPayloadVersion = 1,
+			desiredPlanPayloadChecksum = "replacement-checksum",
+			physicalConfigurationFingerprint = "replacement-fingerprint",
+			appliedAtElapsedRealtimeNanos = 500L,
+			applyStatus = "APPLIED",
+		)
+
+		database.activityCapturedFactDao().insertRegistrationPlanBinding(replacement) shouldBe -1L
+		database.activityCapturedFactDao().registrationPlanBinding(
+			SOURCE_INSTANCE_ID,
+			1L,
+		)?.configurationRevision shouldBe 1L
+	}
+
+	@Test
+	fun `historical Activity plan checksum mismatch is rejected`() = runTest {
+		seedAuthority(historicalPlanChecksum = "different-plan-checksum")
 
 		ActivityCapturedFactWriter(database).write(
 			ActivityCapturedWriteCommand.Captured(capturedWindow()),
@@ -269,6 +337,175 @@ class ActivityCapturedFactWriterTest {
 	}
 
 	@Test
+	fun `durable WAL payload must be canonical Activity evidence`() = runTest {
+		seedAuthority(walPayloadBytesOverride = byteArrayOf(1, 2, 3))
+
+		ActivityCapturedFactWriter(database).write(
+			ActivityCapturedWriteCommand.Captured(capturedWindow()),
+		) shouldBe ActivityCapturedWriteResult.Rejected(
+			ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH,
+		)
+	}
+
+	@Test
+	fun `durable WAL transition meaning must match captured evidence`() = runTest {
+		seedAuthority(
+			walPayload = ActivityTransitionPayload(
+				activityType = StableActivityTypeCode.RUNNING,
+				transitionType = 0,
+				providerElapsedRealtimeNanos = 200L,
+			),
+		)
+
+		ActivityCapturedFactWriter(database).write(
+			ActivityCapturedWriteCommand.Captured(capturedWindow()),
+		) shouldBe ActivityCapturedWriteResult.Rejected(
+			ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH,
+		)
+	}
+
+	@Test
+	fun `durable WAL transition direction must match captured evidence`() = runTest {
+		seedAuthority(
+			walPayload = ActivityTransitionPayload(
+				activityType = StableActivityTypeCode.WALKING,
+				transitionType = 1,
+				providerElapsedRealtimeNanos = 200L,
+			),
+		)
+
+		ActivityCapturedFactWriter(database).write(
+			ActivityCapturedWriteCommand.Captured(capturedWindow()),
+		) shouldBe ActivityCapturedWriteResult.Rejected(
+			ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH,
+		)
+	}
+
+	@Test
+	fun `durable WAL payload with trailing bytes is not canonical evidence`() = runTest {
+		val payload = ActivityTransitionPayload(
+			activityType = StableActivityTypeCode.WALKING,
+			transitionType = 0,
+			providerElapsedRealtimeNanos = 200L,
+		)
+		val canonical = DefaultSourcePayloadCodec().encode(payload, 1).bytes
+		seedAuthority(walPayload = payload, walPayloadBytesOverride = canonical + byteArrayOf(0))
+
+		ActivityCapturedFactWriter(database).write(
+			ActivityCapturedWriteCommand.Captured(capturedWindow()),
+		) shouldBe ActivityCapturedWriteResult.Rejected(
+			ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH,
+		)
+	}
+
+	@Test
+	fun `sampled WAL confidence and admitted coverage are persisted per evidence child`() = runTest {
+		seedAuthority(
+			activityPlan = SAMPLED_ACTIVITY_PLAN,
+			physicalFingerprint = SAMPLED_PHYSICAL_FINGERPRINT,
+			walPayload = ActivityRecognitionPayload(
+				activityType = StableActivityTypeCode.WALKING,
+				confidencePercent = 90,
+				providerElapsedRealtimeNanos = 200L,
+			),
+		)
+		val result = ActivityCapturedFactWriter(database).write(
+			ActivityCapturedWriteCommand.Captured(
+				sampledCapturedWindow(
+					authority = captureAuthority(
+						physicalFingerprint = SAMPLED_PHYSICAL_FINGERPRINT,
+					),
+				),
+			),
+		) as ActivityCapturedWriteResult.Applied
+
+		val evidence = database.activityCapturedFactDao().evidence(
+			WRITER_ID,
+			WRITER_VERSION,
+			result.logicalWindowId,
+			1L,
+		).single()
+		evidence.observationKind shouldBe "SAMPLED_CLASSIFICATION"
+		evidence.observedActivity shouldBe "WALKING"
+		evidence.transitionChange shouldBe null
+		evidence.confidencePercent shouldBe 90
+		evidence.coverageEndExclusiveElapsedRealtimeNanos shouldBe 300L
+	}
+
+	@Test
+	fun `sampled WAL confidence mismatch is rejected`() = runTest {
+		seedAuthority(
+			activityPlan = SAMPLED_ACTIVITY_PLAN,
+			physicalFingerprint = SAMPLED_PHYSICAL_FINGERPRINT,
+			walPayload = ActivityRecognitionPayload(
+				activityType = StableActivityTypeCode.WALKING,
+				confidencePercent = 89,
+				providerElapsedRealtimeNanos = 200L,
+			),
+		)
+
+		ActivityCapturedFactWriter(database).write(
+			ActivityCapturedWriteCommand.Captured(
+				sampledCapturedWindow(
+					authority = captureAuthority(
+						physicalFingerprint = SAMPLED_PHYSICAL_FINGERPRINT,
+					),
+				),
+			),
+		) shouldBe ActivityCapturedWriteResult.Rejected(
+			ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH,
+		)
+	}
+
+	@Test
+	fun `sampled coverage cannot extend beyond exact capture authority`() = runTest {
+		seedAuthority(
+			activityPlan = SAMPLED_ACTIVITY_PLAN,
+			physicalFingerprint = SAMPLED_PHYSICAL_FINGERPRINT,
+			walPayload = ActivityRecognitionPayload(
+				activityType = StableActivityTypeCode.WALKING,
+				confidencePercent = 90,
+				providerElapsedRealtimeNanos = 200L,
+			),
+		)
+
+		ActivityCapturedFactWriter(database).write(
+			ActivityCapturedWriteCommand.Captured(
+				sampledCapturedWindow(
+					authority = captureAuthority(
+						physicalFingerprint = SAMPLED_PHYSICAL_FINGERPRINT,
+					),
+					coverageEndExclusiveElapsedRealtimeNanos = RUN_END_NANOS + 1L,
+				),
+			),
+		) shouldBe ActivityCapturedWriteResult.Rejected(
+			ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH,
+		)
+	}
+
+	@Test
+	fun `sampled evidence below its historical plan threshold is rejected`() = runTest {
+		seedAuthority(
+			activityPlan = SAMPLED_ACTIVITY_PLAN,
+			physicalFingerprint = SAMPLED_PHYSICAL_FINGERPRINT,
+			walPayload = ActivityRecognitionPayload(
+				activityType = StableActivityTypeCode.WALKING,
+				confidencePercent = 60,
+				providerElapsedRealtimeNanos = 200L,
+			),
+		)
+		val window = sampledCapturedWindow(
+			authority = captureAuthority(physicalFingerprint = SAMPLED_PHYSICAL_FINGERPRINT),
+			confidencePercent = 60,
+		)
+
+		ActivityCapturedFactWriter(database).write(ActivityCapturedWriteCommand.Captured(window)) shouldBe
+			ActivityCapturedWriteResult.Rejected(
+				ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH,
+			)
+	}
+
+	@Test
 	fun `derived wall boundaries must retain their exact durable WAL anchor`() = runTest {
 		seedAuthority(walWallTimeMs = 1_999L)
 
@@ -300,7 +537,9 @@ class ActivityCapturedFactWriterTest {
 		sourcePolicyRevision: Long = 1L,
 		consentPolicyRevision: Long = sourcePolicyRevision,
 		activityPlan: ActivityPlan = DEFAULT_ACTIVITY_PLAN,
-		appliedRegistrationGeneration: Long = 1L,
+		physicalFingerprint: String = PHYSICAL_FINGERPRINT,
+		historicalRegistrationGeneration: Long = 1L,
+		historicalPlanChecksum: String? = null,
 		manifestZoneId: String = "Europe/Prague",
 		runDesiredPlanRevision: Long = 1L,
 		corruptDesiredChecksum: Boolean = false,
@@ -309,6 +548,8 @@ class ActivityCapturedFactWriterTest {
 		walObservedElapsedRealtimeNanos: Long = 200L,
 		walReceivedElapsedRealtimeNanos: Long = 210L,
 		walWallTimeMs: Long = 2_000L,
+		walPayload: SourcePayload? = null,
+		walPayloadBytesOverride: ByteArray? = null,
 	) {
 		database.sourceEvidenceStateDao().ensure(SourceEvidenceState(collectedDataEpoch = 0L))
 		database.sourceDestinationOwnerDao().insertIfAbsent(
@@ -412,20 +653,32 @@ class ActivityCapturedFactWriterTest {
 				),
 			),
 		)
+		database.activityCapturedFactDao().insertRegistrationPlanBinding(
+			ActivityCapturedRegistrationPlanEntity.create(
+				sourceInstanceId = SOURCE_INSTANCE_ID,
+				registrationGeneration = historicalRegistrationGeneration,
+				configurationRevision = 1L,
+				desiredPlanPayloadVersion = 1,
+				desiredPlanPayloadChecksum = historicalPlanChecksum ?: encodedPlan.checksum,
+				physicalConfigurationFingerprint = physicalFingerprint,
+				appliedAtElapsedRealtimeNanos = RUN_START_NANOS,
+				applyStatus = "APPLIED",
+			),
+		)
 		database.sourcePlanStateDao().saveAppliedState(
 			SourceAppliedPlanStateEntity(
 				sourceKind = SourceKind.ACTIVITY.stableCode,
 				desiredRevision = 1L,
 				appliedRevision = 1L,
 				sourceInstanceId = SOURCE_INSTANCE_ID,
-				registrationGeneration = appliedRegistrationGeneration,
+				registrationGeneration = 1L,
 				appliedAtElapsedNanos = RUN_START_NANOS,
 				status = "APPLIED",
 				degradedReasons = "",
 				updatedAtMs = 1_000L,
 			),
 		)
-		database.sourceBrokerDao().insertRegistration(activityRegistration())
+		database.sourceBrokerDao().insertRegistration(activityRegistration(physicalFingerprint))
 		database.sourceBrokerDao().insertAuthorizations(
 			listOf(activityAuthorization(sourcePolicyRevision)),
 		)
@@ -436,6 +689,13 @@ class ActivityCapturedFactWriterTest {
 				observedElapsedRealtimeNanos = walObservedElapsedRealtimeNanos,
 				receivedElapsedRealtimeNanos = walReceivedElapsedRealtimeNanos,
 				wallTimeMs = walWallTimeMs,
+				payload = walPayload ?: ActivityTransitionPayload(
+					activityType = StableActivityTypeCode.WALKING,
+					transitionType = 0,
+					providerElapsedRealtimeNanos = walObservedElapsedRealtimeNanos,
+				),
+				payloadBytesOverride = walPayloadBytesOverride,
+				physicalFingerprint = physicalFingerprint,
 			)
 		}
 	}
@@ -571,13 +831,15 @@ class ActivityCapturedFactWriterTest {
 		changeReason = "TEST",
 	)
 
-	private fun activityRegistration() = ProviderRegistrationGenerationEntity(
+	private fun activityRegistration(
+		physicalFingerprint: String,
+	) = ProviderRegistrationGenerationEntity(
 		sourceKind = SourceKind.ACTIVITY.stableCode,
 		registrationGeneration = 1L,
 		sourceInstanceId = SOURCE_INSTANCE_ID,
 		ownerScope = "activity-provider",
 		clockDomainId = BOOT_ID,
-		physicalConfigurationFingerprint = PHYSICAL_FINGERPRINT,
+		physicalConfigurationFingerprint = physicalFingerprint,
 		collectedDataEpoch = 0L,
 		providerResidency = ProviderRegistrationGenerationEntity.RESIDENCY_PROCESS_BOUND,
 		providerProcessIncarnationId = "process-1",
@@ -619,7 +881,11 @@ class ActivityCapturedFactWriterTest {
 		observedElapsedRealtimeNanos: Long,
 		receivedElapsedRealtimeNanos: Long,
 		wallTimeMs: Long,
+		payload: SourcePayload,
+		payloadBytesOverride: ByteArray?,
+		physicalFingerprint: String,
 	) {
+		val encodedPayload = DefaultSourcePayloadCodec().encode(payload, 1)
 		val unsigned = SourceEventWalEntity(
 			admissionOrdinal = 1L,
 			eventId = "activity-event-1",
@@ -629,7 +895,7 @@ class ActivityCapturedFactWriterTest {
 			sourceKind = SourceKind.ACTIVITY.stableCode,
 			sourceInstanceId = SOURCE_INSTANCE_ID,
 			registrationGeneration = 1L,
-			physicalConfigurationFingerprint = PHYSICAL_FINGERPRINT,
+			physicalConfigurationFingerprint = physicalFingerprint,
 			authorizationRevision = 1L,
 			authorizationPurposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
 			authorizationFingerprint = AUTHORIZATION_FINGERPRINT,
@@ -650,7 +916,7 @@ class ActivityCapturedFactWriterTest {
 			qualityFlags = 0L,
 			qualityConfidence = 0.90f,
 			payloadVersion = 1,
-			payload = byteArrayOf(1, 2, 3),
+			payload = payloadBytesOverride ?: encodedPayload.bytes,
 			payloadChecksum = "",
 			createdAtMs = 2_000L,
 		)
@@ -676,6 +942,11 @@ class ActivityCapturedFactWriterTest {
 			sourceSequence = 1L,
 			providerElapsedRealtimeNanos = 200L,
 			receivedElapsedRealtimeNanos = 210L,
+			observationKind = ActivityCapturedObservationKind.TRANSITION,
+			observedActivity = CapturedActivityType.WALKING,
+			transitionChange = ActivityTransitionChange.ENTER,
+			confidencePercent = null,
+			coverageEndExclusiveElapsedRealtimeNanos = null,
 		)
 		val bandEnd = if (withGap) 300L else 400L
 		val band = ActivityCapturedBand(
@@ -699,6 +970,69 @@ class ActivityCapturedFactWriterTest {
 			gaps = if (withGap) listOf(
 				ActivityCoverageGap(300L, 400L, ActivityCoverageGapReason.NO_QUALIFIED_EVIDENCE),
 			) else emptyList(),
+			exactDuplicateCount = 0,
+			semanticDuplicateCount = 0,
+			unchangedEvidenceCount = 0,
+		)
+	}
+
+	private fun sampledCapturedWindow(
+		authority: ActivityCaptureAuthority,
+		coverageEndExclusiveElapsedRealtimeNanos: Long = 300L,
+		confidencePercent: Int = 90,
+	): ActivityCapturedWindow {
+		val mutation = ActivityCapturedWindowMutation(
+			identity = ActivityCapturedWindowIdentity(authority, 200L, 400L),
+			semanticRevision = 1L,
+			supersedesSemanticRevision = null,
+		)
+		val reference = ActivityCapturedObservationReference(
+			sourceEventId = SourceEventId("activity-event-1"),
+			admissionOrdinal = 1L,
+			sourceSequence = 1L,
+			providerElapsedRealtimeNanos = 200L,
+			receivedElapsedRealtimeNanos = 210L,
+			observationKind = ActivityCapturedObservationKind.SAMPLED_CLASSIFICATION,
+			observedActivity = CapturedActivityType.WALKING,
+			transitionChange = null,
+			confidencePercent = confidencePercent,
+			coverageEndExclusiveElapsedRealtimeNanos =
+				coverageEndExclusiveElapsedRealtimeNanos,
+		)
+		return ActivityCapturedWindow(
+			mutation = mutation,
+			bands = listOf(
+				ActivityCapturedBand(
+					key = ActivityCapturedFactKey(mutation, 0),
+					intervalStartElapsedRealtimeNanos = 200L,
+					intervalEndExclusiveElapsedRealtimeNanos = 300L,
+					wallTimeRange = ActivityDerivedWallTimeRange(
+						startInclusive = boundary(
+							reference,
+							2_000L,
+							ActivityWallTimeBoundaryKind.EXACT_PROVIDER_OBSERVATION,
+						),
+						endExclusive = boundary(
+							reference,
+							2_000L,
+							ActivityWallTimeBoundaryKind.SAME_CLOCK_EXTRAPOLATION,
+						),
+						continuity = ActivityWallTimeContinuity.SAME_ANCHOR,
+					),
+					activity = CapturedActivityType.WALKING,
+					mechanism = ActivityBandMechanism.SAMPLED_CLASSIFICATION,
+					refinedTransitionActivity = null,
+					confidence = ActivityBandConfidence.Sampled(
+						confidencePercent,
+						confidencePercent,
+						1,
+					),
+					evidence = listOf(reference),
+				),
+			),
+			gaps = listOf(
+				ActivityCoverageGap(300L, 400L, ActivityCoverageGapReason.NO_QUALIFIED_EVIDENCE),
+			),
 			exactDuplicateCount = 0,
 			semanticDuplicateCount = 0,
 			unchangedEvidenceCount = 0,
@@ -739,13 +1073,16 @@ class ActivityCapturedFactWriterTest {
 		),
 	)
 
-	private fun captureAuthority(sourcePolicyRevision: Long = 1L) = ActivityCaptureAuthority(
+	private fun captureAuthority(
+		sourcePolicyRevision: Long = 1L,
+		physicalFingerprint: String = PHYSICAL_FINGERPRINT,
+	) = ActivityCaptureAuthority(
 		logicalTrackingId = LogicalTrackingId(LOGICAL_TRACKING_ID),
 		serviceRunId = ServiceRunId(SERVICE_RUN_ID),
 		sourceInstanceId = SourceInstanceId(SOURCE_INSTANCE_ID),
 		registrationGeneration = 1L,
 		configurationRevision = 1L,
-		physicalConfigurationFingerprint = PHYSICAL_FINGERPRINT,
+		physicalConfigurationFingerprint = physicalFingerprint,
 		authorizationRevision = 1L,
 		authorizationFingerprint = AUTHORIZATION_FINGERPRINT,
 		purposeEligibilityMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
@@ -774,11 +1111,16 @@ class ActivityCapturedFactWriterTest {
 		private const val WRITER_VERSION = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION
 		private val DEFAULT_ACTIVITY_PLAN = ActivityPlan(
 			revision = 1L,
-			mode = ActivityMode.CONTINUOUS_RECOGNITION,
+			mode = ActivityMode.TRANSITIONS_ONLY,
 			desiredDetectionLatencyMs = 30_000L,
 			confidenceThresholdPercent = 65,
 			transitionTypes = setOf(0, 1),
 		)
 		private val PHYSICAL_FINGERPRINT = DEFAULT_ACTIVITY_PLAN.physicalConfigurationFingerprint()
+		private val SAMPLED_ACTIVITY_PLAN = DEFAULT_ACTIVITY_PLAN.copy(
+			mode = ActivityMode.CONTINUOUS_RECOGNITION,
+		)
+		private val SAMPLED_PHYSICAL_FINGERPRINT =
+			SAMPLED_ACTIVITY_PLAN.physicalConfigurationFingerprint()
 	}
 }

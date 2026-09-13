@@ -14,10 +14,16 @@ import com.adsamcik.tracker.shared.base.database.data.SourceDestinationOwnerEnti
 import com.adsamcik.tracker.shared.base.database.data.SourceEventWalEntity
 import com.adsamcik.tracker.shared.base.database.data.toAuthorizationSnapshotOrNull
 import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
+import com.adsamcik.tracker.tracker.source.ingress.DefaultSourcePayloadCodec
+import com.adsamcik.tracker.tracker.source.ingress.SourcePayloadCodec
+import com.adsamcik.tracker.tracker.source.model.ActivityMode
+import com.adsamcik.tracker.tracker.source.model.ActivityRecognitionPayload
 import com.adsamcik.tracker.tracker.source.model.ActivityPlan
+import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
 import com.adsamcik.tracker.tracker.source.model.PlanAttribution
-import com.adsamcik.tracker.tracker.source.model.SourceApplyStatus
 import com.adsamcik.tracker.tracker.source.model.SourceKind
+import com.adsamcik.tracker.tracker.source.model.SourcePayload
+import com.adsamcik.tracker.tracker.source.model.StableActivityTypeCode
 import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
 import java.security.MessageDigest
 import java.time.DateTimeException
@@ -74,6 +80,7 @@ internal sealed interface ActivityCapturedWriteResult {
 internal class ActivityCapturedFactWriter(
 	private val database: AppDatabase,
 	private val planCodec: SourcePlanCodec = SourcePlanCodec(),
+	private val payloadCodec: SourcePayloadCodec = DefaultSourcePayloadCodec(),
 ) {
 	suspend fun write(command: ActivityCapturedWriteCommand): ActivityCapturedWriteResult {
 		if (command is ActivityCapturedWriteCommand.ControlOnly) {
@@ -204,8 +211,10 @@ internal class ActivityCapturedFactWriter(
 			?.takeIf { desired -> desired.payloadVersion == SOURCE_PLAN_PAYLOAD_VERSION }
 			?.let { desired -> runCatching { planCodec.decode(desired.payload) as? ActivityPlan }.getOrNull() }
 		val canonicalActivityPlan = decodedActivityPlan?.let(planCodec::encode)
-		val appliedActivityPlan = database.sourcePlanStateDao().appliedStates()
-			.singleOrNull { it.sourceKind == SOURCE_KIND }
+		val historicalRegistrationPlan = database.activityCapturedFactDao().registrationPlanBinding(
+			authority.sourceInstanceId.value,
+			authority.registrationGeneration,
+		)
 		if (acquisitionRevision?.sourcePolicyRevision != authority.sourcePolicyRevision ||
 			desiredActivityPlan == null || decodedActivityPlan == null ||
 			canonicalActivityPlan == null ||
@@ -215,14 +224,15 @@ internal class ActivityCapturedFactWriter(
 			!decodedActivityPlan.enabled ||
 			decodedActivityPlan.physicalConfigurationFingerprint() !=
 				authority.physicalConfigurationFingerprint ||
-			appliedActivityPlan == null ||
-			appliedActivityPlan.desiredRevision != authority.configurationRevision ||
-			appliedActivityPlan.appliedRevision != authority.configurationRevision ||
-			appliedActivityPlan.sourceInstanceId != authority.sourceInstanceId.value ||
-			appliedActivityPlan.registrationGeneration != authority.registrationGeneration ||
-			appliedActivityPlan.appliedAtElapsedNanos == null ||
-			appliedActivityPlan.appliedAtElapsedNanos > window.intervalStartElapsedRealtimeNanos ||
-			appliedActivityPlan.status !in APPLIED_PLAN_STATUSES
+			historicalRegistrationPlan == null ||
+			historicalRegistrationPlan.configurationRevision != authority.configurationRevision ||
+			historicalRegistrationPlan.desiredPlanPayloadVersion != desiredActivityPlan.payloadVersion ||
+			historicalRegistrationPlan.desiredPlanPayloadChecksum !=
+				desiredActivityPlan.payloadChecksum ||
+			historicalRegistrationPlan.physicalConfigurationFingerprint !=
+				authority.physicalConfigurationFingerprint ||
+			historicalRegistrationPlan.appliedAtElapsedRealtimeNanos >
+				window.intervalStartElapsedRealtimeNanos
 		) reject(ActivityCapturedWriteRejection.ACQUISITION_CONFIGURATION_MISMATCH)
 
 		val registration = database.sourceBrokerDao().registration(
@@ -277,7 +287,7 @@ internal class ActivityCapturedFactWriter(
 		if (expectedRunEnd != authority.temporalAuthority.sessionRunEffect.endExclusiveNanos
 		) reject(ActivityCapturedWriteRejection.SERVICE_RUN_MISMATCH)
 
-		requireExactDurableEvidence(window)
+		requireExactDurableEvidence(window, decodedActivityPlan)
 
 		val mapped = ActivityCapturedPersistence.map(
 			window,
@@ -381,7 +391,10 @@ internal class ActivityCapturedFactWriter(
 		)
 	}
 
-	private suspend fun requireExactDurableEvidence(window: ActivityCapturedWindow) {
+	private suspend fun requireExactDurableEvidence(
+		window: ActivityCapturedWindow,
+		activityPlan: ActivityPlan,
+	) {
 		val authority = window.authority
 		val walDao = database.sourceEventWalDao()
 		val walByEventId = mutableMapOf<String, SourceEventWalEntity>()
@@ -390,7 +403,10 @@ internal class ActivityCapturedFactWriter(
 				val eventId = reference.sourceEventId.value
 				val wal = walByEventId[eventId] ?: walDao.getByEventId(eventId)
 					?: reject(ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH)
-				if (!wal.matches(reference, authority)) {
+				val decodedPayload = wal.exactCanonicalPayloadOrNull(payloadCodec)
+				if (!wal.matches(reference, authority) ||
+					decodedPayload == null || !reference.matches(decodedPayload, activityPlan)
+				) {
 					reject(ActivityCapturedWriteRejection.SOURCE_EVENT_PROVENANCE_MISMATCH)
 				}
 				walByEventId[eventId] = wal
@@ -416,11 +432,57 @@ internal class ActivityCapturedFactWriter(
 		private const val WRITER_VERSION = SourceDestinationOwnerEntity.ACTIVITY_FACT_PROJECTION_VERSION
 		private const val SOURCE_PLAN_PAYLOAD_VERSION = 1
 		private const val INSERT_IGNORED = -1L
-		private val APPLIED_PLAN_STATUSES = setOf(
-			SourceApplyStatus.APPLIED.name,
-			SourceApplyStatus.DEGRADED.name,
-		)
 	}
+}
+
+private fun SourceEventWalEntity.exactCanonicalPayloadOrNull(
+	payloadCodec: SourcePayloadCodec,
+): SourcePayload? {
+	val decoded = runCatching {
+		payloadCodec.decode(SourceKind.ACTIVITY, payloadVersion, payload)
+	}.getOrNull() ?: return null
+	val canonical = runCatching { payloadCodec.encode(decoded, payloadVersion) }.getOrNull()
+		?: return null
+	return decoded.takeIf {
+		payload.contentEquals(canonical.bytes) && payloadChecksum == canonical.checksum
+	}
+}
+
+private fun ActivityCapturedObservationReference.matches(
+	payload: SourcePayload,
+	activityPlan: ActivityPlan,
+): Boolean = when (payload) {
+	is ActivityTransitionPayload ->
+		observationKind == ActivityCapturedObservationKind.TRANSITION &&
+			activityPlan.mode == ActivityMode.TRANSITIONS_ONLY &&
+			payload.transitionType in activityPlan.transitionTypes &&
+			payload.activityType == observedActivity.stableActivityTypeCode() &&
+			payload.transitionType == transitionChange?.stableTransitionCode() &&
+			payload.providerElapsedRealtimeNanos == providerElapsedRealtimeNanos
+	is ActivityRecognitionPayload ->
+		observationKind == ActivityCapturedObservationKind.SAMPLED_CLASSIFICATION &&
+			activityPlan.mode == ActivityMode.CONTINUOUS_RECOGNITION &&
+			payload.activityType == observedActivity.stableActivityTypeCode() &&
+			payload.confidencePercent == confidencePercent &&
+			payload.confidencePercent >= activityPlan.confidenceThresholdPercent &&
+			payload.providerElapsedRealtimeNanos == providerElapsedRealtimeNanos
+	else -> false
+}
+
+private fun CapturedActivityType.stableActivityTypeCode(): Int = when (this) {
+	CapturedActivityType.STILL -> StableActivityTypeCode.STILL
+	CapturedActivityType.WALKING -> StableActivityTypeCode.WALKING
+	CapturedActivityType.RUNNING -> StableActivityTypeCode.RUNNING
+	CapturedActivityType.ON_BICYCLE -> StableActivityTypeCode.ON_BICYCLE
+	CapturedActivityType.IN_VEHICLE -> StableActivityTypeCode.IN_VEHICLE
+	CapturedActivityType.ON_FOOT -> StableActivityTypeCode.ON_FOOT
+	CapturedActivityType.TILTING -> StableActivityTypeCode.TILTING
+	CapturedActivityType.UNKNOWN -> StableActivityTypeCode.UNKNOWN
+}
+
+private fun ActivityTransitionChange.stableTransitionCode(): Int = when (this) {
+	ActivityTransitionChange.ENTER -> 0
+	ActivityTransitionChange.EXIT -> 1
 }
 
 private fun SourceEventWalEntity.matches(
@@ -442,6 +504,9 @@ private fun SourceEventWalEntity.matches(
 	observedElapsedNanos == reference.providerElapsedRealtimeNanos &&
 	receivedElapsedNanos == reference.receivedElapsedRealtimeNanos &&
 	observedElapsedNanos in authority.temporalAuthority.capturedIntersection &&
+	(reference.coverageEndExclusiveElapsedRealtimeNanos?.let { coverageEnd ->
+		coverageEnd <= authority.temporalAuthority.capturedIntersection.endExclusiveNanos
+	} ?: true) &&
 	capturedCollectedDataEpoch == authority.collectedDataEpoch &&
 	sourcePolicyRevision == authority.sourcePolicyRevision &&
 	captureConsentEpoch == authority.captureConsentEpoch &&
@@ -715,6 +780,12 @@ private object ActivityCapturedPersistence {
 					sourceSequence = reference.sourceSequence,
 					providerElapsedRealtimeNanos = reference.providerElapsedRealtimeNanos,
 					receivedElapsedRealtimeNanos = reference.receivedElapsedRealtimeNanos,
+					observationKind = reference.observationKind.name,
+					observedActivity = reference.observedActivity.name,
+					transitionChange = reference.transitionChange?.name,
+					confidencePercent = reference.confidencePercent,
+					coverageEndExclusiveElapsedRealtimeNanos =
+						reference.coverageEndExclusiveElapsedRealtimeNanos,
 				)
 			}
 		}
@@ -802,6 +873,11 @@ private object ActivityCapturedPersistence {
 		evidence.sourceSequence.toString(),
 		evidence.providerElapsedRealtimeNanos.toString(),
 		evidence.receivedElapsedRealtimeNanos.toString(),
+		evidence.observationKind,
+		evidence.observedActivity,
+		evidence.transitionChange ?: "null",
+		evidence.confidencePercent?.toString() ?: "null",
+		evidence.coverageEndExclusiveElapsedRealtimeNanos?.toString() ?: "null",
 	)
 
 	private fun digest(domain: String, values: List<String>): String {

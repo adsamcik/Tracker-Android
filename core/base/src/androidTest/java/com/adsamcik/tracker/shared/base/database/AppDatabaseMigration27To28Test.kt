@@ -679,6 +679,7 @@ class AppDatabaseMigration27To28Test {
 		// Legacy pressure_sample rows lack v4 qualification and must never be backfilled.
 		assertTableCount(database, "pressure_fact_revision", 0)
 		// Legacy Activity snapshots lack captured-window authority and must never be backfilled.
+		assertTableCount(database, "activity_captured_registration_plan", 0)
 		assertTableCount(database, "activity_captured_window_revision", 0)
 		assertTableCount(database, "activity_captured_fragment", 0)
 		assertTableCount(database, "activity_captured_evidence", 0)
