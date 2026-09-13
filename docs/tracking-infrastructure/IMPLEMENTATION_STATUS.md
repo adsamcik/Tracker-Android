@@ -57,7 +57,11 @@ cap, and authenticates full captured registration/authorization/plan, manifest, 
 destination, deletion, retention, clock, and zone authority. Reachable live pairs include exact
 RECONFIGURING and STOPPING shapes; finite output requires both session and physical run terminal,
 null current pointer, and matching cutoff/final ordinal. It emits no CONTROL history and activates no
-writer. Runtime immutable plan binding and terminal drain remain open follow-on work.
+writer. Commit `4cd3246cf` is independently accepted for the runtime plan-attribution follow-on:
+accepted ACTIVE_SESSION registration atomically stores canonical defensive-copy plan bytes,
+checksum, true revision, and fingerprint; exact desired-plan mismatch rolls back acceptance and
+removes the requested provider; CONTROL and missing bindings cannot fabricate capture attribution;
+and delivery stamps plan identity rather than registration generation. Terminal drain remains open.
 
 The isolated Pressure branch is clean at `3b8abe350`. Commits `8768767d4` through `8b076e6f7`
 provide fact-driven zero-sample discovery, reciprocal run/segment binding, complete replacement-run
@@ -129,9 +133,8 @@ Git/worktree reconciliation found no accepted committed implementation stranded 
 Steps branches are contained or patch-equivalent in the coordinator, the older Pressure and numeric
 branches are ancestors, and the two dirty portable-import/qualified-awards drafts remain frozen
 reference inputs only. Cell persistence is accepted through its source-local writer boundary, while
-maintenance and product work remain. Activity WAL admission is a separate dormant lane under
-an accepted read boundary; its runtime plan-attribution follow-on is active. Pressure shared UI
-remains an active isolated lane. The export-only
+maintenance and product work remain. Activity WAL admission and exact runtime plan attribution are
+accepted dormant boundaries. Pressure shared UI remains an active isolated lane. The export-only
 Pressure transfer slice is accepted, while its import half remains deliberately blocked on the
 missing authoritative writer and no-resurrection mapping.
 

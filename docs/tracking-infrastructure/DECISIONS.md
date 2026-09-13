@@ -3435,6 +3435,24 @@ Each entry records repository evidence and does not duplicate the final architec
   RECONFIGURING and STOPPING. A finite window remains unavailable until both session and physical
   run are terminal, the current pointer is null, and cutoff/final-admission ordinal cover the
   selected delivery; legitimate older replacement runs remain admissible after settlement.
-- Runtime plan-binding insertion and exact delivery plan attribution are separate active work. A
-  bounded terminal projection trigger, destination activation, product UI, maintenance, and transfer
-  remain open.
+- At this boundary runtime plan-binding insertion and exact delivery attribution were separate work;
+  TI-D215 accepts their implementation. A bounded terminal projection trigger, destination
+  activation, product UI, maintenance, and transfer remain open.
+
+## TI-D215 — Activity registrations persist the exact applied capture plan
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated source/schema/tests `4cd3246cf` atop
+  TI-D214; TI-B278.
+- The Activity runtime supplies canonical serialized capture-plan bytes. Provider acceptance stores a
+  defensive-copy payload, checksum, true plan revision, and physical fingerprint under the exact
+  ACTIVE_SESSION registration in the same Room transaction that advances the accepted pointer.
+- The durable desired plan must match exactly. A byte, version, checksum, revision, or fingerprint
+  mismatch rolls back database acceptance and removes the already requested provider registration;
+  historical replacement bindings remain append-only and attributable.
+- CONTROL cannot supply captured-plan authority. A missing session binding leaves callback input
+  receive-time-only, while authorized captured delivery stamps the true plan revision and fingerprint
+  independently of registration generation. The WAL adapter and writer compare exact stored plan
+  bytes as well as derived identity.
+- This closes the plan-attribution reachability gap only. A bounded terminal projection trigger,
+  destination/writer activation, maintenance, transfer, shared UI, generated v28 schema convergence,
+  and provider/device evidence remain open.

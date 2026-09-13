@@ -659,7 +659,16 @@ plan/authorization/manifest/destination/deletion/retention authority is recomput
 pairs match the exact durable-ingress vocabulary, and finite output requires complete terminal
 session/run settlement. These TODOs remain unchecked until production inserts the immutable applied
 plan, callback delivery stamps its exact revision/fingerprint, a bounded projection trigger owns
-terminal draining, and maintenance, transfer, shared UI, and full scenarios exist.
+terminal draining, and maintenance, transfer, shared UI, and full scenarios exist. The first two
+runtime-attribution prerequisites are accepted in the following checkpoint; the other work remains.
+
+Accepted commit `4cd3246cf` closes the runtime immutable applied-plan and callback-attribution
+portions of ACT-001/002/007/010. Exact plan bytes/checksum/revision/fingerprint are stored atomically
+with the accepted ACTIVE_SESSION registration, desired-plan mismatch rolls back provider acceptance,
+historical replacements remain attributable, CONTROL cannot provide capture identity, and delivery
+uses true plan revision rather than registration generation. The TODOs remain unchecked until a
+bounded terminal projection trigger and source-local destination activation exist, followed by
+maintenance, transfer, shared UI, and complete scenarios.
 
 ## Wi-Fi vertical
 

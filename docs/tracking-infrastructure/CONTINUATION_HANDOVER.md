@@ -71,8 +71,11 @@ Independent clean lanes:
   accepted through `689a6e994` on `codex/ti-activity-projection-adapter`: payload-free SQL preflight
   bounds BLOB allocation, full historical captured authority is reauthenticated, live lifecycle
   pairs use the exact durable-ingress vocabulary, and finite output requires terminal session/run,
-  null pointer, cutoff, and final-ordinal settlement. Runtime immutable plan insertion and exact
-  callback attribution are active follow-on work; terminal drain and destination activation remain
+  null pointer, cutoff, and final-ordinal settlement. Commit `4cd3246cf` on the same branch is
+  independently accepted for exact runtime plan attribution: accepted ACTIVE_SESSION registration
+  atomically stores canonical bytes/checksum/true revision/fingerprint, mismatch rolls back provider
+  acceptance, CONTROL cannot supply captured authority, and callback delivery no longer substitutes
+  registration generation for plan revision. Terminal drain and destination activation remain
   absent.
 - Pressure source-specific read model and honest acquisition tiers:
   `codex/ti-pressure-acquisition` at `3b8abe350` in

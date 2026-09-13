@@ -2055,3 +2055,24 @@ The command was not run. Compilation, Room query execution, generated v28 schema
 production registration-plan insertion and callback attribution, bounded terminal projection,
 writer activation, maintenance/transfer, shared UI, provider/device behavior, integration,
 activation, and release remain unproven.
+
+## TI-B278 — Activity applied-plan registration and delivery contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** at `4cd3246cf`. Authored arbiter, runtime, ingress, delivery,
+writer, and adapter tests cover canonical defensive-copy Activity plan bytes, checksum, true plan
+revision, physical fingerprint, exact desired-plan matching, atomic registration acceptance and
+binding insertion, replacement history, mismatch rollback plus provider removal, CONTROL and missing
+binding exclusion, divergence between registration generation and plan revision, exact callback
+stamping, and byte-for-byte downstream comparison. Independent read-only review accepted the
+authority and rollback boundaries.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :sensor:activity:testDebugUnitTest --tests '*DefaultActivityRegistrationArbiterTest' :tracker:engine:testDebugUnitTest --tests '*ActivitySourceRuntimeTest' --tests '*RoomActivityRecognitionEventIngressTest' --tests '*ActivitySourceDeliveryFactoryTest' --tests '*ActivityCapturedWalAdmissionAdapterTest' --tests '*ActivityCapturedFactWriterTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room query execution, generated v28 schema convergence,
+terminal projection triggering, destination/writer activation, provider callbacks, process/reboot,
+maintenance/transfer, shared UI, device behavior, integration, activation, and release remain
+unproven.
