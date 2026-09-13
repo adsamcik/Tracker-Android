@@ -93,8 +93,13 @@ authoritative portable import, and automatic Activity control remain open. The s
 branch is independently accepted through `8214b92ab` for one bounded Pressure-aware recent page,
 Dashboard row, and transactional live snapshot. Exact Pressure intent replaces the physical fallback
 before first fact; mixed/legacy entries remain physical; direct hPa metrics and typed state are shown
-without Location-derived fields or zero fabrication. Calendar, shared selected detail, broader
-Today/Timeline consumers, and device/accessibility review remain open.
+without Location-derived fields or zero fabrication. The selected-detail branch is independently
+accepted through `c27cc1c18`: exact all-revision `{Pressure}` entries suppress map, route,
+navigation, GPX, Location/Ski reads, distance, speed, elevation, and sample-shaped fields while
+showing only retained hPa trend/range/coverage and typed partial/materializing/unavailable/failed
+state. Observer failure clears stale classification and exposes retry instead of spinning
+indefinitely. Calendar, broader Today/Timeline consumers, and device/accessibility review remain
+open.
 
 The protected Location branch is clean at `762186a24`. Its three-file dormant qualifier binds exact
 capture-only, WAL, delivery, clock, payload, quality, mock, policy, consent, generation, deletion,

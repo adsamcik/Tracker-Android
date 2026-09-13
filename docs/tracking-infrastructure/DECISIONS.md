@@ -3489,3 +3489,19 @@ Each entry records repository evidence and does not duplicate the final architec
   closed.
 - The adapter still returns a dormant command only. This adds no schema, catalog activation,
   rollout stage, product history, cutover, fact write, or second canonical Location writer.
+
+## TI-D218 — Pressure-only selected detail fails closed without Location-shaped fallback
+
+- Status: **IMPLEMENTED_UNVALIDATED**, 2026-09-13; isolated product/UI/tests `00d831728` and
+  `c27cc1c18` atop TI-D216; TI-B281.
+- Only an exact all-revision `{Pressure}` capture set selects the Pressure presentation. Mixed,
+  Location, and legacy-unverifiable entries preserve their existing standard detail behavior.
+- Pressure detail reads retained direct hPa latest/range/change and coverage from one transactional
+  live-history snapshot. Partial, materializing, unavailable, failed, and absent values remain
+  typed; missing values never become numeric zero.
+- Resolving, Pressure-only, and failed states suppress map, route, navigation, GPX—including the
+  programmatic export path—Location/Ski enrichment, distance, speed, elevation, and sample-shaped
+  content. Observer failure atomically clears stale source classification and shows retryable
+  unavailable history instead of spinning forever.
+- This is contained selected-detail presentation only. Calendar, full Today/Timeline composition,
+  maintenance/import, localization/device/accessibility evidence, and activation remain open.

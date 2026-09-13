@@ -2118,3 +2118,24 @@ Deferred focused command:
 The command was not run. Compilation, Room execution, protected-writer shadow comparison, route or
 distance recomposition, correction, retention, deletion, transfer, product UI, provider/process/
 device behavior, integration, activation, cutover, and release remain unproven.
+
+## TI-B281 — Pressure-only selected-detail and fail-closed error contracts authored
+
+Status: **IMPLEMENTED_UNVALIDATED** through `c27cc1c18`. Authored presenter, ViewModel,
+source-presentation, and Compose tests cover exact all-revision `{Pressure}` classification, mixed/
+Location/legacy preservation, one live-history snapshot, retained direct hPa latest/range/change/
+coverage, partial and materializing state, unavailable/failed/null without zero, and absence of map,
+route, navigation, GPX, Location/Ski reads, distance, speed, elevation, and sample-shaped content.
+Independent review rejected the initial observer-exception path because it retained resolving or
+stale source state; the correction proves typed failure, retry, recovery, and programmatic export
+suppression.
+
+Deferred focused command:
+
+```powershell
+.\gradlew.bat :feature:statistics:testDebugUnitTest --tests '*TripDetailPresenterTest' --tests '*TripDetailPresenterViewModelTest' --tests '*TripDetailSourcePresentationTest' --tests '*TripDetailRouteComposeTest' --no-daemon --no-parallel --max-workers=1 '-Pksp.incremental=false' --console=plain --no-configuration-cache
+```
+
+The command was not run. Compilation, Room execution, full Today/Timeline/Calendar composition,
+localization/accessibility/device rendering, process/provider behavior, maintenance/import,
+integration, activation, and release remain unproven.

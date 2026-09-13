@@ -96,8 +96,13 @@ Independent clean lanes:
   a bounded Pressure-aware recent page, opaque Dashboard row, and one-transaction live snapshot.
   Exact Pressure intent replaces the physical fallback before first fact; only retained direct hPa
   metrics and typed state are exposed; mixed/legacy rows retain physical behavior; no
-  Location-derived field or fabricated zero is shown. Calendar, shared selected detail, broader
-  Today/Timeline composition, deletion, repair, and import remain open. A redundant clean
+  Location-derived field or fabricated zero is shown. The selected-detail follow-on is independently
+  accepted through `c27cc1c18`: exact all-revision `{Pressure}` entries suppress map, route,
+  navigation, GPX, Location/Ski reads, distance, speed, elevation, and sample-shaped affordances
+  while showing only retained hPa trend/range/coverage and typed partial/materializing/unavailable/
+  failed state. Observer failure clears stale classification and exposes retry instead of an
+  endless spinner. Calendar, broader Today/Timeline composition, deletion, repair, and import remain
+  open. A redundant clean
   `ti-pressure-retention-product`
   worktree was created during a coordination race at `85ac20157` and
   intentionally remains untouched; do not reset or delete it while this wave is active.

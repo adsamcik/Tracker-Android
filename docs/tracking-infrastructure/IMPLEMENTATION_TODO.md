@@ -572,13 +572,15 @@ local database identity. These TODOs remain unchecked because authoritative impo
 all-data deletion, correction-safe repair, no-resurrection mapping, shared UI, and explicit maximum
 boundary scenario tests remain.
 
-Accepted product/UI commits `06ec05883` through `8214b92ab` implement bounded portions of
+Accepted product/UI commits `06ec05883` through `c27cc1c18` implement bounded portions of
 PRESS-006/007/012 and HIST-002/003/005/006/011/012. One Pressure-aware recent page uses exact-intent
 replacement before first fact, member-owned recency, explicit traversal budgets, cancellation and
 bounded Dashboard backfill. One transactional live snapshot and opaque Pressure-only row expose only
 retained direct hPa metrics plus typed coverage/state; mixed/legacy entries stay physical, and
-unavailable/materializing-without-evidence/failed never claim Recording or zero. These TODOs remain
-unchecked until Calendar, shared selected detail and full Today/Timeline consumers, repair/deletion,
+unavailable/materializing-without-evidence/failed never claim Recording or zero. Exact Pressure-only
+selected detail now suppresses every Location-shaped action/value and turns observer failure into a
+typed retryable failure instead of stale state or an endless spinner. These TODOs remain unchecked
+until Calendar and full Today/Timeline consumers, repair/deletion,
 transfer import, automatic control, localization/accessibility, and complete scenarios exist.
 
 ## Protected Location vertical
