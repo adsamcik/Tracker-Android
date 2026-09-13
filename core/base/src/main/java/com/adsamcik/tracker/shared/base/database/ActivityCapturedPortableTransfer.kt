@@ -924,7 +924,6 @@ internal class PortableCapturedActivityRoomReader(
 			rows += database.activityCapturedFactDao().portableCapturedWalTargets(
 				sourceKind = SourceDestinationOwnerEntity.SOURCE_ACTIVITY,
 				serviceRunIds = runIds,
-				capturePurposeMask = SourceBrokerPurpose.MASK_SESSION_CAPTURE,
 				limit = limits.maximumCapturedWalRows - rows.size + 1,
 			)
 			if (rows.size > limits.maximumCapturedWalRows) overflow()
@@ -941,22 +940,37 @@ internal class PortableCapturedActivityRoomReader(
 				manifest != null && candidate.isCapturedActivityMember(manifest)
 			}
 			if (run == null || manifest == null || source == null ||
+				row.sourceKind != SourceDestinationOwnerEntity.SOURCE_ACTIVITY ||
 				row.logicalTrackingId != run.logicalTrackingId || row.admissionOrdinal <= 0L ||
+				row.eventId.isBlank() || row.deliveryIdentity.isNullOrBlank() ||
+				!row.hasValidDeliveryShape() ||
 				row.sourceSequence <= 0L || row.sourceInstanceId.isBlank() ||
 				row.registrationGeneration <= 0L ||
 				row.physicalConfigurationFingerprint.isNullOrBlank() ||
 				row.authorizationRevision?.let { revision -> revision > 0L } != true ||
 				row.authorizationFingerprint.isNullOrBlank() ||
+				row.authorizationPurposeEligibilityMask and SourceBrokerPurpose.ALL_MASK !=
+				row.authorizationPurposeEligibilityMask ||
 				row.authorizationPurposeEligibilityMask and SourceBrokerPurpose.MASK_SESSION_CAPTURE == 0L ||
 				row.configRevision != manifest.acquisitionPlanRevision ||
+				row.planAttribution != CAPTURED_REGISTRATION_PLAN_ATTRIBUTION ||
 				row.clockDomainId != run.bootId || row.clockDomainId != manifest.effectiveBootId ||
 				row.observedElapsedNanos < manifest.effectiveElapsedRealtimeNanos ||
+				row.observedIntervalStartNanos?.let { start ->
+					start < 0L || start > row.observedElapsedNanos
+				} == true ||
 				row.receivedElapsedNanos < row.observedElapsedNanos ||
+				row.wallTimeMs == null || row.wallTimeMs < 0L ||
+				row.wallTimeUncertaintyMs == null || row.wallTimeUncertaintyMs < 0L ||
 				row.capturedCollectedDataEpoch != collectedDataEpoch ||
 				row.sourcePolicyRevision != manifest.sourcePolicyRevision ||
 				row.captureConsentEpoch != source.consentEpoch ||
-				row.lifecycleLeaseGeneration != run.leaseGeneration ||
-				!SHA_256_HEX.matches(row.integrityIdentity)
+				row.lifecycleLeaseGeneration != run.leaseGeneration || row.acquiredAtMs < 0L ||
+				row.qualityConfidence?.let { confidence -> !confidence.isFinite() } == true ||
+				row.payloadVersion != ACTIVITY_CAPTURED_WAL_PAYLOAD_VERSION ||
+				row.payloadBytes !in 1L..MAX_ACTIVITY_CAPTURED_WAL_PAYLOAD_BYTES ||
+				!SHA_256_HEX.matches(row.payloadChecksum) || !SHA_256_HEX.matches(row.integrityIdentity) ||
+				row.integrityIdentity != row.calculatedIntegrityIdentity()
 			) abort(PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE)
 		}
 		return rows.groupBy { row -> requireNotNull(row.serviceRunId) }
@@ -1825,6 +1839,54 @@ private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-25
 	.digest(bytes)
 	.joinToString(separator = "") { byte -> "%02x".format(byte) }
 
+private fun ActivityCapturedPortableWalTargetRow.calculatedIntegrityIdentity(): String {
+	val canonical = listOf(
+		deliveryIdentity,
+		deliveryUnitIndex,
+		deliveryUnitCount,
+		logicalTrackingId,
+		serviceRunId,
+		sourceKind,
+		sourceInstanceId,
+		registrationGeneration,
+		physicalConfigurationFingerprint,
+		authorizationRevision,
+		authorizationPurposeEligibilityMask,
+		authorizationFingerprint,
+		sourceSequence,
+		providerDedupKey,
+		configRevision,
+		planAttribution,
+		clockDomainId,
+		observedElapsedNanos,
+		observedIntervalStartNanos,
+		receivedElapsedNanos,
+		wallTimeMs,
+		wallTimeUncertaintyMs,
+		capturedCollectedDataEpoch,
+		activityAutomationEpoch,
+		sourcePolicyRevision,
+		captureConsentEpoch,
+		sessionManifestRevision,
+		lifecycleLeaseGeneration,
+		acquiredAtMs,
+		qualityFlags,
+		qualityConfidence,
+		payloadVersion,
+		payloadChecksum,
+	).joinToString(separator = "") { value ->
+		val text = value?.toString()
+		if (text == null) "-1:" else "${text.length}:$text"
+	}
+	return sha256(canonical.toByteArray())
+}
+
+private fun ActivityCapturedPortableWalTargetRow.hasValidDeliveryShape(): Boolean {
+	val unitIndex = deliveryUnitIndex ?: return false
+	val unitCount = deliveryUnitCount ?: return false
+	return unitCount in 1..MAX_ACTIVITY_DELIVERY_UNITS && unitIndex in 0 until unitCount
+}
+
 private fun outcome(
 	reason: PortableActivityExportUnverifiableReason,
 ): PortableCapturedActivitySnapshot.Outcome = PortableCapturedActivitySnapshot.Outcome(
@@ -1904,6 +1966,10 @@ private const val PORTABLE_SESSION_CAPTURE_MASK =
 private const val PORTABLE_SOURCE_RUNTIME_ACTION = "SOURCE_RUNTIME"
 private const val PORTABLE_ACTION_STARTED = "STARTED"
 private const val PORTABLE_START_ACCEPTED = "START_ACCEPTED"
+private const val CAPTURED_REGISTRATION_PLAN_ATTRIBUTION = 1
+private const val ACTIVITY_CAPTURED_WAL_PAYLOAD_VERSION = 1
+private const val MAX_ACTIVITY_DELIVERY_UNITS = 256
+private const val MAX_ACTIVITY_CAPTURED_WAL_PAYLOAD_BYTES = 21L
 private val PORTABLE_ACTIVITY_PROVIDER_OWNER_SCOPE =
 	"source-broker:${SourceDestinationOwnerEntity.SOURCE_ACTIVITY}"
 private const val COMPLETE_STOP_STATUS = "COMPLETE"

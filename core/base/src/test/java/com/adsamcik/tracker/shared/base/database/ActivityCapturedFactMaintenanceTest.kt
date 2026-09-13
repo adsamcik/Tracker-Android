@@ -494,6 +494,42 @@ class ActivityCapturedFactMaintenanceTest {
 	}
 
 	@Test
+	fun `portable export cannot hide retained WAL by clearing its capture purpose mask`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(2L)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET authorization_purpose_eligibility_mask = 0 " +
+				"WHERE event_id = 'activity-event-2'",
+		)
+		var sinkCalls = 0
+
+		portableExporter().export(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) {
+			sinkCalls++
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+		)
+		sinkCalls shouldBe 0
+	}
+
+	@Test
+	fun `portable export fails closed on a malformed selected-run WAL header`() = runTest {
+		seedCapturedActivity()
+		insertActivityWalEvent(2L)
+		database.openHelper.writableDatabase.execSQL(
+			"UPDATE source_event_wal SET source_policy_revision = 99 " +
+				"WHERE event_id = 'activity-event-2'",
+		)
+		var sinkCalls = 0
+
+		portableExporter().export(ExportPortableCapturedActivityRequest(1_000L, 3_001L)) {
+			sinkCalls++
+		} shouldBe ExportPortableCapturedActivityResult.Unverifiable(
+			PortableActivityExportUnverifiableReason.CAPTURE_ATTRIBUTION_UNVERIFIABLE,
+		)
+		sinkCalls shouldBe 0
+	}
+
+	@Test
 	fun `portable export accepts the exact settled Activity lane target`() = runTest {
 		seedCapturedActivity()
 

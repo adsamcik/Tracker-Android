@@ -244,21 +244,25 @@ interface ActivityCapturedFactDao {
 
 	/** Payload-free retained Activity WAL rows used to prove each selected run's true high-water. */
 	@Query(
-		"SELECT admission_ordinal, logical_tracking_id, service_run_id, source_instance_id, " +
-			"registration_generation, physical_configuration_fingerprint, authorization_revision, " +
+		"SELECT admission_ordinal, event_id, provider_dedup_key, delivery_identity, " +
+			"delivery_unit_index, delivery_unit_count, logical_tracking_id, service_run_id, " +
+			"source_kind, source_instance_id, registration_generation, " +
+			"physical_configuration_fingerprint, authorization_revision, " +
 			"authorization_purpose_eligibility_mask, authorization_fingerprint, source_sequence, " +
-			"config_revision, clock_domain_id, observed_elapsed_nanos, received_elapsed_nanos, " +
-			"captured_collected_data_epoch, source_policy_revision, capture_consent_epoch, " +
-			"session_manifest_revision, lifecycle_lease_generation, integrity_identity " +
+			"config_revision, plan_attribution, clock_domain_id, observed_elapsed_nanos, " +
+			"observed_interval_start_nanos, received_elapsed_nanos, wall_time_ms, " +
+			"wall_time_uncertainty_ms, captured_collected_data_epoch, activity_automation_epoch, " +
+			"source_policy_revision, capture_consent_epoch, session_manifest_revision, " +
+			"lifecycle_lease_generation, acquired_at_ms, quality_flags, quality_confidence, " +
+			"payload_version, payload_checksum, LENGTH(payload) AS payload_bytes, " +
+			"integrity_identity, created_at_ms " +
 			"FROM source_event_wal WHERE source_kind = :sourceKind " +
 			"AND service_run_id IN (:serviceRunIds) " +
-			"AND (authorization_purpose_eligibility_mask & :capturePurposeMask) != 0 " +
 			"ORDER BY service_run_id, admission_ordinal LIMIT :limit",
 	)
 	suspend fun portableCapturedWalTargets(
 		sourceKind: Int,
 		serviceRunIds: List<String>,
-		capturePurposeMask: Long,
 		limit: Int,
 	): List<ActivityCapturedPortableWalTargetRow>
 
@@ -487,8 +491,14 @@ interface ActivityCapturedFactDao {
 /** Minimal source-owned WAL header; payload bytes and provider identifiers never leave Room. */
 data class ActivityCapturedPortableWalTargetRow(
 	@ColumnInfo(name = "admission_ordinal") val admissionOrdinal: Long,
+	@ColumnInfo(name = "event_id") val eventId: String,
+	@ColumnInfo(name = "provider_dedup_key") val providerDedupKey: String?,
+	@ColumnInfo(name = "delivery_identity") val deliveryIdentity: String?,
+	@ColumnInfo(name = "delivery_unit_index") val deliveryUnitIndex: Int?,
+	@ColumnInfo(name = "delivery_unit_count") val deliveryUnitCount: Int?,
 	@ColumnInfo(name = "logical_tracking_id") val logicalTrackingId: String?,
 	@ColumnInfo(name = "service_run_id") val serviceRunId: String?,
+	@ColumnInfo(name = "source_kind") val sourceKind: Int,
 	@ColumnInfo(name = "source_instance_id") val sourceInstanceId: String,
 	@ColumnInfo(name = "registration_generation") val registrationGeneration: Long,
 	@ColumnInfo(name = "physical_configuration_fingerprint")
@@ -499,13 +509,25 @@ data class ActivityCapturedPortableWalTargetRow(
 	@ColumnInfo(name = "authorization_fingerprint") val authorizationFingerprint: String?,
 	@ColumnInfo(name = "source_sequence") val sourceSequence: Long,
 	@ColumnInfo(name = "config_revision") val configRevision: Long?,
+	@ColumnInfo(name = "plan_attribution") val planAttribution: Int,
 	@ColumnInfo(name = "clock_domain_id") val clockDomainId: String,
 	@ColumnInfo(name = "observed_elapsed_nanos") val observedElapsedNanos: Long,
+	@ColumnInfo(name = "observed_interval_start_nanos") val observedIntervalStartNanos: Long?,
 	@ColumnInfo(name = "received_elapsed_nanos") val receivedElapsedNanos: Long,
+	@ColumnInfo(name = "wall_time_ms") val wallTimeMs: Long?,
+	@ColumnInfo(name = "wall_time_uncertainty_ms") val wallTimeUncertaintyMs: Long?,
 	@ColumnInfo(name = "captured_collected_data_epoch") val capturedCollectedDataEpoch: Long,
+	@ColumnInfo(name = "activity_automation_epoch") val activityAutomationEpoch: Long?,
 	@ColumnInfo(name = "source_policy_revision") val sourcePolicyRevision: Long?,
 	@ColumnInfo(name = "capture_consent_epoch") val captureConsentEpoch: Long?,
 	@ColumnInfo(name = "session_manifest_revision") val sessionManifestRevision: Long?,
 	@ColumnInfo(name = "lifecycle_lease_generation") val lifecycleLeaseGeneration: Long?,
+	@ColumnInfo(name = "acquired_at_ms") val acquiredAtMs: Long,
+	@ColumnInfo(name = "quality_flags") val qualityFlags: Long,
+	@ColumnInfo(name = "quality_confidence") val qualityConfidence: Float?,
+	@ColumnInfo(name = "payload_version") val payloadVersion: Int,
+	@ColumnInfo(name = "payload_checksum") val payloadChecksum: String,
+	@ColumnInfo(name = "payload_bytes") val payloadBytes: Long,
 	@ColumnInfo(name = "integrity_identity") val integrityIdentity: String,
+	@ColumnInfo(name = "created_at_ms") val createdAtMs: Long,
 )
