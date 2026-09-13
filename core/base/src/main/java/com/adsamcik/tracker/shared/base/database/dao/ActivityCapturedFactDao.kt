@@ -110,16 +110,21 @@ interface ActivityCapturedFactDao {
 		logicalWindowId: String,
 	): ActivityCapturedWindowCursorEntity?
 
-	/** Oldest exact band wall authority across the append-only lineage for retention fencing. */
+	/** Earliest possible band wall time across both uncertain boundaries and the full lineage. */
 	@Query(
-		"SELECT MIN(CASE WHEN start_wall_time_ms <= end_wall_time_ms " +
-			"THEN start_wall_time_ms ELSE end_wall_time_ms END) " +
+		"SELECT MIN(CASE " +
+			"WHEN start_wall_time_ms <= start_wall_time_uncertainty_ms " +
+				"OR end_wall_time_ms <= end_wall_time_uncertainty_ms THEN 0 " +
+			"WHEN start_wall_time_ms - start_wall_time_uncertainty_ms <= " +
+				"end_wall_time_ms - end_wall_time_uncertainty_ms " +
+				"THEN start_wall_time_ms - start_wall_time_uncertainty_ms " +
+			"ELSE end_wall_time_ms - end_wall_time_uncertainty_ms END) " +
 			"FROM activity_captured_fragment " +
 			"WHERE writer_projection_id = :writerProjectionId " +
 			"AND writer_projection_version = :writerProjectionVersion " +
 			"AND logical_window_id = :logicalWindowId AND fragment_kind = 'BAND'",
 	)
-	suspend fun earliestBandWallTimeMs(
+	suspend fun earliestPossibleBandWallTimeMs(
 		writerProjectionId: String,
 		writerProjectionVersion: Int,
 		logicalWindowId: String,

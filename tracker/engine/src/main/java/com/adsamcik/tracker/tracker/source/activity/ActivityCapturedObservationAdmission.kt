@@ -1,6 +1,9 @@
 package com.adsamcik.tracker.tracker.source.activity
 
 import com.adsamcik.tracker.shared.base.database.data.SourceBrokerPurpose
+import com.adsamcik.tracker.tracker.source.coordinator.SourcePlanCodec
+import com.adsamcik.tracker.tracker.source.model.ActivityMode
+import com.adsamcik.tracker.tracker.source.model.ActivityPlan
 import com.adsamcik.tracker.tracker.source.model.ActivityRecognitionPayload
 import com.adsamcik.tracker.tracker.source.model.ActivityTransitionPayload
 import com.adsamcik.tracker.tracker.source.model.AdmittedSourceEvent
@@ -9,6 +12,9 @@ import com.adsamcik.tracker.tracker.source.model.SourceKind
 import com.adsamcik.tracker.tracker.source.model.SourceInstanceId
 import com.adsamcik.tracker.tracker.source.model.SourcePayload
 import com.adsamcik.tracker.tracker.source.model.StableActivityTypeCode
+import com.adsamcik.tracker.tracker.source.model.physicalConfigurationFingerprint
+
+private const val NANOS_PER_MILLISECOND = 1_000_000L
 
 /** Stable identity of the historical provider configuration supplying capture thresholds. */
 internal data class ActivityAcquisitionConfigurationIdentity(
@@ -28,19 +34,90 @@ internal data class ActivityAcquisitionConfigurationIdentity(
 	}
 }
 
-/** Policy values are inseparable from the historical configuration that authorized them. */
-internal data class ActivityHistoricalAcquisitionConfiguration(
+/**
+ * Policy values decoded from the exact immutable historical plan payload.
+ *
+ * Callers cannot supply freshness, confidence, or coverage thresholds separately from the
+ * canonical serialized plan that produced the physical registration fingerprint.
+ */
+internal class ActivityHistoricalAcquisitionConfiguration private constructor(
 	val identity: ActivityAcquisitionConfigurationIdentity,
 	val providerAcceptance: ActivityProviderTimeInterval,
 	val authorizationEffect: ActivityProviderTimeInterval,
 	val sessionRunEffect: ActivityProviderTimeInterval,
-	val maximumObservationAgeNanos: Long,
-	val sampledClassificationPolicy: ActivitySampledClassificationPolicy,
+	val desiredPlanPayloadVersion: Int,
+	val desiredPlanPayloadChecksum: String,
+	val activityPlan: ActivityPlan,
 ) {
+	val maximumObservationAgeNanos: Long = requireNotNull(
+		activityPlan.capturedObservationMaximumAgeNanosOrNull(),
+	)
+	val sampledClassificationPolicy: ActivitySampledClassificationPolicy =
+		activityPlan.capturedSampledClassificationPolicy()
+
 	init {
-		require(maximumObservationAgeNanos >= 0L)
+		require(desiredPlanPayloadVersion == SOURCE_PLAN_PAYLOAD_VERSION)
+		require(desiredPlanPayloadChecksum.isNotBlank())
+		require(activityPlan.revision == identity.configurationRevision)
+		require(activityPlan.enabled)
+		require(activityPlan.physicalConfigurationFingerprint() ==
+			identity.physicalConfigurationFingerprint)
+		require(activityPlan.confidenceThresholdPercent in 0..100)
+	}
+
+	companion object {
+		fun fromSerializedPlan(
+			identity: ActivityAcquisitionConfigurationIdentity,
+			providerAcceptance: ActivityProviderTimeInterval,
+			authorizationEffect: ActivityProviderTimeInterval,
+			sessionRunEffect: ActivityProviderTimeInterval,
+			desiredPlanPayloadVersion: Int,
+			desiredPlanPayloadChecksum: String,
+			desiredPlanPayload: ByteArray,
+			planCodec: SourcePlanCodec = SourcePlanCodec(),
+		): ActivityHistoricalAcquisitionConfiguration {
+			require(desiredPlanPayloadVersion == SOURCE_PLAN_PAYLOAD_VERSION)
+			val decoded = runCatching { planCodec.decode(desiredPlanPayload) }.getOrNull()
+			val activityPlan = decoded as? ActivityPlan
+				?: throw IllegalArgumentException("Historical Activity plan payload is unsupported")
+			val canonical = planCodec.encode(activityPlan)
+			require(desiredPlanPayload.contentEquals(canonical.bytes)) {
+				"Historical Activity plan payload is not canonical"
+			}
+			require(desiredPlanPayloadChecksum == canonical.checksum) {
+				"Historical Activity plan checksum does not match its payload"
+			}
+			return ActivityHistoricalAcquisitionConfiguration(
+				identity = identity,
+				providerAcceptance = providerAcceptance,
+				authorizationEffect = authorizationEffect,
+				sessionRunEffect = sessionRunEffect,
+				desiredPlanPayloadVersion = desiredPlanPayloadVersion,
+				desiredPlanPayloadChecksum = desiredPlanPayloadChecksum,
+				activityPlan = activityPlan,
+			)
+		}
+
+		private const val SOURCE_PLAN_PAYLOAD_VERSION = 1
 	}
 }
+
+internal fun ActivityPlan.capturedObservationMaximumAgeNanosOrNull(): Long? =
+	desiredDetectionLatencyMs.takeIf { latencyMs ->
+		latencyMs > 0L && latencyMs <= Long.MAX_VALUE / NANOS_PER_MILLISECOND
+	}?.times(NANOS_PER_MILLISECOND)
+
+private fun ActivityPlan.capturedSampledClassificationPolicy():
+	ActivitySampledClassificationPolicy = when (mode) {
+		ActivityMode.CONTINUOUS_RECOGNITION -> ActivitySampledClassificationPolicy.DirectCaptureDetail(
+			minimumConfidencePercent = confidenceThresholdPercent,
+			maximumCoverageAfterObservationNanos =
+				requireNotNull(capturedObservationMaximumAgeNanosOrNull()),
+		)
+		ActivityMode.TRANSITIONS_ONLY,
+		ActivityMode.OFF,
+		-> ActivitySampledClassificationPolicy.NotDirectlyRequested
+	}
 
 /** Exact physical/authorization contract resolved before a WAL row can become captured Activity. */
 internal data class ActivityCaptureAcquisitionAuthority(
